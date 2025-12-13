@@ -117,7 +117,8 @@ def run_validation():
     assert loss_4.item() < max_loss, f"Loss exploded: {loss_4.item()}, expected < {max_loss}"
     print(f"Test 4: PASSED - Loss: {loss_4.item():.6f} (Max: {max_loss:.6f})")
 
-    y_hat_opt = torch.rand(N, 1, requires_grad=True) * 2.0
+    y_hat_opt = torch.rand(N, 1) * 2.0
+    y_hat_opt.requires_grad_(True)
     optimizer = optim.SGD([y_hat_opt], lr=0.1)
 
     loss_initial = loss_fn(y_hat_opt).item()
@@ -149,7 +150,8 @@ def run_validation():
         average_sectors=True
     )
 
-    y_hat_bce = torch.sigmoid(torch.randn(N, 1, requires_grad=True))
+    y_hat_bce = torch.sigmoid(torch.randn(N, 1))
+    y_hat_bce.requires_grad_(True)
     y_true = torch.randint(0, 2, (N, 1)).float()
 
     loss_full = loss_fn_full(y_hat_bce, y_true)
