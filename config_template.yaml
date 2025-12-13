@@ -1,0 +1,60 @@
+# Transductive Saturation Loss Configuration Template
+# Copy this file to config.yaml and modify as needed
+
+# Portfolio Constraints
+constraints:
+  k_target: 20        # Maximum number of stocks in portfolio
+  k_feat: 5           # Maximum stocks per sector
+  num_stocks: 100     # Total universe size
+  num_sectors: 5      # Number of market sectors
+
+# Loss Function Parameters
+loss:
+  lambda_target: 1.0  # Weight for global constraint penalty
+  lambda_sector: 1.0  # Weight for sector constraint penalty
+  use_bce: true       # Include BCE prediction loss
+  average_sectors: true  # Use 1/M averaging for sector loss
+
+# Model Architecture
+model:
+  input_dim: 10       # Number of input features per stock
+  hidden_dim: 64      # Hidden layer size
+  dropout: 0.1        # Dropout probability
+
+# Training Parameters
+training:
+  batch_size: 32
+  num_epochs: 100
+  learning_rate: 0.001
+  optimizer: "adam"   # adam, sgd, adamw
+  scheduler: "step"   # step, cosine, none
+  step_size: 30
+  gamma: 0.1
+
+# Dynamic Penalty Adjustment
+penalty_adjustment:
+  enabled: true
+  initial_lambda: 0.0
+  delta_step: 0.1     # Increment when constraints violated
+  delta_decay: 0.05   # Decrement when constraints satisfied
+  max_lambda: 10.0    # Maximum penalty value
+
+# Data
+data:
+  train_split: 0.8
+  val_split: 0.1
+  test_split: 0.1
+  seed: 42
+
+# Logging
+logging:
+  log_interval: 10    # Log every N batches
+  save_interval: 20   # Save checkpoint every N epochs
+  output_dir: "./outputs"
+  experiment_name: "portfolio_optimization"
+
+# Hardware
+hardware:
+  device: "cuda"      # cuda, cpu, mps
+  num_workers: 4
+  pin_memory: true
