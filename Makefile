@@ -17,7 +17,7 @@ install-dev:
 	pip install pytest black flake8 mypy
 
 test:
-	python transductive_saturation_loss.py
+	python test_validation.py
 
 example:
 	python example_usage.py

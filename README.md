@@ -67,7 +67,7 @@ pip install -r requirements.txt
 
 ```python
 import torch
-from transductive_saturation_loss import TransductivePortfolioLoss
+from loss import TransductivePortfolioLoss
 
 # Define parameters
 N = 100  # Universe size
@@ -116,7 +116,11 @@ loss.backward()
 ### Running Validation Suite
 
 ```bash
-python transductive_saturation_loss.py
+# Using make
+make test
+
+# Or directly
+python test_validation.py
 ```
 
 Expected output:
@@ -225,10 +229,16 @@ for epoch in range(num_epochs):
 
 ```
 OptimizationLoss/
-├── transductive_saturation_loss.py  # Main loss implementation
+├── loss.py                           # Core loss function module
+├── test_validation.py                # Validation test suite
+├── example_usage.py                  # Complete training example
 ├── requirements.txt                  # Python dependencies
+├── setup.py                          # Package installation
+├── config_template.yaml              # Configuration template
+├── Makefile                          # Development commands
 ├── README.md                         # This file
-└── .gitignore                       # Git exclusions
+├── LICENSE                           # MIT License
+└── .gitignore                        # Git exclusions
 ```
 
 ## Requirements

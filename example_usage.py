@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from transductive_saturation_loss import TransductivePortfolioLoss
+from loss import TransductivePortfolioLoss
 
 
 class SimplePortfolioModel(nn.Module):
