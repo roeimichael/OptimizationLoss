@@ -6,11 +6,6 @@
   <component name="ChangeListManager">
     <list default="true" id="e647ab47-de32-4eb9-bcb1-315467ac9d94" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/nn_experiments/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/nn_experiments/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/nn_experiments/data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/nn_experiments/data_loader.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/nn_experiments/run_experiments.py" beforeDir="false" afterPath="$PROJECT_DIR$/nn_experiments/run_experiments.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/nn_experiments/trainer.py" beforeDir="false" afterPath="$PROJECT_DIR$/nn_experiments/trainer.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/nn_experiments/transductive_loss.py" beforeDir="false" afterPath="$PROJECT_DIR$/nn_experiments/transductive_loss.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -27,9 +22,9 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 1
-}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 1
+}</component>
   <component name="ProjectId" id="36n97Het0084ialFpS7iuOavcdb" />
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectViewState">
@@ -42,7 +37,7 @@
     "Python.test_setup.executor": "Run",
     "Python.transductive_saturation_loss.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
-    "git-widget-placeholder": "main",
+    "git-widget-placeholder": "claude/production-ready-fixes-01V6jemyVRbas3FAh7mwZM1k",
     "last_opened_file_path": "C:/Users/roeym/Desktop/projects/OptimizationLoss/nn_experiments/run_experiments.py",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
