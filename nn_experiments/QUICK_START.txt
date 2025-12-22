@@ -1,0 +1,49 @@
+QUICK START GUIDE
+=================
+
+1. TEST SETUP
+   cd nn_experiments
+   python test_setup.py
+
+2. RUN EXPERIMENTS
+   python run_experiments.py
+
+   This will:
+   - Load and preprocess data
+   - Run 3 NN configurations
+   - Test 8 constraint pairs each
+   - Use 9-fold cross-validation
+   - Save results to results/ folder
+
+3. CHECK RESULTS
+   - CSV files: results/students__train__nn_config{1,2,3}__transductive.csv
+   - JSON summary: results/nn_results.json
+
+4. MODIFY CONFIGURATION
+   Edit config.py to change:
+   - CONSTRAINTS: List of (global%, local%) pairs
+   - NN_CONFIGS: Lambda values and hidden layer dimensions
+   - TRAINING_PARAMS: Epochs, batch size, learning rate, etc.
+
+5. FILES OVERVIEW
+   config.py            - All settings in one place
+   data_loader.py       - Data loading (no cost matrices)
+   constraints.py       - Compute global/local constraints
+   transductive_loss.py - Your multiclass loss function
+   model.py             - Neural network architecture
+   dataset.py           - PyTorch Dataset wrapper
+   trainer.py           - Training and prediction functions
+   run_experiments.py   - Main experiment runner
+
+EXPECTED RUNTIME
+================
+- Per fold: ~30-60 seconds (with early stopping)
+- Per constraint: ~5-9 minutes (9 folds)
+- Per config: ~40-72 minutes (8 constraints)
+- Total: ~2-4 hours (3 configs)
+
+TROUBLESHOOTING
+===============
+- If CUDA out of memory: Reduce batch_size in config.py
+- If too slow: Reduce epochs or use fewer hidden layers
+- If constraints not satisfied: Increase lambda values in NN_CONFIGS
