@@ -4,14 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="e647ab47-de32-4eb9-bcb1-315467ac9d94" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/nn_experiments/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/nn_experiments/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/nn_experiments/data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/nn_experiments/data_loader.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/nn_experiments/run_experiments.py" beforeDir="false" afterPath="$PROJECT_DIR$/nn_experiments/run_experiments.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/nn_experiments/trainer.py" beforeDir="false" afterPath="$PROJECT_DIR$/nn_experiments/trainer.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/nn_experiments/transductive_loss.py" beforeDir="false" afterPath="$PROJECT_DIR$/nn_experiments/transductive_loss.py" afterDir="false" />
-    </list>
+    <list default="true" id="e647ab47-de32-4eb9-bcb1-315467ac9d94" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -104,7 +97,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1765631299975</updated>
-      <workItem from="1765631302187" duration="21909000" />
+      <workItem from="1765631302187" duration="22367000" />
     </task>
     <servers />
   </component>
