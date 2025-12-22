@@ -5,19 +5,12 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="e647ab47-de32-4eb9-bcb1-315467ac9d94" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/nn_experiments/QUICK_START.txt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/nn_experiments/README.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/nn_experiments/config.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/nn_experiments/constraints.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/nn_experiments/data_loader.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/nn_experiments/dataset.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/nn_experiments/model.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/nn_experiments/run_experiments.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/nn_experiments/test_setup.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/nn_experiments/trainer.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/nn_experiments/transductive_loss.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/nn_experiments/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/nn_experiments/config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/nn_experiments/data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/nn_experiments/data_loader.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/nn_experiments/run_experiments.py" beforeDir="false" afterPath="$PROJECT_DIR$/nn_experiments/run_experiments.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/nn_experiments/trainer.py" beforeDir="false" afterPath="$PROJECT_DIR$/nn_experiments/trainer.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/nn_experiments/transductive_loss.py" beforeDir="false" afterPath="$PROJECT_DIR$/nn_experiments/transductive_loss.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -50,7 +43,7 @@
     "Python.transductive_saturation_loss.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "git-widget-placeholder": "main",
-    "last_opened_file_path": "C:/Users/roeym/Desktop/projects/OptimizationLoss/nn_experiments",
+    "last_opened_file_path": "C:/Users/roeym/Desktop/projects/OptimizationLoss/nn_experiments/run_experiments.py",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
@@ -111,16 +104,32 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1765631299975</updated>
-      <workItem from="1765631302187" duration="13652000" />
+      <workItem from="1765631302187" duration="21909000" />
     </task>
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/nn_experiments/run_experiments.py</url>
+          <line>75</line>
+          <option name="timeStamp" value="6" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/nn_experiments/transductive_loss.py</url>
+          <line>113</line>
+          <option name="timeStamp" value="8" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
+  </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/OptimizationLoss$test_setup.coverage" NAME="test_setup Coverage Results" MODIFIED="1766403151589" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/nn_experiments" />
-    <SUITE FILE_PATH="coverage/OptimizationLoss$run_experiments.coverage" NAME="run_experiments Coverage Results" MODIFIED="1766403295434" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/nn_experiments" />
+    <SUITE FILE_PATH="coverage/OptimizationLoss$run_experiments.coverage" NAME="run_experiments Coverage Results" MODIFIED="1766415126786" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/nn_experiments" />
     <SUITE FILE_PATH="coverage/OptimizationLoss$transductive_saturation_loss.coverage" NAME="transductive_saturation_loss Coverage Results" MODIFIED="1765632515463" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>

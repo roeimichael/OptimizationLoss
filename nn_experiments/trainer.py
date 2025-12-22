@@ -1,12 +1,11 @@
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 import time
 import numpy as np
 
+# Assuming these imports are available as per your snippet
 from model import NeuralNetClassifier
-from dataset import StudentDataset
 from transductive_loss import MulticlassTransductiveLoss
 
 
@@ -16,16 +15,24 @@ def train_model(X_train, y_train, groups_train, global_constraint, local_constra
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
 
-    train_dataset = StudentDataset(X_train_scaled, y_train, groups_train)
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    if y_train.dtype == 'O' or isinstance(y_train.iloc[0], str):
+        le = LabelEncoder()
+        y_train_encoded = le.fit_transform(y_train)
+    else:
+        y_train_encoded = y_train.values
 
+    features = torch.FloatTensor(X_train_scaled).to(device)
+    labels = torch.LongTensor(y_train_encoded).to(device)
+    group_ids = torch.LongTensor(groups_train.values).to(device)
     model = NeuralNetClassifier(
-        input_dim=X_train_scaled.shape[1],
+        input_dim=features.shape[1],
         hidden_dims=hidden_dims,
         n_classes=3,
         dropout=dropout
     ).to(device)
 
+    # 4. Loss Function
+    # Ensure constraints are on the correct device inside the Loss class or passed correctly
     criterion = MulticlassTransductiveLoss(
         global_constraints=global_constraint,
         local_constraints=local_constraint,
@@ -35,43 +42,31 @@ def train_model(X_train, y_train, groups_train, global_constraint, local_constra
     ).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=5)
 
+    # 5. Full Batch Training Loop
     start_time = time.time()
-    best_loss = float('inf')
-    patience_counter = 0
-    patience_limit = 10
 
     for epoch in range(epochs):
         model.train()
-        total_loss = 0
+        optimizer.zero_grad()
 
-        for batch in train_loader:
-            features = batch['features'].to(device)
-            labels = batch['label'].to(device)
-            group_ids_batch = batch['group_id'].to(device)
+        # Forward pass on the ENTIRE dataset
+        logits = model(features)
 
-            logits = model(features)
-            loss_total, loss_ce, loss_global, loss_local = criterion(logits, labels, group_ids_batch)
+        # Calculate Loss
+        loss_total, loss_ce, loss_global, loss_local = criterion(logits, labels, group_ids)
 
-            optimizer.zero_grad()
-            loss_total.backward()
-            optimizer.step()
+        # Backward pass
+        loss_total.backward()
+        optimizer.step()
 
-            total_loss += loss_total.item()
-
-        avg_loss = total_loss / len(train_loader)
-        scheduler.step(avg_loss)
-
-        if avg_loss < best_loss:
-            best_loss = avg_loss
-            patience_counter = 0
-        else:
-            patience_counter += 1
-            if patience_counter >= patience_limit:
-                break
+        # Monitoring
+        if (epoch + 1) % 100 == 0:
+            print(f"Epoch {epoch + 1}/{epochs} | Loss: {loss_total.item():.4f} "
+                  f"(CE: {loss_ce.item():.4f}, Global: {loss_global.item():.4f}, Local: {loss_local.item():.4f})")
 
     training_time = time.time() - start_time
+
     return model, scaler, training_time
 
 

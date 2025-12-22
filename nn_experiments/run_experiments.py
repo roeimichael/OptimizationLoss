@@ -56,8 +56,10 @@ def main():
             local_percent, global_percent = constraint_pair
             print(f"\nConstraint: local={local_percent}, global={global_percent}")
 
-            global_constraint = compute_global_constraints(df, TARGET_COLUMN, global_percent)
-            local_constraint = compute_local_constraints(df, TARGET_COLUMN, local_percent, groups)
+            # Should use X_train_val instead of df
+            df_train_val = df.iloc[X_train_val.index]  # Extract training portion
+            global_constraint = compute_global_constraints(df_train_val, TARGET_COLUMN, global_percent)
+            local_constraint = compute_local_constraints(df_train_val, TARGET_COLUMN, local_percent, groups)
 
             print(f"  Global constraint: {global_constraint}")
             print(f"  Local constraints: {len(local_constraint)} courses")
@@ -70,12 +72,12 @@ def main():
             for fold_idx, (train_index, val_index) in enumerate(folds):
                 print(f"    Fold {fold_idx + 1}/{TRAINING_PARAMS['k_folds']}...", end=" ")
 
-                X_train_fold = X_train_val.iloc[train_index].drop("cost_matrix", axis=1)
+                X_train_fold = X_train_val.iloc[train_index]
                 y_train_fold = y_train_val.iloc[train_index]
                 groups_train = X_train_fold["Course"]
                 X_train_fold = X_train_fold.drop("Course", axis=1)
 
-                X_val_fold = X_train_val.iloc[val_index].drop("cost_matrix", axis=1)
+                X_val_fold = X_train_val.iloc[val_index]
                 y_val_fold = y_train_val.iloc[val_index]
                 X_val_fold = X_val_fold.drop("Course", axis=1)
 

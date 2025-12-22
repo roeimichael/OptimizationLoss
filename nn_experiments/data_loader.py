@@ -7,18 +7,32 @@ from sklearn.model_selection import train_test_split, StratifiedKFold
 def load_and_preprocess_data(data_path, target_column):
     df = pd.read_csv(data_path)
 
+    # Drop cost_matrix if it exists
+    if 'cost_matrix' in df.columns:
+        df = df.drop(columns=['cost_matrix'])
+
+    # Drop any columns that look like "Unnamed" (e.g., index columns from CSVs)
+    df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
+
+    # Drop all rows with any None/NaN values
+    df = df.dropna()
+
+    # Identify categorical columns
     cats = [c for c in df.columns if df[c].dtypes == 'object']
-    cats.remove(target_column)
 
+    # Remove target_column from the list of features to encode if present
+    if target_column in cats:
+        cats.remove(target_column)
+
+    # Encode categorical features
     for col in cats:
-        if col != 'cost_matrix':
-            le = LabelEncoder()
-            df[col] = le.fit_transform(df[col].astype(str))
+        le = LabelEncoder()
+        df[col] = le.fit_transform(df[col].astype(str))
 
+    # Encode the target column
     le = LabelEncoder()
     df[target_column] = le.fit_transform(df[target_column].astype(str))
     df[target_column] = df[target_column].astype(float)
-    df = df.dropna()
 
     return df
 
