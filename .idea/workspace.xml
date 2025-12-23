@@ -6,7 +6,7 @@
   <component name="ChangeListManager">
     <list default="true" id="e647ab47-de32-4eb9-bcb1-315467ac9d94" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/nn_experiments/constraints.py" beforeDir="false" afterPath="$PROJECT_DIR$/nn_experiments/constraints.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/nn_experiments/transductive_loss.py" beforeDir="false" afterPath="$PROJECT_DIR$/nn_experiments/transductive_loss.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -35,7 +35,7 @@
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
     "Python.constraints.executor": "Debug",
-    "Python.run_experiments.executor": "Debug",
+    "Python.run_experiments.executor": "Run",
     "Python.test_setup.executor": "Run",
     "Python.transductive_saturation_loss.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
@@ -116,18 +116,13 @@
           <line>93</line>
           <option name="timeStamp" value="6" />
         </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/nn_experiments/transductive_loss.py</url>
-          <line>113</line>
-          <option name="timeStamp" value="8" />
-        </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/OptimizationLoss$test_setup.coverage" NAME="test_setup Coverage Results" MODIFIED="1766425382333" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/nn_experiments" />
     <SUITE FILE_PATH="coverage/OptimizationLoss$constraints.coverage" NAME="constraints Coverage Results" MODIFIED="1766425418194" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/nn_experiments" />
-    <SUITE FILE_PATH="coverage/OptimizationLoss$run_experiments.coverage" NAME="run_experiments Coverage Results" MODIFIED="1766426318537" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/nn_experiments" />
+    <SUITE FILE_PATH="coverage/OptimizationLoss$run_experiments.coverage" NAME="run_experiments Coverage Results" MODIFIED="1766486470654" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/nn_experiments" />
     <SUITE FILE_PATH="coverage/OptimizationLoss$transductive_saturation_loss.coverage" NAME="transductive_saturation_loss Coverage Results" MODIFIED="1765632515463" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>
