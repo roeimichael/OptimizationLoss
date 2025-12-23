@@ -7,6 +7,141 @@ import numpy as np
 
 from model import NeuralNetClassifier
 from transductive_loss import MulticlassTransductiveLoss
+from visualization import create_all_visualizations
+
+
+def compute_prediction_statistics(model, X_test_tensor, group_ids_test):
+    """
+    Helper function to compute prediction statistics for tracking.
+
+    Returns:
+        global_counts: Dict mapping class_id -> count
+        local_counts: Dict mapping course_id -> {class_id: count}
+    """
+    model.eval()
+    with torch.no_grad():
+        test_logits = model(X_test_tensor)
+        test_preds = torch.argmax(test_logits, dim=1)
+
+        # Global counts
+        global_counts = {}
+        for class_id in range(3):
+            count = (test_preds == class_id).sum().item()
+            global_counts[class_id] = count
+
+        # Local counts per course
+        unique_groups = torch.unique(group_ids_test)
+        local_counts = {}
+        for group_id in unique_groups:
+            group_id_val = group_id.item()
+            group_mask = (group_ids_test == group_id_val)
+            group_preds = test_preds[group_mask]
+
+            course_counts = {}
+            for class_id in range(3):
+                count = (group_preds == class_id).sum().item()
+                course_counts[class_id] = count
+            local_counts[group_id_val] = course_counts
+
+    model.train()
+    return global_counts, local_counts
+
+
+def print_progress(epoch, avg_global, avg_local, avg_ce, avg_loss,
+                   global_counts, local_counts, criterion_constraint):
+    """
+    Helper function to print detailed progress every N epochs.
+    """
+    print(f"\n{'='*80}")
+    print(f"Epoch {epoch + 1}")
+    print(f"{'='*80}")
+    print(f"L_target (Global):  {avg_global:.6f}")
+    print(f"L_feat (Local):     {avg_local:.6f}")
+    print(f"L_pred (CE):        {avg_ce:.6f}")
+    print(f"L_total:            {avg_loss:.6f}")
+
+    # Global constraints vs predictions
+    print(f"\n{'─'*80}")
+    print("GLOBAL CONSTRAINTS vs PREDICTIONS")
+    print(f"{'─'*80}")
+    print(f"{'Class':<15} {'Constraint':<15} {'Predicted':<15} {'Status':<15}")
+    print(f"{'─'*80}")
+
+    g_cons = criterion_constraint.global_constraints.cpu().numpy()
+    for class_id in range(3):
+        class_name = ['Dropout', 'Enrolled', 'Graduate'][class_id]
+        constraint_val = g_cons[class_id]
+        predicted = global_counts[class_id]
+
+        if constraint_val > 1e9:
+            constraint_str = "None (unconstrained)"
+            status = "N/A"
+        else:
+            constraint_str = f"{int(constraint_val)}"
+            if predicted <= constraint_val:
+                status = "✓ OK"
+            else:
+                excess = predicted - constraint_val
+                status = f"✗ Over by {int(excess)}"
+
+        print(f"{class_name:<15} {constraint_str:<15} {predicted:<15} {status:<15}")
+
+    print(f"{'─'*80}")
+    print(f"{'Total':<15} {'':<15} {sum(global_counts.values()):<15}")
+
+    # Local constraints vs predictions
+    print(f"\n{'─'*80}")
+    print("LOCAL CONSTRAINTS vs PREDICTIONS (Per Course)")
+    print(f"{'─'*80}")
+
+    violations = []
+    satisfactions = []
+
+    for group_id in sorted(local_counts.keys()):
+        buffer_name = f'local_constraint_{group_id}'
+        if hasattr(criterion_constraint, buffer_name):
+            l_cons = getattr(criterion_constraint, buffer_name).cpu().numpy()
+            preds = local_counts[group_id]
+
+            has_violation = False
+            course_info = f"Course {group_id}: "
+            details = []
+
+            for class_id in range(3):
+                class_name = ['Drop', 'Enrl', 'Grad'][class_id]
+                constraint_val = l_cons[class_id]
+                predicted = preds[class_id]
+
+                if constraint_val > 1e9:
+                    continue
+
+                if predicted > constraint_val:
+                    has_violation = True
+                    excess = predicted - constraint_val
+                    details.append(f"{class_name}:{int(predicted)}/{int(constraint_val)} (✗+{int(excess)})")
+                else:
+                    details.append(f"{class_name}:{int(predicted)}/{int(constraint_val)} (✓)")
+
+            if details:
+                course_info += ", ".join(details)
+                if has_violation:
+                    violations.append(course_info)
+                else:
+                    satisfactions.append(course_info)
+
+    if violations:
+        print("Courses with VIOLATIONS:")
+        for v in violations:
+            print(f"  {v}")
+
+    if satisfactions and len(satisfactions) <= 10:
+        print("\nCourses SATISFYING constraints:")
+        for s in satisfactions:
+            print(f"  {s}")
+    elif satisfactions:
+        print(f"\nCourses SATISFYING constraints: {len(satisfactions)} courses (all OK)")
+
+    print(f"{'='*80}\n")
 
 
 def train_model_transductive(X_train, y_train, X_test, groups_test,
@@ -66,6 +201,17 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
     # Constraint satisfaction threshold
     constraint_threshold = 1e-6
 
+    # Initialize training history
+    history = {
+        'epochs': [],
+        'loss_total': [],
+        'loss_ce': [],
+        'loss_global': [],
+        'loss_local': [],
+        'global_predictions': [],  # List of dicts: [{0: count0, 1: count1, 2: count2}, ...]
+        'local_predictions': []     # List of dicts: [{course_id: {0: c0, 1: c1, 2: c2}}, ...]
+    }
+
     print("\n" + "="*80)
     print("Starting Training - Will stop when constraints are satisfied")
     print("="*80 + "\n")
@@ -108,131 +254,25 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
 
         scheduler.step(avg_loss)
 
-        # Print detailed progress every 50 epochs
+        # Track history every 50 epochs
         if (epoch + 1) % 50 == 0:
-            # Get predicted class counts on test set
-            model.eval()
-            with torch.no_grad():
-                test_logits = model(X_test_tensor)
-                test_preds = torch.argmax(test_logits, dim=1)
+            # Compute prediction statistics
+            global_counts, local_counts = compute_prediction_statistics(
+                model, X_test_tensor, group_ids_test
+            )
 
-                # Count predictions per class (global)
-                global_class_counts = {}
-                for class_id in range(3):
-                    count = (test_preds == class_id).sum().item()
-                    global_class_counts[class_id] = count
+            # Store in history
+            history['epochs'].append(epoch + 1)
+            history['loss_total'].append(avg_loss)
+            history['loss_ce'].append(avg_ce)
+            history['loss_global'].append(avg_global)
+            history['loss_local'].append(avg_local)
+            history['global_predictions'].append(global_counts)
+            history['local_predictions'].append(local_counts)
 
-                # Count predictions per course per class (local)
-                unique_groups = torch.unique(group_ids_test)
-                local_predictions = {}
-                for group_id in unique_groups:
-                    group_id_val = group_id.item()
-                    group_mask = (group_ids_test == group_id_val)
-                    group_preds = test_preds[group_mask]
-
-                    course_counts = {}
-                    for class_id in range(3):
-                        count = (group_preds == class_id).sum().item()
-                        course_counts[class_id] = count
-                    local_predictions[group_id_val] = course_counts
-
-            model.train()
-
-            print(f"\n{'='*80}")
-            print(f"Epoch {epoch + 1}")
-            print(f"{'='*80}")
-            print(f"L_target (Global):  {avg_global:.6f}")
-            print(f"L_feat (Local):     {avg_local:.6f}")
-            print(f"L_pred (CE):        {avg_ce:.6f}")
-            print(f"L_total:            {avg_loss:.6f}")
-
-            # Global constraints vs predictions
-            print(f"\n{'─'*80}")
-            print("GLOBAL CONSTRAINTS vs PREDICTIONS")
-            print(f"{'─'*80}")
-            print(f"{'Class':<15} {'Constraint':<15} {'Predicted':<15} {'Status':<15}")
-            print(f"{'─'*80}")
-
-            # Get global constraints from the loss function
-            g_cons = criterion_constraint.global_constraints.cpu().numpy()
-            for class_id in range(3):
-                class_name = ['Dropout', 'Enrolled', 'Graduate'][class_id]
-                constraint_val = g_cons[class_id]
-                predicted = global_class_counts[class_id]
-
-                if constraint_val > 1e9:
-                    constraint_str = "None (unconstrained)"
-                    status = "N/A"
-                else:
-                    constraint_str = f"{int(constraint_val)}"
-                    if predicted <= constraint_val:
-                        status = "✓ OK"
-                    else:
-                        excess = predicted - constraint_val
-                        status = f"✗ Over by {int(excess)}"
-
-                print(f"{class_name:<15} {constraint_str:<15} {predicted:<15} {status:<15}")
-
-            print(f"{'─'*80}")
-            print(f"{'Total':<15} {'':<15} {sum(global_class_counts.values()):<15}")
-
-            # Local constraints vs predictions (per course)
-            print(f"\n{'─'*80}")
-            print("LOCAL CONSTRAINTS vs PREDICTIONS (Per Course)")
-            print(f"{'─'*80}")
-
-            # Get local constraints
-            violations = []
-            satisfactions = []
-
-            for group_id in sorted(local_predictions.keys()):
-                buffer_name = f'local_constraint_{group_id}'
-                if hasattr(criterion_constraint, buffer_name):
-                    l_cons = getattr(criterion_constraint, buffer_name).cpu().numpy()
-                    preds = local_predictions[group_id]
-
-                    # Check if any constraint is violated
-                    has_violation = False
-                    course_info = f"Course {group_id}: "
-                    details = []
-
-                    for class_id in range(3):
-                        class_name = ['Drop', 'Enrl', 'Grad'][class_id]
-                        constraint_val = l_cons[class_id]
-                        predicted = preds[class_id]
-
-                        if constraint_val > 1e9:
-                            continue  # Skip unconstrained
-
-                        if predicted > constraint_val:
-                            has_violation = True
-                            excess = predicted - constraint_val
-                            details.append(f"{class_name}:{int(predicted)}/{int(constraint_val)} (✗+{int(excess)})")
-                        else:
-                            details.append(f"{class_name}:{int(predicted)}/{int(constraint_val)} (✓)")
-
-                    if details:
-                        course_info += ", ".join(details)
-                        if has_violation:
-                            violations.append(course_info)
-                        else:
-                            satisfactions.append(course_info)
-
-            # Print violations first (these are the problem areas)
-            if violations:
-                print("Courses with VIOLATIONS:")
-                for v in violations:
-                    print(f"  {v}")
-
-            # Print satisfactions (optional, can be hidden if too many)
-            if satisfactions and len(satisfactions) <= 10:
-                print("\nCourses SATISFYING constraints:")
-                for s in satisfactions:
-                    print(f"  {s}")
-            elif satisfactions:
-                print(f"\nCourses SATISFYING constraints: {len(satisfactions)} courses (all OK)")
-
-            print(f"{'='*80}\n")
+            # Print progress
+            print_progress(epoch, avg_global, avg_local, avg_ce, avg_loss,
+                          global_counts, local_counts, criterion_constraint)
 
         # Track best model
         if avg_loss < best_loss:
@@ -282,7 +322,21 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
 
     training_time = time.time() - start_time
 
-    return model, scaler, training_time
+    # Create visualizations
+    if len(history['epochs']) > 0:
+        # Get constraint values for visualization
+        g_cons_np = criterion_constraint.global_constraints.cpu().numpy()
+
+        local_cons_dict = {}
+        if criterion_constraint.local_constraint_dict is not None:
+            for group_id, buffer_name in criterion_constraint.local_constraint_dict.items():
+                l_cons = getattr(criterion_constraint, buffer_name).cpu().numpy()
+                local_cons_dict[group_id] = l_cons
+
+        # Create all visualizations
+        create_all_visualizations(history, g_cons_np, local_cons_dict)
+
+    return model, scaler, training_time, history
 
 
 def predict(model, scaler, X_test, device):
