@@ -5,8 +5,11 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="e647ab47-de32-4eb9-bcb1-315467ac9d94" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/nn_experiments/visualization.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/nn_experiments/constraints.py" beforeDir="false" afterPath="$PROJECT_DIR$/nn_experiments/constraints.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/nn_experiments/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/nn_experiments/config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/nn_experiments/run_experiments.py" beforeDir="false" afterPath="$PROJECT_DIR$/nn_experiments/run_experiments.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/nn_experiments/trainer.py" beforeDir="false" afterPath="$PROJECT_DIR$/nn_experiments/trainer.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -32,23 +35,24 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Python.constraints.executor&quot;: &quot;Debug&quot;,
-    &quot;Python.run_experiments.executor&quot;: &quot;Debug&quot;,
-    &quot;Python.test_setup.executor&quot;: &quot;Run&quot;,
-    &quot;Python.transductive_saturation_loss.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/roeym/Desktop/projects/stocksCorrelation&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Python.config.executor": "Run",
+    "Python.constraints.executor": "Debug",
+    "Python.run_experiments.executor": "Run",
+    "Python.test_setup.executor": "Run",
+    "Python.transductive_saturation_loss.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "git-widget-placeholder": "Merging main",
+    "last_opened_file_path": "C:/Users/roeym/Desktop/projects/stocksCorrelation",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\roeym\Desktop\projects\OptimizationLoss\nn_experiments" />
@@ -112,11 +116,6 @@
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/nn_experiments/run_experiments.py</url>
-          <line>93</line>
-          <option name="timeStamp" value="6" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/nn_experiments/transductive_loss.py</url>
           <line>113</line>
           <option name="timeStamp" value="8" />
@@ -127,7 +126,8 @@
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/OptimizationLoss$test_setup.coverage" NAME="test_setup Coverage Results" MODIFIED="1766425382333" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/nn_experiments" />
     <SUITE FILE_PATH="coverage/OptimizationLoss$constraints.coverage" NAME="constraints Coverage Results" MODIFIED="1766425418194" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/nn_experiments" />
-    <SUITE FILE_PATH="coverage/OptimizationLoss$run_experiments.coverage" NAME="run_experiments Coverage Results" MODIFIED="1766426318537" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/nn_experiments" />
+    <SUITE FILE_PATH="coverage/OptimizationLoss$run_experiments.coverage" NAME="run_experiments Coverage Results" MODIFIED="1766488038705" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/nn_experiments" />
+    <SUITE FILE_PATH="coverage/OptimizationLoss$config.coverage" NAME="config Coverage Results" MODIFIED="1766488032454" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/nn_experiments" />
     <SUITE FILE_PATH="coverage/OptimizationLoss$transductive_saturation_loss.coverage" NAME="transductive_saturation_loss Coverage Results" MODIFIED="1765632515463" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>

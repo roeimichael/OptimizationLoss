@@ -4,8 +4,8 @@ DATA_PATH = "./Students_ Dropout_and_Academic_Success_with_costs.csv"
 TARGET_COLUMN = 'Target'
 
 CONSTRAINTS = [
-    (0.9, 0.8), (0.9, 0.5), (0.8, 0.7), (0.8, 0.2),
-    (0.7, 0.5), (0.6, 0.5), (0.5, 0.3), (0.4, 0.2)
+    (0.5, 0.3), (0.9, 0.5), (0.8, 0.7), (0.8, 0.2),
+    (0.7, 0.5), (0.6, 0.5), (0.9, 0.8), (0.4, 0.2)
 ]
 
 NN_CONFIGS = [

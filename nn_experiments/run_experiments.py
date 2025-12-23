@@ -72,7 +72,7 @@ def main():
             groups_test = X_test["Course"]
 
             print(f"  Training with transductive approach...")
-            model, scaler, training_time = train_model_transductive(
+            model, scaler, training_time, history = train_model_transductive(
                 X_train_clean, y_train,
                 X_test_clean, groups_test,
                 global_constraint, local_constraint,
