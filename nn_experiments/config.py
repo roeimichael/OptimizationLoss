@@ -13,7 +13,7 @@ NN_CONFIGS = [
 ]
 
 TRAINING_PARAMS = {
-    'epochs': 100,
+    'epochs': 10000,  # High limit - training stops when constraints are satisfied
     'batch_size': 64,
     'lr': 0.001,
     'dropout': 0.3,

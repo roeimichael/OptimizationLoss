@@ -58,11 +58,19 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
     best_model_state = None
     patience_counter = 0
 
+    # Constraint satisfaction threshold
+    constraint_threshold = 1e-6
+
+    print("\n" + "="*80)
+    print("Starting Training - Will stop when constraints are satisfied")
+    print("="*80 + "\n")
+
     for epoch in range(epochs):
         model.train()
         epoch_loss_total = 0
         epoch_loss_ce = 0
-        epoch_loss_constraint = 0
+        epoch_loss_global = 0
+        epoch_loss_local = 0
 
         for batch_features, batch_labels in train_loader:
             batch_features = batch_features.to(device)
@@ -85,27 +93,75 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
 
             epoch_loss_total += loss_total.item()
             epoch_loss_ce += loss_ce.item()
-            epoch_loss_constraint += loss_constraint.item()
+            epoch_loss_global += loss_global.item()
+            epoch_loss_local += loss_local.item()
 
         avg_loss = epoch_loss_total / len(train_loader)
         avg_ce = epoch_loss_ce / len(train_loader)
-        avg_constraint = epoch_loss_constraint / len(train_loader)
+        avg_global = epoch_loss_global / len(train_loader)
+        avg_local = epoch_loss_local / len(train_loader)
 
         scheduler.step(avg_loss)
 
-        if (epoch + 1) % 10 == 0:
-            print(f"Epoch {epoch + 1}/{epochs} | Loss: {avg_loss:.4f} "
-                  f"(CE: {avg_ce:.4f}, Constraint: {avg_constraint:.4f})")
+        # Print detailed progress every 50 epochs
+        if (epoch + 1) % 50 == 0:
+            # Get predicted class counts on test set
+            model.eval()
+            with torch.no_grad():
+                test_logits = model(X_test_tensor)
+                test_preds = torch.argmax(test_logits, dim=1)
 
+                # Count predictions per class
+                class_counts = {}
+                for class_id in range(3):
+                    count = (test_preds == class_id).sum().item()
+                    class_counts[class_id] = count
+
+            model.train()
+
+            print(f"\n{'='*80}")
+            print(f"Epoch {epoch + 1}")
+            print(f"{'='*80}")
+            print(f"L_target (Global):  {avg_global:.6f}")
+            print(f"L_feat (Local):     {avg_local:.6f}")
+            print(f"L_pred (CE):        {avg_ce:.6f}")
+            print(f"L_total:            {avg_loss:.6f}")
+            print(f"\nPredicted Class Distribution on Test Set:")
+            print(f"  Class 0 (Dropout):   {class_counts[0]:4d} students")
+            print(f"  Class 1 (Enrolled):  {class_counts[1]:4d} students")
+            print(f"  Class 2 (Graduate):  {class_counts[2]:4d} students")
+            print(f"  Total:               {sum(class_counts.values()):4d} students")
+            print(f"{'='*80}\n")
+
+        # Track best model
         if avg_loss < best_loss:
             best_loss = avg_loss
             best_model_state = model.state_dict().copy()
             patience_counter = 0
         else:
             patience_counter += 1
-            if patience_counter >= patience:
-                print(f"Early stopping at epoch {epoch + 1}")
-                break
+
+        # Early stopping when BOTH constraints are satisfied
+        if avg_global < constraint_threshold and avg_local < constraint_threshold:
+            print(f"\n{'='*80}")
+            print(f"CONSTRAINTS SATISFIED at epoch {epoch + 1}!")
+            print(f"{'='*80}")
+            print(f"L_target (Global): {avg_global:.8f} < {constraint_threshold}")
+            print(f"L_feat (Local):    {avg_local:.8f} < {constraint_threshold}")
+            print(f"\nFinal predicted class distribution:")
+
+            # Final evaluation
+            model.eval()
+            with torch.no_grad():
+                test_logits = model(X_test_tensor)
+                test_preds = torch.argmax(test_logits, dim=1)
+
+                for class_id in range(3):
+                    count = (test_preds == class_id).sum().item()
+                    print(f"  Class {class_id}: {count} students")
+
+            print(f"{'='*80}\n")
+            break
 
     if best_model_state is not None:
         model.load_state_dict(best_model_state)
