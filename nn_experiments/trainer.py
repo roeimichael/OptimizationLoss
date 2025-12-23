@@ -116,11 +116,25 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
                 test_logits = model(X_test_tensor)
                 test_preds = torch.argmax(test_logits, dim=1)
 
-                # Count predictions per class
-                class_counts = {}
+                # Count predictions per class (global)
+                global_class_counts = {}
                 for class_id in range(3):
                     count = (test_preds == class_id).sum().item()
-                    class_counts[class_id] = count
+                    global_class_counts[class_id] = count
+
+                # Count predictions per course per class (local)
+                unique_groups = torch.unique(group_ids_test)
+                local_predictions = {}
+                for group_id in unique_groups:
+                    group_id_val = group_id.item()
+                    group_mask = (group_ids_test == group_id_val)
+                    group_preds = test_preds[group_mask]
+
+                    course_counts = {}
+                    for class_id in range(3):
+                        count = (group_preds == class_id).sum().item()
+                        course_counts[class_id] = count
+                    local_predictions[group_id_val] = course_counts
 
             model.train()
 
@@ -131,11 +145,93 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
             print(f"L_feat (Local):     {avg_local:.6f}")
             print(f"L_pred (CE):        {avg_ce:.6f}")
             print(f"L_total:            {avg_loss:.6f}")
-            print(f"\nPredicted Class Distribution on Test Set:")
-            print(f"  Class 0 (Dropout):   {class_counts[0]:4d} students")
-            print(f"  Class 1 (Enrolled):  {class_counts[1]:4d} students")
-            print(f"  Class 2 (Graduate):  {class_counts[2]:4d} students")
-            print(f"  Total:               {sum(class_counts.values()):4d} students")
+
+            # Global constraints vs predictions
+            print(f"\n{'─'*80}")
+            print("GLOBAL CONSTRAINTS vs PREDICTIONS")
+            print(f"{'─'*80}")
+            print(f"{'Class':<15} {'Constraint':<15} {'Predicted':<15} {'Status':<15}")
+            print(f"{'─'*80}")
+
+            # Get global constraints from the loss function
+            g_cons = criterion_constraint.global_constraints.cpu().numpy()
+            for class_id in range(3):
+                class_name = ['Dropout', 'Enrolled', 'Graduate'][class_id]
+                constraint_val = g_cons[class_id]
+                predicted = global_class_counts[class_id]
+
+                if constraint_val > 1e9:
+                    constraint_str = "None (unconstrained)"
+                    status = "N/A"
+                else:
+                    constraint_str = f"{int(constraint_val)}"
+                    if predicted <= constraint_val:
+                        status = "✓ OK"
+                    else:
+                        excess = predicted - constraint_val
+                        status = f"✗ Over by {int(excess)}"
+
+                print(f"{class_name:<15} {constraint_str:<15} {predicted:<15} {status:<15}")
+
+            print(f"{'─'*80}")
+            print(f"{'Total':<15} {'':<15} {sum(global_class_counts.values()):<15}")
+
+            # Local constraints vs predictions (per course)
+            print(f"\n{'─'*80}")
+            print("LOCAL CONSTRAINTS vs PREDICTIONS (Per Course)")
+            print(f"{'─'*80}")
+
+            # Get local constraints
+            violations = []
+            satisfactions = []
+
+            for group_id in sorted(local_predictions.keys()):
+                buffer_name = f'local_constraint_{group_id}'
+                if hasattr(criterion_constraint, buffer_name):
+                    l_cons = getattr(criterion_constraint, buffer_name).cpu().numpy()
+                    preds = local_predictions[group_id]
+
+                    # Check if any constraint is violated
+                    has_violation = False
+                    course_info = f"Course {group_id}: "
+                    details = []
+
+                    for class_id in range(3):
+                        class_name = ['Drop', 'Enrl', 'Grad'][class_id]
+                        constraint_val = l_cons[class_id]
+                        predicted = preds[class_id]
+
+                        if constraint_val > 1e9:
+                            continue  # Skip unconstrained
+
+                        if predicted > constraint_val:
+                            has_violation = True
+                            excess = predicted - constraint_val
+                            details.append(f"{class_name}:{int(predicted)}/{int(constraint_val)} (✗+{int(excess)})")
+                        else:
+                            details.append(f"{class_name}:{int(predicted)}/{int(constraint_val)} (✓)")
+
+                    if details:
+                        course_info += ", ".join(details)
+                        if has_violation:
+                            violations.append(course_info)
+                        else:
+                            satisfactions.append(course_info)
+
+            # Print violations first (these are the problem areas)
+            if violations:
+                print("Courses with VIOLATIONS:")
+                for v in violations:
+                    print(f"  {v}")
+
+            # Print satisfactions (optional, can be hidden if too many)
+            if satisfactions and len(satisfactions) <= 10:
+                print("\nCourses SATISFYING constraints:")
+                for s in satisfactions:
+                    print(f"  {s}")
+            elif satisfactions:
+                print(f"\nCourses SATISFYING constraints: {len(satisfactions)} courses (all OK)")
+
             print(f"{'='*80}\n")
 
         # Track best model
@@ -149,21 +245,34 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
         # Early stopping when BOTH constraints are satisfied
         if avg_global < constraint_threshold and avg_local < constraint_threshold:
             print(f"\n{'='*80}")
-            print(f"CONSTRAINTS SATISFIED at epoch {epoch + 1}!")
+            print(f"✓ CONSTRAINTS SATISFIED at epoch {epoch + 1}!")
             print(f"{'='*80}")
             print(f"L_target (Global): {avg_global:.8f} < {constraint_threshold}")
             print(f"L_feat (Local):    {avg_local:.8f} < {constraint_threshold}")
-            print(f"\nFinal predicted class distribution:")
 
-            # Final evaluation
+            # Final evaluation with full details
             model.eval()
             with torch.no_grad():
                 test_logits = model(X_test_tensor)
                 test_preds = torch.argmax(test_logits, dim=1)
 
+                # Global counts
+                global_class_counts = {}
                 for class_id in range(3):
                     count = (test_preds == class_id).sum().item()
-                    print(f"  Class {class_id}: {count} students")
+                    global_class_counts[class_id] = count
+
+            print(f"\nFinal Global Predictions vs Constraints:")
+            g_cons = criterion_constraint.global_constraints.cpu().numpy()
+            for class_id in range(3):
+                class_name = ['Dropout', 'Enrolled', 'Graduate'][class_id]
+                constraint_val = g_cons[class_id]
+                predicted = global_class_counts[class_id]
+
+                if constraint_val > 1e9:
+                    print(f"  {class_name}: {predicted} (unconstrained)")
+                else:
+                    print(f"  {class_name}: {predicted} ≤ {int(constraint_val)} ✓")
 
             print(f"{'='*80}\n")
             break
