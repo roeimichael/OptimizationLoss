@@ -201,6 +201,12 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
     # Constraint satisfaction threshold
     constraint_threshold = 1e-6
 
+    # Adaptive lambda parameters
+    current_lambda_global = lambda_global
+    current_lambda_local = lambda_local
+    lambda_step = 0.1  # Increase step when constraints violated
+    lambda_max = 100.0  # Maximum lambda value to prevent explosion
+
     # Initialize training history
     history = {
         'epochs': [],
@@ -208,12 +214,16 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
         'loss_ce': [],
         'loss_global': [],
         'loss_local': [],
+        'lambda_global': [],  # Track lambda evolution
+        'lambda_local': [],   # Track lambda evolution
         'global_predictions': [],  # List of dicts: [{0: count0, 1: count1, 2: count2}, ...]
         'local_predictions': []     # List of dicts: [{course_id: {0: c0, 1: c1, 2: c2}}, ...]
     }
 
     print("\n" + "="*80)
-    print("Starting Training - Will stop when constraints are satisfied")
+    print("Starting Training with Adaptive Lambda Weights")
+    print(f"Initial: λ_global={current_lambda_global:.2f}, λ_local={current_lambda_local:.2f}")
+    print(f"Lambda adjustment: +{lambda_step} per epoch when constraints violated")
     print("="*80 + "\n")
 
     for epoch in range(epochs):
@@ -254,6 +264,18 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
 
         scheduler.step(avg_loss)
 
+        # Adaptive lambda adjustment: increase if constraints violated
+        lambda_updated = False
+        if avg_global > constraint_threshold and current_lambda_global < lambda_max:
+            current_lambda_global = min(current_lambda_global + lambda_step, lambda_max)
+            criterion_constraint.set_lambda(lambda_global=current_lambda_global)
+            lambda_updated = True
+
+        if avg_local > constraint_threshold and current_lambda_local < lambda_max:
+            current_lambda_local = min(current_lambda_local + lambda_step, lambda_max)
+            criterion_constraint.set_lambda(lambda_local=current_lambda_local)
+            lambda_updated = True
+
         # Track history every 50 epochs
         if (epoch + 1) % 50 == 0:
             # Compute prediction statistics
@@ -267,12 +289,17 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
             history['loss_ce'].append(avg_ce)
             history['loss_global'].append(avg_global)
             history['loss_local'].append(avg_local)
+            history['lambda_global'].append(current_lambda_global)
+            history['lambda_local'].append(current_lambda_local)
             history['global_predictions'].append(global_counts)
             history['local_predictions'].append(local_counts)
 
             # Print progress
             print_progress(epoch, avg_global, avg_local, avg_ce, avg_loss,
                           global_counts, local_counts, criterion_constraint)
+
+            # Print lambda values
+            print(f"Current Lambda Weights: λ_global={current_lambda_global:.2f}, λ_local={current_lambda_local:.2f}\n")
 
         # Track best model
         if avg_loss < best_loss:

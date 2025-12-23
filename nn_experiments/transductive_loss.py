@@ -69,8 +69,8 @@ class MulticlassTransductiveLoss(nn.Module):
         For each constraint: L = E / (E + K)
         where E = ReLU(N_predicted - K)
 
-        CRITICAL: N_predicted uses HARD predictions (argmax), not soft probabilities
-        Gradients maintained via straight-through estimator
+        Uses SOFT predictions (probability sums) for proper gradient flow.
+        Lambdas can be updated dynamically via set_lambda() method.
         """
         device = logits.device
 
@@ -81,16 +81,15 @@ class MulticlassTransductiveLoss(nn.Module):
         if self.use_ce and y_true is not None:
             L_pred = self.ce_loss(logits, y_true)
 
-        # Get predictions: hard for counting, soft for gradients
-        y_proba = F.softmax(logits, dim=1)  # Soft probabilities for gradient flow
-        y_pred_hard = torch.argmax(logits, dim=1)  # Hard predictions for actual counts
+        # Get soft predictions (probability sums) for constraint computation
+        y_proba = F.softmax(logits, dim=1)
 
         # ===================================================================
         # 2. Target Constraint Loss (L_target) - Global constraints
         # ===================================================================
         # Formula: L_target = (1/C) * Σ_c [E_c / (E_c + K_c)]
         # where E_c = ReLU(N_predicted_c - K_c)
-        # and N_predicted_c is the HARD count of students predicted for class c
+        # N_predicted_c = sum of probabilities for class c (soft prediction)
         L_target = torch.tensor(0.0, device=device)
         if self.global_constraints is not None:
             g_cons = self.global_constraints.to(device)
@@ -101,15 +100,8 @@ class MulticlassTransductiveLoss(nn.Module):
                 if g_cons[class_id] > 1e9:
                     continue
 
-                # Hard count: actual number of students predicted for this class
-                hard_count = (y_pred_hard == class_id).sum().float()
-
-                # Soft count: sum of probabilities (for gradient flow)
-                soft_count = y_proba[:, class_id].sum()
-
-                # Straight-through estimator: forward uses hard, backward uses soft
-                # Gradients flow through soft_count, not hard_count
-                N_predicted = soft_count + (hard_count - soft_count).detach()
+                # Soft prediction: sum of probabilities for this class
+                N_predicted = y_proba[:, class_id].sum()
 
                 # Rational saturation formula: E / (E + K)
                 K = g_cons[class_id]
@@ -141,7 +133,6 @@ class MulticlassTransductiveLoss(nn.Module):
                     continue
 
                 # Predictions for this group only
-                group_preds_hard = y_pred_hard[group_mask]
                 group_proba = y_proba[group_mask]
                 l_cons = getattr(self, buffer_name).to(device)
 
@@ -150,14 +141,8 @@ class MulticlassTransductiveLoss(nn.Module):
                     if l_cons[class_id] > 1e9:
                         continue
 
-                    # Hard count for this group and class
-                    hard_count = (group_preds_hard == class_id).sum().float()
-
-                    # Soft count for gradients
-                    soft_count = group_proba[:, class_id].sum()
-
-                    # Straight-through estimator
-                    N_predicted = soft_count + (hard_count - soft_count).detach()
+                    # Soft prediction: sum of probabilities for this class in this group
+                    N_predicted = group_proba[:, class_id].sum()
 
                     # Rational saturation formula
                     K = l_cons[class_id]
@@ -174,7 +159,13 @@ class MulticlassTransductiveLoss(nn.Module):
         # ===================================================================
         # 4. Total Loss: L_total = L_pred + λ_1*L_target + λ_2*L_feat
         # ===================================================================
-        # With λ_1 = λ_2 = 1.0 (equal weights)
         L_total = L_pred + self.lambda_global * L_target + self.lambda_local * L_feat
 
         return L_total, L_pred, L_target, L_feat
+
+    def set_lambda(self, lambda_global=None, lambda_local=None):
+        """Update lambda weights dynamically during training."""
+        if lambda_global is not None:
+            self.lambda_global = lambda_global
+        if lambda_local is not None:
+            self.lambda_local = lambda_local

@@ -197,6 +197,53 @@ def plot_losses(history, save_path=None):
     plt.close()
 
 
+def plot_lambda_evolution(history, save_path=None):
+    """
+    Plot lambda weight evolution over epochs.
+
+    Args:
+        history: Dict with 'epochs', 'lambda_global', 'lambda_local' keys
+        save_path: Optional path to save the figure
+    """
+    if 'lambda_global' not in history or len(history['lambda_global']) == 0:
+        return
+
+    epochs = history['epochs']
+    lambda_global = history['lambda_global']
+    lambda_local = history['lambda_local']
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    ax.plot(epochs, lambda_global, label='λ_global (Target Constraint)',
+            color='#e74c3c', linewidth=2, marker='o', markersize=4)
+    ax.plot(epochs, lambda_local, label='λ_local (Feature Constraint)',
+            color='#3498db', linewidth=2, marker='s', markersize=4)
+
+    ax.set_xlabel('Epoch', fontsize=12)
+    ax.set_ylabel('Lambda Weight', fontsize=12)
+    ax.set_title('Adaptive Lambda Weight Evolution', fontsize=14, fontweight='bold')
+    ax.legend(loc='best', fontsize=11)
+    ax.grid(True, alpha=0.3)
+
+    # Add annotations for significant changes
+    if len(lambda_global) > 1:
+        max_global = max(lambda_global)
+        max_idx = lambda_global.index(max_global)
+        ax.annotate(f'Max: {max_global:.1f}',
+                   xy=(epochs[max_idx], max_global),
+                   xytext=(10, 10), textcoords='offset points',
+                   fontsize=9, color='#e74c3c',
+                   bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7))
+
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"Lambda evolution plot saved to: {save_path}")
+
+    plt.close()
+
+
 def create_all_visualizations(history, global_constraints, local_constraints, output_dir='./results'):
     """
     Create all training visualizations.
@@ -231,6 +278,12 @@ def create_all_visualizations(history, global_constraints, local_constraints, ou
     plot_losses(
         history,
         save_path=os.path.join(output_dir, 'losses.png')
+    )
+
+    # Lambda evolution plot
+    plot_lambda_evolution(
+        history,
+        save_path=os.path.join(output_dir, 'lambda_evolution.png')
     )
 
     print("="*80)
