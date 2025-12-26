@@ -1,6 +1,8 @@
 import numpy as np
 
-DATA_PATH = "./data/dataset.csv"
+# Dataset paths
+TRAIN_PATH = "./data/dataset_train.csv"
+TEST_PATH = "./data/dataset_test.csv"
 TARGET_COLUMN = 'Target'
 
 CONSTRAINTS = [
