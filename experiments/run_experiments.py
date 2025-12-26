@@ -38,14 +38,12 @@ def main():
     print("Loading datasets...")
     print(f"  Train: {TRAIN_PATH}")
     print(f"  Test: {TEST_PATH}")
-    X_train, X_test, y_train, y_test = load_presplit_data(
+    X_train, X_test, y_train, y_test, train_df, test_df = load_presplit_data(
         TRAIN_PATH, TEST_PATH, TARGET_COLUMN
     )
     print(f"Train: {len(y_train)}, Test: {len(y_test)} (Test used for constraints only)")
 
-    # Load datasets to get course groups
-    train_df = pd.read_csv(TRAIN_PATH)
-    test_df = pd.read_csv(TEST_PATH)
+    # Get course groups from loaded dataframes
     df = pd.concat([train_df, test_df], ignore_index=True)
     groups = df['Course'].unique()
     print(f"Number of courses: {len(groups)}")
