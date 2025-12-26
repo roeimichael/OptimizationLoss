@@ -1,6 +1,6 @@
 import numpy as np
 
-DATA_PATH = "./data/Students_ Dropout_and_Academic_Success_with_costs.csv"
+DATA_PATH = "./data/dataset.csv"
 TARGET_COLUMN = 'Target'
 
 CONSTRAINTS = [
