@@ -16,11 +16,12 @@ Neural network training framework with transductive learning and adaptive constr
 OptimizationLoss/
 ├── src/                          # Source code
 │   ├── data/                     # Data loading and preprocessing
-│   ├── models/                   # Neural network architectures  
+│   ├── models/                   # Neural network architectures
 │   ├── losses/                   # Loss functions
 │   ├── training/                 # Training logic and constraints
 │   └── utils/                    # Visualization utilities
 ├── config/                       # Configuration files
+├── data/                         # Dataset directory (place CSV here)
 ├── experiments/                  # Experiment runners
 ├── tests/                        # Test scripts
 ├── docs/                         # Documentation
@@ -31,10 +32,14 @@ OptimizationLoss/
 ## Quick Start
 
 ```bash
-# Install dependencies
+# 1. Install dependencies
 pip install -r requirements.txt
 
-# Run experiments
+# 2. Place dataset in data/ directory
+# Copy 'Students_ Dropout_and_Academic_Success_with_costs.csv' to data/
+# See data/README.md for details
+
+# 3. Run experiments
 cd experiments
 python run_experiments.py
 ```

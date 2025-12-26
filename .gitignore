@@ -39,8 +39,9 @@ results/
 *.pth
 *.pt
 
-# Old structure (deprecated)
-nn_experiments/
+# Data directory - exclude dataset files but keep README
+data/*.csv
+!data/README.md
 
 # OS
 .DS_Store

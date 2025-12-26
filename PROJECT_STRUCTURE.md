@@ -31,6 +31,10 @@ OptimizationLoss/
 ├── config/                                 # Configuration
 │   └── experiment_config.py               # All experiment parameters
 │
+├── data/                                   # Dataset directory (gitignored)
+│   ├── README.md                           # Dataset placement instructions
+│   └── Students_ Dropout_and_Academic_Success_with_costs.csv
+│
 ├── experiments/                            # Experiment runners
 │   └── run_experiments.py                 # Main experiment script
 │
