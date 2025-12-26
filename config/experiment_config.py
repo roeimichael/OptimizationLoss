@@ -1,13 +1,9 @@
 import numpy as np
 
 # Dataset paths
-DATA_PATH = "./data/dataset.csv"
 TRAIN_PATH = "./data/dataset_train.csv"
 TEST_PATH = "./data/dataset_test.csv"
 TARGET_COLUMN = 'Target'
-
-# Use pre-split datasets if True, otherwise split dynamically
-USE_PRESPLIT_DATA = True
 
 CONSTRAINTS = [
     (0.9, 0.8), (0.9, 0.5), (0.8, 0.7), (0.8, 0.2),
