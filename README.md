@@ -32,14 +32,26 @@ OptimizationLoss/
 ## Quick Start
 
 ```bash
-# 1. Install dependencies
+# 1. Install PyTorch with CUDA support (for GPU acceleration)
+# Option A: Use the installation script (recommended)
+bash install_pytorch_cuda.sh
+
+# Option B: Manual installation
+# For CUDA 11.8:
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+# For CUDA 12.1:
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+# For CPU only:
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+# 2. Install other dependencies
 pip install -r requirements.txt
 
-# 2. Place dataset in data/ directory
-# Copy 'Students_ Dropout_and_Academic_Success_with_costs.csv' to data/
+# 3. Place dataset in data/ directory
+# Copy your dataset CSV file to: data/dataset.csv
 # See data/README.md for details
 
-# 3. Run experiments
+# 4. Run experiments
 cd experiments
 python run_experiments.py
 ```
