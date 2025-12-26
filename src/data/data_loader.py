@@ -14,7 +14,7 @@ def load_presplit_data(train_path, test_path, target_column):
         target_column: Name of target column
 
     Returns:
-        X_train, X_test, y_train, y_test: Split features and labels
+        X_train, X_test, y_train, y_test, train_df, test_df: Split features, labels, and full dataframes
     """
     # Load pre-split datasets (already preprocessed)
     train_df = pd.read_csv(train_path)
@@ -27,7 +27,7 @@ def load_presplit_data(train_path, test_path, target_column):
     y_test = test_df[target_column]
     X_test = test_df.drop(labels=[target_column], axis=1)
 
-    return X_train, X_test, y_train, y_test
+    return X_train, X_test, y_train, y_test, train_df, test_df
 
 
 def get_stratified_folds(X, y, n_splits=9, random_state=42):
