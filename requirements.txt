@@ -1,4 +1,19 @@
+# PyTorch with CUDA support
+# For CUDA 11.8 (recommended for most NVIDIA GPUs):
+# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+#
+# For CUDA 12.1:
+# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+#
+# For CPU only:
+# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+# Use one of the commands above, or install from PyPI (may not include CUDA):
 torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+
+# Other dependencies
 tqdm>=4.60.0
 numpy>=1.21.0
 matplotlib>=3.5.0

@@ -1,6 +1,7 @@
-import numpy as np
+
 import os
 
+DATA_PATH = "./data/dataset.csv"
 CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(CONFIG_DIR)
 DATA_PATH = os.path.join(PROJECT_ROOT, 'data', 'dataset.csv')
