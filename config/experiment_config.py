@@ -1,10 +1,6 @@
-
-import os
+import numpy as np
 
 DATA_PATH = "./data/dataset.csv"
-CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(CONFIG_DIR)
-DATA_PATH = os.path.join(PROJECT_ROOT, 'data', 'dataset.csv')
 TARGET_COLUMN = 'Target'
 
 CONSTRAINTS = [

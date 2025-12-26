@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from config.experiment_config import *
-from src.data import load_and_preprocess_data, split_data
+from src.data import load_and_preprocess_data, load_presplit_data
 from src.training import (
     compute_global_constraints,
     compute_local_constraints,
@@ -34,18 +34,35 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
-    print("Loading data...")
-    df = load_and_preprocess_data(DATA_PATH, TARGET_COLUMN)
-    print(f"Data loaded: {df.shape}")
+    # Load data - use pre-split or split dynamically
+    if USE_PRESPLIT_DATA:
+        print("Loading pre-split datasets...")
+        print(f"  Train: {TRAIN_PATH}")
+        print(f"  Test: {TEST_PATH}")
+        X_train, X_test, y_train, y_test = load_presplit_data(
+            TRAIN_PATH, TEST_PATH, TARGET_COLUMN
+        )
+        print(f"Train: {len(y_train)}, Test: {len(y_test)} (Test used for constraints only)")
 
-    X_train, X_test, y_train, y_test = split_data(
-        df, TARGET_COLUMN,
-        test_size=TRAINING_PARAMS['test_size'],
-        random_state=42
-    )
-    print(f"Train: {len(y_train)}, Test: {len(y_test)} (Test used for constraints only)")
+        # Load full dataset to get groups
+        train_df = pd.read_csv(TRAIN_PATH)
+        test_df = pd.read_csv(TEST_PATH)
+        df = pd.concat([train_df, test_df], ignore_index=True)
+        groups = df['Course'].unique()
 
-    groups = df['Course'].unique()
+    else:
+        print("Loading and splitting data dynamically...")
+        df = load_and_preprocess_data(DATA_PATH, TARGET_COLUMN)
+        print(f"Data loaded: {df.shape}")
+
+        X_train, X_test, y_train, y_test = split_data(
+            df, TARGET_COLUMN,
+            test_size=TRAINING_PARAMS['test_size'],
+            random_state=42
+        )
+        print(f"Train: {len(y_train)}, Test: {len(y_test)} (Test used for constraints only)")
+        groups = df['Course'].unique()
+
     print(f"Number of courses: {len(groups)}")
 
     Path(RESULTS_DIR).mkdir(exist_ok=True)
