@@ -36,7 +36,7 @@ OptimizationLoss/
 pip install -r requirements.txt
 
 # 2. Place dataset in data/ directory
-# Copy 'Students_ Dropout_and_Academic_Success_with_costs.csv' to data/
+# Copy 'dataset.csv' to data/
 # See data/README.md for details
 
 # 3. Run experiments
