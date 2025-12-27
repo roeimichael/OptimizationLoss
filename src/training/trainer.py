@@ -187,11 +187,11 @@ def print_progress(epoch, avg_global, avg_local, avg_ce, avg_loss,
 
 def log_progress_to_csv(csv_path, epoch, avg_global, avg_local, avg_ce, avg_loss,
                         global_counts, local_counts, global_soft_counts, local_soft_counts,
-                        lambda_global, lambda_local):
+                        lambda_global, lambda_local, global_constraints):
     """
-    Log training progress to CSV file every 50 epochs.
+    Log training progress to CSV file.
 
-    Logs: epoch, losses, lambda values, and predictions (hard and soft) for each class.
+    Logs: epoch, losses, lambda values, constraint limits, and predictions (hard and soft) for each class.
     """
     # Check if file exists to determine if we need to write header
     file_exists = os.path.isfile(csv_path)
@@ -205,14 +205,18 @@ def log_progress_to_csv(csv_path, epoch, avg_global, avg_local, avg_ce, avg_loss
                 'Epoch',
                 'L_total', 'L_pred_CE', 'L_target_Global', 'L_feat_Local',
                 'Lambda_Global', 'Lambda_Local',
+                'Limit_Dropout', 'Limit_Enrolled', 'Limit_Graduate',
                 'Hard_Dropout', 'Hard_Enrolled', 'Hard_Graduate',
-                'Soft_Dropout', 'Soft_Enrolled', 'Soft_Graduate'
+                'Soft_Dropout', 'Soft_Enrolled', 'Soft_Graduate',
+                'Excess_Dropout', 'Excess_Enrolled', 'Excess_Graduate'
             ]
 
-            # Add per-course columns (optional - could be large)
-            # For now, just include global predictions
-
             writer.writerow(header)
+
+        # Compute excess for each class (how much over the limit)
+        excess_dropout = max(0, global_soft_counts[0] - global_constraints[0])
+        excess_enrolled = max(0, global_soft_counts[1] - global_constraints[1])
+        excess_graduate = max(0, global_soft_counts[2] - global_constraints[2]) if global_constraints[2] < 1e9 else 0
 
         # Write data row
         row = [
@@ -223,12 +227,18 @@ def log_progress_to_csv(csv_path, epoch, avg_global, avg_local, avg_ce, avg_loss
             f"{avg_local:.6f}",
             f"{lambda_global:.2f}",
             f"{lambda_local:.2f}",
+            int(global_constraints[0]) if global_constraints[0] < 1e9 else 'inf',  # Limit Dropout
+            int(global_constraints[1]) if global_constraints[1] < 1e9 else 'inf',  # Limit Enrolled
+            int(global_constraints[2]) if global_constraints[2] < 1e9 else 'inf',  # Limit Graduate
             global_counts[0],  # Hard Dropout
             global_counts[1],  # Hard Enrolled
             global_counts[2],  # Hard Graduate
             f"{global_soft_counts[0]:.2f}",  # Soft Dropout
             f"{global_soft_counts[1]:.2f}",  # Soft Enrolled
-            f"{global_soft_counts[2]:.2f}"   # Soft Graduate
+            f"{global_soft_counts[2]:.2f}",  # Soft Graduate
+            f"{excess_dropout:.2f}",  # Excess Dropout
+            f"{excess_enrolled:.2f}",  # Excess Enrolled
+            f"{excess_graduate:.2f}"   # Excess Graduate
         ]
 
         writer.writerow(row)
@@ -598,16 +608,29 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
     # Step 3: Initialize training state
     state, history = initialize_training_state(lambda_global, lambda_local)
 
+    # Create results subfolder based on constraint configuration
+    # Format constraint limits for folder name (e.g., "dropout71_enrolled40")
+    constraint_dropout = int(global_constraint[0]) if global_constraint[0] < 1e9 else 'inf'
+    constraint_enrolled = int(global_constraint[1]) if global_constraint[1] < 1e9 else 'inf'
+
+    # Count number of local constraint courses
+    num_local_courses = len(local_constraint) if local_constraint else 0
+
+    # Create subfolder name
+    experiment_folder = f'./results/constraints_dropout{constraint_dropout}_enrolled{constraint_enrolled}_local{num_local_courses}courses'
+    os.makedirs(experiment_folder, exist_ok=True)
+
     # Create CSV log file path
-    os.makedirs('./results', exist_ok=True)
-    csv_log_path = f'./results/training_log_lambda{lambda_global}_{lambda_local}.csv'
+    csv_log_path = f'{experiment_folder}/training_log.csv'
 
     # Print training start
     print("\n" + "="*80)
     print("Starting Training with Adaptive Lambda Weights")
+    print(f"Constraint Configuration: Dropout≤{constraint_dropout}, Enrolled≤{constraint_enrolled}, {num_local_courses} local courses")
     print(f"Initial: λ_global={state['current_lambda_global']:.2f}, "
           f"λ_local={state['current_lambda_local']:.2f}")
     print(f"Lambda adjustment: +{state['lambda_step']} per epoch when constraints violated")
+    print(f"Results folder: {experiment_folder}")
     print(f"Progress logged to: {csv_log_path}")
     print("="*80 + "\n")
 
@@ -625,8 +648,8 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
         # Adaptive lambda adjustment
         update_lambda_weights(state, avg_global, avg_local, criterion_constraint)
 
-        # Track and log progress every 50 epochs
-        if (epoch + 1) % 50 == 0:
+        # Update history and log to CSV every 10 epochs (silent updates)
+        if (epoch + 1) % 10 == 0:
             # Compute prediction statistics (both hard and soft)
             global_counts, local_counts, global_soft_counts, local_soft_counts = compute_prediction_statistics(
                 model, X_test_tensor, group_ids_test
@@ -639,15 +662,24 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
                 global_counts, local_counts
             )
 
+            # Log progress to CSV
+            log_progress_to_csv(csv_log_path, epoch, avg_global, avg_local, avg_ce, avg_loss,
+                               global_counts, local_counts, global_soft_counts, local_soft_counts,
+                               state['current_lambda_global'], state['current_lambda_local'],
+                               global_constraint)
+
+        # Print progress to console every 50 epochs
+        if (epoch + 1) % 50 == 0:
+            # Recompute statistics if not already computed this epoch
+            if (epoch + 1) % 10 != 0:
+                global_counts, local_counts, global_soft_counts, local_soft_counts = compute_prediction_statistics(
+                    model, X_test_tensor, group_ids_test
+                )
+
             # Print progress (show both hard and soft predictions)
             print_progress(epoch, avg_global, avg_local, avg_ce, avg_loss,
                           global_counts, local_counts, global_soft_counts, local_soft_counts,
                           criterion_constraint)
-
-            # Log progress to CSV
-            log_progress_to_csv(csv_log_path, epoch, avg_global, avg_local, avg_ce, avg_loss,
-                               global_counts, local_counts, global_soft_counts, local_soft_counts,
-                               state['current_lambda_global'], state['current_lambda_local'])
 
             print(f"Current Lambda Weights: λ_global={state['current_lambda_global']:.2f}, "
                   f"λ_local={state['current_lambda_local']:.2f}\n")
@@ -673,7 +705,7 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
 
     training_time = time.time() - start_time
 
-    # Step 6: Create visualizations
+    # Step 6: Create visualizations in experiment folder
     if len(history['epochs']) > 0:
         g_cons_np = criterion_constraint.global_constraints.cpu().numpy()
 
@@ -683,7 +715,7 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
                 l_cons = getattr(criterion_constraint, buffer_name).cpu().numpy()
                 local_cons_dict[group_id] = l_cons
 
-        create_all_visualizations(history, g_cons_np, local_cons_dict)
+        create_all_visualizations(history, g_cons_np, local_cons_dict, output_dir=experiment_folder)
 
     return model, scaler, training_time, history
 
