@@ -352,16 +352,20 @@ def train_single_epoch(model, train_loader, criterion_ce, criterion_constraint,
     """
     Execute one epoch of training.
 
+    Training pattern:
+    1. Loop through training batches, optimize CE loss
+    2. Compute constraint loss ONCE on test set per epoch
+    3. Backprop constraint loss and update weights
+
     Returns:
-        avg_loss: Average total loss for the epoch
         avg_ce: Average cross-entropy loss
-        avg_global: Global constraint loss (not averaged, computed once)
-        avg_local: Local constraint loss (not averaged, computed once)
+        loss_global: Global constraint loss (computed once on full test set)
+        loss_local: Local constraint loss (computed once on full test set)
     """
     model.train()
-    epoch_loss_total = 0
     epoch_loss_ce = 0
 
+    # Step 1: Train on supervised batches
     for batch_features, batch_labels in train_loader:
         batch_features = batch_features.to(device)
         batch_labels = batch_labels.to(device)
@@ -372,39 +376,30 @@ def train_single_epoch(model, train_loader, criterion_ce, criterion_constraint,
         train_logits = model(batch_features)
         loss_ce = criterion_ce(train_logits, batch_labels)
 
-        # Constraint loss on test data (transductive)
-        # Computed once per batch to provide gradient signal
-        test_logits = model(X_test_tensor)
-        loss_constraint, _, loss_global, loss_local = criterion_constraint(
-            test_logits, y_true=None, group_ids=group_ids_test
-        )
-
-        # Total loss
-        loss_total = loss_ce + loss_constraint
-
-        # Optimization step
-        loss_total.backward()
+        # Backprop and update
+        loss_ce.backward()
         optimizer.step()
 
-        # Accumulate losses
-        epoch_loss_total += loss_total.item()
+        # Accumulate CE loss
         epoch_loss_ce += loss_ce.item()
 
-    # Compute averages for CE loss
+    # Average CE loss
     num_batches = len(train_loader)
-    avg_loss = epoch_loss_total / num_batches
     avg_ce = epoch_loss_ce / num_batches
 
-    # Compute constraint losses once at end of epoch for reporting
-    model.eval()
-    with torch.no_grad():
-        test_logits = model(X_test_tensor)
-        _, _, loss_global_final, loss_local_final = criterion_constraint(
-            test_logits, y_true=None, group_ids=group_ids_test
-        )
-    model.train()
+    # Step 2: Compute constraint loss ONCE on test set
+    optimizer.zero_grad()
 
-    return avg_loss, avg_ce, loss_global_final.item(), loss_local_final.item()
+    test_logits = model(X_test_tensor)
+    loss_constraint, _, loss_global, loss_local = criterion_constraint(
+        test_logits, y_true=None, group_ids=group_ids_test
+    )
+
+    # Backprop constraint loss and update
+    loss_constraint.backward()
+    optimizer.step()
+
+    return avg_ce, loss_global.item(), loss_local.item()
 
 
 def update_training_history(history, epoch, avg_loss, avg_ce, avg_global, avg_local,
@@ -553,10 +548,13 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
     # Step 4: Main training loop
     for epoch in range(epochs):
         # Train one epoch
-        avg_loss, avg_ce, avg_global, avg_local = train_single_epoch(
+        avg_ce, avg_global, avg_local = train_single_epoch(
             model, train_loader, criterion_ce, criterion_constraint,
             optimizer, X_test_tensor, group_ids_test, device
         )
+
+        # Compute total loss for tracking
+        avg_loss = avg_ce + state['current_lambda_global'] * avg_global + state['current_lambda_local'] * avg_local
 
         # Adaptive lambda adjustment
         update_lambda_weights(state, avg_global, avg_local, criterion_constraint)
