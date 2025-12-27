@@ -359,11 +359,12 @@ def train_single_epoch(model, train_loader, criterion_ce, criterion_constraint,
     1. Loop through training batches, optimize CE loss
     2. Compute constraint loss ONCE on test set per epoch
     3. Backprop constraint loss and update weights
+    4. Compute constraint loss again for accurate reporting
 
     Returns:
         avg_ce: Average cross-entropy loss
-        loss_global: Global constraint loss (computed once on full test set)
-        loss_local: Local constraint loss (computed once on full test set)
+        loss_global: Global constraint loss (AFTER weight update)
+        loss_local: Local constraint loss (AFTER weight update)
     """
     model.train()
     epoch_loss_ce = 0
@@ -402,7 +403,14 @@ def train_single_epoch(model, train_loader, criterion_ce, criterion_constraint,
     loss_constraint.backward()
     optimizer.step()
 
-    return avg_ce, loss_global.item(), loss_local.item()
+    # Step 3: Recompute constraint loss for accurate reporting (after weight update)
+    with torch.no_grad():
+        test_logits_final = model(X_test_tensor)
+        _, _, loss_global_final, loss_local_final = criterion_constraint(
+            test_logits_final, y_true=None, group_ids=group_ids_test
+        )
+
+    return avg_ce, loss_global_final.item(), loss_local_final.item()
 
 
 def update_training_history(history, epoch, avg_loss, avg_ce, avg_global, avg_local,
