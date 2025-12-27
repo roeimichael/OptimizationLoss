@@ -358,6 +358,19 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
     print(f"Lambda adjustment: +{LAMBDA_STEP} per epoch when constraints violated")
     print(f"Results folder: {experiment_folder}")
     print(f"Progress logged to: {csv_log_path}")
+
+    # Print training data distribution
+    import pandas as pd
+    train_labels_list = []
+    for _, batch_labels in train_loader:
+        train_labels_list.extend(batch_labels.numpy())
+    train_labels_array = np.array(train_labels_list)
+    unique, counts = np.unique(train_labels_array, return_counts=True)
+    print(f"\nTraining Data Distribution:")
+    for label, count in zip(unique, counts):
+        class_name = ['Dropout', 'Enrolled', 'Graduate'][int(label)]
+        print(f"  {class_name}: {count} ({count/len(train_labels_array)*100:.1f}%)")
+
     print("="*80 + "\n")
     for epoch in range(epochs):
         avg_ce, avg_global, avg_local = train_single_epoch(
@@ -365,7 +378,7 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
             optimizer, X_test_tensor, group_ids_test, device
         )
         update_lambda_weights(avg_global, avg_local, criterion_constraint)
-        if (epoch + 1) % 5 == 0:
+        if (epoch + 1) % 3 == 0:
             global_counts, local_counts, global_soft_counts, local_soft_counts = compute_prediction_statistics(
                 model, X_test_tensor, group_ids_test
             )
@@ -375,7 +388,28 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
                                global_constraint,
                                criterion_constraint.global_constraints_satisfied,
                                criterion_constraint.local_constraints_satisfied)
-        if (epoch + 1) % 3 == 0:
+            print(f"\nDEBUG - Epoch {epoch + 1}:")
+            print(f"  avg_ce={avg_ce:.6f}, avg_global={avg_global:.6f}, avg_local={avg_local:.6f}")
+            print(f"  λ_global={criterion_constraint.lambda_global:.2f}, λ_local={criterion_constraint.lambda_local:.2f}")
+            print(f"  Weighted: CE={avg_ce:.6f}, Global={criterion_constraint.lambda_global * avg_global:.6f}, Local={criterion_constraint.lambda_local * avg_local:.6f}")
+            print(f"  Total weighted loss: {avg_ce + criterion_constraint.lambda_global * avg_global + criterion_constraint.lambda_local * avg_local:.6f}")
+
+            # Check train accuracy
+            model.eval()
+            with torch.no_grad():
+                train_correct = 0
+                train_total = 0
+                for batch_features, batch_labels in train_loader:
+                    batch_features = batch_features.to(device)
+                    batch_labels = batch_labels.to(device)
+                    outputs = model(batch_features)
+                    _, predicted = torch.max(outputs, 1)
+                    train_total += batch_labels.size(0)
+                    train_correct += (predicted == batch_labels).sum().item()
+                train_acc = train_correct / train_total
+            model.train()
+            print(f"  Train Accuracy: {train_acc:.4f}")
+
             print_progress_from_csv(csv_log_path, criterion_constraint)
         if criterion_constraint.global_constraints_satisfied and criterion_constraint.local_constraints_satisfied:
             print(f"\n{'='*80}")
