@@ -268,44 +268,6 @@ def update_training_history(history, epoch, avg_ce, avg_global, avg_local,
     history['global_predictions'].append(global_counts)
     history['local_predictions'].append(local_counts)
 
-def check_constraints(model, X_test_tensor, group_ids_test, criterion_constraint):
-    model.eval()
-    with torch.no_grad():
-        test_logits = model(X_test_tensor)
-        test_proba = torch.nn.functional.softmax(test_logits, dim=1)
-    model.train()
-    g_cons = criterion_constraint.global_constraints.cpu().numpy()
-    global_satisfied = True
-    for class_id in range(3):
-        constraint_val = g_cons[class_id]
-        if constraint_val > 1e9:
-            continue
-        soft_count = test_proba[:, class_id].sum().item()
-        if soft_count > constraint_val:
-            global_satisfied = False
-            break
-    local_satisfied = True
-    if criterion_constraint.local_constraint_dict is not None:
-        for group_id, buffer_name in criterion_constraint.local_constraint_dict.items():
-            if group_id == 1:
-                continue
-            in_group = (group_ids_test == group_id)
-            if in_group.sum() == 0:
-                continue
-            group_proba = test_proba[in_group]
-            l_cons = getattr(criterion_constraint, buffer_name).cpu().numpy()
-            for class_id in range(3):
-                constraint_val = l_cons[class_id]
-                if constraint_val > 1e9:
-                    continue
-                soft_count = group_proba[:, class_id].sum().item()
-                if soft_count > constraint_val:
-                    local_satisfied = False
-                    break
-            if not local_satisfied:
-                break
-    return global_satisfied, local_satisfied
-
 def train_model_transductive(X_train, y_train, X_test, groups_test,
                              global_constraint, local_constraint,
                              lambda_global, lambda_local, hidden_dims, epochs,
@@ -341,17 +303,12 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
     print(f"Results folder: {experiment_folder}")
     print(f"Progress logged to: {csv_log_path}")
     print("="*80 + "\n")
-    global_satisfied = False
-    local_satisfied = False
     for epoch in range(epochs):
         avg_ce, avg_global, avg_local = train_single_epoch(
             model, train_loader, criterion_ce, criterion_constraint,
             optimizer, X_test_tensor, group_ids_test, device
         )
         update_lambda_weights(avg_global, avg_local, criterion_constraint)
-        global_satisfied, local_satisfied = check_constraints(
-            model, X_test_tensor, group_ids_test, criterion_constraint
-        )
         if (epoch + 1) % 10 == 0:
             global_counts, local_counts, global_soft_counts, local_soft_counts = compute_prediction_statistics(
                 model, X_test_tensor, group_ids_test
@@ -375,8 +332,9 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
                           criterion_constraint)
             print(f"Current Lambda Weights: λ_global={criterion_constraint.lambda_global:.2f}, "
                   f"λ_local={criterion_constraint.lambda_local:.2f}\n")
-            print(f"Constraint Status: Global={'✓' if global_satisfied else '✗'}, Local={'✓' if local_satisfied else '✗'}")
-        if global_satisfied and local_satisfied:
+            print(f"Constraint Status: Global={'✓' if criterion_constraint.global_constraints_satisfied else '✗'}, "
+                  f"Local={'✓' if criterion_constraint.local_constraints_satisfied else '✗'}")
+        if criterion_constraint.global_constraints_satisfied and criterion_constraint.local_constraints_satisfied:
             print(f"\n{'='*80}")
             print(f"✓ ALL CONSTRAINTS SATISFIED at epoch {epoch + 1}!")
             print(f"{'='*80}")

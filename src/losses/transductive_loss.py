@@ -10,6 +10,8 @@ class MulticlassTransductiveLoss(nn.Module):
         self.lambda_local = lambda_local
         self.use_ce = use_ce
         self.eps = 1e-6
+        self.global_constraints_satisfied = False
+        self.local_constraints_satisfied = False
         if global_constraints is not None:
             self.register_buffer('global_constraints',
                                torch.tensor(global_constraints, dtype=torch.float32))
@@ -41,28 +43,35 @@ class MulticlassTransductiveLoss(nn.Module):
     def _compute_global_constraint_loss(self, y_proba, device):
         L_target = torch.tensor(0.0, device=device)
         if self.global_constraints is None:
+            self.global_constraints_satisfied = True
             return L_target
         g_cons = self.global_constraints.to(device)
         num_constrained = 0
+        all_satisfied = True
         for class_id in range(3):
             K = g_cons[class_id]
             if K > 1e9:
                 continue
             predicted_count = y_proba[:, class_id].sum()
             E = torch.relu(predicted_count - K)
+            if E.item() > 0:
+                all_satisfied = False
             loss = E / (E + K + self.eps)
             L_target = L_target + loss
             num_constrained += 1
         if num_constrained > 0:
             L_target = L_target / num_constrained
+        self.global_constraints_satisfied = all_satisfied
         return L_target
 
     def _compute_local_constraint_loss(self, y_proba, group_ids, device):
         L_feat = torch.tensor(0.0, device=device)
         if self.local_constraint_dict is None or group_ids is None:
+            self.local_constraints_satisfied = True
             return L_feat
         group_ids_device = group_ids.to(device)
         num_constrained = 0
+        all_satisfied = True
         for group_id, buffer_name in self.local_constraint_dict.items():
             if group_id == 1:
                 continue
@@ -77,11 +86,14 @@ class MulticlassTransductiveLoss(nn.Module):
                     continue
                 predicted_count = group_proba[:, class_id].sum()
                 E = torch.relu(predicted_count - K)
+                if E.item() > 0:
+                    all_satisfied = False
                 loss = E / (E + K + self.eps)
                 L_feat = L_feat + loss
                 num_constrained += 1
         if num_constrained > 0:
             L_feat = L_feat / num_constrained
+        self.local_constraints_satisfied = all_satisfied
         return L_feat
 
     def set_lambda(self, lambda_global=None, lambda_local=None):
