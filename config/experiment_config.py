@@ -1,6 +1,7 @@
 import numpy as np
 
 # Dataset paths
+FULL_DATASET_PATH = "./data/dataset.csv"  # Full dataset for computing constraints
 TRAIN_PATH = "./data/dataset_train.csv"
 TEST_PATH = "./data/dataset_test.csv"
 TARGET_COLUMN = 'Target'

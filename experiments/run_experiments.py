@@ -43,9 +43,11 @@ def main():
     )
     print(f"Train: {len(y_train)}, Test: {len(y_test)} (Test used for constraints only)")
 
-    # Get course groups from loaded dataframes
-    df = pd.concat([train_df, test_df], ignore_index=True)
-    groups = df['Course'].unique()
+    # Load full dataset for constraint computation
+    print(f"  Full dataset (for constraints): {FULL_DATASET_PATH}")
+    full_df = pd.read_csv(FULL_DATASET_PATH)
+    groups = full_df['Course'].unique()
+    print(f"Full dataset: {len(full_df)} samples")
     print(f"Number of courses: {len(groups)}")
 
     Path(RESULTS_DIR).mkdir(exist_ok=True)
@@ -65,9 +67,9 @@ def main():
             local_percent, global_percent = constraint_pair
             print(f"\nConstraint: local={local_percent}, global={global_percent}")
 
-            df_test = df.loc[X_test.index]
-            global_constraint = compute_global_constraints(df_test, TARGET_COLUMN, global_percent)
-            local_constraint = compute_local_constraints(df_test, TARGET_COLUMN, local_percent, groups)
+            # Compute constraints on full dataset
+            global_constraint = compute_global_constraints(full_df, TARGET_COLUMN, global_percent)
+            local_constraint = compute_local_constraints(full_df, TARGET_COLUMN, local_percent, groups)
 
             print(f"  Global constraint: {global_constraint}")
             print(f"  Local constraints: {len(local_constraint)} courses")
