@@ -242,35 +242,33 @@ def update_lambda_weights(state, avg_global, avg_local, criterion_constraint):
     return lambda_updated
 
 def train_single_epoch(model, train_loader, criterion_ce, criterion_constraint,
-                       optimizer, X_test_tensor, group_ids_test, device):
+                       optimizer, X_test_tensor, group_ids_test, device,
+                       lambda_global, lambda_local):
     model.train()
-    epoch_loss_ce = 0
+    epoch_loss_ce = 0.0
+    epoch_loss_global = 0.0
+    epoch_loss_local = 0.0
+    num_batches = len(train_loader)
     for batch_features, batch_labels in train_loader:
         batch_features = batch_features.to(device)
         batch_labels = batch_labels.to(device)
         optimizer.zero_grad()
         train_logits = model(batch_features)
         loss_ce = criterion_ce(train_logits, batch_labels)
-        loss_ce.backward()
+        test_logits = model(X_test_tensor)
+        _, _, loss_global, loss_local = criterion_constraint(
+            test_logits, y_true=None, group_ids=group_ids_test
+        )
+        loss = loss_ce + lambda_global * loss_global + lambda_local * loss_local
+        loss.backward()
         optimizer.step()
         epoch_loss_ce += loss_ce.item()
-    num_batches = len(train_loader)
+        epoch_loss_global += loss_global.item()
+        epoch_loss_local += loss_local.item()
     avg_ce = epoch_loss_ce / num_batches
-    optimizer.zero_grad()
-    test_logits = model(X_test_tensor)
-    loss_constraint, _, loss_global, loss_local = criterion_constraint(
-        test_logits, y_true=None, group_ids=group_ids_test
-    )
-    loss_constraint.backward()
-    optimizer.step()
-    model.eval()
-    with torch.no_grad():
-        test_logits_final = model(X_test_tensor)
-        _, _, loss_global_final, loss_local_final = criterion_constraint(
-            test_logits_final, y_true=None, group_ids=group_ids_test
-        )
-    model.train()
-    return avg_ce, loss_global_final.item(), loss_local_final.item()
+    avg_global = epoch_loss_global / num_batches
+    avg_local = epoch_loss_local / num_batches
+    return avg_ce, avg_global, avg_local
 
 def update_training_history(history, epoch, avg_loss, avg_ce, avg_global, avg_local,
                             current_lambda_global, current_lambda_local,
@@ -362,7 +360,8 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
     for epoch in range(epochs):
         avg_ce, avg_global, avg_local = train_single_epoch(
             model, train_loader, criterion_ce, criterion_constraint,
-            optimizer, X_test_tensor, group_ids_test, device
+            optimizer, X_test_tensor, group_ids_test, device,
+            state['current_lambda_global'], state['current_lambda_local']
         )
         avg_loss = avg_ce + state['current_lambda_global'] * avg_global + state['current_lambda_local'] * avg_local
         update_lambda_weights(state, avg_global, avg_local, criterion_constraint)
