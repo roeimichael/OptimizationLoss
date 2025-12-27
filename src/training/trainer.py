@@ -4,6 +4,8 @@ from torch.utils.data import DataLoader, TensorDataset
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 import time
 import numpy as np
+import csv
+import os
 
 from src.models import NeuralNetClassifier
 from src.losses import MulticlassTransductiveLoss
@@ -183,6 +185,55 @@ def print_progress(epoch, avg_global, avg_local, avg_ce, avg_loss,
     print(f"{'='*80}\n")
 
 
+def log_progress_to_csv(csv_path, epoch, avg_global, avg_local, avg_ce, avg_loss,
+                        global_counts, local_counts, global_soft_counts, local_soft_counts,
+                        lambda_global, lambda_local):
+    """
+    Log training progress to CSV file every 50 epochs.
+
+    Logs: epoch, losses, lambda values, and predictions (hard and soft) for each class.
+    """
+    # Check if file exists to determine if we need to write header
+    file_exists = os.path.isfile(csv_path)
+
+    with open(csv_path, 'a', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+
+        # Write header if file doesn't exist
+        if not file_exists:
+            header = [
+                'Epoch',
+                'L_total', 'L_pred_CE', 'L_target_Global', 'L_feat_Local',
+                'Lambda_Global', 'Lambda_Local',
+                'Hard_Dropout', 'Hard_Enrolled', 'Hard_Graduate',
+                'Soft_Dropout', 'Soft_Enrolled', 'Soft_Graduate'
+            ]
+
+            # Add per-course columns (optional - could be large)
+            # For now, just include global predictions
+
+            writer.writerow(header)
+
+        # Write data row
+        row = [
+            epoch + 1,
+            f"{avg_loss:.6f}",
+            f"{avg_ce:.6f}",
+            f"{avg_global:.6f}",
+            f"{avg_local:.6f}",
+            f"{lambda_global:.2f}",
+            f"{lambda_local:.2f}",
+            global_counts[0],  # Hard Dropout
+            global_counts[1],  # Hard Enrolled
+            global_counts[2],  # Hard Graduate
+            f"{global_soft_counts[0]:.2f}",  # Soft Dropout
+            f"{global_soft_counts[1]:.2f}",  # Soft Enrolled
+            f"{global_soft_counts[2]:.2f}"   # Soft Graduate
+        ]
+
+        writer.writerow(row)
+
+
 # =============================================================================
 # Data Preparation
 # =============================================================================
@@ -290,8 +341,7 @@ def initialize_training_state(lambda_global, lambda_local):
         'constraint_threshold': 1e-6,
         'current_lambda_global': lambda_global,
         'current_lambda_local': lambda_local,
-        'lambda_step': 0.1,
-        'lambda_max': 100.0
+        'lambda_step': 0.1
     }
 
     history = {
@@ -313,6 +363,8 @@ def update_lambda_weights(state, avg_global, avg_local, criterion_constraint):
     """
     Adaptively adjust lambda weights based on constraint violations.
 
+    Lambdas increase unbounded until constraints are satisfied.
+
     Args:
         state: Training state dictionary
         avg_global: Average global constraint loss
@@ -325,21 +377,16 @@ def update_lambda_weights(state, avg_global, avg_local, criterion_constraint):
     lambda_updated = False
     threshold = state['constraint_threshold']
     lambda_step = state['lambda_step']
-    lambda_max = state['lambda_max']
 
-    # Increase global lambda if constraint violated
-    if avg_global > threshold and state['current_lambda_global'] < lambda_max:
-        state['current_lambda_global'] = min(
-            state['current_lambda_global'] + lambda_step, lambda_max
-        )
+    # Increase global lambda if constraint violated (no cap)
+    if avg_global > threshold:
+        state['current_lambda_global'] += lambda_step
         criterion_constraint.set_lambda(lambda_global=state['current_lambda_global'])
         lambda_updated = True
 
-    # Increase local lambda if constraint violated
-    if avg_local > threshold and state['current_lambda_local'] < lambda_max:
-        state['current_lambda_local'] = min(
-            state['current_lambda_local'] + lambda_step, lambda_max
-        )
+    # Increase local lambda if constraint violated (no cap)
+    if avg_local > threshold:
+        state['current_lambda_local'] += lambda_step
         criterion_constraint.set_lambda(lambda_local=state['current_lambda_local'])
         lambda_updated = True
 
@@ -551,12 +598,17 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
     # Step 3: Initialize training state
     state, history = initialize_training_state(lambda_global, lambda_local)
 
+    # Create CSV log file path
+    os.makedirs('./results', exist_ok=True)
+    csv_log_path = f'./results/training_log_lambda{lambda_global}_{lambda_local}.csv'
+
     # Print training start
     print("\n" + "="*80)
     print("Starting Training with Adaptive Lambda Weights")
     print(f"Initial: λ_global={state['current_lambda_global']:.2f}, "
           f"λ_local={state['current_lambda_local']:.2f}")
     print(f"Lambda adjustment: +{state['lambda_step']} per epoch when constraints violated")
+    print(f"Progress logged to: {csv_log_path}")
     print("="*80 + "\n")
 
     # Step 4: Main training loop
@@ -591,6 +643,11 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
             print_progress(epoch, avg_global, avg_local, avg_ce, avg_loss,
                           global_counts, local_counts, global_soft_counts, local_soft_counts,
                           criterion_constraint)
+
+            # Log progress to CSV
+            log_progress_to_csv(csv_log_path, epoch, avg_global, avg_local, avg_ce, avg_loss,
+                               global_counts, local_counts, global_soft_counts, local_soft_counts,
+                               state['current_lambda_global'], state['current_lambda_local'])
 
             print(f"Current Lambda Weights: λ_global={state['current_lambda_global']:.2f}, "
                   f"λ_local={state['current_lambda_local']:.2f}\n")
