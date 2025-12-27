@@ -1,7 +1,6 @@
 import numpy as np
 
-# Dataset paths
-FULL_DATASET_PATH = "./data/dataset.csv"  # Full dataset for computing constraints
+FULL_DATASET_PATH = "./data/dataset.csv"
 TRAIN_PATH = "./data/dataset_train.csv"
 TEST_PATH = "./data/dataset_test.csv"
 TARGET_COLUMN = 'Target'
@@ -16,7 +15,7 @@ NN_CONFIGS = [
 ]
 
 TRAINING_PARAMS = {
-    'epochs': 10000,  # High limit - training stops when constraints are satisfied
+    'epochs': 10000,
     'batch_size': 64,
     'lr': 0.001,
     'dropout': 0.3,
@@ -24,4 +23,8 @@ TRAINING_PARAMS = {
     'test_size': 0.1
 }
 
+CONSTRAINT_THRESHOLD = 1e-6
+LAMBDA_STEP = 0.1
+
 RESULTS_DIR = "./results"
+

@@ -9,6 +9,7 @@ import os
 from src.models import NeuralNetClassifier
 from src.losses import MulticlassTransductiveLoss
 from src.utils import create_all_visualizations
+from config.experiment_config import CONSTRAINT_THRESHOLD, LAMBDA_STEP
 
 def compute_prediction_statistics(model, X_test_tensor, group_ids_test):
     model.eval()
@@ -204,16 +205,7 @@ def initialize_model_and_optimizer(input_dim, hidden_dims, dropout, lr, device,
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     return model, criterion_ce, criterion_constraint, optimizer
 
-def initialize_training_state(lambda_global, lambda_local):
-    state = {
-        'best_loss': float('inf'),
-        'best_model_state': None,
-        'patience_counter': 0,
-        'constraint_threshold': 1e-6,
-        'current_lambda_global': lambda_global,
-        'current_lambda_local': lambda_local,
-        'lambda_step': 0.1
-    }
+def initialize_history():
     history = {
         'epochs': [],
         'loss_total': [],
@@ -225,25 +217,22 @@ def initialize_training_state(lambda_global, lambda_local):
         'global_predictions': [],
         'local_predictions': []
     }
-    return state, history
+    return history
 
-def update_lambda_weights(state, avg_global, avg_local, criterion_constraint):
+def update_lambda_weights(avg_global, avg_local, criterion_constraint):
     lambda_updated = False
-    threshold = state['constraint_threshold']
-    lambda_step = state['lambda_step']
-    if avg_global > threshold:
-        state['current_lambda_global'] += lambda_step
-        criterion_constraint.set_lambda(lambda_global=state['current_lambda_global'])
+    if avg_global > CONSTRAINT_THRESHOLD:
+        new_lambda_global = criterion_constraint.lambda_global + LAMBDA_STEP
+        criterion_constraint.set_lambda(lambda_global=new_lambda_global)
         lambda_updated = True
-    if avg_local > threshold:
-        state['current_lambda_local'] += lambda_step
-        criterion_constraint.set_lambda(lambda_local=state['current_lambda_local'])
+    if avg_local > CONSTRAINT_THRESHOLD:
+        new_lambda_local = criterion_constraint.lambda_local + LAMBDA_STEP
+        criterion_constraint.set_lambda(lambda_local=new_lambda_local)
         lambda_updated = True
     return lambda_updated
 
 def train_single_epoch(model, train_loader, criterion_ce, criterion_constraint,
-                       optimizer, X_test_tensor, group_ids_test, device,
-                       lambda_global, lambda_local):
+                       optimizer, X_test_tensor, group_ids_test, device):
     model.train()
     epoch_loss_ce = 0.0
     epoch_loss_global = 0.0
@@ -259,7 +248,7 @@ def train_single_epoch(model, train_loader, criterion_ce, criterion_constraint,
         _, _, loss_global, loss_local = criterion_constraint(
             test_logits, y_true=None, group_ids=group_ids_test
         )
-        loss = loss_ce + lambda_global * loss_global + lambda_local * loss_local
+        loss = loss_ce + criterion_constraint.lambda_global * loss_global + criterion_constraint.lambda_local * loss_local
         loss.backward()
         optimizer.step()
         epoch_loss_ce += loss_ce.item()
@@ -283,15 +272,14 @@ def update_training_history(history, epoch, avg_loss, avg_ce, avg_global, avg_lo
     history['global_predictions'].append(global_counts)
     history['local_predictions'].append(local_counts)
 
-def check_constraint_satisfaction(avg_global, avg_local, constraint_threshold,
-                                   epoch, model, X_test_tensor, criterion_constraint):
-    if avg_global >= constraint_threshold or avg_local >= constraint_threshold:
+def check_constraint_satisfaction(avg_global, avg_local, epoch, model, X_test_tensor, criterion_constraint):
+    if avg_global >= CONSTRAINT_THRESHOLD or avg_local >= CONSTRAINT_THRESHOLD:
         return False
     print(f"\n{'='*80}")
     print(f"✓ CONSTRAINTS SATISFIED at epoch {epoch + 1}!")
     print(f"{'='*80}")
-    print(f"L_target (Global): {avg_global:.8f} < {constraint_threshold}")
-    print(f"L_feat (Local):    {avg_local:.8f} < {constraint_threshold}")
+    print(f"L_target (Global): {avg_global:.8f} < {CONSTRAINT_THRESHOLD}")
+    print(f"L_feat (Local):    {avg_local:.8f} < {CONSTRAINT_THRESHOLD}")
     model.eval()
     with torch.no_grad():
         test_logits = model(X_test_tensor)
@@ -341,7 +329,10 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
             lambda_global=lambda_global,
             lambda_local=lambda_local
         )
-    state, history = initialize_training_state(lambda_global, lambda_local)
+    history = initialize_history()
+    best_loss = float('inf')
+    best_model_state = None
+    patience_counter = 0
     constraint_dropout = int(global_constraint[0]) if global_constraint[0] < 1e9 else 'inf'
     constraint_enrolled = int(global_constraint[1]) if global_constraint[1] < 1e9 else 'inf'
     num_local_courses = len(local_constraint) if local_constraint else 0
@@ -351,32 +342,31 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
     print("\n" + "="*80)
     print("Starting Training with Adaptive Lambda Weights")
     print(f"Constraint Configuration: Dropout≤{constraint_dropout}, Enrolled≤{constraint_enrolled}, {num_local_courses} local courses")
-    print(f"Initial: λ_global={state['current_lambda_global']:.2f}, "
-          f"λ_local={state['current_lambda_local']:.2f}")
-    print(f"Lambda adjustment: +{state['lambda_step']} per epoch when constraints violated")
+    print(f"Initial: λ_global={criterion_constraint.lambda_global:.2f}, "
+          f"λ_local={criterion_constraint.lambda_local:.2f}")
+    print(f"Lambda adjustment: +{LAMBDA_STEP} per epoch when constraints violated")
     print(f"Results folder: {experiment_folder}")
     print(f"Progress logged to: {csv_log_path}")
     print("="*80 + "\n")
     for epoch in range(epochs):
         avg_ce, avg_global, avg_local = train_single_epoch(
             model, train_loader, criterion_ce, criterion_constraint,
-            optimizer, X_test_tensor, group_ids_test, device,
-            state['current_lambda_global'], state['current_lambda_local']
+            optimizer, X_test_tensor, group_ids_test, device
         )
-        avg_loss = avg_ce + state['current_lambda_global'] * avg_global + state['current_lambda_local'] * avg_local
-        update_lambda_weights(state, avg_global, avg_local, criterion_constraint)
+        avg_loss = avg_ce + criterion_constraint.lambda_global * avg_global + criterion_constraint.lambda_local * avg_local
+        update_lambda_weights(avg_global, avg_local, criterion_constraint)
         if (epoch + 1) % 10 == 0:
             global_counts, local_counts, global_soft_counts, local_soft_counts = compute_prediction_statistics(
                 model, X_test_tensor, group_ids_test
             )
             update_training_history(
                 history, epoch, avg_loss, avg_ce, avg_global, avg_local,
-                state['current_lambda_global'], state['current_lambda_local'],
+                criterion_constraint.lambda_global, criterion_constraint.lambda_local,
                 global_counts, local_counts
             )
             log_progress_to_csv(csv_log_path, epoch, avg_global, avg_local, avg_ce, avg_loss,
                                global_counts, local_counts, global_soft_counts, local_soft_counts,
-                               state['current_lambda_global'], state['current_lambda_local'],
+                               criterion_constraint.lambda_global, criterion_constraint.lambda_local,
                                global_constraint)
         if (epoch + 1) % 50 == 0:
             if (epoch + 1) % 10 != 0:
@@ -386,21 +376,20 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
             print_progress(epoch, avg_global, avg_local, avg_ce, avg_loss,
                           global_counts, local_counts, global_soft_counts, local_soft_counts,
                           criterion_constraint)
-            print(f"Current Lambda Weights: λ_global={state['current_lambda_global']:.2f}, "
-                  f"λ_local={state['current_lambda_local']:.2f}\n")
-        if avg_loss < state['best_loss']:
-            state['best_loss'] = avg_loss
-            state['best_model_state'] = model.state_dict().copy()
-            state['patience_counter'] = 0
+            print(f"Current Lambda Weights: λ_global={criterion_constraint.lambda_global:.2f}, "
+                  f"λ_local={criterion_constraint.lambda_local:.2f}\n")
+        if avg_loss < best_loss:
+            best_loss = avg_loss
+            best_model_state = model.state_dict().copy()
+            patience_counter = 0
         else:
-            state['patience_counter'] += 1
+            patience_counter += 1
         if check_constraint_satisfaction(
-            avg_global, avg_local, state['constraint_threshold'],
-            epoch, model, X_test_tensor, criterion_constraint
+            avg_global, avg_local, epoch, model, X_test_tensor, criterion_constraint
         ):
             break
-    if state['best_model_state'] is not None:
-        model.load_state_dict(state['best_model_state'])
+    if best_model_state is not None:
+        model.load_state_dict(best_model_state)
     training_time = time.time() - start_time
     if len(history['epochs']) > 0:
         g_cons_np = criterion_constraint.global_constraints.cpu().numpy()
