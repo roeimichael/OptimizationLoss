@@ -30,11 +30,14 @@ def compute_local_constraints(data, target_column, percentage, groups):
     Returns clean constraint values:
     - Valid numbers for constrained classes
     - 1e10 for unconstrained classes (effectively infinite)
+
+    Note: Course 1 is skipped due to data quality issues
     """
     n_classes = 3
     local_constraint = {}
 
     for group in groups:
+        # Skip course 1 - has data issues, don't create constraints for it
         if group == 1:
             continue
 

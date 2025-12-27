@@ -132,6 +132,8 @@ class MulticlassTransductiveLoss(nn.Module):
         - Count predicted students in that course
         - If count > limit K, penalize excess
         - Formula: E / (E + K) where E = ReLU(count - K)
+
+        Note: Course 1 is explicitly skipped (not in constraint dict due to issues)
         """
         L_feat = torch.tensor(0.0, device=device)
 
@@ -142,6 +144,9 @@ class MulticlassTransductiveLoss(nn.Module):
         num_constrained = 0
 
         for group_id, buffer_name in self.local_constraint_dict.items():
+            # Skip course 1 (defensive check - should not be in dict anyway)
+            if group_id == 1:
+                continue
             # Get students in this course
             in_group = (group_ids_device == group_id)
 
