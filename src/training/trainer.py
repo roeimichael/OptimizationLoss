@@ -375,7 +375,7 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
                                global_constraint,
                                criterion_constraint.global_constraints_satisfied,
                                criterion_constraint.local_constraints_satisfied)
-        if (epoch + 1) % 50 == 0:
+        if (epoch + 1) % 3 == 0:
             print_progress_from_csv(csv_log_path, criterion_constraint)
         if criterion_constraint.global_constraints_satisfied and criterion_constraint.local_constraints_satisfied:
             print(f"\n{'='*80}")
