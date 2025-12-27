@@ -216,7 +216,6 @@ def initialize_model_and_optimizer(input_dim, hidden_dims, dropout, lr, device,
         criterion_ce: Cross-entropy loss
         criterion_constraint: Transductive constraint loss
         optimizer: Adam optimizer
-        scheduler: Learning rate scheduler
     """
     # Initialize model
     model = NeuralNetClassifier(
@@ -236,13 +235,10 @@ def initialize_model_and_optimizer(input_dim, hidden_dims, dropout, lr, device,
         use_ce=False
     ).to(device)
 
-    # Optimizer and scheduler
+    # Optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', patience=5
-    )
 
-    return model, criterion_ce, criterion_constraint, optimizer, scheduler
+    return model, criterion_ce, criterion_constraint, optimizer
 
 
 # =============================================================================
@@ -488,7 +484,7 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
     )
 
     # Step 2: Initialize model and optimizer
-    model, criterion_ce, criterion_constraint, optimizer, scheduler = \
+    model, criterion_ce, criterion_constraint, optimizer = \
         initialize_model_and_optimizer(
             input_dim=X_train.shape[1],
             hidden_dims=hidden_dims,
@@ -519,9 +515,6 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
             model, train_loader, criterion_ce, criterion_constraint,
             optimizer, X_test_tensor, group_ids_test, device
         )
-
-        # Update learning rate
-        scheduler.step(avg_loss)
 
         # Adaptive lambda adjustment
         update_lambda_weights(state, avg_global, avg_local, criterion_constraint)
