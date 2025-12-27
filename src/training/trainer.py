@@ -45,7 +45,7 @@ def compute_prediction_statistics(model, X_test_tensor, group_ids_test):
     model.train()
     return global_counts, local_counts, global_soft_counts, local_soft_counts
 
-def print_progress(epoch, avg_global, avg_local, avg_ce, avg_loss,
+def print_progress(epoch, avg_global, avg_local, avg_ce,
                    global_counts, local_counts, global_soft_counts, local_soft_counts,
                    criterion_constraint):
     print(f"\n{'='*80}")
@@ -54,7 +54,6 @@ def print_progress(epoch, avg_global, avg_local, avg_ce, avg_loss,
     print(f"L_target (Global):  {avg_global:.6f}")
     print(f"L_feat (Local):     {avg_local:.6f}")
     print(f"L_pred (CE):        {avg_ce:.6f}")
-    print(f"L_total:            {avg_loss:.6f}")
     print(f"\n{'─'*80}")
     print("GLOBAL CONSTRAINTS vs PREDICTIONS (Hard vs Soft)")
     print(f"{'─'*80}")
@@ -124,7 +123,7 @@ def print_progress(epoch, avg_global, avg_local, avg_ce, avg_loss,
     print(f"\nSummary: {violations_count} courses with violations, {satisfactions_count} courses satisfied")
     print(f"{'='*80}\n")
 
-def log_progress_to_csv(csv_path, epoch, avg_global, avg_local, avg_ce, avg_loss,
+def log_progress_to_csv(csv_path, epoch, avg_global, avg_local, avg_ce,
                         global_counts, local_counts, global_soft_counts, local_soft_counts,
                         lambda_global, lambda_local, global_constraints):
     file_exists = os.path.isfile(csv_path)
@@ -133,7 +132,7 @@ def log_progress_to_csv(csv_path, epoch, avg_global, avg_local, avg_ce, avg_loss
         if not file_exists:
             header = [
                 'Epoch',
-                'L_total', 'L_pred_CE', 'L_target_Global', 'L_feat_Local',
+                'L_pred_CE', 'L_target_Global', 'L_feat_Local',
                 'Lambda_Global', 'Lambda_Local',
                 'Limit_Dropout', 'Limit_Enrolled', 'Limit_Graduate',
                 'Hard_Dropout', 'Hard_Enrolled', 'Hard_Graduate',
@@ -146,7 +145,6 @@ def log_progress_to_csv(csv_path, epoch, avg_global, avg_local, avg_ce, avg_loss
         excess_graduate = max(0, global_soft_counts[2] - global_constraints[2]) if global_constraints[2] < 1e9 else 0
         row = [
             epoch + 1,
-            f"{avg_loss:.6f}",
             f"{avg_ce:.6f}",
             f"{avg_global:.6f}",
             f"{avg_local:.6f}",
@@ -208,7 +206,6 @@ def initialize_model_and_optimizer(input_dim, hidden_dims, dropout, lr, device,
 def initialize_history():
     history = {
         'epochs': [],
-        'loss_total': [],
         'loss_ce': [],
         'loss_global': [],
         'loss_local': [],
@@ -259,11 +256,10 @@ def train_single_epoch(model, train_loader, criterion_ce, criterion_constraint,
     avg_local = epoch_loss_local / num_batches
     return avg_ce, avg_global, avg_local
 
-def update_training_history(history, epoch, avg_loss, avg_ce, avg_global, avg_local,
+def update_training_history(history, epoch, avg_ce, avg_global, avg_local,
                             current_lambda_global, current_lambda_local,
                             global_counts, local_counts):
     history['epochs'].append(epoch + 1)
-    history['loss_total'].append(avg_loss)
     history['loss_ce'].append(avg_ce)
     history['loss_global'].append(avg_global)
     history['loss_local'].append(avg_local)
@@ -318,7 +314,8 @@ def check_constraint_satisfaction(model, X_test_tensor, group_ids_test, criterio
 def train_model_transductive(X_train, y_train, X_test, groups_test,
                              global_constraint, local_constraint,
                              lambda_global, lambda_local, hidden_dims, epochs,
-                             batch_size, lr, dropout, patience, device):
+                             batch_size, lr, dropout, device,
+                             constraint_dropout_pct, constraint_enrolled_pct):
     start_time = time.time()
     train_loader, X_test_tensor, group_ids_test, scaler = prepare_training_data(
         X_train, y_train, X_test, groups_test, batch_size, device
@@ -336,18 +333,13 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
             lambda_local=lambda_local
         )
     history = initialize_history()
-    best_loss = float('inf')
-    best_model_state = None
-    patience_counter = 0
-    constraint_dropout = int(global_constraint[0]) if global_constraint[0] < 1e9 else 'inf'
-    constraint_enrolled = int(global_constraint[1]) if global_constraint[1] < 1e9 else 'inf'
     num_local_courses = len(local_constraint) if local_constraint else 0
-    experiment_folder = f'./results/constraints_dropout{constraint_dropout}_enrolled{constraint_enrolled}_local{num_local_courses}courses'
+    experiment_folder = f'./results/constraints_{constraint_dropout_pct}_{constraint_enrolled_pct}'
     os.makedirs(experiment_folder, exist_ok=True)
     csv_log_path = f'{experiment_folder}/training_log.csv'
     print("\n" + "="*80)
     print("Starting Training with Adaptive Lambda Weights")
-    print(f"Constraint Configuration: Dropout≤{constraint_dropout}, Enrolled≤{constraint_enrolled}, {num_local_courses} local courses")
+    print(f"Constraint Configuration: Dropout≤{int(global_constraint[0])}, Enrolled≤{int(global_constraint[1])}, {num_local_courses} local courses")
     print(f"Initial: λ_global={criterion_constraint.lambda_global:.2f}, "
           f"λ_local={criterion_constraint.lambda_local:.2f}")
     print(f"Lambda adjustment: +{LAMBDA_STEP} per epoch when constraints violated")
@@ -359,18 +351,17 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
             model, train_loader, criterion_ce, criterion_constraint,
             optimizer, X_test_tensor, group_ids_test, device
         )
-        avg_loss = avg_ce + criterion_constraint.lambda_global * avg_global + criterion_constraint.lambda_local * avg_local
         update_lambda_weights(avg_global, avg_local, criterion_constraint)
         if (epoch + 1) % 10 == 0:
             global_counts, local_counts, global_soft_counts, local_soft_counts = compute_prediction_statistics(
                 model, X_test_tensor, group_ids_test
             )
             update_training_history(
-                history, epoch, avg_loss, avg_ce, avg_global, avg_local,
+                history, epoch, avg_ce, avg_global, avg_local,
                 criterion_constraint.lambda_global, criterion_constraint.lambda_local,
                 global_counts, local_counts
             )
-            log_progress_to_csv(csv_log_path, epoch, avg_global, avg_local, avg_ce, avg_loss,
+            log_progress_to_csv(csv_log_path, epoch, avg_global, avg_local, avg_ce,
                                global_counts, local_counts, global_soft_counts, local_soft_counts,
                                criterion_constraint.lambda_global, criterion_constraint.lambda_local,
                                global_constraint)
@@ -379,23 +370,15 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
                 global_counts, local_counts, global_soft_counts, local_soft_counts = compute_prediction_statistics(
                     model, X_test_tensor, group_ids_test
                 )
-            print_progress(epoch, avg_global, avg_local, avg_ce, avg_loss,
+            print_progress(epoch, avg_global, avg_local, avg_ce,
                           global_counts, local_counts, global_soft_counts, local_soft_counts,
                           criterion_constraint)
             print(f"Current Lambda Weights: λ_global={criterion_constraint.lambda_global:.2f}, "
                   f"λ_local={criterion_constraint.lambda_local:.2f}\n")
-        if avg_loss < best_loss:
-            best_loss = avg_loss
-            best_model_state = model.state_dict().copy()
-            patience_counter = 0
-        else:
-            patience_counter += 1
         if check_constraint_satisfaction(
             model, X_test_tensor, group_ids_test, criterion_constraint, epoch
         ):
             break
-    if best_model_state is not None:
-        model.load_state_dict(best_model_state)
     training_time = time.time() - start_time
     if len(history['epochs']) > 0:
         g_cons_np = criterion_constraint.global_constraints.cpu().numpy()

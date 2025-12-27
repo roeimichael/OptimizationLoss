@@ -19,7 +19,6 @@ TRAINING_PARAMS = {
     'batch_size': 64,
     'lr': 0.001,
     'dropout': 0.3,
-    'patience': 10,
     'test_size': 0.1
 }
 

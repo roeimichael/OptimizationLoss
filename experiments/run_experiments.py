@@ -89,8 +89,9 @@ def main():
                 batch_size=TRAINING_PARAMS['batch_size'],
                 lr=TRAINING_PARAMS['lr'],
                 dropout=TRAINING_PARAMS['dropout'],
-                patience=TRAINING_PARAMS['patience'],
-                device=device
+                device=device,
+                constraint_dropout_pct=local_percent,
+                constraint_enrolled_pct=global_percent
             )
 
             y_test_pred = predict(model, scaler, X_test_clean, device)
