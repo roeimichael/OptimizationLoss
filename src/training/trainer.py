@@ -272,42 +272,48 @@ def update_training_history(history, epoch, avg_loss, avg_ce, avg_global, avg_lo
     history['global_predictions'].append(global_counts)
     history['local_predictions'].append(local_counts)
 
-def check_constraint_satisfaction(avg_global, avg_local, epoch, model, X_test_tensor, criterion_constraint):
-    if avg_global >= CONSTRAINT_THRESHOLD or avg_local >= CONSTRAINT_THRESHOLD:
-        return False
-    print(f"\n{'='*80}")
-    print(f"✓ CONSTRAINTS SATISFIED at epoch {epoch + 1}!")
-    print(f"{'='*80}")
-    print(f"L_target (Global): {avg_global:.8f} < {CONSTRAINT_THRESHOLD}")
-    print(f"L_feat (Local):    {avg_local:.8f} < {CONSTRAINT_THRESHOLD}")
+def check_constraint_satisfaction(model, X_test_tensor, group_ids_test, criterion_constraint, epoch):
     model.eval()
     with torch.no_grad():
         test_logits = model(X_test_tensor)
-        test_preds = torch.argmax(test_logits, dim=1)
-        global_class_counts = {}
-        for class_id in range(3):
-            count = (test_preds == class_id).sum().item()
-            global_class_counts[class_id] = count
-    print(f"\nFinal Global Predictions vs Constraints:")
+        test_proba = torch.nn.functional.softmax(test_logits, dim=1)
     g_cons = criterion_constraint.global_constraints.cpu().numpy()
     all_satisfied = True
     for class_id in range(3):
-        class_name = ['Dropout', 'Enrolled', 'Graduate'][class_id]
         constraint_val = g_cons[class_id]
-        predicted = global_class_counts[class_id]
         if constraint_val > 1e9:
-            print(f"  {class_name}: {predicted} (unconstrained)")
-        else:
-            if predicted <= constraint_val:
-                print(f"  {class_name}: {predicted} ≤ {int(constraint_val)} ✓")
-            else:
-                print(f"  {class_name}: {predicted} > {int(constraint_val)} ✗ VIOLATED!")
-                all_satisfied = False
-    print(f"{'='*80}\n")
-    if not all_satisfied:
-        print("WARNING: Constraints appear satisfied by loss but violated by hard predictions!")
-        print("This indicates the loss computation or stopping criteria has a bug.\n")
-    return True
+            continue
+        soft_count = test_proba[:, class_id].sum().item()
+        if soft_count > constraint_val:
+            all_satisfied = False
+            break
+    if all_satisfied and criterion_constraint.local_constraint_dict is not None:
+        for group_id, buffer_name in criterion_constraint.local_constraint_dict.items():
+            if group_id == 1:
+                continue
+            in_group = (group_ids_test == group_id)
+            if in_group.sum() == 0:
+                continue
+            group_proba = test_proba[in_group]
+            l_cons = getattr(criterion_constraint, buffer_name).cpu().numpy()
+            for class_id in range(3):
+                constraint_val = l_cons[class_id]
+                if constraint_val > 1e9:
+                    continue
+                soft_count = group_proba[:, class_id].sum().item()
+                if soft_count > constraint_val:
+                    all_satisfied = False
+                    break
+            if not all_satisfied:
+                break
+    if all_satisfied:
+        print(f"\n{'='*80}")
+        print(f"✓ CONSTRAINTS SATISFIED at epoch {epoch + 1}!")
+        print(f"{'='*80}")
+        print(f"All soft predictions are within their constraint limits.")
+        print(f"{'='*80}\n")
+        return True
+    return False
 
 def train_model_transductive(X_train, y_train, X_test, groups_test,
                              global_constraint, local_constraint,
@@ -385,7 +391,7 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
         else:
             patience_counter += 1
         if check_constraint_satisfaction(
-            avg_global, avg_local, epoch, model, X_test_tensor, criterion_constraint
+            model, X_test_tensor, group_ids_test, criterion_constraint, epoch
         ):
             break
     if best_model_state is not None:
