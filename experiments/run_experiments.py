@@ -43,11 +43,10 @@ def main():
     )
     print(f"Train: {len(y_train)}, Test: {len(y_test)} (Test used for constraints only)")
 
-    # Load full dataset for constraint computation
-    print(f"  Full dataset (for constraints): {FULL_DATASET_PATH}")
-    full_df = pd.read_csv(FULL_DATASET_PATH)
+    # Combine train and test for constraint computation (already preprocessed)
+    full_df = pd.concat([train_df, test_df], ignore_index=True)
     groups = full_df['Course'].unique()
-    print(f"Full dataset: {len(full_df)} samples")
+    print(f"Combined dataset (for constraints): {len(full_df)} samples")
     print(f"Number of courses: {len(groups)}")
 
     Path(RESULTS_DIR).mkdir(exist_ok=True)
