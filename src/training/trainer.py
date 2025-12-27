@@ -9,7 +9,7 @@ import os
 from src.models import NeuralNetClassifier
 from src.losses import MulticlassTransductiveLoss
 from src.utils import create_all_visualizations
-from config.experiment_config import CONSTRAINT_THRESHOLD, LAMBDA_STEP
+from config.experiment_config import CONSTRAINT_THRESHOLD, LAMBDA_STEP, WARMUP_EPOCHS
 
 def compute_prediction_statistics(model, X_test_tensor, group_ids_test):
     model.eval()
@@ -285,7 +285,12 @@ def load_history_from_csv(csv_path):
         history['local_predictions'].append({})
     return history
 
-def update_lambda_weights(avg_global, avg_local, criterion_constraint):
+def update_lambda_weights(avg_global, avg_local, criterion_constraint, epoch):
+    # During warmup, force lambdas to 0
+    if epoch < WARMUP_EPOCHS:
+        criterion_constraint.set_lambda(lambda_global=0.0, lambda_local=0.0)
+        return False
+
     lambda_updated = False
     if avg_global > CONSTRAINT_THRESHOLD:
         new_lambda_global = criterion_constraint.lambda_global + LAMBDA_STEP
@@ -371,13 +376,14 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
         class_name = ['Dropout', 'Enrolled', 'Graduate'][int(label)]
         print(f"  {class_name}: {count} ({count/len(train_labels_array)*100:.1f}%)")
 
+    print(f"\nWarmup Period: First {WARMUP_EPOCHS} epochs will train with λ=0 (no constraint pressure)")
     print("="*80 + "\n")
     for epoch in range(epochs):
         avg_ce, avg_global, avg_local = train_single_epoch(
             model, train_loader, criterion_ce, criterion_constraint,
             optimizer, X_test_tensor, group_ids_test, device
         )
-        update_lambda_weights(avg_global, avg_local, criterion_constraint)
+        update_lambda_weights(avg_global, avg_local, criterion_constraint, epoch)
         if (epoch + 1) % 3 == 0:
             global_counts, local_counts, global_soft_counts, local_soft_counts = compute_prediction_statistics(
                 model, X_test_tensor, group_ids_test
@@ -388,7 +394,7 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
                                global_constraint,
                                criterion_constraint.global_constraints_satisfied,
                                criterion_constraint.local_constraints_satisfied)
-            print(f"\nDEBUG - Epoch {epoch + 1}:")
+            print(f"\nDEBUG - Epoch {epoch + 1}:" + (" [WARMUP]" if epoch < WARMUP_EPOCHS else ""))
             print(f"  avg_ce={avg_ce:.6f}, avg_global={avg_global:.6f}, avg_local={avg_local:.6f}")
             print(f"  λ_global={criterion_constraint.lambda_global:.2f}, λ_local={criterion_constraint.lambda_local:.2f}")
             print(f"  Weighted: CE={avg_ce:.6f}, Global={criterion_constraint.lambda_global * avg_global:.6f}, Local={criterion_constraint.lambda_local * avg_local:.6f}")
