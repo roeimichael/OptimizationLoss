@@ -12,7 +12,7 @@ CONSTRAINTS = [
 ]
 
 NN_CONFIGS = [
-    {"lambda_global": 1.0, "lambda_local": 1.0, "hidden_dims": [128, 64, 32]}
+    {"lambda_global": 0.01, "lambda_local": 0.01, "hidden_dims": [128, 64, 32]}
 ]
 
 TRAINING_PARAMS = {
@@ -24,7 +24,7 @@ TRAINING_PARAMS = {
 }
 
 CONSTRAINT_THRESHOLD = 1e-6
-LAMBDA_STEP = 0.1
+LAMBDA_STEP = 0.01
 
 RESULTS_DIR = "./results"
 
