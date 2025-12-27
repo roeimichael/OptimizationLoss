@@ -7,7 +7,7 @@ def compute_global_constraints(data, target_column, percentage):
     items = data[target_column].value_counts()
     for class_id in items.index:
         constraint[int(class_id)] = np.round(items[class_id] * percentage / 10)
-    constraint[2] = None
+    constraint[2] = 1e10
     return constraint.tolist()
 
 
@@ -22,6 +22,6 @@ def compute_local_constraints(data, target_column, percentage, groups):
         items = data_group[target_column].value_counts()
         for class_id in items.index:
             constraint[int(class_id)] = np.round(items[class_id] * percentage / 10)
-        constraint[2] = None
+        constraint[2] = 1e10
         local_constraint[group] = constraint.tolist()
     return local_constraint
