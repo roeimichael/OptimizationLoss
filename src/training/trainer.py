@@ -355,14 +355,12 @@ def train_single_epoch(model, train_loader, criterion_ce, criterion_constraint,
     Returns:
         avg_loss: Average total loss for the epoch
         avg_ce: Average cross-entropy loss
-        avg_global: Average global constraint loss
-        avg_local: Average local constraint loss
+        avg_global: Global constraint loss (not averaged, computed once)
+        avg_local: Local constraint loss (not averaged, computed once)
     """
     model.train()
     epoch_loss_total = 0
     epoch_loss_ce = 0
-    epoch_loss_global = 0
-    epoch_loss_local = 0
 
     for batch_features, batch_labels in train_loader:
         batch_features = batch_features.to(device)
@@ -375,6 +373,7 @@ def train_single_epoch(model, train_loader, criterion_ce, criterion_constraint,
         loss_ce = criterion_ce(train_logits, batch_labels)
 
         # Constraint loss on test data (transductive)
+        # Computed once per batch to provide gradient signal
         test_logits = model(X_test_tensor)
         loss_constraint, _, loss_global, loss_local = criterion_constraint(
             test_logits, y_true=None, group_ids=group_ids_test
@@ -390,17 +389,22 @@ def train_single_epoch(model, train_loader, criterion_ce, criterion_constraint,
         # Accumulate losses
         epoch_loss_total += loss_total.item()
         epoch_loss_ce += loss_ce.item()
-        epoch_loss_global += loss_global.item()
-        epoch_loss_local += loss_local.item()
 
-    # Compute averages
+    # Compute averages for CE loss
     num_batches = len(train_loader)
     avg_loss = epoch_loss_total / num_batches
     avg_ce = epoch_loss_ce / num_batches
-    avg_global = epoch_loss_global / num_batches
-    avg_local = epoch_loss_local / num_batches
 
-    return avg_loss, avg_ce, avg_global, avg_local
+    # Compute constraint losses once at end of epoch for reporting
+    model.eval()
+    with torch.no_grad():
+        test_logits = model(X_test_tensor)
+        _, _, loss_global_final, loss_local_final = criterion_constraint(
+            test_logits, y_true=None, group_ids=group_ids_test
+        )
+    model.train()
+
+    return avg_loss, avg_ce, loss_global_final.item(), loss_local_final.item()
 
 
 def update_training_history(history, epoch, avg_loss, avg_ce, avg_global, avg_local,
@@ -452,6 +456,7 @@ def check_constraint_satisfaction(avg_global, avg_local, constraint_threshold,
 
     print(f"\nFinal Global Predictions vs Constraints:")
     g_cons = criterion_constraint.global_constraints.cpu().numpy()
+    all_satisfied = True
     for class_id in range(3):
         class_name = ['Dropout', 'Enrolled', 'Graduate'][class_id]
         constraint_val = g_cons[class_id]
@@ -460,9 +465,19 @@ def check_constraint_satisfaction(avg_global, avg_local, constraint_threshold,
         if constraint_val > 1e9:
             print(f"  {class_name}: {predicted} (unconstrained)")
         else:
-            print(f"  {class_name}: {predicted} ≤ {int(constraint_val)} ✓")
+            # Actually check if constraint is satisfied
+            if predicted <= constraint_val:
+                print(f"  {class_name}: {predicted} ≤ {int(constraint_val)} ✓")
+            else:
+                print(f"  {class_name}: {predicted} > {int(constraint_val)} ✗ VIOLATED!")
+                all_satisfied = False
 
     print(f"{'='*80}\n")
+
+    if not all_satisfied:
+        print("WARNING: Constraints appear satisfied by loss but violated by hard predictions!")
+        print("This indicates the loss computation or stopping criteria has a bug.\n")
+
     return True
 
 
