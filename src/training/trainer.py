@@ -122,13 +122,15 @@ def print_progress(epoch, avg_global, avg_local, avg_ce, avg_loss,
     print(f"{'─'*80}")
     print(f"{'Total':<12} {'':<8} {sum(global_counts.values()):<8} {sum(global_soft_counts.values()):<10.2f}")
 
-    # Local constraints vs predictions
+    # Local constraints vs predictions (TABLE FORMAT)
     print(f"\n{'─'*80}")
-    print("LOCAL CONSTRAINTS vs PREDICTIONS (Per Course - Soft counts used in loss)")
+    print("LOCAL CONSTRAINTS vs PREDICTIONS (Per Course)")
+    print(f"{'─'*80}")
+    print(f"{'Course':<8} {'Class':<10} {'Hard':<6} {'Soft':<8} {'Limit':<6} {'Excess':<8} {'Status':<10}")
     print(f"{'─'*80}")
 
-    violations = []
-    satisfactions = []
+    violations_count = 0
+    satisfactions_count = 0
 
     for group_id in sorted(local_counts.keys()):
         buffer_name = f'local_constraint_{group_id}'
@@ -137,12 +139,12 @@ def print_progress(epoch, avg_global, avg_local, avg_ce, avg_loss,
             hard_preds = local_counts[group_id]
             soft_preds = local_soft_counts[group_id]
 
-            has_violation = False
-            course_info = f"Course {group_id}: "
-            details = []
+            # Track if this course has any violations
+            course_has_violation = False
+            course_rows = []
 
             for class_id in range(3):
-                class_name = ['Drop', 'Enrl', 'Grad'][class_id]
+                class_name = ['Dropout', 'Enrolled', 'Graduate'][class_id]
                 constraint_val = l_cons[class_id]
                 hard_count = hard_preds[class_id]
                 soft_count = soft_preds[class_id]
@@ -152,31 +154,32 @@ def print_progress(epoch, avg_global, avg_local, avg_ce, avg_loss,
 
                 # Check soft predictions (what loss sees)
                 if soft_count > constraint_val:
-                    has_violation = True
                     excess = soft_count - constraint_val
-                    details.append(f"{class_name}:H{hard_count}/S{soft_count:.1f}/K{int(constraint_val)} (✗+{excess:.1f})")
+                    status = f"✗ +{excess:.1f}"
+                    course_has_violation = True
                 else:
-                    details.append(f"{class_name}:H{hard_count}/S{soft_count:.1f}/K{int(constraint_val)} (✓)")
+                    excess = 0.0
+                    status = "✓ OK"
 
-            if details:
-                course_info += ", ".join(details)
-                if has_violation:
-                    violations.append(course_info)
+                course_rows.append((class_name, hard_count, soft_count, int(constraint_val), excess, status))
+
+            # Print rows for this course
+            if course_rows:
+                for idx, (class_name, hard, soft, limit, excess, status) in enumerate(course_rows):
+                    if idx == 0:
+                        print(f"{group_id:<8} {class_name:<10} {hard:<6} {soft:<8.2f} {limit:<6} {excess:<8.2f} {status:<10}")
+                    else:
+                        print(f"{'':<8} {class_name:<10} {hard:<6} {soft:<8.2f} {limit:<6} {excess:<8.2f} {status:<10}")
+
+                # Add separator between courses for readability
+                print(f"{'─'*80}")
+
+                if course_has_violation:
+                    violations_count += 1
                 else:
-                    satisfactions.append(course_info)
+                    satisfactions_count += 1
 
-    if violations:
-        print("Courses with VIOLATIONS:")
-        for v in violations:
-            print(f"  {v}")
-
-    if satisfactions and len(satisfactions) <= 10:
-        print("\nCourses SATISFYING constraints:")
-        for s in satisfactions:
-            print(f"  {s}")
-    elif satisfactions:
-        print(f"\nCourses SATISFYING constraints: {len(satisfactions)} courses (all OK)")
-
+    print(f"\nSummary: {violations_count} courses with violations, {satisfactions_count} courses satisfied")
     print(f"{'='*80}\n")
 
 
