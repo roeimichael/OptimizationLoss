@@ -24,40 +24,61 @@ def compute_prediction_statistics(model, X_test_tensor, group_ids_test):
         group_ids_test: Course/group IDs for test samples
 
     Returns:
-        global_counts: Dict mapping class_id -> count
-        local_counts: Dict mapping course_id -> {class_id: count}
+        global_counts: Dict mapping class_id -> hard count
+        local_counts: Dict mapping course_id -> {class_id: hard count}
+        global_soft_counts: Dict mapping class_id -> soft count (sum of probabilities)
+        local_soft_counts: Dict mapping course_id -> {class_id: soft count}
     """
     model.eval()
     with torch.no_grad():
         test_logits = model(X_test_tensor)
         test_preds = torch.argmax(test_logits, dim=1)
+        test_proba = torch.nn.functional.softmax(test_logits, dim=1)
 
-        # Global counts
+        # Global hard counts
         global_counts = {}
         for class_id in range(3):
             count = (test_preds == class_id).sum().item()
             global_counts[class_id] = count
 
-        # Local counts per course
+        # Global soft counts (sum of probabilities)
+        global_soft_counts = {}
+        for class_id in range(3):
+            soft_count = test_proba[:, class_id].sum().item()
+            global_soft_counts[class_id] = soft_count
+
+        # Local hard counts per course
         unique_groups = torch.unique(group_ids_test)
         local_counts = {}
+        local_soft_counts = {}
+
         for group_id in unique_groups:
             group_id_val = group_id.item()
             group_mask = (group_ids_test == group_id_val)
             group_preds = test_preds[group_mask]
+            group_proba = test_proba[group_mask]
 
             course_counts = {}
+            course_soft_counts = {}
             for class_id in range(3):
+                # Hard count
                 count = (group_preds == class_id).sum().item()
                 course_counts[class_id] = count
+
+                # Soft count
+                soft_count = group_proba[:, class_id].sum().item()
+                course_soft_counts[class_id] = soft_count
+
             local_counts[group_id_val] = course_counts
+            local_soft_counts[group_id_val] = course_soft_counts
 
     model.train()
-    return global_counts, local_counts
+    return global_counts, local_counts, global_soft_counts, local_soft_counts
 
 
 def print_progress(epoch, avg_global, avg_local, avg_ce, avg_loss,
-                   global_counts, local_counts, criterion_constraint):
+                   global_counts, local_counts, global_soft_counts, local_soft_counts,
+                   criterion_constraint):
     """
     Print detailed progress every N epochs.
     """
@@ -71,36 +92,39 @@ def print_progress(epoch, avg_global, avg_local, avg_ce, avg_loss,
 
     # Global constraints vs predictions
     print(f"\n{'─'*80}")
-    print("GLOBAL CONSTRAINTS vs PREDICTIONS")
+    print("GLOBAL CONSTRAINTS vs PREDICTIONS (Hard vs Soft)")
     print(f"{'─'*80}")
-    print(f"{'Class':<15} {'Constraint':<15} {'Predicted':<15} {'Status':<15}")
+    print(f"{'Class':<12} {'Limit':<8} {'Hard':<8} {'Soft':<10} {'Diff':<8} {'Status':<15}")
     print(f"{'─'*80}")
 
     g_cons = criterion_constraint.global_constraints.cpu().numpy()
     for class_id in range(3):
         class_name = ['Dropout', 'Enrolled', 'Graduate'][class_id]
         constraint_val = g_cons[class_id]
-        predicted = global_counts[class_id]
+        hard_pred = global_counts[class_id]
+        soft_pred = global_soft_counts[class_id]
+        diff = soft_pred - hard_pred
 
         if constraint_val > 1e9:
-            constraint_str = "None (unconstrained)"
+            limit_str = "∞"
             status = "N/A"
         else:
-            constraint_str = f"{int(constraint_val)}"
-            if predicted <= constraint_val:
+            limit_str = f"{int(constraint_val)}"
+            # Check soft predictions (what loss function sees)
+            if soft_pred <= constraint_val:
                 status = "✓ OK"
             else:
-                excess = predicted - constraint_val
-                status = f"✗ Over by {int(excess)}"
+                excess = soft_pred - constraint_val
+                status = f"✗ Over by {excess:.1f}"
 
-        print(f"{class_name:<15} {constraint_str:<15} {predicted:<15} {status:<15}")
+        print(f"{class_name:<12} {limit_str:<8} {hard_pred:<8} {soft_pred:<10.2f} {diff:<8.2f} {status:<15}")
 
     print(f"{'─'*80}")
-    print(f"{'Total':<15} {'':<15} {sum(global_counts.values()):<15}")
+    print(f"{'Total':<12} {'':<8} {sum(global_counts.values()):<8} {sum(global_soft_counts.values()):<10.2f}")
 
     # Local constraints vs predictions
     print(f"\n{'─'*80}")
-    print("LOCAL CONSTRAINTS vs PREDICTIONS (Per Course)")
+    print("LOCAL CONSTRAINTS vs PREDICTIONS (Per Course - Soft counts used in loss)")
     print(f"{'─'*80}")
 
     violations = []
@@ -110,7 +134,8 @@ def print_progress(epoch, avg_global, avg_local, avg_ce, avg_loss,
         buffer_name = f'local_constraint_{group_id}'
         if hasattr(criterion_constraint, buffer_name):
             l_cons = getattr(criterion_constraint, buffer_name).cpu().numpy()
-            preds = local_counts[group_id]
+            hard_preds = local_counts[group_id]
+            soft_preds = local_soft_counts[group_id]
 
             has_violation = False
             course_info = f"Course {group_id}: "
@@ -119,17 +144,19 @@ def print_progress(epoch, avg_global, avg_local, avg_ce, avg_loss,
             for class_id in range(3):
                 class_name = ['Drop', 'Enrl', 'Grad'][class_id]
                 constraint_val = l_cons[class_id]
-                predicted = preds[class_id]
+                hard_count = hard_preds[class_id]
+                soft_count = soft_preds[class_id]
 
                 if constraint_val > 1e9:
                     continue
 
-                if predicted > constraint_val:
+                # Check soft predictions (what loss sees)
+                if soft_count > constraint_val:
                     has_violation = True
-                    excess = predicted - constraint_val
-                    details.append(f"{class_name}:{int(predicted)}/{int(constraint_val)} (✗+{int(excess)})")
+                    excess = soft_count - constraint_val
+                    details.append(f"{class_name}:H{hard_count}/S{soft_count:.1f}/K{int(constraint_val)} (✗+{excess:.1f})")
                 else:
-                    details.append(f"{class_name}:{int(predicted)}/{int(constraint_val)} (✓)")
+                    details.append(f"{class_name}:H{hard_count}/S{soft_count:.1f}/K{int(constraint_val)} (✓)")
 
             if details:
                 course_info += ", ".join(details)
@@ -521,8 +548,8 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
 
         # Track and log progress every 50 epochs
         if (epoch + 1) % 50 == 0:
-            # Compute prediction statistics
-            global_counts, local_counts = compute_prediction_statistics(
+            # Compute prediction statistics (both hard and soft)
+            global_counts, local_counts, global_soft_counts, local_soft_counts = compute_prediction_statistics(
                 model, X_test_tensor, group_ids_test
             )
 
@@ -533,9 +560,10 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
                 global_counts, local_counts
             )
 
-            # Print progress
+            # Print progress (show both hard and soft predictions)
             print_progress(epoch, avg_global, avg_local, avg_ce, avg_loss,
-                          global_counts, local_counts, criterion_constraint)
+                          global_counts, local_counts, global_soft_counts, local_soft_counts,
+                          criterion_constraint)
 
             print(f"Current Lambda Weights: λ_global={state['current_lambda_global']:.2f}, "
                   f"λ_local={state['current_lambda_local']:.2f}\n")
