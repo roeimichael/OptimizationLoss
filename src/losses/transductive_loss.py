@@ -49,7 +49,7 @@ class MulticlassTransductiveLoss(nn.Module):
         num_constrained = 0
         all_satisfied = True
 
-        # Use hard predictions for constraint satisfaction checking
+        # Use hard predictions for both checking and loss computation
         y_hard = torch.argmax(y_proba, dim=1)
 
         for class_id in range(3):
@@ -60,13 +60,13 @@ class MulticlassTransductiveLoss(nn.Module):
             hard_count = (y_hard == class_id).sum().float()
             if hard_count > K:
                 all_satisfied = False
-
-            # Soft count for loss computation (differentiable)
-            predicted_count = y_proba[:, class_id].sum()
-            E = torch.relu(predicted_count - K)
-            loss = E / (E + K + self.eps)
-            L_target = L_target + loss
-            num_constrained += 1
+                # Only compute loss if hard predictions violate constraint
+                # Use soft predictions for gradients (differentiable)
+                predicted_count = y_proba[:, class_id].sum()
+                E = torch.relu(predicted_count - K)
+                loss = E / (E + K + self.eps)
+                L_target = L_target + loss
+                num_constrained += 1
         if num_constrained > 0:
             L_target = L_target / num_constrained
         self.global_constraints_satisfied = all_satisfied
@@ -81,7 +81,7 @@ class MulticlassTransductiveLoss(nn.Module):
         num_constrained = 0
         all_satisfied = True
 
-        # Use hard predictions for constraint satisfaction checking
+        # Use hard predictions for both checking and loss computation
         y_hard = torch.argmax(y_proba, dim=1)
 
         for group_id, buffer_name in self.local_constraint_dict.items():
@@ -101,13 +101,13 @@ class MulticlassTransductiveLoss(nn.Module):
                 hard_count = (group_hard == class_id).sum().float()
                 if hard_count > K:
                     all_satisfied = False
-
-                # Soft count for loss computation (differentiable)
-                predicted_count = group_proba[:, class_id].sum()
-                E = torch.relu(predicted_count - K)
-                loss = E / (E + K + self.eps)
-                L_feat = L_feat + loss
-                num_constrained += 1
+                    # Only compute loss if hard predictions violate constraint
+                    # Use soft predictions for gradients (differentiable)
+                    predicted_count = group_proba[:, class_id].sum()
+                    E = torch.relu(predicted_count - K)
+                    loss = E / (E + K + self.eps)
+                    L_feat = L_feat + loss
+                    num_constrained += 1
         if num_constrained > 0:
             L_feat = L_feat / num_constrained
         self.local_constraints_satisfied = all_satisfied
