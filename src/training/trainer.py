@@ -404,11 +404,14 @@ def train_single_epoch(model, train_loader, criterion_ce, criterion_constraint,
     optimizer.step()
 
     # Step 3: Recompute constraint loss for accurate reporting (after weight update)
+    # IMPORTANT: Use eval mode to match prediction statistics computation
+    model.eval()
     with torch.no_grad():
         test_logits_final = model(X_test_tensor)
         _, _, loss_global_final, loss_local_final = criterion_constraint(
             test_logits_final, y_true=None, group_ids=group_ids_test
         )
+    model.train()
 
     return avg_ce, loss_global_final.item(), loss_local_final.item()
 
