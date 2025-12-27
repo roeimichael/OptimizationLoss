@@ -180,8 +180,12 @@ def plot_losses(history, save_path=None):
     axes[1, 0].set_title('L_pred (Cross-Entropy Loss)', fontweight='bold')
     axes[1, 0].grid(True, alpha=0.3)
 
-    # L_total
-    axes[1, 1].plot(epochs, history['loss_total'], color='#9b59b6', linewidth=2)
+    # L_total (computed from components)
+    loss_total = []
+    for i in range(len(epochs)):
+        total = history['loss_ce'][i] + history['lambda_global'][i] * history['loss_global'][i] + history['lambda_local'][i] * history['loss_local'][i]
+        loss_total.append(total)
+    axes[1, 1].plot(epochs, loss_total, color='#9b59b6', linewidth=2)
     axes[1, 1].set_xlabel('Epoch')
     axes[1, 1].set_ylabel('Loss')
     axes[1, 1].set_title('L_total (Combined Loss)', fontweight='bold')
