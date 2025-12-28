@@ -314,12 +314,9 @@ def train_single_epoch(model, train_loader, criterion_ce, criterion_constraint,
         train_logits = model(batch_features)
         loss_ce = criterion_ce(train_logits, batch_labels)
 
-        # Compute constraint loss in eval mode on full test set
+        # Compute constraint loss in eval mode (dropout off) but keep gradients
         model.eval()
-        with torch.no_grad():
-            test_logits = model(X_test_tensor)
-        # Back to train mode for gradient computation
-        test_logits.requires_grad_(True)
+        test_logits = model(X_test_tensor)  # Gradients flow through to model weights
         model.train()
 
         _, _, loss_global, loss_local = criterion_constraint(
