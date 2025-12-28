@@ -306,8 +306,6 @@ def train_single_epoch(model, train_loader, criterion_ce, criterion_constraint,
                        optimizer, X_test_tensor, group_ids_test, device):
     model.train()
     epoch_loss_ce = 0.0
-    epoch_loss_global = 0.0
-    epoch_loss_local = 0.0
     num_batches = len(train_loader)
     for batch_features, batch_labels in train_loader:
         batch_features = batch_features.to(device)
@@ -315,7 +313,15 @@ def train_single_epoch(model, train_loader, criterion_ce, criterion_constraint,
         optimizer.zero_grad()
         train_logits = model(batch_features)
         loss_ce = criterion_ce(train_logits, batch_labels)
-        test_logits = model(X_test_tensor)
+
+        # Compute constraint loss in eval mode on full test set
+        model.eval()
+        with torch.no_grad():
+            test_logits = model(X_test_tensor)
+        # Back to train mode for gradient computation
+        test_logits.requires_grad_(True)
+        model.train()
+
         _, _, loss_global, loss_local = criterion_constraint(
             test_logits, y_true=None, group_ids=group_ids_test
         )
@@ -323,11 +329,19 @@ def train_single_epoch(model, train_loader, criterion_ce, criterion_constraint,
         loss.backward()
         optimizer.step()
         epoch_loss_ce += loss_ce.item()
-        epoch_loss_global += loss_global.item()
-        epoch_loss_local += loss_local.item()
+
+    # Compute constraint losses once at end of epoch for reporting
+    model.eval()
+    with torch.no_grad():
+        test_logits = model(X_test_tensor)
+        _, _, loss_global, loss_local = criterion_constraint(
+            test_logits, y_true=None, group_ids=group_ids_test
+        )
+    model.train()
+
     avg_ce = epoch_loss_ce / num_batches
-    avg_global = epoch_loss_global / num_batches
-    avg_local = epoch_loss_local / num_batches
+    avg_global = loss_global.item()
+    avg_local = loss_local.item()
     return avg_ce, avg_global, avg_local
 
 def train_model_transductive(X_train, y_train, X_test, groups_test,
