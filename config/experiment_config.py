@@ -26,7 +26,8 @@ TRAINING_PARAMS = {
 
 CONSTRAINT_THRESHOLD = 1e-6
 LAMBDA_STEP = 0.01
-WARMUP_EPOCHS = 50
+WARMUP_EPOCHS = 250
+TRACKED_COURSE_ID = 2  # Course to track for local constraint visualization
 
 RESULTS_DIR = "./results"
 

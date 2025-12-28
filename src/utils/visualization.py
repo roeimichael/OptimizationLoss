@@ -50,90 +50,57 @@ def plot_global_constraints(history, global_constraints, save_path=None):
 
 def plot_local_constraints(history, local_constraints, save_path=None, max_courses=6):
     """
-    Plot local constraint satisfaction over epochs for selected courses.
+    Plot local constraint satisfaction over epochs for the tracked course.
 
     Args:
         history: Dict with 'epochs' and 'local_predictions' keys
         local_constraints: Dict mapping course_id -> [constraint0, constraint1, constraint2]
         save_path: Optional path to save the figure
-        max_courses: Maximum number of courses to plot (to avoid clutter)
+        max_courses: Unused (kept for compatibility)
     """
+    from config.experiment_config import TRACKED_COURSE_ID
+
     epochs = history['epochs']
     predictions = history['local_predictions']  # List of dicts: [{course_id: [c0, c1, c2]}, ...]
 
-    # Select courses that have violations most often (most interesting to plot)
-    course_ids = list(local_constraints.keys())
+    # Plot only the tracked course
+    if TRACKED_COURSE_ID not in local_constraints:
+        print(f"Warning: Tracked course {TRACKED_COURSE_ID} not found in local constraints. Skipping local constraint plot.")
+        return
 
-    # If too many courses, select subset
-    if len(course_ids) > max_courses:
-        # Compute violation frequency for each course
-        violation_counts = {cid: 0 for cid in course_ids}
-        for epoch_preds in predictions:
-            for course_id in course_ids:
-                if course_id in epoch_preds:
-                    preds = epoch_preds[course_id]
-                    constraints = local_constraints[course_id]
-                    for class_id in range(3):
-                        if constraints[class_id] < 1e9 and preds[class_id] > constraints[class_id]:
-                            violation_counts[course_id] += 1
-
-        # Select courses with most violations
-        course_ids = sorted(violation_counts.keys(), key=lambda x: violation_counts[x], reverse=True)[:max_courses]
-
-    # Create subplots: one for each course
-    n_courses = len(course_ids)
-    n_cols = 2
-    n_rows = (n_courses + n_cols - 1) // n_cols
-
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 4*n_rows))
-    if n_rows == 1 and n_cols == 1:
-        axes = np.array([[axes]])
-    elif n_rows == 1:
-        axes = axes.reshape(1, -1)
-    elif n_cols == 1:
-        axes = axes.reshape(-1, 1)
+    # Single plot for tracked course
+    fig, ax = plt.subplots(figsize=(12, 6))
 
     class_names = ['Dropout', 'Enrolled', 'Graduate']
     colors = ['#e74c3c', '#3498db', '#2ecc71']
 
-    for idx, course_id in enumerate(course_ids):
-        row = idx // n_cols
-        col = idx % n_cols
-        ax = axes[row, col]
+    constraints = local_constraints[TRACKED_COURSE_ID]
 
-        constraints = local_constraints[course_id]
+    # Extract predictions for this course over epochs
+    for class_id in range(3):
+        class_preds = []
+        for epoch_preds in predictions:
+            if TRACKED_COURSE_ID in epoch_preds:
+                class_preds.append(epoch_preds[TRACKED_COURSE_ID][class_id])
+            else:
+                class_preds.append(0)
 
-        # Extract predictions for this course over epochs
-        for class_id in range(3):
-            class_preds = []
-            for epoch_preds in predictions:
-                if course_id in epoch_preds:
-                    class_preds.append(epoch_preds[course_id][class_id])
-                else:
-                    class_preds.append(0)
+        ax.plot(epochs, class_preds, label=f'{class_names[class_id]} (Predicted)',
+               color=colors[class_id], linewidth=2)
 
-            ax.plot(epochs, class_preds, label=class_names[class_id],
-                   color=colors[class_id], linewidth=1.5)
+        # Plot constraint line
+        if constraints[class_id] < 1e9:
+            ax.axhline(y=constraints[class_id], color=colors[class_id],
+                      linestyle='--', linewidth=2, alpha=0.7,
+                      label=f'{class_names[class_id]} Constraint ({int(constraints[class_id])})')
 
-            # Plot constraint line
-            if constraints[class_id] < 1e9:
-                ax.axhline(y=constraints[class_id], color=colors[class_id],
-                          linestyle='--', linewidth=1.5, alpha=0.6)
+    ax.set_xlabel('Epoch', fontsize=12)
+    ax.set_ylabel('Number of Predicted Students', fontsize=12)
+    ax.set_title(f'Local Constraint Satisfaction Over Training (Course {TRACKED_COURSE_ID})',
+                 fontsize=14, fontweight='bold')
+    ax.legend(loc='best', fontsize=10)
+    ax.grid(True, alpha=0.3)
 
-        ax.set_title(f'Course {course_id}', fontsize=11, fontweight='bold')
-        ax.set_xlabel('Epoch', fontsize=9)
-        ax.set_ylabel('Predicted Students', fontsize=9)
-        ax.legend(fontsize=8, loc='best')
-        ax.grid(True, alpha=0.3)
-
-    # Hide unused subplots
-    for idx in range(len(course_ids), n_rows * n_cols):
-        row = idx // n_cols
-        col = idx % n_cols
-        axes[row, col].axis('off')
-
-    fig.suptitle('Local Constraint Satisfaction Over Training (Selected Courses)',
-                 fontsize=14, fontweight='bold', y=1.00)
     plt.tight_layout()
 
     if save_path:

@@ -9,7 +9,7 @@ import os
 from src.models import NeuralNetClassifier
 from src.losses import MulticlassTransductiveLoss
 from src.utils import create_all_visualizations
-from config.experiment_config import CONSTRAINT_THRESHOLD, LAMBDA_STEP, WARMUP_EPOCHS
+from config.experiment_config import CONSTRAINT_THRESHOLD, LAMBDA_STEP, WARMUP_EPOCHS, TRACKED_COURSE_ID
 
 def compute_prediction_statistics(model, X_test_tensor, group_ids_test):
     model.eval()
@@ -139,12 +139,22 @@ def log_progress_to_csv(csv_path, epoch, avg_global, avg_local, avg_ce,
                 'Limit_Dropout', 'Limit_Enrolled', 'Limit_Graduate',
                 'Hard_Dropout', 'Hard_Enrolled', 'Hard_Graduate',
                 'Soft_Dropout', 'Soft_Enrolled', 'Soft_Graduate',
-                'Excess_Dropout', 'Excess_Enrolled', 'Excess_Graduate'
+                'Excess_Dropout', 'Excess_Enrolled', 'Excess_Graduate',
+                'Course_ID', 'Course_Hard_Dropout', 'Course_Hard_Enrolled', 'Course_Hard_Graduate',
+                'Course_Soft_Dropout', 'Course_Soft_Enrolled', 'Course_Soft_Graduate'
             ]
             writer.writerow(header)
         excess_dropout = max(0, global_soft_counts[0] - global_constraints[0])
         excess_enrolled = max(0, global_soft_counts[1] - global_constraints[1])
         excess_graduate = max(0, global_soft_counts[2] - global_constraints[2]) if global_constraints[2] < 1e9 else 0
+
+        # Get tracked course data
+        course_hard = [0, 0, 0]
+        course_soft = [0.0, 0.0, 0.0]
+        if TRACKED_COURSE_ID in local_counts:
+            course_hard = [local_counts[TRACKED_COURSE_ID][i] for i in range(3)]
+            course_soft = [local_soft_counts[TRACKED_COURSE_ID][i] for i in range(3)]
+
         row = [
             epoch + 1,
             f"{avg_ce:.6f}",
@@ -165,7 +175,14 @@ def log_progress_to_csv(csv_path, epoch, avg_global, avg_local, avg_ce,
             f"{global_soft_counts[2]:.2f}",
             f"{excess_dropout:.2f}",
             f"{excess_enrolled:.2f}",
-            f"{excess_graduate:.2f}"
+            f"{excess_graduate:.2f}",
+            TRACKED_COURSE_ID,
+            course_hard[0],
+            course_hard[1],
+            course_hard[2],
+            f"{course_soft[0]:.2f}",
+            f"{course_soft[1]:.2f}",
+            f"{course_soft[2]:.2f}"
         ]
         writer.writerow(row)
 
@@ -282,7 +299,17 @@ def load_history_from_csv(csv_path):
             2: int(row['Hard_Graduate'])
         }
         history['global_predictions'].append(global_counts)
-        history['local_predictions'].append({})
+
+        # Populate tracked course data if columns exist
+        local_data = {}
+        if 'Course_ID' in row and 'Course_Hard_Dropout' in row:
+            course_id = int(row['Course_ID'])
+            local_data[course_id] = [
+                int(row['Course_Hard_Dropout']),
+                int(row['Course_Hard_Enrolled']),
+                int(row['Course_Hard_Graduate'])
+            ]
+        history['local_predictions'].append(local_data)
     return history
 
 def update_lambda_weights(avg_global, avg_local, criterion_constraint, epoch):
@@ -405,29 +432,32 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
                                global_constraint,
                                criterion_constraint.global_constraints_satisfied,
                                criterion_constraint.local_constraints_satisfied)
-            print(f"\nDEBUG - Epoch {epoch + 1}:" + (" [WARMUP]" if epoch < WARMUP_EPOCHS else ""))
-            print(f"  avg_ce={avg_ce:.6f}, avg_global={avg_global:.6f}, avg_local={avg_local:.6f}")
-            print(f"  λ_global={criterion_constraint.lambda_global:.2f}, λ_local={criterion_constraint.lambda_local:.2f}")
-            print(f"  Weighted: CE={avg_ce:.6f}, Global={criterion_constraint.lambda_global * avg_global:.6f}, Local={criterion_constraint.lambda_local * avg_local:.6f}")
-            print(f"  Total weighted loss: {avg_ce + criterion_constraint.lambda_global * avg_global + criterion_constraint.lambda_local * avg_local:.6f}")
 
-            # Check train accuracy
-            model.eval()
-            with torch.no_grad():
-                train_correct = 0
-                train_total = 0
-                for batch_features, batch_labels in train_loader:
-                    batch_features = batch_features.to(device)
-                    batch_labels = batch_labels.to(device)
-                    outputs = model(batch_features)
-                    _, predicted = torch.max(outputs, 1)
-                    train_total += batch_labels.size(0)
-                    train_correct += (predicted == batch_labels).sum().item()
-                train_acc = train_correct / train_total
-            model.train()
-            print(f"  Train Accuracy: {train_acc:.4f}")
+            # Only print after warmup completes
+            if epoch >= WARMUP_EPOCHS:
+                print(f"\nDEBUG - Epoch {epoch + 1}:")
+                print(f"  avg_ce={avg_ce:.6f}, avg_global={avg_global:.6f}, avg_local={avg_local:.6f}")
+                print(f"  λ_global={criterion_constraint.lambda_global:.2f}, λ_local={criterion_constraint.lambda_local:.2f}")
+                print(f"  Weighted: CE={avg_ce:.6f}, Global={criterion_constraint.lambda_global * avg_global:.6f}, Local={criterion_constraint.lambda_local * avg_local:.6f}")
+                print(f"  Total weighted loss: {avg_ce + criterion_constraint.lambda_global * avg_global + criterion_constraint.lambda_local * avg_local:.6f}")
 
-            print_progress_from_csv(csv_log_path, criterion_constraint)
+                # Check train accuracy
+                model.eval()
+                with torch.no_grad():
+                    train_correct = 0
+                    train_total = 0
+                    for batch_features, batch_labels in train_loader:
+                        batch_features = batch_features.to(device)
+                        batch_labels = batch_labels.to(device)
+                        outputs = model(batch_features)
+                        _, predicted = torch.max(outputs, 1)
+                        train_total += batch_labels.size(0)
+                        train_correct += (predicted == batch_labels).sum().item()
+                    train_acc = train_correct / train_total
+                model.train()
+                print(f"  Train Accuracy: {train_acc:.4f}")
+
+                print_progress_from_csv(csv_log_path, criterion_constraint)
         if criterion_constraint.global_constraints_satisfied and criterion_constraint.local_constraints_satisfied:
             print(f"\n{'='*80}")
             print(f"✓ ALL CONSTRAINTS SATISFIED at epoch {epoch + 1}!")
