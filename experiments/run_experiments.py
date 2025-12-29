@@ -106,13 +106,20 @@ def main():
             benchmark_metrics_path = f"./results/constraints_{local_percent}_{global_percent}/benchmark_metrics.csv"
             benchmark_metrics = {}
             if os.path.exists(benchmark_metrics_path):
-                benchmark_df = pd.read_csv(benchmark_metrics_path, header=None, names=['Metric', 'Value'])
-                benchmark_metrics = {
-                    'benchmark_accuracy': float(benchmark_df[benchmark_df['Metric'] == 'Overall Accuracy']['Value'].values[0]),
-                    'benchmark_precision_macro': float(benchmark_df[benchmark_df['Metric'] == 'Precision (Macro)']['Value'].values[0]),
-                    'benchmark_recall_macro': float(benchmark_df[benchmark_df['Metric'] == 'Recall (Macro)']['Value'].values[0]),
-                    'benchmark_f1_macro': float(benchmark_df[benchmark_df['Metric'] == 'F1-Score (Macro)']['Value'].values[0])
-                }
+                with open(benchmark_metrics_path, 'r') as f:
+                    lines = f.readlines()
+                    for line in lines:
+                        parts = line.strip().split(',')
+                        if len(parts) == 2:
+                            metric, value = parts
+                            if metric == 'Overall Accuracy':
+                                benchmark_metrics['benchmark_accuracy'] = float(value)
+                            elif metric == 'Precision (Macro)':
+                                benchmark_metrics['benchmark_precision_macro'] = float(value)
+                            elif metric == 'Recall (Macro)':
+                                benchmark_metrics['benchmark_recall_macro'] = float(value)
+                            elif metric == 'F1-Score (Macro)':
+                                benchmark_metrics['benchmark_f1_macro'] = float(value)
 
             config_results[str(constraint_pair)] = {
                 'accuracy': float(metrics['accuracy']),
