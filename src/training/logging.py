@@ -1,5 +1,6 @@
 import csv
 import os
+import torch
 from config.experiment_config import TRACKED_COURSE_ID
 
 def log_progress_to_csv(csv_path, epoch, avg_global, avg_local, avg_ce,
@@ -142,3 +143,111 @@ def load_history_from_csv(csv_path):
             ]
         history['local_predictions'].append(local_data)
     return history
+
+def save_final_predictions(save_path, y_true, y_pred, y_proba, course_ids=None):
+    import pandas as pd
+    df_data = {
+        'Sample_Index': list(range(len(y_true))),
+        'True_Label': y_true,
+        'Predicted_Label': y_pred,
+        'Prob_Dropout': y_proba[:, 0],
+        'Prob_Enrolled': y_proba[:, 1],
+        'Prob_Graduate': y_proba[:, 2],
+        'Correct': (y_true == y_pred).astype(int)
+    }
+    if course_ids is not None:
+        df_data['Course_ID'] = course_ids
+    df = pd.DataFrame(df_data)
+    df.to_csv(save_path, index=False)
+    print(f"Final predictions saved to: {save_path}")
+
+def save_constraint_comparison(save_path, model, X_test_tensor, group_ids_test,
+                                global_constraints, local_constraints_dict):
+    import pandas as pd
+    model.eval()
+    with torch.no_grad():
+        test_logits = model(X_test_tensor)
+        test_preds = torch.argmax(test_logits, dim=1)
+
+        unique_groups = torch.unique(group_ids_test)
+        rows = []
+
+        for group_id in unique_groups:
+            group_id_val = group_id.item()
+            group_mask = (group_ids_test == group_id_val)
+            group_preds = test_preds[group_mask]
+
+            course_counts = {}
+            for class_id in range(3):
+                count = (group_preds == class_id).sum().item()
+                course_counts[class_id] = count
+
+            buffer_name = f'local_constraint_{group_id_val}'
+            local_cons = local_constraints_dict.get(group_id_val, [float('inf')] * 3)
+
+            class_names = ['Dropout', 'Enrolled', 'Graduate']
+            for class_id in range(3):
+                predicted = course_counts[class_id]
+                constraint = local_cons[class_id]
+
+                if constraint < 1e9:
+                    overprediction = max(0, predicted - constraint)
+                    status = "OK" if predicted <= constraint else "OVER"
+                else:
+                    overprediction = 0
+                    constraint = 'Unlimited'
+                    status = "N/A"
+
+                rows.append({
+                    'Course_ID': group_id_val,
+                    'Class': class_names[class_id],
+                    'Constraint': constraint,
+                    'Predicted': predicted,
+                    'Overprediction': overprediction,
+                    'Status': status
+                })
+
+    model.train()
+    df = pd.DataFrame(rows)
+    df.to_csv(save_path, index=False)
+    print(f"Constraint comparison saved to: {save_path}")
+
+def save_evaluation_metrics(save_path, metrics):
+    class_names = ['Dropout', 'Enrolled', 'Graduate']
+
+    rows = []
+    rows.append(['Metric', 'Value'])
+    rows.append(['Overall Accuracy', f"{metrics['accuracy']:.4f}"])
+    rows.append([''])
+    rows.append(['Macro Averaged Metrics', ''])
+    rows.append(['Precision (Macro)', f"{metrics['precision_macro']:.4f}"])
+    rows.append(['Recall (Macro)', f"{metrics['recall_macro']:.4f}"])
+    rows.append(['F1-Score (Macro)', f"{metrics['f1_macro']:.4f}"])
+    rows.append([''])
+    rows.append(['Weighted Averaged Metrics', ''])
+    rows.append(['Precision (Weighted)', f"{metrics['precision_weighted']:.4f}"])
+    rows.append(['Recall (Weighted)', f"{metrics['recall_weighted']:.4f}"])
+    rows.append(['F1-Score (Weighted)', f"{metrics['f1_weighted']:.4f}"])
+    rows.append([''])
+    rows.append(['Per-Class Metrics', ''])
+    rows.append(['Class', 'Precision', 'Recall', 'F1-Score', 'Support'])
+    for i, class_name in enumerate(class_names):
+        rows.append([
+            class_name,
+            f"{metrics['precision_per_class'][i]:.4f}",
+            f"{metrics['recall_per_class'][i]:.4f}",
+            f"{metrics['f1_per_class'][i]:.4f}",
+            int(metrics['support_per_class'][i])
+        ])
+    rows.append([''])
+    rows.append(['Confusion Matrix', ''])
+    rows.append([''] + class_names)
+    cm = metrics['confusion_matrix']
+    for i, class_name in enumerate(class_names):
+        rows.append([class_name] + [int(cm[i][j]) for j in range(3)])
+
+    with open(save_path, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerows(rows)
+
+    print(f"Evaluation metrics saved to: {save_path}")

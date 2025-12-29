@@ -78,9 +78,9 @@ def main():
             groups_test = X_test["Course"]
 
             print(f"  Training with transductive approach...")
-            model, scaler, training_time, history = train_model_transductive(
+            model, scaler, training_time, history, metrics = train_model_transductive(
                 X_train_clean, y_train,
-                X_test_clean, groups_test,
+                X_test_clean, groups_test, y_test,
                 global_constraint, local_constraint,
                 lambda_global=config['lambda_global'],
                 lambda_local=config['lambda_local'],
@@ -104,7 +104,13 @@ def main():
             print(f"  Test Accuracy: {accuracy:.4f}, Time: {training_time:.2f}s")
 
             config_results[str(constraint_pair)] = {
-                'accuracy': float(accuracy),
+                'accuracy': float(metrics['accuracy']),
+                'precision_macro': float(metrics['precision_macro']),
+                'recall_macro': float(metrics['recall_macro']),
+                'f1_macro': float(metrics['f1_macro']),
+                'precision_weighted': float(metrics['precision_weighted']),
+                'recall_weighted': float(metrics['recall_weighted']),
+                'f1_weighted': float(metrics['f1_weighted']),
                 'training_time': float(training_time)
             }
 
@@ -122,7 +128,8 @@ def main():
     for config_name, results in all_results.items():
         print(f"\n{config_name}:")
         for constraint, metrics in results.items():
-            print(f"  {constraint}: Acc={metrics['accuracy']:.4f}, Time={metrics['training_time']:.2f}s")
+            print(f"  {constraint}: Acc={metrics['accuracy']:.4f}, P={metrics['precision_macro']:.4f}, "
+                  f"R={metrics['recall_macro']:.4f}, F1={metrics['f1_macro']:.4f}, Time={metrics['training_time']:.2f}s")
 
 
 if __name__ == "__main__":

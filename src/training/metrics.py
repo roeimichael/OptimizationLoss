@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+from sklearn.metrics import precision_recall_fscore_support, confusion_matrix
 
 def compute_prediction_statistics(model, X_test_tensor, group_ids_test):
     model.eval()
@@ -59,3 +60,41 @@ def compute_train_accuracy(model, train_loader, device):
 
 def evaluate_accuracy(y_true, y_pred):
     return np.mean(y_true == y_pred)
+
+def get_predictions_with_probabilities(model, X_test_tensor):
+    model.eval()
+    with torch.no_grad():
+        test_logits = model(X_test_tensor)
+        test_preds = torch.argmax(test_logits, dim=1).cpu().numpy()
+        test_proba = torch.nn.functional.softmax(test_logits, dim=1).cpu().numpy()
+    model.train()
+    return test_preds, test_proba
+
+def compute_metrics(y_true, y_pred):
+    accuracy = np.mean(y_true == y_pred)
+    precision, recall, f1, support = precision_recall_fscore_support(
+        y_true, y_pred, average=None, zero_division=0
+    )
+    precision_macro, recall_macro, f1_macro, _ = precision_recall_fscore_support(
+        y_true, y_pred, average='macro', zero_division=0
+    )
+    precision_weighted, recall_weighted, f1_weighted, _ = precision_recall_fscore_support(
+        y_true, y_pred, average='weighted', zero_division=0
+    )
+    cm = confusion_matrix(y_true, y_pred)
+
+    metrics = {
+        'accuracy': accuracy,
+        'precision_per_class': precision,
+        'recall_per_class': recall,
+        'f1_per_class': f1,
+        'support_per_class': support,
+        'precision_macro': precision_macro,
+        'recall_macro': recall_macro,
+        'f1_macro': f1_macro,
+        'precision_weighted': precision_weighted,
+        'recall_weighted': recall_weighted,
+        'f1_weighted': f1_weighted,
+        'confusion_matrix': cm
+    }
+    return metrics

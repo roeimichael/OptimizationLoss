@@ -11,8 +11,8 @@ from src.losses import MulticlassTransductiveLoss
 from src.utils import create_all_visualizations
 from config.experiment_config import CONSTRAINT_THRESHOLD, LAMBDA_STEP, WARMUP_EPOCHS
 
-from .metrics import compute_prediction_statistics, compute_train_accuracy
-from .logging import log_progress_to_csv, print_progress_from_csv, load_history_from_csv
+from .metrics import compute_prediction_statistics, compute_train_accuracy, get_predictions_with_probabilities, compute_metrics
+from .logging import log_progress_to_csv, print_progress_from_csv, load_history_from_csv, save_final_predictions, save_constraint_comparison, save_evaluation_metrics
 
 def prepare_training_data(X_train, y_train, X_test, groups_test, batch_size, device):
     scaler = StandardScaler()
@@ -113,7 +113,7 @@ def train_single_epoch(model, train_loader, criterion_ce, criterion_constraint,
     avg_local = loss_local.item()
     return avg_ce, avg_global, avg_local
 
-def train_model_transductive(X_train, y_train, X_test, groups_test,
+def train_model_transductive(X_train, y_train, X_test, groups_test, y_test,
                              global_constraint, local_constraint,
                              lambda_global, lambda_local, hidden_dims, epochs,
                              batch_size, lr, dropout, device,
@@ -217,7 +217,40 @@ def train_model_transductive(X_train, y_train, X_test, groups_test,
                 local_cons_dict[group_id] = l_cons
         create_all_visualizations(history, g_cons_np, local_cons_dict, output_dir=experiment_folder)
 
-    return model, scaler, training_time, history
+    print("\n" + "="*80)
+    print("Saving Final Results")
+    print("="*80)
+
+    y_pred, y_proba = get_predictions_with_probabilities(model, X_test_tensor)
+    y_true_np = y_test.values if hasattr(y_test, 'values') else y_test
+    course_ids_np = groups_test.values if hasattr(groups_test, 'values') else groups_test
+
+    save_final_predictions(
+        os.path.join(experiment_folder, 'final_predictions.csv'),
+        y_true_np, y_pred, y_proba, course_ids_np
+    )
+
+    local_cons_dict_for_comparison = {}
+    if criterion_constraint.local_constraint_dict is not None:
+        for group_id, buffer_name in criterion_constraint.local_constraint_dict.items():
+            l_cons = getattr(criterion_constraint, buffer_name).cpu().numpy()
+            local_cons_dict_for_comparison[group_id] = l_cons
+
+    save_constraint_comparison(
+        os.path.join(experiment_folder, 'constraint_comparison.csv'),
+        model, X_test_tensor, group_ids_test,
+        global_constraint, local_cons_dict_for_comparison
+    )
+
+    metrics = compute_metrics(y_true_np, y_pred)
+    save_evaluation_metrics(
+        os.path.join(experiment_folder, 'evaluation_metrics.csv'),
+        metrics
+    )
+
+    print("="*80 + "\n")
+
+    return model, scaler, training_time, history, metrics
 
 def predict(model, scaler, X_test, device):
     model.eval()
