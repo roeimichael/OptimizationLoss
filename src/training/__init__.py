@@ -1,6 +1,7 @@
 """Training utilities and constraint computation."""
 
-from .trainer import train_model_transductive, predict, evaluate_accuracy
+from .trainer import train_model_transductive, predict
+from .metrics import  evaluate_accuracy
 from .constraints import compute_global_constraints, compute_local_constraints
 
 __all__ = [
