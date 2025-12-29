@@ -13,6 +13,7 @@ from config.experiment_config import CONSTRAINT_THRESHOLD, LAMBDA_STEP, WARMUP_E
 
 from .metrics import compute_prediction_statistics, compute_train_accuracy, get_predictions_with_probabilities, compute_metrics
 from .logging import log_progress_to_csv, print_progress_from_csv, load_history_from_csv, save_final_predictions, save_constraint_comparison, save_evaluation_metrics
+from src.benchmark import greedy_constraint_selection
 
 def prepare_training_data(X_train, y_train, X_test, groups_test, batch_size, device):
     scaler = StandardScaler()
@@ -164,6 +165,8 @@ def train_model_transductive(X_train, y_train, X_test, groups_test, y_test,
     print(f"\nWarmup Period: First {WARMUP_EPOCHS} epochs will train with lambda=0 (no constraint pressure)")
     print("="*80 + "\n")
 
+    benchmark_done = False
+
     for epoch in range(epochs):
         avg_ce, avg_global, avg_local = train_single_epoch(
             model, train_loader, criterion_ce, criterion_constraint,
@@ -195,6 +198,24 @@ def train_model_transductive(X_train, y_train, X_test, groups_test, y_test,
                 print(f"  Train Accuracy: {train_acc:.4f}")
 
                 print_progress_from_csv(csv_log_path, criterion_constraint)
+
+        if epoch == WARMUP_EPOCHS - 1 and not benchmark_done:
+            print("\n" + "="*80)
+            print(f"WARMUP PERIOD COMPLETED - Running Benchmark at Epoch {epoch + 1}")
+            print("="*80)
+
+            local_cons_dict_benchmark = {}
+            if criterion_constraint.local_constraint_dict is not None:
+                for group_id, buffer_name in criterion_constraint.local_constraint_dict.items():
+                    l_cons = getattr(criterion_constraint, buffer_name).cpu().numpy()
+                    local_cons_dict_benchmark[group_id] = l_cons
+
+            greedy_constraint_selection(
+                model, X_test_tensor, group_ids_test, y_test,
+                global_constraint, local_cons_dict_benchmark,
+                experiment_folder
+            )
+            benchmark_done = True
 
         if criterion_constraint.global_constraints_satisfied and criterion_constraint.local_constraints_satisfied:
             print(f"\n{'='*80}")

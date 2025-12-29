@@ -103,6 +103,17 @@ def main():
 
             print(f"  Test Accuracy: {accuracy:.4f}, Time: {training_time:.2f}s")
 
+            benchmark_metrics_path = f"./results/constraints_{local_percent}_{global_percent}/benchmark_metrics.csv"
+            benchmark_metrics = {}
+            if os.path.exists(benchmark_metrics_path):
+                benchmark_df = pd.read_csv(benchmark_metrics_path, header=None, names=['Metric', 'Value'])
+                benchmark_metrics = {
+                    'benchmark_accuracy': float(benchmark_df[benchmark_df['Metric'] == 'Overall Accuracy']['Value'].values[0]),
+                    'benchmark_precision_macro': float(benchmark_df[benchmark_df['Metric'] == 'Precision (Macro)']['Value'].values[0]),
+                    'benchmark_recall_macro': float(benchmark_df[benchmark_df['Metric'] == 'Recall (Macro)']['Value'].values[0]),
+                    'benchmark_f1_macro': float(benchmark_df[benchmark_df['Metric'] == 'F1-Score (Macro)']['Value'].values[0])
+                }
+
             config_results[str(constraint_pair)] = {
                 'accuracy': float(metrics['accuracy']),
                 'precision_macro': float(metrics['precision_macro']),
@@ -111,7 +122,8 @@ def main():
                 'precision_weighted': float(metrics['precision_weighted']),
                 'recall_weighted': float(metrics['recall_weighted']),
                 'f1_weighted': float(metrics['f1_weighted']),
-                'training_time': float(training_time)
+                'training_time': float(training_time),
+                **benchmark_metrics
             }
 
         all_results[f"{config_name}_transductive"] = config_results
@@ -128,8 +140,13 @@ def main():
     for config_name, results in all_results.items():
         print(f"\n{config_name}:")
         for constraint, metrics in results.items():
-            print(f"  {constraint}: Acc={metrics['accuracy']:.4f}, P={metrics['precision_macro']:.4f}, "
-                  f"R={metrics['recall_macro']:.4f}, F1={metrics['f1_macro']:.4f}, Time={metrics['training_time']:.2f}s")
+            summary = f"  {constraint}:\n"
+            summary += f"    Optimized: Acc={metrics['accuracy']:.4f}, P={metrics['precision_macro']:.4f}, "
+            summary += f"R={metrics['recall_macro']:.4f}, F1={metrics['f1_macro']:.4f}, Time={metrics['training_time']:.2f}s"
+            if 'benchmark_accuracy' in metrics:
+                summary += f"\n    Benchmark: Acc={metrics['benchmark_accuracy']:.4f}, P={metrics['benchmark_precision_macro']:.4f}, "
+                summary += f"R={metrics['benchmark_recall_macro']:.4f}, F1={metrics['benchmark_f1_macro']:.4f}"
+            print(summary)
 
 
 if __name__ == "__main__":
