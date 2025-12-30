@@ -6,9 +6,10 @@ TEST_PATH = "./data/dataset_test.csv"
 TARGET_COLUMN = 'Target'
 
 CONSTRAINTS = [
-    (0.9, 0.8), (0.9, 0.5), (0.8, 0.7), (0.8, 0.2),
-    (0.7, 0.5), (0.6, 0.5), (0.4, 0.2),(0.5, 0.3)
+    # (0.9, 0.8), (0.9, 0.5), (0.8, 0.7), (0.8, 0.2),
+    # (0.7, 0.5), (0.6, 0.5), (0.4, 0.2),(0.5, 0.3)
     # (0.8, 0.6)
+    (0.5, 0.3)
 ]
 
 NN_CONFIGS = [
@@ -29,4 +30,3 @@ WARMUP_EPOCHS = 250
 TRACKED_COURSE_ID = 2  # Course to track for local constraint visualization
 
 RESULTS_DIR = "./results"
-

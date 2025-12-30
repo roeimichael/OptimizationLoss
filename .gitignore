@@ -33,11 +33,7 @@ env/
 *~
 
 # Results and Data
-results/
-*.csv
-*.pkl
-*.pth
-*.pt
+
 
 # Data directory - exclude dataset files but keep README
 data/*.csv
