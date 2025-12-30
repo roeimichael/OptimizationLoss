@@ -54,10 +54,21 @@ def main():
     all_results = {}
 
     for config_idx, config in enumerate(NN_CONFIGS):
-        config_name = f"nn_config{config_idx + 1}"
+        config_name = config.get('name', f"nn_config{config_idx + 1}")
+
+        # Extract hyperparameters from config
+        lambda_global = config['lambda_global']
+        lambda_local = config['lambda_local']
+        hidden_dims = config['hidden_dims']
+        lr = config.get('lr', TRAINING_PARAMS['lr'])
+        dropout = config.get('dropout', TRAINING_PARAMS['dropout'])
+        batch_size = config.get('batch_size', TRAINING_PARAMS['batch_size'])
+
         print(f"\n{'='*80}")
-        print(f"Config {config_idx + 1}: lambda_g={config['lambda_global']}, lambda_l={config['lambda_local']}")
-        print(f"Hidden dims: {config['hidden_dims']}")
+        print(f"Config: {config_name}")
+        print(f"  Lambda: global={lambda_global}, local={lambda_local}")
+        print(f"  Architecture: {hidden_dims}")
+        print(f"  Learning rate: {lr}, Dropout: {dropout}, Batch size: {batch_size}")
         print(f"{'='*80}")
 
         config_results = {}
@@ -82,16 +93,17 @@ def main():
                 X_train_clean, y_train,
                 X_test_clean, groups_test, y_test,
                 global_constraint, local_constraint,
-                lambda_global=config['lambda_global'],
-                lambda_local=config['lambda_local'],
-                hidden_dims=config['hidden_dims'],
+                lambda_global=lambda_global,
+                lambda_local=lambda_local,
+                hidden_dims=hidden_dims,
                 epochs=TRAINING_PARAMS['epochs'],
-                batch_size=TRAINING_PARAMS['batch_size'],
-                lr=TRAINING_PARAMS['lr'],
-                dropout=TRAINING_PARAMS['dropout'],
+                batch_size=batch_size,
+                lr=lr,
+                dropout=dropout,
                 device=device,
                 constraint_dropout_pct=local_percent,
-                constraint_enrolled_pct=global_percent
+                constraint_enrolled_pct=global_percent,
+                hyperparam_name=config_name  # Pass config name for folder naming
             )
 
             y_test_pred = predict(model, scaler, X_test_clean, device)
@@ -103,7 +115,8 @@ def main():
 
             print(f"  Test Accuracy: {accuracy:.4f}, Time: {training_time:.2f}s")
 
-            benchmark_metrics_path = f"./results/constraints_{local_percent}_{global_percent}/benchmark_metrics.csv"
+            # Read benchmark metrics from hyperparameter-specific folder
+            benchmark_metrics_path = f"./results/hyperparam_{config_name}/benchmark_metrics.csv"
             benchmark_metrics = {}
             if os.path.exists(benchmark_metrics_path):
                 with open(benchmark_metrics_path, 'r') as f:
@@ -122,6 +135,14 @@ def main():
                                 benchmark_metrics['benchmark_f1_macro'] = float(value)
 
             config_results[str(constraint_pair)] = {
+                'hyperparameters': {
+                    'lambda_global': lambda_global,
+                    'lambda_local': lambda_local,
+                    'hidden_dims': hidden_dims,
+                    'learning_rate': lr,
+                    'dropout': dropout,
+                    'batch_size': batch_size
+                },
                 'accuracy': float(metrics['accuracy']),
                 'precision_macro': float(metrics['precision_macro']),
                 'recall_macro': float(metrics['recall_macro']),
@@ -133,7 +154,7 @@ def main():
                 **benchmark_metrics
             }
 
-        all_results[f"{config_name}_transductive"] = config_results
+        all_results[config_name] = config_results
 
     results_json_path = f"{RESULTS_DIR}/nn_results.json"
     with open(results_json_path, 'w') as f:

@@ -118,7 +118,8 @@ def train_model_transductive(X_train, y_train, X_test, groups_test, y_test,
                              global_constraint, local_constraint,
                              lambda_global, lambda_local, hidden_dims, epochs,
                              batch_size, lr, dropout, device,
-                             constraint_dropout_pct, constraint_enrolled_pct):
+                             constraint_dropout_pct, constraint_enrolled_pct,
+                             hyperparam_name=None):
     start_time = time.time()
 
     train_loader, X_test_tensor, group_ids_test, scaler = prepare_training_data(
@@ -139,7 +140,13 @@ def train_model_transductive(X_train, y_train, X_test, groups_test, y_test,
         )
 
     num_local_courses = len(local_constraint) if local_constraint else 0
-    experiment_folder = f'./results/constraints_{constraint_dropout_pct}_{constraint_enrolled_pct}'
+
+    # Use hyperparameter name for folder if provided, otherwise use constraint-based naming
+    if hyperparam_name:
+        experiment_folder = f'./results/hyperparam_{hyperparam_name}'
+    else:
+        experiment_folder = f'./results/constraints_{constraint_dropout_pct}_{constraint_enrolled_pct}'
+
     os.makedirs(experiment_folder, exist_ok=True)
     csv_log_path = f'{experiment_folder}/training_log.csv'
 
