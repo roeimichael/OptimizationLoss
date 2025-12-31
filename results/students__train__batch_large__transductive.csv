@@ -1,0 +1,2 @@
+model_name,method_name,accuracy,local_percent,global_percent,training_time
+batch_large,transductive,0.579185520361991,0.5,0.3,249.7144913673401
