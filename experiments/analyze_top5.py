@@ -154,7 +154,10 @@ def create_accuracy_comparison(all_data, output_dir):
     max_val = max(max(optimized_acc) if optimized_acc else 0, max(benchmark_acc) if benchmark_acc else 0)
     ax.set_ylim(0.5, max_val + 0.05)
 
-    plt.tight_layout()
+    try:
+        plt.tight_layout()
+    except:
+        pass
     plt.savefig(output_dir / "comparison_accuracy.png", dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -165,7 +168,8 @@ def create_training_curves_comparison(all_data, output_dir):
     """Create line plots comparing training curves for all 5 configs."""
     fig, axes = plt.subplots(2, 2, figsize=(16, 12))
 
-    # Plot 1: Total Loss
+    has_any_data = False
+
     ax = axes[0, 0]
     for data in all_data:
         if data is None or data['training_log'] is None:
@@ -173,13 +177,14 @@ def create_training_curves_comparison(all_data, output_dir):
         log = data['training_log']
         if 'epoch' in log.columns and 'total_loss' in log.columns:
             ax.plot(log['epoch'], log['total_loss'], label=data['config_name'], linewidth=2)
+            has_any_data = True
     ax.set_xlabel('Epoch', fontweight='bold')
     ax.set_ylabel('Total Loss', fontweight='bold')
     ax.set_title('Total Loss Over Epochs', fontsize=12, fontweight='bold')
-    ax.legend(fontsize=9)
+    if has_any_data:
+        ax.legend(fontsize=9)
     ax.set_yscale('log')
 
-    # Plot 2: Classification Loss
     ax = axes[0, 1]
     for data in all_data:
         if data is None or data['training_log'] is None:
@@ -190,10 +195,10 @@ def create_training_curves_comparison(all_data, output_dir):
     ax.set_xlabel('Epoch', fontweight='bold')
     ax.set_ylabel('Classification Loss', fontweight='bold')
     ax.set_title('Classification Loss Over Epochs', fontsize=12, fontweight='bold')
-    ax.legend(fontsize=9)
+    if has_any_data:
+        ax.legend(fontsize=9)
     ax.set_yscale('log')
 
-    # Plot 3: Global Constraint Loss
     ax = axes[1, 0]
     for data in all_data:
         if data is None or data['training_log'] is None:
@@ -204,10 +209,10 @@ def create_training_curves_comparison(all_data, output_dir):
     ax.set_xlabel('Epoch', fontweight='bold')
     ax.set_ylabel('Global Constraint Loss', fontweight='bold')
     ax.set_title('Global Constraint Loss Over Epochs', fontsize=12, fontweight='bold')
-    ax.legend(fontsize=9)
+    if has_any_data:
+        ax.legend(fontsize=9)
     ax.set_yscale('log')
 
-    # Plot 4: Local Constraint Loss
     ax = axes[1, 1]
     for data in all_data:
         if data is None or data['training_log'] is None:
@@ -218,12 +223,16 @@ def create_training_curves_comparison(all_data, output_dir):
     ax.set_xlabel('Epoch', fontweight='bold')
     ax.set_ylabel('Local Constraint Loss', fontweight='bold')
     ax.set_title('Local Constraint Loss Over Epochs', fontsize=12, fontweight='bold')
-    ax.legend(fontsize=9)
+    if has_any_data:
+        ax.legend(fontsize=9)
     ax.set_yscale('log')
 
     plt.suptitle('Training Dynamics Comparison: Top 5 Configurations',
                 fontsize=16, fontweight='bold', y=0.995)
-    plt.tight_layout()
+    try:
+        plt.tight_layout()
+    except:
+        pass
     plt.savefig(output_dir / "comparison_training_curves.png", dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -342,9 +351,7 @@ def create_constraint_satisfaction_comparison(all_data, output_dir):
         configs.append(data['config_name'])
         comp = data['constraint_comparison']
 
-        # Calculate satisfaction rates
         if 'prediction_dropout_count' in comp.columns and 'target_dropout_count' in comp.columns:
-            # Global constraint satisfaction (at final epoch)
             final_pred = comp['prediction_dropout_count'].iloc[-1]
             target = comp['target_dropout_count'].iloc[-1]
             global_sat = 1.0 - abs(final_pred - target) / max(target, 1)
@@ -352,41 +359,38 @@ def create_constraint_satisfaction_comparison(all_data, output_dir):
         else:
             global_satisfaction.append(0)
 
-        # Local constraint satisfaction (average across courses)
         if 'local_violations' in comp.columns:
             avg_violations = comp['local_violations'].mean()
-            # Assume 10 courses, satisfaction = 1 - (violations / courses)
             local_sat = 1.0 - min(avg_violations / 10.0, 1.0)
             local_satisfaction.append(max(0, local_sat))
         else:
             local_satisfaction.append(0)
 
-    # Global constraint satisfaction
-    bars1 = ax1.bar(configs, global_satisfaction, color='#3498db', alpha=0.8)
+    x = np.arange(len(configs))
+    bars1 = ax1.bar(x, global_satisfaction, color='#3498db', alpha=0.8)
     ax1.set_ylabel('Satisfaction Rate', fontweight='bold')
     ax1.set_title('Global Constraint Satisfaction', fontsize=12, fontweight='bold')
     ax1.set_ylim(0, 1.1)
+    ax1.set_xticks(x)
     ax1.set_xticklabels(configs, rotation=45, ha='right')
     ax1.axhline(y=1.0, color='green', linestyle='--', linewidth=2, alpha=0.5, label='Perfect')
     ax1.legend()
 
-    # Add value labels
     for bar in bars1:
         height = bar.get_height()
         ax1.text(bar.get_x() + bar.get_width()/2., height,
                 f'{height:.3f}',
                 ha='center', va='bottom', fontsize=9)
 
-    # Local constraint satisfaction
-    bars2 = ax2.bar(configs, local_satisfaction, color='#9b59b6', alpha=0.8)
+    bars2 = ax2.bar(x, local_satisfaction, color='#9b59b6', alpha=0.8)
     ax2.set_ylabel('Satisfaction Rate', fontweight='bold')
     ax2.set_title('Local Constraint Satisfaction (Avg)', fontsize=12, fontweight='bold')
     ax2.set_ylim(0, 1.1)
+    ax2.set_xticks(x)
     ax2.set_xticklabels(configs, rotation=45, ha='right')
     ax2.axhline(y=1.0, color='green', linestyle='--', linewidth=2, alpha=0.5, label='Perfect')
     ax2.legend()
 
-    # Add value labels
     for bar in bars2:
         height = bar.get_height()
         ax2.text(bar.get_x() + bar.get_width()/2., height,
@@ -395,7 +399,10 @@ def create_constraint_satisfaction_comparison(all_data, output_dir):
 
     plt.suptitle('Constraint Satisfaction Comparison: Top 5 Configurations',
                 fontsize=16, fontweight='bold', y=0.98)
-    plt.tight_layout()
+    try:
+        plt.tight_layout()
+    except:
+        pass
     plt.savefig(output_dir / "comparison_constraint_satisfaction.png", dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -407,12 +414,11 @@ def create_hyperparameter_summary(output_dir):
     fig, axes = plt.subplots(2, 2, figsize=(16, 10))
 
     configs = [c['name'] for c in NN_CONFIGS]
+    x = np.arange(len(configs))
 
-    # Lambda values
     ax = axes[0, 0]
     lambda_global = [c['lambda_global'] for c in NN_CONFIGS]
     lambda_local = [c['lambda_local'] for c in NN_CONFIGS]
-    x = np.arange(len(configs))
     width = 0.35
     ax.bar(x - width/2, lambda_global, width, label='Global λ', color='#e74c3c', alpha=0.8)
     ax.bar(x + width/2, lambda_local, width, label='Local λ', color='#3498db', alpha=0.8)
@@ -423,37 +429,37 @@ def create_hyperparameter_summary(output_dir):
     ax.legend()
     ax.set_yscale('log')
 
-    # Architecture depth
     ax = axes[0, 1]
     depths = [len(c['hidden_dims']) for c in NN_CONFIGS]
     colors_depth = plt.cm.viridis(np.linspace(0.3, 0.9, len(depths)))
-    bars = ax.bar(configs, depths, color=colors_depth, alpha=0.8)
+    bars = ax.bar(x, depths, color=colors_depth, alpha=0.8)
     ax.set_ylabel('Number of Layers', fontweight='bold')
     ax.set_title('Network Depth', fontsize=12, fontweight='bold')
+    ax.set_xticks(x)
     ax.set_xticklabels(configs, rotation=45, ha='right')
     for bar, depth in zip(bars, depths):
         ax.text(bar.get_x() + bar.get_width()/2., bar.get_height(),
                f'{depth}',
                ha='center', va='bottom', fontsize=10, fontweight='bold')
 
-    # Dropout rates
     ax = axes[1, 0]
     dropout_rates = [c['dropout'] for c in NN_CONFIGS]
-    bars = ax.bar(configs, dropout_rates, color='#f39c12', alpha=0.8)
+    bars = ax.bar(x, dropout_rates, color='#f39c12', alpha=0.8)
     ax.set_ylabel('Dropout Rate', fontweight='bold')
     ax.set_title('Dropout Regularization', fontsize=12, fontweight='bold')
+    ax.set_xticks(x)
     ax.set_xticklabels(configs, rotation=45, ha='right')
     for bar, dropout in zip(bars, dropout_rates):
         ax.text(bar.get_x() + bar.get_width()/2., bar.get_height(),
                f'{dropout:.2f}',
                ha='center', va='bottom', fontsize=9)
 
-    # Batch sizes
     ax = axes[1, 1]
     batch_sizes = [c['batch_size'] for c in NN_CONFIGS]
-    bars = ax.bar(configs, batch_sizes, color='#1abc9c', alpha=0.8)
+    bars = ax.bar(x, batch_sizes, color='#1abc9c', alpha=0.8)
     ax.set_ylabel('Batch Size', fontweight='bold')
     ax.set_title('Batch Size Configuration', fontsize=12, fontweight='bold')
+    ax.set_xticks(x)
     ax.set_xticklabels(configs, rotation=45, ha='right')
     for bar, batch in zip(bars, batch_sizes):
         ax.text(bar.get_x() + bar.get_width()/2., bar.get_height(),
@@ -462,7 +468,10 @@ def create_hyperparameter_summary(output_dir):
 
     plt.suptitle('Hyperparameter Configuration Summary: Top 5',
                 fontsize=16, fontweight='bold', y=0.995)
-    plt.tight_layout()
+    try:
+        plt.tight_layout()
+    except:
+        pass
     plt.savefig(output_dir / "comparison_hyperparameters.png", dpi=300, bbox_inches='tight')
     plt.close()
 
