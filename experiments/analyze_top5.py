@@ -36,22 +36,32 @@ def load_experiment_data(config_name, results_dir="./results"):
         'constraint_comparison': None
     }
 
-    # Load training log (loss curves, metrics over epochs)
     training_log_path = hyperparam_dir / "training_log.csv"
     if training_log_path.exists():
         data['training_log'] = pd.read_csv(training_log_path)
 
-    # Load evaluation metrics
     eval_metrics_path = hyperparam_dir / "evaluation_metrics.csv"
     if eval_metrics_path.exists():
-        data['evaluation_metrics'] = pd.read_csv(eval_metrics_path, header=None, names=['metric', 'value'])
+        eval_data = []
+        with open(eval_metrics_path, 'r') as f:
+            for line in f:
+                parts = line.strip().split(',')
+                if len(parts) == 2 and parts[0] and parts[1]:
+                    eval_data.append(parts)
+        if eval_data:
+            data['evaluation_metrics'] = pd.DataFrame(eval_data[1:], columns=eval_data[0])
 
-    # Load benchmark metrics
     benchmark_metrics_path = hyperparam_dir / "benchmark_metrics.csv"
     if benchmark_metrics_path.exists():
-        data['benchmark_metrics'] = pd.read_csv(benchmark_metrics_path, header=None, names=['metric', 'value'])
+        bench_data = []
+        with open(benchmark_metrics_path, 'r') as f:
+            for line in f:
+                parts = line.strip().split(',')
+                if len(parts) == 2 and parts[0] and parts[1]:
+                    bench_data.append(parts)
+        if bench_data:
+            data['benchmark_metrics'] = pd.DataFrame(bench_data[1:], columns=bench_data[0])
 
-    # Load constraint comparison
     constraint_comp_path = hyperparam_dir / "constraint_comparison.csv"
     if constraint_comp_path.exists():
         data['constraint_comparison'] = pd.read_csv(constraint_comp_path)
@@ -78,16 +88,16 @@ def create_accuracy_comparison(all_data, output_dir):
         # Extract optimized accuracy
         opt_acc = None
         if data['evaluation_metrics'] is not None:
-            opt_row = data['evaluation_metrics'][data['evaluation_metrics']['metric'] == 'Overall Accuracy']
+            opt_row = data['evaluation_metrics'][data['evaluation_metrics']['Metric'] == 'Overall Accuracy']
             if not opt_row.empty:
-                opt_acc = float(opt_row['value'].values[0])
+                opt_acc = float(opt_row['Value'].values[0])
 
         # Extract benchmark accuracy
         bench_acc = None
         if data['benchmark_metrics'] is not None:
-            bench_row = data['benchmark_metrics'][data['benchmark_metrics']['metric'] == 'Overall Accuracy']
+            bench_row = data['benchmark_metrics'][data['benchmark_metrics']['Metric'] == 'Overall Accuracy']
             if not bench_row.empty:
-                bench_acc = float(bench_row['value'].values[0])
+                bench_acc = float(bench_row['Value'].values[0])
 
         optimized_acc.append(opt_acc if opt_acc else 0)
         benchmark_acc.append(bench_acc if bench_acc else 0)
@@ -218,15 +228,15 @@ def create_metrics_heatmap(all_data, output_dir):
         for metric_name in metrics_names:
             # Optimized
             if data['evaluation_metrics'] is not None:
-                metric_row = data['evaluation_metrics'][data['evaluation_metrics']['metric'] == metric_name]
-                opt_row.append(float(metric_row['value'].values[0]) if not metric_row.empty else 0)
+                metric_row = data['evaluation_metrics'][data['evaluation_metrics']['Metric'] == metric_name]
+                opt_row.append(float(metric_row['Value'].values[0]) if not metric_row.empty else 0)
             else:
                 opt_row.append(0)
 
             # Benchmark
             if data['benchmark_metrics'] is not None:
-                metric_row = data['benchmark_metrics'][data['benchmark_metrics']['metric'] == metric_name]
-                bench_row.append(float(metric_row['value'].values[0]) if not metric_row.empty else 0)
+                metric_row = data['benchmark_metrics'][data['benchmark_metrics']['Metric'] == metric_name]
+                bench_row.append(float(metric_row['Value'].values[0]) if not metric_row.empty else 0)
             else:
                 bench_row.append(0)
 
@@ -484,14 +494,14 @@ def generate_comparison_report(all_data, configs, optimized_acc, benchmark_acc, 
             if data['evaluation_metrics'] is not None:
                 f.write("**Optimized Model:**\n")
                 for _, row in data['evaluation_metrics'].iterrows():
-                    f.write(f"- {row['metric']}: {float(row['value']):.4f}\n")
+                    f.write(f"- {row['Metric']}: {float(row['Value']):.4f}\n")
                 f.write("\n")
 
             # Benchmark metrics
             if data['benchmark_metrics'] is not None:
                 f.write("**Benchmark:**\n")
                 for _, row in data['benchmark_metrics'].iterrows():
-                    f.write(f"- {row['metric']}: {float(row['value']):.4f}\n")
+                    f.write(f"- {row['Metric']}: {float(row['Value']):.4f}\n")
                 f.write("\n")
 
             # Improvement summary
