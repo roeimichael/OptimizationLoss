@@ -20,9 +20,16 @@ plt.rcParams['figure.figsize'] = (14, 8)
 plt.rcParams['font.size'] = 10
 
 
-def load_experiment_data(config_name, results_dir="./results"):
+def load_experiment_data(config_name, results_dir=None):
     """Load all data for a specific experiment configuration."""
-    hyperparam_dir = Path(results_dir) / f"hyperparam_{config_name}"
+    if results_dir is None:
+        script_dir = Path(__file__).parent
+        project_root = script_dir.parent
+        results_dir = project_root / "results"
+    else:
+        results_dir = Path(results_dir)
+
+    hyperparam_dir = results_dir / f"hyperparam_{config_name}"
 
     if not hyperparam_dir.exists():
         print(f"    Warning: Folder not found - {hyperparam_dir}")
@@ -579,8 +586,9 @@ def main():
     # Load experiment configuration
     from config.experiment_config import NN_CONFIGS
 
-    # Create output directory
-    output_dir = Path("./results/top5_comparison")
+    script_dir = Path(__file__).parent
+    project_root = script_dir.parent
+    output_dir = project_root / "results" / "top5_comparison"
     output_dir.mkdir(exist_ok=True, parents=True)
     print(f"\nOutput directory: {output_dir}")
 
