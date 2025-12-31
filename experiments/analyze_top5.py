@@ -25,7 +25,7 @@ def load_experiment_data(config_name, results_dir="./results"):
     hyperparam_dir = Path(results_dir) / f"hyperparam_{config_name}"
 
     if not hyperparam_dir.exists():
-        print(f"Warning: {hyperparam_dir} does not exist")
+        print(f"    Warning: Folder not found - {hyperparam_dir}")
         return None
 
     data = {
@@ -36,9 +36,12 @@ def load_experiment_data(config_name, results_dir="./results"):
         'constraint_comparison': None
     }
 
+    files_found = []
+
     training_log_path = hyperparam_dir / "training_log.csv"
     if training_log_path.exists():
         data['training_log'] = pd.read_csv(training_log_path)
+        files_found.append("training_log")
 
     eval_metrics_path = hyperparam_dir / "evaluation_metrics.csv"
     if eval_metrics_path.exists():
@@ -50,6 +53,7 @@ def load_experiment_data(config_name, results_dir="./results"):
                     eval_data.append(parts)
         if eval_data:
             data['evaluation_metrics'] = pd.DataFrame(eval_data[1:], columns=eval_data[0])
+            files_found.append("evaluation_metrics")
 
     benchmark_metrics_path = hyperparam_dir / "benchmark_metrics.csv"
     if benchmark_metrics_path.exists():
@@ -61,10 +65,17 @@ def load_experiment_data(config_name, results_dir="./results"):
                     bench_data.append(parts)
         if bench_data:
             data['benchmark_metrics'] = pd.DataFrame(bench_data[1:], columns=bench_data[0])
+            files_found.append("benchmark_metrics")
 
     constraint_comp_path = hyperparam_dir / "constraint_comparison.csv"
     if constraint_comp_path.exists():
         data['constraint_comparison'] = pd.read_csv(constraint_comp_path)
+        files_found.append("constraint_comparison")
+
+    if files_found:
+        print(f"    Found: {', '.join(files_found)}")
+    else:
+        print(f"    Warning: No data files found in {hyperparam_dir}")
 
     return data
 
@@ -85,14 +96,12 @@ def create_accuracy_comparison(all_data, output_dir):
         config_name = data['config_name']
         configs.append(config_name)
 
-        # Extract optimized accuracy
         opt_acc = None
         if data['evaluation_metrics'] is not None:
             opt_row = data['evaluation_metrics'][data['evaluation_metrics']['Metric'] == 'Overall Accuracy']
             if not opt_row.empty:
                 opt_acc = float(opt_row['Value'].values[0])
 
-        # Extract benchmark accuracy
         bench_acc = None
         if data['benchmark_metrics'] is not None:
             bench_row = data['benchmark_metrics'][data['benchmark_metrics']['Metric'] == 'Overall Accuracy']
@@ -103,13 +112,17 @@ def create_accuracy_comparison(all_data, output_dir):
         benchmark_acc.append(bench_acc if bench_acc else 0)
         improvements.append((opt_acc - bench_acc) * 100 if (opt_acc and bench_acc) else 0)
 
+    if not configs:
+        print("ERROR: No valid data found for any configurations")
+        print("Please ensure experiments have been run and results exist in results/hyperparam_* folders")
+        return [], [], [], []
+
     x = np.arange(len(configs))
     width = 0.35
 
     bars1 = ax.bar(x - width/2, optimized_acc, width, label='Optimized', color='#2ecc71', alpha=0.8)
     bars2 = ax.bar(x + width/2, benchmark_acc, width, label='Benchmark', color='#e74c3c', alpha=0.8)
 
-    # Add value labels on bars
     for bars in [bars1, bars2]:
         for bar in bars:
             height = bar.get_height()
@@ -117,7 +130,6 @@ def create_accuracy_comparison(all_data, output_dir):
                    f'{height:.4f}',
                    ha='center', va='bottom', fontsize=9)
 
-    # Add improvement percentage above pairs
     for i, imp in enumerate(improvements):
         y_pos = max(optimized_acc[i], benchmark_acc[i]) + 0.01
         color = '#2ecc71' if imp > 0 else '#e74c3c' if imp < 0 else '#95a5a6'
@@ -131,7 +143,9 @@ def create_accuracy_comparison(all_data, output_dir):
     ax.set_xticks(x)
     ax.set_xticklabels(configs, rotation=45, ha='right')
     ax.legend(fontsize=11)
-    ax.set_ylim(0.5, max(max(optimized_acc), max(benchmark_acc)) + 0.05)
+
+    max_val = max(max(optimized_acc) if optimized_acc else 0, max(benchmark_acc) if benchmark_acc else 0)
+    ax.set_ylim(0.5, max_val + 0.05)
 
     plt.tight_layout()
     plt.savefig(output_dir / "comparison_accuracy.png", dpi=300, bbox_inches='tight')
@@ -579,11 +593,20 @@ def main():
         data = load_experiment_data(config_name)
         all_data.append(data)
 
+    valid_data = [d for d in all_data if d is not None]
+    if not valid_data:
+        print("\nERROR: No valid experiment data found!")
+        print("Please run the experiments first using: python experiments/run_experiments.py")
+        return
+
     print("\nGenerating visualizations...")
 
-    # 1. Accuracy comparison
     print("  1. Accuracy comparison bar chart...")
     configs, optimized_acc, benchmark_acc, improvements = create_accuracy_comparison(all_data, output_dir)
+
+    if not configs:
+        print("\nERROR: Failed to extract metrics from experiment data")
+        return
 
     # 2. Training curves
     print("  2. Training dynamics curves...")
