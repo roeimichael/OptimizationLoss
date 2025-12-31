@@ -6,7 +6,11 @@ TEST_PATH = "./data/dataset_test.csv"
 TARGET_COLUMN = 'Target'
 
 CONSTRAINTS = [
-    (0.5, 0.3)
+    (0.5, 0.3),
+    (0.3, 0.3),
+    (0.7, 0.3),
+    (0.5, 0.5),
+    (0.3, 0.5)
 ]
 
 NN_CONFIGS = [
