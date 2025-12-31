@@ -176,6 +176,23 @@ def main():
                 summary += f"R={metrics['benchmark_recall_macro']:.4f}, F1={metrics['benchmark_f1_macro']:.4f}"
             print(summary)
 
+    # Run comprehensive analysis and comparison
+    print(f"\n{'='*80}")
+    print("Running comprehensive analysis and comparison of top 5 configurations...")
+    print(f"{'='*80}\n")
+
+    try:
+        import subprocess
+        result = subprocess.run(['python', 'experiments/analyze_top5.py'],
+                              capture_output=False, text=True)
+        if result.returncode == 0:
+            print("\n✅ Analysis completed successfully!")
+        else:
+            print(f"\n⚠️ Analysis completed with warnings")
+    except Exception as e:
+        print(f"\n⚠️ Could not run analysis: {e}")
+        print("You can run it manually with: python experiments/analyze_top5.py")
+
 
 if __name__ == "__main__":
     main()
