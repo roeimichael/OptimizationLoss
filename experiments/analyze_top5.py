@@ -15,9 +15,12 @@ import seaborn as sns
 from pathlib import Path
 
 # Set style for better-looking plots
-sns.set_style("whitegrid")
-plt.rcParams['figure.figsize'] = (14, 8)
-plt.rcParams['font.size'] = 10
+sns.set_style("white")
+sns.set_context("notebook", font_scale=1.1)
+plt.rcParams['figure.figsize'] = (12, 6)
+plt.rcParams['font.size'] = 11
+plt.rcParams['axes.titlesize'] = 13
+plt.rcParams['axes.labelsize'] = 11
 
 
 def load_experiment_data(config_name, results_dir=None):
@@ -89,8 +92,6 @@ def load_experiment_data(config_name, results_dir=None):
 
 def create_accuracy_comparison(all_data, output_dir):
     """Create bar chart comparing optimized vs benchmark accuracy for all 5 configs."""
-    fig, ax = plt.subplots(figsize=(14, 8))
-
     configs = []
     optimized_acc = []
     benchmark_acc = []
@@ -124,35 +125,44 @@ def create_accuracy_comparison(all_data, output_dir):
         print("Please ensure experiments have been run and results exist in results/hyperparam_* folders")
         return [], [], [], []
 
+    fig, ax = plt.subplots(figsize=(10, 6))
     x = np.arange(len(configs))
-    width = 0.35
+    width = 0.38
 
-    bars1 = ax.bar(x - width/2, optimized_acc, width, label='Optimized', color='#2ecc71', alpha=0.8)
-    bars2 = ax.bar(x + width/2, benchmark_acc, width, label='Benchmark', color='#e74c3c', alpha=0.8)
+    colors_opt = ['#1f77b4' if imp > 0 else '#d62728' for imp in improvements]
+    colors_bench = ['#7f7f7f'] * len(configs)
 
-    for bars in [bars1, bars2]:
-        for bar in bars:
-            height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2., height,
-                   f'{height:.4f}',
-                   ha='center', va='bottom', fontsize=9)
+    bars1 = ax.bar(x - width/2, optimized_acc, width, label='Optimized', color=colors_opt, alpha=0.85, edgecolor='white', linewidth=1.5)
+    bars2 = ax.bar(x + width/2, benchmark_acc, width, label='Benchmark', color=colors_bench, alpha=0.7, edgecolor='white', linewidth=1.5)
 
-    for i, imp in enumerate(improvements):
-        y_pos = max(optimized_acc[i], benchmark_acc[i]) + 0.01
-        color = '#2ecc71' if imp > 0 else '#e74c3c' if imp < 0 else '#95a5a6'
-        ax.text(i, y_pos, f'{imp:+.2f}%', ha='center', va='bottom',
-               fontsize=10, fontweight='bold', color=color)
+    for i, (bar1, bar2) in enumerate(zip(bars1, bars2)):
+        h1, h2 = bar1.get_height(), bar2.get_height()
+        ax.text(bar1.get_x() + bar1.get_width()/2., h1 + 0.005, f'{h1:.3f}',
+               ha='center', va='bottom', fontsize=9, fontweight='bold')
+        ax.text(bar2.get_x() + bar2.get_width()/2., h2 + 0.005, f'{h2:.3f}',
+               ha='center', va='bottom', fontsize=9)
+
+        if improvements[i] != 0:
+            color = '#1f77b4' if improvements[i] > 0 else '#d62728'
+            y_pos = max(h1, h2) + 0.025
+            ax.text(i, y_pos, f'{improvements[i]:+.2f}%',
+                   ha='center', va='bottom', fontsize=10, fontweight='bold',
+                   color=color, bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor=color, linewidth=1.5))
+
+    min_val = min(min(optimized_acc), min(benchmark_acc))
+    max_val = max(max(optimized_acc), max(benchmark_acc))
+    margin = (max_val - min_val) * 0.15
+    ax.set_ylim(min_val - margin, max_val + margin + 0.04)
 
     ax.set_xlabel('Configuration', fontsize=12, fontweight='bold')
     ax.set_ylabel('Accuracy', fontsize=12, fontweight='bold')
-    ax.set_title('Top 5 Configurations: Optimized vs Benchmark Accuracy',
-                fontsize=14, fontweight='bold', pad=20)
+    ax.set_title('Accuracy Comparison: Optimized vs Benchmark', fontsize=14, fontweight='bold', pad=15)
     ax.set_xticks(x)
-    ax.set_xticklabels(configs, rotation=45, ha='right')
-    ax.legend(fontsize=11)
-
-    max_val = max(max(optimized_acc) if optimized_acc else 0, max(benchmark_acc) if benchmark_acc else 0)
-    ax.set_ylim(0.5, max_val + 0.05)
+    ax.set_xticklabels(configs, rotation=0, ha='center')
+    ax.legend(fontsize=10, frameon=True, shadow=True)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.grid(axis='y', alpha=0.3, linestyle='--', linewidth=0.7)
 
     try:
         plt.tight_layout()
@@ -166,69 +176,85 @@ def create_accuracy_comparison(all_data, output_dir):
 
 def create_training_curves_comparison(all_data, output_dir):
     """Create line plots comparing training curves for all 5 configs."""
-    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
     has_any_data = False
 
     ax = axes[0, 0]
-    for data in all_data:
+    for i, data in enumerate(all_data):
         if data is None or data['training_log'] is None:
             continue
         log = data['training_log']
         if 'epoch' in log.columns and 'total_loss' in log.columns:
-            ax.plot(log['epoch'], log['total_loss'], label=data['config_name'], linewidth=2)
+            ax.plot(log['epoch'], log['total_loss'], label=data['config_name'],
+                   linewidth=2.5, color=colors[i % len(colors)], alpha=0.9)
             has_any_data = True
-    ax.set_xlabel('Epoch', fontweight='bold')
-    ax.set_ylabel('Total Loss', fontweight='bold')
-    ax.set_title('Total Loss Over Epochs', fontsize=12, fontweight='bold')
+    ax.set_xlabel('Epoch', fontsize=11, fontweight='bold')
+    ax.set_ylabel('Total Loss (log scale)', fontsize=11, fontweight='bold')
+    ax.set_title('Total Loss Convergence', fontsize=12, fontweight='bold', pad=10)
     if has_any_data:
-        ax.legend(fontsize=9)
+        ax.legend(fontsize=9, frameon=True, shadow=False, fancybox=False)
     ax.set_yscale('log')
+    ax.grid(alpha=0.3, linestyle='--', linewidth=0.7)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
 
     ax = axes[0, 1]
-    for data in all_data:
+    for i, data in enumerate(all_data):
         if data is None or data['training_log'] is None:
             continue
         log = data['training_log']
         if 'epoch' in log.columns and 'class_loss' in log.columns:
-            ax.plot(log['epoch'], log['class_loss'], label=data['config_name'], linewidth=2)
-    ax.set_xlabel('Epoch', fontweight='bold')
-    ax.set_ylabel('Classification Loss', fontweight='bold')
-    ax.set_title('Classification Loss Over Epochs', fontsize=12, fontweight='bold')
+            ax.plot(log['epoch'], log['class_loss'], label=data['config_name'],
+                   linewidth=2.5, color=colors[i % len(colors)], alpha=0.9)
+    ax.set_xlabel('Epoch', fontsize=11, fontweight='bold')
+    ax.set_ylabel('Classification Loss (log scale)', fontsize=11, fontweight='bold')
+    ax.set_title('Classification Loss Convergence', fontsize=12, fontweight='bold', pad=10)
     if has_any_data:
-        ax.legend(fontsize=9)
+        ax.legend(fontsize=9, frameon=True, shadow=False, fancybox=False)
     ax.set_yscale('log')
+    ax.grid(alpha=0.3, linestyle='--', linewidth=0.7)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
 
     ax = axes[1, 0]
-    for data in all_data:
+    for i, data in enumerate(all_data):
         if data is None or data['training_log'] is None:
             continue
         log = data['training_log']
         if 'epoch' in log.columns and 'global_loss' in log.columns:
-            ax.plot(log['epoch'], log['global_loss'], label=data['config_name'], linewidth=2)
-    ax.set_xlabel('Epoch', fontweight='bold')
-    ax.set_ylabel('Global Constraint Loss', fontweight='bold')
-    ax.set_title('Global Constraint Loss Over Epochs', fontsize=12, fontweight='bold')
+            ax.plot(log['epoch'], log['global_loss'], label=data['config_name'],
+                   linewidth=2.5, color=colors[i % len(colors)], alpha=0.9)
+    ax.set_xlabel('Epoch', fontsize=11, fontweight='bold')
+    ax.set_ylabel('Global Constraint Loss (log scale)', fontsize=11, fontweight='bold')
+    ax.set_title('Global Constraint Satisfaction', fontsize=12, fontweight='bold', pad=10)
     if has_any_data:
-        ax.legend(fontsize=9)
+        ax.legend(fontsize=9, frameon=True, shadow=False, fancybox=False)
     ax.set_yscale('log')
+    ax.grid(alpha=0.3, linestyle='--', linewidth=0.7)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
 
     ax = axes[1, 1]
-    for data in all_data:
+    for i, data in enumerate(all_data):
         if data is None or data['training_log'] is None:
             continue
         log = data['training_log']
         if 'epoch' in log.columns and 'local_loss' in log.columns:
-            ax.plot(log['epoch'], log['local_loss'], label=data['config_name'], linewidth=2)
-    ax.set_xlabel('Epoch', fontweight='bold')
-    ax.set_ylabel('Local Constraint Loss', fontweight='bold')
-    ax.set_title('Local Constraint Loss Over Epochs', fontsize=12, fontweight='bold')
+            ax.plot(log['epoch'], log['local_loss'], label=data['config_name'],
+                   linewidth=2.5, color=colors[i % len(colors)], alpha=0.9)
+    ax.set_xlabel('Epoch', fontsize=11, fontweight='bold')
+    ax.set_ylabel('Local Constraint Loss (log scale)', fontsize=11, fontweight='bold')
+    ax.set_title('Local Constraint Satisfaction', fontsize=12, fontweight='bold', pad=10)
     if has_any_data:
-        ax.legend(fontsize=9)
+        ax.legend(fontsize=9, frameon=True, shadow=False, fancybox=False)
     ax.set_yscale('log')
+    ax.grid(alpha=0.3, linestyle='--', linewidth=0.7)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
 
-    plt.suptitle('Training Dynamics Comparison: Top 5 Configurations',
-                fontsize=16, fontweight='bold', y=0.995)
+    plt.suptitle('Training Dynamics Comparison', fontsize=15, fontweight='bold', y=0.995)
     try:
         plt.tight_layout()
     except:
@@ -240,8 +266,8 @@ def create_training_curves_comparison(all_data, output_dir):
 def create_metrics_heatmap(all_data, output_dir):
     """Create heatmap of various metrics across all 5 configs."""
     metrics_names = ['Overall Accuracy', 'Precision (Macro)', 'Recall (Macro)', 'F1-Score (Macro)']
+    short_names = ['Accuracy', 'Precision', 'Recall', 'F1-Score']
 
-    # Collect optimized metrics
     opt_matrix = []
     bench_matrix = []
     configs = []
@@ -256,14 +282,12 @@ def create_metrics_heatmap(all_data, output_dir):
         bench_row = []
 
         for metric_name in metrics_names:
-            # Optimized
             if data['evaluation_metrics'] is not None:
                 metric_row = data['evaluation_metrics'][data['evaluation_metrics']['Metric'] == metric_name]
                 opt_row.append(float(metric_row['Value'].values[0]) if not metric_row.empty else 0)
             else:
                 opt_row.append(0)
 
-            # Benchmark
             if data['benchmark_metrics'] is not None:
                 metric_row = data['benchmark_metrics'][data['benchmark_metrics']['Metric'] == metric_name]
                 bench_row.append(float(metric_row['Value'].values[0]) if not metric_row.empty else 0)
@@ -273,73 +297,77 @@ def create_metrics_heatmap(all_data, output_dir):
         opt_matrix.append(opt_row)
         bench_matrix.append(bench_row)
 
-    # Create side-by-side heatmaps
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
 
-    # Optimized heatmap
-    opt_df = pd.DataFrame(opt_matrix, columns=metrics_names, index=configs)
-    sns.heatmap(opt_df, annot=True, fmt='.4f', cmap='YlGnBu', ax=ax1,
-               vmin=0.3, vmax=0.7, cbar_kws={'label': 'Score'})
-    ax1.set_title('Optimized Model Metrics', fontsize=14, fontweight='bold', pad=15)
+    opt_df = pd.DataFrame(opt_matrix, columns=short_names, index=configs)
+    sns.heatmap(opt_df, annot=True, fmt='.3f', cmap='Blues', ax=ax1,
+               vmin=0.55, vmax=0.65, cbar_kws={'label': 'Score'},
+               linewidths=1, linecolor='white', annot_kws={'fontsize': 10, 'fontweight': 'bold'})
+    ax1.set_title('Optimized Model Performance', fontsize=13, fontweight='bold', pad=12)
     ax1.set_xlabel('')
-    ax1.set_ylabel('Configuration', fontweight='bold')
+    ax1.set_ylabel('Configuration', fontsize=11, fontweight='bold')
+    ax1.set_xticklabels(ax1.get_xticklabels(), rotation=0, ha='center')
+    ax1.set_yticklabels(ax1.get_yticklabels(), rotation=0)
 
-    # Benchmark heatmap
-    bench_df = pd.DataFrame(bench_matrix, columns=metrics_names, index=configs)
-    sns.heatmap(bench_df, annot=True, fmt='.4f', cmap='YlOrRd', ax=ax2,
-               vmin=0.3, vmax=0.7, cbar_kws={'label': 'Score'})
-    ax2.set_title('Benchmark Metrics', fontsize=14, fontweight='bold', pad=15)
+    bench_df = pd.DataFrame(bench_matrix, columns=short_names, index=configs)
+    sns.heatmap(bench_df, annot=True, fmt='.3f', cmap='Oranges', ax=ax2,
+               vmin=0.55, vmax=0.65, cbar_kws={'label': 'Score'},
+               linewidths=1, linecolor='white', annot_kws={'fontsize': 10, 'fontweight': 'bold'})
+    ax2.set_title('Benchmark Performance', fontsize=13, fontweight='bold', pad=12)
     ax2.set_xlabel('')
     ax2.set_ylabel('')
+    ax2.set_xticklabels(ax2.get_xticklabels(), rotation=0, ha='center')
+    ax2.set_yticklabels(ax2.get_yticklabels(), rotation=0)
 
-    plt.suptitle('Performance Metrics Heatmap: Top 5 Configurations',
-                fontsize=16, fontweight='bold', y=0.98)
-    plt.tight_layout()
+    plt.suptitle('Performance Metrics Comparison', fontsize=15, fontweight='bold', y=0.98)
+    try:
+        plt.tight_layout()
+    except:
+        pass
     plt.savefig(output_dir / "comparison_metrics_heatmap.png", dpi=300, bbox_inches='tight')
     plt.close()
 
 
 def create_improvement_breakdown(configs, improvements, output_dir):
     """Create horizontal bar chart showing improvement breakdown."""
-    fig, ax = plt.subplots(figsize=(12, 8))
+    fig, ax = plt.subplots(figsize=(10, 6))
 
-    # Sort by improvement
     sorted_indices = sorted(range(len(improvements)), key=lambda i: improvements[i], reverse=True)
     sorted_configs = [configs[i] for i in sorted_indices]
     sorted_improvements = [improvements[i] for i in sorted_indices]
 
-    colors = ['#2ecc71' if imp > 0 else '#e74c3c' if imp < 0 else '#95a5a6'
+    colors = ['#1f77b4' if imp > 0 else '#d62728' if imp < 0 else '#7f7f7f'
              for imp in sorted_improvements]
 
-    bars = ax.barh(sorted_configs, sorted_improvements, color=colors, alpha=0.8)
+    bars = ax.barh(sorted_configs, sorted_improvements, color=colors, alpha=0.85,
+                  edgecolor='white', linewidth=1.5)
 
-    # Add value labels
     for i, (bar, imp) in enumerate(zip(bars, sorted_improvements)):
         width = bar.get_width()
-        label_x = width + (0.05 if width > 0 else -0.05)
-        ax.text(label_x, bar.get_y() + bar.get_height()/2,
-               f'{imp:+.2f}%',
+        label_x = width + (0.1 if width > 0 else -0.1)
+        color = '#1f77b4' if imp > 0 else '#d62728' if imp < 0 else '#7f7f7f'
+        ax.text(label_x, bar.get_y() + bar.get_height()/2, f'{imp:+.2f}%',
                ha='left' if width > 0 else 'right', va='center',
-               fontsize=11, fontweight='bold')
+               fontsize=11, fontweight='bold', color=color)
 
-    ax.axvline(x=0, color='black', linestyle='-', linewidth=1.5, alpha=0.3)
-    ax.set_xlabel('Improvement over Benchmark (%)', fontsize=12, fontweight='bold')
+    ax.axvline(x=0, color='#2c3e50', linestyle='-', linewidth=2, alpha=0.4)
+    ax.set_xlabel('Improvement over Baseline (%)', fontsize=12, fontweight='bold')
     ax.set_ylabel('Configuration', fontsize=12, fontweight='bold')
-    ax.set_title('Improvement Ranking: Top 5 Configurations',
-                fontsize=14, fontweight='bold', pad=20)
+    ax.set_title('Performance Improvement Ranking', fontsize=14, fontweight='bold', pad=15)
+    ax.grid(axis='x', alpha=0.3, linestyle='--', linewidth=0.7)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
 
-    # Add grid
-    ax.grid(axis='x', alpha=0.3, linestyle='--')
-
-    plt.tight_layout()
+    try:
+        plt.tight_layout()
+    except:
+        pass
     plt.savefig(output_dir / "comparison_improvements.png", dpi=300, bbox_inches='tight')
     plt.close()
 
 
 def create_constraint_satisfaction_comparison(all_data, output_dir):
     """Compare constraint satisfaction rates across configs."""
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
-
     configs = []
     global_satisfaction = []
     local_satisfaction = []
@@ -366,39 +394,52 @@ def create_constraint_satisfaction_comparison(all_data, output_dir):
         else:
             local_satisfaction.append(0)
 
+    if not configs or (sum(global_satisfaction) == 0 and sum(local_satisfaction) == 0):
+        print("    Skipping constraint satisfaction plot (no meaningful data)")
+        return
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
     x = np.arange(len(configs))
-    bars1 = ax1.bar(x, global_satisfaction, color='#3498db', alpha=0.8)
-    ax1.set_ylabel('Satisfaction Rate', fontweight='bold')
-    ax1.set_title('Global Constraint Satisfaction', fontsize=12, fontweight='bold')
-    ax1.set_ylim(0, 1.1)
+    bars1 = ax1.bar(x, global_satisfaction, color='#3498db', alpha=0.85,
+                   edgecolor='white', linewidth=1.5)
+    ax1.set_ylabel('Satisfaction Rate', fontsize=11, fontweight='bold')
+    ax1.set_title('Global Constraint', fontsize=12, fontweight='bold', pad=10)
+    ax1.set_ylim(0, 1.05)
     ax1.set_xticks(x)
-    ax1.set_xticklabels(configs, rotation=45, ha='right')
-    ax1.axhline(y=1.0, color='green', linestyle='--', linewidth=2, alpha=0.5, label='Perfect')
-    ax1.legend()
+    ax1.set_xticklabels(configs, rotation=0, ha='center')
+    ax1.axhline(y=1.0, color='#27ae60', linestyle='--', linewidth=2, alpha=0.5, label='Target')
+    ax1.legend(fontsize=9)
+    ax1.grid(axis='y', alpha=0.3, linestyle='--', linewidth=0.7)
+    ax1.spines['top'].set_visible(False)
+    ax1.spines['right'].set_visible(False)
 
     for bar in bars1:
         height = bar.get_height()
-        ax1.text(bar.get_x() + bar.get_width()/2., height,
-                f'{height:.3f}',
-                ha='center', va='bottom', fontsize=9)
+        if height > 0:
+            ax1.text(bar.get_x() + bar.get_width()/2., height + 0.02,
+                    f'{height:.2f}', ha='center', va='bottom', fontsize=9, fontweight='bold')
 
-    bars2 = ax2.bar(x, local_satisfaction, color='#9b59b6', alpha=0.8)
-    ax2.set_ylabel('Satisfaction Rate', fontweight='bold')
-    ax2.set_title('Local Constraint Satisfaction (Avg)', fontsize=12, fontweight='bold')
-    ax2.set_ylim(0, 1.1)
+    bars2 = ax2.bar(x, local_satisfaction, color='#9b59b6', alpha=0.85,
+                   edgecolor='white', linewidth=1.5)
+    ax2.set_ylabel('Satisfaction Rate', fontsize=11, fontweight='bold')
+    ax2.set_title('Local Constraint (Average)', fontsize=12, fontweight='bold', pad=10)
+    ax2.set_ylim(0, 1.05)
     ax2.set_xticks(x)
-    ax2.set_xticklabels(configs, rotation=45, ha='right')
-    ax2.axhline(y=1.0, color='green', linestyle='--', linewidth=2, alpha=0.5, label='Perfect')
-    ax2.legend()
+    ax2.set_xticklabels(configs, rotation=0, ha='center')
+    ax2.axhline(y=1.0, color='#27ae60', linestyle='--', linewidth=2, alpha=0.5, label='Target')
+    ax2.legend(fontsize=9)
+    ax2.grid(axis='y', alpha=0.3, linestyle='--', linewidth=0.7)
+    ax2.spines['top'].set_visible(False)
+    ax2.spines['right'].set_visible(False)
 
     for bar in bars2:
         height = bar.get_height()
-        ax2.text(bar.get_x() + bar.get_width()/2., height,
-                f'{height:.3f}',
-                ha='center', va='bottom', fontsize=9)
+        if height > 0:
+            ax2.text(bar.get_x() + bar.get_width()/2., height + 0.02,
+                    f'{height:.2f}', ha='center', va='bottom', fontsize=9, fontweight='bold')
 
-    plt.suptitle('Constraint Satisfaction Comparison: Top 5 Configurations',
-                fontsize=16, fontweight='bold', y=0.98)
+    plt.suptitle('Constraint Satisfaction Comparison', fontsize=15, fontweight='bold', y=1.02)
     try:
         plt.tight_layout()
     except:
@@ -411,7 +452,7 @@ def create_hyperparameter_summary(output_dir):
     """Create visualization of hyperparameter configurations."""
     from config.experiment_config import NN_CONFIGS
 
-    fig, axes = plt.subplots(2, 2, figsize=(16, 10))
+    fig, axes = plt.subplots(2, 2, figsize=(14, 9))
 
     configs = [c['name'] for c in NN_CONFIGS]
     x = np.arange(len(configs))
@@ -419,55 +460,70 @@ def create_hyperparameter_summary(output_dir):
     ax = axes[0, 0]
     lambda_global = [c['lambda_global'] for c in NN_CONFIGS]
     lambda_local = [c['lambda_local'] for c in NN_CONFIGS]
-    width = 0.35
-    ax.bar(x - width/2, lambda_global, width, label='Global λ', color='#e74c3c', alpha=0.8)
-    ax.bar(x + width/2, lambda_local, width, label='Local λ', color='#3498db', alpha=0.8)
-    ax.set_ylabel('Lambda Value', fontweight='bold')
-    ax.set_title('Lambda Hyperparameters', fontsize=12, fontweight='bold')
+    width = 0.38
+    ax.bar(x - width/2, lambda_global, width, label='Global λ', color='#e74c3c',
+          alpha=0.85, edgecolor='white', linewidth=1.5)
+    ax.bar(x + width/2, lambda_local, width, label='Local λ', color='#3498db',
+          alpha=0.85, edgecolor='white', linewidth=1.5)
+    ax.set_ylabel('Lambda Value (log scale)', fontsize=11, fontweight='bold')
+    ax.set_title('Constraint Lambda Values', fontsize=12, fontweight='bold', pad=10)
     ax.set_xticks(x)
-    ax.set_xticklabels(configs, rotation=45, ha='right')
-    ax.legend()
+    ax.set_xticklabels(configs, rotation=0, ha='center')
+    ax.legend(fontsize=9, frameon=True)
     ax.set_yscale('log')
+    ax.grid(axis='y', alpha=0.3, linestyle='--', linewidth=0.7)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
 
     ax = axes[0, 1]
     depths = [len(c['hidden_dims']) for c in NN_CONFIGS]
-    colors_depth = plt.cm.viridis(np.linspace(0.3, 0.9, len(depths)))
-    bars = ax.bar(x, depths, color=colors_depth, alpha=0.8)
-    ax.set_ylabel('Number of Layers', fontweight='bold')
-    ax.set_title('Network Depth', fontsize=12, fontweight='bold')
+    bars = ax.bar(x, depths, color='#9b59b6', alpha=0.85,
+                 edgecolor='white', linewidth=1.5)
+    ax.set_ylabel('Number of Hidden Layers', fontsize=11, fontweight='bold')
+    ax.set_title('Network Architecture Depth', fontsize=12, fontweight='bold', pad=10)
     ax.set_xticks(x)
-    ax.set_xticklabels(configs, rotation=45, ha='right')
+    ax.set_xticklabels(configs, rotation=0, ha='center')
+    ax.set_ylim(0, max(depths) + 1)
     for bar, depth in zip(bars, depths):
-        ax.text(bar.get_x() + bar.get_width()/2., bar.get_height(),
-               f'{depth}',
-               ha='center', va='bottom', fontsize=10, fontweight='bold')
+        ax.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.1,
+               f'{depth}', ha='center', va='bottom', fontsize=10, fontweight='bold')
+    ax.grid(axis='y', alpha=0.3, linestyle='--', linewidth=0.7)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
 
     ax = axes[1, 0]
     dropout_rates = [c['dropout'] for c in NN_CONFIGS]
-    bars = ax.bar(x, dropout_rates, color='#f39c12', alpha=0.8)
-    ax.set_ylabel('Dropout Rate', fontweight='bold')
-    ax.set_title('Dropout Regularization', fontsize=12, fontweight='bold')
+    bars = ax.bar(x, dropout_rates, color='#f39c12', alpha=0.85,
+                 edgecolor='white', linewidth=1.5)
+    ax.set_ylabel('Dropout Rate', fontsize=11, fontweight='bold')
+    ax.set_title('Dropout Regularization', fontsize=12, fontweight='bold', pad=10)
     ax.set_xticks(x)
-    ax.set_xticklabels(configs, rotation=45, ha='right')
+    ax.set_xticklabels(configs, rotation=0, ha='center')
+    ax.set_ylim(0, max(dropout_rates) + 0.1)
     for bar, dropout in zip(bars, dropout_rates):
-        ax.text(bar.get_x() + bar.get_width()/2., bar.get_height(),
-               f'{dropout:.2f}',
-               ha='center', va='bottom', fontsize=9)
+        ax.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.01,
+               f'{dropout:.2f}', ha='center', va='bottom', fontsize=9, fontweight='bold')
+    ax.grid(axis='y', alpha=0.3, linestyle='--', linewidth=0.7)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
 
     ax = axes[1, 1]
     batch_sizes = [c['batch_size'] for c in NN_CONFIGS]
-    bars = ax.bar(x, batch_sizes, color='#1abc9c', alpha=0.8)
-    ax.set_ylabel('Batch Size', fontweight='bold')
-    ax.set_title('Batch Size Configuration', fontsize=12, fontweight='bold')
+    bars = ax.bar(x, batch_sizes, color='#1abc9c', alpha=0.85,
+                 edgecolor='white', linewidth=1.5)
+    ax.set_ylabel('Batch Size', fontsize=11, fontweight='bold')
+    ax.set_title('Training Batch Size', fontsize=12, fontweight='bold', pad=10)
     ax.set_xticks(x)
-    ax.set_xticklabels(configs, rotation=45, ha='right')
+    ax.set_xticklabels(configs, rotation=0, ha='center')
+    ax.set_ylim(0, max(batch_sizes) + 10)
     for bar, batch in zip(bars, batch_sizes):
-        ax.text(bar.get_x() + bar.get_width()/2., bar.get_height(),
-               f'{batch}',
-               ha='center', va='bottom', fontsize=10, fontweight='bold')
+        ax.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 1,
+               f'{batch}', ha='center', va='bottom', fontsize=10, fontweight='bold')
+    ax.grid(axis='y', alpha=0.3, linestyle='--', linewidth=0.7)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
 
-    plt.suptitle('Hyperparameter Configuration Summary: Top 5',
-                fontsize=16, fontweight='bold', y=0.995)
+    plt.suptitle('Hyperparameter Configuration Summary', fontsize=15, fontweight='bold', y=0.995)
     try:
         plt.tight_layout()
     except:
