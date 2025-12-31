@@ -9,150 +9,13 @@ CONSTRAINTS = [
     (0.5, 0.3)  # Fixed constraint for hyperparameter experiments
 ]
 
-# Hyperparameter configurations for (0.5, 0.3) constraint experiments
-# Each config tests a specific aspect of the model
+# ROUND 2: Advanced configurations based on Round 1 insights
+# Key findings: Deep architectures (+2.72%), High lambdas (+0.45%), lr=0.001 is critical
 NN_CONFIGS = [
-    # 1. BASELINE
+    # 1. BEST COMBINED (Deep + High Lambda)
+    # Combines the two winning strategies from Round 1
     {
-        "name": "baseline",
-        "lambda_global": 0.01,
-        "lambda_local": 0.01,
-        "hidden_dims": [128, 64, 32],
-        "lr": 0.001,
-        "dropout": 0.3,
-        "batch_size": 64
-    },
-
-    # 2-5. LAMBDA EXPERIMENTS (Constraint Pressure)
-    {
-        "name": "lambda_low",
-        "lambda_global": 0.001,
-        "lambda_local": 0.001,
-        "hidden_dims": [128, 64, 32],
-        "lr": 0.001,
-        "dropout": 0.3,
-        "batch_size": 64
-    },
-    {
-        "name": "lambda_high",
-        "lambda_global": 0.1,
-        "lambda_local": 0.1,
-        "hidden_dims": [128, 64, 32],
-        "lr": 0.001,
-        "dropout": 0.3,
-        "batch_size": 64
-    },
-    {
-        "name": "lambda_favor_global",
-        "lambda_global": 0.1,
-        "lambda_local": 0.01,
-        "hidden_dims": [128, 64, 32],
-        "lr": 0.001,
-        "dropout": 0.3,
-        "batch_size": 64
-    },
-    {
-        "name": "lambda_favor_local",
-        "lambda_global": 0.01,
-        "lambda_local": 0.1,
-        "hidden_dims": [128, 64, 32],
-        "lr": 0.001,
-        "dropout": 0.3,
-        "batch_size": 64
-    },
-
-    # 6-8. ARCHITECTURE EXPERIMENTS
-    {
-        "name": "arch_shallow",
-        "lambda_global": 0.01,
-        "lambda_local": 0.01,
-        "hidden_dims": [64, 32],
-        "lr": 0.001,
-        "dropout": 0.3,
-        "batch_size": 64
-    },
-    {
-        "name": "arch_deep",
-        "lambda_global": 0.01,
-        "lambda_local": 0.01,
-        "hidden_dims": [256, 128, 64, 32],
-        "lr": 0.001,
-        "dropout": 0.3,
-        "batch_size": 64
-    },
-    {
-        "name": "arch_wide",
-        "lambda_global": 0.01,
-        "lambda_local": 0.01,
-        "hidden_dims": [256, 128, 64],
-        "lr": 0.001,
-        "dropout": 0.3,
-        "batch_size": 64
-    },
-
-    # 9-10. LEARNING RATE EXPERIMENTS
-    {
-        "name": "lr_slow",
-        "lambda_global": 0.01,
-        "lambda_local": 0.01,
-        "hidden_dims": [128, 64, 32],
-        "lr": 0.0001,
-        "dropout": 0.3,
-        "batch_size": 64
-    },
-    {
-        "name": "lr_fast",
-        "lambda_global": 0.01,
-        "lambda_local": 0.01,
-        "hidden_dims": [128, 64, 32],
-        "lr": 0.01,
-        "dropout": 0.3,
-        "batch_size": 64
-    },
-
-    # 11-12. DROPOUT EXPERIMENTS (Regularization)
-    {
-        "name": "dropout_low",
-        "lambda_global": 0.01,
-        "lambda_local": 0.01,
-        "hidden_dims": [128, 64, 32],
-        "lr": 0.001,
-        "dropout": 0.1,
-        "batch_size": 64
-    },
-    {
-        "name": "dropout_high",
-        "lambda_global": 0.01,
-        "lambda_local": 0.01,
-        "hidden_dims": [128, 64, 32],
-        "lr": 0.001,
-        "dropout": 0.5,
-        "batch_size": 64
-    },
-
-    # 13-14. BATCH SIZE EXPERIMENTS
-    {
-        "name": "batch_small",
-        "lambda_global": 0.01,
-        "lambda_local": 0.01,
-        "hidden_dims": [128, 64, 32],
-        "lr": 0.001,
-        "dropout": 0.3,
-        "batch_size": 32
-    },
-    {
-        "name": "batch_large",
-        "lambda_global": 0.01,
-        "lambda_local": 0.01,
-        "hidden_dims": [128, 64, 32],
-        "lr": 0.001,
-        "dropout": 0.3,
-        "batch_size": 128
-    },
-
-    # 15-16. COMBINED OPTIMIZATIONS
-    {
-        "name": "optimized_v1",
+        "name": "best_combined",
         "lambda_global": 0.1,
         "lambda_local": 0.1,
         "hidden_dims": [256, 128, 64, 32],
@@ -160,14 +23,150 @@ NN_CONFIGS = [
         "dropout": 0.3,
         "batch_size": 64
     },
+
+    # 2-4. VERY DEEP ARCHITECTURES (5 layers)
+    # Test if more depth improves constraint learning
     {
-        "name": "optimized_v2",
+        "name": "very_deep_baseline",
         "lambda_global": 0.01,
+        "lambda_local": 0.01,
+        "hidden_dims": [512, 256, 128, 64, 32],
+        "lr": 0.001,
+        "dropout": 0.3,
+        "batch_size": 64
+    },
+    {
+        "name": "very_deep_high_lambda",
+        "lambda_global": 0.1,
         "lambda_local": 0.1,
-        "hidden_dims": [256, 128, 64],
-        "lr": 0.0001,
+        "hidden_dims": [512, 256, 128, 64, 32],
+        "lr": 0.001,
+        "dropout": 0.3,
+        "batch_size": 64
+    },
+    {
+        "name": "very_deep_very_high_lambda",
+        "lambda_global": 0.5,
+        "lambda_local": 0.5,
+        "hidden_dims": [512, 256, 128, 64, 32],
+        "lr": 0.001,
+        "dropout": 0.3,
+        "batch_size": 64
+    },
+
+    # 5-6. ULTRA DEEP ARCHITECTURES (6 layers)
+    # Push the depth limit to see if even more capacity helps
+    {
+        "name": "ultra_deep_baseline",
+        "lambda_global": 0.01,
+        "lambda_local": 0.01,
+        "hidden_dims": [512, 256, 128, 64, 32, 16],
+        "lr": 0.001,
+        "dropout": 0.3,
+        "batch_size": 64
+    },
+    {
+        "name": "ultra_deep_high_lambda",
+        "lambda_global": 0.1,
+        "lambda_local": 0.1,
+        "hidden_dims": [512, 256, 128, 64, 32, 16],
+        "lr": 0.001,
+        "dropout": 0.3,
+        "batch_size": 64
+    },
+
+    # 7-9. DEEP + VERY HIGH LAMBDA (Aggressive constraint pressure)
+    # Test if much stronger constraint pressure helps with deep networks
+    {
+        "name": "deep_very_high_lambda",
+        "lambda_global": 0.5,
+        "lambda_local": 0.5,
+        "hidden_dims": [256, 128, 64, 32],
+        "lr": 0.001,
+        "dropout": 0.3,
+        "batch_size": 64
+    },
+    {
+        "name": "deep_extreme_lambda",
+        "lambda_global": 1.0,
+        "lambda_local": 1.0,
+        "hidden_dims": [256, 128, 64, 32],
+        "lr": 0.001,
+        "dropout": 0.3,
+        "batch_size": 64
+    },
+    {
+        "name": "very_deep_extreme_lambda",
+        "lambda_global": 1.0,
+        "lambda_local": 1.0,
+        "hidden_dims": [512, 256, 128, 64, 32],
+        "lr": 0.001,
+        "dropout": 0.3,
+        "batch_size": 64
+    },
+
+    # 10-11. WIDE DEEP ARCHITECTURES
+    # Test if width + depth together provide more capacity
+    {
+        "name": "wide_deep_baseline",
+        "lambda_global": 0.01,
+        "lambda_local": 0.01,
+        "hidden_dims": [512, 256, 128, 64],
+        "lr": 0.001,
+        "dropout": 0.3,
+        "batch_size": 64
+    },
+    {
+        "name": "wide_deep_high_lambda",
+        "lambda_global": 0.1,
+        "lambda_local": 0.1,
+        "hidden_dims": [512, 256, 128, 64],
+        "lr": 0.001,
+        "dropout": 0.3,
+        "batch_size": 64
+    },
+
+    # 12-13. DEEP + DROPOUT VARIATIONS
+    # Test if deeper networks need different regularization
+    {
+        "name": "deep_low_dropout",
+        "lambda_global": 0.1,
+        "lambda_local": 0.1,
+        "hidden_dims": [256, 128, 64, 32],
+        "lr": 0.001,
         "dropout": 0.2,
+        "batch_size": 64
+    },
+    {
+        "name": "very_deep_high_dropout",
+        "lambda_global": 0.1,
+        "lambda_local": 0.1,
+        "hidden_dims": [512, 256, 128, 64, 32],
+        "lr": 0.001,
+        "dropout": 0.4,
+        "batch_size": 64
+    },
+
+    # 14. DEEP + SMALLER BATCH (More gradient noise for exploration)
+    {
+        "name": "deep_small_batch_high_lambda",
+        "lambda_global": 0.1,
+        "lambda_local": 0.1,
+        "hidden_dims": [256, 128, 64, 32],
+        "lr": 0.001,
+        "dropout": 0.3,
         "batch_size": 32
+    },
+
+    # 15. MEGA DEEP (7 layers - maximum complexity)
+    {
+        "name": "mega_deep",
+        "lambda_global": 0.1,
+        "lambda_local": 0.1,
+        "hidden_dims": [1024, 512, 256, 128, 64, 32, 16],
+        "lr": 0.001,
+        "dropout": 0.35,
+        "batch_size": 64
     },
 ]
 
