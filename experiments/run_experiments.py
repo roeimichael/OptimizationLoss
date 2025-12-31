@@ -18,9 +18,7 @@ from src.training import (
 
 def save_results(results_file, model_name, method_name, accuracy, local_percent, global_percent, training_time):
     output = f"{model_name},{method_name},{accuracy},{local_percent},{global_percent},{training_time}"
-
     os.makedirs(os.path.dirname(results_file), exist_ok=True)
-
     if not os.path.exists(results_file):
         with open(results_file, 'a') as f:
             headlines = "model_name,method_name,accuracy,local_percent,global_percent,training_time"
@@ -34,19 +32,17 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
-    # Load pre-split datasets
     print("Loading datasets...")
     print(f"  Train: {TRAIN_PATH}")
     print(f"  Test: {TEST_PATH}")
     X_train, X_test, y_train, y_test, train_df, test_df = load_presplit_data(
         TRAIN_PATH, TEST_PATH, TARGET_COLUMN
     )
-    print(f"Train: {len(y_train)}, Test: {len(y_test)} (Test used for constraints only)")
+    print(f"Train: {len(y_train)}, Test: {len(y_test)}")
 
-    # Combine train and test for constraint computation (already preprocessed)
     full_df = pd.concat([train_df, test_df], ignore_index=True)
     groups = full_df['Course'].unique()
-    print(f"Combined dataset (for constraints): {len(full_df)} samples")
+    print(f"Combined dataset: {len(full_df)} samples")
     print(f"Number of courses: {len(groups)}")
 
     Path(RESULTS_DIR).mkdir(exist_ok=True)
@@ -56,7 +52,6 @@ def main():
     for config_idx, config in enumerate(NN_CONFIGS):
         config_name = config.get('name', f"nn_config{config_idx + 1}")
 
-        # Extract hyperparameters from config
         lambda_global = config['lambda_global']
         lambda_local = config['lambda_local']
         hidden_dims = config['hidden_dims']
@@ -77,7 +72,6 @@ def main():
             local_percent, global_percent = constraint_pair
             print(f"\nConstraint: local={local_percent}, global={global_percent}")
 
-            # Compute constraints on full dataset
             global_constraint = compute_global_constraints(full_df, TARGET_COLUMN, global_percent)
             local_constraint = compute_local_constraints(full_df, TARGET_COLUMN, local_percent, groups)
 
@@ -103,7 +97,7 @@ def main():
                 device=device,
                 constraint_dropout_pct=local_percent,
                 constraint_enrolled_pct=global_percent,
-                hyperparam_name=config_name  # Pass config name for folder naming
+                hyperparam_name=config_name
             )
 
             y_test_pred = predict(model, scaler, X_test_clean, device)
@@ -115,7 +109,6 @@ def main():
 
             print(f"  Test Accuracy: {accuracy:.4f}, Time: {training_time:.2f}s")
 
-            # Read benchmark metrics from hyperparameter-specific folder
             benchmark_metrics_path = f"./results/hyperparam_{config_name}/benchmark_metrics.csv"
             benchmark_metrics = {}
             if os.path.exists(benchmark_metrics_path):
@@ -176,7 +169,6 @@ def main():
                 summary += f"R={metrics['benchmark_recall_macro']:.4f}, F1={metrics['benchmark_f1_macro']:.4f}"
             print(summary)
 
-    # Run comprehensive analysis and comparison
     print(f"\n{'='*80}")
     print("Running comprehensive analysis and comparison of top 5 configurations...")
     print(f"{'='*80}\n")
@@ -186,11 +178,11 @@ def main():
         result = subprocess.run(['python', 'experiments/analyze_top5.py'],
                               capture_output=False, text=True)
         if result.returncode == 0:
-            print("\n✅ Analysis completed successfully!")
+            print("\nAnalysis completed successfully")
         else:
-            print(f"\n⚠️ Analysis completed with warnings")
+            print("\nAnalysis completed with warnings")
     except Exception as e:
-        print(f"\n⚠️ Could not run analysis: {e}")
+        print(f"\nCould not run analysis: {e}")
         print("You can run it manually with: python experiments/analyze_top5.py")
 
 

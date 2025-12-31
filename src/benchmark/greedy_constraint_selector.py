@@ -169,7 +169,7 @@ def greedy_constraint_selection(model, X_test_tensor, group_ids_test, y_test,
             global_violated = True
 
     if not global_violated:
-        print("  ✓ All global constraints satisfied")
+        print("  All global constraints satisfied")
 
     os.makedirs(experiment_folder, exist_ok=True)
 

@@ -444,9 +444,8 @@ def generate_comparison_report(all_data, configs, optimized_acc, benchmark_acc, 
         f.write("# Top 5 Configurations - Comprehensive Comparison Report\n\n")
         f.write("## Executive Summary\n\n")
 
-        # Find best performer
         best_idx = improvements.index(max(improvements))
-        f.write(f"**🏆 BEST PERFORMER:** `{configs[best_idx]}`\n")
+        f.write(f"**BEST PERFORMER:** `{configs[best_idx]}`\n")
         f.write(f"- **Optimized Accuracy:** {optimized_acc[best_idx]:.4f}\n")
         f.write(f"- **Benchmark Accuracy:** {benchmark_acc[best_idx]:.4f}\n")
         f.write(f"- **Improvement:** {improvements[best_idx]:+.2f}%\n\n")
@@ -456,11 +455,9 @@ def generate_comparison_report(all_data, configs, optimized_acc, benchmark_acc, 
         f.write("| Rank | Config | Optimized | Benchmark | Improvement |\n")
         f.write("|------|--------|-----------|-----------|-------------|\n")
 
-        # Sort by improvement
         sorted_indices = sorted(range(len(improvements)), key=lambda i: improvements[i], reverse=True)
         for rank, idx in enumerate(sorted_indices, 1):
-            status = "🏆" if rank == 1 else "✅" if improvements[idx] > 0 else "⚠️"
-            f.write(f"| {rank} {status} | {configs[idx]} | {optimized_acc[idx]:.4f} | "
+            f.write(f"| {rank} | {configs[idx]} | {optimized_acc[idx]:.4f} | "
                    f"{benchmark_acc[idx]:.4f} | {improvements[idx]:+.2f}% |\n")
 
         f.write("\n---\n\n")
@@ -523,16 +520,15 @@ def generate_comparison_report(all_data, configs, optimized_acc, benchmark_acc, 
             f.write(f"- {depth} layers ({name}): {imp:+.2f}%\n")
         f.write("\n")
 
-        # Insight 3: Overall conclusion
         f.write("### 3. Recommendation\n\n")
         if max(improvements) > 2.0:
-            f.write(f"✅ **STRONG RECOMMENDATION:** Use `{configs[best_idx]}` for production.\n")
+            f.write(f"**STRONG RECOMMENDATION:** Use `{configs[best_idx]}` for production.\n")
             f.write(f"The {improvements[best_idx]:+.2f}% improvement over benchmark is substantial.\n\n")
         elif max(improvements) > 0.5:
-            f.write(f"⚠️ **MODERATE RECOMMENDATION:** Use `{configs[best_idx]}` if accuracy matters.\n")
+            f.write(f"**MODERATE RECOMMENDATION:** Use `{configs[best_idx]}` if accuracy matters.\n")
             f.write(f"The {improvements[best_idx]:+.2f}% improvement is modest but real.\n\n")
         else:
-            f.write(f"❌ **NOT RECOMMENDED:** Consider using simple benchmark instead.\n")
+            f.write(f"**NOT RECOMMENDED:** Consider using simple benchmark instead.\n")
             f.write(f"The improvement ({max(improvements):+.2f}%) doesn't justify the complexity.\n\n")
 
         f.write("---\n\n")
@@ -547,7 +543,7 @@ def generate_comparison_report(all_data, configs, optimized_acc, benchmark_acc, 
         f.write("---\n\n")
         f.write("**Report Generated:** Automated analysis of top 5 configurations\n")
 
-    print(f"\n✅ Comparison report saved to: {report_path}")
+    print(f"\nComparison report saved to: {report_path}")
 
 
 def main():
@@ -605,7 +601,7 @@ def main():
                               improvements, output_dir)
 
     print("\n" + "="*80)
-    print("✅ Analysis Complete!")
+    print("Analysis Complete")
     print("="*80)
     print(f"\nAll visualizations and reports saved to: {output_dir}")
     print("\nGenerated files:")
@@ -617,12 +613,11 @@ def main():
     print("  - comparison_hyperparameters.png")
     print("  - TOP5_COMPARISON_REPORT.md")
 
-    # Print quick summary
     print("\n" + "="*80)
     print("QUICK SUMMARY")
     print("="*80)
     best_idx = improvements.index(max(improvements))
-    print(f"\n🏆 BEST: {configs[best_idx]}")
+    print(f"\nBEST: {configs[best_idx]}")
     print(f"   Optimized: {optimized_acc[best_idx]:.4f}")
     print(f"   Benchmark: {benchmark_acc[best_idx]:.4f}")
     print(f"   Improvement: {improvements[best_idx]:+.2f}%\n")
@@ -630,8 +625,7 @@ def main():
     print("Rankings:")
     sorted_indices = sorted(range(len(improvements)), key=lambda i: improvements[i], reverse=True)
     for rank, idx in enumerate(sorted_indices, 1):
-        status = "🏆" if rank == 1 else "✅" if improvements[idx] > 0 else "⚠️"
-        print(f"  {rank}. {status} {configs[idx]}: {improvements[idx]:+.2f}%")
+        print(f"  {rank}. {configs[idx]}: {improvements[idx]:+.2f}%")
 
     print("\n" + "="*80)
 
