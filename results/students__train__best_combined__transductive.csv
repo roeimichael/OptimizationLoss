@@ -1,0 +1,2 @@
+model_name,method_name,accuracy,local_percent,global_percent,training_time
+best_combined,transductive,0.6018099547511312,0.5,0.3,397.6907699108124
