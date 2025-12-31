@@ -1,2 +1,0 @@
-model_name,method_name,accuracy,local_percent,global_percent,training_time
-lr_slow,transductive,0.583710407239819,0.5,0.3,425.3919734954834

@@ -1,2 +1,0 @@
-model_name,method_name,accuracy,local_percent,global_percent,training_time
-mega_deep,transductive,0.5723981900452488,0.5,0.3,1.4421887397766113

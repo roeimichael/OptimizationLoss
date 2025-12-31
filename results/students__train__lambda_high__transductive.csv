@@ -1,2 +1,2 @@
 model_name,method_name,accuracy,local_percent,global_percent,training_time
-lambda_high,transductive,0.6063348416289592,0.5,0.3,439.9917688369751
+lambda_high,transductive,0.5769230769230769,0.5,0.3,356.08090710639954

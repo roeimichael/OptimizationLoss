@@ -1,2 +1,0 @@
-model_name,method_name,accuracy,local_percent,global_percent,training_time
-nn_config1,transductive,0.5927601809954751,0.5,0.3,379.04573249816895
