@@ -8,11 +8,14 @@ def greedy_constraint_selection(model, X_test_tensor, group_ids_test, y_test,
                                  global_constraints, local_constraints_dict,
                                  experiment_folder):
     """
-    FIXED: Greedy constraint-based selection benchmark that RESPECTS constraints.
+    Round-robin constraint-based selection benchmark that RESPECTS constraints.
 
     Algorithm:
     1. Get predictions and probabilities from the model
-    2. For each course, greedily select top predictions for each constrained class
+    2. Use round-robin approach across courses:
+       - Round 1: Allocate highest prob dropout/enrolled for each course
+       - Round 2: Allocate next highest for each course
+       - Continue until all constraints satisfied
     3. For remaining samples, assign to highest probability class that doesn't violate constraints
     4. Save benchmark results for comparison
     """
@@ -32,49 +35,69 @@ def greedy_constraint_selection(model, X_test_tensor, group_ids_test, y_test,
     unique_courses = np.unique(course_ids)
 
     print("\n" + "="*80)
-    print("GREEDY CONSTRAINT-BASED SELECTION (Benchmark)")
+    print("ROUND-ROBIN CONSTRAINT-BASED SELECTION (Benchmark)")
     print("="*80)
-    print("Algorithm: For each course, select top N samples per class based on probability")
-    print("Then assign remaining samples while RESPECTING constraints")
+    print("Algorithm: Round-robin allocation across courses")
+    print("Each round allocates 1 dropout + 1 enrolled per course (highest prob)")
+    print("Checks local and global capacity before each allocation")
     print("="*80 + "\n")
 
     global_counts = {0: 0, 1: 0, 2: 0}
+    local_counts = {course_id: {0: 0, 1: 0, 2: 0} for course_id in unique_courses}
 
-    # Phase 1: Assign constrained classes greedily
-    for course_id in sorted(unique_courses):
+    # Pre-sort samples by probability for each course and class
+    course_class_sorted = {}
+    for course_id in unique_courses:
         course_mask = (course_ids == course_id)
         course_indices = np.where(course_mask)[0]
         course_proba = test_proba[course_mask]
 
-        local_cons = local_constraints_dict.get(course_id, [float('inf')] * 3)
-
-        # Process constrained classes (Dropout, Enrolled)
-        for class_id in range(3):
-            constraint = local_cons[class_id]
-
-            if constraint >= 1e9:
-                continue
-
+        course_class_sorted[course_id] = {}
+        for class_id in [0, 1]:
             class_probs = course_proba[:, class_id]
-            top_indices_local = np.argsort(class_probs)[::-1]
+            sorted_local_indices = np.argsort(class_probs)[::-1]
+            sorted_global_indices = course_indices[sorted_local_indices]
+            course_class_sorted[course_id][class_id] = sorted_global_indices
 
-            assigned = 0
-            for local_idx in top_indices_local:
-                global_idx = course_indices[local_idx]
+    # Phase 1: Round-robin allocation for constrained classes (Dropout=0, Enrolled=1)
+    print("Phase 1: Round-robin allocation for constrained classes...")
+    round_num = 0
+    allocations_made = True
 
-                if final_predictions[global_idx] == -1:
-                    if global_counts[class_id] < global_constraints[class_id]:
+    while allocations_made:
+        allocations_made = False
+        round_num += 1
+
+        for course_id in sorted(unique_courses):
+            local_cons = local_constraints_dict.get(course_id, [float('inf')] * 3)
+
+            for class_id in [0, 1]:
+                constraint = local_cons[class_id]
+
+                if constraint >= 1e9:
+                    continue
+
+                if local_counts[course_id][class_id] >= constraint:
+                    continue
+
+                if global_counts[class_id] >= global_constraints[class_id]:
+                    continue
+
+                sorted_indices = course_class_sorted[course_id][class_id]
+                for global_idx in sorted_indices:
+                    if final_predictions[global_idx] == -1:
                         final_predictions[global_idx] = class_id
                         global_counts[class_id] += 1
-                        assigned += 1
+                        local_counts[course_id][class_id] += 1
+                        allocations_made = True
+                        break
 
-                        if assigned >= constraint:
-                            break
+    print(f"  Completed {round_num - 1} rounds of allocation")
 
     # Phase 2: Assign remaining samples while respecting constraints
     unassigned_indices = np.where(final_predictions == -1)[0]
 
-    print(f"Phase 1 complete: {len(final_predictions) - len(unassigned_indices)} samples assigned")
+    print(f"\nPhase 1 complete: {len(final_predictions) - len(unassigned_indices)} samples assigned")
     print(f"Phase 2: Assigning {len(unassigned_indices)} remaining samples with constraint checking...")
 
     for idx in unassigned_indices:
@@ -82,32 +105,24 @@ def greedy_constraint_selection(model, X_test_tensor, group_ids_test, y_test,
         sample_proba = test_proba[idx]
         local_cons = local_constraints_dict.get(sample_course, [float('inf')] * 3)
 
-        # Try to assign to classes in order of probability
         classes_by_prob = np.argsort(sample_proba)[::-1]
 
         assigned = False
         for class_id in classes_by_prob:
-            # Check global constraint
             if global_counts[class_id] >= global_constraints[class_id]:
                 continue
 
-            # Check local constraint
-            # Count current predictions for this course and class
-            course_mask = (course_ids == sample_course)
-            course_predictions = final_predictions[course_mask]
-            current_class_count = np.sum(course_predictions == class_id)
-
-            if current_class_count < local_cons[class_id]:
-                # Safe to assign!
+            if local_counts[sample_course][class_id] < local_cons[class_id]:
                 final_predictions[idx] = class_id
                 global_counts[class_id] += 1
+                local_counts[sample_course][class_id] += 1
                 assigned = True
                 break
 
-        # If all classes violate constraints, assign to unlimited class (Graduate)
         if not assigned:
-            final_predictions[idx] = 2  # Graduate (unlimited)
+            final_predictions[idx] = 2
             global_counts[2] += 1
+            local_counts[sample_course][2] += 1
 
     # Verify no samples left unassigned
     assert np.all(final_predictions != -1), "Some samples were not assigned!"
