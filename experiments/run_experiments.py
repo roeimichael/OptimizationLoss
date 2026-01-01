@@ -72,8 +72,7 @@ def main():
             local_percent, global_percent = constraint_pair
             print(f"\nConstraint: local={local_percent}, global={global_percent}")
 
-            constraint_suffix = f"_c{local_percent}_{global_percent}" if len(CONSTRAINTS) > 1 else ""
-            exp_name = f"{config_name}{constraint_suffix}"
+            constraint_folder = f"constraint_{local_percent}_{global_percent}"
 
             global_constraint = compute_global_constraints(full_df, TARGET_COLUMN, global_percent)
             local_constraint = compute_local_constraints(full_df, TARGET_COLUMN, local_percent, groups)
@@ -100,19 +99,21 @@ def main():
                 device=device,
                 constraint_dropout_pct=local_percent,
                 constraint_enrolled_pct=global_percent,
-                hyperparam_name=exp_name
+                hyperparam_name=config_name,
+                constraint_folder=constraint_folder
             )
 
             y_test_pred = predict(model, scaler, X_test_clean, device)
             accuracy = evaluate_accuracy(y_test.values, y_test_pred)
 
-            results_file = f"{RESULTS_DIR}/students__train__{exp_name}__transductive.csv"
-            save_results(results_file, exp_name, "transductive", accuracy,
+            results_file = f"{RESULTS_DIR}/{constraint_folder}/students__{config_name}__transductive.csv"
+            os.makedirs(f"{RESULTS_DIR}/{constraint_folder}", exist_ok=True)
+            save_results(results_file, config_name, "transductive", accuracy,
                        local_percent, global_percent, training_time)
 
             print(f"  Test Accuracy: {accuracy:.4f}, Time: {training_time:.2f}s")
 
-            benchmark_metrics_path = f"./results/hyperparam_{exp_name}/benchmark_metrics.csv"
+            benchmark_metrics_path = f"./results/{constraint_folder}/hyperparam_{config_name}/benchmark_metrics.csv"
             benchmark_metrics = {}
             if os.path.exists(benchmark_metrics_path):
                 with open(benchmark_metrics_path, 'r') as f:

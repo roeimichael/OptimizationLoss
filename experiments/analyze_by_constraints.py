@@ -27,8 +27,8 @@ plt.rcParams['axes.titlesize'] = 13
 plt.rcParams['axes.labelsize'] = 11
 
 
-def load_experiment_data(config_name, results_dir=None):
-    """Load all data for a specific experiment configuration."""
+def load_experiment_data(config_name, constraint_folder, results_dir=None):
+    """Load all data for a specific experiment configuration within a constraint folder."""
     if results_dir is None:
         script_dir = Path(__file__).parent
         project_root = script_dir.parent
@@ -36,7 +36,7 @@ def load_experiment_data(config_name, results_dir=None):
     else:
         results_dir = Path(results_dir)
 
-    hyperparam_dir = results_dir / f"hyperparam_{config_name}"
+    hyperparam_dir = results_dir / constraint_folder / f"hyperparam_{config_name}"
 
     if not hyperparam_dir.exists():
         return None
@@ -150,13 +150,17 @@ def create_constraint_comparison_graph(all_constraint_results, output_dir):
     plt.close()
 
 
-def analyze_constraint_group(local_percent, global_percent, output_dir):
+def analyze_constraint_group(local_percent, global_percent):
     """Analyze all configurations for a specific constraint setting."""
     print(f"\n{'='*80}")
     print(f"Analyzing Constraint Configuration: Local={local_percent}, Global={global_percent}")
     print(f"{'='*80}\n")
 
-    constraint_suffix = f"_c{local_percent}_{global_percent}"
+    script_dir = Path(__file__).parent
+    project_root = script_dir.parent
+    constraint_folder = f"constraint_{local_percent}_{global_percent}"
+    constraint_output_dir = project_root / "results" / constraint_folder
+
     configs = []
     optimized_acc = []
     benchmark_acc = []
@@ -165,13 +169,12 @@ def analyze_constraint_group(local_percent, global_percent, output_dir):
 
     for config in NN_CONFIGS:
         config_name = config['name']
-        exp_name = f"{config_name}{constraint_suffix}"
 
-        print(f"  Loading {exp_name}...")
-        data = load_experiment_data(exp_name)
+        print(f"  Loading {config_name}...")
+        data = load_experiment_data(config_name, constraint_folder)
 
         if data is None:
-            print(f"    Warning: No data found for {exp_name}")
+            print(f"    Warning: No data found for {config_name} in {constraint_folder}")
             continue
 
         all_data.append(data)
@@ -197,15 +200,12 @@ def analyze_constraint_group(local_percent, global_percent, output_dir):
         print(f"  No valid data found for constraint ({local_percent}, {global_percent})")
         return None
 
-    constraint_output_dir = output_dir / f"constraint_{local_percent}_{global_percent}"
-    constraint_output_dir.mkdir(exist_ok=True, parents=True)
-
     print(f"\n  Creating visualizations...")
     create_accuracy_comparison(configs, optimized_acc, benchmark_acc, improvements, constraint_output_dir)
     generate_constraint_report(configs, optimized_acc, benchmark_acc, improvements,
                               local_percent, global_percent, constraint_output_dir)
 
-    print(f"  Results saved to: {constraint_output_dir}")
+    print(f"  Analysis saved to: {constraint_output_dir}")
 
     return [{'config_name': c, 'optimized_acc': o, 'benchmark_acc': b, 'improvement': i}
             for c, o, b, i in zip(configs, optimized_acc, benchmark_acc, improvements)]
@@ -297,16 +297,14 @@ def main():
 
     script_dir = Path(__file__).parent
     project_root = script_dir.parent
-    output_dir = project_root / "results" / "constraint_analysis"
-    output_dir.mkdir(exist_ok=True, parents=True)
+    results_base_dir = project_root / "results"
 
-    print(f"\nOutput directory: {output_dir}")
     print(f"\nAnalyzing {len(CONSTRAINTS)} constraint configurations...")
 
     all_constraint_results = {}
 
     for local_percent, global_percent in CONSTRAINTS:
-        results = analyze_constraint_group(local_percent, global_percent, output_dir)
+        results = analyze_constraint_group(local_percent, global_percent)
         if results:
             all_constraint_results[(local_percent, global_percent)] = results
 
@@ -314,17 +312,27 @@ def main():
         print(f"\n{'='*80}")
         print("Creating cross-constraint comparison...")
         print(f"{'='*80}\n")
-        create_constraint_comparison_graph(all_constraint_results, output_dir)
+        cross_output_dir = results_base_dir / "constraint_comparison"
+        cross_output_dir.mkdir(exist_ok=True, parents=True)
+        create_constraint_comparison_graph(all_constraint_results, cross_output_dir)
+        print(f"  Cross-constraint comparison saved to: {cross_output_dir}")
 
     print(f"\n{'='*80}")
     print("Analysis Complete")
     print(f"{'='*80}")
-    print(f"\nAll results saved to: {output_dir}")
-    print(f"\nGenerated files:")
+    print(f"\nResults organized by constraint folder:")
     for local_p, global_p in CONSTRAINTS:
-        print(f"  - constraint_{local_p}_{global_p}/")
+        constraint_folder = f"constraint_{local_p}_{global_p}"
+        print(f"  - results/{constraint_folder}/")
+        print(f"      hyperparam_arch_deep/")
+        print(f"      hyperparam_dropout_high/")
+        print(f"      ... (experiment folders)")
+        print(f"      accuracy_comparison.png")
+        print(f"      CONSTRAINT_REPORT.md")
     if len(CONSTRAINTS) > 1:
-        print(f"  - constraint_comparison_summary.png")
+        print(f"\n  Cross-constraint comparison:")
+        print(f"  - results/constraint_comparison/")
+        print(f"      constraint_comparison_summary.png")
     print(f"\n{'='*80}")
 
 
