@@ -72,6 +72,9 @@ def main():
             local_percent, global_percent = constraint_pair
             print(f"\nConstraint: local={local_percent}, global={global_percent}")
 
+            constraint_suffix = f"_c{local_percent}_{global_percent}" if len(CONSTRAINTS) > 1 else ""
+            exp_name = f"{config_name}{constraint_suffix}"
+
             global_constraint = compute_global_constraints(full_df, TARGET_COLUMN, global_percent)
             local_constraint = compute_local_constraints(full_df, TARGET_COLUMN, local_percent, groups)
 
@@ -97,19 +100,19 @@ def main():
                 device=device,
                 constraint_dropout_pct=local_percent,
                 constraint_enrolled_pct=global_percent,
-                hyperparam_name=config_name
+                hyperparam_name=exp_name
             )
 
             y_test_pred = predict(model, scaler, X_test_clean, device)
             accuracy = evaluate_accuracy(y_test.values, y_test_pred)
 
-            results_file = f"{RESULTS_DIR}/students__train__{config_name}__transductive.csv"
-            save_results(results_file, config_name, "transductive", accuracy,
+            results_file = f"{RESULTS_DIR}/students__train__{exp_name}__transductive.csv"
+            save_results(results_file, exp_name, "transductive", accuracy,
                        local_percent, global_percent, training_time)
 
             print(f"  Test Accuracy: {accuracy:.4f}, Time: {training_time:.2f}s")
 
-            benchmark_metrics_path = f"./results/hyperparam_{config_name}/benchmark_metrics.csv"
+            benchmark_metrics_path = f"./results/hyperparam_{exp_name}/benchmark_metrics.csv"
             benchmark_metrics = {}
             if os.path.exists(benchmark_metrics_path):
                 with open(benchmark_metrics_path, 'r') as f:
@@ -170,20 +173,33 @@ def main():
             print(summary)
 
     print(f"\n{'='*80}")
-    print("Running comprehensive analysis and comparison of top 5 configurations...")
+    print("Running comprehensive analysis and comparison...")
     print(f"{'='*80}\n")
 
     try:
         import subprocess
-        result = subprocess.run(['python', 'experiments/analyze_top5.py'],
-                              capture_output=False, text=True)
-        if result.returncode == 0:
-            print("\nAnalysis completed successfully")
+        if len(CONSTRAINTS) > 1:
+            print("Multiple constraints detected - running constraint-grouped analysis...\n")
+            result = subprocess.run(['python', 'experiments/analyze_by_constraints.py'],
+                                  capture_output=False, text=True)
+            if result.returncode == 0:
+                print("\nConstraint-grouped analysis completed successfully")
+            else:
+                print("\nConstraint-grouped analysis completed with warnings")
         else:
-            print("\nAnalysis completed with warnings")
+            print("Single constraint detected - running standard top 5 analysis...\n")
+            result = subprocess.run(['python', 'experiments/analyze_top5.py'],
+                                  capture_output=False, text=True)
+            if result.returncode == 0:
+                print("\nTop 5 analysis completed successfully")
+            else:
+                print("\nTop 5 analysis completed with warnings")
     except Exception as e:
         print(f"\nCould not run analysis: {e}")
-        print("You can run it manually with: python experiments/analyze_top5.py")
+        if len(CONSTRAINTS) > 1:
+            print("You can run it manually with: python experiments/analyze_by_constraints.py")
+        else:
+            print("You can run it manually with: python experiments/analyze_top5.py")
 
 
 if __name__ == "__main__":
