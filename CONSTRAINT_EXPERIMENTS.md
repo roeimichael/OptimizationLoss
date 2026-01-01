@@ -48,28 +48,43 @@ python experiments/run_experiments.py
 
 This will:
 1. Run all 5 configurations × 5 constraint settings = 25 total experiments
-2. Save results to separate folders: `results/hyperparam_{config}_c{local}_{global}/`
+2. Save results organized by constraint folder: `results/constraint_{local}_{global}/hyperparam_{config}/`
 3. Automatically run constraint-grouped analysis at the end
 
 ### Results Organization
 
-Each experiment saves to:
+Results are organized by constraint first, then by experiment:
 ```
 results/
-├── hyperparam_arch_deep_c0.5_0.3/
-├── hyperparam_arch_deep_c0.3_0.3/
-├── hyperparam_arch_deep_c0.7_0.3/
-├── hyperparam_arch_deep_c0.5_0.5/
-├── hyperparam_arch_deep_c0.3_0.5/
-├── hyperparam_dropout_high_c0.5_0.3/
-└── ... (25 folders total)
+├── constraint_0.5_0.3/
+│   ├── hyperparam_arch_deep/
+│   │   ├── training_log.csv
+│   │   ├── evaluation_metrics.csv
+│   │   ├── benchmark_metrics.csv
+│   │   └── constraint_comparison.csv
+│   ├── hyperparam_dropout_high/
+│   │   └── ... (same files)
+│   ├── ... (5 experiment folders)
+│   ├── accuracy_comparison.png
+│   └── CONSTRAINT_REPORT.md
+├── constraint_0.3_0.3/
+│   └── ... (same structure)
+├── constraint_0.7_0.3/
+├── constraint_0.5_0.5/
+├── constraint_0.3_0.5/
+└── constraint_comparison/
+    └── constraint_comparison_summary.png
 ```
 
-Each folder contains:
+Each experiment folder contains:
 - `training_log.csv` - Loss values over epochs
 - `evaluation_metrics.csv` - Final performance metrics
 - `benchmark_metrics.csv` - Baseline comparison
 - `constraint_comparison.csv` - Constraint satisfaction tracking
+
+Each constraint folder also contains:
+- `accuracy_comparison.png` - Comparison of 5 configs under this constraint
+- `CONSTRAINT_REPORT.md` - Analysis for this constraint setting
 
 ## Analysis
 
@@ -80,17 +95,18 @@ After experiments complete, the system automatically runs:
 python experiments/analyze_by_constraints.py
 ```
 
-This generates:
+This generates analysis files directly within each constraint folder:
 ```
-results/constraint_analysis/
+results/
 ├── constraint_0.5_0.3/
-│   ├── accuracy_comparison.png
-│   └── CONSTRAINT_REPORT.md
+│   ├── hyperparam_arch_deep/
+│   ├── ... (experiment folders)
+│   ├── accuracy_comparison.png       <- Analysis for this constraint
+│   └── CONSTRAINT_REPORT.md          <- Analysis for this constraint
 ├── constraint_0.3_0.3/
-│   ├── accuracy_comparison.png
-│   └── CONSTRAINT_REPORT.md
-├── ... (one folder per constraint)
-└── constraint_comparison_summary.png
+│   └── ... (same structure)
+└── constraint_comparison/
+    └── constraint_comparison_summary.png  <- Cross-constraint comparison
 ```
 
 ### Manual Analysis
