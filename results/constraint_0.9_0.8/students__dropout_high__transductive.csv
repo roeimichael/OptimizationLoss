@@ -1,0 +1,2 @@
+model_name,method_name,accuracy,local_percent,global_percent,training_time
+dropout_high,transductive,0.7352941176470589,0.9,0.8,325.4107382297516

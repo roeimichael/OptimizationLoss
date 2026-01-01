@@ -1,0 +1,2 @@
+model_name,method_name,accuracy,local_percent,global_percent,training_time
+very_deep_baseline,transductive,0.6063348416289592,0.5,0.3,386.0950746536255
