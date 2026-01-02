@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-"""
-Comprehensive Multi-Constraint Experiment Analysis
-Analyzes all results by model and constraint with detailed visualizations.
-"""
 
 import csv
 import json
@@ -13,7 +9,6 @@ from pathlib import Path
 from collections import defaultdict
 import pandas as pd
 
-# Set professional style
 sns.set_style("whitegrid")
 plt.rcParams['figure.dpi'] = 300
 plt.rcParams['font.size'] = 10
@@ -21,7 +16,6 @@ plt.rcParams['axes.titlesize'] = 12
 plt.rcParams['axes.labelsize'] = 11
 plt.rcParams['legend.fontsize'] = 9
 
-# Configuration mappings
 CONFIGS = {
     "arch_deep": "hyperparam_arch_deep",
     "dropout_high": "hyperparam_dropout_high",
@@ -51,7 +45,6 @@ FAILED_EXPERIMENTS = [
 CLASS_NAMES = {0: "Dropout", 1: "Enrolled", 2: "Graduate"}
 
 def read_accuracy(csv_file):
-    """Read accuracy from evaluation_metrics.csv"""
     try:
         with open(csv_file, 'r') as f:
             reader = csv.reader(f)
@@ -63,13 +56,11 @@ def read_accuracy(csv_file):
     return None
 
 def load_all_results():
-    """Load all experiment results from constraint folders."""
     results_dir = Path('/home/user/OptimizationLoss/results')
     all_results = []
 
     for config_short, config_full in CONFIGS.items():
         for constraint_key, folder_name in CONSTRAINT_FOLDERS.items():
-            # Skip failed experiments
             if (config_short, constraint_key) in FAILED_EXPERIMENTS:
                 continue
 
@@ -77,7 +68,6 @@ def load_all_results():
             if not config_path.exists():
                 continue
 
-            # Load accuracy metrics
             metrics_file = config_path / 'evaluation_metrics.csv'
             benchmark_file = config_path / 'benchmark_metrics.csv'
 
@@ -98,33 +88,22 @@ def load_all_results():
     return all_results
 
 def load_predictions_and_constraints(results):
-    """Load prediction details and constraint satisfaction."""
     detailed_results = []
 
     for result in results:
         config_path = result['path']
-
-        # Load predictions
         predictions_file = config_path / 'final_predictions.csv'
         constraint_file = config_path / 'constraint_comparison.csv'
 
         if not predictions_file.exists() or not constraint_file.exists():
             continue
 
-        # Read predictions
         predictions_df = pd.read_csv(predictions_file)
-
-        # Read constraints
         constraints_df = pd.read_csv(constraint_file)
-
-        # Count predictions by class
         class_counts = predictions_df['Predicted_Label'].value_counts().to_dict()
-
-        # Parse global constraint from constraint key
         global_max, local_max = eval(result['constraint'])
         total_samples = len(predictions_df)
 
-        # Calculate global constraint satisfaction for Dropout and Enrolled
         dropout_count = class_counts.get(0, 0)
         enrolled_count = class_counts.get(1, 0)
         graduate_count = class_counts.get(2, 0)
@@ -132,14 +111,12 @@ def load_predictions_and_constraints(results):
         global_dropout_limit = int(total_samples * global_max)
         global_enrolled_limit = int(total_samples * local_max)
 
-        # Count predictions by course
         course_predictions = defaultdict(lambda: {'Dropout': 0, 'Enrolled': 0, 'Graduate': 0})
         for _, row in predictions_df.iterrows():
             course_id = row['Course_ID']
             pred_class = CLASS_NAMES[int(row['Predicted_Label'])]
             course_predictions[course_id][pred_class] += 1
 
-        # Constraint satisfaction
         total_constraints = len(constraints_df[constraints_df['Constraint'] != 'Unlimited'])
         satisfied_constraints = len(constraints_df[constraints_df['Status'] == 'OK'])
 
@@ -160,19 +137,70 @@ def load_predictions_and_constraints(results):
 
     return detailed_results
 
+def analyze_constraint_satisfaction_by_course():
+    results_dir = Path('/home/user/OptimizationLoss/results')
+    constraint_data = defaultdict(lambda: defaultdict(list))
+
+    for constraint_key, folder_name in CONSTRAINT_FOLDERS.items():
+        constraint_path = results_dir / folder_name
+        if not constraint_path.exists():
+            continue
+
+        for short_name, full_name in CONFIGS.items():
+            if (short_name, constraint_key) in FAILED_EXPERIMENTS:
+                continue
+
+            config_path = constraint_path / full_name
+            if not config_path.exists():
+                continue
+
+            constraint_file = config_path / "constraint_comparison.csv"
+            if constraint_file.exists():
+                df = pd.read_csv(constraint_file)
+
+                for course_id in df['Course_ID'].unique():
+                    course_data = df[df['Course_ID'] == course_id]
+                    total_constraints = len(course_data[course_data['Constraint'] != 'Unlimited'])
+                    satisfied = len(course_data[course_data['Status'] == 'OK'])
+                    violated = len(course_data[course_data['Status'] == 'VIOLATED'])
+                    overprediction = course_data['Overprediction'].sum()
+
+                    constraint_data[constraint_key][course_id].append({
+                        'config': short_name,
+                        'total_constraints': total_constraints,
+                        'satisfied': satisfied,
+                        'violated': violated,
+                        'satisfaction_rate': satisfied / total_constraints if total_constraints > 0 else 1.0,
+                        'overprediction': overprediction
+                    })
+
+    return constraint_data
+
+def create_course_summary(constraint_data):
+    summary = []
+    for constraint_key, course_dict in constraint_data.items():
+        for course_id, configs in course_dict.items():
+            for config_info in configs:
+                summary.append({
+                    'Constraint': constraint_key,
+                    'Course_ID': course_id,
+                    'Config': config_info['config'],
+                    'Satisfaction_Rate': config_info['satisfaction_rate'],
+                    'Satisfied': config_info['satisfied'],
+                    'Violated': config_info['violated'],
+                    'Overprediction': config_info['overprediction']
+                })
+    return pd.DataFrame(summary)
+
 def create_output_directory():
-    """Create output directory for analysis results."""
     output_dir = Path('/home/user/OptimizationLoss/results/comprehensive_analysis')
     output_dir.mkdir(exist_ok=True)
     return output_dir
 
 def plot_top_5_performers(results, output_dir):
-    """Plot top 5 performing configurations across all constraints."""
-    # Sort by accuracy
     sorted_results = sorted(results, key=lambda x: x['accuracy'], reverse=True)[:5]
 
     fig, ax = plt.subplots(figsize=(14, 8))
-
     x_labels = [f"{r['config']}\n{r['constraint']}" for r in sorted_results]
     accuracies = [r['accuracy'] * 100 for r in sorted_results]
     benchmarks = [r['benchmark_accuracy'] * 100 for r in sorted_results]
@@ -184,12 +212,10 @@ def plot_top_5_performers(results, output_dir):
     bars1 = ax.bar(x - width/2, accuracies, width, label='Transductive Model', color='steelblue', alpha=0.8)
     bars2 = ax.bar(x + width/2, benchmarks, width, label='Benchmark', color='coral', alpha=0.8)
 
-    # Add improvement annotations
     for i, (bar, imp) in enumerate(zip(bars1, improvements)):
         height = bar.get_height()
         ax.text(bar.get_x() + bar.get_width()/2., height + 1,
-                f'+{imp:.2f}%',
-                ha='center', va='bottom', fontsize=9, fontweight='bold', color='green')
+                f'+{imp:.2f}%', ha='center', va='bottom', fontsize=9, fontweight='bold', color='green')
 
     ax.set_xlabel('Configuration & Constraint', fontsize=12, fontweight='bold')
     ax.set_ylabel('Accuracy (%)', fontsize=12, fontweight='bold')
@@ -202,19 +228,15 @@ def plot_top_5_performers(results, output_dir):
 
     plt.tight_layout()
     plt.savefig(output_dir / 'top_5_performers.png', dpi=300, bbox_inches='tight')
-    print(f"✓ Saved: top_5_performers.png")
+    print(f"Saved: top_5_performers.png")
     plt.close()
 
 def plot_performance_by_constraint(results, output_dir):
-    """Plot performance comparison by constraint setting."""
-    # Organize by constraint
     constraint_data = defaultdict(list)
     for r in results:
         constraint_data[r['constraint']].append(r)
 
     fig, axes = plt.subplots(2, 1, figsize=(16, 12))
-
-    # Plot 1: Average accuracy by constraint
     ax1 = axes[0]
     constraints_sorted = sorted(constraint_data.keys())
     avg_accuracies = []
@@ -226,7 +248,6 @@ def plot_performance_by_constraint(results, output_dir):
         avg_acc = np.mean([d['accuracy'] for d in data]) * 100
         avg_bench = np.mean([d['benchmark_accuracy'] for d in data]) * 100
         avg_imp = np.mean([d['improvement'] for d in data]) * 100
-
         avg_accuracies.append(avg_acc)
         avg_benchmarks.append(avg_bench)
         avg_improvements.append(avg_imp)
@@ -245,7 +266,6 @@ def plot_performance_by_constraint(results, output_dir):
     ax1.legend()
     ax1.grid(axis='y', alpha=0.3)
 
-    # Plot 2: Improvement by constraint
     ax2 = axes[1]
     colors = ['green' if imp > 0 else 'red' for imp in avg_improvements]
     bars = ax2.bar(x, avg_improvements, color=colors, alpha=0.7)
@@ -258,29 +278,23 @@ def plot_performance_by_constraint(results, output_dir):
     ax2.set_xticklabels(constraints_sorted)
     ax2.grid(axis='y', alpha=0.3)
 
-    # Add value labels
     for bar, imp in zip(bars, avg_improvements):
         height = bar.get_height()
         y_pos = height + 0.2 if height > 0 else height - 0.4
         ax2.text(bar.get_x() + bar.get_width()/2., y_pos,
-                f'{imp:+.2f}%',
-                ha='center', va='bottom' if height > 0 else 'top', fontsize=9)
+                f'{imp:+.2f}%', ha='center', va='bottom' if height > 0 else 'top', fontsize=9)
 
     plt.tight_layout()
     plt.savefig(output_dir / 'performance_by_constraint.png', dpi=300, bbox_inches='tight')
-    print(f"✓ Saved: performance_by_constraint.png")
+    print(f"Saved: performance_by_constraint.png")
     plt.close()
 
 def plot_performance_by_model(results, output_dir):
-    """Plot performance comparison by model configuration."""
-    # Organize by config
     config_data = defaultdict(list)
     for r in results:
         config_data[r['config']].append(r)
 
     fig, axes = plt.subplots(2, 1, figsize=(14, 12))
-
-    # Plot 1: Average accuracy by config
     ax1 = axes[0]
     configs_sorted = sorted(config_data.keys())
     avg_accuracies = []
@@ -290,7 +304,6 @@ def plot_performance_by_model(results, output_dir):
         data = config_data[config]
         avg_acc = np.mean([d['accuracy'] for d in data]) * 100
         avg_bench = np.mean([d['benchmark_accuracy'] for d in data]) * 100
-
         avg_accuracies.append(avg_acc)
         avg_benchmarks.append(avg_bench)
 
@@ -308,7 +321,6 @@ def plot_performance_by_model(results, output_dir):
     ax1.legend()
     ax1.grid(axis='y', alpha=0.3)
 
-    # Plot 2: Win rate by config
     ax2 = axes[1]
     win_rates = []
     for config in configs_sorted:
@@ -329,23 +341,19 @@ def plot_performance_by_model(results, output_dir):
     ax2.legend()
     ax2.grid(axis='y', alpha=0.3)
 
-    # Add value labels
     for bar, rate in zip(bars, win_rates):
         height = bar.get_height()
         ax2.text(bar.get_x() + bar.get_width()/2., height + 2,
-                f'{rate:.0f}%',
-                ha='center', va='bottom', fontsize=9, fontweight='bold')
+                f'{rate:.0f}%', ha='center', va='bottom', fontsize=9, fontweight='bold')
 
     plt.tight_layout()
     plt.savefig(output_dir / 'performance_by_model.png', dpi=300, bbox_inches='tight')
-    print(f"✓ Saved: performance_by_model.png")
+    print(f"Saved: performance_by_model.png")
     plt.close()
 
-def plot_constraint_satisfaction(detailed_results, output_dir):
-    """Plot constraint satisfaction analysis."""
+def plot_constraint_satisfaction(detailed_results, df_course_summary, output_dir):
     fig, axes = plt.subplots(2, 2, figsize=(16, 12))
 
-    # Plot 1: Satisfaction rate by constraint
     ax1 = axes[0, 0]
     constraint_satisfaction = defaultdict(list)
     for r in detailed_results:
@@ -367,7 +375,6 @@ def plot_constraint_satisfaction(detailed_results, output_dir):
         ax1.text(bar.get_x() + bar.get_width()/2., val + 2,
                 f'{val:.0f}%', ha='center', va='bottom', fontsize=8)
 
-    # Plot 2: Satisfaction rate by model
     ax2 = axes[0, 1]
     config_satisfaction = defaultdict(list)
     for r in detailed_results:
@@ -390,29 +397,27 @@ def plot_constraint_satisfaction(detailed_results, output_dir):
         ax2.text(bar.get_x() + bar.get_width()/2., val + 2,
                 f'{val:.0f}%', ha='center', va='bottom', fontsize=8)
 
-    # Plot 3: Global constraint adherence - Dropout
     ax3 = axes[1, 0]
     dropout_adherence = []
     labels = []
-    for r in detailed_results[:10]:  # Show top 10
+    for r in detailed_results[:10]:
         dropout_adherence.append([r['dropout_count'], r['global_dropout_limit'] - r['dropout_count']])
         labels.append(f"{r['config'][:10]}\n{r['constraint']}")
 
     dropout_adherence = np.array(dropout_adherence)
-    x = np.arange(len(labels))
+    x_pos = np.arange(len(labels))
 
-    ax3.barh(x, dropout_adherence[:, 0], label='Predicted Dropout', color='salmon', alpha=0.8)
-    ax3.barh(x, dropout_adherence[:, 1], left=dropout_adherence[:, 0],
+    ax3.barh(x_pos, dropout_adherence[:, 0], label='Predicted Dropout', color='salmon', alpha=0.8)
+    ax3.barh(x_pos, dropout_adherence[:, 1], left=dropout_adherence[:, 0],
              label='Remaining Capacity', color='lightgray', alpha=0.5)
 
-    ax3.set_yticks(x)
+    ax3.set_yticks(x_pos)
     ax3.set_yticklabels(labels, fontsize=8)
     ax3.set_xlabel('Number of Students', fontsize=11, fontweight='bold')
     ax3.set_title('Global Dropout Constraint Adherence (Top 10)', fontsize=12, fontweight='bold')
     ax3.legend()
     ax3.grid(axis='x', alpha=0.3)
 
-    # Plot 4: Global constraint adherence - Enrolled
     ax4 = axes[1, 1]
     enrolled_adherence = []
     for r in detailed_results[:10]:
@@ -420,11 +425,11 @@ def plot_constraint_satisfaction(detailed_results, output_dir):
 
     enrolled_adherence = np.array(enrolled_adherence)
 
-    ax4.barh(x, enrolled_adherence[:, 0], label='Predicted Enrolled', color='skyblue', alpha=0.8)
-    ax4.barh(x, enrolled_adherence[:, 1], left=enrolled_adherence[:, 0],
+    ax4.barh(x_pos, enrolled_adherence[:, 0], label='Predicted Enrolled', color='skyblue', alpha=0.8)
+    ax4.barh(x_pos, enrolled_adherence[:, 1], left=enrolled_adherence[:, 0],
              label='Remaining Capacity', color='lightgray', alpha=0.5)
 
-    ax4.set_yticks(x)
+    ax4.set_yticks(x_pos)
     ax4.set_yticklabels(labels, fontsize=8)
     ax4.set_xlabel('Number of Students', fontsize=11, fontweight='bold')
     ax4.set_title('Global Enrolled Constraint Adherence (Top 10)', fontsize=12, fontweight='bold')
@@ -433,17 +438,83 @@ def plot_constraint_satisfaction(detailed_results, output_dir):
 
     plt.tight_layout()
     plt.savefig(output_dir / 'constraint_satisfaction_analysis.png', dpi=300, bbox_inches='tight')
-    print(f"✓ Saved: constraint_satisfaction_analysis.png")
+    print(f"Saved: constraint_satisfaction_analysis.png")
+    plt.close()
+
+def plot_per_course_constraint_satisfaction(df_summary, output_dir):
+    fig, axes = plt.subplots(2, 2, figsize=(20, 16))
+
+    ax1 = axes[0, 0]
+    constraint_avg = df_summary.groupby('Constraint')['Satisfaction_Rate'].mean().sort_index()
+    constraint_avg.plot(kind='bar', ax=ax1, color='steelblue')
+    ax1.set_title('Average Constraint Satisfaction Rate by Constraint Setting', fontsize=14, fontweight='bold')
+    ax1.set_xlabel('Constraint (Global, Local)', fontsize=12)
+    ax1.set_ylabel('Average Satisfaction Rate', fontsize=12)
+    ax1.set_ylim([0, 1.1])
+    ax1.axhline(y=1.0, color='green', linestyle='--', alpha=0.5, label='Perfect Satisfaction')
+    ax1.legend()
+    ax1.grid(axis='y', alpha=0.3)
+
+    ax2 = axes[0, 1]
+    config_avg = df_summary.groupby('Config')['Satisfaction_Rate'].mean().sort_values(ascending=False)
+    config_avg.plot(kind='bar', ax=ax2, color='coral')
+    ax2.set_title('Average Constraint Satisfaction Rate by Configuration', fontsize=14, fontweight='bold')
+    ax2.set_xlabel('Configuration', fontsize=12)
+    ax2.set_ylabel('Average Satisfaction Rate', fontsize=12)
+    ax2.set_ylim([0, 1.1])
+    ax2.axhline(y=1.0, color='green', linestyle='--', alpha=0.5, label='Perfect Satisfaction')
+    ax2.legend()
+    ax2.grid(axis='y', alpha=0.3)
+
+    ax3 = axes[1, 0]
+    overpred_by_constraint = df_summary.groupby('Constraint')['Overprediction'].sum().sort_index()
+    overpred_by_constraint.plot(kind='bar', ax=ax3, color='indianred')
+    ax3.set_title('Total Overprediction by Constraint Setting', fontsize=14, fontweight='bold')
+    ax3.set_xlabel('Constraint (Global, Local)', fontsize=12)
+    ax3.set_ylabel('Total Overprediction Count', fontsize=12)
+    ax3.grid(axis='y', alpha=0.3)
+
+    ax4 = axes[1, 1]
+    violation_data = df_summary.groupby('Constraint').agg({
+        'Satisfied': 'sum',
+        'Violated': 'sum'
+    })
+    violation_data.plot(kind='bar', ax=ax4, stacked=True, color=['lightgreen', 'salmon'])
+    ax4.set_title('Constraint Satisfaction vs Violation Counts', fontsize=14, fontweight='bold')
+    ax4.set_xlabel('Constraint (Global, Local)', fontsize=12)
+    ax4.set_ylabel('Count', fontsize=12)
+    ax4.legend(['Satisfied', 'Violated'])
+    ax4.grid(axis='y', alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(output_dir / 'per_course_constraint_satisfaction.png', dpi=300, bbox_inches='tight')
+    print(f"Saved: per_course_constraint_satisfaction.png")
+    plt.close()
+
+    pivot_satisfaction = df_summary.pivot_table(
+        values='Satisfaction_Rate',
+        index='Course_ID',
+        columns='Constraint',
+        aggfunc='mean'
+    )
+
+    fig, ax = plt.subplots(figsize=(14, 10))
+    sns.heatmap(pivot_satisfaction, annot=True, fmt='.2f', cmap='RdYlGn',
+                vmin=0, vmax=1, ax=ax, cbar_kws={'label': 'Satisfaction Rate'})
+    ax.set_title('Constraint Satisfaction Rate by Course and Constraint Setting',
+                 fontsize=14, fontweight='bold')
+    ax.set_xlabel('Constraint (Global, Local)', fontsize=12)
+    ax.set_ylabel('Course ID', fontsize=12)
+    plt.tight_layout()
+    plt.savefig(output_dir / 'constraint_satisfaction_heatmap_by_course.png', dpi=300, bbox_inches='tight')
+    print(f"Saved: constraint_satisfaction_heatmap_by_course.png")
     plt.close()
 
 def plot_class_distribution(detailed_results, output_dir):
-    """Plot class prediction distributions."""
-    # Get best performing result
     best_result = max(detailed_results, key=lambda x: x['accuracy'])
 
     fig, axes = plt.subplots(2, 2, figsize=(16, 12))
 
-    # Plot 1: Overall class distribution for best model
     ax1 = axes[0, 0]
     classes = ['Dropout', 'Enrolled', 'Graduate']
     counts = [best_result['dropout_count'], best_result['enrolled_count'], best_result['graduate_count']]
@@ -455,7 +526,6 @@ def plot_class_distribution(detailed_results, output_dir):
     ax1.set_title(f'Class Distribution - Best Model\n{best_result["config"]} @ {best_result["constraint"]}\nAccuracy: {best_result["accuracy"]*100:.2f}%',
                   fontsize=12, fontweight='bold')
 
-    # Plot 2: Class distribution across all experiments (average)
     ax2 = axes[0, 1]
     avg_dropout = np.mean([r['dropout_count'] for r in detailed_results])
     avg_enrolled = np.mean([r['enrolled_count'] for r in detailed_results])
@@ -468,7 +538,6 @@ def plot_class_distribution(detailed_results, output_dir):
     ax2.set_title('Average Class Distribution\nAcross All Experiments',
                   fontsize=12, fontweight='bold')
 
-    # Plot 3: Class counts by constraint
     ax3 = axes[1, 0]
     constraint_class_data = defaultdict(lambda: {'Dropout': [], 'Enrolled': [], 'Graduate': []})
     for r in detailed_results:
@@ -496,10 +565,9 @@ def plot_class_distribution(detailed_results, output_dir):
     ax3.legend()
     ax3.grid(axis='y', alpha=0.3)
 
-    # Plot 4: Per-course breakdown for best model
     ax4 = axes[1, 1]
     course_data = best_result['course_predictions']
-    courses = sorted(course_data.keys())[:15]  # Show first 15 courses
+    courses = sorted(course_data.keys())[:15]
 
     dropout_per_course = [course_data[c]['Dropout'] for c in courses]
     enrolled_per_course = [course_data[c]['Enrolled'] for c in courses]
@@ -522,16 +590,13 @@ def plot_class_distribution(detailed_results, output_dir):
 
     plt.tight_layout()
     plt.savefig(output_dir / 'class_distribution_analysis.png', dpi=300, bbox_inches='tight')
-    print(f"✓ Saved: class_distribution_analysis.png")
+    print(f"Saved: class_distribution_analysis.png")
     plt.close()
 
 def plot_heatmap_performance(results, output_dir):
-    """Create heatmap of performance across models and constraints."""
-    # Create performance matrix
     configs = sorted(set(r['config'] for r in results))
     constraints = sorted(set(r['constraint'] for r in results))
 
-    # Create matrices for accuracy and improvement
     accuracy_matrix = np.zeros((len(configs), len(constraints)))
     improvement_matrix = np.zeros((len(configs), len(constraints)))
 
@@ -547,41 +612,36 @@ def plot_heatmap_performance(results, output_dir):
 
     fig, axes = plt.subplots(1, 2, figsize=(18, 6))
 
-    # Heatmap 1: Accuracy
     ax1 = axes[0]
     sns.heatmap(accuracy_matrix, annot=True, fmt='.1f', cmap='YlGnBu',
                 xticklabels=constraints, yticklabels=configs,
                 cbar_kws={'label': 'Accuracy (%)'}, ax=ax1, vmin=50, vmax=80)
-    ax1.set_title('Accuracy Heatmap: Models × Constraints', fontsize=13, fontweight='bold')
+    ax1.set_title('Accuracy Heatmap: Models x Constraints', fontsize=13, fontweight='bold')
     ax1.set_xlabel('Constraint (Global, Local)', fontsize=11, fontweight='bold')
     ax1.set_ylabel('Configuration', fontsize=11, fontweight='bold')
 
-    # Heatmap 2: Improvement
     ax2 = axes[1]
     sns.heatmap(improvement_matrix, annot=True, fmt='.2f', cmap='RdYlGn', center=0,
                 xticklabels=constraints, yticklabels=configs,
                 cbar_kws={'label': 'Improvement (%)'}, ax=ax2, vmin=-5, vmax=6)
-    ax2.set_title('Improvement over Benchmark: Models × Constraints', fontsize=13, fontweight='bold')
+    ax2.set_title('Improvement over Benchmark: Models x Constraints', fontsize=13, fontweight='bold')
     ax2.set_xlabel('Constraint (Global, Local)', fontsize=11, fontweight='bold')
     ax2.set_ylabel('Configuration', fontsize=11, fontweight='bold')
 
     plt.tight_layout()
     plt.savefig(output_dir / 'performance_heatmaps.png', dpi=300, bbox_inches='tight')
-    print(f"✓ Saved: performance_heatmaps.png")
+    print(f"Saved: performance_heatmaps.png")
     plt.close()
 
-def generate_summary_report(results, detailed_results, output_dir):
-    """Generate comprehensive markdown summary report."""
+def generate_summary_report(results, detailed_results, df_course_summary, output_dir):
     report = []
-
     report.append("# Comprehensive Multi-Constraint Experiment Analysis\n\n")
     report.append(f"**Total Experiments Analyzed**: {len(results)}\n")
     report.append(f"**Configurations Tested**: {len(set(r['config'] for r in results))}\n")
     report.append(f"**Constraint Settings**: {len(set(r['constraint'] for r in results))}\n")
     report.append(f"**Failed/Excluded**: {len(FAILED_EXPERIMENTS)}\n\n")
 
-    # Top 5 performers
-    report.append("## 🏆 Top 5 Performers\n\n")
+    report.append("## Top 5 Performers\n\n")
     sorted_results = sorted(results, key=lambda x: x['accuracy'], reverse=True)[:5]
     report.append("| Rank | Configuration | Constraint | Accuracy | Benchmark | Improvement |\n")
     report.append("|------|--------------|------------|----------|-----------|-------------|\n")
@@ -589,11 +649,9 @@ def generate_summary_report(results, detailed_results, output_dir):
         report.append(f"| {i} | {r['config']} | {r['constraint']} | {r['accuracy']*100:.2f}% | {r['benchmark_accuracy']*100:.2f}% | {r['improvement']*100:+.2f}% |\n")
     report.append("\n")
 
-    # Best by constraint
-    report.append("## 📊 Best Performer by Constraint\n\n")
+    report.append("## Best Performer by Constraint\n\n")
     report.append("| Constraint | Best Config | Accuracy | Improvement |\n")
     report.append("|-----------|-------------|----------|-------------|\n")
-
     constraints = sorted(set(r['constraint'] for r in results))
     for constraint in constraints:
         constraint_results = [r for r in results if r['constraint'] == constraint]
@@ -601,11 +659,9 @@ def generate_summary_report(results, detailed_results, output_dir):
         report.append(f"| {constraint} | {best['config']} | {best['accuracy']*100:.2f}% | {best['improvement']*100:+.2f}% |\n")
     report.append("\n")
 
-    # Best by model
-    report.append("## 🔧 Performance by Model Configuration\n\n")
+    report.append("## Performance by Model Configuration\n\n")
     report.append("| Configuration | Avg Accuracy | Win Rate | Avg Improvement |\n")
     report.append("|--------------|--------------|----------|----------------|\n")
-
     configs = sorted(set(r['config'] for r in results))
     for config in configs:
         config_results = [r for r in results if r['config'] == config]
@@ -616,8 +672,7 @@ def generate_summary_report(results, detailed_results, output_dir):
         report.append(f"| {config} | {avg_acc:.2f}% | {win_rate:.0f}% ({wins}/{len(config_results)}) | {avg_imp:+.2f}% |\n")
     report.append("\n")
 
-    # Constraint satisfaction
-    report.append("## ✅ Constraint Satisfaction Summary\n\n")
+    report.append("## Constraint Satisfaction Summary\n\n")
     avg_satisfaction = np.mean([r['constraint_satisfaction_rate'] for r in detailed_results]) * 100
     perfect_satisfaction = sum(1 for r in detailed_results if r['constraint_satisfaction_rate'] == 1.0)
     report.append(f"- **Average Constraint Satisfaction Rate**: {avg_satisfaction:.1f}%\n")
@@ -625,89 +680,93 @@ def generate_summary_report(results, detailed_results, output_dir):
     report.append(f"- **Total Constraints Evaluated**: {sum(r['total_constraints'] for r in detailed_results)}\n")
     report.append(f"- **Total Satisfied**: {sum(r['satisfied_constraints'] for r in detailed_results)}\n\n")
 
-    # Class distribution
-    report.append("## 📈 Class Distribution Summary\n\n")
+    if df_course_summary is not None and len(df_course_summary) > 0:
+        report.append("## Per-Course Constraint Analysis\n\n")
+        total_violations = int(df_course_summary['Violated'].sum())
+        total_overpredictions = int(df_course_summary['Overprediction'].sum())
+        report.append(f"- **Total Violations**: {total_violations}\n")
+        report.append(f"- **Total Overpredictions**: {total_overpredictions}\n\n")
+
+    report.append("## Class Distribution Summary\n\n")
     best = max(detailed_results, key=lambda x: x['accuracy'])
     report.append(f"**Best Model** ({best['config']} @ {best['constraint']}):\n")
     report.append(f"- Dropout Predictions: {best['dropout_count']} (limit: {best['global_dropout_limit']})\n")
     report.append(f"- Enrolled Predictions: {best['enrolled_count']} (limit: {best['global_enrolled_limit']})\n")
     report.append(f"- Graduate Predictions: {best['graduate_count']} (unlimited)\n")
-    report.append(f"- Dropout Within Limit: {'✓ Yes' if best['dropout_within_limit'] else '✗ No'}\n")
-    report.append(f"- Enrolled Within Limit: {'✓ Yes' if best['enrolled_within_limit'] else '✗ No'}\n\n")
+    report.append(f"- Dropout Within Limit: {'Yes' if best['dropout_within_limit'] else 'No'}\n")
+    report.append(f"- Enrolled Within Limit: {'Yes' if best['enrolled_within_limit'] else 'No'}\n\n")
 
-    # Key insights
-    report.append("## 💡 Key Insights\n\n")
-
-    # Find perfect performer
+    report.append("## Key Insights\n\n")
     perfect = [c for c in configs if all(r['improvement'] > 0.001 for r in results if r['config'] == c)]
     if perfect:
-        report.append(f"1. **Perfect Performer**: `{perfect[0]}` beat the benchmark in ALL {len([r for r in results if r['config'] == perfect[0]])} tested constraints\n")
+        perfect_count = len([r for r in results if r['config'] == perfect[0]])
+        report.append(f"1. **Perfect Performer**: {perfect[0]} beat the benchmark in ALL {perfect_count} tested constraints\n")
 
-    # Best constraint
     best_constraint = max(constraints, key=lambda c: np.mean([r['accuracy'] for r in results if r['constraint'] == c]))
     avg_best = np.mean([r['accuracy'] for r in results if r['constraint'] == best_constraint]) * 100
     report.append(f"2. **Best Constraint Setting**: {best_constraint} with {avg_best:.2f}% average accuracy\n")
 
-    # Most consistent
-    consistency = [(c, np.std([r['accuracy'] for r in results if r['config'] == c]))
-                   for c in configs]
+    consistency = [(c, np.std([r['accuracy'] for r in results if r['config'] == c])) for c in configs]
     most_consistent = min(consistency, key=lambda x: x[1])
-    report.append(f"3. **Most Consistent Config**: `{most_consistent[0]}` with lowest variance (σ={most_consistent[1]:.4f})\n")
-
+    report.append(f"3. **Most Consistent Config**: {most_consistent[0]} with lowest variance (sigma={most_consistent[1]:.4f})\n")
     report.append(f"4. **Constraint Satisfaction**: {avg_satisfaction:.1f}% average satisfaction rate demonstrates effective transductive learning\n")
 
-    # Write report
     report_path = output_dir / 'COMPREHENSIVE_ANALYSIS_REPORT.md'
     with open(report_path, 'w') as f:
         f.write(''.join(report))
 
-    print(f"✓ Saved: COMPREHENSIVE_ANALYSIS_REPORT.md")
+    print(f"Saved: COMPREHENSIVE_ANALYSIS_REPORT.md")
     return report_path
 
 def main():
-    """Main analysis pipeline."""
     print("="*80)
     print("COMPREHENSIVE MULTI-CONSTRAINT EXPERIMENT ANALYSIS")
     print("="*80)
 
-    # Create output directory
     output_dir = create_output_directory()
     print(f"\nOutput directory: {output_dir}\n")
 
-    # Load results
     print("1. Loading experiment results...")
     results = load_all_results()
-    print(f"   ✓ Loaded {len(results)} experiments")
+    print(f"   Loaded {len(results)} experiments")
 
-    # Load detailed results
     print("\n2. Loading predictions and constraint data...")
     detailed_results = load_predictions_and_constraints(results)
-    print(f"   ✓ Loaded detailed data for {len(detailed_results)} experiments")
+    print(f"   Loaded detailed data for {len(detailed_results)} experiments")
 
-    # Generate visualizations
-    print("\n3. Generating visualizations...")
+    print("\n3. Analyzing per-course constraint satisfaction...")
+    constraint_data = analyze_constraint_satisfaction_by_course()
+    df_course_summary = create_course_summary(constraint_data)
+    print(f"   Analyzed {len(df_course_summary)} per-course records")
+
+    df_course_summary.to_csv(output_dir / 'per_course_constraint_data.csv', index=False)
+
+    print("\n4. Generating visualizations...")
     plot_top_5_performers(results, output_dir)
     plot_performance_by_constraint(results, output_dir)
     plot_performance_by_model(results, output_dir)
-    plot_constraint_satisfaction(detailed_results, output_dir)
+    plot_constraint_satisfaction(detailed_results, df_course_summary, output_dir)
+    plot_per_course_constraint_satisfaction(df_course_summary, output_dir)
     plot_class_distribution(detailed_results, output_dir)
     plot_heatmap_performance(results, output_dir)
 
-    # Generate report
-    print("\n4. Generating summary report...")
-    generate_summary_report(results, detailed_results, output_dir)
+    print("\n5. Generating summary report...")
+    generate_summary_report(results, detailed_results, df_course_summary, output_dir)
 
     print("\n" + "="*80)
-    print("ANALYSIS COMPLETE!")
+    print("ANALYSIS COMPLETE")
     print("="*80)
     print(f"\nAll outputs saved to: {output_dir}")
-    print("\n📊 Generated Files:")
+    print("\nGenerated Files:")
     print("   - top_5_performers.png")
     print("   - performance_by_constraint.png")
     print("   - performance_by_model.png")
     print("   - constraint_satisfaction_analysis.png")
+    print("   - per_course_constraint_satisfaction.png")
+    print("   - constraint_satisfaction_heatmap_by_course.png")
     print("   - class_distribution_analysis.png")
     print("   - performance_heatmaps.png")
+    print("   - per_course_constraint_data.csv")
     print("   - COMPREHENSIVE_ANALYSIS_REPORT.md")
     print()
 
