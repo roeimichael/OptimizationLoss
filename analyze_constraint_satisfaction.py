@@ -39,7 +39,7 @@ FAILED_EXPERIMENTS = [
 
 def load_results():
     """Load and filter the results JSON."""
-    with open('/home/user/OptimizationLoss/results/nn_results.json', 'r') as f:
+    with open('./results/nn_results.json', 'r') as f:
         results = json.load(f)
 
     # Filter out failed experiments
@@ -149,7 +149,7 @@ def visualize_constraint_satisfaction(df_summary):
     """Create comprehensive visualizations of constraint satisfaction."""
 
     # Create output directory
-    output_dir = Path('/home/user/OptimizationLoss/results/constraint_analysis')
+    output_dir = Path('./results/constraint_analysis')
     output_dir.mkdir(exist_ok=True)
 
     # 1. Heatmap: Satisfaction rate by constraint and course
@@ -371,7 +371,7 @@ def main():
     print(f"   ✓ Created summary with {len(df_summary)} records")
 
     # Save raw data
-    output_dir = Path('/home/user/OptimizationLoss/results/constraint_analysis')
+    output_dir = Path('./results/constraint_analysis')
     output_dir.mkdir(exist_ok=True)
     df_summary.to_csv(output_dir / 'constraint_satisfaction_data.csv', index=False)
     print(f"   ✓ Saved raw data to {output_dir / 'constraint_satisfaction_data.csv'}")
