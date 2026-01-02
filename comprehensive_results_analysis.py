@@ -56,7 +56,8 @@ def read_accuracy(csv_file):
     return None
 
 def load_all_results():
-    results_dir = Path('/home/user/OptimizationLoss/results')
+    script_dir = Path(__file__).parent
+    results_dir = script_dir / 'results'
     all_results = []
 
     for config_short, config_full in CONFIGS.items():
@@ -138,7 +139,8 @@ def load_predictions_and_constraints(results):
     return detailed_results
 
 def analyze_constraint_satisfaction_by_course():
-    results_dir = Path('/home/user/OptimizationLoss/results')
+    script_dir = Path(__file__).parent
+    results_dir = script_dir / 'results'
     constraint_data = defaultdict(lambda: defaultdict(list))
 
     for constraint_key, folder_name in CONSTRAINT_FOLDERS.items():
@@ -193,8 +195,9 @@ def create_course_summary(constraint_data):
     return pd.DataFrame(summary)
 
 def create_output_directory():
-    output_dir = Path('/home/user/OptimizationLoss/results/comprehensive_analysis')
-    output_dir.mkdir(exist_ok=True)
+    script_dir = Path(__file__).parent
+    output_dir = script_dir / 'results' / 'comprehensive_analysis'
+    output_dir.mkdir(parents=True, exist_ok=True)
     return output_dir
 
 def plot_top_5_performers(results, output_dir):
