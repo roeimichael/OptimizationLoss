@@ -1,8 +1,10 @@
 import numpy as np
+from pathlib import Path
 
-FULL_DATASET_PATH = "./data/dataset.csv"
-TRAIN_PATH = "./data/dataset_train.csv"
-TEST_PATH = "./data/dataset_test.csv"
+_PROJECT_ROOT = Path(__file__).parent.parent
+FULL_DATASET_PATH = str(_PROJECT_ROOT / "data" / "dataset.csv")
+TRAIN_PATH = str(_PROJECT_ROOT / "data" / "dataset_train.csv")
+TEST_PATH = str(_PROJECT_ROOT / "data" / "dataset_test.csv")
 TARGET_COLUMN = 'Target'
 
 CONSTRAINTS = [
@@ -81,4 +83,4 @@ LAMBDA_STEP = 0.01
 WARMUP_EPOCHS = 250
 TRACKED_COURSE_ID = 2
 
-RESULTS_DIR = "./results/enhanced_gelu_residual"
+RESULTS_DIR = str(_PROJECT_ROOT / "results" / "enhanced_gelu_residual")
