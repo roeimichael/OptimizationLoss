@@ -72,12 +72,4 @@ LAMBDA_STEP = 0.01
 WARMUP_EPOCHS = 250
 TRACKED_COURSE_ID = 2
 
-# Training stability parameters
-MAX_LAMBDA_GLOBAL = 0.5  # Cap lambda_global to prevent it from growing unbounded
-MAX_LAMBDA_LOCAL = 0.5   # Cap lambda_local to prevent it from growing unbounded
-GRADIENT_CLIP = 1.0      # Clip gradients to prevent explosion
-USE_LR_SCHEDULER = True  # Enable learning rate scheduling
-LR_DECAY_FACTOR = 0.5    # Multiply LR by this when plateau detected
-LR_PATIENCE = 50         # Epochs to wait before reducing LR
-
 RESULTS_DIR = str(_PROJECT_ROOT / "results")

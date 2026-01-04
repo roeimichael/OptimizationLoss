@@ -51,9 +51,6 @@ BASE_HYPERPARAMS = {
     'epochs': 10000,
     'lambda_global': 0.01,
     'lambda_local': 0.01,
-    'max_lambda_global': 0.5,
-    'max_lambda_local': 0.5,
-    'gradient_clip': 1.0,
     'warmup_epochs': 250,
     'constraint_threshold': 1e-6,
     'lambda_step': 0.01
@@ -63,26 +60,28 @@ BASE_HYPERPARAMS = {
 HYPERPARAM_REGIMES = {
     'standard': {
         'name': 'standard',
-        'variations': [BASE_HYPERPARAMS.copy()]
+        'variations': [
+            {'variation_name': 'default', 'params': BASE_HYPERPARAMS.copy()}
+        ]
     },
     'lr_test': {
         'name': 'lr_test',
         'variations': [
-            {**BASE_HYPERPARAMS, 'lr': lr}
+            {'variation_name': f'lr_{lr}', 'params': {**BASE_HYPERPARAMS, 'lr': lr}}
             for lr in [0.0001, 0.0005, 0.001, 0.005, 0.01]
         ]
     },
     'dropout_test': {
         'name': 'dropout_test',
         'variations': [
-            {**BASE_HYPERPARAMS, 'dropout': dropout}
+            {'variation_name': f'dropout_{dropout}', 'params': {**BASE_HYPERPARAMS, 'dropout': dropout}}
             for dropout in [0.1, 0.2, 0.3, 0.4, 0.5]
         ]
     },
     'batch_test': {
         'name': 'batch_test',
         'variations': [
-            {**BASE_HYPERPARAMS, 'batch_size': batch}
+            {'variation_name': f'batch_{batch}', 'params': {**BASE_HYPERPARAMS, 'batch_size': batch}}
             for batch in [32, 64, 128, 256, 512]
         ]
     }
@@ -124,21 +123,22 @@ def compute_base_model_id(model_name, hyperparams):
     return f"{model_name}_{config_hash}"
 
 
-def create_config(methodology, model_name, constraint, hyperparam_regime, hyperparam_variation):
+def create_config(methodology, model_name, constraint, hyperparam_regime, variation_name, hyperparam_params):
     """
     Create a single experiment configuration
 
     Returns:
         dict: Complete experiment configuration
     """
-    base_model_id = compute_base_model_id(model_name, hyperparam_variation)
+    base_model_id = compute_base_model_id(model_name, hyperparam_params)
 
     config = {
         'methodology': methodology,
         'model_name': model_name,
         'constraint': constraint,
         'hyperparam_regime': hyperparam_regime,
-        'hyperparams': hyperparam_variation,
+        'variation_name': variation_name,
+        'hyperparams': hyperparam_params,
         'base_model_id': base_model_id,
         'experiment_path': None,  # Will be set by filesystem_manager
         'status': 'pending'
@@ -174,7 +174,8 @@ def generate_all_configs():
                             model_name,
                             constraint,
                             regime_name,
-                            variation
+                            variation['variation_name'],
+                            variation['params']
                         )
 
                         all_configs.append(config)

@@ -12,11 +12,7 @@ from pathlib import Path
 from src.models import NeuralNetClassifier
 from src.losses import MulticlassTransductiveLoss
 from src.utils import create_all_visualizations
-from config.experiment_config import (
-    CONSTRAINT_THRESHOLD, LAMBDA_STEP, WARMUP_EPOCHS,
-    MAX_LAMBDA_GLOBAL, MAX_LAMBDA_LOCAL, GRADIENT_CLIP,
-    USE_LR_SCHEDULER, LR_DECAY_FACTOR, LR_PATIENCE
-)
+from config.experiment_config import CONSTRAINT_THRESHOLD, LAMBDA_STEP, WARMUP_EPOCHS
 
 from .metrics import compute_prediction_statistics, compute_train_accuracy, get_predictions_with_probabilities, compute_metrics
 from .logging import log_progress_to_csv, print_progress_from_csv, load_history_from_csv, save_final_predictions, save_constraint_comparison, save_evaluation_metrics
@@ -178,18 +174,12 @@ def update_lambda_weights(avg_global, avg_local, criterion_constraint, epoch):
 
     lambda_updated = False
     if avg_global > CONSTRAINT_THRESHOLD:
-        new_lambda_global = min(
-            criterion_constraint.lambda_global + LAMBDA_STEP,
-            MAX_LAMBDA_GLOBAL  # Cap at maximum to prevent unbounded growth
-        )
+        new_lambda_global = criterion_constraint.lambda_global + LAMBDA_STEP
         criterion_constraint.set_lambda(lambda_global=new_lambda_global)
         lambda_updated = True
 
     if avg_local > CONSTRAINT_THRESHOLD:
-        new_lambda_local = min(
-            criterion_constraint.lambda_local + LAMBDA_STEP,
-            MAX_LAMBDA_LOCAL  # Cap at maximum to prevent unbounded growth
-        )
+        new_lambda_local = criterion_constraint.lambda_local + LAMBDA_STEP
         criterion_constraint.set_lambda(lambda_local=new_lambda_local)
         lambda_updated = True
     return lambda_updated
@@ -218,11 +208,6 @@ def train_single_epoch(model, train_loader, criterion_ce, criterion_constraint,
 
         loss = loss_ce + criterion_constraint.lambda_global * loss_global + criterion_constraint.lambda_local * loss_local
         loss.backward()
-
-        # Gradient clipping to prevent explosion
-        if GRADIENT_CLIP > 0:
-            torch.nn.utils.clip_grad_norm_(model.parameters(), GRADIENT_CLIP)
-
         optimizer.step()
         epoch_loss_ce += loss_ce.item()
 
@@ -307,17 +292,6 @@ def train_model_transductive(X_train, y_train, X_test, groups_test, y_test,
                 model_params=model_params
             )
 
-    # Learning rate scheduler to reduce LR when training plateaus
-    scheduler = None
-    if USE_LR_SCHEDULER:
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer,
-            mode='min',
-            factor=LR_DECAY_FACTOR,
-            patience=LR_PATIENCE,
-            verbose=True
-        )
-
     num_local_courses = len(local_constraint) if local_constraint else 0
 
     base_dir = results_base_dir if results_base_dir else './results'
@@ -336,10 +310,7 @@ def train_model_transductive(X_train, y_train, X_test, groups_test, y_test,
     print("Starting Training with Adaptive Lambda Weights")
     print(f"Constraint Configuration: Dropout<={int(global_constraint[0])}, Enrolled<={int(global_constraint[1])}, {num_local_courses} local courses")
     print(f"Initial: lambda_global={criterion_constraint.lambda_global:.2f}, lambda_local={criterion_constraint.lambda_local:.2f}")
-    print(f"Lambda adjustment: +{LAMBDA_STEP} per epoch when constraints violated (capped at {MAX_LAMBDA_GLOBAL:.2f}/{MAX_LAMBDA_LOCAL:.2f})")
-    print(f"Gradient clipping: {GRADIENT_CLIP:.2f}")
-    if USE_LR_SCHEDULER:
-        print(f"Learning rate scheduling: Enabled (factor={LR_DECAY_FACTOR}, patience={LR_PATIENCE})")
+    print(f"Lambda adjustment: +{LAMBDA_STEP} per epoch when constraints violated")
     print(f"Results folder: {experiment_folder}")
     print(f"Progress logged to: {csv_log_path}")
 
@@ -370,11 +341,6 @@ def train_model_transductive(X_train, y_train, X_test, groups_test, y_test,
         )
 
         update_lambda_weights(avg_global, avg_local, criterion_constraint, epoch)
-
-        # Learning rate scheduling based on total loss
-        if scheduler is not None and epoch >= WARMUP_EPOCHS:
-            total_loss = avg_ce + criterion_constraint.lambda_global * avg_global + criterion_constraint.lambda_local * avg_local
-            scheduler.step(total_loss)
 
         if (epoch + 1) % 3 == 0:
             global_counts, local_counts, global_soft_counts, local_soft_counts = compute_prediction_statistics(
