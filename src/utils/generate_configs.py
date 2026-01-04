@@ -1,6 +1,5 @@
 import hashlib
 import json
-from pathlib import Path
 from typing import Dict, Any, List, Tuple
 
 METHODOLOGIES = ['our_approach']
@@ -117,7 +116,7 @@ def generate_all_configs() -> List[Dict[str, Any]]:
     return all_configs
 
 def save_configs_and_create_structure(configs: List[Dict[str, Any]], output_dir: str = 'results') -> int:
-    from utils.filesystem_manager import ensure_experiment_path, save_config_to_path
+    from src.utils.filesystem_manager import ensure_experiment_path, save_config_to_path
     print(f"\nCreating experiment directory structure in '{output_dir}'...")
     saved_count = 0
     for i, config in enumerate(configs):

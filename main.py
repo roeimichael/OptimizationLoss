@@ -2,7 +2,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from utils.filesystem_manager import get_experiments_by_status, print_status_summary
+from src.utils.filesystem_manager import get_experiments_by_status, print_status_summary
 
 def main() -> None:
     print("="*80)

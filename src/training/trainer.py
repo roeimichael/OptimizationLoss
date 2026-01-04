@@ -8,7 +8,7 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 from torch.utils.data import DataLoader, TensorDataset
 import pandas as pd
 
-from models import get_model
+from src.models import get_model
 from src.losses import MulticlassTransductiveLoss
 from .metrics import compute_train_accuracy
 
