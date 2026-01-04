@@ -1,43 +1,44 @@
-import argparse
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Tuple, Dict, Any, Optional
+from typing import List, Tuple, Dict, Any
+from collections import defaultdict
 
-from utils.filesystem_manager import get_all_experiment_configs, is_experiment_complete
+from utils.filesystem_manager import get_experiments_by_status, print_status_summary
 
-def run_all_experiments(resume: bool = True, max_experiments: Optional[int] = None) -> None:
+def main() -> None:
     print("="*80)
     print("BATCH EXPERIMENT RUNNER")
     print("="*80)
-    print()
-    print("Scanning for experiments...")
-    experiments: List[Tuple[str, Dict[str, Any]]] = get_all_experiment_configs('results')
-    if not experiments:
-        print("No experiments found!")
-        print("Run 'python utils/generate_configs.py' first to create experiment configurations.")
+    print_status_summary('results')
+    by_status = get_experiments_by_status('results')
+    pending_experiments = by_status['pending']
+    if not pending_experiments:
+        print("No pending experiments found!")
+        print("All experiments are completed or there are no configurations.")
+        print("Run 'python utils/generate_configs.py' to create new configurations.")
         return
-    print(f"Found {len(experiments)} total experiments")
-    if resume:
-        pending_experiments = [
-            (path, config) for path, config in experiments
-            if not is_experiment_complete(path)
-        ]
-        print(f"Pending experiments: {len(pending_experiments)}")
-    else:
-        pending_experiments = experiments
-        print("Running all experiments (including completed ones)")
-    if max_experiments is not None:
-        pending_experiments = pending_experiments[:max_experiments]
-        print(f"Limiting to first {max_experiments} experiments")
+    print(f"Running {len(pending_experiments)} pending experiments...")
+    print()
+    by_model = defaultdict(list)
+    for exp_path, config in pending_experiments:
+        model_name = config.get('model_name', 'Unknown')
+        by_model[model_name].append((exp_path, config))
+    print("Breakdown by model:")
+    for model_name, exps in sorted(by_model.items()):
+        print(f"  {model_name}: {len(exps)} pending")
     print()
     completed = 0
     failed = 0
-    skipped = 0
     for i, (experiment_path, config) in enumerate(pending_experiments, 1):
         config_path = Path(experiment_path) / 'config.json'
+        model_name = config.get('model_name', 'Unknown')
+        constraint = config.get('constraint', 'Unknown')
+        regime = config.get('hyperparam_regime', 'Unknown')
+        variation = config.get('variation_name', 'Unknown')
         print(f"\n{'='*80}")
-        print(f"[{i}/{len(pending_experiments)}] Processing: {experiment_path}")
+        print(f"[{i}/{len(pending_experiments)}] {model_name} | Constraint: {constraint} | {regime}/{variation}")
+        print(f"Path: {experiment_path}")
         print(f"{'='*80}")
         try:
             result: subprocess.CompletedProcess = subprocess.run(
@@ -47,30 +48,32 @@ def run_all_experiments(resume: bool = True, max_experiments: Optional[int] = No
             )
             if result.returncode == 0:
                 completed += 1
+                print(f"[SUCCESS] Experiment {i}/{len(pending_experiments)} completed")
             else:
-                print(f"[WARNING] Experiment returned non-zero exit code: {result.returncode}")
                 failed += 1
+                print(f"[FAILED] Experiment {i}/{len(pending_experiments)} failed (exit code: {result.returncode})")
         except KeyboardInterrupt:
-            print("\n\nInterrupted by user!")
+            print("\n\n" + "="*80)
+            print("INTERRUPTED BY USER")
+            print("="*80)
+            print(f"Completed: {completed}")
+            print(f"Failed: {failed}")
+            print(f"Remaining: {len(pending_experiments) - i}")
+            print("="*80)
+            print("\nYou can resume by running 'python main.py' again.")
+            print("The script will automatically continue from pending experiments.")
             break
         except Exception as e:
-            print(f"[ERROR] Failed to run experiment: {e}")
             failed += 1
-    print("\n" + "="*80)
-    print("BATCH RUN SUMMARY")
-    print("="*80)
-    print(f"Total experiments found: {len(experiments)}")
-    print(f"Pending experiments: {len(pending_experiments)}")
-    print(f"Successfully completed: {completed}")
-    print(f"Failed: {failed}")
-    print(f"Skipped: {skipped}")
-    print("="*80)
+            print(f"[ERROR] Failed to run experiment: {e}")
+    else:
+        print("\n" + "="*80)
+        print("BATCH RUN COMPLETE")
+        print("="*80)
+        print(f"Successfully completed: {completed}")
+        print(f"Failed: {failed}")
+        print("="*80)
+        print_status_summary('results')
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Run all experiment configurations')
-    parser.add_argument('--no-resume', action='store_true',
-                      help='Re-run all experiments (including completed ones)')
-    parser.add_argument('--max', type=int, default=None,
-                      help='Maximum number of experiments to run')
-    args = parser.parse_args()
-    run_all_experiments(resume=not args.no_resume, max_experiments=args.max)
+    main()
