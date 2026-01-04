@@ -16,6 +16,8 @@ def ensure_experiment_path(config):
         'methodology': 'our_approach',
         'model_name': 'ResNet56',
         'constraint': (0.5, 0.3),
+        'hyperparam_regime': 'lr_test',
+        'variation_name': 'lr_0.001',
         'hyperparams': {...},
         'base_model_id': 'unique_hash'
     }
@@ -27,12 +29,13 @@ def ensure_experiment_path(config):
     methodology = config.get('methodology', 'our_approach')
     model_name = config.get('model_name', 'BasicNN')
     constraint = config.get('constraint', (0.5, 0.3))
-    base_model_id = config.get('base_model_id', 'default')
+    hyperparam_regime = config.get('hyperparam_regime', 'standard')
+    variation_name = config.get('variation_name', 'default')
 
-    # Build path: results/methodology/model/constraint/base_model_id/
+    # Build path: results/methodology/model/constraint/regime/variation/
     constraint_str = f"constraint_{constraint[0]}_{constraint[1]}"
 
-    experiment_path = Path('results') / methodology / model_name / constraint_str / base_model_id
+    experiment_path = Path('results') / methodology / model_name / constraint_str / hyperparam_regime / variation_name
 
     # Create directory structure if it doesn't exist
     experiment_path.mkdir(parents=True, exist_ok=True)

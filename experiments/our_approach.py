@@ -47,10 +47,7 @@ def train_with_our_approach(config, X_train, y_train, X_test, groups_test, y_tes
     lambda_global = hyperparams.get('lambda_global', 0.01)
     lambda_local = hyperparams.get('lambda_local', 0.01)
 
-    # Training stability parameters
-    max_lambda_global = hyperparams.get('max_lambda_global', 0.5)
-    max_lambda_local = hyperparams.get('max_lambda_local', 0.5)
-    gradient_clip = hyperparams.get('gradient_clip', 1.0)
+    # Training parameters
     warmup_epochs = hyperparams.get('warmup_epochs', 250)
     constraint_threshold = hyperparams.get('constraint_threshold', 1e-6)
     lambda_step = hyperparams.get('lambda_step', 0.01)
@@ -102,11 +99,6 @@ def train_with_our_approach(config, X_train, y_train, X_test, groups_test, y_tes
     # Optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
-    # Learning rate scheduler
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', factor=0.5, patience=50, verbose=True
-    )
-
     # Setup logging
     csv_log_path = Path(experiment_path) / 'training_log.csv'
 
@@ -115,7 +107,6 @@ def train_with_our_approach(config, X_train, y_train, X_test, groups_test, y_tes
     print(f"Model: {config['model_name']}")
     print(f"Constraint: {config['constraint']}")
     print(f"Hyperparameters: LR={lr}, Dropout={dropout}, Batch={batch_size}")
-    print(f"Lambda caps: {max_lambda_global}/{max_lambda_local}")
     print("="*80 + "\n")
 
     # Training loop
@@ -141,10 +132,6 @@ def train_with_our_approach(config, X_train, y_train, X_test, groups_test, y_tes
 
             loss = loss_ce + criterion_constraint.lambda_global * loss_global + criterion_constraint.lambda_local * loss_local
             loss.backward()
-
-            if gradient_clip > 0:
-                torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clip)
-
             optimizer.step()
             epoch_loss_ce += loss_ce.item()
 
@@ -161,23 +148,12 @@ def train_with_our_approach(config, X_train, y_train, X_test, groups_test, y_tes
 
         if epoch >= warmup_epochs:
             if avg_global > constraint_threshold:
-                new_lambda_global = min(
-                    criterion_constraint.lambda_global + lambda_step,
-                    max_lambda_global
-                )
+                new_lambda_global = criterion_constraint.lambda_global + lambda_step
                 criterion_constraint.set_lambda(lambda_global=new_lambda_global)
 
             if avg_local > constraint_threshold:
-                new_lambda_local = min(
-                    criterion_constraint.lambda_local + lambda_step,
-                    max_lambda_local
-                )
+                new_lambda_local = criterion_constraint.lambda_local + lambda_step
                 criterion_constraint.set_lambda(lambda_local=new_lambda_local)
-
-        # Scheduler step
-        if epoch >= warmup_epochs:
-            total_loss = epoch_loss_ce / len(train_loader) + criterion_constraint.lambda_global * avg_global + criterion_constraint.lambda_local * avg_local
-            scheduler.step(total_loss)
 
         # Logging every 10 epochs
         if (epoch + 1) % 10 == 0:
