@@ -27,7 +27,6 @@ def get_pretrained_model_path(input_dim, hidden_dims, dropout, model_params=None
     """
     Generate a unique filename for pre-trained model based on architecture.
     Uses hash to create a compact filename.
-    Includes model_params to differentiate between baseline and enhanced models.
     """
     models_dir = Path('models') / 'trained_models'
     models_dir.mkdir(parents=True, exist_ok=True)
@@ -96,31 +95,13 @@ def load_pretrained_model(input_dim, hidden_dims, dropout, device, model_params=
             print(f"\nWarning: Pre-trained model architecture mismatch. Training from scratch.")
             return None, None, 0
 
-        saved_model_params = checkpoint.get('model_params', {})
-        current_model_params = model_params or {}
-
-        if saved_model_params.get('model_type', 'baseline') != current_model_params.get('model_type', 'baseline'):
-            print(f"\nWarning: Model type mismatch. Training from scratch.")
-            return None, None, 0
-
-        if current_model_params.get('model_type') == 'enhanced':
-            from src.models.neural_network_enhanced import NeuralNetClassifierEnhanced
-            model = NeuralNetClassifierEnhanced(
-                input_dim=input_dim,
-                hidden_dims=hidden_dims,
-                n_classes=3,
-                dropout=dropout,
-                use_residual=current_model_params.get('use_residual', True),
-                use_attention=current_model_params.get('use_attention', False),
-                activation=current_model_params.get('activation', 'gelu')
-            ).to(device)
-        else:
-            model = NeuralNetClassifier(
-                input_dim=input_dim,
-                hidden_dims=hidden_dims,
-                n_classes=3,
-                dropout=dropout
-            ).to(device)
+        # Only baseline model supported
+        model = NeuralNetClassifier(
+            input_dim=input_dim,
+            hidden_dims=hidden_dims,
+            n_classes=3,
+            dropout=dropout
+        ).to(device)
 
         model.load_state_dict(checkpoint['model_state_dict'])
 
@@ -170,24 +151,13 @@ def prepare_training_data(X_train, y_train, X_test, groups_test, batch_size, dev
 def initialize_model_and_optimizer(input_dim, hidden_dims, dropout, lr, device,
                                     global_constraint, local_constraint,
                                     lambda_global, lambda_local, model_params=None):
-    if model_params and model_params.get('model_type') == 'enhanced':
-        from src.models.neural_network_enhanced import NeuralNetClassifierEnhanced
-        model = NeuralNetClassifierEnhanced(
-            input_dim=input_dim,
-            hidden_dims=hidden_dims,
-            n_classes=3,
-            dropout=dropout,
-            use_residual=model_params.get('use_residual', True),
-            use_attention=model_params.get('use_attention', False),
-            activation=model_params.get('activation', 'gelu')
-        ).to(device)
-    else:
-        model = NeuralNetClassifier(
-            input_dim=input_dim,
-            hidden_dims=hidden_dims,
-            n_classes=3,
-            dropout=dropout
-        ).to(device)
+    # Only baseline model supported
+    model = NeuralNetClassifier(
+        input_dim=input_dim,
+        hidden_dims=hidden_dims,
+        n_classes=3,
+        dropout=dropout
+    ).to(device)
 
     criterion_ce = nn.CrossEntropyLoss()
     criterion_constraint = MulticlassTransductiveLoss(
