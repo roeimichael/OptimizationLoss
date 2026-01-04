@@ -19,10 +19,11 @@ from .logging import log_progress_to_csv, print_progress_from_csv, load_history_
 from src.benchmark import greedy_constraint_selection
 
 
-def get_pretrained_model_path(input_dim, hidden_dims, dropout):
+def get_pretrained_model_path(input_dim, hidden_dims, dropout, model_params=None):
     """
     Generate a unique filename for pre-trained model based on architecture.
     Uses hash to create a compact filename.
+    Includes model_params to differentiate between baseline and enhanced models.
     """
     models_dir = Path('models') / 'trained_models'
     models_dir.mkdir(parents=True, exist_ok=True)
@@ -30,23 +31,25 @@ def get_pretrained_model_path(input_dim, hidden_dims, dropout):
     model_config = {
         'input_dim': input_dim,
         'hidden_dims': hidden_dims,
-        'dropout': dropout
+        'dropout': dropout,
+        'model_params': model_params or {}
     }
 
     config_str = json.dumps(model_config, sort_keys=True)
     config_hash = hashlib.md5(config_str.encode()).hexdigest()[:12]
 
     dims_str = '_'.join(map(str, hidden_dims))
-    filename = f"warmup_model_d{input_dim}_h{dims_str}_drop{dropout}_{config_hash}.pt"
+    model_type = model_params.get('model_type', 'baseline') if model_params else 'baseline'
+    filename = f"warmup_{model_type}_d{input_dim}_h{dims_str}_drop{dropout}_{config_hash}.pt"
 
     return models_dir / filename
 
 
-def save_pretrained_model(model, scaler, input_dim, hidden_dims, dropout, epoch):
+def save_pretrained_model(model, scaler, input_dim, hidden_dims, dropout, epoch, model_params=None):
     """
     Save model and scaler after warmup training.
     """
-    model_path = get_pretrained_model_path(input_dim, hidden_dims, dropout)
+    model_path = get_pretrained_model_path(input_dim, hidden_dims, dropout, model_params)
 
     checkpoint = {
         'model_state_dict': model.state_dict(),
@@ -55,6 +58,7 @@ def save_pretrained_model(model, scaler, input_dim, hidden_dims, dropout, epoch)
         'input_dim': input_dim,
         'hidden_dims': hidden_dims,
         'dropout': dropout,
+        'model_params': model_params or {},
         'warmup_epochs': epoch + 1,
         'saved_at': time.strftime('%Y-%m-%d %H:%M:%S')
     }
@@ -62,17 +66,19 @@ def save_pretrained_model(model, scaler, input_dim, hidden_dims, dropout, epoch)
     torch.save(checkpoint, model_path)
     print(f"\nPre-trained model saved to: {model_path}")
     print(f"  Architecture: input={input_dim}, hidden={hidden_dims}, dropout={dropout}")
+    if model_params:
+        print(f"  Model type: {model_params.get('model_type', 'baseline')}")
     print(f"  Warmup epochs: {epoch + 1}")
 
     return model_path
 
 
-def load_pretrained_model(input_dim, hidden_dims, dropout, device):
+def load_pretrained_model(input_dim, hidden_dims, dropout, device, model_params=None):
     """
     Load pre-trained model if it exists.
     Returns (model, scaler, warmup_epochs_completed) or (None, None, 0) if not found.
     """
-    model_path = get_pretrained_model_path(input_dim, hidden_dims, dropout)
+    model_path = get_pretrained_model_path(input_dim, hidden_dims, dropout, model_params)
 
     if not model_path.exists():
         return None, None, 0
@@ -86,12 +92,31 @@ def load_pretrained_model(input_dim, hidden_dims, dropout, device):
             print(f"\nWarning: Pre-trained model architecture mismatch. Training from scratch.")
             return None, None, 0
 
-        model = NeuralNetClassifier(
-            input_dim=input_dim,
-            hidden_dims=hidden_dims,
-            n_classes=3,
-            dropout=dropout
-        ).to(device)
+        saved_model_params = checkpoint.get('model_params', {})
+        current_model_params = model_params or {}
+
+        if saved_model_params.get('model_type', 'baseline') != current_model_params.get('model_type', 'baseline'):
+            print(f"\nWarning: Model type mismatch. Training from scratch.")
+            return None, None, 0
+
+        if current_model_params.get('model_type') == 'enhanced':
+            from src.models.neural_network_enhanced import NeuralNetClassifierEnhanced
+            model = NeuralNetClassifierEnhanced(
+                input_dim=input_dim,
+                hidden_dims=hidden_dims,
+                n_classes=3,
+                dropout=dropout,
+                use_residual=current_model_params.get('use_residual', True),
+                use_attention=current_model_params.get('use_attention', False),
+                activation=current_model_params.get('activation', 'gelu')
+            ).to(device)
+        else:
+            model = NeuralNetClassifier(
+                input_dim=input_dim,
+                hidden_dims=hidden_dims,
+                n_classes=3,
+                dropout=dropout
+            ).to(device)
 
         model.load_state_dict(checkpoint['model_state_dict'])
 
@@ -104,6 +129,8 @@ def load_pretrained_model(input_dim, hidden_dims, dropout, device):
 
         print(f"\nLoaded pre-trained model from: {model_path}")
         print(f"  Architecture: input={input_dim}, hidden={hidden_dims}, dropout={dropout}")
+        if model_params:
+            print(f"  Model type: {model_params.get('model_type', 'baseline')}")
         print(f"  Warmup epochs completed: {warmup_epochs}")
         print(f"  Saved at: {saved_at}")
         print(f"  Skipping first {warmup_epochs} epochs of training")
@@ -138,13 +165,25 @@ def prepare_training_data(X_train, y_train, X_test, groups_test, batch_size, dev
 
 def initialize_model_and_optimizer(input_dim, hidden_dims, dropout, lr, device,
                                     global_constraint, local_constraint,
-                                    lambda_global, lambda_local):
-    model = NeuralNetClassifier(
-        input_dim=input_dim,
-        hidden_dims=hidden_dims,
-        n_classes=3,
-        dropout=dropout
-    ).to(device)
+                                    lambda_global, lambda_local, model_params=None):
+    if model_params and model_params.get('model_type') == 'enhanced':
+        from src.models.neural_network_enhanced import NeuralNetClassifierEnhanced
+        model = NeuralNetClassifierEnhanced(
+            input_dim=input_dim,
+            hidden_dims=hidden_dims,
+            n_classes=3,
+            dropout=dropout,
+            use_residual=model_params.get('use_residual', True),
+            use_attention=model_params.get('use_attention', False),
+            activation=model_params.get('activation', 'gelu')
+        ).to(device)
+    else:
+        model = NeuralNetClassifier(
+            input_dim=input_dim,
+            hidden_dims=hidden_dims,
+            n_classes=3,
+            dropout=dropout
+        ).to(device)
 
     criterion_ce = nn.CrossEntropyLoss()
     criterion_constraint = MulticlassTransductiveLoss(
@@ -230,7 +269,7 @@ def train_model_transductive(X_train, y_train, X_test, groups_test, y_test,
     pretrained_model, pretrained_scaler, warmup_completed = None, None, 0
     if use_pretrained:
         pretrained_model, pretrained_scaler, warmup_completed = load_pretrained_model(
-            input_dim, hidden_dims, dropout, device
+            input_dim, hidden_dims, dropout, device, model_params
         )
 
     if pretrained_model is not None:
@@ -279,7 +318,8 @@ def train_model_transductive(X_train, y_train, X_test, groups_test, y_test,
                 global_constraint=global_constraint,
                 local_constraint=local_constraint,
                 lambda_global=lambda_global,
-                lambda_local=lambda_local
+                lambda_local=lambda_local,
+                model_params=model_params
             )
 
     num_local_courses = len(local_constraint) if local_constraint else 0
@@ -375,7 +415,7 @@ def train_model_transductive(X_train, y_train, X_test, groups_test, y_test,
             benchmark_done = True
 
             if warmup_completed == 0:
-                save_pretrained_model(model, scaler, input_dim, hidden_dims, dropout, epoch)
+                save_pretrained_model(model, scaler, input_dim, hidden_dims, dropout, epoch, model_params)
 
         if criterion_constraint.global_constraints_satisfied and criterion_constraint.local_constraints_satisfied:
             print(f"\n{'='*80}")
