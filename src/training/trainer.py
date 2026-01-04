@@ -5,6 +5,9 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 import time
 import numpy as np
 import os
+import hashlib
+import json
+from pathlib import Path
 
 from src.models import NeuralNetClassifier
 from src.losses import MulticlassTransductiveLoss
@@ -14,6 +17,104 @@ from config.experiment_config import CONSTRAINT_THRESHOLD, LAMBDA_STEP, WARMUP_E
 from .metrics import compute_prediction_statistics, compute_train_accuracy, get_predictions_with_probabilities, compute_metrics
 from .logging import log_progress_to_csv, print_progress_from_csv, load_history_from_csv, save_final_predictions, save_constraint_comparison, save_evaluation_metrics
 from src.benchmark import greedy_constraint_selection
+
+
+def get_pretrained_model_path(input_dim, hidden_dims, dropout):
+    """
+    Generate a unique filename for pre-trained model based on architecture.
+    Uses hash to create a compact filename.
+    """
+    models_dir = Path('models') / 'trained_models'
+    models_dir.mkdir(parents=True, exist_ok=True)
+
+    model_config = {
+        'input_dim': input_dim,
+        'hidden_dims': hidden_dims,
+        'dropout': dropout
+    }
+
+    config_str = json.dumps(model_config, sort_keys=True)
+    config_hash = hashlib.md5(config_str.encode()).hexdigest()[:12]
+
+    dims_str = '_'.join(map(str, hidden_dims))
+    filename = f"warmup_model_d{input_dim}_h{dims_str}_drop{dropout}_{config_hash}.pt"
+
+    return models_dir / filename
+
+
+def save_pretrained_model(model, scaler, input_dim, hidden_dims, dropout, epoch):
+    """
+    Save model and scaler after warmup training.
+    """
+    model_path = get_pretrained_model_path(input_dim, hidden_dims, dropout)
+
+    checkpoint = {
+        'model_state_dict': model.state_dict(),
+        'scaler_mean': scaler.mean_,
+        'scaler_scale': scaler.scale_,
+        'input_dim': input_dim,
+        'hidden_dims': hidden_dims,
+        'dropout': dropout,
+        'warmup_epochs': epoch + 1,
+        'saved_at': time.strftime('%Y-%m-%d %H:%M:%S')
+    }
+
+    torch.save(checkpoint, model_path)
+    print(f"\nPre-trained model saved to: {model_path}")
+    print(f"  Architecture: input={input_dim}, hidden={hidden_dims}, dropout={dropout}")
+    print(f"  Warmup epochs: {epoch + 1}")
+
+    return model_path
+
+
+def load_pretrained_model(input_dim, hidden_dims, dropout, device):
+    """
+    Load pre-trained model if it exists.
+    Returns (model, scaler, warmup_epochs_completed) or (None, None, 0) if not found.
+    """
+    model_path = get_pretrained_model_path(input_dim, hidden_dims, dropout)
+
+    if not model_path.exists():
+        return None, None, 0
+
+    try:
+        checkpoint = torch.load(model_path, map_location=device)
+
+        if (checkpoint['input_dim'] != input_dim or
+            checkpoint['hidden_dims'] != hidden_dims or
+            checkpoint['dropout'] != dropout):
+            print(f"\nWarning: Pre-trained model architecture mismatch. Training from scratch.")
+            return None, None, 0
+
+        model = NeuralNetClassifier(
+            input_dim=input_dim,
+            hidden_dims=hidden_dims,
+            n_classes=3,
+            dropout=dropout
+        ).to(device)
+
+        model.load_state_dict(checkpoint['model_state_dict'])
+
+        scaler = StandardScaler()
+        scaler.mean_ = checkpoint['scaler_mean']
+        scaler.scale_ = checkpoint['scaler_scale']
+
+        warmup_epochs = checkpoint.get('warmup_epochs', 0)
+        saved_at = checkpoint.get('saved_at', 'unknown')
+
+        print(f"\nLoaded pre-trained model from: {model_path}")
+        print(f"  Architecture: input={input_dim}, hidden={hidden_dims}, dropout={dropout}")
+        print(f"  Warmup epochs completed: {warmup_epochs}")
+        print(f"  Saved at: {saved_at}")
+        print(f"  Skipping first {warmup_epochs} epochs of training")
+
+        return model, scaler, warmup_epochs
+
+    except Exception as e:
+        print(f"\nError loading pre-trained model: {e}")
+        print("Training from scratch...")
+        return None, None, 0
+
 
 def prepare_training_data(X_train, y_train, X_test, groups_test, batch_size, device):
     scaler = StandardScaler()
@@ -119,34 +220,78 @@ def train_model_transductive(X_train, y_train, X_test, groups_test, y_test,
                              lambda_global, lambda_local, hidden_dims, epochs,
                              batch_size, lr, dropout, device,
                              constraint_dropout_pct, constraint_enrolled_pct,
-                             hyperparam_name=None, constraint_folder=None):
+                             hyperparam_name=None, constraint_folder=None,
+                             results_base_dir=None, model_params=None,
+                             use_pretrained=True):
     start_time = time.time()
 
-    train_loader, X_test_tensor, group_ids_test, scaler = prepare_training_data(
-        X_train, y_train, X_test, groups_test, batch_size, device
-    )
+    input_dim = X_train.shape[1]
 
-    model, criterion_ce, criterion_constraint, optimizer = \
-        initialize_model_and_optimizer(
-            input_dim=X_train.shape[1],
-            hidden_dims=hidden_dims,
-            dropout=dropout,
-            lr=lr,
-            device=device,
-            global_constraint=global_constraint,
-            local_constraint=local_constraint,
-            lambda_global=lambda_global,
-            lambda_local=lambda_local
+    pretrained_model, pretrained_scaler, warmup_completed = None, None, 0
+    if use_pretrained:
+        pretrained_model, pretrained_scaler, warmup_completed = load_pretrained_model(
+            input_dim, hidden_dims, dropout, device
         )
+
+    if pretrained_model is not None:
+        model = pretrained_model
+        scaler = pretrained_scaler
+
+        if y_train.dtype == 'O' or isinstance(y_train.iloc[0], str):
+            le = LabelEncoder()
+            y_train_encoded = le.fit_transform(y_train)
+        else:
+            y_train_encoded = y_train.values
+
+        X_train_scaled = scaler.transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
+
+        train_dataset = TensorDataset(
+            torch.FloatTensor(X_train_scaled),
+            torch.LongTensor(y_train_encoded)
+        )
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        X_test_tensor = torch.FloatTensor(X_test_scaled).to(device)
+        group_ids_test = torch.LongTensor(groups_test.values).to(device)
+
+        criterion_ce = nn.CrossEntropyLoss()
+        criterion_constraint = MulticlassTransductiveLoss(
+            global_constraints=global_constraint,
+            local_constraints=local_constraint,
+            lambda_global=lambda_global,
+            lambda_local=lambda_local,
+            use_ce=False
+        ).to(device)
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+
+    else:
+        train_loader, X_test_tensor, group_ids_test, scaler = prepare_training_data(
+            X_train, y_train, X_test, groups_test, batch_size, device
+        )
+
+        model, criterion_ce, criterion_constraint, optimizer = \
+            initialize_model_and_optimizer(
+                input_dim=input_dim,
+                hidden_dims=hidden_dims,
+                dropout=dropout,
+                lr=lr,
+                device=device,
+                global_constraint=global_constraint,
+                local_constraint=local_constraint,
+                lambda_global=lambda_global,
+                lambda_local=lambda_local
+            )
 
     num_local_courses = len(local_constraint) if local_constraint else 0
 
+    base_dir = results_base_dir if results_base_dir else './results'
+
     if constraint_folder and hyperparam_name:
-        experiment_folder = f'./results/{constraint_folder}/hyperparam_{hyperparam_name}'
+        experiment_folder = f'{base_dir}/{constraint_folder}/hyperparam_{hyperparam_name}'
     elif hyperparam_name:
-        experiment_folder = f'./results/hyperparam_{hyperparam_name}'
+        experiment_folder = f'{base_dir}/hyperparam_{hyperparam_name}'
     else:
-        experiment_folder = f'./results/constraints_{constraint_dropout_pct}_{constraint_enrolled_pct}'
+        experiment_folder = f'{base_dir}/constraints_{constraint_dropout_pct}_{constraint_enrolled_pct}'
 
     os.makedirs(experiment_folder, exist_ok=True)
     csv_log_path = f'{experiment_folder}/training_log.csv'
@@ -173,9 +318,13 @@ def train_model_transductive(X_train, y_train, X_test, groups_test, y_test,
     print(f"\nWarmup Period: First {WARMUP_EPOCHS} epochs will train with lambda=0 (no constraint pressure)")
     print("="*80 + "\n")
 
-    benchmark_done = False
+    benchmark_done = warmup_completed >= WARMUP_EPOCHS
+    start_epoch = warmup_completed
 
-    for epoch in range(epochs):
+    if warmup_completed > 0:
+        print(f"\nStarting from epoch {warmup_completed} (skipping warmup)")
+
+    for epoch in range(start_epoch, epochs):
         avg_ce, avg_global, avg_local = train_single_epoch(
             model, train_loader, criterion_ce, criterion_constraint,
             optimizer, X_test_tensor, group_ids_test, device
@@ -224,6 +373,9 @@ def train_model_transductive(X_train, y_train, X_test, groups_test, y_test,
                 experiment_folder
             )
             benchmark_done = True
+
+            if warmup_completed == 0:
+                save_pretrained_model(model, scaler, input_dim, hidden_dims, dropout, epoch)
 
         if criterion_constraint.global_constraints_satisfied and criterion_constraint.local_constraints_satisfied:
             print(f"\n{'='*80}")
