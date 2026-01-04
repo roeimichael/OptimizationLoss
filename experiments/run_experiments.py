@@ -181,7 +181,7 @@ def main():
         import subprocess
         if len(CONSTRAINTS) > 1:
             print("Multiple constraints detected - running constraint-grouped analysis...\n")
-            result = subprocess.run(['python', 'experiments/analyze_by_constraints.py'],
+            result = subprocess.run(['python', 'evaluation/analyze_by_constraints.py'],
                                   capture_output=False, text=True)
             if result.returncode == 0:
                 print("\nConstraint-grouped analysis completed successfully")
@@ -189,7 +189,7 @@ def main():
                 print("\nConstraint-grouped analysis completed with warnings")
         else:
             print("Single constraint detected - running standard top 5 analysis...\n")
-            result = subprocess.run(['python', 'experiments/analyze_top5.py'],
+            result = subprocess.run(['python', 'evaluation/analyze_top5.py'],
                                   capture_output=False, text=True)
             if result.returncode == 0:
                 print("\nTop 5 analysis completed successfully")
@@ -198,9 +198,9 @@ def main():
     except Exception as e:
         print(f"\nCould not run analysis: {e}")
         if len(CONSTRAINTS) > 1:
-            print("You can run it manually with: python experiments/analyze_by_constraints.py")
+            print("You can run it manually with: python evaluation/analyze_by_constraints.py")
         else:
-            print("You can run it manually with: python experiments/analyze_top5.py")
+            print("You can run it manually with: python evaluation/analyze_top5.py")
 
 
 if __name__ == "__main__":
