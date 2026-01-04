@@ -1,5 +1,6 @@
 import pandas as pd
 
+
 def load_presplit_data(train_path, test_path, target_column):
     train_df = pd.read_csv(train_path)
     test_df = pd.read_csv(test_path)

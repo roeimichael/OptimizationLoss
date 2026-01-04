@@ -1,2 +1,0 @@
-model_name,method_name,accuracy,local_percent,global_percent,training_time
-arch_deep,transductive,0.5678733031674208,0.8,0.2,386.73297452926636

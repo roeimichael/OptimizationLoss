@@ -1,2 +1,0 @@
-model_name,method_name,accuracy,local_percent,global_percent,training_time
-very_deep_extreme_lambda,transductive,0.5,0.4,0.2,1.1907739639282227
