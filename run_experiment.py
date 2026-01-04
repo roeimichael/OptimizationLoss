@@ -16,7 +16,7 @@ from models import get_model
 from src.losses import MulticlassTransductiveLoss
 from src.training.metrics import compute_prediction_statistics, compute_train_accuracy, get_predictions_with_probabilities, compute_metrics
 from src.training.logging import save_final_predictions, save_evaluation_metrics
-from utils.filesystem_manager import load_config_from_path, save_config_to_path, mark_experiment_complete, is_experiment_complete
+from utils.filesystem_manager import load_config_from_path, save_config_to_path, mark_experiment_complete, is_experiment_complete, update_experiment_status
 
 def get_model_cache_path(base_model_id: str) -> Path:
     cache_dir = Path('model_cache')
@@ -159,6 +159,7 @@ def run_single_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     if is_experiment_complete(experiment_path):
         print(f"\n[SKIP] Experiment already completed: {experiment_path}")
         return None
+    update_experiment_status(experiment_path, 'running')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Device: {device}")
     print(f"Model: {config['model_name']}")
@@ -292,6 +293,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description='Run single experiment from config file')
     parser.add_argument('config_path', type=str, help='Path to config.json file')
     args = parser.parse_args()
+    experiment_path = Path(args.config_path).parent
     try:
         results = run_single_experiment(args.config_path)
         if results:
@@ -305,6 +307,7 @@ def main() -> None:
     except Exception as e:
         print(f"\n[ERROR] Experiment failed: {e}")
         traceback.print_exc()
+        update_experiment_status(str(experiment_path), 'failed')
         exit(1)
 
 if __name__ == "__main__":
