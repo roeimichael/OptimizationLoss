@@ -16,17 +16,14 @@ OptimizationLoss/
 │   ├── vgg19.py                # VGG-inspired deep sequential network
 │   └── model_factory.py        # Factory for model creation
 │
-├── experiments/                 # Training methodologies
-│   ├── our_approach.py         # Transductive + Constraint-based (MAIN)
-│   ├── benchmark.py            # Baseline comparison (placeholder)
-│   ├── train_then_optimize.py  # Two-stage approach (placeholder)
-│   └── hybrid.py               # Hybrid methodology (placeholder)
-│
 ├── utils/                       # Utilities
-│   └── filesystem_manager.py   # Experiment path management
+│   ├── filesystem_manager.py   # Experiment path management
+│   ├── generate_configs.py     # Generate all experiment configurations
+│   ├── data_loader.py          # Data loading utilities
+│   └── greedy_constraint_selector.py  # Heuristic selection algorithm
 │
-├── generate_configs.py         # Generate all experiment configurations
-├── run_all_experiments.py      # Execute all experiments
+├── run_experiment.py           # Single experiment runner with model caching
+├── main.py                     # Batch experiment orchestrator
 │
 └── results/                     # Experiment results (auto-generated)
     └── methodology/model/constraint/base_model_id/
@@ -73,7 +70,7 @@ Testing 8 different constraint configurations (dropout%, enrolled%):
 ### Step 1: Generate Experiment Configurations
 
 ```bash
-python generate_configs.py
+python utils/generate_configs.py
 ```
 
 This script:
@@ -90,19 +87,19 @@ This script:
 ### Step 2: Run All Experiments
 
 ```bash
-python run_all_experiments.py
+python main.py
 ```
 
 Options:
 ```bash
 # Run with defaults (resume from last run)
-python run_all_experiments.py
+python main.py
 
 # Re-run all experiments (including completed)
-python run_all_experiments.py --no-resume
+python main.py --no-resume
 
 # Run only first 10 experiments
-python run_all_experiments.py --max 10
+python main.py --max 10
 ```
 
 This script:
@@ -179,22 +176,21 @@ All experiments include:
 1. Create `models/new_model.py` with class `NewModel(nn.Module)`
 2. Add import to `models/model_factory.py`
 3. Add to `MODEL_REGISTRY` dict
-4. Add `'NewModel'` to `MODELS` list in `generate_configs.py`
-5. Re-run `python generate_configs.py`
+4. Add `'NewModel'` to `MODELS` list in `utils/generate_configs.py`
+5. Re-run `python utils/generate_configs.py`
 
 ### Add a New Methodology
-1. Create `experiments/new_methodology.py` with function `train_with_new_methodology()`
-2. Add to `METHODOLOGY_FUNCTIONS` dict in `run_all_experiments.py`
-3. Add `'new_methodology'` to `METHODOLOGIES` list in `generate_configs.py`
-4. Re-run `python generate_configs.py`
+1. Create methodology implementation in `run_experiment.py`
+2. Add `'new_methodology'` to `METHODOLOGIES` list in `utils/generate_configs.py`
+3. Re-run `python utils/generate_configs.py`
 
 ### Add More Constraints
-1. Edit `CONSTRAINTS` list in `generate_configs.py`
-2. Re-run `python generate_configs.py`
+1. Edit `CONSTRAINTS` list in `utils/generate_configs.py`
+2. Re-run `python utils/generate_configs.py`
 
 ### Add New Hyperparameter Regime
-1. Edit `HYPERPARAM_REGIMES` dict in `generate_configs.py`
-2. Re-run `python generate_configs.py`
+1. Edit `HYPERPARAM_REGIMES` dict in `utils/generate_configs.py`
+2. Re-run `python utils/generate_configs.py`
 
 ## Monitoring Progress
 
@@ -235,8 +231,7 @@ With each experiment taking ~5-15 minutes:
 
 ## Next Steps
 
-1. Generate configurations: `python generate_configs.py`
+1. Generate configurations: `python utils/generate_configs.py`
 2. Review summary: `cat experiment_plan_summary.txt`
-3. Test with small batch: `python run_all_experiments.py --max 5`
-4. Run all experiments: `python run_all_experiments.py`
-5. Analyze results: Use scripts in `evaluation/` folder
+3. Test with small batch: `python main.py --max 5`
+4. Run all experiments: `python main.py`

@@ -28,7 +28,7 @@ def run_all_experiments(resume=True, max_experiments=None):
 
     if not experiments:
         print("No experiments found!")
-        print("Run 'python generate_configs.py' first to create experiment configurations.")
+        print("Run 'python utils/generate_configs.py' first to create experiment configurations.")
         return
 
     print(f"Found {len(experiments)} total experiments")
