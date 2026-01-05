@@ -183,26 +183,50 @@ def reset_all_status_to_pending(results_dir: str = 'results') -> int:
     return reset_count
 
 def main() -> None:
-    import sys
-    if len(sys.argv) > 1 and sys.argv[1] == '--reset':
-        reset_all_status_to_pending()
-        return
     print("="*80)
-    print("EXPERIMENT CONFIGURATION GENERATOR")
+    print("EXPERIMENT CONFIGURATION MANAGER")
     print("="*80)
     print()
-    all_configs = generate_all_configs()
-    saved_count = save_configs_and_create_structure(all_configs)
-    generate_summary_report(all_configs)
-    print("\n" + "="*80)
-    print("CONFIGURATION GENERATION COMPLETE")
-    print("="*80)
+    print("Select an option:")
+    print("  1. Generate new experiment configurations")
+    print("  2. Reset all experiment statuses to pending")
+    print("  3. Exit")
     print()
-    print("Next steps:")
-    print("1. Review the experiment_plan_summary.txt file")
-    print("2. Run experiments using: python main.py")
-    print("3. To reset all statuses: python utils/generate_configs.py --reset")
-    print()
+
+    while True:
+        choice = input("Enter your choice (1-3): ").strip()
+
+        if choice == '1':
+            print()
+            print("="*80)
+            print("GENERATING CONFIGURATIONS")
+            print("="*80)
+            print()
+            all_configs = generate_all_configs()
+            saved_count = save_configs_and_create_structure(all_configs)
+            generate_summary_report(all_configs)
+            print("\n" + "="*80)
+            print("CONFIGURATION GENERATION COMPLETE")
+            print("="*80)
+            print()
+            print("Next steps:")
+            print("1. Review the experiment_plan_summary.txt file")
+            print("2. Run experiments using: python main.py")
+            print()
+            break
+
+        elif choice == '2':
+            print()
+            reset_all_status_to_pending()
+            print()
+            break
+
+        elif choice == '3':
+            print("\nExiting...")
+            break
+
+        else:
+            print("Invalid choice. Please enter 1, 2, or 3.")
 
 if __name__ == "__main__":
     main()
