@@ -4,8 +4,12 @@ from .filesystem_manager import (
     load_config_from_path,
     get_all_experiment_configs,
     mark_experiment_complete,
-    is_experiment_complete
+    is_experiment_complete,
+    update_experiment_status,
+    get_experiments_by_status,
+    print_status_summary
 )
+from .data_loader import load_presplit_data
 
 __all__ = [
     'ensure_experiment_path',
@@ -13,5 +17,9 @@ __all__ = [
     'load_config_from_path',
     'get_all_experiment_configs',
     'mark_experiment_complete',
-    'is_experiment_complete'
+    'is_experiment_complete',
+    'update_experiment_status',
+    'get_experiments_by_status',
+    'print_status_summary',
+    'load_presplit_data',
 ]
