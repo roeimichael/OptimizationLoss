@@ -161,7 +161,32 @@ def generate_summary_report(configs: List[Dict[str, Any]], output_file: str = 'e
         f.write("="*80 + "\n")
     print(f"\nSummary report saved to: {output_file}")
 
+def reset_all_status_to_pending(results_dir: str = 'results') -> int:
+    from utils.filesystem_manager import get_all_experiment_configs, save_config_to_path
+    print("="*80)
+    print("RESET ALL EXPERIMENT STATUSES")
+    print("="*80)
+    print(f"\nScanning directory: {results_dir}")
+    all_experiments = get_all_experiment_configs(results_dir)
+    reset_count = 0
+    for experiment_path, config in all_experiments:
+        if config.get('status') != 'pending':
+            config['status'] = 'pending'
+            save_config_to_path(config, experiment_path)
+            reset_count += 1
+    print(f"\nTotal experiments found: {len(all_experiments)}")
+    print(f"Experiments reset to pending: {reset_count}")
+    print(f"Already pending: {len(all_experiments) - reset_count}")
+    print("\n" + "="*80)
+    print("RESET COMPLETE")
+    print("="*80)
+    return reset_count
+
 def main() -> None:
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == '--reset':
+        reset_all_status_to_pending()
+        return
     print("="*80)
     print("EXPERIMENT CONFIGURATION GENERATOR")
     print("="*80)
@@ -176,6 +201,7 @@ def main() -> None:
     print("Next steps:")
     print("1. Review the experiment_plan_summary.txt file")
     print("2. Run experiments using: python main.py")
+    print("3. To reset all statuses: python utils/generate_configs.py --reset")
     print()
 
 if __name__ == "__main__":

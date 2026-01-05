@@ -33,7 +33,8 @@ env/
 *~
 
 # Results and Data
-
+model_cache/
+models/trained_models/
 
 # Data directory - exclude dataset files but keep README
 data/*.csv
