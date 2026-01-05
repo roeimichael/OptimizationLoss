@@ -1,4 +1,4 @@
-TRAIN_PATH = 'data/train.csv'
-TEST_PATH = 'data/test.csv'
-TARGET_COLUMN = 'Status'
+TRAIN_PATH = 'data/dataset_train.csv'
+TEST_PATH = 'data/dataset_test.csv'
+TARGET_COLUMN = 'Target'
 TRACKED_COURSE_ID = 1
