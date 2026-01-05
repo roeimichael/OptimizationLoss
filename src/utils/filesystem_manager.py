@@ -58,10 +58,12 @@ def is_experiment_complete(experiment_path: str) -> bool:
 
 def get_experiments_by_status(results_dir: str = 'results') -> Dict[str, List[Tuple[str, Dict[str, Any]]]]:
     all_experiments = get_all_experiment_configs(results_dir)
-    by_status = {'pending': [], 'completed': [], 'failed': [], 'running': []}
+    by_status = {'pending': [], 'completed': [], 'running': []}
     for exp_path, config in all_experiments:
         status = config.get('status', 'pending')
-        if status in by_status:
+        if status == 'running':
+            by_status['pending'].append((exp_path, config))
+        elif status in by_status:
             by_status[status].append((exp_path, config))
         else:
             by_status['pending'].append((exp_path, config))
@@ -75,7 +77,5 @@ def print_status_summary(results_dir: str = 'results') -> None:
     print("="*80)
     print(f"Total experiments: {total}")
     print(f"  Completed: {len(by_status['completed'])}")
-    print(f"  Pending: {len(by_status['pending'])}")
-    print(f"  Failed: {len(by_status['failed'])}")
-    print(f"  Running: {len(by_status['running'])}")
+    print(f"  Pending: {len(by_status['pending'])} (includes interrupted runs)")
     print("="*80 + "\n")

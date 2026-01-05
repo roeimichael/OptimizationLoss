@@ -149,7 +149,8 @@ def main() -> None:
     except Exception as e:
         print(f"\n[ERROR] {e}")
         traceback.print_exc()
-        update_experiment_status(str(experiment_path), 'failed')
+        update_experiment_status(str(experiment_path), 'pending')
+        print("\n[STATUS] Reset to 'pending' for retry")
         exit(1)
 
 if __name__ == "__main__":
