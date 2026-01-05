@@ -10,7 +10,7 @@ import torch
 from src.training import trainer
 from src.training.metrics import get_predictions_with_probabilities, compute_metrics
 from src.training.logging import save_final_predictions, save_evaluation_metrics
-from src.utils import load_presplit_data
+from src.utils.data_loader import load_presplit_data
 from src.utils.filesystem_manager import load_config_from_path, save_config_to_path, mark_experiment_complete, is_experiment_complete, update_experiment_status
 
 def load_experiment_data(config: Dict[str, Any]):
