@@ -2,7 +2,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from utils.filesystem_manager import get_experiments_by_status, print_status_summary
+from src.utils.filesystem_manager import get_experiments_by_status, print_status_summary
 
 def main() -> None:
     print("="*80)
@@ -14,7 +14,7 @@ def main() -> None:
     if not pending_experiments:
         print("No pending experiments found!")
         print("All experiments are completed or there are no configurations.")
-        print("Run 'python utils/generate_configs.py' to create new configurations.")
+        print("Run 'python src/utils/generate_configs.py' to create new configurations.")
         return
     print(f"Running {len(pending_experiments)} pending experiments...\n")
     completed = 0

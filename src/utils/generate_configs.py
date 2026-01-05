@@ -117,7 +117,7 @@ def generate_all_configs() -> List[Dict[str, Any]]:
     return all_configs
 
 def save_configs_and_create_structure(configs: List[Dict[str, Any]], output_dir: str = 'results') -> int:
-    from utils.filesystem_manager import ensure_experiment_path, save_config_to_path
+    from src.utils.filesystem_manager import ensure_experiment_path, save_config_to_path
     print(f"\nCreating experiment directory structure in '{output_dir}'...")
     saved_count = 0
     for i, config in enumerate(configs):
@@ -163,7 +163,7 @@ def generate_summary_report(configs: List[Dict[str, Any]], output_file: str = 'e
     print(f"\nSummary report saved to: {output_file}")
 
 def reset_all_status_to_pending(results_dir: str = 'results') -> int:
-    from utils.filesystem_manager import get_all_experiment_configs, save_config_to_path
+    from src.utils.filesystem_manager import get_all_experiment_configs, save_config_to_path
     print("="*80)
     print("RESET ALL EXPERIMENT STATUSES")
     print("="*80)
