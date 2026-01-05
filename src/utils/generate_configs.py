@@ -1,6 +1,7 @@
 import hashlib
 import json
 from typing import Dict, Any, List, Tuple
+from utils.filesystem_manager import get_all_experiment_configs, save_config_to_path
 
 METHODOLOGIES = ['our_approach']
 
@@ -162,7 +163,6 @@ def generate_summary_report(configs: List[Dict[str, Any]], output_file: str = 'e
     print(f"\nSummary report saved to: {output_file}")
 
 def reset_all_status_to_pending(results_dir: str = 'results') -> int:
-    from utils.filesystem_manager import get_all_experiment_configs, save_config_to_path
     print("="*80)
     print("RESET ALL EXPERIMENT STATUSES")
     print("="*80)
