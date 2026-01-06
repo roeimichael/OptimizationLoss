@@ -95,7 +95,8 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         lambda_local=hyperparams['lambda_local'],
         constraint_threshold=hyperparams['constraint_threshold'],
         lambda_step=hyperparams['lambda_step'],
-        device=device
+        device=device,
+        experiment_path=str(experiment_path)
     )
     training_time = time.time() - start_time
     print("\n" + "="*80)
