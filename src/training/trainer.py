@@ -319,9 +319,14 @@ def train_with_constraints(model: nn.Module, scaler: StandardScaler, X_train: pd
                 criterion_constraint.local_constraints_satisfied
             )
 
-        if criterion_constraint.global_constraints_satisfied and criterion_constraint.local_constraints_satisfied:
+        if avg_global <= constraint_threshold and avg_local <= constraint_threshold:
             print(f"\n{'='*80}")
             print(f"ALL CONSTRAINTS SATISFIED at epoch {epoch + 1}!")
+            print(f"{'='*80}")
+            print(f"  Global loss: {avg_global:.6f} <= {constraint_threshold}")
+            print(f"  Local loss: {avg_local:.6f} <= {constraint_threshold}")
+            print(f"  Global hard satisfaction: {criterion_constraint.global_constraints_satisfied}")
+            print(f"  Local hard satisfaction: {criterion_constraint.local_constraints_satisfied}")
             print(f"{'='*80}\n")
             break
 
