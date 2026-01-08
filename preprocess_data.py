@@ -55,7 +55,7 @@ def preprocess_dataset(input_path: str, output_train: str, output_test: str, tar
     print("Test size: 20%, Random state: 42")
     train_df, test_df = train_test_split(
         df_filtered,
-        test_size=0.2,
+        test_size=0.1,
         random_state=42,
         stratify=df_filtered[target_column]
     )
