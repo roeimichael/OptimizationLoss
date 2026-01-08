@@ -8,42 +8,19 @@ import pandas as pd
 import torch
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 
-from config.experiment_config import TRAIN_PATH, TEST_PATH, TARGET_COLUMN
-from src.training.constraints import compute_global_constraints, compute_local_constraints
-from src.utils.data_loader import load_presplit_data
-
+from src.utils.data_loader import load_experiment_data
 from src.training.trainer import ConstraintTrainer
-
 from src.training.metrics import get_predictions_with_probabilities, compute_metrics
 from src.training.logging import save_final_predictions, save_evaluation_metrics
 from src.utils.filesystem_manager import load_config_from_path, save_config_to_path, mark_experiment_complete, \
-    is_experiment_complete, update_experiment_status
-
-
-def load_experiment_data(config: Dict[str, Any]):
-    print("\nLoading dataset...")
-    train_df, test_df = load_presplit_data(TRAIN_PATH, TEST_PATH)
-    full_df = pd.concat([train_df, test_df], ignore_index=True)
-    local_percent, global_percent = config['constraint']
-    groups = full_df['Course'].unique()
-    global_constraint = compute_global_constraints(full_df, TARGET_COLUMN, global_percent)
-    local_constraint = compute_local_constraints(full_df, TARGET_COLUMN, local_percent, groups)
-    print(f"Global constraint: {global_constraint}")
-    print(f"Local constraints: {len(local_constraint)} courses")
-    drop_cols = [TARGET_COLUMN, 'Course']
-    y_train = train_df[TARGET_COLUMN]
-    X_train_clean = train_df.drop(columns=drop_cols)
-    y_test = test_df[TARGET_COLUMN]
-    groups_test = test_df['Course']
-    X_test_clean = test_df.drop(columns=drop_cols)
-    return X_train_clean, X_test_clean, y_train, y_test, groups_test, global_constraint, local_constraint
+    update_experiment_status
 
 
 def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     print(f"Config: {config_path}")
     experiment_path = Path(config_path).parent
     config = load_config_from_path(experiment_path)
-    if is_experiment_complete(experiment_path):
+    if config.get('status', 'pending') == 'completed':
         print(f"\n[SKIP] Already completed")
         return None
     update_experiment_status(experiment_path, 'running')

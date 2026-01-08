@@ -20,6 +20,3 @@ def get_model(model_name: str, input_dim: int, n_classes: int = 3, **kwargs: Any
         raise ValueError(f"Unknown model: {model_name}. Available models: {list(MODEL_REGISTRY.keys())}")
     model_class = MODEL_REGISTRY[model_name]
     return model_class(input_dim=input_dim, n_classes=n_classes, **kwargs)
-
-def list_available_models() -> List[str]:
-    return list(MODEL_REGISTRY.keys())

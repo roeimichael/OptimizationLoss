@@ -56,14 +56,6 @@ def mark_experiment_complete(experiment_path: str) -> None:
     update_experiment_status(experiment_path, 'completed')
 
 
-def is_experiment_complete(experiment_path: str) -> bool:
-    try:
-        config = load_config_from_path(experiment_path)
-        return config.get('status', 'pending') == 'completed'
-    except:
-        return False
-
-
 def get_experiments_by_status(results_dir: str = 'results') -> Dict[str, List[Tuple[str, Dict[str, Any]]]]:
     all_experiments = get_all_experiment_configs(results_dir)
     by_status = {'pending': [], 'completed': [], 'running': []}

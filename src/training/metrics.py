@@ -58,9 +58,6 @@ def compute_train_accuracy(model, train_loader, device):
     model.train()
     return train_correct / train_total
 
-def evaluate_accuracy(y_true, y_pred):
-    return np.mean(y_true == y_pred)
-
 def get_predictions_with_probabilities(model, X_test_tensor):
     model.eval()
     with torch.no_grad():

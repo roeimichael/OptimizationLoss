@@ -2,6 +2,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# Constants for transductive loss computation
+NUM_CLASSES = 3
+EPSILON = 1e-6  # Numerical stability epsilon for loss computation
+UNLIMITED_THRESHOLD = 1e9  # Threshold to check if constraint is unlimited
+EXCLUDED_COURSE_ID = 1  # Course ID to exclude from local constraints
+
+
 class MulticlassTransductiveLoss(nn.Module):
     def __init__(self, global_constraints, local_constraints,
                  lambda_global=1.0, lambda_local=1.0, use_ce=True):
@@ -9,7 +16,7 @@ class MulticlassTransductiveLoss(nn.Module):
         self.lambda_global = lambda_global
         self.lambda_local = lambda_local
         self.use_ce = use_ce
-        self.eps = 1e-6
+        self.eps = EPSILON
         self.global_constraints_satisfied = False
         self.local_constraints_satisfied = False
         if global_constraints is not None:
@@ -51,9 +58,9 @@ class MulticlassTransductiveLoss(nn.Module):
 
         y_hard = torch.argmax(y_proba, dim=1)
 
-        for class_id in range(3):
+        for class_id in range(NUM_CLASSES):
             K = g_cons[class_id]
-            if K > 1e9:
+            if K > UNLIMITED_THRESHOLD:
                 continue
 
             hard_count = (y_hard == class_id).sum().float()
@@ -84,7 +91,7 @@ class MulticlassTransductiveLoss(nn.Module):
         y_hard = torch.argmax(y_proba, dim=1)
 
         for group_id, buffer_name in self.local_constraint_dict.items():
-            if group_id == 1:
+            if group_id == EXCLUDED_COURSE_ID:
                 continue
             in_group = (group_ids_device == group_id)
             if in_group.sum() == 0:
@@ -92,9 +99,9 @@ class MulticlassTransductiveLoss(nn.Module):
             group_proba = y_proba[in_group]
             group_hard = y_hard[in_group]
             l_cons = getattr(self, buffer_name).to(device)
-            for class_id in range(3):
+            for class_id in range(NUM_CLASSES):
                 K = l_cons[class_id]
-                if K > 1e9:
+                if K > UNLIMITED_THRESHOLD:
                     continue
 
                 hard_count = (group_hard == class_id).sum().float()

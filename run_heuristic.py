@@ -9,9 +9,7 @@ import numpy as np
 import torch
 from sklearn.preprocessing import StandardScaler
 
-from config.experiment_config import TRAIN_PATH, TEST_PATH, TARGET_COLUMN
-from src.training.constraints import compute_global_constraints, compute_local_constraints
-from src.utils.data_loader import load_presplit_data
+from src.utils.data_loader import load_experiment_data
 from src.utils.filesystem_manager import load_config_from_path, save_config_to_path, mark_experiment_complete
 from src.training.trainer import ConstraintTrainer
 from src.training.metrics import compute_metrics
@@ -71,19 +69,7 @@ def run_heuristic(config_path: str) -> None:
     config = load_config_from_path(experiment_path)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    train_df, test_df = load_presplit_data(TRAIN_PATH, TEST_PATH)
-    full_df = pd.concat([train_df, test_df], ignore_index=True)
-
-    local_percent, global_percent = config['constraint']
-    groups = full_df['Course'].unique()
-    global_constraint = compute_global_constraints(full_df, TARGET_COLUMN, global_percent)
-    local_constraint = compute_local_constraints(full_df, TARGET_COLUMN, local_percent, groups)
-
-    drop_cols = [TARGET_COLUMN, 'Course']
-    X_train_clean = train_df.drop(columns=drop_cols)
-    X_test_clean = test_df.drop(columns=drop_cols)
-    y_test = test_df[TARGET_COLUMN]
-    groups_test = test_df['Course']
+    X_train_clean, X_test_clean, _, y_test, groups_test, global_constraint, local_constraint = load_experiment_data(config)
 
     scaler = StandardScaler()
     scaler.fit(X_train_clean)
