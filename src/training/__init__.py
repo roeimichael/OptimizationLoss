@@ -1,10 +1,4 @@
-from .trainer import (
-    train_warmup,
-    train_with_constraints,
-    load_model_from_cache,
-    save_model_to_cache,
-    get_model_cache_path
-)
+from .trainer import ConstraintTrainer
 from .metrics import (
     compute_train_accuracy,
     get_predictions_with_probabilities,
@@ -16,22 +10,22 @@ from .constraints import (
     compute_local_constraints
 )
 from .logging import (
+    log_progress_to_csv,
+    print_progress,
     save_final_predictions,
     save_evaluation_metrics
 )
 
 __all__ = [
-    'train_warmup',
-    'train_with_constraints',
-    'load_model_from_cache',
-    'save_model_to_cache',
-    'get_model_cache_path',
+    'ConstraintTrainer',
     'compute_train_accuracy',
     'get_predictions_with_probabilities',
     'compute_metrics',
     'compute_prediction_statistics',
     'compute_global_constraints',
     'compute_local_constraints',
+    'log_progress_to_csv',
+    'print_progress',
     'save_final_predictions',
     'save_evaluation_metrics'
 ]
