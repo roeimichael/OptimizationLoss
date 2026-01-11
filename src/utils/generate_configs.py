@@ -1,21 +1,60 @@
+"""Configuration generator for student dropout prediction experiments.
+
+This module generates experiment configurations for systematic evaluation of
+constraint-based optimization across different models, constraints, and hyperparameters.
+
+CURRENT MODE: FOCUSED EXPERIMENTS (48 configurations)
+===============================================================================
+Configuration breakdown:
+  - 4 models: BasicNN, ResNet56, DenseNet121, VGG19
+  - 4 constraint pairs: [Soft,Soft], [Hard,Soft], [Soft,Hard], [Hard,Hard]
+  - 3 learning rates: 0.0001 (low), 0.001 (medium), 0.01 (high)
+  - Total: 4 × 4 × 3 = 48 experiments
+
+To restore full experiments (640 configs):
+  1. Uncomment sections marked "FULL EXPERIMENT"
+  2. Comment out sections marked "FOCUSED EXPERIMENT"
+===============================================================================
+"""
+
 import hashlib
 import json
 from typing import Dict, Any, List, Tuple
 
 METHODOLOGIES = ['our_approach']
 
-MODELS = ['BasicNN', 'ResNet56', 'DenseNet121', 'InceptionV3', 'VGG19']
+# ============================================================================
+# FOCUSED EXPERIMENTAL CONFIGURATION (48 total experiments)
+# ============================================================================
 
+# FOCUSED EXPERIMENT: 4 models
+MODELS = ['BasicNN', 'ResNet56', 'DenseNet121', 'VGG19']
+
+# FULL EXPERIMENT: 5 models (uncomment to restore)
+# MODELS = ['BasicNN', 'ResNet56', 'DenseNet121', 'InceptionV3', 'VGG19']
+
+# FOCUSED EXPERIMENT: 4 constraint pairs
+# Each pair is (local_percentage, global_percentage)
+# - Soft = high percentage (more capacity, ~0.8-0.9)
+# - Hard = low percentage (less capacity, ~0.2-0.3)
 CONSTRAINTS = [
-    (0.9, 0.8),
-    (0.9, 0.5),
-    (0.8, 0.7),
-    (0.8, 0.2),
-    (0.7, 0.5),
-    (0.6, 0.5),
-    (0.5, 0.3),
-    (0.4, 0.2)
+    (0.9, 0.8),  # [Soft, Soft] - Both permissive
+    (0.3, 0.8),  # [Hard, Soft] - Local restrictive, Global permissive
+    (0.8, 0.3),  # [Soft, Hard] - Local permissive, Global restrictive
+    (0.3, 0.3),  # [Hard, Hard] - Both restrictive
 ]
+
+# FULL EXPERIMENT: 8 constraint pairs (uncomment to restore)
+# CONSTRAINTS = [
+#     (0.9, 0.8),
+#     (0.9, 0.5),
+#     (0.8, 0.7),
+#     (0.8, 0.2),
+#     (0.7, 0.5),
+#     (0.6, 0.5),
+#     (0.5, 0.3),
+#     (0.4, 0.2)
+# ]
 
 BASE_HYPERPARAMS = {
     'lr': 0.001,
@@ -30,35 +69,48 @@ BASE_HYPERPARAMS = {
     'lambda_step': 0.01
 }
 
+# FOCUSED EXPERIMENT: Only learning rate sensitivity (3 values)
+# This keeps dropout and batch_size constant while varying learning rate
 HYPERPARAM_REGIMES = {
-    'standard': {
-        'name': 'standard',
-        'variations': [
-            {'variation_name': 'default', 'params': BASE_HYPERPARAMS.copy()}
-        ]
-    },
     'lr_test': {
         'name': 'lr_test',
         'variations': [
             {'variation_name': f'lr_{lr}', 'params': {**BASE_HYPERPARAMS, 'lr': lr}}
-            for lr in [0.0001, 0.0005, 0.001, 0.005, 0.01]
+            for lr in [0.0001, 0.001, 0.01]  # Low, Medium, High
         ]
     },
-    'dropout_test': {
-        'name': 'dropout_test',
-        'variations': [
-            {'variation_name': f'dropout_{dropout}', 'params': {**BASE_HYPERPARAMS, 'dropout': dropout}}
-            for dropout in [0.1, 0.2, 0.3, 0.4, 0.5]
-        ]
-    },
-    'batch_test': {
-        'name': 'batch_test',
-        'variations': [
-            {'variation_name': f'batch_{batch}', 'params': {**BASE_HYPERPARAMS, 'batch_size': batch}}
-            for batch in [32, 64, 128, 256, 512]
-        ]
-    }
 }
+
+# FULL EXPERIMENT: All hyperparameter regimes (uncomment to restore)
+# HYPERPARAM_REGIMES = {
+#     'standard': {
+#         'name': 'standard',
+#         'variations': [
+#             {'variation_name': 'default', 'params': BASE_HYPERPARAMS.copy()}
+#         ]
+#     },
+#     'lr_test': {
+#         'name': 'lr_test',
+#         'variations': [
+#             {'variation_name': f'lr_{lr}', 'params': {**BASE_HYPERPARAMS, 'lr': lr}}
+#             for lr in [0.0001, 0.0005, 0.001, 0.005, 0.01]
+#         ]
+#     },
+#     'dropout_test': {
+#         'name': 'dropout_test',
+#         'variations': [
+#             {'variation_name': f'dropout_{dropout}', 'params': {**BASE_HYPERPARAMS, 'dropout': dropout}}
+#             for dropout in [0.1, 0.2, 0.3, 0.4, 0.5]
+#         ]
+#     },
+#     'batch_test': {
+#         'name': 'batch_test',
+#         'variations': [
+#             {'variation_name': f'batch_{batch}', 'params': {**BASE_HYPERPARAMS, 'batch_size': batch}}
+#             for batch in [32, 64, 128, 256, 512]
+#         ]
+#     }
+# }
 
 def compute_base_model_id(model_name: str, hyperparams: Dict[str, Any]) -> str:
     model_key_params = {
