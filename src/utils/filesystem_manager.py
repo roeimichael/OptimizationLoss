@@ -10,7 +10,8 @@ def ensure_experiment_path(config: Dict[str, Any]) -> str:
     hyperparam_regime = config.get('hyperparam_regime', 'standard')
     variation_name = config.get('variation_name', 'default')
     constraint_str = f"constraint_{constraint[0]}_{constraint[1]}"
-    experiment_path = Path('results') / methodology / model_name / constraint_str / hyperparam_regime / variation_name
+    experiment_path = Path(
+        '../../results') / methodology / model_name / constraint_str / hyperparam_regime / variation_name
     experiment_path.mkdir(parents=True, exist_ok=True)
     return str(experiment_path)
 
