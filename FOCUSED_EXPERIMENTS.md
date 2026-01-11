@@ -17,17 +17,17 @@ Selected architectures represent state-of-the-art approaches for tabular data:
 
 | Model | Architecture Type | Key Feature | Complexity |
 |-------|------------------|-------------|------------|
-| **SimpleMLP** | Multi-Layer Perceptron | Standard feedforward baseline | Low |
+| **BasicNN** | Multi-Layer Perceptron | Standard feedforward baseline | Low |
 | **TabularResNet** | Residual Network | Skip connections for tabular data | Medium |
 | **FTTransformer** | Transformer | Feature tokenization + self-attention | High |
 
 **Design Rationale:**
-- **SimpleMLP:** Simple baseline to establish performance floor
+- **BasicNN:** Simple MLP baseline to establish performance floor
 - **TabularResNet:** Modern residual architecture adapted for tabular features
 - **FTTransformer:** SOTA transformer-based approach with feature tokenization
 
 **Removed from legacy vision-based experiments:**
-- BasicNN, ResNet56, DenseNet121, VGG19, InceptionV3 (designed for image data, not optimal for tabular features)
+- ResNet56, DenseNet121, VGG19, InceptionV3 (designed for image data, not optimal for tabular features)
 
 ---
 
@@ -109,7 +109,7 @@ Results will be organized hierarchically:
 ```
 results/
 └── our_approach/
-    ├── SimpleMLP/
+    ├── BasicNN/
     │   ├── constraint_0.9_0.8/  # [Soft, Soft]
     │   │   └── lr_test/
     │   │       ├── lr_0.0001/
@@ -203,7 +203,7 @@ Assuming average training time of 30 minutes per experiment:
 ## Summary
 
 The focused configuration maintains experimental rigor while drastically reducing computational requirements. By focusing on:
-- 3 tabular-specific architectures (SimpleMLP, TabularResNet, FTTransformer)
+- 3 tabular-specific architectures (BasicNN, TabularResNet, FTTransformer)
 - 4 systematic constraint combinations
 - 3 critical learning rate values
 

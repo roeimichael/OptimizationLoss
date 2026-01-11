@@ -6,7 +6,7 @@ constraint-based optimization across different models, constraints, and hyperpar
 CURRENT MODE: FOCUSED EXPERIMENTS (36 configurations)
 ===============================================================================
 Configuration breakdown:
-  - 3 tabular models: SimpleMLP, TabularResNet, FTTransformer
+  - 3 tabular models: BasicNN, TabularResNet, FTTransformer
   - 4 constraint pairs: [Soft,Soft], [Hard,Soft], [Soft,Hard], [Hard,Hard]
   - 3 learning rates: 0.0001 (low), 0.001 (medium), 0.01 (high)
   - Total: 3 × 4 × 3 = 36 experiments
@@ -32,10 +32,10 @@ METHODOLOGIES = ['our_approach']
 # ============================================================================
 
 # FOCUSED EXPERIMENT: 3 tabular-specific models
-MODELS = ['SimpleMLP', 'TabularResNet', 'FTTransformer']
+MODELS = ['BasicNN', 'TabularResNet', 'FTTransformer']
 
 # LEGACY EXPERIMENT: Vision-based models (uncomment to restore)
-# MODELS = ['BasicNN', 'ResNet56', 'DenseNet121', 'VGG19']
+# MODELS = ['ResNet56', 'DenseNet121', 'VGG19']
 
 # FULL EXPERIMENT: 5 legacy models (uncomment to restore full vision experiments)
 # MODELS = ['BasicNN', 'ResNet56', 'DenseNet121', 'InceptionV3', 'VGG19']
