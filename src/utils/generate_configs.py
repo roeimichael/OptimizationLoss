@@ -3,13 +3,17 @@
 This module generates experiment configurations for systematic evaluation of
 constraint-based optimization across different models, constraints, and hyperparameters.
 
-CURRENT MODE: FOCUSED EXPERIMENTS (48 configurations)
+CURRENT MODE: FOCUSED EXPERIMENTS (36 configurations)
 ===============================================================================
 Configuration breakdown:
-  - 4 models: BasicNN, ResNet56, DenseNet121, VGG19
+  - 3 tabular models: SimpleMLP, TabularResNet, FTTransformer
   - 4 constraint pairs: [Soft,Soft], [Hard,Soft], [Soft,Hard], [Hard,Hard]
   - 3 learning rates: 0.0001 (low), 0.001 (medium), 0.01 (high)
-  - Total: 4 × 4 × 3 = 48 experiments
+  - Total: 3 × 4 × 3 = 36 experiments
+
+To restore legacy vision-based experiments (48 configs):
+  1. Uncomment sections marked "LEGACY EXPERIMENT"
+  2. Comment out sections marked "FOCUSED EXPERIMENT"
 
 To restore full experiments (640 configs):
   1. Uncomment sections marked "FULL EXPERIMENT"
@@ -24,13 +28,16 @@ from typing import Dict, Any, List, Tuple
 METHODOLOGIES = ['our_approach']
 
 # ============================================================================
-# FOCUSED EXPERIMENTAL CONFIGURATION (48 total experiments)
+# FOCUSED EXPERIMENTAL CONFIGURATION (36 total experiments)
 # ============================================================================
 
-# FOCUSED EXPERIMENT: 4 models
-MODELS = ['BasicNN', 'ResNet56', 'DenseNet121', 'VGG19']
+# FOCUSED EXPERIMENT: 3 tabular-specific models
+MODELS = ['SimpleMLP', 'TabularResNet', 'FTTransformer']
 
-# FULL EXPERIMENT: 5 models (uncomment to restore)
+# LEGACY EXPERIMENT: Vision-based models (uncomment to restore)
+# MODELS = ['BasicNN', 'ResNet56', 'DenseNet121', 'VGG19']
+
+# FULL EXPERIMENT: 5 legacy models (uncomment to restore full vision experiments)
 # MODELS = ['BasicNN', 'ResNet56', 'DenseNet121', 'InceptionV3', 'VGG19']
 
 # FOCUSED EXPERIMENT: 4 constraint pairs

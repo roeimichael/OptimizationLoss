@@ -2,27 +2,32 @@
 
 ## Overview
 
-This document describes the reduced experimental configuration designed for faster computation and focused analysis. The configuration has been reduced from 640 to 48 experiments while maintaining comprehensive coverage of key experimental dimensions.
+This document describes the reduced experimental configuration designed for faster computation and focused analysis. The configuration has been reduced from 640 to 36 experiments while maintaining comprehensive coverage of key experimental dimensions, using tabular-specific neural architectures.
 
 ## Configuration Breakdown
 
-### Total Experiments: 48
-**Calculation:** 4 models × 4 constraint pairs × 3 learning rates = 48 experiments
+### Total Experiments: 36
+**Calculation:** 3 models × 4 constraint pairs × 3 learning rates = 36 experiments
 
 ---
 
-## 1. Neural Network Architectures (4 models)
+## 1. Neural Network Architectures (3 tabular-specific models)
 
-Selected architectures represent diverse design paradigms:
+Selected architectures represent state-of-the-art approaches for tabular data:
 
 | Model | Architecture Type | Key Feature | Complexity |
 |-------|------------------|-------------|------------|
-| **BasicNN** | Feedforward | Simple baseline | Low |
-| **ResNet56** | Residual | Skip connections | Medium |
-| **DenseNet121** | Dense connectivity | Feature reuse | High |
-| **VGG19** | Deep sequential | Depth without tricks | Medium-High |
+| **SimpleMLP** | Multi-Layer Perceptron | Standard feedforward baseline | Low |
+| **TabularResNet** | Residual Network | Skip connections for tabular data | Medium |
+| **FTTransformer** | Transformer | Feature tokenization + self-attention | High |
 
-**Removed:** InceptionV3 (multi-scale features) - to reduce computational overhead
+**Design Rationale:**
+- **SimpleMLP:** Simple baseline to establish performance floor
+- **TabularResNet:** Modern residual architecture adapted for tabular features
+- **FTTransformer:** SOTA transformer-based approach with feature tokenization
+
+**Removed from legacy vision-based experiments:**
+- BasicNN, ResNet56, DenseNet121, VGG19, InceptionV3 (designed for image data, not optimal for tabular features)
 
 ---
 
@@ -72,27 +77,28 @@ Learning rate is the most critical hyperparameter for optimization convergence. 
 
 ## 4. Rationale for Focused Configuration
 
-### Why reduce from 640 to 48?
+### Why reduce from 640 to 36?
 
 1. **Computational Efficiency**
    - 640 experiments at ~30 minutes each = ~320 hours (13+ days)
-   - 48 experiments at ~30 minutes each = ~24 hours (1 day)
-   - 13× speedup enables faster iteration
+   - 36 experiments at ~30 minutes each = ~18 hours (<1 day)
+   - 18× speedup enables rapid iteration
 
 2. **Focused Analysis**
    - Learning rate is most critical hyperparameter for multi-objective optimization
    - Constraint pairs cover all essential combinations (2×2 factorial design)
-   - 4 architectures span key design paradigms
+   - 3 tabular-specific architectures span baseline to SOTA approaches
 
 3. **Statistical Validity**
-   - 48 experiments still provide sufficient samples for meaningful comparisons
-   - 12 experiments per constraint pair enables robust statistical analysis
-   - 16 experiments per architecture supports architecture comparison
+   - 36 experiments provide sufficient samples for meaningful comparisons
+   - 9 experiments per constraint pair enables statistical analysis
+   - 12 experiments per architecture supports architecture comparison
 
 4. **Maintained Coverage**
-   - All major architectural types represented
+   - Tabular-specific architectures: from simple MLP to SOTA transformers
    - Full spectrum of constraint tightness covered
    - Critical hyperparameter (learning rate) thoroughly explored
+   - Better architectural fit for tabular student dropout data
 
 ---
 
@@ -103,7 +109,7 @@ Results will be organized hierarchically:
 ```
 results/
 └── our_approach/
-    ├── BasicNN/
+    ├── SimpleMLP/
     │   ├── constraint_0.9_0.8/  # [Soft, Soft]
     │   │   └── lr_test/
     │   │       ├── lr_0.0001/
@@ -112,11 +118,9 @@ results/
     │   ├── constraint_0.3_0.8/  # [Hard, Soft]
     │   ├── constraint_0.8_0.3/  # [Soft, Hard]
     │   └── constraint_0.3_0.3/  # [Hard, Hard]
-    ├── ResNet56/
+    ├── TabularResNet/
     │   └── [same structure]
-    ├── DenseNet121/
-    │   └── [same structure]
-    └── VGG19/
+    └── FTTransformer/
         └── [same structure]
 ```
 
@@ -188,24 +192,25 @@ Assuming average training time of 30 minutes per experiment:
 
 | Configuration | Experiments | Time (serial) | Time (4 parallel) | Time (8 parallel) |
 |--------------|-------------|---------------|-------------------|-------------------|
-| **Focused** | 48 | 24 hours | 6 hours | 3 hours |
+| **Focused (Tabular)** | 36 | 18 hours | 4.5 hours | 2.25 hours |
+| Legacy (Vision) | 48 | 24 hours | 6 hours | 3 hours |
 | Full | 640 | 320 hours | 80 hours | 40 hours |
 
-**Recommendation:** Run focused experiments first, analyze results, then selectively run additional experiments if needed.
+**Recommendation:** Run focused tabular experiments first, analyze results, then selectively run additional experiments if needed.
 
 ---
 
 ## Summary
 
 The focused configuration maintains experimental rigor while drastically reducing computational requirements. By focusing on:
-- 4 representative architectures
+- 3 tabular-specific architectures (SimpleMLP, TabularResNet, FTTransformer)
 - 4 systematic constraint combinations
 - 3 critical learning rate values
 
-We achieve a **13× speedup** while preserving the ability to:
-- Compare architectural approaches
+We achieve an **18× speedup** while preserving the ability to:
+- Compare architectural approaches optimized for tabular data
 - Analyze constraint satisfaction behavior
 - Identify optimal training hyperparameters
 - Draw statistically meaningful conclusions
 
-This configuration strikes an optimal balance between computational efficiency and experimental completeness.
+This configuration strikes an optimal balance between computational efficiency and experimental completeness, while using architectures specifically designed for tabular student dropout prediction data.

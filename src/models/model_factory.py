@@ -1,6 +1,12 @@
-from typing import Dict, Type, List, Any
+from typing import Dict, Type, Any
 import torch.nn as nn
 
+# Tabular-specific models
+from .simple_mlp import SimpleMLP
+from .tabular_resnet import TabularResNet
+from .ft_transformer import FTTransformer
+
+# Legacy vision-based models (kept for reference)
 from .basic_nn import BasicNN
 from .resnet56 import ResNet56
 from .densenet121 import DenseNet121
@@ -8,6 +14,12 @@ from .inception_v3 import InceptionV3
 from .vgg19 import VGG19
 
 MODEL_REGISTRY: Dict[str, Type[nn.Module]] = {
+    # Tabular-specific models (current experiments)
+    'SimpleMLP': SimpleMLP,
+    'TabularResNet': TabularResNet,
+    'FTTransformer': FTTransformer,
+
+    # Legacy models (vision-based, kept for backward compatibility)
     'BasicNN': BasicNN,
     'ResNet56': ResNet56,
     'DenseNet121': DenseNet121,
