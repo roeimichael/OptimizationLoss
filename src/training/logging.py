@@ -26,43 +26,36 @@ def log_progress_to_csv(csv_path: str, epoch: int, avg_ce: float, train_acc: flo
     with open(csv_path, 'a', newline='') as csvfile:
         writer = csv.writer(csvfile)
         if not file_exists:
+            # Cleaned header: ordered by class (Dropout, Enrolled, Graduate)
+            # Format: Limit_X, Hard_X, Soft_X for each class
             header = [
                 'Epoch', 'Train_Acc', 'L_pred_CE', 'L_target_Global', 'L_feat_Local',
                 'Lambda_Global', 'Lambda_Local', 'Global_Satisfied', 'Local_Satisfied',
-                'Limit_Dropout', 'Limit_Enrolled', 'Limit_Graduate',
-                'Hard_Dropout', 'Hard_Enrolled', 'Hard_Graduate',
-                'Soft_Dropout', 'Soft_Enrolled', 'Soft_Graduate',
-                'Excess_Dropout', 'Excess_Enrolled', 'Excess_Graduate',
-                'Course_ID', 'Course_Hard_Dropout', 'Course_Hard_Enrolled', 'Course_Hard_Graduate',
-                'Course_Soft_Dropout', 'Course_Soft_Enrolled', 'Course_Soft_Graduate'
+                'Limit_Dropout', 'Hard_Dropout', 'Soft_Dropout',
+                'Limit_Enrolled', 'Hard_Enrolled', 'Soft_Enrolled',
+                'Limit_Graduate', 'Hard_Graduate', 'Soft_Graduate'
             ]
             writer.writerow(header)
 
-        excess_dropout = max(0, global_soft_counts[0] - global_constraints[0]) if global_constraints[0] < 1e9 else 0
-        excess_enrolled = max(0, global_soft_counts[1] - global_constraints[1]) if global_constraints[1] < 1e9 else 0
-        excess_graduate = max(0, global_soft_counts[2] - global_constraints[2]) if global_constraints[2] < 1e9 else 0
-
-        course_hard = [0, 0, 0]
-        course_soft = [0.0, 0.0, 0.0]
-        if local_counts and tracked_course_id in local_counts:
-            course_hard = [local_counts[tracked_course_id][i] for i in range(3)]
-            course_soft = [local_soft_counts[tracked_course_id][i] for i in range(3)]
-
+        # Build row with cleaned structure (ordered by class)
         row = [
             epoch + 1,
             f"{train_acc:.4f}",
             f"{avg_ce:.6f}", f"{avg_global:.6f}", f"{avg_local:.6f}",
             f"{lambda_global:.2f}", f"{lambda_local:.2f}",
             1 if global_satisfied else 0, 1 if local_satisfied else 0,
+            # Dropout: Limit, Hard, Soft
             int(global_constraints[0]) if global_constraints[0] < 1e9 else 'inf',
+            global_counts[0],
+            f"{global_soft_counts[0]:.2f}",
+            # Enrolled: Limit, Hard, Soft
             int(global_constraints[1]) if global_constraints[1] < 1e9 else 'inf',
+            global_counts[1],
+            f"{global_soft_counts[1]:.2f}",
+            # Graduate: Limit, Hard, Soft
             int(global_constraints[2]) if global_constraints[2] < 1e9 else 'inf',
-            global_counts[0], global_counts[1], global_counts[2],
-            f"{global_soft_counts[0]:.2f}", f"{global_soft_counts[1]:.2f}", f"{global_soft_counts[2]:.2f}",
-            f"{excess_dropout:.2f}", f"{excess_enrolled:.2f}", f"{excess_graduate:.2f}",
-            tracked_course_id,
-            course_hard[0], course_hard[1], course_hard[2],
-            f"{course_soft[0]:.2f}", f"{course_soft[1]:.2f}", f"{course_soft[2]:.2f}"
+            global_counts[2],
+            f"{global_soft_counts[2]:.2f}"
         ]
         writer.writerow(row)
 

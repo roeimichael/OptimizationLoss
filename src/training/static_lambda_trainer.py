@@ -232,13 +232,13 @@ class StaticLambdaTrainer:
                     criterion_constraint.local_constraints_satisfied
                 )
 
-            # Optional: Early stopping if constraints satisfied
-            # (Can be disabled to always train for full 300 epochs)
+            # Early stopping if constraints satisfied
             if avg_global <= threshold and avg_local <= threshold:
                 print(f"\n✓ CONSTRAINTS SATISFIED at epoch {epoch + 1}!")
                 print(f"  Global loss: {avg_global:.6f} <= {threshold}")
                 print(f"  Local loss: {avg_local:.6f} <= {threshold}")
-                # Still continue training to full epochs for fair comparison
+                print(f"  Stopping early (no need to continue to {total_epochs} epochs)")
+                break
 
         # After training completes, verify constraints are satisfied
         print("\n" + "=" * 80)
