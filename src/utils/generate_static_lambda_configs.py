@@ -1,16 +1,25 @@
-"""Configuration generator for static lambda experiments.
+"""Configuration generator for static lambda experiments - Version 2 (Fine-Tuned).
 
 This module generates experiment configurations for the static lambda methodology,
 where lambda values remain constant throughout training (no adaptive increase).
 
-STATIC LAMBDA METHODOLOGY (84 configurations)
+STATIC LAMBDA METHODOLOGY V2 (48 configurations)
 ===============================================================================
 Configuration breakdown:
   - 3 tabular models: BasicNN, TabularResNet, FTTransformer
   - 4 constraint pairs: [Soft,Soft], [Hard,Soft], [Soft,Hard], [Hard,Hard]
-  - 7 lambda value combinations: very_low, low, medium, high, very_high,
-    global_heavy, local_heavy
-  - Total: 3 × 4 × 7 = 84 experiments
+  - 4 lambda values: 0.02, 0.03, 0.05, 0.07 (fine-tuned sweet spot)
+  - Total: 3 × 4 × 4 = 48 experiments
+
+Rationale for lambda value selection:
+  Based on initial experiments (v1), we found:
+  - λ ≤ 0.01: Best predictions (86% Graduate) but low convergence (33%)
+  - λ = 0.1: Moderate convergence (56%) but biased (93% Graduate)
+  - λ ≥ 1.0: High convergence (100%) but severe bias (95%+ Graduate)
+
+  V2 focuses on the sweet spot (0.02-0.07) to find optimal balance between:
+  - Constraint satisfaction (convergence rate)
+  - Prediction quality (avoid overfitting to constraints)
 
 Key differences from adaptive methodology:
   - No warmup phase (warmup_epochs = 0)
@@ -59,76 +68,49 @@ BASE_HYPERPARAMS = {
     # Note: No lambda_step (lambdas don't change)
 }
 
-# Lambda value combinations to test
-# These test different strengths of constraint enforcement
+# Lambda value combinations to test - V2 Fine-Tuned Sweet Spot
+# Focus on range 0.02-0.07 to balance convergence and prediction quality
 STATIC_LAMBDA_REGIMES = {
-    'lambda_search': {
-        'name': 'lambda_search',
+    'lambda_fine_tune': {
+        'name': 'lambda_fine_tune',
         'variations': [
-            # Symmetric lambda combinations (global = local)
+            # Fine-grained search in the sweet spot (0.02-0.07)
+            # Goal: Find lambda that gives 70-90% convergence with 75-85% Graduate predictions
             {
-                'variation_name': 'very_low',
+                'variation_name': 'lambda_0.02',
                 'params': {
                     **BASE_HYPERPARAMS,
-                    'lambda_global': 0.001,
-                    'lambda_local': 0.001
+                    'lambda_global': 0.02,
+                    'lambda_local': 0.02
                 },
-                'description': 'Very weak constraint enforcement'
+                'description': 'Just above v1 low (0.01) - expect better convergence, still good predictions'
             },
             {
-                'variation_name': 'low',
+                'variation_name': 'lambda_0.03',
                 'params': {
                     **BASE_HYPERPARAMS,
-                    'lambda_global': 0.01,
-                    'lambda_local': 0.01
+                    'lambda_global': 0.03,
+                    'lambda_local': 0.03
                 },
-                'description': 'Weak constraint enforcement (adaptive baseline)'
+                'description': 'Mid-low range - likely sweet spot for balanced performance'
             },
             {
-                'variation_name': 'medium',
+                'variation_name': 'lambda_0.05',
                 'params': {
                     **BASE_HYPERPARAMS,
-                    'lambda_global': 0.1,
-                    'lambda_local': 0.1
+                    'lambda_global': 0.05,
+                    'lambda_local': 0.05
                 },
-                'description': 'Medium constraint enforcement'
+                'description': 'Mid-range - testing higher convergence while maintaining quality'
             },
             {
-                'variation_name': 'high',
+                'variation_name': 'lambda_0.07',
                 'params': {
                     **BASE_HYPERPARAMS,
-                    'lambda_global': 1.0,
-                    'lambda_local': 1.0
+                    'lambda_global': 0.07,
+                    'lambda_local': 0.07
                 },
-                'description': 'Strong constraint enforcement'
-            },
-            {
-                'variation_name': 'very_high',
-                'params': {
-                    **BASE_HYPERPARAMS,
-                    'lambda_global': 10.0,
-                    'lambda_local': 10.0
-                },
-                'description': 'Very strong constraint enforcement'
-            },
-            # Asymmetric lambda combinations (global ≠ local)
-            {
-                'variation_name': 'global_heavy',
-                'params': {
-                    **BASE_HYPERPARAMS,
-                    'lambda_global': 1.0,
-                    'lambda_local': 0.01
-                },
-                'description': 'Prioritize global constraints over local'
-            },
-            {
-                'variation_name': 'local_heavy',
-                'params': {
-                    **BASE_HYPERPARAMS,
-                    'lambda_global': 0.01,
-                    'lambda_local': 1.0
-                },
-                'description': 'Prioritize local constraints over global'
+                'description': 'Just below v1 medium (0.1) - upper bound before predictions degrade'
             },
         ]
     }
@@ -263,7 +245,7 @@ def save_configs_and_create_structure(
 
 def generate_summary_report(
     configs: List[Dict[str, Any]],
-    output_file: str = 'static_lambda_plan_summary.txt'
+    output_file: str = 'static_lambda_v2_plan_summary.txt'
 ) -> None:
     """Generate summary report of experiment plan.
 
@@ -273,12 +255,14 @@ def generate_summary_report(
     """
     with open(output_file, 'w') as f:
         f.write("=" * 80 + "\n")
-        f.write("STATIC LAMBDA EXPERIMENT PLAN SUMMARY\n")
+        f.write("STATIC LAMBDA V2 EXPERIMENT PLAN SUMMARY (Fine-Tuned)\n")
         f.write("=" * 80 + "\n\n")
 
         f.write(f"Total Experiments: {len(configs)}\n\n")
 
-        f.write("Methodology: Static Lambda\n")
+        f.write("Methodology: Static Lambda V2\n")
+        f.write("  - Lambda range: 0.02-0.07 (sweet spot for balanced performance)\n")
+        f.write("  - Goal: 70-90% convergence with 75-85% Graduate predictions\n")
         f.write("  - No warmup phase (constraints from epoch 0)\n")
         f.write("  - Fixed epochs: 300\n")
         f.write("  - Constant lambda values (no adaptive increase)\n")
@@ -354,11 +338,11 @@ def reset_all_status_to_pending(results_dir: str = 'results/static_lambda') -> i
 def main() -> None:
     """Main entry point for configuration management."""
     print("=" * 80)
-    print("STATIC LAMBDA EXPERIMENT CONFIGURATION MANAGER")
+    print("STATIC LAMBDA V2 EXPERIMENT CONFIGURATION MANAGER (Fine-Tuned)")
     print("=" * 80)
     print()
     print("Select an option:")
-    print("  1. Generate new static lambda configurations")
+    print("  1. Generate new static lambda V2 configurations (48 experiments)")
     print("  2. Reset all experiment statuses to pending")
     print("  3. Exit")
     print()
@@ -369,7 +353,7 @@ def main() -> None:
         if choice == '1':
             print()
             print("=" * 80)
-            print("GENERATING STATIC LAMBDA CONFIGURATIONS")
+            print("GENERATING STATIC LAMBDA V2 CONFIGURATIONS")
             print("=" * 80)
             print()
             all_configs = generate_all_configs()
@@ -380,9 +364,9 @@ def main() -> None:
             print("=" * 80)
             print()
             print("Next steps:")
-            print("1. Review the static_lambda_plan_summary.txt file")
+            print("1. Review the static_lambda_v2_plan_summary.txt file")
             print("2. Run experiments using: python run_static_lambda_experiment.py <config_path>")
-            print("3. Or batch run with: find results/static_lambda -name 'config.json'")
+            print("3. Or batch run with: python main.py (set ACTIVE_METHODOLOGIES=['static_lambda'])")
             print()
             break
 
