@@ -77,38 +77,38 @@ STATIC_LAMBDA_REGIMES = {
             # Fine-grained search in the sweet spot (0.02-0.07)
             # Goal: Find lambda that gives 70-90% convergence with 75-85% Graduate predictions
             {
-                'variation_name': 'lambda_0.02',
+                'variation_name': 'lambda_0.2',
                 'params': {
                     **BASE_HYPERPARAMS,
-                    'lambda_global': 0.02,
-                    'lambda_local': 0.02
+                    'lambda_global': 0.2,
+                    'lambda_local': 0.2
                 },
                 'description': 'Just above v1 low (0.01) - expect better convergence, still good predictions'
             },
             {
-                'variation_name': 'lambda_0.03',
+                'variation_name': 'lambda_0.3',
                 'params': {
                     **BASE_HYPERPARAMS,
-                    'lambda_global': 0.03,
-                    'lambda_local': 0.03
+                    'lambda_global': 0.3,
+                    'lambda_local': 0.3
                 },
                 'description': 'Mid-low range - likely sweet spot for balanced performance'
             },
             {
-                'variation_name': 'lambda_0.05',
+                'variation_name': 'lambda_0.5',
                 'params': {
                     **BASE_HYPERPARAMS,
-                    'lambda_global': 0.05,
-                    'lambda_local': 0.05
+                    'lambda_global': 0.5,
+                    'lambda_local': 0.5
                 },
                 'description': 'Mid-range - testing higher convergence while maintaining quality'
             },
             {
-                'variation_name': 'lambda_0.07',
+                'variation_name': 'lambda_0.7',
                 'params': {
                     **BASE_HYPERPARAMS,
-                    'lambda_global': 0.07,
-                    'lambda_local': 0.07
+                    'lambda_global': 0.7,
+                    'lambda_local': 0.7
                 },
                 'description': 'Just below v1 medium (0.1) - upper bound before predictions degrade'
             },
@@ -118,15 +118,6 @@ STATIC_LAMBDA_REGIMES = {
 
 
 def compute_base_model_id(model_name: str, hyperparams: Dict[str, Any]) -> str:
-    """Compute unique identifier for base model configuration.
-
-    Args:
-        model_name: Name of the model architecture
-        hyperparams: Hyperparameter dictionary
-
-    Returns:
-        Unique hash-based identifier string
-    """
     model_key_params = {
         'model_name': model_name,
         'lr': hyperparams['lr'],
@@ -216,15 +207,6 @@ def save_configs_and_create_structure(
     configs: List[Dict[str, Any]],
     output_dir: str = 'results'
 ) -> int:
-    """Save configurations and create directory structure.
-
-    Args:
-        configs: List of configuration dictionaries
-        output_dir: Root output directory
-
-    Returns:
-        Number of configurations saved
-    """
     from src.utils.filesystem_manager import ensure_experiment_path, save_config_to_path
 
     print(f"\nCreating experiment directory structure in '{output_dir}'...")
@@ -243,72 +225,7 @@ def save_configs_and_create_structure(
     return saved_count
 
 
-def generate_summary_report(
-    configs: List[Dict[str, Any]],
-    output_file: str = 'static_lambda_v2_plan_summary.txt'
-) -> None:
-    """Generate summary report of experiment plan.
-
-    Args:
-        configs: List of configuration dictionaries
-        output_file: Output file path
-    """
-    with open(output_file, 'w') as f:
-        f.write("=" * 80 + "\n")
-        f.write("STATIC LAMBDA V2 EXPERIMENT PLAN SUMMARY (Fine-Tuned)\n")
-        f.write("=" * 80 + "\n\n")
-
-        f.write(f"Total Experiments: {len(configs)}\n\n")
-
-        f.write("Methodology: Static Lambda V2\n")
-        f.write("  - Lambda range: 0.02-0.07 (sweet spot for balanced performance)\n")
-        f.write("  - Goal: 70-90% convergence with 75-85% Graduate predictions\n")
-        f.write("  - No warmup phase (constraints from epoch 0)\n")
-        f.write("  - Fixed epochs: 300\n")
-        f.write("  - Constant lambda values (no adaptive increase)\n")
-        f.write("  - Experiments fail if constraints not met\n\n")
-
-        f.write("By Model:\n")
-        for model in MODELS:
-            count = sum(1 for c in configs if c['model_name'] == model)
-            f.write(f"  {model}: {count}\n")
-        f.write("\n")
-
-        f.write("By Constraint:\n")
-        for constraint in CONSTRAINTS:
-            count = sum(1 for c in configs if c['constraint'] == constraint)
-            f.write(f"  {constraint}: {count}\n")
-        f.write("\n")
-
-        f.write("By Lambda Configuration:\n")
-        for regime_name, regime_config in STATIC_LAMBDA_REGIMES.items():
-            for variation in regime_config['variations']:
-                name = variation['variation_name']
-                params = variation['params']
-                count = sum(1 for c in configs if c['variation_name'] == name)
-                f.write(f"  {name}: {count} experiments "
-                       f"(λ_global={params['lambda_global']}, "
-                       f"λ_local={params['lambda_local']})\n")
-        f.write("\n")
-
-        unique_base_models = len(set(c['base_model_id'] for c in configs))
-        f.write(f"Unique Base Models: {unique_base_models}\n")
-        f.write("\n")
-
-        f.write("=" * 80 + "\n")
-
-    print(f"\nSummary report saved to: {output_file}")
-
-
 def reset_all_status_to_pending(results_dir: str = 'results/static_lambda') -> int:
-    """Reset all experiment statuses to pending.
-
-    Args:
-        results_dir: Directory containing experiments
-
-    Returns:
-        Number of experiments reset
-    """
     from src.utils.filesystem_manager import get_all_experiment_configs, save_config_to_path
 
     print("=" * 80)
@@ -336,7 +253,6 @@ def reset_all_status_to_pending(results_dir: str = 'results/static_lambda') -> i
 
 
 def main() -> None:
-    """Main entry point for configuration management."""
     print("=" * 80)
     print("STATIC LAMBDA V2 EXPERIMENT CONFIGURATION MANAGER (Fine-Tuned)")
     print("=" * 80)
@@ -358,7 +274,6 @@ def main() -> None:
             print()
             all_configs = generate_all_configs()
             saved_count = save_configs_and_create_structure(all_configs)
-            generate_summary_report(all_configs)
             print("\n" + "=" * 80)
             print("CONFIGURATION GENERATION COMPLETE")
             print("=" * 80)
