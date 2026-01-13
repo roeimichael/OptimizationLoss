@@ -24,10 +24,10 @@ from src.utils.filesystem_manager import get_experiments_by_status, print_status
 
 # Map each methodology to its corresponding experiment runner script
 METHODOLOGY_RUNNERS: Dict[str, str] = {
-    'our_approach': 'run_experiment.py',
-    'static_lambda': 'run_static_lambda_experiment.py',
-    'loss_proportional': 'run_loss_proportional_experiment.py',
-    'scheduled_growth': 'run_scheduled_growth_experiment.py',
+    'our_approach': 'src/experiments/run_experiment.py',
+    'static_lambda': 'src/experiments/run_static_lambda_experiment.py',
+    'loss_proportional': 'src/experiments/run_loss_proportional_experiment.py',
+    'scheduled_growth': 'src/experiments/run_scheduled_growth_experiment.py',
 }
 
 # Specify which methodologies to run
