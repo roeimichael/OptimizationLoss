@@ -1,3 +1,0 @@
-Epoch,Train_Acc,L_pred_CE,L_target_Global,L_feat_Local,Lambda_Global,Lambda_Local,Global_Satisfied,Local_Satisfied,Limit_Dropout,Hard_Dropout,Soft_Dropout,Limit_Enrolled,Hard_Enrolled,Soft_Enrolled,Limit_Graduate,Hard_Graduate,Soft_Graduate
-1,0.5131,0.746075,0.000000,0.186829,0.20,0.20,1,0,42,5,26.32,24,0,17.43,inf,437,398.25
-3,0.5511,0.644034,0.000000,0.000000,0.20,0.20,1,1,42,5,25.92,24,0,11.90,inf,437,404.19
