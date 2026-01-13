@@ -1,5 +1,7 @@
 from .trainer import ConstraintTrainer
 from .static_lambda_trainer import StaticLambdaTrainer, ConstraintsNotMetError
+from .loss_proportional_trainer import LossProportionalTrainer
+from .scheduled_growth_trainer import ScheduledGrowthTrainer
 from .metrics import (
     compute_train_accuracy,
     get_predictions_with_probabilities,
@@ -21,6 +23,8 @@ __all__ = [
     # Trainers
     'ConstraintTrainer',  # Adaptive lambda methodology
     'StaticLambdaTrainer',  # Static lambda methodology
+    'LossProportionalTrainer',  # Loss-proportional adaptive lambda
+    'ScheduledGrowthTrainer',  # Scheduled growth with loss gates
     'ConstraintsNotMetError',  # Exception for static lambda failures
     # Metrics
     'compute_train_accuracy',

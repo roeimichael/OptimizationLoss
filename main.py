@@ -6,6 +6,8 @@ methodology type and using the appropriate experiment runner for each.
 Supported methodologies:
 - 'our_approach': Adaptive lambda methodology (uses run_experiment.py)
 - 'static_lambda': Static lambda methodology (uses run_static_lambda_experiment.py)
+- 'loss_proportional': Loss-proportional adaptive lambda (uses run_loss_proportional_experiment.py)
+- 'scheduled_growth': Scheduled growth with loss gates (uses run_scheduled_growth_experiment.py)
 """
 
 import subprocess
@@ -24,13 +26,17 @@ from src.utils.filesystem_manager import get_experiments_by_status, print_status
 METHODOLOGY_RUNNERS: Dict[str, str] = {
     'our_approach': 'run_experiment.py',
     'static_lambda': 'run_static_lambda_experiment.py',
+    'loss_proportional': 'run_loss_proportional_experiment.py',
+    'scheduled_growth': 'run_scheduled_growth_experiment.py',
 }
 
 # Specify which methodologies to run
 # Change this list to control which experiments are executed
 ACTIVE_METHODOLOGIES: List[str] = [
-    'static_lambda',  # Only run static lambda experiments
-    # 'our_approach',  # Uncomment to also run adaptive lambda experiments
+    'loss_proportional',  # Loss-proportional adaptive lambda experiments
+    'scheduled_growth',   # Scheduled growth with loss gates experiments
+    # 'static_lambda',    # Uncomment to run static lambda experiments
+    # 'our_approach',     # Uncomment to run original adaptive lambda experiments
 ]
 
 
