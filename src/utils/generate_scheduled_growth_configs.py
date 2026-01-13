@@ -10,7 +10,6 @@ BASE_CONFIG = {
     'test_size': 0.3,
     'num_classes': 3,
     'learning_rate': 0.001,
-    'warmup_epochs': 250,
     'epochs': 1000,
     'constraint_threshold': 1e-6,
     'early_stop_patience': 10,
@@ -33,7 +32,7 @@ MODELS = {
             'n_blocks': 2,
             'attention_n_heads': 4,
             'attention_dropout': 0.2,
-            'ffn_d_hidden': 128,
+            'ffn_d_hidden': 192,
             'ffn_dropout': 0.1,
             'residual_dropout': 0.0
         }
