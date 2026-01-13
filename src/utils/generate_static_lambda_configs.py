@@ -77,38 +77,38 @@ STATIC_LAMBDA_REGIMES = {
             # Fine-grained search in the sweet spot (0.02-0.07)
             # Goal: Find lambda that gives 70-90% convergence with 75-85% Graduate predictions
             {
-                'variation_name': 'lambda_0.2',
+                'variation_name': 'lambda_0.02',
                 'params': {
                     **BASE_HYPERPARAMS,
-                    'lambda_global': 0.2,
-                    'lambda_local': 0.2
+                    'lambda_global': 0.02,
+                    'lambda_local': 0.02
                 },
                 'description': 'Just above v1 low (0.01) - expect better convergence, still good predictions'
             },
             {
-                'variation_name': 'lambda_0.3',
+                'variation_name': 'lambda_0.03',
                 'params': {
                     **BASE_HYPERPARAMS,
-                    'lambda_global': 0.3,
-                    'lambda_local': 0.3
+                    'lambda_global': 0.03,
+                    'lambda_local': 0.03
                 },
                 'description': 'Mid-low range - likely sweet spot for balanced performance'
             },
             {
-                'variation_name': 'lambda_0.5',
+                'variation_name': 'lambda_0.05',
                 'params': {
                     **BASE_HYPERPARAMS,
-                    'lambda_global': 0.5,
-                    'lambda_local': 0.5
+                    'lambda_global': 0.05,
+                    'lambda_local': 0.05
                 },
                 'description': 'Mid-range - testing higher convergence while maintaining quality'
             },
             {
-                'variation_name': 'lambda_0.7',
+                'variation_name': 'lambda_0.07',
                 'params': {
                     **BASE_HYPERPARAMS,
-                    'lambda_global': 0.7,
-                    'lambda_local': 0.7
+                    'lambda_global': 0.07,
+                    'lambda_local': 0.07
                 },
                 'description': 'Just below v1 medium (0.1) - upper bound before predictions degrade'
             },
