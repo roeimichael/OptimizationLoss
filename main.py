@@ -67,12 +67,7 @@ def filter_experiments_by_methodology(
 
 def main() -> None:
     """Main experiment runner with methodology filtering."""
-    print("=" * 80)
-    print("EXPERIMENT RUNNER")
-    print("=" * 80)
-    print(f"Active Methodologies: {', '.join(ACTIVE_METHODOLOGIES)}")
-    print("=" * 80)
-    print()
+    print(f"Active Methodologies: {', '.join(ACTIVE_METHODOLOGIES)}\n")
 
     # Get status summary and pending experiments
     print_status_summary('results')
@@ -80,7 +75,7 @@ def main() -> None:
     all_pending = by_status['pending']
 
     if not all_pending:
-        print("✓ All experiments are completed or there are no configurations.")
+        print("All experiments completed or no configurations found")
         return
 
     # Filter by active methodologies
@@ -90,13 +85,11 @@ def main() -> None:
     )
 
     if not pending_experiments:
-        print(f"✓ No pending experiments found for methodologies: {ACTIVE_METHODOLOGIES}")
-        print(f"  Total pending experiments (all methodologies): {len(all_pending)}")
+        print(f"No pending experiments for: {ACTIVE_METHODOLOGIES}")
+        print(f"Total pending (all methodologies): {len(all_pending)}")
         return
 
-    print(f"\nFound {len(pending_experiments)} pending experiments "
-          f"(filtered from {len(all_pending)} total)")
-    print(f"Running experiments for: {', '.join(ACTIVE_METHODOLOGIES)}\n")
+    print(f"Found {len(pending_experiments)} pending experiments\n")
 
     completed = 0
     failed = 0
@@ -125,12 +118,7 @@ def main() -> None:
             continue
 
         # Run experiment
-        print(f"\n{'=' * 80}")
-        print(f"[{i}/{len(pending_experiments)}] Running experiment")
-        print(f"Methodology: {methodology}")
-        print(f"Runner: {runner_script}")
-        print(f"Path: {experiment_path}")
-        print(f"{'=' * 80}")
+        print(f"\n[{i}/{len(pending_experiments)}] {methodology}: {experiment_path}")
 
         try:
             result = subprocess.run(
@@ -145,31 +133,17 @@ def main() -> None:
                 failed += 1
 
         except KeyboardInterrupt:
-            print("\n\n" + "=" * 80)
-            print("INTERRUPTED BY USER")
-            print("=" * 80)
-            print(f"Completed: {completed}")
-            print(f"Failed: {failed}")
-            print(f"Remaining: {len(pending_experiments) - i}")
-            print("=" * 80)
-            print("\nResume by running 'python main.py' again.")
+            print(f"\nInterrupted: Completed={completed} Failed={failed} Remaining={len(pending_experiments) - i}")
+            print("Resume by running 'python main.py' again")
             break
 
         except Exception as e:
             failed += 1
-            print(f"[ERROR] Failed to run experiment: {e}")
+            print(f"ERROR: {e}")
 
     else:
         # Loop completed without interruption
-        print("\n" + "=" * 80)
-        print("EXPERIMENT RUN COMPLETE")
-        print("=" * 80)
-        print(f"✓ Successfully completed: {completed}")
-        print(f"✗ Failed: {failed}")
-        if skipped > 0:
-            print(f"○ Skipped: {skipped}")
-        print("=" * 80)
-        print()
+        print(f"\nRun complete: Completed={completed} Failed={failed} Skipped={skipped}")
         print_status_summary('results')
 
 

@@ -118,6 +118,15 @@ STATIC_LAMBDA_REGIMES = {
 
 
 def compute_base_model_id(model_name: str, hyperparams: Dict[str, Any]) -> str:
+    """Compute unique identifier for base model configuration.
+
+    Args:
+        model_name: Name of the model architecture
+        hyperparams: Hyperparameter dictionary
+
+    Returns:
+        Unique hash-based identifier string
+    """
     model_key_params = {
         'model_name': model_name,
         'lr': hyperparams['lr'],
@@ -176,12 +185,6 @@ def generate_all_configs() -> List[Dict[str, Any]]:
     all_configs = []
     config_id = 0
 
-    print("Generating static lambda experiment configurations...")
-    print(f"Methodologies: {len(METHODOLOGIES)}")
-    print(f"Models: {len(MODELS)}")
-    print(f"Constraints: {len(CONSTRAINTS)}")
-    print(f"Lambda Regimes: {len(STATIC_LAMBDA_REGIMES)}")
-    print()
 
     for methodology in METHODOLOGIES:
         for model_name in MODELS:
@@ -207,9 +210,17 @@ def save_configs_and_create_structure(
     configs: List[Dict[str, Any]],
     output_dir: str = 'results'
 ) -> int:
+    """Save configurations and create directory structure.
+
+    Args:
+        configs: List of configuration dictionaries
+        output_dir: Root output directory
+
+    Returns:
+        Number of configurations saved
+    """
     from src.utils.filesystem_manager import ensure_experiment_path, save_config_to_path
 
-    print(f"\nCreating experiment directory structure in '{output_dir}'...")
     saved_count = 0
 
     for i, config in enumerate(configs):
@@ -218,20 +229,79 @@ def save_configs_and_create_structure(
         save_config_to_path(config, experiment_path)
         saved_count += 1
 
-        if (i + 1) % 20 == 0:
-            print(f"  Created {i + 1}/{len(configs)} experiment folders...")
-
-    print(f"Successfully created {saved_count} experiment configurations!")
+    print(f"Generated {saved_count} static_lambda configs")
     return saved_count
 
 
+def generate_summary_report(
+    configs: List[Dict[str, Any]],
+    output_file: str = 'static_lambda_v2_plan_summary.txt'
+) -> None:
+    """Generate summary report of experiment plan.
+
+    Args:
+        configs: List of configuration dictionaries
+        output_file: Output file path
+    """
+    with open(output_file, 'w') as f:
+        f.write("=" * 80 + "\n")
+        f.write("STATIC LAMBDA V2 EXPERIMENT PLAN SUMMARY (Fine-Tuned)\n")
+        f.write("=" * 80 + "\n\n")
+
+        f.write(f"Total Experiments: {len(configs)}\n\n")
+
+        f.write("Methodology: Static Lambda V2\n")
+        f.write("  - Lambda range: 0.02-0.07 (sweet spot for balanced performance)\n")
+        f.write("  - Goal: 70-90% convergence with 75-85% Graduate predictions\n")
+        f.write("  - No warmup phase (constraints from epoch 0)\n")
+        f.write("  - Fixed epochs: 300\n")
+        f.write("  - Constant lambda values (no adaptive increase)\n")
+        f.write("  - Experiments fail if constraints not met\n\n")
+
+        f.write("By Model:\n")
+        for model in MODELS:
+            count = sum(1 for c in configs if c['model_name'] == model)
+            f.write(f"  {model}: {count}\n")
+        f.write("\n")
+
+        f.write("By Constraint:\n")
+        for constraint in CONSTRAINTS:
+            count = sum(1 for c in configs if c['constraint'] == constraint)
+            f.write(f"  {constraint}: {count}\n")
+        f.write("\n")
+
+        f.write("By Lambda Configuration:\n")
+        for regime_name, regime_config in STATIC_LAMBDA_REGIMES.items():
+            for variation in regime_config['variations']:
+                name = variation['variation_name']
+                params = variation['params']
+                count = sum(1 for c in configs if c['variation_name'] == name)
+                f.write(f"  {name}: {count} experiments "
+                       f"(λ_global={params['lambda_global']}, "
+                       f"λ_local={params['lambda_local']})\n")
+        f.write("\n")
+
+        unique_base_models = len(set(c['base_model_id'] for c in configs))
+        f.write(f"Unique Base Models: {unique_base_models}\n")
+        f.write("\n")
+
+        f.write("=" * 80 + "\n")
+
+    print(f"\nSummary report saved to: {output_file}")
+
+
 def reset_all_status_to_pending(results_dir: str = 'results/static_lambda') -> int:
+    """Reset all experiment statuses to pending.
+
+    Args:
+        results_dir: Directory containing experiments
+
+    Returns:
+        Number of experiments reset
+    """
     from src.utils.filesystem_manager import get_all_experiment_configs, save_config_to_path
 
-    print("=" * 80)
-    print("RESET ALL STATIC LAMBDA EXPERIMENT STATUSES")
-    print("=" * 80)
-    print(f"\nScanning directory: {results_dir}")
+    print(f"Resetting static lambda experiments in: {results_dir}")
 
     all_experiments = get_all_experiment_configs(results_dir)
     reset_count = 0
@@ -242,61 +312,37 @@ def reset_all_status_to_pending(results_dir: str = 'results/static_lambda') -> i
             save_config_to_path(config, experiment_path)
             reset_count += 1
 
-    print(f"\nTotal experiments found: {len(all_experiments)}")
-    print(f"Experiments reset to pending: {reset_count}")
-    print(f"Already pending: {len(all_experiments) - reset_count}")
-    print("\n" + "=" * 80)
-    print("RESET COMPLETE")
-    print("=" * 80)
+    print(f"Reset {reset_count}/{len(all_experiments)} experiments to pending")
 
     return reset_count
 
 
 def main() -> None:
-    print("=" * 80)
-    print("STATIC LAMBDA V2 EXPERIMENT CONFIGURATION MANAGER (Fine-Tuned)")
-    print("=" * 80)
-    print()
-    print("Select an option:")
-    print("  1. Generate new static lambda V2 configurations (48 experiments)")
-    print("  2. Reset all experiment statuses to pending")
-    print("  3. Exit")
-    print()
+    """Main entry point for configuration management."""
+    print("Static Lambda V2 Configuration Manager")
+    print("1. Generate configs (48 experiments)")
+    print("2. Reset statuses to pending")
+    print("3. Exit")
 
     while True:
-        choice = input("Enter your choice (1-3): ").strip()
+        choice = input("Choice (1-3): ").strip()
 
         if choice == '1':
-            print()
-            print("=" * 80)
-            print("GENERATING STATIC LAMBDA V2 CONFIGURATIONS")
-            print("=" * 80)
-            print()
             all_configs = generate_all_configs()
             saved_count = save_configs_and_create_structure(all_configs)
-            print("\n" + "=" * 80)
-            print("CONFIGURATION GENERATION COMPLETE")
-            print("=" * 80)
-            print()
-            print("Next steps:")
-            print("1. Review the static_lambda_v2_plan_summary.txt file")
-            print("2. Run experiments using: python run_static_lambda_experiment.py <config_path>")
-            print("3. Or batch run with: python main.py (set ACTIVE_METHODOLOGIES=['static_lambda'])")
-            print()
+            generate_summary_report(all_configs)
+            print("Generation complete")
             break
 
         elif choice == '2':
-            print()
             reset_all_status_to_pending()
-            print()
             break
 
         elif choice == '3':
-            print("\nExiting...")
             break
 
         else:
-            print("Invalid choice. Please enter 1, 2, or 3.")
+            print("Invalid choice")
 
 
 if __name__ == "__main__":

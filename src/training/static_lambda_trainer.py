@@ -144,14 +144,6 @@ class StaticLambdaTrainer:
         Raises:
             ConstraintsNotMetError: If constraints not satisfied after training
         """
-        print("\n" + "=" * 80)
-        print("STATIC LAMBDA TRAINING")
-        print("=" * 80)
-        print(f"Lambda Global: {self.hyperparams['lambda_global']}")
-        print(f"Lambda Local: {self.hyperparams['lambda_local']}")
-        print(f"Training Epochs: {self.hyperparams['epochs']}")
-        print(f"No warmup phase - constraints applied from epoch 0")
-        print("=" * 80)
 
         train_loader = self._create_dataloader(X_train, y_train)
         X_test = X_test.to(self.device)
@@ -234,18 +226,10 @@ class StaticLambdaTrainer:
 
             # Early stopping if constraints satisfied
             if avg_global <= threshold and avg_local <= threshold:
-                print(f"\n✓ CONSTRAINTS SATISFIED at epoch {epoch + 1}!")
-                print(f"  Global loss: {avg_global:.6f} <= {threshold}")
-                print(f"  Local loss: {avg_local:.6f} <= {threshold}")
-                print(f"  Stopping early (no need to continue to {total_epochs} epochs)")
+                print(f"Early stopping at epoch {epoch + 1} (constraints satisfied)")
                 break
 
-        # After training completes, verify constraints are satisfied
-        print("\n" + "=" * 80)
-        print("VERIFYING CONSTRAINT SATISFACTION")
-        print("=" * 80)
-
-        # Final check
+        # Verify constraints are satisfied
         self.model.eval()
         with torch.no_grad():
             final_test_logits = self.model(X_test)
@@ -258,21 +242,8 @@ class StaticLambdaTrainer:
         global_satisfied = criterion_constraint.global_constraints_satisfied
         local_satisfied = criterion_constraint.local_constraints_satisfied
 
-        print(f"Final Global Loss: {final_global_loss.item():.6f} "
-              f"(threshold: {threshold})")
-        print(f"Global Satisfied: {global_satisfied}")
-        print(f"Final Local Loss: {final_local_loss.item():.6f} "
-              f"(threshold: {threshold})")
-        print(f"Local Satisfied: {local_satisfied}")
-
-        # Raise error if constraints not satisfied
         if not (global_satisfied and local_satisfied):
-            error_msg = (
-                f"Constraints not satisfied after {total_epochs} epochs. "
-                f"Global: {global_satisfied} (loss={final_global_loss.item():.6f}), "
-                f"Local: {local_satisfied} (loss={final_local_loss.item():.6f})"
-            )
-            print(f"\n✗ {error_msg}")
+            error_msg = f"Constraints not satisfied (global={global_satisfied} local={local_satisfied})"
             raise ConstraintsNotMetError(
                 error_msg,
                 global_satisfied=global_satisfied,
@@ -281,5 +252,4 @@ class StaticLambdaTrainer:
                 final_local_loss=final_local_loss.item()
             )
 
-        print("\n✓ ALL CONSTRAINTS SATISFIED!")
         return self.model
