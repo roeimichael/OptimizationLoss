@@ -185,12 +185,6 @@ def generate_all_configs() -> List[Dict[str, Any]]:
     all_configs = []
     config_id = 0
 
-    print("Generating static lambda experiment configurations...")
-    print(f"Methodologies: {len(METHODOLOGIES)}")
-    print(f"Models: {len(MODELS)}")
-    print(f"Constraints: {len(CONSTRAINTS)}")
-    print(f"Lambda Regimes: {len(STATIC_LAMBDA_REGIMES)}")
-    print()
 
     for methodology in METHODOLOGIES:
         for model_name in MODELS:
@@ -227,7 +221,6 @@ def save_configs_and_create_structure(
     """
     from src.utils.filesystem_manager import ensure_experiment_path, save_config_to_path
 
-    print(f"\nCreating experiment directory structure in '{output_dir}'...")
     saved_count = 0
 
     for i, config in enumerate(configs):
@@ -236,10 +229,7 @@ def save_configs_and_create_structure(
         save_config_to_path(config, experiment_path)
         saved_count += 1
 
-        if (i + 1) % 20 == 0:
-            print(f"  Created {i + 1}/{len(configs)} experiment folders...")
-
-    print(f"Successfully created {saved_count} experiment configurations!")
+    print(f"Generated {saved_count} static_lambda configs")
     return saved_count
 
 
@@ -311,10 +301,7 @@ def reset_all_status_to_pending(results_dir: str = 'results/static_lambda') -> i
     """
     from src.utils.filesystem_manager import get_all_experiment_configs, save_config_to_path
 
-    print("=" * 80)
-    print("RESET ALL STATIC LAMBDA EXPERIMENT STATUSES")
-    print("=" * 80)
-    print(f"\nScanning directory: {results_dir}")
+    print(f"Resetting static lambda experiments in: {results_dir}")
 
     all_experiments = get_all_experiment_configs(results_dir)
     reset_count = 0
@@ -325,63 +312,37 @@ def reset_all_status_to_pending(results_dir: str = 'results/static_lambda') -> i
             save_config_to_path(config, experiment_path)
             reset_count += 1
 
-    print(f"\nTotal experiments found: {len(all_experiments)}")
-    print(f"Experiments reset to pending: {reset_count}")
-    print(f"Already pending: {len(all_experiments) - reset_count}")
-    print("\n" + "=" * 80)
-    print("RESET COMPLETE")
-    print("=" * 80)
+    print(f"Reset {reset_count}/{len(all_experiments)} experiments to pending")
 
     return reset_count
 
 
 def main() -> None:
     """Main entry point for configuration management."""
-    print("=" * 80)
-    print("STATIC LAMBDA V2 EXPERIMENT CONFIGURATION MANAGER (Fine-Tuned)")
-    print("=" * 80)
-    print()
-    print("Select an option:")
-    print("  1. Generate new static lambda V2 configurations (48 experiments)")
-    print("  2. Reset all experiment statuses to pending")
-    print("  3. Exit")
-    print()
+    print("Static Lambda V2 Configuration Manager")
+    print("1. Generate configs (48 experiments)")
+    print("2. Reset statuses to pending")
+    print("3. Exit")
 
     while True:
-        choice = input("Enter your choice (1-3): ").strip()
+        choice = input("Choice (1-3): ").strip()
 
         if choice == '1':
-            print()
-            print("=" * 80)
-            print("GENERATING STATIC LAMBDA V2 CONFIGURATIONS")
-            print("=" * 80)
-            print()
             all_configs = generate_all_configs()
             saved_count = save_configs_and_create_structure(all_configs)
             generate_summary_report(all_configs)
-            print("\n" + "=" * 80)
-            print("CONFIGURATION GENERATION COMPLETE")
-            print("=" * 80)
-            print()
-            print("Next steps:")
-            print("1. Review the static_lambda_v2_plan_summary.txt file")
-            print("2. Run experiments using: python run_static_lambda_experiment.py <config_path>")
-            print("3. Or batch run with: python main.py (set ACTIVE_METHODOLOGIES=['static_lambda'])")
-            print()
+            print("Generation complete")
             break
 
         elif choice == '2':
-            print()
             reset_all_status_to_pending()
-            print()
             break
 
         elif choice == '3':
-            print("\nExiting...")
             break
 
         else:
-            print("Invalid choice. Please enter 1, 2, or 3.")
+            print("Invalid choice")
 
 
 if __name__ == "__main__":
