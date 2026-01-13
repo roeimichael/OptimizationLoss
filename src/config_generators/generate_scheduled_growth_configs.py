@@ -1,16 +1,8 @@
 #!/usr/bin/env python3
-"""
-Configuration generator for scheduled growth with loss gates experiments.
-
-This script generates experiment configurations for testing the scheduled growth
-methodology where lambda only increases when constraint loss fails to improve.
-"""
 
 import json
 from pathlib import Path
-from typing import Dict, List, Any
 
-# Base configuration
 BASE_CONFIG = {
     'methodology': 'scheduled_growth',
     'data_path': 'data/processed/students_data.csv',
@@ -25,20 +17,14 @@ BASE_CONFIG = {
     'max_lambda': 1.0,
 }
 
-# Models to test
 MODELS = {
     'BasicNN': {
         'model_name': 'BasicNN',
-        'model_kwargs': {
-            'hidden_dims': [128, 64, 32]
-        }
+        'model_kwargs': {'hidden_dims': [128, 64, 32]}
     },
     'TabularResNet': {
         'model_name': 'TabularResNet',
-        'model_kwargs': {
-            'd_hidden': 128,
-            'n_blocks': 3
-        }
+        'model_kwargs': {'d_hidden': 128, 'n_blocks': 3}
     },
     'FTTransformer': {
         'model_name': 'FTTransformer',
@@ -54,112 +40,50 @@ MODELS = {
     }
 }
 
-# Constraint configurations to test
 CONSTRAINTS = {
     'hard_hard': {
         'name': 'constraint_0.3_0.3',
         'global_constraints': [0.3, 0.3],
-        'local_constraints': {
-            '0': [0.3, 0.3],
-            '1': [0.3, 0.3],
-            '2': [0.3, 0.3]
-        }
+        'local_constraints': {'0': [0.3, 0.3], '1': [0.3, 0.3], '2': [0.3, 0.3]}
     },
     'hard_soft': {
         'name': 'constraint_0.3_0.8',
         'global_constraints': [0.3, 0.8],
-        'local_constraints': {
-            '0': [0.3, 0.8],
-            '1': [0.3, 0.8],
-            '2': [0.3, 0.8]
-        }
+        'local_constraints': {'0': [0.3, 0.8], '1': [0.3, 0.8], '2': [0.3, 0.8]}
     },
     'soft_hard': {
         'name': 'constraint_0.8_0.3',
         'global_constraints': [0.8, 0.3],
-        'local_constraints': {
-            '0': [0.8, 0.3],
-            '1': [0.8, 0.3],
-            '2': [0.8, 0.3]
-        }
+        'local_constraints': {'0': [0.8, 0.3], '1': [0.8, 0.3], '2': [0.8, 0.3]}
     },
     'soft_soft': {
         'name': 'constraint_0.9_0.8',
         'global_constraints': [0.9, 0.8],
-        'local_constraints': {
-            '0': [0.9, 0.8],
-            '1': [0.9, 0.8],
-            '2': [0.9, 0.8]
-        }
+        'local_constraints': {'0': [0.9, 0.8], '1': [0.9, 0.8], '2': [0.9, 0.8]}
     }
 }
 
-# Growth factor and check frequency variations to test
 GROWTH_REGIMES = {
     'growth_factor_sweep': {
         'name': 'growth_factor_sweep',
-        'description': 'Sweep different growth factors and check frequencies',
         'variations': [
-            {
-                'variation_name': 'factor_1.05_freq_10',
-                'params': {
-                    'growth_factor': 1.05,  # 5% growth
-                    'check_frequency': 10,
-                    'initial_lambda': 0.001
-                }
-            },
-            {
-                'variation_name': 'factor_1.1_freq_10',
-                'params': {
-                    'growth_factor': 1.1,  # 10% growth
-                    'check_frequency': 10,
-                    'initial_lambda': 0.001
-                }
-            },
-            {
-                'variation_name': 'factor_1.1_freq_20',
-                'params': {
-                    'growth_factor': 1.1,  # 10% growth
-                    'check_frequency': 20,
-                    'initial_lambda': 0.001
-                }
-            },
-            {
-                'variation_name': 'factor_1.2_freq_10',
-                'params': {
-                    'growth_factor': 1.2,  # 20% growth
-                    'check_frequency': 10,
-                    'initial_lambda': 0.001
-                }
-            }
+            {'variation_name': 'factor_1.05_freq_10', 'params': {'growth_factor': 1.05, 'check_frequency': 10, 'initial_lambda': 0.001}},
+            {'variation_name': 'factor_1.1_freq_10', 'params': {'growth_factor': 1.1, 'check_frequency': 10, 'initial_lambda': 0.001}},
+            {'variation_name': 'factor_1.1_freq_20', 'params': {'growth_factor': 1.1, 'check_frequency': 20, 'initial_lambda': 0.001}},
+            {'variation_name': 'factor_1.2_freq_10', 'params': {'growth_factor': 1.2, 'check_frequency': 10, 'initial_lambda': 0.001}}
         ]
     }
 }
 
 
 def generate_scheduled_growth_configs(output_dir: str = 'results/scheduled_growth') -> int:
-    """
-    Generate all experiment configurations for scheduled growth with loss gates.
-
-    Args:
-        output_dir: Root directory for experiment results
-
-    Returns:
-        Number of configurations generated
-    """
     output_path = Path(output_dir)
     config_count = 0
 
-    print(f"Generating scheduled growth experiment configurations...")
-    print(f"Output directory: {output_path}")
-    print()
-
-    # Iterate through all combinations
     for model_key, model_config in MODELS.items():
         for constraint_key, constraint_config in CONSTRAINTS.items():
             for regime_key, regime in GROWTH_REGIMES.items():
                 for variation in regime['variations']:
-                    # Create experiment directory
                     exp_dir = (
                         output_path /
                         model_config['model_name'] /
@@ -169,7 +93,6 @@ def generate_scheduled_growth_configs(output_dir: str = 'results/scheduled_growt
                     )
                     exp_dir.mkdir(parents=True, exist_ok=True)
 
-                    # Build configuration
                     config = BASE_CONFIG.copy()
                     config.update(model_config)
                     config.update({
@@ -177,28 +100,16 @@ def generate_scheduled_growth_configs(output_dir: str = 'results/scheduled_growt
                         'local_constraints': constraint_config['local_constraints']
                     })
                     config.update(variation['params'])
-
-                    # Add metadata
                     config['experiment_id'] = f"{model_key}_{constraint_key}_{variation['variation_name']}"
                     config['regime'] = regime['name']
-                    config['regime_description'] = regime['description']
 
-                    # Save configuration
                     config_file = exp_dir / 'config.json'
                     with open(config_file, 'w') as f:
                         json.dump(config, f, indent=2)
 
                     config_count += 1
 
-    print(f"✓ Generated {config_count} experiment configurations")
-    print()
-    print(f"Breakdown:")
-    print(f"  Models: {len(MODELS)}")
-    print(f"  Constraint types: {len(CONSTRAINTS)}")
-    print(f"  Growth factor variations: {sum(len(r['variations']) for r in GROWTH_REGIMES.values())}")
-    print(f"  Total: {config_count}")
-    print()
-
+    print(f"Generated {config_count} scheduled_growth configs")
     return config_count
 
 
