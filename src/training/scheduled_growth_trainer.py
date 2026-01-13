@@ -1,12 +1,12 @@
 """
 Scheduled Growth with Loss Gates Trainer.
 
-This trainer implements adaptive lambda adjustment with scheduled checkpoints.
-Lambda only increases if the model fails to improve constraint satisfaction,
-giving the model time to adjust between lambda increases.
+This trainer implements adaptive lambda adjustment with scheduled checkpoints,
+starting from a low initial value. Lambda only increases if the model fails
+to improve constraint satisfaction, giving the model time to adjust.
 
 Key features:
-- Warmup phase: Pure prediction training (λ=0) for initial epochs
+- Starts with low initial lambda and increases throughout training
 - Scheduled growth: Check constraint improvement every N epochs
 - Loss gates: Only increase λ if loss didn't improve (or got worse)
 - Early stopping: Stops when constraints satisfied for consecutive epochs
@@ -26,12 +26,11 @@ class ScheduledGrowthTrainer:
     Trainer with scheduled growth and loss gate adaptive lambda.
 
     Algorithm:
-        1. Warmup (epochs 1 to warmup_epochs): λ = 0, train on L_pred only
-        2. Adaptive (epochs warmup_epochs+1 onwards):
-           - Every check_frequency epochs:
-             - If constraint_loss > previous_constraint_loss:
-               λ = λ × growth_factor
-             - Else: λ stays the same (model is improving)
+        1. Start with initial_lambda (low value)
+        2. Every check_frequency epochs:
+           - If constraint_loss >= previous_constraint_loss:
+             λ = λ × growth_factor
+           - Else: λ stays the same (model is improving)
         3. Early stopping: Stop if constraints satisfied for N consecutive epochs
 
     Args:
@@ -46,7 +45,6 @@ class ScheduledGrowthTrainer:
         self.device = device
 
         # Extract hyperparameters
-        self.warmup_epochs = config.get('warmup_epochs', 250)
         self.total_epochs = config.get('epochs', 1000)
         self.initial_lambda = config.get('initial_lambda', 0.001)
         self.growth_factor = config.get('growth_factor', 1.1)  # 10% increase
@@ -97,7 +95,7 @@ class ScheduledGrowthTrainer:
 
         # Tracking for scheduled growth
         previous_total_constraint_loss = float('inf')
-        last_check_epoch = self.warmup_epochs
+        last_check_epoch = 0
 
         # Early stopping tracking
         consecutive_satisfied = 0
@@ -118,117 +116,88 @@ class ScheduledGrowthTrainer:
             _, predicted = torch.max(logits, 1)
             train_acc = (predicted == y_train_t).float().mean().item()
 
-            # Phase determination
-            in_warmup = (epoch <= self.warmup_epochs)
+            # Apply constraints with current lambda from epoch 1
+            model.eval()
+            with torch.no_grad():
+                test_logits = model(X_test_t)
+                test_probs = torch.softmax(test_logits, dim=1)
 
-            if in_warmup:
-                # Warmup: No constraints
-                total_loss = loss_pred
-                loss_global = torch.tensor(0.0)
-                loss_local = torch.tensor(0.0)
-                global_satisfied = False
-                local_satisfied = False
-                current_total_constraint_loss = 0.0
-            else:
-                # Adaptive phase: Apply constraints with current lambda
-                model.eval()
-                with torch.no_grad():
-                    test_logits = model(X_test_t)
-                    test_probs = torch.softmax(test_logits, dim=1)
+            # Compute constraint losses
+            loss_global, loss_local, global_satisfied, local_satisfied, constraint_info = \
+                compute_constraints_loss(
+                    test_probs,
+                    groups_test_t,
+                    global_con,
+                    local_con,
+                    self.constraint_threshold
+                )
 
-                # Compute constraint losses
-                loss_global, loss_local, global_satisfied, local_satisfied, constraint_info = \
-                    compute_constraints_loss(
-                        test_probs,
-                        groups_test_t,
-                        global_con,
-                        local_con,
-                        self.constraint_threshold
-                    )
+            model.train()
 
-                model.train()
+            # Total loss with current lambda
+            total_loss = loss_pred + lambda_global * loss_global + lambda_local * loss_local
 
-                # Total loss with current lambda
-                total_loss = loss_pred + lambda_global * loss_global + lambda_local * loss_local
+            # Track total constraint loss
+            current_total_constraint_loss = loss_global.item() + loss_local.item()
 
-                # Track total constraint loss
-                current_total_constraint_loss = loss_global.item() + loss_local.item()
+            # Scheduled lambda update (check every N epochs)
+            epochs_since_check = epoch - last_check_epoch
+            if epochs_since_check >= self.check_frequency:
+                # Compare with previous constraint loss
+                if current_total_constraint_loss >= previous_total_constraint_loss:
+                    # Loss didn't improve (or got worse) - increase lambda
+                    lambda_global_new = lambda_global * self.growth_factor
+                    lambda_local_new = lambda_local * self.growth_factor
 
-                # Scheduled lambda update (check every N epochs)
-                epochs_since_check = epoch - last_check_epoch
-                if epochs_since_check >= self.check_frequency:
-                    # Compare with previous constraint loss
-                    if current_total_constraint_loss >= previous_total_constraint_loss:
-                        # Loss didn't improve (or got worse) - increase lambda
-                        lambda_global_new = lambda_global * self.growth_factor
-                        lambda_local_new = lambda_local * self.growth_factor
+                    # Clip to max bounds
+                    lambda_global = min(lambda_global_new, self.max_lambda)
+                    lambda_local = min(lambda_local_new, self.max_lambda)
 
-                        # Clip to max bounds
-                        lambda_global = min(lambda_global_new, self.max_lambda)
-                        lambda_local = min(lambda_local_new, self.max_lambda)
-
-                        print(f"\n[Epoch {epoch}] Constraint loss didn't improve "
-                              f"({previous_total_constraint_loss:.6f} → {current_total_constraint_loss:.6f})")
-                        print(f"  → Increasing lambda: λ_g={lambda_global:.4f}, λ_l={lambda_local:.4f}\n")
-                    else:
-                        # Loss improved - keep lambda the same
-                        print(f"\n[Epoch {epoch}] Constraint loss improved "
-                              f"({previous_total_constraint_loss:.6f} → {current_total_constraint_loss:.6f})")
-                        print(f"  → Keeping lambda: λ_g={lambda_global:.4f}, λ_l={lambda_local:.4f}\n")
-
-                    # Update tracking variables
-                    previous_total_constraint_loss = current_total_constraint_loss
-                    last_check_epoch = epoch
-
-                # Check early stopping
-                if global_satisfied and local_satisfied:
-                    consecutive_satisfied += 1
+                    print(f"\n[Epoch {epoch}] Constraint loss didn't improve "
+                          f"({previous_total_constraint_loss:.6f} → {current_total_constraint_loss:.6f})")
+                    print(f"  → Increasing lambda: λ_g={lambda_global:.4f}, λ_l={lambda_local:.4f}\n")
                 else:
-                    consecutive_satisfied = 0
+                    # Loss improved - keep lambda the same
+                    print(f"\n[Epoch {epoch}] Constraint loss improved "
+                          f"({previous_total_constraint_loss:.6f} → {current_total_constraint_loss:.6f})")
+                    print(f"  → Keeping lambda: λ_g={lambda_global:.4f}, λ_l={lambda_local:.4f}\n")
+
+                # Update tracking variables
+                previous_total_constraint_loss = current_total_constraint_loss
+                last_check_epoch = epoch
+
+            # Check early stopping
+            if global_satisfied and local_satisfied:
+                consecutive_satisfied += 1
+            else:
+                consecutive_satisfied = 0
 
             # Backward pass
             total_loss.backward()
             optimizer.step()
 
             # Log progress
-            if not in_warmup:
-                logger.log_epoch(
-                    epoch=epoch,
-                    train_acc=train_acc,
-                    loss_pred=loss_pred.item(),
-                    loss_global=loss_global.item(),
-                    loss_local=loss_local.item(),
-                    lambda_global=lambda_global,
-                    lambda_local=lambda_local,
-                    constraint_info=constraint_info
-                )
-            else:
-                # Log warmup with zeros for constraint values
-                logger.log_epoch(
-                    epoch=epoch,
-                    train_acc=train_acc,
-                    loss_pred=loss_pred.item(),
-                    loss_global=0.0,
-                    loss_local=0.0,
-                    lambda_global=0.0,
-                    lambda_local=0.0,
-                    constraint_info=None
-                )
+            logger.log_epoch(
+                epoch=epoch,
+                train_acc=train_acc,
+                loss_pred=loss_pred.item(),
+                loss_global=loss_global.item(),
+                loss_local=loss_local.item(),
+                lambda_global=lambda_global,
+                lambda_local=lambda_local,
+                constraint_info=constraint_info
+            )
 
             # Print progress
-            if epoch % 10 == 0 or epoch == self.warmup_epochs + 1:
-                if in_warmup:
-                    print(f"Epoch {epoch}/{self.total_epochs} [WARMUP] | "
-                          f"Acc: {train_acc:.4f} | L_pred: {loss_pred.item():.4f}")
-                else:
-                    print(f"Epoch {epoch}/{self.total_epochs} [SCHEDULED] | "
-                          f"Acc: {train_acc:.4f} | L_pred: {loss_pred.item():.4f} | "
-                          f"L_global: {loss_global.item():.6f} | L_local: {loss_local.item():.6f} | "
-                          f"λ_g: {lambda_global:.4f} | λ_l: {lambda_local:.4f} | "
-                          f"G_sat: {int(global_satisfied)} | L_sat: {int(local_satisfied)}")
+            if epoch % 10 == 0:
+                print(f"Epoch {epoch}/{self.total_epochs} | "
+                      f"Acc: {train_acc:.4f} | L_pred: {loss_pred.item():.4f} | "
+                      f"L_global: {loss_global.item():.6f} | L_local: {loss_local.item():.6f} | "
+                      f"λ_g: {lambda_global:.4f} | λ_l: {lambda_local:.4f} | "
+                      f"G_sat: {int(global_satisfied)} | L_sat: {int(local_satisfied)}")
 
             # Early stopping
-            if not in_warmup and consecutive_satisfied >= self.early_stop_patience:
+            if consecutive_satisfied >= self.early_stop_patience:
                 print(f"Early stopping at epoch {epoch} (constraints satisfied)")
                 break
 

@@ -2,12 +2,11 @@
 Loss-Proportional Adaptive Lambda Trainer.
 
 This trainer implements adaptive lambda adjustment where lambda grows proportionally
-to the current constraint loss. This allows the model to learn patterns first (during
-warmup) and then gradually increase constraint penalties based on violation severity.
+to the current constraint loss, starting from a low initial value.
 
 Key features:
-- Warmup phase: Pure prediction training (λ=0) for initial epochs
-- Adaptive phase: λ increases proportional to constraint loss magnitude
+- Starts with low initial lambda and increases throughout training
+- λ increases proportional to constraint loss magnitude
 - Early stopping: Stops when constraints satisfied for consecutive epochs
 """
 
@@ -25,8 +24,8 @@ class LossProportionalTrainer:
     Trainer with loss-proportional adaptive lambda adjustment.
 
     Algorithm:
-        1. Warmup (epochs 1 to warmup_epochs): λ = 0, train on L_pred only
-        2. Adaptive (epochs warmup_epochs+1 onwards):
+        1. Start with initial_lambda (low value)
+        2. Every epoch:
            - λ_global_new = λ_global_old + α × L_global
            - λ_local_new = λ_local_old + α × L_local
         3. Early stopping: Stop if constraints satisfied for N consecutive epochs
@@ -43,7 +42,6 @@ class LossProportionalTrainer:
         self.device = device
 
         # Extract hyperparameters
-        self.warmup_epochs = config.get('warmup_epochs', 250)
         self.total_epochs = config.get('epochs', 1000)
         self.lambda_lr = config.get('lambda_learning_rate', 0.01)  # α parameter
         self.initial_lambda = config.get('initial_lambda', 0.001)
@@ -110,96 +108,68 @@ class LossProportionalTrainer:
             _, predicted = torch.max(logits, 1)
             train_acc = (predicted == y_train_t).float().mean().item()
 
-            # Phase determination
-            in_warmup = (epoch <= self.warmup_epochs)
+            # Apply constraints with current lambda from epoch 1
+            model.eval()
+            with torch.no_grad():
+                test_logits = model(X_test_t)
+                test_probs = torch.softmax(test_logits, dim=1)
 
-            if in_warmup:
-                # Warmup: No constraints
-                total_loss = loss_pred
-                loss_global = torch.tensor(0.0)
-                loss_local = torch.tensor(0.0)
-                global_satisfied = False
-                local_satisfied = False
+            # Compute constraint losses
+            loss_global, loss_local, global_satisfied, local_satisfied, constraint_info = \
+                compute_constraints_loss(
+                    test_probs,
+                    groups_test_t,
+                    global_con,
+                    local_con,
+                    self.constraint_threshold
+                )
+
+            model.train()
+
+            # Total loss with current lambda
+            total_loss = loss_pred + lambda_global * loss_global + lambda_local * loss_local
+
+            # Update lambda proportionally to constraint losses
+            # λ_new = λ_old + α × L_constraint
+            lambda_global_new = lambda_global + self.lambda_lr * loss_global.item()
+            lambda_local_new = lambda_local + self.lambda_lr * loss_local.item()
+
+            # Clip to max bounds
+            lambda_global = min(lambda_global_new, self.max_lambda)
+            lambda_local = min(lambda_local_new, self.max_lambda)
+
+            # Check early stopping
+            if global_satisfied and local_satisfied:
+                consecutive_satisfied += 1
             else:
-                # Adaptive phase: Apply constraints with current lambda
-                model.eval()
-                with torch.no_grad():
-                    test_logits = model(X_test_t)
-                    test_probs = torch.softmax(test_logits, dim=1)
-
-                # Compute constraint losses
-                loss_global, loss_local, global_satisfied, local_satisfied, constraint_info = \
-                    compute_constraints_loss(
-                        test_probs,
-                        groups_test_t,
-                        global_con,
-                        local_con,
-                        self.constraint_threshold
-                    )
-
-                model.train()
-
-                # Total loss with current lambda
-                total_loss = loss_pred + lambda_global * loss_global + lambda_local * loss_local
-
-                # Update lambda proportionally to constraint losses
-                # λ_new = λ_old + α × L_constraint
-                lambda_global_new = lambda_global + self.lambda_lr * loss_global.item()
-                lambda_local_new = lambda_local + self.lambda_lr * loss_local.item()
-
-                # Clip to max bounds
-                lambda_global = min(lambda_global_new, self.max_lambda)
-                lambda_local = min(lambda_local_new, self.max_lambda)
-
-                # Check early stopping
-                if global_satisfied and local_satisfied:
-                    consecutive_satisfied += 1
-                else:
-                    consecutive_satisfied = 0
+                consecutive_satisfied = 0
 
             # Backward pass
             total_loss.backward()
             optimizer.step()
 
             # Log progress
-            if not in_warmup:
-                logger.log_epoch(
-                    epoch=epoch,
-                    train_acc=train_acc,
-                    loss_pred=loss_pred.item(),
-                    loss_global=loss_global.item(),
-                    loss_local=loss_local.item(),
-                    lambda_global=lambda_global,
-                    lambda_local=lambda_local,
-                    constraint_info=constraint_info
-                )
-            else:
-                # Log warmup with zeros for constraint values
-                logger.log_epoch(
-                    epoch=epoch,
-                    train_acc=train_acc,
-                    loss_pred=loss_pred.item(),
-                    loss_global=0.0,
-                    loss_local=0.0,
-                    lambda_global=0.0,
-                    lambda_local=0.0,
-                    constraint_info=None
-                )
+            logger.log_epoch(
+                epoch=epoch,
+                train_acc=train_acc,
+                loss_pred=loss_pred.item(),
+                loss_global=loss_global.item(),
+                loss_local=loss_local.item(),
+                lambda_global=lambda_global,
+                lambda_local=lambda_local,
+                constraint_info=constraint_info
+            )
 
             # Print progress
-            if epoch % 10 == 0 or epoch == self.warmup_epochs + 1:
-                if in_warmup:
-                    print(f"Epoch {epoch}/{self.total_epochs} [WARMUP] | "
-                          f"Acc: {train_acc:.4f} | L_pred: {loss_pred.item():.4f}")
-                else:
-                    print(f"Epoch {epoch}/{self.total_epochs} [ADAPTIVE] | "
-                          f"Acc: {train_acc:.4f} | L_pred: {loss_pred.item():.4f} | "
-                          f"L_global: {loss_global.item():.6f} | L_local: {loss_local.item():.6f} | "
-                          f"λ_g: {lambda_global:.4f} | λ_l: {lambda_local:.4f} | "
-                          f"G_sat: {int(global_satisfied)} | L_sat: {int(local_satisfied)}")
+            if epoch % 10 == 0:
+                print(f"Epoch {epoch}/{self.total_epochs} | "
+                      f"Acc: {train_acc:.4f} | L_pred: {loss_pred.item():.4f} | "
+                      f"L_global: {loss_global.item():.6f} | L_local: {loss_local.item():.6f} | "
+                      f"λ_g: {lambda_global:.4f} | λ_l: {lambda_local:.4f} | "
+                      f"G_sat: {int(global_satisfied)} | L_sat: {int(local_satisfied)}")
 
             # Early stopping
-            if not in_warmup and consecutive_satisfied >= self.early_stop_patience:
+            if consecutive_satisfied >= self.early_stop_patience:
                 print(f"Early stopping at epoch {epoch} (constraints satisfied)")
                 break
 
