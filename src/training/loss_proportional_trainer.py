@@ -51,18 +51,6 @@ class LossProportionalTrainer:
         self.constraint_threshold = config.get('constraint_threshold', 1e-6)
         self.early_stop_patience = config.get('early_stop_patience', 10)
 
-        print(f"\n{'='*80}")
-        print(f"LOSS-PROPORTIONAL ADAPTIVE LAMBDA TRAINER")
-        print(f"{'='*80}")
-        print(f"Configuration:")
-        print(f"  Warmup epochs: {self.warmup_epochs}")
-        print(f"  Total epochs: {self.total_epochs}")
-        print(f"  Lambda learning rate (α): {self.lambda_lr}")
-        print(f"  Initial lambda: {self.initial_lambda}")
-        print(f"  Max lambda: {self.max_lambda}")
-        print(f"  Constraint threshold: {self.constraint_threshold}")
-        print(f"  Early stop patience: {self.early_stop_patience}")
-        print(f"{'='*80}\n")
 
     def train(
         self,
@@ -109,11 +97,6 @@ class LossProportionalTrainer:
         # Training log
         from ..training.logging import TrainingLogger
         logger = TrainingLogger(self.experiment_path)
-
-        print(f"Starting training...")
-        print(f"Phase 1: Warmup (epochs 1-{self.warmup_epochs})")
-        print(f"Phase 2: Adaptive lambda (epochs {self.warmup_epochs+1}-{self.total_epochs})")
-        print()
 
         for epoch in range(1, self.total_epochs + 1):
             model.train()
@@ -217,11 +200,7 @@ class LossProportionalTrainer:
 
             # Early stopping
             if not in_warmup and consecutive_satisfied >= self.early_stop_patience:
-                print(f"\n{'='*80}")
-                print(f"✓ EARLY STOPPING at epoch {epoch}")
-                print(f"Constraints satisfied for {consecutive_satisfied} consecutive epochs")
-                print(f"Final lambda values: λ_global={lambda_global:.4f}, λ_local={lambda_local:.4f}")
-                print(f"{'='*80}\n")
+                print(f"Early stopping at epoch {epoch} (constraints satisfied)")
                 break
 
         logger.close()
