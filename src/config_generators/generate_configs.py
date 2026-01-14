@@ -3,13 +3,13 @@
 This module generates experiment configurations for systematic evaluation of
 constraint-based optimization across different models, constraints, and hyperparameters.
 
-CURRENT MODE: FOCUSED EXPERIMENTS (36 configurations)
+CURRENT MODE: FOCUSED EXPERIMENTS (48 configurations)
 ===============================================================================
 Configuration breakdown:
   - 3 tabular models: BasicNN, TabularResNet, FTTransformer
   - 4 constraint pairs: [Soft,Soft], [Hard,Soft], [Soft,Hard], [Hard,Hard]
-  - 3 learning rates: 0.0001 (low), 0.001 (medium), 0.01 (high)
-  - Total: 3 × 4 × 3 = 36 experiments
+  - 4 learning rates: 0.0001 (low), 0.001 (medium), 0.005 (high), 0.01 (very high)
+  - Total: 3 × 4 × 4 = 48 experiments
 
 To restore legacy vision-based experiments (48 configs):
   1. Uncomment sections marked "LEGACY EXPERIMENT"
@@ -76,14 +76,14 @@ BASE_HYPERPARAMS = {
     'lambda_step': 0.01
 }
 
-# FOCUSED EXPERIMENT: Only learning rate sensitivity (3 values)
+# FOCUSED EXPERIMENT: Only learning rate sensitivity (4 values)
 # This keeps dropout and batch_size constant while varying learning rate
 HYPERPARAM_REGIMES = {
     'lr_test': {
         'name': 'lr_test',
         'variations': [
             {'variation_name': f'lr_{lr}', 'params': {**BASE_HYPERPARAMS, 'lr': lr}}
-            for lr in [0.0001, 0.001, 0.01]  # Low, Medium, High
+            for lr in [0.0001, 0.001, 0.005, 0.01]  # Low, Medium, High, Very High
         ]
     },
 }
@@ -242,9 +242,7 @@ def main() -> None:
             print("CONFIGURATION GENERATION COMPLETE")
             print("=" * 80)
             print()
-            print("Next steps:")
-            print("1. Review the experiment_plan_summary.txt file")
-            print("2. Run experiments using: python main.py")
+            print("Next step: Run experiments using: python main.py")
             print()
             break
 
