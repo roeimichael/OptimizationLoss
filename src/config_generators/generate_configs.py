@@ -88,6 +88,7 @@ HYPERPARAM_REGIMES = {
     },
 }
 
+
 # FULL EXPERIMENT: All hyperparameter regimes (uncomment to restore)
 # HYPERPARAM_REGIMES = {
 #     'standard': {
@@ -132,7 +133,9 @@ def compute_base_model_id(model_name: str, hyperparams: Dict[str, Any]) -> str:
     config_hash = hashlib.md5(config_str.encode()).hexdigest()[:12]
     return f"{model_name}_{config_hash}"
 
-def create_config(methodology: str, model_name: str, constraint: Tuple[float, float], hyperparam_regime: str, variation_name: str, hyperparam_params: Dict[str, Any]) -> Dict[str, Any]:
+
+def create_config(methodology: str, model_name: str, constraint: Tuple[float, float], hyperparam_regime: str,
+                  variation_name: str, hyperparam_params: Dict[str, Any]) -> Dict[str, Any]:
     base_model_id = compute_base_model_id(model_name, hyperparam_params)
     config = {
         'methodology': methodology,
@@ -146,6 +149,7 @@ def create_config(methodology: str, model_name: str, constraint: Tuple[float, fl
         'status': 'pending'
     }
     return config
+
 
 def generate_all_configs() -> List[Dict[str, Any]]:
     all_configs = []
@@ -174,6 +178,7 @@ def generate_all_configs() -> List[Dict[str, Any]]:
     print(f"Total configurations generated: {len(all_configs)}")
     return all_configs
 
+
 def save_configs_and_create_structure(configs: List[Dict[str, Any]], output_dir: str = 'results') -> int:
     from src.utils.filesystem_manager import ensure_experiment_path, save_config_to_path
     print(f"\nCreating experiment directory structure in '{output_dir}'...")
@@ -188,43 +193,12 @@ def save_configs_and_create_structure(configs: List[Dict[str, Any]], output_dir:
     print(f"Successfully created {saved_count} experiment configurations!")
     return saved_count
 
-def generate_summary_report(configs: List[Dict[str, Any]], output_file: str = 'experiment_plan_summary.txt') -> None:
-    with open(output_file, 'w') as f:
-        f.write("="*80 + "\n")
-        f.write("EXPERIMENT PLAN SUMMARY\n")
-        f.write("="*80 + "\n\n")
-        f.write(f"Total Experiments: {len(configs)}\n\n")
-        f.write("By Methodology:\n")
-        for methodology in METHODOLOGIES:
-            count = sum(1 for c in configs if c['methodology'] == methodology)
-            f.write(f"  {methodology}: {count}\n")
-        f.write("\n")
-        f.write("By Model:\n")
-        for model in MODELS:
-            count = sum(1 for c in configs if c['model_name'] == model)
-            f.write(f"  {model}: {count}\n")
-        f.write("\n")
-        f.write("By Constraint:\n")
-        for constraint in CONSTRAINTS:
-            count = sum(1 for c in configs if c['constraint'] == constraint)
-            f.write(f"  {constraint}: {count}\n")
-        f.write("\n")
-        f.write("By Hyperparameter Regime:\n")
-        for regime_name in HYPERPARAM_REGIMES.keys():
-            count = sum(1 for c in configs if c['hyperparam_regime'] == regime_name)
-            f.write(f"  {regime_name}: {count}\n")
-        f.write("\n")
-        unique_base_models = len(set(c['base_model_id'] for c in configs))
-        f.write(f"Unique Base Models (for pre-training): {unique_base_models}\n")
-        f.write("\n")
-        f.write("="*80 + "\n")
-    print(f"\nSummary report saved to: {output_file}")
 
 def reset_all_status_to_pending(results_dir: str = 'results') -> int:
     from src.utils.filesystem_manager import get_all_experiment_configs, save_config_to_path
-    print("="*80)
+    print("=" * 80)
     print("RESET ALL EXPERIMENT STATUSES")
-    print("="*80)
+    print("=" * 80)
     print(f"\nScanning directory: {results_dir}")
     all_experiments = get_all_experiment_configs(results_dir)
     reset_count = 0
@@ -236,15 +210,16 @@ def reset_all_status_to_pending(results_dir: str = 'results') -> int:
     print(f"\nTotal experiments found: {len(all_experiments)}")
     print(f"Experiments reset to pending: {reset_count}")
     print(f"Already pending: {len(all_experiments) - reset_count}")
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("RESET COMPLETE")
-    print("="*80)
+    print("=" * 80)
     return reset_count
 
+
 def main() -> None:
-    print("="*80)
+    print("=" * 80)
     print("EXPERIMENT CONFIGURATION MANAGER")
-    print("="*80)
+    print("=" * 80)
     print()
     print("Select an option:")
     print("  1. Generate new experiment configurations")
@@ -257,16 +232,15 @@ def main() -> None:
 
         if choice == '1':
             print()
-            print("="*80)
+            print("=" * 80)
             print("GENERATING CONFIGURATIONS")
-            print("="*80)
+            print("=" * 80)
             print()
             all_configs = generate_all_configs()
             saved_count = save_configs_and_create_structure(all_configs)
-            generate_summary_report(all_configs)
-            print("\n" + "="*80)
+            print("\n" + "=" * 80)
             print("CONFIGURATION GENERATION COMPLETE")
-            print("="*80)
+            print("=" * 80)
             print()
             print("Next steps:")
             print("1. Review the experiment_plan_summary.txt file")
@@ -286,6 +260,7 @@ def main() -> None:
 
         else:
             print("Invalid choice. Please enter 1, 2, or 3.")
+
 
 if __name__ == "__main__":
     main()
