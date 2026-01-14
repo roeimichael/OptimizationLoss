@@ -7,6 +7,45 @@ EPSILON = 1e-6
 UNLIMITED_THRESHOLD = 1e9
 
 
+def _compute_single_class_constraint_loss(
+    soft_predictions: torch.Tensor,
+    hard_predictions: torch.Tensor,
+    class_id: int,
+    constraint_value: float,
+    epsilon: float = EPSILON
+) -> tuple[torch.Tensor, bool]:
+    """Compute constraint loss for a single class.
+
+    Args:
+        soft_predictions: Soft probability predictions for the class [N, num_classes]
+        hard_predictions: Hard predictions (argmax) [N]
+        class_id: The class ID to compute constraint for
+        constraint_value: Maximum allowed count (K)
+        epsilon: Numerical stability constant
+
+    Returns:
+        tuple: (loss, is_satisfied)
+            - loss: Constraint violation loss
+            - is_satisfied: Whether hard predictions satisfy the constraint
+    """
+    # Check if constraint is unlimited
+    if constraint_value > UNLIMITED_THRESHOLD:
+        return torch.tensor(0.0, device=soft_predictions.device), True
+
+    # Check hard satisfaction
+    hard_count = (hard_predictions == class_id).sum().float()
+    is_satisfied = hard_count <= constraint_value
+
+    # Compute soft constraint loss
+    predicted_count = soft_predictions[:, class_id].sum()
+    if predicted_count > constraint_value:
+        E = torch.relu(predicted_count - constraint_value)
+        loss = E / (E + constraint_value + epsilon)
+        return loss, is_satisfied
+
+    return torch.tensor(0.0, device=soft_predictions.device), is_satisfied
+
+
 class MulticlassTransductiveLoss(nn.Module):
     def __init__(self, global_constraints, local_constraints,
                  lambda_global=1.0, lambda_local=1.0, use_ce=True):
@@ -50,30 +89,36 @@ class MulticlassTransductiveLoss(nn.Module):
         if self.global_constraints is None:
             self.global_constraints_satisfied = True
             return L_target
+
         g_cons = self.global_constraints.to(device)
+        y_hard = torch.argmax(y_proba, dim=1)
+
         num_constrained = 0
         all_satisfied = True
 
-        y_hard = torch.argmax(y_proba, dim=1)
-
         for class_id in range(NUM_CLASSES):
             K = g_cons[class_id]
+
+            # Skip unlimited constraints
             if K > UNLIMITED_THRESHOLD:
                 continue
 
-            hard_count = (y_hard == class_id).sum().float()
-            if hard_count > K:
+            # Compute constraint loss and satisfaction for this class
+            class_loss, is_satisfied = _compute_single_class_constraint_loss(
+                y_proba, y_hard, class_id, K, self.eps
+            )
+
+            if not is_satisfied:
                 all_satisfied = False
 
-            predicted_count = y_proba[:, class_id].sum()
-            if predicted_count > K:
-                E = torch.relu(predicted_count - K)
-                loss = E / (E + K + self.eps)
-                L_target = L_target + loss
+            if class_loss > 0:
+                L_target = L_target + class_loss
                 num_constrained += 1
 
+        # Average over constrained classes
         if num_constrained > 0:
             L_target = L_target / num_constrained
+
         self.global_constraints_satisfied = all_satisfied
         return L_target
 
@@ -82,38 +127,47 @@ class MulticlassTransductiveLoss(nn.Module):
         if self.local_constraint_dict is None or group_ids is None:
             self.local_constraints_satisfied = True
             return L_feat
+
         group_ids_device = group_ids.to(device)
+        y_hard = torch.argmax(y_proba, dim=1)
+
         num_constrained = 0
         all_satisfied = True
 
-        y_hard = torch.argmax(y_proba, dim=1)
-
         for group_id, buffer_name in self.local_constraint_dict.items():
-
+            # Get group mask and predictions
             in_group = (group_ids_device == group_id)
             if in_group.sum() == 0:
                 continue
+
             group_proba = y_proba[in_group]
             group_hard = y_hard[in_group]
             l_cons = getattr(self, buffer_name).to(device)
+
+            # Compute constraint for each class in this group
             for class_id in range(NUM_CLASSES):
                 K = l_cons[class_id]
+
+                # Skip unlimited constraints
                 if K > UNLIMITED_THRESHOLD:
                     continue
 
-                hard_count = (group_hard == class_id).sum().float()
-                if hard_count > K:
+                # Compute constraint loss and satisfaction for this class
+                class_loss, is_satisfied = _compute_single_class_constraint_loss(
+                    group_proba, group_hard, class_id, K, self.eps
+                )
+
+                if not is_satisfied:
                     all_satisfied = False
 
-                predicted_count = group_proba[:, class_id].sum()
-                if predicted_count > K:
-                    E = torch.relu(predicted_count - K)
-                    loss = E / (E + K + self.eps)
-                    L_feat = L_feat + loss
+                if class_loss > 0:
+                    L_feat = L_feat + class_loss
                     num_constrained += 1
 
+        # Average over constrained classes
         if num_constrained > 0:
             L_feat = L_feat / num_constrained
+
         self.local_constraints_satisfied = all_satisfied
         return L_feat
 
