@@ -2,11 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# Constants for transductive loss computation
 NUM_CLASSES = 3
-EPSILON = 1e-6  # Numerical stability epsilon for loss computation
-UNLIMITED_THRESHOLD = 1e9  # Threshold to check if constraint is unlimited
-EXCLUDED_COURSE_ID = 1  # Course ID to exclude from local constraints
+EPSILON = 1e-6
+UNLIMITED_THRESHOLD = 1e9
 
 
 class MulticlassTransductiveLoss(nn.Module):
@@ -21,7 +19,7 @@ class MulticlassTransductiveLoss(nn.Module):
         self.local_constraints_satisfied = False
         if global_constraints is not None:
             self.register_buffer('global_constraints',
-                               torch.tensor(global_constraints, dtype=torch.float32))
+                                 torch.tensor(global_constraints, dtype=torch.float32))
         else:
             self.global_constraints = None
         if local_constraints is not None:
@@ -29,7 +27,7 @@ class MulticlassTransductiveLoss(nn.Module):
             for group_id, constraints in local_constraints.items():
                 buffer_name = f'local_constraint_{group_id}'
                 self.register_buffer(buffer_name,
-                                   torch.tensor(constraints, dtype=torch.float32))
+                                     torch.tensor(constraints, dtype=torch.float32))
                 self.local_constraint_dict[group_id] = buffer_name
         else:
             self.local_constraint_dict = None
@@ -91,8 +89,7 @@ class MulticlassTransductiveLoss(nn.Module):
         y_hard = torch.argmax(y_proba, dim=1)
 
         for group_id, buffer_name in self.local_constraint_dict.items():
-            if group_id == EXCLUDED_COURSE_ID:
-                continue
+
             in_group = (group_ids_device == group_id)
             if in_group.sum() == 0:
                 continue
