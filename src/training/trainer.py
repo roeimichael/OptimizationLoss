@@ -112,8 +112,8 @@ class ConstraintTrainer:
                 train_logits = self.model(batch_X)
                 loss_ce = self.criterion_ce(train_logits, batch_y)
                 loss = (loss_ce +
-                        criterion_constraint.lambda_global * loss_global.detach() +
-                        criterion_constraint.lambda_local * loss_local.detach())
+                        criterion_constraint.lambda_global * loss_global +
+                        criterion_constraint.lambda_local * loss_local)
                 loss.backward()
                 self.optimizer.step()
                 epoch_ce_loss += loss_ce.item()
