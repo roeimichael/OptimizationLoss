@@ -116,8 +116,8 @@ class ConstraintTrainer:
                 _, _, loss_global, loss_local = criterion_constraint(test_logits, y_true=None, group_ids=group_ids)
 
                 # Scale CE loss to maintain balance with constraint losses
-                # CE weight grows proportionally with lambda to prevent gradient domination
-                ce_weight = max(1.0, (criterion_constraint.lambda_global + criterion_constraint.lambda_local) / 2)
+                # CE weight equals 1 + sum of lambdas to ensure CE remains competitive
+                ce_weight = 1.0 + criterion_constraint.lambda_global + criterion_constraint.lambda_local
 
                 loss = (ce_weight * loss_ce +
                         criterion_constraint.lambda_global * loss_global +
