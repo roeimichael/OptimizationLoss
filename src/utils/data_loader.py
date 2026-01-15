@@ -13,36 +13,16 @@ def load_presplit_data(train_path: str, test_path: str) -> Tuple[pd.DataFrame, p
 
 
 def load_experiment_data(config: Dict[str, Any]):
-    """Load and prepare data for experiment including constraint computation.
-
-    Args:
-        config: Experiment configuration containing constraint parameters
-
-    Returns:
-        Tuple of (X_train_clean, X_test_clean, y_train, y_test, groups_test,
-                  global_constraint, local_constraint)
-    """
     print("\nLoading dataset...")
     train_df, test_df = load_presplit_data(TRAIN_PATH, TEST_PATH)
     full_df = pd.concat([train_df, test_df], ignore_index=True)
 
-    # Handle both old format (constraint tuple) and new format (pre-computed constraints)
-    if 'constraint' in config:
-        # Old format: compute constraints from percentages
-        local_percent, global_percent = config['constraint']
-        groups = full_df['Course'].unique()
-        global_constraint = compute_global_constraints(full_df, TARGET_COLUMN, global_percent)
-        local_constraint = compute_local_constraints(full_df, TARGET_COLUMN, local_percent, groups)
-        print(f"Global constraint: {global_constraint}")
-        print(f"Local constraints: {len(local_constraint)} courses")
-    elif 'global_constraints' in config and 'local_constraints' in config:
-        # New format: use pre-computed constraints from config
-        global_constraint = tuple(config['global_constraints'])
-        local_constraint = {int(k): tuple(v) for k, v in config['local_constraints'].items()}
-        print(f"Global constraint: {global_constraint}")
-        print(f"Local constraints: {len(local_constraint)} groups")
-    else:
-        raise ValueError("Config must contain either 'constraint' or 'global_constraints'/'local_constraints'")
+    local_percent, global_percent = config['constraint']
+    groups = full_df['Course'].unique()
+    global_constraint = compute_global_constraints(full_df, TARGET_COLUMN, global_percent)
+    local_constraint = compute_local_constraints(full_df, TARGET_COLUMN, local_percent, groups)
+    print(f"Global constraint: {global_constraint}")
+    print(f"Local constraints: {len(local_constraint)} courses")
 
     drop_cols = [TARGET_COLUMN, 'Course']
     y_train = train_df[TARGET_COLUMN]

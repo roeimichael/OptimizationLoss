@@ -50,11 +50,7 @@ class ConstraintTrainer:
     def train_warmup(self, X_train: torch.Tensor, y_train: torch.Tensor, base_model_id: str) -> None:
         if self.from_cache:
             return
-
-        print("\n" + "=" * 80)
         print("WARMUP TRAINING")
-        print("=" * 80)
-
         train_loader = self._create_dataloader(X_train, y_train)
         warmup_epochs = self.hyperparams['warmup_epochs']
 
@@ -71,7 +67,7 @@ class ConstraintTrainer:
                 self.optimizer.step()
                 epoch_loss += loss.item()
 
-            if (epoch + 1) % 1 == 0:
+            if (epoch + 1) % 5 == 0:
                 avg_loss = epoch_loss / len(train_loader)
                 train_acc = compute_train_accuracy(self.model, train_loader, self.device)
                 log_progress_to_csv(str(self.csv_log_path), epoch, avg_loss, train_acc)
@@ -83,11 +79,7 @@ class ConstraintTrainer:
 
     def train_constraints(self, X_train: torch.Tensor, y_train: torch.Tensor, X_test: torch.Tensor,
                           groups_test: pd.Series, global_con: list, local_con: Dict[int, list]) -> nn.Module:
-
-        print("\n" + "=" * 80)
         print("CONSTRAINT OPTIMIZATION TRAINING")
-        print("=" * 80)
-
         train_loader = self._create_dataloader(X_train, y_train)
         X_test = X_test.to(self.device)
         group_ids = torch.LongTensor(groups_test.values).to(self.device)
@@ -96,30 +88,32 @@ class ConstraintTrainer:
             global_constraints=global_con,
             local_constraints=local_con,
             lambda_global=self.hyperparams['lambda_global'],
-            lambda_local=self.hyperparams['lambda_local'],
-            use_ce=False
+            lambda_local=self.hyperparams['lambda_local']
         ).to(self.device)
 
         warmup_epochs = self.hyperparams['warmup_epochs']
         total_epochs = self.hyperparams['epochs']
         threshold = self.hyperparams['constraint_threshold']
         step = self.hyperparams['lambda_step']
+        lambda_max = 50
 
         for epoch in range(warmup_epochs, total_epochs):
             self.model.train()
             epoch_ce_loss = 0.0
 
+            self.optimizer.zero_grad()
+            test_logits = self.model(X_test)
+            _, _, loss_global, loss_local = criterion_constraint(test_logits, y_true=None, group_ids=group_ids)
+
             for batch_X, batch_y in train_loader:
                 batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device)
                 self.optimizer.zero_grad()
+
                 train_logits = self.model(batch_X)
                 loss_ce = self.criterion_ce(train_logits, batch_y)
-                self.model.eval()
-                test_logits = self.model(X_test)
-                self.model.train()
-                _, _, loss_global, loss_local = criterion_constraint(test_logits, y_true=None, group_ids=group_ids)
-                loss = loss_ce + (criterion_constraint.lambda_global * loss_global) + \
-                       (criterion_constraint.lambda_local * loss_local)
+                loss = (loss_ce +
+                        criterion_constraint.lambda_global * loss_global.detach() +
+                        criterion_constraint.lambda_local * loss_local.detach())
                 loss.backward()
                 self.optimizer.step()
                 epoch_ce_loss += loss_ce.item()
@@ -128,10 +122,15 @@ class ConstraintTrainer:
             avg_global = loss_global.item()
             avg_local = loss_local.item()
 
+            print(
+                f"Epoch {epoch + 1}: CE={avg_ce:.4f}, Global={avg_global:.4f}(λ={criterion_constraint.lambda_global:.2f}), Local={avg_local:.4f}(λ={criterion_constraint.lambda_local:.2f})")
+
             if avg_global > threshold:
-                criterion_constraint.set_lambda(lambda_global=criterion_constraint.lambda_global + step)
+                new_lambda_g = min(criterion_constraint.lambda_global + step, lambda_max)
+                criterion_constraint.set_lambda(lambda_global=new_lambda_g)
             if avg_local > threshold:
-                criterion_constraint.set_lambda(lambda_local=criterion_constraint.lambda_local + step)
+                new_lambda_l = min(criterion_constraint.lambda_local + step, lambda_max)
+                criterion_constraint.set_lambda(lambda_local=new_lambda_l)
 
             if (epoch + 1) % 3 == 0 or (epoch + 1) == warmup_epochs + 1:
                 train_acc = compute_train_accuracy(self.model, train_loader, self.device)
@@ -149,6 +148,7 @@ class ConstraintTrainer:
                     criterion_constraint.lambda_local, train_acc, g_counts, g_soft, global_con,
                     criterion_constraint.global_constraints_satisfied, criterion_constraint.local_constraints_satisfied
                 )
+
             if avg_global <= threshold and avg_local <= threshold:
                 print(f"\nALL CONSTRAINTS SATISFIED at epoch {epoch + 1}!")
                 break

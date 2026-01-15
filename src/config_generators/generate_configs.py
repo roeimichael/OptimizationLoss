@@ -69,11 +69,11 @@ BASE_HYPERPARAMS = {
     'batch_size': 64,
     'hidden_dims': [128, 64],
     'epochs': 10000,
-    'lambda_global': 0.01,
-    'lambda_local': 0.01,
-    'warmup_epochs': 250,
-    'constraint_threshold': 1e-6,
-    'lambda_step': 0.01
+    'lambda_global': 0.1,
+    'lambda_local': 0.1,
+    'warmup_epochs': 50,
+    'constraint_threshold': 0.02,
+    'lambda_step': 0.005
 }
 
 # FOCUSED EXPERIMENT: Only learning rate sensitivity (4 values)
