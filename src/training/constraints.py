@@ -2,7 +2,7 @@ import numpy as np
 
 # Constants for constraint computation
 NUM_CLASSES = 3
-CONSTRAINT_SCALE_FACTOR = 10  # Divides constraint percentage to get actual limits
+CONSTRAINT_SCALE_FACTOR = 1  # Changed from 10 to 1 - use actual percentage
 UNLIMITED_CONSTRAINT = 1e10  # Value representing unlimited constraint
 GRADUATE_CLASS_ID = 2  # Graduate class is always unlimited
 EXCLUDED_COURSE_ID = 1  # Course ID to exclude from local constraints

@@ -134,7 +134,13 @@ class ConstraintTrainer:
             avg_local = epoch_local_loss / len(train_loader)
 
             print(
-                f"Epoch {epoch + 1}: CE={avg_ce:.4f}, Global={avg_global:.4f}(λ={criterion_constraint.lambda_global:.2f}), Local={avg_local:.4f}(λ={criterion_constraint.lambda_local:.2f})")
+                f"Epoch {epoch + 1}: CE={avg_ce:.4f}, Global={avg_global:.4f}(λ={criterion_constraint.lambda_global:.2f}), "
+                f"Local={avg_local:.4f}(λ={criterion_constraint.lambda_local:.2f})")
+
+            # Diagnostic: Check if local constraints are improving
+            if (epoch + 1) % 30 == 0 and avg_local > threshold:
+                print(f"  [DIAGNOSTIC] Local constraint loss stuck at {avg_local:.4f} (threshold: {threshold})")
+                print(f"  [DIAGNOSTIC] This may indicate conflicting or impossible local constraints")
 
             if avg_global > threshold:
                 new_lambda_g = min(criterion_constraint.lambda_global + step, lambda_max)
