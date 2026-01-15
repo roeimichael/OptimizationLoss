@@ -100,27 +100,34 @@ class ConstraintTrainer:
         for epoch in range(warmup_epochs, total_epochs):
             self.model.train()
             epoch_ce_loss = 0.0
-
-            self.optimizer.zero_grad()
-            test_logits = self.model(X_test)
-            _, _, loss_global, loss_local = criterion_constraint(test_logits, y_true=None, group_ids=group_ids)
+            epoch_global_loss = 0.0
+            epoch_local_loss = 0.0
 
             for batch_X, batch_y in train_loader:
                 batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device)
                 self.optimizer.zero_grad()
 
+                # Training loss
                 train_logits = self.model(batch_X)
                 loss_ce = self.criterion_ce(train_logits, batch_y)
+
+                # Constraint loss on test set (computed fresh each batch)
+                test_logits = self.model(X_test)
+                _, _, loss_global, loss_local = criterion_constraint(test_logits, y_true=None, group_ids=group_ids)
+
                 loss = (loss_ce +
-                        criterion_constraint.lambda_global * loss_global.detach() +
-                        criterion_constraint.lambda_local * loss_local.detach())
+                        criterion_constraint.lambda_global * loss_global +
+                        criterion_constraint.lambda_local * loss_local)
                 loss.backward()
                 self.optimizer.step()
+
                 epoch_ce_loss += loss_ce.item()
+                epoch_global_loss += loss_global.item()
+                epoch_local_loss += loss_local.item()
 
             avg_ce = epoch_ce_loss / len(train_loader)
-            avg_global = loss_global.item()
-            avg_local = loss_local.item()
+            avg_global = epoch_global_loss / len(train_loader)
+            avg_local = epoch_local_loss / len(train_loader)
 
             print(
                 f"Epoch {epoch + 1}: CE={avg_ce:.4f}, Global={avg_global:.4f}(λ={criterion_constraint.lambda_global:.2f}), Local={avg_local:.4f}(λ={criterion_constraint.lambda_local:.2f})")
