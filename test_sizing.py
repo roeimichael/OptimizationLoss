@@ -79,18 +79,62 @@ def validate_constraint_sizing():
         local_constraints = compute_local_constraints(full_df, TARGET_COLUMN, percentage, groups)
 
         print(f"\nLocal Constraints: {len(local_constraints)} courses")
-        all_pcts = []
-        for group_id, constraints in local_constraints.items():
-            test_group = test_df[test_df['Course'] == group_id]
-            for class_id in range(2):
-                constraint = constraints[class_id]
-                if constraint < 1e9:
-                    class_count_in_group = len(test_group[test_group[TARGET_COLUMN] == class_id])
-                    if class_count_in_group > 0:
-                        all_pcts.append((constraint / class_count_in_group) * 100)
 
-        if all_pcts:
-            print(f"Avg constraint as % of class in test group: {np.mean(all_pcts):.1f}% (range: {np.min(all_pcts):.1f}%-{np.max(all_pcts):.1f}%)")
+        # Show per-course analysis
+        print(f"\n{'Course':<8} {'Class':<10} {'Full':<8} {'Test':<8} {'Split%':<8} {'Constraint':<12} {'% Full':<8} {'% Test':<8}")
+        print("-" * 80)
+
+        all_pcts_test = []
+        all_pcts_full = []
+        for group_id in sorted(local_constraints.keys())[:5]:
+            constraints = local_constraints[group_id]
+            full_group = full_df[full_df['Course'] == group_id]
+            test_group = test_df[test_df['Course'] == group_id]
+
+            for class_id in range(2):
+                name = ["Dropout", "Enrolled"][class_id]
+                constraint = constraints[class_id]
+
+                if constraint < 1e9:
+                    full_count = len(full_group[full_group[TARGET_COLUMN] == class_id])
+                    test_count = len(test_group[test_group[TARGET_COLUMN] == class_id])
+
+                    if full_count > 0 and test_count > 0:
+                        split_pct = (test_count / full_count) * 100
+                        pct_full = (constraint / full_count) * 100
+                        pct_test = (constraint / test_count) * 100
+
+                        all_pcts_test.append(pct_test)
+                        all_pcts_full.append(pct_full)
+
+                        print(f"{group_id:<8} {name:<10} {full_count:<8} {test_count:<8} {split_pct:<7.1f}% {int(constraint):<12} {pct_full:<7.1f}% {pct_test:<7.1f}%")
+
+        if len(local_constraints) > 5:
+            print(f"... and {len(local_constraints) - 5} more courses")
+
+            # Compute for all courses
+            for group_id in local_constraints.keys():
+                if group_id in sorted(local_constraints.keys())[:5]:
+                    continue
+                constraints = local_constraints[group_id]
+                full_group = full_df[full_df['Course'] == group_id]
+                test_group = test_df[test_df['Course'] == group_id]
+
+                for class_id in range(2):
+                    constraint = constraints[class_id]
+                    if constraint < 1e9:
+                        full_count = len(full_group[full_group[TARGET_COLUMN] == class_id])
+                        test_count = len(test_group[test_group[TARGET_COLUMN] == class_id])
+                        if full_count > 0 and test_count > 0:
+                            pct_full = (constraint / full_count) * 100
+                            pct_test = (constraint / test_count) * 100
+                            all_pcts_test.append(pct_test)
+                            all_pcts_full.append(pct_full)
+
+        if all_pcts_full:
+            print(f"\nConstraint as % of FULL class count: {np.mean(all_pcts_full):.1f}% (range: {np.min(all_pcts_full):.1f}%-{np.max(all_pcts_full):.1f}%)")
+        if all_pcts_test:
+            print(f"Constraint as % of TEST class count: {np.mean(all_pcts_test):.1f}% (range: {np.min(all_pcts_test):.1f}%-{np.max(all_pcts_test):.1f}%)")
         print()
 
 
