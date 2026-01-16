@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from config.experiment_config import TRAIN_PATH, TEST_PATH, TARGET_COLUMN
 
 NUM_CLASSES = 3
-CONSTRAINT_SCALE_FACTOR = 10
+CONSTRAINT_SCALE_FACTOR = 1
 UNLIMITED_CONSTRAINT = 1e10
 GRADUATE_CLASS_ID = 2
 EXCLUDED_COURSE_ID = 1
@@ -56,7 +56,7 @@ def validate_constraint_sizing():
         print(f"CONSTRAINT PERCENTAGE: {percentage}")
         print(f"{'='*80}")
 
-        global_constraints = compute_global_constraints(full_df, TARGET_COLUMN, percentage)
+        global_constraints = compute_global_constraints(test_df, TARGET_COLUMN, percentage)
         full_counts = full_df[TARGET_COLUMN].value_counts().sort_index()
         test_counts = test_df[TARGET_COLUMN].value_counts().sort_index()
 
@@ -75,8 +75,8 @@ def validate_constraint_sizing():
                 pct = (constraint/test_count)*100 if test_count > 0 else 0
                 print(f"{name:<12} {full_count:<8} {test_count:<8} {int(constraint):<12} {pct:.1f}%")
 
-        groups = full_df['Course'].unique()
-        local_constraints = compute_local_constraints(full_df, TARGET_COLUMN, percentage, groups)
+        groups = test_df['Course'].unique()
+        local_constraints = compute_local_constraints(test_df, TARGET_COLUMN, percentage, groups)
 
         print(f"\nLocal Constraints: {len(local_constraints)} courses")
 
