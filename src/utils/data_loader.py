@@ -18,9 +18,9 @@ def load_experiment_data(config: Dict[str, Any]):
     full_df = pd.concat([train_df, test_df], ignore_index=True)
 
     local_percent, global_percent = config['constraint']
-    groups = full_df['Course'].unique()
-    global_constraint = compute_global_constraints(full_df, TARGET_COLUMN, global_percent)
-    local_constraint = compute_local_constraints(full_df, TARGET_COLUMN, local_percent, groups)
+    groups = test_df['Course'].unique()
+    global_constraint = compute_global_constraints(test_df, TARGET_COLUMN, global_percent)
+    local_constraint = compute_local_constraints(test_df, TARGET_COLUMN, local_percent, groups)
     print(f"Global constraint: {global_constraint}")
     print(f"Local constraints: {len(local_constraint)} courses")
 
