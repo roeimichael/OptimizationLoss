@@ -82,14 +82,15 @@ def validate_constraint_sizing():
         all_pcts = []
         for group_id, constraints in local_constraints.items():
             test_group = test_df[test_df['Course'] == group_id]
-            group_size = len(test_group)
             for class_id in range(2):
                 constraint = constraints[class_id]
-                if constraint < 1e9 and group_size > 0:
-                    all_pcts.append((constraint / group_size) * 100)
+                if constraint < 1e9:
+                    class_count_in_group = len(test_group[test_group[TARGET_COLUMN] == class_id])
+                    if class_count_in_group > 0:
+                        all_pcts.append((constraint / class_count_in_group) * 100)
 
         if all_pcts:
-            print(f"Avg constraint as % of test group: {np.mean(all_pcts):.1f}% (range: {np.min(all_pcts):.1f}%-{np.max(all_pcts):.1f}%)")
+            print(f"Avg constraint as % of class in test group: {np.mean(all_pcts):.1f}% (range: {np.min(all_pcts):.1f}%-{np.max(all_pcts):.1f}%)")
         print()
 
 
