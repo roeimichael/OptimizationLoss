@@ -168,7 +168,36 @@ class ConstraintTrainer:
 
             if avg_global <= threshold and avg_local <= threshold:
                 print(f"\nALL CONSTRAINTS SATISFIED at epoch {epoch + 1}!")
+                print(f"  Global loss: {avg_global:.6f}, Local loss: {avg_local:.6f}")
+                print(f"  Lambda values: Global={criterion_constraint.lambda_global:.2f}, Local={criterion_constraint.lambda_local:.2f}")
                 break
+
+            # Stop if lambda reaches max (constraints likely unachievable)
+            if criterion_constraint.lambda_global >= lambda_max * 0.95 or criterion_constraint.lambda_local >= lambda_max * 0.95:
+                print(f"\n[EARLY STOP] Lambda approaching maximum at epoch {epoch + 1}")
+                print(f"  Lambda: Global={criterion_constraint.lambda_global:.2f}, Local={criterion_constraint.lambda_local:.2f}")
+                print(f"  Constraints may be too restrictive or conflicting")
+                break
+
+            # Stop if both constraints satisfied for N consecutive epochs
+            if (epoch + 1) >= warmup_epochs + 100:  # After at least 100 constraint epochs
+                recent_satisfied = all(
+                    criterion_constraint.global_constraints_satisfied and
+                    criterion_constraint.local_constraints_satisfied
+                    for _ in range(min(30, epoch - warmup_epochs))
+                )
+                if criterion_constraint.global_constraints_satisfied and criterion_constraint.local_constraints_satisfied:
+                    # Track consecutive satisfaction
+                    if not hasattr(self, 'consecutive_satisfied'):
+                        self.consecutive_satisfied = 0
+                    self.consecutive_satisfied += 1
+
+                    if self.consecutive_satisfied >= 100:  # 100 consecutive epochs
+                        print(f"\n[CONVERGED] Both constraints satisfied for 100 consecutive epochs at epoch {epoch + 1}")
+                        print(f"  Final loss: Global={avg_global:.6f}, Local={avg_local:.6f}")
+                        break
+                else:
+                    self.consecutive_satisfied = 0
 
         return self.model
 
