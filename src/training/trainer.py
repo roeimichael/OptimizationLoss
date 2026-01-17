@@ -166,8 +166,11 @@ class ConstraintTrainer:
                     criterion_constraint.global_constraints_satisfied, criterion_constraint.local_constraints_satisfied
                 )
 
-            if avg_global <= threshold and avg_local <= threshold:
-                print(f"\nALL CONSTRAINTS SATISFIED at epoch {epoch + 1}!")
+            # Stop immediately when both constraints are satisfied
+            if criterion_constraint.global_constraints_satisfied and criterion_constraint.local_constraints_satisfied:
+                print(f"\n[CONVERGED] Both constraints satisfied at epoch {epoch + 1}")
+                print(f"  Final loss: Global={avg_global:.6f}, Local={avg_local:.6f}")
+                print(f"  Lambda values: Global={criterion_constraint.lambda_global:.2f}, Local={criterion_constraint.lambda_local:.2f}")
                 break
 
         return self.model
