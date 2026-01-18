@@ -3,21 +3,22 @@
 This module generates experiment configurations for systematic evaluation of
 constraint-based optimization across different models, constraints, and hyperparameters.
 
-CURRENT MODE: FOCUSED EXPERIMENTS (48 configurations)
+CURRENT MODE: LAMBDA STRATEGY COMPARISON (54 configurations)
 ===============================================================================
 Configuration breakdown:
   - 3 tabular models: BasicNN, TabularResNet, FTTransformer
-  - 4 constraint pairs: [Soft,Soft], [Hard,Soft], [Soft,Hard], [Hard,Hard]
-  - 4 learning rates: 0.0001 (low), 0.001 (medium), 0.005 (high), 0.01 (very high)
-  - Total: 3 × 4 × 4 = 48 experiments
+  - 3 constraint pairs: [Soft,Soft], [Soft,Hard], [Hard,Hard]
+  - 2 learning rates: 0.0001 (low), 0.00005 (very low)
+  - 3 lambda strategies: linear, transfer, balanced
+  - Total: 3 × 3 × 2 × 3 = 54 experiments
 
-To restore legacy vision-based experiments (48 configs):
-  1. Uncomment sections marked "LEGACY EXPERIMENT"
-  2. Comment out sections marked "FOCUSED EXPERIMENT"
+Lambda Strategies:
+  - linear: Baseline - increase lambda linearly when constraint not satisfied
+  - transfer: Transfer lambda step from satisfied to unsatisfied constraint
+  - balanced: Initialize lambdas based on initial loss ratio, then linear
 
-To restore full experiments (640 configs):
-  1. Uncomment sections marked "FULL EXPERIMENT"
-  2. Comment out sections marked "FOCUSED EXPERIMENT"
+To restore previous experiments:
+  - Modify CONSTRAINTS, LR_VALUES, and LAMBDA_STRATEGIES as needed
 ===============================================================================
 """
 
@@ -31,43 +32,45 @@ METHODOLOGIES = ['our_approach']
 # FOCUSED EXPERIMENTAL CONFIGURATION (36 total experiments)
 # ============================================================================
 
-# FOCUSED EXPERIMENT: 3 tabular-specific models
+# LAMBDA STRATEGY EXPERIMENT: 3 tabular-specific models
 MODELS = ['BasicNN', 'TabularResNet', 'FTTransformer']
 
-
-# FULL EXPERIMENT: 8 constraint pairs (uncomment to restore)
+# LAMBDA STRATEGY EXPERIMENT: 3 focused constraint pairs
 CONSTRAINTS = [
     (0.9, 0.8),  # [Soft, Soft] - Both permissive
-    # (0.9, 0.5),
-    # (0.8, 0.7),
-    (0.8, 0.2),  # [Soft, Hard] - Local permissive, Global restrictive
-    # (0.7, 0.5),
-    # (0.6, 0.5),
+    (0.8, 0.2),  # [Soft, Hard] - Global permissive, Local restrictive
     (0.5, 0.3),  # [Hard, Hard] - Both restrictive
-    # (0.4, 0.2)
 ]
 
+# LAMBDA STRATEGY EXPERIMENT: 3 lambda adjustment strategies
+LAMBDA_STRATEGIES = ['linear', 'transfer', 'balanced']
+
 BASE_HYPERPARAMS = {
-    'lr': 0.001,
+    'lr': 0.0001,
     'dropout': 0.3,
     'batch_size': 64,
     'hidden_dims': [128, 64],
     'epochs': 1000,
     'lambda_global': 0.1,
     'lambda_local': 0.1,
+    'lambda_strategy': 'linear',  # Default strategy
     'warmup_epochs': 50,
     'constraint_threshold': 0.02,
     'lambda_step': 0.005
 }
 
-# FOCUSED EXPERIMENT: Only learning rate sensitivity (4 values)
-# This keeps dropout and batch_size constant while varying learning rate
+# LAMBDA STRATEGY EXPERIMENT: Learning rate and lambda strategy variations
+# Vary both learning rate and lambda adjustment strategy
 HYPERPARAM_REGIMES = {
-    'lr_test': {
-        'name': 'lr_test',
+    'lr_lambda_test': {
+        'name': 'lr_lambda_test',
         'variations': [
-            {'variation_name': f'lr_{lr}', 'params': {**BASE_HYPERPARAMS, 'lr': lr}}
-            for lr in [0.0001, 0.0005]  # Low, Medium
+            {
+                'variation_name': f'lr_{lr}_lambda_{strategy}',
+                'params': {**BASE_HYPERPARAMS, 'lr': lr, 'lambda_strategy': strategy}
+            }
+            for lr in [0.0001, 0.00005]  # Low and very low learning rates
+            for strategy in LAMBDA_STRATEGIES  # All 3 lambda strategies
         ]
     },
 }

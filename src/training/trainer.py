@@ -9,6 +9,7 @@ import pandas as pd
 
 from src.models import get_model
 from src.losses import MulticlassTransductiveLoss
+from src.losses.lambda_adjusting import create_lambda_adjuster
 from src.training.metrics import compute_train_accuracy, compute_prediction_statistics
 from src.training.logging import log_progress_to_csv, print_progress
 
@@ -84,6 +85,16 @@ class ConstraintTrainer:
         X_test = X_test.to(self.device)
         group_ids = torch.LongTensor(groups_test.values).to(self.device)
 
+        # Initialize lambda adjuster based on strategy
+        lambda_strategy = self.hyperparams.get('lambda_strategy', 'linear')
+        lambda_adjuster = create_lambda_adjuster(
+            strategy=lambda_strategy,
+            lambda_step=self.hyperparams['lambda_step'],
+            lambda_max=50.0
+        )
+        print(f"Using lambda adjustment strategy: {lambda_strategy}")
+
+        # Initialize constraint loss with base lambdas
         criterion_constraint = MulticlassTransductiveLoss(
             global_constraints=global_con,
             local_constraints=local_con,
@@ -94,8 +105,7 @@ class ConstraintTrainer:
         warmup_epochs = self.hyperparams['warmup_epochs']
         total_epochs = self.hyperparams['epochs']
         threshold = self.hyperparams['constraint_threshold']
-        step = self.hyperparams['lambda_step']
-        lambda_max = 50
+        lambda_initialized = False
 
         for epoch in range(warmup_epochs, total_epochs):
             self.model.train()
@@ -142,12 +152,29 @@ class ConstraintTrainer:
                 print(f"  [DIAGNOSTIC] Local constraint loss stuck at {avg_local:.4f} (threshold: {threshold})")
                 print(f"  [DIAGNOSTIC] This may indicate conflicting or impossible local constraints")
 
-            if avg_global > threshold:
-                new_lambda_g = min(criterion_constraint.lambda_global + step, lambda_max)
-                criterion_constraint.set_lambda(lambda_global=new_lambda_g)
-            if avg_local > threshold:
-                new_lambda_l = min(criterion_constraint.lambda_local + step, lambda_max)
-                criterion_constraint.set_lambda(lambda_local=new_lambda_l)
+            # Initialize lambdas based on strategy (only once, after first constraint epoch)
+            if not lambda_initialized:
+                lambda_initialized = True
+                new_lambda_global, new_lambda_local = lambda_adjuster.initialize_lambdas(
+                    avg_global, avg_local,
+                    criterion_constraint.lambda_global, criterion_constraint.lambda_local
+                )
+                if lambda_strategy == 'balanced':
+                    print(f"  [BALANCED INIT] Adjusted lambdas: Global={new_lambda_global:.4f}, Local={new_lambda_local:.4f}")
+                    print(f"  [BALANCED INIT] Loss ratio: Global={avg_global:.4f} / Local={avg_local:.4f}")
+                criterion_constraint.set_lambda(lambda_global=new_lambda_global, lambda_local=new_lambda_local)
+
+            # Adjust lambdas using the selected strategy
+            new_lambda_global, new_lambda_local = lambda_adjuster.adjust_lambdas(
+                criterion_constraint.lambda_global,
+                criterion_constraint.lambda_local,
+                criterion_constraint.global_constraints_satisfied,
+                criterion_constraint.local_constraints_satisfied,
+                avg_global,
+                avg_local,
+                threshold
+            )
+            criterion_constraint.set_lambda(lambda_global=new_lambda_global, lambda_local=new_lambda_local)
 
             if (epoch + 1) % 3 == 0 or (epoch + 1) == warmup_epochs + 1:
                 train_acc = compute_train_accuracy(self.model, train_loader, self.device)
