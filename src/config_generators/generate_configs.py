@@ -67,7 +67,7 @@ HYPERPARAM_REGIMES = {
         'name': 'lr_test',
         'variations': [
             {'variation_name': f'lr_{lr}', 'params': {**BASE_HYPERPARAMS, 'lr': lr}}
-            for lr in [0.0001, 0.005]  # Low, Medium
+            for lr in [0.0001, 0.0005]  # Low, Medium
         ]
     },
 }
