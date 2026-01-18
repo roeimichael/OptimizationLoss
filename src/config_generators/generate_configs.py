@@ -34,41 +34,25 @@ METHODOLOGIES = ['our_approach']
 # FOCUSED EXPERIMENT: 3 tabular-specific models
 MODELS = ['BasicNN', 'TabularResNet', 'FTTransformer']
 
-# LEGACY EXPERIMENT: Vision-based models (uncomment to restore)
-# MODELS = ['ResNet56', 'DenseNet121', 'VGG19']
-
-# FULL EXPERIMENT: 5 legacy models (uncomment to restore full vision experiments)
-# MODELS = ['BasicNN', 'ResNet56', 'DenseNet121', 'InceptionV3', 'VGG19']
-
-# FOCUSED EXPERIMENT: 4 constraint pairs
-# Each pair is (local_percentage, global_percentage)
-# - Soft = high percentage (more capacity, ~0.8-0.9)
-# - Hard = low percentage (less capacity, ~0.2-0.3)
-CONSTRAINTS = [
-    (0.9, 0.8),  # [Soft, Soft] - Both permissive
-    (0.3, 0.8),  # [Hard, Soft] - Local restrictive, Global permissive
-    (0.8, 0.3),  # [Soft, Hard] - Local permissive, Global restrictive
-    (0.3, 0.3),  # [Hard, Hard] - Both restrictive
-]
 
 # FULL EXPERIMENT: 8 constraint pairs (uncomment to restore)
-# CONSTRAINTS = [
-#     (0.9, 0.8),
-#     (0.9, 0.5),
-#     (0.8, 0.7),
-#     (0.8, 0.2),
-#     (0.7, 0.5),
-#     (0.6, 0.5),
-#     (0.5, 0.3),
-#     (0.4, 0.2)
-# ]
+CONSTRAINTS = [
+    (0.9, 0.8),  # [Soft, Soft] - Both permissive
+    # (0.9, 0.5),
+    # (0.8, 0.7),
+    (0.8, 0.2),  # [Soft, Hard] - Local permissive, Global restrictive
+    # (0.7, 0.5),
+    # (0.6, 0.5),
+    (0.5, 0.3),  # [Hard, Hard] - Both restrictive
+    # (0.4, 0.2)
+]
 
 BASE_HYPERPARAMS = {
     'lr': 0.001,
     'dropout': 0.3,
     'batch_size': 64,
     'hidden_dims': [128, 64],
-    'epochs': 10000,
+    'epochs': 1000,
     'lambda_global': 0.1,
     'lambda_local': 0.1,
     'warmup_epochs': 50,
@@ -83,7 +67,7 @@ HYPERPARAM_REGIMES = {
         'name': 'lr_test',
         'variations': [
             {'variation_name': f'lr_{lr}', 'params': {**BASE_HYPERPARAMS, 'lr': lr}}
-            for lr in [0.0001, 0.001, 0.005, 0.01]  # Low, Medium, High, Very High
+            for lr in [0.0001, 0.005]  # Low, Medium
         ]
     },
 }
