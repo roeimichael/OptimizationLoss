@@ -3,19 +3,20 @@
 This module generates experiment configurations for systematic evaluation of
 constraint-based optimization across different models, constraints, and hyperparameters.
 
-CURRENT MODE: LAMBDA STRATEGY COMPARISON (54 configurations)
+CURRENT MODE: LAMBDA STRATEGY COMPARISON (72 configurations)
 ===============================================================================
 Configuration breakdown:
   - 3 tabular models: BasicNN, TabularResNet, FTTransformer
   - 3 constraint pairs: [Soft,Soft], [Soft,Hard], [Hard,Hard]
   - 2 learning rates: 0.0001 (low), 0.00005 (very low)
-  - 3 lambda strategies: linear, transfer, balanced
-  - Total: 3 × 3 × 2 × 3 = 54 experiments
+  - 4 lambda strategies: linear, transfer, balanced, combined
+  - Total: 3 × 3 × 2 × 4 = 72 experiments
 
 Lambda Strategies:
   - linear: Baseline - increase lambda linearly when constraint not satisfied
   - transfer: Transfer lambda step from satisfied to unsatisfied constraint
   - balanced: Initialize lambdas based on initial loss ratio, then linear
+  - combined: Balanced initialization + Transfer adjustment (best of both)
 
 To restore previous experiments:
   - Modify CONSTRAINTS, LR_VALUES, and LAMBDA_STRATEGIES as needed
@@ -42,8 +43,8 @@ CONSTRAINTS = [
     (0.5, 0.3),  # [Hard, Hard] - Both restrictive
 ]
 
-# LAMBDA STRATEGY EXPERIMENT: 3 lambda adjustment strategies
-LAMBDA_STRATEGIES = ['linear', 'transfer', 'balanced']
+# LAMBDA STRATEGY EXPERIMENT: 4 lambda adjustment strategies
+LAMBDA_STRATEGIES = ['linear', 'transfer', 'balanced', 'combined']
 
 BASE_HYPERPARAMS = {
     'lr': 0.0001,
