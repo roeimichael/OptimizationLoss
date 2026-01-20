@@ -11,7 +11,7 @@ from src.models import get_model
 from src.losses import MulticlassTransductiveLoss
 from src.losses.lambda_adjusting import create_lambda_adjuster
 from src.training.metrics import compute_train_accuracy, compute_prediction_statistics
-from src.training.logging import log_progress_to_csv, print_progress
+from src.training.logging import log_progress_to_csv, print_progress, save_run_status
 
 
 class ConstraintTrainer:
@@ -79,16 +79,7 @@ class ConstraintTrainer:
         self._save_to_cache(base_model_id)
 
     def train_constraints(self, X_train: torch.Tensor, y_train: torch.Tensor, X_test: torch.Tensor,
-                          groups_test: pd.Series, global_con: list, local_con: Dict[int, list]) -> tuple:
-        """Train with constraint optimization.
-
-        Returns:
-            tuple: (model, status) where status is one of:
-                - 'converged': Both constraints satisfied
-                - 'max_epochs': Reached max epochs without converging
-                - 'overfit': Model overfitted to unconstrained class or losses became infinite
-                - 'interrupted': Training was manually interrupted
-        """
+                          groups_test: pd.Series, global_con: list, local_con: Dict[int, list]) -> nn.Module:
         print("CONSTRAINT OPTIMIZATION TRAINING")
         train_loader = self._create_dataloader(X_train, y_train)
         X_test = X_test.to(self.device)
@@ -115,127 +106,163 @@ class ConstraintTrainer:
         total_epochs = self.hyperparams['epochs']
         threshold = self.hyperparams['constraint_threshold']
         lambda_initialized = False
-        status = 'max_epochs'  # Default: reached max epochs without converging
 
-        try:
-            for epoch in range(warmup_epochs, total_epochs):
-                self.model.train()
-                epoch_ce_loss = 0.0
-                epoch_global_loss = 0.0
-                epoch_local_loss = 0.0
+        for epoch in range(warmup_epochs, total_epochs):
+            self.model.train()
+            epoch_ce_loss = 0.0
+            epoch_global_loss = 0.0
+            epoch_local_loss = 0.0
 
-                for batch_X, batch_y in train_loader:
-                    batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device)
-                    self.optimizer.zero_grad()
+            for batch_X, batch_y in train_loader:
+                batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device)
+                self.optimizer.zero_grad()
 
-                    # Training loss
-                    train_logits = self.model(batch_X)
-                    loss_ce = self.criterion_ce(train_logits, batch_y)
+                # Training loss
+                train_logits = self.model(batch_X)
+                loss_ce = self.criterion_ce(train_logits, batch_y)
 
-                    # Constraint loss on test set (computed fresh each batch)
-                    test_logits = self.model(X_test)
-                    _, _, loss_global, loss_local = criterion_constraint(test_logits, y_true=None, group_ids=group_ids)
+                # Constraint loss on test set (computed fresh each batch)
+                test_logits = self.model(X_test)
+                _, _, loss_global, loss_local = criterion_constraint(test_logits, y_true=None, group_ids=group_ids)
 
-                    # Scale CE loss to maintain balance with constraint losses
-                    # CE weight equals 1 + sum of lambdas to ensure CE remains competitive
-                    ce_weight = 1.0 + criterion_constraint.lambda_global + criterion_constraint.lambda_local
+                # Scale CE loss to maintain balance with constraint losses
+                # CE weight equals 1 + sum of lambdas to ensure CE remains competitive
+                ce_weight = 1.0 + criterion_constraint.lambda_global + criterion_constraint.lambda_local
 
-                    loss = (ce_weight * loss_ce +
-                            criterion_constraint.lambda_global * loss_global +
-                            criterion_constraint.lambda_local * loss_local)
-                    loss.backward()
-                    self.optimizer.step()
+                loss = (ce_weight * loss_ce +
+                        criterion_constraint.lambda_global * loss_global +
+                        criterion_constraint.lambda_local * loss_local)
+                loss.backward()
+                self.optimizer.step()
 
-                    epoch_ce_loss += loss_ce.item()
-                    epoch_global_loss += loss_global.item()
-                    epoch_local_loss += loss_local.item()
+                epoch_ce_loss += loss_ce.item()
+                epoch_global_loss += loss_global.item()
+                epoch_local_loss += loss_local.item()
 
-                avg_ce = epoch_ce_loss / len(train_loader)
-                avg_global = epoch_global_loss / len(train_loader)
-                avg_local = epoch_local_loss / len(train_loader)
+            avg_ce = epoch_ce_loss / len(train_loader)
+            avg_global = epoch_global_loss / len(train_loader)
+            avg_local = epoch_local_loss / len(train_loader)
 
-                # Safety check 3: Check for infinite losses
-                import math
-                if math.isinf(avg_ce) or math.isinf(avg_global) or math.isinf(avg_local):
-                    print(f"\n[OVERFIT] Infinite loss detected at epoch {epoch + 1}")
-                    print(f"  CE={avg_ce}, Global={avg_global}, Local={avg_local}")
-                    status = 'overfit'
-                    break
+            print(
+                f"Epoch {epoch + 1}: CE={avg_ce:.4f}, Global={avg_global:.4f}(λ={criterion_constraint.lambda_global:.2f}), "
+                f"Local={avg_local:.4f}(λ={criterion_constraint.lambda_local:.2f})")
 
-                print(
-                    f"Epoch {epoch + 1}: CE={avg_ce:.4f}, Global={avg_global:.4f}(λ={criterion_constraint.lambda_global:.2f}), "
-                    f"Local={avg_local:.4f}(λ={criterion_constraint.lambda_local:.2f})")
+            # Diagnostic: Check if local constraints are improving
+            if (epoch + 1) % 30 == 0 and avg_local > threshold:
+                print(f"  [DIAGNOSTIC] Local constraint loss stuck at {avg_local:.4f} (threshold: {threshold})")
+                print(f"  [DIAGNOSTIC] This may indicate conflicting or impossible local constraints")
 
-                # Diagnostic: Check if local constraints are improving
-                if (epoch + 1) % 30 == 0 and avg_local > threshold:
-                    print(f"  [DIAGNOSTIC] Local constraint loss stuck at {avg_local:.4f} (threshold: {threshold})")
-                    print(f"  [DIAGNOSTIC] This may indicate conflicting or impossible local constraints")
-
-                # Initialize lambdas based on strategy (only once, after first constraint epoch)
-                if not lambda_initialized:
-                    lambda_initialized = True
-                    new_lambda_global, new_lambda_local = lambda_adjuster.initialize_lambdas(
-                        avg_global, avg_local,
-                        criterion_constraint.lambda_global, criterion_constraint.lambda_local
-                    )
-                    if lambda_strategy == 'balanced':
-                        print(f"  [BALANCED INIT] Adjusted lambdas: Global={new_lambda_global:.4f}, Local={new_lambda_local:.4f}")
-                        print(f"  [BALANCED INIT] Loss ratio: Global={avg_global:.4f} / Local={avg_local:.4f}")
-                    criterion_constraint.set_lambda(lambda_global=new_lambda_global, lambda_local=new_lambda_local)
-
-                # Adjust lambdas using the selected strategy
-                new_lambda_global, new_lambda_local = lambda_adjuster.adjust_lambdas(
-                    criterion_constraint.lambda_global,
-                    criterion_constraint.lambda_local,
-                    criterion_constraint.global_constraints_satisfied,
-                    criterion_constraint.local_constraints_satisfied,
-                    avg_global,
-                    avg_local,
-                    threshold
+            # Initialize lambdas based on strategy (only once, after first constraint epoch)
+            if not lambda_initialized:
+                lambda_initialized = True
+                new_lambda_global, new_lambda_local = lambda_adjuster.initialize_lambdas(
+                    avg_global, avg_local,
+                    criterion_constraint.lambda_global, criterion_constraint.lambda_local
                 )
+                if lambda_strategy == 'balanced':
+                    print(f"  [BALANCED INIT] Adjusted lambdas: Global={new_lambda_global:.4f}, Local={new_lambda_local:.4f}")
+                    print(f"  [BALANCED INIT] Loss ratio: Global={avg_global:.4f} / Local={avg_local:.4f}")
                 criterion_constraint.set_lambda(lambda_global=new_lambda_global, lambda_local=new_lambda_local)
 
-                if (epoch + 1) % 3 == 0 or (epoch + 1) == warmup_epochs + 1:
-                    train_acc = compute_train_accuracy(self.model, train_loader, self.device)
-                    g_counts, l_counts, g_soft, l_soft = compute_prediction_statistics(self.model, X_test, group_ids)
+            # Adjust lambdas using the selected strategy
+            new_lambda_global, new_lambda_local = lambda_adjuster.adjust_lambdas(
+                criterion_constraint.lambda_global,
+                criterion_constraint.lambda_local,
+                criterion_constraint.global_constraints_satisfied,
+                criterion_constraint.local_constraints_satisfied,
+                avg_global,
+                avg_local,
+                threshold
+            )
+            criterion_constraint.set_lambda(lambda_global=new_lambda_global, lambda_local=new_lambda_local)
 
-                    # Safety check 1: Check if constrained classes are predicting 0 (overfitting to unconstrained class)
-                    # g_counts is a dict like {0: count_dropout, 1: count_enrolled, 2: count_graduate}
-                    # Check if dropout (0) and enrolled (1) are both 0 - means all predictions went to graduate (unconstrained)
-                    if g_counts[0] == 0 and g_counts[1] == 0:
-                        print(f"\n[OVERFIT] Model overfitted to unconstrained class at epoch {epoch + 1}")
-                        print(f"  All predictions are class 2 (Graduate - unconstrained class)")
-                        print(f"  Dropout predictions: {g_counts[0]}, Enrolled predictions: {g_counts[1]}")
-                        status = 'overfit'
-                        break
+            if (epoch + 1) % 3 == 0 or (epoch + 1) == warmup_epochs + 1:
+                train_acc = compute_train_accuracy(self.model, train_loader, self.device)
+                g_counts, l_counts, g_soft, l_soft = compute_prediction_statistics(self.model, X_test, group_ids)
 
-                    log_progress_to_csv(
-                        str(self.csv_log_path), epoch, avg_ce, train_acc, avg_global, avg_local,
-                        g_counts, l_counts, g_soft, l_soft,
-                        criterion_constraint.lambda_global, criterion_constraint.lambda_local,
-                        global_con, criterion_constraint.global_constraints_satisfied,
-                        criterion_constraint.local_constraints_satisfied
-                    )
-                    print_progress(
-                        epoch, avg_ce, avg_global, avg_local, criterion_constraint.lambda_global,
-                        criterion_constraint.lambda_local, train_acc, g_counts, g_soft, global_con,
-                        criterion_constraint.global_constraints_satisfied, criterion_constraint.local_constraints_satisfied
-                    )
+                log_progress_to_csv(
+                    str(self.csv_log_path), epoch, avg_ce, train_acc, avg_global, avg_local,
+                    g_counts, l_counts, g_soft, l_soft,
+                    criterion_constraint.lambda_global, criterion_constraint.lambda_local,
+                    global_con, criterion_constraint.global_constraints_satisfied,
+                    criterion_constraint.local_constraints_satisfied
+                )
+                print_progress(
+                    epoch, avg_ce, avg_global, avg_local, criterion_constraint.lambda_global,
+                    criterion_constraint.lambda_local, train_acc, g_counts, g_soft, global_con,
+                    criterion_constraint.global_constraints_satisfied, criterion_constraint.local_constraints_satisfied
+                )
 
-                # Stop immediately when both constraints are satisfied
-                if criterion_constraint.global_constraints_satisfied and criterion_constraint.local_constraints_satisfied:
-                    print(f"\n[CONVERGED] Both constraints satisfied at epoch {epoch + 1}")
-                    print(f"  Final loss: Global={avg_global:.6f}, Local={avg_local:.6f}")
-                    print(f"  Lambda values: Global={criterion_constraint.lambda_global:.2f}, Local={criterion_constraint.lambda_local:.2f}")
-                    status = 'converged'
-                    break
+            # Stop immediately when both constraints are satisfied
+            if criterion_constraint.global_constraints_satisfied and criterion_constraint.local_constraints_satisfied:
+                print(f"\n[CONVERGED] Both constraints satisfied at epoch {epoch + 1}")
+                print(f"  Final loss: Global={avg_global:.6f}, Local={avg_local:.6f}")
+                print(f"  Lambda values: Global={criterion_constraint.lambda_global:.2f}, Local={criterion_constraint.lambda_local:.2f}")
 
-        except KeyboardInterrupt:
-            # Safety check 2: Catch manual interrupt
-            print(f"\n[INTERRUPTED] Training manually interrupted at epoch {epoch + 1}")
-            status = 'interrupted'
+                # Save converged status to run_status.json
+                save_run_status(
+                    str(self.experiment_path),
+                    status='converged',
+                    epoch=epoch + 1,
+                    global_satisfied=True,
+                    local_satisfied=True,
+                    details=f"Converged at epoch {epoch + 1}. Global loss: {avg_global:.6f}, Local loss: {avg_local:.6f}"
+                )
 
-        return self.model, status
+                # Import here to avoid circular dependency
+                from src.utils.filesystem_manager import save_stop_reason
+                # Save stop reason to config.json
+                save_stop_reason(
+                    str(self.experiment_path),
+                    status='converged',
+                    reason=f"Normal convergence: Both global and local constraints satisfied at epoch {epoch + 1}",
+                    exception_type=None,
+                    final_epoch=epoch + 1,
+                    global_satisfied=True,
+                    local_satisfied=True
+                )
+                break
+        else:
+            # Loop completed without break - reached max epochs without convergence
+            print(f"\n[FAILED] Reached maximum epochs ({total_epochs}) without full convergence")
+            print(f"  Final loss: Global={avg_global:.6f}, Local={avg_local:.6f}")
+            print(f"  Constraint status: Global={'Satisfied' if criterion_constraint.global_constraints_satisfied else 'Not Satisfied'}, "
+                  f"Local={'Satisfied' if criterion_constraint.local_constraints_satisfied else 'Not Satisfied'}")
+
+            # Save failed status to run_status.json
+            save_run_status(
+                str(self.experiment_path),
+                status='failed',
+                epoch=total_epochs,
+                global_satisfied=criterion_constraint.global_constraints_satisfied,
+                local_satisfied=criterion_constraint.local_satisfied,
+                details=f"Reached max epochs without both constraints satisfied. Global loss: {avg_global:.6f}, Local loss: {avg_local:.6f}"
+            )
+
+            # Import here to avoid circular dependency
+            from src.utils.filesystem_manager import save_stop_reason
+            # Determine specific failure reason
+            if criterion_constraint.global_constraints_satisfied and not criterion_constraint.local_constraints_satisfied:
+                reason = f"Reached {total_epochs} epochs with only Global constraint satisfied (Local constraint not satisfied)"
+            elif not criterion_constraint.global_constraints_satisfied and criterion_constraint.local_constraints_satisfied:
+                reason = f"Reached {total_epochs} epochs with only Local constraint satisfied (Global constraint not satisfied)"
+            elif not criterion_constraint.global_constraints_satisfied and not criterion_constraint.local_constraints_satisfied:
+                reason = f"Reached {total_epochs} epochs without satisfying either Global or Local constraints"
+            else:
+                reason = f"Reached {total_epochs} epochs (unexpected state)"
+
+            # Save stop reason to config.json
+            save_stop_reason(
+                str(self.experiment_path),
+                status='failed',
+                reason=reason,
+                exception_type=None,
+                final_epoch=total_epochs,
+                global_satisfied=criterion_constraint.global_constraints_satisfied,
+                local_satisfied=criterion_constraint.local_constraints_satisfied
+            )
+
+        return self.model
 
     def _get_cache_path(self, base_model_id: str) -> Path:
         cache_dir = Path('model_cache')

@@ -11,9 +11,9 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 from src.utils.data_loader import load_experiment_data
 from src.training.trainer import ConstraintTrainer
 from src.training.metrics import get_predictions_with_probabilities, compute_metrics
-from src.training.logging import save_final_predictions, save_evaluation_metrics
+from src.training.logging import save_final_predictions, save_evaluation_metrics, save_run_status
 from src.utils.filesystem_manager import load_config_from_path, save_config_to_path, mark_experiment_complete, \
-    update_experiment_status
+    update_experiment_status, save_stop_reason
 
 
 def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
@@ -60,35 +60,218 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     trainer.setup_model(input_dim=input_dim, base_model_id=config['base_model_id'])
 
     start_time = time.time()
-    trainer.train_warmup(X_train_tensor, y_train_tensor, config['base_model_id'])
-    model, training_status = trainer.train_constraints(
-        X_train=X_train_tensor,
-        y_train=y_train_tensor,
-        X_test=X_test_tensor,
-        groups_test=groups_test,
-        global_con=global_constraint,
-        local_con=local_constraint
-    )
+    try:
+        trainer.train_warmup(X_train_tensor, y_train_tensor, config['base_model_id'])
+        model = trainer.train_constraints(
+            X_train=X_train_tensor,
+            y_train=y_train_tensor,
+            X_test=X_test_tensor,
+            groups_test=groups_test,
+            global_con=global_constraint,
+            local_con=local_constraint
+        )
+    except KeyboardInterrupt:
+        print("\n[INTERRUPTED] Training interrupted by user (Ctrl+C)")
+        # Check if we have a training log to get the last epoch and constraint status
+        log_path = Path(experiment_path) / 'training_log.csv'
+        last_epoch = 0
+        global_sat = False
+        local_sat = False
+        if log_path.exists():
+            try:
+                df = pd.read_csv(log_path)
+                if len(df) > 0:
+                    last_row = df.iloc[-1]
+                    last_epoch = int(last_row['Epoch'])
+                    global_sat = int(last_row['Global_Satisfied']) == 1
+                    local_sat = int(last_row['Local_Satisfied']) == 1
+            except:
+                pass
+
+        # Save to run_status.json
+        save_run_status(
+            str(experiment_path),
+            status='interrupted',
+            epoch=last_epoch,
+            global_satisfied=global_sat,
+            local_satisfied=local_sat,
+            details="Training interrupted by user (KeyboardInterrupt / Ctrl+C)"
+        )
+
+        # Save to config.json
+        save_stop_reason(
+            str(experiment_path),
+            status='interrupted',
+            reason="User manually interrupted training with Ctrl+C (KeyboardInterrupt)",
+            exception_type='KeyboardInterrupt',
+            final_epoch=last_epoch,
+            global_satisfied=global_sat,
+            local_satisfied=local_sat
+        )
+        raise
+
+    except MemoryError as e:
+        print(f"\n[INTERRUPTED] Out of Memory Error")
+        log_path = Path(experiment_path) / 'training_log.csv'
+        last_epoch = 0
+        global_sat = False
+        local_sat = False
+        if log_path.exists():
+            try:
+                df = pd.read_csv(log_path)
+                if len(df) > 0:
+                    last_row = df.iloc[-1]
+                    last_epoch = int(last_row['Epoch'])
+                    global_sat = int(last_row['Global_Satisfied']) == 1
+                    local_sat = int(last_row['Local_Satisfied']) == 1
+            except:
+                pass
+
+        save_run_status(
+            str(experiment_path),
+            status='interrupted',
+            epoch=last_epoch,
+            global_satisfied=global_sat,
+            local_satisfied=local_sat,
+            details=f"Out of Memory (OOM): {str(e)}"
+        )
+
+        save_stop_reason(
+            str(experiment_path),
+            status='interrupted',
+            reason=f"Out of Memory (OOM) error - system ran out of RAM during training. Error: {str(e)}",
+            exception_type='MemoryError',
+            final_epoch=last_epoch,
+            global_satisfied=global_sat,
+            local_satisfied=local_sat
+        )
+        raise
+
+    except RuntimeError as e:
+        print(f"\n[INTERRUPTED] Runtime Error: {e}")
+        log_path = Path(experiment_path) / 'training_log.csv'
+        last_epoch = 0
+        global_sat = False
+        local_sat = False
+        if log_path.exists():
+            try:
+                df = pd.read_csv(log_path)
+                if len(df) > 0:
+                    last_row = df.iloc[-1]
+                    last_epoch = int(last_row['Epoch'])
+                    global_sat = int(last_row['Global_Satisfied']) == 1
+                    local_sat = int(last_row['Local_Satisfied']) == 1
+            except:
+                pass
+
+        # Check if it's a CUDA OOM error
+        error_str = str(e).lower()
+        if 'out of memory' in error_str or 'cuda' in error_str:
+            reason = f"CUDA Out of Memory error - GPU ran out of memory during training. Error: {str(e)}"
+            exception_type = 'RuntimeError (CUDA OOM)'
+        else:
+            reason = f"Runtime error during training. Error: {str(e)}"
+            exception_type = 'RuntimeError'
+
+        save_run_status(
+            str(experiment_path),
+            status='interrupted',
+            epoch=last_epoch,
+            global_satisfied=global_sat,
+            local_satisfied=local_sat,
+            details=reason
+        )
+
+        save_stop_reason(
+            str(experiment_path),
+            status='interrupted',
+            reason=reason,
+            exception_type=exception_type,
+            final_epoch=last_epoch,
+            global_satisfied=global_sat,
+            local_satisfied=local_sat
+        )
+        raise
+
+    except SystemExit as e:
+        print(f"\n[INTERRUPTED] System Exit (code: {e.code})")
+        log_path = Path(experiment_path) / 'training_log.csv'
+        last_epoch = 0
+        global_sat = False
+        local_sat = False
+        if log_path.exists():
+            try:
+                df = pd.read_csv(log_path)
+                if len(df) > 0:
+                    last_row = df.iloc[-1]
+                    last_epoch = int(last_row['Epoch'])
+                    global_sat = int(last_row['Global_Satisfied']) == 1
+                    local_sat = int(last_row['Local_Satisfied']) == 1
+            except:
+                pass
+
+        save_run_status(
+            str(experiment_path),
+            status='interrupted',
+            epoch=last_epoch,
+            global_satisfied=global_sat,
+            local_satisfied=local_sat,
+            details=f"System exit (code: {e.code})"
+        )
+
+        save_stop_reason(
+            str(experiment_path),
+            status='interrupted',
+            reason=f"Process exited with code {e.code} - possibly killed by system, timeout, or external signal",
+            exception_type='SystemExit',
+            final_epoch=last_epoch,
+            global_satisfied=global_sat,
+            local_satisfied=local_sat
+        )
+        raise
+
+    except Exception as e:
+        exception_type_name = type(e).__name__
+        print(f"\n[INTERRUPTED] Unexpected exception ({exception_type_name}): {e}")
+        traceback.print_exc()
+
+        log_path = Path(experiment_path) / 'training_log.csv'
+        last_epoch = 0
+        global_sat = False
+        local_sat = False
+        if log_path.exists():
+            try:
+                df = pd.read_csv(log_path)
+                if len(df) > 0:
+                    last_row = df.iloc[-1]
+                    last_epoch = int(last_row['Epoch'])
+                    global_sat = int(last_row['Global_Satisfied']) == 1
+                    local_sat = int(last_row['Local_Satisfied']) == 1
+            except:
+                pass
+
+        save_run_status(
+            str(experiment_path),
+            status='interrupted',
+            epoch=last_epoch,
+            global_satisfied=global_sat,
+            local_satisfied=local_sat,
+            details=f"Unexpected exception ({exception_type_name}): {str(e)}"
+        )
+
+        save_stop_reason(
+            str(experiment_path),
+            status='interrupted',
+            reason=f"Unexpected exception during training: {exception_type_name}: {str(e)}",
+            exception_type=exception_type_name,
+            final_epoch=last_epoch,
+            global_satisfied=global_sat,
+            local_satisfied=local_sat
+        )
+        raise
+
     training_time = time.time() - start_time
 
-    print(f"\nTraining Status: {training_status}")
-
-    # Handle different training statuses
-    if training_status == 'overfit':
-        print("[OVERFIT] Training stopped due to overfitting or numerical instability")
-        update_experiment_status(str(experiment_path), 'overfit')
-        config['training_status'] = 'overfit'
-        save_config_to_path(config, experiment_path)
-        return None
-
-    elif training_status == 'interrupted':
-        print("[INTERRUPTED] Training was manually interrupted")
-        update_experiment_status(str(experiment_path), 'interrupted')
-        config['training_status'] = 'interrupted'
-        save_config_to_path(config, experiment_path)
-        return None
-
-    # For converged or max_epochs, continue with evaluation
     print("\nEvaluation...")
     model.eval()
 
@@ -108,7 +291,6 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         'training_time': float(training_time),
         'used_cached_model': trainer.from_cache
     }
-    config['training_status'] = training_status
 
     save_config_to_path(config, experiment_path)
     mark_experiment_complete(experiment_path)

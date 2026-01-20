@@ -57,6 +57,40 @@ def mark_experiment_complete(experiment_path: str) -> None:
     update_experiment_status(experiment_path, 'completed')
 
 
+def save_stop_reason(experiment_path: str, status: str, reason: str, exception_type: str = None,
+                     final_epoch: int = None, global_satisfied: bool = None, local_satisfied: bool = None) -> None:
+    """
+    Save the stop reason and final state to config.json.
+
+    Args:
+        experiment_path: Path to experiment directory
+        status: One of 'converged', 'failed', 'interrupted'
+        reason: Human-readable reason for stopping
+        exception_type: Type of exception if interrupted (e.g., 'KeyboardInterrupt', 'MemoryError')
+        final_epoch: Last epoch reached
+        global_satisfied: Whether global constraint was satisfied
+        local_satisfied: Whether local constraint was satisfied
+    """
+    from datetime import datetime
+
+    config = load_config_from_path(experiment_path)
+
+    config['run_completion'] = {
+        'status': status,
+        'reason': reason,
+        'exception_type': exception_type,
+        'final_epoch': final_epoch,
+        'global_constraint_satisfied': global_satisfied,
+        'local_constraint_satisfied': local_satisfied,
+        'completed_at': datetime.now().isoformat()
+    }
+
+    # Also update the top-level status for backwards compatibility
+    config['status'] = 'completed' if status == 'converged' else 'pending'
+
+    save_config_to_path(config, experiment_path)
+
+
 def get_experiments_by_status(results_dir: str = 'results') -> Dict[str, List[Tuple[str, Dict[str, Any]]]]:
     all_experiments = get_all_experiment_configs(results_dir)
     by_status = {
