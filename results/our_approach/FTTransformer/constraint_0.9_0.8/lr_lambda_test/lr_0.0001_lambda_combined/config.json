@@ -1,0 +1,37 @@
+{
+    "methodology": "our_approach",
+    "model_name": "FTTransformer",
+    "constraint": [
+        0.9,
+        0.8
+    ],
+    "hyperparam_regime": "lr_lambda_test",
+    "variation_name": "lr_0.0001_lambda_combined",
+    "hyperparams": {
+        "lr": 0.0001,
+        "dropout": 0.3,
+        "batch_size": 64,
+        "hidden_dims": [
+            128,
+            64
+        ],
+        "epochs": 1000,
+        "lambda_global": 0.1,
+        "lambda_local": 0.1,
+        "lambda_strategy": "combined",
+        "warmup_epochs": 50,
+        "constraint_threshold": 0.02,
+        "lambda_step": 0.005
+    },
+    "base_model_id": "FTTransformer_90947ad3ed8b",
+    "experiment_path": "..\\..\\results\\our_approach\\FTTransformer\\constraint_0.9_0.8\\lr_lambda_test\\lr_0.0001_lambda_combined",
+    "status": "completed",
+    "results": {
+        "accuracy": 0.7126696832579186,
+        "precision_macro": 0.6659683741046087,
+        "recall_macro": 0.5952385562203816,
+        "f1_macro": 0.6055204838231085,
+        "training_time": 93.09438180923462,
+        "used_cached_model": false
+    }
+}

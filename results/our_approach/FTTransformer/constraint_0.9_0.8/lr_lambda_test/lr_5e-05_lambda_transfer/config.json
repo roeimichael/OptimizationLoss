@@ -1,0 +1,37 @@
+{
+    "methodology": "our_approach",
+    "model_name": "FTTransformer",
+    "constraint": [
+        0.9,
+        0.8
+    ],
+    "hyperparam_regime": "lr_lambda_test",
+    "variation_name": "lr_5e-05_lambda_transfer",
+    "hyperparams": {
+        "lr": 5e-05,
+        "dropout": 0.3,
+        "batch_size": 64,
+        "hidden_dims": [
+            128,
+            64
+        ],
+        "epochs": 1000,
+        "lambda_global": 0.1,
+        "lambda_local": 0.1,
+        "lambda_strategy": "transfer",
+        "warmup_epochs": 50,
+        "constraint_threshold": 0.02,
+        "lambda_step": 0.005
+    },
+    "base_model_id": "FTTransformer_1d72c81f2e6d",
+    "experiment_path": "..\\..\\results\\our_approach\\FTTransformer\\constraint_0.9_0.8\\lr_lambda_test\\lr_5e-05_lambda_transfer",
+    "status": "completed",
+    "results": {
+        "accuracy": 0.7081447963800905,
+        "precision_macro": 0.6391441530612599,
+        "recall_macro": 0.5832495017837901,
+        "f1_macro": 0.5862150944916791,
+        "training_time": 123.76332116127014,
+        "used_cached_model": false
+    }
+}
