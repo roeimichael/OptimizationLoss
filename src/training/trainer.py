@@ -11,7 +11,7 @@ from src.models import get_model
 from src.losses import MulticlassTransductiveLoss
 from src.losses.lambda_adjusting import create_lambda_adjuster
 from src.training.metrics import compute_train_accuracy, compute_prediction_statistics
-from src.training.logging import log_progress_to_csv, print_progress
+from src.training.logging import log_progress_to_csv, print_progress, save_run_status
 
 
 class ConstraintTrainer:
@@ -198,7 +198,33 @@ class ConstraintTrainer:
                 print(f"\n[CONVERGED] Both constraints satisfied at epoch {epoch + 1}")
                 print(f"  Final loss: Global={avg_global:.6f}, Local={avg_local:.6f}")
                 print(f"  Lambda values: Global={criterion_constraint.lambda_global:.2f}, Local={criterion_constraint.lambda_local:.2f}")
+
+                # Save converged status
+                save_run_status(
+                    str(self.experiment_path),
+                    status='converged',
+                    epoch=epoch + 1,
+                    global_satisfied=True,
+                    local_satisfied=True,
+                    details=f"Converged at epoch {epoch + 1}. Global loss: {avg_global:.6f}, Local loss: {avg_local:.6f}"
+                )
                 break
+        else:
+            # Loop completed without break - reached max epochs without convergence
+            print(f"\n[FAILED] Reached maximum epochs ({total_epochs}) without full convergence")
+            print(f"  Final loss: Global={avg_global:.6f}, Local={avg_local:.6f}")
+            print(f"  Constraint status: Global={'Satisfied' if criterion_constraint.global_constraints_satisfied else 'Not Satisfied'}, "
+                  f"Local={'Satisfied' if criterion_constraint.local_constraints_satisfied else 'Not Satisfied'}")
+
+            # Save failed status
+            save_run_status(
+                str(self.experiment_path),
+                status='failed',
+                epoch=total_epochs,
+                global_satisfied=criterion_constraint.global_constraints_satisfied,
+                local_satisfied=criterion_constraint.local_constraints_satisfied,
+                details=f"Reached max epochs without both constraints satisfied. Global loss: {avg_global:.6f}, Local loss: {avg_local:.6f}"
+            )
 
         return self.model
 

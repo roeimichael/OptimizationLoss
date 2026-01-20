@@ -160,3 +160,36 @@ def save_evaluation_metrics(save_path, metrics):
         writer.writerows(rows)
 
     print(f"Evaluation metrics saved to: {save_path}")
+
+
+def save_run_status(experiment_path, status: str, epoch: int, global_satisfied: bool, local_satisfied: bool, details: str = ""):
+    """
+    Save the final status of a training run.
+
+    Args:
+        experiment_path: Path to the experiment directory
+        status: One of 'converged', 'failed', 'interrupted'
+        epoch: Final epoch number
+        global_satisfied: Whether global constraint was satisfied
+        local_satisfied: Whether local constraint was satisfied
+        details: Additional details about the run status
+    """
+    from pathlib import Path
+    import json
+    from datetime import datetime
+
+    status_path = Path(experiment_path) / 'run_status.json'
+
+    status_data = {
+        'status': status,
+        'final_epoch': epoch,
+        'global_constraint_satisfied': global_satisfied,
+        'local_constraint_satisfied': local_satisfied,
+        'details': details,
+        'timestamp': datetime.now().isoformat()
+    }
+
+    with open(status_path, 'w') as f:
+        json.dump(status_data, f, indent=2)
+
+    print(f"[STATUS] Run status saved: {status}")

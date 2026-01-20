@@ -11,7 +11,7 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 from src.utils.data_loader import load_experiment_data
 from src.training.trainer import ConstraintTrainer
 from src.training.metrics import get_predictions_with_probabilities, compute_metrics
-from src.training.logging import save_final_predictions, save_evaluation_metrics
+from src.training.logging import save_final_predictions, save_evaluation_metrics, save_run_status
 from src.utils.filesystem_manager import load_config_from_path, save_config_to_path, mark_experiment_complete, \
     update_experiment_status
 
@@ -60,15 +60,61 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     trainer.setup_model(input_dim=input_dim, base_model_id=config['base_model_id'])
 
     start_time = time.time()
-    trainer.train_warmup(X_train_tensor, y_train_tensor, config['base_model_id'])
-    model = trainer.train_constraints(
-        X_train=X_train_tensor,
-        y_train=y_train_tensor,
-        X_test=X_test_tensor,
-        groups_test=groups_test,
-        global_con=global_constraint,
-        local_con=local_constraint
-    )
+    try:
+        trainer.train_warmup(X_train_tensor, y_train_tensor, config['base_model_id'])
+        model = trainer.train_constraints(
+            X_train=X_train_tensor,
+            y_train=y_train_tensor,
+            X_test=X_test_tensor,
+            groups_test=groups_test,
+            global_con=global_constraint,
+            local_con=local_constraint
+        )
+    except KeyboardInterrupt:
+        print("\n[INTERRUPTED] Training interrupted by user")
+        # Check if we have a training log to get the last epoch
+        log_path = Path(experiment_path) / 'training_log.csv'
+        last_epoch = 0
+        if log_path.exists():
+            try:
+                df = pd.read_csv(log_path)
+                if len(df) > 0:
+                    last_epoch = int(df.iloc[-1]['Epoch'])
+            except:
+                pass
+
+        save_run_status(
+            str(experiment_path),
+            status='interrupted',
+            epoch=last_epoch,
+            global_satisfied=False,
+            local_satisfied=False,
+            details="Training interrupted by user (KeyboardInterrupt)"
+        )
+        raise
+    except Exception as e:
+        print(f"\n[INTERRUPTED] Training failed with exception: {e}")
+        # Check if we have a training log to get the last epoch
+        log_path = Path(experiment_path) / 'training_log.csv'
+        last_epoch = 0
+        if log_path.exists():
+            try:
+                df = pd.read_csv(log_path)
+                if len(df) > 0:
+                    last_epoch = int(df.iloc[-1]['Epoch'])
+            except:
+                pass
+
+        save_run_status(
+            str(experiment_path),
+            status='interrupted',
+            epoch=last_epoch,
+            global_satisfied=False,
+            local_satisfied=False,
+            details=f"Training interrupted by exception: {str(e)}"
+        )
+        raise
+
     training_time = time.time() - start_time
 
     print("\nEvaluation...")
