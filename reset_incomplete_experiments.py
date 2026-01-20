@@ -13,7 +13,6 @@ For incomplete experiments (interrupted/failed):
 
 import csv
 import json
-import shutil
 from pathlib import Path
 
 def check_if_converged(experiment_dir):
@@ -116,16 +115,16 @@ def main():
         print(f"[ERROR] Results directory not found: {results_dir}")
         return
 
-    # Find all experiment directories by looking for training_log.csv files
-    training_logs = list(results_dir.rglob('training_log.csv'))
+    # Find ALL config.json files (including those without training logs)
+    config_files = list(results_dir.rglob('config.json'))
 
-    if len(training_logs) == 0:
-        print("[INFO] No training logs found - no experiments to clean")
+    if len(config_files) == 0:
+        print("[INFO] No config.json files found in results")
         return
 
-    print(f"Found {len(training_logs)} experiment directories\n")
+    print(f"Found {len(config_files)} config files\n")
     print("=" * 100)
-    print("ANALYZING AND CLEANING EXPERIMENTS")
+    print("ANALYZING AND RESETTING INCOMPLETE EXPERIMENTS")
     print("=" * 100)
 
     converged_count = 0
@@ -134,40 +133,67 @@ def main():
     converged_experiments = []
     reset_experiments = []
 
-    for training_log in training_logs:
-        experiment_dir = training_log.parent
+    for config_file in config_files:
+        experiment_dir = config_file.parent
         rel_path = experiment_dir.relative_to(results_dir)
 
-        # Check if converged
-        is_converged, _ = check_if_converged(experiment_dir)
+        # Check if training log exists and if converged
+        training_log = experiment_dir / 'training_log.csv'
+        has_training_log = training_log.exists()
 
-        if is_converged:
-            # Leave converged experiments completely untouched
-            converged_count += 1
-            converged_experiments.append(rel_path)
-            print(f"\n[CONVERGED] {rel_path}")
-            print(f"  → Leaving all files untouched")
+        if has_training_log:
+            # Has training log - check if converged
+            is_converged, _ = check_if_converged(experiment_dir)
 
-        else:
-            # Didn't converge - reset it
-            reset_count += 1
-            reset_experiments.append(rel_path)
-            print(f"\n[RESETTING] {rel_path}")
+            if is_converged:
+                # Leave converged experiments completely untouched
+                converged_count += 1
+                converged_experiments.append(rel_path)
+                print(f"\n[CONVERGED] {rel_path}")
+                print(f"  → Leaving all files untouched")
+            else:
+                # Has training log but didn't converge - shouldn't happen but handle it
+                reset_count += 1
+                reset_experiments.append(rel_path)
+                print(f"\n[RESETTING] {rel_path}")
+                print(f"  → Has training log but didn't converge")
 
-            # Reset config if it exists
-            config_file = experiment_dir / 'config.json'
-            if config_file.exists():
                 if reset_config(config_file):
                     print(f"  → Config reset to 'pending' status")
-            else:
-                print(f"  → No config.json found (will be created when re-run)")
 
-            # Delete output files
-            deleted = delete_output_files(experiment_dir)
-            if deleted:
-                print(f"  → Deleted {len(deleted)} files: {', '.join(deleted)}")
-            else:
-                print(f"  → No output files to delete")
+                deleted = delete_output_files(experiment_dir)
+                if deleted:
+                    print(f"  → Deleted {len(deleted)} files: {', '.join(deleted)}")
+        else:
+            # No training log - check if config says completed
+            try:
+                with open(config_file, 'r') as f:
+                    config = json.load(f)
+
+                config_status = config.get('status', 'pending')
+
+                if config_status == 'completed':
+                    # Config says completed but no training log - definitely needs reset
+                    reset_count += 1
+                    reset_experiments.append(rel_path)
+                    print(f"\n[RESETTING] {rel_path}")
+                    print(f"  → Config marked 'completed' but missing training log")
+
+                    if reset_config(config_file):
+                        print(f"  → Config reset to 'pending' status")
+
+                    # Also delete any remaining output files
+                    deleted = delete_output_files(experiment_dir)
+                    if deleted:
+                        print(f"  → Deleted {len(deleted)} remaining files: {', '.join(deleted)}")
+                else:
+                    # Already pending or other status - skip
+                    print(f"\n[SKIP] {rel_path}")
+                    print(f"  → Config already has status '{config_status}'")
+
+            except Exception as e:
+                print(f"\n[ERROR] {rel_path}")
+                print(f"  → Failed to read config: {e}")
 
     # Summary
     print("\n" + "=" * 100)
