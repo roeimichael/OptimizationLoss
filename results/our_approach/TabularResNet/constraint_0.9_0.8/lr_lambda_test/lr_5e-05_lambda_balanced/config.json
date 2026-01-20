@@ -25,13 +25,5 @@
     },
     "base_model_id": "TabularResNet_8b40cc8d6708",
     "experiment_path": "..\\..\\results\\our_approach\\TabularResNet\\constraint_0.9_0.8\\lr_lambda_test\\lr_5e-05_lambda_balanced",
-    "status": "completed",
-    "results": {
-        "accuracy": 0.7126696832579186,
-        "precision_macro": 0.6650311737598265,
-        "recall_macro": 0.5862660930356755,
-        "f1_macro": 0.5930153492325384,
-        "training_time": 249.7085428237915,
-        "used_cached_model": false
-    }
+    "status": "pending"
 }

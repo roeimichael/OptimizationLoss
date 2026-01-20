@@ -25,13 +25,5 @@
     },
     "base_model_id": "BasicNN_46bee3eea59d",
     "experiment_path": "..\\..\\results\\our_approach\\BasicNN\\constraint_0.5_0.3\\lr_lambda_test\\lr_0.0001_lambda_balanced",
-    "status": "completed",
-    "results": {
-        "accuracy": 0.583710407239819,
-        "precision_macro": 0.6007455507455507,
-        "recall_macro": 0.42580376775420453,
-        "f1_macro": 0.38907232920363705,
-        "training_time": 870.2851815223694,
-        "used_cached_model": false
-    }
+    "status": "pending"
 }

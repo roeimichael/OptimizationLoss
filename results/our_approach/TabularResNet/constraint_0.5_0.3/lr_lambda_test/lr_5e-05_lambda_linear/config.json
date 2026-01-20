@@ -25,13 +25,5 @@
     },
     "base_model_id": "TabularResNet_8b40cc8d6708",
     "experiment_path": "..\\..\\results\\our_approach\\TabularResNet\\constraint_0.5_0.3\\lr_lambda_test\\lr_5e-05_lambda_linear",
-    "status": "completed",
-    "results": {
-        "accuracy": 0.6334841628959276,
-        "precision_macro": 0.5879060993502411,
-        "recall_macro": 0.4774469602424674,
-        "f1_macro": 0.4533930708471849,
-        "training_time": 1570.8234570026398,
-        "used_cached_model": false
-    }
+    "status": "pending"
 }

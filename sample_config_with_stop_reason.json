@@ -1,0 +1,39 @@
+{
+    "methodology": "our_approach",
+    "model_name": "TabularResNet",
+    "constraint": [0.5, 0.3],
+    "hyperparam_regime": "lr_lambda_test",
+    "variation_name": "lr_0.0001_lambda_transfer",
+    "base_model_id": "TabularResNet_constraint_0.5_0.3_lr_0.0001",
+    "hyperparams": {
+        "lr": 0.0001,
+        "batch_size": 128,
+        "epochs": 1000,
+        "warmup_epochs": 50,
+        "hidden_dims": [256, 128],
+        "dropout": 0.3,
+        "lambda_global": 0.0,
+        "lambda_local": 0.0,
+        "lambda_step": 0.5,
+        "constraint_threshold": 0.01,
+        "lambda_strategy": "transfer"
+    },
+    "status": "completed",
+    "results": {
+        "accuracy": 0.8234,
+        "precision_macro": 0.8156,
+        "recall_macro": 0.8098,
+        "f1_macro": 0.8123,
+        "training_time": 1234.56,
+        "used_cached_model": false
+    },
+    "run_completion": {
+        "status": "converged",
+        "reason": "Normal convergence: Both global and local constraints satisfied at epoch 267",
+        "exception_type": null,
+        "final_epoch": 267,
+        "global_constraint_satisfied": true,
+        "local_constraint_satisfied": true,
+        "completed_at": "2026-01-20T12:30:45.123456"
+    }
+}

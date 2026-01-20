@@ -199,7 +199,7 @@ def main():
     print("\n" + "=" * 100)
     print("CLEANUP SUMMARY")
     print("=" * 100)
-    print(f"\nTotal experiments: {len(training_logs)}")
+    print(f"\nTotal experiments: {len(config_files)}")
     print(f"  ✓ Converged (left untouched): {converged_count}")
     print(f"  ↻ Reset for re-running: {reset_count}")
 

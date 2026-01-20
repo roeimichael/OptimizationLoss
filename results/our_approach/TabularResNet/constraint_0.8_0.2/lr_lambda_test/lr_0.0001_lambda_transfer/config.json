@@ -25,13 +25,5 @@
     },
     "base_model_id": "TabularResNet_c91a9c0c916f",
     "experiment_path": "..\\..\\results\\our_approach\\TabularResNet\\constraint_0.8_0.2\\lr_lambda_test\\lr_0.0001_lambda_transfer",
-    "status": "completed",
-    "results": {
-        "accuracy": 0.5565610859728507,
-        "precision_macro": 0.5578918772072806,
-        "recall_macro": 0.39389077078504786,
-        "f1_macro": 0.33501577097720037,
-        "training_time": 690.9353592395782,
-        "used_cached_model": false
-    }
+    "status": "pending"
 }
