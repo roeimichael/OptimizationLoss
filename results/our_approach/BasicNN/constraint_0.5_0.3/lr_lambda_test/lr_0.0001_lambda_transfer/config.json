@@ -25,5 +25,14 @@
     },
     "base_model_id": "BasicNN_46bee3eea59d",
     "experiment_path": "..\\..\\results\\our_approach\\BasicNN\\constraint_0.5_0.3\\lr_lambda_test\\lr_0.0001_lambda_transfer",
-    "status": "pending"
+    "status": "pending",
+    "run_completion": {
+        "status": "interrupted",
+        "reason": "User manually interrupted training with Ctrl+C (KeyboardInterrupt)",
+        "exception_type": "KeyboardInterrupt",
+        "final_epoch": 147,
+        "global_constraint_satisfied": false,
+        "local_constraint_satisfied": false,
+        "completed_at": "2026-01-20T15:46:46.755507"
+    }
 }
