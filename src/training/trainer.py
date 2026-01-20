@@ -199,7 +199,7 @@ class ConstraintTrainer:
                 print(f"  Final loss: Global={avg_global:.6f}, Local={avg_local:.6f}")
                 print(f"  Lambda values: Global={criterion_constraint.lambda_global:.2f}, Local={criterion_constraint.lambda_local:.2f}")
 
-                # Save converged status
+                # Save converged status to run_status.json
                 save_run_status(
                     str(self.experiment_path),
                     status='converged',
@@ -207,6 +207,19 @@ class ConstraintTrainer:
                     global_satisfied=True,
                     local_satisfied=True,
                     details=f"Converged at epoch {epoch + 1}. Global loss: {avg_global:.6f}, Local loss: {avg_local:.6f}"
+                )
+
+                # Import here to avoid circular dependency
+                from src.utils.filesystem_manager import save_stop_reason
+                # Save stop reason to config.json
+                save_stop_reason(
+                    str(self.experiment_path),
+                    status='converged',
+                    reason=f"Normal convergence: Both global and local constraints satisfied at epoch {epoch + 1}",
+                    exception_type=None,
+                    final_epoch=epoch + 1,
+                    global_satisfied=True,
+                    local_satisfied=True
                 )
                 break
         else:
@@ -216,14 +229,37 @@ class ConstraintTrainer:
             print(f"  Constraint status: Global={'Satisfied' if criterion_constraint.global_constraints_satisfied else 'Not Satisfied'}, "
                   f"Local={'Satisfied' if criterion_constraint.local_constraints_satisfied else 'Not Satisfied'}")
 
-            # Save failed status
+            # Save failed status to run_status.json
             save_run_status(
                 str(self.experiment_path),
                 status='failed',
                 epoch=total_epochs,
                 global_satisfied=criterion_constraint.global_constraints_satisfied,
-                local_satisfied=criterion_constraint.local_constraints_satisfied,
+                local_satisfied=criterion_constraint.local_satisfied,
                 details=f"Reached max epochs without both constraints satisfied. Global loss: {avg_global:.6f}, Local loss: {avg_local:.6f}"
+            )
+
+            # Import here to avoid circular dependency
+            from src.utils.filesystem_manager import save_stop_reason
+            # Determine specific failure reason
+            if criterion_constraint.global_constraints_satisfied and not criterion_constraint.local_constraints_satisfied:
+                reason = f"Reached {total_epochs} epochs with only Global constraint satisfied (Local constraint not satisfied)"
+            elif not criterion_constraint.global_constraints_satisfied and criterion_constraint.local_constraints_satisfied:
+                reason = f"Reached {total_epochs} epochs with only Local constraint satisfied (Global constraint not satisfied)"
+            elif not criterion_constraint.global_constraints_satisfied and not criterion_constraint.local_constraints_satisfied:
+                reason = f"Reached {total_epochs} epochs without satisfying either Global or Local constraints"
+            else:
+                reason = f"Reached {total_epochs} epochs (unexpected state)"
+
+            # Save stop reason to config.json
+            save_stop_reason(
+                str(self.experiment_path),
+                status='failed',
+                reason=reason,
+                exception_type=None,
+                final_epoch=total_epochs,
+                global_satisfied=criterion_constraint.global_constraints_satisfied,
+                local_satisfied=criterion_constraint.local_constraints_satisfied
             )
 
         return self.model
