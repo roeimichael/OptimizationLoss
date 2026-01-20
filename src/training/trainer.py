@@ -235,7 +235,7 @@ class ConstraintTrainer:
                 status='failed',
                 epoch=total_epochs,
                 global_satisfied=criterion_constraint.global_constraints_satisfied,
-                local_satisfied=criterion_constraint.local_satisfied,
+                local_satisfied=criterion_constraint.local_constraints_satisfied,
                 details=f"Reached max epochs without both constraints satisfied. Global loss: {avg_global:.6f}, Local loss: {avg_local:.6f}"
             )
 
