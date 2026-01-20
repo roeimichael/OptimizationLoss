@@ -59,14 +59,22 @@ def mark_experiment_complete(experiment_path: str) -> None:
 
 def get_experiments_by_status(results_dir: str = 'results') -> Dict[str, List[Tuple[str, Dict[str, Any]]]]:
     all_experiments = get_all_experiment_configs(results_dir)
-    by_status = {'pending': [], 'completed': [], 'running': []}
+    by_status = {
+        'pending': [],
+        'completed': [],
+        'running': [],
+        'overfit': [],
+        'interrupted': []
+    }
     for exp_path, config in all_experiments:
         status = config.get('status', 'pending')
         if status == 'running':
+            # Treat running as pending (likely crashed or interrupted)
             by_status['pending'].append((exp_path, config))
         elif status in by_status:
             by_status[status].append((exp_path, config))
         else:
+            # Unknown status - treat as pending
             by_status['pending'].append((exp_path, config))
     return by_status
 
@@ -76,5 +84,7 @@ def print_status_summary(results_dir: str = 'results') -> None:
     total = sum(len(exps) for exps in by_status.values())
     print(f"Total experiments: {total}")
     print(f"  Completed: {len(by_status['completed'])}")
-    print(f"  Pending: {len(by_status['pending'])} (includes interrupted runs)")
+    print(f"  Pending: {len(by_status['pending'])}")
+    print(f"  Overfit: {len(by_status['overfit'])}")
+    print(f"  Interrupted: {len(by_status['interrupted'])}")
     print("=" * 80 + "\n")

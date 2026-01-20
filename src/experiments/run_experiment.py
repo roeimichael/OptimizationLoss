@@ -61,7 +61,7 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
 
     start_time = time.time()
     trainer.train_warmup(X_train_tensor, y_train_tensor, config['base_model_id'])
-    model = trainer.train_constraints(
+    model, training_status = trainer.train_constraints(
         X_train=X_train_tensor,
         y_train=y_train_tensor,
         X_test=X_test_tensor,
@@ -71,6 +71,24 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     )
     training_time = time.time() - start_time
 
+    print(f"\nTraining Status: {training_status}")
+
+    # Handle different training statuses
+    if training_status == 'overfit':
+        print("[OVERFIT] Training stopped due to overfitting or numerical instability")
+        update_experiment_status(str(experiment_path), 'overfit')
+        config['training_status'] = 'overfit'
+        save_config_to_path(config, experiment_path)
+        return None
+
+    elif training_status == 'interrupted':
+        print("[INTERRUPTED] Training was manually interrupted")
+        update_experiment_status(str(experiment_path), 'interrupted')
+        config['training_status'] = 'interrupted'
+        save_config_to_path(config, experiment_path)
+        return None
+
+    # For converged or max_epochs, continue with evaluation
     print("\nEvaluation...")
     model.eval()
 
@@ -90,6 +108,7 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         'training_time': float(training_time),
         'used_cached_model': trainer.from_cache
     }
+    config['training_status'] = training_status
 
     save_config_to_path(config, experiment_path)
     mark_experiment_complete(experiment_path)
