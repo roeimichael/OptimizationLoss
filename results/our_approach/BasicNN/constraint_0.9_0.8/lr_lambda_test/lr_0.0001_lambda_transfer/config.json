@@ -25,5 +25,13 @@
     },
     "base_model_id": "BasicNN_46bee3eea59d",
     "experiment_path": "..\\..\\results\\our_approach\\BasicNN\\constraint_0.9_0.8\\lr_lambda_test\\lr_0.0001_lambda_transfer",
-    "status": "pending"
+    "status": "completed",
+    "results": {
+        "accuracy": 0.7285067873303167,
+        "precision_macro": 0.6484342793067626,
+        "recall_macro": 0.5972757906047892,
+        "f1_macro": 0.5971958391222025,
+        "training_time": 194.82356142997742,
+        "used_cached_model": false
+    }
 }

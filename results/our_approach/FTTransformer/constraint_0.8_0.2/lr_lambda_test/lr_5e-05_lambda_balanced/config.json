@@ -25,5 +25,13 @@
     },
     "base_model_id": "FTTransformer_1d72c81f2e6d",
     "experiment_path": "..\\..\\results\\our_approach\\FTTransformer\\constraint_0.8_0.2\\lr_lambda_test\\lr_5e-05_lambda_balanced",
-    "status": "pending"
+    "status": "completed",
+    "results": {
+        "accuracy": 0.5633484162895928,
+        "precision_macro": 0.6076817068191099,
+        "recall_macro": 0.4163605840322881,
+        "f1_macro": 0.38308171901113797,
+        "training_time": 1448.6024923324585,
+        "used_cached_model": false
+    }
 }

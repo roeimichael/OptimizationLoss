@@ -25,5 +25,22 @@
     },
     "base_model_id": "BasicNN_46bee3eea59d",
     "experiment_path": "..\\..\\results\\our_approach\\BasicNN\\constraint_0.8_0.2\\lr_lambda_test\\lr_0.0001_lambda_balanced",
-    "status": "pending"
+    "status": "completed",
+    "run_completion": {
+        "status": "interrupted",
+        "reason": "Unexpected exception during training: AttributeError: 'MulticlassTransductiveLoss' object has no attribute 'local_satisfied'",
+        "exception_type": "AttributeError",
+        "final_epoch": 999,
+        "global_constraint_satisfied": false,
+        "local_constraint_satisfied": true,
+        "completed_at": "2026-01-20T17:40:23.496012"
+    },
+    "results": {
+        "accuracy": 0.5633484162895928,
+        "precision_macro": 0.4717807660961695,
+        "recall_macro": 0.39906103286384975,
+        "f1_macro": 0.3411421273490239,
+        "training_time": 912.7129621505737,
+        "used_cached_model": false
+    }
 }

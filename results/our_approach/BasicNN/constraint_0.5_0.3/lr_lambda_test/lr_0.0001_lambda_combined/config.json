@@ -27,11 +27,11 @@
     "experiment_path": "..\\..\\results\\our_approach\\BasicNN\\constraint_0.5_0.3\\lr_lambda_test\\lr_0.0001_lambda_combined",
     "status": "completed",
     "results": {
-        "accuracy": 0.5723981900452488,
-        "precision_macro": 0.5695981362842166,
-        "recall_macro": 0.41032269566767693,
-        "f1_macro": 0.36118970427163194,
-        "training_time": 544.2255725860596,
+        "accuracy": 0.5701357466063348,
+        "precision_macro": 0.604610292110292,
+        "recall_macro": 0.40797527782730136,
+        "f1_macro": 0.357679828720097,
+        "training_time": 632.696525812149,
         "used_cached_model": false
     }
 }
