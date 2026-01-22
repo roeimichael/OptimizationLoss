@@ -465,7 +465,7 @@ def plot_learning_rate_vs_convergence_epochs(experiments, output_dir, constraint
 
     fig, ax = plt.subplots(figsize=(12, 7))
 
-    bp = ax.boxplot(data_to_plot, tick_labels=[f'{lr:.5f}' for lr in lrs], patch_artist=True)
+    bp = ax.boxplot(data_to_plot, labels=[f'{lr:.5f}' for lr in lrs], patch_artist=True)
 
     # Color the boxes
     for patch in bp['boxes']:
