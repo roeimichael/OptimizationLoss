@@ -70,7 +70,7 @@ HYPERPARAM_REGIMES = {
                 'variation_name': f'lr_{lr}_lambda_{strategy}',
                 'params': {**BASE_HYPERPARAMS, 'lr': lr, 'lambda_strategy': strategy}
             }
-            for lr in [0.0001, 0.00005]  # Low and very low learning rates
+            for lr in [0.001, 0.0005]  # Low and very low learning rates
             for strategy in LAMBDA_STRATEGIES  # All 3 lambda strategies
         ]
     },
