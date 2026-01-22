@@ -1,0 +1,37 @@
+{
+    "methodology": "our_approach",
+    "model_name": "BasicNN",
+    "constraint": [
+        0.8,
+        0.2
+    ],
+    "hyperparam_regime": "lr_lambda_test",
+    "variation_name": "lr_5e-05_lambda_balanced",
+    "hyperparams": {
+        "lr": 5e-05,
+        "dropout": 0.3,
+        "batch_size": 64,
+        "hidden_dims": [
+            128,
+            64
+        ],
+        "epochs": 1000,
+        "lambda_global": 0.1,
+        "lambda_local": 0.1,
+        "lambda_strategy": "balanced",
+        "warmup_epochs": 50,
+        "constraint_threshold": 0.02,
+        "lambda_step": 0.005
+    },
+    "base_model_id": "BasicNN_6007870002bf",
+    "experiment_path": "..\\..\\results\\our_approach\\BasicNN\\constraint_0.8_0.2\\lr_lambda_test\\lr_5e-05_lambda_balanced",
+    "status": "completed",
+    "results": {
+        "accuracy": 0.6742081447963801,
+        "precision_macro": 0.49722222222222223,
+        "recall_macro": 0.5149236292566864,
+        "f1_macro": 0.480100700086257,
+        "training_time": 1386.2517285346985,
+        "used_cached_model": false
+    }
+}

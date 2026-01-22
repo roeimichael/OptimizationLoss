@@ -1,0 +1,9 @@
+{
+  "status": "converged",
+  "final_epoch": 285,
+  "global_constraint_satisfied": true,
+  "local_constraint_satisfied": true,
+  "details": "Both constraints satisfied at epoch 285",
+  "timestamp": "2026-01-20T12:25:35.593534",
+  "retroactive": true
+}

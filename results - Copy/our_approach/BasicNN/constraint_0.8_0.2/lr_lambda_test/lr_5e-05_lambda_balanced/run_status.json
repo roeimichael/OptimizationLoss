@@ -1,0 +1,8 @@
+{
+  "status": "failed",
+  "final_epoch": 1000,
+  "global_constraint_satisfied": false,
+  "local_constraint_satisfied": false,
+  "details": "Reached max epochs without both constraints satisfied. Global loss: 0.609820, Local loss: 0.004383",
+  "timestamp": "2026-01-21T02:41:55.145909"
+}

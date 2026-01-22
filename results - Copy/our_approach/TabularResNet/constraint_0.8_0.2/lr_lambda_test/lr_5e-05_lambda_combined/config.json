@@ -1,0 +1,37 @@
+{
+    "methodology": "our_approach",
+    "model_name": "TabularResNet",
+    "constraint": [
+        0.8,
+        0.2
+    ],
+    "hyperparam_regime": "lr_lambda_test",
+    "variation_name": "lr_5e-05_lambda_combined",
+    "hyperparams": {
+        "lr": 5e-05,
+        "dropout": 0.3,
+        "batch_size": 64,
+        "hidden_dims": [
+            128,
+            64
+        ],
+        "epochs": 1000,
+        "lambda_global": 0.1,
+        "lambda_local": 0.1,
+        "lambda_strategy": "combined",
+        "warmup_epochs": 50,
+        "constraint_threshold": 0.02,
+        "lambda_step": 0.005
+    },
+    "base_model_id": "TabularResNet_8b40cc8d6708",
+    "experiment_path": "..\\..\\results\\our_approach\\TabularResNet\\constraint_0.8_0.2\\lr_lambda_test\\lr_5e-05_lambda_combined",
+    "status": "completed",
+    "results": {
+        "accuracy": 0.5542986425339367,
+        "precision_macro": 0.47648083623693377,
+        "recall_macro": 0.3905104837167803,
+        "f1_macro": 0.3304745035890743,
+        "training_time": 1123.6783328056335,
+        "used_cached_model": false
+    }
+}
