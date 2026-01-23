@@ -56,10 +56,9 @@ def extract_experiment_data():
             except:
                 pass
 
-        # Extract constraint from path
-        path_parts = str(exp_dir).split('/')
+        # Extract constraint from path (cross-platform)
         constraint_key = 'unknown'
-        for part in path_parts:
+        for part in exp_dir.parts:
             if part.startswith('constraint_'):
                 constraint_key = part.replace('constraint_', '')
                 break
