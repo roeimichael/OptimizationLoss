@@ -23,7 +23,8 @@ import numpy as np
 
 def extract_experiment_data():
     """Extract all experiment data from results folder."""
-    results_dir = Path('results/our_approach')
+    # Use relative path from src/evaluation/ to results/
+    results_dir = Path('../../results/our_approach')
     all_experiments = []
 
     for run_status_file in sorted(results_dir.rglob('run_status.json')):
@@ -491,14 +492,14 @@ def main():
         print("No experiments found!")
         return
 
-    # Create output directory
-    output_base = Path('comparison_evaluations')
+    # Create output directory (relative to project root)
+    output_base = Path('../../comparison_evaluations')
     output_base.mkdir(exist_ok=True)
 
     # Save master CSV
     print("\n[2/3] Saving master CSV...")
     save_csv(experiments, output_base / 'master_results.csv')
-    print(f"  Saved: comparison_evaluations/master_results.csv")
+    print(f"  Saved: ../../comparison_evaluations/master_results.csv")
 
     # Get unique constraints
     constraints = sorted(set(e['constraint'] for e in experiments))
@@ -521,11 +522,11 @@ def main():
 
         # Save constraint-specific CSV
         save_csv(constraint_exps, constraint_dir / f'results_{constraint}.csv')
-        print(f"      CSV: constraint_{constraint}/results_{constraint}.csv")
+        print(f"      CSV: ../../comparison_evaluations/constraint_{constraint}/results_{constraint}.csv")
 
         # Generate graphs
         constraint_name = f"Constraint {constraint}"
-        print(f"      Generating 7 graphs...")
+        print(f"      Generating 7 graphs for constraint {constraint}...")
 
         plot_accuracy_by_learning_rate(constraint_exps, constraint_dir, constraint_name)
         plot_accuracy_by_lambda_strategy(constraint_exps, constraint_dir, constraint_name)
@@ -535,24 +536,24 @@ def main():
         plot_accuracy_vs_convergence_speed(constraint_exps, constraint_dir, constraint_name)
         plot_lr_vs_convergence_epochs(constraint_exps, constraint_dir, constraint_name)
 
-        print(f"      ✓ All graphs saved to constraint_{constraint}/")
+        print(f"      ✓ All 7 graphs saved to ../../comparison_evaluations/constraint_{constraint}/")
 
     # Generate cross-constraint comparison
     print(f"\n  Generating cross-constraint comparison...")
     plot_cross_constraint_comparison(experiments, output_base)
-    print(f"  ✓ Saved: comparison_evaluations/cross_constraint_comparison.png")
+    print(f"  ✓ Saved: ../../comparison_evaluations/cross_constraint_comparison.png")
 
     # Print summary
     print("\n" + "=" * 80)
     print("ANALYSIS COMPLETE!")
     print("=" * 80)
-    print(f"\nGenerated files:")
-    print(f"  - comparison_evaluations/master_results.csv")
-    print(f"  - comparison_evaluations/cross_constraint_comparison.png")
+    print(f"\nGenerated files in ../../comparison_evaluations/:")
+    print(f"  - master_results.csv")
+    print(f"  - cross_constraint_comparison.png")
     for constraint in constraints:
-        print(f"  - comparison_evaluations/constraint_{constraint}/")
+        print(f"  - constraint_{constraint}/")
         print(f"      • results_{constraint}.csv")
-        print(f"      • 7 comparison graphs")
+        print(f"      • 7 PNG graphs (specific to constraint {constraint})")
     print("\n" + "=" * 80)
 
 

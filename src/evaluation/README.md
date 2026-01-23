@@ -8,8 +8,17 @@ Analyzes all experiments and generates comprehensive comparison graphs organized
 
 ### Usage
 
+Run from the `src/evaluation/` directory:
+
 ```bash
-python src/evaluation/generate_comparative_analysis.py
+cd src/evaluation
+python generate_comparative_analysis.py
+```
+
+Or from project root:
+
+```bash
+cd src/evaluation && python generate_comparative_analysis.py
 ```
 
 ### Output Structure
