@@ -49,4 +49,5 @@ Thumbs.db
 
 # Logs
 *.log
-*.pngcomparison_results.csv
+*.png
+comparison_results.csv
