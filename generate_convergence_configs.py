@@ -1,0 +1,181 @@
+"""
+Generate experiment configurations for testing convergence parameters.
+
+Creates 60 experiments:
+- 1 model: TabularResNet
+- 3 constraint pairs: [0.5, 0.3], [0.6, 0.4], [0.7, 0.5]
+- 20 convergence parameter combinations
+- Learning rate: 0.001
+- Strategy: linear
+- Max epochs: 2000
+
+Results saved to: results/longer_saturation/
+"""
+
+import hashlib
+import json
+from pathlib import Path
+from typing import List, Tuple
+
+
+def compute_base_model_id(model_name: str, hyperparams: dict) -> str:
+    """
+    Compute unique ID for base model (warmup-only parameters).
+    Same logic as in src/utils/data_loader.py
+    """
+    relevant_params = {
+        'model': model_name,
+        'lr': hyperparams['lr'],
+        'batch_size': hyperparams['batch_size'],
+        'hidden_dims': hyperparams['hidden_dims'],
+        'dropout': hyperparams['dropout'],
+        'warmup_epochs': hyperparams['warmup_epochs']
+    }
+    param_str = json.dumps(relevant_params, sort_keys=True)
+    return hashlib.md5(param_str.encode()).hexdigest()[:12]
+
+
+def generate_convergence_combinations() -> List[Tuple[int, int]]:
+    """
+    Generate 20 convergence parameter combinations (window_size, required_satisfied).
+
+    Option B: Specific test cases covering different satisfaction rates and window sizes.
+    """
+    combinations = [
+        # Immediate (1/1 = 100%) - baseline behavior
+        (1, 1),
+
+        # Small windows (5 epochs)
+        (5, 2),   # 40% satisfaction
+        (5, 3),   # 60% satisfaction
+        (5, 4),   # 80% satisfaction
+        (5, 5),   # 100% satisfaction
+
+        # Medium windows (10 epochs)
+        (10, 5),  # 50% satisfaction
+        (10, 7),  # 70% satisfaction
+        (10, 8),  # 80% satisfaction
+        (10, 9),  # 90% satisfaction
+        (10, 10), # 100% satisfaction
+
+        # Large windows (20 epochs)
+        (20, 10), # 50% satisfaction
+        (20, 12), # 60% satisfaction
+        (20, 14), # 70% satisfaction
+        (20, 15), # 75% satisfaction (recommended)
+        (20, 16), # 80% satisfaction
+        (20, 18), # 90% satisfaction
+        (20, 20), # 100% satisfaction
+
+        # Very large windows (30 epochs)
+        (30, 20), # 67% satisfaction
+        (30, 24), # 80% satisfaction
+        (30, 27), # 90% satisfaction
+    ]
+
+    return combinations
+
+
+def create_experiment_config(
+    model_name: str,
+    constraint_pair: List[float],
+    convergence_window: int,
+    convergence_required: int
+) -> dict:
+    """Create experiment configuration with convergence parameters."""
+
+    # Fixed hyperparameters for all experiments
+    hyperparams = {
+        'lr': 0.001,
+        'batch_size': 64,
+        'warmup_epochs': 300,
+        'epochs': 2000,  # Increased from 500 to allow sustained convergence
+        'hidden_dims': [128, 64],
+        'dropout': 0.3,
+        'lambda_global': 0.1,
+        'lambda_local': 0.1,
+        'lambda_step': 0.1,
+        'lambda_strategy': 'linear',
+        'constraint_threshold': 0.01,
+        # NEW: Convergence parameters
+        'convergence_window': convergence_window,
+        'convergence_required': convergence_required
+    }
+
+    base_model_id = compute_base_model_id(model_name, hyperparams)
+
+    config = {
+        'model_name': model_name,
+        'base_model_id': base_model_id,
+        'constraint': constraint_pair,
+        'hyperparams': hyperparams,
+        'status': 'pending'
+    }
+
+    return config
+
+
+def main():
+    """Generate all convergence test configurations."""
+
+    # Fixed parameters
+    model_name = 'TabularResNet'
+    constraint_pairs = [
+        [0.5, 0.3],
+        [0.6, 0.4],
+        [0.7, 0.5]
+    ]
+
+    # Get convergence combinations
+    convergence_combos = generate_convergence_combinations()
+
+    print(f"Generating {len(constraint_pairs)} × {len(convergence_combos)} = {len(constraint_pairs) * len(convergence_combos)} experiments")
+    print(f"Model: {model_name}")
+    print(f"Constraints: {constraint_pairs}")
+    print(f"Convergence combinations: {len(convergence_combos)}")
+    print(f"Max epochs: 2000")
+    print()
+
+    # Create base results directory
+    base_results_dir = Path('results/longer_saturation')
+    base_results_dir.mkdir(parents=True, exist_ok=True)
+
+    experiment_count = 0
+
+    for constraint_pair in constraint_pairs:
+        constraint_str = f"constraint_{int(constraint_pair[0]*100)}_{int(constraint_pair[1]*100)}"
+
+        for window, required in convergence_combos:
+            # Create experiment directory
+            # results/longer_saturation/TabularResNet/constraint_50_30/convergence_test/conv_20_15/
+            exp_dir = base_results_dir / model_name / constraint_str / 'convergence_test' / f'conv_{window}_{required}'
+            exp_dir.mkdir(parents=True, exist_ok=True)
+
+            # Generate config
+            config = create_experiment_config(
+                model_name=model_name,
+                constraint_pair=constraint_pair,
+                convergence_window=window,
+                convergence_required=required
+            )
+
+            # Save config
+            config_path = exp_dir / 'config.json'
+            with open(config_path, 'w') as f:
+                json.dump(config, f, indent=2)
+
+            experiment_count += 1
+
+            # Print progress every 10 experiments
+            if experiment_count % 10 == 0:
+                print(f"Generated {experiment_count}/{len(constraint_pairs) * len(convergence_combos)} configs...")
+
+    print(f"\n✓ Successfully generated {experiment_count} experiment configurations")
+    print(f"  Location: {base_results_dir}")
+    print(f"  Structure: {model_name}/constraint_X_Y/convergence_test/conv_W_R/")
+    print(f"\nTo run all experiments:")
+    print(f"  python run_all_convergence_experiments.py")
+
+
+if __name__ == '__main__':
+    main()

@@ -102,6 +102,16 @@ class ConstraintTrainer:
             lambda_local=self.hyperparams['lambda_local']
         ).to(self.device)
 
+        # Initialize sustained convergence checker
+        from src.training.sustained_convergence import SustainedConvergenceChecker
+        convergence_window = self.hyperparams.get('convergence_window', 1)
+        convergence_required = self.hyperparams.get('convergence_required', 1)
+        convergence_checker = SustainedConvergenceChecker(
+            window_size=convergence_window,
+            required_satisfied=convergence_required
+        )
+        print(f"Convergence criterion: {convergence_required}/{convergence_window} recent epochs must be satisfied")
+
         warmup_epochs = self.hyperparams['warmup_epochs']
         total_epochs = self.hyperparams['epochs']
         threshold = self.hyperparams['constraint_threshold']
@@ -193,9 +203,15 @@ class ConstraintTrainer:
                     criterion_constraint.global_constraints_satisfied, criterion_constraint.local_constraints_satisfied
                 )
 
-            # Stop immediately when both constraints are satisfied
-            if criterion_constraint.global_constraints_satisfied and criterion_constraint.local_constraints_satisfied:
-                print(f"\n[CONVERGED] Both constraints satisfied at epoch {epoch + 1}")
+            # Check for sustained convergence
+            should_stop, reason = convergence_checker.update(
+                criterion_constraint.global_constraints_satisfied,
+                criterion_constraint.local_constraints_satisfied
+            )
+
+            if should_stop:
+                print(f"\n[CONVERGED] {reason}")
+                print(f"  Epoch {epoch + 1}")
                 print(f"  Final loss: Global={avg_global:.6f}, Local={avg_local:.6f}")
                 print(f"  Lambda values: Global={criterion_constraint.lambda_global:.2f}, Local={criterion_constraint.lambda_local:.2f}")
 
@@ -206,7 +222,7 @@ class ConstraintTrainer:
                     epoch=epoch + 1,
                     global_satisfied=True,
                     local_satisfied=True,
-                    details=f"Converged at epoch {epoch + 1}. Global loss: {avg_global:.6f}, Local loss: {avg_local:.6f}"
+                    details=f"Converged at epoch {epoch + 1}. {reason}. Global loss: {avg_global:.6f}, Local loss: {avg_local:.6f}"
                 )
 
                 # Import here to avoid circular dependency
@@ -215,13 +231,18 @@ class ConstraintTrainer:
                 save_stop_reason(
                     str(self.experiment_path),
                     status='converged',
-                    reason=f"Normal convergence: Both global and local constraints satisfied at epoch {epoch + 1}",
+                    reason=f"Sustained convergence: {reason} at epoch {epoch + 1}",
                     exception_type=None,
                     final_epoch=epoch + 1,
                     global_satisfied=True,
                     local_satisfied=True
                 )
                 break
+            else:
+                # Optionally print convergence progress every 10 epochs
+                if (epoch + 1) % 10 == 0:
+                    rate = convergence_checker.get_satisfaction_rate()
+                    print(f"  [CONV PROGRESS] Satisfaction rate: {rate*100:.1f}% ({sum(convergence_checker.history)}/{len(convergence_checker.history)})")
         else:
             # Loop completed without break - reached max epochs without convergence
             print(f"\n[FAILED] Reached maximum epochs ({total_epochs}) without full convergence")
