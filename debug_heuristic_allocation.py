@@ -80,8 +80,9 @@ def debug_allocation(config_path: str):
     print("HEURISTIC ALLOCATION PROCESS:")
     print("-" * 80)
 
-    class_hierarchy = [2, 0, 1]
-    print(f"Class hierarchy: {class_hierarchy} (Graduate -> Dropout -> Enrolled)")
+    class_hierarchy = [0, 1, 2]
+    print(f"Class hierarchy: {class_hierarchy} (Dropout -> Enrolled -> Graduate)")
+    print("Strategy: Satisfy constrained classes first, then assign leftovers to Graduate")
 
     n_samples = len(probs)
     y_pred = np.full(n_samples, -1, dtype=int)

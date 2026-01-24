@@ -89,8 +89,9 @@ def run_heuristic(config_path: str) -> None:
         logits = trainer.model(X_test_tensor)
         probs = torch.softmax(logits, dim=1).cpu().numpy()
 
-    # Define Hierarchy: Graduate(2) -> Dropout(0) -> Enrolled(1)
-    class_hierarchy = [2, 0, 1]
+    # Define Hierarchy: Dropout(0) -> Enrolled(1) -> Graduate(2)
+    # Process constrained classes first, then assign leftovers to unlimited Graduate
+    class_hierarchy = [0, 1, 2]
 
     y_pred, exec_time = apply_allocation_heuristic(
         probs, groups_test.values, class_hierarchy, global_constraint, local_constraint
