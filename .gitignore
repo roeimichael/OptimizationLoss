@@ -36,6 +36,7 @@ env/
 #model_cache/
 models/trained_models/
 results/heuristic/
+**/final_predictions_saturated.csv
 
 # Data directory - exclude dataset files but keep README
 #data/*.csv
