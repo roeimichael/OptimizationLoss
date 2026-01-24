@@ -113,7 +113,8 @@ def run_heuristic(config_path: str) -> None:
         'methodology': 'heuristic'
     }
 
-    save_evaluation_metrics(Path(experiment_path) / 'evaluation_metrics.csv', config['results'])
+    # Save full metrics to CSV (needs all per-class and weighted metrics)
+    save_evaluation_metrics(Path(experiment_path) / 'evaluation_metrics.csv', metrics)
     save_config_to_path(config, experiment_path)
     mark_experiment_complete(experiment_path)
 

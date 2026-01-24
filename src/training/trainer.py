@@ -281,14 +281,22 @@ class ConstraintTrainer:
 
     def _load_from_cache(self, base_model_id: str, input_dim: int) -> Optional[nn.Module]:
         path = self._get_cache_path(base_model_id)
-        if not path.exists(): return None
+        if not path.exists():
+            return None
         try:
             ckpt = torch.load(path, map_location=self.device)
-            if ckpt['base_model_id'] != base_model_id: return None
+            if ckpt['base_model_id'] != base_model_id:
+                return None
 
-            model = get_model(self.config['model_name'], input_dim, self.hyperparams['hidden_dims'], 3,
-                              self.hyperparams['dropout']).to(self.device)
+            model = get_model(
+                self.config['model_name'],
+                input_dim=input_dim,
+                n_classes=3,
+                hidden_dims=self.hyperparams['hidden_dims'],
+                dropout=self.hyperparams['dropout']
+            ).to(self.device)
             model.load_state_dict(ckpt['model_state_dict'])
             return model
-        except:
+        except Exception as e:
+            print(f"[WARNING] Failed to load cached model {base_model_id}: {e}")
             return None
