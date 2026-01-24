@@ -35,6 +35,7 @@ env/
 # Results and Data
 #model_cache/
 models/trained_models/
+results/heuristic/
 
 # Data directory - exclude dataset files but keep README
 data/*.csv

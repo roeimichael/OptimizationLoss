@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
-Run heuristic evaluation on all trained models across all constraints.
+Run heuristic evaluation on all experiments in the heuristic folder.
 
 This script will:
-1. Find all experiment config files
+1. Find all experiment config files in results/heuristic/
 2. Run the heuristic evaluation for each one
-3. Save results in a separate heuristic_results folder structure
+3. Save results in the heuristic folder structure (preserving optimization results)
+
+NOTE: Run setup_heuristic_structure.py first to create the folder structure!
 """
 
 import json
@@ -19,8 +21,14 @@ def main():
     print("BATCH HEURISTIC EVALUATION")
     print("=" * 80)
 
-    # Find all experiment configs
-    results_dir = Path('results/our_approach')
+    # Find all experiment configs in HEURISTIC folder
+    results_dir = Path('results/heuristic')
+
+    if not results_dir.exists():
+        print(f"\nERROR: {results_dir} does not exist!")
+        print("Please run setup_heuristic_structure.py first to create the folder structure.")
+        return False
+
     all_configs = sorted(list(results_dir.rglob('config.json')))
 
     print(f"\nFound {len(all_configs)} experiments to evaluate")
@@ -113,10 +121,11 @@ def main():
     else:
         print("\n✓ ALL HEURISTIC EVALUATIONS COMPLETED SUCCESSFULLY!")
 
-    print("\nResults are saved in each experiment directory:")
-    print("  - evaluation_metrics.csv (updated with heuristic results)")
+    print("\nResults are saved in results/heuristic/ folder:")
+    print("  - evaluation_metrics.csv (heuristic results)")
     print("  - final_predictions.csv (heuristic predictions)")
-    print("  - config.json (updated with heuristic methodology)")
+    print("  - config.json (with heuristic results + original optimization_results)")
+    print("\nOriginal optimization results preserved in results/our_approach/")
     print("=" * 80)
 
     return success_count == len(all_configs)
