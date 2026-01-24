@@ -21,6 +21,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
+# Colleague's experimental results for reference
+DANIT_RESULTS = {
+    '0.9_0.8': {'optimization': 0.6975, 'heuristic': 0.7043},
+    '0.8_0.2': {'optimization': 0.5305, 'heuristic': 0.5508},
+    '0.5_0.3': {'optimization': 0.5801, 'heuristic': 0.5779},
+}
+
+
 def extract_experiment_data():
     """Extract all experiment data from results folder."""
     # Use relative path from src/evaluation/ to results/
@@ -105,7 +113,7 @@ def save_csv(experiments, output_path):
         writer.writerows(experiments)
 
 
-def plot_accuracy_by_learning_rate(experiments, output_dir, constraint_name):
+def plot_accuracy_by_learning_rate(experiments, output_dir, constraint_name, constraint_key):
     """Graph 1: Average test accuracy by learning rate for each model."""
     converged = [e for e in experiments if e['converged'] and e['test_accuracy'] != '']
     if not converged:
@@ -135,6 +143,11 @@ def plot_accuracy_by_learning_rate(experiments, output_dir, constraint_name):
                 avg_accuracies.append(0)
         ax.bar(x + i * width, avg_accuracies, width, label=model)
 
+    # Add Danit's experimental result as reference line
+    if constraint_key in DANIT_RESULTS:
+        danit_acc = DANIT_RESULTS[constraint_key]['heuristic']
+        ax.axhline(y=danit_acc, color='red', linestyle='--', linewidth=2, label='Danit exp.', alpha=0.7)
+
     ax.set_xlabel('Learning Rate', fontsize=12)
     ax.set_ylabel('Average Test Accuracy', fontsize=12)
     ax.set_title(f'Average Test Accuracy by Learning Rate - {constraint_name}', fontsize=14)
@@ -148,7 +161,7 @@ def plot_accuracy_by_learning_rate(experiments, output_dir, constraint_name):
     plt.close()
 
 
-def plot_accuracy_by_lambda_strategy(experiments, output_dir, constraint_name):
+def plot_accuracy_by_lambda_strategy(experiments, output_dir, constraint_name, constraint_key):
     """Graph 2: Average test accuracy by lambda strategy for each model."""
     converged = [e for e in experiments if e['converged'] and e['test_accuracy'] != '']
     if not converged:
@@ -177,6 +190,11 @@ def plot_accuracy_by_lambda_strategy(experiments, output_dir, constraint_name):
             else:
                 avg_accuracies.append(0)
         ax.bar(x + i * width, avg_accuracies, width, label=model)
+
+    # Add Danit's experimental result as reference line
+    if constraint_key in DANIT_RESULTS:
+        danit_acc = DANIT_RESULTS[constraint_key]['heuristic']
+        ax.axhline(y=danit_acc, color='red', linestyle='--', linewidth=2, label='Danit exp.', alpha=0.7)
 
     ax.set_xlabel('Lambda Strategy', fontsize=12)
     ax.set_ylabel('Average Test Accuracy', fontsize=12)
@@ -262,7 +280,7 @@ def plot_convergence_rate_by_factors(experiments, output_dir, constraint_name):
     plt.close()
 
 
-def plot_model_comparison(experiments, output_dir, constraint_name):
+def plot_model_comparison(experiments, output_dir, constraint_name, constraint_key):
     """Graph 4: Model performance comparison."""
     converged = [e for e in experiments if e['converged']]
     if not converged:
@@ -297,6 +315,13 @@ def plot_model_comparison(experiments, output_dir, constraint_name):
     ax2.set_ylabel('Average Test Accuracy', fontsize=11)
     ax2.set_title('Test Accuracy by Model', fontsize=12)
     ax2.grid(axis='y', alpha=0.3)
+
+    # Add Danit's experimental result as reference line
+    if constraint_key in DANIT_RESULTS:
+        danit_acc = DANIT_RESULTS[constraint_key]['heuristic']
+        ax2.axhline(y=danit_acc, color='red', linestyle='--', linewidth=2, label='Danit exp.', alpha=0.7)
+        ax2.legend(loc='best', fontsize=9)
+
     for i, (model, avg_acc) in enumerate(zip(models, avg_accs)):
         ax2.text(i, avg_acc + 0.01, f'{avg_acc:.3f}', ha='center', fontsize=10)
 
@@ -306,7 +331,7 @@ def plot_model_comparison(experiments, output_dir, constraint_name):
     plt.close()
 
 
-def plot_heatmap_lr_strategy(experiments, output_dir, constraint_name):
+def plot_heatmap_lr_strategy(experiments, output_dir, constraint_name, constraint_key):
     """Graph 5: Heatmap of accuracy by learning rate x lambda strategy."""
     converged = [e for e in experiments if e['converged'] and e['test_accuracy'] != '']
     if not converged:
@@ -344,7 +369,13 @@ def plot_heatmap_lr_strategy(experiments, output_dir, constraint_name):
 
     ax.set_xlabel('Lambda Strategy', fontsize=12)
     ax.set_ylabel('Learning Rate', fontsize=12)
-    ax.set_title(f'Accuracy Heatmap: LR × Strategy - {constraint_name}', fontsize=14)
+
+    # Add Danit's result to title if available
+    title = f'Accuracy Heatmap: LR × Strategy - {constraint_name}'
+    if constraint_key in DANIT_RESULTS:
+        danit_acc = DANIT_RESULTS[constraint_key]['heuristic']
+        title += f'\n(Danit exp. baseline: {danit_acc:.3f})'
+    ax.set_title(title, fontsize=14)
 
     # Add text annotations
     for i in range(len(lrs)):
@@ -360,7 +391,7 @@ def plot_heatmap_lr_strategy(experiments, output_dir, constraint_name):
     plt.close()
 
 
-def plot_accuracy_vs_convergence_speed(experiments, output_dir, constraint_name):
+def plot_accuracy_vs_convergence_speed(experiments, output_dir, constraint_name, constraint_key):
     """Graph 6: Scatter plot of test accuracy vs convergence speed."""
     converged = [e for e in experiments if e['converged'] and e['test_accuracy'] != '']
     if not converged:
@@ -379,6 +410,11 @@ def plot_accuracy_vs_convergence_speed(experiments, output_dir, constraint_name)
     for model, data in model_data.items():
         ax.scatter(data['epochs'], data['accuracies'],
                   label=model, alpha=0.6, s=80, color=colors.get(model, 'gray'))
+
+    # Add Danit's experimental result as reference line
+    if constraint_key in DANIT_RESULTS:
+        danit_acc = DANIT_RESULTS[constraint_key]['heuristic']
+        ax.axhline(y=danit_acc, color='red', linestyle='--', linewidth=2, label='Danit exp.', alpha=0.7)
 
     ax.set_xlabel('Convergence Epoch', fontsize=12)
     ax.set_ylabel('Test Accuracy', fontsize=12)
@@ -527,12 +563,12 @@ def main():
         constraint_name = f"Constraint {constraint}"
         print(f"      Generating 7 graphs for constraint {constraint}...")
 
-        plot_accuracy_by_learning_rate(constraint_exps, constraint_dir, constraint_name)
-        plot_accuracy_by_lambda_strategy(constraint_exps, constraint_dir, constraint_name)
+        plot_accuracy_by_learning_rate(constraint_exps, constraint_dir, constraint_name, constraint)
+        plot_accuracy_by_lambda_strategy(constraint_exps, constraint_dir, constraint_name, constraint)
         plot_convergence_rate_by_factors(constraint_exps, constraint_dir, constraint_name)
-        plot_model_comparison(constraint_exps, constraint_dir, constraint_name)
-        plot_heatmap_lr_strategy(constraint_exps, constraint_dir, constraint_name)
-        plot_accuracy_vs_convergence_speed(constraint_exps, constraint_dir, constraint_name)
+        plot_model_comparison(constraint_exps, constraint_dir, constraint_name, constraint)
+        plot_heatmap_lr_strategy(constraint_exps, constraint_dir, constraint_name, constraint)
+        plot_accuracy_vs_convergence_speed(constraint_exps, constraint_dir, constraint_name, constraint)
         plot_lr_vs_convergence_epochs(constraint_exps, constraint_dir, constraint_name)
 
         print(f"      ✓ All 7 graphs saved to ../../comparison_evaluations/constraint_{constraint}/")
