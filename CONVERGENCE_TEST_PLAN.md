@@ -32,9 +32,16 @@ This experiment tests different sustained convergence parameters to find the opt
 ### Variable Parameters
 
 #### Constraint Pairs (3 total)
-1. `[0.5, 0.3]` - 43 dropouts, 24 enrolled allowed
-2. `[0.6, 0.4]` - 52 dropouts, 32 enrolled allowed
-3. `[0.7, 0.5]` - 61 dropouts, 40 enrolled allowed
+
+These are the same constraint pairs used in the original experiments:
+
+1. `[0.5, 0.3]` - **Restrictive**: 43 dropouts, 24 enrolled allowed (from 142/79 total)
+2. `[0.8, 0.2]` - **Most restrictive**: 28 dropouts, 16 enrolled allowed (from 142/79 total)
+3. `[0.9, 0.8]` - **Lenient**: 114 dropouts, 63 enrolled allowed (from 142/79 total)
+
+Note: Format is `[local%, global%]` where:
+- `local%` applies per-course constraints
+- `global%` applies to total test set (142 dropouts, 79 enrolled, 221 graduates)
 
 #### Convergence Combinations (20 total)
 
@@ -68,7 +75,7 @@ This experiment tests different sustained convergence parameters to find the opt
 ```
 results/longer_saturation/
 └── TabularResNet/
-    ├── constraint_50_30/
+    ├── constraint_50_30/       # [0.5, 0.3]: 43 dropouts, 24 enrolled
     │   └── convergence_test/
     │       ├── conv_1_1/          # Baseline
     │       ├── conv_5_2/
@@ -76,10 +83,10 @@ results/longer_saturation/
     │       ├── ...
     │       ├── conv_20_15/        # Recommended
     │       └── conv_30_27/
-    ├── constraint_60_40/
+    ├── constraint_80_20/       # [0.8, 0.2]: 28 dropouts, 16 enrolled
     │   └── convergence_test/
     │       └── (same 20 combinations)
-    └── constraint_70_50/
+    └── constraint_90_80/       # [0.9, 0.8]: 114 dropouts, 63 enrolled
         └── convergence_test/
             └── (same 20 combinations)
 ```

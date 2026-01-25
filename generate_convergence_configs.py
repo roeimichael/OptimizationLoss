@@ -111,10 +111,18 @@ def main():
 
     # Fixed parameters
     model_name = 'TabularResNet'
+    # Use the same constraint pairs as original experiments
+    # [local%, global%] where:
+    #   - local% applies per-course constraints
+    #   - global% applies to total test set
+    # Results in these constraints:
+    #   [0.5, 0.3]: 43 dropouts, 24 enrolled allowed
+    #   [0.8, 0.2]: 28 dropouts, 16 enrolled allowed
+    #   [0.9, 0.8]: 114 dropouts, 63 enrolled allowed
     constraint_pairs = [
         [0.5, 0.3],
-        [0.6, 0.4],
-        [0.7, 0.5]
+        [0.8, 0.2],
+        [0.9, 0.8]
     ]
 
     # Get convergence combinations
