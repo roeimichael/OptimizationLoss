@@ -47,25 +47,16 @@ def generate_convergence_combinations() -> List[Tuple[int, int]]:
 
         # Small windows (5 epochs)
         (5, 2),   # 40% satisfaction
-        (5, 3),   # 60% satisfaction
-        (5, 4),   # 80% satisfaction
         (5, 5),   # 100% satisfaction
 
         # Medium windows (10 epochs)
         (10, 5),  # 50% satisfaction
         (10, 7),  # 70% satisfaction
-        (10, 8),  # 80% satisfaction
-        (10, 9),  # 90% satisfaction
-        (10, 10), # 100% satisfaction
 
-        # Large windows (20 epochs)
-        (20, 10), # 50% satisfaction
         (20, 12), # 60% satisfaction
         (20, 14), # 70% satisfaction
         (20, 15), # 75% satisfaction (recommended)
-        (20, 16), # 80% satisfaction
-        (20, 18), # 90% satisfaction
-        (20, 20), # 100% satisfaction
+
 
         # Very large windows (30 epochs)
         (30, 20), # 67% satisfaction

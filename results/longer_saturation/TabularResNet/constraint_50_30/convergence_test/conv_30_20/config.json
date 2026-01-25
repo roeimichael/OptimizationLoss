@@ -1,0 +1,35 @@
+{
+    "model_name": "TabularResNet",
+    "base_model_id": "68a08ccced59",
+    "constraint": [
+        0.5,
+        0.3
+    ],
+    "hyperparams": {
+        "lr": 0.001,
+        "batch_size": 64,
+        "warmup_epochs": 300,
+        "epochs": 2000,
+        "hidden_dims": [
+            128,
+            64
+        ],
+        "dropout": 0.3,
+        "lambda_global": 0.1,
+        "lambda_local": 0.1,
+        "lambda_step": 0.1,
+        "lambda_strategy": "linear",
+        "constraint_threshold": 0.01,
+        "convergence_window": 30,
+        "convergence_required": 20
+    },
+    "status": "completed",
+    "results": {
+        "accuracy": 0.6900452488687783,
+        "precision_macro": 0.6553529213103682,
+        "recall_macro": 0.5422000087663464,
+        "f1_macro": 0.521889225918264,
+        "training_time": 157.00090312957764,
+        "used_cached_model": true
+    }
+}
