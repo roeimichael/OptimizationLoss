@@ -12,7 +12,7 @@ def find_all_configs(base_dir: Path) -> List[Path]:
 def run_experiment(config_path: Path) -> bool:
     try:
         result = subprocess.run(
-            [sys.executable, '../../src/experiments/run_experiment.py', str(config_path)],
+            [sys.executable, 'src/experiments/run_experiment.py', str(config_path)],
             capture_output=False,
             text=True,
             timeout=3600  # 1 hour timeout per experiment
@@ -27,7 +27,7 @@ def run_experiment(config_path: Path) -> bool:
 
 
 def main():
-    base_dir = Path('../../results/longer_saturation')
+    base_dir = Path('results/longer_saturation')
     if not base_dir.exists():
         print(f"[ERROR] Directory not found: {base_dir}")
         sys.exit(1)
