@@ -17,9 +17,18 @@ def _compute_single_class_constraint_loss(
 
     if constraint_value > UNLIMITED_THRESHOLD:
         return torch.tensor(0.0, device=soft_predictions.device), True
-    hard_count = (hard_predictions == class_id).sum().float()
-    is_satisfied = hard_count <= constraint_value
+
+    # OPTION A: Use soft predictions for both loss AND satisfaction (ACTIVE)
+    # This is more conservative and consistent with the loss computation
     predicted_count = soft_predictions[:, class_id].sum()
+    is_satisfied = predicted_count <= constraint_value
+
+    # OPTION B: Use hard predictions for both loss AND satisfaction (COMMENTED OUT)
+    # Uncomment below and comment out Option A above to test this approach
+    # hard_count = (hard_predictions == class_id).sum().float()
+    # predicted_count = hard_count
+    # is_satisfied = hard_count <= constraint_value
+
     if predicted_count > constraint_value:
         E = torch.relu(predicted_count - constraint_value)
         loss = E / (E + constraint_value + epsilon)
@@ -86,11 +95,9 @@ class MulticlassTransductiveLoss(nn.Module):
             if K > UNLIMITED_THRESHOLD:
                 continue
 
-            class_loss, _ = _compute_single_class_constraint_loss(
+            class_loss, is_satisfied = _compute_single_class_constraint_loss(
                 y_proba, y_hard, class_id, K, self.eps
             )
-            hard_count = (y_hard == class_id).sum().float()
-            is_satisfied = hard_count <= K
 
             if not is_satisfied:
                 all_satisfied = False
@@ -140,11 +147,9 @@ class MulticlassTransductiveLoss(nn.Module):
                 if K > UNLIMITED_THRESHOLD:
                     continue
 
-                class_loss, _ = _compute_single_class_constraint_loss(
+                class_loss, is_satisfied = _compute_single_class_constraint_loss(
                     group_proba, group_hard, class_id, K, self.eps
                 )
-                group_hard_count = (group_hard == class_id).sum().float()
-                is_satisfied = group_hard_count <= K
 
                 if not is_satisfied:
                     all_satisfied = False
