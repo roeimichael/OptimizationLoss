@@ -86,9 +86,11 @@ class MulticlassTransductiveLoss(nn.Module):
             if K > UNLIMITED_THRESHOLD:
                 continue
 
-            class_loss, is_satisfied = _compute_single_class_constraint_loss(
+            class_loss, _ = _compute_single_class_constraint_loss(
                 y_proba, y_hard, class_id, K, self.eps
             )
+            hard_count = (y_hard == class_id).sum().float()
+            is_satisfied = hard_count <= K
 
             if not is_satisfied:
                 all_satisfied = False
@@ -138,9 +140,11 @@ class MulticlassTransductiveLoss(nn.Module):
                 if K > UNLIMITED_THRESHOLD:
                     continue
 
-                class_loss, is_satisfied = _compute_single_class_constraint_loss(
+                class_loss, _ = _compute_single_class_constraint_loss(
                     group_proba, group_hard, class_id, K, self.eps
                 )
+                group_hard_count = (group_hard == class_id).sum().float()
+                is_satisfied = group_hard_count <= K
 
                 if not is_satisfied:
                     all_satisfied = False
