@@ -33,15 +33,15 @@ env/
 *~
 
 # Results and Data
-#model_cache/
+model_cache/
 models/trained_models/
 results/heuristic/
 results/saturated_approach/
-#results/longer_saturation/
+results/longer_saturation/
 **/final_predictions_saturated.csv
 
 # Data directory - exclude dataset files but keep README
-#data/*.csv
+data/*.csv
 !data/README.md
 
 # OS

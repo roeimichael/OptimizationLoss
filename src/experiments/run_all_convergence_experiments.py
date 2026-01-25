@@ -1,10 +1,3 @@
-"""
-Run all convergence test experiments.
-
-Executes all experiments in results/longer_saturation/ to test different
-convergence parameter combinations.
-"""
-
 import subprocess
 import sys
 from pathlib import Path
@@ -12,18 +5,11 @@ from typing import List
 
 
 def find_all_configs(base_dir: Path) -> List[Path]:
-    """Find all config.json files in the convergence test directory."""
     configs = sorted(base_dir.glob('**/config.json'))
     return configs
 
 
 def run_experiment(config_path: Path) -> bool:
-    """
-    Run a single experiment.
-
-    Returns:
-        True if successful, False if failed
-    """
     try:
         result = subprocess.run(
             [sys.executable, 'src/experiments/run_experiment.py', str(config_path)],
@@ -41,34 +27,24 @@ def run_experiment(config_path: Path) -> bool:
 
 
 def main():
-    """Run all convergence test experiments."""
-
     base_dir = Path('../../results/longer_saturation')
-
     if not base_dir.exists():
         print(f"[ERROR] Directory not found: {base_dir}")
-        print("Run generate_convergence_configs.py first to create experiment configs")
         sys.exit(1)
 
-    # Find all configs
     configs = find_all_configs(base_dir)
 
     if len(configs) == 0:
         print(f"[ERROR] No config.json files found in {base_dir}")
-        print("Run generate_convergence_configs.py first to create experiment configs")
         sys.exit(1)
 
     print(f"Found {len(configs)} experiments to run")
-    print(f"Location: {base_dir}")
-    print()
 
-    # Run each experiment
     successful = 0
     failed = 0
     skipped = 0
 
     for i, config_path in enumerate(configs, 1):
-        # Extract experiment info from path
         parts = config_path.parts
         model_idx = parts.index('longer_saturation') + 1
         model_name = parts[model_idx] if model_idx < len(parts) else 'unknown'

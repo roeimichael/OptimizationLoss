@@ -72,7 +72,6 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         )
     except KeyboardInterrupt:
         print("\n[INTERRUPTED] Training interrupted by user (Ctrl+C)")
-        # Check if we have a training log to get the last epoch and constraint status
         log_path = Path(experiment_path) / 'training_log.csv'
         last_epoch = 0
         global_sat = False
@@ -87,8 +86,6 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
                     local_sat = int(last_row['Local_Satisfied']) == 1
             except:
                 pass
-
-        # Save to run_status.json
         save_run_status(
             str(experiment_path),
             status='interrupted',
