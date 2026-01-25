@@ -3,11 +3,14 @@ Generate experiment configurations for testing convergence parameters.
 
 Creates 60 experiments:
 - 1 model: TabularResNet
-- 3 constraint pairs: [0.5, 0.3], [0.6, 0.4], [0.7, 0.5]
+- 3 constraint pairs: [0.5, 0.3], [0.8, 0.2], [0.9, 0.8]
 - 20 convergence parameter combinations
 - Learning rate: 0.001
 - Strategy: linear
-- Max epochs: 2000
+- Max epochs: 1000 (matches original experiments)
+
+Hyperparameters match EXACTLY with original experiments except for
+convergence_window and convergence_required parameters.
 
 Results saved to: results/longer_saturation/
 """
@@ -21,18 +24,19 @@ from typing import List, Tuple
 def compute_base_model_id(model_name: str, hyperparams: dict) -> str:
     """
     Compute unique ID for base model (warmup-only parameters).
-    Same logic as in src/utils/data_loader.py
+    MUST match EXACTLY with generate_configs.py logic!
     """
     relevant_params = {
-        'model': model_name,
+        'model_name': model_name,  # MATCH original (was 'model')
         'lr': hyperparams['lr'],
+        'dropout': hyperparams['dropout'],  # Order matters for consistency
         'batch_size': hyperparams['batch_size'],
-        'hidden_dims': hyperparams['hidden_dims'],
-        'dropout': hyperparams['dropout'],
+        'hidden_dims': tuple(hyperparams['hidden_dims']),  # MATCH original (was list)
         'warmup_epochs': hyperparams['warmup_epochs']
     }
     param_str = json.dumps(relevant_params, sort_keys=True)
-    return hashlib.md5(param_str.encode()).hexdigest()[:12]
+    config_hash = hashlib.md5(param_str.encode()).hexdigest()[:12]
+    return f"{model_name}_{config_hash}"  # MATCH original format
 
 
 def generate_convergence_combinations() -> List[Tuple[int, int]]:
@@ -76,19 +80,21 @@ def create_experiment_config(
     """Create experiment configuration with convergence parameters."""
 
     # Fixed hyperparameters for all experiments
+    # IMPORTANT: Match EXACTLY with original experiments (generate_configs.py)
+    # to ensure fair comparison. Only convergence parameters should differ.
     hyperparams = {
         'lr': 0.001,
         'batch_size': 64,
-        'warmup_epochs': 300,
-        'epochs': 2000,  # Increased from 500 to allow sustained convergence
+        'warmup_epochs': 50,  # MATCH original (was 300)
+        'epochs': 1000,  # MATCH original (was 2000)
         'hidden_dims': [128, 64],
         'dropout': 0.3,
         'lambda_global': 0.1,
         'lambda_local': 0.1,
-        'lambda_step': 0.1,
+        'lambda_step': 0.005,  # MATCH original (was 0.1)
         'lambda_strategy': 'linear',
-        'constraint_threshold': 0.01,
-        # NEW: Convergence parameters
+        'constraint_threshold': 0.02,  # MATCH original (was 0.01)
+        # NEW: Convergence parameters (ONLY difference from original)
         'convergence_window': convergence_window,
         'convergence_required': convergence_required
     }
@@ -132,7 +138,10 @@ def main():
     print(f"Model: {model_name}")
     print(f"Constraints: {constraint_pairs}")
     print(f"Convergence combinations: {len(convergence_combos)}")
-    print(f"Max epochs: 2000")
+    print(f"Max epochs: 1000 (matches original experiments)")
+    print(f"Warmup epochs: 50 (matches original experiments)")
+    print(f"Lambda step: 0.005 (matches original experiments)")
+    print(f"Constraint threshold: 0.02 (matches original experiments)")
     print()
 
     # Create base results directory
