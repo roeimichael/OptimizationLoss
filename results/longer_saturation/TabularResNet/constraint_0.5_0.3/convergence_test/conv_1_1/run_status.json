@@ -1,0 +1,8 @@
+{
+  "status": "converged",
+  "final_epoch": 115,
+  "global_constraint_satisfied": true,
+  "local_constraint_satisfied": true,
+  "details": "Converged at epoch 115. Sustained convergence: 1/1 recent epochs satisfied. Global loss: 0.003121, Local loss: 0.951057",
+  "timestamp": "2026-01-25T09:18:38.096104"
+}
