@@ -25,9 +25,14 @@ This experiment tests different sustained convergence parameters to find the opt
 - **Model**: TabularResNet (best performing model from previous experiments)
 - **Learning rate**: 0.001 (optimal from grid search)
 - **Lambda strategy**: linear (simple and effective)
-- **Max epochs**: 2000 (increased from 500 to allow sustained convergence)
-- **Warmup epochs**: 300
+- **Max epochs**: 1000 (MATCHES original experiments)
+- **Warmup epochs**: 50 (MATCHES original experiments)
+- **Lambda step**: 0.005 (MATCHES original experiments)
+- **Constraint threshold**: 0.02 (MATCHES original experiments)
 - **Other hyperparams**: Standard (batch_size=64, hidden_dims=[128,64], dropout=0.3)
+
+**CRITICAL**: All hyperparameters match the original experiments EXACTLY except for
+the convergence_window and convergence_required parameters. This ensures fair comparison.
 
 ### Variable Parameters
 
