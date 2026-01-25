@@ -25,11 +25,11 @@
     },
     "status": "completed",
     "results": {
-        "accuracy": 0.5610859728506787,
-        "precision_macro": 0.6332460123413669,
-        "recall_macro": 0.4021358423369897,
-        "f1_macro": 0.3535014005602241,
-        "training_time": 103.97706460952759,
-        "used_cached_model": false
+        "accuracy": 0.5090497737556561,
+        "precision_macro": 0.5578703703703703,
+        "recall_macro": 0.3481452320083512,
+        "f1_macro": 0.2576657359955945,
+        "training_time": 1410.47212266922,
+        "used_cached_model": true
     }
 }

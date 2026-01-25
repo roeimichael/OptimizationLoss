@@ -1,0 +1,8 @@
+{
+  "status": "interrupted",
+  "final_epoch": 720,
+  "global_constraint_satisfied": true,
+  "local_constraint_satisfied": false,
+  "details": "Training interrupted by user (KeyboardInterrupt / Ctrl+C)",
+  "timestamp": "2026-01-25T18:58:14.430471"
+}

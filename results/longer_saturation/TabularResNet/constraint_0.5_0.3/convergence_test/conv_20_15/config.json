@@ -1,27 +1,35 @@
 {
-  "model_name": "TabularResNet",
-  "base_model_id": "TabularResNet_93fcfbe80328",
-  "constraint": [
-    0.5,
-    0.3
-  ],
-  "hyperparams": {
-    "lr": 0.001,
-    "batch_size": 64,
-    "warmup_epochs": 50,
-    "epochs": 1000,
-    "hidden_dims": [
-      128,
-      64
+    "model_name": "TabularResNet",
+    "base_model_id": "TabularResNet_93fcfbe80328",
+    "constraint": [
+        0.5,
+        0.3
     ],
-    "dropout": 0.3,
-    "lambda_global": 0.1,
-    "lambda_local": 0.1,
-    "lambda_step": 0.005,
-    "lambda_strategy": "linear",
-    "constraint_threshold": 0.02,
-    "convergence_window": 20,
-    "convergence_required": 15
-  },
-  "status": "pending"
+    "hyperparams": {
+        "lr": 0.001,
+        "batch_size": 64,
+        "warmup_epochs": 50,
+        "epochs": 1000,
+        "hidden_dims": [
+            128,
+            64
+        ],
+        "dropout": 0.3,
+        "lambda_global": 0.1,
+        "lambda_local": 0.1,
+        "lambda_step": 0.005,
+        "lambda_strategy": "linear",
+        "constraint_threshold": 0.02,
+        "convergence_window": 20,
+        "convergence_required": 15
+    },
+    "status": "completed",
+    "results": {
+        "accuracy": 0.5656108597285068,
+        "precision_macro": 0.684014753033383,
+        "recall_macro": 0.4132857745591482,
+        "f1_macro": 0.3746872939369013,
+        "training_time": 1399.5921852588654,
+        "used_cached_model": true
+    }
 }
