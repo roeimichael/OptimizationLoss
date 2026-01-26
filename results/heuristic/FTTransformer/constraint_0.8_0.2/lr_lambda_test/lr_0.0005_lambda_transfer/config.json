@@ -1,0 +1,45 @@
+{
+    "methodology": "heuristic",
+    "model_name": "FTTransformer",
+    "constraint": [
+        0.8,
+        0.2
+    ],
+    "hyperparam_regime": "lr_lambda_test",
+    "variation_name": "lr_0.0005_lambda_transfer",
+    "hyperparams": {
+        "lr": 0.0005,
+        "dropout": 0.3,
+        "batch_size": 64,
+        "hidden_dims": [
+            128,
+            64
+        ],
+        "epochs": 1000,
+        "lambda_global": 0.1,
+        "lambda_local": 0.1,
+        "lambda_strategy": "transfer",
+        "warmup_epochs": 50,
+        "constraint_threshold": 0.02,
+        "lambda_step": 0.005
+    },
+    "base_model_id": "FTTransformer_44cf6472840c",
+    "experiment_path": "results/heuristic/FTTransformer/constraint_0.8_0.2/lr_lambda_test/lr_0.0005_lambda_transfer",
+    "status": "completed",
+    "optimization_results": {
+        "accuracy": 0.5497737556561086,
+        "precision_macro": 0.6018970189701897,
+        "recall_macro": 0.3943364830332204,
+        "f1_macro": 0.3400806963053838,
+        "training_time": 422.7128882408142,
+        "used_cached_model": false
+    },
+    "results": {
+        "accuracy": 0.5701357466063348,
+        "precision_macro": 0.6987616654702081,
+        "recall_macro": 0.42901881188038943,
+        "f1_macro": 0.4047695023932539,
+        "training_time": 0.001481771469116211,
+        "methodology": "heuristic"
+    }
+}

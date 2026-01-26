@@ -1,0 +1,45 @@
+{
+    "methodology": "saturated_approach",
+    "model_name": "BasicNN",
+    "constraint": [
+        0.5,
+        0.3
+    ],
+    "hyperparam_regime": "lr_lambda_test",
+    "variation_name": "lr_0.0005_lambda_transfer",
+    "hyperparams": {
+        "lr": 0.0005,
+        "dropout": 0.3,
+        "batch_size": 64,
+        "hidden_dims": [
+            128,
+            64
+        ],
+        "epochs": 1000,
+        "lambda_global": 0.1,
+        "lambda_local": 0.1,
+        "lambda_strategy": "transfer",
+        "warmup_epochs": 50,
+        "constraint_threshold": 0.02,
+        "lambda_step": 0.005
+    },
+    "base_model_id": "BasicNN_f63ae9417829",
+    "experiment_path": "results/saturated_approach/BasicNN/constraint_0.5_0.3/lr_lambda_test/lr_0.0005_lambda_transfer",
+    "status": "completed",
+    "results": {
+        "accuracy": 0.6312217194570136,
+        "precision_macro": 0.685364727608495,
+        "recall_macro": 0.5007261815542625,
+        "f1_macro": 0.5043962793761733,
+        "methodology": "saturated",
+        "samples_saturated": 23
+    },
+    "optimization_results": {
+        "accuracy": 0.6153846153846154,
+        "precision_macro": 0.8175712719298246,
+        "recall_macro": 0.4549236346348131,
+        "f1_macro": 0.4193636917369215,
+        "training_time": 243.55250024795532,
+        "used_cached_model": false
+    }
+}

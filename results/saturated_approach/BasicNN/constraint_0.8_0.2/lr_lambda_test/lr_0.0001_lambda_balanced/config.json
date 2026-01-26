@@ -1,0 +1,54 @@
+{
+    "methodology": "saturated_approach",
+    "model_name": "BasicNN",
+    "constraint": [
+        0.8,
+        0.2
+    ],
+    "hyperparam_regime": "lr_lambda_test",
+    "variation_name": "lr_0.0001_lambda_balanced",
+    "hyperparams": {
+        "lr": 0.0001,
+        "dropout": 0.3,
+        "batch_size": 64,
+        "hidden_dims": [
+            128,
+            64
+        ],
+        "epochs": 1000,
+        "lambda_global": 0.1,
+        "lambda_local": 0.1,
+        "lambda_strategy": "balanced",
+        "warmup_epochs": 50,
+        "constraint_threshold": 0.02,
+        "lambda_step": 0.005
+    },
+    "base_model_id": "BasicNN_46bee3eea59d",
+    "experiment_path": "results/saturated_approach/BasicNN/constraint_0.8_0.2/lr_lambda_test/lr_0.0001_lambda_balanced",
+    "status": "completed",
+    "run_completion": {
+        "status": "interrupted",
+        "reason": "Unexpected exception during training: AttributeError: 'MulticlassTransductiveLoss' object has no attribute 'local_satisfied'",
+        "exception_type": "AttributeError",
+        "final_epoch": 999,
+        "global_constraint_satisfied": false,
+        "local_constraint_satisfied": true,
+        "completed_at": "2026-01-20T17:40:23.496012"
+    },
+    "results": {
+        "accuracy": 0.5723981900452488,
+        "precision_macro": 0.6219331641285956,
+        "recall_macro": 0.4240720109649247,
+        "f1_macro": 0.39271686364776537,
+        "methodology": "saturated",
+        "samples_saturated": 15
+    },
+    "optimization_results": {
+        "accuracy": 0.5633484162895928,
+        "precision_macro": 0.4717807660961695,
+        "recall_macro": 0.39906103286384975,
+        "f1_macro": 0.3411421273490239,
+        "training_time": 912.7129621505737,
+        "used_cached_model": false
+    }
+}
