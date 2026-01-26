@@ -1,27 +1,4 @@
-"""Configuration generator for student dropout prediction experiments.
-
-This module generates experiment configurations for systematic evaluation of
-constraint-based optimization across different models, constraints, and hyperparameters.
-
-CURRENT MODE: LAMBDA STRATEGY COMPARISON (72 configurations)
-===============================================================================
-Configuration breakdown:
-  - 3 tabular models: BasicNN, TabularResNet, FTTransformer
-  - 3 constraint pairs: [Soft,Soft], [Soft,Hard], [Hard,Hard]
-  - 2 learning rates: 0.0001 (low), 0.00005 (very low)
-  - 4 lambda strategies: linear, transfer, balanced, combined
-  - Total: 3 × 3 × 2 × 4 = 72 experiments
-
-Lambda Strategies:
-  - linear: Baseline - increase lambda linearly when constraint not satisfied
-  - transfer: Transfer lambda step from satisfied to unsatisfied constraint
-  - balanced: Initialize lambdas based on initial loss ratio, then linear
-  - combined: Balanced initialization + Transfer adjustment (best of both)
-
-To restore previous experiments:
-  - Modify CONSTRAINTS, LR_VALUES, and LAMBDA_STRATEGIES as needed
-===============================================================================
-"""
+"""Configuration generator for constraint-based optimization experiments."""
 
 import hashlib
 import json
@@ -29,22 +6,12 @@ from typing import Dict, Any, List, Tuple
 
 METHODOLOGIES = ['our_approach']
 
-# ============================================================================
-# FOCUSED EXPERIMENTAL CONFIGURATION (36 total experiments)
-# ============================================================================
-
-# LAMBDA STRATEGY EXPERIMENT: 3 tabular-specific models
 MODELS = ['BasicNN', 'TabularResNet', 'FTTransformer']
-
-# LAMBDA STRATEGY EXPERIMENT: 3 focused constraint pairs
 CONSTRAINTS = [
-    (0.9, 0.8),  # [Soft, Soft] - Both permissive
-    (0.8, 0.2),  # [Soft, Hard] - Global permissive, Local restrictive
-    (0.5, 0.3),  # [Hard, Hard] - Both restrictive
+    (0.9, 0.8),
+    (0.8, 0.2),
+    (0.5, 0.3),
 ]
-
-# LAMBDA STRATEGY EXPERIMENT: 4 lambda adjustment strategies
-LAMBDA_STRATEGIES = ['linear', 'transfer', 'balanced', 'combined']
 
 BASE_HYPERPARAMS = {
     'lr': 0.0001,
@@ -54,59 +21,19 @@ BASE_HYPERPARAMS = {
     'epochs': 1000,
     'lambda_global': 0.1,
     'lambda_local': 0.1,
-    'lambda_strategy': 'linear',  # Default strategy
     'warmup_epochs': 50,
     'constraint_threshold': 0.02,
     'lambda_step': 0.005
 }
 
-# LAMBDA STRATEGY EXPERIMENT: Learning rate and lambda strategy variations
-# Vary both learning rate and lambda adjustment strategy
 HYPERPARAM_REGIMES = {
-    'lr_lambda_test': {
-        'name': 'lr_lambda_test',
+    'standard': {
+        'name': 'standard',
         'variations': [
-            {
-                'variation_name': f'lr_{lr}_lambda_{strategy}',
-                'params': {**BASE_HYPERPARAMS, 'lr': lr, 'lambda_strategy': strategy}
-            }
-            for lr in [0.001, 0.0005]  # Low and very low learning rates
-            for strategy in LAMBDA_STRATEGIES  # All 3 lambda strategies
+            {'variation_name': 'default', 'params': BASE_HYPERPARAMS.copy()}
         ]
     },
 }
-
-
-# FULL EXPERIMENT: All hyperparameter regimes (uncomment to restore)
-# HYPERPARAM_REGIMES = {
-#     'standard': {
-#         'name': 'standard',
-#         'variations': [
-#             {'variation_name': 'default', 'params': BASE_HYPERPARAMS.copy()}
-#         ]
-#     },
-#     'lr_test': {
-#         'name': 'lr_test',
-#         'variations': [
-#             {'variation_name': f'lr_{lr}', 'params': {**BASE_HYPERPARAMS, 'lr': lr}}
-#             for lr in [0.0001, 0.0005, 0.001, 0.005, 0.01]
-#         ]
-#     },
-#     'dropout_test': {
-#         'name': 'dropout_test',
-#         'variations': [
-#             {'variation_name': f'dropout_{dropout}', 'params': {**BASE_HYPERPARAMS, 'dropout': dropout}}
-#             for dropout in [0.1, 0.2, 0.3, 0.4, 0.5]
-#         ]
-#     },
-#     'batch_test': {
-#         'name': 'batch_test',
-#         'variations': [
-#             {'variation_name': f'batch_{batch}', 'params': {**BASE_HYPERPARAMS, 'batch_size': batch}}
-#             for batch in [32, 64, 128, 256, 512]
-#         ]
-#     }
-# }
 
 def compute_base_model_id(model_name: str, hyperparams: Dict[str, Any]) -> str:
     model_key_params = {
@@ -184,9 +111,7 @@ def save_configs_and_create_structure(configs: List[Dict[str, Any]], output_dir:
 
 def reset_all_status_to_pending(results_dir: str = 'results') -> int:
     from src.utils.filesystem_manager import get_all_experiment_configs, save_config_to_path
-    print("=" * 80)
     print("RESET ALL EXPERIMENT STATUSES")
-    print("=" * 80)
     print(f"\nScanning directory: {results_dir}")
     all_experiments = get_all_experiment_configs(results_dir)
     reset_count = 0
@@ -198,16 +123,11 @@ def reset_all_status_to_pending(results_dir: str = 'results') -> int:
     print(f"\nTotal experiments found: {len(all_experiments)}")
     print(f"Experiments reset to pending: {reset_count}")
     print(f"Already pending: {len(all_experiments) - reset_count}")
-    print("\n" + "=" * 80)
-    print("RESET COMPLETE")
-    print("=" * 80)
     return reset_count
 
 
 def main() -> None:
-    print("=" * 80)
     print("EXPERIMENT CONFIGURATION MANAGER")
-    print("=" * 80)
     print()
     print("Select an option:")
     print("  1. Generate new experiment configurations")
@@ -220,15 +140,11 @@ def main() -> None:
 
         if choice == '1':
             print()
-            print("=" * 80)
             print("GENERATING CONFIGURATIONS")
-            print("=" * 80)
             print()
             all_configs = generate_all_configs()
             saved_count = save_configs_and_create_structure(all_configs)
-            print("\n" + "=" * 80)
-            print("CONFIGURATION GENERATION COMPLETE")
-            print("=" * 80)
+            print("\nCONFIGURATION GENERATION COMPLETE")
             print()
             print("Next step: Run experiments using: python main.py")
             print()
