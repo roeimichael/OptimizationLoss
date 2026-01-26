@@ -14,20 +14,12 @@ def _compute_single_class_constraint_loss(
         constraint_value: float,
         epsilon: float = EPSILON
 ) -> tuple[torch.Tensor, bool]:
-
+    """Compute constraint loss for a single class using soft predictions."""
     if constraint_value > UNLIMITED_THRESHOLD:
         return torch.tensor(0.0, device=soft_predictions.device), True
 
-    # OPTION A: Use soft predictions for both loss AND satisfaction (ACTIVE)
-    # This is more conservative and consistent with the loss computation
     predicted_count = soft_predictions[:, class_id].sum()
     is_satisfied = predicted_count <= constraint_value
-
-    # OPTION B: Use hard predictions for both loss AND satisfaction (COMMENTED OUT)
-    # Uncomment below and comment out Option A above to test this approach
-    # hard_count = (hard_predictions == class_id).sum().float()
-    # predicted_count = hard_count
-    # is_satisfied = hard_count <= constraint_value
 
     if predicted_count > constraint_value:
         E = torch.relu(predicted_count - constraint_value)
@@ -38,6 +30,7 @@ def _compute_single_class_constraint_loss(
 
 
 class MulticlassTransductiveLoss(nn.Module):
+    """Transductive loss with global and local constraints."""
     def __init__(self, global_constraints, local_constraints,
                  lambda_global=1.0, lambda_local=1.0, use_ce=True, num_classes=NUM_CLASSES):
         super().__init__()
@@ -106,7 +99,6 @@ class MulticlassTransductiveLoss(nn.Module):
                 total_violation += class_loss
                 num_constrained += 1
 
-        # Average over constrained classes
         if num_constrained > 0:
             L_target = total_violation / num_constrained
 
@@ -158,13 +150,11 @@ class MulticlassTransductiveLoss(nn.Module):
                     group_violation += class_loss
                     group_constrained += 1
 
-            # Weight by group size * constrained classes
             if group_constrained > 0:
                 avg_group_violation = group_violation / group_constrained
                 total_violation += avg_group_violation * group_size
                 total_weight += group_size
 
-        # Weighted average across groups
         if total_weight > 0:
             L_feat = total_violation / total_weight
 
@@ -172,7 +162,8 @@ class MulticlassTransductiveLoss(nn.Module):
         return L_feat
 
     def set_lambda(self, lambda_global=None, lambda_local=None):
+        """Update lambda weights."""
         if lambda_global is not None:
-            self.lambda_global = float(lambda_global)  # Ensure scalar
+            self.lambda_global = float(lambda_global)
         if lambda_local is not None:
             self.lambda_local = float(lambda_local)

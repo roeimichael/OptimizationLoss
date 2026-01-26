@@ -1,6 +1,6 @@
 import time
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 
 import torch
 import torch.nn as nn
@@ -9,7 +9,7 @@ import pandas as pd
 
 from src.models import get_model
 from src.losses import MulticlassTransductiveLoss
-from src.losses.lambda_adjusting import create_lambda_adjuster
+from src.losses.lambda_adjusting import adjust_lambdas
 from src.training.metrics import compute_train_accuracy, compute_prediction_statistics
 from src.training.logging import log_progress_to_csv, print_progress, save_run_status
 
@@ -21,8 +21,6 @@ class ConstraintTrainer:
         self.experiment_path = Path(experiment_path)
         self.device = device
         self.csv_log_path = self.experiment_path / 'training_log.csv'
-
-        # Initialize placeholders
         self.model: Optional[nn.Module] = None
         self.optimizer: Optional[torch.optim.Optimizer] = None
         self.criterion_ce = nn.CrossEntropyLoss()
@@ -85,16 +83,6 @@ class ConstraintTrainer:
         X_test = X_test.to(self.device)
         group_ids = torch.LongTensor(groups_test.values).to(self.device)
 
-        # Initialize lambda adjuster based on strategy
-        lambda_strategy = self.hyperparams.get('lambda_strategy', 'linear')
-        lambda_adjuster = create_lambda_adjuster(
-            strategy=lambda_strategy,
-            lambda_step=self.hyperparams['lambda_step'],
-            lambda_max=50.0
-        )
-        print(f"Using lambda adjustment strategy: {lambda_strategy}")
-
-        # Initialize constraint loss with base lambdas
         criterion_constraint = MulticlassTransductiveLoss(
             global_constraints=global_con,
             local_constraints=local_con,
@@ -102,20 +90,10 @@ class ConstraintTrainer:
             lambda_local=self.hyperparams['lambda_local']
         ).to(self.device)
 
-        # Initialize sustained convergence checker
-        from src.training.sustained_convergence import SustainedConvergenceChecker
-        convergence_window = self.hyperparams.get('convergence_window', 1)
-        convergence_required = self.hyperparams.get('convergence_required', 1)
-        convergence_checker = SustainedConvergenceChecker(
-            window_size=convergence_window,
-            required_satisfied=convergence_required
-        )
-        print(f"Convergence criterion: {convergence_required}/{convergence_window} recent epochs must be satisfied")
-
         warmup_epochs = self.hyperparams['warmup_epochs']
         total_epochs = self.hyperparams['epochs']
         threshold = self.hyperparams['constraint_threshold']
-        lambda_initialized = False
+        lambda_step = self.hyperparams['lambda_step']
 
         for epoch in range(warmup_epochs, total_epochs):
             self.model.train()
@@ -127,16 +105,12 @@ class ConstraintTrainer:
                 batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device)
                 self.optimizer.zero_grad()
 
-                # Training loss
                 train_logits = self.model(batch_X)
                 loss_ce = self.criterion_ce(train_logits, batch_y)
 
-                # Constraint loss on test set (computed fresh each batch)
                 test_logits = self.model(X_test)
                 _, _, loss_global, loss_local = criterion_constraint(test_logits, y_true=None, group_ids=group_ids)
 
-                # Scale CE loss to maintain balance with constraint losses
-                # CE weight equals 1 + sum of lambdas to ensure CE remains competitive
                 ce_weight = 1.0 + criterion_constraint.lambda_global + criterion_constraint.lambda_local
 
                 loss = (ce_weight * loss_ce +
@@ -157,28 +131,13 @@ class ConstraintTrainer:
                 f"Epoch {epoch + 1}: CE={avg_ce:.4f}, Global={avg_global:.4f}(λ={criterion_constraint.lambda_global:.2f}), "
                 f"Local={avg_local:.4f}(λ={criterion_constraint.lambda_local:.2f})")
 
-
-            # Initialize lambdas based on strategy (only once, after first constraint epoch)
-            if not lambda_initialized:
-                lambda_initialized = True
-                new_lambda_global, new_lambda_local = lambda_adjuster.initialize_lambdas(
-                    avg_global, avg_local,
-                    criterion_constraint.lambda_global, criterion_constraint.lambda_local
-                )
-                if lambda_strategy == 'balanced':
-                    print(f"  [BALANCED INIT] Adjusted lambdas: Global={new_lambda_global:.4f}, Local={new_lambda_local:.4f}")
-                    print(f"  [BALANCED INIT] Loss ratio: Global={avg_global:.4f} / Local={avg_local:.4f}")
-                criterion_constraint.set_lambda(lambda_global=new_lambda_global, lambda_local=new_lambda_local)
-
-            # Adjust lambdas using the selected strategy
-            new_lambda_global, new_lambda_local = lambda_adjuster.adjust_lambdas(
+            new_lambda_global, new_lambda_local = adjust_lambdas(
                 criterion_constraint.lambda_global,
                 criterion_constraint.lambda_local,
-                criterion_constraint.global_constraints_satisfied,
-                criterion_constraint.local_constraints_satisfied,
                 avg_global,
                 avg_local,
-                threshold
+                threshold,
+                lambda_step
             )
             criterion_constraint.set_lambda(lambda_global=new_lambda_global, lambda_local=new_lambda_local)
 
@@ -199,54 +158,37 @@ class ConstraintTrainer:
                     criterion_constraint.global_constraints_satisfied, criterion_constraint.local_constraints_satisfied
                 )
 
-            # Check for sustained convergence
-            should_stop, reason = convergence_checker.update(
-                criterion_constraint.global_constraints_satisfied,
-                criterion_constraint.local_constraints_satisfied
-            )
-
-            if should_stop:
-                print(f"\n[CONVERGED] {reason}")
-                print(f"  Epoch {epoch + 1}")
+            if criterion_constraint.global_constraints_satisfied and criterion_constraint.local_constraints_satisfied:
+                print(f"\n[CONVERGED] Both constraints satisfied at epoch {epoch + 1}")
                 print(f"  Final loss: Global={avg_global:.6f}, Local={avg_local:.6f}")
                 print(f"  Lambda values: Global={criterion_constraint.lambda_global:.2f}, Local={criterion_constraint.lambda_local:.2f}")
 
-                # Save converged status to run_status.json
                 save_run_status(
                     str(self.experiment_path),
                     status='converged',
                     epoch=epoch + 1,
                     global_satisfied=True,
                     local_satisfied=True,
-                    details=f"Converged at epoch {epoch + 1}. {reason}. Global loss: {avg_global:.6f}, Local loss: {avg_local:.6f}"
+                    details=f"Converged at epoch {epoch + 1}. Global loss: {avg_global:.6f}, Local loss: {avg_local:.6f}"
                 )
 
-                # Import here to avoid circular dependency
                 from src.utils.filesystem_manager import save_stop_reason
-                # Save stop reason to config.json
                 save_stop_reason(
                     str(self.experiment_path),
                     status='converged',
-                    reason=f"Sustained convergence: {reason} at epoch {epoch + 1}",
+                    reason=f"Both constraints satisfied at epoch {epoch + 1}",
                     exception_type=None,
                     final_epoch=epoch + 1,
                     global_satisfied=True,
                     local_satisfied=True
                 )
                 break
-            else:
-                # Optionally print convergence progress every 10 epochs
-                if (epoch + 1) % 10 == 0:
-                    rate = convergence_checker.get_satisfaction_rate()
-                    print(f"  [CONV PROGRESS] Satisfaction rate: {rate*100:.1f}% ({sum(convergence_checker.history)}/{len(convergence_checker.history)})")
         else:
-            # Loop completed without break - reached max epochs without convergence
-            print(f"\n[FAILED] Reached maximum epochs ({total_epochs}) without full convergence")
+            print(f"\n[FAILED] Reached maximum epochs ({total_epochs}) without convergence")
             print(f"  Final loss: Global={avg_global:.6f}, Local={avg_local:.6f}")
             print(f"  Constraint status: Global={'Satisfied' if criterion_constraint.global_constraints_satisfied else 'Not Satisfied'}, "
                   f"Local={'Satisfied' if criterion_constraint.local_constraints_satisfied else 'Not Satisfied'}")
 
-            # Save failed status to run_status.json
             save_run_status(
                 str(self.experiment_path),
                 status='failed',
@@ -256,19 +198,16 @@ class ConstraintTrainer:
                 details=f"Reached max epochs without both constraints satisfied. Global loss: {avg_global:.6f}, Local loss: {avg_local:.6f}"
             )
 
-            # Import here to avoid circular dependency
             from src.utils.filesystem_manager import save_stop_reason
-            # Determine specific failure reason
             if criterion_constraint.global_constraints_satisfied and not criterion_constraint.local_constraints_satisfied:
-                reason = f"Reached {total_epochs} epochs with only Global constraint satisfied (Local constraint not satisfied)"
+                reason = f"Reached {total_epochs} epochs with only Global constraint satisfied"
             elif not criterion_constraint.global_constraints_satisfied and criterion_constraint.local_constraints_satisfied:
-                reason = f"Reached {total_epochs} epochs with only Local constraint satisfied (Global constraint not satisfied)"
+                reason = f"Reached {total_epochs} epochs with only Local constraint satisfied"
             elif not criterion_constraint.global_constraints_satisfied and not criterion_constraint.local_constraints_satisfied:
-                reason = f"Reached {total_epochs} epochs without satisfying either Global or Local constraints"
+                reason = f"Reached {total_epochs} epochs without satisfying either constraint"
             else:
-                reason = f"Reached {total_epochs} epochs (unexpected state)"
+                reason = f"Reached {total_epochs} epochs"
 
-            # Save stop reason to config.json
             save_stop_reason(
                 str(self.experiment_path),
                 status='failed',
