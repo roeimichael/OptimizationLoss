@@ -1,4 +1,0 @@
-Method,Accuracy,Precision,Recall,F1
-Heuristic,0.7624,0.7307,0.6873,0.7015
-Saturated,0.7557,0.7075,0.6702,0.6816
-Our Approach,0.7466,0.7285,0.6512,0.6695
