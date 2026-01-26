@@ -1,0 +1,45 @@
+{
+    "methodology": "heuristic",
+    "model_name": "BasicNN",
+    "constraint": [
+        0.8,
+        0.2
+    ],
+    "hyperparam_regime": "lr_lambda_test",
+    "variation_name": "lr_0.0005_lambda_linear",
+    "hyperparams": {
+        "lr": 0.0005,
+        "dropout": 0.3,
+        "batch_size": 64,
+        "hidden_dims": [
+            128,
+            64
+        ],
+        "epochs": 1000,
+        "lambda_global": 0.1,
+        "lambda_local": 0.1,
+        "lambda_strategy": "linear",
+        "warmup_epochs": 50,
+        "constraint_threshold": 0.02,
+        "lambda_step": 0.005
+    },
+    "base_model_id": "BasicNN_f63ae9417829",
+    "experiment_path": "results/heuristic/BasicNN/constraint_0.8_0.2/lr_lambda_test/lr_0.0005_lambda_linear",
+    "status": "completed",
+    "optimization_results": {
+        "accuracy": 0.5769230769230769,
+        "precision_macro": 0.8207818930041152,
+        "recall_macro": 0.4150175313484281,
+        "f1_macro": 0.3672856014646229,
+        "training_time": 406.13634967803955,
+        "used_cached_model": false
+    },
+    "results": {
+        "accuracy": 0.583710407239819,
+        "precision_macro": 0.7148540320650874,
+        "recall_macro": 0.4389077078504784,
+        "f1_macro": 0.41407610063836775,
+        "training_time": 0.0009996891021728516,
+        "methodology": "heuristic"
+    }
+}

@@ -1,0 +1,45 @@
+{
+    "methodology": "saturated_approach",
+    "model_name": "FTTransformer",
+    "constraint": [
+        0.9,
+        0.8
+    ],
+    "hyperparam_regime": "lr_lambda_test",
+    "variation_name": "lr_0.0001_lambda_linear",
+    "hyperparams": {
+        "lr": 0.0001,
+        "dropout": 0.3,
+        "batch_size": 64,
+        "hidden_dims": [
+            128,
+            64
+        ],
+        "epochs": 1000,
+        "lambda_global": 0.1,
+        "lambda_local": 0.1,
+        "lambda_strategy": "linear",
+        "warmup_epochs": 50,
+        "constraint_threshold": 0.02,
+        "lambda_step": 0.005
+    },
+    "base_model_id": "FTTransformer_90947ad3ed8b",
+    "experiment_path": "results/saturated_approach/FTTransformer/constraint_0.9_0.8/lr_lambda_test/lr_0.0001_lambda_linear",
+    "status": "completed",
+    "results": {
+        "accuracy": 0.7262443438914027,
+        "precision_macro": 0.6676171560977916,
+        "recall_macro": 0.6354013306023206,
+        "f1_macro": 0.6446682279893352,
+        "methodology": "saturated",
+        "samples_saturated": 36
+    },
+    "optimization_results": {
+        "accuracy": 0.7104072398190046,
+        "precision_macro": 0.6623160892263883,
+        "recall_macro": 0.5937302605944389,
+        "f1_macro": 0.6039481397734648,
+        "training_time": 82.64646291732788,
+        "used_cached_model": false
+    }
+}

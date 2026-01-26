@@ -1,0 +1,45 @@
+{
+    "methodology": "heuristic",
+    "model_name": "TabularResNet",
+    "constraint": [
+        0.5,
+        0.3
+    ],
+    "hyperparam_regime": "lr_lambda_test",
+    "variation_name": "lr_0.0001_lambda_balanced",
+    "hyperparams": {
+        "lr": 0.0001,
+        "dropout": 0.3,
+        "batch_size": 64,
+        "hidden_dims": [
+            128,
+            64
+        ],
+        "epochs": 1000,
+        "lambda_global": 0.1,
+        "lambda_local": 0.1,
+        "lambda_strategy": "balanced",
+        "warmup_epochs": 50,
+        "constraint_threshold": 0.02,
+        "lambda_step": 0.005
+    },
+    "base_model_id": "TabularResNet_c91a9c0c916f",
+    "experiment_path": "results/heuristic/TabularResNet/constraint_0.5_0.3/lr_lambda_test/lr_0.0001_lambda_balanced",
+    "status": "completed",
+    "optimization_results": {
+        "accuracy": 0.6176470588235294,
+        "precision_macro": 0.5471326164874553,
+        "recall_macro": 0.4599821661319465,
+        "f1_macro": 0.4306280657434598,
+        "training_time": 1547.922682762146,
+        "used_cached_model": false
+    },
+    "results": {
+        "accuracy": 0.6266968325791855,
+        "precision_macro": 0.7554702842377261,
+        "recall_macro": 0.4991299535571871,
+        "f1_macro": 0.5052315885312563,
+        "training_time": 0.0009987354278564453,
+        "methodology": "heuristic"
+    }
+}
