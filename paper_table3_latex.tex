@@ -1,0 +1,19 @@
+\begin{table}[htbp]
+\caption{Detailed performance comparison by model architecture (Constraint: [0.9, 0.8]).}
+\label{tab:detailed_results}
+\begin{tabular}{llrrrr}
+\toprule
+Approach & Model & Accuracy & Precision & Recall & F1-Score \\
+\midrule
+Heuristic & BasicNN & 0.7624 & 0.7307 & 0.6873 & 0.7015 \\
+Heuristic & FTTransformer & 0.7579 & 0.7194 & 0.6778 & 0.6912 \\
+Saturated & BasicNN & 0.7557 & 0.7075 & 0.6702 & 0.6816 \\
+Saturated & FTTransformer & 0.7511 & 0.6945 & 0.6599 & 0.6701 \\
+Heuristic & TabularResNet & 0.7489 & 0.7094 & 0.6693 & 0.6820 \\
+Our Approach & TabularResNet & 0.7466 & 0.7285 & 0.6512 & 0.6695 \\
+Saturated & TabularResNet & 0.7466 & 0.7072 & 0.6680 & 0.6803 \\
+Our Approach & BasicNN & 0.7353 & 0.6810 & 0.6126 & 0.6200 \\
+Our Approach & FTTransformer & 0.7240 & 0.6608 & 0.6034 & 0.6110 \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -1,0 +1,10 @@
+EXPERIMENT SUMMARY STATISTICS
+============================================================
+
+Total experiments: 442
+Models tested: 3
+Constraint pairs tested: 3
+Lambda strategies tested: 4
+Learning rates tested: 4
+Best overall accuracy: 0.7624
+Mean accuracy (all experiments): 0.6416

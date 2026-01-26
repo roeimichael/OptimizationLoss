@@ -110,7 +110,7 @@ def extract_experiment_info(config_path):
         'accuracy': metrics.get('Overall Accuracy', None),
         'precision_macro': metrics.get('Precision (Macro)', None),
         'recall_macro': metrics.get('Recall (Macro)', None),
-        'f1_macro': metrics.get('F1 (Macro)', None),
+        'f1_macro': metrics.get('F1-Score (Macro)', None),
 
         # Per-class metrics (if available)
         'precision_dropout': metrics.get('Precision_Dropout', None),
