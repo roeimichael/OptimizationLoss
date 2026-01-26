@@ -1,0 +1,24 @@
+Metric,Value
+Overall Accuracy,0.7127
+""
+Macro Averaged Metrics,
+Precision (Macro),0.6564
+Recall (Macro),0.5979
+F1-Score (Macro),0.6064
+""
+Weighted Averaged Metrics,
+Precision (Weighted),0.6979
+Recall (Weighted),0.7127
+F1-Score (Weighted),0.6865
+""
+Per-Class Metrics,
+Class,Precision,Recall,F1-Score,Support
+Dropout,0.8095,0.5986,0.6883,142
+Enrolled,0.4419,0.2405,0.3115,79
+Graduate,0.7177,0.9548,0.8194,221
+""
+Confusion Matrix,
+,Dropout,Enrolled,Graduate
+Dropout,85,19,38
+Enrolled,15,19,45
+Graduate,5,5,211
