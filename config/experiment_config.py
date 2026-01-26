@@ -1,4 +1,6 @@
-TRAIN_PATH = 'data/dataset_train.csv'
-TEST_PATH = 'data/dataset_test.csv'
+"""Experiment configuration for dataset paths and columns."""
+
+TRAIN_PATH = 'data/train_dataset.csv'
+TEST_PATH = 'data/test_dataset.csv'
 TARGET_COLUMN = 'Target'
-TRACKED_COURSE_ID = 1
+GROUP_COLUMN = 'Group'  # Column name for local constraint grouping
