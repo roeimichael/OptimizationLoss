@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-NUM_CLASSES = 3
+NUM_CLASSES = 5
 EPSILON = 1e-6
 UNLIMITED_THRESHOLD = 1e9
 

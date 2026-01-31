@@ -13,50 +13,41 @@ def log_progress_to_csv(csv_path: str, epoch: int, avg_ce: float, train_acc: flo
                         lambda_global: float = 0.0, lambda_local: float = 0.0,
                         global_constraints: Optional[list] = None,
                         global_satisfied: bool = True, local_satisfied: bool = True,
-                        tracked_course_id: int = 1) -> None:
+                        tracked_group_id: int = 1) -> None:
     file_exists = os.path.isfile(csv_path)
 
+    num_classes = len(global_constraints) if global_constraints else 5
     if global_counts is None:
-        global_counts = {0: 0, 1: 0, 2: 0}
+        global_counts = {i: 0 for i in range(num_classes)}
     if global_soft_counts is None:
-        global_soft_counts = {0: 0.0, 1: 0.0, 2: 0.0}
+        global_soft_counts = {i: 0.0 for i in range(num_classes)}
     if global_constraints is None:
-        global_constraints = [1e9, 1e9, 1e9]
+        global_constraints = [1e9] * num_classes
 
     with open(csv_path, 'a', newline='') as csvfile:
         writer = csv.writer(csvfile)
         if not file_exists:
-            # Cleaned header: ordered by class (Dropout, Enrolled, Graduate)
-            # Format: Limit_X, Hard_X, Soft_X for each class
             header = [
                 'Epoch', 'Train_Acc', 'L_pred_CE', 'L_target_Global', 'L_feat_Local',
-                'Lambda_Global', 'Lambda_Local', 'Global_Satisfied', 'Local_Satisfied',
-                'Limit_Dropout', 'Hard_Dropout', 'Soft_Dropout',
-                'Limit_Enrolled', 'Hard_Enrolled', 'Soft_Enrolled',
-                'Limit_Graduate', 'Hard_Graduate', 'Soft_Graduate'
+                'Lambda_Global', 'Lambda_Local', 'Global_Satisfied', 'Local_Satisfied'
             ]
+            for i in range(num_classes):
+                header.extend([f'Limit_Class{i+1}', f'Hard_Class{i+1}', f'Soft_Class{i+1}'])
             writer.writerow(header)
 
-        # Build row with cleaned structure (ordered by class)
         row = [
             epoch + 1,
             f"{train_acc:.4f}",
             f"{avg_ce:.6f}", f"{avg_global:.6f}", f"{avg_local:.6f}",
             f"{lambda_global:.2f}", f"{lambda_local:.2f}",
-            1 if global_satisfied else 0, 1 if local_satisfied else 0,
-            # Dropout: Limit, Hard, Soft
-            int(global_constraints[0]) if global_constraints[0] < 1e9 else 'inf',
-            global_counts[0],
-            f"{global_soft_counts[0]:.2f}",
-            # Enrolled: Limit, Hard, Soft
-            int(global_constraints[1]) if global_constraints[1] < 1e9 else 'inf',
-            global_counts[1],
-            f"{global_soft_counts[1]:.2f}",
-            # Graduate: Limit, Hard, Soft
-            int(global_constraints[2]) if global_constraints[2] < 1e9 else 'inf',
-            global_counts[2],
-            f"{global_soft_counts[2]:.2f}"
+            1 if global_satisfied else 0, 1 if local_satisfied else 0
         ]
+        for i in range(num_classes):
+            row.extend([
+                int(global_constraints[i]) if global_constraints[i] < 1e9 else 'inf',
+                global_counts.get(i, 0),
+                f"{global_soft_counts.get(i, 0.0):.2f}"
+            ])
         writer.writerow(row)
 
 
@@ -77,11 +68,12 @@ def print_progress(epoch: int, avg_ce: float, avg_global: float, avg_local: floa
     print(f"{'Class':<12} {'Limit':<8} {'Hard':<8} {'Soft':<10} {'Excess':<10} {'Status':<15}")
     print(f"{'-' * 80}")
 
-    class_names = ['Dropout', 'Enrolled', 'Graduate']
-    for idx, class_name in enumerate(class_names):
+    num_classes = len(global_constraints)
+    for idx in range(num_classes):
+        class_name = f"Class_{idx+1}"
         limit = int(global_constraints[idx]) if global_constraints[idx] < 1e9 else 'inf'
-        hard = global_counts[idx]
-        soft = global_soft_counts[idx]
+        hard = global_counts.get(idx, 0)
+        soft = global_soft_counts.get(idx, 0.0)
         excess = max(0, soft - global_constraints[idx]) if global_constraints[idx] < 1e9 else 0
 
         if limit == 'inf':
@@ -104,26 +96,27 @@ def print_progress(epoch: int, avg_ce: float, avg_global: float, avg_local: floa
     print(f"{'=' * 80}\n")
 
 
-def save_final_predictions(save_path, y_true, y_pred, y_proba, course_ids=None):
+def save_final_predictions(save_path, y_true, y_pred, y_proba, group_ids=None):
     import pandas as pd
     df_data = {
         'Sample_Index': list(range(len(y_true))),
         'True_Label': y_true,
-        'Predicted_Label': y_pred,
-        'Prob_Dropout': y_proba[:, 0],
-        'Prob_Enrolled': y_proba[:, 1],
-        'Prob_Graduate': y_proba[:, 2],
-        'Correct': (y_true == y_pred).astype(int)
+        'Predicted_Label': y_pred
     }
-    if course_ids is not None:
-        df_data['Course_ID'] = course_ids
+    num_classes = y_proba.shape[1]
+    for i in range(num_classes):
+        df_data[f'Prob_Class_{i+1}'] = y_proba[:, i]
+    df_data['Correct'] = (y_true == y_pred).astype(int)
+    if group_ids is not None:
+        df_data['Group_ID'] = group_ids
     df = pd.DataFrame(df_data)
     df.to_csv(save_path, index=False)
     print(f"Final predictions saved to: {save_path}")
 
 
 def save_evaluation_metrics(save_path, metrics):
-    class_names = ['Dropout', 'Enrolled', 'Graduate']
+    num_classes = len(metrics['precision_per_class'])
+    class_names = [f'Class_{i+1}' for i in range(num_classes)]
     rows = []
     rows.append(['Metric', 'Value'])
     rows.append(['Overall Accuracy', f"{metrics['accuracy']:.4f}"])
@@ -153,7 +146,7 @@ def save_evaluation_metrics(save_path, metrics):
     rows.append([''] + class_names)
     cm = metrics['confusion_matrix']
     for i, class_name in enumerate(class_names):
-        rows.append([class_name] + [int(cm[i][j]) for j in range(3)])
+        rows.append([class_name] + [int(cm[i][j]) for j in range(num_classes)])
 
     with open(save_path, 'w', newline='') as f:
         writer = csv.writer(f)

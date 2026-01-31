@@ -3,7 +3,7 @@
 import numpy as np
 from typing import Dict, List
 
-NUM_CLASSES = 3
+NUM_CLASSES = 5
 UNLIMITED_CONSTRAINT = 1e10
 
 

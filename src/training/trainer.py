@@ -9,7 +9,6 @@ import pandas as pd
 
 from src.models import get_model
 from src.losses import MulticlassTransductiveLoss
-from src.losses.lambda_adjusting import adjust_lambdas
 from src.training.metrics import compute_train_accuracy, compute_prediction_statistics
 from src.training.logging import log_progress_to_csv, print_progress, save_run_status
 
@@ -33,7 +32,7 @@ class ConstraintTrainer:
                 self.config['model_name'],
                 input_dim=input_dim,
                 hidden_dims=self.hyperparams['hidden_dims'],
-                n_classes=3,
+                n_classes=5,
                 dropout=self.hyperparams['dropout']
             ).to(self.device)
             self.from_cache = False
@@ -131,14 +130,12 @@ class ConstraintTrainer:
                 f"Epoch {epoch + 1}: CE={avg_ce:.4f}, Global={avg_global:.4f}(λ={criterion_constraint.lambda_global:.2f}), "
                 f"Local={avg_local:.4f}(λ={criterion_constraint.lambda_local:.2f})")
 
-            new_lambda_global, new_lambda_local = adjust_lambdas(
-                criterion_constraint.lambda_global,
-                criterion_constraint.lambda_local,
-                avg_global,
-                avg_local,
-                threshold,
-                lambda_step
-            )
+            new_lambda_global = criterion_constraint.lambda_global
+            new_lambda_local = criterion_constraint.lambda_local
+            if not criterion_constraint.global_constraints_satisfied:
+                new_lambda_global += lambda_step
+            if not criterion_constraint.local_constraints_satisfied:
+                new_lambda_local += lambda_step
             criterion_constraint.set_lambda(lambda_global=new_lambda_global, lambda_local=new_lambda_local)
 
             if (epoch + 1) % 3 == 0 or (epoch + 1) == warmup_epochs + 1:
@@ -247,7 +244,7 @@ class ConstraintTrainer:
             model = get_model(
                 self.config['model_name'],
                 input_dim=input_dim,
-                n_classes=3,
+                n_classes=5,
                 hidden_dims=self.hyperparams['hidden_dims'],
                 dropout=self.hyperparams['dropout']
             ).to(self.device)

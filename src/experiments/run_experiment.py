@@ -274,9 +274,9 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
 
     y_pred, y_proba = get_predictions_with_probabilities(model, X_test_tensor)
     y_true_np = y_test.values if hasattr(y_test, 'values') else y_test
-    course_ids_np = groups_test.values if hasattr(groups_test, 'values') else groups_test
+    group_ids_np = groups_test.values if hasattr(groups_test, 'values') else groups_test
 
-    save_final_predictions(Path(experiment_path) / 'final_predictions.csv', y_true_np, y_pred, y_proba, course_ids_np)
+    save_final_predictions(Path(experiment_path) / 'final_predictions.csv', y_true_np, y_pred, y_proba, group_ids_np)
     metrics = compute_metrics(y_true_np, y_pred)
     save_evaluation_metrics(Path(experiment_path) / 'evaluation_metrics.csv', metrics)
 
