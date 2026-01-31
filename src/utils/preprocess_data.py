@@ -1,14 +1,19 @@
 """
-Churn Risk Thesis - Evidence-Based Smart Preprocessing
-======================================================
-Data-driven preprocessing with mode imputation for categorical features.
-Key principles:
-- Drop pure identifiers (customer_id, Name, security_no)
-- Convert high-missing to binary/ordinal features (referral → has_referral)
-- Keep all informative features including region_category, medium_of_operation
-- Filter low-quality rows (>3 missing values)
-- Mode imputation for categorical, KNN for numeric
-Result: 28,665 samples, 20 features
+Churn Dataset Preprocessing
+============================
+Cleans and preprocesses churn prediction datasets.
+
+Processing steps:
+1. Drop pure identifiers (customer_id, Name, security_no)
+2. Convert high-missing columns to informative features
+3. Filter low-quality rows (>3 missing values)
+4. Remove outliers (1st/99th percentile clipping)
+5. Impute remaining missing (KNN for numeric, mode for categorical)
+
+Usage:
+    from src.utils.preprocess_data import load_and_preprocess
+    train_df, test_df = load_and_preprocess('data/churn/train_dataset.csv',
+                                              'data/churn/test_dataset.csv')
 """
 
 import numpy as np
@@ -209,43 +214,41 @@ def impute_remaining_missing(df: pd.DataFrame, num_cols: list, cat_cols: list) -
 # ============================================================================
 # MAIN PIPELINE
 # ============================================================================
-def preprocess_thesis_data(train_path: str, test_path: str) -> dict:
+def load_and_preprocess(train_path: str, test_path: str, save_cleaned: bool = True) -> tuple:
     """
-    Evidence-based smart preprocessing pipeline.
-    Keeps all informative features, uses mode imputation for categorical.
+    Load, clean, and preprocess churn datasets.
+
+    Args:
+        train_path: Path to training dataset CSV
+        test_path: Path to test dataset CSV
+        save_cleaned: If True, save cleaned datasets to same folder with '_cleaned' suffix
+
+    Returns:
+        (train_df, test_df): Cleaned dataframes with target column
     """
-    print("🎓 EVIDENCE-BASED SMART CHURN DATA PREPROCESSING")
+    import os
+
+    print("=" * 70)
+    print("CHURN DATASET PREPROCESSING")
     print("=" * 70)
 
-    # 1. Load and initial clean
+    # Load and clean
     train, test = load_and_clean_data(train_path, test_path)
 
-    # Store test IDs
-    test_ids = test['customer_id'].copy()
+    # Drop identifiers
+    for df in [train, test]:
+        for col in IDENTIFIERS_TO_DROP:
+            if col in df.columns:
+                df.drop(columns=[col], inplace=True)
 
-    # 2. Drop identifiers (no predictive value)
-    print("\n=== Step 1: Dropping Pure Identifiers ===")
-    cols_to_drop_train = [c for c in IDENTIFIERS_TO_DROP if c in train.columns]
-    cols_to_drop_test = [c for c in IDENTIFIERS_TO_DROP if c in test.columns]
-    train = train.drop(columns=cols_to_drop_train)
-    test = test.drop(columns=cols_to_drop_test)
-    print(f"Dropped: {IDENTIFIERS_TO_DROP}")
-
-    # 3. Feature engineering (converts high-missing columns)
-    print("\n=== Step 2: Smart Feature Engineering ===")
-    print("Converting high-missing columns to informative features:")
-    print("  - referral_id (48.3% missing) + joined_through_referral (14.7% missing)")
-    print("    → has_referral (binary, 0% missing)")
-    print("  - joining_date → days_since_joining")
-    print("  - last_visit_time → last_visit_hour")
-    print("  - membership_category → membership_tier (ordinal 0-5)")
+    # Feature engineering
     train = engineer_features(train)
     test = engineer_features(test)
 
-    # 4. Process target (data-driven -1 handling)
+    # Process target
     train = process_target(train)
 
-    # 5. Define informative columns (20 features)
+    # Define feature columns
     NUMERIC_COLS = [
         'age', 'days_since_last_login', 'avg_time_spent',
         'avg_transaction_value', 'avg_frequency_login_days',
@@ -259,66 +262,61 @@ def preprocess_thesis_data(train_path: str, test_path: str) -> dict:
         'past_complaint', 'complaint_status', 'feedback'
     ]
 
-    # Ensure all columns exist
+    # Ensure columns exist
     NUMERIC_COLS = [c for c in NUMERIC_COLS if c in train.columns]
     CATEGORICAL_COLS = [c for c in CATEGORICAL_COLS if c in train.columns]
 
-    print(f"\n=== Step 3: Informative Features ===")
-    print(f"Numeric: {len(NUMERIC_COLS)}, Categorical: {len(CATEGORICAL_COLS)}")
-    print(f"Total: {len(NUMERIC_COLS) + len(CATEGORICAL_COLS)} features")
-    print("Note: Keeping region_category and medium_of_operation despite lower importance")
-    print("      (will use mode imputation for 14.8% and 14.5% missing)")
-
-    # 6. Filter low-quality rows (>3 missing)
+    # Filter low-quality rows
     train, test = filter_low_quality_rows(train, test)
 
-    # 7. Aggressive outlier removal (numeric only)
+    # Remove outliers
     train = remove_outliers(train, NUMERIC_COLS)
 
-    # 8. Imputation for remaining missing
-    print("\n=== Step 4: Imputation (KNN for Numeric, Mode for Categorical) ===")
-    all_features = NUMERIC_COLS + CATEGORICAL_COLS
-    missing_before = train[all_features].isnull().sum().sum()
-    imputation_rate = 100 * missing_before / len(train)
-    print(f"Missing values to impute: {missing_before:,}")
-    print(f"Imputation rate: {imputation_rate:.1f}% per sample")
-
+    # Imputation
     train = impute_remaining_missing(train, NUMERIC_COLS, CATEGORICAL_COLS)
     test = impute_remaining_missing(test, NUMERIC_COLS, CATEGORICAL_COLS)
 
-    # 10. Final separation
-    X_train = train[NUMERIC_COLS + CATEGORICAL_COLS]
-    y_train = train['churn_risk_score']
-    X_test = test[NUMERIC_COLS + CATEGORICAL_COLS]
+    # Prepare final dataframes (features + target)
+    all_features = NUMERIC_COLS + CATEGORICAL_COLS
+    train_cleaned = train[all_features + ['churn_risk_score']].copy()
+    test_cleaned = test[all_features].copy()
 
     # Summary
     print("\n" + "=" * 70)
-    print("✅ SMART PREPROCESSING COMPLETE")
+    print("PREPROCESSING COMPLETE")
     print("=" * 70)
-    print(f"✓ Samples: {len(y_train):,} train, {len(X_test):,} test")
-    print(f"✓ Features: {len(NUMERIC_COLS) + len(CATEGORICAL_COLS)} features (10 numeric, {len(CATEGORICAL_COLS)} categorical)")
-    print(f"✓ Imputation: {imputation_rate:.1f}% per sample (vs 66.1% original)")
-    print(f"✓ Strategy: Keep all features, mode imputation for categorical missing")
+    print(f"Train: {len(train_cleaned):,} samples × {len(all_features)} features")
+    print(f"Test:  {len(test_cleaned):,} samples × {len(all_features)} features")
+    print(f"Features: {len(NUMERIC_COLS)} numeric, {len(CATEGORICAL_COLS)} categorical")
+    print(f"Missing values: {train_cleaned.isnull().sum().sum() + test_cleaned.isnull().sum().sum()}")
+
+    print("\nTarget distribution:")
+    for cls, count in train_cleaned['churn_risk_score'].value_counts().sort_index().items():
+        pct = 100 * count / len(train_cleaned)
+        print(f"  Class {int(cls)}: {count:,} ({pct:.1f}%)")
+
+    # Save cleaned datasets
+    if save_cleaned:
+        train_dir = os.path.dirname(train_path)
+        train_cleaned_path = os.path.join(train_dir, 'train_dataset_cleaned.csv')
+        test_cleaned_path = os.path.join(train_dir, 'test_dataset_cleaned.csv')
+
+        train_cleaned.to_csv(train_cleaned_path, index=False)
+        test_cleaned.to_csv(test_cleaned_path, index=False)
+
+        print(f"\n✓ Saved cleaned datasets:")
+        print(f"  {train_cleaned_path}")
+        print(f"  {test_cleaned_path}")
+
     print("=" * 70 + "\n")
 
-    # Target distribution
-    print("Target distribution:")
-    for cls, count in y_train.value_counts().sort_index().items():
-        print(f"  Class {int(cls)}: {count:,} ({100*count/len(y_train):.1f}%)")
+    return train_cleaned, test_cleaned
 
-    return {
-        'X_train_numeric': X_train[NUMERIC_COLS],
-        'X_train_categorical': X_train[CATEGORICAL_COLS],
-        'X_train_combined': X_train,
-        'y_train': y_train,
-        'X_test_numeric': X_test[NUMERIC_COLS],
-        'X_test_categorical': X_test[CATEGORICAL_COLS],
-        'X_test_combined': X_test,
-        'test_ids': test_ids,
-        'numeric_cols': NUMERIC_COLS,
-        'categorical_cols': CATEGORICAL_COLS
-    }
 
 # Usage
 if __name__ == "__main__":
-    result = preprocess_thesis_data('data/churn/train_dataset.csv', 'data/churn/test_dataset.csv')
+    train_df, test_df = load_and_preprocess(
+        'data/churn/train_dataset.csv',
+        'data/churn/test_dataset.csv',
+        save_cleaned=True
+    )
