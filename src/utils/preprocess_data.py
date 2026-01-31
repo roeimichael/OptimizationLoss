@@ -1,14 +1,14 @@
 """
 Churn Risk Thesis - Evidence-Based Smart Preprocessing
 ======================================================
-Data-driven preprocessing with minimal imputation (24.8%).
+Data-driven preprocessing with mode imputation for categorical features.
 Key principles:
 - Drop pure identifiers (customer_id, Name, security_no)
 - Convert high-missing to binary/ordinal features (referral → has_referral)
-- Drop evidence-based low-value features (region_category, medium_of_operation)
+- Keep all informative features including region_category, medium_of_operation
 - Filter low-quality rows (>3 missing values)
-- KNN imputation only for remaining critical behavioral features
-Result: 28,665 samples, 18 features, 24.8% imputation rate
+- Mode imputation for categorical, KNN for numeric
+Result: 28,665 samples, 20 features
 """
 
 import numpy as np
@@ -28,10 +28,9 @@ RANDOM_SEED = 42
 # Columns to drop (identifiers - no predictive value)
 IDENTIFIERS_TO_DROP = ['customer_id', 'Name', 'security_no']
 
-# Evidence-based low-value columns (feature importance analysis showed 5-6% of average)
-# - region_category: MI=0.0052 (rank 9/20), RF=0.0026 (rank 14/20), 14.8% missing
-# - medium_of_operation: MI=0.0060 (rank 7/20), RF=0.0026 (rank 13/20), 14.5% missing
-LOW_VALUE_COLS_TO_DROP = ['region_category', 'medium_of_operation']
+# Note: region_category and medium_of_operation have lower importance (5-6% of average)
+# but are kept as they still provide some signal. Missing values (14.8%, 14.5%)
+# will be filled with mode imputation.
 
 # ============================================================================
 # LOAD & INITIAL CLEANING
@@ -213,7 +212,7 @@ def impute_remaining_missing(df: pd.DataFrame, num_cols: list, cat_cols: list) -
 def preprocess_thesis_data(train_path: str, test_path: str) -> dict:
     """
     Evidence-based smart preprocessing pipeline.
-    Result: 28,665 samples, 18 features, 24.8% imputation rate.
+    Keeps all informative features, uses mode imputation for categorical.
     """
     print("🎓 EVIDENCE-BASED SMART CHURN DATA PREPROCESSING")
     print("=" * 70)
@@ -243,22 +242,10 @@ def preprocess_thesis_data(train_path: str, test_path: str) -> dict:
     train = engineer_features(train)
     test = engineer_features(test)
 
-    # 4. Drop evidence-based low-value columns
-    print("\n=== Step 3: Dropping Evidence-Based Low-Value Features ===")
-    print("Feature importance analysis (Mutual Information + Random Forest):")
-    print("  - region_category: 5% of average importance (rank 9/20 MI, 14/20 RF)")
-    print("  - medium_of_operation: 6% of average importance (rank 7/20 MI, 13/20 RF)")
-    print("Impact: Reduces imputation from 54.0% → 24.8%")
-    cols_to_drop_train = [c for c in LOW_VALUE_COLS_TO_DROP if c in train.columns]
-    cols_to_drop_test = [c for c in LOW_VALUE_COLS_TO_DROP if c in test.columns]
-    train = train.drop(columns=cols_to_drop_train)
-    test = test.drop(columns=cols_to_drop_test)
-    print(f"Dropped: {LOW_VALUE_COLS_TO_DROP}")
-
-    # 5. Process target (data-driven -1 handling)
+    # 4. Process target (data-driven -1 handling)
     train = process_target(train)
 
-    # 6. Define informative columns (18 features)
+    # 5. Define informative columns (20 features)
     NUMERIC_COLS = [
         'age', 'days_since_last_login', 'avg_time_spent',
         'avg_transaction_value', 'avg_frequency_login_days',
@@ -266,7 +253,8 @@ def preprocess_thesis_data(train_path: str, test_path: str) -> dict:
         'last_visit_hour', 'membership_tier', 'has_referral'
     ]
     CATEGORICAL_COLS = [
-        'gender', 'preferred_offer_types', 'internet_option',
+        'gender', 'region_category', 'preferred_offer_types',
+        'medium_of_operation', 'internet_option',
         'used_special_discount', 'offer_application_preference',
         'past_complaint', 'complaint_status', 'feedback'
     ]
@@ -275,18 +263,20 @@ def preprocess_thesis_data(train_path: str, test_path: str) -> dict:
     NUMERIC_COLS = [c for c in NUMERIC_COLS if c in train.columns]
     CATEGORICAL_COLS = [c for c in CATEGORICAL_COLS if c in train.columns]
 
-    print(f"\n=== Step 4: Informative Features ===")
+    print(f"\n=== Step 3: Informative Features ===")
     print(f"Numeric: {len(NUMERIC_COLS)}, Categorical: {len(CATEGORICAL_COLS)}")
     print(f"Total: {len(NUMERIC_COLS) + len(CATEGORICAL_COLS)} features")
+    print("Note: Keeping region_category and medium_of_operation despite lower importance")
+    print("      (will use mode imputation for 14.8% and 14.5% missing)")
 
-    # 7. Filter low-quality rows (>3 missing)
+    # 6. Filter low-quality rows (>3 missing)
     train, test = filter_low_quality_rows(train, test)
 
-    # 8. Aggressive outlier removal (numeric only)
+    # 7. Aggressive outlier removal (numeric only)
     train = remove_outliers(train, NUMERIC_COLS)
 
-    # 9. KNN imputation for remaining missing (24.8% rate)
-    print("\n=== Step 5: KNN Imputation (Remaining Critical Features) ===")
+    # 8. Imputation for remaining missing
+    print("\n=== Step 4: Imputation (KNN for Numeric, Mode for Categorical) ===")
     all_features = NUMERIC_COLS + CATEGORICAL_COLS
     missing_before = train[all_features].isnull().sum().sum()
     imputation_rate = 100 * missing_before / len(train)
@@ -306,9 +296,9 @@ def preprocess_thesis_data(train_path: str, test_path: str) -> dict:
     print("✅ SMART PREPROCESSING COMPLETE")
     print("=" * 70)
     print(f"✓ Samples: {len(y_train):,} train, {len(X_test):,} test")
-    print(f"✓ Features: {len(NUMERIC_COLS) + len(CATEGORICAL_COLS)} informative features")
-    print(f"✓ Imputation: {imputation_rate:.1f}% (vs 66.1% original)")
-    print(f"✓ Evidence-based: Feature importance analysis confirmed low-value drops")
+    print(f"✓ Features: {len(NUMERIC_COLS) + len(CATEGORICAL_COLS)} features (10 numeric, {len(CATEGORICAL_COLS)} categorical)")
+    print(f"✓ Imputation: {imputation_rate:.1f}% per sample (vs 66.1% original)")
+    print(f"✓ Strategy: Keep all features, mode imputation for categorical missing")
     print("=" * 70 + "\n")
 
     # Target distribution
