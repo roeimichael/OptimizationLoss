@@ -100,8 +100,10 @@ def impute_remaining_missing(df: pd.DataFrame, num_cols: list, cat_cols: list) -
     return df
 
 
-def load_and_preprocess(train_path: str, test_path: str, save_cleaned: bool = True) -> tuple:
+def load_and_preprocess(train_path: str, test_path: str, save_cleaned: bool = True,
+                        train_val_split: float = 0.8) -> tuple:
     import os
+    from sklearn.model_selection import train_test_split
 
     train, test = load_and_clean_data(train_path, test_path)
 
@@ -130,25 +132,33 @@ def load_and_preprocess(train_path: str, test_path: str, save_cleaned: bool = Tr
     NUMERIC_COLS = [c for c in NUMERIC_COLS if c in train.columns]
     CATEGORICAL_COLS = [c for c in CATEGORICAL_COLS if c in train.columns]
 
-    train, test = filter_low_quality_rows(train, test)
-    train = remove_outliers(train, NUMERIC_COLS)
-    train = impute_remaining_missing(train, NUMERIC_COLS, CATEGORICAL_COLS)
-    test = impute_remaining_missing(test, NUMERIC_COLS, CATEGORICAL_COLS)
+    train_full, _ = filter_low_quality_rows(train, test)
+    train_full = remove_outliers(train_full, NUMERIC_COLS)
+    train_full = impute_remaining_missing(train_full, NUMERIC_COLS, CATEGORICAL_COLS)
 
     all_features = NUMERIC_COLS + CATEGORICAL_COLS
-    train_cleaned = train[all_features + ['churn_risk_score']].copy()
-    test_cleaned = test[all_features].copy()
+
+    # Split train into train/validation (80/20)
+    train_data, val_data = train_test_split(
+        train_full,
+        test_size=(1 - train_val_split),
+        random_state=42,
+        stratify=train_full['churn_risk_score']
+    )
+
+    train_cleaned = train_data[all_features + ['churn_risk_score']].copy().reset_index(drop=True)
+    val_cleaned = val_data[all_features + ['churn_risk_score']].copy().reset_index(drop=True)
 
     if save_cleaned:
         train_dir = os.path.dirname(train_path)
         train_cleaned_path = os.path.join(train_dir, 'train_dataset_cleaned.csv')
         test_cleaned_path = os.path.join(train_dir, 'test_dataset_cleaned.csv')
         train_cleaned.to_csv(train_cleaned_path, index=False)
-        test_cleaned.to_csv(test_cleaned_path, index=False)
-        print(f"Saved: {train_cleaned_path}")
-        print(f"Saved: {test_cleaned_path}")
+        val_cleaned.to_csv(test_cleaned_path, index=False)
+        print(f"Saved: {train_cleaned_path} ({len(train_cleaned)} samples)")
+        print(f"Saved: {test_cleaned_path} ({len(val_cleaned)} samples)")
 
-    return train_cleaned, test_cleaned
+    return train_cleaned, val_cleaned
 
 
 if __name__ == "__main__":
