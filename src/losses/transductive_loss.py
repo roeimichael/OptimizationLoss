@@ -50,7 +50,8 @@ class MulticlassTransductiveLoss(nn.Module):
         if local_constraints is not None:
             self.local_constraint_dict = {}
             for group_id, constraints in local_constraints.items():
-                buffer_name = f'local_constraint_{group_id}'
+                # Convert group_id to int to avoid periods in buffer name
+                buffer_name = f'local_constraint_{int(group_id)}'
                 self.register_buffer(buffer_name, torch.tensor(constraints, dtype=torch.float32))
                 self.local_constraint_dict[group_id] = buffer_name
         else:

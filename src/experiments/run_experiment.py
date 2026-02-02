@@ -43,11 +43,9 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     try:
         if len(y_train) == 0:
             raise ValueError("Training data is empty")
-        if y_train.dtype == 'O' or (hasattr(y_train, 'iloc') and isinstance(y_train.iloc[0], str)):
-            le = LabelEncoder()
-            y_train_encoded = le.fit_transform(y_train)
-        else:
-            y_train_encoded = y_train.values
+        # Always encode labels to ensure 0-indexed classes for PyTorch
+        le = LabelEncoder()
+        y_train_encoded = le.fit_transform(y_train)
     except Exception as e:
         raise ValueError(f"Failed to encode labels: {e}")
 
