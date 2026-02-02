@@ -1,0 +1,8 @@
+{
+  "status": "interrupted",
+  "final_epoch": 50,
+  "global_constraint_satisfied": true,
+  "local_constraint_satisfied": true,
+  "details": "Unexpected exception (KeyError): 'buffer name can\\'t contain \".\"'",
+  "timestamp": "2026-02-01T10:26:51.158583"
+}
