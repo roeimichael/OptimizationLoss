@@ -19,7 +19,7 @@ def encode_categorical_features(train_df: pd.DataFrame, test_df: pd.DataFrame) -
     test_encoded = test_df.copy()
 
     # Find categorical columns
-    categorical_cols = train_df.select_dtypes(include=['object', 'str']).columns.tolist()
+    categorical_cols = train_df.select_dtypes(include=['object']).columns.tolist()
 
     # Encode each categorical column
     for col in categorical_cols:
