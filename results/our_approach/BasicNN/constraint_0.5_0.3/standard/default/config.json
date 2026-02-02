@@ -5,8 +5,8 @@
         0.5,
         0.3
     ],
-    "hyperparam_regime": "standard",
-    "variation_name": "default",
+    "hyperparam_regime": "lr_lambda_test",
+    "variation_name": "lr_0.0001_lambda_linear",
     "hyperparams": {
         "lr": 0.0001,
         "dropout": 0.3,
@@ -18,11 +18,20 @@
         "epochs": 1000,
         "lambda_global": 0.1,
         "lambda_local": 0.1,
+        "lambda_strategy": "linear",
         "warmup_epochs": 50,
         "constraint_threshold": 0.02,
         "lambda_step": 0.005
     },
     "base_model_id": "BasicNN_46bee3eea59d",
-    "experiment_path": "..\\..\\results\\our_approach\\BasicNN\\constraint_0.5_0.3\\standard\\default",
-    "status": "pending"
+    "experiment_path": "..\\..\\results\\our_approach\\BasicNN\\constraint_0.5_0.3\\lr_lambda_test\\lr_0.0001_lambda_linear",
+    "status": "completed",
+    "results": {
+        "accuracy": 0.5701357466063348,
+        "precision_macro": 0.5686670812603648,
+        "recall_macro": 0.4098472692696262,
+        "f1_macro": 0.36292688326783645,
+        "training_time": 764.5973558425903,
+        "used_cached_model": false
+    }
 }
