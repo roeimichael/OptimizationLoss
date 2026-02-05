@@ -2,7 +2,6 @@
 
 import json
 from pathlib import Path
-from datetime import datetime
 from typing import Dict, List, Tuple, Any
 
 
@@ -43,25 +42,6 @@ def update_experiment_status(experiment_path: str, status: str) -> None:
     """Update experiment status in config."""
     config = load_config_from_path(experiment_path)
     config['status'] = status
-    save_config_to_path(config, experiment_path)
-
-
-def save_stop_reason(experiment_path: str, status: str, reason: str,
-                     final_epoch: int = None, global_satisfied: bool = None,
-                     local_satisfied: bool = None) -> None:
-    """Save stop reason and final state to config."""
-    config = load_config_from_path(experiment_path)
-
-    config['run_completion'] = {
-        'status': status,
-        'reason': reason,
-        'final_epoch': final_epoch,
-        'global_constraint_satisfied': global_satisfied,
-        'local_constraint_satisfied': local_satisfied,
-        'completed_at': datetime.now().isoformat()
-    }
-
-    config['status'] = 'completed' if status == 'converged' else 'pending'
     save_config_to_path(config, experiment_path)
 
 

@@ -1,9 +1,4 @@
-"""
-Constraint-aware neural network trainer.
-
-This module provides the ConstraintTrainer class for training neural networks
-with both global and local constraint satisfaction objectives.
-"""
+"""Constraint-aware neural network trainer."""
 
 import time
 from pathlib import Path
@@ -17,18 +12,12 @@ import pandas as pd
 from src.models import get_model
 from src.losses import MulticlassTransductiveLoss
 from src.training.metrics import compute_train_accuracy, compute_prediction_statistics
-from src.training.logging import log_progress_to_csv, print_progress, save_run_status
+from src.training.logging import log_progress_to_csv, print_progress
 from src.utils.error_handler import logger, safe_execute
-from src.utils.filesystem_manager import save_stop_reason
 
 
 class ConstraintTrainer:
-    """
-    Trainer for constraint-aware neural network optimization.
-
-    Handles warmup training (standard CE loss) followed by constraint
-    optimization training with adaptive lambda weighting.
-    """
+    """Trainer for constraint-aware neural network optimization."""
 
     def __init__(self, config: Dict[str, Any], experiment_path: str, device: torch.device):
         self.config = config
@@ -110,20 +99,7 @@ class ConstraintTrainer:
         global_con: list,
         local_con: Dict[int, list]
     ) -> nn.Module:
-        """
-        Run constraint optimization training phase.
-
-        Args:
-            X_train: Training features
-            y_train: Training labels
-            X_test: Test features (used for transductive constraint computation)
-            groups_test: Group assignments for local constraints
-            global_con: Global constraint values per class
-            local_con: Local constraint values per group per class
-
-        Returns:
-            Trained model
-        """
+        """Run constraint optimization training phase."""
         print("CONSTRAINT OPTIMIZATION TRAINING")
         train_loader = self._create_dataloader(X_train, y_train)
         X_test = X_test.to(self.device)
@@ -139,9 +115,6 @@ class ConstraintTrainer:
         warmup_epochs = self.hyperparams['warmup_epochs']
         total_epochs = self.hyperparams['epochs']
         lambda_step = self.hyperparams['lambda_step']
-
-        avg_global = 0.0
-        avg_local = 0.0
 
         for epoch in range(warmup_epochs, total_epochs):
             self.model.train()
@@ -184,6 +157,7 @@ class ConstraintTrainer:
                 f"Local={avg_local:.4f}(l={criterion_constraint.lambda_local:.2f})"
             )
 
+            # Update lambdas
             new_lambda_global = criterion_constraint.lambda_global
             new_lambda_local = criterion_constraint.lambda_local
             if not criterion_constraint.global_constraints_satisfied:
@@ -192,6 +166,7 @@ class ConstraintTrainer:
                 new_lambda_local += lambda_step
             criterion_constraint.set_lambda(lambda_global=new_lambda_global, lambda_local=new_lambda_local)
 
+            # Log progress
             if (epoch + 1) % 3 == 0 or (epoch + 1) == warmup_epochs + 1:
                 train_acc = compute_train_accuracy(self.model, train_loader, self.device)
                 g_counts, l_counts, g_soft, l_soft = compute_prediction_statistics(
@@ -212,88 +187,14 @@ class ConstraintTrainer:
                     criterion_constraint.local_constraints_satisfied
                 )
 
+            # Check convergence
             if criterion_constraint.global_constraints_satisfied and criterion_constraint.local_constraints_satisfied:
-                self._save_convergence_status(epoch, avg_global, avg_local, criterion_constraint)
+                print(f"\n[CONVERGED] Both constraints satisfied at epoch {epoch + 1}")
                 break
         else:
-            self._save_failure_status(total_epochs, avg_global, avg_local, criterion_constraint)
+            print(f"\n[MAX EPOCHS] Reached {total_epochs} epochs without full convergence")
 
         return self.model
-
-    def _save_convergence_status(
-        self,
-        epoch: int,
-        avg_global: float,
-        avg_local: float,
-        criterion: MulticlassTransductiveLoss
-    ) -> None:
-        """Save status when training converges successfully."""
-        print(f"\n[CONVERGED] Both constraints satisfied at epoch {epoch + 1}")
-        print(f"  Final loss: Global={avg_global:.6f}, Local={avg_local:.6f}")
-        print(f"  Lambda values: Global={criterion.lambda_global:.2f}, Local={criterion.lambda_local:.2f}")
-
-        save_run_status(
-            str(self.experiment_path),
-            status='converged',
-            epoch=epoch + 1,
-            global_satisfied=True,
-            local_satisfied=True,
-            details=f"Converged at epoch {epoch + 1}. Global loss: {avg_global:.6f}, Local loss: {avg_local:.6f}"
-        )
-
-        save_stop_reason(
-            str(self.experiment_path),
-            status='converged',
-            reason=f"Both constraints satisfied at epoch {epoch + 1}",
-            exception_type=None,
-            final_epoch=epoch + 1,
-            global_satisfied=True,
-            local_satisfied=True
-        )
-
-    def _save_failure_status(
-        self,
-        total_epochs: int,
-        avg_global: float,
-        avg_local: float,
-        criterion: MulticlassTransductiveLoss
-    ) -> None:
-        """Save status when training fails to converge."""
-        global_sat = criterion.global_constraints_satisfied
-        local_sat = criterion.local_constraints_satisfied
-
-        print(f"\n[FAILED] Reached maximum epochs ({total_epochs}) without convergence")
-        print(f"  Final loss: Global={avg_global:.6f}, Local={avg_local:.6f}")
-        print(f"  Constraint status: Global={'Satisfied' if global_sat else 'Not Satisfied'}, "
-              f"Local={'Satisfied' if local_sat else 'Not Satisfied'}")
-
-        save_run_status(
-            str(self.experiment_path),
-            status='failed',
-            epoch=total_epochs,
-            global_satisfied=global_sat,
-            local_satisfied=local_sat,
-            details=f"Reached max epochs. Global loss: {avg_global:.6f}, Local loss: {avg_local:.6f}"
-        )
-
-        if global_sat and not local_sat:
-            reason = f"Reached {total_epochs} epochs with only Global constraint satisfied"
-        elif not global_sat and local_sat:
-            reason = f"Reached {total_epochs} epochs with only Local constraint satisfied"
-        elif not global_sat and not local_sat:
-            reason = f"Reached {total_epochs} epochs without satisfying either constraint"
-        else:
-            reason = f"Reached {total_epochs} epochs"
-
-        save_stop_reason(
-            str(self.experiment_path),
-            status='failed',
-            reason=reason,
-            exception_type=None,
-            final_epoch=total_epochs,
-            global_satisfied=global_sat,
-            local_satisfied=local_sat
-        )
 
     def _get_cache_path(self, base_model_id: str) -> Path:
         """Get the file path for a cached model."""
@@ -326,10 +227,7 @@ class ConstraintTrainer:
             context=f"Loading cached model {base_model_id}"
         )
 
-        if ckpt is None:
-            return None
-
-        if ckpt.get('base_model_id') != base_model_id:
+        if ckpt is None or ckpt.get('base_model_id') != base_model_id:
             return None
 
         model = get_model(
@@ -346,7 +244,4 @@ class ConstraintTrainer:
             context=f"Loading state dict for {base_model_id}"
         )
 
-        if load_result is None:
-            return None
-
-        return model
+        return model if load_result is not None else None

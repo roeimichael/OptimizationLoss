@@ -1,9 +1,7 @@
 """Training progress logging utilities."""
 
 import csv
-import json
 from pathlib import Path
-from datetime import datetime
 from typing import Dict, Optional
 
 import pandas as pd
@@ -108,19 +106,3 @@ def save_evaluation_metrics(save_path, metrics):
     with open(save_path, 'w', newline='') as f:
         csv.writer(f).writerows(rows)
     print(f"Metrics saved: {save_path}")
-
-
-def save_run_status(experiment_path, status, epoch, global_satisfied, local_satisfied, details=""):
-    """Save run status to JSON."""
-    status_path = Path(experiment_path) / 'run_status.json'
-    data = {
-        'status': status,
-        'final_epoch': epoch,
-        'global_satisfied': global_satisfied,
-        'local_satisfied': local_satisfied,
-        'details': details,
-        'timestamp': datetime.now().isoformat()
-    }
-    with open(status_path, 'w') as f:
-        json.dump(data, f, indent=2)
-    print(f"[STATUS] {status}")
