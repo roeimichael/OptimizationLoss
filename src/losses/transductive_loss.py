@@ -1,169 +1,128 @@
+"""Transductive loss with global and local constraints."""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 NUM_CLASSES = 5
 EPSILON = 1e-6
-UNLIMITED_THRESHOLD = 1e9
-
-
-def _compute_single_class_constraint_loss(
-        soft_predictions: torch.Tensor,
-        hard_predictions: torch.Tensor,
-        class_id: int,
-        constraint_value: float,
-        epsilon: float = EPSILON
-) -> tuple[torch.Tensor, bool]:
-    """Compute constraint loss for a single class using soft predictions."""
-    if constraint_value > UNLIMITED_THRESHOLD:
-        return torch.tensor(0.0, device=soft_predictions.device), True
-
-    predicted_count = soft_predictions[:, class_id].sum()
-    is_satisfied = predicted_count <= constraint_value
-
-    if predicted_count > constraint_value:
-        E = torch.relu(predicted_count - constraint_value)
-        loss = E / (E + constraint_value + epsilon)
-        return loss, is_satisfied
-
-    return torch.tensor(0.0, device=soft_predictions.device), is_satisfied
+UNLIMITED = 1e9
 
 
 class MulticlassTransductiveLoss(nn.Module):
-    """Transductive loss with global and local constraints."""
+    """
+    Loss function combining cross-entropy with constraint satisfaction losses.
+
+    Computes:
+        L_total = L_ce + lambda_global * L_global + lambda_local * L_local
+
+    Where constraint losses use soft predictions to remain differentiable.
+    """
+
     def __init__(self, global_constraints, local_constraints,
-                 lambda_global=1.0, lambda_local=1.0, use_ce=True, num_classes=NUM_CLASSES):
+                 lambda_global=1.0, lambda_local=1.0, num_classes=NUM_CLASSES):
         super().__init__()
         self.lambda_global = lambda_global
         self.lambda_local = lambda_local
-        self.eps = EPSILON
         self.num_classes = num_classes
         self.global_constraints_satisfied = False
         self.local_constraints_satisfied = False
-        self.ce_loss = nn.CrossEntropyLoss()
 
+        # Register global constraints as buffer
         if global_constraints is not None:
-            self.register_buffer('global_constraints', torch.tensor(global_constraints, dtype=torch.float32))
+            self.register_buffer('global_constraints',
+                                 torch.tensor(global_constraints, dtype=torch.float32))
         else:
             self.register_buffer('global_constraints', torch.tensor([]))
 
-        if local_constraints is not None:
-            self.local_constraint_dict = {}
+        # Register local constraints as buffers
+        self.local_groups = {}
+        if local_constraints:
             for group_id, constraints in local_constraints.items():
-                # Convert group_id to int to avoid periods in buffer name
-                buffer_name = f'local_constraint_{int(group_id)}'
-                self.register_buffer(buffer_name, torch.tensor(constraints, dtype=torch.float32))
-                self.local_constraint_dict[group_id] = buffer_name
-        else:
-            self.local_constraint_dict = {}
+                name = f'local_{int(group_id)}'
+                self.register_buffer(name, torch.tensor(constraints, dtype=torch.float32))
+                self.local_groups[group_id] = name
 
     def forward(self, logits, y_true=None, group_ids=None):
         device = logits.device
-        L_pred = torch.tensor(0.0, device=device)
-        if y_true is not None:
-            L_pred = self.ce_loss(logits, y_true)
-        y_proba = F.softmax(logits, dim=1)
-        L_target = self._compute_global_constraint_loss(y_proba, device)
-        L_feat = self._compute_local_constraint_loss(y_proba, group_ids, device)
-        L_total = L_pred + self.lambda_global * L_target + self.lambda_local * L_feat
-        return L_total, L_pred, L_target, L_feat
+        proba = F.softmax(logits, dim=1)
 
-    def _compute_global_constraint_loss(self, y_proba, device):
-        L_target = torch.tensor(0.0, device=device, requires_grad=True)
+        L_ce = torch.tensor(0.0, device=device)
+        if y_true is not None:
+            L_ce = F.cross_entropy(logits, y_true)
+
+        L_global = self._global_loss(proba, device)
+        L_local = self._local_loss(proba, group_ids, device)
+
+        L_total = L_ce + self.lambda_global * L_global + self.lambda_local * L_local
+        return L_total, L_ce, L_global, L_local
+
+    def _global_loss(self, proba, device):
         if len(self.global_constraints) == 0:
             self.global_constraints_satisfied = True
-            return L_target
+            return torch.tensor(0.0, device=device, requires_grad=True)
 
-        g_cons = self.global_constraints.to(device)
-        y_hard = torch.argmax(y_proba, dim=1)
-
-        total_violation = 0.0
-        num_constrained = 0
+        constraints = self.global_constraints.to(device)
+        losses = []
         all_satisfied = True
 
-        for class_id in range(self.num_classes):
-            if class_id >= len(g_cons):
-                continue
-            K = g_cons[class_id]
-
-            if K > UNLIMITED_THRESHOLD:
+        for c in range(self.num_classes):
+            if c >= len(constraints) or constraints[c] > UNLIMITED:
                 continue
 
-            class_loss, is_satisfied = _compute_single_class_constraint_loss(
-                y_proba, y_hard, class_id, K, self.eps
-            )
+            K = constraints[c]
+            count = proba[:, c].sum()
 
-            if not is_satisfied:
+            if count > K:
                 all_satisfied = False
-
-            if class_loss > 0:
-                total_violation += class_loss
-                num_constrained += 1
-
-        if num_constrained > 0:
-            L_target = total_violation / num_constrained
+                excess = count - K
+                loss = excess / (excess + K + EPSILON)
+                losses.append(loss)
 
         self.global_constraints_satisfied = all_satisfied
-        return L_target
+        return sum(losses) / len(losses) if losses else torch.tensor(0.0, device=device, requires_grad=True)
 
-    def _compute_local_constraint_loss(self, y_proba, group_ids, device):
-        L_feat = torch.tensor(0.0, device=device, requires_grad=True)
-        if not self.local_constraint_dict or group_ids is None:
+    def _local_loss(self, proba, group_ids, device):
+        if not self.local_groups or group_ids is None:
             self.local_constraints_satisfied = True
-            return L_feat
+            return torch.tensor(0.0, device=device, requires_grad=True)
 
-        group_ids_device = group_ids.to(device)
-        y_hard = torch.argmax(y_proba, dim=1)
-
-        total_violation = 0.0
+        group_ids = group_ids.to(device)
+        total_loss = 0.0
         total_weight = 0.0
         all_satisfied = True
 
-        for group_id, buffer_name in self.local_constraint_dict.items():
-            in_group = (group_ids_device == group_id)
-            group_size = in_group.sum().float()
-            if group_size == 0:
+        for gid, buffer_name in self.local_groups.items():
+            mask = (group_ids == gid)
+            size = mask.sum().float()
+            if size == 0:
                 continue
 
-            group_proba = y_proba[in_group]
-            group_hard = y_hard[in_group]
-            l_cons = getattr(self, buffer_name).to(device)
+            group_proba = proba[mask]
+            constraints = getattr(self, buffer_name).to(device)
+            group_losses = []
 
-            group_violation = 0.0
-            group_constrained = 0
-
-            for class_id in range(self.num_classes):
-                if class_id >= len(l_cons):
-                    continue
-                K = l_cons[class_id]
-
-                if K > UNLIMITED_THRESHOLD:
+            for c in range(self.num_classes):
+                if c >= len(constraints) or constraints[c] > UNLIMITED:
                     continue
 
-                class_loss, is_satisfied = _compute_single_class_constraint_loss(
-                    group_proba, group_hard, class_id, K, self.eps
-                )
+                K = constraints[c]
+                count = group_proba[:, c].sum()
 
-                if not is_satisfied:
+                if count > K:
                     all_satisfied = False
+                    excess = count - K
+                    loss = excess / (excess + K + EPSILON)
+                    group_losses.append(loss)
 
-                if class_loss > 0:
-                    group_violation += class_loss
-                    group_constrained += 1
-
-            if group_constrained > 0:
-                avg_group_violation = group_violation / group_constrained
-                total_violation += avg_group_violation * group_size
-                total_weight += group_size
-
-        if total_weight > 0:
-            L_feat = total_violation / total_weight
+            if group_losses:
+                total_loss += (sum(group_losses) / len(group_losses)) * size
+                total_weight += size
 
         self.local_constraints_satisfied = all_satisfied
-        return L_feat
+        return total_loss / total_weight if total_weight > 0 else torch.tensor(0.0, device=device, requires_grad=True)
 
     def set_lambda(self, lambda_global=None, lambda_local=None):
-        """Update lambda weights."""
         if lambda_global is not None:
             self.lambda_global = float(lambda_global)
         if lambda_local is not None:

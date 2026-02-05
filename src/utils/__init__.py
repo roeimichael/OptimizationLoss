@@ -9,6 +9,15 @@ from .filesystem_manager import (
     print_status_summary
 )
 from .data_loader import load_presplit_data, load_experiment_data
+from .error_handler import (
+    logger,
+    log_exception,
+    safe_execute,
+    ExperimentError,
+    ConfigurationError,
+    DataError,
+    TrainingError
+)
 
 __all__ = [
     # Filesystem utilities
@@ -23,4 +32,12 @@ __all__ = [
     # Data loading
     'load_presplit_data',
     'load_experiment_data',
+    # Error handling
+    'logger',
+    'log_exception',
+    'safe_execute',
+    'ExperimentError',
+    'ConfigurationError',
+    'DataError',
+    'TrainingError',
 ]

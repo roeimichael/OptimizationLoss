@@ -1,19 +1,13 @@
-"""Configuration generator for constraint-based optimization experiments."""
+"""Configuration generator for experiment grid."""
 
 import hashlib
 import json
-from typing import Dict, Any, List, Tuple
-
-METHODOLOGIES = ['our_approach']
+from pathlib import Path
 
 MODELS = ['BasicNN', 'TabularResNet', 'FTTransformer']
-CONSTRAINTS = [
-    (0.9, 0.8),
-    (0.8, 0.2),
-    (0.5, 0.3),
-]
+CONSTRAINTS = [(0.9, 0.8), (0.8, 0.2), (0.5, 0.3)]
 
-BASE_HYPERPARAMS = {
+HYPERPARAMS = {
     'lr': 0.0001,
     'dropout': 0.3,
     'batch_size': 64,
@@ -26,17 +20,10 @@ BASE_HYPERPARAMS = {
     'lambda_step': 0.005
 }
 
-HYPERPARAM_REGIMES = {
-    'standard': {
-        'name': 'standard',
-        'variations': [
-            {'variation_name': 'default', 'params': BASE_HYPERPARAMS.copy()}
-        ]
-    },
-}
 
-def compute_base_model_id(model_name: str, hyperparams: Dict[str, Any]) -> str:
-    model_key_params = {
+def compute_base_model_id(model_name, hyperparams):
+    """Generate unique ID for model caching based on architecture params."""
+    key = {
         'model_name': model_name,
         'lr': hyperparams['lr'],
         'dropout': hyperparams['dropout'],
@@ -44,124 +31,70 @@ def compute_base_model_id(model_name: str, hyperparams: Dict[str, Any]) -> str:
         'hidden_dims': tuple(hyperparams['hidden_dims']),
         'warmup_epochs': hyperparams['warmup_epochs']
     }
-    config_str = json.dumps(model_key_params, sort_keys=True)
-    config_hash = hashlib.md5(config_str.encode()).hexdigest()[:12]
-    return f"{model_name}_{config_hash}"
+    h = hashlib.md5(json.dumps(key, sort_keys=True).encode()).hexdigest()[:12]
+    return f"{model_name}_{h}"
 
 
-def create_config(methodology: str, model_name: str, constraint: Tuple[float, float], hyperparam_regime: str,
-                  variation_name: str, hyperparam_params: Dict[str, Any]) -> Dict[str, Any]:
-    base_model_id = compute_base_model_id(model_name, hyperparam_params)
-    config = {
-        'methodology': methodology,
-        'model_name': model_name,
-        'constraint': constraint,
-        'hyperparam_regime': hyperparam_regime,
-        'variation_name': variation_name,
-        'hyperparams': hyperparam_params,
-        'base_model_id': base_model_id,
-        'experiment_path': None,
-        'status': 'pending'
-    }
-    return config
+def generate_configs():
+    """Generate all experiment configurations."""
+    configs = []
+    for model in MODELS:
+        for constraint in CONSTRAINTS:
+            config = {
+                'methodology': 'our_approach',
+                'model_name': model,
+                'constraint': constraint,
+                'hyperparam_regime': 'standard',
+                'variation_name': 'default',
+                'hyperparams': HYPERPARAMS.copy(),
+                'base_model_id': compute_base_model_id(model, HYPERPARAMS),
+                'status': 'pending'
+            }
+            configs.append(config)
+    return configs
 
 
-def generate_all_configs() -> List[Dict[str, Any]]:
-    all_configs = []
-    config_id = 0
-    print("Generating experiment configurations...")
-    print(f"Methodologies: {len(METHODOLOGIES)}")
-    print(f"Models: {len(MODELS)}")
-    print(f"Constraints: {len(CONSTRAINTS)}")
-    print(f"Hyperparameter Regimes: {len(HYPERPARAM_REGIMES)}")
-    print()
-    for methodology in METHODOLOGIES:
-        for model_name in MODELS:
-            for constraint in CONSTRAINTS:
-                for regime_name, regime_config in HYPERPARAM_REGIMES.items():
-                    for variation in regime_config['variations']:
-                        config = create_config(
-                            methodology,
-                            model_name,
-                            constraint,
-                            regime_name,
-                            variation['variation_name'],
-                            variation['params']
-                        )
-                        all_configs.append(config)
-                        config_id += 1
-    print(f"Total configurations generated: {len(all_configs)}")
-    return all_configs
+def save_configs(configs, output_dir='results'):
+    """Create directory structure and save configs."""
+    from src.utils.filesystem_manager import save_config_to_path
+
+    for config in configs:
+        constraint = config['constraint']
+        path = Path(output_dir) / 'our_approach' / config['model_name'] / \
+               f"constraint_{constraint[0]}_{constraint[1]}" / 'standard' / 'default'
+        path.mkdir(parents=True, exist_ok=True)
+        config['experiment_path'] = str(path)
+        save_config_to_path(config, str(path))
+
+    print(f"Created {len(configs)} experiment configurations in '{output_dir}'")
 
 
-def save_configs_and_create_structure(configs: List[Dict[str, Any]], output_dir: str = 'results') -> int:
-    from src.utils.filesystem_manager import ensure_experiment_path, save_config_to_path
-    print(f"\nCreating experiment directory structure in '{output_dir}'...")
-    saved_count = 0
-    for i, config in enumerate(configs):
-        experiment_path = ensure_experiment_path(config)
-        config['experiment_path'] = experiment_path
-        save_config_to_path(config, experiment_path)
-        saved_count += 1
-        if (i + 1) % 100 == 0:
-            print(f"  Created {i + 1}/{len(configs)} experiment folders...")
-    print(f"Successfully created {saved_count} experiment configurations!")
-    return saved_count
-
-
-def reset_all_status_to_pending(results_dir: str = 'results') -> int:
+def reset_all_to_pending(results_dir='results'):
+    """Reset all experiment statuses to pending."""
     from src.utils.filesystem_manager import get_all_experiment_configs, save_config_to_path
-    print("RESET ALL EXPERIMENT STATUSES")
-    print(f"\nScanning directory: {results_dir}")
-    all_experiments = get_all_experiment_configs(results_dir)
-    reset_count = 0
-    for experiment_path, config in all_experiments:
+
+    experiments = get_all_experiment_configs(results_dir)
+    count = 0
+    for path, config in experiments:
         if config.get('status') != 'pending':
             config['status'] = 'pending'
-            save_config_to_path(config, experiment_path)
-            reset_count += 1
-    print(f"\nTotal experiments found: {len(all_experiments)}")
-    print(f"Experiments reset to pending: {reset_count}")
-    print(f"Already pending: {len(all_experiments) - reset_count}")
-    return reset_count
+            save_config_to_path(config, path)
+            count += 1
+    print(f"Reset {count} experiments to pending")
 
 
-def main() -> None:
-    print("EXPERIMENT CONFIGURATION MANAGER")
-    print()
-    print("Select an option:")
-    print("  1. Generate new experiment configurations")
-    print("  2. Reset all experiment statuses to pending")
-    print("  3. Exit")
-    print()
+def main():
+    print("1. Generate new configs")
+    print("2. Reset all to pending")
+    print("3. Exit")
 
-    while True:
-        choice = input("Enter your choice (1-3): ").strip()
+    choice = input("\nChoice: ").strip()
 
-        if choice == '1':
-            print()
-            print("GENERATING CONFIGURATIONS")
-            print()
-            all_configs = generate_all_configs()
-            saved_count = save_configs_and_create_structure(all_configs)
-            print("\nCONFIGURATION GENERATION COMPLETE")
-            print()
-            print("Next step: Run experiments using: python main.py")
-            print()
-            break
-
-        elif choice == '2':
-            print()
-            reset_all_status_to_pending()
-            print()
-            break
-
-        elif choice == '3':
-            print("\nExiting...")
-            break
-
-        else:
-            print("Invalid choice. Please enter 1, 2, or 3.")
+    if choice == '1':
+        configs = generate_configs()
+        save_configs(configs)
+    elif choice == '2':
+        reset_all_to_pending()
 
 
 if __name__ == "__main__":
