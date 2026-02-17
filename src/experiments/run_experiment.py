@@ -4,9 +4,8 @@ import argparse
 import time
 from pathlib import Path
 from typing import Dict, Any, Optional
-
 import torch
-from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.preprocessing import StandardScaler
 
 from src.utils.data_loader import load_experiment_data
 from src.utils.error_handler import logger, log_exception
@@ -18,6 +17,7 @@ from src.utils.filesystem_manager import (
     save_config_to_path,
     update_experiment_status
 )
+from src.experiments.run_heuristic import apply_allocation_heuristic
 
 
 @logger()
@@ -43,11 +43,8 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
 
-    le = LabelEncoder()
-    y_train_encoded = le.fit_transform(y_train)
-
     X_train_tensor = torch.FloatTensor(X_train_scaled)
-    y_train_tensor = torch.LongTensor(y_train_encoded)
+    y_train_tensor = torch.LongTensor(y_train.values)
     X_test_tensor = torch.FloatTensor(X_test_scaled).to(device)
     input_dim = X_train.shape[1]
 
@@ -71,16 +68,55 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     print("\nEvaluation...")
     model.eval()
 
+    # Binary labels: 0 (no churn) and 1 (churn)
     y_pred, y_proba = get_predictions_with_probabilities(model, X_test_tensor)
-    y_true_np = y_test.values if hasattr(y_test, 'values') else y_test
-    group_ids_np = groups_test.values if hasattr(groups_test, 'values') else groups_test
+    y_true = y_test.values if hasattr(y_test, 'values') else y_test
+    group_ids = groups_test.values if hasattr(groups_test, 'values') else groups_test
+
+    # POST-HOC AUGMENTATION: Fill remaining constraint slots with highest probability samples
+    # This ensures we utilize the full constraint allowance (e.g., all 100 hospital beds)
+    class_1_pred_count = (y_pred == 1).sum()  # Constrained class is 1 (churn)
+    class_1_limit = int(global_con[1]) if global_con[1] < 1e9 else None
+
+    augmentation_applied = False
+    if class_1_limit is not None and class_1_pred_count < class_1_limit:
+        print(f"\n[POST-HOC AUGMENTATION] Class 1 (churn): {class_1_pred_count} < {class_1_limit} (filling remaining slots)")
+
+        # Apply heuristic to fill up to constraint limit
+        class_hierarchy = [1, 0]  # Process constrained class (1) first
+        y_pred_augmented, _ = apply_allocation_heuristic(
+            y_proba, group_ids, class_hierarchy, global_con, local_con
+        )
+
+        # Count how many were added
+        new_class_1_count = (y_pred_augmented == 1).sum()
+        print(f"[POST-HOC AUGMENTATION] Class 1 after: {new_class_1_count} (added {new_class_1_count - class_1_pred_count})")
+
+        y_pred = y_pred_augmented
+        augmentation_applied = True
+
+    # Validation: print prediction range and constraint verification
+    print(f"[LABELS] y_true range: {y_true.min()}-{y_true.max()}")
+    print(f"[LABELS] y_pred range: {y_pred.min()}-{y_pred.max()}")
+
+    # Constraint verification (binary: 2 classes)
+    print("\n[CONSTRAINT VERIFICATION]")
+    for c in range(2):
+        pred_count = (y_pred == c).sum()
+        true_count = (y_true == c).sum()
+        limit = int(global_con[c]) if global_con[c] < 1e9 else 'INF'
+        if isinstance(limit, int):
+            status = 'OK' if pred_count <= limit else f'VIOLATED by {pred_count - limit}'
+        else:
+            status = 'OK (unlimited)'
+        print(f"  Class {c}: predicted={pred_count:>5}, actual={true_count:>5}, limit={str(limit):>5}, {status}")
 
     save_final_predictions(
         experiment_path / 'final_predictions.csv',
-        y_true_np, y_pred, y_proba, group_ids_np
+        y_true, y_pred, y_proba, group_ids
     )
 
-    metrics = compute_metrics(y_true_np, y_pred)
+    metrics = compute_metrics(y_true, y_pred)
     save_evaluation_metrics(experiment_path / 'evaluation_metrics.csv', metrics)
 
     config['results'] = {
@@ -89,7 +125,8 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         'recall_macro': float(metrics['recall_macro']),
         'f1_macro': float(metrics['f1_macro']),
         'training_time': float(training_time),
-        'used_cached_model': trainer.from_cache
+        'used_cached_model': trainer.from_cache,
+        'post_hoc_augmentation': augmentation_applied
     }
     config['status'] = 'completed'
 

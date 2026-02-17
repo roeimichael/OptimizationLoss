@@ -6,7 +6,9 @@ from pathlib import Path
 
 from src.utils.filesystem_manager import get_experiments_by_status, print_status_summary
 
-RUNNER_SCRIPT = 'src/experiments/run_experiment.py'
+# Route to correct runner based on methodology (use module path for proper imports)
+OPTIMIZATION_MODULE = 'src.experiments.run_experiment'
+HEURISTIC_MODULE = 'src.experiments.run_heuristic'
 
 
 def main():
@@ -20,10 +22,18 @@ def main():
 
     for i, (exp_path, config) in enumerate(pending, 1):
         config_path = Path(exp_path) / 'config.json'
-        print(f"\n[{i}/{len(pending)}] {exp_path}")
+
+        # Select runner based on methodology
+        methodology = config.get('methodology', 'our_approach')
+        if methodology == 'heuristic':
+            runner_module = HEURISTIC_MODULE
+        else:
+            runner_module = OPTIMIZATION_MODULE
+
+        print(f"\n[{i}/{len(pending)}] {exp_path} ({methodology})")
         try:
             result = subprocess.run(
-                [sys.executable, RUNNER_SCRIPT, str(config_path)],
+                [sys.executable, '-m', runner_module, str(config_path)],
                 capture_output=True,
                 text=True
             )

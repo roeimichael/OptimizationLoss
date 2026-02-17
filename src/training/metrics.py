@@ -1,19 +1,26 @@
-"""Metrics computation utilities."""
+"""Metrics computation utilities.
+
+Labels and predictions are 0-indexed (0-4) throughout.
+"""
 
 import torch
 import numpy as np
 from sklearn.metrics import precision_recall_fscore_support, confusion_matrix
 
 
-def compute_prediction_statistics(model, X_test, group_ids, num_classes=5):
-    """Compute hard and soft prediction counts per class and per group."""
+def compute_prediction_statistics(model, X_test, group_ids, num_classes=2):
+    """Compute hard and soft prediction counts per class and per group.
+
+    Labels and predictions are 0-indexed (0-4).
+    Returned counts use 0-indexed keys matching constraint array indices.
+    """
     model.eval()
     with torch.no_grad():
         logits = model(X_test)
-        preds = torch.argmax(logits, dim=1)
+        preds = torch.argmax(logits, dim=1)  # 0-4
         proba = torch.softmax(logits, dim=1)
 
-        # Global counts
+        # Global counts (keys 0-4)
         global_hard = {c: (preds == c).sum().item() for c in range(num_classes)}
         global_soft = {c: proba[:, c].sum().item() for c in range(num_classes)}
 
@@ -45,18 +52,24 @@ def compute_train_accuracy(model, loader, device):
 
 
 def get_predictions_with_probabilities(model, X_test):
-    """Get predictions and probabilities for test data."""
+    """Get predictions and probabilities for test data.
+
+    Returns predictions as 0-indexed (0-4).
+    """
     model.eval()
     with torch.no_grad():
         logits = model(X_test)
-        preds = logits.argmax(dim=1).cpu().numpy()
+        preds = logits.argmax(dim=1).cpu().numpy()  # 0-4
         proba = torch.softmax(logits, dim=1).cpu().numpy()
     model.train()
     return preds, proba
 
 
 def compute_metrics(y_true, y_pred):
-    """Compute classification metrics."""
+    """Compute classification metrics.
+
+    Expects 0-indexed labels (0-4) for both y_true and y_pred.
+    """
     accuracy = np.mean(y_true == y_pred)
 
     precision, recall, f1, support = precision_recall_fscore_support(

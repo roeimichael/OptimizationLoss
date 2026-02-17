@@ -1,4 +1,7 @@
-"""Training progress logging utilities."""
+"""Training progress logging utilities.
+
+Labels are 0-indexed (0-4) internally. Output files use 0-4 for consistency.
+"""
 
 import csv
 from pathlib import Path
@@ -25,7 +28,7 @@ def log_progress_to_csv(
     local_satisfied: bool = True
 ):
     """Log training progress to CSV file."""
-    num_classes = len(constraints) if constraints else 5
+    num_classes = len(constraints) if constraints else 2
     global_counts = global_counts or {i: 0 for i in range(num_classes)}
     global_soft = global_soft or {i: 0.0 for i in range(num_classes)}
     constraints = constraints or [1e9] * num_classes
@@ -39,7 +42,7 @@ def log_progress_to_csv(
             header = ['Epoch', 'Train_Acc', 'L_pred_CE', 'L_target_Global', 'L_feat_Local',
                       'Lambda_Global', 'Lambda_Local', 'Global_Satisfied', 'Local_Satisfied']
             for i in range(num_classes):
-                header += [f'Limit_Class{i+1}', f'Hard_Class{i+1}', f'Soft_Class{i+1}']
+                header += [f'Limit_Class{i}', f'Hard_Class{i}', f'Soft_Class{i}']
             writer.writerow(header)
 
         row = [epoch + 1, f"{train_acc:.4f}", f"{ce_loss:.6f}", f"{global_loss:.6f}",
@@ -78,14 +81,14 @@ def print_progress(
 
 
 def save_final_predictions(save_path, y_true, y_pred, y_proba, group_ids=None):
-    """Save predictions to CSV."""
+    """Save predictions to CSV. Labels are 0-indexed (0-4)."""
     data = {
         'True_Label': y_true,
         'Predicted_Label': y_pred,
         'Correct': (y_true == y_pred).astype(int)
     }
     for i in range(y_proba.shape[1]):
-        data[f'Prob_Class_{i+1}'] = y_proba[:, i]
+        data[f'Prob_Class_{i}'] = y_proba[:, i]
     if group_ids is not None:
         data['Group_ID'] = group_ids
 

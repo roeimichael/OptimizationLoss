@@ -1,55 +1,70 @@
-"""Constraint computation utilities."""
+"""Constraint computation utilities.
+
+Constraints are computed from TEST data only.
+Binary classification: class 1 (churn) gets a percentage limit.
+Class 0 (no churn) is unlimited.
+
+The constraint value = percentage × class_1_count_in_test
+"""
 
 import numpy as np
 from typing import Dict, List
 
-NUM_CLASSES = 5
+NUM_CLASSES = 2  # Binary: 0 = no churn, 1 = churn
 UNLIMITED = 1e10
+
+# The constrained class (binary: 1 = churn)
+CONSTRAINED_CLASS = 1
 
 
 def compute_global_constraints(data, target_col: str, percentage: float,
                                unlimited_classes: List[int] = None) -> List[float]:
     """
-    Compute global constraints based on class distribution.
+    Compute global constraints based on test data.
+
+    Binary: class 1 (churn) gets a percentage-based limit.
+    Class 0 is unlimited.
 
     Args:
-        data: DataFrame with target column
+        data: DataFrame with target column (binary labels 0/1)
         target_col: Name of target column
-        percentage: Constraint as fraction of class count
-        unlimited_classes: List of class IDs (1-indexed) with no constraint
+        percentage: Fraction of class 1 count to use as limit
+        unlimited_classes: DEPRECATED - kept for backward compatibility, ignored
 
     Returns:
-        List of constraint values per class
+        List of constraint values per class (index = class ID)
+        Example: [1e10, 469] where 469 = percentage * class_1_count
     """
-    unlimited_classes = unlimited_classes or []
-    counts = data[target_col].value_counts()
+    # Initialize all classes as unlimited
+    constraints = [UNLIMITED] * NUM_CLASSES
 
-    constraints = np.zeros(NUM_CLASSES)
-    for class_id in counts.index:
-        constraints[int(class_id) - 1] = np.round(counts[class_id] * percentage)
+    # Count constrained class in test data
+    constrained_count = (data[target_col] == CONSTRAINED_CLASS).sum()
 
-    for class_id in unlimited_classes:
-        constraints[class_id - 1] = UNLIMITED
+    # Set the constraint for the constrained class
+    constraints[CONSTRAINED_CLASS] = int(np.round(constrained_count * percentage))
 
-    return constraints.tolist()
+    return constraints
 
 
 def compute_local_constraints(data, target_col: str, percentage: float,
                               group_col: str, unlimited_classes: List[int] = None) -> Dict[int, List[float]]:
     """
-    Compute local constraints per group.
+    Compute local constraints per group (membership_tier).
+
+    Binary: class 1 (churn) gets a percentage-based limit within each group.
+    Class 0 is unlimited.
 
     Args:
-        data: DataFrame with target and group columns
+        data: DataFrame with target and group columns (binary labels 0/1)
         target_col: Name of target column
-        percentage: Constraint as fraction of class count
+        percentage: Fraction of class 1 count to use as limit
         group_col: Name of group column
-        unlimited_classes: List of class IDs (1-indexed) with no constraint
+        unlimited_classes: DEPRECATED - kept for backward compatibility, ignored
 
     Returns:
         Dict mapping group_id to list of constraint values per class
     """
-    unlimited_classes = unlimited_classes or []
     local_constraints = {}
 
     for group in data[group_col].unique():
@@ -57,15 +72,15 @@ def compute_local_constraints(data, target_col: str, percentage: float,
         if len(group_data) == 0:
             continue
 
-        counts = group_data[target_col].value_counts()
-        constraints = np.zeros(NUM_CLASSES)
+        # Initialize all classes as unlimited for this group
+        constraints = [UNLIMITED] * NUM_CLASSES
 
-        for class_id in counts.index:
-            constraints[int(class_id) - 1] = np.round(counts[class_id] * percentage)
+        # Count constrained class in this group
+        constrained_count = (group_data[target_col] == CONSTRAINED_CLASS).sum()
 
-        for class_id in unlimited_classes:
-            constraints[class_id - 1] = UNLIMITED
+        # Set the constraint for the constrained class
+        constraints[CONSTRAINED_CLASS] = int(np.round(constrained_count * percentage))
 
-        local_constraints[group] = constraints.tolist()
+        local_constraints[group] = constraints
 
     return local_constraints

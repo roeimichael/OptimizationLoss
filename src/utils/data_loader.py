@@ -40,20 +40,36 @@ def encode_categorical_features(
 
 @logger()
 def load_experiment_data(config: Dict[str, Any]):
-    """Load data and compute constraints for experiment."""
+    """Load data and compute constraints for experiment.
+
+    Labels are converted to binary: 0 (no churn) vs 1 (churn).
+    This is the ONLY place where label conversion happens.
+    """
     print("\nLoading dataset...")
     train_df, test_df = load_presplit_data(TRAIN_PATH, TEST_PATH)
     train_df, test_df = encode_categorical_features(train_df, test_df)
+
+    # Convert to binary classification:
+    # Original labels 1-3 → 0 (no churn), 4-5 → 1 (churn)
+    train_df[TARGET_COLUMN] = (train_df[TARGET_COLUMN] >= 4).astype(int)
+    test_df[TARGET_COLUMN] = (test_df[TARGET_COLUMN] >= 4).astype(int)
+
     local_percent, global_percent = config['constraint']
 
-    unlimited_classes = config.get('unlimited_classes', [1, 2, 3, 4])
+    # Constraint computation: class 1 (churn) gets a percentage limit
+    # Class 0 is unlimited
     global_constraint = compute_global_constraints(
-        test_df, TARGET_COLUMN, global_percent, unlimited_classes
+        test_df, TARGET_COLUMN, global_percent
     )
     local_constraint = compute_local_constraints(
-        test_df, TARGET_COLUMN, local_percent, GROUP_COLUMN, unlimited_classes
+        test_df, TARGET_COLUMN, local_percent, GROUP_COLUMN
     )
 
+    # Validation: print label range and distribution
+    print(f"[LABELS] Train range: {train_df[TARGET_COLUMN].min()}-{train_df[TARGET_COLUMN].max()}")
+    print(f"[LABELS] Test range: {test_df[TARGET_COLUMN].min()}-{test_df[TARGET_COLUMN].max()}")
+    print(f"[LABELS] Train distribution: {dict(train_df[TARGET_COLUMN].value_counts().sort_index())}")
+    print(f"[LABELS] Test distribution: {dict(test_df[TARGET_COLUMN].value_counts().sort_index())}")
     print(f"Global constraint: {global_constraint}")
     print(f"Local constraints: {len(local_constraint)} groups")
 
