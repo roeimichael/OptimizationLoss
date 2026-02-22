@@ -18,10 +18,10 @@ DATASET_CONFIGS = {
     'dermmnist': {
         'data_dir': 'data/dermmnist',
         'target_column': 'label',
-        'group_column': None,  # No demographic metadata in MedMNIST npz
+        'group_column': 'sex',  # 0=male, 1=female (from DermaMNIST-C metadata)
         'num_classes': 7,
         'constrained_class': 4,  # Melanoma
-        'image_size': 64,
+        'image_size': 224,
     },
 }
 

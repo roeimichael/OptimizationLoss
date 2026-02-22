@@ -64,37 +64,39 @@ log = logging.getLogger(__name__)
 # ── DermMNIST (image-based) loading ──────────────────────────────────────────
 
 def _load_dermmnist_data(config):
-    """Load DermMNIST npy images + labels. Returns 8-tuple (same interface).
+    """Load DermaMNIST-C npy images + labels + sex metadata. Returns 8-tuple.
 
-    Images are already (N, 3, 64, 64) float32 [0, 1].
-    No group column available — local constraints use global-only mode.
+    Images are (N, 3, 224, 224) float32 [0, 1].
+    Group column: sex (0=male, 1=female) from corrected metadata CSV.
     """
     ds = config['dataset_config']
     data_dir = ds['data_dir']
     num_classes = ds['num_classes']
     constrained_class = ds['constrained_class']
+    group_col = ds.get('group_column', 'sex')
 
     X_train = np.load(os.path.join(data_dir, 'train_images.npy'))
     y_train = np.load(os.path.join(data_dir, 'train_labels.npy'))
     X_test = np.load(os.path.join(data_dir, 'test_images.npy'))
     y_test = np.load(os.path.join(data_dir, 'test_labels.npy'))
 
+    # Load sex metadata for test set
+    test_meta = pd.read_csv(os.path.join(data_dir, 'test_meta.csv'))
+    groups_test = test_meta[group_col].values.astype(np.int64)
+
     local_percent, global_percent = config['constraint']
 
-    # Constraint computation using a simple DataFrame
-    test_df = pd.DataFrame({'label': y_test})
+    # Constraint computation using test labels + sex groups
+    test_df = pd.DataFrame({'label': y_test, group_col: groups_test})
     global_con = compute_global_constraints(
         test_df, 'label', global_percent,
         constrained_class=constrained_class, num_classes=num_classes)
+    local_con = compute_local_constraints(
+        test_df, 'label', local_percent, group_col,
+        constrained_class=constrained_class, num_classes=num_classes)
 
-    # No demographic group column — empty local constraints
-    local_con = {}
-
-    # Dummy group column (single group) so the pipeline doesn't break
-    groups_test = np.zeros(len(y_test), dtype=np.int64)
-
-    log.info("mode=dermmnist classes=%d constrained=%d global=%s test=%d train=%d",
-             num_classes, constrained_class, global_con, len(y_test), len(y_train))
+    log.info("mode=dermmnist classes=%d constrained=%d global=%s local_groups=%d test=%d train=%d",
+             num_classes, constrained_class, global_con, len(local_con), len(y_test), len(y_train))
 
     return (X_train, X_test, y_train, y_test,
             groups_test, global_con, local_con, num_classes)

@@ -1,12 +1,14 @@
-"""Download DermMNIST 64x64 and prepare train/val/test splits.
+"""Download DermaMNIST-C 224x224 (corrected) and prepare train/val/test splits.
 
-DermMNIST is from the MedMNIST collection, sourced from HAM10000 (10,015 skin lesion images).
+DermaMNIST-C is from SFU's corrected version of MedMNIST's DermaMNIST.
+Source: HAM10000 (10,015 skin lesion images), with fixed train/val/test splits
+that prevent same-lesion leakage across splits.
+
 7 classes: AKIEC, BCC, BKL, DF, MEL, NV, VASC.
-Predefined splits: train 7007 / val 1003 / test 2005.
+Corrected splits: train 8215 / val 573 / test 1227.
 
-Note: The MedMNIST npz does not include HAM10000 image IDs, so demographic
-metadata (age, sex) cannot be joined. Group column for local constraints
-must be derived from another source or omitted.
+Metadata (sex, age, localization) comes from the corrected CSV which is
+row-aligned with the npz — verified by label matching.
 """
 
 import os
@@ -18,69 +20,110 @@ CLASS_NAMES = {
     1: 'BCC',    # Basal cell carcinoma
     2: 'BKL',    # Benign keratosis
     3: 'DF',     # Dermatofibroma
-    4: 'MEL',    # Melanoma
+    4: 'MEL',    # Melanoma (constrained class)
     5: 'NV',     # Melanocytic nevi
     6: 'VASC',   # Vascular lesions
 }
 
+DX_TO_CLASS = {
+    'akiec': 0, 'bcc': 1, 'bkl': 2, 'df': 3, 'mel': 4, 'nv': 5, 'vasc': 6,
+}
+
+SEX_MAP = {'male': 0, 'female': 1, 'unknown': 0}  # 57 unknowns → majority group
+
 DATA_DIR = os.path.dirname(os.path.abspath(__file__))
-NPZ_FILE = os.path.join(DATA_DIR, 'dermamnist_64.npz')
+NPZ_FILE = os.path.join(DATA_DIR, 'dermamnist_corrected_224.npz')
+META_CSV = os.path.join(DATA_DIR, 'dermmnist_c_metadata.csv')
+
+NPZ_URL = 'https://zenodo.org/records/11101338/files/dermamnist_corrected_224.npz?download=1'
+META_URL = ('https://raw.githubusercontent.com/kakumarabhishek/Corrected-Skin-Image-Datasets'
+            '/main/DermaMNIST/DermaMNIST_Analysis/CSV_files'
+            '/combined_metadata_corrected-HAM10000_corrected.csv')
 
 
 def download_if_needed():
-    """Download DermMNIST 64x64 via medmnist if not present."""
-    if os.path.exists(NPZ_FILE):
-        print(f"NPZ already exists: {NPZ_FILE}")
-        return
+    """Download DermaMNIST-C 224x224 npz and metadata CSV if not present."""
+    import urllib.request
 
-    print("Downloading DermMNIST 64x64...")
-    from medmnist import DermaMNIST
-    DermaMNIST(split='train', download=True, size=64, root=DATA_DIR)
-    print(f"Downloaded to: {NPZ_FILE}")
+    if not os.path.exists(NPZ_FILE):
+        print(f"Downloading DermaMNIST-C 224x224 (~1.1 GB)...")
+        urllib.request.urlretrieve(NPZ_URL, NPZ_FILE)
+        size_mb = os.path.getsize(NPZ_FILE) / 1024 / 1024
+        print(f"Downloaded: {NPZ_FILE} ({size_mb:.0f} MB)")
+    else:
+        print(f"NPZ already exists: {NPZ_FILE}")
+
+    if not os.path.exists(META_CSV):
+        print("Downloading corrected metadata CSV...")
+        urllib.request.urlretrieve(META_URL, META_CSV)
+        print(f"Downloaded: {META_CSV}")
+    else:
+        print(f"Metadata CSV already exists: {META_CSV}")
 
 
 def process_and_save():
-    """Extract splits from npz, normalize images, save as npy + csv."""
+    """Extract splits from npz, build metadata with sex column, save as npy + csv."""
     data = np.load(NPZ_FILE)
+    meta_df = pd.read_csv(META_CSV)
+    meta_df['label'] = meta_df['dx'].map(DX_TO_CLASS)
 
     for split in ['train', 'val', 'test']:
-        images = data[f'{split}_images']   # (N, 64, 64, 3) uint8
+        images = data[f'{split}_images']   # (N, 224, 224, 3) uint8
         labels = data[f'{split}_labels'].flatten()  # (N,) uint8
 
-        # Transpose to channels-first: (N, 3, 64, 64) and normalize to [0, 1]
+        # Transpose to channels-first: (N, 3, 224, 224) and normalize to [0, 1]
         images_chw = images.transpose(0, 3, 1, 2).astype(np.float32) / 255.0
+
+        # Get metadata for this split (row-aligned with npz)
+        split_meta = meta_df[meta_df['split'] == split].reset_index(drop=True)
+
+        # Verify alignment: labels must match
+        csv_labels = split_meta['label'].values
+        assert np.array_equal(labels, csv_labels), (
+            f"{split}: npz labels don't match CSV labels! Data alignment broken."
+        )
+
+        # Build sex column (encoded: male=0, female=1, unknown→0)
+        sex_encoded = split_meta['sex'].map(SEX_MAP).values.astype(np.int64)
 
         # Save arrays
         np.save(os.path.join(DATA_DIR, f'{split}_images.npy'), images_chw)
         np.save(os.path.join(DATA_DIR, f'{split}_labels.npy'), labels)
 
-        # Save metadata CSV (label + class name, extensible for future group columns)
-        meta = pd.DataFrame({
+        # Save metadata CSV with sex
+        out_meta = pd.DataFrame({
             'label': labels,
             'class_name': [CLASS_NAMES[l] for l in labels],
+            'sex': sex_encoded,
         })
-        meta.to_csv(os.path.join(DATA_DIR, f'{split}_meta.csv'), index=False)
+        out_meta.to_csv(os.path.join(DATA_DIR, f'{split}_meta.csv'), index=False)
 
         print(f"\n{split}: {len(labels)} samples, images shape {images_chw.shape}")
+        print(f"  sex: male(0)={sum(sex_encoded == 0)}, female(1)={sum(sex_encoded == 1)}")
 
 
 def print_summary():
-    """Print class distribution and dataset statistics."""
+    """Print class distribution and sex distribution per split."""
     print("\n" + "=" * 70)
-    print("DermMNIST 64x64 — Dataset Summary")
+    print("DermaMNIST-C 224x224 (Corrected) - Dataset Summary")
     print("=" * 70)
 
     for split in ['train', 'val', 'test']:
         labels = np.load(os.path.join(DATA_DIR, f'{split}_labels.npy'))
         images = np.load(os.path.join(DATA_DIR, f'{split}_images.npy'))
+        meta = pd.read_csv(os.path.join(DATA_DIR, f'{split}_meta.csv'))
 
         print(f"\n--- {split.upper()} ({len(labels)} samples) ---")
-        print(f"Images: {images.shape} dtype={images.dtype} range=[{images.min():.2f}, {images.max():.2f}]")
+        print(f"Images: {images.shape} dtype={images.dtype} "
+              f"range=[{images.min():.2f}, {images.max():.2f}]")
 
         for c in range(7):
             count = (labels == c).sum()
             pct = count / len(labels) * 100
             print(f"  Class {c} ({CLASS_NAMES[c]:>5}): {count:>5} ({pct:5.1f}%)")
+
+        sex = meta['sex'].values
+        print(f"  Sex: male(0)={sum(sex == 0)}, female(1)={sum(sex == 1)}")
 
     # Overall
     all_labels = np.concatenate([
@@ -92,9 +135,6 @@ def print_summary():
         count = (all_labels == c).sum()
         pct = count / len(all_labels) * 100
         print(f"  Class {c} ({CLASS_NAMES[c]:>5}): {count:>5} ({pct:5.1f}%)")
-
-    print("\nNote: No demographic metadata (sex/age) available from MedMNIST npz.")
-    print("Local constraints require an alternative group source.")
 
 
 if __name__ == '__main__':
