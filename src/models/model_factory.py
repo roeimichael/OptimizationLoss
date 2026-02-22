@@ -32,6 +32,7 @@ def get_model(model_name: str, n_classes: int = 7, **kwargs: Any) -> nn.Module:
 
     if model_type == 'tabular':
         input_dim = kwargs.pop('input_dim')
+        kwargs.pop('pretrained', None)  # Tabular models don't use pretrained weights
         return model_class(input_dim=input_dim, n_classes=n_classes, **kwargs)
     else:
         # Imagery models don't use input_dim or hidden_dims

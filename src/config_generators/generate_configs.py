@@ -7,14 +7,14 @@ from pathlib import Path
 # ── Dataset configurations (replaces config/experiment_config.py) ────────────
 
 DATASET_CONFIGS = {
-    'binary': {
-        'train_path': 'data/adult/train_dataset_cleaned.csv',
-        'test_path': 'data/adult/test_dataset_cleaned.csv',
-        'target_column': 'income',
-        'group_column': 'race',
-        'num_classes': 2,
-        'constrained_class': 1,
-    },
+    # 'binary': {
+    #     'train_path': 'data/adult/train_dataset_cleaned.csv',
+    #     'test_path': 'data/adult/test_dataset_cleaned.csv',
+    #     'target_column': 'income',
+    #     'group_column': 'race',
+    #     'num_classes': 2,
+    #     'constrained_class': 1,
+    # },
     'dermmnist': {
         'data_dir': 'data/dermmnist',
         'target_column': 'label',
@@ -27,7 +27,7 @@ DATASET_CONFIGS = {
 
 # ── Model + constraint grid ──────────────────────────────────────────────────
 
-MODELS_TABULAR = ['FTTransformer']
+# MODELS_TABULAR = ['FTTransformer']
 MODELS_IMAGERY = ['ResNet18', 'ResNet50']
 
 CONSTRAINTS = [
@@ -38,21 +38,21 @@ ALPHA_KL_VALUES = [0.0, 0.1, 1.0]
 
 # ── Hyperparameters ──────────────────────────────────────────────────────────
 
-HYPERPARAMS_TABULAR = {
-    'lr': 0.001,
-    'lr_constraint': 0.00001,
-    'dropout': 0.3,
-    'batch_size': 64,
-    'hidden_dims': [128, 64],
-    'warmup_epochs': 5,
-    'constraint_epochs': 350,
-    'lambda_global': 0.005,
-    'lambda_local': 0.005,
-    'lambda_step': 0.001,
-    'use_sum_loss': True,
-    'initial_rho': 0.5,
-    'alpha_kl': 1.0,
-}
+# HYPERPARAMS_TABULAR = {
+#     'lr': 0.001,
+#     'lr_constraint': 0.00001,
+#     'dropout': 0.3,
+#     'batch_size': 64,
+#     'hidden_dims': [128, 64],
+#     'warmup_epochs': 5,
+#     'constraint_epochs': 350,
+#     'lambda_global': 0.005,
+#     'lambda_local': 0.005,
+#     'lambda_step': 0.001,
+#     'use_sum_loss': True,
+#     'initial_rho': 0.5,
+#     'alpha_kl': 1.0,
+# }
 
 HYPERPARAMS_IMAGERY = {
     'lr': 0.0001,
@@ -67,7 +67,7 @@ HYPERPARAMS_IMAGERY = {
     'use_sum_loss': True,
     'initial_rho': 0.5,
     'alpha_kl': 1.0,
-    'pretrained': True,
+    'pretrained': False,
 }
 
 
@@ -100,8 +100,9 @@ def generate_configs(methodology='our_approach', dataset_mode='dermmnist'):
         models = MODELS_IMAGERY
         base_hyperparams = HYPERPARAMS_IMAGERY
     else:
-        models = MODELS_TABULAR
-        base_hyperparams = HYPERPARAMS_TABULAR
+        raise ValueError(f"Tabular configs temporarily disabled. Use dataset_mode='dermmnist'.")
+        # models = MODELS_TABULAR
+        # base_hyperparams = HYPERPARAMS_TABULAR
 
     ds_config = DATASET_CONFIGS[dataset_mode]
 
@@ -169,10 +170,10 @@ def main():
     print("2. Generate dermmnist heuristic configs")
     print("3. Generate dermmnist both")
     print("")
-    print("=== Adult Binary (tabular, legacy) ===")
-    print("4. Generate binary our_approach configs")
-    print("5. Generate binary both")
-    print("")
+    # print("=== Adult Binary (tabular, legacy) ===")
+    # print("4. Generate binary our_approach configs")
+    # print("5. Generate binary both")
+    # print("")
     print("=== Utilities ===")
     print("9. Reset all to pending")
     print("0. Exit")
@@ -186,11 +187,11 @@ def main():
     elif choice == '3':
         save_configs(generate_configs('our_approach', 'dermmnist'))
         save_configs(generate_configs('heuristic', 'dermmnist'))
-    elif choice == '4':
-        save_configs(generate_configs('our_approach', 'binary'))
-    elif choice == '5':
-        save_configs(generate_configs('our_approach', 'binary'))
-        save_configs(generate_configs('heuristic', 'binary'))
+    # elif choice == '4':
+    #     save_configs(generate_configs('our_approach', 'binary'))
+    # elif choice == '5':
+    #     save_configs(generate_configs('our_approach', 'binary'))
+    #     save_configs(generate_configs('heuristic', 'binary'))
     elif choice == '9':
         reset_all_to_pending()
 

@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional
 
 import numpy as np
 import torch
-from sklearn.preprocessing import StandardScaler
+# from sklearn.preprocessing import StandardScaler  # Tabular only
 
 from src.utils.data_loader import load_experiment_data
 from src.utils.error_handler import logger, log_exception
@@ -19,7 +19,7 @@ from src.training.trainer import ConstraintTrainer
 from src.training.metrics import get_predictions_with_probabilities, compute_metrics
 from src.training.logging import save_final_predictions, save_evaluation_metrics
 from src.utils.filesystem_manager import load_config_from_path, save_config_to_path, update_experiment_status
-from src.models.model_factory import is_imagery_model
+# from src.models.model_factory import is_imagery_model  # Tabular only
 
 log = logging.getLogger(__name__)
 
@@ -50,23 +50,23 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     ds_config = config.get('dataset_config', {})
     constrained_class = ds_config.get('constrained_class', num_classes - 1)
 
-    # Preprocess: imagery vs tabular
-    imagery = is_imagery_model(config['model_name'])
+    # Preprocess: imagery (DermMNIST)
+    # Images are already (N, 3, H, W) float32 [0, 1] — no scaling needed
+    X_train_tensor = torch.FloatTensor(X_train)
+    y_train_tensor = torch.LongTensor(_to_numpy(y_train))
+    X_test_tensor = torch.FloatTensor(X_test).to(device)
+    input_dim = None
 
-    if imagery:
-        # Images are already (N, 3, H, W) float32 [0, 1] — no scaling needed
-        X_train_tensor = torch.FloatTensor(X_train)
-        y_train_tensor = torch.LongTensor(_to_numpy(y_train))
-        X_test_tensor = torch.FloatTensor(X_test).to(device)
-        input_dim = None
-    else:
-        scaler = StandardScaler()
-        X_train_scaled = scaler.fit_transform(X_train)
-        X_test_scaled = scaler.transform(X_test)
-        X_train_tensor = torch.FloatTensor(X_train_scaled)
-        y_train_tensor = torch.LongTensor(_to_numpy(y_train))
-        X_test_tensor = torch.FloatTensor(X_test_scaled).to(device)
-        input_dim = X_train.shape[1]
+    # # Tabular preprocessing (commented out — not used for DermMNIST)
+    # imagery = is_imagery_model(config['model_name'])
+    # if not imagery:
+    #     scaler = StandardScaler()
+    #     X_train_scaled = scaler.fit_transform(X_train)
+    #     X_test_scaled = scaler.transform(X_test)
+    #     X_train_tensor = torch.FloatTensor(X_train_scaled)
+    #     y_train_tensor = torch.LongTensor(_to_numpy(y_train))
+    #     X_test_tensor = torch.FloatTensor(X_test_scaled).to(device)
+    #     input_dim = X_train.shape[1]
 
     # Train
     trainer = ConstraintTrainer(config, str(experiment_path), device, num_classes=num_classes)

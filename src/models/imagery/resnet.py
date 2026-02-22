@@ -8,7 +8,7 @@ from torchvision import models
 class ResNet18Classifier(nn.Module):
     """ResNet18 with custom classification head."""
 
-    def __init__(self, n_classes: int = 7, pretrained: bool = True, dropout: float = 0.3, **kwargs):
+    def __init__(self, n_classes: int = 7, pretrained: bool = False, dropout: float = 0.3, **kwargs):
         super().__init__()
         weights = models.ResNet18_Weights.DEFAULT if pretrained else None
         self.backbone = models.resnet18(weights=weights)
@@ -26,7 +26,7 @@ class ResNet18Classifier(nn.Module):
 class ResNet50Classifier(nn.Module):
     """ResNet50 with custom classification head."""
 
-    def __init__(self, n_classes: int = 7, pretrained: bool = True, dropout: float = 0.3, **kwargs):
+    def __init__(self, n_classes: int = 7, pretrained: bool = False, dropout: float = 0.3, **kwargs):
         super().__init__()
         weights = models.ResNet50_Weights.DEFAULT if pretrained else None
         self.backbone = models.resnet50(weights=weights)

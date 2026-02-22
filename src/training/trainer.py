@@ -48,8 +48,9 @@ class ConstraintTrainer:
             log.info("Creating new model: %s (%d classes)", self.config['model_name'], self.num_classes)
             self.model = get_model(
                 self.config['model_name'], input_dim=input_dim,
-                hidden_dims=self.hyperparams['hidden_dims'],
-                n_classes=self.num_classes, dropout=self.hyperparams['dropout']
+                hidden_dims=self.hyperparams.get('hidden_dims'),
+                n_classes=self.num_classes, dropout=self.hyperparams['dropout'],
+                pretrained=self.hyperparams.get('pretrained', False)
             ).to(self.device)
             self.from_cache = False
         else:

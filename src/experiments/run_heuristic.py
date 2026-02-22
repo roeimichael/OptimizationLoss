@@ -10,12 +10,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
-from sklearn.preprocessing import StandardScaler
+# from sklearn.preprocessing import StandardScaler  # Tabular only
 
 from src.utils.data_loader import load_experiment_data
 from src.utils.filesystem_manager import load_config_from_path, save_config_to_path
 from src.models import get_model
-from src.models.model_factory import is_imagery_model
+# from src.models.model_factory import is_imagery_model  # Tabular only
 from src.training.metrics import compute_metrics, compute_train_accuracy
 from src.training.logging import save_final_predictions, save_evaluation_metrics
 from src.training.model_cache import get_cache_path, load_from_cache
@@ -44,7 +44,8 @@ def train_fixed_warmup(config, input_dim, num_classes, X_train, y_train, device)
     hp = config['hyperparams']
     model = get_model(
         config['model_name'], input_dim=input_dim, n_classes=num_classes,
-        hidden_dims=hp['hidden_dims'], dropout=hp['dropout']
+        hidden_dims=hp.get('hidden_dims'), dropout=hp['dropout'],
+        pretrained=hp.get('pretrained', False)
     ).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=HEURISTIC_LR)
@@ -149,21 +150,22 @@ def run_heuristic(config_path: str) -> None:
     data = load_experiment_data(config)
     X_train, X_test, y_train, y_test, groups_test, global_con, local_con, num_classes = data
 
-    imagery = is_imagery_model(config['model_name'])
+    # Preprocess: imagery (DermMNIST)
+    X_train_tensor = torch.FloatTensor(X_train)
+    y_train_tensor = torch.LongTensor(_to_numpy(y_train))
+    X_test_tensor = torch.FloatTensor(X_test).to(device)
+    input_dim = None
 
-    if imagery:
-        X_train_tensor = torch.FloatTensor(X_train)
-        y_train_tensor = torch.LongTensor(_to_numpy(y_train))
-        X_test_tensor = torch.FloatTensor(X_test).to(device)
-        input_dim = None
-    else:
-        scaler = StandardScaler()
-        X_train_scaled = scaler.fit_transform(X_train)
-        X_test_scaled = scaler.transform(X_test)
-        X_train_tensor = torch.FloatTensor(X_train_scaled)
-        y_train_tensor = torch.LongTensor(_to_numpy(y_train))
-        X_test_tensor = torch.FloatTensor(X_test_scaled).to(device)
-        input_dim = X_train.shape[1]
+    # # Tabular preprocessing (commented out — not used for DermMNIST)
+    # imagery = is_imagery_model(config['model_name'])
+    # if not imagery:
+    #     scaler = StandardScaler()
+    #     X_train_scaled = scaler.fit_transform(X_train)
+    #     X_test_scaled = scaler.transform(X_test)
+    #     X_train_tensor = torch.FloatTensor(X_train_scaled)
+    #     y_train_tensor = torch.LongTensor(_to_numpy(y_train))
+    #     X_test_tensor = torch.FloatTensor(X_test_scaled).to(device)
+    #     input_dim = X_train.shape[1]
 
     model = train_fixed_warmup(config, input_dim, num_classes,
                                X_train_tensor, y_train_tensor, device)

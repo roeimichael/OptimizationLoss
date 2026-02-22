@@ -51,7 +51,7 @@ def load_from_cache(base_model_id: str, config: Dict[str, Any],
 
     model = get_model(
         config['model_name'], input_dim=input_dim, n_classes=num_classes,
-        hidden_dims=hp.get('hidden_dims', [128, 64]), dropout=hp['dropout'],
+        hidden_dims=hp.get('hidden_dims'), dropout=hp['dropout'],
         pretrained=False  # Loading saved weights, not pretrained
     ).to(device)
 
