@@ -64,22 +64,17 @@ class ConstraintTrainer:
 
     @logger()
     def train_warmup(self, X_train: torch.Tensor, y_train: torch.Tensor, base_model_id: str) -> int:
-        """CE-only warmup until accuracy saturates. Returns actual epoch count."""
+        """CE-only warmup for exactly warmup_epochs. Returns epoch count."""
         if self.from_cache:
             return self.hyperparams['warmup_epochs']
 
         train_loader = self._create_dataloader(X_train, y_train)
-        hp = self.hyperparams
-        max_epochs = hp.get('max_warmup_epochs', 500)
-        threshold = hp.get('warmup_saturation_threshold', 0.001)
-        patience = hp.get('warmup_saturation_patience', 5)
-        check_interval = 5
+        warmup_epochs = self.hyperparams['warmup_epochs']
+        log_interval = max(1, warmup_epochs // 5)
 
-        best_acc = 0.0
-        no_improve = 0
-        actual_epochs = 0
+        log.info("Warmup: training for %d epochs (CE only)", warmup_epochs)
 
-        for epoch in range(max_epochs):
+        for epoch in range(warmup_epochs):
             self.model.train()
             epoch_loss = 0.0
             for batch_X, batch_y in train_loader:
@@ -90,33 +85,16 @@ class ConstraintTrainer:
                 self.optimizer.step()
                 epoch_loss += loss.item()
 
-            actual_epochs = epoch + 1
-
-            if actual_epochs % check_interval == 0:
+            if (epoch + 1) % log_interval == 0 or epoch == warmup_epochs - 1:
                 avg_loss = epoch_loss / len(train_loader)
                 train_acc = compute_train_accuracy(self.model, train_loader, self.device)
                 log_progress_to_csv(str(self.csv_log_path), epoch, avg_loss, train_acc,
                                     num_classes=self.num_classes)
-
-                if actual_epochs % 25 == 0:
-                    log.info("Warmup %d: loss=%.4f acc=%.4f (best=%.4f, patience=%d/%d)",
-                             actual_epochs, avg_loss, train_acc, best_acc, no_improve, patience)
-
-                if train_acc > best_acc + threshold:
-                    best_acc = train_acc
-                    no_improve = 0
-                else:
-                    no_improve += 1
-
-                if no_improve >= patience:
-                    log.info("Warmup saturated at epoch %d (best acc=%.4f)", actual_epochs, best_acc)
-                    break
-
-        if no_improve < patience:
-            log.info("Warmup reached max %d epochs (best acc=%.4f)", max_epochs, best_acc)
+                log.info("Warmup %d/%d: loss=%.4f acc=%.4f",
+                         epoch + 1, warmup_epochs, avg_loss, train_acc)
 
         save_to_cache(self.model, base_model_id, self.config)
-        return actual_epochs
+        return warmup_epochs
 
     def _cache_warmup_probabilities(self, X_test: torch.Tensor) -> torch.Tensor:
         """Cache warmup softmax probabilities for KL-divergence regularization."""

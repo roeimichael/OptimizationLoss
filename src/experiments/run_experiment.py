@@ -19,8 +19,14 @@ from src.training.trainer import ConstraintTrainer
 from src.training.metrics import get_predictions_with_probabilities, compute_metrics
 from src.training.logging import save_final_predictions, save_evaluation_metrics
 from src.utils.filesystem_manager import load_config_from_path, save_config_to_path, update_experiment_status
+from src.models.model_factory import is_imagery_model
 
 log = logging.getLogger(__name__)
+
+
+def _to_numpy(arr):
+    """Convert pandas Series or numpy array to plain numpy."""
+    return arr.values if hasattr(arr, 'values') else arr
 
 
 @logger()
@@ -41,18 +47,26 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     data = load_experiment_data(config)
     X_train, X_test, y_train, y_test, groups_test, global_con, local_con, num_classes = data
 
-    dataset_mode = config.get('dataset_mode', 'binary')
-    constrained_class = num_classes - 1  # Last class is always the constrained one
+    ds_config = config.get('dataset_config', {})
+    constrained_class = ds_config.get('constrained_class', num_classes - 1)
 
-    # Preprocess
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
+    # Preprocess: imagery vs tabular
+    imagery = is_imagery_model(config['model_name'])
 
-    X_train_tensor = torch.FloatTensor(X_train_scaled)
-    y_train_tensor = torch.LongTensor(y_train.values)
-    X_test_tensor = torch.FloatTensor(X_test_scaled).to(device)
-    input_dim = X_train.shape[1]
+    if imagery:
+        # Images are already (N, 3, H, W) float32 [0, 1] — no scaling needed
+        X_train_tensor = torch.FloatTensor(X_train)
+        y_train_tensor = torch.LongTensor(_to_numpy(y_train))
+        X_test_tensor = torch.FloatTensor(X_test).to(device)
+        input_dim = None
+    else:
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
+        X_train_tensor = torch.FloatTensor(X_train_scaled)
+        y_train_tensor = torch.LongTensor(_to_numpy(y_train))
+        X_test_tensor = torch.FloatTensor(X_test_scaled).to(device)
+        input_dim = X_train.shape[1]
 
     # Train
     trainer = ConstraintTrainer(config, str(experiment_path), device, num_classes=num_classes)
@@ -70,8 +84,8 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     # Evaluate
     model.eval()
     y_pred, y_proba = get_predictions_with_probabilities(model, X_test_tensor)
-    y_true = y_test.values if hasattr(y_test, 'values') else y_test
-    group_ids = groups_test.values if hasattr(groups_test, 'values') else groups_test
+    y_true = _to_numpy(y_test)
+    group_ids = _to_numpy(groups_test)
 
     constraint_limit = int(global_con[constrained_class]) if global_con[constrained_class] < 1e9 else None
 

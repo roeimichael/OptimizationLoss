@@ -41,6 +41,9 @@ models/trained_models/
 data/*.csv
 data/adult/
 data/churn/
+data/dermmnist/
+*.npz
+*.npy
 !data/README.md
 
 # Archives and large files

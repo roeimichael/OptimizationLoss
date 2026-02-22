@@ -15,13 +15,14 @@ from sklearn.preprocessing import StandardScaler
 from src.utils.data_loader import load_experiment_data
 from src.utils.filesystem_manager import load_config_from_path, save_config_to_path
 from src.models import get_model
+from src.models.model_factory import is_imagery_model
 from src.training.metrics import compute_metrics, compute_train_accuracy
 from src.training.logging import save_final_predictions, save_evaluation_metrics
 from src.training.model_cache import get_cache_path, load_from_cache
 
 log = logging.getLogger(__name__)
 
-HEURISTIC_WARMUP_EPOCHS = 50
+HEURISTIC_WARMUP_EPOCHS = 50  # Default, overridden by config['hyperparams']['warmup_epochs']
 HEURISTIC_LR = 0.0001
 
 
@@ -31,14 +32,15 @@ def _get_heuristic_cache_id(base_model_id: str) -> str:
 
 
 def train_fixed_warmup(config, input_dim, num_classes, X_train, y_train, device):
-    """Train a CE-only model for exactly HEURISTIC_WARMUP_EPOCHS epochs."""
+    """Train a CE-only model for a fixed number of warmup epochs."""
+    warmup_epochs = config['hyperparams'].get('warmup_epochs', HEURISTIC_WARMUP_EPOCHS)
     cache_id = _get_heuristic_cache_id(config['base_model_id'])
     model = load_from_cache(cache_id, config, input_dim, num_classes, device)
     if model is not None:
         log.info("Loaded cached heuristic warmup model: %s", cache_id)
         return model
 
-    log.info("Training heuristic warmup: %d epochs", HEURISTIC_WARMUP_EPOCHS)
+    log.info("Training heuristic warmup: %d epochs", warmup_epochs)
     hp = config['hyperparams']
     model = get_model(
         config['model_name'], input_dim=input_dim, n_classes=num_classes,
@@ -49,7 +51,7 @@ def train_fixed_warmup(config, input_dim, num_classes, X_train, y_train, device)
     criterion = nn.CrossEntropyLoss()
     loader = DataLoader(TensorDataset(X_train, y_train), batch_size=hp['batch_size'], shuffle=True)
 
-    for epoch in range(HEURISTIC_WARMUP_EPOCHS):
+    for epoch in range(warmup_epochs):
         model.train()
         for batch_X, batch_y in loader:
             batch_X, batch_y = batch_X.to(device), batch_y.to(device)
@@ -59,7 +61,7 @@ def train_fixed_warmup(config, input_dim, num_classes, X_train, y_train, device)
             optimizer.step()
 
     train_acc = compute_train_accuracy(model, loader, device)
-    log.info("Heuristic warmup done: %d epochs, train_acc=%.4f", HEURISTIC_WARMUP_EPOCHS, train_acc)
+    log.info("Heuristic warmup done: %d epochs, train_acc=%.4f", warmup_epochs, train_acc)
 
     # Cache for reuse across constraint pairs
     cache_path = get_cache_path(cache_id)
@@ -134,6 +136,11 @@ def apply_allocation_heuristic(probs: np.ndarray, groups: np.ndarray, hierarchy:
     return y_pred, time.time() - start_time
 
 
+def _to_numpy(arr):
+    """Convert pandas Series or numpy array to plain numpy."""
+    return arr.values if hasattr(arr, 'values') else arr
+
+
 def run_heuristic(config_path: str) -> None:
     experiment_path = Path(config_path).parent
     config = load_config_from_path(experiment_path)
@@ -142,17 +149,23 @@ def run_heuristic(config_path: str) -> None:
     data = load_experiment_data(config)
     X_train, X_test, y_train, y_test, groups_test, global_con, local_con, num_classes = data
 
-    dataset_mode = config.get('dataset_mode', 'binary')
+    imagery = is_imagery_model(config['model_name'])
 
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
+    if imagery:
+        X_train_tensor = torch.FloatTensor(X_train)
+        y_train_tensor = torch.LongTensor(_to_numpy(y_train))
+        X_test_tensor = torch.FloatTensor(X_test).to(device)
+        input_dim = None
+    else:
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
+        X_train_tensor = torch.FloatTensor(X_train_scaled)
+        y_train_tensor = torch.LongTensor(_to_numpy(y_train))
+        X_test_tensor = torch.FloatTensor(X_test_scaled).to(device)
+        input_dim = X_train.shape[1]
 
-    X_train_tensor = torch.FloatTensor(X_train_scaled)
-    y_train_tensor = torch.LongTensor(y_train.values)
-    X_test_tensor = torch.FloatTensor(X_test_scaled).to(device)
-
-    model = train_fixed_warmup(config, X_train.shape[1], num_classes,
+    model = train_fixed_warmup(config, input_dim, num_classes,
                                X_train_tensor, y_train_tensor, device)
 
     model.eval()
@@ -160,10 +173,11 @@ def run_heuristic(config_path: str) -> None:
         probs = torch.softmax(model(X_test_tensor), dim=1).cpu().numpy()
 
     hierarchy = list(range(num_classes - 1, -1, -1))  # [highest, ..., 0] — constrained class first
+    groups_np = _to_numpy(groups_test)
     y_pred, exec_time = apply_allocation_heuristic(
-        probs, groups_test.values, hierarchy, global_con, local_con, num_classes)
+        probs, groups_np, hierarchy, global_con, local_con, num_classes)
 
-    y_true = y_test.values if hasattr(y_test, 'values') else y_test
+    y_true = _to_numpy(y_test)
 
     # Constraint verification
     for c in range(num_classes):
@@ -174,7 +188,7 @@ def run_heuristic(config_path: str) -> None:
 
     metrics = compute_metrics(y_true, y_pred)
     save_final_predictions(Path(experiment_path) / 'final_predictions.csv',
-                           y_true, y_pred, probs, groups_test.values)
+                           y_true, y_pred, probs, groups_np)
     save_evaluation_metrics(Path(experiment_path) / 'evaluation_metrics.csv', metrics)
 
     config['results'] = {
