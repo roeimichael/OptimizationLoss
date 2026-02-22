@@ -35,15 +35,18 @@ env/
 # Results and Data
 model_cache/
 models/trained_models/
-#results/heuristic/
-#results/saturated_approach/
-# Temporarily enable longer_saturation to push results for analysis
-#results/longer_saturation/
 **/final_predictions_saturated.csv
 
-# Data directory - exclude dataset files but keep README
+# Data directory - exclude datasets
 data/*.csv
+data/adult/
+data/churn/
 !data/README.md
+
+# Archives and large files
+archive_oulad_experiments/
+*.tex
+*.zip
 
 # OS
 .DS_Store

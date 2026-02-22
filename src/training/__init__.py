@@ -11,25 +11,21 @@ from .constraints import (
 )
 from .logging import (
     log_progress_to_csv,
-    print_progress,
+    write_csv_header,
     save_final_predictions,
     save_evaluation_metrics
 )
 
 __all__ = [
-    # Trainers
     'ConstraintTrainer',
-    # Metrics
     'compute_train_accuracy',
     'get_predictions_with_probabilities',
     'compute_metrics',
     'compute_prediction_statistics',
-    # Constraints
     'compute_global_constraints',
     'compute_local_constraints',
-    # Logging
     'log_progress_to_csv',
-    'print_progress',
+    'write_csv_header',
     'save_final_predictions',
-    'save_evaluation_metrics'
+    'save_evaluation_metrics',
 ]

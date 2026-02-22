@@ -1,100 +1,119 @@
-"""Heuristic baseline: Apply allocation heuristic on top of warmup model predictions.
-
-This script uses the cached warmup model (trained with CE loss only) and applies
-a post-hoc allocation heuristic to satisfy constraints. This serves as a baseline
-comparison against the end-to-end constraint optimization approach.
-
-Labels are 0-indexed (0-4) throughout.
-"""
+"""Heuristic baseline: greedy allocation on a fixed 50-epoch warmup model."""
 
 import argparse
+import logging
 import time
-import traceback
 from pathlib import Path
-from typing import Dict, Any, List, Tuple
+from typing import Dict, List, Tuple
 
-import pandas as pd
 import numpy as np
 import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader, TensorDataset
 from sklearn.preprocessing import StandardScaler
 
 from src.utils.data_loader import load_experiment_data
-from src.utils.filesystem_manager import load_config_from_path, save_config_to_path, update_experiment_status
-from src.training.trainer import ConstraintTrainer
-from src.training.metrics import compute_metrics
+from src.utils.filesystem_manager import load_config_from_path, save_config_to_path
+from src.models import get_model
+from src.training.metrics import compute_metrics, compute_train_accuracy
 from src.training.logging import save_final_predictions, save_evaluation_metrics
+from src.training.model_cache import get_cache_path, load_from_cache
 
-NUM_CLASSES = 2  # Binary: 0 = no churn, 1 = churn
+log = logging.getLogger(__name__)
+
+HEURISTIC_WARMUP_EPOCHS = 50
+HEURISTIC_LR = 0.0001
+
+
+def _get_heuristic_cache_id(base_model_id: str) -> str:
+    """Separate cache key for the heuristic's fixed-epoch warmup model."""
+    return f"{base_model_id}_heuristic"
+
+
+def train_fixed_warmup(config, input_dim, num_classes, X_train, y_train, device):
+    """Train a CE-only model for exactly HEURISTIC_WARMUP_EPOCHS epochs."""
+    cache_id = _get_heuristic_cache_id(config['base_model_id'])
+    model = load_from_cache(cache_id, config, input_dim, num_classes, device)
+    if model is not None:
+        log.info("Loaded cached heuristic warmup model: %s", cache_id)
+        return model
+
+    log.info("Training heuristic warmup: %d epochs", HEURISTIC_WARMUP_EPOCHS)
+    hp = config['hyperparams']
+    model = get_model(
+        config['model_name'], input_dim=input_dim, n_classes=num_classes,
+        hidden_dims=hp['hidden_dims'], dropout=hp['dropout']
+    ).to(device)
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=HEURISTIC_LR)
+    criterion = nn.CrossEntropyLoss()
+    loader = DataLoader(TensorDataset(X_train, y_train), batch_size=hp['batch_size'], shuffle=True)
+
+    for epoch in range(HEURISTIC_WARMUP_EPOCHS):
+        model.train()
+        for batch_X, batch_y in loader:
+            batch_X, batch_y = batch_X.to(device), batch_y.to(device)
+            optimizer.zero_grad()
+            loss = criterion(model(batch_X), batch_y)
+            loss.backward()
+            optimizer.step()
+
+    train_acc = compute_train_accuracy(model, loader, device)
+    log.info("Heuristic warmup done: %d epochs, train_acc=%.4f", HEURISTIC_WARMUP_EPOCHS, train_acc)
+
+    # Cache for reuse across constraint pairs
+    cache_path = get_cache_path(cache_id)
+    torch.save({
+        'model_state_dict': model.state_dict(),
+        'base_model_id': cache_id,
+        'config': config,
+        'saved_at': time.strftime('%Y-%m-%d')
+    }, cache_path)
+
+    return model
 
 
 def apply_allocation_heuristic(probs: np.ndarray, groups: np.ndarray, hierarchy: List[int],
-                               global_constraints: List[float], local_constraints: Dict[int, List[float]]) -> Tuple[
-    np.ndarray, float]:
-    """Apply greedy allocation heuristic to satisfy constraints.
-
-    Strategy:
-    1. First, identify which class each sample "prefers" (argmax)
-    2. For constrained classes: assign top-K samples (by probability) that prefer that class
-    3. For unconstrained classes: assign all samples that prefer that class
-    4. This respects both preferences and constraints
-
-    Args:
-        probs: Model output probabilities (n_samples, n_classes)
-        groups: Group IDs for each sample
-        hierarchy: Order to process classes (constrained class should be first)
-        global_constraints: Per-class global limits
-        local_constraints: Per-group per-class limits
-
-    Returns:
-        Tuple of (predictions, execution_time)
-    """
+                               global_constraints: List[float], local_constraints: Dict[int, List[float]],
+                               num_classes: int = 2) -> Tuple[np.ndarray, float]:
+    """Greedy allocation: assign constrained class first (top-K by prob), then fill rest."""
     start_time = time.time()
     n_samples, n_classes = probs.shape
     y_pred = np.full(n_samples, -1, dtype=int)
     assigned_mask = np.zeros(n_samples, dtype=bool)
     current_global = {c: 0 for c in range(n_classes)}
     current_local = {}
-
-    # Get argmax prediction for each sample
     argmax_preds = np.argmax(probs, axis=1)
 
     for class_idx in hierarchy:
         g_limit = global_constraints[class_idx]
         is_constrained = g_limit < 1e8
-
-        # Find unassigned samples that prefer this class (or all if constrained)
-        unassigned_indices = np.where(~assigned_mask)[0]
-        if len(unassigned_indices) == 0:
+        unassigned = np.where(~assigned_mask)[0]
+        if len(unassigned) == 0:
             break
 
         if is_constrained:
-            # For constrained class: consider all unassigned, sorted by prob for this class
-            class_probs = probs[unassigned_indices, class_idx]
-            sorted_absolute_indices = unassigned_indices[np.argsort(class_probs)[::-1]]
+            class_probs = probs[unassigned, class_idx]
+            sorted_indices = unassigned[np.argsort(class_probs)[::-1]]
         else:
-            # For unconstrained class: only consider samples that prefer this class
-            prefer_this_class = argmax_preds[unassigned_indices] == class_idx
-            candidate_indices = unassigned_indices[prefer_this_class]
-            if len(candidate_indices) == 0:
+            prefer = argmax_preds[unassigned] == class_idx
+            candidates = unassigned[prefer]
+            if len(candidates) == 0:
                 continue
-            # Sort by probability (highest first)
-            class_probs = probs[candidate_indices, class_idx]
-            sorted_absolute_indices = candidate_indices[np.argsort(class_probs)[::-1]]
+            class_probs = probs[candidates, class_idx]
+            sorted_indices = candidates[np.argsort(class_probs)[::-1]]
 
-        for idx in sorted_absolute_indices:
+        for idx in sorted_indices:
             group_id = groups[idx]
             if group_id not in current_local:
                 current_local[group_id] = {c: 0 for c in range(n_classes)}
 
-            # Check global constraint
             if is_constrained and current_global[class_idx] >= g_limit:
-                break  # Stop processing this class
+                break
 
-            # Check local constraint
-            l_limit = local_constraints.get(group_id, [1e9] * NUM_CLASSES)[class_idx]
+            l_limit = local_constraints.get(group_id, [1e9] * num_classes)[class_idx]
             if l_limit is None or np.isnan(l_limit):
                 l_limit = 1e9
-
             if l_limit < 1e8 and current_local[group_id][class_idx] >= l_limit:
                 continue
 
@@ -103,75 +122,60 @@ def apply_allocation_heuristic(probs: np.ndarray, groups: np.ndarray, hierarchy:
             current_global[class_idx] += 1
             current_local[group_id][class_idx] += 1
 
-    # Assign remaining samples by argmax (these are samples whose preferred class was full)
-    remaining_indices = np.where(~assigned_mask)[0]
-    if len(remaining_indices) > 0:
-        for idx in remaining_indices:
-            # Find best unconstrained class
-            sample_probs = probs[idx].copy()
-            for c in range(n_classes):
-                if global_constraints[c] < 1e8:  # Skip constrained classes
-                    sample_probs[c] = -1
-            y_pred[idx] = np.argmax(sample_probs)
+    # Assign remaining to best unconstrained class
+    remaining = np.where(~assigned_mask)[0]
+    for idx in remaining:
+        sample_probs = probs[idx].copy()
+        for c in range(n_classes):
+            if global_constraints[c] < 1e8:
+                sample_probs[c] = -1
+        y_pred[idx] = np.argmax(sample_probs)
 
     return y_pred, time.time() - start_time
 
 
 def run_heuristic(config_path: str) -> None:
-    print(f"Heuristic Config: {config_path}")
     experiment_path = Path(config_path).parent
     config = load_config_from_path(experiment_path)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    X_train_clean, X_test_clean, _, y_test, groups_test, global_constraint, local_constraint = load_experiment_data(config)
+    data = load_experiment_data(config)
+    X_train, X_test, y_train, y_test, groups_test, global_con, local_con, num_classes = data
+
+    dataset_mode = config.get('dataset_mode', 'binary')
 
     scaler = StandardScaler()
-    scaler.fit(X_train_clean)
-    X_test_scaled = scaler.transform(X_test_clean)
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+
+    X_train_tensor = torch.FloatTensor(X_train_scaled)
+    y_train_tensor = torch.LongTensor(y_train.values)
     X_test_tensor = torch.FloatTensor(X_test_scaled).to(device)
 
-    trainer = ConstraintTrainer(config, str(experiment_path), device)
-    # This loads the EXISTING warmup model from cache
-    trainer.setup_model(X_train_clean.shape[1], config['base_model_id'])
+    model = train_fixed_warmup(config, X_train.shape[1], num_classes,
+                               X_train_tensor, y_train_tensor, device)
 
-    if trainer.model is None:
-        print("[ERROR] Cached model not found. Run optimization experiment first.")
-        return
-
-    trainer.model.eval()
+    model.eval()
     with torch.no_grad():
-        logits = trainer.model(X_test_tensor)
-        probs = torch.softmax(logits, dim=1).cpu().numpy()
+        probs = torch.softmax(model(X_test_tensor), dim=1).cpu().numpy()
 
-    # Define Hierarchy: Process constrained class (1 = churn) FIRST to reserve slots
-    # Then fill remaining samples with unconstrained class (0 = no churn)
-    # Binary: constrained class first, then unconstrained
-    class_hierarchy = [1, 0]
-
+    hierarchy = list(range(num_classes - 1, -1, -1))  # [highest, ..., 0] — constrained class first
     y_pred, exec_time = apply_allocation_heuristic(
-        probs, groups_test.values, class_hierarchy, global_constraint, local_constraint
-    )
+        probs, groups_test.values, hierarchy, global_con, local_con, num_classes)
 
-    y_true_np = y_test.values if hasattr(y_test, 'values') else y_test
+    y_true = y_test.values if hasattr(y_test, 'values') else y_test
 
     # Constraint verification
-    print("\n[CONSTRAINT VERIFICATION - HEURISTIC]")
-    for c in range(NUM_CLASSES):
+    for c in range(num_classes):
         pred_count = (y_pred == c).sum()
-        true_count = (y_true_np == c).sum()
-        limit = int(global_constraint[c]) if global_constraint[c] < 1e9 else 'INF'
-        if isinstance(limit, int):
-            status = 'OK' if pred_count <= limit else f'VIOLATED by {pred_count - limit}'
-        else:
-            status = 'OK (unlimited)'
-        print(f"  Class {c}: predicted={pred_count:>5}, actual={true_count:>5}, limit={str(limit):>5}, {status}")
+        limit = int(global_con[c]) if global_con[c] < 1e9 else 'INF'
+        status = 'OK' if (isinstance(limit, str) or pred_count <= limit) else f'VIOLATED by {pred_count - limit}'
+        log.info("Heuristic class %d: pred=%d limit=%s %s", c, pred_count, limit, status)
 
-    metrics = compute_metrics(y_true_np, y_pred)
-
-    save_final_predictions(
-        Path(experiment_path) / 'final_predictions.csv',
-        y_true_np, y_pred, probs, groups_test.values
-    )
+    metrics = compute_metrics(y_true, y_pred)
+    save_final_predictions(Path(experiment_path) / 'final_predictions.csv',
+                           y_true, y_pred, probs, groups_test.values)
+    save_evaluation_metrics(Path(experiment_path) / 'evaluation_metrics.csv', metrics)
 
     config['results'] = {
         'accuracy': float(metrics['accuracy']),
@@ -181,24 +185,23 @@ def run_heuristic(config_path: str) -> None:
         'training_time': float(exec_time),
         'methodology': 'heuristic'
     }
-
-    # Save full metrics to CSV (needs all per-class and weighted metrics)
-    save_evaluation_metrics(Path(experiment_path) / 'evaluation_metrics.csv', metrics)
     config['status'] = 'completed'
     save_config_to_path(config, experiment_path)
 
-    print(f"Heuristic | Acc: {metrics['accuracy']:.4f} | Time: {exec_time:.2f}s | Saved")
+    log.info("Heuristic: acc=%.4f time=%.2fs", metrics['accuracy'], exec_time)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument('config_path', type=str)
     args = parser.parse_args()
+
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s %(levelname)s %(message)s')
+
     try:
         run_heuristic(args.config_path)
     except Exception as e:
-        print(f"[ERROR] {e}")
-        traceback.print_exc()
+        log.error("Heuristic failed: %s", e, exc_info=True)
         exit(1)
 
 
