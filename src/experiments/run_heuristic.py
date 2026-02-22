@@ -172,7 +172,11 @@ def run_heuristic(config_path: str) -> None:
 
     model.eval()
     with torch.no_grad():
-        probs = torch.softmax(model(X_test_tensor), dim=1).cpu().numpy()
+        # Chunked forward to avoid GPU OOM on 224x224 images
+        chunk_size = 256
+        logit_chunks = [model(X_test_tensor[i:i + chunk_size])
+                        for i in range(0, len(X_test_tensor), chunk_size)]
+        probs = torch.softmax(torch.cat(logit_chunks, dim=0), dim=1).cpu().numpy()
 
     hierarchy = list(range(num_classes - 1, -1, -1))  # [highest, ..., 0] — constrained class first
     groups_np = _to_numpy(groups_test)

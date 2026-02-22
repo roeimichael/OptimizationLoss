@@ -21,6 +21,17 @@ from src.utils.error_handler import logger
 
 log = logging.getLogger(__name__)
 
+# Max samples per forward pass to avoid GPU OOM on 224x224 images
+INFERENCE_CHUNK_SIZE = 256
+
+
+def _chunked_forward(model, X, chunk_size=INFERENCE_CHUNK_SIZE):
+    """Forward pass in chunks to avoid GPU OOM on large batches (no_grad only)."""
+    if len(X) <= chunk_size:
+        return model(X)
+    chunks = [model(X[i:i + chunk_size]) for i in range(0, len(X), chunk_size)]
+    return torch.cat(chunks, dim=0)
+
 
 class ConstraintTrainer:
     """Trains a model with CE warmup then constraint optimization with lambda ratchet."""
@@ -101,7 +112,7 @@ class ConstraintTrainer:
         """Cache warmup softmax probabilities for KL-divergence regularization."""
         self.model.eval()
         with torch.no_grad():
-            warmup_proba = F.softmax(self.model(X_test), dim=1)
+            warmup_proba = F.softmax(_chunked_forward(self.model, X_test), dim=1)
         log.info("Cached warmup probabilities: shape=%s", warmup_proba.shape)
         return warmup_proba.detach()
 
@@ -133,7 +144,10 @@ class ConstraintTrainer:
         ).to(self.device)
 
         # Mini test proxy for efficient per-batch constraint updates
-        proxy_size = min(len(X_test), hp['batch_size'] * 10)
+        # Proxy shares GPU memory with train batch during backward pass
+        # ResNet50@224: batch=64 + proxy=64 ≈ 11 GB (fits 12 GB GPU)
+        proxy_multiplier = hp.get('proxy_multiplier', 1)
+        proxy_size = min(len(X_test), hp['batch_size'] * proxy_multiplier)
         proxy_indices = torch.randperm(len(X_test))[:proxy_size]
         X_test_proxy = X_test[proxy_indices]
         group_ids_proxy = group_ids[proxy_indices]
@@ -211,10 +225,10 @@ class ConstraintTrainer:
             avg_local = epoch_local / num_batches
             avg_kl = epoch_kl / num_batches
 
-            # End-of-epoch validation on full test set
+            # End-of-epoch validation on full test set (chunked to avoid OOM)
             self.model.eval()
             with torch.no_grad():
-                test_logits = self.model(X_test)
+                test_logits = _chunked_forward(self.model, X_test)
                 criterion_constraint(test_logits, y_true=None, group_ids=group_ids,
                                      warmup_proba=warmup_proba_full)
 

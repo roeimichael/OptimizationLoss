@@ -4,12 +4,23 @@ import torch
 import numpy as np
 from sklearn.metrics import precision_recall_fscore_support, confusion_matrix
 
+# Max samples per forward pass to avoid GPU OOM on 224x224 images
+INFERENCE_CHUNK_SIZE = 256
+
+
+def _chunked_forward(model, X, chunk_size=INFERENCE_CHUNK_SIZE):
+    """Forward pass in chunks to avoid GPU OOM on large batches (no_grad only)."""
+    if len(X) <= chunk_size:
+        return model(X)
+    chunks = [model(X[i:i + chunk_size]) for i in range(0, len(X), chunk_size)]
+    return torch.cat(chunks, dim=0)
+
 
 def compute_prediction_statistics(model, X_test, group_ids, num_classes=7):
     """Compute hard/soft prediction counts per class and per group."""
     model.eval()
     with torch.no_grad():
-        logits = model(X_test)
+        logits = _chunked_forward(model, X_test)
         preds = torch.argmax(logits, dim=1)
         proba = torch.softmax(logits, dim=1)
 
@@ -44,7 +55,7 @@ def get_predictions_with_probabilities(model, X_test):
     """Return (predictions, probabilities) as numpy arrays."""
     model.eval()
     with torch.no_grad():
-        logits = model(X_test)
+        logits = _chunked_forward(model, X_test)
         preds = logits.argmax(dim=1).cpu().numpy()
         proba = torch.softmax(logits, dim=1).cpu().numpy()
     model.train()

@@ -8,6 +8,17 @@ import numpy as np
 
 log = logging.getLogger(__name__)
 
+# Max samples per forward pass to avoid GPU OOM on 224x224 images
+INFERENCE_CHUNK_SIZE = 256
+
+
+def _chunked_forward(model, X, chunk_size=INFERENCE_CHUNK_SIZE):
+    """Forward pass in chunks to avoid GPU OOM on large batches (no_grad only)."""
+    if len(X) <= chunk_size:
+        return model(X)
+    chunks = [model(X[i:i + chunk_size]) for i in range(0, len(X), chunk_size)]
+    return torch.cat(chunks, dim=0)
+
 
 def compute_constraint_delta(predictions, constraint_limit, constrained_class):
     """Positive = over limit, negative = under limit."""
@@ -91,7 +102,7 @@ def apply_posthoc_adjustment(model, X_test, global_constraints, constrained_clas
     model.eval()
     with torch.no_grad():
         X_test = X_test.to(device)
-        logits = model(X_test)
+        logits = _chunked_forward(model, X_test)
         probabilities = F.softmax(logits, dim=1).cpu().numpy()
         original = logits.argmax(dim=1).cpu().numpy()
 
