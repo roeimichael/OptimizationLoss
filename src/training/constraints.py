@@ -6,8 +6,8 @@ from typing import Dict, List
 UNLIMITED = 1e10
 
 
-def compute_global_constraints(data, target_col, percentage, constrained_class=1,
-                               num_classes=2, **kwargs):
+def compute_global_constraints(data, target_col, percentage, constrained_class=4,
+                               num_classes=7, **kwargs):
     """Return per-class constraint limits. Only constrained_class gets a finite limit."""
     constraints = [UNLIMITED] * num_classes
     count = (data[target_col] == constrained_class).sum()
@@ -16,7 +16,7 @@ def compute_global_constraints(data, target_col, percentage, constrained_class=1
 
 
 def compute_local_constraints(data, target_col, percentage, group_col,
-                              constrained_class=1, num_classes=2, **kwargs):
+                              constrained_class=4, num_classes=7, **kwargs):
     """Return per-group per-class constraint limits."""
     local = {}
     for group in data[group_col].unique():

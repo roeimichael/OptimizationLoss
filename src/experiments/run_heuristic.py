@@ -78,7 +78,7 @@ def train_fixed_warmup(config, input_dim, num_classes, X_train, y_train, device)
 
 def apply_allocation_heuristic(probs: np.ndarray, groups: np.ndarray, hierarchy: List[int],
                                global_constraints: List[float], local_constraints: Dict[int, List[float]],
-                               num_classes: int = 2) -> Tuple[np.ndarray, float]:
+                               num_classes: int = 7) -> Tuple[np.ndarray, float]:
     """Greedy allocation: assign constrained class first (top-K by prob), then fill rest."""
     start_time = time.time()
     n_samples, n_classes = probs.shape

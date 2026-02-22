@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
-import pandas as pd
+import numpy as np
 
 from src.models import get_model
 from src.losses import MulticlassTransductiveLoss
@@ -26,7 +26,7 @@ class ConstraintTrainer:
     """Trains a model with CE warmup then constraint optimization with lambda ratchet."""
 
     def __init__(self, config: Dict[str, Any], experiment_path: str, device: torch.device,
-                 num_classes: int = 2):
+                 num_classes: int = 7):
         self.config = config
         self.hyperparams = config['hyperparams']
         self.experiment_path = Path(experiment_path)
@@ -107,7 +107,7 @@ class ConstraintTrainer:
 
     @logger()
     def train_constraints(self, X_train: torch.Tensor, y_train: torch.Tensor,
-                          X_test: torch.Tensor, groups_test: pd.Series,
+                          X_test: torch.Tensor, groups_test: np.ndarray,
                           global_con: list, local_con: Dict[int, list],
                           actual_warmup_epochs: int = 50) -> nn.Module:
         """Run constraint optimization phase after warmup."""
@@ -122,7 +122,7 @@ class ConstraintTrainer:
 
         train_loader = self._create_dataloader(X_train, y_train)
         X_test = X_test.to(self.device)
-        group_ids = torch.LongTensor(groups_test.values).to(self.device)
+        group_ids = torch.LongTensor(groups_test).to(self.device)
 
         # Full test set constraint loss
         criterion_constraint = MulticlassTransductiveLoss(
@@ -273,7 +273,17 @@ class ConstraintTrainer:
 
                 for c in range(self.num_classes):
                     if global_con[c] < 1e9:
-                        log.info("  Class %d: pred=%d limit=%d", c, g_counts.get(c, 0), int(global_con[c]))
+                        log.info("  Global class %d: pred=%d limit=%d", c, g_counts.get(c, 0), int(global_con[c]))
+
+                # Log per-group (sex) constraint status
+                for gid in sorted(l_counts.keys()):
+                    group_name = f"group_{gid}"
+                    for c in range(self.num_classes):
+                        if local_con and gid in local_con and local_con[gid][c] < 1e9:
+                            log.info("  Local %s class %d: pred=%d limit=%d",
+                                     group_name, c,
+                                     l_counts.get(gid, {}).get(c, 0),
+                                     int(local_con[gid][c]))
 
                 log_progress_to_csv(
                     str(self.csv_log_path), epoch, avg_ce, train_acc, avg_global, avg_local,
@@ -292,9 +302,19 @@ class ConstraintTrainer:
         self.model.eval()
         g_counts, l_counts, g_soft, l_soft = compute_prediction_statistics(
             self.model, X_test, group_ids, num_classes=self.num_classes)
+        log.info("=== Final prediction summary ===")
         for c in range(self.num_classes):
             limit = int(global_con[c]) if global_con[c] < 1e9 else 'INF'
-            log.info("  Final class %d: hard=%d soft=%.2f limit=%s",
+            log.info("  Global class %d: hard=%d soft=%.2f limit=%s",
                      c, g_counts.get(c, 0), g_soft.get(c, 0), limit)
+        for gid in sorted(l_counts.keys()):
+            group_name = f"group_{gid}"
+            for c in range(self.num_classes):
+                if local_con and gid in local_con and local_con[gid][c] < 1e9:
+                    log.info("  Local %s class %d: hard=%d soft=%.2f limit=%d",
+                             group_name, c,
+                             l_counts.get(gid, {}).get(c, 0),
+                             l_soft.get(gid, {}).get(c, 0.0),
+                             int(local_con[gid][c]))
 
         return self.model

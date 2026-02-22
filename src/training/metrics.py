@@ -5,7 +5,7 @@ import numpy as np
 from sklearn.metrics import precision_recall_fscore_support, confusion_matrix
 
 
-def compute_prediction_statistics(model, X_test, group_ids, num_classes=2):
+def compute_prediction_statistics(model, X_test, group_ids, num_classes=7):
     """Compute hard/soft prediction counts per class and per group."""
     model.eval()
     with torch.no_grad():

@@ -14,7 +14,7 @@ UNLIMITED = 1e9
 
 class MulticlassTransductiveLoss(nn.Module):
     def __init__(self, global_constraints, local_constraints,
-                 lambda_global=1.0, lambda_local=1.0, num_classes=2,
+                 lambda_global=1.0, lambda_local=1.0, num_classes=7,
                  use_sum=True, initial_rho=0.5, alpha_kl=0.0):
         super().__init__()
         self.lambda_global = lambda_global
@@ -26,8 +26,10 @@ class MulticlassTransductiveLoss(nn.Module):
         self.global_constraints_satisfied = False
         self.local_constraints_satisfied = False
 
-        # Register global constraints as buffer
+        # Register global constraints as buffer (validate length)
         if global_constraints is not None:
+            assert len(global_constraints) == num_classes, (
+                f"global_constraints length {len(global_constraints)} != num_classes {num_classes}")
             self.register_buffer('global_constraints',
                                  torch.tensor(global_constraints, dtype=torch.float32))
         else:

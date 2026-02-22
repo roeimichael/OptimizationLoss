@@ -58,7 +58,7 @@ def log_progress_to_csv(csv_path, epoch, ce_loss, train_acc,
                         global_soft=None, local_soft=None,
                         lambda_global=0.0, lambda_local=0.0,
                         constraints=None, global_satisfied=True, local_satisfied=True,
-                        num_classes=2, kl_loss=0.0, local_constraints=None):
+                        num_classes=7, kl_loss=0.0, local_constraints=None):
     """Append one row to the training log CSV (no header writing)."""
     num_classes = len(constraints) if constraints else num_classes
     global_counts = global_counts or {i: 0 for i in range(num_classes)}
