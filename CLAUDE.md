@@ -4,14 +4,22 @@ Thesis project: train neural networks to satisfy **transductive prediction-count
 
 ## Datasets
 
-### DermMNIST (primary — imagery)
+### TissueMNIST (active — imagery)
+- **Source**: MedMNIST collection, kidney cortex cell images (236K total, subsampled to 12K)
+- **Classes**: 8 — CDI, CDS, CST, EPI, GE (constrained), PTC, STR, TUB
+- **Images**: 28×28 grayscale upscaled to 224×224, auto-converted to 3-channel via `_ensure_3channel()`
+- **Splits**: train 9,600 / test 2,400 (stratified 80/20)
+- **Constrained class**: GE (class 4, 7.1%)
+- **Group column**: `synth_group` (synthetic)
+- **Data**: `data/tissuemnist/` (not in git), downloaded via `python data/tissuemnist/download_data.py`
+
+### DermMNIST (archived — imagery)
 - **Source**: MedMNIST collection, derived from HAM10000 (10,015 skin lesion images)
 - **Classes**: 7 — AKIEC, BCC, BKL, DF, MEL (constrained), NV, VASC
 - **Images**: 64×64×3 RGB, normalized [0, 1], channels-first `(N, 3, 64, 64)`
 - **Splits**: train 7,007 / val 1,003 / test 2,005
-- **Imbalance**: NV 67%, DF 1.1% — highly skewed
-- **Group column**: None (MedMNIST npz lacks demographic metadata)
-- **Data**: `data/dermmnist/` (not in git), downloaded via `python data/dermmnist/download_data.py`
+- **Data**: `data/dermmnist/` (not in git)
+- **Results**: archived in `archive_experiments/dermmnist/`
 
 ### Adult Income (legacy — tabular)
 - **Classes**: 2 — income ≤50K (0) vs >50K (1, constrained)
@@ -28,7 +36,7 @@ main.py                                  # Find pending experiments, dispatch vi
 
 **Config generation:** `src/config_generators/generate_configs.py` — defines dataset configs, model grids, hyperparams. Run interactively or import `generate_configs()`.
 
-**Analysis:** `src/analysis/generate_all.py` — recomputes metrics and generates comparison charts.
+**Evaluation & Analysis:** `src/evaluation/generate_all.py` — recomputes metrics and generates comparison charts. `src/evaluation/thesis_figures.py` — thesis-quality PDF figures.
 
 ## Models
 
@@ -40,7 +48,7 @@ main.py                                  # Find pending experiments, dispatch vi
 
 ### Imagery (`src/models/imagery/`)
 - `ResNet18` — torchvision ResNet18 with custom head (pretrained)
-- `ResNet50` — torchvision ResNet50 with custom head (pretrained)
+- `MobileNetV3` — torchvision MobileNetV3-Large with custom head (~5.4M params, pretrained)
 - Input: `(B, 3, H, W)` image tensors → logits `(B, n_classes)`
 
 Registry in `src/models/model_factory.py`: `get_model(name, n_classes, **kwargs)` dispatches to correct type. `is_imagery_model(name)` for type checking.
@@ -77,13 +85,21 @@ src/
   models/
     model_factory.py  — unified registry (tabular + imagery)
     tabular/          basic_nn.py, ft_transformer.py, tabular_resnet.py
-    imagery/          resnet.py (ResNet18Classifier, ResNet50Classifier)
+    imagery/          resnet.py (ResNet18Classifier), mobilenetv3.py (MobileNetV3Classifier)
   training/           trainer.py, constraints.py, metrics.py, logging.py, schedulers.py, model_cache.py
   utils/              data_loader.py, filesystem_manager.py, error_handler.py, posthoc_adjustment.py
-  analysis/           generate_all.py, training_curves.py, experiment_comparison.py
+  evaluation/         generate_all.py, training_curves.py, experiment_comparison.py,
+                      thesis_figures.py, evaluate_statistical_significance.py,
+                      visualize_stat_significance.py
+run_experiments.sh    server experiment runner
+setup_server.sh       server environment setup
+data/tissuemnist/     images + labels as .npy (not in git)
 data/dermmnist/       images + labels as .npy (not in git)
 model_cache/          cached warmup .pt files (not in git)
-results/              experiment outputs by dataset/methodology/model/constraint
+archive_experiments/  completed DermMNIST results + analysis (dermmnist/)
+results/
+  completed_runs/     {constraint}/{model}/{methodology}/{variation}/ — finished experiments
+  pending_runs/       {constraint}/{model}/{variation}/ — experiments to run
 ```
 
 ## How to Run
@@ -96,7 +112,7 @@ python data/dermmnist/download_data.py
 python -m src.config_generators.generate_configs
 
 # Or programmatically:
-python -c "from src.config_generators.generate_configs import generate_configs, save_configs; save_configs(generate_configs('our_approach', 'dermmnist'))"
+python -c "from src.config_generators.generate_configs import generate_configs, save_configs; save_configs(generate_configs('our_approach', round='round4'), output_dir='results/pending_runs')"
 
 # Run all pending experiments
 python main.py
@@ -105,8 +121,10 @@ python main.py
 ## Results Path Structure
 
 ```
-results/{dataset_mode}/{methodology}/{model}/constraint_{local}_{global}/{regime}/{variation}/
-  config.json, training_log.csv, final_predictions.csv, evaluation_metrics.csv
+results/completed_runs/{constraint}/{model}/our_approach/{variation}/
+results/completed_runs/{constraint}/{model}/heuristic/{variation}/
+results/pending_runs/{constraint}/{model}/{variation}/
+  Each contains: config.json, training_log.csv, final_predictions.csv, evaluation_metrics.csv
 ```
 
 ## Known Limitation

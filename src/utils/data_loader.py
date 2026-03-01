@@ -61,32 +61,53 @@ log = logging.getLogger(__name__)
 #             test_df[group_col], global_con, local_con, num_classes)
 
 
-# ── DermMNIST (image-based) loading ──────────────────────────────────────────
+# ── Imagery (npy-based) loading ──────────────────────────────────────────────
 
-def _load_dermmnist_data(config):
-    """Load DermaMNIST-C npy images + labels + sex metadata. Returns 8-tuple.
+IMAGERY_DATASETS = {'dermmnist', 'tissuemnist'}
 
-    Images are (N, 3, 224, 224) float32 [0, 1].
-    Group column: sex (0=male, 1=female) from corrected metadata CSV.
+
+def _ensure_3channel(images):
+    """Convert single-channel grayscale (N, 1, H, W) to 3-channel (N, 3, H, W).
+
+    RGB images (N, 3, H, W) pass through unchanged. This lets pretrained models
+    (ResNet18, MobileNetV3) accept grayscale datasets without architecture changes.
+    """
+    if images.ndim == 4 and images.shape[1] == 1:
+        return np.repeat(images, 3, axis=1)
+    return images
+
+
+def _load_imagery_data(config):
+    """Load imagery dataset from npy files + CSV metadata. Returns 8-tuple.
+
+    Expected files in data_dir:
+        train_images.npy  (N, C, H, W) float32 [0, 1]  — C=1 (grayscale) or C=3 (RGB)
+        train_labels.npy  (N,) int
+        test_images.npy   (N, C, H, W) float32 [0, 1]
+        test_labels.npy   (N,) int
+        test_meta.csv     must contain label column + group column
+
+    Grayscale images are automatically expanded to 3-channel for model compatibility.
     """
     ds = config['dataset_config']
     data_dir = ds['data_dir']
     num_classes = ds['num_classes']
     constrained_class = ds['constrained_class']
     group_col = ds.get('group_column', 'sex')
+    dataset_mode = config.get('dataset_mode', 'unknown')
 
-    X_train = np.load(os.path.join(data_dir, 'train_images.npy'))
+    X_train = _ensure_3channel(np.load(os.path.join(data_dir, 'train_images.npy')))
     y_train = np.load(os.path.join(data_dir, 'train_labels.npy'))
-    X_test = np.load(os.path.join(data_dir, 'test_images.npy'))
+    X_test = _ensure_3channel(np.load(os.path.join(data_dir, 'test_images.npy')))
     y_test = np.load(os.path.join(data_dir, 'test_labels.npy'))
 
-    # Load sex metadata for test set
+    # Load metadata for test set (contains group column)
     test_meta = pd.read_csv(os.path.join(data_dir, 'test_meta.csv'))
     groups_test = test_meta[group_col].values.astype(np.int64)
 
     local_percent, global_percent = config['constraint']
 
-    # Constraint computation using test labels + sex groups
+    # Constraint computation using test labels + groups
     test_df = pd.DataFrame({'label': y_test, group_col: groups_test})
     global_con = compute_global_constraints(
         test_df, 'label', global_percent,
@@ -95,8 +116,9 @@ def _load_dermmnist_data(config):
         test_df, 'label', local_percent, group_col,
         constrained_class=constrained_class, num_classes=num_classes)
 
-    log.info("mode=dermmnist classes=%d constrained=%d global=%s local_groups=%d test=%d train=%d",
-             num_classes, constrained_class, global_con, len(local_con), len(y_test), len(y_train))
+    log.info("mode=%s classes=%d constrained=%d global=%s local_groups=%d test=%d train=%d",
+             dataset_mode, num_classes, constrained_class, global_con,
+             len(local_con), len(y_test), len(y_train))
 
     return (X_train, X_test, y_train, y_test,
             groups_test, global_con, local_con, num_classes)
@@ -112,8 +134,9 @@ def load_experiment_data(config):
     """
     dataset_mode = config.get('dataset_mode', 'binary')
 
-    if dataset_mode == 'dermmnist':
-        return _load_dermmnist_data(config)
+    if dataset_mode in IMAGERY_DATASETS:
+        return _load_imagery_data(config)
     else:
-        raise ValueError(f"Tabular loading temporarily disabled. Use dataset_mode='dermmnist'.")
+        raise ValueError(f"Unknown dataset_mode='{dataset_mode}'. "
+                         f"Supported: {IMAGERY_DATASETS}")
         # return _load_tabular_data(config)

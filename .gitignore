@@ -37,25 +37,35 @@ model_cache/
 models/trained_models/
 **/final_predictions_saturated.csv
 
-# Data directory - exclude datasets
+# Data directory - exclude dataset files but keep download scripts
 data/*.csv
 data/adult/
 data/churn/
-data/dermmnist/
+data/dermmnist/*
+data/tissuemnist/*
+!data/dermmnist/download_data.py
+!data/tissuemnist/download_data.py
 *.npz
 *.npy
 !data/README.md
 
 # Archives and large files
-archive_oulad_experiments/
+archive_experiments/
 *.tex
 *.zip
+
+# Results (experiment outputs, not code)
+results/
+
+# Claude Code
+.claude/
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Logs
+# Logs and outputs
 *.log
 *.png
+*.pdf
 comparison_results.csv

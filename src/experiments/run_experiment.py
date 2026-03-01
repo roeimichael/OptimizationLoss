@@ -41,6 +41,16 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
 
     update_experiment_status(experiment_path, 'running')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    # Reproducible randomness: set seed if specified in hyperparams
+    seed = config.get('hyperparams', {}).get('seed', None)
+    if seed is not None:
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+        log.info("Set random seed: %d", seed)
+
     log.info("Running %s on %s (model=%s)", config_path, device, config['model_name'])
 
     # Load data

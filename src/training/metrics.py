@@ -5,7 +5,7 @@ import numpy as np
 from sklearn.metrics import precision_recall_fscore_support, confusion_matrix
 
 # Max samples per forward pass to avoid GPU OOM on 224x224 images
-INFERENCE_CHUNK_SIZE = 256
+INFERENCE_CHUNK_SIZE = 512
 
 
 def _chunked_forward(model, X, chunk_size=INFERENCE_CHUNK_SIZE):

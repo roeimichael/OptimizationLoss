@@ -107,14 +107,30 @@ def save_final_predictions(save_path, y_true, y_pred, y_proba, group_ids=None):
 
 
 def save_evaluation_metrics(save_path, metrics):
-    """Save evaluation metrics to CSV."""
+    """Save evaluation metrics to CSV, including per-class breakdowns."""
     rows = [
         ['Metric', 'Value'],
         ['Accuracy', f"{metrics['accuracy']:.4f}"],
         ['Precision (Macro)', f"{metrics['precision_macro']:.4f}"],
         ['Recall (Macro)', f"{metrics['recall_macro']:.4f}"],
         ['F1 (Macro)', f"{metrics['f1_macro']:.4f}"],
+        ['Precision (Weighted)', f"{metrics.get('precision_weighted', 0):.4f}"],
+        ['Recall (Weighted)', f"{metrics.get('recall_weighted', 0):.4f}"],
+        ['F1 (Weighted)', f"{metrics.get('f1_weighted', 0):.4f}"],
     ]
+
+    # Per-class precision, recall, F1, support
+    if 'precision_per_class' in metrics:
+        prec = metrics['precision_per_class']
+        rec = metrics['recall_per_class']
+        f1 = metrics['f1_per_class']
+        sup = metrics['support_per_class']
+        for c in range(len(prec)):
+            rows.append([f'Precision_Class{c}', f"{prec[c]:.4f}"])
+            rows.append([f'Recall_Class{c}', f"{rec[c]:.4f}"])
+            rows.append([f'F1_Class{c}', f"{f1[c]:.4f}"])
+            rows.append([f'Support_Class{c}', int(sup[c])])
+
     if 'ece' in metrics:
         rows.append(['ECE', f"{metrics['ece']:.4f}"])
         rows.append(['Brier Score', f"{metrics['brier_score']:.4f}"])

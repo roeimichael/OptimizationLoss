@@ -1,1 +1,2 @@
-from .resnet import ResNet18Classifier, ResNet50Classifier
+from .resnet import ResNet18Classifier
+from .mobilenetv3 import MobileNetV3Classifier

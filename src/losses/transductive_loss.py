@@ -1,6 +1,7 @@
-"""Transductive loss: rational saturation + ALM with KL-divergence regularization.
+"""Transductive loss: rational saturation + bounded ALM with KL-divergence regularization.
 
-L_constraint = E/(E+K) + (rho/2)*(E/K)^2 where E = relu(soft_count - limit).
+L_constraint = E/(E+K) + rho * (E/K)^2 / (1 + (E/K)^2) where E = relu(soft_count - limit).
+Both terms are bounded to [0, 1), so per-constraint loss is in [0, 1+rho).
 KL term keeps predictions close to warmup model to prevent distribution warping.
 """
 
@@ -93,7 +94,9 @@ class MulticlassTransductiveLoss(nn.Module):
                 all_satisfied = False
 
             E_norm = E / (K + EPSILON)
-            loss = E / (E + K + EPSILON) + (self.rho / 2) * (E_norm ** 2)
+            sat = E / (E + K + EPSILON)                          # Bounded [0, 1)
+            quad = (E_norm ** 2) / (1 + E_norm ** 2 + EPSILON)   # Bounded [0, 1)
+            loss = sat + self.rho * quad
             total_loss = total_loss + loss
             num_constrained += 1
 
@@ -139,7 +142,9 @@ class MulticlassTransductiveLoss(nn.Module):
                     all_satisfied = False
 
                 E_norm = E / (K + EPSILON)
-                loss = E / (E + K + EPSILON) + (self.rho / 2) * (E_norm ** 2)
+                sat = E / (E + K + EPSILON)                          # Bounded [0, 1)
+                quad = (E_norm ** 2) / (1 + E_norm ** 2 + EPSILON)   # Bounded [0, 1)
+                loss = sat + self.rho * quad
 
                 total_loss = total_loss + loss
                 num_constrained_total += 1
@@ -162,6 +167,93 @@ class MulticlassTransductiveLoss(nn.Module):
         p_current = F.softmax(logits, dim=1)
         kl = (p_current * (log_p - torch.log(p_warmup))).sum(dim=1)
         return kl.mean()
+
+    def compute_global_from_counts(self, soft_counts):
+        """Compute global constraint loss from pre-accumulated soft counts.
+
+        Args:
+            soft_counts: tensor of shape (num_classes,) with summed probabilities.
+        """
+        device = soft_counts.device
+        if len(self.global_constraints) == 0:
+            self.global_constraints_satisfied = True
+            return soft_counts.sum() * 0.0
+
+        constraints = self.global_constraints.to(device)
+        total_loss = torch.tensor(0.0, device=device)
+        num_constrained = 0
+        all_satisfied = True
+
+        for c in range(self.num_classes):
+            if c >= len(constraints) or constraints[c] >= UNLIMITED:
+                continue
+            K = constraints[c]
+            if K <= 0:
+                continue
+
+            E = F.relu(soft_counts[c] - K)
+            if soft_counts[c].item() > K.item():
+                all_satisfied = False
+
+            E_norm = E / (K + EPSILON)
+            sat = E / (E + K + EPSILON)                          # Bounded [0, 1)
+            quad = (E_norm ** 2) / (1 + E_norm ** 2 + EPSILON)   # Bounded [0, 1)
+            loss = sat + self.rho * quad
+            total_loss = total_loss + loss
+            num_constrained += 1
+
+        self.global_constraints_satisfied = all_satisfied
+        if num_constrained == 0:
+            return soft_counts.sum() * 0.0
+        return total_loss if self.use_sum else total_loss / num_constrained
+
+    def compute_local_from_counts(self, local_soft_counts):
+        """Compute local constraint loss from pre-accumulated per-group soft counts.
+
+        Args:
+            local_soft_counts: dict {group_id: tensor of shape (num_classes,)}.
+        """
+        if not self.local_groups or not local_soft_counts:
+            self.local_constraints_satisfied = True
+            for v in local_soft_counts.values():
+                return v.sum() * 0.0
+            return torch.tensor(0.0)
+
+        device = next(iter(local_soft_counts.values())).device
+        total_loss = torch.tensor(0.0, device=device)
+        num_constrained = 0
+        all_satisfied = True
+
+        for gid, buffer_name in self.local_groups.items():
+            if gid not in local_soft_counts:
+                continue
+            group_soft = local_soft_counts[gid]
+            constraints = getattr(self, buffer_name).to(device)
+
+            for c in range(self.num_classes):
+                if c >= len(constraints) or constraints[c] >= UNLIMITED:
+                    continue
+                K = constraints[c]
+                if K <= 0:
+                    continue
+
+                E = F.relu(group_soft[c] - K)
+                if group_soft[c].item() > K.item():
+                    all_satisfied = False
+
+                E_norm = E / (K + EPSILON)
+                sat = E / (E + K + EPSILON)                          # Bounded [0, 1)
+                quad = (E_norm ** 2) / (1 + E_norm ** 2 + EPSILON)   # Bounded [0, 1)
+                loss = sat + self.rho * quad
+                total_loss = total_loss + loss
+                num_constrained += 1
+
+        self.local_constraints_satisfied = all_satisfied
+        if num_constrained == 0:
+            for v in local_soft_counts.values():
+                return v.sum() * 0.0
+            return torch.tensor(0.0, device=device)
+        return total_loss if self.use_sum else total_loss / num_constrained
 
     def set_lambda(self, lambda_global=None, lambda_local=None):
         if lambda_global is not None:

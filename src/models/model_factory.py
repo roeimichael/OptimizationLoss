@@ -4,7 +4,7 @@ from typing import Any
 import torch.nn as nn
 
 from .tabular import BasicNN, TabularResNet, FTTransformer
-from .imagery import ResNet18Classifier, ResNet50Classifier
+from .imagery import ResNet18Classifier, MobileNetV3Classifier
 
 # Registry: model_name -> (model_type, model_class)
 MODEL_REGISTRY = {
@@ -15,7 +15,7 @@ MODEL_REGISTRY = {
 
     # Imagery models (input: (B, 3, H, W) image tensors)
     'ResNet18': ('imagery', ResNet18Classifier),
-    'ResNet50': ('imagery', ResNet50Classifier),
+    'MobileNetV3': ('imagery', MobileNetV3Classifier),
 }
 
 
