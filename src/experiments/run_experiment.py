@@ -45,8 +45,15 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
             torch.cuda.manual_seed_all(seed)
         log.info("Set random seed: %d", seed)
     log.info("Running %s on %s (model=%s)", config_path, device, config['model_name'])
+    if torch.cuda.is_available():
+        log.info("GPU: %s | CUDA: %s | BF16: %s",
+                 torch.cuda.get_device_name(0), torch.version.cuda,
+                 torch.cuda.is_bf16_supported())
+    t0 = time.time()
     data = load_experiment_data(config)
     X_train, X_test, y_train, y_test, groups_test, global_con, local_con, num_classes = data
+    log.info("TIMING data_load=%.2fs train=%s test=%s", time.time() - t0,
+             X_train.shape, X_test.shape)
     ds_config = config.get('dataset_config', {})
     constrained_class = ds_config.get('constrained_class', num_classes - 1)
     if isinstance(constrained_class, (list, tuple)):
@@ -57,10 +64,13 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     y_train_tensor = torch.LongTensor(_to_numpy(y_train))
     X_test_tensor = torch.FloatTensor(X_test).to(device)
     input_dim = None
+    t1 = time.time()
     trainer = ConstraintTrainer(config, str(experiment_path), device, num_classes=num_classes)
     trainer.setup_model(input_dim=input_dim, base_model_id=config['base_model_id'])
+    log.info("TIMING model_setup=%.2fs (cached=%s)", time.time() - t1, trainer.from_cache)
     start_time = time.time()
     actual_warmup = trainer.train_warmup(X_train_tensor, y_train_tensor, config['base_model_id'])
+    log.info("TIMING warmup=%.2fs (%d epochs)", time.time() - start_time, actual_warmup)
     model = trainer.train_constraints(
         X_train=X_train_tensor, y_train=y_train_tensor,
         X_test=X_test_tensor, groups_test=groups_test,

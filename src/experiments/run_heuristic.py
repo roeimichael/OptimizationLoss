@@ -33,8 +33,12 @@ def train_fixed_warmup(config, input_dim, num_classes, X_train, y_train, device)
     if model is not None:
         log.info("Loaded cached warmup model: %s", cache_id)
         return model
-    log.info("Training heuristic warmup: %d epochs", warmup_epochs)
     hp = config['hyperparams']
+    use_amp = device.type == 'cuda'
+    amp_dtype = torch.bfloat16 if (use_amp and torch.cuda.is_bf16_supported()) else torch.float16
+    scaler = torch.amp.GradScaler('cuda') if (use_amp and amp_dtype == torch.float16) else None
+    log.info("Training heuristic warmup: %d epochs (AMP=%s dtype=%s scaler=%s)",
+             warmup_epochs, use_amp, amp_dtype, scaler is not None)
     model = get_model(
         config['model_name'], input_dim=input_dim, n_classes=num_classes,
         hidden_dims=hp.get('hidden_dims'), dropout=hp['dropout'],
@@ -48,12 +52,10 @@ def train_fixed_warmup(config, input_dim, num_classes, X_train, y_train, device)
     criterion = nn.CrossEntropyLoss()
     loader = DataLoader(TensorDataset(X_train, y_train), batch_size=hp['batch_size'],
                         shuffle=True, pin_memory=True, num_workers=2 if os.name != 'nt' else 0)
-    use_amp = device.type == 'cuda'
-    amp_dtype = torch.bfloat16 if (use_amp and torch.cuda.is_bf16_supported()) else torch.float16
-    scaler = torch.amp.GradScaler('cuda') if (use_amp and amp_dtype == torch.float16) else None
     if device.type == 'cuda':
         torch.backends.cudnn.benchmark = True
     for epoch in range(warmup_epochs):
+        epoch_start = time.time()
         model.train()
         for batch_X, batch_y in loader:
             batch_X, batch_y = batch_X.to(device), batch_y.to(device)
@@ -67,6 +69,9 @@ def train_fixed_warmup(config, input_dim, num_classes, X_train, y_train, device)
             else:
                 loss.backward()
                 optimizer.step()
+        if epoch < 3 or (epoch + 1) % 10 == 0 or epoch == warmup_epochs - 1:
+            log.info("Heuristic warmup %d/%d [%.2fs/epoch]",
+                     epoch + 1, warmup_epochs, time.time() - epoch_start)
     train_acc = compute_train_accuracy(model, loader, device)
     log.info("Heuristic warmup done: %d epochs, train_acc=%.4f", warmup_epochs, train_acc)
     save_to_cache(model, cache_id, config)
@@ -132,8 +137,16 @@ def run_heuristic(config_path: str) -> None:
     experiment_path = Path(config_path).parent
     config = load_config_from_path(experiment_path)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    log.info("Running heuristic %s on %s (model=%s)", config_path, device, config['model_name'])
+    if torch.cuda.is_available():
+        log.info("GPU: %s | CUDA: %s | BF16: %s",
+                 torch.cuda.get_device_name(0), torch.version.cuda,
+                 torch.cuda.is_bf16_supported())
+    t0 = time.time()
     data = load_experiment_data(config)
     X_train, X_test, y_train, y_test, groups_test, global_con, local_con, num_classes = data
+    log.info("TIMING data_load=%.2fs train=%s test=%s", time.time() - t0,
+             X_train.shape, X_test.shape)
     X_train_tensor = torch.FloatTensor(X_train)
     y_train_tensor = torch.LongTensor(_to_numpy(y_train))
     X_test_tensor = torch.FloatTensor(X_test).to(device)

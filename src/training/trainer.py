@@ -105,8 +105,14 @@ class ConstraintTrainer:
         train_loader = self._create_dataloader(X_train, y_train)
         warmup_epochs = self.hyperparams['warmup_epochs']
         log_interval = max(1, warmup_epochs // 5)
-        log.info("Warmup: training for %d epochs (CE only)", warmup_epochs)
+        n_batches = len(train_loader)
+        log.info("Warmup: %d epochs, %d batches/epoch (batch_size=%d, samples=%d)",
+                 warmup_epochs, n_batches, self.hyperparams['batch_size'], len(X_train))
+        log.info("AMP: enabled=%s dtype=%s scaler=%s", self.use_amp, self.amp_dtype,
+                 self.scaler is not None)
+        epoch_times = []
         for epoch in range(warmup_epochs):
+            epoch_start = time.time()
             self.model.train()
             epoch_loss = 0.0
             for batch_X, batch_y in train_loader:
@@ -122,13 +128,17 @@ class ConstraintTrainer:
                     loss.backward()
                     self.optimizer.step()
                 epoch_loss += loss.item()
-            if (epoch + 1) % log_interval == 0 or epoch == warmup_epochs - 1:
-                avg_loss = epoch_loss / len(train_loader)
+            epoch_elapsed = time.time() - epoch_start
+            epoch_times.append(epoch_elapsed)
+            if epoch < 3 or (epoch + 1) % log_interval == 0 or epoch == warmup_epochs - 1:
+                avg_loss = epoch_loss / n_batches
                 train_acc = compute_train_accuracy(self.model, train_loader, self.device)
                 log_progress_to_csv(str(self.csv_log_path), epoch, avg_loss, train_acc,
                                     num_classes=self.num_classes)
-                log.info("Warmup %d/%d: loss=%.4f acc=%.4f",
-                         epoch + 1, warmup_epochs, avg_loss, train_acc)
+                log.info("Warmup %d/%d: loss=%.4f acc=%.4f [%.2fs/epoch]",
+                         epoch + 1, warmup_epochs, avg_loss, train_acc, epoch_elapsed)
+        avg_epoch = sum(epoch_times) / len(epoch_times) if epoch_times else 0
+        log.info("Warmup done: avg=%.2fs/epoch total=%.1fs", avg_epoch, sum(epoch_times))
         save_to_cache(self.model, base_model_id, self.config)
         return warmup_epochs
 
