@@ -1,11 +1,6 @@
-"""Main experiment orchestrator: runs all pending experiments via subprocess.
-
-Progress is streamed live to the terminal so you can watch training in real time.
-Designed to run inside tmux on a remote server -- safe to detach and reattach.
-
-Supports parallel execution across multiple GPUs: experiments are partitioned by
-model_name and each model's queue runs on a dedicated GPU in its own thread.
-"""
+# Main experiment orchestrator: runs all pending experiments via subprocess.
+# Supports parallel GPU execution with live output streaming.
+# Safe for tmux on remote servers -- detach and reattach freely.
 
 import json
 import logging
@@ -21,32 +16,24 @@ import torch
 
 from src.utils.filesystem_manager import get_experiments_by_status, print_status_summary
 
+DEFAULT_EXPERIMENT_DIR = 'results/pending_runs'
 OPTIMIZATION_MODULE = 'src.experiments.run_experiment'
 HEURISTIC_MODULE = 'src.experiments.run_heuristic'
 
 log = logging.getLogger(__name__)
-
-# Lock for thread-safe printing in parallel mode
 _print_lock = threading.Lock()
 
 
 def _safe_print(*args, **kwargs):
-    """Thread-safe print using a global lock."""
     with _print_lock:
         print(*args, **kwargs)
-        # Flush to ensure lines appear immediately in tmux
         sys.stdout.flush()
 
 
 def select_gpu():
-    """Detect available GPUs and let the user choose which one(s) to use.
-
-    Returns a list of selected GPU IDs (ints), or ['cpu'] if no GPUs available.
-    """
     if not torch.cuda.is_available():
         print("\nWARNING: No CUDA GPUs detected -- will run on CPU")
         return ['cpu']
-
     n_gpus = torch.cuda.device_count()
     print(f"\n{'='*60}")
     print(f"  GPU Selection -- {n_gpus} GPU(s) detected")
@@ -57,15 +44,12 @@ def select_gpu():
         mem = getattr(props, 'total_memory', 0) or getattr(props, 'total_mem', 0)
         print(f"  [{i}]  {name}  ({mem / (1024**3):.1f} GB)")
     print(f"{'='*60}")
-
     while True:
         choice = input(f"\nSelect GPU (0-{n_gpus-1}), comma-separated (e.g. 1,2), or 'all': ").strip().lower()
-
         if choice == 'all':
             gpu_ids = list(range(n_gpus))
             print(f"  -> Using all {n_gpus} GPUs: {gpu_ids}")
             return gpu_ids
-
         try:
             gpu_ids = [int(x.strip()) for x in choice.split(',')]
             if all(0 <= g < n_gpus for g in gpu_ids):
@@ -82,7 +66,6 @@ def select_gpu():
 
 
 def format_duration(seconds):
-    """Format seconds into human-readable string."""
     if seconds < 60:
         return f"{seconds:.0f}s"
     elif seconds < 3600:
@@ -94,12 +77,10 @@ def format_duration(seconds):
 
 
 def print_experiment_header(index, total, exp_path, config, completed, failed, prefix=''):
-    """Print a visible banner before each experiment starts."""
     name = config.get('exp_name', Path(exp_path).name)
     methodology = config.get('methodology', 'our_approach')
     constraint = config.get('constraint', [])
     hp = config.get('hyperparams', {})
-
     _safe_print(f"\n{prefix}{'='*70}")
     _safe_print(f"{prefix}  [{index}/{total}]  {name}")
     _safe_print(f"{prefix}  Method: {methodology}  |  Constraint: {constraint}")
@@ -116,11 +97,8 @@ def print_experiment_header(index, total, exp_path, config, completed, failed, p
 
 def print_experiment_result(name, returncode, elapsed, completed, failed, total,
                             total_elapsed, times_list, prefix=''):
-    """Print result after each experiment finishes."""
     status = "DONE" if returncode == 0 else "FAIL"
     marker = "  [OK]" if returncode == 0 else "  [!!]"
-
-    # ETA calculation based on average time per experiment
     if times_list:
         avg_time = sum(times_list) / len(times_list)
         remaining = total - (completed + failed)
@@ -128,117 +106,84 @@ def print_experiment_result(name, returncode, elapsed, completed, failed, total,
         eta_str = f"  ETA: ~{format_duration(eta_seconds)}"
     else:
         eta_str = ""
-
     _safe_print(f"\n{prefix}{marker} {name}: {status} in {format_duration(elapsed)}  "
                 f"({completed}/{total} done, {failed} failed){eta_str}")
 
 
 def run_worker(gpu_id, experiments, worker_name, stop_event):
-    """Run a queue of experiments sequentially on a specific GPU.
-
-    Used by parallel mode: each thread calls this with its own GPU and experiment list.
-    Subprocess env gets CUDA_VISIBLE_DEVICES set per-call (thread-safe).
-
-    Returns (completed_count, failed_count, experiment_times).
-    """
     total = len(experiments)
     completed, failed = 0, 0
     experiment_times = []
     prefix = f"[GPU {gpu_id} | {worker_name:<12s}]  "
     worker_env = {**os.environ, 'CUDA_VISIBLE_DEVICES': str(gpu_id)}
     overall_start = time.time()
-
     for i, (exp_path, config) in enumerate(experiments, 1):
         if stop_event.is_set():
             _safe_print(f"\n{prefix}Stopping (interrupt received) -- "
                         f"{total - i + 1} experiments skipped")
             break
-
         config_path = Path(exp_path) / 'config.json'
         methodology = config.get('methodology', 'our_approach')
         runner = HEURISTIC_MODULE if methodology == 'heuristic' else OPTIMIZATION_MODULE
         name = config.get('exp_name', Path(exp_path).name)
-
         print_experiment_header(i, total, exp_path, config, completed, failed, prefix=prefix)
-
         exp_start = time.time()
         try:
             proc = subprocess.Popen(
                 [sys.executable, '-u', '-m', runner, str(config_path)],
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 env=worker_env, text=True, bufsize=1)
-
-            # Stream output line-by-line with prefix
             for line in proc.stdout:
                 if stop_event.is_set():
                     proc.terminate()
                     proc.wait(timeout=5)
                     break
                 _safe_print(f"{prefix}{line}", end='')
-
             proc.wait()
             elapsed = time.time() - exp_start
             experiment_times.append(elapsed)
-
             if proc.returncode == 0:
                 completed += 1
             else:
                 failed += 1
-
             print_experiment_result(name, proc.returncode, elapsed,
                                     completed, failed, total,
                                     time.time() - overall_start, experiment_times,
                                     prefix=prefix)
-
         except Exception as exc:
             elapsed = time.time() - exp_start
             failed += 1
             _safe_print(f"\n{prefix}ERROR on {name}: {exc} (after {format_duration(elapsed)})")
-
     return completed, failed, experiment_times
 
 
 def run_sequential(pending, gpu_id=None):
-    """Original sequential execution on a single GPU (or CPU).
-
-    If gpu_id is provided, sets CUDA_VISIBLE_DEVICES for subprocesses.
-    """
     if gpu_id is not None:
         os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
-
     total = len(pending)
     completed, failed = 0, 0
     experiment_times = []
     overall_start = time.time()
-
     for i, (exp_path, config) in enumerate(pending, 1):
         config_path = Path(exp_path) / 'config.json'
         methodology = config.get('methodology', 'our_approach')
         runner = HEURISTIC_MODULE if methodology == 'heuristic' else OPTIMIZATION_MODULE
         name = config.get('exp_name', Path(exp_path).name)
-
         print_experiment_header(i, total, exp_path, config, completed, failed)
-
         exp_start = time.time()
         try:
-            # Stream output live -- subprocess stdout/stderr go directly to terminal
-            # -u flag forces unbuffered output so you see lines immediately
             result = subprocess.run(
                 [sys.executable, '-u', '-m', runner, str(config_path)],
                 stdout=sys.stdout, stderr=sys.stderr)
-
             elapsed = time.time() - exp_start
             experiment_times.append(elapsed)
-
             if result.returncode == 0:
                 completed += 1
             else:
                 failed += 1
-
             print_experiment_result(name, result.returncode, elapsed,
                                     completed, failed, total,
                                     time.time() - overall_start, experiment_times)
-
         except KeyboardInterrupt:
             elapsed = time.time() - exp_start
             print(f"\n\n{'!'*70}")
@@ -248,34 +193,24 @@ def run_sequential(pending, gpu_id=None):
             print(f"  Total time: {format_duration(time.time() - overall_start)}")
             print(f"{'!'*70}")
             break
-
     return completed, failed, experiment_times, time.time() - overall_start
 
 
 def run_parallel(pending, gpu_ids):
-    """Partition experiments by model_name and run each model's queue on a separate GPU."""
-    # Group experiments by model_name
     by_model = defaultdict(list)
     for exp_path, config in pending:
         model = config.get('model_name', 'unknown')
         by_model[model].append((exp_path, config))
-
     model_names = sorted(by_model.keys())
-
     if len(model_names) > len(gpu_ids):
         print(f"\n  WARNING: {len(model_names)} models but only {len(gpu_ids)} GPUs.")
         print(f"  Models will be distributed round-robin across GPUs.\n")
-
-    # Assign models to GPUs (round-robin if more models than GPUs)
-    gpu_assignments = {}  # gpu_id -> [(model_name, experiments)]
+    gpu_assignments = {}
     for gpu in gpu_ids:
         gpu_assignments[gpu] = []
-
     for idx, model in enumerate(model_names):
         gpu = gpu_ids[idx % len(gpu_ids)]
         gpu_assignments[gpu].append((model, by_model[model]))
-
-    # Print assignment table
     print(f"\n{'='*60}")
     print(f"  Parallel GPU Assignment")
     print(f"{'='*60}")
@@ -287,38 +222,26 @@ def run_parallel(pending, gpu_ids):
         else:
             print(f"  GPU {gpu}  <-  (idle)")
     print(f"{'='*60}\n")
-
-    # Flatten: each GPU gets one combined queue with a display name
     stop_event = threading.Event()
     threads = []
-    results = {}  # gpu_id -> (completed, failed, times)
-
+    results = {}
     for gpu in gpu_ids:
         assignments = gpu_assignments[gpu]
         if not assignments:
             continue
-
-        # Merge all experiments for this GPU, label by models
         combined_exps = []
         label_parts = []
         for model, exps in assignments:
             combined_exps.extend(exps)
             label_parts.append(model)
         worker_name = '+'.join(label_parts)
-
         def _worker(g=gpu, exps=combined_exps, wn=worker_name):
             results[g] = run_worker(g, exps, wn, stop_event)
-
         t = threading.Thread(target=_worker, name=f"gpu-{gpu}-worker", daemon=True)
         threads.append(t)
-
     overall_start = time.time()
-
-    # Start all workers
     for t in threads:
         t.start()
-
-    # Wait for all workers, handling Ctrl+C
     try:
         while any(t.is_alive() for t in threads):
             for t in threads:
@@ -328,30 +251,22 @@ def run_parallel(pending, gpu_ids):
         print(f"  INTERRUPT received -- signaling all workers to stop...")
         print(f"{'!'*70}")
         stop_event.set()
-        # Give workers a moment to finish their current subprocess
         for t in threads:
             t.join(timeout=10)
-
     total_time = time.time() - overall_start
-
-    # Aggregate results
     total_completed = sum(r[0] for r in results.values())
     total_failed = sum(r[1] for r in results.values())
     all_times = []
     for r in results.values():
         all_times.extend(r[2])
-
     return total_completed, total_failed, all_times, total_time
 
 
 def main():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s %(levelname)s %(message)s')
-
-    # GPU selection (before any subprocess spawning)
     gpu_ids = select_gpu()
     is_cpu = gpu_ids == ['cpu']
     is_parallel = not is_cpu and len(gpu_ids) > 1
-
     if is_cpu:
         gpu_info = 'CPU'
     elif is_parallel:
@@ -359,23 +274,20 @@ def main():
     else:
         gpu_info = f'GPU {gpu_ids[0]}'
     log.info("Device: %s", gpu_info)
-
-    print_status_summary('results/pending_runs')
-    pending = get_experiments_by_status('results/pending_runs')['pending']
+    experiment_dir = os.environ.get('EXPERIMENT_DIR', DEFAULT_EXPERIMENT_DIR)
+    log.info("Experiment directory: %s", experiment_dir)
+    print_status_summary(experiment_dir)
+    pending = get_experiments_by_status(experiment_dir)['pending']
     if not pending:
         log.info("No pending experiments")
         return
-
     total = len(pending)
     log.info("Running %d pending experiments on %s", total, gpu_info)
-
     if is_parallel:
         completed, failed, experiment_times, total_time = run_parallel(pending, gpu_ids)
     else:
         single_gpu = None if is_cpu else gpu_ids[0]
         completed, failed, experiment_times, total_time = run_sequential(pending, gpu_id=single_gpu)
-
-    # Final summary
     print(f"\n{'='*70}")
     print(f"  ALL DONE")
     print(f"  Completed: {completed}  |  Failed: {failed}  |  "
@@ -383,7 +295,7 @@ def main():
     if experiment_times:
         print(f"  Avg per experiment: {format_duration(sum(experiment_times)/len(experiment_times))}")
     print(f"{'='*70}\n")
-    print_status_summary('results/pending_runs')
+    print_status_summary(experiment_dir)
 
 
 if __name__ == "__main__":

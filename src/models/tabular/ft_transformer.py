@@ -1,8 +1,13 @@
+# Feature Tokenizer + Transformer encoder for tabular data.
+# Tokenizes each feature independently, prepends a CLS token,
+# and classifies from the CLS output embedding.
+
 import torch
 import torch.nn as nn
 
 
 class FeatureTokenizer(nn.Module):
+
     def __init__(self, n_features: int, d_token: int):
         super().__init__()
         self.weight = nn.Parameter(torch.randn(1, n_features, d_token))
@@ -15,6 +20,7 @@ class FeatureTokenizer(nn.Module):
 
 
 class FTTransformer(nn.Module):
+
     def __init__(
             self,
             input_dim: int,

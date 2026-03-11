@@ -1,4 +1,5 @@
-"""CSV logging for training progress and evaluation metrics."""
+# CSV logging for training progress and evaluation metric export.
+# Handles warmup and constraint phase logging with per-group columns.
 
 import csv
 import logging
@@ -10,7 +11,6 @@ log = logging.getLogger(__name__)
 
 
 def build_csv_header(num_classes, local_constraints=None):
-    """Build the full CSV header including per-group local constraint columns."""
     header = ['Epoch', 'Train_Acc', 'L_CE', 'L_Global', 'L_Local',
               'L_KL', 'Lambda_Global', 'Lambda_Local', 'Global_Satisfied', 'Local_Satisfied']
     for i in range(num_classes):
@@ -26,22 +26,14 @@ def build_csv_header(num_classes, local_constraints=None):
 
 
 def write_csv_header(csv_path, num_classes, local_constraints=None):
-    """Write (or rewrite) the CSV header as the first line.
-
-    Called once at the start of constraint training. If warmup rows already exist,
-    reads them, prepends the full header, and rewrites the file.
-    """
     header = build_csv_header(num_classes, local_constraints)
     csv_file = Path(csv_path)
-
     if csv_file.exists():
-        # Warmup rows exist without a header — read them, prepend header, rewrite
         with open(csv_file, 'r') as f:
             existing_lines = f.readlines()
         with open(csv_file, 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(header)
-            # Re-append existing warmup rows, padding to full width
             for line in existing_lines:
                 fields = line.strip().split(',')
                 while len(fields) < len(header):
@@ -59,25 +51,20 @@ def log_progress_to_csv(csv_path, epoch, ce_loss, train_acc,
                         lambda_global=0.0, lambda_local=0.0,
                         constraints=None, global_satisfied=True, local_satisfied=True,
                         num_classes=7, kl_loss=0.0, local_constraints=None):
-    """Append one row to the training log CSV (no header writing)."""
     num_classes = len(constraints) if constraints else num_classes
     global_counts = global_counts or {i: 0 for i in range(num_classes)}
     global_soft = global_soft or {i: 0.0 for i in range(num_classes)}
     local_counts = local_counts or {}
     local_soft = local_soft or {}
     constraints = constraints or [1e9] * num_classes
-
     group_ids_sorted = sorted(local_constraints.keys()) if local_constraints else []
-
     row = [epoch + 1, f"{train_acc:.4f}", f"{ce_loss:.6f}", f"{global_loss:.6f}",
            f"{local_loss:.6f}", f"{kl_loss:.6f}",
            f"{lambda_global:.2f}", f"{lambda_local:.2f}",
            1 if global_satisfied else 0, 1 if local_satisfied else 0]
-
     for i in range(num_classes):
         limit = int(constraints[i]) if constraints[i] < 1e9 else 'inf'
         row += [limit, global_counts.get(i, 0), f"{global_soft.get(i, 0.0):.2f}"]
-
     for gid in group_ids_sorted:
         group_hard = local_counts.get(gid, {})
         group_soft_data = local_soft.get(gid, {})
@@ -87,13 +74,11 @@ def log_progress_to_csv(csv_path, epoch, ce_loss, train_acc,
                 row += [group_hard.get(c, 0),
                         f"{group_soft_data.get(c, 0.0):.2f}",
                         int(l_limit)]
-
     with open(csv_path, 'a', newline='') as f:
         csv.writer(f).writerow(row)
 
 
 def save_final_predictions(save_path, y_true, y_pred, y_proba, group_ids=None):
-    """Save predictions to CSV."""
     data = {
         'True_Label': y_true,
         'Predicted_Label': y_pred,
@@ -107,7 +92,6 @@ def save_final_predictions(save_path, y_true, y_pred, y_proba, group_ids=None):
 
 
 def save_evaluation_metrics(save_path, metrics):
-    """Save evaluation metrics to CSV, including per-class breakdowns."""
     rows = [
         ['Metric', 'Value'],
         ['Accuracy', f"{metrics['accuracy']:.4f}"],
@@ -118,8 +102,6 @@ def save_evaluation_metrics(save_path, metrics):
         ['Recall (Weighted)', f"{metrics.get('recall_weighted', 0):.4f}"],
         ['F1 (Weighted)', f"{metrics.get('f1_weighted', 0):.4f}"],
     ]
-
-    # Per-class precision, recall, F1, support
     if 'precision_per_class' in metrics:
         prec = metrics['precision_per_class']
         rec = metrics['recall_per_class']
@@ -130,7 +112,6 @@ def save_evaluation_metrics(save_path, metrics):
             rows.append([f'Recall_Class{c}', f"{rec[c]:.4f}"])
             rows.append([f'F1_Class{c}', f"{f1[c]:.4f}"])
             rows.append([f'Support_Class{c}', int(sup[c])])
-
     if 'ece' in metrics:
         rows.append(['ECE', f"{metrics['ece']:.4f}"])
         rows.append(['Brier Score', f"{metrics['brier_score']:.4f}"])
@@ -141,6 +122,5 @@ def save_evaluation_metrics(save_path, metrics):
         rows.append(['Confidence Gap', f"{metrics['confidence_gap']:.4f}"])
         rows.append(['Pct High Confidence', f"{metrics['pct_high_confidence']:.4f}"])
         rows.append(['Pct Low Confidence', f"{metrics['pct_low_confidence']:.4f}"])
-
     with open(save_path, 'w', newline='') as f:
         csv.writer(f).writerows(rows)

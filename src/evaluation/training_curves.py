@@ -1,8 +1,6 @@
-"""Training curve plots for DermaMNIST-C constraint optimization experiments.
-
-Generates per-experiment training curves (loss, constraint convergence)
-and a multi-experiment overlay comparing convergence across configs.
-"""
+# Training curve plots for constraint optimization experiments.
+# Generates per-experiment training curves (loss, constraint convergence)
+# and multi-experiment overlays comparing convergence across configs.
 
 import json
 import logging
@@ -19,7 +17,6 @@ CLASS_NAMES = {0: 'AKIEC', 1: 'BCC', 2: 'BKL', 3: 'DF', 4: 'MEL', 5: 'NV', 6: 'V
 
 
 def load_training_log(experiment_path):
-    """Load training_log.csv, handling inconsistent column counts between phases."""
     log_path = Path(experiment_path) / 'training_log.csv'
     if not log_path.exists():
         return None
@@ -67,7 +64,6 @@ def load_training_log(experiment_path):
 
 
 def _find_constrained_class(df):
-    """Find which class has a finite constraint limit."""
     for col in df.columns:
         if col.startswith('Limit_Class'):
             vals = df[col].replace('inf', float('inf'))
@@ -77,23 +73,20 @@ def _find_constrained_class(df):
 
 
 def plot_training_summary(df, experiment_name, save_path):
-    """2-panel training summary: loss components + combined constraint convergence."""
     constrained_class = _find_constrained_class(df)
     group_cols = [c for c in df.columns if c.startswith('Group') and '_Hard_' in c]
     has_local = len(group_cols) > 0
 
     fig, axes = plt.subplots(2, 1, figsize=(16, 12), sharex=True)
-    fig.suptitle(f'Training Curves — {experiment_name}', fontsize=15, fontweight='bold', y=1.01)
+    fig.suptitle(f'Training Curves -- {experiment_name}', fontsize=15, fontweight='bold', y=1.01)
     epochs = df['Epoch']
 
-    # Detect warmup end (first epoch with constraint loss > 0)
     warmup_end = epochs.iloc[0]
     for _, row in df.iterrows():
         if row.get('L_Global', 0) > 0 or row.get('L_Local', 0) > 0:
             warmup_end = row['Epoch']
             break
 
-    # ── Panel 1: Loss Components ──────────────────────────────────────────
     ax = axes[0]
     ax.plot(epochs, df['L_CE'], color='#2196F3', linewidth=2, label='CE Loss', zorder=3)
     ax.plot(epochs, df['L_Global'], color='#F44336', linewidth=2, label='Global Constraint Loss', zorder=3)
@@ -110,7 +103,6 @@ def plot_training_summary(df, experiment_name, save_path):
     ax.legend(fontsize=9, loc='upper right', ncol=2, framealpha=0.9)
     ax.grid(True, alpha=0.3)
 
-    # ── Panel 2: Combined Constraint Convergence ──────────────────────────
     ax = axes[1]
     constraint_mask = epochs >= warmup_end
 
@@ -119,7 +111,6 @@ def plot_training_summary(df, experiment_name, save_path):
         limit_col = f'Limit_Class{constrained_class}'
         limit_val = float(df[limit_col].dropna().iloc[-1])
 
-        # Global: hard count and soft count
         hard_col = f'Hard_Class{constrained_class}'
         soft_col = f'Soft_Class{constrained_class}'
         ax.plot(epochs[constraint_mask], df[hard_col][constraint_mask],
@@ -129,19 +120,16 @@ def plot_training_summary(df, experiment_name, save_path):
                 color='#FF8A80', linewidth=1.5, linestyle='--',
                 label=f'Global Soft Count', alpha=0.7, zorder=4)
 
-        # Global constraint limit line
         ax.axhline(y=limit_val, color='#4CAF50', linewidth=3, linestyle='-',
                    label=f'Global Limit ({int(limit_val)})', zorder=6)
         ax.fill_between(epochs[constraint_mask], 0, limit_val, alpha=0.04, color='green')
 
-        # Mark first global satisfaction point
         sat_epochs = df[constraint_mask & (df['Global_Satisfied'] == 1)]['Epoch']
         if len(sat_epochs) > 0:
             first_sat = sat_epochs.iloc[0]
             ax.axvline(x=first_sat, color='#4CAF50', linestyle=':', alpha=0.7,
                        linewidth=1.5, label=f'Global satisfied @ E{int(first_sat)}')
 
-        # Local (per-group) constraints on the same panel
         if has_local:
             group_ids = set()
             for col in group_cols:
@@ -150,7 +138,7 @@ def plot_training_summary(df, experiment_name, save_path):
                 if class_id == constrained_class:
                     group_ids.add(gid)
 
-            group_colors = {'0': '#E91E63', '1': '#3F51B5'}  # Male=pink, Female=blue
+            group_colors = {'0': '#E91E63', '1': '#3F51B5'}
             group_labels = {0: 'Male', 1: 'Female'}
             group_markers = {'0': 's', '1': 'D'}
 
@@ -175,7 +163,7 @@ def plot_training_summary(df, experiment_name, save_path):
                                        label=f'{grp_name} Limit ({int(lv)})', zorder=6)
 
         ax.set_ylabel(f'{class_name} Prediction Count', fontsize=12)
-        ax.set_title(f'Constraint Convergence — Global + Per-Group ({class_name})',
+        ax.set_title(f'Constraint Convergence -- Global + Per-Group ({class_name})',
                      fontsize=12, fontweight='bold')
 
     ax.axvline(x=warmup_end, color='gray', linestyle='--', alpha=0.6, linewidth=1)
@@ -189,7 +177,6 @@ def plot_training_summary(df, experiment_name, save_path):
 
 
 def plot_convergence_overlay(all_logs, save_path):
-    """Overlay Hard_Class4 convergence for all optimization experiments."""
     if not all_logs:
         return
 
@@ -201,18 +188,15 @@ def plot_convergence_overlay(all_logs, save_path):
         if constrained_class is None:
             continue
         hard_col = f'Hard_Class{constrained_class}'
-        mask = df['L_Global'] > 0  # constraint phase only
+        mask = df['L_Global'] > 0
         if not mask.any():
             continue
         epochs = df.loc[mask, 'Epoch']
         hard = df.loc[mask, hard_col]
         color = cmap(i)
         ax.plot(epochs, hard, linewidth=1.5, color=color, label=name, alpha=0.85)
-
-        # Mark endpoint
         ax.plot(epochs.iloc[-1], hard.iloc[-1], 'o', color=color, markersize=5)
 
-    # Constraint limit
     sample_df = list(all_logs.values())[0]
     cc = _find_constrained_class(sample_df)
     if cc is not None:
@@ -222,7 +206,7 @@ def plot_convergence_overlay(all_logs, save_path):
 
     ax.set_xlabel('Epoch', fontsize=12)
     ax.set_ylabel(f'{CLASS_NAMES.get(cc, "Constrained Class")} Hard Count', fontsize=12)
-    ax.set_title('Constraint Convergence — All Optimization Configs',
+    ax.set_title('Constraint Convergence -- All Optimization Configs',
                  fontsize=14, fontweight='bold')
     ax.legend(fontsize=8, loc='upper right', ncol=2, framealpha=0.9)
     ax.grid(True, alpha=0.3)
@@ -234,7 +218,6 @@ def plot_convergence_overlay(all_logs, save_path):
 
 
 def plot_lambda_rho_evolution(all_logs, save_path):
-    """Show how lambda and rho evolve across experiments."""
     if not all_logs:
         return
 
@@ -249,12 +232,10 @@ def plot_lambda_rho_evolution(all_logs, save_path):
         epochs = df.loc[mask, 'Epoch']
         color = cmap(i)
 
-        # Lambda Global
         if 'Lambda_Global' in df.columns:
             axes[0].plot(epochs, df.loc[mask, 'Lambda_Global'], linewidth=1.2,
                          color=color, label=name, alpha=0.8)
 
-        # Global Loss
         if 'L_Global' in df.columns:
             axes[1].plot(epochs, df.loc[mask, 'L_Global'], linewidth=1.2,
                          color=color, label=name, alpha=0.8)
@@ -278,18 +259,11 @@ def plot_lambda_rho_evolution(all_logs, save_path):
 
 
 def generate_training_curves(results_dir='results'):
-    """Generate training curve plots for all completed optimization experiments.
-
-    Uses rglob to find experiments at any depth — works with the hierarchical
-    structure: results/{methodology}/{model}/{constraint}/{experiment}/
-    """
     results_path = Path(results_dir)
 
-    # Per-experiment plots
     output_dir = results_path / 'figures' / 'training_curves'
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Clean old plots
     for old in output_dir.glob('*.png'):
         old.unlink()
 
@@ -301,7 +275,6 @@ def generate_training_curves(results_dir='results'):
         with open(config_path) as f:
             cfg = json.load(f)
 
-        # Only plot optimization experiments (not heuristic)
         if cfg.get('methodology') != 'our_approach':
             continue
         if cfg.get('status') != 'completed':
@@ -318,11 +291,9 @@ def generate_training_curves(results_dir='results'):
 
     log.info("Generated %d per-experiment training curve plots", generated)
 
-    # Multi-experiment overlays
     overlay_dir = results_path / 'figures' / 'overlays'
     overlay_dir.mkdir(parents=True, exist_ok=True)
 
-    # Clean old overlay plots
     for old in overlay_dir.glob('*.png'):
         old.unlink()
 

@@ -1,12 +1,7 @@
-"""Thesis-quality analysis figures for DermMNIST constraint optimization.
-
-Generates 8 publication-ready PDF figures comparing optimization approach
-against heuristic baseline, analyzing hyperparameter sensitivity, model
-comparisons, and statistical significance.
-
-Usage:
-    python -c "from src.evaluation.thesis_figures import generate_all; generate_all()"
-"""
+# Thesis-quality analysis figures for constraint optimization experiments.
+# Generates publication-ready PDF figures comparing optimization vs heuristic,
+# hyperparameter sensitivity, model comparisons, and statistical significance.
+# Usage: python -c "from src.evaluation.thesis_figures import generate_all; generate_all()"
 
 import json
 import logging
@@ -27,29 +22,24 @@ from src.evaluation.training_curves import load_training_log
 
 log = logging.getLogger(__name__)
 
-# ── Constants ────────────────────────────────────────────────────────────────
-
 OPT_COLOR = '#2196F3'
 HEU_COLOR = '#F44336'
 ACCENT = '#4CAF50'
 
 CLASS_NAMES = {0: 'AKIEC', 1: 'BCC', 2: 'BKL', 3: 'DF', 4: 'MEL', 5: 'NV', 6: 'VASC'}
 
-# Constraint folder name -> (global_frac, local_frac)
 CONSTRAINT_MAP = {
     'c04_02': (0.4, 0.2), 'c05_03': (0.5, 0.3), 'c06_05': (0.6, 0.5),
     'c07_05': (0.7, 0.5), 'c08_02': (0.8, 0.2), 'c08_07': (0.8, 0.7),
     'c09_05': (0.9, 0.5), 'c09_08': (0.9, 0.8),
 }
 
-# Sorted from tightest to loosest (by global fraction)
 CONSTRAINTS_SORTED = ['c04_02', 'c05_03', 'c06_05', 'c07_05', 'c08_02', 'c08_07', 'c09_05', 'c09_08']
 
 MODEL_COLORS = {'ResNet18': '#2196F3', 'MobileNetV3': '#FF9800', 'ResNet50': '#9C27B0'}
 
 
 def _setup_style():
-    """Set thesis-quality matplotlib defaults."""
     plt.rcParams.update({
         'font.family': 'serif',
         'font.size': 11,
@@ -70,13 +60,11 @@ def _setup_style():
 
 
 def _constraint_label(cname):
-    """Human-readable constraint label, e.g. 'c05_03' -> '(0.5, 0.3)'."""
     g, l = CONSTRAINT_MAP.get(cname, (0, 0))
     return f'({g}, {l})'
 
 
 def _get_constraint_folder(constraint_list):
-    """Map a constraint list like [0.5, 0.3] to folder name 'c05_03'."""
     if isinstance(constraint_list, str):
         constraint_list = json.loads(constraint_list.replace("'", '"'))
     g, l = constraint_list[0], constraint_list[1]
@@ -87,16 +75,12 @@ def _get_constraint_folder(constraint_list):
 
 
 def _savefig(fig, path):
-    """Save figure and close."""
     fig.savefig(path, dpi=300, bbox_inches='tight')
     plt.close(fig)
     log.info("Saved: %s", path)
 
 
-# ── Data Collection ──────────────────────────────────────────────────────────
-
 def collect_dermmnist_experiments(base_dir):
-    """Collect all completed experiments under results/dermmnist/."""
     dermmnist_dir = Path(base_dir) / 'dermmnist'
     if not dermmnist_dir.exists():
         log.warning("Directory not found: %s", dermmnist_dir)
@@ -106,21 +90,14 @@ def collect_dermmnist_experiments(base_dir):
     if len(df) == 0:
         return df
 
-    # Add constraint folder name column
     df['constraint_name'] = df['constraint'].apply(_get_constraint_folder)
-
-    # Extract variation name from path
     df['variation'] = df['path'].apply(lambda p: Path(p).name)
 
     log.info("Collected %d completed experiments from %s", len(df), dermmnist_dir)
     return df
 
 
-# ── Figure 1: Optimization vs Heuristic Baseline ────────────────────────────
-
 def fig1_opt_vs_heuristic(df, output_dir):
-    """Grouped bar chart comparing optimization vs heuristic on ResNet18 c05_03."""
-    # Filter to ResNet18, c05_03
     mask = (df['model_name'] == 'ResNet18') & (df['constraint_name'] == 'c05_03')
     sub = df[mask].copy()
 
@@ -134,23 +111,15 @@ def fig1_opt_vs_heuristic(df, output_dir):
         log.warning("Fig1: No completed optimization experiments found, skipping")
         return
 
-    # Pick optimization baseline
     opt_baseline = opt[opt['variation'] == 'baseline']
     if len(opt_baseline) == 0:
         opt_baseline = opt.iloc[:1]
     else:
         opt_baseline = opt_baseline.iloc[:1]
 
-    # Combine: opt baseline + all heuristic
     configs = pd.concat([opt_baseline, heu], ignore_index=True)
     configs = configs.sort_values('accuracy', ascending=False)
 
-    # Compute constraint satisfaction
-    # MEL limit for c05_03: constraint [0.5, 0.3] means 50% of test MEL predictions
-    # The limit comes from the training log; use mel_pred <= limit
-    # We'll check from config: limit = floor(fraction * total_mel_true)
-    # Actually, let's just use mel_pred count and check against the stored limit
-    # For simplicity: read limit from a sample training log
     sample_path = configs.iloc[0]['path']
     tlog = load_training_log(sample_path)
     if tlog is not None and 'Limit_Class4' in tlog.columns:
@@ -176,7 +145,6 @@ def fig1_opt_vs_heuristic(df, output_dir):
         offset = (i - n / 2 + 0.5) * width
         bars = ax.bar(x + offset, vals, width, label=labels[i], color=color, alpha=alpha,
                        edgecolor='white', linewidth=0.5)
-        # Annotate values
         for bar, v in zip(bars, vals):
             if v > 0:
                 ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.01,
@@ -198,11 +166,7 @@ def fig1_opt_vs_heuristic(df, output_dir):
     _savefig(fig, Path(output_dir) / 'fig1_opt_vs_heuristic.pdf')
 
 
-# ── Figure 2: Learning Rate Sensitivity ──────────────────────────────────────
-
 def fig2_lr_sensitivity(df, output_dir):
-    """How learning rate affects accuracy-constraint tradeoff across constraints."""
-    # Filter to ResNet18, our_approach, lr variations + baseline
     mask = (df['model_name'] == 'ResNet18') & (df['method'] == 'our_approach')
     sub = df[mask].copy()
 
@@ -235,15 +199,11 @@ def fig2_lr_sensitivity(df, output_dir):
         label = lr_labels.get(var, var)
         color = lr_colors.get(var, '#999999')
 
-        # Panel (a): Accuracy vs constraint tightness
         ax1.plot(x, var_data['accuracy'].values, marker='o', label=f'lr={label}',
                  color=color, linewidth=1.8, markersize=5)
-
-        # Panel (b): MEL prediction count
         ax2.plot(x, var_data['mel_pred'].values, marker='s', label=f'lr={label}',
                  color=color, linewidth=1.8, markersize=5)
 
-    # Panel (a) formatting
     ax1.set_xticks(np.arange(len(CONSTRAINTS_SORTED)))
     ax1.set_xticklabels([_constraint_label(c) for c in CONSTRAINTS_SORTED], rotation=45, ha='right')
     ax1.set_xlabel('Constraint (global, local)')
@@ -251,15 +211,12 @@ def fig2_lr_sensitivity(df, output_dir):
     ax1.set_title('(a) Accuracy vs Constraint Tightness')
     ax1.legend()
 
-    # Panel (b) formatting — add constraint limit line for each constraint
     ax2.set_xticks(np.arange(len(CONSTRAINTS_SORTED)))
     ax2.set_xticklabels([_constraint_label(c) for c in CONSTRAINTS_SORTED], rotation=45, ha='right')
     ax2.set_xlabel('Constraint (global, local)')
     ax2.set_ylabel('MEL Prediction Count')
     ax2.set_title('(b) MEL Predictions vs Constraint Limit')
 
-    # Plot constraint limits as reference
-    # Read limits from baseline configs
     limits = []
     for cname in CONSTRAINTS_SORTED:
         base_row = sub[(sub['constraint_name'] == cname) & (sub['variation'] == 'baseline')]
@@ -285,10 +242,7 @@ def fig2_lr_sensitivity(df, output_dir):
     _savefig(fig, Path(output_dir) / 'fig2_lr_sensitivity.pdf')
 
 
-# ── Figure 3: Hyperparameter Ablation Heatmap ────────────────────────────────
-
 def fig3_hp_ablation_heatmap(df, output_dir):
-    """Heatmap showing effect of KL, lambda, rho on accuracy and MEL F1."""
     mask = (df['model_name'] == 'ResNet18') & (df['constraint_name'] == 'c05_03') & \
            (df['method'] == 'our_approach')
     sub = df[mask].copy()
@@ -299,7 +253,6 @@ def fig3_hp_ablation_heatmap(df, output_dir):
 
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
 
-    # (a) KL alpha effect — variations with different alpha_kl
     ax = axes[0, 0]
     kl_vals = sorted(sub['alpha_kl'].unique())
     if len(kl_vals) > 1:
@@ -320,9 +273,7 @@ def fig3_hp_ablation_heatmap(df, output_dir):
     ax.set_ylabel('Mean Accuracy')
     ax.set_title('(a) KL Alpha Effect')
 
-    # (b) Lambda scale effect
     ax = axes[0, 1]
-    # Group by lambda_global
     lam_vals = sorted(sub['lambda_global'].unique())
     if len(lam_vals) > 1:
         lam_groups = sub.groupby('lambda_global').agg(
@@ -342,7 +293,6 @@ def fig3_hp_ablation_heatmap(df, output_dir):
     ax.set_ylabel('Mean Accuracy')
     ax.set_title('(b) Lambda Scale Effect')
 
-    # (c) Rho effect
     ax = axes[1, 0]
     rho_vals = sorted(sub['initial_rho'].unique())
     if len(rho_vals) > 1:
@@ -363,7 +313,6 @@ def fig3_hp_ablation_heatmap(df, output_dir):
     ax.set_ylabel('Mean Accuracy')
     ax.set_title('(c) Rho Effect')
 
-    # (d) Combined best combos — scatter plot of top configs
     ax = axes[1, 1]
     sub_sorted = sub.sort_values('accuracy', ascending=False).head(15)
     scatter = ax.scatter(sub_sorted['mel_f1'], sub_sorted['accuracy'],
@@ -386,14 +335,10 @@ def fig3_hp_ablation_heatmap(df, output_dir):
     _savefig(fig, Path(output_dir) / 'fig3_hp_ablation.pdf')
 
 
-# ── Figure 4: Pretrained Backbone Impact ─────────────────────────────────────
-
 def fig4_pretrained_impact(df, output_dir):
-    """Dumbbell chart: pretrained vs non-pretrained across constraints."""
     mask = (df['model_name'] == 'ResNet18') & (df['method'] == 'our_approach')
     sub = df[mask].copy()
 
-    # Find pairs: kl0.5 vs kl0.5_pretrained, kl0.5_rho5.0 vs kl0.5_rho5.0_pretrained
     pairs = [
         ('kl0.5', 'kl0.5_pretrained', 'kl0.5'),
         ('kl0.5_rho5.0', 'kl0.5_rho5.0_pretrained', 'kl0.5 + rho5.0'),
@@ -425,7 +370,6 @@ def fig4_pretrained_impact(df, output_dir):
 
         y = np.array(y_positions) + pair_idx * 0.3 - 0.15
 
-        # (a) Accuracy dumbbell
         for i in range(len(y)):
             ax1.plot([acc_no[i], acc_yes[i]], [y[i], y[i]], 'k-', linewidth=1, alpha=0.4)
         ax1.scatter(acc_no, y, c=HEU_COLOR, s=50, zorder=5,
@@ -435,7 +379,6 @@ def fig4_pretrained_impact(df, output_dir):
                     label=f'{pair_label} (pretrained)' if pair_idx == 0 else None,
                     marker='D', edgecolors='white')
 
-        # (b) MEL F1 dumbbell
         for i in range(len(y)):
             ax2.plot([f1_no[i], f1_yes[i]], [y[i], y[i]], 'k-', linewidth=1, alpha=0.4)
         ax2.scatter(f1_no, y, c=HEU_COLOR, s=50, zorder=5,
@@ -445,7 +388,6 @@ def fig4_pretrained_impact(df, output_dir):
                     label=f'{pair_label} (pretrained)' if pair_idx == 0 else None,
                     marker='D', edgecolors='white')
 
-    # Y-axis labels
     if constraint_labels:
         ax1.set_yticks(range(len(constraint_labels)))
         ax1.set_yticklabels(constraint_labels)
@@ -460,7 +402,6 @@ def fig4_pretrained_impact(df, output_dir):
     ax2.set_title('(b) MEL F1')
     ax2.legend(fontsize=8, loc='lower right')
 
-    # Compute average improvement for annotation
     all_acc_diffs = []
     for pair_idx, (no_pt, with_pt, _) in enumerate(pairs):
         for cname in CONSTRAINTS_SORTED:
@@ -479,14 +420,10 @@ def fig4_pretrained_impact(df, output_dir):
     _savefig(fig, Path(output_dir) / 'fig4_pretrained_impact.pdf')
 
 
-# ── Figure 5: Constraint Tightness Sensitivity ──────────────────────────────
-
 def fig5_constraint_tightness(df, output_dir):
-    """Line plot: performance of best config across constraint tightness levels."""
     mask = (df['model_name'] == 'ResNet18') & (df['method'] == 'our_approach')
     sub = df[mask].copy()
 
-    # Best config: kl0.5_rho5.0_pretrained (if available), else kl0.5_rho5.0
     target_var = 'kl0.5_rho5.0_pretrained'
     best = sub[sub['variation'] == target_var]
     if len(best) == 0:
@@ -508,22 +445,18 @@ def fig5_constraint_tightness(df, output_dir):
     fig, ax1 = plt.subplots(figsize=(10, 5.5))
     ax2 = ax1.twinx()
 
-    # Accuracy on primary axis
     line1 = ax1.plot(x, best['accuracy'].values, 'o-', color=OPT_COLOR,
                      linewidth=2, markersize=7, label='Accuracy')
     ax1.set_ylabel('Accuracy', color=OPT_COLOR)
     ax1.tick_params(axis='y', labelcolor=OPT_COLOR)
 
-    # MEL F1 on secondary axis
     line2 = ax2.plot(x, best['mel_f1'].values, 's--', color=HEU_COLOR,
                      linewidth=2, markersize=7, label='MEL F1')
     ax2.set_ylabel('MEL F1', color=HEU_COLOR)
     ax2.tick_params(axis='y', labelcolor=HEU_COLOR)
     ax2.spines['right'].set_visible(True)
 
-    # Annotate constraint satisfaction
     for i, (_, r) in enumerate(best.iterrows()):
-        # Load training log to check satisfaction
         tlog = load_training_log(r['path'])
         if tlog is not None and 'Global_Satisfied' in tlog.columns:
             satisfied = int(tlog['Global_Satisfied'].iloc[-1]) == 1
@@ -540,12 +473,10 @@ def fig5_constraint_tightness(df, output_dir):
     ax1.set_xticklabels(x_labels, rotation=45, ha='right')
     ax1.set_xlabel('Constraint (global, local)')
 
-    # Combined legend
     lines = line1 + line2
     labels = [l.get_label() for l in lines]
     ax1.legend(lines, labels, loc='lower left')
 
-    # Add constraint satisfaction legend
     ax1.scatter([], [], marker='v', c=ACCENT, s=40, label='Constraint satisfied')
     ax1.scatter([], [], marker='x', c=HEU_COLOR, s=40, label='Constraint violated')
 
@@ -554,18 +485,14 @@ def fig5_constraint_tightness(df, output_dir):
     _savefig(fig, Path(output_dir) / 'fig5_constraint_tightness.pdf')
 
 
-# ── Figure 6: Model Architecture Comparison ──────────────────────────────────
-
 def fig6_model_comparison(df, output_dir):
-    """Grouped bar chart: ResNet18 vs MobileNetV3 vs ResNet50 across constraints."""
     mask = df['method'] == 'our_approach'
     sub = df[mask].copy()
 
-    # For each model, pick the baseline-equivalent variation
     model_variations = {
         'ResNet18': 'baseline',
         'MobileNetV3': 'baseline',
-        'ResNet50': 'kl0.5_chunk128',  # closest to baseline kl0.5
+        'ResNet50': 'kl0.5_chunk128',
     }
 
     models_present = []
@@ -633,16 +560,12 @@ def fig6_model_comparison(df, output_dir):
     _savefig(fig, Path(output_dir) / 'fig6_model_comparison.pdf')
 
 
-# ── Figure 7: Training Dynamics ──────────────────────────────────────────────
-
 def fig7_training_dynamics(base_dir, output_dir):
-    """Training loss components and MEL count convergence for representative configs."""
     approach_dir = Path(base_dir) / 'dermmnist' / 'our_approach' / 'ResNet18' / 'c05_03'
     if not approach_dir.exists():
         log.warning("Fig7: Directory not found: %s", approach_dir)
         return
 
-    # 3 representative configs
     targets = [
         ('baseline', 'Baseline (slow)'),
         ('kl0.5_rho5.0', 'kl0.5 + rho5.0 (fast)'),
@@ -667,22 +590,18 @@ def fig7_training_dynamics(base_dir, output_dir):
     colors = ['#2196F3', '#FF9800', '#4CAF50']
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5.5))
 
-    # (a) Loss components over epochs
     for i, (tlog, label) in enumerate(zip(logs, labels)):
         epochs = tlog['Epoch']
         color = colors[i % len(colors)]
 
-        # CE loss
         ax1.plot(epochs, tlog['L_CE'], color=color, linewidth=1.5, alpha=0.8,
                  label=f'{label} (CE)', linestyle='-')
 
-        # Global constraint loss
         mask = tlog['L_Global'] > 0
         if mask.any():
             ax1.plot(epochs[mask], tlog['L_Global'][mask], color=color,
                      linewidth=1.2, alpha=0.6, linestyle='--')
 
-        # KL loss
         if 'L_KL' in tlog.columns:
             kl = tlog['L_KL'].fillna(0)
             kl_mask = kl > 0
@@ -696,7 +615,6 @@ def fig7_training_dynamics(base_dir, output_dir):
     ax1.legend(fontsize=7, loc='upper right')
     ax1.set_yscale('log')
 
-    # (b) MEL hard count convergence
     limit_val = None
     for i, (tlog, label) in enumerate(zip(logs, labels)):
         epochs = tlog['Epoch']
@@ -725,10 +643,7 @@ def fig7_training_dynamics(base_dir, output_dir):
     _savefig(fig, Path(output_dir) / 'fig7_training_dynamics.pdf')
 
 
-# ── Figure 8: Statistical Significance ───────────────────────────────────────
-
 def fig8_statistical_significance(base_dir, output_dir):
-    """Box plot and summary table of metrics across 5 seeds."""
     sig_dir = Path(base_dir) / 'dermmnist' / 'statistical_significance' / 'ResNet18' / 'c05_03'
     if not sig_dir.exists():
         log.warning("Fig8: Directory not found: %s", sig_dir)
@@ -739,7 +654,6 @@ def fig8_statistical_significance(base_dir, output_dir):
         log.warning("Fig8: Need at least 2 seeds, found %d, skipping", len(seed_dirs))
         return
 
-    # Collect metrics per seed
     records = []
     for sd in seed_dirs:
         pred_path = sd / 'final_predictions.csv'
@@ -766,7 +680,6 @@ def fig8_statistical_significance(base_dir, output_dir):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5),
                                      gridspec_kw={'width_ratios': [1.2, 1]})
 
-    # (a) Box plot
     bp = ax1.boxplot([seed_df[m].values for m in metrics_cols],
                      labels=metrics_cols, patch_artist=True,
                      medianprops=dict(color='black', linewidth=2),
@@ -778,7 +691,6 @@ def fig8_statistical_significance(base_dir, output_dir):
         patch.set_facecolor(color)
         patch.set_alpha(0.6)
 
-    # Overlay individual points
     for i, m in enumerate(metrics_cols):
         jitter = np.random.normal(0, 0.04, len(seed_df))
         ax1.scatter(np.ones(len(seed_df)) * (i + 1) + jitter, seed_df[m].values,
@@ -788,7 +700,6 @@ def fig8_statistical_significance(base_dir, output_dir):
     ax1.set_title('(a) Metric Distribution Across Seeds')
     ax1.tick_params(axis='x', rotation=30)
 
-    # (b) Summary table
     ax2.axis('off')
     table_data = []
     for m in metrics_cols:
@@ -805,12 +716,10 @@ def fig8_statistical_significance(base_dir, output_dir):
     table.set_fontsize(10)
     table.scale(1, 1.8)
 
-    # Header styling
     for j in range(4):
         table[(0, j)].set_facecolor('#37474F')
         table[(0, j)].set_text_props(color='white', fontweight='bold')
 
-    # Row styling
     for i in range(1, len(table_data) + 1):
         for j in range(4):
             table[(i, j)].set_facecolor('#F5F5F5' if i % 2 == 0 else 'white')
@@ -823,27 +732,14 @@ def fig8_statistical_significance(base_dir, output_dir):
     _savefig(fig, Path(output_dir) / 'fig8_statistical_significance.pdf')
 
 
-# ── Summary CSV ──────────────────────────────────────────────────────────────
-
 def generate_summary_csv(results_dir='results'):
-    """Generate a summary CSV of all experiments with section IDs for easy comparison.
-
-    Each (model, constraint) combo gets a unique section_id. Within each section,
-    heuristic rows appear first (as the baseline reference), followed by optimization
-    variations sorted by accuracy descending. Pending heuristic experiments are
-    included with empty metrics so you can see what's missing.
-
-    Statistical significance seeds get their own section with source='stat_sig'.
-    """
     dermmnist_dir = Path(results_dir) / 'dermmnist'
     output_path = Path(results_dir) / 'dermmnist' / 'experiment_summary.csv'
 
-    # ── 1. Collect completed experiments (exclude stat_sig to avoid dupes)
     df = collect_dermmnist_experiments(results_dir)
     if len(df) > 0:
         df = df[~df['path'].str.contains('statistical_significance')].reset_index(drop=True)
 
-    # ── 2. Scan for pending heuristic experiments (config.json only) ─────
     pending_records = []
     heuristic_dir = dermmnist_dir / 'heuristic'
     if heuristic_dir.exists():
@@ -852,7 +748,7 @@ def generate_summary_csv(results_dir='results'):
             with open(config_path) as f:
                 cfg = json.load(f)
             if cfg.get('status') == 'completed':
-                continue  # already in df
+                continue
             pending_records.append({
                 'method': 'heuristic',
                 'model_name': cfg.get('model_name', 'unknown'),
@@ -864,7 +760,6 @@ def generate_summary_csv(results_dir='results'):
                 'status': 'pending',
             })
 
-    # ── 3. Collect statistical significance seeds ────────────────────────
     sig_records = []
     sig_dir = dermmnist_dir / 'statistical_significance'
     if sig_dir.exists():
@@ -917,13 +812,11 @@ def generate_summary_csv(results_dir='results'):
                 'seed': hp.get('seed'),
             })
 
-    # ── 4. Mark sources on main df ───────────────────────────────────────
     if len(df) > 0:
         df['status'] = 'completed'
         df['source'] = 'main'
         df['seed'] = None
 
-    # ── 5. Merge everything ──────────────────────────────────────────────
     frames = []
     if len(df) > 0:
         frames.append(df)
@@ -938,9 +831,6 @@ def generate_summary_csv(results_dir='results'):
 
     all_df = pd.concat(frames, ignore_index=True)
 
-    # ── 6. Assign section IDs ────────────────────────────────────────────
-    # Each unique (model, constraint) gets a section_id.
-    # Stat sig seeds get their own section.
     section_keys = []
     for _, r in all_df.iterrows():
         source = r.get('source', 'main')
@@ -950,7 +840,6 @@ def generate_summary_csv(results_dir='results'):
             section_keys.append((r['model_name'], r['constraint_name'], 'main'))
     all_df['_section_key'] = section_keys
 
-    # Deterministic ordering: model alphabetical, then constraint by tightness
     constraint_order = {c: i for i, c in enumerate(CONSTRAINTS_SORTED)}
     model_order = {'MobileNetV3': 0, 'ResNet18': 1, 'ResNet50': 2}
 
@@ -962,7 +851,6 @@ def generate_summary_csv(results_dir='results'):
     key_to_id = {k: i + 1 for i, k in enumerate(unique_keys)}
     all_df['section_id'] = all_df['_section_key'].map(key_to_id)
 
-    # ── 7. Sort rows: section_id, then heuristic first, then accuracy desc
     def _sort_priority(row):
         method_rank = 0 if row.get('method') == 'heuristic' else 1
         status_rank = 1 if row.get('status') == 'pending' else 0
@@ -972,7 +860,6 @@ def generate_summary_csv(results_dir='results'):
     all_df['_sort'] = all_df.apply(_sort_priority, axis=1)
     all_df = all_df.sort_values('_sort').reset_index(drop=True)
 
-    # ── 8. Build clean output columns ────────────────────────────────────
     output_cols = [
         'section_id', 'model_name', 'constraint_name', 'method', 'variation',
         'status', 'source', 'seed',
@@ -983,11 +870,9 @@ def generate_summary_csv(results_dir='results'):
         'lr_constraint', 'warmup_epochs',
         'training_time', 'posthoc_adj',
     ]
-    # Only keep columns that exist
     output_cols = [c for c in output_cols if c in all_df.columns]
     out = all_df[output_cols].copy()
 
-    # Round floats for readability
     float_cols = ['accuracy', 'f1_macro', 'f1_weighted', 'mel_precision', 'mel_recall',
                   'mel_f1', 'ece', 'brier_score', 'training_time']
     for c in float_cols:
@@ -996,7 +881,6 @@ def generate_summary_csv(results_dir='results'):
 
     out.to_csv(output_path, index=False)
 
-    # Summary stats
     n_sections = all_df['section_id'].nunique()
     n_completed = len(all_df[all_df['status'] == 'completed'])
     n_pending = len(all_df[all_df['status'] == 'pending'])
@@ -1008,17 +892,13 @@ def generate_summary_csv(results_dir='results'):
     return out
 
 
-# ── Entry Point ──────────────────────────────────────────────────────────────
-
 def generate_all(results_dir='results'):
-    """Generate all 8 thesis figures + summary CSV."""
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
     _setup_style()
 
     output_dir = Path(results_dir) / 'dermmnist' / 'figures'
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Clean old figures
     for old in output_dir.glob('*.pdf'):
         old.unlink()
 
@@ -1033,10 +913,8 @@ def generate_all(results_dir='results'):
     n_heu = len(df[df['method'] == 'heuristic'])
     log.info("Found %d experiments (%d optimization, %d heuristic)", len(df), n_opt, n_heu)
 
-    # Suppress matplotlib warnings
     warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
 
-    # Generate all 8 figures
     log.info("--- Figure 1: Optimization vs Heuristic ---")
     fig1_opt_vs_heuristic(df, output_dir)
 
@@ -1061,11 +939,9 @@ def generate_all(results_dir='results'):
     log.info("--- Figure 8: Statistical Significance ---")
     fig8_statistical_significance(results_dir, output_dir)
 
-    # Generate summary CSV
     log.info("--- Summary CSV ---")
     generate_summary_csv(results_dir)
 
-    # Report results
     generated = list(output_dir.glob('*.pdf'))
     log.info("Generated %d figures in %s", len(generated), output_dir)
     for f in sorted(generated):

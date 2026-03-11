@@ -1,9 +1,6 @@
-"""
-Visualize statistical significance results:
- - Bar charts for accuracy, F1, kappa, ECE, Brier
- - Class-4 prediction analysis (TP/FP per model, aggregate)
- - Ensemble vs individual comparison
-"""
+# Visualize statistical significance results with bar charts and scatter plots.
+# Covers accuracy, F1, kappa, ECE, Brier, class-4 prediction analysis,
+# and ensemble vs individual model comparison.
 
 import sys, io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -19,7 +16,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from sklearn.metrics import precision_recall_fscore_support
 
-# ── Paths (relative to project root) ──────────────────────────────────────
 BASE = Path(__file__).resolve().parent.parent.parent
 SEED_DIR = BASE / "archive_experiments" / "dermmnist" / "statistical_significance" / "ResNet18" / "c05_03"
 HEUR_DIR = BASE / "archive_experiments" / "dermmnist" / "heuristic" / "ResNet18" / "c05_03" / "baseline"
@@ -49,9 +45,7 @@ def load_preds(path):
     return y_true, y_pred, y_proba, group_ids
 
 
-
 def main():
-    # ── Load all data ──────────────────────────────────────────────────────
     h_true, h_pred, h_proba, h_groups = load_preds(HEUR_DIR / "final_predictions.csv")
 
     seeds_data = []
@@ -64,12 +58,10 @@ def main():
     y_true_ref = seeds_data[0][0]
     g_ref = seeds_data[0][3]
 
-    # Ensemble
     avg_proba = np.mean(all_proba, axis=0)
     avg_proba = avg_proba / avg_proba.sum(axis=1, keepdims=True)
     ens_pred = np.argmax(avg_proba, axis=1)
 
-    # ── Compute metrics for all 7 ─────────────────────────────────────────
     def metrics(y_true, y_pred, y_proba):
         from sklearn.metrics import cohen_kappa_score
         acc = np.mean(y_true == y_pred)
@@ -82,7 +74,6 @@ def main():
         return {"acc": acc, "f1_macro": f1m, "f1_weighted": f1w,
                 "kappa": kappa, "ece": ece, "brier": brier}
 
-    # Saturated ensemble (post-hoc fill to constraint limit)
     sat_pred = ens_pred.copy()
     sat_proba = avg_proba.copy()
     sat_pred, _ = adjust_predictions_to_constraint(
@@ -103,7 +94,6 @@ def main():
     names  = ["Heuristic"] + [f"Seed {i}" for i in range(1, 6)] + ["Ensemble", "Ens+Sat"]
     all_ms = [h_m] + s_ms + [e_m, sat_m]
 
-    # ── Class 4 analysis ───────────────────────────────────────────────────
     def c4_stats(y_true, y_pred, group_ids):
         pred_c4 = (y_pred == CONSTRAINED_CLASS)
         true_c4 = (y_true == CONSTRAINED_CLASS)
@@ -113,7 +103,6 @@ def main():
         total_pred = pred_c4.sum()
         prec = tp / (tp + fp) if (tp + fp) > 0 else 0
         rec = tp / true_c4.sum() if true_c4.sum() > 0 else 0
-        # Per-group
         g0_count = (pred_c4 & (group_ids == 0)).sum()
         g1_count = (pred_c4 & (group_ids == 1)).sum()
         return {"tp": tp, "fp": fp, "fn": fn, "total_pred": total_pred,
@@ -125,22 +114,17 @@ def main():
     sat_c4 = c4_stats(y_true_ref, sat_pred, g_ref)
     all_c4 = [h_c4] + s_c4s + [e_c4, sat_c4]
 
-    # ── Aggregate across 5 seeds ───────────────────────────────────────────
-    # Which samples predicted as class 4 by ANY seed, by ALL seeds, total counts
     seed_c4_masks = [(d[1] == CONSTRAINED_CLASS) for d in seeds_data]
     any_seed_c4 = np.any(seed_c4_masks, axis=0)
     all_seeds_c4 = np.all(seed_c4_masks, axis=0)
-    total_c4_across = sum(m.sum() for m in seed_c4_masks)  # total predictions summed
+    total_c4_across = sum(m.sum() for m in seed_c4_masks)
 
     true_c4_mask = (y_true_ref == CONSTRAINED_CLASS)
-    # Samples predicted c4 by any seed: how many correct?
     any_tp = (any_seed_c4 & true_c4_mask).sum()
     any_fp = (any_seed_c4 & ~true_c4_mask).sum()
-    # Samples predicted c4 by all seeds: how many correct?
     all_tp = (all_seeds_c4 & true_c4_mask).sum()
     all_fp = (all_seeds_c4 & ~true_c4_mask).sum()
 
-    # ── FIGURE 1: Main metrics bar chart ───────────────────────────────────
     fig, axes = plt.subplots(2, 3, figsize=(16, 10))
     fig.suptitle("Statistical Significance: 5 Seeds + Heuristic + Ensemble\nConstraint [0.5, 0.3] on Class 4 (DermaMNIST-C)", fontsize=14, fontweight="bold")
 
@@ -153,12 +137,10 @@ def main():
         colors = [COLORS["heuristic"]] + [COLORS["seed_individual"][i] for i in range(5)] + [COLORS["ensemble"], "#E45756"]
         bars = ax.bar(names, vals, color=colors, edgecolor="black", linewidth=0.5)
 
-        # Add value labels
         for bar, val in zip(bars, vals):
             ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.003,
                     f"{val:.3f}", ha="center", va="bottom", fontsize=8, fontweight="bold")
 
-        # Seed mean line
         seed_vals = [m[key] for m in s_ms]
         seed_mean = np.mean(seed_vals)
         ax.axhline(y=seed_mean, color=COLORS["seeds"], linestyle="--", alpha=0.7, linewidth=1.5, label=f"Seed mean: {seed_mean:.3f}")
@@ -168,7 +150,6 @@ def main():
         ax.tick_params(axis="x", rotation=45)
         ax.legend(fontsize=7, loc="lower right")
 
-        # For ECE and Brier, lower is better
         if key in ("ece", "brier"):
             ax.set_ylim(0, max(vals) * 1.25)
         else:
@@ -179,11 +160,9 @@ def main():
     print(f"Saved: {OUT_DIR / 'metrics_comparison.png'}")
     plt.close()
 
-    # ── FIGURE 2: Class 4 TP/FP breakdown ──────────────────────────────────
     fig, axes = plt.subplots(1, 3, figsize=(18, 6))
     fig.suptitle("Class 4 Prediction Analysis (Constrained Class)\nGlobal Limit: 67 | True Class 4 Samples: 223", fontsize=13, fontweight="bold")
 
-    # Panel A: TP vs FP stacked bar
     ax = axes[0]
     tps = [c["tp"] for c in all_c4]
     fps = [c["fp"] for c in all_c4]
@@ -204,7 +183,6 @@ def main():
     ax.set_title("Class 4 Predictions: TP vs FP", fontweight="bold")
     ax.legend(fontsize=9)
 
-    # Panel B: Precision and Recall
     ax = axes[1]
     precs = [c["precision"] for c in all_c4]
     recs = [c["recall"] for c in all_c4]
@@ -223,11 +201,8 @@ def main():
     ax.set_ylim(0, 0.85)
     ax.legend(fontsize=9)
 
-    # Panel C: Seed agreement analysis
     ax = axes[2]
-    # How many seeds agree on each class-4 prediction?
-    vote_counts = np.sum(seed_c4_masks, axis=0)  # 0-5 for each sample
-    # Among samples predicted c4 by at least 1 seed: vote distribution
+    vote_counts = np.sum(seed_c4_masks, axis=0)
     at_least_1 = vote_counts >= 1
     vote_of_predicted = vote_counts[at_least_1]
     true_labels_predicted = y_true_ref[at_least_1]
@@ -266,7 +241,6 @@ def main():
     print(f"Saved: {OUT_DIR / 'class4_analysis.png'}")
     plt.close()
 
-    # ── FIGURE 3: Ensemble vs Individual scatter ───────────────────────────
     fig, ax = plt.subplots(1, 1, figsize=(8, 6))
     fig.suptitle("Ensemble vs Individual Models", fontsize=13, fontweight="bold")
 
@@ -291,7 +265,6 @@ def main():
     print(f"Saved: {OUT_DIR / 'ensemble_vs_individual.png'}")
     plt.close()
 
-    # ── Print class 4 analysis summary ─────────────────────────────────────
     print("\n" + "=" * 80)
     print("  CLASS 4 PREDICTION ANALYSIS")
     print("=" * 80)
@@ -329,7 +302,6 @@ def main():
     added_fp = sat_c4['fp'] - e_c4['fp']
     print(f"  Of the {sat_c4['total_pred'] - e_c4['total_pred']} added: {added_tp} were truly class 4, {added_fp} were false positives")
 
-    # Compare ensemble quality to seeds
     seed_precs = [c["precision"] for c in s_c4s]
     seed_recs = [c["recall"] for c in s_c4s]
     print(f"\n--- All Variants vs Seeds (class 4) ---")

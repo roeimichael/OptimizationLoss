@@ -1,4 +1,5 @@
-"""Model caching: save/load warmup models to avoid redundant training."""
+# Model caching: save/load warmup models to avoid redundant CE training.
+# Cache key is base_model_id (hash of warmup-relevant hyperparameters).
 
 import logging
 import time
@@ -15,14 +16,12 @@ log = logging.getLogger(__name__)
 
 
 def get_cache_path(base_model_id: str) -> Path:
-    """Get file path for a cached model."""
     cache_dir = Path('model_cache')
     cache_dir.mkdir(exist_ok=True)
     return cache_dir / f"{base_model_id}.pt"
 
 
 def save_to_cache(model: nn.Module, base_model_id: str, config: Dict[str, Any]) -> None:
-    """Save model state to cache."""
     path = get_cache_path(base_model_id)
     torch.save({
         'model_state_dict': model.state_dict(),
@@ -35,29 +34,23 @@ def save_to_cache(model: nn.Module, base_model_id: str, config: Dict[str, Any]) 
 
 def load_from_cache(base_model_id: str, config: Dict[str, Any],
                     input_dim: int, num_classes: int, device: torch.device) -> Optional[nn.Module]:
-    """Attempt to load model from cache. Returns None if not found."""
     path = get_cache_path(base_model_id)
     if not path.exists():
         return None
-
     hp = config['hyperparams']
     ckpt = safe_execute(
-        torch.load, path, map_location=device,
+        torch.load, path, map_location=device, weights_only=False,
         default=None, context=f"Loading cached model {base_model_id}"
     )
-
     if ckpt is None or ckpt.get('base_model_id') != base_model_id:
         return None
-
     model = get_model(
         config['model_name'], input_dim=input_dim, n_classes=num_classes,
         hidden_dims=hp.get('hidden_dims'), dropout=hp['dropout'],
-        pretrained=False  # Loading saved weights, not pretrained
+        pretrained=False
     ).to(device)
-
     result = safe_execute(
         model.load_state_dict, ckpt['model_state_dict'],
         default=None, context=f"Loading state dict for {base_model_id}"
     )
-
     return model if result is not None else None

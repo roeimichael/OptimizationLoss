@@ -1,3 +1,7 @@
+# ResNet-style architecture for tabular data.
+# Uses residual blocks with BatchNorm, ReLU, and Dropout.
+# Input: (B, input_dim) -> logits (B, n_classes).
+
 import torch
 import torch.nn as nn
 
@@ -22,6 +26,7 @@ class ResidualBlock(nn.Module):
 
 
 class TabularResNet(nn.Module):
+
     def __init__(
             self,
             input_dim: int,
@@ -32,7 +37,6 @@ class TabularResNet(nn.Module):
             **kwargs
     ):
         super().__init__()
-
         if 'hidden_dims' in kwargs and kwargs['hidden_dims']:
             d_model = kwargs['hidden_dims'][0]
         self.embedding = nn.Sequential(
@@ -51,8 +55,6 @@ class TabularResNet(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.embedding(x)
-
         for block in self.blocks:
             x = block(x)
-
         return self.head(x)

@@ -1,8 +1,8 @@
-"""Two-level learning rate scheduler: warmup LR then constraint LR."""
+# Two-level learning rate scheduler.
+# Drops LR from warmup_lr to drop_lr at the warmup_epochs boundary.
 
 
 class LearningRateScheduler:
-    """Drops LR from warmup_lr to drop_lr at warmup_epochs boundary."""
 
     def __init__(self, optimizer, warmup_lr=1e-3, drop_lr=1e-5,
                  warmup_epochs=50, **kwargs):

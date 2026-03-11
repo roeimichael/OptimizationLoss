@@ -1,9 +1,6 @@
-"""
-Statistical Significance Evaluation
-====================================
-Evaluates: 1 heuristic baseline, 5 seed models, 1 ensemble (majority vote on probabilities).
-Reports: accuracy, F1, constraint satisfaction, calibration, and statistical tests.
-"""
+# Statistical significance evaluation for constraint optimization experiments.
+# Evaluates 1 heuristic baseline, 5 seed models, 1 ensemble (majority vote on probabilities).
+# Reports accuracy, F1, constraint satisfaction, calibration, and statistical tests.
 
 import sys, io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -20,20 +17,17 @@ from src.utils.posthoc_adjustment import adjust_predictions_to_constraint, enfor
 from src.training.metrics import compute_ece
 from scipy import stats
 
-# ── Paths (relative to project root) ──────────────────────────────────────
 BASE = Path(__file__).resolve().parent.parent.parent
 SEED_DIR = BASE / "archive_experiments" / "dermmnist" / "statistical_significance" / "ResNet18" / "c05_03"
 HEURISTIC_DIR = BASE / "archive_experiments" / "dermmnist" / "heuristic" / "ResNet18" / "c05_03" / "baseline"
 
-# ── Constraint limits (from training logs) ─────────────────────────────────
 CONSTRAINED_CLASS = 4
 GLOBAL_LIMIT = 67
-LOCAL_LIMITS = {0: 72, 1: 40}   # group_0=male, group_1=female
+LOCAL_LIMITS = {0: 72, 1: 40}
 NUM_CLASSES = 7
 
 
 def load_predictions(path):
-    """Load final_predictions.csv and return (true, pred, proba, group_ids)."""
     df = pd.read_csv(path)
     y_true = df["True_Label"].values
     y_pred = df["Predicted_Label"].values
@@ -43,9 +37,7 @@ def load_predictions(path):
     return y_true, y_pred, y_proba, group_ids
 
 
-
 def constraint_check(y_pred, group_ids):
-    """Check constraint satisfaction, return dict with counts and violations."""
     global_count = (y_pred == CONSTRAINED_CLASS).sum()
     global_ok = global_count <= GLOBAL_LIMIT
 
@@ -67,7 +59,6 @@ def constraint_check(y_pred, group_ids):
 
 
 def full_metrics(y_true, y_pred, y_proba, group_ids, name):
-    """Compute full set of metrics for one model."""
     acc = np.mean(y_true == y_pred)
     p_macro, r_macro, f1_macro, _ = precision_recall_fscore_support(
         y_true, y_pred, average="macro", zero_division=0
@@ -81,12 +72,10 @@ def full_metrics(y_true, y_pred, y_proba, group_ids, name):
     kappa = cohen_kappa_score(y_true, y_pred)
     ece = compute_ece(y_true, y_proba)
 
-    # Brier score
     one_hot = np.zeros_like(y_proba)
     one_hot[np.arange(len(y_true)), y_true] = 1.0
     brier = np.mean(np.sum((y_proba - one_hot) ** 2, axis=1))
 
-    # Confidence stats
     confidences = np.max(y_proba, axis=1)
     correct_mask = y_true == y_pred
 
@@ -114,9 +103,8 @@ def full_metrics(y_true, y_pred, y_proba, group_ids, name):
 
 
 def build_ensemble(all_proba):
-    """Average probabilities across models, return ensemble predictions and proba."""
-    avg_proba = np.mean(all_proba, axis=0)  # (n_samples, n_classes)
-    avg_proba = avg_proba / avg_proba.sum(axis=1, keepdims=True)  # re-normalize
+    avg_proba = np.mean(all_proba, axis=0)
+    avg_proba = avg_proba / avg_proba.sum(axis=1, keepdims=True)
     ensemble_pred = np.argmax(avg_proba, axis=1)
     return ensemble_pred, avg_proba
 
@@ -128,13 +116,11 @@ def main():
     print("  Global limit: 67 | Local limits: group_0=72, group_1=40")
     print("=" * 80)
 
-    # ── Load heuristic ─────────────────────────────────────────────────────
     h_true, h_pred, h_proba, h_groups = load_predictions(
         HEURISTIC_DIR / "final_predictions.csv"
     )
     heuristic_metrics = full_metrics(h_true, h_pred, h_proba, h_groups, "Heuristic")
 
-    # ── Load 5 seeds ───────────────────────────────────────────────────────
     seed_metrics = []
     all_proba = []
     y_true_ref = None
@@ -154,21 +140,17 @@ def main():
         seed_metrics.append(m)
         all_proba.append(y_proba)
 
-    # ── Build ensemble ─────────────────────────────────────────────────────
     ens_pred, ens_proba = build_ensemble(np.array(all_proba))
     ensemble_metrics = full_metrics(y_true_ref, ens_pred, ens_proba, group_ref, "Ensemble (5)")
 
-    # ── Build saturated ensemble (post-hoc fill to constraint limit) ──────
     sat_pred = ens_pred.copy()
     sat_proba = ens_proba.copy()
 
-    # Step 1: global adjustment — fill from 49 up to 67
     sat_pred, g_info = adjust_predictions_to_constraint(
         sat_pred, sat_proba, GLOBAL_LIMIT, CONSTRAINED_CLASS
     )
     print(f"\nPost-hoc global adjustment: {g_info}")
 
-    # Step 2: enforce local constraints (drop any group over-limit)
     local_con = {
         gid: {c: (LOCAL_LIMITS[gid] if c == CONSTRAINED_CLASS else 1e9)
               for c in range(NUM_CLASSES)}
@@ -182,10 +164,8 @@ def main():
 
     sat_ens_metrics = full_metrics(y_true_ref, sat_pred, sat_proba, group_ref, "Ens+Saturated")
 
-    # ── Collect all results ────────────────────────────────────────────────
     all_metrics = [heuristic_metrics] + seed_metrics + [ensemble_metrics, sat_ens_metrics]
 
-    # ── Print summary table ────────────────────────────────────────────────
     print("\n" + "-" * 80)
     print("  RESULTS SUMMARY")
     print("-" * 80)
@@ -213,7 +193,6 @@ def main():
             f"{sat:>4}"
         )
 
-    # ── Statistical significance (5 seeds) ─────────────────────────────────
     print("\n" + "-" * 80)
     print("  STATISTICAL ANALYSIS (5 Seeds)")
     print("-" * 80)
@@ -234,7 +213,6 @@ def main():
             f"[{ci[0]:>7.4f}, {ci[1]:>7.4f}]"
         )
 
-    # ── Paired t-test: our approach vs heuristic ───────────────────────────
     print("\n" + "-" * 80)
     print("  PAIRED COMPARISONS VS HEURISTIC")
     print("-" * 80)
@@ -245,7 +223,6 @@ def main():
     seed_accs = np.array([m["accuracy"] for m in seed_metrics])
     seed_f1s = np.array([m["f1_macro"] for m in seed_metrics])
 
-    # One-sample t-test: does seed mean differ from heuristic value?
     t_acc, p_acc = stats.ttest_1samp(seed_accs, h_acc)
     t_f1, p_f1 = stats.ttest_1samp(seed_f1s, h_f1)
 
@@ -257,7 +234,6 @@ def main():
     print(f"Seeds mean F1-macro: {seed_f1s.mean():.4f} +/- {seed_f1s.std(ddof=1):.4f}")
     print(f"  t-statistic: {t_f1:.4f}, p-value: {p_f1:.4f} {'(significant at p<0.05)' if p_f1 < 0.05 else '(not significant)'}")
 
-    # ── Ensemble vs best seed & heuristic ──────────────────────────────────
     print("\n" + "-" * 80)
     print("  ENSEMBLE COMPARISON")
     print("-" * 80)
@@ -271,7 +247,6 @@ def main():
     print(f"{'Best Seed ('+best_seed['name']+')':<20} {best_seed['accuracy']:>10.4f} {best_seed['f1_macro']:>10.4f} {best_seed['f1_weighted']:>12.4f} {best_seed['cohen_kappa']:>8.4f} {'YES' if best_seed['constraint_satisfied'] else 'NO':>12}")
     print(f"{'Ensemble (5)':<20} {ens['accuracy']:>10.4f} {ens['f1_macro']:>10.4f} {ens['f1_weighted']:>12.4f} {ens['cohen_kappa']:>8.4f} {'YES' if ens['constraint_satisfied'] else 'NO':>12}")
 
-    # ── Constraint satisfaction summary ────────────────────────────────────
     print("\n" + "-" * 80)
     print("  CONSTRAINT SATISFACTION DETAILS")
     print("-" * 80)
@@ -291,12 +266,10 @@ def main():
             f"{all_ok:>8}"
         )
 
-    # ── Per-class F1 breakdown ─────────────────────────────────────────────
     print("\n" + "-" * 80)
     print("  PER-CLASS F1 SCORES (Seeds Mean +/- Std)")
     print("-" * 80)
 
-    # Recompute per-class F1 for each seed
     per_class_f1s = []
     for seed_num in range(1, 6):
         seed_path = SEED_DIR / f"seed_{seed_num}" / "final_predictions.csv"
@@ -304,11 +277,9 @@ def main():
         _, _, f1_pc, _ = precision_recall_fscore_support(y_true, y_pred, average=None, zero_division=0)
         per_class_f1s.append(f1_pc)
 
-    per_class_f1s = np.array(per_class_f1s)  # (5, 7)
+    per_class_f1s = np.array(per_class_f1s)
 
-    # Also heuristic per-class F1
     _, _, h_f1_pc, h_support = precision_recall_fscore_support(h_true, h_pred, average=None, zero_division=0)
-    # Also ensemble per-class F1
     _, _, e_f1_pc, _ = precision_recall_fscore_support(y_true_ref, ens_pred, average=None, zero_division=0)
 
     class_names = [f"Class {c}" for c in range(NUM_CLASSES)]
@@ -324,7 +295,6 @@ def main():
             f"{h_support[c]:>8}"
         )
 
-    # ── Confusion matrix for ensemble ──────────────────────────────────────
     print("\n" + "-" * 80)
     print("  CONFUSION MATRIX (Ensemble)")
     print("-" * 80)
@@ -339,7 +309,6 @@ def main():
             print(f"{cm[c][j]:>8}", end="")
         print()
 
-    # ── Save results to JSON ───────────────────────────────────────────────
     output = {
         "experiment": "statistical_significance",
         "constraint": [0.5, 0.3],

@@ -1,8 +1,6 @@
-"""Regenerate all analysis: metrics, training curves, comparison charts.
-
-Usage:
-    python -m src.evaluation.generate_all [results_dir]
-"""
+# Regenerate all analysis: metrics, training curves, comparison charts.
+# Usage: python -m src.evaluation.generate_all [results_dir]
+# Orchestrates the full evaluation pipeline for completed experiments.
 
 import logging
 import sys
@@ -19,7 +17,6 @@ log = logging.getLogger(__name__)
 
 
 def recompute_all_metrics(results_dir='results'):
-    """Recompute evaluation_metrics.csv for all completed experiments with ECE/uncertainty."""
     results_path = Path(results_dir)
     count = 0
     for config_file in sorted(results_path.rglob('config.json')):
@@ -52,7 +49,6 @@ def main():
     log.info("Step 3/3: Generate comparison charts")
     df = generate_comparison_charts(results_dir)
 
-    # Summary
     figures_dir = Path(results_dir) / 'figures'
     if figures_dir.exists():
         all_figs = list(figures_dir.rglob('*.png'))
