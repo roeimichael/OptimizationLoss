@@ -47,13 +47,15 @@ class ConstraintTrainer:
             torch.backends.cudnn.benchmark = True
         self.use_amp = torch.cuda.is_available()
         if self.use_amp:
-            if torch.cuda.is_bf16_supported():
+            gpu_arch = torch.cuda.get_device_capability(0)[0]
+            use_bf16 = gpu_arch >= 8 and torch.cuda.is_bf16_supported()
+            if use_bf16:
                 self.amp_dtype = torch.bfloat16
                 self.scaler = None
             else:
                 self.amp_dtype = torch.float16
                 self.scaler = torch.amp.GradScaler('cuda')
-            log.info("AMP enabled: dtype=%s", self.amp_dtype)
+            log.info("AMP enabled: dtype=%s (gpu_arch=%d)", self.amp_dtype, gpu_arch)
         else:
             self.amp_dtype = torch.float32
             self.scaler = None

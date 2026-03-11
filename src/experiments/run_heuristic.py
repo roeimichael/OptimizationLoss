@@ -35,8 +35,10 @@ def train_fixed_warmup(config, input_dim, num_classes, X_train, y_train, device)
         return model
     hp = config['hyperparams']
     use_amp = device.type == 'cuda'
-    amp_dtype = torch.bfloat16 if (use_amp and torch.cuda.is_bf16_supported()) else torch.float16
-    scaler = torch.amp.GradScaler('cuda') if (use_amp and amp_dtype == torch.float16) else None
+    gpu_arch = torch.cuda.get_device_capability(0)[0] if use_amp else 0
+    use_bf16 = gpu_arch >= 8 and torch.cuda.is_bf16_supported()
+    amp_dtype = torch.bfloat16 if use_bf16 else torch.float16
+    scaler = torch.amp.GradScaler('cuda') if (use_amp and not use_bf16) else None
     log.info("Training heuristic warmup: %d epochs (AMP=%s dtype=%s scaler=%s)",
              warmup_epochs, use_amp, amp_dtype, scaler is not None)
     model = get_model(
