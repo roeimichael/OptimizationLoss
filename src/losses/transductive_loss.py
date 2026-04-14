@@ -1,4 +1,4 @@
-# Transductive constraint loss: rational saturation + bounded ALM + KL regularization.
+# Transductive constraint loss: rational saturation + bounded quadratic + KL regularization.
 # L_constraint = E/(E+K) + rho * (E/K)^2 / (1 + (E/K)^2), bounded to [0, 1+rho).
 # KL term anchors predictions to warmup model to prevent distribution warping.
 
@@ -214,11 +214,8 @@ class MulticlassTransductiveLoss(nn.Module):
         if lambda_local is not None:
             self.lambda_local = float(lambda_local)
 
-    def set_alpha_kl(self, alpha_kl):
-        self.alpha_kl = float(alpha_kl)
-
-    def update_rho(self, factor=1.5):
-        self.rho.mul_(factor)
+    def increment_rho(self, step):
+        self.rho.add_(step)
 
     def get_rho(self):
         return self.rho.item()

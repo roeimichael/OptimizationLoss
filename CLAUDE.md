@@ -50,10 +50,10 @@ Registry: `src/models/model_factory.py` -- `get_model(name, n_classes, **kwargs)
 1. **Warmup** -- CE loss only for `warmup_epochs`. Cached via `base_model_id` hash.
 2. **Constraint Optimization** -- CE + transductive constraint loss.
    - Lambda ratchet: increments by `lambda_step` per epoch until satisfied, then freezes.
-   - Adaptive ALM: `rho * 1.5` every 25 epochs (rho persisted as buffer).
+   - Linear rho schedule: `rho += rho_step` each epoch until first satisfaction, then frozen.
    - KL regularization: `alpha_kl * D_KL(current || warmup)`.
    - CE saturation skip: stops Phase 1 when train accuracy >= 0.995 for 2 checks.
-   - Stagnation detection: early stops if excess doesn't improve for 100 epochs.
+   - Lambda toggle: zeroes lambdas when satisfied, restores when violated, with oscillation detection.
    - Convergence: early stops when constraints satisfied for 5 consecutive epochs.
 3. **Post-hoc Adjustment** -- Flip borderline predictions to enforce hard count limits.
    - Global adjustment first, then local per-group, then re-verify global.
@@ -64,7 +64,7 @@ Registry: `src/models/model_factory.py` -- `get_model(name, n_classes, **kwargs)
 L_total = L_ce + lambda_g * L_global + lambda_l * L_local + alpha_kl * L_kl
 ```
 
-- **L_global / L_local**: Rational saturation `E/(E+K)` + bounded ALM `rho * (E/K)^2 / (1 + (E/K)^2)`
+- **L_global / L_local**: Rational saturation `E/(E+K)` + bounded quadratic `rho * (E/K)^2 / (1 + (E/K)^2)`
 - **L_kl**: KL divergence vs cached warmup predictions
 - Soft counts (differentiable) vs hard counts (argmax for verification)
 

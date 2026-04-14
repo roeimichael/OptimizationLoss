@@ -1,5 +1,6 @@
 # Configuration generator for DermMNIST experiments.
-# Generates configs across scenarios, constraint tightness levels, models, and data slices.
+# Supports round1 (all 4 scenarios, symmetric constraints) and
+# round2 (multi-class only, asymmetric constraints).
 # Output: results/pending_runs/{scenario}/{constraint_tag}/{model}/{methodology}/{slice}/
 
 import hashlib
@@ -13,21 +14,48 @@ DATASET_CONFIG_TEMPLATE = {
     'image_size': 224,
 }
 
-SCENARIOS = {
+# ── Round definitions ──
+
+ROUND1_SCENARIOS = {
     'single_MEL': {'constrained_class': 4},
     'single_NV': {'constrained_class': 5},
     'multi_MEL_BKL': {'constrained_class': [4, 2]},
     'multi_MEL_BCC_VASC': {'constrained_class': [4, 1, 6]},
 }
 
-CONSTRAINT_PAIRS = [
-    (0.3, 0.3), (0.3, 0.8), (0.5, 0.7),
-    (0.7, 0.5), (0.8, 0.3), (0.8, 0.8),
+ROUND1_CONSTRAINT_PAIRS = [
+    # Equal: tight, medium, loose
+    (0.3, 0.3),
+    (0.5, 0.5),
+    (0.8, 0.8),
+    # Global tighter than local
+    (0.5, 0.3),
+    (0.8, 0.5),
+    (0.8, 0.3),
 ]
 
-MODEL_NAMES = ['MobileNetV3', 'EfficientNetB0', 'ConvNeXtTiny']
+ROUND1_METHODOLOGIES = ['our_approach', 'heuristic']
 
-METHODOLOGIES = ['our_approach', 'heuristic']
+ROUND2_SCENARIOS = {
+    'multi_MEL_BKL': {'constrained_class': [4, 2]},
+    'multi_MEL_BCC_VASC': {'constrained_class': [4, 1, 6]},
+}
+
+ROUND2_CONSTRAINT_PAIRS = [
+    (0.3, 0.6), (0.3, 0.8),
+    (0.4, 0.6), (0.5, 0.7),
+    (0.6, 0.3), (0.6, 0.4),
+    (0.7, 0.5), (0.8, 0.3),
+]
+
+ROUND2_METHODOLOGIES = ['our_approach', 'heuristic', 'po_lp']
+
+# Defaults (round2 for backward compat)
+SCENARIOS = ROUND2_SCENARIOS
+CONSTRAINT_PAIRS = ROUND2_CONSTRAINT_PAIRS
+METHODOLOGIES = ROUND2_METHODOLOGIES
+
+MODEL_NAMES = ['MobileNetV3', 'EfficientNetB0', 'ConvNeXtTiny']
 
 NUM_SLICES = 5
 
@@ -37,12 +65,13 @@ HYPERPARAMS = {
     'dropout': 0.3,
     'batch_size': 64,
     'warmup_epochs': 50,
-    'constraint_epochs': 500,
+    'constraint_epochs': 300,
     'lambda_global': 0.01,
     'lambda_local': 0.01,
     'lambda_step': 0.002,
     'use_sum_loss': True,
     'initial_rho': 5.0,
+    'rho_target': 100.0,
     'alpha_kl': 0.5,
     'kl_temperature': 1.0,
     'pretrained': True,
@@ -80,8 +109,9 @@ def compute_base_model_id(model_name, hyperparams, dataset_mode='dermmnist',
     return f"{model_name}_{dataset_mode}_{h}"
 
 
-def _build_dataset_config(scenario_name, slice_idx):
-    sc = SCENARIOS[scenario_name]
+def _build_dataset_config(scenario_name, slice_idx, scenarios=None):
+    sc_map = scenarios or SCENARIOS
+    sc = sc_map[scenario_name]
     cfg = DATASET_CONFIG_TEMPLATE.copy()
     cfg['data_dir'] = f"data/dermmnist/slice_{slice_idx}"
     cfg['constrained_class'] = sc['constrained_class']
@@ -89,9 +119,9 @@ def _build_dataset_config(scenario_name, slice_idx):
 
 
 def _build_config(methodology, exp_name, scenario_name, constraint_pair,
-                  model_name, slice_idx, hyperparams=None):
+                  model_name, slice_idx, hyperparams=None, scenarios=None):
     hp = hyperparams or HYPERPARAMS.copy()
-    ds_config = _build_dataset_config(scenario_name, slice_idx)
+    ds_config = _build_dataset_config(scenario_name, slice_idx, scenarios=scenarios)
     ctag = constraint_tag(constraint_pair)
     return {
         'methodology': methodology,
@@ -107,28 +137,39 @@ def _build_config(methodology, exp_name, scenario_name, constraint_pair,
     }
 
 
+def _get_round_defaults(round_name):
+    if round_name == 'round1':
+        return ROUND1_SCENARIOS, ROUND1_CONSTRAINT_PAIRS, ROUND1_METHODOLOGIES
+    return ROUND2_SCENARIOS, ROUND2_CONSTRAINT_PAIRS, ROUND2_METHODOLOGIES
+
+
 def generate_configs(scenarios=None, constraint_pairs=None, model_names=None,
-                     methodologies=None, num_slices=None):
-    if scenarios is None:
-        scenarios = list(SCENARIOS.keys())
+                     methodologies=None, num_slices=None, round_name=None):
+    if round_name:
+        r_scenarios, r_constraints, r_methods = _get_round_defaults(round_name)
+    else:
+        r_scenarios, r_constraints, r_methods = SCENARIOS, CONSTRAINT_PAIRS, METHODOLOGIES
+
+    scenario_list = scenarios if scenarios is not None else list(r_scenarios.keys())
     if constraint_pairs is None:
-        constraint_pairs = CONSTRAINT_PAIRS
+        constraint_pairs = r_constraints
     if model_names is None:
         model_names = MODEL_NAMES
     if methodologies is None:
-        methodologies = METHODOLOGIES
+        methodologies = r_methods
     if num_slices is None:
         num_slices = NUM_SLICES
 
     configs = []
-    for sc in scenarios:
+    for sc in scenario_list:
         for pair in constraint_pairs:
             ctag = constraint_tag(pair)
             for mn in model_names:
                 for meth in methodologies:
                     for s in range(1, num_slices + 1):
                         exp_name = f"{sc}_{ctag}_{mn}_{meth}_slice{s}"
-                        config = _build_config(meth, exp_name, sc, pair, mn, s)
+                        config = _build_config(meth, exp_name, sc, pair, mn, s,
+                                               scenarios=r_scenarios)
                         path = Path('results/pending_runs') / sc / ctag / mn / meth / f"slice_{s}"
                         config['experiment_path'] = str(path)
                         configs.append(config)
@@ -177,7 +218,7 @@ def main():
     n_slices = NUM_SLICES
     total = n_scenarios * n_constraints * n_models * n_methods * n_slices
 
-    print(f"=== Experiment Config Generator ===")
+    print(f"=== Experiment Config Generator (Round 2) ===")
     print(f"Scenarios: {list(SCENARIOS.keys())}")
     print(f"Constraints: {n_constraints} -> {[constraint_tag(p) for p in CONSTRAINT_PAIRS]}")
     print(f"Models: {MODEL_NAMES}")

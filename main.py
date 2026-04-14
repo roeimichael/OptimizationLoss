@@ -124,7 +124,7 @@ def run_worker(gpu_id, experiments, worker_name, stop_event):
             break
         config_path = Path(exp_path) / 'config.json'
         methodology = config.get('methodology', 'our_approach')
-        runner = HEURISTIC_MODULE if methodology == 'heuristic' else OPTIMIZATION_MODULE
+        runner = HEURISTIC_MODULE if methodology in ('heuristic', 'po_lp', 'danits_lp') else OPTIMIZATION_MODULE
         name = config.get('exp_name', Path(exp_path).name)
         print_experiment_header(i, total, exp_path, config, completed, failed, prefix=prefix)
         exp_start = time.time()
@@ -167,7 +167,7 @@ def run_sequential(pending, gpu_id=None):
     for i, (exp_path, config) in enumerate(pending, 1):
         config_path = Path(exp_path) / 'config.json'
         methodology = config.get('methodology', 'our_approach')
-        runner = HEURISTIC_MODULE if methodology == 'heuristic' else OPTIMIZATION_MODULE
+        runner = HEURISTIC_MODULE if methodology in ('heuristic', 'po_lp', 'danits_lp') else OPTIMIZATION_MODULE
         name = config.get('exp_name', Path(exp_path).name)
         print_experiment_header(i, total, exp_path, config, completed, failed)
         exp_start = time.time()

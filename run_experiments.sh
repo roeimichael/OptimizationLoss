@@ -37,6 +37,7 @@ if ! command -v tmux &>/dev/null; then
     eval "$ACTIVATE_CMD"
     EXPERIMENT_DIR="$EXPERIMENT_DIR" python main.py
     exit $?
+
 fi
 
 if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then

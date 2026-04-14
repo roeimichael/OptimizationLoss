@@ -19,12 +19,17 @@ IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 3, 1
 
 def _ensure_3channel(images):
     if images.ndim == 4 and images.shape[1] == 1:
-        return np.repeat(images, 3, axis=1)
+        # Use contiguous copy instead of np.repeat to avoid 3x peak memory.
+        # np.broadcast_to is zero-copy but returns read-only view;
+        # we need a writable array for in-place normalization.
+        return np.ascontiguousarray(np.broadcast_to(images, (images.shape[0], 3, images.shape[2], images.shape[3])))
     return images
 
 
 def _apply_imagenet_normalization(images):
-    return (images - IMAGENET_MEAN) / IMAGENET_STD
+    images -= IMAGENET_MEAN
+    images /= IMAGENET_STD
+    return images
 
 
 def _load_imagery_data(config):

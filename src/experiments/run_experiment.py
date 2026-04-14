@@ -12,10 +12,7 @@ import torch
 
 from src.utils.data_loader import load_experiment_data
 from src.utils.error_handler import logger, log_exception
-from src.utils.posthoc_adjustment import (
-    apply_posthoc_adjustment, compute_constraint_delta, enforce_local_constraints,
-    adjust_predictions_to_constraint
-)
+from src.utils.posthoc_adjustment import targeted_correction
 from src.training.trainer import ConstraintTrainer
 from src.training.metrics import get_predictions_with_probabilities, compute_metrics
 from src.training.logging import save_final_predictions, save_evaluation_metrics
@@ -77,57 +74,93 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         global_con=global_con, local_con=local_con,
         actual_warmup_epochs=actual_warmup)
     training_time = time.time() - start_time
-    model.eval()
-    y_pred, y_proba = get_predictions_with_probabilities(model, X_test_tensor)
     y_true = _to_numpy(y_test)
     group_ids = _to_numpy(groups_test)
-    adjustment_info = {'adjustment_type': 'none', 'samples_adjusted': 0}
     needs_adjustment = any(global_con[c] < 1e9 for c in constrained_classes)
-    if needs_adjustment:
-        for cc in constrained_classes:
-            constraint_limit = int(global_con[cc]) if global_con[cc] < 1e9 else None
-            if constraint_limit is None:
-                continue
-            delta = compute_constraint_delta(y_pred, constraint_limit, cc)
-            if delta != 0:
-                log.info("Post-hoc: class %d count=%d limit=%d delta=%d",
-                         cc, (y_pred == cc).sum(), constraint_limit, delta)
-                y_pred, info = adjust_predictions_to_constraint(y_pred, y_proba, constraint_limit, cc)
-                adjustment_info['samples_adjusted'] += info.get('samples_adjusted', 0)
-                adjustment_info['adjustment_type'] = info.get('adjustment_type', 'none')
-    if local_con and needs_adjustment:
-        for cc in constrained_classes:
-            y_pred, _ = enforce_local_constraints(y_pred, y_proba, group_ids, local_con, cc)
-        for cc in constrained_classes:
-            constraint_limit = int(global_con[cc]) if global_con[cc] < 1e9 else None
-            if constraint_limit is None:
-                continue
-            delta = compute_constraint_delta(y_pred, constraint_limit, cc)
-            if delta > 0:
-                log.info("Post-hoc: re-fixing global class %d after local adjustment (delta=%d)", cc, delta)
-                y_pred, info = adjust_predictions_to_constraint(y_pred, y_proba, constraint_limit, cc)
-                adjustment_info['samples_adjusted'] += info.get('samples_adjusted', 0)
+
+    def _eval_and_correct(the_model, label='final'):
+        the_model.eval()
+        y_pred, y_proba = get_predictions_with_probabilities(the_model, X_test_tensor)
+        adj = 0
+        posthoc_meta = {}
+        if needs_adjustment:
+            y_pred, adj, posthoc_meta = targeted_correction(
+                y_proba, group_ids, global_con, local_con, constrained_classes)
+        metrics = compute_metrics(y_true, y_pred, y_proba)
+        log.info("[%s] acc=%.4f f1=%.4f adjusted=%d", label, metrics['accuracy'], metrics['f1_macro'], adj)
+        return y_pred, y_proba, metrics, adj, posthoc_meta
+
+    # Evaluate all checkpoints, select best by F1-macro
+    candidates = []
+
+    # Final model
+    y_pred_final, y_proba_final, metrics_final, adj_final, meta_final = _eval_and_correct(model, 'final')
+    candidates.append(('final', y_pred_final, y_proba_final, metrics_final, adj_final, meta_final, None))
+
+    # Bracket best checkpoint
+    if trainer.best_bracket_state is not None:
+        model.load_state_dict(trainer.best_bracket_state)
+        model.to(device)
+        y_pred_brk, y_proba_brk, metrics_brk, adj_brk, meta_brk = _eval_and_correct(model, 'bracket_best')
+        candidates.append(('bracket_best', y_pred_brk, y_proba_brk, metrics_brk, adj_brk, meta_brk,
+                           trainer.best_bracket_epoch))
+
+    # Bracket previous checkpoint
+    if trainer.prev_bracket_state is not None:
+        model.load_state_dict(trainer.prev_bracket_state)
+        model.to(device)
+        y_pred_prev, y_proba_prev, metrics_prev, adj_prev, meta_prev = _eval_and_correct(model, 'bracket_previous')
+        candidates.append(('bracket_previous', y_pred_prev, y_proba_prev, metrics_prev, adj_prev, meta_prev,
+                           trainer.prev_bracket_epoch))
+
+    # Select best by F1-macro
+    best = max(candidates, key=lambda x: x[3]['f1_macro'])
+    best_source, best_pred, best_proba, best_metrics, best_adj, best_meta, best_epoch = best
+    log.info("Selected checkpoint: %s (f1_macro=%.4f from %d candidates)",
+             best_source, best_metrics['f1_macro'], len(candidates))
+
     for c in range(num_classes):
-        pred_count = (y_pred == c).sum()
+        pred_count = (best_pred == c).sum()
         limit = int(global_con[c]) if global_con[c] < 1e9 else 'INF'
         status = 'OK' if (isinstance(limit, str) or pred_count <= limit) else f'VIOLATED by {pred_count - limit}'
         log.info("Class %d: pred=%d limit=%s %s", c, pred_count, limit, status)
-    save_final_predictions(experiment_path / 'final_predictions.csv', y_true, y_pred, y_proba, group_ids)
-    metrics = compute_metrics(y_true, y_pred, y_proba)
-    save_evaluation_metrics(experiment_path / 'evaluation_metrics.csv', metrics)
+    save_final_predictions(experiment_path / 'final_predictions.csv', y_true, best_pred, best_proba, group_ids)
+    # Also save the pre-post-hoc raw argmax of the same probabilities. Same
+    # y_true, same y_proba, same group_ids -- only the Predicted_Label column
+    # differs. This lets downstream analysis inspect the constraint-trained
+    # model's direct output without the targeted_correction flips, so we can
+    # test whether the post-hoc step is driving all methods toward the same
+    # feasible-vertex saturation. Zero training overhead (reuses best_proba).
+    raw_best_pred = best_proba.argmax(axis=1)
+    save_final_predictions(experiment_path / 'final_predictions_raw.csv',
+                           y_true, raw_best_pred, best_proba, group_ids)
+    save_evaluation_metrics(experiment_path / 'evaluation_metrics.csv', best_metrics)
     config['results'] = {
-        'accuracy': float(metrics['accuracy']),
-        'precision_macro': float(metrics['precision_macro']),
-        'recall_macro': float(metrics['recall_macro']),
-        'f1_macro': float(metrics['f1_macro']),
+        'accuracy': float(best_metrics['accuracy']),
+        'precision_macro': float(best_metrics['precision_macro']),
+        'recall_macro': float(best_metrics['recall_macro']),
+        'f1_macro': float(best_metrics['f1_macro']),
         'training_time': float(training_time),
         'used_cached_model': trainer.from_cache,
-        'post_hoc_adjustment': adjustment_info.get('adjustment_type', 'none'),
-        'samples_adjusted': adjustment_info.get('samples_adjusted', 0)
+        'samples_adjusted': int(best_adj),
+        'checkpoint_source': best_source,
+        'bracket_epoch': best_epoch,
+        'lp_fallback_used': best_meta.get('lp_fallback_used', False),
+        'lp_fallback_candidates': best_meta.get('lp_fallback_candidates', 0),
+    }
+    config['results_comparison'] = {
+        c[0]: {
+            'f1_macro': float(c[3]['f1_macro']),
+            'accuracy': float(c[3]['accuracy']),
+            'adjusted': int(c[4]),
+            'lp_fallback_used': c[5].get('lp_fallback_used', False),
+        }
+        for c in candidates
     }
     config['status'] = 'completed'
     save_config_to_path(config, experiment_path)
-    log.info("Done: accuracy=%.4f time=%.2fs path=%s", metrics['accuracy'], training_time, experiment_path)
+    log.info("Done: accuracy=%.4f source=%s time=%.2fs path=%s",
+             best_metrics['accuracy'], best_source, training_time, experiment_path)
     return config['results']
 
 

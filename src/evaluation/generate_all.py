@@ -1,14 +1,12 @@
-# Regenerate all analysis: metrics, training curves, comparison charts.
+# Regenerate all analysis: metrics and aggregated CSV.
 # Usage: python -m src.evaluation.generate_all [results_dir]
-# Orchestrates the full evaluation pipeline for completed experiments.
 
 import logging
 import sys
 from pathlib import Path
 
-from src.evaluation.training_curves import generate_training_curves
 from src.evaluation.experiment_comparison import (
-    generate_comparison_charts, collect_all_experiments, load_predictions
+    generate_comparison_charts, load_predictions
 )
 from src.training.metrics import compute_metrics
 from src.training.logging import save_evaluation_metrics
@@ -36,29 +34,13 @@ def main():
                         format='%(asctime)s %(name)s %(levelname)s %(message)s')
     results_dir = sys.argv[1] if len(sys.argv) > 1 else 'results'
 
-    log.info("=" * 60)
-    log.info("Analysis Pipeline — DermaMNIST-C Constraint Optimization")
-    log.info("=" * 60)
-
-    log.info("Step 1/3: Recompute evaluation metrics (with ECE/calibration)")
+    log.info("Step 1/2: Recompute evaluation metrics")
     recompute_all_metrics(results_dir)
 
-    log.info("Step 2/3: Generate training curves (per-experiment + overlays)")
-    generate_training_curves(results_dir)
-
-    log.info("Step 3/3: Generate comparison charts")
+    log.info("Step 2/2: Collect all experiments to CSV")
     df = generate_comparison_charts(results_dir)
-
-    figures_dir = Path(results_dir) / 'figures'
-    if figures_dir.exists():
-        all_figs = list(figures_dir.rglob('*.png'))
-        log.info("=" * 60)
-        log.info("DONE: %d figures generated in %s/", len(all_figs), figures_dir)
-        for d in sorted(set(f.parent for f in all_figs)):
-            count = len(list(d.glob('*.png')))
-            log.info("  %s/ (%d figures)", d.relative_to(Path(results_dir)), count)
-        log.info("  Metrics CSV: %s/all_metrics.csv", results_dir)
-        log.info("=" * 60)
+    if df is not None and len(df) > 0:
+        log.info("DONE: %d experiments collected to %s/all_metrics.csv", len(df), results_dir)
 
 
 if __name__ == '__main__':

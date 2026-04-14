@@ -1,6 +1,6 @@
-# Constraint-aware trainer: CE warmup phase then constraint optimization with lambda ratchet.
+# Constraint-aware trainer: CE warmup phase then constraint optimization with lambda toggle.
 # Two-pass constraint computation for memory efficiency on high-resolution images.
-# Includes AMP, fused Adam, CE saturation skip, and stagnation early stopping.
+# Includes AMP, fused Adam, CE saturation skip, warmup saturation cap, and oscillation detection.
 
 import logging
 import os
@@ -20,6 +20,7 @@ from src.training.metrics import compute_train_accuracy, compute_prediction_stat
 from src.training.logging import log_progress_to_csv, write_csv_header
 from src.training.schedulers import LearningRateScheduler
 from src.training.model_cache import save_to_cache, load_from_cache
+from src.training.diagnostics import TrainingDiagnostics
 from src.utils.error_handler import logger
 from src.utils.inference import chunked_forward
 
@@ -113,6 +114,7 @@ class ConstraintTrainer:
         log.info("AMP: enabled=%s dtype=%s scaler=%s", self.use_amp, self.amp_dtype,
                  self.scaler is not None)
         epoch_times = []
+        sat_counter = 0
         for epoch in range(warmup_epochs):
             epoch_start = time.time()
             self.model.train()
@@ -132,13 +134,29 @@ class ConstraintTrainer:
                 epoch_loss += loss.item()
             epoch_elapsed = time.time() - epoch_start
             epoch_times.append(epoch_elapsed)
-            if epoch < 3 or (epoch + 1) % log_interval == 0 or epoch == warmup_epochs - 1:
+            should_log = epoch < 3 or (epoch + 1) % log_interval == 0 or epoch == warmup_epochs - 1
+            check_saturation = epoch >= 4
+            if should_log or check_saturation:
                 avg_loss = epoch_loss / n_batches
                 train_acc = compute_train_accuracy(self.model, train_loader, self.device)
-                log_progress_to_csv(str(self.csv_log_path), epoch, avg_loss, train_acc,
-                                    num_classes=self.num_classes)
-                log.info("Warmup %d/%d: loss=%.4f acc=%.4f [%.2fs/epoch]",
-                         epoch + 1, warmup_epochs, avg_loss, train_acc, epoch_elapsed)
+                if should_log:
+                    log_progress_to_csv(str(self.csv_log_path), epoch, avg_loss, train_acc,
+                                        num_classes=self.num_classes)
+                    log.info("Warmup %d/%d: loss=%.4f acc=%.4f [%.2fs/epoch]",
+                             epoch + 1, warmup_epochs, avg_loss, train_acc, epoch_elapsed)
+                if check_saturation:
+                    if train_acc >= 0.995:
+                        sat_counter += 1
+                        if sat_counter >= 2:
+                            log.info("Warmup saturated (acc>=0.995 for %d checks) at epoch %d",
+                                     sat_counter, epoch + 1)
+                            avg_epoch = sum(epoch_times) / len(epoch_times)
+                            log.info("Warmup done (early): avg=%.2fs/epoch total=%.1fs",
+                                     avg_epoch, sum(epoch_times))
+                            save_to_cache(self.model, base_model_id, self.config)
+                            return epoch + 1
+                    else:
+                        sat_counter = 0
         avg_epoch = sum(epoch_times) / len(epoch_times) if epoch_times else 0
         log.info("Warmup done: avg=%.2fs/epoch total=%.1fs", avg_epoch, sum(epoch_times))
         save_to_cache(self.model, base_model_id, self.config)
@@ -161,7 +179,7 @@ class ConstraintTrainer:
                           actual_warmup_epochs: int = 50) -> nn.Module:
         hp = self.hyperparams
         warmup_epochs = actual_warmup_epochs
-        total_epochs = warmup_epochs + hp.get('constraint_epochs', 350)
+        total_epochs = warmup_epochs + hp.get('constraint_epochs', 300)
         lambda_step = hp['lambda_step']
         self.optimizer = self._make_optimizer(
             self.model.parameters(), hp.get('lr_constraint', 1e-5))
@@ -184,7 +202,6 @@ class ConstraintTrainer:
         warmup_proba = None
         if alpha_kl > 0:
             warmup_proba = self._cache_warmup_probabilities(X_test, kl_temperature)
-        constraints_satisfied = False
         satisfaction_epoch = None
         stable_count = 0
         training_start = time.time()
@@ -193,9 +210,36 @@ class ConstraintTrainer:
         constrained_classes = [c for c in range(self.num_classes) if global_con[c] < 1e9]
         constrained_class = constrained_classes[0] if constrained_classes else None
         constraint_limit = int(global_con[constrained_class]) if constrained_class is not None else None
-        best_hard_count = float('inf')
-        stagnation_counter = 0
-        STAGNATION_PATIENCE = 100
+        # Lambda toggle state
+        lambda_global_saved = hp['lambda_global']
+        lambda_local_saved = hp['lambda_local']
+        was_satisfied_last = False
+        toggle_count = 0
+        OSCILLATION_THRESHOLD = 10
+        rho_frozen = False
+        # Linear rho step
+        constraint_epochs = hp.get('constraint_epochs', 300)
+        rho_target = hp.get('rho_target', 100.0)
+        initial_rho = hp.get('initial_rho', 0.5)
+        rho_step = (rho_target - initial_rho) / constraint_epochs
+        # Three bracket checkpoints
+        self.best_bracket_state = None
+        self.best_bracket_excess = float('inf')
+        self.best_bracket_epoch = None
+        self.prev_bracket_state = None
+        self.prev_bracket_excess = float('inf')
+        self.prev_bracket_epoch = None
+        # Diagnostics setup
+        diag_level = hp.get('diagnostic_level', 0)
+        self.diagnostics = TrainingDiagnostics(
+            level=diag_level, experiment_path=str(self.experiment_path),
+            num_classes=self.num_classes, num_test_samples=len(X_test),
+            constrained_classes=constrained_classes,
+            global_con=global_con, local_con=local_con)
+        if diag_level > 0:
+            self.diagnostics.capture_warmup_state(
+                self.model, X_test, self.device, self.amp_dtype, self.use_amp)
+
         log.info("Constraint training: epochs %d to %d", warmup_epochs + 1, total_epochs)
         write_csv_header(str(self.csv_log_path), self.num_classes, local_con)
 
@@ -206,7 +250,8 @@ class ConstraintTrainer:
             num_batches = len(train_loader)
             train_correct, train_total = 0, 0
             if not skip_ce:
-                for batch_X, batch_y in train_loader:
+                n_ce_batches = len(train_loader)
+                for bi, (batch_X, batch_y) in enumerate(train_loader):
                     batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device)
                     self.optimizer.zero_grad(set_to_none=True)
                     with torch.amp.autocast('cuda', dtype=self.amp_dtype, enabled=self.use_amp):
@@ -214,10 +259,19 @@ class ConstraintTrainer:
                         loss_ce = self.criterion_ce(logits_ce, batch_y)
                     if self.scaler:
                         self.scaler.scale(loss_ce).backward()
-                        self.scaler.step(self.optimizer)
-                        self.scaler.update()
+                        # Capture CE grad norm from last batch (before step consumes them)
+                        if diag_level > 0 and bi == n_ce_batches - 1:
+                            self.scaler.unscale_(self.optimizer)
+                            self.diagnostics.record_ce_gradients(self.model)
+                            self.scaler.step(self.optimizer)
+                            self.scaler.update()
+                        else:
+                            self.scaler.step(self.optimizer)
+                            self.scaler.update()
                     else:
                         loss_ce.backward()
+                        if diag_level > 0 and bi == n_ce_batches - 1:
+                            self.diagnostics.record_ce_gradients(self.model)
                         self.optimizer.step()
                     epoch_ce += loss_ce.item()
                     with torch.no_grad():
@@ -238,6 +292,9 @@ class ConstraintTrainer:
                                     for gid in criterion_constraint.local_groups}
                 total_local_hard = {gid: torch.zeros(self.num_classes, device=self.device)
                                     for gid in criterion_constraint.local_groups}
+                # Collect per-sample data for diagnostics (zero overhead when off)
+                _diag_proba_chunks = [] if diag_level > 0 else None
+                _diag_preds_chunks = [] if diag_level > 0 else None
                 for ci in range(n_chunks):
                     start = ci * chunk_size
                     end = min(start + chunk_size, n_test)
@@ -255,6 +312,9 @@ class ConstraintTrainer:
                             total_local_soft[gid] += chunk_proba[mask].sum(dim=0)
                             total_local_hard[gid] += torch.bincount(
                                 chunk_preds[mask], minlength=self.num_classes).float()
+                    if diag_level > 0:
+                        _diag_proba_chunks.append(chunk_proba.cpu())
+                        _diag_preds_chunks.append(chunk_preds.cpu())
 
             loss_global_val = criterion_constraint.compute_global_from_counts(
                 total_global_soft).item()
@@ -306,14 +366,43 @@ class ConstraintTrainer:
                     else:
                         chunk_loss.backward()
 
-            if self.scaler:
-                self.scaler.unscale_(self.optimizer)
-            grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
-            if grad_norm > 0:
+            # Record constraint gradients before step (diagnostics level > 0)
+            if diag_level > 0:
                 if self.scaler:
-                    self.scaler.step(self.optimizer)
+                    try:
+                        self.scaler.unscale_(self.optimizer)
+                    except AssertionError:
+                        pass  # zero loss, no grads to unscale
+                self.diagnostics.record_constraint_gradients(self.model)
+
+            # Unscale + step for constraint gradients. The scaler is needed
+            # here because the model forward runs in FP16 (autocast) and
+            # small constraint gradients near the satisfaction boundary can
+            # underflow without scaling. When constraint loss is exactly
+            # zero (satisfied epoch), the scaler may crash with "No inf
+            # checks" — we catch that and fall back to a plain step.
+            if self.scaler:
+                try:
+                    if diag_level == 0:
+                        self.scaler.unscale_(self.optimizer)
+                    # Already unscaled above when diag_level > 0
+                    grad_norm = torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(), max_norm=1.0)
+                    if grad_norm > 0:
+                        self.scaler.step(self.optimizer)
                     self.scaler.update()
-                else:
+                except AssertionError:
+                    # Zero constraint loss → no scaled gradients → scaler
+                    # has nothing to unscale/step/update. Fall back to
+                    # plain step (safe because zero-loss means zero grads).
+                    grad_norm = torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(), max_norm=1.0)
+                    if grad_norm > 0:
+                        self.optimizer.step()
+            else:
+                grad_norm = torch.nn.utils.clip_grad_norm_(
+                    self.model.parameters(), max_norm=1.0)
+                if grad_norm > 0:
                     self.optimizer.step()
 
             loss_global = torch.tensor(loss_global_val)
@@ -347,24 +436,91 @@ class ConstraintTrainer:
                 stable_count += 1
             else:
                 stable_count = 0
-            if is_satisfied and not constraints_satisfied:
-                constraints_satisfied = True
-                satisfaction_epoch = epoch + 1
-                log.info("Constraints satisfied at epoch %d, freezing lambdas (g=%.3f, l=%.3f)",
-                         satisfaction_epoch, criterion_constraint.lambda_global,
-                         criterion_constraint.lambda_local)
-            if constraints_satisfied and stable_count >= 5:
-                log.info("Converged: constraints stable for %d epochs", stable_count)
+
+            # Diagnostics: record predictions every epoch (uses data from no_grad pass)
+            if diag_level > 0:
+                _diag_proba = torch.cat(_diag_proba_chunks).numpy()
+                _diag_preds = torch.cat(_diag_preds_chunks).numpy()
+                self.diagnostics.record_predictions(epoch, _diag_proba, _diag_preds)
+                self.diagnostics.record_weight_drift(self.model, epoch)
+                self.diagnostics.record_loss_components(
+                    epoch, avg_ce, loss_global_val, loss_local_val, loss_kl_val,
+                    criterion_constraint.lambda_global, criterion_constraint.lambda_local,
+                    criterion_constraint.get_rho(), is_satisfied)
+                # Flush summary CSV every 10 epochs so partial data survives crashes
+                if epoch % 10 == 0:
+                    self.diagnostics.flush_summary()
+
+            # Lambda toggle logic.
+            # Legacy behaviour (disable_lambda_toggle=False): when constraints
+            # become satisfied, lambdas are SET TO ZERO -- this kills constraint
+            # gradients for the rest of training, leaving only the KL term to
+            # pull the model back to warmup. The audit found this is the main
+            # cause of posterior collapse.
+            # New behaviour (disable_lambda_toggle=True): lambdas monotonically
+            # ratchet up when violated and FREEZE at their current value when
+            # satisfied. Constraint gradients remain non-zero throughout.
+            if hp.get('disable_lambda_toggle', False):
+                # Simple monotonic ratchet: increment when violated, freeze when satisfied.
+                if not is_satisfied:
+                    if not global_satisfied:
+                        new_g = criterion_constraint.lambda_global + lambda_step
+                        criterion_constraint.set_lambda(lambda_global=new_g)
+                    if not local_satisfied:
+                        new_l = criterion_constraint.lambda_local + lambda_step
+                        criterion_constraint.set_lambda(lambda_local=new_l)
+                else:
+                    # satisfied - freeze at current value (do NOT zero)
+                    if satisfaction_epoch is None:
+                        satisfaction_epoch = epoch + 1
+                    if not rho_frozen:
+                        rho_frozen = True
+                        log.info("Constraints first satisfied at epoch %d, freezing rho=%.3f",
+                                 epoch + 1, criterion_constraint.get_rho())
+            else:
+                # Legacy toggle behaviour.
+                if is_satisfied and not was_satisfied_last:
+                    # violated -> satisfied: save lambdas, zero them
+                    lambda_global_saved = criterion_constraint.lambda_global
+                    lambda_local_saved = criterion_constraint.lambda_local
+                    criterion_constraint.set_lambda(lambda_global=0, lambda_local=0)
+                    toggle_count += 1
+                    if satisfaction_epoch is None:
+                        satisfaction_epoch = epoch + 1
+                    if not rho_frozen:
+                        rho_frozen = True
+                        log.info("Constraints first satisfied at epoch %d, freezing rho=%.3f",
+                                 epoch + 1, criterion_constraint.get_rho())
+                    was_satisfied_last = True
+                elif not is_satisfied and was_satisfied_last:
+                    # satisfied -> violated: restore (possibly halved) lambdas
+                    toggle_count += 1
+                    if toggle_count >= OSCILLATION_THRESHOLD:
+                        lambda_global_saved /= 2
+                        lambda_local_saved /= 2
+                        log.info("Oscillation detected (toggle=%d), halving saved lambdas (g=%.4f l=%.4f)",
+                                 toggle_count, lambda_global_saved, lambda_local_saved)
+                    criterion_constraint.set_lambda(lambda_global=lambda_global_saved,
+                                                    lambda_local=lambda_local_saved)
+                    was_satisfied_last = False
+                elif not is_satisfied:
+                    # still violated: increment lambdas
+                    if not global_satisfied:
+                        new_g = criterion_constraint.lambda_global + lambda_step
+                        criterion_constraint.set_lambda(lambda_global=new_g)
+                    if not local_satisfied:
+                        new_l = criterion_constraint.lambda_local + lambda_step
+                        criterion_constraint.set_lambda(lambda_local=new_l)
+                # else: still satisfied, lambdas stay at 0
+
+            # Linear rho increment
+            if not rho_frozen:
+                criterion_constraint.increment_rho(rho_step)
+
+            # Convergence check
+            if stable_count >= 5:
+                log.info("Converged: constraints stable for %d epochs with lambdas zeroed", stable_count)
                 break
-            if not constraints_satisfied:
-                if not global_satisfied:
-                    new_g = criterion_constraint.lambda_global + lambda_step
-                    criterion_constraint.set_lambda(lambda_global=new_g)
-                if not local_satisfied:
-                    new_l = criterion_constraint.lambda_local + lambda_step
-                    criterion_constraint.set_lambda(lambda_local=new_l)
-                if (epoch - warmup_epochs) % 25 == 0 and epoch > warmup_epochs:
-                    criterion_constraint.update_rho(factor=1.5)
 
             if (epoch + 1) % 5 == 0 or is_satisfied or epoch == warmup_epochs:
                 train_acc = cached_train_acc
@@ -376,32 +532,49 @@ class ConstraintTrainer:
                 l_soft = {}
                 for gid in total_local_soft:
                     l_soft[gid] = {c: total_local_soft[gid][c].item() for c in range(self.num_classes)}
-                if train_acc >= 0.995:
-                    ce_skip_counter += 1
-                    if ce_skip_counter >= 2 and not skip_ce:
-                        skip_ce = True
-                        log.info("CE saturated (acc>=0.995 for %d checks), skipping Phase 1",
-                                 ce_skip_counter)
-                else:
-                    ce_skip_counter = 0
-                    skip_ce = False
-                if constrained_classes and not constraints_satisfied:
+                # CE saturation skip (legacy behaviour): when train_acc saturates
+                # the CE loop is disabled, leaving only constraint+KL gradients. The
+                # audit found this causes posterior collapse when combined with
+                # alpha_kl>0 and lambda zeroing. Set `disable_ce_skip: True` in
+                # hyperparams to keep CE training active for the full constraint
+                # phase.
+                if not hp.get('disable_ce_skip', False):
+                    if train_acc >= 0.995:
+                        ce_skip_counter += 1
+                        if ce_skip_counter >= 2 and not skip_ce:
+                            skip_ce = True
+                            log.info("CE saturated (acc>=0.995 for %d checks), skipping Phase 1",
+                                     ce_skip_counter)
+                    else:
+                        ce_skip_counter = 0
+                        skip_ce = False
+                if constrained_classes:
                     total_excess = sum(
                         max(0, g_counts.get(c, 0) - int(global_con[c]))
                         for c in constrained_classes
                     )
-                    if total_excess < best_hard_count:
-                        best_hard_count = total_excess
-                        stagnation_counter = 0
-                        log.info("  New best total excess: %d", best_hard_count)
-                    else:
-                        stagnation_counter += 5
-                    if stagnation_counter >= STAGNATION_PATIENCE:
-                        log.info("Stagnation: total excess hasn't improved for %d epochs "
-                                 "(best=%d, current=%d). Stopping.",
-                                 stagnation_counter, best_hard_count, total_excess)
-                        break
-                mode = "Refinement" if constraints_satisfied else "Constraint"
+                    if total_excess > 0 and total_excess < self.best_bracket_excess:
+                        # Demote current best to previous
+                        if self.best_bracket_state is not None:
+                            self.prev_bracket_state = self.best_bracket_state
+                            self.prev_bracket_excess = self.best_bracket_excess
+                            self.prev_bracket_epoch = self.best_bracket_epoch
+                        self.best_bracket_excess = total_excess
+                        self.best_bracket_epoch = epoch + 1
+                        self.best_bracket_state = {
+                            k: v.cpu().clone() for k, v in self.model.state_dict().items()
+                        }
+                        log.info("  Bracket best: excess=%d epoch=%d",
+                                 total_excess, epoch + 1)
+                    elif total_excess > 0 and total_excess < self.prev_bracket_excess:
+                        self.prev_bracket_excess = total_excess
+                        self.prev_bracket_epoch = epoch + 1
+                        self.prev_bracket_state = {
+                            k: v.cpu().clone() for k, v in self.model.state_dict().items()
+                        }
+                        log.info("  Bracket previous: excess=%d epoch=%d",
+                                 total_excess, epoch + 1)
+                mode = "Satisfied" if is_satisfied else "Constraint"
                 kl_str = f" kl={avg_kl:.4f}" if alpha_kl > 0 else ""
                 log.info("Epoch %d [%s] lr=%.2e ce=%.4f g=%.4f l=%.4f%s "
                          "lambda(g=%.3f l=%.3f rho=%.3f) acc=%.4f g_%s l_%s",
@@ -449,4 +622,8 @@ class ConstraintTrainer:
                              l_counts.get(gid, {}).get(c, 0),
                              l_soft.get(gid, {}).get(c, 0.0),
                              int(local_con[gid][c]))
+        # Save diagnostic reports
+        if diag_level > 0:
+            self.diagnostics.save_report()
+
         return self.model
