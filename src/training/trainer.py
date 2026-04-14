@@ -451,16 +451,52 @@ class ConstraintTrainer:
                 if epoch % 10 == 0:
                     self.diagnostics.flush_summary()
 
-            # Lambda toggle logic.
-            # Legacy behaviour (disable_lambda_toggle=False): when constraints
-            # become satisfied, lambdas are SET TO ZERO -- this kills constraint
-            # gradients for the rest of training, leaving only the KL term to
-            # pull the model back to warmup. The audit found this is the main
-            # cause of posterior collapse.
-            # New behaviour (disable_lambda_toggle=True): lambdas monotonically
-            # ratchet up when violated and FREEZE at their current value when
-            # satisfied. Constraint gradients remain non-zero throughout.
-            if hp.get('disable_lambda_toggle', False):
+            # Lambda update mechanism.
+            # `lambda_mode` selects which update rule to use:
+            #   "ratchet" (default): linear increment + toggle to 0 on satisfaction (March 27 proven)
+            #   "ratchet_frozen": linear increment, freeze (don't zero) on satisfaction
+            #   "proportional": smooth excess-proportional update (NEW, experimental)
+            lambda_mode = hp.get('lambda_mode', 'ratchet')
+
+            if lambda_mode == 'proportional':
+                # Compute current excess (hard over limit) per constraint type.
+                n_test_total = n_test
+                g_excess = 0.0
+                for c in range(self.num_classes):
+                    if c < len(criterion_constraint.global_constraints) and \
+                            criterion_constraint.global_constraints[c] < UNLIMITED:
+                        over = total_global_hard[c].item() - criterion_constraint.global_constraints[c].item()
+                        g_excess += max(0.0, over)
+                l_excess = 0.0
+                for gid, buffer_name in criterion_constraint.local_groups.items():
+                    lc = getattr(criterion_constraint, buffer_name)
+                    for c in range(self.num_classes):
+                        if c < len(lc) and lc[c] < UNLIMITED:
+                            over = total_local_hard[gid][c].item() - lc[c].item()
+                            l_excess += max(0.0, over)
+                # Normalize to fraction of test set
+                g_frac = g_excess / max(n_test_total, 1)
+                l_frac = l_excess / max(n_test_total, 1)
+                # Target lambdas: smooth tanh mapping
+                lambda_max = hp.get('lambda_max', 0.2)
+                lambda_k = hp.get('lambda_k', 20.0)
+                target_g = lambda_max * float(np.tanh(lambda_k * g_frac))
+                target_l = lambda_max * float(np.tanh(lambda_k * l_frac))
+                # EMA toward target
+                ema_alpha = hp.get('lambda_ema_alpha', 0.2)
+                current_g = criterion_constraint.lambda_global
+                current_l = criterion_constraint.lambda_local
+                new_g = (1 - ema_alpha) * current_g + ema_alpha * target_g
+                new_l = (1 - ema_alpha) * current_l + ema_alpha * target_l
+                criterion_constraint.set_lambda(lambda_global=new_g, lambda_local=new_l)
+                # Record first satisfaction + freeze rho at that point
+                if is_satisfied and satisfaction_epoch is None:
+                    satisfaction_epoch = epoch + 1
+                    if not rho_frozen:
+                        rho_frozen = True
+                        log.info("[prop] Constraints first satisfied at epoch %d, freezing rho=%.3f",
+                                 epoch + 1, criterion_constraint.get_rho())
+            elif hp.get('disable_lambda_toggle', False) or lambda_mode == 'ratchet_frozen':
                 # Simple monotonic ratchet: increment when violated, freeze when satisfied.
                 if not is_satisfied:
                     if not global_satisfied:
