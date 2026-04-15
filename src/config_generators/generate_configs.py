@@ -1,159 +1,205 @@
-"""Configuration generator for experiment grid."""
+# Configuration generator for DermMNIST experiments.
+# Supports round1 (all 4 scenarios, symmetric constraints) and
+# round2 (multi-class only, asymmetric constraints).
+# Output: results/pending_runs/{scenario}/{constraint_tag}/{model}/{methodology}/{slice}/
 
 import hashlib
 import json
 from pathlib import Path
 
-# ── Dataset configurations (replaces config/experiment_config.py) ────────────
-
-DATASET_CONFIGS = {
-    # 'binary': {
-    #     'train_path': 'data/adult/train_dataset_cleaned.csv',
-    #     'test_path': 'data/adult/test_dataset_cleaned.csv',
-    #     'target_column': 'income',
-    #     'group_column': 'race',
-    #     'num_classes': 2,
-    #     'constrained_class': 1,
-    # },
-    'dermmnist': {
-        'data_dir': 'data/dermmnist',
-        'target_column': 'label',
-        'group_column': 'sex',  # 0=male, 1=female (from DermaMNIST-C metadata)
-        'num_classes': 7,
-        'constrained_class': 4,  # Melanoma
-        'image_size': 224,
-    },
+DATASET_CONFIG_TEMPLATE = {
+    'target_column': 'label',
+    'group_column': 'loc_group',
+    'num_classes': 7,
+    'image_size': 224,
 }
 
-# ── Model + constraint grid ──────────────────────────────────────────────────
+# ── Round definitions ──
 
-# MODELS_TABULAR = ['FTTransformer']
-MODELS_IMAGERY = ['ResNet18', 'ResNet50']
+ROUND1_SCENARIOS = {
+    'single_MEL': {'constrained_class': 4},
+    'single_NV': {'constrained_class': 5},
+    'multi_MEL_BKL': {'constrained_class': [4, 2]},
+    'multi_MEL_BCC_VASC': {'constrained_class': [4, 1, 6]},
+}
 
-CONSTRAINTS = [
+ROUND1_CONSTRAINT_PAIRS = [
+    # Equal: tight, medium, loose
+    (0.3, 0.3),
+    (0.5, 0.5),
+    (0.8, 0.8),
+    # Global tighter than local
     (0.5, 0.3),
+    (0.8, 0.5),
+    (0.8, 0.3),
 ]
 
-ALPHA_KL_VALUES = [0.0, 0.1, 1.0]
+ROUND1_METHODOLOGIES = ['our_approach', 'heuristic']
 
-# ── Hyperparameters ──────────────────────────────────────────────────────────
+ROUND2_SCENARIOS = {
+    'multi_MEL_BKL': {'constrained_class': [4, 2]},
+    'multi_MEL_BCC_VASC': {'constrained_class': [4, 1, 6]},
+}
 
-# HYPERPARAMS_TABULAR = {
-#     'lr': 0.001,
-#     'lr_constraint': 0.00001,
-#     'dropout': 0.3,
-#     'batch_size': 64,
-#     'hidden_dims': [128, 64],
-#     'warmup_epochs': 5,
-#     'constraint_epochs': 350,
-#     'lambda_global': 0.005,
-#     'lambda_local': 0.005,
-#     'lambda_step': 0.001,
-#     'use_sum_loss': True,
-#     'initial_rho': 0.5,
-#     'alpha_kl': 1.0,
-# }
+ROUND2_CONSTRAINT_PAIRS = [
+    (0.3, 0.6), (0.3, 0.8),
+    (0.4, 0.6), (0.5, 0.7),
+    (0.6, 0.3), (0.6, 0.4),
+    (0.7, 0.5), (0.8, 0.3),
+]
 
-HYPERPARAMS_IMAGERY = {
+ROUND2_METHODOLOGIES = ['our_approach', 'heuristic', 'po_lp']
+
+# Defaults (round2 for backward compat)
+SCENARIOS = ROUND2_SCENARIOS
+CONSTRAINT_PAIRS = ROUND2_CONSTRAINT_PAIRS
+METHODOLOGIES = ROUND2_METHODOLOGIES
+
+MODEL_NAMES = ['MobileNetV3', 'EfficientNetB0', 'ConvNeXtTiny']
+
+NUM_SLICES = 5
+
+HYPERPARAMS = {
     'lr': 0.0001,
-    'lr_constraint': 0.00001,
+    'lr_constraint': 5e-6,
     'dropout': 0.3,
     'batch_size': 64,
-    'warmup_epochs': 5,
-    'constraint_epochs': 100,
-    'lambda_global': 0.005,
-    'lambda_local': 0.005,
-    'lambda_step': 0.001,
+    'warmup_epochs': 50,
+    'constraint_epochs': 300,
+    'lambda_global': 0.01,
+    'lambda_local': 0.01,
+    'lambda_step': 0.002,
     'use_sum_loss': True,
-    'initial_rho': 0.5,
-    'alpha_kl': 1.0,
-    'pretrained': False,
+    'initial_rho': 5.0,
+    'rho_target': 100.0,
+    'alpha_kl': 0.5,
+    'kl_temperature': 1.0,
+    'pretrained': True,
+    'class_weighted_ce': False,
+    'constraint_chunk_size': 64,
 }
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+def constraint_tag(pair):
+    local_pct, global_pct = pair
+    return f"L{int(local_pct * 100):02d}_G{int(global_pct * 100):02d}"
 
-def compute_base_model_id(model_name, hyperparams, dataset_mode='binary'):
-    """Generate unique ID for model caching based on architecture params."""
+
+def model_tag(model_name):
+    tags = {'MobileNetV3': 'mv3', 'EfficientNetB0': 'effb0', 'ConvNeXtTiny': 'cnxt'}
+    return tags.get(model_name, model_name.lower())
+
+
+def compute_base_model_id(model_name, hyperparams, dataset_mode='dermmnist',
+                          data_dir='data/dermmnist'):
     key = {
         'model_name': model_name,
         'lr': hyperparams['lr'],
         'dropout': hyperparams['dropout'],
         'batch_size': hyperparams['batch_size'],
         'warmup_epochs': hyperparams['warmup_epochs'],
+        'pretrained': hyperparams.get('pretrained', False),
+        'class_weighted_ce': hyperparams.get('class_weighted_ce', False),
         'dataset_mode': dataset_mode,
+        'data_dir': data_dir,
     }
-    # Only include hidden_dims for tabular models
-    if 'hidden_dims' in hyperparams:
-        key['hidden_dims'] = tuple(hyperparams['hidden_dims'])
+    if 'seed' in hyperparams:
+        key['seed'] = hyperparams['seed']
     h = hashlib.md5(json.dumps(key, sort_keys=True).encode()).hexdigest()[:12]
     return f"{model_name}_{dataset_mode}_{h}"
 
 
-def generate_configs(methodology='our_approach', dataset_mode='dermmnist'):
-    """Generate experiment configs for given methodology and dataset mode.
+def _build_dataset_config(scenario_name, slice_idx, scenarios=None):
+    sc_map = scenarios or SCENARIOS
+    sc = sc_map[scenario_name]
+    cfg = DATASET_CONFIG_TEMPLATE.copy()
+    cfg['data_dir'] = f"data/dermmnist/slice_{slice_idx}"
+    cfg['constrained_class'] = sc['constrained_class']
+    return cfg
 
-    Creates one config per (model, constraint, alpha_kl) combination.
-    All alpha_kl values share the same warmup cache.
-    """
-    if dataset_mode == 'dermmnist':
-        models = MODELS_IMAGERY
-        base_hyperparams = HYPERPARAMS_IMAGERY
+
+def _build_config(methodology, exp_name, scenario_name, constraint_pair,
+                  model_name, slice_idx, hyperparams=None, scenarios=None):
+    hp = hyperparams or HYPERPARAMS.copy()
+    ds_config = _build_dataset_config(scenario_name, slice_idx, scenarios=scenarios)
+    ctag = constraint_tag(constraint_pair)
+    return {
+        'methodology': methodology,
+        'model_name': model_name,
+        'constraint': list(constraint_pair),
+        'constraint_tag': ctag,
+        'dataset_mode': 'dermmnist',
+        'dataset_config': ds_config,
+        'hyperparams': hp.copy(),
+        'base_model_id': compute_base_model_id(model_name, hp, data_dir=ds_config['data_dir']),
+        'exp_name': exp_name,
+        'status': 'pending',
+    }
+
+
+def _get_round_defaults(round_name):
+    if round_name == 'round1':
+        return ROUND1_SCENARIOS, ROUND1_CONSTRAINT_PAIRS, ROUND1_METHODOLOGIES
+    return ROUND2_SCENARIOS, ROUND2_CONSTRAINT_PAIRS, ROUND2_METHODOLOGIES
+
+
+def generate_configs(scenarios=None, constraint_pairs=None, model_names=None,
+                     methodologies=None, num_slices=None, round_name=None):
+    if round_name:
+        r_scenarios, r_constraints, r_methods = _get_round_defaults(round_name)
     else:
-        raise ValueError(f"Tabular configs temporarily disabled. Use dataset_mode='dermmnist'.")
-        # models = MODELS_TABULAR
-        # base_hyperparams = HYPERPARAMS_TABULAR
+        r_scenarios, r_constraints, r_methods = SCENARIOS, CONSTRAINT_PAIRS, METHODOLOGIES
 
-    ds_config = DATASET_CONFIGS[dataset_mode]
+    scenario_list = scenarios if scenarios is not None else list(r_scenarios.keys())
+    if constraint_pairs is None:
+        constraint_pairs = r_constraints
+    if model_names is None:
+        model_names = MODEL_NAMES
+    if methodologies is None:
+        methodologies = r_methods
+    if num_slices is None:
+        num_slices = NUM_SLICES
 
     configs = []
-    for model in models:
-        for constraint in CONSTRAINTS:
-            for alpha_kl in ALPHA_KL_VALUES:
-                hyperparams = base_hyperparams.copy()
-                hyperparams['alpha_kl'] = alpha_kl
-
-                config = {
-                    'methodology': methodology,
-                    'model_name': model,
-                    'constraint': constraint,
-                    'dataset_mode': dataset_mode,
-                    'dataset_config': ds_config,
-                    'hyperparam_regime': 'standard',
-                    'variation_name': f'alpha_kl_{alpha_kl}',
-                    'hyperparams': hyperparams,
-                    'base_model_id': compute_base_model_id(
-                        model, base_hyperparams, dataset_mode),
-                    'status': 'pending'
-                }
-                configs.append(config)
+    for sc in scenario_list:
+        for pair in constraint_pairs:
+            ctag = constraint_tag(pair)
+            for mn in model_names:
+                for meth in methodologies:
+                    for s in range(1, num_slices + 1):
+                        exp_name = f"{sc}_{ctag}_{mn}_{meth}_slice{s}"
+                        config = _build_config(meth, exp_name, sc, pair, mn, s,
+                                               scenarios=r_scenarios)
+                        path = Path('results/pending_runs') / sc / ctag / mn / meth / f"slice_{s}"
+                        config['experiment_path'] = str(path)
+                        configs.append(config)
     return configs
 
 
-def save_configs(configs, output_dir='results'):
-    """Create directory structure and save configs."""
+def save_configs(configs, output_dir='results/pending_runs'):
     from src.utils.filesystem_manager import save_config_to_path
-
+    created, skipped = 0, 0
     for config in configs:
-        constraint = config['constraint']
-        methodology = config.get('methodology', 'our_approach')
-        dataset_mode = config.get('dataset_mode', 'dermmnist')
-        hyperparam_regime = config.get('hyperparam_regime', 'standard')
-        variation_name = config.get('variation_name', 'default')
-
-        path = Path(output_dir) / dataset_mode / methodology / config['model_name'] / \
-               f"constraint_{constraint[0]}_{constraint[1]}" / hyperparam_regime / variation_name
+        path = Path(config['experiment_path'])
+        existing_config = path / 'config.json'
+        if existing_config.exists():
+            try:
+                with open(existing_config) as f:
+                    existing = json.load(f)
+                if existing.get('status') == 'completed':
+                    skipped += 1
+                    continue
+            except (json.JSONDecodeError, KeyError):
+                pass
         path.mkdir(parents=True, exist_ok=True)
-        config['experiment_path'] = str(path)
         save_config_to_path(config, str(path))
-
-    print(f"Created {len(configs)} experiment configurations in '{output_dir}'")
+        created += 1
+    print(f"Created {created} configs in '{output_dir}' "
+          f"(skipped {skipped} already completed)")
 
 
 def reset_all_to_pending(results_dir='results'):
-    """Reset all experiment statuses to pending."""
     from src.utils.filesystem_manager import get_all_experiment_configs, save_config_to_path
-
     experiments = get_all_experiment_configs(results_dir)
     count = 0
     for path, config in experiments:
@@ -165,33 +211,27 @@ def reset_all_to_pending(results_dir='results'):
 
 
 def main():
-    print("=== DermMNIST (7 classes, imagery) ===")
-    print("1. Generate dermmnist our_approach configs")
-    print("2. Generate dermmnist heuristic configs")
-    print("3. Generate dermmnist both")
-    print("")
-    # print("=== Adult Binary (tabular, legacy) ===")
-    # print("4. Generate binary our_approach configs")
-    # print("5. Generate binary both")
-    # print("")
-    print("=== Utilities ===")
+    n_scenarios = len(SCENARIOS)
+    n_constraints = len(CONSTRAINT_PAIRS)
+    n_models = len(MODEL_NAMES)
+    n_methods = len(METHODOLOGIES)
+    n_slices = NUM_SLICES
+    total = n_scenarios * n_constraints * n_models * n_methods * n_slices
+
+    print(f"=== Experiment Config Generator (Round 2) ===")
+    print(f"Scenarios: {list(SCENARIOS.keys())}")
+    print(f"Constraints: {n_constraints} -> {[constraint_tag(p) for p in CONSTRAINT_PAIRS]}")
+    print(f"Models: {MODEL_NAMES}")
+    print(f"Methodologies: {METHODOLOGIES}")
+    print(f"Slices: {n_slices}")
+    print(f"Total: {n_scenarios} x {n_constraints} x {n_models} x {n_methods} x {n_slices} = {total}")
+    print()
+    print("1. Generate all configs")
     print("9. Reset all to pending")
     print("0. Exit")
-
     choice = input("\nChoice: ").strip()
-
     if choice == '1':
-        save_configs(generate_configs('our_approach', 'dermmnist'))
-    elif choice == '2':
-        save_configs(generate_configs('heuristic', 'dermmnist'))
-    elif choice == '3':
-        save_configs(generate_configs('our_approach', 'dermmnist'))
-        save_configs(generate_configs('heuristic', 'dermmnist'))
-    # elif choice == '4':
-    #     save_configs(generate_configs('our_approach', 'binary'))
-    # elif choice == '5':
-    #     save_configs(generate_configs('our_approach', 'binary'))
-    #     save_configs(generate_configs('heuristic', 'binary'))
+        save_configs(generate_configs())
     elif choice == '9':
         reset_all_to_pending()
 

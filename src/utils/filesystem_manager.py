@@ -1,4 +1,5 @@
-"""Experiment filesystem: config save/load, status tracking."""
+# Experiment filesystem management: config save/load and status tracking.
+# Supports scanning experiment directories for pending/completed experiments.
 
 import json
 import logging

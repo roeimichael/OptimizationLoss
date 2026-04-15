@@ -1,4 +1,5 @@
-"""Error handling: logger decorator and safe_execute utility."""
+# Error handling utilities: logger decorator and safe_execute wrapper.
+# Provides consistent exception logging across the experiment pipeline.
 
 import functools
 import logging
@@ -10,7 +11,6 @@ log = logging.getLogger(__name__)
 
 
 def logger(reraise=True, **kwargs):
-    """Decorator that logs exceptions with full context before re-raising."""
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kw):
@@ -31,7 +31,6 @@ def logger(reraise=True, **kwargs):
 
 
 def log_exception(e, context="", experiment_path=None):
-    """Log an exception with optional context and file output."""
     log.error("%s: %s: %s", context, type(e).__name__, e)
     log.debug(traceback.format_exc())
     if experiment_path:
@@ -55,7 +54,6 @@ def _save_error_to_file(experiment_path, exception_type, exception_msg, context)
 
 
 def safe_execute(func, *args, default=None, context="", **kwargs):
-    """Execute func, returning default on failure."""
     try:
         return func(*args, **kwargs)
     except Exception as e:

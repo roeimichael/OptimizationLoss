@@ -1,9 +1,11 @@
-from .model_factory import get_model, is_imagery_model
-from .tabular import BasicNN, TabularResNet, FTTransformer
-from .imagery import ResNet18Classifier, ResNet50Classifier
+from .model_factory import get_model
+from .imagery import (
+    ResNet18Classifier, MobileNetV3Classifier,
+    EfficientNetB0Classifier, ConvNeXtTinyClassifier,
+)
 
 __all__ = [
-    'get_model', 'is_imagery_model',
-    'BasicNN', 'TabularResNet', 'FTTransformer',
-    'ResNet18Classifier', 'ResNet50Classifier',
+    'get_model',
+    'ResNet18Classifier', 'MobileNetV3Classifier',
+    'EfficientNetB0Classifier', 'ConvNeXtTinyClassifier',
 ]

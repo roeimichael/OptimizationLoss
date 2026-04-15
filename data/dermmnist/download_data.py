@@ -1,4 +1,4 @@
-"""Download DermaMNIST-C 224x224 (corrected) and prepare train/val/test splits.
+"""Download DermaMNIST-C 224x224 (corrected) and prepare splits.
 
 DermaMNIST-C is from SFU's corrected version of MedMNIST's DermaMNIST.
 Source: HAM10000 (10,015 skin lesion images), with fixed train/val/test splits
@@ -7,13 +7,18 @@ that prevent same-lesion leakage across splits.
 7 classes: AKIEC, BCC, BKL, DF, MEL, NV, VASC.
 Corrected splits: train 8215 / val 573 / test 1227.
 
-Metadata (sex, age, localization) comes from the corrected CSV which is
-row-aligned with the npz — verified by label matching.
+Supports native 224x224 or resized 64x64. Metadata (sex, age, localization)
+comes from the corrected CSV which is row-aligned with the npz.
+
+Usage:
+    python download_data.py          # Default: 224x224 (native)
+    python download_data.py --size 64  # Resized to 64x64
 """
 
 import os
 import numpy as np
 import pandas as pd
+from PIL import Image
 
 CLASS_NAMES = {
     0: 'AKIEC',  # Actinic keratoses
@@ -61,8 +66,20 @@ def download_if_needed():
         print(f"Metadata CSV already exists: {META_CSV}")
 
 
-def process_and_save():
-    """Extract splits from npz, build metadata with sex column, save as npy + csv."""
+TARGET_SIZE = 224  # Native resolution (use --size 64 for reduced)
+
+
+def resize_images(images_hwc, target_size):
+    """Resize batch of (N, H, W, 3) uint8 images to (N, target_size, target_size, 3)."""
+    resized = np.empty((len(images_hwc), target_size, target_size, 3), dtype=np.uint8)
+    for i in range(len(images_hwc)):
+        img = Image.fromarray(images_hwc[i])
+        resized[i] = np.array(img.resize((target_size, target_size), Image.LANCZOS))
+    return resized
+
+
+def process_and_save(target_size=TARGET_SIZE):
+    """Extract splits from npz, optionally resize, build metadata, save as npy + csv."""
     data = np.load(NPZ_FILE)
     meta_df = pd.read_csv(META_CSV)
     meta_df['label'] = meta_df['dx'].map(DX_TO_CLASS)
@@ -71,7 +88,11 @@ def process_and_save():
         images = data[f'{split}_images']   # (N, 224, 224, 3) uint8
         labels = data[f'{split}_labels'].flatten()  # (N,) uint8
 
-        # Transpose to channels-first: (N, 3, 224, 224) and normalize to [0, 1]
+        # Resize only if target is not native 224
+        if target_size != 224:
+            images = resize_images(images, target_size)
+
+        # Transpose to channels-first: (N, 3, H, W) and normalize to [0, 1]
         images_chw = images.transpose(0, 3, 1, 2).astype(np.float32) / 255.0
 
         # Get metadata for this split (row-aligned with npz)
@@ -104,8 +125,10 @@ def process_and_save():
 
 def print_summary():
     """Print class distribution and sex distribution per split."""
+    images = np.load(os.path.join(DATA_DIR, 'train_images.npy'))
+    img_size = images.shape[-1]
     print("\n" + "=" * 70)
-    print("DermaMNIST-C 224x224 (Corrected) - Dataset Summary")
+    print(f"DermaMNIST-C {img_size}x{img_size} (Corrected) - Dataset Summary")
     print("=" * 70)
 
     for split in ['train', 'val', 'test']:
@@ -138,6 +161,12 @@ def print_summary():
 
 
 if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--size', type=int, default=TARGET_SIZE,
+                        help=f'Image size (default: {TARGET_SIZE})')
+    args = parser.parse_args()
+
     download_if_needed()
-    process_and_save()
+    process_and_save(target_size=args.size)
     print_summary()
