@@ -221,7 +221,7 @@ class ConstraintTrainer:
         constraint_epochs = hp.get('constraint_epochs', 300)
         rho_target = hp.get('rho_target', 100.0)
         initial_rho = hp.get('initial_rho', 0.5)
-        rho_step = (rho_target - initial_rho) / constraint_epochs
+        rho_step = (rho_target - initial_rho) / max(constraint_epochs, 1)
         # Three bracket checkpoints
         self.best_bracket_state = None
         self.best_bracket_excess = float('inf')

@@ -89,7 +89,7 @@ def _with_baselines(block, scenario_name, con, model, seed, hp_overrides=None, t
 # ── Block A: CE-only ablation (15 runs) ─────────────────────────────
 def block_a():
     cfgs = []
-    ablation_hp = {"lambda_global": 0, "lambda_local": 0, "lambda_step": 0, "alpha_kl": 0}
+    ablation_hp = {"warmup_epochs": 350, "constraint_epochs": 0}
     for sc in ["single_GE", "dual_GE_CST", "triple_GE_CST_PTC"]:
         con = SCENARIOS[sc]["con"]
         for s in range(1, 6):
@@ -190,7 +190,7 @@ def block_h():
         con = SCENARIOS[sc]["con"]
         for s in range(1, 6):
             cfgs.extend(_with_baselines("H_effnet", sc, con, "EfficientNetB0", s))
-    ablation_hp = {"lambda_global": 0, "lambda_local": 0, "lambda_step": 0, "alpha_kl": 0}
+    ablation_hp = {"warmup_epochs": 350, "constraint_epochs": 0}
     for sc in ["single_GE", "dual_GE_CST", "triple_GE_CST_PTC"]:
         con = SCENARIOS[sc]["con"]
         for s in [1, 2, 3]:
