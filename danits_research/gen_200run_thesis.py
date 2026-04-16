@@ -53,6 +53,7 @@ def _build(block, methodology, scenario_name, con, model, seed, hp_overrides=Non
     if methodology != "our_approach":
         hp.pop("diagnostic_level", None)
         hp.pop("lambda_mode", None)
+    hp["seed"] = seed
     if hp_overrides:
         hp.update(hp_overrides)
     sc = SCENARIOS.get(scenario_name)
