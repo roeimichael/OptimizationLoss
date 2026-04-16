@@ -456,9 +456,24 @@ class ConstraintTrainer:
             #   "ratchet" (default): linear increment + toggle to 0 on satisfaction (March 27 proven)
             #   "ratchet_frozen": linear increment, freeze (don't zero) on satisfaction
             #   "proportional": smooth excess-proportional update (NEW, experimental)
+            #   "cosine": cosine ramp up then decay over constraint epochs
             lambda_mode = hp.get('lambda_mode', 'ratchet')
 
-            if lambda_mode == 'proportional':
+            if lambda_mode == 'cosine':
+                import math
+                constraint_epochs = hp.get('constraint_epochs', 300)
+                epoch_in_constraint = epoch - warmup_epochs
+                lambda_max = hp.get('lambda_max', 0.2)
+                progress = epoch_in_constraint / max(constraint_epochs, 1)
+                cosine_val = lambda_max * 0.5 * (1 - math.cos(2 * math.pi * progress))
+                criterion_constraint.set_lambda(lambda_global=cosine_val, lambda_local=cosine_val)
+                if is_satisfied and satisfaction_epoch is None:
+                    satisfaction_epoch = epoch + 1
+                    if not rho_frozen:
+                        rho_frozen = True
+                        log.info("[cosine] First satisfied at epoch %d, freezing rho=%.3f",
+                                 epoch + 1, criterion_constraint.get_rho())
+            elif lambda_mode == 'proportional':
                 # Compute current excess (hard over limit) per constraint type.
                 n_test_total = n_test
                 g_excess = 0.0
