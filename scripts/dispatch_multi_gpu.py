@@ -48,7 +48,11 @@ def run_one(exp_path, config, gpu_id, prefix):
               else OPTIMIZATION_MODULE)
     name = config.get('exp_name', Path(exp_path).name)
     cfg_path = Path(exp_path) / 'config.json'
-    env = {**os.environ, 'CUDA_VISIBLE_DEVICES': str(gpu_id)}
+    env = {**os.environ,
+           'CUDA_VISIBLE_DEVICES': str(gpu_id),
+           'CUDA_MODULE_LOADING': 'EAGER',
+           'TORCH_COMPILE_DISABLE': '1',
+           }
     start = time.time()
     _p(f"{prefix}START {name} -> {runner}")
     proc = subprocess.Popen(

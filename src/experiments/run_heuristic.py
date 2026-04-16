@@ -57,7 +57,7 @@ def train_fixed_warmup(config, input_dim, num_classes, X_train, y_train, device)
     loader = DataLoader(TensorDataset(X_train, y_train), batch_size=hp['batch_size'],
                         shuffle=True, pin_memory=True, num_workers=2 if os.name != 'nt' else 0)
     if device.type == 'cuda':
-        torch.backends.cudnn.benchmark = True
+        torch.backends.cudnn.benchmark = False  # Disabled: Blackwell sm_120 VBIOS temp bug
     for epoch in range(warmup_epochs):
         epoch_start = time.time()
         model.train()

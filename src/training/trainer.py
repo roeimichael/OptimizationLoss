@@ -45,7 +45,7 @@ class ConstraintTrainer:
         self.criterion_ce = nn.CrossEntropyLoss()
         self.from_cache = False
         if torch.cuda.is_available():
-            torch.backends.cudnn.benchmark = True
+            torch.backends.cudnn.benchmark = False  # Disabled: Blackwell sm_120 VBIOS temp threshold bug causes crashes with autotuning
         self.use_amp = torch.cuda.is_available()
         if self.use_amp:
             gpu_arch = torch.cuda.get_device_capability(0)[0]
