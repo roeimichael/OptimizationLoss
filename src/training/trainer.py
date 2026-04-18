@@ -381,7 +381,8 @@ class ConstraintTrainer:
             # underflow without scaling. When constraint loss is exactly
             # zero (satisfied epoch), the scaler may crash with "No inf
             # checks" — we catch that and fall back to a plain step.
-            if self.scaler:
+            did_backward = has_constraint or has_kl
+            if self.scaler and did_backward:
                 try:
                     if diag_level == 0:
                         self.scaler.unscale_(self.optimizer)
@@ -392,14 +393,12 @@ class ConstraintTrainer:
                         self.scaler.step(self.optimizer)
                     self.scaler.update()
                 except (AssertionError, RuntimeError):
-                    # Zero constraint loss or scaler state issue → fall back
-                    # to plain step (safe because zero/small grads).
-                    self.scaler.update()  # reset scaler state
+                    # Scaler state issue — plain step fallback.
                     grad_norm = torch.nn.utils.clip_grad_norm_(
                         self.model.parameters(), max_norm=1.0)
                     if grad_norm > 0:
                         self.optimizer.step()
-            else:
+            elif not self.scaler and did_backward:
                 grad_norm = torch.nn.utils.clip_grad_norm_(
                     self.model.parameters(), max_norm=1.0)
                 if grad_norm > 0:
