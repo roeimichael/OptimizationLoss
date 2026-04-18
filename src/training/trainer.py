@@ -371,8 +371,8 @@ class ConstraintTrainer:
                 if self.scaler:
                     try:
                         self.scaler.unscale_(self.optimizer)
-                    except AssertionError:
-                        pass  # zero loss, no grads to unscale
+                    except (AssertionError, RuntimeError):
+                        pass  # zero loss or already unscaled — no grads to unscale
                 self.diagnostics.record_constraint_gradients(self.model)
 
             # Unscale + step for constraint gradients. The scaler is needed
@@ -391,10 +391,10 @@ class ConstraintTrainer:
                     if grad_norm > 0:
                         self.scaler.step(self.optimizer)
                     self.scaler.update()
-                except AssertionError:
-                    # Zero constraint loss → no scaled gradients → scaler
-                    # has nothing to unscale/step/update. Fall back to
-                    # plain step (safe because zero-loss means zero grads).
+                except (AssertionError, RuntimeError):
+                    # Zero constraint loss or scaler state issue → fall back
+                    # to plain step (safe because zero/small grads).
+                    self.scaler.update()  # reset scaler state
                     grad_norm = torch.nn.utils.clip_grad_norm_(
                         self.model.parameters(), max_norm=1.0)
                     if grad_norm > 0:
