@@ -134,6 +134,18 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     raw_best_pred = best_proba.argmax(axis=1)
     save_final_predictions(experiment_path / 'final_predictions_raw.csv',
                            y_true, raw_best_pred, best_proba, group_ids)
+    # Track 1: constraint-specific metrics
+    from src.training.metrics import compute_flips, compute_raw_constraint_satisfaction
+    flips = compute_flips(raw_best_pred, best_pred)
+    raw_sat = compute_raw_constraint_satisfaction(
+        raw_best_pred, global_con, local_con, group_ids, constrained_classes)
+    best_metrics['flips_required'] = flips
+    best_metrics.update(raw_sat)
+    best_metrics['satisfaction_epoch'] = getattr(trainer, 'satisfaction_epoch', None)
+    best_metrics['soft_hard_gap'] = getattr(trainer, 'final_soft_hard_gap', {})
+    log.info("[Track1] flips=%d raw_satisfied=%s excess=%d sat_epoch=%s",
+             flips, raw_sat['raw_all_satisfied'], raw_sat['raw_total_excess'],
+             best_metrics['satisfaction_epoch'] or 'N/A')
     save_evaluation_metrics(experiment_path / 'evaluation_metrics.csv', best_metrics)
     config['results'] = {
         'accuracy': float(best_metrics['accuracy']),

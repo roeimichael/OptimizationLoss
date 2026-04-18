@@ -673,6 +673,13 @@ class ConstraintTrainer:
                              l_counts.get(gid, {}).get(c, 0),
                              l_soft.get(gid, {}).get(c, 0.0),
                              int(local_con[gid][c]))
+        # Expose constraint metrics for Track 1 evaluation
+        self.satisfaction_epoch = satisfaction_epoch
+        self.final_soft_hard_gap = {}
+        constrained = [c for c in range(self.num_classes) if global_con[c] < 1e9]
+        for c in constrained:
+            self.final_soft_hard_gap[c] = abs(g_soft.get(c, 0) - g_counts.get(c, 0))
+
         # Save diagnostic reports
         if diag_level > 0:
             self.diagnostics.save_report()

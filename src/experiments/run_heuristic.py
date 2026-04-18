@@ -259,6 +259,10 @@ def run_heuristic(config_path: str) -> None:
         hierarchy = _build_hierarchy(num_classes, global_con, constrained_classes)
         y_pred, exec_time = apply_allocation_heuristic(
             probs, groups_np, hierarchy, global_con, local_con, num_classes)
+    # Save raw argmax predictions (before heuristic/LP reallocation)
+    argmax_preds = np.argmax(probs, axis=1)
+    save_final_predictions(Path(experiment_path) / 'final_predictions_raw.csv',
+                           y_true, argmax_preds, probs, groups_np)
     for c in range(num_classes):
         pred_count = (y_pred == c).sum()
         limit = int(global_con[c]) if global_con[c] < 1e9 else 'INF'
@@ -267,6 +271,15 @@ def run_heuristic(config_path: str) -> None:
     metrics = compute_metrics(y_true, y_pred, probs)
     save_final_predictions(Path(experiment_path) / 'final_predictions.csv',
                            y_true, y_pred, probs, groups_np)
+    # Track 1: constraint-specific metrics
+    from src.training.metrics import compute_flips, compute_raw_constraint_satisfaction
+    flips = compute_flips(argmax_preds, y_pred)
+    raw_sat = compute_raw_constraint_satisfaction(
+        argmax_preds, global_con, local_con, groups_np, constrained_classes)
+    metrics['flips_required'] = flips
+    metrics.update(raw_sat)
+    log.info("[Track1] flips=%d raw_satisfied=%s excess=%d",
+             flips, raw_sat['raw_all_satisfied'], raw_sat['raw_total_excess'])
     save_evaluation_metrics(Path(experiment_path) / 'evaluation_metrics.csv', metrics)
     config['results'] = {
         'accuracy': float(metrics['accuracy']),
@@ -274,7 +287,7 @@ def run_heuristic(config_path: str) -> None:
         'recall_macro': float(metrics['recall_macro']),
         'f1_macro': float(metrics['f1_macro']),
         'training_time': float(exec_time),
-        'samples_adjusted': 0,
+        'samples_adjusted': int(flips),
     }
     config['status'] = 'completed'
     save_config_to_path(config, experiment_path)

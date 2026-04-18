@@ -122,5 +122,18 @@ def save_evaluation_metrics(save_path, metrics):
         rows.append(['Confidence Gap', f"{metrics['confidence_gap']:.4f}"])
         rows.append(['Pct High Confidence', f"{metrics['pct_high_confidence']:.4f}"])
         rows.append(['Pct Low Confidence', f"{metrics['pct_low_confidence']:.4f}"])
+    # Constraint-specific metrics (Track 1)
+    if 'flips_required' in metrics:
+        rows.append(['Flips Required', metrics['flips_required']])
+    if 'raw_global_satisfied_pct' in metrics:
+        rows.append(['Raw Global Satisfied %', f"{metrics['raw_global_satisfied_pct']:.4f}"])
+        rows.append(['Raw Local Satisfied %', f"{metrics['raw_local_satisfied_pct']:.4f}"])
+        rows.append(['Raw All Satisfied', int(metrics['raw_all_satisfied'])])
+        rows.append(['Raw Total Excess', metrics['raw_total_excess']])
+    if 'satisfaction_epoch' in metrics:
+        rows.append(['Satisfaction Epoch', metrics.get('satisfaction_epoch', 'N/A')])
+    if 'soft_hard_gap' in metrics:
+        for c, gap in metrics['soft_hard_gap'].items():
+            rows.append([f'Soft-Hard Gap Class{c}', f"{gap:.2f}"])
     with open(save_path, 'w', newline='') as f:
         csv.writer(f).writerows(rows)

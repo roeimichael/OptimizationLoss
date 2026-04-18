@@ -96,6 +96,67 @@ def compute_uncertainty_metrics(y_true, y_proba):
     }
 
 
+def compute_flips(y_raw, y_adjusted):
+    """Count how many predictions changed from raw argmax to post-hoc adjusted."""
+    return int((y_raw != y_adjusted).sum())
+
+
+def compute_raw_constraint_satisfaction(y_raw, global_con, local_con, group_ids,
+                                       constrained_classes):
+    """Check what fraction of constraints are satisfied by raw argmax (no post-hoc).
+
+    Returns dict with raw_global_satisfied_pct, raw_local_satisfied_pct,
+    raw_all_satisfied, raw_total_excess.
+    """
+    UNLIMITED = 1e9
+    n_global_constrained = 0
+    n_global_satisfied = 0
+    total_excess = 0
+
+    for c in constrained_classes:
+        if c < len(global_con) and global_con[c] < UNLIMITED:
+            n_global_constrained += 1
+            count = int((y_raw == c).sum())
+            limit = int(global_con[c])
+            if count <= limit:
+                n_global_satisfied += 1
+            else:
+                total_excess += count - limit
+
+    n_local_constrained = 0
+    n_local_satisfied = 0
+    if local_con:
+        unique_groups = set(group_ids) if not hasattr(group_ids, 'unique') else group_ids.unique()
+        for g in unique_groups:
+            g_key = int(g) if hasattr(g, 'item') else g
+            if g_key not in local_con:
+                continue
+            g_mask = (group_ids == g)
+            g_preds = y_raw[g_mask]
+            bounds = local_con[g_key]
+            for c in constrained_classes:
+                if c < len(bounds) and bounds[c] < UNLIMITED:
+                    n_local_constrained += 1
+                    count = int((g_preds == c).sum())
+                    limit = int(bounds[c])
+                    if count <= limit:
+                        n_local_satisfied += 1
+                    else:
+                        total_excess += count - limit
+
+    g_pct = n_global_satisfied / max(n_global_constrained, 1)
+    l_pct = n_local_satisfied / max(n_local_constrained, 1)
+    all_sat = (n_global_satisfied == n_global_constrained and
+               n_local_satisfied == n_local_constrained)
+
+    return {
+        'raw_global_satisfied_pct': float(g_pct),
+        'raw_local_satisfied_pct': float(l_pct),
+        'raw_all_satisfied': bool(all_sat),
+        'raw_total_excess': int(total_excess),
+    }
+
+
 def compute_metrics(y_true, y_pred, y_proba=None):
     accuracy = np.mean(y_true == y_pred)
     precision, recall, f1, support = precision_recall_fscore_support(
