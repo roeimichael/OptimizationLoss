@@ -18,16 +18,22 @@ class MulticlassTransductiveLoss(nn.Module):
 
     def __init__(self, global_constraints, local_constraints,
                  lambda_global=1.0, lambda_local=1.0, num_classes=7,
-                 use_sum=True, initial_rho=0.5, alpha_kl=0.0):
+                 use_sum=True, initial_rho=0.5, alpha_kl=0.0,
+                 per_class_lambda=False):
         super().__init__()
         self.lambda_global = lambda_global
         self.lambda_local = lambda_local
         self.alpha_kl = alpha_kl
         self.num_classes = num_classes
         self.use_sum = use_sum
+        self.per_class_lambda = per_class_lambda
         self.register_buffer('rho', torch.tensor(float(initial_rho)))
         self.global_constraints_satisfied = False
         self.local_constraints_satisfied = False
+        # Per-class lambda dicts (used when per_class_lambda=True)
+        # Keys: class index for global, (group_id, class) for local
+        self.lambda_global_per_class = {}
+        self.lambda_local_per_key = {}
         if global_constraints is not None:
             assert len(global_constraints) == num_classes
             self.register_buffer('global_constraints',
@@ -48,13 +54,21 @@ class MulticlassTransductiveLoss(nn.Module):
         L_ce = torch.tensor(0.0, device=device)
         if y_true is not None:
             L_ce = F.cross_entropy(logits, y_true)
-        L_global = self._global_loss(soft_proba, hard_preds, device, logits)
-        L_local = self._local_loss(soft_proba, hard_preds, group_ids, device, logits)
         L_kl = self._kl_divergence_loss(logits, warmup_proba, device)
-        L_total = (L_ce
-                   + self.lambda_global * L_global
-                   + self.lambda_local * L_local
-                   + self.alpha_kl * L_kl)
+
+        if self.per_class_lambda and self.lambda_global_per_class:
+            # Per-class weighting: each class's loss term gets its own lambda
+            L_global = self._global_loss_per_class(soft_proba, hard_preds, device, logits)
+            L_local = self._local_loss_per_key(soft_proba, hard_preds, group_ids, device, logits)
+            # L_global and L_local already include per-class lambda weighting
+            L_total = L_ce + L_global + L_local + self.alpha_kl * L_kl
+        else:
+            L_global = self._global_loss(soft_proba, hard_preds, device, logits)
+            L_local = self._local_loss(soft_proba, hard_preds, group_ids, device, logits)
+            L_total = (L_ce
+                       + self.lambda_global * L_global
+                       + self.lambda_local * L_local
+                       + self.alpha_kl * L_kl)
         return L_total, L_ce, L_global, L_local, L_kl
 
     def _global_loss(self, proba, hard_preds, device, logits):
@@ -208,11 +222,95 @@ class MulticlassTransductiveLoss(nn.Module):
             return torch.tensor(0.0, device=device)
         return total_loss if self.use_sum else total_loss / num_constrained
 
+    def _global_loss_per_class(self, proba, hard_preds, device, logits):
+        """Global loss with per-class lambda weighting."""
+        if len(self.global_constraints) == 0:
+            self.global_constraints_satisfied = True
+            return logits.sum() * 0.0
+        constraints = self.global_constraints.to(device)
+        total_loss = torch.tensor(0.0, device=device)
+        all_satisfied = True
+        for c in range(self.num_classes):
+            if c >= len(constraints) or constraints[c] >= UNLIMITED:
+                continue
+            K = constraints[c]
+            if K <= 0:
+                continue
+            lam = self.lambda_global_per_class.get(c, 0.0)
+            if lam <= 0:
+                # Still check satisfaction even with zero lambda
+                hard_count = (hard_preds == c).sum().float()
+                if (hard_count > K).item():
+                    all_satisfied = False
+                continue
+            soft_count = proba[:, c].sum()
+            hard_count = (hard_preds == c).sum().float()
+            E = F.relu(soft_count - K)
+            if (hard_count > K).item():
+                all_satisfied = False
+            E_norm = E / (K + EPSILON)
+            sat = E / (E + K + EPSILON)
+            quad = (E_norm ** 2) / (1 + E_norm ** 2 + EPSILON)
+            loss = sat + self.rho * quad
+            total_loss = total_loss + lam * loss
+        self.global_constraints_satisfied = all_satisfied
+        return total_loss
+
+    def _local_loss_per_key(self, proba, hard_preds, group_ids, device, logits):
+        """Local loss with per-(group, class) lambda weighting."""
+        if not self.local_groups or group_ids is None:
+            self.local_constraints_satisfied = True
+            return logits.sum() * 0.0
+        group_ids = group_ids.to(device)
+        total_loss = torch.tensor(0.0, device=device)
+        all_satisfied = True
+        for gid, buffer_name in self.local_groups.items():
+            mask = (group_ids == gid)
+            if mask.sum() == 0:
+                continue
+            group_proba = proba[mask]
+            group_hard_preds = hard_preds[mask]
+            constraints = getattr(self, buffer_name).to(device)
+            for c in range(self.num_classes):
+                if c >= len(constraints) or constraints[c] >= UNLIMITED:
+                    continue
+                K = constraints[c]
+                if K <= 0:
+                    continue
+                key = (gid, c)
+                lam = self.lambda_local_per_key.get(key, 0.0)
+                hard_count = (group_hard_preds == c).sum().float()
+                if (hard_count > K).item():
+                    all_satisfied = False
+                if lam <= 0:
+                    continue
+                soft_count = group_proba[:, c].sum()
+                E = F.relu(soft_count - K)
+                E_norm = E / (K + EPSILON)
+                sat = E / (E + K + EPSILON)
+                quad = (E_norm ** 2) / (1 + E_norm ** 2 + EPSILON)
+                loss = sat + self.rho * quad
+                total_loss = total_loss + lam * loss
+        self.local_constraints_satisfied = all_satisfied
+        return total_loss
+
     def set_lambda(self, lambda_global=None, lambda_local=None):
         if lambda_global is not None:
             self.lambda_global = float(lambda_global)
         if lambda_local is not None:
             self.lambda_local = float(lambda_local)
+
+    def set_lambda_per_class(self, class_idx, value, scope='global', group_id=None):
+        """Set lambda for a specific class (global) or (group, class) pair (local)."""
+        if scope == 'global':
+            self.lambda_global_per_class[class_idx] = float(value)
+        elif scope == 'local' and group_id is not None:
+            self.lambda_local_per_key[(group_id, class_idx)] = float(value)
+
+    def get_lambda_per_class(self, class_idx, scope='global', group_id=None):
+        if scope == 'global':
+            return self.lambda_global_per_class.get(class_idx, 0.0)
+        return self.lambda_local_per_key.get((group_id, class_idx), 0.0)
 
     def increment_rho(self, step):
         self.rho.add_(step)

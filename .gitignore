@@ -56,6 +56,13 @@ archive_experiments/
 
 # Results (experiment outputs, not code)
 results/
+results_fetched/
+
+# External benchmark code (cloned reference repos, has own .git)
+benchmarks/
+
+# MCP server caches
+.semantic_scholar_mcp/
 
 # Claude Code
 .claude/
