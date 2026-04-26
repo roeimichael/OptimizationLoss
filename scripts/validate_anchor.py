@@ -19,6 +19,9 @@ import json
 import sys
 from pathlib import Path
 
+# Make project root importable when this is invoked as a script (not -m).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 
 METHODOLOGY_RUNNER = {
     'our_approach': 'src.experiments.run_experiment',
