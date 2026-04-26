@@ -363,13 +363,13 @@ def _train_fioretto_constraints(
                 lam_str, time.time() - epoch_start,
             )
 
-    # Restore best-excess model
-    if best_model_state is not None:
-        model.load_state_dict(best_model_state)
-        model.to(device)
-        log.info("Restored best model (excess=%d)", best_excess)
-
-    return model, satisfaction_epoch
+    # AUDIT B1 / Q2(a): do NOT restore best-excess state here. Caller picks
+    # the F1 winner between {final, best-excess} after post-hoc adjustment,
+    # matching run_experiment.py's selection criterion. Restoring here would
+    # bias Fioretto toward best-by-excess while our_approach uses best-by-F1
+    # -- asymmetric comparison.
+    final_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+    return model, satisfaction_epoch, final_state, best_model_state, best_excess
 
 
 # ---------------------------------------------------------------------------
@@ -431,77 +431,97 @@ def run_fioretto(config_path: str) -> None:
                           X_train_tensor, y_train_tensor, device)
 
     # ---- Phase 2: Fioretto constraint training ----
-    model, satisfaction_epoch = _train_fioretto_constraints(
-        model, config, X_train_tensor, y_train_tensor,
-        X_test_tensor, groups_test, global_con, local_con,
-        constrained_classes, num_classes, device, experiment_path,
+    model, satisfaction_epoch, final_state, best_excess_state, best_excess = (
+        _train_fioretto_constraints(
+            model, config, X_train_tensor, y_train_tensor,
+            X_test_tensor, groups_test, global_con, local_con,
+            constrained_classes, num_classes, device, experiment_path,
+        )
     )
     training_time = time.time() - start_time
 
-    # ---- Post-hoc adjustment + evaluation (identical to our_approach) ----
+    # ---- Post-hoc adjustment + best-by-F1 selection (mirrors run_experiment) ----
     y_true = _to_numpy(y_test)
     group_ids = _to_numpy(groups_test)
     X_test_dev = X_test_tensor.to(device)
-
-    model.eval()
-    y_pred, y_proba = get_predictions_with_probabilities(model, X_test_dev)
-
     needs_adjustment = any(global_con[c] < UNLIMITED for c in constrained_classes)
-    adj = 0
-    posthoc_meta = {}
-    if needs_adjustment:
-        y_pred, adj, posthoc_meta = targeted_correction(
-            y_proba, group_ids, global_con, local_con, constrained_classes)
 
-    # Save raw (pre-post-hoc) predictions
-    raw_pred = y_proba.argmax(axis=1)
-    save_final_predictions(
-        experiment_path / 'final_predictions_raw.csv',
-        y_true, raw_pred, y_proba, group_ids,
-    )
-    # Save final predictions
-    save_final_predictions(
-        experiment_path / 'final_predictions.csv',
-        y_true, y_pred, y_proba, group_ids,
-    )
+    def _eval_candidate(state, label):
+        model.load_state_dict(state)
+        model.to(device).eval()
+        y_pred, y_proba = get_predictions_with_probabilities(model, X_test_dev)
+        adj = 0
+        meta = {}
+        if needs_adjustment:
+            y_pred, adj, meta = targeted_correction(
+                y_proba, group_ids, global_con, local_con, constrained_classes)
+        m = compute_metrics(y_true, y_pred, y_proba)
+        log.info("[%s] acc=%.4f f1=%.4f adjusted=%d",
+                 label, m['accuracy'], m['f1_macro'], adj)
+        return label, y_pred, y_proba, m, adj, meta
 
-    # Constraint verification
+    candidates = [_eval_candidate(final_state, 'final')]
+    if best_excess_state is not None:
+        candidates.append(_eval_candidate(best_excess_state, 'best_excess'))
+
+    # Pick by F1-macro (matching our_approach)
+    best = max(candidates, key=lambda x: x[3]['f1_macro'])
+    best_source, best_pred, best_proba, best_metrics, best_adj, best_meta = best
+    log.info("Selected checkpoint: %s (f1_macro=%.4f from %d candidates)",
+             best_source, best_metrics['f1_macro'], len(candidates))
+
+    # Save raw (pre-post-hoc) of the SELECTED candidate
+    raw_pred = best_proba.argmax(axis=1)
+    save_final_predictions(experiment_path / 'final_predictions_raw.csv',
+                           y_true, raw_pred, best_proba, group_ids)
+    save_final_predictions(experiment_path / 'final_predictions.csv',
+                           y_true, best_pred, best_proba, group_ids)
+
+    # Constraint verification on the selected predictions
     for c in range(num_classes):
-        pred_count = (y_pred == c).sum()
+        pred_count = (best_pred == c).sum()
         limit = int(global_con[c]) if global_con[c] < UNLIMITED else 'INF'
         status = ('OK' if (isinstance(limit, str) or pred_count <= limit)
                   else f'VIOLATED by {pred_count - limit}')
         log.info("Class %d: pred=%d limit=%s %s", c, pred_count, limit, status)
 
     # Metrics
-    metrics = compute_metrics(y_true, y_pred, y_proba)
-    flips = compute_flips(raw_pred, y_pred)
+    flips = compute_flips(raw_pred, best_pred)
     raw_sat = compute_raw_constraint_satisfaction(
         raw_pred, global_con, local_con, group_ids, constrained_classes)
-    metrics['flips_required'] = flips
-    metrics.update(raw_sat)
-    metrics['satisfaction_epoch'] = satisfaction_epoch
-    log.info(
-        "[Track1] flips=%d raw_satisfied=%s excess=%d sat_epoch=%s",
-        flips, raw_sat['raw_all_satisfied'], raw_sat['raw_total_excess'],
-        satisfaction_epoch or 'N/A',
-    )
-    save_evaluation_metrics(experiment_path / 'evaluation_metrics.csv', metrics)
+    best_metrics['flips_required'] = flips
+    best_metrics.update(raw_sat)
+    best_metrics['satisfaction_epoch'] = satisfaction_epoch
+    best_metrics['checkpoint_source'] = best_source
+    log.info("[Track1] flips=%d raw_satisfied=%s excess=%d sat_epoch=%s checkpoint=%s",
+             flips, raw_sat['raw_all_satisfied'], raw_sat['raw_total_excess'],
+             satisfaction_epoch or 'N/A', best_source)
+    save_evaluation_metrics(experiment_path / 'evaluation_metrics.csv', best_metrics)
 
-    # Save results to config
     config['results'] = {
-        'accuracy': float(metrics['accuracy']),
-        'precision_macro': float(metrics['precision_macro']),
-        'recall_macro': float(metrics['recall_macro']),
-        'f1_macro': float(metrics['f1_macro']),
+        'accuracy': float(best_metrics['accuracy']),
+        'precision_macro': float(best_metrics['precision_macro']),
+        'recall_macro': float(best_metrics['recall_macro']),
+        'f1_macro': float(best_metrics['f1_macro']),
         'training_time': float(training_time),
         'samples_adjusted': int(flips),
-        'lp_fallback_used': posthoc_meta.get('lp_fallback_used', False),
+        'checkpoint_source': best_source,
+        'lp_fallback_used': best_meta.get('lp_fallback_used', False),
+    }
+    # Side-by-side comparison of the two candidates (matches run_experiment.py)
+    config['results_comparison'] = {
+        c[0]: {
+            'f1_macro': float(c[3]['f1_macro']),
+            'accuracy': float(c[3]['accuracy']),
+            'adjusted': int(c[4]),
+            'lp_fallback_used': c[5].get('lp_fallback_used', False),
+        }
+        for c in candidates
     }
     config['status'] = 'completed'
     save_config_to_path(config, experiment_path)
-    log.info("Fioretto LDF done: acc=%.4f flips=%d time=%.2fs",
-             metrics['accuracy'], flips, training_time)
+    log.info("Fioretto LDF done: acc=%.4f source=%s flips=%d time=%.2fs",
+             best_metrics['accuracy'], best_source, flips, training_time)
 
 
 def main() -> None:
