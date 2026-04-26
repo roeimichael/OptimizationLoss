@@ -38,10 +38,8 @@ main.py                                  # Dispatch pending experiments via subp
 - `ResNet18` -- torchvision ResNet18 with custom head (pretrained)
 - `MobileNetV3` -- torchvision MobileNetV3-Large (~5.4M params, pretrained)
 - `EfficientNetB0` -- torchvision EfficientNet-B0 (~4M params, pretrained)
+- `ConvNeXtTiny` -- torchvision ConvNeXt-Tiny (~28M params, pretrained)
 - Input: `(B, 3, H, W)` image tensors, ImageNet-normalized by data_loader
-
-### Tabular (`src/models/tabular/`)
-- `BasicNN`, `FTTransformer`, `TabularResNet` (legacy, not used in current experiments)
 
 Registry: `src/models/model_factory.py` -- `get_model(name, n_classes, **kwargs)`
 
@@ -89,7 +87,6 @@ src/
   losses/               transductive_loss.py (MulticlassTransductiveLoss)
   models/
     model_factory.py    unified registry
-    tabular/            basic_nn.py, ft_transformer.py, tabular_resnet.py
     imagery/            resnet.py, mobilenetv3.py, efficientnet.py
   training/             trainer.py, constraints.py, metrics.py, logging.py,
                         schedulers.py, model_cache.py

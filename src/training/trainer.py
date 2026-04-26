@@ -571,8 +571,10 @@ class ConstraintTrainer:
                         rho_frozen = True
                         log.info("[prop] Constraints first satisfied at epoch %d, freezing rho=%.3f",
                                  epoch + 1, criterion_constraint.get_rho())
-            elif hp.get('disable_lambda_toggle', False) or lambda_mode == 'ratchet_frozen':
+            elif lambda_mode == 'ratchet_frozen':
                 # Simple monotonic ratchet: increment when violated, freeze when satisfied.
+                # The legacy `disable_lambda_toggle=True` flag was removed -- it duplicated
+                # this branch and was proven harmful in the broader toggle-ON setting.
                 if not is_satisfied:
                     if not global_satisfied:
                         new_g = criterion_constraint.lambda_global + lambda_step

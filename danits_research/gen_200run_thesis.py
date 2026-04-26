@@ -63,13 +63,15 @@ def _build(block, methodology, scenario_name, con, model, seed, hp_overrides=Non
     ctag = constraint_tag(con)
     variant = f"s{seed}{tag_extra}"
     path = Path(ROOT) / block / scenario_name / ctag / model / methodology / variant
+    ds_config = _ds(cc)
     return {
         "methodology": methodology, "model_name": model,
         "constraint": list(con), "constraint_tag": ctag,
-        "dataset_mode": "tissuemnist", "dataset_config": _ds(cc),
+        "dataset_mode": "tissuemnist", "dataset_config": ds_config,
         "hyperparams": hp,
         "base_model_id": compute_base_model_id(
-            model, hp, dataset_mode="tissuemnist", data_dir=DATA_DIR),
+            model, hp, dataset_mode="tissuemnist", data_dir=DATA_DIR,
+            dataset_config=ds_config),
         "exp_name": f"t200_{block}_{scenario_name}_{ctag}_{methodology}_s{seed}{tag_extra}",
         "status": "pending", "experiment_path": str(path),
     }

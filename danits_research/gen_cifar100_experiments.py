@@ -72,16 +72,18 @@ def _build(methodology, scenario_name, seed):
     ctag = constraint_tag(CONSTRAINT_PAIR)
     variant = f"s{seed}"
     path = Path(ROOT) / scenario_name / ctag / MODEL / methodology / variant
+    ds_config = _ds(cc)
     return {
         "methodology": methodology,
         "model_name": MODEL,
         "constraint": list(CONSTRAINT_PAIR),
         "constraint_tag": ctag,
         "dataset_mode": "cifar100",
-        "dataset_config": _ds(cc),
+        "dataset_config": ds_config,
         "hyperparams": hp,
         "base_model_id": compute_base_model_id(
-            MODEL, hp, dataset_mode="cifar100", data_dir=DATA_DIR),
+            MODEL, hp, dataset_mode="cifar100", data_dir=DATA_DIR,
+            dataset_config=ds_config),
         "exp_name": f"c100_{scenario_name}_{ctag}_{methodology}_s{seed}",
         "status": "pending",
         "experiment_path": str(path),

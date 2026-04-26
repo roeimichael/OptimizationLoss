@@ -1,10 +1,10 @@
 # Post-hoc constraint enforcement.
-# Two strategies:
-#   1. minimal_correction: starts from model's argmax predictions, only flips
-#      the minimum samples needed to satisfy constraints. Preserves the model's
-#      learned decisions as much as possible.
-#   2. lp_assignment: re-assigns all samples from scratch via LP to maximize
-#      total confidence under constraints. Ignores model's argmax entirely.
+# Two strategies in active use:
+#   1. lp_constrained_assignment: full LP re-assignment via scipy linprog,
+#      maximizes total confidence under hard constraints. Used by `po_lp`.
+#   2. targeted_correction: bidirectional greedy + small-scope LP fallback,
+#      handles both over-limit and under-limit cases. Used by `our_approach`
+#      and `fioretto_ldf` after constraint training.
 
 import logging
 
@@ -14,8 +14,6 @@ from scipy.optimize import linprog
 from src.utils.constants import UNLIMITED
 
 log = logging.getLogger(__name__)
-
-MAX_ITERATIONS = 10
 
 
 # ================================================================
@@ -40,130 +38,7 @@ def _check_all_satisfied(y_pred, global_con, local_con, group_ids, constrained_c
 
 
 # ================================================================
-# Strategy 1: Minimal correction (default)
-# Only flips the minimum number of predictions to satisfy constraints.
-# Per-flip dynamic blocking prevents flipping into other at-limit classes.
-# ================================================================
-
-def _compute_global_counts(y_pred, constrained_classes):
-    return {c: int((y_pred == c).sum()) for c in constrained_classes}
-
-
-def _compute_local_counts(y_pred, group_mask, constrained_classes):
-    return {c: int((y_pred[group_mask] == c).sum()) for c in constrained_classes}
-
-
-def _blocked_from_counts(counts, limits, constrained_classes, exclude_class):
-    blocked = set()
-    for c in constrained_classes:
-        if c == exclude_class:
-            continue
-        limit = limits.get(c, UNLIMITED) if isinstance(limits, dict) else limits[c]
-        if limit >= UNLIMITED:
-            continue
-        if counts.get(c, 0) >= int(limit):
-            blocked.add(c)
-    return blocked
-
-
-def _flip_to_best_allowed(probs, blocked_classes):
-    masked = probs.copy()
-    for c in blocked_classes:
-        masked[c] = -1
-    return np.argmax(masked)
-
-
-def _adjust_global(y_pred, y_proba, global_con, constrained_classes, target_class):
-    limit = int(global_con[target_class])
-    current = int((y_pred == target_class).sum())
-    delta = current - limit
-    if delta <= 0:
-        return y_pred, 0
-
-    counts = _compute_global_counts(y_pred, constrained_classes)
-    indices = np.where(y_pred == target_class)[0]
-    sorted_order = np.argsort(y_proba[indices, target_class])
-    adjusted = 0
-    for idx in indices[sorted_order[:delta]]:
-        blocked = _blocked_from_counts(counts, global_con, constrained_classes, target_class)
-        mask_classes = {target_class} | blocked
-        new_class = _flip_to_best_allowed(y_proba[idx], mask_classes)
-        counts[target_class] -= 1
-        counts[new_class] = counts.get(new_class, 0) + 1
-        y_pred[idx] = new_class
-        adjusted += 1
-    return y_pred, adjusted
-
-
-def _adjust_local(y_pred, y_proba, group_ids, local_con, constrained_class,
-                  global_con, all_constrained_classes):
-    global_counts = _compute_global_counts(y_pred, all_constrained_classes)
-    total_adjusted = 0
-    for gid, group_limits in local_con.items():
-        g_limit = group_limits[constrained_class]
-        if g_limit >= UNLIMITED:
-            continue
-        g_limit = int(g_limit)
-        g_mask = (group_ids == gid)
-        g_count = int(((y_pred == constrained_class) & g_mask).sum())
-        if g_count <= g_limit:
-            continue
-        local_counts = _compute_local_counts(y_pred, g_mask, all_constrained_classes)
-        g_constrained = np.where(g_mask & (y_pred == constrained_class))[0]
-        sorted_order = np.argsort(y_proba[g_constrained, constrained_class])
-        n_to_flip = g_count - g_limit
-        for idx in g_constrained[sorted_order[:n_to_flip]]:
-            local_blocked = _blocked_from_counts(
-                local_counts, group_limits, all_constrained_classes, constrained_class)
-            global_blocked = _blocked_from_counts(
-                global_counts, global_con, all_constrained_classes, constrained_class)
-            mask_classes = {constrained_class} | local_blocked | global_blocked
-            new_class = _flip_to_best_allowed(y_proba[idx], mask_classes)
-            local_counts[constrained_class] -= 1
-            local_counts[new_class] = local_counts.get(new_class, 0) + 1
-            global_counts[constrained_class] -= 1
-            global_counts[new_class] = global_counts.get(new_class, 0) + 1
-            y_pred[idx] = new_class
-        total_adjusted += n_to_flip
-    return y_pred, total_adjusted
-
-
-def minimal_correction(y_proba, group_ids, global_con, local_con,
-                       constrained_classes):
-    y_pred = np.argmax(y_proba, axis=1)
-
-    if _check_all_satisfied(y_pred, global_con, local_con, group_ids,
-                            constrained_classes):
-        log.info("Minimal correction: argmax already satisfies all constraints")
-        return y_pred, 0
-
-    total_adjusted = 0
-    for iteration in range(MAX_ITERATIONS):
-        adjusted = 0
-        for cc in constrained_classes:
-            y_pred, n = _adjust_global(y_pred, y_proba, global_con,
-                                       constrained_classes, cc)
-            adjusted += n
-        if local_con and group_ids is not None:
-            for cc in constrained_classes:
-                y_pred, n = _adjust_local(y_pred, y_proba, group_ids, local_con,
-                                          cc, global_con, constrained_classes)
-                adjusted += n
-        total_adjusted += adjusted
-        if _check_all_satisfied(y_pred, global_con, local_con, group_ids,
-                                constrained_classes):
-            log.info("Minimal correction: converged in %d iteration(s), %d flips",
-                     iteration + 1, total_adjusted)
-            return y_pred, total_adjusted
-        if adjusted == 0:
-            log.warning("Minimal correction: stalled at iteration %d", iteration + 1)
-            break
-    log.warning("Minimal correction: max iterations reached, %d flips", total_adjusted)
-    return y_pred, total_adjusted
-
-
-# ================================================================
-# Strategy 2: LP-based full re-assignment (kept as option)
+# Strategy 1: LP-based full re-assignment (used by po_lp methodology)
 # ================================================================
 
 def lp_constrained_assignment(y_proba, group_ids, global_con, local_con,
@@ -241,7 +116,7 @@ def lp_constrained_assignment(y_proba, group_ids, global_con, local_con,
 
 
 # ================================================================
-# Strategy 3: Targeted bidirectional correction (default)
+# Strategy 2: Targeted bidirectional correction (default for our_approach + fioretto_ldf)
 # Handles both over-limit AND under-limit cases.
 # Falls back to small-scope LP when greedy phases can't resolve all violations.
 # ================================================================

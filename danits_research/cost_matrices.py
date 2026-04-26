@@ -87,55 +87,6 @@ def build_symmetric_distance_cost_matrix(n_classes: int) -> np.ndarray:
     return np.abs(idx[:, None] - idx[None, :]).astype(float)
 
 
-# ----------------------------------------------------------------------
-# DermMNIST presets (priority = MEL = class 4)
-# ----------------------------------------------------------------------
-#
-# AKIEC=0, BCC=1, BKL=2, DF=3, MEL=4, NV=5, VASC=6
-#
-# Ratios are chosen to bracket the notebook's A/B matrices (~1.67x-2x miss:over).
-
-DERMMNIST_NUM_CLASSES = 7
-DERMMNIST_MEL_IDX = 4
-
-#: Zero/one cost (baseline, equivalent to minimising error rate under constraints).
-#: Use this to get a LP result that is directly comparable to accuracy.
-DERMMNIST_IDENTITY = build_priority_cost_matrix(
-    DERMMNIST_NUM_CLASSES, DERMMNIST_MEL_IDX,
-    cost_miss=1.0, cost_over=1.0, cost_other=1.0,
-)
-
-#: Analog of notebook Matrix A (miss/over = 2.0x). "Moderate MEL priority".
-#: Missing a melanoma is 2x more costly than over-calling one.
-DERMMNIST_MEL_PRIORITY_MODERATE = build_priority_cost_matrix(
-    DERMMNIST_NUM_CLASSES, DERMMNIST_MEL_IDX,
-    cost_miss=4.0, cost_over=2.0, cost_other=1.0,
-)
-
-#: Analog of notebook Matrix B (miss/over = 1.67x but absolute costs higher).
-#: "Strong MEL priority" — all mistakes hurt more, MEL misses still worst.
-DERMMNIST_MEL_PRIORITY_STRONG = build_priority_cost_matrix(
-    DERMMNIST_NUM_CLASSES, DERMMNIST_MEL_IDX,
-    cost_miss=5.0, cost_over=3.0, cost_other=2.0,
-)
-
-#: Clinically-motivated extreme (miss/over = 5x). Cited ratios in oncology
-#: triage literature typically run 5x-10x; 5x is the low end. Treat as the
-#: "aggressive" sensitivity ablation.
-DERMMNIST_MEL_PRIORITY_CLINICAL = build_priority_cost_matrix(
-    DERMMNIST_NUM_CLASSES, DERMMNIST_MEL_IDX,
-    cost_miss=10.0, cost_over=2.0, cost_other=1.0,
-)
-
-
-DERMMNIST_PRESETS: dict[str, np.ndarray] = {
-    "identity":  DERMMNIST_IDENTITY,
-    "moderate":  DERMMNIST_MEL_PRIORITY_MODERATE,
-    "strong":    DERMMNIST_MEL_PRIORITY_STRONG,
-    "clinical":  DERMMNIST_MEL_PRIORITY_CLINICAL,
-}
-
-
 def describe_cost_matrix(omega: np.ndarray, priority_idx: int | None = None) -> str:
     """Pretty-print a cost matrix for logs / smoke tests."""
     lines = []

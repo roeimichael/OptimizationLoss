@@ -9,7 +9,6 @@ single-model sweep actually uses all available GPUs.
 from __future__ import annotations
 
 import argparse
-import logging
 import os
 import subprocess
 import sys
@@ -23,7 +22,6 @@ OPTIMIZATION_MODULE = 'src.experiments.run_experiment'
 HEURISTIC_MODULE = 'src.experiments.run_heuristic'
 
 _print_lock = threading.Lock()
-log = logging.getLogger(__name__)
 
 
 def _p(*a, **kw):

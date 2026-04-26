@@ -37,7 +37,11 @@ def _load_imagery_data(config):
     data_dir = ds['data_dir']
     num_classes = ds['num_classes']
     constrained_class = ds['constrained_class']
-    group_col = ds.get('group_column', 'sex')
+    if 'group_column' not in ds:
+        raise KeyError("dataset_config.group_column is required (e.g. 'synth_group' for "
+                       "TissueMNIST, 'coarse_label' for CIFAR-100). The legacy 'sex' "
+                       "default came from the Adult/Churn era and is no longer valid.")
+    group_col = ds['group_column']
     dataset_mode = config.get('dataset_mode', 'unknown')
     X_train = _ensure_3channel(np.load(os.path.join(data_dir, 'train_images.npy')))
     y_train = np.load(os.path.join(data_dir, 'train_labels.npy'))
@@ -63,7 +67,10 @@ def _load_imagery_data(config):
 
 
 def load_experiment_data(config):
-    dataset_mode = config.get('dataset_mode', 'binary')
+    if 'dataset_mode' not in config:
+        raise KeyError("config.dataset_mode is required. The legacy 'binary' "
+                       "default came from the Adult/Churn era and is no longer valid.")
+    dataset_mode = config['dataset_mode']
     if dataset_mode in IMAGERY_DATASETS:
         return _load_imagery_data(config)
     else:

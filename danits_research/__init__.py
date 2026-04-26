@@ -21,15 +21,7 @@ It fixes three bugs we found while auditing the colleague's notebook:
 from .lp_solver import solve_lp_assignment, LPResult
 from .heuristic import solve_greedy_assignment, HeuristicResult
 from .constraints_builder import build_psi_phi_from_percentages
-from .cost_matrices import (
-    DERMMNIST_PRESETS,
-    DERMMNIST_IDENTITY,
-    DERMMNIST_MEL_PRIORITY_MODERATE,
-    DERMMNIST_MEL_PRIORITY_STRONG,
-    DERMMNIST_MEL_PRIORITY_CLINICAL,
-    build_priority_cost_matrix,
-    describe_cost_matrix,
-)
+from .cost_matrices import build_priority_cost_matrix, describe_cost_matrix
 
 __all__ = [
     "solve_lp_assignment",
@@ -37,11 +29,6 @@ __all__ = [
     "solve_greedy_assignment",
     "HeuristicResult",
     "build_psi_phi_from_percentages",
-    "DERMMNIST_PRESETS",
-    "DERMMNIST_IDENTITY",
-    "DERMMNIST_MEL_PRIORITY_MODERATE",
-    "DERMMNIST_MEL_PRIORITY_STRONG",
-    "DERMMNIST_MEL_PRIORITY_CLINICAL",
     "build_priority_cost_matrix",
     "describe_cost_matrix",
 ]

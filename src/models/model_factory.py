@@ -17,10 +17,11 @@ MODEL_REGISTRY = {
 }
 
 
-def get_model(model_name: str, n_classes: int = 7, **kwargs: Any) -> nn.Module:
+def get_model(model_name: str, n_classes: int, **kwargs: Any) -> nn.Module:
     if model_name not in MODEL_REGISTRY:
         raise ValueError(f"Unknown model: {model_name}. Available: {list(MODEL_REGISTRY.keys())}")
     model_class = MODEL_REGISTRY[model_name]
+    # Strip vestigial tabular-era plumbing that callers still pass through.
     kwargs.pop('input_dim', None)
     kwargs.pop('hidden_dims', None)
     return model_class(n_classes=n_classes, **kwargs)

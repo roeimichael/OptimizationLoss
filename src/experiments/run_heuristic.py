@@ -218,26 +218,19 @@ def run_heuristic(config_path: str) -> None:
         # This branches from the SAME cached warmup as 'heuristic' and 'po_lp'
         # (via base_model_id), so all four methodologies can be compared
         # head-to-head on identical Phase-1 weights.
-        from danits_research import (
-            DERMMNIST_PRESETS,
-            build_priority_cost_matrix,
-            build_psi_phi_from_percentages,
-            solve_lp_assignment,
-        )
-        # Cost matrix preset name (see danits_research.cost_matrices).
-        # Default 'identity' == minimise expected error rate subject to Psi/Phi.
-        # The identity matrix is built dynamically from num_classes so it works
-        # for ANY dataset (DermMNIST=7, TissueMNIST=8, etc.) without hardcoding.
+        from danits_research import solve_lp_assignment
+        # Cost matrix preset (currently only 'identity' is wired in -- the
+        # DermMNIST priority matrices were dropped during cleanup since the
+        # active datasets are TissueMNIST + CIFAR-100). Identity matrix
+        # minimises expected error rate subject to Psi/Phi caps and is built
+        # dynamically from num_classes so it works for any dataset shape.
         cost_preset = config.get('hyperparams', {}).get('danits_cost_preset', 'identity')
-        if cost_preset == 'identity':
-            omega = np.ones((num_classes, num_classes), dtype=np.float64) - np.eye(num_classes, dtype=np.float64)
-        elif cost_preset in DERMMNIST_PRESETS:
-            omega = DERMMNIST_PRESETS[cost_preset]
-        else:
+        if cost_preset != 'identity':
             raise ValueError(
-                f"Unknown danits_cost_preset {cost_preset!r}. "
-                f"Available: ['identity'] + {list(DERMMNIST_PRESETS.keys())}"
-            )
+                f"Unknown danits_cost_preset {cost_preset!r}. Only 'identity' "
+                f"is supported. To add task-specific cost matrices, extend "
+                f"danits_research/cost_matrices.py.")
+        omega = np.ones((num_classes, num_classes), dtype=np.float64) - np.eye(num_classes, dtype=np.float64)
         # Convert the project's (global_con, local_con) format — which uses
         # UNLIMITED=1e10 sentinel — into paper-[5] Psi/Phi (None = unbounded).
         psi_list = [int(v) if v < UNLIMITED else None for v in global_con]
