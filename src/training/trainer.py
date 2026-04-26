@@ -162,15 +162,18 @@ class ConstraintTrainer:
         save_to_cache(self.model, base_model_id, self.config)
         return warmup_epochs
 
-    def _cache_warmup_probabilities(self, X_test: torch.Tensor,
-                                     kl_temperature: float = 1.0) -> torch.Tensor:
+    def _cache_warmup_logits(self, X_test: torch.Tensor) -> torch.Tensor:
+        """Cache RAW warmup logits (T=1) so that kl_temperature can be applied
+        symmetrically to BOTH current and warmup distributions inside the KL
+        term. Previously we cached softmax(logits/T) which softened only the
+        warmup side, turning KL(p_current || p_warmup) into a pull toward
+        uniform when T>1. AUDIT C2.
+        """
         self.model.eval()
         with torch.no_grad(), torch.amp.autocast('cuda', dtype=self.amp_dtype, enabled=self.use_amp):
-            warmup_logits = chunked_forward(self.model, X_test)
-            warmup_proba = F.softmax(warmup_logits.float() / kl_temperature, dim=1)
-        log.info("Cached warmup probabilities: shape=%s kl_temp=%.1f",
-                 warmup_proba.shape, kl_temperature)
-        return warmup_proba.detach()
+            warmup_logits = chunked_forward(self.model, X_test).float()
+        log.info("Cached warmup logits: shape=%s", warmup_logits.shape)
+        return warmup_logits.detach()
 
     @logger()
     def train_constraints(self, X_train: torch.Tensor, y_train: torch.Tensor,
@@ -201,9 +204,9 @@ class ConstraintTrainer:
         log.info("Using FULL test set (%d samples) for constraint gradient", len(X_test))
         alpha_kl = hp.get('alpha_kl', 0.0)
         kl_temperature = hp.get('kl_temperature', 1.0)
-        warmup_proba = None
+        warmup_logits_cache = None
         if alpha_kl > 0:
-            warmup_proba = self._cache_warmup_probabilities(X_test, kl_temperature)
+            warmup_logits_cache = self._cache_warmup_logits(X_test)
         satisfaction_epoch = None
         stable_count = 0
         training_start = time.time()
@@ -294,7 +297,12 @@ class ConstraintTrainer:
                         train_total += batch_y.size(0)
             cached_train_acc = train_correct / train_total if train_total > 0 else 1.0
 
-            self.model.train()
+            # Pass A (bookkeeping) and Pass B (constraint gradient) both run on
+            # X_test in transductive mode -- switch to eval() so dropout is OFF
+            # and BatchNorm running stats are NOT polluted by test inputs.
+            # Train mode is restored at the bottom of the epoch (line ~709).
+            # AUDIT C1.
+            self.model.eval()
             self.optimizer.zero_grad(set_to_none=True)
             chunk_size = hp.get('constraint_chunk_size', CONSTRAINT_CHUNK_SIZE)
             n_test = len(X_test)
@@ -340,7 +348,7 @@ class ConstraintTrainer:
 
             loss_kl_val = 0.0
             has_constraint = total_constraint > 0
-            has_kl = alpha_kl > 0 and warmup_proba is not None
+            has_kl = alpha_kl > 0 and warmup_logits_cache is not None
             if has_constraint or has_kl:
                 for ci in range(n_chunks):
                     start = ci * chunk_size
@@ -370,10 +378,15 @@ class ConstraintTrainer:
                         chunk_loss = chunk_loss + (criterion_constraint.lambda_global * lg +
                                       criterion_constraint.lambda_local * ll) / n_chunks
                     if has_kl:
-                        log_p = F.log_softmax(chunk_logits_f, dim=1)
-                        p_current = chunk_proba
-                        p_warmup = warmup_proba[start:end].clamp(min=1e-8)
-                        kl_chunk = (p_current * (log_p - torch.log(p_warmup))).sum(dim=1).mean()
+                        # Symmetric temperature: both sides softened by T.
+                        # KL(p_cur_T || p_warm_T) where p = softmax(z/T).
+                        # AUDIT C2 fix.
+                        T = kl_temperature
+                        log_p_cur = F.log_softmax(chunk_logits_f / T, dim=1)
+                        p_cur_T = F.softmax(chunk_logits_f / T, dim=1)
+                        warm_logits = warmup_logits_cache[start:end]
+                        log_p_warm = F.log_softmax(warm_logits / T, dim=1)
+                        kl_chunk = (p_cur_T * (log_p_cur - log_p_warm)).sum(dim=1).mean()
                         chunk_loss = chunk_loss + alpha_kl * kl_chunk / n_chunks
                         loss_kl_val += kl_chunk.item() / n_chunks
                     if self.scaler:
@@ -630,13 +643,17 @@ class ConstraintTrainer:
                 l_soft = {}
                 for gid in total_local_soft:
                     l_soft[gid] = {c: total_local_soft[gid][c].item() for c in range(self.num_classes)}
-                # CE saturation skip (legacy behaviour): when train_acc saturates
-                # the CE loop is disabled, leaving only constraint+KL gradients. The
-                # audit found this causes posterior collapse when combined with
-                # alpha_kl>0 and lambda zeroing. Set `disable_ce_skip: True` in
-                # hyperparams to keep CE training active for the full constraint
-                # phase.
-                if not hp.get('disable_ce_skip', False):
+                # CE saturation skip: when train_acc saturates the CE loop is
+                # disabled, leaving only constraint+KL gradients. AUDIT B9 found
+                # this causes posterior collapse when combined with alpha_kl>0
+                # and lambda zeroing -- the only remaining gradient pulls
+                # predictions toward the warmup distribution (or toward uniform
+                # if KL temperature was asymmetric, see C2). Default is now OFF;
+                # opt-in via disable_ce_skip=False in hyperparams. Even when
+                # opted in, skip is forcibly disabled when alpha_kl > 0.
+                ce_skip_opted_in = not hp.get('disable_ce_skip', True)
+                ce_skip_safe = ce_skip_opted_in and alpha_kl == 0
+                if ce_skip_safe:
                     if train_acc >= 0.995:
                         ce_skip_counter += 1
                         if ce_skip_counter >= 2 and not skip_ce:
