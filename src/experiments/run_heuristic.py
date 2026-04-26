@@ -21,10 +21,9 @@ from src.training.metrics import compute_metrics, compute_train_accuracy
 from src.training.logging import save_final_predictions, save_evaluation_metrics
 from src.training.model_cache import load_from_cache, save_to_cache
 from src.utils.posthoc_adjustment import lp_constrained_assignment
+from src.utils.constants import UNLIMITED
 
 log = logging.getLogger(__name__)
-
-UNLIMITED = 1e10
 
 
 def train_fixed_warmup(config, input_dim, num_classes, X_train, y_train, device):
@@ -265,7 +264,7 @@ def run_heuristic(config_path: str) -> None:
                            y_true, argmax_preds, probs, groups_np)
     for c in range(num_classes):
         pred_count = (y_pred == c).sum()
-        limit = int(global_con[c]) if global_con[c] < 1e9 else 'INF'
+        limit = int(global_con[c]) if global_con[c] < UNLIMITED else 'INF'
         status = 'OK' if (isinstance(limit, str) or pred_count <= limit) else f'VIOLATED by {pred_count - limit}'
         log.info("Heuristic class %d: pred=%d limit=%s %s", c, pred_count, limit, status)
     metrics = compute_metrics(y_true, y_pred, probs)

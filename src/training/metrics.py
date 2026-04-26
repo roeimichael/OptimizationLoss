@@ -6,6 +6,7 @@ import numpy as np
 from sklearn.metrics import precision_recall_fscore_support, confusion_matrix
 
 from src.utils.inference import chunked_forward
+from src.utils.constants import UNLIMITED
 
 
 def compute_prediction_statistics(model, X_test, group_ids, num_classes=7):
@@ -108,7 +109,6 @@ def compute_raw_constraint_satisfaction(y_raw, global_con, local_con, group_ids,
     Returns dict with raw_global_satisfied_pct, raw_local_satisfied_pct,
     raw_all_satisfied, raw_total_excess.
     """
-    UNLIMITED = 1e9
     n_global_constrained = 0
     n_global_satisfied = 0
     total_excess = 0

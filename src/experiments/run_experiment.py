@@ -17,6 +17,7 @@ from src.training.trainer import ConstraintTrainer
 from src.training.metrics import get_predictions_with_probabilities, compute_metrics
 from src.training.logging import save_final_predictions, save_evaluation_metrics
 from src.utils.filesystem_manager import load_config_from_path, save_config_to_path, update_experiment_status
+from src.utils.constants import UNLIMITED
 
 log = logging.getLogger(__name__)
 
@@ -76,7 +77,7 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     training_time = time.time() - start_time
     y_true = _to_numpy(y_test)
     group_ids = _to_numpy(groups_test)
-    needs_adjustment = any(global_con[c] < 1e9 for c in constrained_classes)
+    needs_adjustment = any(global_con[c] < UNLIMITED for c in constrained_classes)
 
     def _eval_and_correct(the_model, label='final'):
         the_model.eval()
@@ -121,7 +122,7 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
 
     for c in range(num_classes):
         pred_count = (best_pred == c).sum()
-        limit = int(global_con[c]) if global_con[c] < 1e9 else 'INF'
+        limit = int(global_con[c]) if global_con[c] < UNLIMITED else 'INF'
         status = 'OK' if (isinstance(limit, str) or pred_count <= limit) else f'VIOLATED by {pred_count - limit}'
         log.info("Class %d: pred=%d limit=%s %s", c, pred_count, limit, status)
     save_final_predictions(experiment_path / 'final_predictions.csv', y_true, best_pred, best_proba, group_ids)

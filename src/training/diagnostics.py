@@ -24,6 +24,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+from src.utils.constants import UNLIMITED
+
 log = logging.getLogger(__name__)
 
 
@@ -103,10 +105,10 @@ class TrainingDiagnostics:
         warmup_dist = np.bincount(preds, minlength=self.num_classes)
         log.info("[DIAG] Warmup prediction distribution: %s", dict(enumerate(warmup_dist.tolist())))
         for c in self.constrained_classes:
-            limit = int(self.global_con[c]) if self.global_con[c] < 1e9 else 'INF'
+            limit = int(self.global_con[c]) if self.global_con[c] < UNLIMITED else 'INF'
             log.info("[DIAG] Warmup class %d: %d predictions (limit=%s, excess=%s)",
                      c, warmup_dist[c], limit,
-                     max(0, warmup_dist[c] - int(self.global_con[c])) if self.global_con[c] < 1e9 else 'N/A')
+                     max(0, warmup_dist[c] - int(self.global_con[c])) if self.global_con[c] < UNLIMITED else 'N/A')
 
         # Save borderline analysis at warmup
         self._log_borderline_analysis(proba, "warmup")
@@ -188,7 +190,7 @@ class TrainingDiagnostics:
 
         # Constrained class analysis
         for c in self.constrained_classes:
-            limit = int(self.global_con[c]) if self.global_con[c] < 1e9 else float('inf')
+            limit = int(self.global_con[c]) if self.global_con[c] < UNLIMITED else float('inf')
             row[f'excess_{c}'] = max(0, pred_dist[c] - limit) if limit != float('inf') else 0
             row[f'soft_count_{c}'] = float(proba[:, c].sum())
 

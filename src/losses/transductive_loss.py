@@ -8,10 +8,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-log = logging.getLogger(__name__)
+from src.utils.constants import UNLIMITED, EPSILON
 
-EPSILON = 1e-8
-UNLIMITED = 1e10
+log = logging.getLogger(__name__)
 
 
 class MulticlassTransductiveLoss(nn.Module):

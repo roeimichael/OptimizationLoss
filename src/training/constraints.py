@@ -4,7 +4,7 @@
 import numpy as np
 from typing import Dict, List, Union
 
-UNLIMITED = 1e10
+from src.utils.constants import UNLIMITED
 
 
 def _normalize_constrained_classes(constrained_class):

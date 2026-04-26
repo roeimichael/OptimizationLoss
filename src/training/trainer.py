@@ -23,11 +23,11 @@ from src.training.model_cache import save_to_cache, load_from_cache
 from src.training.diagnostics import TrainingDiagnostics
 from src.utils.error_handler import logger
 from src.utils.inference import chunked_forward
+from src.utils.constants import UNLIMITED
 
 log = logging.getLogger(__name__)
 
 CONSTRAINT_CHUNK_SIZE = 256
-UNLIMITED = 1e10
 
 
 class ConstraintTrainer:
@@ -209,7 +209,7 @@ class ConstraintTrainer:
         training_start = time.time()
         ce_skip_counter = 0
         skip_ce = False
-        constrained_classes = [c for c in range(self.num_classes) if global_con[c] < 1e9]
+        constrained_classes = [c for c in range(self.num_classes) if global_con[c] < UNLIMITED]
         constrained_class = constrained_classes[0] if constrained_classes else None
         constraint_limit = int(global_con[constrained_class]) if constrained_class is not None else None
         # Lambda toggle state
@@ -682,12 +682,12 @@ class ConstraintTrainer:
                          "OK" if global_satisfied else "VIOL",
                          "OK" if local_satisfied else "VIOL")
                 for c in range(self.num_classes):
-                    if global_con[c] < 1e9:
+                    if global_con[c] < UNLIMITED:
                         log.info("  Global class %d: pred=%d limit=%d", c, g_counts.get(c, 0), int(global_con[c]))
                 for gid in sorted(l_counts.keys()):
                     group_name = f"group_{gid}"
                     for c in range(self.num_classes):
-                        if local_con and gid in local_con and local_con[gid][c] < 1e9:
+                        if local_con and gid in local_con and local_con[gid][c] < UNLIMITED:
                             log.info("  Local %s class %d: pred=%d limit=%d",
                                      group_name, c,
                                      l_counts.get(gid, {}).get(c, 0),
@@ -708,13 +708,13 @@ class ConstraintTrainer:
             self.model, X_test, group_ids, num_classes=self.num_classes)
         log.info("=== Final prediction summary ===")
         for c in range(self.num_classes):
-            limit = int(global_con[c]) if global_con[c] < 1e9 else 'INF'
+            limit = int(global_con[c]) if global_con[c] < UNLIMITED else 'INF'
             log.info("  Global class %d: hard=%d soft=%.2f limit=%s",
                      c, g_counts.get(c, 0), g_soft.get(c, 0), limit)
         for gid in sorted(l_counts.keys()):
             group_name = f"group_{gid}"
             for c in range(self.num_classes):
-                if local_con and gid in local_con and local_con[gid][c] < 1e9:
+                if local_con and gid in local_con and local_con[gid][c] < UNLIMITED:
                     log.info("  Local %s class %d: hard=%d soft=%.2f limit=%d",
                              group_name, c,
                              l_counts.get(gid, {}).get(c, 0),
@@ -723,7 +723,7 @@ class ConstraintTrainer:
         # Expose constraint metrics for Track 1 evaluation
         self.satisfaction_epoch = satisfaction_epoch
         self.final_soft_hard_gap = {}
-        constrained = [c for c in range(self.num_classes) if global_con[c] < 1e9]
+        constrained = [c for c in range(self.num_classes) if global_con[c] < UNLIMITED]
         for c in constrained:
             self.final_soft_hard_gap[c] = abs(g_soft.get(c, 0) - g_counts.get(c, 0))
 

@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from src.utils.constants import UNLIMITED
+
 log = logging.getLogger(__name__)
 
 
@@ -18,8 +20,8 @@ def build_csv_header(num_classes, local_constraints=None):
     if local_constraints:
         for gid in sorted(local_constraints.keys()):
             for c in range(num_classes):
-                l_limit = local_constraints[gid][c] if c < len(local_constraints[gid]) else 1e9
-                if l_limit < 1e9:
+                l_limit = local_constraints[gid][c] if c < len(local_constraints[gid]) else UNLIMITED
+                if l_limit < UNLIMITED:
                     header += [f'Group{gid}_Hard_Class{c}', f'Group{gid}_Soft_Class{c}',
                                f'Group{gid}_Limit_Class{c}']
     return header
@@ -56,21 +58,21 @@ def log_progress_to_csv(csv_path, epoch, ce_loss, train_acc,
     global_soft = global_soft or {i: 0.0 for i in range(num_classes)}
     local_counts = local_counts or {}
     local_soft = local_soft or {}
-    constraints = constraints or [1e9] * num_classes
+    constraints = constraints or [UNLIMITED] * num_classes
     group_ids_sorted = sorted(local_constraints.keys()) if local_constraints else []
     row = [epoch + 1, f"{train_acc:.4f}", f"{ce_loss:.6f}", f"{global_loss:.6f}",
            f"{local_loss:.6f}", f"{kl_loss:.6f}",
            f"{lambda_global:.2f}", f"{lambda_local:.2f}",
            1 if global_satisfied else 0, 1 if local_satisfied else 0]
     for i in range(num_classes):
-        limit = int(constraints[i]) if constraints[i] < 1e9 else 'inf'
+        limit = int(constraints[i]) if constraints[i] < UNLIMITED else 'inf'
         row += [limit, global_counts.get(i, 0), f"{global_soft.get(i, 0.0):.2f}"]
     for gid in group_ids_sorted:
         group_hard = local_counts.get(gid, {})
         group_soft_data = local_soft.get(gid, {})
         for c in range(num_classes):
-            l_limit = local_constraints[gid][c] if c < len(local_constraints[gid]) else 1e9
-            if l_limit < 1e9:
+            l_limit = local_constraints[gid][c] if c < len(local_constraints[gid]) else UNLIMITED
+            if l_limit < UNLIMITED:
                 row += [group_hard.get(c, 0),
                         f"{group_soft_data.get(c, 0.0):.2f}",
                         int(l_limit)]

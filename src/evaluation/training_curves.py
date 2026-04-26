@@ -11,6 +11,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
+from src.utils.constants import UNLIMITED
+
 log = logging.getLogger(__name__)
 
 CLASS_NAMES = {0: 'AKIEC', 1: 'BCC', 2: 'BKL', 3: 'DF', 4: 'MEL', 5: 'NV', 6: 'VASC'}
@@ -67,7 +69,7 @@ def _find_constrained_class(df):
     for col in df.columns:
         if col.startswith('Limit_Class'):
             vals = df[col].replace('inf', float('inf'))
-            if (vals < 1e9).any():
+            if (vals < UNLIMITED).any():
                 return int(col.replace('Limit_Class', ''))
     return None
 
@@ -157,7 +159,7 @@ def plot_training_summary(df, experiment_name, save_path):
 
                     if limit_col_g in df.columns:
                         lv = float(df[limit_col_g].dropna().iloc[-1])
-                        if lv < 1e9:
+                        if lv < UNLIMITED:
                             ax.axhline(y=lv, color=color, linewidth=2, linestyle='--',
                                        alpha=0.7,
                                        label=f'{grp_name} Limit ({int(lv)})', zorder=6)

@@ -11,9 +11,10 @@ import logging
 import numpy as np
 from scipy.optimize import linprog
 
+from src.utils.constants import UNLIMITED
+
 log = logging.getLogger(__name__)
 
-UNLIMITED = 1e10
 MAX_ITERATIONS = 10
 
 
