@@ -168,12 +168,18 @@ def minimal_correction(y_proba, group_ids, global_con, local_con,
 
 def lp_constrained_assignment(y_proba, group_ids, global_con, local_con,
                               constrained_classes):
+    """Returns (y_pred, n_changed, meta) where meta tracks LP solver state.
+
+    On solver failure we fall back to argmax with 0 changes -- the caller
+    must check meta['lp_solver_failed'] and refuse to mark the experiment
+    completed if True. AUDIT C3.
+    """
     n_samples, n_classes = y_proba.shape
     argmax_preds = np.argmax(y_proba, axis=1)
 
     if _check_all_satisfied(argmax_preds, global_con, local_con, group_ids,
                             constrained_classes):
-        return argmax_preds, 0
+        return argmax_preds, 0, {'lp_solver_failed': False, 'lp_status': 'argmax_already_satisfies'}
 
     c_obj = -y_proba.flatten()
 
@@ -227,11 +233,11 @@ def lp_constrained_assignment(y_proba, group_ids, global_con, local_con,
 
     if not result.success:
         log.warning("LP failed (status=%d), falling back to argmax", result.status)
-        return argmax_preds, 0
+        return argmax_preds, 0, {'lp_solver_failed': True, 'lp_status': int(result.status)}
 
     y_pred = np.argmax(result.x.reshape(n_samples, n_classes), axis=1)
     n_changed = int((y_pred != argmax_preds).sum())
-    return y_pred, n_changed
+    return y_pred, n_changed, {'lp_solver_failed': False, 'lp_status': int(result.status)}
 
 
 # ================================================================

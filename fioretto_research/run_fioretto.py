@@ -124,7 +124,13 @@ def _train_fioretto_constraints(
     hp = config['hyperparams']
     constraint_epochs = hp.get('constraint_epochs', 300)
     lr_c = hp.get('lr_constraint', 1e-5)
-    step_size = hp.get('fioretto_step_size', 0.01)
+    if 'fioretto_step_size' not in hp:
+        raise ValueError(
+            "fioretto_step_size is required in hyperparams. The runner used "
+            "to default to 0.01 while the multi-methodology generator "
+            "defaulted to 0.005, producing inconsistent baselines silently. "
+            "Set it explicitly in your config (typical sweep: 0.001 / 0.005 / 0.01).")
+    step_size = float(hp['fioretto_step_size'])
     batch_size = hp.get('batch_size', 64)
     chunk_size = hp.get('constraint_chunk_size', 256)
 

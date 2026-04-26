@@ -13,13 +13,28 @@ def _normalize_constrained_classes(constrained_class):
     return [constrained_class]
 
 
+def _round_to_K(count, percentage, scope_label):
+    """Round count*percentage to an integer K and refuse to silently produce K=0
+    when there ARE samples to classify. K=0 with count>0 is a config bug
+    (asking for 0 budget on a class that exists), and the loss would silently
+    skip it -> phantom-satisfied experiment. See AUDIT B12.
+    """
+    K = int(np.round(count * percentage))
+    if count > 0 and percentage > 0 and K == 0:
+        raise ValueError(
+            f"{scope_label}: percentage={percentage} * count={int(count)} "
+            f"rounded to K=0. The constraint would vanish silently. "
+            f"Pick a larger percentage or move the constrained class.")
+    return K
+
+
 def compute_global_constraints(data, target_col, percentage, constrained_class=4,
                                num_classes=7, **kwargs):
     classes = _normalize_constrained_classes(constrained_class)
     constraints = [UNLIMITED] * num_classes
     for c in classes:
         count = (data[target_col] == c).sum()
-        constraints[c] = int(np.round(count * percentage))
+        constraints[c] = _round_to_K(count, percentage, f"global K (class {c})")
     return constraints
 
 
@@ -34,6 +49,7 @@ def compute_local_constraints(data, target_col, percentage, group_col,
         constraints = [UNLIMITED] * num_classes
         for c in classes:
             count = (gdata[target_col] == c).sum()
-            constraints[c] = int(np.round(count * percentage))
+            constraints[c] = _round_to_K(
+                count, percentage, f"local K (group {group}, class {c})")
         local[group] = constraints
     return local
