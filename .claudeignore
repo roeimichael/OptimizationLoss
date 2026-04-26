@@ -1,0 +1,37 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# IDE / VCS
+.idea/
+.git/
+
+# ML heavyweights — don't crawl, read explicitly when needed
+data/
+model_cache/
+results/
+results_fetched/
+archive_experiments/
+logs/
+
+# Env / secrets
+.env
+.env.*
+
+# Logs / data blobs
+*.log
+*.parquet
+*.csv.gz
+*.pt
+*.ckpt
+*.safetensors
+*.bin
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
