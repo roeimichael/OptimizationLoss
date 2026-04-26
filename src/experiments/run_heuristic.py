@@ -189,8 +189,10 @@ def run_heuristic(config_path: str) -> None:
     y_train_tensor = torch.LongTensor(_to_numpy(y_train))
     X_test_tensor = torch.FloatTensor(X_test).to(device)
     input_dim = None
+    warmup_start = time.time()
     model = train_fixed_warmup(config, input_dim, num_classes,
                                X_train_tensor, y_train_tensor, device)
+    warmup_time = time.time() - warmup_start
     model.eval()
     with torch.no_grad():
         chunk_size = 256
@@ -288,12 +290,18 @@ def run_heuristic(config_path: str) -> None:
     log.info("[Track1] flips=%d raw_satisfied=%s excess=%d",
              flips, raw_sat['raw_all_satisfied'], raw_sat['raw_total_excess'])
     save_evaluation_metrics(Path(experiment_path) / 'evaluation_metrics.csv', metrics)
+    metrics['warmup_time'] = float(warmup_time)
+    metrics['constraint_train_time'] = 0.0  # post-hoc methods have no constraint training
+    metrics['posthoc_time'] = float(exec_time)
     config['results'] = {
         'accuracy': float(metrics['accuracy']),
         'precision_macro': float(metrics['precision_macro']),
         'recall_macro': float(metrics['recall_macro']),
         'f1_macro': float(metrics['f1_macro']),
-        'training_time': float(exec_time),
+        'training_time': float(warmup_time + exec_time),  # backward compat: total wall time
+        'warmup_time': float(warmup_time),
+        'constraint_train_time': 0.0,
+        'posthoc_time': float(exec_time),
         'samples_adjusted': int(flips),
         'lp_solver_failed': bool(posthoc_meta.get('lp_solver_failed', False)),
     }

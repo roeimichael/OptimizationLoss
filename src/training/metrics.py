@@ -104,10 +104,25 @@ def compute_flips(y_raw, y_adjusted):
 
 def compute_raw_constraint_satisfaction(y_raw, global_con, local_con, group_ids,
                                        constrained_classes):
-    """Check what fraction of constraints are satisfied by raw argmax (no post-hoc).
+    """Pre-post-hoc constraint satisfaction.
 
-    Returns dict with raw_global_satisfied_pct, raw_local_satisfied_pct,
-    raw_all_satisfied, raw_total_excess.
+    AUDIT B4: this metric is named `raw_*` for backward compatibility with
+    existing CSVs, but its semantics differ across methodologies and the
+    name is misleading:
+
+    - For our_approach / fioretto_ldf: y_raw is the argmax of a model
+      trained with constraint pressure -- it had a chance to satisfy.
+    - For heuristic / po_lp / danits_lp: y_raw is the argmax of the raw
+      WARMUP model -- no constraint pressure, will look terrible here even
+      when the post-hoc result is identical to our_approach.
+
+    The metric is therefore an honest measure of "did the training phase
+    pull predictions toward feasibility" but a DISHONEST head-to-head if
+    framed as "constraint satisfaction without post-hoc".
+
+    Outputs are also written to evaluation_metrics.csv under
+    `pre_posthoc_*` aliases so downstream readers can use the clearer
+    name without breaking older parsers.
     """
     n_global_constrained = 0
     n_global_satisfied = 0
@@ -149,12 +164,19 @@ def compute_raw_constraint_satisfaction(y_raw, global_con, local_con, group_ids,
     all_sat = (n_global_satisfied == n_global_constrained and
                n_local_satisfied == n_local_constrained)
 
-    return {
+    out = {
         'raw_global_satisfied_pct': float(g_pct),
         'raw_local_satisfied_pct': float(l_pct),
         'raw_all_satisfied': bool(all_sat),
         'raw_total_excess': int(total_excess),
     }
+    # B4: emit aliases under the clearer name so downstream code can
+    # transition without breaking older parsers.
+    out['pre_posthoc_global_satisfied_pct'] = out['raw_global_satisfied_pct']
+    out['pre_posthoc_local_satisfied_pct'] = out['raw_local_satisfied_pct']
+    out['pre_posthoc_all_satisfied'] = out['raw_all_satisfied']
+    out['pre_posthoc_total_excess'] = out['raw_total_excess']
+    return out
 
 
 def compute_metrics(y_true, y_pred, y_proba=None):

@@ -66,18 +66,25 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     trainer = ConstraintTrainer(config, str(experiment_path), device, num_classes=num_classes)
     trainer.setup_model(input_dim=input_dim, base_model_id=config['base_model_id'])
     log.info("TIMING model_setup=%.2fs (cached=%s)", time.time() - t1, trainer.from_cache)
-    start_time = time.time()
+    # B5: split timing into warmup, constraint, and posthoc phases. Cached
+    # warmups still report the full 0+ seconds spent in train_warmup (which
+    # short-circuits via from_cache=True).
+    warmup_start = time.time()
     actual_warmup = trainer.train_warmup(X_train_tensor, y_train_tensor, config['base_model_id'])
-    log.info("TIMING warmup=%.2fs (%d epochs)", time.time() - start_time, actual_warmup)
+    warmup_time = time.time() - warmup_start
+    log.info("TIMING warmup=%.2fs (%d epochs)", warmup_time, actual_warmup)
+    constraint_start = time.time()
     model = trainer.train_constraints(
         X_train=X_train_tensor, y_train=y_train_tensor,
         X_test=X_test_tensor, groups_test=groups_test,
         global_con=global_con, local_con=local_con,
         actual_warmup_epochs=actual_warmup)
-    training_time = time.time() - start_time
+    constraint_train_time = time.time() - constraint_start
+    training_time = warmup_time + constraint_train_time
     y_true = _to_numpy(y_test)
     group_ids = _to_numpy(groups_test)
     needs_adjustment = any(global_con[c] < UNLIMITED for c in constrained_classes)
+    posthoc_start = time.time()
 
     def _eval_and_correct(the_model, label='final'):
         the_model.eval()
@@ -147,6 +154,10 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     log.info("[Track1] flips=%d raw_satisfied=%s excess=%d sat_epoch=%s",
              flips, raw_sat['raw_all_satisfied'], raw_sat['raw_total_excess'],
              best_metrics['satisfaction_epoch'] or 'N/A')
+    posthoc_time = time.time() - posthoc_start
+    best_metrics['warmup_time'] = float(warmup_time)
+    best_metrics['constraint_train_time'] = float(constraint_train_time)
+    best_metrics['posthoc_time'] = float(posthoc_time)
     save_evaluation_metrics(experiment_path / 'evaluation_metrics.csv', best_metrics)
     config['results'] = {
         'accuracy': float(best_metrics['accuracy']),
@@ -154,6 +165,9 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         'recall_macro': float(best_metrics['recall_macro']),
         'f1_macro': float(best_metrics['f1_macro']),
         'training_time': float(training_time),
+        'warmup_time': float(warmup_time),
+        'constraint_train_time': float(constraint_train_time),
+        'posthoc_time': float(posthoc_time),
         'used_cached_model': trainer.from_cache,
         'samples_adjusted': int(best_adj),
         'checkpoint_source': best_source,

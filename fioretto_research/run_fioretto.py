@@ -426,11 +426,13 @@ def run_fioretto(config_path: str) -> None:
     input_dim = None
 
     # ---- Phase 1: warmup (shared cache) ----
-    start_time = time.time()
+    warmup_start = time.time()
     model = _train_warmup(config, input_dim, num_classes,
                           X_train_tensor, y_train_tensor, device)
+    warmup_time = time.time() - warmup_start
 
     # ---- Phase 2: Fioretto constraint training ----
+    constraint_start = time.time()
     model, satisfaction_epoch, final_state, best_excess_state, best_excess = (
         _train_fioretto_constraints(
             model, config, X_train_tensor, y_train_tensor,
@@ -438,9 +440,11 @@ def run_fioretto(config_path: str) -> None:
             constrained_classes, num_classes, device, experiment_path,
         )
     )
-    training_time = time.time() - start_time
+    constraint_train_time = time.time() - constraint_start
+    training_time = warmup_time + constraint_train_time
 
     # ---- Post-hoc adjustment + best-by-F1 selection (mirrors run_experiment) ----
+    posthoc_start = time.time()
     y_true = _to_numpy(y_test)
     group_ids = _to_numpy(groups_test)
     X_test_dev = X_test_tensor.to(device)
@@ -496,6 +500,10 @@ def run_fioretto(config_path: str) -> None:
     log.info("[Track1] flips=%d raw_satisfied=%s excess=%d sat_epoch=%s checkpoint=%s",
              flips, raw_sat['raw_all_satisfied'], raw_sat['raw_total_excess'],
              satisfaction_epoch or 'N/A', best_source)
+    posthoc_time = time.time() - posthoc_start
+    best_metrics['warmup_time'] = float(warmup_time)
+    best_metrics['constraint_train_time'] = float(constraint_train_time)
+    best_metrics['posthoc_time'] = float(posthoc_time)
     save_evaluation_metrics(experiment_path / 'evaluation_metrics.csv', best_metrics)
 
     config['results'] = {
@@ -504,6 +512,9 @@ def run_fioretto(config_path: str) -> None:
         'recall_macro': float(best_metrics['recall_macro']),
         'f1_macro': float(best_metrics['f1_macro']),
         'training_time': float(training_time),
+        'warmup_time': float(warmup_time),
+        'constraint_train_time': float(constraint_train_time),
+        'posthoc_time': float(posthoc_time),
         'samples_adjusted': int(flips),
         'checkpoint_source': best_source,
         'lp_fallback_used': best_meta.get('lp_fallback_used', False),
