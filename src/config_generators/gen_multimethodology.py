@@ -74,19 +74,24 @@ METHODOLOGY_HP = {
 }
 
 
-def compute_anchor_id(dataset, model_name, scenario, ctag, seed, hp):
-    """Stable hash for an experimental anchor (same across methodologies)."""
+def compute_anchor_id(base_model_id, scenario, ctag, hp):
+    """Hash for an experimental anchor. Strict superset of base_model_id:
+    two configs with different base_model_id (= different warmup) MUST
+    have different anchor_id, otherwise the "paired comparison" assumption
+    breaks (different methodologies should compare on the SAME warmup).
+    AUDIT B10.
+
+    base_model_id already encodes model, dataset, lr, dropout, batch_size,
+    warmup_epochs, pretrained, class_weighted_ce, num_classes, image_size,
+    seed. anchor_id additionally encodes scenario, constraint pair, and
+    constraint-phase HP that affect downstream training but not warmup.
+    """
     key = {
-        'dataset': dataset,
-        'model': model_name,
+        'base_model_id': base_model_id,
         'scenario': scenario,
         'ctag': ctag,
-        'seed': seed,
-        'lr': hp['lr'],
         'lr_constraint': hp['lr_constraint'],
-        'warmup_epochs': hp['warmup_epochs'],
         'constraint_epochs': hp['constraint_epochs'],
-        'pretrained': hp['pretrained'],
     }
     return hashlib.md5(json.dumps(key, sort_keys=True).encode()).hexdigest()[:12]
 
@@ -108,8 +113,10 @@ def build_config(dataset, model_name, scenario_name, constrained_class,
     full_hp['seed'] = seed
     full_hp.update(METHODOLOGY_HP.get(methodology, {}))
 
-    anchor_id = compute_anchor_id(
-        dataset, model_name, scenario_name, ctag, seed, full_hp)
+    base_model_id = compute_base_model_id(
+        model_name, full_hp, dataset_mode=dataset,
+        data_dir=ds_config['data_dir'], dataset_config=ds_config)
+    anchor_id = compute_anchor_id(base_model_id, scenario_name, ctag, full_hp)
 
     path = (Path('results/pending_runs/multi') / dataset / scenario_name / ctag
             / model_name / f'seed_{seed}' / methodology)
@@ -122,9 +129,7 @@ def build_config(dataset, model_name, scenario_name, constrained_class,
         'dataset_mode': dataset,
         'dataset_config': ds_config,
         'hyperparams': full_hp,
-        'base_model_id': compute_base_model_id(
-            model_name, full_hp, dataset_mode=dataset,
-            data_dir=ds_config['data_dir']),
+        'base_model_id': base_model_id,
         'anchor_id': anchor_id,
         'exp_name': f'{dataset}_{scenario_name}_{ctag}_{model_name}_s{seed}_{methodology}',
         'status': 'pending',

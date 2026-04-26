@@ -95,16 +95,18 @@ def _build_tissue(scenario_name, seed):
     ctag = constraint_tag(CONSTRAINT_PAIR)
     variant = f"s{seed}"
     path = Path(ROOT) / "tissuemnist" / scenario_name / ctag / TISSUE_MODEL / "our_approach_pcr" / variant
+    ds_config = _tissue_ds(cc)
     return {
         "methodology": "our_approach",
         "model_name": TISSUE_MODEL,
         "constraint": list(CONSTRAINT_PAIR),
         "constraint_tag": ctag,
         "dataset_mode": "tissuemnist",
-        "dataset_config": _tissue_ds(cc),
+        "dataset_config": ds_config,
         "hyperparams": hp,
         "base_model_id": compute_base_model_id(
-            TISSUE_MODEL, hp, dataset_mode="tissuemnist", data_dir=TISSUE_DATA_DIR),
+            TISSUE_MODEL, hp, dataset_mode="tissuemnist",
+            data_dir=TISSUE_DATA_DIR, dataset_config=ds_config),
         "exp_name": f"pcr_tissue_{scenario_name}_{ctag}_s{seed}",
         "status": "pending",
         "experiment_path": str(path),
@@ -118,16 +120,18 @@ def _build_cifar(scenario_name, seed):
     ctag = constraint_tag(CIFAR_CONSTRAINT_PAIR)
     variant = f"s{seed}"
     path = Path(ROOT) / "cifar100" / scenario_name / ctag / CIFAR_MODEL / "our_approach_pcr" / variant
+    ds_config = _cifar_ds(cc)
     return {
         "methodology": "our_approach",
         "model_name": CIFAR_MODEL,
         "constraint": list(CIFAR_CONSTRAINT_PAIR),
         "constraint_tag": ctag,
         "dataset_mode": "cifar100",
-        "dataset_config": _cifar_ds(cc),
+        "dataset_config": ds_config,
         "hyperparams": hp,
         "base_model_id": compute_base_model_id(
-            CIFAR_MODEL, hp, dataset_mode="cifar100", data_dir=CIFAR_DATA_DIR),
+            CIFAR_MODEL, hp, dataset_mode="cifar100",
+            data_dir=CIFAR_DATA_DIR, dataset_config=ds_config),
         "exp_name": f"pcr_c100_{scenario_name}_{ctag}_s{seed}",
         "status": "pending",
         "experiment_path": str(path),

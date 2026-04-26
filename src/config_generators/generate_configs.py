@@ -91,7 +91,14 @@ def model_tag(model_name):
 
 
 def compute_base_model_id(model_name, hyperparams, dataset_mode='dermmnist',
-                          data_dir='data/dermmnist'):
+                          data_dir='data/dermmnist', dataset_config=None):
+    """Hash that uniquely identifies a warmup-trained model.
+
+    AUDIT C6: previously missing num_classes and image_size, so a config
+    that changed num_classes (e.g. TissueMNIST 8 -> hypothetical 7) but
+    kept dataset_mode/data_dir would silently load a wrong-shape cached
+    model. Pass dataset_config dict to include those keys.
+    """
     key = {
         'model_name': model_name,
         'lr': hyperparams['lr'],
@@ -103,6 +110,9 @@ def compute_base_model_id(model_name, hyperparams, dataset_mode='dermmnist',
         'dataset_mode': dataset_mode,
         'data_dir': data_dir,
     }
+    if dataset_config is not None:
+        key['num_classes'] = dataset_config.get('num_classes')
+        key['image_size'] = dataset_config.get('image_size')
     if 'seed' in hyperparams:
         key['seed'] = hyperparams['seed']
     h = hashlib.md5(json.dumps(key, sort_keys=True).encode()).hexdigest()[:12]
@@ -131,7 +141,9 @@ def _build_config(methodology, exp_name, scenario_name, constraint_pair,
         'dataset_mode': 'dermmnist',
         'dataset_config': ds_config,
         'hyperparams': hp.copy(),
-        'base_model_id': compute_base_model_id(model_name, hp, data_dir=ds_config['data_dir']),
+        'base_model_id': compute_base_model_id(
+            model_name, hp, data_dir=ds_config['data_dir'],
+            dataset_config=ds_config),
         'exp_name': exp_name,
         'status': 'pending',
     }

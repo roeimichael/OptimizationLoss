@@ -99,16 +99,18 @@ def _build_tissue(scenario_name, seed, step_size):
     ss_tag = f"ss{str(step_size).replace('.', '')}"
     variant = f"s{seed}_{ss_tag}"
     path = Path(ROOT) / "tissuemnist" / scenario_name / ctag / TISSUE_MODEL / "fioretto_ldf" / variant
+    ds_config = _tissue_ds(cc)
     return {
         "methodology": "fioretto_ldf",
         "model_name": TISSUE_MODEL,
         "constraint": list(cpair),
         "constraint_tag": ctag,
         "dataset_mode": "tissuemnist",
-        "dataset_config": _tissue_ds(cc),
+        "dataset_config": ds_config,
         "hyperparams": hp,
         "base_model_id": compute_base_model_id(
-            TISSUE_MODEL, hp, dataset_mode="tissuemnist", data_dir=TISSUE_DATA_DIR),
+            TISSUE_MODEL, hp, dataset_mode="tissuemnist",
+            data_dir=TISSUE_DATA_DIR, dataset_config=ds_config),
         "exp_name": f"fioretto_tissue_{scenario_name}_{ctag}_s{seed}_{ss_tag}",
         "status": "pending",
         "experiment_path": str(path),
@@ -124,16 +126,18 @@ def _build_cifar(scenario_name, seed, step_size):
     ss_tag = f"ss{str(step_size).replace('.', '')}"
     variant = f"s{seed}_{ss_tag}"
     path = Path(ROOT) / "cifar100" / scenario_name / ctag / CIFAR_MODEL / "fioretto_ldf" / variant
+    ds_config = _cifar_ds(cc)
     return {
         "methodology": "fioretto_ldf",
         "model_name": CIFAR_MODEL,
         "constraint": list(CIFAR_CONSTRAINT_PAIR),
         "constraint_tag": ctag,
         "dataset_mode": "cifar100",
-        "dataset_config": _cifar_ds(cc),
+        "dataset_config": ds_config,
         "hyperparams": hp,
         "base_model_id": compute_base_model_id(
-            CIFAR_MODEL, hp, dataset_mode="cifar100", data_dir=CIFAR_DATA_DIR),
+            CIFAR_MODEL, hp, dataset_mode="cifar100",
+            data_dir=CIFAR_DATA_DIR, dataset_config=ds_config),
         "exp_name": f"fioretto_c100_{scenario_name}_{ctag}_s{seed}_{ss_tag}",
         "status": "pending",
         "experiment_path": str(path),
