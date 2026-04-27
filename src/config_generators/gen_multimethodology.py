@@ -112,13 +112,14 @@ def build_config(dataset, model_name, scenario_name, constrained_class,
     full_hp = dict(hp)
     full_hp['seed'] = seed
     full_hp.update(METHODOLOGY_HP.get(methodology, {}))
+    output_root = full_hp.pop('_output_root', 'results/pending_runs/multi')
 
     base_model_id = compute_base_model_id(
         model_name, full_hp, dataset_mode=dataset,
         data_dir=ds_config['data_dir'], dataset_config=ds_config)
     anchor_id = compute_anchor_id(base_model_id, scenario_name, ctag, full_hp)
 
-    path = (Path('results/pending_runs/multi') / dataset / scenario_name / ctag
+    path = (Path(output_root) / dataset / scenario_name / ctag
             / model_name / f'seed_{seed}' / methodology)
 
     return {
@@ -210,16 +211,29 @@ def main():
                         choices=METHODOLOGIES)
     parser.add_argument('--dry-run', action='store_true',
                         help='Print summary but do not write configs')
+    parser.add_argument('--output_root', default='results/pending_runs/multi',
+                        help='Root dir for emitted configs (e.g. multi_smoke for tests)')
+    parser.add_argument('--warmup_epochs', type=int, default=None,
+                        help='Override warmup_epochs (smoke test = 2)')
+    parser.add_argument('--constraint_epochs', type=int, default=None,
+                        help='Override constraint_epochs (smoke test = 2)')
     args = parser.parse_args()
 
     cc = args.constrained_class
+
+    hp = dict(DEFAULT_HP)
+    if args.warmup_epochs is not None:
+        hp['warmup_epochs'] = args.warmup_epochs
+    if args.constraint_epochs is not None:
+        hp['constraint_epochs'] = args.constraint_epochs
+    hp['_output_root'] = args.output_root  # consumed by build_config
 
     configs = generate_anchor_configs(
         dataset=args.dataset, model_name=args.model,
         scenario=args.scenario, constrained_class=cc,
         constraint_pair=(args.local_pct, args.global_pct),
         slice_idx=args.slice, seeds=tuple(args.seeds),
-        methodologies=args.methodologies,
+        hp=hp, methodologies=args.methodologies,
     )
 
     ctag = constraint_tag((args.local_pct, args.global_pct))
