@@ -282,10 +282,10 @@ def run_heuristic(config_path: str) -> None:
     metrics.update(raw_sat)
     log.info("[Track1] flips=%d raw_satisfied=%s excess=%d",
              flips, raw_sat['raw_all_satisfied'], raw_sat['raw_total_excess'])
-    save_evaluation_metrics(Path(experiment_path) / 'evaluation_metrics.csv', metrics)
     metrics['warmup_time'] = float(warmup_time)
     metrics['constraint_train_time'] = 0.0  # post-hoc methods have no constraint training
     metrics['posthoc_time'] = float(exec_time)
+    save_evaluation_metrics(Path(experiment_path) / 'evaluation_metrics.csv', metrics)
     config['results'] = {
         'accuracy': float(metrics['accuracy']),
         'precision_macro': float(metrics['precision_macro']),
