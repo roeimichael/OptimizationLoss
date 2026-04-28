@@ -137,5 +137,11 @@ def save_evaluation_metrics(save_path, metrics):
     if 'soft_hard_gap' in metrics:
         for c, gap in metrics['soft_hard_gap'].items():
             rows.append([f'Soft-Hard Gap Class{c}', f"{gap:.2f}"])
+    for k, label in [('warmup_time', 'Warmup Time'),
+                     ('constraint_train_time', 'Constraint Train Time'),
+                     ('posthoc_time', 'PostHoc Time'),
+                     ('training_time', 'Total Train Time')]:
+        if k in metrics:
+            rows.append([label, f"{float(metrics[k]):.4f}"])
     with open(save_path, 'w', newline='') as f:
         csv.writer(f).writerows(rows)
