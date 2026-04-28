@@ -22,24 +22,35 @@ if [ ! -d "$ANCHOR_DIR" ]; then
     exit 2
 fi
 
-# === GPU exclusivity preflight ===
+SKIP_GPU_CHECK=0
+if [ "$2" = "--skip-gpu-check" ]; then SKIP_GPU_CHECK=1; fi
+
+# === GPU exclusivity check ===
 # dsisco02 currently crashes the whole host if two processes share one GPU.
-# Refuse to launch if any compute process already exists on the target GPU.
-# Pass --skip-gpu-check to bypass (only with explicit user OK).
-if [ "$2" != "--skip-gpu-check" ]; then
+# Returns 0 if all target GPUs are clear, 3 if any has another compute app.
+# Called before the run AND between each methodology dispatch (foreign users
+# can land on a GPU mid-anchor; we must re-validate continuously).
+gpu_clear() {
+    local context="$1"
+    [ "$SKIP_GPU_CHECK" = "1" ] && return 0
     for gpu in $(echo "$CUDA_VISIBLE_DEVICES" | tr ',' ' '); do
         # nvidia-smi -i N filters output to GPU N. Empty stdout = clear.
+        local busy
         busy=$(nvidia-smi -i "$gpu" --query-compute-apps=pid,used_memory --format=csv,noheader 2>/dev/null)
         if [ -n "$busy" ]; then
-            echo "ERROR: GPU $gpu is NOT clear -- compute apps present:"
+            echo "ERROR ($context): GPU $gpu is NOT clear -- compute apps present:"
             echo "$busy" | sed 's/^/    /'
-            echo ""
             echo "  dsisco02 driver bug: two processes on one GPU crashes the host."
-            echo "  Pick a different GPU or wait. Override with: $0 $1 --skip-gpu-check"
-            exit 3
+            return 3
         fi
-        echo "  preflight: GPU $gpu is clear"
+        echo "  $context: GPU $gpu is clear"
     done
+    return 0
+}
+
+if ! gpu_clear "preflight"; then
+    echo "  Pick a different GPU or wait. Override with: $0 $1 --skip-gpu-check"
+    exit 3
 fi
 
 # Prefer optloss conda env if available
@@ -85,6 +96,12 @@ for cp in $configs; do
         echo "[$i/$total] $methodology: already completed -- skipping"
         skip=$((skip + 1))
         continue
+    fi
+    # Re-validate GPU is still exclusively ours before each dispatch.
+    if ! gpu_clear "[$i/$total] pre-$methodology"; then
+        echo "[$i/$total] $methodology: ABORTING REMAINING ($((total - i + 1)) configs) -- GPU intruded by another user"
+        fail=$((fail + 1))
+        break
     fi
     echo ""
     echo "================================================================"
