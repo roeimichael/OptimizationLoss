@@ -22,6 +22,26 @@ if [ ! -d "$ANCHOR_DIR" ]; then
     exit 2
 fi
 
+# === GPU exclusivity preflight ===
+# dsisco02 currently crashes the whole host if two processes share one GPU.
+# Refuse to launch if any compute process already exists on the target GPU.
+# Pass --skip-gpu-check to bypass (only with explicit user OK).
+if [ "$2" != "--skip-gpu-check" ]; then
+    for gpu in $(echo "$CUDA_VISIBLE_DEVICES" | tr ',' ' '); do
+        # nvidia-smi -i N filters output to GPU N. Empty stdout = clear.
+        busy=$(nvidia-smi -i "$gpu" --query-compute-apps=pid,used_memory --format=csv,noheader 2>/dev/null)
+        if [ -n "$busy" ]; then
+            echo "ERROR: GPU $gpu is NOT clear -- compute apps present:"
+            echo "$busy" | sed 's/^/    /'
+            echo ""
+            echo "  dsisco02 driver bug: two processes on one GPU crashes the host."
+            echo "  Pick a different GPU or wait. Override with: $0 $1 --skip-gpu-check"
+            exit 3
+        fi
+        echo "  preflight: GPU $gpu is clear"
+    done
+fi
+
 # Prefer optloss conda env if available
 PY=python
 for cand in "$HOME/anaconda3/envs/optloss/bin/python" \
