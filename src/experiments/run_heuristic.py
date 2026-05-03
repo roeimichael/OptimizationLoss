@@ -256,9 +256,6 @@ def run_heuristic(config_path: str) -> None:
         status = 'OK' if (isinstance(limit, str) or pred_count <= limit) else f'VIOLATED by {pred_count - limit}'
         log.info("Heuristic class %d: pred=%d limit=%s %s", c, pred_count, limit, status)
     metrics = compute_metrics(y_true, y_pred, probs)
-    if posthoc_meta:
-        metrics['lp_solver_failed'] = bool(posthoc_meta.get('lp_solver_failed', False))
-        metrics['lp_status'] = posthoc_meta.get('lp_status', '')
     save_final_predictions(Path(experiment_path) / 'final_predictions.csv',
                            y_true, y_pred, probs, groups_np)
     # Track 1: constraint-specific metrics
