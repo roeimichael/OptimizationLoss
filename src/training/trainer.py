@@ -172,13 +172,10 @@ class ConstraintTrainer:
         train_loader = self._create_dataloader(X_train, y_train)
         X_test = X_test.to(self.device)
         group_ids = torch.LongTensor(groups_test).to(self.device)
-        per_class_lambda = hp.get('lambda_mode', 'ratchet') == 'per_class_ratchet'
         criterion_constraint = MulticlassTransductiveLoss(
             global_constraints=global_con, local_constraints=local_con,
-            lambda_global=hp['lambda_global'], lambda_local=hp['lambda_local'],
             num_classes=self.num_classes,
             initial_rho=hp.get('initial_rho', 0.5), alpha_kl=hp.get('alpha_kl', 0.0),
-            per_class_lambda=per_class_lambda,
         ).to(self.device)
         log.info("Using FULL test set (%d samples) for constraint gradient", len(X_test))
         alpha_kl = hp.get('alpha_kl', 0.0)
@@ -190,19 +187,18 @@ class ConstraintTrainer:
         training_start = time.time()
         constrained_classes = [c for c in range(self.num_classes) if global_con[c] < UNLIMITED]
         rho_frozen = False
-        # Per-class lambda init (for per_class_ratchet mode)
-        if per_class_lambda:
-            init_g = hp.get('lambda_global', 0.01)
-            init_l = hp.get('lambda_local', 0.01)
+        # Per-class lambda init.
+        init_g = hp.get('lambda_global', 0.01)
+        init_l = hp.get('lambda_local', 0.01)
+        for c in constrained_classes:
+            criterion_constraint.set_lambda_per_class(c, init_g, scope='global')
+        for gid, bounds in local_con.items():
             for c in constrained_classes:
-                criterion_constraint.set_lambda_per_class(c, init_g, scope='global')
-            for gid, bounds in local_con.items():
-                for c in constrained_classes:
-                    if bounds[c] < UNLIMITED:
-                        criterion_constraint.set_lambda_per_class(c, init_l, scope='local', group_id=gid)
-            log.info("Per-class lambdas: %d global + %d local",
-                     len(criterion_constraint.lambda_global_per_class),
-                     len(criterion_constraint.lambda_local_per_key))
+                if bounds[c] < UNLIMITED:
+                    criterion_constraint.set_lambda_per_class(c, init_l, scope='local', group_id=gid)
+        log.info("Per-class lambdas: %d global + %d local",
+                 len(criterion_constraint.lambda_global_per_class),
+                 len(criterion_constraint.lambda_local_per_key))
         # Linear rho step
         constraint_epochs = hp.get('constraint_epochs', 300)
         rho_target = hp.get('rho_target', 100.0)
@@ -279,8 +275,7 @@ class ConstraintTrainer:
                 total_global_soft).item()
             loss_local_val = criterion_constraint.compute_local_from_counts(
                 total_local_soft).item()
-            total_constraint = (criterion_constraint.lambda_global * loss_global_val +
-                                criterion_constraint.lambda_local * loss_local_val)
+            total_constraint = loss_global_val + loss_local_val
 
             loss_kl_val = 0.0
             has_constraint = total_constraint > 0
@@ -311,8 +306,7 @@ class ConstraintTrainer:
                             l_soft[gid] = total_local_soft[gid].detach() - chunk_local[gid].detach() + chunk_local[gid]
                         lg = criterion_constraint.compute_global_from_counts(g_soft)
                         ll = criterion_constraint.compute_local_from_counts(l_soft)
-                        chunk_loss = chunk_loss + (criterion_constraint.lambda_global * lg +
-                                      criterion_constraint.lambda_local * ll) / n_chunks
+                        chunk_loss = chunk_loss + (lg + ll) / n_chunks
                     if has_kl:
                         # KL(p_cur || p_warm), anchor current predictions to warmup distribution.
                         log_p_cur = F.log_softmax(chunk_logits_f, dim=1)
@@ -385,62 +379,32 @@ class ConstraintTrainer:
             else:
                 stable_count = 0
 
-            # Lambda update mechanism.
-            #   "ratchet" (default): linear increment + toggle to 0 on satisfaction
-            #   "per_class_ratchet": separate lambda per constrained class (Fioretto-style granularity)
-            lambda_mode = hp.get('lambda_mode', 'ratchet')
-
-            if lambda_mode == 'per_class_ratchet':
-                # Per-class lambda update: each constrained class/group gets its own
-                # lambda that increments only when THAT specific constraint is violated.
-                any_global_violated = False
+            # Per-class lambda ratchet: each constrained class/group gets its own
+            # lambda that increments only when THAT specific constraint is violated.
+            # Lambdas + rho freeze on first satisfaction.
+            for c in constrained_classes:
+                if c < len(criterion_constraint.global_constraints) and \
+                        criterion_constraint.global_constraints[c] < UNLIMITED:
+                    hard_c = total_global_hard[c].item()
+                    limit_c = criterion_constraint.global_constraints[c].item()
+                    if hard_c > limit_c and satisfaction_epoch is None:
+                        old = criterion_constraint.get_lambda_per_class(c, scope='global')
+                        criterion_constraint.set_lambda_per_class(c, old + lambda_step, scope='global')
+            for gid, buffer_name in criterion_constraint.local_groups.items():
+                lc = getattr(criterion_constraint, buffer_name)
                 for c in constrained_classes:
-                    if c < len(criterion_constraint.global_constraints) and \
-                            criterion_constraint.global_constraints[c] < UNLIMITED:
-                        hard_c = total_global_hard[c].item()
-                        limit_c = criterion_constraint.global_constraints[c].item()
-                        if hard_c > limit_c:
-                            old = criterion_constraint.get_lambda_per_class(c, scope='global')
-                            criterion_constraint.set_lambda_per_class(c, old + lambda_step, scope='global')
-                            any_global_violated = True
-                any_local_violated = False
-                for gid, buffer_name in criterion_constraint.local_groups.items():
-                    lc = getattr(criterion_constraint, buffer_name)
-                    for c in constrained_classes:
-                        if c < len(lc) and lc[c] < UNLIMITED:
-                            hard_c = total_local_hard[gid][c].item()
-                            limit_c = lc[c].item()
-                            key = (gid, c)
-                            if hard_c > limit_c:
-                                old = criterion_constraint.get_lambda_per_class(c, scope='local', group_id=gid)
-                                criterion_constraint.set_lambda_per_class(c, old + lambda_step, scope='local', group_id=gid)
-                                any_local_violated = True
-                if is_satisfied and satisfaction_epoch is None:
-                    satisfaction_epoch = epoch + 1
-                    if not rho_frozen:
-                        rho_frozen = True
-                        log.info("[per_class] First satisfied at epoch %d, freezing rho=%.3f",
-                                 epoch + 1, criterion_constraint.get_rho())
-
-            else:
-                # Monotone ratchet: increment lambdas while violated; freeze on first satisfaction.
-                # The bounded penalty (E/(E+K) + rho * (E/K)^2 / (1 + (E/K)^2)) self-regulates
-                # gradient magnitude even at large lambdas, so unbounded growth is not a concern.
-                if not is_satisfied and satisfaction_epoch is None:
-                    if not global_satisfied:
-                        new_g = criterion_constraint.lambda_global + lambda_step
-                        criterion_constraint.set_lambda(lambda_global=new_g)
-                    if not local_satisfied:
-                        new_l = criterion_constraint.lambda_local + lambda_step
-                        criterion_constraint.set_lambda(lambda_local=new_l)
-                elif is_satisfied and satisfaction_epoch is None:
-                    satisfaction_epoch = epoch + 1
-                    if not rho_frozen:
-                        rho_frozen = True
-                        log.info("Constraints first satisfied at epoch %d, freezing rho=%.3f and lambdas (g=%.4f l=%.4f)",
-                                 epoch + 1, criterion_constraint.get_rho(),
-                                 criterion_constraint.lambda_global, criterion_constraint.lambda_local)
-                # After satisfaction_epoch is set: lambdas + rho stay frozen.
+                    if c < len(lc) and lc[c] < UNLIMITED:
+                        hard_c = total_local_hard[gid][c].item()
+                        limit_c = lc[c].item()
+                        if hard_c > limit_c and satisfaction_epoch is None:
+                            old = criterion_constraint.get_lambda_per_class(c, scope='local', group_id=gid)
+                            criterion_constraint.set_lambda_per_class(c, old + lambda_step, scope='local', group_id=gid)
+            if is_satisfied and satisfaction_epoch is None:
+                satisfaction_epoch = epoch + 1
+                if not rho_frozen:
+                    rho_frozen = True
+                    log.info("First satisfied at epoch %d, freezing rho=%.3f and per-class lambdas",
+                             epoch + 1, criterion_constraint.get_rho())
 
             # Linear rho increment
             if not rho_frozen:
@@ -463,10 +427,14 @@ class ConstraintTrainer:
                     l_soft[gid] = {c: total_local_soft[gid][c].item() for c in range(self.num_classes)}
                 mode = "Satisfied" if is_satisfied else "Constraint"
                 kl_str = f" kl={avg_kl:.4f}" if alpha_kl > 0 else ""
+                lam_g_mean = (sum(criterion_constraint.lambda_global_per_class.values())
+                              / max(1, len(criterion_constraint.lambda_global_per_class)))
+                lam_l_mean = (sum(criterion_constraint.lambda_local_per_key.values())
+                              / max(1, len(criterion_constraint.lambda_local_per_key)))
                 log.info("Epoch %d [%s] lr=%.2e ce=%.4f g=%.4f l=%.4f%s "
-                         "lambda(g=%.3f l=%.3f rho=%.3f) acc=%.4f g_%s l_%s",
+                         "lambda_mean(g=%.3f l=%.3f rho=%.3f) acc=%.4f g_%s l_%s",
                          epoch + 1, mode, current_lr, avg_ce, avg_global, avg_local, kl_str,
-                         criterion_constraint.lambda_global, criterion_constraint.lambda_local,
+                         lam_g_mean, lam_l_mean,
                          criterion_constraint.get_rho(), train_acc,
                          "OK" if global_satisfied else "VIOL",
                          "OK" if local_satisfied else "VIOL")
@@ -484,7 +452,7 @@ class ConstraintTrainer:
                 log_progress_to_csv(
                     str(self.csv_log_path), epoch, avg_ce, train_acc, avg_global, avg_local,
                     g_counts, l_counts, g_soft, l_soft,
-                    criterion_constraint.lambda_global, criterion_constraint.lambda_local,
+                    lam_g_mean, lam_l_mean,
                     global_con, global_satisfied, local_satisfied,
                     kl_loss=avg_kl, local_constraints=local_con)
             self.model.train()

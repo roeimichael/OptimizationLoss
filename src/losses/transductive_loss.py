@@ -16,20 +16,14 @@ log = logging.getLogger(__name__)
 class MulticlassTransductiveLoss(nn.Module):
 
     def __init__(self, global_constraints, local_constraints,
-                 lambda_global=1.0, lambda_local=1.0, num_classes=7,
-                 initial_rho=0.5, alpha_kl=0.0,
-                 per_class_lambda=False):
+                 num_classes=7, initial_rho=0.5, alpha_kl=0.0):
         super().__init__()
-        self.lambda_global = lambda_global
-        self.lambda_local = lambda_local
         self.alpha_kl = alpha_kl
         self.num_classes = num_classes
-        self.per_class_lambda = per_class_lambda
         self.register_buffer('rho', torch.tensor(float(initial_rho)))
         self.global_constraints_satisfied = False
         self.local_constraints_satisfied = False
-        # Per-class lambda dicts (used when per_class_lambda=True)
-        # Keys: class index for global, (group_id, class) for local
+        # Per-class lambda dicts. Keys: class idx for global, (group_id, class) for local.
         self.lambda_global_per_class = {}
         self.lambda_local_per_key = {}
         if global_constraints is not None:
@@ -64,8 +58,8 @@ class MulticlassTransductiveLoss(nn.Module):
             E_norm = E / (K + EPSILON)
             sat = E / (E + K + EPSILON)
             quad = (E_norm ** 2) / (1 + E_norm ** 2 + EPSILON)
-            loss = sat + self.rho * quad
-            total_loss = total_loss + loss
+            lam = self.lambda_global_per_class.get(c, 0.0)
+            total_loss = total_loss + lam * (sat + self.rho * quad)
             num_constrained += 1
         self.global_constraints_satisfied = all_satisfied
         if num_constrained == 0:
@@ -97,8 +91,8 @@ class MulticlassTransductiveLoss(nn.Module):
                 E_norm = E / (K + EPSILON)
                 sat = E / (E + K + EPSILON)
                 quad = (E_norm ** 2) / (1 + E_norm ** 2 + EPSILON)
-                loss = sat + self.rho * quad
-                total_loss = total_loss + loss
+                lam = self.lambda_local_per_key.get((gid, c), 0.0)
+                total_loss = total_loss + lam * (sat + self.rho * quad)
                 num_constrained += 1
         self.local_constraints_satisfied = all_satisfied
         if num_constrained == 0:
@@ -106,12 +100,6 @@ class MulticlassTransductiveLoss(nn.Module):
                 return v.sum() * 0.0
             return torch.tensor(0.0, device=device)
         return total_loss
-
-    def set_lambda(self, lambda_global=None, lambda_local=None):
-        if lambda_global is not None:
-            self.lambda_global = float(lambda_global)
-        if lambda_local is not None:
-            self.lambda_local = float(lambda_local)
 
     def set_lambda_per_class(self, class_idx, value, scope='global', group_id=None):
         """Set lambda for a specific class (global) or (group, class) pair (local)."""

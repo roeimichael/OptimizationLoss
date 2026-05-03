@@ -36,7 +36,6 @@ TISSUE_HP = {
     "use_sum_loss": True, "initial_rho": 5.0, "rho_target": 100.0,
     "alpha_kl": 0.0, "pretrained": True,
     "class_weighted_ce": False, "constraint_chunk_size": 256,
-    "lambda_mode": "per_class_ratchet",
 }
 
 # ---------- CIFAR-100 ----------
@@ -59,7 +58,6 @@ CIFAR_HP = {
     "use_sum_loss": True, "initial_rho": 5.0, "rho_target": 100.0,
     "alpha_kl": 0.1, "kl_temperature": 1.0, "pretrained": True,
     "class_weighted_ce": False, "constraint_chunk_size": 64,
-    "lambda_mode": "per_class_ratchet",
 }
 
 CONSTRAINT_PAIR = (0.3, 0.5)  # L30_G50
