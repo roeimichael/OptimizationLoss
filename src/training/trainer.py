@@ -19,7 +19,6 @@ from src.losses import MulticlassTransductiveLoss
 from src.training.metrics import compute_train_accuracy, compute_prediction_statistics
 from src.training.logging import log_progress_to_csv, write_csv_header
 from src.training.model_cache import save_to_cache, load_from_cache
-from src.training.diagnostics import TrainingDiagnostics
 from src.utils.error_handler import logger
 from src.utils.inference import chunked_forward
 from src.utils.constants import UNLIMITED
@@ -212,17 +211,6 @@ class ConstraintTrainer:
         rho_target = hp.get('rho_target', 100.0)
         initial_rho = hp.get('initial_rho', 0.5)
         rho_step = (rho_target - initial_rho) / max(constraint_epochs, 1)
-        # Diagnostics setup
-        diag_level = hp.get('diagnostic_level', 0)
-        self.diagnostics = TrainingDiagnostics(
-            level=diag_level, experiment_path=str(self.experiment_path),
-            num_classes=self.num_classes, num_test_samples=len(X_test),
-            constrained_classes=constrained_classes,
-            global_con=global_con, local_con=local_con)
-        if diag_level > 0:
-            self.diagnostics.capture_warmup_state(
-                self.model, X_test, self.device, self.amp_dtype, self.use_amp)
-
         log.info("Constraint training: epochs %d to %d", warmup_epochs + 1, total_epochs)
         write_csv_header(str(self.csv_log_path), self.num_classes, local_con)
 
@@ -243,18 +231,10 @@ class ConstraintTrainer:
                     loss_ce = self.criterion_ce(logits_ce, batch_y)
                 if self.scaler:
                     self.scaler.scale(loss_ce).backward()
-                    if diag_level > 0 and bi == n_ce_batches - 1:
-                        self.scaler.unscale_(self.optimizer)
-                        self.diagnostics.record_ce_gradients(self.model)
-                        self.scaler.step(self.optimizer)
-                        self.scaler.update()
-                    else:
-                        self.scaler.step(self.optimizer)
-                        self.scaler.update()
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
                 else:
                     loss_ce.backward()
-                    if diag_level > 0 and bi == n_ce_batches - 1:
-                        self.diagnostics.record_ce_gradients(self.model)
                     self.optimizer.step()
                 epoch_ce += loss_ce.item()
                 with torch.no_grad():
@@ -280,9 +260,6 @@ class ConstraintTrainer:
                                     for gid in criterion_constraint.local_groups}
                 total_local_hard = {gid: torch.zeros(self.num_classes, device=self.device)
                                     for gid in criterion_constraint.local_groups}
-                # Collect per-sample data for diagnostics (zero overhead when off)
-                _diag_proba_chunks = [] if diag_level > 0 else None
-                _diag_preds_chunks = [] if diag_level > 0 else None
                 for ci in range(n_chunks):
                     start = ci * chunk_size
                     end = min(start + chunk_size, n_test)
@@ -300,9 +277,6 @@ class ConstraintTrainer:
                             total_local_soft[gid] += chunk_proba[mask].sum(dim=0)
                             total_local_hard[gid] += torch.bincount(
                                 chunk_preds[mask], minlength=self.num_classes).float()
-                    if diag_level > 0:
-                        _diag_proba_chunks.append(chunk_proba.cpu())
-                        _diag_preds_chunks.append(chunk_preds.cpu())
 
             loss_global_val = criterion_constraint.compute_global_from_counts(
                 total_global_soft).item()
@@ -355,15 +329,6 @@ class ConstraintTrainer:
                     else:
                         chunk_loss.backward()
 
-            # Record constraint gradients before step (diagnostics level > 0)
-            if diag_level > 0:
-                if self.scaler:
-                    try:
-                        self.scaler.unscale_(self.optimizer)
-                    except (AssertionError, RuntimeError):
-                        pass  # zero loss or already unscaled — no grads to unscale
-                self.diagnostics.record_constraint_gradients(self.model)
-
             # Unscale + step for constraint gradients. The scaler is needed
             # here because the model forward runs in FP16 (autocast) and
             # small constraint gradients near the satisfaction boundary can
@@ -373,9 +338,7 @@ class ConstraintTrainer:
             did_backward = has_constraint or has_kl
             if self.scaler and did_backward:
                 try:
-                    if diag_level == 0:
-                        self.scaler.unscale_(self.optimizer)
-                    # Already unscaled above when diag_level > 0
+                    self.scaler.unscale_(self.optimizer)
                     grad_norm = torch.nn.utils.clip_grad_norm_(
                         self.model.parameters(), max_norm=1.0)
                     if grad_norm > 0:
@@ -424,20 +387,6 @@ class ConstraintTrainer:
                 stable_count += 1
             else:
                 stable_count = 0
-
-            # Diagnostics: record predictions every epoch (uses data from no_grad pass)
-            if diag_level > 0:
-                _diag_proba = torch.cat(_diag_proba_chunks).numpy()
-                _diag_preds = torch.cat(_diag_preds_chunks).numpy()
-                self.diagnostics.record_predictions(epoch, _diag_proba, _diag_preds)
-                self.diagnostics.record_weight_drift(self.model, epoch)
-                self.diagnostics.record_loss_components(
-                    epoch, avg_ce, loss_global_val, loss_local_val, loss_kl_val,
-                    criterion_constraint.lambda_global, criterion_constraint.lambda_local,
-                    criterion_constraint.get_rho(), is_satisfied)
-                # Flush summary CSV every 10 epochs so partial data survives crashes
-                if epoch % 10 == 0:
-                    self.diagnostics.flush_summary()
 
             # Lambda update mechanism.
             #   "ratchet" (default): linear increment + toggle to 0 on satisfaction
@@ -569,9 +518,5 @@ class ConstraintTrainer:
         constrained = [c for c in range(self.num_classes) if global_con[c] < UNLIMITED]
         for c in constrained:
             self.final_soft_hard_gap[c] = abs(g_soft.get(c, 0) - g_counts.get(c, 0))
-
-        # Save diagnostic reports
-        if diag_level > 0:
-            self.diagnostics.save_report()
 
         return self.model
