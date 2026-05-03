@@ -12,7 +12,8 @@ import torch
 
 from src.pipeline.data import load_data
 from src.utils.error_handler import logger, log_exception
-from src.training.trainer import ConstraintTrainer
+from src.methodologies.our_approach.train import train as train_our_approach
+from src.pipeline.contracts import TrainInputs
 from src.pipeline.warmup import run_warmup
 from src.pipeline.eval import evaluate_with_posthoc, write_evaluation_outputs
 from src.training.logging import save_evaluation_metrics
@@ -49,21 +50,31 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     local_con = data.local_con
     num_classes = data.num_classes
     constrained_classes = data.constrained_classes
-    trainer = ConstraintTrainer(config, str(experiment_path), device, num_classes=num_classes)
+    csv_log_path = experiment_path / 'training_log.csv'
     warmup_start = time.time()
-    trainer.model, trainer.from_cache = run_warmup(
+    model, from_cache = run_warmup(
         config, num_classes, X_train_tensor, y_train_tensor, device,
-        csv_log_path=str(trainer.csv_log_path),
+        csv_log_path=str(csv_log_path),
     )
-    actual_warmup = config['hyperparams']['warmup_epochs']
     warmup_time = time.time() - warmup_start
-    log.info("TIMING warmup=%.2fs (%d epochs, cached=%s)", warmup_time, actual_warmup, trainer.from_cache)
+    log.info("TIMING warmup=%.2fs (%d epochs, cached=%s)",
+             warmup_time, config['hyperparams']['warmup_epochs'], from_cache)
     constraint_start = time.time()
-    model = trainer.train_constraints(
+    train_inputs = TrainInputs(
+        model=model,
         X_train=X_train_tensor, y_train=y_train_tensor,
-        X_test=X_test_tensor, groups_test=groups_test,
+        X_test=X_test_tensor, y_test=data.y_test,
+        group_ids=groups_test,
         global_con=global_con, local_con=local_con,
-        actual_warmup_epochs=actual_warmup)
+        constrained_classes=constrained_classes,
+        num_classes=num_classes,
+        config=config, hyperparams=config['hyperparams'],
+        device=device,
+        experiment_path=experiment_path,
+        csv_log_path=csv_log_path,
+    )
+    train_outputs = train_our_approach(train_inputs)
+    model = train_outputs.model
     constraint_train_time = time.time() - constraint_start
     training_time = warmup_time + constraint_train_time
     y_true = data.y_test
@@ -83,8 +94,8 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     best_source = 'final'
 
     write_evaluation_outputs(experiment_path, y_true, group_ids, result, num_classes, global_con)
-    best_metrics['satisfaction_epoch'] = getattr(trainer, 'satisfaction_epoch', None)
-    best_metrics['soft_hard_gap'] = getattr(trainer, 'final_soft_hard_gap', {})
+    best_metrics['satisfaction_epoch'] = train_outputs.summary.get('satisfaction_epoch')
+    best_metrics['soft_hard_gap'] = train_outputs.summary.get('soft_hard_gap', {})
     log.info("sat_epoch=%s", best_metrics['satisfaction_epoch'] or 'N/A')
     posthoc_time = time.time() - posthoc_start
     best_metrics['warmup_time'] = float(warmup_time)
@@ -100,7 +111,7 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         'warmup_time': float(warmup_time),
         'constraint_train_time': float(constraint_train_time),
         'posthoc_time': float(posthoc_time),
-        'used_cached_model': trainer.from_cache,
+        'used_cached_model': from_cache,
         'samples_adjusted': int(best_adj),
         'lp_fallback_used': best_meta.get('lp_fallback_used', False),
         'lp_fallback_candidates': best_meta.get('lp_fallback_candidates', 0),
