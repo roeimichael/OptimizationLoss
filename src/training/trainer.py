@@ -11,14 +11,12 @@ from typing import Optional, Dict, Any
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
 
-from src.models import get_model
 from src.losses import MulticlassTransductiveLoss
-from src.training.metrics import compute_train_accuracy, compute_prediction_statistics
-from src.training.logging import log_progress_to_csv, write_csv_header
-from src.training.model_cache import save_to_cache, load_from_cache
+from src.pipeline.warmup import make_ce_criterion, make_dataloader, make_optimizer
+from src.training.logging import write_csv_header, log_progress_to_csv
+from src.training.metrics import compute_prediction_statistics
 from src.utils.error_handler import logger
 from src.utils.inference import chunked_forward
 from src.utils.constants import UNLIMITED
@@ -59,90 +57,6 @@ class ConstraintTrainer:
             self.amp_dtype = torch.float32
             self.scaler = None
 
-    @logger()
-    def setup_model(self, input_dim: int, base_model_id: str) -> None:
-        self.model = load_from_cache(
-            base_model_id, self.config, input_dim, self.num_classes, self.device)
-        if self.model is None:
-            log.info("Creating new model: %s (%d classes)", self.config['model_name'], self.num_classes)
-            self.model = get_model(
-                self.config['model_name'], input_dim=input_dim,
-                n_classes=self.num_classes, dropout=self.hyperparams['dropout'],
-                pretrained=self.hyperparams.get('pretrained', False)
-            ).to(self.device)
-            self.from_cache = False
-        else:
-            log.info("Loaded cached model: %s", base_model_id)
-            self.from_cache = True
-        self.optimizer = self._make_optimizer(self.model.parameters(), self.hyperparams['lr'])
-
-    def _make_optimizer(self, params, lr):
-        use_fused = torch.cuda.is_available() and hasattr(torch.optim.Adam, 'fused')
-        try:
-            return torch.optim.Adam(params, lr=lr, fused=use_fused)
-        except Exception:
-            return torch.optim.Adam(params, lr=lr)
-
-    def _create_dataloader(self, X: torch.Tensor, y: torch.Tensor) -> DataLoader:
-        dataset = TensorDataset(X, y)
-        use_workers = os.name != 'nt'
-        n_workers = 2 if use_workers else 0
-        return DataLoader(dataset, batch_size=self.hyperparams['batch_size'],
-                          shuffle=True, num_workers=n_workers,
-                          pin_memory=True,
-                          persistent_workers=use_workers and n_workers > 0)
-
-    @logger()
-    def train_warmup(self, X_train: torch.Tensor, y_train: torch.Tensor, base_model_id: str) -> int:
-        if self.from_cache:
-            return self.hyperparams['warmup_epochs']
-        if self.hyperparams.get('class_weighted_ce', False):
-            class_counts = torch.bincount(y_train, minlength=self.num_classes).float()
-            class_weights = (1.0 / class_counts.clamp(min=1)).to(self.device)
-            class_weights = class_weights / class_weights.sum() * self.num_classes
-            self.criterion_ce = nn.CrossEntropyLoss(weight=class_weights)
-            log.info("Using class-weighted CE: weights=%s", class_weights.cpu().numpy().round(3))
-        train_loader = self._create_dataloader(X_train, y_train)
-        warmup_epochs = self.hyperparams['warmup_epochs']
-        log_interval = max(1, warmup_epochs // 5)
-        n_batches = len(train_loader)
-        log.info("Warmup: %d epochs, %d batches/epoch (batch_size=%d, samples=%d)",
-                 warmup_epochs, n_batches, self.hyperparams['batch_size'], len(X_train))
-        log.info("AMP: enabled=%s dtype=%s scaler=%s", self.use_amp, self.amp_dtype,
-                 self.scaler is not None)
-        epoch_times = []
-        for epoch in range(warmup_epochs):
-            epoch_start = time.time()
-            self.model.train()
-            epoch_loss = 0.0
-            for batch_X, batch_y in train_loader:
-                batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device)
-                self.optimizer.zero_grad(set_to_none=True)
-                with torch.amp.autocast('cuda', dtype=self.amp_dtype, enabled=self.use_amp):
-                    loss = self.criterion_ce(self.model(batch_X), batch_y)
-                if self.scaler:
-                    self.scaler.scale(loss).backward()
-                    self.scaler.step(self.optimizer)
-                    self.scaler.update()
-                else:
-                    loss.backward()
-                    self.optimizer.step()
-                epoch_loss += loss.item()
-            epoch_elapsed = time.time() - epoch_start
-            epoch_times.append(epoch_elapsed)
-            should_log = epoch < 3 or (epoch + 1) % log_interval == 0 or epoch == warmup_epochs - 1
-            if should_log:
-                avg_loss = epoch_loss / n_batches
-                train_acc = compute_train_accuracy(self.model, train_loader, self.device)
-                log_progress_to_csv(str(self.csv_log_path), epoch, avg_loss, train_acc,
-                                    num_classes=self.num_classes)
-                log.info("Warmup %d/%d: loss=%.4f acc=%.4f [%.2fs/epoch]",
-                         epoch + 1, warmup_epochs, avg_loss, train_acc, epoch_elapsed)
-        avg_epoch = sum(epoch_times) / len(epoch_times) if epoch_times else 0
-        log.info("Warmup done: avg=%.2fs/epoch total=%.1fs", avg_epoch, sum(epoch_times))
-        save_to_cache(self.model, base_model_id, self.config)
-        return warmup_epochs
-
     def _cache_warmup_logits(self, X_test: torch.Tensor) -> torch.Tensor:
         """Cache RAW warmup logits so that KL anchor can be applied
         symmetrically to BOTH current and warmup distributions inside the KL
@@ -165,11 +79,11 @@ class ConstraintTrainer:
         warmup_epochs = actual_warmup_epochs
         total_epochs = warmup_epochs + hp.get('constraint_epochs', 300)
         lambda_step = hp['lambda_step']
-        self.optimizer = self._make_optimizer(
-            self.model.parameters(), hp.get('lr_constraint', 1e-5))
+        self.criterion_ce = make_ce_criterion(self.config, y_train, self.num_classes, self.device)
+        self.optimizer = make_optimizer(self.model.parameters(), hp.get('lr_constraint', 1e-5), self.device)
         log.info("Reset optimizer for constraint phase (lr=%.2e)", hp.get('lr_constraint', 1e-5))
         lr_constraint = hp.get('lr_constraint', 1e-5)
-        train_loader = self._create_dataloader(X_train, y_train)
+        train_loader = make_dataloader(X_train, y_train, hp['batch_size'])
         X_test = X_test.to(self.device)
         group_ids = torch.LongTensor(groups_test).to(self.device)
         criterion_constraint = MulticlassTransductiveLoss(

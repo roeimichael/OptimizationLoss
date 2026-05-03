@@ -4,82 +4,24 @@
 
 import argparse
 import logging
-import os
 import time
 from pathlib import Path
 from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader, TensorDataset
 
 from src.pipeline.data import load_data
+from src.pipeline.warmup import run_warmup
+from src.training.metrics import compute_metrics
 from src.utils.filesystem_manager import load_config_from_path
 from src.pipeline.setup import seed_all
 from src.pipeline.io import save_results_to_config
-from src.models import get_model
-from src.training.metrics import compute_metrics, compute_train_accuracy
 from src.training.logging import save_final_predictions, save_evaluation_metrics
-from src.training.model_cache import load_from_cache, save_to_cache
 from src.utils.constants import UNLIMITED
 
 log = logging.getLogger(__name__)
 
-
-def train_fixed_warmup(config, input_dim, num_classes, X_train, y_train, device):
-    warmup_epochs = config['hyperparams'].get('warmup_epochs', 50)
-    cache_id = config['base_model_id']
-    model = load_from_cache(cache_id, config, input_dim, num_classes, device)
-    if model is not None:
-        log.info("Loaded cached warmup model: %s", cache_id)
-        return model
-    hp = config['hyperparams']
-    lr = hp.get('lr', 0.0001)
-    use_amp = device.type == 'cuda'
-    gpu_arch = torch.cuda.get_device_capability(0)[0] if use_amp else 0
-    use_bf16 = gpu_arch >= 8 and torch.cuda.is_bf16_supported()
-    amp_dtype = torch.bfloat16 if use_bf16 else torch.float16
-    scaler = torch.amp.GradScaler('cuda') if (use_amp and not use_bf16) else None
-    log.info("Training heuristic warmup: %d epochs lr=%.2e (AMP=%s dtype=%s)",
-             warmup_epochs, lr, use_amp, amp_dtype)
-    model = get_model(
-        config['model_name'], input_dim=input_dim, n_classes=num_classes,
-        dropout=hp['dropout'],
-        pretrained=hp.get('pretrained', False)
-    ).to(device)
-    use_fused = device.type == 'cuda' and hasattr(torch.optim.Adam, 'fused')
-    try:
-        optimizer = torch.optim.Adam(model.parameters(), lr=lr, fused=use_fused)
-    except Exception:
-        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    criterion = nn.CrossEntropyLoss()
-    loader = DataLoader(TensorDataset(X_train, y_train), batch_size=hp['batch_size'],
-                        shuffle=True, pin_memory=True, num_workers=2 if os.name != 'nt' else 0)
-    if device.type == 'cuda':
-        torch.backends.cudnn.benchmark = False  # Disabled: Blackwell sm_120 VBIOS temp bug
-    for epoch in range(warmup_epochs):
-        epoch_start = time.time()
-        model.train()
-        for batch_X, batch_y in loader:
-            batch_X, batch_y = batch_X.to(device), batch_y.to(device)
-            optimizer.zero_grad(set_to_none=True)
-            with torch.amp.autocast('cuda', dtype=amp_dtype, enabled=use_amp):
-                loss = criterion(model(batch_X), batch_y)
-            if scaler:
-                scaler.scale(loss).backward()
-                scaler.step(optimizer)
-                scaler.update()
-            else:
-                loss.backward()
-                optimizer.step()
-        if epoch < 3 or (epoch + 1) % 10 == 0 or epoch == warmup_epochs - 1:
-            log.info("Heuristic warmup %d/%d [%.2fs/epoch]",
-                     epoch + 1, warmup_epochs, time.time() - epoch_start)
-    train_acc = compute_train_accuracy(model, loader, device)
-    log.info("Heuristic warmup done: %d epochs, train_acc=%.4f", warmup_epochs, train_acc)
-    save_to_cache(model, cache_id, config)
-    return model
 
 
 def _build_hierarchy(num_classes, global_constraints, constrained_classes):
@@ -173,10 +115,10 @@ def run_heuristic(config_path: str) -> None:
     local_con = data.local_con
     num_classes = data.num_classes
     constrained_classes = data.constrained_classes
-    input_dim = None
     warmup_start = time.time()
-    model = train_fixed_warmup(config, input_dim, num_classes,
-                               X_train_tensor, y_train_tensor, device)
+    model, _from_cache = run_warmup(
+        config, num_classes, X_train_tensor, y_train_tensor, device,
+    )
     warmup_time = time.time() - warmup_start
     model.eval()
     with torch.no_grad():

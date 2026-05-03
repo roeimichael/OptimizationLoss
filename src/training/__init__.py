@@ -1,4 +1,3 @@
-from .trainer import ConstraintTrainer
 from .metrics import (
     compute_train_accuracy,
     get_predictions_with_probabilities,

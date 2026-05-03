@@ -14,6 +14,7 @@ from src.pipeline.data import load_data
 from src.utils.error_handler import logger, log_exception
 from src.utils.posthoc_adjustment import targeted_correction
 from src.training.trainer import ConstraintTrainer
+from src.pipeline.warmup import run_warmup
 from src.training.metrics import get_predictions_with_probabilities, compute_metrics
 from src.training.logging import save_final_predictions, save_evaluation_metrics
 from src.utils.filesystem_manager import load_config_from_path, update_experiment_status
@@ -49,18 +50,15 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     local_con = data.local_con
     num_classes = data.num_classes
     constrained_classes = data.constrained_classes
-    input_dim = None
-    t1 = time.time()
     trainer = ConstraintTrainer(config, str(experiment_path), device, num_classes=num_classes)
-    trainer.setup_model(input_dim=input_dim, base_model_id=config['base_model_id'])
-    log.info("TIMING model_setup=%.2fs (cached=%s)", time.time() - t1, trainer.from_cache)
-    # B5: split timing into warmup, constraint, and posthoc phases. Cached
-    # warmups still report the full 0+ seconds spent in train_warmup (which
-    # short-circuits via from_cache=True).
     warmup_start = time.time()
-    actual_warmup = trainer.train_warmup(X_train_tensor, y_train_tensor, config['base_model_id'])
+    trainer.model, trainer.from_cache = run_warmup(
+        config, num_classes, X_train_tensor, y_train_tensor, device,
+        csv_log_path=str(trainer.csv_log_path),
+    )
+    actual_warmup = config['hyperparams']['warmup_epochs']
     warmup_time = time.time() - warmup_start
-    log.info("TIMING warmup=%.2fs (%d epochs)", warmup_time, actual_warmup)
+    log.info("TIMING warmup=%.2fs (%d epochs, cached=%s)", warmup_time, actual_warmup, trainer.from_cache)
     constraint_start = time.time()
     model = trainer.train_constraints(
         X_train=X_train_tensor, y_train=y_train_tensor,
