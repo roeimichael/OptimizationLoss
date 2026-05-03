@@ -1,6 +1,6 @@
 # Constraint-aware trainer: CE warmup phase then constraint optimization with lambda toggle.
 # Two-pass constraint computation for memory efficiency on high-resolution images.
-# Includes AMP, fused Adam, CE saturation skip, warmup saturation cap, and oscillation detection.
+# Includes AMP, fused Adam, lambda toggle + oscillation detection.
 
 import logging
 import os
@@ -18,7 +18,6 @@ from src.models import get_model
 from src.losses import MulticlassTransductiveLoss
 from src.training.metrics import compute_train_accuracy, compute_prediction_statistics
 from src.training.logging import log_progress_to_csv, write_csv_header
-from src.training.schedulers import LearningRateScheduler
 from src.training.model_cache import save_to_cache, load_from_cache
 from src.training.diagnostics import TrainingDiagnostics
 from src.utils.error_handler import logger
@@ -113,7 +112,6 @@ class ConstraintTrainer:
         log.info("AMP: enabled=%s dtype=%s scaler=%s", self.use_amp, self.amp_dtype,
                  self.scaler is not None)
         epoch_times = []
-        sat_counter = 0
         for epoch in range(warmup_epochs):
             epoch_start = time.time()
             self.model.train()
@@ -134,28 +132,13 @@ class ConstraintTrainer:
             epoch_elapsed = time.time() - epoch_start
             epoch_times.append(epoch_elapsed)
             should_log = epoch < 3 or (epoch + 1) % log_interval == 0 or epoch == warmup_epochs - 1
-            check_saturation = epoch >= 4
-            if should_log or check_saturation:
+            if should_log:
                 avg_loss = epoch_loss / n_batches
                 train_acc = compute_train_accuracy(self.model, train_loader, self.device)
-                if should_log:
-                    log_progress_to_csv(str(self.csv_log_path), epoch, avg_loss, train_acc,
-                                        num_classes=self.num_classes)
-                    log.info("Warmup %d/%d: loss=%.4f acc=%.4f [%.2fs/epoch]",
-                             epoch + 1, warmup_epochs, avg_loss, train_acc, epoch_elapsed)
-                if check_saturation:
-                    if train_acc >= 0.995:
-                        sat_counter += 1
-                        if sat_counter >= 2:
-                            log.info("Warmup saturated (acc>=0.995 for %d checks) at epoch %d",
-                                     sat_counter, epoch + 1)
-                            avg_epoch = sum(epoch_times) / len(epoch_times)
-                            log.info("Warmup done (early): avg=%.2fs/epoch total=%.1fs",
-                                     avg_epoch, sum(epoch_times))
-                            save_to_cache(self.model, base_model_id, self.config)
-                            return epoch + 1
-                    else:
-                        sat_counter = 0
+                log_progress_to_csv(str(self.csv_log_path), epoch, avg_loss, train_acc,
+                                    num_classes=self.num_classes)
+                log.info("Warmup %d/%d: loss=%.4f acc=%.4f [%.2fs/epoch]",
+                         epoch + 1, warmup_epochs, avg_loss, train_acc, epoch_elapsed)
         avg_epoch = sum(epoch_times) / len(epoch_times) if epoch_times else 0
         log.info("Warmup done: avg=%.2fs/epoch total=%.1fs", avg_epoch, sum(epoch_times))
         save_to_cache(self.model, base_model_id, self.config)
@@ -186,9 +169,8 @@ class ConstraintTrainer:
         self.optimizer = self._make_optimizer(
             self.model.parameters(), hp.get('lr_constraint', 1e-5))
         log.info("Reset optimizer for constraint phase (lr=%.2e)", hp.get('lr_constraint', 1e-5))
-        lr_scheduler = LearningRateScheduler(
-            optimizer=self.optimizer, warmup_lr=hp.get('lr', 1e-3),
-            drop_lr=hp.get('lr_constraint', 1e-5), warmup_epochs=warmup_epochs)
+        lr_warmup = hp.get('lr', 1e-3)
+        lr_constraint = hp.get('lr_constraint', 1e-5)
         train_loader = self._create_dataloader(X_train, y_train)
         X_test = X_test.to(self.device)
         group_ids = torch.LongTensor(groups_test).to(self.device)
@@ -208,8 +190,6 @@ class ConstraintTrainer:
         satisfaction_epoch = None
         stable_count = 0
         training_start = time.time()
-        ce_skip_counter = 0
-        skip_ce = False
         constrained_classes = [c for c in range(self.num_classes) if global_con[c] < UNLIMITED]
         constrained_class = constrained_classes[0] if constrained_classes else None
         constraint_limit = int(global_con[constrained_class]) if constrained_class is not None else None
@@ -261,38 +241,38 @@ class ConstraintTrainer:
 
         for epoch in range(warmup_epochs, total_epochs):
             self.model.train()
-            current_lr = lr_scheduler.step(epoch)
+            current_lr = lr_warmup if epoch < warmup_epochs else lr_constraint
+            for pg in self.optimizer.param_groups:
+                pg['lr'] = current_lr
             epoch_ce = 0.0
             num_batches = len(train_loader)
             train_correct, train_total = 0, 0
-            if not skip_ce:
-                n_ce_batches = len(train_loader)
-                for bi, (batch_X, batch_y) in enumerate(train_loader):
-                    batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device)
-                    self.optimizer.zero_grad(set_to_none=True)
-                    with torch.amp.autocast('cuda', dtype=self.amp_dtype, enabled=self.use_amp):
-                        logits_ce = self.model(batch_X)
-                        loss_ce = self.criterion_ce(logits_ce, batch_y)
-                    if self.scaler:
-                        self.scaler.scale(loss_ce).backward()
-                        # Capture CE grad norm from last batch (before step consumes them)
-                        if diag_level > 0 and bi == n_ce_batches - 1:
-                            self.scaler.unscale_(self.optimizer)
-                            self.diagnostics.record_ce_gradients(self.model)
-                            self.scaler.step(self.optimizer)
-                            self.scaler.update()
-                        else:
-                            self.scaler.step(self.optimizer)
-                            self.scaler.update()
+            n_ce_batches = len(train_loader)
+            for bi, (batch_X, batch_y) in enumerate(train_loader):
+                batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device)
+                self.optimizer.zero_grad(set_to_none=True)
+                with torch.amp.autocast('cuda', dtype=self.amp_dtype, enabled=self.use_amp):
+                    logits_ce = self.model(batch_X)
+                    loss_ce = self.criterion_ce(logits_ce, batch_y)
+                if self.scaler:
+                    self.scaler.scale(loss_ce).backward()
+                    if diag_level > 0 and bi == n_ce_batches - 1:
+                        self.scaler.unscale_(self.optimizer)
+                        self.diagnostics.record_ce_gradients(self.model)
+                        self.scaler.step(self.optimizer)
+                        self.scaler.update()
                     else:
-                        loss_ce.backward()
-                        if diag_level > 0 and bi == n_ce_batches - 1:
-                            self.diagnostics.record_ce_gradients(self.model)
-                        self.optimizer.step()
-                    epoch_ce += loss_ce.item()
-                    with torch.no_grad():
-                        train_correct += (logits_ce.argmax(dim=1) == batch_y).sum().item()
-                        train_total += batch_y.size(0)
+                        self.scaler.step(self.optimizer)
+                        self.scaler.update()
+                else:
+                    loss_ce.backward()
+                    if diag_level > 0 and bi == n_ce_batches - 1:
+                        self.diagnostics.record_ce_gradients(self.model)
+                    self.optimizer.step()
+                epoch_ce += loss_ce.item()
+                with torch.no_grad():
+                    train_correct += (logits_ce.argmax(dim=1) == batch_y).sum().item()
+                    train_total += batch_y.size(0)
             cached_train_acc = train_correct / train_total if train_total > 0 else 1.0
 
             # Pass A (bookkeeping) and Pass B (constraint gradient) both run on
@@ -564,26 +544,6 @@ class ConstraintTrainer:
                 l_soft = {}
                 for gid in total_local_soft:
                     l_soft[gid] = {c: total_local_soft[gid][c].item() for c in range(self.num_classes)}
-                # CE saturation skip: when train_acc saturates the CE loop is
-                # disabled, leaving only constraint+KL gradients. AUDIT B9 found
-                # this causes posterior collapse when combined with alpha_kl>0
-                # and lambda zeroing -- the only remaining gradient pulls
-                # predictions toward the warmup distribution (or toward uniform
-                # if KL temperature was asymmetric, see C2). Default is now OFF;
-                # opt-in via disable_ce_skip=False in hyperparams. Even when
-                # opted in, skip is forcibly disabled when alpha_kl > 0.
-                ce_skip_opted_in = not hp.get('disable_ce_skip', True)
-                ce_skip_safe = ce_skip_opted_in and alpha_kl == 0
-                if ce_skip_safe:
-                    if train_acc >= 0.995:
-                        ce_skip_counter += 1
-                        if ce_skip_counter >= 2 and not skip_ce:
-                            skip_ce = True
-                            log.info("CE saturated (acc>=0.995 for %d checks), skipping Phase 1",
-                                     ce_skip_counter)
-                    else:
-                        ce_skip_counter = 0
-                        skip_ce = False
                 if constrained_classes:
                     total_excess = sum(
                         max(0, g_counts.get(c, 0) - int(global_con[c]))
