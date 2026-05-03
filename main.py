@@ -17,9 +17,7 @@ import torch
 from src.utils.filesystem_manager import get_experiments_by_status, print_status_summary
 
 DEFAULT_EXPERIMENT_DIR = 'results/pending_runs'
-OPTIMIZATION_MODULE = 'src.experiments.run_experiment'
-HEURISTIC_MODULE = 'src.experiments.run_experiment'
-FIORETTO_MODULE = 'src.experiments.run_experiment'
+RUNNER_MODULE = 'src.experiments.runner'
 
 log = logging.getLogger(__name__)
 _print_lock = threading.Lock()
@@ -124,19 +122,12 @@ def run_worker(gpu_id, experiments, worker_name, stop_event):
                         f"{total - i + 1} experiments skipped")
             break
         config_path = Path(exp_path) / 'config.json'
-        methodology = config.get('methodology', 'our_approach')
-        if methodology == 'fioretto_ldf':
-            runner = FIORETTO_MODULE
-        elif methodology in ('heuristic', 'danits_lp'):
-            runner = HEURISTIC_MODULE
-        else:
-            runner = OPTIMIZATION_MODULE
         name = config.get('exp_name', Path(exp_path).name)
         print_experiment_header(i, total, exp_path, config, completed, failed, prefix=prefix)
         exp_start = time.time()
         try:
             proc = subprocess.Popen(
-                [sys.executable, '-u', '-m', runner, str(config_path)],
+                [sys.executable, '-u', '-m', RUNNER_MODULE, str(config_path)],
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 env=worker_env, text=True, bufsize=1)
             for line in proc.stdout:
@@ -172,19 +163,12 @@ def run_sequential(pending, gpu_id=None):
     overall_start = time.time()
     for i, (exp_path, config) in enumerate(pending, 1):
         config_path = Path(exp_path) / 'config.json'
-        methodology = config.get('methodology', 'our_approach')
-        if methodology == 'fioretto_ldf':
-            runner = FIORETTO_MODULE
-        elif methodology in ('heuristic', 'danits_lp'):
-            runner = HEURISTIC_MODULE
-        else:
-            runner = OPTIMIZATION_MODULE
         name = config.get('exp_name', Path(exp_path).name)
         print_experiment_header(i, total, exp_path, config, completed, failed)
         exp_start = time.time()
         try:
             result = subprocess.run(
-                [sys.executable, '-u', '-m', runner, str(config_path)],
+                [sys.executable, '-u', '-m', RUNNER_MODULE, str(config_path)],
                 stdout=sys.stdout, stderr=sys.stderr)
             elapsed = time.time() - exp_start
             experiment_times.append(elapsed)
