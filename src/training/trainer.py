@@ -212,13 +212,6 @@ class ConstraintTrainer:
         rho_target = hp.get('rho_target', 100.0)
         initial_rho = hp.get('initial_rho', 0.5)
         rho_step = (rho_target - initial_rho) / max(constraint_epochs, 1)
-        # Three bracket checkpoints
-        self.best_bracket_state = None
-        self.best_bracket_excess = float('inf')
-        self.best_bracket_epoch = None
-        self.prev_bracket_state = None
-        self.prev_bracket_excess = float('inf')
-        self.prev_bracket_epoch = None
         # Diagnostics setup
         diag_level = hp.get('diagnostic_level', 0)
         self.diagnostics = TrainingDiagnostics(
@@ -522,32 +515,6 @@ class ConstraintTrainer:
                 l_soft = {}
                 for gid in total_local_soft:
                     l_soft[gid] = {c: total_local_soft[gid][c].item() for c in range(self.num_classes)}
-                if constrained_classes:
-                    total_excess = sum(
-                        max(0, g_counts.get(c, 0) - int(global_con[c]))
-                        for c in constrained_classes
-                    )
-                    if total_excess > 0 and total_excess < self.best_bracket_excess:
-                        # Demote current best to previous
-                        if self.best_bracket_state is not None:
-                            self.prev_bracket_state = self.best_bracket_state
-                            self.prev_bracket_excess = self.best_bracket_excess
-                            self.prev_bracket_epoch = self.best_bracket_epoch
-                        self.best_bracket_excess = total_excess
-                        self.best_bracket_epoch = epoch + 1
-                        self.best_bracket_state = {
-                            k: v.cpu().clone() for k, v in self.model.state_dict().items()
-                        }
-                        log.info("  Bracket best: excess=%d epoch=%d",
-                                 total_excess, epoch + 1)
-                    elif total_excess > 0 and total_excess < self.prev_bracket_excess:
-                        self.prev_bracket_excess = total_excess
-                        self.prev_bracket_epoch = epoch + 1
-                        self.prev_bracket_state = {
-                            k: v.cpu().clone() for k, v in self.model.state_dict().items()
-                        }
-                        log.info("  Bracket previous: excess=%d epoch=%d",
-                                 total_excess, epoch + 1)
                 mode = "Satisfied" if is_satisfied else "Constraint"
                 kl_str = f" kl={avg_kl:.4f}" if alpha_kl > 0 else ""
                 log.info("Epoch %d [%s] lr=%.2e ce=%.4f g=%.4f l=%.4f%s "

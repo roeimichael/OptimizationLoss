@@ -98,34 +98,11 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         log.info("[%s] acc=%.4f f1=%.4f adjusted=%d", label, metrics['accuracy'], metrics['f1_macro'], adj)
         return y_pred, y_proba, metrics, adj, posthoc_meta
 
-    # Evaluate all checkpoints, select best by F1-macro
-    candidates = []
-
-    # Final model
-    y_pred_final, y_proba_final, metrics_final, adj_final, meta_final = _eval_and_correct(model, 'final')
-    candidates.append(('final', y_pred_final, y_proba_final, metrics_final, adj_final, meta_final, None))
-
-    # Bracket best checkpoint
-    if trainer.best_bracket_state is not None:
-        model.load_state_dict(trainer.best_bracket_state)
-        model.to(device)
-        y_pred_brk, y_proba_brk, metrics_brk, adj_brk, meta_brk = _eval_and_correct(model, 'bracket_best')
-        candidates.append(('bracket_best', y_pred_brk, y_proba_brk, metrics_brk, adj_brk, meta_brk,
-                           trainer.best_bracket_epoch))
-
-    # Bracket previous checkpoint
-    if trainer.prev_bracket_state is not None:
-        model.load_state_dict(trainer.prev_bracket_state)
-        model.to(device)
-        y_pred_prev, y_proba_prev, metrics_prev, adj_prev, meta_prev = _eval_and_correct(model, 'bracket_previous')
-        candidates.append(('bracket_previous', y_pred_prev, y_proba_prev, metrics_prev, adj_prev, meta_prev,
-                           trainer.prev_bracket_epoch))
-
-    # Select best by F1-macro
-    best = max(candidates, key=lambda x: x[3]['f1_macro'])
-    best_source, best_pred, best_proba, best_metrics, best_adj, best_meta, best_epoch = best
-    log.info("Selected checkpoint: %s (f1_macro=%.4f from %d candidates)",
-             best_source, best_metrics['f1_macro'], len(candidates))
+    # Evaluate final-epoch model. (Bracket-best/F1-on-test selection removed
+    # to close audit S2 -- test-set leakage via checkpoint pick.)
+    best_pred, best_proba, best_metrics, best_adj, best_meta = _eval_and_correct(model, 'final')
+    best_source = 'final'
+    best_epoch = None
 
     for c in range(num_classes):
         pred_count = (best_pred == c).sum()
@@ -174,15 +151,6 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         'bracket_epoch': best_epoch,
         'lp_fallback_used': best_meta.get('lp_fallback_used', False),
         'lp_fallback_candidates': best_meta.get('lp_fallback_candidates', 0),
-    }
-    config['results_comparison'] = {
-        c[0]: {
-            'f1_macro': float(c[3]['f1_macro']),
-            'accuracy': float(c[3]['accuracy']),
-            'adjusted': int(c[4]),
-            'lp_fallback_used': c[5].get('lp_fallback_used', False),
-        }
-        for c in candidates
     }
     config['status'] = 'completed'
     save_config_to_path(config, experiment_path)
