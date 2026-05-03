@@ -13,6 +13,7 @@ import torch
 from src.pipeline.data import load_data
 from src.utils.error_handler import logger, log_exception
 from src.methodologies.our_approach.train import train as train_our_approach
+from src.methodologies.fioretto_ldf.train import train as train_fioretto_ldf
 from src.pipeline.contracts import TrainInputs
 from src.pipeline.warmup import run_warmup
 from src.pipeline.eval import evaluate_with_posthoc, write_evaluation_outputs
@@ -73,7 +74,13 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         experiment_path=experiment_path,
         csv_log_path=csv_log_path,
     )
-    train_outputs = train_our_approach(train_inputs)
+    methodology = config.get('methodology', 'our_approach')
+    if methodology == 'fioretto_ldf':
+        train_outputs = train_fioretto_ldf(train_inputs)
+    elif methodology == 'our_approach':
+        train_outputs = train_our_approach(train_inputs)
+    else:
+        raise ValueError(f"Unknown methodology for run_experiment: {methodology!r}")
     model = train_outputs.model
     constraint_train_time = time.time() - constraint_start
     training_time = warmup_time + constraint_train_time
@@ -96,6 +103,10 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     write_evaluation_outputs(experiment_path, y_true, group_ids, result, num_classes, global_con)
     best_metrics['satisfaction_epoch'] = train_outputs.summary.get('satisfaction_epoch')
     best_metrics['soft_hard_gap'] = train_outputs.summary.get('soft_hard_gap', {})
+    if 'checkpoint_source' in train_outputs.summary:
+        best_metrics['checkpoint_source'] = train_outputs.summary['checkpoint_source']
+    if 'results_comparison' in train_outputs.summary:
+        config['results_comparison'] = train_outputs.summary['results_comparison']
     log.info("sat_epoch=%s", best_metrics['satisfaction_epoch'] or 'N/A')
     posthoc_time = time.time() - posthoc_start
     best_metrics['warmup_time'] = float(warmup_time)

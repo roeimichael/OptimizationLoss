@@ -19,7 +19,7 @@ from src.utils.filesystem_manager import get_experiments_by_status, print_status
 DEFAULT_EXPERIMENT_DIR = 'results/pending_runs'
 OPTIMIZATION_MODULE = 'src.experiments.run_experiment'
 HEURISTIC_MODULE = 'src.experiments.run_heuristic'
-FIORETTO_MODULE = 'fioretto_research.run_fioretto'
+FIORETTO_MODULE = 'src.experiments.run_experiment'
 
 log = logging.getLogger(__name__)
 _print_lock = threading.Lock()
