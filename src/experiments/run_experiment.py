@@ -102,7 +102,6 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     # to close audit S2 -- test-set leakage via checkpoint pick.)
     best_pred, best_proba, best_metrics, best_adj, best_meta = _eval_and_correct(model, 'final')
     best_source = 'final'
-    best_epoch = None
 
     for c in range(num_classes):
         pred_count = (best_pred == c).sum()
@@ -147,8 +146,6 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         'posthoc_time': float(posthoc_time),
         'used_cached_model': trainer.from_cache,
         'samples_adjusted': int(best_adj),
-        'checkpoint_source': best_source,
-        'bracket_epoch': best_epoch,
         'lp_fallback_used': best_meta.get('lp_fallback_used', False),
         'lp_fallback_candidates': best_meta.get('lp_fallback_candidates', 0),
     }

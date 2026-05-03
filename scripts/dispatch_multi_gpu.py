@@ -42,7 +42,7 @@ def _fmt(secs: float) -> str:
 
 def run_one(exp_path, config, gpu_id, prefix):
     methodology = config.get('methodology', 'our_approach')
-    runner = (HEURISTIC_MODULE if methodology in ('heuristic', 'po_lp', 'danits_lp')
+    runner = (HEURISTIC_MODULE if methodology in ('heuristic', 'danits_lp')
               else OPTIMIZATION_MODULE)
     name = config.get('exp_name', Path(exp_path).name)
     cfg_path = Path(exp_path) / 'config.json'

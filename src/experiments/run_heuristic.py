@@ -20,7 +20,6 @@ from src.models import get_model
 from src.training.metrics import compute_metrics, compute_train_accuracy
 from src.training.logging import save_final_predictions, save_evaluation_metrics
 from src.training.model_cache import load_from_cache, save_to_cache
-from src.utils.posthoc_adjustment import lp_constrained_assignment
 from src.utils.constants import UNLIMITED
 
 log = logging.getLogger(__name__)
@@ -202,20 +201,9 @@ def run_heuristic(config_path: str) -> None:
     groups_np = _to_numpy(groups_test)
     y_true = _to_numpy(y_test)
     methodology = config.get('methodology', 'heuristic')
-    posthoc_meta = {}
-    if methodology == 'po_lp':
-        t_alloc = time.time()
-        y_pred, adj_count, posthoc_meta = lp_constrained_assignment(
-            probs, groups_np, global_con, local_con, constrained_classes)
-        exec_time = time.time() - t_alloc
-        log.info("PO-LP: %d predictions changed in %.3fs (lp_status=%s)",
-                 adj_count, exec_time, posthoc_meta.get('lp_status'))
-        if posthoc_meta.get('lp_solver_failed'):
-            log.error("PO-LP solver FAILED -- fell back to raw warmup argmax. "
-                      "Result will be marked status='failed' to prevent silent corruption.")
-    elif methodology == 'danits_lp':
+    if methodology == 'danits_lp':
         # Paper [5] (Shifman et al. 2025) LP post-hoc with arbitrary cost matrix.
-        # This branches from the SAME cached warmup as 'heuristic' and 'po_lp'
+        # This branches from the SAME cached warmup as 'heuristic'
         # (via base_model_id), so all four methodologies can be compared
         # head-to-head on identical Phase-1 weights.
         from danits_research import solve_lp_assignment
@@ -296,15 +284,8 @@ def run_heuristic(config_path: str) -> None:
         'constraint_train_time': 0.0,
         'posthoc_time': float(exec_time),
         'samples_adjusted': int(flips),
-        'lp_solver_failed': bool(posthoc_meta.get('lp_solver_failed', False)),
     }
-    # Refuse to mark a po_lp run "completed" if the LP solver failed --
-    # the saved predictions are raw warmup argmax, NOT a constrained
-    # assignment. AUDIT C3.
-    if posthoc_meta.get('lp_solver_failed'):
-        config['status'] = 'failed'
-    else:
-        config['status'] = 'completed'
+    config['status'] = 'completed'
     save_config_to_path(config, experiment_path)
     log.info("Heuristic: acc=%.4f time=%.2fs", metrics['accuracy'], exec_time)
 

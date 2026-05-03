@@ -27,7 +27,6 @@ METHODOLOGY_RUNNER = {
     'our_approach': 'src.experiments.run_experiment',
     'fioretto_ldf': 'fioretto_research.run_fioretto',
     'heuristic': 'src.experiments.run_heuristic',
-    'po_lp': 'src.experiments.run_heuristic',
     'danits_lp': 'src.experiments.run_heuristic',
 }
 
@@ -148,7 +147,7 @@ def check_main_routing(configs):
         m = c.get('methodology', 'our_approach')
         if m == 'fioretto_ldf':
             runner = FIORETTO_MODULE
-        elif m in ('heuristic', 'po_lp', 'danits_lp'):
+        elif m in ('heuristic', 'danits_lp'):
             runner = HEURISTIC_MODULE
         else:
             runner = OPTIMIZATION_MODULE

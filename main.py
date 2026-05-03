@@ -127,7 +127,7 @@ def run_worker(gpu_id, experiments, worker_name, stop_event):
         methodology = config.get('methodology', 'our_approach')
         if methodology == 'fioretto_ldf':
             runner = FIORETTO_MODULE
-        elif methodology in ('heuristic', 'po_lp', 'danits_lp'):
+        elif methodology in ('heuristic', 'danits_lp'):
             runner = HEURISTIC_MODULE
         else:
             runner = OPTIMIZATION_MODULE
@@ -175,7 +175,7 @@ def run_sequential(pending, gpu_id=None):
         methodology = config.get('methodology', 'our_approach')
         if methodology == 'fioretto_ldf':
             runner = FIORETTO_MODULE
-        elif methodology in ('heuristic', 'po_lp', 'danits_lp'):
+        elif methodology in ('heuristic', 'danits_lp'):
             runner = HEURISTIC_MODULE
         else:
             runner = OPTIMIZATION_MODULE

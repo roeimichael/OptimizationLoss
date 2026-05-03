@@ -168,7 +168,6 @@ class ConstraintTrainer:
         self.optimizer = self._make_optimizer(
             self.model.parameters(), hp.get('lr_constraint', 1e-5))
         log.info("Reset optimizer for constraint phase (lr=%.2e)", hp.get('lr_constraint', 1e-5))
-        lr_warmup = hp.get('lr', 1e-3)
         lr_constraint = hp.get('lr_constraint', 1e-5)
         train_loader = self._create_dataloader(X_train, y_train)
         X_test = X_test.to(self.device)
@@ -190,8 +189,6 @@ class ConstraintTrainer:
         stable_count = 0
         training_start = time.time()
         constrained_classes = [c for c in range(self.num_classes) if global_con[c] < UNLIMITED]
-        constrained_class = constrained_classes[0] if constrained_classes else None
-        constraint_limit = int(global_con[constrained_class]) if constrained_class is not None else None
         rho_frozen = False
         # Per-class lambda init (for per_class_ratchet mode)
         if per_class_lambda:
@@ -216,9 +213,9 @@ class ConstraintTrainer:
 
         for epoch in range(warmup_epochs, total_epochs):
             self.model.train()
-            current_lr = lr_warmup if epoch < warmup_epochs else lr_constraint
+            current_lr = lr_constraint
             for pg in self.optimizer.param_groups:
-                pg['lr'] = current_lr
+                pg['lr'] = lr_constraint
             epoch_ce = 0.0
             num_batches = len(train_loader)
             train_correct, train_total = 0, 0

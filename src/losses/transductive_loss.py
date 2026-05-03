@@ -58,9 +58,6 @@ class MulticlassTransductiveLoss(nn.Module):
             if c >= len(constraints) or constraints[c] >= UNLIMITED:
                 continue
             K = constraints[c]
-            if K <= 0:
-                log.warning("Global constraint class %d has K=%.1f (<=0), skipping", c, K.item())
-                continue
             E = F.relu(soft_counts[c] - K)
             if (soft_counts[c] > K).item():
                 all_satisfied = False
@@ -94,9 +91,6 @@ class MulticlassTransductiveLoss(nn.Module):
                 if c >= len(constraints) or constraints[c] >= UNLIMITED:
                     continue
                 K = constraints[c]
-                if K <= 0:
-                    log.warning("Local constraint group %s class %d has K=%.1f (<=0), skipping", gid, c, K.item())
-                    continue
                 E = F.relu(group_soft[c] - K)
                 if (group_soft[c] > K).item():
                     all_satisfied = False

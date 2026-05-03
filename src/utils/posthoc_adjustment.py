@@ -1,10 +1,7 @@
 # Post-hoc constraint enforcement.
-# Two strategies in active use:
-#   1. lp_constrained_assignment: full LP re-assignment via scipy linprog,
-#      maximizes total confidence under hard constraints. Used by `po_lp`.
-#   2. targeted_correction: bidirectional greedy + small-scope LP fallback,
-#      handles both over-limit and under-limit cases. Used by `our_approach`
-#      and `fioretto_ldf` after constraint training.
+# targeted_correction: bidirectional greedy + small-scope LP fallback,
+# handles both over-limit and under-limit cases. Used by `our_approach`
+# and `fioretto_ldf` after constraint training.
 
 import logging
 
@@ -16,9 +13,6 @@ from src.utils.constants import UNLIMITED
 log = logging.getLogger(__name__)
 
 
-# ================================================================
-# Shared utilities
-# ================================================================
 
 def _check_all_satisfied(y_pred, global_con, local_con, group_ids, constrained_classes):
     for c in constrained_classes:
@@ -37,89 +31,6 @@ def _check_all_satisfied(y_pred, global_con, local_con, group_ids, constrained_c
     return True
 
 
-# ================================================================
-# Strategy 1: LP-based full re-assignment (used by po_lp methodology)
-# ================================================================
-
-def lp_constrained_assignment(y_proba, group_ids, global_con, local_con,
-                              constrained_classes):
-    """Returns (y_pred, n_changed, meta) where meta tracks LP solver state.
-
-    On solver failure we fall back to argmax with 0 changes -- the caller
-    must check meta['lp_solver_failed'] and refuse to mark the experiment
-    completed if True. AUDIT C3.
-    """
-    n_samples, n_classes = y_proba.shape
-    argmax_preds = np.argmax(y_proba, axis=1)
-
-    if _check_all_satisfied(argmax_preds, global_con, local_con, group_ids,
-                            constrained_classes):
-        return argmax_preds, 0, {'lp_solver_failed': False, 'lp_status': 'argmax_already_satisfies'}
-
-    c_obj = -y_proba.flatten()
-
-    from scipy.sparse import csr_matrix
-    A_eq_rows, A_eq_cols, A_eq_vals = [], [], []
-    for i in range(n_samples):
-        for c in range(n_classes):
-            A_eq_rows.append(i)
-            A_eq_cols.append(i * n_classes + c)
-            A_eq_vals.append(1.0)
-    A_eq = csr_matrix((A_eq_vals, (A_eq_rows, A_eq_cols)),
-                      shape=(n_samples, n_samples * n_classes))
-    b_eq = np.ones(n_samples)
-
-    A_ub_rows, A_ub_cols, A_ub_vals, b_ub_list = [], [], [], []
-    row_idx = 0
-    for cc in constrained_classes:
-        if global_con[cc] >= UNLIMITED:
-            continue
-        for i in range(n_samples):
-            A_ub_rows.append(row_idx)
-            A_ub_cols.append(i * n_classes + cc)
-            A_ub_vals.append(1.0)
-        b_ub_list.append(int(global_con[cc]))
-        row_idx += 1
-
-    if local_con and group_ids is not None:
-        for gid in np.unique(group_ids):
-            if gid not in local_con:
-                continue
-            g_indices = np.where(group_ids == gid)[0]
-            for cc in constrained_classes:
-                k_local = local_con[gid][cc]
-                if k_local >= UNLIMITED:
-                    continue
-                for i in g_indices:
-                    A_ub_rows.append(row_idx)
-                    A_ub_cols.append(i * n_classes + cc)
-                    A_ub_vals.append(1.0)
-                b_ub_list.append(int(k_local))
-                row_idx += 1
-
-    n_vars = n_samples * n_classes
-    A_ub = csr_matrix((A_ub_vals, (A_ub_rows, A_ub_cols)),
-                      shape=(row_idx, n_vars)) if A_ub_rows else None
-    b_ub = np.array(b_ub_list, dtype=float) if b_ub_list else None
-
-    result = linprog(c_obj, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq,
-                     bounds=[(0, 1)] * n_vars, method='highs',
-                     options={'presolve': True})
-
-    if not result.success:
-        log.warning("LP failed (status=%d), falling back to argmax", result.status)
-        return argmax_preds, 0, {'lp_solver_failed': True, 'lp_status': int(result.status)}
-
-    y_pred = np.argmax(result.x.reshape(n_samples, n_classes), axis=1)
-    n_changed = int((y_pred != argmax_preds).sum())
-    return y_pred, n_changed, {'lp_solver_failed': False, 'lp_status': int(result.status)}
-
-
-# ================================================================
-# Strategy 2: Targeted bidirectional correction (default for our_approach + fioretto_ldf)
-# Handles both over-limit AND under-limit cases.
-# Falls back to small-scope LP when greedy phases can't resolve all violations.
-# ================================================================
 
 def _build_gap_ledger(y_pred, global_con, local_con, group_ids, constrained_classes):
     """Compute gap = count - limit for each constraint. Positive=over, negative=under."""

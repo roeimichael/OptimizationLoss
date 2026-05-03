@@ -112,7 +112,7 @@ def compute_raw_constraint_satisfaction(y_raw, global_con, local_con, group_ids,
 
     - For our_approach / fioretto_ldf: y_raw is the argmax of a model
       trained with constraint pressure -- it had a chance to satisfy.
-    - For heuristic / po_lp / danits_lp: y_raw is the argmax of the raw
+    - For heuristic / danits_lp: y_raw is the argmax of the raw
       WARMUP model -- no constraint pressure, will look terrible here even
       when the post-hoc result is identical to our_approach.
 
