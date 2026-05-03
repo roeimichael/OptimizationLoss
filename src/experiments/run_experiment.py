@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional
 import numpy as np
 import torch
 
-from src.utils.data_loader import load_experiment_data
+from src.pipeline.data import load_data
 from src.utils.error_handler import logger, log_exception
 from src.utils.posthoc_adjustment import targeted_correction
 from src.training.trainer import ConstraintTrainer
@@ -22,10 +22,6 @@ from src.pipeline.io import save_results_to_config
 from src.utils.constants import UNLIMITED
 
 log = logging.getLogger(__name__)
-
-
-def _to_numpy(arr):
-    return arr.values if hasattr(arr, 'values') else arr
 
 
 @logger()
@@ -44,20 +40,15 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         log.info("GPU: %s | CUDA: %s | BF16: %s",
                  torch.cuda.get_device_name(0), torch.version.cuda,
                  torch.cuda.is_bf16_supported())
-    t0 = time.time()
-    data = load_experiment_data(config)
-    X_train, X_test, y_train, y_test, groups_test, global_con, local_con, num_classes = data
-    log.info("TIMING data_load=%.2fs train=%s test=%s", time.time() - t0,
-             X_train.shape, X_test.shape)
-    ds_config = config.get('dataset_config', {})
-    constrained_class = ds_config.get('constrained_class', num_classes - 1)
-    if isinstance(constrained_class, (list, tuple)):
-        constrained_classes = list(constrained_class)
-    else:
-        constrained_classes = [constrained_class]
-    X_train_tensor = torch.FloatTensor(X_train)
-    y_train_tensor = torch.LongTensor(_to_numpy(y_train))
-    X_test_tensor = torch.FloatTensor(X_test).to(device)
+    data = load_data(config)
+    X_train_tensor = data.X_train
+    y_train_tensor = data.y_train
+    X_test_tensor = data.X_test.to(device)
+    groups_test = data.groups_test
+    global_con = data.global_con
+    local_con = data.local_con
+    num_classes = data.num_classes
+    constrained_classes = data.constrained_classes
     input_dim = None
     t1 = time.time()
     trainer = ConstraintTrainer(config, str(experiment_path), device, num_classes=num_classes)
@@ -78,8 +69,8 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         actual_warmup_epochs=actual_warmup)
     constraint_train_time = time.time() - constraint_start
     training_time = warmup_time + constraint_train_time
-    y_true = _to_numpy(y_test)
-    group_ids = _to_numpy(groups_test)
+    y_true = data.y_test
+    group_ids = groups_test
     needs_adjustment = any(global_con[c] < UNLIMITED for c in constrained_classes)
     posthoc_start = time.time()
 

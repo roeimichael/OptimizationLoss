@@ -14,7 +14,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from src.utils.data_loader import load_experiment_data
+from src.pipeline.data import load_data
 from src.utils.filesystem_manager import load_config_from_path
 from src.pipeline.setup import seed_all
 from src.pipeline.io import save_results_to_config
@@ -152,10 +152,6 @@ def apply_allocation_heuristic(probs: np.ndarray, groups: np.ndarray, hierarchy:
     return y_pred, time.time() - start_time
 
 
-def _to_numpy(arr):
-    return arr.values if hasattr(arr, 'values') else arr
-
-
 def run_heuristic(config_path: str) -> None:
     experiment_path = Path(config_path).parent
     config = load_config_from_path(experiment_path)
@@ -169,22 +165,14 @@ def run_heuristic(config_path: str) -> None:
         log.info("GPU: %s | CUDA: %s | BF16: %s",
                  torch.cuda.get_device_name(0), torch.version.cuda,
                  torch.cuda.is_bf16_supported())
-    t0 = time.time()
-    data = load_experiment_data(config)
-    X_train, X_test, y_train, y_test, groups_test, global_con, local_con, num_classes = data
-    log.info("TIMING data_load=%.2fs train=%s test=%s", time.time() - t0,
-             X_train.shape, X_test.shape)
-    ds = config.get('dataset_config', {})
-    constrained_class = ds.get('constrained_class', 4)
-    if isinstance(constrained_class, int):
-        constrained_classes = [constrained_class]
-    elif isinstance(constrained_class, list):
-        constrained_classes = constrained_class
-    else:
-        constrained_classes = []
-    X_train_tensor = torch.FloatTensor(X_train)
-    y_train_tensor = torch.LongTensor(_to_numpy(y_train))
-    X_test_tensor = torch.FloatTensor(X_test).to(device)
+    data = load_data(config)
+    X_train_tensor = data.X_train
+    y_train_tensor = data.y_train
+    X_test_tensor = data.X_test.to(device)
+    global_con = data.global_con
+    local_con = data.local_con
+    num_classes = data.num_classes
+    constrained_classes = data.constrained_classes
     input_dim = None
     warmup_start = time.time()
     model = train_fixed_warmup(config, input_dim, num_classes,
@@ -196,8 +184,8 @@ def run_heuristic(config_path: str) -> None:
         logit_chunks = [model(X_test_tensor[i:i + chunk_size])
                         for i in range(0, len(X_test_tensor), chunk_size)]
         probs = torch.softmax(torch.cat(logit_chunks, dim=0), dim=1).cpu().numpy()
-    groups_np = _to_numpy(groups_test)
-    y_true = _to_numpy(y_test)
+    groups_np = data.groups_test
+    y_true = data.y_test
     methodology = config.get('methodology', 'heuristic')
     if methodology == 'danits_lp':
         # Paper [5] (Shifman et al. 2025) LP post-hoc with arbitrary cost matrix.
