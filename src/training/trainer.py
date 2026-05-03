@@ -1,6 +1,6 @@
 # Constraint-aware trainer: CE warmup phase then constraint optimization with lambda toggle.
 # Two-pass constraint computation for memory efficiency on high-resolution images.
-# Includes AMP, fused Adam, lambda toggle + oscillation detection.
+# Includes AMP, fused Adam, monotone lambda ratchet + first-satisfaction freeze.
 
 import logging
 import os
@@ -193,12 +193,6 @@ class ConstraintTrainer:
         constrained_classes = [c for c in range(self.num_classes) if global_con[c] < UNLIMITED]
         constrained_class = constrained_classes[0] if constrained_classes else None
         constraint_limit = int(global_con[constrained_class]) if constrained_class is not None else None
-        # Lambda toggle state
-        lambda_global_saved = hp['lambda_global']
-        lambda_local_saved = hp['lambda_local']
-        was_satisfied_last = False
-        toggle_count = 0
-        OSCILLATION_THRESHOLD = 10
         rho_frozen = False
         # Per-class lambda init (for per_class_ratchet mode)
         if per_class_lambda:
@@ -490,40 +484,24 @@ class ConstraintTrainer:
                                  epoch + 1, criterion_constraint.get_rho())
 
             else:
-                # Legacy toggle behaviour.
-                if is_satisfied and not was_satisfied_last:
-                    # violated -> satisfied: save lambdas, zero them
-                    lambda_global_saved = criterion_constraint.lambda_global
-                    lambda_local_saved = criterion_constraint.lambda_local
-                    criterion_constraint.set_lambda(lambda_global=0, lambda_local=0)
-                    toggle_count += 1
-                    if satisfaction_epoch is None:
-                        satisfaction_epoch = epoch + 1
-                    if not rho_frozen:
-                        rho_frozen = True
-                        log.info("Constraints first satisfied at epoch %d, freezing rho=%.3f",
-                                 epoch + 1, criterion_constraint.get_rho())
-                    was_satisfied_last = True
-                elif not is_satisfied and was_satisfied_last:
-                    # satisfied -> violated: restore (possibly halved) lambdas
-                    toggle_count += 1
-                    if toggle_count >= OSCILLATION_THRESHOLD:
-                        lambda_global_saved /= 2
-                        lambda_local_saved /= 2
-                        log.info("Oscillation detected (toggle=%d), halving saved lambdas (g=%.4f l=%.4f)",
-                                 toggle_count, lambda_global_saved, lambda_local_saved)
-                    criterion_constraint.set_lambda(lambda_global=lambda_global_saved,
-                                                    lambda_local=lambda_local_saved)
-                    was_satisfied_last = False
-                elif not is_satisfied:
-                    # still violated: increment lambdas
+                # Monotone ratchet: increment lambdas while violated; freeze on first satisfaction.
+                # The bounded penalty (E/(E+K) + rho * (E/K)^2 / (1 + (E/K)^2)) self-regulates
+                # gradient magnitude even at large lambdas, so unbounded growth is not a concern.
+                if not is_satisfied and satisfaction_epoch is None:
                     if not global_satisfied:
                         new_g = criterion_constraint.lambda_global + lambda_step
                         criterion_constraint.set_lambda(lambda_global=new_g)
                     if not local_satisfied:
                         new_l = criterion_constraint.lambda_local + lambda_step
                         criterion_constraint.set_lambda(lambda_local=new_l)
-                # else: still satisfied, lambdas stay at 0
+                elif is_satisfied and satisfaction_epoch is None:
+                    satisfaction_epoch = epoch + 1
+                    if not rho_frozen:
+                        rho_frozen = True
+                        log.info("Constraints first satisfied at epoch %d, freezing rho=%.3f and lambdas (g=%.4f l=%.4f)",
+                                 epoch + 1, criterion_constraint.get_rho(),
+                                 criterion_constraint.lambda_global, criterion_constraint.lambda_local)
+                # After satisfaction_epoch is set: lambdas + rho stay frozen.
 
             # Linear rho increment
             if not rho_frozen:
@@ -531,7 +509,7 @@ class ConstraintTrainer:
 
             # Convergence check
             if stable_count >= 5:
-                log.info("Converged: constraints stable for %d epochs with lambdas zeroed", stable_count)
+                log.info("Converged: constraints stable for %d epochs (lambdas frozen)", stable_count)
                 break
 
             if (epoch + 1) % 5 == 0 or is_satisfied or epoch == warmup_epochs:
