@@ -479,12 +479,8 @@ class ConstraintTrainer:
                     self.diagnostics.flush_summary()
 
             # Lambda update mechanism.
-            # `lambda_mode` selects which update rule to use:
-            #   "ratchet" (default): linear increment + toggle to 0 on satisfaction (March 27 proven)
-            #   "ratchet_frozen": linear increment, freeze (don't zero) on satisfaction
-            #   "proportional": smooth excess-proportional update (NEW, experimental)
-            #   "cosine": cosine ramp up then decay over constraint epochs
-            #   "per_class_ratchet": separate lambda per constrained class (inspired by Fioretto LDF)
+            #   "ratchet" (default): linear increment + toggle to 0 on satisfaction
+            #   "per_class_ratchet": separate lambda per constrained class (Fioretto-style granularity)
             lambda_mode = hp.get('lambda_mode', 'ratchet')
 
             if lambda_mode == 'per_class_ratchet':
@@ -519,77 +515,6 @@ class ConstraintTrainer:
                         log.info("[per_class] First satisfied at epoch %d, freezing rho=%.3f",
                                  epoch + 1, criterion_constraint.get_rho())
 
-            elif lambda_mode == 'cosine':
-                import math
-                constraint_epochs = hp.get('constraint_epochs', 300)
-                epoch_in_constraint = epoch - warmup_epochs
-                lambda_max = hp.get('lambda_max', 0.2)
-                progress = epoch_in_constraint / max(constraint_epochs, 1)
-                cosine_val = lambda_max * 0.5 * (1 - math.cos(2 * math.pi * progress))
-                criterion_constraint.set_lambda(lambda_global=cosine_val, lambda_local=cosine_val)
-                if is_satisfied and satisfaction_epoch is None:
-                    satisfaction_epoch = epoch + 1
-                    if not rho_frozen:
-                        rho_frozen = True
-                        log.info("[cosine] First satisfied at epoch %d, freezing rho=%.3f",
-                                 epoch + 1, criterion_constraint.get_rho())
-            elif lambda_mode == 'proportional':
-                # Compute current excess (hard over limit) per constraint type.
-                n_test_total = n_test
-                g_excess = 0.0
-                for c in range(self.num_classes):
-                    if c < len(criterion_constraint.global_constraints) and \
-                            criterion_constraint.global_constraints[c] < UNLIMITED:
-                        over = total_global_hard[c].item() - criterion_constraint.global_constraints[c].item()
-                        g_excess += max(0.0, over)
-                l_excess = 0.0
-                for gid, buffer_name in criterion_constraint.local_groups.items():
-                    lc = getattr(criterion_constraint, buffer_name)
-                    for c in range(self.num_classes):
-                        if c < len(lc) and lc[c] < UNLIMITED:
-                            over = total_local_hard[gid][c].item() - lc[c].item()
-                            l_excess += max(0.0, over)
-                # Normalize to fraction of test set
-                g_frac = g_excess / max(n_test_total, 1)
-                l_frac = l_excess / max(n_test_total, 1)
-                # Target lambdas: smooth tanh mapping
-                lambda_max = hp.get('lambda_max', 0.2)
-                lambda_k = hp.get('lambda_k', 20.0)
-                target_g = lambda_max * float(np.tanh(lambda_k * g_frac))
-                target_l = lambda_max * float(np.tanh(lambda_k * l_frac))
-                # EMA toward target
-                ema_alpha = hp.get('lambda_ema_alpha', 0.2)
-                current_g = criterion_constraint.lambda_global
-                current_l = criterion_constraint.lambda_local
-                new_g = (1 - ema_alpha) * current_g + ema_alpha * target_g
-                new_l = (1 - ema_alpha) * current_l + ema_alpha * target_l
-                criterion_constraint.set_lambda(lambda_global=new_g, lambda_local=new_l)
-                # Record first satisfaction + freeze rho at that point
-                if is_satisfied and satisfaction_epoch is None:
-                    satisfaction_epoch = epoch + 1
-                    if not rho_frozen:
-                        rho_frozen = True
-                        log.info("[prop] Constraints first satisfied at epoch %d, freezing rho=%.3f",
-                                 epoch + 1, criterion_constraint.get_rho())
-            elif lambda_mode == 'ratchet_frozen':
-                # Simple monotonic ratchet: increment when violated, freeze when satisfied.
-                # The legacy `disable_lambda_toggle=True` flag was removed -- it duplicated
-                # this branch and was proven harmful in the broader toggle-ON setting.
-                if not is_satisfied:
-                    if not global_satisfied:
-                        new_g = criterion_constraint.lambda_global + lambda_step
-                        criterion_constraint.set_lambda(lambda_global=new_g)
-                    if not local_satisfied:
-                        new_l = criterion_constraint.lambda_local + lambda_step
-                        criterion_constraint.set_lambda(lambda_local=new_l)
-                else:
-                    # satisfied - freeze at current value (do NOT zero)
-                    if satisfaction_epoch is None:
-                        satisfaction_epoch = epoch + 1
-                    if not rho_frozen:
-                        rho_frozen = True
-                        log.info("Constraints first satisfied at epoch %d, freezing rho=%.3f",
-                                 epoch + 1, criterion_constraint.get_rho())
             else:
                 # Legacy toggle behaviour.
                 if is_satisfied and not was_satisfied_last:
