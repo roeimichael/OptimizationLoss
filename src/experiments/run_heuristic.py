@@ -15,7 +15,9 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
 from src.utils.data_loader import load_experiment_data
-from src.utils.filesystem_manager import load_config_from_path, save_config_to_path
+from src.utils.filesystem_manager import load_config_from_path
+from src.pipeline.setup import seed_all
+from src.pipeline.io import save_results_to_config
 from src.models import get_model
 from src.training.metrics import compute_metrics, compute_train_accuracy
 from src.training.logging import save_final_predictions, save_evaluation_metrics
@@ -160,11 +162,7 @@ def run_heuristic(config_path: str) -> None:
     # Seed control — matches run_experiment.py so both paths produce
     # deterministic warmup models when a seed is specified.
     seed = config.get('hyperparams', {}).get('seed', None)
-    if seed is not None:
-        torch.manual_seed(seed)
-        np.random.seed(seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(seed)
+    seed_all(seed)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     log.info("Running heuristic %s on %s (model=%s, seed=%s)", config_path, device, config['model_name'], seed)
     if torch.cuda.is_available():
@@ -271,19 +269,17 @@ def run_heuristic(config_path: str) -> None:
     metrics['constraint_train_time'] = 0.0  # post-hoc methods have no constraint training
     metrics['posthoc_time'] = float(exec_time)
     save_evaluation_metrics(Path(experiment_path) / 'evaluation_metrics.csv', metrics)
-    config['results'] = {
+    save_results_to_config(config, experiment_path, {
         'accuracy': float(metrics['accuracy']),
         'precision_macro': float(metrics['precision_macro']),
         'recall_macro': float(metrics['recall_macro']),
         'f1_macro': float(metrics['f1_macro']),
-        'training_time': float(warmup_time + exec_time),  # backward compat: total wall time
+        'training_time': float(warmup_time + exec_time),
         'warmup_time': float(warmup_time),
         'constraint_train_time': 0.0,
         'posthoc_time': float(exec_time),
         'samples_adjusted': int(flips),
-    }
-    config['status'] = 'completed'
-    save_config_to_path(config, experiment_path)
+    })
     log.info("Heuristic: acc=%.4f time=%.2fs", metrics['accuracy'], exec_time)
 
 

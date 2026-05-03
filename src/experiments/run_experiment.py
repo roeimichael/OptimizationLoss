@@ -16,7 +16,9 @@ from src.utils.posthoc_adjustment import targeted_correction
 from src.training.trainer import ConstraintTrainer
 from src.training.metrics import get_predictions_with_probabilities, compute_metrics
 from src.training.logging import save_final_predictions, save_evaluation_metrics
-from src.utils.filesystem_manager import load_config_from_path, save_config_to_path, update_experiment_status
+from src.utils.filesystem_manager import load_config_from_path, update_experiment_status
+from src.pipeline.setup import seed_all
+from src.pipeline.io import save_results_to_config
 from src.utils.constants import UNLIMITED
 
 log = logging.getLogger(__name__)
@@ -36,12 +38,7 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     update_experiment_status(experiment_path, 'running')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     seed = config.get('hyperparams', {}).get('seed', None)
-    if seed is not None:
-        torch.manual_seed(seed)
-        np.random.seed(seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(seed)
-        log.info("Set random seed: %d", seed)
+    seed_all(seed)
     log.info("Running %s on %s (model=%s)", config_path, device, config['model_name'])
     if torch.cuda.is_available():
         log.info("GPU: %s | CUDA: %s | BF16: %s",
@@ -135,7 +132,7 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     best_metrics['constraint_train_time'] = float(constraint_train_time)
     best_metrics['posthoc_time'] = float(posthoc_time)
     save_evaluation_metrics(experiment_path / 'evaluation_metrics.csv', best_metrics)
-    config['results'] = {
+    save_results_to_config(config, experiment_path, {
         'accuracy': float(best_metrics['accuracy']),
         'precision_macro': float(best_metrics['precision_macro']),
         'recall_macro': float(best_metrics['recall_macro']),
@@ -148,9 +145,7 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         'samples_adjusted': int(best_adj),
         'lp_fallback_used': best_meta.get('lp_fallback_used', False),
         'lp_fallback_candidates': best_meta.get('lp_fallback_candidates', 0),
-    }
-    config['status'] = 'completed'
-    save_config_to_path(config, experiment_path)
+    })
     log.info("Done: accuracy=%.4f source=%s time=%.2fs path=%s",
              best_metrics['accuracy'], best_source, training_time, experiment_path)
     return config['results']

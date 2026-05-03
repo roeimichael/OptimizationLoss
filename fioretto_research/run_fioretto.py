@@ -23,7 +23,9 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 
 from src.utils.data_loader import load_experiment_data
-from src.utils.filesystem_manager import load_config_from_path, save_config_to_path
+from src.utils.filesystem_manager import load_config_from_path
+from src.pipeline.setup import seed_all
+from src.pipeline.io import save_results_to_config
 from src.models import get_model
 from src.training.metrics import (
     compute_metrics, compute_train_accuracy,
@@ -385,11 +387,7 @@ def run_fioretto(config_path: str) -> None:
     config = load_config_from_path(experiment_path)
 
     seed = config.get('hyperparams', {}).get('seed', None)
-    if seed is not None:
-        torch.manual_seed(seed)
-        np.random.seed(seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(seed)
+    seed_all(seed)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     log.info(
@@ -506,7 +504,16 @@ def run_fioretto(config_path: str) -> None:
     best_metrics['posthoc_time'] = float(posthoc_time)
     save_evaluation_metrics(experiment_path / 'evaluation_metrics.csv', best_metrics)
 
-    config['results'] = {
+    config['results_comparison'] = {
+        c[0]: {
+            'f1_macro': float(c[3]['f1_macro']),
+            'accuracy': float(c[3]['accuracy']),
+            'adjusted': int(c[4]),
+            'lp_fallback_used': c[5].get('lp_fallback_used', False),
+        }
+        for c in candidates
+    }
+    save_results_to_config(config, experiment_path, {
         'accuracy': float(best_metrics['accuracy']),
         'precision_macro': float(best_metrics['precision_macro']),
         'recall_macro': float(best_metrics['recall_macro']),
@@ -518,19 +525,7 @@ def run_fioretto(config_path: str) -> None:
         'samples_adjusted': int(flips),
         'checkpoint_source': best_source,
         'lp_fallback_used': best_meta.get('lp_fallback_used', False),
-    }
-    # Side-by-side comparison of the two candidates (matches run_experiment.py)
-    config['results_comparison'] = {
-        c[0]: {
-            'f1_macro': float(c[3]['f1_macro']),
-            'accuracy': float(c[3]['accuracy']),
-            'adjusted': int(c[4]),
-            'lp_fallback_used': c[5].get('lp_fallback_used', False),
-        }
-        for c in candidates
-    }
-    config['status'] = 'completed'
-    save_config_to_path(config, experiment_path)
+    })
     log.info("Fioretto LDF done: acc=%.4f source=%s flips=%d time=%.2fs",
              best_metrics['accuracy'], best_source, flips, training_time)
 
