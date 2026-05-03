@@ -14,6 +14,8 @@ from src.pipeline.data import load_data
 from src.utils.error_handler import logger, log_exception
 from src.methodologies.our_approach.train import train as train_our_approach
 from src.methodologies.fioretto_ldf.train import train as train_fioretto_ldf
+from src.methodologies.heuristic.train import train as train_heuristic
+from src.methodologies.danits_lp.train import train as train_danits_lp
 from src.pipeline.contracts import TrainInputs
 from src.pipeline.warmup import run_warmup
 from src.pipeline.eval import evaluate_with_posthoc, write_evaluation_outputs
@@ -75,12 +77,15 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         csv_log_path=csv_log_path,
     )
     methodology = config.get('methodology', 'our_approach')
-    if methodology == 'fioretto_ldf':
-        train_outputs = train_fioretto_ldf(train_inputs)
-    elif methodology == 'our_approach':
-        train_outputs = train_our_approach(train_inputs)
-    else:
+    train_fns = {
+        'our_approach': train_our_approach,
+        'fioretto_ldf': train_fioretto_ldf,
+        'heuristic': train_heuristic,
+        'danits_lp': train_danits_lp,
+    }
+    if methodology not in train_fns:
         raise ValueError(f"Unknown methodology for run_experiment: {methodology!r}")
+    train_outputs = train_fns[methodology](train_inputs)
     model = train_outputs.model
     constraint_train_time = time.time() - constraint_start
     training_time = warmup_time + constraint_train_time
@@ -92,6 +97,8 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         model, X_test_tensor, y_true, group_ids,
         global_con, local_con, constrained_classes, num_classes,
         label='final',
+        skip_targeted_correction=train_outputs.skip_targeted_correction,
+        precomputed_predictions=train_outputs.precomputed_predictions,
     )
     best_pred = result['y_pred']
     best_proba = result['y_proba']
