@@ -69,7 +69,6 @@ class ConstraintTrainer:
             log.info("Creating new model: %s (%d classes)", self.config['model_name'], self.num_classes)
             self.model = get_model(
                 self.config['model_name'], input_dim=input_dim,
-                hidden_dims=self.hyperparams.get('hidden_dims'),
                 n_classes=self.num_classes, dropout=self.hyperparams['dropout'],
                 pretrained=self.hyperparams.get('pretrained', False)
             ).to(self.device)
@@ -163,7 +162,7 @@ class ConstraintTrainer:
         return warmup_epochs
 
     def _cache_warmup_logits(self, X_test: torch.Tensor) -> torch.Tensor:
-        """Cache RAW warmup logits (T=1) so that kl_temperature can be applied
+        """Cache RAW warmup logits so that KL anchor can be applied
         symmetrically to BOTH current and warmup distributions inside the KL
         term. Previously we cached softmax(logits/T) which softened only the
         warmup side, turning KL(p_current || p_warmup) into a pull toward
@@ -197,13 +196,12 @@ class ConstraintTrainer:
         criterion_constraint = MulticlassTransductiveLoss(
             global_constraints=global_con, local_constraints=local_con,
             lambda_global=hp['lambda_global'], lambda_local=hp['lambda_local'],
-            num_classes=self.num_classes, use_sum=hp.get('use_sum_loss', True),
+            num_classes=self.num_classes,
             initial_rho=hp.get('initial_rho', 0.5), alpha_kl=hp.get('alpha_kl', 0.0),
             per_class_lambda=per_class_lambda,
         ).to(self.device)
         log.info("Using FULL test set (%d samples) for constraint gradient", len(X_test))
         alpha_kl = hp.get('alpha_kl', 0.0)
-        kl_temperature = hp.get('kl_temperature', 1.0)
         warmup_logits_cache = None
         if alpha_kl > 0:
             warmup_logits_cache = self._cache_warmup_logits(X_test)
@@ -378,15 +376,11 @@ class ConstraintTrainer:
                         chunk_loss = chunk_loss + (criterion_constraint.lambda_global * lg +
                                       criterion_constraint.lambda_local * ll) / n_chunks
                     if has_kl:
-                        # Symmetric temperature: both sides softened by T.
-                        # KL(p_cur_T || p_warm_T) where p = softmax(z/T).
-                        # AUDIT C2 fix.
-                        T = kl_temperature
-                        log_p_cur = F.log_softmax(chunk_logits_f / T, dim=1)
-                        p_cur_T = F.softmax(chunk_logits_f / T, dim=1)
-                        warm_logits = warmup_logits_cache[start:end]
-                        log_p_warm = F.log_softmax(warm_logits / T, dim=1)
-                        kl_chunk = (p_cur_T * (log_p_cur - log_p_warm)).sum(dim=1).mean()
+                        # KL(p_cur || p_warm), anchor current predictions to warmup distribution.
+                        log_p_cur = F.log_softmax(chunk_logits_f, dim=1)
+                        p_cur = F.softmax(chunk_logits_f, dim=1)
+                        log_p_warm = F.log_softmax(warmup_logits_cache[start:end], dim=1)
+                        kl_chunk = (p_cur * (log_p_cur - log_p_warm)).sum(dim=1).mean()
                         chunk_loss = chunk_loss + alpha_kl * kl_chunk / n_chunks
                         loss_kl_val += kl_chunk.item() / n_chunks
                     if self.scaler:

@@ -17,14 +17,13 @@ class MulticlassTransductiveLoss(nn.Module):
 
     def __init__(self, global_constraints, local_constraints,
                  lambda_global=1.0, lambda_local=1.0, num_classes=7,
-                 use_sum=True, initial_rho=0.5, alpha_kl=0.0,
+                 initial_rho=0.5, alpha_kl=0.0,
                  per_class_lambda=False):
         super().__init__()
         self.lambda_global = lambda_global
         self.lambda_local = lambda_local
         self.alpha_kl = alpha_kl
         self.num_classes = num_classes
-        self.use_sum = use_sum
         self.per_class_lambda = per_class_lambda
         self.register_buffer('rho', torch.tensor(float(initial_rho)))
         self.global_constraints_satisfied = False
@@ -74,7 +73,7 @@ class MulticlassTransductiveLoss(nn.Module):
         self.global_constraints_satisfied = all_satisfied
         if num_constrained == 0:
             return soft_counts.sum() * 0.0
-        return total_loss if self.use_sum else total_loss / num_constrained
+        return total_loss
 
     def compute_local_from_counts(self, local_soft_counts):
         if not self.local_groups or not local_soft_counts:
@@ -112,7 +111,7 @@ class MulticlassTransductiveLoss(nn.Module):
             for v in local_soft_counts.values():
                 return v.sum() * 0.0
             return torch.tensor(0.0, device=device)
-        return total_loss if self.use_sum else total_loss / num_constrained
+        return total_loss
 
     def set_lambda(self, lambda_global=None, lambda_local=None):
         if lambda_global is not None:

@@ -44,7 +44,7 @@ def train_fixed_warmup(config, input_dim, num_classes, X_train, y_train, device)
              warmup_epochs, lr, use_amp, amp_dtype)
     model = get_model(
         config['model_name'], input_dim=input_dim, n_classes=num_classes,
-        hidden_dims=hp.get('hidden_dims'), dropout=hp['dropout'],
+        dropout=hp['dropout'],
         pretrained=hp.get('pretrained', False)
     ).to(device)
     use_fused = device.type == 'cuda' and hasattr(torch.optim.Adam, 'fused')

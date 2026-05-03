@@ -46,7 +46,7 @@ def load_from_cache(base_model_id: str, config: Dict[str, Any],
         return None
     model = get_model(
         config['model_name'], input_dim=input_dim, n_classes=num_classes,
-        hidden_dims=hp.get('hidden_dims'), dropout=hp['dropout'],
+        dropout=hp['dropout'],
         pretrained=False
     ).to(device)
     result = safe_execute(
