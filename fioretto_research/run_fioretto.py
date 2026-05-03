@@ -22,15 +22,11 @@ import torch.nn.functional as F
 
 from src.pipeline.data import load_data
 from src.pipeline.warmup import run_warmup, make_dataloader
+from src.pipeline.eval import evaluate_with_posthoc, write_evaluation_outputs
 from src.utils.filesystem_manager import load_config_from_path
 from src.pipeline.setup import seed_all
 from src.pipeline.io import save_results_to_config
-from src.training.metrics import (
-    compute_metrics, get_predictions_with_probabilities,
-    compute_flips, compute_raw_constraint_satisfaction,
-)
-from src.training.logging import save_final_predictions, save_evaluation_metrics
-from src.utils.posthoc_adjustment import targeted_correction
+from src.training.logging import save_evaluation_metrics
 from src.utils.constants import UNLIMITED
 
 log = logging.getLogger(__name__)
@@ -364,58 +360,34 @@ def run_fioretto(config_path: str) -> None:
     y_true = data.y_test
     group_ids = groups_test
     X_test_dev = X_test_tensor.to(device)
-    needs_adjustment = any(global_con[c] < UNLIMITED for c in constrained_classes)
 
     def _eval_candidate(state, label):
         model.load_state_dict(state)
-        model.to(device).eval()
-        y_pred, y_proba = get_predictions_with_probabilities(model, X_test_dev)
-        adj = 0
-        meta = {}
-        if needs_adjustment:
-            y_pred, adj, meta = targeted_correction(
-                y_proba, group_ids, global_con, local_con, constrained_classes)
-        m = compute_metrics(y_true, y_pred, y_proba)
-        log.info("[%s] acc=%.4f f1=%.4f adjusted=%d",
-                 label, m['accuracy'], m['f1_macro'], adj)
-        return label, y_pred, y_proba, m, adj, meta
+        model.to(device)
+        return label, evaluate_with_posthoc(
+            model, X_test_dev, y_true, group_ids,
+            global_con, local_con, constrained_classes, num_classes,
+            label=label,
+        )
 
     candidates = [_eval_candidate(final_state, 'final')]
     if best_excess_state is not None:
         candidates.append(_eval_candidate(best_excess_state, 'best_excess'))
 
-    # Pick by F1-macro (matching our_approach)
-    best = max(candidates, key=lambda x: x[3]['f1_macro'])
-    best_source, best_pred, best_proba, best_metrics, best_adj, best_meta = best
+    best_source, best_result = max(candidates, key=lambda kv: kv[1]['metrics']['f1_macro'])
+    best_pred = best_result['y_pred']
+    best_proba = best_result['y_proba']
+    best_metrics = best_result['metrics']
+    best_adj = best_result['adj']
+    best_meta = best_result['posthoc_meta']
     log.info("Selected checkpoint: %s (f1_macro=%.4f from %d candidates)",
              best_source, best_metrics['f1_macro'], len(candidates))
+    flips = best_metrics['flips_required']
 
-    # Save raw (pre-post-hoc) of the SELECTED candidate
-    raw_pred = best_proba.argmax(axis=1)
-    save_final_predictions(experiment_path / 'final_predictions_raw.csv',
-                           y_true, raw_pred, best_proba, group_ids)
-    save_final_predictions(experiment_path / 'final_predictions.csv',
-                           y_true, best_pred, best_proba, group_ids)
-
-    # Constraint verification on the selected predictions
-    for c in range(num_classes):
-        pred_count = (best_pred == c).sum()
-        limit = int(global_con[c]) if global_con[c] < UNLIMITED else 'INF'
-        status = ('OK' if (isinstance(limit, str) or pred_count <= limit)
-                  else f'VIOLATED by {pred_count - limit}')
-        log.info("Class %d: pred=%d limit=%s %s", c, pred_count, limit, status)
-
-    # Metrics
-    flips = compute_flips(raw_pred, best_pred)
-    raw_sat = compute_raw_constraint_satisfaction(
-        raw_pred, global_con, local_con, group_ids, constrained_classes)
-    best_metrics['flips_required'] = flips
-    best_metrics.update(raw_sat)
+    write_evaluation_outputs(experiment_path, y_true, group_ids, best_result, num_classes, global_con)
     best_metrics['satisfaction_epoch'] = satisfaction_epoch
     best_metrics['checkpoint_source'] = best_source
-    log.info("[Track1] flips=%d raw_satisfied=%s excess=%d sat_epoch=%s checkpoint=%s",
-             flips, raw_sat['raw_all_satisfied'], raw_sat['raw_total_excess'],
-             satisfaction_epoch or 'N/A', best_source)
+    log.info("sat_epoch=%s checkpoint=%s", satisfaction_epoch or 'N/A', best_source)
     posthoc_time = time.time() - posthoc_start
     best_metrics['warmup_time'] = float(warmup_time)
     best_metrics['constraint_train_time'] = float(constraint_train_time)
