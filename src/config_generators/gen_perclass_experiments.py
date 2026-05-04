@@ -1,7 +1,7 @@
 """Generate per_class_ratchet experiments to compare against Fioretto LDF.
 
 Same scenarios, seeds, datasets as the Fioretto benchmark.
-Uses our_approach with lambda_mode='per_class_ratchet' — each constrained class
+Uses tralo with lambda_mode='per_class_ratchet' — each constrained class
 gets its own lambda that increments independently.
 
 Usage:
@@ -92,10 +92,10 @@ def _build_tissue(scenario_name, seed):
     cc = TISSUE_SCENARIOS[scenario_name]["cc"]
     ctag = constraint_tag(CONSTRAINT_PAIR)
     variant = f"s{seed}"
-    path = Path(ROOT) / "tissuemnist" / scenario_name / ctag / TISSUE_MODEL / "our_approach_pcr" / variant
+    path = Path(ROOT) / "tissuemnist" / scenario_name / ctag / TISSUE_MODEL / "tralo_pcr" / variant
     ds_config = _tissue_ds(cc)
     return {
-        "methodology": "our_approach",
+        "methodology": "tralo",
         "model_name": TISSUE_MODEL,
         "constraint": list(CONSTRAINT_PAIR),
         "constraint_tag": ctag,
@@ -117,10 +117,10 @@ def _build_cifar(scenario_name, seed):
     cc = CIFAR_SCENARIOS[scenario_name]["cc"]
     ctag = constraint_tag(CIFAR_CONSTRAINT_PAIR)
     variant = f"s{seed}"
-    path = Path(ROOT) / "cifar100" / scenario_name / ctag / CIFAR_MODEL / "our_approach_pcr" / variant
+    path = Path(ROOT) / "cifar100" / scenario_name / ctag / CIFAR_MODEL / "tralo_pcr" / variant
     ds_config = _cifar_ds(cc)
     return {
-        "methodology": "our_approach",
+        "methodology": "tralo",
         "model_name": CIFAR_MODEL,
         "constraint": list(CIFAR_CONSTRAINT_PAIR),
         "constraint_tag": ctag,

@@ -1,8 +1,15 @@
-"""our_approach methodology: bounded penalty + per-class lambda ratchet + KL anchor.
+"""TraLO (Transductive Lagrangian Optimization).
 
-Lifted verbatim from src/training/trainer.py:ConstraintTrainer.train_constraints
-(Step 5 of Stage C). State that used to live on self.* now flows through
-TrainInputs.
+Bounded saturated penalty + per-class lambda ratchet + optional KL anchor to
+warmup distribution. Constraint phase only — warmup is shared with the
+baselines via pipeline.warmup.run_warmup. State flows through TrainInputs.
+
+Loss per constrained class c (and per (group, c) for local):
+    L_c = lambda_c * [ E/(E+K) + rho * (E/K)^2 / (1 + (E/K)^2) ]
+  where E = ReLU(soft_count_c - K_c).
+Both terms bounded in [0, 1) so a single very-violated class cannot hijack
+the gradient. Per-class lambdas (not a single scalar) prevent one violator
+from dominating the multi-class case.
 """
 
 import logging

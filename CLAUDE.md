@@ -25,8 +25,7 @@ Thesis project: train neural networks to satisfy **transductive prediction-count
 
 ```
 main.py                                  # Dispatch pending experiments via subprocess
-  -> src/experiments/run_experiment.py    # Optimization (CE warmup + constraint loss)
-  -> src/experiments/run_heuristic.py     # Heuristic (greedy top-K allocation)
+  -> src/experiments/runner.py            # Single dispatcher: tralo | fioretto_ldf | heuristic | danits_lp
 ```
 
 **Config generation**: `src/config_generators/generate_configs.py`
@@ -110,7 +109,7 @@ results/
 python -m src.config_generators.generate_configs
 
 # Or programmatically
-python -c "from src.config_generators.generate_configs import generate_configs, save_configs; save_configs(generate_configs('our_approach', round='round4', dataset_mode='tissuemnist'), output_dir='results/pending_runs')"
+python -c "from src.config_generators.generate_configs import generate_configs, save_configs; save_configs(generate_configs('tralo', round='round4', dataset_mode='tissuemnist'), output_dir='results/pending_runs')"
 
 # Run all pending experiments
 python main.py

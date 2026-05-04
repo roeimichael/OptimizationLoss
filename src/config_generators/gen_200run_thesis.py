@@ -1,8 +1,8 @@
 """200-run thesis experiment suite.
 
 Blocks A-N addressing audit findings + exploring correlations.
-Run count: exactly 200 our_approach + companion baselines (heuristic + danits_lp).
-All our_approach runs use diagnostic_level=2.
+Run count: exactly 200 tralo + companion baselines (heuristic + danits_lp).
+All tralo runs use diagnostic_level=2.
 
 Usage:
     python -m danits_research.gen_200run_thesis [--phase 1|2|3|4|5|all]
@@ -50,7 +50,7 @@ def _ds(cc):
 
 def _build(block, methodology, scenario_name, con, model, seed, hp_overrides=None, tag_extra=""):
     hp = dict(BASELINE_HP)
-    if methodology != "our_approach":
+    if methodology != "tralo":
         hp.pop("diagnostic_level", None)
         hp.pop("lambda_mode", None)
     hp["seed"] = seed
@@ -78,7 +78,7 @@ def _build(block, methodology, scenario_name, con, model, seed, hp_overrides=Non
 
 
 def _with_baselines(block, scenario_name, con, model, seed, hp_overrides=None, tag_extra=""):
-    cfgs = [_build(block, "our_approach", scenario_name, con, model, seed, hp_overrides, tag_extra)]
+    cfgs = [_build(block, "tralo", scenario_name, con, model, seed, hp_overrides, tag_extra)]
     bl_hp = dict(hp_overrides) if hp_overrides else {}
     for k in ["diagnostic_level", "lambda_mode", "lambda_max", "lambda_k",
               "lambda_ema_alpha", "_cc"]:
@@ -290,8 +290,8 @@ def main():
             block_cfgs = fn()
             all_cfgs.extend(block_cfgs)
 
-    oa = [c for c in all_cfgs if c["methodology"] == "our_approach"]
-    bl = [c for c in all_cfgs if c["methodology"] != "our_approach"]
+    oa = [c for c in all_cfgs if c["methodology"] == "tralo"]
+    bl = [c for c in all_cfgs if c["methodology"] != "tralo"]
     blocks = {}
     for c in oa:
         b = c["exp_name"].split("_")[1]
@@ -301,8 +301,8 @@ def main():
     print(f"THESIS 200-RUN SUITE — phases {phases}")
     print("=" * 70)
     for b, n in sorted(blocks.items()):
-        print(f"  Block {b}: {n} our_approach")
-    print(f"  TOTAL our_approach: {len(oa)}")
+        print(f"  Block {b}: {n} tralo")
+    print(f"  TOTAL tralo: {len(oa)}")
     print(f"  TOTAL baselines:    {len(bl)}")
     print(f"  TOTAL configs:      {len(all_cfgs)}")
 

@@ -77,13 +77,13 @@ def format_duration(seconds):
 
 def print_experiment_header(index, total, exp_path, config, completed, failed, prefix=''):
     name = config.get('exp_name', Path(exp_path).name)
-    methodology = config.get('methodology', 'our_approach')
+    methodology = config.get('methodology', 'tralo')
     constraint = config.get('constraint', [])
     hp = config.get('hyperparams', {})
     _safe_print(f"\n{prefix}{'='*70}")
     _safe_print(f"{prefix}  [{index}/{total}]  {name}")
     _safe_print(f"{prefix}  Method: {methodology}  |  Constraint: {constraint}")
-    if methodology == 'our_approach':
+    if methodology == 'tralo':
         _safe_print(f"{prefix}  rho={hp.get('initial_rho', 1.0)}  kl={hp.get('alpha_kl', 0.0)}  "
                      f"lr_con={hp.get('lr_constraint', 5e-6):.0e}  "
                      f"pretrained={hp.get('pretrained', False)}  "

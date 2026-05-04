@@ -121,7 +121,7 @@ def build_config(model_name, variant_name, overrides, description,
     exp_path = Path('results/pending_runs') / ds_name / scenario_name / CTAG / model_name / variant_name / f"slice_{slice_idx}"
 
     return {
-        'methodology': 'our_approach',
+        'methodology': 'tralo',
         'model_name': model_name,
         'constraint': list(CONSTRAINT_PAIR),
         'constraint_tag': CTAG,

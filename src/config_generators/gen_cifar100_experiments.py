@@ -11,7 +11,7 @@ Scenarios:
   triple_vehicles:    constrain [8, 13, 48] (bicycle, bus, motorcycle)
 
 Each: 3 methods x 5 seeds = 15 runs per scenario.
-Total: 4 x 15 = 60 runs (20 our_approach + 40 baselines).
+Total: 4 x 15 = 60 runs (20 tralo + 40 baselines).
 
 Usage:
     python -m danits_research.gen_cifar100_experiments
@@ -46,7 +46,7 @@ BASELINE_HP = {
     "lambda_mode": "ratchet", "diagnostic_level": 2,
 }
 
-METHODS = ["our_approach", "heuristic", "danits_lp"]
+METHODS = ["tralo", "heuristic", "danits_lp"]
 SEEDS = [1, 2, 3, 4, 5]
 
 
@@ -64,7 +64,7 @@ def _ds(cc):
 def _build(methodology, scenario_name, seed):
     hp = dict(BASELINE_HP)
     hp["seed"] = seed
-    if methodology != "our_approach":
+    if methodology != "tralo":
         hp.pop("diagnostic_level", None)
         hp.pop("lambda_mode", None)
 
@@ -97,7 +97,7 @@ def main():
             for seed in SEEDS:
                 cfgs.append(_build(meth, sc, seed))
 
-    n_oa = sum(1 for c in cfgs if c["methodology"] == "our_approach")
+    n_oa = sum(1 for c in cfgs if c["methodology"] == "tralo")
     n_bl = len(cfgs) - n_oa
     print("=" * 70)
     print("CIFAR-100 EXPERIMENTS")
@@ -105,7 +105,7 @@ def main():
     print(f"Tier: L30_G50")
     for name, sc in SCENARIOS.items():
         print(f"  {name:25s} constrained_class={sc['cc']}")
-    print(f"our_approach: {n_oa}  baselines: {n_bl}  total: {len(cfgs)}")
+    print(f"tralo: {n_oa}  baselines: {n_bl}  total: {len(cfgs)}")
     hashes = sorted({c["base_model_id"] for c in cfgs})
     print(f"Warmup hashes: {len(hashes)}")
     save_configs(cfgs, output_dir=ROOT)

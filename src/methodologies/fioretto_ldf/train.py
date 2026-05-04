@@ -232,7 +232,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     )
 
     # Dual-checkpoint pick: F1 after post-hoc decides between final and
-    # best_excess. Lives here because it is methodology-specific (our_approach
+    # best_excess. Lives here because it is methodology-specific (tralo
     # uses the final epoch only, by design).
     X_test_dev = inputs.X_test.to(device)
 

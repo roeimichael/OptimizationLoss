@@ -168,7 +168,7 @@ def make_table(scenario_key, experiments, metric, metric_display, label_prefix):
     for tag in sorted_tags:
         row = constraint_display(tag)
         for model in models:
-            ours_vals = tags_data[tag].get((model, 'our_approach'), {}).get(
+            ours_vals = tags_data[tag].get((model, 'tralo'), {}).get(
                 metric, [])
             heur_vals = tags_data[tag].get((model, 'heuristic'), {}).get(
                 metric, [])
@@ -230,7 +230,7 @@ def make_adjustment_table(experiments):
     for scenario_key, tags_data in experiments.items():
         for tag, model_data in tags_data.items():
             for (model, method), metrics in model_data.items():
-                if method == 'our_approach':
+                if method == 'tralo':
                     adj_by_tag_model[tag][model].extend(
                         metrics.get('samples_adjusted', []))
 
@@ -284,11 +284,11 @@ def make_summary_table(experiments):
                         metrics.get(metric_name, []))
 
     for dataset in sorted(by_dataset_method.keys()):
-        for method in ['our_approach', 'heuristic']:
+        for method in ['tralo', 'heuristic']:
             m = by_dataset_method[dataset][method]
             if not m['accuracy']:
                 continue
-            display_method = 'Ours' if method == 'our_approach' else 'Heuristic'
+            display_method = 'Ours' if method == 'tralo' else 'Heuristic'
             acc = statistics.mean(m['accuracy'])
             f1 = statistics.mean(m['f1_macro'])
             prec = statistics.mean(m['precision_macro'])
@@ -297,7 +297,7 @@ def make_summary_table(experiments):
             best_f1 = max(
                 statistics.mean(
                     by_dataset_method[dataset][mm].get('f1_macro', [0]))
-                for mm in ['our_approach', 'heuristic']
+                for mm in ['tralo', 'heuristic']
                 if by_dataset_method[dataset][mm].get('f1_macro'))
 
             f1_str = f"{f1:.3f}"

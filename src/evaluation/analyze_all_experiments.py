@@ -83,7 +83,7 @@ def load_all_configs():
             "exp_dir": root,
             "has_final_predictions": os.path.exists(os.path.join(root, "final_predictions.csv")),
         }
-        # For our_approach, also store comparison data
+        # For tralo, also store comparison data
         if results_comparison:
             for key in ["final", "bracket_best", "bracket_previous"]:
                 sub = results_comparison.get(key, {})
@@ -307,10 +307,10 @@ def main():
     print("SECTION 3e: CHECKPOINT SOURCE DISTRIBUTION")
     print("=" * 80)
 
-    # Only for our_approach (heuristic doesn't have this field typically)
-    oa_df = df[df["methodology"] == "our_approach"]
+    # Only for tralo (heuristic doesn't have this field typically)
+    oa_df = df[df["methodology"] == "tralo"]
     ckpt_dist = oa_df["checkpoint_source"].value_counts()
-    print(f"\nCheckpoint source distribution (our_approach only, n={len(oa_df)}):")
+    print(f"\nCheckpoint source distribution (tralo only, n={len(oa_df)}):")
     for src, cnt in ckpt_dist.items():
         print(f"  {src}: {cnt} ({cnt/len(oa_df)*100:.1f}%)")
 
@@ -380,16 +380,16 @@ def main():
         print(moderate_low[["dataset", "scenario", "constraint_tag", "model_name", "methodology", "slice", "accuracy", "f1_macro"]].to_string(index=False))
 
     # =========================================================================
-    # SECTION 3h: Head-to-head comparison: our_approach vs heuristic
+    # SECTION 3h: Head-to-head comparison: tralo vs heuristic
     # =========================================================================
     print("\n" + "=" * 80)
-    print("SECTION 3h: HEAD-TO-HEAD COMPARISON (our_approach vs heuristic)")
+    print("SECTION 3h: HEAD-TO-HEAD COMPARISON (tralo vs heuristic)")
     print("=" * 80)
 
-    # Pivot to get our_approach and heuristic side by side
+    # Pivot to get tralo and heuristic side by side
     merge_cols = ["dataset", "scenario", "constraint_tag", "model_name", "slice"]
 
-    oa = df[df["methodology"] == "our_approach"][merge_cols + ["accuracy", "f1_macro", "samples_adjusted"]].copy()
+    oa = df[df["methodology"] == "tralo"][merge_cols + ["accuracy", "f1_macro", "samples_adjusted"]].copy()
     oa.columns = merge_cols + ["acc_oa", "f1_oa", "adj_oa"]
 
     hr = df[df["methodology"] == "heuristic"][merge_cols + ["accuracy", "f1_macro", "samples_adjusted"]].copy()
@@ -405,7 +405,7 @@ def main():
         print(f"\nOverall head-to-head statistics:")
         print(f"  Mean F1 diff (oa - hr): {h2h['f1_diff'].mean():.4f} (std={h2h['f1_diff'].std():.4f})")
         print(f"  Median F1 diff: {h2h['f1_diff'].median():.4f}")
-        print(f"  our_approach wins: {(h2h['f1_diff'] > 0).sum()} / {len(h2h)} ({(h2h['f1_diff'] > 0).mean()*100:.1f}%)")
+        print(f"  tralo wins: {(h2h['f1_diff'] > 0).sum()} / {len(h2h)} ({(h2h['f1_diff'] > 0).mean()*100:.1f}%)")
         print(f"  heuristic wins:   {(h2h['f1_diff'] < 0).sum()} / {len(h2h)} ({(h2h['f1_diff'] < 0).mean()*100:.1f}%)")
         print(f"  ties (exact):     {(h2h['f1_diff'] == 0).sum()}")
         print(f"\n  Mean Acc diff (oa - hr): {h2h['acc_diff'].mean():.4f} (std={h2h['acc_diff'].std():.4f})")
@@ -461,7 +461,7 @@ def main():
         print(h2h_by_scenario.to_string(index=False))
 
         # Worst and best head-to-head comparisons
-        print("\n\nTop 10 LARGEST F1 advantages for our_approach:")
+        print("\n\nTop 10 LARGEST F1 advantages for tralo:")
         top_oa = h2h.nlargest(10, "f1_diff")[merge_cols + ["f1_oa", "f1_hr", "f1_diff"]]
         print(top_oa.to_string(index=False))
 
@@ -506,16 +506,16 @@ def main():
     print(f"Models: {sorted(df['model_name'].unique().tolist())}")
     print(f"Methodologies: {df['methodology'].unique().tolist()}")
     print(f"Slices per experiment: {sorted(df['slice'].unique().tolist())}")
-    n_oa = len(df[df['methodology'] == 'our_approach'])
+    n_oa = len(df[df['methodology'] == 'tralo'])
     n_hr = len(df[df['methodology'] == 'heuristic'])
-    print(f"our_approach experiments: {n_oa}")
+    print(f"tralo experiments: {n_oa}")
     print(f"heuristic experiments: {n_hr}")
     if len(h2h) > 0:
-        print(f"\nKey finding: our_approach vs heuristic (matched pairs: {len(h2h)})")
-        print(f"  our_approach mean F1: {h2h['f1_oa'].mean():.4f}")
+        print(f"\nKey finding: tralo vs heuristic (matched pairs: {len(h2h)})")
+        print(f"  tralo mean F1: {h2h['f1_oa'].mean():.4f}")
         print(f"  heuristic mean F1:    {h2h['f1_hr'].mean():.4f}")
         print(f"  F1 advantage (oa):    {h2h['f1_diff'].mean():+.4f}")
-        print(f"  our_approach win rate: {(h2h['f1_diff'] > 0).mean()*100:.1f}%")
+        print(f"  tralo win rate: {(h2h['f1_diff'] > 0).mean()*100:.1f}%")
 
 
 if __name__ == "__main__":

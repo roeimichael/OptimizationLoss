@@ -112,7 +112,7 @@ A **greedy top-K allocation** baseline that uses the same warmup model but skips
 | Model | Notes |
 |-------|-------|
 | BasicNN (MLP) | Simplest. Won on relaxed constraints with heuristic. |
-| TabularResNet | Best for our_approach on strict constraints. |
+| TabularResNet | Best for tralo on strict constraints. |
 | FTTransformer | Middle performance. No clear advantage for this task. |
 
 All imagery models use torchvision pretrained weights with a custom classification head (Dropout -> Linear).
@@ -153,13 +153,13 @@ All imagery models use torchvision pretrained weights with a custom classificati
 
 ### Constraint Pair Insights
 
-- When `local% > global%` (e.g., 0.5/0.3): global constraint binds first, local is non-binding. Heuristic and our_approach produce very similar local-group distributions.
+- When `local% > global%` (e.g., 0.5/0.3): global constraint binds first, local is non-binding. Heuristic and tralo produce very similar local-group distributions.
 - When `local% < global%` (e.g., 0.3/0.8): local constraint is the binding one. This is where per-group optimization matters most.
 - Equal constraints (0.3/0.3 or 0.8/0.8): both bind, creating the most complex optimization landscape.
 
 ### Current Pending Experiments (480 configs, DermMNIST)
 
-4 scenarios (single_MEL, single_NV, multi_MEL_BKL, multi_MEL_BCC_VASC) x 6 constraint pairs (L30_G30, L30_G80, L80_G30, L70_G50, L50_G70, L80_G80) x 2 models (MobileNetV3, EfficientNetB0) x 2 methods (our_approach, heuristic) x 5 slices.
+4 scenarios (single_MEL, single_NV, multi_MEL_BKL, multi_MEL_BCC_VASC) x 6 constraint pairs (L30_G30, L30_G80, L80_G30, L70_G50, L50_G70, L80_G80) x 2 models (MobileNetV3, EfficientNetB0) x 2 methods (tralo, heuristic) x 5 slices.
 
 These are designed to test:
 - Single vs multi-class constraints
@@ -233,7 +233,7 @@ src/
 ## Reproducibility Notes
 
 - All experiments use deterministic seeds where specified
-- Warmup models are cached and reused across constraint variations (shared between our_approach and heuristic via separate cache IDs with `_heuristic` suffix)
+- Warmup models are cached and reused across constraint variations (shared between tralo and heuristic via separate cache IDs with `_heuristic` suffix)
 - 5 stratified slices with fixed seeds (43-47) enable statistical significance testing
 - Config files are self-contained JSON: every experiment can be reproduced from its config.json alone
 - The pipeline supports safe stop/restart: completed experiments are skipped on rerun (status field in config.json)

@@ -1,4 +1,4 @@
-"""our_approach hyperparameter defaults (informational; live values come from config)."""
+"""TraLO hyperparameter defaults (informational; live values come from config)."""
 
 DEFAULTS = {
     "lr_constraint": 1e-5,

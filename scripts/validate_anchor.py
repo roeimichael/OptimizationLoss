@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
 METHODOLOGY_RUNNER = {
-    'our_approach': 'src.experiments.runner',
+    'tralo': 'src.experiments.runner',
     'fioretto_ldf': 'src.experiments.runner',
     'heuristic': 'src.experiments.runner',
     'danits_lp': 'src.experiments.runner',
@@ -142,7 +142,7 @@ def check_main_routing(configs):
     RUNNER = 'src.experiments.runner'
     ok = True
     for meth, (_, c) in sorted(configs.items()):
-        m = c.get('methodology', 'our_approach')
+        m = c.get('methodology', 'tralo')
         runner = RUNNER
         expected = METHODOLOGY_RUNNER.get(meth)
         agree = (runner == expected)

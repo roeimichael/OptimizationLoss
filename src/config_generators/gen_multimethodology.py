@@ -27,7 +27,7 @@ from src.config_generators.generate_configs import (
     constraint_tag,
 )
 
-METHODOLOGIES = ['our_approach', 'fioretto_ldf', 'heuristic', 'danits_lp']
+METHODOLOGIES = ['tralo', 'fioretto_ldf', 'heuristic', 'danits_lp']
 
 DATASET_DEFAULTS = {
     'tissuemnist': {

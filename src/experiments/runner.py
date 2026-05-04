@@ -11,7 +11,7 @@ import torch
 
 from src.pipeline.data import load_data
 from src.utils.error_handler import logger, log_exception
-from src.methodologies.our_approach.train import train as train_our_approach
+from src.methodologies.tralo.train import train as train_tralo
 from src.methodologies.fioretto_ldf.train import train as train_fioretto_ldf
 from src.methodologies.heuristic.train import train as train_heuristic
 from src.methodologies.danits_lp.train import train as train_danits_lp
@@ -74,9 +74,9 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         experiment_path=experiment_path,
         csv_log_path=csv_log_path,
     )
-    methodology = config.get('methodology', 'our_approach')
+    methodology = config.get('methodology', 'tralo')
     train_fns = {
-        'our_approach': train_our_approach,
+        'tralo': train_tralo,
         'fioretto_ldf': train_fioretto_ldf,
         'heuristic': train_heuristic,
         'danits_lp': train_danits_lp,

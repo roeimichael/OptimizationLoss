@@ -19,7 +19,7 @@ Phi_lambda(c) = round(feature_pct * #{samples in group lambda with true label ==
 IMPORTANT: we use `np.round` here to match the project's own bound-derivation
 in `src/training/constraints.py` (functions `compute_global_constraints` and
 `compute_local_constraints`). This keeps the paper [5] LP's feasibility
-reference identical to the bounds the `heuristic` and `our_approach` runners
+reference identical to the bounds the `heuristic` and `tralo` runners
 actually see at training/eval time. Mismatching the rounding convention
 (e.g. floor vs round) turns a `9.6` bound into either 9 or 10 and flags
 perfectly-feasible project runs as "off-by-one violations" -- which is a

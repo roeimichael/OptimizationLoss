@@ -78,7 +78,7 @@ def run_unconstrained_baseline():
                         'image_size': ds_info['image_size'],
                         'constrained_class': ds_info['constrained_class'],
                     },
-                    'methodology': 'our_approach',
+                    'methodology': 'tralo',
                     'constraint': [0.5, 0.5],  # dummy, needed by load_experiment_data
                 }
                 base_model_id = compute_base_model_id(

@@ -277,7 +277,7 @@ def generate_training_curves(results_dir='results'):
         with open(config_path) as f:
             cfg = json.load(f)
 
-        if cfg.get('methodology') != 'our_approach':
+        if cfg.get('methodology') != 'tralo':
             continue
         if cfg.get('status') != 'completed':
             continue

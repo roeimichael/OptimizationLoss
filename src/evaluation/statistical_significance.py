@@ -1,4 +1,4 @@
-"""Statistical significance analysis for our_approach vs heuristic.
+"""Statistical significance analysis for tralo vs heuristic.
 
 Runs paired comparisons on matched experiments (same scenario, constraint,
 model, slice) using Wilcoxon signed-rank tests and paired t-tests.
@@ -27,7 +27,7 @@ from scipy import stats
 
 
 def load_matched_pairs(results_dir):
-    """Load all completed experiments and match our_approach vs heuristic pairs.
+    """Load all completed experiments and match tralo vs heuristic pairs.
 
     Returns list of dicts with keys: dataset, scenario, constraint_tag, model,
     slice, oa_accuracy, h_accuracy, oa_f1, h_f1, oa_adj, h_adj.
@@ -68,8 +68,8 @@ def load_matched_pairs(results_dir):
     # Build matched pairs
     pairs = []
     for (dataset, scenario, tag, model, slice_name), methods in by_key.items():
-        if 'our_approach' in methods and 'heuristic' in methods:
-            oa = methods['our_approach']
+        if 'tralo' in methods and 'heuristic' in methods:
+            oa = methods['tralo']
             h = methods['heuristic']
             pairs.append({
                 'dataset': dataset,

@@ -1,10 +1,10 @@
 """Generate Fioretto LDF benchmark configs matching existing experiment scenarios.
 
 Creates configs for fioretto_ldf methodology on both TissueMNIST and CIFAR-100,
-using the same seeds/tiers/scenarios as our_approach experiments for direct comparison.
+using the same seeds/tiers/scenarios as tralo experiments for direct comparison.
 
 Step sizes to sweep: 0.001, 0.005, 0.01 (Fioretto's key hyperparameter).
-All other HPs match the baseline configs used for our_approach/heuristic/danits_lp.
+All other HPs match the baseline configs used for tralo/heuristic/danits_lp.
 
 Usage:
     python -m fioretto_research.gen_fioretto_experiments

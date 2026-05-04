@@ -110,11 +110,11 @@ def compute_raw_constraint_satisfaction(y_raw, global_con, local_con, group_ids,
     existing CSVs, but its semantics differ across methodologies and the
     name is misleading:
 
-    - For our_approach / fioretto_ldf: y_raw is the argmax of a model
+    - For tralo / fioretto_ldf: y_raw is the argmax of a model
       trained with constraint pressure -- it had a chance to satisfy.
     - For heuristic / danits_lp: y_raw is the argmax of the raw
       WARMUP model -- no constraint pressure, will look terrible here even
-      when the post-hoc result is identical to our_approach.
+      when the post-hoc result is identical to tralo.
 
     The metric is therefore an honest measure of "did the training phase
     pull predictions toward feasibility" but a DISHONEST head-to-head if

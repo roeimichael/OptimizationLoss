@@ -40,7 +40,7 @@ def _fmt(secs: float) -> str:
 
 
 def run_one(exp_path, config, gpu_id, prefix):
-    methodology = config.get('methodology', 'our_approach')
+    methodology = config.get('methodology', 'tralo')
     runner = RUNNER_MODULE
     name = config.get('exp_name', Path(exp_path).name)
     cfg_path = Path(exp_path) / 'config.json'

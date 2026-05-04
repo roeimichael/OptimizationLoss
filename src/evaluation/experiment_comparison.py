@@ -111,7 +111,7 @@ def generate_comparison_charts(results_dir='results'):
         log.warning("No completed experiments found in %s", results_dir)
         return df
 
-    n_opt = len(df[df['method'] == 'our_approach'])
+    n_opt = len(df[df['method'] == 'tralo'])
     n_heu = len(df[df['method'] == 'heuristic'])
     log.info("Found %d experiments (%d optimization, %d heuristic)", len(df), n_opt, n_heu)
 

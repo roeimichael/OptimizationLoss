@@ -1,6 +1,6 @@
 # Post-hoc constraint enforcement.
 # targeted_correction: bidirectional greedy + small-scope LP fallback,
-# handles both over-limit and under-limit cases. Used by `our_approach`
+# handles both over-limit and under-limit cases. Used by `tralo`
 # and `fioretto_ldf` after constraint training.
 
 import logging
