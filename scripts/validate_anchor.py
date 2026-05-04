@@ -24,10 +24,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
 METHODOLOGY_RUNNER = {
-    'our_approach': 'src.experiments.run_experiment',
-    'fioretto_ldf': 'fioretto_research.run_fioretto',
-    'heuristic': 'src.experiments.run_heuristic',
-    'danits_lp': 'src.experiments.run_heuristic',
+    'our_approach': 'src.experiments.runner',
+    'fioretto_ldf': 'src.experiments.runner',
+    'heuristic': 'src.experiments.runner',
+    'danits_lp': 'src.experiments.runner',
 }
 
 REQUIRED_FIELDS = [
@@ -139,18 +139,11 @@ def check_runners(configs):
 def check_main_routing(configs):
     """Replicate main.py's dispatch logic; verify each config maps to right runner."""
     print("\n[6] main.py dispatch routing (parse-time only)")
-    OPTIMIZATION_MODULE = 'src.experiments.run_experiment'
-    HEURISTIC_MODULE = 'src.experiments.run_heuristic'
-    FIORETTO_MODULE = 'fioretto_research.run_fioretto'
+    RUNNER = 'src.experiments.runner'
     ok = True
     for meth, (_, c) in sorted(configs.items()):
         m = c.get('methodology', 'our_approach')
-        if m == 'fioretto_ldf':
-            runner = FIORETTO_MODULE
-        elif m in ('heuristic', 'danits_lp'):
-            runner = HEURISTIC_MODULE
-        else:
-            runner = OPTIMIZATION_MODULE
+        runner = RUNNER
         expected = METHODOLOGY_RUNNER.get(meth)
         agree = (runner == expected)
         print(f"  {meth:<14s} main.py->{runner}  expected={expected}  agree={agree}")

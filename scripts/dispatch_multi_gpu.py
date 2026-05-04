@@ -18,8 +18,7 @@ from pathlib import Path
 
 from src.utils.filesystem_manager import get_experiments_by_status, print_status_summary
 
-OPTIMIZATION_MODULE = 'src.experiments.run_experiment'
-HEURISTIC_MODULE = 'src.experiments.run_heuristic'
+RUNNER_MODULE = 'src.experiments.runner'
 
 _print_lock = threading.Lock()
 
@@ -42,8 +41,7 @@ def _fmt(secs: float) -> str:
 
 def run_one(exp_path, config, gpu_id, prefix):
     methodology = config.get('methodology', 'our_approach')
-    runner = (HEURISTIC_MODULE if methodology in ('heuristic', 'danits_lp')
-              else OPTIMIZATION_MODULE)
+    runner = RUNNER_MODULE
     name = config.get('exp_name', Path(exp_path).name)
     cfg_path = Path(exp_path) / 'config.json'
     env = {**os.environ,

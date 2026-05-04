@@ -1,6 +1,6 @@
 """fioretto_ldf methodology: linear penalty + per-constraint subgradient ascent.
 
-Lifted from fioretto_research/run_fioretto.py. The dual-checkpoint pick
+Lifted from the prior fioretto_research/run_fioretto.py module. The dual-checkpoint pick
 (final vs best_excess by F1 after post-hoc) lives here because it is
 methodology-specific.
 """

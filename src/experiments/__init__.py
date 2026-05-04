@@ -1,5 +1,5 @@
-# Experiment runners: optimization approach and heuristic baseline.
+# Experiment runner package. Single entry point for any methodology.
 
-from .run_experiment import run_experiment
+from .runner import run_experiment
 
 __all__ = ['run_experiment']

@@ -67,12 +67,9 @@ echo "  python: $PY ($($PY -V 2>&1))"
 echo ""
 
 runner_for() {
-    case "$1" in
-        our_approach)               echo "src.experiments.run_experiment" ;;
-        fioretto_ldf)               echo "fioretto_research.run_fioretto" ;;
-        heuristic|po_lp|danits_lp)  echo "src.experiments.run_heuristic" ;;
-        *)                           echo "" ;;
-    esac
+    # All methodologies dispatch through src.experiments.runner; the runner
+    # itself looks at config[methodology] to pick the train fn.
+    echo "src.experiments.runner"
 }
 
 ok=0

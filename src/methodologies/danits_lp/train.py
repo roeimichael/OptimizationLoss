@@ -27,7 +27,7 @@ def _infer_probs(model, X_test, chunk_size=256):
 
 
 def train(inputs: TrainInputs) -> TrainOutputs:
-    from danits_research import solve_lp_assignment
+    from src.methodologies.danits_lp import solve_lp_assignment
 
     cost_preset = inputs.hyperparams.get("danits_cost_preset", "identity")
     if cost_preset != "identity":
