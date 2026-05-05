@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 METHODOLOGY_RUNNER = {
     'tralo': 'src.experiments.runner',
     'fioretto_ldf': 'src.experiments.runner',
+    'hounie_rcl': 'src.experiments.runner',
     'heuristic': 'src.experiments.runner',
     'danits_lp': 'src.experiments.runner',
 }

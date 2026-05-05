@@ -13,6 +13,7 @@ from src.pipeline.data import load_data
 from src.utils.error_handler import logger, log_exception
 from src.methodologies.tralo.train import train as train_tralo
 from src.methodologies.fioretto_ldf.train import train as train_fioretto_ldf
+from src.methodologies.hounie_rcl.train import train as train_hounie_rcl
 from src.methodologies.heuristic.train import train as train_heuristic
 from src.methodologies.danits_lp.train import train as train_danits_lp
 from src.pipeline.contracts import TrainInputs
@@ -78,6 +79,7 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     train_fns = {
         'tralo': train_tralo,
         'fioretto_ldf': train_fioretto_ldf,
+        'hounie_rcl': train_hounie_rcl,
         'heuristic': train_heuristic,
         'danits_lp': train_danits_lp,
     }
