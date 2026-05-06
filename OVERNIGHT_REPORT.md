@@ -96,7 +96,28 @@ Tralo struggles when local and global asymmetric — no group-aware adaptation.
 
 `init_lam=0.05` is the best F1. `rho_init=50` gives the lowest excess (3) — closest to satisfaction — but weaker F1.
 
+## Combo HP follow-up (after fixes)
+
+Tested whether combining the top individual HPs gives synergy. Result: **no**. Combos underperform the single best (init_lam=0.05). Longer training reaches near-feasibility but trades F1.
+
+| combo (L50_G50, class 4)   | F1     | adj | raw_exc | min_exc | epochs |
+|----------------------------|--------|-----|---------|---------|--------|
+| init_lam=0.05 (best single)| 0.3898 | 47  | 66      | 66      | 100    |
+| init+step+rho              | 0.3877 | 33  | 54      | 64      | 100    |
+| init+step+rho+kl=0.1       | 0.3831 | 22  | 32      | 30      | 100    |
+| step+rho                   | 0.3755 | 26  | 28      | 28      | 100    |
+| init+step                  | 0.3720 | 26  | 36      | 36      | 100    |
+| **long: init+step+rho 200ep** | **0.3701** | **6** | **2** | **2** | 200 |
+| init+rho                   | 0.3688 | 10  | 5       | 5       | 100    |
+
+Headline: **the long 200-epoch run nearly satisfies (raw_exc=2, adj=6) — the lowest-violation TraLO result of the night** — but F1 drops 2pp vs init_lam=0.05. There is a real F1↔feasibility trade-off, and the right operating point depends on what the thesis cares about.
+
 ## Recommendations for next steps
+
+0. **Pick which TraLO config to feature in the thesis.** Two candidates:
+   - **init_lam=0.05 (100 ep)** — F1=0.3898 (best F1, beats Hounie+Fioretto), but raw_exc=66 / adj=47 (heavy posthoc).
+   - **long_init_step_rho (200 ep)** — F1=0.3701, raw_exc=2 / adj=6 (near satisfaction, minimal posthoc).
+   The thesis narrative likely wants both: highest-F1 vs near-satisfied. Run each on multiple seeds for variance.
 
 1. **Investigate Hounie / Fioretto BF16 argmax bug.** Their `sat_ep` numbers in this report are reported as the methodology saw them in BF16; re-check at FP32. If they also have the bug, their F1 / raw_satisfied numbers may shift.
 2. **Combine init_lam=0.05 + step=0.01 + rho_init=50.** None ran together. Likely the best HP combo.
