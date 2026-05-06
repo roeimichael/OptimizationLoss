@@ -81,6 +81,8 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         warmup_logits_cache = _cache_warmup_logits(model, X_test, amp_dtype, use_amp)
     satisfaction_epoch = None
     stable_count = 0
+    best_sat_state = None
+    best_sat_epoch = None
     training_start = time.time()
     constrained_classes = [c for c in range(num_classes) if global_con[c] < UNLIMITED]
     rho_frozen = False
@@ -249,6 +251,8 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         is_satisfied = global_satisfied and local_satisfied
         if is_satisfied:
             stable_count += 1
+            best_sat_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+            best_sat_epoch = epoch + 1
         else:
             stable_count = 0
 
@@ -332,6 +336,29 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     model.eval()
     g_counts, l_counts, g_soft, l_soft = compute_prediction_statistics(
         model, X_test, group_ids, num_classes=num_classes)
+    final_violates = False
+    for c in range(num_classes):
+        if global_con[c] < UNLIMITED and g_counts.get(c, 0) > int(global_con[c]):
+            final_violates = True
+            break
+    if not final_violates and local_con:
+        for gid, bounds in local_con.items():
+            for c in range(num_classes):
+                if bounds[c] < UNLIMITED and l_counts.get(gid, {}).get(c, 0) > int(bounds[c]):
+                    final_violates = True
+                    break
+            if final_violates:
+                break
+    restored_from_epoch = None
+    if final_violates and best_sat_state is not None:
+        log.info("Final epoch violates; restoring best-satisfied checkpoint from epoch %d",
+                 best_sat_epoch)
+        model.load_state_dict({k: v.to(device) for k, v in best_sat_state.items()})
+        restored_from_epoch = best_sat_epoch
+        g_counts, l_counts, g_soft, l_soft = compute_prediction_statistics(
+            model, X_test, group_ids, num_classes=num_classes)
+    elif final_violates:
+        log.warning("Final epoch violates and NO satisfied checkpoint was ever recorded")
     log.info("=== Final prediction summary ===")
     for c in range(num_classes):
         limit = int(global_con[c]) if global_con[c] < UNLIMITED else "INF"
@@ -355,6 +382,8 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         model=model,
         summary={
             "satisfaction_epoch": satisfaction_epoch,
+            "best_sat_epoch": best_sat_epoch,
+            "restored_from_epoch": restored_from_epoch,
             "soft_hard_gap": final_soft_hard_gap,
         },
     )

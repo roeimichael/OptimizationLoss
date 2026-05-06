@@ -110,6 +110,8 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     write_evaluation_outputs(experiment_path, y_true, group_ids, result, num_classes, global_con)
     best_metrics['satisfaction_epoch'] = train_outputs.summary.get('satisfaction_epoch')
     best_metrics['soft_hard_gap'] = train_outputs.summary.get('soft_hard_gap', {})
+    best_metrics['best_sat_epoch'] = train_outputs.summary.get('best_sat_epoch')
+    best_metrics['restored_from_epoch'] = train_outputs.summary.get('restored_from_epoch')
     if 'checkpoint_source' in train_outputs.summary:
         best_metrics['checkpoint_source'] = train_outputs.summary['checkpoint_source']
     if 'results_comparison' in train_outputs.summary:
