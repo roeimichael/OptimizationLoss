@@ -166,6 +166,45 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                         total_local_hard[gid] += torch.bincount(
                             chunk_preds[mask], minlength=num_classes).float()
 
+        # Snapshot model state BEFORE constraint backward+step. The hard counts
+        # in total_global_hard / total_local_hard reflect THIS state; saving
+        # post-step state would mismatch (the state-dict no longer produces
+        # those counts on a forward pass).
+        snapshot_global_satisfied = True
+        for c in range(num_classes):
+            if c < len(criterion_constraint.global_constraints) and \
+                    criterion_constraint.global_constraints[c] < UNLIMITED:
+                if total_global_hard[c].item() > criterion_constraint.global_constraints[c].item():
+                    snapshot_global_satisfied = False
+                    break
+        snapshot_local_satisfied = True
+        for gid_s, buffer_name_s in criterion_constraint.local_groups.items():
+            lc_s = getattr(criterion_constraint, buffer_name_s)
+            for c in range(num_classes):
+                if c < len(lc_s) and lc_s[c] < UNLIMITED:
+                    if total_local_hard[gid_s][c].item() > lc_s[c].item():
+                        snapshot_local_satisfied = False
+                        break
+            if not snapshot_local_satisfied:
+                break
+        snapshot_total_excess = 0.0
+        for c in range(num_classes):
+            if c < len(criterion_constraint.global_constraints) and \
+                    criterion_constraint.global_constraints[c] < UNLIMITED:
+                snapshot_total_excess += max(
+                    0.0, total_global_hard[c].item()
+                    - criterion_constraint.global_constraints[c].item())
+        for gid_s, buffer_name_s in criterion_constraint.local_groups.items():
+            lc_s = getattr(criterion_constraint, buffer_name_s)
+            for c in range(num_classes):
+                if c < len(lc_s) and lc_s[c] < UNLIMITED:
+                    snapshot_total_excess += max(
+                        0.0, total_local_hard[gid_s][c].item() - lc_s[c].item())
+        snapshot_state = None
+        snapshot_is_sat = snapshot_global_satisfied and snapshot_local_satisfied
+        if snapshot_is_sat or snapshot_total_excess < min_total_excess:
+            snapshot_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+
         loss_global_val = criterion_constraint.compute_global_from_counts(total_global_soft).item()
         loss_local_val = criterion_constraint.compute_local_from_counts(total_local_soft).item()
         total_constraint = loss_global_val + loss_local_val
@@ -251,28 +290,17 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             if not local_satisfied:
                 break
 
-        total_excess = 0.0
-        for c in range(num_classes):
-            if c < len(criterion_constraint.global_constraints) and \
-                    criterion_constraint.global_constraints[c] < UNLIMITED:
-                total_excess += max(0.0, total_global_hard[c].item()
-                                    - criterion_constraint.global_constraints[c].item())
-        for gid, buffer_name in criterion_constraint.local_groups.items():
-            lc = getattr(criterion_constraint, buffer_name)
-            for c in range(num_classes):
-                if c < len(lc) and lc[c] < UNLIMITED:
-                    total_excess += max(0.0, total_local_hard[gid][c].item() - lc[c].item())
-
         is_satisfied = global_satisfied and local_satisfied
         if is_satisfied:
             stable_count += 1
-            best_sat_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
-            best_sat_epoch = epoch + 1
+            if snapshot_state is not None:
+                best_sat_state = snapshot_state
+                best_sat_epoch = epoch + 1
         else:
             stable_count = 0
-        if total_excess < min_total_excess:
-            min_total_excess = total_excess
-            min_excess_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+        if snapshot_total_excess < min_total_excess and snapshot_state is not None:
+            min_total_excess = snapshot_total_excess
+            min_excess_state = snapshot_state
             min_excess_epoch = epoch + 1
 
         # Per-class lambda ratchet: increment only on violation, freeze on first satisfaction.
