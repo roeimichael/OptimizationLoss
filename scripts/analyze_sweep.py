@@ -55,7 +55,10 @@ def collect(root):
             "samples_adjusted": int(results.get("samples_adjusted", -1)),
             "satisfaction_epoch": m.get("Satisfaction Epoch", "-"),
             "best_sat_epoch": m.get("Best Satisfied Epoch", "-"),
+            "min_excess_epoch": m.get("Min Excess Epoch", "-"),
+            "min_total_excess": m.get("Min Total Excess", "-"),
             "restored_from_epoch": m.get("Restored From Epoch", "-"),
+            "restore_kind": m.get("Restore Kind", "-"),
             "raw_satisfied": m.get("Raw All Satisfied", "-"),
             "raw_excess": m.get("Raw Total Excess", "-"),
             "ece": float(m.get("ECE", "nan")) if "ECE" in m else float("nan"),
@@ -76,8 +79,8 @@ def fmt_table(rows, group_axes=("axis", "scenario")):
             out.append("")
             out.append(f"### {' / '.join(str(k) for k in key)}  "
                        f"({r['constraint_tag']}  classes={r['constrained_classes']})")
-            out.append("| methodology | acc | F1 | adj | raw_sat | excess | restored | sat_ep | best_sat | t(s) |")
-            out.append("|---|---|---|---|---|---|---|---|---|---|")
+            out.append("| methodology | acc | F1 | adj | raw_sat | excess | min_exc | restored | kind | sat_ep | best_sat | t(s) |")
+            out.append("|---|---|---|---|---|---|---|---|---|---|---|---|")
         out.append(
             f"| {r['methodology']} "
             f"| {r['accuracy']:.4f} "
@@ -85,7 +88,9 @@ def fmt_table(rows, group_axes=("axis", "scenario")):
             f"| {r['samples_adjusted']} "
             f"| {r['raw_satisfied']} "
             f"| {r['raw_excess']} "
+            f"| {r['min_total_excess']} "
             f"| {r['restored_from_epoch']} "
+            f"| {r['restore_kind']} "
             f"| {r['satisfaction_epoch']} "
             f"| {r['best_sat_epoch']} "
             f"| {r['training_time_s']:.0f} |"

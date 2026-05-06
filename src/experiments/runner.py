@@ -112,6 +112,9 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     best_metrics['soft_hard_gap'] = train_outputs.summary.get('soft_hard_gap', {})
     best_metrics['best_sat_epoch'] = train_outputs.summary.get('best_sat_epoch')
     best_metrics['restored_from_epoch'] = train_outputs.summary.get('restored_from_epoch')
+    best_metrics['min_excess_epoch'] = train_outputs.summary.get('min_excess_epoch')
+    best_metrics['min_total_excess'] = train_outputs.summary.get('min_total_excess')
+    best_metrics['restore_kind'] = train_outputs.summary.get('restore_kind')
     if 'checkpoint_source' in train_outputs.summary:
         best_metrics['checkpoint_source'] = train_outputs.summary['checkpoint_source']
     if 'results_comparison' in train_outputs.summary:

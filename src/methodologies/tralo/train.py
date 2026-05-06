@@ -83,6 +83,9 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     stable_count = 0
     best_sat_state = None
     best_sat_epoch = None
+    min_excess_state = None
+    min_excess_epoch = None
+    min_total_excess = float("inf")
     training_start = time.time()
     constrained_classes = [c for c in range(num_classes) if global_con[c] < UNLIMITED]
     rho_frozen = False
@@ -248,6 +251,18 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             if not local_satisfied:
                 break
 
+        total_excess = 0.0
+        for c in range(num_classes):
+            if c < len(criterion_constraint.global_constraints) and \
+                    criterion_constraint.global_constraints[c] < UNLIMITED:
+                total_excess += max(0.0, total_global_hard[c].item()
+                                    - criterion_constraint.global_constraints[c].item())
+        for gid, buffer_name in criterion_constraint.local_groups.items():
+            lc = getattr(criterion_constraint, buffer_name)
+            for c in range(num_classes):
+                if c < len(lc) and lc[c] < UNLIMITED:
+                    total_excess += max(0.0, total_local_hard[gid][c].item() - lc[c].item())
+
         is_satisfied = global_satisfied and local_satisfied
         if is_satisfied:
             stable_count += 1
@@ -255,6 +270,10 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             best_sat_epoch = epoch + 1
         else:
             stable_count = 0
+        if total_excess < min_total_excess:
+            min_total_excess = total_excess
+            min_excess_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+            min_excess_epoch = epoch + 1
 
         # Per-class lambda ratchet: increment only on violation, freeze on first satisfaction.
         for c in constrained_classes:
@@ -349,16 +368,34 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                     break
             if final_violates:
                 break
+    final_total_excess = 0.0
+    for c in range(num_classes):
+        if global_con[c] < UNLIMITED:
+            final_total_excess += max(0, g_counts.get(c, 0) - int(global_con[c]))
+    if local_con:
+        for gid, bounds in local_con.items():
+            for c in range(num_classes):
+                if bounds[c] < UNLIMITED:
+                    final_total_excess += max(0, l_counts.get(gid, {}).get(c, 0) - int(bounds[c]))
     restored_from_epoch = None
-    if final_violates and best_sat_state is not None:
+    restore_kind = None
+    if best_sat_state is not None and final_violates:
         log.info("Final epoch violates; restoring best-satisfied checkpoint from epoch %d",
                  best_sat_epoch)
         model.load_state_dict({k: v.to(device) for k, v in best_sat_state.items()})
         restored_from_epoch = best_sat_epoch
+        restore_kind = "fully_satisfied"
         g_counts, l_counts, g_soft, l_soft = compute_prediction_statistics(
             model, X_test, group_ids, num_classes=num_classes)
-    elif final_violates:
-        log.warning("Final epoch violates and NO satisfied checkpoint was ever recorded")
+    elif min_excess_state is not None and final_total_excess > min_total_excess:
+        log.info("Final epoch excess=%d > min seen excess=%d (epoch %d); "
+                 "restoring lowest-excess checkpoint",
+                 int(final_total_excess), int(min_total_excess), min_excess_epoch)
+        model.load_state_dict({k: v.to(device) for k, v in min_excess_state.items()})
+        restored_from_epoch = min_excess_epoch
+        restore_kind = "min_excess"
+        g_counts, l_counts, g_soft, l_soft = compute_prediction_statistics(
+            model, X_test, group_ids, num_classes=num_classes)
     log.info("=== Final prediction summary ===")
     for c in range(num_classes):
         limit = int(global_con[c]) if global_con[c] < UNLIMITED else "INF"
@@ -383,7 +420,11 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         summary={
             "satisfaction_epoch": satisfaction_epoch,
             "best_sat_epoch": best_sat_epoch,
+            "min_excess_epoch": min_excess_epoch,
+            "min_total_excess": (None if min_total_excess == float("inf")
+                                 else int(min_total_excess)),
             "restored_from_epoch": restored_from_epoch,
+            "restore_kind": restore_kind,
             "soft_hard_gap": final_soft_hard_gap,
         },
     )
