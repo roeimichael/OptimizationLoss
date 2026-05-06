@@ -134,6 +134,10 @@ def save_evaluation_metrics(save_path, metrics):
         rows.append(['Raw Total Excess', metrics['raw_total_excess']])
     if 'satisfaction_epoch' in metrics:
         rows.append(['Satisfaction Epoch', metrics.get('satisfaction_epoch', 'N/A')])
+    if 'best_sat_epoch' in metrics:
+        rows.append(['Best Satisfied Epoch', metrics.get('best_sat_epoch', 'N/A')])
+    if 'restored_from_epoch' in metrics:
+        rows.append(['Restored From Epoch', metrics.get('restored_from_epoch', 'N/A')])
     if 'soft_hard_gap' in metrics:
         for c, gap in metrics['soft_hard_gap'].items():
             rows.append([f'Soft-Hard Gap Class{c}', f"{gap:.2f}"])
