@@ -151,9 +151,11 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             for ci in range(n_chunks):
                 start = ci * chunk_size
                 end = min(start + chunk_size, n_test)
-                with torch.amp.autocast("cuda", dtype=amp_dtype, enabled=use_amp):
-                    chunk_logits = model(X_test[start:end])
-                chunk_proba = F.softmax(chunk_logits.float(), dim=1)
+                # FP32 forward for count consistency with eval (no autocast).
+                # AUDIT C7: BF16 argmax flips a few borderline samples vs FP32,
+                # so satisfied-during-training did not survive FP32 evaluation.
+                chunk_logits = model(X_test[start:end])
+                chunk_proba = F.softmax(chunk_logits, dim=1)
                 chunk_preds = chunk_logits.argmax(dim=1)
                 total_global_soft += chunk_proba.sum(dim=0)
                 total_global_hard += torch.bincount(
