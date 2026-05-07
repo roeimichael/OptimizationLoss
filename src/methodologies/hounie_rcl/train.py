@@ -134,9 +134,11 @@ def _train_constraints(model, inputs: TrainInputs, device):
         all_hard = []
         with torch.no_grad():
             for i in range(0, n_test, chunk_size):
-                with torch.amp.autocast("cuda", dtype=amp_dtype, enabled=use_amp):
-                    chunk_logits = model(X_test_dev[i:i + chunk_size])
-                chunk_proba = F.softmax(chunk_logits.float(), dim=1)
+                # FP32 forward for argmax/softmax consistency with eval.
+                # AUDIT C7: BF16 argmax flips a few borderline samples vs FP32
+                # (same fix applied in TraLO).
+                chunk_logits = model(X_test_dev[i:i + chunk_size])
+                chunk_proba = F.softmax(chunk_logits, dim=1)
                 total_soft += chunk_proba.sum(dim=0)
                 all_hard.append(chunk_logits.argmax(dim=1))
                 chunk_groups = groups_np[i:i + chunk_size]
