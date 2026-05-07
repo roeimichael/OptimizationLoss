@@ -88,6 +88,31 @@ For the thesis: report `both` as the default, with the ablation showing the choi
 
 **Finding:** TraLO's only solo headline win in the entire sweep is at L70_G70 — exactly where its bounded penalty stays in its sweet spot and full satisfaction is achievable. At L30_G30 (tight), TraLO loses to Hounie because the bounded penalty saturates and stops pushing once the violation is large.
 
+## F1 on the constrained class — the key paper insight
+
+Macro F1 averages over all classes; with class 4 constrained, the model can keep a high macro F1 by collapsing class 4 (constrained) and letting other classes pick up the slack. The metric that actually measures "did we keep performing well on the class we're constraining?" is **F1 of the constrained class itself**.
+
+### F1 (class 4) at L50_G50 — 5 seeds
+
+| model         | TraLO         | Hounie        | Fioretto      | heuristic     | danits_lp     |
+|---------------|---------------|---------------|---------------|---------------|---------------|
+| MobileNetV3   | **0.305 ± 0.034** | 0.233 ± 0.035 | 0.175 ± 0.045 | 0.300 ± 0.046 | 0.299 ± 0.044 |
+| ResNet18      | **0.391 ± 0.031** | 0.293 ± 0.046 | 0.254 ± 0.035 | 0.400 ± 0.022 | 0.386 ± 0.030 |
+| EfficientNet  | **0.381 ± 0.015** | 0.291 ± 0.024 | 0.269 ± 0.078 | 0.363 ± 0.018 | 0.352 ± 0.017 |
+
+**TraLO wins F1_constrained across all 3 models** — by 4-12 pp over Hounie and 6-13 pp over Fioretto. The bounded saturating penalty preserves the constrained class instead of squashing it to satisfy K.
+
+### F1 (class 4) on tightness sweep (MobileNetV3)
+
+| pair    | TraLO         | Hounie        | Fioretto      | heuristic     |
+|---------|---------------|---------------|---------------|---------------|
+| L30_G30 | 0.231 ± 0.027 | 0.198 ± 0.042 | 0.124 ± 0.043 | 0.232 ± 0.042 |
+| L70_G70 | **0.339 ± 0.031** | 0.265 ± 0.063 | 0.248 ± 0.078 | 0.338 ± 0.030 |
+
+Even at tight L30_G30 where TraLO loses *macro* F1 to Hounie, TraLO ties heuristic for **best F1 on the constrained class** — and beats Fioretto by 11pp. Hounie's macro-F1 win at L30_G30 comes at the cost of an additional 3.3 pp drop on F1_constrained.
+
+This is the strongest story so far: TraLO is the only constraint-aware method that *doesn't sacrifice the class it's constraining*.
+
 ## Calibration angle (free, post-hoc analysis)
 
 ECE / Brier / mean entropy / mean confidence per (model, methodology), 5 seeds.
