@@ -37,9 +37,11 @@ def collect(root):
         rel = cfg_path.parent.relative_to(root)
         parts = rel.parts
         axis = parts[0] if parts else ""
+        scenario = parts[1] if len(parts) > 1 else ""
         results = cfg.get("results", {})
         rows.append({
             "axis": axis,
+            "scenario": scenario,
             "rel_path": str(rel),
             "methodology": cfg.get("methodology"),
             "model": cfg.get("model_name"),
@@ -115,6 +117,24 @@ def main():
     if c_rows:
         aggregate_table(c_rows, ("constraint_tag", "methodology"),
                         "Phase C — Tightness sweep (MobileNetV3, class 4)")
+
+    # Phase D — extended tightness
+    d_rows = [r for r in rows if r["axis"] == "tightness_ext"]
+    if d_rows:
+        aggregate_table(d_rows, ("constraint_tag", "methodology"),
+                        "Phase D — Extended tightness (MobileNetV3, class 4)")
+
+    # Phase E — asymmetric
+    e_rows = [r for r in rows if r["axis"] == "asymmetric_ext"]
+    if e_rows:
+        aggregate_table(e_rows, ("constraint_tag", "methodology"),
+                        "Phase E — Asymmetric (MobileNetV3, class 4)")
+
+    # Phase F — multiclass ext
+    f_rows = [r for r in rows if r["axis"] == "multiclass_ext"]
+    if f_rows:
+        aggregate_table(f_rows, ("scenario", "methodology"),
+                        "Phase F — Multi-class (MobileNetV3, L50_G50)")
 
 
 if __name__ == "__main__":
