@@ -73,6 +73,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         global_constraints=global_con, local_constraints=local_con,
         num_classes=num_classes,
         initial_rho=hp.get("initial_rho", 0.5), alpha_kl=hp.get("alpha_kl", 0.0),
+        penalty_mode=hp.get("penalty_mode", "both"),
     ).to(device)
     log.info("Using FULL test set (%d samples) for constraint gradient", len(X_test))
     alpha_kl = hp.get("alpha_kl", 0.0)

@@ -16,8 +16,15 @@ log = logging.getLogger(__name__)
 class MulticlassTransductiveLoss(nn.Module):
 
     def __init__(self, global_constraints, local_constraints,
-                 num_classes=7, initial_rho=0.5, alpha_kl=0.0):
+                 num_classes=7, initial_rho=0.5, alpha_kl=0.0,
+                 penalty_mode="both"):
         super().__init__()
+        if penalty_mode not in ("rational", "quadratic", "both"):
+            raise ValueError(f"penalty_mode must be rational|quadratic|both, "
+                             f"got {penalty_mode!r}")
+        self.penalty_mode = penalty_mode
+        self.sat_factor = 1.0 if penalty_mode in ("rational", "both") else 0.0
+        self.quad_factor = 1.0 if penalty_mode in ("quadratic", "both") else 0.0
         self.alpha_kl = alpha_kl
         self.num_classes = num_classes
         self.register_buffer('rho', torch.tensor(float(initial_rho)))
@@ -59,7 +66,8 @@ class MulticlassTransductiveLoss(nn.Module):
             sat = E / (E + K + EPSILON)
             quad = (E_norm ** 2) / (1 + E_norm ** 2 + EPSILON)
             lam = self.lambda_global_per_class.get(c, 0.0)
-            total_loss = total_loss + lam * (sat + self.rho * quad)
+            total_loss = total_loss + lam * (
+                self.sat_factor * sat + self.quad_factor * self.rho * quad)
             num_constrained += 1
         self.global_constraints_satisfied = all_satisfied
         if num_constrained == 0:
@@ -92,7 +100,8 @@ class MulticlassTransductiveLoss(nn.Module):
                 sat = E / (E + K + EPSILON)
                 quad = (E_norm ** 2) / (1 + E_norm ** 2 + EPSILON)
                 lam = self.lambda_local_per_key.get((gid, c), 0.0)
-                total_loss = total_loss + lam * (sat + self.rho * quad)
+                total_loss = total_loss + lam * (
+                self.sat_factor * sat + self.quad_factor * self.rho * quad)
                 num_constrained += 1
         self.local_constraints_satisfied = all_satisfied
         if num_constrained == 0:
