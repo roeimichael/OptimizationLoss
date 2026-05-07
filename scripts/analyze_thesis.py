@@ -27,6 +27,20 @@ def load_metrics(metrics_csv):
     return out
 
 
+def _flt(s):
+    try:
+        return float(s)
+    except (TypeError, ValueError):
+        return None
+
+
+def _int(s):
+    try:
+        return int(s)
+    except (TypeError, ValueError):
+        return None
+
+
 def collect(root):
     rows = []
     for cfg_path in Path(root).rglob("config.json"):
@@ -39,6 +53,15 @@ def collect(root):
         axis = parts[0] if parts else ""
         scenario = parts[1] if len(parts) > 1 else ""
         results = cfg.get("results", {})
+        ds = cfg.get("dataset_config", {})
+        cc = ds.get("constrained_class")
+        cc_list = cc if isinstance(cc, list) else [cc] if cc is not None else []
+        # Per-class F1 of the constrained class(es) — average if multi-class
+        per_class_f1 = []
+        for c in cc_list:
+            v = _flt(m.get(f"F1_Class{c}", ""))
+            if v is not None:
+                per_class_f1.append(v)
         rows.append({
             "axis": axis,
             "scenario": scenario,
@@ -48,11 +71,18 @@ def collect(root):
             "constraint_tag": cfg.get("constraint_tag"),
             "seed": cfg.get("hyperparams", {}).get("seed"),
             "penalty_mode": cfg.get("hyperparams", {}).get("penalty_mode"),
-            "accuracy": float(results.get("accuracy", float("nan"))),
-            "f1_macro": float(results.get("f1_macro", float("nan"))),
+            "accuracy": _flt(results.get("accuracy")),
+            "f1_macro": _flt(results.get("f1_macro")),
+            "f1_constrained": (sum(per_class_f1) / len(per_class_f1)
+                               if per_class_f1 else None),
             "samples_adjusted": int(results.get("samples_adjusted", -1)),
-            "raw_excess": (int(m.get("Raw Total Excess", "0")) if m.get("Raw Total Excess", "").isdigit() else None),
-            "min_total_excess": (int(m["Min Total Excess"]) if m.get("Min Total Excess", "").isdigit() else None),
+            "raw_excess": _int(m.get("Raw Total Excess")),
+            "min_total_excess": _int(m.get("Min Total Excess")),
+            "raw_all_satisfied": _int(m.get("Raw All Satisfied")),
+            "ece": _flt(m.get("ECE")),
+            "brier": _flt(m.get("Brier Score")),
+            "mean_conf": _flt(m.get("Mean Confidence")),
+            "mean_entropy": _flt(m.get("Mean Entropy")),
         })
     return rows
 
@@ -77,17 +107,25 @@ def aggregate_table(rows, group_keys, label):
         key = tuple(r.get(k) for k in group_keys)
         groups[key].append(r)
     print(f"\n## {label}")
-    print(f"\n| {' | '.join(group_keys)} | n | F1 | acc | adj | raw_exc | min_exc |")
-    sep = "|".join(["---"] * (len(group_keys) + 6))
+    cols = ["F1_macro", "F1_constrained", "acc", "ECE", "Brier", "conf",
+            "adj", "raw_exc", "raw_sat%"]
+    print(f"\n| {' | '.join(group_keys)} | n | {' | '.join(cols)} |")
+    sep = "|".join(["---"] * (len(group_keys) + 1 + len(cols)))
     print(f"|{sep}|")
     for key in sorted(groups.keys(), key=lambda x: tuple(str(v) for v in x)):
         runs = groups[key]
-        f1 = fmt_mean_std([r["f1_macro"] for r in runs])
+        f1m = fmt_mean_std([r["f1_macro"] for r in runs])
+        f1c = fmt_mean_std([r["f1_constrained"] for r in runs])
         acc = fmt_mean_std([r["accuracy"] for r in runs])
+        ece = fmt_mean_std([r["ece"] for r in runs])
+        brier = fmt_mean_std([r["brier"] for r in runs])
+        conf = fmt_mean_std([r["mean_conf"] for r in runs])
         adj = fmt_int_mean([r["samples_adjusted"] for r in runs])
         rexc = fmt_int_mean([r["raw_excess"] for r in runs if r["raw_excess"] is not None])
-        mexc = fmt_int_mean([r["min_total_excess"] for r in runs if r["min_total_excess"] is not None])
-        print(f"| {' | '.join(str(k) for k in key)} | {len(runs)} | {f1} | {acc} | {adj} | {rexc} | {mexc} |")
+        sats = [r["raw_all_satisfied"] for r in runs if r["raw_all_satisfied"] is not None]
+        rsat = f"{100 * sum(sats) / len(sats):.0f}%" if sats else "-"
+        print(f"| {' | '.join(str(k) for k in key)} | {len(runs)} | "
+              f"{f1m} | {f1c} | {acc} | {ece} | {brier} | {conf} | {adj} | {rexc} | {rsat} |")
 
 
 def main():
