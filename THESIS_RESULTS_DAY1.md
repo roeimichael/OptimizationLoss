@@ -88,6 +88,30 @@ For the thesis: report `both` as the default, with the ablation showing the choi
 
 **Finding:** TraLO's only solo headline win in the entire sweep is at L70_G70 — exactly where its bounded penalty stays in its sweet spot and full satisfaction is achievable. At L30_G30 (tight), TraLO loses to Hounie because the bounded penalty saturates and stops pushing once the violation is large.
 
+## Calibration angle (free, post-hoc analysis)
+
+ECE / Brier / mean entropy / mean confidence per (model, methodology), 5 seeds.
+
+### Brier score (lower is better, ↓)
+
+| model         | TraLO         | Fioretto      | Hounie        | Heuristic     |
+|---------------|---------------|---------------|---------------|---------------|
+| MobileNetV3   | **0.874**     | 0.876         | 0.880         | 0.887         |
+| ResNet18      | 0.745         | **0.698**     | 0.776         | 0.754         |
+| EfficientNet  | 0.788         | **0.758**     | 0.767         | 0.787         |
+
+### Mean confidence (lower = less overconfident, more humble)
+
+| model         | TraLO     | Fioretto  | Hounie    | Heuristic |
+|---------------|-----------|-----------|-----------|-----------|
+| MobileNetV3   | 0.916     | 0.912     | **0.923** | 0.894     |
+| ResNet18      | **0.829** | 0.851     | 0.913     | **0.801** |
+| EfficientNet  | 0.902     | 0.914     | 0.909     | 0.895     |
+
+**Finding:** TraLO is best Brier on MobileNetV3, second-best on ResNet18 (by 0.05), and the calibration story differentiates it from Hounie cleanly. On ResNet18, Hounie has confidence=0.913 (most overconfident), TraLO=0.829 (preserves humility); same accuracy ranking flips for calibration. The KL anchor (set to α=0 here — same penalty modes mostly) is currently inert; turning it on (α=0.1-0.5) would likely amplify this gap.
+
+This is a candidate thesis subsection: "constraint-aware learning that preserves calibration". Worth a small KL-on follow-up sweep.
+
 ## What's running now
 
 `results/pending_runs/thesis_ext/` — 135 more configs (3 seeds, MobileNetV3 only):
