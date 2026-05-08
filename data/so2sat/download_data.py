@@ -10,8 +10,8 @@ Strategy:
      = indices [2, 1, 0] in the dataset's B2..B12 ordering.
   3. Resize 32x32 -> 224x224 for ImageNet pretrained backbones.
   4. Argmax one-hot LCZ label -> int (17 classes).
-  5. KMeans(n_clusters=10) on (lat, lon) recovers the 10 cities. The cluster
-     id becomes the REAL local group column `city_id` — not synthetic.
+  5. validation_geo.h5 stores explicit `city` bytes per sample (10 cities).
+     Map to int city_id; the column is REAL geographic group, not synthetic.
   6. Stratified 80/20 train/test split jointly on (label, city_id).
   7. Save *.npy + *_meta.csv.
 
@@ -47,7 +47,6 @@ import h5py
 import numpy as np
 import pandas as pd
 from PIL import Image
-from sklearn.cluster import KMeans
 from sklearn.model_selection import train_test_split
 
 CLASS_NAMES = {
@@ -101,11 +100,12 @@ def load_raw():
         label_oh = np.array(f['label'])          # (N, 17) one-hot
     labels = label_oh.argmax(axis=1).astype(np.int64)
     with h5py.File(GEO_H5, 'r') as f:
-        coord = np.array(f['coord'])             # (N, 2 or more) lat/lon
+        cities_bytes = np.array(f['city'])       # (N,) bytestrings
+    cities = np.array([c.decode('utf-8').strip() for c in cities_bytes])
     print(f"sen2={sen2.shape} dtype={sen2.dtype} range=[{sen2.min():.3f},{sen2.max():.3f}]")
     print(f"labels={labels.shape} unique={np.unique(labels).tolist()}")
-    print(f"coord={coord.shape} dtype={coord.dtype}")
-    return sen2, labels, coord
+    print(f"cities={np.unique(cities).tolist()}")
+    return sen2, labels, cities
 
 
 def normalize_rgb(sen2):
@@ -134,22 +134,29 @@ def resize_chw(rgb_nhwc, target=TARGET_SIZE):
     return out
 
 
-def cluster_cities(coord, n_clusters=N_CITIES, seed=42):
-    # Use first 2 columns as (lat, lon) regardless of coord dim.
-    xy = coord[:, :2].astype(np.float64)
-    km = KMeans(n_clusters=n_clusters, random_state=seed, n_init=10).fit(xy)
-    cid = km.labels_.astype(np.int64)
-    centers = km.cluster_centers_
-    print("city centroids (lat, lon) and counts:")
-    for c in range(n_clusters):
-        n = int((cid == c).sum())
-        print(f"  city {c}: ({centers[c,0]:.3f}, {centers[c,1]:.3f})  n={n}")
-    return cid
+def encode_cities(cities):
+    unique_cities = sorted(np.unique(cities).tolist())
+    name_to_id = {name: i for i, name in enumerate(unique_cities)}
+    cid = np.array([name_to_id[c] for c in cities], dtype=np.int64)
+    print(f"city map ({len(unique_cities)} cities):")
+    for name, i in name_to_id.items():
+        n = int((cid == i).sum())
+        print(f"  {i:>2} {name:>15}  n={n}")
+    return cid, name_to_id
 
 
 def stratified_split(labels, city_ids, test_size=0.2, seed=42):
     # Joint stratification (label, city) preserves both class and city ratios.
-    strata = labels.astype(np.int64) * (N_CITIES + 1) + city_ids.astype(np.int64)
+    n_cities = int(city_ids.max()) + 1
+    strata = labels.astype(np.int64) * (n_cities + 1) + city_ids.astype(np.int64)
+    # Some (class, city) cells may have <2 samples; fall back to label-only stratification.
+    _, cnt = np.unique(strata, return_counts=True)
+    if cnt.min() < 2:
+        print(f"WARN: smallest (label,city) cell has {cnt.min()} samples; "
+              f"falling back to label-only stratification")
+        return train_test_split(
+            np.arange(len(labels)), test_size=test_size,
+            random_state=seed, stratify=labels)
     return train_test_split(
         np.arange(len(labels)),
         test_size=test_size,
@@ -173,12 +180,14 @@ def save_split(images_chw, labels, city_ids, split):
 
 def main():
     download_if_needed()
-    sen2, labels, coord = load_raw()
+    sen2, labels, cities = load_raw()
     rgb = normalize_rgb(sen2)
     del sen2
     images_chw = resize_chw(rgb)
     del rgb
-    city_ids = cluster_cities(coord)
+    city_ids, name_map = encode_cities(cities)
+    pd.DataFrame({'city_id': list(name_map.values()), 'city_name': list(name_map.keys())}
+                 ).to_csv(os.path.join(DATA_DIR, 'city_map.csv'), index=False)
     train_idx, test_idx = stratified_split(labels, city_ids)
     save_split(images_chw[train_idx], labels[train_idx], city_ids[train_idx], 'train')
     save_split(images_chw[test_idx], labels[test_idx], city_ids[test_idx], 'test')
