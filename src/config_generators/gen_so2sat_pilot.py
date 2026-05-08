@@ -23,7 +23,8 @@ SWEEP_ROOT = "results/pending_runs/so2sat_pilot"
 METHODS = ["tralo", "fioretto_ldf", "hounie_rcl", "heuristic"]
 SEED = 1
 MODEL = "MobileNetV3"
-CONSTRAINED_CLASS = 9   # LCZ-A Heavy industry (3.6%, ~86 in test) — strong urban-planning story
+CONSTRAINED_CLASS = 7   # LCZ-8 Large low-rise (14.1%, ~339 in test) — every city has 11+
+                        # samples so K never collapses to 0 at L50_G50.
 PAIR = (0.5, 0.5)
 
 SHARED_HP = {
