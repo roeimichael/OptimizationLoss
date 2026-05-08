@@ -23,7 +23,7 @@ SWEEP_ROOT = "results/pending_runs/so2sat_pilot"
 METHODS = ["tralo", "fioretto_ldf", "hounie_rcl", "heuristic"]
 SEED = 1
 MODEL = "MobileNetV3"
-CONSTRAINED_CLASS = 1   # LCZ2 Compact mid-rise — pick after class-distribution check
+CONSTRAINED_CLASS = 9   # LCZ-A Heavy industry (3.6%, ~86 in test) — strong urban-planning story
 PAIR = (0.5, 0.5)
 
 SHARED_HP = {
