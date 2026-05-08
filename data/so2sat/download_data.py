@@ -72,6 +72,7 @@ URL_BASE = 'https://huggingface.co/datasets/zhu-xlab/So2Sat-LCZ42/resolve/main/v
 
 TARGET_SIZE = 224
 N_CITIES = 10
+SUBSAMPLE_N = 12000   # match TissueMNIST/DermMNIST scale, halves memory
 
 
 def _wget(url, dst):
@@ -178,16 +179,37 @@ def save_split(images_chw, labels, city_ids, split):
           f"labels={labels.shape} groups={len(np.unique(city_ids))}")
 
 
+def subsample(labels, city_ids, n=SUBSAMPLE_N, seed=42):
+    if n >= len(labels):
+        return np.arange(len(labels))
+    n_cities = int(city_ids.max()) + 1
+    strata = labels.astype(np.int64) * (n_cities + 1) + city_ids.astype(np.int64)
+    _, cnt = np.unique(strata, return_counts=True)
+    if cnt.min() < 2:
+        keep, _ = train_test_split(
+            np.arange(len(labels)), train_size=n,
+            random_state=seed, stratify=labels)
+    else:
+        keep, _ = train_test_split(
+            np.arange(len(labels)), train_size=n,
+            random_state=seed, stratify=strata)
+    keep.sort()
+    print(f"subsampled: {len(labels)} -> {len(keep)}")
+    return keep
+
+
 def main():
     download_if_needed()
     sen2, labels, cities = load_raw()
+    city_ids, name_map = encode_cities(cities)
+    pd.DataFrame({'city_id': list(name_map.values()), 'city_name': list(name_map.keys())}
+                 ).to_csv(os.path.join(DATA_DIR, 'city_map.csv'), index=False)
+    keep = subsample(labels, city_ids)
+    sen2 = sen2[keep]; labels = labels[keep]; city_ids = city_ids[keep]
     rgb = normalize_rgb(sen2)
     del sen2
     images_chw = resize_chw(rgb)
     del rgb
-    city_ids, name_map = encode_cities(cities)
-    pd.DataFrame({'city_id': list(name_map.values()), 'city_name': list(name_map.keys())}
-                 ).to_csv(os.path.join(DATA_DIR, 'city_map.csv'), index=False)
     train_idx, test_idx = stratified_split(labels, city_ids)
     save_split(images_chw[train_idx], labels[train_idx], city_ids[train_idx], 'train')
     save_split(images_chw[test_idx], labels[test_idx], city_ids[test_idx], 'test')
