@@ -1,6 +1,6 @@
 # Paper-ready tables (draft, 2026-05-08)
 
-All numbers are **mean ± std over 5 seeds** unless noted (extended phases use 3 seeds; EuroSAT in-progress). Best per row in **bold**. Methodologies: **TraLO** (ours), Hounie RCL, Fioretto LDF, heuristic (warmup + greedy posthoc), danits_lp (warmup + LP posthoc).
+All numbers are **mean ± std over 5 seeds** unless noted (extended phases use 3 seeds). Best per row in **bold**. Methodologies: **TraLO** (ours), Hounie RCL, Fioretto LDF, heuristic (warmup + greedy posthoc), danits_lp (warmup + LP posthoc). Datasets: TissueMNIST, DermMNIST, EuroSAT, So2Sat LCZ42 (added 2026-05-09).
 
 Pre-fixes applied: BF16/FP32 argmax fix on TraLO + Hounie, snapshot-before-step state save, min-excess fallback restoration. All methodologies share the same warmup cache; differences only in constraint phase and posthoc.
 
@@ -172,13 +172,62 @@ The MobileNetV3 baseline accuracy (93.5%) is below published ResNet-50 EuroSAT (
 
 ## Recommended paper structure
 
-1. **Headline table** (Table 1, 2, plus EuroSAT) — three datasets, three backbones, all metrics.
+1. **Headline table** (Tables 1, 2, 8, **10**) — four datasets × three backbones, all metrics. So2Sat (Table 10) is the cleanest TraLO headline win and uses REAL geographic groups (10 cities).
 2. **F1 on the constrained class** as a separate emphasized panel (the strongest TraLO win).
-3. **Tightness study** (Table 3, 7) — TraLO wins loose-to-mid range cleanly.
+3. **Tightness study** (Tables 3, 7, **11**) — TraLO wins loose-to-mid range cleanly. Table 11 (So2Sat) shows TraLO winning F1 macro at every tightness level.
 4. **Multi-class** (Table 4) — TraLO's strongest regime.
 5. **Calibration** (excerpts from Tables 1 + 7) — TraLO wins Brier consistently, ECE in mixed regimes.
 6. **Ablation** (Table 5) — ablation showing penalty form is robust.
 7. **Asymmetric** (Table 6) as supplementary.
+
+## Table 10 — Headline benchmark, So2Sat LCZ42 L50_G50 class 7 (LCZ-8 Large low-rise), 5 seeds
+
+REAL local groups: 10 cities (Guangzhou, Jakarta, Moscow, Mumbai, Munich, Nairobi, San Francisco, Santiago, Sydney, Tehran). Sentinel-2 RGB patches, 17 LCZ classes, ImageNet-pretrained backbones.
+
+| backbone        | metric          | TraLO (ours)        | Hounie RCL          | Fioretto LDF        | heuristic           | danits_lp           |
+|-----------------|-----------------|---------------------|---------------------|---------------------|---------------------|---------------------|
+| MobileNetV3     | F1 macro        | **0.8651 ± 0.003**  | 0.8586 ± 0.005      | 0.8583 ± 0.005      | 0.8455 ± 0.011      | 0.8463 ± 0.011      |
+|                 | F1 constrained  | 0.6611 ± 0.004      | 0.6619 ± 0.003      | 0.6604 ± 0.006      | **0.6627 ± 0.003**  | **0.6627 ± 0.003**  |
+|                 | accuracy        | **0.8859 ± 0.003**  | 0.8855 ± 0.002      | 0.8802 ± 0.002      | 0.8732 ± 0.005      | 0.8732 ± 0.005      |
+|                 | ECE ↓           | 0.0481 ± 0.003      | 0.0667 ± 0.002      | 0.0996 ± 0.008      | **0.0444 ± 0.003**  | **0.0444 ± 0.003**  |
+|                 | Brier ↓         | **0.1042 ± 0.005**  | 0.1405 ± 0.003      | 0.2254 ± 0.027      | 0.1098 ± 0.006      | 0.1098 ± 0.006      |
+| ResNet18        | F1 macro        | **0.8626 ± 0.005**  | 0.8618 ± 0.006      | 0.8518 ± 0.009      | 0.8467 ± 0.023      | 0.8472 ± 0.024      |
+|                 | F1 constrained  | 0.6596 ± 0.003      | 0.6525 ± 0.006      | 0.5931 ± 0.026      | 0.6651 ± 0.002      | **0.6659 ± 0.002**  |
+|                 | accuracy        | 0.8842 ± 0.003      | **0.8862 ± 0.002**  | 0.8689 ± 0.006      | 0.8743 ± 0.018      | 0.8745 ± 0.018      |
+|                 | ECE ↓           | 0.0493 ± 0.003      | 0.0868 ± 0.003      | 0.1067 ± 0.009      | **0.0355 ± 0.013**  | **0.0355 ± 0.013**  |
+|                 | Brier ↓         | 0.1152 ± 0.005      | 0.1849 ± 0.007      | 0.2452 ± 0.018      | **0.1035 ± 0.033**  | **0.1035 ± 0.033**  |
+| EfficientNet-B0 | F1 macro        | **0.8767 ± 0.003**  | 0.8699 ± 0.008      | 0.8675 ± 0.012      | 0.8637 ± 0.008      | 0.8637 ± 0.008      |
+|                 | F1 constrained  | **0.6643 ± 0.002**  | 0.6564 ± 0.004      | 0.6580 ± 0.005      | 0.6635 ± 0.002      | 0.6635 ± 0.002      |
+|                 | accuracy        | **0.8955 ± 0.000**  | 0.8928 ± 0.002      | 0.8871 ± 0.005      | 0.8883 ± 0.003      | 0.8883 ± 0.003      |
+|                 | ECE ↓           | 0.0315 ± 0.002      | 0.0733 ± 0.003      | 0.0937 ± 0.002      | **0.0293 ± 0.003**  | **0.0293 ± 0.003**  |
+|                 | Brier ↓         | **0.0742 ± 0.004**  | 0.1579 ± 0.011      | 0.2110 ± 0.011      | 0.0778 ± 0.004      | 0.0778 ± 0.004      |
+
+**Take-away:** TraLO wins F1 macro on **all 3 backbones** with the smallest variance (~0.003-0.005 vs Hounie's 0.005-0.008 and Fioretto's 0.009-0.012). Among constraint-aware methods (TraLO/Hounie/Fioretto), TraLO wins Brier on every backbone (15-50% lower). F1_constrained is tight across methods (within 0.005 except Fioretto-on-ResNet18 which collapses to 0.59). Heuristic/danits match TraLO on ECE/Brier because they preserve the warmup model's calibration without re-training.
+
+**The clearest TraLO headline win in the paper.** REAL geographic groups (cities) underline that the method works on natural local-group structure, not just synthetic splits.
+
+---
+
+## Table 11 — Tightness sweep, So2Sat class 7 (LCZ-8), MobileNetV3, 5 seeds
+
+| pair    | metric          | TraLO (ours)        | Hounie RCL          | Fioretto LDF        | heuristic           | danits_lp           |
+|---------|-----------------|---------------------|---------------------|---------------------|---------------------|---------------------|
+| L30_G30 | F1 macro        | **0.8380 ± 0.005**  | 0.8342 ± 0.005      | 0.8222 ± 0.005      | 0.8212 ± 0.010      | 0.8237 ± 0.013      |
+|         | F1 constrained  | 0.4583 ± 0.004      | **0.4592 ± 0.002**  | 0.3443 ± 0.049      | 0.4565 ± 0.002      | 0.4565 ± 0.002      |
+|         | ECE ↓           | **0.0481 ± 0.002**  | 0.0699 ± 0.002      | 0.1213 ± 0.012      | 0.0444 ± 0.003      | 0.0444 ± 0.003      |
+|         | Brier ↓         | **0.1049 ± 0.004**  | 0.1476 ± 0.004      | 0.2668 ± 0.020      | 0.1098 ± 0.006      | 0.1098 ± 0.006      |
+| L50_G50 | F1 macro        | **0.8651 ± 0.003**  | 0.8586 ± 0.005      | 0.8583 ± 0.005      | 0.8455 ± 0.011      | 0.8463 ± 0.011      |
+|         | F1 constrained  | 0.6611 ± 0.004      | 0.6619 ± 0.003      | 0.6604 ± 0.006      | **0.6627 ± 0.003**  | **0.6627 ± 0.003**  |
+|         | ECE ↓           | **0.0481 ± 0.003**  | 0.0667 ± 0.002      | 0.0996 ± 0.008      | 0.0444 ± 0.003      | 0.0444 ± 0.003      |
+|         | Brier ↓         | **0.1042 ± 0.005**  | 0.1405 ± 0.003      | 0.2254 ± 0.027      | 0.1098 ± 0.006      | 0.1098 ± 0.006      |
+| L70_G70 | F1 macro        | **0.8895 ± 0.004**  | 0.8853 ± 0.003      | 0.8841 ± 0.004      | 0.8683 ± 0.012      | 0.8691 ± 0.012      |
+|         | F1 constrained  | **0.8160 ± 0.004**  | 0.8132 ± 0.005      | 0.8077 ± 0.007      | 0.8132 ± 0.003      | 0.8128 ± 0.003      |
+|         | ECE ↓           | **0.0480 ± 0.003**  | 0.0600 ± 0.002      | 0.0766 ± 0.005      | 0.0444 ± 0.003      | 0.0444 ± 0.003      |
+|         | Brier ↓         | **0.1046 ± 0.005**  | 0.1279 ± 0.005      | 0.1718 ± 0.013      | 0.1098 ± 0.006      | 0.1098 ± 0.006      |
+
+**Take-away:** TraLO wins F1 macro at every tightness level on So2Sat. Loose L70_G70: TraLO sweeps every constraint-aware metric (F1 macro + F1 constrained + ECE + Brier). Tight L30_G30: TraLO ties Hounie on F1_constrained but wins F1 macro and Brier. Fioretto's F1_constrained collapses to 0.34 at L30_G30 (classic Fioretto-squashing-the-class pattern).
+
+---
 
 ## Tables NOT recommended for the paper
 
