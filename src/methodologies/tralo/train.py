@@ -105,7 +105,13 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     rho_target = hp.get("rho_target", 100.0)
     initial_rho = hp.get("initial_rho", 0.5)
     rho_step = (rho_target - initial_rho) / max(constraint_epochs, 1)
-    log.info("Constraint training: epochs %d to %d", warmup_epochs + 1, total_epochs)
+    # Ablation flags (default off = full TraLO behavior)
+    disable_freeze_on_satisfy = hp.get("disable_freeze_on_satisfy", False)  # A3
+    disable_min_excess_restore = hp.get("disable_min_excess_restore", False)  # A5
+    shared_lambda = hp.get("shared_lambda", False)  # A6
+    log.info("Constraint training: epochs %d to %d (ablations: freeze=%s restore=%s shared_lam=%s)",
+             warmup_epochs + 1, total_epochs,
+             not disable_freeze_on_satisfy, not disable_min_excess_restore, shared_lambda)
     write_csv_header(csv_log_path, num_classes, local_con)
 
     for epoch in range(warmup_epochs, total_epochs):
@@ -307,29 +313,47 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             min_excess_epoch = epoch + 1
 
         # Per-class lambda ratchet: increment only on violation, freeze on first satisfaction.
+        # Ablation A3 disable_freeze_on_satisfy: keep ratcheting after satisfaction.
+        # Ablation A6 shared_lambda: increment all classes by the same step on ANY violation.
+        ratchet_gate = (satisfaction_epoch is None) or disable_freeze_on_satisfy
+        any_global_viol = any(
+            (total_global_hard[c].item() > criterion_constraint.global_constraints[c].item())
+            for c in constrained_classes
+            if c < len(criterion_constraint.global_constraints)
+            and criterion_constraint.global_constraints[c] < UNLIMITED
+        )
         for c in constrained_classes:
             if c < len(criterion_constraint.global_constraints) and \
                     criterion_constraint.global_constraints[c] < UNLIMITED:
                 hard_c = total_global_hard[c].item()
                 limit_c = criterion_constraint.global_constraints[c].item()
-                if hard_c > limit_c and satisfaction_epoch is None:
+                trigger = (any_global_viol if shared_lambda else hard_c > limit_c)
+                if trigger and ratchet_gate:
                     old = criterion_constraint.get_lambda_per_class(c, scope="global")
                     criterion_constraint.set_lambda_per_class(c, old + lambda_step, scope="global")
         for gid, buffer_name in criterion_constraint.local_groups.items():
             lc = getattr(criterion_constraint, buffer_name)
+            any_local_viol = any(
+                (total_local_hard[gid][c].item() > lc[c].item())
+                for c in constrained_classes
+                if c < len(lc) and lc[c] < UNLIMITED
+            )
             for c in constrained_classes:
                 if c < len(lc) and lc[c] < UNLIMITED:
                     hard_c = total_local_hard[gid][c].item()
                     limit_c = lc[c].item()
-                    if hard_c > limit_c and satisfaction_epoch is None:
+                    trigger = (any_local_viol if shared_lambda else hard_c > limit_c)
+                    if trigger and ratchet_gate:
                         old = criterion_constraint.get_lambda_per_class(c, scope="local", group_id=gid)
                         criterion_constraint.set_lambda_per_class(c, old + lambda_step, scope="local", group_id=gid)
         if is_satisfied and satisfaction_epoch is None:
             satisfaction_epoch = epoch + 1
-            if not rho_frozen:
+            if not rho_frozen and not disable_freeze_on_satisfy:
                 rho_frozen = True
                 log.info("First satisfied at epoch %d, freezing rho=%.3f and per-class lambdas",
                          epoch + 1, criterion_constraint.get_rho())
+            elif disable_freeze_on_satisfy:
+                log.info("First satisfied at epoch %d, NOT freezing (ablation A3)", epoch + 1)
 
         if not rho_frozen:
             criterion_constraint.increment_rho(rho_step)
@@ -410,7 +434,9 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                     final_total_excess += max(0, l_counts.get(gid, {}).get(c, 0) - int(bounds[c]))
     restored_from_epoch = None
     restore_kind = None
-    if best_sat_state is not None and final_violates:
+    if disable_min_excess_restore:
+        log.info("Ablation A5: skipping checkpoint restore, using final epoch state")
+    elif best_sat_state is not None and final_violates:
         log.info("Final epoch violates; restoring best-satisfied checkpoint from epoch %d",
                  best_sat_epoch)
         model.load_state_dict({k: v.to(device) for k, v in best_sat_state.items()})
