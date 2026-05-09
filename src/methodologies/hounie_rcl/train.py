@@ -159,15 +159,21 @@ def _train_constraints(model, inputs: TrainInputs, device):
                     chunk_logits = model(X_test_dev[i:i + chunk_size])
                     chunk_proba = F.softmax(chunk_logits.float(), dim=1)
                     chunk_loss = torch.zeros(1, device=device)
+                    # AUDIT BUGFIX: divide by n_test / N_g to match the dual ascent
+                    # scale (mean_l = sum/N), so primal d/dtheta and dual lambda
+                    # update are on the same scale. Without this, primal gradient
+                    # is N-times stronger than intended -> over-suppresses the
+                    # constrained class and inflates ECE.
                     for c, lam in lam_g.items():
                         if lam > 0:
-                            chunk_loss = chunk_loss + lam * chunk_proba[:, c].sum()
+                            chunk_loss = chunk_loss + lam * chunk_proba[:, c].sum() / n_test
                     chunk_groups = groups_np[i:i + chunk_size]
                     for (g, c), lam in lam_l.items():
                         if lam > 0:
                             mask = (chunk_groups == g)
                             if mask.any():
-                                chunk_loss = chunk_loss + lam * chunk_proba[mask, c].sum()
+                                N_g = max(1, group_sizes[g])
+                                chunk_loss = chunk_loss + lam * chunk_proba[mask, c].sum() / N_g
                 if chunk_loss.item() > 0:
                     if scaler:
                         scaler.scale(chunk_loss).backward()
