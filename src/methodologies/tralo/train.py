@@ -60,10 +60,32 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     warmup_epochs = hp["warmup_epochs"]
     total_epochs = warmup_epochs + hp.get("constraint_epochs", 300)
     lambda_step = hp["lambda_step"]
+    # ---- Diagnostic flags (defaults preserve baseline behaviour) ----
+    # fix_chunk_scaling: drop /n_chunks from constraint loss (keep on KL).
+    #   /n_chunks is correct for KL (per-sample mean) but WRONG for the
+    #   total soft-count penalty — sum-of-chunks gives 1/n_chunks of true
+    #   gradient. With n_test=2400, chunk=256 -> n_chunks=10 -> 10x underforce.
+    # separate_optimizers: separate Adam state for CE phase vs constraint
+    #   phase, prevents 150 CE steps of momentum leaking into the single
+    #   constraint step.
+    # ce_grad_clip: clip_grad_norm_ on CE phase to keep CE momentum bounded.
+    fix_chunk_scaling = bool(hp.get("fix_chunk_scaling", False))
+    separate_optimizers = bool(hp.get("separate_optimizers", False))
+    ce_grad_clip = bool(hp.get("ce_grad_clip", False))
+
     criterion_ce = make_ce_criterion(config, inputs.y_train, num_classes, device)
-    optimizer = make_optimizer(model.parameters(), hp.get("lr_constraint", 1e-5), device)
-    log.info("Reset optimizer for constraint phase (lr=%.2e)", hp.get("lr_constraint", 1e-5))
     lr_constraint = hp.get("lr_constraint", 1e-5)
+    optimizer = make_optimizer(model.parameters(), lr_constraint, device)
+    if separate_optimizers:
+        optimizer_ce = make_optimizer(model.parameters(), lr_constraint, device)
+        log.info("DIAG: separate CE + constraint optimizers (independent Adam state)")
+    else:
+        optimizer_ce = optimizer
+    if fix_chunk_scaling:
+        log.info("DIAG: constraint loss without /n_chunks divisor (full gradient)")
+    if ce_grad_clip:
+        log.info("DIAG: CE phase clip_grad_norm_(max=1.0)")
+    log.info("Reset optimizer for constraint phase (lr=%.2e)", lr_constraint)
     train_loader = make_dataloader(inputs.X_train, inputs.y_train, hp["batch_size"])
     X_test = inputs.X_test.to(device)
     group_ids = torch.LongTensor(inputs.group_ids).to(device)
@@ -124,17 +146,22 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         train_correct, train_total = 0, 0
         for batch_X, batch_y in train_loader:
             batch_X, batch_y = batch_X.to(device), batch_y.to(device)
-            optimizer.zero_grad(set_to_none=True)
+            optimizer_ce.zero_grad(set_to_none=True)
             with torch.amp.autocast("cuda", dtype=amp_dtype, enabled=use_amp):
                 logits_ce = model(batch_X)
                 loss_ce = criterion_ce(logits_ce, batch_y)
             if scaler:
                 scaler.scale(loss_ce).backward()
-                scaler.step(optimizer)
+                if ce_grad_clip:
+                    scaler.unscale_(optimizer_ce)
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                scaler.step(optimizer_ce)
                 scaler.update()
             else:
                 loss_ce.backward()
-                optimizer.step()
+                if ce_grad_clip:
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                optimizer_ce.step()
             epoch_ce += loss_ce.item()
             with torch.no_grad():
                 train_correct += (logits_ce.argmax(dim=1) == batch_y).sum().item()
@@ -246,7 +273,11 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                         l_soft[gid] = total_local_soft[gid].detach() - chunk_local[gid].detach() + chunk_local[gid]
                     lg = criterion_constraint.compute_global_from_counts(g_soft)
                     ll = criterion_constraint.compute_local_from_counts(l_soft)
-                    chunk_loss = chunk_loss + (lg + ll) / n_chunks
+                    # DIAG fix_chunk_scaling: don't divide. Each chunk's backward
+                    # only flows to its own samples; summing across chunks already
+                    # gives the true total gradient. The /n_chunks divisor was
+                    # silently scaling the constraint gradient by 1/n_chunks.
+                    chunk_loss = chunk_loss + (lg + ll) * (1.0 if fix_chunk_scaling else 1.0 / n_chunks)
                 if has_kl:
                     log_p_cur = F.log_softmax(chunk_logits_f, dim=1)
                     p_cur = F.softmax(chunk_logits_f, dim=1)
