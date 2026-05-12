@@ -72,6 +72,10 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     fix_chunk_scaling = bool(hp.get("fix_chunk_scaling", False))
     separate_optimizers = bool(hp.get("separate_optimizers", False))
     ce_grad_clip = bool(hp.get("ce_grad_clip", False))
+    # Consecutive-satisfied epochs needed to declare convergence + early-stop.
+    # Baseline default was 5; lower (3) early-stops faster once the model
+    # has been oscillating tightly around the boundary.
+    stable_count_threshold = int(hp.get("stable_count_threshold", 5))
 
     criterion_ce = make_ce_criterion(config, inputs.y_train, num_classes, device)
     lr_constraint = hp.get("lr_constraint", 1e-5)
@@ -389,7 +393,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         if not rho_frozen:
             criterion_constraint.increment_rho(rho_step)
 
-        if stable_count >= 5:
+        if stable_count >= stable_count_threshold:
             log.info("Converged: constraints stable for %d epochs (lambdas frozen)", stable_count)
             break
 
