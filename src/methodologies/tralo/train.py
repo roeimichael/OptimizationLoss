@@ -100,7 +100,11 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         num_classes=num_classes,
         initial_rho=hp.get("initial_rho", 0.5), alpha_kl=hp.get("alpha_kl", 0.0),
         penalty_mode=hp.get("penalty_mode", "both"),
+        linear_sat_tail=hp.get("linear_sat_tail", 0.0),
     ).to(device)
+    if hp.get("linear_sat_tail", 0.0) > 0:
+        log.info("Linear-sat-tail active: beta=%.3f (unbounded per-class gradient)",
+                 hp.get("linear_sat_tail", 0.0))
     log.info("Using FULL test set (%d samples) for constraint gradient", len(X_test))
     alpha_kl = hp.get("alpha_kl", 0.0)
     warmup_logits_cache = None

@@ -17,7 +17,7 @@ class MulticlassTransductiveLoss(nn.Module):
 
     def __init__(self, global_constraints, local_constraints,
                  num_classes=7, initial_rho=0.5, alpha_kl=0.0,
-                 penalty_mode="both"):
+                 penalty_mode="both", linear_sat_tail=0.0):
         super().__init__()
         if penalty_mode not in ("rational", "quadratic", "both"):
             raise ValueError(f"penalty_mode must be rational|quadratic|both, "
@@ -25,6 +25,11 @@ class MulticlassTransductiveLoss(nn.Module):
         self.penalty_mode = penalty_mode
         self.sat_factor = 1.0 if penalty_mode in ("rational", "both") else 0.0
         self.quad_factor = 1.0 if penalty_mode in ("quadratic", "both") else 0.0
+        # Unbounded linear tail: +linear_sat_tail * (E/K) per class. Gradient
+        # w.r.t. soft count is constant (linear_sat_tail / K), regardless of
+        # how deep the violation is. Counters saturation of the bounded terms
+        # when E >> K. Default 0 preserves the pre-fix behaviour.
+        self.linear_sat_tail = float(linear_sat_tail)
         self.alpha_kl = alpha_kl
         self.num_classes = num_classes
         self.register_buffer('rho', torch.tensor(float(initial_rho)))
@@ -67,7 +72,9 @@ class MulticlassTransductiveLoss(nn.Module):
             quad = (E_norm ** 2) / (1 + E_norm ** 2 + EPSILON)
             lam = self.lambda_global_per_class.get(c, 0.0)
             total_loss = total_loss + lam * (
-                self.sat_factor * sat + self.quad_factor * self.rho * quad)
+                self.sat_factor * sat
+                + self.quad_factor * self.rho * quad
+                + self.linear_sat_tail * E_norm)
             num_constrained += 1
         self.global_constraints_satisfied = all_satisfied
         if num_constrained == 0:
@@ -101,7 +108,9 @@ class MulticlassTransductiveLoss(nn.Module):
                 quad = (E_norm ** 2) / (1 + E_norm ** 2 + EPSILON)
                 lam = self.lambda_local_per_key.get((gid, c), 0.0)
                 total_loss = total_loss + lam * (
-                self.sat_factor * sat + self.quad_factor * self.rho * quad)
+                    self.sat_factor * sat
+                    + self.quad_factor * self.rho * quad
+                    + self.linear_sat_tail * E_norm)
                 num_constrained += 1
         self.local_constraints_satisfied = all_satisfied
         if num_constrained == 0:
