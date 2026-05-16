@@ -50,14 +50,15 @@ def main():
     ap.add_argument("--root", default="results/pending_runs")
     ap.add_argument("--gpus", default="0,1")
     ap.add_argument("--filter", default="",
-                    help="optional substring; only experiments whose path "
-                         "contains this string are dispatched")
+                    help="optional substring(s), comma-separated (OR semantics); "
+                         "only experiments whose path contains one of these are dispatched")
     args = ap.parse_args()
 
     gpus = [int(g) for g in args.gpus.split(",")]
     pending = get_experiments_by_status(args.root)["pending"]
     if args.filter:
-        pending = [(p, c) for p, c in pending if args.filter in p]
+        patterns = [s.strip() for s in args.filter.split(",") if s.strip()]
+        pending = [(p, c) for p, c in pending if any(pat in p for pat in patterns)]
 
     if not pending:
         print("No pending experiments")
