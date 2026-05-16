@@ -139,9 +139,21 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     disable_freeze_on_satisfy = hp.get("disable_freeze_on_satisfy", False)  # A3
     disable_min_excess_restore = hp.get("disable_min_excess_restore", False)  # A5
     shared_lambda = hp.get("shared_lambda", False)  # A6
-    log.info("Constraint training: epochs %d to %d (ablations: freeze=%s restore=%s shared_lam=%s)",
+    # CE saturation skip (March behavior, restored 2026-05-14): once train_acc
+    # saturates, turn CE batch loop OFF so only constraint (+KL) pressure remains.
+    # Required for bounded-penalty convergence — peak gradient ~(1+0.65*rho)/K
+    # cannot overpower persistent CE force at E >> K (gradient saturates).
+    # Note: original "force-off when alpha_kl>0" gate was for an OLD code path
+    # that zeroed lambdas on satisfaction. We now FREEZE lambdas, so KL + CE-skip
+    # coexist safely: KL pulls toward warmup, constraint pulls toward K, equilibrium.
+    enable_ce_skip = bool(hp.get("enable_ce_skip", True))
+    ce_skip_counter = 0
+    skip_ce = False
+    log.info("Constraint training: epochs %d to %d (ablations: freeze=%s restore=%s "
+             "shared_lam=%s ce_skip=%s)",
              warmup_epochs + 1, total_epochs,
-             not disable_freeze_on_satisfy, not disable_min_excess_restore, shared_lambda)
+             not disable_freeze_on_satisfy, not disable_min_excess_restore,
+             shared_lambda, enable_ce_skip)
     write_csv_header(csv_log_path, num_classes, local_con)
 
     for epoch in range(warmup_epochs, total_epochs):
@@ -152,7 +164,9 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         epoch_ce = 0.0
         num_batches = len(train_loader)
         train_correct, train_total = 0, 0
-        for batch_X, batch_y in train_loader:
+        if skip_ce:
+            num_batches = 1  # avoid div-by-zero on avg_ce
+        for batch_X, batch_y in (train_loader if not skip_ce else []):
             batch_X, batch_y = batch_X.to(device), batch_y.to(device)
             optimizer_ce.zero_grad(set_to_none=True)
             with torch.amp.autocast("cuda", dtype=amp_dtype, enabled=use_amp):
@@ -175,6 +189,20 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 train_correct += (logits_ce.argmax(dim=1) == batch_y).sum().item()
                 train_total += batch_y.size(0)
         cached_train_acc = train_correct / train_total if train_total > 0 else 1.0
+
+        # CE saturation skip: once train_acc >= 0.995 for 2 consecutive epochs,
+        # turn CE off. Without this, CE keeps pushing toward natural rate and
+        # bounded-penalty cannot reach E=0. AUDIT 2026-05-14.
+        if enable_ce_skip and not skip_ce:
+            if cached_train_acc >= 0.995:
+                ce_skip_counter += 1
+                if ce_skip_counter >= 2:
+                    skip_ce = True
+                    log.info("Epoch %d: CE saturated (acc=%.4f >=0.995 for %d epochs), "
+                             "disabling CE — constraint-only from here",
+                             epoch + 1, cached_train_acc, ce_skip_counter)
+            else:
+                ce_skip_counter = 0
 
         # Pass A + Pass B in eval() so dropout off and BN stats untouched (AUDIT C1).
         model.eval()
