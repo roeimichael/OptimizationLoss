@@ -46,10 +46,32 @@ def compute_base_model_id(model_name, hyperparams, dataset_mode,
     return f"{model_name}_{dataset_mode}_{h}"
 
 
+def _current_code_version():
+    """Return short git SHA of current HEAD + dirty flag, for re-runnability
+    forensics. Stamped into every generated config so a later re-run can
+    detect code drift."""
+    import subprocess
+    try:
+        sha = subprocess.check_output(
+            ["git", "rev-parse", "--short=12", "HEAD"],
+            stderr=subprocess.DEVNULL).decode().strip()
+        dirty = subprocess.call(
+            ["git", "diff", "--quiet", "HEAD"],
+            stderr=subprocess.DEVNULL) != 0
+        return f"{sha}{'-dirty' if dirty else ''}"
+    except Exception:
+        return "unknown"
+
+
 def save_configs(configs, output_dir='results/pending_runs'):
     """Write each config.json to its experiment_path. Skips dirs already
-    flagged status='completed' so pending sweeps don't clobber results."""
+    flagged status='completed' so pending sweeps don't clobber results.
+
+    Every config gets a `code_version` field (git short SHA at save time)
+    so we can later prove which code version produced which run.
+    """
     from src.utils.filesystem_manager import save_config_to_path
+    code_version = _current_code_version()
     created, skipped = 0, 0
     for config in configs:
         path = Path(config['experiment_path'])
@@ -64,7 +86,9 @@ def save_configs(configs, output_dir='results/pending_runs'):
             except (json.JSONDecodeError, KeyError):
                 pass
         path.mkdir(parents=True, exist_ok=True)
+        config.setdefault('code_version', code_version)
         save_config_to_path(config, str(path))
         created += 1
     print(f"Created {created} configs in '{output_dir}' "
-          f"(skipped {skipped} already completed)")
+          f"(skipped {skipped} already completed) "
+          f"@ code_version={code_version}")
