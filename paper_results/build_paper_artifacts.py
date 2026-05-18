@@ -80,7 +80,16 @@ def collect():
         if method == "tralo":
             if hp.get("alpha_kl", 0) != 0 or hp.get("linear_sat_tail", 0) != 0:
                 continue
+        # Load eval_metrics.csv for training-time fields (Raw All Satisfied,
+        # Flips Required, satisfaction epoch). Overlay fair_evaluation_metrics.csv
+        # (uniform clamp) on top for the F1/acc/precision/recall fields used
+        # in cross-method comparisons.
         metrics = {r["Metric"]: r["Value"] for r in csv.DictReader(open(em))}
+        fair = em.parent / "fair_evaluation_metrics.csv"
+        if fair.exists():
+            fair_metrics = {r["Metric"]: r["Value"]
+                            for r in csv.DictReader(open(fair))}
+            metrics.update(fair_metrics)
         cc = cfg["dataset_config"].get("constrained_class", [])
         cc_list = cc if isinstance(cc, list) else [cc]
         f1_const = []
