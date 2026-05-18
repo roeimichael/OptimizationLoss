@@ -45,7 +45,8 @@ def evaluate_with_posthoc(model, X_test, y_test, group_ids, global_con, local_co
         needs_adjustment = any(global_con[c] < UNLIMITED for c in constrained_classes)
         if needs_adjustment:
             y_pred, adj, posthoc_meta = targeted_correction(
-                y_proba, group_ids, global_con, local_con, constrained_classes)
+                y_proba, group_ids, global_con, local_con, constrained_classes,
+                force_exact=True)
 
     metrics = compute_metrics(y_test, y_pred, y_proba)
     flips = compute_flips(raw_pred, y_pred)

@@ -252,13 +252,18 @@ def _fallback_lp(y_pred, y_proba, group_ids, global_con, local_con,
 
 
 def targeted_correction(y_proba, group_ids, global_con, local_con,
-                        constrained_classes):
+                        constrained_classes, force_exact=True):
     """Bidirectional post-hoc correction handling over-limit AND under-limit cases.
 
     Three phases:
       1. Reduce over-limit globally
-      2. Fill under-limit globally
+      2. Fill under-limit globally (always runs when force_exact=True)
       3. Local enforcement (bidirectional per group)
+
+    force_exact=True (default): always run all phases — push count to *exactly* K
+    so cross-method comparisons are apples-to-apples (drop over, fill under).
+    force_exact=False: legacy behavior — early-exit when count ≤ K (favored
+    over-predicting methods like Hounie by not forcing under-K fill on TraLO).
 
     Falls back to small-scope LP if greedy phases leave violations.
 
@@ -267,8 +272,8 @@ def targeted_correction(y_proba, group_ids, global_con, local_con,
     y_pred = np.argmax(y_proba, axis=1)
     n_samples, n_classes = y_proba.shape
 
-    if _check_all_satisfied(y_pred, global_con, local_con, group_ids,
-                            constrained_classes):
+    if not force_exact and _check_all_satisfied(
+            y_pred, global_con, local_con, group_ids, constrained_classes):
         log.info("Targeted correction: argmax already satisfies all constraints")
         return y_pred, 0, {'lp_fallback_used': False, 'lp_fallback_candidates': 0}
 
