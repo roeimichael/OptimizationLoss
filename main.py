@@ -192,42 +192,42 @@ def run_sequential(pending, gpu_id=None):
 
 
 def run_parallel(pending, gpu_ids):
+    # Group by model for log labels, then stripe each model's experiments
+    # round-robin across GPUs so single-model sweeps (e.g. paper400) use
+    # every GPU. Previously the partition was per-model which left GPUs
+    # idle whenever fewer models than GPUs existed.
     by_model = defaultdict(list)
     for exp_path, config in pending:
         model = config.get('model_name', 'unknown')
         by_model[model].append((exp_path, config))
-    model_names = sorted(by_model.keys())
-    if len(model_names) > len(gpu_ids):
-        print(f"\n  WARNING: {len(model_names)} models but only {len(gpu_ids)} GPUs.")
-        print(f"  Models will be distributed round-robin across GPUs.\n")
-    gpu_assignments = {}
-    for gpu in gpu_ids:
-        gpu_assignments[gpu] = []
-    for idx, model in enumerate(model_names):
-        gpu = gpu_ids[idx % len(gpu_ids)]
-        gpu_assignments[gpu].append((model, by_model[model]))
+    gpu_assignments = {g: defaultdict(list) for g in gpu_ids}
+    for model in sorted(by_model.keys()):
+        for i, exp in enumerate(by_model[model]):
+            gpu = gpu_ids[i % len(gpu_ids)]
+            gpu_assignments[gpu][model].append(exp)
     print(f"\n{'='*60}")
     print(f"  Parallel GPU Assignment")
     print(f"{'='*60}")
     for gpu in gpu_ids:
-        assignments = gpu_assignments[gpu]
-        if assignments:
-            for model, exps in assignments:
-                print(f"  GPU {gpu}  <-  {model} ({len(exps)} experiments)")
-        else:
+        per_model = gpu_assignments[gpu]
+        total = sum(len(v) for v in per_model.values())
+        if not total:
             print(f"  GPU {gpu}  <-  (idle)")
+            continue
+        breakdown = ", ".join(f"{m}({len(v)})" for m, v in sorted(per_model.items()))
+        print(f"  GPU {gpu}  <-  {total} experiments  [{breakdown}]")
     print(f"{'='*60}\n")
     stop_event = threading.Event()
     threads = []
     results = {}
     for gpu in gpu_ids:
-        assignments = gpu_assignments[gpu]
-        if not assignments:
+        per_model = gpu_assignments[gpu]
+        if not per_model:
             continue
         combined_exps = []
         label_parts = []
-        for model, exps in assignments:
-            combined_exps.extend(exps)
+        for model in sorted(per_model.keys()):
+            combined_exps.extend(per_model[model])
             label_parts.append(model)
         worker_name = '+'.join(label_parts)
         def _worker(g=gpu, exps=combined_exps, wn=worker_name):
