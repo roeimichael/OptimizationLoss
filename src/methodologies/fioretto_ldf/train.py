@@ -1,8 +1,8 @@
 """fioretto_ldf methodology: linear penalty + per-constraint subgradient ascent.
 
-Lifted from the prior fioretto_research/run_fioretto.py module. The dual-checkpoint pick
-(final vs best_excess by F1 after post-hoc) lives here because it is
-methodology-specific.
+Lifted from the prior fioretto_research/run_fioretto.py module. Checkpoint
+restoration mirrors TraLO (best_sat / min_excess on the excess axis, NOT F1)
+so the checkpoint selector cannot double-dip on the F1 evaluation metric.
 """
 
 import csv
@@ -15,7 +15,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from src.pipeline.contracts import TrainInputs, TrainOutputs
-from src.pipeline.eval import evaluate_with_posthoc
 from src.pipeline.setup import setup_runtime
 from src.pipeline.warmup import make_dataloader, make_optimizer
 from src.utils.constants import UNLIMITED
@@ -42,6 +41,12 @@ def _train_constraints(model, config, inputs, device):
     step_size = float(hp["fioretto_step_size"])
     batch_size = hp.get("batch_size", 64)
     chunk_size = hp.get("constraint_chunk_size", 256)
+    # Apples-to-apples with TraLO: CE saturation skip. Once train acc reaches
+    # >=0.995 for 2 consecutive epochs, CE batch loop is disabled and only
+    # constraint pressure remains. Without this Fioretto keeps CE training
+    # forever, fighting the constraint and slowing satisfaction. TraLO uses
+    # the same gate (enable_ce_skip, default True).
+    enable_ce_skip = bool(hp.get("enable_ce_skip", True))
 
     use_amp, amp_dtype, scaler = setup_runtime(device)
 
@@ -70,8 +75,18 @@ def _train_constraints(model, config, inputs, device):
     unique_groups = np.unique(groups_np)
 
     satisfaction_epoch = None
-    best_model_state = None
-    best_excess = float("inf")
+    # Best-checkpoint restore (apples-to-apples with TraLO): snapshot model
+    # state BEFORE the constraint step at every epoch that satisfies or that
+    # improves on the lowest total excess seen so far. After the loop, if the
+    # final epoch violates we restore best_sat; else if final excess exceeds
+    # the lowest seen, we restore min_excess. Prior implementation tracked
+    # only best_excess + F1-of-final-vs-best (double-dipped on the eval
+    # metric); this matches TraLO and removes that bias.
+    best_sat_state = None
+    best_sat_epoch = None
+    min_excess_state = None
+    min_excess_epoch = None
+    min_total_excess = float("inf")
 
     log_path = inputs.experiment_path / "training_log.csv"
     log_fields = ["epoch", "ce_loss", "constraint_loss", "total_excess",
@@ -79,18 +94,24 @@ def _train_constraints(model, config, inputs, device):
     with open(log_path, "w", newline="") as f:
         csv.DictWriter(f, log_fields).writeheader()
 
+    ce_skip_counter = 0
+    skip_ce = False
     stable_count = 0  # consecutive epochs with all_satisfied for early-stop parity with TraLO
     for epoch in range(constraint_epochs):
         epoch_start = time.time()
 
         # ---- Step 1: CE on TRAIN data (batched) ----
+        # CE saturation skip (mirrors TraLO): once train_acc >= 0.995 for 2
+        # consecutive epochs, disable CE so only constraint pressure remains.
         model.train()
         ce_losses = []
-        for batch_X, batch_y in train_loader:
+        train_correct, train_total = 0, 0
+        for batch_X, batch_y in (train_loader if not skip_ce else []):
             batch_X, batch_y = batch_X.to(device), batch_y.to(device)
             optimizer.zero_grad(set_to_none=True)
             with torch.amp.autocast("cuda", dtype=amp_dtype, enabled=use_amp):
-                ce_loss = criterion_ce(model(batch_X), batch_y)
+                logits_ce = model(batch_X)
+                ce_loss = criterion_ce(logits_ce, batch_y)
             ce_losses.append(ce_loss.item())
             if scaler:
                 scaler.scale(ce_loss).backward()
@@ -99,9 +120,27 @@ def _train_constraints(model, config, inputs, device):
             else:
                 ce_loss.backward()
                 optimizer.step()
+            with torch.no_grad():
+                train_correct += (logits_ce.argmax(dim=1) == batch_y).sum().item()
+                train_total += batch_y.size(0)
+        cached_train_acc = train_correct / train_total if train_total > 0 else 1.0
+        if enable_ce_skip and not skip_ce:
+            if cached_train_acc >= 0.995:
+                ce_skip_counter += 1
+                if ce_skip_counter >= 2:
+                    skip_ce = True
+                    log.info("Fioretto epoch %d: CE saturated (acc=%.4f), "
+                             "disabling CE batch loop", epoch + 1, cached_train_acc)
+            else:
+                ce_skip_counter = 0
 
         # ---- Step 2: constraint gradient on TEST data (transductive) ----
-        model.train()
+        # Apples-to-apples with TraLO: use model.eval() during the transductive
+        # pass so dropout is off and BN running stats are NOT updated from test
+        # data (would be a data-leakage source that flips a few borderline
+        # samples and corrupts the lambda update). TraLO does this for the same
+        # reason (AUDIT C1).
+        model.eval()
         total_soft = torch.zeros(num_classes, device=device)
         group_soft = {g: torch.zeros(num_classes, device=device) for g in unique_groups}
         all_hard = []
@@ -145,6 +184,31 @@ def _train_constraints(model, config, inputs, device):
                 if excess > 0:
                     violated_local.add(key)
 
+        # Compute hard-count satisfaction from pass-1 predictions BEFORE the
+        # constraint step. Required so the snapshot state below reflects the
+        # exact model that produced the satisfaction status (saving post-step
+        # state would mismatch the next-pass counts).
+        hard_counts = {c: int((hard_preds == c).sum()) for c in constrained_classes}
+        total_excess = sum(
+            max(0, hard_counts[c] - int(global_con[c]))
+            for c in constrained_classes if global_con[c] < UNLIMITED
+        )
+        if local_con:
+            for g_id, bounds in local_con.items():
+                for c in constrained_classes:
+                    if bounds[c] < UNLIMITED:
+                        gc = int(((hard_preds == c) & (groups_np == g_id)).sum())
+                        total_excess += max(0, gc - int(bounds[c]))
+        all_satisfied = (total_excess == 0)
+
+        # Snapshot model state BEFORE constraint step (mirrors TraLO). Saved
+        # iff this epoch is satisfied OR improves on the lowest total excess
+        # seen so far. Used to restore best checkpoint after training.
+        snapshot_state = None
+        if all_satisfied or total_excess < min_total_excess:
+            snapshot_state = {k: v.detach().cpu().clone()
+                              for k, v in model.state_dict().items()}
+
         has_work = (
             any(lambda_g.get(c, 0) > 0 for c in violated_global) or
             any(lambda_l.get(k, 0) > 0 for k in violated_local)
@@ -176,14 +240,27 @@ def _train_constraints(model, config, inputs, device):
                     constraint_loss_val += chunk_loss.item()
                     did_backward = True
             if did_backward:
+                # Grad clip + grad_norm>0 gate + scaler.update() always called
+                # (mirrors TraLO's recovery pattern). Prevents bad-step state
+                # leakage and unbounded step magnitudes.
                 if scaler:
                     try:
-                        scaler.step(optimizer)
+                        scaler.unscale_(optimizer)
+                        grad_norm = torch.nn.utils.clip_grad_norm_(
+                            model.parameters(), max_norm=1.0)
+                        if grad_norm > 0:
+                            scaler.step(optimizer)
                         scaler.update()
                     except (AssertionError, RuntimeError):
-                        optimizer.step()
+                        grad_norm = torch.nn.utils.clip_grad_norm_(
+                            model.parameters(), max_norm=1.0)
+                        if grad_norm > 0:
+                            optimizer.step()
                 else:
-                    optimizer.step()
+                    grad_norm = torch.nn.utils.clip_grad_norm_(
+                        model.parameters(), max_norm=1.0)
+                    if grad_norm > 0:
+                        optimizer.step()
 
         # ---- Step 3: subgradient dual update (Fioretto Eq. 5) ----
         for c, viol in violations_g.items():
@@ -191,26 +268,21 @@ def _train_constraints(model, config, inputs, device):
         for key, viol in violations_l.items():
             lambda_l[key] += step_size * viol
 
-        hard_counts = {c: int((hard_preds == c).sum()) for c in constrained_classes}
-        total_excess = sum(
-            max(0, hard_counts[c] - int(global_con[c]))
-            for c in constrained_classes if global_con[c] < UNLIMITED
-        )
-        all_satisfied = all(
-            hard_counts[c] <= int(global_con[c])
-            for c in constrained_classes if global_con[c] < UNLIMITED
-        )
         if all_satisfied and satisfaction_epoch is None:
             satisfaction_epoch = epoch
             log.info("Fioretto: first satisfaction at epoch %d", epoch)
         # Apples-to-apples early stop: 5 consecutive satisfied epochs.
         if all_satisfied:
             stable_count += 1
+            if snapshot_state is not None:
+                best_sat_state = snapshot_state
+                best_sat_epoch = epoch + 1
         else:
             stable_count = 0
-        if total_excess < best_excess:
-            best_excess = total_excess
-            best_model_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+        if total_excess < min_total_excess and snapshot_state is not None:
+            min_total_excess = total_excess
+            min_excess_state = snapshot_state
+            min_excess_epoch = epoch + 1
 
         row = {
             "epoch": epoch,
@@ -235,61 +307,74 @@ def _train_constraints(model, config, inputs, device):
                      stable_count, epoch + 1)
             break
 
-    final_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
-    return satisfaction_epoch, final_state, best_model_state, best_excess
+    return (satisfaction_epoch, best_sat_state, best_sat_epoch,
+            min_excess_state, min_excess_epoch, min_total_excess)
 
 
 def train(inputs: TrainInputs) -> TrainOutputs:
     model = inputs.model
     device = inputs.device
 
-    satisfaction_epoch, final_state, best_excess_state, best_excess = _train_constraints(
-        model, inputs.config, inputs, device,
-    )
+    (satisfaction_epoch, best_sat_state, best_sat_epoch,
+     min_excess_state, min_excess_epoch, min_total_excess
+     ) = _train_constraints(model, inputs.config, inputs, device)
 
-    # Dual-checkpoint pick: F1 after post-hoc decides between final and
-    # best_excess. Lives here because it is methodology-specific (tralo
-    # uses the final epoch only, by design).
+    # Apples-to-apples checkpoint restore (mirrors TraLO). Selection rule is
+    # deterministic on the constraint excess axis -- NOT on F1. Picking the
+    # checkpoint by F1 over multiple candidates is double-dipping on the
+    # evaluation metric.
+    constrained_classes = inputs.constrained_classes
+    global_con = inputs.global_con
+    local_con = inputs.local_con
+    groups_np = inputs.group_ids
     X_test_dev = inputs.X_test.to(device)
+    num_classes = inputs.num_classes
 
-    def _eval_candidate(state, label):
-        model.load_state_dict(state)
-        model.to(device)
-        return label, evaluate_with_posthoc(
-            model, X_test_dev, inputs.y_test, inputs.group_ids,
-            inputs.global_con, inputs.local_con,
-            inputs.constrained_classes, inputs.num_classes,
-            label=label,
-        )
+    model.eval()
+    with torch.no_grad():
+        chunk_size = inputs.hyperparams.get("constraint_chunk_size", 256)
+        all_hard = []
+        for i in range(0, len(X_test_dev), chunk_size):
+            chunk_logits = model(X_test_dev[i:i + chunk_size])
+            all_hard.append(chunk_logits.argmax(dim=1))
+        hard_preds = torch.cat(all_hard).cpu().numpy()
+    final_total_excess = sum(
+        max(0, int((hard_preds == c).sum()) - int(global_con[c]))
+        for c in constrained_classes if global_con[c] < UNLIMITED
+    )
+    if local_con:
+        for g_id, bounds in local_con.items():
+            for c in constrained_classes:
+                if bounds[c] < UNLIMITED:
+                    gc = int(((hard_preds == c) & (groups_np == g_id)).sum())
+                    final_total_excess += max(0, gc - int(bounds[c]))
+    final_violates = final_total_excess > 0
 
-    candidates = [_eval_candidate(final_state, "final")]
-    if best_excess_state is not None:
-        candidates.append(_eval_candidate(best_excess_state, "best_excess"))
-
-    best_source, best_result = max(candidates, key=lambda kv: kv[1]["metrics"]["f1_macro"])
-    log.info("Selected checkpoint: %s (f1_macro=%.4f from %d candidates)",
-             best_source, best_result["metrics"]["f1_macro"], len(candidates))
-
-    # Restore winner state on the model so the runner's downstream eval matches.
-    winner_state = final_state if best_source == "final" else best_excess_state
-    model.load_state_dict(winner_state)
-    model.to(device)
-
-    results_comparison = {
-        label: {
-            "f1_macro": float(res["metrics"]["f1_macro"]),
-            "accuracy": float(res["metrics"]["accuracy"]),
-            "adjusted": int(res["adj"]),
-            "lp_fallback_used": res["posthoc_meta"].get("lp_fallback_used", False),
-        }
-        for label, res in candidates
-    }
+    restored_from_epoch = None
+    restore_kind = None
+    if best_sat_state is not None and final_violates:
+        log.info("Fioretto: final violates; restoring best-satisfied checkpoint from epoch %d",
+                 best_sat_epoch)
+        model.load_state_dict({k: v.to(device) for k, v in best_sat_state.items()})
+        restored_from_epoch = best_sat_epoch
+        restore_kind = "fully_satisfied"
+    elif min_excess_state is not None and final_total_excess > min_total_excess:
+        log.info("Fioretto: final excess=%d > min seen excess=%d (epoch %d); "
+                 "restoring lowest-excess checkpoint",
+                 int(final_total_excess), int(min_total_excess), min_excess_epoch)
+        model.load_state_dict({k: v.to(device) for k, v in min_excess_state.items()})
+        restored_from_epoch = min_excess_epoch
+        restore_kind = "min_excess"
 
     return TrainOutputs(
         model=model,
         summary={
             "satisfaction_epoch": satisfaction_epoch,
-            "checkpoint_source": best_source,
-            "results_comparison": results_comparison,
+            "best_sat_epoch": best_sat_epoch,
+            "min_excess_epoch": min_excess_epoch,
+            "min_total_excess": (None if min_total_excess == float("inf")
+                                 else int(min_total_excess)),
+            "restored_from_epoch": restored_from_epoch,
+            "restore_kind": restore_kind,
         },
     )

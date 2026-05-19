@@ -62,6 +62,12 @@ def _train_constraints(model, inputs: TrainInputs, device):
     chunk_size = hp.get("constraint_chunk_size", 256)
     # Apples-to-apples early stop: 5 consecutive satisfied epochs (matches TraLO).
     stable_count_threshold = int(hp.get("stable_count_threshold", 5))
+    # Apples-to-apples with TraLO: CE saturation skip + best-checkpoint
+    # restore. Once train_acc >= 0.995 for 2 consecutive epochs, CE batch
+    # loop is disabled and only constraint pressure remains. Without this,
+    # Hounie keeps CE training forever, fighting the constraint and slowing
+    # satisfaction. Default ON to match TraLO.
+    enable_ce_skip = bool(hp.get("enable_ce_skip", True))
 
     use_amp, amp_dtype, scaler = setup_runtime(device)
 
@@ -112,18 +118,34 @@ def _train_constraints(model, inputs: TrainInputs, device):
 
     satisfaction_epoch = None
     stable_count = 0
+    ce_skip_counter = 0
+    skip_ce = False
+    # Best-checkpoint restore (mirrors TraLO). Snapshot model state BEFORE
+    # the constraint step at every epoch that satisfies OR improves on the
+    # lowest total excess seen so far. After training, restore best_sat if
+    # final violates, else min_excess if final exceeds it. The Hounie paper
+    # uses the last iterate; we add this for fair F1 comparison with TraLO.
+    best_sat_state = None
+    best_sat_epoch = None
+    min_excess_state = None
+    min_excess_epoch = None
+    min_total_excess = float("inf")
 
     for epoch in range(constraint_epochs):
         epoch_start = time.time()
 
         # ---- Step 1: CE on TRAIN (theta SGD on L_ce) ----
+        # CE saturation skip (mirrors TraLO): once train_acc >= 0.995 for 2
+        # consecutive epochs, disable CE so only constraint pressure remains.
         model.train()
         ce_losses = []
-        for batch_X, batch_y in train_loader:
+        train_correct, train_total = 0, 0
+        for batch_X, batch_y in (train_loader if not skip_ce else []):
             batch_X, batch_y = batch_X.to(device), batch_y.to(device)
             optimizer.zero_grad(set_to_none=True)
             with torch.amp.autocast("cuda", dtype=amp_dtype, enabled=use_amp):
-                ce_loss = criterion_ce(model(batch_X), batch_y)
+                logits_ce = model(batch_X)
+                ce_loss = criterion_ce(logits_ce, batch_y)
             ce_losses.append(ce_loss.item())
             if scaler:
                 scaler.scale(ce_loss).backward()
@@ -132,9 +154,25 @@ def _train_constraints(model, inputs: TrainInputs, device):
             else:
                 ce_loss.backward()
                 optimizer.step()
+            with torch.no_grad():
+                train_correct += (logits_ce.argmax(dim=1) == batch_y).sum().item()
+                train_total += batch_y.size(0)
+        cached_train_acc = train_correct / train_total if train_total > 0 else 1.0
+        if enable_ce_skip and not skip_ce:
+            if cached_train_acc >= 0.995:
+                ce_skip_counter += 1
+                if ce_skip_counter >= 2:
+                    skip_ce = True
+                    log.info("Hounie epoch %d: CE saturated (acc=%.4f), "
+                             "disabling CE batch loop", epoch + 1, cached_train_acc)
+            else:
+                ce_skip_counter = 0
 
         # ---- Step 2: soft-count gradient on TEST (theta SGD on Σ_i lam_i * E[l_i]) ----
-        model.train()
+        # Apples-to-apples with TraLO: model.eval() during the transductive pass.
+        # Prevents dropout noise + BN drift from test data corrupting the
+        # gradient. TraLO does this (AUDIT C1).
+        model.eval()
         # First pass: aggregate soft + hard counts (no grad).
         total_soft = torch.zeros(num_classes, device=device)
         group_soft = {int(g): torch.zeros(num_classes, device=device)
@@ -156,10 +194,31 @@ def _train_constraints(model, inputs: TrainInputs, device):
                         group_soft[int(g)] += chunk_proba[mask].sum(dim=0)
             hard_preds = torch.cat(all_hard).cpu().numpy()
 
+        # Compute hard-count satisfaction from pass-1 predictions BEFORE the
+        # constraint step. Required so the snapshot below reflects the exact
+        # model that produced these counts.
+        hard_counts_pre = {c: int((hard_preds == c).sum()) for c in constrained_classes}
+        total_excess_pre = sum(
+            max(0, hard_counts_pre[c] - int(global_con[c]))
+            for c in constrained_classes if global_con[c] < UNLIMITED
+        )
+        if local_con:
+            for g_id, bounds in local_con.items():
+                for c in constrained_classes:
+                    if bounds[c] < UNLIMITED:
+                        gc = int(((hard_preds == c) & (groups_np == g_id)).sum())
+                        total_excess_pre += max(0, gc - int(bounds[c]))
+        all_satisfied_pre = (total_excess_pre == 0)
+        snapshot_state = None
+        if all_satisfied_pre or total_excess_pre < min_total_excess:
+            snapshot_state = {k: v.detach().cpu().clone()
+                              for k, v in model.state_dict().items()}
+
         # Second pass: weighted gradient if any lam > 0.
         constraint_loss_val = 0.0
         has_active = (any(v > 0 for v in lam_g.values())
                       or any(v > 0 for v in lam_l.values()))
+        did_backward = False
         if has_active:
             optimizer.zero_grad(set_to_none=True)
             for i in range(0, n_test, chunk_size):
@@ -188,14 +247,28 @@ def _train_constraints(model, inputs: TrainInputs, device):
                     else:
                         chunk_loss.backward()
                     constraint_loss_val += chunk_loss.item()
-            if scaler:
-                try:
-                    scaler.step(optimizer)
-                    scaler.update()
-                except (AssertionError, RuntimeError):
-                    optimizer.step()
-            else:
-                optimizer.step()
+                    did_backward = True
+            if did_backward:
+                # Grad clip + grad_norm>0 gate + scaler.update() always called
+                # (mirrors TraLO recovery pattern).
+                if scaler:
+                    try:
+                        scaler.unscale_(optimizer)
+                        grad_norm = torch.nn.utils.clip_grad_norm_(
+                            model.parameters(), max_norm=1.0)
+                        if grad_norm > 0:
+                            scaler.step(optimizer)
+                        scaler.update()
+                    except (AssertionError, RuntimeError):
+                        grad_norm = torch.nn.utils.clip_grad_norm_(
+                            model.parameters(), max_norm=1.0)
+                        if grad_norm > 0:
+                            optimizer.step()
+                else:
+                    grad_norm = torch.nn.utils.clip_grad_norm_(
+                        model.parameters(), max_norm=1.0)
+                    if grad_norm > 0:
+                        optimizer.step()
 
         # ---- Step 3: dual ascent on lambda (paper Eq. 5 / Alg. 2) ----
         # E[l_i] = (count_soft_i - K_i) / N_i  (per-constraint normalisation).
@@ -214,24 +287,26 @@ def _train_constraints(model, inputs: TrainInputs, device):
         for key in K_local:
             u_l[key] = max(0.0, u_l[key] + eta_u * (lam_l[key] - 2.0 * alpha * u_l[key]))
 
-        # ---- Bookkeeping ----
-        hard_counts = {c: int((hard_preds == c).sum()) for c in constrained_classes}
-        total_excess = sum(
-            max(0, hard_counts[c] - int(global_con[c]))
-            for c in constrained_classes if global_con[c] < UNLIMITED
-        )
-        all_satisfied = all(
-            hard_counts[c] <= int(global_con[c])
-            for c in constrained_classes if global_con[c] < UNLIMITED
-        )
+        # ---- Bookkeeping ---- (uses the pre-step satisfaction state computed
+        # earlier, which is what the snapshot reflects).
+        hard_counts = hard_counts_pre
+        total_excess = total_excess_pre
+        all_satisfied = all_satisfied_pre
         if all_satisfied and satisfaction_epoch is None:
             satisfaction_epoch = epoch
             log.info("Hounie RCL: first satisfaction at epoch %d", epoch)
         # Apples-to-apples early stop: 5 consecutive satisfied epochs (matches TraLO/Fioretto).
         if all_satisfied:
             stable_count += 1
+            if snapshot_state is not None:
+                best_sat_state = snapshot_state
+                best_sat_epoch = epoch + 1
         else:
             stable_count = 0
+        if total_excess < min_total_excess and snapshot_state is not None:
+            min_total_excess = total_excess
+            min_excess_state = snapshot_state
+            min_excess_epoch = epoch + 1
 
         h_u = alpha * (sum(v ** 2 for v in u_g.values())
                        + sum(v ** 2 for v in u_l.values()))
@@ -266,14 +341,71 @@ def _train_constraints(model, inputs: TrainInputs, device):
                      stable_count, epoch + 1)
             break
 
-    return satisfaction_epoch
+    return (satisfaction_epoch, best_sat_state, best_sat_epoch,
+            min_excess_state, min_excess_epoch, min_total_excess)
 
 
 def train(inputs: TrainInputs) -> TrainOutputs:
-    satisfaction_epoch = _train_constraints(inputs.model, inputs, inputs.device)
+    model = inputs.model
+    device = inputs.device
+    (satisfaction_epoch, best_sat_state, best_sat_epoch,
+     min_excess_state, min_excess_epoch, min_total_excess
+     ) = _train_constraints(model, inputs, device)
+
+    # Apples-to-apples checkpoint restore (mirrors TraLO). Restore best_sat
+    # if final epoch violates, else min_excess if final exceeds the lowest
+    # seen excess. Selection criterion is the constraint excess axis, NOT F1.
+    constrained_classes = inputs.constrained_classes
+    global_con = inputs.global_con
+    local_con = inputs.local_con
+    groups_np = inputs.group_ids
+    X_test_dev = inputs.X_test.to(device)
+
+    model.eval()
+    chunk_size = inputs.hyperparams.get("constraint_chunk_size", 256)
+    with torch.no_grad():
+        all_hard = []
+        for i in range(0, len(X_test_dev), chunk_size):
+            chunk_logits = model(X_test_dev[i:i + chunk_size])
+            all_hard.append(chunk_logits.argmax(dim=1))
+        hard_preds_final = torch.cat(all_hard).cpu().numpy()
+    final_total_excess = sum(
+        max(0, int((hard_preds_final == c).sum()) - int(global_con[c]))
+        for c in constrained_classes if global_con[c] < UNLIMITED
+    )
+    if local_con:
+        for g_id, bounds in local_con.items():
+            for c in constrained_classes:
+                if bounds[c] < UNLIMITED:
+                    gc = int(((hard_preds_final == c) & (groups_np == g_id)).sum())
+                    final_total_excess += max(0, gc - int(bounds[c]))
+    final_violates = final_total_excess > 0
+
+    restored_from_epoch = None
+    restore_kind = None
+    if best_sat_state is not None and final_violates:
+        log.info("Hounie: final violates; restoring best-satisfied checkpoint from epoch %d",
+                 best_sat_epoch)
+        model.load_state_dict({k: v.to(device) for k, v in best_sat_state.items()})
+        restored_from_epoch = best_sat_epoch
+        restore_kind = "fully_satisfied"
+    elif min_excess_state is not None and final_total_excess > min_total_excess:
+        log.info("Hounie: final excess=%d > min seen excess=%d (epoch %d); "
+                 "restoring lowest-excess checkpoint",
+                 int(final_total_excess), int(min_total_excess), min_excess_epoch)
+        model.load_state_dict({k: v.to(device) for k, v in min_excess_state.items()})
+        restored_from_epoch = min_excess_epoch
+        restore_kind = "min_excess"
+
     return TrainOutputs(
-        model=inputs.model,
+        model=model,
         summary={
             "satisfaction_epoch": satisfaction_epoch,
+            "best_sat_epoch": best_sat_epoch,
+            "min_excess_epoch": min_excess_epoch,
+            "min_total_excess": (None if min_total_excess == float("inf")
+                                 else int(min_total_excess)),
+            "restored_from_epoch": restored_from_epoch,
+            "restore_kind": restore_kind,
         },
     )
