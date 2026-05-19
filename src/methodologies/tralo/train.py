@@ -69,16 +69,17 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     #   phase, prevents 150 CE steps of momentum leaking into the single
     #   constraint step.
     # ce_grad_clip: clip_grad_norm_ on CE phase to keep CE momentum bounded.
-    # Default True: do NOT divide constraint loss by n_chunks. The
-    # detach+chunk trick already makes each chunk's loss depend on the
-    # full-N soft counts; the per-chunk backward only contributes grads
-    # for its OWN samples. Summing across chunks therefore recovers the
-    # full-N gradient. The historical /n_chunks divisor silently scaled
-    # TraLO's constraint pressure by 1/n_chunks (10x undershoot at the
-    # standard chunk=256 / N=2400 setting) — making TraLO appear weaker
-    # than Fioretto/Hounie which never divided. Flipped to True for
-    # apples-to-apples fairness.
-    fix_chunk_scaling = bool(hp.get("fix_chunk_scaling", True))
+    # FLAGGED 2026-05-19: revert to False default. Apples-to-apples audit
+    # flagged TraLO's /n_chunks divisor as a 10x grad undershoot vs
+    # Fioretto/Hounie. BUT user recalls prior sweeps where /n_chunks=False
+    # (i.e. fix_chunk_scaling=True) actually HURT TraLO results -- likely
+    # because lambda_step was tuned with the divisor active, so removing
+    # it over-suppresses the constrained class. Needs A/B verification
+    # against archived results before flipping the default. For now keep
+    # the historical behavior (default False) so paper400 + the patch-rerun
+    # comparison stay on the same scale TraLO was tuned for. Switch via
+    # hp["fix_chunk_scaling"]=True to test the "full-strength" path.
+    fix_chunk_scaling = bool(hp.get("fix_chunk_scaling", False))
     separate_optimizers = bool(hp.get("separate_optimizers", False))
     ce_grad_clip = bool(hp.get("ce_grad_clip", False))
     # Consecutive-satisfied epochs needed to declare convergence + early-stop.
