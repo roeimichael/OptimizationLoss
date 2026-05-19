@@ -69,7 +69,16 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     #   phase, prevents 150 CE steps of momentum leaking into the single
     #   constraint step.
     # ce_grad_clip: clip_grad_norm_ on CE phase to keep CE momentum bounded.
-    fix_chunk_scaling = bool(hp.get("fix_chunk_scaling", False))
+    # Default True: do NOT divide constraint loss by n_chunks. The
+    # detach+chunk trick already makes each chunk's loss depend on the
+    # full-N soft counts; the per-chunk backward only contributes grads
+    # for its OWN samples. Summing across chunks therefore recovers the
+    # full-N gradient. The historical /n_chunks divisor silently scaled
+    # TraLO's constraint pressure by 1/n_chunks (10x undershoot at the
+    # standard chunk=256 / N=2400 setting) — making TraLO appear weaker
+    # than Fioretto/Hounie which never divided. Flipped to True for
+    # apples-to-apples fairness.
+    fix_chunk_scaling = bool(hp.get("fix_chunk_scaling", True))
     separate_optimizers = bool(hp.get("separate_optimizers", False))
     ce_grad_clip = bool(hp.get("ce_grad_clip", False))
     # Consecutive-satisfied epochs needed to declare convergence + early-stop.

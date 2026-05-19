@@ -269,8 +269,10 @@ def _train_constraints(model, config, inputs, device):
             lambda_l[key] += step_size * viol
 
         if all_satisfied and satisfaction_epoch is None:
-            satisfaction_epoch = epoch
-            log.info("Fioretto: first satisfaction at epoch %d", epoch)
+            # +1: align with TraLO's convention so cross-method tables
+            # report the SAME epoch number for the same training step.
+            satisfaction_epoch = epoch + 1
+            log.info("Fioretto: first satisfaction at epoch %d", epoch + 1)
         # Apples-to-apples early stop: 5 consecutive satisfied epochs.
         if all_satisfied:
             stable_count += 1

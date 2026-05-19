@@ -293,8 +293,10 @@ def _train_constraints(model, inputs: TrainInputs, device):
         total_excess = total_excess_pre
         all_satisfied = all_satisfied_pre
         if all_satisfied and satisfaction_epoch is None:
-            satisfaction_epoch = epoch
-            log.info("Hounie RCL: first satisfaction at epoch %d", epoch)
+            # +1: align with TraLO's convention so cross-method tables
+            # report the SAME epoch number for the same training step.
+            satisfaction_epoch = epoch + 1
+            log.info("Hounie RCL: first satisfaction at epoch %d", epoch + 1)
         # Apples-to-apples early stop: 5 consecutive satisfied epochs (matches TraLO/Fioretto).
         if all_satisfied:
             stable_count += 1
