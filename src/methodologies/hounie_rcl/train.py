@@ -48,13 +48,20 @@ log = logging.getLogger(__name__)
 
 def _train_constraints(model, inputs: TrainInputs, device):
     hp = inputs.hyperparams
-    constraint_epochs = hp.get("constraint_epochs", 100)
+    constraint_epochs = hp.get("constraint_epochs", 150)
     lr_c = hp.get("lr_constraint", 1e-5)
-    eta_lambda = float(hp.get("hounie_eta_lambda", 0.01))
-    eta_u = float(hp.get("hounie_eta_u", 0.01))
+    # Default dual-step bumped 10x for apples-to-apples convergence speed.
+    # At 0.01 (original) lambda grows ~0.01/epoch when (count_soft-K)/N ~= 0.04
+    # -> constraint contribution to L_total is ~1e-3, ~25x weaker than CE.
+    # The model effectively trains CE-only for 100+ epochs before lambda
+    # builds up. With 0.1 lambda hits meaningful magnitude by ep 10.
+    eta_lambda = float(hp.get("hounie_eta_lambda", 0.1))
+    eta_u = float(hp.get("hounie_eta_u", 0.1))
     alpha = float(hp.get("hounie_alpha", 10.0))
     batch_size = hp.get("batch_size", 64)
     chunk_size = hp.get("constraint_chunk_size", 256)
+    # Apples-to-apples early stop: 5 consecutive satisfied epochs (matches TraLO).
+    stable_count_threshold = int(hp.get("stable_count_threshold", 5))
 
     use_amp, amp_dtype, scaler = setup_runtime(device)
 
@@ -104,6 +111,7 @@ def _train_constraints(model, inputs: TrainInputs, device):
         csv.DictWriter(f, log_fields).writeheader()
 
     satisfaction_epoch = None
+    stable_count = 0
 
     for epoch in range(constraint_epochs):
         epoch_start = time.time()
@@ -219,6 +227,11 @@ def _train_constraints(model, inputs: TrainInputs, device):
         if all_satisfied and satisfaction_epoch is None:
             satisfaction_epoch = epoch
             log.info("Hounie RCL: first satisfaction at epoch %d", epoch)
+        # Apples-to-apples early stop: 5 consecutive satisfied epochs (matches TraLO/Fioretto).
+        if all_satisfied:
+            stable_count += 1
+        else:
+            stable_count = 0
 
         h_u = alpha * (sum(v ** 2 for v in u_g.values())
                        + sum(v ** 2 for v in u_l.values()))
@@ -240,13 +253,18 @@ def _train_constraints(model, inputs: TrainInputs, device):
             lam_str = " ".join(f"c{c}={lam_g[c]:.3f}" for c in sorted(lam_g))
             u_str = " ".join(f"c{c}={u_g[c]:.3f}" for c in sorted(u_g))
             log.info(
-                "Hounie %d/%d: CE=%.4f cstr=%.4f excess=%d sat=%s "
+                "Hounie %d/%d: CE=%.4f cstr=%.4f excess=%d sat=%s stable=%d "
                 "lam=[%s] u=[%s] h_u=%.4f [%.1fs]",
                 epoch + 1, constraint_epochs,
                 np.mean(ce_losses), constraint_loss_val, total_excess,
-                all_satisfied, lam_str, u_str, h_u,
+                all_satisfied, stable_count, lam_str, u_str, h_u,
                 time.time() - epoch_start,
             )
+
+        if stable_count >= stable_count_threshold:
+            log.info("Hounie: converged (constraints stable for %d epochs at ep %d)",
+                     stable_count, epoch + 1)
+            break
 
     return satisfaction_epoch
 

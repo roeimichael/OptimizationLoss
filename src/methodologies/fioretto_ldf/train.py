@@ -26,7 +26,12 @@ log = logging.getLogger(__name__)
 def _train_constraints(model, config, inputs, device):
     """Fioretto Algorithm 1/2: linear penalty + per-constraint subgradient dual ascent."""
     hp = inputs.hyperparams
-    constraint_epochs = hp.get("constraint_epochs", 300)
+    constraint_epochs = hp.get("constraint_epochs", 150)
+    # Apples-to-apples: same early-stop policy as TraLO (5 consecutive
+    # satisfied epochs). Without this Fioretto runs the full epoch budget
+    # while TraLO exits at ~100 — 3x gradient-budget asymmetry skews F1
+    # comparisons. Default matches TraLO.
+    stable_count_threshold = int(hp.get("stable_count_threshold", 5))
     lr_c = hp.get("lr_constraint", 1e-5)
     if "fioretto_step_size" not in hp:
         raise ValueError(
@@ -74,6 +79,7 @@ def _train_constraints(model, config, inputs, device):
     with open(log_path, "w", newline="") as f:
         csv.DictWriter(f, log_fields).writeheader()
 
+    stable_count = 0  # consecutive epochs with all_satisfied for early-stop parity with TraLO
     for epoch in range(constraint_epochs):
         epoch_start = time.time()
 
@@ -197,6 +203,11 @@ def _train_constraints(model, config, inputs, device):
         if all_satisfied and satisfaction_epoch is None:
             satisfaction_epoch = epoch
             log.info("Fioretto: first satisfaction at epoch %d", epoch)
+        # Apples-to-apples early stop: 5 consecutive satisfied epochs.
+        if all_satisfied:
+            stable_count += 1
+        else:
+            stable_count = 0
         if total_excess < best_excess:
             best_excess = total_excess
             best_model_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
@@ -214,10 +225,15 @@ def _train_constraints(model, config, inputs, device):
 
         if epoch < 5 or (epoch + 1) % 25 == 0 or epoch == constraint_epochs - 1:
             lam_str = " ".join(f"c{c}={lambda_g[c]:.3f}" for c in sorted(lambda_g))
-            log.info("Fioretto %d/%d: CE=%.4f cstr=%.4f excess=%d sat=%s lam=[%s] [%.1fs]",
+            log.info("Fioretto %d/%d: CE=%.4f cstr=%.4f excess=%d sat=%s stable=%d lam=[%s] [%.1fs]",
                      epoch + 1, constraint_epochs, np.mean(ce_losses),
                      constraint_loss_val, total_excess, all_satisfied,
-                     lam_str, time.time() - epoch_start)
+                     stable_count, lam_str, time.time() - epoch_start)
+
+        if stable_count >= stable_count_threshold:
+            log.info("Fioretto: converged (constraints stable for %d epochs at ep %d)",
+                     stable_count, epoch + 1)
+            break
 
     final_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
     return satisfaction_epoch, final_state, best_model_state, best_excess
