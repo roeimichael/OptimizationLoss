@@ -1,14 +1,29 @@
 """TraLO-Fioretto hybrid methodology.
 
-Combines TraLO's bounded saturated penalty (per-class lambda ratchet) with
-Fioretto's linear penalty on soft counts. Two modes:
+Mixes TraLO's bounded saturated penalty (per-class lambda ratchet) with
+alternative penalty geometries to investigate post-satisfaction parking
+behaviour.
 
   single_lambda:  L = CE + Sum_c lambda_T_c * [ bounded(E_c) + beta * soft_count_c ]
-                  one lambda per class, TraLO ratchet rule.
+                  Fioretto-style linear pull (down only).
 
   dual_lambda:    L = CE + Sum_c [ lambda_T_c * bounded(E_c)
                                  + lambda_F_c * soft_count_c ]
-                  lambda_T ratchets (TraLO); lambda_F subgradient ascent (Fioretto).
+                  Fioretto with own subgradient-ascent multiplier.
+
+  symquad:        L = CE + Sum_c lambda_T_c * ((soft_count_c - K_c) / K_c)^2
+                  Pure symmetric quadratic. NO bounded term. Penalty is
+                  bidirectional: pushes UP when below K, DOWN when above.
+                  K-normalized so gradient magnitude is comparable across
+                  classes with different K. Designed to test whether
+                  parking exactly at K (rather than below it like TraLO
+                  baseline) improves F1 or hurts it.
+
+  undershoot_hinge: L = CE + Sum_c lambda_T_c * [ bounded(E_c)
+                                                + beta * relu(K_c - soft_count_c) / K_c ]
+                  Bounded penalty above K + linear hinge pushing back UP
+                  when below K. Asymmetric pair that should park near K
+                  from both sides without overshooting either way.
 
 bounded(E_c) = E/(E+K) + rho * (E/K)^2 / (1 + (E/K)^2),   E = relu(soft_count - K).
 
@@ -35,7 +50,8 @@ from src.utils.error_handler import logger
 log = logging.getLogger(__name__)
 
 CONSTRAINT_CHUNK_SIZE = 256
-VALID_MODES = ("single_lambda", "dual_lambda")
+VALID_MODES = ("single_lambda", "dual_lambda", "symquad", "undershoot_hinge")
+MODES_WITH_BOUNDED = ("single_lambda", "dual_lambda", "undershoot_hinge")
 
 
 @logger()
@@ -228,9 +244,11 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         if snapshot_is_sat or snapshot_total_excess < min_total_excess:
             snapshot_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
 
-        # ---- Determine Fior per-class weights for THIS epoch ----
-        # In single_lambda mode the Fior pressure is lambda_T * beta * soft_count.
-        # In dual_lambda mode it's lambda_F * soft_count (lambda_F is separate).
+        # ---- Determine per-mode weights for THIS epoch ----
+        # fior_w_*: Fior-style linear weights (only used in single/dual_lambda).
+        # symquad / undershoot_hinge use lambda_T_c directly (read at chunk time).
+        fior_w_global = {}
+        fior_w_local = {}
         if hybrid_mode == "single_lambda":
             fior_w_global = {c: (criterion_constraint.get_lambda_per_class(
                                     c, scope="global") * fior_beta)
@@ -238,13 +256,19 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             fior_w_local = {key: (criterion_constraint.get_lambda_per_class(
                                     key[1], scope="local", group_id=key[0]) * fior_beta)
                             for key in lambda_F_local}
-        else:  # dual_lambda
+        elif hybrid_mode == "dual_lambda":
             fior_w_global = dict(lambda_F_global)
             fior_w_local = dict(lambda_F_local)
 
-        # ---- Transductive pass 2: chunked backward (bounded + Fior linear) ----
-        loss_global_val = criterion_constraint.compute_global_from_counts(total_global_soft).item()
-        loss_local_val = criterion_constraint.compute_local_from_counts(total_local_soft).item()
+        # ---- Transductive pass 2: chunked backward ----
+        # Compute info values for logging (no grad). bounded_total only meaningful
+        # for modes that include the bounded term.
+        if hybrid_mode in MODES_WITH_BOUNDED:
+            loss_global_val = criterion_constraint.compute_global_from_counts(total_global_soft).item()
+            loss_local_val = criterion_constraint.compute_local_from_counts(total_local_soft).item()
+        else:
+            loss_global_val = 0.0
+            loss_local_val = 0.0
         bounded_total = loss_global_val + loss_local_val
         fior_total_global = sum(
             fior_w_global[c] * total_global_soft[c].item() for c in fior_w_global
@@ -252,7 +276,44 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         fior_total_local = sum(
             fior_w_local[k] * total_local_soft[k[0]][k[1]].item() for k in fior_w_local
         )
-        total_constraint = bounded_total + fior_total_global + fior_total_local
+        # For symquad/undershoot modes also compute a "pen_total" info value
+        pen_total = 0.0
+        if hybrid_mode == "symquad":
+            for c in constrained_classes:
+                K = criterion_constraint.global_constraints[c].item()
+                if K <= 0:
+                    continue
+                lam = criterion_constraint.get_lambda_per_class(c, scope="global")
+                pen_total += lam * ((total_global_soft[c].item() - K) / K) ** 2
+            for gid_s, bname_s in criterion_constraint.local_groups.items():
+                lc_s = getattr(criterion_constraint, bname_s)
+                for c in constrained_classes:
+                    if c < len(lc_s) and lc_s[c] < UNLIMITED:
+                        K = lc_s[c].item()
+                        if K <= 0:
+                            continue
+                        lam = criterion_constraint.get_lambda_per_class(
+                            c, scope="local", group_id=gid_s)
+                        pen_total += lam * ((total_local_soft[gid_s][c].item() - K) / K) ** 2
+        elif hybrid_mode == "undershoot_hinge":
+            for c in constrained_classes:
+                K = criterion_constraint.global_constraints[c].item()
+                if K <= 0:
+                    continue
+                lam = criterion_constraint.get_lambda_per_class(c, scope="global")
+                pen_total += lam * fior_beta * max(0.0, (K - total_global_soft[c].item()) / K)
+            for gid_s, bname_s in criterion_constraint.local_groups.items():
+                lc_s = getattr(criterion_constraint, bname_s)
+                for c in constrained_classes:
+                    if c < len(lc_s) and lc_s[c] < UNLIMITED:
+                        K = lc_s[c].item()
+                        if K <= 0:
+                            continue
+                        lam = criterion_constraint.get_lambda_per_class(
+                            c, scope="local", group_id=gid_s)
+                        pen_total += lam * fior_beta * max(
+                            0.0, (K - total_local_soft[gid_s][c].item()) / K)
+        total_constraint = bounded_total + fior_total_global + fior_total_local + pen_total
 
         has_constraint = total_constraint > 0
         any_fior_w = (any(v > 0 for v in fior_w_global.values())
@@ -266,11 +327,10 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 chunk_logits_f = chunk_logits.float()
                 chunk_proba = F.softmax(chunk_logits_f, dim=1)
                 chunk_loss = torch.tensor(0.0, device=device)
-                # Bounded TraLO term (reuses MulticlassTransductiveLoss; divide
-                # by n_chunks to match TraLO's historical scaling and apples-to-
-                # apples behaviour. The Fior term is linear in soft_count so
-                # summing per-chunk contributions already yields the correct
-                # total -- no /n_chunks needed on it.)
+                # Build chunked soft estimates (same g_soft trick as TraLO: each
+                # chunk routes gradient only through its own samples, but the
+                # value plugged into the penalty is the TOTAL soft count using
+                # this chunk's grad-attached partial.)
                 chunk_global = chunk_proba.sum(dim=0)
                 chunk_gids = group_ids[start:end]
                 chunk_local_soft = {}
@@ -287,10 +347,60 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                     l_soft[gid] = (total_local_soft[gid].detach()
                                    - chunk_local_soft[gid].detach()
                                    + chunk_local_soft[gid])
-                lg = criterion_constraint.compute_global_from_counts(g_soft)
-                ll = criterion_constraint.compute_local_from_counts(l_soft)
-                chunk_loss = chunk_loss + (lg + ll) / n_chunks
-                # Fior linear term: per-class penalty on soft count
+                # ---- Bounded TraLO term (single_lambda, dual_lambda, undershoot_hinge) ----
+                if hybrid_mode in MODES_WITH_BOUNDED:
+                    lg = criterion_constraint.compute_global_from_counts(g_soft)
+                    ll = criterion_constraint.compute_local_from_counts(l_soft)
+                    chunk_loss = chunk_loss + (lg + ll) / n_chunks
+                # ---- Symmetric quadratic: lambda_T_c * ((soft - K)/K)^2 ----
+                if hybrid_mode == "symquad":
+                    for c in constrained_classes:
+                        K_c = criterion_constraint.global_constraints[c].item()
+                        if K_c <= 0:
+                            continue
+                        lam = criterion_constraint.get_lambda_per_class(c, scope="global")
+                        if lam <= 0:
+                            continue
+                        chunk_loss = chunk_loss + lam * ((g_soft[c] - K_c) / K_c) ** 2 / n_chunks
+                    for gid_k, bname_k in criterion_constraint.local_groups.items():
+                        lc_k = getattr(criterion_constraint, bname_k)
+                        for c in constrained_classes:
+                            if c < len(lc_k) and lc_k[c] < UNLIMITED:
+                                K_c = lc_k[c].item()
+                                if K_c <= 0:
+                                    continue
+                                lam = criterion_constraint.get_lambda_per_class(
+                                    c, scope="local", group_id=gid_k)
+                                if lam <= 0:
+                                    continue
+                                chunk_loss = chunk_loss + (
+                                    lam * ((l_soft[gid_k][c] - K_c) / K_c) ** 2 / n_chunks)
+                # ---- Undershoot hinge: lambda_T_c * beta * relu(K - soft)/K ----
+                if hybrid_mode == "undershoot_hinge":
+                    for c in constrained_classes:
+                        K_c = criterion_constraint.global_constraints[c].item()
+                        if K_c <= 0:
+                            continue
+                        lam = criterion_constraint.get_lambda_per_class(c, scope="global")
+                        if lam <= 0 or fior_beta <= 0:
+                            continue
+                        chunk_loss = chunk_loss + (
+                            lam * fior_beta * F.relu(K_c - g_soft[c]) / K_c / n_chunks)
+                    for gid_k, bname_k in criterion_constraint.local_groups.items():
+                        lc_k = getattr(criterion_constraint, bname_k)
+                        for c in constrained_classes:
+                            if c < len(lc_k) and lc_k[c] < UNLIMITED:
+                                K_c = lc_k[c].item()
+                                if K_c <= 0:
+                                    continue
+                                lam = criterion_constraint.get_lambda_per_class(
+                                    c, scope="local", group_id=gid_k)
+                                if lam <= 0 or fior_beta <= 0:
+                                    continue
+                                chunk_loss = chunk_loss + (
+                                    lam * fior_beta * F.relu(K_c - l_soft[gid_k][c])
+                                    / K_c / n_chunks)
+                # ---- Fior linear term (single_lambda, dual_lambda) ----
                 for c in fior_w_global:
                     if fior_w_global[c] > 0:
                         chunk_loss = chunk_loss + fior_w_global[c] * chunk_global[c]
@@ -399,10 +509,10 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                           / max(1, len(criterion_constraint.lambda_global_per_class)))
             lam_F_mean = (sum(lambda_F_global.values())
                           / max(1, len(lambda_F_global)))
-            log.info("Epoch %d [%s] ce=%.4f bounded=%.4f fior=%.4f lam_T=%.3f lam_F=%.3f "
-                     "rho=%.3f acc=%.4f stable=%d g_%s l_%s",
+            log.info("Epoch %d [%s] ce=%.4f bounded=%.4f fior=%.4f pen=%.4f "
+                     "lam_T=%.3f lam_F=%.3f rho=%.3f acc=%.4f stable=%d g_%s l_%s",
                      epoch + 1, mode_tag, avg_ce, bounded_total,
-                     fior_total_global + fior_total_local,
+                     fior_total_global + fior_total_local, pen_total,
                      lam_T_mean, lam_F_mean,
                      criterion_constraint.get_rho(), train_acc, stable_count,
                      "OK" if global_satisfied else "VIOL",
