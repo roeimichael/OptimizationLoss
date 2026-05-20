@@ -74,6 +74,21 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     hybrid_mode = hp.get("hybrid_mode", "single_lambda")
     if hybrid_mode not in VALID_MODES:
         raise ValueError(f"hybrid_mode must be one of {VALID_MODES}, got {hybrid_mode!r}")
+    # Adam state hangover diagnosis (hybrid_v2 reveal): after the descent
+    # phase, Adam has accumulated momentum in the "decrease soft_4" direction.
+    # Once bounded penalty disengages and only the hinge (or symquad)
+    # gradient is acting, that small positive-soft gradient can't overcome
+    # accumulated negative-soft momentum, so soft keeps drifting down.
+    # Two flags to test fixes:
+    #   reset_optimizer_at_sat: rebuild the optimizer with fresh state at
+    #     first satisfaction. Clears m/v buffers entirely.
+    #   post_sat_optimizer: "adam" (default) | "sgd" — switch optimizer
+    #     family at first satisfaction. SGD has no momentum so post-sat
+    #     gradient effects are purely current-step.
+    reset_optimizer_at_sat = bool(hp.get("reset_optimizer_at_sat", False))
+    post_sat_optimizer = str(hp.get("post_sat_optimizer", "adam")).lower()
+    if post_sat_optimizer not in ("adam", "sgd"):
+        raise ValueError(f"post_sat_optimizer must be adam|sgd, got {post_sat_optimizer!r}")
     fior_beta = float(hp.get("fior_beta", 0.0))
     fior_step_size = float(hp.get("fior_step_size", 0.005))
     fior_lambda_init = float(hp.get("fior_lambda_init", 0.0))
@@ -487,6 +502,19 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 rho_frozen = True
                 log.info("First satisfied at epoch %d, freezing rho=%.3f",
                          epoch + 1, criterion_constraint.get_rho())
+            # Clear Adam state from the descent phase (hybrid_v2 diagnosis).
+            # Adam accumulated "decrease soft_4" momentum during E51-Esat
+            # while bounded penalty was pushing soft down. Post-sat, the
+            # hinge/symquad gradient is too small to overcome that residual
+            # momentum on its own, so soft keeps drifting down. Fresh m/v
+            # buffers let the post-sat penalty actually steer the model.
+            if reset_optimizer_at_sat or post_sat_optimizer != "adam":
+                if post_sat_optimizer == "sgd":
+                    optimizer = torch.optim.SGD(model.parameters(), lr=lr_constraint)
+                    log.info("Switched to SGD (no momentum) at sat E%d", epoch + 1)
+                else:
+                    optimizer = make_optimizer(model.parameters(), lr_constraint, device)
+                    log.info("Reset Adam state at sat E%d", epoch + 1)
         if not rho_frozen:
             criterion_constraint.increment_rho(rho_step)
 
