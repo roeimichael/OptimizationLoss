@@ -50,8 +50,10 @@ from src.utils.error_handler import logger
 log = logging.getLogger(__name__)
 
 CONSTRAINT_CHUNK_SIZE = 256
-VALID_MODES = ("single_lambda", "dual_lambda", "symquad", "undershoot_hinge")
-MODES_WITH_BOUNDED = ("single_lambda", "dual_lambda", "undershoot_hinge")
+VALID_MODES = ("single_lambda", "dual_lambda", "symquad", "undershoot_hinge",
+               "bounded_only")
+MODES_WITH_BOUNDED = ("single_lambda", "dual_lambda", "undershoot_hinge",
+                     "bounded_only")
 
 
 @logger()
@@ -89,9 +91,14 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     post_sat_optimizer = str(hp.get("post_sat_optimizer", "adam")).lower()
     if post_sat_optimizer not in ("adam", "sgd"):
         raise ValueError(f"post_sat_optimizer must be adam|sgd, got {post_sat_optimizer!r}")
+    # Ablation flag: when True the per-class lambda ratchet keeps incrementing
+    # and rho keeps schedule-ramping even after first satisfaction. Defaults
+    # to False = freeze on satisfy (the published TraLO behaviour).
+    disable_freeze_on_satisfy = bool(hp.get("disable_freeze_on_satisfy", False))
     fior_beta = float(hp.get("fior_beta", 0.0))
     fior_step_size = float(hp.get("fior_step_size", 0.005))
     fior_lambda_init = float(hp.get("fior_lambda_init", 0.0))
+    alpha_kl = float(hp.get("alpha_kl", 0.0))
 
     criterion_ce = make_ce_criterion(config, inputs.y_train, num_classes, device)
     lr_constraint = hp.get("lr_constraint", 1e-5)
@@ -107,7 +114,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         global_constraints=global_con, local_constraints=local_con,
         num_classes=num_classes,
         initial_rho=hp.get("initial_rho", 0.5),
-        alpha_kl=0.0,
+        alpha_kl=alpha_kl,
         penalty_mode=hp.get("penalty_mode", "both"),
         linear_sat_tail=0.0,
     ).to(device)
@@ -134,9 +141,18 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             if bounds[c] < UNLIMITED:
                 lambda_F_local[(gid, c)] = fior_lambda_init
 
-    log.info("Hybrid mode=%s | beta=%.3f fior_step=%.4f | %d global + %d local Fior multipliers",
-             hybrid_mode, fior_beta, fior_step_size,
+    log.info("Hybrid mode=%s | beta=%.3f fior_step=%.4f alpha_kl=%.3f | %d global + %d local Fior multipliers",
+             hybrid_mode, fior_beta, fior_step_size, alpha_kl,
              len(lambda_F_global), len(lambda_F_local))
+
+    # KL anchor: cache warmup logits if alpha_kl > 0.
+    warmup_logits_cache = None
+    if alpha_kl > 0:
+        from src.utils.inference import chunked_forward
+        model.eval()
+        with torch.no_grad(), torch.amp.autocast("cuda", dtype=amp_dtype, enabled=use_amp):
+            warmup_logits_cache = chunked_forward(model, X_test).float().detach()
+        log.info("Cached warmup logits for KL anchor: shape=%s", warmup_logits_cache.shape)
 
     rho_target = hp.get("rho_target", 100.0)
     initial_rho = hp.get("initial_rho", 0.5)
@@ -333,7 +349,9 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         has_constraint = total_constraint > 0
         any_fior_w = (any(v > 0 for v in fior_w_global.values())
                       or any(v > 0 for v in fior_w_local.values()))
-        if has_constraint or any_fior_w:
+        has_kl = alpha_kl > 0 and warmup_logits_cache is not None
+        loss_kl_val = 0.0
+        if has_constraint or any_fior_w or has_kl:
             for ci in range(n_chunks):
                 start = ci * chunk_size
                 end = min(start + chunk_size, n_test)
@@ -422,12 +440,20 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 for (gid_k, c_k), w in fior_w_local.items():
                     if w > 0:
                         chunk_loss = chunk_loss + w * chunk_local_soft[gid_k][c_k]
+                # ---- KL anchor against warmup distribution ----
+                if has_kl:
+                    log_p_cur = F.log_softmax(chunk_logits_f, dim=1)
+                    p_cur = chunk_proba
+                    log_p_warm = F.log_softmax(warmup_logits_cache[start:end], dim=1)
+                    kl_chunk = (p_cur * (log_p_cur - log_p_warm)).sum(dim=1).mean()
+                    chunk_loss = chunk_loss + alpha_kl * kl_chunk / n_chunks
+                    loss_kl_val += kl_chunk.item() / n_chunks
                 if scaler:
                     scaler.scale(chunk_loss).backward()
                 else:
                     chunk_loss.backward()
 
-        did_backward = has_constraint or any_fior_w
+        did_backward = has_constraint or any_fior_w or has_kl
         if scaler and did_backward:
             try:
                 scaler.unscale_(optimizer)
@@ -463,7 +489,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             min_excess_epoch = epoch + 1
 
         # ---- TraLO ratchet (lambda_T) ----
-        ratchet_gate = (satisfaction_epoch is None)
+        ratchet_gate = (satisfaction_epoch is None) or disable_freeze_on_satisfy
         for c in constrained_classes:
             hard_c = total_global_hard[c].item()
             limit_c = criterion_constraint.global_constraints[c].item()
@@ -498,10 +524,13 @@ def train(inputs: TrainInputs) -> TrainOutputs:
 
         if is_satisfied and satisfaction_epoch is None:
             satisfaction_epoch = epoch + 1
-            if not rho_frozen:
+            if not rho_frozen and not disable_freeze_on_satisfy:
                 rho_frozen = True
                 log.info("First satisfied at epoch %d, freezing rho=%.3f",
                          epoch + 1, criterion_constraint.get_rho())
+            elif disable_freeze_on_satisfy:
+                log.info("First satisfied at epoch %d, NOT freezing (ablation)",
+                         epoch + 1)
             # Clear Adam state from the descent phase (hybrid_v2 diagnosis).
             # Adam accumulated "decrease soft_4" momentum during E51-Esat
             # while bounded penalty was pushing soft down. Post-sat, the
