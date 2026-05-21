@@ -87,7 +87,6 @@ def print_experiment_header(index, total, exp_path, config, completed, failed, p
         _safe_print(f"{prefix}  rho={hp.get('initial_rho', 1.0)}  kl={hp.get('alpha_kl', 0.0)}  "
                      f"lr_con={hp.get('lr_constraint', 5e-6):.0e}  "
                      f"pretrained={hp.get('pretrained', False)}  "
-                     f"kl_temp={hp.get('kl_temperature', 1.0)}  "
                      f"weighted_ce={hp.get('class_weighted_ce', False)}")
     _safe_print(f"{prefix}  Progress so far: {completed} done, {failed} failed, "
                 f"{total - index + 1} remaining (including this one)")

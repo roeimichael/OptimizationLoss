@@ -32,8 +32,7 @@ TIGHTNESS = ["L20_G20", "L30_G30"]
 
 SHARED_HP = {
     "lr": 1e-4, "lr_constraint": 5e-6, "dropout": 0.3, "batch_size": 64,
-    "warmup_epochs": 50, "constraint_epochs": 150,
-    "use_sum_loss": True, "kl_temperature": 1.0, "pretrained": True,
+    "warmup_epochs": 50, "constraint_epochs": 150, "pretrained": True,
     "class_weighted_ce": False, "constraint_chunk_size": 256,
 }
 
