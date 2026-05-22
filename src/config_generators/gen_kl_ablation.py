@@ -61,7 +61,7 @@ def make_cfg(dataset, tight_tag, alpha_kl, seed):
     )
     cell = f"alphakl{alpha_kl:.1f}".replace(".", "p")
     return {
-        "methodology": "tralo_fioretto",
+        "methodology": "tralo",
         "model_name": MODEL,
         "constraint": list(pair),
         "constraint_tag": tight_tag,

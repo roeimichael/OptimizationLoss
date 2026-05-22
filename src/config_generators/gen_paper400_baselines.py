@@ -34,7 +34,7 @@ SHARED_HP = {
 }
 
 PER_METHOD = {
-    "tralo": {
+    "tralo_bounded": {
         "lambda_global": 0.05, "lambda_local": 0.05, "lambda_step": 0.002,
         "initial_rho": 5.0, "rho_target": 100.0, "alpha_kl": 0.0,
         "penalty_mode": "both", "enable_ce_skip": True,
@@ -44,7 +44,7 @@ PER_METHOD = {
                    "hounie_alpha": 10.0},
 }
 
-METHODS = ["tralo", "fioretto_ldf", "hounie_rcl"]
+METHODS = ["tralo_bounded", "fioretto_ldf", "hounie_rcl"]
 
 
 def _tight_pair(tag):

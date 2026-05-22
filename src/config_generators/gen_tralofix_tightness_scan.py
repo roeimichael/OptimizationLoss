@@ -7,7 +7,7 @@ Cells (6 new tightness x 2 datasets x 2 seeds x 4 methods = 96 configs):
                    L30_G80, L80_G30   (extreme asymmetry)
 
 2 seeds for the scan; we can deepen the interesting cells later.
-Routes tralo_fioretto -> paper400_tralofix root, others -> paper400_baselines.
+Routes headline tralo (breakthrough) -> paper400_tralofix root, others -> paper400_baselines.
 """
 from pathlib import Path
 
@@ -39,7 +39,7 @@ SHARED_HP = {
 }
 
 METHODS = {
-    "tralo": {
+    "tralo_bounded": {
         "lambda_global": 0.05, "lambda_local": 0.05, "lambda_step": 0.002,
         "initial_rho": 5.0, "rho_target": 100.0, "alpha_kl": 0.0,
         "penalty_mode": "both", "enable_ce_skip": True,
@@ -47,7 +47,7 @@ METHODS = {
     "fioretto_ldf": {"fioretto_step_size": 0.005},
     "hounie_rcl": {"hounie_eta_lambda": 0.01, "hounie_eta_u": 0.01,
                    "hounie_alpha": 10.0},
-    "tralo_fioretto": {  # the "tralo_fix" cell
+    "tralo": {  # the "tralo_fix" cell -- breakthrough is the headline tralo
         "lambda_global": 0.05, "lambda_local": 0.05, "lambda_step": 0.002,
         "initial_rho": 5.0, "rho_target": 100.0, "alpha_kl": 0.0,
         "penalty_mode": "both", "enable_ce_skip": True,
@@ -71,7 +71,7 @@ def make_cfg(method, dataset, tight_tag, seed):
         MODEL, hp, dataset_mode=dataset,
         data_dir=ds_meta["data_dir"], dataset_config=ds_config,
     )
-    if method == "tralo_fioretto":
+    if method == "tralo":
         root = "results/pending_runs/paper400_tralofix"
         exp_path = Path(root) / dataset / tight_tag / f"seed_{seed}"
         name = f"tralofix_{dataset}_{tight_tag}_seed{seed}"

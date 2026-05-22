@@ -11,8 +11,8 @@ import torch
 
 from src.pipeline.data import load_data
 from src.utils.error_handler import logger, log_exception
-from src.methodologies.tralo.train import train as train_tralo
-from src.methodologies.tralo_fioretto.train import train as train_tralo_fioretto
+from src.methodologies.tralo.train import train as train_tralo                      # was tralo_fioretto
+from src.methodologies.tralo_bounded.train import train as train_tralo_bounded      # was tralo (vanilla baseline)
 from src.methodologies.fioretto_ldf.train import train as train_fioretto_ldf
 from src.methodologies.hounie_rcl.train import train as train_hounie_rcl
 from src.methodologies.heuristic.train import train as train_heuristic
@@ -78,8 +78,9 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     )
     methodology = config.get('methodology', 'tralo')
     train_fns = {
-        'tralo': train_tralo,
-        'tralo_fioretto': train_tralo_fioretto,
+        'tralo': train_tralo,                       # NEW: breakthrough is the headline tralo
+        'tralo_bounded': train_tralo_bounded,       # legacy bounded-only baseline
+        'tralo_fioretto': train_tralo,              # ALIAS for backward-compat with completed configs
         'fioretto_ldf': train_fioretto_ldf,
         'hounie_rcl': train_hounie_rcl,
         'heuristic': train_heuristic,

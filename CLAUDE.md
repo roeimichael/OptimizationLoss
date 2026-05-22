@@ -25,7 +25,7 @@ Thesis project: train neural networks to satisfy **transductive prediction-count
 
 ```
 main.py                                  # Dispatch pending experiments via subprocess
-  -> src/experiments/runner.py            # Single dispatcher: tralo | fioretto_ldf | heuristic | danits_lp
+  -> src/experiments/runner.py            # Single dispatcher: tralo | fioretto_ldf | hounie_rcl | heuristic | danits_lp
 ```
 
 **Config generation**: `src/config_generators/generate_configs.py`
@@ -52,6 +52,7 @@ Registry: `src/models/model_factory.py` -- `get_model(name, n_classes, **kwargs)
    - CE saturation skip: stops Phase 1 when train accuracy >= 0.995 for 2 checks.
    - Lambda toggle: zeroes lambdas when satisfied, restores when violated, with oscillation detection.
    - Convergence: early stops when constraints satisfied for 5 consecutive epochs.
+   - Optimizer reset at satisfaction: Adam optimizer state is reset at first satisfaction to break post-satisfaction descent momentum (essential per component ablation).
 3. **Post-hoc Adjustment** -- Flip borderline predictions to enforce hard count limits.
    - Global adjustment first, then local per-group, then re-verify global.
 

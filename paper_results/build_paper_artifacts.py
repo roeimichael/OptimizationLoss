@@ -78,7 +78,7 @@ def collect():
             continue
         hp = cfg["hyperparams"]
         if method == "tralo":
-            if hp.get("alpha_kl", 0) != 0 or hp.get("linear_sat_tail", 0) != 0:
+            if hp.get("alpha_kl", 0) != 0:
                 continue
         # Load eval_metrics.csv for training-time fields (Raw All Satisfied,
         # Flips Required, satisfaction epoch). Overlay fair_evaluation_metrics.csv

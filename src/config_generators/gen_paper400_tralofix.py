@@ -3,7 +3,7 @@
 Re-runs TraLO-equivalent on the cells where vanilla TraLO tied/lost to
 Fioretto, using the bidirectional penalty + Adam-reset variant proved
 out in hybrid_v3:
-   methodology: tralo_fioretto
+   methodology: tralo
    hybrid_mode: undershoot_hinge
    fior_beta:   0.5
    reset_optimizer_at_sat: True
@@ -65,7 +65,7 @@ def make_cfg(dataset, tight_tag, seed):
         data_dir=ds_meta["data_dir"], dataset_config=ds_config,
     )
     return {
-        "methodology": "tralo_fioretto",
+        "methodology": "tralo",
         "model_name": MODEL,
         "constraint": list(pair),
         "constraint_tag": tight_tag,

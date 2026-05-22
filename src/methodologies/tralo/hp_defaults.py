@@ -1,4 +1,4 @@
-"""TraLO hyperparameter defaults (informational; live values come from config)."""
+"""TraLO-Fioretto hybrid hyperparameter defaults (informational)."""
 
 DEFAULTS = {
     "lr_constraint": 1e-5,
@@ -9,4 +9,7 @@ DEFAULTS = {
     "rho_target": 100.0,
     "alpha_kl": 0.0,
     "constraint_chunk_size": 256,
+    # Hybrid-specific
+    "hybrid_mode": "undershoot_hinge",  # "bounded_only" | "undershoot_hinge"
+    "fior_beta": 0.50,                  # undershoot hinge weight (paper recipe)
 }

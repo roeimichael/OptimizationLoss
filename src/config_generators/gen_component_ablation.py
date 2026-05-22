@@ -80,7 +80,7 @@ def make_cfg(variant_name, overrides, dataset, tight_tag, seed):
         data_dir=ds_meta["data_dir"], dataset_config=ds_config,
     )
     return {
-        "methodology": "tralo_fioretto",
+        "methodology": "tralo",
         "model_name": MODEL,
         "constraint": list(pair),
         "constraint_tag": tight_tag,
