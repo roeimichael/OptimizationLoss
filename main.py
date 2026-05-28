@@ -19,6 +19,11 @@ from src.utils.filesystem_manager import get_experiments_by_status, print_status
 DEFAULT_EXPERIMENT_DIR = 'results/pending_runs'
 RUNNER_MODULE = 'src.experiments.runner'
 
+# Capture CVD from the launching shell. If set, the child process's "GPU index"
+# is already remapped; overriding CVD again would re-resolve to a physical
+# index and route to the wrong GPU (host-crash risk under shared use).
+PARENT_CVD = os.environ.get('CUDA_VISIBLE_DEVICES')
+
 log = logging.getLogger(__name__)
 _print_lock = threading.Lock()
 
@@ -113,7 +118,10 @@ def run_worker(gpu_id, experiments, worker_name, stop_event):
     completed, failed = 0, 0
     experiment_times = []
     prefix = f"[GPU {gpu_id} | {worker_name:<12s}]  "
-    worker_env = {**os.environ, 'CUDA_VISIBLE_DEVICES': str(gpu_id)}
+    if PARENT_CVD is not None:
+        worker_env = os.environ.copy()
+    else:
+        worker_env = {**os.environ, 'CUDA_VISIBLE_DEVICES': str(gpu_id)}
     overall_start = time.time()
     for i, (exp_path, config) in enumerate(experiments, 1):
         if stop_event.is_set():
@@ -154,7 +162,7 @@ def run_worker(gpu_id, experiments, worker_name, stop_event):
 
 
 def run_sequential(pending, gpu_id=None):
-    if gpu_id is not None:
+    if gpu_id is not None and PARENT_CVD is None:
         os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
     total = len(pending)
     completed, failed = 0, 0

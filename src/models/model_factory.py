@@ -5,15 +5,26 @@ from typing import Any
 import torch.nn as nn
 
 from .imagery import (
-    ResNet18Classifier, MobileNetV3Classifier,
-    EfficientNetB0Classifier, ConvNeXtTinyClassifier,
+    MobileNetV3Classifier, ConvNeXtTinyClassifier,
+    MobileNetV2Classifier, ShuffleNetV2Classifier,
+    RegNetY400MFClassifier, MobileViTSClassifier,
+    EfficientFormerL1Classifier, MNASNet13Classifier,
+    ConvNeXtPicoClassifier,
+    ViTTinyClassifier, ViTSmall32Classifier,
 )
 
 MODEL_REGISTRY = {
-    'ResNet18': ResNet18Classifier,
     'MobileNetV3': MobileNetV3Classifier,
-    'EfficientNetB0': EfficientNetB0Classifier,
     'ConvNeXtTiny': ConvNeXtTinyClassifier,
+    'MobileNetV2': MobileNetV2Classifier,
+    'ShuffleNetV2': ShuffleNetV2Classifier,
+    'RegNetY400MF': RegNetY400MFClassifier,
+    'MobileViTS': MobileViTSClassifier,
+    'EfficientFormerL1': EfficientFormerL1Classifier,
+    'MNASNet13': MNASNet13Classifier,
+    'ConvNeXtPico': ConvNeXtPicoClassifier,
+    'ViTTiny': ViTTinyClassifier,
+    'ViTSmall32': ViTSmall32Classifier,
 }
 
 

@@ -2,24 +2,28 @@
 
 Thesis project: train neural networks to satisfy **transductive prediction-count constraints** using soft constraint optimization, and compare against a greedy heuristic baseline.
 
-## Datasets
+## Datasets (active)
 
-### TissueMNIST (active)
-- **Source**: MedMNIST kidney cortex cell images (subsampled to 12K)
-- **Classes**: 8 -- CDI, CDS, CST, EPI, GE (constrained), PTC, STR, TUB
-- **Images**: 28x28 grayscale upscaled to 224x224, auto-converted to 3-channel
-- **Splits**: train 9,600 / test 2,400
-- **Constrained class**: GE (class 4)
-- **Group column**: `synth_group` (synthetic binary)
-- **Data**: `data/tissuemnist/` (not in git)
+Only datasets where TraLO shows a clear paper-worthy story remain in `gen_model_search.py`'s `DATASETS` dict and `data_loader.py`'s `IMAGERY_DATASETS` set.
 
-### DermMNIST (archived)
-- **Source**: MedMNIST HAM10000 skin lesions (10,015 images)
+### DermMNIST (active)
+- **Source**: MedMNIST HAM10000 skin lesions
 - **Classes**: 7 -- AKIEC, BCC, BKL, DF, MEL (constrained), NV, VASC
-- **Images**: 64x64 RGB, ImageNet-normalized, channels-first
-- **Splits**: train 7,007 / val 1,003 / test 2,005
-- **Data**: `data/dermmnist/` (not in git)
-- **Results**: `archive_experiments/dermmnist/`
+- **Constrained class**: MEL (class 4); local cap via `loc_group`
+- **Status**: clean winner — MobileNetV2/V3 beat both baselines on Blackwell 8-seed paired.
+
+### AIDER (active)
+- **Source**: aerial disaster image recognition dataset
+- **Classes**: 4; **Constrained class**: 0
+- **Group column**: `synth_group` (binary)
+- **Status**: clean winner — MobileNetV2/V3 beat both baselines, Hounie 8/8 seeds on Blackwell.
+
+### BloodMNIST (under test, 2026-05-28)
+- **Source**: MedMNIST blood cell images
+- **Classes**: 8; **Constrained class**: 0
+- **Group column**: `synth_group`
+
+**Previously tried and dropped:** see `docs/REJECTED.md` (TissueMNIST, ISIC2019, PathMNIST, EuroSAT, So2Sat, OctMNIST, CIFAR-100). Do not re-introduce without reading that file.
 
 ## Pipeline
 
@@ -34,13 +38,17 @@ main.py                                  # Dispatch pending experiments via subp
 ## Models
 
 ### Imagery (`src/models/imagery/`)
-- `ResNet18` -- torchvision ResNet18 with custom head (pretrained)
-- `MobileNetV3` -- torchvision MobileNetV3-Large (~5.4M params, pretrained)
-- `EfficientNetB0` -- torchvision EfficientNet-B0 (~4M params, pretrained)
-- `ConvNeXtTiny` -- torchvision ConvNeXt-Tiny (~28M params, pretrained)
+- `MobileNetV2` -- torchvision MobileNetV2 (~3.5M params, pretrained) — **clean winner**
+- `MobileNetV3` -- torchvision MobileNetV3-Large (~5.4M params, pretrained) — **clean winner**
+- `RegNetY400MF` -- torchvision RegNetY-400MF (~4M params, group-conv+SE) — **corroboration** (aider win-both, derm Hounie-only)
+- `ShuffleNetV2` -- torchvision ShuffleNet V2 — weak Hounie-only corroboration
+- `ConvNeXtTiny` -- torchvision ConvNeXt-Tiny (~28M params) — untested; kept as future candidate
+- `MobileViTS` -- timm `mobilevit_s` — under test (architectural-diversity probe)
 - Input: `(B, 3, H, W)` image tensors, ImageNet-normalized by data_loader
 
 Registry: `src/models/model_factory.py` -- `get_model(name, n_classes, **kwargs)`
+
+**Previously tried and dropped:** see `docs/REJECTED.md` (ResNet18, EfficientNetB0, DenseNet121, MNASNet10, RegNetY16GF, SqueezeNet11, ViTTiny). Do not re-add to the registry without reading that file first.
 
 ## Training Phases
 
