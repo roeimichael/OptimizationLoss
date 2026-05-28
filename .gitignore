@@ -43,11 +43,27 @@ data/adult/
 data/churn/
 data/dermmnist/*
 data/tissuemnist/*
+data/aider/*
+data/bloodmnist/*
+data/retinamnist/*
 !data/dermmnist/download_data.py
 !data/tissuemnist/download_data.py
+!data/aider/download_data.py
+!data/bloodmnist/download_data.py
+!data/retinamnist/download_data.py
+!data/*/prepare_*.py
 *.npz
 *.npy
 !data/README.md
+
+# Derived working caches + dumps (regenerable from results/ + scripts/)
+paper/data_cache/
+winning_results/
+docs/all_cells_raw.csv
+docs/full_census_report.txt
+docs/table_a_*.csv
+docs/aider_results/
+scripts/_paper_agg/__pycache__/
 
 # Archives and large files
 archive_experiments/
