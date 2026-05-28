@@ -1,0 +1,6 @@
+tight,tralo_n,tralo_F1m,best_baseline_F1m,best_baseline_method,tralo_gap_F1m,tralo_Flips,best_baseline_Flips,best_baseline_method_Flips,tralo_gap_Flips,tralo_ECE,best_baseline_ECE,best_baseline_method_ECE,tralo_gap_ECE
+L20_G20,4,0.7929,0.8024,danits_lp,-0.0095,1.25,5.75,tralo_bounded,+4.50,0.0781,0.0116,danits_lp,-0.0665
+L30_G30,4,0.8362,0.8391,danits_lp,-0.0029,2.00,8.00,fioretto_ldf,+6.00,0.0650,0.0116,danits_lp,-0.0534
+L50_G50,4,0.8867,0.8931,heuristic,-0.0064,0.00,8.25,tralo_bounded,+8.25,0.0486,0.0116,danits_lp,-0.0370
+L70_G70,4,0.9320,0.9356,heuristic,-0.0037,0.50,2.25,fioretto_ldf,+1.75,0.0305,0.0116,danits_lp,-0.0189
+L80_G80,4,0.9533,0.9563,heuristic,-0.0030,0.50,3.75,tralo_bounded,+3.25,0.0233,0.0116,danits_lp,-0.0117

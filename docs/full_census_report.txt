@@ -1,0 +1,96 @@
+================================================================================
+RECONCILIATION — every completed run accounted for
+================================================================================
+  TOTAL completed runs:            1910
+   - DROPPED (eurosat/so2sat):     142
+   - ABLATION/smoke sweeps:        41
+   - NON-CANONICAL tralo variants: 0
+   = IN-SCOPE comparison runs:     1727
+   (after de-dup on full key:      1727)
+
+  IN-SCOPE comparison points (ds,model,cls,grp,tight): 78
+  avg raw runs per point: 22.1
+
+================================================================================
+FULL PER-POINT VERDICT  (noise-aware: |gap| <= pooled seed std => TIE)
+================================================================================
+dataset     model          cls group      tight    #runs tralo_F1 best_base       gap      flips_T/base  verdict
+aider       MobileNetV3    0   synth_groupL20_G20  24    0.793    0.802(danits_) -0.009   1/84          TIE
+aider       MobileNetV3    0   synth_groupL30_G30  23    0.835    0.839(danits_) -0.004   1/74          TIE
+aider       MobileNetV3    0   synth_groupL50_G50  24    0.887    0.893(danits_) -0.006   0/54          TIE
+aider       MobileNetV3    0   synth_groupL70_G70  24    0.932    0.936(danits_) -0.004   0/34          TIE
+aider       MobileNetV3    0   synth_groupL80_G80  24    0.953    0.956(danits_) -0.003   0/22          TIE
+dermmnist   EfficientNetB0 4   loc_group  L20_G20  24    0.731    0.729(fiorett) +0.002   1/10          TIE
+dermmnist   EfficientNetB0 4   loc_group  L30_G30  24    0.749    0.752(hounie_) -0.003   2/17          TIE
+dermmnist   EfficientNetB0 4   loc_group  L50_G50  24    0.773    0.778(danits_) -0.005   5/90          TIE
+dermmnist   EfficientNetB0 4   loc_group  L70_G70  24    0.795    0.795(tralo_b) -0.000   5/14          TIE
+dermmnist   EfficientNetB0 4   loc_group  L80_G80  24    0.795    0.797(tralo_b) -0.002   7/13          TIE
+dermmnist   MobileNetV3    0   loc_group  L20_G20  24    0.694    0.706(heurist) -0.012   1/67          LOSS
+dermmnist   MobileNetV3    0   loc_group  L30_G30  24    0.721    0.729(danits_) -0.008   2/59          TIE
+dermmnist   MobileNetV3    0   loc_group  L50_G50  24    0.751    0.753(danits_) -0.001   0/47          TIE
+dermmnist   MobileNetV3    0   loc_group  L70_G70  24    0.771    0.770(fiorett) +0.002   1/9           TIE
+dermmnist   MobileNetV3    0   loc_group  L80_G80  24    0.768    0.778(fiorett) -0.010   0/0           TIE
+dermmnist   MobileNetV3    1   loc_group  L20_G20  24    0.650    0.682(heurist) -0.032   0/77          LOSS
+dermmnist   MobileNetV3    1   loc_group  L30_G30  24    0.678    0.700(heurist) -0.022   0/68          LOSS
+dermmnist   MobileNetV3    1   loc_group  L50_G50  24    0.733    0.734(danits_) -0.002   4/46          TIE
+dermmnist   MobileNetV3    1   loc_group  L70_G70  24    0.763    0.760(fiorett) +0.004   0/0           TIE
+dermmnist   MobileNetV3    1   loc_group  L80_G80  24    0.775    0.774(fiorett) +0.001   0/6           TIE
+dermmnist   MobileNetV3    2   loc_group  L20_G20  24    0.679    0.685(danits_) -0.007   0/170         TIE
+dermmnist   MobileNetV3    2   loc_group  L30_G30  24    0.703    0.712(fiorett) -0.009   5/16          TIE
+dermmnist   MobileNetV3    2   loc_group  L50_G50  24    0.751    0.751(fiorett) -0.000   8/23          TIE
+dermmnist   MobileNetV3    2   loc_group  L70_G70  24    0.773    0.775(hounie_) -0.002   4/30          TIE
+dermmnist   MobileNetV3    2   loc_group  L80_G80  24    0.781    0.783(fiorett) -0.002   4/14          TIE
+dermmnist   MobileNetV3    4   loc_group  L20_G20  24    0.708    0.705(fiorett) +0.003   2/13          TIE
+dermmnist   MobileNetV3    4   loc_group  L20_G30  24    0.706    0.705(tralo_b) +0.001   6/13          TIE
+dermmnist   MobileNetV3    4   loc_group  L20_G50  24    0.707    0.705(tralo_b) +0.002   4/12          TIE
+dermmnist   MobileNetV3    4   loc_group  L20_G70  24    0.704    0.708(tralo_b) -0.004   0/15          TIE
+dermmnist   MobileNetV3    4   loc_group  L20_G80  24    0.706    0.707(tralo_b) -0.002   0/15          TIE
+dermmnist   MobileNetV3    4   loc_group  L30_G20  24    0.702    0.709(fiorett) -0.006   0/0           TIE
+dermmnist   MobileNetV3    4   loc_group  L30_G30  24    0.730    0.735(tralo_b) -0.005   8/8           TIE
+dermmnist   MobileNetV3    4   loc_group  L30_G50  24    0.735    0.735(tralo_b) -0.001   6/10          TIE
+dermmnist   MobileNetV3    4   loc_group  L30_G70  24    0.732    0.732(tralo_b) +0.000   6/9           TIE
+dermmnist   MobileNetV3    4   loc_group  L30_G80  24    0.731    0.733(tralo_b) -0.002   2/8           TIE
+dermmnist   MobileNetV3    4   loc_group  L50_G20  24    0.705    0.709(tralo_b) -0.005   0/0           TIE
+dermmnist   MobileNetV3    4   loc_group  L50_G30  24    0.725    0.732(fiorett) -0.007   0/0           TIE
+dermmnist   MobileNetV3    4   loc_group  L50_G50  24    0.765    0.764(fiorett) +0.000   4/10          TIE
+dermmnist   MobileNetV3    4   loc_group  L50_G70  24    0.764    0.765(fiorett) -0.002   4/10          TIE
+dermmnist   MobileNetV3    4   loc_group  L50_G80  24    0.765    0.765(hounie_) +0.001   7/18          TIE
+dermmnist   MobileNetV3    4   loc_group  L70_G20  24    0.710    0.708(fiorett) +0.001   0/0           TIE
+dermmnist   MobileNetV3    4   loc_group  L70_G30  24    0.729    0.732(fiorett) -0.003   0/1           TIE
+dermmnist   MobileNetV3    4   loc_group  L70_G50  24    0.766    0.764(hounie_) +0.002   0/0           TIE
+dermmnist   MobileNetV3    4   loc_group  L70_G70  24    0.788    0.787(fiorett) +0.001   4/12          TIE
+dermmnist   MobileNetV3    4   loc_group  L70_G80  24    0.789    0.788(fiorett) +0.001   3/10          TIE
+dermmnist   MobileNetV3    4   loc_group  L80_G20  24    0.706    0.709(fiorett) -0.003   0/0           TIE
+dermmnist   MobileNetV3    4   loc_group  L80_G30  24    0.727    0.732(fiorett) -0.004   0/1           TIE
+dermmnist   MobileNetV3    4   loc_group  L80_G50  24    0.764    0.764(fiorett) -0.000   0/0           TIE
+dermmnist   MobileNetV3    4   loc_group  L80_G70  24    0.789    0.784(fiorett) +0.005   0/0           TIE
+dermmnist   MobileNetV3    4   loc_group  L80_G80  24    0.789    0.789(hounie_) -0.000   4/9           TIE
+dermmnist   MobileNetV3    4   sex        L20_G20  24    0.708    0.709(tralo_b) -0.001   2/10          TIE
+dermmnist   MobileNetV3    4   sex        L30_G30  24    0.732    0.731(fiorett) +0.001   5/10          TIE
+dermmnist   MobileNetV3    4   sex        L50_G50  24    0.762    0.763(fiorett) -0.000   4/12          TIE
+dermmnist   MobileNetV3    4   sex        L70_G70  24    0.784    0.786(hounie_) -0.002   5/12          TIE
+dermmnist   MobileNetV3    4   sex        L80_G80  24    0.786    0.790(hounie_) -0.004   0/0           TIE
+dermmnist   ResNet18       4   loc_group  L20_G20  24    0.687    0.697(fiorett) -0.010   7/18          TIE
+dermmnist   ResNet18       4   loc_group  L30_G30  24    0.720    0.722(fiorett) -0.002   1/23          TIE
+dermmnist   ResNet18       4   loc_group  L50_G50  24    0.754    0.758(tralo_b) -0.004   5/28          TIE
+dermmnist   ResNet18       4   loc_group  L70_G70  24    0.770    0.771(tralo_b) -0.001   8/15          TIE
+dermmnist   ResNet18       4   loc_group  L80_G80  24    0.770    0.774(fiorett) -0.005   12/26         TIE
+tissuemnist MobileNetV3    4   synth_groupL20_G20  24    0.354    0.353(fiorett) +0.001   4/8           TIE
+tissuemnist MobileNetV3    4   synth_groupL30_G30  24    0.364    0.362(tralo_b) +0.003   5/10          TIE
+tissuemnist MobileNetV3    4   synth_groupL50_G50  24    0.372    0.370(hounie_) +0.002   4/11          TIE
+tissuemnist MobileNetV3    4   synth_groupL70_G70  24    0.380    0.375(tralo_b) +0.005   8/20          TIE
+tissuemnist MobileNetV3    4   synth_groupL80_G80  24    0.377    0.377(fiorett) -0.000   18/28         TIE
+tissuemnist ResNet18       4   synth_groupL20_G20  24    0.417    0.412(fiorett) +0.005   7/11          TIE
+tissuemnist ResNet18       4   synth_groupL30_G30  24    0.429    0.425(tralo_b) +0.004   10/19         TIE
+tissuemnist ResNet18       4   synth_groupL50_G50  24    0.446    0.443(fiorett) +0.003   8/20          TIE
+tissuemnist ResNet18       4   synth_groupL70_G70  24    0.449    0.449(hounie_) -0.000   13/22         TIE
+tissuemnist ResNet18       4   synth_groupL80_G80  24    0.442    0.449(hounie_) -0.007   14/22         TIE
+
+================================================================================
+ROLLUP BY DATASET
+================================================================================
+  aider        points=5    runs=119   F1[W/T/L]=0/5/0  meanF1gap=-0.0054  flips TraLO=0.7 vs base=53.5 (saved +52.9)
+  dermmnist    points=55   runs=1320  F1[W/T/L]=0/52/3  meanF1gap=-0.0030  flips TraLO=2.9 vs base=20.1 (saved +17.2)
+  tissuemnist  points=10   runs=240   F1[W/T/L]=0/10/0  meanF1gap=+0.0014  flips TraLO=9.1 vs base=17.1 (saved +8.0)
+
+  TOTAL in-scope comparison points: 70  backed by 1679 runs
