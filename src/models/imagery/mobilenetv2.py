@@ -1,22 +1,23 @@
-# EfficientNet-B0 wrapper for image classification.
-# Uses torchvision pretrained weights with a custom dropout + linear head.
+# MobileNetV2 wrapper for image classification.
+# Replaces the entire classifier to avoid double dropout from the original head.
 # Input: (B, 3, H, W) -> logits (B, n_classes).
 
 import torch
 import torch.nn as nn
 from torchvision import models
+from torchvision.models import MobileNet_V2_Weights
 
 
-class EfficientNetB0Classifier(nn.Module):
+class MobileNetV2Classifier(nn.Module):
 
     def __init__(self, n_classes: int = 7, pretrained: bool = False, dropout: float = 0.3, **kwargs):
         super().__init__()
-        weights = models.EfficientNet_B0_Weights.DEFAULT if pretrained else None
-        self.backbone = models.efficientnet_b0(weights=weights)
+        weights = MobileNet_V2_Weights.DEFAULT if pretrained else None
+        self.backbone = models.mobilenet_v2(weights=weights)
         feat_dim = self.backbone.classifier[1].in_features
         self.backbone.classifier = nn.Sequential(
             nn.Dropout(dropout),
-            nn.Linear(feat_dim, n_classes)
+            nn.Linear(feat_dim, n_classes),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
