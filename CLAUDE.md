@@ -4,26 +4,27 @@ Thesis project: train neural networks to satisfy **transductive prediction-count
 
 ## Datasets (active)
 
-Only datasets where TraLO shows a clear paper-worthy story remain in `gen_model_search.py`'s `DATASETS` dict and `data_loader.py`'s `IMAGERY_DATASETS` set.
+Three datasets in `data_loader.py`'s `IMAGERY_DATASETS`. Source of truth for paper scope: `docs/PAPER_PLAN.md`.
+
+### TissueMNIST (active)
+- **Source**: MedMNIST kidney tissue
+- **Classes**: 8; **Constrained class**: 4 (GE, ~7.1% test)
+- **Group column**: `synth_group`
+- **Status**: F1 headline — paired-significant TraLO win vs all 5 baselines on L20-L50 × MobileNetV3 (`winning_results/headline_f1.md`).
 
 ### DermMNIST (active)
 - **Source**: MedMNIST HAM10000 skin lesions
 - **Classes**: 7 -- AKIEC, BCC, BKL, DF, MEL (constrained), NV, VASC
 - **Constrained class**: MEL (class 4); local cap via `loc_group`
-- **Status**: clean winner — MobileNetV2/V3 beat both baselines on Blackwell 8-seed paired.
+- **Status**: F1 3W/2T/0L, flips 5W/0/0; richest fairness story (3 imbalanced anatomical groups).
 
 ### AIDER (active)
 - **Source**: aerial disaster image recognition dataset
 - **Classes**: 4; **Constrained class**: 0
 - **Group column**: `synth_group` (binary)
-- **Status**: clean winner — MobileNetV2/V3 beat both baselines, Hounie 8/8 seeds on Blackwell.
+- **Status**: flips 5W/0/0; F1 ties / small loss — saturated-warmup regime, itself a paper finding.
 
-### BloodMNIST (under test, 2026-05-28)
-- **Source**: MedMNIST blood cell images
-- **Classes**: 8; **Constrained class**: 0
-- **Group column**: `synth_group`
-
-**Previously tried and dropped:** see `docs/REJECTED.md` (TissueMNIST, ISIC2019, PathMNIST, EuroSAT, So2Sat, OctMNIST, CIFAR-100). Do not re-introduce without reading that file.
+**Previously tried and dropped:** see `docs/REJECTED.md`. Do not re-introduce without reading that file.
 
 ## Pipeline
 
@@ -38,17 +39,15 @@ main.py                                  # Dispatch pending experiments via subp
 ## Models
 
 ### Imagery (`src/models/imagery/`)
-- `MobileNetV2` -- torchvision MobileNetV2 (~3.5M params, pretrained) — **clean winner**
-- `MobileNetV3` -- torchvision MobileNetV3-Large (~5.4M params, pretrained) — **clean winner**
-- `RegNetY400MF` -- torchvision RegNetY-400MF (~4M params, group-conv+SE) — **corroboration** (aider win-both, derm Hounie-only)
-- `ShuffleNetV2` -- torchvision ShuffleNet V2 — weak Hounie-only corroboration
-- `ConvNeXtTiny` -- torchvision ConvNeXt-Tiny (~28M params) — untested; kept as future candidate
-- `MobileViTS` -- timm `mobilevit_s` — under test (architectural-diversity probe)
+- `MobileNetV3` -- torchvision MobileNetV3-Large (~5.4M params) — **headline backbone**
+- `MobileNetV2` -- torchvision MobileNetV2 (~3.5M params) — Blackwell-validated co-winner
+- `RegNetY400MF` -- torchvision RegNetY-400MF (~4M params, group-conv+SE) — corroboration
+- `ShuffleNetV2` -- torchvision ShuffleNet V2 — corroboration
 - Input: `(B, 3, H, W)` image tensors, ImageNet-normalized by data_loader
 
 Registry: `src/models/model_factory.py` -- `get_model(name, n_classes, **kwargs)`
 
-**Previously tried and dropped:** see `docs/REJECTED.md` (ResNet18, EfficientNetB0, DenseNet121, MNASNet10, RegNetY16GF, SqueezeNet11, ViTTiny). Do not re-add to the registry without reading that file first.
+**Previously tried and dropped:** see `docs/REJECTED.md`. Do not re-add to the registry without reading that file first.
 
 ## Training Phases
 
@@ -95,7 +94,7 @@ src/
   losses/               transductive_loss.py (MulticlassTransductiveLoss)
   models/
     model_factory.py    unified registry
-    imagery/            resnet.py, mobilenetv3.py, efficientnet.py
+    imagery/            mobilenetv3.py, mobilenetv2.py, regnet.py, shufflenet.py
   training/             trainer.py, constraints.py, metrics.py, logging.py,
                         schedulers.py, model_cache.py
   utils/                data_loader.py, filesystem_manager.py, error_handler.py,
@@ -105,6 +104,7 @@ src/
                         visualize_stat_significance.py
 data/tissuemnist/       images + labels as .npy (not in git)
 data/dermmnist/         images + labels as .npy (not in git)
+data/aider/             prep scripts only (raw on server)
 model_cache/            cached warmup .pt files (not in git, auto-created)
 archive_experiments/    completed DermMNIST results + analysis
 results/

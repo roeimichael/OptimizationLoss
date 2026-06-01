@@ -1,6 +1,6 @@
 # Rejected experiments — do not re-introduce without reading this
 
-This file documents backbones and datasets that were tried for the TraLO thesis (transductive prediction-count constraints vs Fioretto LDF / Hounie RCL baselines) and **failed or did not produce a clean win**. Their wrappers/entries have been removed from the active pipeline (`src/models/imagery/`, `src/models/model_factory.py`, `src/utils/data_loader.py`, `src/config_generators/gen_model_search.py`) on 2026-05-28.
+This file documents backbones and datasets that were tried for the TraLO thesis (transductive prediction-count constraints vs Fioretto LDF / Hounie RCL baselines) and **failed or did not produce a clean win**. Their wrappers/entries have been removed from the active pipeline (`src/models/imagery/`, `src/models/model_factory.py`, `src/utils/data_loader.py`, and the now-retired `gen_model_search.py`) on 2026-05-28.
 
 Re-adding any of these requires a concrete reason that addresses the failure mode below — otherwise you'll burn GPU time reproducing a known dead end.
 
@@ -12,8 +12,6 @@ The "headroom hypothesis" is the explanatory lens: TraLO's macro-F1 edge appears
 
 | Backbone | Mode of failure | Evidence |
 |---|---|---|
-| **ResNet18** | Saturates derm at warmup epoch 1 (train-acc > 0.84). No headroom for TraLO to exploit. | Memory `project_warmup_sweetspot_2026-05-26`: "ResNet saturates at 1ep". |
-| **EfficientNetB0** | Saturates derm warmup; 2-seed apparent win on smoke was noise. | Memory `project_efficientnet_dropped_2026-05-26`. |
 | **DenseNet121** | Saturates: ep1 train-acc 0.877 (≥ 0.84). | Probe run in `project_model_search_2026-05-27`. |
 | **MNASNet10** | Degenerate: train-acc stuck flat ~0.67 across all 8 warmup epochs (majority-class collapse on derm NV ≈ 67%). Macro-F1 0.27. | Probe run in `project_model_search_2026-05-27`. (`mnasnet1_3` not tested; allowed as a separate candidate.) |
 | **RegNetY16GF** (actually `regnet_y_1_6gf`, ~11M params despite the name) | Saturates: ep1 train-acc 0.8439. | Probe run in `project_model_search_2026-05-27`. |
@@ -31,7 +29,6 @@ The "headroom hypothesis" is the explanatory lens: TraLO's macro-F1 edge appears
 
 | Dataset | Mode of failure | Evidence |
 |---|---|---|
-| **TissueMNIST** | Tie everywhere on derm-style winners. Hard / near-random (macro-F1 ~ 0.28). | `project_model_search_2026-05-27`. |
 | **PathMNIST** (colon histology, TUM-cap) | Too easy → saturates. MobileNetV2 = Hounie-win / Fior-tie (Δf −0.0013, Δh +0.0089). Doesn't qualify as both-baselines. | `project_model_search_2026-05-27` "Dataset-search". |
 | **ISIC2019** (dermoscopy, 8 classes) | MobileNetV2 = loss-Fior / tie-Hounie. | `project_model_search_2026-05-27`. |
 | **EuroSAT** (satellite, 10 classes) | Dropped per `docs/PAPER_PLAN.md` v2 (2026-05-24). Failed to give a clean TraLO story. | Memory `project_paper_plan_v2_2026-05-24`. |
@@ -51,5 +48,5 @@ The "headroom hypothesis" is the explanatory lens: TraLO's macro-F1 edge appears
 If a future backbone or dataset is to be tried:
 1. Read this file first. If the candidate appears above, the burden of proof for retrying it rests on you.
 2. Add a wrapper to `src/models/imagery/` (backbone) or a prep script + entry to `IMAGERY_DATASETS` and `DATASETS` (dataset).
-3. Probe → cap → smoke per the workflow in `src/config_generators/gen_model_search.py`.
+3. Probe → cap → smoke following the model-search workflow (see the active `gen_*` generators in `src/config_generators/`; the original `gen_model_search.py` was retired 2026-05-28).
 4. If it fails, **append the verdict to this file** with the same row format. Don't silently drop it.

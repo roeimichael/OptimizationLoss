@@ -1,6 +1,6 @@
 # Paper Coverage Plan v2
 
-**Last updated:** 2026-05-24
+**Last updated:** 2026-05-31 (Table C KEPT as saturated-baseline robustness on ResNet18+EfficientNetB0; scope = tissue+derm+aider × MobileNetV3 headline; non-saturated 2nd backbone MobileNetV2 still TO RUN — see `docs/MISSING_EXPERIMENTS.md`)
 **Owner:** roei
 **Architecture:** all runs on dsisco02 Blackwell (RTX PRO 6000 96 GB). Turing results invalidated and excluded.
 
@@ -32,7 +32,7 @@ Update this file in place as cells complete. Do not let memory drift again.
 | Axis | Values | Count |
 |------|--------|-------|
 | Methods | tralo (TraLO_fix: undershoot_hinge + reset_optimizer_at_sat + fior_beta=0.5), tralo_bounded, fioretto_ldf, hounie_rcl, danits_lp, heuristic | 6 |
-| Backbones | MobileNetV3, ResNet18, EfficientNetB0 | 3 |
+| Backbones | MobileNetV3 (headline); MobileNetV2, RegNetY400MF, ShuffleNetV2 (Blackwell corroboration only — see §5 corroboration) | 1+3 |
 | Symmetric tightness | L20_G20, L30_G30, L50_G50, L70_G70, L80_G80 | 5 |
 | Asymmetric tightness | full 5×5 grid: L∈{20,30,50,70,80} × G∈{20,30,50,70,80} | 25 |
 | Seeds | 1, 2, 3, 4 | 4 |
@@ -56,12 +56,11 @@ Each table is a separate paper claim. Tables share cells where they overlap (cel
 **Cell count:** 25 (L,G) × 6 methods × 4 seeds = **600**
 **Includes:** the 5 symmetric cells already counted in Table A on derm. Net new: 20 × 6 × 4 = **480**.
 
-### Table C — Backbone robustness
-**Claim:** Win is not an artifact of MobileNetV3.
-**Axes varied:** backbone × method × seed
-**Axes fixed:** dataset=dermmnist, cls=MEL, group=loc_group, 5 symmetric tightness
-**Cell count:** 3 bb × 5 tight × 6 methods × 4 seeds = **360**
-**Net new vs Table A:** 2 backbones × 5 × 6 × 4 = **240**.
+### Table C — Backbone robustness (saturated-baseline) [KEPT, reframed 2026-05-31]
+**Status:** KEPT in the paper as a *saturated-baseline* robustness check (NOT as winners), per advisor instruction 2026-05-31. ResNet18 + EfficientNetB0 saturate the constrained class at warmup ep1, so they cannot corroborate the F1 win — but they DO confirm the deployability win (TraLO keeps Sat%=1.00 and the lowest flips on backbones with zero F1 headroom). This is exactly the "saturated regime" story, parallel to AIDER.
+**Claim:** the flips/satisfaction win is not a MobileNetV3 artifact; it survives backbones with no F1 headroom.
+**Axes:** {ResNet18, EfficientNetB0} × {tissuemnist, dermmnist} × 5 sym tight × 6 methods × 4 seeds = **480** (DONE — `paper/tables/C_backbone_robustness/table_C_backbone_saturated.csv`, from `docs/all_cells_raw.csv`).
+**Still missing (see `docs/MISSING_EXPERIMENTS.md` G1):** a *non-saturated* 2nd backbone (MobileNetV2) to confirm the F1 win — NO MobileNetV2/RegNet/ShuffleNet cells exist in the repo yet.
 
 ### Table D — Multi-class robustness
 **Claim:** Win is not specific to the chosen story class.
@@ -146,18 +145,9 @@ Aggregator outputs in `docs/table_a_summary.md`, `table_a_summary.csv`, `table_a
 
 Aider experiments are frozen at the Phase 1 results (120 cells). Showcase materials in `docs/aider_results/` (README + per-class CSV + head-to-head + per-seed CSV). Decision pending with thesis advisor — current framing is "easy-task regime ablation" where warmup saturates and TraLO ties F1m but dominates Flips.
 
-### Phase 3 — Close Table C (backbones on derm) [🟢 RUNNING]
+### Phase 3 — Table C KEPT (saturated-baseline robustness) 2026-05-31
 
-**Status:** 🟢 RUNNING on dsisco02 GPU 3 since 2026-05-24 23:44 UTC (PID 2543117)
-**Generator:** `src/config_generators/gen_paperv2_phase3.py` — 240 cells queued at `results/pending_runs/paperv2_phase3/`
-**Launcher:** `/tmp/launch_paperv2_phase3.sh`, log `~/OptimizationLoss/logs/paperv2_phase3.log`
-**ETA:** ~6 GPU-hrs (fresh warmup caches for ResNet18/EfficientNetB0 add a little overhead)
-**Note:** derm warmup is NOT saturated (acc ~0.88→0.98), unlike aider — so TraLO has genuine room to work on these backbones.
-
-- [ ] **C.dermmnist.ResNet18** — 5 sym tight, 6 mthd, 4 seed → 120 new cells
-- [ ] **C.dermmnist.EfficientNetB0** — 5 sym tight, 6 mthd, 4 seed → 120 new cells
-
-**Gate:** rank table (TraLO position 1–6 per backbone) shows TraLO=1 on all 3 backbones, or document where it isn't.
+ResNet18 + EfficientNetB0 saturate ep1 → kept in the paper precisely as the *saturated-baseline* robustness block (deployability win with zero F1 headroom). Data already collected (480 cells in `docs/all_cells_raw.csv` → `paper/tables/C_backbone_robustness/table_C_backbone_saturated.csv`). The non-saturated 2nd backbone (MobileNetV2) that would confirm the F1 win is NOT yet run — tracked as G1 in `docs/MISSING_EXPERIMENTS.md`.
 
 ### Phase 4 — Close Table D (multi-class on derm) [⏸ QUEUED on GPU 3 after Phase 3]
 
@@ -179,15 +169,7 @@ Aider experiments are frozen at the Phase 1 results (120 cells). Showcase materi
 
 **Gate:** confirm TraLO win persists under sex grouping (weaker local imbalance); document delta vs loc_group.
 
-### Phase 6 — Tissue backbone robustness (spillover, opportunistic 2nd GPU)
-
-**Generator:** `src/config_generators/gen_paperv2_phase6.py` — 240 cells at `results/pending_runs/paperv2_phase6/`
-**Launch:** secondary watcher `/tmp/watch_secondary.sh` grabs the FIRST single-tenant-clear GPU among 0/1/2 and runs this (EXPERIMENT_DIR=.../paperv2_phase6), log `logs/paperv2_phase6.log`. Separate sweep root → no collision with the GPU-3 primary chain.
-
-- [ ] **F.tissuemnist.ResNet18** — 5 sym tight, 6 mthd, 4 seed → 120 cells
-- [ ] **F.tissuemnist.EfficientNetB0** — 5 sym tight, 6 mthd, 4 seed → 120 cells
-
-**Gate:** mirrors Phase 3 gate — TraLO rank across backbones on a second dataset.
+### Phase 6 — DROPPED 2026-05-31 (was Table C tissue backbones)
 
 ### Orchestration (live 2026-05-24)
 

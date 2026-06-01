@@ -28,6 +28,7 @@ import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -115,6 +116,9 @@ HEADLINE_STYLE = {
     "tralo":        {"label": "TraLO (ours)", "color": "#1976D2",
                      "lw": 3.2, "ms": 9.5, "marker": "o", "zorder": 10,
                      "alpha": 1.0, "ls": "-"},
+    "tralo_bounded": {"label": "TraLO-bounded", "color": "#0D47A1",
+                     "lw": 1.6, "ms": 5.5, "marker": "s", "zorder": 4,
+                     "alpha": 0.85, "ls": "--"},
     "fioretto_ldf": {"label": "Fioretto LDF", "color": "#6BAE6F",
                      "lw": 1.6, "ms": 5.5, "marker": "D", "zorder": 5,
                      "alpha": 0.85, "ls": "--"},
@@ -215,57 +219,127 @@ def _load_curve(ds: str, method: str, seed: int):
     return x, y, p
 
 
+# Distinct line styles so the three methods read apart in B/W too.
+# Fioretto sits ABOVE TraLO (higher z) with a bold long-dash so that where the
+# two nearly coincide (e.g. TissueMNIST) the green dashes ride visibly on top of
+# the solid blue line instead of being hidden under it.
+CONV_STYLE = {
+    "tralo":        {"color": "#1976D2", "ls": "-",          "lw": 2.8, "z": 10, "ms": 8},
+    "fioretto_ldf": {"color": "#2E7D32", "ls": (0, (7, 3)),  "lw": 2.2, "z": 12, "ms": 5},
+    "hounie_rcl":   {"color": "#C62828", "ls": (0, (1, 1.4)), "lw": 1.8, "z": 6, "ms": 8},
+}
+
+
+def _seed_band(ds, method):
+    """Best-so-far excess for every seed, aligned on a common integer epoch
+    grid (forward-filled past each seed's last epoch). Returns grid, median,
+    lo, hi across seeds, or None if no seed loaded."""
+    curves, xmax = [], 0
+    for seed in SEEDS:
+        x, y, _ = _load_curve(ds, method, seed)
+        if x is None or len(x) == 0:
+            continue
+        y = np.minimum.accumulate(np.asarray(y, dtype=float))
+        curves.append((np.asarray(x, dtype=float), y))
+        xmax = max(xmax, x[-1])
+    if not curves:
+        return None
+    grid = np.arange(0, int(xmax) + 1)
+    stack = np.vstack([np.interp(grid, x, y, left=y[0], right=y[-1])
+                       for x, y in curves])
+    return grid, np.median(stack, 0), stack.min(0), stack.max(0)
+
+
 def figure_convergence():
     datasets = ["tissuemnist", "dermmnist"]
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.2), sharey=False)
     skipped: list[str] = []
 
-    # Plot order: baselines first, TraLO last so it draws on top.
-    method_draw_order = [m for m in CONVERGENCE_METHODS if m != "tralo"] + \
-                        (["tralo"] if "tralo" in CONVERGENCE_METHODS else [])
-
     for ax, ds in zip(axes, datasets):
-        for method in method_draw_order:
-            s = HEADLINE_STYLE[method]
-            label_used = False
-            for seed in SEEDS:
-                x, y, p = _load_curve(ds, method, seed)
-                if x is None or len(x) == 0:
-                    skipped.append(f"{ds}/{method}/seed_{seed} ({p})")
-                    continue
-                lbl = s["label"] if not label_used else None
-                me = max(1, len(x) // 10)
-                ax.plot(
-                    x, y,
-                    color=s["color"], linewidth=s["lw"], alpha=s["alpha"],
-                    linestyle=s["ls"], marker=s["marker"], markersize=s["ms"],
-                    markevery=me,
-                    markeredgecolor="black" if method == "tralo" else "none",
-                    markeredgewidth=0.6 if method == "tralo" else 0,
-                    zorder=s["zorder"],
-                    label=lbl,
-                )
-                label_used = True
+        conv_epochs = []
+        # Baselines first, TraLO last so its line sits on top.
+        for method in ["fioretto_ldf", "hounie_rcl", "tralo"]:
+            # Fioretto on Derm is bimodal (2/4 seeds satisfy, 2/4 stay stuck):
+            # a median+band hides that, so draw the individual seeds instead.
+            # Two curves dive to 0 (dots); two run flat at excess 2-3 (no dot).
+            if ds == "dermmnist" and method == "fioretto_ldf":
+                st = CONV_STYLE[method]
+                labeled = False
+                for seed in SEEDS:
+                    x, y, _ = _load_curve(ds, method, seed)
+                    if x is None or len(x) == 0:
+                        continue
+                    x = np.asarray(x, dtype=float)
+                    y = np.minimum.accumulate(np.asarray(y, dtype=float))
+                    if np.any(y <= 0.0):
+                        k = int(np.argmax(y <= 0.0))
+                        xs, ys, dot = x[:k + 1], y[:k + 1], x[k]
+                        conv_epochs.append(x[k])
+                    else:
+                        xs, ys, dot = x, y, None
+                    ax.plot(xs, ys, color=st["color"], linestyle=st["ls"],
+                            linewidth=1.1, alpha=0.75, zorder=st["z"],
+                            label=(HEADLINE_STYLE[method]["label"]
+                                   if not labeled else None))
+                    labeled = True
+                    if dot is not None:
+                        ax.plot(dot, 0, marker="o", color=st["color"],
+                                markersize=6, markeredgecolor="black",
+                                markeredgewidth=0.7, zorder=st["z"] + 1)
+                continue
+            band = _seed_band(ds, method)
+            if band is None:
+                skipped.append(f"{ds}/{method}")
+                continue
+            grid, med, lo, hi = band
+            st = CONV_STYLE[method]
+            # A method "converges" when its median best-so-far reaches 0.
+            # Truncate the curve there (with a dot) so we don't drag a flat
+            # zero tail; a curve with no dot never reaches feasibility.
+            if np.any(med <= 0.0):
+                k = int(np.argmax(med <= 0.0))   # first feasible epoch
+                end = k + 1
+                conv_epochs.append(grid[k])
+            else:
+                k = None
+                end = len(grid)
+            g, m, l, h = grid[:end], med[:end], lo[:end], hi[:end]
+            ax.fill_between(g, l, h, color=st["color"], alpha=0.12,
+                            linewidth=0, zorder=st["z"] - 5)
+            ax.plot(g, m, color=st["color"], linestyle=st["ls"],
+                    linewidth=st["lw"], zorder=st["z"],
+                    label=HEADLINE_STYLE[method]["label"])
+            if k is not None:
+                ax.plot(grid[k], 0, marker="o", color=st["color"],
+                        markersize=st["ms"], markeredgecolor="black",
+                        markeredgewidth=0.8, zorder=st["z"] + 1)
         ax.set_title(f"{ds.replace('mnist','MNIST')} (L30, G30)")
         ax.set_xlabel("Constraint-phase epoch")
-        ax.set_ylabel("Total hard-count excess (lower = closer to feasible)")
+        ax.set_ylabel("Hard-count excess")
         ax.set_yscale("symlog", linthresh=1.0)
+        ax.set_ylim(bottom=-0.3)
+        # Show a little past the slowest method that DOES converge.
+        xcap = (max(conv_epochs) * 1.18) if conv_epochs else None
+        ax.set_xlim(0, xcap)
         ax.axhline(0.0, color="black", linewidth=0.6, linestyle="--",
                    alpha=0.5, zorder=1)
         ax.grid(alpha=0.15, zorder=0)
-        ax.legend(loc="upper right", frameon=False)
+        # Explain the convergence dot in the legend rather than the title.
+        dot_proxy = Line2D([0], [0], marker="o", color="0.35", linestyle="None",
+                           markersize=7, markeredgecolor="black",
+                           markeredgewidth=0.7, label="reaches feasibility")
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles + [dot_proxy], labels + ["reaches feasibility"],
+                  loc="upper right", frameon=False, fontsize=8)
 
-    fig.suptitle("Convergence of hard-count excess during constraint optimisation "
-                 "(4 seeds per method, L30 / G30 tightness)",
-                 y=1.02, fontsize=11)
+    fig.suptitle("Best-so-far constraint excess during optimization "
+                 "(median over 4 seeds)", y=1.0, fontsize=12)
     out = FIG_DIR / "fig_convergence_v2.png"
     fig.savefig(out, dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"Wrote {out}")
     if skipped:
-        print("  Skipped curves:")
-        for s in skipped:
-            print(f"    - {s}")
+        print("  Skipped curves:", skipped)
     return out, skipped
 
 
@@ -280,86 +354,84 @@ F1_FIG_METHODS = ["tralo", "tralo_bounded", "fioretto_ldf",
                   "hounie_rcl", "danits_lp", "heuristic"]
 
 
-def figure_f1_tightness():
+def _metric_vs_tightness(metric_col, ylabel, title, outname, symlog=False):
+    """One clean single-axis line plot of `metric_col` vs tightness, two
+    panels (TissueMNIST, DermMNIST), one line per method. No dual axis."""
     df = pd.read_csv(TABLE_A)
-    datasets = ["tissuemnist", "dermmnist"]
-
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.6), sharex=True)
-    for ax_l, ds in zip(axes, datasets):
-        ax_r = ax_l.twinx()
+    datasets = ["tissuemnist", "dermmnist", "aider"]
+    fig, axes = plt.subplots(1, 3, figsize=(14.5, 4.3), sharex=True)
+    for ax, ds in zip(axes, datasets):
         for method in F1_FIG_METHODS:
-            f1s, flips = [], []
+            ys = []
             for t in TIGHT_LABELS:
                 key = TIGHT_TO_KEY[t]
                 row = df[(df["ds"] == ds) & (df["tight"] == key) & (df["method"] == method)]
-                if row.empty:
-                    f1s.append(np.nan); flips.append(np.nan)
-                else:
-                    f1s.append(float(row["F1m_mean"].iloc[0]))
-                    flips.append(float(row["Flips_mean"].iloc[0]))
-            color = METHOD_COLORS[method]
-            ls = METHOD_LINESTYLE[method]
-            mk = METHOD_MARKER[method]
-            lw = METHOD_LINEWIDTH[method]
-            ax_l.plot(
-                TIGHT_X, f1s,
-                color=color, linestyle=ls, linewidth=lw,
-                marker=mk, markersize=7, markeredgecolor="black",
-                markeredgewidth=0.5, label=METHOD_LABEL[method],
+                ys.append(float(row[metric_col].iloc[0]) if not row.empty else np.nan)
+            s = HEADLINE_STYLE[method]
+            ax.plot(
+                TIGHT_X, ys,
+                color=s["color"], linestyle=s["ls"], linewidth=s["lw"],
+                marker=s["marker"], markersize=s["ms"], alpha=s["alpha"],
+                markeredgecolor="black", markeredgewidth=0.5,
+                label=s["label"], zorder=s["zorder"],
             )
-            # Replace zero flips with a small floor so log scale works.
-            flips_log = [max(f, 0.5) for f in flips]
-            # Right axis (flips, dotted) uses the same marker but a fixed
-            # dotted linestyle to read as "same method, different metric".
-            ax_r.plot(
-                TIGHT_X, flips_log,
-                color=color, linestyle=":", linewidth=lw * 0.7,
-                marker=mk, markersize=5.5, alpha=0.75,
-                markeredgecolor="black", markeredgewidth=0.4,
-            )
-        ax_l.set_title(f"{ds.replace('mnist','MNIST')}")
-        ax_l.set_xlabel(r"Symmetric tightness $L = G$ (% of class size)")
-        ax_l.set_ylabel("Macro F1 (solid, circles)")
-        ax_r.set_yscale("log")
-        ax_r.set_ylabel("Post-hoc flips required (dotted, triangles; log scale)")
-        ax_l.grid(alpha=0.15)
-        ax_l.set_xticks(TIGHT_X)
-        ax_l.set_xticklabels([f"L{x}" for x in TIGHT_X])
-    # Single legend across panels (place under left subplot).
+        if symlog:
+            ax.set_yscale("symlog", linthresh=1.0)
+            ax.set_ylim(bottom=-0.3)
+        ax.set_title("AIDER" if ds == "aider" else f"{ds.replace('mnist','MNIST')}")
+        ax.set_xlabel("Symmetric tightness $L = G$ (% of class size)")
+        ax.grid(alpha=0.15)
+        ax.set_xticks(TIGHT_X)
+        ax.set_xticklabels([str(x) for x in TIGHT_X])
+    axes[0].set_ylabel(ylabel)
+    fig.suptitle(title, y=0.99, fontsize=11)
+    # Reserve the bottom band for the legend so it never overlaps the xlabels.
+    fig.tight_layout(rect=[0, 0.12, 1, 0.95])
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="lower center", ncol=6,
-               frameon=False, bbox_to_anchor=(0.5, -0.04))
-    fig.suptitle("Macro F1 and post-hoc flips vs tightness on TissueMNIST and "
-                 "DermMNIST (AIDER excluded for clarity)", y=1.02, fontsize=11)
-    out = FIG_DIR / "fig_f1_tightness_v2.png"
-    fig.savefig(out, dpi=300, bbox_inches="tight")
+               frameon=False, bbox_to_anchor=(0.5, 0.0))
+    out = FIG_DIR / outname
+    fig.savefig(out, dpi=300)
     plt.close(fig)
     print(f"Wrote {out}")
     return out
 
 
+def figure_f1_tightness():
+    _metric_vs_tightness(
+        "F1m_mean", "Macro F1",
+        "Macro F1 vs tightness, by dataset and method",
+        "fig_f1_tightness_v2.png")
+    _metric_vs_tightness(
+        "Flips_mean", "Post-hoc flips required (symmetric-log)",
+        "Post-hoc flips vs tightness, by dataset and method",
+        "fig_flips_tightness_v2.png", symlog=True)
+
+
 # ---------------------------------------------------------------------------
-# Figure 3: in-training satisfaction bar chart -------------------------------
+# Figure 3: in-training satisfaction --------------------------------------
 # ---------------------------------------------------------------------------
-# Headline satisfaction figure drops tralo_bounded (an ablation; lives in
-# the component-ablation figure only). TraLO is rendered last with a darker
-# outline so the bar pops.
-SAT_METHODS = ["fioretto_ldf", "hounie_rcl", "danits_lp", "heuristic", "tralo"]
+# Only the four methods that ATTEMPT in-training feasibility are drawn. The two
+# post-hoc allocators (Danits LP, Heuristic) sit at 0% on every cell by
+# construction -- as empty bars they read as missing data, so they are stated
+# in a note instead. The point of the figure is reliability: TraLO and Hounie
+# hold 100% everywhere; Fioretto LDF and TraLO-bounded drop out on some cells.
+SAT_METHODS = ["tralo", "hounie_rcl", "fioretto_ldf", "tralo_bounded"]
+SAT_COLORS = {"tralo": "#1976D2", "hounie_rcl": "#C62828",
+              "fioretto_ldf": "#2E7D32", "tralo_bounded": "#FB8C00"}
+SAT_LABELS = {"tralo": "TraLO (ours)", "hounie_rcl": "Hounie RCL",
+              "fioretto_ldf": "Fioretto LDF", "tralo_bounded": "TraLO-bounded"}
 
 
 def figure_satisfaction():
     df = pd.read_csv(TABLE_A)
     datasets = ["tissuemnist", "dermmnist", "aider"]
 
-    fig, axes = plt.subplots(1, 3, figsize=(14, 4.4), sharey=True)
+    fig, axes = plt.subplots(1, 3, figsize=(13.5, 4.2), sharey=True)
     n_methods = len(SAT_METHODS)
-    width = 0.15
+    width = 0.19
     x = np.arange(len(TIGHT_LABELS))
-    # Offset bars symmetrically around each tightness tick.
     offsets = (np.arange(n_methods) - (n_methods - 1) / 2.0) * width
-
-    # Pre-compute TraLO sat values per dataset so we can decide on a callout.
-    tralo_all_100 = True
 
     for ax, ds in zip(axes, datasets):
         for i, method in enumerate(SAT_METHODS):
@@ -368,59 +440,42 @@ def figure_satisfaction():
                 key = TIGHT_TO_KEY[t]
                 row = df[(df["ds"] == ds) & (df["tight"] == key)
                          & (df["method"] == method)]
-                if row.empty:
-                    sat.append(np.nan)
-                else:
-                    sat.append(float(row["Sat%_mean"].iloc[0]))
-
-            s = HEADLINE_STYLE[method]
+                sat.append(float(row["Sat%_mean"].iloc[0]) if not row.empty
+                           else np.nan)
             is_tralo = method == "tralo"
-            if is_tralo and np.any(np.array([v for v in sat if not np.isnan(v)]) < 1.0):
-                tralo_all_100 = False
             ax.bar(
                 x + offsets[i], sat, width=width,
-                color=s["color"],
-                edgecolor="black",
+                color=SAT_COLORS[method], edgecolor="black",
                 linewidth=1.4 if is_tralo else 0.5,
-                alpha=1.0 if is_tralo else 0.78,
-                hatch=METHOD_HATCH.get(method, ""),
-                label=s["label"],
-                zorder=5 if is_tralo else 3,
+                alpha=1.0 if is_tralo else 0.92,
+                label=SAT_LABELS[method], zorder=5 if is_tralo else 3,
             )
-        ax.set_title(ds.replace("mnist", "MNIST").upper() if ds == "aider"
+        ax.set_title("AIDER" if ds == "aider"
                      else ds.replace("mnist", "MNIST"))
         ax.set_xticks(x); ax.set_xticklabels(TIGHT_LABELS)
         ax.set_xlabel("Symmetric tightness")
-        ax.set_ylim(0, 1.12)
-        ax.axhline(1.0, color="#1976D2", linewidth=0.8, linestyle=":",
-                   alpha=0.55, zorder=1)
+        ax.set_ylim(0, 1.08)
+        ax.axhline(1.0, color="0.4", linewidth=0.8, linestyle=":",
+                   alpha=0.6, zorder=1)
         ax.grid(axis="y", alpha=0.15, zorder=0)
-    axes[0].set_ylabel("In-training constraint satisfaction rate\n"
-                       r"(fraction of 4 seeds)")
+    axes[0].set_ylabel("In-training satisfaction rate\n"
+                       r"(fraction of 4 seeds, before post-hoc)")
 
-    # Headline callout: TraLO reaches 100% at every tightness on all datasets.
-    if tralo_all_100:
-        for ax in axes:
-            ax.text(
-                0.02, 0.06,
-                "TraLO: 100% satisfaction\nat every tightness",
-                transform=ax.transAxes,
-                fontsize=8.5, color="#1976D2", fontweight="bold",
-                ha="left", va="bottom",
-                bbox=dict(boxstyle="round,pad=0.3",
-                          facecolor="white", edgecolor="#1976D2",
-                          linewidth=0.9, alpha=0.9),
-                zorder=12,
-            )
-
+    fig.suptitle("In-training constraint satisfaction: TraLO and Hounie hold "
+                 "100% everywhere; Fioretto and TraLO-bounded drop out on "
+                 "some cells", y=1.0, fontsize=11)
+    # The post-hoc cluster, stated rather than drawn as empty bars.
+    fig.text(0.5, 0.085,
+             "Danits LP and Heuristic are omitted: both satisfy 0% of cells "
+             "before post-hoc, by construction (they allocate only afterward).",
+             ha="center", va="center", fontsize=9, fontstyle="italic",
+             color="0.35")
+    fig.tight_layout(rect=[0, 0.13, 1, 0.94])
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="lower center", ncol=n_methods,
-               frameon=False, bbox_to_anchor=(0.5, -0.06))
-    fig.suptitle("In-training constraint satisfaction by method, tightness, "
-                 "and dataset (before any post-hoc reallocation)",
-                 y=1.02, fontsize=11)
+               frameon=False, bbox_to_anchor=(0.5, 0.0))
     out = FIG_DIR / "fig_satisfaction_v2.png"
-    fig.savefig(out, dpi=300, bbox_inches="tight")
+    fig.savefig(out, dpi=300)
     plt.close(fig)
     print(f"Wrote {out}")
     return out
