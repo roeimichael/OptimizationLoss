@@ -29,6 +29,8 @@ def parse(fname):
         kind = "cebase"
     elif base.startswith("tralo"):
         kind = "tralo"
+    elif base.startswith("fioretto"):
+        kind = "fioretto"
     else:
         return None
     m = re.search(r"K(\d+)", base)
@@ -114,6 +116,36 @@ def main():
             sat = "yes" if c["c0_hard"] <= c["K"] else "no"
             print(f"{c['K']:>5}{c['c0_hard']:>10}{c['macro_f1']:>11.4f}{sat:>11}")
 
+
+
+    # --- 3-way paired (K=30) ---
+    print("
+=== 3-WAY PAIRED (K=30, same seeds) ===
+")
+    ce_d  = {c["seed"]: c for c in cells if c["kind"] == "cebase"}
+    tr_d  = {c["seed"]: c for c in cells if c["kind"] == "tralo" and c["K"] == 30}
+    fi_d  = {c["seed"]: c for c in cells if c["kind"] == "fioretto"}
+    triseeds = sorted(set(ce_d) & set(tr_d) & set(fi_d))
+    if triseeds:
+        print(f"{seed:>5}{CE_c0:>8}{TR_c0:>8}{FI_c0:>8}"
+              f"{CE_F1:>10}{TR_F1:>10}{FI_F1:>10}"
+              f"{d_TR:>10}{d_FI:>10}")
+        print("-" * 80)
+        d_TR, d_FI = [], []
+        for s in triseeds:
+            dTR = tr_d[s]["macro_f1"] - ce_d[s]["macro_f1"]
+            dFI = fi_d[s]["macro_f1"] - ce_d[s]["macro_f1"]
+            d_TR.append(dTR); d_FI.append(dFI)
+            print(f"{s:>5}{ce_d[s][c0_hard]:>8}{tr_d[s][c0_hard]:>8}{fi_d[s][c0_hard]:>8}"
+                  f"{ce_d[s][macro_f1]:>10.4f}{tr_d[s][macro_f1]:>10.4f}{fi_d[s][macro_f1]:>10.4f}"
+                  f"{dTR:>+10.4f}{dFI:>+10.4f}")
+        import numpy as np
+        print(f"
+  paired d_F1 (TraLO vs CE) : mean={np.mean(d_TR):+.4f}  std={np.std(d_TR):.4f}")
+        print(f"  paired d_F1 (Fior  vs CE) : mean={np.mean(d_FI):+.4f}  std={np.std(d_FI):.4f}")
+        sat_TR = sum(1 for s in triseeds if tr_d[s]["c0_hard"] <= 30)
+        sat_FI = sum(1 for s in triseeds if fi_d[s]["c0_hard"] <= 30)
+        print(f"  satisfaction:  TraLO {sat_TR}/{len(triseeds)}   Fioretto {sat_FI}/{len(triseeds)}")
 
 if __name__ == "__main__":
     main()
