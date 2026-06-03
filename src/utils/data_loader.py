@@ -11,7 +11,7 @@ from src.training.constraints import compute_global_constraints, compute_local_c
 
 log = logging.getLogger(__name__)
 
-IMAGERY_DATASETS = {'dtd', 'flowers102', 'dermmnist', 'tissuemnist', 'cifar100', 'so2sat', 'eurosat', 'aider'}
+IMAGERY_DATASETS = {'octmnist', 'cifar100', 'cifar100n', 'cifar100_symnoise80', 'cifar100_symnoise60', 'cifar100_symnoise90', 'eurosat', 'imagewoof', 'food101', 'dtd', 'flowers102', 'dermmnist', 'aider', 'bloodmnist', 'retinamnist', 'tissuemnist', 'gtsrb'}
 
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(1, 3, 1, 1)
 IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 3, 1, 1)
@@ -32,6 +32,19 @@ def _apply_imagenet_normalization(images):
     return images
 
 
+def _coerce_imagery_layout(images):
+    """Convert to float32 NCHW in [0,1]. Accept NHWC uint8 (GTSRB-style) or
+    NCHW float32 (MedMNIST/AIDER-style) input."""
+    if images.ndim == 4 and images.shape[-1] == 3 and images.shape[1] != 3:
+        # NHWC -> NCHW
+        images = np.transpose(images, (0, 3, 1, 2))
+    if images.dtype == np.uint8:
+        images = images.astype(np.float32, copy=False) / 255.0
+    elif images.dtype != np.float32:
+        images = images.astype(np.float32, copy=False)
+    return images
+
+
 def _load_imagery_data(config):
     ds = config['dataset_config']
     data_dir = ds['data_dir']
@@ -43,9 +56,11 @@ def _load_imagery_data(config):
                        "default came from the Adult/Churn era and is no longer valid.")
     group_col = ds['group_column']
     dataset_mode = config.get('dataset_mode', 'unknown')
-    X_train = _ensure_3channel(np.load(os.path.join(data_dir, 'train_images.npy')))
+    X_train = _coerce_imagery_layout(_ensure_3channel(
+        np.load(os.path.join(data_dir, 'train_images.npy'))))
     y_train = np.load(os.path.join(data_dir, 'train_labels.npy'))
-    X_test = _ensure_3channel(np.load(os.path.join(data_dir, 'test_images.npy')))
+    X_test = _coerce_imagery_layout(_ensure_3channel(
+        np.load(os.path.join(data_dir, 'test_images.npy'))))
     y_test = np.load(os.path.join(data_dir, 'test_labels.npy'))
     X_train = _apply_imagenet_normalization(X_train)
     X_test = _apply_imagenet_normalization(X_test)
