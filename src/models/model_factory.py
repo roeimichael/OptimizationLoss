@@ -9,6 +9,9 @@ from .imagery import (
     MobileNetV2Classifier,
     ShuffleNetV2Classifier,
     RegNetY400MFClassifier,
+    TinyCNNClassifier,
+    SmallCNNClassifier,
+    MediumCNNClassifier,
 )
 
 MODEL_REGISTRY = {
@@ -16,6 +19,9 @@ MODEL_REGISTRY = {
     'MobileNetV2': MobileNetV2Classifier,
     'ShuffleNetV2': ShuffleNetV2Classifier,
     'RegNetY400MF': RegNetY400MFClassifier,
+    'TinyCNN': TinyCNNClassifier,
+    'SmallCNN': SmallCNNClassifier,
+    'MediumCNN': MediumCNNClassifier,
 }
 
 
