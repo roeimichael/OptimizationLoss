@@ -61,6 +61,8 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--data_root", default=os.path.expanduser("~/data/cifar100_torchvision"))
     ap.add_argument("--out", default="results.csv")
+    ap.add_argument("--pred_out", default=None,
+                    help="path to save (y_true, y_pred) array (.npy)")
     args = ap.parse_args()
 
     torch.manual_seed(args.seed)
@@ -141,6 +143,22 @@ def main():
                         f"{test_acc:.6f}", f"{lr_now:.6f}", f"{elapsed:.1f}"])
             f.flush()
 
+
+    if args.pred_out:
+        model.eval()
+        all_preds, all_y = [], []
+        with torch.no_grad():
+            for x, y in test_loader:
+                x = x.to(device, non_blocking=True)
+                all_preds.append(model(x).argmax(1).cpu().numpy())
+                all_y.append(y.numpy())
+        preds = np.concatenate(all_preds)
+        ys = np.concatenate(all_y)
+        np.save(args.pred_out, np.stack([ys, preds], axis=1))
+        c0 = int((preds == 0).sum())
+        from sklearn.metrics import f1_score
+        f1 = f1_score(ys, preds, average="macro", zero_division=0)
+        print(f"  class 0 hard count = {c0}  macro_F1 = {f1:.4f}")
     print()
     print(f"FINAL  train_acc={train_acc:.4f}  test_acc={test_acc:.4f}")
     print(f"PLATEAU CHECK (train_acc < 0.95): "
