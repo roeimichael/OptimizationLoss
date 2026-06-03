@@ -1,26 +1,23 @@
-# Dataset Hunt — autonomous overnight run
+# Dataset Hunt v2
 
-Started: Dataset hunt started Fri May 29 01:38:30 AM IDT 2026
-Finished: Fri May 29 02:05:14 AM IDT 2026
+Started: Hunt v2 started Fri May 29 11:25:58 AM IDT 2026
+Finished: Fri May 29 12:05:46 PM IDT 2026
 Branch: dataset-hunt
 
-## Verdicts (all candidates)
+## Verdicts
 
 | Dataset | Verdict |
 |---|---|
-| fgvc_aircraft | PREP_FAIL |
-| stanford_cars | PREP_FAIL |
-| pcam | PREP_FAIL |
-| flowers102 | NO_EP3_ACC |
-| tiny_imagenet | PREP_FAIL |
-| dtd | NO_EP3_ACC |
-| sun397 | PREP_FAIL |
-| caltech256 | PREP_FAIL |
+| flowers102 | PASS ep3=0.4510 |
+| dtd | PASS ep3=0.6160 |
+| tiny_imagenet | NO_EP3 err= |
+| food101 | PREP_FAIL |
+| oxford_pet | SATURATED ep3=0.9314 |
+| fgvc_aircraft | NO_EP3 err=Error |
 
-## PASSed (kept on disk + in IMAGERY_DATASETS)
+## PASSED (HARD datasets kept)
 
-_None._
-
-## Master log
-
-Full master log: `logs/dataset_hunt/master_20260529_0138.log`
+| Dataset | ep1 acc | ep3 acc | Story |
+|---|---|---|---|
+| flowers102 | 0.1118 | 0.4510 | fine_grained_flowers |
+| dtd | 0.4426 | 0.6160 | texture_classification |
