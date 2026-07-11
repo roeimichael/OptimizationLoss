@@ -1,0 +1,60 @@
+{
+    "methodology": "tralo",
+    "model_name": "RegNetY400MF",
+    "constraint": [
+        0.2,
+        0.2
+    ],
+    "constraint_tag": "L20_G20",
+    "dataset_mode": "dermmnist",
+    "dataset_config": {
+        "data_dir": "data/dermmnist/slice_1",
+        "num_classes": 7,
+        "image_size": 224,
+        "target_column": "label",
+        "group_column": "loc_group",
+        "constrained_class": 4
+    },
+    "hyperparams": {
+        "lr": 0.0001,
+        "lr_constraint": 5e-06,
+        "dropout": 0.3,
+        "batch_size": 64,
+        "warmup_epochs": 50,
+        "constraint_epochs": 300,
+        "pretrained": true,
+        "class_weighted_ce": false,
+        "constraint_chunk_size": 256,
+        "lambda_global": 0.05,
+        "lambda_local": 0.05,
+        "lambda_step": 0.002,
+        "initial_rho": 5.0,
+        "rho_target": 100.0,
+        "alpha_kl": 0.0,
+        "penalty_mode": "both",
+        "enable_ce_skip": true,
+        "hybrid_mode": "undershoot_hinge",
+        "fior_beta": 0.5,
+        "reset_optimizer_at_sat": true,
+        "seed": 2
+    },
+    "base_model_id": "RegNetY400MF_dermmnist_58184a8509a5",
+    "exp_name": "paper_bb_RegNetY400MF_tralo_dermmnist_L20_G20_seed2",
+    "experiment_path": "results/pending_runs/paper_backbones/RegNetY400MF/dermmnist/L20_G20/tralo/seed_2",
+    "code_version": "c35f4bc8ec84-dirty",
+    "results": {
+        "accuracy": 0.8377433849226161,
+        "precision_macro": 0.8012047928320748,
+        "recall_macro": 0.6842432109188717,
+        "f1_macro": 0.7028977666707003,
+        "training_time": 69.93839430809021,
+        "warmup_time": 0.15097379684448242,
+        "constraint_train_time": 69.78742051124573,
+        "posthoc_time": 0.705040693283081,
+        "used_cached_model": true,
+        "samples_adjusted": 2,
+        "lp_fallback_used": false,
+        "lp_fallback_candidates": 0
+    },
+    "status": "completed"
+}

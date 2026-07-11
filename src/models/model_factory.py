@@ -12,6 +12,7 @@ from .imagery import (
     TinyCNNClassifier,
     SmallCNNClassifier,
     MediumCNNClassifier,
+    ViTB16Classifier,
 )
 
 MODEL_REGISTRY = {
@@ -22,6 +23,7 @@ MODEL_REGISTRY = {
     'TinyCNN': TinyCNNClassifier,
     'SmallCNN': SmallCNNClassifier,
     'MediumCNN': MediumCNNClassifier,
+    'ViTB16': ViTB16Classifier,
 }
 
 

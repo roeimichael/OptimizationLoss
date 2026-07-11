@@ -1,0 +1,23 @@
+{
+  "key": "elkan2001foundations",
+  "title": "The Foundations of Cost-Sensitive Learning",
+  "authors": "Charles Elkan",
+  "venue": "Proceedings of the Seventeenth International Joint Conference on Artificial Intelligence (IJCAI-01)",
+  "year": "2001",
+  "link": "https://www.ijcai.org/Proceedings/01/IJCAI-2001-c.pdf (paper pp. 973-978)",
+  "source_read": "local pdf: papers/elkan2001foundations.pdf",
+  "conclusions": [
+    "Formalizes when a two-class cost matrix is 'reasonable' (c10>c00, c01>c11) and shows the optimal decision rule is a threshold p* on P(j=1|x) derived from the cost matrix (Eq. 2).",
+    "Proves Theorem 1/Theorem 2: how to rebalance the proportion of negative vs. positive training examples so that a standard (non-cost-sensitive) learner's default 0.5 threshold implements a target cost-based threshold p*, without changing within-class example distributions.",
+    "Argues empirically/theoretically that rebalancing training data has little effect on classifiers produced by standard Bayesian and decision-tree learners (base-rate changes mostly shift only the estimated class prior).",
+    "Shows the impurity criterion used for decision-tree splitting (e.g. 2*sqrt(p(1-p))) is invariant to changes in class base rates (Theorem 3), so rebalancing does not help tree growing either.",
+    "Recommends instead: learn a probability estimator on the data as given, then apply the cost-based threshold (Eq. 1/2) directly at decision time, adjusting/calibrating probability estimates if needed.",
+    "The whole analysis is per-example expected-cost minimization via a fixed decision threshold; it contains no notion of a global/set-level count or quota on how many test examples may receive a given label."
+  ],
+  "our_use": "main.tex line ~209, in the 'Cost-sensitive and imbalanced training' paragraph: '...Reweighting or reshaping the loss changes which examples are emphasized: cost-sensitive thresholds \\citep{elkan2001foundations}, focal loss \\citep{lin2017focal}, ... None of it guarantees the prediction count; the realized number of constrained-class predictions remains a free outcome.' The paper is cited (via \\citep, parenthetical, appropriate) purely as the canonical reference for per-example cost-sensitive decision thresholds, one item in a list of loss-reshaping/threshold techniques that (correctly) do not provide any count guarantee.",
+  "relevance_verdict": "correct",
+  "citation_verdict": "correct",
+  "bibtex_verdict": "correct",
+  "issues": "none — title, sole author (Charles Elkan), venue (IJCAI-01), and year (2001) all verified against the PDF front matter ('To appear, Proceedings of the Seventeenth International Joint Conference on Artificial Intelligence (IJCAI'01)'); page range 973--978 confirmed via web search (dblp/ML Anthology record IJCAI 2001, pp. 973-978), consistent with the standard published version. \\citep usage and the claim attached (a per-example cost-sensitive threshold method that does not guarantee prediction counts) are accurate characterizations of the paper's content.",
+  "bibtex_corrected": "@inproceedings{elkan2001foundations,\n  author    = {Elkan, Charles},\n  title     = {The Foundations of Cost-Sensitive Learning},\n  booktitle = {Proceedings of the Seventeenth International Joint Conference on Artificial Intelligence},\n  pages     = {973--978},\n  year      = {2001}\n}"
+}

@@ -1,0 +1,22 @@
+{
+  "key": "eban2017scalable",
+  "title": "Scalable Learning of Non-Decomposable Objectives",
+  "authors": "Elad Eban, Mariano Schain, Alan Mackey, Ariel Gordon, Ryan Rifkin, Gal Elidan",
+  "venue": "Proceedings of the 20th International Conference on Artificial Intelligence and Statistics (AISTATS), PMLR vol. 54",
+  "year": "2017",
+  "link": "https://proceedings.mlr.press/v54/eban17a.html",
+  "source_read": "local pdf: papers/eban2017scalable.pdf",
+  "conclusions": [
+    "Introduces simple 'building block' bounds on per-example true-positive/false-positive indicator quantities (via hinge-loss upper/lower bounds) that let a wide range of non-decomposable, rank-based objectives be optimized with standard stochastic gradient descent.",
+    "Casts constrained objectives such as maximum recall at fixed precision (R@P) and maximum precision at fixed recall (P@R) as a Lagrangian saddle-point problem over dataset-level tp/fp aggregate counts, solved by primal-dual SGD.",
+    "Extends the same bounds to approximate AUCPR (via a discretized R@P integral over precision anchor points) and to the F_beta score.",
+    "All objectives are dataset/mini-batch aggregate rate quantities computed over a training distribution and optimized inductively (to generalize to new data), not verified against a fixed, already-realized test set.",
+    "Empirically validated at scale (CIFAR-10, ImageNet, and Google's internal JFT with 300M+ images), showing consistent AUCPR/P@R/R@P gains over accuracy-trained (softmax) and AUCROC-surrogate baselines with no meaningful loss of scalability."
+  ],
+  "our_use": "main.tex:181-182, in the 'Rate-constrained learning' related-work paragraph: '...non-decomposable rate objectives through surrogate bounds \\citep{eban2017scalable}...These bound expected rates over a distribution, inductively. Our requirement is a hard count on one specific test set: transductive, verified on the argmax predictions themselves, and paired with per-group local caps.' The paper is cited as the representative example of optimizing non-decomposable rate objectives via convex surrogate bounds, contrasted with our transductive, single-test-set hard count constraint.",
+  "relevance_verdict": "correct",
+  "citation_verdict": "correct",
+  "bibtex_verdict": "correct",
+  "issues": "REVIEWER-VERIFIED (Opus, 2026-07-07): the reader agent claimed the 5th author should be 'Rif A. Saurous' -- FALSE. Official PMLR proceedings (proceedings.mlr.press/v54/eban17a.html) list 'Ryan Rifkin'. Our bib is CORRECT; NO CHANGE.",
+  "bibtex_corrected": "@inproceedings{eban2017scalable,\n  title={Scalable Learning of Non-Decomposable Objectives},\n  author={Eban, Elad and Schain, Mariano and Mackey, Alan and Gordon, Ariel and Rifkin, Ryan and Elidan, Gal},\n  booktitle={Proceedings of the 20th International Conference on Artificial Intelligence and Statistics},\n  series={Proceedings of Machine Learning Research},\n  volume={54},\n  pages={832--840},\n  publisher={PMLR},\n  year={2017}\n}"
+}

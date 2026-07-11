@@ -1,0 +1,23 @@
+{
+  "key": "pathak2015constrained",
+  "title": "Constrained Convolutional Neural Networks for Weakly Supervised Segmentation",
+  "authors": "Deepak Pathak, Philipp Krähenbühl, Trevor Darrell",
+  "venue": "IEEE International Conference on Computer Vision (ICCV)",
+  "year": "2015",
+  "link": "https://www.cv-foundation.org/openaccess/content_iccv_2015/html/Pathak_Constrained_Convolutional_Neural_ICCV_2015_paper.html",
+  "source_read": "local pdf: papers/pathak2015constrained.pdf",
+  "conclusions": [
+    "Proposes Constrained CNN (CCNN): trains a CNN for weakly-supervised semantic segmentation by imposing arbitrary linear constraints (e.g. suppression, foreground presence, background-area bounds, and optional object-size bounds) on the expected pixel-label distribution instead of on the raw network output.",
+    "Key trick: introduces a latent distribution P(X) constrained to the feasible region and trains the network Q to match P via KL divergence, turning a hard non-convex constrained problem into an alternating convex (dual ascent on P) / gradient (SGD on theta) optimization that plugs directly into standard SGD.",
+    "The linear constraints bound expected sums of per-pixel label probabilities (i.e. soft counts of pixels predicted with a given label) within [a,b] ranges - a count-style constraint on the predicted labeling, analogous in spirit to a soft/rational relaxation of a hard prediction-count cap.",
+    "Solved via projected dual gradient ascent on Lagrange multipliers lambda (a dual/Lagrangian-style update), which the paper shows converges within ~50 iterations and is robust to initialization, unlike prior MIL-based weak segmentation methods.",
+    "Empirically achieves state-of-the-art weakly-supervised semantic segmentation on PASCAL VOC 2012 using only image-level tags, with further gains from adding a rough object-size supervision signal; also compared against fully supervised methods and shown to approach their performance with additional weak supervision.",
+    "This is a segmentation-specific, per-image linear-constraint framework (not a transductive, dataset-wide hard prediction-count cap with a ratcheting multiplier/optimizer reset/undershoot hinge as in our method)."
+  ],
+  "our_use": "main.tex:163 - cited in the 'Lagrangian and dual constrained learning' related-work paragraph as an example of constraints enforced during training via primal-dual updates: '...and by linear constraints on predicted label counts for weakly supervised segmentation \\citep{pathak2015constrained}...' - accurately describes CCNN's foreground/background/size bounds as linear constraints on (expected/soft) predicted label counts, applied to weakly supervised segmentation, contrasted with our transductive hard-cap setting later in the same paragraph.",
+  "relevance_verdict": "correct",
+  "citation_verdict": "correct",
+  "bibtex_verdict": "minor",
+  "issues": "Title, full author list (incl. Krähenbühl diacritic), and year (2015, ICCV) are all correct and match the paper's front matter. Page range 1796--1804 is correct (paper occupies pp.1796-1803 with references ending on p.1804, matching public listings for this ICCV 2015 paper). The only issue is the booktitle field: 'International Conference on Computer Vision' omits the standard 'IEEE' prefix and 'Proceedings of the' phrasing used in the official venue name (2015 IEEE International Conference on Computer Vision, ICCV). This is a stylistic/completeness gap, not a factual error, and does not affect relevance or the claim attached to the citation.",
+  "bibtex_corrected": "@inproceedings{pathak2015constrained,\n  author    = {Pathak, Deepak and Kr{\\\"a}henb{\\\"u}hl, Philipp and Darrell, Trevor},\n  title     = {Constrained Convolutional Neural Networks for Weakly Supervised Segmentation},\n  booktitle = {Proceedings of the IEEE International Conference on Computer Vision (ICCV)},\n  pages     = {1796--1804},\n  year      = {2015}\n}"
+}

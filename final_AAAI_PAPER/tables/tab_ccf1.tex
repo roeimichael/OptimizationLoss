@@ -1,0 +1,36 @@
+% tab_ccf1.tex -- headline constrained-class F1 (MobileNetV3). Split from tab_results.tex.
+% \input-ready: float-only. Requires: booktabs, multirow (loaded by main.tex).
+% Values = mean over seeds 1-4 from sweep=='paper_final' (verified: exactly one row per
+% seed, no cross-seed averaging). {\tiny +-.0xx} = across-seed std; it reinforces the tie
+% (intervals overlap) but note the trained-vs-trained comparison is PAIRED, so the honest
+% win uncertainty is the seed-winrate / paired test, not these marginal bars (see Table 2).
+\begin{table*}[t]\centering\small
+\setlength{\tabcolsep}{3pt}
+\caption{\textbf{Constrained-class F1 on the symmetric grid} (MobileNetV3, mean over
+seeds $1$--$4$; {\tiny$\pm$}\,across-seed std). \textbf{Bold} = best, \underline{underline}
+= second-best among the constraint-\emph{trained} methods; $^{\dagger}$ = post-hoc
+clippers, shown for reference. Among the trained methods the differences sit within seed
+noise (a paired-Wilcoxon tie); the marginal std here is shown for transparency, but the
+paired win uncertainty is the seed-winrate of Table~\ref{tab:oct_backbone}.}
+\label{tab:ccf1}
+\vspace{4pt}
+\begin{tabular}{ll cc cccc}
+\toprule
+ & & \multicolumn{2}{c}{Post-hoc$^{\dagger}$} & \multicolumn{4}{c}{Constraint-trained} \\
+\cmidrule(lr){3-4}\cmidrule(lr){5-8}
+Data & Cap & Heur. & Shifman & Fioretto & Hounie & TraLO-b & \textbf{TraLO} \\
+\midrule
+\multirow{3}{*}{Tissue} & L30 & 0.225{\tiny$\pm$.040} & 0.221{\tiny$\pm$.038} & \textbf{0.275}{\tiny$\pm$.016} & \textbf{0.275}{\tiny$\pm$.026} & \underline{0.270}{\tiny$\pm$.024} & \textbf{0.275}{\tiny$\pm$.024} \\
+ & L50 & 0.303{\tiny$\pm$.052} & 0.300{\tiny$\pm$.051} & \underline{0.352}{\tiny$\pm$.012} & 0.348{\tiny$\pm$.010} & \underline{0.352}{\tiny$\pm$.023} & \textbf{0.354}{\tiny$\pm$.019} \\
+ & L70 & 0.344{\tiny$\pm$.034} & 0.326{\tiny$\pm$.020} & 0.393{\tiny$\pm$.023} & 0.392{\tiny$\pm$.024} & \textbf{0.404}{\tiny$\pm$.018} & \underline{0.399}{\tiny$\pm$.020} \\
+\midrule
+\multirow{3}{*}{Derm} & L30 & 0.419{\tiny$\pm$.007} & 0.417{\tiny$\pm$.009} & \underline{0.417}{\tiny$\pm$.007} & 0.412{\tiny$\pm$.012} & \textbf{0.419}{\tiny$\pm$.007} & \textbf{0.419}{\tiny$\pm$.007} \\
+ & L50 & 0.557{\tiny$\pm$.021} & 0.557{\tiny$\pm$.024} & \underline{0.561}{\tiny$\pm$.010} & 0.560{\tiny$\pm$.010} & \underline{0.561}{\tiny$\pm$.010} & \textbf{0.564}{\tiny$\pm$.008} \\
+ & L70 & 0.633{\tiny$\pm$.020} & 0.633{\tiny$\pm$.020} & \underline{0.645}{\tiny$\pm$.018} & 0.641{\tiny$\pm$.015} & \underline{0.645}{\tiny$\pm$.016} & \textbf{0.648}{\tiny$\pm$.023} \\
+\midrule
+\multirow{3}{*}{OctMNIST} & L30 & 0.420{\tiny$\pm$.015} & 0.418{\tiny$\pm$.015} & \underline{0.391}{\tiny$\pm$.023} & 0.326{\tiny$\pm$.034} & 0.388{\tiny$\pm$.022} & \textbf{0.407}{\tiny$\pm$.019} \\
+ & L50 & 0.564{\tiny$\pm$.031} & 0.565{\tiny$\pm$.030} & 0.580{\tiny$\pm$.017} & 0.580{\tiny$\pm$.013} & \underline{0.581}{\tiny$\pm$.011} & \textbf{0.583}{\tiny$\pm$.024} \\
+ & L70 & 0.651{\tiny$\pm$.036} & 0.636{\tiny$\pm$.050} & \underline{0.657}{\tiny$\pm$.023} & \underline{0.657}{\tiny$\pm$.022} & \textbf{0.658}{\tiny$\pm$.021} & 0.650{\tiny$\pm$.026} \\
+\bottomrule
+\end{tabular}
+\end{table*}

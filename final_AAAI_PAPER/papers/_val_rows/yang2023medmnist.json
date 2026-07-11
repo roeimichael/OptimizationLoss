@@ -1,0 +1,23 @@
+{
+  "key": "yang2023medmnist",
+  "title": "MedMNIST v2 - A Large-Scale Lightweight Benchmark for 2D and 3D Biomedical Image Classification",
+  "authors": "Jiancheng Yang, Rui Shi, Donglai Wei, Zequan Liu, Lin Zhao, Bilian Ke, Hanspeter Pfister, Bingbing Ni",
+  "venue": "Scientific Data (Nature Publishing Group)",
+  "year": "2023",
+  "link": "papers/yang2023medmnist.pdf (arXiv:2110.14795v5)",
+  "source_read": "local pdf: papers/yang2023medmnist.pdf",
+  "conclusions": [
+    "Introduces MedMNIST v2, a standardized MNIST-like collection of 12 2D + 6 3D biomedical image classification datasets (708,069 2D images, 9,998 3D images), all preprocessed to 28x28 (2D) or 28x28x28 (3D) with official train/val/test splits.",
+    "TissueMNIST (kidney cortex cells, BBBC051, 8 classes, 236,386 images), DermMNIST (HAM10000 dermatoscopic images, 7 classes, 10,015 images), and OCTMNIST (retinal OCT, 4 classes, 109,309 images) are among the 12 2D sub-datasets, each with documented source, task type, class count, and split sizes.",
+    "Benchmarks several baseline methods (ResNet-18/50 at two resolutions, auto-sklearn, AutoKeras, Google AutoML Vision) on every sub-dataset using AUC and ACC, repeated >=3 trials per method.",
+    "Positions MedMNIST v2 as a lightweight, diverse, standardized, educational 'decathlon' benchmark for biomedical image analysis, intended to ease entry for non-domain researchers and enable fair algorithm comparison.",
+    "Explicitly states the resized 28x28 data is NOT intended for clinical use and recommends citing both the original source dataset paper (e.g., HAM10000) and MedMNIST v1/v2.",
+    "Data, code, and evaluation scripts are publicly released (medmnist.com, GitHub)."
+  ],
+  "our_use": "main.tex:333 -- 'We use three MedMNIST v2 \\citep{yang2023medmnist} classification tasks, each with a naturally rare class that makes a count cap meaningful ... TissueMNIST ... DermMNIST ... [OctMNIST]'. This is a plain, correct attribution: yang2023medmnist is cited as the source/standardization of the TissueMNIST, DermMNIST, and OctMNIST benchmarks used in our experiments, exactly matching what the paper provides (it directly documents all three sub-datasets, their class counts, and splits). A separate citation (tschandl2018ham10000) immediately follows for the underlying HAM10000 source of DermMNIST, consistent with the MedMNIST authors' own citation guidance.",
+  "relevance_verdict": "correct",
+  "citation_verdict": "correct",
+  "bibtex_verdict": "correct",
+  "issues": "none -- title, full author list/order, journal (Scientific Data), volume 10, issue 1, article-number-as-pages 41, year 2023, and publisher all verified against the paper's front matter (this is the well-known published version, DOI 10.1038/s41597-022-01721-8, not just the arXiv preprint; the PDF itself is an arXiv-hosted copy of the same accepted text). No DOI field present, but no other bib entries in this file carry DOIs either, so this is a stylistic non-issue, not an error.",
+  "bibtex_corrected": "@article{yang2023medmnist,\n  title={{MedMNIST} v2 -- A Large-Scale Lightweight Benchmark for {2D} and {3D} Biomedical Image Classification},\n  author={Yang, Jiancheng and Shi, Rui and Wei, Donglai and Liu, Zequan and Zhao, Lin and Ke, Bilian and Pfister, Hanspeter and Ni, Bingbing},\n  journal={Scientific Data},\n  volume={10},\n  number={1},\n  pages={41},\n  year={2023},\n  publisher={Nature Publishing Group}\n}"
+}

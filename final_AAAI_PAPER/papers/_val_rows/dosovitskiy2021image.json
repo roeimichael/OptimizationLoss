@@ -1,0 +1,22 @@
+{
+  "key": "dosovitskiy2021image",
+  "title": "An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale",
+  "authors": "Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby",
+  "venue": "International Conference on Learning Representations (ICLR)",
+  "year": "2021",
+  "link": "https://arxiv.org/abs/2010.11929",
+  "source_read": "local pdf: papers/dosovitskiy2021image.pdf",
+  "conclusions": [
+    "Introduces the Vision Transformer (ViT): a pure Transformer applied directly to sequences of fixed-size image patches (linear patch embedding + learnable position embeddings + class token), with no convolutional inductive bias beyond patch extraction.",
+    "Defines the ViT-Base/Large/Huge model family and the patch-size naming convention (e.g. ViT-B/16 = Base variant, 16x16 patches) used throughout the paper (Table 1).",
+    "Shows ViT underperforms comparable ResNets when trained from scratch on mid-sized data (e.g. ImageNet only) due to lack of translation-equivariance/locality inductive bias.",
+    "Shows that with large-scale pre-training (ImageNet-21k or JFT-300M), ViT matches or beats state-of-the-art CNN baselines (BiT-ResNet, Noisy Student) on ImageNet, CIFAR-10/100, Oxford Pets/Flowers, and the 19-task VTAB suite, while using substantially less pre-training compute.",
+    "Provides a compute-vs-performance scaling study showing Transformers dominate ResNets on the performance/compute trade-off at scale, and analyzes learned attention/position-embedding structure."
+  ],
+  "our_use": "main.tex:346-349 (Backbones paragraph): 'The headline grid uses three backbones, MobileNetV3 \\citep{howard2019searching}, RegNetY-400MF \\citep{radosavovic2020designing}, and a ViT-B/16 transformer \\citep{dosovitskiy2021image}, to show the findings are not CNN-specific.' -- cited purely as the source of the ViT-B/16 architecture used as one of the three backbones in the experimental grid.",
+  "relevance_verdict": "correct",
+  "citation_verdict": "correct",
+  "bibtex_verdict": "correct",
+  "issues": "none -- title, full 12-author list (order and spelling), venue (ICLR), and year all verified exactly against the PDF front matter ('Published as a conference paper at ICLR 2021'). No page/volume/DOI needed for this ICLR inproceedings entry (standard for ICLR citations, no proceedings pagination). Usage is a simple, accurate architecture citation (ViT backbone), matching the paper's actual content.",
+  "bibtex_corrected": "@inproceedings{dosovitskiy2021image,\n  title={An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale},\n  author={Dosovitskiy, Alexey and Beyer, Lucas and Kolesnikov, Alexander and Weissenborn, Dirk and Zhai, Xiaohua and Unterthiner, Thomas and Dehghani, Mostafa and Minderer, Matthias and Heigold, Georg and Gelly, Sylvain and Uszkoreit, Jakob and Houlsby, Neil},\n  booktitle={International Conference on Learning Representations},\n  year={2021}\n}"
+}

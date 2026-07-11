@@ -1,0 +1,23 @@
+{
+  "key": "sangalli2021constrained",
+  "title": "Constrained Optimization to Train Neural Networks on Critical and Under-Represented Classes",
+  "authors": "Sara Sangalli, Ertunc Erdil, Andreas Hoetker, Olivio Donati, Ender Konukoglu",
+  "venue": "Advances in Neural Information Processing Systems (NeurIPS 2021), vol. 34",
+  "year": "2021",
+  "link": "https://arxiv.org/abs/2102.12894 ; https://proceedings.neurips.cc/paper_files/paper/2021/file/d5ade38a2c9f6f073d69e1bc6b6e64c1-Paper.pdf",
+  "source_read": "local pdf: papers/sangalli2021constrained.pdf",
+  "conclusions": [
+    "Poses training a binary-classification DNN under class imbalance as a constrained optimization problem, with a novel constraint (built on Mann-Whitney/AUC statistics) that favors reducing FPR at high TPR for the minority/critical class.",
+    "Solves the constrained problem via an Augmented Lagrangian Method (ALM): per-critical-sample Lagrange multipliers plus a quadratic penalty, with the penalty coefficient mu increased on a schedule when a validation metric fails to improve.",
+    "Extends the binary constraint to multi-class classification with two variants (ALM_m,1 and ALM_m,2), the second also pushing down non-critical-class probability on critical samples.",
+    "Evaluated on an in-house prostate MRI dataset, CIFAR10, and CIFAR100 (binary and long-tailed multi-class variants), combined with 9 existing imbalance-handling losses as the base loss F(theta).",
+    "Shows the ALM constraint improves FPR-at-high-TPR and AUC over the un-constrained baselines in the majority of loss/imbalance-ratio combinations, and outperforms directly optimizing AUC via mini-batch AUC (MBAUC).",
+    "The constraint operates purely on a per-sample/pairwise margin (AUC-style ranking), not on any test-set / transductive prediction-COUNT constraint; there is no notion of a hard cap on how many items may receive a given label."
+  ],
+  "our_use": "main.tex line ~168 (related work, penalty-design paragraph): 'Constrained optimization has also been used to protect critical, under-represented classes \\citep{sangalli2021constrained}, and group-wise constraints underpin fair classification \\citep{zafar2017fairness,agarwal2018reductions}, the trained analogues of our local caps.' -- cited purely as a related-work exemplar of the broader theme 'constrained optimization used to protect critical/under-represented classes', not for any specific numeric result or count-constraint mechanism.",
+  "relevance_verdict": "correct",
+  "citation_verdict": "correct",
+  "bibtex_verdict": "correct",
+  "issues": "none -- title, full author list, venue (NeurIPS/NeurIPS proceedings vol. 34), and page range (25400-25411) all verified against the paper's own front matter/footer and cross-checked against the NeurIPS proceedings page. The PDF's own author line renders the umlaut as 'Hoetker' (matches bib exactly); the NeurIPS proceedings listing shows 'Hötker, A.M.' as an alternate transliteration/initial, which is a cosmetic difference, not an error, so no correction is needed. The citing sentence is a broad, accurate thematic pointer (general related-work anchor) and does not overclaim any specific mechanism (e.g., it does not claim Sangalli et al. use count-based or transductive constraints, which they do not) -- it is only invoked as prior art for 'constrained optimization protecting critical/under-represented classes,' which is exactly what the paper does via its AUC/FPR-margin ALM constraint.",
+  "bibtex_corrected": "@inproceedings{sangalli2021constrained,\n  title={Constrained Optimization to Train Neural Networks on Critical and Under-Represented Classes},\n  author={Sangalli, Sara and Erdil, Ertunc and Hoetker, Andreas and Donati, Olivio and Konukoglu, Ender},\n  booktitle={Advances in Neural Information Processing Systems},\n  volume={34},\n  pages={25400--25411},\n  year={2021}\n}"
+}

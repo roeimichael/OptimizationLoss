@@ -1,0 +1,22 @@
+{
+  "key": "chamon2023constrained",
+  "title": "Constrained Learning with Non-Convex Losses",
+  "authors": "Luiz F. O. Chamon, Santiago Paternain, Miguel Calvo-Fullana, Alejandro Ribeiro",
+  "venue": "IEEE Transactions on Information Theory, vol. 69, no. 3, pp. 1739--1760",
+  "year": "2023",
+  "link": "https://arxiv.org/abs/2103.05134 (published: doi:10.1109/TIT.2022.3187948)",
+  "source_read": "local pdf: papers/chamon2023constrained.pdf",
+  "conclusions": [
+    "Establishes a constrained counterpart of classical PAC learning theory ('near-PACC learnability') for constrained empirical risk minimization, including non-convex losses (Theorem 1, Corollary 1).",
+    "Shows the empirical dual problem (unconstrained, deterministic) has a bounded duality gap vs. the original non-convex constrained statistical problem, decomposed into a functional duality gap, a parametrization/approximation gap, and a sample/empirical gap.",
+    "Proves strong duality holds for the functional (infinite-dimensional) constrained learning problem even under non-convex losses, given mild non-atomicity/decomposability conditions (Proposition III.2).",
+    "Proposes a practical primal-dual (dual-ascent) algorithm (Algorithm 1): minimize the Lagrangian over parameters for fixed multipliers, then update multipliers via a projected ascent step on the constraint slacks, with near-optimality/near-feasibility guarantees (Theorems 2-3).",
+    "Demonstrates the framework on two applications: adversarially-robust image classification (CNN, non-convex) and rate-constrained fair classification on COMPAS (logistic model, non-convex 0/1-loss constraint via sigmoid surrogate), showing the dual multiplier rises to enforce a violated constraint and then stabilizes/shrinks once satisfied."
+  ],
+  "our_use": "main.tex line 152-155: '...brought to deep networks by Lagrangian-duality training \\citep{fioretto2020lagrangian} and given statistical footing by PAC constrained-learning theory \\citep{chamon2020probably,chamon2023constrained}.' -- cited (with chamon2020probably) as the source of PAC-style generalization/statistical guarantees for Lagrangian dual-ascent constrained learning.",
+  "relevance_verdict": "correct",
+  "citation_verdict": "correct",
+  "bibtex_verdict": "correct",
+  "issues": "none -- title, full author list, journal name, volume (69), issue (3), page range (1739--1760), and year (2023) all verified against the paper's own header/front matter and cross-checked via web search (DOI 10.1109/TIT.2022.3187948). Optional improvement: adding a doi field would strengthen the entry but its absence is not an error.",
+  "bibtex_corrected": "@article{chamon2023constrained,\n  title={Constrained Learning with Non-Convex Losses},\n  author={Chamon, Luiz F. O. and Paternain, Santiago and Calvo-Fullana, Miguel and Ribeiro, Alejandro},\n  journal={IEEE Transactions on Information Theory},\n  volume={69},\n  number={3},\n  pages={1739--1760},\n  year={2023},\n  publisher={IEEE},\n  doi={10.1109/TIT.2022.3187948}\n}"
+}

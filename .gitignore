@@ -95,3 +95,31 @@ Thumbs.db
 *.pdf
 comparison_results.csv
 paper/references/
+
+# ============================================================================
+# AAAI-2027 submission: un-hide the paper source that *.tex / *.png / *.pdf hide.
+# papers/*.pdf stays ignored (copyrighted publisher PDFs) -- deliberately NOT negated.
+!final_AAAI_PAPER/**/*.tex
+!final_AAAI_PAPER/figures/*.png
+!final_AAAI_PAPER/figures/*.pdf
+!final_AAAI_PAPER/main.pdf
+!final_AAAI_PAPER/supplementary.pdf
+
+# Legacy / scratch trees: keep on disk, keep OUT of git
+archive/
+paper_aaai/
+extra_experiments/
+.agents/
+skills-lock.json
+logs/.hook_last_predictions_count
+final_AAAI_PAPER/bib_verification.html
+
+# LaTeX build artifacts (regenerable; final PDFs are negated above)
+*.aux
+*.bbl
+*.blg
+*.out
+*.synctex.gz
+*.toc
+*.fls
+*.fdb_latexmk

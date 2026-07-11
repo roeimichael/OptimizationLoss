@@ -1,0 +1,649 @@
+% ============================================================================
+%  TraLO: Training Deep Neural Networks to Meet Hard Prediction Quotas
+%  OFFICIAL AAAI-27 style (aaai2027.sty), anonymous submission build.
+%  Main PDF = body (<= 7 pages of content) + references (total <= 9 pages).
+%  The technical appendix lives in supplementary.tex (separate PDF, per the
+%  AAAI-27 supplementary-material rules; compile main first, xr reads main.aux).
+%
+%  Compile:  pdflatex main ; bibtex main ; pdflatex main ; pdflatex main
+%  Figures live in figures/ ; tables are \input{} from tables/ ; bib = references.bib.
+% ============================================================================
+\documentclass[letterpaper]{article} % DO NOT CHANGE THIS
+\usepackage[submission]{aaai2027}  % anonymous submission build (auto-anonymizes authors)
+% Fonts (newtxtext, helvet, courier) are loaded by aaai2027.sty itself; the kit
+% forbids loading times/helvet/courier or any other font package here.
+\usepackage[hyphens]{url}      % DO NOT CHANGE
+\usepackage{graphicx}          % DO NOT CHANGE
+\urlstyle{rm}                  % DO NOT CHANGE
+\def\UrlFont{\rm}              % DO NOT CHANGE
+\usepackage{natbib}            % DO NOT CHANGE (and add no options)
+\usepackage{caption}           % DO NOT CHANGE (and add no options)
+\frenchspacing                 % DO NOT CHANGE
+
+% --- extras (algorithm/algorithmic are recommended by the AAAI-27 kit; the rest
+%     are not on the kit's forbidden list) ---
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{float}             % for [H] exact figure placement (Fig 1 sits between paragraphs)
+\newtheorem{proposition}{Proposition}  % core LaTeX, no amsthm needed
+
+\pdfinfo{/TemplateVersion (2027.1)}
+\setcounter{secnumdepth}{2}    % kit allows 1 or 2; in-text "Sec. 5.1" refs rely on this
+
+\graphicspath{{figures/}}
+
+% Suppress the class's review-copy notice at the foot of page 1. Authors stay
+% anonymized via the [submission] option above; \nocopyright only drops the footer.
+\nocopyright
+
+\title{Training Deep Neural Networks to Meet Hard Prediction Quotas}
+\author{Anonymous Author(s)}
+\affiliations{Anonymous Affiliation}
+
+\begin{document}
+\maketitle
+
+% ----------------------------------------------------------------------------
+\begin{abstract}
+We study \emph{transductive count constraints}: hard caps on how many test-set
+items a classifier may assign to a constrained class (a triage queue that admits
+only so many ``urgent'' cases), optionally with per-group local caps. Post-hoc clipping
+meets the cap but erodes accuracy by editing predictions, and dual-ascent training escalates
+an unbounded multiplier that can climb steeply and still stall short of feasibility. We
+propose \textbf{TraLO}, a bounded
+transductive loss whose penalty saturates and whose multiplier ratchets while the count
+is violated and freezes once it is met, with an optimizer reset and an undershoot hinge
+that restores constrained-class recall. Across three MedMNIST datasets and three backbones
+(MobileNetV3, RegNetY-400MF, ViT-B/16), TraLO matches the strong constraint-trained
+baselines across most of the grid and pulls ahead on constrained-class F1 wherever the
+count binds hard: on OctMNIST tight caps the lead is backbone-general and \emph{grows with
+backbone capacity}, reaching $+0.081$ on the ViT, and it recurs, preliminarily, on the
+global-tighter asymmetric caps of DermMNIST. Against post-hoc clipping, the
+constraint-trained family including TraLO improves macro-F1 on every dataset and backbone
+by landing on the cap natively, the one exception being the dual baselines tying the
+clipper on OctMNIST with the ViT. We report the full regime map, wins and ties alike, with a
+component ablation.
+\end{abstract}
+
+% ----------------------------------------------------------------------------
+\section{Introduction}
+
+A surprising number of classification systems are deployed under a constraint not
+on which items get a label but on how many do. A clinical triage tool
+may escalate only a fixed fraction of scans to a specialist, and an inspection line
+can act on no more flagged items than it has inspectors. In each case the operational requirement is a
+\emph{hard upper bound on the count} of predictions in a constrained class over the
+evaluation set. The items to be labeled are known in advance, so the
+constraint is naturally \emph{transductive}: it is a property of the whole test-set
+prediction vector, not of any single example.
+
+The pervasive way to honor such a cap is \emph{post-hoc clipping}: train a normal
+model, rank the test items by their score for the constrained class, keep the top-$K$,
+and reassign the rest. This is trivial to implement and always meets the count, which
+is why it is the realistic deployment baseline. But it meets the count by
+editing predictions, often dozens of them, and every edit is a forced error
+on an item the model was previously confident about, so accuracy degrades. The other
+end of the spectrum is \emph{constrained training}: encode the cap as a constraint and
+solve the Lagrangian with dual ascent
+\citep{fioretto2020lagrangian,hounie2023resilient,chamon2020probably}. In principle this
+is exactly the right formulation, but for a hard count the dual multiplier of a
+linear penalty climbs without bound. While the classifier is still learning, its gradient keeps
+re-inflating the constrained class, so the violation persists and the multiplier climbs
+every epoch. A one-epoch-warmup probe shows it climbing steeply while our bounded
+multiplier barely moves, for the same final count (Supp.~Sec.~A). The implementations
+remain competitive, but the constrained class is the part of the model most stressed by
+the escalation, and on some cells the dual never reaches feasibility at all
+(Sec.~\ref{sec:conv}).
+
+\begin{figure}[H]\centering
+\includegraphics[width=0.85\columnwidth]{fig_datasets}
+\caption{\textbf{DermMNIST lesions, benign to malignant} (frame color: green benign,
+red malignant, blue the \emph{constrained} class). The task caps how many test images
+the model may label melanoma, the rare high-stakes class; TraLO meets that cap
+\emph{during training} rather than clipping afterward. All three datasets we study have
+such a rare class.}
+\label{fig:datasets}
+\end{figure}
+
+We propose \textbf{TraLO} (Transductive Loss Optimization), a constrained-training
+method whose multiplier stays bounded by construction. Its transductive penalty is
+bounded (a rational-saturation term plus a bounded quadratic in the soft excess
+over the cap), the multiplier only ever moves upward while the count is violated
+and freezes the first time it is met, the Adam state is reset at first satisfaction
+to kill post-satisfaction descent momentum, and an undershoot hinge restores
+constrained-class recall once the cap is met. The result is a classifier that lands on
+the count by itself, with no prediction surgery.
+
+\paragraph{Contributions.}
+\begin{itemize}\itemsep2pt
+  \item \textbf{A deployable formulation and method.} We cast the operational
+  ``$\le K$ predictions of class $c$'' requirement as a transductive count constraint
+  and give a bounded penalty with a freeze-at-satisfaction multiplier,
+  optimizer reset, and undershoot hinge (Sec.~\ref{sec:method}).
+  \item \textbf{A characterized quality win over the trained baselines.}
+  Versus the much stronger constraint-trained baselines, TraLO matches
+  constrained-class F1 across most of the grid and beats them wherever the count
+  binds hard: on all three backbones, at OctMNIST tight caps, where the lead
+  grows with backbone capacity and reaches $+0.081$ on the ViT transformer, and
+  preliminarily, on two of the three backbones, at the global-tighter
+  asymmetric caps of DermMNIST. We publish the full regime map including the large region
+  where it is a statistical tie (Secs.~\ref{sec:oct}--\ref{sec:regime}).
+  \item \textbf{A quantified accuracy tax for post-hoc clipping, and a family that
+  avoids it.} Across all three datasets the constraint-trained family, TraLO
+  included, improves macro-F1 over the field-default clipping baseline on every backbone
+  including the ViT transformer, save a tie at OctMNIST$\times$ViT (Sec.~\ref{sec:deploy}). TraLO delivers
+  the gain with native satisfaction on every run in our grid and the fewest prediction edits at
+  binding caps (Supp.~Sec.~C).
+  \item \textbf{Mechanism and ablation.} We separate two roles: the bounded penalty makes
+  the count reachable with a small, frozen multiplier, while the constrained-class quality
+  gain is carried by the optimizer reset and undershoot hinge, isolated in a complete
+  ablation (Supp.~Sec.~B).
+\end{itemize}
+
+% ----------------------------------------------------------------------------
+\section{Related Work}
+
+\paragraph{Lagrangian and dual constrained learning.}
+Encoding requirements as constraints and solving with primal--dual methods is the
+classical recipe \citep{bertsekas2014constrained}, brought to deep networks by
+Lagrangian-duality training \citep{fioretto2020lagrangian} and given statistical
+footing by PAC constrained-learning theory
+\citep{chamon2020probably,chamon2023constrained}. Resilient Constrained Learning
+\citep{hounie2023resilient} adapts the constraint level to make hard requirements
+attainable, and PID-style dual updates stabilize the multiplier in safe RL
+\citep{stooke2020responsive}, and \citet{gallego2022controlled} make the empirical
+case that constraints outperform fixed penalties on sparsity targets. Our critique of
+runaway escalation is therefore specific to the unbounded linear-penalty formulation:
+augmented-Lagrangian and resilient updates keep the multiplier better behaved, yet the
+resilient method we benchmark still winds up slowly on a hard count (Sec.~\ref{sec:conv}).
+Closer to
+our output-level setting, constraints on a network's predictions have been enforced
+during training by primal--dual updates \citep{nandwani2019primal} and by linear
+constraints on predicted label counts for weakly supervised segmentation
+\citep{pathak2015constrained}, or guaranteed per prediction by construction through
+input-dependent parametrizations \citep{brosowsky2021sample} or an output-layer
+satisfiability solver \citep{goyal2024deepsade}; \citet{marquez2017imposing} find hard
+enforcement feasible but no better than soft penalties, which motivates our bounded
+penalty. Constrained optimization has also been used
+to protect critical, under-represented classes \citep{sangalli2021constrained}, and
+group-wise constraints underpin fair classification
+\citep{zafar2017fairness,agarwal2018reductions}, the trained analogues of our local caps.
+We use the two strongest dual-ascent methods, Fioretto-LDF
+\citep{fioretto2020lagrangian} and Hounie-RCL \citep{hounie2023resilient}, as our
+constraint-trained baselines.
+Our point of departure is that a hard count cap is the setting where
+the dual multiplier escalates without bound; TraLO instead optimizes a bounded
+penalty and freezes the multiplier at satisfaction.
+
+\paragraph{Rate-constrained learning.}
+The closest classical relatives constrain prediction \emph{rates}:
+coverage (the fraction of items predicted positive) as a dataset constraint
+\citep{goh2016satisfying}, non-decomposable rate objectives through surrogate bounds
+\citep{eban2017scalable}, non-differentiable rate constraints through proxy-Lagrangian
+games \citep{cotter2019optimization}, and generalized rate metrics through multi-player
+schemes \citep{narasimhan2019optimizing}. These bound \emph{expected} rates over a
+distribution, inductively. Our requirement is a hard count on one specific test
+set: transductive, verified on the argmax predictions themselves, and paired with
+per-group local caps.
+
+\paragraph{Post-hoc correction and resource allocation.}
+Resource-constrained classification allocates a fixed budget over a trained
+classifier's outputs at decision time, classically as a small assignment
+problem, most recently under exactly our local-plus-global constraint structure
+\citep{shifman2025classification}. Other work in this line folds the budget into
+learning via adaptive cost-sensitive weights \citep{shifman2023adaptive} or
+predict-and-optimize ranking under stochastic capacity
+\citep{vanderschueren2024perspective}, steering expected costs rather than
+enforcing a hard count; learning-with-rejection \citep{cortes2016learning} prices
+abstention per instance, likewise without a count guarantee. In fair classification,
+post-processing likewise edits a trained model's decisions with group-specific
+thresholds \citep{hardt2016equality}. Decision-time
+allocation always meets the budget, but it is a deploy-time clipper: it edits the
+model's predictions to do so. We use a greedy threshold heuristic and a
+linear-programming clipper (Shifman-LP, after the two-phase allocator of
+\citealt{shifman2025classification}) as our post-hoc baselines, and show TraLO removes
+the accuracy tax they pay.
+
+\paragraph{Cost-sensitive and imbalanced training.}
+Reweighting or reshaping the loss changes which examples are
+emphasized: cost-sensitive thresholds \citep{elkan2001foundations}, focal loss
+\citep{lin2017focal}, class-balanced weights \citep{cui2019class},
+label-distribution-aware margins \citep{cao2019learning}, prior-corrected logits
+\citep{menon2021logit}. None of it guarantees the prediction count; the realized
+number of constrained-class predictions remains a free outcome. TraLO targets the
+count directly.
+
+\paragraph{Transductive and set-level constraints.}
+Transductive inference reasons about a fixed unlabeled test set
+\citep{vapnik1998statistical,joachims1999transductive}, and soft set-level targets
+have long existed there: expectation regularization pushes predicted class
+proportions on unlabeled data toward a prior \citep{mann2007expectation}, and
+posterior regularization constrains posterior expectations
+\citep{ganchev2010posterior}. Our constraint is transductive
+in exactly this sense, a function of the entire test-set prediction
+vector, but it is \emph{hard}: an explicit argmax count budget on a single class, with
+per-group caps, enforced during training of a deep classifier.
+
+% ----------------------------------------------------------------------------
+\section{Method}
+\label{sec:method}
+
+\paragraph{Problem.}
+Let the (known) test set contain $N$ items and let $p_\theta(y=c\mid x_i)$ be the
+model's probability for the constrained class $c$ on item $i$. A \emph{global} count
+constraint requires the number of items predicted $c$ to satisfy
+$\sum_{i=1}^{N}\mathbf{1}[\hat y_i = c] \le K$. We parameterize the cap as a percentage
+$L$ of the constrained class's true test-set count, so $L$ measures how much of the
+class's actual demand the quota admits ($L30$: the model may assign the label to at
+most $30\%$ as many items as truly carry it). \emph{Local} caps also bound the
+count within each group $g$: $\sum_{i\in g}\mathbf{1}[\hat y_i=c]\le K_g$ (the same
+percentage of the group's own class count). Because the indicator is not
+differentiable, training uses the \emph{soft count} $S=\sum_i p_\theta(y=c\mid x_i)$,
+while satisfaction is verified with the \emph{hard count} from $\arg\max$.
+
+\paragraph{A bounded transductive penalty.}
+The defining choice in TraLO is that the constraint penalty is \emph{bounded}. For a
+soft excess $E = \max(0,\, S - K)$ over a cap $K$, the per-constraint penalty is
+\begin{equation}
+\label{eq:loss}
+\ell(E;K,\rho)\;=\;\underbrace{\frac{E}{E+K}}_{\text{rational saturation}}
+\;+\;\rho\,\underbrace{\frac{(E/K)^2}{1+(E/K)^2}}_{\text{bounded quadratic}} ,
+\end{equation}
+where both terms saturate as $E\!\to\!\infty$ (the first to $1$, the second to $\rho$).
+What actually drives training is the penalty's \emph{gradient} on the count; differentiating
+Eq.~\eqref{eq:loss} through $E=\max(0,S-K)$ gives, for $S>K$,
+\begin{equation}
+\label{eq:grad}
+\frac{\partial \ell}{\partial S}
+= \frac{K}{(E+K)^2} + \frac{2\rho}{K}\,\frac{E/K}{\bigl(1+(E/K)^2\bigr)^2}.
+\end{equation}
+Both the value and this gradient are uniformly bounded, and that bound is what makes the
+constraint pressure controllable.
+
+\begin{proposition}[Bounded, non-escalating pressure]
+\label{prop:bound}
+For $E\ge 0$ and $\rho\ge 0$, the penalty of Eq.~\eqref{eq:loss}
+obeys $0\le\ell<1+\rho$, and its count-gradient lies in
+$[0,\,(1+\rho)/K]$: strongest ($\to 1/K$) at the boundary $E{=}0$, and vanishing as
+$E\to\infty$. Hence with the multiplier frozen at $\lambda$, each cap adds at most
+$\lambda(1+\rho)$ to the loss and at most $\lambda(1+\rho)/K$ to the gradient norm,
+both \emph{independent of the violation size}.
+\end{proposition}
+
+\noindent (Proof: elementary calculus, Supp.~Sec.~A.) A linear penalty $\lambda E$ instead
+contributes a constant gradient and a quadratic one $\rho(E/K)^2$ a gradient $2\rho E/K^2$
+unbounded in $E$, so both force the multiplier to escalate to keep pace with cross-entropy
+(Fig.~\ref{fig:loss_shape}). Proposition~\ref{prop:bound} bounds the constraint pressure and
+keeps it from escalating with the violation; that a \emph{small} frozen multiplier then
+suffices to hold the count ($\lambda_g\!\le\!0.09$ across our grid) is an empirical finding,
+not part of the proposition, as are the constrained-class quality gains, which the ablation
+attributes to the optimizer reset and hinge (Supp.~Sec.~B) rather than the penalty shape.
+The total objective combines cross-entropy with the global and local penalties (and,
+after satisfaction, the undershoot hinge introduced below),
+\begin{equation}
+\label{eq:total}
+L_{\text{total}} = L_{\text{CE}} + \lambda_g\,\ell_g + \lambda_l\,\ell_l ,
+\end{equation}
+where $\ell_g=\ell(E;K,\rho)$ is the global-cap penalty and $\ell_l$ sums
+Eq.~\eqref{eq:loss} over the group caps; every cap (the global one and each group
+cap) carries its own multiplier, so $\lambda_l\,\ell_l$ abbreviates
+$\sum_g \lambda_{l,g}\,\ell(E_g;K_g,\rho)$.
+
+\paragraph{Multiplier ratchet and freeze.}
+Rather than dual ascent, $\lambda$ is \emph{ratcheted}: it increases by a fixed step
+each epoch \emph{only while the hard count violates the cap}, and is \emph{frozen} the
+moment the count is first satisfied. The bounded penalty means a small frozen multiplier
+suffices (empirically $\lambda_g\!\le\!0.09$), so cross-entropy is never swamped.
+Multipliers start at $0.05$. The
+quadratic weight $\rho$ ramps linearly (from $5$ toward $100$) until first
+satisfaction and then also freezes. Because $\lambda$ and $\rho$ both stop moving at
+first satisfaction, TraLO is really a two-phase procedure: while the count is violated it
+\emph{searches} for a sufficient multiplier by ratcheting $\lambda$ (the bounded gradient
+of Eq.~\eqref{eq:grad} keeps that search ending at a small $\lambda$), and once the count
+is met it \emph{settles}. Formally, for every epoch $t\ge T_{\text{sat}}$ (first
+satisfaction) the coefficients $\lambda_g,\lambda_l,\rho$ are constant, so Phase~2 is plain
+SGD on one fixed objective $F(\theta)=L_{\text{CE}}+\lambda_g\ell_g+\lambda_l\ell_l$. Under
+the standard assumptions for smooth nonconvex SGD it therefore converges to a first-order
+stationary point of $F$ \citep{ghadimi2013stochastic,bottou2018optimization}; $\ell$ meets
+the gradient bound of Prop.~\ref{prop:bound} and is smooth except on the measure-zero
+boundary $\{S_c{=}K_c\}$, which a softplus in place of the ReLU would remove. A dual or
+augmented-Lagrangian update instead changes the objective every step, so its iterate chases
+a moving target and inherits no such guarantee without extra assumptions on the multiplier
+sequence. What Proposition~\ref{prop:bound} does \emph{not} give is feasibility from the
+loss: since $\ell$
+saturates, no finite $\lambda$ makes it an exact penalty \citep{bertsekas2014constrained}, so
+TraLO does not enforce the hard count through $\ell$ alone. It need not: the ratchet raises
+$\lambda$ only until the $\arg\max$ count is met, and the post-hoc step
+(Alg.~\ref{alg:tralo}) closes any residual soft-to-hard gap. The guarantee is thus one of
+\emph{stability}, a bounded and non-escalating penalty on a fixed Phase-2 objective, not
+penalty-driven feasibility.
+
+\paragraph{Optimizer reset at satisfaction.}
+At the first epoch the count is met, we reset the Adam optimizer state. This removes the
+accumulated descent momentum that would otherwise keep pushing the soft count far below
+the cap (over-satisfying at the cost of constrained-class recall). The reset lets the
+frozen-multiplier objective settle near the boundary instead of overshooting inward. We
+motivate the reset empirically; the ablation (Supp.~Sec.~B) isolates its effect, and we do
+not claim to derive it.
+
+\paragraph{Undershoot hinge.}
+A satisfied cap can still leave the model under-predicting the constrained class,
+which costs recall. Concretely, each cap $c$ adds $\lambda_c\,\beta\,\max(0,\,K_c-S_c)/K_c$ to the loss
+with $\beta{=}0.5$. It is zero whenever the soft count sits at or above its cap, so it
+can never re-violate. The effect: after satisfaction this one-sided hinge gently pushes the
+soft count back up toward (but not over) the cap whenever it has undershot,
+restoring constrained-class recall without re-violating the count. Supp.~Sec.~B
+shows the hinge is one of the two components that carry the effect, together with the
+optimizer reset.
+
+\paragraph{Training schedule.}
+Training has a warmup phase (cross-entropy only, to a stable initialization that is
+cached and reused) followed by the constraint phase under Eq.~\eqref{eq:total}. A
+post-hoc verification step is available to enforce a hard count if a run has not landed
+natively; for TraLO it is essentially never needed (Supp.~Sec.~C).
+Algorithm~\ref{alg:tralo} summarizes the loop.
+
+\begin{algorithm}[t]
+\caption{TraLO training loop}
+\label{alg:tralo}
+\begin{algorithmic}[1]
+\STATE warm up $\theta$ on $L_{\text{CE}}$ alone; cache the warmup model
+\FOR{each constraint epoch}
+  \STATE update $\theta$ on $L_{\text{CE}} + \lambda_g\,\ell_g + \lambda_l\,\ell_l$ (plus the hinge once satisfied) \hfill (Eq.~\ref{eq:total})
+  \STATE recount hard predictions on the test inputs
+  \IF{a cap is violated}
+    \STATE ratchet that cap's $\lambda$ up one step; advance $\rho$
+  \ELSIF{first time all caps are met}
+    \STATE freeze $\lambda$ and $\rho$; reset the Adam state
+  \ENDIF
+  \STATE stop after $5$ consecutive satisfied epochs
+\ENDFOR
+\STATE post-hoc verification (flip borderline predictions) if needed
+\end{algorithmic}
+\end{algorithm}
+
+\begin{figure}[t]\centering
+\includegraphics[width=\linewidth]{fig_loss_shape}
+\caption{\textbf{A bounded penalty keeps the dual multiplier small.} The
+per-constraint penalty of Eq.~\eqref{eq:loss} for several $\rho$ (blue) flattens to
+its ceiling $1{+}\rho$ (dotted); a linear penalty $\lambda E$ (dashed) has none.
+Analytic illustration ($K{=}10$); curves labelled at the right edge.}
+\label{fig:loss_shape}
+\end{figure}
+
+% ----------------------------------------------------------------------------
+\section{Experimental Setup}
+\label{sec:setup}
+
+\paragraph{Datasets.}
+We use three MedMNIST v2 \citep{yang2023medmnist} classification tasks with their
+official splits, each with a
+naturally rare class that makes a count cap meaningful (Figure~\ref{fig:datasets} shows
+DermMNIST examples): \textbf{TissueMNIST} (8 classes,
+constrained class GE, $\approx\!7\%$ of the test set), \textbf{DermMNIST} (7 skin-lesion
+classes from HAM10000 \citep{tschandl2018ham10000}, constrained class melanoma, with
+per-group local caps), and \textbf{OctMNIST} (4 retinal-OCT classes, constrained class
+drusen). Caps are set as a percentage $L$ of the
+constrained class's true test-set count (Sec.~\ref{sec:method}); for the local-cap (asymmetric)
+study we also vary the group cap $G$ independently of $L$. The percentage
+parameterization uses the class's true count only to standardize how hard the cap
+binds across datasets; the method itself receives an exogenous integer $K$, exactly
+as a deployed capacity would be given.
+
+\paragraph{Backbones.}
+The headline grid uses three backbones, MobileNetV3 \citep{howard2019searching},
+RegNetY-400MF \citep{radosavovic2020designing}, and a ViT-B/16 transformer
+\citep{dosovitskiy2021image}, to show the findings are not CNN-specific.
+All backbones use standard ImageNet-style training conventions \citep{he2016deep}.
+
+\paragraph{Baselines.}
+Two \emph{post-hoc clippers}: a greedy threshold \textbf{Heuristic} and a
+linear-programming clipper \textbf{Shifman-LP} \citep{shifman2025classification}. Two
+constraint-\emph{trained} dual-ascent methods: \textbf{Fioretto-LDF}
+\citep{fioretto2020lagrangian} and \textbf{Hounie-RCL} \citep{hounie2023resilient}. We
+also report \textbf{TraLO-bounded}, our own ablation with the undershoot hinge switched
+off, used both as a method and as the within-cell control in Supp.~Sec.~B.
+
+\paragraph{Baseline adaptations.}
+The two trained baselines were built for a different setting, so we re-instantiated each
+on the transductive count task and ran it inside TraLO's exact harness: the same cached
+warmup, the same $300$-epoch budget and stop rule (five consecutive feasible epochs), the
+same gradient clipping, and the same post-hoc verification step at the end. Two details
+keep the comparison fair. We point each method's constraint gradient at the unlabeled test
+set, since that is where the count is enforced, whereas the original papers target a
+training or population expectation. And we select each method's reported checkpoint on the
+constraint-excess axis (best feasible, else lowest excess), never on F1, so no baseline can
+quietly keep its best-F1 epoch. \textbf{Fioretto-LDF} is otherwise unchanged: a linear
+penalty $\lambda_c S_c$ with per-constraint subgradient ascent
+$\lambda_c\!\leftarrow\!\lambda_c+\eta\max(0,S_c\!-\!K_c)$ on the test counts.
+\textbf{Hounie-RCL} keeps its primal/slack/dual updates, with the constraint residual read
+as $(S_c\!-\!K_c)/N$. The one substantive fix in our port is to normalize its primal
+count-gradient by the sample count so the primal step and the dual update share a
+scale. Otherwise the primal term is $N\times$ too strong and over-suppresses the capped
+class. Its step sizes are fixed a priori, not tuned per cell, and swept only to confirm
+fairness (Supp.~Sec.~A). \textbf{Shifman-LP} is post-hoc only: a global-and-local linear program that allocates the
+capped labels on the warmup model's test-set softmax, using an identity misclassification
+cost rather than the general cost matrix of the original two-phase allocator \citep{shifman2025classification}.
+
+\paragraph{Frozen recipe.}
+All methods share one protocol, fixed before the final runs: ImageNet-pretrained
+backbones, $224{\times}224$ inputs, batch size $64$, no augmentation, Adam with
+learning rate $10^{-4}$ during warmup and $5{\times}10^{-6}$ in the constraint
+phase; warmup $=50$ epochs (cross-entropy only), constraint phase $=300$ epochs,
+seeds $1$--$4$ (all reported, no seed selection). Per-method constraint steps were
+fixed a priori, not tuned per cell: dual step $0.005$ (Fioretto-LDF) and dual and
+relaxation steps $0.01$ (Hounie-RCL) on TissueMNIST and DermMNIST, and $0.01$ and $0.1$
+respectively on OctMNIST; ratchet step $0.002$ with hinge weight
+$\beta{=}0.5$ (TraLO). A step-fairness sweep (Supp.~Sec.~A) confirms the OctMNIST
+result is insensitive to these choices. The headline grid is
+\emph{paper\_final}: $3$ backbones $\times\,3$ datasets $\times\,9$ cap levels
+$\times\,6$ methods $\times\,4$ seeds $=1944$ runs. Models are implemented in PyTorch
+with torchvision backbones and MedMNIST v2 loaders, and each run trains on a single
+NVIDIA GPU. Code, the configuration generators,
+and the full per-run results corpus accompany the submission as the Code and Data
+Supplement.
+
+\paragraph{Metrics.}
+Our \emph{primary} metrics are quality: \textbf{constrained-class F1 (cc-F1)}, the quality
+of the capped class itself and the quantity the constraint most directly puts at risk, and
+\textbf{macro-F1} for overall quality. As \emph{secondary} deployment diagnostics we also
+report \textbf{native satisfaction} (the fraction of runs whose final model meets the global
+count with no post-hoc edit) and \textbf{flips} (the number of test predictions the post-hoc
+verification step overwrites to enforce the global and per-group caps; $0$ when the run needs
+no adjustment); we treat these as deployment \emph{properties} rather than headline metrics,
+since every deployable method meets the hard count one way or another
+(Supp.~Sec.~C). Gaps versus baselines are \emph{paired} by seed: because the seeds are
+matched, we summarize a method's advantage by its seed-winrate and a paired Wilcoxon test
+rather than by marginal $\pm$std bars, which would understate a paired effect when a
+baseline is seed-unstable but its per-seed gap to TraLO is consistent.
+
+% ----------------------------------------------------------------------------
+\section{Results}
+\label{sec:results}
+
+\subsection{Constrained-class quality vs.\ the trained baselines}
+\label{sec:oct}
+
+We start with constrained-class F1 (cc-F1), the quality of predictions on the very
+class the cap restricts. Against the constraint-trained baselines the
+summary is a tie almost everywhere, and a win where the cap binds hard.
+Table~\ref{tab:ccf1} shows the symmetric grid on MobileNetV3: among the trained methods
+TraLO is best-or-tied in $7/9$ cells, but at equal feasibility the differences are within
+seed noise (paired Wilcoxon, not significant): a genuine tie on tissue and derm. The tie
+also holds away from the grid, at a tighter ($L40$) and a looser ($L60$) cap on RegNet.
+
+% Figure placed ahead of the tables, with [!t] to bypass the top-float fraction cap, so
+% it floats up next to its Sec. 5.1 discussion rather than drifting a page past it.
+\begin{figure}[!t]\centering
+\includegraphics[width=\linewidth]{fig_octmnist}
+\caption{\textbf{The OctMNIST tight-cap win is backbone-general and grows with backbone
+capacity.} \emph{Top:} constrained-class F1 of all six methods (MobileNetV3, mean over
+$n{=}4$ seeds); the curves nearly coincide, so the win is invisible at this scale (shaded
+band = tight-binding regime; $^{\dagger}$ faded post-hoc clippers post higher raw cc-F1 by
+editing). \emph{Bottom:} TraLO minus the best constraint-trained baseline, paired by seed,
+per backbone; the same inverted-U appears on all three, peaking at $+0.081$ for ViT-B/16.}
+\label{fig:octmnist}
+\end{figure}
+
+\input{tables/tab_ccf1}
+
+\input{tables/tab_oct_backbone}
+
+\paragraph{The hard regime: OctMNIST tight caps.}
+The one place TraLO pulls clearly ahead of the trained baselines is OctMNIST at
+tight caps, where the cap binds hard but the drusen class is still discriminable. There,
+TraLO leads the best trained baseline on cc-F1 at every backbone, and the margin
+\emph{grows with backbone capacity}: $+0.016$/$+0.022$ on MobileNetV3 ($L30$/$L40$),
+$+0.035$/$+0.021$ on RegNet, and $+0.081$/$+0.051$ on the ViT-B/16 transformer, at a
+$4/4$ seed winrate on every backbone; pooled over the six tight-cap cells TraLO wins
+all $24$ paired seeds (paired Wilcoxon $p<10^{-6}$), and the same cells improve macro-F1 at
+five of the six (mean $+0.012$, up to $+0.028$ on the ViT; Table~\ref{tab:oct_backbone}).
+Figure~\ref{fig:octmnist} plots the full sweep:
+on a representative backbone (top) the six methods nearly coincide, but the per-backbone
+gap (bottom) reveals the tight-binding win and its honest inverted-U: near-zero at
+$L10$/$L20$ and at loose caps, positive only where the cap binds. The post-hoc clippers'
+higher raw cc-F1 in the band is bought by editing predictions (Supp.~Sec.~C).
+
+\paragraph{Robustness of the OctMNIST win.}
+Three checks. (i) \emph{Backbone-general}: in leave-one-backbone-out cross-validation
+(define the winning band on one backbone, test on the held-out one), every held-out
+backbone confirms the win at $100\%$ winrate (pooled held-out gap $+0.049$).
+(ii) \emph{Re-derivable without the gap}: the winning band is recovered by a rule that
+never looks at the TraLO-vs-baseline gap, ``binding (a clipper must flip $\ge 65$
+predictions) and discriminable (constrained-class F1 $\in[0.35,0.55]$)'', under
+which HIT cells win $100\%$ and MISS cells $0$--$40\%$. (iii) \emph{Honest shape}: the
+effect is an inverted-U in tightness, not ``tighter is always better,'' and it is
+specific to OctMNIST; the same rule does not transfer to tissue/derm. We claim this as
+the one \emph{backbone-general} cc-F1 win; the regime map (Sec.~\ref{sec:regime}) adds
+one preliminary win at global-tighter asymmetric caps (on two of the three backbones), and
+a broad tie elsewhere, not a blanket cc-F1 advantage.
+
+\begin{figure}[t]\centering
+\includegraphics[width=\linewidth]{fig_convergence}
+\caption{\textbf{TraLO reaches the count fast and holds it; the dual baselines wind up
+slowly.} Best-so-far constraint excess (lowest predictions over the cap so far) over the
+constraint phase; DermMNIST (RegNetY-400MF), tight cap $L{=}G{=}30$. Median over $n{=}4$
+seeds; band: interquartile range; a marker sits at each method's median
+epoch-to-feasibility. All three start about $200$ over the cap; TraLO's ratchet acts from
+the first epoch and reaches the cap first, the zero-start dual baselines later (see markers).
+Grid-wide numbers appear in the text.}
+\label{fig:convergence}
+\end{figure}
+
+\subsection{Wins, ties, and losses across the full grid}
+\label{sec:regime}
+
+Beyond the symmetric grid, we score the full corpus (the \emph{paper\_final} grid on
+the three backbones plus dedicated MobileNetV3 asymmetric sweeps), partitioned into five
+constraint-geometry regimes, with every regime reported so nothing is cherry-picked; the
+full per-cell breakdown is in Supp.~Sec.~D. A regime counts as a \emph{win} only when the
+mean paired cc-F1 gap and at least half its cells clear $+0.005$, and a \emph{loss} under
+the mirror-image rule; no regime mean falls below $-0.005$. The pattern is consistent:
+\textbf{TraLO wins where the count is hard to hit and ties where it is slack.} Only two
+regimes clear the win bar: OctMNIST tight-symmetric caps (the backbone-general win of
+Sec.~\ref{sec:oct}, largest on ViT-B/16) and the global-tighter asymmetric ($G{<}L$)
+caps of DermMNIST ($+0.8$pp on MobileNetV3, reproduced on RegNet and tied on ViT;
+\emph{preliminary}, as only MobileNetV3 has the full asymmetric grid). Every other
+regime, including all symmetric caps, is a statistical tie (symmetric tissue+derm mean
+cc-F1 gap $-0.0013$, seed winrate $29\%$, $n{=}216$), and none is a loss. Against the
+post-hoc clippers macro-F1 is higher for TraLO on every regime (Sec.~\ref{sec:deploy}).
+
+% ----------------------------------------------------------------------------
+\subsection{Quality vs.\ post-hoc clipping}
+\label{sec:deploy}
+
+The other baseline family is the field default: train an unconstrained model and
+clip the highest-scoring predictions down to the cap. Both TraLO and clipping end
+up meeting the count; the question is what quality that costs. Because clipping
+meets the cap only by overwriting predictions (often dozens per run), it pays an
+accuracy tax that TraLO, landing on the count natively, avoids. Across the full
+$1944$-run grid (run-level, paired by seed, against the best post-hoc clipper)
+this is a macro-F1 gain for TraLO of $+0.053$ (Tissue), $+0.016$ (Derm) and $+0.021$
+(OctMNIST), positive in every regime and in $77$ of the $81$ symmetric cells
+(Supp.~Sec.~D; the exceptions are the very tightest $L10$/$L20$ caps), with
+constrained-class F1 moving the same way in aggregate. The margin over clipping is a
+property of training under the constraint rather than of TraLO alone. The dual
+baselines post nearly identical macro-F1 margins (the lone exception a tie at
+OctMNIST$\times$ViT), so we claim it for the
+constraint-trained family; what is TraLO's own is reaching that quality with the
+fastest and most reliable native convergence (Sec.~\ref{sec:conv}) and the fewest
+prediction edits at binding caps (Supp.~Sec.~C). The tax is steepest where the cap
+binds: at the tight $L30$ cap, clipping costs up to $0.061$ macro-F1
+(Tissue; Supp.~Table~S2). We report how TraLO avoids the tax (near-perfect
+native satisfaction and an order of magnitude fewer prediction edits) as a deployment
+property in Supp.~Sec.~C: what separates the methods is the quality each
+preserves while meeting the count.
+
+% ----------------------------------------------------------------------------
+\subsection{Convergence}
+\label{sec:conv}
+
+These advantages all rest on one behavior, that TraLO reaches the count during
+training. Figure~\ref{fig:convergence} tracks how far each
+method's prediction count sits above the cap over the constraint phase, on the cell where
+the three methods separate most cleanly: DermMNIST on RegNet, whose cross-entropy
+saturates slowly enough that the count and the task objective openly compete. TraLO's
+ratcheted multiplier pushes from the first constraint epoch and reaches the cap near epoch
+$12$, while the zero-start dual baselines lag (Fioretto-LDF near epoch $21$, Hounie-RCL near
+epoch $38$). The gap is not specific to this cell. Over the full grid, native feasibility is $100\%$
+for TraLO and Hounie-RCL but only $87\%$ for Fioretto-LDF, whose unbounded multiplier stalls
+short of the cap on the rest. Across DermMNIST and TissueMNIST on the two convolutional
+backbones and the $17$ symmetric-cap cells we log where the cap binds, median epochs-to-feasibility is $17$/$20$/$44$ for
+TraLO/Fioretto-LDF/Hounie-RCL, with Hounie-RCL slowest in every cell and TraLO first or tied in $13$
+of the $17$; the per-cell census accompanies the released corpus. TraLO alone meets the count both fast and on every run, which is what lets it
+avoid the post-hoc editing step that costs clipping its quality.
+
+% ----------------------------------------------------------------------------
+\section{Conclusion}
+
+Count caps are a real, common deployment constraint, and the two standard answers each
+cost something: post-hoc clipping meets the cap but pays an accuracy tax for editing
+predictions, while dual-ascent training chases the cap with an unbounded multiplier and can
+stall short of it. TraLO addresses this with a bounded transductive penalty, a multiplier
+frozen at satisfaction, an optimizer reset, and an undershoot hinge. It matches the strong
+constraint-trained baselines across the grid and beats them on the constrained class where
+the cap binds hard: robustly on OctMNIST tight caps, where the lead grows with backbone
+capacity and reaches $+0.081$ on the ViT, and preliminarily at the global-tighter asymmetric
+caps of DermMNIST. The ablation traces this to the optimizer reset and hinge ($n{=}24$
+paired, $p\!\le\!3\mathrm{e}{-6}$; Supp.~Sec.~B). Against post-hoc clipping it improves
+macro-F1 on all three datasets by landing on the count natively.
+
+\paragraph{Limitations.}
+The main limitation is scope: the cc-F1 advantage over trained baselines is regime- and
+dataset-specific (a tie elsewhere), and the global-tighter asymmetric win on DermMNIST
+is preliminary (it reproduces on RegNet but ties on the ViT, and only MobileNetV3 has the
+full asymmetric grid), so the one backbone-general win is OctMNIST tight caps. All three
+datasets are MedMNIST-derived ($28{\times}28$ upsampled to $224$); the count constraint
+itself is resolution-agnostic (it acts on prediction counts, not pixels). TraLO is also
+transductive: it uses the known test inputs during training, which fits deployments where
+the batch to be scored is fixed in advance (a triage queue, an audit pool) but not
+streaming or shifting-test settings, where the caps would be re-solved as the pool changes.
+Our analysis is also self-contained: it characterizes TraLO's own optimization but does not
+\emph{theoretically} rank it against augmented-Lagrangian, proximal, PID, or mirror-descent
+solvers, which would need a dedicated empirical comparison.
+
+\paragraph{Broader applicability.}
+Nothing in the formulation is specific to medical imaging: TraLO enforces a global cap on the
+number of inputs a classifier assigns to a class, plus per-group sub-caps, the structure of any
+capacity-limited decision system (a dispatch queue with a fixed budget; slots allocated across
+applicant groups). These are structural analogies, not validated applications; what carries over
+is meeting the quota during training so the model respects it natively. Validating TraLO outside
+medical imaging, at full resolution and wider geometries, is the natural next step.
+
+% ----------------------------------------------------------------------------
+% Note: aaai2027.sty sets \bibliographystyle{aaai2027} automatically under natbib;
+% do NOT add an explicit \bibliographystyle here (it produces a duplicate \bibstyle).
+% \small on the references ONLY is explicitly permitted by the AAAI author kit.
+{\small
+\bibliography{references}}
+
+% ============================================================================
+%  The technical appendix (mechanism probe, component ablation, native
+%  satisfaction) moved to supplementary.tex -> supplementary.pdf, per the
+%  AAAI-27 rules: pages beyond 7 are reserved exclusively for references and
+%  technical appendices go in the separate Supplementary Document.
+% ============================================================================
+\end{document}

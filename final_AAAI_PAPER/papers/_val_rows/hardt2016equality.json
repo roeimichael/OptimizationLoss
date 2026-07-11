@@ -1,0 +1,23 @@
+{
+  "key": "hardt2016equality",
+  "title": "Equality of Opportunity in Supervised Learning",
+  "authors": "Moritz Hardt, Eric Price, Nathan Srebro",
+  "venue": "Advances in Neural Information Processing Systems (NIPS/NeurIPS 2016), vol. 29, pp. 3323-3331",
+  "year": "2016",
+  "link": "https://proceedings.neurips.cc/paper/2016/hash/9d2682367c3935defcb1f9e247a97c0d-Abstract.html",
+  "source_read": "local pdf: papers/hardt2016equality.pdf",
+  "conclusions": [
+    "Proposes 'equalized odds' and the weaker 'equal opportunity' as oblivious non-discrimination criteria for a predictor with respect to a protected attribute A and true outcome Y, contrasted with demographic parity.",
+    "Gives a constructive, post-processing method: given any existing (possibly discriminatory) predictor or score, derive a new predictor using only the joint distribution of (Y, A, predictor/score) via group-specific (possibly randomized) thresholds, without retraining or touching features X.",
+    "Formulates the optimal derived predictor as a small linear program over per-group true/false-positive rates and shows the equalized-odds predictor corresponds to the pointwise-minimum ROC curve across groups.",
+    "Proves a Bayes-optimality/near-optimality result: an optimal equalized-odds or equal-opportunity predictor can be derived from the Bayes-optimal regressor and A, with a bound relating suboptimal regressors to loss via a Kolmogorov-distance argument.",
+    "Demonstrates the approach on real FICO credit-score data across four race groups, comparing max-profit, race-blind, demographic-parity, equal-opportunity, and equalized-odds thresholds and their profit trade-offs (99.3% / 92.8% / 69.8% of max profit respectively for race-blind, equal opportunity, demographic parity).",
+    "Frames its own method explicitly as a post-processing / post-hoc step applied to an already-trained predictor, not a training-time constraint."
+  ],
+  "our_use": "main.tex:198-200, in the 'Resource-constrained classification' related-work paragraph: 'In fair classification, post-processing likewise edits a trained model's decisions with group-specific thresholds \\citep{hardt2016equality}.' Used to instantiate the broader theme that post-hoc/decision-time editing of a trained model's outputs (as our greedy-threshold and Shifman-LP baselines do) also appears in the fairness literature, specifically as group-specific threshold post-processing.",
+  "relevance_verdict": "correct",
+  "citation_verdict": "correct",
+  "bibtex_verdict": "minor",
+  "issues": "All core fields (title, full author list, venue, year, volume=29) are verified correct against the paper's front matter and the NeurIPS proceedings page. The only gap is the missing page range (3323-3331), confirmed via NeurIPS proceedings / SciRP citation index. This is a minor completeness omission, not a factual error -- volume 29 for NeurIPS 2016 is correctly recorded, which most casually-built bib entries omit or get wrong, so the entry is close to fully correct.",
+  "bibtex_corrected": "@inproceedings{hardt2016equality,\n  title={Equality of Opportunity in Supervised Learning},\n  author={Hardt, Moritz and Price, Eric and Srebro, Nathan},\n  booktitle={Advances in Neural Information Processing Systems},\n  volume={29},\n  pages={3323--3331},\n  year={2016}\n}"
+}

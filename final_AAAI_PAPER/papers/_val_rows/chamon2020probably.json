@@ -1,0 +1,23 @@
+{
+  "key": "chamon2020probably",
+  "title": "Probably Approximately Correct Constrained Learning",
+  "authors": "Luiz F. O. Chamon and Alejandro Ribeiro",
+  "venue": "Advances in Neural Information Processing Systems (NeurIPS) 33",
+  "year": "2020",
+  "link": "https://proceedings.neurips.cc/paper/2020/hash/c291b01517f3e6797c774c306591cc32-Abstract.html",
+  "source_read": "local pdf: papers/chamon2020probably.pdf",
+  "conclusions": [
+    "Extends the PAC learning framework to constrained learning (PACC), formalizing constrained ERM (P-ECRM) and proving that any PAC-learnable hypothesis class is also PAC-constrained learnable (Thm 1), i.e. constraints don't make learning statistically harder.",
+    "Shows the empirical dual problem of a parametrized constrained ERM is a near-PACC learner (Thm 2), with an approximation error tied to the richness of the parametrization and the strictness of the constraints.",
+    "Derives a practical primal-dual (sub)gradient algorithm (Algorithm 1: train primal via an oracle, then do dual-ascent multiplier updates each 'epoch') with a convergence-to-neighborhood guarantee (Thm 3).",
+    "Demonstrates the framework on two illustrations: fair classification on the Adult dataset (average + pointwise KL-invariance constraints) and adversarially robust classification on FashionMNIST via a constrained (not fixed-penalty) robustness formulation.",
+    "Positions constrained learning as generically preferable to fixed-weight regularization because constraint levels are directly interpretable and dual variables carry a sensitivity/fairness diagnostic (Fig 1b).",
+    "Is a theory paper: no notion of transductive/test-set count constraints, no rare-class caps, no bounded/saturating penalty, no multiplier-freeze-at-satisfaction or optimizer-reset mechanisms -- it uses a plain dual-ascent multiplier that can grow, contributed instead as prior statistical/practical grounding for the classical Lagrangian recipe."
+  ],
+  "our_use": "main.tex:92 cites it (with fioretto2020lagrangian, hounie2023resilient) for 'solve the Lagrangian with dual ascent' as the constrained-training baseline family whose multiplier climbs unboundedly under a hard cap -- matches Algorithm 1's plain projected dual-ascent update with no freeze/reset mechanism. main.tex:155 cites it (with chamon2023constrained) for giving 'statistical footing by PAC constrained-learning theory' to Lagrangian-duality training -- matches the paper's core PACC/near-PACC generalization results (Thm 1-3).",
+  "relevance_verdict": "correct",
+  "citation_verdict": "correct",
+  "bibtex_verdict": "minor",
+  "issues": "Title, author names/spelling, booktitle, volume=33, and year=2020 all verified correct against the PDF front matter (arXiv v2, footer: '34th Conference on Neural Information Processing Systems (NeurIPS 2020), Vancouver, Canada.'). The only gap is the missing page range in the bib entry: the official NeurIPS proceedings paginate this as pp. 16722-16735 (confirmed via web search of proceedings.neurips.cc), which is commonly included in NeurIPS @inproceedings entries. Not a mismatch, just an incomplete field -- recommend adding pages for completeness.",
+  "bibtex_corrected": "@inproceedings{chamon2020probably,\n  title={Probably Approximately Correct Constrained Learning},\n  author={Chamon, Luiz F. O. and Ribeiro, Alejandro},\n  booktitle={Advances in Neural Information Processing Systems},\n  volume={33},\n  pages={16722--16735},\n  year={2020}\n}"
+}

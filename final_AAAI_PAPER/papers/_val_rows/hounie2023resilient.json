@@ -1,0 +1,23 @@
+{
+  "key": "hounie2023resilient",
+  "title": "Resilient Constrained Learning",
+  "authors": "Ignacio Hounie, Alejandro Ribeiro, Luiz F. O. Chamon",
+  "venue": "Advances in Neural Information Processing Systems (NeurIPS), vol. 36",
+  "year": "2023",
+  "link": "https://arxiv.org/abs/2306.02426",
+  "source_read": "local pdf: papers/hounie2023resilient.pdf",
+  "conclusions": [
+    "Introduces 'resilient constrained learning': instead of fixing hard constraint levels u_i=0, the method jointly solves the learning problem and adapts each constraint's relaxation u_i, trading the objective loss against a user-defined relaxation cost h(u).",
+    "Defines the 'resilient equilibrium' (an equilibrium between the marginal decrease in loss and the marginal increase in relaxation cost) and proves existence/uniqueness under convexity of the perturbation function.",
+    "Shows the resilient problem is equivalent to a Lagrangian/dual reformulation, giving a practical primal-dual (dual-ascent) algorithm (Alg. 1) that updates model params, per-constraint relaxations u, and Lagrange multipliers lambda by (projected) gradient ascent/descent each step.",
+    "Provides finite-sample approximation/generalization bounds (Thm. 1) for the empirical resilient dual problem.",
+    "Empirically validated on two tasks: heterogeneous federated learning under class imbalance (relaxes the harder, minority-heavy clients' proximity constraints more, improving most clients' accuracy) and invariance-constrained learning on MNIST/Fashion-MNIST (relaxes constraints for transformations that are not true invariances, improving test accuracy over both constrained and unconstrained baselines).",
+    "The paper's own tasks are class-imbalance-aware federated fairness and augmentation/invariance constraints -- NOT a transductive, hard-cap test-set prediction-count problem; the multiplier/relaxation machinery is the general-purpose part our paper borrows and re-instantiates on the count-cap task."
+  ],
+  "our_use": "Cited three times as one of the 'two strongest dual-ascent' constraint-TRAINED baselines ('Hounie-RCL') that TraLO is compared against on the transductive count-cap task (main.tex ~L92, ~L172, ~L356: 'Two constraint-trained dual-ascent methods: Fioretto-LDF ... and Hounie-RCL'). Also cited in Related Work (~L156) with the accurate characterization 'Resilient Constrained Learning adapts the constraint level to make hard requirements attainable', contrasted with TraLO's bounded-penalty/frozen-multiplier approach. The paper explicitly discloses (Baseline adaptations paragraph) that both trained baselines were 'built for a different setting' and were re-instantiated inside TraLO's harness for the new task.",
+  "relevance_verdict": "correct",
+  "citation_verdict": "correct",
+  "bibtex_verdict": "correct",
+  "issues": "none -- title/authors/venue/volume/year all verified against the PDF front matter and NeurIPS 2023 (vol. 36) proceeding. No page numbers given, consistent with standard NeurIPS bibtex style used for every other NeurIPS entry in this same references.bib (e.g., chamon2020probably, chamon2023constrained), so this is not an omission. The Related-Work description ('adapts the constraint level to make hard requirements attainable') matches the paper's own framing (Def. 1 resilient equilibrium, Prop. 3/4 Lagrangian reformulation) precisely, and characterizing the algorithm as 'dual-ascent' is accurate since Algorithm 1 performs projected gradient ascent on the Lagrange multipliers lambda. The 'Baseline adaptations' paragraph is transparent that the original method (designed for federated fairness / invariance constraints, not transductive count caps) was re-instantiated for the new setting, so there is no overclaim that the source paper itself addressed hard prediction-count quotas.",
+  "bibtex_corrected": "@inproceedings{hounie2023resilient,\n  title={Resilient Constrained Learning},\n  author={Hounie, Ignacio and Ribeiro, Alejandro and Chamon, Luiz F. O.},\n  booktitle={Advances in Neural Information Processing Systems},\n  volume={36},\n  year={2023}\n}"
+}

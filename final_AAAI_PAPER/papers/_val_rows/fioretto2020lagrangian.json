@@ -1,0 +1,23 @@
+{
+  "key": "fioretto2020lagrangian",
+  "title": "Lagrangian Duality for Constrained Deep Learning",
+  "authors": "Ferdinando Fioretto, Pascal Van Hentenryck, Terrence W. K. Mak, Cuong Tran, Federico Baldo, Michele Lombardi",
+  "venue": "Machine Learning and Knowledge Discovery in Databases. Applied Data Science and Demo Track --- European Conference, ECML PKDD 2020 (LNCS vol. 12461, Springer)",
+  "year": "2020 (conference, Ghent, Sept 2020); Springer chapter formally published 25 Feb 2021",
+  "link": "https://link.springer.com/chapter/10.1007/978-3-030-67670-4_8 (arXiv preprint read: arXiv:2001.09394v2)",
+  "source_read": "local pdf: papers/fioretto2020lagrangian.pdf",
+  "conclusions": [
+    "Proposes a Lagrangian Dual Framework (LDF) that adds Lagrangian-relaxed constraint-violation terms to the training loss and learns the multipliers via a dual-ascent update rule performed once per epoch (Algorithm 1: lambda^{k+1} = lambda^k + s_k * sum of violations)",
+    "Handles two constraint classes: sample-independent physical/engineering constraints (optimal power flow, gas compressor optimization) and constrained-predictor problems where constraints couple multiple samples/dataset-wide properties (transprecision monotonicity, disparate-impact fairness)",
+    "On OPF/OGC energy benchmarks, the learned-multiplier model M_C^D cuts constraint violations by up to ~3 orders of magnitude and improves prediction accuracy by up to ~2 orders of magnitude vs a plain-CE baseline M",
+    "On transprecision computing, the LDF variant reduces both violation count (VC) and magnitude (SMVC) versus a naive fixed-weight constrained model, with the biggest relative gains on small training sets",
+    "On fairness (Adult/Default/Bank datasets), the LDF model substantially reduces the disparate-treatment (DT) index at limited accuracy cost, matching/beating a dedicated fair-classification baseline (Zafar'19) on DT in 2 of 3 datasets",
+    "The multipliers only ratchet upward via subgradient ascent (no freeze/reset mechanism); the paper does not address hard set-level count caps or transductive test-set constraints -- its constraints are per-sample or paired-sample dominance/parity relations, not a bound on how many test items may receive a given label"
+  ],
+  "our_use": "Cited three times as the constraint-TRAINED dual-ascent baseline 'Fioretto-LDF' and as the origin of 'solve the Lagrangian with dual ascent' / 'Lagrangian-duality training brought to deep networks' (main.tex:92, :153, :172, :356). Our text argues that this dual-ascent recipe is 'in principle the right thing to do' but that under a HARD CAP the multiplier climbs unboundedly while the model is still learning -- a critique of the mechanism, not a claim about what Fioretto et al. themselves tested (they test soft-ish physical/fairness constraints, not hard prediction-count caps).",
+  "relevance_verdict": "correct",
+  "citation_verdict": "correct",
+  "bibtex_verdict": "minor",
+  "issues": "All core fields (title, full author list w/ spelling, booktitle, series, volume=12461, pages=118-135, publisher=Springer) verified exactly against the paper's front matter and independently confirmed via Springer/dblp search. Two minor gaps: (1) year=2020 reflects the ECML PKDD 2020 conference (Ghent, Sept 2020), but Springer's official chapter publication date is 25 Feb 2021 (DOI 10.1007/978-3-030-67670-4_8); citing 2020 is a common and defensible convention (conference year) but strictly the LNCS chapter's copyright/publication year is 2021 -- worth a note, not a hard error. (2) No 'doi' field is present; adding it improves completeness. Neither issue affects the relevance or citation-claim verdicts, which are both fully supported: the paper is exactly the dual-ascent Lagrangian-relaxation-for-deep-learning method our text describes and critiques.",
+  "bibtex_corrected": "@inproceedings{fioretto2020lagrangian,\n  title={Lagrangian Duality for Constrained Deep Learning},\n  author={Fioretto, Ferdinando and Van Hentenryck, Pascal and Mak, Terrence W. K. and Tran, Cuong and Baldo, Federico and Lombardi, Michele},\n  booktitle={Machine Learning and Knowledge Discovery in Databases. Applied Data Science and Demo Track --- European Conference, {ECML PKDD} 2020},\n  series={Lecture Notes in Computer Science},\n  volume={12461},\n  pages={118--135},\n  year={2020},\n  publisher={Springer},\n  doi={10.1007/978-3-030-67670-4_8}\n}"
+}

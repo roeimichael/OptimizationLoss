@@ -1,0 +1,22 @@
+{
+  "key": "menon2021logit",
+  "title": "Long-Tail Learning via Logit Adjustment",
+  "authors": "Aditya Krishna Menon, Sadeep Jayasumana, Ankit Singh Rawat, Himanshu Jain, Andreas Veit, Sanjiv Kumar",
+  "venue": "International Conference on Learning Representations (ICLR)",
+  "year": "2021",
+  "link": "https://arxiv.org/abs/2007.07314",
+  "source_read": "local pdf: papers/menon2021logit.pdf",
+  "conclusions": [
+    "Proposes 'logit adjustment': adding a label-frequency-dependent offset (tau * log(pi_y)) to the logits, either post-hoc on a trained classifier (Eq. 9) or baked into the softmax cross-entropy loss during training (Eq. 10), to counter long-tail/class-imbalance bias.",
+    "Shows this is Fisher-consistent for minimizing the balanced error (average per-class error rate), unlike prior post-hoc weight-normalisation or margin-based loss-modification schemes (Cao et al. 2019 LDAM, Tan et al. 2020 equalised loss), which are proven inconsistent even in simple binary settings.",
+    "Unifies several prior proposals (balanced loss, LDAM adaptive margin, equalised margin) as special cases of a general pairwise-margin loss (Eq. 11), and gives a necessary/sufficient consistency condition (Theorem 1).",
+    "Empirically validates on CIFAR-10/100-LT, ImageNet-LT and iNaturalist: both post-hoc logit adjustment and the logit-adjusted loss reduce balanced error over ERM, weight normalisation, and margin-based losses, with the biggest gains on rare/tail classes (Fig. 4).",
+    "The method only ever reweights logits/decision thresholds based on fixed class priors; it optimizes population-level balanced error and gives no mechanism to guarantee or bound how many test instances actually get predicted into any given class."
+  ],
+  "our_use": "Cited in a list of imbalance/cost-sensitive techniques the paper contrasts itself against: 'label-distribution-aware margins \\citep{cao2019learning}, prior-corrected logits \\citep{menon2021logit}. None of it guarantees the prediction count; the realized number of constrained-class predictions remains a free outcome. TraLO targets the count directly.' (final_AAAI_PAPER/main.tex, related-work paragraph around line 209-214).",
+  "relevance_verdict": "correct",
+  "citation_verdict": "correct",
+  "bibtex_verdict": "correct",
+  "issues": "none — title, full author list (incl. spelling), and venue/year (ICLR 2021) all match the PDF front matter exactly. ICLR entries conventionally carry no volume/number/page range (OpenReview-hosted, non-paginated proceedings), so the absence of those fields is not an omission. The characterization as a 'prior-corrected logits' technique that adjusts decision boundaries via class-frequency offsets but does not constrain/guarantee the realized prediction count is an accurate description of the paper's method (Eqs. 8-10 explicitly operate on balanced-error-optimal logit offsets, not count constraints).",
+  "bibtex_corrected": "@inproceedings{menon2021logit,\n  title={Long-Tail Learning via Logit Adjustment},\n  author={Menon, Aditya Krishna and Jayasumana, Sadeep and Rawat, Ankit Singh and Jain, Himanshu and Veit, Andreas and Kumar, Sanjiv},\n  booktitle={International Conference on Learning Representations},\n  year={2021}\n}"
+}

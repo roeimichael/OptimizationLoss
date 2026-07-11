@@ -1,0 +1,31 @@
+% tab_oct_backbone.tex -- the backbone-general OctMNIST tight-cap win, on BOTH metrics.
+% Per-backbone paired gap of TraLO over the best trained dual (per-seed best of
+% Fioretto-LDF/Hounie-RCL) at the tight caps L30/L40, for constrained-class F1 AND macro-F1.
+% Regenerable via scripts/make_octmnist_fig.py::tight_cap_table() -- sweep=='paper_final',
+% one row per seed, mean +/- sample-std (ddof=1) over seeds 1-4. cc-F1 leads 4/4 seeds at
+% every cell; macro-F1 improves at 5 of 6 cells (MobileNetV3 x L30 a wash: +0.001, 3/4).
+% Absolute cc-F1 levels (~0.34-0.51) are read off the top panel of Figure fig:octmnist.
+\begin{table}[t]\centering\small
+\setlength{\tabcolsep}{4pt}
+\caption{\textbf{The OctMNIST tight-cap win is backbone-general, grows with backbone
+capacity, and carries to overall accuracy.} Paired gap of TraLO over the best trained dual
+(per-seed best of Fioretto-LDF/Hounie-RCL) at the tight caps, mean over seeds $1$--$4$
+($\pm$ across-seed std). Constrained-class F1 leads at every cell on all $4/4$ seeds; macro-F1
+improves at five of the six cells (the exception a wash at MobileNetV3$\times L30$), again
+peaking at the ViT-B/16.}
+\label{tab:oct_backbone}
+\begin{tabular}{ll rr}
+\toprule
+Backbone & Cap & $\Delta$ cc-F1 & $\Delta$ macro-F1 \\
+\midrule
+\multirow{2}{*}{MobileNetV3}   & L30 & $+0.016$ {\scriptsize$\pm.014$} & $+0.001$ {\scriptsize$\pm.001$} \\
+                               & L40 & $+0.022$ {\scriptsize$\pm.029$} & $+0.008$ {\scriptsize$\pm.013$} \\
+\addlinespace[1.5pt]
+\multirow{2}{*}{RegNetY-400MF} & L30 & $+0.035$ {\scriptsize$\pm.006$} & $+0.013$ {\scriptsize$\pm.005$} \\
+                               & L40 & $+0.021$ {\scriptsize$\pm.003$} & $+0.007$ {\scriptsize$\pm.002$} \\
+\addlinespace[1.5pt]
+\multirow{2}{*}{\textbf{ViT-B/16}} & L30 & $\mathbf{+0.081}$ {\scriptsize$\pm.045$} & $\mathbf{+0.028}$ {\scriptsize$\pm.014$} \\
+                               & L40 & $\mathbf{+0.051}$ {\scriptsize$\pm.019$} & $\mathbf{+0.016}$ {\scriptsize$\pm.008$} \\
+\bottomrule
+\end{tabular}
+\end{table}

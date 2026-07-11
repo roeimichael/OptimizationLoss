@@ -1,0 +1,22 @@
+{
+  "key": "brosowsky2021sample",
+  "title": "Sample-Specific Output Constraints for Neural Networks",
+  "authors": "Mathis Brosowsky, Florian Keck, Olaf Dünkel, Marius Zöllner",
+  "venue": "Proceedings of the AAAI Conference on Artificial Intelligence (AAAI-21), vol. 35, no. 8",
+  "year": "2021",
+  "link": "https://doi.org/10.1609/aaai.v35i8.16841",
+  "source_read": "https://ojs.aaai.org/index.php/AAAI/article/view/16841",
+  "conclusions": [
+    "Introduces ConstraintNet, which applies an input-dependent parametrization of the network's output space so that every prediction is guaranteed, by construction, to lie inside a per-sample convex-polytope constraint region (no post-hoc projection or clipping needed).",
+    "Uses a vertex representation of the convex polytope so an auxiliary tensor input can specify a different constraint per sample, supporting multiple/varying constraints across the dataset.",
+    "The layer is end-to-end trainable with negligible extra forward/backward compute, and fully covers the interior of the constrained region (unlike projection-based approaches).",
+    "Demonstrated on facial landmark detection (CNN with a ConstraintNet output layer) and on a safe-RL vehicle controller task, showing constraint satisfaction with competitive/improved performance.",
+    "Positions the method for safety-critical deployment where hard per-sample output guarantees are required, in contrast to soft-penalty training."
+  ],
+  "our_use": "main.tex:164 - '...or guaranteed per prediction by construction through input-dependent parametrizations \\citep{brosowsky2021sample} or an output-layer satisfiability solver \\citep{goyal2024deepsade}' - cited in the Lagrangian/dual constrained-learning related-work paragraph as an example of hard, by-construction per-prediction constraint enforcement (architectural guarantee), contrasted with the paper's own bounded-penalty/dual-ascent approach.",
+  "relevance_verdict": "correct",
+  "citation_verdict": "correct",
+  "bibtex_verdict": "correct",
+  "issues": "none - title, full author list (incl. umlaut diacritics in Dünkel/Zöllner), venue, volume/number, page range, year, and DOI all verified against the AAAI OJS page. The characterization 'guaranteed per prediction by construction through input-dependent parametrizations' precisely matches ConstraintNet's actual mechanism (input-dependent convex-polytope parametrization of the output space).",
+  "bibtex_corrected": "@inproceedings{brosowsky2021sample,\n  title={Sample-Specific Output Constraints for Neural Networks},\n  author={Brosowsky, Mathis and Keck, Florian and D{\\\"u}nkel, Olaf and Z{\\\"o}llner, Marius},\n  booktitle={Proceedings of the AAAI Conference on Artificial Intelligence},\n  volume={35},\n  number={8},\n  pages={6812--6821},\n  year={2021},\n  doi={10.1609/aaai.v35i8.16841}\n}"
+}

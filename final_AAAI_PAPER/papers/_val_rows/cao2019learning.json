@@ -1,0 +1,22 @@
+{
+  "key": "cao2019learning",
+  "title": "Learning Imbalanced Datasets with Label-Distribution-Aware Margin Loss",
+  "authors": "Kaidi Cao, Colin Wei, Adrien Gaidon, Nikos Arechiga, Tengyu Ma",
+  "venue": "Advances in Neural Information Processing Systems (NeurIPS 2019), volume 32",
+  "year": "2019",
+  "link": "papers/cao2019learning.pdf",
+  "source_read": "local pdf: papers/cao2019learning.pdf",
+  "conclusions": [
+    "Derives a fine-grained, per-class generalization error bound showing balanced test error scales with 1/(gamma_j * sqrt(n_j)), motivating class-dependent margins rather than a single global margin",
+    "Proposes LDAM (Label-Distribution-Aware Margin) loss, a softmax cross-entropy variant that enforces class-dependent margins Delta_j proportional to n_j^{-1/4}, giving minority classes larger margins than frequent classes",
+    "Proposes a Deferred Re-balancing (DRW/DRS) training schedule: train with vanilla ERM first, then apply re-weighting/re-sampling only after annealing the learning rate, which outperforms re-weighting/re-sampling from the start",
+    "Shows LDAM and deferred re-balancing are complementary; combined (LDAM-DRW) beats ERM, focal loss, class-balanced (CB) re-weighting/re-sampling, and hinge-margin variants on imbalanced CIFAR-10/100 (long-tailed and step imbalance), imbalanced IMDB, Tiny ImageNet, and iNaturalist 2018",
+    "Also sketches an extension for the setting where the (imbalanced but non-uniform) test label distribution is known rather than assumed uniform"
+  ],
+  "our_use": "main.tex line ~211-212, in the 'Cost-sensitive and imbalanced training' related-work paragraph: 'Reweighting or reshaping the loss changes which examples are emphasized: cost-sensitive thresholds \\citep{elkan2001foundations}, focal loss \\citep{lin2017focal}, class-balanced weights \\citep{cui2019class}, label-distribution-aware margins \\citep{cao2019learning}, prior-corrected logits \\citep{menon2021logit}. None of it guarantees the prediction count...' -- cited purely as the example instance of a 'label-distribution-aware margin' loss-reshaping technique, contrasted with TraLO's count-guarantee mechanism. This is an accurate one-word-per-method list; no specific numeric or mechanistic claim is attached beyond the label 'label-distribution-aware margins', which is exactly this paper's own name for its contribution (LDAM).",
+  "relevance_verdict": "correct",
+  "citation_verdict": "correct",
+  "bibtex_verdict": "correct",
+  "issues": "none - title, full author list and order, venue (Advances in Neural Information Processing Systems), volume 32, and year 2019 all verified against the PDF front matter and footer ('33rd Conference on Neural Information Processing Systems (NeurIPS 2019), Vancouver, Canada'). No page numbers are given in our entry, which is standard/acceptable for NeurIPS-style bib entries and does not constitute an error.",
+  "bibtex_corrected": "@inproceedings{cao2019learning,\n  title={Learning Imbalanced Datasets with Label-Distribution-Aware Margin Loss},\n  author={Cao, Kaidi and Wei, Colin and Gaidon, Adrien and Arechiga, Nikos and Ma, Tengyu},\n  booktitle={Advances in Neural Information Processing Systems},\n  volume={32},\n  year={2019}\n}"
+}

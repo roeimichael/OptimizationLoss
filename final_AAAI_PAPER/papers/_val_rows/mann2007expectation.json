@@ -1,0 +1,23 @@
+{
+  "key": "mann2007expectation",
+  "title": "Simple, Robust, Scalable Semi-supervised Learning via Expectation Regularization",
+  "authors": "Gideon S. Mann and Andrew McCallum",
+  "venue": "Proceedings of the 24th International Conference on Machine Learning (ICML 2007)",
+  "year": "2007",
+  "link": "https://people.cs.umass.edu/~mccallum/papers/xr-icml2007.pdf",
+  "source_read": "local pdf: papers/mann2007expectation.pdf",
+  "conclusions": [
+    "Introduces expectation regularization (XR): augments the conditional log-likelihood objective for exponential-family models (e.g. logistic regression / MaxEnt) with a KL-divergence term that pulls the model's expected conditional probabilities on UNLABELED data toward designer-provided expectations (e.g. label priors).",
+    "Special case 'label regularization': the designer supplies a target marginal label distribution p-tilde(y), and XR encourages the model's average predicted label distribution over unlabeled data to match it -- a SOFT, aggregate/global penalty, not a hard per-instance or per-count constraint.",
+    "Empirically evaluated on 5 datasets (SRAA, POS, SecStr, BIOII, CoNLL03) against 7 supervised/semi-supervised baselines (naive Bayes, SVM, EM, MaxEnt, entropy regularization, cluster kernels, graph-based QC); XR wins or is competitive in nearly all settings and is especially strong with very little labeled data.",
+    "Shown to be robust to substantial noise in the provided label-prior estimates (majority-class probability corrupted from 84% down to ~11% before performance degrades) and robust across a wide range of the lambda/temperature meta-parameters.",
+    "Positions XR as simpler/cheaper than TSVMs, entropy regularization, and graph-based methods (no pre-clustering, no auxiliary functions, scales linearly in number of unlabeled points).",
+    "Does not enforce any hard cap/quota on class counts and is not framed as a constrained-optimization method with multipliers; it is a soft regularization term added to the likelihood."
+  ],
+  "our_use": "main.tex:216-225 (Related Work, 'Transductive and set-level constraints' paragraph): 'soft set-level targets have long existed there: expectation regularization pushes predicted class proportions on unlabeled data toward a prior \\citep{mann2007expectation}, and posterior regularization constrains posterior expectations \\citep{ganchev2010posterior}. Our constraint is transductive in exactly this sense ... but it is hard: an explicit argmax count budget ...' -- cited as a prior SOFT, transductive/set-level, prior-matching precedent that TraLO's HARD count constraint is contrasted against.",
+  "relevance_verdict": "correct",
+  "citation_verdict": "correct",
+  "bibtex_verdict": "correct",
+  "issues": "none -- title, author names, venue (ICML 2007 / 'Proceedings of the 24th International Conference on Machine Learning'), publisher (ACM), and page range (593-600) all verified against the PDF front matter and corroborated by web search. The characterization in the text ('pushes predicted class proportions on unlabeled data toward a prior', described as soft) is an accurate, non-overclaiming summary of the paper's label-regularization special case, correctly contrasted with TraLO's hard count budget.",
+  "bibtex_corrected": "@inproceedings{mann2007expectation,\n  author    = {Mann, Gideon S. and McCallum, Andrew},\n  title     = {Simple, Robust, Scalable Semi-supervised Learning via Expectation Regularization},\n  booktitle = {Proceedings of the 24th International Conference on Machine Learning},\n  pages     = {593--600},\n  year      = {2007},\n  publisher = {ACM}\n}"
+}

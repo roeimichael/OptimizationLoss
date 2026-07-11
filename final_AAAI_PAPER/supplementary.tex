@@ -1,0 +1,264 @@
+% ============================================================================
+%  Supplementary Material for
+%  "Training Deep Neural Networks to Meet Hard Prediction Quotas"
+%  AAAI-27 Supplementary Document (technical appendix), anonymous build.
+%  Compile AFTER main.tex (xr resolves \ref's into main.aux):
+%       pdflatex supplementary ; pdflatex supplementary
+% ============================================================================
+\documentclass[letterpaper]{article}
+\usepackage[submission]{aaai2027}
+\usepackage[hyphens]{url}
+\usepackage{graphicx}
+\urlstyle{rm}
+\def\UrlFont{\rm}
+\usepackage{natbib}
+\usepackage{caption}
+\frenchspacing
+\usepackage{amsmath}
+\usepackage{amssymb}           % \square for the QED marker
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{xr}                % cross-reference into the main paper
+\externaldocument{main}
+
+\pdfinfo{/TemplateVersion (2027.1)}
+\setcounter{secnumdepth}{2}
+\graphicspath{{figures/}}
+\nocopyright   % drop the [submission] review-notice footer (matches main.tex)
+
+% Supplementary numbering: sections A, B, C; floats S1, S2, ...
+\renewcommand{\thefigure}{S\arabic{figure}}
+\renewcommand{\thetable}{S\arabic{table}}
+
+\title{Supplementary Material for ``Training Deep Neural Networks to Meet Hard Prediction Quotas''}
+\author{Anonymous Author(s)}
+\affiliations{Anonymous Affiliation}
+
+\begin{document}
+\maketitle
+
+\appendix
+
+\section{Mechanism: Bounded vs.\ Unbounded Dual Behavior}
+\label{app:mech}
+
+\paragraph{Proof of Proposition~\ref{prop:bound}.}
+Write $u=E/K\ge 0$. In Eq.~\eqref{eq:loss} the first term $E/(E+K)=u/(1+u)$ increases from
+$0$ to $1$ and the second $\rho\,u^2/(1+u^2)$ increases from $0$ to $\rho$, so
+$0\le\ell<1+\rho$. Differentiating through $E=\max(0,S-K)$ gives Eq.~\eqref{eq:grad} for
+$S>K$. There the first summand $K/(E+K)^2=\tfrac1K(1+u)^{-2}$ is at most $1/K$ (at $u{=}0$)
+and decreasing; the second, $\tfrac{2\rho}{K}\,u/(1+u^2)^2$, is maximized at $u=1/\sqrt3$ with
+value $\tfrac{2\rho}{K}\cdot\tfrac{9}{16\sqrt3}=\tfrac{9\rho}{8\sqrt3\,K}<\rho/K$ and tends to
+$0$ as $u\to\infty$. Their sum therefore lies in $[0,(1+\rho)/K]$ and vanishes as
+$E\to\infty$. Scaling $\ell$ and $\partial\ell/\partial S$ by a frozen multiplier $\lambda$
+gives the bounds $\lambda(1+\rho)$ and $\lambda(1+\rho)/K$, neither depending on $E$.
+$\square$
+
+Why does a hard count cap stress the dual-ascent baselines? On the paper grid the
+interaction is hidden: after the $50$-epoch warmup the classifier is already saturated,
+and a saturation gate shared by every method (train accuracy $\ge 0.995$ on two
+consecutive checks) stops cross-entropy updates within the first two constraint
+epochs, so the constraint phase is pure count optimization for all methods alike. We
+therefore probe with a one-epoch warmup, where the classifier keeps learning
+throughout the constraint phase and the two objectives visibly compete
+(Figure~\ref{fig:mechanism}).
+
+The probe shows three things. First, while the classifier is learning, the count cannot
+be forced down: each epoch's cross-entropy updates re-inflate the constrained class, and
+the excess oscillates around its starting level for ${\sim}60$ epochs under both
+methods (Fig.~\ref{fig:mechanism}c). Dual ascent responds exactly as designed: the
+violation persists, so the multiplier grows every epoch, from $1$ to $53$ (seeds
+$2$--$3$: $58$, $60$). In control terms this is integrator windup: the controller keeps
+integrating an error it has no ability to act on. Second, the escalation buys nothing.
+Every method takes a single
+gradient-clipped constraint step per epoch (max-norm $1.0$, shared across methods), so
+extra multiplier cannot buy extra descent: the two cross-entropy traces are numerically
+indistinguishable (Fig.~\ref{fig:mechanism}b), and the count comes down no faster at
+$\lambda{=}53$ than at TraLO's ratcheted $\lambda\le 0.19$. The asymmetry is in what the
+clip rail is doing. At $\lambda{=}53$ an unbounded-penalty gradient would dominate the
+update by orders of magnitude were it not clipped, whereas TraLO's bounded penalty at
+$\lambda\le 0.19$ demands orders of magnitude less force in the first place. Third, the
+count falls only once the
+classifier saturates and the gate stops CE updates (dotted lines in
+Fig.~\ref{fig:mechanism}c), and then both methods reach the cap within a few
+epochs. The count outcome is identical; what differs is the pressure applied to the
+constrained class to get there.
+
+The paper grid shows the same behavior in compressed form: the dual multipliers escalate
+while TraLO's freezes ($\le 0.09$ there), Fioretto's native satisfaction is
+${\sim}0.87$ ($0.84$ on OctMNIST and TissueMNIST, $0.93$ on DermMNIST), so its unbounded
+multiplier stalls short of the cap on ${\sim}13\%$ of runs that never reach feasibility
+within the budget (main paper Sec.~\ref{sec:conv}); runs that end
+violated restore their best-satisfied checkpoint and remain competitive.
+
+Nor is the escalation a step-size artifact. A dedicated fairness sweep (Block~C of
+the released corpus; $96$ runs on the hard-regime cells) varies Fioretto's dual step
+over $0.001$--$0.01$ and Hounie's $\eta$ over $0.001$--$0.1$: Fioretto's
+constrained-class F1 moves by less than $0.001$ across the $10\times$ step range,
+larger Hounie steps only hurt ($0.43\!\to\!0.35$), and no setting closes the gap to
+TraLO on the OctMNIST tight cells (the best variant still trails by $0.019$ cc-F1).
+
+We state this mechanism \emph{qualitatively only}. An audit shows that the
+magnitude of the escalation does not predict where TraLO wins
+(the multiplier is in fact largest in some cells where TraLO loses).
+So the claim is ``dual ascent needs an unbounded multiplier plus a clip rail to hold a
+hard count, while TraLO's bounded, frozen multiplier holds it alone,'' not any
+dose--response of the form ``more escalation $\Rightarrow$ bigger win.''
+
+\begin{figure*}[t]\centering
+\includegraphics[width=\linewidth]{fig_mechanism}
+\caption{\textbf{Dual ascent winds up a multiplier the constraint cannot use: a
+one-epoch-warmup probe} (DermMNIST $L50/G50$, RegNetY-400MF, seed~1).
+While the classifier is still learning, the count cannot fall: each
+epoch's CE updates re-inflate the constrained class, so the excess just oscillates
+(\emph{c}, first ${\sim}60$ epochs). Dual ascent reads that standing violation as ``not
+enough pressure'' and integrates it into $\lambda{=}53$ (\emph{a}, log scale); the extra pressure
+changes nothing, since the constraint step is norm-clipped, so the CE traces stay numerically
+indistinguishable (\emph{b}) and the count sits no lower at $\lambda{=}53$ than at
+TraLO's ratcheted $\le 0.19$. What frees the count is CE finishing (train-accuracy
+gate: circles in \emph{b}, dotted lines in \emph{c}); it then falls to the cap for
+both methods. Same outcome; the difference is the state each method arrives in: a
+wound-up multiplier held back by a clip rail, vs.\ a bounded nudge that never
+needed one. That state difference is what surfaces as stalls and missed feasibility on
+the main grid (main paper Fig.~\ref{fig:convergence}; Sec.~\ref{app:mech} here). Each
+method keeps one multiplier per constraint; the local caps are never violated on this
+cell, so the local multipliers stay at zero and we plot the global-cap one. TraLO is
+logged every $5$ epochs, hence its smoother-looking trace.}
+\label{fig:mechanism}
+\end{figure*}
+
+% ----------------------------------------------------------------------------
+\section{Complete Component Ablation}
+\label{app:ablation}
+
+A within-cell ablation isolates which ingredients carry the hard-regime advantage: on the
+OctMNIST tight-cap cells where TraLO leads, we disable one component at a time and measure
+the paired change in constrained-class F1 (Table~\ref{tab:ablation_complete};
+$n{=}24$ per component). Two components are load-bearing.
+Removing the optimizer reset at satisfaction costs $+0.079$ cc-F1, the single
+largest effect, helping on all $24$ paired runs ($p\!=\!3\mathrm{e}{-7}$), because it breaks
+the post-satisfaction descent momentum that would otherwise erode the constrained class.
+Removing the undershoot hinge (the TraLO-bounded control, already in the frozen
+grid) costs $+0.036$ cc-F1 ($p\!=\!3\mathrm{e}{-6}$; $0.019$--$0.070$ across cells). The other
+components are cc-F1-neutral on these already-satisfied cells: the $\rho$ schedule and the
+lambda freeze move it by under $0.001$ (n.s.). A dedicated KL sweep on TissueMNIST (the
+$L30$ tight cap, MobileNetV3, $\alpha_{\mathrm{KL}}\!\in\!\{0,0.1,0.3,1.0\}$) confirms the
+anchor is off for good reason: $\alpha_{\mathrm{KL}}{=}0$ (the paper recipe) gives the best
+constrained-class \emph{and} macro-F1, while every nonzero anchor lowers cc-F1 (by
+$0.01$--$0.03$) and only adds prediction edits. The KL term was a useful drift damper in an
+early version of the method, before the optimizer reset and undershoot hinge; once those two
+control post-satisfaction drift directly, the anchor is redundant. The advantage rests on
+the reset and the hinge. The reset, $\rho$, and
+freeze legs are a dedicated ablation under the identical frozen recipe; the hinge leg is
+already in the main grid.
+
+\input{tables/tab_ablation_complete}
+
+% ----------------------------------------------------------------------------
+\section{Native Satisfaction: a Deployment Property, not a Headline}
+\label{app:deploy}
+
+\input{tables/tab_deploy}
+
+We separate \emph{native satisfaction} (meeting the count with no post-hoc edit) from the
+quality results in the main paper because, on its own, it does not discriminate methods: every
+deployable system meets a hard count one way or another, and post-hoc clipping reaches
+satisfaction $1.00$ by construction, simply by editing predictions. We report it only to
+document the mechanism behind TraLO's quality advantage over clipping
+(main paper Sec.~\ref{sec:deploy}): TraLO reaches the count during training and so never
+invokes the editing step that costs clipping its accuracy. Table~\ref{tab:deploy} gives the
+deployment costs at the tight $L30$ cap on MobileNetV3: macro-F1, accuracy, and the number of
+predictions each method must overwrite (Flips). Figure~\ref{fig:deployment} shows native
+satisfaction per method over the full grid. TraLO and Hounie-RCL meet the count in every
+run; Fioretto-LDF and the hinge-free TraLO-bounded do most of the time; the post-hoc
+clippers meet it natively only at loose caps. A
+caveat on \emph{flips}: at near-trivial loose caps (e.g.\ OctMNIST $L80/L90$) TraLO can
+record more flips than a clipper that barely has to act, so the
+robust statement is ``satisfies natively while preserving macro-F1,'' never a raw flip count.
+
+The macro-F1 advantage over clipping is not specific to MobileNetV3 or to the single $L30$ cap
+of Table~\ref{tab:deploy}. Table~\ref{tab:deploybb} averages the paired gap over the symmetric
+caps for each dataset--backbone cell, adding MobileNetV2 to the three main-grid backbones: the
+mean gain is positive in every one of the twelve cells, largest on TissueMNIST, and it persists
+under asymmetric caps (App.~\ref{app:regime}).
+
+\input{tables/tab_deploy_backbone}
+
+\begin{figure*}[t]\centering
+\includegraphics[width=\linewidth]{fig_deployment}
+\caption{\textbf{Methods trained under the constraint satisfy the count natively; post-hoc
+clippers do not.} Mean native satisfaction per method and backbone over the paper\_final
+grid ($N{=}108$ runs per method$\times$backbone: $3$ datasets $\times\,9$ caps $\times\,4$
+seeds); the dots are the three per-dataset means. TraLO and Hounie-RCL meet the count in
+every run (satisfaction $1.00$); Fioretto-LDF and TraLO-bounded reach it most of the time
+($\sim\!0.85$--$0.91$); the post-hoc clippers satisfy natively only at loose caps
+($\sim\!0.14$--$0.15$) and otherwise reach the cap solely by editing predictions, the
+source of their accuracy tax (Table~\ref{tab:deploy}).}
+\label{fig:deployment}
+\end{figure*}
+
+% ----------------------------------------------------------------------------
+\section{Per-Cell Results Across the Full Grid}
+\label{app:regime}
+
+Tables~\ref{tab:gran_tissue}--\ref{tab:gran_asym} give the fully granular breakdown
+behind the regime summary of the main paper (Sec.~\ref{sec:regime}): one row per
+(dataset, backbone, cap), averaged over the four seeds \emph{only}, with no pooling across
+backbones or caps. Each row pairs TraLO against the best constraint-trained baseline on
+constrained-class F1 (per-seed best of Fioretto-LDF/Hounie-RCL) and against the best
+post-hoc clipper on macro-F1, both paired by seed.
+
+Two patterns read straight off the cells. The constrained-class win is
+\emph{consistent} (all three backbones, every seed) only at the OctMNIST tight caps
+($L30$/$L40$), where it is largest on ViT-B/16; a handful of isolated single-backbone
+cells elsewhere also clear the $+0.005$ bar, but no other regime wins across backbones,
+and none is a loss beyond seed noise. The macro-F1 margin over clipping is positive in
+$77$ of the $81$ symmetric cells; the four exceptions are the very tightest $L10$/$L20$
+caps, where the cap nearly zeroes out the constrained class and the gap is within
+$\pm0.02$. The asymmetric caps (Table~\ref{tab:gran_asym}) hold the
+\emph{preliminary} constrained-class win, on DermMNIST where the global cap is tighter
+than the group cap. That per-cell table is MobileNetV3, the only backbone with the full
+asymmetric grid; a cross-backbone check on the four shared $G{<}L$ cap pairs
+(Table~\ref{tab:asym_xbackbone}) shows the constrained-class win reproduces on RegNet
+($+0.9$pp, $75\%$ seed-winrate) and ties on the ViT ($-0.0$pp), while the macro-F1
+advantage over clipping holds on all three backbones. We report the asymmetric result as
+preliminary because only MobileNetV3 has been run on the complete asymmetric grid, not
+because a single backbone shows it.
+
+Table~\ref{tab:bbgen} summarizes the constrained-class picture across backbones, adding
+MobileNetV2 to the three main-grid backbones and averaging the paired gap over the symmetric
+caps: on TissueMNIST and DermMNIST no backbone shows a systematic advantage (means within
+$\pm0.003$), while OctMNIST is positive on all four. The honest tie and the OctMNIST win are
+each backbone-general, not artifacts of one architecture.
+
+\input{tables/tab_backbone_generality}
+
+\begin{table}[t]\centering\small
+\setlength{\tabcolsep}{5pt}
+\caption{\textbf{The DermMNIST global-tighter ($G{<}L$) win reproduces across backbones.}
+Cross-backbone check on the four shared $G{<}L$ cap pairs ($L50/G20$, $L50/G30$, $L70/G50$,
+$L80/G70$; mean over seeds $1$--$4$, $n{=}16$ paired seed-cells). $\Delta$cc-F1 is TraLO
+minus the best constraint-trained baseline; $\Delta$macro-F1 is TraLO minus the best
+post-hoc clipper; both paired by seed, with \emph{win} the seed-cell fraction favoring
+TraLO. The constrained-class win holds on MobileNetV3 and RegNet and ties on the ViT; the
+macro-F1 advantage over clipping holds on all three.}
+\label{tab:asym_xbackbone}
+\begin{tabular}{l rc rc}
+\toprule
+ & \multicolumn{2}{c}{$\Delta$cc-F1 vs.\ trained} & \multicolumn{2}{c}{$\Delta$macro-F1 vs.\ clipper} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Backbone & $\Delta$ & win & $\Delta$ & win \\
+\midrule
+MobileNetV3    & $+0.012$ & $81\%$  & $+0.015$ & $77\%$ \\
+RegNetY-400MF  & $+0.009$ & $75\%$  & $+0.002$ & $50\%$ \\
+ViT-B/16       & $-0.000$ & $38\%$  & $+0.032$ & $100\%$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\input{tables/tab_granular_tissue}
+\input{tables/tab_granular_derm}
+\input{tables/tab_granular_oct}
+\input{tables/tab_granular_asym}
+
+\end{document}

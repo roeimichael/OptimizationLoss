@@ -1,0 +1,23 @@
+{
+  "key": "goh2016satisfying",
+  "title": "Satisfying Real-world Goals with Dataset Constraints",
+  "authors": "Gabriel Goh, Andrew Cotter, Maya Gupta, Michael P. Friedlander",
+  "venue": "Advances in Neural Information Processing Systems (NeurIPS/NIPS), Vol. 29",
+  "year": "2016",
+  "link": "papers/goh2016satisfying.pdf (local); https://proceedings.neurips.cc/paper/2016/hash/c1c2394d035020e5ba638d472e0b98a5-Abstract.html",
+  "source_read": "local pdf: papers/goh2016satisfying.pdf",
+  "conclusions": [
+    "Proposes 'dataset constraints': training a linear classifier subject to upper/lower bounds on positive/negative prediction RATES computed on specified (possibly unlabeled) datasets, covering coverage, churn/stability, fairness, and recall/precision goals in one framework.",
+    "Replaces the discontinuous 0/1-based rate with the bounded ramp function sigma(z)=max{0,min{1,1/2+z}}, then solves the resulting non-convex problem via a majorization-minimization procedure that iteratively builds tight convex (hinge/constant) upper bounds.",
+    "The convex subproblems are solved via a Lagrangian/cutting-plane scheme (Algorithm 2) reducing to repeated weighted-SVM training, since the ramp bound reduces to an SVM-style objective.",
+    "Fairness experiment (Adult/a9a dataset): constrains male vs female positive-rate ratio, beating Zafar et al. 2015's covariance-constraint baseline at every fairness ratio.",
+    "Churn experiment (proprietary Google UI dataset): constrains churn/recall of a new classifier relative to a deployed one on a large unlabeled dataset D3, showing lower churn than a thresholded-SVM baseline at matched accuracy.",
+    "Frames its own constraints as bounding expected/rate quantities meant to generalize inductively to new data (explicit train/test generalization discussion, Appendix C), not as hard exact-count guarantees verified on one fixed known test set."
+  ],
+  "our_use": "main.tex:181 cites it as the exemplar of controlling 'coverage (the fraction of items predicted positive) as a dataset constraint', grouped under the 'Rate-constrained learning' related-work paragraph alongside eban2017scalable, cotter2019optimization, narasimhan2019optimizing; text then contrasts these as bounding 'expected rates over a distribution, inductively' versus our transductive hard count on one fixed test set.",
+  "relevance_verdict": "correct",
+  "citation_verdict": "correct",
+  "bibtex_verdict": "minor",
+  "issues": "Title case is off: the paper's actual title is 'Satisfying Real-world Goals with Dataset Constraints' (lowercase 'world'), our bib has 'Real-World' (capital W). Author 'Michael P. Friedlander' -- the PDF byline only shows 'Michael Friedlander' (no middle initial visible on the page), but the middle initial is the paper's own official/canonical form used in the NeurIPS proceedings BibTeX and matches his standard published name; not an error, just unverifiable directly from the PDF page image alone. Venue/volume/year (NeurIPS/NIPS 2016, vol. 29) confirmed correct from the paper's own footer ('30th Conference on Neural Information Processing Systems (NIPS 2016)'). No page range given in our entry or in the official NeurIPS BibTeX record for this paper (NeurIPS proceedings entries of this era commonly omit page numbers), so that omission is not an error.",
+  "bibtex_corrected": "@inproceedings{goh2016satisfying,\n  author={Goh, Gabriel and Cotter, Andrew and Gupta, Maya and Friedlander, Michael P.},\n  title={Satisfying Real-world Goals with Dataset Constraints},\n  booktitle={Advances in Neural Information Processing Systems},\n  volume={29},\n  year={2016}\n}"
+}

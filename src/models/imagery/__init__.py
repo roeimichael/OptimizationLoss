@@ -5,3 +5,4 @@ from .regnet import RegNetY400MFClassifier
 from .tinycnn import TinyCNNClassifier
 from .smallcnn import SmallCNNClassifier
 from .mediumcnn import MediumCNNClassifier
+from .vit import ViTB16Classifier

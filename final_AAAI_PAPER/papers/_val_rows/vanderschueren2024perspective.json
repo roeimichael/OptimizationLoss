@@ -1,0 +1,22 @@
+{
+  "key": "vanderschueren2024perspective",
+  "title": "A New Perspective on Classification: Optimally Allocating Limited Resources to Uncertain Tasks",
+  "authors": "Toon Vanderschueren, Bart Baesens, Tim Verdonck, Wouter Verbeke",
+  "venue": "Decision Support Systems",
+  "year": "2024",
+  "link": "https://doi.org/10.1016/j.dss.2023.114151 (arXiv:2202.04369 preprint)",
+  "source_read": "local pdf: papers/vanderschueren2024perspective.pdf",
+  "conclusions": [
+    "Formalizes optimal allocation of limited, stochastic resource capacity to tasks with uncertain (binary) outcomes as a linear assignment problem, with capacity modeled as a random variable W converted to a monotonically decreasing sequence of worker success rates.",
+    "Proves that, given predicted task rewards, the optimal assignment is simply sorting tasks by predicted reward and assigning greedily in that order (Theorem 4.1).",
+    "Proposes an integrated predict-and-optimize approach using learning-to-rank (LambdaMART/NDCG with cost-sensitive relevance) instead of the conventional two-stage classify-then-assign pipeline.",
+    "Empirically shows the integrated ranking model (csLambdaMART) achieves higher expected profit, and LambdaMART higher expected precision, than classification baselines (xgboost/csboost) across churn, credit-scoring, marketing, and fraud datasets.",
+    "The setting is inductive and probabilistic throughout: capacity is a known/estimated stochastic distribution and the method steers expected profit/cost trade-offs; there is no hard, exactly-enforced count constraint on any fixed test set."
+  ],
+  "our_use": "main.tex:196, in the 'Post-hoc correction and resource allocation' paragraph: '...predict-and-optimize ranking under stochastic capacity \\citep{vanderschueren2024perspective}, steering expected costs rather than enforcing a hard count...' -- cited as an example of resource-allocation work that folds a capacity budget into learning (via predict-and-optimize ranking) but only steers expected outcomes probabilistically rather than guaranteeing an exact count, in contrast to TraLO's hard transductive count constraint.",
+  "relevance_verdict": "correct",
+  "citation_verdict": "minor",
+  "bibtex_verdict": "correct",
+  "issues": "Relevance and the core claim (integrated predict-and-optimize ranking under stochastic, not hard, capacity; no exact count guarantee) are accurate and well-supported by the paper (Sec 2 'Stochastic capacity', Sec 4.2, Theorem 4.1). Minor wording nit: our text says the method 'steer[s] expected costs', but the paper's stated objective throughout is maximizing expected PROFIT (Title, Sec 5); the cost-sensitive relevance label r_i does derive from a cost/profit matrix, so 'costs' is not a hallucination but 'expected profit' would be the more precise term the paper itself uses. Not severe enough to be a mismatch. Bibtex fields (title, all 4 authors incl. correct order/spelling, journal, volume 179, article-number-as-pages 114151, year 2024, publisher Elsevier) all verified correct against the published DSS record (doi.org/10.1016/j.dss.2023.114151); only omission is no explicit doi field, which is optional/non-blocking for AAAI style.",
+  "bibtex_corrected": "@article{vanderschueren2024perspective,\n  title={A New Perspective on Classification: Optimally Allocating Limited Resources to Uncertain Tasks},\n  author={Vanderschueren, Toon and Baesens, Bart and Verdonck, Tim and Verbeke, Wouter},\n  journal={Decision Support Systems},\n  volume={179},\n  pages={114151},\n  year={2024},\n  publisher={Elsevier},\n  doi={10.1016/j.dss.2023.114151}\n}"
+}

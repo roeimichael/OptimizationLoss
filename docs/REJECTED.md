@@ -23,6 +23,19 @@ The "headroom hypothesis" is the explanatory lens: TraLO's macro-F1 edge appears
 - Mid-band warmup (~0.75) is **necessary but not sufficient** (SqueezeNet had it and still failed both-baselines on aider).
 - Reasonable future candidates: MobileViT (under test), EfficientFormer-L1, MNASNet1_3, ConvNeXt-Pico, MobileViT variants.
 
+### ViT-S and ConvNeXt-T — explicitly rejected (2026-06-08)
+
+Reviewers across iterations 3, 6, 7 repeatedly suggested running ViT-S/B or ConvNeXt-T on the three medical/aerial benchmarks to corroborate the F1 win on a non-MobileNet backbone family. **Both were tried and discarded** for the same structural reason:
+
+| Backbone | Failure mode |
+|---|---|
+| **ViT-S / ViT-B** | Memorizes the training distribution in 1–2 epochs (train-acc → 1.0); test-set warmup is saturated by phase-2 entry, so the constraint-phase gradient has no slack to redistribute. Results across methods (TraLO, Fioretto, Hounie, post-hoc) flatline within $\pm 0.005$ F1, masking the TraLO advantage entirely. |
+| **ConvNeXt-Tiny** | Same failure mode as ViT-S: the ConvNeXt inverted-bottleneck + LayerNorm capacity overruns the 9.6k–13k train sets of derm/tissue/aider, saturating the warmup and removing the headroom the bounded-penalty story depends on. |
+
+The dataset-side problem is that none of our three benchmarks (tissue 9.6k, derm 9.6k, aider 6.4k train) are **hard enough** to keep a 22M-parameter transformer in the un-saturated warmup band. We attempted the search for a harder imagery benchmark (PathMNIST, ISIC2019, EuroSAT, So2Sat, CIFAR-100, OctMNIST — all listed in the dataset table below) and none gave a clean TraLO story under ViT-class capacity. The corroboration of the F1 win on non-MobileNet backbones therefore lives at the MobileNetV2 / RegNetY400MF / ShuffleNetV2 tier reported in §5.2; the transformer-class corroboration is **declared out-of-scope** for this paper.
+
+If a future revision attempts this again: budget a hard 50k+ train imagery benchmark (StanfordDogs120, NABirds, or a curated ImageNet-100 subset with an imbalanced minority class) so the transformer's capacity is matched by genuine task difficulty.
+
 ---
 
 ## Rejected datasets

@@ -1,0 +1,23 @@
+{
+  "key": "howard2019searching",
+  "title": "Searching for MobileNetV3",
+  "authors": "Andrew Howard, Mark Sandler, Grace Chu, Liang-Chieh Chen, Bo Chen, Mingxing Tan, Weijun Wang, Yukun Zhu, Ruoming Pang, Vijay Vasudevan, Quoc V. Le, Hartwig Adam",
+  "venue": "IEEE/CVF International Conference on Computer Vision (ICCV)",
+  "year": "2019",
+  "link": "https://openaccess.thecvf.com/content_ICCV_2019/html/Howard_Searching_for_MobileNetV3_ICCV_2019_paper.html",
+  "source_read": "local pdf: papers/howard2019searching.pdf",
+  "conclusions": [
+    "Introduces MobileNetV3-Large and MobileNetV3-Small, found by combining hardware-aware platform-specific NAS (MnasNet-style) with the NetAdapt layer-wise search algorithm",
+    "Adds new architecture-level efficiency improvements: redesigned expensive first/last layers, and the h-swish nonlinearity (a piecewise-linear, quantization-friendly approximation of swish)",
+    "MobileNetV3-Large is 3.2% more accurate than MobileNetV2 at 20% lower latency on Pixel phones; MobileNetV3-Small is 6.6% more accurate than a comparable MobileNetV2 model",
+    "Proposes Lite R-ASPP (LR-ASPP), a new efficient segmentation decoder built on MobileNetV3, giving faster mobile semantic segmentation at similar/better accuracy on Cityscapes",
+    "Reports detection (COCO, SSDLite) and segmentation (Cityscapes) results showing MobileNetV3 backbones dominate the accuracy/latency Pareto frontier versus MobileNetV2, MnasNet, and ProxylessNAS",
+    "Ablates individual components (h-swish placement, squeeze-and-excite bottleneck ratio, NetAdapt) to show each contributes measurable latency/accuracy gains"
+  ],
+  "our_use": "main.tex:347 -- 'The headline grid uses three backbones, MobileNetV3 \\citep{howard2019searching}, RegNetY-400MF \\citep{radosavovic2020designing}, and a ViT-B/16 transformer \\citep{dosovitskiy2021image}, to show the findings are not CNN-specific.' Purely an attribution citation naming the architecture used as one of the paper's backbones -- no substantive claim about the method's contents beyond identifying the source of the architecture.",
+  "relevance_verdict": "correct",
+  "citation_verdict": "correct",
+  "bibtex_verdict": "correct",
+  "issues": "none -- author list, title, booktitle (IEEE/CVF International Conference on Computer Vision = ICCV 2019), page range (1314--1324), and year all verified against the paper front matter and cross-checked venue/pages via web search (Google Scholar / CVF Open Access record). Optional: a DOI field (10.1109/ICCV.2019.00140) could be added but is not required for correctness.",
+  "bibtex_corrected": "@inproceedings{howard2019searching,\n  title={Searching for {MobileNetV3}},\n  author={Howard, Andrew and Sandler, Mark and Chu, Grace and Chen, Liang-Chieh and Chen, Bo and Tan, Mingxing and Wang, Weijun and Zhu, Yukun and Pang, Ruoming and Vasudevan, Vijay and others},\n  booktitle={IEEE/CVF International Conference on Computer Vision},\n  pages={1314--1324},\n  year={2019}\n}"
+}

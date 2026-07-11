@@ -20,9 +20,6 @@ DATASETS = {
     "tissuemnist": {"data_dir": "data/tissuemnist/slice_1", "num_classes": 8,
                     "image_size": 224, "target_column": "label",
                     "group_column": "synth_group"},
-    "eurosat": {"data_dir": "data/eurosat/slice_1", "num_classes": 10,
-                "image_size": 224, "target_column": "label",
-                "group_column": "synth_group"},
 }
 TIGHTNESS = ["L30_G30"]
 ALPHA_KL_VALUES = [0.0, 0.1, 0.3, 1.0]
