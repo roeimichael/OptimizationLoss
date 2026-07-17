@@ -15,6 +15,9 @@ from src.methodologies.tralo.train import train as train_tralo                  
 from src.methodologies.tralo_bounded.train import train as train_tralo_bounded      # was tralo (vanilla baseline)
 from src.methodologies.fioretto_ldf.train import train as train_fioretto_ldf
 from src.methodologies.hounie_rcl.train import train as train_hounie_rcl
+from src.methodologies.fioretto_rh.train import train as train_fioretto_rh          # review graft: fioretto + reset + hinge
+from src.methodologies.hounie_rh.train import train as train_hounie_rh              # review graft: hounie + reset + hinge
+from src.methodologies.fioretto_restart.train import train as train_fioretto_restart  # review anti-windup: fioretto + dual restart
 from src.methodologies.heuristic.train import train as train_heuristic
 from src.methodologies.danits_lp.train import train as train_danits_lp
 from src.pipeline.contracts import TrainInputs
@@ -83,6 +86,9 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         'tralo_fioretto': train_tralo,              # ALIAS for backward-compat with completed configs
         'fioretto_ldf': train_fioretto_ldf,
         'hounie_rcl': train_hounie_rcl,
+        'fioretto_rh': train_fioretto_rh,           # review-response graft arm (B1)
+        'hounie_rh': train_hounie_rh,               # review-response graft arm (B1)
+        'fioretto_restart': train_fioretto_restart, # review-response anti-windup arm (B2)
         'heuristic': train_heuristic,
         'danits_lp': train_danits_lp,
     }

@@ -1,8 +1,24 @@
-"""fioretto_ldf methodology: linear penalty + per-constraint subgradient ascent.
+"""fioretto_restart methodology: fioretto_ldf + dual restarts (anti-windup).
 
-Lifted from the prior fioretto_research/run_fioretto.py module. Checkpoint
-restoration mirrors TraLO (best_sat / min_excess on the excess axis, NOT F1)
-so the checkpoint selector cannot double-dip on the F1 evaluation metric.
+REVIEW-RESPONSE ANTI-WINDUP ARM (P1-1 / R1-W2 / R2-W1).
+Identical to fioretto_ldf (linear penalty + per-constraint subgradient dual
+ascent, same harness, same checkpoint policy) plus ONE addition:
+
+  Dual restart (Gallego-Posada, Ramirez, Erraqabi, Bengio, Lacoste-Julien,
+  "Controlled Sparsity via Constrained Optimization...", NeurIPS 2022): the
+  moment the constraints are (hard-count) satisfied, ALL dual multipliers are
+  reset to zero. This is the standard cure for the integrator-windup pathology
+  the paper attributes to linear-penalty dual ascent: multipliers cannot keep
+  climbing after feasibility is reached, so no wound-up penalty keeps crushing
+  the constrained class.
+
+The satisfaction signal used for the restart is the harness's own hard-count
+feasibility (the same signal every method's freeze/convergence logic uses),
+keeping the arm apples-to-apples with TraLO's freeze-at-satisfaction.
+
+The question this arm answers: does an anti-windup dual baseline erase
+TraLO's OctMNIST tight-cap quality edge, i.e. was plain fixed-step dual
+ascent a strawman?
 """
 
 import csv
@@ -23,29 +39,18 @@ log = logging.getLogger(__name__)
 
 
 def _train_constraints(model, config, inputs, device):
-    """Fioretto Algorithm 1/2: linear penalty + per-constraint subgradient dual ascent."""
+    """Fioretto Algorithm 1/2 + dual restart at feasibility."""
     hp = inputs.hyperparams
     constraint_epochs = hp.get("constraint_epochs", 150)
-    # Apples-to-apples: same early-stop policy as TraLO (5 consecutive
-    # satisfied epochs). Without this Fioretto runs the full epoch budget
-    # while TraLO exits at ~100 — 3x gradient-budget asymmetry skews F1
-    # comparisons. Default matches TraLO.
     stable_count_threshold = int(hp.get("stable_count_threshold", 5))
     lr_c = hp.get("lr_constraint", 1e-5)
     if "fioretto_step_size" not in hp:
         raise ValueError(
-            "fioretto_step_size is required in hyperparams. The runner used "
-            "to default to 0.01 while the multi-methodology generator "
-            "defaulted to 0.005, producing inconsistent baselines silently. "
-            "Set it explicitly in your config (typical sweep: 0.001/0.005/0.01).")
+            "fioretto_step_size is required in hyperparams (inherit it verbatim "
+            "from the frozen paper_final config of the same cell).")
     step_size = float(hp["fioretto_step_size"])
     batch_size = hp.get("batch_size", 64)
     chunk_size = hp.get("constraint_chunk_size", 256)
-    # Apples-to-apples with TraLO: CE saturation skip. Once train acc reaches
-    # >=0.995 for 2 consecutive epochs, CE batch loop is disabled and only
-    # constraint pressure remains. Without this Fioretto keeps CE training
-    # forever, fighting the constraint and slowing satisfaction. TraLO uses
-    # the same gate (enable_ce_skip, default True).
     enable_ce_skip = bool(hp.get("enable_ce_skip", True))
 
     use_amp, amp_dtype, scaler = setup_runtime(device)
@@ -56,18 +61,14 @@ def _train_constraints(model, config, inputs, device):
     local_con = inputs.local_con
     groups_np = inputs.group_ids
 
-    # lambda_init defaults to the published 0.0 (zero-start dual ascent); the review
-    # control sets it to TraLO's 0.05 to test whether the convergence ordering is an
-    # initialization artifact rather than a formulation property.
-    lam0 = float(hp.get("fioretto_lambda_init", 0.0))
-    lambda_g = {c: lam0 for c in constrained_classes if global_con[c] < UNLIMITED}
+    lambda_g = {c: 0.0 for c in constrained_classes if global_con[c] < UNLIMITED}
     lambda_l = {}
     for group_id, bounds in local_con.items():
         for c in constrained_classes:
             if bounds[c] < UNLIMITED:
-                lambda_l[(group_id, c)] = lam0
+                lambda_l[(group_id, c)] = 0.0
 
-    log.info("Fioretto LDF: %d epochs, lr=%.2e, step_size=%.4f, "
+    log.info("Fioretto-RESTART (anti-windup): %d epochs, lr=%.2e, step_size=%.4f, "
              "%d global + %d local multipliers",
              constraint_epochs, lr_c, step_size, len(lambda_g), len(lambda_l))
 
@@ -79,13 +80,7 @@ def _train_constraints(model, config, inputs, device):
     unique_groups = np.unique(groups_np)
 
     satisfaction_epoch = None
-    # Best-checkpoint restore (apples-to-apples with TraLO): snapshot model
-    # state BEFORE the constraint step at every epoch that satisfies or that
-    # improves on the lowest total excess seen so far. After the loop, if the
-    # final epoch violates we restore best_sat; else if final excess exceeds
-    # the lowest seen, we restore min_excess. Prior implementation tracked
-    # only best_excess + F1-of-final-vs-best (double-dipped on the eval
-    # metric); this matches TraLO and removes that bias.
+    n_restarts = 0
     best_sat_state = None
     best_sat_epoch = None
     min_excess_state = None
@@ -94,19 +89,17 @@ def _train_constraints(model, config, inputs, device):
 
     log_path = inputs.experiment_path / "training_log.csv"
     log_fields = ["epoch", "ce_loss", "constraint_loss", "total_excess",
-                  "all_satisfied", "max_lambda_g"]
+                  "all_satisfied", "max_lambda_g", "n_restarts"]
     with open(log_path, "w", newline="") as f:
         csv.DictWriter(f, log_fields).writeheader()
 
     ce_skip_counter = 0
     skip_ce = False
-    stable_count = 0  # consecutive epochs with all_satisfied for early-stop parity with TraLO
+    stable_count = 0
     for epoch in range(constraint_epochs):
         epoch_start = time.time()
 
-        # ---- Step 1: CE on TRAIN data (batched) ----
-        # CE saturation skip (mirrors TraLO): once train_acc >= 0.995 for 2
-        # consecutive epochs, disable CE so only constraint pressure remains.
+        # ---- Step 1: CE on TRAIN data (batched; CE saturation skip) ----
         model.train()
         ce_losses = []
         train_correct, train_total = 0, 0
@@ -133,17 +126,12 @@ def _train_constraints(model, config, inputs, device):
                 ce_skip_counter += 1
                 if ce_skip_counter >= 2:
                     skip_ce = True
-                    log.info("Fioretto epoch %d: CE saturated (acc=%.4f), "
+                    log.info("Fioretto-RESTART epoch %d: CE saturated (acc=%.4f), "
                              "disabling CE batch loop", epoch + 1, cached_train_acc)
             else:
                 ce_skip_counter = 0
 
-        # ---- Step 2: constraint gradient on TEST data (transductive) ----
-        # Apples-to-apples with TraLO: use model.eval() during the transductive
-        # pass so dropout is off and BN running stats are NOT updated from test
-        # data (would be a data-leakage source that flips a few borderline
-        # samples and corrupts the lambda update). TraLO does this for the same
-        # reason (AUDIT C1).
+        # ---- Step 2: constraint gradient on TEST data (transductive, eval) ----
         model.eval()
         total_soft = torch.zeros(num_classes, device=device)
         group_soft = {g: torch.zeros(num_classes, device=device) for g in unique_groups}
@@ -188,10 +176,6 @@ def _train_constraints(model, config, inputs, device):
                 if excess > 0:
                     violated_local.add(key)
 
-        # Compute hard-count satisfaction from pass-1 predictions BEFORE the
-        # constraint step. Required so the snapshot state below reflects the
-        # exact model that produced the satisfaction status (saving post-step
-        # state would mismatch the next-pass counts).
         hard_counts = {c: int((hard_preds == c).sum()) for c in constrained_classes}
         total_excess = sum(
             max(0, hard_counts[c] - int(global_con[c]))
@@ -205,9 +189,6 @@ def _train_constraints(model, config, inputs, device):
                         total_excess += max(0, gc - int(bounds[c]))
         all_satisfied = (total_excess == 0)
 
-        # Snapshot model state BEFORE constraint step (mirrors TraLO). Saved
-        # iff this epoch is satisfied OR improves on the lowest total excess
-        # seen so far. Used to restore best checkpoint after training.
         snapshot_state = None
         if all_satisfied or total_excess < min_total_excess:
             snapshot_state = {k: v.detach().cpu().clone()
@@ -244,9 +225,6 @@ def _train_constraints(model, config, inputs, device):
                     constraint_loss_val += chunk_loss.item()
                     did_backward = True
             if did_backward:
-                # Grad clip + grad_norm>0 gate + scaler.update() always called
-                # (mirrors TraLO's recovery pattern). Prevents bad-step state
-                # leakage and unbounded step magnitudes.
                 if scaler:
                     try:
                         scaler.unscale_(optimizer)
@@ -272,12 +250,28 @@ def _train_constraints(model, config, inputs, device):
         for key, viol in violations_l.items():
             lambda_l[key] += step_size * viol
 
+        # ---- Step 3b: DUAL RESTART at feasibility (Gallego-Posada et al. 2022).
+        # Trigger on SOFT feasibility -- the constraint value the optimizer
+        # actually sees (their g(theta) <= 0 is the surrogate being ascended
+        # on). Hard-count feasibility is the wrong trigger here: the soft/hard
+        # gap can leave hard counts at K+1 while soft counts sit below K, in
+        # which case a hard trigger never fires and the wound-up multiplier
+        # (frozen at its peak, since Fioretto duals never decay) survives
+        # forever -- the exact pathology a restart is meant to kill.
+        soft_feasible = (not violated_global) and (not violated_local)
+        if soft_feasible:
+            had_mass = (any(v > 0 for v in lambda_g.values())
+                        or any(v > 0 for v in lambda_l.values()))
+            if had_mass:
+                n_restarts += 1
+                log.info("Fioretto-RESTART: soft-feasible at E%d -> dual restart "
+                         "(all lambda -> 0; restart #%d)", epoch + 1, n_restarts)
+            lambda_g = {c: 0.0 for c in lambda_g}
+            lambda_l = {k: 0.0 for k in lambda_l}
+
         if all_satisfied and satisfaction_epoch is None:
-            # +1: align with TraLO's convention so cross-method tables
-            # report the SAME epoch number for the same training step.
             satisfaction_epoch = epoch + 1
-            log.info("Fioretto: first satisfaction at epoch %d", epoch + 1)
-        # Apples-to-apples early stop: 5 consecutive satisfied epochs.
+            log.info("Fioretto-RESTART: first satisfaction at epoch %d", epoch + 1)
         if all_satisfied:
             stable_count += 1
             if snapshot_state is not None:
@@ -292,29 +286,32 @@ def _train_constraints(model, config, inputs, device):
 
         row = {
             "epoch": epoch,
-            "ce_loss": round(np.mean(ce_losses), 6),
+            "ce_loss": round(np.mean(ce_losses), 6) if ce_losses else 0.0,
             "constraint_loss": round(constraint_loss_val, 6),
             "total_excess": total_excess,
             "all_satisfied": int(all_satisfied),
             "max_lambda_g": round(max(lambda_g.values()) if lambda_g else 0, 6),
+            "n_restarts": n_restarts,
         }
         with open(log_path, "a", newline="") as f:
             csv.DictWriter(f, log_fields).writerow(row)
 
         if epoch < 5 or (epoch + 1) % 25 == 0 or epoch == constraint_epochs - 1:
             lam_str = " ".join(f"c{c}={lambda_g[c]:.3f}" for c in sorted(lambda_g))
-            log.info("Fioretto %d/%d: CE=%.4f cstr=%.4f excess=%d sat=%s stable=%d lam=[%s] [%.1fs]",
-                     epoch + 1, constraint_epochs, np.mean(ce_losses),
+            log.info("Fioretto-RESTART %d/%d: CE=%.4f cstr=%.4f excess=%d sat=%s "
+                     "stable=%d restarts=%d lam=[%s] [%.1fs]",
+                     epoch + 1, constraint_epochs,
+                     np.mean(ce_losses) if ce_losses else 0.0,
                      constraint_loss_val, total_excess, all_satisfied,
-                     stable_count, lam_str, time.time() - epoch_start)
+                     stable_count, n_restarts, lam_str, time.time() - epoch_start)
 
         if stable_count >= stable_count_threshold:
-            log.info("Fioretto: converged (constraints stable for %d epochs at ep %d)",
+            log.info("Fioretto-RESTART: converged (constraints stable for %d epochs at ep %d)",
                      stable_count, epoch + 1)
             break
 
     return (satisfaction_epoch, best_sat_state, best_sat_epoch,
-            min_excess_state, min_excess_epoch, min_total_excess)
+            min_excess_state, min_excess_epoch, min_total_excess, n_restarts)
 
 
 def train(inputs: TrainInputs) -> TrainOutputs:
@@ -322,13 +319,11 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     device = inputs.device
 
     (satisfaction_epoch, best_sat_state, best_sat_epoch,
-     min_excess_state, min_excess_epoch, min_total_excess
+     min_excess_state, min_excess_epoch, min_total_excess, n_restarts
      ) = _train_constraints(model, inputs.config, inputs, device)
 
-    # Apples-to-apples checkpoint restore (mirrors TraLO). Selection rule is
-    # deterministic on the constraint excess axis -- NOT on F1. Picking the
-    # checkpoint by F1 over multiple candidates is double-dipping on the
-    # evaluation metric.
+    # Checkpoint restore on the constraint-excess axis (identical to
+    # fioretto_ldf / TraLO -- never on F1).
     constrained_classes = inputs.constrained_classes
     global_con = inputs.global_con
     local_con = inputs.local_con
@@ -359,13 +354,13 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     restored_from_epoch = None
     restore_kind = None
     if best_sat_state is not None and final_violates:
-        log.info("Fioretto: final violates; restoring best-satisfied checkpoint from epoch %d",
-                 best_sat_epoch)
+        log.info("Fioretto-RESTART: final violates; restoring best-satisfied checkpoint "
+                 "from epoch %d", best_sat_epoch)
         model.load_state_dict({k: v.to(device) for k, v in best_sat_state.items()})
         restored_from_epoch = best_sat_epoch
         restore_kind = "fully_satisfied"
     elif min_excess_state is not None and final_total_excess > min_total_excess:
-        log.info("Fioretto: final excess=%d > min seen excess=%d (epoch %d); "
+        log.info("Fioretto-RESTART: final excess=%d > min seen excess=%d (epoch %d); "
                  "restoring lowest-excess checkpoint",
                  int(final_total_excess), int(min_total_excess), min_excess_epoch)
         model.load_state_dict({k: v.to(device) for k, v in min_excess_state.items()})
@@ -382,5 +377,6 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                                  else int(min_total_excess)),
             "restored_from_epoch": restored_from_epoch,
             "restore_kind": restore_kind,
+            "n_dual_restarts": n_restarts,
         },
     )
