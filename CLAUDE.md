@@ -34,7 +34,7 @@ main.py                                  # Dispatch pending experiments via subp
 ```
 
 **Config generation**: `src/config_generators/generate_configs.py`
-**Evaluation**: `src/evaluation/generate_all.py`, `src/evaluation/thesis_figures.py`
+**Evaluation**: `src/evaluation/` (full_census.py, paired_significance.py, make_winning_results.py)
 
 ## Models
 
@@ -85,28 +85,27 @@ L_total = L_ce + lambda_g * L_global + lambda_l * L_local + alpha_kl * L_kl
 
 ```
 main.py                 # Experiment orchestrator (sequential + parallel GPU)
-run_experiments.sh      # Server experiment runner
-setup_server.sh         # Server environment setup
-docs/                   # README.md, THESIS_CONTEXT.md
+run_oct_asym.sh         # OctMNIST asymmetric-cap dispatch runner
+PAPER_INDEX.md          # map of paper + data + archive (read first)
+final_AAAI_PAPER/       # the self-contained AAAI-2027 submission (text + figures/tables/data/scripts)
+docs/                   # project docs (PAPER_PLAN.md, etc.)
 src/
-  config_generators/    generate_configs.py
-  experiments/          run_experiment.py, run_heuristic.py
+  config_generators/    generate_configs.py + gen_*.py campaign generators
+  experiments/          runner.py (single dispatcher)
+  pipeline/             setup, data, warmup, eval, io, contracts
+  methodologies/        tralo, tralo_bounded, fioretto_ldf, hounie_rcl, fioretto_rh, hounie_rh,
+                        fioretto_restart, danits_lp, heuristic (each train.py + hp_defaults.py)
   losses/               transductive_loss.py (MulticlassTransductiveLoss)
   models/
     model_factory.py    unified registry
-    imagery/            mobilenetv3.py, mobilenetv2.py, regnet.py, shufflenet.py
-  training/             trainer.py, constraints.py, metrics.py, logging.py,
-                        schedulers.py, model_cache.py
+    imagery/            mobilenetv3, mobilenetv2, regnet, shufflenet, tinycnn, smallcnn, mediumcnn
+  training/             constraints.py, metrics.py, model_cache.py, logging.py
   utils/                data_loader.py, filesystem_manager.py, error_handler.py,
-                        posthoc_adjustment.py, inference.py
-  evaluation/           generate_all.py, thesis_figures.py, training_curves.py,
-                        experiment_comparison.py, evaluate_statistical_significance.py,
-                        visualize_stat_significance.py
-data/tissuemnist/       images + labels as .npy (not in git)
-data/dermmnist/         images + labels as .npy (not in git)
-data/aider/             prep scripts only (raw on server)
+                        posthoc_adjustment.py, inference.py, constants.py
+  evaluation/           full_census.py, paired_significance.py, make_winning_results.py
+data/                   # small local staging (dermmnist/tissuemnist/aider prep); image store on D:
 model_cache/            cached warmup .pt files (not in git, auto-created)
-archive_experiments/    completed DermMNIST results + analysis
+archive/                consolidated old data + scratch: raw_runs/, legacy/, scratch/ (gitignored)
 results/
   pending_runs/         {constraint}/{model}/{variation}/ -- experiments to run
 ```

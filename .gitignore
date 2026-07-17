@@ -68,7 +68,6 @@ docs/aider_results/
 scripts/_paper_agg/__pycache__/
 
 # Archives and large files
-archive_experiments/
 *.tex
 *.zip
 
