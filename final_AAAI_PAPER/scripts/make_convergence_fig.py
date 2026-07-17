@@ -128,23 +128,37 @@ def make_convergence():
     fig, ax = plt.subplots(figsize=(3.7, 3.15))
     order = ["hounie_rcl", "fioretto_ldf", "tralo"]    # draw TraLO last, on top
     data = {m: _series(m, tag) for m in order}
+    convs = [data[m][4] for m in order if data[m] and data[m][4] is not None]
+    xview = (max(convs) + 5) if convs else XMAX     # crop the empty post-convergence tail
     for m in order:
         if data[m] is None:
             continue
         st = STYLE[m]
         grid, med, q1, q3, conv = data[m]
         lab = NAME[m] + (f" ($\\approx${conv:.0f} ep)" if conv is not None else "")
-        ax.fill_between(grid, np.maximum(q1, 0), np.maximum(q3, 0), color=st["color"],
-                        alpha=0.08, linewidth=0, zorder=st["z"] - 6)
-        ax.plot(grid, np.maximum(med, 0), color=st["color"], linestyle=st["ls"],
+        # Once a method reaches the quota it holds it (flat at zero); stop drawing there so
+        # the descents stay legible and no long flat tail clutters the axis. The filled
+        # marker sits at the convergence epoch, and the curve is drawn down into it.
+        if conv is not None:
+            keep = grid < conv
+            gx = np.append(grid[keep], conv)
+            gm = np.append(np.maximum(med[keep], 0), 0.0)
+            b1 = np.append(np.maximum(q1[keep], 0), 0.0)
+            b3 = np.append(np.maximum(q3[keep], 0), 0.0)
+        else:
+            gx, gm = grid, np.maximum(med, 0)
+            b1, b3 = np.maximum(q1, 0), np.maximum(q3, 0)
+        ax.fill_between(gx, b1, b3, color=st["color"], alpha=0.08, linewidth=0,
+                        zorder=st["z"] - 6)
+        ax.plot(gx, gm, color=st["color"], linestyle=st["ls"],
                 linewidth=st["lw"], zorder=st["z"], label=lab)
         if conv is not None:
             ax.plot(conv, 0.0, marker=st["marker"], color=st["color"], markeredgecolor="white",
                     markersize=st["ms"] + 1.0, markeredgewidth=1.2, clip_on=False, zorder=20)
     ax.axhline(0.0, color="black", lw=0.9, ls="--", alpha=0.5, zorder=1)
-    ax.text(XMAX * 0.98, 7, "quota met", ha="right", va="bottom",
+    ax.text(xview * 0.99, 7, "quota met", ha="right", va="bottom",
             fontsize=7.2, color="0.4", style="italic")
-    ax.set_xlim(0, XMAX)
+    ax.set_xlim(0, xview)
     ax.set_ylim(-6, 250)
     ax.set_xlabel("epochs into the constraint phase")
     ax.set_ylabel("predictions over the quota")

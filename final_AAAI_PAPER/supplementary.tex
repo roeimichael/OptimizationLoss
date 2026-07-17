@@ -18,8 +18,17 @@
 \usepackage{amssymb}           % \square for the QED marker
 \usepackage{booktabs}
 \usepackage{multirow}
+\usepackage{algorithm}
+\usepackage{algorithmic}
 \usepackage{xr}                % cross-reference into the main paper
+% mask \bibcite while xr reads main.aux: the supplement has its own bibliography,
+% so importing main's citation definitions would multiply-define shared keys
+\makeatletter
+\let\supp@bibcite\bibcite
+\def\bibcite#1#2{}
 \externaldocument{main}
+\let\bibcite\supp@bibcite
+\makeatother
 
 \pdfinfo{/TemplateVersion (2027.1)}
 \setcounter{secnumdepth}{2}
@@ -29,6 +38,9 @@
 % Supplementary numbering: sections A, B, C; floats S1, S2, ...
 \renewcommand{\thefigure}{S\arabic{figure}}
 \renewcommand{\thetable}{S\arabic{table}}
+\makeatletter
+\@ifundefined{thealgorithm}{}{\renewcommand{\thealgorithm}{S\arabic{algorithm}}}
+\makeatother
 
 \title{Supplementary Material for ``Training Deep Neural Networks to Meet Hard Prediction Quotas''}
 \author{Anonymous Author(s)}
@@ -39,10 +51,29 @@
 
 \appendix
 
+\begin{algorithm}[t]
+\caption{TraLO training loop (main paper Sec.~3)}
+\label{alg:tralo}
+\begin{algorithmic}[1]
+\STATE warm up $\theta$ on $L_{\text{CE}}$ alone; cache the warmup model
+\FOR{each constraint epoch}
+  \STATE update $\theta$ on $L_{\text{CE}} + \lambda_g\,\ell_g + \lambda_l\,\ell_l$ (plus the hinge once satisfied)
+  \STATE recount hard predictions on the test inputs
+  \IF{a cap is violated}
+    \STATE ratchet that cap's $\lambda$ up one step; advance $\rho$
+  \ELSIF{first time all caps are met}
+    \STATE freeze $\lambda$ and $\rho$; reset the Adam state
+  \ENDIF
+  \STATE stop after $5$ consecutive satisfied epochs
+\ENDFOR
+\STATE post-hoc verification (flip borderline predictions) if needed
+\end{algorithmic}
+\end{algorithm}
+
 \section{Mechanism: Bounded vs.\ Unbounded Dual Behavior}
 \label{app:mech}
 
-\paragraph{Proof of Proposition~\ref{prop:bound}.}
+\paragraph{Proof of Lemma~\ref{lem:bound}.}
 Write $u=E/K\ge 0$. In Eq.~\eqref{eq:loss} the first term $E/(E+K)=u/(1+u)$ increases from
 $0$ to $1$ and the second $\rho\,u^2/(1+u^2)$ increases from $0$ to $\rho$, so
 $0\le\ell<1+\rho$. Differentiating through $E=\max(0,S-K)$ gives Eq.~\eqref{eq:grad} for
@@ -54,7 +85,38 @@ $E\to\infty$. Scaling $\ell$ and $\partial\ell/\partial S$ by a frozen multiplie
 gives the bounds $\lambda(1+\rho)$ and $\lambda(1+\rho)/K$, neither depending on $E$.
 $\square$
 
-Why does a hard count cap stress the dual-ascent baselines? On the paper grid the
+\paragraph{Proof of Proposition~\ref{prop:rank1}.}
+$E_c=\max(0,S_c-K_c)$ is a function of the scalar $S_c$, and $\ell$ is a function of $E_c$,
+so $\lambda_c\ell(E_c)$ is the composition $\theta\mapsto S_c(\theta)\mapsto\lambda_c\ell$.
+The chain rule gives $\nabla_\theta[\lambda_c\ell]=\lambda_c\,\ell'(E_c)\,(\partial
+E_c/\partial S_c)\,\nabla_\theta S_c=\lambda_c\,(\partial\ell/\partial S_c)\,\nabla_\theta
+S_c$, using $\partial E_c/\partial S_c=\mathbf 1[S_c>K_c]$. Set $a_c=\lambda_c\,
+\partial\ell/\partial S_c$, which is $\ge 0$ by Lemma~\ref{lem:bound}. Summing over caps
+gives a gradient in $\mathrm{span}\{\nabla_\theta S_c\}_c$, a subspace of dimension at most
+the number of caps. $\square$
+
+\paragraph{Proof of Corollary~\ref{cor:clip}.}
+Let $g=\nabla_\theta L_{\text{CE}}+\sum_{c'}a_{c'}\nabla_\theta S_{c'}$. In the limit where one
+cap's term dominates and the remaining terms vanish, $g\to a_c\nabla_\theta S_c$ with $a_c>0$;
+norm-clipping, when active ($\lVert g\rVert>\tau$), then returns $\tau\,g/\lVert
+g\rVert\to\tau\,\nabla_\theta S_c/\lVert\nabla_\theta S_c\rVert$, in which the positive scalar
+$a_c$ (hence $\lambda_c$, $\rho$, and the shape of $\ell$) cancels. $\square$
+
+\paragraph{Proof of Proposition~\ref{prop:exact}.}
+Write $g(S)=\ell(\max(0,S{-}K);K,\rho)$. For $S<K$, $g\equiv0$, so $g$ has left-derivative
+$0$ at $K$. For $S>K$, $g'(S)=K/(E+K)^2+\tfrac{2\rho}{K}\,u/(1+u^2)^2$ with $E=S-K$ and
+$u=E/K$ (Eq.~\eqref{eq:grad}); as $S\to K^+$ the first term $\to1/K$ and the second $\to0$, so
+$g$ has right-derivative $1/K$ at $K$, independent of $\rho$. Parameterize a path along which
+the soft count rises through $K$, and let $c=\lvert dL_{\text{CE}}/dS\rvert_{S=K}$ be the
+cross-entropy pull at the cap; the constrained class is under-served at a cap $L<100\%$, so
+$dL_{\text{CE}}/dS\le0$ there. The one-sided derivatives of $F=L_{\text{CE}}+\lambda g$ at $K$
+are $F'(K^-)=-c\le0$ and $F'(K^+)=-c+\lambda/K$. If $\lambda\ge cK$ then $F'(K^+)\ge0$, so $F$
+does not decrease past the cap: $S{=}K$ is a local minimum along the path, and a finite
+multiplier attains the cap. The nonzero boundary slope $1/K$ is what makes the penalty exact,
+playing the role of the $\ell_1$ penalty's unit slope \citep{nocedal2006numerical}. $\square$
+
+Figure~\ref{fig:loss_shape} plots these two bounds against the violation size. Why does a
+hard count cap stress the dual-ascent baselines? On the paper grid the
 interaction is hidden: after the $50$-epoch warmup the classifier is already saturated,
 and a saturation gate shared by every method (train accuracy $\ge 0.995$ on two
 consecutive checks) stops cross-entropy updates within the first two constraint
@@ -105,25 +167,36 @@ So the claim is ``dual ascent needs an unbounded multiplier plus a clip rail to 
 hard count, while TraLO's bounded, frozen multiplier holds it alone,'' not any
 dose--response of the form ``more escalation $\Rightarrow$ bigger win.''
 
+\begin{figure}[t]\centering
+\includegraphics[width=\linewidth]{fig_loss_shape}
+\caption{\textbf{The bound of Lemma~\ref{lem:bound}, drawn.} At the multipliers each
+method reaches on the one-epoch probe, TraLO's per-cap penalty \emph{(a)} flattens at its
+ceiling $\lambda(1{+}\rho)$ and the gradient it applies \emph{(b)} stays capped and decays
+far from the cap, while dual ascent's linear penalty and constant
+$\lambda\!\approx\!53$ gradient grow without bound in $E$ and $\lambda$. This is the shape
+of the \emph{objective}; whether the optimizer is sensitive to it is the empirical question
+the body answers: the scale is rescaled away, and the shape proves neutral by ablation and
+graft (Sec.~\ref{app:ablation}). Analytic, $K{=}10$.}
+\label{fig:loss_shape}
+\end{figure}
+
 \begin{figure*}[t]\centering
 \includegraphics[width=\linewidth]{fig_mechanism}
-\caption{\textbf{Dual ascent winds up a multiplier the constraint cannot use: a
-one-epoch-warmup probe} (DermMNIST $L50/G50$, RegNetY-400MF, seed~1).
-While the classifier is still learning, the count cannot fall: each
-epoch's CE updates re-inflate the constrained class, so the excess just oscillates
-(\emph{c}, first ${\sim}60$ epochs). Dual ascent reads that standing violation as ``not
-enough pressure'' and integrates it into $\lambda{=}53$ (\emph{a}, log scale); the extra pressure
-changes nothing, since the constraint step is norm-clipped, so the CE traces stay numerically
-indistinguishable (\emph{b}) and the count sits no lower at $\lambda{=}53$ than at
-TraLO's ratcheted $\le 0.19$. What frees the count is CE finishing (train-accuracy
-gate: circles in \emph{b}, dotted lines in \emph{c}); it then falls to the cap for
-both methods. Same outcome; the difference is the state each method arrives in: a
-wound-up multiplier held back by a clip rail, vs.\ a bounded nudge that never
-needed one. That state difference is what surfaces as stalls and missed feasibility on
-the main grid (main paper Fig.~\ref{fig:convergence}; Sec.~\ref{app:mech} here). Each
-method keeps one multiplier per constraint; the local caps are never violated on this
-cell, so the local multipliers stay at zero and we plot the global-cap one. TraLO is
-logged every $5$ epochs, hence its smoother-looking trace.}
+\caption{\textbf{The escalating multiplier is discarded, not used: a one-epoch-warmup
+probe} (DermMNIST $L50/G50$, RegNetY-400MF, seed~1), the empirical counterpart to
+Prop.~\ref{prop:rank1}. \emph{(a)}~Dual ascent integrates the standing violation into a
+multiplier that climbs to $\lambda{=}53$, while TraLO's ratchet freezes at
+$\lambda\!\le\!0.19$. \emph{(b)}~The effect on the classifier is none: every method takes a
+single norm-clipped constraint step per epoch, so the two cross-entropy traces are
+numerically indistinguishable. \emph{(c)}~The count does not fall until cross-entropy
+finishes (train-accuracy gate, dotted), then reaches the cap for both. A ${\sim}280\times$
+gap in $\lambda$ thus leaves training nearly identical, consistent with
+Cor.~\ref{cor:clip}: with the constraint term dominant and the step norm-clipped, the update
+is independent of $\lambda$. Adam's invariance to a constant rescaling of the gradient
+\citep{kingma2014adam} points the same way, though we read \emph{that} as an empirical
+observation rather than a theorem, since $\lambda$ multiplies only the constraint term (so it
+shifts the cross-entropy-versus-count weighting) and the Adam cancellation is exact only as
+$\epsilon\to0$ and where the constraint term dominates.}
 \label{fig:mechanism}
 \end{figure*}
 
@@ -136,10 +209,13 @@ OctMNIST tight-cap cells where TraLO leads, we disable one component at a time a
 the paired change in constrained-class F1 (Table~\ref{tab:ablation_complete};
 $n{=}24$ per component). Two components are load-bearing.
 Removing the optimizer reset at satisfaction costs $+0.079$ cc-F1, the single
-largest effect, helping on all $24$ paired runs ($p\!=\!3\mathrm{e}{-7}$), because it breaks
+largest effect, helping on all $24$ paired runs and hence in all six cells (cell-level
+sign test $p\!=\!0.031$; we test at the cell level because the $24$ runs share seeds
+across cells), because it breaks
 the post-satisfaction descent momentum that would otherwise erode the constrained class.
 Removing the undershoot hinge (the TraLO-bounded control, already in the frozen
-grid) costs $+0.036$ cc-F1 ($p\!=\!3\mathrm{e}{-6}$; $0.019$--$0.070$ across cells). The other
+grid) costs $+0.036$ cc-F1 (positive on all $24$ paired runs; cell-level sign test
+$p\!=\!0.031$; $0.019$--$0.070$ across cells). The other
 components are cc-F1-neutral on these already-satisfied cells: the $\rho$ schedule and the
 lambda freeze move it by under $0.001$ (n.s.). A dedicated KL sweep on TissueMNIST (the
 $L30$ tight cap, MobileNetV3, $\alpha_{\mathrm{KL}}\!\in\!\{0,0.1,0.3,1.0\}$) confirms the
@@ -148,11 +224,132 @@ constrained-class \emph{and} macro-F1, while every nonzero anchor lowers cc-F1 (
 $0.01$--$0.03$) and only adds prediction edits. The KL term was a useful drift damper in an
 early version of the method, before the optimizer reset and undershoot hinge; once those two
 control post-satisfaction drift directly, the anchor is redundant. The advantage rests on
-the reset and the hinge. The reset, $\rho$, and
+the reset and the hinge. One caveat applies to all rows: the component importances are
+estimated inside the selected win region (the tight-cap cells where TraLO leads), so they
+quantify what carries that win, not what the components do elsewhere on the grid. The reset, $\rho$, and
 freeze legs are a dedicated ablation under the identical frozen recipe; the hinge leg is
 already in the main grid.
 
 \input{tables/tab_ablation_complete}
+
+\subsection{Grafting the two components onto the dual baselines}
+\label{app:graft}
+
+The ablation above removes components from TraLO; the converse test adds them to the
+baselines. We graft exactly the optimizer reset and the undershoot hinge (each using the
+host's own multipliers and penalty) onto Fioretto-LDF and Hounie-RCL and rerun the six
+tight-cap cells: $2$ caps $\times$ $3$ backbones $\times$ $4$ seeds, $144$ runs in all,
+including re-run controls for TraLO and both hosts under identical warmup caches, the
+frozen recipe, and one GPU model. The re-run controls reproduce the main-grid values to
+$\pm0.0013$ in all $18$ control cells, so the arms are compared on equal footing.
+Table~\ref{tab:graft} reports mean cc-F1 per cell.
+
+The graft lifts Fioretto-LDF in six of six cells ($+0.019$ to $+0.073$ cc-F1) and
+Hounie-RCL in five of six ($+0.035$ to $+0.103$; the one exception, $L40$ on RegNet,
+drops by $0.028$), recovering a median $86\%$ of TraLO's margin over the Fioretto host
+and $92\%$ over the Hounie host (medians over the six cells, the loss cell included).
+Against each grafted host separately TraLO stays best-or-tied ($8$ wins, $4$ ties, $0$
+losses in the twelve paired comparisons under the main-text win rule). Taken seed-by-seed
+against the stronger of the two grafted hosts, though, its mean edge is only $+0.0015$ and
+it trails in two of the six cells: once the recipe is grafted the three methods are
+statistically interchangeable, with what remains of TraLO's lead concentrated on the
+ViT-B/16 ($+0.015$/$+0.017$ over the grafted Fioretto-LDF at the two caps). On macro-F1,
+TraLO versus the grafted Fioretto-LDF is a tie in all six cells.
+
+As an anti-windup control, we also run Fioretto-LDF with dual restarts: all multipliers
+are reset to zero the moment the soft counts are feasible, following
+\citet{gallego2022controlled}. Its deployed predictions are \emph{identical} to plain
+Fioretto-LDF in every cell, although every run fires at least one restart. The reason is
+mechanistic: the deployed checkpoint is selected on the constraint-excess axis before
+first feasibility is reached, and up to that epoch the two arms are step-for-step
+identical, so machinery that only alters post-feasibility dynamics cannot change the
+deployed model. TraLO beats this arm in all six cells. The dual baselines' tight-cap
+deficit is therefore not an artifact of missing anti-windup machinery, and the
+linear-penalty comparison in the main grid is not a strawman in that sense.
+
+\subsection{The penalty shape is neutral}
+\label{app:shape}
+
+The graft removes the question of whether TraLO's \emph{host} matters; a third arm
+removes the question of whether its \emph{penalty} does. We rerun TraLO on the same six
+cells with Eq.~(1)'s saturating penalty replaced by a linear one, $\ell = E/K$, holding
+the ratchet, the freeze, the optimizer reset and the undershoot hinge fixed, so the only
+change is the shape the method is named for. The arm is genuinely different, and by a
+wide margin: its logged constraint loss runs about $3\times$ smaller throughout. Its
+results are not: cc-F1 moves by $-0.001$ (the bounded shape wins $9$ of $24$ runs and
+loses $9$, sign-test $p{=}1.0$; the six cell means split three positive and three
+negative, none beyond $\pm0.006$) and median time-to-feasibility by two constraint
+epochs. In $6$ of the $24$ runs the two arms land on \emph{identical} cc-F1: changing the
+penalty shape changed no prediction at all, which the fixed-direction argument below
+anticipates.
+
+This is what the analysis of Sec.~3 predicts, though the reason is structural rather than
+a generic property of Adam. The constraint penalty depends on the parameters only through
+the scalar soft-count $S_c$, so its gradient is $\ell'(S_c)\,\nabla_\theta S_c$: a scalar
+times a fixed direction. Multiplying the penalty by a positive constant scales only that
+scalar, and behind Adam's coordinate-wise normalization $g\!\to\!cg$ sends $m\!\to\!cm$,
+$\sqrt{v}\!\to\!c\sqrt{v}$, leaving $\hat m/(\sqrt{\hat v}+\epsilon)$ unchanged but for the
+$\epsilon$ term; the update along that direction is thus nearly scale-free. The multiplier
+is such a scalar, so an escalating one cannot by itself reach the weights: in the
+escalation probe of Sec.~A, where $\lambda{=}53$ (nearly $280\times$ the probe's $0.19$)
+drives $\|g\|{>}1$, it is the max-norm rail that caps the step, and the count falls no
+faster than at $\lambda\!\le\!0.19$. The penalty \emph{shape} and the weight $\rho$ reshape
+$\ell'(S_c)$ rather than rescale it, so they are not covered by the constant-$c$ argument;
+we establish their neutrality empirically instead, by graft (shape) and by the ablation
+rows of Table~S1 ($\rho$ schedule, freeze). What no rescaling touches is Adam's own
+accumulated state, and the hinge, which reverses the direction to $-\nabla_\theta S_c$
+while the count undershoots: these are the components the ablation ranks first and the
+graft transfers.
+
+We report this as a negative result about our own formulation. Eq.~(1) earns its place by
+keeping the multiplier small and readable, and by making the two-phase argument of
+Sec.~3 available at all; it does not earn the constrained-class gains, which belong to
+the reset and the hinge.
+
+\subsection{TraLO's own hyperparameters are not doing the work}
+\label{app:tralo-sweep}
+
+The dual baselines' step size is swept an order of magnitude to confirm their tuning is not
+what wins or loses the comparison (Sec.~\ref{app:mech}); fairness asks the same of TraLO's
+own continuous knobs, the more so in a transductive setting with no held-out split. On the
+six OctMNIST tight cells we sweep the hinge weight $\beta\in\{0.25,0.5,0.75,1.0\}$ and the
+ratchet step $\lambda_{\text{step}}\in\{0.001,0.002,0.004\}$ around the frozen recipe
+($\beta{=}0.5$, $\lambda_{\text{step}}{=}0.002$), one knob at a time, $24$ runs per arm,
+with everything else, warmup cache included, held fixed ($120$ runs).
+
+\textbf{The ratchet step is neutral.} Moving $\lambda_{\text{step}}$ over a factor of four
+shifts mean cc-F1 by at most $0.0012$ and the median time-to-feasibility by under an epoch.
+This is the scalar-rescaling argument of Sec.~3 made good: $\lambda_{\text{step}}$ sets only
+how fast the multiplier climbs, and the multiplier is a positive scalar on the fixed
+soft-count direction, which Adam's normalization and the clip rail absorb.
+
+\textbf{The hinge weight matters, but the win is not a knife-edge at $\beta{=}0.5$.} As the
+one continuous knob on a load-bearing component, $\beta$ does move cc-F1, but by at most
+$0.003$ in the six-cell mean across the whole $\{0.25,\dots,1.0\}$ range, smallest at the
+weakest hinge $\beta{=}0.25$, exactly where less hinge restores less constrained-class
+recall. More to the point, TraLO clears the best trained baseline in all $30$ arm-by-cell
+comparisons, with margins from $+0.014$ to $+0.088$: the tight-cap win survives every
+setting of the two knobs, not only the values we fixed a priori.
+
+\subsection{The convergence ordering is not an initialization artifact}
+\label{app:init}
+
+TraLO starts its multiplier at $\lambda{=}0.05$ while the dual baselines start at
+$\lambda{=}0$ and integrate upward, so one could read TraLO's faster feasibility
+(Sec.~5.4) as a head start rather than a property of the method. We test this on the six
+OctMNIST tight cells by rerunning each dual baseline from TraLO's own $\lambda{=}0.05$
+start, changing nothing else ($24$ runs each). The nonzero start leaves Fioretto-LDF's
+median time-to-feasibility unchanged ($28$ constraint epochs, taken over the runs that
+reach feasibility) and it still fails to reach the count natively on $6$ of $24$ runs; it
+narrows Hounie-RCL's median from $40$ to $31$ (Hounie-RCL reaches feasibility on every run,
+so its median is over all $24$).
+Both still trail TraLO's $25$. So the head start explains part of Hounie's gap and little
+of Fioretto's, and closes neither: on these cells the ratchet-and-freeze schedule reaches
+and holds the count faster than either a zero- or a nonzero-start dual ascent. This
+control is specific to the OctMNIST tight cells; the cross-dataset census of Sec.~5.4 uses
+each method as published.
+
+\input{tables/tab_graft}
 
 % ----------------------------------------------------------------------------
 \section{Native Satisfaction: a Deployment Property, not a Headline}
@@ -230,8 +427,15 @@ MobileNetV2 to the three main-grid backbones and averaging the paired gap over t
 caps: on TissueMNIST and DermMNIST no backbone shows a systematic advantage (means within
 $\pm0.003$), while OctMNIST is positive on all four. The honest tie and the OctMNIST win are
 each backbone-general, not artifacts of one architecture.
+Table~\ref{tab:oct_backbone} isolates the OctMNIST tight caps ($L30$/$L40$) behind that
+positive row: the paired delta over the best trained dual is positive at every
+backbone$\times$cap cell on cc-F1 (all four seeds) and improves macro-F1 at five of the
+six cells, peaking on the ViT-B/16. This is the per-backbone breakdown the main paper
+cites next to its consolidated grid (main paper Table~1).
 
 \input{tables/tab_backbone_generality}
+
+\input{tables/tab_oct_backbone}
 
 \begin{table}[t]\centering\small
 \setlength{\tabcolsep}{5pt}
@@ -243,6 +447,7 @@ post-hoc clipper; both paired by seed, with \emph{win} the seed-cell fraction fa
 TraLO. The constrained-class win holds on MobileNetV3 and RegNet and ties on the ViT; the
 macro-F1 advantage over clipping holds on all three.}
 \label{tab:asym_xbackbone}
+\setlength{\tabcolsep}{4pt}\small
 \begin{tabular}{l rc rc}
 \toprule
  & \multicolumn{2}{c}{$\Delta$cc-F1 vs.\ trained} & \multicolumn{2}{c}{$\Delta$macro-F1 vs.\ clipper} \\
@@ -260,5 +465,41 @@ ViT-B/16       & $-0.000$ & $38\%$  & $+0.032$ & $100\%$ \\
 \input{tables/tab_granular_derm}
 \input{tables/tab_granular_oct}
 \input{tables/tab_granular_asym}
+
+% ----------------------------------------------------------------------------
+\section{Datasets and Group Construction}
+\label{app:groups}
+
+The constrained class is a genuine minority on two of the three datasets and not on the
+third: GE is $7.1\%$ of the TissueMNIST test set ($171/2400$) and melanoma is $11.1\%$ of
+DermMNIST ($223/2003$), while OctMNIST's test split is class-balanced by construction
+($250$ per class), making drusen $25\%$. We keep OctMNIST because it is where the cap
+binds hardest, not because it matches the screening story: at $L30$ the cap admits $75$
+of $250$ true drusen, so a structural majority of them cannot be flagged whatever the
+model does. Readers should not take the OctMNIST result as evidence about rare-class
+screening, and a clinical deployment would more plausibly cap the urgent classes (CNV,
+DME) than drusen.
+
+Local caps are only over real groups on DermMNIST. There we pool HAM10000's
+\texttt{localization} field into three anatomical groups: torso (back, trunk, abdomen,
+chest, genital, unknown), extremity (upper/lower extremity, foot, hand, acral), and
+head/neck (face, neck, scalp, ear), giving $1030/738/235$ test images carrying $98/85/40$
+melanomas. The groups are deliberately unequal in both size and prevalence, which is what
+makes the per-group caps bind differently.
+
+TissueMNIST and OctMNIST carry no group metadata, so their local caps use a fixed
+synthetic binary split drawn once from a seeded generator and stored with the data. These
+groups are arbitrary by construction. They exercise the mechanism, several simultaneous
+caps that must hold at once alongside the global cap, and nothing else: no fairness
+reading of the TissueMNIST or OctMNIST local caps is available, and we do not offer one.
+Even on DermMNIST, where the groups are real, a local cap is a per-group \emph{ceiling}
+on flagging melanoma rather than a floor on detecting it, so satisfying it is not
+evidence of equitable treatment. A deployment that set these caps from estimated
+prevalence would inherit whatever under-diagnosis those estimates already encode. We
+report the mechanism and leave the allocation question, which is a question about who
+sets $K_g$ and on what evidence, outside our claims.
+
+{\small
+\bibliography{references}}
 
 \end{document}

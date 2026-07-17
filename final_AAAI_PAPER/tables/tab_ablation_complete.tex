@@ -4,19 +4,19 @@
 % Each row toggles one component off; Delta cc-F1 = full TraLO - (that component removed).
 % Requires: booktabs (loaded by main.tex).
 \begin{table}[t]\centering\small
-\caption{\textbf{Complete component ablation on the OctMNIST hard-binding cells.} Effect on constrained-class F1 of removing each TraLO component in turn ($n{=}24$ paired runs each: 2 tight caps $\times$ 3 backbones $\times$ 4 seeds). $\Delta$~cc-F1 = full TraLO $-$ (component removed); winrate = fraction of the 24 paired runs where removing the component hurts; $p$ is a two-sided paired test. Two components are load-bearing: the optimizer reset and the undershoot hinge, both helping on all 24 runs; the $\rho$ schedule and lambda freeze are cc-F1-neutral on these already-satisfied cells. Two essential ingredients plus two neutral ones, \emph{not} four co-equal components.}
+\caption{\textbf{Complete component ablation on the OctMNIST hard-binding cells.} Effect on constrained-class F1 of removing each TraLO component in turn ($n{=}24$ paired runs each: 2 tight caps $\times$ 3 backbones $\times$ 4 seeds). $\Delta$~cc-F1 = full TraLO $-$ (component removed); winrate = fraction of the 24 paired runs where removing the component hurts. Inference is at the cell level (the unit that does not repeat seeds): removing either load-bearing component hurts in all six cells (sign test $p{=}0.031$, the six-cell floor), while the $\rho$ schedule and lambda freeze split the cells and are cc-F1-neutral on these already-satisfied cells. Two essential ingredients plus two neutral ones, \emph{not} four co-equal components.}
 \label{tab:ablation_complete}
-\begin{tabular}{l c c c}
+\begin{tabular}{l c c}
 \toprule
-Component removed & $\Delta$ cc-F1 & Winrate & $p$ (paired) \\
+Component removed & $\Delta$ cc-F1 & Winrate \\
 \midrule
-\multicolumn{4}{l}{\emph{Load-bearing}} \\
-Optimizer reset   & $+0.079$ & $1.00$ & $3\mathrm{e}{-7}$ \\
-Undershoot hinge  & $+0.036$ & $1.00$ & $3\mathrm{e}{-6}$ \\
+\multicolumn{3}{l}{\emph{Load-bearing}} \\
+Optimizer reset   & $+0.079$ & $1.00$ \\
+Undershoot hinge  & $+0.036$ & $1.00$ \\
 \midrule
-\multicolumn{4}{l}{\emph{Neutral}} \\
-$\rho$ schedule   & $+0.001$ & $0.42$ & $0.74$ \\
-Lambda freeze     & $+0.000$ & $0.38$ & $0.65$ \\
+\multicolumn{3}{l}{\emph{Neutral}} \\
+$\rho$ schedule   & $+0.001$ & $0.42$ \\
+Lambda freeze     & $+0.000$ & $0.38$ \\
 \bottomrule
 \end{tabular}
 \end{table}
