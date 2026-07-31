@@ -59,7 +59,6 @@ data/retinamnist/*
 
 # Derived working caches + dumps (regenerable from results/ + scripts/)
 briefing.html
-paper/data_cache/
 winning_results/
 docs/all_cells_raw.csv
 docs/full_census_report.txt
@@ -93,27 +92,33 @@ Thumbs.db
 *.png
 *.pdf
 comparison_results.csv
-paper/references/
 
 # ============================================================================
-# AAAI-2027 submission: un-hide the paper source that *.tex / *.png / *.pdf hide.
-# papers/*.pdf stays ignored (copyrighted publisher PDFs) -- deliberately NOT negated.
-!final_AAAI_PAPER/**/*.tex
-!final_AAAI_PAPER/figures/*.png
-!final_AAAI_PAPER/figures/*.pdf
-!final_AAAI_PAPER/main.pdf
-!final_AAAI_PAPER/supplementary.pdf
+# TMLR submission (paper/): un-hide the paper source that *.tex / *.png / *.pdf hide.
+!paper/**/*.tex
+!paper/figures/*.png
+!paper/figures/*.pdf
+!paper/main.pdf
+
+# The paper's data of record and its table/figure generators. Re-homed out of the
+# gitignored archive/ tree on 2026-07-31: these are the only copies, and every
+# number in the manuscript derives from them.
+!paper/data/**
+!paper/scripts/**
+
+# Track B / handoff documents and the working manuscript revision live in docs/
+# and must not be hidden by the blanket *.tex / *.pdf rules above.
+!docs/**/*.tex
+!docs/**/*.pdf
 
 # Legacy / scratch trees: keep on disk, keep OUT of git
 archive/
-paper_aaai/
 extra_experiments/
 .agents/
 skills-lock.json
 logs/.hook_last_predictions_count
-final_AAAI_PAPER/bib_verification.html
 
-# LaTeX build artifacts (regenerable; final PDFs are negated above)
+# LaTeX build artifacts (regenerable; final PDF is negated above)
 *.aux
 *.bbl
 *.blg

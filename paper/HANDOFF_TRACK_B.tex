@@ -1,0 +1,512 @@
+% HANDOFF_TRACK_B.tex
+% Self-contained document for the second student, describing the code+experiments
+% work remaining on the TMLR revision (Track B).
+% Compiles with pdflatex: pdflatex HANDOFF_TRACK_B; pdflatex HANDOFF_TRACK_B
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{listings}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!60!black,
+  urlcolor=blue!60!black,
+  citecolor=blue!60!black
+}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  columns=fullflexible,
+  backgroundcolor=\color{gray!8},
+  frame=single,
+  framerule=0pt,
+  xleftmargin=6pt,
+  xrightmargin=6pt,
+  aboveskip=8pt,
+  belowskip=8pt
+}
+
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\file}[1]{\texttt{#1}}
+
+\title{Track B --- Handoff Document\\[4pt]
+       \large Experiment-Running Student\\[2pt]
+       \normalsize TMLR Revision, TraLO Paper}
+\author{Prepared by the advisor + Claude (writing track)}
+\date{2026-07-21}
+
+\begin{document}
+\maketitle
+
+\section*{Quick context}
+
+The TMLR paper on TraLO went through a multi-perspective simulated review on
+2026-07-21. Decision: \textbf{Major Revision}. \textbf{Track A} (edits to
+the paper text) has been completed by the advisor with Claude. \textbf{Track
+B} (new experiments) --- this document --- is handed off to you.
+
+\begin{itemize}[nosep]
+  \item \textbf{Active paper source}: \file{tmlr\_submission/main.tex} in
+        this project, plus the Overleaf working copy the advisor will invite
+        you to.
+  \item \textbf{Full revision roadmap}: \file{PLAN.md} in the project root.
+  \item \textbf{The 1944-run corpus}: already exists at the location agreed
+        with the advisor (not inside the \file{tmlr\_submission/} directory).
+  \item \textbf{Acceptance probability status}:
+    \begin{itemize}[nosep]
+      \item After Track A (current): $\sim$62--64\%
+      \item + B1 (imbalanced baselines): 70--75\%
+      \item + B1 + B2 (native-resolution HAM10000): 78--85\%
+      \item + full Track B: 82--88\%
+    \end{itemize}
+\end{itemize}
+
+\section*{Prerequisites}
+
+\begin{itemize}[nosep]
+  \item Access to the training code (TraLO + Fioretto-LDF + Hounie-RCL +
+        Shifman-LP).
+  \item BIU SLURM: partition \code{H200-12h}, conda env \code{crs}.
+        \textbf{Important}: do not run anything on \code{slurm-login1} ---
+        only \code{sbatch} or connect to \code{dsisco01} / \code{dsisco02}
+        via \code{ssh dsisco01} / \code{ssh dsisco02}.
+  \item Overleaf: the advisor will invite you to the project.
+  \item Python: for the analysis scripts (\code{scripts/} in the original
+        code directory).
+\end{itemize}
+
+\section*{Work division while you run experiments}
+
+\begin{itemize}[nosep]
+  \item \textbf{You}: any code changes, SLURM runs, generation of new tables
+        from results, updates to \code{main.tex} and \code{references.bib}
+        in Overleaf reflecting new findings.
+  \item \textbf{Advisor + Claude (local)}: if wording tweaks unrelated to
+        results are needed during your work, they happen in the local files
+        and are synced to Overleaf.
+  \item \textbf{Sync}: any significant change --- commit in Overleaf. Try to
+        update \file{PLAN.md} with a checkbox for the item you completed
+        (or notify the advisor to do so).
+\end{itemize}
+
+% ============================================================================
+\section{Priority-ordered Track B items}
+
+\subsection*{Must-do --- without these, acceptance probability will not
+             pass 65\%}
+
+% ----------------------------------------------------------------------------
+\subsection{B1. Imbalanced-learning baselines (highest priority)}
+
+\paragraph{What is missing.} All five reviewers requested a baseline of
+focal loss + clipping / class-balanced + clipping / logit adjustment +
+clipping. Section 6 (Limitations) of the paper already concedes this gap.
+The Devil's Advocate went further: if focal + clipping closes the
+\mbox{+1.6--5.3~pp} macro-F1 gap over vanilla clipping, the entire macro-F1
+claim collapses.
+
+\paragraph{Goal.} Answer definitively: does an imbalanced-learning-aware
+clipper close the macro-F1 gap the paper attributes to constraint-time
+training?
+
+\paragraph{Minimal scope.}
+\begin{itemize}[nosep]
+  \item 3 methods: focal loss (Lin et al.\ 2017), class-balanced weights
+        (Cui et al.\ 2019), logit adjustment (Menon et al.\ 2020).
+  \item 3 datasets: TissueMNIST, DermMNIST, OctMNIST.
+  \item 3 backbones: MobileNetV3, RegNetY-400MF, ViT-B/16.
+  \item 1 tight cap: L30 only (where the macro-F1 gap of TraLO is largest).
+  \item 4 seeds (1--4, as in the rest of the paper).
+  \item Post-hoc clipping applied via the same method as Shifman-LP.
+  \item \textbf{Total}: $3 \times 3 \times 3 \times 4 = \mathbf{108}$
+        \textbf{runs}.
+\end{itemize}
+
+\paragraph{Code location.}
+\begin{itemize}[nosep]
+  \item Add new methods in the same \code{struct} as the existing methods.
+  \item Focal loss: $\ell = -\alpha (1-p)^\gamma \log(p)$, with
+        $\alpha{=}0.25$, $\gamma{=}2.0$ (defaults from the original paper).
+  \item Class-balanced: reweight class $c$ on-the-fly with
+        $(1-\beta)/(1-\beta^{n_c})$, $\beta{=}0.9999$.
+  \item Logit adjustment: add $\tau \log(\text{prior}_c)$ to logits,
+        $\tau{=}1.0$.
+\end{itemize}
+
+\paragraph{Deliverables.}
+\begin{enumerate}[nosep]
+  \item Results CSV: \file{results/imbalanced\_baselines\_L30.csv} \\
+        (columns: \code{dataset, backbone, seed, method, macro\_f1, cc\_f1,
+        native\_satisfied, flips}).
+  \item New table: \file{tables/tab\_imbalanced\_baselines.tex} \\
+        Suggested structure: rows = dataset$+$backbone, columns = 3
+        imbalanced methods + TraLO + gap. The advisor + Claude can finalize
+        the caption.
+  \item Updates to \code{main.tex}:
+    \begin{itemize}[nosep]
+      \item Section~5 (Results): add a new subsection
+            \code{\textbackslash{}subsection\{Imbalanced-training baselines
+            with clipping\}} --- 1--2 paragraphs after Sec.~5.3 (deploy).
+      \item Abstract: if TraLO still leads, update to ``over both vanilla
+            clipping and imbalanced-training baselines''. If not, update to
+            ``comparable overall quality to imbalanced-training baselines
+            while additionally satisfying the cap natively''.
+      \item Section~6 (Limitations): remove or shorten the paragraph
+            \textit{Missing baselines from imbalanced learning}.
+    \end{itemize}
+\end{enumerate}
+
+\paragraph{Estimated cost.} $\sim$9 GPU-hours + $\sim$half-day of coding
+(adding 3 methods).
+
+% ----------------------------------------------------------------------------
+\subsection{B2. Native-resolution medical benchmark (HAM10000)}
+
+\paragraph{What is missing.} Devil's Advocate CRITICAL --- all experiments
+are on 28$\times$28 upsampled to 224$\times$224. There is no evidence that
+the OctMNIST tight-cap phenomenon occurs at real resolution. If it does
+not $\to$ the deployment framing in the paper drops to ``toy scale''.
+
+\paragraph{Goal.} Show that the general behavior of TraLO in the tight-cap
+regime reproduces at native resolution.
+
+\paragraph{Minimal scope.}
+\begin{itemize}[nosep]
+  \item Dataset: HAM10000 at native resolution ($600\times450$) --- the
+        source of DermMNIST.
+  \item Constrained class: melanoma.
+  \item 2 tight caps: L30, L40.
+  \item 3 backbones: same as the main grid.
+  \item 4 seeds.
+  \item \textbf{Methods}: TraLO + Fioretto-LDF + Hounie-RCL + Heuristic
+        clipper (4 methods total).
+  \item \textbf{Total}: $4 \times 2 \times 3 \times 4 = \mathbf{96}$
+        \textbf{runs} (or 24 for TraLO alone + 72 for baselines).
+\end{itemize}
+
+\paragraph{Technical notes.}
+\begin{itemize}[nosep]
+  \item Standard ImageNet preprocessing (256$\times$256 crop $\to$
+        224$\times$224 center crop) is not directly relevant here --- do a
+        resize to 450$\times$450 or the size suggested per backbone (see
+        \code{torchvision.models}).
+  \item Warmup: 50 epochs (same budget).
+  \item Constraint phase: 300 epochs.
+  \item Runtime: likely slower because of the larger image --- expect
+        15--30 minutes per run.
+\end{itemize}
+
+\paragraph{Deliverables.}
+\begin{enumerate}[nosep]
+  \item \file{results/hamres\_native\_L30\_L40.csv}
+  \item \file{tables/tab\_hamres\_native.tex}
+  \item \file{figures/fig\_hamres\_octanalog.pdf} --- a plot analogous to
+        \file{fig\_octmnist} (top: absolute values; bottom: paired delta).
+  \item Updates to \code{main.tex}:
+    \begin{itemize}[nosep]
+      \item Section~5: new subsection
+            \code{\textbackslash{}subsection\{Replication on
+            native-resolution HAM10000\}} (or as an appendix).
+      \item Abstract: if the phenomenon reproduces, remove ``on
+            MedMNIST-scale tasks'' from the practitioners paragraph and
+            replace with ``across two scales''.
+      \item Section~6 (Limitations): shorten \textit{Dataset scope}
+            accordingly.
+    \end{itemize}
+\end{enumerate}
+
+\paragraph{Failure scenario.} If the phenomenon does \emph{not} reproduce
+at native resolution, that is itself an important finding, added as
+``native-resolution replication'' with the negative result reported.
+Devil's Advocate would still be satisfied because the CRITICAL items were
+about the absence of an experiment, not about a positive outcome.
+
+\paragraph{Estimated cost.} $\sim$4--6 GPU-hours + one day of work on the
+native HAM10000 loader.
+
+\subsection*{Strongly recommended --- lifts from 75\% to 85\%}
+
+% ----------------------------------------------------------------------------
+\subsection{B3. ALM (Augmented Lagrangian) as a baseline}
+
+\paragraph{Why.} R2 (Domain reviewer) pointed out that ALM is the standard
+literature fix for linear-penalty windup. Section~2 of the paper now
+justifies (after A12) why we did not run ALM --- but running ALM as a
+baseline on 6 OctMNIST tight cells would close the concern definitively.
+
+\paragraph{Scope.}
+\begin{itemize}[nosep]
+  \item 1 method: Fioretto-LDF with the ALM update rule:
+        $\lambda_c \leftarrow \max(0, \lambda_c + \eta(S_c - K_c)) +
+        \mu(S_c - K_c)^+$, with $\mu$ growing linearly.
+  \item 6 cells: OctMNIST L30 + L40 $\times$ 3 backbones $\times$ 4 seeds
+        $= \mathbf{24}$ \textbf{runs}.
+\end{itemize}
+
+\paragraph{Deliverables.}
+\begin{itemize}[nosep]
+  \item A new row in the graft table (or a separate table):
+        \file{tables/tab\_alm.tex}.
+  \item Update in Section~5 or App.~C.1 (graft) --- a short paragraph:
+        ``ALM as a fifth baseline: results here.''
+  \item If ALM does not close the gap, the A12 justification in Section~2
+        stands. If it does, refine the A12 paragraph accordingly.
+\end{itemize}
+
+\paragraph{Estimated cost.} $\sim$2 GPU-hours + $\sim$half-day of coding.
+
+% ----------------------------------------------------------------------------
+\subsection{B4. Extend the component ablation to a tie-region cell}
+
+\paragraph{Why.} R1 M4 + Devil's Advocate --- the ablation was run only on
+tight-cap OctMNIST cells (the win region). Open question: are reset+hinge
+load-bearing in tie regions too, or only at tight caps?
+
+\paragraph{Scope.}
+\begin{itemize}[nosep]
+  \item One tie-region cell: DermMNIST L50 symmetric with MobileNetV3.
+  \item Full ablation of 4 components (reset / hinge / $\rho$ schedule /
+        lambda freeze).
+  \item 4 seeds.
+  \item \textbf{Total}: $4 \times 4 = \mathbf{16{-}24}$ \textbf{runs}
+        (depending on how many variants).
+\end{itemize}
+
+\paragraph{Deliverables.}
+\begin{itemize}[nosep]
+  \item Additional rows in \file{tab\_ablation\_complete.tex} (or a
+        separate table \file{tab\_ablation\_tie\_cell.tex}).
+  \item Update in Section~5 (What Carries the Win): a short paragraph
+        such as ``In a tie-region cell (DermMNIST L50), the reset and
+        hinge components \dots{} [continue with actual result]''.
+  \item One of two possible conclusions:
+    \begin{itemize}[nosep]
+      \item reset+hinge load-bearing in tie regions too $\to$ strengthens
+            the claim that portable components carry the effect everywhere.
+      \item reset+hinge not load-bearing in tie regions $\to$ tighter claim:
+            ``portable components carry the tight-cap advantage
+            specifically''.
+    \end{itemize}
+  \item \textbf{Both outcomes are good for the paper.}
+\end{itemize}
+
+\paragraph{Estimated cost.} $\sim$2 GPU-hours.
+
+\subsection*{Analyses on the existing corpus --- no new runs}
+
+% ----------------------------------------------------------------------------
+\subsection{B5. Sensitivity sweep of the win-bar rule}
+
+\paragraph{Goal.} Address R1 M1 --- does regime classification change under
+different win thresholds?
+
+\paragraph{What to do.}
+\begin{itemize}[nosep]
+  \item On the existing corpus (1944 runs + ablation/graft), re-run the
+        ``win regime'' rule: mean paired cc-F1 gap $\ge \tau$
+        \textsc{and} at least half of cells clear $\tau$, for
+        $\tau \in \{+0.003, +0.005, +0.010\}$.
+  \item Produce a table: rows = regime (Tissue-tight, Tissue-mid,
+        Tissue-loose, Derm-tight, \dots); columns = $\tau_{003}$ /
+        $\tau_{005}$ / $\tau_{010}$ win/tie/loss.
+  \item Expected pattern: the OctMNIST tight-cap classification as a win
+        should be stable at all thresholds; most other regions tie at all
+        thresholds.
+\end{itemize}
+
+\paragraph{Deliverable.}
+\begin{itemize}[nosep]
+  \item \file{tables/tab\_winbar\_sensitivity.tex}
+  \item Add to Section~4.2 (or App.~B): 2--3 sentences referencing the
+        table.
+  \item The paragraph added in A5 already claims that ``OctMNIST tight-cap
+        survives generously wider thresholds'' --- this table will
+        numerically confirm that.
+\end{itemize}
+
+\paragraph{Estimated cost.} 1--2 hours of Python scripting.
+
+% ----------------------------------------------------------------------------
+\subsection{B6. Bootstrap CIs for the headline cells}
+
+\paragraph{Goal.} R1 M3 + Devil's Advocate --- $n=4$ seeds means the
+ViT-B/16 L30 effect of $+0.081$ is only $\sim$1.8$\sigma$. Bootstrap CIs
+would strengthen the statistical support for the main-headline cells.
+
+\paragraph{What to do.}
+\begin{itemize}[nosep]
+  \item On the results of the 6 OctMNIST tight-cap cells $\times$ cc-F1.
+  \item Bootstrap 10{,}000 resamples per cell (with replacement); compute
+        95\% CI on cell means.
+  \item Produce a short table or an additional row in
+        \file{tab\_oct\_backbone.tex}.
+\end{itemize}
+
+\paragraph{Deliverable.}
+\begin{itemize}[nosep]
+  \item If CIs do not cross 0 $\to$ strengthens the win claim (especially
+        for ViT).
+  \item If CIs do cross 0 $\to$ this must be reported in a visible place;
+        it changes the strength of the claim.
+\end{itemize}
+
+\paragraph{Estimated cost.} 30 minutes of scripting.
+
+% ----------------------------------------------------------------------------
+\subsection{B7. Formal BH-FDR correction}
+
+\paragraph{Goal.} The A5 paragraph (Track A) already claims that the
+results survive BH-FDR. B7 will compute the $q$-values explicitly for the
+full family of comparisons.
+
+\paragraph{What to do.}
+\begin{itemize}[nosep]
+  \item Collect all $p$-values reported in the paper (paired Wilcoxon,
+        sign tests).
+  \item Run BH-FDR with $q=0.05$ on several families:
+    \begin{itemize}[nosep]
+      \item[(a)] headline OctMNIST 6 cells $\times$ 2 components = 12
+                 tests;
+      \item[(b)] full symmetric grid 27 cells $\times$ 2 metrics = 54
+                 tests;
+      \item[(c)] ablation-graft 24 comparisons.
+    \end{itemize}
+  \item Produce a table: rows = comparison, columns = raw $p$,
+        BH-adjusted $q$, verdict (significant at $q=0.05$?).
+\end{itemize}
+
+\paragraph{Deliverable.}
+\begin{itemize}[nosep]
+  \item Short table in the appendix or body.
+  \item Extension of the A5 paragraph with the formal numbers.
+\end{itemize}
+
+\paragraph{Estimated cost.} 1 hour.
+
+% ----------------------------------------------------------------------------
+\subsection{B8. Fourth backbone for the ``backbone-general'' cc-F1 claim}
+
+\paragraph{What is missing.} MobileNetV2 is already in the supplementary
+grid for macro-F1 (\file{tab\_backbone\_generality.tex}). Extend it to
+cc-F1 at OctMNIST tight caps as well.
+
+\paragraph{Scope.}
+\begin{itemize}[nosep]
+  \item MobileNetV2 $\times$ OctMNIST L30 + L40 $\times$ 4 seeds $\times$
+        TraLO + best trained baseline $= \mathbf{16}$ \textbf{runs}.
+\end{itemize}
+
+\paragraph{Deliverable.}
+\begin{itemize}[nosep]
+  \item Additional row in \file{tab\_oct\_backbone.tex}.
+  \item Update the ``backbone-general'' phrasing in the body to ``across
+        four backbones tested (including MobileNetV2)''.
+\end{itemize}
+
+\paragraph{Estimated cost.} 40 minutes of runtime.
+
+% ============================================================================
+\section{Track B cost summary}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrl}
+\toprule
+Item & Runs & GPU-hours (@5 min) & Code effort \\
+\midrule
+B1 imbalanced baselines & 108 & $\sim$9h & Medium (3 methods) \\
+B2 native-res HAM10000 & 96 & $\sim$4--6h & Medium (loader) \\
+B3 ALM & 24 & $\sim$2h & Low (Fioretto variant) \\
+B4 tie-region ablation & 24 & $\sim$2h & Low \\
+B5 win-bar sensitivity & 0 & 0 & Python script \\
+B6 bootstrap CIs & 0 & 0 & Python script \\
+B7 BH-FDR computation & 0 & 0 & Python script \\
+B8 MobileNetV2 tight-cap & 16 & $\sim$1h & Low \\
+\midrule
+\textbf{Total} & \textbf{$\sim$270} & \textbf{$\sim$18--20 h} & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+For reference: the existing grid is 1944 runs. Track B adds $\sim$14\%.
+
+% ============================================================================
+\section{Overleaf working conventions}
+
+\begin{enumerate}[nosep]
+  \item \textbf{Before starting an item}: pull / sync in Overleaf to
+        receive the latest Track A changes from the advisor.
+  \item \textbf{While running experiments}: do not update \code{main.tex}
+        yet --- wait for results.
+  \item \textbf{After results arrive}: create/update a table file in
+        \file{tmlr\_submission/tables/}, then update \code{main.tex} with
+        the relevant sentences.
+  \item \textbf{Sync}: after each completed item, commit in Overleaf with
+        a clear message (e.g.\ ``B1 imbalanced baselines: added
+        tab\_imbalanced\_baselines.tex + Sec 5.4'').
+  \item \textbf{If wording or interpretation is unclear}: open a
+        conversation with the advisor. Do not guess what the paper should
+        say --- the tone of the paper is delicate (honest concessions in
+        specific places) and the advisor will know the right phrasing.
+\end{enumerate}
+
+% ============================================================================
+\section{Points where you should consult the advisor}
+
+\begin{itemize}[nosep]
+  \item If a result closes a gap or refutes a claim $\to$ the abstract
+        needs rephrasing.
+  \item If an unexpected result appears (e.g., focal loss + clipping
+        closes the TraLO gap) $\to$ this is a substantive change to the
+        paper's framing.
+  \item If B2 (native-res HAM10000) shows the phenomenon does not
+        reproduce $\to$ decide whether to report it as a negative
+        replication or to remove the deployment framing from the whole
+        paper.
+\end{itemize}
+
+% ============================================================================
+\section{Final file structure (state after Track B completion)}
+
+\begin{lstlisting}
+tmlr_submission/
+|-- main.tex                        # + 2-4 new subsections
+|-- references.bib                   # updated
+|-- tables/
+|   |-- tab_ccf1.tex                 # (Track A)
+|   |-- tab_ablation_complete.tex    # + rows from B4
+|   |-- tab_graft.tex
+|   |-- tab_deploy.tex
+|   |-- tab_backbone_generality.tex  # + MobileNetV2 row (B8)
+|   |-- tab_oct_backbone.tex         # + bootstrap CIs (B6)
+|   |-- tab_imbalanced_baselines.tex # <- new (B1)
+|   |-- tab_hamres_native.tex        # <- new (B2)
+|   |-- tab_alm.tex                  # <- new (B3)
+|   |-- tab_winbar_sensitivity.tex   # <- new (B5)
+|   `-- (rest as-is)
+`-- figures/
+    `-- fig_hamres_octanalog.pdf     # <- new (B2)
+\end{lstlisting}
+
+% ============================================================================
+\section*{Sign-off}
+
+When you finish each item, mark \checkmark in \file{PLAN.md} under
+``Track B''. If you perform an item outside this list or feel the scope
+has changed, update \file{PLAN.md} accordingly.
+
+Good luck.
+
+\end{document}
