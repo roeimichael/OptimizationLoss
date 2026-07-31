@@ -11,7 +11,9 @@ from src.training.constraints import compute_global_constraints, compute_local_c
 
 log = logging.getLogger(__name__)
 
-IMAGERY_DATASETS = {'dermmnist', 'aider', 'tissuemnist', 'octmnist'}
+IMAGERY_DATASETS = {'dermmnist', 'aider', 'tissuemnist', 'octmnist', 'octnative',
+                    # native-resolution campaign (docs/NATIVE_RES_CAMPAIGN.md):
+                    'retinamnist', 'bloodmnist', 'organamnist', 'tissuenative'}
 
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(1, 3, 1, 1)
 IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 3, 1, 1)

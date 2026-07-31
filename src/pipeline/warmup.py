@@ -24,8 +24,16 @@ log = logging.getLogger(__name__)
 
 
 def make_ce_criterion(config, y_train, num_classes, device):
-    """Plain CE, or class-weighted CE when hp['class_weighted_ce']."""
-    if not config["hyperparams"].get("class_weighted_ce", False):
+    """Plain CE, class-weighted CE (hp['class_weighted_ce']), or an imbalanced-
+    learning training loss (hp['warmup_loss'] in focal/class_balanced/
+    logit_adjust). TMLR Track B / B1 baselines train the backbone WITH the
+    imbalanced objective in this shared warmup phase, then LP-clip."""
+    hp = config["hyperparams"]
+    warmup_loss = hp.get("warmup_loss", "ce")
+    if warmup_loss != "ce":
+        from src.losses.imbalanced_losses import build_warmup_criterion
+        return build_warmup_criterion(warmup_loss, y_train, num_classes, device, hp)
+    if not hp.get("class_weighted_ce", False):
         return nn.CrossEntropyLoss()
     counts = torch.bincount(y_train, minlength=num_classes).float()
     weights = (1.0 / counts.clamp(min=1)).to(device)
