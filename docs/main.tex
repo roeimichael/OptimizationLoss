@@ -516,6 +516,25 @@ the bare saturating penalty it retains) that strips both load-bearing
 additions, the optimizer reset and the undershoot hinge, used as a method
 and as a within-cell control in App.~\ref{app:ablation}.
 
+{\color{blue}
+\paragraph{Imbalanced-learning baselines.}
+Three \emph{imbalance-aware} training recipes, each trained with its own loss and then
+LP-LG clipped, so the warm-up phase is their entire training budget
+(Sec.~\ref{sec:deploy}). Let $p_y$ be the softmax probability of the true class, $n_c$
+the training count of class $c$, and $\pi_c$ its prior. \textbf{Focal loss}
+\citep{lin2017focal} replaces cross-entropy with
+$-\alpha(1-p_y)^{\gamma}\log p_y$ ($\alpha{=}0.25$, $\gamma{=}2$); the modulating factor
+$(1-p_y)^{\gamma}$ down-weights easy, high-confidence examples so the gradient
+concentrates on hard and rare ones. \textbf{Class-balanced reweighting}
+\citep{cui2019class} scales class $c$'s loss by the inverse \emph{effective} sample
+count, $w_c = (1-\beta)/(1-\beta^{\,n_c})$ with $\beta{=}0.9999$, which discounts
+information overlap among many similar samples and so raises the weight on rare classes.
+\textbf{Logit adjustment} \citep{menon2020long} adds a prior-based offset to the logits,
+$z_c \leftarrow z_c + \tau\log\pi_c$ with $\tau{=}1$, shifting the decision threshold to
+compensate for label imbalance. None of the three enforces a count: they change
+\emph{which} class is predicted, not \emph{how many}, so each still requires the post-hoc
+LP to meet the cap.}
+
 \paragraph{Baseline adaptations.}
 The two trained baselines were built for a different setting, so we
 re-instantiated each on the transductive count task and ran it inside the
@@ -819,10 +838,10 @@ by rewriting $5$--$11\%$ of the batch at binding caps.
 A natural challenge to the margin over clipping is whether an \emph{imbalance-aware}
 clipper --- one trained to favour the rare constrained class before clipping ---
 recovers the macro-F1 that plain clipping loses, matching the constraint-trained
-family without ever training under the count. We add three: focal loss
-\citep{lin2017focal} ($\alpha{=}0.25$, $\gamma{=}2$), class-balanced reweighting
-\citep{cui2019class} ($\beta{=}0.9999$), and logit adjustment \citep{menon2020long}
-($\tau{=}1$), each trained during warm-up and then LP-clipped, at the tight $L30$ cap
+family without ever training under the count. We add the three imbalance-aware recipes
+defined in Sec.~\ref{sec:setup} --- focal loss \citep{lin2017focal}, class-balanced
+reweighting \citep{cui2019class}, and logit adjustment \citep{menon2020long} --- each
+trained with its own loss and then LP-LG clipped, at the tight $L30$ cap
 (Table~\ref{tab:imbal}). Focal is the only competitive member, and across all three
 backbones the pattern is \emph{dataset}-driven rather than backbone-driven. On
 DermMNIST --- the imbalance-friendly dataset, where an imbalance-aware loss should do
@@ -839,14 +858,15 @@ TraLO's categorical separation from every clip-based method.}
 \setlength{\tabcolsep}{6pt}
 \captionsetup{labelfont={color=blue}}\caption{\color{blue}\textbf{Imbalanced-learning baselines, macro-F1.}
 Paired macro-F1 gap of TraLO over focal loss, class-balanced reweighting, and logit
-adjustment (each trained in warm-up, then LP-clipped), and over the LP clipper, at the
+adjustment (each trained with its own loss, then LP-LG clipped), and over the LP-LG
+clipper alone, at the
 tight $L30$ cap (mean over seeds $1$--$4$; positive $=$ TraLO better). Focal is the
 only competitive baseline, and the pattern is dataset-driven rather than
 backbone-driven.}
 \label{tab:imbal}
 \begin{tabular}{ll rrrr}
 \toprule
-Dataset & Backbone & vs.\ focal & vs.\ class-bal. & vs.\ logit-adj. & vs.\ clip \\
+Dataset & Backbone & vs.\ focal & vs.\ class-bal. & vs.\ logit-adj. & vs.\ LP-LG \\
 \midrule
 DermMNIST   & MobileNetV3   & $-0.012$ & $-0.016$ & $+0.021$ & $+0.010$ \\
             & RegNetY-400MF & $+0.006$ & $+0.022$ & $+0.042$ & $+0.013$ \\
