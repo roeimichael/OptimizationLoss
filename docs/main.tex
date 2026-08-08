@@ -1020,35 +1020,49 @@ regime map itself may re-derive at other scales --- the mechanistic story
 resolution-specific --- but this is a hypothesis, not an evidenced claim.
 
 {\color{blue}
-\paragraph{A first native-resolution check.}
-We took one step past the upsampled setting: at native $224{\times}224$ resolution on
-five MedMNIST datasets (DermMNIST/HAM10000, RetinaMNIST, TissueMNIST, OrganAMNIST,
-BloodMNIST), TraLO ties the best trained dual on constrained-class F1 at every dataset
-(per-dataset $|\Delta|\le0.011$; Table~\ref{tab:native}) and still reaches the cap
-natively. This is consistent with the regime map's tie-region prediction and turns the
-``not resolution-specific'' statement above from a hypothesis into partial evidence. It
-remains only a first step: the sole \emph{win} region, OctMNIST tight caps, has no
-native-resolution counterpart (OctMNIST exists only at $28{\times}28$), so whether the
-tight-cap advantage itself survives at native resolution is still open; and because these
-runs use a short warm-up to preserve cross-entropy headroom, post-hoc clipping is
-undertrained and not a meaningful comparator here, so the comparison is against the
-trained dual only.}
+\paragraph{A native-resolution check on HAM10000.}
+We took one step past the upsampled setting, on a single dataset run to full depth:
+native $224{\times}224$ DermMNIST (HAM10000), the standard warm-up-$50$ budget, every
+method and every backbone in the paper --- $\{$TraLO, Fioretto-LDF, Hounie-RCL, LP-LG$\}
+\times \{$MobileNetV3, RegNetY-400MF, ViT-B/16$\} \times \{L30, L40\} \times 4$ seeds,
+$96$ runs (Table~\ref{tab:native}). Three things carry over. \emph{(i)~The quality margin
+over clipping survives}: TraLO leads LP-LG on macro-F1 in \textbf{all six}
+backbone$\times$cap cells ($+0.013$ on average), which is the deployment claim of
+Sec.~\ref{sec:deploy} reproducing at native resolution. \emph{(ii)~Against the trained
+duals it is a tie}, as the regime map predicts for a loose-to-moderate cap on a
+discriminable class: grand-mean cc-F1 gaps of $-0.001$ (Fioretto-LDF) and $+0.001$
+(Hounie-RCL), well inside seed noise. \emph{(iii)~Native satisfaction is unchanged}:
+TraLO meets the count with no post-hoc edit in \textbf{all $24$ of its runs}, against
+$0$ of $24$ for LP-LG, which needs the LP every time; Fioretto-LDF stalls short of the
+cap on one seed at RegNetY-400MF$\times L40$ ($0.75$). What this does \emph{not} settle
+is the win region: OctMNIST has no native-resolution counterpart (it exists only at
+$28{\times}28$), so whether the tight-cap cc-F1 advantage itself survives at full
+resolution remains open.}
 
 \begin{table}[t]\centering\small\color{blue}
-\setlength{\tabcolsep}{6pt}
-\captionsetup{labelfont={color=blue}}\caption{\color{blue}\textbf{First native-resolution check.} Constrained-class
-F1 at native $224{\times}224$, TraLO vs the best trained dual (Fioretto-LDF), mean over
-seeds $1$--$4$ (each cell warm-up $1$/$5$). A tie on every dataset ($|\Delta|\le0.011$).}
+\setlength{\tabcolsep}{4.5pt}
+\captionsetup{labelfont={color=blue}}\caption{\color{blue}\textbf{Native-resolution
+HAM10000: the full method $\times$ backbone grid.} Native $224{\times}224$ DermMNIST
+(HAM10000), constrained class melanoma, warm-up $50$, mean over seeds $1$--$4$;
+\textbf{bold} $=$ best in row within each metric block. Against the trained duals
+(Fioretto-LDF, Hounie-RCL) every cell is a tie; against the LP-LG clipper TraLO leads on
+macro-F1 in all six cells. Native cap satisfaction over the $24$ runs per method: TraLO
+$1.00$, Hounie-RCL $1.00$, Fioretto-LDF $0.96$, LP-LG $0.00$.}
 \label{tab:native}
-\begin{tabular}{l ccc}
+\begin{tabular}{ll cccc cccc}
 \toprule
-Dataset & TraLO (w1/w5) & Best trained dual (w1/w5) & $\Delta$ (w1/w5) \\
+ & & \multicolumn{4}{c}{cc-F1 (melanoma)} & \multicolumn{4}{c}{macro-F1} \\
+\cmidrule(lr){3-6}\cmidrule(lr){7-10}
+Backbone & Cap & TraLO & Fioretto & Hounie & LP-LG & TraLO & Fioretto & Hounie & LP-LG \\
 \midrule
-DermMNIST   & 0.331 / 0.412 & 0.325 / 0.412 & $+0.006$ / $-0.000$ \\
-RetinaMNIST & 0.181 / 0.208 & 0.181 / 0.200 & $+0.000$ / $+0.008$ \\
-TissueMNIST & 0.212 / 0.265 & 0.211 / 0.254 & $+0.001$ / $+0.011$ \\
-OrganAMNIST & 0.395 / 0.463 & 0.392 / 0.463 & $+0.003$ / $+0.000$ \\
-BloodMNIST  & 0.460 / 0.457 & 0.460 / 0.457 & $+0.000$ / $+0.000$ \\
+\multirow{2}{*}{MobileNetV3} & L30 & 0.414 & 0.414 & \textbf{0.419} & \textbf{0.419} & 0.712 & \textbf{0.714} & 0.709 & 0.702 \\
+                             & L40 & \textbf{0.500} & 0.498 & 0.497 & 0.497 & \textbf{0.735} & 0.732 & 0.727 & 0.717 \\
+\addlinespace[2pt]
+\multirow{2}{*}{RegNetY-400MF} & L30 & 0.410 & 0.409 & 0.405 & \textbf{0.417} & 0.716 & \textbf{0.717} & 0.715 & 0.703 \\
+                             & L40 & 0.484 & \textbf{0.487} & 0.482 & 0.479 & 0.730 & \textbf{0.732} & 0.730 & 0.715 \\
+\addlinespace[2pt]
+\multirow{2}{*}{ViT-B/16}    & L30 & \textbf{0.381} & 0.378 & \textbf{0.381} & 0.365 & 0.679 & \textbf{0.681} & 0.679 & 0.670 \\
+                             & L40 & 0.455 & \textbf{0.462} & 0.455 & 0.446 & \textbf{0.699} & 0.697 & 0.696 & 0.684 \\
 \bottomrule
 \end{tabular}
 \end{table}
