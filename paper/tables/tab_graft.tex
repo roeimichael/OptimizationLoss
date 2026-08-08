@@ -1,6 +1,13 @@
 \begin{table}[t]\centering
+\caption{\textbf{Graft and anti-windup arms on the OctMNIST tight caps}
+(mean cc-F1 over seeds $1$--$4$; \textbf{bold} = best in row). $+$R{+}H grafts
+TraLO's optimizer reset and undershoot hinge onto the host; $+$restart resets
+all dual multipliers to zero at soft feasibility \citep{gallego2022controlled}.
+All $144$ runs share the frozen recipe, warmup caches, and GPU model with the
+re-run hosts; the re-run hosts reproduce the main-grid values to $\pm 0.0013$.}
+\label{tab:graft}
 {\small
-\setlength{\tabcolsep}{2.6pt}
+\setlength{\tabcolsep}{5pt}
 \begin{tabular}{ll cc c cc c}
 \toprule
  & & \multicolumn{3}{c}{Fioretto-LDF} & \multicolumn{2}{c}{Hounie-RCL} & \\
@@ -16,11 +23,4 @@ L40 & MNetV3 & 0.487 & \textbf{0.510} & 0.487 & 0.456 & 0.491 & 0.509 \\
  & ViT-B/16 & 0.462 & 0.496 & 0.462 & 0.431 & 0.506 & \textbf{0.513} \\
 \bottomrule
 \end{tabular}}
-\caption{\textbf{Graft and anti-windup arms on the OctMNIST tight caps}
-(mean cc-F1 over seeds $1$--$4$; \textbf{bold} = best in row). $+$R{+}H grafts
-TraLO's optimizer reset and undershoot hinge onto the host; $+$restart resets
-all dual multipliers to zero at soft feasibility \citep{gallego2022controlled}.
-All $144$ runs share the frozen recipe, warmup caches, and GPU model with the
-re-run hosts; the re-run hosts reproduce the main-grid values to $\pm 0.0013$.}
-\label{tab:graft}
 \end{table}

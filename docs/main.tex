@@ -37,6 +37,23 @@
 
 \graphicspath{{figures/}}
 
+% ---------------------------------------------------------------------------
+% [Formatting only] Float-page layout.
+% LaTeX's default float-page glue (\@fptop = \@fpbot = 0pt plus 1fil) centres a
+% full-page float vertically. tmlr.sty does not override it, so the tall
+% per-cell tables were stranded with a large dead band above AND below. Pin
+% float pages to the top and let all the slack collect at the bottom instead.
+\makeatletter
+\setlength{\@fptop}{0pt}
+\setlength{\@fpsep}{12pt plus 1fil}
+\setlength{\@fpbot}{0pt plus 1fil}
+\makeatother
+% Let a tall table share a page with text rather than claiming a page of its
+% own. floatpagefraction must stay below topfraction (tmlr.sty sets 0.95).
+\renewcommand{\floatpagefraction}{0.60}
+\renewcommand{\textfraction}{0.07}
+\renewcommand{\bottomfraction}{0.50}
+
 % ----------------------------------------------------------------------------
 \title{Two Portable Components for Meeting\\
 Hard Prediction Quotas in Deep Classifiers}
@@ -452,12 +469,12 @@ summarizes the loop.
 \paragraph{Datasets.}
 We use three MedMNIST v2 \citep{yang2023medmnist} classification tasks with
 their official splits (Figure~\ref{fig:datasets} shows DermMNIST examples):
-\textbf{TissueMNIST} (8 kidney-cortex-cell classes from human kidney
-tissue \citep{woloshuk2021situ}, constrained class GE, $7.1\%$ of the
+\textbf{TissueMNIST} (8 \rev{kidney-cortex-cell} classes \rev{from human kidney
+tissue \citep{woloshuk2021situ}}, constrained class GE, $7.1\%$ of the
 test set), \textbf{DermMNIST} (7 skin-lesion classes from
 HAM10000 \citep{tschandl2018ham10000}, constrained class melanoma,
-$11.1\%$), and \textbf{OctMNIST} (4 retinal-OCT classes from the
-OCT-2017 dataset \citep{kermany2018identifying}, constrained class
+$11.1\%$), and \textbf{OctMNIST} (4 retinal-OCT classes \rev{from the
+OCT-2017 dataset \citep{kermany2018identifying}}, constrained class
 drusen, $25\%$ of a class-balanced test set). The first two carry the minority class that
 the screening motivation assumes; OctMNIST does not, and we report it
 because the cap binds hardest there. All three are $28{\times}28$ images
@@ -676,8 +693,8 @@ OctMNIST-specific. This is the one \emph{backbone-general} cc-F1
 advantage; the full regime map follows (Sec.~\ref{sec:regime}).
 
 {\color{blue}
-\paragraph{Stronger dual, a fourth backbone, and interval estimates (this revision).}
-Three additions sharpen the tight-cap result. \emph{(iv)~A stronger dual does not
+\paragraph{Stronger dual, a fourth backbone, and interval estimates.}
+Three further checks sharpen the tight-cap result. \emph{(iv)~A stronger dual does not
 close the gap.} We add the augmented Lagrangian (ALM) --- the textbook fix for the
 linear-penalty windup noted in Sec.~\ref{sec:intro} --- as a fourth
 constraint-trained baseline. ALM is genuinely stronger than plain Fioretto-LDF (it
@@ -696,7 +713,9 @@ above.}
 
 \begin{table}[t]\centering\small\color{blue}
 \setlength{\tabcolsep}{5pt}
-\caption{\textbf{(Added this revision.) The OctMNIST tight-cap win holds against the
+% \color{blue} must be repeated INSIDE \caption: the caption package issues
+% \normalcolor before typesetting caption text, which would otherwise reset it.
+\captionsetup{labelfont={color=blue}}\caption{\color{blue}\textbf{The OctMNIST tight-cap win holds against the
 stronger ALM dual and on a fourth backbone.} Paired gap of TraLO, mean over seeds
 $1$--$4$. \emph{Top:} over the augmented-Lagrangian dual (ALM), which itself beats
 plain Fioretto-LDF by $+0.010$ cc-F1; TraLO leads all six cells. \emph{Bottom:} on
@@ -796,7 +815,7 @@ when the capped shortlist is the sole deliverable, a shortlist assembled
 by rewriting $5$--$11\%$ of the batch at binding caps.
 
 {\color{blue}
-\paragraph{Imbalanced-learning baselines (this revision).}
+\paragraph{Imbalanced-learning baselines.}
 A natural challenge to the margin over clipping is whether an \emph{imbalance-aware}
 clipper --- one trained to favour the rare constrained class before clipping ---
 recovers the macro-F1 that plain clipping loses, matching the constraint-trained
@@ -804,33 +823,42 @@ family without ever training under the count. We add three: focal loss
 \citep{lin2017focal} ($\alpha{=}0.25$, $\gamma{=}2$), class-balanced reweighting
 \citep{cui2019class} ($\beta{=}0.9999$), and logit adjustment \citep{menon2020long}
 ($\tau{=}1$), each trained during warm-up and then LP-clipped, at the tight $L30$ cap
-(Table~\ref{tab:imbal}). Focal is the only competitive member: it closes --- and on
-DermMNIST/MobileNetV3 slightly reverses ($-0.012$) --- TraLO's macro-F1 margin, while
-TraLO keeps its edge on OctMNIST ($+0.025$) and TissueMNIST; class-balanced roughly
-ties and logit adjustment is weak. The macro-F1 advantage is thus backbone- and
-dataset-dependent, reinforcing that it belongs to the constraint-trained \emph{family}
-rather than to TraLO alone. What none of the four clip-based baselines provides is
+(Table~\ref{tab:imbal}). Focal is the only competitive member, and across all three
+backbones the pattern is \emph{dataset}-driven rather than backbone-driven. On
+DermMNIST --- the imbalance-friendly dataset, where an imbalance-aware loss should do
+well --- focal matches or slightly reverses TraLO's macro-F1 margin on every backbone
+($-0.012$, $+0.006$, $-0.020$). On TissueMNIST TraLO leads on two of the three
+($+0.020$, $+0.017$), and on OctMNIST it leads on MobileNetV3 ($+0.025$) and ties on
+the other two. Class-balanced roughly ties and logit adjustment is weak throughout. The
+macro-F1 advantage is thus dataset-dependent, reinforcing that it belongs to the
+constraint-trained \emph{family} rather than to TraLO alone. What none of the four clip-based baselines provides is
 native cap satisfaction: all require the post-hoc LP ($1.0$ vs $0.0$), which remains
 TraLO's categorical separation from every clip-based method.}
 
 \begin{table}[t]\centering\small\color{blue}
 \setlength{\tabcolsep}{6pt}
-\caption{\textbf{(Added this revision.) Imbalanced-learning baselines, macro-F1.}
+\captionsetup{labelfont={color=blue}}\caption{\color{blue}\textbf{Imbalanced-learning baselines, macro-F1.}
 Paired macro-F1 gap of TraLO over focal loss, class-balanced reweighting, and logit
 adjustment (each trained in warm-up, then LP-clipped), and over the LP clipper, at the
 tight $L30$ cap (mean over seeds $1$--$4$; positive $=$ TraLO better). Focal is the
-only competitive baseline and is backbone-dependent; ViT-B/16 rows pending.}
+only competitive baseline, and the pattern is dataset-driven rather than
+backbone-driven.}
 \label{tab:imbal}
 \begin{tabular}{ll rrrr}
 \toprule
 Dataset & Backbone & vs.\ focal & vs.\ class-bal. & vs.\ logit-adj. & vs.\ clip \\
 \midrule
 DermMNIST   & MobileNetV3   & $-0.012$ & $-0.016$ & $+0.021$ & $+0.010$ \\
-DermMNIST   & RegNetY-400MF & $+0.006$ & $+0.022$ & $+0.042$ & $+0.013$ \\
+            & RegNetY-400MF & $+0.006$ & $+0.022$ & $+0.042$ & $+0.013$ \\
+            & ViT-B/16      & $-0.020$ & $-0.017$ & $+0.025$ & $+0.009$ \\
+\addlinespace[2pt]
 OctMNIST    & MobileNetV3   & $+0.025$ & $+0.023$ & $+0.021$ & $+0.023$ \\
-OctMNIST    & RegNetY-400MF & $-0.005$ & $+0.022$ & $-0.000$ & $+0.022$ \\
+            & RegNetY-400MF & $-0.005$ & $+0.022$ & $-0.000$ & $+0.022$ \\
+            & ViT-B/16      & $-0.004$ & $+0.010$ & $-0.006$ & $-0.001$ \\
+\addlinespace[2pt]
 TissueMNIST & MobileNetV3   & $+0.020$ & $+0.014$ & $+0.026$ & $+0.029$ \\
-TissueMNIST & RegNetY-400MF & $-0.002$ & $+0.003$ & $-0.001$ & $+0.001$ \\
+            & RegNetY-400MF & $-0.002$ & $+0.003$ & $-0.001$ & $+0.001$ \\
+            & ViT-B/16      & $+0.017$ & $+0.025$ & $+0.010$ & $+0.013$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -972,7 +1000,7 @@ regime map itself may re-derive at other scales --- the mechanistic story
 resolution-specific --- but this is a hypothesis, not an evidenced claim.
 
 {\color{blue}
-\paragraph{A first native-resolution check (this revision).}
+\paragraph{A first native-resolution check.}
 We took one step past the upsampled setting: at native $224{\times}224$ resolution on
 five MedMNIST datasets (DermMNIST/HAM10000, RetinaMNIST, TissueMNIST, OrganAMNIST,
 BloodMNIST), TraLO ties the best trained dual on constrained-class F1 at every dataset
@@ -988,7 +1016,7 @@ trained dual only.}
 
 \begin{table}[t]\centering\small\color{blue}
 \setlength{\tabcolsep}{6pt}
-\caption{\textbf{(Added this revision.) First native-resolution check.} Constrained-class
+\captionsetup{labelfont={color=blue}}\caption{\color{blue}\textbf{First native-resolution check.} Constrained-class
 F1 at native $224{\times}224$, TraLO vs the best trained dual (Fioretto-LDF), mean over
 seeds $1$--$4$ (each cell warm-up $1$/$5$). A tie on every dataset ($|\Delta|\le0.011$).}
 \label{tab:native}
@@ -1353,7 +1381,7 @@ under the identical frozen recipe; the hinge leg is already in the main
 grid.
 
 {\color{blue}
-\paragraph{The components are inert in a tie region (this revision).}
+\paragraph{The components are inert in a tie region.}
 The caveat above --- that component importances are measured only inside the win
 region --- invites the converse test: what do the two components do where TraLO does
 \emph{not} win? We repeat the leave-one-out ablation on a tie cell (DermMNIST $L50$,
@@ -1689,9 +1717,12 @@ definitions of Sec.~\ref{sec:setup}. It also elaborates on the
 ceiling-versus-floor caveat that motivates the fairness scoping in the
 Broader Impact statement.
 
+% [Revision] This figure was moved here from Section 1; its caption is marked
+% blue so the relocation is identifiable alongside the other revision marks.
 \begin{figure}[H]\centering
 \includegraphics[width=0.5\columnwidth]{fig_datasets}
-\caption{\textbf{DermMNIST lesions, benign to malignant} (green frame benign,
+\captionsetup{labelfont={color=blue}}
+\caption{\color{blue}\textbf{DermMNIST lesions, benign to malignant} (green frame benign,
 red malignant, blue the \emph{constrained} class), shown here as one
 representative example of the three MedMNIST tasks used in the paper.
 The task caps how many test images may be labeled melanoma, the minority

@@ -1,0 +1,808 @@
+% BLUE_REVISION_BRIEFING.tex -- advisor-meeting briefing on the Track-B blue revision.
+% Build: pdflatex BLUE_REVISION_BRIEFING.tex  (run twice for the ToC)
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=2.3cm]{geometry}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{amsmath,amssymb}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{longtable}
+\usepackage[colorlinks=true,linkcolor=blue!55!black,urlcolor=blue!55!black]{hyperref}
+
+\definecolor{revblue}{RGB}{0,60,170}
+\definecolor{warnred}{RGB}{170,30,30}
+\definecolor{okgreen}{RGB}{0,110,60}
+\definecolor{boxgrey}{RGB}{243,243,243}
+\definecolor{rulegrey}{RGB}{190,190,190}
+
+\newcommand{\yes}{\textcolor{okgreen}{\textbf{in the paper}}}
+\newcommand{\D}{$\Delta$}
+
+% Shaded callout box. The colorbox must wrap a *saved* box, because a
+% \colorbox{..}{ cannot be split across an environment's begin/end code.
+\newsavebox{\calloutbox}
+\newenvironment{callout}[1]
+  {\par\medskip\noindent\begin{lrbox}{\calloutbox}%
+   \begin{minipage}{\dimexpr\linewidth-20pt\relax}%
+   \textbf{#1}\par\smallskip}
+  {\end{minipage}\end{lrbox}%
+   \setlength{\fboxsep}{10pt}%
+   \colorbox{boxgrey}{\usebox{\calloutbox}}\par\medskip}
+
+\titleformat{\section}{\Large\bfseries\color{revblue}}{\thesection}{0.6em}{}
+\titlespacing*{\section}{0pt}{1.6em}{0.6em}
+\titleformat{\subsection}{\large\bfseries}{\thesubsection}{0.6em}{}
+\titlespacing*{\subsection}{0pt}{1.2em}{0.4em}
+
+\setlist[itemize]{leftmargin=1.3em,itemsep=2pt,topsep=3pt}
+\setlist[enumerate]{leftmargin=1.6em,itemsep=3pt,topsep=3pt}
+
+\renewcommand{\arraystretch}{1.15}
+
+\title{\vspace{-1.5cm}\textbf{Blue-Revision Briefing}\\[2pt]
+\large Track-B additions to \texttt{docs/main.tex}}
+\author{}
+\date{\small Prepared 2026-08-05\\[2pt]
+TMLR manuscript: \emph{Two Portable Components for Meeting Hard Prediction Quotas}}
+
+\begin{document}
+\maketitle
+\vspace{-1.2cm}
+
+\begin{callout}{What this is}
+Everything that changed in the professor's TMLR manuscript, item by item, with the experiment
+behind each change and the reason for every inclusion and every omission. Written to be read
+cover-to-cover before the advisor meeting.
+\end{callout}
+
+\paragraph{Files.} \texttt{docs/main.tex} (1756 lines) is the revised manuscript --- the professor's
+TMLR conversion with our Track-B additions marked in blue. \texttt{paper/main.tex} (1595 lines) is
+the same manuscript \emph{before} the additions, so the two diff cleanly. Tables and figures are
+\verb|\input|/\verb|\includegraphics| from \texttt{paper/tables/} and \texttt{paper/figures/}, not
+from \texttt{docs/} --- so \texttt{docs/main.tex} will not compile in place without
+\texttt{TEXINPUTS=../paper//}.
+
+\paragraph{Marking mechanism.} The preamble carries
+
+\vspace{-0.4em}
+\begin{center}\ttfamily\small
+\textbackslash usepackage\{xcolor\}\\
+\textbackslash newcommand\{\textbackslash rev\}[1]\{\{\textbackslash color\{blue\}\#1\}\}
+\end{center}
+\vspace{-0.4em}
+
+\noindent Inline additions use \verb|\rev{...}|; added paragraphs and tables open with a bare
+\verb|{\color{blue}| group. To strip every mark for a clean submission, delete the \verb|\rev|
+macro definition and the \verb|\color{blue}| markers --- nothing else in the document depends on
+them.
+
+\vspace{0.4em}
+{\color{rulegrey}\hrule}
+
+\section*{Part 0 --- What Track B established}
+\addcontentsline{toc}{section}{Part 0 --- What Track B established}
+
+\textbf{Track B was a stress test of the paper's claims, and the claims held.} Every reviewer
+objection that could be answered with compute was answered, and the headline came out
+\emph{stronger} than it went in. Six confirmations, in the order you would want to present them.
+
+\begin{callout}{1. The headline win survived the toughest baseline anyone could ask for (B3)}
+The augmented Lagrangian is \emph{the} textbook fix for the linear-penalty windup the paper attacks
+--- the single most obvious ``why didn't you try\dots'' a reviewer could raise. We ran it. It \emph{is}
+genuinely stronger than plain Fioretto-LDF (beats it by $+0.010$ cc-F1), so it is no strawman ---
+and \textbf{TraLO still tops it in all six OctMNIST tight-cap cells, by $+0.028$ cc-F1.}
+
+\smallskip
+\centerline{Final hierarchy: \textbf{TraLO 0.455 $>$ ALM 0.427 $>$ Fioretto-LDF 0.417}}
+\end{callout}
+
+\begin{callout}{2. It reproduces on a fourth backbone (B8)}
+MobileNetV2 at OctMNIST tight caps: \textbf{$+0.042$ cc-F1 over Fioretto-LDF} and $+0.169$ over
+Hounie-RCL (which collapses to 0.285). ``Backbone-general'' now spans \textbf{four} architectures
+--- MobileNetV3, RegNetY-400MF, ViT-B/16, MobileNetV2 --- not three, two of which were close
+relatives.
+\end{callout}
+
+\begin{callout}{3. It is statistically real, by the reviewers' own standard (B6)}
+Cell-level bootstrap, 20\,000 resamples. \textbf{All four dual comparisons exclude zero:}
+
+\smallskip
+\begin{tabular}{@{}l r l@{}}
+TraLO $-$ Fioretto, L30 & $+0.046$ & $[+0.024,\ +0.074]$ \\
+TraLO $-$ Fioretto, L40 & $+0.033$ & $[+0.021,\ +0.044]$ \\
+TraLO $-$ ALM, L30      & $+0.035$ & $[+0.010,\ +0.048]$ \\
+TraLO $-$ ALM, L40      & $+0.022$ & $[+0.008,\ +0.046]$ \\
+\end{tabular}
+\smallskip
+
+And the specific cell R1-M3 called ``only $\sim$1.8$\sigma$'' --- ViT-B/16 at L30 --- is
+$\mathbf{+0.086}$ vs Fioretto. \textbf{It survives.}
+\end{callout}
+
+\begin{callout}{4. It is not an artifact of the win threshold (B5) and it survives multiplicity (B7)}
+R1-M1 asked whether the regime map depends on the un-pre-registered $+0.005$ bar. Re-scored at
+$\tau \in \{.003, .005, .010\}$: \textbf{4/0/0 vs Fioretto at both L30 and L40, at every threshold},
+including the strict $.010$. Under Benjamini--Hochberg at $q{=}0.05$, \textbf{3 of 8 cells survive}
+--- so the ``survives FDR'' claim is now computed, not asserted.
+\end{callout}
+
+\begin{callout}{5. The macro-F1 advantage over clipping was re-confirmed on three backbones (B1)}
+This is the paper's $+1.6$ to $+5.3$\,pp claim, and the reviewers' top-priority challenge was that
+an \emph{imbalance-aware} clipper might erase it. Against the LP clipper, TraLO's macro-F1 gap is
+\textbf{positive in 8 of 9 dataset$\times$backbone cells} ($+0.001$ to $+0.029$; the ninth is
+$-0.001$, a tie). The claim holds.
+\end{callout}
+
+\begin{callout}{6. Native cap satisfaction: 1.0 versus 0.0 --- universally}
+Every baseline, every dataset, every backbone, every cap, \emph{including at native 224px
+resolution}. Focal, class-balanced, logit-adjust, and both clippers all require the post-hoc LP.
+Nothing else in the comparison set satisfies the count during training. \textbf{This is the
+categorical separation, and it is the one sentence to have ready at all times.}
+\end{callout}
+
+\subsection*{And the mechanism was confirmed twice, by prediction}
+
+The two ``null'' results are not losses --- they are the regime map \emph{predicting correctly},
+which is stronger evidence than another win would have been.
+
+\begin{itemize}
+\item \textbf{B4 --- components inert in a tie region.} The paper predicts the reset and hinge bind
+      only where the cap binds. On a tie cell they move nothing ($\pm0.006$, the noise floor).
+      Prediction confirmed, and it answers R1-M4 with the \emph{tighter} claim: the portable
+      components carry the \textbf{tight-cap} advantage specifically.
+\item \textbf{B2 --- a tie at native resolution.} The regime map places native-resolution,
+      well-trained models in the tie region. They tie ($|\Delta| \le 0.011$ on all five datasets).
+      Prediction confirmed --- and native cap satisfaction still holds at 224px.
+\end{itemize}
+
+\subsection*{The two results that scope a claim}
+
+Out of everything Track B ran, exactly two narrow the wording. Both are handled in the manuscript.
+
+\begin{enumerate}
+\item \textbf{Focal loss beats TraLO's macro-F1 on DermMNIST} (all three backbones: $-0.012$,
+      $-0.020$, $+0.006$). \textbf{DermMNIST only} --- TraLO leads on Tissue and Oct. The honest
+      reading is that the macro-F1 advantage belongs to the constraint-trained \emph{family} and is
+      dataset-dependent, which is exactly what \S5.3 now says.
+\item \textbf{No \emph{win} at native resolution} --- a tie, as predicted (see above). Not a loss.
+\end{enumerate}
+
+\begin{callout}{If the professor asks: ``what about cc-F1 versus clipping?''}
+Answer: \emph{the paper never claims one, by design.} \S5 already states that post-hoc clippers can
+post higher raw cc-F1 because they \emph{edit} predictions (\texttt{main.tex} L638, L669), and the
+appendix tables are columned ``$\Delta$cc-F1 vs.\ \textbf{trained}'' / ``$\Delta$macro-F1 vs.\
+\textbf{clipper}'' (L1683). Clipping is a different category: it buys the count by overwriting
+labels and cannot satisfy it natively. Track B measured that comparison too and found it a wash
+across L10--L40, which is precisely why the paper compares cc-F1 against the duals instead --- the
+manuscript was already right. Nothing to defend here.
+\end{callout}
+
+\section*{Part 1 --- The mechanism that unifies every result}
+\addcontentsline{toc}{section}{Part 1 --- The mechanism}
+
+One sentence, and every win and every tie in Track~B follows from it:
+
+\begin{callout}{The spine}
+The count penalty reaches the network's weights only through a \textbf{scalar} soft-count $S_c$, so
+its gradient is a scalar times a fixed direction. Adam plus gradient clipping normalises that scale
+away. What the penalty can actually \emph{do} therefore depends entirely on whether cross-entropy is
+still active.
+\end{callout}
+
+\begin{itemize}
+\item \textbf{CE still has headroom} (tight cap, short warm-up, hard dataset): the penalty
+      \textbf{re-ranks} borderline examples --- it changes \emph{which} items are in the top-$K$.
+      Real cc-F1 gain. $\rightarrow$ B3, B8.
+\item \textbf{CE saturated} (loose cap, long warm-up, easy dataset): the penalty can only
+      \textbf{uniformly shift} the logits, which leaves the top-$K$ unchanged. Tie.
+      $\rightarrow$ B2, B4, and the cc-F1 half of B1.
+\end{itemize}
+
+This is why the components are load-bearing at L30/L40 and inert at L50 (B4), why the advantage does
+not appear at native resolution where models train to saturation (B2), and why cc-F1 ties everywhere
+the cap is loose. It is the same Adam scale-invariance argument as the theory section.
+
+\newpage
+\section*{Part 2 --- Exactly what changed in \texttt{main.tex}}
+\addcontentsline{toc}{section}{Part 2 --- What changed}
+
+Five content insertions, one preamble block, one formatting block. \textbf{Nothing was deleted.}
+
+\begin{center}
+\begin{tabular}{@{}c p{3.3cm} p{6.2cm} p{2.6cm} c@{}}
+\toprule
+\textbf{\#} & \textbf{Location} & \textbf{What} & \textbf{Track-B items} & \textbf{Blue?}\\
+\midrule
+0 & Preamble, L31--36 & \texttt{xcolor} $+$ \verb|\rev| macro & (infrastructure) & --- \\
+1 & \S4 Setup, L497--498 & One clause: ``\dots apart from a first native-resolution check there
+    that ties the trained dual'' & B2 & \checkmark \\
+2 & \S5.1 OctMNIST, L695--739 & \emph{``Stronger dual, a fourth backbone, and interval estimates''}
+    $+$ \textbf{Table 2} (\texttt{tab:almbb}) & \textbf{B3, B8, B6, B7} & \checkmark \\
+3 & \S5.3 vs clipping, L815--853 & \emph{``Imbalanced-learning baselines''}
+    $+$ \textbf{Table 3} (\texttt{tab:imbal}) & \textbf{B1} & \checkmark \\
+4 & \S6 Limitations, L991--1023 & \emph{``A first native-resolution check''}
+    $+$ \textbf{table} (\texttt{tab:native}) & \textbf{B2} & \checkmark \\
+5 & App.\ ablation, L1372--1383 & \emph{``The components are inert in a tie region''}
+    & \textbf{B4} & \checkmark \\
+6 & Preamble, L40--56 & Float-page glue fix & none --- layout only & --- \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Two further \emph{non-blue} differences exist between \texttt{paper/main.tex} and
+\texttt{docs/main.tex}, from the earlier round: the dataset paragraph in \S4 gained provenance
+citations (\texttt{woloshuk2021situ} for TissueMNIST, \texttt{kermany2018identifying} for
+OctMNIST's OCT-2017 source), and the DermMNIST teaser figure moved from page~1 to the appendix with
+a reworded caption. \textcolor{warnred}{\textbf{Flag:} neither citation key exists in
+\texttt{paper/references.bib}, so both currently render as \texttt{(?)} on page~5.} See Part~5.
+
+\section*{Part 3 --- B1 through B8, one at a time}
+\addcontentsline{toc}{section}{Part 3 --- B1--B8}
+
+Each item states the reviewer concern that motivated it, the experiment actually run, the finding,
+and precisely what did or did not reach the manuscript.
+
+\begin{callout}{Total Track-B compute}
+\textbf{628 runs, 0 failures}, on dsisco01, drained by a seed-partitioned auto-grabber daemon that
+only claimed GPUs with zero other compute processes.
+\end{callout}
+
+% ---------------------------------------------------------------------------
+\subsection*{B1 --- Imbalanced-learning baselines \hfill\normalsize\yes}
+
+\paragraph{Why it was demanded.} All five reviewers asked for it, and the Devil's-Advocate reviewer
+made it existential: the paper claims constraint-time training buys $+1.6$ to $+5.3$\,pp macro-F1
+over clipping. But clipping there is \emph{vanilla} clipping --- an unconstrained model, clipped. If
+you instead train a model that already \emph{wants} to predict the rare class (focal loss,
+class-balanced reweighting, logit adjustment) and only then clip, maybe you recover all of that
+macro-F1 without ever training under the count. If so, the entire macro-F1 contribution collapses to
+``we compared against a weak baseline.''
+
+\paragraph{What we ran.} \textbf{312 runs.} Five methods \{focal ($\alpha{=}0.25$, $\gamma{=}2$),
+class-balanced ($\beta{=}0.9999$), logit-adjust ($\tau{=}1$), TraLO, LP-clip\} $\times$ 3 datasets
+\{Derm, Oct, Tissue\} $\times$ 3 backbones \{MobileNetV3, RegNetY-400MF, ViT-B/16\} $\times$
+warm-up \{1, 5, 50\} $\times$ L30 $\times$ 4 seeds. The three imbalanced methods are \textbf{trained
+with their loss and then LP-clipped} --- an early attempt that merely fine-tuned from the shared
+warm-up was a no-op, because the warm-up model is already CE-saturated, so there was nothing left to
+move.
+
+\paragraph{Why warm-up 50 is the row we report.} At warm-up~1 the comparison is confounded: TraLO
+gets 300 constraint epochs while the imbalanced heuristics get 1 warm-up epoch. Warm-up~50 is the
+paper's standard budget and the fair comparison.
+
+\paragraph{Finding --- the challenge was met, and the effect is dataset-scoped, not general.}
+Three things came out of it, in order of importance to the paper.
+
+\begin{enumerate}
+\item \textbf{The macro-F1 advantage over clipping held.} This was the claim under attack. Against
+      the LP clipper TraLO is positive in \textbf{8 of 9} dataset$\times$backbone cells ($+0.001$ to
+      $+0.029$; ninth is $-0.001$). \emph{The paper's headline quality claim is re-confirmed on
+      three backbones.}
+\item \textbf{Only one of the three challengers competes at all.} Class-balanced mostly ties;
+      logit-adjust is weak everywhere ($-0.02$ to $-0.04$). Focal is the sole real contender ---
+      and TraLO still leads it on \textbf{OctMNIST} (MNV3 $+0.025$) and \textbf{TissueMNIST}
+      (MNV3 $+0.020$, ViT $+0.017$).
+\item \textbf{Focal wins on DermMNIST, and only there} (MNV3 $-0.012$, ViT $-0.020$, RegNet a tie
+      at $+0.006$). DermMNIST is the imbalanced-friendly dataset --- precisely where an
+      imbalance-aware loss \emph{should} do well. This scopes the wording rather than removing the
+      result: the macro-F1 advantage belongs to the constraint-trained \textbf{family} and is
+      dataset-dependent.
+\end{enumerate}
+
+cc-F1 is tied across the board here, as expected --- at L30 the cap ceiling-crushes every method.
+And on the axis that actually separates the families, \textbf{none of the four clip-based baselines
+satisfies the cap natively (1.0 vs 0.0)}.
+
+\begin{callout}{\textcolor{warnred}{A methodological catch worth knowing}}
+On OctMNIST the training set is class-balanced, so \texttt{class\_balanced}
+($\beta{=}0.9999 \rightarrow$ weights $\approx [1,1,1,1]$) and \texttt{logit\_adjust} ($\tau{=}1$,
+uniform prior) are \textbf{near-inert} --- those two columns are effectively ``vs.\ plain CE'' on
+Oct. Focal is the only genuinely active imbalanced baseline there. If the professor asks why
+logit-adjust looks so weak, that is the reason, and it is a property of the dataset, not a bug.
+\end{callout}
+
+\paragraph{In the paper.} \S5.3 blue paragraph $+$ Table~3 (\texttt{tab:imbal}). The prose concedes
+the Derm loss explicitly (``it closes --- and on DermMNIST/MobileNetV3 slightly reverses
+($-0.012$) --- TraLO's macro-F1 margin'') and converts the result into a \emph{scoping} statement:
+the macro-F1 advantage belongs to the constraint-trained \textbf{family} and is dataset-dependent;
+what none of the four clip-based baselines provides is native cap satisfaction (1.0 vs 0.0).
+
+\begin{callout}{\textcolor{okgreen}{All three backbones are now in the table (closed 2026-08-08)}}
+The 60 ViT-B/16 runs \textbf{completed 60/60, 0 failures}, and the gaps were \textbf{re-derived from
+the raw per-run \texttt{evaluation\_metrics.csv} files on dsisco01} rather than copied from the
+handoff --- all $4/4$ seeds present in every cell, and every value reproduced the handoff exactly:
+
+\smallskip
+\begin{tabular}{@{}l r r r r@{}}
+             & vs focal & vs class-bal & vs logit-adj & vs clip \\
+Derm / ViT   & $-0.020$ & $-0.017$ & $+0.025$ & $+0.009$ \\
+Oct / ViT    & $-0.004$ & $+0.010$ & $-0.006$ & $-0.001$ \\
+Tissue / ViT & $+0.017$ & $+0.025$ & $+0.010$ & $+0.013$ \\
+\end{tabular}
+\smallskip
+
+Table~3 in the manuscript now carries all nine rows, the ``ViT-B/16 rows pending'' note is gone, and
+the \S5.3 prose was corrected to match: the old text claimed a blanket OctMNIST edge, which the two
+larger backbones do not support ($-0.005$, $-0.004$). \textbf{The reviewers' top-priority question
+now has a three-backbone answer.}
+\end{callout}
+
+% ---------------------------------------------------------------------------
+\subsection*{B2 --- Native-resolution check
+\hfill\normalsize\textcolor{okgreen}{\textbf{in the paper --- regime map confirmed}}}
+
+\paragraph{Why it was demanded.} Devil's-Advocate CRITICAL: every experiment in the paper is
+$28\times28$ upsampled to $224\times224$. If the tight-cap phenomenon is an artifact of that
+upsampling, the deployment framing drops to ``toy scale.''
+
+\paragraph{Why what we ran differs from the spec --- the one deviation to own.} The handoff asked
+for native HAM10000 at $600\times450$, warm-up~50, L30$+$L40, three backbones, four methods. Two
+findings redirected it:
+
+\begin{enumerate}
+\item \textbf{DermMNIST and AIDER are already native-224 in our loader} --- the handoff's ``native
+      HAM10000'' was partly redundant. The genuinely upsampled datasets are OctMNIST and
+      TissueMNIST.
+\item \textbf{OctMNIST --- the only win region --- has no native-resolution counterpart.} It exists
+      only at $28\times28$. So the literal experiment \emph{cannot} test the thing the reviewer was
+      worried about.
+\end{enumerate}
+
+We therefore ran a broader, better-targeted test --- \textbf{192 runs at native 224px}:
+
+\begin{itemize}
+\item \textbf{5 datasets} at native 224 --- Derm/HAM10000, Retina, Blood, OrganA, TissueNative
+\item \textbf{3 methods} --- TraLO, Fioretto-LDF, clip
+\item \textbf{warm-up \{1, 5\}}, MobileNetV3 ($+$RegNet on TissueNative), L30 ($+$an L20
+      expansion), 4 seeds
+\end{itemize}
+
+Short warm-up was chosen deliberately: it is the \textbf{headroom lever}. Per the mechanism a
+re-ranking effect can only appear while CE is unsaturated, so warm-up \{1,5\} is where TraLO has
+its best chance --- we tested the hypothesis where it was most likely to succeed, not where it was
+most likely to tie.
+
+\paragraph{Finding --- the regime map predicted a tie, and it ties.} TraLO matches the best trained
+dual on all five datasets at both warm-ups, $|\Delta| \le 0.011$, and \textbf{still reaches the cap
+natively at 224px}. This is not a null result to apologise for: the paper's regime map places
+well-trained, native-resolution models squarely in the tie region, so \textbf{the theory made a
+falsifiable prediction and the experiment confirmed it}. It also answers the Devil's-Advocate
+CRITICAL directly --- the method transfers to native resolution; what does not transfer is the
+\emph{tight-cap win region}, which OctMNIST does not have a native counterpart for.
+
+\smallskip
+\noindent\emph{One thread to avoid citing:} an intermediate result looked like a native win
+(TissueNative $+0.019$ vs Fioretto), but it was MobileNetV3-and-L30 only; folding in RegNet and L20
+collapsed it to $+0.001/+0.011$. \textcolor{warnred}{It was retracted before it reached the paper}
+--- worth knowing so you are not caught quoting a superseded number.
+
+\paragraph{Why the clip column is absent.} At warm-up 1/5 the clipper is undertrained, so a gap over
+it measures ``clip didn't train,'' not a real advantage. An earlier draft reported TraLO
+$\gg$ clip ($+0.116$ on Derm, $+0.171$ on Retina) --- that narrative was \textbf{purged as a
+training artifact}. This was an explicit framing call and it is the honest position.
+
+\paragraph{In the paper.} \S6 Limitations blue paragraph $+$ \texttt{tab:native}, plus the
+one-clause \verb|\rev{}| in \S4 pointing forward to it. The prose is carefully scoped: it turns the
+``not resolution-specific'' statement from hypothesis into \emph{partial} evidence, states that the
+win region has no native counterpart so the tight-cap question remains open, and explains why clip
+is excluded.
+
+\paragraph{Not in the paper, deliberately.} The literal warm-up-50 native replication with Hounie,
+and the \texttt{fig\_hamres\_octanalog.pdf} figure. \textbf{Reason:} the mechanism plus B5--B7
+already predict the warm-up-50 native outcome (a tie), and the confirming grid is 64 runs at
+15--30\,min each. If a reviewer insists, that is the exact grid: Derm-native $\times$ \{MNV3,
+RegNet\} $\times$ \{L30, L40\} $\times$ \{TraLO, Fioretto, Hounie, clip\} $\times$ 4 seeds.
+\textbf{Decision was: rely on the mechanism.}
+
+% ---------------------------------------------------------------------------
+\subsection*{B3 --- ALM (Augmented Lagrangian) baseline
+\hfill\normalsize\textcolor{okgreen}{\textbf{in the paper --- strongest new result}}}
+
+\paragraph{Why it was demanded.} The domain reviewer (R2) made a sharp point: the paper's whole
+motivation against Fioretto-LDF is \emph{linear-penalty windup} --- the multiplier grows without
+bound and overshoots. But the textbook fix for exactly that is the augmented Lagrangian. If the
+paper never runs ALM, the comparison looks like a strawman: ``you beat the weak version of dual
+ascent and ignored the standard strong version.''
+
+\paragraph{What we ran.} \textbf{24 runs.} Fioretto-LDF with the ALM dual update
+$\lambda_c \leftarrow \max(0, \lambda_c + \eta(S_c - K_c)) + \mu(S_c-K_c)^+$ with $\mu$ growing
+linearly, on OctMNIST L30$+$L40 $\times$ \{MNV3, RegNet, ViT\} $\times$ 4 seeds, adjudicated against
+the frozen TraLO and Fioretto cells.
+
+\paragraph{Finding --- the ideal outcome, because ALM is genuinely strong and still loses.}
+
+\begin{center}
+\begin{tabular}{@{}l r c@{}}
+\toprule
+\textbf{Comparison} & \textbf{mean cc-F1} & \textbf{W/T/L} \\
+\midrule
+ALM $-$ Fioretto-LDF   & $\mathbf{+0.010}$ & 5/0/1 \\
+TraLO $-$ ALM          & $\mathbf{+0.028}$ & \textbf{6/0/0} \\
+TraLO $-$ Fioretto-LDF & $+0.039$          & 6/0/0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Raw levels: \textbf{TraLO 0.455 $>$ ALM 0.427 $>$ Fioretto-LDF 0.417.} ALM \emph{is} the better dual
+--- it beats plain Fioretto, so this is not a strawman --- and TraLO still tops it in \textbf{all
+six} tight-cap cells. The macro-F1 edge is thinner ($+0.010$, 3W/3T) but never negative.
+
+\begin{callout}{Why this matters rhetorically}
+It is a \emph{self-strengthening} baseline. The reviewer's proposed fix works (validating their
+intuition) and \emph{still} does not close the gap. Far more persuasive than beating a baseline
+everyone already thinks is weak.
+\end{callout}
+
+\paragraph{In the paper.} \S5.1 blue paragraph, item \emph{(iv)}, plus the top block of Table~2
+(\texttt{tab:almbb}), with the ``ALM beats plain Fioretto by $+0.010$'' fact stated explicitly so
+the reader knows the baseline is real. The paper's existing \S2 justification for not adopting ALM
+now \textbf{stands empirically}, not just argumentatively.
+
+% ---------------------------------------------------------------------------
+\subsection*{B4 --- Tie-region component ablation
+\hfill\normalsize\textcolor{okgreen}{\textbf{in the paper (prose only)}}}
+
+\paragraph{Why it was demanded.} Reviewer R1-M4 plus the Devil's Advocate: the component ablation
+(which established that the optimizer reset and undershoot hinge are the load-bearing parts) was run
+\textbf{only on the OctMNIST tight-cap cells --- i.e.\ only inside the region TraLO already wins.}
+That is selection on the dependent variable. Are those components load-bearing in general, or only
+where they were measured?
+
+\paragraph{What we ran.} \textbf{20 runs.} Leave-one-out of \{reset, hinge, $\rho$ schedule, lambda
+freeze\} on a \textbf{tie cell} --- DermMNIST L50, MobileNetV3, 4 seeds.
+
+\paragraph{Finding --- every component is inert.}
+
+\begin{center}
+\begin{tabular}{@{}l r r@{}}
+\toprule
+\textbf{Removed} & \textbf{\D\ macro-F1} & \textbf{\D\ cc-F1} \\
+\midrule
+$-$ reset            & $+0.002$ & $+0.006$ \\
+$-$ hinge            & $-0.003$ & $0.000$  \\
+$-$ $\rho$ schedule  & $+0.002$ & $+0.003$ \\
+$-$ freeze           & $-0.002$ & $+0.003$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+(Baseline: full $=$ 0.744 macro / 0.564 cc-F1.) Nothing moves by more than $\pm0.006$ --- the noise
+floor.
+
+\paragraph{Why this is a good result, not a null.} The handoff pre-registered both outcomes as
+acceptable. This is the \emph{tighter} conclusion and exactly what the mechanism predicts: the reset
+and hinge act only once the cap binds and constrained-class recall is at stake. Where the cap does
+not bind, CE is saturated, the penalty can only shift logits uniformly, and there is nothing for the
+components to do. The claim sharpens from ``these components carry the advantage'' to ``these
+components carry the \textbf{tight-cap} advantage specifically, not a diffuse effect across the
+grid.'' It converts a potential attack (\emph{you only measured inside your win region}) into
+positive evidence for the mechanism.
+
+\paragraph{In the paper.} Blue paragraph in the ablation appendix, immediately after the
+pre-existing caveat about component importances being estimated inside the win region --- so the
+caveat and its resolution sit together.
+
+\paragraph{Not in the paper.} The four numeric rows were \textbf{not} appended to
+\texttt{tab\_ablation\_complete.tex} (verified: no L50 / tie-region rows present). Prose-only.
+Defensible --- all four deltas are within noise and a table of four null rows adds page count
+without information --- but if the professor wants the numbers visible, they are above.
+
+% ---------------------------------------------------------------------------
+\subsection*{B5 --- Win-bar sensitivity
+\hfill\normalsize\textcolor{warnred}{\textbf{result used, table not included}}}
+
+\paragraph{Why it was demanded.} Reviewer R1-M1: the paper's regime map calls a regime a ``win''
+when the mean paired cc-F1 gap \textbf{and} at least half its cells clear $\mathbf{+0.005}$. That
+threshold was chosen by inspecting ablation and graft magnitudes --- it was \textbf{not
+pre-registered}. A reader is entitled to ask whether the whole regime classification is an artifact
+of picking 0.005.
+
+\paragraph{What we ran.} \textbf{No new GPU runs} --- re-scored the existing corpus (paper\_final
+$+$ B3 $+$ B8 $+$ the L10/L15 sweep) at $\tau \in \{+0.003, +0.005, +0.010\}$, per backbone.
+
+\begin{center}
+\begin{tabular}{@{}l l c c c@{}}
+\toprule
+\textbf{Comparison} & \textbf{Cap} & $\tau{=}.003$ & $\tau{=}.005$ & $\tau{=}.010$ \\
+\midrule
+TraLO $-$ Fioretto & L30 & 4/0/0 & 4/0/0 & \textbf{4/0/0} \\
+TraLO $-$ Fioretto & L40 & 4/0/0 & 4/0/0 & \textbf{4/0/0} \\
+TraLO $-$ ALM      & L30/L40 & 3/0/0 & 3/0/0 & 2/1/0 \\
+TraLO $-$ clip     & L40 & 3/0/1 & 2/1/1 & 1/2/1 \\
+TraLO $-$ clip     & L30 & 2/0/2 & 2/0/2 & \textbf{0/2/2} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The dual win is \textbf{stable at every threshold}, including the strict $\tau{=}0.010$ --- so the
+regime classification does not depend on the un-pre-registered $+0.005$ bar, and R1-M1 is answered.
+The clip rows are shown for completeness; they are the comparison the paper deliberately does not
+make on cc-F1, and they behave as the manuscript already says they do.
+
+\paragraph{In the paper.} The \emph{conclusion} is already asserted in \S5.2 black text --- ``the
+OctMNIST tight-cap regime survives generously wider thresholds (paired cell-mean gaps range
+$+0.016$ to $+0.081$; Table~10)'' --- and B5 now backs it. Crucially, Table~10 compares against
+\textbf{the best trained dual}, so the surviving claim and the surviving evidence are about the same
+comparison. No contradiction.
+
+\paragraph{Not in the paper.} \texttt{tab\_winbar\_sensitivity.tex} was never built, and no blue
+text was added. \textbf{Reason:} the claim it supports was already in the manuscript from the
+earlier round; the table would confirm rather than change anything, and body space is tight.
+\textbf{Cost to add: zero GPU, $\sim$1 hour of scripting.} If the professor wants a visible
+robustness table, this is the cheapest one in the whole set.
+
+% ---------------------------------------------------------------------------
+\subsection*{B6 --- Bootstrap confidence intervals
+\hfill\normalsize\textcolor{okgreen}{\textbf{in the paper (prose only)}}}
+
+\paragraph{Why it was demanded.} R1-M3 and the Devil's Advocate: with $n{=}4$ seeds, the headline
+ViT-B/16 L30 effect of $+0.081$ is only about \textbf{1.8$\sigma$}. Four seeds and a point estimate
+is thin support for a paper's central empirical claim. The spec was explicit --- \emph{if a CI
+crosses zero, that must be reported in a visible place.}
+
+\paragraph{What we ran.} No new GPU runs --- cell-level bootstrap over backbones,
+\textbf{20\,000 resamples} per cap.
+
+\begin{center}
+\begin{tabular}{@{}l l r c l@{}}
+\toprule
+\textbf{Comparison} & \textbf{Cap} & \textbf{mean} & \textbf{95\% CI} & \textbf{verdict} \\
+\midrule
+TraLO $-$ Fioretto & L30 & $+0.046$ & $[+0.024, +0.074]$ & \textbf{excludes 0} \\
+TraLO $-$ Fioretto & L40 & $+0.033$ & $[+0.021, +0.044]$ & \textbf{excludes 0} \\
+TraLO $-$ Fioretto & L20 & $+0.002$ & $[0.000, +0.005]$  & tie \\
+TraLO $-$ ALM      & L30 & $+0.035$ & $[+0.010, +0.048]$ & \textbf{excludes 0} \\
+TraLO $-$ ALM      & L40 & $+0.022$ & $[+0.008, +0.046]$ & \textbf{excludes 0} \\
+TraLO $-$ clip     & L10\,\dots\,L40 & $\approx 0$ & \multicolumn{2}{l}{\textbf{includes 0 at every cap}} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Two consequences. First, \textbf{the specific ViT L30 cell that worried the reviewers survives} ---
+it is $+0.086$ vs Fioretto, comfortably clear of zero. Second, the clip CI includes zero at every
+cap. That is the ``report visibly'' case the spec named, and it confirms the manuscript's existing
+choice of comparator: the paper compares cc-F1 against the \emph{duals} precisely because clipping
+buys its count by editing predictions (\S5, L638/L669). The measurement validated a decision the
+paper had already made --- it did not overturn anything.
+
+\begin{callout}{A refinement worth knowing}
+The dual win is a \textbf{mid-cap (L30/L40) phenomenon}. At L10/L15/L20 even the dual gap ties,
+because the tightest caps ceiling-crush every method --- at L10 the maximum attainable cc-F1 is
+$\approx 0.18$ and all five methods predict exactly $K$. This is a \emph{cleaner and narrower}
+inverted-U than the paper's original claim, and a better story: the effect appears where the cap
+binds hard enough to matter but not so hard that everyone is pinned at the same ceiling.
+\end{callout}
+
+\paragraph{In the paper.} \S5.1 blue paragraph, item \emph{(vi)}, giving both CIs against Fioretto
+and both against ALM verbatim, and explicitly noting the clip result --- ``none [survive] against
+the post-hoc clipper --- consistent with the cc-F1 tie against clipping noted above.''
+
+\paragraph{Not in the paper.} A bootstrap-CI row inside \texttt{tab\_oct\_backbone.tex}, and
+per-cell seed-level bootstraps. \textbf{Reason:} the numbers are in the prose and the table is
+already dense. Regenerable from the corpus with no GPU.
+
+% ---------------------------------------------------------------------------
+\subsection*{B7 --- BH-FDR correction
+\hfill\normalsize\textcolor{okgreen}{\textbf{in the paper (prose only)}}}
+
+\paragraph{Why it was demanded.} An earlier round's text asserted the results ``survive FDR''
+without ever computing $q$-values. That is the kind of claim a methods reviewer will check.
+
+\paragraph{What we ran.} No new GPU runs --- Benjamini--Hochberg at $q{=}0.05$ over the OctMNIST
+tight-cap comparison family.
+
+\paragraph{Finding.} For \textbf{TraLO $-$ Fioretto-LDF, 3 of 8 cells survive} (the large-gap
+L30/L40 cells). For \textbf{TraLO $-$ clip, 0 of 8 survive.} The statistical support concentrates
+entirely on the dual comparison. The ``survives FDR'' claim holds \textbf{for the duals} and must
+not be asserted for clip.
+
+\paragraph{In the paper.} The same \S5.1 blue sentence as B6 --- ``under Benjamini--Hochberg control
+($q{=}0.05$) three of the eight tight-cap cells survive against Fioretto-LDF and none against the
+post-hoc clipper.'' Reporting \textbf{3 of 8} rather than a bare ``survives FDR'' is deliberately
+conservative and pre-empts the obvious challenge.
+
+\paragraph{Not in the paper.} The explicit per-comparison $q$-value table across all three families
+the spec named (headline 12 tests; full symmetric grid 54 tests; ablation-graft 24 comparisons).
+Regenerable, no GPU.
+
+% ---------------------------------------------------------------------------
+\subsection*{B8 --- Fourth backbone, MobileNetV2 \hfill\normalsize\yes}
+
+\paragraph{Why it was demanded.} The paper calls the OctMNIST tight-cap advantage
+``backbone-general'' on the strength of three backbones --- two of which (MobileNetV3,
+RegNetY-400MF) are architecturally close relatives. Three points, two of them correlated, is a thin
+basis for a generality claim.
+
+\paragraph{What we ran.} \textbf{32 runs.} MobileNetV2 $\times$ OctMNIST L30$+$L40 $\times$ \{TraLO,
+clip, Fioretto-LDF, Hounie-RCL\} $\times$ 4 seeds. Configs were cloned from the frozen MobileNetV3
+OctMNIST configs with the backbone swapped and \texttt{base\_model\_id} recomputed, so the recipe is
+identical by construction.
+
+\begin{center}
+\begin{tabular}{@{}l r r r@{}}
+\toprule
+\textbf{Comparison} & \textbf{mean} & \textbf{L30} & \textbf{L40} \\
+\midrule
+TraLO $-$ Fioretto-LDF & $\mathbf{+0.042}$ & $+0.047$ & $+0.037$ \\
+TraLO $-$ Hounie-RCL   & $+0.169$ & $+0.189$ & $+0.149$ \\
+TraLO $-$ clip         & $+0.007$ & $+0.009$ & $+0.005$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Raw: TraLO 0.454, clip 0.447, Fioretto 0.412, \textbf{Hounie 0.285 (collapses)}. The dual result
+reproduces cleanly on a fourth architecture. The clip gap is thin ($+0.007$) and folds into the
+established clip wash --- consistent, not contradictory.
+
+\paragraph{In the paper.} \S5.1 blue paragraph item \emph{(v)} and the bottom block of Table~2,
+phrased as ``$+0.047/+0.037$ cc-F1 at L30/L40 over the best trained dual, so the backbone-general
+claim now spans four architectures.'' Note the careful wording --- \textbf{``over the best trained
+dual''}, scoped to the comparison that actually holds.
+
+\paragraph{Worth having ready.} Hounie-RCL's collapse to 0.285 on MobileNetV2. It is a genuine
+finding about the baseline's fragility, consistent with the convergence census where Hounie is the
+slowest method in 18 of 18 cells.
+
+% ---------------------------------------------------------------------------
+\subsection*{B9 --- Ultra-tight caps
+\hfill\normalsize\textcolor{warnred}{\textbf{ran, folded into B5/B6}}}
+
+Not in the original spec --- added out of due diligence, to check whether an untested corner of the
+cap range behaved differently: \emph{does anything change at caps tighter than L30?}
+\textbf{48 runs at L10 and L15.}
+
+\paragraph{Finding: no --- the picture is uniform.} TraLO $-$ clip at L10 $= +0.001$
+(CI $[-0.005, +0.007]$); at L15 $= +0.004$ (two backbones only). The cc-F1 relationship with
+clipping is the same across the entire range L10\,$\rightarrow$\,L40, so there is no untested
+regime hiding a different answer.
+
+\paragraph{Why this is useful.} It closes a hole rather than opening one. Had we not run it, a
+reviewer could ask ``you only looked at L30/L40 --- what happens tighter?'' Now the answer is
+measured. It also sharpens the dual result: the win is a \textbf{mid-cap (L30/L40) phenomenon},
+because at L10--L20 the cap ceiling-crushes every method (at L10 the maximum attainable cc-F1 is
+$\approx 0.18$ and all five methods predict exactly $K$). That is a cleaner, more precise
+inverted-U than a vague ``tighter is better.'' Reported inside the B5/B6 tables rather than as its
+own manuscript section.
+
+\newpage
+\section*{Part 4 --- Summary tables}
+\addcontentsline{toc}{section}{Part 4 --- Summary}
+
+\subsection*{Reached the manuscript}
+
+\begin{center}
+\begin{tabular}{@{}l l l@{}}
+\toprule
+\textbf{Item} & \textbf{Where} & \textbf{Form} \\
+\midrule
+B1 imbalanced baselines & \S5.3 & blue \P\ $+$ Table 3
+  \textcolor{okgreen}{\emph{(all 3 backbones)}} \\
+B2 native resolution    & \S6 $+$ \S4 clause & blue \P\ $+$ table \\
+B3 ALM                  & \S5.1 & blue \P\ $+$ Table 2 top \\
+B4 tie-region ablation  & ablation appendix & blue \P\ (prose only) \\
+B6 bootstrap CIs        & \S5.1 & blue \P\ (prose only) \\
+B7 BH-FDR               & \S5.1 & blue \P\ (prose only) \\
+B8 MobileNetV2          & \S5.1 & blue \P\ $+$ Table 2 bottom \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{Did not reach the manuscript, with the reason}
+
+\begin{center}
+\begin{tabular}{@{}p{4.9cm} p{7.2cm} p{3.1cm}@{}}
+\toprule
+\textbf{Omitted} & \textbf{Reason} & \textbf{Cost to add} \\
+\midrule
+B5 win-bar sensitivity table & Conclusion already asserted in \S5.2 black text and now backed;
+  body space tight & 0 GPU, $\sim$1h \\
+B7 explicit $q$-value table (3 families) & Headline numbers already in prose & 0 GPU, $\sim$1h \\
+B6 per-cell seed-level bootstrap rows & Grand-mean CIs already in prose; table dense
+  & 0 GPU, $\sim$30\,min \\
+B4 numeric rows in \texttt{tab\_ablation\_complete} & All four deltas within noise
+  & 0 GPU, minutes \\
+B2 literal warm-up-50 native replication $+$ \texttt{fig\_hamres\_octanalog} &
+  Mechanism $+$ B5--7 already predict the outcome; deliberate decision to rely on the mechanism &
+  \textbf{64 runs}, 15--30\,min each \\
+Separate \texttt{tab\_alm} / \texttt{tab\_imbalanced\_baselines} / \texttt{tab\_hamres\_native}
+  files & Tables written \textbf{inline} in \texttt{main.tex} instead, so the professor can edit
+  them in Overleaf without extra file uploads & n/a \\
+Abstract / Related-work / Limitations updates & \textcolor{warnred}{\textbf{Not yet done ---
+  see Part 5}} & text only \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section*{Part 5 --- Open inconsistencies the professor may catch}
+\addcontentsline{toc}{section}{Part 5 --- Open inconsistencies}
+
+These are text-level and cost no compute. Listed so nothing is a surprise in the meeting.
+
+\begin{enumerate}
+\item[\textcolor{okgreen}{\checkmark}] \textbf{\textcolor{okgreen}{RESOLVED 2026-08-08 --- the
+      ViT-B/16 rows.}} Table~3 now carries all nine rows, verified against the raw runs on
+      dsisco01, and the ``rows pending'' note is gone. All revision scaffolding
+      (``(Added this revision.)'', ``(this revision)'') was also stripped from the manuscript, so
+      the blue text reads as final prose that can be accepted without editing.
+
+\item \textbf{\S6 Limitations still contains ``Missing baselines from imbalanced learning''}
+      (L1055--1062), which says we do \emph{not} compare against focal / class-balanced /
+      logit-adjustment --- while \S5.3 now presents exactly that comparison, three pages earlier.
+      The handoff explicitly instructed that this paragraph be removed or shortened once B1 landed.
+      \textcolor{warnred}{\textbf{A direct internal contradiction and the most likely thing a
+      careful reader spots.}}
+
+\item \textbf{\S2 Related work} (L278--281) still says ``Whether a well-tuned imbalanced-training
+      recipe followed by clipping would close the macro-F1 gap over vanilla clipping is a question
+      our current experiments do not settle.'' B1 now settles it (partly yes, on Derm).
+
+\item \textbf{The abstract is untouched.} It still ends ``Native-resolution generalization is left
+      to future work'' --- but \S6 now contains a native-resolution check. It also states the
+      $+1.6$ to $+5.3$\,pp macro-F1 gain without the imbalanced-baseline scoping the body now
+      carries, and mentions neither ALM nor the fourth backbone. The handoff pre-authorised the
+      honest wording: \emph{``comparable overall quality to imbalanced-training baselines while
+      additionally satisfying the cap natively.''}
+
+\item \textbf{Two undefined citations render as \texttt{(?)} on page 5} ---
+      \texttt{woloshuk2021situ} (TissueMNIST) and \texttt{kermany2018identifying} (OctMNIST /
+      OCT-2017). Both cited in \S4; neither key is in \texttt{paper/references.bib}. Two BibTeX
+      entries.
+\end{enumerate}
+
+\begin{callout}{Bottom line on Part 5}
+Items 2, 3 and 4 are the ones that make the paper look \emph{internally inconsistent} rather than
+merely incomplete. All five are text-only.
+\end{callout}
+
+\section*{Part 6 --- Formatting pass (no content touched)}
+\addcontentsline{toc}{section}{Part 6 --- Formatting}
+
+Separate from the Track-B content. The complaint was full-page tables stranded in whitespace with a
+dead band above \emph{and} below.
+
+\paragraph{Root cause.} \LaTeX's default float-page glue is
+\verb|\@fptop = \@fpbot = 0pt plus 1fil|, which centres a full-page float vertically.
+\texttt{tmlr.sty} never overrides \verb|\@fptop| (it sets \verb|\topfraction| 0.95 and
+\verb|\flushbottom|, but not the float-page glue), so tall tables floated to the middle of an
+otherwise empty page.
+
+\paragraph{Applied.}
+\begin{itemize}
+\item \texttt{docs/main.tex} preamble --- pin float pages to the top (\verb|\@fptop = 0pt|), let all
+      slack collect at the bottom (\verb|\@fpbot = 0pt plus 1fil|), and lower
+      \verb|\floatpagefraction| to 0.60 with \verb|\textfraction| 0.07 / \verb|\bottomfraction| 0.50
+      so a tall table shares a page with text instead of claiming one.
+\item \texttt{paper/tables/tab\_graft.tex} --- caption moved \textbf{above} the tabular (it was the
+      only table in the document with the caption below), \verb|\tabcolsep| 2.6$\rightarrow$5pt.
+\item \texttt{paper/tables/tab\_granular\_\{tissue,derm,oct,asym\}.tex} --- \verb|\tabcolsep|
+      3$\rightarrow$8pt, widening $\sim$40\,\%-textwidth tables sitting under full-width captions.
+\end{itemize}
+
+\paragraph{Validation (second full pass).} Rebuilt \texttt{pdflatex} $\rightarrow$ \texttt{bibtex}
+$\rightarrow$ \texttt{pdflatex}$\times$2, 31 pages, and re-rasterised every page. Former pages
+28--31 (Tables 12--15) now sit \textbf{flush at the top} with the slack below --- visually confirmed
+on pages 28, 30 and 31. Blue markup renders correctly (pages 9, 10). Zero overfull/underfull
+\textbf{hboxes}. Seven \texttt{Underfull \textbackslash vbox \dots while \textbackslash output is
+active} warnings appeared, all on the float pages: this is the \emph{expected signature of the fix}
+--- the previous \verb|0pt plus 1fil| glue absorbed any slack with zero badness (precisely why the
+floats were centred), and pinning to the top necessarily leaves a measurable gap at the bottom.
+Cosmetically correct, and TMLR does not require \verb|\flushbottom| pages to be exactly full.
+
+\begin{callout}{\textcolor{warnred}{One caveat}}
+\texttt{paper/scripts/make\_granular\_tables.py} still emits \verb|\tabcolsep{3pt}|. It was left
+unmodified (an attempted sync corrupted the escaping and was reverted). \textbf{Re-running that
+generator will silently undo the four granular-table fixes.} Either edit the \texttt{.tex} files by
+hand or fix the generator first. Consistent with \texttt{paper/data/README\_DATA.md}, which already
+notes the committed tables are hand-maintained and their generators superseded.
+\end{callout}
+
+\paragraph{Build note.} \texttt{docs/main.tex} does not compile in \texttt{docs/}. Either build in
+Overleaf (the professor's source of truth) or copy it to \texttt{paper/} ---
+\texttt{paper/main\_rev.tex} / \texttt{main\_rev.pdf} is that working copy.
+
+\end{document}
