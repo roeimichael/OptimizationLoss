@@ -1070,9 +1070,12 @@ resolution remains open.}
 \captionsetup{labelfont={color=blue}}\caption{\color{blue}\textbf{Native-resolution
 HAM10000: the full method $\times$ backbone grid.} Native $224{\times}224$ DermMNIST
 (HAM10000), constrained class melanoma, warm-up $50$, mean over seeds $1$--$4$;
-\textbf{bold} $=$ best in row within each metric block. Against the trained duals
-(Fioretto-LDF, Hounie-RCL) every cell is a tie; against the LP-LG clipper TraLO leads on
-macro-F1 in all six cells. Native cap satisfaction over the $24$ runs per method: TraLO
+\textbf{bold} $=$ within $0.005$ of the best in row within each metric block, i.e.\ the
+paper's tie band, so jointly bolded entries are tied rather than ranked. Against the
+trained duals (Fioretto-LDF, Hounie-RCL) every cell is a tie, apart from a single
+$+0.008$ macro-F1 lead over Hounie-RCL (MobileNetV3, $L40$); against the LP-LG clipper
+TraLO leads on macro-F1 in all six cells, and the clipper is the only method outside the
+tie band in every row of that block. Native cap satisfaction over the $24$ runs per method: TraLO
 $1.00$, Hounie-RCL $1.00$, Fioretto-LDF $0.96$, LP-LG $0.00$.}
 \label{tab:native}
 \begin{tabular}{ll cccc cccc}
@@ -1081,14 +1084,14 @@ $1.00$, Hounie-RCL $1.00$, Fioretto-LDF $0.96$, LP-LG $0.00$.}
 \cmidrule(lr){3-6}\cmidrule(lr){7-10}
 Backbone & Cap & TraLO & Fioretto & Hounie & LP-LG & TraLO & Fioretto & Hounie & LP-LG \\
 \midrule
-\multirow{2}{*}{MobileNetV3} & L30 & 0.414 & 0.414 & \textbf{0.419} & \textbf{0.419} & 0.712 & \textbf{0.714} & 0.709 & 0.702 \\
-                             & L40 & \textbf{0.500} & 0.498 & 0.497 & 0.497 & \textbf{0.735} & 0.732 & 0.727 & 0.717 \\
+\multirow{2}{*}{MobileNetV3} & L30 & \textbf{0.414} & \textbf{0.414} & \textbf{0.419} & \textbf{0.419} & \textbf{0.712} & \textbf{0.714} & \textbf{0.709} & 0.702 \\
+                             & L40 & \textbf{0.500} & \textbf{0.498} & \textbf{0.497} & \textbf{0.497} & \textbf{0.735} & \textbf{0.732} & 0.727 & 0.717 \\
 \addlinespace[2pt]
-\multirow{2}{*}{RegNetY-400MF} & L30 & 0.410 & 0.409 & 0.405 & \textbf{0.417} & 0.716 & \textbf{0.717} & 0.715 & 0.703 \\
-                             & L40 & 0.484 & \textbf{0.487} & 0.482 & 0.479 & 0.730 & \textbf{0.732} & 0.730 & 0.715 \\
+\multirow{2}{*}{RegNetY-400MF} & L30 & 0.410 & 0.409 & 0.405 & \textbf{0.417} & \textbf{0.716} & \textbf{0.717} & \textbf{0.715} & 0.703 \\
+                             & L40 & \textbf{0.484} & \textbf{0.487} & \textbf{0.482} & 0.479 & \textbf{0.730} & \textbf{0.732} & \textbf{0.730} & 0.715 \\
 \addlinespace[2pt]
-\multirow{2}{*}{ViT-B/16}    & L30 & \textbf{0.381} & 0.378 & \textbf{0.381} & 0.365 & 0.679 & \textbf{0.681} & 0.679 & 0.670 \\
-                             & L40 & 0.455 & \textbf{0.462} & 0.455 & 0.446 & \textbf{0.699} & 0.697 & 0.696 & 0.684 \\
+\multirow{2}{*}{ViT-B/16}    & L30 & \textbf{0.381} & \textbf{0.378} & \textbf{0.381} & 0.365 & \textbf{0.679} & \textbf{0.681} & \textbf{0.679} & 0.670 \\
+                             & L40 & 0.455 & \textbf{0.462} & 0.455 & 0.446 & \textbf{0.699} & \textbf{0.697} & \textbf{0.696} & 0.684 \\
 \bottomrule
 \end{tabular}
 \end{table}

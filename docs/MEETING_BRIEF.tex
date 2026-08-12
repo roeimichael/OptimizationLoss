@@ -1,0 +1,446 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage[colorlinks=true,linkcolor=black,urlcolor=blue]{hyperref}
+
+\definecolor{revblue}{rgb}{0,0,0.75}
+\definecolor{revred}{rgb}{0.75,0,0}
+\definecolor{boxgrey}{gray}{0.94}
+
+\titleformat{\section}{\large\bfseries}{\thesection.}{0.6em}{}
+\titlespacing{\section}{0pt}{14pt}{6pt}
+\titleformat{\subsection}{\bfseries}{}{0em}{}
+\titlespacing{\subsection}{0pt}{10pt}{3pt}
+
+\newsavebox{\calloutbox}
+\newenvironment{callout}[1]
+  {\par\medskip\noindent\begin{lrbox}{\calloutbox}%
+   \begin{minipage}{\dimexpr\linewidth-20pt\relax}%
+   \textbf{#1}\par\smallskip}
+  {\end{minipage}\end{lrbox}%
+   \setlength{\fboxsep}{10pt}%
+   \colorbox{boxgrey}{\usebox{\calloutbox}}\par\medskip}
+
+\setlist[itemize]{leftmargin=1.3em,itemsep=2pt,topsep=3pt}
+\newcommand{\blue}[1]{\textcolor{revblue}{#1}}
+
+\begin{document}
+
+\begin{center}
+{\LARGE\bfseries Meeting Brief}\\[3pt]
+{\large The blue revision of \emph{Two Portable Components for Meeting Hard
+Prediction Quotas}}\\[6pt]
+{\small Prepared 9 August 2026 \quad$\cdot$\quad read this one document; everything else is backup}
+\end{center}
+
+\vspace{4pt}
+\hrule
+\vspace{10pt}
+
+\section{What you are presenting, in four sentences}
+
+The manuscript is unchanged in substance: same claims, same headline numbers, same
+structure. What is new is a body of follow-up work (Track B, roughly 600 runs) that
+answers the open questions the paper itself flagged, and five insertions that fold those
+answers in. \blue{Every insertion is blue.} \textcolor{revred}{Every sentence the new work
+made obsolete is struck in red with a blue replacement beside it.} Your professor can read
+the paper start to finish and accept the revision without editing a word of his own text.
+
+\begin{callout}{The single most important fact to state up front}
+\texttt{paper/main.tex} --- the version he wrote --- is byte-identical to what he sent.
+The revision lives in a separate file. This was verified mechanically, not by eye: a
+checker strips every blue and red character and compares the remainder to his original at
+character level. It reports that not one character of his prose was added, removed, or
+altered. The only structural change is one figure relocated from \S1 to Appendix E.
+\end{callout}
+
+\section{The five blue insertions}
+
+\begin{enumerate}[leftmargin=1.5em]
+\item \textbf{\S4, one clause} --- notes that the native-resolution question is no longer
+entirely deferred. Sets up insertion 4.
+
+\item \textbf{\S5.1, one paragraph + Table 2} --- three robustness checks:
+a stronger dual baseline (ALM), a fourth backbone (MobileNetV2), and interval estimates
+(bootstrap CIs, BH-FDR). \emph{From B3, B8, B6, B7.}
+
+\item \textbf{\S5.3, one paragraph + Table 3} --- the imbalanced-learning baselines
+(focal, class-balanced, logit adjustment), each trained with its own loss and then
+clipped. \emph{From B1.}
+
+\item \textbf{\S7, one paragraph + Table 4} --- a native-resolution check on HAM10000, one
+dataset run to full depth: every method, every backbone, two caps, four seeds, 96 runs.
+\emph{From B2, reworked.}
+
+\item \textbf{Ablation appendix, one paragraph} --- the component ablation repeated in the
+tie region. \emph{From B4.}
+\end{enumerate}
+
+\section{Track B, one line each}
+
+\begin{itemize}
+\item \textbf{B1 --- imbalanced baselines} (312 runs). Focal is the only competitive
+member. The pattern is \emph{dataset}-driven: on DermMNIST focal matches or slightly beats
+TraLO's macro-F1; elsewhere TraLO leads or ties. None of the three satisfies the cap
+without the post-hoc LP.
+\item \textbf{B2 --- native resolution} (96 runs, native HAM10000). The macro-F1 margin
+over clipping reproduces: \textbf{+0.013, positive in all 6 backbone$\times$cap cells}.
+cc-F1 ties both duals. Satisfaction: TraLO 24/24, Hounie 24/24, Fioretto 0.96, LP-LG 0/24.
+\item \textbf{B3 --- ALM} (24 runs). \emph{The strongest new result.} ALM is genuinely a
+stronger dual than Fioretto (beats it by +0.010), and TraLO still tops it in
+\textbf{all six} tight-cap cells by +0.028 cc-F1.
+\item \textbf{B4 --- tie-region ablation} (20 runs). The reset and hinge carry the
+\emph{tight-cap} advantage specifically, not a general one. Consistent with the mechanism:
+they bind only where the cap binds.
+\item \textbf{B5 --- win-bar sensitivity} (no new runs). The dual win at L30/L40 is stable
+at every threshold (4/0/0 even at the strict $\tau{=}0.010$). The clip comparison never
+produces a stable win at any threshold.
+\item \textbf{B6 --- bootstrap CIs} (no new runs). 20\,000 resamples on the tight-cap
+cells.
+\item \textbf{B7 --- BH-FDR} (no new runs). 3 of 8 cells survive against Fioretto; 0 of 8
+against the clipper.
+\item \textbf{B8 --- MobileNetV2} (32 runs). The advantage reproduces on a fourth
+backbone.
+\end{itemize}
+
+\begin{callout}{The through-line, if he asks what Track B established}
+The advantage is \emph{specific}, and the follow-ups sharpen where. Against the
+\textbf{dual-ascent family} at tight caps it is real, survives a stronger dual (ALM),
+reproduces on a fourth backbone, and holds at every win threshold. Against
+\textbf{post-hoc clipping} the durable, categorical separation is \emph{native cap
+satisfaction} (1.0 vs 0.0 everywhere) plus a macro-F1 margin that now also reproduces at
+native resolution. The honest boundary: on the imbalance-friendly dataset a focal clipper
+closes the macro-F1 gap. That boundary is now stated in the paper rather than left open.
+\end{callout}
+
+\section{The three imbalanced-learning baselines (B1)}
+
+First, the framing point, because it is the one most easily got wrong: \textbf{these are not
+clipping algorithms.} They are \emph{training losses} --- three ways of making a classifier
+care more about a rare class while it learns. Clipping is a separate step applied
+afterwards. That is exactly why they belong in the paper: none of the three controls
+\emph{how many} items get the constrained label, so each still needs the post-hoc LP to
+meet the cap. Their presence tests whether a smarter \emph{training} recipe plus clipping
+can match constraint-time training.
+
+All three run at their original papers' settings, verified against the source texts.
+
+\subsection{Focal loss \quad\small\texttt{lin2017focal} --- Lin et al., ICCV 2017}
+\[
+\mathcal{L}_{\text{focal}} \;=\; -\,\alpha\,(1-p_y)^{\gamma}\,\log p_y ,
+\qquad \alpha = 0.25,\;\; \gamma = 2
+\]
+where $p_y$ is the predicted probability of the \emph{true} class.
+
+\begin{itemize}
+\item $\gamma$ is the \textbf{focusing exponent}. It decides how fast already-correct
+examples stop mattering. At $p_y{=}0.9$, the factor $(1-0.9)^2 = 0.01$ --- that example
+contributes $100\times$ less than under plain CE. At $p_y{=}0.5$ it is only $4\times$ less.
+\item $\alpha$ is a fixed scale on the whole term.
+\end{itemize}
+
+\textbf{Why it suits imbalanced data:} the majority class is learned early and becomes
+``easy''. Under plain CE those easy examples still dominate the gradient by sheer count.
+Focal drains their contribution so learning stays pointed at what is still hard --- which
+is disproportionately the rare class. Note it reweights by \emph{difficulty}, which
+correlates with rarity but is not the same thing.
+
+\subsection{Class-balanced reweighting \quad\small\texttt{cui2019class} --- Cui et al., CVPR 2019}
+\[
+E_{n_c} \;=\; \frac{1-\beta^{\,n_c}}{1-\beta}
+\qquad\Longrightarrow\qquad
+w_c \;\propto\; \frac{1}{E_{n_c}} \;=\; \frac{1-\beta}{1-\beta^{\,n_c}},
+\qquad \beta = 0.9999
+\]
+with $n_c$ the number of \emph{training} samples of class $c$; weights are normalised to
+mean 1 so the loss scale still matches CE.
+
+\begin{itemize}
+\item $\beta$ sets a \textbf{saturation scale} of $1/(1-\beta) = 10{,}000$ samples. Below
+that, a class is weighted close to inverse-frequency; far above it, extra samples stop
+adding weight.
+\end{itemize}
+
+\textbf{Why it suits imbalanced data:} the naive fix, weighting by $1/n_c$, over-corrects.
+Cui et al.'s argument is that samples overlap --- the 40{,}000th image of a class teaches
+almost nothing new --- so the useful quantity is an \emph{effective} number, not a raw
+count. \textbf{Why it is active on our data:} OctMNIST's training classes run from roughly
+$7.7$k to $46$k, straddling the $10$k saturation scale, so some classes sit below the
+saturation point and others well above --- the weights genuinely differ.
+
+\subsection{Logit adjustment \quad\small\texttt{menon2020long} --- Menon et al., ICLR 2021}
+\[
+\mathcal{L}_{\text{LA}} \;=\; \mathrm{CE}\!\left(z + \tau\log\pi,\; y\right),
+\qquad \tau = 1
+\]
+where $z$ are the logits and $\pi$ the training class prior.
+
+\begin{itemize}
+\item $\tau$ scales the prior correction. $\tau{=}1$ is not a tuned knob: it is the value
+that makes the classifier Bayes-optimal for \emph{balanced} error. Anything else would need
+justifying.
+\end{itemize}
+
+\textbf{Why it suits imbalanced data:} a model trained on a skewed set learns the training
+prior along with the signal. Adding $\tau\log\pi$ to the logits \emph{during} training
+handicaps the frequent classes, so the network must earn its confidence on them instead of
+coasting on base rates. It shifts the decision boundary rather than reweighting anything.
+
+\begin{callout}{Why these three, and not three flavours of one idea}
+They attack three genuinely different mechanisms: focal reweights per \emph{example} by
+difficulty; class-balanced reweights per \emph{class} by frequency; logit adjustment moves
+the \emph{decision boundary} by the prior. That makes them a fair panel rather than a
+stacked one. \textbf{If asked whether they were handicapped:} they run at their authors'
+own settings, and focal \emph{beats} TraLO on DermMNIST --- these are not baselines set up
+to fail.
+\end{callout}
+
+\section{Reading the statistics (B5--B7)}
+
+Three different ways of interrogating the same question: \emph{is the OctMNIST tight-cap
+cc-F1 result real, or an artifact of a small sample?} Each guards against a different
+failure. All three are re-analyses --- no new runs.
+
+\subsection{The underlying problem: $n=4$ seeds}
+Four seeds per cell is very few, and it creates two separate worries. \emph{Is this one
+number reliable?} (B6.) \emph{I ran many comparisons --- how many won by luck?} (B7.)
+Fixing one does not fix the other. B5 adds a third: \emph{does my conclusion depend on
+where I drew the line?}
+
+\subsection{B5 --- win-bar sensitivity}
+The paper calls a cell a ``win'' when the gap clears $+0.005$. That threshold is a
+judgement call, so B5 re-scores everything at $\tau \in \{0.003, 0.005, 0.010\}$.
+\textbf{Result:} against Fioretto the tight-cap win is 4/0/0 at \emph{every} threshold,
+including the strict $0.010$. Against the clipper it is never stable at any threshold.
+\textbf{What it protects against:} threshold-shopping. A conclusion that flips when you
+nudge the bar is a property of the bar, not of the data.
+
+\subsection{B6 --- bootstrap confidence intervals}
+With $n{=}4$ you cannot lean on a $t$-test's normality assumption. Instead, resample the
+paired differences \emph{with replacement} 20{,}000 times, recompute the mean each time,
+and take the middle 95\% of those means. That range is the interval --- an answer to ``how
+much would this number move on a slightly different sample?'' without assuming a
+distribution. The resampling unit is \emph{cells}, not seeds, which respects the
+atomic-unit rule.
+
+\begin{center}\small
+\begin{tabular}{llrcl}
+\toprule
+comparison & cap & mean & 95\% CI & reading \\
+\midrule
+TraLO $-$ Fioretto & L30 & $+0.046$ & $[+0.024, +0.074]$ & entirely above 0 \\
+TraLO $-$ Fioretto & L40 & $+0.033$ & $[+0.021, +0.044]$ & entirely above 0 \\
+TraLO $-$ ALM      & L30 & $+0.035$ & $[+0.010, +0.048]$ & entirely above 0 \\
+TraLO $-$ clip     & L30 & $-0.003$ & $[-0.013, +0.008]$ & \textbf{straddles 0} \\
+TraLO $-$ clip     & L40 & $+0.002$ & $[-0.010, +0.012]$ & \textbf{straddles 0} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent The specific cell reviewers flagged as weak --- ViT-B/16 at L30, about $1.8\sigma$
+--- comes out at $+0.086$ against Fioretto and survives. Note also the \emph{shape}: at
+L10/L15/L20 even the dual gap ties, because the tightest caps ceiling-crush every method.
+The win is a mid-cap phenomenon.
+
+\subsection{B7 --- Benjamini--Hochberg FDR}
+Run 20 tests at $p<0.05$ with nothing real going on and you should \emph{expect} about one
+``significant'' result. BH controls the \textbf{false discovery rate}: among the results you
+declare significant, at most $q{=}5\%$ are expected to be false. Mechanically, the bar gets
+stricter the more tests you ran. \textbf{Result:} 3 of 8 cells survive against Fioretto;
+\textbf{0 of 8} against the clipper.
+
+\subsection{Why ``3 of 8'' is not the disappointment it looks like}
+With 4 seeds, a within-cell paired Wilcoxon test \textbf{cannot return $p<0.125$} --- there
+are not enough orderings. That is a floor imposed by the sample size, not by the effect.
+Most cells therefore cannot reach individual significance however large the true effect is.
+So the meaningful quantity is not 3/8 in isolation; it is \textbf{3 versus 0}.
+
+\begin{callout}{What ``0 of 8 on clipping'' does and does not mean --- know this exactly}
+It means: \emph{on cc-F1, at OctMNIST tight caps, TraLO does not beat the post-hoc clipper.}
+The paper reports that comparison as a \textbf{tie}, and B5, B6 and B7 are three independent
+reasons why.
+
+\smallskip
+It does \textbf{not} mean TraLO fails to beat clipping in general. The deployment claim ---
+overall quality, macro-F1, $+1.6$ to $+5.3$\,pp, positive in 24 of 27 cells --- is a
+\emph{different metric} from a \emph{different analysis}, and it stands. So does native cap
+satisfaction, $1.0$ vs $0.0$, which is categorical.
+
+\smallskip
+Do not let these two get conflated in the room. B5--B7 are about \emph{cc-F1 at tight
+OctMNIST caps} only.
+\end{callout}
+
+\subsection{Where the paper already says this --- exact lines to point at}
+The paper uses \textbf{two metrics with two different comparators}, deliberately:
+\textbf{cc-F1 is measured against the trained duals; macro-F1 against the clipper.} If he
+asks where you concede the clip tie:
+
+\begin{itemize}
+\item \texttt{main.tex:651} --- the section is titled ``Constrained-class quality
+\emph{vs.\ the trained baselines}''.
+\item \texttt{main.tex:659} --- ``the package leads \emph{the best constraint-trained
+baseline} on every backbone, by a mean cc-F1 gap of $+0.038$''.
+\item \texttt{main.tex:708} --- stronger than a tie, an explicit concession: ``Where a
+\emph{post-hoc clipper posts higher raw cc-F1} (three of the six band cells, by up to
+$+0.018$), the edge is bought by editing \ldots{} TraLO leads that same cell $0.702$ to
+$0.666$ on macro-F1''.
+\item \texttt{main.tex:677} --- Figure~1 footnote: ``faded post-hoc clippers can post
+higher raw cc-F1 by editing''.
+\item \texttt{main.tex:1764} --- appendix column headers: ``$\Delta$cc-F1 vs.\
+\emph{trained}'' and ``$\Delta$macro-F1 vs.\ \emph{clipper}''.
+\end{itemize}
+
+\noindent So on cc-F1 at tight caps the clipper wins 3 of 6 cells outright. The paper's
+answer is not to deny it but to show \emph{how} it is bought --- clipping rewrites roughly
+$11\%$ of the batch --- and that TraLO wins the same cell on macro-F1.
+
+\begin{callout}{One wording fix worth raising yourself}
+The abstract states this result \emph{without naming the comparator}: ``one regime shows a
+consistent advantage across all backbones tested: OctMNIST at tight caps''. Read cold that
+scans as an advantage over \emph{everything}; the scoping only arrives in \S5.1. Adding
+three words --- ``advantage \emph{over the trained baselines}'' --- removes the ambiguity.
+Better to propose this than to have a reviewer read it the loose way.
+\end{callout}
+
+\noindent\textbf{Where this helps you.} A null result you found yourself and reported is a
+much stronger position than one a reviewer finds for you. You tested the clip comparison
+three ways, it did not hold, and the paper says so --- which is also why the headline is
+anchored on the dual-ascent comparison, where all three methods agree the effect is real.
+It is consistent with the July quota-fill finding: the apparent cc-F1 edge over clipping was
+a budget-fill artifact, and the durable separation from clipping is native satisfaction, not
+a quality margin on that metric.
+
+\begin{callout}{Warning: two different B6/B7 analyses exist in the repo}
+\texttt{results/stats\_trackb/b6/} and \texttt{b7/} are an \emph{older, broader} sweep
+covering EfficientNetB0, ResNet18, aider and eurosat --- backbones and datasets not in the
+current grid --- reporting 259/270 wins surviving FDR. Those are \textbf{not} the paper's
+numbers. The B6/B7 above are the Track-B ones, scoped to the OctMNIST tight-cap family.
+\end{callout}
+
+\section{Numbers to know cold}
+
+\begin{center}\small
+\begin{tabular}{p{6.6cm}l}
+\toprule
+Quantity & Value \\
+\midrule
+Main grid & 1944 runs, 3 datasets $\times$ 3 backbones $\times$ 9 caps $\times$ 4 seeds \\
+Track B added & $\approx$600 runs across B1--B8 \\
+Headline macro-F1 gain over clipping & $+1.6$ to $+5.3$ pp (dataset means) \\
+OctMNIST tight-cap cc-F1 lead vs duals & $+0.038$ over 6 cells, sign test $p{=}0.031$ \\
+TraLO $-$ ALM, tight caps & $+0.028$ cc-F1, 6/6 cells \\
+ALM $-$ Fioretto & $+0.010$ cc-F1 (so ALM is the tougher baseline) \\
+Native HAM10000, macro-F1 vs LP-LG & $+0.013$, 6/6 cells positive \\
+Native satisfaction (TraLO / LP-LG) & 24/24 \; vs \; 0/24 \\
+Atomic unit of analysis & (dataset, backbone, cap) over 4 seeds --- never pooled \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{What changed last night, and why}
+
+An audit of the full 32 pages extracted 875 checkable assertions and found five real
+problems. Two were acted on.
+
+\subsection{Four stale disclaimers}
+Four passages written \emph{before} Track B existed now contradicted the blue work --- the
+paper said it had not done things it now does. Each is struck in red with a blue
+replacement:
+
+\begin{itemize}
+\item abstract, intro, \S7: ``native-resolution generalization is left to future work''
+\item \S2: ``we do not run a dedicated augmented-Lagrangian baseline'' (ALM is now Table 2)
+\item \S2 and \S7: the imbalanced comparison described as not run (it is now \S5.3)
+\end{itemize}
+
+\noindent These are all cases where the new work \emph{strengthens} the paper and the old
+text had not caught up.
+
+\subsection{Table 3 lost a column}
+Table 3 had a \texttt{vs.\ LP-LG} column taken from the B1 campaign's own clip arm. Table~1
+reports the same quantity from the main corpus, and the two disagreed in all nine cells ---
+including a sign flip, and $+0.001$ where Table~1 says $+0.081$.
+
+\begin{callout}{If he asks about this, the answer is short}
+Two different run sets were being asked the same question. The column was deleted, not
+recomputed --- substituting corpus numbers into a B1 table would mix run sets inside one
+row, which is worse. TraLO-versus-clipping belongs in Table~1 and Appendix~D, over the
+full grid. Note the direction: \emph{the deleted column understated the result.} Table~1's
+numbers are the larger ones.
+\end{callout}
+
+\subsection{Bibliography}
+51 citations, 55 entries, zero undefined. Fixed: the Cooper library reference was dated
+2024 but was posted April 2025; missing diacritics in Pathak et al.; and ALM had been
+introduced with no citation at all (now Bertsekas 1982).
+
+\section{Questions he is likely to ask}
+
+\subsection{``Did you touch my text?''}
+No, and it was checked mechanically rather than by eye. Struck sentences are still
+character-for-character his --- only a wrapper was added around them, which the checker
+confirms.
+
+\subsection{``Why is the figure caption entirely blue?''}
+The dataset figure moved from \S1 to Appendix E. An image cannot be colour-marked, so the
+relocation is signalled by making its caption blue. His wording is preserved almost
+verbatim; one clause was added. \emph{This is a judgement call --- you may prefer to blue
+only the new clause and leave his caption text black.}
+
+\subsection{``Does focal beating you on Derm undercut the paper?''}
+No, and it is stated in the paper now rather than buried. It narrows the claim from
+``constraint-trained beats clipping'' to ``beats \emph{vanilla} clipping'' on that one
+dataset. The count-satisfaction separation is untouched: none of the three imbalanced
+recipes meets the cap without the post-hoc LP.
+
+\subsection{``Is the cc-F1 win real?''}
+Against the duals, yes --- and it is the claim with the most support behind it: stable at
+every win threshold (B5), surviving a stronger dual (B3), reproducing on a fourth backbone
+(B8), FDR-significant (B7). Against the clipper it is \emph{not} claimed as a win, and B5/B7
+say so explicitly (0 of 8 cells survive FDR). The paper reports the clip comparison as a
+tie.
+
+\section{Open items --- know these before he raises them}
+
+\begin{itemize}
+\item \textbf{The ``1.6--5.3 pp'' range pools across backbones and caps.} Each endpoint is
+a dataset mean over $3\times9\times4$ runs. Appendix D's own stated rule is that the atomic
+cell is (dataset, backbone, cap) over seeds \emph{only}. At that granularity the same
+quantity ranges from $-0.018$ to $+0.091$. The headline is defensible as a summary but it
+is not scoped the way the appendix says to scope things. \emph{Unresolved --- your call.}
+\item \textbf{Table 1's caption says ``the full symmetric grid''} but shows 3 of 9 caps
+(27 of 81 cells), and the L40 number quoted beside it is not in the table.
+\item \textbf{A blue sentence in \S5.1 says ``the eight tight-cap cells''} where the rest of
+the paper says six; the difference is the added MobileNetV2, but it is never stated.
+\item \textbf{OctMNIST has no native-resolution counterpart}, so whether the tight-cap cc-F1
+win survives at full resolution is untested. Stated plainly in the paper.
+\item Roughly 70 further minor findings from the audit were never adversarially verified ---
+the run hit its limit. Treat them as unchecked leads, not defects.
+\end{itemize}
+
+\section{Files, if he wants them}
+
+\begin{center}\small
+\begin{tabular}{ll}
+\toprule
+\texttt{paper/main.tex} & his original, untouched \\
+\texttt{docs/main.tex} & the blue revision (source) \\
+\texttt{paper/main\_rev.pdf} & the blue revision, 32pp --- \textbf{the one to read} \\
+\texttt{paper/references.bib} & 55 entries, 51 cited \\
+\texttt{docs/track\_b/TRACK\_B\_RESULTS\_HANDOFF.md} & full B1--B8 record \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{6pt}
+\noindent\small Committed as \texttt{8648b15e} on branch \texttt{headroom/small-cnn}.
+Still to push to \texttt{origin/tmlr/submission}.
+
+\end{document}
