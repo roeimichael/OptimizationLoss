@@ -1,0 +1,34 @@
+% tab_ablation_complete.tex -- complete component ablation (\input-ready float).
+% Built from extra_experiments/ablation_complete.csv: OctMNIST hard-binding cells,
+% n=24 paired per component (2 caps x 3 backbones x 4 seeds).
+% Each row toggles one component off; Delta cc-F1 = full TraLO - (that component removed).
+% Requires: booktabs (loaded by main.tex).
+\begin{table}[t]\centering\small
+\caption{\del{\textbf{Complete component ablation on the OctMNIST hard-binding cells.} Effect on constrained-class F1 of removing each TraLO component in turn}
+{\color{blue}\textbf{Component ablation on the OctMNIST hard-binding cells.} Effect on constrained-class F1 of removing TraLO components}
+($n{=}24$ paired runs each: 2 tight caps $\times$ 3 backbones $\times$ 4 seeds). $\Delta$~cc-F1 = full TraLO $-$ (component removed); winrate = fraction of the 24 paired runs where removing the component hurts. Inference is at the cell level (the unit that does not repeat seeds): removing either load-bearing component hurts in all six cells (sign test $p{=}0.031$, the six-cell floor), while the $\rho$ schedule and lambda freeze split the cells and are cc-F1-neutral on these already-satisfied cells. \del{Two essential ingredients plus two neutral ones, \emph{not} four co-equal components.}
+{\color{blue}The reset is the only component isolated singly: the second row removes the
+reset \emph{and} the hinge together, via the TraLO-bounded control, which strips both
+(Sec.~\ref{sec:setup}); this is why removing two components costs less than removing the
+reset alone, and it means the hinge's individual contribution is not identified here. The
+final row is an \emph{addition}, not a removal, and is reported for completeness: restoring
+the KL anchor on these cells improves cc-F1 significantly, against the direction of the
+main text's treatment of KL (App.~\ref{app:ablation}).}}
+\label{tab:ablation_complete}
+\begin{tabular}{l c c}
+\toprule
+Component removed & $\Delta$ cc-F1 & Winrate \\
+\midrule
+\multicolumn{3}{l}{\emph{Load-bearing}} \\
+Optimizer reset   & $+0.079$ & $1.00$ \\
+\del{Undershoot hinge}\ {\color{blue}Reset $+$ hinge (TraLO-bounded)}  & $+0.036$ & $1.00$ \\
+\midrule
+\multicolumn{3}{l}{\emph{Neutral}} \\
+$\rho$ schedule   & $+0.001$ & $0.42$ \\
+Lambda freeze     & $+0.000$ & $0.38$ \\
+\midrule
+\multicolumn{3}{l}{\color{blue}\emph{Addition, not removal}} \\
+{\color{blue}$+$ KL anchor restored} & {\color{blue}$-0.010$} & {\color{blue}$0.21$} \\
+\bottomrule
+\end{tabular}
+\end{table}
