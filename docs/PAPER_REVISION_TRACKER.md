@@ -8,6 +8,31 @@ Manuscript under edit: **`docs/main.tex`** (the blue revision).
 
 ---
 
+## Status at a glance — updated 2026-08-13
+
+| # | Item | Status |
+|---|---|---|
+| 1 | ALM across the full grid | **running** — 300 in flight, 84 MobileNetV2 chained |
+| 2 | Rebuild Tables 1 and 2 | **blocked on item 1** — nothing else stops it |
+| 3 | Figures cover the tables' scope | audit + pipeline repair **done**; Figs 1 & 5 regenerate when ALM lands |
+| 4 | Textual coherence | narrative pass **done**; scope sweep + repetition open |
+| 5 | Naming consistency | backbone names **done** (12 sites); table headers deferred to item 2, other categories open |
+| 6 | Move Tables 3 and 4 | **done** |
+| 7 | Figure 4 legend | **done** — all six figures verified by eye |
+| 8 | Remove Figure 6, expand dataset appendix | **done** |
+| 9 | Are Tables 12–14 earning their place? | **decided: keep**; regenerate when ALM lands |
+| 10 | Remove Table 15 | **done** |
+
+Five of ten closed. Of the five open, **three are waiting on ALM** (items 1, 2, 3)
+and two are unblocked work: the remainder of the naming sweep and the
+scope/repetition pass in item 4.
+
+**One decision is waiting on the professor:** whether the headline margin moves to
+the ALM-inclusive number (see item 4). Both are currently stated and correctly
+scoped, so nothing is blocked on the answer.
+
+---
+
 ## Ground rules (apply to every item below)
 
 1. **Mark every change.** New text goes in blue (`\rev{...}` or `{\color{blue}...}`).
@@ -323,7 +348,17 @@ every spelling variant, across `docs/main.tex` and all table files. Known suspec
 
 Papers do get rejected over this. The sweep must be exhaustive, not sampled.
 
-- [ ] Fix every occurrence from the agent's report
+- [x] **Backbone names done** (2026-08-13): 7 bare `RegNet` and 5 bare `ViT`
+      completed to `RegNetY-400MF` / `ViT-B/16`. Marked by blue-ing only the
+      *completion* (`RegNet{\color{blue}Y-400MF}`) rather than striking the
+      professor's word — nothing is removed, so a red strikeout would overstate
+      the change and 12 strikeouts would bury the substantive revisions.
+- [ ] Table-header abbreviations (`MNetV3`, `Heur.`, `TraLO-b`, `Tissue`/`Derm`
+      vs `OctMNIST`) — **deferred to item 2 on purpose**, since those tables are
+      being rebuilt and fixing them now means doing it twice
+- [ ] Remaining categories: metric `$\Delta$` spacing, winrate forms, `warmup`
+      vs `warm-up`, `hard-binding` vs `tight-cap`, the `$eta$` symbol collision
+      (hinge weight vs class-balanced hyperparameter)
 - [ ] Add a canonical-names table to this file so future edits stay consistent
 
 ---
@@ -335,8 +370,10 @@ Papers do get rejected over this. The sweep must be exhaustive, not sampled.
   not display it.
 - **Table 3** (`tab:imbal`, imbalanced baselines): may stay in the general results.
 
-- [ ] Move Table 4 to the appendix; leave a reference from Limitations
-- [ ] Confirm Table 3's placement reads correctly where it is
+- [x] Move Table 4 to the appendix (now App.~E, `app:native`); Limitations keeps
+      only the open question and points there
+- [x] Table 3 stays in the body. It answers the most obvious challenge to the
+      paper's second-biggest claim; burying it would read as evasive.
 
 ---
 
@@ -346,10 +383,12 @@ Papers do get rejected over this. The sweep must be exhaustive, not sampled.
 
 **This check applies to every figure, not just Figure 4.**
 
-- [ ] Fix the legend placement in the generator (not by hand-editing the PDF)
-- [ ] Regenerate the figure
-- [ ] **Read the rendered image back and visually confirm** no overlap
-- [ ] Repeat the visual check for all six figures
+- [x] Fixed in the generator via a new `legend_clear()` helper in `fig_style.py`
+      that tests candidate positions against the plotted data
+- [x] Regenerated
+- [x] Rendered and visually confirmed
+- [x] All six checked by eye. Figures 1, 2, 3, 5 were already clear; Figure 3's
+      apparent axis crowding was a downsampling artifact, confirmed clean at 600 dpi.
 
 ---
 
@@ -363,9 +402,14 @@ not just DermMNIST:
 - the full class list per dataset
 - basic analysis: class balance, the constrained class and its prevalence, split sizes
 
-- [ ] Remove `fig_datasets` (red-marked) and its caption
-- [ ] Write the expanded appendix section covering every dataset
-- [ ] Confirm nothing else referenced the figure
+- [x] Removed; the float is retained commented-out in the source, and the 
+ef in
+      Sec.~4 struck without a live reference so it cannot print "Figure ??"
+- [x] Written: source, split sizes, full class list with prevalences for all three,
+      plus the analysis of *why* they behave differently under a cap (the OctMNIST
+      train/test skew -- drusen ~8% train vs 25% test -- is what makes it the
+      hard-binding case, and it explains most of the regime map)
+- [x] Confirmed: one reference, in Sec.~4, struck
 
 ---
 
@@ -374,7 +418,11 @@ not just DermMNIST:
 The granular per-dataset tables (Tissue / Derm / OctMNIST) take a lot of space and
 largely restate what the headline tables already show.
 
-- [ ] **Decide: keep or cut.** Give the professor a recommendation with reasoning.
+- [x] **Decided: keep.** They are the fix for a real problem — Table 1's caption
+      says "the full symmetric grid" but shows 27 of 81 cells, and $L40$ (half the
+      tight-cap evidence) is not in it at all. These are the only place the full
+      grid is visible, so they matter *more* once Table 1 splits by metric, not
+      less. Recommend keeping and saying so in App. D's opening.
 - [ ] If kept, they must be regenerated with ALM and MobileNetV2 included — a
       granular table that omits two arms the main table has is worse than no table.
 
@@ -386,9 +434,9 @@ largely restate what the headline tables already show.
 claim it sits under. **Remove entirely** unless a use is found — and the judgement
 is that there isn't one.
 
-- [ ] Remove the table and its `\input`
-- [ ] Rewrite (red/blue) whatever text referenced it, including the asymmetric-cap
-      discussion that leans on it
+- [x] Removed
+- [x] Both citing sentences rewritten; the claim now rests on the cross-backbone
+      check (Table~11), which supports it better than the removed float did
 
 ---
 

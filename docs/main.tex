@@ -93,7 +93,7 @@ $5.3$ percentage points over satisfying the cap after training
 focal loss the margin holds on two of the three datasets}. On
 quality of the constrained class itself, one regime shows a consistent
 advantage across all backbones tested: OctMNIST at tight caps, with the
-largest gains on a ViT (not itself a rare-class regime){\color{blue}, and the
+largest gains on a ViT{\color{blue}-B/16} (not itself a rare-class regime){\color{blue}, and the
 advantage survives against an augmented-Lagrangian dual, which is stronger than
 the plain dual-ascent baselines}. The rest of
 the grid is a statistical tie, reported as such. Our central
@@ -504,7 +504,10 @@ summarizes the loop.
 
 \paragraph{Datasets.}
 We use three MedMNIST v2 \citep{yang2023medmnist} classification tasks with
-their official splits (Figure~\ref{fig:datasets} shows DermMNIST examples):
+% The \ref is dropped from the struck text on purpose: its target no longer
+% exists, and a live \ref inside \del would typeset as "Figure ??".
+their official splits \del{(a figure showed DermMNIST examples)}%
+{\color{blue}(App.~\ref{app:groups} describes all three in full)}:
 \textbf{TissueMNIST} (8 \rev{kidney-cortex-cell} classes \rev{from human kidney
 tissue \citep{woloshuk2021situ}}, constrained class GE, $7.1\%$ of the
 test set), \textbf{DermMNIST} (7 skin-lesion classes from
@@ -714,7 +717,7 @@ ablation variant is also counted as a competitor)%
 comparison set once its full grid lands}, and on tissue and derm
 the differences at equal feasibility are within seed noise (paired
 Wilcoxon, not significant), a tie that also holds away from the grid, at a
-tighter ($L40$) and a looser ($L60$) cap on RegNet.
+tighter ($L40$) and a looser ($L60$) cap on RegNet{\color{blue}Y-400MF}.
 
 \begin{figure}[!t]\centering
 \includegraphics[width=0.7\linewidth]{fig_octmnist}
@@ -856,7 +859,7 @@ MobileNetV3-only backbone coverage. Only two regimes clear the win bar:
 OctMNIST tight-symmetric caps (the backbone-general advantage of
 Sec.~\ref{sec:oct}, largest on ViT-B/16) and the global-tighter
 asymmetric ($G{<}L$) caps of DermMNIST ($+0.8$pp over MobileNetV3's full
-asymmetric grid, reproduced on RegNet and tied on ViT over the four shared
+asymmetric grid, reproduced on RegNet{\color{blue}Y-400MF} and tied on ViT{\color{blue}-B/16} over the four shared
 cap pairs; \emph{preliminary}, as only MobileNetV3 has the full grid).
 Every other regime, including all symmetric caps, is a statistical tie
 (symmetric tissue+derm mean cc-F1 gap $-0.0013$, seed winrate $29\%$,
@@ -886,7 +889,7 @@ clipper's frozen base model keeps its unconstrained accuracy there. The
 gain comes with constrained-class F1 moving the same way in aggregate.
 The margin over clipping is a property of training under the constraint
 rather than of TraLO alone: the dual baselines post nearly identical
-macro-F1 margins (the lone exception a tie at OctMNIST$\times$ViT), so we
+macro-F1 margins (the lone exception a tie at OctMNIST$\times$ViT{\color{blue}-B/16}), so we
 claim it for the constraint-trained family; constraint-time training also
 adapts to the test batch, a confound we do not separate from avoided
 editing in the current experiments (Sec.~\ref{sec:limits}). What is
@@ -965,7 +968,7 @@ TissueMNIST & MobileNetV3   & $+0.020$ & $+0.014$ & $+0.026$ \\
 These advantages rest on TraLO reaching the count during training.
 Figure~\ref{fig:convergence} tracks how far each method's prediction count
 sits above the cap over the constraint phase, on the cell where the three
-methods separate most cleanly: DermMNIST on RegNet, whose cross-entropy
+methods separate most cleanly: DermMNIST on RegNet{\color{blue}Y-400MF}, whose cross-entropy
 saturates slowly enough that the count and the task objective openly
 compete. The ratcheted multiplier acts from the first constraint epoch and
 reaches the cap well before either zero-start dual baseline (per-method
@@ -1041,7 +1044,7 @@ the frozen recipe, and one GPU model. The re-run controls reproduce the
 main-grid values to $\pm0.0013$, so the arms are compared on equal
 footing. The graft lifts Fioretto-LDF in six of six cells ($+0.019$ to
 $+0.073$ cc-F1) and Hounie-RCL in five of six ($+0.035$ to $+0.103$; the
-one exception, $L40$ on RegNet, drops by $0.028$), recovering a median
+one exception, $L40$ on RegNet{\color{blue}Y-400MF}, drops by $0.028$), recovering a median
 $86\%$ of TraLO's margin over the Fioretto host and $92\%$ over the
 Hounie host (medians over the six cells, the loss cell included). Against
 each grafted host separately TraLO stays best-or-tied ($8$ wins, $4$
@@ -1584,7 +1587,7 @@ Table~\ref{tab:graft} reports mean cc-F1 per cell.
 
 The graft lifts Fioretto-LDF in six of six cells ($+0.019$ to $+0.073$
 cc-F1) and Hounie-RCL in five of six ($+0.035$ to $+0.103$; the one
-exception, $L40$ on RegNet, drops by $0.028$), recovering a median
+exception, $L40$ on RegNet{\color{blue}Y-400MF}, drops by $0.028$), recovering a median
 $86\%$ of TraLO's margin over the Fioretto host and $92\%$ over the
 Hounie host (medians over the six cells, the loss cell included).
 Against each grafted host separately TraLO stays best-or-tied ($8$
@@ -1882,8 +1885,8 @@ backbone with the full asymmetric grid; a}{\color{blue}Only MobileNetV3 has been
 run on the full asymmetric grid, so the evidence we report for it is the
 cross-backbone check rather than a per-cell table: a} cross-backbone check on the
 four shared $G{<}L$ cap pairs (Table~\ref{tab:asym_xbackbone}) shows
-the constrained-class advantage reproduces on RegNet ($+0.9$pp, $75\%$
-seed-winrate) and ties on the ViT ($-0.0$pp), while the macro-F1
+the constrained-class advantage reproduces on RegNet{\color{blue}Y-400MF} ($+0.9$pp, $75\%$
+seed-winrate) and ties on the ViT{\color{blue}-B/16} ($-0.0$pp), while the macro-F1
 advantage over clipping holds on all three backbones. We report the
 asymmetric result as preliminary because only MobileNetV3 has been run
 on the complete asymmetric grid, not because a single backbone shows it.
@@ -1915,7 +1918,7 @@ seeds $1$--$4$, $n{=}16$ paired seed-cells). $\Delta$cc-F1 is TraLO
 minus the best constraint-trained baseline; $\Delta$macro-F1 is TraLO
 minus the best post-hoc clipper; both paired by seed, with \emph{win}
 the seed-cell fraction favoring TraLO. The constrained-class advantage
-holds on MobileNetV3 and RegNet and ties on the ViT; the macro-F1
+holds on MobileNetV3 and RegNet{\color{blue}Y-400MF} and ties on the ViT{\color{blue}-B/16}; the macro-F1
 advantage over clipping holds on all three.}
 \label{tab:asym_xbackbone}
 \setlength{\tabcolsep}{4pt}\small
@@ -1951,20 +1954,64 @@ definitions of Sec.~\ref{sec:setup}. It also elaborates on the
 ceiling-versus-floor caveat that motivates the fairness scoping in the
 Broader Impact statement.
 
-% [Revision] This figure was moved here from Section 1; its caption is marked
-% blue so the relocation is identifiable alongside the other revision marks.
-\begin{figure}[H]\centering
-\includegraphics[width=0.5\columnwidth]{fig_datasets}
-\captionsetup{labelfont={color=blue}}
-\caption{\color{blue}\textbf{DermMNIST lesions, benign to malignant} (green frame benign,
-red malignant, blue the \emph{constrained} class), shown here as one
-representative example of the three MedMNIST tasks used in the paper.
-The task caps how many test images may be labeled melanoma, the minority
-high-stakes class ($11.1\%$ of the test set); the constraint-trained
-methods studied here meet that cap \emph{during training} rather than
-clipping afterward.}
-\label{fig:datasets}
-\end{figure}
+% [Track-B revision] The DermMNIST example figure that stood here is removed: a
+% strip of lesion photographs illustrated one dataset and characterised none of
+% them. It is replaced by the description below, which covers all three.
+% Removed float (was Figure 2, relocated here from Sec. 1):
+%   \begin{figure}[H]\centering
+%   \includegraphics[width=0.5\columnwidth]{fig_datasets}
+%   \caption{DermMNIST lesions, benign to malignant ...}
+%   \label{fig:datasets}
+%   \end{figure}
+
+{\color{blue}
+\paragraph{What the three tasks contain.}
+All three come from MedMNIST v2 \citep{yang2023medmnist} with their official
+splits, as $28{\times}28$ images upsampled to $224{\times}224$ for the
+ImageNet-pretrained backbones.
+
+\textbf{TissueMNIST} is human kidney-cortex microscopy
+\citep{woloshuk2021situ}, subsampled to $9{,}600$ training and $2{,}400$ test
+images over eight cell types (CDI, CDP, CT, DCT, GE, INT, PTC, PTS). The
+constrained class is GE, glomerular endothelial cells, at $171/2400 = 7.1\%$ of
+the test set. Images are grayscale, replicated to three channels.
+
+\textbf{DermMNIST} is HAM10000 dermatoscopy \citep{tschandl2018ham10000},
+$8{,}012$ training and $2{,}003$ test images over seven lesion types: melanocytic
+nevi (NV, $66.9\%$), melanoma (MEL, $11.1\%$), benign keratosis (BKL, $11.0\%$),
+basal-cell carcinoma (BCC, $5.1\%$), actinic keratoses (AKIEC, $3.2\%$),
+vascular lesions (VASC, $1.4\%$) and dermatofibroma (DF, $1.1\%$). The
+constrained class is melanoma. This is the only dataset with real group
+metadata: anatomical site, mapped to torso ($\approx52\%$), extremity
+($\approx37\%$) and head/neck ($\approx11\%$), which is what the per-group caps
+use.
+
+\textbf{OctMNIST} is retinal optical-coherence tomography from OCT-2017
+\citep{kermany2018identifying}, four classes (CNV, DME, drusen, normal). The
+constrained class is drusen.
+
+\paragraph{Why the three behave differently under a cap.}
+Two properties of the label distributions explain most of the regime map, and
+neither is visible from the class lists alone.
+
+First, \emph{class balance differs sharply}: DermMNIST is dominated by a single
+class, NV at two-thirds of the data, with the constrained class an order of
+magnitude smaller, while OctMNIST's test split is balanced by construction. The
+per-dataset figures are in the paragraph below.
+
+Second, and this is the property that makes OctMNIST the hard-binding case,
+\emph{OctMNIST's training and test distributions disagree}: drusen is roughly
+$8\%$ of the training data but $25\%$ of the balanced test split. A model warmed
+up on cross-entropy therefore \emph{under}-predicts drusen on the test set
+before any constraint is applied, so a tight cap binds against a count the model
+was already reluctant to produce, and the constrained class has real recall to
+lose. On TissueMNIST and DermMNIST the warmup model already predicts the
+constrained class at close to its capped rate, so the same cap is nearly
+inactive. The regime map of Sec.~\ref{sec:regime} is largely this distinction
+made quantitative: the methods separate where the cap binds against the model's
+own tendency, and tie where it does not.
+
+}
 
 The constrained class is a genuine minority on two of the three
 datasets and not on the third: GE is $7.1\%$ of the TissueMNIST test
