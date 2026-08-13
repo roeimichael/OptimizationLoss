@@ -12,9 +12,10 @@ reset \emph{and} the hinge together, via the TraLO-bounded control, which strips
 (Sec.~\ref{sec:setup}); this is why removing two components costs less than removing the
 reset alone: the two components are not additive, and their joint removal is not the sum
 of the separate ones. The \emph{Undershoot hinge (alone)} row isolates the hinge with the
-reset retained ($n{=}20$ paired runs over five of the six cells; the ViT-B/16 $L40$ cell is
-still running). It helps in $18$ of the $20$, so both named components are load-bearing
-individually on these cells.}}
+reset retained, on the same $n{=}24$ grid as the other rows. It helps in $22$ of the $24$
+paired runs and in \emph{all six} cells (cell-mean gaps $+0.009$ to $+0.056$; cell-level
+sign test $p{=}0.031$, the six-cell floor), so each named component is load-bearing on its
+own and not only as a pair.}}
 \label{tab:ablation_complete}
 \begin{tabular}{l c c}
 \toprule
@@ -22,7 +23,7 @@ Component removed & $\Delta$ cc-F1 & Winrate \\
 \midrule
 \multicolumn{3}{l}{\emph{Load-bearing}} \\
 Optimizer reset   & $+0.079$ & $1.00$ \\
-{\color{blue}Undershoot hinge (alone)} & {\color{blue}$+0.028$} & {\color{blue}$0.90$} \\
+{\color{blue}Undershoot hinge (alone)} & {\color{blue}$+0.032$} & {\color{blue}$0.92$} \\
 \del{Undershoot hinge}\ {\color{blue}Reset $+$ hinge (TraLO-bounded)}  & $+0.036$ & $1.00$ \\
 \midrule
 \multicolumn{3}{l}{\emph{Neutral}} \\
