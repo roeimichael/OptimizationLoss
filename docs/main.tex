@@ -1485,15 +1485,15 @@ the frozen grid) costs $+0.036$ cc-F1 (positive on all $24$ paired
 runs; cell-level sign test $p\!=\!0.031$; $0.019$--$0.070$ across cells).
 The other components are cc-F1-neutral on these already-satisfied
 cells: the $\rho$ schedule and the lambda freeze move it by under $0.001$
-(n.s.). A dedicated KL sweep on TissueMNIST (the $L30$ tight cap,
-MobileNetV3, $\alpha_{\mathrm{KL}}\!\in\!\{0,0.1,0.3,1.0\}$) confirms the
-anchor is off for good reason: $\alpha_{\mathrm{KL}}{=}0$ (the paper
+(n.s.). \del{A dedicated KL sweep on TissueMNIST (the \mbox{$L30$} tight cap,
+MobileNetV3, \mbox{$\alpha_{\mathrm{KL}}\!\in\!\{0,0.1,0.3,1.0\}$}) confirms the
+anchor is off for good reason: \mbox{$\alpha_{\mathrm{KL}}{=}0$} (the paper
 recipe) gives the best constrained-class \emph{and} macro-F1, while
-every nonzero anchor lowers cc-F1 (by $0.01$--$0.03$) and only adds
+every nonzero anchor lowers cc-F1 (by \mbox{$0.01$--$0.03$}) and only adds
 prediction edits. The KL term was a useful drift damper in an early
 version of the method, before the optimizer reset and undershoot hinge;
 once those two control post-satisfaction drift directly, the anchor is
-redundant. The advantage rests on the reset and the hinge. One caveat
+redundant.} The advantage rests on the reset and the hinge. One caveat
 applies to all rows: the component importances are estimated inside the
 selected win region (the tight-cap cells where TraLO leads), so they
 quantify what carries that win, not what the components do elsewhere on

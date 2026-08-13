@@ -10,10 +10,8 @@
 {\color{blue}The reset is the only component isolated singly: the second row removes the
 reset \emph{and} the hinge together, via the TraLO-bounded control, which strips both
 (Sec.~\ref{sec:setup}); this is why removing two components costs less than removing the
-reset alone, and it means the hinge's individual contribution is not identified here. The
-final row is an \emph{addition}, not a removal, and is reported for completeness: restoring
-the KL anchor on these cells improves cc-F1 significantly, against the direction of the
-main text's treatment of KL (App.~\ref{app:ablation}).}}
+reset alone, and it means the hinge's individual contribution is not identified here. A
+hinge-only arm is defined in the release but was not run.}}
 \label{tab:ablation_complete}
 \begin{tabular}{l c c}
 \toprule
@@ -26,9 +24,6 @@ Optimizer reset   & $+0.079$ & $1.00$ \\
 \multicolumn{3}{l}{\emph{Neutral}} \\
 $\rho$ schedule   & $+0.001$ & $0.42$ \\
 Lambda freeze     & $+0.000$ & $0.38$ \\
-\midrule
-\multicolumn{3}{l}{\color{blue}\emph{Addition, not removal}} \\
-{\color{blue}$+$ KL anchor restored} & {\color{blue}$-0.010$} & {\color{blue}$0.21$} \\
 \bottomrule
 \end{tabular}
 \end{table}
