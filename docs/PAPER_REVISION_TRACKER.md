@@ -90,37 +90,72 @@ paper's whole thesis is that the advantage is regime-specific. The honest senten
 dataset×backbone" — *is* the regime map. Filtering to the winning band would be the
 thing that damages it.
 
-### Reviewer finding that is a decision, not a defect
+### `+KL` — CLOSED, and not by restoring the row
 
-**The `+KL` ablation row** (−3): `ablation_complete.csv` has five arms, the table
-prints four. The omitted one is +KL (Δ −0.010, winrate 0.21, p 0.04) — i.e. adding a
-KL anchor *helps* on these cells. KL material was deliberately removed this round.
-The reviewer's point is narrower and fair: §1 and §8 advertise that *every* tie and
-negative result is released. Either restore the row with the reason it was retired, or
-soften that advertisement.
+The reviewer deducted −3 because `ablation_complete.csv` has five arms and the table
+prints four; the omitted one is +KL. **KL stays out** — of the paper, the tables, and
+this tracker — by the user's explicit decision, twice stated. The reviewer's *narrow*
+point was fair and is what gets fixed: §1 and §8 advertised that "every tie and
+negative result" is released. That advertisement is what changes, not the table.
+**Do not reopen this. Do not re-add a KL row, a KL sentence, or a KL column.**
 
-### FALSE POSITIVE — caused by my own tooling, not the paper
+### FALSE POSITIVES — checked and rejected
 
-The reviewer deducted (−3) for three structurally broken captions rendering as body
-text inside their floats (visible on p. 12). **The manuscript is correct**; the defect
-was in `strip_revision_marks.py`. It searched for the literal `{\color{blue}` and
-matched the *caption's own opening brace* in `\caption{\color{blue}...}`, deleting
-both braces and yielding `\caption\textbf{...}` — which **compiles with zero errors**
-while typesetting the caption as body text. Fixed by deleting only the `\color{blue}`
-switch and never touching braces. Lesson: a clean build is not a correct build.
+**Three broken captions** (−3) were **my tooling**, not the paper.
+`strip_revision_marks.py` searched for the literal `{\color{blue}` and matched the
+*caption's own opening brace* in `\caption{\color{blue}...}`, deleting both braces and
+yielding `\caption\textbf{...}` — which **compiles with zero errors** while typesetting
+the caption as body text. Fixed. Lesson: a clean build is not a correct build.
 
-### Not yet verified (recorded, not acted on)
+**"Hounie slowest in 17 not 18"** (part of −1) is **wrong**, and the paper is right.
+The win counts aggregate each cell by its across-seed **mean** — under which Hounie is
+strictly slowest in **18 of 18**, TraLO is strictly first in **11** and first-or-within-one
+in **15**, all three reproducing the printed numbers exactly. The reviewer used cell
+*medians* (which give 17 / 13 / 16). The real defect was that the sentence never said
+which aggregation; it now does. *Verify before you "correct" a correct claim.*
 
-Notation collisions ($\lambda_g$ vs $K_g$; $c$ as class and cap index) · the ALM naming
-question (reviewer argues it is a PI controller, not an augmented Lagrangian, since no
-quadratic term enters the primal) · Fig. 3 panels (a)/(b) inconsistent by ~10× ·
-`references.bib` renders two titles blue · hyperref link borders not suppressed ·
-Table 1 bolds differences below its own stated noise · "all four backbones" where
-Table 1 has three · Hounie slowest in 17 not 18 census cells.
+**A correction to my own earlier note:** I first recorded the BH family-size finding as
+a false positive. It is **not**. Line 676 declared a family of twelve and then computed
+`0.05×6/12` and `0.05×12/12` — that is `q·i/m` with **m=2**, not 12 — and claimed both
+components clear their thresholds when the smaller does not (**0.031 > 0.025**). The
+step-up rule does reject both at m=2, so the conclusion survives; the justification did
+not. Fixed.
 
-- [ ] Fix the two verified claims (1 and 2)
-- [ ] Decide the +KL question
-- [ ] Verify and triage the unverified list
+### Status of all 17 deductions
+
+| Δ | Finding | State |
+|---|---|---|
+| −6 | ALM reports 6 of 31 full cells; loss region in the rest | **runs done** (300/300), awaiting table rebuild |
+| −4 | "never invokes the editing step" false for 79% of runs | **FIXED** — abstract, §1, §8, App. D + Fig. 5 |
+| −4 | ALM is not an augmented Lagrangian (no quadratic primal) | **FIXED** — §2 rewritten, scoped, correctly cited |
+| −3 | Notation: $\lambda_g$ vs $K_g$; $c$ as class and cap index | open |
+| −3 | Three broken captions | **FIXED** (my tooling) |
+| −3 | Abstract sells the graft tie as a win | **FIXED** — abstract states +0.0015, trails 2/6 |
+| −3 | The `+KL` row | **CLOSED** — advertisement softened, KL stays out |
+| −2 | Hinge "can never re-violate" is a soft-count claim | **FIXED** — §3 scoped to the soft count |
+| −2 | App. A assumptions unflagged | **FIXED** — three caveats stated |
+| −2 | Table 1 bolds below its own stated noise | **FIXED** — ±0.005 tie band, 165 bold vs 72 |
+| −2 | Fig. 3 panels disagree by ~K | **FIXED** — missing `/K`; generator now asserts (b)=d(a)/dS |
+| −2 | No uncertainty on Fig. 1; Fig. 4 "n=1" | Fig. 4 **FIXED** (3 seeds were always on disk); Fig. 1 CIs open |
+| −2 | Wins itemised per cell, losses only per regime | **FIXED** — 16 cap-level losses itemised |
+| −1 | Rerun drift 0.013/0.025 vs a ±0.005 tie band | **runs launched** (r3, 10 repeats) |
+| −1 | "away from the grid" at L40/L60 | **FIXED** |
+| −1 | "all four backbones" | **FIXED** → three (see note below) |
+| −1 | Editorial cluster | **FIXED** — hidelinks, blue bib titles, Supp refs, ablation caption, BH cite |
+
+**Why MobileNetV2 did not go into Table 1.** It exists in the corpus, but only in
+*other sweeps* — and the reviewer's own −1 finding is that the same configuration
+re-run in a different campaign moves by mean |Δ| 0.013 macro-F1 / 0.025 cc-F1. Table 1
+adjudicates at ±0.005. Splicing it in would put non-commensurable numbers side by side,
+which is the very thing being criticised. MobileNetV2 stays in Table 9 (`tab:bbgen`),
+which is explicitly a cross-backbone table.
+
+- [x] Fix the two verified claims (1 and 2)
+- [x] Close the +KL question (KL stays out)
+- [x] Verify and triage the unverified list
+- [ ] Notation pass ($\lambda_g$/$K_g$, $c$ as class vs cap index)
+- [ ] Fig. 1 bottom-panel bootstrap CIs
+- [ ] Land ALM + the three r1 campaigns, then rerun the result-change protocol
 - [ ] Re-run the reviewer on a fresh agent after fixes
 
 ---

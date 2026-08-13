@@ -1323,7 +1323,10 @@ the configuration generators, and the raw per-cell/per-seed outputs for
 all $1944$ runs of the headline grid (plus the ablation, graft,
 anti-windup, penalty-shape, hyperparameter-sweep, initialization, and
 cross-backbone controls behind
-Secs.~\ref{sec:oct}--\ref{sec:carries} and Apps.~\ref{app:mech}--\ref{app:groups})
+Secs.~\ref{sec:oct}--\ref{sec:carries} and Apps.~\ref{app:mech}--\ref{app:groups}{\color{blue},
+and the campaigns added in revision: the ALM dual over the full grid, the
+imbalanced-learning baselines, MobileNetV2, and the native-resolution
+HAM10000 runs})
 accompany this submission at
 \url{https://anonymous.4open.science/r/tralo-anonymous}
 (anonymized during review; will be de-anonymized on acceptance). All
@@ -1456,6 +1459,17 @@ So $F$ does not decrease past the cap: $S{=}K$ is a local minimum along the path
 \emph{finite} multiplier attains it. The nonzero boundary slope $1/K$ is what makes the
 penalty exact, playing the role of the $\ell_1$ penalty's unit slope
 \citep{nocedal2006numerical}.
+
+Three caveats, so the statement is not read for more than it says. It assumes
+$c$ is finite, which holds wherever the cross-entropy is differentiable at the
+cap but is an assumption, not a consequence. It assumes
+$dL_{\text{CE}}/dS\le0$ at $K$: the constrained class is under-served at any cap
+$L<100\%$ in aggregate, but App.~\ref{app:groups} notes that on TissueMNIST and
+DermMNIST the warmup model already predicts the constrained class at close to
+its capped rate, which is exactly the regime where the sign is weakest --- and
+those are the two datasets on which we report a tie rather than a win. And
+``local minimum'' is along the parameterised path only; it is not a local
+minimum in $\theta$, and nothing here claims one.
 }
 
 \medskip
