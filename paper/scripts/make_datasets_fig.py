@@ -3,7 +3,7 @@ severity, ending at melanoma (the constrained class the count cap restricts). Ke
 so the clinically graphic melanoma does not dominate the page.
 
 Images load via the medmnist package (cached in ~/.medmnist); no training data needed.
-Run:  python final_AAAI_PAPER/scripts/make_datasets_fig.py
+Run:  python paper/scripts/make_datasets_fig.py
 """
 import os, sys
 from pathlib import Path

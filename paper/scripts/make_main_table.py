@@ -23,7 +23,7 @@ import numpy as np
 import pandas as pd
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)  # final_AAAI_PAPER/
+ROOT = os.path.dirname(HERE)  # paper/
 
 DS3 = ["tissuemnist", "dermmnist", "octmnist"]
 DSP = {"tissuemnist": "Tissue", "dermmnist": "Derm", "octmnist": "OctMNIST"}
@@ -132,7 +132,7 @@ def build_table(df):
     L.append(r"\toprule")
     L.append(r" & & & \multicolumn{2}{c}{Post-hoc$^{\dagger}$} & \multicolumn{4}{c}{Constraint-trained} \\")
     L.append(r"\cmidrule(lr){4-5}\cmidrule(lr){6-9}")
-    L.append(r"Data & Backbone & Cap & Heur. & Shifman & Fioretto & Hounie & TraLO-b & \textbf{TraLO} \\")
+    L.append(r"Data & Backbone & Cap & Heur. & LP-LG & Fioretto & Hounie & TraLO-b & \textbf{TraLO} \\")
     L.append(r"\midrule")
     stats = {"best_or_tied": 0, "cells": 0}
     for di, ds in enumerate(DS3):
@@ -201,7 +201,7 @@ def build_table_two_metrics(df):
     L.append(r"\toprule")
     L.append(r" & & & \multicolumn{6}{c}{Constrained-class F1} & & \multicolumn{6}{c}{Macro-F1} \\")
     L.append(r"\cmidrule(lr){4-9}\cmidrule(lr){11-16}")
-    hdr = r"Heur.$^{\dagger}$ & Shifman$^{\dagger}$ & Fioretto & Hounie & TraLO-b & \textbf{TraLO}"
+    hdr = r"Heur.$^{\dagger}$ & LP-LG$^{\dagger}$ & Fioretto & Hounie & TraLO-b & \textbf{TraLO}"
     L.append(r"Data & Backbone & Cap & " + hdr + " & & " + hdr + r" \\")
     L.append(r"\midrule")
     stats = {"best_or_tied": 0, "cells": 0}

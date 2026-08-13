@@ -1,4 +1,4 @@
-"""Shared AAAI figure style for the final_AAAI_PAPER figures.
+"""Shared AAAI figure style for the paper figures.
 
 Enforces the AAAI / scientific-visualization checklist (AAAI-26 author kit;
 Rougier et al. "Ten Simple Rules for Better Figures"; Wong, Nature Methods 2011):
@@ -77,6 +77,82 @@ def apply_style():
         "savefig.dpi": 300,
         "savefig.bbox": "tight",
     })
+
+
+def legend_clear(ax, *args, candidates=None, pad=0.015, verbose=True, **kwargs):
+    """Place a legend where it does NOT sit on top of the plotted data.
+
+    matplotlib's loc="best" only avoids overlap approximately and gives up
+    silently when it cannot find room, which is how Fig. 4's legend ended up
+    with the Fioretto curve running straight through its label. This tries each
+    candidate location, counts how many plotted points the legend box would
+    cover, and keeps the first location that covers none. If every candidate
+    collides it keeps the least-bad one and says so, so the problem surfaces at
+    generation time instead of in the PDF.
+
+    Returns the Legend. Extra args/kwargs are forwarded to ax.legend().
+    """
+    if candidates is None:
+        candidates = ["upper left", "upper right", "lower left", "lower right",
+                      "center left", "center right", "upper center",
+                      "lower center", "center"]
+
+    # Plotted points in axes coordinates (0..1), for lines and marker scatters.
+    pts = []
+    for ln in ax.get_lines():
+        xy = ln.get_xydata()
+        if xy is None or len(xy) == 0:
+            continue
+        pts.append(ax.transAxes.inverted().transform(ax.transData.transform(xy)))
+    for coll in ax.collections:
+        try:
+            off = coll.get_offsets()
+        except Exception:
+            continue
+        if off is not None and len(off):
+            pts.append(ax.transAxes.inverted().transform(ax.transData.transform(off)))
+    # Bars/patches: sample each rectangle's corners so filled shapes count too.
+    for p in ax.patches:
+        try:
+            bb = p.get_window_extent()
+        except Exception:
+            continue
+        c = ax.transAxes.inverted().transform(
+            [[bb.x0, bb.y0], [bb.x1, bb.y0], [bb.x0, bb.y1], [bb.x1, bb.y1]])
+        pts.append(c)
+
+    if pts:
+        import numpy as _np
+        allpts = _np.vstack(pts)
+        allpts = allpts[_np.isfinite(allpts).all(axis=1)]
+    else:
+        allpts = None
+
+    best = None
+    for loc in candidates:
+        leg = ax.legend(*args, loc=loc, **kwargs)
+        ax.figure.canvas.draw()
+        bb = leg.get_window_extent()
+        x0, y0 = ax.transAxes.inverted().transform((bb.x0, bb.y0))
+        x1, y1 = ax.transAxes.inverted().transform((bb.x1, bb.y1))
+        if allpts is None:
+            return leg
+        inside = ((allpts[:, 0] > x0 - pad) & (allpts[:, 0] < x1 + pad) &
+                  (allpts[:, 1] > y0 - pad) & (allpts[:, 1] < y1 + pad))
+        n = int(inside.sum())
+        if n == 0:
+            return leg
+        if best is None or n < best[0]:
+            best = (n, loc)
+        leg.remove()
+
+    n, loc = best
+    if verbose:
+        print("  WARNING: legend on %r overlaps data at every candidate location; "
+              "using %r (%d points covered). Consider shrinking the legend, "
+              "widening the axes, or moving it outside the axes."
+              % (ax.get_title() or ax.get_ylabel(), loc, n))
+    return ax.legend(*args, loc=loc, **kwargs)
 
 
 def savefig_dual(fig, out_dir, stem):

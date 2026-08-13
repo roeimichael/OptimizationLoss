@@ -6,12 +6,12 @@ means are overlaid as dots so the seed/dataset spread behind each bar is visible
 
   Trained-under-constraint optimizers (TraLO, Hounie-RCL, Fioretto-LDF,
   TraLO-bounded) satisfy the count natively; the post-hoc clippers (Heuristic,
-  Shifman-LP) reach it natively only at loose caps.
+  LP-LG) reach it natively only at loose caps.
 
-Source: final_AAAI_PAPER/data/corpus/corpus_final.csv, sweep=='paper_final'.
+Source: paper/data/corpus/corpus_final.csv, sweep=='paper_final'.
   columns used: model {MobileNetV3, RegNetY400MF, ViTB16}, method, dataset, sat
 
-Run:  python final_AAAI_PAPER/scripts/make_deployment_fig.py
+Run:  python paper/scripts/make_deployment_fig.py
 """
 import os
 import sys
@@ -23,8 +23,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fig_style import apply_style, savefig_dual, BACKBONE_COLOR
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-OUT = os.path.join(ROOT, "final_AAAI_PAPER", "figures")
-SRC = os.path.join(ROOT, "final_AAAI_PAPER", "data", "corpus", "corpus_final.csv")
+OUT = os.path.join(ROOT, "paper", "figures")
+SRC = os.path.join(ROOT, "paper", "data", "corpus", "corpus_final.csv")
 os.makedirs(OUT, exist_ok=True)
 
 apply_style()
@@ -39,7 +39,7 @@ METHOD_LABELS = {
     "fioretto_ldf": "Fioretto-LDF",
     "tralo_bounded": "TraLO-bounded",
     "heuristic": "Heuristic",
-    "danits_lp": "Shifman-LP",
+    "danits_lp": "LP-LG",
 }
 POSTHOC = {"heuristic", "danits_lp"}
 

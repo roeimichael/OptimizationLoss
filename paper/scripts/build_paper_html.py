@@ -1,4 +1,4 @@
-"""Render final_AAAI_PAPER/main.tex into final_AAAI_PAPER/paper.html -- a polished
+"""Render paper/main.tex into paper/paper.html -- a polished
 two-column academic-paper layout: full-width title block + abstract spanning both
 columns, then two justified columns; numbered sections; figure floats (centered images
 + captions); LaTeX tables rendered as real HTML tables; inline $math$, \cite, \ref,
@@ -16,7 +16,7 @@ import html as _html
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-PAPER = os.path.join(ROOT, 'final_AAAI_PAPER')
+PAPER = os.path.join(ROOT, 'paper')
 FIGDIR = os.path.join(PAPER, 'figures')
 TABDIR = os.path.join(PAPER, 'tables')
 

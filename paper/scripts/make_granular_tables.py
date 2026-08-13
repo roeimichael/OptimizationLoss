@@ -3,17 +3,17 @@
 One row per (dataset, backbone, cap) -- averaging over the 4 seeds ONLY, never pooling
 across backbones or caps. Two paired comparisons per row:
   * cc-F1  vs the best constraint-TRAINED baseline (per-seed max of Fioretto/Hounie),
-  * macro-F1 vs the best POST-HOC clipper   (per-seed max of Heuristic/Shifman).
+  * macro-F1 vs the best POST-HOC clipper   (per-seed max of Heuristic/LP-LG).
 Gaps are paired by seed then averaged; 'win' is the seed-winrate (k/4).
 
-Emits, into final_AAAI_PAPER/tables/:
+Emits, into paper/tables/:
   tab_granular_tissue.tex, tab_granular_derm.tex, tab_granular_oct.tex  (symmetric grid)
   tab_granular_asym.tex   (MobileNetV3 asymmetric caps: DermMNIST + TissueMNIST)
 
 Symmetric data = sweep 'paper_final' (3 bb x 9 caps). Asymmetric = the dedicated
 MobileNetV3 sweeps in the corpus (derm=paperv2_phase2, tissue=g2_asym_tissue_aider).
 
-Run:  python final_AAAI_PAPER/scripts/make_granular_tables.py
+Run:  python paper/scripts/make_granular_tables.py
 """
 import os
 import numpy as np

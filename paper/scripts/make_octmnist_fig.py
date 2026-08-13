@@ -15,12 +15,12 @@ Design (2026-07-05, per-backbone gap): TWO stacked panels sharing x.
             positive only in the tight-binding band).
 The tight-binding band (L30/L40) is shaded in both panels.
 
-Data: final_AAAI_PAPER/data/corpus/corpus_final.csv. Top panel = sweep 'paper_final',
+Data: paper/data/corpus/corpus_final.csv. Top panel = sweep 'paper_final',
 octmnist, MobileNetV3. Bottom panel = canonical OctMNIST cells (constrained class 2,
 group synth_group) across all three backbones and their per-backbone sweeps, deduped and
 paired by seed -- so the plotted gaps match the numbers in the text and Table 2 exactly.
 
-Run:  python final_AAAI_PAPER/scripts/make_octmnist_fig.py
+Run:  python paper/scripts/make_octmnist_fig.py
 """
 import os
 import sys
@@ -33,8 +33,8 @@ from fig_style import (apply_style, savefig_dual, OKABE, C_TRALO, C_FIORETTO,
                        C_HOUNIE, BACKBONE_COLOR)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-CSV = os.path.join(ROOT, "final_AAAI_PAPER", "data", "corpus", "corpus_final.csv")
-OUT = os.path.join(ROOT, "final_AAAI_PAPER", "figures")
+CSV = os.path.join(ROOT, "paper", "data", "corpus", "corpus_final.csv")
+OUT = os.path.join(ROOT, "paper", "figures")
 os.makedirs(OUT, exist_ok=True)
 
 apply_style()
@@ -49,7 +49,7 @@ DUALS = ["fioretto_ldf", "hounie_rcl"]
 # (model key, label, marker) -- ViT-B/16 is the hero (thickest, drawn last/on top)
 GAP_BACKBONES = [
     ("MobileNetV3",  "MobileNetV3",   "o", 1.1, 3, False),
-    ("RegNetY400MF", "RegNet",        "s", 1.1, 4, False),
+    ("RegNetY400MF", "RegNetY-400MF", "s", 1.1, 4, False),
     ("ViTB16",       "ViT-B/16",      "D", 1.9, 6, True),
 ]
 
@@ -108,7 +108,7 @@ METHODS = [
     ("tralo_bounded",  "TraLO-b",      OKABE["skyblue"], "-",         "o", 0.85, 2.7, 5, "white", 0.95),
     ("fioretto_ldf",   "Fioretto",     C_FIORETTO,       "-",         "^", 0.85, 2.9, 5, None,    0.95),
     ("hounie_rcl",     "Hounie",       C_HOUNIE,         "-",         "s", 0.85, 2.7, 5, None,    0.95),
-    ("danits_lp",      r"Shifman$^\dagger$", OKABE["purple"], (0, (4, 2)), "D", 0.80, 2.4, 2, None, 0.38),
+    ("danits_lp",      r"LP-LG$^\dagger$", OKABE["purple"], (0, (4, 2)), "D", 0.80, 2.4, 2, None, 0.38),
     ("heuristic",      r"Heur.$^\dagger$",  "#7a7a7a",     (0, (1, 1.6)), "v", 0.80, 2.5, 2, None, 0.38),
 ]
 

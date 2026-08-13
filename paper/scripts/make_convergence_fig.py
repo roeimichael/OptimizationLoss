@@ -20,10 +20,10 @@ Epoch alignment: TraLO logs at GLOBAL epochs (from 51, after the 50-epoch warmup
 baselines at CONSTRAINT epochs from 0; both are normalized to the start of the constraint
 phase (x - x[0]) so the axis is "epochs into the constraint phase" for every method.
 
-Data source: final_AAAI_PAPER/data/dynamics/dermmnist/*/symmetric/RegNetY400MF/L30_G30/
+Data source: paper/data/dynamics/dermmnist/*/symmetric/RegNetY400MF/L30_G30/
 (self-contained; see data/README_DATA.md). Constrained class 4 (melanoma).
 
-Run:  python final_AAAI_PAPER/scripts/make_convergence_fig.py
+Run:  python paper/scripts/make_convergence_fig.py
 """
 import os
 import sys
@@ -36,8 +36,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fig_style import apply_style, savefig_dual, C_TRALO, C_FIORETTO, C_HOUNIE
 
 ROOT = Path(__file__).resolve().parents[2]
-OUT = ROOT / "final_AAAI_PAPER" / "figures"
-RESULTS = ROOT / "final_AAAI_PAPER" / "data" / "dynamics"
+OUT = ROOT / "paper" / "figures"
+RESULTS = ROOT / "paper" / "data" / "dynamics"
 OUT.mkdir(parents=True, exist_ok=True)
 
 apply_style()

@@ -9,10 +9,10 @@
     CE-vs-constraint tug-of-war is visible: (a) lambda 53 vs 0.18 (~300x),
     (b) identical CE traces, (c) excess oscillates while CE is live and falls to
     the cap only after the CE-saturation gate fires -- for BOTH methods.
-    Reads the self-contained copy under final_AAAI_PAPER/data/dynamics/ (see
-    final_AAAI_PAPER/data/README_DATA.md for provenance).
+    Reads the self-contained copy under paper/data/dynamics/ (see
+    paper/data/README_DATA.md for provenance).
 
-Run:  python final_AAAI_PAPER/scripts/make_figs.py
+Run:  python paper/scripts/make_figs.py
 """
 import os
 import sys
@@ -22,10 +22,16 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from fig_style import apply_style, savefig_dual, C_TRALO, C_FIORETTO, OKABE
+from fig_style import (apply_style, savefig_dual, legend_clear,
+                       C_TRALO, C_FIORETTO, OKABE)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-OUT = os.path.join(ROOT, "final_AAAI_PAPER", "figures")
+# The AAAI tree was retired to archive/legacy in the 2026-07 reorg; the paper is
+# self-contained under paper/ now. Both paths kept resolvable so the script runs
+# from a clean clone.
+PAPER = os.path.join(ROOT, "paper")
+OUT = os.path.join(PAPER, "figures")
+DATA = os.path.join(PAPER, "data")
 os.makedirs(OUT, exist_ok=True)
 
 apply_style()
@@ -110,7 +116,7 @@ def make_mechanism():
       (c) NEITHER method can move the count while CE is live (excess oscillates
           ~60 epochs); it falls to the cap only after CE stops -- and then both
           methods satisfy within a few epochs. Same outcome, 300x the pressure."""
-    base = os.path.join(ROOT, "final_AAAI_PAPER", "data", "dynamics", "dermmnist")
+    base = os.path.join(DATA, "dynamics", "dermmnist")
     cell = os.path.join("w1_probe", "pushpull_derm_w1", "L50_G50", "seed_1",
                         "training_log.csv")
     fio = pd.read_csv(os.path.join(base, "fioretto_ldf", cell))
@@ -162,8 +168,10 @@ def make_mechanism():
     # titles and the caption carry the reading; the curves stand alone.
     axA.set_title("(a) the response: $\\lambda$ escalates", fontsize=9)
     axA.set_ylabel("multiplier $\\lambda$")
-    axA.legend(loc="upper left", frameon=False, fontsize=7,
-               handlelength=1.6, borderaxespad=0.2)
+    # Placed by collision check, not by hand: the escalating Fioretto curve
+    # sweeps through the upper-left corner this legend used to sit in.
+    legend_clear(axA, frameon=False, fontsize=7,
+                 handlelength=1.6, borderaxespad=0.2)
 
     # ---- (b) the non-effect: classification loss is identical either way ----
     axB.plot(fio_ep[fio_real], fio_ce[fio_real], **FIO)

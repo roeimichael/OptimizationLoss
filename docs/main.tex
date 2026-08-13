@@ -1486,9 +1486,14 @@ reset at satisfaction costs $+0.079$ cc-F1, the single largest effect,
 helping on all $24$ paired runs and hence in all six cells (cell-level
 sign test $p\!=\!0.031$), because it breaks the post-satisfaction
 descent momentum that would otherwise erode the constrained class.
-Removing the undershoot hinge (the TraLO-bounded control, already in
-the frozen grid) costs $+0.036$ cc-F1 (positive on all $24$ paired
-runs; cell-level sign test $p\!=\!0.031$; $0.019$--$0.070$ across cells).
+\del{Removing the undershoot hinge (the TraLO-bounded control, already in
+the frozen grid) costs \mbox{$+0.036$} cc-F1 (positive on all \mbox{$24$} paired
+runs; cell-level sign test \mbox{$p\!=\!0.031$}; \mbox{$0.019$--$0.070$} across cells).}
+{\color{blue}Removing the undershoot hinge alone, with the reset retained, costs
+$+0.032$ cc-F1 (it helps in $22$ of the $24$ paired runs and in all six cells;
+cell-mean gaps $+0.009$ to $+0.056$; cell-level sign test $p\!=\!0.031$). Removing
+both at once --- the TraLO-bounded control already in the frozen grid --- costs
+$+0.036$, less than removing the reset alone, so the two components are not additive.}
 The other components are cc-F1-neutral on these already-satisfied
 cells: the $\rho$ schedule and the lambda freeze move it by under $0.001$
 (n.s.). \del{A dedicated KL sweep on TissueMNIST (the \mbox{$L30$} tight cap,
@@ -1715,7 +1720,8 @@ at the tight $L30$ cap on MobileNetV3: macro-F1, accuracy, and the
 number of predictions each method must overwrite (Flips).
 Figure~\ref{fig:deployment} shows native satisfaction per method over
 the full grid. TraLO and Hounie-RCL meet the count in every run;
-Fioretto-LDF and the hinge-free TraLO-bounded do most of the time; the
+Fioretto-LDF and \del{the hinge-free}{\color{blue}the reset- and hinge-free}
+TraLO-bounded do most of the time; the
 post-hoc clippers meet it natively only at loose caps. A caveat on
 \emph{flips}: at near-trivial loose caps (e.g.\ OctMNIST $L80/L90$)
 TraLO can record more flips than a clipper that barely has to act, so
