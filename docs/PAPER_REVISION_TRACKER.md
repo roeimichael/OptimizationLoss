@@ -180,10 +180,68 @@ than hand-editing, once item 1 lands.
 - Penalty-shape neutrality stated **seven** times
 - §6 / App. B duplication (D4) — the largest single space recovery
 
-- [ ] Work D1–D14 in order of harm
-- [ ] Sweep every scope phrase for the 4th backbone / 7th method (ground rule 4)
-- [ ] **Rewrite the Conclusion** — it currently knows about none of the new results
-- [ ] Update the abstract to match the final scope
+### Narrative pass — DONE 2026-08-13
+
+The spine was rewritten so the four new experiments change the argument instead of
+sitting beside it. In order of the reader's path:
+
+- **Abstract** — was selectively updated (native resolution in, ALM and focal out).
+  Now carries all four: the clipping margin is scoped to imbalance-unaware clipping,
+  ALM is named as a stronger dual the advantage survives, and the two components are
+  stated as individually load-bearing.
+- **§1 "Who should care"** — pointed at Limitations for a *positive* result, and the
+  pointer went stale when the native-resolution material moved. Repointed at
+  App.~\ref{app:native}, with the focal scoping added.
+- **§2 Related Work (D1)** — said "Our **two** dual-ascent baselines are…" four lines
+  after the blue text announcing ALM as a third, and kept the old *reason not to run
+  it* while announcing that we do. Rewritten as one argument: ALM is the sharper
+  comparison precisely because its quadratic growth is structurally close to our
+  $\rho$ ramp, so beating it cannot be credited to a weak baseline. Three baselines
+  named.
+- **§4 Setup** — the root cause of ALM reading as a patch: it was never *defined*
+  where every other baseline is. Now in the baseline list, in the per-method detail
+  (exact multiplier update, verified against `fioretto_alm/train.py`), and in the
+  frozen-recipe step sizes.
+- **§5.1** — the (iv)(v)(vi) paragraph bundled three reviewer answers in one breath.
+  ALM moved into the main claim, where both margins are stated correctly scoped:
+  $+0.038$ over the two dual-ascent baselines, $+0.028$ over ALM. **Both numbers
+  kept** — the larger one is not lost, and the reviewer's "your best baseline isn't
+  in your headline" objection is closed. The paragraph is now (iv) fourth backbone,
+  (v) intervals.
+- **§5.3 (D10)** — concluded that focal's win "reinforces that the advantage belongs
+  to the constraint-trained family." Focal is not constraint-trained; the result says
+  the margin is over *vanilla* clipping. Replaced with the conclusion the data
+  supports, and it now forward-declares the narrower form.
+- **§7 Limitations (D3, D6)** — the struck "Missing baselines" paragraph had named the
+  exact condition under which the claim must narrow, and the experiment *met* it, so
+  a short replacement states the resulting scope (no numbers — those stay in §5.3).
+  The 96-run native-resolution result and its table moved to **App.~E**; Limitations
+  keeps only the genuine limitation (OctMNIST has no native counterpart, so the win
+  region is untested at full resolution).
+- **§8 Conclusion** — was the pre-revision conclusion word for word, the clearest tell
+  of bolt-on writing. Now absorbs ALM, the fourth backbone, the narrowed clipping
+  margin, native resolution, and the individually load-bearing components.
+- **App. B (D4)** — restated §6's findings verbatim, same numbers and sign tests, so
+  the reader met the whole argument twice. Struck in the appendix (§6 argues it
+  better); the protocol, the caveat, and the tie-region control stay.
+- **Table 15 removed** (item 10) — both citing sentences rewritten rather than left
+  dangling.
+
+**Verified false positive — do not "fix" it.** The reviewer flagged the BH arithmetic
+(`main.tex:672`, "twelve cell-by-component comparisons") as stale now that the
+ablation table has three named rows. It is not: the family is six cells $\times$
+**two components**, and the third row is a *joint* removal, not a third component.
+Twelve stands. The sentence also says "$p{=}0.031$ per load-bearing component" —
+which was only strictly true for one component before, and became true for both when
+the isolated-hinge arm completed.
+
+### Still open
+
+- [ ] Sweep every remaining scope phrase for the 4th backbone / 7th method
+- [ ] Repetition: OctMNIST motivation caveat appears 4$\times$, penalty-shape
+      neutrality 7$\times$; §7's "regime-specific" paragraph repeats §5.2
+- [ ] `\pending{}` markers must all be resolved before submission — grep for them.
+      Currently **1** (the 23-of-27 tie count, which needs ALM's full grid)
 
 ---
 
