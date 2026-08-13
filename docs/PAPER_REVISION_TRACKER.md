@@ -132,13 +132,58 @@ backbones/datasets. Whatever scope the tables claim, the figures must show.
 
 ## Item 4 — Textual coherence
 
-A background agent is reading the manuscript end to end for narrative coherence:
-bolted-on blue insertions, orphaned red deletions, broken forward references,
-duplicated claims, misplaced sections, and scope words that overstate the evidence.
+Full end-to-end read completed 2026-08-13. Verdict: **the skeleton is sound, but the
+four new experiments were grafted on without being allowed to change the spine.**
+Two diagnostic tells: the Conclusion is still the pre-revision conclusion word for
+word, and each blue block sits next to *the objection it answers* rather than at the
+place in the argument it changes.
 
-- [ ] Apply the coherence findings
+### DECISION REQUIRED — the headline number
+
+The body claims TraLO leads **"the best constraint-trained baseline"** by
+**+0.038** cc-F1 (`docs/main.tex:660`). But the blue §5.1 paragraph says ALM beats
+Fioretto-LDF by +0.010 and TraLO leads *ALM* by **+0.028**. If ALM is a
+constraint-trained baseline — and the paper now calls it one — then "best
+constraint-trained baseline" means ALM, and the honest headline is +0.028.
+
+Right now the paper's most-quoted number is computed over a baseline set that
+excludes its own strongest baseline. A reviewer will do this arithmetic.
+
+**Recommendation: take the +0.028.** "We beat the textbook augmented Lagrangian"
+is a *stronger* claim than "we beat two weaker duals by a bigger margin", because
+margins over weak baselines get discounted. Recompute from the full ALM grid rather
+than hand-editing, once item 1 lands.
+
+- [ ] Professor sign-off on moving the headline to the ALM-inclusive margin
+
+### Verified defects (spot-checked against the source, not taken on trust)
+
+| ID | Defect | Location | Status |
+|---|---|---|---|
+| D5 | Body reported the *old* ablation row — said the hinge alone costs $+0.036$ at winrate 1.00, but that is the reset+hinge row; hinge alone is $+0.032$ / 0.92 | `main.tex:972` | **FIXED** |
+| D11 | Table 9 caption named the wrong two backbones as clearing $+0.005$ (MobileNetV3 is $+0.004$, ViT-B/16 is $+0.018$) | `tables_rev/tab_backbone_generality.tex` | **FIXED** |
+| D1 | Related Work says "Our **two** dual-ascent baselines are…" four lines after the blue text announcing ALM as a third | `main.tex:238` | open |
+| D2 | Headline margin supersession (above) | `main.tex:660`, `689`, `697`, `1758` | open |
+| D3 | The struck "Missing baselines" limitation named the exact condition under which the claim must tighten — and Table 3 shows that condition **met** on DermMNIST. Deleting it removed the caveat at the moment it came true | `main.tex:1136` | open |
+| D4 | §6 and Appendix B are the same argument written twice, same numbers — ~1.5 pages recoverable | `main.tex:965–1027` / `1474–1618` | open |
+| D6 | A 96-run positive result + Table 4 filed under Limitations (matches the professor's note) | `main.tex:1051` | see item 6 |
+| D10 | §5.3 blue concludes focal's win "reinforces that the advantage belongs to the constraint-trained family" — focal is **not** constraint-trained; the result actually says the margin is over *vanilla* clipping | `main.tex:875` | open |
+| D13 | BH correction arithmetic ($6/12$, $12/12$) assumes 2 named components; the table now has 3, so the family is 18 | `main.tex:640` | open |
+| D14 | "every method and every backbone in the paper" then enumerates 4 of 6 methods | `main.tex:1055` | open |
+| D8 | "the full symmetric grid" describes a table holding 27 of 81 cells; and $L40$ — half the tight-cap evidence — is not in Table 1 at all | `main.tex:654` | open |
+| D9 | Table 1 caption cites "Supp. Table S6 / Supp. Sec. D" — leftover from the two-document AAAI version; this is one self-contained PDF | `tables/tab_ccf1.tex:17` | open |
+| D12 | MobileNetV2 called a full fourth backbone in the body, "corroboration of sign not size" in its own table caption; it is on a partial cap grid (18 of 27 cells) | `main.tex:743` | open |
+| D7 | Abstract calls the native-resolution result a win; §4 calls it a tie. Same 96 runs | `main.tex:98` / `517` | open |
+
+### Repetition to cut (drift, not reinforcement)
+- OctMNIST motivation caveat stated **four** times (§4, §7, Broader Impact, App. F)
+- Penalty-shape neutrality stated **seven** times
+- §6 / App. B duplication (D4) — the largest single space recovery
+
+- [ ] Work D1–D14 in order of harm
 - [ ] Sweep every scope phrase for the 4th backbone / 7th method (ground rule 4)
-- [ ] Re-read intro → results → conclusion and confirm one consistent claim
+- [ ] **Rewrite the Conclusion** — it currently knows about none of the new results
+- [ ] Update the abstract to match the final scope
 
 ---
 

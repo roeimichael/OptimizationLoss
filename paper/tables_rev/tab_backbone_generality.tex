@@ -12,9 +12,10 @@ to clear $+0.005$; loss is the mirror). Across all four backbones (the three mai
 plus MobileNetV2), TissueMNIST and DermMNIST show no systematic constrained-class advantage
 (per-backbone means within $\pm0.003$, mostly ties), while OctMNIST is
 \del{a positive margin on every backbone}
-{\color{blue}positive on every backbone, though only MobileNetV3 and RegNetY-400MF clear
-the $+0.005$ bar; the MobileNetV2 cell ($+0.002$) sits inside the same band we call a tie
-on the other two datasets, and is counted as corroboration of sign rather than of size}.
+{\color{blue}positive on every backbone, though only RegNetY-400MF ($+0.011$) and
+ViT-B/16 ($+0.018$) clear the $+0.005$ bar; MobileNetV3 ($+0.004$) and MobileNetV2
+($+0.002$) sit inside the same band we call a tie on the other two datasets, and are
+counted as corroboration of sign rather than of size}.
 The honest tie and the OctMNIST win are both properties of the regime, not of one architecture.}
 \label{tab:bbgen}
 \begin{tabular}{l rrr}

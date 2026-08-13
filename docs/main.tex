@@ -969,10 +969,16 @@ component at a time and measure the paired change in constrained-class F1
 components are load-bearing. Removing the Adam-state reset at satisfaction
 costs $+0.079$ cc-F1, the single largest effect, helping on all $24$
 paired runs and hence in all six cells (cell-level sign test $p\!=\!0.031$).
-Removing the undershoot hinge (the TraLO-bounded control, already in the
-main grid) costs $+0.036$ cc-F1 (positive on all $24$ paired runs;
-cell-level sign test $p\!=\!0.031$; $0.019$--$0.070$ across cells). The
-other components are cc-F1-neutral on these already-satisfied cells: the
+\del{Removing the undershoot hinge (the TraLO-bounded control, already in the
+main grid) costs \mbox{$+0.036$} cc-F1 (positive on all \mbox{$24$} paired runs;
+cell-level sign test \mbox{$p\!=\!0.031$}; \mbox{$0.019$--$0.070$} across cells).}
+{\color{blue}Removing the undershoot hinge alone, with the reset retained, costs
+$+0.032$ cc-F1: it helps in $22$ of the $24$ paired runs and in all six cells
+(cell-mean gaps $+0.009$ to $+0.056$; cell-level sign test $p\!=\!0.031$). Removing
+both together --- the TraLO-bounded control already in the main grid --- costs
+$+0.036$, which is \emph{less} than removing the reset alone: the two are not
+additive, because they repair overlapping failures rather than independent ones.}
+The other components are cc-F1-neutral on these already-satisfied cells: the
 $\rho$ schedule and the lambda freeze move it by under $0.001$ (n.s.).
 
 \paragraph{Graft transfers the win to the dual baselines.}
