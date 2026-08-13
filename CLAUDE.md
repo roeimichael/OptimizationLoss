@@ -87,7 +87,7 @@ L_total = L_ce + lambda_g * L_global + lambda_l * L_local + alpha_kl * L_kl
 main.py                 # Experiment orchestrator (sequential + parallel GPU)
 run_oct_asym.sh         # OctMNIST asymmetric-cap dispatch runner
 PAPER_INDEX.md          # map of paper + data + archive (read first)
-final_AAAI_PAPER/       # the self-contained AAAI-2027 submission (text + figures/tables/data/scripts)
+paper/                  # the TMLR submission (professor's Overleaf conversion; incl. HANDOFF_TRACK_B.tex experiment plan)
 docs/                   # project docs (PAPER_PLAN.md, etc.)
 src/
   config_generators/    generate_configs.py + gen_*.py campaign generators
@@ -105,7 +105,7 @@ src/
   evaluation/           full_census.py, paired_significance.py, make_winning_results.py
 data/                   # small local staging (dermmnist/tissuemnist/aider prep); image store on D:
 model_cache/            cached warmup .pt files (not in git, auto-created)
-archive/                consolidated old data + scratch: raw_runs/, legacy/, scratch/ (gitignored)
+archive/                consolidated old data + scratch: raw_runs/, legacy/ (incl. retired AAAI-2027 paper), scratch/ (gitignored)
 results/
   pending_runs/         {constraint}/{model}/{variation}/ -- experiments to run
 ```

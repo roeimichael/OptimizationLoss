@@ -24,6 +24,7 @@ from src.methodologies.focal.train import train as train_focal                  
 from src.methodologies.class_balanced.train import train as train_class_balanced  # TMLR B1: imbalanced baseline
 from src.methodologies.logit_adjust.train import train as train_logit_adjust    # TMLR B1: imbalanced baseline
 from src.methodologies.fioretto_alm.train import train as train_fioretto_alm    # TMLR B3: augmented-Lagrangian baseline
+from src.methodologies.alm_rh.train import train as train_alm_rh                # review round 1: ALM + reset + hinge graft
 from src.pipeline.contracts import TrainInputs
 from src.pipeline.warmup import run_warmup
 from src.pipeline.eval import evaluate_with_posthoc, write_evaluation_outputs
@@ -99,6 +100,7 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         'class_balanced': train_class_balanced,     # TMLR B1: class-balanced CE + LP clip
         'logit_adjust': train_logit_adjust,         # TMLR B1: logit adjustment + LP clip
         'fioretto_alm': train_fioretto_alm,         # TMLR B3: augmented-Lagrangian dual update
+        'alm_rh': train_alm_rh,                     # review round 1: ALM + reset + hinge
     }
     if methodology not in train_fns:
         raise ValueError(f"Unknown methodology for run_experiment: {methodology!r}")
