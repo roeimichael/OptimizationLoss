@@ -7,12 +7,13 @@
 \caption{\del{\textbf{Complete component ablation on the OctMNIST hard-binding cells.} Effect on constrained-class F1 of removing each TraLO component in turn}
 {\color{blue}\textbf{Component ablation on the OctMNIST hard-binding cells.} Effect on constrained-class F1 of removing TraLO components}
 ($n{=}24$ paired runs each: 2 tight caps $\times$ 3 backbones $\times$ 4 seeds). $\Delta$~cc-F1 = full TraLO $-$ (component removed); winrate = fraction of the 24 paired runs where removing the component hurts. Inference is at the cell level (the unit that does not repeat seeds): removing either load-bearing component hurts in all six cells (sign test $p{=}0.031$, the six-cell floor), while the $\rho$ schedule and lambda freeze split the cells and are cc-F1-neutral on these already-satisfied cells. \del{Two essential ingredients plus two neutral ones, \emph{not} four co-equal components.}
-{\color{blue}The reset is the only component isolated singly: the second row removes the
-reset \emph{and} the hinge together, via the TraLO-bounded control, which strips both
-(Sec.~\ref{sec:setup}); this is why removing two components costs less than removing the
-reset alone: the two components are not additive, and their joint removal is not the sum
-of the separate ones. The \emph{Undershoot hinge (alone)} row isolates the hinge with the
-reset retained, on the same $n{=}24$ grid as the other rows. It helps in $22$ of the $24$
+{\color{blue}Each load-bearing component is isolated singly, on the same $n{=}24$ grid:
+the \emph{reset} row removes the reset with the hinge retained, and the
+\emph{Undershoot hinge (alone)} row removes the hinge with the reset retained.
+The second row is the joint removal --- the TraLO-bounded control strips both at once
+(Sec.~\ref{sec:setup}) --- which is why removing two components costs \emph{less} than
+removing the reset alone: the two are not additive, and their joint removal is not the
+sum of the separate ones. It helps in $22$ of the $24$
 paired runs and in \emph{all six} cells (cell-mean gaps $+0.009$ to $+0.056$; cell-level
 sign test $p{=}0.031$, the six-cell floor), so each named component is load-bearing on its
 own and not only as a pair.}}

@@ -92,6 +92,17 @@ def drop_emptied_lines(s):
     return "\n".join(kept), dropped
 
 
+def drop_emptied_headings(s):
+    """Remove run-in headings whose entire title was deleted.
+
+    "\\paragraph{\\del{Old heading.}}\\leavevmode" strips to "\\paragraph{}\\leavevmode",
+    which typesets as a ~2-line band of empty space -- visible in the compiled PDF
+    and invisible in the source. The \\leavevmode is only there to force the run-in
+    heading out before \\del opens its colour group, so it goes with the heading.
+    """
+    return re.subn(r"\\paragraph\{\}\s*(\\leavevmode)?\s*\n?", "", s)
+
+
 def strip_color_groups(s):
     """Remove the \\color{blue} switch, leaving braces alone. Returns (s, count).
 
@@ -135,9 +146,11 @@ def main():
     s = re.sub(r"^\\usepackage\[normalem\]\{ulem\}.*\n", "", s, flags=re.M)
 
     s, n_lines = drop_emptied_lines(s)
+    s, n_head = drop_emptied_headings(s)
 
     open(args.out, "w", encoding="utf-8").write(s)
     print("lines removed (held only deleted text): %d" % n_lines)
+    print("emptied run-in headings removed  : %d" % n_head)
 
     print("deleted  \\del{...}      : %d" % n_del)
     print("accepted \\rev{...}      : %d" % n_rev)

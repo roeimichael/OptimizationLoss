@@ -14,6 +14,10 @@
 % We do NOT input math_commands.tex; our notation is light and self-contained.
 
 \usepackage{hyperref}
+% Without this every \ref and \citep is drawn inside a coloured box. It is
+% invisible in most PDF viewers' default settings and glaring in others; a
+% reviewer saw red and green boxes throughout.
+\hypersetup{hidelinks}
 \usepackage{url}
 \usepackage{graphicx}
 \usepackage{natbib}
@@ -80,8 +84,9 @@ Deployed classifiers often face a hard cap on how many items of a known
 evaluation batch may be assigned to a constrained class. Examples include
 screening pools that can escalate only so many cases, sometimes with
 per-group limits. We call this a transductive count constraint. We study
-a training-time approach that satisfies this cap without editing
-predictions after training, and we identify which of its components
+a training-time approach that satisfies this cap \del{without editing
+predictions after training}{\color{blue}during training rather than by editing
+predictions afterward}, and we identify which of its components
 drive the effect. The approach, which we call TraLO, combines a
 saturating penalty, a ratcheted-and-frozen multiplier, an Adam-state
 reset at first feasibility, and an undershoot hinge. Across a $1944$-run
@@ -101,7 +106,10 @@ mechanistic finding is that this constrained-class advantage is carried
 by two portable components, the optimizer reset and the undershoot
 hinge{\color{blue}, each load-bearing on its own}. Both transfer as additions to
 alternative constraint-trained
-baselines and close most of the tight-cap gap. In contrast, the
+baselines and close most of the tight-cap gap{\color{blue}: with the two
+components grafted on, our package and the grafted baselines are statistically
+interchangeable (mean edge $+0.0015$, trailing in two of six cells). The portable
+components, not the package, are the result}. In contrast, the
 saturating penalty shape after which the package is named proves neutral
 by both ablation and graft. \del{Native-resolution generalization is left to
 future work.}
@@ -144,7 +152,8 @@ it marks is a formulation that on some cells never reaches feasibility at all
 (Sec.~\ref{sec:conv}).
 
 \paragraph{This paper.} We characterize a third answer that lands on the count
-by itself, without prediction surgery, and \emph{we identify which of its
+by itself, \del{without prediction surgery}{\color{blue}with an order of
+magnitude less prediction surgery}, and \emph{we identify which of its
 ingredients actually do the work}. The package we study --- for exposition we
 refer to it as TraLO (\emph{Transductive Loss Optimization}) --- combines a
 saturating transductive penalty (a rational-saturation term plus a bounded
@@ -152,7 +161,9 @@ quadratic in the soft excess over the cap) with a multiplier that only moves
 upward while the count is violated and freezes the first time it is met, an
 Adam-state reset at first satisfaction, and an undershoot hinge that restores
 constrained-class recall once the cap is met. The package as a whole meets the
-count natively on essentially every run and beats post-hoc clipping on macro-F1
+{\color{blue}global} count natively on essentially every run
+{\color{blue}--- and needs an order of magnitude fewer per-group edits than any
+clipper ---} and beats post-hoc clipping on macro-F1
 in nearly every regime. But the internal decomposition matters more than the
 brand: our ablation and graft show that the constrained-class win rests on
 \emph{two} of these ingredients --- the optimizer reset and the undershoot
@@ -239,13 +250,23 @@ augmented-Lagrangian baseline. Its quadratic penalty growth is
 structurally close to the $\rho$ ramp of the package we study (both bound
 the constraint-term gradient after a first violation), so the two are not
 independent tests of the same fix.}
-{\color{blue}We therefore run a dedicated augmented-Lagrangian baseline (ALM;
-Sec.~\ref{sec:results}), the textbook answer to linear-penalty windup. Its
-quadratic penalty growth is structurally close to the $\rho$ ramp of the package
-we study --- both bound the constraint-term gradient after a first violation ---
-and that closeness is exactly what makes it the sharper comparison: it tests the
-same fix from the dual side, so beating it cannot be credited to the baseline
-being weak.}
+{\color{blue}We therefore run a dedicated augmented-Lagrangian \emph{dual update}
+(ALM; Sec.~\ref{sec:results}), the textbook answer to linear-penalty windup. Two
+things about it should be stated plainly, because they bear on what beating it
+proves. First, the augmentation enters through the multiplier and not through the
+primal: the term in the loss keeps Fioretto-LDF's linear form, and the multiplier
+is refreshed once per epoch, so this is the augmented-Lagrangian \emph{ascent
+rule} rather than a full augmented Lagrangian with a quadratic primal penalty
+\citep{bertsekas1982constrained} --- a distinction it shares with the
+multiplier-side controllers of \citet{stooke2020responsive} and
+\citet{sohrabi2024pi}. Second, it is therefore not a bounded-gradient method at
+all: augmenting the multiplier by a violation-proportional term whose coefficient
+grows with the epoch \emph{increases} the constraint-term gradient while the cap
+is violated, where the $\rho$ ramp of the package we study bounds it
+(App.~\ref{app:mech}). That opposition is what makes it the sharper comparison
+--- it attacks windup from the dual side while leaving the primal objective
+untouched, so beating it cannot be credited to the baseline being weak. A full
+augmented-Lagrangian primal remains untested (Sec.~\ref{sec:limits}).}
 The resilient baseline \del{instead}{\color{blue} in turn}
 represents the modern-controllers family with adaptive constraint
 tightness. \del{Our two dual-ascent baselines are Fioretto-LDF
@@ -466,9 +487,17 @@ A satisfied cap can still leave the model under-predicting the constrained
 class, which costs recall. The hinge term $h$ in Eq.~\eqref{eq:total}
 counters this: each cap $c$ contributes
 $\lambda_c\,\beta\,\max(0,\,K_c-S_c)/K_c$, zero whenever the soft count sits
-at or above its cap, so it can never re-violate; once the soft count drops
+at or above its cap, so it can never re-violate
+{\color{blue}the \emph{soft} constraint}; once the soft count drops
 below the cap it gently pushes it back up toward (but not over) the cap,
-restoring constrained-class recall. App.~\ref{app:ablation} shows the hinge
+restoring constrained-class recall.
+{\color{blue}The guarantee is soft-count-only, and worth stating as such:
+feasibility is verified on the hard count (Sec.~\ref{sec:method}, Problem), and
+the two can disagree, so in principle the hinge can engage while a cap is still
+hard-violated and push the soft count further toward it. We did not observe this
+delaying feasibility --- TraLO is never the slowest to reach the count in any of
+the $18$ census cells (Sec.~\ref{sec:conv}) --- but that is evidence, not a
+proof.} App.~\ref{app:ablation} shows the hinge
 and the reset together carry the effect.
 
 \paragraph{Training schedule.}
@@ -673,12 +702,23 @@ seed-winrates, effect sizes, and cell-level $p$-values, so that a
 Benjamini-Hochberg step-up procedure at any target FDR can be recomputed from
 the released per-run corpus. As a check, the OctMNIST tight-cap headline
 (six cells, cell-level sign test $p\!=\!0.031$ per load-bearing component)
-still survives a Benjamini-Hochberg step-up at $q\!=\!0.05$ across the twelve
+still survives a Benjamini-Hochberg step-up at $q\!=\!0.05$
+\del{across the twelve
 cell-by-component comparisons behind Table~\ref{tab:ablation_complete}: the
 six-cell floor $p\!=\!0.031$ maps to a BH threshold of $q\!=\!0.05\times
 6/12 = 0.025$ for the smallest $p$-value and $q\!=\!0.05\times 12/12 = 0.05$
 for the largest, and both load-bearing components lie under their respective
-thresholds.
+thresholds.}%
+{\color{blue}over the family that is actually tested: the two component-level
+$p$-values behind Table~\ref{tab:ablation_complete}, one per load-bearing
+component, each $p\!=\!0.031$. The step-up rule rejects at the largest rank $i$
+with $p_{(i)}\!\le\!q\,i/m$; at $i\!=\!m\!=\!2$ this gives
+$0.031\!\le\!0.05$, so both are rejected. Neither clears the rank-1 threshold
+$q/m\!=\!0.025$ on its own --- it is the step-up rule, not the individual
+thresholds, that carries them, and we state it that way rather than implying
+each passes alone \citep{benjamini1995controlling}. Cell-level tests over the
+twelve cell-by-component comparisons are recomputable from the released corpus
+at any target FDR.}
 
 % ============================================================================
 \section{Results}
@@ -691,7 +731,7 @@ We start with constrained-class F1 (cc-F1), the quality of predictions on
 the very class the cap restricts; Table~\ref{tab:ccf1} shows \del{the full
 symmetric grid, all three datasets over all three backbones,}%
 {\color{blue}a representative slice of the symmetric grid --- all three datasets
-over all four backbones at three cap levels ($L30$, $L50$, $L70$) ---}
+over the three main-grid backbones at three cap levels ($L30$, $L50$, $L70$) ---}
 on both
 headline metrics (cc-F1 here, macro-F1 in Sec.~\ref{sec:deploy}){\color{blue};
 the remaining six cap levels, including the $L40$ tight cap discussed next, are
@@ -716,8 +756,9 @@ ablation variant is also counted as a competitor)%
 \pending{this count is over the two dual-ascent baselines; ALM joins the
 comparison set once its full grid lands}, and on tissue and derm
 the differences at equal feasibility are within seed noise (paired
-Wilcoxon, not significant), a tie that also holds away from the grid, at a
-tighter ($L40$) and a looser ($L60$) cap on RegNet{\color{blue}Y-400MF}.
+Wilcoxon, not significant), a tie that also holds \del{away from the grid, at a
+tighter ($L40$) and a looser ($L60$) cap}{\color{blue}at the adjacent $L40$ and
+$L60$ caps} on RegNet{\color{blue}Y-400MF}.
 
 \begin{figure}[!t]\centering
 \includegraphics[width=0.7\linewidth]{fig_octmnist}
@@ -863,7 +904,13 @@ asymmetric grid, reproduced on RegNet{\color{blue}Y-400MF} and tied on ViT{\colo
 cap pairs; \emph{preliminary}, as only MobileNetV3 has the full grid).
 Every other regime, including all symmetric caps, is a statistical tie
 (symmetric tissue+derm mean cc-F1 gap $-0.0013$, seed winrate $29\%$,
-$n{=}216$), and none is a loss. Against the post-hoc clippers macro-F1 is
+$n{=}216$), and none is a loss{\color{blue} \emph{at regime granularity}.
+Individual cells are a different matter, and we itemize them rather than only
+the wins: Table~\ref{tab:bbgen} counts $16$ cap-level losses across the
+dataset--backbone cells, and Table~\ref{tab:gran_oct} labels
+OctMNIST$\,\times\,$MobileNetV3$\,\times\,L70$ a loss at $-0.008$. None survives
+aggregation to a regime, but a reader entitled to our per-cell wins is entitled
+to our per-cell losses}. Against the post-hoc clippers macro-F1 is
 higher for TraLO on every regime (Sec.~\ref{sec:deploy}). All of these
 statements are scoped to the three MedMNIST-derived datasets we ran.
 
@@ -976,10 +1023,11 @@ epochs in the caption). The gap holds grid-wide: native feasibility is
 $100\%$ for TraLO and Hounie-RCL but only $87\%$ for Fioretto-LDF, whose
 unbounded multiplier stalls short of the cap on the rest. Across
 DermMNIST and TissueMNIST on the two convolutional backbones, over the
-$18$ symmetric-cap cells we log, Hounie-RCL is the slowest of the three in
+$18$ symmetric-cap cells we log{\color{blue}, comparing cells by their
+across-seed mean}, Hounie-RCL is the slowest of the three in
 every one and TraLO is never the slowest: TraLO reaches the count first
 or within one epoch in $15$ of the $18$ (strictly first in $11$), at
-median epochs-to-feasibility of $17$, $20$, and $49.5$ for TraLO,
+{\color{blue}run-level} median epochs-to-feasibility of $17$, $20$, and $49.5$ for TraLO,
 Fioretto-LDF, and Hounie-RCL. Fioretto-LDF is competitive when it converges
 but stalls on the runs it does not, so TraLO is the only method that
 reaches the count both fast and on every run, which lets it avoid the
@@ -1226,8 +1274,11 @@ while landing on the count natively.{\color{blue} That last margin is the one th
 revision narrowed: against a clipper trained with focal loss it holds on two of the
 three datasets rather than everywhere, and it reproduces at native
 $224{\times}224$ resolution on the one dataset we ran to full depth. What holds
-without qualification, at every cap and on every backbone, is that the count is met
-during training rather than by editing predictions afterward.}
+without qualification, at every cap and on every backbone, is that the
+{\color{blue}\emph{global}} count is met
+during training rather than by editing predictions afterward{\color{blue}; the
+per-group caps still require some editing, an order of magnitude less than any
+clipper's (App.~\ref{app:deploy})}.}
 
 Two findings of this paper are worth stating separately from the
 package. First, the constrained-class advantage over the strongest
@@ -1752,20 +1803,47 @@ its own, it does not discriminate methods: every deployable system meets
 a hard count one way or another, and post-hoc clipping reaches
 satisfaction $1.00$ by construction, simply by editing predictions. We
 report it only to document the mechanism behind TraLO's quality
-advantage over clipping (Sec.~\ref{sec:deploy}): TraLO reaches the
+advantage over clipping (Sec.~\ref{sec:deploy}): \del{TraLO reaches the
 count during training and so never invokes the editing step that costs
-clipping its accuracy. Table~\ref{tab:deploy} gives the deployment costs
+clipping its accuracy.}{\color{blue}TraLO needs far less of the editing
+step that costs clipping its accuracy.} Table~\ref{tab:deploy} gives the deployment costs
 at the tight $L30$ cap on MobileNetV3: macro-F1, accuracy, and the
 number of predictions each method must overwrite (Flips).
 Figure~\ref{fig:deployment} shows native satisfaction per method over
-the full grid. TraLO and Hounie-RCL meet the count in every run;
+the full grid.
+
+{\color{blue}Two criteria have to be kept apart here, and in an earlier version of
+this paper we did not keep them apart. \emph{Global} native satisfaction asks
+only whether the model met the batch-wide cap on its own; it is the quantity our
+satisfaction indicator records. The post-hoc step, however, also enforces the
+per-group caps, and the joint local-and-global structure is precisely what we
+claim as this setting's difficulty (Sec.~\ref{sec:related}). A run can therefore
+be globally native and still be edited. We report both, and we use the
+\emph{joint} criterion --- global cap met \emph{and} zero predictions
+overwritten --- wherever the text says no editing occurs.}
+
+TraLO and Hounie-RCL meet the {\color{blue}global} count in every run;
 Fioretto-LDF and \del{the hinge-free}{\color{blue}the reset- and hinge-free}
-TraLO-bounded do most of the time; the
-post-hoc clippers meet it natively only at loose caps. A caveat on
+TraLO-bounded do most of the time ($0.87$ and $0.90$); the
+post-hoc clippers meet it natively only at loose caps
+{\color{blue}($0.15$)}.
+{\color{blue}On the joint criterion no method is edit-free. TraLO leads it at
+every level of aggregation --- $0.21$ over the whole grid against $0.15$ for the
+next-best method, and $0.60$ at the binding $L30$/$L40$ caps against $0.50$
+(Hounie-RCL), $0.39$ (TraLO-bounded), $0.35$ (Fioretto-LDF) and $0.00$ for both
+clippers --- but $0.21$ is not $1.00$, and the difference is per-group editing.
+What the package delivers is not the absence of prediction surgery but an order
+of magnitude less of it: at the binding caps it averages $1.5$ flips against
+$5.1$, $5.4$ and $7.0$ for the constraint-trained baselines and $102.3$ for both
+clippers. That reduction, not edit-freeness, is what buys the macro-F1 margin.}
+
+A caveat on
 \emph{flips}: at near-trivial loose caps (e.g.\ OctMNIST $L80/L90$)
 TraLO can record more flips than a clipper that barely has to act, so
-the robust statement is ``satisfies natively while preserving
-macro-F1,'' never a raw flip count.
+the robust statement is \del{``satisfies natively while preserving
+macro-F1,''}{\color{blue}``edits an order of magnitude less while preserving
+macro-F1,''} never a raw flip count
+{\color{blue}pooled across caps}.
 
 The macro-F1 advantage over clipping is not specific to MobileNetV3 or
 to the single $L30$ cap of Table~\ref{tab:deploy}.
