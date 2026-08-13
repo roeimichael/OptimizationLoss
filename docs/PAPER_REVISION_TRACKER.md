@@ -258,10 +258,43 @@ it cannot be tabulated until the expansion lands and is merged.
 existing MobileNetV2 Fioretto-LDF runs since `paper_final` has no MobileNetV2),
 chained to launch when the 300 finish.
 
-- [ ] 300-run ALM grid completes, 0 failures
-- [x] Generate ALM × MobileNetV2 (84, queued)
-- [ ] Run the result-change protocol end to end (ground rule 8) once both land
-- [ ] Sanity-check ALM against the 24 B3 runs (the overlapping cells must reproduce)
+- [x] 300-run ALM grid completes, 0 failures
+- [x] ALM × MobileNetV2 — 84/84, 0 failures
+- [x] ALM regime map written into the paper (Table 10, §5.1, §5.2)
+- [x] ALM + reset + hinge graft (`alm_rh`) — 24/24
+- [ ] Seeds 5–10 (`r2_seeds10`, 252) and rerun variance (`r3_rerunvar`, 10)
+- [ ] Re-run the reviewer on the fixed manuscript
+
+### What the ALM campaigns showed
+
+| Result | Number |
+|---|---|
+| the six cells the manuscript already reported | **+0.0284** (printed: +0.028 — reproduces) |
+| all 81 four-seed cells, 3 main backbones | **+0.0053**, W/T/L **43/21/17** |
+| the loss region: OctMNIST × MobileNetV3, L50–L90 | **−0.025** |
+| MobileNetV2 tight caps (paired inside `b8`) | **+0.046 / +0.035**, 4/4 seeds |
+| MobileNetV2, 14 other pairable cells | **−0.000**, W/T/L 4/5/5 |
+| **graft onto ALM**: lift | **+0.028, 6 of 6 cells** |
+| **graft onto ALM**: residual TraLO − alm_rh | **+0.0002**, 11 of 24 seeds |
+
+Cost stated in the text, not buried: adding ALM to the comparison set drops
+"best-or-tied in 23 of 27 cells" to **19 of 27**.
+
+### Two traps this campaign set, both worth remembering
+
+**Never pair across campaigns.** The three main backbones are cleanly
+`paper_final`, but MobileNetV2's ALM runs were cloned from **seven** different
+campaigns — and re-running one configuration in a different campaign moves cc-F1
+by 0.025, five times the ±0.005 band. `extract_alm_results.py` now records each
+run's `src_sweep` and every MobileNetV2 comparison pairs within it. Related:
+`octmnist_MobileNetV2_s1..s4` are **one** campaign whose seeds were split across
+four sweep names for parallel dispatch; `analyze_alm.py` collapses them, and
+without that the four-seed filter silently discarded every OctMNIST MobileNetV2
+cell.
+
+**Never read a partial campaign.** At 20 of 24 `alm_rh` runs the residual read
+−0.0044 and the graft looked as though it *overshot* TraLO. Complete, it is
++0.0002. Two cells short of four seeds flipped the sign of the headline quantity.
 
 ### Coverage scan — 2026-08-13
 
