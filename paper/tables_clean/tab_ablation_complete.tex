@@ -1,0 +1,34 @@
+% tab_ablation_complete.tex -- complete component ablation (\input-ready float).
+% Built from extra_experiments/ablation_complete.csv: OctMNIST hard-binding cells,
+% n=24 paired per component (2 caps x 3 backbones x 4 seeds).
+% Each row toggles one component off; Delta cc-F1 = full TraLO - (that component removed).
+% Requires: booktabs (loaded by main.tex).
+\begin{table}[t]\centering\small
+\caption{
+\textbf{Component ablation on the OctMNIST hard-binding cells.} Effect on constrained-class F1 of removing TraLO components
+($n{=}24$ paired runs each: 2 tight caps $\times$ 3 backbones $\times$ 4 seeds). $\Delta$~cc-F1 = full TraLO $-$ (component removed); winrate = fraction of the 24 paired runs where removing the component hurts. Inference is at the cell level (the unit that does not repeat seeds): removing either load-bearing component hurts in all six cells (sign test $p{=}0.031$, the six-cell floor), while the $\rho$ schedule and lambda freeze split the cells and are cc-F1-neutral on these already-satisfied cells. 
+The reset is the only component isolated singly: the second row removes the
+reset \emph{and} the hinge together, via the TraLO-bounded control, which strips both
+(Sec.~\ref{sec:setup}); this is why removing two components costs less than removing the
+reset alone: the two components are not additive, and their joint removal is not the sum
+of the separate ones. The \emph{Undershoot hinge (alone)} row isolates the hinge with the
+reset retained, on the same $n{=}24$ grid as the other rows. It helps in $22$ of the $24$
+paired runs and in \emph{all six} cells (cell-mean gaps $+0.009$ to $+0.056$; cell-level
+sign test $p{=}0.031$, the six-cell floor), so each named component is load-bearing on its
+own and not only as a pair.}
+\label{tab:ablation_complete}
+\begin{tabular}{l c c}
+\toprule
+Component removed & $\Delta$ cc-F1 & Winrate \\
+\midrule
+\multicolumn{3}{l}{\emph{Load-bearing}} \\
+Optimizer reset   & $+0.079$ & $1.00$ \\
+Undershoot hinge (alone) & $+0.032$ & $0.92$ \\
+\ Reset $+$ hinge (TraLO-bounded)  & $+0.036$ & $1.00$ \\
+\midrule
+\multicolumn{3}{l}{\emph{Neutral}} \\
+$\rho$ schedule   & $+0.001$ & $0.42$ \\
+Lambda freeze     & $+0.000$ & $0.38$ \\
+\bottomrule
+\end{tabular}
+\end{table}
