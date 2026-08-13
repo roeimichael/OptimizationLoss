@@ -10,8 +10,12 @@
 {\color{blue}The reset is the only component isolated singly: the second row removes the
 reset \emph{and} the hinge together, via the TraLO-bounded control, which strips both
 (Sec.~\ref{sec:setup}); this is why removing two components costs less than removing the
-reset alone, and it means the hinge's individual contribution is not identified here. A
-hinge-only arm is defined in the release but was not run.}}
+reset alone, and it means the hinge's individual contribution is not identified \emph{on
+these cells}. A hinge-only arm (bounded penalty with the reset retained) was run on
+DermMNIST and TissueMNIST but not on OctMNIST; on those two, at $L30$ on MobileNetV3 over
+three seeds, the hinge and the reset are each individually neutral
+($\lvert\Delta$~cc-F1$\rvert\le0.007$), consistent with the caveat below that component
+importances are estimated inside the win region and need not transfer outside it.}}
 \label{tab:ablation_complete}
 \begin{tabular}{l c c}
 \toprule
