@@ -10,12 +10,11 @@
 {\color{blue}The reset is the only component isolated singly: the second row removes the
 reset \emph{and} the hinge together, via the TraLO-bounded control, which strips both
 (Sec.~\ref{sec:setup}); this is why removing two components costs less than removing the
-reset alone, and it means the hinge's individual contribution is not identified \emph{on
-these cells}. A hinge-only arm (bounded penalty with the reset retained) was run on
-DermMNIST and TissueMNIST but not on OctMNIST; on those two, at $L30$ on MobileNetV3 over
-three seeds, the hinge and the reset are each individually neutral
-($\lvert\Delta$~cc-F1$\rvert\le0.007$), consistent with the caveat below that component
-importances are estimated inside the win region and need not transfer outside it.}}
+reset alone: the two components are not additive, and their joint removal is not the sum
+of the separate ones. The \emph{Undershoot hinge (alone)} row isolates the hinge with the
+reset retained ($n{=}20$ paired runs over five of the six cells; the ViT-B/16 $L40$ cell is
+still running). It helps in $18$ of the $20$, so both named components are load-bearing
+individually on these cells.}}
 \label{tab:ablation_complete}
 \begin{tabular}{l c c}
 \toprule
@@ -23,6 +22,7 @@ Component removed & $\Delta$ cc-F1 & Winrate \\
 \midrule
 \multicolumn{3}{l}{\emph{Load-bearing}} \\
 Optimizer reset   & $+0.079$ & $1.00$ \\
+{\color{blue}Undershoot hinge (alone)} & {\color{blue}$+0.028$} & {\color{blue}$0.90$} \\
 \del{Undershoot hinge}\ {\color{blue}Reset $+$ hinge (TraLO-bounded)}  & $+0.036$ & $1.00$ \\
 \midrule
 \multicolumn{3}{l}{\emph{Neutral}} \\
