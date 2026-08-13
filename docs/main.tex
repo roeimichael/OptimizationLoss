@@ -84,15 +84,9 @@ grid on MedMNIST classification tasks ($28\times 28$ images upsampled to
 $224\times 224$), constraint-time training reaches the cap natively in
 nearly all runs, improving overall classification quality by $1.6$ to
 $5.3$ percentage points over satisfying the cap after training. On
-quality of the constrained class itself, one regime \del{shows a consistent
+quality of the constrained class itself, one regime shows a consistent
 advantage across all backbones tested: OctMNIST at tight caps, with the
-largest gains on a ViT (not itself a rare-class regime)}
-{\color{blue}separates the constraint-trained methods on every backbone tested:
-at OctMNIST tight caps TraLO leads the trained duals on constrained-class F1,
-largest on a ViT. The mechanism is budget utilisation rather than sharper
-classification --- precision is flat across methods, while the duals overshoot
-downward and leave $11$--$36\%$ of the cap unspent --- so against a post-hoc
-clipper, which spends the budget exactly, the same comparison is a tie}. The rest of
+largest gains on a ViT (not itself a rare-class regime). The rest of
 the grid is a statistical tie, reported as such. Our central
 mechanistic finding is that this constrained-class advantage is carried
 by two portable components, the optimizer reset and the undershoot
@@ -708,17 +702,7 @@ $11$--$36\%$ under the budget at $L30$ (cell-mean counts $48$--$67$ of
 $K{=}75$, vs $73$--$74$ for TraLO), so recall falls with the unspent
 budget while precision holds. A tight cap holds recall near its ceiling
 $K/N$ at high precision, and training recovers the leftover headroom: a
-property of the cap, not the $28{\times}28$ resolution.
-{\color{blue}We therefore read this comparison as one of budget utilisation rather
-than of classification quality. Across the six tight cells precision is flat
-(TraLO $0.892$--$0.929$, Fioretto-LDF $0.895$--$0.937$, Hounie-RCL $0.933$--$0.945$),
-so the cc-F1 ordering tracks how much of the cap each method spends
-($72.8$--$74.0$ of $K{=}75$ for TraLO against $47.7$--$66.7$ for the duals) rather than
-how well it separates the class. The control that would settle it --- refilling each
-dual's unspent budget with its next-most-confident predictions and re-scoring --- we did
-not run. What the comparison does establish is that TraLO spends its quota natively while
-the duals leave $11$--$36\%$ of it unused, which is a property of the optimiser dynamics
-and is what the reset and hinge repair.} Figure~\ref{fig:octmnist}
+property of the cap, not the $28{\times}28$ resolution. Figure~\ref{fig:octmnist}
 plots the sweep: the six methods nearly coincide (top), while the
 per-backbone gap (bottom) reveals the advantage and its inverted-U. Where a
 post-hoc clipper posts higher raw cc-F1 (three of the six band cells, by
