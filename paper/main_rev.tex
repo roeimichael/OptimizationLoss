@@ -814,7 +814,9 @@ the same cells improve macro-F1 at five of the six (the sixth a $+0.001$
 wash; mean $+0.012$). The advantage is recall at the cap, not precision:
 TraLO matches the best trained baseline on constrained-class precision
 ($0.90$ vs $0.91$) and beats it on recall ($0.31$ vs $0.27$), the quantity
-the undershoot hinge restores. The duals lose that recall from below:
+the undershoot hinge restores{\color{blue} --- both pooled over the two tight
+caps $L30$ and $L40$, against the per-seed best dual; the count figures in the
+next sentence are $L30$ alone}. The duals lose that recall from below:
 penalized only above the cap, they overshoot it downward and finish
 $11$--$36\%$ under the budget at $L30$ (cell-mean counts $48$--$67$ of
 $K{=}75$, vs $73$--$74$ for TraLO), so recall falls with the unspent
