@@ -689,9 +689,16 @@ Our \emph{primary} metrics are quality: \textbf{constrained-class F1
 constraint most directly puts at risk, and \textbf{macro-F1} for overall
 quality. As \emph{secondary} deployment diagnostics we also report
 \textbf{native satisfaction} (the fraction of runs whose final model meets
-the global count with no post-hoc edit) and \textbf{flips} (the number of
+the global count \del{with no post-hoc edit}{\color{blue}on its own}) and
+\textbf{flips} (the number of
 test predictions the post-hoc verification step overwrites to enforce the
-global and per-group caps; $0$ when the run needs no adjustment); we treat
+global and per-group caps; $0$ when the run needs no adjustment).
+{\color{blue}These two are not the same test, and the difference matters enough
+to name: native satisfaction is a property of the \emph{global} cap alone, while
+flips also count the edits the \emph{per-group} caps force. A run can therefore
+be natively satisfying and still be edited. Where we claim that no editing
+occurs we use \textbf{joint native satisfaction} --- global cap met \emph{and}
+zero flips --- and say so.} We treat
 these as deployment \emph{properties} rather than headline metrics, since
 every deployable method meets the hard count one way or another
 (App.~\ref{app:deploy}). Gaps versus baselines are \emph{paired} by seed:
