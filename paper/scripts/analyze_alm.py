@@ -25,6 +25,18 @@ TIGHT = ["L30_G30", "L40_G40"]
 MAIN_BB = ["MobileNetV3", "RegNetY400MF", "ViTB16"]
 
 
+def sweep_family(s):
+    """Collapse dispatch-split sweep names to the campaign they belong to.
+
+    `octmnist_MobileNetV2_s1..s4` are ONE campaign whose four seeds were split
+    across four sweep names to run in parallel: identical warmup (50), the same
+    five caps and the same six methods, one seed each. Merging them is a naming
+    fix, not a pool across campaigns -- without it the four-seed filter discards
+    every OctMNIST MobileNetV2 cell.
+    """
+    return s.str.replace(r"_s[1-4]$", "", regex=True)
+
+
 def load(metric="cc_f1"):
     tr = pd.read_csv(CORPUS)
     tr = tr[(tr.sweep == "paper_final")][

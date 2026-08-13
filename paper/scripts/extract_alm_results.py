@@ -24,8 +24,24 @@ import os
 ROOTS = ["results/track_b/b3", "results/track_b/b3_full",
          "results/track_b/b3_mnv2", "results/track_b/r1_almrh"]
 
-FIELDS = ["root", "dataset", "model", "method", "constraint_tag", "seed",
-          "cc_f1", "f1_macro", "acc", "flips", "sat", "config_path"]
+FIELDS = ["root", "src_sweep", "dataset", "model", "method", "constraint_tag",
+          "seed", "cc_f1", "f1_macro", "acc", "flips", "sat", "config_path"]
+
+
+def source_sweep(cfg):
+    """The sweep the run was cloned from -- the ONLY corpus rows it may pair with.
+
+    Every ALM config is a clone of a frozen run with the dual rule swapped, so it
+    shares that run's warmup cache and settings. Pairing it against a different
+    sweep's TraLO run instead would inject the cross-campaign drift measured at
+    0.025 cc-F1, five times the +/-0.005 band the comparison is adjudicated at.
+    MobileNetV2 makes this concrete: its ALM runs were cloned from seven
+    different sweeps.
+    """
+    src = cfg.get("cloned_from", "")
+    parts = src.split("/")
+    # results/<root>/<sweep>/... -- e.g. results/pending_runs/paper_final/...
+    return parts[2] if len(parts) > 2 else ""
 
 
 def metric(m, key):
@@ -56,6 +72,7 @@ def main():
             cc = c["dataset_config"].get("constrained_class")
             rows.append({
                 "root": os.path.basename(root),
+                "src_sweep": source_sweep(c),
                 "dataset": c["dataset_mode"],
                 "model": c["model_name"],
                 "method": c["methodology"],

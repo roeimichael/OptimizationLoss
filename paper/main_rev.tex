@@ -855,11 +855,21 @@ advantage; the full regime map follows (Sec.~\ref{sec:regime}).
 \paragraph{A fourth backbone, and interval estimates.}
 Two further checks sharpen the tight-cap result. \emph{(iv)~A fourth
 backbone.} The advantage reproduces on MobileNetV2 ($+0.047$/$+0.037$ cc-F1 at
-$L30$/$L40$ over the best trained dual), so the backbone-general claim now spans four
+$L30$/$L40$ over the best trained dual, and $+0.046$/$+0.035$ over ALM, $4/4$
+seeds in each of the four cells), so the backbone-general claim now spans four
 architectures (Table~\ref{tab:almbb}, bottom). MobileNetV2 covers the cap levels
 Table~\ref{tab:ccf1} reports in full but only part of the nine-level sweep, so we
 read it as corroboration of the tight-cap result rather than as a fourth arm of
-the complete grid. \emph{(v)~Interval estimates.} A
+the complete grid. Away from the tight caps it corroborates the other half of the
+regime map too: over the fourteen further MobileNetV2 cells we can pair, TraLO
+and ALM are indistinguishable (mean $-0.000$, four wins, five ties, five losses).
+One caution on how these were paired. MobileNetV2 was assembled from several
+campaigns rather than the single frozen sweep behind
+Table~\ref{tab:ccf1}, and re-running one configuration in a different campaign
+moves cc-F1 by more than the $0.005$ band we adjudicate at. Every MobileNetV2
+comparison here is therefore paired \emph{within} the campaign its ALM run was
+cloned from, never across campaigns; the tight-cap cells come from the one
+campaign that ran both arms at those caps. \emph{(v)~Interval estimates.} A
 cell-level bootstrap ($20{,}000$ resamples) puts the cc-F1 gap over Fioretto-LDF at
 $+0.046$ ($95\%$ CI $[{+}0.024,{+}0.074]$) at $L30$ and $+0.033$
 ($[{+}0.021,{+}0.044]$) at $L40$, both excluding zero, as do the gaps over ALM
@@ -878,8 +888,14 @@ tie against clipping noted above.}
 \captionsetup{labelfont={color=blue}}\caption{\color{blue}\textbf{The OctMNIST tight-cap win holds against the
 stronger ALM dual and on a fourth backbone.} Paired gap of TraLO, mean over seeds
 $1$--$4$. \emph{Top:} over the augmented-Lagrangian dual (ALM), which itself beats
-plain Fioretto-LDF by $+0.010$ cc-F1; TraLO leads all six cells. \emph{Bottom:} on
-MobileNetV2, over the best trained dual.}
+plain Fioretto-LDF by $+0.010$ cc-F1 on these cells; TraLO leads all six.
+\emph{Middle:} on MobileNetV2, over the best trained dual. \emph{Bottom:} on
+MobileNetV2 over ALM specifically, so the fourth backbone is tested against the
+same stronger comparator as the first three; TraLO leads $4/4$ seeds in both
+cells. Away from these tight caps TraLO and ALM are indistinguishable on
+MobileNetV2 as well (fourteen further cells, mean $-0.000$), and the full
+nine-cap regime map for the other three backbones is
+Table~\ref{tab:alm_regime}.}
 \label{tab:almbb}
 \begin{tabular}{lll rr}
 \toprule
@@ -896,6 +912,10 @@ Comparison & Backbone & Cap & $\Delta$ cc-F1 & $\Delta$ macro-F1 \\
 \multirow{2}{2.2cm}{TraLO $-$ best trained dual}
  & \textbf{MobileNetV2} & L30 & $+0.047$ & $+0.022$ \\
  &                      & L40 & $+0.037$ & $+0.016$ \\
+\midrule
+\multirow{2}{2.2cm}{{\color{blue}TraLO $-$ ALM}}
+ & {\color{blue}\textbf{MobileNetV2}} & {\color{blue}L30} & {\color{blue}$+0.046$} & {\color{blue}$+0.021$} \\
+ &                      & {\color{blue}L40} & {\color{blue}$+0.035$} & {\color{blue}$+0.015$} \\
 \bottomrule
 \end{tabular}
 \end{table}
