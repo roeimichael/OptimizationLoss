@@ -86,6 +86,30 @@ def backbone_gaps(metric="cc_f1"):
     return out
 
 
+def backbone_gap_cis(metric="cc_f1", n_boot=20000, seed=0):
+    """Per (backbone, cap) 95% bootstrap CI of the paired gap.
+
+    The panel plots means over four seeds and the peak carries a std 55% of its
+    own value (+0.081 +/- 0.045, Table 7), so without intervals the inverted-U
+    is not visually separable from noise. Resamples the four paired per-seed
+    gaps, which is the unit the comparison is made on.
+    """
+    piv = _paired(metric)
+    rng = np.random.default_rng(seed)
+    out = {}
+    for key, *_ in GAP_BACKBONES:
+        lo, hi = [], []
+        for t in TAGS:
+            v = piv[(piv.model == key) & (piv.constraint_tag == t)].gap.to_numpy(float)
+            if len(v) == 0:
+                lo.append(np.nan); hi.append(np.nan); continue
+            draws = rng.choice(v, size=(n_boot, len(v)), replace=True).mean(axis=1)
+            lo.append(float(np.percentile(draws, 2.5)))
+            hi.append(float(np.percentile(draws, 97.5)))
+        out[key] = (np.array(lo), np.array(hi))
+    return out
+
+
 def tight_cap_table():
     """Print the tab_oct_backbone numbers: paired gap mean +/- sample-std + seed-winrate
     at L30/L40 for cc_f1 AND f1_macro (the two Delta columns of the table)."""
@@ -131,7 +155,7 @@ BAND = (1.6, 3.4)          # x-extent of the shaded tight-binding band (around L
 C_BAND = "#f5deb0"          # band fill (a touch stronger than before; still recessive)
 
 
-def make_fig(means, gaps):
+def make_fig(means, gaps, cis=None):
     x = np.arange(len(TAGS), dtype=float)
     fig, (ax, axg) = plt.subplots(
         2, 1, figsize=(3.7, 3.7), sharex=True,
@@ -153,11 +177,20 @@ def make_fig(means, gaps):
     for key, lab, mk, lw, z, hero in GAP_BACKBONES:
         col = BACKBONE_COLOR[key]
         g = gaps[key]
+        # 95% bootstrap band over the four paired per-seed gaps. Drawn under the
+        # lines: at the peak the interval is wide enough that the inverted-U has
+        # to be read as a trend, not as a set of separated points.
+        if cis is not None and key in cis:
+            lo, hi = cis[key]
+            axg.fill_between(x, lo, hi, color=col, alpha=0.13, lw=0, zorder=z - 1)
         axg.plot(x, g, color=col, lw=lw, marker=mk, ms=(3.6 if hero else 2.8),
                  zorder=z, label=lab, mec="white" if hero else col, mew=0.5)
     axg.set_ylabel("$\\Delta$ cc-F1", fontsize=8)
-    axg.set_ylim(-0.018, 0.094)
-    axg.set_yticks([0.00, 0.04, 0.08])
+    # Headroom for the ViT bootstrap band, whose upper bound reaches +0.116 --
+    # the old limit of 0.094 clipped it, which would have hidden exactly the
+    # uncertainty the band exists to show.
+    axg.set_ylim(-0.030, 0.125)
+    axg.set_yticks([0.00, 0.04, 0.08, 0.12])
     axg.legend(loc="upper right", frameon=False, fontsize=7.2, handlelength=1.6,
                labelspacing=0.25, borderaxespad=0.3,
                title="TraLO $-$ best trained", title_fontsize=7.2)
@@ -175,9 +208,13 @@ def make_fig(means, gaps):
 if __name__ == "__main__":
     means = method_means()
     gaps = backbone_gaps()
-    p = make_fig(means, gaps)
+    cis = backbone_gap_cis()
+    p = make_fig(means, gaps, cis)
     print("WROTE", p, os.path.getsize(p))
     i30, i40 = TAGS.index("L30_G30"), TAGS.index("L40_G40")
     for key, lab, *_ in GAP_BACKBONES:
-        print(f"  {lab:12s} gap @L30={gaps[key][i30]:+.3f}  @L40={gaps[key][i40]:+.3f}")
+        print(f"  {lab:12s} gap @L30={gaps[key][i30]:+.3f} "
+              f"[{cis[key][0][i30]:+.3f},{cis[key][1][i30]:+.3f}]  "
+              f"@L40={gaps[key][i40]:+.3f} "
+              f"[{cis[key][0][i40]:+.3f},{cis[key][1][i40]:+.3f}]")
     tight_cap_table()
