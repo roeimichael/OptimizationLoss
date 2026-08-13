@@ -59,3 +59,30 @@ TraLO 0.18/0.19).
   and is recoverable. The raw **ablation** sweeps (`g5_component_ablation`,
   `g5_short_warmup`, `kl_ablation`, `tablef_shortwarm`, `server_only_sweeps/*`) live there
   too, should the ablation be extended.
+
+---
+
+## 2026-08-13 update — this folder is now reproducible
+
+The warning above ("tables are hand-maintained; re-running their generators would
+revert those edits") was measured and is now largely obsolete. Every table
+generator was re-run and diffed: **all numbers reproduce exactly.** The only
+drift is structural (a `\resizebox`, some `\tabcolsep` tuning, one caption
+cross-reference), and it is catalogued in `PROVENANCE.md`.
+
+Two real defects behind that warning were fixed rather than worked around:
+the generators emitted `Shifman`/`Shifman-LP` where the manuscript says
+`LP-LG`, and `make_granular_tables.py` crashed on Windows.
+
+New in this folder:
+
+| Path | What |
+|---|---|
+| `PROVENANCE.md` | **Read first.** The full run -> manifest -> corpus -> float -> prose chain, the protocol to follow whenever a result changes, and the catalogue of hand-edits regeneration reverts. |
+| `manifest/experiments.csv` | Every run ever executed (10,938), one row each, carrying the `config_path` that produced it. |
+| `manifest/gaps.csv` | Cells the target grid still lacks. |
+
+`corpus_final.csv` previously had **no build script** — seven readers, zero
+writers. It is now derived from the manifest by `../scripts/build_corpus.py`,
+whose `--verify` mode proves the derivation reproduces every shared row
+bit-for-bit before it is allowed to overwrite anything.

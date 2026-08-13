@@ -30,6 +30,41 @@ Manuscript under edit: **`docs/main.tex`** (the blue revision).
    is repointed. Never put a `\del` into `paper/tables/`.
 7. **Verify rendering, not source.** After any figure or table change, rebuild and
    *look at the rendered page* before calling it done.
+8. **A result never changes in one place.** Any time an experimental number moves
+   — a rerun, a new arm, a corrected metric, a campaign finishing — it must be
+   propagated through the whole chain in one pass, ending in the prose. This is a
+   standing rule for the life of the paper, not a task to tick off once. The
+   procedure and the wiring diagram are in **`paper/data/PROVENANCE.md`**; the
+   short form is below.
+
+### The result-change protocol (run it every time, in order)
+
+```
+build_experiment_manifest.py   (server)   ->  manifest/experiments.csv
+coverage_report.py                        ->  gaps must be zero or accepted
+build_corpus.py --verify                  ->  MUST PASS before overwriting
+build_corpus.py                           ->  corpus_final.csv
+make_*.py                                 ->  every float that reads the corpus
+re-apply the known hand-edits             ->  PROVENANCE.md lists them
+propagate into the prose                  ->  the step that gets forgotten
+rebuild + LOOK at the changed pages
+grep \pending  in docs/main.tex           ->  none may survive submission
+```
+
+**Why the prose step needs its own discipline.** Everything above it is
+reproducible; the prose is hand-written, so a regenerated table can silently
+disagree with a sentence three sections away and the build will still report
+zero errors. For each changed number, sweep four places — the float, the float's
+**caption** (which lives in the generator, not the `.tex`), the body prose, and
+the **abstract / §1 contributions / Conclusion**, which restate headline numbers
+and are the most-often-missed. Then check the claims that depend on the number
+without containing it: counts ("23 of the 27 cells"), superlatives ("the best
+constraint-trained baseline"), scope words ("all three backbones"), and
+significance arithmetic (sign tests, BH family size, bootstrap CIs).
+
+This is not hypothetical. When Table 5 gained the isolated-hinge row on
+2026-08-13, the table was right and *two* sentences quoting the old row were
+wrong — one in §6 and its twin in Appendix B. Both survived a clean build.
 
 ---
 
@@ -67,14 +102,36 @@ it cannot be tabulated until the expansion lands and is merged.
   dual rule, so the CE warmup cache is reused and the pairing is apples-to-apples
 - Monitor: `~/alm_full.log` on dsisco01
 
-**Still to generate — ALM on MobileNetV2** (36 runs at the table caps, 108 at all
-nine). `gen_alm_full.py` clones `paper_final`, which has no MobileNetV2, so these
-need a separate source. This is the *only* missing data blocking Tables 1–2.
+**ALM on MobileNetV2**: 84 configs generated (`gen_alm_mnv2.py`, cloned from the
+existing MobileNetV2 Fioretto-LDF runs since `paper_final` has no MobileNetV2),
+chained to launch when the 300 finish.
 
 - [ ] 300-run ALM grid completes, 0 failures
-- [ ] Generate + run ALM × MobileNetV2
-- [ ] Merge `b3` + `b3_full` into the canonical corpus view
+- [x] Generate ALM × MobileNetV2 (84, queued)
+- [ ] Run the result-change protocol end to end (ground rule 8) once both land
 - [ ] Sanity-check ALM against the 24 B3 runs (the overlapping cells must reproduce)
+
+### Coverage scan — 2026-08-13
+
+Full inventory now exists: **`paper/data/manifest/experiments.csv`**, 10,938 runs
+across all six result roots, each row carrying the `config_path` that produced it.
+Regenerate with `build_experiment_manifest.py`; re-scan with `coverage_report.py`.
+
+Target = 3 datasets × 4 backbones × 9 caps × 7 methods × 4 seeds at warmup 50
+= **3024 runs. Have 2524, missing 500.**
+
+| Missing | Count | Status |
+|---|---|---|
+| ALM (all backbones, all caps) | 308 | **running now** (300 + 84 queued) |
+| MobileNetV2 × the six existing methods | 192 | at L10/L90 and part of L40/L60 only |
+
+**Of the 500, only 99 gate Tables 1–2 — and every one of them is ALM.**
+MobileNetV2 is already complete at L30/L50/L70 on all three datasets, so the
+headline tables need no new MobileNetV2 runs. The 192 MobileNetV2 gaps sit at cap
+levels only the nine-cap figures use.
+
+- [ ] Decide whether the 192-run MobileNetV2 gap-fill is worth running, or whether
+      the figures should state that MobileNetV2 covers a partial cap grid
 
 ### MobileNetV2 coverage — already better than expected
 
@@ -121,11 +178,23 @@ of the main comparison. This is ground rule 2 in action.
 
 ## Item 3 — Figures must cover the same scope as the tables
 
-Figure 1 (`fig_octmnist`) and the other result figures currently show a subset of
-backbones/datasets. Whatever scope the tables claim, the figures must show.
+Audited 2026-08-13. Full generator→data map in `paper/data/PROVENANCE.md`.
 
-- [ ] Audit each figure for which backbones/datasets/methods it plots
-- [ ] Add ALM and MobileNetV2 wherever the figure is a method or backbone comparison
+| Figure | Needs ALM / MobileNetV2? | Why |
+|---|---|---|
+| 1 `fig_octmnist` | **Yes, both** | plots every method (top) and per-backbone deltas (bottom) |
+| 5 `fig_deployment` | **Yes, both** | per-method and per-backbone deployment properties |
+| 2 `fig_convergence` | only if ALM joins the convergence census | currently a 3-method census |
+| 3 `fig_loss_shape` | No | analytic, no run data |
+| 4 `fig_mechanism` | No | 2-method warmup-1 probe, deliberately off-grid |
+| 6 `fig_datasets` | — | being removed (item 8) |
+
+- [x] Audit each figure for which backbones/datasets/methods it plots
+- [x] Repair the figure pipeline (all generators pointed at the retired
+      `final_AAAI_PAPER/` tree; two crashed, one silently produced a data-less
+      figure). All six regenerate correctly now.
+- [ ] Regenerate Figures 1 and 5 once ALM lands
+- [ ] Decide whether ALM joins the convergence census (Figure 2)
 - [ ] Confirm figure scope and table scope agree, and that captions say so
 
 ---

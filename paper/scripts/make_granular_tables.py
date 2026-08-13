@@ -258,5 +258,7 @@ if __name__ == "__main__":
         for mk, ml in BB_ORDER:
             r = cell_stats(d[(d.model == mk) & (d.constraint_tag == "L30_G30")])
             if r:
-                print(f"  {ml:14s} cc Δ={r.get('cc_delta'):+.3f} win={r.get('cc_win')}/{r.get('cc_n')} "
-                      f"macΔ={r.get('mac_delta'):+.3f}")
+                # ASCII only: this prints to a cp1252 console on Windows, where a
+                # literal delta raises UnicodeEncodeError and kills the run.
+                print(f"  {ml:14s} cc d={r.get('cc_delta'):+.3f} win={r.get('cc_win')}/{r.get('cc_n')} "
+                      f"mac_d={r.get('mac_delta'):+.3f}")
