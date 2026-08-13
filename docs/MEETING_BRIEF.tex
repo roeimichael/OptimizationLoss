@@ -434,7 +434,9 @@ in red/blue:
 optimizer reset, so TraLO $-$ TraLO-bounded removes \emph{both} components. The table's own
 numbers give it away: reset alone costs $+0.079$, reset$+$hinge costs $+0.036$ --- removing
 more cannot hurt less. Row relabelled \textbf{``Reset $+$ hinge (TraLO-bounded)''}, and the
-caption now states that the hinge's individual contribution is not identified here.
+caption now states that the hinge's individual contribution is not identified \emph{on
+these cells}, and records that a correctly isolated hinge arm did run on DermMNIST and
+TissueMNIST --- just not on OctMNIST (see Sec.~8).
 \item \textbf{A fifth ablation arm was missing.}
 \texttt{ablation\_complete.csv} has five arms at $n{=}24$; the table showed four. The
 omitted one is \texttt{+KL} (mean $-0.0103$, $p{=}0.0398$) --- significant, and pointing
@@ -490,13 +492,29 @@ quantity ranges from $-0.018$ to $+0.091$. The headline is defensible as a summa
 is not scoped the way the appendix says to scope things. \emph{Unresolved --- your call.}
 \item \textbf{Table 1's caption says ``the full symmetric grid''} but shows 3 of 9 caps
 (27 of 81 cells), and the L40 number quoted beside it is not in the table.
-\item \textbf{Only one of the ``two portable components'' is cleanly isolated.} Following
-from the Table 5 correction above: the reset is isolated singly, the hinge is not. A
-correctly isolated arm exists in the codebase
-(\texttt{gen\_g5\_component\_ablation.py}, the \texttt{bounded\_only} configuration, which
-keeps the reset) but has not been run at this scale. Since ``two portable components'' is
-billed as the paper's central mechanistic finding, this is the most likely place for a
-reviewer to press. \emph{Cost to settle it: one ablation arm, 24 runs.}
+\item \textbf{Only one of the ``two portable components'' is isolated \emph{on the cells
+that carry the claim}.} Following from the Table 5 correction above: on the OctMNIST
+tight-cap cells the reset is isolated singly and the hinge is not.
+
+\smallskip
+A correctly isolated hinge arm --- \texttt{hybrid\_mode=bounded\_only} with
+\texttt{reset\_optimizer\_at\_sat=True}, so the reset is retained --- \textbf{does exist
+and did complete}: $7$ runs on DermMNIST and $5$ on TissueMNIST (verified on dsisco01,
+2026-08-13). There are \textbf{zero} such runs on OctMNIST, which is the only dataset
+Table~5 reports, so it cannot be substituted in.
+
+\smallskip
+On the two datasets where it ran ($L30$, MobileNetV3, $3$ seeds), the hinge and the reset
+are \emph{each} individually neutral, $\lvert\Delta$~cc-F1$\rvert\le0.007$. That is not a
+problem for the paper --- it corroborates the caption's existing caveat that component
+importances are estimated inside the win region and need not transfer outside it. The
+components bind where the cap binds.
+
+\smallskip
+Since ``two portable components'' is billed as the paper's central mechanistic finding,
+this is the likeliest place for a reviewer to press. \emph{Cost to settle it: 24 runs
+(2 caps $\times$ 3 backbones $\times$ 4 seeds) on OctMNIST. The config already exists, so
+it is a dispatch, not new code.}
 \item \textbf{OctMNIST has no native-resolution counterpart}, so whether the tight-cap cc-F1
 win survives at full resolution is untested. Stated plainly in the paper.
 \item Roughly 70 further minor findings from the audit were never adversarially verified ---
