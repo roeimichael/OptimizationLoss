@@ -1131,22 +1131,16 @@ separate them; we did not run it.
 
 % \leavevmode forces the run-in heading out before \del opens its colour group,
 % otherwise the heading itself is typeset red.
-\paragraph{\del{Missing baselines from imbalanced learning.}
-{\color{blue}Imbalanced-learning baselines.}}\leavevmode
+% This limitation no longer exists: the comparison is run and reported in Sec. 5.3,
+% so the whole paragraph is struck rather than restated here.
+\paragraph{\del{Missing baselines from imbalanced learning.}}\leavevmode
 \del{We compare against constraint-trained dual ascent and post-hoc clipping,
 but not against focal loss \mbox{\citep{lin2017focal}}, class-balanced weighting
 \mbox{\citep{cui2019class}}, or logit adjustment \mbox{\citep{menon2020long}} followed
 by clipping. If any of these closes the macro-F1 gap over vanilla
 clipping, the ``constraint-trained family beats clipping'' claim
-tightens to ``constraint-trained beats \emph{vanilla} clipping.''}
-{\color{blue}We compare against focal loss \citep{lin2017focal},
-class-balanced weighting \citep{cui2019class}, and logit adjustment
-\citep{menon2020long} followed by clipping in Sec.~\ref{sec:deploy}. Focal
-does close the gap on DermMNIST, so the ``constraint-trained family beats
-clipping'' claim tightens on that dataset to ``constraint-trained beats
-\emph{vanilla} clipping''; the count-satisfaction separation is unaffected,
-since none of the three meets the cap without the post-hoc LP.}
-\del{The comparison is a natural next experiment.}
+tightens to ``constraint-trained beats \emph{vanilla} clipping.''
+The comparison is a natural next experiment.}
 
 \paragraph{The reset is ad hoc; other reset variants are not covered.}
 The optimizer reset at first satisfaction is a full Adam-state reset
