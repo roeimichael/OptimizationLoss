@@ -100,7 +100,8 @@ quality of the constrained class itself, one regime shows a consistent
 advantage across all backbones tested: OctMNIST at tight caps, with the
 largest gains on a ViT{\color{blue}-B/16} (not itself a rare-class regime){\color{blue}, and the
 advantage survives against an augmented-Lagrangian dual, which is stronger than
-the plain dual-ascent baselines}. The rest of
+the plain dual-ascent baselines at these caps and beats us at loose ones on one
+dataset--backbone cell}. The rest of
 the grid is a statistical tie, reported as such. Our central
 mechanistic finding is that this constrained-class advantage is carried
 by two portable components, the optimizer reset and the undershoot
@@ -753,16 +754,29 @@ peaking at $+0.081$ on the ViT-B/16 (per-backbone paired deltas in
 Table~\ref{tab:oct_backbone}).
 {\color{blue}That margin is measured against the two dual-ascent baselines, and
 it survives a harder test: against ALM, the strongest of the three --- which
-itself leads Fioretto-LDF by $+0.010$ cc-F1 --- the lead is $+0.028$, again on
+itself leads Fioretto-LDF by $+0.010$ cc-F1 \emph{on these cells} --- the lead is
+$+0.028$, again on
 all six cells (Table~\ref{tab:almbb}, top). The advantage therefore does not rest
 on the duals being weak, which is the obvious reading of a margin over dual ascent
-alone.}
+alone.
+
+It is, however, specific to this regime, and we now have the whole grid to say so
+with. Over all $81$ dataset--backbone--cap cells run at four seeds, TraLO leads
+ALM by a mean $+0.005$ cc-F1, winning $43$ cells, tying $21$ and \emph{losing}
+$17$ at the same $\pm0.005$ band (Table~\ref{tab:alm_regime}). The losses are not
+scattered: they concentrate in OctMNIST $\times$ MobileNetV3 at loose caps, where
+TraLO trails by a mean $-0.025$ over $L50$--$L90$. That is the one dataset and
+backbone on which ALM is the better method, and it sits exactly where our own
+account says the advantage should disappear --- the cap stops binding, and the
+count constraint stops being the thing that decides quality. We report the full
+cell table rather than the band we lead in, because restricting the comparison to
+the winning six would make a regime-specific result look general.}
 Where the cap is slack the summary is a tie:
 TraLO is best-or-tied on cc-F1 (within $0.005$) against the two trained
 baselines in $23$ of the $27$ cells ($22$ when our own TraLO-bounded
-ablation variant is also counted as a competitor)%
-\pending{this count is over the two dual-ascent baselines; ALM joins the
-comparison set once its full grid lands}, and on tissue and derm
+ablation variant is also counted as a competitor){\color{blue}; adding ALM to the
+comparison set --- four competitors, including the strongest --- lowers this to
+$19$ of $27$, and to $18$ with TraLO-bounded also counted}, and on tissue and derm
 the differences at equal feasibility are within seed noise (paired
 Wilcoxon, not significant), a tie that also holds \del{away from the grid, at a
 tighter ($L40$) and a looser ($L60$) cap}{\color{blue}at the adjacent $L40$ and
@@ -916,7 +930,10 @@ asymmetric grid, reproduced on RegNet{\color{blue}Y-400MF} and tied on ViT{\colo
 cap pairs; \emph{preliminary}, as only MobileNetV3 has the full grid).
 Every other regime, including all symmetric caps, is a statistical tie
 (symmetric tissue+derm mean cc-F1 gap $-0.0013$, seed winrate $29\%$,
-$n{=}216$), and none is a loss{\color{blue} \emph{at regime granularity}.
+$n{=}216$), and none is a loss{\color{blue} against Fioretto-LDF or Hounie-RCL
+\emph{at regime granularity}. Against ALM one regime \emph{is} a loss --- OctMNIST
+$\times$ MobileNetV3 at loose caps, mean $-0.025$ over $L50$--$L90$
+(Table~\ref{tab:alm_regime}).
 Individual cells are a different matter, and we itemize them rather than only
 the wins: Table~\ref{tab:bbgen} counts $16$ cap-level losses across the
 dataset--backbone cells, and Table~\ref{tab:gran_oct} labels
@@ -2010,6 +2027,8 @@ Sec.~\ref{sec:oct} cites next to its consolidated grid
 (Table~\ref{tab:ccf1}).
 
 \input{tables_rev/tab_backbone_generality}
+
+\input{tables_rev/tab_alm_regime}
 
 \input{tables/tab_oct_backbone}
 

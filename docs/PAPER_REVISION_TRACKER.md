@@ -125,7 +125,7 @@ not. Fixed.
 
 | Δ | Finding | State |
 |---|---|---|
-| −6 | ALM reports 6 of 31 full cells; loss region in the rest | **runs done** (300/300), awaiting table rebuild |
+| −6 | ALM reports 6 of 31 full cells; loss region in the rest | **FIXED** — all 81 cells reported, Table 10 |
 | −4 | "never invokes the editing step" false for 79% of runs | **FIXED** — abstract, §1, §8, App. D + Fig. 5 |
 | −4 | ALM is not an augmented Lagrangian (no quadratic primal) | **FIXED** — §2 rewritten, scoped, correctly cited |
 | −3 | Notation: $\lambda_g$ vs $K_g$; $c$ as class and cap index | open |
