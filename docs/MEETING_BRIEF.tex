@@ -277,6 +277,44 @@ Do not let these two get conflated in the room. B5--B7 are about \emph{cc-F1 at 
 OctMNIST caps} only.
 \end{callout}
 
+\subsection{Which of B5--B7 actually reached the manuscript}
+Worth knowing precisely, because two are in and one is not.
+
+\begin{center}\small
+\begin{tabular}{llp{6.4cm}}
+\toprule
+& in the paper? & where \\
+\midrule
+\textbf{B6} bootstrap CIs & \textbf{yes}, in blue & \S5.1 check \emph{(vi)},
+\texttt{main.tex:746} --- the $+0.046$ / $+0.033$ gaps with their CIs \\
+\textbf{B7} BH-FDR        & \textbf{yes}, in blue & same sentence,
+\texttt{main.tex:749} --- ``three of the eight \ldots{} and none against the post-hoc
+clipper'' \\
+\textbf{B5} win-bar sensitivity & \textbf{no} & --- \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent B6 and B7 sit in a single long sentence, which is why they can read as one
+result rather than two. The other Benjamini--Hochberg mentions (\texttt{main.tex:637--645})
+are \emph{pre-existing black text}, not B7.
+
+\begin{callout}{If he asks why B5 was left out}
+Not because it was negative --- it is one of the more supportive results in the campaign:
+the tight-cap win is 4/0/0 against Fioretto-LDF at \emph{every} threshold tested
+($\tau\in\{0.003,0.005,0.010\}$), and the clip comparison is never stable at any of them.
+The likely reason is \textbf{redundancy}: the paper already argues threshold-robustness at
+\texttt{main.tex:802}, by a different route --- that the cell-mean gaps range $+0.016$ to
+$+0.081$, so no plausible threshold changes the classification. That sentence is the
+professor's original text.
+
+\smallskip
+\textbf{The case for adding it:} B5 upgrades that argument from ``the gaps are large, so
+the threshold cannot matter'' to ``we re-scored at three thresholds and the classification
+did not change'' --- a directly tested claim rather than an inferred one. One clause, in
+blue, and it strengthens an existing sentence rather than introducing a new result.
+\end{callout}
+
 \subsection{Where the paper already says this --- exact lines to point at}
 The paper uses \textbf{two metrics with two different comparators}, deliberately:
 \textbf{cc-F1 is measured against the trained duals; macro-F1 against the clipper.} If he
