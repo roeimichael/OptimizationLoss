@@ -296,9 +296,9 @@ well-tuned imbalanced-training recipe followed by clipping would close
 the macro-F1 gap over vanilla clipping is a question our current
 experiments do not settle \mbox{(Sec.~\ref{sec:limits})}.}
 {\color{blue}Whether a well-tuned imbalanced-training recipe followed by
-clipping closes the macro-F1 gap is answered in Sec.~\ref{sec:deploy}: it
-does on the imbalance-friendly dataset and not elsewhere, so the advantage
-is dataset-dependent rather than uniform.}
+clipping closes the macro-F1 gap is answered in Sec.~\ref{sec:deploy}: focal
+loss does close it on DermMNIST, but not on TissueMNIST or OctMNIST, so the
+advantage is dataset-dependent rather than uniform.}
 
 \paragraph{Transductive and set-level constraints.}
 Transductive inference reasons about a fixed unlabeled test set
@@ -866,15 +866,15 @@ family without ever training under the count. We add the three imbalance-aware r
 defined in Sec.~\ref{sec:setup} --- focal loss \citep{lin2017focal}, class-balanced
 reweighting \citep{cui2019class}, and logit adjustment \citep{menon2020long} --- each
 trained with its own loss and then LP-LG clipped, at the tight $L30$ cap
-(Table~\ref{tab:imbal}). Focal is the only competitive member, and across all three
-backbones the pattern is \emph{dataset}-driven rather than backbone-driven. On
-DermMNIST --- the imbalance-friendly dataset, where an imbalance-aware loss should do
-well --- focal matches or slightly reverses TraLO's macro-F1 margin on every backbone
-($-0.012$, $+0.006$, $-0.020$). On TissueMNIST TraLO leads on two of the three
-($+0.020$, $+0.017$), and on OctMNIST it leads on MobileNetV3 ($+0.025$) and ties on
-the other two. Class-balanced roughly ties and logit adjustment is weak throughout. The
-macro-F1 advantage is thus dataset-dependent, reinforcing that it belongs to the
-constraint-trained \emph{family} rather than to TraLO alone. What none of the four clip-based baselines provides is
+(Table~\ref{tab:imbal}). Focal is the only competitive member, and the pattern is
+\emph{dataset}-driven rather than backbone-driven: it reverses TraLO's macro-F1 margin on
+two of the three DermMNIST backbones, while TraLO leads or ties on every TissueMNIST and
+OctMNIST cell. Class-balanced roughly ties and logit adjustment is weak throughout. The
+pattern does not track constrained-class rarity --- that class is scarcest on TissueMNIST
+($7.1\%$ of the test set against $11.1\%$ on DermMNIST), yet TissueMNIST is where focal
+fares worst --- so we report the dataset dependence without attributing it to imbalance
+severity. The macro-F1 advantage is thus dataset-dependent, reinforcing that it belongs to
+the constraint-trained \emph{family} rather than to TraLO alone. What none of the four clip-based baselines provides is
 native cap satisfaction: all require the post-hoc LP ($1.0$ vs $0.0$), which remains
 TraLO's categorical separation from every clip-based method.}
 
