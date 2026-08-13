@@ -33,6 +33,98 @@ scoped, so nothing is blocked on the answer.
 
 ---
 
+## Item 11 — Blind review, round 1: **58/100** (2026-08-13)
+
+Run via the `research-reviewer` skill on `paper/main_clean.tex` (revisions accepted,
+marks stripped) by a fresh no-context agent. It recomputed the paper's numbers from
+the released corpus and **reproduced Tables 2/3/5/7 and the convergence medians
+exactly** — so where it says the data contradict the manuscript, that is worth taking
+seriously. I re-verified the three heaviest deductions myself before recording them.
+
+### VERIFIED — must fix
+
+**1. "Never invokes the editing step" is false for 79% of TraLO's own runs.** (−4)
+
+Checked directly against `corpus_final.csv`:
+
+| | |
+|---|---|
+| TraLO runs in `paper_final` | 324 |
+| reporting `sat = 1` | **324** |
+| …that *also* record ≥1 flip | **255 (78.7%)**, mean 7.21 flips |
+| genuinely edit-free (`sat=1` **and** 0 flips) | **69 (21.3%)** |
+
+Root cause, and it is definitional: **`sat` certifies the GLOBAL cap only**, while the
+post-hoc LP also enforces the **per-group** caps — and the joint local+global structure
+is what §2 claims as the paper's novelty. So the certifying metric drops the half of
+the constraint that is the differentiator.
+
+Affected claims: the abstract ("without editing predictions after training"), App. D
+("never invokes the editing step"), §8 ("the count is met during training rather than
+by editing predictions afterward").
+
+**The weaker claim is true and verified, and is what the paper should say:** at the
+binding caps TraLO averages **1.49** flips vs Fioretto-LDF 5.39, Hounie-RCL 7.03,
+TraLO-bounded 5.10, and 102.28 for both clippers. An order-of-magnitude reduction in
+editing is a strong, defensible claim. Edit-freeness is not.
+
+**2. The ALM grid contains a loss region.** (−6) Verified on the current snapshot
+(134 ALM runs complete, 31 cells at full 4 seeds):
+
+| region | cells | mean Δcc-F1 (TraLO − ALM) |
+|---|---|---|
+| the band the paper reports (OctMNIST tight) | 6 | **+0.028** |
+| every other full cell | 25 | −0.0005 |
+| OctMNIST × MobileNetV3, L50–L90 | 5 | **−0.025** |
+
+Per-cap: L50 −0.019, L60 −0.010, L70 −0.030, L80 −0.033, L90 −0.034.
+
+**Context the reviewer could not have:** the ALM expansion is still running, so the
+paper reports the 6 cells that existed (the B3 probe), not a selection from 31. But
+the finding stands as a forecast — **when the grid lands, there is a loss region and
+it must be reported**, not filtered out.
+
+**This does not damage the claim; it fits it.** The loss is at *loose* caps, and the
+paper's whole thesis is that the advantage is regime-specific. The honest sentence —
+"TraLO leads ALM where the cap binds hard; ALM leads at loose caps on one
+dataset×backbone" — *is* the regime map. Filtering to the winning band would be the
+thing that damages it.
+
+### Reviewer finding that is a decision, not a defect
+
+**The `+KL` ablation row** (−3): `ablation_complete.csv` has five arms, the table
+prints four. The omitted one is +KL (Δ −0.010, winrate 0.21, p 0.04) — i.e. adding a
+KL anchor *helps* on these cells. KL material was deliberately removed this round.
+The reviewer's point is narrower and fair: §1 and §8 advertise that *every* tie and
+negative result is released. Either restore the row with the reason it was retired, or
+soften that advertisement.
+
+### FALSE POSITIVE — caused by my own tooling, not the paper
+
+The reviewer deducted (−3) for three structurally broken captions rendering as body
+text inside their floats (visible on p. 12). **The manuscript is correct**; the defect
+was in `strip_revision_marks.py`. It searched for the literal `{\color{blue}` and
+matched the *caption's own opening brace* in `\caption{\color{blue}...}`, deleting
+both braces and yielding `\caption\textbf{...}` — which **compiles with zero errors**
+while typesetting the caption as body text. Fixed by deleting only the `\color{blue}`
+switch and never touching braces. Lesson: a clean build is not a correct build.
+
+### Not yet verified (recorded, not acted on)
+
+Notation collisions ($\lambda_g$ vs $K_g$; $c$ as class and cap index) · the ALM naming
+question (reviewer argues it is a PI controller, not an augmented Lagrangian, since no
+quadratic term enters the primal) · Fig. 3 panels (a)/(b) inconsistent by ~10× ·
+`references.bib` renders two titles blue · hyperref link borders not suppressed ·
+Table 1 bolds differences below its own stated noise · "all four backbones" where
+Table 1 has three · Hounie slowest in 17 not 18 census cells.
+
+- [ ] Fix the two verified claims (1 and 2)
+- [ ] Decide the +KL question
+- [ ] Verify and triage the unverified list
+- [ ] Re-run the reviewer on a fresh agent after fixes
+
+---
+
 ## Ground rules (apply to every item below)
 
 1. **Mark every change.** New text goes in blue (`\rev{...}` or `{\color{blue}...}`).

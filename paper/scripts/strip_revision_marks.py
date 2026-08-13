@@ -93,25 +93,19 @@ def drop_emptied_lines(s):
 
 
 def strip_color_groups(s):
-    """Turn {\\color{blue} X} into X. Returns (s, count)."""
-    marker = "{\\color{blue}"
-    out = []
-    i = 0
-    n = 0
-    while True:
-        j = s.find(marker, i)
-        if j < 0:
-            out.append(s[i:])
-            break
-        close = find_matching(s, j)
-        if close < 0:
-            out.append(s[i:])
-            break
-        out.append(s[i:j])
-        out.append(s[j + len(marker):close])
-        n += 1
-        i = close + 1
-    return "".join(out), n
+    """Remove the \\color{blue} switch, leaving braces alone. Returns (s, count).
+
+    DO NOT try to unwrap "{\\color{blue}...}" as a group. That pattern is textually
+    indistinguishable from "\\caption{\\color{blue}...}", where the brace belongs to
+    \\caption -- matching and deleting it strips the caption's own braces and
+    silently yields "\\caption\\textbf{...}", which still COMPILES (zero errors) but
+    typesets the caption as body text inside the float. A blind reviewer caught
+    exactly that on three captions in the first clean build.
+
+    Deleting only the switch token is both correct and simpler: "\\caption{X}" is
+    right, and a leftover "{X}" from a genuine wrapper is an inert brace group.
+    """
+    return re.subn(r"\\color\{blue\}\s*", "", s)
 
 
 def main():
