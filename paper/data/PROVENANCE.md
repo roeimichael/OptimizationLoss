@@ -96,6 +96,7 @@ not by tooling. Assume the same about every future change.
 
 | Float | Generator | Reads | Needs rerun for ALM / MobileNetV2? |
 |---|---|---|---|
+| `tab_alm_regime` (Table 10) | `make_alm_regime_table.py` (via `analyze_alm.py`) | `corpus_final.csv` + `alm_results.csv` | **Yes** — MobileNetV2 joins when its ALM runs land |
 | Table 1–2 (headline) | `make_main_table.py --two-metrics` | `corpus_final.csv` | **Yes** — and being split by metric |
 | `tab_backbone_generality`, `tab_deploy_backbone` | `make_backbone_tables.py` | `corpus_final.csv` | **Yes** |
 | `tab_granular_*` | `make_granular_tables.py` | `corpus_final.csv` | **Yes** |
@@ -120,12 +121,14 @@ reproduced exactly**; the drift is structural only:
 
 | File | Hand-edit | Why |
 |---|---|---|
-| `tab_ccf1.tex` | `\resizebox{\linewidth}` wrapper | raw tabular overflowed by ~83pt |
-| `tab_ccf1.tex` | caption sentence pointing at `tab:bbgen` | cross-reference added later |
 | `tab_graft.tex` | `\tabcolsep` 5pt (generator emits 2.6pt); caption/label order | width tuning |
 | `tab_granular_*.tex` | 2 cosmetic lines each | width tuning |
 
 Prefer folding these into the generators over re-applying them by hand.
+
+**Folded in 2026-08-13, so no longer listed above:** both `tab_ccf1.tex` hand-edits (the `\resizebox{\linewidth}`
+wrapper and the `tab:bbgen` caption sentence) now live in
+`make_main_table.py`, so regenerating no longer reverts them.
 
 **Fixed 2026-08-13, previously silent:** the generators emitted `Shifman`/
 `Shifman-LP` while the manuscript says `LP-LG` throughout. The committed tables
@@ -142,6 +145,7 @@ on Windows (UTF-8 delta to a cp1252 console) and could not be re-run at all.
 | `manifest/experiments.csv` | every run ever, with `config_path` | `build_experiment_manifest.py` (server) |
 | `manifest/gaps.csv` | cells the target grid still lacks | `coverage_report.py --csv` |
 | `corpus/corpus_final.csv` | aggregated metrics the generators read | `build_corpus.py` |
+| `corpus/alm_results.csv` | the ALM arm (b3 + b3_full + b3_mnv2 + r1_almrh), one row per run | `extract_alm_results.py` (**server**), then copy down |
 | `corpus/ablation_complete.csv` | component-ablation digest | hand-maintained |
 | `corpus/convergence_census.csv` | epochs-to-feasibility, §5.4 | hand-maintained |
 | `corpus/review_graft_2026-07.csv` | graft campaign | hand-maintained |
