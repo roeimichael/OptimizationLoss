@@ -9,7 +9,7 @@ build artifacts (`.aux`, `.log`, `.out`).
 | File | What it is |
 |---|---|
 | `main.tex` | **The manuscript.** The professor's TMLR conversion *"Two Portable Components for Meeting Hard Prediction Quotas"* with the Track-B additions marked in blue. ⚠️ Does **not** compile in place — tables/figures/bib live in `paper/`. Build in Overleaf, or via the `paper/main_rev.tex` working copy. The pre-blue original is `paper/main.tex` and must not be edited. |
-| `BLUE_REVISION_BRIEFING.tex` / `.pdf` | Advisor-meeting briefing: every blue change, B1–B8 with the experiment and reasoning behind each, what was omitted and why, and the open to-dos. 14 pp. Rebuild with `pdflatex` ×2. |
+| `MEETING_BRIEF.tex` / `.pdf` | **The one document to read before the advisor meeting.** Every blue insertion, B1–B8, the three imbalanced-learning baselines, how to read the B5–B7 statistics, numbers to know cold, likely questions, open items. 9 pp. Rebuild with `pdflatex` ×2. |
 | `PAPER_PLAN.md` | Source of truth for paper scope. **Referenced by `CLAUDE.md`.** |
 | `REJECTED.md` | Datasets/models tried and dropped — read before re-introducing any. **Referenced by `CLAUDE.md` and `src/models/imagery/vit.py`.** |
 | `NATIVE_RES_CAMPAIGN.md` | Pre-registered native-resolution campaign design (the B2 work). **Referenced by `scripts/prep_medmnist224.py`, `src/config_generators/gen_native_res.py`, `src/utils/data_loader.py`.** |
@@ -37,7 +37,7 @@ Kept for provenance; nothing here is current.
 
 | File | Why archived |
 |---|---|
-| `BLUE_REVISION_BRIEFING.md` | Markdown twin of the briefing. The `.tex`/`.pdf` pair is now the live version; keeping both invited drift. |
+| `BLUE_REVISION_BRIEFING.tex` / `.pdf` / `.md` | Superseded by `MEETING_BRIEF` (2026-08-13). Its "the components are inert" paragraph is wrong — it read a tie-cell result as a general one, which the completed isolated-hinge arm refutes. Do not quote from it. |
 | `AUDIT_2026-07-31.md` | Quota-fill audit, superseded by the Track-B adjudication. |
 | `PROFESSOR_REVIEW.md` | Earlier review round. |
 | `RESULTS_SUMMARY.md` | Pre-Track-B results summary. Linked from `PROFESSOR_REVIEW.md` (both moved together, so the link still resolves). |
