@@ -12,8 +12,8 @@ Manuscript under edit: **`docs/main.tex`** (the blue revision).
 
 | # | Item | Status |
 |---|---|---|
-| 1 | ALM across the full grid | **running** — 300 in flight, 84 MobileNetV2 chained |
-| 2 | Rebuild Tables 1 and 2 | **blocked on item 1** — nothing else stops it |
+| 1 | ALM across the full grid | **300/300 DONE**; MobileNetV2 running; r1/r2/r3 chained |
+| 2 | Rebuild Tables 1 and 2 | Table 1 rebuilt (tie band); ALM regime map added as Table 10 |
 | 3 | Figures cover the tables' scope | audit + pipeline repair **done**; Figs 1 & 5 regenerate when ALM lands |
 | 4 | Textual coherence | narrative pass **done**; scope sweep + repetition open |
 | 5 | Naming consistency | backbone names **done** (12 sites); table headers deferred to item 2, other categories open |
@@ -128,7 +128,7 @@ not. Fixed.
 | −6 | ALM reports 6 of 31 full cells; loss region in the rest | **FIXED** — all 81 cells reported, Table 10 |
 | −4 | "never invokes the editing step" false for 79% of runs | **FIXED** — abstract, §1, §8, App. D + Fig. 5 |
 | −4 | ALM is not an augmented Lagrangian (no quadratic primal) | **FIXED** — §2 rewritten, scoped, correctly cited |
-| −3 | Notation: $\lambda_g$ vs $K_g$; $c$ as class and cap index | open |
+| −3 | Notation: $\lambda_g$ vs $K_g$; $c$ as class and cap index | **FIXED** — upright G/L; CE-pull renamed to kappa |
 | −3 | Three broken captions | **FIXED** (my tooling) |
 | −3 | Abstract sells the graft tie as a win | **FIXED** — abstract states +0.0015, trails 2/6 |
 | −3 | The `+KL` row | **CLOSED** — advertisement softened, KL stays out |
@@ -136,7 +136,7 @@ not. Fixed.
 | −2 | App. A assumptions unflagged | **FIXED** — three caveats stated |
 | −2 | Table 1 bolds below its own stated noise | **FIXED** — ±0.005 tie band, 165 bold vs 72 |
 | −2 | Fig. 3 panels disagree by ~K | **FIXED** — missing `/K`; generator now asserts (b)=d(a)/dS |
-| −2 | No uncertainty on Fig. 1; Fig. 4 "n=1" | Fig. 4 **FIXED** (3 seeds were always on disk); Fig. 1 CIs open |
+| −2 | No uncertainty on Fig. 1; Fig. 4 "n=1" | **FIXED** — Fig. 4 plots 3 seeds; Fig. 1 has 95% bootstrap bands |
 | −2 | Wins itemised per cell, losses only per regime | **FIXED** — 16 cap-level losses itemised |
 | −1 | Rerun drift 0.013/0.025 vs a ±0.005 tie band | **runs launched** (r3, 10 repeats) |
 | −1 | "away from the grid" at L40/L60 | **FIXED** |
