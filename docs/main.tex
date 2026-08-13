@@ -1263,56 +1263,107 @@ reports a one-epoch-warmup probe that isolates the constraint-descent
 dynamics from the cross-entropy saturation of the paper grid, exposing
 where dual ascent applies force it cannot use.
 
+{\color{blue}
 \paragraph{Bounded penalty and gradient.}
-Write $u=E/K\ge 0$. In Eq.~\eqref{eq:loss} the first term $E/(E+K)=u/(1+u)$
-increases from $0$ to $1$ and the second $\rho\,u^2/(1+u^2)$ increases from
-$0$ to $\rho$, so $0\le\ell<1+\rho$. Differentiating through
-$E=\max(0,S-K)$ gives Eq.~\eqref{eq:grad} for $S>K$. There the first
-summand $K/(E+K)^2=\tfrac1K(1+u)^{-2}$ is at most $1/K$ (at $u{=}0$) and
-decreasing; the second, $\tfrac{2\rho}{K}\,u/(1+u^2)^2$, is maximized at
-$u=1/\sqrt3$ with value $\tfrac{9\rho}{8\sqrt3\,K}<\rho/K$ and tends to
-$0$ as $u\to\infty$. Their sum therefore lies in $[0,(1+\rho)/K]$ and
-vanishes as $E\to\infty$. Scaling $\ell$ and $\partial\ell/\partial S$ by
-a frozen multiplier $\lambda$ gives the bounds $\lambda(1+\rho)$ and
-$\lambda(1+\rho)/K$, neither depending on $E$.
+Write $u=E/K\ge 0$, with $E=\max(0,S-K)$. Equation~\eqref{eq:loss} is a sum of two
+increasing terms,
+\[
+\ell \;=\;
+\underbrace{\frac{E}{E+K}}_{=\,u/(1+u)\,:\;0\to 1}
+\;+\;
+\underbrace{\frac{\rho\,u^{2}}{1+u^{2}}}_{0\,\to\,\rho}
+\qquad\Longrightarrow\qquad
+0\le\ell<1+\rho .
+\]
+Differentiating through $E$ gives Eq.~\eqref{eq:grad} for $S>K$, and its two summands are
+bounded separately:
+\[
+\frac{K}{(E+K)^{2}}=\frac{1}{K}(1+u)^{-2}\;\le\;\frac{1}{K},
+\qquad
+\frac{2\rho}{K}\cdot\frac{u}{(1+u^{2})^{2}}\;\le\;\frac{9\rho}{8\sqrt3\,K}\;<\;\frac{\rho}{K},
+\]
+the first decreasing in $u$, the second maximised at $u=1/\sqrt3$; both tend to $0$ as
+$u\to\infty$. Hence the gradient is bounded and vanishes far from the cap,
+\[
+0\;\le\;\frac{\partial\ell}{\partial S}\;\le\;\frac{1+\rho}{K},
+\qquad
+\frac{\partial\ell}{\partial S}\to 0 \ \text{ as } E\to\infty .
+\]
+Scaling $\ell$ and $\partial\ell/\partial S$ by a frozen multiplier $\lambda$ gives the
+bounds $\lambda(1+\rho)$ and $\lambda(1+\rho)/K$, neither depending on $E$.
+}
 
+{\color{blue}
 \paragraph{Rank-one gradient direction.}
-$E_c=\max(0,S_c-K_c)$ is a function of the scalar $S_c$, and $\ell$ is a
-function of $E_c$, so $\lambda_c\ell(E_c)$ is the composition
-$\theta\mapsto S_c(\theta)\mapsto\lambda_c\ell$. The chain rule gives
-$\nabla_\theta[\lambda_c\ell]=\lambda_c\,\ell'(E_c)\,(\partial
-E_c/\partial S_c)\,\nabla_\theta S_c=\lambda_c\,(\partial\ell/\partial
-S_c)\,\nabla_\theta S_c$, using
-$\partial E_c/\partial S_c=\mathbf 1[S_c>K_c]$. Set
-$a_c=\lambda_c\,\partial\ell/\partial S_c\ge 0$. Summing over caps gives
-a gradient in $\mathrm{span}\{\nabla_\theta S_c\}_c$, a subspace of
-dimension at most the number of caps.
+The penalty reaches the weights only through the scalar soft count:
+$E_c=\max(0,S_c-K_c)$ depends on $\theta$ solely via $S_c$, so
+$\lambda_c\ell(E_c)$ is the composition
+$\theta\mapsto S_c(\theta)\mapsto\lambda_c\ell$. The chain rule then gives a
+\emph{non-negative scalar times a fixed direction},
+\[
+\nabla_\theta\bigl[\lambda_c\,\ell\bigr]
+\;=\;
+\underbrace{\lambda_c\,\frac{\partial\ell}{\partial S_c}}_{=:\;a_c\;\ge\;0}
+\;\nabla_\theta S_c ,
+\qquad\text{using}\qquad
+\frac{\partial E_c}{\partial S_c}=\mathbf 1[S_c>K_c] .
+\]
+Summing over the caps,
+\[
+\sum_c \nabla_\theta\bigl[\lambda_c\,\ell\bigr]
+\;\in\;
+\operatorname{span}\{\nabla_\theta S_c\}_c ,
+\]
+a subspace of dimension at most the number of caps.
+}
 
+{\color{blue}
 \paragraph{Gradient clipping absorbs the scalar.}
-Let $g=\nabla_\theta L_{\text{CE}}+\sum_{c'}a_{c'}\nabla_\theta S_{c'}$. In
-the limit where one cap's term dominates and the remaining terms vanish,
-$g\to a_c\nabla_\theta S_c$ with $a_c>0$; norm-clipping, when active
-($\lVert g\rVert>\tau$), then returns
-$\tau\,g/\lVert g\rVert\to\tau\,\nabla_\theta S_c/\lVert\nabla_\theta
-S_c\rVert$, in which the positive scalar $a_c$ (hence $\lambda_c$, $\rho$,
-and the shape of $\ell$) cancels.
+Write the full update direction as
+\[
+g \;=\; \nabla_\theta L_{\text{CE}} \;+\; \sum_{c'} a_{c'}\,\nabla_\theta S_{c'} .
+\]
+In the limit where one cap's term dominates and the rest vanish, $g\to a_c\nabla_\theta S_c$
+with $a_c>0$. Norm-clipping, whenever it is active ($\lVert g\rVert>\tau$), returns
+\[
+\tau\,\frac{g}{\lVert g\rVert}
+\;\longrightarrow\;
+\tau\,\frac{\nabla_\theta S_c}{\lVert\nabla_\theta S_c\rVert},
+\]
+in which $a_c$ has cancelled --- and with it $\lambda_c$, $\rho$, and the shape of $\ell$.
+}
 
+{\color{blue}
 \paragraph{A finite multiplier suffices.}
-Write $g(S)=\ell(\max(0,S{-}K);K,\rho)$. For $S<K$, $g\equiv0$, so $g$ has
-left-derivative $0$ at $K$. For $S>K$,
-$g'(S)=K/(E+K)^2+\tfrac{2\rho}{K}\,u/(1+u^2)^2$ with $E=S-K$ and $u=E/K$
-(Eq.~\eqref{eq:grad}); as $S\to K^+$ the first term $\to1/K$ and the
-second $\to0$, so $g$ has right-derivative $1/K$ at $K$, independent of
-$\rho$. Parameterize a path along which the soft count rises through $K$,
-and let $c=\lvert dL_{\text{CE}}/dS\rvert_{S=K}$ be the cross-entropy pull
-at the cap; the constrained class is under-served at a cap $L<100\%$, so
-$dL_{\text{CE}}/dS\le0$ there. The one-sided derivatives of
-$F=L_{\text{CE}}+\lambda g$ at $K$ are $F'(K^-)=-c\le0$ and
-$F'(K^+)=-c+\lambda/K$. If $\lambda\ge cK$ then $F'(K^+)\ge0$, so $F$
-does not decrease past the cap: $S{=}K$ is a local minimum along the
-path, and a finite multiplier attains the cap. The nonzero boundary slope
-$1/K$ is what makes the penalty exact, playing the role of the $\ell_1$
-penalty's unit slope \citep{nocedal2006numerical}.
+Write $g(S)=\ell\bigl(\max(0,S{-}K);K,\rho\bigr)$. It is flat below the cap but has a
+nonzero one-sided slope above it:
+\[
+g\equiv 0 \ \ (S<K)
+\quad\Longrightarrow\quad
+g'(K^-)=0,
+\qquad
+g'(K^+)=\lim_{S\to K^+}\left[\frac{K}{(E+K)^{2}}+\frac{2\rho}{K}\frac{u}{(1+u^{2})^{2}}\right]
+=\frac{1}{K},
+\]
+with $E=S-K$ and $u=E/K$ (Eq.~\eqref{eq:grad}) --- note the limit is independent of $\rho$.
+Parameterise a path along which the soft count rises through $K$, and let
+$c=\lvert dL_{\text{CE}}/dS\rvert_{S=K}$ be the cross-entropy pull at the cap (the
+constrained class is under-served at any cap $L<100\%$, so $dL_{\text{CE}}/dS\le0$ there).
+The one-sided derivatives of $F=L_{\text{CE}}+\lambda g$ at $K$ are then
+\[
+F'(K^-)=-c\le 0,
+\qquad
+F'(K^+)=-c+\frac{\lambda}{K}
+\qquad\Longrightarrow\qquad
+F'(K^+)\ge 0
+\ \ \text{ whenever }\ \
+\lambda\ge cK .
+\]
+So $F$ does not decrease past the cap: $S{=}K$ is a local minimum along the path, and a
+\emph{finite} multiplier attains it. The nonzero boundary slope $1/K$ is what makes the
+penalty exact, playing the role of the $\ell_1$ penalty's unit slope
+\citep{nocedal2006numerical}.
+}
 
 \medskip
 Figure~\ref{fig:loss_shape} plots these two bounds against the violation
