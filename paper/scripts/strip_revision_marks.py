@@ -145,6 +145,15 @@ def main():
     s = re.sub(r"^\\newcommand\{\\(del|rev|pending)\}.*\n", "", s, flags=re.M)
     s = re.sub(r"^\\usepackage\[normalem\]\{ulem\}.*\n", "", s, flags=re.M)
 
+    # Comments that only explain the apparatus. They do not typeset, but a
+    # reviewer read one ("\color{blue} must be repeated INSIDE \caption") as
+    # evidence that a de-marking script had eaten something -- which, that round,
+    # it had. Leaving them in the clean build invites the same inference.
+    s = re.sub(r"^%[^\n]*\\?color\{blue\}[^\n]*\n", "", s, flags=re.M)
+    s = re.sub(r"^% *\\?(del|rev|pending)\{[^\n]*\n", "", s, flags=re.M)
+    s = re.sub(r"^% *must be repeated INSIDE[^\n]*\n", "", s, flags=re.M)
+    s = re.sub(r"^% *\\normalcolor before typesetting[^\n]*\n", "", s, flags=re.M)
+
     s, n_lines = drop_emptied_lines(s)
     s, n_head = drop_emptied_headings(s)
 
