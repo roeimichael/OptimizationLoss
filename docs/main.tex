@@ -109,7 +109,9 @@ hinge{\color{blue}, each load-bearing on its own}. Both transfer as additions to
 alternative constraint-trained
 baselines and close most of the tight-cap gap{\color{blue}: with the two
 components grafted on, our package and the grafted baselines are statistically
-interchangeable (mean edge $+0.0015$, trailing in two of six cells). The portable
+interchangeable --- a mean edge of $+0.0015$ over the stronger of the two
+dual-ascent hosts, and $+0.0002$ over a grafted augmented-Lagrangian dual, which
+we win on $11$ of $24$ seeds. The portable
 components, not the package, are the result}. In contrast, the
 saturating penalty shape after which the package is named proves neutral
 by both ablation and graft. \del{Native-resolution generalization is left to
@@ -1156,6 +1158,20 @@ over the grafted Fioretto-LDF at the two caps). This is the paper's
 central mechanistic finding: the two portable ingredients, not the host,
 carry the constrained-class advantage.
 
+{\color{blue}
+The obvious objection to that finding is that we withheld the ingredients from
+the one baseline we call strongest. So we grafted them onto ALM as well, on the
+same six cells at four seeds. The result is the cleanest version of the finding
+in this paper. The graft lifts ALM in \emph{all six} cells, by a mean $+0.028$
+cc-F1 --- the same two components, a third host, the same direction. And what it
+leaves behind is nothing: TraLO's paired edge over grafted ALM is $+0.0002$
+cc-F1, it wins $11$ of the $24$ seed-level comparisons, and the graft closes a
+median $126\%$ of the margin TraLO held over the ungrafted host. Two of the six
+cells fall inside the $0.005$ tie band and the rest split in both directions.
+On these cells TraLO and ALM-plus-the-two-components are the same method to
+within seed noise, which is what the ingredients-not-the-package claim predicts
+and what a paper arguing for its own package would least like to find.}
+
 \paragraph{Penalty shape is neutral.}
 A third arm swaps Eq.~\eqref{eq:loss}'s saturating penalty for a linear
 one at the same ratcheted multiplier, holding the ratchet, the freeze,
@@ -1339,7 +1355,11 @@ transfer to the dual baselines and close most of the gap, while the
 saturating penalty after which the package is named proves neutral by
 both ablation and graft.{\color{blue} Each of the two is load-bearing on its own,
 not only as a pair: removing either one alone costs constrained-class F1 in all
-six tight-cap cells.} Second, the regime map shows that hard-count
+six tight-cap cells. And the transfer is not confined to the weaker hosts ---
+grafted onto the augmented-Lagrangian dual, the strongest baseline we run, the
+two components close the gap entirely: TraLO's remaining edge is $+0.0002$ cc-F1
+on $11$ of $24$ seeds. We would rather report that than a margin over a
+comparator we had declined to upgrade.} Second, the regime map shows that hard-count
 constrained training pays back over clipping essentially everywhere on
 our grid, while beating the trained baselines only in a narrow,
 identifiable regime; the map is what a practitioner needs, not the
@@ -1687,8 +1707,24 @@ effect across the grid.}
 
 This subsection contains the graft evidence for the paper's central
 mechanistic claim (Sec.~\ref{sec:carries}): the reset and hinge,
-transplanted onto Fioretto-LDF and Hounie-RCL, close most of the
+transplanted onto Fioretto-LDF{\color{blue},} Hounie-RCL{\color{blue} and ALM},
+close most of the
 tight-cap gap. It is the converse of the within-TraLO ablation above.
+
+{\color{blue}
+\paragraph{The third host: ALM.}
+The ALM arm was added after the first two, in response to the observation that a
+graft experiment which upgrades only the weaker baselines is not a fair test of
+the claim. It is built by taking the Fioretto graft arm verbatim and replacing
+only the dual update with ALM's, so it differs from ALM in exactly the two
+grafted components and from the Fioretto graft in exactly the dual rule. On the
+same six cells at four seeds ($24$ runs), the graft raises ALM in every cell,
+mean $+0.028$ cc-F1 (per cell: $+0.031$, $+0.026$, $+0.026$, $+0.013$, $+0.030$,
+$+0.044$). Against the grafted host TraLO retains $+0.0002$ cc-F1 on average,
+winning $11$ of $24$ seed-level comparisons and two of six cells; the median cell
+recovers $126\%$ of the margin TraLO held over ungrafted ALM. The three hosts
+therefore agree: what transfers is the pair of components, and after the transfer
+the host identity stops mattering.}
 
 The ablation above removes components from TraLO; the converse test adds
 them to the baselines. We graft exactly the optimizer reset and the
