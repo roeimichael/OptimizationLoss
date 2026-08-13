@@ -14,6 +14,7 @@
 
 Run:  python paper/scripts/make_figs.py
 """
+import glob
 import os
 import sys
 import matplotlib.pyplot as plt
@@ -117,10 +118,21 @@ def make_mechanism():
           ~60 epochs); it falls to the cap only after CE stops -- and then both
           methods satisfy within a few epochs. Same outcome, 300x the pressure."""
     base = os.path.join(DATA, "dynamics", "dermmnist")
-    cell = os.path.join("w1_probe", "pushpull_derm_w1", "L50_G50", "seed_1",
-                        "training_log.csv")
-    fio = pd.read_csv(os.path.join(base, "fioretto_ldf", cell))
-    tra = pd.read_csv(os.path.join(base, "tralo", cell))
+
+    def _seed_logs(method):
+        """Every logged seed of the probe, seed_1 first. The probe was always run
+        at three seeds; the figure used to plot only seed_1, which made a
+        three-seed result read as n=1 (blind review r1)."""
+        pat = os.path.join(base, method, "w1_probe", "pushpull_derm_w1",
+                           "L50_G50", "seed_*", "training_log.csv")
+        return [pd.read_csv(p) for p in sorted(glob.glob(pat))]
+
+    fio_all = _seed_logs("fioretto_ldf")
+    tra_all = _seed_logs("tralo")
+    assert fio_all and tra_all, "no probe logs found under %s" % base
+    fio, tra = fio_all[0], tra_all[0]
+    print("mechanism probe: %d Fioretto seeds, %d TraLO seeds"
+          % (len(fio_all), len(tra_all)))
 
     fio_ep = fio["epoch"].to_numpy(dtype=float)  # constraint epochs 0..70
     # TraLO logs absolute epochs (2, 5, 10, ...); rel epoch 0 aligns with fio
@@ -147,6 +159,27 @@ def make_mechanism():
 
     FIO = dict(color=C_FIORETTO, lw=1.6)
     TRA = dict(color=C_TRALO, lw=1.4, ls="--", marker="s", ms=3.0)
+    # Seeds 2..n as faint traces behind the seed-1 curve: enough to show the
+    # spread without turning three panels into spaghetti.
+    GHOST_F = dict(color=C_FIORETTO, lw=0.7, alpha=0.30, zorder=1)
+    GHOST_T = dict(color=C_TRALO, lw=0.7, alpha=0.30, ls="--", zorder=1)
+
+    def _ghosts(ax, logs, ep_col, val_col, style, transform=None):
+        """Plot the non-primary seeds. Silently skips a seed missing the column,
+        so a partially-logged probe degrades to fewer ghosts, never to a crash."""
+        for df in logs[1:]:
+            if ep_col not in df.columns:
+                continue
+            ep = df[ep_col].to_numpy(dtype=float)
+            ep = ep - ep.min()
+            if transform is not None:
+                val = transform(df)
+            elif val_col in df.columns:
+                val = df[val_col].to_numpy(dtype=float)
+            else:
+                continue
+            n = min(len(ep), len(val))
+            ax.plot(ep[:n], val[:n], **style)
 
     fig, (axA, axB, axC) = plt.subplots(1, 3, figsize=(7.0, 1.40))
 
@@ -157,6 +190,8 @@ def make_mechanism():
     # global-cap one is plotted. On this cell the local caps are never violated,
     # so every local multiplier stays at exactly zero (TraLO logs Lambda_Local=0
     # throughout; Fioretto's local duals get zero subgradient and never move).
+    _ghosts(axA, fio_all, "epoch", "max_lambda_g", GHOST_F)
+    _ghosts(axA, tra_all, "Epoch", "Lambda_Global", GHOST_T)
     axA.plot(fio_ep, fio_lg, label="Fioretto-LDF", **FIO)
     axA.plot(tra_ep, tra_lg, label="TraLO (ours)", **TRA)
     axA.set_yscale("log")
@@ -174,6 +209,8 @@ def make_mechanism():
                  handlelength=1.6, borderaxespad=0.2)
 
     # ---- (b) the non-effect: classification loss is identical either way ----
+    _ghosts(axB, fio_all, "epoch", "ce_loss", GHOST_F)
+    _ghosts(axB, tra_all, "Epoch", "L_CE", GHOST_T)
     axB.plot(fio_ep[fio_real], fio_ce[fio_real], **FIO)
     axB.plot(tra_ep[tra_real], tra_ce[tra_real], **TRA)
     yB = float(np.nanmax(fio_ce)) * 1.14
@@ -190,6 +227,8 @@ def make_mechanism():
     axB.set_ylabel("cross-entropy")
 
     # ---- (c) the outcome: the count moves only after CE stops ----
+    _ghosts(axC, fio_all, "epoch", "total_excess", GHOST_F)
+    _ghosts(axC, tra_all, "Epoch", None, GHOST_T, transform=_tralo_excess)
     axC.plot(fio_ep, fio_ex, **{**FIO, "lw": 1.3})
     axC.plot(tra_ep, tra_ex, **TRA)
     yC = float(max(fio_ex.max(), tra_ex.max())) * 1.24

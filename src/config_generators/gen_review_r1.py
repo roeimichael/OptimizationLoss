@@ -129,11 +129,19 @@ def gen_seeds(root):
             lane = _lane_for(("r2", model, seed))
             for cap in TIGHT_CAPS:
                 for method in METHODS:
-                    src = _src(model, TIGHT_DATASET, cap, method, 1)
+                    # ALM has no paper_final source -- it was added in the
+                    # revision and lives under track_b. Synthesize it the way
+                    # gen_alm_full.py does: clone the frozen Fioretto-LDF config
+                    # of the same cell and swap only the dual rule.
+                    host = "fioretto_ldf" if method == "fioretto_alm" else method
+                    src = _src(model, TIGHT_DATASET, cap, host, 1)
                     if not src:
                         missing.append((model, cap, method))
                         continue
                     c = _clone(src)
+                    if method == "fioretto_alm":
+                        c["methodology"] = "fioretto_alm"
+                        c["hyperparams"].update(ALM_HP)
                     c["hyperparams"]["seed"] = seed
                     # Recompute: the cache key includes the seed, and reusing
                     # seed 1's warmup would make the "new seeds" identical runs.

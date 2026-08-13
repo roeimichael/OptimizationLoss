@@ -57,12 +57,23 @@ def make_deployment():
     df = pd.read_csv(SRC)
     pf = df[df["sweep"] == "paper_final"].copy()
 
+    # `sat` certifies the GLOBAL cap only. The post-hoc step also enforces the
+    # per-group caps, so a run can be natively satisfying on the global count and
+    # still be edited -- and the joint local+global structure is what the paper
+    # claims as its contribution. Reporting `sat` alone therefore drops exactly
+    # the half of the constraint that is the differentiator (blind review r1).
+    # A run is JOINTLY natively satisfying iff it meets the global cap AND needed
+    # no flip; `flips` counts edits from both the global and the local pass.
+    pf["joint"] = ((pf["sat"] == 1) & (pf["flips"] == 0)).astype(int)
+
     # Mean native satisfaction per (model, method) and per (model, method, dataset).
     piv = (pf.groupby(["model", "method"])["sat"].mean()
               .unstack().reindex(index=BACKBONE_ORDER, columns=METHOD_ORDER))
+    piv_j = (pf.groupby(["model", "method"])["joint"].mean()
+                .unstack().reindex(index=BACKBONE_ORDER, columns=METHOD_ORDER))
     n_per = (pf.groupby(["model", "method"])["sat"].count()
                .unstack().reindex(index=BACKBONE_ORDER, columns=METHOD_ORDER))
-    ds_mean = (pf.groupby(["model", "method", "dataset"])["sat"].mean())
+    ds_mean = (pf.groupby(["model", "method", "dataset"])["joint"].mean())
 
     n_methods = len(METHOD_ORDER)
     n_bb = len(BACKBONE_ORDER)
@@ -79,9 +90,16 @@ def make_deployment():
     for j, bb in enumerate(BACKBONE_ORDER):
         offsets = x + (j - (n_bb - 1) / 2.0) * bar_w
         vals = piv.loc[bb, METHOD_ORDER].to_numpy(dtype=float)
+        vals_j = piv_j.loc[bb, METHOD_ORDER].to_numpy(dtype=float)
+        # Pale full-height bar = global cap met natively. Solid inner bar = the
+        # stricter joint criterion (global AND no per-group edit). The gap
+        # between them is the editing the paper used to claim it never does.
         ax.bar(offsets, vals, width=bar_w * 0.90,
+               color=BACKBONE_COLOR[bb], alpha=0.32, edgecolor="white",
+               linewidth=0.5, label=BACKBONE_LABELS[bb], zorder=3)
+        ax.bar(offsets, vals_j, width=bar_w * 0.90,
                color=BACKBONE_COLOR[bb], edgecolor="white", linewidth=0.5,
-               hatch=BACKBONE_HATCH[bb], label=BACKBONE_LABELS[bb], zorder=3)
+               hatch=BACKBONE_HATCH[bb], zorder=4)
         # Overlay per-dataset means (3 datasets) so the spread behind each bar shows.
         for i, m in enumerate(METHOD_ORDER):
             try:
@@ -117,7 +135,10 @@ def make_deployment():
     handles, labels = ax.get_legend_handles_labels()
     dot = plt.Line2D([], [], marker="o", color="#222222", linestyle="none",
                      markersize=4, markeredgecolor="white", label="per-dataset mean")
-    ax.legend(handles + [dot], labels + ["per-dataset mean"],
+    pale = plt.Rectangle((0, 0), 1, 1, facecolor="#777777", alpha=0.32)
+    solid = plt.Rectangle((0, 0), 1, 1, facecolor="#777777")
+    ax.legend(handles + [dot, pale, solid],
+              labels + ["per-dataset mean (joint)", "global cap only", "joint (no edits)"],
               loc="center right", bbox_to_anchor=(1.0, 0.60), frameon=False,
               ncol=1, title="backbone", title_fontsize=8, fontsize=7.5)
 
@@ -125,8 +146,15 @@ def make_deployment():
     pdf, png = savefig_dual(fig, OUT, "fig_deployment")
     plt.close(fig)
 
-    print("MEAN NATIVE SATISFACTION (paper_final):")
+    print("MEAN NATIVE SATISFACTION -- GLOBAL CAP ONLY (paper_final):")
     print(piv.round(4).to_string())
+    print("\nMEAN NATIVE SATISFACTION -- JOINT (global AND no per-group edit):")
+    print(piv_j.round(4).to_string())
+    print("\nGrid-wide by method (the numbers the prose must quote):")
+    summ = pf.groupby("method").agg(global_only=("sat", "mean"),
+                                    joint=("joint", "mean"),
+                                    mean_flips=("flips", "mean"))
+    print(summ.reindex(METHOD_ORDER).round(3).to_string())
     print("\nN per (backbone, method):")
     print(int(n_per.fillna(0).to_numpy().flatten()[0]), "(typical)")
     print(n_per.astype("Int64").to_string())

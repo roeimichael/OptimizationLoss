@@ -57,16 +57,25 @@ def fmt_val(mean, std):
     return f"{mean:.3f}" + r"{\tiny$\pm$" + f"{std:.3f}".lstrip("0") + "}"
 
 
-def markup(vals_rounded):
-    """bold = max rounded among trained; underline = second distinct rounded among trained."""
-    tr = sorted({vals_rounded[m] for m in TRAINED}, reverse=True)
-    best = tr[0]
-    second = tr[1] if len(tr) > 1 else None
+# The tie band the paper adjudicates every win/loss at. Across-seed stds in these
+# cells run .001-.055, so a strict argmax bolds differences an order of magnitude
+# below the noise -- it reads as a ranking where the data support only a tie.
+# Table 8 already uses this convention; blind review r1 flagged the inconsistency.
+TIE_BAND = 0.005
+
+
+def markup(vals_full):
+    """bold = within TIE_BAND of the best TRAINED value, so jointly bolded entries
+    are tied rather than ranked; underline = best entry outside the tie band."""
+    best = max(vals_full[m] for m in TRAINED)
+    tied = {m for m in TRAINED if vals_full[m] >= best - TIE_BAND}
+    rest = [vals_full[m] for m in TRAINED if m not in tied]
+    runner = max(rest) if rest else None
     out = {}
     for m in MORDER:
-        if m in TRAINED and vals_rounded[m] == best:
+        if m in tied:
             out[m] = "bold"
-        elif m in TRAINED and second is not None and vals_rounded[m] == second:
+        elif m in TRAINED and runner is not None and vals_full[m] >= runner - TIE_BAND:
             out[m] = "under"
         else:
             out[m] = ""
@@ -139,8 +148,7 @@ def build_table(df):
         for bi, mo in enumerate(BB3):
             for ci, p in enumerate(CAPS):
                 ms = {m: cell_stats(df, ds, mo, p, m) for m in MORDER}
-                rounded = {m: round(ms[m][0], 3) for m in MORDER}
-                mk = markup(rounded)
+                mk = markup({m: ms[m][0] for m in MORDER})
                 row = [render_cell(*ms[m], mk[m]) for m in MORDER]
                 lead_ds = rf"\multirow{{9}}{{*}}{{{DSP[ds]}}}" if (bi == 0 and ci == 0) else ""
                 lead_bb = rf"\multirow{{3}}{{*}}{{{BBP[mo]}}}" if ci == 0 else ""
@@ -188,15 +196,23 @@ def build_table_two_metrics(df):
     L.append(r"\caption{\textbf{Quality of the final satisfying predictions on the full")
     L.append(r"symmetric grid}: constrained-class F1 and macro-F1, all three datasets $\times$")
     L.append(r"all three backbones (mean over seeds $1$--$4$; across-seed stds omitted per")
-    L.append(r"cell for width, range $.001$--$.055$). \textbf{Bold} = best,")
-    L.append(r"\underline{underline} = second-best among the constraint-\emph{trained}")
-    L.append(r"methods; $^{\dagger}$ = post-hoc clippers, for reference; seed-winrates in")
-    L.append(r"Supp.~Table~S6 and Supp.~Sec.~D. Among trained methods the grid is a tie on")
+    L.append(r"cell for width, range $.001$--$.055$). \textbf{Bold} = within $0.005$ of the")
+    L.append(r"best constraint-\emph{trained} entry in the row --- the tie band every")
+    L.append(r"comparison in this paper is adjudicated at --- so jointly bolded entries are")
+    L.append(r"\emph{tied, not ranked}; \underline{underline} = best entry outside that band;")
+    L.append(r"$^{\dagger}$ = post-hoc clippers, for reference; seed-winrates in")
+    L.append(r"Table~\ref{tab:oct_backbone} and App.~\ref{app:regime}. Among trained methods the grid is a tie on")
     L.append(r"Tissue and Derm while TraLO leads every backbone at the OctMNIST tight caps;")
     L.append(r"on macro-F1 TraLO's paired gap over the best clipper clears $+0.005$ in $24$ of")
-    L.append(r"$27$ cells, zero losses (grid mean $+0.031$).}")
+    L.append(r"$27$ cells, zero losses (grid mean $+0.031$). Per-dataset paired-gap")
+    L.append(r"summaries over the symmetric caps for each backbone (including MobileNetV2)")
+    L.append(r"are in Table~\ref{tab:bbgen}.}")
     L.append(r"\label{tab:ccf1}")
     L.append(r"\vspace{4pt}")
+    # Hand-edit folded into the generator (PROVENANCE.md): the raw tabular is
+    # ~83pt wider than \linewidth. Re-applied by hand after every
+    # regeneration until now, which is exactly how hand-edits get lost.
+    L.append(r"\resizebox{\linewidth}{!}{%")
     L.append(r"\begin{tabular}{lll cccccc |c cccccc}")   # vrule divides cc-F1 | macro-F1
     L.append(r"\toprule")
     L.append(r" & & & \multicolumn{6}{c}{Constrained-class F1} & & \multicolumn{6}{c}{Macro-F1} \\")
@@ -212,8 +228,7 @@ def build_table_two_metrics(df):
                 for col in ("cc_f1", "f1_macro"):
                     ms = {m: cell_stats(df, ds, mo, p, m, col) for m in MORDER}
                     all_stds += [ms[m][1] for m in MORDER]
-                    rounded = {m: round(ms[m][0], 3) for m in MORDER}
-                    mk = markup(rounded)
+                    mk = markup({m: ms[m][0] for m in MORDER})
                     blocks.append(" & ".join(render_plain(ms[m][0], mk[m]) for m in MORDER))
                     if col == "cc_f1":
                         best_tr = max(ms[m][0] for m in TRAINED)
@@ -228,7 +243,8 @@ def build_table_two_metrics(df):
         if di < len(DS3) - 1:
             L.append(r"\midrule")
     L.append(r"\bottomrule")
-    L.append(r"\end{tabular}")
+    L.append(r"\end{tabular}%")
+    L.append(r"} % close \resizebox")
     L.append(r"\end{table*}")
     print(f"across-seed std range over all shown cells: "
           f"{min(all_stds):.3f} -- {max(all_stds):.3f}")
