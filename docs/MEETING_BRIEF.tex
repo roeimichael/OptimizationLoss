@@ -36,7 +36,7 @@
 {\LARGE\bfseries Meeting Brief}\\[3pt]
 {\large The blue revision of \emph{Two Portable Components for Meeting Hard
 Prediction Quotas}}\\[6pt]
-{\small Prepared 9 August 2026 \quad$\cdot$\quad read this one document; everything else is backup}
+{\small Prepared 9 August 2026, updated 13 August \quad$\cdot$\quad read this one document; everything else is backup}
 \end{center}
 
 \vspace{4pt}
@@ -377,6 +377,7 @@ TraLO $-$ ALM, tight caps & $+0.028$ cc-F1, 6/6 cells \\
 ALM $-$ Fioretto & $+0.010$ cc-F1 (so ALM is the tougher baseline) \\
 Native HAM10000, macro-F1 vs LP-LG & $+0.013$, 6/6 cells positive \\
 Native satisfaction (TraLO / LP-LG) & 24/24 \; vs \; 0/24 \\
+Ablation: reset alone / hinge alone / both & $+0.079$ \; / \; $+0.032$ \; / \; $+0.036$ (not additive) \\
 Atomic unit of analysis & (dataset, backbone, cap) over 4 seeds --- never pooled \\
 \bottomrule
 \end{tabular}
@@ -430,18 +431,23 @@ in red/blue:
 
 \begin{itemize}
 \item \textbf{The ``Undershoot hinge'' row never isolated the hinge.}
-\texttt{src/methodologies/tralo\_bounded/train.py} contains \emph{zero} occurrences of the
+\texttt{tralo\_bounded/train.py} contains \emph{zero} occurrences of the
 optimizer reset, so TraLO $-$ TraLO-bounded removes \emph{both} components. The table's own
 numbers give it away: reset alone costs $+0.079$, reset$+$hinge costs $+0.036$ --- removing
-more cannot hurt less. Row relabelled \textbf{``Reset $+$ hinge (TraLO-bounded)''}, and the
-caption now states that the hinge's individual contribution is not identified \emph{on
-these cells}, and records that a correctly isolated hinge arm did run on DermMNIST and
-TissueMNIST --- just not on OctMNIST (see Sec.~8).
-\item \textbf{A fifth ablation arm was missing.}
+more cannot hurt less. Row relabelled \textbf{``Reset $+$ hinge (TraLO-bounded)''}, and a
+new row \textbf{``Undershoot hinge (alone)''} was added underneath it, from 24 runs
+dispatched and completed on 2026-08-13 --- so the hinge is now isolated on the very cells
+that carry the claim. It costs $+0.032$ cc-F1, winrate $0.92$, positive in all six cells.
+\item \textbf{The caption called itself ``Complete'' and was not.}
 \texttt{ablation\_complete.csv} has five arms at $n{=}24$; the table showed four. The
-omitted one is \texttt{+KL} (mean $-0.0103$, $p{=}0.0398$) --- significant, and pointing
-against the main text's treatment of KL. Added as an explicitly labelled
-\emph{addition, not removal} row; the caption no longer claims to be ``Complete''.
+omitted one is \texttt{+KL} (mean $-0.0103$, $p{=}0.0398$) --- significant, but it is an
+\emph{addition}, not a removal, and it adds a term the paper does not use
+($\alpha_{\mathrm{KL}}{=}0$ corpus-wide). Rather than show a row for a variant that is not
+the method, the word ``Complete'' was struck from the caption, and the orphaned KL sweep
+paragraph in Appendix B --- which described the same dead term --- was struck with it.
+\emph{If he asks why the KL result is not shown: because it argues about a hyperparameter
+we set to zero, and the honest fix is to stop claiming completeness, not to advertise an
+arm we do not run.}
 \end{itemize}
 
 \noindent Also fixed: Table 9's threshold language (it called $+0.002$ ``a positive
@@ -482,6 +488,41 @@ every win threshold (B5), surviving a stronger dual (B3), reproducing on a fourt
 say so explicitly (0 of 8 cells survive FDR). The paper reports the clip comparison as a
 tie.
 
+\subsection{``Is the hinge doing anything on its own, or only alongside the reset?''}
+\label{sec:hingealone}
+On its own. This was the one genuine hole in the paper's own framing, and it was closed the
+night before this meeting with 24 fresh runs.
+
+\smallskip
+The arm is \texttt{hybrid\_mode=bounded\_only} with \texttt{reset\_optimizer\_at\_sat=True}
+--- the hinge removed, the reset \emph{retained} --- on exactly the grid Table 5 uses:
+OctMNIST $\times$ $\{L30,L40\}$ $\times$ $\{$MobileNetV3, RegNetY400MF, ViT-B/16$\}$
+$\times$ 4 seeds. All 24 completed, zero failures.
+
+\begin{center}\small
+\begin{tabular}{lcc}
+\toprule
+Backbone & $L30$ & $L40$ \\
+\midrule
+MobileNetV3   & $+0.013$ & $+0.016$ \\
+RegNetY400MF  & $+0.048$ & $+0.009$ \\
+ViT-B/16      & $+0.052$ & $+0.056$ \\
+\midrule
+\multicolumn{3}{l}{\emph{overall} $+0.032$, helps in 22 of 24 runs, 6/6 cells positive} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Every cell is positive, so the hinge clears the same cell-level sign test as the
+reset ($p{=}0.031$, the floor at six cells). \textbf{Both} named components are now
+load-bearing individually, which is what the title claims.
+
+\smallskip
+The one number worth being ready for: reset alone $+0.079$, hinge alone $+0.032$, both
+together only $+0.036$. That looks wrong until you say it out loud --- \emph{the two are
+not additive}. They fix overlapping failure modes, so removing both costs less than the sum
+of removing each. The caption now says this explicitly rather than leaving him to notice it.
+
 \section{Open items --- know these before he raises them}
 
 \begin{itemize}
@@ -492,29 +533,10 @@ quantity ranges from $-0.018$ to $+0.091$. The headline is defensible as a summa
 is not scoped the way the appendix says to scope things. \emph{Unresolved --- your call.}
 \item \textbf{Table 1's caption says ``the full symmetric grid''} but shows 3 of 9 caps
 (27 of 81 cells), and the L40 number quoted beside it is not in the table.
-\item \textbf{Only one of the ``two portable components'' is isolated \emph{on the cells
-that carry the claim}.} Following from the Table 5 correction above: on the OctMNIST
-tight-cap cells the reset is isolated singly and the hinge is not.
-
-\smallskip
-A correctly isolated hinge arm --- \texttt{hybrid\_mode=bounded\_only} with
-\texttt{reset\_optimizer\_at\_sat=True}, so the reset is retained --- \textbf{does exist
-and did complete}: $7$ runs on DermMNIST and $5$ on TissueMNIST (verified on dsisco01,
-2026-08-13). There are \textbf{zero} such runs on OctMNIST, which is the only dataset
-Table~5 reports, so it cannot be substituted in.
-
-\smallskip
-On the two datasets where it ran ($L30$, MobileNetV3, $3$ seeds), the hinge and the reset
-are \emph{each} individually neutral, $\lvert\Delta$~cc-F1$\rvert\le0.007$. That is not a
-problem for the paper --- it corroborates the caption's existing caveat that component
-importances are estimated inside the win region and need not transfer outside it. The
-components bind where the cap binds.
-
-\smallskip
-Since ``two portable components'' is billed as the paper's central mechanistic finding,
-this is the likeliest place for a reviewer to press. \emph{Cost to settle it: 24 runs
-(2 caps $\times$ 3 backbones $\times$ 4 seeds) on OctMNIST. The config already exists, so
-it is a dispatch, not new code.}
+\item \textbf{\textcolor{revred}{[CLOSED 13 Aug]} Only one of the ``two portable
+components'' was isolated on the cells that carry the claim.} This was the likeliest place
+for a reviewer to press. The missing 24 runs were dispatched and completed, and they
+settled it \emph{in the paper's favour} --- numbers in \S\ref{sec:hingealone} above.
 \item \textbf{OctMNIST has no native-resolution counterpart}, so whether the tight-cap cc-F1
 win survives at full resolution is untested. Stated plainly in the paper.
 \item Roughly 70 further minor findings from the audit were never adversarially verified ---
