@@ -133,6 +133,8 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     satisfaction_epoch = None
     stable_count = 0
     best_sat_state = None
+    best_sat_fill = -1.0
+    checkpoint_select = hp.get("checkpoint_select", "best_fill")
     best_sat_epoch = None
     min_excess_state = None
     min_excess_epoch = None
@@ -369,8 +371,28 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         if is_satisfied:
             stable_count += 1
             if snapshot_state is not None:
-                best_sat_state = snapshot_state
-                best_sat_epoch = epoch + 1
+                # Among FEASIBLE epochs keep the one that SPENDS the most of the
+                # budget, not the most recent one. Feasibility here is one-sided
+                # (count <= K), so a model that has stopped predicting the
+                # constrained class altogether is "satisfied"; because this
+                # block used to overwrite unconditionally, the checkpoint that
+                # shipped was the LAST such epoch, i.e. the most collapsed one.
+                # Measured on DermMNIST at matched LR: 11 of 16 TraLO runs
+                # shipped with count < K/3, and four shipped count == 0 while
+                # being recorded as satisfied.
+                # `fill` uses pool counts only (no labels) and is capped at K,
+                # so it cannot reward overshoot -- it only breaks ties among
+                # already-feasible epochs in favour of the one that used the
+                # budget it was given.
+                fill = 0.0
+                for _c in constrained_classes:
+                    _K = criterion_constraint.global_constraints[_c].item()
+                    if _K < UNLIMITED:
+                        fill += min(total_global_hard[_c].item(), _K)
+                if checkpoint_select == "last" or fill > best_sat_fill:
+                    best_sat_state = snapshot_state
+                    best_sat_epoch = epoch + 1
+                    best_sat_fill = fill
         else:
             stable_count = 0
         if snapshot_total_excess < min_total_excess and snapshot_state is not None:
