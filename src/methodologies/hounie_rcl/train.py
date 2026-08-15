@@ -128,6 +128,7 @@ def _train_constraints(model, inputs: TrainInputs, device):
     best_sat_state = None
     best_sat_fill = -1.0
     checkpoint_select = hp.get("checkpoint_select", "best_fill")
+    collapse_margin = float(hp.get("collapse_margin", 1.0))
     best_sat_epoch = None
     min_excess_state = None
     min_excess_epoch = None
@@ -399,7 +400,20 @@ def train(inputs: TrainInputs) -> TrainOutputs:
 
     restored_from_epoch = None
     restore_kind = None
-    if best_sat_state is not None and final_violates:
+    # A feasible-but-collapsed final model satisfies the one-sided test
+    # (count <= K) by predicting the constrained class for almost nobody, and
+    # would otherwise ship untouched because it does not violate.
+    final_fill = 0.0
+    for _c in constrained_classes:
+        if global_con[_c] < UNLIMITED:
+            final_fill += min(float(int((hard_preds_final == _c).sum())), float(global_con[_c]))
+    final_degenerate = (best_sat_state is not None
+                        and best_sat_fill > final_fill + collapse_margin)
+    if final_degenerate and not final_violates:
+        log.info("Final model feasible but degenerate (fill %.0f vs %.0f); "
+                 "restoring the better-filling checkpoint",
+                 final_fill, best_sat_fill)
+    if best_sat_state is not None and (final_violates or final_degenerate):
         log.info("Hounie: final violates; restoring best-satisfied checkpoint from epoch %d",
                  best_sat_epoch)
         model.load_state_dict({k: v.to(device) for k, v in best_sat_state.items()})

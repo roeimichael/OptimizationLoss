@@ -135,6 +135,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     best_sat_state = None
     best_sat_fill = -1.0
     checkpoint_select = hp.get("checkpoint_select", "best_fill")
+    collapse_margin = float(hp.get("collapse_margin", 1.0))
     best_sat_epoch = None
     min_excess_state = None
     min_excess_epoch = None
@@ -511,7 +512,20 @@ def train(inputs: TrainInputs) -> TrainOutputs:
 
     restored_from_epoch = None
     restore_kind = None
-    if best_sat_state is not None and final_violates:
+    # Budget the FINAL model actually spends, on the same scale as best_sat_fill.
+    final_fill = 0.0
+    for _c in range(num_classes):
+        if global_con[_c] < UNLIMITED:
+            final_fill += min(float(g_counts.get(_c, 0)), float(global_con[_c]))
+    # A feasible-but-collapsed final model is the failure this guards against:
+    # it satisfies a one-sided test by predicting the class for almost nobody.
+    final_degenerate = (best_sat_state is not None
+                        and best_sat_fill > final_fill + collapse_margin)
+    if final_degenerate and not final_violates:
+        log.info("Final model is feasible but degenerate (fill %.0f vs %.0f at "
+                 "epoch %s); restoring the better-filling checkpoint",
+                 final_fill, best_sat_fill, best_sat_epoch)
+    if best_sat_state is not None and (final_violates or final_degenerate):
         log.info("Restoring best-satisfied checkpoint from epoch %d", best_sat_epoch)
         model.load_state_dict({k: v.to(device) for k, v in best_sat_state.items()})
         restored_from_epoch = best_sat_epoch
