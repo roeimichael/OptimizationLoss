@@ -83,6 +83,8 @@ def _train_constraints(model, config, inputs, device):
     # only best_excess + F1-of-final-vs-best (double-dipped on the eval
     # metric); this matches TraLO and removes that bias.
     best_sat_state = None
+    best_sat_fill = -1.0
+    checkpoint_select = hp.get("checkpoint_select", "best_fill")
     best_sat_epoch = None
     min_excess_state = None
     min_excess_epoch = None
@@ -277,8 +279,20 @@ def _train_constraints(model, config, inputs, device):
         if all_satisfied:
             stable_count += 1
             if snapshot_state is not None:
-                best_sat_state = snapshot_state
-                best_sat_epoch = epoch + 1
+                # Feasibility is one-sided (count <= K), so a model that has
+                # stopped predicting the constrained class is "satisfied".
+                # Overwriting unconditionally therefore shipped the LAST such
+                # epoch -- the most collapsed one. Break ties among feasible
+                # epochs by budget fill instead. Pool counts only, capped at K.
+                fill = 0.0
+                for _c in constrained_classes:
+                    _K = float(global_con[_c])
+                    if _K < UNLIMITED:
+                        fill += min(float(hard_counts.get(_c, 0)), _K)
+                if checkpoint_select == "last" or fill > best_sat_fill:
+                    best_sat_state = snapshot_state
+                    best_sat_epoch = epoch + 1
+                    best_sat_fill = fill
         else:
             stable_count = 0
         if total_excess < min_total_excess and snapshot_state is not None:
