@@ -20,6 +20,7 @@ CE saturation skip, grad clip + norm gate, best_sat/min_excess restore,
 """
 
 import logging
+import os
 import time
 
 import torch
@@ -38,6 +39,50 @@ log = logging.getLogger(__name__)
 
 CONSTRAINT_CHUNK_SIZE = 256
 VALID_MODES = ("bounded_only", "undershoot_hinge")
+
+
+def class_margin(logits, c):
+    """logit(p_c) = z_c - logsumexp_{j != c} z_j.
+
+    Strictly monotone in p_c, so ranking the pool by this quantity is exactly
+    the ranking a budget-K allocator uses.  This is the margin the cut
+    objective acts on.
+    """
+    keep = [j for j in range(logits.shape[1]) if j != c]
+    return logits[:, c] - torch.logsumexp(logits[:, keep], dim=1)
+
+
+def argmax_margin(logits, c):
+    """z_c - max_{j != c} z_j.  Positive iff argmax == c.
+
+    This is the predicate satisfaction is verified on, so it is the one the
+    count surrogate should smooth (soft_count_mode="sigmoid").
+    """
+    keep = [j for j in range(logits.shape[1]) if j != c]
+    return logits[:, c] - logits[:, keep].max(dim=1).values
+
+
+def build_cut_plan(m, idx, K, gamma):
+    """Detached cut geometry for one (scope, class) cap.
+
+    m    margins for the participating samples
+    idx  their positions in the pool
+    K    the cap
+    Returns None when the cap cannot define a cut (K outside the pool).
+    """
+    n = m.numel()
+    if K < 1 or K >= n:
+        return None
+    ms, _ = torch.sort(m, descending=True)
+    theta = 0.5 * (ms[K - 1] + ms[K])
+    med = m.median()
+    scale = (m - med).abs().median().clamp_min(1e-6)
+    sign = torch.where(m > theta, 1.0, -1.0)
+    active = (gamma - sign * (m - theta) / scale) > 0
+    return dict(idx=idx, sign=sign, theta=theta, scale=scale,
+                n_act=int(active.sum().item()),
+                n_keep_act=int((active & (sign > 0)).sum().item()),
+                K=int(K), n=int(n))
 
 
 @logger()
@@ -80,6 +125,53 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     disable_freeze_on_satisfy = bool(hp.get("disable_freeze_on_satisfy", False))
     fior_beta = float(hp.get("fior_beta", 0.0))
     alpha_kl = float(hp.get("alpha_kl", 0.0))
+
+    # ---------------- GEOM arm: the cut objective ------------------------
+    # The count constraint splits into two parts that are worth very
+    # different amounts.  WHERE the cut sits is one scalar (the dual
+    # potential of the entropic projection onto {at most K in class c};
+    # verified to 5e-11 that that projection is exactly
+    # sigmoid(logit(p_ic) - f)).  Moving it is free: a per-class bias shift
+    # already accounts for ~30% of the incumbent penalty's displacement
+    # energy and costs +0.0003 AP.  WHETHER the cut is resolved -- whether
+    # the samples straddling rank K are separated -- is a representation
+    # property, and it is the only part a loss can earn.
+    #
+    #   m_i     = logit(p_ic) = z_ic - logsumexp_{j!=c} z_ij
+    #             (strictly monotone in p_ic, so ranking by m == the
+    #              budget allocator's own ranking)
+    #   theta   = (m_(K) + m_(K+1)) / 2          detached, per epoch
+    #   s       = MAD_i(m_i)                     detached, per epoch
+    #   y_i     = +1 if rank(i) <= K else -1
+    #   L_cut   = (1/n_act) sum_i relu(gamma - y_i (m_i - theta)/s)
+    #
+    # Shift-invariant by construction: adding a constant to every m_i moves
+    # theta by the same constant, so inflating a competitor class -- the
+    # incumbent's free escape route -- is exactly a null direction.
+    #
+    #   cut_loss   off   | hinge (the above) | otce (Asano-style control:
+    #                      CE onto the budget pseudo-label, which in this
+    #                      single-cap setting IS the entropic-OT target)
+    #   cut_gamma  margin demanded at the cut, in MAD units
+    #   cut_scope  global | both (adds the per-group caps)
+    cut_loss = str(hp.get("cut_loss", "off")).lower()
+    if cut_loss not in ("off", "hinge", "otce"):
+        raise ValueError(f"cut_loss must be off|hinge|otce, got {cut_loss!r}")
+    cut_gamma = float(hp.get("cut_gamma", 1.0))
+    cut_weight = float(hp.get("cut_weight", 1.0))
+    cut_scope = str(hp.get("cut_scope", "global")).lower()
+    if cut_scope not in ("global", "both"):
+        raise ValueError(f"cut_scope must be global|both, got {cut_scope!r}")
+    # Count what verification actually counts.  The incumbent penalty
+    # constrains sum_i p_ic, whose gradient weight p(1-p) is a function of
+    # confidence, not of the decision; satisfaction is checked on argmax.
+    # "sigmoid" swaps the counted quantity for sigmoid(mtilde_i / tau) with
+    # mtilde_i = z_ic - max_{j!=c} z_ij, the smoothed indicator of the
+    # predicate that is actually verified.
+    soft_count_mode = str(hp.get("soft_count_mode", "prob")).lower()
+    if soft_count_mode not in ("prob", "sigmoid"):
+        raise ValueError(f"soft_count_mode must be prob|sigmoid, got {soft_count_mode!r}")
+    count_tau = float(hp.get("count_tau", 0.25))
 
     criterion_ce = make_ce_criterion(config, inputs.y_train, num_classes, device)
     lr_constraint = hp.get("lr_constraint", 1e-5)
@@ -193,22 +285,81 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                                 for gid in criterion_constraint.local_groups}
             total_local_hard = {gid: torch.zeros(num_classes, device=device)
                                 for gid in criterion_constraint.local_groups}
+            # Per-sample margins for the cut objective (detached; the geometry
+            # theta/scale/sign is fixed once per epoch from these).
+            pool_margin = {c: torch.zeros(n_test, device=device)
+                           for c in constrained_classes} if cut_loss != "off" else {}
+            pool_alt = {c: torch.zeros(n_test, dtype=torch.long, device=device)
+                        for c in constrained_classes} if cut_loss == "otce" else {}
             for ci in range(n_chunks):
                 start = ci * chunk_size
                 end = min(start + chunk_size, n_test)
                 chunk_logits = model(X_test[start:end])
+                chunk_logits_f1 = chunk_logits.float()
                 chunk_proba = F.softmax(chunk_logits, dim=1)
                 chunk_preds = chunk_logits.argmax(dim=1)
-                total_global_soft += chunk_proba.sum(dim=0)
+                chunk_count = chunk_proba
+                if soft_count_mode == "sigmoid":
+                    chunk_count = chunk_proba.clone()
+                    for c in constrained_classes:
+                        chunk_count[:, c] = torch.sigmoid(
+                            argmax_margin(chunk_logits_f1, c) / count_tau)
+                for c in pool_margin:
+                    pool_margin[c][start:end] = class_margin(chunk_logits_f1, c)
+                for c in pool_alt:
+                    other = chunk_logits_f1.clone()
+                    other[:, c] = float("-inf")
+                    pool_alt[c][start:end] = other.argmax(dim=1)
+                total_global_soft += chunk_count.sum(dim=0)
                 total_global_hard += torch.bincount(
                     chunk_preds, minlength=num_classes).float()
                 chunk_gids = group_ids[start:end]
                 for gid in total_local_soft:
                     mask = (chunk_gids == gid)
                     if mask.any():
-                        total_local_soft[gid] += chunk_proba[mask].sum(dim=0)
+                        total_local_soft[gid] += chunk_count[mask].sum(dim=0)
                         total_local_hard[gid] += torch.bincount(
                             chunk_preds[mask], minlength=num_classes).float()
+
+            # ---- cut geometry, one plan per (scope, class) cap ----
+            cut_plans = []
+            if cut_loss != "off":
+                all_idx = torch.arange(n_test, device=device)
+                for c in constrained_classes:
+                    K_c = criterion_constraint.global_constraints[c].item()
+                    if K_c < UNLIMITED:
+                        p = build_cut_plan(pool_margin[c], all_idx,
+                                           int(round(K_c)), cut_gamma)
+                        if p is not None:
+                            p["cls"] = c; p["scope"] = "global"
+                            cut_plans.append(p)
+                    if cut_scope != "both":
+                        continue
+                    for gid, bname in criterion_constraint.local_groups.items():
+                        lc = getattr(criterion_constraint, bname)
+                        if c >= len(lc) or lc[c] >= UNLIMITED:
+                            continue
+                        gmask = (group_ids == gid)
+                        gidx = all_idx[gmask]
+                        p = build_cut_plan(pool_margin[c][gmask], gidx,
+                                           int(round(lc[c].item())), cut_gamma)
+                        if p is not None:
+                            p["cls"] = c; p["scope"] = f"local{gid}"
+                            cut_plans.append(p)
+                # scatter sign / target into pool-length vectors for chunked use
+                for p in cut_plans:
+                    sgn = torch.zeros(n_test, device=device)
+                    sgn[p["idx"]] = p["sign"]
+                    p["sign_full"] = sgn
+                    if cut_loss == "otce":
+                        tgt = torch.full((n_test,), -1, dtype=torch.long, device=device)
+                        c = p["cls"]
+                        tgt[p["idx"]] = torch.where(
+                            p["sign"] > 0,
+                            torch.full_like(p["idx"], c),
+                            pool_alt[c][p["idx"]])
+                        p["target_full"] = tgt
+                        p["n_part"] = int(p["idx"].numel())
 
         # Snapshot pre-step state (matches counts above).
         snapshot_global_satisfied = True
@@ -271,8 +422,10 @@ def train(inputs: TrainInputs) -> TrainOutputs:
 
         has_constraint = total_constraint > 0
         has_kl = alpha_kl > 0 and warmup_logits_cache is not None
+        has_cut = cut_loss != "off" and cut_weight > 0 and len(cut_plans) > 0
+        loss_cut_val = 0.0
         loss_kl_val = 0.0
-        if has_constraint or has_kl:
+        if has_constraint or has_kl or has_cut:
             for ci in range(n_chunks):
                 start = ci * chunk_size
                 end = min(start + chunk_size, n_test)
@@ -280,22 +433,28 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                     chunk_logits = model(X_test[start:end])
                 chunk_logits_f = chunk_logits.float()
                 chunk_proba = F.softmax(chunk_logits_f, dim=1)
+                chunk_count = chunk_proba
+                if soft_count_mode == "sigmoid":
+                    chunk_count = chunk_proba.clone()
+                    for c in constrained_classes:
+                        chunk_count[:, c] = torch.sigmoid(
+                            argmax_margin(chunk_logits_f, c) / count_tau)
                 chunk_loss = torch.tensor(0.0, device=device)
                 # Build chunked soft estimates (same g_soft trick as TraLO: each
                 # chunk routes gradient only through its own samples, but the
                 # value plugged into the penalty is the TOTAL soft count using
                 # this chunk's grad-attached partial.)
-                chunk_global = chunk_proba.sum(dim=0)
+                chunk_global = chunk_count.sum(dim=0)
                 chunk_gids = group_ids[start:end]
                 chunk_local_soft = {}
                 for gid in criterion_constraint.local_groups:
                     mask = (chunk_gids == gid)
                     if mask.any():
-                        chunk_local_soft[gid] = chunk_proba[mask].sum(dim=0)
+                        chunk_local_soft[gid] = chunk_count[mask].sum(dim=0)
                     else:
                         chunk_local_soft[gid] = torch.zeros(num_classes, device=device)
                 g_soft = (total_global_soft.detach()
-                          - chunk_proba.sum(dim=0).detach() + chunk_global)
+                          - chunk_count.sum(dim=0).detach() + chunk_global)
                 l_soft = {}
                 for gid in total_local_soft:
                     l_soft[gid] = (total_local_soft[gid].detach()
@@ -330,6 +489,28 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                                 chunk_loss = chunk_loss + (
                                     lam * fior_beta * F.relu(K_c - l_soft[gid_k][c])
                                     / K_c / n_chunks)
+                # ---- Cut objective -------------------------------------
+                # A genuine per-sample sum: each chunk contributes only its own
+                # samples, so it is NOT divided by n_chunks (unlike the count
+                # penalty, which every chunk recomputes in full).
+                if has_cut:
+                    for p in cut_plans:
+                        sgn = p["sign_full"][start:end]
+                        part = sgn != 0
+                        if not bool(part.any()):
+                            continue
+                        if cut_loss == "hinge":
+                            m_chunk = class_margin(chunk_logits_f, p["cls"])
+                            u = (m_chunk - p["theta"]) / p["scale"]
+                            h = F.relu(cut_gamma - sgn * u) * part
+                            term = cut_weight * h.sum() / max(p["n_act"], 1)
+                        else:   # otce: CE onto the budget pseudo-label
+                            tgt = p["target_full"][start:end]
+                            logp = F.log_softmax(chunk_logits_f, dim=1)
+                            ce = -logp.gather(1, tgt.clamp_min(0).unsqueeze(1)).squeeze(1)
+                            term = cut_weight * (ce * part).sum() / max(p["n_part"], 1)
+                        chunk_loss = chunk_loss + term
+                        loss_cut_val += float(term.item())
                 # ---- KL anchor against warmup distribution ----
                 if has_kl:
                     log_p_cur = F.log_softmax(chunk_logits_f, dim=1)
@@ -343,7 +524,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 else:
                     chunk_loss.backward()
 
-        did_backward = has_constraint or has_kl
+        did_backward = has_constraint or has_kl or has_cut
         if scaler and did_backward:
             try:
                 scaler.unscale_(optimizer)
@@ -422,6 +603,30 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                     log.info("Reset Adam state at sat E%d", epoch + 1)
         if not rho_frozen:
             criterion_constraint.increment_rho(rho_step)
+
+        # ---- cut diagnostics sidecar (pre-registered kill checks) ----
+        # n_act_frac  must stay in [0.05, 0.25]; if it collapses toward 0 while
+        #             margin_std inflates, the hinge was discharged by blowing
+        #             up the score scale instead of resolving the cut.
+        # margin_std  the leak detector for that failure mode.
+        if cut_loss != "off" and cut_plans:
+            import csv as _csv
+            diag = str(csv_log_path).replace(".csv", "") + "_cut_diagnostics.csv"
+            new = not os.path.exists(diag)
+            with open(diag, "a", newline="") as fh:
+                w = _csv.writer(fh)
+                if new:
+                    w.writerow(["epoch", "scope", "cls", "K", "n", "theta", "scale",
+                                "n_act", "n_act_frac", "n_keep_act", "margin_std",
+                                "loss_cut", "hard_count"])
+                for p in cut_plans:
+                    mp = pool_margin[p["cls"]]
+                    w.writerow([epoch + 1, p["scope"], p["cls"], p["K"], p["n"],
+                                float(p["theta"].item()), float(p["scale"].item()),
+                                p["n_act"], p["n_act"] / max(p["n"], 1),
+                                p["n_keep_act"], float(mp.std().item()),
+                                loss_cut_val,
+                                int(total_global_hard[p["cls"]].item())])
 
         if stable_count >= stable_count_threshold:
             log.info("Converged: constraints stable for %d epochs", stable_count)
