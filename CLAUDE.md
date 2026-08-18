@@ -65,7 +65,9 @@ class 4 capped, `synth_group`). **No AIDER, no EuroSAT, no others.**
 
 ## Backbones
 
-`MobileNetV3` headline; `MobileNetV2`, `RegNetY400MF`, `ShuffleNetV2` corroboration.
+`MobileNetV3` (headline), `MobileNetV2`, `RegNetY400MF`, `ViTB16`. **Nothing else** -- these are
+exactly the four the paper claims. ShuffleNetV2 and the small CNNs were deleted; they appear in
+no `.tex` file.
 
 ## Loss
 

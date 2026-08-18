@@ -49,9 +49,10 @@ were **deleted from the pipeline** on 2026-08-18 (section 2f). They cannot be re
 ### Scope
 
 - **Datasets: `dermmnist`, `octmnist`, `tissuemnist`.** Nothing else. No AIDER, no EuroSAT.
-- **Backbones**: `MobileNetV3` headline; `MobileNetV2`, `RegNetY400MF`, `ShuffleNetV2` corroboration;
-  `ViTB16` when a non-CNN check is wanted. (`TinyCNN`/`SmallCNN`/`MediumCNN` remain registered
-  but are not part of any protocol claim.)
+- **Backbones: `MobileNetV3` (headline), `MobileNetV2`, `RegNetY400MF`, `ViTB16`.** Nothing else.
+  These are exactly the four the manuscript claims. `ShuffleNetV2`, `TinyCNN`, `SmallCNN` and
+  `MediumCNN` were deleted on 2026-08-18 -- none appears in any `.tex` file, so no written
+  result rests on them. `ViTB16` is the non-CNN check and is claimed in the paper, not optional.
 - **Caps: at least two levels, always.** `L30_G30` and `L50_G50` minimum. A result from cells
   sharing one cap level has been retracted here **three times**. Headroom grows with the cap
   (0.024 at L20 vs 0.12 at L50), so never read a null at L20 as evidence against a method.
@@ -173,6 +174,7 @@ merely defaulted off -- a config can no longer *imply* a knob that does not exis
 | 55 config generators (5,481 lines) | one per campaign | replaced by `configs/gen_campaign.py`, which asserts the protocol |
 | 47 analysis scripts (7,221 lines) | per-campaign figures/tables | replaced by `scripts/full_panel.py` |
 | `src/evaluation/` (2,527 lines) | census, bootstrap, FDR, win-bar sensitivity | superseded by `full_panel.py` |
+| 4 backbones | ShuffleNetV2, TinyCNN, SmallCNN, MediumCNN | absent from every `.tex` file; no written claim rests on them |
 | 6 datasets from the loader | aider, retinamnist, bloodmnist, organamnist, octnative, tissuenative | out of scope; data deleted |
 
 **Second pass (same day): 4,909 -> 4,680, and the remaining bloat was structural, not volume.**

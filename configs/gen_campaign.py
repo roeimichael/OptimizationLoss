@@ -103,7 +103,7 @@ DATASETS = {
                  "image_size": 224, "target_column": "label",
                  "group_column": "synth_group", "constrained_class": 0},
 }
-MODELS = ["MobileNetV3", "MobileNetV2", "RegNetY400MF", "ShuffleNetV2"]
+MODELS = ["MobileNetV3", "MobileNetV2", "RegNetY400MF", "ViTB16"]
 
 ARMS = {
     "clip":       ("heuristic",    {}),
