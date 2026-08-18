@@ -63,7 +63,14 @@ were **deleted from the pipeline** on 2026-08-18 (section 2f). They cannot be re
 `L<local>_G<global>` sets the two scopes independently, but they are not independent in
 effect. Local caps are per-group ceilings, so the most the model can ever predict for a
 capped class is **the sum of the local caps**. A global cap at or above that sum can never
-bind. Measured on the real test sets (`python -m scripts.verify_caps`):
+bind.
+
+**Provenance of every number below**: measured on `dsisco01:~/OptimizationLoss/data/*/slice_1`,
+re-derived independently on 2026-08-19 from `test_meta.csv` + `test_labels.npy` using the
+pipeline's own `_round_to_K`. **The data is not on the Windows workstation** -- `data/`
+there holds only `download_data.py`. `python -m scripts.verify_caps` run locally prints
+`FAIL -- could not read the slice` for all three and exits 1, which is correct: a gate must
+not pass on a dataset it never opened. Run it on the server.
 
 | tag | dermmnist (MEL) | octmnist (drusen) | tissuemnist (GE) |
 |---|---|---|---|
@@ -99,6 +106,20 @@ test set's:
 dermmnist's group 2 is a genuinely different population (37% class 2 against
 17% class 5, where group 0 is 76% class 5). The two synthetic ones are uniform
 to within a few percent, so each local budget is essentially `global / G`.
+
+✅ **The paper's dataset description is exactly right, checked against the slices
+on 2026-08-19.** Capped-class prevalence in the test split: tissuemnist GE
+**171/2400 = 7.1%**, dermmnist melanoma **223/2003 = 11.1%**, octmnist drusen
+**250/1000 = 25.0%** -- the three figures the manuscript states verbatim.
+
+⛔ **REFUTED: "the octmnist slice is balanced 25/25 while the paper describes
+8%/25%".** There is no 8% claim about octmnist anywhere in the manuscript; 7.1%
+is tissuemnist's GE and it is correct. The paper already states that octmnist's
+test split is class-balanced by construction, that drusen is therefore not the
+minority the screening motivation assumes, and that the octmnist result must not
+be read as evidence about rare-class screening. It is the most carefully hedged
+dataset paragraph in the document. `scripts/prep_octmnist.py` taking 3,000 per
+class is deliberate and matches what is written.
 
 **Put together with the cap finding above: on octmnist and tissuemnist the
 "global + local" structure collapses to a single global budget** -- the global
