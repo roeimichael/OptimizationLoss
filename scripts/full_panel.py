@@ -29,6 +29,8 @@ Usage:
 """
 import argparse
 import collections
+import hashlib
+import io
 import glob
 import json
 import os
@@ -147,6 +149,11 @@ def panel(run_dir, cfg):
     if not (os.path.exists(raw) and os.path.exists(fin)):
         return None
     t = pd.read_csv(raw)
+    # Hash the file the model actually wrote, before any allocator touches it.
+    # Two arms with the same digest did the same thing, whatever their configs
+    # claim -- and the ALLOCATED predictions can differ while the raw ones are
+    # identical, which is exactly `clip` vs `lp` and is NOT an inert flag.
+    raw_md5 = hashlib.md5(io.open(raw, "rb").read()).hexdigest()[:12]
     cols = sorted((c for c in t.columns if c.startswith("Prob_Class_")),
                   key=lambda c: int(c.rsplit("_", 1)[1]))
     if not cols:
@@ -205,6 +212,7 @@ def panel(run_dir, cfg):
     ok = (P.argmax(axis=1) == y)
 
     return {
+        "raw_md5": raw_md5,
         "dataset": cfg.get("dataset_mode"), "model": cfg.get("model_name"),
         "cap": cfg.get("constraint_tag"),
         # part of the cell key: a swept dimension that lives only in the config
@@ -277,6 +285,56 @@ GROUPS = [
 NON_SCORING = {"sat", "raw_over_K", "flips", "flips_over_K", "cnt_over_K"}
 
 
+def _identity_check(rows):
+    """House rule 3: md5 the raw predictions across arms, BEFORE any metric.
+
+    Two arms whose raw predictions hash identically on every seed of every cell
+    did not do two different things. Five occurrences on record, most recently
+    `clip` and `focal_clip` sharing a base_model_id so focal_clip silently
+    loaded clip's warm-up. The tell is always available and always ignored,
+    because it lives in a file nobody opens once the metrics table exists.
+    """
+    per_arm = collections.defaultdict(dict)
+    for r in rows:
+        cell = (r["dataset"], r["model"], r["cap"], r["seed"])
+        per_arm[r["arm"]][cell] = r["raw_md5"]
+    arms = sorted(per_arm)
+    print("")
+    print("RAW-PREDICTION IDENTITY (house rule 3, before any metric)")
+    dead = []
+    for i, a in enumerate(arms):
+        for b in arms[i + 1:]:
+            shared = set(per_arm[a]) & set(per_arm[b])
+            if not shared:
+                continue
+            same = sum(per_arm[a][c] == per_arm[b][c] for c in shared)
+            if same == len(shared):
+                dead.append((a, b, len(shared)))
+            elif same:
+                print("  %s vs %s: %d of %d cells bit-identical"
+                      % (a, b, same, len(shared)))
+    for a, b, n in dead:
+        print("  *** %s and %s emit BIT-IDENTICAL raw predictions on all %d "
+              "cell-seeds. Whatever separates them in the config is INERT. "
+              "Any delta below is allocator-only." % (a, b, n))
+    # A cap level that changes nothing is the same failure wearing a different
+    # hat: the baseline runs in the multiclass campaign were bit-identical
+    # across caps, so 12 cells rested on 6 models.
+    for arm in arms:
+        by_cap = collections.defaultdict(dict)
+        for (ds, mdl, cap, seed), h in per_arm[arm].items():
+            by_cap[(ds, mdl, seed)][cap] = h
+        collapsed = [k for k, v in by_cap.items()
+                     if len(v) > 1 and len(set(v.values())) == 1]
+        if collapsed:
+            print("  *** %s: raw predictions IDENTICAL across cap levels in %d "
+                  "of %d (dataset, backbone, seed) groups -- those cells are "
+                  "ONE run counted twice, not two levels."
+                  % (arm, len(collapsed), len(by_cap)))
+    if not dead:
+        print("  every arm pair differs on at least one cell-seed")
+
+
 def main():
     a = argparse.ArgumentParser()
     a.add_argument("--campaign", required=True, nargs="+")
@@ -305,6 +363,7 @@ def main():
             r = panel(os.path.dirname(p), cfg)
             if r:
                 rows.append(r)
+    _identity_check(rows)
     if skipped:
         print("skipped %d run(s) that are not completed: %s"
               % (sum(skipped.values()), dict(skipped)))

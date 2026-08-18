@@ -97,7 +97,9 @@ L_total = L_ce + lambda_g * L_global + lambda_l * L_local
 
 Rational saturation `E/(E+K)` plus bounded quadratic. Soft counts (differentiable) for the
 gradient, hard counts (argmax) for verification; post-hoc adjustment closes the gap.
-**KL is out of scope -- `alpha_kl = 0.0` always.**
+**KL is out of scope.** The `alpha_kl` key and the whole KL anchor are DELETED from the
+pipeline -- there is no setting to get wrong. Same for the CE-saturation skip
+(`enable_ce_skip`), the undershoot hinge, and the `bounded_only` penalty branch.
 
 ## Infrastructure
 

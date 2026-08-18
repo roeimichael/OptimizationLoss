@@ -386,7 +386,8 @@ merely defaulted off -- a config can no longer *imply* a knob that does not exis
 | `main.py` (304 -> 164) | two dispatch paths; the threaded multi-GPU one ran several cards in **one process sharing one `model_cache`**, which races on the warm-up write | single GPU per process, matching how campaigns are actually launched (one process per card, own `EXPERIMENT_DIR`) |
 | `configs/common.py` (94) | 94 lines for one live function | folded into `gen_campaign.py`; **`configs/` is now one file** |
 | `src/training/__init__.py` (30) | re-exports nobody imported, including `ConstraintTrainer` which no longer exists | 4-line docstring |
-| `LogitAdjustedLoss`, `_class_counts` | orphaned when their methodologies were deleted | gone |
+| `ConstraintTrainer` re-exports | pointed at a class that no longer exists | gone |
+| ~~`LogitAdjustedLoss`, `_class_counts`~~ | deleted here as orphans | **RESTORED** by the third pass below -- the paper claims `logit_adjust`. Live in `src/losses/imbalanced_losses.py` |
 
 ⚠️ **Third pass corrected an OVER-DELETION.** The first purge removed six methodologies that the
 manuscript's Baselines paragraph actually claims: `danits_lp` (LP-LG), `fioretto_alm` (ALM),
@@ -413,11 +414,22 @@ combinations are bit-identical, so no other cached warm-up is invalidated.
 including the 139-line LP fallback, is reachable from `targeted_correction`. It is the algorithm
 being compared against, not clutter.
 
-✅ **An AST reachability pass now reports zero dead definitions** (the only hits are `forward`
-methods, which PyTorch dispatches through `__call__`).
+⚠️ **"An AST reachability pass reports zero dead definitions" was true on 2026-08-15 and
+false by 2026-08-18**, when 457 more dead lines came out (a whole unused `bounded_only` branch,
+a `_infer_probs` duplicate, `score_arm.py`'s 176-line CLI). A one-time sweep is a snapshot, and
+this one was quoted for three days after it stopped being true. **The durable version of this
+claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on a hyperparameter
+with no reader, and it runs before every launch.
 
-**Result: 23,180 lines of Python -> 4,680.** The pipeline imports and generates cleanly, the dispatcher
-runs end to end, and a generated config now carries 11 hyperparameters, all of them live.
+**Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and ~7,000 today** (4,801 `src` +
+1,789 `scripts` + 608 `tests` + 267 `configs` + 163 `main.py`). It went back UP, on purpose: the
+six restored baselines, five new gate scripts, and 96 tests. **Do not quote a line count as a
+quality measure** -- it moved 4,680 -> 7,020 while the repository got strictly more correct.
+
+What is actually load-bearing is that every one of those lines is reachable and every knob is
+read: `audit_config` (no orphan hyperparameters), `smoke_arms` (all 10 arms run end to end),
+`verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
+no cross-objective warm-up sharing), and `pytest tests` (96 tests, ~16 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -535,14 +547,21 @@ Given section 0, only two kinds of thing can still win, and they are the only th
 
 ```
 main.py            dispatcher (kill -INT to stop; interrupted runs reset to pending)
-configs/           gen_campaign.py (THE generator) + common.py (hashing, cap tags)
+configs/protocol.yml   EVERY experimental constant -- epochs, seeds, lr, caps, arms, backbones
+configs/gen_campaign.py  THE generator: reads protocol.yml, holds no constant of its own
 data/              dermmnist, octmnist, tissuemnist -- nothing else
 docs/FRAMEWORK.md  this file
 docs/archive/      history, not instructions
 docs/paper/        the TMLR manuscript (main.tex is the professor's -- never edit)
 results/           experiment outputs
-scripts/           full_panel.py + score_arm.py (THE scorer) + dataset prep
+scripts/full_panel.py  THE scorer (+ score_arm.py = the equalizer it calls)
+scripts/audit_config.py  every hyperparameter has a reader; base_model_id is complete
+scripts/smoke_arms.py    all 10 arms run end to end on synthetic tensors, ~40 s
+scripts/verify_caps.py   the caps bind, on the real dataset slices
+scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
+scripts/prep_*.py        dataset preparation
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
+tests/             96 tests, ~16 s, no dataset required
 evidence/          archived provenance + predictions from every run ever made
 ```
 
