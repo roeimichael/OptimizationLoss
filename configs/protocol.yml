@@ -63,6 +63,26 @@ blocks:
     lambda_local: 0.01        # initial lambda, local (per-group) scope
     initial_rho: 0.5
     rho_target: 100.0         # rho_step is DERIVED from this; a config rho_step is ignored
+  # THE NULL-TREATMENT CONTROL. Identical to `tralo` in warm-up length, optimizer
+  # restart, epoch count, transductive passes and allocator -- with the treatment
+  # removed. total_constraint == 0 makes has_constraint False, so pass 2 is
+  # skipped entirely, and the ratchet adds lambda_step = 0 so lambda stays 0
+  # forever.
+  #
+  # Why it has to exist: the ten arms split into six post-hoc arms with ZERO
+  # test-set access during training and four trained arms with 29 transductive
+  # epochs plus a fresh Adam plus a count gradient. Nothing separates those, so
+  # the tralo-vs-clip delta bundles four things at once -- the count gradient,
+  # the optimizer restart (a measured 3.72x step-size kick), 29 epochs of
+  # transductive forward/backward, and a 2.7-22.3% compute excess. The project's
+  # own most-quoted fact is that REGIME beats METHOD by ~80x, and until this arm
+  # runs there is no measurement that separates them.
+  tralo_null:
+    lambda_step: 0.0
+    lambda_global: 0.0
+    lambda_local: 0.0
+    initial_rho: 0.5
+    rho_target: 100.0
   fioretto:
     fioretto_step_size: 0.005     # REQUIRED: fioretto_ldf/train.py raises without it
   hounie:
@@ -99,6 +119,8 @@ arms:
   cb_lp:      {methodology: class_balanced, phase: posthoc, blocks: [chunked, class_balanced]}
   la_lp:      {methodology: logit_adjust,   phase: posthoc, blocks: [chunked, logit_adjust]}
   tralo:      {methodology: tralo,          phase: trained, blocks: [constraint_phase, tralo]}
+  # Same code path as tralo, treatment zeroed. See the tralo_null block above.
+  tralo_null: {methodology: tralo,          phase: trained, blocks: [constraint_phase, tralo_null]}
   fioretto:   {methodology: fioretto_ldf,   phase: trained, blocks: [constraint_phase, fioretto]}
   hounie:     {methodology: hounie_rcl,     phase: trained, blocks: [constraint_phase, hounie]}
   alm:        {methodology: fioretto_alm,   phase: trained, blocks: [constraint_phase, alm]}
@@ -106,6 +128,11 @@ arms:
 # Added to every campaign whether requested or not: an arm-vs-arm delta is not a
 # result until the bar is in the same campaign.
 mandatory_arms: [clip, focal_clip]
+# NOT mandatory yet -- that is Roei's call, and it is the same argument that put
+# the clippers here. `tralo_null` is the only arm that separates the REGIME
+# (warm-up 1 + 29 transductive epochs + optimizer restart) from the TREATMENT
+# (the count gradient). Without it in the campaign, a tralo-vs-clip delta cannot
+# be attributed to the constraint at all. Add it with --arms ... tralo_null.
 
 datasets:
   dermmnist:
