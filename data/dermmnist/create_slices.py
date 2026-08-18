@@ -80,7 +80,20 @@ def load_all_data():
             f"{split}: npz labels don't match CSV labels!"
 
         sex_encoded = split_meta['sex'].map(SEX_MAP).values.astype(np.int64)
-        loc_grouped = split_meta['localization'].str.lower().map(LOC_MAP).fillna('other')
+        loc_grouped = split_meta['localization'].str.lower().map(LOC_MAP)
+        # 'other' is NOT in LOC_ENCODE, so an unmapped localization used to
+        # become NaN and then, through .astype(np.int64), the sentinel
+        # -9223372036854775808 -- a group id that silently defines a local cap.
+        # The loader's null guard cannot catch it: the bad cast happens here,
+        # upstream, and produces a perfectly valid int64. This is the only real
+        # group column in the project, so it fails loudly instead.
+        unmapped = split_meta.loc[loc_grouped.isna(), 'localization'].unique()
+        if len(unmapped):
+            raise ValueError(
+                "%s: localization value(s) %s are not in LOC_MAP. Every local "
+                "cap is defined over this column; an unmapped value would cast "
+                "to an int64 sentinel and become a phantom group."
+                % (split, sorted(map(str, unmapped))))
         loc_encoded = loc_grouped.map(LOC_ENCODE).values.astype(np.int64)
         meta_out = pd.DataFrame({
             'label': labels,

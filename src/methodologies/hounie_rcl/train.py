@@ -40,7 +40,8 @@ import torch.nn.functional as F
 
 from src.pipeline.contracts import TrainInputs, TrainOutputs
 from src.pipeline.setup import setup_runtime
-from src.pipeline.warmup import make_dataloader, make_optimizer
+from src.pipeline.warmup import (make_ce_criterion, make_dataloader,
+                                 make_optimizer)
 from src.utils.constants import UNLIMITED
 
 log = logging.getLogger(__name__)
@@ -127,7 +128,14 @@ def _train_constraints(model, inputs: TrainInputs, device):
     )
 
     optimizer = make_optimizer(model.parameters(), lr_c, device)
-    criterion_ce = nn.CrossEntropyLoss()
+    # Built from the config, exactly as tralo does. Constructing
+    # nn.CrossEntropyLoss() directly here silently ignored
+    # class_weighted_ce, so three of the four trained arms would have
+    # run a different CE from the fourth the moment that key was
+    # turned on -- and no gate could see it, because the key IS read
+    # (by tralo) and IS emitted.
+    criterion_ce = make_ce_criterion(inputs.config, inputs.y_train,
+                                     num_classes, device)
     train_loader = make_dataloader(inputs.X_train, inputs.y_train, batch_size)
 
     X_test_dev = inputs.X_test.to(device)

@@ -152,6 +152,12 @@ def main():
                 # otherwise report the hardest constraint in the campaign as
                 # non-binding.
                 zero_k = sorted(g for g in lcon if lcon[g][c] == 0)
+                # A cap binds when the model's PREDICTED count exceeds it,
+                # not its true count. This uses the true count, which is the
+                # only thing available before a run -- so it can only ever say
+                # "cannot bind even against a perfect classifier". FRAMEWORK
+                # records over-prediction of 1.7-2.4x, so at L30/L50 the two
+                # criteria agree; at L100+ this would call a binding cap slack.
                 slack = [g for g in lcon
                          if lcon[g][c] > 0 and lcon[g][c] >= int(true_by_group.get(g, 0))]
                 if zero_k:

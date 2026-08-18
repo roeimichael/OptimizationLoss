@@ -93,13 +93,23 @@ blocks:
     alm_eta: 0.005
     alm_mu0: 0.01
     alm_mu_step: 0.01
-    fioretto_step_size: 0.005
     fioretto_lambda_init: 0.0
     enable_checkpoint_restore: false
   lp:
     danits_cost_preset: identity  # identity misclassification cost, per the paper
   focal:
     warmup_loss: focal
+    # focal_alpha is DEAD as implemented. imbalanced_losses.py multiplies the
+    # WHOLE loss by alpha rather than using Lin et al.'s per-class balancing
+    # factor alpha_t, and Adam is scale-invariant, so a 10,000x change in alpha
+    # leaves argmax agreement at 1.0000 and the max logit delta at 5.8e-07.
+    # (Under plain SGD the same change moves 46% of predictions, so the loss
+    # genuinely differs -- it is Adam that cancels it.) focal_gamma IS live:
+    # gamma=5 gives 0.9531 agreement against gamma=2.
+    #
+    # Left at the paper's value so the config still documents intent, but this
+    # arm is gamma-only focal loss, and the manuscript should say so or the
+    # implementation should take a per-class alpha_t.
     focal_alpha: 0.25
     focal_gamma: 2.0
   class_balanced:

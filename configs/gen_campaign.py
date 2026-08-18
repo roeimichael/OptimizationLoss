@@ -258,6 +258,32 @@ def main():
     print("  trained arms: warm-up %d + constraint %d | post-hoc arms: warm-up %d + 0"
           % (P["protocol"]["trained_warmup"],
              total - P["protocol"]["trained_warmup"], total))
+    # POWER, before the GPU time is spent rather than after.
+    # The scorer's atomic unit is the CELL, and the exact two-sided Wilcoxon
+    # floor at n non-zero pairs is 2^(1-n). With 11 metrics in the BH family, a
+    # metric that is the only mover gets q = p * 11, so q < 0.05 needs
+    # p < 0.00455 and therefore n >= 9 cells. Below that, NO isolated metric can
+    # ever print *** WIN or *** LOSS however large the effect.
+    #
+    # This guard used to live only in full_panel, i.e. after the campaign ran.
+    # The recorded failure is exactly that shape: "at n=2 Wilcoxon floors at
+    # p=0.5 so in-flight campaigns ALWAYS read as ties -- arms were abandoned on
+    # that."
+    floor = 2.0 ** (1 - cells)
+    n_family = 11
+    print("  POWER: %d cells -> exact Wilcoxon floor p=%.5f; a lone mover needs"
+          % (cells, floor))
+    print("         q = p x %d < 0.05, i.e. p < %.5f" % (n_family, 0.05 / n_family))
+    if floor > 0.05 / n_family:
+        need = 9
+        print("  *** UNDERPOWERED: with %d cells NO single metric can reach a "
+              "*** verdict," % cells)
+        print("      whatever the effect size. %d cells is the minimum for one. "
+              "Add a" % need)
+        print("      backbone, a dataset or a cap level -- or accept that this "
+              "campaign can")
+        print("      only report DIRECTION and per-cell consistency, never "
+              "significance.")
     print("  protocol: %s" % os.path.relpath(args.protocol))
     print("  code_version:", version)
     return 0

@@ -39,7 +39,8 @@ import torch.nn.functional as F
 
 from src.pipeline.contracts import TrainInputs, TrainOutputs
 from src.pipeline.setup import setup_runtime
-from src.pipeline.warmup import make_dataloader, make_optimizer
+from src.pipeline.warmup import (make_ce_criterion, make_dataloader,
+                                 make_optimizer)
 from src.utils.constants import UNLIMITED
 
 log = logging.getLogger(__name__)
@@ -77,7 +78,7 @@ def _train_constraints(model, config, inputs, device):
     lr_c = _required(hp, "lr_constraint", float)
     # ALM update hyperparameters. eta falls back to the Fioretto step size so a
     # config cloned from a Fioretto/TraLO cell runs without extra keys.
-    eta = float(hp.get("alm_eta", hp.get("fioretto_step_size", 0.005)))
+    eta = _required(hp, "alm_eta", float)
     mu0 = float(hp.get("alm_mu0", 0.01))
     mu_step = float(hp.get("alm_mu_step", 0.01))
     batch_size = hp.get("batch_size", 64)
@@ -107,7 +108,14 @@ def _train_constraints(model, config, inputs, device):
              constraint_epochs, lr_c, eta, mu0, mu_step, len(lambda_g), len(lambda_l))
 
     optimizer = make_optimizer(model.parameters(), lr_c, device)
-    criterion_ce = nn.CrossEntropyLoss()
+    # Built from the config, exactly as tralo does. Constructing
+    # nn.CrossEntropyLoss() directly here silently ignored
+    # class_weighted_ce, so three of the four trained arms would have
+    # run a different CE from the fourth the moment that key was
+    # turned on -- and no gate could see it, because the key IS read
+    # (by tralo) and IS emitted.
+    criterion_ce = make_ce_criterion(inputs.config, inputs.y_train,
+                                     num_classes, device)
     train_loader = make_dataloader(inputs.X_train, inputs.y_train, batch_size)
 
     X_test_dev = inputs.X_test.to(device)

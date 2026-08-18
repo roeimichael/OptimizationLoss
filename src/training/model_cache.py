@@ -17,6 +17,22 @@ from src.utils.error_handler import safe_execute
 log = logging.getLogger(__name__)
 
 
+def _amp_regime():
+    """Which numeric regime this process would train under.
+
+    Derived from the live device rather than from config['results'],
+    because the warm-up is cached BEFORE any result is recorded.
+    """
+    try:
+        import torch
+        from src.pipeline.setup import runtime_provenance
+        rt = runtime_provenance(torch.device(
+            "cuda" if torch.cuda.is_available() else "cpu"))
+        return "%s|scaler=%s" % (rt.get("amp_dtype"), rt.get("grad_scaler"))
+    except Exception:
+        return None
+
+
 def get_cache_path(base_model_id: str) -> Path:
     """Repo-rooted, not CWD-relative: campaigns are launched from several
     working directories and a relative path silently gave each one its own
@@ -41,6 +57,13 @@ def save_to_cache(model: nn.Module, base_model_id: str, config: Dict[str, Any]) 
         'base_model_id': base_model_id,
         'code_version': config.get('code_version'),
         'data_fingerprint': config.get('data_fingerprint'),
+        # The AMP regime is part of what trained these weights: the FP16
+        # path SKIPS an overflowing optimizer step and BF16 does not, so
+        # the same config takes a different number of steps on the two
+        # servers. A warm-up shared across them is a silent regime mix, and
+        # check_parity gate 4c cannot see it -- that gate reads each RUN's
+        # recorded runtime, never the cache's.
+        'amp_regime': _amp_regime(),
         'config': config,
         'saved_at': time.strftime('%Y-%m-%d'),
     }
@@ -72,6 +95,14 @@ def load_from_cache(base_model_id: str, config: Dict[str, Any],
     # before a change to what the warm-up OPTIMIZES is silently wrong -- exactly
     # how the pre-ImageNet-normalization caches survived a norm change.
     # The data behind a data_dir can change without the path changing.
+    want_amp = _amp_regime()
+    got_amp = ckpt.get('amp_regime')
+    if want_amp and got_amp and got_amp != want_amp:
+        log.warning("Cache %s was trained under AMP regime %s but this run "
+                    "is %s -- the FP16 path skips overflowing optimizer "
+                    "steps and BF16 does not, so they are not the same "
+                    "warm-up. Retraining.", base_model_id, got_amp, want_amp)
+        return None
     want_data = config.get('data_fingerprint')
     got_data = ckpt.get('data_fingerprint')
     if want_data and got_data != want_data:
