@@ -183,14 +183,53 @@ on 2026-08-19.** Capped-class prevalence in the test split: tissuemnist GE
 **171/2400 = 7.1%**, dermmnist melanoma **223/2003 = 11.1%**, octmnist drusen
 **250/1000 = 25.0%** -- the three figures the manuscript states verbatim.
 
-⛔ **REFUTED: "the octmnist slice is balanced 25/25 while the paper describes
-8%/25%".** There is no 8% claim about octmnist anywhere in the manuscript; 7.1%
-is tissuemnist's GE and it is correct. The paper already states that octmnist's
-test split is class-balanced by construction, that drusen is therefore not the
-minority the screening motivation assumes, and that the octmnist result must not
-be read as evidence about rare-class screening. It is the most carefully hedged
-dataset paragraph in the document. `scripts/prep_octmnist.py` taking 3,000 per
-class is deliberate and matches what is written.
+🔴🔴 **THE PAPER'S OCTMNIST MECHANISM DOES NOT HOLD FOR THE DATA WE TRAIN ON.**
+
+`docs/paper/main_edited_by_roei.tex:2003` (and `main_clean.tex:2148`,
+`main_rev.tex:2429`) says, as *"the property that makes OctMNIST the
+hard-binding case"*:
+
+> OctMNIST's training and test distributions disagree: drusen is roughly 8% of
+> the training data but 25% of the balanced test split. A model warmed up on
+> cross-entropy therefore *under*-predicts drusen on the test set before any
+> constraint is applied, so a tight cap binds against a count the model was
+> already reluctant to produce.
+
+Measured on 2026-08-19 straight from the `medmnist` package:
+
+| population | n | drusen (class 2) |
+|---|---|---|
+| official OCTMNIST train | 97,477 | 7,754 = **7.95%** |
+| official train+val (what we pool) | 108,309 | 8,616 = **7.96%** |
+| official test | 1,000 | 250 = **25.00%** |
+| **our training slice** (`scripts/prep_octmnist.py`) | **12,000** | **3,000 = 25.00%** |
+
+The 8% is exact -- **about MedMNIST**. It is not true of our data.
+`prep_octmnist.py:16` takes `N_PER_CLASS_TRAIN = 3000` stratified, which
+rebalances drusen from 7.95% to exactly 25%, the same as the test split. So the
+prevalence disagreement the mechanism rests on **was removed by our own prep
+script**, and a CE warm-up on our slice has no reason to under-predict drusen.
+
+This matters beyond one sentence. The recorded insight is that *with one capped
+class and identical train/test prevalence the cap carries no new information*.
+OctMNIST was the dataset that was supposed to break that -- and in the data we
+actually ran, its prevalences are identical too. All three datasets are in the
+regime where the cap tells the model nothing it could not infer.
+
+**Two ways out, and they are different experiments.** Either correct the paper
+sentence to say the training subsample is rebalanced (and drop the mechanism it
+supports), or rebuild the slice at the official prevalence and re-run octmnist.
+Do not do the second quietly: it invalidates every octmnist result.
+
+⛔⛔ **RETRACTED, same day it was written: my own "REFUTED: there is no 8% claim
+about octmnist anywhere in the manuscript" (commit `871f9dfb`).** There is, in
+three .tex files. I grepped for it, the shell ate the backslash in `8\\%`, the
+grep returned nothing, and I published absence of evidence as evidence of
+absence -- while the warning I was "refuting" sat correct two hundred lines
+below in this same file. **A grep that finds nothing proves nothing until the
+pattern is shown to match a case you know exists.** The prevalences I checked at
+the same time (tissue 7.1%, derm 11.1%, oct test 25.0%) are correct and stand;
+the refutation built on top of them does not.
 
 **Put together with the cap finding above: on octmnist and tissuemnist the
 "global + local" structure collapses to a single global budget** -- the global
