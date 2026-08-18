@@ -137,6 +137,54 @@ warm-up with a different training loss is a dead flag, which has happened four t
 
 ---
 
+## 1b. THE PAPER'S PROTOCOL IS NOT THIS PROTOCOL
+
+The manuscript's "frozen recipe" (Sec. setup) and this framework's protocol are **different
+experiments**, and the generator deliberately cannot emit the paper's.
+
+| | paper | this framework | why they differ |
+|---|---|---|---|
+| warm-up | **50 epochs** | 1 (trained) / 30 (post-hoc) | warm-up 50 saturates CE, so every method becomes identical -- section 3 |
+| constraint phase | **300 epochs** | 29 | equal compute: 30 optimizer epochs on both sides |
+| lr (warm-up) | 1e-4 | 1e-4 | same |
+| lr (constraint) | **5e-6** | 1e-4 | **this is the LR trap.** Unequal lr fabricated a -16.7 pp finding that was -1.7 pp once equalized |
+| TraLO `lambda_step` | 0.002 | 0.05 | |
+| TraLO hinge `beta` | **0.5** | **deleted** | the undershoot hinge is rejected at every dose (section 2b) |
+| Fioretto dual step | 0.005 | 0.005 | matches |
+| Hounie eta_lambda / eta_u | 0.01 | 0.01 | matches |
+| ALM eta / mu0 / mu_step | 0.005 / 0.01 / 0.01 | same | matches |
+
+**So the paper's headline numbers were produced under warm-up 50 with an unequal
+`lr_constraint` -- the two settings this framework forbids.** That is not a reason to re-run the
+paper's config; it is the reason the framework exists. But any sentence comparing a new number to
+a published one is comparing across protocols and must say so.
+
+⚠️ **`fioretto_step_size` is REQUIRED** -- `fioretto_ldf/train.py:35` raises without it, because
+the runner used to default to 0.01 while a generator defaulted to 0.005. **`hounie_rcl`'s inline
+defaults are 0.1**, ten times the paper's 0.01, so an unset key silently runs a different method.
+The generator now sets every per-method step explicitly; never rely on a default.
+
+### Dataset scope check against the paper
+
+| dataset | capped class | paper's share | on disk | status |
+|---|---|---|---|---|
+| DermMNIST | 4 (melanoma) | 11.1% of test | 223/2003 = 11.1% | matches exactly |
+| TissueMNIST | 4 (GE) | 171/2400 = 7.1% | 171/2400 = 7.1% | matches exactly |
+| OctMNIST | **2 (drusen)** | **~8% train / 25% test** | **25% train / 25% test** | ⚠️ **train split is balanced** |
+
+⚠️ **The OctMNIST slice on disk does not have the property the paper attributes to it.** The paper
+calls OctMNIST the hard-binding case *because* "drusen is roughly 8% of the training data but 25%
+of the balanced test split" -- a train/test prevalence disagreement. The `slice_1` on disk is
+balanced in **both** (25%/25%), so that disagreement is absent. Either the slice was rebuilt
+differently from the runs behind the paper, or the paper describes the original MedMNIST split.
+**Resolve this before quoting any OctMNIST claim.**
+
+🔑 That same paragraph is the strongest lead in the project: a train/test prevalence gap is exactly
+the **distribution shift** regime of section 4, the one setting where the cap carries information
+the model does not already have. The paper already observed it; nothing has tested it.
+
+---
+
 ## 2. WHAT FAILED -- the ideas, not the runs
 
 Grouped by *why*, because the reasons repeat.

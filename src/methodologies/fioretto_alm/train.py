@@ -61,7 +61,6 @@ def _train_constraints(model, config, inputs, device):
     batch_size = hp.get("batch_size", 64)
     chunk_size = hp.get("constraint_chunk_size", 256)
     # Apples-to-apples with TraLO/Fioretto: CE saturation skip.
-    enable_ce_skip = bool(hp.get("enable_ce_skip", True))
 
     use_amp, amp_dtype, scaler = setup_runtime(device)
 
@@ -108,8 +107,6 @@ def _train_constraints(model, config, inputs, device):
     with open(log_path, "w", newline="") as f:
         csv.DictWriter(f, log_fields).writeheader()
 
-    ce_skip_counter = 0
-    skip_ce = False
     stable_count = 0  # consecutive satisfied epochs for early-stop parity
     for epoch in range(constraint_epochs):
         epoch_start = time.time()
@@ -119,7 +116,7 @@ def _train_constraints(model, config, inputs, device):
         model.train()
         ce_losses = []
         train_correct, train_total = 0, 0
-        for batch_X, batch_y in (train_loader if not skip_ce else []):
+        for batch_X, batch_y in train_loader:
             batch_X, batch_y = batch_X.to(device), batch_y.to(device)
             optimizer.zero_grad(set_to_none=True)
             with torch.amp.autocast("cuda", dtype=amp_dtype, enabled=use_amp):
@@ -137,15 +134,6 @@ def _train_constraints(model, config, inputs, device):
                 train_correct += (logits_ce.argmax(dim=1) == batch_y).sum().item()
                 train_total += batch_y.size(0)
         cached_train_acc = train_correct / train_total if train_total > 0 else 1.0
-        if enable_ce_skip and not skip_ce:
-            if cached_train_acc >= 0.995:
-                ce_skip_counter += 1
-                if ce_skip_counter >= 2:
-                    skip_ce = True
-                    log.info("Fioretto ALM epoch %d: CE saturated (acc=%.4f), "
-                             "disabling CE batch loop", epoch + 1, cached_train_acc)
-            else:
-                ce_skip_counter = 0
 
         # ---- Step 2: constraint gradient on TEST data (transductive) ----
         model.eval()

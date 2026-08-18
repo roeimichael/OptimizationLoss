@@ -102,7 +102,7 @@ DATASETS = {
                     "group_column": "synth_group", "constrained_class": 4},
     "octmnist": {"data_dir": "data/octmnist/slice_1", "num_classes": 4,
                  "image_size": 224, "target_column": "label",
-                 "group_column": "synth_group", "constrained_class": 0},
+                 "group_column": "synth_group", "constrained_class": 2},   # drusen
 }
 MODELS = ["MobileNetV3", "MobileNetV2", "RegNetY400MF", "ViTB16"]
 
@@ -114,6 +114,15 @@ MODELS = ["MobileNetV3", "MobileNetV2", "RegNetY400MF", "ViTB16"]
 FOCAL = {"warmup_loss": "focal", "focal_alpha": 0.25, "focal_gamma": 2.0}
 CB    = {"warmup_loss": "class_balanced", "cb_beta": 0.9999}
 LA    = {"warmup_loss": "logit_adjust", "logit_adjust_tau": 1.0}
+
+# Per-method constraint steps, fixed a priori (never tuned per cell) at the
+# PAPER's values. Set explicitly, never left to a default: fioretto_ldf RAISES
+# without fioretto_step_size, and hounie_rcl's inline default is 0.1 -- ten times
+# the paper's 0.01 -- so an unset key silently runs a different method.
+FIORETTO = {"fioretto_step_size": 0.005}
+HOUNIE   = {"hounie_eta_lambda": 0.01, "hounie_eta_u": 0.01, "hounie_alpha": 10.0}
+ALM      = {"alm_eta": 0.005, "alm_mu0": 0.01, "alm_mu_step": 0.01,
+            "fioretto_step_size": 0.005}
 
 # arm -> (methodology, extra hyperparameters)
 ARMS = {
@@ -129,9 +138,9 @@ ARMS = {
     "la_lp":      ("logit_adjust",   LA),      # logit adjust  + LP-LG
     # -- constraint-trained duals: warm-up 1 + 29 constraint.
     "tralo":      ("tralo",          {}),
-    "fioretto":   ("fioretto_ldf",   {}),
-    "hounie":     ("hounie_rcl",     {}),
-    "alm":        ("fioretto_alm",   {}),
+    "fioretto":   ("fioretto_ldf",   FIORETTO),
+    "hounie":     ("hounie_rcl",     HOUNIE),
+    "alm":        ("fioretto_alm",   ALM),
 }
 POSTHOC_ARMS = {"clip", "focal_clip", "lp", "focal_lp", "cb_lp", "la_lp"}
 MANDATORY = {"clip", "focal_clip"}      # the framework's two-clipper rule
