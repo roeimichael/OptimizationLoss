@@ -107,12 +107,24 @@ class MulticlassTransductiveLoss(nn.Module):
         self.global_constraints_satisfied = satisfied
         return total if n else soft_counts.sum() * 0.0
 
+    def _zero(self, device=None):
+        """A zero on the module's own device.
+
+        A bare torch.tensor(0.0) is always on CPU, so adding it to a CUDA term
+        raises. It reached the caller only when there was no local count tensor
+        to hang the graph on, which is why it survived: tralo always adds a
+        connected global term alongside it.
+        """
+        if device is None:
+            device = self.global_constraints.device
+        return torch.zeros((), device=device)
+
     def compute_local_from_counts(self, local_soft_counts):
         if not self.local_groups or not local_soft_counts:
             self.local_constraints_satisfied = True
             for v in local_soft_counts.values():
                 return v.sum() * 0.0
-            return torch.tensor(0.0)
+            return self._zero()
         device = next(iter(local_soft_counts.values())).device
         entries = []
         for gid, buffer_name in self.local_groups.items():
@@ -128,7 +140,7 @@ class MulticlassTransductiveLoss(nn.Module):
             return total
         for v in local_soft_counts.values():
             return v.sum() * 0.0
-        return torch.tensor(0.0, device=device)
+        return self._zero(device)
 
     # ---- lambda / rho -------------------------------------------------------
     def set_lambda_per_class(self, class_idx, value, scope='global', group_id=None):
