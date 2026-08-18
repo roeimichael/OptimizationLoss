@@ -175,8 +175,31 @@ merely defaulted off -- a config can no longer *imply* a knob that does not exis
 | `src/evaluation/` (2,527 lines) | census, bootstrap, FDR, win-bar sensitivity | superseded by `full_panel.py` |
 | 6 datasets from the loader | aider, retinamnist, bloodmnist, organamnist, octnative, tissuenative | out of scope; data deleted |
 
-**Result: 23,180 lines of Python -> 4,909.** The pipeline imports and generates cleanly, and
-a generated config now carries 11 hyperparameters, all of them live.
+**Second pass (same day): 4,909 -> 4,680, and the remaining bloat was structural, not volume.**
+
+| target | what was wrong | what it is now |
+|---|---|---|
+| `src/losses/transductive_loss.py` | the per-constraint penalty math was **duplicated verbatim** between the global and local paths; `penalty_mode` carried four shapes (`rational`/`quadratic`/`both`/`linear`) of which three are rejected arms | one `_penalty()` and one `_sum()` shared by both scopes; one shape. **Verified numerically identical** to the old code across 532 randomized comparisons -- values, gradients, satisfaction flags, and the empty-constraint edge cases that must still return an autograd-connected zero |
+| `main.py` (304 -> 164) | two dispatch paths; the threaded multi-GPU one ran several cards in **one process sharing one `model_cache`**, which races on the warm-up write | single GPU per process, matching how campaigns are actually launched (one process per card, own `EXPERIMENT_DIR`) |
+| `configs/common.py` (94) | 94 lines for one live function | folded into `gen_campaign.py`; **`configs/` is now one file** |
+| `src/training/__init__.py` (30) | re-exports nobody imported, including `ConstraintTrainer` which no longer exists | 4-line docstring |
+| `LogitAdjustedLoss`, `_class_counts` | orphaned when their methodologies were deleted | gone |
+
+🚨 **A latent collision was fixed while consolidating.** `compute_base_model_id` did not
+include the warm-up objective, so **`clip` and `focal_clip` hashed identically** -- `focal_clip`
+would load `clip`'s cached warm-up and silently become a second `clip`. That is the inert-flag
+failure mode, occurrence five. Only `focal_clip`'s hash moves; the other 12 arm/dataset
+combinations are bit-identical, so no other cached warm-up is invalidated.
+
+✅ **`src/utils/posthoc_adjustment.py` (406 lines) was examined and left alone** -- every helper,
+including the 139-line LP fallback, is reachable from `targeted_correction`. It is the algorithm
+being compared against, not clutter.
+
+✅ **An AST reachability pass now reports zero dead definitions** (the only hits are `forward`
+methods, which PyTorch dispatches through `__call__`).
+
+**Result: 23,180 lines of Python -> 4,680.** The pipeline imports and generates cleanly, the dispatcher
+runs end to end, and a generated config now carries 11 hyperparameters, all of them live.
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
