@@ -663,12 +663,43 @@ only by discipline **will** recur.
 | 10 | **Deleting something the paper claims** | 6 baselines cut on "inert on octmnist"; inert on *one* dataset is not grounds for deletion | **DISCIPLINE** -- check the manuscript before deleting a baseline or a backbone |
 | 11 | **Characterising the paper without reading it** | done twice; the paper already calls penalty shape "neutral" and lambda escalation "a symptom" | **DISCIPLINE** |
 | 12 | **A cap that cannot bind** | the global cap has never bound at any tag we ran (section 1) | **MECHANICAL** -- `scripts/verify_caps.py` flags INERT / REDUNDANT |
+| 13 | **Comparing arms across CAMPAIGNS** | measured cross-campaign drift is **0.027**, about **2x** the effects being argued over. The +0.0068 cc-F1 edge over focal+clip was cross-campaign; run in ONE campaign it vanished | **MECHANICAL** -- `mandatory_arms`, and `full_panel` pairs within a campaign |
+| 14 | **Quoting a one-cell effect** | measured twice, and it shrinks by ~2x both times: restore -0.0477 (1 cell) -> **-0.0351** (4 cells); focal +0.0305 -> **+0.0156**. One cell always over-estimates | **DISCIPLINE** -- quote the multi-cell figure, always |
+| 15 | **Averaging opposite signs across datasets** | the no-restore "AP win" of +0.0085 was derm **-0.027/-0.025** and oct **+0.027/+0.058** -- a dataset split averaged into a number that means nothing. p=0.56 | **MECHANICAL** -- `--percell` includes the cap, and the panel prints better/worse counts |
+| 16 | **A treatment smaller than its own RNG noise** | `rank` at weight **1e-12** (gradient numerically nil) gave a parameter delta of 0.2238 -- *larger* than the 0.2222 at the real weight. The arm was pure nuisance | **DISCIPLINE** -- run every new arm at ~zero dose first and show the delta collapses to 0 |
+| 17 | **A selector that compresses the effect being measured** | `ortho`'s checkpoint restore made 2 of 4 seeds **bit-identical** post-restore while pre-restore differed in 4 of 4 -- the restore compressed the measured effect **~13x** (AP +0.0003 vs +0.0041), and its criterion is total excess, exactly what the projection trades away | **DISCIPLINE** -- if a post-processing step selects on the quantity your treatment moves, report pre-selection metrics too |
+| 18 | **Raw (uncentered) correlations** | `count_cv` reads rho = **-0.847** raw and **-0.165** within-cell. The raw number is dataset identity, not a relationship | **DISCIPLINE** -- centre within (dataset, model, cap) before correlating |
+| 19 | **Mixing epoch conventions** | TraLO logs ABSOLUTE `Epoch`, the duals log RELATIVE from 0. Subtracting warm-up from a dual fabricated "Fioretto runs 250 epochs vs TraLO's 34" | **DISCIPLINE** -- per-method convention; and never use row count for epochs, TraLO logs sparsely |
 
 **The meta-pattern behind 1, 8, 9 and 12: a thing that silently does nothing looks exactly like
 a thing that does nothing useful.** An inert flag, a cancelled gradient, a non-binding cap and a
 dropped pair all produce the same observable -- a tie -- as a real negative result. That is why
 every guard above is a *pre-launch assertion* rather than a post-hoc analysis: after the fact the
 two are indistinguishable.
+
+### The practices that actually CAUGHT things
+
+The archive documents failures exhaustively and successes only in passing. These
+five are what found the defects, and they are cheap:
+
+1. **md5 the raw predictions between arms before reading any metric.** On
+   `steps5` it found two bit-identical pairs a plain delta would have shown as a
+   null result. Now automatic in `full_panel.py`.
+2. **Run a new arm at ~zero dose and show the delta collapses to 0.** This is
+   what exposed `rank` as pure RNG nuisance, and it is the only check that
+   distinguishes "small effect" from "no effect plus noise".
+3. **Mutation-test the fix.** `rank`'s RNG repair was verified by REVERSING the
+   two edits and confirming the pathology comes straight back -- so the check
+   bites rather than passing vacuously.
+4. **Predict the failure before the run, in writing.** `reweight`'s `[1/4, 4]`
+   weight bound was called as a hard ceiling against a cell demanding 3.39x
+   suppression, before it ran. It missed the cap exactly as predicted, which
+   made the result a finding about the reweighting family rather than a bug
+   hunt.
+5. **Score the same run at two checkpoints rather than comparing two arms.** The
+   restore probe measured -0.0351 AP with nothing confounded, because no arm
+   comparison was involved at all -- and its three `restore_kind: none` runs read
+   exactly 0.0000, an internal control that came free.
 
 ### The three things that actually made the pipeline work
 
