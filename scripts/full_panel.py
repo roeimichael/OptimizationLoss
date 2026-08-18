@@ -249,7 +249,21 @@ def panel(run_dir, cfg):
         "macroF1": f1_score(y, eq, average="macro", zero_division=0),
         "acc": accuracy_score(y, eq),
         # -------- as-run
-        "sat": float((rawp != rel).sum() == 0),
+        # NOT satisfaction. Both allocators fill the budget UPWARD to exactly K
+        # (heuristic/train.py pass 1 walks every (item, capped class) pair;
+        # posthoc_adjustment phase 2 runs with force_exact=True), so this is 1
+        # only when the raw count already equals K in every scope. A model that
+        # satisfies the cap with room to spare scores the same as one that
+        # grossly violates it. It was called `sat` and read as satisfaction.
+        "count_eq_K": float((rawp != rel).sum() == 0),
+        # THIS is satisfaction: the raw count is within every limit, global and
+        # local, before any post-hoc adjustment. Undershoot counts as satisfied,
+        # because the constraint is `count <= K`.
+        "raw_feasible": float(
+            all(int((rawp == c).sum()) <= G[c] for c in classes)
+            and all(int(((rawp == c) & (g == gi)).sum()) <= lim[c]
+                    for gi, lim in L.items() for c in classes
+                    if c < len(lim))),
         # RAW count, before post-hoc. cnt_over_K below is measured after the
         # adjustment and is therefore ~1.0 for every arm by construction -- it
         # says nothing. This is the one that measures how far the trained model
@@ -290,10 +304,19 @@ GROUPS = [
     # on them, never put them in a paper, never call one a WIN.
     ("DIAGNOSTIC ONLY  -- NOT RESULTS. Post-hoc filling is free; flips and raw\n"
      "                   count buy no advancement. Do not rank arms on these.",
-     ["sat", "raw_over_K", "flips", "flips_over_K", "cnt_over_K"]),
+     ["raw_feasible", "count_eq_K", "raw_over_K", "flips", "flips_over_K",
+      "cnt_over_K"]),
 ]
-NON_SCORING = {"sat", "raw_over_K", "flips", "flips_over_K", "cnt_over_K"}
+BH_ALIAS_OF = {"ccP": "ccF1", "ccR": "ccF1"}
+BH_ALIASES = set(BH_ALIAS_OF)
 
+NON_SCORING = {"raw_feasible", "count_eq_K", "raw_over_K", "flips", "flips_over_K", "cnt_over_K"}
+
+
+# Arms with constraint_epochs == 0: the warm-up IS the run, so their
+# predictions cannot vary with the cap and must not be flagged for it.
+POSTHOC_ARMS = {"clip", "focal_clip", "lp", "focal_lp",
+                "cb_lp", "la_lp"}
 
 RAW_MD5 = {}          # arm -> {cell: md5 of final_predictions_raw.csv}
 
@@ -362,6 +385,8 @@ def _identity_check(rows):
     # hat: the baseline runs in the multiclass campaign were bit-identical
     # across caps, so 12 cells rested on 6 models.
     for arm in arms:
+        if arm in POSTHOC_ARMS:
+            continue
         by_cap = collections.defaultdict(dict)
         for (ds, mdl, cap, capped, seed), h in per_arm[arm].items():
             by_cap[(ds, mdl, capped, seed)][cap] = h
@@ -372,6 +397,15 @@ def _identity_check(rows):
                   "of %d (dataset, backbone, seed) groups -- those cells are "
                   "ONE run counted twice, not two levels."
                   % (arm, len(collapsed), len(by_cap)))
+    skipped_ph = sorted(set(arms) & POSTHOC_ARMS)
+    if skipped_ph:
+        print("  (cross-cap check skipped for %s: a post-hoc arm's final model IS"
+              % ", ".join(skipped_ph))
+        print("   its warm-up model, and base_model_id correctly excludes the cap,")
+        print("   so identical raw predictions across caps are EXPECTED there.")
+        print("   NOTE: for the six allocation-free metrics this means the control's")
+        print("   value is duplicated across cap levels, so the effective n is")
+        print("   cells / n_cap_levels, not cells.)")
     if not dead:
         print("  every arm pair differs on at least one cell-seed")
 
@@ -387,6 +421,8 @@ def main():
 
     rows = []
     skipped = collections.Counter()
+    unscorable = []
+    prov = collections.Counter()
     for camp in args.campaign:
         for p in glob.glob(camp + "/**/config.json", recursive=True):
             try:
@@ -402,15 +438,45 @@ def main():
                 skipped[cfg.get("status", "no status")] += 1
                 continue
             r = panel(os.path.dirname(p), cfg)
+            if not r:
+                # A COMPLETED run that cannot be scored vanished with no
+                # message: missing prediction files, no Prob_Class_ columns, or
+                # no capped class surviving the filter. Silently dropping a
+                # completed run is how a comparison loses pairs -- the failure
+                # that made in-flight campaigns read as ties.
+                unscorable.append(os.path.dirname(p))
             if r:
                 r["lp_fallback"] = bool(
                     cfg.get("results", {}).get("lp_fallback_used", False))
+                prov[(cfg.get("code_version"),
+                      cfg.get("data_fingerprint"))] += 1
                 rows.append(r)
     if _degenerate:
         print("NOTE: capped class(es) %s have no positive or no negative instance "
               "in some run and are excluded from AP and AUROC alike. Both metrics "
               "now average over the SAME classes."
               % sorted(_degenerate))
+    # Two code versions or two data fingerprints in one comparison means the
+    # arms were not produced by the same pipeline against the same data.
+    # FRAMEWORK records that results either side of the 2026-08-19 n_chunks
+    # removal are not comparable, and gen_campaign re-stamps code_version on
+    # PENDING runs while leaving completed ones alone, so one tree legitimately
+    # carries two. check_parity catches this, but it runs BEFORE the campaign.
+    if len(prov) > 1:
+        print("REFUSED: these runs do not share a provenance --")
+        for (cv, df), n in sorted(prov.items(), key=lambda kv: -kv[1]):
+            print("   %4d run(s)  code_version=%s  data_fingerprint=%s"
+                  % (n, cv, df))
+        sys.exit("Scoring across them would compare two pipelines, or two "
+                 "datasets, as if they were one arm-vs-arm difference.")
+    if unscorable:
+        print("*** %d run(s) are COMPLETED but produced nothing scorable. They are"
+              % len(unscorable))
+        print("    missing from every comparison below:")
+        for d in unscorable[:10]:
+            print("      %s" % d)
+        if len(unscorable) > 10:
+            print("      ... and %d more" % (len(unscorable) - 10))
     _allocator_check(rows)
     _identity_check(rows)
     if skipped:
@@ -486,6 +552,12 @@ def main():
         for title, m, r in results:
             if r[0] != "OK" or m in NON_SCORING:
                 continue
+            if m in BH_ALIASES:
+                # ccP, ccR and ccF1 are one result in three costumes. Counting
+                # them three times in the family widens the callable p
+                # threshold by 2.54x. Only ccF1 enters; the other two are
+                # printed with the q of their representative.
+                continue
             d = r[3]
             if (d == 0).all():
                 continue
@@ -499,6 +571,13 @@ def main():
             qvals[m] = min(1.0, pv * len(finite) / i)
         for i in range(len(finite) - 2, -1, -1):      # enforce monotonicity
             qvals[finite[i][1]] = min(qvals[finite[i][1]], qvals[finite[i + 1][1]])
+        # the aliases inherit their representative's q, so the table still
+        # prints a number for them without inflating the family
+        for alias, rep in BH_ALIAS_OF.items():
+            if rep in qvals:
+                qvals.setdefault(alias, qvals[rep])
+            if rep in pvals:
+                pvals.setdefault(alias, pvals[rep])
 
         shown = None
         for title, m, r in results:
@@ -519,7 +598,12 @@ def main():
             tied = len(d) - better - worse
             pv, qv = pvals.get(m, np.nan), qvals.get(m, np.nan)
 
-            if (d == 0).all() and identical:
+            if m in NON_SCORING:
+                # Checked FIRST. flips / raw-count-over-K / count_eq_K are not
+                # results at any value, so they must never render as a
+                # movement verdict, not even "no movement".
+                v = "(not a result)"
+            elif (d == 0).all() and identical:
                 # Both conditions. The metric did not move AND the arms emit
                 # byte-identical raw predictions -- only then is "the treatment
                 # did nothing" a statement about the treatment rather than
@@ -531,8 +615,6 @@ def main():
                 # reordering leaves every ranking and threshold metric exactly
                 # equal while ECE, Brier and NLL all move.
                 v = "no movement in this metric (arms differ)"
-            elif m in NON_SCORING:
-                v = "(not a result)"
             elif not np.isfinite(pv):
                 v = "-"
             elif len(d) < 6:

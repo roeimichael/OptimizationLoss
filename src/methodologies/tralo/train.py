@@ -57,6 +57,7 @@ def _required(hp, key, cast=float):
 def train(inputs: TrainInputs) -> TrainOutputs:
     config = inputs.config
     hp = inputs.hyperparams
+    CLIP = _required(hp, "constraint_grad_clip")   # the treatment dose
     # Hoisted: the per-epoch snapshot clone is gated on this, and a
     # state_dict() copied to CPU each epoch for a checkpoint nothing
     # reads is ~344 MB per epoch on ViTB16.
@@ -283,13 +284,13 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         did_backward = has_constraint
         if scaler and did_backward:
             scaler.unscale_(optimizer)
-            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=CLIP)
             last_grad_norm = float(grad_norm)
             if grad_norm > 0:
                 scaler.step(optimizer)
             scaler.update()
         elif not scaler and did_backward:
-            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=CLIP)
             last_grad_norm = float(grad_norm)
             if grad_norm > 0:
                 optimizer.step()

@@ -42,6 +42,7 @@ def _required(hp, key, cast=float):
 def _train_constraints(model, config, inputs, device):
     """Fioretto Algorithm 1/2: linear penalty + per-constraint subgradient dual ascent."""
     hp = inputs.hyperparams
+    CLIP = _required(hp, "constraint_grad_clip")   # the treatment dose
     # Hoisted: the per-epoch snapshot clone is gated on this, and a
     # state_dict() copied to CPU each epoch for a checkpoint nothing
     # reads is ~344 MB per epoch on ViTB16.
@@ -104,8 +105,15 @@ def _train_constraints(model, config, inputs, device):
     min_total_excess = float("inf")
 
     log_path = inputs.experiment_path / "training_log.csv"
+    last_grad_norm = 0.0
     log_fields = ["epoch", "ce_loss", "constraint_loss", "total_excess",
-                  "all_satisfied", "max_lambda_g"]
+                  "all_satisfied", "max_lambda_g",
+                  # The raw norm BEFORE the unit clip. It is the whole dose
+                  # question: FRAMEWORK measures the clip delivering exactly
+                  # 1.000 against a raw norm of thousands, which makes the
+                  # lambda ratchet a no-op. tralo logged it and these three
+                  # discarded it, so the comparison was one arm wide.
+                  "grad_norm"]
     with open(log_path, "w", newline="") as f:
         csv.DictWriter(f, log_fields).writeheader()
 
@@ -251,13 +259,15 @@ def _train_constraints(model, config, inputs, device):
                 if scaler:
                     scaler.unscale_(optimizer)
                     grad_norm = torch.nn.utils.clip_grad_norm_(
-                        model.parameters(), max_norm=1.0)
+                        model.parameters(), max_norm=CLIP)
+                    last_grad_norm = float(grad_norm)
                     if grad_norm > 0:
                         scaler.step(optimizer)
                     scaler.update()
                 else:
                     grad_norm = torch.nn.utils.clip_grad_norm_(
-                        model.parameters(), max_norm=1.0)
+                        model.parameters(), max_norm=CLIP)
+                    last_grad_norm = float(grad_norm)
                     if grad_norm > 0:
                         optimizer.step()
 
@@ -292,6 +302,7 @@ def _train_constraints(model, config, inputs, device):
             "total_excess": total_excess,
             "all_satisfied": int(all_satisfied),
             "max_lambda_g": round(max(lambda_g.values()) if lambda_g else 0, 6),
+            "grad_norm": round(float(last_grad_norm), 6),
         }
         with open(log_path, "a", newline="") as f:
             csv.DictWriter(f, log_fields).writerow(row)

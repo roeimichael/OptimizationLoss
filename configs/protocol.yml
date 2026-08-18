@@ -37,6 +37,16 @@ core:
 
 # Read only by methodologies that run a constraint phase.
 constraint_phase:
+  # The unit gradient clip on the constraint step. THIS is the treatment dose.
+  # The raw constraint gradient norm is 2,560-12,400, so the clip discards
+  # essentially all of the magnitude and delivers exactly this value -- which is
+  # what makes the lambda ratchet and the rho ramp no-ops by construction. It
+  # was hardcoded as 1.0 in four trainers, invisible to audit_config, while
+  # protocol.yml claimed "if a number decides what an experiment does, it is
+  # here". It is the only dose axis the protocol admits: lr_constraint is
+  # locked equal to lr, and every magnitude knob below it is cancelled by this
+  # clip. Sweep 0.3 / 1.0 / 3.0 to get a dose-response curve.
+  constraint_grad_clip: 1.0
   lr_constraint: 0.0001       # MUST equal core.lr -- unequal lr fabricated a -16.7pp finding
   stable_count_threshold: 31
   constraint_chunk_size: 256
