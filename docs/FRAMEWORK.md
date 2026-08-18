@@ -364,6 +364,63 @@ method effect.
 
 ---
 
+## 3b. THE MISTAKE PATTERNS -- how a wrong result got believed
+
+Section 2 lists the ideas that failed. This section lists the *ways we fooled ourselves*, which
+matter more, because the ideas are finished and the patterns repeat. Every retraction in this
+project came from one of these. The right-hand column is the important one: a pattern guarded
+only by discipline **will** recur.
+
+| # | pattern | what it cost | guard today |
+|---|---|---|---|
+| 1 | **Inert flag** -- a config key emitted but never read, or read in one arm only | 5 occurrences. `focal_clip` was a second `clip`. 13 wave-1 arms tuned a quantity the code cancels. | **MECHANICAL** -- `scripts/audit_config.py`, AST and per-arm |
+| 2 | **A claim from one cap level** | retracted 3x (no-restore, and two others) | **MECHANICAL** -- generator refuses <2 cap levels |
+| 3 | **An arm-vs-arm delta with no baseline in the campaign** | both `rank` campaigns compared `rank_on` vs `rank_ctrl` and never contained a clipper | **MECHANICAL** -- `mandatory_arms: [clip, focal_clip]` |
+| 4 | **Unequal compute** | worth 7-9 pp; fabricated "warm-up 1 gives +7-9 pp", which is -0.85 pp when equalized | **MECHANICAL** -- `check_parity` gate 1 |
+| 5 | **A knob differing across arms** (the LR trap: `lr_constraint` 5e-6 vs 1e-4) | fabricated "the constraint damages the representation", -16.7 pp that was -1.7 pp | **MECHANICAL** -- `check_parity` gate 2 |
+| 6 | **Pooling the axis being swept** | the granularity sweep's first read averaged over granularity itself | **DISCIPLINE** -- a swept dimension must be in the CELL KEY, not just the directory name |
+| 7 | **Reaching for the one column with a small p-value** when quality ties | `flips` / raw count / "proximity to feasibility" are the same rejected metric renamed; relapsed ~10x | **MECHANICAL** -- `full_panel.py` refuses to headline them |
+| 8 | **A scorer bug that reads as a tie** | `dropna` across ALL arms meant a lagging third arm deleted pairs from every comparison; at n=2 Wilcoxon floors at p=0.5, so in-flight campaigns ALWAYS read as ties. **Arms were abandoned on that.** | **FIXED**, but the class of bug is only guarded by testing the scorer against a known answer |
+| 9 | **A diverged run recorded as `completed`** | `joint_b100` seed 4 went all-NaN, crashed the scorer, and hid 23 healthy runs | **MECHANICAL** -- `full_panel.py` drops non-finite runs loudly |
+| 10 | **Deleting something the paper claims** | 6 baselines cut on "inert on octmnist"; inert on *one* dataset is not grounds for deletion | **DISCIPLINE** -- check the manuscript before deleting a baseline or a backbone |
+| 11 | **Characterising the paper without reading it** | done twice; the paper already calls penalty shape "neutral" and lambda escalation "a symptom" | **DISCIPLINE** |
+| 12 | **A cap that cannot bind** | the global cap has never bound at any tag we ran (section 1) | **MECHANICAL** -- `scripts/verify_caps.py` flags INERT / REDUNDANT |
+
+**The meta-pattern behind 1, 8, 9 and 12: a thing that silently does nothing looks exactly like
+a thing that does nothing useful.** An inert flag, a cancelled gradient, a non-binding cap and a
+dropped pair all produce the same observable -- a tie -- as a real negative result. That is why
+every guard above is a *pre-launch assertion* rather than a post-hoc analysis: after the fact the
+two are indistinguishable.
+
+### The three things that actually made the pipeline work
+
+1. **Regime beats method by ~80x.** Regime effects are ~8 pp, method effects ~0.1 pp. Every
+   "win" that later evaporated was a regime difference in disguise. Fix the regime first, and
+   never compare across regimes.
+2. **The unit-norm gradient clip is load-bearing.** Remove it and the predicted count collapses
+   to 0 and the arm loses 4/4 cells. It binds 63-84% of the time. This is also *why* rho and
+   lambda are no-ops: the clip delivers exactly 1.000 against a raw norm of 2,560-12,400, so
+   scaling the penalty changes nothing downstream.
+3. **The constraint phase's starvation is PROTECTIVE, not a defect.** ~29 constraint steps
+   against CE's 3,654, through a shared Adam that retains ~1% of the constraint direction. Every
+   attempt to repair this -- more steps, a dedicated optimizer, a joint objective -- made results
+   significantly worse, monotonically. **Read a weak constraint phase as the reason the method is
+   only mildly worse than a clipper, not as the bug to fix.**
+
+### What to avoid, stated as rules
+
+- **Never vary the count penalty again.** Shape, schedule, granularity, magnitude: ~13 arms, all
+  ties, because none changes what the gradient is a *function of*.
+- **Never deliver more constraint gradient.** Monotone: more is worse, every time.
+- **Never run warm-up 50**, and never interpolate to warm-up 5 (a dead zone).
+- **Never let `lr_constraint` differ from `lr`.**
+- **Never quote a metric that post-hoc filling can produce for free** (`flips`, raw count over K,
+  proximity to feasibility). When quality ties, the honest report is "this arm produced nothing."
+- **Never build a self-referential per-item term.** `rank` used top-K vs rest with no labels: it
+  can sharpen a cut but cannot reorder, and ordering is the whole score.
+
+---
+
 ## 4. THE ONE OPEN QUESTION
 
 Given section 0, only two kinds of thing can still win, and they are the only things worth building:
