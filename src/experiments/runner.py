@@ -25,7 +25,7 @@ from src.pipeline.warmup import run_warmup
 from src.pipeline.eval import evaluate_with_posthoc, write_evaluation_outputs
 from src.training.logging import save_evaluation_metrics
 from src.utils.filesystem_manager import load_config_from_path, update_experiment_status
-from src.pipeline.setup import seed_all
+from src.pipeline.setup import seed_all, runtime_provenance
 from src.pipeline.io import save_results_to_config
 
 log = logging.getLogger(__name__)
@@ -161,6 +161,10 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         'samples_adjusted': int(best_adj),
         'lp_fallback_used': best_meta.get('lp_fallback_used', False),
         'lp_fallback_candidates': best_meta.get('lp_fallback_candidates', 0),
+        # which GPU and which AMP regime: FP16+scaler SKIPS an overflowing
+        # optimizer step and BF16 does not, so the same config applies a
+        # different number of steps on the two servers
+        'runtime': runtime_provenance(device),
     })
     log.info("Done: accuracy=%.4f source=%s time=%.2fs path=%s",
              best_metrics['accuracy'], best_source, training_time, experiment_path)

@@ -46,3 +46,24 @@ def setup_runtime(device):
     if use_bf16:
         return True, torch.bfloat16, None
     return True, torch.float16, torch.amp.GradScaler("cuda")
+
+
+def runtime_provenance(device):
+    """What a result needs in order to be comparable to another result.
+
+    The two servers run different AMP regimes (dsisco01 Quadro RTX 6000 =
+    FP16 + GradScaler, dsisco02 RTX PRO 6000 Blackwell = BF16, no scaler), and
+    on the FP16 path an overflowing step is SKIPPED -- so the same config can
+    apply a different number of optimizer steps depending on the card.
+    """
+    use_amp, amp_dtype, scaler = setup_runtime(device)
+    return {
+        "device": str(device),
+        "gpu_name": (torch.cuda.get_device_name(device)
+                     if device.type == "cuda" else None),
+        "cuda": torch.version.cuda,
+        "torch": torch.__version__,
+        "amp_enabled": bool(use_amp),
+        "amp_dtype": str(amp_dtype).replace("torch.", "") if amp_dtype else None,
+        "grad_scaler": scaler is not None,
+    }
