@@ -58,13 +58,48 @@ were **deleted from the pipeline** on 2026-08-18 (section 2f). They cannot be re
   (0.024 at L20 vs 0.12 at L50), so never read a null at L20 as evidence against a method.
 - **Seeds**: 1, 2, 3, 4.
 
-### Baselines that must be IN the campaign
+### The arms -- every baseline the paper claims
 
-- **`clip` AND `focal_clip` -- both, always.** `clip` is the stronger bar on *quality*;
-  `focal_clip` is a calibration rout over `clip` for free. Headline the stronger one.
-  An arm-vs-arm delta is not a result until the bar is in the same campaign.
-- **`fioretto_ldf` and `hounie_rcl`** whenever claiming anything against the duals.
-  Historical dual runs are unusable (300 epochs + the LR trap) -- re-run them in-campaign.
+`python -m configs.gen_campaign --arms all` emits the full panel. `clip` and `focal_clip` are
+added to **every** campaign whether asked for or not: an arm-vs-arm delta is not a result until
+the bar is in the same campaign.
+
+| arm | methodology | training loss | allocator | epochs |
+|---|---|---|---|---|
+| `clip` | `heuristic` | CE | greedy threshold | 30 + 0 |
+| `focal_clip` | `heuristic` | focal | greedy threshold | 30 + 0 |
+| `lp` | `danits_lp` | CE | **LP-LG** (Shifman) | 30 + 0 |
+| `focal_lp` | `focal` | focal | LP-LG | 30 + 0 |
+| `cb_lp` | `class_balanced` | class-balanced | LP-LG | 30 + 0 |
+| `la_lp` | `logit_adjust` | logit adjustment | LP-LG | 30 + 0 |
+| `tralo` | `tralo` | CE + count penalty | greedy (post-hoc) | 1 + 29 |
+| `fioretto` | `fioretto_ldf` | CE + dual ascent | greedy (post-hoc) | 1 + 29 |
+| `hounie` | `hounie_rcl` | CE + resilient dual | greedy (post-hoc) | 1 + 29 |
+| `alm` | `fioretto_alm` | CE + augmented Lagrangian | greedy (post-hoc) | 1 + 29 |
+
+**Two allocators, and they are separate baselines.** `heuristic` is the greedy threshold;
+`danits_lp` is the LP-LG allocator (local+global formulation of Shifman et al. 2025, which the
+manuscript names LP-LG). `danits_lp` also ships that paper's Algorithm 1 greedy as a control.
+
+**Imbalanced-recipe hyperparameters are the PAPER's**: focal alpha=0.25 gamma=2,
+class-balanced beta=0.9999, logit adjustment tau=1. (The `mcbar` campaigns ran focal at
+alpha=1.0, which is **not** the paper's focal -- any focal number quoted from those runs is a
+different arm from the one the manuscript describes.)
+
+- **Historical dual runs are unusable** (300 epochs + the LR trap) -- re-run them in-campaign.
+
+### Verify parity BEFORE launching
+
+```bash
+python -m configs.gen_campaign --root results/<name> --datasets ... --caps ... --arms all
+python -m scripts.check_parity results/<name>      # exit 1 = do not launch
+```
+
+`check_parity.py` asserts the four things every retraction here traced to: equal total compute,
+identical shared knobs (`lr`, `lr_constraint`, batch size, dropout, ...), identical cell and seed
+coverage with at least two cap levels, and correct warm-up cache sharing. **Arms that share a
+`base_model_id` share a trained model and must differ only in the allocator** -- an arm sharing a
+warm-up with a different training loss is a dead flag, which has happened four times.
 
 ### Before reading any metric
 
@@ -187,6 +222,21 @@ merely defaulted off -- a config can no longer *imply* a knob that does not exis
 | `src/training/__init__.py` (30) | re-exports nobody imported, including `ConstraintTrainer` which no longer exists | 4-line docstring |
 | `LogitAdjustedLoss`, `_class_counts` | orphaned when their methodologies were deleted | gone |
 
+⚠️ **Third pass corrected an OVER-DELETION.** The first purge removed six methodologies that the
+manuscript's Baselines paragraph actually claims: `danits_lp` (LP-LG), `fioretto_alm` (ALM),
+`focal`, `class_balanced`, `logit_adjust`, and their shared `imbalanced_common` driver. They were
+cut on the reasoning that `class_balanced`/`logit_adjust` are "inert on octmnist" -- but inert on
+*one dataset* is not grounds for deletion, and `danits_lp`/ALM were never inert at all. All are
+restored from `63c2b4cc` and wired into the generator. **Check the paper before deleting a
+baseline**: the manuscript is the authority on what is in scope, exactly as it was for backbones.
+
+⚠️ **`tralo_bounded` was NOT restored, deliberately.** The paper describes it as the ablation that
+strips "the optimizer reset and the undershoot hinge" -- but both of those are now deleted from
+`tralo` itself (section 2b), and the reset was already a bit-identical no-op at warm-up 1. Under
+the current protocol `tralo_bounded` would be an exact duplicate of `tralo`. The ablation is only
+meaningful at warm-up 50, which is a dead regime. **If the paper keeps that ablation, its text
+needs to say it describes warm-up 50.**
+
 🚨 **A latent collision was fixed while consolidating.** `compute_base_model_id` did not
 include the warm-up objective, so **`clip` and `focal_clip` hashed identically** -- `focal_clip`
 would load `clip`'s cached warm-up and silently become a second `clip`. That is the inert-flag
@@ -273,7 +323,9 @@ src/               the pipeline: losses, methodologies, models, pipeline, traini
 evidence/          archived provenance + predictions from every run ever made
 ```
 
-Four methodologies only: `tralo`, `fioretto_ldf`, `hounie_rcl`, `heuristic` (the clippers).
+Nine methodologies: `tralo` - the duals `fioretto_ldf` / `hounie_rcl` / `fioretto_alm` -
+the two allocators `heuristic` (greedy) / `danits_lp` (LP-LG) - and the imbalanced recipes
+`focal` / `class_balanced` / `logit_adjust`, which are LP-clipped.
 
 ## 6. Evidence appendix
 

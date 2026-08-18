@@ -52,7 +52,8 @@ def compute_base_model_id(model_name, hp, dataset_mode, data_dir, dataset_config
     if "seed" in hp:
         key["seed"] = hp["seed"]
     # the warm-up objective itself, when an arm swaps it (focal_clip)
-    for k in ("warmup_loss", "focal_alpha", "focal_gamma"):
+    for k in ("warmup_loss", "focal_alpha", "focal_gamma",
+              "cb_beta", "logit_adjust_tau"):
         if k in hp:
             key[k] = hp[k]
     h = hashlib.md5(json.dumps(key, sort_keys=True).encode()).hexdigest()[:12]
@@ -105,15 +106,35 @@ DATASETS = {
 }
 MODELS = ["MobileNetV3", "MobileNetV2", "RegNetY400MF", "ViTB16"]
 
+# Imbalanced-learning recipes. Values are the PAPER's, not the code defaults:
+# focal alpha=0.25 gamma=2, class-balanced beta=0.9999, logit adjustment tau=1.
+# `base_loss` deliberately NOT set: only `warmup_loss` is read
+# (src/pipeline/warmup.py:33). base_loss was a dead key that made arm_joint's
+# focal_clip a second clip -- inert-flag failure #4.
+FOCAL = {"warmup_loss": "focal", "focal_alpha": 0.25, "focal_gamma": 2.0}
+CB    = {"warmup_loss": "class_balanced", "cb_beta": 0.9999}
+LA    = {"warmup_loss": "logit_adjust", "logit_adjust_tau": 1.0}
+
+# arm -> (methodology, extra hyperparameters)
 ARMS = {
-    "clip":       ("heuristic",    {}),
-    "focal_clip": ("heuristic",    {"warmup_loss": "focal", "base_loss": "focal",
-                                    "focal_alpha": 1.0, "focal_gamma": 2.0}),
-    "tralo":      ("tralo",        {}),
-    "fioretto":   ("fioretto_ldf", {}),
-    "hounie":     ("hounie_rcl",   {}),
+    # -- post-hoc clippers: warm-up 30 + 0 constraint, so the warm-up IS the run.
+    #    Two allocators: `heuristic` is the greedy threshold, `danits_lp` is the
+    #    LP-LG allocator (Shifman local+global formulation). An arm ending _clip
+    #    is greedy-allocated; an arm ending _lp is LP-allocated.
+    "clip":       ("heuristic",      {}),      # CE            + greedy
+    "focal_clip": ("heuristic",      FOCAL),   # focal         + greedy
+    "lp":         ("danits_lp",      {}),      # CE            + LP-LG
+    "focal_lp":   ("focal",          FOCAL),   # focal         + LP-LG
+    "cb_lp":      ("class_balanced", CB),      # class-balanced+ LP-LG
+    "la_lp":      ("logit_adjust",   LA),      # logit adjust  + LP-LG
+    # -- constraint-trained duals: warm-up 1 + 29 constraint.
+    "tralo":      ("tralo",          {}),
+    "fioretto":   ("fioretto_ldf",   {}),
+    "hounie":     ("hounie_rcl",     {}),
+    "alm":        ("fioretto_alm",   {}),
 }
-POSTHOC_ARMS = {"clip", "focal_clip"}
+POSTHOC_ARMS = {"clip", "focal_clip", "lp", "focal_lp", "cb_lp", "la_lp"}
+MANDATORY = {"clip", "focal_clip"}      # the framework's two-clipper rule
 
 
 def cap_pair(tag):
@@ -128,16 +149,20 @@ def main():
     a.add_argument("--datasets", nargs="+", required=True, choices=sorted(DATASETS))
     a.add_argument("--models", nargs="+", default=["MobileNetV3"], choices=MODELS)
     a.add_argument("--caps", nargs="+", default=["L30_G30", "L50_G50"])
-    a.add_argument("--arms", nargs="+", default=["tralo"], choices=sorted(ARMS))
+    a.add_argument("--arms", nargs="+", default=["tralo"],
+                   choices=sorted(ARMS) + ["all"],
+                   help="'all' runs the full panel: every baseline the paper claims")
     args = a.parse_args()
 
     # -- protocol assertions: refuse to generate an invalid campaign ------------
     if len(set(args.caps)) < 2:
         sys.exit("REFUSED: at least two cap levels are required. A claim from cells "
                  "sharing one cap level has been retracted three times.")
-    arms = sorted(set(args.arms) | POSTHOC_ARMS)
-    if arms != sorted(set(args.arms)):
-        print("NOTE: added the mandatory clippers ->", " ".join(sorted(POSTHOC_ARMS)))
+    requested = set(ARMS) if "all" in args.arms else set(args.arms)
+    arms = sorted(requested | MANDATORY)
+    added = sorted(MANDATORY - requested)
+    if added:
+        print("NOTE: added the mandatory clippers ->", " ".join(added))
 
     todo = [(ds, mdl, tag, arm, seed)
             for seed in SEEDS for ds in args.datasets for mdl in args.models

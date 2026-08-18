@@ -51,11 +51,15 @@ src/               the pipeline: losses, methodologies, models, pipeline, traini
 evidence/          archived provenance + predictions from every run ever made
 ```
 
-Four methodologies only: `tralo`, `fioretto_ldf`, `hounie_rcl`, `heuristic` (the clippers).
+Nine methodologies, all claimed in the paper: `tralo` - duals `fioretto_ldf` / `hounie_rcl` /
+`fioretto_alm` - allocators `heuristic` (greedy clip) / `danits_lp` (LP-LG, Shifman) - and the
+imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
+**Run `python -m scripts.check_parity <root>` before launching anything** -- it refuses unequal
+compute, mismatched knobs, a single cap level, or a bad warm-up cache share.
 Generate a campaign with:
 
 ```bash
-python -m configs.gen_campaign --root results/<name>     --datasets dermmnist tissuemnist --models MobileNetV3     --caps L30_G30 L50_G50 --arms tralo fioretto hounie
+python -m configs.gen_campaign --root results/<name>     --datasets dermmnist tissuemnist --models MobileNetV3     --caps L30_G30 L50_G50 --arms all
 ```
 
 ## Datasets (the only three)

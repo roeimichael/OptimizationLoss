@@ -1,0 +1,119 @@
+"""Prove a campaign compares apples to apples, BEFORE it runs.
+
+Every retraction in this project traces to two arms differing in something other
+than the thing under test: unequal compute (worth 7-9 pp), an unequal
+lr_constraint (worth 16 pp), a cap level present for one arm and not another, or
+two arms silently sharing a cached warm-up so one of them was never really run.
+This checks all four on the generated configs.
+
+    python -m scripts.check_parity results/<campaign>
+
+Exit code 1 if anything fails, so it can gate a launch.
+"""
+import collections
+import glob
+import json
+import os
+import sys
+
+# knobs that must be IDENTICAL across every arm; if they differ, the comparison
+# measures the knob and not the method
+SHARED_KEYS = ["lr", "lr_constraint", "dropout", "batch_size", "pretrained",
+               "class_weighted_ce", "constraint_chunk_size", "stable_count_threshold"]
+
+
+def load(root):
+    runs = []
+    for p in glob.glob(os.path.join(root, "**", "config.json"), recursive=True):
+        c = json.load(open(p))
+        runs.append(c)
+    return runs
+
+
+def main():
+    if len(sys.argv) < 2:
+        sys.exit(__doc__)
+    root = sys.argv[1]
+    runs = load(root)
+    if not runs:
+        sys.exit("no configs under %s" % root)
+    arms = sorted({r["arm"] for r in runs})
+    fails = []
+
+    print("campaign: %s" % root)
+    print("%d runs, %d arms: %s\n" % (len(runs), len(arms), " ".join(arms)))
+
+    # ---- 1. equal compute ---------------------------------------------------
+    print("1. COMPUTE  (warm-up + constraint must total the same for every arm)")
+    totals = set()
+    for arm in arms:
+        hp = [r["hyperparams"] for r in runs if r["arm"] == arm]
+        wu = {h["warmup_epochs"] for h in hp}
+        ce = {h["constraint_epochs"] for h in hp}
+        tot = {a + b for a in wu for b in ce}
+        totals |= tot
+        print("   %-12s warm-up %-6s constraint %-6s total %s"
+              % (arm, sorted(wu), sorted(ce), sorted(tot)))
+    if len(totals) == 1:
+        print("   OK -- every arm gets %d optimizer epochs\n" % totals.pop())
+    else:
+        fails.append("UNEQUAL COMPUTE: totals %s" % sorted(totals))
+        print("   FAIL -- differing totals: %s\n" % sorted(totals))
+
+    # ---- 2. shared knobs ----------------------------------------------------
+    print("2. SHARED KNOBS  (identical across arms, or the delta is the knob)")
+    for k in SHARED_KEYS:
+        vals = {r["hyperparams"].get(k) for r in runs}
+        status = "OK  " if len(vals) == 1 else "FAIL"
+        if len(vals) != 1:
+            fails.append("%s differs across arms: %s" % (k, sorted(map(str, vals))))
+        print("   %s %-24s %s" % (status, k, sorted(map(str, vals))))
+    print()
+
+    # ---- 3. cell coverage ---------------------------------------------------
+    print("3. COVERAGE  (every arm must cover the same cells and seeds)")
+    cells = collections.defaultdict(set)
+    for r in runs:
+        key = (r["dataset_mode"], r["model_name"], r["constraint_tag"],
+               r["hyperparams"]["seed"])
+        cells[r["arm"]].add(key)
+    ref = cells[arms[0]]
+    for arm in arms:
+        d = cells[arm]
+        mark = "OK  " if d == ref else "FAIL"
+        if d != ref:
+            fails.append("%s covers %d cells, %s covers %d"
+                         % (arm, len(d), arms[0], len(ref)))
+        print("   %s %-12s %d cell-seeds" % (mark, arm, len(d)))
+    caps = sorted({r["constraint_tag"] for r in runs})
+    print("   cap levels: %s%s" % (caps, "" if len(caps) > 1 else "   <-- FAIL: need >=2"))
+    if len(caps) < 2:
+        fails.append("single cap level: %s" % caps)
+    print()
+
+    # ---- 4. warm-up cache sharing ------------------------------------------
+    print("4. WARM-UP CACHE  (arms sharing a base_model_id share a trained model)")
+    byid = collections.defaultdict(set)
+    for r in runs:
+        byid[r["base_model_id"]].add(r["arm"])
+    groups = collections.defaultdict(set)
+    for _bid, a in byid.items():
+        groups[frozenset(a)] |= a
+    for grp in sorted(groups, key=lambda g: sorted(g)):
+        shared = sorted(grp)
+        note = "share a warm-up" if len(shared) > 1 else "own warm-up"
+        print("   %-46s %s" % (" + ".join(shared), note))
+    print("   (arms that share a warm-up must differ ONLY in the allocator;")
+    print("    an arm sharing a warm-up with a DIFFERENT training loss is a dead flag)\n")
+
+    if fails:
+        print("PARITY FAILED:")
+        for f in fails:
+            print("  - %s" % f)
+        return 1
+    print("PARITY OK -- this campaign is a fair comparison.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

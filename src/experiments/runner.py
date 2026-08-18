@@ -15,6 +15,11 @@ from src.methodologies.tralo.train import train as train_tralo                  
 from src.methodologies.fioretto_ldf.train import train as train_fioretto_ldf
 from src.methodologies.hounie_rcl.train import train as train_hounie_rcl
 from src.methodologies.heuristic.train import train as train_heuristic
+from src.methodologies.danits_lp.train import train as train_danits_lp          # LP-LG clipper (Shifman)
+from src.methodologies.fioretto_alm.train import train as train_fioretto_alm    # ALM dual
+from src.methodologies.focal.train import train as train_focal                  # imbalanced + LP clip
+from src.methodologies.class_balanced.train import train as train_class_balanced
+from src.methodologies.logit_adjust.train import train as train_logit_adjust
 from src.pipeline.contracts import TrainInputs
 from src.pipeline.warmup import run_warmup
 from src.pipeline.eval import evaluate_with_posthoc, write_evaluation_outputs
@@ -81,6 +86,11 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         'fioretto_ldf': train_fioretto_ldf,
         'hounie_rcl': train_hounie_rcl,
         'heuristic': train_heuristic,               # the post-hoc clippers: clip / focal_clip
+        'danits_lp': train_danits_lp,               # LP-LG: the OTHER post-hoc clipper
+        'fioretto_alm': train_fioretto_alm,         # ALM: third dual-ascent baseline
+        'focal': train_focal,                       # imbalanced warm-up + LP clip
+        'class_balanced': train_class_balanced,
+        'logit_adjust': train_logit_adjust,
     }
     if methodology not in train_fns:
         raise ValueError(f"Unknown methodology for run_experiment: {methodology!r}")
