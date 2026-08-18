@@ -22,6 +22,15 @@ IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 3, 1
 
 
 def _ensure_3channel(images):
+    """Grayscale (N,1,H,W) -> (N,3,H,W). Assumes NCHW, and is called BEFORE the
+    NHWC->NCHW coercion, so an NHWC grayscale array (N,H,W,1) falls through
+    here and dies later inside the normalization with a raw numpy broadcast
+    error instead of a diagnosable message."""
+    if images.ndim == 4 and images.shape[-1] == 1 and images.shape[1] != 1:
+        raise ValueError(
+            "images look like NHWC grayscale %s. _ensure_3channel expects "
+            "NCHW; coerce the layout first, or save the array as (N,1,H,W)."
+            % (images.shape,))
     if images.ndim == 4 and images.shape[1] == 1:
         # Use contiguous copy instead of np.repeat to avoid 3x peak memory.
         # np.broadcast_to is zero-copy but returns read-only view;

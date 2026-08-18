@@ -29,6 +29,7 @@ import subprocess
 import sys
 import tempfile
 
+OPAQUE = []          # reads the walker could not resolve
 CODE_ROOTS = ["src", "scripts", "main.py", "configs"]
 
 # Seed names for each config section. Aliases are then DISCOVERED, not guessed:
@@ -57,6 +58,7 @@ class Reads(ast.NodeVisitor):
     def __init__(self, path):
         self.path = path
         self.hits = []
+        self.opaque = []
         self.alias = {}
 
     def _kind_of(self, base):
@@ -64,6 +66,11 @@ class Reads(ast.NodeVisitor):
             if base in names:
                 return kind
         return self.alias.get(base)
+
+    def _opaque(self, base, how, lineno):
+        """A read the walker cannot resolve to a literal key. Recorded so the
+        audit fails loudly instead of silently under-reporting its read set."""
+        self.opaque.append((base, how, self.path, lineno))
 
     def _record(self, base, key, lineno):
         kind = self._kind_of(base)
@@ -95,14 +102,32 @@ class Reads(ast.NodeVisitor):
         sl = node.slice
         if isinstance(sl, ast.Constant) and isinstance(sl.value, str):
             self._record(_base_name(node.value), sl.value, node.lineno)
+        elif self._kind_of(_base_name(node.value)) is not None:
+            # hp[k] with a computed key: the audit cannot know which key
+            self._opaque(_base_name(node.value), "subscript", node.lineno)
         self.generic_visit(node)
+
+    OPAQUE_METHODS = ("get", "pop", "setdefault")
 
     def visit_Call(self, node):
         f = node.func
-        if (isinstance(f, ast.Attribute) and f.attr == "get" and node.args
-                and isinstance(node.args[0], ast.Constant)
-                and isinstance(node.args[0].value, str)):
-            self._record(_base_name(f.value), node.args[0].value, node.lineno)
+        if isinstance(f, ast.Attribute) and f.attr in self.OPAQUE_METHODS and node.args:
+            base = _base_name(f.value)
+            if isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
+                if f.attr == "get":
+                    self._record(base, node.args[0].value, node.lineno)
+                else:
+                    # .pop / .setdefault also READ the key, and .pop mutates
+                    self._record(base, node.args[0].value, node.lineno)
+            elif self._kind_of(base) is not None:
+                self._opaque(base, ".%s()" % f.attr, node.lineno)
+        self.generic_visit(node)
+
+    def visit_Dict(self, node):
+        """`{**hp}` copies every key without naming one."""
+        for k in node.keys:
+            if k is None:
+                self._opaque(None, "** splat", node.lineno)
         self.generic_visit(node)
 
 
@@ -120,10 +145,11 @@ def collect_reads():
                 continue
             v = Reads(p)
             v.visit(tree)          # pass 1: learn aliases
-            v.hits = []
+            v.hits, v.opaque = [], []
             v.visit(tree)          # pass 2: record with aliases known
             for kind, key, path, line in v.hits:
                 reads[(kind, key)].append((path, line))
+            OPAQUE.extend(v.opaque)
     return reads
 
 
@@ -398,6 +424,40 @@ def main():
 
     bad += audit_per_arm(root)
     bad += audit_identity(root)
+
+    if OPAQUE:
+        # An opaque read in src/ hides a real config dependency: the pipeline
+        # consumes a key the audit cannot name, so a hallucinated key could
+        # live under it. In the audit and scoring tools it is almost always a
+        # loop over a key list the audit can already see -- report, don't fail.
+        pipeline = [o for o in OPAQUE if o[2].startswith("src/")]
+        tooling = [o for o in OPAQUE if not o[2].startswith("src/")]
+        print("=" * 78)
+        print("UNAUDITABLE READS  (%d in src/, %d in tooling)"
+              % (len(pipeline), len(tooling)))
+        print("=" * 78)
+        print()
+        print("  A config dict accessed with a key this walker cannot resolve.")
+        print("  Below such a read the read set is UNKNOWN, so the audit stops")
+        print("  proving anything about it. None of these exist today; the")
+        print("  point is that adding one FAILS instead of silently shrinking")
+        print("  what the audit covers.")
+        if pipeline:
+            bad += len(pipeline)
+            print()
+            print("  FAIL -- in the pipeline, where it would hide a real key:")
+            for base, how, path, line in pipeline:
+                print("     %s:%d  %s on %s" % (path, line, how, base or "a dict"))
+        if tooling:
+            print()
+            for base, how, path, line in tooling:
+                print("     (tooling, allowed) %s:%d  %s on %s"
+                      % (path, line, how, base or "a dict"))
+        if not pipeline:
+            print()
+            print("  OK -- every unresolvable read is in audit/scoring code")
+            print("  that iterates a declared key list, not in src/.")
+        print()
 
     if tmp:
         import shutil
