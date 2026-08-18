@@ -115,6 +115,65 @@ different arm from the one the manuscript describes.)
 
 - **Historical dual runs are unusable** (300 epochs + the LR trap) -- re-run them in-campaign.
 
+### Known asymmetries between arms -- decisions, not bugs
+
+Three independent code audits (2026-08-19) found these. They are NOT fixed,
+because fixing any of them changes what a baseline IS, and that is a call to
+make deliberately rather than inside a bug-fix pass. Each is stated with its
+measured magnitude so the decision can be made on numbers.
+
+**1. The three duals do not share a normalization convention.**
+`hounie_rcl` divides its primal constraint term by `n_test` / `N_g`;
+`fioretto_ldf` and `fioretto_alm` do not. Each is internally consistent -- the
+dual ascent matches its own primal -- but the effective weight on
+`d(soft_count)/d(theta)` at epoch 29, simulated at `protocol.yml`'s step sizes
+(N=2003, K=67, soft count 223):
+
+| arm | lambda at ep29 | effective weight |
+|---|---|---|
+| `fioretto` | 22.62 | 22.6 |
+| `alm` | 701.2 | 701 |
+| `hounie` | 0.0225 | 1.12e-05 |
+
+Fioretto is 2.0e6 times hounie. Both fioretto and ALM blow past the unit-norm
+clip for any plausible `||dS/dtheta||`, so the clip renormalizes them to the
+same norm-1 step -- with a single active constraint the two arms take a
+**bit-identical update** and differ only in how they weight the local caps
+against each other. Hounie never reaches norm 1, so its constraint phase is 29
+epochs of CE plus a numerically negligible nudge.
+
+Deciding this requires choosing a convention and re-deriving each paper's step
+size in it. **Until then, do not claim these are three distinct dual
+baselines.** `Grad_Norm` is now logged per epoch in all four trained arms
+(replacing the dead `L_KL` column), so the first campaign under this protocol
+answers empirically how often each arm's raw norm crosses 1.0. Read it before
+deciding.
+
+**2. The trained arms restart the optimizer at the warm-up boundary; the
+post-hoc arms do not.** `run_warmup` builds an Adam and drops it; the
+constraint phase constructs a fresh Adam at t=0. `clip` / `focal_clip` run one
+Adam for all 30 epochs. Measured step-size kick at otherwise identical
+parameters: 3.72x at the first step after the restart, 1.92x by step 3, 1.29x
+by step 9. The trained arms get that burst at epoch 2 of 30, where the model is
+most plastic, and the equal-compute baseline does not. Either carry the warm-up
+optimizer state across the boundary, or restart the clipper's optimizer at
+epoch 2 as well -- but say which in the paper.
+
+**3. "Equal compute" is equal in optimizer epochs, not in FLOPs.** Each
+constraint epoch adds a full FP32 forward over the test set plus a full AMP
+forward+backward, on top of the CE epoch. The post-hoc arms pay neither. This
+is a defensible definition -- optimizer epochs are what the regime finding is
+about -- but a reviewer will ask, so state it rather than let it be found.
+
+**Changed in the same pass, and it moves TraLO's numbers:** the constraint
+gradient was being divided by `n_chunks = ceil(N_test / 256)`, which made
+TraLO's effective constraint weight a function of the dataset (derm 8, oct 4,
+tissue 10 -- 2.5x apart) and of a memory knob. The chunked-detach construction
+already yields the exact full-N gradient, so the divisor was pure attenuation
+and a cross-dataset confound. It is removed. **TraLO results from before
+2026-08-19 are not comparable to results after it**, and the raw constraint
+gradient is now 4-10x larger, so the unit-norm clip binds more often.
+
 ### Verify parity BEFORE launching
 
 ```bash

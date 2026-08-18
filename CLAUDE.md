@@ -57,10 +57,17 @@ imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
+python -m pytest tests -q                   # 75 regression tests, ~4s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
+python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.verify_caps               # what integer budget each cap tag really produces
 python -m scripts.check_parity <root>       # equal compute, same knobs, >=2 caps, sane warm-up sharing
 ```
+
+`smoke_arms` exists because the config gates are structurally blind to a runtime
+crash: three arms once shipped with an undefined name in `train()`, burned all 29
+constraint epochs, died, were reset to `pending`, and the campaign came back
+looking merely unfinished -- with `audit_config` and `check_parity` both green.
 
 **The global cap is redundant at `L30_G30` / `L50_G50` and inert at any `G > L`** -- local caps
 are per-group ceilings, so their sum already bounds the count. To make the global scope bind,
