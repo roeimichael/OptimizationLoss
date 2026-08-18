@@ -157,7 +157,7 @@ def collect(roots, keep=None):
                    cfg.get("model_name"), hp.get("seed"))
             if keep and key not in keep:
                 continue
-            if keep and hp.get("warmup_epochs") != 50:
+            if keep and hp.get("warmup_epochs") != DEFAULT_WARMUP:
                 continue
             r = score_run(os.path.dirname(cfg_path), cfg)
             if r:

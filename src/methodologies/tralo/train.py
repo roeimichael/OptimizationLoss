@@ -70,7 +70,18 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         initial_rho=hp.get("initial_rho", 0.5),
     ).to(device)
 
-    constrained_classes = [c for c in range(num_classes) if global_con[c] < UNLIMITED]
+    # Union of both scopes. Deriving this from global_con alone silently drops a
+    # class that is capped locally but not globally: it gets no lambda, so both
+    # L_Global and L_Local stay at exactly 0.0 for the whole run and the arm
+    # trains as plain CE while reporting a constraint phase. The duals derive
+    # theirs from inputs.constrained_classes and would honour it, so this was
+    # also an arm-vs-arm asymmetry. It is latent while the generator always sets
+    # both scopes together -- and it is exactly what breaks when we sweep G < L
+    # to make the global scope the thing under test.
+    constrained_classes = sorted(
+        {c for c in range(num_classes) if global_con[c] < UNLIMITED}
+        | {c for bounds in local_con.values()
+           for c in range(num_classes) if bounds[c] < UNLIMITED})
 
     init_g = hp.get("lambda_global", 0.01)
     init_l = hp.get("lambda_local", 0.01)
@@ -229,7 +240,14 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 # ---- Bounded TraLO term ----
                 lg = criterion_constraint.compute_global_from_counts(g_soft)
                 ll = criterion_constraint.compute_local_from_counts(l_soft)
-                chunk_loss = chunk_loss + (lg + ll) / n_chunks
+                # No /n_chunks. The detach construction above already yields
+                # the EXACT full-N gradient, so dividing by the chunk count is
+                # pure attenuation -- and n_chunks = ceil(N_test/chunk_size),
+                # which made TraLO's effective constraint weight a function of
+                # the dataset (derm 8, oct 4, tissue 10 => 2.5x apart) and of a
+                # memory knob. That is a confound across the three headline
+                # datasets, not a hyperparameter.
+                chunk_loss = chunk_loss + lg + ll
                 # ---- Undershoot hinge: lambda_T_c * beta * relu(K - soft)/K ----
                 # ---- KL anchor against warmup distribution ----
                 if scaler:
@@ -237,20 +255,18 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 else:
                     chunk_loss.backward()
 
+        last_grad_norm = 0.0
         did_backward = has_constraint
         if scaler and did_backward:
-            try:
-                scaler.unscale_(optimizer)
-                grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-                if grad_norm > 0:
-                    scaler.step(optimizer)
-                scaler.update()
-            except (AssertionError, RuntimeError):
-                grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-                if grad_norm > 0:
-                    optimizer.step()
+            scaler.unscale_(optimizer)
+            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            last_grad_norm = float(grad_norm)
+            if grad_norm > 0:
+                scaler.step(optimizer)
+            scaler.update()
         elif not scaler and did_backward:
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            last_grad_norm = float(grad_norm)
             if grad_norm > 0:
                 optimizer.step()
 
@@ -316,6 +332,9 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                               for c in range(num_classes)}
                         for gid in total_local_soft}
             mode_tag = "Satisfied" if is_satisfied else "Constraint"
+            lam_local = criterion_constraint.lambda_local_per_key
+            lam_L_mean = (sum(lam_local.values()) / len(lam_local)
+                          if lam_local else 0.0)
             lam_T_mean = (sum(criterion_constraint.lambda_global_per_class.values())
                           / max(1, len(criterion_constraint.lambda_global_per_class)))
             log.info("Epoch %d [%s] ce=%.4f bounded=%.4f "
@@ -329,9 +348,9 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 csv_log_path, epoch, avg_ce, train_acc,
                 loss_global_val, loss_local_val,
                 g_counts, l_counts, g_soft_d, l_soft_d,
-                lam_T_mean, 0.0,
+                lam_T_mean, lam_L_mean,
                 global_con, global_satisfied, local_satisfied,
-                kl_loss=0.0, local_constraints=local_con)
+                grad_norm=last_grad_norm, local_constraints=local_con)
         model.train()
 
     elapsed = time.time() - training_start

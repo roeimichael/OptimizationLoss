@@ -43,7 +43,10 @@ def make_ce_criterion(config, y_train, num_classes, device):
 
 
 def make_optimizer(params, lr, device):
-    use_fused = device.type == "cuda" and hasattr(torch.optim.Adam, "fused")
+    # `fused` is a constructor kwarg, not a class attribute -- the old
+    # hasattr(torch.optim.Adam, "fused") probe was False on every GPU, so the
+    # fused path never ran. The try/except below is the real capability check.
+    use_fused = device.type == "cuda"
     try:
         return torch.optim.Adam(params, lr=lr, fused=use_fused)
     except Exception:

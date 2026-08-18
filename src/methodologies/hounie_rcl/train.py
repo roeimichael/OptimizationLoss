@@ -58,6 +58,12 @@ def _train_constraints(model, inputs: TrainInputs, device):
     eta_lambda = float(hp.get("hounie_eta_lambda", 0.1))
     eta_u = float(hp.get("hounie_eta_u", 0.1))
     alpha = float(hp.get("hounie_alpha", 10.0))
+    if abs(1.0 - 2.0 * eta_u * alpha) >= 1.0:
+        raise ValueError(
+            f"hounie_rcl: eta_u={eta_u} with alpha={alpha} gives stability "
+            f"factor {1.0 - 2.0 * eta_u * alpha:+.3f}; |factor| >= 1 means the "
+            f"perturbation u oscillates or diverges instead of converging to "
+            f"lambda/(2*alpha). The paper's value is eta_u=0.01.")
     batch_size = hp.get("batch_size", 64)
     chunk_size = hp.get("constraint_chunk_size", 256)
     # Apples-to-apples early stop: 5 consecutive satisfied epochs (matches TraLO).
@@ -235,18 +241,12 @@ def _train_constraints(model, inputs: TrainInputs, device):
                 # Grad clip + grad_norm>0 gate + scaler.update() always called
                 # (mirrors TraLO recovery pattern).
                 if scaler:
-                    try:
-                        scaler.unscale_(optimizer)
-                        grad_norm = torch.nn.utils.clip_grad_norm_(
-                            model.parameters(), max_norm=1.0)
-                        if grad_norm > 0:
-                            scaler.step(optimizer)
-                        scaler.update()
-                    except (AssertionError, RuntimeError):
-                        grad_norm = torch.nn.utils.clip_grad_norm_(
-                            model.parameters(), max_norm=1.0)
-                        if grad_norm > 0:
-                            optimizer.step()
+                    scaler.unscale_(optimizer)
+                    grad_norm = torch.nn.utils.clip_grad_norm_(
+                        model.parameters(), max_norm=1.0)
+                    if grad_norm > 0:
+                        scaler.step(optimizer)
+                    scaler.update()
                 else:
                     grad_norm = torch.nn.utils.clip_grad_norm_(
                         model.parameters(), max_norm=1.0)
@@ -331,6 +331,7 @@ def _train_constraints(model, inputs: TrainInputs, device):
 
 
 def train(inputs: TrainInputs) -> TrainOutputs:
+    hp = inputs.hyperparams
     model = inputs.model
     device = inputs.device
     (satisfaction_epoch, best_sat_state, best_sat_epoch,

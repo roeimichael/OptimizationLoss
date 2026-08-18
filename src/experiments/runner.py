@@ -31,6 +31,23 @@ from src.pipeline.io import save_results_to_config
 log = logging.getLogger(__name__)
 
 
+# The dispatch table. Module level so scripts.smoke_arms can execute every
+# arm without going through run_experiment -- a config audit cannot see a
+# runtime crash, and three arms once shipped with an undefined name here.
+TRAIN_FNS = {
+    'tralo': train_tralo,
+    'tralo_fioretto': train_tralo,              # ALIAS for backward-compat with completed configs
+    'fioretto_ldf': train_fioretto_ldf,
+    'hounie_rcl': train_hounie_rcl,
+    'heuristic': train_heuristic,               # the post-hoc clippers: clip / focal_clip
+    'danits_lp': train_danits_lp,               # LP-LG: the OTHER post-hoc clipper
+    'fioretto_alm': train_fioretto_alm,         # ALM: third dual-ascent baseline
+    'focal': train_focal,                       # imbalanced warm-up + LP clip
+    'class_balanced': train_class_balanced,
+    'logit_adjust': train_logit_adjust,
+}
+
+
 @logger()
 def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     experiment_path = Path(config_path).parent
@@ -65,6 +82,14 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     warmup_time = time.time() - warmup_start
     log.info("TIMING warmup=%.2fs (%d epochs, cached=%s)",
              warmup_time, config['hyperparams']['warmup_epochs'], from_cache)
+    # Re-seed AFTER the warm-up. run_warmup either trains (drawing RNG for init,
+    # dropout and shuffling) or returns a cached model (drawing none), so
+    # otherwise the constraint phase starts from a different RNG state depending
+    # on whether the cache happened to be warm. The four trained arms share one
+    # base_model_id, so exactly one of them trains it and the other three load
+    # it -- same config, different batch order, and method effects here are
+    # ~0.1 pp.
+    seed_all(seed)
     constraint_start = time.time()
     train_inputs = TrainInputs(
         model=model,
@@ -80,18 +105,7 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         csv_log_path=csv_log_path,
     )
     methodology = config.get('methodology', 'tralo')
-    train_fns = {
-        'tralo': train_tralo,
-        'tralo_fioretto': train_tralo,              # ALIAS for backward-compat with completed configs
-        'fioretto_ldf': train_fioretto_ldf,
-        'hounie_rcl': train_hounie_rcl,
-        'heuristic': train_heuristic,               # the post-hoc clippers: clip / focal_clip
-        'danits_lp': train_danits_lp,               # LP-LG: the OTHER post-hoc clipper
-        'fioretto_alm': train_fioretto_alm,         # ALM: third dual-ascent baseline
-        'focal': train_focal,                       # imbalanced warm-up + LP clip
-        'class_balanced': train_class_balanced,
-        'logit_adjust': train_logit_adjust,
-    }
+    train_fns = TRAIN_FNS
     if methodology not in train_fns:
         raise ValueError(f"Unknown methodology for run_experiment: {methodology!r}")
     train_outputs = train_fns[methodology](train_inputs)

@@ -58,9 +58,24 @@ class MulticlassTransductiveLoss(nn.Module):
 
     # ---- the penalty shape: the one place to change it ----------------------
     def _penalty(self, soft, K):
+        """Rational saturation plus a bounded quadratic, both in the excess E.
+
+        The excess is measured against the TRUE K, but both terms are scaled by
+        max(K, 1). At K == 0 the unscaled forms are pinned at their own bound --
+        E/(E+0) == 1 and (E/0)^2/(1+(E/0)^2) == 1 -- so the penalty is a nonzero
+        CONSTANT with exactly zero gradient. A group holding no true instances of
+        the capped class gets K == 0 legitimately, and that constraint then sits
+        permanently unsatisfied: it contributes nothing to the model, but it
+        holds the ratchet gate open and blocks the satisfaction freeze for every
+        OTHER constraint, for the whole run.
+
+        max(K, 1) is the identity for every K >= 1, so this is bit-identical to
+        the previous form on every run made so far.
+        """
         E = F.relu(soft - K)
-        e = E / (K + EPSILON)
-        return (E / (E + K + EPSILON)
+        scale = K if K >= 1 else 1.0
+        e = E / (scale + EPSILON)
+        return (E / (E + scale + EPSILON)
                 + self.rho * (e ** 2) / (1 + e ** 2 + EPSILON))
 
     def _sum(self, entries, device):

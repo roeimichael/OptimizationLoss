@@ -46,6 +46,18 @@ def _coerce_imagery_layout(images):
         images = images.astype(np.float32, copy=False) / 255.0
     elif images.dtype != np.float32:
         images = images.astype(np.float32, copy=False)
+    # The /255 was gated on uint8 alone, but the repo has two live storage
+    # conventions: dermmnist is written as NCHW float32 ALREADY divided by 255,
+    # the medmnist preps write NHWC uint8. A float32 array holding 0..255 -- a
+    # re-prep that drops one division -- sailed through and every pixel came out
+    # ~255x too large, with no error anywhere downstream.
+    hi = float(images.max()) if images.size else 0.0
+    if hi > 1.0 + 1e-3:
+        raise ValueError(
+            "images are float32 but max=%.3f, so they are NOT in [0,1]. Either "
+            "they were written already-scaled and divided again, or written as "
+            "0..255 float and never divided. Fix the prep script -- do not "
+            "normalize this." % hi)
     return images
 
 
@@ -69,6 +81,32 @@ def _load_imagery_data(config):
     X_train = _apply_imagenet_normalization(X_train)
     X_test = _apply_imagenet_normalization(X_test)
     test_meta = pd.read_csv(os.path.join(data_dir, 'test_meta.csv'))
+    if len(test_meta) != len(y_test):
+        raise ValueError(
+            "test_meta.csv has %d rows but test_labels.npy has %d entries; the "
+            "group column is joined BY POSITION."
+            % (len(test_meta), len(y_test)))
+    # Every prep script writes a `label` column beside the group, and one of
+    # them even asserts npz-vs-CSV alignment at write time -- but the loader
+    # threw it away and trusted row order. A reordered meta file gives every
+    # item the wrong group: wrong local budgets, wrong per-group metrics, and
+    # Group_ID is written into final_predictions.csv so the scorer inherits it.
+    if 'label' in test_meta.columns:
+        meta_labels = test_meta['label'].to_numpy()
+        if not np.array_equal(meta_labels, np.asarray(y_test).ravel()):
+            n_bad = int((meta_labels != np.asarray(y_test).ravel()).sum())
+            raise ValueError(
+                "test_meta.csv `label` disagrees with test_labels.npy on %d of "
+                "%d rows -- the two files are not row-aligned, so the group "
+                "column would be assigned to the wrong items."
+                % (n_bad, len(meta_labels)))
+    else:
+        log.warning("test_meta.csv has no `label` column, so the group join "
+                    "cannot be verified. It is positional -- if the file was "
+                    "ever rewritten, groups may be misaligned.")
+    if test_meta[group_col].isna().any():
+        raise ValueError("group column %r contains nulls; .astype(int64) would "
+                         "turn them into a huge negative group id" % group_col)
     groups_test = test_meta[group_col].values.astype(np.int64)
     local_percent, global_percent = config['constraint']
     test_df = pd.DataFrame({'label': y_test, group_col: groups_test})

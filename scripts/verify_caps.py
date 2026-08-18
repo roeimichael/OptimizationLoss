@@ -25,7 +25,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from configs.gen_campaign import cap_pair, load_protocol          # noqa: E402
 from src.training.constraints import (compute_global_constraints,  # noqa: E402
                                       compute_local_constraints)
-from src.utils.constants import UNLIMITED                          # noqa: E402
 
 
 def load_test(dc):
@@ -111,9 +110,18 @@ def main():
                           "its own cap -- it adds no constraint of its own." % K_g)
                     inert.append("%s %s class %d: global (redundant)" % (ds, tag, c))
                 true_by_group = df[df["label"] == c].groupby(gcol).size()
+                # K=0 is the TIGHTEST possible cap, not slack -- `0 >= 0` would
+                # otherwise report the hardest constraint in the campaign as
+                # non-binding.
+                zero_k = sorted(g for g in lcon if lcon[g][c] == 0)
                 slack = [g for g in lcon
-                         if lcon[g][c] >= int(true_by_group.get(g, 0))]
-                if len(slack) == len(lcon):
+                         if lcon[g][c] > 0 and lcon[g][c] >= int(true_by_group.get(g, 0))]
+                if zero_k:
+                    print("              K=0 on group(s) %s -- no true instance "
+                          "of the class there, so the budget is zero. Real and "
+                          "binding; verify the loss is driving it to zero."
+                          % zero_k)
+                if len(slack) + len(zero_k) == len(lcon) and not zero_k:
                     print("              INERT LOCAL: every group cap >= that "
                           "group's true count, so no local cap can bind")
                     inert.append("%s %s class %d: local" % (ds, tag, c))

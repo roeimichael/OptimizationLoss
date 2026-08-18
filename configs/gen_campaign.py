@@ -99,6 +99,12 @@ def code_version():
         return "unknown"
 
 
+def _cls_tag(dc):
+    """Capped class(es) as a filename-safe tag: 4 -> "4", [4, 5] -> "4-5"."""
+    c = dc["constrained_class"]
+    return "-".join(str(x) for x in (c if isinstance(c, list) else [c]))
+
+
 def cap_pair(tag):
     """'L30_G50' -> [0.30, 0.50]: (local, global), independent by construction."""
     try:
@@ -199,16 +205,28 @@ def main():
                "dataset_mode": ds, "dataset_config": dc, "hyperparams": hp,
                "base_model_id": compute_base_model_id(P, mdl, hp, ds, dc),
                "arm": arm,
-               "exp_name": "%s_%s_%s_%s_seed%d" % (mdl, ds, arm, tag, seed),
+               "exp_name": "%s_%s_%s_%s_c%s_seed%d"
+                           % (mdl, ds, arm, tag, _cls_tag(dc), seed),
                "status": "pending", "code_version": version}
         dest = os.path.join(path, "config.json")
         if os.path.exists(dest):
             try:
-                if json.load(open(dest)).get("status") == "completed":
+                prev = json.load(open(dest))
+            except (ValueError, OSError):
+                prev = None
+            if prev is not None:
+                prev_cls = prev.get("dataset_config", {}).get("constrained_class")
+                if prev_cls is not None and prev_cls != dc["constrained_class"]:
+                    sys.exit(
+                        "REFUSED: %s already holds a run with constrained_class "
+                        "%s, but this campaign asks for %s. Writing here would "
+                        "leave two different capped classes in one cell -- a "
+                        "completed run is never reset, so the old one would "
+                        "survive and be pooled with the new. Use a different "
+                        "--root." % (path, prev_cls, dc["constrained_class"]))
+                if prev.get("status") == "completed":
                     skipped += 1
                     continue          # never reset a finished run back to pending
-            except (ValueError, OSError):
-                pass
         os.makedirs(path, exist_ok=True)
         json.dump(cfg, open(dest, "w"), indent=2)
         written += 1

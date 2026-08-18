@@ -227,18 +227,12 @@ def _train_constraints(model, config, inputs, device):
                 # (mirrors TraLO's recovery pattern). Prevents bad-step state
                 # leakage and unbounded step magnitudes.
                 if scaler:
-                    try:
-                        scaler.unscale_(optimizer)
-                        grad_norm = torch.nn.utils.clip_grad_norm_(
-                            model.parameters(), max_norm=1.0)
-                        if grad_norm > 0:
-                            scaler.step(optimizer)
-                        scaler.update()
-                    except (AssertionError, RuntimeError):
-                        grad_norm = torch.nn.utils.clip_grad_norm_(
-                            model.parameters(), max_norm=1.0)
-                        if grad_norm > 0:
-                            optimizer.step()
+                    scaler.unscale_(optimizer)
+                    grad_norm = torch.nn.utils.clip_grad_norm_(
+                        model.parameters(), max_norm=1.0)
+                    if grad_norm > 0:
+                        scaler.step(optimizer)
+                    scaler.update()
                 else:
                     grad_norm = torch.nn.utils.clip_grad_norm_(
                         model.parameters(), max_norm=1.0)
@@ -297,6 +291,7 @@ def _train_constraints(model, config, inputs, device):
 
 
 def train(inputs: TrainInputs) -> TrainOutputs:
+    hp = inputs.hyperparams
     model = inputs.model
     device = inputs.device
 

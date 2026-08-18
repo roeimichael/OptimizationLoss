@@ -75,6 +75,7 @@ def _train_constraints(model, config, inputs, device):
     lam0 = float(hp.get("fioretto_lambda_init", 0.0))
     lambda_g = {c: lam0 for c in constrained_classes if global_con[c] < UNLIMITED}
     lambda_l = {}
+    aug_g, aug_l = {}, {}
     for group_id, bounds in local_con.items():
         for c in constrained_classes:
             if bounds[c] < UNLIMITED:
@@ -220,15 +221,17 @@ def _train_constraints(model, config, inputs, device):
                     chunk_proba = F.softmax(chunk_logits, dim=1)
                     chunk_loss = torch.zeros(1, device=device)
                     for c in violated_global:
-                        if lambda_g[c] > 0:
-                            chunk_loss = chunk_loss + lambda_g[c] * chunk_proba[:, c].sum()
+                        w_g = lambda_g[c] + aug_g.get(c, 0.0)
+                        if w_g > 0:
+                            chunk_loss = chunk_loss + w_g * chunk_proba[:, c].sum()
                     chunk_groups = groups_np[i:i + chunk_size]
                     for key in violated_local:
                         g, c = key
-                        if lambda_l[key] > 0:
+                        w_l = lambda_l[key] + aug_l.get(key, 0.0)
+                        if w_l > 0:
                             mask = (chunk_groups == g)
                             if mask.any():
-                                chunk_loss = chunk_loss + lambda_l[key] * chunk_proba[mask, c].sum()
+                                chunk_loss = chunk_loss + w_l * chunk_proba[mask, c].sum()
                 if chunk_loss.item() > 0:
                     if scaler:
                         scaler.scale(chunk_loss).backward()
@@ -238,18 +241,12 @@ def _train_constraints(model, config, inputs, device):
                     did_backward = True
             if did_backward:
                 if scaler:
-                    try:
-                        scaler.unscale_(optimizer)
-                        grad_norm = torch.nn.utils.clip_grad_norm_(
-                            model.parameters(), max_norm=1.0)
-                        if grad_norm > 0:
-                            scaler.step(optimizer)
-                        scaler.update()
-                    except (AssertionError, RuntimeError):
-                        grad_norm = torch.nn.utils.clip_grad_norm_(
-                            model.parameters(), max_norm=1.0)
-                        if grad_norm > 0:
-                            optimizer.step()
+                    scaler.unscale_(optimizer)
+                    grad_norm = torch.nn.utils.clip_grad_norm_(
+                        model.parameters(), max_norm=1.0)
+                    if grad_norm > 0:
+                        scaler.step(optimizer)
+                    scaler.update()
                 else:
                     grad_norm = torch.nn.utils.clip_grad_norm_(
                         model.parameters(), max_norm=1.0)
@@ -258,10 +255,16 @@ def _train_constraints(model, config, inputs, device):
 
         # ---- Step 3: augmented-Lagrangian dual update ----
         # lambda_c <- max(0, lambda_c + eta * r_c) + mu_t * (r_c)^+   (r_c signed)
+        # Hestenes/Powell: the MULTIPLIER is lam <- max(0, lam + eta*r). The
+        # augmentation mu_t*r+ is a property of the current iterate and is added
+        # to the PRIMAL weight at use time (see aug_g / aug_l below), never
+        # stored back into lam -- storing it compounds it every epoch.
         for c, r in residual_g.items():
-            lambda_g[c] = max(0.0, lambda_g[c] + eta * r) + mu_t * max(0.0, r)
+            lambda_g[c] = max(0.0, lambda_g[c] + eta * r)
+            aug_g[c] = mu_t * max(0.0, r)
         for key, r in residual_l.items():
-            lambda_l[key] = max(0.0, lambda_l[key] + eta * r) + mu_t * max(0.0, r)
+            lambda_l[key] = max(0.0, lambda_l[key] + eta * r)
+            aug_l[key] = mu_t * max(0.0, r)
 
         if all_satisfied and satisfaction_epoch is None:
             satisfaction_epoch = epoch + 1
@@ -308,6 +311,7 @@ def _train_constraints(model, config, inputs, device):
 
 
 def train(inputs: TrainInputs) -> TrainOutputs:
+    hp = inputs.hyperparams
     model = inputs.model
     device = inputs.device
 

@@ -7,19 +7,29 @@ which all duplicated the same setup blocks.
 import logging
 
 import numpy as np
+import random
+
 import torch
 
 log = logging.getLogger(__name__)
 
 
 def seed_all(seed):
+    """Seed every RNG the pipeline draws from, and pin the nondeterministic ops.
+
+    `random` was missing, and cuDNN's conv backward is nondeterministic by
+    default -- so two runs of the same config differed. With method effects at
+    ~0.1 pp, that noise is the same order as the signal.
+    """
     if seed is None:
         return
-    torch.manual_seed(seed)
+    random.seed(seed)
     np.random.seed(seed)
+    torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
-    log.info("Set random seed: %d", seed)
+    torch.backends.cudnn.deterministic = True
+    log.info("Set random seed: %d (deterministic cudnn)", seed)
 
 
 def setup_runtime(device):

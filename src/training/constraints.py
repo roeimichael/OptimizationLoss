@@ -1,10 +1,13 @@
 # Constraint computation from test data distributions.
 # Produces global (per-class) and local (per-group per-class) prediction limits.
 
+import logging
+
 import numpy as np
-from typing import Dict, List, Union
 
 from src.utils.constants import UNLIMITED
+
+log = logging.getLogger(__name__)
 
 
 def _normalize_constrained_classes(constrained_class):
@@ -25,6 +28,14 @@ def _round_to_K(count, percentage, scope_label):
             f"{scope_label}: percentage={percentage} * count={int(count)} "
             f"rounded to K=0. The constraint would vanish silently. "
             f"Pick a larger percentage or move the constrained class.")
+    if K == 0:
+        # count == 0: the scope holds no true instance of the capped class, so
+        # "predict it zero times here" is the correct and tightest budget. It is
+        # legitimate but never obvious from a config, and until the loss was
+        # fixed it carried no gradient at all -- so say it out loud.
+        log.warning("%s: K=0 (this scope has no true instance of the class). "
+                    "The budget is real and binding, not a disabled constraint.",
+                    scope_label)
     return K
 
 

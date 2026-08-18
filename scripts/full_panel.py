@@ -179,6 +179,12 @@ def panel(run_dir, cfg):
     return {
         "dataset": cfg.get("dataset_mode"), "model": cfg.get("model_name"),
         "cap": cfg.get("constraint_tag"),
+        # part of the cell key: a swept dimension that lives only in the config
+        # gets pooled, which is how the granularity sweep was first misread
+        "capped": "-".join(str(x) for x in (
+            cfg.get("dataset_config", {}).get("constrained_class", [])
+            if isinstance(cfg.get("dataset_config", {}).get("constrained_class"), list)
+            else [cfg.get("dataset_config", {}).get("constrained_class")])),
         "seed": (cfg.get("hyperparams") or {}).get("seed"),
         "arm": cfg.get("arm"),
         # -------- allocation-free
@@ -269,7 +275,7 @@ def main():
 
     key = ["dataset", "model", "cap", "seed"]
     print("arms:", {a_: int((df.arm == a_).sum()) for a_ in arms})
-    print("cells:", df.groupby(["dataset", "model", "cap"]).ngroups,
+    print("cells:", df.groupby(["dataset", "model", "cap", "capped"]).ngroups,
           " seeds:", df.seed.nunique())
 
     for arm in arms:
