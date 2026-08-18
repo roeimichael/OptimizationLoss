@@ -371,6 +371,16 @@ def targeted_correction(y_proba, group_ids, global_con, local_con,
                 for idx in sorted_idx:
                     if filled >= n_fill:
                         break
+                    # The GLOBAL budget for c has to be checked too. Phase 2
+                    # checks the local gap before a global fill; this is the
+                    # mirror of that, and it was missing -- so local room got
+                    # spent past the global cap, the allocation came out
+                    # infeasible, and the run silently fell through to the LP,
+                    # a different algorithm from the greedy `clip` keeps. Under
+                    # G < L (the next prescribed sweep) that happened on every
+                    # run. gap = count - K, so >= 0 means no room left.
+                    if global_gap.get(c, 0) >= 0:
+                        break
                     old_class = y_pred[idx]
                     if old_class in constrained_set and global_gap.get(old_class, 0) <= 0:
                         continue

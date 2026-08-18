@@ -143,6 +143,9 @@ def brier(y, P):
     return float(((P - oh) ** 2).sum(axis=1).mean())
 
 
+_degenerate = set()   # capped classes absent from a scope, reported once
+
+
 def panel(run_dir, cfg):
     raw = os.path.join(run_dir, "final_predictions_raw.csv")
     fin = os.path.join(run_dir, "final_predictions.csv")
@@ -199,12 +202,19 @@ def panel(run_dir, cfg):
           else equalize_multi(P, g, G, L, classes))
     # Per-class scores averaged over the capped classes; identical to before
     # when only one class is capped.
+    # ONE class set for both. AUROC has to drop a class with no positive (or
+    # no negative) instance -- it is undefined there -- and AP silently
+    # contributed 0.0 for that class instead of dropping it, so the two numbers
+    # described DIFFERENT populations while sitting in the same table, both
+    # finite and both plausible. constraints.py:36-43 deliberately permits K=0
+    # for a class absent from a scope, so this is reachable, not hypothetical.
+    scorable = [c for c in classes if 0 < (y == c).sum() < len(y)]
+    if len(scorable) < len(classes):
+        _degenerate.update(set(classes) - set(scorable))
     _ap = float(np.mean([average_precision_score((y == c).astype(int), P[:, c])
-                         for c in classes]))
+                         for c in scorable])) if scorable else np.nan
     _auc = float(np.mean([roc_auc_score((y == c).astype(int), P[:, c])
-                          for c in classes
-                          if 0 < (y == c).sum() < len(y)])) if any(
-        0 < (y == c).sum() < len(y) for c in classes) else np.nan
+                          for c in scorable])) if scorable else np.nan
     _Ksum = float(sum(G[c] for c in classes))
     _rawcnt = float(sum((rawp == c).sum() for c in classes))
     _relcnt = float(sum((rel == c).sum() for c in classes))
@@ -285,6 +295,32 @@ GROUPS = [
 NON_SCORING = {"sat", "raw_over_K", "flips", "flips_over_K", "cnt_over_K"}
 
 
+RAW_MD5 = {}          # arm -> {cell: md5 of final_predictions_raw.csv}
+
+
+def _allocator_check(rows):
+    """An arm that fell through to the LP is not running the allocator it names.
+
+    `targeted_correction` hands an infeasible greedy allocation to `_fallback_lp`
+    without saying so anywhere a reader will look. The flag has been recorded on
+    every run since the pipeline was written and read by nothing.
+    """
+    per = collections.defaultdict(lambda: [0, 0])
+    for r in rows:
+        per[r["arm"]][1] += 1
+        if r.get("lp_fallback"):
+            per[r["arm"]][0] += 1
+    hits = {a: v for a, v in per.items() if v[0]}
+    if not hits:
+        return
+    print("")
+    print("ALLOCATOR SWAP -- these arms did NOT run the allocator they are named for")
+    for arm, (n, tot) in sorted(hits.items()):
+        print("  *** %s: %d of %d runs fell through to the LP fallback (%.0f%%). "
+              "The greedy allocation was infeasible, so a DIFFERENT algorithm "
+              "produced those predictions." % (arm, n, tot, 100.0 * n / tot))
+
+
 def _identity_check(rows):
     """House rule 3: md5 the raw predictions across arms, BEFORE any metric.
 
@@ -296,9 +332,14 @@ def _identity_check(rows):
     """
     per_arm = collections.defaultdict(dict)
     for r in rows:
-        cell = (r["dataset"], r["model"], r["cap"], r["seed"])
+        # `capped` belongs in the key. It is in the PAIRING key below, and
+        # --campaign takes several roots, so two roots that differ only in the
+        # capped class collide here and half the runs never get hashed.
+        cell = (r["dataset"], r["model"], r["cap"], r["capped"], r["seed"])
         per_arm[r["arm"]][cell] = r["raw_md5"]
     arms = sorted(per_arm)
+    RAW_MD5.clear()
+    RAW_MD5.update(per_arm)
     print("")
     print("RAW-PREDICTION IDENTITY (house rule 3, before any metric)")
     dead = []
@@ -322,8 +363,8 @@ def _identity_check(rows):
     # across caps, so 12 cells rested on 6 models.
     for arm in arms:
         by_cap = collections.defaultdict(dict)
-        for (ds, mdl, cap, seed), h in per_arm[arm].items():
-            by_cap[(ds, mdl, seed)][cap] = h
+        for (ds, mdl, cap, capped, seed), h in per_arm[arm].items():
+            by_cap[(ds, mdl, capped, seed)][cap] = h
         collapsed = [k for k, v in by_cap.items()
                      if len(v) > 1 and len(set(v.values())) == 1]
         if collapsed:
@@ -362,7 +403,15 @@ def main():
                 continue
             r = panel(os.path.dirname(p), cfg)
             if r:
+                r["lp_fallback"] = bool(
+                    cfg.get("results", {}).get("lp_fallback_used", False))
                 rows.append(r)
+    if _degenerate:
+        print("NOTE: capped class(es) %s have no positive or no negative instance "
+              "in some run and are excluded from AP and AUROC alike. Both metrics "
+              "now average over the SAME classes."
+              % sorted(_degenerate))
+    _allocator_check(rows)
     _identity_check(rows)
     if skipped:
         print("skipped %d run(s) that are not completed: %s"
@@ -398,6 +447,13 @@ def main():
         print("=" * 100)
         print("%s   vs   %s        (paired on %s)" % (arm, args.control, "+".join(key)))
         print("=" * 100)
+        # Do the arms actually emit the same predictions? Computed once per
+        # arm, from the md5s panel() already recorded, so the verdict can say
+        # "bit-identical" only when that is literally true.
+        shared = set(RAW_MD5.get(args.control, {})) & set(RAW_MD5.get(arm, {}))
+        identical = bool(shared) and all(
+            RAW_MD5[args.control][k] == RAW_MD5[arm][k] for k in shared)
+
         results = []          # (title, metric, row-tuple) collected, then BH
         for title, metrics in GROUPS:
             for m in metrics:
@@ -463,11 +519,18 @@ def main():
             tied = len(d) - better - worse
             pv, qv = pvals.get(m, np.nan), qvals.get(m, np.nan)
 
-            if (d == 0).all():
-                # Not a null result. Identical output across arms means the
-                # treatment did nothing at all -- the inert-flag failure, five
-                # occurrences. It must never render as a direction.
+            if (d == 0).all() and identical:
+                # Both conditions. The metric did not move AND the arms emit
+                # byte-identical raw predictions -- only then is "the treatment
+                # did nothing" a statement about the treatment rather than
+                # about one metric's resolution.
                 v = "DEAD FLAG (bit-identical)"
+            elif (d == 0).all():
+                # The arms DO differ; this metric just cannot see it. Common
+                # and not a bug: a treatment that shifts calibration without
+                # reordering leaves every ranking and threshold metric exactly
+                # equal while ECE, Brier and NLL all move.
+                v = "no movement in this metric (arms differ)"
             elif m in NON_SCORING:
                 v = "(not a result)"
             elif not np.isfinite(pv):

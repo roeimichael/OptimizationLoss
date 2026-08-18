@@ -88,7 +88,11 @@ def main():
     print("3. COVERAGE  (every arm must cover the same cells and seeds)")
     cells = collections.defaultdict(set)
     for r in runs:
+        # Same omission as the scorer had: without the capped class, two roots
+        # that cap different classes look like one cell and coverage passes on
+        # a campaign that covers neither properly.
         key = (r["dataset_mode"], r["model_name"], r["constraint_tag"],
+               str(r.get("dataset_config", {}).get("constrained_class")),
                r["hyperparams"]["seed"])
         cells[r["arm"]].add(key)
     ref = cells[arms[0]]
