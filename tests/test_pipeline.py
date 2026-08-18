@@ -330,3 +330,39 @@ def test_the_csv_reports_the_real_local_lambda_column():
     header = build_csv_header(num_classes=2)
     assert "Lambda_Local" in header
     assert "Grad_Norm" in header and "L_KL" not in header
+
+
+# --------------------------------------------------------- the backbone heads
+
+@pytest.mark.parametrize("name", ["MobileNetV3", "MobileNetV2",
+                                  "RegNetY400MF", "ViTB16"])
+def test_backbones_keep_their_pretrained_weights(name):
+    """Every backbone must replace ONLY its final layer. MobileNetV3 -- the
+    headline backbone -- used to rebuild its whole classifier, discarding the
+    pretrained 960->1280 projection. That projection is trained during warm-up
+    only, and trained arms get ONE warm-up epoch against the post-hoc arms'
+    thirty, so it biased the headline comparison on the headline backbone."""
+    from src.models import get_model
+    torch.manual_seed(0)
+    a = get_model(name, input_dim=None, n_classes=7, dropout=0.3, pretrained=True)
+    torch.manual_seed(999)
+    b = get_model(name, input_dim=None, n_classes=7, dropout=0.3, pretrained=True)
+    named_a, named_b = dict(a.named_parameters()), dict(b.named_parameters())
+    differ = [k for k in named_a
+              if not torch.equal(named_a[k], named_b[k])]
+    # only the randomly-initialised final layer may differ between two seeds
+    assert len(differ) <= 2, (
+        "%s re-initialises %d tensors from random, not just the final layer: %s"
+        % (name, len(differ), differ[:6]))
+
+
+def test_mobilenetv3_has_exactly_one_dropout_in_its_head():
+    """The whole reason the classifier was rebuilt was to avoid a double
+    dropout. Reusing the pretrained head must not reintroduce one."""
+    import torch.nn as nn
+    from src.models import get_model
+    m = get_model("MobileNetV3", input_dim=None, n_classes=7,
+                  dropout=0.3, pretrained=False)
+    head = m.backbone.classifier
+    drops = [l for l in head if isinstance(l, nn.Dropout)]
+    assert len(drops) == 1 and drops[0].p == 0.3

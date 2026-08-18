@@ -72,10 +72,10 @@ def load_from_cache(base_model_id: str, config: Dict[str, Any],
     # how the pre-ImageNet-normalization caches survived a norm change.
     want = config.get('code_version')
     got = ckpt.get('code_version')
-    if want and got and want != got:
+    if want and got != want:
         log.warning("Cache %s was written by code_version %s but this run is "
                     "%s -- retraining rather than reusing it.",
-                    base_model_id, got, want)
+                    base_model_id, got or "an unrecorded version", want)
         return None
     model = get_model(
         config['model_name'], input_dim=input_dim, n_classes=num_classes,
