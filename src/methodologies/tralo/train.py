@@ -31,12 +31,11 @@ from src.pipeline.setup import setup_runtime
 from src.pipeline.warmup import make_ce_criterion, make_dataloader, make_optimizer
 from src.training.logging import log_progress_to_csv, write_csv_header
 from src.training.metrics import compute_prediction_statistics
-from src.utils.constants import UNLIMITED
+from src.utils.constants import UNLIMITED, CONSTRAINT_CHUNK_SIZE
 from src.utils.error_handler import logger
 
 log = logging.getLogger(__name__)
 
-CONSTRAINT_CHUNK_SIZE = 256
 @logger()
 def train(inputs: TrainInputs) -> TrainOutputs:
     config = inputs.config

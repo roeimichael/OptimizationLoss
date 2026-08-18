@@ -12,12 +12,12 @@ import numpy as np
 import torch
 
 from src.pipeline.contracts import TrainInputs, TrainOutputs
-from src.utils.constants import UNLIMITED
+from src.utils.constants import UNLIMITED, CONSTRAINT_CHUNK_SIZE
 
 log = logging.getLogger(__name__)
 
 
-def _infer_probs(model, X_test, chunk_size=256):
+def _infer_probs(model, X_test, chunk_size):
     model.eval()
     with torch.no_grad():
         chunks = [model(X_test[i:i + chunk_size])
@@ -36,9 +36,11 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             f"supported. To add task-specific cost matrices, extend "
             f"danits_research/cost_matrices.py.")
 
+    chunk_size = int(inputs.hyperparams.get("constraint_chunk_size",
+                                            CONSTRAINT_CHUNK_SIZE))
     device = inputs.device
     X_test = inputs.X_test.to(device)
-    probs = _infer_probs(inputs.model, X_test)
+    probs = _infer_probs(inputs.model, X_test, chunk_size)
 
     num_classes = inputs.num_classes
     omega = np.ones((num_classes, num_classes), dtype=np.float64) - np.eye(num_classes, dtype=np.float64)

@@ -1,29 +1,28 @@
-"""THE campaign generator. It is the only one, and it can only emit configs that
-satisfy `docs/FRAMEWORK.md` section 1.
+"""THE campaign generator. It reads `configs/protocol.yml` and contains no
+experimental constants of its own.
 
-This replaces 55 one-off generators totalling 5,481 lines. Every one of them
-re-declared the same protocol by hand, and every protocol violation this project
-has retracted a result over -- warm-up 50, unequal compute, a mismatched
-lr_constraint, a single cap level, a campaign with no clipper in it -- entered
-through one of those copies. The protocol now lives in exactly one place and is
-asserted, not remembered.
+If a number decides what an experiment does, it is in the YAML. This file only
+assembles: it picks each arm's blocks, splits the epoch budget, hashes the
+warm-up identity, and refuses to emit a campaign that violates the protocol.
 
-Usage
------
-    python -m src.config_generators.gen_campaign \\
-        --root results/<name> --datasets dermmnist tissuemnist \\
-        --models MobileNetV3 --caps L30_G30 L50_G50 --arms clip focal_clip tralo
+    python -m configs.gen_campaign --root results/<name> \\
+        --datasets dermmnist tissuemnist --models MobileNetV3 \\
+        --caps L30_G30 L50_G50 --arms all
 
-Arms
+Caps
 ----
-    clip         CE warm-up 30 + post-hoc          the strongest quality bar
-    focal_clip   focal warm-up 30 + post-hoc       the strongest calibration bar
-    tralo        CE warm-up 1 + 29 constraint      the method
-    fioretto     Fioretto-LDF dual, same split     required to claim vs the duals
-    hounie       Hounie-RCL dual, same split       required to claim vs the duals
+`L30_G50` sets the LOCAL (per-group) cap to 30% and the GLOBAL cap to 50% of the
+constrained class's true test-set count. The two are independent, so an
+asymmetric sweep is just a list of tags. Both are turned into integer budgets by
+`src/training/constraints.py` against the actual test labels -- the percentage
+only standardizes how hard the cap binds across datasets.
 
-`clip` and `focal_clip` are ALWAYS added, whether or not you ask for them: an
-arm-vs-arm delta is not a result until both bars are in the same campaign.
+Constrained classes
+-------------------
+`constrained_class` may be a single index or a list, per dataset in the YAML, and
+`--constrained-class` overrides it for one run. Indices are validated against the
+dataset's `num_classes`, because a cap on a class that does not exist is silently
+skipped by the loss.
 """
 import argparse
 import hashlib
@@ -32,28 +31,56 @@ import os
 import subprocess
 import sys
 
+import yaml
 
-def compute_base_model_id(model_name, hp, dataset_mode, data_dir, dataset_config):
-    """Hash identifying a warm-up-trained model, so arms that share a warm-up
-    share its cache.
+HERE = os.path.dirname(os.path.abspath(__file__))
+PROTOCOL_PATH = os.path.join(HERE, "protocol.yml")
 
-    Any hyperparameter that changes WHAT WARM-UP OPTIMIZES must be in this key,
-    or the second arm silently loads the first one's cached model. That has bitten
-    this project repeatedly -- most recently `rank_pair_weight`, where two doses
-    hashed identically and the sweep became one arm measured twice.
+
+def load_protocol(path=PROTOCOL_PATH):
+    with open(path, encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def resolve_block(P, name):
+    """A block name is either a top-level section or an entry under `blocks`."""
+    if name in P.get("blocks", {}):
+        return P["blocks"][name]
+    if name in P:
+        return P[name]
+    raise KeyError("protocol.yml: unknown block %r" % name)
+
+
+def build_hyperparams(P, arm_spec, seed):
+    """Assemble exactly the keys this arm's methodology reads, plus the contract
+    keys that scripts/check_parity.py verifies on every arm."""
+    total = P["protocol"]["total_epochs"]
+    trained_warmup = P["protocol"]["trained_warmup"]
+    posthoc = arm_spec["phase"] == "posthoc"
+
+    hp = dict(P["core"])
+    for name in arm_spec.get("blocks") or []:
+        hp.update(resolve_block(P, name))
+    hp["seed"] = seed
+    hp["warmup_epochs"] = total if posthoc else trained_warmup
+    hp["constraint_epochs"] = 0 if posthoc else total - trained_warmup
+    return hp
+
+
+def compute_base_model_id(P, model_name, hp, dataset_mode, dc):
+    """Identity of the WARM-UP-trained model, so arms that share a warm-up share
+    its cache and arms that do not, do not.
+
+    The key is built from `warmup_identity_keys` in the YAML plus the dataset
+    identity. Anything that changes what the warm-up optimizes must be listed
+    there, or a second arm silently loads the first one's model -- which has
+    happened four times in this project.
     """
-    key = {"model_name": model_name, "lr": hp["lr"], "dropout": hp["dropout"],
-           "batch_size": hp["batch_size"], "warmup_epochs": hp["warmup_epochs"],
-           "pretrained": hp.get("pretrained", False),
-           "class_weighted_ce": hp.get("class_weighted_ce", False),
-           "dataset_mode": dataset_mode, "data_dir": data_dir,
-           "num_classes": dataset_config.get("num_classes"),
-           "image_size": dataset_config.get("image_size")}
-    if "seed" in hp:
-        key["seed"] = hp["seed"]
-    # the warm-up objective itself, when an arm swaps it (focal_clip)
-    for k in ("warmup_loss", "focal_alpha", "focal_gamma",
-              "cb_beta", "logit_adjust_tau"):
+    key = {"model_name": model_name,
+           "dataset_mode": dataset_mode,
+           "data_dir": dc["data_dir"],
+           "num_classes": dc["num_classes"]}
+    for k in P["warmup_identity_keys"]:
         if k in hp:
             key[k] = hp[k]
     h = hashlib.md5(json.dumps(key, sort_keys=True).encode()).hexdigest()[:12]
@@ -61,8 +88,7 @@ def compute_base_model_id(model_name, hp, dataset_mode, data_dir, dataset_config
 
 
 def code_version():
-    """Short git SHA + dirty flag, stamped into every config so a re-run can
-    detect code drift."""
+    """Short git SHA + dirty flag, so a re-run can detect code drift."""
     try:
         sha = subprocess.check_output(["git", "rev-parse", "--short=12", "HEAD"],
                                       stderr=subprocess.DEVNULL).decode().strip()
@@ -72,130 +98,109 @@ def code_version():
     except Exception:
         return "unknown"
 
-# ---------------------------------------------------------------- the protocol
-# Every value here is load-bearing and was paid for with a retracted result.
-WARMUP_TOTAL = 30          # optimizer epochs, IDENTICAL on both sides = equal compute
-TRAINED_WARMUP = 1         # warm-up 50 saturates CE; warm-up 5 is a dead zone
-SEEDS = [1, 2, 3, 4]
-
-SHARED = {
-    "lr": 1e-4,
-    "lr_constraint": 1e-4,      # MUST equal lr -- unequal LR fabricated a -16.7pp finding
-    "dropout": 0.3,
-    "batch_size": 64,
-    "pretrained": True,
-    "class_weighted_ce": False,
-    "constraint_chunk_size": 256,
-    "stable_count_threshold": 31,
-    # NOTE: enable_ce_skip and alpha_kl are GONE, not set to False/0 -- the
-    # CE-skip and KL machinery was deleted from the pipeline entirely, so a
-    # config can no longer imply a knob that does not exist.
-}
-TRALO = {"lambda_step": 0.05, "initial_rho": 0.5, "rho_target": 100.0}
-
-DATASETS = {
-    "dermmnist": {"data_dir": "data/dermmnist/slice_1", "num_classes": 7,
-                  "image_size": 224, "target_column": "label",
-                  "group_column": "loc_group", "constrained_class": 4},
-    "tissuemnist": {"data_dir": "data/tissuemnist/slice_1", "num_classes": 8,
-                    "image_size": 224, "target_column": "label",
-                    "group_column": "synth_group", "constrained_class": 4},
-    "octmnist": {"data_dir": "data/octmnist/slice_1", "num_classes": 4,
-                 "image_size": 224, "target_column": "label",
-                 "group_column": "synth_group", "constrained_class": 2},   # drusen
-}
-MODELS = ["MobileNetV3", "MobileNetV2", "RegNetY400MF", "ViTB16"]
-
-# Imbalanced-learning recipes. Values are the PAPER's, not the code defaults:
-# focal alpha=0.25 gamma=2, class-balanced beta=0.9999, logit adjustment tau=1.
-# `base_loss` deliberately NOT set: only `warmup_loss` is read
-# (src/pipeline/warmup.py:33). base_loss was a dead key that made arm_joint's
-# focal_clip a second clip -- inert-flag failure #4.
-FOCAL = {"warmup_loss": "focal", "focal_alpha": 0.25, "focal_gamma": 2.0}
-CB    = {"warmup_loss": "class_balanced", "cb_beta": 0.9999}
-LA    = {"warmup_loss": "logit_adjust", "logit_adjust_tau": 1.0}
-
-# Per-method constraint steps, fixed a priori (never tuned per cell) at the
-# PAPER's values. Set explicitly, never left to a default: fioretto_ldf RAISES
-# without fioretto_step_size, and hounie_rcl's inline default is 0.1 -- ten times
-# the paper's 0.01 -- so an unset key silently runs a different method.
-FIORETTO = {"fioretto_step_size": 0.005}
-HOUNIE   = {"hounie_eta_lambda": 0.01, "hounie_eta_u": 0.01, "hounie_alpha": 10.0}
-ALM      = {"alm_eta": 0.005, "alm_mu0": 0.01, "alm_mu_step": 0.01,
-            "fioretto_step_size": 0.005}
-
-# arm -> (methodology, extra hyperparameters)
-ARMS = {
-    # -- post-hoc clippers: warm-up 30 + 0 constraint, so the warm-up IS the run.
-    #    Two allocators: `heuristic` is the greedy threshold, `danits_lp` is the
-    #    LP-LG allocator (Shifman local+global formulation). An arm ending _clip
-    #    is greedy-allocated; an arm ending _lp is LP-allocated.
-    "clip":       ("heuristic",      {}),      # CE            + greedy
-    "focal_clip": ("heuristic",      FOCAL),   # focal         + greedy
-    "lp":         ("danits_lp",      {}),      # CE            + LP-LG
-    "focal_lp":   ("focal",          FOCAL),   # focal         + LP-LG
-    "cb_lp":      ("class_balanced", CB),      # class-balanced+ LP-LG
-    "la_lp":      ("logit_adjust",   LA),      # logit adjust  + LP-LG
-    # -- constraint-trained duals: warm-up 1 + 29 constraint.
-    "tralo":      ("tralo",          {}),
-    "fioretto":   ("fioretto_ldf",   FIORETTO),
-    "hounie":     ("hounie_rcl",     HOUNIE),
-    "alm":        ("fioretto_alm",   ALM),
-}
-POSTHOC_ARMS = {"clip", "focal_clip", "lp", "focal_lp", "cb_lp", "la_lp"}
-MANDATORY = {"clip", "focal_clip"}      # the framework's two-clipper rule
-
 
 def cap_pair(tag):
-    """'L30_G30' -> [0.30, 0.30]. Caps are a FRACTION of the true positive count."""
-    local, glob = tag.split("_")
-    return [int(local[1:]) / 100, int(glob[1:]) / 100]
+    """'L30_G50' -> [0.30, 0.50]: (local, global), independent by construction."""
+    try:
+        local, glob = tag.split("_")
+        if local[0] != "L" or glob[0] != "G":
+            raise ValueError
+        return [int(local[1:]) / 100.0, int(glob[1:]) / 100.0]
+    except (ValueError, IndexError):
+        sys.exit("bad cap tag %r -- expected L<pct>_G<pct>, e.g. L30_G50" % tag)
 
 
-def main():
-    a = argparse.ArgumentParser()
-    a.add_argument("--root", required=True)
-    a.add_argument("--datasets", nargs="+", required=True, choices=sorted(DATASETS))
-    a.add_argument("--models", nargs="+", default=["MobileNetV3"], choices=MODELS)
-    a.add_argument("--caps", nargs="+", default=["L30_G30", "L50_G50"])
-    a.add_argument("--arms", nargs="+", default=["tralo"],
-                   choices=sorted(ARMS) + ["all"],
-                   help="'all' runs the full panel: every baseline the paper claims")
-    args = a.parse_args()
+def resolve_datasets(P, args):
+    """Dataset config per dataset with `--constrained-class` already applied.
 
-    # -- protocol assertions: refuse to generate an invalid campaign ------------
+    Resolved BEFORE validation, not inside the emit loop: validating the YAML
+    default while emitting the override let `--constrained-class 9` through on a
+    7-class dataset, where the loss would have skipped the cap silently.
+    """
+    out = {}
+    for ds in args.datasets:
+        dc = dict(P["datasets"][ds])
+        if args.constrained_class is not None:
+            dc["constrained_class"] = (args.constrained_class[0]
+                                       if len(args.constrained_class) == 1
+                                       else list(args.constrained_class))
+        out[ds] = dc
+    return out
+
+
+def validate(P, args, resolved):
     if len(set(args.caps)) < 2:
         sys.exit("REFUSED: at least two cap levels are required. A claim from cells "
                  "sharing one cap level has been retracted three times.")
-    requested = set(ARMS) if "all" in args.arms else set(args.arms)
-    arms = sorted(requested | MANDATORY)
-    added = sorted(MANDATORY - requested)
+    lr = P["core"]["lr"]
+    lr_c = P["constraint_phase"]["lr_constraint"]
+    if lr != lr_c:
+        sys.exit("REFUSED: lr (%s) != lr_constraint (%s). Unequal learning rates "
+                 "fabricated a -16.7pp finding that was -1.7pp once equalized." % (lr, lr_c))
+    for ds, dc in resolved.items():
+        classes = dc["constrained_class"]
+        classes = classes if isinstance(classes, list) else [classes]
+        if not classes:
+            sys.exit("REFUSED: %s has no constrained class." % ds)
+        if len(set(classes)) != len(classes):
+            sys.exit("REFUSED: %s constrained_class %s repeats a class; the second "
+                     "cap would overwrite the first." % (ds, classes))
+        for c in classes:
+            if not 0 <= int(c) < int(dc["num_classes"]):
+                sys.exit("REFUSED: %s constrained_class %s is out of range for "
+                         "num_classes=%s. A cap on a nonexistent class is silently "
+                         "skipped by the loss." % (ds, c, dc["num_classes"]))
+
+
+def main():
+    P = load_protocol()
+    a = argparse.ArgumentParser()
+    a.add_argument("--root", required=True)
+    a.add_argument("--datasets", nargs="+", required=True, choices=sorted(P["datasets"]))
+    a.add_argument("--models", nargs="+", default=[P["models"][0]], choices=P["models"])
+    a.add_argument("--caps", nargs="+", default=["L30_G30", "L50_G50"],
+                   help="L<local>_G<global>, independent; e.g. L30_G50")
+    a.add_argument("--arms", nargs="+", default=["tralo"],
+                   choices=sorted(P["arms"]) + ["all"],
+                   help="'all' runs the full panel: every baseline the paper claims")
+    a.add_argument("--constrained-class", nargs="+", type=int, default=None,
+                   help="override the YAML's capped class(es) for every dataset; "
+                        "one index or several for the coupled multi-class setting")
+    a.add_argument("--protocol", default=PROTOCOL_PATH, help="alternate protocol.yml")
+    args = a.parse_args()
+    if args.protocol != PROTOCOL_PATH:
+        P = load_protocol(args.protocol)
+
+    requested = set(P["arms"]) if "all" in args.arms else set(args.arms)
+    mandatory = set(P["mandatory_arms"])
+    arms = sorted(requested | mandatory)
+    added = sorted(mandatory - requested)
     if added:
         print("NOTE: added the mandatory clippers ->", " ".join(added))
 
+    resolved = resolve_datasets(P, args)
+    validate(P, args, resolved)
+
     todo = [(ds, mdl, tag, arm, seed)
-            for seed in SEEDS for ds in args.datasets for mdl in args.models
-            for tag in args.caps for arm in arms]          # seed-major dispatch order
+            for seed in P["protocol"]["seeds"] for ds in args.datasets
+            for mdl in args.models for tag in args.caps for arm in arms]
 
     version, written, skipped = code_version(), 0, 0
+    total = P["protocol"]["total_epochs"]
     for ds, mdl, tag, arm, seed in todo:
-        dc = DATASETS[ds]
-        methodology, extra = ARMS[arm]
-        posthoc = arm in POSTHOC_ARMS
-        hp = {**SHARED, **({} if posthoc else TRALO), **extra, "seed": seed,
-              "warmup_epochs": WARMUP_TOTAL if posthoc else TRAINED_WARMUP,
-              "constraint_epochs": 0 if posthoc else WARMUP_TOTAL - TRAINED_WARMUP}
-        assert hp["warmup_epochs"] + hp["constraint_epochs"] == WARMUP_TOTAL, "equal compute"
-        assert hp["lr"] == hp["lr_constraint"], "lr_constraint must equal lr"
+        dc = resolved[ds]
+        spec = P["arms"][arm]
+        hp = build_hyperparams(P, spec, seed)
+        assert hp["warmup_epochs"] + hp["constraint_epochs"] == total, "equal compute"
 
         path = "%s/%s/%s/%s/%s/seed_%d" % (args.root, mdl, ds, tag, arm, seed)
-        cfg = {"methodology": methodology, "model_name": mdl,
+        cfg = {"methodology": spec["methodology"], "model_name": mdl,
                "constraint": cap_pair(tag), "constraint_tag": tag,
                "dataset_mode": ds, "dataset_config": dc, "hyperparams": hp,
-               "base_model_id": compute_base_model_id(mdl, hp, ds, dc["data_dir"], dc),
-               "arm": arm, "sweep_tag": os.path.basename(args.root),
+               "base_model_id": compute_base_model_id(P, mdl, hp, ds, dc),
+               "arm": arm,
                "exp_name": "%s_%s_%s_%s_seed%d" % (mdl, ds, arm, tag, seed),
-               "experiment_path": path, "status": "pending"}
+               "status": "pending", "code_version": version}
         dest = os.path.join(path, "config.json")
         if os.path.exists(dest):
             try:
@@ -204,7 +209,6 @@ def main():
                     continue          # never reset a finished run back to pending
             except (ValueError, OSError):
                 pass
-        cfg["code_version"] = version
         os.makedirs(path, exist_ok=True)
         json.dump(cfg, open(dest, "w"), indent=2)
         written += 1
@@ -213,10 +217,12 @@ def main():
     print("%d written, %d already completed (skipped) -> %s"
           % (written, skipped, args.root))
     print("  %d cells (dataset x model x cap) x %d arms x %d seeds"
-          % (cells, len(arms), len(SEEDS)))
+          % (cells, len(arms), len(P["protocol"]["seeds"])))
     print("  arms:", " ".join(arms))
     print("  trained arms: warm-up %d + constraint %d | post-hoc arms: warm-up %d + 0"
-          % (TRAINED_WARMUP, WARMUP_TOTAL - TRAINED_WARMUP, WARMUP_TOTAL))
+          % (P["protocol"]["trained_warmup"],
+             total - P["protocol"]["trained_warmup"], total))
+    print("  protocol: %s" % os.path.relpath(args.protocol))
     print("  code_version:", version)
     return 0
 

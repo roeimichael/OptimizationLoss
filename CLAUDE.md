@@ -54,8 +54,17 @@ evidence/          archived provenance + predictions from every run ever made
 Nine methodologies, all claimed in the paper: `tralo` - duals `fioretto_ldf` / `hounie_rcl` /
 `fioretto_alm` - allocators `heuristic` (greedy clip) / `danits_lp` (LP-LG, Shifman) - and the
 imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
-**Run `python -m scripts.check_parity <root>` before launching anything** -- it refuses unequal
-compute, mismatched knobs, a single cap level, or a bad warm-up cache share.
+**Before launching anything, run all three** -- each refuses a different way to waste a week:
+
+```bash
+python -m scripts.audit_config              # no config key without a reader, no reader without a key
+python -m scripts.verify_caps               # what integer budget each cap tag really produces
+python -m scripts.check_parity <root>       # equal compute, same knobs, >=2 caps, sane warm-up sharing
+```
+
+**The global cap is redundant at `L30_G30` / `L50_G50` and inert at any `G > L`** -- local caps
+are per-group ceilings, so their sum already bounds the count. To make the global scope bind,
+sweep `G < L` (e.g. `L50_G30`). See `docs/FRAMEWORK.md` section 1.
 Generate a campaign with:
 
 ```bash

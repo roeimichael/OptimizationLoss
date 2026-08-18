@@ -58,6 +58,33 @@ were **deleted from the pipeline** on 2026-08-18 (section 2f). They cannot be re
   (0.024 at L20 vs 0.12 at L50), so never read a null at L20 as evidence against a method.
 - **Seeds**: 1, 2, 3, 4.
 
+#### The global cap does nothing at the tags we have always used
+
+`L<local>_G<global>` sets the two scopes independently, but they are not independent in
+effect. Local caps are per-group ceilings, so the most the model can ever predict for a
+capped class is **the sum of the local caps**. A global cap at or above that sum can never
+bind. Measured on the real test sets (`python -m scripts.verify_caps`):
+
+| tag | dermmnist (MEL) | octmnist (drusen) | tissuemnist (GE) |
+|---|---|---|---|
+| `L30_G30` | global 67, local sum 67 -- **redundant** | global 75, local sum 76 -- binds | global 51, local sum 51 -- **redundant** |
+| `L30_G50` | global 112 vs 67 -- **inert** | global 125 vs 76 -- **inert** | global 86 vs 51 -- **inert** |
+| `L50_G50` | global 112 vs 111 -- **inert** | global 125, local sum 125 -- **redundant** | global 86, local sum 86 -- **redundant** |
+| `L50_G30` | global 67 vs 111 -- **binds** | global 75 vs 125 -- **binds** | global 51 vs 86 -- **binds** |
+
+So on the symmetric tags the global constraint is redundant almost everywhere, and on
+`G > L` it is strictly inert. **Every result this project has produced was, in effect, a
+local-cap-only result.** That is not wrong, but it is narrower than "global + local".
+
+**Rule: to test the global scope, sweep `G < L`.** `L50_G30` is the cheapest tag that makes
+the global cap the binding one on all three datasets while keeping a second cap level.
+A campaign whose global caps are all redundant should say so rather than claim the
+formulation was exercised.
+
+`scripts/verify_caps.py` prints the realized integer budgets and flags INERT / REDUNDANT
+scopes. Run it whenever the cap tags, the constrained class, or the dataset slice changes --
+it is the constraint-level version of the inert-flag check, and just as invisible without it.
+
 ### The arms -- every baseline the paper claims
 
 `python -m configs.gen_campaign --arms all` emits the full panel. `clip` and `focal_clip` are

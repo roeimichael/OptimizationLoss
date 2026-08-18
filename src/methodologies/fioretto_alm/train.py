@@ -345,13 +345,20 @@ def train(inputs: TrainInputs) -> TrainOutputs:
 
     restored_from_epoch = None
     restore_kind = None
-    if best_sat_state is not None and final_violates:
+    # Same gate as fioretto_ldf / hounie_rcl / tralo. Without it ALM restored a
+    # best-satisfied checkpoint unconditionally while the other duals could be
+    # denied that, so a comparison against them was not apples to apples.
+    allow_restore = bool(hp.get("enable_checkpoint_restore", True))
+    if not allow_restore:
+        log.info("ALM: enable_checkpoint_restore=False, keeping the trained model")
+    if allow_restore and best_sat_state is not None and final_violates:
         log.info("Fioretto ALM: final violates; restoring best-satisfied checkpoint from epoch %d",
                  best_sat_epoch)
         model.load_state_dict({k: v.to(device) for k, v in best_sat_state.items()})
         restored_from_epoch = best_sat_epoch
         restore_kind = "fully_satisfied"
-    elif min_excess_state is not None and final_total_excess > min_total_excess:
+    elif (allow_restore and min_excess_state is not None
+          and final_total_excess > min_total_excess):
         log.info("Fioretto ALM: final excess=%d > min seen excess=%d (epoch %d); "
                  "restoring lowest-excess checkpoint",
                  int(final_total_excess), int(min_total_excess), min_excess_epoch)
