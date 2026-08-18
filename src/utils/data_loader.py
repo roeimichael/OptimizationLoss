@@ -2,6 +2,7 @@
 # Loads npy image arrays, applies ImageNet normalization, computes constraint limits.
 
 import logging
+import hashlib
 import os
 
 import numpy as np
@@ -70,6 +71,22 @@ def _coerce_imagery_layout(images):
     return images
 
 
+def data_fingerprint(y_train, y_test, groups_test):
+    """Identity of the actual data behind a data_dir.
+
+    Labels and groups only -- they are small, and any re-slice, re-split or
+    re-shuffle moves them. Pixels are not hashed: it would cost seconds per run
+    to catch a case (same labels, different images) that no prep script here
+    can produce.
+    """
+    h = hashlib.md5()
+    for arr in (np.asarray(y_train).ravel(), np.asarray(y_test).ravel(),
+                np.asarray(groups_test).ravel()):
+        h.update(str(arr.shape).encode())
+        h.update(np.ascontiguousarray(arr, dtype=np.int64).tobytes())
+    return h.hexdigest()[:16]
+
+
 def _load_imagery_data(config):
     ds = config['dataset_config']
     data_dir = ds['data_dir']
@@ -128,6 +145,8 @@ def _load_imagery_data(config):
     log.info("mode=%s classes=%d constrained=%s global=%s local_groups=%d test=%d train=%d",
              dataset_mode, num_classes, constrained_class, global_con,
              len(local_con), len(y_test), len(y_train))
+    config["data_fingerprint"] = data_fingerprint(y_train, y_test, groups_test)
+    log.info("data fingerprint %s (%s)", config["data_fingerprint"], data_dir)
     return (X_train, X_test, y_train, y_test,
             groups_test, global_con, local_con, num_classes)
 

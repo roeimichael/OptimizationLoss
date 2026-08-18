@@ -67,7 +67,19 @@ class Reads(ast.NodeVisitor):
                 return kind
         return self.alias.get(base)
 
+    # The accessors themselves: `def _required(hp, key, cast): return cast(hp[key])`
+    # is generic BY CONSTRUCTION. Auditing inside them reports the definition,
+    # not a call site, and the call sites are what matter.
+    ACCESSOR_DEFS = ("_required",)
+
+    def visit_FunctionDef(self, node):
+        outer, self._fn = getattr(self, "_fn", None), node.name
+        self.generic_visit(node)
+        self._fn = outer
+
     def _opaque(self, base, how, lineno):
+        if getattr(self, "_fn", None) in self.ACCESSOR_DEFS:
+            return
         """A read the walker cannot resolve to a literal key. Recorded so the
         audit fails loudly instead of silently under-reporting its read set."""
         self.opaque.append((base, how, self.path, lineno))
@@ -121,7 +133,28 @@ class Reads(ast.NodeVisitor):
                     self._record(base, node.args[0].value, node.lineno)
             elif self._kind_of(base) is not None:
                 self._opaque(base, ".%s()" % f.attr, node.lineno)
+        else:
+            self.visit_Call_helper(node)
         self.generic_visit(node)
+
+    def visit_Call_helper(self, node):
+        """`_required(hp, "lr_constraint", float)` -- a config dict passed as an
+        argument with a literal key. The walker only understood subscripts and
+        dict methods, so introducing this helper made every key read through it
+        invisible in BOTH directions: emitting one looked HALLUCINATED, and
+        omitting one produced no SILENT flag. These are precisely the knobs that
+        must never fall back to a default."""
+        if not isinstance(node.func, ast.Name) or len(node.args) < 2:
+            return
+        base = _base_name(node.args[0])
+        if self._kind_of(base) is None:
+            return
+        key = node.args[1]
+        if isinstance(key, ast.Constant) and isinstance(key.value, str):
+            self._record(base, key.value, node.lineno)
+        # A config passed to a function whose second argument is NOT a key --
+        # run_warmup(config, num_classes, ...) -- is ordinary plumbing, not an
+        # unresolvable lookup.
 
     def visit_Dict(self, node):
         """`{**hp}` copies every key without naming one."""

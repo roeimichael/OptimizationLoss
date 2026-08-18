@@ -28,8 +28,8 @@ Usage:
     python full_panel.py <campaign_dir> --control <arm>
 """
 import argparse
+import collections
 import glob
-import importlib.util as ilu
 import json
 import os
 import sys
@@ -41,10 +41,25 @@ from sklearn.metrics import (average_precision_score, roc_auc_score, f1_score,
                              precision_score, recall_score, accuracy_score,
                              log_loss)
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
-_spec = ilu.spec_from_file_location("_sa", os.path.join(_HERE, "score_arm.py"))
-_sa = ilu.module_from_spec(_spec)
-_spec.loader.exec_module(_sa)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from scripts.score_arm import equalize                            # noqa: E402
+from src.training.constraints import (compute_global_constraints,  # noqa: E402
+                                      compute_local_constraints)
+from src.utils.constants import UNLIMITED                          # noqa: E402
+
+
+def _one(series):
+    """Aggregator for the seed pivot: there must be exactly ONE run per
+    (cell, seed, arm). More than one means the pairing key is missing a
+    dimension, and silently averaging them is how a swept axis gets pooled."""
+    vals = series.dropna()
+    if len(vals) > 1:
+        raise ValueError(
+            "%d runs share one (cell, seed, arm) key -- the pairing key is "
+            "missing a dimension that the campaign varies. Averaging them "
+            "would pool the swept axis." % len(vals))
+    return vals.iloc[0] if len(vals) else float("nan")
 
 
 def equalize_multi(y_proba, gids, glob_c, loc, classes):
@@ -65,7 +80,7 @@ def equalize_multi(y_proba, gids, glob_c, loc, classes):
     if gids is not None and loc:
         for g, lim in loc.items():
             for c in classes:
-                if c < len(lim) and lim[c] < _sa.UNLIMITED:
+                if c < len(lim) and lim[c] < UNLIMITED:
                     room_l[(int(g), int(c))] = int(lim[c])
     assigned = np.full(n, -1, dtype=int)
     pairs = [(y_proba[i, c], i, int(c)) for c in classes for i in range(n)]
@@ -149,16 +164,16 @@ def panel(run_dir, cfg):
                else [int(cls_raw)])
     lp, gp = cfg["constraint"]
     df = pd.DataFrame({"label": y, "grp": g if g is not None else 0})
-    G = _sa.compute_global_constraints(df, "label", gp, constrained_class=classes,
+    G = compute_global_constraints(df, "label", gp, constrained_class=classes,
                                        num_classes=P.shape[1])
-    L = _sa.compute_local_constraints(df, "label", lp, "grp",
+    L = compute_local_constraints(df, "label", lp, "grp",
                                       constrained_class=classes, num_classes=P.shape[1])
-    classes = [c for c in classes if G[c] < _sa.UNLIMITED]
+    classes = [c for c in classes if G[c] < UNLIMITED]
     if not classes:
         return None
     cls = classes[0]
     rel = pd.read_csv(fin)["Predicted_Label"].to_numpy(int)
-    eq = (_sa.equalize(P, g, G, L, cls) if len(classes) == 1
+    eq = (equalize(P, g, G, L, cls) if len(classes) == 1
           else equalize_multi(P, g, G, L, classes))
     # Per-class scores averaged over the capped classes; identical to before
     # when only one class is capped.
@@ -257,15 +272,27 @@ def main():
     args = a.parse_args()
 
     rows = []
+    skipped = collections.Counter()
     for camp in args.campaign:
         for p in glob.glob(camp + "/**/config.json", recursive=True):
             try:
                 cfg = json.load(open(p))
             except Exception:
                 continue
+            # Only completed runs. The scorer ignored `status` entirely, so a
+            # campaign of `diverged` and `pending` runs scored normally -- and
+            # regenerating a campaign overwrites a non-completed config in
+            # place while leaving the OLD final_predictions.csv on disk, so the
+            # previous code's predictions get scored as the new code's result.
+            if cfg.get("status") != "completed":
+                skipped[cfg.get("status", "no status")] += 1
+                continue
             r = panel(os.path.dirname(p), cfg)
             if r:
                 rows.append(r)
+    if skipped:
+        print("skipped %d run(s) that are not completed: %s"
+              % (sum(skipped.values()), dict(skipped)))
     if not rows:
         sys.exit("no scorable runs")
     df = pd.DataFrame(rows)
@@ -273,7 +300,13 @@ def main():
     if args.control not in arms:
         sys.exit("control %r not among %s" % (args.control, arms))
 
-    key = ["dataset", "model", "cap", "seed"]
+    # `capped` belongs in the PAIRING key, not only in the cell count printed
+    # below it. Without it, pivot_table's default aggfunc="mean" averages two
+    # capped-class settings into one pair, so a +0.40 cell and a -0.40 cell
+    # collapse to an exact tie while the header still reports two cells. That is
+    # mistake-pattern 6 (pooling the swept axis) presenting as mistake-pattern 8
+    # (a bug that reads as a tie) -- inside the scorer written to prevent both.
+    key = ["dataset", "model", "cap", "capped", "seed"]
     print("arms:", {a_: int((df.arm == a_).sum()) for a_ in arms})
     print("cells:", df.groupby(["dataset", "model", "cap", "capped"]).ngroups,
           " seeds:", df.seed.nunique())
@@ -285,10 +318,8 @@ def main():
         print("=" * 100)
         print("%s   vs   %s        (paired on %s)" % (arm, args.control, "+".join(key)))
         print("=" * 100)
+        results = []          # (title, metric, row-tuple) collected, then BH
         for title, metrics in GROUPS:
-            print("\n  " + title)
-            print("  %-9s %10s %10s %10s %8s %9s   %s"
-                  % ("metric", "control", arm, "delta", "cells", "wilcoxon", "verdict"))
             for m in metrics:
                 # Restrict to the PAIR being compared before dropping
                 # NaNs. Pivoting over every arm means a third arm that
@@ -298,47 +329,98 @@ def main():
                 # two pairs and made it read as a tie.
                 pairdf = df[df["arm"].isin([args.control, arm])]
                 q = pairdf.pivot_table(index=key, columns="arm",
-                                       values=m).dropna()
+                                       values=m, aggfunc=_one).dropna()
                 if args.control not in q or arm not in q:
                     continue
-                c, t = q[args.control], q[arm]
+                # Average seeds WITHIN a cell before testing. The atomic unit
+                # is the cell, not the seed-pair: seeds share the test set, the
+                # cap and the cached warm-up, so testing them as independent
+                # inflates type-I error to 11-22% under the null.
+                cell = q.groupby(level=[0, 1, 2, 3]).mean()
+                c, t = cell[args.control], cell[arm]
                 d = t - c
                 if m in ABOVE_CAP_ONLY and (c.min() < 1.0 or t.min() < 1.0):
-                    # An arm dipped below the cap, so "lower is better" no
-                    # longer describes this column. Say so instead of scoring it.
-                    print("  %-9s   UNDERSHOOTS the cap in some runs "
-                          "(min %.3f/%.3f) -- direction undefined, not scored"
-                          % (m, c.min(), t.min()))
+                    results.append((title, m, ("UNDERSHOOT", c, t, d, None, None)))
                     continue
-                better = (d < 0) if m in LOWER_BETTER else (d > 0)
-                try:
-                    pv = stats.wilcoxon(t, c)[1]
-                except Exception:
-                    pv = np.nan
-                # A claim needs BOTH a majority of cells and significance.
-                if m in NON_SCORING:
-                    # Never emits WIN/LOSS. These cannot support a claim, and
-                    # printing a verdict next to them is how they keep getting
-                    # quoted as one.
-                    v = "(not a result)"
-                elif np.isnan(pv):
-                    v = "-"
-                elif pv < 0.05 and better.sum() > len(d) / 2:
-                    v = "*** WIN"
-                elif pv < 0.05:
-                    v = "*** LOSS"
-                elif better.sum() > len(d) * 0.7:
-                    v = "lean win"
-                elif better.sum() < len(d) * 0.3:
-                    v = "lean loss"
-                else:
-                    v = "tie"
-                print("  %-9s %10.4f %10.4f %+10.4f %5d/%-3d %9.4f   %s"
-                      % (m, c.mean(), t.mean(), d.mean(), better.sum(), len(d), pv, v))
-                if args.percell:
-                    per = d.groupby(level=[0, 1]).mean().round(4)
-                    print("            per-cell: %s"
-                          % {"/".join(k[:2]): v for k, v in per.items()})
+                results.append((title, m, ("OK", c, t, d, None, None)))
+
+        # Benjamini-Hochberg across this arm's scoring metrics. 13 metrics gives
+        # a measured family-wise error of 28% under a true null.
+        pvals = {}
+        for title, m, r in results:
+            if r[0] != "OK" or m in NON_SCORING:
+                continue
+            d = r[3]
+            if (d == 0).all():
+                continue
+            try:
+                pvals[m] = stats.wilcoxon(r[2], r[1], zero_method="zsplit")[1]
+            except Exception:
+                pvals[m] = np.nan
+        finite = sorted((v, k) for k, v in pvals.items() if np.isfinite(v))
+        qvals = {}
+        for i, (pv, m) in enumerate(finite, 1):
+            qvals[m] = min(1.0, pv * len(finite) / i)
+        for i in range(len(finite) - 2, -1, -1):      # enforce monotonicity
+            qvals[finite[i][1]] = min(qvals[finite[i][1]], qvals[finite[i + 1][1]])
+
+        shown = None
+        for title, m, r in results:
+            if title != shown:
+                shown = title
+                print("\n  " + title)
+                print("  %-9s %10s %10s %10s %14s %9s %8s   %s"
+                      % ("metric", "control", arm, "delta",
+                         "better/worse", "wilcoxon", "BH q", "verdict"))
+            kind, c, t, d, _, _ = r
+            if kind == "UNDERSHOOT":
+                print("  %-9s   UNDERSHOOTS the cap in some cells "
+                      "(min %.3f/%.3f) -- direction undefined, not scored"
+                      % (m, c.min(), t.min()))
+                continue
+            gain = -d if m in LOWER_BETTER else d
+            better, worse = int((gain > 0).sum()), int((gain < 0).sum())
+            tied = len(d) - better - worse
+            pv, qv = pvals.get(m, np.nan), qvals.get(m, np.nan)
+
+            if (d == 0).all():
+                # Not a null result. Identical output across arms means the
+                # treatment did nothing at all -- the inert-flag failure, five
+                # occurrences. It must never render as a direction.
+                v = "DEAD FLAG (bit-identical)"
+            elif m in NON_SCORING:
+                v = "(not a result)"
+            elif not np.isfinite(pv):
+                v = "-"
+            elif len(d) < 6:
+                # exact two-sided Wilcoxon floor at n non-zero pairs is 2^(1-n)
+                v = "n=%d, min attainable p=%.3f -- NOT CALLABLE" % (
+                    len(d), 2.0 ** (1 - max(1, better + worse)))
+            elif qv < 0.05 and better > worse:
+                v = "*** WIN"
+            elif qv < 0.05 and worse > better:
+                v = "*** LOSS"
+            elif pv < 0.05 and better > worse:
+                v = "win (not after BH)"
+            elif pv < 0.05 and worse > better:
+                v = "loss (not after BH)"
+            elif better > len(d) * 0.7:
+                v = "lean win"
+            elif worse > len(d) * 0.7:
+                v = "lean loss"
+            else:
+                v = "tie"
+            print("  %-9s %10.4f %10.4f %+10.4f  %4d/%-4d t=%-3d %9.4f %8s   %s"
+                  % (m, c.mean(), t.mean(), d.mean(), better, worse, tied,
+                     pv, ("%.4f" % qv) if np.isfinite(qv) else "-", v))
+            if args.percell:
+                # levels 0..3 = dataset, model, cap, capped. Dropping `cap` here
+                # averaged a win at L50_G30 with a loss at L30_G30 into one row
+                # and hid the sign flip -- in the only output that claims to
+                # show the atomic cell.
+                per = d.groupby(level=[0, 1, 2, 3]).mean().round(4)
+                print("            per-cell: %s"
+                      % {"/".join(str(x) for x in k): v for k, v in per.items()})
 
 
 if __name__ == "__main__":

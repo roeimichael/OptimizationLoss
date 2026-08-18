@@ -117,8 +117,26 @@ def main():
         shared = sorted(grp)
         note = "share a warm-up" if len(shared) > 1 else "own warm-up"
         print("   %-46s %s" % (" + ".join(shared), note))
-    print("   (arms that share a warm-up must differ ONLY in the allocator;")
-    print("    an arm sharing a warm-up with a DIFFERENT training loss is a dead flag)\n")
+    # This section used to print the groups and ask a human to eyeball them --
+    # narration, not an assertion, guarding occurrence 5 of the inert-flag
+    # failure (clip and focal_clip hashing identically, so focal_clip silently
+    # became a second clip).
+    warmup_loss = collections.defaultdict(lambda: collections.defaultdict(set))
+    for cfg in runs:
+        warmup_loss[cfg["base_model_id"]][cfg["arm"]].add(
+            json.dumps(cfg["hyperparams"].get("warmup_loss", "ce")))
+    for bid, per_arm in sorted(warmup_loss.items()):
+        losses = {v for vals in per_arm.values() for v in vals}
+        if len(losses) > 1:
+            fails.append(
+                "base_model_id %s is shared by arms with DIFFERENT warm-up "
+                "objectives %s -- one of them would silently load the other's "
+                "trained model" % (bid, sorted(losses)))
+    if any("base_model_id" in f for f in fails):
+        print("   FAIL -- an arm shares a warm-up with a different objective")
+    else:
+        print("   OK -- every shared warm-up has one training objective")
+    print("   (arms that share a warm-up must differ ONLY in the allocator)\n")
 
     # ---- 4b. one dataset definition ----------------------------------------
     print("4b. DATASET  (every arm must cap the same class(es) on the same data)")

@@ -59,7 +59,14 @@ def main():
         try:
             df = load_test(dc)
         except (OSError, KeyError) as e:
-            print("%-12s SKIP -- %s" % (ds, e))
+            # A skip is a FAILURE of this check, not a pass. With data/ absent
+            # every dataset skipped and it still printed "CAP CHECK OK -- every
+            # cap tag produces a real integer budget on every dataset" and
+            # returned 0. It is the only data-touching gate in the repo and it
+            # was the one that could not fail.
+            print("%-12s FAIL -- could not read the slice: %s" % (ds, e))
+            fails.append("%s: slice unreadable (%s). This gate proves nothing "
+                         "about a dataset it never opened." % (ds, e))
             continue
 
         n = len(df)

@@ -60,7 +60,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     # Hoisted: the per-epoch snapshot clone is gated on this, and a
     # state_dict() copied to CPU each epoch for a checkpoint nothing
     # reads is ~344 MB per epoch on ViTB16.
-    allow_restore = bool(hp.get("enable_checkpoint_restore", True))
+    allow_restore = _required(hp, "enable_checkpoint_restore", bool)
     device = inputs.device
     num_classes = inputs.num_classes
     model = inputs.model

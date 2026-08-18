@@ -40,6 +40,7 @@ def save_to_cache(model: nn.Module, base_model_id: str, config: Dict[str, Any]) 
         'model_state_dict': model.state_dict(),
         'base_model_id': base_model_id,
         'code_version': config.get('code_version'),
+        'data_fingerprint': config.get('data_fingerprint'),
         'config': config,
         'saved_at': time.strftime('%Y-%m-%d'),
     }
@@ -70,6 +71,15 @@ def load_from_cache(base_model_id: str, config: Dict[str, Any],
     # base_model_id hashes the hyperparameters, not the code. A cache written
     # before a change to what the warm-up OPTIMIZES is silently wrong -- exactly
     # how the pre-ImageNet-normalization caches survived a norm change.
+    # The data behind a data_dir can change without the path changing.
+    want_data = config.get('data_fingerprint')
+    got_data = ckpt.get('data_fingerprint')
+    if want_data and got_data != want_data:
+        log.warning("Cache %s was trained on data fingerprint %s but this run "
+                    "loaded %s -- the slice changed under the same path. "
+                    "Retraining.", base_model_id,
+                    got_data or "an unrecorded slice", want_data)
+        return None
     want = config.get('code_version')
     got = ckpt.get('code_version')
     if want and got != want:

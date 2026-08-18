@@ -8,6 +8,7 @@ numbers are now mechanically checked.
 
 Runs in a few seconds on CPU and needs no dataset.
 """
+import io
 import json
 import os
 import subprocess
@@ -445,3 +446,163 @@ def test_deleted_danits_helpers_are_really_gone():
     for gone in ("solve_greedy_assignment", "build_psi_phi_from_percentages",
                  "build_priority_cost_matrix", "describe_cost_matrix"):
         assert not hasattr(d, gone), "%s came back" % gone
+
+
+# --------------------------------------------------- the gates must be able to fail
+
+def test_parity_catches_two_arms_sharing_one_warm_up_with_different_objectives(tmp_path):
+    """Occurrence 5 of the inert-flag failure: clip and focal_clip hashed
+    identically, so focal_clip loaded clip's model and silently became a second
+    clip. This gate used to print the sharing groups and ask a human to look."""
+    r = subprocess.run(
+        [sys.executable, "-m", "configs.gen_campaign", "--root", str(tmp_path),
+         "--datasets", "dermmnist", "--models", "MobileNetV3",
+         "--caps", "L30_G30", "L50_G30", "--arms", "clip", "focal_clip"],
+        cwd=REPO, capture_output=True, text=True)
+    assert r.returncode == 0
+    clip_id = next(json.loads(p.read_text())["base_model_id"]
+                   for p in sorted(tmp_path.rglob("config.json"))
+                   if json.loads(p.read_text())["arm"] == "clip")
+    for p in sorted(tmp_path.rglob("config.json")):
+        cfg = json.loads(p.read_text())
+        if cfg["arm"] == "focal_clip":
+            cfg["base_model_id"] = clip_id
+            p.write_text(json.dumps(cfg))
+    r = subprocess.run([sys.executable, "-m", "scripts.check_parity", str(tmp_path)],
+                       cwd=REPO, capture_output=True, text=True)
+    assert r.returncode == 1
+    assert "DIFFERENT warm-up objectives" in r.stdout
+
+
+def test_verify_caps_fails_when_it_cannot_read_a_slice(tmp_path):
+    """It printed 'CAP CHECK OK -- every cap tag produces a real integer budget
+    on every dataset' having opened no file at all."""
+    r = subprocess.run(
+        [sys.executable, "-m", "scripts.verify_caps", "--datasets", "dermmnist"],
+        cwd=str(tmp_path), capture_output=True, text=True,
+        env={**os.environ, "PYTHONPATH": REPO})
+    assert r.returncode == 1, "a gate that cannot fail is not a gate"
+
+
+def test_the_scorer_pairs_on_the_capped_class(tmp_path):
+    """pivot_table's default aggfunc averaged two capped-class settings into one
+    pair, so a +0.40 cell and a -0.40 cell collapsed to an exact tie while the
+    header still printed two cells."""
+    import scripts.full_panel as fp
+    src = io._io.open(os.path.join(REPO, "scripts", "full_panel.py"),
+                      encoding="utf-8").read() if False else open(
+        os.path.join(REPO, "scripts", "full_panel.py"), encoding="utf-8").read()
+    key = src.split("key = [")[1].split("]")[0]
+    assert '"capped"' in key, "the capped class is not in the pairing key"
+    import pandas as pd
+    with pytest.raises(ValueError, match="pairing key is missing"):
+        fp._one(pd.Series([0.4, -0.4]))
+    assert fp._one(pd.Series([0.4])) == 0.4
+
+
+# ------------------------------------------------------------- the verdict rule
+
+def _panel_verdict(tmp_path, n_better_cells, n_tied_cells, metric="AP"):
+    """Build a synthetic campaign with a KNOWN answer and read the verdict."""
+    import pandas as pd
+    cells = [("dermmnist", "MobileNetV3", "L30_G30"),
+             ("dermmnist", "MobileNetV3", "L50_G30"),
+             ("octmnist", "MobileNetV3", "L30_G30"),
+             ("octmnist", "MobileNetV3", "L50_G30"),
+             ("tissuemnist", "MobileNetV3", "L30_G30"),
+             ("tissuemnist", "MobileNetV3", "L50_G30"),
+             ("dermmnist", "MobileNetV2", "L30_G30"),
+             ("dermmnist", "MobileNetV2", "L50_G30")]
+    N, K = 200, 4
+    for i, (ds, model, cap) in enumerate(cells[:n_better_cells + n_tied_cells]):
+        for arm, boost in (("clip", 0.0),
+                           ("tralo", 1.5 if i < n_better_cells else 0.0)):
+            for seed in (1, 2, 3, 4):
+                rng = np.random.default_rng(1000 * i + seed)
+                y = rng.integers(0, K, size=N)
+                z = rng.normal(size=(N, K))
+                z[np.arange(N), y] += boost
+                P = np.exp(z) / np.exp(z).sum(1, keepdims=True)
+                d = tmp_path / model / ds / cap / arm / ("seed_%d" % seed)
+                d.mkdir(parents=True, exist_ok=True)
+                cols = {"True_Label": y, "Predicted_Label": P.argmax(1),
+                        "Group_ID": rng.integers(0, 3, size=N)}
+                for c in range(K):
+                    cols["Prob_Class_%d" % c] = P[:, c]
+                for f in ("final_predictions_raw.csv", "final_predictions.csv"):
+                    pd.DataFrame(cols).to_csv(d / f, index=False)
+                (d / "config.json").write_text(json.dumps(
+                    {"arm": arm, "methodology": "x", "model_name": model,
+                     "dataset_mode": ds, "constraint_tag": cap,
+                     "constraint": [0.5, 0.3], "status": "completed",
+                     "dataset_config": {"constrained_class": 1, "num_classes": K},
+                     "hyperparams": {"seed": seed}}))
+    r = subprocess.run([sys.executable, "-m", "scripts.full_panel",
+                        "--campaign", str(tmp_path), "--control", "clip"],
+                       cwd=REPO, capture_output=True, text=True)
+    for line in r.stdout.splitlines():
+        if line.strip().startswith(metric + " "):
+            return line
+    return r.stdout + r.stderr
+
+
+def test_a_win_with_majority_ties_is_not_reported_as_a_loss(tmp_path):
+    """stats.wilcoxon DISCARDS zero differences, but the majority test counted
+    them in its denominator. With 3 cells strictly better and 5 bit-identical
+    the old rule printed '*** LOSS' on a +0.19 delta at p=0.0022. The bug is
+    asymmetric -- it can only turn a win into a loss -- and partial ties are the
+    normal state here."""
+    line = _panel_verdict(tmp_path, n_better_cells=3, n_tied_cells=5)
+    assert "LOSS" not in line, line
+    assert "3/0" in line, line          # 3 better, 0 worse, rest tied
+
+
+def test_a_clean_win_is_still_called_a_win(tmp_path):
+    line = _panel_verdict(tmp_path, n_better_cells=6, n_tied_cells=2)
+    assert "*** WIN" in line, line
+
+
+def test_a_bit_identical_arm_is_a_dead_flag_not_a_direction(tmp_path):
+    """scipy returns p=1.0 for n<=12 and NaN for n>=16 on all-zero differences,
+    so an inert arm printed 'lean loss' x13. Identical output means the
+    treatment did nothing -- the project's most frequent failure, five
+    occurrences -- and must never render as a direction."""
+    line = _panel_verdict(tmp_path, n_better_cells=0, n_tied_cells=8)
+    assert "DEAD FLAG" in line, line
+    assert "loss" not in line.lower(), line
+
+
+def test_unattainable_significance_is_declared_not_called(tmp_path):
+    """At n=4 the exact two-sided Wilcoxon floor is 0.125, so 'p=0.125, lean
+    loss' was the arm being un-callable, not a settled tie."""
+    line = _panel_verdict(tmp_path, n_better_cells=4, n_tied_cells=0)
+    assert "NOT CALLABLE" in line, line
+
+
+def test_the_scorer_skips_runs_that_are_not_completed(tmp_path):
+    """It ignored `status` entirely, and regenerating a campaign overwrites a
+    non-completed config in place while leaving the OLD predictions on disk --
+    so the previous code's predictions get scored as the new code's result."""
+    _panel_verdict(tmp_path, 6, 2)
+    for p in sorted(tmp_path.rglob("config.json")):
+        cfg = json.loads(p.read_text())
+        if cfg["arm"] == "tralo":
+            cfg["status"] = "diverged"
+            p.write_text(json.dumps(cfg))
+    r = subprocess.run([sys.executable, "-m", "scripts.full_panel",
+                        "--campaign", str(tmp_path), "--control", "clip"],
+                       cwd=REPO, capture_output=True, text=True)
+    assert "skipped" in r.stdout and "diverged" in r.stdout
+
+
+def test_the_audit_sees_keys_read_through_the_required_helper():
+    """_required(hp, "lr_constraint", float) passes the config as an argument.
+    The walker understood subscripts and dict methods only, so every key read
+    that way was invisible in BOTH directions -- emitting one looked
+    HALLUCINATED, omitting one produced no SILENT flag."""
+    from scripts.audit_config import per_methodology_reads
+    reads = per_methodology_reads()
+    for meth in ("tralo", "fioretto_ldf", "hounie_rcl", "fioretto_alm"):
+        assert "lr_constraint" in reads[meth], meth
+        assert "stable_count_threshold" in reads[meth], meth
+        assert "enable_checkpoint_restore" in reads[meth], meth

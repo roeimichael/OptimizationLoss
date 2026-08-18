@@ -68,7 +68,7 @@ def _train_constraints(model, inputs: TrainInputs, device):
     # Hoisted: the per-epoch snapshot clone is gated on this, and a
     # state_dict() copied to CPU each epoch for a checkpoint nothing
     # reads is ~344 MB per epoch on ViTB16.
-    allow_restore = bool(hp.get("enable_checkpoint_restore", True))
+    allow_restore = _required(hp, "enable_checkpoint_restore", bool)
     constraint_epochs = _required(hp, "constraint_epochs", int)
     lr_c = _required(hp, "lr_constraint", float)
     # Default dual-step bumped 10x for apples-to-apples convergence speed.
@@ -357,7 +357,7 @@ def _train_constraints(model, inputs: TrainInputs, device):
 
 def train(inputs: TrainInputs) -> TrainOutputs:
     hp = inputs.hyperparams
-    allow_restore = bool(hp.get("enable_checkpoint_restore", True))
+    allow_restore = _required(hp, "enable_checkpoint_restore", bool)
     model = inputs.model
     device = inputs.device
     (satisfaction_epoch, best_sat_state, best_sat_epoch,
