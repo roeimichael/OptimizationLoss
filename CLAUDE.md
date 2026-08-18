@@ -48,7 +48,9 @@ docs/paper/        the TMLR manuscript
 results/           experiment outputs
 scripts/           full_panel.py + score_arm.py = THE scorer; plus dataset prep
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-evidence/          archived provenance + predictions from every run ever made
+evidence/          two tarballs: provenance for 14,524 runs, predictions for 128
+                   (`mcbar` + `multiclass` only). Extract BOTH into one tree --
+                   neither alone yields a scorable run. 0.9% is re-scorable.
 ```
 
 Nine methodologies, all claimed in the paper: `tralo` - duals `fioretto_ldf` / `hounie_rcl` /
@@ -57,7 +59,7 @@ imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 75 regression tests, ~4s, no dataset needed
+python -m pytest tests -q                   # 96 regression tests, ~17s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.verify_caps               # what integer budget each cap tag really produces

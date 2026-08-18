@@ -11,11 +11,47 @@ We set out to build a **dual-loss** method that caps a class's prediction count 
 optimizing that class, beating both the dual baselines (Fioretto-LDF, Hounie-RCL) and the
 post-hoc clippers.
 
-**Current status: it does not beat a plain post-hoc clipper anywhere we have measured.**
-Head-to-head against `clip` (plain CE + post-hoc), pooled over 48 seed-pairs:
-macro-F1 -0.0017 (p=0.478, tie), accuracy -0.0027 (tie), and a **significant loss on
-eight other metrics**. A baseline with no constraint training at all beats `focal_clip`
-by more than our method does.
+**Current status: it does not beat a plain post-hoc clipper anywhere we have measured
+-- but the SIZE of that statement is smaller than it used to read, and the p-values
+behind it are dead.**
+
+The DIRECTION stands and reproduces exactly. Re-scored on 2026-08-19 from
+`evidence/predictions_mcbar_multiclass_2026-08-18.tar.gz` with the current scorer:
+macro-F1 **+0.0022**, accuracy **+0.0015**, cc-F1 **-0.0035** -- all four decimals
+identical to the archived record. A baseline with no constraint training at all still
+beats `focal_clip` by more than our method does.
+
+⚠️ **The SIGNIFICANCE does not stand, and cannot be recovered by any code in this
+repository.** Three separate reasons, each sufficient on its own:
+
+1. **"Pooled over 48 seed-pairs" violates this file's own rule** (section 3.5:
+   *never pool across levels, backbones, or datasets; summaries count cells*), and it
+   is precisely the pseudoreplication `full_panel.py` now rejects -- measured to
+   inflate type-I error to 11-22% under the null. Under the current cell-level unit
+   the same data gives p=0.844 / 0.688 / 0.438, not 0.478.
+2. **Half the data does not exist.** 24 of those 48 pairs are `mcbar_regnet`, which
+   has configs in the provenance archive but **no predictions in either tarball**.
+3. **The "significant loss on eight other metrics" evaporates.** Re-scored on the
+   half that survives, all eight -- cc-F1, AP, AUROC, ECE, Brier, NLL, macro-R,
+   ConfGap -- return `tie` at BH q >= 0.573 (AUROC, the closest, is q=0.573 on a
+   raw p=0.0625 and reads `lean loss`). That is structural, not luck: at 6 cells
+   the exact Wilcoxon floor is 2^-5 = 0.031, and BH over the metric family pushes a
+   lone 6/0 metric to q = 0.41.
+4. 🚨 **29% of the `tralo_uniform` runs in that campaign were allocated by a
+   DIFFERENT algorithm from `clip`.** Re-running the archive through the current
+   scorer, the new allocator check reports *"tralo_uniform: 7 of 24 runs fell
+   through to the LP fallback"* -- the Phase 3b defect fixed in `eb6b8897`, where
+   the local fill spent the global budget, made the greedy allocation infeasible,
+   and handed those runs to `_fallback_lp` while `clip` kept the greedy. So the
+   comparison this section rests on is not purely arm-vs-arm: for 7 of 24 pairs it
+   is also greedy-vs-LP. The flag was recorded on every run since the pipeline was
+   written and read by nothing until now.
+
+🛑 **So the honest headline is: the direction is a measured tie-or-loss, reproduced
+exactly; no significance claim in this section survives, and nothing has been
+re-measured end to end under the current protocol** (`results/` does not exist on
+either machine). Section 4's "do not run" list inherits that caveat -- it is built on
+this section.
 
 There is a structural reason, and it is the single most important thing in this file:
 
@@ -295,8 +331,16 @@ dual ascent matches its own primal -- but the effective weight on
 | arm | lambda at ep29 | effective weight |
 |---|---|---|
 | `fioretto` | 22.62 | 22.6 |
-| `alm` | 701.2 | 701 |
+| `alm` | 22.62 | **67.86** |
 | `hounie` | 0.0225 | 1.12e-05 |
+
+⚠️ **The ALM row used to read 701.2 / 701, which reproduces ONLY under
+`lambda = max(0, lambda + eta*r) + mu_t*r+` stored back into lambda** -- the form at
+`1d54de47:fioretto_alm/train.py:274`, which the current code documents as the bug it
+fixed: *"the augmentation is added to the PRIMAL weight at use time, never stored back
+into lam -- storing it compounds it every epoch."* Under the rule the code actually
+runs, the effective weight is **67.86**, a 10.3x overstatement. The row's conclusion
+changes from "ALM is 31x Fioretto" to **"ALM is 3x Fioretto"**.
 
 Fioretto is 2.0e6 times hounie. Both fioretto and ALM blow past the unit-norm
 clip for any plausible `||dS/dtheta||`, so the clip renormalizes them to the
@@ -693,7 +737,17 @@ scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
 tests/             96 tests, ~16 s, no dataset required
-evidence/          archived provenance + predictions from every run ever made
+evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
+                   provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
+                     training_log.csv for 14,524 runs. NO predictions.
+                   predictions_*.tar.gz = final_predictions{,_raw}.csv for 128 runs
+                     (`mcbar` and `multiclass` only). NO configs.
+                   full_panel globs **/config.json and needs BOTH prediction files,
+                   so NEITHER tarball alone yields one scorable run, and only
+                   128 / 14,524 = 0.9% can be re-scored at all. Every campaign
+                   carrying a rejected-arm verdict -- nsteps, sepopt, granularity,
+                   headroom, joint, beta, rank*, ortho, budgetprobe, mcbar_regnet,
+                   mcbar_duals, mcjoint -- has configs and logs but NO predictions.
 ```
 
 Nine methodologies: `tralo` - the duals `fioretto_ldf` / `hounie_rcl` / `fioretto_alm` -
