@@ -81,6 +81,38 @@ the global cap the binding one on all three datasets while keeping a second cap 
 A campaign whose global caps are all redundant should say so rather than claim the
 formulation was exercised.
 
+#### Only dermmnist has real groups
+
+A local cap is a *different* constraint from the global one only if the groups
+differ in class composition. `synth_group` is built by round-robin over array
+order (`scripts/prep_octmnist.py:71`, `np.arange(len(y)) % 3`) or a random
+permutation, so every group receives the same class mix. Measured as the
+total-variation distance between each group's class distribution and the whole
+test set's:
+
+| dataset | group column | per-group TV distance |
+|---|---|---|
+| `dermmnist` | `loc_group` -- real HAM10000 anatomical sites | 0.091, 0.057, **0.507** |
+| `octmnist` | `synth_group` | 0.045, 0.034, 0.029 |
+| `tissuemnist` | `synth_group` | 0.016, 0.015 |
+
+dermmnist's group 2 is a genuinely different population (37% class 2 against
+17% class 5, where group 0 is 76% class 5). The two synthetic ones are uniform
+to within a few percent, so each local budget is essentially `global / G`.
+
+**Put together with the cap finding above: on octmnist and tissuemnist the
+"global + local" structure collapses to a single global budget** -- the global
+cap cannot bind because the local caps sum to it, and the local caps are a
+trivial equal partition of it. Only dermmnist exercises the local scope as a
+distinct constraint.
+
+This does not invalidate anything measured; the constraint was still enforced.
+It bounds what those two datasets can *test*. If a claim rests on the local or
+group-structured part of the formulation, dermmnist is the only dataset that
+currently supports it -- and giving oct/tissue informative groups (stratify by
+something real, or deliberately skew the synthetic split) is a cheap way to
+widen that.
+
 `scripts/verify_caps.py` prints the realized integer budgets and flags INERT / REDUNDANT
 scopes. Run it whenever the cap tags, the constrained class, or the dataset slice changes --
 it is the constraint-level version of the inert-flag check, and just as invisible without it.

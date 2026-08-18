@@ -72,6 +72,31 @@ def main():
         print("  constrained: %s  (%s of test)"
               % (cls, ", ".join("%.1f%%" % (100.0 * counts.get(c, 0) / n) for c in cls)))
 
+        # A local cap is only a DIFFERENT constraint from the global one if the
+        # groups differ in class composition. `synth_group` is built by
+        # round-robin over array order, so every group gets the same class mix
+        # and each local budget is just global/G -- the local scope then tests
+        # nothing the global scope does not.
+        overall = np.array([counts.get(c, 0) for c in range(n_cls)],
+                           dtype=float) / n
+        tvs = []
+        for gid in sorted(df[gcol].unique()):
+            sub = df[df[gcol] == gid]
+            share = np.array([(sub["label"] == c).sum() for c in range(n_cls)],
+                             dtype=float) / max(1, len(sub))
+            tvs.append(0.5 * np.abs(share - overall).sum())
+        worst = max(tvs) if tvs else 0.0
+        print("  groups: %d, class-mix distance from the whole test set "
+              "(total variation) %s"
+              % (len(tvs), ["%.3f" % t for t in tvs]))
+        if worst < 0.05:
+            print("     UNINFORMATIVE GROUPS: every group has the same class mix "
+                  "(max %.3f), so each local budget is essentially global/%d and "
+                  "the local scope adds no constraint the global one does not."
+                  % (worst, len(tvs)))
+            inert.append("%s: groups carry no class information (max TV %.3f)"
+                         % (ds, worst))
+
         for tag in args.caps:
             local_pct, global_pct = cap_pair(tag)
             try:
