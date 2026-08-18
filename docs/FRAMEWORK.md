@@ -88,6 +88,61 @@ the global cap the binding one on all three datasets while keeping a second cap 
 A campaign whose global caps are all redundant should say so rather than claim the
 formulation was exercised.
 
+#### The dermmnist test set shares lesions with its training set
+
+**Measured 2026-08-19 on `dsisco01`, from `dermmnist_c_metadata.csv`, by replaying
+`create_slices.py`'s own split with its own seeds.**
+
+| slice | seed | test n | test images sharing a `lesion_id` with a TRAIN image | of the capped class (melanoma) |
+|---|---|---|---|---|
+| `slice_1` (the one every derm result uses) | 43 | 2003 | **776 = 38.7%** | **150 of 223 = 67.3%** |
+| `slice_2` | 44 | 2003 | 787 = 39.3% | 150 of 223 = 67.3% |
+| `slice_3` | 45 | 2003 | 790 = 39.4% | 161 of 223 = 72.2% |
+| `slice_4` | 46 | 2003 | 743 = 37.1% | 147 of 223 = 65.9% |
+| `slice_5` | 47 | 2003 | 801 = 40.0% | 161 of 223 = 72.2% |
+
+HAM10000 photographs many lesions more than once: 10,015 images, **7,470 distinct
+lesions**. `data/dermmnist/download_data.py` downloads *DermaMNIST-C* precisely
+because it has corrected splits that keep a lesion whole -- its own docstring says
+"fixed train/val/test splits that prevent same-lesion leakage across splits", and
+measured, those splits have **exactly zero** lesion overlap across all three pairs.
+`data/dermmnist/create_slices.py` then **pools train+val+test and re-splits 80/20
+stratified on the label only**, which puts a different photograph of the same lesion
+on both sides.
+
+**Two consequences, and they pull in opposite directions.**
+
+1. It is a **shared** confound. Every arm trains on the same slice from the same
+   cached warm-up, so leakage inflates TraLO and `clip` alike, and the *paired*
+   comparison is not thereby invalid. What it does invalidate is every **absolute**
+   derm number -- cc-F1, AP, and the measured headroom of 0.0669 that the "there is
+   room to win" argument rests on. It may also **compress** the gap: an item that is
+   effectively memorized is ranked correctly by both arms, so the arms can only
+   differ on the ~61% that is not, and a shrunken denominator is one honest candidate
+   explanation for why ~20 arms tied.
+2. It changes what the cap **means**. In the corrected split melanoma is
+   **70/1227 = 5.7%** of test -- a genuine minority, matching the screening
+   motivation the paper opens with. Pooling raises it to **223/2003 = 11.1%**, the
+   figure the manuscript states. The leakage-free version is both more honest and a
+   better fit to the paper's own story.
+
+⚠️ **This is the headline dataset.** MobileNetV3 on dermmnist is the headline cell,
+and dermmnist is the ONLY dataset with real groups, so it is the only place where a
+local cap is a different constraint from the global one.
+
+**DO NOT quietly re-slice.** Re-running derm on leakage-free splits invalidates every
+derm result produced so far, which is most of the corpus. That is a call for Roei, not
+a cleanup. Until it is made, the honest statement is: *the paired arm-vs-arm
+comparisons stand; the absolute derm quality numbers are inflated by an unknown amount
+and must not be quoted as achievable performance.*
+
+⚠️ **tissuemnist uses the identical pooling pattern** (`data/tissuemnist/create_slices.py`,
+same 80/20, same base seed) and **cannot be checked from what this repo stores** -- no
+per-instance identifier survives into the slices. Whether TissueMNIST's source split
+carries a donor/patient grouping needs checking at MedMNIST before its absolute numbers
+are quoted either. octmnist is unaffected by this specific mechanism:
+`scripts/prep_octmnist.py` keeps the official test split whole.
+
 #### Only dermmnist has real groups
 
 A local cap is a *different* constraint from the global one only if the groups
