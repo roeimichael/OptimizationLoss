@@ -34,10 +34,27 @@ def get_all_experiment_configs(results_dir='results'):
     return experiments
 
 
-def update_experiment_status(experiment_path, status):
+def update_experiment_status(experiment_path, status, count_failure=False):
+    """Write the status back to config.json.
+
+    `count_failure` increments a persistent counter. A config that fails
+    deterministically -- a bad hyperparameter, a missing file -- used to reset
+    to `pending` and be picked up again by every subsequent dispatch, forever,
+    with nothing on disk saying why. After MAX_FAILURES it is marked `failed`
+    and skipped until a human resets it.
+    """
     config = load_config_from_path(experiment_path)
+    if count_failure:
+        config['failures'] = int(config.get('failures', 0)) + 1
+        if config['failures'] >= MAX_FAILURES:
+            status = 'failed'
+            log.error("%s has now failed %d times -- marking `failed` so it "
+                      "stops being re-dispatched. Fix it and reset the status "
+                      "to `pending` to retry.", experiment_path, config['failures'])
     config['status'] = status
     save_config_to_path(config, experiment_path)
+
+
 
 
 def dispatch_key(item):
@@ -65,10 +82,23 @@ def dispatch_key(item):
     )
 
 
+MAX_FAILURES = 3
+# Statuses that must NOT be re-dispatched. `running` is deliberately absent:
+# an interrupted run resets to pending, which is what makes overnight
+# re-dispatch idempotent. These two are different -- retrying them cannot help.
+TERMINAL = {'completed', 'failed', 'diverged'}
+
+
 def get_experiments_by_status(results_dir='results'):
-    by_status = {'pending': [], 'completed': []}
+    by_status = {'pending': [], 'completed': [], 'blocked': []}
     for exp_path, config in get_all_experiment_configs(results_dir):
-        key = 'completed' if config.get('status') == 'completed' else 'pending'
+        status = config.get('status')
+        if status == 'completed':
+            key = 'completed'
+        elif status in TERMINAL or config.get('failures', 0) >= MAX_FAILURES:
+            key = 'blocked'
+        else:
+            key = 'pending'
         by_status[key].append((exp_path, config))
     # rglob returns filesystem order, which is arbitrary and has in practice
     # come out grouped by ARM -- the one order that makes an interrupted
@@ -80,6 +110,15 @@ def get_experiments_by_status(results_dir='results'):
 
 def print_status_summary(results_dir='results'):
     by_status = get_experiments_by_status(results_dir)
-    total = len(by_status['completed']) + len(by_status['pending'])
-    log.info("Experiments: %d total | %d completed | %d pending",
-             total, len(by_status['completed']), len(by_status['pending']))
+    blocked = by_status.get('blocked', [])
+    total = len(by_status['completed']) + len(by_status['pending']) + len(blocked)
+    log.info("Experiments: %d total | %d completed | %d pending | %d blocked",
+             total, len(by_status['completed']), len(by_status['pending']),
+             len(blocked))
+    if blocked:
+        log.warning("%d run(s) will NOT be re-dispatched (failed or diverged). "
+                    "See error_log.json in each; reset status to `pending` to "
+                    "retry:", len(blocked))
+        for path, cfg in blocked[:5]:
+            log.warning("   %s  status=%s failures=%s",
+                        path, cfg.get('status'), cfg.get('failures', 0))

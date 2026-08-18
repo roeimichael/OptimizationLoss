@@ -180,8 +180,13 @@ def main() -> None:
     try:
         run_experiment(args.config_path)
     except Exception as e:
-        log_exception(e, context=f"Experiment: {experiment_path}")
-        update_experiment_status(str(experiment_path), 'pending')
+        # experiment_path= was missing, so _save_error_to_file never ran and a
+        # failure left NO trace on disk -- the run just reappeared as pending on
+        # the next dispatch, forever, with the reason only in a lost stdout.
+        log_exception(e, context=f"Experiment: {experiment_path}",
+                      experiment_path=experiment_path)
+        update_experiment_status(str(experiment_path), 'pending',
+                                 count_failure=True)
         exit(1)
 
 

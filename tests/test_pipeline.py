@@ -366,3 +366,50 @@ def test_mobilenetv3_has_exactly_one_dropout_in_its_head():
     head = m.backbone.classifier
     drops = [l for l in head if isinstance(l, nn.Dropout)]
     assert len(drops) == 1 and drops[0].p == 0.3
+
+
+# ------------------------------------------------------ the failure lifecycle
+
+def test_a_repeatedly_failing_run_stops_being_re_dispatched(tmp_path):
+    """A config that fails deterministically used to reset to `pending` and be
+    picked up again by every subsequent dispatch, forever, with nothing on disk
+    saying why."""
+    from src.utils.filesystem_manager import (MAX_FAILURES,
+                                              get_experiments_by_status,
+                                              save_config_to_path,
+                                              update_experiment_status)
+    exp = tmp_path / "MobileNetV3" / "derm" / "L30_G30" / "tralo" / "seed_1"
+    exp.mkdir(parents=True)
+    save_config_to_path({"status": "pending", "hyperparams": {"seed": 1},
+                         "arm": "tralo"}, exp)
+    for i in range(1, MAX_FAILURES + 1):
+        update_experiment_status(str(exp), "pending", count_failure=True)
+        cfg = json.loads((exp / "config.json").read_text())
+        assert cfg["failures"] == i
+    assert cfg["status"] == "failed"
+    buckets = get_experiments_by_status(str(tmp_path))
+    assert not buckets["pending"] and len(buckets["blocked"]) == 1
+
+
+def test_a_diverged_run_is_not_re_dispatched(tmp_path):
+    from src.utils.filesystem_manager import (get_experiments_by_status,
+                                              save_config_to_path)
+    exp = tmp_path / "M" / "d" / "L30_G30" / "tralo" / "seed_1"
+    exp.mkdir(parents=True)
+    save_config_to_path({"status": "diverged", "hyperparams": {"seed": 1},
+                         "arm": "tralo"}, exp)
+    buckets = get_experiments_by_status(str(tmp_path))
+    assert not buckets["pending"] and len(buckets["blocked"]) == 1
+
+
+def test_an_interrupted_run_still_resets_to_pending(tmp_path):
+    """Load-bearing: this is what makes overnight re-dispatch idempotent.
+    `running` must NOT be terminal."""
+    from src.utils.filesystem_manager import (get_experiments_by_status,
+                                              save_config_to_path)
+    exp = tmp_path / "M" / "d" / "L30_G30" / "tralo" / "seed_1"
+    exp.mkdir(parents=True)
+    save_config_to_path({"status": "running", "hyperparams": {"seed": 1},
+                         "arm": "tralo"}, exp)
+    buckets = get_experiments_by_status(str(tmp_path))
+    assert len(buckets["pending"]) == 1 and not buckets["blocked"]
