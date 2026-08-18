@@ -8,6 +8,8 @@ per-class summary; only call it once, on the final chosen result.
 
 import logging
 
+import numpy as np
+
 from src.training.metrics import (
     compute_flips,
     compute_metrics,
@@ -35,6 +37,18 @@ def evaluate_with_posthoc(model, X_test, y_test, group_ids, global_con, local_co
     """
     model.eval()
     raw_pred, y_proba = get_predictions_with_probabilities(model, X_test)
+    # Check the PROBABILITIES, not the metrics derived from them. All-NaN
+    # logits argmax to class 0, which scores like a degenerate but healthy
+    # classifier -- every summary number comes out finite and the run is
+    # recorded `completed`, so the dispatcher never revisits it and the cell
+    # silently has one fewer seed.
+    if not np.isfinite(y_proba).all():
+        n_bad = int((~np.isfinite(y_proba)).any(axis=1).sum())
+        raise RuntimeError(
+            "model produced non-finite probabilities for %d of %d test items -- "
+            "it diverged. Refusing to score it: argmax of NaN is class 0, which "
+            "looks like a healthy degenerate classifier."
+            % (n_bad, len(y_proba)))
     adj = 0
     posthoc_meta = {}
 

@@ -138,6 +138,24 @@ def validate(P, args, resolved):
     if len(set(args.caps)) < 2:
         sys.exit("REFUSED: at least two cap levels are required. A claim from cells "
                  "sharing one cap level has been retracted three times.")
+    # Two distinct TAGS can be the same EXPERIMENT. The binding budget is
+    # min(global_K, sum of local_K), so L30_G30 and L30_G50 are identical
+    # wherever the global cap is already slack -- and duplicate runs manufacture
+    # significance: 8 pairs where 4 duplicate the other 4 gave p=0.0078 when the
+    # honest n=4 has an exact floor of 0.125.
+    locals_ = {}
+    for tag in args.caps:
+        lp, gp = cap_pair(tag)
+        locals_.setdefault(lp, []).append((tag, gp))
+    for lp, tags in locals_.items():
+        if len({gp for _t, gp in tags}) > 1 and len(tags) > 1:
+            print("NOTE: caps %s share local %d%%. They are the SAME experiment "
+                  "wherever the global cap is slack (it can only bind BELOW the "
+                  "sum of the local caps). Run `python -m scripts.verify_caps "
+                  "--caps %s` on the real slices before trusting them as two "
+                  "levels."
+                  % ([t for t, _g in tags], int(lp * 100),
+                     " ".join(t for t, _g in tags)))
     lr = P["core"]["lr"]
     lr_c = P["constraint_phase"]["lr_constraint"]
     if lr != lr_c:

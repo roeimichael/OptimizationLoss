@@ -107,6 +107,16 @@ def equalize_multi(y_proba, gids, glob_c, loc, classes):
                 key = (int(gids[i]), c) if gids is not None else None
                 if blocked or (key is not None and key in room_l and room_l[key] <= 0):
                     alt[j, c] = -np.inf
+        # An all -inf row means no class has room left: the instance is
+        # infeasible, and np.argmax returns 0, silently assigning class 0 past
+        # its own budget. The trainer's allocator logs exactly this; here it was
+        # silent. Harmless when a strict subset is capped (0 in 2000 random
+        # instances) and real when every class is (53 in 200).
+        stuck = ~np.isfinite(alt).any(axis=1)
+        if stuck.any():
+            print("  WARNING: equalize_multi found no feasible class for %d "
+                  "item(s) -- every capped class is full, so the caps cannot "
+                  "all be met and these assignments VIOLATE one." % stuck.sum())
         assigned[free] = np.argmax(alt, axis=1)
     return assigned
 
@@ -168,7 +178,12 @@ def panel(run_dir, cfg):
                                        num_classes=P.shape[1])
     L = compute_local_constraints(df, "label", lp, "grp",
                                       constrained_class=classes, num_classes=P.shape[1])
-    classes = [c for c in classes if G[c] < UNLIMITED]
+    # Both scopes: eval.py now ENFORCES a local-only cap, so dropping such a
+    # class here would make the scorer and the pipeline disagree about what is
+    # constrained -- and the framework prescribes sweeping G < L next.
+    classes = [c for c in classes
+               if G[c] < UNLIMITED
+               or any(b[c] < UNLIMITED for b in L.values())]
     if not classes:
         return None
     cls = classes[0]
@@ -269,6 +284,8 @@ def main():
     a.add_argument("--campaign", required=True, nargs="+")
     a.add_argument("--control", required=True)
     a.add_argument("--percell", action="store_true")
+    a.add_argument("--allow-weak-control", action="store_true",
+                   help="permit --control focal_clip even though clip is present")
     args = a.parse_args()
 
     rows = []
@@ -299,6 +316,12 @@ def main():
     arms = sorted(df.arm.unique())
     if args.control not in arms:
         sys.exit("control %r not among %s" % (args.control, arms))
+    if args.control == "focal_clip" and "clip" in arms and not args.allow_weak_control:
+        sys.exit("REFUSED: --control focal_clip while `clip` is in this campaign. "
+                 "`clip` is the stronger quality bar -- it beats focal_clip by "
+                 "more than TraLO does -- and headlining against focal_clip is "
+                 "retraction (d) in FRAMEWORK section 2. Pass "
+                 "--allow-weak-control to report it anyway, alongside clip.")
 
     # `capped` belongs in the PAIRING key, not only in the cell count printed
     # below it. Without it, pivot_table's default aggfunc="mean" averages two
