@@ -114,8 +114,6 @@ def _train_constraints(model, config, inputs, device):
         epoch_start = time.time()
 
         # ---- Step 1: CE on TRAIN data (batched) ----
-        # CE saturation skip (mirrors TraLO): once train_acc >= 0.995 for 2
-        # consecutive epochs, disable CE so only constraint pressure remains.
         model.train()
         ce_losses = []
         train_correct, train_total = 0, 0
@@ -136,7 +134,6 @@ def _train_constraints(model, config, inputs, device):
             with torch.no_grad():
                 train_correct += (logits_ce.argmax(dim=1) == batch_y).sum().item()
                 train_total += batch_y.size(0)
-        cached_train_acc = train_correct / train_total if train_total > 0 else 1.0
 
         # ---- Step 2: constraint gradient on TEST data (transductive) ----
         # Apples-to-apples with TraLO: use model.eval() during the transductive
@@ -334,7 +331,6 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     local_con = inputs.local_con
     groups_np = inputs.group_ids
     X_test_dev = inputs.X_test.to(device)
-    num_classes = inputs.num_classes
 
     model.eval()
     with torch.no_grad():

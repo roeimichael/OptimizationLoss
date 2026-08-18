@@ -1,8 +1,12 @@
-"""heuristic methodology: greedy top-K allocation post-hoc on the warmup model.
+"""heuristic methodology: greedy allocation post-hoc on the warm-up model.
 
-No constraint-phase training. Allocates predictions class-by-class
-(constrained classes first, sorted by tightest limit) using softmax
-probabilities. Remaining samples get their best feasible class.
+No constraint-phase training. Capped classes are filled by one JOINT pass over
+every (item, capped class) pair in descending probability, so several capped
+classes compete for the same items; with a single capped class this is exactly
+its top-K. Uncapped classes then take the items that already prefer them, and
+whatever is left goes to its best class that still has room.
+
+This is the `clip` arm -- the stronger quality bar, carried in every campaign.
 """
 
 import logging

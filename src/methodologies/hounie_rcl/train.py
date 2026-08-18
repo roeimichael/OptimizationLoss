@@ -154,8 +154,6 @@ def _train_constraints(model, inputs: TrainInputs, device):
         epoch_start = time.time()
 
         # ---- Step 1: CE on TRAIN (theta SGD on L_ce) ----
-        # CE saturation skip (mirrors TraLO): once train_acc >= 0.995 for 2
-        # consecutive epochs, disable CE so only constraint pressure remains.
         model.train()
         ce_losses = []
         train_correct, train_total = 0, 0
@@ -176,7 +174,6 @@ def _train_constraints(model, inputs: TrainInputs, device):
             with torch.no_grad():
                 train_correct += (logits_ce.argmax(dim=1) == batch_y).sum().item()
                 train_total += batch_y.size(0)
-        cached_train_acc = train_correct / train_total if train_total > 0 else 1.0
 
         # ---- Step 2: soft-count gradient on TEST (theta SGD on Σ_i lam_i * E[l_i]) ----
         # Apples-to-apples with TraLO: model.eval() during the transductive pass.
@@ -297,7 +294,6 @@ def _train_constraints(model, inputs: TrainInputs, device):
 
         # ---- Bookkeeping ---- (uses the pre-step satisfaction state computed
         # earlier, which is what the snapshot reflects).
-        hard_counts = hard_counts_pre
         total_excess = total_excess_pre
         all_satisfied = all_satisfied_pre
         if all_satisfied and satisfaction_epoch is None:

@@ -1,22 +1,22 @@
-"""TraLO-Fioretto hybrid methodology.
+"""TraLO: cross-entropy plus a bounded penalty on the predicted count.
 
-Mixes TraLO's bounded saturated penalty (per-class lambda ratchet) with
-an undershoot hinge to control post-satisfaction parking behaviour.
+    L = CE + sum over capped (class, scope) of  lambda * penalty(soft_count, K)
 
-  bounded_only:     L = CE + Sum_c lambda_T_c * bounded(E_c)
-                    TraLO bounded penalty alone (above K only).
+    penalty(s, K) = E/(E+S) + rho * (E/S)^2 / (1 + (E/S)^2),
+    with E = relu(s - K) and S = max(K, 1).
 
-  undershoot_hinge: L = CE + Sum_c lambda_T_c * [ bounded(E_c)
-                                                + beta * relu(K_c - soft_count_c) / K_c ]
-                    Bounded penalty above K + linear hinge pushing back UP
-                    when below K. Asymmetric pair that parks near K from
-                    both sides without overshooting either way.
+lambda ratchets per capped (class, scope) while the constraint is violated and
+freezes on satisfaction. The transductive passes run in eval mode; pass 1 is
+FP32 and computes the counts, pass 2 is AMP and carries the gradient, with a
+detach construction that yields the exact full-N gradient from one chunk at a
+time. A unit-norm gradient clip follows, and it is load-bearing: without it the
+predicted count collapses to zero.
 
-bounded(E_c) = E/(E+K) + rho * (E/K)^2 / (1 + (E/K)^2),   E = relu(soft_count - K).
-
-Apples-to-apples machinery mirrors TraLO: eval mode in transductive passes,
-CE saturation skip, grad clip + norm gate, best_sat/min_excess restore,
-5-consecutive early stop.
+Everything else this file used to describe -- an undershoot hinge, a
+`bounded_only` / `undershoot_hinge` mode switch, a KL anchor to the warm-up
+distribution, a CE-saturation skip -- was DELETED from the pipeline (FRAMEWORK
+section 2f). Each was measured and each made results worse. No config can
+re-enable them.
 """
 
 import logging
@@ -132,7 +132,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     write_csv_header(csv_log_path, num_classes, local_con)
 
     for epoch in range(warmup_epochs, total_epochs):
-        # ---- CE pass (skipped after saturation) ----
+        # ---- CE pass ----
         model.train()
         for pg in optimizer.param_groups:
             pg["lr"] = lr_constraint
@@ -274,8 +274,6 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 # memory knob. That is a confound across the three headline
                 # datasets, not a hyperparameter.
                 chunk_loss = chunk_loss + lg + ll
-                # ---- Undershoot hinge: lambda_T_c * beta * relu(K - soft)/K ----
-                # ---- KL anchor against warmup distribution ----
                 if scaler:
                     scaler.scale(chunk_loss).backward()
                 else:

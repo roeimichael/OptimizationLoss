@@ -2,7 +2,6 @@
 # One GPU per process; partition a campaign by EXPERIMENT_DIR, not by threads.
 # Safe for tmux on remote servers -- detach and reattach freely.
 
-import json
 import logging
 import os
 import subprocess
@@ -78,7 +77,7 @@ def print_experiment_header(index, total, exp_path, config, completed, failed, p
                      f"lr_con={hp['lr_constraint']:.0e}  "
                      f"pretrained={hp.get('pretrained', False)}  "
                      f"weighted_ce={hp.get('class_weighted_ce', False)}")
-    print(f"{prefix}  Progress so far: {completed} done, {failed} failed, "
+    print("  Progress so far: {completed} done, {failed} failed, "
                 f"{total - index + 1} remaining (including this one)")
     print(f"{prefix}{'='*70}")
 
@@ -151,7 +150,7 @@ def main():
     log.info("Running %d pending experiments on %s", total, gpu_info)
     completed, failed, experiment_times, total_time = run_sequential(pending, gpu_id=gpu_id)
     print(f"\n{'='*70}")
-    print(f"  ALL DONE")
+    print("  ALL DONE")
     print(f"  Completed: {completed}  |  Failed: {failed}  |  "
           f"Total time: {format_duration(total_time)}")
     if experiment_times:

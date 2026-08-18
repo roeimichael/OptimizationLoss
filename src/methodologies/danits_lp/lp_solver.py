@@ -185,7 +185,6 @@ def solve_lp_assignment(
 
     # (2) Feature-based: Σ_{s ∈ λ} R[s, i] ≤ Phi_λ(i)
     phi_norm = _normalize_phi(phi, n_classes)
-    unique_groups = np.unique(groups)
     # If phi specifies a group key that doesn't appear in `groups`, it is harmless
     # (empty sum ≤ bound); no warning needed.
     for group_value, per_class_bounds in phi_norm.items():

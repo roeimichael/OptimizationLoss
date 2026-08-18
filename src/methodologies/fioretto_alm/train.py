@@ -81,7 +81,6 @@ def _train_constraints(model, config, inputs, device):
     mu_step = float(hp.get("alm_mu_step", 0.01))
     batch_size = hp.get("batch_size", 64)
     chunk_size = hp.get("constraint_chunk_size", 256)
-    # Apples-to-apples with TraLO/Fioretto: CE saturation skip.
 
     use_amp, amp_dtype, scaler = setup_runtime(device)
 
@@ -155,7 +154,6 @@ def _train_constraints(model, config, inputs, device):
             with torch.no_grad():
                 train_correct += (logits_ce.argmax(dim=1) == batch_y).sum().item()
                 train_total += batch_y.size(0)
-        cached_train_acc = train_correct / train_total if train_total > 0 else 1.0
 
         # ---- Step 2: constraint gradient on TEST data (transductive) ----
         model.eval()

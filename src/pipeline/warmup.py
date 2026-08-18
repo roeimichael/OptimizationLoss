@@ -69,9 +69,9 @@ def run_warmup(config, num_classes, X_train, y_train, device,
 
     Returns (model, from_cache). When from_cache=True, no training ran.
 
-    csv_log_path: optional. tralo passes its training_log.csv so the
-    warmup phase appears in the log alongside constraint epochs. heuristic +
-    fioretto pass None (their warmup is not logged per-epoch to CSV).
+    csv_log_path: the run's training_log.csv, so the warm-up epochs appear in
+    the log alongside the constraint epochs. run_experiment passes it for every
+    arm.
     """
     cache_id = config["base_model_id"]
     hp = config["hyperparams"]

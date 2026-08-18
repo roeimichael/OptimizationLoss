@@ -123,8 +123,6 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         skip_targeted_correction=train_outputs.skip_targeted_correction,
         precomputed_predictions=train_outputs.precomputed_predictions,
     )
-    best_pred = result['y_pred']
-    best_proba = result['y_proba']
     best_metrics = result['metrics']
     best_adj = result['adj']
     best_meta = result['posthoc_meta']

@@ -192,8 +192,6 @@ def panel(run_dir, cfg):
           else equalize_multi(P, g, G, L, classes))
     # Per-class scores averaged over the capped classes; identical to before
     # when only one class is capped.
-    ybin = (y == cls).astype(int)
-    s = P[:, cls]
     _ap = float(np.mean([average_precision_score((y == c).astype(int), P[:, c])
                          for c in classes]))
     _auc = float(np.mean([roc_auc_score((y == c).astype(int), P[:, c])
