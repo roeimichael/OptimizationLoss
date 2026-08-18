@@ -1,0 +1,37 @@
+% tab_oct_backbone.tex -- the backbone-general OctMNIST tight-cap win, on BOTH metrics.
+% Per-backbone paired gap of TraLO over the best trained dual (per-seed best of
+% Fioretto-LDF/Hounie-RCL) at the tight caps L30/L40, for constrained-class F1 AND macro-F1.
+% Rows 1-3 regenerable via scripts/make_octmnist_fig.py::tight_cap_table() -- sweep=='paper_final'.
+% MobileNetV2 row added in revision from data/corpus/b8_mnv2_octmnist.csv, the one campaign
+% that covers BOTH tight caps for this backbone (b8_replication() in the same script).
+% Its independent per-seed sweeps give +0.034 at L30, which is the curve plotted in Fig. 2.
+\begin{table}[t]\centering\small
+\setlength{\tabcolsep}{4pt}
+\caption{\textbf{The OctMNIST tight-cap win is backbone-general, largest on the
+ViT-B/16, and carries to overall accuracy.} Paired gap of TraLO over the best trained dual
+(per-seed best of Fioretto-LDF/Hounie-RCL) at the tight caps, mean over seeds $1$--$4$
+($\pm$ across-seed std). Constrained-class F1 leads at every cell on all $4/4$ seeds; macro-F1
+improves at {seven of the eight} cells (the exception a wash at
+MobileNetV3$\times L30$), again peaking at the ViT-B/16. {MobileNetV2 was added
+after the main grid was frozen, so its two rows come from the separate Track-B campaign that
+covers both tight caps; its own per-seed sweeps give $+0.034${\scriptsize$\pm.024$} at $L30$
+independently, which is the curve plotted in Figure~\ref{fig:octmnist}.}}
+\label{tab:oct_backbone}
+\begin{tabular}{ll rr}
+\toprule
+Backbone & Cap & $\Delta$ cc-F1 & $\Delta$ macro-F1 \\
+\midrule
+\multirow{2}{*}{MobileNetV3}   & L30 & $+0.016$ {\scriptsize$\pm.014$} & $+0.001$ {\scriptsize$\pm.001$} \\
+                               & L40 & $+0.022$ {\scriptsize$\pm.029$} & $+0.008$ {\scriptsize$\pm.013$} \\
+\addlinespace[1.5pt]
+\multirow{2}{*}{RegNetY-400MF} & L30 & $+0.035$ {\scriptsize$\pm.006$} & $+0.013$ {\scriptsize$\pm.005$} \\
+                               & L40 & $+0.021$ {\scriptsize$\pm.003$} & $+0.007$ {\scriptsize$\pm.002$} \\
+\addlinespace[1.5pt]
+\multirow{2}{*}{MobileNetV2} & {L30} & {$+0.047$ {\scriptsize$\pm.032$}} & {$+0.022$ {\scriptsize$\pm.018$}} \\
+                               & {L40} & {$+0.037$ {\scriptsize$\pm.021$}} & {$+0.016$ {\scriptsize$\pm.010$}} \\
+\addlinespace[1.5pt]
+\multirow{2}{*}{\textbf{ViT-B/16}} & L30 & $\mathbf{+0.081}$ {\scriptsize$\pm.045$} & $\mathbf{+0.028}$ {\scriptsize$\pm.014$} \\
+                               & L40 & $\mathbf{+0.051}$ {\scriptsize$\pm.019$} & $\mathbf{+0.016}$ {\scriptsize$\pm.008$} \\
+\bottomrule
+\end{tabular}
+\end{table}

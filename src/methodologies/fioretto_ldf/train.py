@@ -41,12 +41,6 @@ def _train_constraints(model, config, inputs, device):
     step_size = float(hp["fioretto_step_size"])
     batch_size = hp.get("batch_size", 64)
     chunk_size = hp.get("constraint_chunk_size", 256)
-    # Apples-to-apples with TraLO: CE saturation skip. Once train acc reaches
-    # >=0.995 for 2 consecutive epochs, CE batch loop is disabled and only
-    # constraint pressure remains. Without this Fioretto keeps CE training
-    # forever, fighting the constraint and slowing satisfaction. TraLO uses
-    # the same gate (enable_ce_skip, default True).
-    enable_ce_skip = bool(hp.get("enable_ce_skip", True))
 
     use_amp, amp_dtype, scaler = setup_runtime(device)
 
@@ -56,16 +50,12 @@ def _train_constraints(model, config, inputs, device):
     local_con = inputs.local_con
     groups_np = inputs.group_ids
 
-    # lambda_init defaults to the published 0.0 (zero-start dual ascent); the review
-    # control sets it to TraLO's 0.05 to test whether the convergence ordering is an
-    # initialization artifact rather than a formulation property.
-    lam0 = float(hp.get("fioretto_lambda_init", 0.0))
-    lambda_g = {c: lam0 for c in constrained_classes if global_con[c] < UNLIMITED}
+    lambda_g = {c: 0.0 for c in constrained_classes if global_con[c] < UNLIMITED}
     lambda_l = {}
     for group_id, bounds in local_con.items():
         for c in constrained_classes:
             if bounds[c] < UNLIMITED:
-                lambda_l[(group_id, c)] = lam0
+                lambda_l[(group_id, c)] = 0.0
 
     log.info("Fioretto LDF: %d epochs, lr=%.2e, step_size=%.4f, "
              "%d global + %d local multipliers",
@@ -98,8 +88,6 @@ def _train_constraints(model, config, inputs, device):
     with open(log_path, "w", newline="") as f:
         csv.DictWriter(f, log_fields).writeheader()
 
-    ce_skip_counter = 0
-    skip_ce = False
     stable_count = 0  # consecutive epochs with all_satisfied for early-stop parity with TraLO
     for epoch in range(constraint_epochs):
         epoch_start = time.time()
@@ -110,7 +98,7 @@ def _train_constraints(model, config, inputs, device):
         model.train()
         ce_losses = []
         train_correct, train_total = 0, 0
-        for batch_X, batch_y in (train_loader if not skip_ce else []):
+        for batch_X, batch_y in train_loader:
             batch_X, batch_y = batch_X.to(device), batch_y.to(device)
             optimizer.zero_grad(set_to_none=True)
             with torch.amp.autocast("cuda", dtype=amp_dtype, enabled=use_amp):
@@ -128,15 +116,6 @@ def _train_constraints(model, config, inputs, device):
                 train_correct += (logits_ce.argmax(dim=1) == batch_y).sum().item()
                 train_total += batch_y.size(0)
         cached_train_acc = train_correct / train_total if train_total > 0 else 1.0
-        if enable_ce_skip and not skip_ce:
-            if cached_train_acc >= 0.995:
-                ce_skip_counter += 1
-                if ce_skip_counter >= 2:
-                    skip_ce = True
-                    log.info("Fioretto epoch %d: CE saturated (acc=%.4f), "
-                             "disabling CE batch loop", epoch + 1, cached_train_acc)
-            else:
-                ce_skip_counter = 0
 
         # ---- Step 2: constraint gradient on TEST data (transductive) ----
         # Apples-to-apples with TraLO: use model.eval() during the transductive
@@ -358,13 +337,23 @@ def train(inputs: TrainInputs) -> TrainOutputs:
 
     restored_from_epoch = None
     restore_kind = None
-    if best_sat_state is not None and final_violates:
+    # PARITY with tralo, which gates this and whose campaigns set it False.
+    # Unconditional restore here meant that in a head-to-head only tralo kept
+    # its trained model, while these two were swapped for a checkpoint chosen
+    # on constraint satisfaction -- measured at -0.0351 AP within-run. Any
+    # tralo win over the duals would have carried that advantage for free.
+    # Default True: runs predating the flag keep their behaviour bit for bit.
+    allow_restore = bool(hp.get("enable_checkpoint_restore", True))
+    if not allow_restore:
+        log.info("Fioretto: enable_checkpoint_restore=False, keeping the trained model")
+    if allow_restore and best_sat_state is not None and final_violates:
         log.info("Fioretto: final violates; restoring best-satisfied checkpoint from epoch %d",
                  best_sat_epoch)
         model.load_state_dict({k: v.to(device) for k, v in best_sat_state.items()})
         restored_from_epoch = best_sat_epoch
         restore_kind = "fully_satisfied"
-    elif min_excess_state is not None and final_total_excess > min_total_excess:
+    elif (allow_restore and min_excess_state is not None
+          and final_total_excess > min_total_excess):
         log.info("Fioretto: final excess=%d > min seen excess=%d (epoch %d); "
                  "restoring lowest-excess checkpoint",
                  int(final_total_excess), int(min_total_excess), min_excess_epoch)

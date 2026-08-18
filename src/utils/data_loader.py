@@ -11,9 +11,11 @@ from src.training.constraints import compute_global_constraints, compute_local_c
 
 log = logging.getLogger(__name__)
 
-IMAGERY_DATASETS = {'dermmnist', 'aider', 'tissuemnist', 'octmnist', 'octnative',
-                    # native-resolution campaign (docs/NATIVE_RES_CAMPAIGN.md):
-                    'retinamnist', 'bloodmnist', 'organamnist', 'tissuenative'}
+# The only three datasets in scope (docs/FRAMEWORK.md section 1). aider,
+# eurosat, retinamnist, bloodmnist, organamnist and the native-resolution
+# variants were dropped; their data is deleted and they must not come back
+# without a decision recorded in the framework.
+IMAGERY_DATASETS = {'dermmnist', 'octmnist', 'tissuemnist'}
 
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(1, 3, 1, 1)
 IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 3, 1, 1)

@@ -127,3 +127,8 @@ logs/.hook_last_predictions_count
 *.toc
 *.fls
 *.fdb_latexmk
+
+# Archived provenance + predictions (29 MB of tarballs). Kept on disk locally
+# AND on dsisco01 at ~/OptimizationLoss/evidence/ -- deliberately not in git so
+# clones stay small. See docs/FRAMEWORK.md section 6.
+evidence/

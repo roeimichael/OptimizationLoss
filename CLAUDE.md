@@ -1,132 +1,92 @@
 # OptimizationLoss
 
-Thesis project: train neural networks to satisfy **transductive prediction-count constraints** using soft constraint optimization, and compare against a greedy heuristic baseline.
+Thesis project: train neural networks to satisfy **transductive prediction-count constraints**
+via soft constraint optimization, and beat a post-hoc clipping baseline.
 
-## Datasets (active)
+---
 
-Three datasets in `data_loader.py`'s `IMAGERY_DATASETS`. Source of truth for paper scope: `docs/PAPER_PLAN.md`.
+# STOP. READ `docs/FRAMEWORK.md` FIRST.
 
-### TissueMNIST (active)
-- **Source**: MedMNIST kidney tissue
-- **Classes**: 8; **Constrained class**: 4 (GE, ~7.1% test)
-- **Group column**: `synth_group`
-- **Status**: F1 headline — paired-significant TraLO win vs all 5 baselines on L20-L50 × MobileNetV3 (`winning_results/headline_f1.md`).
+**It is the only operational document.** It holds the fixed experimental protocol, every idea
+that has already failed and why, and the one open question. Everything else in `docs/` is history.
 
-### DermMNIST (active)
-- **Source**: MedMNIST HAM10000 skin lesions
-- **Classes**: 7 -- AKIEC, BCC, BKL, DF, MEL (constrained), NV, VASC
-- **Constrained class**: MEL (class 4); local cap via `loc_group`
-- **Status**: F1 3W/2T/0L, flips 5W/0/0; richest fairness story (3 imbalanced anatomical groups).
+**Do not propose, run, or score anything before reading it.** If any other file disagrees with
+it, `docs/FRAMEWORK.md` wins.
 
-### AIDER (active)
-- **Source**: aerial disaster image recognition dataset
-- **Classes**: 4; **Constrained class**: 0
-- **Group column**: `synth_group` (binary)
-- **Status**: flips 5W/0/0; F1 ties / small loss — saturated-warmup regime, itself a paper finding.
+## The five rules that get broken most
 
-**Previously tried and dropped:** see `docs/REJECTED.md`. Do not re-introduce without reading that file.
+1. **Warm-up 1 / constraint 29 for trained arms; warm-up 30 / constraint 0 for post-hoc arms.**
+   30 optimizer epochs on both sides. **Never run warm-up 50** -- CE saturates and every method
+   becomes identical. Never run warm-up 5 -- it is a dead zone; never interpolate between them.
+2. **Score at equal compute, with BOTH clippers (`clip` and `focal_clip`) inside the campaign.**
+   `clip` is the stronger quality bar. An arm-vs-arm delta is not a result until the bar is in
+   the same campaign.
+3. **md5 the raw predictions across arms before reading any metric.** Inert flags are this
+   project's most frequent failure mode -- four occurrences and counting.
+4. **Atomic cell = (dataset, backbone, cap, method) over 4 seeds. Count cells.** Never pool
+   across cap levels, backbones or datasets. Always sweep at least two cap levels -- a
+   single-cap claim has been retracted three times.
+5. **`flips`, raw count over K, and "proximity to feasibility" are NOT metrics.** Post-hoc
+   filling is free. When quality ties, the honest report is "this arm produced nothing."
 
-## Pipeline
+## Do not run
 
-```
-main.py                                  # Dispatch pending experiments via subprocess
-  -> src/experiments/runner.py            # Single dispatcher: tralo | fioretto_ldf | hounie_rcl | heuristic | danits_lp
-```
+Anything already in `docs/FRAMEWORK.md` section 2. In particular: penalty-shape variants,
+more constraint steps, a dedicated constraint optimizer, the joint objective, the undershoot
+hinge, finer constraint granularity. **All of them are measured, and all made things worse.**
 
-**Config generation**: `src/config_generators/generate_configs.py`
-**Evaluation**: `src/evaluation/` (full_census.py, paired_significance.py, make_winning_results.py)
-
-## Models
-
-### Imagery (`src/models/imagery/`)
-- `MobileNetV3` -- torchvision MobileNetV3-Large (~5.4M params) — **headline backbone**
-- `MobileNetV2` -- torchvision MobileNetV2 (~3.5M params) — Blackwell-validated co-winner
-- `RegNetY400MF` -- torchvision RegNetY-400MF (~4M params, group-conv+SE) — corroboration
-- `ShuffleNetV2` -- torchvision ShuffleNet V2 — corroboration
-- Input: `(B, 3, H, W)` image tensors, ImageNet-normalized by data_loader
-
-Registry: `src/models/model_factory.py` -- `get_model(name, n_classes, **kwargs)`
-
-**Previously tried and dropped:** see `docs/REJECTED.md`. Do not re-add to the registry without reading that file first.
-
-## Training Phases
-
-1. **Warmup** -- CE loss only for `warmup_epochs`. Cached via `base_model_id` hash.
-2. **Constraint Optimization** -- CE + transductive constraint loss.
-   - Lambda ratchet: increments by `lambda_step` per epoch until satisfied, then freezes.
-   - Linear rho schedule: `rho += rho_step` each epoch until first satisfaction, then frozen.
-   - KL regularization: `alpha_kl * D_KL(current || warmup)`.
-   - CE saturation skip: stops Phase 1 when train accuracy >= 0.995 for 2 checks.
-   - Lambda toggle: zeroes lambdas when satisfied, restores when violated, with oscillation detection.
-   - Convergence: early stops when constraints satisfied for 5 consecutive epochs.
-   - Optimizer reset at satisfaction: Adam optimizer state is reset at first satisfaction to break post-satisfaction descent momentum (essential per component ablation).
-3. **Post-hoc Adjustment** -- Flip borderline predictions to enforce hard count limits.
-   - Global adjustment first, then local per-group, then re-verify global.
-
-## Loss Formulation
+## Where things are
 
 ```
-L_total = L_ce + lambda_g * L_global + lambda_l * L_local + alpha_kl * L_kl
+main.py            dispatcher (kill -INT to stop; interrupted runs reset to pending)
+configs/           gen_campaign.py = THE generator (asserts the protocol, refuses to
+                   emit a single-cap campaign, always adds both clippers)
+data/              dermmnist, octmnist, tissuemnist -- nothing else
+docs/FRAMEWORK.md  THE framework -- protocol, rejected ideas, code purge, open question
+docs/archive/      history, not instructions
+docs/paper/        the TMLR manuscript
+results/           experiment outputs
+scripts/           full_panel.py + score_arm.py = THE scorer; plus dataset prep
+src/               the pipeline: losses, methodologies, models, pipeline, training, utils
+evidence/          archived provenance + predictions from every run ever made
 ```
 
-- **L_global / L_local**: Rational saturation `E/(E+K)` + bounded quadratic `rho * (E/K)^2 / (1 + (E/K)^2)`
-- **L_kl**: KL divergence vs cached warmup predictions
-- Soft counts (differentiable) vs hard counts (argmax for verification)
-
-## Performance Optimizations
-
-- AMP (BF16 on Ampere+ GPUs, FP16 with GradScaler on older)
-- cudnn.benchmark for fixed-size inputs
-- Fused Adam optimizer (with fallback)
-- set_to_none=True for zero_grad
-- Two-pass constraint computation (no_grad counts + grad accumulation)
-
-## Directory Structure
-
-```
-main.py                 # Experiment orchestrator (sequential + parallel GPU)
-run_oct_asym.sh         # OctMNIST asymmetric-cap dispatch runner
-PAPER_INDEX.md          # map of paper + data + archive (read first)
-paper/                  # the TMLR submission (professor's Overleaf conversion; incl. HANDOFF_TRACK_B.tex experiment plan)
-docs/                   # project docs (PAPER_PLAN.md, etc.)
-src/
-  config_generators/    generate_configs.py + gen_*.py campaign generators
-  experiments/          runner.py (single dispatcher)
-  pipeline/             setup, data, warmup, eval, io, contracts
-  methodologies/        tralo, tralo_bounded, fioretto_ldf, hounie_rcl, fioretto_rh, hounie_rh,
-                        fioretto_restart, danits_lp, heuristic (each train.py + hp_defaults.py)
-  losses/               transductive_loss.py (MulticlassTransductiveLoss)
-  models/
-    model_factory.py    unified registry
-    imagery/            mobilenetv3, mobilenetv2, regnet, shufflenet, tinycnn, smallcnn, mediumcnn
-  training/             constraints.py, metrics.py, model_cache.py, logging.py
-  utils/                data_loader.py, filesystem_manager.py, error_handler.py,
-                        posthoc_adjustment.py, inference.py, constants.py
-  evaluation/           full_census.py, paired_significance.py, make_winning_results.py
-data/                   # small local staging (dermmnist/tissuemnist/aider prep); image store on D:
-model_cache/            cached warmup .pt files (not in git, auto-created)
-archive/                consolidated old data + scratch: raw_runs/, legacy/ (incl. retired AAAI-2027 paper), scratch/ (gitignored)
-results/
-  pending_runs/         {constraint}/{model}/{variation}/ -- experiments to run
-```
-
-## How to Run
+Four methodologies only: `tralo`, `fioretto_ldf`, `hounie_rcl`, `heuristic` (the clippers).
+Generate a campaign with:
 
 ```bash
-# Generate configs (interactive menu)
-python -m src.config_generators.generate_configs
-
-# Or programmatically
-python -c "from src.config_generators.generate_configs import generate_configs, save_configs; save_configs(generate_configs('tralo', round='round4', dataset_mode='tissuemnist'), output_dir='results/pending_runs')"
-
-# Run all pending experiments
-python main.py
+python -m configs.gen_campaign --root results/<name>     --datasets dermmnist tissuemnist --models MobileNetV3     --caps L30_G30 L50_G50 --arms tralo fioretto hounie
 ```
 
-## Results
+## Datasets (the only three)
 
-Each experiment directory contains: `config.json`, `training_log.csv`, `final_predictions.csv`, `evaluation_metrics.csv`
+`dermmnist` (7 classes, MEL=4 capped, `loc_group`) - `octmnist` - `tissuemnist` (8 classes,
+class 4 capped, `synth_group`). **No AIDER, no EuroSAT, no others.**
 
-## Known Limitation
+## Backbones
 
-**Soft/hard count mismatch**: Loss optimizes soft counts (sum of probabilities) but satisfaction uses hard counts (argmax). Post-hoc adjustment closes this gap.
+`MobileNetV3` headline; `MobileNetV2`, `RegNetY400MF`, `ShuffleNetV2` corroboration.
+
+## Loss
+
+```
+L_total = L_ce + lambda_g * L_global + lambda_l * L_local
+```
+
+Rational saturation `E/(E+K)` plus bounded quadratic. Soft counts (differentiable) for the
+gradient, hard counts (argmax) for verification; post-hoc adjustment closes the gap.
+**KL is out of scope -- `alpha_kl = 0.0` always.**
+
+## Infrastructure
+
+- **Never run experiments locally.** SSH `dsisco01` / `dsisco02`, `conda activate optloss`.
+- **Max 2 GPUs.** Run `nvidia-smi` **with owner lookup** first; never share a GPU with another user.
+- dsisco01 = Quadro RTX 6000 (FP16 + GradScaler). dsisco02 = RTX PRO 6000 Blackwell (BF16 AMP).
+  Record which one a result came from.
+- Any hyperparameter that changes what warm-up optimizes **must** be in `compute_base_model_id`,
+  or the second arm silently loads the first one's cached model.
+
+## Paper
+
+`docs/paper/main.tex` is the professor's file -- **never edit it**. Edit `docs/paper/main_edited_by_roei.tex`.
+Appendix tables stay in the appendix.

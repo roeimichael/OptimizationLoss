@@ -1,83 +1,96 @@
-# Transductive constraint loss: rational saturation + bounded quadratic + KL regularization.
-# L_constraint = E/(E+K) + rho * (E/K)^2 / (1 + (E/K)^2), bounded to [0, 1+rho).
-# KL term anchors predictions to warmup model to prevent distribution warping.
+"""Transductive prediction-count constraint penalty.
 
-import logging
+For each capped (class, scope) with soft count `s` and budget `K`, with excess
+E = relu(s - K) and e = E/K:
 
+    penalty(s, K) = E/(E+K)  +  rho * e^2 / (1 + e^2)
+
+Rational saturation plus a bounded quadratic, so the whole term stays in
+[0, 1+rho) no matter how far over budget the model is. `rho` ramps over the
+constraint phase; `lambda` ratchets per class. The total is
+
+    L_constraint = sum over capped (class, scope) of  lambda * penalty(s, K)
+
+with soft (differentiable) counts here and hard (argmax) counts used only for
+verification.
+
+Scope note -- read `docs/FRAMEWORK.md` section 2a before adding a shape here.
+Roughly thirteen arms varied this penalty (rational vs quadratic vs linear, rho
+schedules, lambda schedules, finer granularity) and every one of them tied. The
+reason is structural and is not about the shape: the penalty is a function of the
+AGGREGATE COUNT, and post-hoc allocation scores only the RANKING, which an
+aggregate-count gradient cannot reorder. `_penalty` is deliberately one small
+method so a genuinely different idea is cheap to try -- but a new *shape* is a
+repeat of a closed experiment.
+"""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from src.utils.constants import UNLIMITED, EPSILON
 
-log = logging.getLogger(__name__)
-
 
 class MulticlassTransductiveLoss(nn.Module):
 
     def __init__(self, global_constraints, local_constraints,
-                 num_classes=7, initial_rho=0.5, alpha_kl=0.0,
-                 penalty_mode="both"):
+                 num_classes=7, initial_rho=0.5):
         super().__init__()
-        if penalty_mode not in ("rational", "quadratic", "both", "linear"):
-            raise ValueError(f"penalty_mode must be rational|quadratic|both|linear, "
-                             f"got {penalty_mode!r}")
-        self.penalty_mode = penalty_mode
-        self.sat_factor = 1.0 if penalty_mode in ("rational", "both") else 0.0
-        self.quad_factor = 1.0 if penalty_mode in ("quadratic", "both") else 0.0
-        # "linear" swaps the bounded shape for E/K: unbounded, constant 1/K gradient.
-        # Isolates the penalty shape with the ratchet, freeze, reset and hinge held fixed.
-        self.linear_factor = 1.0 if penalty_mode == "linear" else 0.0
-        self.alpha_kl = alpha_kl
         self.num_classes = num_classes
         self.register_buffer('rho', torch.tensor(float(initial_rho)))
         self.global_constraints_satisfied = False
         self.local_constraints_satisfied = False
-        # Per-class lambda dicts. Keys: class idx for global, (group_id, class) for local.
+        # lambda keys: class idx for global, (group_id, class) for local
         self.lambda_global_per_class = {}
         self.lambda_local_per_key = {}
+
         if global_constraints is not None:
             assert len(global_constraints) == num_classes
             self.register_buffer('global_constraints',
                                  torch.tensor(global_constraints, dtype=torch.float32))
         else:
             self.register_buffer('global_constraints', torch.tensor([]))
+
         self.local_groups = {}
-        if local_constraints:
-            for group_id, constraints in local_constraints.items():
-                name = f'local_{int(group_id)}'
-                self.register_buffer(name, torch.tensor(constraints, dtype=torch.float32))
-                self.local_groups[group_id] = name
+        for group_id, constraints in (local_constraints or {}).items():
+            name = 'local_%d' % int(group_id)
+            self.register_buffer(name, torch.tensor(constraints, dtype=torch.float32))
+            self.local_groups[group_id] = name
+
+    # ---- the penalty shape: the one place to change it ----------------------
+    def _penalty(self, soft, K):
+        E = F.relu(soft - K)
+        e = E / (K + EPSILON)
+        return (E / (E + K + EPSILON)
+                + self.rho * (e ** 2) / (1 + e ** 2 + EPSILON))
+
+    def _sum(self, entries, device):
+        """entries: (soft_count, K, lambda) for every capped (class, scope).
+        Returns (total, all_satisfied, n_capped). Satisfaction is judged on the
+        SOFT count here; hard counts verify separately in the trainer."""
+        total = torch.tensor(0.0, device=device)
+        all_satisfied, n = True, 0
+        for soft, K, lam in entries:
+            if (soft > K).item():
+                all_satisfied = False
+            total = total + lam * self._penalty(soft, K)
+            n += 1
+        return total, all_satisfied, n
+
+    def _capped(self, constraints, num_classes):
+        return [c for c in range(num_classes)
+                if c < len(constraints) and constraints[c] < UNLIMITED]
 
     def compute_global_from_counts(self, soft_counts):
         device = soft_counts.device
         if len(self.global_constraints) == 0:
             self.global_constraints_satisfied = True
-            return soft_counts.sum() * 0.0
-        constraints = self.global_constraints.to(device)
-        total_loss = torch.tensor(0.0, device=device)
-        num_constrained = 0
-        all_satisfied = True
-        for c in range(self.num_classes):
-            if c >= len(constraints) or constraints[c] >= UNLIMITED:
-                continue
-            K = constraints[c]
-            E = F.relu(soft_counts[c] - K)
-            if (soft_counts[c] > K).item():
-                all_satisfied = False
-            E_norm = E / (K + EPSILON)
-            sat = E / (E + K + EPSILON)
-            quad = (E_norm ** 2) / (1 + E_norm ** 2 + EPSILON)
-            lam = self.lambda_global_per_class.get(c, 0.0)
-            total_loss = total_loss + lam * (
-                self.sat_factor * sat
-                + self.quad_factor * self.rho * quad
-                + self.linear_factor * E_norm)
-            num_constrained += 1
-        self.global_constraints_satisfied = all_satisfied
-        if num_constrained == 0:
-            return soft_counts.sum() * 0.0
-        return total_loss
+            return soft_counts.sum() * 0.0          # keeps the autograd graph alive
+        con = self.global_constraints.to(device)
+        entries = [(soft_counts[c], con[c], self.lambda_global_per_class.get(c, 0.0))
+                   for c in self._capped(con, self.num_classes)]
+        total, satisfied, n = self._sum(entries, device)
+        self.global_constraints_satisfied = satisfied
+        return total if n else soft_counts.sum() * 0.0
 
     def compute_local_from_counts(self, local_soft_counts):
         if not self.local_groups or not local_soft_counts:
@@ -86,39 +99,24 @@ class MulticlassTransductiveLoss(nn.Module):
                 return v.sum() * 0.0
             return torch.tensor(0.0)
         device = next(iter(local_soft_counts.values())).device
-        total_loss = torch.tensor(0.0, device=device)
-        num_constrained = 0
-        all_satisfied = True
+        entries = []
         for gid, buffer_name in self.local_groups.items():
             if gid not in local_soft_counts:
                 continue
-            group_soft = local_soft_counts[gid]
-            constraints = getattr(self, buffer_name).to(device)
-            for c in range(self.num_classes):
-                if c >= len(constraints) or constraints[c] >= UNLIMITED:
-                    continue
-                K = constraints[c]
-                E = F.relu(group_soft[c] - K)
-                if (group_soft[c] > K).item():
-                    all_satisfied = False
-                E_norm = E / (K + EPSILON)
-                sat = E / (E + K + EPSILON)
-                quad = (E_norm ** 2) / (1 + E_norm ** 2 + EPSILON)
-                lam = self.lambda_local_per_key.get((gid, c), 0.0)
-                total_loss = total_loss + lam * (
-                    self.sat_factor * sat
-                    + self.quad_factor * self.rho * quad
-                    + self.linear_factor * E_norm)
-                num_constrained += 1
-        self.local_constraints_satisfied = all_satisfied
-        if num_constrained == 0:
-            for v in local_soft_counts.values():
-                return v.sum() * 0.0
-            return torch.tensor(0.0, device=device)
-        return total_loss
+            soft = local_soft_counts[gid]
+            con = getattr(self, buffer_name).to(device)
+            entries += [(soft[c], con[c], self.lambda_local_per_key.get((gid, c), 0.0))
+                        for c in self._capped(con, self.num_classes)]
+        total, satisfied, n = self._sum(entries, device)
+        self.local_constraints_satisfied = satisfied
+        if n:
+            return total
+        for v in local_soft_counts.values():
+            return v.sum() * 0.0
+        return torch.tensor(0.0, device=device)
 
+    # ---- lambda / rho -------------------------------------------------------
     def set_lambda_per_class(self, class_idx, value, scope='global', group_id=None):
-        """Set lambda for a specific class (global) or (group, class) pair (local)."""
         if scope == 'global':
             self.lambda_global_per_class[class_idx] = float(value)
         elif scope == 'local' and group_id is not None:

@@ -1,0 +1,35 @@
+% tab_ablation_complete.tex -- complete component ablation (\input-ready float).
+% Built from extra_experiments/ablation_complete.csv: OctMNIST hard-binding cells,
+% n=24 paired per component (2 caps x 3 backbones x 4 seeds).
+% Each row toggles one component off; Delta cc-F1 = full TraLO - (that component removed).
+% Requires: booktabs (loaded by main.tex).
+\begin{table}[t]\centering\small
+\caption{
+{\textbf{Component ablation on the OctMNIST hard-binding cells.} Effect on constrained-class F1 of removing TraLO components}
+($n{=}24$ paired runs each: 2 tight caps $\times$ 3 backbones $\times$ 4 seeds). $\Delta$~cc-F1 = full TraLO $-$ (component removed); winrate = fraction of the 24 paired runs where removing the component hurts. Inference is at the cell level (the unit that does not repeat seeds): removing either load-bearing component hurts in all six cells (sign test $p{=}0.031$, the six-cell floor), while the $\rho$ schedule and lambda freeze split the cells and are cc-F1-neutral on these already-satisfied cells. 
+{Each load-bearing component is isolated singly, on the same $n{=}24$ grid:
+the \emph{reset} row removes the reset with the hinge retained, and the
+\emph{Undershoot hinge (alone)} row removes the hinge with the reset retained.
+The \emph{third} row is the joint removal --- the TraLO-bounded control strips both at once
+(Sec.~\ref{sec:setup}) --- which is why removing two components costs \emph{less} than
+removing the reset alone: the two are not additive, and their joint removal is not the
+sum of the separate ones. Removing the hinge alone hurts in $22$ of the $24$
+paired runs and in \emph{all six} cells (cell-mean gaps $+0.009$ to $+0.056$; cell-level
+sign test $p{=}0.031$, the six-cell floor), so each named component is load-bearing on its
+own and not only as a pair. One caveat on the hinge row specifically: its arm comes from a separate campaign paired against the frozen grid, and a same-seed rerun of one of these configurations moves cc-F1 by $0.027$, so this row lacks the within-campaign control the reset row and the graft experiment both have. The effect is consistent (all six cells, $22$ of $24$ runs, three backbones), but it should be read as provisional.}}
+\label{tab:ablation_complete}
+\begin{tabular}{l c c}
+\toprule
+Component removed & $\Delta$ cc-F1 & Winrate \\
+\midrule
+\multicolumn{3}{l}{\emph{Load-bearing}} \\
+Optimizer reset   & $+0.079$ & $1.00$ \\
+{Undershoot hinge (alone)} & {$+0.032$} & {$0.92$} \\
+\ {Reset $+$ hinge (TraLO-bounded)}  & $+0.036$ & $1.00$ \\
+\midrule
+\multicolumn{3}{l}{\emph{Neutral}} \\
+$\rho$ schedule   & $+0.001$ & $0.42$ \\
+Lambda freeze     & $+0.000$ & $0.38$ \\
+\bottomrule
+\end{tabular}
+\end{table}

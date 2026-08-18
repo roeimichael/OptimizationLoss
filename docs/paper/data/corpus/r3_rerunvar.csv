@@ -1,0 +1,11 @@
+campaign,dataset,model,method,constraint_tag,seed,rep,cc_f1,f1_macro,acc,flips,sat,config_path
+r3_rerunvar,octmnist,MobileNetV3,tralo,L30_G30,1,9,0.4492,0.6997,0.729,,,results/track_b/r3_rerunvar/lane_gpu0/MobileNetV3/octmnist/L30_G30/tralo/rep_09/config.json
+r3_rerunvar,octmnist,MobileNetV3,tralo,L30_G30,1,5,0.4492,0.6997,0.729,,,results/track_b/r3_rerunvar/lane_gpu0/MobileNetV3/octmnist/L30_G30/tralo/rep_05/config.json
+r3_rerunvar,octmnist,MobileNetV3,tralo,L30_G30,1,1,0.4492,0.6997,0.729,,,results/track_b/r3_rerunvar/lane_gpu0/MobileNetV3/octmnist/L30_G30/tralo/rep_01/config.json
+r3_rerunvar,octmnist,MobileNetV3,tralo,L30_G30,1,10,0.4492,0.6997,0.729,,,results/track_b/r3_rerunvar/lane_gpu1/MobileNetV3/octmnist/L30_G30/tralo/rep_10/config.json
+r3_rerunvar,octmnist,MobileNetV3,tralo,L30_G30,1,6,0.4492,0.6997,0.729,,,results/track_b/r3_rerunvar/lane_gpu1/MobileNetV3/octmnist/L30_G30/tralo/rep_06/config.json
+r3_rerunvar,octmnist,MobileNetV3,tralo,L30_G30,1,2,0.4492,0.6997,0.729,,,results/track_b/r3_rerunvar/lane_gpu1/MobileNetV3/octmnist/L30_G30/tralo/rep_02/config.json
+r3_rerunvar,octmnist,MobileNetV3,tralo,L30_G30,1,3,0.4492,0.6997,0.729,,,results/track_b/r3_rerunvar/lane_gpu2/MobileNetV3/octmnist/L30_G30/tralo/rep_03/config.json
+r3_rerunvar,octmnist,MobileNetV3,tralo,L30_G30,1,7,0.4492,0.6997,0.729,,,results/track_b/r3_rerunvar/lane_gpu2/MobileNetV3/octmnist/L30_G30/tralo/rep_07/config.json
+r3_rerunvar,octmnist,MobileNetV3,tralo,L30_G30,1,4,0.4492,0.6997,0.729,,,results/track_b/r3_rerunvar/lane_gpu3/MobileNetV3/octmnist/L30_G30/tralo/rep_04/config.json
+r3_rerunvar,octmnist,MobileNetV3,tralo,L30_G30,1,8,0.4492,0.6997,0.729,,,results/track_b/r3_rerunvar/lane_gpu3/MobileNetV3/octmnist/L30_G30/tralo/rep_08/config.json

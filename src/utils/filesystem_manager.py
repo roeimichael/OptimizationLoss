@@ -40,11 +40,41 @@ def update_experiment_status(experiment_path, status):
     save_config_to_path(config, experiment_path)
 
 
+def dispatch_key(item):
+    """Seed-major ordering key for a (path, config) pair.
+
+    Seed first, so every arm finishes seed 1 before any arm starts seed 2 and
+    an interrupted campaign leaves matched slices rather than one complete arm
+    with an empty control. Cross-campaign drift here is ~0.027, twice the size
+    of the effects at issue, so arms are only readable against arms from the
+    same campaign -- a finished arm whose control never ran is not a partial
+    result, it is none.
+
+    Everything after the seed is a stable tie-break, and the path is last so
+    the order is total even for configs missing these keys.
+    """
+    _path, cfg = item
+    hp = cfg.get('hyperparams') or {}
+    return (
+        hp.get('seed') if isinstance(hp.get('seed'), int) else 1 << 30,
+        str(cfg.get('model_name', '')),
+        str(cfg.get('dataset_mode', '')),
+        str(cfg.get('constraint_tag', '')),
+        str(cfg.get('arm', '')),
+        str(_path),
+    )
+
+
 def get_experiments_by_status(results_dir='results'):
     by_status = {'pending': [], 'completed': []}
     for exp_path, config in get_all_experiment_configs(results_dir):
         key = 'completed' if config.get('status') == 'completed' else 'pending'
         by_status[key].append((exp_path, config))
+    # rglob returns filesystem order, which is arbitrary and has in practice
+    # come out grouped by ARM -- the one order that makes an interrupted
+    # campaign unreadable. The generators all sort seed-major; restore it here.
+    for key in by_status:
+        by_status[key].sort(key=dispatch_key)
     return by_status
 
 

@@ -12,19 +12,9 @@ import torch
 from src.pipeline.data import load_data
 from src.utils.error_handler import logger, log_exception
 from src.methodologies.tralo.train import train as train_tralo                      # was tralo_fioretto
-from src.methodologies.tralo_bounded.train import train as train_tralo_bounded      # was tralo (vanilla baseline)
 from src.methodologies.fioretto_ldf.train import train as train_fioretto_ldf
 from src.methodologies.hounie_rcl.train import train as train_hounie_rcl
-from src.methodologies.fioretto_rh.train import train as train_fioretto_rh          # review graft: fioretto + reset + hinge
-from src.methodologies.hounie_rh.train import train as train_hounie_rh              # review graft: hounie + reset + hinge
-from src.methodologies.fioretto_restart.train import train as train_fioretto_restart  # review anti-windup: fioretto + dual restart
 from src.methodologies.heuristic.train import train as train_heuristic
-from src.methodologies.danits_lp.train import train as train_danits_lp
-from src.methodologies.focal.train import train as train_focal                  # TMLR B1: imbalanced baseline
-from src.methodologies.class_balanced.train import train as train_class_balanced  # TMLR B1: imbalanced baseline
-from src.methodologies.logit_adjust.train import train as train_logit_adjust    # TMLR B1: imbalanced baseline
-from src.methodologies.fioretto_alm.train import train as train_fioretto_alm    # TMLR B3: augmented-Lagrangian baseline
-from src.methodologies.alm_rh.train import train as train_alm_rh                # review round 1: ALM + reset + hinge graft
 from src.pipeline.contracts import TrainInputs
 from src.pipeline.warmup import run_warmup
 from src.pipeline.eval import evaluate_with_posthoc, write_evaluation_outputs
@@ -86,21 +76,11 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     )
     methodology = config.get('methodology', 'tralo')
     train_fns = {
-        'tralo': train_tralo,                       # NEW: breakthrough is the headline tralo
-        'tralo_bounded': train_tralo_bounded,       # legacy bounded-only baseline
+        'tralo': train_tralo,
         'tralo_fioretto': train_tralo,              # ALIAS for backward-compat with completed configs
         'fioretto_ldf': train_fioretto_ldf,
         'hounie_rcl': train_hounie_rcl,
-        'fioretto_rh': train_fioretto_rh,           # review-response graft arm (B1)
-        'hounie_rh': train_hounie_rh,               # review-response graft arm (B1)
-        'fioretto_restart': train_fioretto_restart, # review-response anti-windup arm (B2)
-        'heuristic': train_heuristic,
-        'danits_lp': train_danits_lp,
-        'focal': train_focal,                       # TMLR B1: focal loss + LP clip
-        'class_balanced': train_class_balanced,     # TMLR B1: class-balanced CE + LP clip
-        'logit_adjust': train_logit_adjust,         # TMLR B1: logit adjustment + LP clip
-        'fioretto_alm': train_fioretto_alm,         # TMLR B3: augmented-Lagrangian dual update
-        'alm_rh': train_alm_rh,                     # review round 1: ALM + reset + hinge
+        'heuristic': train_heuristic,               # the post-hoc clippers: clip / focal_clip
     }
     if methodology not in train_fns:
         raise ValueError(f"Unknown methodology for run_experiment: {methodology!r}")

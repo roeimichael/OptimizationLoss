@@ -62,7 +62,10 @@ def log_progress_to_csv(csv_path, epoch, ce_loss, train_acc,
     group_ids_sorted = sorted(local_constraints.keys()) if local_constraints else []
     row = [epoch + 1, f"{train_acc:.4f}", f"{ce_loss:.6f}", f"{global_loss:.6f}",
            f"{local_loss:.6f}", f"{kl_loss:.6f}",
-           f"{lambda_global:.2f}", f"{lambda_local:.2f}",
+           # 4dp, not 2: lambda_step is 0.002 in most campaigns, so two decimals
+           # quantise the ratchet to 5x its own increment and a run that climbed
+           # 0.070 -> 0.074 reads as flat.
+           f"{lambda_global:.4f}", f"{lambda_local:.4f}",
            1 if global_satisfied else 0, 1 if local_satisfied else 0]
     for i in range(num_classes):
         limit = int(constraints[i]) if constraints[i] < UNLIMITED else 'inf'

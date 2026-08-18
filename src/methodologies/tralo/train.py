@@ -37,9 +37,6 @@ from src.utils.error_handler import logger
 log = logging.getLogger(__name__)
 
 CONSTRAINT_CHUNK_SIZE = 256
-VALID_MODES = ("bounded_only", "undershoot_hinge")
-
-
 @logger()
 def train(inputs: TrainInputs) -> TrainOutputs:
     config = inputs.config
@@ -57,29 +54,6 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     lambda_step = hp["lambda_step"]
     stable_count_threshold = int(hp.get("stable_count_threshold", 5))
 
-    hybrid_mode = hp.get("hybrid_mode", "undershoot_hinge")
-    if hybrid_mode not in VALID_MODES:
-        raise ValueError(f"hybrid_mode must be one of {VALID_MODES}, got {hybrid_mode!r}")
-    # Adam state hangover diagnosis (hybrid_v2 reveal): after the descent
-    # phase, Adam has accumulated momentum in the "decrease soft_4" direction.
-    # Once bounded penalty disengages and only the hinge gradient is acting,
-    # that small positive-soft gradient can't overcome accumulated negative-
-    # soft momentum, so soft keeps drifting down.
-    #   reset_optimizer_at_sat: rebuild the optimizer with fresh state at
-    #     first satisfaction. Clears m/v buffers entirely.
-    #   post_sat_optimizer: "adam" (default) | "sgd" — switch optimizer
-    #     family at first satisfaction. SGD has no momentum so post-sat
-    #     gradient effects are purely current-step.
-    reset_optimizer_at_sat = bool(hp.get("reset_optimizer_at_sat", False))
-    post_sat_optimizer = str(hp.get("post_sat_optimizer", "adam")).lower()
-    if post_sat_optimizer not in ("adam", "sgd"):
-        raise ValueError(f"post_sat_optimizer must be adam|sgd, got {post_sat_optimizer!r}")
-    # Ablation flag: when True the per-class lambda ratchet keeps incrementing
-    # and rho keeps schedule-ramping even after first satisfaction. Defaults
-    # to False = freeze on satisfy (the published TraLO behaviour).
-    disable_freeze_on_satisfy = bool(hp.get("disable_freeze_on_satisfy", False))
-    fior_beta = float(hp.get("fior_beta", 0.0))
-    alpha_kl = float(hp.get("alpha_kl", 0.0))
 
     criterion_ce = make_ce_criterion(config, inputs.y_train, num_classes, device)
     lr_constraint = hp.get("lr_constraint", 1e-5)
@@ -95,11 +69,10 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         global_constraints=global_con, local_constraints=local_con,
         num_classes=num_classes,
         initial_rho=hp.get("initial_rho", 0.5),
-        alpha_kl=alpha_kl,
-        penalty_mode=hp.get("penalty_mode", "both"),
     ).to(device)
 
     constrained_classes = [c for c in range(num_classes) if global_con[c] < UNLIMITED]
+
     init_g = hp.get("lambda_global", 0.01)
     init_l = hp.get("lambda_local", 0.01)
     for c in constrained_classes:
@@ -109,26 +82,12 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             if bounds[c] < UNLIMITED:
                 criterion_constraint.set_lambda_per_class(c, init_l, scope="local", group_id=gid)
 
-    log.info("Hybrid mode=%s | beta=%.3f alpha_kl=%.3f",
-             hybrid_mode, fior_beta, alpha_kl)
-
-    # KL anchor: cache warmup logits if alpha_kl > 0.
-    warmup_logits_cache = None
-    if alpha_kl > 0:
-        from src.utils.inference import chunked_forward
-        model.eval()
-        with torch.no_grad(), torch.amp.autocast("cuda", dtype=amp_dtype, enabled=use_amp):
-            warmup_logits_cache = chunked_forward(model, X_test).float().detach()
-        log.info("Cached warmup logits for KL anchor: shape=%s", warmup_logits_cache.shape)
 
     rho_target = hp.get("rho_target", 100.0)
     initial_rho = hp.get("initial_rho", 0.5)
     rho_step = (rho_target - initial_rho) / max(constraint_epochs, 1)
     rho_frozen = False
 
-    enable_ce_skip = bool(hp.get("enable_ce_skip", True))
-    ce_skip_counter = 0
-    skip_ce = False
 
     satisfaction_epoch = None
     stable_count = 0
@@ -149,9 +108,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         epoch_ce = 0.0
         num_batches = max(len(train_loader), 1)
         train_correct, train_total = 0, 0
-        if skip_ce:
-            num_batches = 1
-        for batch_X, batch_y in (train_loader if not skip_ce else []):
+        for batch_X, batch_y in train_loader:
             batch_X, batch_y = batch_X.to(device), batch_y.to(device)
             optimizer.zero_grad(set_to_none=True)
             with torch.amp.autocast("cuda", dtype=amp_dtype, enabled=use_amp):
@@ -169,15 +126,6 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 train_correct += (logits_ce.argmax(dim=1) == batch_y).sum().item()
                 train_total += batch_y.size(0)
         cached_train_acc = train_correct / train_total if train_total > 0 else 1.0
-        if enable_ce_skip and not skip_ce:
-            if cached_train_acc >= 0.995:
-                ce_skip_counter += 1
-                if ce_skip_counter >= 2:
-                    skip_ce = True
-                    log.info("Epoch %d: CE saturated (acc=%.4f), disabling CE",
-                             epoch + 1, cached_train_acc)
-            else:
-                ce_skip_counter = 0
 
         # ---- Transductive pass 1: aggregate soft + hard counts (no_grad, eval) ----
         model.eval()
@@ -247,32 +195,10 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         loss_global_val = criterion_constraint.compute_global_from_counts(total_global_soft).item()
         loss_local_val = criterion_constraint.compute_local_from_counts(total_local_soft).item()
         bounded_total = loss_global_val + loss_local_val
-        # Undershoot hinge contribution (info only; gradient computed per-chunk below).
-        pen_total = 0.0
-        if hybrid_mode == "undershoot_hinge":
-            for c in constrained_classes:
-                K = criterion_constraint.global_constraints[c].item()
-                if K <= 0:
-                    continue
-                lam = criterion_constraint.get_lambda_per_class(c, scope="global")
-                pen_total += lam * fior_beta * max(0.0, (K - total_global_soft[c].item()) / K)
-            for gid_s, bname_s in criterion_constraint.local_groups.items():
-                lc_s = getattr(criterion_constraint, bname_s)
-                for c in constrained_classes:
-                    if c < len(lc_s) and lc_s[c] < UNLIMITED:
-                        K = lc_s[c].item()
-                        if K <= 0:
-                            continue
-                        lam = criterion_constraint.get_lambda_per_class(
-                            c, scope="local", group_id=gid_s)
-                        pen_total += lam * fior_beta * max(
-                            0.0, (K - total_local_soft[gid_s][c].item()) / K)
-        total_constraint = bounded_total + pen_total
+        total_constraint = bounded_total
 
         has_constraint = total_constraint > 0
-        has_kl = alpha_kl > 0 and warmup_logits_cache is not None
-        loss_kl_val = 0.0
-        if has_constraint or has_kl:
+        if has_constraint:
             for ci in range(n_chunks):
                 start = ci * chunk_size
                 end = min(start + chunk_size, n_test)
@@ -306,44 +232,13 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 ll = criterion_constraint.compute_local_from_counts(l_soft)
                 chunk_loss = chunk_loss + (lg + ll) / n_chunks
                 # ---- Undershoot hinge: lambda_T_c * beta * relu(K - soft)/K ----
-                if hybrid_mode == "undershoot_hinge":
-                    for c in constrained_classes:
-                        K_c = criterion_constraint.global_constraints[c].item()
-                        if K_c <= 0:
-                            continue
-                        lam = criterion_constraint.get_lambda_per_class(c, scope="global")
-                        if lam <= 0 or fior_beta <= 0:
-                            continue
-                        chunk_loss = chunk_loss + (
-                            lam * fior_beta * F.relu(K_c - g_soft[c]) / K_c / n_chunks)
-                    for gid_k, bname_k in criterion_constraint.local_groups.items():
-                        lc_k = getattr(criterion_constraint, bname_k)
-                        for c in constrained_classes:
-                            if c < len(lc_k) and lc_k[c] < UNLIMITED:
-                                K_c = lc_k[c].item()
-                                if K_c <= 0:
-                                    continue
-                                lam = criterion_constraint.get_lambda_per_class(
-                                    c, scope="local", group_id=gid_k)
-                                if lam <= 0 or fior_beta <= 0:
-                                    continue
-                                chunk_loss = chunk_loss + (
-                                    lam * fior_beta * F.relu(K_c - l_soft[gid_k][c])
-                                    / K_c / n_chunks)
                 # ---- KL anchor against warmup distribution ----
-                if has_kl:
-                    log_p_cur = F.log_softmax(chunk_logits_f, dim=1)
-                    p_cur = chunk_proba
-                    log_p_warm = F.log_softmax(warmup_logits_cache[start:end], dim=1)
-                    kl_chunk = (p_cur * (log_p_cur - log_p_warm)).sum(dim=1).mean()
-                    chunk_loss = chunk_loss + alpha_kl * kl_chunk / n_chunks
-                    loss_kl_val += kl_chunk.item() / n_chunks
                 if scaler:
                     scaler.scale(chunk_loss).backward()
                 else:
                     chunk_loss.backward()
 
-        did_backward = has_constraint or has_kl
+        did_backward = has_constraint
         if scaler and did_backward:
             try:
                 scaler.unscale_(optimizer)
@@ -379,7 +274,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             min_excess_epoch = epoch + 1
 
         # ---- TraLO ratchet (lambda_T) ----
-        ratchet_gate = (satisfaction_epoch is None) or disable_freeze_on_satisfy
+        ratchet_gate = satisfaction_epoch is None
         for c in constrained_classes:
             hard_c = total_global_hard[c].item()
             limit_c = criterion_constraint.global_constraints[c].item()
@@ -400,26 +295,10 @@ def train(inputs: TrainInputs) -> TrainOutputs:
 
         if is_satisfied and satisfaction_epoch is None:
             satisfaction_epoch = epoch + 1
-            if not rho_frozen and not disable_freeze_on_satisfy:
+            if not rho_frozen:
                 rho_frozen = True
                 log.info("First satisfied at epoch %d, freezing rho=%.3f",
                          epoch + 1, criterion_constraint.get_rho())
-            elif disable_freeze_on_satisfy:
-                log.info("First satisfied at epoch %d, NOT freezing (ablation)",
-                         epoch + 1)
-            # Clear Adam state from the descent phase (hybrid_v2 diagnosis).
-            # Adam accumulated "decrease soft_4" momentum during E51-Esat
-            # while bounded penalty was pushing soft down. Post-sat, the
-            # hinge gradient is too small to overcome that residual momentum
-            # on its own, so soft keeps drifting down. Fresh m/v buffers let
-            # the post-sat penalty actually steer the model.
-            if reset_optimizer_at_sat or post_sat_optimizer != "adam":
-                if post_sat_optimizer == "sgd":
-                    optimizer = torch.optim.SGD(model.parameters(), lr=lr_constraint)
-                    log.info("Switched to SGD (no momentum) at sat E%d", epoch + 1)
-                else:
-                    optimizer = make_optimizer(model.parameters(), lr_constraint, device)
-                    log.info("Reset Adam state at sat E%d", epoch + 1)
         if not rho_frozen:
             criterion_constraint.increment_rho(rho_step)
 
@@ -440,9 +319,9 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             mode_tag = "Satisfied" if is_satisfied else "Constraint"
             lam_T_mean = (sum(criterion_constraint.lambda_global_per_class.values())
                           / max(1, len(criterion_constraint.lambda_global_per_class)))
-            log.info("Epoch %d [%s] ce=%.4f bounded=%.4f pen=%.4f "
+            log.info("Epoch %d [%s] ce=%.4f bounded=%.4f "
                      "lam_T=%.3f rho=%.3f acc=%.4f stable=%d g_%s l_%s",
-                     epoch + 1, mode_tag, avg_ce, bounded_total, pen_total,
+                     epoch + 1, mode_tag, avg_ce, bounded_total,
                      lam_T_mean,
                      criterion_constraint.get_rho(), train_acc, stable_count,
                      "OK" if global_satisfied else "VIOL",
@@ -489,14 +368,24 @@ def train(inputs: TrainInputs) -> TrainOutputs:
 
     restored_from_epoch = None
     restore_kind = None
-    if best_sat_state is not None and final_violates:
+    # The end-of-run restore swaps the trained model for an earlier checkpoint
+    # chosen on CONSTRAINT SATISFACTION. Measured cost: -0.0351 AP across four
+    # cells (restoreprobe, n=16, within-run), which is ~83% of TraLO's ranking
+    # deficit against the post-hoc clipper. The clipper never restores.
+    # Default True so every existing config keeps its behaviour bit for bit.
+    allow_restore = bool(hp.get("enable_checkpoint_restore", True))
+    if not allow_restore:
+        log.info("enable_checkpoint_restore=False: keeping the trained model, "
+                 "no lowest-excess / best-satisfied swap")
+    if allow_restore and best_sat_state is not None and final_violates:
         log.info("Restoring best-satisfied checkpoint from epoch %d", best_sat_epoch)
         model.load_state_dict({k: v.to(device) for k, v in best_sat_state.items()})
         restored_from_epoch = best_sat_epoch
         restore_kind = "fully_satisfied"
         g_counts, l_counts, g_soft, l_soft = compute_prediction_statistics(
             model, X_test, group_ids, num_classes=num_classes)
-    elif min_excess_state is not None and final_total_excess > min_total_excess:
+    elif (allow_restore and min_excess_state is not None
+          and final_total_excess > min_total_excess):
         log.info("Restoring lowest-excess checkpoint from epoch %d (excess=%d)",
                  min_excess_epoch, int(min_total_excess))
         model.load_state_dict({k: v.to(device) for k, v in min_excess_state.items()})
@@ -519,6 +408,5 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             "restored_from_epoch": restored_from_epoch,
             "restore_kind": restore_kind,
             "soft_hard_gap": final_soft_hard_gap,
-            "hybrid_mode": hybrid_mode,
         },
     )
