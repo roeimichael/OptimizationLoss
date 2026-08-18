@@ -112,14 +112,30 @@ on both sides.
 
 **Two consequences, and they pull in opposite directions.**
 
-1. It is a **shared** confound. Every arm trains on the same slice from the same
-   cached warm-up, so leakage inflates TraLO and `clip` alike, and the *paired*
-   comparison is not thereby invalid. What it does invalidate is every **absolute**
-   derm number -- cc-F1, AP, and the measured headroom of 0.0669 that the "there is
-   room to win" argument rests on. It may also **compress** the gap: an item that is
-   effectively memorized is ranked correctly by both arms, so the arms can only
-   differ on the ~61% that is not, and a shrunken denominator is one honest candidate
-   explanation for why ~20 arms tied.
+1. It is a shared confound **to first order, and only to first order**. Exposure is
+   equal by construction: 30 optimizer epochs on both sides, and CE keeps running
+   through every constraint epoch (`tralo/train.py:147`, inside the constraint loop),
+   so no arm gets more opportunity to memorize than another. That is what makes the
+   *paired* comparison survivable. It is **not** a proof: two arms with equal exposure
+   can still convert memorization into test score differently, and the arm that departs
+   less from the memorizing solution would keep more of it. Nothing here rules that out.
+
+   What it invalidates outright is every **absolute** derm number -- cc-F1, AP, and the
+   measured headroom of **0.0669** that the "there is room to win" argument rests on.
+
+   It may also **compress** the gap: an item that is effectively memorized gets ranked
+   correctly by both arms, so the arms can only differ on the ~61% that is not, and a
+   shrunken denominator is one honest candidate explanation for why ~20 arms tied.
+
+   **The test that settles both, and it needs no new training.** Replay the split to
+   recover each test item's `lesion_id`, mark the 776 items that share one with a train
+   image, and re-score any existing derm campaign twice -- once on the leaked subset,
+   once on the clean 1,227. If the TraLO-vs-`clip` delta is the same on both, the
+   confound is shared and the recorded nulls stand. If the arms separate on the clean
+   subset, the null was a leakage artifact and the headline changes. Blocked only on
+   having derm predictions to hand: `results/` is empty on both the workstation and
+   `dsisco01`, and the only predictions that survive are inside
+   `evidence/predictions_mcbar_multiclass_2026-08-18.tar.gz`.
 2. It changes what the cap **means**. In the corrected split melanoma is
    **70/1227 = 5.7%** of test -- a genuine minority, matching the screening
    motivation the paper opens with. Pooling raises it to **223/2003 = 11.1%**, the
