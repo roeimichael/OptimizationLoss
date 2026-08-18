@@ -22,6 +22,11 @@ def _round_to_K(count, percentage, scope_label):
     (asking for 0 budget on a class that exists), and the loss would silently
     skip it -> phantom-satisfied experiment. See AUDIT B12.
     """
+    # np.round is banker's rounding: a budget landing exactly on .5 rounds to
+    # the EVEN integer, so count=25 at 50% gives 12 and count=35 gives 18. It
+    # is applied consistently -- full_panel imports this same function rather
+    # than reimplementing it, so trainer and scorer cannot disagree -- but the
+    # convention is stated here because .5 budgets do occur at these cap levels.
     K = int(np.round(count * percentage))
     if count > 0 and percentage > 0 and K == 0:
         raise ValueError(

@@ -6,26 +6,20 @@
 
 Phase 2 only: given frozen probabilities and per-class / per-group resource
 budgets, solve the LP (totally-unimodular constraint matrix, so LP relaxation
-yields integer solutions) for the cost-optimal assignment. Also provides the
-paper's Algorithm 1 greedy heuristic as a baseline.
+yields integer solutions) for the cost-optimal assignment.
 
-Clean-room reimplementation. Fixes three bugs found while auditing a colleague's
-notebook: (1) LP objective transposed cost matrix axes; (2) greedy heuristic
-sorted descending instead of ascending; (3) heuristic had an extra "argmin fit"
-gate absent from Alg. 1.
+Clean-room reimplementation; fixes a transposed cost-matrix axis found while
+auditing a colleague's notebook.
+
+Only the LP is kept. That paper's Algorithm 1 greedy, the general cost-matrix
+builder and a second cap->K derivation lived here and were reachable only
+through this file's re-exports, which is why the AST reachability pass reported
+them as live. The manuscript claims two post-hoc clippers -- a greedy threshold
+(that is src/methodologies/heuristic, the `clip` arm) and LP-LG -- and says
+LP-LG uses "an identity misclassification cost rather than the general cost
+matrix", so none of the three was ever in scope.
 """
 
 from .lp_solver import solve_lp_assignment, LPResult
-from .heuristic import solve_greedy_assignment, HeuristicResult
-from .constraints_builder import build_psi_phi_from_percentages
-from .cost_matrices import build_priority_cost_matrix, describe_cost_matrix
 
-__all__ = [
-    "solve_lp_assignment",
-    "LPResult",
-    "solve_greedy_assignment",
-    "HeuristicResult",
-    "build_psi_phi_from_percentages",
-    "build_priority_cost_matrix",
-    "describe_cost_matrix",
-]
+__all__ = ["solve_lp_assignment", "LPResult"]

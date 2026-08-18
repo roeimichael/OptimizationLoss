@@ -75,7 +75,7 @@ def print_experiment_header(index, total, exp_path, config, completed, failed, p
     print(f"{prefix}  Method: {methodology}  |  Constraint: {constraint}")
     if methodology == 'tralo':
         print(f"{prefix}  rho={hp.get('initial_rho', 1.0)}  "
-                     f"lr_con={hp.get('lr_constraint', 5e-6):.0e}  "
+                     f"lr_con={hp['lr_constraint']:.0e}  "
                      f"pretrained={hp.get('pretrained', False)}  "
                      f"weighted_ce={hp.get('class_weighted_ce', False)}")
     print(f"{prefix}  Progress so far: {completed} done, {failed} failed, "

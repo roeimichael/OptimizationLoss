@@ -36,10 +36,31 @@ from src.utils.error_handler import logger
 
 log = logging.getLogger(__name__)
 
+
+def _required(hp, key, cast=float):
+    """Read a protocol value that must never fall back to an inline default.
+
+    The inline defaults here were the retracted ones -- lr_constraint 1e-5
+    against the protocol's 1e-4, constraint_epochs 150 against 29,
+    stable_count_threshold 5 against 31 (low enough that the early stop would
+    actually fire). A missing key is a generator bug; failing loudly is the
+    only safe behaviour.
+    """
+    if key not in hp:
+        raise KeyError(
+            "%s is required and has no safe default. configs/protocol.yml is "
+            "the source of truth; generate the campaign with "
+            "configs.gen_campaign rather than hand-writing a config." % key)
+    return cast(hp[key])
+
 @logger()
 def train(inputs: TrainInputs) -> TrainOutputs:
     config = inputs.config
     hp = inputs.hyperparams
+    # Hoisted: the per-epoch snapshot clone is gated on this, and a
+    # state_dict() copied to CPU each epoch for a checkpoint nothing
+    # reads is ~344 MB per epoch on ViTB16.
+    allow_restore = bool(hp.get("enable_checkpoint_restore", True))
     device = inputs.device
     num_classes = inputs.num_classes
     model = inputs.model
@@ -48,14 +69,14 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     use_amp, amp_dtype, scaler = setup_runtime(device)
 
     warmup_epochs = hp["warmup_epochs"]
-    constraint_epochs = hp.get("constraint_epochs", 150)
+    constraint_epochs = _required(hp, "constraint_epochs", int)
     total_epochs = warmup_epochs + constraint_epochs
     lambda_step = hp["lambda_step"]
-    stable_count_threshold = int(hp.get("stable_count_threshold", 5))
+    stable_count_threshold = _required(hp, "stable_count_threshold", int)
 
 
     criterion_ce = make_ce_criterion(config, inputs.y_train, num_classes, device)
-    lr_constraint = hp.get("lr_constraint", 1e-5)
+    lr_constraint = _required(hp, "lr_constraint", float)
     optimizer = make_optimizer(model.parameters(), lr_constraint, device)
     train_loader = make_dataloader(inputs.X_train, inputs.y_train, hp["batch_size"])
     X_test = inputs.X_test.to(device)
@@ -197,7 +218,12 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                         0.0, total_local_hard[gid_s][c].item() - lc_s[c].item())
         snapshot_state = None
         snapshot_is_sat = snapshot_global_satisfied and snapshot_local_satisfied
-        if snapshot_is_sat or snapshot_total_excess < min_total_excess:
+        # Only clone when a restore could actually use it. Every config
+        # the generator emits sets enable_checkpoint_restore=false, and
+        # a full state_dict() copied to CPU each epoch is ~344 MB on
+        # ViTB16 for a checkpoint nothing reads.
+        if allow_restore and (snapshot_is_sat
+                              or snapshot_total_excess < min_total_excess):
             snapshot_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
 
         # ---- Transductive pass 2: chunked backward ----
@@ -391,7 +417,6 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     # cells (restoreprobe, n=16, within-run), which is ~83% of TraLO's ranking
     # deficit against the post-hoc clipper. The clipper never restores.
     # Default True so every existing config keeps its behaviour bit for bit.
-    allow_restore = bool(hp.get("enable_checkpoint_restore", True))
     if not allow_restore:
         log.info("enable_checkpoint_restore=False: keeping the trained model, "
                  "no lowest-excess / best-satisfied swap")

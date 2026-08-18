@@ -413,3 +413,35 @@ def test_an_interrupted_run_still_resets_to_pending(tmp_path):
                          "arm": "tralo"}, exp)
     buckets = get_experiments_by_status(str(tmp_path))
     assert len(buckets["pending"]) == 1 and not buckets["blocked"]
+
+
+# --------------------------------------------- protocol values are not optional
+
+@pytest.mark.parametrize("key", ["lr_constraint", "constraint_epochs",
+                                 "stable_count_threshold"])
+def test_a_missing_protocol_value_raises_instead_of_using_the_trap(key, tmp_path):
+    """These inline defaults WERE the retracted values: lr_constraint 1e-5
+    against the protocol's 1e-4 (an unequal lr_constraint fabricated a -16.7 pp
+    finding), constraint_epochs 150 against 29, and stable_count_threshold 5
+    against 31 -- low enough that the early stop would actually fire, so an arm
+    would stop training partway and still be scored at 'equal compute'."""
+    import scripts.smoke_arms as sm
+    from src.experiments.runner import TRAIN_FNS
+    P = load_protocol()
+    inputs, _, _ = sm.make_inputs(P, "tralo", str(tmp_path))
+    inputs.hyperparams.pop(key, None)
+    with pytest.raises(KeyError, match=key):
+        TRAIN_FNS["tralo"](inputs)
+
+
+def test_deleted_danits_helpers_are_really_gone():
+    """They were reachable only through __init__ re-exports, which is why the
+    AST reachability pass reported them as live. The manuscript claims two
+    post-hoc clippers -- a greedy threshold (that is the `clip` arm) and LP-LG
+    with 'an identity misclassification cost rather than the general cost
+    matrix' -- so none of the three was in scope."""
+    import src.methodologies.danits_lp as d
+    assert set(d.__all__) == {"solve_lp_assignment", "LPResult"}
+    for gone in ("solve_greedy_assignment", "build_psi_phi_from_percentages",
+                 "build_priority_cost_matrix", "describe_cost_matrix"):
+        assert not hasattr(d, gone), "%s came back" % gone

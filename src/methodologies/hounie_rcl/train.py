@@ -46,17 +46,38 @@ from src.utils.constants import UNLIMITED
 log = logging.getLogger(__name__)
 
 
+def _required(hp, key, cast=float):
+    """Read a protocol value that must never fall back to an inline default.
+
+    The inline defaults here were the retracted ones -- lr_constraint 1e-5
+    against the protocol's 1e-4, constraint_epochs 150 against 29,
+    stable_count_threshold 5 against 31 (low enough that the early stop would
+    actually fire). A missing key is a generator bug; failing loudly is the
+    only safe behaviour.
+    """
+    if key not in hp:
+        raise KeyError(
+            "%s is required and has no safe default. configs/protocol.yml is "
+            "the source of truth; generate the campaign with "
+            "configs.gen_campaign rather than hand-writing a config." % key)
+    return cast(hp[key])
+
+
 def _train_constraints(model, inputs: TrainInputs, device):
     hp = inputs.hyperparams
-    constraint_epochs = hp.get("constraint_epochs", 150)
-    lr_c = hp.get("lr_constraint", 1e-5)
+    # Hoisted: the per-epoch snapshot clone is gated on this, and a
+    # state_dict() copied to CPU each epoch for a checkpoint nothing
+    # reads is ~344 MB per epoch on ViTB16.
+    allow_restore = bool(hp.get("enable_checkpoint_restore", True))
+    constraint_epochs = _required(hp, "constraint_epochs", int)
+    lr_c = _required(hp, "lr_constraint", float)
     # Default dual-step bumped 10x for apples-to-apples convergence speed.
     # At 0.01 (original) lambda grows ~0.01/epoch when (count_soft-K)/N ~= 0.04
     # -> constraint contribution to L_total is ~1e-3, ~25x weaker than CE.
     # The model effectively trains CE-only for 100+ epochs before lambda
     # builds up. With 0.1 lambda hits meaningful magnitude by ep 10.
-    eta_lambda = float(hp.get("hounie_eta_lambda", 0.1))
-    eta_u = float(hp.get("hounie_eta_u", 0.1))
+    eta_lambda = _required(hp, "hounie_eta_lambda", float)
+    eta_u = _required(hp, "hounie_eta_u", float)
     alpha = float(hp.get("hounie_alpha", 10.0))
     if abs(1.0 - 2.0 * eta_u * alpha) >= 1.0:
         raise ValueError(
@@ -67,7 +88,7 @@ def _train_constraints(model, inputs: TrainInputs, device):
     batch_size = hp.get("batch_size", 64)
     chunk_size = hp.get("constraint_chunk_size", 256)
     # Apples-to-apples early stop: 5 consecutive satisfied epochs (matches TraLO).
-    stable_count_threshold = int(hp.get("stable_count_threshold", 5))
+    stable_count_threshold = _required(hp, "stable_count_threshold", int)
 
     use_amp, amp_dtype, scaler = setup_runtime(device)
 
@@ -199,7 +220,11 @@ def _train_constraints(model, inputs: TrainInputs, device):
                         total_excess_pre += max(0, gc - int(bounds[c]))
         all_satisfied_pre = (total_excess_pre == 0)
         snapshot_state = None
-        if all_satisfied_pre or total_excess_pre < min_total_excess:
+        # Only clone when a restore could use it: every generated config
+        # sets enable_checkpoint_restore=false, and a full state_dict()
+        # copied to CPU each epoch is ~344 MB on ViTB16 for a checkpoint
+        # nothing ever reads.
+        if allow_restore and (all_satisfied_pre or total_excess_pre < min_total_excess):
             snapshot_state = {k: v.detach().cpu().clone()
                               for k, v in model.state_dict().items()}
 
@@ -332,6 +357,7 @@ def _train_constraints(model, inputs: TrainInputs, device):
 
 def train(inputs: TrainInputs) -> TrainOutputs:
     hp = inputs.hyperparams
+    allow_restore = bool(hp.get("enable_checkpoint_restore", True))
     model = inputs.model
     device = inputs.device
     (satisfaction_epoch, best_sat_state, best_sat_epoch,
@@ -375,7 +401,6 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     # on constraint satisfaction -- measured at -0.0351 AP within-run. Any
     # tralo win over the duals would have carried that advantage for free.
     # Default True: runs predating the flag keep their behaviour bit for bit.
-    allow_restore = bool(hp.get("enable_checkpoint_restore", True))
     if not allow_restore:
         log.info("Hounie: enable_checkpoint_restore=False, keeping the trained model")
     if allow_restore and best_sat_state is not None and final_violates:

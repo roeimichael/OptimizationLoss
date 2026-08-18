@@ -22,16 +22,37 @@ from src.utils.constants import UNLIMITED
 log = logging.getLogger(__name__)
 
 
+def _required(hp, key, cast=float):
+    """Read a protocol value that must never fall back to an inline default.
+
+    The inline defaults here were the retracted ones -- lr_constraint 1e-5
+    against the protocol's 1e-4, constraint_epochs 150 against 29,
+    stable_count_threshold 5 against 31 (low enough that the early stop would
+    actually fire). A missing key is a generator bug; failing loudly is the
+    only safe behaviour.
+    """
+    if key not in hp:
+        raise KeyError(
+            "%s is required and has no safe default. configs/protocol.yml is "
+            "the source of truth; generate the campaign with "
+            "configs.gen_campaign rather than hand-writing a config." % key)
+    return cast(hp[key])
+
+
 def _train_constraints(model, config, inputs, device):
     """Fioretto Algorithm 1/2: linear penalty + per-constraint subgradient dual ascent."""
     hp = inputs.hyperparams
-    constraint_epochs = hp.get("constraint_epochs", 150)
+    # Hoisted: the per-epoch snapshot clone is gated on this, and a
+    # state_dict() copied to CPU each epoch for a checkpoint nothing
+    # reads is ~344 MB per epoch on ViTB16.
+    allow_restore = bool(hp.get("enable_checkpoint_restore", True))
+    constraint_epochs = _required(hp, "constraint_epochs", int)
     # Apples-to-apples: same early-stop policy as TraLO (5 consecutive
     # satisfied epochs). Without this Fioretto runs the full epoch budget
     # while TraLO exits at ~100 — 3x gradient-budget asymmetry skews F1
     # comparisons. Default matches TraLO.
-    stable_count_threshold = int(hp.get("stable_count_threshold", 5))
-    lr_c = hp.get("lr_constraint", 1e-5)
+    stable_count_threshold = _required(hp, "stable_count_threshold", int)
+    lr_c = _required(hp, "lr_constraint", float)
     if "fioretto_step_size" not in hp:
         raise ValueError(
             "fioretto_step_size is required in hyperparams. The runner used "
@@ -188,7 +209,11 @@ def _train_constraints(model, config, inputs, device):
         # iff this epoch is satisfied OR improves on the lowest total excess
         # seen so far. Used to restore best checkpoint after training.
         snapshot_state = None
-        if all_satisfied or total_excess < min_total_excess:
+        # Only clone when a restore could use it: every generated config
+        # sets enable_checkpoint_restore=false, and a full state_dict()
+        # copied to CPU each epoch is ~344 MB on ViTB16 for a checkpoint
+        # nothing ever reads.
+        if allow_restore and (all_satisfied or total_excess < min_total_excess):
             snapshot_state = {k: v.detach().cpu().clone()
                               for k, v in model.state_dict().items()}
 
@@ -292,6 +317,7 @@ def _train_constraints(model, config, inputs, device):
 
 def train(inputs: TrainInputs) -> TrainOutputs:
     hp = inputs.hyperparams
+    allow_restore = bool(hp.get("enable_checkpoint_restore", True))
     model = inputs.model
     device = inputs.device
 
@@ -338,7 +364,6 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     # on constraint satisfaction -- measured at -0.0351 AP within-run. Any
     # tralo win over the duals would have carried that advantage for free.
     # Default True: runs predating the flag keep their behaviour bit for bit.
-    allow_restore = bool(hp.get("enable_checkpoint_restore", True))
     if not allow_restore:
         log.info("Fioretto: enable_checkpoint_restore=False, keeping the trained model")
     if allow_restore and best_sat_state is not None and final_violates:

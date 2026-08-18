@@ -10,7 +10,7 @@ Three failure modes, all of which have bitten this project:
   SILENT        read with a default but never emitted. The value is then decided
                 by a literal buried in the code, not by the config -- which is
                 how hounie_rcl ran at eta=0.1 while the paper and its own
-                hp_defaults both said 0.01.
+                the paper both said 0.01.
 
   OK            emitted and read.
 

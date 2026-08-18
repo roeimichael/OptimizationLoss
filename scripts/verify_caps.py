@@ -40,6 +40,12 @@ def main():
     a.add_argument("--datasets", nargs="+", default=sorted(P["datasets"]))
     a.add_argument("--caps", nargs="+", default=["L30_G30", "L30_G50", "L50_G50"])
     a.add_argument("--constrained-class", nargs="+", type=int, default=None)
+    a.add_argument("--strict", action="store_true",
+                   help="exit 1 if any cap is inert/redundant or any group is "
+                        "uninformative, so this can gate a launch. Off by "
+                        "default: an inert global cap is a real fact about the "
+                        "campaign, not necessarily a mistake -- but it must "
+                        "never be a SILENT one.")
     args = a.parse_args()
     fails, inert = [], []
 
@@ -170,6 +176,11 @@ def main():
         print("A global cap only adds a constraint when it is strictly BELOW the")
         print("sum of the local caps, so G>=L never does. Sweep G<L to make the")
         print("global scope the thing under test.")
+        if args.strict:
+            print()
+            print("--strict: failing because the campaign would not exercise "
+                  "what its tags claim.")
+            return 1
     return 0
 
 
