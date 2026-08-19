@@ -32,6 +32,7 @@ from src.pipeline.setup import setup_runtime
 from src.pipeline.warmup import make_ce_criterion, make_dataloader, make_optimizer
 from src.training.logging import log_progress_to_csv, write_csv_header
 from src.training.metrics import compute_prediction_statistics
+from src.training.reordering import capped_scores, reordering_report
 from src.utils.constants import UNLIMITED, CONSTRAINT_CHUNK_SIZE
 from src.utils.error_handler import logger
 
@@ -53,61 +54,6 @@ def _required(hp, key, cast=float):
             "the source of truth; generate the campaign with "
             "configs.gen_campaign rather than hand-writing a config." % key)
     return cast(hp[key])
-
-@logger()
-def _capped_scores(model, X_test, classes, chunk_size, device):
-    """Softmax probability of each capped class, over the whole test set."""
-    model.eval()
-    out = []
-    with torch.no_grad():
-        for start in range(0, len(X_test), chunk_size):
-            logits = model(X_test[start:start + chunk_size])
-            out.append(F.softmax(logits, dim=1)[:, classes].detach().cpu())
-    return torch.cat(out, dim=0) if out else torch.zeros((0, len(classes)))
-
-
-def _reordering_report(model, X_test, before, classes, chunk_size, device):
-    """Did the constraint phase REORDER the capped class, or only shift it?
-
-    The scorer thresholds the ranking at the budget, so a pure monotone shift of
-    the capped score column is invisible to 9 of its 13 metrics while moving the
-    soft count freely. tau = 1.0 with a large delta means the constraint phase
-    changed the count without changing a single decision the scorer can see.
-    """
-    if before is None or not classes:
-        return {}
-    after = _capped_scores(model, X_test, classes, chunk_size, device)
-    rep = {}
-    for j, c in enumerate(classes):
-        b, a = before[:, j].numpy(), after[:, j].numpy()
-        if len(b) != len(a) or len(b) < 2:
-            continue
-        try:
-            from scipy.stats import kendalltau, spearmanr
-            tau = float(kendalltau(b, a).statistic)
-            rho = float(spearmanr(b, a).statistic)
-        except Exception:
-            tau = rho = float("nan")
-        # the single logit shift that best explains the soft-count change, on
-        # the log-odds scale where a uniform bias IS an additive constant
-        eps = 1e-6
-        lb = np.log(np.clip(b, eps, 1 - eps) / np.clip(1 - b, eps, 1 - eps))
-        la = np.log(np.clip(a, eps, 1 - eps) / np.clip(1 - a, eps, 1 - eps))
-        delta = float(np.mean(la - lb))
-        resid = float(np.std(la - lb))
-        rep["class_%d" % c] = {
-            "kendall_tau": round(tau, 6), "spearman": round(rho, 6),
-            "bias_shift": round(delta, 6), "shift_residual_sd": round(resid, 6),
-            "soft_before": round(float(b.sum()), 3),
-            "soft_after": round(float(a.sum()), 3),
-        }
-        log.info("reordering, class %d: tau=%.4f bias_shift=%+.4f (resid sd "
-                 "%.4f), soft count %.1f -> %.1f. tau near 1.0 with a large "
-                 "shift means the count moved but the RANKING did not, and the "
-                 "scorer cannot see a ranking-preserving change.",
-                 c, tau, delta, resid, b.sum(), a.sum())
-    return rep
-
 
 def train(inputs: TrainInputs) -> TrainOutputs:
     config = inputs.config
@@ -190,9 +136,8 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     chunk_size = _required(hp, "constraint_chunk_size", int)
     # Baseline for the reordering diagnostic: the capped class's test ranking as
     # the WARM-UP left it, before a single constraint step.
-    warmup_scores = (_capped_scores(model, X_test, constrained_classes,
-                                    chunk_size, device)
-                     if constrained_classes else None)
+    warmup_scores = capped_scores(model, X_test, constrained_classes,
+                                  chunk_size, device)
 
     for epoch in range(warmup_epochs, total_epochs):
         # ---- CE pass ----
@@ -447,8 +392,6 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     model.eval()
     g_counts, l_counts, g_soft, l_soft = compute_prediction_statistics(
         model, X_test, group_ids, num_classes=num_classes)
-    reorder = _reordering_report(model, X_test, warmup_scores, constrained_classes,
-                                 chunk_size, device)
     final_violates = False
     for c in range(num_classes):
         if global_con[c] < UNLIMITED and g_counts.get(c, 0) > int(global_con[c]):
@@ -498,6 +441,11 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         restore_kind = "min_excess"
         g_counts, l_counts, g_soft, l_soft = compute_prediction_statistics(
             model, X_test, group_ids, num_classes=num_classes)
+
+    # AFTER the restore: the restored model is the one whose predictions the
+    # scorer reads, so it is the one whose ranking must be compared.
+    reorder = reordering_report(model, X_test, warmup_scores, constrained_classes,
+                                chunk_size, device)
 
     final_soft_hard_gap = {c: abs(g_soft.get(c, 0) - g_counts.get(c, 0))
                            for c in constrained_classes}

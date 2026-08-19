@@ -525,20 +525,41 @@ aggregate count. See the structural claim in section 0.
 
 **Re-derived with autograd on the shipped `_penalty` (2026-08-19), K=67:**
 
-| rho | at the boundary | at 57.7% over | at 8x over | peak / boundary | peak / deep |
-|---|---|---|---|---|---|
-| 0.5 (initial) | 0.01491 | 0.01085 | 0.000213 | 1.0x (monotone) | 70x |
-| **3.93** (after ONE constraint epoch) | 0.01501 | **0.04410** | 0.000406 | **2.9x** | **109x** |
-| 100 (the target) | 0.01788 | **0.97543** | 0.005836 | **54.6x** | **167x** |
+| rho | at the boundary | at 57.7% over | at 8x over | peak / boundary | peak / deep | peak at |
+|---|---|---|---|---|---|---|
+| 0.5 (initial) | 0.014924 | 0.010849 | 0.000213 | 1.0x (monotone) | 70x | u -> 0 |
+| **3.93** (after ONE constraint epoch) | 0.014934 | **0.044100** | 0.000406 | **3.0x** | **109x** | u = 0.532 |
+| 100 (the target) | 0.015221 | **0.975433** | 0.005836 | **64.1x** | **167x** | u = 0.576 |
 
-The peak sits at **u = 1/sqrt(3) = 57.7% overshoot**, analytically: the second
-term is `rho*u^2/(1+u^2)` with `u = E/S`, whose derivative `2u/(1+u^2)^2` is
-maximized there. So above `rho ~ 1` the gradient is **non-monotone in the
-violation** -- near-zero at the boundary, peaking at ~58% over, and decaying
-toward zero for anything worse.
+⚠️ **Corrected 2026-08-19** after a second reviewer re-derived it independently.
+The first version of this table read `peak / boundary = 54.6x` at rho=100 and
+gave boundary values from a slightly different evaluation point; and it claimed
+the peak sits at `u = 1/sqrt(3)` **analytically**, full stop. That is the peak of
+the QUADRATIC TERM ALONE. The rational term's own slope is decreasing, so it
+pulls the combined peak left, and `1/sqrt(3)` is only the `rho -> infinity`
+limit: at the operative rho of 3.93 the peak is at **u = 0.532**. The 167x
+figure and the shape of the claim reproduce exactly.
+
+So above `rho ~ 1` the gradient is **non-monotone in the violation** -- near-zero
+at the boundary, peaking around 53-58% over, and decaying toward zero for
+anything worse.
 
 **A constraint violated by 8x its budget receives 167x LESS corrective pull than
 one violated by 58%.** That is the opposite of what a penalty is for.
+
+**And the terms compete for one clip.** Two capped scopes, one at its peak and
+one 8x over, driven through `_sum` and the single unit-norm clip:
+
+| scope A | scope B | A's share of the squared gradient | B's share |
+|---|---|---|---|
+| 58% over | **8x over** | **99.9964%** | **0.0036%** |
+| 8x over | 58% over | 0.0036% | 99.9964% |
+| 58% over | 58% over | 50% | 50% |
+
+Symmetric under swapping the roles, so it is the violation DEPTH doing it, not
+the scope. **The worst-violating group is starved by a milder one at 167:1**,
+and dermmnist's 3 groups mean every single-capped-class run already carries 4
+competing terms.
 
 `rho_step` is derived as `(rho_target - initial_rho)/29 = 3.43`, so **rho is
 3.93 after the first constraint epoch** -- the monotone regime exists for

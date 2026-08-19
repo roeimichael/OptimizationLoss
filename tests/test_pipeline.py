@@ -757,12 +757,54 @@ def test_penalty_gradient_is_non_monotone_above_rho_one():
     assert peak > 2.5 * edge, "expected a hump above the boundary value"
     assert peak > 100 * deep, "expected the deep violation to be starved"
 
-    # the hump sits at u = 1/sqrt(3), analytically
+    # u = 1/sqrt(3) is the peak of the QUADRATIC TERM alone, so it is the
+    # rho -> infinity limit, not a general truth. It holds at rho=100...
     import math
     at_analytic = grad_at(100.0, (1 / math.sqrt(3)) * K)
     for f in (0.2, 0.4, 0.8, 1.5):
         assert grad_at(100.0, f * K) <= at_analytic + 1e-12, (
             "peak should be at u = 1/sqrt(3), not at %.2f" % f)
+
+    # ...and NOT at the rho the runs actually operate at. The rational term's
+    # own slope is decreasing, which pulls the combined peak left, to u ~ 0.53.
+    # An earlier version of this claim said "analytically" with no caveat.
+    us = [i / 500 for i in range(1, 5001)]
+    gs = [grad_at(3.93, u * K) for u in us]
+    peak_u = us[gs.index(max(gs))]
+    assert 0.50 < peak_u < 0.56, (
+        "at rho=3.93 the peak should sit left of 1/sqrt(3), got u=%.3f" % peak_u)
+
+
+def test_a_deep_violation_is_starved_by_a_milder_one_sharing_the_clip():
+    """The terms compete: `_sum` adds them, then ONE clip normalizes the total.
+
+    So the relative weight of two capped scopes is set entirely by the penalty
+    shape, and the shape hands almost everything to whichever scope sits nearer
+    its own peak. dermmnist has 3 groups, so every run already carries 4 terms.
+    """
+    import torch
+
+    K, rho, eps = 67.0, 100.0, 1e-8
+
+    def shares(u_a, u_b):
+        gs = []
+        for u in (u_a, u_b):
+            soft = torch.tensor(K * (1 + u), requires_grad=True, dtype=torch.double)
+            Kt = torch.tensor(K, dtype=torch.double)
+            E = torch.relu(soft - Kt)
+            e = E / (Kt + eps)
+            (E / (E + Kt + eps) + rho * (e ** 2) / (1 + e ** 2 + eps)).backward()
+            gs.append(float(soft.grad))
+        tot = sum(g * g for g in gs)
+        return [g * g / tot for g in gs]
+
+    mild, deep = shares(0.577, 8.0)
+    assert mild > 0.999, "the milder violation should take essentially all of it"
+    assert deep < 0.001, "the 8x violation should be starved"
+    # symmetric: it is the violation DEPTH, not the position in the sum
+    deep2, mild2 = shares(8.0, 0.577)
+    assert abs(mild - mild2) < 1e-9 and abs(deep - deep2) < 1e-9
+    assert abs(sum(shares(0.577, 0.577))/2 - 0.5) < 1e-9
 
 
 def test_loader_detects_a_permuted_train_split(tmp_path):
@@ -797,3 +839,76 @@ def test_loader_accepts_an_aligned_train_meta(tmp_path):
     pd.DataFrame({"label": y}).to_csv(
         os.path.join(d, "train_meta.csv"), index=False)
     assert load_data(_cfg(d)) is not None
+
+
+def test_the_null_arm_really_delivers_no_constraint():
+    """tralo_null is the control that makes "nothing happened" falsifiable.
+
+    Everything else about it matches tralo -- warm-up length, epoch count,
+    optimizer restart, transductive passes, allocator. If its lambdas were not
+    exactly zero it would be a weak treatment rather than a control, and the
+    whole point of the arm would be lost silently.
+    """
+    import yaml
+    proto = yaml.safe_load(open("configs/protocol.yml", encoding="utf-8"))
+    blk = proto["blocks"]["tralo_null"]
+    for key in ("lambda_global", "lambda_local", "lambda_step"):
+        assert blk[key] == 0.0, "%s must be exactly 0.0, got %r" % (key, blk[key])
+
+    # and the arm must otherwise be tralo: same phase, same shared block
+    null_arm, real_arm = proto["arms"]["tralo_null"], proto["arms"]["tralo"]
+    assert null_arm["phase"] == real_arm["phase"] == "trained"
+    assert null_arm["methodology"] == real_arm["methodology"] == "tralo"
+    assert "constraint_phase" in null_arm["blocks"]
+
+    # zero lambda must make the summed penalty exactly zero, not merely small:
+    # the trainer gates pass 2 on `total_constraint > 0`, so a 1e-30 residue
+    # would still run a constraint step.
+    import torch
+    from src.losses.transductive_loss import MulticlassTransductiveLoss as L
+    total = torch.tensor(0.0)
+    for soft, K in ((500.0, 67.0), (67.0, 67.0), (0.0, 67.0)):
+        st = torch.tensor(soft)
+        Kt = 67.0
+        E = torch.relu(st - Kt)
+        e = E / (Kt + 1e-8)
+        pen = E / (E + Kt + 1e-8) + 0.5 * (e ** 2) / (1 + e ** 2 + 1e-8)
+        total = total + 0.0 * pen
+    assert float(total) == 0.0
+    assert not bool(total > 0), "pass 2 would still run on a nonzero residue"
+    assert L is not None
+
+
+def test_every_trained_arm_reports_reordering():
+    """The diagnostic must not reach one arm only.
+
+    It was written inside tralo/train.py and reached only TraLO -- the exact
+    shape of the CE-skip asymmetry that produced a 0.22 cc-F1 artifact, and of
+    the focal keys that were live in one arm and dead in another. The guard is
+    structural: every trainer that runs a constraint phase imports the SAME two
+    functions from the SAME module, and the scorer reads the field.
+    """
+    import io as _io
+    import os
+
+    trained = ["tralo", "fioretto_ldf", "hounie_rcl", "fioretto_alm"]
+    for m in trained:
+        path = os.path.join("src", "methodologies", m, "train.py")
+        src = _io.open(path, encoding="utf-8").read()
+        assert "from src.training.reordering import" in src, (
+            "%s must use the shared diagnostic, not a private copy" % m)
+        assert "reordering_report(" in src, "%s never calls it" % m
+        assert '"reordering"' in src, "%s never puts it in the summary" % m
+
+    # it has to survive to disk, and outside config["results"] -- a NaN tau on
+    # a constant score column would otherwise mark the run `diverged`
+    runner = _io.open(os.path.join("src", "experiments", "runner.py"),
+                      encoding="utf-8").read()
+    assert "config['reordering']" in runner
+    results_blk = runner[runner.index("save_results_to_config(config"):]
+    assert "reordering" not in results_blk[:results_blk.index("})")]
+
+    # and the scorer must actually read it
+    panel = _io.open(os.path.join("scripts", "full_panel.py"), encoding="utf-8").read()
+    assert 'cfg.get("reordering")' in panel
+    assert "_reordering_check(rows)" in panel

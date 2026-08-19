@@ -321,6 +321,52 @@ POSTHOC_ARMS = {"clip", "focal_clip", "lp", "focal_lp",
 RAW_MD5 = {}          # arm -> {cell: md5 of final_predictions_raw.csv}
 
 
+def _reordering_check(rows):
+    """Did the constraint phase reorder the capped class, or only shift it?
+
+    Nine of the thirteen scored metrics are exactly invariant to a monotone
+    transform of the capped class's score column, so an arm can move its soft
+    count a long way and change nothing a metric can see. tau near 1.0 with a
+    large bias_shift IS that case, and it is the difference between "this arm
+    did nothing" and "this arm did something the scorer is blind to".
+
+    Printed, never gated: it describes what happened, and a low tau is not by
+    itself good news -- reordering badly is also reordering.
+    """
+    print("REORDERING (capped-class test ranking, warm-up -> scored model)")
+    seen = False
+    for arm in sorted({r["arm"] for r in rows}):
+        per = [r for r in rows if r["arm"] == arm and r.get("reordering")]
+        if not per:
+            continue
+        seen = True
+        taus, shifts, resids = [], [], []
+        for r in per:
+            for st in r["reordering"].values():
+                taus.append(st.get("kendall_tau"))
+                shifts.append(st.get("bias_shift"))
+                resids.append(st.get("shift_residual_sd"))
+        taus = [t for t in taus if t is not None and np.isfinite(t)]
+        shifts = [v for v in shifts if v is not None and np.isfinite(v)]
+        resids = [v for v in resids if v is not None and np.isfinite(v)]
+        if not taus:
+            continue
+        tau, shift = float(np.mean(taus)), float(np.mean(shifts or [np.nan]))
+        resid = float(np.mean(resids or [np.nan]))
+        verdict = ""
+        if tau > 0.99 and abs(shift) > 0.1:
+            verdict = "  <-- BIAS ONLY: the count moved, the ranking did not"
+        elif tau > 0.999:
+            verdict = "  <-- the ranking is unchanged"
+        print("  %-14s n=%2d  tau=%.4f  bias_shift=%+.4f  resid_sd=%.4f%s"
+              % (arm, len(taus), tau, shift, resid, verdict))
+    if not seen:
+        print("  (no run carries the diagnostic -- post-hoc arms never run a")
+        print("   constraint phase, and runs made before it was persisted have")
+        print("   no `reordering` key in config.json)")
+    print()
+
+
 def _allocator_check(rows):
     """An arm that fell through to the LP is not running the allocator it names.
 
@@ -448,6 +494,7 @@ def main():
             if r:
                 r["lp_fallback"] = bool(
                     cfg.get("results", {}).get("lp_fallback_used", False))
+                r["reordering"] = cfg.get("reordering") or {}
                 prov[(cfg.get("code_version"),
                       cfg.get("data_fingerprint"))] += 1
                 rows.append(r)
@@ -479,6 +526,7 @@ def main():
             print("      ... and %d more" % (len(unscorable) - 10))
     _allocator_check(rows)
     _identity_check(rows)
+    _reordering_check(rows)
     if skipped:
         print("skipped %d run(s) that are not completed: %s"
               % (sum(skipped.values()), dict(skipped)))

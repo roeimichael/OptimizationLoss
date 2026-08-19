@@ -138,6 +138,14 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     best_metrics['restore_kind'] = train_outputs.summary.get('restore_kind')
     if 'checkpoint_source' in train_outputs.summary:
         best_metrics['checkpoint_source'] = train_outputs.summary['checkpoint_source']
+    # Deliberately OUTSIDE config['results']: save_results_to_config runs
+    # _non_finite over that block recursively and marks any run carrying a NaN
+    # `diverged`. kendalltau of a CONSTANT score column is legitimately NaN --
+    # exactly what a degenerate arm produces -- so nesting the diagnostic under
+    # results would have manufactured false divergences on the very runs it
+    # exists to describe. Until now the field was computed, logged once, and
+    # dropped: it never reached disk, so no scorer could ever read it.
+    config['reordering'] = train_outputs.summary.get('reordering', {})
     if 'results_comparison' in train_outputs.summary:
         config['results_comparison'] = train_outputs.summary['results_comparison']
     log.info("sat_epoch=%s", best_metrics['satisfaction_epoch'] or 'N/A')

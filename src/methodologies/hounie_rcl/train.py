@@ -42,6 +42,7 @@ from src.pipeline.contracts import TrainInputs, TrainOutputs
 from src.pipeline.setup import setup_runtime
 from src.pipeline.warmup import (make_ce_criterion, make_dataloader,
                                  make_optimizer)
+from src.training.reordering import capped_scores, reordering_report
 from src.utils.constants import UNLIMITED
 
 log = logging.getLogger(__name__)
@@ -88,7 +89,10 @@ def _train_constraints(model, inputs: TrainInputs, device):
             f"perturbation u oscillates or diverges instead of converging to "
             f"lambda/(2*alpha). The paper's value is eta_u=0.01.")
     batch_size = hp.get("batch_size", 64)
-    chunk_size = hp.get("constraint_chunk_size", 256)
+    # protocol.yml carries this in BOTH the constraint_phase and chunked
+    # blocks, so the 256 inline default could only ever fire on a
+    # hand-written config -- exactly what _required exists to refuse.
+    chunk_size = _required(hp, "constraint_chunk_size", int)
     # Apples-to-apples early stop: 5 consecutive satisfied epochs (matches TraLO).
     stable_count_threshold = _required(hp, "stable_count_threshold", int)
 
@@ -375,6 +379,15 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     allow_restore = _required(hp, "enable_checkpoint_restore", bool)
     model = inputs.model
     device = inputs.device
+    # Baseline for the reordering diagnostic, captured BEFORE a single
+    # constraint step. This used to exist only in tralo/train.py, so for these
+    # three arms "did the constraint phase reorder anything, or only shift a
+    # bias the scorer cannot see" was unanswerable -- the same asymmetry that
+    # made the CE-skip flag a 0.22 cc-F1 artifact.
+    _reorder_chunk = _required(inputs.hyperparams, "constraint_chunk_size", int)
+    _warmup_scores = capped_scores(model, inputs.X_test, inputs.constrained_classes,
+                                   _reorder_chunk, device)
+
     (satisfaction_epoch, best_sat_state, best_sat_epoch,
      min_excess_state, min_excess_epoch, min_total_excess
      ) = _train_constraints(model, inputs, device)
@@ -389,7 +402,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     X_test_dev = inputs.X_test.to(device)
 
     model.eval()
-    chunk_size = inputs.hyperparams.get("constraint_chunk_size", 256)
+    chunk_size = _required(inputs.hyperparams, "constraint_chunk_size", int)
     with torch.no_grad():
         all_hard = []
         for i in range(0, len(X_test_dev), chunk_size):
@@ -433,6 +446,12 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         restored_from_epoch = min_excess_epoch
         restore_kind = "min_excess"
 
+    # AFTER the restore: the restored model is the one whose
+    # predictions the scorer reads.
+    _reorder = reordering_report(model, inputs.X_test, _warmup_scores,
+                                 inputs.constrained_classes,
+                                 _reorder_chunk, device)
+
     return TrainOutputs(
         model=model,
         summary={
@@ -443,5 +462,8 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                                  else int(min_total_excess)),
             "restored_from_epoch": restored_from_epoch,
             "restore_kind": restore_kind,
+            # tau near 1.0 with a large bias_shift = the count moved and
+            # the RANKING did not, which 9 of 13 scored metrics cannot see.
+            "reordering": _reorder,
         },
     )
