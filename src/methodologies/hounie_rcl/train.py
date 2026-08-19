@@ -12,7 +12,11 @@ this code is documented in `archive/benchmarks/hounie/` (reference implementatio
 Per epoch, three updates:
 
     theta:  primal SGD on    L = L_ce + sum_i lam_i * (l_i - u_i)
-    u:      grad ascent on   max_u  -h(u) - lam_i*u_i  (with h = alpha*||u||^2)
+    u:      grad ascent on   max_u  lam_i*u_i - h(u)  (with h = alpha*||u||^2)
+            (this line read `-h(u) - lam_i*u_i`, whose gradient is
+             -2*alpha*u - lam and does NOT give the arrow below. The
+             arrow and the code are correct; the objective statement was
+             not. Fixed point u* = lam/(2*alpha).)
             -> u_i <- max(0, u_i + eta_u * (lam_i - 2*alpha*u_i))
     lam:    dual ascent on   E[l_i] - u_i
             -> lam_i <- max(0, lam_i + eta_lam * (E[l_i] - u_i))

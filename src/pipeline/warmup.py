@@ -49,7 +49,12 @@ def make_optimizer(params, lr, device):
     use_fused = device.type == "cuda"
     try:
         return torch.optim.Adam(params, lr=lr, fused=use_fused)
-    except Exception:
+    except (RuntimeError, TypeError):
+        # Narrowed from a bare `except Exception`. These are the two the
+        # capability probe can legitimately raise -- TypeError on a torch too
+        # old to know the kwarg, RuntimeError when the build rejects fused on
+        # this device. Anything else is a real failure and must propagate
+        # rather than be swallowed into a silently slower optimizer.
         return torch.optim.Adam(params, lr=lr)
 
 
