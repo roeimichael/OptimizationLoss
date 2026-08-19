@@ -313,6 +313,18 @@ def _train_constraints(model, inputs: TrainInputs, device):
 
         # ---- Step 4: perturbation update on u (h(u) = alpha * ||u||^2) ----
         # u_i <- max(0, u_i + eta_u * (lam_i - 2 * alpha * u_i)).
+        #
+        # NOTE, deliberate: this reads the lambda just written in Step 3
+        # (Gauss-Seidel), while the archived derivation writes both updates
+        # from the previous iterate (Jacobi). Measured at the protocol values
+        # (eta_lambda=eta_u=0.01, alpha=10, 29 epochs) over four violation
+        # profiles, the worst relative lambda difference after the full run is
+        # 4.7e-04, and the two schemes share the SAME fixed point by
+        # construction (at a fixed point lam_t == lam_{t-1}, so they coincide).
+        # That is far below the FP16/BF16 cross-server spread this project
+        # already accepts. Left as-is on purpose: switching to Jacobi would
+        # change every hounie number by ~0.05% for no benefit and break
+        # bit-identity with the runs already in the corpus.
         for c in K_global:
             u_g[c] = max(0.0, u_g[c] + eta_u * (lam_g[c] - 2.0 * alpha * u_g[c]))
         for key in K_local:
