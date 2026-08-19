@@ -71,6 +71,13 @@ def _coerce_imagery_layout(images):
     return images
 
 
+def _normalize_constrained(cc):
+    """One capped class or several, always as a list."""
+    if cc is None:
+        return []
+    return list(cc) if isinstance(cc, (list, tuple)) else [cc]
+
+
 def data_fingerprint(y_train, y_test, groups_test):
     """Identity of the actual data behind a data_dir.
 
@@ -104,6 +111,39 @@ def _load_imagery_data(config):
     X_test = _coerce_imagery_layout(_ensure_3channel(
         np.load(os.path.join(data_dir, 'test_images.npy'))))
     y_test = np.load(os.path.join(data_dir, 'test_labels.npy'))
+    for split, X, y in (("train", X_train, y_train), ("test", X_test, y_test)):
+        if len(X) != len(y):
+            raise ValueError(
+                "%s_images.npy has %d rows but %s_labels.npy has %d. They are "
+                "paired BY POSITION everywhere downstream. Train would have "
+                "died late inside TensorDataset with an unlabelled "
+                "AssertionError; test would not have raised at all -- the "
+                "chunked loops key off len(X_test) and would simply score "
+                "fewer items than the labels describe."
+                % (split, len(X), split, len(y)))
+    # Does this slice actually contain the dataset the config describes? None
+    # of this was checked, so pointing data_dir at the wrong dataset produced a
+    # complete, plausible run: the capped class is absent, K rounds to 0, and
+    # constraints.py logs a warning rather than raising.
+    _classes = sorted(set(np.asarray(y_train).ravel().tolist())
+                      | set(np.asarray(y_test).ravel().tolist()))
+    if _classes and (_classes[0] < 0 or _classes[-1] >= num_classes):
+        raise ValueError(
+            "%s: labels span %d..%d but dataset_config.num_classes is %d. This "
+            "is a different dataset from the one the config describes, or "
+            "num_classes is wrong. Every constraint is indexed by class id."
+            % (data_dir, _classes[0], _classes[-1], num_classes))
+    for _c in _normalize_constrained(ds.get('constrained_class')):
+        if _c not in _classes:
+            raise ValueError(
+                "%s: constrained class %d does not occur in this slice "
+                "(present: %s). The budget would round to K=0 on a class that "
+                "is not there, the loss would have nothing to push down, and "
+                "the run would complete looking healthy."
+                % (data_dir, _c, _classes))
+        n_pos = int((np.asarray(y_test).ravel() == _c).sum())
+        log.info("capped class %d: %d of %d test items (%.1f%%)",
+                 _c, n_pos, len(y_test), 100.0 * n_pos / max(1, len(y_test)))
     X_train = _apply_imagenet_normalization(X_train)
     X_test = _apply_imagenet_normalization(X_test)
     test_meta = pd.read_csv(os.path.join(data_dir, 'test_meta.csv'))
@@ -130,6 +170,20 @@ def _load_imagery_data(config):
         log.warning("test_meta.csv has no `label` column, so the group join "
                     "cannot be verified. It is positional -- if the file was "
                     "ever rewritten, groups may be misaligned.")
+    # ACCEPTED RISK, stated rather than silently carried. The check above works
+    # because test_meta.csv carries a redundant copy of the labels. The TRAIN
+    # split has no meta file, so a same-length-but-shuffled desync between
+    # train_images.npy and train_labels.npy cannot be detected here at all --
+    # there is no second source of truth to compare against. The length check
+    # above catches truncation; permutation is invisible.
+    #
+    # Closing it properly means having create_slices.py / prep_*.py write a
+    # train_meta.csv with a label column, exactly as they do for test. That
+    # changes the on-disk layout, so it is a data-regeneration decision, not a
+    # loader fix. Until then the guard is that the prep scripts index images
+    # and labels with the SAME index array in the same statement
+    # (data/dermmnist/create_slices.py, scripts/prep_octmnist.py) -- which is
+    # correct today and is the thing to re-check if a prep script is edited.
     if test_meta[group_col].isna().any():
         raise ValueError("group column %r contains nulls; .astype(int64) would "
                          "turn them into a huge negative group id" % group_col)

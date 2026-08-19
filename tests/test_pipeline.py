@@ -643,3 +643,75 @@ def test_metrics_helpers_restore_the_callers_mode():
         model.train(mode)
         metrics.compute_train_accuracy(model, loader, torch.device("cpu"))
         assert model.training is mode
+
+
+# ---------------------------------------------------------------------------
+# A misconfigured or swapped slice must FAIL, not produce a plausible number.
+#
+# Before these guards: four independent np.load calls with no length comparison
+# (train died late inside TensorDataset with an unlabelled AssertionError, test
+# never raised at all -- the chunked loops key off len(X_test) and would score
+# fewer items than the labels describe); and num_classes / constrained_class
+# were never checked against the labels, so pointing data_dir at the wrong
+# dataset gave K=0 on an absent class, a log warning, and a complete run.
+# ---------------------------------------------------------------------------
+def _write_slice(d, n_train=12, n_test=8, n_classes=4, capped=2,
+                 truncate_test_labels=False, drop_capped=False):
+    import numpy as np
+    import pandas as pd
+    os.makedirs(d, exist_ok=True)
+    rng = np.random.default_rng(0)
+    ytr = np.array([i % n_classes for i in range(n_train)])
+    yte = np.array([i % n_classes for i in range(n_test)])
+    if drop_capped:                       # a slice that lacks the capped class
+        ytr = np.where(ytr == capped, (capped + 1) % n_classes, ytr)
+        yte = np.where(yte == capped, (capped + 1) % n_classes, yte)
+    np.save(os.path.join(d, "train_images.npy"),
+            rng.random((n_train, 3, 8, 8)).astype("float32"))
+    np.save(os.path.join(d, "train_labels.npy"), ytr)
+    np.save(os.path.join(d, "test_images.npy"),
+            rng.random((n_test, 3, 8, 8)).astype("float32"))
+    np.save(os.path.join(d, "test_labels.npy"),
+            yte[:-1] if truncate_test_labels else yte)
+    pd.DataFrame({"label": yte, "grp": [i % 2 for i in range(n_test)]}).to_csv(
+        os.path.join(d, "test_meta.csv"), index=False)
+
+
+def _cfg(d, n_classes=4, capped=2):
+    return {"dataset_mode": "dermmnist", "dataset_config": {
+        "data_dir": d, "num_classes": n_classes, "constrained_class": capped,
+        "group_column": "grp", "target_column": "label"},
+        "constraint": [0.5, 0.5]}
+
+
+def test_loader_refuses_mismatched_image_and_label_counts(tmp_path):
+    from src.utils.data_loader import _load_imagery_data as load_data
+    d = str(tmp_path / "bad_len")
+    _write_slice(d, truncate_test_labels=True)
+    with pytest.raises(ValueError, match="test_images.npy has 8 rows"):
+        load_data(_cfg(d))
+
+
+def test_loader_refuses_a_slice_whose_labels_exceed_num_classes(tmp_path):
+    from src.utils.data_loader import _load_imagery_data as load_data
+    d = str(tmp_path / "wrong_ds")
+    _write_slice(d, n_classes=6)                 # 6 real classes...
+    with pytest.raises(ValueError, match="num_classes is 4"):
+        load_data(_cfg(d, n_classes=4))          # ...config says 4
+
+
+def test_loader_refuses_a_slice_missing_the_capped_class(tmp_path):
+    from src.utils.data_loader import _load_imagery_data as load_data
+    d = str(tmp_path / "no_capped")
+    _write_slice(d, drop_capped=True)
+    with pytest.raises(ValueError, match="does not occur in this slice"):
+        load_data(_cfg(d))
+
+
+def test_loader_accepts_a_well_formed_slice(tmp_path):
+    """The guards must not fire on good data."""
+    from src.utils.data_loader import _load_imagery_data as load_data
+    d = str(tmp_path / "good")
+    _write_slice(d)
+    out = load_data(_cfg(d))
+    assert out is not None
