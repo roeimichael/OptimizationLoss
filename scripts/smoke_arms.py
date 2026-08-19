@@ -218,6 +218,7 @@ def main():
 
     tmp = tempfile.mkdtemp(prefix="smoke_")
     fails = []
+    unchecked = []
     print("smoke-testing %d arm(s): %d train / %d test items, %d classes, "
           "%d groups\n" % (len(arms), N_TRAIN, N_TEST, N_CLASSES, N_GROUPS))
     for arm in arms:
@@ -235,7 +236,8 @@ def main():
                     raise AssertionError("emitted predictions violate %s" % bad[:3])
                 note = "preds ok, caps satisfied"
             else:
-                note = "trained, post-hoc adjustment downstream"
+                note = "runs; CAPS NOT CHECKED HERE (--matrix does)"
+                unchecked.append(arm)
             print("  OK    %-11s -> %-15s %s" % (arm, meth, note))
         except Exception as e:                     # noqa: BLE001 - report them all
             fails.append((arm, meth, e))
@@ -251,7 +253,21 @@ def main():
         for arm, meth, e in fails:
             print("  %-11s (%s)  %s: %s" % (arm, meth, type(e).__name__, e))
         return 1
-    print("All %d arms run end to end and respect their caps." % len(arms))
+    checked = len(arms) - len(unchecked)
+    print("All %d arm(s) run end to end." % len(arms))
+    print("Caps VERIFIED for %d of %d: the arms that emit predictions directly."
+          % (checked, len(arms)))
+    if unchecked:
+        # This line used to read "All N arms run end to end and respect their
+        # caps" unconditionally, while only the post-hoc arms were ever cap
+        # checked. The trained arms enforce their caps in targeted_correction,
+        # downstream of where this harness stops, so it had no basis for the
+        # claim -- in the gate CLAUDE.md tells every user to trust before
+        # launching.
+        print("Caps NOT verified here for %d trained arm(s): %s"
+              % (len(unchecked), " ".join(sorted(unchecked))))
+        print("  They enforce caps in targeted_correction, downstream of this")
+        print("  harness. Run --matrix to check them.")
 
     if args.matrix:
         mfails = matrix(P, arms)
