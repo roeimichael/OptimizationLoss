@@ -10,10 +10,33 @@ from src.utils.constants import UNLIMITED
 log = logging.getLogger(__name__)
 
 
-def _normalize_constrained_classes(constrained_class):
+def normalize_constrained_classes(constrained_class):
+    """One capped class or several, always as a list of ints.
+
+    THE single normalizer. There were three, and they disagreed on None:
+    this one wrapped it to [None] and every downstream index raised a bare
+    "TypeError: list indices must be integers", the loader's copy returned []
+    and silently SKIPPED its own class-occurs-in-slice pre-flight check, and
+    src/pipeline/data.py had a third inline copy. A config with
+    `constrained_class: null` therefore produced a different failure depending
+    on which one saw it first, and one of those failures was silence.
+    """
+    if constrained_class is None:
+        raise ValueError(
+            "constrained_class is None. Every arm in this project caps at "
+            "least one class; a run with no capped class has no constraint to "
+            "satisfy and no metric to report. Set it in configs/protocol.yml.")
     if isinstance(constrained_class, (list, tuple)):
-        return list(constrained_class)
-    return [constrained_class]
+        out = list(constrained_class)
+    else:
+        out = [constrained_class]
+    if not out:
+        raise ValueError("constrained_class is empty; expected one class or more.")
+    return [int(c) for c in out]
+
+
+# Back-compat alias: the private name is used across this module.
+_normalize_constrained_classes = normalize_constrained_classes
 
 
 def _round_to_K(count, percentage, scope_label):
@@ -34,13 +57,19 @@ def _round_to_K(count, percentage, scope_label):
             f"rounded to K=0. The constraint would vanish silently. "
             f"Pick a larger percentage or move the constrained class.")
     if K == 0:
+        # K=0 has TWO causes and the message used to assert only one of them.
         # count == 0: the scope holds no true instance of the capped class, so
-        # "predict it zero times here" is the correct and tightest budget. It is
-        # legitimate but never obvious from a config, and until the loss was
-        # fixed it carried no gradient at all -- so say it out loud.
-        log.warning("%s: K=0 (this scope has no true instance of the class). "
+        # "predict it zero times here" is the correct and tightest budget.
+        # percentage == 0: a 0% cap tag, which the raise above cannot reach
+        # because it requires percentage > 0. Either is legitimate and neither
+        # is obvious from a config, and until the loss was fixed a K=0
+        # constraint carried no gradient at all -- so say which one it is.
+        cause = ("this scope has no true instance of the class"
+                 if count == 0 else
+                 "percentage=%s is zero on a count of %d" % (percentage, int(count)))
+        log.warning("%s: K=0 (%s). "
                     "The budget is real and binding, not a disabled constraint.",
-                    scope_label)
+                    scope_label, cause)
     return K
 
 

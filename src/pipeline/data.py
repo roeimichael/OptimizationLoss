@@ -7,6 +7,7 @@ from typing import Dict, List
 import numpy as np
 import torch
 
+from src.training.constraints import normalize_constrained_classes
 from src.utils.data_loader import load_experiment_data
 
 log = logging.getLogger(__name__)
@@ -47,11 +48,8 @@ def load_data(config) -> LoadedData:
         raise KeyError(
             "dataset_config.constrained_class is required; there is no sensible "
             "default for which class to cap.")
-    constrained_class = ds["constrained_class"]
-    if isinstance(constrained_class, (list, tuple)):
-        constrained_classes = list(constrained_class)
-    else:
-        constrained_classes = [constrained_class]
+    # THE normalizer; this was a third inline copy with its own None handling.
+    constrained_classes = normalize_constrained_classes(ds["constrained_class"])
 
     return LoadedData(
         X_train=torch.FloatTensor(X_train),

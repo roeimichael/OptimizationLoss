@@ -59,7 +59,7 @@ imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 118 regression tests, ~17s, no dataset needed
+python -m pytest tests -q                   # 118 regression tests, ~19s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -133,8 +133,9 @@ record** -- it is the one to edit and the one to read a claim out of.
 Only the first two are live. A fix applied to one of the other three has no
 effect on anything anyone reads.
 
-**Every table in `docs/paper/tables/` regenerates from
+**EIGHT of the eleven tables in `docs/paper/tables/` regenerate from
 `docs/paper/data/corpus/corpus_final.csv` byte-for-byte** via
 `docs/paper/scripts/make_*.py` -- run them and `git diff docs/paper/tables/` must
-be empty. See `docs/paper/data/PROVENANCE.md`, including what the corpus itself
+be empty. ⚠️ `tab_ablation_complete`, `tab_deploy` and `tab_oct_backbone` have
+**no generator and never did**, so an empty diff says nothing about those three. See `docs/paper/data/PROVENANCE.md`, including what the corpus itself
 can no longer be rebuilt from.

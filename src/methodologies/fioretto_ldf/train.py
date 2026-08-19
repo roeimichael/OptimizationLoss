@@ -77,7 +77,12 @@ def _train_constraints(model, config, inputs, device):
     local_con = inputs.local_con
     groups_np = inputs.group_ids
 
-    lambda_g = {c: 0.0 for c in constrained_classes if global_con[c] < UNLIMITED}
+    # Read the SAME key fioretto_alm reads. ALM's own docstring says it is
+    # "identical to fioretto_ldf EXCEPT the dual update", and this key was read
+    # by ALM only -- dormant today because protocol.yml sets it to 0.0 in both
+    # places, and a live asymmetry the moment anyone sweeps it.
+    lam0 = float(hp.get("fioretto_lambda_init", 0.0))
+    lambda_g = {c: lam0 for c in constrained_classes if global_con[c] < UNLIMITED}
     lambda_l = {}
     for group_id, bounds in local_con.items():
         for c in constrained_classes:

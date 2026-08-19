@@ -8,7 +8,9 @@ import os
 import numpy as np
 import pandas as pd
 
-from src.training.constraints import compute_global_constraints, compute_local_constraints
+from src.training.constraints import (compute_global_constraints,
+                                      compute_local_constraints,
+                                      normalize_constrained_classes)
 
 log = logging.getLogger(__name__)
 
@@ -100,10 +102,14 @@ def _coerce_imagery_layout(images):
 
 
 def _normalize_constrained(cc):
-    """One capped class or several, always as a list."""
-    if cc is None:
-        return []
-    return list(cc) if isinstance(cc, (list, tuple)) else [cc]
+    """Defers to THE normalizer in src.training.constraints.
+
+    This used to be a second implementation that returned [] for None, which
+    silently skipped the class-occurs-in-slice check three lines below -- the
+    check exists precisely so a wrong-dataset slice cannot produce a complete,
+    plausible run.
+    """
+    return normalize_constrained_classes(cc)
 
 
 def data_fingerprint(y_train, y_test, groups_test):

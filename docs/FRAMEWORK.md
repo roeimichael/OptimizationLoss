@@ -521,7 +521,7 @@ warm-up with a different training loss is a dead flag, which has happened four t
   different names. When quality ties, `flips` is the one column with a small p-value -- the
   honest report is **"this arm produced nothing."**
 - Quote multi-class accuracy against the **oracle-under-constraint ceiling**, not 1.0
-  (oct L50 = 0.625, derm L30 = 0.809, tissue L30 = 0.795).
+  (oct L50 = 0.625, derm L30 = 0.809, tissue L30 = 0.795). ⚠️ PROSE-ONLY, no receipt.
 - ccP / ccR / ccF1 are one metric in three costumes on single-class problems.
 
 ### Infrastructure
@@ -731,7 +731,7 @@ merely defaulted off -- a config can no longer *imply* a knob that does not exis
 
 | target | what was wrong | what it is now |
 |---|---|---|
-| `src/losses/transductive_loss.py` | the per-constraint penalty math was **duplicated verbatim** between the global and local paths; `penalty_mode` carried four shapes (`rational`/`quadratic`/`both`/`linear`) of which three are rejected arms | one `_penalty()` and one `_sum()` shared by both scopes; one shape. **Verified numerically identical** to the old code across 532 randomized comparisons -- values, gradients, satisfaction flags, and the empty-constraint edge cases that must still return an autograd-connected zero |
+| `src/losses/transductive_loss.py` | the per-constraint penalty math was **duplicated verbatim** between the global and local paths; `penalty_mode` carried four shapes (`rational`/`quadratic`/`both`/`linear`) of which three are rejected arms | one `_penalty()` and one `_sum()` shared by both scopes; one shape. **Verified numerically identical** to the old code across 532 randomized comparisons (⚠️ PROSE-ONLY: the comparison script was not committed and no artifact survives) -- values, gradients, satisfaction flags, and the empty-constraint edge cases that must still return an autograd-connected zero |
 | `main.py` (304 -> 164) | two dispatch paths; the threaded multi-GPU one ran several cards in **one process sharing one `model_cache`**, which races on the warm-up write | single GPU per process, matching how campaigns are actually launched (one process per card, own `EXPERIMENT_DIR`) |
 | `configs/common.py` (94) | 94 lines for one live function | folded into `gen_campaign.py`; **`configs/` is now one file** |
 | `src/training/__init__.py` (30) | re-exports nobody imported, including `ConstraintTrainer` which no longer exists | 4-line docstring |
@@ -779,7 +779,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (118 tests, ~17 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (118 tests, ~19 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -820,7 +820,7 @@ method effect.
 ### Measured and open, no clean answer yet
 
 - **Warm-up 1 delays CE saturation, it does not prevent it**: dermmnist saturates at epoch 15
-  (8/8 runs), octmnist 25, tissuemnist 30. Across those three, TraLO does *best* on the *most*
+  (8/8 runs), octmnist 25, tissuemnist 30 (⚠️ PROSE-ONLY, no receipt). Across those three, TraLO does *best* on the *most*
   saturated dataset and *worst* on the least -- the opposite of the "room to move the boundary"
   prediction. **Confounded**: saturation timing tracks dataset difficulty. The clean test is
   within one dataset, using augmentation to hold CE unsaturated. Not yet run.
@@ -848,7 +848,7 @@ only by discipline **will** recur.
 | 10 | **Deleting something the paper claims** | 6 baselines cut on "inert on octmnist"; inert on *one* dataset is not grounds for deletion | **DISCIPLINE** -- check the manuscript before deleting a baseline or a backbone |
 | 11 | **Characterising the paper without reading it** | done twice; the paper already calls penalty shape "neutral" and lambda escalation "a symptom" | **DISCIPLINE** |
 | 12 | **A cap that cannot bind** | the global cap has never bound at any tag we ran (section 1) | **MECHANICAL** -- `scripts/verify_caps.py` flags INERT / REDUNDANT |
-| 13 | **Comparing arms across CAMPAIGNS** | measured cross-campaign drift is **0.027**, about **2x** the effects being argued over. The +0.0068 cc-F1 edge over focal+clip was cross-campaign; run in ONE campaign it vanished | **MECHANICAL** -- `mandatory_arms`, and `full_panel` pairs within a campaign |
+| 13 | **Comparing arms across CAMPAIGNS** | measured cross-campaign drift is **0.027** (⚠️ PROSE-ONLY, no receipt), about **2x** the effects being argued over. The +0.0068 cc-F1 edge over focal+clip was cross-campaign; run in ONE campaign it vanished | **MECHANICAL** -- `mandatory_arms`, and `full_panel` pairs within a campaign |
 | 14 | **Quoting a one-cell effect** | measured twice, and it shrinks by ~2x both times: restore -0.0477 (1 cell) -> **-0.0351** (4 cells); focal +0.0305 -> **+0.0156**. One cell always over-estimates | **DISCIPLINE** -- quote the multi-cell figure, always |
 | 15 | **Averaging opposite signs across datasets** | the no-restore "AP win" of +0.0085 was derm **-0.027/-0.025** and oct **+0.027/+0.058** -- a dataset split averaged into a number that means nothing. p=0.56 | **MECHANICAL** -- `--percell` includes the cap, and the panel prints better/worse counts |
 | 16 | **A treatment smaller than its own RNG noise** | `rank` at weight **1e-12** (gradient numerically nil) gave a parameter delta of 0.2238 -- *larger* than the 0.2222 at the real weight. The arm was pure nuisance | **DISCIPLINE** -- run every new arm at ~zero dose first and show the delta collapses to 0 |
@@ -952,7 +952,7 @@ scripts/verify_caps.py   the caps bind, on the real dataset slices
 scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             118 tests, ~17 s, no dataset required
+tests/             118 tests, ~19 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

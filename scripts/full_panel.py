@@ -172,7 +172,18 @@ def panel(run_dir, cfg):
     P = P / np.clip(P.sum(axis=1, keepdims=True), 1e-12, None)
     y = t["True_Label"].to_numpy(int)
     rawp = t["Predicted_Label"].to_numpy(int)
-    g = t["Group_ID"].to_numpy(int) if "Group_ID" in t.columns else None
+    if "Group_ID" not in t.columns:
+        # Silently defaulting every row to group 0 collapses all groups into
+        # one, so every LOCAL cap silently becomes the global cap and the run
+        # scores as a plausible but wrong result. The writer always emits this
+        # column today (runner -> eval -> logging, and group_ids is mandatory
+        # in the loader), so this is unreachable by construction -- which is
+        # exactly why it must raise rather than paper over the day it is not.
+        raise SystemExit(
+            "%s has no Group_ID column. Every local cap would collapse into "
+            "the global one and the run would score as if it had no groups."
+            % raw)
+    g = t["Group_ID"].to_numpy(int)
 
     dc = cfg.get("dataset_config", {}) or {}
     cls_raw = dc.get("constrained_class")
@@ -183,7 +194,7 @@ def panel(run_dir, cfg):
     classes = ([int(c) for c in cls_raw] if isinstance(cls_raw, (list, tuple))
                else [int(cls_raw)])
     lp, gp = cfg["constraint"]
-    df = pd.DataFrame({"label": y, "grp": g if g is not None else 0})
+    df = pd.DataFrame({"label": y, "grp": g})
     G = compute_global_constraints(df, "label", gp, constrained_class=classes,
                                        num_classes=P.shape[1])
     L = compute_local_constraints(df, "label", lp, "grp",
