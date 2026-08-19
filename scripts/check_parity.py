@@ -34,6 +34,48 @@ def load(root):
     return runs
 
 
+def _report_passes(runs, arms):
+    """What each arm actually executes, beside the epoch count.
+
+    Optimizer epochs are equal by construction. FORWARD AND BACKWARD PASSES are
+    not: every constraint epoch runs a full CE epoch over the train set AND two
+    passes over the test set (pass 1 FP32 no-grad for the counts, pass 2
+    carrying the constraint gradient). A post-hoc arm runs neither test pass.
+
+    The excess therefore scales with n_test/n_train and DIFFERS PER DATASET,
+    which makes any cross-dataset reading of a trained arm's margin a
+    confounded one. It is printed rather than gated because the direction
+    favours the trained arms -- it cannot manufacture the negative result the
+    project currently reports -- but it belongs on screen, not in a reviewer's
+    first question.
+    """
+    print()
+    print("   passes per run (train-set epochs are shared; TEST-set passes are not):")
+    print("   %-12s %14s %14s %16s" % ("arm", "train epochs", "test passes",
+                                       "test passes are"))
+    for arm in arms:
+        hp = [r["hyperparams"] for r in runs if r["arm"] == arm]
+        if not hp:
+            continue
+        wu = sorted({h["warmup_epochs"] for h in hp})[0]
+        ce = sorted({h["constraint_epochs"] for h in hp})[0]
+        # every epoch, warm-up or constraint, runs one CE pass over the train set
+        train_epochs = wu + ce
+        # only constraint epochs touch the test set, twice
+        test_passes = 2 * ce
+        kind = "-" if not ce else "1 no-grad + 1 with-grad, per constraint epoch"
+        print("   %-12s %14d %14d   %s" % (arm, train_epochs, test_passes, kind))
+    trained = [a for a in arms
+               if any(r["hyperparams"]["constraint_epochs"] for r in runs
+                      if r["arm"] == a)]
+    if trained and len(trained) != len(arms):
+        print("   ^ the trained arms do %d extra full passes over the TEST set "
+              "that the" % (2 * max(
+                  r["hyperparams"]["constraint_epochs"] for r in runs)))
+        print("     post-hoc arms do not. Equal OPTIMIZER EPOCHS is not equal FLOPs,")
+        print("     and the gap scales with n_test/n_train so it differs per dataset.")
+
+
 def main():
     if len(sys.argv) < 2:
         sys.exit(__doc__)
@@ -48,7 +90,9 @@ def main():
     print("%d runs, %d arms: %s\n" % (len(runs), len(arms), " ".join(arms)))
 
     # ---- 1. equal compute ---------------------------------------------------
-    print("1. COMPUTE  (warm-up + constraint must total the same for every arm)")
+    print("1. OPTIMIZER EPOCHS  (warm-up + constraint must total the same "
+          "for every arm)")
+    print("   NOTE: this is compute parity under ONE definition of compute.")
     totals = set()
     for arm in arms:
         hp = [r["hyperparams"] for r in runs if r["arm"] == arm]
@@ -59,10 +103,12 @@ def main():
         print("   %-12s warm-up %-6s constraint %-6s total %s"
               % (arm, sorted(wu), sorted(ce), sorted(tot)))
     if len(totals) == 1:
-        print("   OK -- every arm gets %d optimizer epochs\n" % totals.pop())
+        print("   OK -- every arm gets %d optimizer epochs" % sorted(totals)[0])
     else:
         fails.append("UNEQUAL COMPUTE: totals %s" % sorted(totals))
-        print("   FAIL -- differing totals: %s\n" % sorted(totals))
+        print("   FAIL -- differing totals: %s" % sorted(totals))
+    _report_passes(runs, arms)
+    print()
 
     # ---- 2. shared knobs ----------------------------------------------------
     print("2. SHARED KNOBS  (identical wherever present, or the delta is the knob)")
