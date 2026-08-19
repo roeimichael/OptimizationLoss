@@ -321,6 +321,74 @@ POSTHOC_ARMS = {"clip", "focal_clip", "lp", "focal_lp",
 RAW_MD5 = {}          # arm -> {cell: md5 of final_predictions_raw.csv}
 
 
+def _signflip_p(x):
+    """Exact two-sided sign-flip permutation p over D cluster means.
+
+    All 2^D sign assignments are enumerated -- D is the number of datasets, so
+    at most 3 here and the enumeration is free. Returns (p, D).
+    """
+    x = np.asarray([v for v in np.asarray(x, float) if np.isfinite(v)])
+    D = len(x)
+    if D == 0:
+        return float("nan"), 0
+    obs = abs(x.mean())
+    hits = 0
+    for mask in range(1 << D):
+        signs = np.array([1.0 if (mask >> i) & 1 else -1.0 for i in range(D)])
+        if abs(float((x * signs).mean())) >= obs - 1e-15:
+            hits += 1
+    return hits / float(1 << D), D
+
+
+def _clustered_readout(results, pvals, control, arm):
+    """The honest n for a claim meant to generalize is the DATASET count.
+
+    Averaging seeds within a cell fixed the seed-level dependence, but every
+    cell inside one dataset still shares that dataset's fixed test set and the
+    K derived from it. The Wilcoxon above treats each cell as an independent
+    draw regardless, so adding a backbone or a cap level buys resolution, not
+    independence -- only a new dataset buys a genuinely independent test set.
+
+    So this reports the same deltas clustered to one value per dataset and
+    tested by exact sign flip, and prints the floor that unit imposes. It is
+    printed BESIDE the per-cell table, never instead of it: the per-cell test
+    is the right unit for "did this move on the cells we ran", and this one is
+    the right unit for "does this generalize".
+    """
+    rowset = [(m, r) for _t, m, r in results
+              if r[0] == "OK" and m in pvals and np.isfinite(pvals[m])]
+    if not rowset:
+        return
+    print("\n  CLUSTERED BY DATASET  (%s vs %s) -- the generalization unit"
+          % (arm, control))
+    D = None
+    printed = False
+    for m, r in rowset:
+        d = r[3]
+        try:
+            per_ds = d.groupby(level=0).mean()
+        except Exception:
+            continue
+        p, D = _signflip_p(per_ds.values)
+        if not D:
+            continue
+        printed = True
+        detail = "  ".join("%s %+.4f" % (str(k)[:6], v)
+                           for k, v in per_ds.items())
+        print("  %-9s cell p=%.4f | clustered p=%.4f over %d dataset(s):  %s"
+              % (m, pvals[m], p, D, detail))
+    if printed and D:
+        floor = 2.0 ** (1 - D)
+        print("  ^ exact sign-flip floor at %d dataset(s) is p=%.3f%s"
+              % (D, floor, "" if floor < 0.05 else
+                 "  -- NO all-dataset campaign this project can run reaches "
+                 "p<0.05 on this unit"))
+        if D < 3:
+            print("    (only %d of the 3 datasets are present, so this says "
+                  "nothing about generality)" % D)
+    print()
+
+
 def _reordering_check(rows):
     """Did the constraint phase reorder the capped class, or only shift it?
 
@@ -694,6 +762,8 @@ def main():
                 per = d.groupby(level=[0, 1, 2, 3]).mean().round(4)
                 print("            per-cell: %s"
                       % {"/".join(str(x) for x in k): v for k, v in per.items()})
+
+        _clustered_readout(results, pvals, args.control, arm)
 
 
 if __name__ == "__main__":

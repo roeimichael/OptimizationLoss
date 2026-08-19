@@ -284,6 +284,26 @@ def main():
               "campaign can")
         print("      only report DIRECTION and per-cell consistency, never "
               "significance.")
+    # Those three are NOT interchangeable, and saying so plainly matters more
+    # than the floor above. Every cell inside one dataset shares that dataset's
+    # fixed test set and the K derived from it, so a new backbone or a new cap
+    # level buys RESOLUTION on the cells we ran; only a new dataset buys an
+    # independent test set. full_panel prints a dataset-clustered readout beside
+    # the per-cell one for exactly this reason.
+    n_ds = len(args.datasets)
+    ds_floor = 2.0 ** (1 - n_ds)
+    print("  GENERALIZATION: %d dataset(s) -> exact sign-flip floor p=%.3f "
+          "on the" % (n_ds, ds_floor))
+    print("         clustered unit. Cells within a dataset are NOT independent "
+          "draws:")
+    print("         a backbone or a cap level adds resolution, a DATASET adds "
+          "independence.")
+    if ds_floor > 0.05:
+        print("         *** at %d dataset(s) no clustered result can reach "
+              "p<0.05 --" % n_ds)
+        print("         *** with all three it is still 0.25. Generality here is "
+              "a DIRECTION")
+        print("         *** claim across datasets, never a significant one.")
     print("  protocol: %s" % os.path.relpath(args.protocol))
     print("  code_version:", version)
     return 0

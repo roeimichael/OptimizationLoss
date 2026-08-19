@@ -65,6 +65,45 @@ per-item at the operating point, or it must operate in a regime where post-hoc i
 
 ---
 
+### The honest n is THREE, and it is the dataset count
+
+Averaging seeds within a cell fixed the seed-level dependence. It did not fix the
+one above it: **every cell inside one dataset shares that dataset's fixed test
+set and the K derived from it.** Adding a backbone or a cap level buys resolution
+on the cells we ran; only a new dataset buys an independent test set. The scorer
+treated all cells as independent draws regardless, and `gen_campaign` told an
+underpowered campaign to "add a backbone, a dataset or a cap level" as if the
+three were interchangeable.
+
+`full_panel.py` now prints a **dataset-clustered readout** beside the per-cell
+table: the same deltas averaged to one value per dataset, tested by exact sign
+flip over all `2^D` assignments. Re-scored on the archived `mcbar` campaign
+(6 cells, 3 datasets, both clippers in-campaign):
+
+| comparison | metric | cell p | clustered p | per-dataset |
+|---|---|---|---|---|
+| focal_clip vs clip | AUROC | 0.0312 | **0.2500** | derm +0.0016, oct +0.0071, tissue +0.0062 |
+| focal_clip vs clip | NLL | 0.0312 | **0.2500** | derm -0.461, oct -0.833, tissue -2.067 |
+| focal_clip vs clip | AP | 0.8750 | **1.0000** | derm +0.0107, oct +0.0075, **tissue -0.0184** |
+| tralo_uniform vs clip | ccF1 | 0.4375 | **0.7500** | derm -0.0025, **oct +0.0042**, tissue -0.0122 |
+| tralo_uniform vs clip | macroF1 | 0.8438 | **0.7500** | derm +0.0166, oct +0.0064, tissue -0.0164 |
+
+**Every metric that read p=0.031 at the cell level reads p=0.250 clustered --
+because 0.250 is the floor.** With `D` datasets the exact two-sided sign-flip
+minimum is `2^(1-D)`, so at `D = 3` it is `0.25` and at `D = 2` it is `0.50`.
+
+🛑 **No campaign this project can run will ever reach `p < 0.05` on the
+generalization unit.** Three datasets is the entire universe, and three
+same-signed clusters is the most extreme outcome available. Generality here is a
+DIRECTION claim across datasets and a per-dataset consistency claim -- never a
+significant one. `gen_campaign` prints this floor before a campaign launches and
+`full_panel` prints it beside every comparison.
+
+⚠️ It also shows how often the sign is NOT consistent. On `mcbar`, tissuemnist
+carries the opposite sign to the other two on AP, ccF1, macroF1, macroP and acc
+for both arms -- so the pooled cell-level mean is averaging a disagreement, which
+is mistake pattern 15 operating one level up.
+
 ## 1. THE PROTOCOL -- fixed, non-negotiable, applies to every run
 
 Any campaign that violates a line here is invalid and gets deleted, not debugged.
