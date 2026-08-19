@@ -185,7 +185,7 @@ def main():
     a.add_argument("--caps", nargs="+", default=["L30_G30", "L50_G50"],
                    help="L<local>_G<global>, independent; e.g. L30_G50")
     a.add_argument("--arms", nargs="+", default=["tralo"],
-                   choices=sorted(P["arms"]) + ["all"],
+                   choices=sorted(P["arms"]) + ["all", "all+null"],
                    help="'all' runs the full panel: every baseline the paper claims")
     a.add_argument("--constrained-class", nargs="+", type=int, default=None,
                    help="override the YAML's capped class(es) for every dataset; "
@@ -195,7 +195,18 @@ def main():
     if args.protocol != PROTOCOL_PATH:
         P = load_protocol(args.protocol)
 
-    requested = set(P["arms"]) if "all" in args.arms else set(args.arms)
+    # `all` deliberately EXCLUDES the zero-dose siblings. Adding them is a
+    # compute decision -- four more trained arms is +27% on the canonical
+    # campaign -- and protocol.yml says the same thing. Silently growing what
+    # `all` costs because new arms were defined is the scope expansion this
+    # project has a rule against. Name them to get them; the warning below
+    # fires every time they are missing.
+    if "all+null" in args.arms:
+        requested = set(P["arms"])
+    elif "all" in args.arms:
+        requested = {a for a in P["arms"] if not a.endswith("_null")}
+    else:
+        requested = set(args.arms)
     mandatory = set(P["mandatory_arms"])
     arms = sorted(requested | mandatory)
     added = sorted(mandatory - requested)
@@ -304,6 +315,23 @@ def main():
         print("         *** with all three it is still 0.25. Generality here is "
               "a DIRECTION")
         print("         *** claim across datasets, never a significant one.")
+    # Not auto-added: four more arms DOUBLES the trained half of a campaign, and
+    # that is a compute decision. But silently omitting the control is how a
+    # delta gets attributed to the constraint when the regime produced it, so it
+    # is said out loud, before anything launches.
+    orphaned = [a for a in arms
+                if P["arms"].get(a, {}).get("phase") == "trained"
+                and not a.endswith("_null")
+                and (a + "_null") in P["arms"]
+                and (a + "_null") not in arms]
+    if orphaned:
+        print("  *** NO ZERO-DOSE CONTROL for: %s" % " ".join(sorted(orphaned)))
+        print("      Each has a `_null` sibling -- same code path, same warm-up,")
+        print("      same 29 transductive epochs, same optimizer restart, same")
+        print("      allocator, treatment zeroed. Without it in THIS campaign, a")
+        print("      delta vs clip cannot be attributed to the constraint rather")
+        print("      than to the regime. Add: --arms ... %s"
+              % " ".join(a + "_null" for a in sorted(orphaned)))
     print("  protocol: %s" % os.path.relpath(args.protocol))
     print("  code_version:", version)
     return 0

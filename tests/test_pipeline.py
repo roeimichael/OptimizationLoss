@@ -943,3 +943,68 @@ def test_the_documented_test_count_is_the_real_one(request):
     assert not wrong, (
         "pytest collects %d, but the docs claim %s. Update them, or the count "
         "tells a reader their checkout is incomplete." % (n, wrong))
+
+
+NULL_SIBLINGS = [
+    # (null arm, its treated parent, the keys that must be exactly zero)
+    ("tralo_null", "tralo", ("lambda_step", "lambda_global", "lambda_local")),
+    ("fioretto_null", "fioretto", ("fioretto_step_size",)),
+    ("hounie_null", "hounie", ("hounie_eta_lambda",)),
+    ("alm_null", "alm", ("alm_eta", "alm_mu0", "alm_mu_step")),
+]
+
+
+@pytest.mark.parametrize("null,parent,zeroed", NULL_SIBLINGS,
+                         ids=[n for n, _, _ in NULL_SIBLINGS])
+def test_every_trained_arm_has_a_working_zero_dose_sibling(null, parent, zeroed):
+    """Without it, an arm-vs-clip delta cannot be attributed to the constraint.
+
+    For a long time only tralo had one, so "was it the constraint or was it the
+    regime" was falsifiable for exactly one of the four trained arms while the
+    other three were reported against `clip` anyway.
+
+    Zeroing is a DIFFERENT knob in each arm and two of them have a trap, so the
+    keys are named per arm rather than pattern-matched.
+    """
+    import yaml
+    proto = yaml.safe_load(open("configs/protocol.yml", encoding="utf-8"))
+    blk = proto["blocks"][null]
+    for key in zeroed:
+        assert blk[key] == 0.0, "%s.%s must be exactly 0.0, got %r" % (
+            null, key, blk[key])
+
+    a_null, a_parent = proto["arms"][null], proto["arms"][parent]
+    assert a_null["methodology"] == a_parent["methodology"]
+    assert a_null["phase"] == a_parent["phase"] == "trained"
+    assert "constraint_phase" in a_null["blocks"]
+
+
+def test_alm_null_zeroes_the_augmentation_not_just_the_multiplier():
+    """The ALM weight is `lambda + mu_t * r+`, mu_t = mu0 + mu_step * epoch.
+
+    Zeroing alm_eta and alm_mu_step but leaving mu0 at 0.01 gives a live
+    augmentation of mu0 * excess on every epoch -- a weak treatment wearing a
+    control's name, which is worse than having no control.
+    """
+    import yaml
+    blk = yaml.safe_load(open("configs/protocol.yml", encoding="utf-8"))["blocks"]["alm_null"]
+    for epoch in (0, 14, 28):
+        mu_t = blk["alm_mu0"] + blk["alm_mu_step"] * epoch
+        assert mu_t == 0.0, "mu_t is %r at epoch %d, so the weight is not zero" % (
+            mu_t, epoch)
+
+
+def test_hounie_null_does_not_trip_hounie_s_own_stability_guard():
+    """eta_u must NOT be zeroed even though it looks like a dose knob.
+
+    hounie_rcl/train.py refuses `abs(1 - 2*eta_u*alpha) >= 1.0`, and eta_u = 0
+    gives exactly 1.0, so a null built by zeroing every eta would raise before
+    training a single epoch. eta_u moves only the slack u, which cannot reach
+    the primal once lam is pinned at its 0.0 init.
+    """
+    import yaml
+    blk = yaml.safe_load(open("configs/protocol.yml", encoding="utf-8"))["blocks"]["hounie_null"]
+    factor = abs(1.0 - 2.0 * blk["hounie_eta_u"] * blk["hounie_alpha"])
+    assert factor < 1.0, (
+        "hounie_null would raise its own stability check: factor %.3f" % factor)
+    assert blk["hounie_eta_lambda"] == 0.0

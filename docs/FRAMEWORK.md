@@ -419,6 +419,34 @@ into lam -- storing it compounds it every epoch."* Under the rule the code actua
 runs, the effective weight is **67.86**, a 10.3x overstatement. The row's conclusion
 changes from "ALM is 31x Fioretto" to **"ALM is 3x Fioretto"**.
 
+✅ **MEASURED 2026-08-19, and it is stronger than the derivation above.** Running
+`fioretto` and `alm` through the smoke harness at the same seed and hashing the
+softmax output:
+
+| capped classes | active constraints | `fioretto` | `alm` | |
+|---|---|---|---|---|
+| `[1]` | up to 4 | `4b71ff08bd` | `4b71ff08bd` | **BIT-IDENTICAL** |
+| `[1, 2]` | up to 8 | `58ec9b1de1` | `58ec9b1de1` | **BIT-IDENTICAL** |
+
+The paragraph above hedged this to "with a **single** active constraint". It
+holds with eight. The unit-norm clip erases the 3x weight difference even when
+several terms compete, so **`alm` is not a distinct baseline from `fioretto`** --
+the paper claims nine methodologies and two of them emit the same predictions.
+
+⚠️ Measured on the smoke harness (TinyNet, 120 test items, 2 epochs), not on a
+real campaign. The MECHANISM is the derivation above and the measurement matches
+it in the regime the derivation said might break it, but the scale is not the
+paper's. `full_panel.py` md5s raw predictions across arms, so a real campaign
+carrying both will say so on its own.
+
+✅ **The four zero-dose siblings collapse to ONE model.** `tralo_null`,
+`fioretto_null`, `hounie_null` and `alm_null` all hash to `c228d9b2b0` at the
+same seed, and every treated arm differs from it. That is exactly what a correct
+control does: with the treatment zeroed there is nothing left but warm-up 1 plus
+29 CE epochs, which is the same object in all four arms. It also proves the
+zeroing is COMPLETE -- `alm_null` in particular, where leaving `alm_mu0` at 0.01
+would have left a live `mu0 * excess` augmentation on every epoch.
+
 Fioretto is 2.0e6 times hounie. Both fioretto and ALM blow past the unit-norm
 clip for any plausible `||dS/dtheta||`, so the clip renormalizes them to the
 same norm-1 step -- with a single active constraint the two arms take a
@@ -744,13 +772,13 @@ with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and ~7,000 today** (4,801 `src` +
 1,789 `scripts` + 608 `tests` + 267 `configs` + 163 `main.py`). It went back UP, on purpose: the
-six restored baselines, five new gate scripts, and 108 tests. **Do not quote a line count as a
+six restored baselines, five new gate scripts, and 114 tests. **Do not quote a line count as a
 quality measure** -- it moved 4,680 -> 7,020 while the repository got strictly more correct.
 
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (all 10 arms run end to end),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (108 tests, ~17 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (114 tests, ~17 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -913,7 +941,7 @@ scripts/verify_caps.py   the caps bind, on the real dataset slices
 scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             108 tests, ~17 s, no dataset required
+tests/             114 tests, ~17 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

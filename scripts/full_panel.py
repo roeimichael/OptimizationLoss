@@ -281,7 +281,7 @@ def panel(run_dir, cfg):
 # "lower is better" only holds while an arm sits ABOVE the cap -- undershooting
 # would waste budget and would still read as an improvement here. Both arms
 # over-predict by a wide margin in every campaign measured so far (clip 2.35x,
-# TraLO 1.71x), so the direction is unambiguous, but main() asserts it rather
+# TraLO 1.71x), so the direction is unambiguous, but main() branches to UNDERSHOOT on it rather
 # than trusting it.
 LOWER_BETTER = {"ECE", "Brier", "NLL", "flips", "raw_over_K", "flips_over_K"}
 ABOVE_CAP_ONLY = {"raw_over_K"}
@@ -733,10 +733,16 @@ def main():
                 v = "no movement in this metric (arms differ)"
             elif not np.isfinite(pv):
                 v = "-"
-            elif len(d) < 6:
-                # exact two-sided Wilcoxon floor at n non-zero pairs is 2^(1-n)
-                v = "n=%d, min attainable p=%.3f -- NOT CALLABLE" % (
-                    len(d), 2.0 ** (1 - max(1, better + worse)))
+            elif better + worse < 6:
+                # The floor is set by the NON-ZERO pairs, which is what the
+                # signed-rank test actually consumes -- exactly 2^(1-n) at n of
+                # them. This used to gate on len(d), the total cell count, while
+                # printing a floor computed from better+worse: 6 cells with one
+                # exact tie carry a true floor of 0.0625 and rendered as an
+                # ordinary row with no caveat. An integer-valued metric at small
+                # K ties often, so that is not a corner case.
+                v = "%d non-zero pair(s) of %d cells, min attainable p=%.3f "                    "-- NOT CALLABLE" % (
+                        better + worse, len(d), 2.0 ** (1 - max(1, better + worse)))
             elif qv < 0.05 and better > worse:
                 v = "*** WIN"
             elif qv < 0.05 and worse > better:
