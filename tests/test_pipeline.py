@@ -1135,3 +1135,71 @@ def test_bh_monotonicity_and_that_aliases_do_not_widen_the_family():
     assert abs(got[0] - 0.04) < 1e-12
     ordered = [q[m] for _, m in finite]
     assert ordered == sorted(ordered), "q must be non-decreasing in sorted p"
+
+
+def _panel_run(tmp_path, constrained_class, n=12, n_cls=3):
+    """A minimal scorable run directory: config.json + the two prediction CSVs."""
+    import json
+
+    import numpy as np
+    import pandas as pd
+
+    d = tmp_path / "ds" / "M" / "L30_G30" / "arm" / "seed_1"
+    d.mkdir(parents=True)
+    rng = np.random.default_rng(0)
+    proba = rng.random((n, n_cls))
+    proba = proba / proba.sum(axis=1, keepdims=True)
+    frame = {
+        "True_Label": [i % n_cls for i in range(n)],
+        "Predicted_Label": list(proba.argmax(axis=1)),
+        "Group_ID": [i % 2 for i in range(n)],
+    }
+    for c in range(n_cls):
+        frame["Prob_Class_%d" % c] = proba[:, c]
+    df = pd.DataFrame(frame)
+    df.to_csv(d / "final_predictions_raw.csv", index=False)
+    df.to_csv(d / "final_predictions.csv", index=False)
+    cfg = {
+        "status": "completed",
+        "arm": "arm",
+        "constraint": [0.3, 0.3],
+        "constraint_tag": "L30_G30",
+        "model_name": "M",
+        "dataset_mode": "ds",
+        "dataset_config": {"num_classes": n_cls,
+                           "constrained_class": constrained_class},
+        "hyperparams": {"seed": 1},
+    }
+    (d / "config.json").write_text(json.dumps(cfg), encoding="utf-8")
+    return d, cfg
+
+
+def test_panel_refuses_a_run_with_no_capped_class(tmp_path):
+    """`constrained_class: null` must raise with a reason, not label a cell "None".
+
+    full_panel.py carried two more inline scalar-or-list copies after the other
+    three were unified. The one building the `capped` cell key did not raise on
+    None at all -- it produced the literal string "None" as the cell label, so
+    the run would have been paired and scored under a cell that does not exist.
+    """
+    panel_mod = _load_panel()
+    d, cfg = _panel_run(tmp_path, None)
+    with pytest.raises(ValueError) as exc:
+        panel_mod.panel(str(d), cfg)
+    assert "constrained_class" in str(exc.value)
+
+
+@pytest.mark.parametrize("cc,expect", [(1, "1"), ([1], "1"), ([1, 2], "1-2")])
+def test_panel_labels_the_capped_cell_the_same_way_for_scalar_and_list(
+        tmp_path, cc, expect):
+    """A scalar and a one-element list are the same campaign and must pair.
+
+    If they produced different `capped` labels they would land in different
+    cells and every pair would silently vanish from the comparison -- the
+    failure that once made in-flight campaigns read as ties.
+    """
+    panel_mod = _load_panel()
+    d, cfg = _panel_run(tmp_path, cc)
+    r = panel_mod.panel(str(d), cfg)
+    assert r is not None, "a well-formed run must be scorable"
+    assert r["capped"] == expect

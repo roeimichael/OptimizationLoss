@@ -47,7 +47,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scripts.score_arm import equalize                            # noqa: E402
 from src.training.constraints import (compute_global_constraints,  # noqa: E402
-                                      compute_local_constraints)
+                                      compute_local_constraints, normalize_constrained_classes)
 from src.utils.constants import UNLIMITED                          # noqa: E402
 
 
@@ -191,8 +191,12 @@ def panel(run_dir, cfg):
     # cls[0] reports one class's metric under the campaign's name, and equalizing
     # only cls[0] leaves the other caps free -- so the "budget-equalized" family
     # was neither budget-equalized nor multi-class.
-    classes = ([int(c) for c in cls_raw] if isinstance(cls_raw, (list, tuple))
-               else [int(cls_raw)])
+    # THE normalizer. This was a FOURTH inline copy of the scalar-or-list
+    # pattern the other three were just unified into -- in the file that scores
+    # every result. On `constrained_class: null` it raised a bare
+    # "TypeError: int() argument must be ... not 'NoneType'" instead of the
+    # informative ValueError every other site gives.
+    classes = normalize_constrained_classes(cls_raw)
     lp, gp = cfg["constraint"]
     df = pd.DataFrame({"label": y, "grp": g})
     G = compute_global_constraints(df, "label", gp, constrained_class=classes,
@@ -238,10 +242,12 @@ def panel(run_dir, cfg):
         "cap": cfg.get("constraint_tag"),
         # part of the cell key: a swept dimension that lives only in the config
         # gets pooled, which is how the granularity sweep was first misread
-        "capped": "-".join(str(x) for x in (
-            cfg.get("dataset_config", {}).get("constrained_class", [])
-            if isinstance(cfg.get("dataset_config", {}).get("constrained_class"), list)
-            else [cfg.get("dataset_config", {}).get("constrained_class")])),
+        # A FIFTH copy lived here and was worse than the fourth: on None it did
+        # not raise at all, it produced the cell label "None" -- a
+        # plausible-looking wrong row in the cell KEY itself. Unreachable only
+        # because the line above happened to raise first, which is a landmine,
+        # not a defused case.
+        "capped": "-".join(str(x) for x in classes),
         "seed": (cfg.get("hyperparams") or {}).get("seed"),
         "arm": cfg.get("arm"),
         # -------- allocation-free
