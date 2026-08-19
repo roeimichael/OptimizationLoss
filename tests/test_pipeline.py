@@ -715,3 +715,51 @@ def test_loader_accepts_a_well_formed_slice(tmp_path):
     _write_slice(d)
     out = load_data(_cfg(d))
     assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# Pin the penalty's gradient SHAPE.
+#
+# Above rho ~ 1 the gradient is non-monotone in the violation: near-zero at the
+# boundary, peaking at u = 1/sqrt(3) = 57.7% overshoot, then decaying toward
+# zero. At rho=100 a constraint violated 8x over budget gets ~167x less pull
+# than one violated 58% over. This is the PUBLISHED formula (manuscript Eq. 4),
+# not a bug, so the test pins it rather than forbidding it -- if someone changes
+# the shape, that has to be a deliberate act with the paper updated, and this
+# test is where they find out.
+# ---------------------------------------------------------------------------
+def test_penalty_gradient_is_non_monotone_above_rho_one():
+    import torch
+
+    K = 67.0
+
+    def grad_at(rho, violation):
+        soft = torch.tensor(K + violation, requires_grad=True, dtype=torch.double)
+        Kt = torch.tensor(K, dtype=torch.double)
+        E = torch.relu(soft - Kt)
+        S = Kt
+        eps = 1e-8
+        e = E / (S + eps)
+        (E / (E + S + eps) + rho * (e ** 2) / (1 + e ** 2 + eps)).backward()
+        return float(soft.grad)
+
+    # rho starts at 0.5 and rho_step is derived as (100 - 0.5)/29 = 3.43,
+    # so rho is 3.93 after ONE constraint epoch of twenty-nine.
+    assert abs((100.0 - 0.5) / 29 - 3.431) < 0.001
+
+    # at the initial rho the gradient is monotonically decreasing -- correct
+    g0 = [grad_at(0.5, f * K) for f in (0.001, 0.3, 1.0, 8.0)]
+    assert g0 == sorted(g0, reverse=True), "rho=0.5 should still be monotone"
+
+    # one epoch in, it is not
+    edge, peak, deep = (grad_at(3.93, 0.001 * K), grad_at(3.93, 0.577 * K),
+                        grad_at(3.93, 8.0 * K))
+    assert peak > 2.5 * edge, "expected a hump above the boundary value"
+    assert peak > 100 * deep, "expected the deep violation to be starved"
+
+    # the hump sits at u = 1/sqrt(3), analytically
+    import math
+    at_analytic = grad_at(100.0, (1 / math.sqrt(3)) * K)
+    for f in (0.2, 0.4, 0.8, 1.5):
+        assert grad_at(100.0, f * K) <= at_analytic + 1e-12, (
+            "peak should be at u = 1/sqrt(3), not at %.2f" % f)

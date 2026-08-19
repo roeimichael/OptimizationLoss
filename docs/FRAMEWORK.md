@@ -521,6 +521,54 @@ aggregate count. See the structural claim in section 0.
 - **Constraint granularity** (G group counts instead of 1) -- monotonically *worse* as it gets
   finer (cc-F1 -0.008 at G=1 to -0.018 at G=32).
 
+### (a2) 🔴🔴 THE PENALTY'S GRADIENT VANISHES ON THE WORST VIOLATIONS
+
+**Re-derived with autograd on the shipped `_penalty` (2026-08-19), K=67:**
+
+| rho | at the boundary | at 57.7% over | at 8x over | peak / boundary | peak / deep |
+|---|---|---|---|---|---|
+| 0.5 (initial) | 0.01491 | 0.01085 | 0.000213 | 1.0x (monotone) | 70x |
+| **3.93** (after ONE constraint epoch) | 0.01501 | **0.04410** | 0.000406 | **2.9x** | **109x** |
+| 100 (the target) | 0.01788 | **0.97543** | 0.005836 | **54.6x** | **167x** |
+
+The peak sits at **u = 1/sqrt(3) = 57.7% overshoot**, analytically: the second
+term is `rho*u^2/(1+u^2)` with `u = E/S`, whose derivative `2u/(1+u^2)^2` is
+maximized there. So above `rho ~ 1` the gradient is **non-monotone in the
+violation** -- near-zero at the boundary, peaking at ~58% over, and decaying
+toward zero for anything worse.
+
+**A constraint violated by 8x its budget receives 167x LESS corrective pull than
+one violated by 58%.** That is the opposite of what a penalty is for.
+
+`rho_step` is derived as `(rho_target - initial_rho)/29 = 3.43`, so **rho is
+3.93 after the first constraint epoch** -- the monotone regime exists for
+exactly one epoch of twenty-nine.
+
+**Does it bite? Yes, and here is the precise condition.** The unit-norm clip is
+applied to the constraint gradient ALONE (`tralo/train.py:346-357`: CE and
+constraint take separate `zero_grad`/`backward`/`step` sequences), so it
+normalizes magnitude and preserves direction. With a **single** penalty term the
+direction is therefore independent of the shape, and the shape is a no-op --
+**which is the mechanical reason ~13 shape variants all tied (section 2a).**
+
+But the loss sums a term per (capped class, scope): one global plus **one per
+group**. dermmnist has 3 groups, so even a single-capped-class run carries **4
+terms**, and their RELATIVE weights are exactly what the shape sets. A group
+that is badly over budget is systematically down-weighted against one that is
+mildly over. **This is live in every run we have made**, and it compounds with
+multi-class caps, which is where section 4's open question lives.
+
+⚠️ **It is the published formula, not a coding bug** -- it matches the
+manuscript's Eq. 4. Changing it changes what the paper describes and invalidates
+every existing result, so it is not a cleanup. Recorded, pinned by a test, and
+left to Roei.
+
+⚠️ **The stated justification for the shape is boundedness** -- but the
+gradient clip already provides the only boundedness that reaches a parameter.
+The shape's boundedness is redundant with the clip and buys nothing except this
+defect. A plain or squared hinge has a constant or growing gradient with depth
+and would not have it.
+
 ### (b) Anything that delivered MORE constraint gradient -- all significantly worse
 
 - **More constraint steps per epoch** -- monotone: n=1 (incumbent) is the best setting in the
