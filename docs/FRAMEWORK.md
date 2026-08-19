@@ -770,15 +770,16 @@ this one was quoted for three days after it stopped being true. **The durable ve
 claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on a hyperparameter
 with no reader, and it runs before every launch.
 
-**Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and ~7,000 today** (4,801 `src` +
-1,789 `scripts` + 608 `tests` + 267 `configs` + 163 `main.py`). It went back UP, on purpose: the
-six restored baselines, five new gate scripts, and 114 tests. **Do not quote a line count as a
-quality measure** -- it moved 4,680 -> 7,020 while the repository got strictly more correct.
+**Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
+six restored baselines, five new gate scripts, and 118 tests. **Do not quote a line count as a
+quality measure** -- it has only gone UP since the purge while the repository got
+strictly more correct, and every per-component figure written here has gone stale
+within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (all 10 arms run end to end),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (114 tests, ~17 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (118 tests, ~17 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -800,7 +801,17 @@ method effect.
 4. **The unit-norm gradient clip is load-bearing.** Remove it and the count collapses to 0 --
    loses 4/4 cells. It binds 63-84% of the time.
 5. **The lambda toggle is essential.**
-6. **Post-hoc local adjustment never re-violates the global cap** -- 199 runs, zero violations.
+6. **Post-hoc local adjustment never re-violates the global cap.** The
+   original 199-run measurement was made by `paper/scripts/feasibility_check.py`,
+   which was lost with that directory -- so this sat as a settled fact with no
+   receipt, unlike `build_corpus.py` whose absence is flagged. Rebuilt at
+   `scripts/feasibility_check.py` and re-run 2026-08-19: **128 archived runs,
+   zero violations** (every run in the evidence tarballs that ships
+   predictions). ⚠️ Those predictions carry no group column, so that pass
+   verified the **GLOBAL** caps only; pass `--data-root` on the server to
+   check the LOCAL caps, which is the direction the original warning was
+   about. The check is mutation-tested: injecting 400 predictions of a
+   capped class is caught as `GLOBAL c1 420>31`, exit 1.
    Retired as a concern.
 7. **The scorer is validated.** `equalize_multi` is arm-independent, budget-constant, feasible
    144/144, order-independent, not calibration-convertible, and agrees with an exact LP.
@@ -941,7 +952,7 @@ scripts/verify_caps.py   the caps bind, on the real dataset slices
 scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             114 tests, ~17 s, no dataset required
+tests/             118 tests, ~17 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

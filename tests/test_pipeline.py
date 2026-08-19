@@ -1008,3 +1008,128 @@ def test_hounie_null_does_not_trip_hounie_s_own_stability_guard():
     assert factor < 1.0, (
         "hounie_null would raise its own stability check: factor %.3f" % factor)
     assert blk["hounie_eta_lambda"] == 0.0
+
+
+def _load_panel():
+    """full_panel.py is a script, not a package module."""
+    import importlib.util
+    import sys
+
+    spec = importlib.util.spec_from_file_location(
+        "_full_panel", os.path.join("scripts", "full_panel.py"))
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["_full_panel"] = mod
+    argv, sys.argv = sys.argv, ["full_panel"]
+    try:
+        spec.loader.exec_module(mod)
+    except SystemExit:
+        pass
+    finally:
+        sys.argv = argv
+    return mod
+
+
+def test_equalize_multi_respects_every_capped_class_not_just_the_first():
+    """The bug its docstring describes: caps 2..n silently violated.
+
+    `equalize` in score_arm.py takes top-K for ONE class and argmaxes the rest
+    with no budget check, so a multi-capped-class campaign scored "equalized"
+    metrics on an allocation that broke every cap after the first.
+    """
+    import numpy as np
+
+    panel = _load_panel()
+    UNLIM = 10 ** 10
+    rng = np.random.default_rng(0)
+    n, n_cls = 60, 4
+    proba = rng.random((n, n_cls))
+    proba = proba / proba.sum(axis=1, keepdims=True)
+    gids = np.array([i % 3 for i in range(n)])
+    capped = [1, 2]
+    glob_c = [UNLIM, 10, 8, UNLIM]
+    loc = {g: [UNLIM, 4, 3, UNLIM] for g in (0, 1, 2)}
+
+    y = np.asarray(panel.equalize_multi(proba, gids, glob_c, loc, capped))
+    assert y.shape == (n,)
+    for c in capped:
+        assert int((y == c).sum()) <= glob_c[c], (
+            "class %d global cap violated: %d > %d"
+            % (c, int((y == c).sum()), glob_c[c]))
+        for g, bounds in loc.items():
+            got = int((y[gids == g] == c).sum())
+            assert got <= bounds[c], (
+                "class %d local cap violated in group %s: %d > %d"
+                % (c, g, got, bounds[c]))
+
+
+def test_equalize_multi_matches_the_single_class_path():
+    """Its docstring promises "with one capped class this is exactly the old
+    behaviour" -- i.e. top-K by probability. The single-class results the
+    project still stands on were produced by that path."""
+    import numpy as np
+
+    panel = _load_panel()
+    UNLIM = 10 ** 10
+    rng = np.random.default_rng(7)
+    n, n_cls = 40, 3
+    proba = rng.random((n, n_cls))
+    proba = proba / proba.sum(axis=1, keepdims=True)
+    gids = np.zeros(n, dtype=int)
+    K = 9
+    y = np.asarray(panel.equalize_multi(proba, gids, [UNLIM, K, UNLIM],
+                                        {0: [UNLIM, UNLIM, UNLIM]}, [1]))
+    chosen = set(np.where(y == 1)[0].tolist())
+    topk = set(np.argsort(-proba[:, 1])[:K].tolist())
+    assert len(chosen) == K
+    assert chosen == topk, "single-class path is not top-K by probability"
+
+
+def test_signflip_is_the_exact_permutation_and_hits_its_floor():
+    """At D datasets the exact two-sided floor is 2^(1-D): 0.25 at three.
+
+    This is the number that says no campaign this project can run reaches
+    p<0.05 on the generalization unit, so it has to be exact, not approximate.
+    """
+    panel = _load_panel()
+    for x in ([0.1, 0.2, 0.3], [3.0, 0.001, 99.0], [-0.4, -0.4, -0.4]):
+        p, d = panel._signflip_p(x)
+        assert d == 3 and abs(p - 0.25) < 1e-12, (x, p, d)
+    assert panel._signflip_p([0.4])[0] == 1.0
+    assert abs(panel._signflip_p([0.5, 0.5])[0] - 0.5) < 1e-12
+    # a mixed-sign set must NOT reach the floor
+    assert panel._signflip_p([0.1, -0.2, 0.3])[0] > 0.25
+    # 2^(1-D) for a same-signed set, at every D it can reach
+    for D in range(1, 7):
+        p, d = panel._signflip_p([1.0] * D)
+        assert d == D and abs(p - 2.0 ** (1 - D)) < 1e-12
+
+
+def test_bh_monotonicity_and_that_aliases_do_not_widen_the_family():
+    """Two things the scorer's q-values depend on.
+
+    BH is a step-up procedure: the raw p*m/i can be non-monotone in the sorted
+    order and must be made monotone by a backward cumulative minimum. And ccP /
+    ccR must stay OUT of the family -- letting all three in widens the callable
+    threshold by 2.54x.
+    """
+    panel = _load_panel()
+    assert panel.BH_ALIAS_OF == {"ccP": "ccF1", "ccR": "ccF1"}
+    assert "ccF1" not in panel.BH_ALIASES
+
+    pv = [0.04, 0.01, 0.03]
+    finite = sorted((v, str(i)) for i, v in enumerate(pv))
+    q = {}
+    for i, (p_, m) in enumerate(finite, 1):
+        q[m] = min(1.0, p_ * len(finite) / i)
+    for i in range(len(finite) - 2, -1, -1):
+        q[finite[i][1]] = min(q[finite[i][1]], q[finite[i + 1][1]])
+    got = [q[str(i)] for i in range(3)]
+    # raw: p=0.01 -> 0.03 (i=1), p=0.03 -> 0.045 (i=2), p=0.04 -> 0.04 (i=3).
+    # The raw sequence is NOT monotone -- 0.045 sits above the 0.04 that follows
+    # it -- and the backward cumulative minimum pulls it down to 0.04. Without
+    # that pass the middle hypothesis would carry a LARGER q than a weaker one.
+    assert abs(got[1] - 0.03) < 1e-12
+    assert abs(got[2] - 0.04) < 1e-12, "0.045 should be pulled down to 0.04"
+    assert abs(got[0] - 0.04) < 1e-12
+    ordered = [q[m] for _, m in finite]
+    assert ordered == sorted(ordered), "q must be non-decreasing in sorted p"

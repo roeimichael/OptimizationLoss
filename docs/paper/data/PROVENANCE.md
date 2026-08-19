@@ -40,7 +40,7 @@ pointed a reader into dead paths for eighteen days.
 |---|---|
 | runs -> manifest | ⛔ `build_experiment_manifest.py` exists nowhere in the repo |
 | manifest -> corpus | ⛔ `build_corpus.py` exists nowhere in the repo. Seven scripts read `corpus_final.csv`; **none has ever produced it** -- this file's own historical note records that, and it is still true |
-| corpus -> floats | ✅ **all eleven generators committed at `docs/paper/scripts/`, and all eleven tables regenerate BYTE-IDENTICAL to the committed `.tex`** |
+| corpus -> floats | ✅ **eleven generators committed at `docs/paper/scripts/`. The EIGHT tables that have a generator regenerate BYTE-IDENTICAL to the committed `.tex`; the other three have no generator and never did, so `git diff` being empty after a regeneration says nothing about them** |
 | floats -> prose | ⚠️ still manual, still the weak link |
 
 So the corpus is a **frozen input**, not a reproducible artifact: you can verify

@@ -671,8 +671,17 @@ def main():
             if m in BH_ALIASES:
                 # ccP, ccR and ccF1 are one result in three costumes. Counting
                 # them three times in the family widens the callable p
-                # threshold by 2.54x. Only ccF1 enters; the other two are
-                # printed with the q of their representative.
+                # threshold by 2.54x, so only ccF1 ENTERS THE FAMILY -- but the
+                # other two now get their OWN Wilcoxon rather than inheriting
+                # ccF1's p. Sharing a SIGN is guaranteed (same K and n_pos per
+                # cell make all three positive multiples of the same TP-diff);
+                # sharing a RANK of |delta| across cells, which is what the
+                # signed-rank test actually consumes, is not. It held on every
+                # archive checked, but it was an assumption printed as a result.
+                try:
+                    pvals[m] = stats.wilcoxon(r[2], r[1], zero_method="zsplit")[1]
+                except Exception:
+                    pvals[m] = np.nan
                 continue
             d = r[3]
             if (d == 0).all():
@@ -681,7 +690,9 @@ def main():
                 pvals[m] = stats.wilcoxon(r[2], r[1], zero_method="zsplit")[1]
             except Exception:
                 pvals[m] = np.nan
-        finite = sorted((v, k) for k, v in pvals.items() if np.isfinite(v))
+        # the aliases carry their own p but must not widen the family
+        finite = sorted((v, k) for k, v in pvals.items()
+                        if np.isfinite(v) and k not in BH_ALIASES)
         qvals = {}
         for i, (pv, m) in enumerate(finite, 1):
             qvals[m] = min(1.0, pv * len(finite) / i)
@@ -690,10 +701,18 @@ def main():
         # the aliases inherit their representative's q, so the table still
         # prints a number for them without inflating the family
         for alias, rep in BH_ALIAS_OF.items():
+            # q only. The p is the alias's own, computed above.
             if rep in qvals:
                 qvals.setdefault(alias, qvals[rep])
-            if rep in pvals:
-                pvals.setdefault(alias, pvals[rep])
+            if (alias in pvals and rep in pvals and np.isfinite(pvals[alias])
+                    and np.isfinite(pvals[rep])
+                    and abs(pvals[alias] - pvals[rep]) > 1e-9):
+                print("  NOTE: %s p=%.4f differs from its BH representative %s "
+                      "p=%.4f." % (alias, pvals[alias], rep, pvals[rep]))
+                print("        They share a sign by construction but not a rank "
+                      "of |delta|, so the")
+                print("        q shown for %s is %s's and is only indicative."
+                      % (alias, rep))
 
         shown = None
         for title, m, r in results:
@@ -770,6 +789,16 @@ def main():
                       % {"/".join(str(x) for x in k): v for k, v in per.items()})
 
         _clustered_readout(results, pvals, args.control, arm)
+
+        # The scope BH actually covers, stated because nothing stated it.
+        print("  BH controls the false-discovery rate across the %d metrics IN "
+              "THIS TABLE," % len([m for m in pvals if m not in BH_ALIASES]))
+        print("  for THIS arm against THIS control. It does NOT correct across "
+              "the other arms")
+        print("  scored in the same run, nor across the dozens of campaigns this "
+              "project has")
+        print("  run. A q<0.05 here is one arm's family, not the project's.")
+        print()
 
 
 if __name__ == "__main__":
