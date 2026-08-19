@@ -1,5 +1,17 @@
 # Classification metrics: accuracy, F1, ECE, calibration, and uncertainty.
 # Shared by both optimization and heuristic experiment runners.
+#
+# The three read-only helpers here RESTORE the caller's train/eval mode
+# rather than forcing train(). They used to force it unconditionally, so a
+# pure read mutated global model state: compute_prediction_statistics is
+# called immediately after model.eval() at the end of every trained run and
+# returned the model in train() mode. Harmless only because every current
+# caller re-asserts eval() -- and the duals' own comments say eval() during
+# a test-set pass is what stops BN running stats updating from test data,
+# "a data-leakage source that flips a few borderline samples and corrupts
+# the lambda update". A read that silently arms that is exactly the shape of
+# defect this project keeps finding. Guarded by a test that was verified to
+# fail when the fix is reversed.
 
 import torch
 import numpy as np
@@ -10,6 +22,7 @@ from src.utils.constants import UNLIMITED
 
 
 def compute_prediction_statistics(model, X_test, group_ids, num_classes=7):
+    was_training = model.training
     model.eval()
     with torch.no_grad():
         logits = chunked_forward(model, X_test)
@@ -29,11 +42,12 @@ def compute_prediction_statistics(model, X_test, group_ids, num_classes=7):
             g_soft = g_proba.sum(dim=0)
             local_hard[g] = {c: int(g_hard[c]) for c in range(num_classes)}
             local_soft[g] = {c: float(g_soft[c]) for c in range(num_classes)}
-    model.train()
+    model.train(was_training)
     return global_hard, local_hard, global_soft, local_soft
 
 
 def compute_train_accuracy(model, loader, device):
+    was_training = model.training
     model.eval()
     correct, total = 0, 0
     with torch.no_grad():
@@ -41,17 +55,18 @@ def compute_train_accuracy(model, loader, device):
             X, y = X.to(device), y.to(device)
             correct += (model(X).argmax(dim=1) == y).sum().item()
             total += y.size(0)
-    model.train()
+    model.train(was_training)
     return correct / total
 
 
 def get_predictions_with_probabilities(model, X_test):
+    was_training = model.training
     model.eval()
     with torch.no_grad():
         logits = chunked_forward(model, X_test)
         preds = logits.argmax(dim=1).cpu().numpy()
         proba = torch.softmax(logits, dim=1).cpu().numpy()
-    model.train()
+    model.train(was_training)
     return preds, proba
 
 

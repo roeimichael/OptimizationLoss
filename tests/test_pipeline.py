@@ -606,3 +606,40 @@ def test_the_audit_sees_keys_read_through_the_required_helper():
         assert "lr_constraint" in reads[meth], meth
         assert "stable_count_threshold" in reads[meth], meth
         assert "enable_checkpoint_restore" in reads[meth], meth
+
+
+# ---------------------------------------------------------------------------
+# A read must not mutate the model's train/eval mode.
+#
+# compute_prediction_statistics is called immediately after model.eval() at the
+# end of every trained run and used to return the model in train() mode. Every
+# current caller re-asserts eval(), so it was harmless -- but the duals' own
+# comments say eval() during a test-set pass is what stops BN running stats
+# updating from test data, "a data-leakage source that flips a few borderline
+# samples and corrupts the lambda update". A read that silently arms that is
+# the shape of defect this project keeps finding.
+# ---------------------------------------------------------------------------
+def test_metrics_helpers_restore_the_callers_mode():
+    import torch
+    import torch.nn as nn
+    from src.training import metrics
+
+    model = nn.Sequential(nn.Linear(4, 3), nn.Dropout(0.5))
+    X = torch.randn(20, 4)
+    groups = torch.zeros(20, dtype=torch.long)
+    loader = [(torch.randn(8, 4), torch.zeros(8, dtype=torch.long))]
+
+    for mode in (True, False):
+        model.train(mode)
+        metrics.compute_prediction_statistics(model, X, groups, num_classes=3)
+        assert model.training is mode, (
+            "compute_prediction_statistics left the model in %s mode after "
+            "being called in %s mode" % (model.training, mode))
+
+        model.train(mode)
+        metrics.get_predictions_with_probabilities(model, X)
+        assert model.training is mode
+
+        model.train(mode)
+        metrics.compute_train_accuracy(model, loader, torch.device("cpu"))
+        assert model.training is mode
