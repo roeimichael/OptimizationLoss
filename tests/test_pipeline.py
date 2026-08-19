@@ -471,7 +471,9 @@ def test_parity_catches_two_arms_sharing_one_warm_up_with_different_objectives(t
     r = subprocess.run([sys.executable, "-m", "scripts.check_parity", str(tmp_path)],
                        cwd=REPO, capture_output=True, text=True)
     assert r.returncode == 1
-    assert "DIFFERENT warm-up objectives" in r.stdout
+    # gate 4 now names the offending key rather than saying "objectives",
+    # because it checks all twelve warm-up-identity keys, not just this one
+    assert "DIFFERENT warmup_loss" in r.stdout
 
 
 def test_verify_caps_fails_when_it_cannot_read_a_slice(tmp_path):

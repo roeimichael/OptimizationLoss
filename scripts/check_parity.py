@@ -12,6 +12,7 @@ Exit code 1 if anything fails, so it can gate a launch.
 """
 import collections
 import glob
+import io
 import json
 import os
 import sys
@@ -32,6 +33,24 @@ def load(root):
         c = json.load(open(p))
         runs.append(c)
     return runs
+
+
+def _identity_keys():
+    """The warm-up-identity keys, from protocol.yml -- the same list
+    compute_base_model_id and audit_config use, so adding a key there extends
+    this gate too rather than leaving it behind."""
+    import yaml
+    try:
+        proto = yaml.safe_load(io.open(os.path.join("configs", "protocol.yml"),
+                                       encoding="utf-8"))
+        keys = proto.get("warmup_identity_keys")
+        if keys:
+            return list(keys)
+    except Exception:
+        pass
+    # If the protocol cannot be read, check the one key that is known to have
+    # collided rather than silently checking nothing.
+    return ["warmup_loss"]
 
 
 def _report_passes(runs, arms):
@@ -171,21 +190,32 @@ def main():
     # narration, not an assertion, guarding occurrence 5 of the inert-flag
     # failure (clip and focal_clip hashing identically, so focal_clip silently
     # became a second clip).
-    warmup_loss = collections.defaultdict(lambda: collections.defaultdict(set))
+    # EVERY warm-up-identity key, read from protocol.yml -- not just
+    # warmup_loss, which was a point-fix for the one collision that happened
+    # (clip and focal_clip hashed identically, so focal_clip silently loaded
+    # clip's model and became a second clip). Two arms differing only in
+    # dropout or focal_alpha would have shared a model and passed this gate.
+    keys = _identity_keys()
+    shared = collections.defaultdict(lambda: collections.defaultdict(set))
     for cfg in runs:
-        warmup_loss[cfg["base_model_id"]][cfg["arm"]].add(
-            json.dumps(cfg["hyperparams"].get("warmup_loss", "ce")))
-    for bid, per_arm in sorted(warmup_loss.items()):
-        losses = {v for vals in per_arm.values() for v in vals}
-        if len(losses) > 1:
-            fails.append(
-                "base_model_id %s is shared by arms with DIFFERENT warm-up "
-                "objectives %s -- one of them would silently load the other's "
-                "trained model" % (bid, sorted(losses)))
-    if any("base_model_id" in f for f in fails):
-        print("   FAIL -- an arm shares a warm-up with a different objective")
+        hp = cfg["hyperparams"]
+        for k in keys:
+            shared[cfg["base_model_id"]][k].add(json.dumps(hp.get(k, None)))
+    collided = False
+    for bid, per_key in sorted(shared.items()):
+        for k, vals in sorted(per_key.items()):
+            if len(vals) > 1:
+                collided = True
+                fails.append(
+                    "base_model_id %s is shared by arms with DIFFERENT %s "
+                    "%s -- one of them would silently load the other's trained "
+                    "model" % (bid, k, sorted(vals)))
+    if collided:
+        print("   FAIL -- an arm shares a warm-up that another arm trained "
+              "differently")
     else:
-        print("   OK -- every shared warm-up has one training objective")
+        print("   OK -- every shared warm-up agrees on all %d identity key(s)"
+              % len(keys))
     print("   (arms that share a warm-up must differ ONLY in the allocator)\n")
 
     # ---- 4b. one dataset definition ----------------------------------------
