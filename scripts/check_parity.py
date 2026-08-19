@@ -24,7 +24,13 @@ SHARED_KEYS = ["lr", "lr_constraint", "dropout", "batch_size", "pretrained",
                # measured at -0.0351 AP within-run: if one arm restores its best
                # feasible checkpoint and another keeps its final model, the delta
                # between them is the restore, not the method
-               "enable_checkpoint_restore"]
+               "enable_checkpoint_restore",
+               # protocol.yml calls this "THE treatment dose... the only dose
+               # axis the protocol admits", and it was the one knob this gate
+               # did not check. Dormant today -- gen_campaign has no flag to
+               # vary it, so every block gets 1.0 -- but the sweep protocol.yml
+               # recommends (0.3 / 1.0 / 3.0) would have gone ungated.
+               "constraint_grad_clip"]
 
 
 def load(root):

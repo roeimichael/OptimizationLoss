@@ -685,6 +685,13 @@ def main():
                 continue
             d = r[3]
             if (d == 0).all():
+                # A metric that did not move is a legitimate NON-REJECTION, so
+                # it belongs in the family at p=1.0. Dropping it shrank the BH
+                # denominator m in q = p*m/i, which makes every OTHER metric's q
+                # SMALLER -- more lenient -- than a fixed-family BH gives. The
+                # comment above calibrates the family at a fixed metric count;
+                # this made the count vary with the data.
+                pvals[m] = 1.0
                 continue
             try:
                 pvals[m] = stats.wilcoxon(r[2], r[1], zero_method="zsplit")[1]

@@ -413,7 +413,13 @@ def main():
             [sys.executable, "-m", "configs.gen_campaign", "--root", root,
              "--datasets", "dermmnist", "tissuemnist", "octmnist",
              "--models", "MobileNetV3", "MobileNetV2", "RegNetY400MF", "ViTB16",
-             "--caps", "L30_G30", "L50_G50", "--arms", "all"],
+             # all+null, NOT all. `all` is deliberately compute-neutral and
+             # excludes the zero-dose siblings, which is right for a CAMPAIGN
+             # and wrong here: auditing is static analysis of configs, it costs
+             # nothing to run, and skipping the four newest and highest-stakes
+             # arms is this project's own mistake pattern 1 -- a check that
+             # reports green while not looking -- one layer up.
+             "--caps", "L30_G30", "L50_G50", "--arms", "all+null"],
             stdout=subprocess.DEVNULL)
 
     emitted, per_arm, n = collect_emitted(root)
