@@ -763,3 +763,37 @@ def test_penalty_gradient_is_non_monotone_above_rho_one():
     for f in (0.2, 0.4, 0.8, 1.5):
         assert grad_at(100.0, f * K) <= at_analytic + 1e-12, (
             "peak should be at u = 1/sqrt(3), not at %.2f" % f)
+
+
+def test_loader_detects_a_permuted_train_split(tmp_path):
+    """A permutation of images vs labels is invisible to a length check.
+
+    This was written up as an undetectable accepted risk on the reasoning that
+    no train_meta.csv exists. That was wrong -- all three prep scripts write
+    one, with a `label` column, and it is on disk in every slice. The redundant
+    signal needed to catch this was there the whole time.
+    """
+    import numpy as np
+    import pandas as pd
+    from src.utils.data_loader import _load_imagery_data as load_data
+    d = str(tmp_path / "permuted")
+    _write_slice(d)
+    y = np.load(os.path.join(d, "train_labels.npy"))
+    # same length, same multiset, different order -- exactly what a length
+    # check cannot see
+    pd.DataFrame({"label": y[::-1]}).to_csv(
+        os.path.join(d, "train_meta.csv"), index=False)
+    with pytest.raises(ValueError, match="not row-aligned"):
+        load_data(_cfg(d))
+
+
+def test_loader_accepts_an_aligned_train_meta(tmp_path):
+    import numpy as np
+    import pandas as pd
+    from src.utils.data_loader import _load_imagery_data as load_data
+    d = str(tmp_path / "aligned")
+    _write_slice(d)
+    y = np.load(os.path.join(d, "train_labels.npy"))
+    pd.DataFrame({"label": y}).to_csv(
+        os.path.join(d, "train_meta.csv"), index=False)
+    assert load_data(_cfg(d)) is not None

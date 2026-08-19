@@ -22,11 +22,39 @@ IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(1, 3, 
 IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 3, 1, 1)
 
 
+# Measured problems with the DATA ITSELF, surfaced every time it is loaded.
+#
+# Both are recorded in docs/FRAMEWORK.md with their measurements, and neither is
+# a loader defect -- they are prep-script design choices. But a loader that
+# validates row alignment meticulously while staying silent about a test set it
+# knows is 38.7% memorized is validating the wrong thing. Anyone who reads a
+# result should have seen these first.
+KNOWN_DATA_CAVEATS = {
+    'dermmnist': (
+        "38.7% of this test set (776/2003), and 67.3% of MELANOMA (150/223), "
+        "share a lesion_id with a TRAINING image. create_slices.py pools "
+        "DermaMNIST-C's leakage-free splits and re-splits stratified on the "
+        "label alone, while HAM10000 photographs many lesions more than once "
+        "(10,015 images, 7,470 lesions). Paired arm-vs-arm deltas survive this; "
+        "ABSOLUTE quality numbers do not. See FRAMEWORK section 1.",
+    ),
+    'octmnist': (
+        "the TRAINING slice is rebalanced. prep_octmnist.py takes 3,000 per "
+        "class, which moves drusen from the official 7.95% to exactly 25% -- "
+        "the same as the test split. The manuscript's stated mechanism for "
+        "OctMNIST being the hard-binding case is that train and test "
+        "prevalences DISAGREE (8% vs 25%); our own prep removed that "
+        "disagreement. See FRAMEWORK section 1.",
+    ),
+}
+
+
 def _ensure_3channel(images):
-    """Grayscale (N,1,H,W) -> (N,3,H,W). Assumes NCHW, and is called BEFORE the
-    NHWC->NCHW coercion, so an NHWC grayscale array (N,H,W,1) falls through
-    here and dies later inside the normalization with a raw numpy broadcast
-    error instead of a diagnosable message."""
+    """Grayscale (N,1,H,W) -> (N,3,H,W). Assumes NCHW, and runs BEFORE the
+    NHWC->NCHW coercion, so it has to recognise NHWC grayscale (N,H,W,1) and
+    refuse it -- which it does, below, with a message naming the shape. The one
+    case it cannot distinguish is H=1, where (N,1,W,1) is ambiguous; that is
+    unreachable for the fixed 28x28 MedMNIST sources in scope."""
     if images.ndim == 4 and images.shape[-1] == 1 and images.shape[1] != 1:
         raise ValueError(
             "images look like NHWC grayscale %s. _ensure_3channel expects "
@@ -170,20 +198,40 @@ def _load_imagery_data(config):
         log.warning("test_meta.csv has no `label` column, so the group join "
                     "cannot be verified. It is positional -- if the file was "
                     "ever rewritten, groups may be misaligned.")
-    # ACCEPTED RISK, stated rather than silently carried. The check above works
-    # because test_meta.csv carries a redundant copy of the labels. The TRAIN
-    # split has no meta file, so a same-length-but-shuffled desync between
-    # train_images.npy and train_labels.npy cannot be detected here at all --
-    # there is no second source of truth to compare against. The length check
-    # above catches truncation; permutation is invisible.
-    #
-    # Closing it properly means having create_slices.py / prep_*.py write a
-    # train_meta.csv with a label column, exactly as they do for test. That
-    # changes the on-disk layout, so it is a data-regeneration decision, not a
-    # loader fix. Until then the guard is that the prep scripts index images
-    # and labels with the SAME index array in the same statement
-    # (data/dermmnist/create_slices.py, scripts/prep_octmnist.py) -- which is
-    # correct today and is the thing to re-check if a prep script is edited.
+    # The same check on the TRAIN split. This was written up as an accepted
+    # risk on the reasoning that no train_meta.csv exists, so a
+    # same-length-but-shuffled desync between train_images.npy and
+    # train_labels.npy had no second source of truth to be caught against.
+    # That reasoning was wrong: all three prep scripts DO write a
+    # train_meta.csv with a `label` column, and it is on disk in every slice
+    # (dermmnist label,class_name,sex,loc_group / octmnist
+    # label,class_name,filename,synth_group / tissuemnist
+    # label,class_name,synth_group). The redundant signal was there all along.
+    train_meta_path = os.path.join(data_dir, 'train_meta.csv')
+    if os.path.exists(train_meta_path):
+        train_meta = pd.read_csv(train_meta_path)
+        if len(train_meta) != len(y_train):
+            raise ValueError(
+                "train_meta.csv has %d rows but train_labels.npy has %d."
+                % (len(train_meta), len(y_train)))
+        if 'label' in train_meta.columns:
+            tm = train_meta['label'].to_numpy()
+            if not np.array_equal(tm, np.asarray(y_train).ravel()):
+                n_bad = int((tm != np.asarray(y_train).ravel()).sum())
+                raise ValueError(
+                    "train_meta.csv `label` disagrees with train_labels.npy on "
+                    "%d of %d rows -- train_images.npy and train_labels.npy are "
+                    "not row-aligned. The length check cannot see a permutation; "
+                    "this can." % (n_bad, len(tm)))
+        else:
+            log.warning("train_meta.csv has no `label` column, so a permutation "
+                        "of train_images.npy against train_labels.npy cannot be "
+                        "detected.")
+    else:
+        log.warning("no train_meta.csv in %s, so a permutation of "
+                    "train_images.npy against train_labels.npy cannot be "
+                    "detected here. Every current prep script writes one.",
+                    data_dir)
     if test_meta[group_col].isna().any():
         raise ValueError("group column %r contains nulls; .astype(int64) would "
                          "turn them into a huge negative group id" % group_col)
@@ -199,6 +247,8 @@ def _load_imagery_data(config):
     log.info("mode=%s classes=%d constrained=%s global=%s local_groups=%d test=%d train=%d",
              dataset_mode, num_classes, constrained_class, global_con,
              len(local_con), len(y_test), len(y_train))
+    for _caveat in KNOWN_DATA_CAVEATS.get(dataset_mode, ()):
+        log.warning("%s: %s", dataset_mode, _caveat)
     config["data_fingerprint"] = data_fingerprint(y_train, y_test, groups_test)
     log.info("data fingerprint %s (%s)", config["data_fingerprint"], data_dir)
     return (X_train, X_test, y_train, y_test,
