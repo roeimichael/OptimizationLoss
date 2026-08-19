@@ -109,11 +109,110 @@ def violations(y_pred, groups, gcon, lcon):
     return bad
 
 
+def matrix(P, arms):
+    """Sweep capped-class count x cap tag over the TRAINED arms, caps verified.
+
+    The single-point smoke above proves an arm RUNS. This proves the thing the
+    project actually promises: that the caps hold after the post-hoc correction,
+    for EVERY capped class, in the coupled multi-class case, and under a cap tag
+    where the global bound actually binds (G < L).
+    """
+    import pandas as pd
+    import torch
+    import torch.nn.functional as F
+
+    from src.utils.posthoc_adjustment import targeted_correction
+
+    trained = [a for a in arms if P["arms"][a].get("phase") == "trained"]
+    if not trained:
+        print("no trained arms selected; --matrix has nothing to do")
+        return []
+    print("\nMATRIX: %d trained arm(s) x {1, 2} capped classes x "
+          "{L30_G30, L50_G30}" % len(trained))
+    print("  L50_G30 is the only tag here where the GLOBAL cap binds "
+          "(G < L; see FRAMEWORK section 1).\n")
+
+    tmp = tempfile.mkdtemp(prefix="matrix_")
+    fails = []
+    try:
+        for capped in ([1], [1, 2]):
+            for tag in ("L30_G30", "L50_G30"):
+                for arm in trained:
+                    label = "%-9s %-6s %-11s" % (tag, str(capped), arm)
+                    try:
+                        inputs, _, _ = make_inputs(P, arm, tmp)
+                        df = pd.DataFrame({"label": inputs.y_test,
+                                           "grp": inputs.group_ids})
+                        local_pct, global_pct = cap_pair(tag)
+                        gcon = compute_global_constraints(
+                            df, "label", global_pct, constrained_class=capped,
+                            num_classes=N_CLASSES)
+                        lcon = compute_local_constraints(
+                            df, "label", local_pct, "grp",
+                            constrained_class=capped, num_classes=N_CLASSES)
+                        inputs.global_con = gcon
+                        inputs.local_con = lcon
+                        inputs.constrained_classes = capped
+                        inputs.config["dataset_config"]["constrained_class"] = capped
+
+                        out = TRAIN_FNS[P["arms"][arm]["methodology"]](inputs)
+                        out.model.eval()
+                        with torch.no_grad():
+                            proba = F.softmax(out.model(inputs.X_test),
+                                              dim=1).cpu().numpy()
+                        y_pred = targeted_correction(
+                            proba, inputs.group_ids, gcon, lcon, capped)[0]
+                        y_pred = np.asarray(y_pred)
+
+                        bad = violations_for(y_pred, inputs.group_ids, gcon,
+                                             lcon, capped)
+                        if bad:
+                            fails.append("%s: %s" % (label.strip(), bad[:3]))
+                            print("  FAIL  %s %s" % (label, bad[:3]))
+                        else:
+                            ks = ", ".join("c%d K=%d" % (c, gcon[c]) for c in capped)
+                            print("  OK    %s caps hold  (%s)" % (label, ks))
+                    except Exception as exc:
+                        fails.append("%s: %s: %s" % (label.strip(),
+                                                     type(exc).__name__, exc))
+                        print("  FAIL  %s %s: %s"
+                              % (label, type(exc).__name__, str(exc)[:70]))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    return fails
+
+
+def violations_for(y_pred, groups, gcon, lcon, classes):
+    """Cap check over an EXPLICIT class list.
+
+    `violations` above loops `range(N_CLASSES)`, which is right for the smoke
+    harness but hides which capped class failed. Naming the classes is what the
+    multi-class case needs -- the scorer's `cls[0]` bug measured class 1 and
+    silently ignored every class after it.
+    """
+    bad = []
+    for c in classes:
+        if gcon[c] < UNLIMITED and int((y_pred == c).sum()) > int(gcon[c]):
+            bad.append("global c%d %d>%d"
+                       % (c, int((y_pred == c).sum()), int(gcon[c])))
+        for g, bounds in lcon.items():
+            m = groups == g
+            if bounds[c] < UNLIMITED and int((y_pred[m] == c).sum()) > int(bounds[c]):
+                bad.append("local g%s c%d %d>%d"
+                           % (g, c, int((y_pred[m] == c).sum()), int(bounds[c])))
+    return bad
+
+
 def main():
     P = load_protocol()
     a = argparse.ArgumentParser()
     a.add_argument("arms", nargs="*", default=None)
     a.add_argument("-v", "--verbose", action="store_true")
+    a.add_argument("--matrix", action="store_true",
+                   help="also sweep {1,2} capped classes x {L30_G30, L50_G30} "
+                        "over the trained arms, verifying caps after the "
+                        "post-hoc correction. Run this before any multi-class "
+                        "campaign.")
     args = a.parse_args()
     arms = args.arms or sorted(P["arms"])
 
@@ -153,6 +252,16 @@ def main():
             print("  %-11s (%s)  %s: %s" % (arm, meth, type(e).__name__, e))
         return 1
     print("All %d arms run end to end and respect their caps." % len(arms))
+
+    if args.matrix:
+        mfails = matrix(P, arms)
+        if mfails:
+            print("\n%d MATRIX COMBINATION(S) FAILED:" % len(mfails))
+            for f in mfails:
+                print("  " + f)
+            return 1
+        print("\nEvery matrix combination satisfies every cap, for every "
+              "capped class.")
     return 0
 
 

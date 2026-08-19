@@ -62,6 +62,8 @@ imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
 python -m pytest tests -q                   # 108 regression tests, ~17s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
+python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
+                                            #   caps verified for the TRAINED arms too
 python -m scripts.verify_caps               # what integer budget each cap tag really produces
 python -m scripts.check_parity <root>       # equal compute, same knobs, >=2 caps, sane warm-up sharing
 ```
