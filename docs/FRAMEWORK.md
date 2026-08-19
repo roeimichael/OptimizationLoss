@@ -777,7 +777,7 @@ strictly more correct, and every per-component figure written here has gone stal
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 
 What is actually load-bearing is that every one of those lines is reachable and every knob is
-read: `audit_config` (no orphan hyperparameters), `smoke_arms` (all 10 arms run end to end),
+read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
 no cross-objective warm-up sharing), and `pytest tests` (118 tests, ~17 s, no dataset needed).
 
@@ -947,7 +947,7 @@ docs/paper/        the TMLR manuscript (main.tex is the professor's -- never edi
 results/           experiment outputs
 scripts/full_panel.py  THE scorer (+ score_arm.py = the equalizer it calls)
 scripts/audit_config.py  every hyperparameter has a reader; base_model_id is complete
-scripts/smoke_arms.py    all 10 arms run end to end on synthetic tensors, ~40 s
+scripts/smoke_arms.py    every arm runs end to end on synthetic tensors, ~40 s; --matrix adds the trained arms' caps
 scripts/verify_caps.py   the caps bind, on the real dataset slices
 scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
