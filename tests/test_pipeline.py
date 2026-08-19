@@ -912,3 +912,34 @@ def test_every_trained_arm_reports_reordering():
     panel = _io.open(os.path.join("scripts", "full_panel.py"), encoding="utf-8").read()
     assert 'cfg.get("reordering")' in panel
     assert "_reordering_check(rows)" in panel
+
+
+def test_the_documented_test_count_is_the_real_one(request):
+    """CLAUDE.md and FRAMEWORK.md both quote this number. Both were wrong.
+
+    CLAUDE.md said 75, FRAMEWORK.md said 96 in three places, and pytest
+    collected 107. A reader uses the number to decide whether their checkout is
+    complete, so a stale one says "you are missing tests" to someone who is not.
+    """
+    import io as _io
+    import re
+
+    import pytest as _pytest
+
+    # Only meaningful when the whole suite was collected. Running a single node
+    # id collects 1, which would fail the guard on every targeted run.
+    if any("::" in a or "-k" in a for a in request.config.args):
+        _pytest.skip("subset run: the collected count is not the suite count")
+    n = request.session.testscollected or len(request.session.items)
+    assert n > 1
+
+    claimed = {}
+    for path in ("CLAUDE.md", "docs/FRAMEWORK.md"):
+        txt = _io.open(path, encoding="utf-8").read()
+        for m in re.finditer(r"(\d+)\s+(?:regression\s+)?tests", txt):
+            claimed.setdefault(path, set()).add(int(m.group(1)))
+
+    wrong = {path: sorted(v - {n}) for path, v in claimed.items() if v - {n}}
+    assert not wrong, (
+        "pytest collects %d, but the docs claim %s. Update them, or the count "
+        "tells a reader their checkout is incomplete." % (n, wrong))

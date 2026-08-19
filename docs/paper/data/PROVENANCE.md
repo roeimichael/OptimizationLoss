@@ -10,29 +10,79 @@ work; this file is the wiring diagram.
 ## The chain
 
 ```
-results/**/config.json + evaluation_metrics.csv        (the runs, on dsisco01)
+results/**/config.json + evaluation_metrics.csv     (the runs -- GONE, see below)
         |
-        |  paper/scripts/build_experiment_manifest.py   <- RUN ON THE SERVER
+        |  build_experiment_manifest.py                 <-- SCRIPT DOES NOT EXIST
         v
-paper/data/manifest/experiments.csv                     (one row per run, 10,938)
-        |                                               carries config_path, so
-        |                                               every row is traceable
-        |  paper/scripts/build_corpus.py [--verify]
-        v
-paper/data/corpus/corpus_final.csv                      (what the generators read)
+docs/paper/data/manifest/experiments.csv               (one row per run)
         |
-        |  paper/scripts/make_*.py
+        |  build_corpus.py [--verify]                   <-- SCRIPT DOES NOT EXIST
         v
-paper/figures/*.pdf   paper/tables/*.tex                (floats)
+docs/paper/data/corpus/corpus_final.csv         COMMITTED, 7,574 rows -- the
+        |                                       generators' actual input
+        |  docs/paper/scripts/make_*.py                 <-- COMMITTED 2026-08-19
+        v
+docs/paper/tables/*.tex   docs/paper/figures/*.pdf      (floats)
         |
         |  HAND-WRITTEN, NOT GENERATED  <-- the weak link
         v
-docs/main.tex prose                                     (numbers quoted in text)
+docs/paper/main_edited_by_roei.tex prose        (numbers quoted in text)
 ```
 
-Only the last hop is manual, and that is exactly where staleness hides: a
-regenerated table silently disagreeing with a sentence three sections away.
-Everything above it is now reproducible and verifiable.
+⚠️ **Corrected 2026-08-19.** Every path above the corpus was stale: the
+consolidation moved `paper/` to `docs/paper/` and deleted `docs/main.tex`, and
+this file was carried forward unedited in the same commit that moved them, so it
+pointed a reader into dead paths for eighteen days.
+
+**What is true, verified by running it:**
+
+| Hop | State |
+|---|---|
+| runs -> manifest | ⛔ `build_experiment_manifest.py` exists nowhere in the repo |
+| manifest -> corpus | ⛔ `build_corpus.py` exists nowhere in the repo. Seven scripts read `corpus_final.csv`; **none has ever produced it** -- this file's own historical note records that, and it is still true |
+| corpus -> floats | ✅ **all eleven generators committed at `docs/paper/scripts/`, and all eleven tables regenerate BYTE-IDENTICAL to the committed `.tex`** |
+| floats -> prose | ⚠️ still manual, still the weak link |
+
+So the corpus is a **frozen input**, not a reproducible artifact: you can verify
+every float against it, and you cannot rebuild it from the runs, because the
+runs are gone (`results/` is empty on both machines) and the two scripts that
+built it are gone with them.
+
+### The generators were lost twice
+
+`.gitignore` line 104 records the first rescue -- out of the gitignored
+`archive/` tree on 2026-07-31, "these are the only copies". The consolidation
+then moved `paper/` to `docs/paper/` and the scripts did not come; they fell
+back into `archive/`, which is gitignored wholesale. Re-homed again 2026-08-19.
+
+**Regenerating with the archive copies would have silently reverted three
+things**, all of which are now folded back in and verified:
+
+1. **The tie-band bolding rule** in `tab_ccf1`. The shipped caption says bold
+   means "within 0.005 of the best constraint-trained entry -- the tie band
+   every comparison in this paper is adjudicated at -- so jointly bolded entries
+   are *tied, not ranked*". The archive rule bolds the single best, which prints
+   a **ranking** across the headline table where the project's own standard says
+   there is a tie.
+2. **`LP-LG` -> `Shifman`**, 8 occurrences across 5 generators: a baseline
+   renamed throughout the paper.
+3. The `resizebox` wrapper, the `tab:bbgen` caption sentence, and the width
+   tuning this file listed under "known hand-edits" and never folded.
+
+**Verify it yourself** -- this is the check, and it is cheap:
+
+```bash
+python docs/paper/scripts/make_main_table.py --two-metrics
+python docs/paper/scripts/make_backbone_tables.py
+python docs/paper/scripts/make_graft_table.py
+python docs/paper/scripts/make_granular_tables.py
+git diff --stat docs/paper/tables/          # must be EMPTY
+```
+
+⚠️ The six **figures** regenerate and run clean, but are **not byte-reproducible**:
+matplotlib stamps a creation date, and two consecutive runs differ. Their
+committed PDFs also predate the `LP-LG` rename, so regenerating them changes a
+legend. Left alone deliberately -- that is a manuscript decision, not a cleanup.
 
 > Historical note, and the reason this file exists: until 2026-08-13 **nothing
 > wrote `corpus_final.csv`**. Seven scripts read it; none produced it. That is
@@ -108,8 +158,12 @@ not by tooling. Assume the same about every future change.
 | `fig_mechanism`, `fig_loss_shape` | `make_figs.py`, `make_loss_shape_fig.py` | `data/dynamics/`, analytic | No |
 | `fig_datasets` | `make_datasets_fig.py` | images | Being removed (tracker item 8) |
 
-All figure generators live in `paper/scripts/` — verified repo-wide, the only
-other matplotlib code is third-party reference material under `benchmarks/`.
+All figure generators live in `docs/paper/scripts/` (re-homed 2026-08-19).
+
+⚠️ Three tables in this list have **no generator and never did**:
+`tab_ablation_complete`, `tab_deploy` and `tab_oct_backbone`. They are
+hand-maintained, so "regenerate and diff" cannot check them at all -- the only
+three floats in the paper where that is true.
 Analysis scripts that emit LaTeX (`b5`/`b6`/`b7`) live in `src/evaluation/`.
 
 ---
@@ -119,12 +173,19 @@ Analysis scripts that emit LaTeX (`b5`/`b6`/`b7`) live in `src/evaluation/`.
 Measured 2026-08-13 by regenerating every table and diffing. **All numbers
 reproduced exactly**; the drift is structural only:
 
-| File | Hand-edit | Why |
-|---|---|---|
-| `tab_graft.tex` | `\tabcolsep` 5pt (generator emits 2.6pt); caption/label order | width tuning |
-| `tab_granular_*.tex` | 2 cosmetic lines each | width tuning |
+**None. Folded in 2026-08-19 and verified: `git diff docs/paper/tables/` after a
+full regeneration is empty.** What used to be here:
 
-Prefer folding these into the generators over re-applying them by hand.
+| File | Hand-edit | Folded |
+|---|---|---|
+| `tab_graft.tex` | `\tabcolsep` 5pt (generator emitted 2.6pt); caption/label above the tabular | ✅ |
+| `tab_granular_*.tex` | float placement and `\tabcolsep` | ✅ |
+| `tab_ccf1.tex` | tie-band bolding, `resizebox`, caption cross-refs | ✅ |
+
+The standing instruction was "prefer folding these into the generators over
+re-applying them by hand", and it was right: the drift sat here for six days and
+then the generator holding the folded versions was lost, which is how the
+tie-band rule nearly went back to printing a ranking.
 
 **Folded in 2026-08-13, so no longer listed above:** both `tab_ccf1.tex` hand-edits (the `\resizebox{\linewidth}`
 wrapper and the `tab:bbgen` caption sentence) now live in

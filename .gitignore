@@ -103,6 +103,14 @@ comparison_results.csv
 # The paper's data of record and its table/figure generators. Re-homed out of the
 # gitignored archive/ tree on 2026-07-31: these are the only copies, and every
 # number in the manuscript derives from them.
+#
+# ...and then the 2026-08 consolidation moved paper/ to docs/paper/. The data
+# came with it; the SCRIPTS did not, and fell back into the gitignored archive/,
+# so for eighteen days a clone of this repository could not regenerate a single
+# table or figure. Both rules below were left pointing at a path that no longer
+# exists. Re-homed a second time on 2026-08-19 to docs/paper/scripts/, which
+# nothing under docs/ ignores -- these two lines are kept only as the record of
+# how the copies were lost, and protect nothing.
 !paper/data/**
 !paper/scripts/**
 

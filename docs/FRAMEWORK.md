@@ -165,6 +165,14 @@ formulation was exercised.
 
 #### The dermmnist test set shares lesions with its training set
 
+**Receipt: `python -m scripts.check_lesion_leakage`** (server, or anywhere
+`dermmnist_c_metadata.csv` is -- it needs the metadata CSV only, no images and
+no GPU, because `StratifiedShuffleSplit` consumes `len(X)` and `y` so the exact
+indices reproduce from the labels). It asserts its copy of `BASE_SEED` and
+`TEST_FRACTION` against `create_slices.py` before reporting, so it cannot quote
+a figure for a slice nobody trained on. These numbers were prose-only until
+2026-08-19, and prose-only is how the ALM lambda stayed wrong.
+
 **Measured 2026-08-19 on `dsisco01`, from `dermmnist_c_metadata.csv`, by replaying
 `create_slices.py`'s own split with its own seeds.**
 
@@ -736,13 +744,13 @@ with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and ~7,000 today** (4,801 `src` +
 1,789 `scripts` + 608 `tests` + 267 `configs` + 163 `main.py`). It went back UP, on purpose: the
-six restored baselines, five new gate scripts, and 96 tests. **Do not quote a line count as a
+six restored baselines, five new gate scripts, and 108 tests. **Do not quote a line count as a
 quality measure** -- it moved 4,680 -> 7,020 while the repository got strictly more correct.
 
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (all 10 arms run end to end),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (96 tests, ~16 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (108 tests, ~17 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -905,7 +913,7 @@ scripts/verify_caps.py   the caps bind, on the real dataset slices
 scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             96 tests, ~16 s, no dataset required
+tests/             108 tests, ~17 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

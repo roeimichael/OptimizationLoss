@@ -59,7 +59,7 @@ imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 96 regression tests, ~17s, no dataset needed
+python -m pytest tests -q                   # 108 regression tests, ~17s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.verify_caps               # what integer budget each cap tag really produces
@@ -116,3 +116,23 @@ pipeline -- there is no setting to get wrong. Same for the CE-saturation skip
 
 `docs/paper/main.tex` is the professor's file -- **never edit it**. Edit `docs/paper/main_edited_by_roei.tex`.
 Appendix tables stay in the appendix.
+
+**Five manuscripts sit in `docs/paper/`. `main_edited_by_roei.tex` is the paper of
+record** -- it is the one to edit and the one to read a claim out of.
+
+| File | What it is | Reads |
+|---|---|---|
+| `main_edited_by_roei.tex` | ✅ **the paper of record**, additions in blue | `tables/` + `tables_rev/` |
+| `main.tex` | the professor's file. **Never edit** | `tables/` |
+| `main_rev.tex` | the revision `main_edited_by_roei` was branched from | `tables/` + `tables_rev/` |
+| `main_clean.tex` | a de-marked-up snapshot | `tables/` + `tables_clean/` |
+| `main_old.tex` | pre-TMLR history | `tables/` |
+
+Only the first two are live. A fix applied to one of the other three has no
+effect on anything anyone reads.
+
+**Every table in `docs/paper/tables/` regenerates from
+`docs/paper/data/corpus/corpus_final.csv` byte-for-byte** via
+`docs/paper/scripts/make_*.py` -- run them and `git diff docs/paper/tables/` must
+be empty. See `docs/paper/data/PROVENANCE.md`, including what the corpus itself
+can no longer be rebuilt from.
