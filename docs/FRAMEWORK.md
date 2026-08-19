@@ -314,6 +314,36 @@ different arm from the one the manuscript describes.)
 
 - **Historical dual runs are unusable** (300 epochs + the LR trap) -- re-run them in-campaign.
 
+### The training recipe, stated plainly (swept and verified 2026-08-19)
+
+A reviewer will ask, and none of this was written down. Every line was confirmed
+by grep over `src/`, `scripts/`, `configs/` and `main.py`, not assumed.
+
+| knob | value | where |
+|---|---|---|
+| optimizer | **Adam**, the only construction site in the repo | `src/pipeline/warmup.py:45-53` |
+| learning rate | **1e-4, constant end to end** | `protocol.yml` `lr` and `lr_constraint`, forced equal |
+| **LR schedule** | **NONE.** No scheduler of any kind exists in live code -- the only `lr_scheduler` hits in the repo are in gitignored `archive/` and are imported by nothing | -- |
+| **weight decay** | **NEVER SET.** `weight_decay` appears **zero times** in the entire repository, and `make_optimizer` passes only `lr` and `fused`, so it sits at Adam's default of 0. No `AdamW`, no explicit L2 term | `src/pipeline/warmup.py:45-53` |
+| **data augmentation** | **NONE.** `torchvision.transforms` is never imported. The only stochasticity in training is `shuffle=True` in the DataLoader | `src/pipeline/warmup.py:56-63` |
+| regularization | **dropout 0.3 only**, plus the constraint-step gradient clip | `protocol.yml` |
+| gradient clipping | **constraint step ONLY.** The CE step is unclipped in all four trained arms and in the warm-up loop | `constraint_grad_clip` |
+| determinism | `cudnn.deterministic = True` and `cudnn.benchmark = False`, but **`torch.use_deterministic_algorithms` is never called**, so non-cuDNN nondeterministic kernels are not caught | `src/pipeline/setup.py:31,43` |
+
+**Why this matters for the result rather than just for completeness.** The
+comparison is a 30-epoch CE model (`clip`) against a 1+29 constrained model, on
+train sets of ~8-12k images with ImageNet-pretrained backbones and **no
+augmentation, no weight decay and no LR decay**. That recipe overfits, which is
+the regime where the archive already records every large backbone saturating in
+1-2 epochs. It is applied identically to both sides, so it does not bias the
+paired delta -- but "the constraint phase has nothing left to redistribute" and
+"the recipe has no regularization other than dropout" are the same observation,
+and only the first is currently written down.
+
+⚠️ Adding augmentation or weight decay would change the warm-up, so it
+invalidates every cached model and every existing result. It is a new protocol,
+not a tweak.
+
 ### Known asymmetries between arms -- decisions, not bugs
 
 Three independent code audits (2026-08-19) found these. They are NOT fixed,
