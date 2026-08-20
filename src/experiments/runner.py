@@ -3,9 +3,18 @@
 
 import argparse
 import logging
+import os
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+# cuBLAS reads this ONCE, when the CUDA context is created, so it has to be set
+# before any torch CUDA call -- setting it inside seed_all was too late, and
+# without it torch.use_deterministic_algorithms raises on every matmul, which on
+# a transformer backbone is every layer. Measured cost of NOT having it: the
+# same arm, same seed, same config produced macro-F1 0.6709 and 0.7015 on two
+# runs -- 0.0306 apart, against a headline effect of 0.0017.
+os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
 
 import torch
 
