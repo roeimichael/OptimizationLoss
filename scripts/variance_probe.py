@@ -53,6 +53,13 @@ def one_run(src_cfg, dest, gpu):
     env["CUDA_VISIBLE_DEVICES"] = str(gpu)
     # Before torch loads in the child, for the same reason main.py sets it.
     env.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+    # A PRIVATE cache per repeat. Without this the probe measures nothing:
+    # repeat 0 trains the warm-up and writes it to the shared cache, and every
+    # later repeat LOADS that file instead of training. The spread then comes
+    # out 0.0000 on every metric, which looks like perfect determinism and is
+    # actually just "reading the same .pt twice gives the same weights".
+    # Observed before this fix: warm-up 1180.9s, then 1.9s, then 1.0s.
+    env["OPTLOSS_MODEL_CACHE"] = str((dest / "_cache").resolve())
     r = subprocess.run([sys.executable, "-m", RUNNER, str(out)],
                        env=env, capture_output=True, text=True)
     if r.returncode != 0:
@@ -64,6 +71,31 @@ def one_run(src_cfg, dest, gpu):
         raise SystemExit("no evaluation_metrics.csv in %s" % dest)
     df = pd.read_csv(m)
     return dict(zip(df["Metric"], df["Value"]))
+
+
+def _assert_really_retrained(results):
+    """A repeat that skipped its warm-up did not measure anything.
+
+    The private cache dir prevents this; the assertion is here so that if the
+    isolation ever breaks, the probe REFUSES to report a floor instead of
+    reporting 0.0000 and being believed.
+    """
+    times = []
+    for r in results:
+        try:
+            times.append(float(r.get("Warmup Time")))
+        except (TypeError, ValueError):
+            return
+    if not times or max(times) <= 0:
+        return
+    slowest = max(times)
+    for i, t in enumerate(times):
+        if t < 0.25 * slowest:
+            raise SystemExit(
+                "repeat %d warmed up in %.1fs against a slowest of %.1fs -- it "
+                "LOADED a cached model instead of training one. Every metric "
+                "would read as identical and the floor would be a fiction. "
+                "Cache isolation is broken." % (i, t, slowest))
 
 
 def main():
@@ -94,6 +126,9 @@ def main():
         print("  run %d/%d ..." % (i + 1, args.repeats), flush=True)
         results.append(one_run(src, d, args.gpu))
 
+    _assert_really_retrained(results)
+    print("warm-up times: %s" % ", ".join(
+        str(r.get("Warmup Time")) for r in results))
     print("\n%-22s %10s %10s %12s" % ("metric", "min", "max", "SPREAD"))
     print("-" * 58)
     worst = None
