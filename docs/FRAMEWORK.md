@@ -162,6 +162,88 @@ The same arm, same seed, same config scored macro-F1 0.6709 and 0.7015 on two
 runs -- 0.0306 apart, ~18x the headline effect. An HP sweep read through that
 much noise measures the kernels, not the hyperparameter.
 
+## 1b-pre. THE INSTRUMENT WAS BROKEN UNTIL 2026-08-20. Four findings that gate everything.
+
+### (1) The noise floor was 0.0358 macro-F1 -- 21x the effect being measured
+
+Three runs of the SAME arm (`clip`), same seed, same config, same GPU, back to back
+(`scripts/variance_probe.py`):
+
+    F1 (Macro)  0.6524 .. 0.6882   SPREAD 0.0358   sd 0.0181
+    warm-up     1178.5 / 1176.4 / 1176.4 s   (each really retrained)
+
+Against a headline TraLO-vs-clip effect of 0.0017. Measured WITH
+`cudnn.deterministic`, `benchmark=False` and `CUBLAS_WORKSPACE_CONFIG` already set,
+so none of those was the answer. More seeds do not help: averaging shrinks the
+standard ERROR, and the floor is what each draw is drawn FROM.
+
+**Localised** by `scripts/bisect_determinism.py`, four processes per stage: model init
+identical, batch order over a whole epoch identical (NOT the DataLoader), forward loss
+at step 0 identical, **gradients at step 0 different in all four processes**. With the
+fused SDPA backends disabled the same four agree bit for bit.
+
+**The fix is one line, and the trap is that it reads backwards.**
+`torch.use_deterministic_algorithms(True, warn_only=True)` is not a gentler setting --
+PyTorch reads `deterministicAlgorithmsWarnOnly()` INSIDE the attention backward and
+takes the NONdeterministic branch when it is true. `warn_only=False` gives one hash
+across four processes with the fused kernel still on, at 5.5% (54.70s -> 57.72s per 126
+steps; disabling the fused backends instead costs 62.97s).
+
+**Verified**: three repeats now give one predictions md5 (`71aba83c`) and one weights
+md5 (`df387dd2`), every metric spread 0.0000. **Floor 0.0358 -> 0.0000.**
+
+⇒ Every arm-vs-arm number measured before this sits under a 0.0358 floor. It also means
+**liveness is now a HASH COMPARISON, not a hypothesis test**: identical md5 is not a
+small effect, it is no effect, at n=1.
+
+### (2) The arms were not getting the same dose -- ~20x apart, invisible to every gate
+
+`results/vit_diag` seed 1, same warm-up model, all three configs saying
+`constraint_grad_clip: 1.0`:
+
+    tralo     raw grad norm 0.638 .. 1826.5     clip binds  6 of 7
+    fioretto  raw grad norm 17,667 .. 80,827    clip binds 18 of 18
+    hounie    raw grad norm 0.005 .. 0.1105     clip binds  0 of 29
+
+At the last epoch fioretto's constraint loss is 4390.838 and hounie's is 0.004204 --
+1.04e6 apart. Faithful to each paper (hounie divides the violation by N, fioretto sums),
+but the CONSEQUENCE is not a method difference: tralo and fioretto each deliver a
+unit-norm step, hounie delivers its raw ~0.05-norm one. Fixed by
+`constraint_grad_mode: normalize` in `src/training/constraint_step.py` -- ONE
+implementation for all four arms, because four hand-rolled copies are how this drifted.
+
+**And fioretto silently ran a 62%-length constraint phase**: 10 of 29 epochs lost to
+non-finite gradients (6 NaN + 4 inf -- the RAW count; `dropna()` first hides the NaN and
+reports 4), while writing `status: completed`. `constraint_fp32: true` decouples the
+constraint pass from the CE loss scale. ⚠️ fp32 doubles the chunked-forward memory:
+`constraint_chunk_size: 256` OOMs on a 22 GB card at ViTB16, 128 fits.
+
+### (3) TraLO's constraint phase moves the count the WRONG way
+
+`vit_diag` tralo seed 1, K=67: hard count **125 -> 121 -> 251 -> 250 -> 353 -> 205 -> 281**.
+It starts the phase at 1.9x budget and ends at 4.2x, never satisfied on any of 29 epochs
+(proved three ways, including that all 29 lambda ratchets fired). Final Precision@67 on
+the capped class: **tralo 50/67 vs clip 57/67**. The constraint phase makes the
+classifier WORSE, and lambda is a clock -- `0.01 + 0.05k` exactly, carrying no
+information beyond "still violated".
+
+### (4) The penalty shape is nearly inert where the runs actually live
+
+3,558 logged operating points from 428 archived dermmnist runs. The shape is EXACTLY
+inert when every scope has the same relative excess (verified cosine 1.000000000000),
+and the observed dispersion `max(u)/min(u)` has median **1.5x**. Rotation vs a linear
+hinge: median cos **0.990 (8.2 degrees)**, q10 0.947. The 167:1 starvation is real
+arithmetic but needs one scope 8x over while another sits near 58% -- which occurs in
+**0 of 3,558** epochs. The dominant relative-weight skew is the shape-independent
+**1/K** factor: group 2 (K=12) takes 72% of the squared gradient norm under ANY shape.
+
+⚠️ Those 3,558 points are all SINGLE-capped-class. First multi-class measurement
+(classes 2+4, L30_G20): u_2 = 4.50 and u_4 = 1.71, a **2.6x** dispersion -- materially
+larger. The shape is near-inert for single-class and **unmeasured, not refuted**, for
+multi-class.
+
+---
+
 ## 1. THE PROTOCOL -- fixed, non-negotiable, applies to every run
 
 Any campaign that violates a line here is invalid and gets deleted, not debugged.
