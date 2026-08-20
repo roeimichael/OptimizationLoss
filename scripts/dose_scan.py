@@ -90,11 +90,12 @@ def main():
         shutil.rmtree(root)
     cache = root / "_cache"
 
-    caps = [c for c in range(base.get("num_classes", 7))
-            if base.get("global_constraints", [])
-            and base["global_constraints"][c] < 1e9]
-    print("dose scan: %s  lr_constraint=%g  capped classes=%s  %d epochs each"
-          % (args.run_dir, lr, caps, args.epochs))
+    # Capped classes come from the LOG, not the config: the config nests them
+    # under dataset_config and the runner derives them from the data, so a
+    # top-level lookup silently yields [] and prints a scan with no counts in
+    # it. `Limit_Class<c>` is written per epoch and is inf for uncapped.
+    print("dose scan: %s  lr_constraint=%g  %d epochs each"
+          % (args.run_dir, lr, args.epochs))
     print("step norm delivered = lr_constraint x clip\n")
 
     rows = []
@@ -104,6 +105,12 @@ def main():
         print("#### clip=%-8g  step norm = %.3g ####" % (clip, lr * clip))
         if d is None:
             print("   FAILED: %s" % err)
+            continue
+        caps = [int(c[len("Limit_Class"):]) for c in d.columns
+                if c.startswith("Limit_Class")
+                and pd.notna(d[c].iloc[0]) and float(d[c].iloc[0]) < 1e9]
+        if not caps:
+            print("   no finite Limit_Class column -- nothing was capped")
             continue
         first = last = None
         for _, r in d.iterrows():
