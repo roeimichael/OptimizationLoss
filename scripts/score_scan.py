@@ -79,7 +79,8 @@ def main():
     root = Path(args.root)
     dirs = sorted(d for d in root.iterdir()
                   if d.is_dir() and (d / "final_predictions.csv").exists())
-    if not dirs:
+    flat = bool(dirs)
+    if not flat:
         # Nested campaign layout (<root>/<model>/<data>/<cap>/<arm>/<seed>/).
         dirs = sorted(f.parent for f in root.rglob("final_predictions.csv"))
     if not dirs:
@@ -94,61 +95,81 @@ def main():
         al, rw = row(y, pa, cap), row(y, pr, cap)
         present = sorted(set(y.tolist()))
         oh = np.eye(prob.shape[1])[y][:, present]
+        parts = d.relative_to(root).parts
+        # THE CELL IS THE KEY. Two runs that differ in cap level are two
+        # different cells and must never share a baseline row -- this scorer
+        # first reported `clip/seed_1` twice, once at L30_G30 and once at
+        # L50_G30, because it labelled runs by the last two path parts. That is
+        # the same mistake the granularity read made: a swept dimension that
+        # lives only in a directory name is one that gets pooled away.
+        cell = "/".join(parts[:-2]) if len(parts) > 2 else ""
         out.append({
-            "run": (d.name if d.parent == root
-                    else "/".join(d.relative_to(root).parts[-2:])),
+            "cell": cell,
+            "arm": parts[-2] if len(parts) > 1 else parts[-1],
+            "run": "/".join(parts[-2:]) if len(parts) > 1 else parts[-1],
             "auroc": float(roc_auc_score(oh, prob[:, present], average="macro")),
             "ap": float(average_precision_score(oh, prob[:, present],
                                                 average="macro")),
-            "alloc": al, "raw": rw,
-            "cap": cap,
+            "alloc": al, "raw": rw, "cap": cap,
             "n_c2": int((pa == 2).sum()), "n_c4": int((pa == 4).sum()),
             "n_c2_raw": int((pr == 2).sum()), "n_c4_raw": int((pr == 4).sum()),
         })
 
-    # null first: it is the CE-only counterfactual and the only row that
-    # isolates the constraint. clip is a fallback so a campaign without a null
-    # is still read against its bar rather than against zero.
-    base = (next((o for o in out if o["run"].split("/")[0] == "null"), None)
-            or next((o for o in out if o["run"].split("/")[0] == "clip"), None))
-    if base is not None:
-        print("\nbaseline row for the deltas: %s" % base["run"])
+    for cell in sorted({o["cell"] for o in out}):
+        rows = [o for o in out if o["cell"] == cell]
+        # null first: it is the CE-only counterfactual and the only row that
+        # isolates the constraint. clip is the fallback bar.
+        base = (next((o for o in rows if o["arm"] == "null"), None)
+                or next((o for o in rows if o["arm"] == "clip"), None))
+        print("
+" + "=" * 88)
+        print("CELL: %s   (%d runs, capped classes %s)"
+              % (cell or root.name, len(rows),
+                 ",".join(str(c) for c in rows[0]["cap"]) or "?"))
+        print("baseline for deltas: %s"
+              % (base["run"] if base else "NONE -- deltas suppressed"))
+        print("=" * 88)
 
-    def delta(v, b):
-        return "" if b is None else " (%+.4f)" % (v - b)
+        def delta(v, b):
+            return "" if b is None else " (%+.4f)" % (v - b)
 
-    print("\nALLOCATION-FREE -- probabilities only, no allocator can move these")
-    print("%-24s %9s %9s" % ("run", "AUROC", "AP"))
-    print("-" * 46)
-    for o in out:
-        print("%-24s %9.4f%s %9.4f%s" % (
-            o["run"], o["auroc"], delta(o["auroc"], base and base["auroc"]),
-            o["ap"], delta(o["ap"], base and base["ap"])))
+        print("
+ALLOCATION-FREE -- probabilities only, no allocator moves these")
+        print("%-30s %9s %19s" % ("run", "AUROC", "AP"))
+        print("-" * 62)
+        for o in rows:
+            print("%-30s %9.4f%-11s %8.4f%s" % (
+                o["run"], o["auroc"], delta(o["auroc"], base and base["auroc"]),
+                o["ap"], delta(o["ap"], base and base["ap"])))
 
-    for view in ("raw", "alloc"):
-        tag = ("RAW argmax -- did the constraint leave a better classifier?"
-               if view == "raw" else
-               "AFTER ALLOCATION -- the deployable output, and the flattering one")
-        print("\n%s" % tag)
-        print("%-24s %8s %18s %8s %8s   %s" % (
-            "run", "acc", "macroF1", "F1_cap", "F1_unc", "pred c2/c4"))
-        print("-" * 88)
-        for o in out:
-            m = o[view]
-            b = base[view] if base else None
-            n2 = o["n_c2_raw"] if view == "raw" else o["n_c2"]
-            n4 = o["n_c4_raw"] if view == "raw" else o["n_c4"]
-            print("%-24s %8.4f %8.4f%-10s %8.4f %8.4f   %d/%d" % (
-                o["run"], m["acc"], m["macroF1"],
-                delta(m["macroF1"], b and b["macroF1"]),
-                m["F1_cap"], m["F1_unc"], n2, n4))
+        for view in ("raw", "alloc"):
+            tag = ("RAW argmax -- did the constraint leave a better classifier?"
+                   if view == "raw" else
+                   "AFTER ALLOCATION -- deployable, and the flattering view")
+            print("
+%s" % tag)
+            print("%-30s %8s %18s %8s %8s   %s" % (
+                "run", "acc", "macroF1", "F1_cap", "F1_unc", "pred c2/c4"))
+            print("-" * 90)
+            for o in rows:
+                m = o[view]
+                b = base[view] if base else None
+                n2 = o["n_c2_raw"] if view == "raw" else o["n_c2"]
+                n4 = o["n_c4_raw"] if view == "raw" else o["n_c4"]
+                print("%-30s %8.4f %8.4f%-10s %8.4f %8.4f   %d/%d" % (
+                    o["run"], m["acc"], m["macroF1"],
+                    delta(m["macroF1"], b and b["macroF1"]),
+                    m["F1_cap"], m["F1_unc"], n2, n4))
 
-    print("\nn=1, four epochs, and dermmnist's test set shares lesion_ids with")
-    print("its training set -- so no absolute number here is quotable. These")
-    print("rows pick a shape to take to a real campaign. Nothing else.")
-    if base is None:
-        print("\nNO `null` ROW. Re-run the scan with --with-null: without the")
-        print("CE-only control none of this is attributable to the constraint.")
+    print("
+n=1 unless a cell shows several seeds, and dermmnist's test set")
+    print("shares lesion_ids with its training set -- no absolute number here")
+    print("is quotable. These rows pick a setting to take to a real campaign.")
+    if not any(o["arm"] == "null" for o in out):
+        print("
+NO `null` ROW anywhere. Re-run the scan with --with-null:")
+        print("without the CE-only control nothing here is attributable to")
+        print("the constraint rather than to CE still training.")
     return 0
 
 
