@@ -22,31 +22,50 @@ def seed_all(seed):
     default -- so two runs of the same config differed. With method effects at
     ~0.1 pp, that noise is the same order as the signal.
 
-    MEASURED 2026-08-20, and the docstring above understated it badly. Running
-    the SAME arm (`clip`), SAME seed, SAME config twice on ViTB16 x dermmnist:
+    MEASURED 2026-08-20 by `scripts/variance_probe.py` -- three runs of the
+    SAME arm (`clip`), SAME seed, SAME config, SAME GPU, back to back:
 
-        epoch 1   loss 0.7624  acc 0.8245   |  loss 0.7624  acc 0.8245  identical
-        epoch 6   loss 0.1048  acc 0.9809   |  loss 0.1049  acc 0.9480
-        epoch 30  loss 0.0221  acc 0.9939   |  loss 0.0266  acc 0.9973
+        F1 (Macro)         0.6524 .. 0.6882   spread 0.0358   sd 0.0181
+        Precision (Macro)  0.7177 .. 0.7625   spread 0.0448
+        warm-up times      1178.5 / 1176.4 / 1176.4 s  (each really retrained)
 
-        final macro-F1  0.6709 vs 0.7015    -> 0.0306 apart
-        raw excess         126 vs    336
+    0.0358 macro-F1 of run-to-run noise against a headline TraLO-vs-clip effect
+    of 0.0017 -- 21x the signal -- and that was measured WITH
+    cudnn.deterministic, benchmark=False and CUBLAS_WORKSPACE_CONFIG already
+    set. Averaging more seeds does not help: it shrinks the standard error, and
+    this is what each draw is drawn FROM.
 
-    0.0306 macro-F1 of run-to-run noise, against a headline TraLO-vs-clip
-    effect of 0.0017. The noise is roughly 18x the signal. Epoch 1 is
-    bit-identical and divergence starts at epoch 2, which rules out seeding and
-    data order and leaves nondeterministic KERNELS.
+    WHERE IT COMES FROM (`scripts/bisect_determinism.py`, four processes each):
 
-    `cudnn.deterministic` alone does not cover them: scatter/reduction and
-    several non-cuDNN CUDA kernels have nondeterministic implementations, and
-    FP16's adaptive GradScaler amplifies any difference because the scale it
-    picks depends on which step first overflowed.
+        model init                identical
+        batch order, whole epoch  identical    <- NOT the DataLoader
+        forward loss, step 0      identical
+        gradients, step 0         4 processes -> 4 DIFFERENT hashes
 
-    So `torch.use_deterministic_algorithms` is now called, with the CUBLAS
-    workspace env var it requires set BEFORE the first CUDA context. warn_only
-    is used deliberately: an op with no deterministic implementation should
-    make a loud warning, not kill a 20-hour campaign -- but it will be visible
-    in the log rather than silent, which is the state this was in before.
+    The backward, on the very first step, in the fused attention kernel. With
+    the fused SDPA backends disabled the same four processes agree bit for bit.
+    PyTorch's mem-efficient attention backward accumulates dQ across split-key
+    block groups behind an atomic lock, and float addition is not associative.
+
+    An earlier version of this docstring said epoch 1 was bit-identical and
+    divergence began at epoch 2, which is what made this look like accumulated
+    drift. That was a ROUNDING ARTIFACT -- the two losses were compared at 4
+    decimals. At the 6 the log actually writes they are 0.762393 / 0.762403 /
+    0.762397: already apart in the first epoch. Reading the log at full
+    precision is what moved the diagnosis to the first backward step.
+
+    warn_only=False IS the fix, and is not a stricter flavour of warn_only=True:
+    PyTorch reads `deterministicAlgorithmsWarnOnly()` inside the attention
+    backward and takes the NONdeterministic branch when it is true. Measured on
+    the real path, fused attention still enabled, four processes -> one hash.
+    It costs 5.5%: 126 steps run 54.70s nondeterministic, 57.72s strict, and
+    62.97s if you disable the fused backends instead. Keep the fused kernel.
+
+    The price of strict mode is that an op with no deterministic implementation
+    RAISES instead of warning. At 21x that is the right trade -- a campaign that
+    dies in its first minute costs less than one that finishes unreadable --
+    and `scripts/smoke_arms.py` runs every arm, so the gate fires before launch
+    rather than at hour 19.
     """
     if seed is None:
         return
@@ -62,7 +81,7 @@ def seed_all(seed):
     # on any matmul, which on a transformer backbone is every layer.
     os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
     try:
-        torch.use_deterministic_algorithms(True, warn_only=True)
+        torch.use_deterministic_algorithms(True, warn_only=False)
         det = "full"
     except Exception as exc:                       # pragma: no cover
         det = "cudnn-only (%s)" % type(exc).__name__
@@ -93,6 +112,12 @@ def runtime_provenance(device):
     FP16 + GradScaler, dsisco02 RTX PRO 6000 Blackwell = BF16, no scaler), and
     on the FP16 path an overflowing step is SKIPPED -- so the same config can
     apply a different number of optimizer steps depending on the card.
+
+    The determinism keys are here because the 0.0358 noise floor could not be
+    diagnosed from the artifacts of the runs that showed it: nothing recorded
+    whether the run was strict or warn_only, so "was this measured before or
+    after the fix" had to be reconstructed from commit dates. A run that cannot
+    say which determinism regime produced it is not comparable to one that can.
     """
     use_amp, amp_dtype, scaler = setup_runtime(device)
     return {
@@ -104,4 +129,10 @@ def runtime_provenance(device):
         "amp_enabled": bool(use_amp),
         "amp_dtype": str(amp_dtype).replace("torch.", "") if amp_dtype else None,
         "grad_scaler": scaler is not None,
+        "deterministic": torch.are_deterministic_algorithms_enabled(),
+        "deterministic_warn_only":
+            torch.is_deterministic_algorithms_warn_only_enabled(),
+        "cudnn_deterministic": torch.backends.cudnn.deterministic,
+        "cudnn_benchmark": torch.backends.cudnn.benchmark,
+        "cublas_workspace_config": os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
     }

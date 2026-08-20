@@ -5,14 +5,29 @@ it, and until 2026-08-20 nobody had measured it on the real pipeline.
 
 WHY IT EXISTS. Cross-checking a post-hoc arm across two campaigns turned up
 `clip` at seed 1 scoring macro-F1 0.6709 in one and 0.7015 in the other --
-same arm, same seed, same config, same data, same GPU. 0.0306 apart, against a
-headline TraLO-vs-clip effect of 0.0017. Epoch 1 was bit-identical and the runs
-diverged from epoch 2, so it is not seeding or data order; it is
-nondeterministic kernels, which `cudnn.deterministic` alone does not cover.
+same arm, same seed, same config, same data, same GPU.
 
-If that floor is real and stays where it is, no campaign this project can
-afford will resolve the effects it is trying to measure, and the honest report
-is the floor rather than the ranking.
+RUN 2026-08-20, three repeats, ViTB16 x dermmnist x L30_G30 x clip x seed 1:
+
+    F1 (Macro)  0.6524 .. 0.6882   SPREAD 0.0358   sd 0.0181
+    warm-up     1178.5 / 1176.4 / 1176.4 s   (cache isolation held)
+
+So the cross-campaign 0.0306 was not an artifact of comparing two campaigns:
+a controlled A/B on one machine is WORSE, and it was measured with
+cudnn.deterministic, benchmark=False and CUBLAS_WORKSPACE_CONFIG all set.
+
+An earlier version of this note claimed epoch 1 was bit-identical and the runs
+diverged from epoch 2, "so it is not seeding or data order". Both halves were
+wrong in a way worth remembering. The claim came from reading logged losses at
+4 decimals; at the 6 the log writes, epoch 1 is 0.762393 / 0.762403 / 0.762397
+-- already apart. `scripts/bisect_determinism.py` then localised it to the
+FIRST backward step, and the conclusion "not data order" turned out right for
+the wrong reason: the batch order really is identical, but that was never
+implied by an epoch-2 divergence.
+
+If the floor stays where it is, no campaign this project can afford will
+resolve the effects it is trying to measure, and the honest report is the floor
+rather than the ranking.
 
     python -m scripts.variance_probe results/vit_diag/ViTB16/dermmnist/L30_G30/clip/seed_1 --repeats 3
 
