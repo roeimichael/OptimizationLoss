@@ -104,6 +104,32 @@ carries the opposite sign to the other two on AP, ccF1, macroF1, macroP and acc
 for both arms -- so the pooled cell-level mean is averaging a disagreement, which
 is mistake pattern 15 operating one level up.
 
+## 1-pre. THE HEADLINE BACKBONE IS **ViTB16**, decided 2026-08-20, A PRIORI
+
+Recorded here BEFORE any hyperparameter sweep has been read, because when it was
+decided is the only thing that makes it legitimate.
+
+Roei's call: the headline backbone moves from MobileNetV3 to **ViTB16**. Any of
+the four the paper claims is defensible, so choosing among them is a design
+decision, not a result -- **provided it is made in advance.** Running all four
+and headlining whichever one TraLO happens to win on is selection on the
+outcome, and it is the mechanism behind more than one retraction already in
+section 2d of this document.
+
+So the rule that follows from it, and it binds:
+
+🛑 **Every TraLO hyperparameter result from here is on ViTB16.** If a sweep is
+later run on another backbone and TraLO does better there, that is a
+GENERALIZATION check on a fixed headline -- it does not promote that backbone to
+the headline. Changing the headline after seeing results re-opens exactly the
+garden of forking paths this note closes.
+
+⚠️ Practical consequence: ViTB16 is ~28 s/epoch, so a 30-epoch run is ~14
+minutes and a full sweep is days on one GPU. Exploration therefore runs in two
+stages -- **scout at 1-2 seeds to locate a region, then CONFIRM at 4 seeds
+inside that region only.** Scouting output is not a result and must never be
+quoted as one; only the confirmation stage produces cells.
+
 ## 1a. ⚠️ PROVENANCE OF THE PROTOCOL'S OWN NUMBERS (audited 2026-08-20)
 
 **A frozen protocol is not a validated one.** Section 1 fixes these values so
