@@ -354,6 +354,43 @@ the bar is in the same campaign.
 `danits_lp` is the LP-LG allocator (local+global formulation of Shifman et al. 2025, which the
 manuscript names LP-LG). `danits_lp` also ships that paper's Algorithm 1 greedy as a control.
 
+**The LP is NOT the greedy clipper, and the gap grows with the number of capped
+classes.** A reviewer claimed `danits_lp` is identical to `clip` by construction and
+therefore unmeasurable forever. That is wrong, and the reason is worth stating because it
+is the same reason multi-class is the one real opening.
+
+Greedy ranks items by `p(i,c)` and thresholds at the budget. But assigning item `i` to the
+capped class `c` **gains** `p(i,c)` and **loses** `p(i, best_uncapped(i))` -- greedy is blind
+to that opportunity cost, the LP is not. A greedy that ranked by the MARGIN
+`p(i,c) - p(i, best_uncapped(i))` would be the right greedy; the one we ship does not.
+Measured, 25 synthetic instances of N=300 over 6 classes, LP objective set to the same
+total-probability the greedy is thresholding (use a LINEAR cost `-p`; with `-log p` the LP
+optimizes likelihood instead and the comparison is meaningless):
+
+| capped classes | items assigned differently | LP - greedy, total probability |
+|---|---|---|
+| 1, global cap only | 136 | +0.154 |
+| 1, global + local | 174 | +0.194 |
+| 2 | 330 | **+0.495** |
+| 3 | 524 | **+0.775** |
+
+So the LP already beats greedy at ONE capped class, and its edge is **4x larger at three**.
+The coupling is what grows it: with several capped classes an item is contested, and greedy
+serves them in one joint descending pass with no ability to reconsider.
+
+⚠️ **This refines "the score IS the ranking", it does not overturn it.** That result says a
+gradient which is a function of the aggregate COUNT cannot reorder items and so cannot beat
+post-hoc. Still true. What this adds is that *post-hoc greedy itself is not optimal*, so the
+bar `clip` sets is beatable -- by a better allocator, which is what LP-LG is.
+
+🛑 **But `full_panel.py` cannot currently see any of this.** The scorer rebuilds an
+allocation from the probability matrix (`eq`) and computes all 13 metrics from it; the arm's
+own shipped predictions are read only into the DIAGNOSTIC-ONLY family. `clip` and `lp` share
+a warm-up by design, so they emit the same probabilities and therefore score IDENTICALLY on
+every metric -- not because the allocators agree, but because the allocator is discarded
+before scoring. Until the scorer grows a family computed on what the arm actually shipped,
+an LP-vs-greedy campaign will report a tie it did not measure.
+
 **Imbalanced-recipe hyperparameters are the PAPER's**: focal alpha=0.25 gamma=2,
 class-balanced beta=0.9999, logit adjustment tau=1. (The `mcbar` campaigns ran focal at
 alpha=1.0, which is **not** the paper's focal -- any focal number quoted from those runs is a
