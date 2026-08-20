@@ -1134,7 +1134,13 @@ five are what found the defects, and they are cheap:
   ties, because none changes what the gradient is a *function of*.
 - **Never deliver more constraint gradient.** Monotone: more is worse, every time.
 - **Never run warm-up 50**, and never interpolate to warm-up 5 (a dead zone).
-- **Never let `lr_constraint` differ from `lr`.**
+- **Never let `lr_constraint` differ from `lr`.** The mechanism, read out of
+  `src/methodologies/tralo/train.py`: the trainer builds its optimizer with
+  `lr_constraint` and re-asserts `pg["lr"] = lr_constraint` on every param group at
+  the top of each epoch's **CE** pass. So `lr_constraint` is not the constraint's
+  learning rate -- it is the learning rate of the 126 CE steps too. Sweeping it does
+  not isolate the constraint, it retrains the classifier, which is precisely how the
+  LR trap fabricated -16.7 pp.
 - **Never quote a metric that post-hoc filling can produce for free** (`flips`, raw count over K,
   proximity to feasibility). When quality ties, the honest report is "this arm produced nothing."
 - **Never build a self-referential per-item term.** `rank` used top-K vs rest with no labels: it
