@@ -83,6 +83,7 @@ def _train_constraints(model, inputs: TrainInputs, device):
     CONSTRAINT_GRAD_MODE = str(hp.get("constraint_grad_mode", "clip"))
     CONSTRAINT_FP32 = bool(hp.get("constraint_fp32", False))
     CONSTRAINT_STEP_RULE = str(hp.get("constraint_step_rule", "shared"))
+    CONSTRAINT_RANDOM_DIR = bool(hp.get("constraint_random_direction", False))
     LR_CONSTRAINT = _required(hp, "lr_constraint")
     # Hoisted: the per-epoch snapshot clone is gated on this, and a
     # state_dict() copied to CPU each epoch for a checkpoint nothing
@@ -309,7 +310,8 @@ def _train_constraints(model, inputs: TrainInputs, device):
                 last_grad_norm, _applied = finish_constraint_step(
                     model, optimizer, scaler, CLIP,
                     mode=CONSTRAINT_GRAD_MODE, fp32=CONSTRAINT_FP32,
-                    step_rule=CONSTRAINT_STEP_RULE, lr=LR_CONSTRAINT)
+                    step_rule=CONSTRAINT_STEP_RULE, lr=LR_CONSTRAINT,
+                random_direction=CONSTRAINT_RANDOM_DIR)
 
         # ---- Step 3: dual ascent on lambda (paper Eq. 5 / Alg. 2) ----
         # E[l_i] = (count_soft_i - K_i) / N_i  (per-constraint normalisation).

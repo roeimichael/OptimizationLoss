@@ -1464,6 +1464,42 @@ def test_normalize_delivers_the_same_step_size_whatever_the_raw_norm():
         "what the arm's natural gradient scale is -- that is the whole point")
 
 
+def test_the_random_direction_control_keeps_the_dose_and_drops_the_information():
+    """The control must change ONLY the direction, never the step size.
+
+    Its whole purpose is to answer "did the penalty's direction matter?", and
+    it can only answer that if the dose is held exactly. If it also changed the
+    norm it would confound direction with magnitude -- the same confound that
+    made the dedicated-Adam arm uninterpretable (it moved 8,900x further and
+    cost AP -0.0938, and no one could say which half did it).
+    """
+    import torch
+    from src.training.constraint_step import finish_constraint_step
+
+    def step(random_direction):
+        torch.manual_seed(0)
+        m = torch.nn.Linear(64, 8)
+        for p in m.parameters():
+            p.grad = torch.randn_like(p) * 0.01      # small: normalize scales UP
+        before = [p.detach().clone() for p in m.parameters()]
+        finish_constraint_step(m, None, None, clip=1.0, mode="normalize",
+                               step_rule="sgd", lr=1.0,
+                               random_direction=random_direction)
+        return torch.cat([(p.detach() - b).flatten()
+                          for p, b in zip(m.parameters(), before)])
+
+    real, rand = step(False), step(True)
+
+    # same dose: normalize delivers exactly `clip`, times lr=1.0
+    assert abs(float(real.norm()) - 1.0) < 1e-4
+    assert abs(float(rand.norm()) - 1.0) < 1e-4
+
+    # different information: a random direction in 520 dimensions is very
+    # nearly orthogonal to any fixed one
+    cos = float(torch.dot(real, rand) / (real.norm() * rand.norm()))
+    assert abs(cos) < 0.3, "random direction is not independent of the real one"
+
+
 def test_a_non_finite_constraint_gradient_never_moves_the_weights():
     """fioretto lost 10 of 29 epochs to NaN/inf. It must lose them SAFELY."""
     import torch

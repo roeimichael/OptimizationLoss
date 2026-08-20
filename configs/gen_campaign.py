@@ -192,6 +192,13 @@ def _apply_constraint_step(P, args):
         P["constraint_phase"]["constraint_step_rule"] = args.constraint_step_rule
     if args.penalty_shape is not None:
         P["blocks"]["tralo"]["penalty_shape"] = args.penalty_shape
+    if args.constraint_random_direction:
+        P["constraint_phase"]["constraint_random_direction"] = True
+        print("  CONSTRAINT DIRECTION RANDOMISED: this campaign is a CONTROL, "
+              "not a method run.")
+        print("      Same step norm, no information. If it scores like the real "
+              "arm, the penalty")
+        print("      contributed nothing a coin could not have.")
     if P["constraint_phase"].get("constraint_grad_mode") == "normalize":
         print("  CONSTRAINT GRAD NORMALIZED to %s for EVERY trained arm: the "
               "step size is now a" % P["constraint_phase"]["constraint_grad_clip"])
@@ -278,6 +285,18 @@ def main():
                         "moved +197 under rational_bounded, +112 squared, "
                         "+86 linear -- but no shape reduced total excess. "
                         "It is a dial on the coupling, not a fix.")
+    a.add_argument("--constraint-random-direction", action="store_true",
+                   default=None,
+                   help="THE CONTROL FOR WHETHER THE DIRECTION MATTERS. "
+                        "Replaces the constraint gradient with a random "
+                        "vector of the SAME norm, holding the dose and "
+                        "removing only the information. Measured: the "
+                        "constraint costs exactly 4 correct capped-class "
+                        "predictions out of 89 at every one of three seeds "
+                        "while the count trajectories behind them end at "
+                        "57, 201 and 439 -- a constant loss from wildly "
+                        "different paths. If a coin costs the same 4, no "
+                        "shape or dose tuning will help.")
     a.add_argument("--constraint-step-rule", choices=["shared", "sgd"],
                    default=None,
                    help="shared: the constraint step goes through the same "

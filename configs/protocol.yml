@@ -80,6 +80,17 @@ constraint_phase:
   # exactly lr_constraint * constraint_grad_clip = 1e-4, the SMALLEST dose in
   # that sweep, with the direction fully recovered. Opposite corner.
   constraint_step_rule: shared
+
+  # THE CONTROL FOR "DID THE DIRECTION MATTER?". Replaces the constraint
+  # gradient with a random vector of the SAME norm, so the dose is held and
+  # only the information is removed. It exists because the measured damage
+  # looks direction-independent: on dermmnist multi-class the constraint
+  # cost exactly 4 correct capped-class predictions out of 89 at every one
+  # of three seeds (d capF1 -0.0149/-0.0150/-0.0149, sd 0.0001) while the
+  # count trajectories behind those seeds ended at 57, 201 and 439. If a
+  # random step of the same size costs the same 4, the penalty contributed
+  # nothing a coin could not have.
+  constraint_random_direction: false
   lr_constraint: 0.0001       # MUST equal core.lr -- unequal lr fabricated a -16.7pp finding
   stable_count_threshold: 31
   constraint_chunk_size: 256

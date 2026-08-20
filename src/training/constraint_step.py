@@ -75,8 +75,42 @@ def constraint_backward(loss, scaler, fp32):
         loss.backward()
 
 
+def _randomize_direction(model, clip, seed_tensor):
+    """Replace the constraint gradient with a random vector of the same norm.
+
+    THE CONTROL FOR "DID THE DIRECTION MATTER?". Measured 2026-08-20 on
+    dermmnist multi-class: the constraint costs exactly 4 correct capped-class
+    predictions out of 89, at every one of three seeds (d capF1 -0.0149,
+    -0.0150, -0.0149, sd 0.0001) -- while the underlying count trajectories are
+    wildly different between those seeds (class 4 ends at 57, 201 and 439).
+
+    A loss that is constant while the path that produced it is not looks like
+    damage from perturbing a fitted ranking at all, rather than from perturbing
+    it in the penalty's particular direction. If a random step of the same norm
+    costs the same 4 items, the constraint contributed nothing a coin could not
+    have, and no amount of shape or dose tuning will change that.
+
+    Deterministic: the generator is seeded from the run's own RNG, so a replay
+    reproduces bit-for-bit like every other path here.
+    """
+    gen = torch.Generator(device=seed_tensor.device)
+    gen.manual_seed(int(torch.randint(0, 2 ** 31 - 1, (1,)).item()))
+    total = 0.0
+    for p in model.parameters():
+        if p.grad is not None:
+            p.grad.normal_(generator=gen)
+            total += float(p.grad.pow(2).sum())
+    total = total ** 0.5
+    if total > 0:
+        scale = clip / total
+        for p in model.parameters():
+            if p.grad is not None:
+                p.grad.mul_(scale)
+
+
 def finish_constraint_step(model, optimizer, scaler, clip, mode="clip",
-                           fp32=False, step_rule="shared", lr=None):
+                           fp32=False, step_rule="shared", lr=None,
+                           random_direction=False):
     """Bound the constraint gradient and take the step.
 
     Returns (raw_norm, applied). `raw_norm` is the true pre-clip norm, so a log
@@ -91,7 +125,10 @@ def finish_constraint_step(model, optimizer, scaler, clip, mode="clip",
     raw_norm = float(raw)
 
     applied = bool(torch.isfinite(raw) and raw > 0)
-    if applied and mode == "normalize" and raw_norm < clip:
+    if applied and random_direction:
+        # Same norm, no information. Everything downstream is unchanged.
+        _randomize_direction(model, clip, raw)
+    elif applied and mode == "normalize" and raw_norm < clip:
         # clip_grad_norm_ only shrinks. Scale UP so the delivered step is
         # exactly `clip` for every arm, not just the ones that overshoot it.
         scale = clip / (raw_norm + 1e-12)
