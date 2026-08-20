@@ -1384,8 +1384,18 @@ def test_every_trained_arm_wires_the_same_ce_skip(arm):
     Checked as source structure rather than behaviour because the failure being
     guarded is one arm silently not having the wiring at all -- which is
     invisible to any test that only runs the arms that do.
+
+    The scope walk below is not decoration. The `in src` assertions alone
+    passed on 2026-08-20 while SIX arms could not run at all: the three duals
+    split their constraint phase into `_train_constraints`, so `ce_skip` was
+    constructed in that helper and `ce_skip.summary()` was read in `train()` --
+    two different scopes, every string present, `NameError` at runtime. Only
+    `smoke_arms` caught it, and only because it executes. A substring test
+    cannot see a scope, so it must not be the only guard on a name.
     """
-    src = open("src/methodologies/%s/train.py" % arm, encoding="utf-8").read()
+    import ast
+    path = "src/methodologies/%s/train.py" % arm
+    src = open(path, encoding="utf-8").read()
     assert "from src.training.ce_schedule import CESaturationSkip" in src
     assert "ce_skip = CESaturationSkip(hp)" in src, (
         "%s does not construct the gate" % arm)
@@ -1393,7 +1403,21 @@ def test_every_trained_arm_wires_the_same_ce_skip(arm):
         "%s does not gate its CE pass on it" % arm)
     assert "ce_skip.update(cached_train_acc, epoch)" in src, (
         "%s never feeds the gate, so it could never fire" % arm)
-    assert '"ce_skip": ce_skip.summary()' in src, (
+    assert "ce_skip" in src.split("def train(")[-1], (
         "%s does not report whether its gate fired -- 'never fired' and 'fired "
         "and did nothing' are different results that look identical in the "
         "metrics" % arm)
+
+    # every function that READS `ce_skip` must also BIND it in that same scope
+    for fn in [n for n in ast.walk(ast.parse(src))
+               if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]:
+        reads, binds = False, False
+        for n in ast.walk(fn):
+            if isinstance(n, ast.Name) and n.id == "ce_skip":
+                if isinstance(n.ctx, ast.Load):
+                    reads = True
+                else:
+                    binds = True
+        assert not (reads and not binds), (
+            "%s: %s() reads `ce_skip` but never binds it in its own scope -- "
+            "this is a NameError the moment the arm runs" % (arm, fn.name))

@@ -349,7 +349,8 @@ def _train_constraints(model, config, inputs, device):
             break
 
     return (satisfaction_epoch, best_sat_state, best_sat_epoch,
-            min_excess_state, min_excess_epoch, min_total_excess)
+            min_excess_state, min_excess_epoch, min_total_excess,
+            ce_skip.summary())
 
 
 def train(inputs: TrainInputs) -> TrainOutputs:
@@ -368,7 +369,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                                    _reorder_chunk, device)
 
     (satisfaction_epoch, best_sat_state, best_sat_epoch,
-     min_excess_state, min_excess_epoch, min_total_excess
+     min_excess_state, min_excess_epoch, min_total_excess, ce_skip_summary
      ) = _train_constraints(model, inputs.config, inputs, device)
 
     # Apples-to-apples checkpoint restore (mirrors TraLO). Selection rule is
@@ -438,7 +439,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             # WHETHER and WHEN the CE gate fired. "never fired" and
             # "fired and did nothing" are different results that look
             # identical in the metrics.
-            "ce_skip": ce_skip.summary(),
+            "ce_skip": ce_skip_summary,
             "satisfaction_epoch": satisfaction_epoch,
             "best_sat_epoch": best_sat_epoch,
             "min_excess_epoch": min_excess_epoch,
