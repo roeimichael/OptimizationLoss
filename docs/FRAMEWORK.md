@@ -807,6 +807,22 @@ warm-up with a different training loss is a dead flag, which has happened four t
 - Quote multi-class accuracy against the **oracle-under-constraint ceiling**, not 1.0
   (oct L50 = 0.625, derm L30 = 0.809, tissue L30 = 0.795). ⚠️ PROSE-ONLY, no receipt.
 - ccP / ccR / ccF1 are one metric in three costumes on single-class problems.
+- **Read `d capF1` separately from `d macroF1` -- their precision differs by orders of
+  magnitude.** Paired over 3 seeds on the multi-class cell, `d capF1` came out
+  **-0.0149 / -0.0150 / -0.0149 (sd 0.0001)** while `d macroF1` had **sd 0.0371** and was
+  positive in 1 of 3 seeds. macro-F1 there is dominated by the UNCAPPED classes, which
+  swing with the seed; the capped classes are what the method is about and they are
+  measurable. A mean whose sd exceeds it is not a result.
+- **`d capF1` is QUANTISED, so check it against the integer.** When the allocator emits
+  exactly K predictions for class c, `P = TP/K` and `R = TP/n`, so **F1 = 2TP/(K+n)** --
+  linear in the number of correct items. Every capped-class F1 delta must therefore be an
+  integer multiple of `1/(K+n)`; a value that is not is an arithmetic bug. The -0.0149
+  above is exactly **4 correct predictions lost out of the 89 selected**, at every seed.
+- **Check the cell's CEILING before spending GPU on it.** Recall on a capped class is hard
+  limited to `K/n_true`, so `F1_cap <= 2K/(K+n)`. On dermmnist the entire headroom is
+  **0.038 / 0.052 at L30_G20** and **0.052 / 0.072 at L50_G30**, against a paired seed sd
+  of macro-F1 of **+-0.04**. ⇒ **at G20 the prize is smaller than the noise and the cell
+  cannot resolve a win even in principle.** Prefer the looser cap; headroom grows with it.
 
 ### Infrastructure
 
