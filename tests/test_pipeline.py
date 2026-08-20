@@ -1263,3 +1263,39 @@ def test_targeted_correction_spends_the_whole_reachable_budget(pct):
             assert in_g <= lcon[gid][c], (
                 "local cap violated in group %s: %d > %d"
                 % (gid, in_g, lcon[gid][c]))
+
+
+def test_every_training_log_gets_a_header_not_just_tralo_s(tmp_path):
+    """A headerless log is silently mis-parsed, not loudly broken.
+
+    write_csv_header was called by exactly one of the ten arms -- tralo. Every
+    other arm appended rows to a file with no header line, so pandas took the
+    FIRST LOGGED EPOCH as the column names and mislabelled every column after
+    it. TraLO's training log was machine-readable and the baselines it is
+    compared against were not.
+
+    The header is now written by the writer on first row, so this asserts the
+    property for a caller that never mentions headers at all.
+    """
+    from src.training.logging import build_csv_header, log_progress_to_csv
+
+    path = tmp_path / "training_log.csv"
+    local = {0: [10 ** 10, 5, 10 ** 10], 1: [10 ** 10, 4, 10 ** 10]}
+    for epoch in range(3):
+        log_progress_to_csv(
+            str(path), epoch, ce_loss=0.5, train_acc=0.9,
+            constraints=[10 ** 10, 12, 10 ** 10], num_classes=3,
+            local_constraints=local, grad_norm=1.5, lambda_global=0.25)
+
+    lines = path.read_text(encoding="utf-8").strip().splitlines()
+    expected = build_csv_header(3, local)
+    assert lines[0].split(",") == expected, (
+        "first line is not the header -- pandas would eat epoch 1 as column names")
+    assert len(lines) == 1 + 3, "expected a header plus one row per epoch"
+
+    import pandas as pd
+    df = pd.read_csv(path)
+    assert len(df) == 3, "an epoch was consumed by the header"
+    assert "Grad_Norm" in df.columns and "Lambda_Global" in df.columns
+    assert float(df["Grad_Norm"].iloc[0]) == 1.5
+    assert float(df["Lambda_Global"].iloc[0]) == 0.25

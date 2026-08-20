@@ -3,6 +3,7 @@
 
 import csv
 import logging
+import os
 from pathlib import Path
 
 import pandas as pd
@@ -99,6 +100,19 @@ def log_progress_to_csv(csv_path, epoch, ce_loss, train_acc,
                 row += [group_hard.get(c, 0),
                         f"{group_soft_data.get(c, 0.0):.2f}",
                         int(l_limit)]
+    # Write the header if this is the first row. It used to be the caller's
+    # job via write_csv_header, and exactly ONE caller did it -- tralo. Every
+    # other arm (the three duals and all six post-hoc arms) therefore produced
+    # a HEADERLESS training_log.csv, so pandas silently consumed the first
+    # logged epoch as the column names and mislabelled every column after it.
+    # TraLO's log was machine-readable and every baseline it is compared
+    # against was not, which is an apples-to-apples failure in the analysis
+    # layer rather than the training one. Doing it here means a new
+    # methodology cannot forget it.
+    if not os.path.exists(csv_path) or os.path.getsize(csv_path) == 0:
+        with open(csv_path, 'w', newline='') as f:
+            csv.writer(f).writerow(
+                build_csv_header(num_classes, local_constraints))
     with open(csv_path, 'a', newline='') as f:
         csv.writer(f).writerow(row)
 
