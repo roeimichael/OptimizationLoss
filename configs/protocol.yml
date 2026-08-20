@@ -63,6 +63,16 @@ constraint_phase:
   # applied fairly. It lives in THIS block, which every trained arm includes and
   # no post-hoc arm does, so it cannot reach one arm and not another.
   # 0.0 = off, which is the behaviour every result so far was produced under.
+  #
+  # THRESHOLD, set from the control campaign rather than inherited: TraLO's
+  # train accuracy does not climb monotonically past 0.995, it OSCILLATES --
+  # 0.9833 (ep10), 0.9936 (ep15), 0.9873 (ep20), 0.9934 (ep25), 0.9966 (ep30).
+  # The old code's 0.995 with patience 2 would therefore fire around epoch 28,
+  # or never, and the treatment would barely run while reading as a null. From
+  # epoch 10 onward every logged epoch is >= 0.983, so 0.98 fires at ~epoch 11
+  # and leaves ~19 constraint-only epochs. 0.98 is also the more defensible
+  # definition of "converged": at 0.98 train against 0.81 test, further CE is
+  # memorisation, not learning.
   ce_skip_acc: 0.0
   ce_skip_patience: 2
 

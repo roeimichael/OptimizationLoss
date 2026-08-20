@@ -1393,3 +1393,7 @@ def test_every_trained_arm_wires_the_same_ce_skip(arm):
         "%s does not gate its CE pass on it" % arm)
     assert "ce_skip.update(cached_train_acc, epoch)" in src, (
         "%s never feeds the gate, so it could never fire" % arm)
+    assert '"ce_skip": ce_skip.summary()' in src, (
+        "%s does not report whether its gate fired -- 'never fired' and 'fired "
+        "and did nothing' are different results that look identical in the "
+        "metrics" % arm)

@@ -463,6 +463,10 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     return TrainOutputs(
         model=model,
         summary={
+            # WHETHER and WHEN the CE gate fired. "never fired" and
+            # "fired and did nothing" are different results that look
+            # identical in the metrics.
+            "ce_skip": ce_skip.summary(),
             "satisfaction_epoch": satisfaction_epoch,
             "best_sat_epoch": best_sat_epoch,
             "min_excess_epoch": min_excess_epoch,
