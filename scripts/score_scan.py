@@ -171,8 +171,7 @@ def main():
                 o["ap"], delta(o["ap"], base and base["ap"])))
 
         if any(o["prec"] for o in rows):
-            print("
-AT THE OPERATING POINT -- top K_c by p_c, which is all a cap uses")
+            print("\nAT THE OPERATING POINT -- top K_c by p_c, which is all a cap uses")
             print("%-30s %6s %9s %9s %s" % (
                 "run", "class", "prec@K", "K", "Jaccard vs baseline"))
             print("-" * 82)
@@ -184,14 +183,10 @@ AT THE OPERATING POINT -- top K_c by p_c, which is all a cap uses")
                         j = "%.3f" % (len(a & b) / max(1, len(a | b)))
                     print("%-30s %6d %9.4f %9d %s" % (
                         o["run"], c, o["prec"][c], len(o["topk"][c]), j))
-            print("
-A low Jaccard with an unchanged prec@K is CHURN: the run"
-                  "
-replaced the selected items and gained nothing where the"
-                  "
-cap binds. Measured 2026-08-20: Jaccard 0.29-0.42 with"
-                  "
-prec@K identical to the control on both capped classes.")
+            print("\nA low Jaccard with an unchanged prec@K is CHURN: the run"
+                  "\nreplaced the selected items and gained nothing where the"
+                  "\ncap binds. Measured 2026-08-20: Jaccard 0.29-0.42 with"
+                  "\nprec@K identical to the control on both capped classes.")
 
         for view in ("raw", "alloc"):
             tag = ("RAW argmax -- did the constraint leave a better classifier?"
