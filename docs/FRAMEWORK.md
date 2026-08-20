@@ -227,6 +227,27 @@ the capped class: **tralo 50/67 vs clip 57/67**. The constraint phase makes the
 classifier WORSE, and lambda is a clock -- `0.01 + 0.05k` exactly, carrying no
 information beyond "still violated".
 
+✅ **ATTRIBUTED 2026-08-20 with a matched lambda=0 control** (`vit_diag .../null/seed_1`:
+same cached warm-up `46e3754db799`, same allocator, only lambda differs). The count
+gap splits, and so does the quality:
+
+| arm | AUROC | raw macroF1 | **alloc macroF1** | count (K=67) |
+|---|---|---|---|---|
+| `clip` (warm-up 30) | 0.9601 | 0.6939 | **0.6709** | 130 |
+| `null` (warm-up 1 + 29, lambda=0) | 0.9598 | 0.7010 | **0.6625** | 197 |
+| `tralo` | 0.9610 | 0.7052 | **0.6720** | 267 |
+
+⇒ of tralo's +137 count over clip, **+67 is the warm-up-1 training path and +70 is the
+constraint**. ⇒ the constraint is worth **+0.0094** alloc macro-F1 over its own control,
+but that control sits **-0.0084 below clip**, so TraLO spends its entire gain repaying a
+deficit the regime created and lands at **+0.0011 = a tie**. 🚨 **Neither half is
+attributable without the control** -- this section previously read the raw trajectory as
+if the constraint owned all of it.
+
+✅ The two-allocator confound is **bounded at ~0.0014**: `lp` and `clip` are the same
+model (raw identical, 0.6939 / 261/130) and differ only in allocator, 0.6723 vs 0.6709.
+Same order as tralo's margin over clip, which is why that margin is noise.
+
 ### (4) The penalty shape is nearly inert where the runs actually live
 
 3,558 logged operating points from 428 archived dermmnist runs. The shape is EXACTLY
@@ -239,8 +260,44 @@ arithmetic but needs one scope 8x over while another sits near 58% -- which occu
 
 ⚠️ Those 3,558 points are all SINGLE-capped-class. First multi-class measurement
 (classes 2+4, L30_G20): u_2 = 4.50 and u_4 = 1.71, a **2.6x** dispersion -- materially
-larger. The shape is near-inert for single-class and **unmeasured, not refuted**, for
-multi-class.
+larger.
+
+✅ **MEASURED 2026-08-20 for multi-class, against a lambda=0 control** (4 epochs, n=1,
+`penalty_shape` now a knob). The shape is **live there, and what it controls is a
+SEE-SAW**: deltas vs the control (233/201) --
+
+| shape | d class 2 | d class 4 | AUROC | raw macroF1 | alloc macroF1 |
+|---|---|---|---|---|---|
+| `rational_bounded` | **+197** | -161 | -0.0103 | -0.0486 | **+0.0414** |
+| `squared` | +112 | -77 | -0.0024 | -0.0295 | +0.0195 |
+| `linear` | **+86** | -75 | -0.0021 | -0.0180 | +0.0255 |
+
+**Every shape pushes one capped class down and the other up.** The penalty is a sum of
+independent per-class terms, but the **softmax makes the capped classes compete**, so
+mass pulled off one lands on the other -- and the class that should resist is the one
+this shape starves. Shape sets the see-saw's SIZE in exactly the predicted order.
+⛔ **It is not a fix**: total excess ROSE at all three shapes (+103 / +138 / +120). Keep
+`penalty_shape` as the dial on the coupling, never as a remedy. And note the two views
+disagree -- worse on every allocation-free measure, better after allocation.
+
+### (5) No count trajectory is attributable without a lambda=0 control
+
+At warm-up 1 the model is barely trained and every later epoch takes **126 CE steps
+against the constraint's 1**. Measured with the penalty identically off (`L_Global=0`,
+`Lambda_Global=0`, `Grad_Norm=0.0` on every row), the capped counts still swing
+**242 -> 227 -> 324 -> 233** over four epochs, and **161 -> 278 -> 215 -> 177** at 29.
+A count that moves by +-100 on its own cannot carry a claim about a treatment that
+moves it by 70.
+
+⇒ **Every campaign that will have its counts read carries the `_null` arm of its own
+method** (`--arms all+null`, or `tralo_null`). It is the same warm-up, the same
+allocator and the same seed with lambda set to 0, so it isolates the constraint and
+nothing else -- and it doubles as a post-hoc clipper at equal compute with the
+allocator held fixed, which is the one bar `clip` cannot provide without also
+changing the allocator.
+
+`scripts/dose_scan.py --with-null` runs it; `scripts/score_scan.py` prefers it as the
+baseline row and says so loudly when it is absent.
 
 ---
 
