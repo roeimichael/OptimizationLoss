@@ -121,8 +121,7 @@ def main():
         # isolates the constraint. clip is the fallback bar.
         base = (next((o for o in rows if o["arm"] == "null"), None)
                 or next((o for o in rows if o["arm"] == "clip"), None))
-        print("
-" + "=" * 88)
+        print("\n" + "=" * 88)
         print("CELL: %s   (%d runs, capped classes %s)"
               % (cell or root.name, len(rows),
                  ",".join(str(c) for c in rows[0]["cap"]) or "?"))
@@ -133,8 +132,7 @@ def main():
         def delta(v, b):
             return "" if b is None else " (%+.4f)" % (v - b)
 
-        print("
-ALLOCATION-FREE -- probabilities only, no allocator moves these")
+        print("\nALLOCATION-FREE -- probabilities only, no allocator moves these")
         print("%-30s %9s %19s" % ("run", "AUROC", "AP"))
         print("-" * 62)
         for o in rows:
@@ -146,8 +144,7 @@ ALLOCATION-FREE -- probabilities only, no allocator moves these")
             tag = ("RAW argmax -- did the constraint leave a better classifier?"
                    if view == "raw" else
                    "AFTER ALLOCATION -- deployable, and the flattering view")
-            print("
-%s" % tag)
+            print("\n%s" % tag)
             print("%-30s %8s %18s %8s %8s   %s" % (
                 "run", "acc", "macroF1", "F1_cap", "F1_unc", "pred c2/c4"))
             print("-" * 90)
@@ -161,13 +158,11 @@ ALLOCATION-FREE -- probabilities only, no allocator moves these")
                     delta(m["macroF1"], b and b["macroF1"]),
                     m["F1_cap"], m["F1_unc"], n2, n4))
 
-    print("
-n=1 unless a cell shows several seeds, and dermmnist's test set")
+    print("\nn=1 unless a cell shows several seeds, and dermmnist's test set")
     print("shares lesion_ids with its training set -- no absolute number here")
     print("is quotable. These rows pick a setting to take to a real campaign.")
     if not any(o["arm"] == "null" for o in out):
-        print("
-NO `null` ROW anywhere. Re-run the scan with --with-null:")
+        print("\nNO `null` ROW anywhere. Re-run the scan with --with-null:")
         print("without the CE-only control nothing here is attributable to")
         print("the constraint rather than to CE still training.")
     return 0
