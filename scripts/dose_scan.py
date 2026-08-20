@@ -41,7 +41,8 @@ import pandas as pd
 RUNNER = "src.experiments.runner"
 
 
-def one(base_cfg, dest, gpu, epochs, clip, cache, chunk, shape="rational_bounded"):
+def one(base_cfg, dest, gpu, epochs, clip, cache, chunk,
+        shape="rational_bounded", null=False):
     dest.mkdir(parents=True, exist_ok=True)
     cfg = json.loads(json.dumps(base_cfg))
     hp = cfg["hyperparams"]
@@ -51,6 +52,13 @@ def one(base_cfg, dest, gpu, epochs, clip, cache, chunk, shape="rational_bounded
     hp["constraint_step_rule"] = "sgd"
     hp["constraint_grad_clip"] = float(clip)
     hp["penalty_shape"] = shape
+    if null:
+        # The CE-only counterfactual. Same warm-up, same seed, same schedule,
+        # same 126 CE steps per epoch -- only the penalty is switched off, so
+        # its constraint gradient is identically zero and no step is applied.
+        hp["lambda_global"] = 0.0
+        hp["lambda_local"] = 0.0
+        hp["lambda_step"] = 0.0
     cfg["status"] = "pending"
     out = dest / "config.json"
     out.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
@@ -83,6 +91,12 @@ def main():
     a.add_argument("--gpu", default="0")
     a.add_argument("--shapes", nargs="+", default=["rational_bounded"],
                    choices=["rational_bounded", "linear", "squared"])
+    a.add_argument("--with-null", action="store_true",
+                   help="also run the CE-only control (lambdas 0). Without it "
+                        "a count trajectory cannot be attributed: from warm-up "
+                        "1 the model is barely trained, and the 126 CE steps "
+                        "per epoch move the counts far more than the one "
+                        "constraint step does.")
     a.add_argument("--out", default="/tmp/dose_scan")
     args = a.parse_args()
 
@@ -102,12 +116,16 @@ def main():
     print("step norm delivered = lr_constraint x clip\n")
 
     rows = []
-    combos = [(sh, cl) for sh in args.shapes for cl in args.clips]
-    for shape, clip in combos:
-        d, err = one(base, root / ("%s_clip_%g" % (shape, clip)), args.gpu,
-                     args.epochs, clip, cache, args.chunk, shape)
-        print("#### shape=%-16s clip=%-8g  step norm = %.3g ####"
-              % (shape, clip, lr * clip))
+    combos = [(sh, cl, False) for sh in args.shapes for cl in args.clips]
+    if args.with_null:
+        combos.insert(0, ("null", args.clips[0], True))
+    for shape, clip, null in combos:
+        tag = "null" if null else "%s_clip_%g" % (shape, clip)
+        d, err = one(base, root / tag, args.gpu, args.epochs, clip, cache,
+                     args.chunk, shape, null)
+        print("#### %-22s step norm = %.3g %s ####"
+              % (tag, 0.0 if null else lr * clip,
+                 "(CE ONLY -- control)" if null else ""))
         if d is None:
             print("   FAILED: %s" % err)
             continue
@@ -137,7 +155,7 @@ def main():
         if first is not None and last is not None and len(d) > 1:
             tot0 = sum(max(0, int(first["Hard_Class%d" % c]) - int(first["Limit_Class%d" % c])) for c in caps)
             tot1 = sum(max(0, int(last["Hard_Class%d" % c]) - int(last["Limit_Class%d" % c])) for c in caps)
-            rows.append(("%s/%g" % (shape, clip), tot0, tot1,
+            rows.append((tag, tot0, tot1,
                          float(first["Train_Acc"]), float(last["Train_Acc"])))
     print()
     if not rows:
@@ -148,6 +166,12 @@ def main():
     print("-" * 76)
     for tag, e0, e1, a0, a1 in rows:
         print("%-26s %9d %9d %+9d %9.4f %9.4f" % (tag, e0, e1, e1 - e0, a0, a1))
+    print()
+    print("Read every row AGAINST THE null ROW, not against zero. The count")
+    print("moves on its own: CE takes 126 steps an epoch from a warm-up-1")
+    print("model and reshapes the predictions wholesale, while the constraint")
+    print("takes one. Only the gap between a shape row and null is the")
+    print("constraint's doing.")
     print()
     print("A dose is only interesting if excess FALLS and accuracy does NOT.")
     print("Crushing the count while the classifier degrades is the joint arm's")
