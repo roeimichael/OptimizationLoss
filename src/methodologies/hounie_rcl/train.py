@@ -47,6 +47,8 @@ from src.pipeline.setup import setup_runtime
 from src.pipeline.warmup import (make_ce_criterion, make_dataloader,
                                  make_optimizer)
 from src.training.ce_schedule import CESaturationSkip
+from src.training.constraint_step import (
+    constraint_autocast, constraint_backward, finish_constraint_step)
 from src.training.reordering import capped_scores, reordering_report
 from src.utils.constants import UNLIMITED
 
@@ -73,6 +75,13 @@ def _required(hp, key, cast=float):
 def _train_constraints(model, inputs: TrainInputs, device):
     hp = inputs.hyperparams
     CLIP = _required(hp, "constraint_grad_clip")   # the treatment dose
+    # Defaults reproduce the pre-2026-08-20 behaviour EXACTLY, so a config
+    # generated before these keys existed still runs and still gives the same
+    # numbers. That is why _required is not used here: the danger it guards
+    # against is a default that silently disagrees with the protocol, and
+    # "clip"/False is the protocol's own historical value.
+    CONSTRAINT_GRAD_MODE = str(hp.get("constraint_grad_mode", "clip"))
+    CONSTRAINT_FP32 = bool(hp.get("constraint_fp32", False))
     # Hoisted: the per-epoch snapshot clone is gated on this, and a
     # state_dict() copied to CPU each epoch for a checkpoint nothing
     # reads is ~344 MB per epoch on ViTB16.
@@ -269,7 +278,7 @@ def _train_constraints(model, inputs: TrainInputs, device):
         if has_active:
             optimizer.zero_grad(set_to_none=True)
             for i in range(0, n_test, chunk_size):
-                with torch.amp.autocast("cuda", dtype=amp_dtype, enabled=use_amp):
+                with constraint_autocast(amp_dtype, use_amp, CONSTRAINT_FP32):
                     chunk_logits = model(X_test_dev[i:i + chunk_size])
                     chunk_proba = F.softmax(chunk_logits.float(), dim=1)
                     chunk_loss = torch.zeros(1, device=device)
@@ -289,29 +298,15 @@ def _train_constraints(model, inputs: TrainInputs, device):
                                 N_g = max(1, group_sizes[g])
                                 chunk_loss = chunk_loss + lam * chunk_proba[mask, c].sum() / N_g
                 if chunk_loss.item() > 0:
-                    if scaler:
-                        scaler.scale(chunk_loss).backward()
-                    else:
-                        chunk_loss.backward()
+                    constraint_backward(chunk_loss, scaler, CONSTRAINT_FP32)
                     constraint_loss_val += chunk_loss.item()
                     did_backward = True
             if did_backward:
                 # Grad clip + grad_norm>0 gate + scaler.update() always called
                 # (mirrors TraLO recovery pattern).
-                if scaler:
-                    scaler.unscale_(optimizer)
-                    grad_norm = torch.nn.utils.clip_grad_norm_(
-                        model.parameters(), max_norm=CLIP)
-                    last_grad_norm = float(grad_norm)
-                    if torch.isfinite(grad_norm) and grad_norm > 0:
-                        scaler.step(optimizer)
-                    scaler.update()
-                else:
-                    grad_norm = torch.nn.utils.clip_grad_norm_(
-                        model.parameters(), max_norm=CLIP)
-                    last_grad_norm = float(grad_norm)
-                    if torch.isfinite(grad_norm) and grad_norm > 0:
-                        optimizer.step()
+                last_grad_norm, _applied = finish_constraint_step(
+                    model, optimizer, scaler, CLIP,
+                    mode=CONSTRAINT_GRAD_MODE, fp32=CONSTRAINT_FP32)
 
         # ---- Step 3: dual ascent on lambda (paper Eq. 5 / Alg. 2) ----
         # E[l_i] = (count_soft_i - K_i) / N_i  (per-constraint normalisation).

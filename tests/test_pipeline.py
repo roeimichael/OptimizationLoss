@@ -1378,6 +1378,36 @@ def test_ce_skip_is_a_live_gate_not_an_inert_flag():
 
 @pytest.mark.parametrize("arm", ["tralo", "fioretto_ldf", "hounie_rcl",
                                  "fioretto_alm"])
+def test_no_arm_hand_rolls_its_own_constraint_step(arm):
+    """All four must go through src/training/constraint_step.py.
+
+    They each hand-rolled this block once, and the copies drifted until the
+    arms were not receiving the same treatment. Measured 2026-08-20 on
+    results/vit_diag seed 1, same warm-up model, every config saying
+    constraint_grad_clip: 1.0 --
+
+        tralo     raw grad norm 0.638 .. 1826.5    clip bound  6 of 7
+        fioretto  raw grad norm 17,667 .. 80,827   clip bound 18 of 18
+        hounie    raw grad norm 0.005 .. 0.1105    clip bound  0 of 29
+
+    -- so hounie took its raw ~0.05-norm step while the other two took unit
+    ones. A direct clip_grad_norm_ call in a trainer is how that came back, so
+    it is banned here rather than merely discouraged.
+    """
+    src = open("src/methodologies/%s/train.py" % arm, encoding="utf-8").read()
+    assert "finish_constraint_step" in src, (
+        "%s does not use the shared constraint step" % arm)
+    assert "clip_grad_norm_" not in src, (
+        "%s calls clip_grad_norm_ directly. That is the divergence this "
+        "module exists to prevent -- route it through finish_constraint_step "
+        "so every arm is bounded the same way." % arm)
+    assert "constraint_autocast" in src, (
+        "%s does not use the shared constraint autocast, so --constraint-fp32 "
+        "cannot reach it and it can still lose epochs to fp16 overflow" % arm)
+
+
+@pytest.mark.parametrize("arm", ["tralo", "fioretto_ldf", "hounie_rcl",
+                                 "fioretto_alm"])
 def test_every_trained_arm_wires_the_same_ce_skip(arm):
     """All four must construct it, gate the CE loop on it, and feed it.
 

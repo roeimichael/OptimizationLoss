@@ -47,6 +47,27 @@ constraint_phase:
   # locked equal to lr, and every magnitude knob below it is cancelled by this
   # clip. Sweep 0.3 / 1.0 / 3.0 to get a dose-response curve.
   constraint_grad_clip: 1.0
+  # How the constraint gradient is BOUNDED. "clip" caps it at
+  # constraint_grad_clip; "normalize" rescales it to EXACTLY that value.
+  # MEASURED 2026-08-20, results/vit_diag seed 1 -- same warm-up model, and all
+  # three configs saying constraint_grad_clip: 1.0:
+  #     tralo     raw norm 0.638 .. 1826.5    clip binds  6 of 7
+  #     fioretto  raw norm 17,667 .. 80,827   clip binds 18 of 18
+  #     hounie    raw norm 0.005 .. 0.1105    clip binds  0 of 29
+  # One absolute clip across three natural scales means tralo and fioretto each
+  # deliver a unit-norm step while hounie delivers its raw ~0.05-norm step -- a
+  # ~20x dose gap that NO config gate can see, because every config says 1.0.
+  # "normalize" makes the constraint step size a protocol constant identical
+  # across arms, leaving each method's DIRECTION as its actual contribution,
+  # which is what the comparison is supposed to be about.
+  constraint_grad_mode: clip
+  # Evaluate the constraint pass in fp32 and bypass the loss scaler. fioretto
+  # lost 10 of its 29 constraint epochs to non-finite gradients (6 NaN + 4 inf,
+  # RAW count -- calling dropna() first hides the NaN and reports 4). It recurs
+  # rather than settling because the 126 CE steps per epoch grow the loss scale
+  # back up between constraint steps, and fioretto's constraint loss is ~1e4
+  # times CE's. One backward per epoch, so the cost is small.
+  constraint_fp32: false
   lr_constraint: 0.0001       # MUST equal core.lr -- unequal lr fabricated a -16.7pp finding
   stable_count_threshold: 31
   constraint_chunk_size: 256

@@ -31,6 +31,8 @@ from src.pipeline.contracts import TrainInputs, TrainOutputs
 from src.pipeline.setup import setup_runtime
 from src.pipeline.warmup import make_ce_criterion, make_dataloader, make_optimizer
 from src.training.ce_schedule import CESaturationSkip
+from src.training.constraint_step import (
+    constraint_autocast, constraint_backward, finish_constraint_step)
 from src.training.logging import log_progress_to_csv, write_csv_header
 from src.training.metrics import compute_prediction_statistics
 from src.training.reordering import capped_scores, reordering_report
@@ -60,6 +62,13 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     config = inputs.config
     hp = inputs.hyperparams
     CLIP = _required(hp, "constraint_grad_clip")   # the treatment dose
+    # Defaults reproduce the pre-2026-08-20 behaviour EXACTLY, so a config
+    # generated before these keys existed still runs and still gives the same
+    # numbers. That is why _required is not used here: the danger it guards
+    # against is a default that silently disagrees with the protocol, and
+    # "clip"/False is the protocol's own historical value.
+    CONSTRAINT_GRAD_MODE = str(hp.get("constraint_grad_mode", "clip"))
+    CONSTRAINT_FP32 = bool(hp.get("constraint_fp32", False))
     # Hoisted: the per-epoch snapshot clone is gated on this, and a
     # state_dict() copied to CPU each epoch for a checkpoint nothing
     # reads is ~344 MB per epoch on ViTB16.
@@ -255,7 +264,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             for ci in range(n_chunks):
                 start = ci * chunk_size
                 end = min(start + chunk_size, n_test)
-                with torch.amp.autocast("cuda", dtype=amp_dtype, enabled=use_amp):
+                with constraint_autocast(amp_dtype, use_amp, CONSTRAINT_FP32):
                     chunk_logits = model(X_test[start:end])
                 chunk_logits_f = chunk_logits.float()
                 chunk_proba = F.softmax(chunk_logits_f, dim=1)
@@ -291,25 +300,14 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 # memory knob. That is a confound across the three headline
                 # datasets, not a hyperparameter.
                 chunk_loss = chunk_loss + lg + ll
-                if scaler:
-                    scaler.scale(chunk_loss).backward()
-                else:
-                    chunk_loss.backward()
+                constraint_backward(chunk_loss, scaler, CONSTRAINT_FP32)
 
         last_grad_norm = 0.0
         did_backward = has_constraint
-        if scaler and did_backward:
-            scaler.unscale_(optimizer)
-            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=CLIP)
-            last_grad_norm = float(grad_norm)
-            if torch.isfinite(grad_norm) and grad_norm > 0:
-                scaler.step(optimizer)
-            scaler.update()
-        elif not scaler and did_backward:
-            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=CLIP)
-            last_grad_norm = float(grad_norm)
-            if torch.isfinite(grad_norm) and grad_norm > 0:
-                optimizer.step()
+        if did_backward:
+            last_grad_norm, _applied = finish_constraint_step(
+                model, optimizer, scaler, CLIP,
+                mode=CONSTRAINT_GRAD_MODE, fp32=CONSTRAINT_FP32)
 
         avg_ce = epoch_ce / num_batches
 

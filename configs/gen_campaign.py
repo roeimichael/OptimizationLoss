@@ -176,6 +176,29 @@ def validate(P, args, resolved):
                          "skipped by the loss." % (ds, c, dc["num_classes"]))
 
 
+def _apply_constraint_step(P, args):
+    """Constraint-step knobs, into the SHARED block for the same reason.
+
+    `normalize` exists because the arms were NOT getting the same dose: one
+    absolute clip over natural gradient scales six orders of magnitude apart
+    left hounie taking a ~0.05-norm step while tralo and fioretto took unit
+    ones. Per-arm would recreate exactly the asymmetry it fixes.
+    """
+    if args.constraint_grad_mode is not None:
+        P["constraint_phase"]["constraint_grad_mode"] = args.constraint_grad_mode
+    if args.constraint_fp32 is not None:
+        P["constraint_phase"]["constraint_fp32"] = bool(args.constraint_fp32)
+    if P["constraint_phase"].get("constraint_grad_mode") == "normalize":
+        print("  CONSTRAINT GRAD NORMALIZED to %s for EVERY trained arm: the "
+              "step size is now a" % P["constraint_phase"]["constraint_grad_clip"])
+        print("      protocol constant, so what differs between arms is "
+              "direction, not dose.")
+    if P["constraint_phase"].get("constraint_fp32"):
+        print("  CONSTRAINT PASS IN FP32: no loss scaler on the constraint "
+              "step, so an epoch cannot be")
+        print("      silently dropped to a non-finite gradient.")
+
+
 def _apply_ce_skip(P, args):
     """Write the CE-skip override into the SHARED block, never per arm.
 
@@ -217,6 +240,19 @@ def main():
     a.add_argument("--constrained-class", nargs="+", type=int, default=None,
                    help="override the YAML's capped class(es) for every dataset; "
                         "one index or several for the coupled multi-class setting")
+    a.add_argument("--constraint-grad-mode", choices=["clip", "normalize"],
+                   default=None,
+                   help="clip: cap the constraint gradient at "
+                        "constraint_grad_clip (historical). normalize: rescale "
+                        "it to EXACTLY that value, so every trained arm takes "
+                        "the same-size constraint step. Measured: with one "
+                        "absolute clip, hounie's gradient never reached it "
+                        "(max 0.11 of 1.0) while fioretto's exceeded it by "
+                        "80,000x -- a ~20x dose gap invisible to every gate.")
+    a.add_argument("--constraint-fp32", action="store_true", default=None,
+                   help="evaluate the constraint pass in fp32 and bypass the "
+                        "loss scaler. fioretto lost 10 of 29 constraint epochs "
+                        "to non-finite gradients while reporting completed.")
     a.add_argument("--ce-skip-acc", type=float, default=None,
                    help="stop the CE pass once train accuracy holds at or above "
                         "this for --ce-skip-patience consecutive epochs. Applies "
@@ -229,9 +265,11 @@ def main():
                    help="consecutive saturated epochs before the CE pass stops.")
     a.add_argument("--protocol", default=PROTOCOL_PATH, help="alternate protocol.yml")
     args = a.parse_args()
-    _apply_ce_skip(P, args)
+    # Reload FIRST: applying overrides and then replacing P discarded them.
     if args.protocol != PROTOCOL_PATH:
         P = load_protocol(args.protocol)
+    _apply_ce_skip(P, args)
+    _apply_constraint_step(P, args)
 
     # `all` deliberately EXCLUDES the zero-dose siblings. Adding them is a
     # compute decision -- four more trained arms is +27% on the canonical
