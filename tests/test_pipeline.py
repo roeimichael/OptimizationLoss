@@ -1376,6 +1376,47 @@ def test_ce_skip_is_a_live_gate_not_an_inert_flag():
     assert r.should_skip(), "the gate must latch"
 
 
+def test_the_bounded_shape_starves_the_deepest_violator_and_the_hinges_do_not():
+    """The measured multi-class failure, pinned as a property.
+
+    dermmnist classes 2+4 capped at L30_G20, 4 epochs, 2026-08-20: class 4 at
+    1.3x its budget was pulled to 57 against K=45, while class 2 at 9.3x its
+    budget ROSE to 410 against K=44 and was never touched. The shipped shape's
+    gradient is non-monotone in the violation, so the DEEPER violator gets the
+    weaker pull -- backwards for a penalty.
+
+    Single-class runs cannot show this: their spread across scopes has median
+    1.5x, and at equal relative excess the shape is exactly inert.
+    """
+    import torch
+    from src.losses.transductive_loss import MulticlassTransductiveLoss, UNLIMITED
+
+    NC = 5
+    gcon = [UNLIMITED, 44.0, 45.0, UNLIMITED, UNLIMITED]
+
+    def pull(shape):
+        L = MulticlassTransductiveLoss(gcon, {}, num_classes=NC,
+                                       initial_rho=10.0, penalty_shape=shape)
+        for c in (1, 2):
+            L.set_lambda_per_class(c, 0.01, scope="global")
+        # class 1 = the DEEP violator (410 vs 44); class 2 = mild (57 vs 45)
+        soft = torch.tensor([0.0, 410.0, 57.0, 0.0, 0.0], requires_grad=True)
+        L.compute_global_from_counts(soft).backward()
+        return float(soft.grad[1]), float(soft.grad[2])
+
+    deep_b, mild_b = pull("rational_bounded")
+    deep_s, mild_s = pull("squared")
+    deep_l, mild_l = pull("linear")
+
+    assert deep_b < mild_b, (
+        "the bounded shape is supposed to STARVE the deep violator here; if "
+        "this fails the measured pathology has changed and 2a2 needs redoing")
+    assert deep_s > mild_s, "squared must favour the deeper violator"
+    assert deep_l > mild_l, "linear must favour the deeper violator"
+    # and the reversal must be large enough to matter, not a rounding artifact
+    assert (deep_s / mild_s) > 10 * (deep_b / mild_b)
+
+
 def test_normalize_delivers_the_same_step_size_whatever_the_raw_norm():
     """The point of `normalize`: the dose stops depending on the arm.
 

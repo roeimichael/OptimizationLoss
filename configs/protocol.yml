@@ -118,6 +118,24 @@ blocks:
     lambda_step: 0.05
     lambda_global: 0.01       # initial lambda, global scope
     lambda_local: 0.01        # initial lambda, local (per-group) scope
+    # The per-scope penalty shape. "rational_bounded" is the manuscript's Eq. 4
+    # and stays the DEFAULT -- changing it would silently reinterpret every
+    # stored result. "linear" (E/K) and "squared" ((E/K)^2) exist because the
+    # bounded shape's gradient is NON-MONOTONE in the violation above rho ~ 1:
+    # near zero at the boundary, peaking around 53-58% over, decaying toward zero
+    # for anything worse, so a scope 8x over budget gets 167x LESS pull than one
+    # 58% over. With ONE term that cancels (scalar x fixed direction, divided out
+    # by the clip). With several it sets their relative weights, backwards.
+    # MEASURED on a real multi-class run 2026-08-20 (dermmnist, classes 2+4,
+    # L30_G20, 4 epochs): class 4 at 1.3x budget was pulled to 57 against K=45,
+    # while class 2 at 9.3x budget ROSE to 410 against K=44 and was never
+    # touched. Single-class spread across scopes has median 1.5x; this is ~30x,
+    # which is why multi-class is where the shape stops being inert.
+    penalty_shape: rational_bounded
+    # ^ TraLO-SPECIFIC on purpose: the duals do not have this penalty at all
+    # (fioretto sums probabilities, hounie uses a mean violation), so a
+    # shared-block key would be emitted to them and read by none of them --
+    # audit_config flagged exactly that, 6 arms, before this moved here.
     initial_rho: 0.5
     rho_target: 100.0         # rho_step is DERIVED from this; a config rho_step is ignored
   # THE NULL-TREATMENT CONTROL. Identical to `tralo` in warm-up length, optimizer

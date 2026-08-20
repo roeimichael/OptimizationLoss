@@ -103,6 +103,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         global_constraints=global_con, local_constraints=local_con,
         num_classes=num_classes,
         initial_rho=hp.get("initial_rho", 0.5),
+        penalty_shape=str(hp.get("penalty_shape", "rational_bounded")),
     ).to(device)
 
     # Union of both scopes. Deriving this from global_con alone silently drops a

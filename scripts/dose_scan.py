@@ -41,7 +41,7 @@ import pandas as pd
 RUNNER = "src.experiments.runner"
 
 
-def one(base_cfg, dest, gpu, epochs, clip, cache, chunk):
+def one(base_cfg, dest, gpu, epochs, clip, cache, chunk, shape="rational_bounded"):
     dest.mkdir(parents=True, exist_ok=True)
     cfg = json.loads(json.dumps(base_cfg))
     hp = cfg["hyperparams"]
@@ -50,6 +50,7 @@ def one(base_cfg, dest, gpu, epochs, clip, cache, chunk):
     hp["constraint_grad_mode"] = "normalize"
     hp["constraint_step_rule"] = "sgd"
     hp["constraint_grad_clip"] = float(clip)
+    hp["penalty_shape"] = shape
     cfg["status"] = "pending"
     out = dest / "config.json"
     out.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
@@ -80,6 +81,8 @@ def main():
                    help="constraint_chunk_size. 256 OOMs at ViTB16 under "
                         "constraint_fp32 on a 22GB card; 128 fits.")
     a.add_argument("--gpu", default="0")
+    a.add_argument("--shapes", nargs="+", default=["rational_bounded"],
+                   choices=["rational_bounded", "linear", "squared"])
     a.add_argument("--out", default="/tmp/dose_scan")
     args = a.parse_args()
 
@@ -99,16 +102,24 @@ def main():
     print("step norm delivered = lr_constraint x clip\n")
 
     rows = []
-    for clip in args.clips:
-        d, err = one(base, root / ("clip_%g" % clip), args.gpu, args.epochs,
-                     clip, cache, args.chunk)
-        print("#### clip=%-8g  step norm = %.3g ####" % (clip, lr * clip))
+    combos = [(sh, cl) for sh in args.shapes for cl in args.clips]
+    for shape, clip in combos:
+        d, err = one(base, root / ("%s_clip_%g" % (shape, clip)), args.gpu,
+                     args.epochs, clip, cache, args.chunk, shape)
+        print("#### shape=%-16s clip=%-8g  step norm = %.3g ####"
+              % (shape, clip, lr * clip))
         if d is None:
             print("   FAILED: %s" % err)
             continue
+        # Scan ALL rows, not row 0. The FIRST dose in a scan trains the
+        # warm-up, and run_warmup writes warm-up rows whose Limit_Class is inf
+        # (the hardcoded default in log_progress_to_csv's signature). Reading
+        # iloc[0] therefore reported "nothing was capped" for whichever dose
+        # happened to run first, and silently dropped it from the sweep.
         caps = [int(c[len("Limit_Class"):]) for c in d.columns
                 if c.startswith("Limit_Class")
-                and pd.notna(d[c].iloc[0]) and float(d[c].iloc[0]) < 1e9]
+                and pd.to_numeric(d[c], errors="coerce").lt(1e9).any()]
+        d = d[pd.to_numeric(d["Limit_Class%d" % caps[0]], errors="coerce").lt(1e9)] if caps else d
         if not caps:
             print("   no finite Limit_Class column -- nothing was capped")
             continue
@@ -126,17 +137,17 @@ def main():
         if first is not None and last is not None and len(d) > 1:
             tot0 = sum(max(0, int(first["Hard_Class%d" % c]) - int(first["Limit_Class%d" % c])) for c in caps)
             tot1 = sum(max(0, int(last["Hard_Class%d" % c]) - int(last["Limit_Class%d" % c])) for c in caps)
-            rows.append((clip, tot0, tot1, float(first["Train_Acc"]),
-                         float(last["Train_Acc"])))
+            rows.append(("%s/%g" % (shape, clip), tot0, tot1,
+                         float(first["Train_Acc"]), float(last["Train_Acc"])))
     print()
     if not rows:
         print("no dose produced a readable trajectory")
         return
-    print("%-10s %10s %10s %9s %10s %10s"
-          % ("clip", "excess0", "excessN", "d(excess)", "acc0", "accN"))
-    print("-" * 64)
-    for clip, e0, e1, a0, a1 in rows:
-        print("%-10g %10d %10d %9+d %10.4f %10.4f" % (clip, e0, e1, e1 - e0, a0, a1))
+    print("%-26s %9s %9s %9s %9s %9s"
+          % ("shape/clip", "excess0", "excessN", "d(exc)", "acc0", "accN"))
+    print("-" * 76)
+    for tag, e0, e1, a0, a1 in rows:
+        print("%-26s %9d %9d %+9d %9.4f %9.4f" % (tag, e0, e1, e1 - e0, a0, a1))
     print()
     print("A dose is only interesting if excess FALLS and accuracy does NOT.")
     print("Crushing the count while the classifier degrades is the joint arm's")

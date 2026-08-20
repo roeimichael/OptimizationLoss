@@ -190,11 +190,19 @@ def _apply_constraint_step(P, args):
         P["constraint_phase"]["constraint_fp32"] = bool(args.constraint_fp32)
     if args.constraint_step_rule is not None:
         P["constraint_phase"]["constraint_step_rule"] = args.constraint_step_rule
+    if args.penalty_shape is not None:
+        P["blocks"]["tralo"]["penalty_shape"] = args.penalty_shape
     if P["constraint_phase"].get("constraint_grad_mode") == "normalize":
         print("  CONSTRAINT GRAD NORMALIZED to %s for EVERY trained arm: the "
               "step size is now a" % P["constraint_phase"]["constraint_grad_clip"])
         print("      protocol constant, so what differs between arms is "
               "direction, not dose.")
+    shape = P["blocks"]["tralo"].get("penalty_shape", "rational_bounded")
+    if shape != "rational_bounded":
+        print("  PENALTY SHAPE = %s for every trained arm: this is NOT the "
+              "manuscript's Eq. 4," % shape)
+        print("      so results from it are not comparable to the stored "
+              "corpus without saying so.")
     if P["constraint_phase"].get("constraint_step_rule") == "sgd":
         print("  CONSTRAINT STEP = PLAIN SGD for every trained arm: the step no "
               "longer inherits CE's")
@@ -255,6 +263,16 @@ def main():
                         "absolute clip, hounie's gradient never reached it "
                         "(max 0.11 of 1.0) while fioretto's exceeded it by "
                         "80,000x -- a ~20x dose gap invisible to every gate.")
+    a.add_argument("--penalty-shape",
+                   choices=["rational_bounded", "linear", "squared"],
+                   default=None,
+                   help="rational_bounded is the manuscript's Eq. 4 and the "
+                        "default. Its gradient VANISHES on the worst "
+                        "violations, which with several capped scopes starves "
+                        "the deepest violator: measured multi-class, class 4 "
+                        "at 1.3x budget was pulled to the cap while class 2 at "
+                        "9.3x budget rose untouched. linear and squared have "
+                        "constant and growing pull with depth.")
     a.add_argument("--constraint-step-rule", choices=["shared", "sgd"],
                    default=None,
                    help="shared: the constraint step goes through the same "

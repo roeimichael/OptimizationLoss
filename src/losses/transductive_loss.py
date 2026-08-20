@@ -33,9 +33,11 @@ from src.utils.constants import UNLIMITED, EPSILON
 class MulticlassTransductiveLoss(nn.Module):
 
     def __init__(self, global_constraints, local_constraints,
-                 num_classes=7, initial_rho=0.5):
+                 num_classes=7, initial_rho=0.5,
+                 penalty_shape="rational_bounded"):
         super().__init__()
         self.num_classes = num_classes
+        self.penalty_shape = penalty_shape
         self.register_buffer('rho', torch.tensor(float(initial_rho)))
         self.global_constraints_satisfied = False
         self.local_constraints_satisfied = False
@@ -75,8 +77,34 @@ class MulticlassTransductiveLoss(nn.Module):
         E = F.relu(soft - K)
         scale = K if K >= 1 else 1.0
         e = E / (scale + EPSILON)
+        if self.penalty_shape == "linear":
+            return e
+        if self.penalty_shape == "squared":
+            return e ** 2
         return (E / (E + scale + EPSILON)
                 + self.rho * (e ** 2) / (1 + e ** 2 + EPSILON))
+
+    # ---- why `linear` and `squared` exist -------------------------------
+    # The shipped shape is bounded, so its gradient d(pen)/d(soft) is
+    # NON-MONOTONE in the violation above rho ~ 1: near zero at the boundary,
+    # peaking around 53-58% over, and decaying toward zero for anything worse.
+    # A scope violated by 8x its budget gets 167x LESS pull than one violated
+    # by 58% (FRAMEWORK 2a2, reproduced independently to four decimals).
+    #
+    # With a SINGLE term that is harmless: the constraint gradient is clipped
+    # alone, so the shape is a scalar times a fixed direction and divides out.
+    # With several terms it sets their RELATIVE weights, and it sets them
+    # backwards. Measured on a real multi-class run (dermmnist, classes 2+4
+    # capped, L30_G20, 2026-08-20): class 4 at 1.3x its budget was pulled to
+    # 57 against K=45, while class 2 at 9.3x its budget ROSE to 410 against
+    # K=44 and was never touched. The deepest violator is the one the shape
+    # starves. Single-class runs never showed this because their spread across
+    # scopes has median 1.5x; here it is ~30x.
+    #
+    # `linear` (e) and `squared` (e**2) have constant and growing pull with
+    # depth respectively, which is what a penalty is supposed to do.
+    # ⚠️ The default stays `rational_bounded`: it is the manuscript's Eq. 4,
+    # and changing the default would silently reinterpret every stored result.
 
     def _sum(self, entries, device):
         """entries: (soft_count, K, lambda) for every capped (class, scope).
