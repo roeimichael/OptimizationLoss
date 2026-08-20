@@ -302,11 +302,29 @@ tune.** This is the cleanest available statement of why ~13 penalty-shape arms a
 arms overall tied: they were all tuning the direction of a step whose direction does not
 matter here.
 
-⚠️ **It is cap-specific, and must be re-run per cell before being generalised.** At
-`L50_G30` the `linear` shape is the one (shape x cap) combination in four that scores
-POSITIVE (`d capF1` +0.0078, 4/4 seeds, sd 0.0017) and improves prec@K at every k from
-20 to 150 on class 2. Whether that survives the same coin is the question that decides
-whether any of this is a method.
+✅ **AND IT IS CAP-SPECIFIC -- at `L50_G30` the coin FAILS and `linear` does not.**
+Same control, same seeds, same cell:
+
+| arm | mean `d capF1` | per seed | seeds positive |
+|---|---|---|---|
+| `rational_bounded` | -0.0185 | | 0/4 |
+| **`linear`** | **+0.0078** (sd 0.0017) | +0.0104 +0.0069 +0.0070 +0.0069 | **4/4** |
+| `randdir` -- a coin | -0.0130 (sd 0.0100) | -0.0243 -0.0139 +0.0001 -0.0137 | 1/4 |
+
+**The distributions do not overlap**: `linear`'s worst seed is +0.0069, the coin's best
+is +0.0001. ⇒ at this cap the penalty's DIRECTION carries real information -- a random
+step of the same size actively hurts while the linear penalty helps, a separation of
+0.021. It is corroborated by the mechanism: `linear` improves prec@K on class 2 at
+**every** k from 20 to 150, which is a broad re-ranking and not an accident at the
+budget. (Class 4 is noise in both directions, so the effect is one capped class, not
+"the capped classes".)
+
+🎯 **THE SHAPE AND THE CAP INTERACT, AND THE SHIPPED SHAPE IS NEGATIVE EVERYWHERE.**
+A tight budget only reaches items the model already had right, so there is nothing for
+a direction to earn; loosen it and a monotone penalty finds something a coin cannot.
+⚠️ Still unestablished: this is ONE cell at 4 epochs against `null`. `clip` and
+`focal_clip` at protocol length are the bar, and the gain does NOT show up in macro-F1
+(+0.0015, 2/4 seeds) -- it is confined to the constrained classes.
 
 ---
 
