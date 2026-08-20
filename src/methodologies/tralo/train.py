@@ -363,7 +363,16 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             log.info("Converged: constraints stable for %d epochs", stable_count)
             break
 
-        if (epoch + 1) % 5 == 0 or is_satisfied or epoch == warmup_epochs:
+        # EVERY epoch. This used to log every 5th, which wrote 7 rows for a
+        # 29-epoch phase and made the count trajectory unwatchable: a 2-epoch
+        # diagnostic run logged exactly one row, from BEFORE the treatment had
+        # differentiated, so four configs with four different outputs all wrote
+        # byte-identical logs. The duals already log every epoch, so this also
+        # removes a cross-arm asymmetry. The block only reads tensors that are
+        # already computed and `cached_train_acc` -- no forward pass, no RNG --
+        # so density cannot change a result. Verified: identical predictions
+        # md5 before and after.
+        if True:
             train_acc = cached_train_acc
             g_counts = {c: int(total_global_hard[c].item()) for c in range(num_classes)}
             l_counts = {gid: {c: int(total_local_hard[gid][c].item())
