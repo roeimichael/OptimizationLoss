@@ -188,11 +188,17 @@ def _apply_constraint_step(P, args):
         P["constraint_phase"]["constraint_grad_mode"] = args.constraint_grad_mode
     if args.constraint_fp32 is not None:
         P["constraint_phase"]["constraint_fp32"] = bool(args.constraint_fp32)
+    if args.constraint_step_rule is not None:
+        P["constraint_phase"]["constraint_step_rule"] = args.constraint_step_rule
     if P["constraint_phase"].get("constraint_grad_mode") == "normalize":
         print("  CONSTRAINT GRAD NORMALIZED to %s for EVERY trained arm: the "
               "step size is now a" % P["constraint_phase"]["constraint_grad_clip"])
         print("      protocol constant, so what differs between arms is "
               "direction, not dose.")
+    if P["constraint_phase"].get("constraint_step_rule") == "sgd":
+        print("  CONSTRAINT STEP = PLAIN SGD for every trained arm: the step no "
+              "longer inherits CE's")
+        print("      Adam moments, so it points where the constraint points.")
     if P["constraint_phase"].get("constraint_fp32"):
         print("  CONSTRAINT PASS IN FP32: no loss scaler on the constraint "
               "step, so an epoch cannot be")
@@ -249,6 +255,14 @@ def main():
                         "absolute clip, hounie's gradient never reached it "
                         "(max 0.11 of 1.0) while fioretto's exceeded it by "
                         "80,000x -- a ~20x dose gap invisible to every gate.")
+    a.add_argument("--constraint-step-rule", choices=["shared", "sgd"],
+                   default=None,
+                   help="shared: the constraint step goes through the same "
+                        "Adam as CE, which retains only 0.009-0.017 of its "
+                        "direction. sgd: p -= lr_constraint * g, recovering "
+                        "the direction at the smallest step in the dose sweep. "
+                        "Distinct from the rejected dedicated-Adam arm, whose "
+                        "step was ~8,900x larger.")
     a.add_argument("--constraint-fp32", action="store_true", default=None,
                    help="evaluate the constraint pass in fp32 and bypass the "
                         "loss scaler. fioretto lost 10 of 29 constraint epochs "

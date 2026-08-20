@@ -76,7 +76,7 @@ def constraint_backward(loss, scaler, fp32):
 
 
 def finish_constraint_step(model, optimizer, scaler, clip, mode="clip",
-                           fp32=False):
+                           fp32=False, step_rule="shared", lr=None):
     """Bound the constraint gradient and take the step.
 
     Returns (raw_norm, applied). `raw_norm` is the true pre-clip norm, so a log
@@ -100,10 +100,28 @@ def finish_constraint_step(model, optimizer, scaler, clip, mode="clip",
                 p.grad.mul_(scale)
 
     if applied:
-        if scaler is not None and not fp32:
+        if step_rule == "sgd":
+            # Plain SGD, deliberately NOT the Adam the CE pass just took 126
+            # steps with. Measured in this project: sharing that Adam leaves
+            # cos(parameter update, constraint gradient) at 0.009-0.017, i.e.
+            # the "constraint step" is ~98% a 127th CE step.
+            #
+            # This is NOT the rejected `separate_constraint_optimizer` arm. That
+            # one used a dedicated ADAM, whose 1/sqrt(v) gives a step of norm
+            # ~lr*sqrt(N) -- about 8,900x larger at ViT-B/16 scale -- so it
+            # confounded direction with an enormous dose increase and cost
+            # AP -0.0938. Here the step is lr*||g|| exactly, and with
+            # mode="normalize" that is lr*clip = the smallest step in the
+            # sweep, with the direction fully recovered.
+            with torch.no_grad():
+                for p in model.parameters():
+                    if p.grad is not None:
+                        p.add_(p.grad, alpha=-lr)
+        elif scaler is not None and not fp32:
             scaler.step(optimizer)
         else:
             optimizer.step()
     if scaler is not None and not fp32:
+        # The scaler still owns the CE pass, so its bookkeeping runs either way.
         scaler.update()
     return raw_norm, applied

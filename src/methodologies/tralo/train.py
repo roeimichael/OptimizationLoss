@@ -69,6 +69,8 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     # "clip"/False is the protocol's own historical value.
     CONSTRAINT_GRAD_MODE = str(hp.get("constraint_grad_mode", "clip"))
     CONSTRAINT_FP32 = bool(hp.get("constraint_fp32", False))
+    CONSTRAINT_STEP_RULE = str(hp.get("constraint_step_rule", "shared"))
+    LR_CONSTRAINT = _required(hp, "lr_constraint")
     # Hoisted: the per-epoch snapshot clone is gated on this, and a
     # state_dict() copied to CPU each epoch for a checkpoint nothing
     # reads is ~344 MB per epoch on ViTB16.
@@ -307,7 +309,8 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         if did_backward:
             last_grad_norm, _applied = finish_constraint_step(
                 model, optimizer, scaler, CLIP,
-                mode=CONSTRAINT_GRAD_MODE, fp32=CONSTRAINT_FP32)
+                mode=CONSTRAINT_GRAD_MODE, fp32=CONSTRAINT_FP32,
+                step_rule=CONSTRAINT_STEP_RULE, lr=LR_CONSTRAINT)
 
         avg_ce = epoch_ce / num_batches
 
