@@ -54,6 +54,34 @@ def _trajectory(s, k=6):
             + " ".join(_fmt(x, 4) for x in v[-k:]))
 
 
+
+# The trained arms do not share a log schema. tralo writes build_csv_header's
+# 31 capitalised columns; the three duals each write their own lowercase
+# DictWriter fields, and even they differ -- hounie adds max_u_g/h_u, alm adds
+# mu_t. So a column has to be looked up by MEANING, not by name, or the same
+# diagnostic reads a different quantity depending on which arm produced the
+# file. Reading fioretto with tralo's names shifts every label by one and
+# reports lambda as the gradient norm.
+ALIASES = {
+    "epoch":      ["Epoch", "epoch"],
+    "ce":         ["L_CE", "ce_loss"],
+    "grad_norm":  ["Grad_Norm", "grad_norm"],
+    "lambda":     ["Lambda_Global", "max_lambda_g", "max_lam_g"],
+    "constraint": ["L_Global", "constraint_loss"],
+    "excess":     ["total_excess"],
+    "satisfied":  ["Global_Satisfied", "all_satisfied"],
+    "train_acc":  ["Train_Acc"],
+}
+
+
+def _col(df, meaning):
+    """Resolve a column by what it MEANS across the three schemas."""
+    for name in ALIASES.get(meaning, []):
+        if name in df.columns:
+            return pd.to_numeric(df[name], errors="coerce"), name
+    return None, None
+
+
 def _read_log(log_path, cfg):
     """Read training_log.csv whether or not it carries a header row.
 
@@ -68,7 +96,12 @@ def _read_log(log_path, cfg):
 
     with open(log_path, encoding="utf-8") as f:
         first = f.readline().strip()
-    has_header = first.split(",")[0] == "Epoch"
+    tok = first.split(",")[0].strip()
+    try:
+        float(tok)
+        has_header = False
+    except ValueError:
+        has_header = True
     if has_header:
         return pd.read_csv(log_path)
 
@@ -132,22 +165,47 @@ def diagnose(run_dir):
         return
 
     df = _read_log(log_path, cfg)
-    ep = _series(df, "Epoch")
+    print("  log schema: %s" % ", ".join(str(c) for c in df.columns[:9])
+          + (" ..." if len(df.columns) > 9 else ""))
+    ep, _ = _col(df, "epoch")
     print("\n  training_log.csv: %d rows, Epoch %s..%s"
           % (len(df),
              _fmt(ep.min(), 4) if ep is not None else "?",
              _fmt(ep.max(), 4) if ep is not None else "?"))
 
     # ---- 1. did the CLIP bind? the apples-to-apples question ---------------
-    gn = _series(df, "Grad_Norm")
+    gn, gn_name = _col(df, "grad_norm")
     print("\n-- 1. CONSTRAINT GRADIENT vs THE CLIP " + "-" * 38)
     if gn is None or gn.dropna().empty:
-        print("   no Grad_Norm column")
+        print("   no gradient-norm column in this schema")
     else:
+        # Count NON-FINITE rows BEFORE dropping them. dropna() silently
+        # removes NaN, and NaN is the FP16-overflow signature -- counting after
+        # the drop under-reports exactly the epochs that were lost.
+        import numpy as _np
+        total_rows = len(gn)
+        n_nan = int(gn.isna().sum())
+        n_inf = int(_np.isinf(gn.dropna()).sum())
         g = gn.dropna()
-        nz = g[g > 0]
-        print("   raw norm: min=%s  median=%s  max=%s   (nonzero rows %d/%d)"
-              % (_fmt(g.min()), _fmt(g.median()), _fmt(g.max()), len(nz), len(g)))
+        print("   [column: %s]" % gn_name)
+        g = g[_np.isfinite(g)]
+        if n_nan + n_inf:
+            print("   *** %d of %d epochs (%.0f%%) had a NON-FINITE raw norm: "
+                  "%d NaN, %d inf."
+                  % (n_nan + n_inf, total_rows,
+                     100.0 * (n_nan + n_inf) / max(1, total_rows), n_nan, n_inf))
+            print("       NaN is the FP16-OVERFLOW signature: the constraint")
+            print("       gradient exceeded fp16 range, GradScaler recorded")
+            print("       found_inf and SKIPPED the step. Those epochs delivered")
+            print("       NO constraint update at all -- the arm silently ran a")
+            print("       shorter constraint phase than its config claims.")
+            print("       clip_grad_norm_ with total_norm=inf gives clip_coef=0 and")
+            print("       inf*0 = nan, so the gradients become NaN. `if grad_norm > 0`")
+            print("       is True for inf, so the step is TAKEN. On the FP16 path the")
+            print("       scaler records found_inf before the clip and skips it; on a")
+            print("       BF16 server there is no scaler and the weights are destroyed.")
+        print("   raw norm: min=%s  median=%s  max=%s   (finite rows %d/%d)"
+              % (_fmt(g.min()), _fmt(g.median()), _fmt(g.max()), len(g), len(gn.dropna())))
         print("   trajectory: %s" % _trajectory(g))
         if clip:
             binds = int((g >= float(clip)).sum())
@@ -166,15 +224,15 @@ def diagnose(run_dir):
 
     # ---- 2. lambda --------------------------------------------------------
     print("\n-- 2. MULTIPLIERS " + "-" * 57)
-    for col in ("Lambda_Global", "Lambda_Local"):
-        s = _series(df, col)
+    for meaning, col in (("lambda", "multiplier"), (None, "Lambda_Local")):
+        s, real = (_col(df, meaning) if meaning else (_series(df, col), col))
         if s is None or s.dropna().empty:
-            print("   %-14s absent" % col)
+            print("   %-14s absent in this schema" % col)
             continue
         v = s.dropna()
         moved = "MOVED" if v.max() > v.min() else "*** FLAT (never moved)"
         print("   %-14s %s  min=%s max=%s"
-              % (col, moved, _fmt(v.min()), _fmt(v.max())))
+              % (real or col, moved, _fmt(v.min()), _fmt(v.max())))
         print("       %s" % _trajectory(v))
 
     # ---- 3. counts: soft (what the gradient sees) vs hard (what is scored) -
@@ -207,7 +265,7 @@ def diagnose(run_dir):
 
     # ---- 4. is CE saturated? ----------------------------------------------
     print("\n-- 4. CE " + "-" * 66)
-    ce = _series(df, "L_CE")
+    ce, _ = _col(df, "ce")
     acc = _series(df, "Train_Acc")
     if ce is not None and not ce.dropna().empty:
         v = ce.dropna()
@@ -230,7 +288,7 @@ def diagnose(run_dir):
     # ---- 5. does L_Global reproduce from the soft count? ------------------
     print("\n-- 5. DOES THE LOSS COLUMN REPRODUCE FROM THE COUNT COLUMN? "
           + "-" * 15)
-    lg = _series(df, "L_Global")
+    lg, lg_name = _col(df, "constraint")
     if lg is None or lg.dropna().empty:
         print("   L_Global absent or empty")
     else:
