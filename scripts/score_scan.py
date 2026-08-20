@@ -48,6 +48,26 @@ def capped_classes(run_dir):
         return ()
 
 
+def budgets(run_dir):
+    """The per-class budgets, read from the run's own log.
+
+    `Limit_Class<c>` is written every epoch and is inf for an uncapped class,
+    so the finite ones are the budgets the allocator actually enforced.
+    """
+    try:
+        t = pd.read_csv(run_dir / "training_log.csv")
+    except Exception:
+        return {}
+    out = {}
+    for col in t.columns:
+        if col.startswith("Limit_Class"):
+            v = pd.to_numeric(t[col], errors="coerce")
+            v = v[v < 1e9]
+            if len(v):
+                out[int(col[len("Limit_Class"):])] = int(v.iloc[-1])
+    return out
+
+
 def read(path):
     d = pd.read_csv(path)
     y = d["True_Label"].to_numpy()
@@ -95,6 +115,15 @@ def main():
         al, rw = row(y, pa, cap), row(y, pr, cap)
         present = sorted(set(y.tolist()))
         oh = np.eye(prob.shape[1])[y][:, present]
+        # What the cap actually consumes: rank by p_c, take the top K_c.
+        # AUROC is a GLOBAL ranking measure and hides this completely -- a run
+        # can replace two thirds of the selected items and leave AUROC, and
+        # prec@K, exactly where they were.
+        topk, prec = {}, {}
+        for c, K in sorted(budgets(d).items()):
+            order = np.argsort(-prob[:, c])[:K]
+            topk[c] = set(order.tolist())
+            prec[c] = float((y[order] == c).mean())
         parts = d.relative_to(root).parts
         # THE CELL IS THE KEY. Two runs that differ in cap level are two
         # different cells and must never share a baseline row -- this scorer
@@ -111,6 +140,7 @@ def main():
             "ap": float(average_precision_score(oh, prob[:, present],
                                                 average="macro")),
             "alloc": al, "raw": rw, "cap": cap,
+            "topk": topk, "prec": prec,
             "n_c2": int((pa == 2).sum()), "n_c4": int((pa == 4).sum()),
             "n_c2_raw": int((pr == 2).sum()), "n_c4_raw": int((pr == 4).sum()),
         })
@@ -139,6 +169,29 @@ def main():
             print("%-30s %9.4f%-11s %8.4f%s" % (
                 o["run"], o["auroc"], delta(o["auroc"], base and base["auroc"]),
                 o["ap"], delta(o["ap"], base and base["ap"])))
+
+        if any(o["prec"] for o in rows):
+            print("
+AT THE OPERATING POINT -- top K_c by p_c, which is all a cap uses")
+            print("%-30s %6s %9s %9s %s" % (
+                "run", "class", "prec@K", "K", "Jaccard vs baseline"))
+            print("-" * 82)
+            for o in rows:
+                for c in sorted(o["prec"]):
+                    j = ""
+                    if base is not None and c in base["topk"] and o is not base:
+                        a, b = base["topk"][c], o["topk"][c]
+                        j = "%.3f" % (len(a & b) / max(1, len(a | b)))
+                    print("%-30s %6d %9.4f %9d %s" % (
+                        o["run"], c, o["prec"][c], len(o["topk"][c]), j))
+            print("
+A low Jaccard with an unchanged prec@K is CHURN: the run"
+                  "
+replaced the selected items and gained nothing where the"
+                  "
+cap binds. Measured 2026-08-20: Jaccard 0.29-0.42 with"
+                  "
+prec@K identical to the control on both capped classes.")
 
         for view in ("raw", "alloc"):
             tag = ("RAW argmax -- did the constraint leave a better classifier?"
