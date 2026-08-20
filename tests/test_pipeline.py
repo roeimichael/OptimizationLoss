@@ -1376,6 +1376,63 @@ def test_ce_skip_is_a_live_gate_not_an_inert_flag():
     assert r.should_skip(), "the gate must latch"
 
 
+def test_normalize_delivers_the_same_step_size_whatever_the_raw_norm():
+    """The point of `normalize`: the dose stops depending on the arm.
+
+    Under `clip` a gradient below the threshold passes through untouched, which
+    is why hounie (raw norm 0.005-0.11 against a clip of 1.0) took a step ~20x
+    smaller than tralo's on every one of its 29 epochs while both configs said
+    constraint_grad_clip: 1.0.
+    """
+    import torch
+    from src.training.constraint_step import finish_constraint_step
+
+    def step(raw_scale, mode):
+        m = torch.nn.Linear(4, 1, bias=False)
+        with torch.no_grad():
+            m.weight.fill_(0.0)
+        m.weight.grad = torch.full((1, 4), raw_scale)
+        before = m.weight.detach().clone()
+        finish_constraint_step(m, None, None, 1.0, mode=mode,
+                               fp32=True, step_rule="sgd", lr=1.0)
+        return float((m.weight.detach() - before).norm())
+
+    # raw norm 0.02 (far below the clip) and 20.0 (far above)
+    small_clip, big_clip = step(0.01, "clip"), step(10.0, "clip")
+    small_nrm, big_nrm = step(0.01, "normalize"), step(10.0, "normalize")
+
+    assert small_clip == pytest.approx(0.02, rel=1e-5), small_clip
+    assert big_clip == pytest.approx(1.0, rel=1e-5), big_clip
+    assert small_clip < big_clip / 10, (
+        "under `clip` a below-threshold gradient keeps its own magnitude -- "
+        "this is the hounie asymmetry, and it must stay reproducible")
+
+    assert small_nrm == pytest.approx(1.0, rel=1e-5), small_nrm
+    assert big_nrm == pytest.approx(1.0, rel=1e-5), big_nrm
+    assert small_nrm == pytest.approx(big_nrm, rel=1e-6), (
+        "under `normalize` the delivered step must be the same size no matter "
+        "what the arm's natural gradient scale is -- that is the whole point")
+
+
+def test_a_non_finite_constraint_gradient_never_moves_the_weights():
+    """fioretto lost 10 of 29 epochs to NaN/inf. It must lose them SAFELY."""
+    import torch
+    from src.training.constraint_step import finish_constraint_step
+
+    for bad in (float("nan"), float("inf")):
+        m = torch.nn.Linear(4, 1, bias=False)
+        with torch.no_grad():
+            m.weight.fill_(1.0)
+        m.weight.grad = torch.full((1, 4), bad)
+        before = m.weight.detach().clone()
+        raw, applied = finish_constraint_step(m, None, None, 1.0,
+                                              mode="normalize", fp32=True,
+                                              step_rule="sgd", lr=1.0)
+        assert not applied, "a %s gradient must not take the step" % bad
+        assert torch.equal(m.weight.detach(), before), (
+            "weights moved on a %s gradient" % bad)
+
+
 @pytest.mark.parametrize("arm", ["tralo", "fioretto_ldf", "hounie_rcl",
                                  "fioretto_alm"])
 def test_no_arm_hand_rolls_its_own_constraint_step(arm):
