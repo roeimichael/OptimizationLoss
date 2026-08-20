@@ -280,6 +280,36 @@ this shape starves. Shape sets the see-saw's SIZE in exactly the predicted order
 `penalty_shape` as the dial on the coupling, never as a remedy. And note the two views
 disagree -- worse on every allocation-free measure, better after allocation.
 
+### (6) At `L30_G20` a COIN does the same damage -- the direction carries no information
+
+`constraint_random_direction` replaces the constraint gradient with a random vector of
+the SAME norm: the dose is held exactly and only the information is removed. It is the
+control that `separate_constraint_optimizer` never had -- that arm moved 8,900x further
+and cost AP -0.0938, and nothing could say which half of the change did it.
+
+dermmnist x ViTB16 x `L30_G20`, classes 2+4, 4 epochs, `d capF1` paired against the
+same lambda=0 controls in every row:
+
+| arm | mean `d capF1` | seeds positive |
+|---|---|---|
+| `rational_bounded` (the shipped penalty) | -0.0112 | 1/4 |
+| `linear` | -0.0122 | 0/4 |
+| **`randdir` -- a coin, same step size** | **-0.0093** | 0/4 |
+
+**Indistinguishable.** At this cap the constraint does nothing a random step of the same
+size would not do, and **no shape and no dose can fix that, because there is no signal to
+tune.** This is the cleanest available statement of why ~13 penalty-shape arms and ~20
+arms overall tied: they were all tuning the direction of a step whose direction does not
+matter here.
+
+⚠️ **It is cap-specific, and must be re-run per cell before being generalised.** At
+`L50_G30` the `linear` shape is the one (shape x cap) combination in four that scores
+POSITIVE (`d capF1` +0.0078, 4/4 seeds, sd 0.0017) and improves prec@K at every k from
+20 to 150 on class 2. Whether that survives the same coin is the question that decides
+whether any of this is a method.
+
+---
+
 ### (5) No count trajectory is attributable without a lambda=0 control
 
 At warm-up 1 the model is barely trained and every later epoch takes **126 CE steps
