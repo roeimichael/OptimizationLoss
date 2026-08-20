@@ -104,6 +104,38 @@ carries the opposite sign to the other two on AP, ccF1, macroF1, macroP and acc
 for both arms -- so the pooled cell-level mean is averaging a disagreement, which
 is mistake pattern 15 operating one level up.
 
+## 1a. ⚠️ PROVENANCE OF THE PROTOCOL'S OWN NUMBERS (audited 2026-08-20)
+
+**A frozen protocol is not a validated one.** Section 1 fixes these values so
+that arms are comparable to each other -- that is what it is for, and it works.
+It does NOT establish that any of them is a good value, and this document has
+been read as if it did. Audited against every claim in this repository:
+
+| value | set to | what actually backs it |
+|---|---|---|
+| `total_epochs` | 30 | ⛔ **nothing.** The stated reason is "equal compute: 30 optimizer epochs on both sides", but equal compute constrains the RATIO (`warmup_posthoc == warmup_trained + constraint_trained`), not the total. 30 could be 60 or 300 and still be equal. The paper's own protocol was 50 + 300. |
+| `trained_warmup` | 1 | ⚠️ **partly.** warm-up 50 saturating CE IS measured (242/242 feasibility, section 3). "warm-up 5 is a dead zone" is **asserted twice in this file and measured nowhere** -- there is no campaign, no receipt, no corpus row. It is the stated reason for choosing 1 over anything between. |
+| `constraint_epochs` | 29 | ⛔ **residue.** It is `total_epochs - trained_warmup`, never chosen. |
+| `stable_count_threshold` | 31 | ⛔ **structurally unreachable.** It early-stops after N CONSECUTIVE satisfied epochs, and there are only 29 epochs. It can never fire. `fioretto_alm/train.py:48` admits this in a test comment ("5 against 31, low enough that the early stop would actually fire"). It is a disabled knob written as a live setting. |
+| `constraint_grad_clip` | 1.0 | ⚠️ **the clip is load-bearing (measured); the VALUE is not.** protocol.yml itself says "Sweep 0.3 / 1.0 / 3.0 to get a dose-response curve" -- that sweep has never run. It was hardcoded in four trainers before it was a config key at all. |
+| `lambda_step` / `lambda_global` / `lambda_local` | 0.05 / 0.01 / 0.01 | ⛔ one mention each, no sweep. Largely moot for MAGNITUDE (the clip cancels it) but NOT for the scope mix -- with a global scope plus 3 local groups the gradient is a weighted SUM, and these weights set the mix, which survives the clip. |
+| `initial_rho` / `rho_target` | 0.5 / 100.0 | ⛔ no sweep. Same magnitude/direction split as above. |
+| `lr` / `lr_constraint` | 1e-4 | ⚠️ the CONSTRAINT that they be equal is well-measured (the LR trap fabricated -16.7pp). The VALUE 1e-4 is inherited. |
+| `dropout` | 0.3 | ⛔ no sweep. |
+| `batch_size` | 64 | ⛔ **not mentioned once in this document.** |
+| `hounie_alpha` | 10.0 | ⛔ **not mentioned once**, and it sets hounie's analytic lambda CEILING at `2*alpha*mean_l` -- the single number that decides whether that arm can reach a dose comparable to the others at all. |
+| `fioretto_step_size` | 0.005 | ⛔ no sweep. |
+
+🛑 **So: do not cite section 1 as evidence that a value is right.** Cite it as
+the reason two arms are comparable. When a result depends on a value in this
+table, the value is a free parameter that happened to be frozen, and saying so
+is the honest report.
+
+⚠️ **And nothing in this table can be swept until the noise floor is fixed.**
+The same arm, same seed, same config scored macro-F1 0.6709 and 0.7015 on two
+runs -- 0.0306 apart, ~18x the headline effect. An HP sweep read through that
+much noise measures the kernels, not the hyperparameter.
+
 ## 1. THE PROTOCOL -- fixed, non-negotiable, applies to every run
 
 Any campaign that violates a line here is invalid and gets deleted, not debugged.
