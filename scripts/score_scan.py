@@ -33,7 +33,19 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import f1_score, roc_auc_score, average_precision_score
 
-CAPPED = (2, 4)
+def capped_classes(run_dir):
+    """The capped classes, from the run's own config.
+
+    Hardcoding them is how the granularity read went wrong: a swept dimension
+    that lives only in a directory name is a dimension that gets pooled away.
+    """
+    import json
+    try:
+        c = json.loads((run_dir / "config.json").read_text(encoding="utf-8"))
+        v = c.get("dataset_config", {}).get("constrained_class", [])
+        return tuple(v) if isinstance(v, (list, tuple)) else (int(v),)
+    except Exception:
+        return ()
 
 
 def read(path):
@@ -44,7 +56,7 @@ def read(path):
     return y, p, prob
 
 
-def row(y, pred):
+def row(y, pred, CAPPED):
     f1 = f1_score(y, pred, average=None, labels=sorted(set(y.tolist())),
                   zero_division=0)
     lab = sorted(set(y.tolist()))
@@ -53,8 +65,8 @@ def row(y, pred):
     return {
         "acc": float((y == pred).mean()),
         "macroF1": float(np.mean(f1)),
-        "F1_c2": float(per.get(2, float("nan"))),
-        "F1_c4": float(per.get(4, float("nan"))),
+        "F1_cap": float(np.mean([per[c] for c in lab if c in CAPPED]))
+                  if any(c in CAPPED for c in lab) else float("nan"),
         "F1_unc": float(np.mean(unc)) if unc else float("nan"),
     }
 
@@ -64,8 +76,12 @@ def main():
     a.add_argument("root")
     args = a.parse_args()
 
-    dirs = sorted(d for d in Path(args.root).iterdir()
+    root = Path(args.root)
+    dirs = sorted(d for d in root.iterdir()
                   if d.is_dir() and (d / "final_predictions.csv").exists())
+    if not dirs:
+        # Nested campaign layout (<root>/<model>/<data>/<cap>/<arm>/<seed>/).
+        dirs = sorted(f.parent for f in root.rglob("final_predictions.csv"))
     if not dirs:
         print("no scored runs under %s" % args.root)
         return 1
@@ -74,20 +90,29 @@ def main():
     for d in dirs:
         y, pa, prob = read(d / "final_predictions.csv")
         _, pr, _ = read(d / "final_predictions_raw.csv")
-        al, rw = row(y, pa), row(y, pr)
+        cap = capped_classes(d)
+        al, rw = row(y, pa, cap), row(y, pr, cap)
         present = sorted(set(y.tolist()))
         oh = np.eye(prob.shape[1])[y][:, present]
         out.append({
-            "run": d.name,
+            "run": (d.name if d.parent == root
+                    else "/".join(d.relative_to(root).parts[-2:])),
             "auroc": float(roc_auc_score(oh, prob[:, present], average="macro")),
             "ap": float(average_precision_score(oh, prob[:, present],
                                                 average="macro")),
             "alloc": al, "raw": rw,
+            "cap": cap,
             "n_c2": int((pa == 2).sum()), "n_c4": int((pa == 4).sum()),
             "n_c2_raw": int((pr == 2).sum()), "n_c4_raw": int((pr == 4).sum()),
         })
 
-    base = next((o for o in out if o["run"] == "null"), None)
+    # null first: it is the CE-only counterfactual and the only row that
+    # isolates the constraint. clip is a fallback so a campaign without a null
+    # is still read against its bar rather than against zero.
+    base = (next((o for o in out if o["run"].split("/")[0] == "null"), None)
+            or next((o for o in out if o["run"].split("/")[0] == "clip"), None))
+    if base is not None:
+        print("\nbaseline row for the deltas: %s" % base["run"])
 
     def delta(v, b):
         return "" if b is None else " (%+.4f)" % (v - b)
@@ -105,18 +130,18 @@ def main():
                if view == "raw" else
                "AFTER ALLOCATION -- the deployable output, and the flattering one")
         print("\n%s" % tag)
-        print("%-24s %8s %8s %8s %8s %8s   %s" % (
-            "run", "acc", "macroF1", "F1_c2", "F1_c4", "F1_unc", "pred c2/c4"))
-        print("-" * 92)
+        print("%-24s %8s %18s %8s %8s   %s" % (
+            "run", "acc", "macroF1", "F1_cap", "F1_unc", "pred c2/c4"))
+        print("-" * 88)
         for o in out:
             m = o[view]
             b = base[view] if base else None
             n2 = o["n_c2_raw"] if view == "raw" else o["n_c2"]
             n4 = o["n_c4_raw"] if view == "raw" else o["n_c4"]
-            print("%-24s %8.4f %8.4f%s %8.4f %8.4f %8.4f   %d/%d" % (
+            print("%-24s %8.4f %8.4f%-10s %8.4f %8.4f   %d/%d" % (
                 o["run"], m["acc"], m["macroF1"],
                 delta(m["macroF1"], b and b["macroF1"]),
-                m["F1_c2"], m["F1_c4"], m["F1_unc"], n2, n4))
+                m["F1_cap"], m["F1_unc"], n2, n4))
 
     print("\nn=1, four epochs, and dermmnist's test set shares lesion_ids with")
     print("its training set -- so no absolute number here is quotable. These")
