@@ -30,6 +30,7 @@ from src.losses import MulticlassTransductiveLoss
 from src.pipeline.contracts import TrainInputs, TrainOutputs
 from src.pipeline.setup import setup_runtime
 from src.pipeline.warmup import make_ce_criterion, make_dataloader, make_optimizer
+from src.training.ce_schedule import CESaturationSkip
 from src.training.logging import log_progress_to_csv, write_csv_header
 from src.training.metrics import compute_prediction_statistics
 from src.training.reordering import capped_scores, reordering_report
@@ -139,6 +140,12 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     warmup_scores = capped_scores(model, X_test, constrained_classes,
                                   chunk_size, device)
 
+    # ONE schedule object, built from the SHARED constraint_phase block, so a
+    # campaign cannot run this gate for one arm and not another -- the exact
+    # defect that got the original CE-skip deleted.
+    ce_skip = CESaturationSkip(hp)
+    cached_train_acc = 0.0
+
     for epoch in range(warmup_epochs, total_epochs):
         # ---- CE pass ----
         model.train()
@@ -147,7 +154,8 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         epoch_ce = 0.0
         num_batches = max(len(train_loader), 1)
         train_correct, train_total = 0, 0
-        for batch_X, batch_y in train_loader:
+        for batch_X, batch_y in ([] if ce_skip.should_skip()
+                                 else train_loader):
             batch_X, batch_y = batch_X.to(device), batch_y.to(device)
             optimizer.zero_grad(set_to_none=True)
             with torch.amp.autocast("cuda", dtype=amp_dtype, enabled=use_amp):
@@ -164,7 +172,9 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             with torch.no_grad():
                 train_correct += (logits_ce.argmax(dim=1) == batch_y).sum().item()
                 train_total += batch_y.size(0)
-        cached_train_acc = train_correct / train_total if train_total > 0 else 1.0
+        cached_train_acc = ((train_correct / train_total)
+                            if train_total > 0 else cached_train_acc)
+        ce_skip.update(cached_train_acc, epoch)
 
         # ---- Transductive pass 1: aggregate soft + hard counts (no_grad, eval) ----
         model.eval()

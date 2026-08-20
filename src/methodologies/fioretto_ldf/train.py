@@ -18,6 +18,7 @@ from src.pipeline.contracts import TrainInputs, TrainOutputs
 from src.pipeline.setup import setup_runtime
 from src.pipeline.warmup import (make_ce_criterion, make_dataloader,
                                  make_optimizer)
+from src.training.ce_schedule import CESaturationSkip
 from src.training.reordering import capped_scores, reordering_report
 from src.utils.constants import UNLIMITED
 
@@ -135,6 +136,12 @@ def _train_constraints(model, config, inputs, device):
         csv.DictWriter(f, log_fields).writeheader()
 
     stable_count = 0  # consecutive epochs with all_satisfied for early-stop parity with TraLO
+    # ONE schedule object, built from the SHARED constraint_phase block, so a
+    # campaign cannot run this gate for one arm and not another -- the exact
+    # defect that got the original CE-skip deleted.
+    ce_skip = CESaturationSkip(hp)
+    cached_train_acc = 0.0
+
     for epoch in range(constraint_epochs):
         epoch_start = time.time()
 
@@ -142,7 +149,8 @@ def _train_constraints(model, config, inputs, device):
         model.train()
         ce_losses = []
         train_correct, train_total = 0, 0
-        for batch_X, batch_y in train_loader:
+        for batch_X, batch_y in ([] if ce_skip.should_skip()
+                                 else train_loader):
             batch_X, batch_y = batch_X.to(device), batch_y.to(device)
             optimizer.zero_grad(set_to_none=True)
             with torch.amp.autocast("cuda", dtype=amp_dtype, enabled=use_amp):
@@ -159,6 +167,10 @@ def _train_constraints(model, config, inputs, device):
             with torch.no_grad():
                 train_correct += (logits_ce.argmax(dim=1) == batch_y).sum().item()
                 train_total += batch_y.size(0)
+
+        cached_train_acc = ((train_correct / train_total)
+                            if train_total > 0 else cached_train_acc)
+        ce_skip.update(cached_train_acc, epoch)
 
         # ---- Step 2: constraint gradient on TEST data (transductive) ----
         # Apples-to-apples with TraLO: use model.eval() during the transductive

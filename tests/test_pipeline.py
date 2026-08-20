@@ -1299,3 +1299,97 @@ def test_every_training_log_gets_a_header_not_just_tralo_s(tmp_path):
     assert "Grad_Norm" in df.columns and "Lambda_Global" in df.columns
     assert float(df["Grad_Norm"].iloc[0]) == 1.5
     assert float(df["Lambda_Global"].iloc[0]) == 0.25
+
+
+def test_ce_skip_lives_in_the_shared_block_and_reaches_every_trained_arm():
+    """The defect that got CE-skip deleted was ASYMMETRY, not the mechanism.
+
+    `enable_ce_skip` was declared by TraLO alone, so a campaign ran the gate off
+    for TraLO and on for both duals -- a 0.22 cc-F1 artifact against a
+    0.019-0.031 margin. The structural fix is that the keys live in
+    `constraint_phase`, which every trained arm includes and no post-hoc arm
+    does, so one assignment reaches all of them or none.
+    """
+    import yaml
+    proto = yaml.safe_load(open("configs/protocol.yml", encoding="utf-8"))
+    cp = proto["constraint_phase"]
+    assert "ce_skip_acc" in cp and "ce_skip_patience" in cp
+    assert cp["ce_skip_acc"] == 0.0, (
+        "the committed default must be OFF -- every result so far was produced "
+        "with CE running every epoch")
+
+    trained = [a for a, spec in proto["arms"].items()
+               if spec.get("phase") == "trained"]
+    assert len(trained) >= 4
+    for arm in trained:
+        assert "constraint_phase" in proto["arms"][arm]["blocks"], (
+            "%s is a trained arm that does NOT include constraint_phase, so the "
+            "CE-skip gate would silently miss it" % arm)
+    for arm, spec in proto["arms"].items():
+        if spec.get("phase") == "posthoc":
+            assert "constraint_phase" not in (spec.get("blocks") or []), (
+                "%s is post-hoc; emitting a constraint-phase key for it would "
+                "be a key with no reader" % arm)
+
+    # and no arm-level block may redeclare it -- that is how the asymmetry
+    # reappears
+    for name, blk in (proto.get("blocks") or {}).items():
+        if isinstance(blk, dict):
+            for k in ("ce_skip_acc", "ce_skip_patience", "enable_ce_skip"):
+                assert k not in blk, (
+                    "block %r redeclares %s; it must come ONLY from the shared "
+                    "constraint_phase block" % (name, k))
+
+
+def test_ce_skip_is_a_live_gate_not_an_inert_flag():
+    """A flag that is read but changes nothing is this project's #1 failure."""
+    from src.training.ce_schedule import CESaturationSkip
+
+    off = CESaturationSkip({"ce_skip_acc": 0.0})
+    assert not off.enabled
+    for e in range(10):
+        off.update(1.0, e)
+    assert not off.should_skip(), "a disabled gate must never fire"
+
+    on = CESaturationSkip({"ce_skip_acc": 0.995, "ce_skip_patience": 2})
+    assert on.enabled
+    on.update(0.99, 0)
+    assert not on.should_skip(), "below threshold must not arm the gate"
+    on.update(0.996, 1)
+    assert not on.should_skip(), "one saturated epoch is not `patience`"
+    on.update(0.997, 2)
+    assert on.should_skip(), "two consecutive saturated epochs must fire it"
+    assert on.skip_from_epoch == 2
+
+    # the streak must RESET on a dip, or patience means nothing
+    r = CESaturationSkip({"ce_skip_acc": 0.995, "ce_skip_patience": 2})
+    r.update(0.996, 0)
+    r.update(0.5, 1)
+    r.update(0.996, 2)
+    assert not r.should_skip(), "a dip must reset the streak"
+    r.update(0.996, 3)
+    assert r.should_skip()
+
+    # and once fired it LATCHES -- an un-latching gate would let the 126 CE
+    # steps per epoch back in, which is the force it exists to remove
+    r.update(0.1, 4)
+    assert r.should_skip(), "the gate must latch"
+
+
+@pytest.mark.parametrize("arm", ["tralo", "fioretto_ldf", "hounie_rcl",
+                                 "fioretto_alm"])
+def test_every_trained_arm_wires_the_same_ce_skip(arm):
+    """All four must construct it, gate the CE loop on it, and feed it.
+
+    Checked as source structure rather than behaviour because the failure being
+    guarded is one arm silently not having the wiring at all -- which is
+    invisible to any test that only runs the arms that do.
+    """
+    src = open("src/methodologies/%s/train.py" % arm, encoding="utf-8").read()
+    assert "from src.training.ce_schedule import CESaturationSkip" in src
+    assert "ce_skip = CESaturationSkip(hp)" in src, (
+        "%s does not construct the gate" % arm)
+    assert "[] if ce_skip.should_skip()" in src, (
+        "%s does not gate its CE pass on it" % arm)
+    assert "ce_skip.update(cached_train_acc, epoch)" in src, (
+        "%s never feeds the gate, so it could never fire" % arm)
