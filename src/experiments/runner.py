@@ -61,9 +61,20 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     seed_all(seed)
     log.info("Running %s on %s (model=%s)", config_path, device, config['model_name'])
     if torch.cuda.is_available():
-        log.info("GPU: %s | CUDA: %s | BF16: %s",
+        # Report the regime actually SELECTED, not a capability probe.
+        # This line used to print torch.cuda.is_bf16_supported(), which returns
+        # True on the Quadro RTX 6000 (Turing, sm_75) because PyTorch emulates
+        # bf16 there -- so dsisco01's log said "BF16: True" on every run while
+        # setup_runtime, which gates on gpu_arch >= 8, correctly selected
+        # FP16 + GradScaler. The numbers were right and the log contradicted
+        # them. The FP16 path SKIPS an overflowing optimizer step and the BF16
+        # path does not, so which regime ran is exactly the thing an analysis
+        # has to know, and the one thing this line got wrong.
+        _prov = runtime_provenance(device)
+        log.info("GPU: %s | CUDA: %s | AMP: %s%s",
                  torch.cuda.get_device_name(0), torch.version.cuda,
-                 torch.cuda.is_bf16_supported())
+                 _prov["amp_dtype"],
+                 " + GradScaler" if _prov["grad_scaler"] else " (no scaler)")
     data = load_data(config)
     X_train_tensor = data.X_train
     y_train_tensor = data.y_train
