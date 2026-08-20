@@ -493,10 +493,60 @@ epochs of CE plus a numerically negligible nudge.
 
 Deciding this requires choosing a convention and re-deriving each paper's step
 size in it. **Until then, do not claim these are three distinct dual
-baselines.** `Grad_Norm` is now logged per epoch in all four trained arms
-(replacing the dead `L_KL` column), so the first campaign under this protocol
-answers empirically how often each arm's raw norm crosses 1.0. Read it before
-deciding.
+baselines.**
+
+### ✅ ANSWERED 2026-08-20, on real data (`results/vit_diag`, ViTB16 x dermmnist x L30_G30, seed 1)
+
+The paragraph above said the first campaign under this protocol would answer
+empirically how often each arm's raw norm crosses 1.0. It did.
+
+| arm | raw `grad_norm` over 29 epochs | clip=1.0 binds | non-finite epochs |
+|---|---|---|---|
+| `fioretto` | median **51,580**, max 80,827 | **18/19 finite (94.7%)** | **10 of 29 (34%)** |
+| `hounie` | max **0.1105** | **0 of 29 (0%)** | 0 |
+
+Same dataset, same backbone, same seed, same budget. The two arms are **five to
+six orders of magnitude apart in the quantity the clip acts on**, which is the
+derivation above confirmed at full scale rather than on the smoke harness.
+
+Three consequences, all measured:
+
+1. **`fioretto` loses a THIRD of its constraint phase to fp16 overflow.** Six
+   NaN and four inf epochs; `GradScaler` records `found_inf` and `scaler.step()`
+   skips. It ran a 19-epoch constraint phase where its config says 29 -- and how
+   many it loses depends on the CARD, so this is a dose confound BETWEEN
+   SERVERS, not just between arms.
+2. **`hounie`'s constraint phase is 29 epochs of CE plus nothing.** `max_lam_g`
+   reached 0.0168 against its own ceiling of `2*alpha*mean_l` = 0.829 -- 2% of
+   the way -- and `constraint_loss` peaked at 0.0089 against fioretto's 7,601.
+   `all_satisfied` was 0 on every epoch for both arms.
+3. ⚠️ **Neither arm sits in the usable window.** For an arm to receive the
+   treatment its config describes, its raw norm must be **above 1.0** (or the
+   clip never binds and the arm is untreated) and **below ~1e4** (or fp16
+   overflow eats steps). `hounie` is below the floor, `fioretto` is above the
+   ceiling. **The window is roughly 1 to 1e3, and it is the target any
+   calibration should aim at** -- not the largest norm that still runs.
+
+### ✅ AND: `lp` IS a distinct arm -- the SCORER is what cannot see it
+
+Same campaign, `clip` vs `lp`, which share a warm-up by design and differ only
+in the allocator:
+
+    final_predictions_raw.csv   clip dd71977d6177 == lp dd71977d6177   IDENTICAL
+    final_predictions.csv       clip a24d4150d25e != lp cbd570b7fdfa   DIFFERENT
+
+The raw probabilities are bit-identical, as designed. **The shipped predictions
+are not.** So the LP-LG allocator is a real, separate treatment even at ONE
+capped class -- which matches the synthetic measurement above (136 of 300 items
+placed differently at a single capped class with only a global cap, because
+greedy is blind to the opportunity cost the LP prices in).
+
+🛑 A reviewer claimed `danits_lp` is identical to `clip` by construction and
+therefore unmeasurable forever. **The arms differ; `full_panel.py` is what is
+blind**, because it rebuilds an allocation from the probability matrix and
+scores that, so two arms with the same probabilities score identically on all 13
+metrics no matter what they actually shipped. Fixing the scorer is what makes
+this arm measurable -- not changing the arm.
 
 **2. The trained arms restart the optimizer at the warm-up boundary; the
 post-hoc arms do not.** `run_warmup` builds an Adam and drops it; the
