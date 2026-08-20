@@ -292,13 +292,13 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             scaler.unscale_(optimizer)
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=CLIP)
             last_grad_norm = float(grad_norm)
-            if grad_norm > 0:
+            if torch.isfinite(grad_norm) and grad_norm > 0:
                 scaler.step(optimizer)
             scaler.update()
         elif not scaler and did_backward:
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=CLIP)
             last_grad_norm = float(grad_norm)
-            if grad_norm > 0:
+            if torch.isfinite(grad_norm) and grad_norm > 0:
                 optimizer.step()
 
         avg_ce = epoch_ce / num_batches

@@ -278,14 +278,14 @@ def _train_constraints(model, config, inputs, device):
                     grad_norm = torch.nn.utils.clip_grad_norm_(
                         model.parameters(), max_norm=CLIP)
                     last_grad_norm = float(grad_norm)
-                    if grad_norm > 0:
+                    if torch.isfinite(grad_norm) and grad_norm > 0:
                         scaler.step(optimizer)
                     scaler.update()
                 else:
                     grad_norm = torch.nn.utils.clip_grad_norm_(
                         model.parameters(), max_norm=CLIP)
                     last_grad_norm = float(grad_norm)
-                    if grad_norm > 0:
+                    if torch.isfinite(grad_norm) and grad_norm > 0:
                         optimizer.step()
 
         # ---- Step 3: subgradient dual update (Fioretto Eq. 5) ----
