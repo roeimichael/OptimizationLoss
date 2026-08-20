@@ -268,11 +268,16 @@ def main():
                    default=None,
                    help="rational_bounded is the manuscript's Eq. 4 and the "
                         "default. Its gradient VANISHES on the worst "
-                        "violations, which with several capped scopes starves "
-                        "the deepest violator: measured multi-class, class 4 "
-                        "at 1.3x budget was pulled to the cap while class 2 at "
-                        "9.3x budget rose untouched. linear and squared have "
-                        "constant and growing pull with depth.")
+                        "violations, so with several capped scopes the "
+                        "deepest violator gets the weakest pull. Measured "
+                        "multi-class against a lambda=0 control, that shows "
+                        "up as a SEE-SAW: every shape pushes one capped "
+                        "class down and the other up, because the softmax "
+                        "makes them compete and the starved class cannot "
+                        "resist. Shape sets the see-saw SIZE -- class 2 "
+                        "moved +197 under rational_bounded, +112 squared, "
+                        "+86 linear -- but no shape reduced total excess. "
+                        "It is a dial on the coupling, not a fix.")
     a.add_argument("--constraint-step-rule", choices=["shared", "sgd"],
                    default=None,
                    help="shared: the constraint step goes through the same "

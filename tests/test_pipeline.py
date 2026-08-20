@@ -1379,14 +1379,23 @@ def test_ce_skip_is_a_live_gate_not_an_inert_flag():
 def test_the_bounded_shape_starves_the_deepest_violator_and_the_hinges_do_not():
     """The measured multi-class failure, pinned as a property.
 
-    dermmnist classes 2+4 capped at L30_G20, 4 epochs, 2026-08-20: class 4 at
-    1.3x its budget was pulled to 57 against K=45, while class 2 at 9.3x its
-    budget ROSE to 410 against K=44 and was never touched. The shipped shape's
-    gradient is non-monotone in the violation, so the DEEPER violator gets the
-    weaker pull -- backwards for a penalty.
+    This asserts a GRADIENT property, which is why it is a unit test and not a
+    reading of a training log. Counts cannot establish it: measured against a
+    lambda=0 control on dermmnist with classes 2+4 capped at L30_G20, CE alone
+    swings the capped counts 242 -> 227 -> 324 -> 233 over four epochs with the
+    penalty identically off, so no count trajectory is attributable to the
+    shape without that control.
 
-    Single-class runs cannot show this: their spread across scopes has median
-    1.5x, and at equal relative excess the shape is exactly inert.
+    What the control DOES show is the consequence of the property below. Every
+    shape pushed class 4 down and class 2 up -- a see-saw, because the softmax
+    makes the capped classes compete and the class that should resist is the
+    one this shape starves. Shape set the see-saw's size in the order this test
+    fixes: class 2 moved +197 under rational_bounded, +112 under squared, +86
+    under linear.
+
+    Single-class runs cannot show any of it: their spread of relative excess
+    across scopes has median 1.5x, and at equal excess the shape is exactly
+    inert -- a common scalar times a fixed direction, divided out by the clip.
     """
     import torch
     from src.losses.transductive_loss import MulticlassTransductiveLoss, UNLIMITED
