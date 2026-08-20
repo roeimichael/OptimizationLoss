@@ -1203,3 +1203,63 @@ def test_panel_labels_the_capped_cell_the_same_way_for_scalar_and_list(
     r = panel_mod.panel(str(d), cfg)
     assert r is not None, "a well-formed run must be scorable"
     assert r["capped"] == expect
+
+
+@pytest.mark.parametrize("pct", [0.30, 0.50])
+def test_targeted_correction_spends_the_whole_reachable_budget(pct):
+    """The allocator every TRAINED arm uses must fill to exactly K.
+
+    Nothing in this suite called targeted_correction before, and that is
+    precisely why a regression shipped: a global-budget check added to the
+    local FILL phase, while 3a and 3b were interleaved per group, blocked the
+    fill for every group processed before the reductions that free the room.
+    The trained arms then under-spent the capped-class budget by ~4-5% while
+    the clippers -- which never call this function -- filled to exactly K.
+
+    An asymmetry that size is the size of the entire effect under study, and it
+    pointed the same way, so it would have read as a real loss for the trained
+    arms. Assert the invariant force_exact=True actually promises.
+    """
+    import numpy as np
+    import pandas as pd
+
+    from src.training.constraints import (compute_global_constraints,
+                                          compute_local_constraints)
+    from src.utils.posthoc_adjustment import targeted_correction
+
+    n, n_cls, n_grp, capped = 2000, 7, 7, [4]
+    for seed in range(8):
+        rng = np.random.default_rng(seed)
+        y = rng.integers(0, n_cls, n)
+        g = rng.integers(0, n_grp, n)
+        logits = rng.normal(size=(n, n_cls))
+        logits[:, capped[0]] += 0.8          # over-predict the capped class
+        e = np.exp(logits - logits.max(axis=1, keepdims=True))
+        proba = e / e.sum(axis=1, keepdims=True)
+
+        df = pd.DataFrame({"label": y, "grp": g})
+        gcon = compute_global_constraints(df, "label", pct,
+                                          constrained_class=capped,
+                                          num_classes=n_cls)
+        lcon = compute_local_constraints(df, "label", pct, "grp",
+                                         constrained_class=capped,
+                                         num_classes=n_cls)
+        y_pred, _, meta = targeted_correction(proba, g, gcon, lcon, capped)
+
+        c = capped[0]
+        # local caps are per-GROUP ceilings, so their sum also bounds the count
+        reachable = min(gcon[c], sum(lcon[gid][c] for gid in lcon))
+        got = int((y_pred == c).sum())
+        assert got == reachable, (
+            "seed %d pct %s: filled %d of a reachable %d -- the trained arms "
+            "would score against clippers that fill to exactly K"
+            % (seed, pct, got, reachable))
+
+        # and it must still be FEASIBLE, which is what the global check exists
+        # for -- filling to the budget must not overshoot any cap
+        assert got <= gcon[c], "global cap violated"
+        for gid in lcon:
+            in_g = int((y_pred[g == gid] == c).sum())
+            assert in_g <= lcon[gid][c], (
+                "local cap violated in group %s: %d > %d"
+                % (gid, in_g, lcon[gid][c]))

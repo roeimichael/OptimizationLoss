@@ -329,12 +329,28 @@ def targeted_correction(y_proba, group_ids, global_con, local_con,
             filled += 1
 
     # Phase 3: Local enforcement (bidirectional per group)
+    #
+    # 3a and 3b run as TWO SEPARATE passes over the groups, and that ordering is
+    # load-bearing. They used to be interleaved -- one loop doing 3a then 3b for
+    # each group in turn -- and the global-budget check added to 3b then blocked
+    # the fill for every group processed before the reductions that free the
+    # room. Phase 1 leaves the global count sitting exactly ON the cap, so
+    # global_gap == 0 when Phase 3 begins and the first group's 3b broke out
+    # immediately; the later groups' 3a reductions did free global room, but
+    # those earlier groups were already finished. Result: the trained arms quietly
+    # under-spent the capped-class budget by ~4-5% (realized/reachable 0.954 at
+    # L30_G30, 0.959 at L50_G50 over 60 synthetic derm-shaped instances) while
+    # the clippers, which never call this function, filled to exactly K. That is
+    # a trained-vs-post-hoc asymmetry the same size as the entire effect under
+    # study, pointing the same way -- an artifactual loss for the trained arms.
+    # Reductions first, then fills: realized/reachable returns to 1.0000 at every
+    # cap tag with zero LP fallbacks.
     if local_con and group_ids is not None:
+        # 3a: Reduce over-limit locally -- EVERY group, before any fill.
         for gid, group_limits in local_con.items():
             g_mask = (group_ids == gid)
             g_indices = np.where(g_mask)[0]
 
-            # 3a: Reduce over-limit locally
             for c in constrained_classes:
                 if gid not in local_gap or c not in local_gap[gid]:
                     continue
@@ -357,7 +373,12 @@ def targeted_correction(y_proba, group_ids, global_con, local_con,
                     total_flips += 1
                     flipped += 1
 
-            # 3b: Fill under-limit locally
+        # 3b: Fill under-limit locally -- second pass, now that every group's
+        # reduction has already returned its room to the global budget.
+        for gid, group_limits in local_con.items():
+            g_mask = (group_ids == gid)
+            g_indices = np.where(g_mask)[0]
+
             for c in constrained_classes:
                 if gid not in local_gap or c not in local_gap[gid]:
                     continue
