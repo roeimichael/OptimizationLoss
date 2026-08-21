@@ -77,6 +77,13 @@ THE READING, in order:
 6. 2 cells CANNOT reach significance on any single metric. This reports
    DIRECTION and per-cell consistency. Do not quote a p-value as a verdict.
 
+IF THE DIRECTION IS POSITIVE, ADD SEEDS -- NOT CELLS. The entire headroom is
+2 to 10 items (F1 = 2TP/(K+n), so 0.67-1.65 items per 0.01 capF1), and the
+paired seed sd is ~0.04, about 2.7 items. At 4 seeds the SE of the mean
+difference is ~1.35 items against an effect that cannot exceed ~10. Going to
+10 seeds cuts that to ~0.85; adding a cell does not cut it at all, it only
+adds another underpowered cell. Precedent exists (`r2_seeds10`).
+
 A TIE IS THE PRE-REGISTERED EXPECTATION (FRAMEWORK 1b): post-hoc is optimal
 given the probabilities, the cap adds no information the training set lacks,
 and under K << n_true top-K by probability IS the clipper. If it ties, the
