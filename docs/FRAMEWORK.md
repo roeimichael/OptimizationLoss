@@ -1347,6 +1347,9 @@ Given section 0, only two kinds of thing can still win, and they are the only th
 1. **A per-item objective at the operating point** -- something whose gradient depends on an
    individual item's position relative to the budget, not on the aggregate count.
    Three attempts are null so far; `budget_margin` on multi-class is the one untried variant.
+   ⚠️ **It has to be REBUILT first -- the code is purged** (`grep budget_margin src/` is empty).
+   Section 2 records what the single-class version measured and what to change before rebuilding
+   it; do not read this line as "it is sitting there ready to launch".
 
 1b. **A count whose gradient lands ON the cut** -- derived 2026-08-21, not yet run.
 
