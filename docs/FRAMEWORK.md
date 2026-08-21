@@ -1470,6 +1470,22 @@ Given section 0, only two kinds of thing can still win, and they are the only th
    gap `constraint_grad_mode: normalize` fixes on the other axis. So the knob is a
    width in ITEMS: dimensionless, and an empty window is impossible by construction.
 
+   ✅ **A PREDICTED FAILURE MODE THAT DID NOT MATERIALIZE, recorded because it was
+   predicted first.** `m_ic` contains the competitor explicitly, so reducing it can
+   act by RAISING the runner-up -- and when the runner-up is the other capped class
+   that is the see-saw (class 4 pulled to 57 while class 2 rose to 410). Measured on
+   real stored predictions, penalty on capped class A only, one unit-norm step in
+   logit space, 8 (cell, seed) points:
+
+       count     A removed   B raised   collateral per A removed
+       sum         -1.62       +0.25            0.15
+       margin      -1.88       +0.25            0.13
+
+   No amplification: `margin` removes 1.16x more per step at slightly LESS
+   collateral. ⚠️ This is the ideal per-item direction in logit space, not what the
+   network can deliver through shared parameters -- it rules the failure mode out
+   as a property of the objective, not as a property of the training.
+
    ✅ **A side effect worth having: `straight_through` closes the K == 0 trap.** A
    group holding no true instances of the capped class gets `K == 0` legitimately,
    and on the soft value that constraint can NEVER be satisfied -- `sum_i p_ic` is
