@@ -1833,3 +1833,27 @@ def test_the_inert_flag_gate_can_actually_detect_an_inert_flag():
     assert diff.returncode == 0, (
         "soft_count_mode: margin produced bit-identical predictions to sum, "
         "so it is a fifth inert flag:\n%s" % diff.stdout[-600:])
+
+
+def test_the_scorers_posthoc_list_matches_the_protocol():
+    """A hardcoded copy of a protocol fact drifts, and this one is load-bearing.
+
+    `full_panel.POSTHOC_ARMS` exists so arms with `constraint_epochs == 0` are
+    not flagged for producing cap-invariant predictions -- their warm-up IS the
+    run, so identical predictions across cap levels is correct, not a bug. If a
+    post-hoc arm is added to protocol.yml and not here, the scorer reports a
+    real arm as broken. If a TRAINED arm is listed here by mistake, the scorer
+    stops reporting the one failure mode that has actually occurred (six models
+    behind twelve cells).
+    """
+    import yaml
+
+    from scripts.full_panel import POSTHOC_ARMS
+
+    P = yaml.safe_load(io.open("configs/protocol.yml", encoding="utf-8").read())
+    expected = {a for a, v in P["arms"].items() if v["phase"] == "posthoc"}
+    assert POSTHOC_ARMS == expected, (
+        "full_panel.POSTHOC_ARMS has drifted from configs/protocol.yml.\n"
+        "  only in the scorer:  %s\n"
+        "  only in the protocol: %s"
+        % (sorted(POSTHOC_ARMS - expected), sorted(expected - POSTHOC_ARMS)))
