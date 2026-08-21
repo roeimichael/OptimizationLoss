@@ -2068,3 +2068,37 @@ def test_headroom_scores_the_control_the_way_the_scorer_does(tmp_path):
     assert f1(y, P.argmax(1), cls) > ceiling, (
         "the raw argmax DOES beat it, because it ignores the budget -- which "
         "is exactly why headroom must not be measured against it")
+
+def test_a_cap_that_does_not_bind_gives_the_constraint_zero_gradient():
+    """A seed already under budget is its own null. Measure it PER SEED.
+
+    The penalty is built on relu(soft_count - K). Below the budget it is
+    identically zero, so the constraint contributes no gradient and the treated
+    arm and its null are the same run. Averaging over such a seed dilutes a
+    real effect toward zero and reports it as a tie.
+
+    Measured on the stored evidence: tissuemnist L50_G50 class 1 runs 76 / 51 /
+    34 / 18 against K=56, so it binds in ONE seed of four -- while its MEAN
+    excess is -11.2 and its L30 sibling's mean excess is a healthy-looking
+    +10.8 on 2-of-4 binding. The mean cannot show this; only the per-seed count
+    can, which is why scripts/headroom.py keeps the counts per seed.
+    """
+    import torch
+
+    from src.losses.transductive_loss import MulticlassTransductiveLoss
+
+    K = 56.0
+    loss = MulticlassTransductiveLoss(global_constraints=[K, K],
+                                      local_constraints={}, num_classes=2)
+    for count in (76.0, 51.0, 34.0, 18.0):
+        soft = torch.tensor(count, requires_grad=True)
+        pen = loss._penalty(soft, K)
+        if count > K:
+            assert float(pen) > 0.0, "an over-budget count must be penalised"
+        else:
+            assert float(pen) == 0.0, (
+                "count %g is under K=56, so the penalty -- and the whole "
+                "constraint gradient -- is identically zero" % count)
+            pen.backward()
+            assert float(soft.grad) == 0.0, (
+                "no gradient reaches the model from a satisfied cap")

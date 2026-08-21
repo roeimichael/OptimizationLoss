@@ -1196,7 +1196,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 152 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 153 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1204,7 +1204,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (152 tests, ~35 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (153 tests, ~35 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -1633,7 +1633,40 @@ wrong, and 2 changes the problem rather than the method.
    excess is still 56-124 items, so the constraint is **not inert** there -- it is not a
    case of picking a cap so loose that nothing binds -- and every cell starts **58-254%
    over budget**, so the "seed already satisfied, takes no step" failure is unlikely at
-   these levels.
+   these levels. ⛔ **TRUE ON dermmnist ONLY -- see the `binds` table just below, where it
+   is FALSE on both other datasets.**
+
+   🛑🛑 **THE CAP DOES NOT BIND IN EVERY SEED, AND dermmnist IS THE ONLY DATASET WHERE IT
+   DOES.** Measured 2026-08-21 across all five stored MobileNetV3 campaigns
+   (`python -m scripts.headroom <root> --control clip`, `binds` column):
+
+       dataset        cell                  binds
+       dermmnist      every cell             4/4     <- clean
+       octmnist       L50_G50 class 2        3/4
+       octmnist       L70_G70 class 2        2/4
+       tissuemnist    L30_G30 class 1        2/4
+       tissuemnist    L50_G50 class 1        1/4     <- 76 / 51 / 34 / 18 vs K=56
+
+   The penalty is `relu(soft - K)`, so **a seed already under budget gets an identically
+   zero constraint gradient** -- the treated arm IS its own null in that seed, and
+   averaging over it dilutes a real effect toward zero and reports a tie. ⇒ **check
+   `binds` before scoring a cell, and never average over a cell that does not bind 4/4.**
+
+   ⚠️ **The mean excess HIDES this and I nearly filed it as fine.** tissuemnist L30 class 1
+   averages a healthy-looking **+10.8 items over budget while binding in only half its
+   seeds**; the L50 sibling averages **−11.2**, which reads as "never binds" when it in
+   fact binds in one seed. Only the per-seed count shows either. ⚠️ This also **corrects
+   the claim two paragraphs up** that the "seed already satisfied, takes no step" failure
+   is unlikely at these levels -- that was derived from dermmnist alone, and it is FALSE
+   on the other two datasets.
+
+   🔑 **AND HEADROOM IS RANKING QUALITY, NOT ALLOCATOR SLACK.** `equalize` already takes
+   the top K by probability, which is optimal for expected TP *given those probabilities*,
+   so the allocator gives up ~nothing and essentially the whole gap is the RANKING. That
+   is what makes headroom the right target for a method that changes TRAINING -- and it
+   means **a large headroom can just mean a weak classifier**: tissuemnist shows 0.3626 at
+   L50 against dermmnist's 0.0746, and that is the model being bad at tissuemnist, not
+   opportunity. ⇒ **never pick a dataset because its headroom is large.**
 
    Headroom roughly DOUBLES from a 30% to a 50% cap, and the paired difference sd is
    0.0017 (L50_G30, linear) to 0.04 (L30_G20). ⇒ **L50 and L40 can resolve a win; L30
@@ -1878,7 +1911,7 @@ scripts/verify_caps.py   the caps bind, on the real dataset slices
 scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             152 tests, ~35 s, no dataset required
+tests/             153 tests, ~35 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

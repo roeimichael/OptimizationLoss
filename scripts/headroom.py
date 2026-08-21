@@ -19,9 +19,27 @@ quantities are NOT that number, and both were tried here first:
 
 FOUR THINGS, all read off stored predictions, no GPU:
 
-  CEILING     2K/(K+n): recall <= K/n and precision <= 1, so no allocator can
-              beat it. An upper bound -- local caps can put it out of reach.
+  CEILING     2K/(K+n): recall <= K/n and precision <= 1, so nothing can beat
+              it. An upper bound -- local caps can put it out of reach.
               HEADROOM is that minus what the control achieved.
+
+              READ IT AS RANKING QUALITY, NOT ALLOCATOR SLACK. `equalize`
+              already takes the top K by probability, which is optimal for
+              expected TP given those probabilities, so the allocator gives up
+              ~nothing and essentially the whole gap is the RANKING. That makes
+              headroom the right target for a method that changes TRAINING and
+              the wrong one for a better allocator -- and it means a large
+              headroom can just mean a weak classifier. tissuemnist shows 0.36
+              at L50 against dermmnist's 0.075, and that is mostly the model
+              being bad at tissuemnist, not opportunity.
+
+  BINDS       in how many seeds the model actually exceeds K. The penalty is
+              relu(hard - K), so a seed already under budget gets an
+              identically ZERO constraint gradient and the arm is its own null
+              there. dermmnist binds 4/4 everywhere; octmnist class 2 binds 3/4
+              at L50 and 2/4 at L70; tissuemnist class 1 binds 2/4 at L30 and
+              1/4 at L50. The mean excess HIDES this -- tissuemnist L30 class 1
+              averages a healthy +10.8 while binding in half its seeds.
   ITEMS       F1 = 2TP/(K+n) is linear in TP, so items = dF1*(K+n)/2. Convert
               before believing a delta: the paired seed sd is worth a couple of
               items on its own.
@@ -136,6 +154,14 @@ def main():
                 # every arm in the tree mixes the clipper's starting excess
                 # with a trained arm's post-constraint one and describes no
                 # model at all.
+                #
+                # The count is kept PER SEED, not summed, because whether the
+                # cap binds varies per seed and the penalty is relu(hard - K):
+                # a seed already under budget contributes an identically zero
+                # constraint gradient, so the arm is its own null there. On
+                # tissuemnist L50_G50 class 1 the four seeds run 76 / 51 / 34 /
+                # 18 against K=56 -- it binds in ONE of four, and the mean
+                # excess alone (-11.2) hides that it ever bound at all.
                 e["hard"].append(int((pred == c).sum()))
                 e["ctrl"].append(f1(y, eq, c))
             if stored is not None:
@@ -143,30 +169,44 @@ def main():
                 short_n += int((stored == c).sum()) < k
 
     print("HEADROOM AND WHAT IT COSTS IN ITEMS   (control = %s)\n" % args.control)
-    print("%-10s %5s %6s %6s %8s %9s %9s %9s %8s"
+    print("%-10s %5s %6s %6s %8s %9s %9s %9s %8s %7s"
           % ("cap", "class", "n", "K", "ceiling", "achieved", "headroom",
-             "= items", "excess"))
-    print("-" * 82)
-    per_cap = {}
+             "= items", "excess", "binds"))
+    print("-" * 90)
+    per_cap, dead = {}, []
     for (tag, c), e in sorted(cells.items()):
         n, k = e["n"], e["K"]
         ceil = 2.0 * k / (k + n)
         ach = float(np.mean(e["ctrl"])) if e["ctrl"] else float("nan")
         head = ceil - ach
         per_cap.setdefault(tag, []).append((ceil, ach))
-        print("%-10s %5d %6d %6d %8.4f %9.4f %9.4f %9.1f %8.1f"
+        nb = sum(1 for h in e["hard"] if h > k)
+        if nb < len(e["hard"]):
+            dead.append((tag, c, nb, len(e["hard"])))
+        print("%-10s %5d %6d %6d %8.4f %9.4f %9.4f %9.1f %8.1f %4d/%-2d"
               % (tag, c, n, k, ceil, ach, head, head * (k + n) / 2,
-                 float(np.mean(e["hard"])) - k))
+                 float(np.mean(e["hard"])) - k, nb, len(e["hard"])))
     print()
     for tag, v in sorted(per_cap.items()):
         ceil = float(np.mean([x for x, _ in v]))
         ach = float(np.mean([x for _, x in v]))
         print("  %-10s macro ceiling %.4f  achieved %.4f  HEADROOM %.4f"
               % (tag, ceil, ach, ceil - ach))
+    if dead:
+        print()
+        print("!! THE CAP DOES NOT BIND IN EVERY SEED:")
+        for tag, c, nb, tot in dead:
+            print("     %-10s class %d -- binds in %d of %d seeds"
+                  % (tag, c, nb, tot))
+        print("   The penalty is relu(hard - K), so a seed already under budget")
+        print("   gets an identically ZERO constraint gradient. In those seeds")
+        print("   the arm is its own null and the difference is noise. Either")
+        print("   tighten the cap or drop the cell -- do not average over it.")
     print()
-    print("`= items` is the ENTIRE gap to a PERFECT allocator, not to a better")
-    print("method. `items per 0.01 capF1` is (K+n)/200 per class, summed over")
-    print("the capped classes because ccF1 is macro-averaged over them.")
+    print("`= items` is the ENTIRE gap to a PERFECT RANKING, not to a better")
+    print("method -- and NOT to a better allocator, which is already optimal")
+    print("given these probabilities. `items per 0.01 capF1` is (K+n)/200 per")
+    print("class, summed over the capped classes: ccF1 macro-averages them.")
     print()
     print("`excess` is how far over budget the model starts. A tight cap gives")
     print("the constraint more to move and less to win. Neither end is free.")
