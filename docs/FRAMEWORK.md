@@ -1426,27 +1426,39 @@ Given section 0, only two kinds of thing can still win, and they are the only th
    ⇒ **gradient placement is worth at most 1.30x**, and only at a 2-item window,
    which is a near-delta direction that `normalize` then scales to unit norm.
 
-   **(c) And yet placement is what produces the whole effect on the toy, so the
-   proxy is missing something.** The arm bundles two independent fixes, so they are
-   now two independent keys and three arms (`scripts/flag_live`, TinyNet, random
-   labels, 20 constraint epochs, K=11):
+   **(c) The arm is DECOMPOSED, because it bundled two independent fixes.** The
+   count's VALUE (`sum_i p_ic` tracks probability mass, not the hard count) and the
+   gradient's PLACEMENT (`p(1-p)` vs the margin window) are separate defects, and a
+   result from an arm that changes both cannot be attributed to either. Three arms:
 
-       arm            count value   placement    hard count
-       tralo_null     --            --                31
-       tralo          soft sum_p    p(1-p)            35     <- worse than no penalty
-       tralo_st       HARD          p(1-p)            32     <- value fix alone: ~nothing
-       tralo_margin   HARD          margin            12     <- at the budget
+       arm            count value      placement
+       tralo          soft sum_i p     p(1-p)        the manuscript
+       tralo_st       HARD             p(1-p)        value fix alone
+       tralo_margin   HARD             margin        both
 
-   A 1.30x concentration difference cannot produce 32 -> 12. What the proxy misses:
-   it scores off-target gradient as merely WASTED, when for `sum` it is actively
-   spent lowering `p_ic` on items far below the boundary -- which cannot change any
-   prediction at any magnitude. `sum_i p_ic` can be reduced without moving a single
-   item across `m = 0`; `sum_i sigma(m_ic/T)` cannot. That is the real difference,
-   and it is not a concentration statistic.
+   `gen_campaign` warns if `tralo_margin` is selected without `tralo_st`.
 
-   🛑 **All of (c) is n=1 on random labels with no quality metric.** It says the
-   decomposition is worth running, and the three arms exist so the real campaign
-   attributes it. It is not evidence that the arm works.
+   ⛔ **AND THE TOY DECIDES NOTHING -- I CHECKED AND IT DOES NOT REPLICATE.** The
+   first run of `scripts/flag_live` gave 31 / 35 / 32 / 12 against K = 11, which
+   reads as "placement does all the work". It is one seed. The same four arms:
+
+       seed 1    null 31   sum 35   st 32   margin  12
+       seed 2    null  0   sum  0   st  0   margin   0     cap never bound
+       seed 3    null 120  sum 120  st 119  margin 119     everything saturated
+
+   The harness has random labels and a 4-layer net that reaches chance accuracy, so
+   ordering on it is noise. 🔑 **Only CONNECTEDNESS survives that harness** -- which
+   is all `flag_live` claims, and the gate now runs three seeds, skips seeds where
+   the cap never bound (there the penalty is identically zero and every arm is
+   correctly bit-identical -- calling that "inert" was a false alarm it used to
+   raise), and prints those three rows so nobody reads an ordering out of it.
+
+   ⇒ **nothing is yet known about whether the window helps.** The pre-run evidence
+   is: `sum` is already 15x uniform at the boundary, placement buys at most 1.30x on
+   the items that must flip, and the concentration proxy is itself incomplete
+   (`sum_i p_ic` can be reduced without moving one item across `m = 0`;
+   `sum_i sigma(m_ic/T)` cannot -- and that difference is not a concentration
+   statistic). The three arms exist so a real campaign settles it.
 
    🎯 **T IS DERIVED, NOT CONFIGURED, AND THAT WAS FORCED BY MEASUREMENT.** The
    first version shipped `cut_temp: 0.02`, a guess. On the same evidence **T = 0.02
