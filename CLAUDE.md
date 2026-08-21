@@ -66,7 +66,32 @@ python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30,
                                             #   caps verified for the TRAINED arms too
 python -m scripts.verify_caps               # what integer budget each cap tag really produces
 python -m scripts.check_parity <root>       # equal compute, same knobs, >=2 caps, sane warm-up sharing
+python -m scripts.reachability <early-run>  # CAN the penalty even reach this cell's cut?
 ```
+
+## Reading a result
+
+```bash
+python -m scripts.full_panel --campaign <root> --control clip   # THE scorer, seed-paired
+python -m scripts.paired_seeds <scan-root>  # each arm minus its OWN lambda=0 twin, per seed
+python -m scripts.score_scan <root>         # AUROC / prec@K / Jaccard, grouped by CELL
+```
+
+**Three rules that cost a night each to learn:**
+
+1. **Carry the `_null` arm** (`--arms all+null`). It is the same warm-up, allocator and
+   seed with lambda=0, so it isolates the constraint -- and it doubles as a post-hoc
+   clipper at equal compute with the allocator held fixed. Without it **no count
+   trajectory is attributable**: CE alone swings the capped counts 242 -> 227 -> 324 -> 233.
+2. **Read `d capF1` beside `d macroF1`.** Paired over seeds their precision differs by an
+   order of magnitude, and macro-F1 is carried by the UNCAPPED classes, which swing with
+   the seed. `d capF1` is quantised -- with exactly K predictions emitted, `F1 = 2TP/(K+n)`
+   -- so it must be an integer multiple of `1/(K+n)` or there is an arithmetic bug.
+3. **Check reachability before choosing a cap.** The penalty's per-item gradient scales
+   with `p(1-p)`, so it can only move the cut when the K-th ranked item is not already
+   near certainty. `p(1-p)` = 0.026 at `L30_G20` (0/4 seeds respond) vs 0.055 at
+   `L50_G30` (4/4). This is also what "CE saturates" means -- converging the model drops
+   that slope 60x, which is why warm-up 50 makes every method identical.
 
 `smoke_arms` exists because the config gates are structurally blind to a runtime
 crash: three arms once shipped with an undefined name in `train()`, burned all 29
