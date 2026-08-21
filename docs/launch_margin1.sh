@@ -78,11 +78,21 @@ THE READING, in order:
 4. Decomposition: tralo -> tralo_st isolates the count VALUE, tralo_st ->
    tralo_margin isolates the WINDOW. Report both, never the bundle.
 
-5. `flips`, raw count over K, and "proximity to feasibility" are NOT metrics.
+5. CHECK THE CONSTRAINT ACTUALLY BOUND, per seed, before averaging. With
+   straight_through the penalty is relu(hard - K), so a seed whose count is
+   already under budget at warm-up 1 takes NO step for the whole run and is
+   bit-identical to tralo_null. That is correct behaviour and a real zero, but
+   it is not a treated seed, and averaging it in dilutes the effect toward
+   zero while looking like a null. `clip` binds on 63-84% of runs, so expect
+   one or two untreated seeds. Read Global_Satisfied / Local_Satisfied in each
+   training_log.csv and report how many epochs each arm actually stepped.
+   flag_live already skips seeds where nothing exceeded the budget.
+
+6. `flips`, raw count over K, and "proximity to feasibility" are NOT metrics.
    Post-hoc filling is free. When quality ties the honest report is "this arm
    produced nothing".
 
-6. 2 cells CANNOT reach significance on any single metric. This reports
+7. 2 cells CANNOT reach significance on any single metric. This reports
    DIRECTION and per-cell consistency. Do not quote a p-value as a verdict.
 
 IF THE DIRECTION IS POSITIVE, ADD SEEDS -- NOT CELLS. The entire headroom is
