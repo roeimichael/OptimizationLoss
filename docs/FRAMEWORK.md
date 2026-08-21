@@ -1572,6 +1572,28 @@ Given section 0, only two kinds of thing can still win, and they are the only th
    **it says which K to optimise for.** That is the honest scope of the contribution
    the data can support, and it is smaller than the manuscript currently claims.
 
+   📚 **A REVIEWER QUESTION TO PRE-EMPT, and the answer is in our favour.** The obvious
+   objection to any "we know something about the test set" paper is: *if you know the
+   test class proportions, the Bayes-optimal move is closed-form posterior reweighting,
+   `p~(y|x) ~ p(y|x) * pi_test(y)/pi_train(y)`* -- the Saerens-Latinne-Decaestecker
+   adjustment, and the whole prior-shift / quantification literature behind it (SLD 2002;
+   "Dataset Shift and the Adjustment of Probabilistic Classifiers" 2018; "Adaptation of
+   CNN Classifiers to Prior Shift" 2021; Sebastiani's quantification surveys). It needs
+   no training at all, so it would dominate every arm here.
+
+   **It does not apply, and the reason is worth stating in the paper.** Our cap is not the
+   test prior. `K` is a FRACTION of the true test count -- measured on dermmnist, class 2
+   has `n_true = 220` and `K` is 66 at a 30% tag, 110 at 50%. So the constraint is
+   `K << n_true`: a BUDGET, not a prior match. Reweighting posteriors to a prior we do not
+   have, and that is not what the cap states, answers a different question.
+
+   ⚠️ **And that cuts against us too.** Under a budget `K < n_true` the optimal decision
+   rule GIVEN the model is "take the K items most likely to be class c" -- which is
+   exactly the clipper. That is the third independent derivation today of the same
+   conclusion (the others: post-hoc is optimal given probabilities; the cap adds no
+   information the training set lacks). ⇒ the setting is a **top-K selection problem**,
+   which is why 1c is the proposal that fits it and why every count penalty does not.
+
    ⚠️ **Novelty is the pairing, not the loss.** Top-K / precision@k surrogates and
    learning-to-rank losses are well established; this is not a new loss family. The
    claim would be "a transductive budget tells you the operating point, and optimising
