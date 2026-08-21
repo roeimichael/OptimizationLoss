@@ -93,7 +93,18 @@ constraint_phase:
   constraint_random_direction: false
   lr_constraint: 0.0001       # MUST equal core.lr -- unequal lr fabricated a -16.7pp finding
   stable_count_threshold: 31
-  constraint_chunk_size: 256
+  # 128, NOT 256. The constraint pass runs a BACKWARD over the test set, and
+  # with `constraint_fp32: true` a chunk of 256 exhausts a 24 GB card on
+  # ViT-B/16: measured 2026-08-21, all 8 `tralo` runs of `results/dosefix` died
+  # of CUDA OOM at tralo/train.py's transductive forward, were reset to
+  # `pending` by the dispatcher, and the campaign came back looking merely
+  # unfinished with every CONTROL completed -- the lambda=0 arm survives
+  # precisely because it skips that pass. Chunking partitions memory, not
+  # mathematics: the accumulated gradient is a sum either way. The cost is a
+  # few extra chunk boundaries on the two transductive passes per epoch, not
+  # on the 126 CE steps, so it is negligible -- and it is paid on every
+  # backbone rather than left as a landmine for the largest one.
+  constraint_chunk_size: 128
   enable_checkpoint_restore: false
 
 # Read by the post-hoc allocators that chunk their forward pass.

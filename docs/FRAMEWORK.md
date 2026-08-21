@@ -1271,6 +1271,54 @@ magnitude cancelled by the unit-norm clip. All three were read as defects to rep
 **They are not. The starvation is why the method is only mildly worse than a clipper.
 Every attempt to deliver more constraint signal made it worse.**
 
+### (b-post) READ-OUT: `results/dosefix` -- the first CLEAN TraLO measurement, and it is NEGATIVE
+
+The first `tralo` runs ever to complete on the lesion-corrected slice. Read from
+`training_log.csv` as the house rule requires -- counts against caps, satisfied-ever,
+lambda, Grad_Norm, and the lambda=0 twin -- not from final metrics.
+
+🔴 **THE CAP IS NEVER SATISFIED. 0 of 29 epochs, at BOTH cap tags.** The hard count sits at
+**2.5-3.5x the budget for the entire run** and is still there at epoch 30 (183/177 against
+K=62/67).
+
+🔑 **THE TREATMENT IS LIVE BUT DOES NOT STEER.** `tralo` seed 4 against its own lambda=0
+twin -- same warm-up, same seed, same allocator, differing only in the constraint:
+
+| cap | class | K | d(count) mean | sd | epochs below twin | mean excess: tralo vs null |
+|---|---|---|---|---|---|---|
+| L40_G30 | 2 | 62 | **-0.34** | 65.5 | 14/29 | +141.3 vs +141.7 |
+| L40_G30 | 4 | 67 | -36.9 | 97.5 | 17/29 | +104.1 vs +141.0 |
+| L50_G30 | 2 | 62 | **+20.2** | 72.5 | 13/29 | +161.9 vs +141.7 |
+| L50_G30 | 4 | 67 | -26.3 | 110.0 | 15/29 | +114.7 vs +141.0 |
+
+The counts differ from the twin on **28 of 29 epochs**, so this is NOT an inert flag. But
+**13-17 of 29 epochs below the twin is a coin flip**, the per-epoch sd is **2-3x the mean**,
+and at L50 class 2 moves the count the WRONG WAY by +20. ⇒ the constraint injects variance
+without direction.
+
+🔑 **AND THE SEE-SAW IS BACK, ON CLEAN DATA.** At L50 class 2 goes **UP +20.2** while class 4
+goes **DOWN -26.3**. That is section 2's recorded mechanism reproducing on the corrected
+slice for the first time: the capped classes compete through the softmax, so pressure on one
+is relief for the other, and the net movement is ~zero.
+
+⚠️ **CE IS SATURATED BY EPOCH 10** -- train acc 0.99, L_CE 0.02-0.035 -- which is the regime
+this document says makes every method identical. And the dose is the smallest the protocol
+admits: under `normalize` + `sgd` the delivered step is exactly
+`lr_constraint * constraint_grad_clip` = 1e-4 * 1.0 = **1e-4**, against Adam's ~0.93 x 126
+CE steps per epoch. Grad_Norm reaches 150-215 before normalisation, so what the log shows
+growing is the RAW penalty, not the delivered pressure -- **never read a rising L_Global or
+Grad_Norm as pressure under `normalize`.** lambda ratchets 0.06 -> 1.435 with nothing to
+show for it, which is the same no-op ratchet section 2 already records.
+
+🎯 **THIS DOES NOT REOPEN THE DOSE AXIS.** That axis is CLOSED (2b): no dose both moves the
+count and keeps the classifier. This run is the confirmation on clean data that the
+mechanism was never dose-limited alone -- it is direction-limited, and the see-saw says why.
+
+⚠️ **The campaign is ONE effective cap level** (see section 9), so this is 4 seeds at one
+budget, not 8 cells. Report it as a single-budget negative.
+
+---
+
 ### (b-pre) PRE-REGISTERED: `results/dosefix`, written 2026-08-21 BEFORE any run finished
 
 Recorded here in advance because this document's own rule is *"state which metric it is
