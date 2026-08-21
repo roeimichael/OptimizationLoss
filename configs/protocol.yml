@@ -157,16 +157,32 @@ blocks:
     # (4 of 4), and 0.0009 once CE has converged -- the same quantity that
     # makes warm-up 50 a dead regime and a tight cap unwinnable.
     #
-    # `threshold` keeps the count and moves its weight: it replaces p_ic with
-    # sigmoid((p_ic - tau_c)/T), tau_c the K-th largest probability, so the
-    # derivative PEAKS at the cut. tau is an order statistic, detached, and
-    # recomputed once per constraint epoch.
+    # `margin` keeps the count and moves its weight: it replaces p_ic with
+    # sigmoid((p_ic - max_{c' != c} p_ic')/T) -- the softened ARGMAX -- whose
+    # derivative peaks at the DECISION BOUNDARY, on the items one step from
+    # flipping. Summed it tracks the HARD count rather than the probability
+    # mass, so it is also the tighter relaxation. It is a function of an item's
+    # own row, so it needs no order statistic and the chunked construction
+    # still gives the exact full-N gradient.
+    #
+    # NOT an order statistic. Centring the window on the K-th largest
+    # probability is the obvious version and it is DEAD: it counts how many
+    # items exceed the K-th largest, which is K-0.5 for any model whatsoever.
+    # A constant, so relu(s-K) is identically zero and it produces no gradient
+    # at all. Wired into the trainer, caught by the chunked-gradient test
+    # before it reached a GPU. A soft count must be able to EXCEED the budget.
     soft_count_mode: sum
-    cut_temp: 0.002           # ONLY read when soft_count_mode: threshold.
+    cut_temp: 0.02            # ONLY read when soft_count_mode: margin.
     # ^ must be NARROWER than the MARGIN spacing near the boundary or the
     # window flattens and p(1-p) dominates again -- it degrades silently back
     # to `sum`. This is a margin scale, not a probability-gap scale: dose it
     # against what `scripts/reachability.py` prints at the cut.
+  # The margin count, as an ARM rather than a global override, so it and the
+  # manuscript's count can sit in ONE campaign. An arm-vs-arm delta is not a
+  # result until the bar is in the same campaign, and that applies to two
+  # estimators of the same constraint exactly as it applies to two methods.
+  tralo_margin:
+    soft_count_mode: margin
   # THE NULL-TREATMENT CONTROL. Identical to `tralo` in warm-up length, optimizer
   # restart, epoch count, transductive passes and allocator -- with the treatment
   # removed. total_constraint == 0 makes has_constraint False, so pass 2 is
@@ -254,6 +270,13 @@ arms:
   cb_lp:      {methodology: class_balanced, phase: posthoc, blocks: [chunked, class_balanced]}
   la_lp:      {methodology: logit_adjust,   phase: posthoc, blocks: [chunked, logit_adjust]}
   tralo:      {methodology: tralo,          phase: trained, blocks: [constraint_phase, tralo]}
+  # Same everything, one key different: WHERE the count puts its gradient.
+  # Shares `tralo_null` as its control -- at lambda 0 there is no constraint
+  # gradient at all, so the choice of soft count is inert and a second null
+  # would be a bit-identical run costing a full GPU slot.
+  tralo_margin:
+    {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, tralo_margin],
+     null_sibling: tralo_null}
   # Same code path as tralo, treatment zeroed. See the tralo_null block above.
   tralo_null: {methodology: tralo,          phase: trained, blocks: [constraint_phase, tralo_null]}
   fioretto:   {methodology: fioretto_ldf,   phase: trained, blocks: [constraint_phase, fioretto]}

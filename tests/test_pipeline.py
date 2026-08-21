@@ -1732,3 +1732,37 @@ def test_the_windowed_count_keeps_the_exact_full_N_gradient_when_chunked():
     # And the chunk that owns no top-K item still contributes: the window is
     # sigmoid, not an indicator, so items below the cut are not zeroed.
     assert g_full.abs().sum() > 0
+
+
+def test_every_trained_arm_has_a_null_sibling_the_gate_can_find():
+    """The gate looks up a name; a new arm can slip past it silently.
+
+    gen_campaign warns when a trained arm is requested without its zero-dose
+    sibling, because a delta vs `clip` cannot otherwise be attributed to the
+    constraint rather than to the regime. It found that sibling by appending
+    `_null`, so `tralo_margin` -- the arm that most needs a control, being a
+    new estimator -- resolved to `tralo_margin_null`, which does not exist,
+    and the gate said nothing. Arms may now name another arm's null via
+    `null_sibling`; this pins that every trained arm resolves to a real one.
+    """
+    import yaml
+
+    from configs.gen_campaign import _null_of
+
+    P = yaml.safe_load(io.open("configs/protocol.yml", encoding="utf-8").read())
+    missing = []
+    for name, spec in P["arms"].items():
+        if spec["phase"] != "trained" or name.endswith("_null"):
+            continue
+        sib = _null_of(P, name)
+        if sib not in P["arms"]:
+            missing.append("%s -> %s" % (name, sib))
+    assert not missing, (
+        "trained arms whose null sibling does not exist, so the gate cannot "
+        "warn about them: %s" % ", ".join(missing))
+
+    # And the shared one is genuinely shared, not a copy: tralo_margin differs
+    # from tralo only in where the count puts its gradient, and at lambda 0 no
+    # constraint gradient is formed at all, so one null serves both.
+    assert _null_of(P, "tralo_margin") == _null_of(P, "tralo") == "tralo_null"
+    assert P["blocks"]["tralo_null"]["lambda_global"] == 0.0

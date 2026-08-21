@@ -42,6 +42,19 @@ def load_protocol(path=PROTOCOL_PATH):
         return yaml.safe_load(f)
 
 
+def _null_of(P, arm):
+    """The zero-dose sibling for an arm.
+
+    Usually `<arm>_null`, but an arm may name another arm's null when the two
+    differ only in something the null zeroes out anyway -- `tralo_margin` and
+    `tralo` share `tralo_null` because at lambda 0 no constraint gradient is
+    formed and the choice of soft count is inert. Without this lookup the gate
+    below silently skips any arm whose name is not `<something>_null` away from
+    its control, i.e. exactly the new arms that most need one.
+    """
+    return P["arms"][arm].get("null_sibling", arm + "_null")
+
+
 def resolve_block(P, name):
     """A block name is either a top-level section or an entry under `blocks`."""
     if name in P.get("blocks", {}):
@@ -483,8 +496,8 @@ def main():
     orphaned = [a for a in arms
                 if P["arms"].get(a, {}).get("phase") == "trained"
                 and not a.endswith("_null")
-                and (a + "_null") in P["arms"]
-                and (a + "_null") not in arms]
+                and _null_of(P, a) in P["arms"]
+                and _null_of(P, a) not in arms]
     if orphaned:
         print("  *** NO ZERO-DOSE CONTROL for: %s" % " ".join(sorted(orphaned)))
         print("      Each has a `_null` sibling -- same code path, same warm-up,")
@@ -492,7 +505,7 @@ def main():
         print("      allocator, treatment zeroed. Without it in THIS campaign, a")
         print("      delta vs clip cannot be attributed to the constraint rather")
         print("      than to the regime. Add: --arms ... %s"
-              % " ".join(a + "_null" for a in sorted(orphaned)))
+              % " ".join(sorted({_null_of(P, a) for a in orphaned})))
     print("  protocol: %s" % os.path.relpath(args.protocol))
     print("  code_version:", version)
     return 0
