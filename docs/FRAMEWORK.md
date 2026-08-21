@@ -911,6 +911,18 @@ warm-up with a different training loss is a dead flag, which has happened four t
   scorer re-equalizes from the probabilities and does hit exactly K every time (pinned by
   a test), so the shortfall never reaches a scored number -- but it does reach anything
   read off the stored predictions.
+  ✅ **NOT an arm-vs-arm confound, checked 2026-08-21 across the whole stored evidence.**
+  Two hypotheses were tested and BOTH REFUTED, which is what retires this as a worry:
+  (1) *"the sequential fill favours the first capped class"* -- `targeted_correction`
+  Phase 2 does loop `for c in constrained_classes` while `heuristic` runs one JOINT pass
+  over all (item, class) pairs, so the asymmetry is real in the CODE. But the shortfall
+  shows no ordering bias: `tralo_uniform` is short on 12 of 16 pairs at position 0 and
+  0 of 16 at position 1. (2) *"only the trained arms under-fill"* -- they do not.
+  **Post-hoc 72 of 272 pairs (26%), trained 47 of 160 (29%)** -- the same rate, and the
+  cause in both is local caps exhausting the candidate pool, not the fill order.
+  ⇒ the shortfall is a property of filling under local caps, it is symmetric across
+  allocator families, and it therefore biases no comparison. Reproduce from any stored
+  campaign; it needs no GPU.
 - **Atomic cell = (dataset, backbone, cap, method), averaged over the 4 seeds.**
   Never pool across levels, backbones, or datasets. Summaries **count cells**.
   A generator that sweeps a dimension must put that dimension **in the cell key**, not just
