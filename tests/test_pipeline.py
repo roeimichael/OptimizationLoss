@@ -1965,3 +1965,45 @@ def test_the_allocator_does_not_fall_through_to_the_LP_when_G_is_less_than_L():
                 "greedy left the allocation infeasible, so this arm would be "
                 "scored against `clip` while running a different allocator"
                 % (tag, trial, info["lp_fallback_candidates"]))
+
+
+def test_equalize_multi_fills_to_exactly_K_so_the_items_conversion_is_exact():
+    """`full_panel` reports `items per 0.01 capF1`, and that number assumes it.
+
+    `F1 = 2TP/(K+n)` only holds when exactly K predictions are emitted for the
+    capped class. If `equalize_multi` ever fell short, the denominator would be
+    `(emitted + n)` and the conversion printed after every panel would be
+    quietly wrong -- in the direction of understating how many items a delta is
+    worth, on a scale where the whole headroom is 2 to 10 items.
+
+    Worth pinning because the RUNTIME allocator does NOT have this property:
+    measured on the stored evidence, `targeted_correction` emits K-1 on 22 of
+    88 (run, capped class) pairs -- never over, so no cap is violated, but not
+    exactly K either. The scorer re-equalizes from probabilities, which is why
+    the house rule is to read `full_panel` and never the stored metrics.
+    """
+    from src.utils.constants import UNLIMITED
+    from scripts.full_panel import equalize_multi
+
+    rng = np.random.default_rng(0)
+    N, C, G = 500, 7, 4
+    caps = [2, 4]
+    for trial in range(6):
+        logits = rng.normal(0, 2.0, size=(N, C))
+        logits[:, caps] += 1.0            # over-predict the capped classes
+        e = np.exp(logits - logits.max(1, keepdims=True))
+        P = e / e.sum(1, keepdims=True)
+        gids = rng.integers(0, G, size=N)
+        glob_c = np.full(C, UNLIMITED, dtype=float)
+        for c in caps:
+            glob_c[c] = int(rng.integers(30, 90))
+        loc = {g: np.full(C, UNLIMITED, dtype=float) for g in range(G)}
+
+        eq = equalize_multi(P, gids, glob_c, loc, caps)
+        for c in caps:
+            got, want = int((eq == c).sum()), int(glob_c[c])
+            assert got == want, (
+                "trial %d class %d: equalize_multi emitted %d against a budget "
+                "of %d, so F1 = 2TP/(K+n) no longer holds and the items "
+                "conversion printed by full_panel is wrong"
+                % (trial, c, got, want))
