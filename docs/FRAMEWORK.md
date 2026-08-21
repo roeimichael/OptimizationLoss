@@ -1495,6 +1495,32 @@ Given section 0, only two kinds of thing can still win, and they are the only th
    count can be exactly zero. This is a standing warning in this project and
    `straight_through: true` removes it; a test pins the difference.
 
+   🛑 **THE STRUCTURAL PRIOR, WRITTEN DOWN BEFORE THE RUN.** Post-hoc assignment is
+   optimal GIVEN THE PROBABILITIES -- greedy over its candidate neighbourhood, the LP
+   exactly. So a trained arm cannot win by extracting threshold information: post-hoc
+   already extracts all of it. It can only win by producing DIFFERENT probabilities,
+   i.e. by changing the representation, and the count penalty carries **no label
+   information**. That makes every count-based arm a label-free REGULARIZER, and the
+   closest prior for a label-free arm in this project is `rank` -- self-referential,
+   top-K vs rest -- which was a **null**.
+
+   And the margin count sharpens rather than softens that. `relu(count - K)` with
+   `count = sum_i sigma(m_ic/T)` is minimized by pushing POSITIVE margins down and
+   across zero; items already at `m < 0` contribute `sigma ~ 0` and are untouched. So
+   the force is precisely "flip the smallest-positive-margin members of class c out"
+   -- **which is what the greedy clipper does post-hoc, for free.** The arm is doing
+   in training what the baseline does after it, plus a representation side effect.
+
+   ⇒ **the pre-registered reading of a tie is: this is that trap, again**, and the
+   next move is a genuinely per-item objective with LABEL information, not a third
+   count. The pre-registered reading of a WIN is that the representation side effect
+   is real, and it must then show up as **ccP at the operating point**, not as AUROC.
+
+   ⚠️ One honest distinction from `rank`: `rank` had no notion of an operating point
+   -- it separated top-K from rest globally. This acts only on items within `T` of
+   the decision boundary, which is where a per-item objective would act. That is why
+   it is worth one campaign and not more.
+
    ⚠️ **It is still an AGGREGATE count**, which is what path 1 says cannot win. The reason
    it is listed anyway is that path 1's own escape hatch is "per-item AT THE OPERATING
    POINT", and this is an aggregate whose WEIGHT is concentrated there. If it fails, it
