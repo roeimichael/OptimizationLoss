@@ -1520,6 +1520,22 @@ Given section 0, only two kinds of thing can still win, and they are the only th
    fails as evidence FOR path 1 stated strictly, and the next move is a genuinely per-item
    objective, not another count.
 
+   ✅ **THE CAP LEVELS ARE CHOSEN BY MEASURED HEADROOM, not by habit.** Ceiling on
+   capped-class F1 with exactly K predictions emitted is `2K/(K+n)` (recall <= K/n,
+   precision <= 1). Measured against the stored dermmnist evidence, 4 seeds:
+
+       cap        clip capF1   ceiling   headroom
+       L30_G30       0.4331    0.4621     0.0290
+       L50_G50       0.6091    0.6688     0.0597
+
+   Headroom roughly DOUBLES from a 30% to a 50% cap, and the paired difference sd is
+   0.0017 (L50_G30, linear) to 0.04 (L30_G20). ⇒ **L50 and L40 can resolve a win; L30
+   is marginal and L20 cannot resolve one in principle.** That is why the campaign is
+   `L50_G30` + `L40_G30` -- both above the resolvable line AND both with `G < L`, so the
+   global scope actually binds. ⚠️ `tralo_uniform` shows the LARGEST headroom (0.048,
+   0.071) purely because it scores the LOWEST -- headroom is not opportunity when the
+   arm is simply worse.
+
    ⚠️ **Falsification conditions, fixed in advance:** it must (a) move **ccP**, not AUROC
    -- an arm that moves AUROC has been run twice, as `budget_margin` and as the shipped
    penalty; (b) beat `constraint_random_direction` at the same norm; (c) hold across
