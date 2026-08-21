@@ -103,6 +103,19 @@ THE READING, in order:
 7. 2 cells CANNOT reach significance on any single metric. This reports
    DIRECTION and per-cell consistency. Do not quote a p-value as a verdict.
 
+POWER, STATED SO THE RESULT IS NOT OVER-READ. Paired seed sd is ~2.7 items:
+
+    4 seeds  -> SE 1.35 items; a 3-item effect is 2.2 sigma, a 5-item 3.7
+    6 seeds  -> SE 1.10 items; 2.7 sigma / 4.5
+   10 seeds  -> SE 0.85 items; 3.5 sigma / 5.9
+
+At 4 seeds this campaign resolves a LARGE effect and is marginal on a small
+one, and the whole headroom is only 2-10 items. So an ambiguous result is a
+likely outcome and is NOT a null -- it means add seeds. Considered running 5
+arms first and adding the attribution arms later; rejected, because it saves
+only ~4 h and gen_campaign skipping completed runs makes the extension cheap
+either way, while a partial first stage cannot attribute anything it finds.
+
 IF THE DIRECTION IS POSITIVE, ADD SEEDS -- NOT CELLS. The entire headroom is
 2 to 10 items (F1 = 2TP/(K+n), so 0.67-1.65 items per 0.01 capF1), and the
 paired seed sd is ~0.04, about 2.7 items. At 4 seeds the SE of the mean
