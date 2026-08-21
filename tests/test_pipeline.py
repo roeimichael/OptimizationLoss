@@ -1918,3 +1918,50 @@ def test_margin_without_straight_through_is_refused_not_silently_reinterpreted()
     P = yaml.safe_load(io.open("configs/protocol.yml", encoding="utf-8").read())
     blk = P["blocks"]["tralo_margin"]
     assert blk.get("soft_count_mode") == "margin" and blk.get("straight_through") is True
+
+
+def test_the_allocator_does_not_fall_through_to_the_LP_when_G_is_less_than_L():
+    """G < L is the prescribed sweep, and it used to break the greedy on EVERY run.
+
+    Phase 3b filled local room without re-checking the GLOBAL budget, so local
+    room got spent past the global cap, the allocation came out infeasible, and
+    the run silently fell through to the small-scope LP -- a DIFFERENT algorithm
+    from the greedy that `clip` keeps. An arm scored against `clip` while
+    running a different allocator is not an arm-vs-arm comparison, and
+    `full_panel` still reports 29% fall-through on the stored evidence.
+
+    The fix is in the code with a comment. Nothing pinned it, and the failure
+    is silent: caps still hold afterwards, so `smoke_arms --matrix` passes
+    either way. This pins it on the cap tags actually being run.
+    """
+    import pandas as pd
+
+    from configs.gen_campaign import cap_pair
+    from src.training.constraints import (compute_global_constraints,
+                                          compute_local_constraints)
+    from src.utils.posthoc_adjustment import targeted_correction
+
+    rng = np.random.default_rng(0)
+    N, C, G = 600, 7, 5
+    capped = [2, 4]
+    labels = rng.choice(C, size=N, p=np.array([.1, .1, .25, .1, .3, .1, .05]))
+    groups = rng.integers(0, G, size=N)
+    df = pd.DataFrame({"label": labels, "grp": groups})
+
+    for tag in ("L50_G30", "L40_G30", "L30_G20"):
+        loc_pct, glob_pct = cap_pair(tag)
+        gcon = compute_global_constraints(df, "label", glob_pct,
+                                          constrained_class=capped, num_classes=C)
+        lcon = compute_local_constraints(df, "label", loc_pct, "grp",
+                                         constrained_class=capped, num_classes=C)
+        for trial in range(5):
+            logits = rng.normal(0, 2.0, size=(N, C))
+            logits[:, capped] += 1.2          # over-predict the capped classes
+            e = np.exp(logits - logits.max(1, keepdims=True))
+            proba = e / e.sum(1, keepdims=True)
+            _, _, info = targeted_correction(proba, groups, gcon, lcon, capped)
+            assert not info["lp_fallback_used"], (
+                "%s trial %d fell through to the LP with %d candidates -- the "
+                "greedy left the allocation infeasible, so this arm would be "
+                "scored against `clip` while running a different allocator"
+                % (tag, trial, info["lp_fallback_candidates"]))
