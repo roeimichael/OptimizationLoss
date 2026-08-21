@@ -467,10 +467,59 @@ transient scales with parameter count, but the direction is a property of the me
 project's own noise: -0.0198 macroF1 sits INSIDE the measured 0.0358 same-arm floor, and
 5.2 items is ~2x the paired seed sd of 2.7 at n = 3 seeds.
 
-🎯 **Before this is treated as a result, and before any tralo-vs-clip delta is quoted from
-a campaign that contains a `_null` arm: measure whether the handicap replicates**, across
-campaigns, per cell, per seed, converted to items -- and check whether it vanishes on bf16
-(which would indict the GradScaler) or at warm-up 30 (which would indict the split itself).
+✅ **MEASURED 2026-08-21. IT DOES NOT REPLICATE ACROSS SLICES -- and the variable that
+separates the two campaigns is the DATA, not the optimizer.**
+
+| campaign | slice | cap | d items (null - clip), per seed | mean | seeds + |
+|---|---|---|---|---|---|
+| `dosefix` | **lesion-corrected** | L40_G30 | -4, -7, -4 | **-5.0** | **0/3** |
+| `dosefix` | lesion-corrected | L50_G30 | -4, -7, -4 | -5.0 | 0/3 |
+| `mc29` | **leaked** | L50_G30 | **-10, +5, +6** | **+0.3** | 2/3 |
+
+⚠️ `vit_diag` is excluded: its `clip` seed ran pre-determinism-fix (`warn_only=None`) and
+its `null` seed post-fix, so the pair straddles the 0.0358 noise regime.
+
+**What IS established:**
+- **Epoch 1 is bit-identical** (`L_CE` 0.762392 on both arms), so divergence begins exactly
+  at the boundary, as designed.
+- **Epoch 2 costs the null arm CE progress in 7 of 7 runs** (dL_CE +0.0027 .. +0.0416,
+  0.5-9.2% relative, sign test **p=0.0156**). ⚠️ Read `L_CE`, never `Train_Acc`: warm-up
+  computes accuracy in `model.eval()` while the constraint phase accumulates train-mode
+  logits with dropout on.
+- **The transient is gone by epoch 3** and both arms end at train acc ~0.99.
+- 🔑 **But the epoch-2 gap does NOT predict the scored delta**: Pearson r = **-0.10**
+  (p=0.85). The largest CE gap has the smallest loss and vice versa. ⇒ **the restart
+  transient is real and is NOT the explanation.**
+
+⚠️ **The three candidate mechanisms cannot be separated, because all three are live in
+100% of the runs that exist.** There is **no bf16 run** and **no warm-up-30 lambda=0 arm**
+anywhere -- not in the five live campaigns, not in the 14,524-config archive (which
+contains **zero** runs with `lambda_global = lambda_local = 0`). Both discriminating
+experiments have to be RUN; they cannot be read off disk.
+
+✅ **Repeat noise on this code is exactly ZERO** (`_variance_probe_strict`: three reps, one
+md5, ccF1 0.3931 three times), against **4.0 items** pre-fix. So `dosefix`'s -5 items is
+exactly reproducible and is not measurement noise. ⛔ **Seed noise is the binding
+constraint**: sd 1.6 items on `dosefix` but **9.0 items on `mc29`** -- larger than the
+entire effect space. At 3 seeds the exact sign-test floor is p=0.25. **This cannot be
+resolved at n=3, and the answer is SEEDS, not cells.**
+
+🎯 **THE LEAD.** The one controlled contrast -- `dosefix` vs `mc29` at L50_G30, same
+backbone, cap, capped classes, seeds, GPU and AMP, **differing only in data slice** --
+decomposes as: `clip`'s capped-class hit rate barely moves (84.0% corrected vs 82.7%
+leaked) while **`null`'s falls 83.0% -> 80.1%**. That is this document's own leakage
+prediction running forwards: leakage lets both arms rank the memorised items correctly and
+**compresses** arm-vs-arm gaps. If so, the handicap was masked by leakage in every derm
+result this project holds, and `dosefix` is the first place it is visible. **Not tested.**
+
+🛑 **AND THE TWO CAP TAGS ARE ONE CAP LEVEL.** `L40_G30` and `L50_G30` both bind on the
+GLOBAL scope (local sums 82 and 103 against a global 62), so class 2 gets **K=62** and
+class 4 **K=67** in BOTH cells. Not just the six allocation-free metrics duplicate -- **the
+budget-equalized family duplicates too**, and `dosefix`'s two cells return literally
+identical ccP/ccF1/AP deltas. **"0 of 2 cells" is 0 of 1, counted twice; the effective n
+across the whole campaign is 3 seeds.** `gen_campaign` refuses a single-cap campaign by
+comparing tag STRINGS, which any two spellings satisfy; `verify_caps` now compares the
+EFFECTIVE budgets and prints `*** SAME BUDGET, DIFFERENT TAGS`.
 
 ---
 
