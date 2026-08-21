@@ -1539,7 +1539,21 @@ Given section 0, only two kinds of thing can still win, and they are the only th
    candidate neighbourhood. It is weakest where the assignment is **coupled**: several capped
    classes plus local per-group caps. It is also uninformative where **train and test prevalence
    are identical**, which is true of every cap we have run -- the cap tells the model nothing it
-   does not already know. **Distribution shift is the untested regime where the cap carries real
+   does not already know.
+
+   🛑🛑 **AND THAT IS TRUE BY CONSTRUCTION, NOT BY ACCIDENT -- read `create_slices.py`.**
+   Every slice is a `StratifiedShuffleSplit` on the label, and the script ASSERTS that each
+   class's train and test percentages agree to within 1 point. So `n_test_c ~ 0.25 * n_train_c`
+   to within a single item, and the cap `K = round(pct * n_test_c)` is recoverable from the
+   TRAINING prevalence alone. ⇒ **the transductive cap carries essentially zero information the
+   training set does not already contain** -- roughly the rounding, and nothing else. This is
+   not an observation about our results; it is a property of how the data was made, and it
+   predicts the null results rather than being explained by them.
+
+   ⇒ **the only way to make the cap informative is a test slice whose prevalence DIFFERS from
+   train.** 🛑 That means new slices, and re-slicing is Roei's call -- it invalidates most of the
+   stored corpus. **Ask before touching it.** A new slice ALONGSIDE `slice_1`, leaving the
+   existing ones untouched, is the cheap version and still needs asking. **Distribution shift is the untested regime where the cap carries real
    information.** Novelty must be checked against label-shift / prior-correction work first.
 
 **Anything that is not one of those two is a repeat of section 2. Do not run it.**
