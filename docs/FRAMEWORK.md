@@ -1628,6 +1628,30 @@ Given section 0, only two kinds of thing can still win, and they are the only th
    information the training set lacks). ⇒ the setting is a **top-K selection problem**,
    which is why 1c is the proposal that fits it and why every count penalty does not.
 
+   📚 **Literature checked so far (2026-08-21), and one lead still open.**
+
+   - **Posterior regularization** (Ganchev, Graca, Gillenwater, Taskar) constrains the
+     posterior's EXPECTATIONS during training, which is exactly `E[count_c] <= K`. It is
+     the closest framework to TraLO itself. ✅ Already in `references.bib` as
+     `ganchev2009posterior` and cited once in both live manuscripts.
+   - **Prior shift / quantification** (SLD; Elkan 2001, in the bib): does not apply, see
+     the budget-vs-prior argument below. ⚠️ Saerens/SLD, learning-from-label-proportions
+     and BBSE-style label shift are **absent from the bib entirely** -- one pre-emptive
+     sentence plus citations is cheap insurance against the obvious reviewer question.
+   - **Top-K / precision@k surrogates**: well established (ICCV 2019 "Sampling Wisely";
+     ICML 2023 "Weighted Sampling without Replacement for Deep Top-k Classification";
+     NeurIPS 2024 "ST_k"), so 1c is not a new loss family.
+
+   ⚠️ **OPEN LEAD, NOT YET VERIFIED -- check before building 1c.** "Predict at most K
+   items as class c" is structurally a **COVERAGE CONSTRAINT**, and selective
+   classification optimises coverage-constrained risk during TRAINING (SelectiveNet,
+   Geifman & El-Yaniv; Chow's rule as the classical optimal rejection rule). If that maps
+   cleanly, 1c is "coverage-constrained selective prediction applied to a transductive
+   class-count budget" -- a much sharper positioning than "a top-K loss", and a related-
+   work item the manuscript probably lacks. 🛑 The search that would confirm it was rate
+   limited; **this is a lead recorded from background knowledge, not a checked citation.
+   Verify it before writing it down anywhere that matters.**
+
    ⚠️ **Novelty is the pairing, not the loss.** Top-K / precision@k surrogates and
    learning-to-rank losses are well established; this is not a new loss family. The
    claim would be "a transductive budget tells you the operating point, and optimising
