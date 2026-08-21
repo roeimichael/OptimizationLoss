@@ -1351,6 +1351,24 @@ five are what found the defects, and they are cheap:
 | **needs Roei** | path 2 -- a test set whose prevalence DIFFERS from train | a load-time subsample, NOT re-slicing |
 | **purged** | `budget_margin` (path 1) | must be rebuilt before it can run |
 
+🛑🛑 **THE WHOLE EFFECT SPACE IS 2 TO 10 ITEMS. Everything else in this document is
+downstream of that.** `F1 = 2TP/(K+n)` is linear in TP, so an F1 delta converts exactly
+into items. Measured headroom from `clip` to the ANALYTIC CEILING on dermmnist:
+
+    cell                headroom   items to close it   of K predicted
+    class 1 @ 30%        0.0290           1.9                 31
+    class 2 @ 30%        0.0290           4.1                 66
+    class 1 @ 50%        0.0597           4.6                 52
+    class 2 @ 50%        0.0597           9.9                110
+
+That is the gap to a PERFECT allocator, not to a better method -- no method can exceed
+it. And `d capF1` is QUANTIZED at 0.67-1.65 items per 0.01, while the paired seed sd is
+0.04 at L30_G20, worth ~2.7 items. ⇒ **seed noise is comparable to the entire headroom**,
+which is why arms tie, why single-cell claims kept being retracted, and why the archived
+result "losing EXACTLY 4 correct predictions of 89 in 3 of 4 seeds" looks so quantized:
+it is counting items, because there is nothing else to count. **Convert every F1 delta to
+items before believing it.**
+
 🛑 **A tie is the pre-registered expectation for 1b, and three independent derivations say
 so:** post-hoc is optimal GIVEN the probabilities; the cap adds no information the training
 set lacks (proved from `create_slices.py`); and under `K << n_true` the Bayes rule is
