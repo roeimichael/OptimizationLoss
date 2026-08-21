@@ -29,6 +29,7 @@ from src.methodologies.fioretto_alm.train import train as train_fioretto_alm    
 from src.methodologies.focal.train import train as train_focal                  # imbalanced + LP clip
 from src.methodologies.class_balanced.train import train as train_class_balanced
 from src.methodologies.logit_adjust.train import train as train_logit_adjust
+from src.methodologies.select.train import train as train_select
 from src.pipeline.contracts import TrainInputs
 from src.pipeline.warmup import run_warmup
 from src.pipeline.eval import evaluate_with_posthoc, write_evaluation_outputs
@@ -54,6 +55,7 @@ TRAIN_FNS = {
     'focal': train_focal,                       # imbalanced warm-up + LP clip
     'class_balanced': train_class_balanced,
     'logit_adjust': train_logit_adjust,
+    'select': train_select,                     # 1c: jointly-trained selection head
 }
 
 

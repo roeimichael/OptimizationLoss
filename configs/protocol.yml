@@ -308,6 +308,29 @@ blocks:
 
 # `phase: posthoc`  -> warm-up total_epochs, constraint 0 (the warm-up IS the run)
 # `phase: trained`  -> warm-up trained_warmup, constraint total_epochs - trained_warmup
+  # ---- 1c: the jointly-trained SELECTION head -------------------------------
+  # Deliberately NOT given the `constraint_phase` block. This arm has no
+  # constraint step at all -- no gradient clip, no step rule, no dual -- so
+  # inheriting those ten keys would emit eight that nothing reads, which is
+  # exactly what audit_config exists to catch.
+  select:
+    lr_constraint: 0.0001     # MUST equal core.lr, same rule as every other arm
+    # Weight on the selective term against CE. At 0 this arm IS its own null,
+    # which is what `select_null` sets.
+    select_eta: 1.0
+    # Pull toward the coverage target. 32.0 is SelectiveNet's published value
+    # (Geifman & El-Yaniv, ICML 2019); it is their number, not a tuned one, and
+    # is recorded as such so it is never reported as a fitted hyperparameter.
+    select_cov_weight: 32.0
+  # Zero dose. Same code path, same optimizer, same coverage targets computed
+  # and logged -- only the selective term is switched off, so any difference is
+  # the term and not the arm's extra machinery.
+  select_null:
+    lr_constraint: 0.0001
+    select_eta: 0.0
+    select_cov_weight: 32.0
+
+
 arms:
   clip:       {methodology: heuristic,      phase: posthoc, blocks: []}
   focal_clip: {methodology: heuristic,      phase: posthoc, blocks: [focal]}
@@ -336,6 +359,19 @@ arms:
      null_sibling: tralo_null}
   # Same code path as tralo, treatment zeroed. See the tralo_null block above.
   tralo_null: {methodology: tralo,          phase: trained, blocks: [constraint_phase, tralo_null]}
+  # 1c. Not a count penalty and not a score-pushing term -- it reweights the
+  # CLASSIFICATION loss over the covered set. See src/methodologies/select/train.py.
+  # `constraint_step: false` is load-bearing, not decoration: it declares that
+  # this arm takes NO constraint step, so it is exempt from the rule that every
+  # trained arm carries `constraint_phase`. The exemption is checked -- an arm
+  # declaring it may not carry a single constraint_phase key, which is what
+  # stops the exemption from becoming a way to smuggle in dead keys.
+  select:
+    {methodology: select, phase: trained, blocks: [chunked, select],
+     null_sibling: select_null, constraint_step: false}
+  select_null:
+    {methodology: select, phase: trained, blocks: [chunked, select_null],
+     constraint_step: false}
   fioretto:   {methodology: fioretto_ldf,   phase: trained, blocks: [constraint_phase, fioretto]}
   hounie:     {methodology: hounie_rcl,     phase: trained, blocks: [constraint_phase, hounie]}
   alm:        {methodology: fioretto_alm,   phase: trained, blocks: [constraint_phase, alm]}

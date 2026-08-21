@@ -1322,9 +1322,28 @@ def test_ce_skip_lives_in_the_shared_block_and_reaches_every_trained_arm():
                if spec.get("phase") == "trained"]
     assert len(trained) >= 4
     for arm in trained:
-        assert "constraint_phase" in proto["arms"][arm]["blocks"], (
+        spec = proto["arms"][arm]
+        if spec.get("constraint_step") is False:
+            # An arm that takes NO constraint step (`select`: a selection head,
+            # no dual, no gradient clip) cannot miss a gate it does not have.
+            # Handing it `constraint_phase` would emit eight keys nothing reads
+            # -- the exact defect audit_config exists to catch -- so the
+            # exemption is declared, and then CHECKED: it may not carry a single
+            # constraint_phase key, which is what stops "constraint_step: false"
+            # from becoming a way to smuggle dead keys past both gates.
+            declared = set()
+            for b in spec["blocks"]:
+                declared |= set(proto["blocks"].get(b, {}))
+            leaked = declared & (set(cp) - {"lr_constraint", "constraint_chunk_size"})
+            assert not leaked, (
+                "%s declares constraint_step: false but still carries %s" %
+                (arm, sorted(leaked)))
+            continue
+        assert "constraint_phase" in spec["blocks"], (
             "%s is a trained arm that does NOT include constraint_phase, so the "
-            "CE-skip gate would silently miss it" % arm)
+            "CE-skip gate would silently miss it. If it genuinely takes no "
+            "constraint step, declare `constraint_step: false` on the arm."
+            % arm)
     for arm, spec in proto["arms"].items():
         if spec.get("phase") == "posthoc":
             assert "constraint_phase" not in (spec.get("blocks") or []), (
