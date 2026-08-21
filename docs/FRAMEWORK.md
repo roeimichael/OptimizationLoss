@@ -381,12 +381,125 @@ step of the same size actively hurts while the linear penalty helps, a separatio
 budget. (Class 4 is noise in both directions, so the effect is one capped class, not
 "the capped classes".)
 
+🚨🚨 **THE COIN WAS OVER-DOSED, SO THE SEPARATION ABOVE IS BIASED THE FLATTERING WAY.
+Found and fixed 2026-08-21 -- treat the two coin rows as PROVISIONAL.**
+
+`_randomize_direction` rescaled the random gradient to exactly `constraint_grad_clip`,
+unconditionally. But under the protocol default `constraint_grad_mode: clip` the TREATMENT
+delivers `min(raw, clip)`. So on every epoch where the clip did not bind, the control took
+a **larger step than the thing it controls** -- measured by calling the real function:
+
+| mode | raw norm | treatment delivers | coin delivered | over-dose |
+|---|---|---|---|---|
+| `clip` | 0.05 | 0.0500 | 1.0000 | **20x** |
+| `clip` | 0.50 | 0.5000 | 1.0000 | 2x |
+| `clip` | 5.00 | 1.0000 | 1.0000 | 1x |
+| `normalize` | any | 1.0000 | 1.0000 | 1x -- clean |
+
+⇒ the control varied **dose as well as information**, which is the one thing it exists to
+hold fixed, and a bigger random step does more damage -- so the bias inflates the coin's
+loss and flatters every shape it is compared against. Three documents asserted the
+opposite ("same norm, no information"; "the dose is held exactly"). Fixed: the coin now
+matches the DELIVERED norm in both modes, pinned by
+`test_the_coin_control_matches_the_delivered_step_not_the_clip_bound`, which was verified
+to FAIL on the old code.
+
+⚠️ **The magnitude of the bias in these two tables cannot be recovered.** `randdir` appears
+nowhere in the code (the arm is `tralo_coin`) and no `randdir` run survives on any disk, so
+the mode those runs used is unrecoverable. It matters which: `scripts/dose_scan.py` forces
+`normalize`, where the coin was always clean, while a `gen_campaign` campaign takes the
+protocol default `clip`, where it was not. For `tralo` the recorded raw norms are
+0.638-1826.5 with the clip binding 6 of 7 epochs, so at most ~1 epoch in 7 was over-dosed
+there; for `hounie` the clip bound **0 of 29**, so every epoch was, by up to 20x.
+
+✅ **WHAT SURVIVES.** `linear`'s **+0.0078 d capF1, 4/4 seeds** is measured against its own
+`lambda=0` control, not against the coin, and does not depend on this at all. What is
+provisional is the *second* claim -- "the direction carries information, a coin does not"
+-- because that one rests entirely on the coin rows. ⇒ **re-run the coin arm before
+repeating that sentence.**
+
 🎯 **THE SHAPE AND THE CAP INTERACT, AND THE SHIPPED SHAPE IS NEGATIVE EVERYWHERE.**
 A tight budget only reaches items the model already had right, so there is nothing for
 a direction to earn; loosen it and a monotone penalty finds something a coin cannot.
 ⚠️ Still unestablished: this is ONE cell at 4 epochs against `null`. `clip` and
 `focal_clip` at protocol length are the bar, and the gain does NOT show up in macro-F1
 (+0.0015, 2/4 seeds) -- it is confined to the constrained classes.
+
+---
+
+### (9) 🛑🛑 THE BASELINE IS NOT NEUTRAL: `tralo_null` STARTS ~5 ITEMS BEHIND `clip`
+
+Measured 2026-08-21 on `results/dosefix` (corrected lesion-disjoint derm x ViTB16 x
+{L50_G30, L40_G30}, 3 seeds so far of 4, both clippers in-campaign).
+
+`tralo_null` is lambda = 0: one warm-up epoch, then 29 constraint epochs whose constraint
+term is identically zero. `clip` is 30 warm-up epochs and no constraint phase. **Both are
+thirty epochs of cross-entropy on the same data, scored with the same allocator. They
+should tie.**
+
+| | AP | AUROC | ccP | ccF1 | macroF1 | acc | cells won |
+|---|---|---|---|---|---|---|---|
+| `tralo_null` - `clip` | -0.0383 | -0.0087 | **-0.0404** | **-0.0188** | -0.0198 | -0.0078 | **0 of 2** on 12 of 13 metrics |
+
+At this campaign's scale of **2.78 items per 0.01 ccF1**, that is **-5.2 items**. The whole
+gap from `clip` to a PERFECT allocator is 1.9-9.9 items. ⇒ **the untreated arm gives away
+more than half the available headroom before the constraint does anything**, and every
+tralo-vs-clip number this project has produced sits on top of that handicap.
+
+**THE ASYMMETRY IS STRUCTURAL, AND IT IS IN THE HARNESS, NOT THE METHOD.**
+`src/pipeline/warmup.py` returns `(model, cached)` -- the Adam optimizer is a LOCAL and is
+discarded -- and the trained arms then build a **fresh** Adam. So `clip` runs its 30 epochs
+under ONE Adam, while `tralo_null` runs epoch 1 under Adam #1 and epochs 2-30 under Adam
+#2, with the moments and the bias-correction step counter reset at epoch 2 of 30. Two
+smaller asymmetries ride along: a second `GradScaler` restarts its back-off (fp16 only, so
+exactly zero on dsisco02's bf16), and batch order diverges after the boundary.
+
+🔑 **The phase boundary is an implementation detail of OUR method. It must not change what
+the optimizer does.** Thirty epochs of CE should be thirty epochs of CE wherever the
+boundary is drawn.
+
+⚠️ **NOT YET ATTRIBUTED, AND DO NOT ASSUME THE OBVIOUS CAUSE.** An isolated measurement of
+the optimizer restart alone (paired over 10 seeds, identical init, identical replayed batch
+order) put it at **+0.0121 macroF1 / +0.0019 AP -- the WRONG SIGN**: on an under-fit model a
+fresh Adam acts as a brief LR warm-up and HELPS. That was a small CPU model, and the
+transient scales with parameter count, but the direction is a property of the mechanism.
+⇒ the restart is **not** established as the cause. ⚠️ And the effect is close to this
+project's own noise: -0.0198 macroF1 sits INSIDE the measured 0.0358 same-arm floor, and
+5.2 items is ~2x the paired seed sd of 2.7 at n = 3 seeds.
+
+🎯 **Before this is treated as a result, and before any tralo-vs-clip delta is quoted from
+a campaign that contains a `_null` arm: measure whether the handicap replicates**, across
+campaigns, per cell, per seed, converted to items -- and check whether it vanishes on bf16
+(which would indict the GradScaler) or at warm-up 30 (which would indict the split itself).
+
+---
+
+### (10) 🛑🛑 NO PROTOCOL-LEGAL COMPARISON OF THE DUALS AGAINST A CLIPPER HAS EVER RUN
+
+Verified 2026-08-21 against the 14,524-config provenance archive, by classifying every
+cell that holds both a dual arm (`fioretto_ldf` / `hounie_rcl` / `fioretto_alm`) and
+`heuristic` at a matched (campaign root, backbone, dataset, cap, seed):
+
+| | pairs |
+|---|---|
+| completed, equal compute, **`lr_constraint` != `lr` (THE LR TRAP)** | **2,972** |
+| one side never completed | 104 |
+| **completed + equal compute + `lr_constraint == lr`** | **0** |
+
+The 48 pairs that ARE protocol-legal are the `mcbar_duals` campaign -- derm/oct/tissue x
+MobileNetV3, dual at warm-up 1 + 29 against `clip` at 30 + 0, `lr_constraint == lr` -- and
+**every one of them is `status: pending`. They were generated and never ran.**
+
+⚠️ **Compute parity is NOT the disqualifier**, and an earlier reading that said 96.6% of
+cells were at unequal compute was wrong: the clipper is given the full budget as warm-up,
+exactly as the protocol prescribes, so 100% of completed pairs match on total optimizer
+epochs. The disqualifier is the LR trap alone -- `lr_constraint` 5e-6 against `lr` 1e-4,
+the same 20x gap that once fabricated a -16.7 pp "constraint damages the representation"
+finding and is why the protocol now says `lr_constraint` **MUST** equal `lr`.
+
+🎯 **CONSEQUENCE: "Fioretto and Hounie beat the clipper" is not a result this project
+holds.** It is also not refuted -- there is simply no legal measurement either way. The
+`mcbar_duals` campaign is the one that would settle it, and it is sitting `pending`.
 
 ---
 
@@ -1276,7 +1389,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 158 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 165 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1284,7 +1397,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (158 tests, ~35 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (165 tests, ~35 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -1433,7 +1546,7 @@ five are what found the defects, and they are cheap:
 | | what | status |
 |---|---|---|
 | **built, not run** | `tralo_margin` + `tralo_st` (1b) -- the count's gradient on the decision boundary, decomposed from the count's value | 56-run campaign ready, all gates green, `docs/launch_margin1.sh` |
-| **proposed, not built** | 1c -- optimise the metric at the budget **with LABELS**, via a jointly-trained SELECTION head | literature checked; **SelectiveNet (ICML 2019) beat exactly our `clip` baseline** in the analogous coverage setting |
+| **built, not run** | 1c -- optimise the metric at the budget **with LABELS**, via a jointly-trained SELECTION head | `src/methodologies/select/train.py`, arms `select` / `select_null`; all gates green including `--matrix`. ⚠️ dosed at tau ~ 0.03 against SelectiveNet's published 0.70-1.00 -- see the dose note in 1c below |
 | **needs Roei** | path 2 -- a test set whose prevalence DIFFERS from train | a load-time subsample, NOT re-slicing |
 | **purged** | `budget_margin` (path 1) | must be rebuilt before it can run |
 
@@ -1764,7 +1877,32 @@ wrong, and 2 changes the problem rather than the method.
    the whole test set the sigmoid is flat and it has silently degraded back to `sum`.
    Either way the run measures nothing, and neither shows up as an error.
 
-1c. **Optimise the metric at the budget, using LABELS** -- proposed 2026-08-21, not built.
+1c. **Optimise the metric at the budget, using LABELS** -- BUILT 2026-08-21, not yet run.
+
+   `src/methodologies/select/train.py`; arms `select` / `select_null`; `blocks: [chunked,
+   select]` with `constraint_step: false`, since this arm takes no constraint step at all
+   and inheriting those ten keys would emit eight nothing reads.
+
+   ⚠️ **THE DOSE IS 23x OUTSIDE THE REGIME THE METHOD WAS PUBLISHED IN, AND THAT IS NOT
+   FIXABLE BY TUNING.** SelectiveNet's coverage targets are 0.70-1.00. Ours is
+   `tau_c = K_c / n_test` ~ 0.03, because a BUDGET is not a coverage rate -- so a batch of
+   64 carries ~2 covered items. Both of the published estimators degrade there: dividing
+   the selective risk by `g.sum()` is a ratio estimator whose denominator is a small
+   random variable, and `(g.mean() - tau)^2` has expectation `Var(cov) + bias^2` with the
+   variance dominating. Both are now stabilised (risk normalised by the EXPECTED covered
+   mass; the coverage term takes its value from a running estimate and its gradient from
+   the batch), and the arm PRINTS its covered-items-per-batch before the first step and
+   warns when it is small. ⇒ **a null from this arm must be read as "underpowered" before
+   it is read as "the method does not work"** -- `cut_temp: 0.02` already produced exactly
+   that silent null with 1.4-1.9 items inside its window.
+
+   ⚠️ **AND SELECTIVENET'S OWN ADVANTAGE IS CONTESTED.** Jaeger et al. (ICLR 2023, oral)
+   and Feng et al. report that a plain confidence threshold on a well-trained model
+   matches or beats learned selection heads once the comparison is made at matched
+   coverage. That is the same claim as our `clip` baseline, and it is the reason the
+   falsification below is pre-registered rather than optional: **if `select` beats `clip`,
+   apply the identical head to `clip` and re-run.** If the head helps both equally, the
+   result is the head, not the joint training.
 
    This is where the day's measurements point, and it is the only proposal here that
    escapes the trap 1b is stuck in. Three facts, each established above:
@@ -1991,7 +2129,7 @@ scripts/verify_caps.py   the caps bind, on the real dataset slices
 scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             158 tests, ~35 s, no dataset required
+tests/             165 tests, ~35 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
