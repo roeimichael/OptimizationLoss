@@ -250,6 +250,17 @@ def panel(run_dir, cfg):
         "capped": "-".join(str(x) for x in classes),
         "seed": (cfg.get("hyperparams") or {}).get("seed"),
         "arm": cfg.get("arm"),
+        # How many ITEMS one unit of capped-class F1 is worth here. F1 =
+        # 2TP/(K+n) is linear in TP, and `eq` holds exactly K predictions per
+        # capped class by construction, so both numbers are already in hand.
+        #
+        # SUM, not mean: ccF1 is MACRO-averaged over the m capped classes, so a
+        # delta d means sum_c dF1_c = m*d, and the items it costs are summed
+        # across classes. Taking the mean here understated the count by exactly
+        # m -- a factor of 3 on dermmnist's three capped classes.
+        "items_per_001": float(np.sum(
+            [0.01 * (int((eq == c).sum()) + int((y == c).sum())) / 2
+             for c in classes])) if len(classes) else np.nan,
         # -------- allocation-free
         "AP": _ap,
         "AUROC": _auc,
@@ -823,6 +834,45 @@ def main():
               "project has")
         print("  run. A q<0.05 here is one arm's family, not the project's.")
         print()
+
+    _items_scale(rows)
+
+
+def _items_scale(rows):
+    """Print how many ITEMS one unit of capped-class F1 is worth, per cell.
+
+    `F1 = 2TP/(K+n)` is linear in TP, so a capped-class F1 delta converts
+    exactly into items -- and the effect space here is small enough that the
+    conversion changes how a number reads. Measured on dermmnist, the gap from
+    `clip` to the ANALYTIC ceiling `2K/(K+n)` is 1.9 items at class 1 / 30% and
+    9.9 at class 2 / 50%, against a paired seed sd worth ~2.7 items.
+
+    Printed after every panel because a reader who does not convert will read
+    0.02 as a small effect when it can be the entire headroom.
+    """
+    per = {}
+    for r in rows:
+        v = r.get("items_per_001")
+        if v is None or not np.isfinite(v):
+            continue
+        per.setdefault((r["dataset"], r["model"], r["cap"], r["capped"]),
+                       []).append(v)
+    if not per:
+        return
+    print("=" * 100)
+    print("ITEMS PER 0.01 capF1  --  convert before believing a delta")
+    print("=" * 100)
+    print("  %-64s %14s" % ("cell (dataset/model/cap/capped)", "items / 0.01"))
+    for k, v in sorted(per.items()):
+        print("  %-64s %14.2f" % ("/".join(str(x) for x in k), float(np.mean(v))))
+    print()
+    print("  ccF1 is MACRO-averaged over the capped classes, so this is the TOTAL")
+    print("  across them: items = d(ccF1) * sum_c (K_c + n_c) / 2. The measured gap")
+    print("  from `clip` to the analytic ceiling 2K/(K+n) is 1.9 to 9.9 items PER")
+    print("  CLASS, and the paired seed sd is worth ~2.7. A delta smaller than one")
+    print("  item is not a delta -- it is a different allocation of the same")
+    print("  predictions, and several archived results sit below that line.")
+    print()
 
 
 if __name__ == "__main__":
