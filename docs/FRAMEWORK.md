@@ -1097,11 +1097,65 @@ magnitude cancelled by the unit-norm clip. All three were read as defects to rep
 **They are not. The starvation is why the method is only mildly worse than a clipper.
 Every attempt to deliver more constraint signal made it worse.**
 
+### (b-pre) PRE-REGISTERED: `results/dosefix`, written 2026-08-21 BEFORE any run finished
+
+Recorded here in advance because this document's own rule is *"state which metric it is
+supposed to move, and check it is ccP"* -- and because section 2d holds five retractions
+that all came from choosing the metric after seeing the numbers.
+
+**Regime.** dermmnist `slice_1` **on the CORRECTED lesion-disjoint split** (0% leakage,
+verified) x ViTB16 x {`L50_G30`, `L40_G30`} x {`clip`, `focal_clip`, `tralo`, `tralo_null`}
+x 4 seeds = 32 runs. `penalty_shape: linear`, `constraint_grad_mode: normalize`,
+`constraint_step_rule: sgd`, `constraint_fp32`, warm-up 1 / constraint 29. Gates green:
+`verify_caps` (neither cap tag inert), `check_parity` PARITY OK, `audit_config` clean.
+
+**Why this exact cell.** It is the ONE positive signal in the corpus: at `L50_G30` with a
+`linear` shape the penalty gained **+0.030 ccP over its own lambda=0 control**. Everything
+else about it is a replication attempt -- 4 seeds, two cap levels, both clippers
+in-campaign, on data that is not leaking.
+
+**PRIMARY ENDPOINT: `ccP` (equivalently `ccF1`) versus `clip`, paired by seed, converted
+to ITEMS.** Secondary: the same against `tralo_null`, which isolates the constraint from
+the warm-up.
+
+🛑 **DECLARED IN ADVANCE, so it cannot be reinterpreted afterwards:**
+- **AUROC / ECE / Brier / NLL / ConfGap moving is NOT a result here.** The shipped penalty
+  already improves all five against `clip` while ccP falls -0.0450 -- better everywhere the
+  cap does not read, worse in the only place it does. An arm that moves AUROC has been run
+  twice. If ccP does not move, this arm produced nothing.
+- **`flips`, raw count over K, and satisfaction rate are NOT results** and are not to be
+  quoted (house rule 5).
+- **A sub-item delta is a re-allocation, not a difference.** At this cell one item is worth
+  ~0.007 ccF1, and the paired seed sd is worth ~2.7 items.
+- **2 cells cannot reach significance** -- `gen_campaign` said so at generation time
+  (exact Wilcoxon floor p=0.5). This campaign can report DIRECTION and per-seed
+  consistency, never a starred verdict. If it is positive, the follow-up is **more SEEDS**,
+  not more cells.
+
 ### (c) Per-item losses -- all null so far
 
 - **`rank`** (pairwise, transductive, top-K vs rest) -- null, 48/48. It is **self-referential**:
   no labels, so it can sharpen a cut but never reorder.
 - **`rankpair`** (supervised pairwise hinge) -- null to negative.
+🔑 **WHAT THIS LIST DOES AND DOES NOT CLOSE, stated 2026-08-21 before building 1c.**
+Every arm below adds a term that moves the SCORE ORDERING while leaving the
+classification loss untouched -- pairwise hinges and threshold hinges are score
+arithmetic. Three of them are null, which is strong evidence that **you cannot fix the
+ranking by pushing on the scores.**
+
+That is NOT the same as a **selective** loss, which reweights the CLASSIFICATION loss so
+the model is optimised to be accurate *on the items it selects*. The representation
+changes, not just the offsets -- which is the mechanism SelectiveNet reports its gain
+from, and it is untested here. ⇒ 1c is still open, but only under this reading, and it
+inherits the same bar: **it must move ccP.** If it moves AUROC and not ccP it has
+reproduced `budget_margin` and the shipped penalty for a third time.
+
+⚠️ **Honest risk to state now:** the covered set here is ~30-50% of ONE class, so the
+selective loss optimises accuracy on a small, self-selected subset -- which is also a
+recipe for overfitting it, the exact failure `joint_objective` had (held the cap 98.8% of
+epochs, -0.067 AP). The pre-registered check is ccP against `clip` **with AP watched as a
+guard**, not as an endpoint.
+
 - **`budget_margin`** (hinge at the cap's implied threshold) -- the knob is live but only AUROC
   moves, i.e. it improves the ordering in a region the cap never reads. Untested on multi-class.
   🔗 **2026-08-21: the SHIPPED penalty has the same failure mode**, which makes this a family
