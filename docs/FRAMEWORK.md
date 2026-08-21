@@ -1385,7 +1385,10 @@ mechanism is available to 1c and to none of the arms run so far**, because every
 them bolts a penalty onto a warm-started CE model instead of fitting the model to the
 sub-population it will actually predict on.
 
-Given section 0, only two kinds of thing can still win, and they are the only things worth building:
+Given section 0, these are the only things that can still win, and the only things worth
+building. They are ordered by how much of the pessimism above they escape: **1c escapes
+all of it, 1b escapes none of it** and is being run anyway because the analysis could be
+wrong, and 2 changes the problem rather than the method.
 
 1. **A per-item objective at the operating point** -- something whose gradient depends on an
    individual item's position relative to the budget, not on the aggregate count.
@@ -1756,7 +1759,7 @@ Given section 0, only two kinds of thing can still win, and they are the only th
    ⚠️ Not implemented, and not to be implemented unasked -- it changes the data path. **Distribution shift is the untested regime where the cap carries real
    information.** Novelty must be checked against label-shift / prior-correction work first.
 
-**Anything that is not one of those two is a repeat of section 2. Do not run it.**
+**Anything that is not one of those is a repeat of section 2. Do not run it.**
 
 ### What 2026-08-21 changed about both of them
 
