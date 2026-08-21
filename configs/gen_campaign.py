@@ -407,6 +407,13 @@ def main():
             print("      *** and the gradient PLACEMENT at once. Without "
                   "`tralo_st` a win cannot be")
             print("      *** attributed to either. Add --arms ... tralo_st.")
+        if "tralo_coin" not in arms:
+            print("      *** NO COIN: the pre-registered kill condition is that "
+                  "the arm must beat a")
+            print("      *** RANDOM step of the same norm. Add --arms ... "
+                  "tralo_coin. The campaign-wide")
+            print("      *** --constraint-random-direction flag cannot serve: "
+                  "it randomises EVERY arm.")
         if "tralo" not in arms:
             print("      *** `tralo` is NOT in this campaign. Without it the "
                   "margin arm has nothing")

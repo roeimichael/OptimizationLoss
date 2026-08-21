@@ -210,6 +210,15 @@ blocks:
   # manuscript's count can sit in ONE campaign. An arm-vs-arm delta is not a
   # result until the bar is in the same campaign, and that applies to two
   # estimators of the same constraint exactly as it applies to two methods.
+  # THE COIN. Same step NORM, no information -- the direction is replaced by a
+  # random vector. One coin serves every trained arm: the randomisation happens
+  # after the gradient is formed, so which count produced it is irrelevant.
+  # It is an ARM and not the campaign-wide --constraint-random-direction flag
+  # because that flag randomises EVERY arm, which means the coin can never sit
+  # in the same campaign as the thing it controls -- and an arm-vs-arm delta is
+  # not a result until the bar is in the same campaign.
+  tralo_coin:
+    constraint_random_direction: true
   tralo_st:
     straight_through: true
   tralo_margin:
@@ -311,6 +320,9 @@ arms:
   # The fourth corner -- margin placement on a soft value -- over-counts (56.6
   # against a hard 45) and pushes past feasibility, which is measured and is the
   # joint arm's failure mode, so it is not an arm.
+  tralo_coin:
+    {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, tralo_coin],
+     null_sibling: tralo_null}
   tralo_st:
     {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, tralo_st],
      null_sibling: tralo_null}
