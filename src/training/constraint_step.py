@@ -137,7 +137,16 @@ def finish_constraint_step(model, optimizer, scaler, clip, mode="clip",
     applied = bool(torch.isfinite(raw) and raw > 0)
     if applied and random_direction:
         # Same norm, no information. Everything downstream is unchanged.
-        _randomize_direction(model, clip, raw)
+        #
+        # !! THE NORM TO MATCH IS THE DELIVERED ONE, NOT `clip`. Under the
+        # default mode="clip" the treatment delivers min(raw, clip), so
+        # rescaling the coin to `clip` over-doses it on every epoch where the
+        # clip did not bind -- 20x for hounie, whose raw norms are 0.005-0.11
+        # against clip 1.0. The control would then differ from the treatment in
+        # DOSE as well as information, which is the one thing it exists to hold
+        # fixed, and the bias runs in the direction that flatters the treatment.
+        _randomize_direction(model, clip if mode == "normalize"
+                             else min(raw_norm, clip), raw)
     elif applied and mode == "normalize" and raw_norm < clip:
         # clip_grad_norm_ only shrinks. Scale UP so the delivered step is
         # exactly `clip` for every arm, not just the ones that overshoot it.

@@ -9,40 +9,28 @@ import logging
 import time
 
 import numpy as np
-import torch
 
 from src.pipeline.contracts import TrainInputs, TrainOutputs
 from src.utils.constants import UNLIMITED, CONSTRAINT_CHUNK_SIZE
+from src.utils.inference import chunked_probs
 
 log = logging.getLogger(__name__)
-
-
-def _infer_probs(model, X_test, chunk_size):
-    model.eval()
-    with torch.no_grad():
-        chunks = [model(X_test[i:i + chunk_size])
-                  for i in range(0, len(X_test), chunk_size)]
-        probs = torch.softmax(torch.cat(chunks, dim=0), dim=1).cpu().numpy()
-    return probs
 
 
 def train(inputs: TrainInputs) -> TrainOutputs:
     from src.methodologies.danits_lp import solve_lp_assignment
 
-    cost_preset = inputs.hyperparams.get("danits_cost_preset", "identity")
-    if cost_preset != "identity":
-        raise ValueError(
-            f"Unknown danits_cost_preset {cost_preset!r}. Only 'identity' is "
-            f"supported. To add task-specific cost matrices, extend "
-            f"danits_research/cost_matrices.py.")
-
     chunk_size = int(inputs.hyperparams.get("constraint_chunk_size",
                                             CONSTRAINT_CHUNK_SIZE))
     device = inputs.device
     X_test = inputs.X_test.to(device)
-    probs = _infer_probs(inputs.model, X_test, chunk_size)
+    probs = chunked_probs(inputs.model, X_test, chunk_size)
 
     num_classes = inputs.num_classes
+    # The identity misclassification cost, which is what the manuscript claims
+    # LP-LG uses ("rather than the general cost matrix"). It is the only cost
+    # this arm has ever run, so it is written here rather than selected by a
+    # config key with exactly one legal value.
     omega = np.ones((num_classes, num_classes), dtype=np.float64) - np.eye(num_classes, dtype=np.float64)
     psi_list = [int(v) if v < UNLIMITED else None for v in inputs.global_con]
     phi_dict = {}
@@ -59,8 +47,8 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     if lp_res.status != "OPTIMAL":
         raise RuntimeError(f"danits_lp: LP solver returned status={lp_res.status}")
     y_pred = lp_res.y_pred
-    log.info("DANITS-LP [%s]: obj=%.4f status=%s runtime=%.3fs vars=%d constraints=%d",
-             cost_preset, lp_res.objective_value, lp_res.status,
+    log.info("DANITS-LP [identity]: obj=%.4f status=%s runtime=%.3fs vars=%d constraints=%d",
+             lp_res.objective_value, lp_res.status,
              exec_time, lp_res.num_variables, lp_res.num_constraints)
 
     return TrainOutputs(

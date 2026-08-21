@@ -35,10 +35,6 @@ def normalize_constrained_classes(constrained_class):
     return [int(c) for c in out]
 
 
-# Back-compat alias: the private name is used across this module.
-_normalize_constrained_classes = normalize_constrained_classes
-
-
 def _round_to_K(count, percentage, scope_label):
     """Round count*percentage to an integer K and refuse to silently produce K=0
     when there ARE samples to classify. K=0 with count>0 is a config bug
@@ -75,7 +71,7 @@ def _round_to_K(count, percentage, scope_label):
 
 def compute_global_constraints(data, target_col, percentage, constrained_class=4,
                                num_classes=7, **kwargs):
-    classes = _normalize_constrained_classes(constrained_class)
+    classes = normalize_constrained_classes(constrained_class)
     constraints = [UNLIMITED] * num_classes
     for c in classes:
         count = (data[target_col] == c).sum()
@@ -85,7 +81,7 @@ def compute_global_constraints(data, target_col, percentage, constrained_class=4
 
 def compute_local_constraints(data, target_col, percentage, group_col,
                               constrained_class=4, num_classes=7, **kwargs):
-    classes = _normalize_constrained_classes(constrained_class)
+    classes = normalize_constrained_classes(constrained_class)
     local = {}
     for group in data[group_col].unique():
         gdata = data[data[group_col] == group]

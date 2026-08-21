@@ -23,7 +23,7 @@ import torch.nn.functional as F
 log = logging.getLogger(__name__)
 
 
-def capped_scores(model, X_test, classes, chunk_size, device):
+def capped_scores(model, X_test, classes, chunk_size):
     """Softmax probability of each capped class, over the whole test set."""
     if not classes:
         return None
@@ -38,8 +38,7 @@ def capped_scores(model, X_test, classes, chunk_size, device):
     return torch.cat(out, dim=0) if out else torch.zeros((0, len(classes)))
 
 
-def reordering_report(model, X_test, before, classes, chunk_size, device,
-                      tag="reordering"):
+def reordering_report(model, X_test, before, classes, chunk_size):
     """Compare the capped class's test ranking before and after the constraint phase.
 
     tau = 1.0 with a large bias_shift means the constraint phase changed the
@@ -47,7 +46,7 @@ def reordering_report(model, X_test, before, classes, chunk_size, device,
     """
     if before is None or not classes:
         return {}
-    after = capped_scores(model, X_test, classes, chunk_size, device)
+    after = capped_scores(model, X_test, classes, chunk_size)
     if after is None:
         return {}
     rep = {}
@@ -74,9 +73,9 @@ def reordering_report(model, X_test, before, classes, chunk_size, device,
             "soft_before": round(float(b.sum()), 3),
             "soft_after": round(float(a.sum()), 3),
         }
-        log.info("%s, class %d: tau=%.4f bias_shift=%+.4f (resid sd %.4f), "
+        log.info("reordering, class %d: tau=%.4f bias_shift=%+.4f (resid sd %.4f), "
                  "soft count %.1f -> %.1f. tau near 1.0 with a large shift "
                  "means the count moved but the RANKING did not, and the "
                  "scorer cannot see a ranking-preserving change.",
-                 tag, c, tau, delta, resid, b.sum(), a.sum())
+                 c, tau, delta, resid, b.sum(), a.sum())
     return rep

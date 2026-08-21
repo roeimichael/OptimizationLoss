@@ -73,7 +73,7 @@ def main():
     use_amp, amp_dtype, scaler = setup_runtime(device)
     print("amp=%s dtype=%s scaler=%s" % (use_amp, amp_dtype, scaler is not None))
 
-    model = get_model(config["model_name"], input_dim=None,
+    model = get_model(config["model_name"],
                       n_classes=data.num_classes, dropout=hp["dropout"],
                       pretrained=hp.get("pretrained", False)).to(device)
     print("STAGE init_model      %s" % h_params(model))

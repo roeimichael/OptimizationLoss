@@ -13,10 +13,10 @@ import logging
 import time
 
 import numpy as np
-import torch
 
 from src.pipeline.contracts import TrainInputs, TrainOutputs
 from src.utils.constants import UNLIMITED, CONSTRAINT_CHUNK_SIZE
+from src.utils.inference import chunked_probs
 
 log = logging.getLogger(__name__)
 
@@ -146,21 +146,12 @@ def verify_allocation(y_pred, groups, global_constraints, local_constraints,
     return bad
 
 
-def _infer_probs(model, X_test, chunk_size):
-    model.eval()
-    with torch.no_grad():
-        chunks = [model(X_test[i:i + chunk_size])
-                  for i in range(0, len(X_test), chunk_size)]
-        probs = torch.softmax(torch.cat(chunks, dim=0), dim=1).cpu().numpy()
-    return probs
-
-
 def train(inputs: TrainInputs) -> TrainOutputs:
     device = inputs.device
     X_test = inputs.X_test.to(device)
     chunk_size = int(inputs.hyperparams.get("constraint_chunk_size",
                                             CONSTRAINT_CHUNK_SIZE))
-    probs = _infer_probs(inputs.model, X_test, chunk_size)
+    probs = chunked_probs(inputs.model, X_test, chunk_size)
 
     hierarchy = _build_hierarchy(
         inputs.num_classes, inputs.global_con, inputs.constrained_classes)

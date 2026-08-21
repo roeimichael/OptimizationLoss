@@ -14,11 +14,11 @@ warmup is saturated, so any training loss on it is ~0 with ~0 gradients.)
 import logging
 
 import numpy as np
-import torch
 
 from src.methodologies.danits_lp import solve_lp_assignment
 from src.pipeline.contracts import TrainInputs, TrainOutputs
 from src.utils.constants import UNLIMITED
+from src.utils.inference import chunked_probs
 
 log = logging.getLogger(__name__)
 
@@ -26,13 +26,9 @@ log = logging.getLogger(__name__)
 def _lp_clip(model, inputs, device):
     """Shifman-LP allocation on the imbalanced-trained model's test-set softmax
     (identical formulation to danits_lp: identity cost, per-class psi + per-group phi)."""
-    model.eval()
     X_test = inputs.X_test.to(device)
     chunk = int(inputs.hyperparams.get("constraint_chunk_size", 256))
-    with torch.no_grad():
-        probs = torch.cat(
-            [torch.softmax(model(X_test[i:i + chunk]), dim=1)
-             for i in range(0, len(X_test), chunk)], dim=0).cpu().numpy()
+    probs = chunked_probs(model, X_test, chunk)
     n = inputs.num_classes
     omega = np.ones((n, n), dtype=np.float64) - np.eye(n, dtype=np.float64)
     psi = [int(v) if v < UNLIMITED else None for v in inputs.global_con]

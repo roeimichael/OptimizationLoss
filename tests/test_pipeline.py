@@ -930,7 +930,11 @@ def test_the_documented_test_count_is_the_real_one(request):
 
     # Only meaningful when the whole suite was collected. Running a single node
     # id collects 1, which would fail the guard on every targeted run.
-    if any("::" in a or "-k" in a for a in request.config.args):
+    # `-k` is an OPTION, not a positional arg, so scanning config.args never
+    # saw it: a targeted `-k` run collected 1 test and failed this guard on
+    # `n > 1` instead of skipping. Read the option itself.
+    if (request.config.option.keyword
+            or any("::" in a for a in request.config.args)):
         _pytest.skip("subset run: the collected count is not the suite count")
     n = request.session.testscollected or len(request.session.items)
     assert n > 1
@@ -2340,3 +2344,248 @@ def test_the_deletion_table_does_not_claim_live_code_was_deleted():
     assert not registered, (
         "FRAMEWORK section (f) says these methodologies were deleted, but they "
         "are registered in TRAIN_FNS: %s" % registered)
+
+
+def test_the_coin_control_matches_the_delivered_step_not_the_clip_bound():
+    """The coin must differ from the treatment in INFORMATION only, not dose.
+
+    `_randomize_direction` rescaled the random gradient to exactly `clip`
+    unconditionally, but under the protocol default `constraint_grad_mode: clip`
+    the treatment delivers min(raw, clip). So on every epoch where the clip did
+    not bind, the control took a LARGER step than the thing it controls -- 20x
+    for hounie, whose raw norms are 0.005-0.11 against clip 1.0 -- and the bias
+    runs in the direction that flatters the treatment.
+    """
+    import torch
+    import torch.nn as nn
+
+    from src.training.constraint_step import finish_constraint_step
+
+    def delivered(mode, target_raw, coin):
+        torch.manual_seed(0)
+        m = nn.Linear(64, 8, bias=False)
+        for p in m.parameters():
+            p.grad = torch.ones_like(p)
+            p.grad.mul_(target_raw / float(p.grad.norm()))
+        opt = torch.optim.SGD(m.parameters(), lr=0.0)
+        finish_constraint_step(m, opt, None, 1.0, mode=mode, step_rule="sgd",
+                               lr=0.0, random_direction=coin)
+        return sum(float(p.grad.pow(2).sum()) for p in m.parameters()) ** 0.5
+
+    for mode in ("clip", "normalize"):
+        for raw in (0.05, 0.5, 5.0):
+            t = delivered(mode, raw, False)
+            c = delivered(mode, raw, True)
+            assert abs(c - t) < 1e-5, (
+                "coin is dosed %.4f but the treatment delivers %.4f at "
+                "mode=%s raw=%.2f (%.1fx) -- the control varies dose as well "
+                "as information" % (c, t, mode, raw, c / max(t, 1e-12)))
+
+
+def test_coverage_targets_uses_a_whole_test_budget_not_the_smallest_group():
+    """tau's numerator and denominator must live in the same scope.
+
+    `local_con[g][c]` bounds group g alone; `g.mean()` covers the whole batch.
+    Taking min across groups put the SMALLEST group's budget over the whole
+    test set -- 9/2004 instead of 67/2004 on derm L50_G30, a 7.4x
+    over-tightening -- and made tau move with the LOCAL tag while the global
+    cap was unchanged, so a G<L sweep would sweep the smallest group.
+    """
+    from src.methodologies.select.train import coverage_targets
+    from src.training.constraints import UNLIMITED
+
+    n = 2004
+    loc = {g: [UNLIMITED] * 7 for g in ("a", "b", "c")}
+    loc["a"][4], loc["b"][4], loc["c"][4] = 75.0, 28.0, 9.0   # sum 112
+
+    g_tight = [UNLIMITED] * 7
+    g_tight[4] = 67.0
+    assert abs(coverage_targets(g_tight, loc, [4], n, 7)[4] - 67 / n) < 1e-9, (
+        "global 67 is tighter than the local sum 112, so tau must be 67/n")
+
+    # Local-only: the global is UNLIMITED, and the SUM of the locals is the
+    # whole-test ceiling. Reading global_con alone would give tau = 1.0 here.
+    assert abs(coverage_targets([UNLIMITED] * 7, loc, [4], n, 7)[4]
+               - 112 / n) < 1e-9, "local-only must fall back to the local SUM"
+
+    # The smallest group's budget (9) must never be the numerator.
+    for g in (g_tight, [UNLIMITED] * 7):
+        assert coverage_targets(g, loc, [4], n, 7)[4] > 9.0 / n + 1e-9, (
+            "tau collapsed onto the smallest group's budget")
+
+
+def test_the_selection_arm_actually_threads_its_running_coverage_estimate():
+    """Inert-flag gate for `cov_ema`: passing it must CHANGE the loss.
+
+    The stabilised coverage term takes its VALUE from a running estimate and
+    its GRADIENT from the current batch. Wiring the estimate into the signature
+    but never passing it from the loop would leave the whole fix inert, which
+    is this project's most frequent failure mode.
+    """
+    import ast
+    import io as _io
+
+    import torch
+
+    from src.methodologies.select.train import selective_loss
+
+    g = torch.full((64,), 0.5, requires_grad=True)
+    probs = torch.full((64, 7), 1 / 7.0)
+    y = torch.zeros(64, dtype=torch.long)
+
+    bare, _ = selective_loss(g, probs, y, 4, 0.03, 32.0)
+    with_ema, _ = selective_loss(g, probs, y, 4, 0.03, 32.0, cov_ema=0.20)
+    assert abs(float(bare) - float(with_ema)) > 1e-6, (
+        "cov_ema does not change the loss -- the argument is inert")
+
+    # ...and the gradient must still come from THIS batch, not the estimate.
+    with_ema.backward()
+    assert g.grad is not None and float(g.grad.abs().sum()) > 0, (
+        "no gradient reaches g -- the detach construction broke the graph")
+
+    # ...and the training loop must actually pass it.
+    src = _io.open("src/methodologies/select/train.py", encoding="utf-8").read()
+    calls = [n for n in ast.walk(ast.parse(src))
+             if isinstance(n, ast.Call)
+             and getattr(n.func, "id", None) == "selective_loss"]
+    assert calls, "no call to selective_loss found in the arm"
+    assert all(len(c.args) >= 7 or any(k.arg == "cov_ema" for k in c.keywords)
+               for c in calls), (
+        "selective_loss is called without cov_ema -- the stabilisation is inert")
+
+
+def test_no_methodology_reads_the_test_LABELS_except_to_count_them():
+    """`y_test` is handed to every train(); only discipline keeps it unread.
+
+    `TrainInputs` carries the true test labels so the pipeline can derive K and
+    score afterwards, and every methodology receives them. The transductive
+    setting permits reading the COUNT (that is the declared assumption) and
+    nothing else. An arm that trains on test inputs -- self-training, pseudo
+    -labelling -- is exactly where an accidental read would be easy to write
+    and impossible to notice, so this is a gate rather than a convention.
+    """
+    import ast
+    import io as _io
+    import pathlib
+
+    offenders = []
+    for path in sorted(pathlib.Path("src/methodologies").rglob("*.py")):
+        tree = ast.parse(_io.open(path, encoding="utf-8").read())
+        # Every `len(...)` argument is an allowed context; collect them first.
+        allowed = set()
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Call)
+                    and getattr(node.func, "id", None) == "len"):
+                for a in node.args:
+                    allowed.update(id(n) for n in ast.walk(a))
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Attribute) and node.attr == "y_test"
+                    and id(node) not in allowed):
+                offenders.append("%s:%d" % (path.as_posix(), node.lineno))
+
+    assert not offenders, (
+        "these methodology modules read the TEST LABELS outside a len() call, "
+        "which is label leakage, not transduction: %s" % offenders)
+
+
+def test_the_two_fioretto_arms_initialise_both_multiplier_scopes_alike():
+    """ALM claims to differ from LDF in the DUAL UPDATE only.
+
+    `fioretto_lambda_init` reached ALM's global and local multipliers but only
+    LDF's global one -- LDF's locals were hardcoded to 0.0. Sweeping the key
+    would then have changed the dual rule AND the local initialisation at once,
+    so the arm-vs-arm delta would be attributable to neither. Dormant at the
+    protocol's 0.0, which is exactly why only a gate catches it.
+    """
+    import ast
+    import io as _io
+
+    for mod in ("fioretto_ldf", "fioretto_alm"):
+        path = "src/methodologies/%s/train.py" % mod
+        tree = ast.parse(_io.open(path, encoding="utf-8").read())
+        assigns = [n for n in ast.walk(tree)
+                   if isinstance(n, ast.Assign)
+                   and any(isinstance(t, ast.Subscript)
+                           and getattr(t.value, "id", None) == "lambda_l"
+                           for t in n.targets)]
+        init = [n for n in assigns if isinstance(n.value, ast.Constant)]
+        assert not init, (
+            "%s initialises lambda_l to the literal %r instead of the "
+            "fioretto_lambda_init value the other arm uses"
+            % (mod, [n.value.value for n in init]))
+
+
+def test_alm_gates_its_constraint_pass_on_the_weights_the_loss_uses():
+    """A treatment that logs itself and never runs is this repo's failure mode.
+
+    ALM's chunk loss weights each term by `lambda + aug`. `has_work` decided
+    whether to run that pass at all, and consulted `lambda` only -- so with the
+    multipliers pinned at 0 and the augmentation climbing, the pass was skipped
+    on every epoch while `training_log.csv` wrote a rising mu_t.
+    """
+    import ast
+    import io as _io
+
+    src = _io.open("src/methodologies/fioretto_alm/train.py",
+                   encoding="utf-8").read()
+    tree = ast.parse(src)
+    node = next((n for n in ast.walk(tree)
+                 if isinstance(n, ast.Assign)
+                 and any(getattr(t, "id", None) == "has_work" for t in n.targets)),
+                None)
+    assert node is not None, "has_work assignment not found"
+    names = {n.id for n in ast.walk(node.value) if isinstance(n, ast.Name)}
+    for w in ("lambda_g", "lambda_l", "aug_g", "aug_l"):
+        assert w in names, (
+            "has_work ignores %s, but the constraint loss weights terms by "
+            "lambda + aug -- the augmentation is unreachable whenever the "
+            "multipliers are 0" % w)
+
+
+def test_no_f_string_placeholder_survives_in_a_plain_string_literal():
+    """A `{name}` in a NON-f string prints the braces instead of the value.
+
+    `main.py`'s dispatcher header printed the literal "{completed} done,
+    {failed} failed" for an unknown length of time -- an implicit-concatenation
+    slip where the first fragment lost its `f` prefix and the second kept it.
+    The dispatcher banner is how a run's progress is read at a glance, so this
+    is a silent instrument failure, not a cosmetic one.
+
+    Scoped to the two places the slip can actually reach a reader: a plain
+    fragment implicitly concatenated INTO an f-string, and a bare literal
+    handed straight to `print`. Docstrings are excluded -- this repo's carry
+    real algebra, and `(1 - beta) / (1 - beta^n)` is not a formatting bug.
+    """
+    import ast
+    import io as _io
+    import pathlib
+    import re
+
+    PLACEHOLDER = re.compile(r"\{[A-Za-z_][A-Za-z0-9_.\[\]']*\}")
+
+    def bad(node):
+        return [c for c in ([node] if isinstance(node, ast.Constant)
+                            else getattr(node, "values", []))
+                if isinstance(c, ast.Constant) and isinstance(c.value, str)
+                and PLACEHOLDER.search(c.value)]
+
+    offenders = []
+    roots = ([pathlib.Path("main.py")] + sorted(pathlib.Path("src").rglob("*.py"))
+             + sorted(pathlib.Path("scripts").rglob("*.py")))
+    for path in roots:
+        tree = ast.parse(_io.open(path, encoding="utf-8").read())
+        for node in ast.walk(tree):
+            # (a) a plain fragment glued into an f-string: the exact slip.
+            if isinstance(node, ast.JoinedStr):
+                hits = bad(node)
+            # (b) a bare literal handed to print().
+            elif (isinstance(node, ast.Call)
+                  and getattr(node.func, "id", None) == "print"):
+                hits = [h for a in node.args for h in bad(a)]
+            else:
+                continue
+            offenders += ["%s:%d %r" % (path.as_posix(), node.lineno,
+                                        h.value[:60]) for h in hits]
+    assert not offenders, (
+        "these string literals contain an f-string placeholder but are not "
+        "f-strings, so they print the braces: %s" % offenders)

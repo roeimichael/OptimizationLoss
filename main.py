@@ -72,26 +72,26 @@ def format_duration(seconds):
         return f"{h}h{m:02d}m"
 
 
-def print_experiment_header(index, total, exp_path, config, completed, failed, prefix=''):
+def print_experiment_header(index, total, exp_path, config, completed, failed):
     name = config.get('exp_name', Path(exp_path).name)
     methodology = config.get('methodology', 'tralo')
     constraint = config.get('constraint', [])
     hp = config.get('hyperparams', {})
-    print(f"\n{prefix}{'='*70}")
-    print(f"{prefix}  [{index}/{total}]  {name}")
-    print(f"{prefix}  Method: {methodology}  |  Constraint: {constraint}")
+    print(f"\n{'='*70}")
+    print(f"  [{index}/{total}]  {name}")
+    print(f"  Method: {methodology}  |  Constraint: {constraint}")
     if methodology == 'tralo':
-        print(f"{prefix}  rho={hp.get('initial_rho', 1.0)}  "
-                     f"lr_con={hp['lr_constraint']:.0e}  "
-                     f"pretrained={hp.get('pretrained', False)}  "
-                     f"weighted_ce={hp.get('class_weighted_ce', False)}")
-    print("  Progress so far: {completed} done, {failed} failed, "
-                f"{total - index + 1} remaining (including this one)")
-    print(f"{prefix}{'='*70}")
+        print(f"  rho={hp.get('initial_rho', 1.0)}  "
+              f"lr_con={hp['lr_constraint']:.0e}  "
+              f"pretrained={hp.get('pretrained', False)}  "
+              f"weighted_ce={hp.get('class_weighted_ce', False)}")
+    print(f"  Progress so far: {completed} done, {failed} failed, "
+          f"{total - index + 1} remaining (including this one)")
+    print(f"{'='*70}")
 
 
 def print_experiment_result(name, returncode, elapsed, completed, failed, total,
-                            total_elapsed, times_list, prefix=''):
+                            times_list):
     status = "DONE" if returncode == 0 else "FAIL"
     marker = "  [OK]" if returncode == 0 else "  [!!]"
     if times_list:
@@ -101,8 +101,8 @@ def print_experiment_result(name, returncode, elapsed, completed, failed, total,
         eta_str = f"  ETA: ~{format_duration(eta_seconds)}"
     else:
         eta_str = ""
-    print(f"\n{prefix}{marker} {name}: {status} in {format_duration(elapsed)}  "
-                f"({completed}/{total} done, {failed} failed){eta_str}")
+    print(f"\n{marker} {name}: {status} in {format_duration(elapsed)}  "
+          f"({completed}/{total} done, {failed} failed){eta_str}")
 
 
 def run_sequential(pending, gpu_id=None):
@@ -128,8 +128,7 @@ def run_sequential(pending, gpu_id=None):
             else:
                 failed += 1
             print_experiment_result(name, result.returncode, elapsed,
-                                    completed, failed, total,
-                                    time.time() - overall_start, experiment_times)
+                                    completed, failed, total, experiment_times)
         except KeyboardInterrupt:
             elapsed = time.time() - exp_start
             print(f"\n\n{'!'*70}")

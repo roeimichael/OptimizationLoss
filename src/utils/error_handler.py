@@ -10,7 +10,7 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 
-def logger(reraise=True, **kwargs):
+def logger():
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kw):
@@ -23,9 +23,7 @@ def logger(reraise=True, **kwargs):
                 log.error("Exception in %s.%s: %s: %s",
                           func.__module__, func.__name__, type(e).__name__, e)
                 log.debug(traceback.format_exc())
-                if reraise:
-                    raise
-                return None
+                raise
         return wrapper
     return decorator
 

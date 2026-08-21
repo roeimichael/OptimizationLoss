@@ -69,7 +69,7 @@ def make_dataloader(X, y, batch_size):
 
 
 def run_warmup(config, num_classes, X_train, y_train, device,
-               *, input_dim=None, csv_log_path=None):
+               *, csv_log_path=None):
     """CE-only warmup phase. Loads from cache if available, else trains and saves.
 
     Returns (model, from_cache). When from_cache=True, no training ran.
@@ -81,7 +81,7 @@ def run_warmup(config, num_classes, X_train, y_train, device,
     cache_id = config["base_model_id"]
     hp = config["hyperparams"]
 
-    cached = load_from_cache(cache_id, config, input_dim, num_classes, device)
+    cached = load_from_cache(cache_id, config, num_classes, device)
     if cached is not None:
         log.info("Loaded cached warmup model: %s", cache_id)
         return cached, True
@@ -89,7 +89,7 @@ def run_warmup(config, num_classes, X_train, y_train, device,
     use_amp, amp_dtype, scaler = setup_runtime(device)
 
     model = get_model(
-        config["model_name"], input_dim=input_dim, n_classes=num_classes,
+        config["model_name"], n_classes=num_classes,
         dropout=hp["dropout"], pretrained=hp.get("pretrained", False),
     ).to(device)
 

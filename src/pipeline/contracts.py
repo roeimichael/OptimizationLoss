@@ -34,3 +34,20 @@ class TrainOutputs:
     summary: Dict[str, Any]
     skip_targeted_correction: bool = False
     precomputed_predictions: Optional[np.ndarray] = None
+
+
+def _required(hp, key, cast=float):
+    """Read a protocol value that must never fall back to an inline default.
+
+    The inline defaults this replaces were the retracted ones -- lr_constraint 1e-5
+    against the protocol's 1e-4, constraint_epochs 150 against 29,
+    stable_count_threshold 5 against 31 (low enough that the early stop would
+    actually fire). A missing key is a generator bug; failing loudly is the
+    only safe behaviour.
+    """
+    if key not in hp:
+        raise KeyError(
+            "%s is required and has no safe default. configs/protocol.yml is "
+            "the source of truth; generate the campaign with "
+            "configs.gen_campaign rather than hand-writing a config." % key)
+    return cast(hp[key])

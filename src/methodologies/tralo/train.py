@@ -22,12 +22,11 @@ re-enable them.
 import logging
 import time
 
-import numpy as np
 import torch
 import torch.nn.functional as F
 
 from src.losses import MulticlassTransductiveLoss
-from src.pipeline.contracts import TrainInputs, TrainOutputs
+from src.pipeline.contracts import TrainInputs, TrainOutputs, _required
 from src.pipeline.setup import setup_runtime
 from src.pipeline.warmup import make_ce_criterion, make_dataloader, make_optimizer
 from src.training.ce_schedule import CESaturationSkip
@@ -38,27 +37,9 @@ from src.losses.transductive_loss import (margin_window, margins,
 from src.training.logging import log_progress_to_csv, write_csv_header
 from src.training.metrics import compute_prediction_statistics
 from src.training.reordering import capped_scores, reordering_report
-from src.utils.constants import UNLIMITED, CONSTRAINT_CHUNK_SIZE
-from src.utils.error_handler import logger
+from src.utils.constants import UNLIMITED
 
 log = logging.getLogger(__name__)
-
-
-def _required(hp, key, cast=float):
-    """Read a protocol value that must never fall back to an inline default.
-
-    The inline defaults here were the retracted ones -- lr_constraint 1e-5
-    against the protocol's 1e-4, constraint_epochs 150 against 29,
-    stable_count_threshold 5 against 31 (low enough that the early stop would
-    actually fire). A missing key is a generator bug; failing loudly is the
-    only safe behaviour.
-    """
-    if key not in hp:
-        raise KeyError(
-            "%s is required and has no safe default. configs/protocol.yml is "
-            "the source of truth; generate the campaign with "
-            "configs.gen_campaign rather than hand-writing a config." % key)
-    return cast(hp[key])
 
 def train(inputs: TrainInputs) -> TrainOutputs:
     config = inputs.config
@@ -170,7 +151,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     # Baseline for the reordering diagnostic: the capped class's test ranking as
     # the WARM-UP left it, before a single constraint step.
     warmup_scores = capped_scores(model, X_test, constrained_classes,
-                                  chunk_size, device)
+                                  chunk_size)
 
     # ONE schedule object, built from the SHARED constraint_phase block, so a
     # campaign cannot run this gate for one arm and not another -- the exact
@@ -440,36 +421,35 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         # already computed and `cached_train_acc` -- no forward pass, no RNG --
         # so density cannot change a result. Verified: identical predictions
         # md5 before and after.
-        if True:
-            train_acc = cached_train_acc
-            g_counts = {c: int(total_global_hard[c].item()) for c in range(num_classes)}
-            l_counts = {gid: {c: int(total_local_hard[gid][c].item())
-                              for c in range(num_classes)}
-                        for gid in total_local_hard}
-            g_soft_d = {c: total_global_soft[c].item() for c in range(num_classes)}
-            l_soft_d = {gid: {c: total_local_soft[gid][c].item()
-                              for c in range(num_classes)}
-                        for gid in total_local_soft}
-            mode_tag = "Satisfied" if is_satisfied else "Constraint"
-            lam_local = criterion_constraint.lambda_local_per_key
-            lam_L_mean = (sum(lam_local.values()) / len(lam_local)
-                          if lam_local else 0.0)
-            lam_T_mean = (sum(criterion_constraint.lambda_global_per_class.values())
-                          / max(1, len(criterion_constraint.lambda_global_per_class)))
-            log.info("Epoch %d [%s] ce=%.4f bounded=%.4f "
-                     "lam_T=%.3f rho=%.3f acc=%.4f stable=%d g_%s l_%s",
-                     epoch + 1, mode_tag, avg_ce, bounded_total,
-                     lam_T_mean,
-                     criterion_constraint.get_rho(), train_acc, stable_count,
-                     "OK" if global_satisfied else "VIOL",
-                     "OK" if local_satisfied else "VIOL")
-            log_progress_to_csv(
-                csv_log_path, epoch, avg_ce, train_acc,
-                loss_global_val, loss_local_val,
-                g_counts, l_counts, g_soft_d, l_soft_d,
-                lam_T_mean, lam_L_mean,
-                global_con, global_satisfied, local_satisfied,
-                grad_norm=last_grad_norm, local_constraints=local_con)
+        train_acc = cached_train_acc
+        g_counts = {c: int(total_global_hard[c].item()) for c in range(num_classes)}
+        l_counts = {gid: {c: int(total_local_hard[gid][c].item())
+                          for c in range(num_classes)}
+                    for gid in total_local_hard}
+        g_soft_d = {c: total_global_soft[c].item() for c in range(num_classes)}
+        l_soft_d = {gid: {c: total_local_soft[gid][c].item()
+                          for c in range(num_classes)}
+                    for gid in total_local_soft}
+        mode_tag = "Satisfied" if is_satisfied else "Constraint"
+        lam_local = criterion_constraint.lambda_local_per_key
+        lam_L_mean = (sum(lam_local.values()) / len(lam_local)
+                      if lam_local else 0.0)
+        lam_T_mean = (sum(criterion_constraint.lambda_global_per_class.values())
+                      / max(1, len(criterion_constraint.lambda_global_per_class)))
+        log.info("Epoch %d [%s] ce=%.4f bounded=%.4f "
+                 "lam_T=%.3f rho=%.3f acc=%.4f stable=%d g_%s l_%s",
+                 epoch + 1, mode_tag, avg_ce, bounded_total,
+                 lam_T_mean,
+                 criterion_constraint.get_rho(), train_acc, stable_count,
+                 "OK" if global_satisfied else "VIOL",
+                 "OK" if local_satisfied else "VIOL")
+        log_progress_to_csv(
+            csv_log_path, epoch, avg_ce, train_acc,
+            loss_global_val, loss_local_val,
+            g_counts, l_counts, g_soft_d, l_soft_d,
+            lam_T_mean, lam_L_mean,
+            global_con, global_satisfied, local_satisfied,
+            grad_norm=last_grad_norm, local_constraints=local_con)
         model.train()
 
     elapsed = time.time() - training_start
@@ -533,7 +513,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     # AFTER the restore: the restored model is the one whose predictions the
     # scorer reads, so it is the one whose ranking must be compared.
     reorder = reordering_report(model, X_test, warmup_scores, constrained_classes,
-                                chunk_size, device)
+                                chunk_size)
 
     final_soft_hard_gap = {c: abs(g_soft.get(c, 0) - g_counts.get(c, 0))
                            for c in constrained_classes}

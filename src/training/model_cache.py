@@ -80,7 +80,7 @@ def save_to_cache(model: nn.Module, base_model_id: str, config: Dict[str, Any]) 
 
 
 def load_from_cache(base_model_id: str, config: Dict[str, Any],
-                    input_dim: int, num_classes: int, device: torch.device) -> Optional[nn.Module]:
+                    num_classes: int, device: torch.device) -> Optional[nn.Module]:
     path = get_cache_path(base_model_id)
     if not path.exists():
         return None
@@ -119,7 +119,7 @@ def load_from_cache(base_model_id: str, config: Dict[str, Any],
                     base_model_id, got or "an unrecorded version", want)
         return None
     model = get_model(
-        config['model_name'], input_dim=input_dim, n_classes=num_classes,
+        config['model_name'], n_classes=num_classes,
         dropout=hp['dropout'],
         pretrained=False
     ).to(device)

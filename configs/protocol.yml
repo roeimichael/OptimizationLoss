@@ -282,8 +282,6 @@ blocks:
     alm_mu_step: 0.0
     fioretto_lambda_init: 0.0
     enable_checkpoint_restore: false
-  lp:
-    danits_cost_preset: identity  # identity misclassification cost, per the paper
   focal:
     warmup_loss: focal
     # focal_alpha is DEAD as implemented. imbalanced_losses.py multiplies the
@@ -322,6 +320,14 @@ blocks:
     # (Geifman & El-Yaniv, ICML 2019); it is their number, not a tuned one, and
     # is recorded as such so it is never reported as a fitted hyperparameter.
     select_cov_weight: 32.0
+    # Smoothing for the running coverage estimate. Our coverage target is
+    # K_c/n_test ~ 0.03 against SelectiveNet's 0.70-1.00, so a batch of 64 holds
+    # only ~2 covered items and a per-batch coverage penalty sits on its own
+    # noise floor. The VALUE of the penalty therefore comes from this running
+    # estimate while the GRADIENT still comes from the current batch. 0.9 is
+    # ~10 batches of memory, i.e. ~20 covered items -- enough to be a signal,
+    # short enough to track the head as it moves.
+    select_cov_ema: 0.9
   # Zero dose. Same code path, same optimizer, same coverage targets computed
   # and logged -- only the selective term is switched off, so any difference is
   # the term and not the arm's extra machinery.
@@ -329,12 +335,13 @@ blocks:
     lr_constraint: 0.0001
     select_eta: 0.0
     select_cov_weight: 32.0
+    select_cov_ema: 0.9
 
 
 arms:
   clip:       {methodology: heuristic,      phase: posthoc, blocks: []}
   focal_clip: {methodology: heuristic,      phase: posthoc, blocks: [focal]}
-  lp:         {methodology: danits_lp,      phase: posthoc, blocks: [chunked, lp]}
+  lp:         {methodology: danits_lp,      phase: posthoc, blocks: [chunked]}
   focal_lp:   {methodology: focal,          phase: posthoc, blocks: [chunked, focal]}
   cb_lp:      {methodology: class_balanced, phase: posthoc, blocks: [chunked, class_balanced]}
   la_lp:      {methodology: logit_adjust,   phase: posthoc, blocks: [chunked, logit_adjust]}

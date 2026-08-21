@@ -16,7 +16,7 @@ from src.training.metrics import (
     compute_raw_constraint_satisfaction,
     get_predictions_with_probabilities,
 )
-from src.pipeline.io import save_final_predictions
+from src.training.logging import save_final_predictions
 from src.utils.constants import UNLIMITED
 from src.utils.posthoc_adjustment import targeted_correction
 
@@ -24,10 +24,9 @@ log = logging.getLogger(__name__)
 
 
 def evaluate_with_posthoc(model, X_test, y_test, group_ids, global_con, local_con,
-                          constrained_classes, num_classes, *,
+                          constrained_classes, *,
                           skip_targeted_correction=False,
-                          precomputed_predictions=None,
-                          label="final"):
+                          precomputed_predictions=None):
     """Inference + targeted_correction + metrics (incl. Track1).
 
     skip_targeted_correction=True with precomputed_predictions: caller already
@@ -78,8 +77,8 @@ def evaluate_with_posthoc(model, X_test, y_test, group_ids, global_con, local_co
     metrics["flips_required"] = flips
     metrics.update(raw_sat)
 
-    log.info("[%s] acc=%.4f f1=%.4f adjusted=%d",
-             label, metrics["accuracy"], metrics["f1_macro"], adj)
+    log.info("[final] acc=%.4f f1=%.4f adjusted=%d",
+             metrics["accuracy"], metrics["f1_macro"], adj)
 
     return {
         "y_pred": y_pred,

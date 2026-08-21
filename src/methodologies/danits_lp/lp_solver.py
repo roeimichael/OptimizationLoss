@@ -87,7 +87,6 @@ def solve_lp_assignment(
     cost_matrix: np.ndarray,
     psi: dict[int, int] | list | None,
     phi: dict | None,
-    solver_name: str = "GLOP",
     verbose: bool = False,
 ) -> LPResult:
     """
@@ -117,8 +116,6 @@ def solve_lp_assignment(
             None/NaN entries. Missing group keys mean "no local constraint
             for that group". Missing class entries within a group are
             treated as None.
-    solver_name
-        OR-Tools solver name. GLOP (LP, what the paper uses) is the default.
     verbose
         Print solver progress.
 
@@ -149,9 +146,10 @@ def solve_lp_assignment(
     E = _expected_cost_matrix(y_proba, cost_matrix)  # (N, C)
 
     # ------- solver ------------------------------------------------------
-    solver = pywraplp.Solver.CreateSolver(solver_name)
+    # GLOP: the LP solver the paper uses. TU constraint matrix -> integer optimum.
+    solver = pywraplp.Solver.CreateSolver("GLOP")
     if solver is None:
-        raise RuntimeError(f"Could not create OR-Tools solver {solver_name!r}")
+        raise RuntimeError("Could not create the OR-Tools GLOP solver")
     if verbose:
         solver.EnableOutput()
 

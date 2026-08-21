@@ -93,17 +93,6 @@ def _coerce_imagery_layout(images):
     return images
 
 
-def _normalize_constrained(cc):
-    """Defers to THE normalizer in src.training.constraints.
-
-    This used to be a second implementation that returned [] for None, which
-    silently skipped the class-occurs-in-slice check three lines below -- the
-    check exists precisely so a wrong-dataset slice cannot produce a complete,
-    plausible run.
-    """
-    return normalize_constrained_classes(cc)
-
-
 def data_fingerprint(y_train, y_test, groups_test):
     """Identity of the actual data behind a data_dir.
 
@@ -197,7 +186,7 @@ def _load_imagery_data(config):
             "is a different dataset from the one the config describes, or "
             "num_classes is wrong. Every constraint is indexed by class id."
             % (data_dir, _classes[0], _classes[-1], num_classes))
-    for _c in _normalize_constrained(ds.get('constrained_class')):
+    for _c in normalize_constrained_classes(ds['constrained_class']):
         if _c not in _classes:
             raise ValueError(
                 "%s: constrained class %d does not occur in this slice "

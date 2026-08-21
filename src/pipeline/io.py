@@ -1,22 +1,11 @@
-"""Shared IO: write config['results'] block + final status.
-
-Re-exports save_final_predictions / save_evaluation_metrics so that
-methodology runners can import everything from pipeline.io.
-"""
+"""Shared IO: write config['results'] block + final status."""
 
 import logging
 import math
 
-from src.training.logging import save_evaluation_metrics, save_final_predictions
 from src.utils.filesystem_manager import save_config_to_path
 
 log = logging.getLogger(__name__)
-
-__all__ = [
-    "save_evaluation_metrics",
-    "save_final_predictions",
-    "save_results_to_config",
-]
 
 
 def _non_finite(results):

@@ -140,8 +140,7 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
 
     result = evaluate_with_posthoc(
         model, X_test_tensor, y_true, group_ids,
-        global_con, local_con, constrained_classes, num_classes,
-        label='final',
+        global_con, local_con, constrained_classes,
         skip_targeted_correction=train_outputs.skip_targeted_correction,
         precomputed_predictions=train_outputs.precomputed_predictions,
     )

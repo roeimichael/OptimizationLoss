@@ -11,10 +11,9 @@ import time
 
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 
-from src.pipeline.contracts import TrainInputs, TrainOutputs
+from src.pipeline.contracts import TrainInputs, TrainOutputs, _required
 from src.pipeline.setup import setup_runtime
 from src.pipeline.warmup import (make_ce_criterion, make_dataloader,
                                  make_optimizer)
@@ -25,23 +24,6 @@ from src.training.reordering import capped_scores, reordering_report
 from src.utils.constants import UNLIMITED
 
 log = logging.getLogger(__name__)
-
-
-def _required(hp, key, cast=float):
-    """Read a protocol value that must never fall back to an inline default.
-
-    The inline defaults here were the retracted ones -- lr_constraint 1e-5
-    against the protocol's 1e-4, constraint_epochs 150 against 29,
-    stable_count_threshold 5 against 31 (low enough that the early stop would
-    actually fire). A missing key is a generator bug; failing loudly is the
-    only safe behaviour.
-    """
-    if key not in hp:
-        raise KeyError(
-            "%s is required and has no safe default. configs/protocol.yml is "
-            "the source of truth; generate the campaign with "
-            "configs.gen_campaign rather than hand-writing a config." % key)
-    return cast(hp[key])
 
 
 def _train_constraints(model, config, inputs, device):
@@ -90,17 +72,21 @@ def _train_constraints(model, config, inputs, device):
     local_con = inputs.local_con
     groups_np = inputs.group_ids
 
-    # Read the SAME key fioretto_alm reads. ALM's own docstring says it is
-    # "identical to fioretto_ldf EXCEPT the dual update", and this key was read
-    # by ALM only -- dormant today because protocol.yml sets it to 0.0 in both
-    # places, and a live asymmetry the moment anyone sweeps it.
+    # Read the SAME key fioretto_alm reads, in BOTH SCOPES. ALM's own docstring
+    # says it is "identical to fioretto_ldf EXCEPT the dual update", so the
+    # initial multipliers have to match or that sentence is false. The fix was
+    # half-applied: the global scope took lam0 while the local scope stayed
+    # hardcoded at 0.0, so sweeping the key would have initialised ALM's locals
+    # and not LDF's -- a scope asymmetry that survives the unit-norm clip
+    # (the clip rescales the step, it cannot restore a term that is absent).
+    # Dormant at 0.0 today; live the moment anyone sweeps it.
     lam0 = float(hp.get("fioretto_lambda_init", 0.0))
     lambda_g = {c: lam0 for c in constrained_classes if global_con[c] < UNLIMITED}
     lambda_l = {}
     for group_id, bounds in local_con.items():
         for c in constrained_classes:
             if bounds[c] < UNLIMITED:
-                lambda_l[(group_id, c)] = 0.0
+                lambda_l[(group_id, c)] = lam0
 
     log.info("Fioretto LDF: %d epochs, lr=%.2e, step_size=%.4f, "
              "%d global + %d local multipliers",
@@ -366,7 +352,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     # made the CE-skip flag a 0.22 cc-F1 artifact.
     _reorder_chunk = _required(inputs.hyperparams, "constraint_chunk_size", int)
     _warmup_scores = capped_scores(model, inputs.X_test, inputs.constrained_classes,
-                                   _reorder_chunk, device)
+                                   _reorder_chunk)
 
     (satisfaction_epoch, best_sat_state, best_sat_epoch,
      min_excess_state, min_excess_epoch, min_total_excess, ce_skip_summary
@@ -431,7 +417,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     # predictions the scorer reads.
     _reorder = reordering_report(model, inputs.X_test, _warmup_scores,
                                  inputs.constrained_classes,
-                                 _reorder_chunk, device)
+                                 _reorder_chunk)
 
     return TrainOutputs(
         model=model,

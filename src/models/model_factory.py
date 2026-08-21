@@ -26,5 +26,4 @@ MODEL_REGISTRY = {
 def get_model(model_name: str, n_classes: int, **kwargs: Any) -> nn.Module:
     if model_name not in MODEL_REGISTRY:
         raise ValueError(f"Unknown model: {model_name}. Available: {list(MODEL_REGISTRY)}")
-    kwargs.pop('input_dim', None)
     return MODEL_REGISTRY[model_name](n_classes=n_classes, **kwargs)
