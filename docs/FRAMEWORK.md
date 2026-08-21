@@ -280,6 +280,37 @@ this shape starves. Shape sets the see-saw's SIZE in exactly the predicted order
 `penalty_shape` as the dial on the coupling, never as a remedy. And note the two views
 disagree -- worse on every allocation-free measure, better after allocation.
 
+### (8) What "CE saturates" MEANS: the boundary probability goes to 1 and the penalty loses its grip
+
+A transductive count penalty differentiates `sum_i p_ic`, so an item's share of the
+gradient scales with `dp/dlogit = p(1-p)`. The cut is decided by the **K-th ranked item**,
+so the penalty can only move the cut when `p(1-p)` at that item is not vanishing.
+
+Measured on dermmnist x ViTB16, 4 seeds per cell, penalty vs its own lambda=0 control:
+
+| cell | class | p at the K-th item | `p(1-p)` | `d capF1` |
+|---|---|---|---|---|
+| `L30_G20` (4-epoch model) | 2 | 0.9730 | 0.0258 | **-0.012, 0/4 seeds** |
+| `L50_G30` (4-epoch model) | 2 | 0.9389 | **0.0550** | **+0.008, 4/4 seeds** |
+| `L50_G30` (30-epoch model) | 2 | **0.9990** | **0.0009** | -- |
+
+⇒ a **2.1x** difference in the slope at the boundary is the whole distance between "no
+signal at any shape or dose" and "signal at every seed". And converging the model drops
+that slope by a factor of **60**.
+
+🔑 **So "CE saturates and every method becomes identical" is this, stated mechanically.**
+Saturation is the boundary probability approaching 1; at p = 0.999 the penalty's gradient
+at the cut is 0.001. **Warm-up 1 is not an arbitrary protocol choice -- it is the setting
+that leaves the largest reachable window**, and warm-up 50 is forbidden because by then
+the window is shut. The archived "headroom grows with the cap" result is the same fact
+from the other side: a looser budget puts the cut where the gradient can still act.
+
+⇒ **`scripts/reachability.py` screens a cell before any GPU goes into it** -- but it must
+be run on a model at the START of the constraint phase. Run on a converged model it says
+OUT OF REACH everywhere, correctly and uselessly.
+
+---
+
 ### (7) The two-allocator confound is EXACTLY ZERO -- except when an arm under-shoots
 
 The trained arms post-process with `targeted_correction` (`src/utils/posthoc_adjustment.py`:

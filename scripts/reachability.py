@@ -21,10 +21,25 @@ or dose" from "consistent signal at every seed". It also explains the archived
 headroom result -- headroom grows with the cap because a looser budget puts the
 cut where the gradient can still act, not merely because more items are in play.
 
-USE IT AS A PRE-FLIGHT CHECK. This runs on predictions that already exist, so a
-cell can be screened before any GPU time goes into it. A cell whose boundary
-sits at p > 0.97 will not respond, and the honest thing is to pick a different
-cap rather than to tune a shape against a vanishing gradient.
+🛑 MEASURE IT EARLY -- THE WINDOW CLOSES AS CE CONVERGES. Reachability is not a
+property of the cap alone; it is a property of the cap AND how converged the
+model is. The same L50_G30 cell measured on a 4-epoch model has its boundary at
+p = 0.939, and measured on the 30-epoch model at p = 0.9990 -- p(1-p) falls from
+0.055 to 0.0009, a factor of 60. Run this on a model at the START of the
+constraint phase. Run it on a converged model and it will say OUT OF REACH for
+every cell, because by then it is.
+
+🔑 THIS IS WHAT "CE SATURATES" MEANS, MECHANICALLY. The oldest rule in the
+framework is never to run warm-up 50, because CE saturates and every method
+becomes identical. Saturation IS the boundary probability approaching 1: at
+p = 0.999 the penalty's per-item gradient at the cut is 0.001, so the count term
+has nothing left to push with exactly where the cap reads. Warm-up 1 is not an
+arbitrary choice -- it is the setting that leaves the largest reachable window.
+
+USE IT AS A PRE-FLIGHT CHECK on an early-training run: a cell can be screened
+before GPU time goes into it. A boundary at p > 0.97 will not respond, and the
+honest move is to pick a different cap rather than tune a shape against a
+vanishing gradient.
 
     python -m scripts.reachability <run-dir-or-campaign> [--caps L30_G20 L50_G30]
 """
@@ -92,6 +107,11 @@ def main():
             seen[verdict] += 1
     print()
     n_bad = seen.get("OUT OF REACH", 0)
+    if n_bad == sum(seen.values()) and sum(seen.values()) > 0:
+        print("EVERY boundary is out of reach. If these runs are converged that")
+        print("is expected and says nothing about the cap -- re-measure on a")
+        print("model at the START of the constraint phase.")
+        print()
     if n_bad:
         print("%d of %d (class, cell) boundaries sit where the penalty's own"
               % (n_bad, sum(seen.values())))
