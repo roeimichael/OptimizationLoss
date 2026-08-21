@@ -1196,7 +1196,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 150 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 152 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1204,7 +1204,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (150 tests, ~35 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (152 tests, ~35 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -1357,18 +1357,25 @@ five are what found the defects, and they are cheap:
 | **needs Roei** | path 2 -- a test set whose prevalence DIFFERS from train | a load-time subsample, NOT re-slicing |
 | **purged** | `budget_margin` (path 1) | must be rebuilt before it can run |
 
-🛑🛑 **THE WHOLE EFFECT SPACE IS 2 TO 10 ITEMS. Everything else in this document is
+🛑🛑 **THE WHOLE EFFECT SPACE IS 2 TO 18 ITEMS. Everything else in this document is
 downstream of that.** `F1 = 2TP/(K+n)` is linear in TP, so an F1 delta converts exactly
 into items. Measured headroom from `clip` to the ANALYTIC CEILING on dermmnist:
 
     cell                headroom   items to close it   of K predicted
-    class 1 @ 30%        0.0290           1.9                 31
-    class 2 @ 30%        0.0290           4.1                 66
-    class 1 @ 50%        0.0597           4.6                 52
-    class 2 @ 50%        0.0597           9.9                110
+    class 1 @ 30%        0.0266           1.8                 31
+    class 2 @ 30%        0.0315           4.5                 66
+    class 4 @ 30%        0.0517           7.5                 67
+    class 1 @ 50%        0.0452           3.5                 52
+    class 2 @ 50%        0.0742          12.2                110
+    class 4 @ 50%        0.1043          17.5                112
+
+(`python -m scripts.headroom <root> --control clip`; corrected 2026-08-21 --
+see the note at the cap-level table below for what the first version got wrong.
+The correction WIDENS the range to 2-18 items; it does not change the argument,
+because the seed noise widens with it and the ordering across cap levels holds.)
 
 That is the gap to a PERFECT allocator, not to a better method -- no method can exceed
-it. And `d capF1` is QUANTIZED at 0.67-1.65 items per 0.01, while the paired seed sd is
+it. And `d capF1` is QUANTIZED at 0.67-1.68 items per 0.01, while the paired seed sd is
 0.04 at L30_G20, worth ~2.7 items. ⇒ **seed noise is comparable to the entire headroom**,
 which is why arms tie, why single-cell claims kept being retracted, and why the archived
 result "losing EXACTLY 4 correct predictions of 89 in 3 of 4 seeds" looks so quantized:
@@ -1577,8 +1584,19 @@ wrong, and 2 changes the problem rather than the method.
    precision <= 1). Measured against the stored dermmnist evidence, 4 seeds:
 
        cap        clip capF1   ceiling   headroom
-       L30_G30       0.4331    0.4621     0.0290
-       L50_G50       0.6091    0.6688     0.0597
+       L30_G30       0.4255    0.4621     0.0366
+       L50_G50       0.5942    0.6688     0.0746
+
+   Reproduce with `python -m scripts.headroom <root> --control clip`.
+
+   ⚠️ **CORRECTED 2026-08-21. The first version of this table read 0.0290 /
+   0.0597** and came from a throwaway script that is now `scripts/headroom.py`.
+   The script equalized the control against the GLOBAL budget only, dropping the
+   local caps that `full_panel` passes -- a more permissive allocation, so the
+   control scored too high and the headroom too low. Scoring the way the scorer
+   scores, `achieved` reproduces the stored allocation's F1 to four decimals at
+   both levels, which is the check that says the two agree. The CEILINGS were
+   correct and are unchanged.
 
    ⚠️ **These are NOT the archived headroom numbers, and the difference is the metric,
    not a contradiction.** The archived table (0.048-0.059 at L30, 0.115-0.131 at L50,
@@ -1593,17 +1611,27 @@ wrong, and 2 changes the problem rather than the method.
    budget the model starts, same runs:
 
        cap        class   hard      K   excess   % over   headroom
-       L30_G30      1     79.8     31     48.8     157%    0.0290
-       L30_G30      2    150.0     66     84.0     127%    0.0290
-       L30_G30      4    106.2     67     39.2      59%    0.0290
-       L50_G50      1     68.0     52     16.0      31%    0.0597
-       L50_G50      2    158.0    110     48.0      44%    0.0597
-       L50_G50      4    138.8    112     26.8      24%    0.0597
+       L30_G30      1    107.8     31     76.8     248%    0.0266
+       L30_G30      2    233.5     66    167.5     254%    0.0315
+       L30_G30      4    177.5     67    110.5     165%    0.0517
+       L50_G50      1    107.8     52     55.8     107%    0.0452
+       L50_G50      2    233.5    110    123.5     112%    0.0742
+       L50_G50      4    177.5    112     65.5      58%    0.1043
+
+   ⚠️ **ALSO CORRECTED 2026-08-21, and this one was internally impossible.** The
+   first version gave class 1 a raw count of 79.8 at L30 and 68.0 at L50 -- but
+   `clip` never sees the cap during training, so its model is **bit-identical
+   across cap levels** (verified: md5 of `final_predictions_raw.csv` matches at
+   all 4 seeds). Its argmax count therefore CANNOT depend on the cap, and the
+   corrected column is the same 107.8 / 233.5 / 177.5 at both levels, exactly as
+   that invariance requires. The old numbers came from averaging the raw count
+   over every arm in the tree -- clipper and trained arm together -- which
+   describes no model at all.
 
    A tight cap gives the constraint **2-3x more items to move and half the headroom to
    win**; a loose one the reverse. ✅ Two things follow for the campaign: at L40/L50 the
-   excess is still 16-48 items, so the constraint is **not inert** there -- it is not a
-   case of picking a cap so loose that nothing binds -- and every cell starts **24-157%
+   excess is still 56-124 items, so the constraint is **not inert** there -- it is not a
+   case of picking a cap so loose that nothing binds -- and every cell starts **58-254%
    over budget**, so the "seed already satisfied, takes no step" failure is unlikely at
    these levels.
 
@@ -1850,7 +1878,7 @@ scripts/verify_caps.py   the caps bind, on the real dataset slices
 scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             150 tests, ~35 s, no dataset required
+tests/             152 tests, ~35 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

@@ -2007,3 +2007,64 @@ def test_equalize_multi_fills_to_exactly_K_so_the_items_conversion_is_exact():
                 "of %d, so F1 = 2TP/(K+n) no longer holds and the items "
                 "conversion printed by full_panel is wrong"
                 % (trial, c, got, want))
+
+def test_budgets_reads_a_post_hoc_arm_not_just_a_trained_one(tmp_path):
+    """The clipper is the bar. A budget helper blind to it drops the control.
+
+    A post-hoc arm runs `constraint_epochs: 0`, so every row of its training
+    log carries the hardcoded `Limit_Class = inf` default and the log-only
+    lookup returned {}. Any caller that skips a run with no budget then reports
+    the treatment with no control and calls it a comparison.
+    """
+    import pandas as pd
+    from scripts.reachability import budgets
+
+    d = tmp_path / "clip" / "seed_1"
+    d.mkdir(parents=True)
+    # exactly what a post-hoc arm writes: the inf default, on every row
+    pd.DataFrame({"Epoch": [0, 1], "Limit_Class4": [1e10, 1e10]}).to_csv(
+        d / "training_log.csv", index=False)
+    pd.DataFrame({"True_Label": [4] * 100 + [0] * 50}).to_csv(
+        d / "final_predictions_raw.csv", index=False)
+    (d / "config.json").write_text(json.dumps({
+        "constraint": [0.3, 0.3],
+        "capped_classes": [4],
+        "dataset_config": {"constrained_class": [4]},
+    }), encoding="utf-8")
+
+    assert budgets(d) == {4: 30}, (
+        "the cap is a fraction of the class's true count: 0.3 x 100 = 30")
+
+
+def test_headroom_scores_the_control_the_way_the_scorer_does(tmp_path):
+    """`achieved` must be the scorer's allocation, not the raw argmax.
+
+    The raw argmax ignores the budget, so scoring the control on it beats the
+    analytic ceiling `2K/(K+n)` and yields a NEGATIVE headroom -- which is how
+    this was caught. A headroom that can go negative is measuring two different
+    allocations against each other.
+    """
+    import numpy as np
+    from scripts.full_panel import equalize_multi
+    from scripts.headroom import f1
+    from src.utils.constants import UNLIMITED
+
+    rng = np.random.default_rng(0)
+    n, K, cls = 200, 20, 1
+    y = np.zeros(n, dtype=int)
+    y[:60] = cls
+    P = rng.random((n, 3))
+    P[:60, cls] += 1.0                     # class 1 genuinely more probable
+    P = P / P.sum(axis=1, keepdims=True)
+
+    g = np.zeros(n, dtype=int)
+    G = {c: (K if c == cls else UNLIMITED) for c in range(3)}
+    eq = equalize_multi(P, g, G, {0: {c: UNLIMITED for c in range(3)}}, [cls])
+
+    assert int((eq == cls).sum()) == K, "the scorer fills the budget exactly"
+    ceiling = 2.0 * K / (K + int((y == cls).sum()))
+    assert f1(y, eq, cls) <= ceiling + 1e-12, (
+        "no allocation emitting exactly K can beat 2K/(K+n)")
+    assert f1(y, P.argmax(1), cls) > ceiling, (
+        "the raw argmax DOES beat it, because it ignores the budget -- which "
+        "is exactly why headroom must not be measured against it")

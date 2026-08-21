@@ -63,6 +63,7 @@ is near maximal.
 """
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -76,17 +77,46 @@ REACHABLE = 0.040
 
 
 def budgets(run_dir):
+    """The integer budget per capped class, for ANY arm.
+
+    The training log is the direct source, but ONLY for trained arms. A
+    post-hoc arm runs `constraint_epochs: 0`, so every row it writes carries
+    the hardcoded `Limit_Class = inf` default from log_progress_to_csv's
+    signature and this returned {} for the clipper -- the exact bar every
+    comparison is scored against. A caller that skips a run with no budget
+    then drops the control silently and reports the treatment alone.
+
+    So fall back to the config, where the cap is a FRACTION of the class's
+    true count (`constraint: [local, global]` x `capped_classes`). Verified
+    against the trained arms' own logs on mcbar/dermmnist: 0.3 x {103, 220,
+    223} -> {31, 66, 67}, the integers their logs record.
+    """
     try:
         t = pd.read_csv(run_dir / "training_log.csv")
     except Exception:
-        return {}
+        t = None
     out = {}
-    for col in t.columns:
-        if col.startswith("Limit_Class"):
-            v = pd.to_numeric(t[col], errors="coerce")
-            v = v[v < 1e9]
-            if len(v):
-                out[int(col[len("Limit_Class"):])] = int(v.iloc[-1])
+    if t is not None:
+        for col in t.columns:
+            if col.startswith("Limit_Class"):
+                v = pd.to_numeric(t[col], errors="coerce")
+                v = v[v < 1e9]
+                if len(v):
+                    out[int(col[len("Limit_Class"):])] = int(v.iloc[-1])
+    if out:
+        return out
+
+    try:
+        cfg = json.loads((run_dir / "config.json").read_text(encoding="utf-8"))
+        frac = float(cfg["constraint"][0])
+        classes = cfg.get("capped_classes") or cfg["dataset_config"]["constrained_class"]
+        y = pd.read_csv(run_dir / "final_predictions_raw.csv")["True_Label"]
+    except Exception:
+        return {}
+    for c in classes:
+        n = int((y == int(c)).sum())
+        if n:
+            out[int(c)] = int(round(frac * n))
     return out
 
 
