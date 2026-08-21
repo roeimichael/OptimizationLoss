@@ -1550,10 +1550,22 @@ Given section 0, only two kinds of thing can still win, and they are the only th
    not an observation about our results; it is a property of how the data was made, and it
    predicts the null results rather than being explained by them.
 
-   ⇒ **the only way to make the cap informative is a test slice whose prevalence DIFFERS from
-   train.** 🛑 That means new slices, and re-slicing is Roei's call -- it invalidates most of the
-   stored corpus. **Ask before touching it.** A new slice ALONGSIDE `slice_1`, leaving the
-   existing ones untouched, is the cheap version and still needs asking. **Distribution shift is the untested regime where the cap carries real
+   ⇒ **the only way to make the cap informative is a test set whose prevalence DIFFERS from
+   train.** There are two routes and they are not equally costly.
+
+   🛑 **Re-slicing is Roei's call and probably not needed.** New splits invalidate most of the
+   stored corpus, and the same file already carries that warning for the leakage finding.
+
+   ✅ **The safe route is a load-time SUBSAMPLE of the existing test set.** Drawing a subset of
+   `slice_1`'s test items to hit a target prevalence touches **no file**, leaves every existing
+   slice byte-identical, and invalidates nothing -- it is a selection in `src/utils/data_loader.py`
+   (which today reads `test_labels.npy` whole and has no subsampling path), default off. Every arm
+   in the campaign sees the identical subsample, so arm-vs-arm is valid; only comparison to the
+   stored corpus is not, and that comparison is not what the regime is for. It also costs test-set
+   SIZE, which is the real price: a shift big enough to matter on a rare class can leave few items,
+   and the campaign must be powered for the subsample and not for the full test set.
+
+   ⚠️ Not implemented, and not to be implemented unasked -- it changes the data path. **Distribution shift is the untested regime where the cap carries real
    information.** Novelty must be checked against label-shift / prior-correction work first.
 
 **Anything that is not one of those two is a repeat of section 2. Do not run it.**
