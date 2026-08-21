@@ -1342,6 +1342,22 @@ five are what found the defects, and they are cheap:
 
 ## 4. THE ONE OPEN QUESTION
 
+**STATE, 2026-08-21 -- read this before the 300 lines below.**
+
+| | what | status |
+|---|---|---|
+| **built, not run** | `tralo_margin` + `tralo_st` (1b) -- the count's gradient on the decision boundary, decomposed from the count's value | 56-run campaign ready, all gates green, `docs/launch_margin1.sh` |
+| **proposed, not built** | 1c -- optimise **precision@K with LABELS** at the budget | needs a literature check first |
+| **needs Roei** | path 2 -- a test set whose prevalence DIFFERS from train | a load-time subsample, NOT re-slicing |
+| **purged** | `budget_margin` (path 1) | must be rebuilt before it can run |
+
+🛑 **A tie is the pre-registered expectation for 1b, and three independent derivations say
+so:** post-hoc is optimal GIVEN the probabilities; the cap adds no information the training
+set lacks (proved from `create_slices.py`); and under `K << n_true` the Bayes rule is
+top-K by probability, which IS the clipper. The only remaining lever is a better RANKING at
+the operating point, and that needs LABEL information -- which no count penalty has. ⇒ if 1b
+ties, go to 1c, **not** to a third count.
+
 Given section 0, only two kinds of thing can still win, and they are the only things worth building:
 
 1. **A per-item objective at the operating point** -- something whose gradient depends on an
