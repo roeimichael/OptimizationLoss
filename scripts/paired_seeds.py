@@ -65,6 +65,26 @@ def main():
             if d.is_dir() and d.name.startswith("seed")
             and (d / "final_predictions.csv").exists()]
     if not runs:
+        # This tool reads the FLAT `seed<N>_<arm>` layout the ad-hoc server
+        # drivers write. A gen_campaign tree is
+        # <root>/<model>/<dataset>/<cap>/<arm>/seed_<N>, and pointing this at
+        # one gives "no completed runs" -- which reads as "nothing finished"
+        # rather than "wrong tool", and that is the kind of message this
+        # project has abandoned arms over.
+        if list(root.rglob("final_predictions.csv")):
+            print("no seed<N>_<arm> directories under %s, but there ARE" % root)
+            print("completed runs deeper in the tree -- this looks like a")
+            print("gen_campaign campaign, which this tool cannot read.")
+            print()
+            print("Use the campaign scorer, which keys on the CELL and will not")
+            print("pool across cap levels:")
+            print("    python -m scripts.full_panel %s --control clip" % root)
+            print("    python -m scripts.full_panel %s --control tralo_null" % root)
+            print()
+            print("`clip` is the stronger quality bar and is the headline read;")
+            print("`tralo_null` attributes a delta to the constraint rather")
+            print("than to the regime. Run BOTH.")
+            return 1
         print("no completed runs under %s" % root)
         return 1
     seeds = sorted({int(d.name.split("_")[0][4:]) for d in runs})
