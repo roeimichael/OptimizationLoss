@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# THE MARGIN-COUNT DECOMPOSITION CAMPAIGN. Fire when dsisco is reachable.
+#
+# REGIME, stated out loud before launching (FRAMEWORK rule):
+#   dataset      dermmnist  (test set is LEAKED 38.7% -- PAIRED arm-vs-arm
+#                            survives the shared confound; NO absolute number
+#                            from this campaign may be quoted)
+#   backbone     MobileNetV3
+#   caps         L50_G30, L40_G30   -- two levels, and G < L on both so the
+#                                      GLOBAL scope actually binds
+#   capped       classes 2 and 4    -- coupled multi-class, the one real opening
+#   warm-up      1 / constraint 29 for trained arms
+#                30 / 0 for post-hoc arms          => 30 CE epochs each side
+#   arms         tralo       soft value, p(1-p) placement   (the manuscript)
+#                tralo_st    HARD value, p(1-p) placement   (value fix alone)
+#                tralo_margin HARD value, margin placement  (both)
+#                tralo_coin  RANDOM direction, same norm     (the coin control)
+#                tralo_null  lambda = 0                     (the regime control)
+#                clip, focal_clip                           (in-campaign bars)
+#   dose         cut_window_items 5
+#   size         2 cells x 7 arms x 4 seeds = 56 runs
+#
+# UNDERPOWERED BY CONSTRUCTION: 2 cells cannot reach significance on any single
+# metric. This reports DIRECTION and per-cell consistency only. If it moves,
+# extend with octmnist -- a DATASET adds independence, a backbone only
+# resolution.
+set -euo pipefail
+ROOT=results/margin1
+cd ~/OptimizationLoss
+git pull --ff-only
+python -m pytest tests -q
+python -m scripts.audit_config
+python -m scripts.smoke_arms --matrix
+python -m configs.gen_campaign --root "$ROOT" \
+    --datasets dermmnist --models MobileNetV3 \
+    --caps L50_G30 L40_G30 \
+    --arms tralo tralo_st tralo_margin tralo_coin tralo_null \
+    --constrained-class 2 4
+python -m scripts.verify_caps "$ROOT"
+python -m scripts.check_parity "$ROOT"
+python -m scripts.flag_live tralo tralo_st tralo_margin tralo_coin tralo_null
+echo "ALL GATES PASSED -- launch with main.py against $ROOT"
+cat <<'READ'
+
+HOW TO READ IT -- fixed in advance, so it cannot drift after the numbers land.
+
+  python -m scripts.full_panel --campaign RESULTS/margin1 --control clip
+  python -m scripts.full_panel --campaign RESULTS/margin1 --control tralo_null
+  python -m scripts.full_panel --campaign RESULTS/margin1 --control tralo_coin
+  python -m scripts.full_panel --campaign RESULTS/margin1 --control tralo
+
+`clip` is the headline bar and the stronger clipper. `tralo_null` separates the
+REGIME from the treatment. `tralo_coin` is the pre-registered kill condition.
+`tralo` as control gives the decomposition directly.
+
+THE READING, in order:
+
+1. RAW-PREDICTION IDENTITY first, before any metric. If two arms share an md5
+   on a cell-seed, that comparison is void whatever the metrics say.
+
+2. ccP is the metric that decides this. ccF1 is precision@K rescaled and
+   ccP/ccR/ccF1 are one metric in three costumes -- quote ONE. An arm that
+   moves AUROC and not ccP has been run twice already (`budget_margin`, and
+   the shipped penalty); that is not a win.
+
+3. tralo_margin must beat tralo_coin. Same step norm, no information. If it
+   does not, the direction contributed nothing a coin could not have and no
+   dose or width changes that.
+
+4. Decomposition: tralo -> tralo_st isolates the count VALUE, tralo_st ->
+   tralo_margin isolates the WINDOW. Report both, never the bundle.
+
+5. `flips`, raw count over K, and "proximity to feasibility" are NOT metrics.
+   Post-hoc filling is free. When quality ties the honest report is "this arm
+   produced nothing".
+
+6. 2 cells CANNOT reach significance on any single metric. This reports
+   DIRECTION and per-cell consistency. Do not quote a p-value as a verdict.
+
+A TIE IS THE PRE-REGISTERED EXPECTATION (FRAMEWORK 1b): post-hoc is optimal
+given the probabilities, the cap adds no information the training set lacks,
+and under K << n_true top-K by probability IS the clipper. If it ties, the
+next move is proposal 1c -- optimise precision@K with LABELS -- not a third
+count.
+READ
