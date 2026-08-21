@@ -519,6 +519,21 @@ def _identity_check(rows):
             elif same:
                 print("  %s vs %s: %d of %d cells bit-identical"
                       % (a, b, same, len(shared)))
+                if a.endswith("_null") or b.endswith("_null"):
+                    # Under straight_through the penalty is relu(hard - K), so
+                    # a seed already UNDER budget at warm-up 1 takes no step
+                    # for the entire run and lands bit-identical to its null.
+                    # That is correct behaviour and a real zero -- but it is
+                    # not a TREATED seed, and averaging it in pulls the effect
+                    # toward zero while looking like a null result. `clip`
+                    # binds on 63-84% of runs, so one or two per cell is
+                    # expected, not a bug.
+                    print("      ^ identical to the null means the cap never "
+                          "bound on those seeds, so no")
+                    print("        constraint step was taken. Those are "
+                          "UNTREATED seeds: they are real zeros,")
+                    print("        but averaging them in dilutes the effect. "
+                          "Report the treated count.")
     for a, b, n in dead:
         print("  *** %s and %s emit BIT-IDENTICAL raw predictions on all %d "
               "cell-seeds. Whatever separates them in the config is INERT. "
