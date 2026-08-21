@@ -1347,7 +1347,7 @@ five are what found the defects, and they are cheap:
 | | what | status |
 |---|---|---|
 | **built, not run** | `tralo_margin` + `tralo_st` (1b) -- the count's gradient on the decision boundary, decomposed from the count's value | 56-run campaign ready, all gates green, `docs/launch_margin1.sh` |
-| **proposed, not built** | 1c -- optimise **precision@K with LABELS** at the budget | needs a literature check first |
+| **proposed, not built** | 1c -- optimise the metric at the budget **with LABELS**, via a jointly-trained SELECTION head | literature checked; **SelectiveNet (ICML 2019) beat exactly our `clip` baseline** in the analogous coverage setting |
 | **needs Roei** | path 2 -- a test set whose prevalence DIFFERS from train | a load-time subsample, NOT re-slicing |
 | **purged** | `budget_margin` (path 1) | must be rebuilt before it can run |
 
@@ -1375,6 +1375,15 @@ set lacks (proved from `create_slices.py`); and under `K << n_true` the Bayes ru
 top-K by probability, which IS the clipper. The only remaining lever is a better RANKING at
 the operating point, and that needs LABEL information -- which no count penalty has. ⇒ if 1b
 ties, go to 1c, **not** to a third count.
+
+✅ **But the pessimism is about COUNT PENALTIES, not about the problem.** SelectiveNet
+(ICML 2019) beats "a threshold over the prediction confidence of a pre-trained network"
+-- our `clip`, exactly -- in the analogous coverage-constrained setting, by training a
+selection head jointly so the network is "optimized over the covered domain". Post-hoc is
+optimal GIVEN the probabilities; training can change which probabilities you get. **That
+mechanism is available to 1c and to none of the arms run so far**, because every one of
+them bolts a penalty onto a warm-started CE model instead of fitting the model to the
+sub-population it will actually predict on.
 
 Given section 0, only two kinds of thing can still win, and they are the only things worth building:
 
