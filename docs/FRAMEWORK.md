@@ -1348,6 +1348,35 @@ Given section 0, only two kinds of thing can still win, and they are the only th
    individual item's position relative to the budget, not on the aggregate count.
    Three attempts are null so far; `budget_margin` on multi-class is the one untried variant.
 
+1b. **A count whose gradient lands ON the cut** -- derived 2026-08-21, not yet run.
+
+   The defect is now mechanical rather than mysterious. The soft count is
+   `s_c = sum_i p_ic`, so `d s_c / d logit_ic = p_ic(1 - p_ic)`, which peaks at
+   `p = 0.5` and vanishes as `p -> 1`. The shape (`rational_bounded` / `linear` /
+   `squared`) only scales `d penalty / d s_c` -- for `linear` it is the constant `1/K` --
+   so **no choice of shape moves where the gradient lands.** Every shape pushes hardest on
+   items the model is unsure about, while the cap reads at the K-th ranked item, measured
+   at `p = 0.94` early and `p = 0.999` once converged. That is why the penalty reshuffles
+   the middle of the ranking (Jaccard 0.29-0.42 against the control) and leaves prec@K
+   where it was.
+
+   **The fix follows from the derivative, not from a new objective.** Keep the count, move
+   its weight: replace `s_c = sum_i p_ic` with a threshold-centred soft count
+
+       s_c = sum_i sigmoid( (p_ic - tau_c) / T ),    tau_c = the K-th largest p_ic
+
+   whose per-item derivative peaks exactly AT `tau_c`, i.e. at the cut. It is still a
+   transductive count -- it approximates the hard count above the threshold more closely
+   than `sum_i p_ic` does -- so it stays inside the paper's formulation rather than
+   becoming a per-item objective bolted alongside it. `tau_c` is recomputed per epoch from
+   the model's own probabilities and detached, so no label is used and the transductive
+   setting is preserved.
+
+   ⚠️ **Falsification conditions, fixed in advance:** it must (a) move **ccP**, not AUROC
+   -- an arm that moves AUROC has been run twice, as `budget_margin` and as the shipped
+   penalty; (b) beat `constraint_random_direction` at the same norm; (c) hold across
+   4 seeds and >= 2 cap levels. `T` is a real dose knob and must be swept, not guessed.
+
 2. **A regime where post-hoc is not optimal.** Post-hoc greedy is optimal only over its own
    candidate neighbourhood. It is weakest where the assignment is **coupled**: several capped
    classes plus local per-group caps. It is also uninformative where **train and test prevalence
