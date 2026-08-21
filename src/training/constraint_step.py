@@ -51,6 +51,10 @@ import torch
 
 log = logging.getLogger(__name__)
 
+# Counter for the random-direction control's generator, so its seed varies per
+# call without drawing from the global RNG. See _randomize_direction.
+_RANDDIR_CALLS = 0
+
 
 @contextmanager
 def constraint_autocast(amp_dtype, use_amp, fp32):
@@ -90,11 +94,17 @@ def _randomize_direction(model, clip, seed_tensor):
     costs the same 4 items, the constraint contributed nothing a coin could not
     have, and no amount of shape or dose tuning will change that.
 
-    Deterministic: the generator is seeded from the run's own RNG, so a replay
-    reproduces bit-for-bit like every other path here.
+    Deterministic AND side-effect free. The seed comes from `initial_seed()`
+    plus a call counter, neither of which DRAWS from the global RNG. Seeding it
+    with `torch.randint` instead -- the obvious way, and how this was first
+    written -- consumes a global draw, so the control run's dropout masks and
+    batch order diverge from the real arm's as well as its step direction. That
+    makes the control vary two things when its entire purpose is to vary one.
     """
+    global _RANDDIR_CALLS
+    _RANDDIR_CALLS += 1
     gen = torch.Generator(device=seed_tensor.device)
-    gen.manual_seed(int(torch.randint(0, 2 ** 31 - 1, (1,)).item()))
+    gen.manual_seed((torch.initial_seed() + 7919 * _RANDDIR_CALLS) % (2 ** 31 - 1))
     total = 0.0
     for p in model.parameters():
         if p.grad is not None:

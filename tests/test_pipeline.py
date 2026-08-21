@@ -1494,6 +1494,20 @@ def test_the_random_direction_control_keeps_the_dose_and_drops_the_information()
     assert abs(float(real.norm()) - 1.0) < 1e-4
     assert abs(float(rand.norm()) - 1.0) < 1e-4
 
+    # and the control must not DRAW from the global RNG: if it does, the
+    # control run's dropout masks and batch order diverge from the real arm's
+    # too, so it varies two things instead of one. Checked on the randomiser
+    # itself -- the step() helper above seeds and samples on its own.
+    from src.training.constraint_step import _randomize_direction
+    m2 = torch.nn.Linear(8, 4)
+    for q in m2.parameters():
+        q.grad = torch.ones_like(q)
+    torch.manual_seed(1234)
+    before_state = torch.random.get_rng_state()
+    _randomize_direction(m2, 1.0, next(iter(m2.parameters())))
+    assert torch.equal(torch.random.get_rng_state(), before_state), (
+        "the random-direction control consumed a global RNG draw")
+
     # different information: a random direction in 520 dimensions is very
     # nearly orthogonal to any fixed one
     cos = float(torch.dot(real, rand) / (real.norm() * rand.norm()))
