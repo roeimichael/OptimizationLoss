@@ -1687,6 +1687,29 @@ Given section 0, only two kinds of thing can still win, and they are the only th
    there beats post-hoc thresholding of a CE model" -- which must be checked against
    label-shift, prior-correction and top-K optimisation literature BEFORE building it.
 
+   🎯 **THE MINIMAL FORM, and it reuses machinery that already exists.** SelectiveNet
+   trains a selection head jointly; that is a large change. The smallest thing with the
+   same mechanism -- fit the model to the sub-population it will actually predict on --
+   is to **re-weight the CE loss on the TRAINING set toward the operating point**:
+
+       w_i  =  1 + eta * sum_{c capped} sigma'( m_ic / T )
+
+   with `m_ic` the margin (`src/losses/transductive_loss.py: margins`) and `T` derived by
+   `window_temp` from `cut_window_items`, exactly as `tralo_margin` does. Items sitting at
+   a capped class's decision boundary get their CE up-weighted; items buried inside a
+   class, which cannot flip, do not.
+
+   Why this is not another count arm, point by point against path 1's requirements:
+   it uses **labels** (it IS the CE loss), it is **per item**, it acts **at the operating
+   point**, and it changes the RANKING -- which is the only thing post-hoc cannot do for
+   itself. It is also ~20 lines, one hyperparameter (`eta`), and needs no new head.
+
+   ⚠️ It differs from SelectiveNet in the way that matters: they *exclude* the uncovered
+   domain, this only *down-weights* it. Whether that is enough is the experiment. And the
+   operating point is defined on TRAIN margins while the budget lives on TEST -- the two
+   coincide only because the split is stratified, which is the one place this design leans
+   on the property proved in path 2.
+
    ⚠️ **And it may still lose to `clip`**, because CE + optimal post-hoc is a strong
    baseline and the training and test operating points differ by sampling noise. Build
    it only after 1b reports, and only with the same in-campaign bars.
