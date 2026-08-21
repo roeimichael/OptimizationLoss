@@ -1361,21 +1361,49 @@ Given section 0, only two kinds of thing can still win, and they are the only th
    where it was.
 
    **The fix follows from the derivative, not from a new objective.** Keep the count, move
-   its weight: replace `s_c = sum_i p_ic` with a threshold-centred soft count
+   its weight. An item is predicted `c` exactly when `p_ic > max_{c' != c} p_ic'`, so
+   soften THAT instead of summing probabilities:
 
-       s_c = sum_i sigmoid( (p_ic - tau_c) / T ),    tau_c = the K-th largest p_ic
+       s_c = sum_i sigmoid( m_ic / T ),    m_ic = p_ic - max_{c' != c} p_ic'
 
-   whose per-item derivative peaks exactly AT `tau_c`, i.e. at the cut. It is still a
-   transductive count -- it approximates the hard count above the threshold more closely
-   than `sum_i p_ic` does -- so it stays inside the paper's formulation rather than
-   becoming a per-item objective bolted alongside it. `tau_c` is recomputed per epoch from
-   the model's own probabilities and detached, so no label is used and the transductive
-   setting is preserved.
+   The derivative peaks at `m = 0` -- at the decision boundary, on the items one step from
+   flipping -- and vanishes for items buried inside a class. Summed, it tracks the HARD
+   count rather than the probability mass, so it is also the tighter relaxation of the same
+   constraint. `m` is a function of an item's own row, so it needs no order statistic, no
+   label, and nothing from the other chunks: the chunked detach construction still gives the
+   exact full-N gradient and `constraint_chunk_size` stays a free knob.
+
+   Shipped as `soft_count_mode: margin` + `cut_temp` (tralo only -- the duals never form
+   this count). Default `sum` is bit-identical.
+
+   ⛔ **A DEAD END, recorded because it is seductive.** The obvious version centres the
+   window on the K-th largest probability, `sigmoid((p_ic - tau_c)/T)` with `tau_c` the
+   K-th order statistic. That quantity counts how many items exceed the K-th largest,
+   which is **K - 0.5 for any model whatsoever**. It is a constant, `relu(s - K)` is
+   identically zero, and it produces **no gradient at all**. It was derived, wired into
+   the trainer, and caught by the chunked-gradient test before it ever reached a GPU.
+   A soft count must be able to EXCEED the budget or there is no violation to see.
+
+   🎯 **The claim is measurable before the run.** `scripts/reachability.py` now reports,
+   per cell, the share of each count's total per-item gradient landing on the 20 items
+   nearest the decision boundary -- the only items whose prediction can change. On a
+   synthetic 7-class cell that is 2-3% for `sum` and 28-49% for `margin`. Re-measure it
+   on the real cell before spending GPU time: if the reallocation is not there, the arm
+   has nothing to deliver.
+
+   ⚠️ **It is still an AGGREGATE count**, which is what path 1 says cannot win. The reason
+   it is listed anyway is that path 1's own escape hatch is "per-item AT THE OPERATING
+   POINT", and this is an aggregate whose WEIGHT is concentrated there. If it fails, it
+   fails as evidence FOR path 1 stated strictly, and the next move is a genuinely per-item
+   objective, not another count.
 
    ⚠️ **Falsification conditions, fixed in advance:** it must (a) move **ccP**, not AUROC
    -- an arm that moves AUROC has been run twice, as `budget_margin` and as the shipped
    penalty; (b) beat `constraint_random_direction` at the same norm; (c) hold across
-   4 seeds and >= 2 cap levels. `T` is a real dose knob and must be swept, not guessed.
+   4 seeds and >= 2 cap levels. `T` is a real dose knob and must be **dosed against the
+   margin table**, not guessed: if `in win` is 0 the arm takes a zero step, and if it is
+   the whole test set the sigmoid is flat and it has silently degraded back to `sum`.
+   Either way the run measures nothing, and neither shows up as an error.
 
 2. **A regime where post-hoc is not optimal.** Post-hoc greedy is optimal only over its own
    candidate neighbourhood. It is weakest where the assignment is **coupled**: several capped
