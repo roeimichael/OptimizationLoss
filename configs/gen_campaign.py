@@ -227,17 +227,6 @@ def _apply_constraint_step(P, args):
               "manuscript's Eq. 4," % shape)
         print("      so results from it are not comparable to the stored "
               "corpus without saying so.")
-    if P["blocks"]["tralo"].get("soft_count_mode") == "margin":
-        n = P["blocks"]["tralo"].get("cut_window_items", 40)
-        print("  SOFT COUNT = MARGIN-CENTRED (%d items in window): tralo's "
-              "count keeps its value" % n)
-        print("      -- the penalty reads the HARD count -- and moves its "
-              "gradient onto the decision")
-        print("      boundary. A DIFFERENT ESTIMATOR of the same constraint, "
-              "so it needs its own")
-        print("      null and its own random-direction control, both of which "
-              "`tralo_null` and")
-        print("      --constraint-random-direction already provide.")
     if P["constraint_phase"].get("constraint_step_rule") == "sgd":
         print("  CONSTRAINT STEP = PLAIN SGD for every trained arm: the step no "
               "longer inherits CE's")
@@ -392,6 +381,23 @@ def main():
     added = sorted(mandatory - requested)
     if added:
         print("NOTE: added the mandatory clippers ->", " ".join(added))
+    if "tralo_margin" in arms or             P["blocks"]["tralo"].get("soft_count_mode") == "margin":
+        n = P["blocks"]["tralo"].get("cut_window_items", 40)
+        print("  SOFT COUNT = MARGIN-CENTRED (%d items in the window): the "
+              "count keeps its value" % n)
+        print("      -- the penalty reads the HARD count -- and moves its "
+              "gradient onto the decision")
+        print("      boundary, where a prediction can actually flip. A "
+              "DIFFERENT ESTIMATOR of the same")
+        print("      constraint, not a different constraint, so it is scored "
+              "against `tralo` (same")
+        print("      constraint, other estimator), `tralo_null` (same "
+              "estimator, no dose) and the")
+        print("      clippers -- all of which must be in THIS campaign.")
+        if "tralo" not in arms:
+            print("      *** `tralo` is NOT in this campaign. Without it the "
+                  "margin arm has nothing")
+            print("      *** to be an estimator OF: add --arms ... tralo.")
 
     resolved = resolve_datasets(P, args)
     validate(P, args, resolved)
