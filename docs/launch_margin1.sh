@@ -8,7 +8,15 @@
 #   backbone     MobileNetV3
 #   caps         L50_G30, L40_G30   -- two levels, and G < L on both so the
 #                                      GLOBAL scope actually binds
-#   capped       classes 2 and 4    -- coupled multi-class, the one real opening
+#   capped       classes 2 and 4    -- coupled multi-class, the one real opening,
+#                                     AND nearly equal in size (n = 220 vs 223),
+#                                     so the penalty's 1/K gradient asymmetry is
+#                                     ~1.01x between them. The penalty is f(E/K),
+#                                     so a bigger budget gets a SMALLER gradient
+#                                     per unit excess -- capping 1 and 2 instead
+#                                     would put a 2.1x dose difference between the
+#                                     two constrained classes and confound the
+#                                     see-saw with the shape.
 #   warm-up      1 / constraint 29 for trained arms
 #                30 / 0 for post-hoc arms          => 30 CE epochs each side
 #   arms         tralo       soft value, p(1-p) placement   (the manuscript)
