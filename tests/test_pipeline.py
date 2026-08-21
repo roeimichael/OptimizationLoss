@@ -1376,60 +1376,6 @@ def test_ce_skip_is_a_live_gate_not_an_inert_flag():
     assert r.should_skip(), "the gate must latch"
 
 
-def test_the_threshold_soft_count_puts_its_gradient_on_the_cut():
-    """The whole point: move WHERE the gradient lands, not how big it is.
-
-    The plain soft count sum_i p_i has d s/d logit_i = p_i(1-p_i), which peaks
-    at p = 0.5 and vanishes as p -> 1. Measured, the cut sits at p = 0.94 on a
-    4-epoch model and 0.999 converged, so the plain count pushes hardest on
-    items the cap never reads. This asserts the replacement does the opposite.
-    """
-    import torch
-    from src.losses.transductive_loss import threshold_soft_count
-
-    # 200 items, probabilities spread over (0, 1). The cut is the 20th largest.
-    torch.manual_seed(0)
-    logits = torch.linspace(-4.0, 4.0, 200).clone().requires_grad_(True)
-    p = torch.sigmoid(logits)
-    K = 20
-    tau = torch.topk(p.detach(), K).values[-1]
-
-    # temp must be small relative to the spacing of probabilities near the cut.
-    # At 0.02 the window is wider than the whole top-20 spread (~0.022), the
-    # sigmoid factor goes flat across it, and p(1-p) dominates again -- the very
-    # defect this replaces. 0.002 is inside the spacing.
-    threshold_soft_count(p, K, temp=0.002).backward()
-    g_thresh = logits.grad.abs().clone()
-
-    logits.grad = None
-    p2 = torch.sigmoid(logits)
-    p2.sum().backward()
-    g_plain = logits.grad.abs().clone()
-
-    at_cut = int((p.detach() - tau).abs().argmin())
-    at_half = int((p.detach() - 0.5).abs().argmin())
-
-    # the plain count pushes hardest at p = 0.5, which is not where a cap reads
-    assert g_plain[at_half] > g_plain[at_cut]
-    # the threshold count pushes hardest AT the cut
-    assert g_thresh[at_cut] > g_thresh[at_half], (
-        "threshold_soft_count must concentrate its gradient at tau")
-    # and the WEIGHT must have moved toward the cut, which is the actual claim:
-    # the cut-to-midpoint gradient ratio should be orders of magnitude larger
-    # than the plain count's.
-    r_thresh = float(g_thresh[at_cut] / g_thresh[at_half])
-    r_plain = float(g_plain[at_cut] / g_plain[at_half])
-    assert r_thresh > 100 * r_plain, (
-        "gradient weight did not move to the cut: ratio %.3g vs %.3g"
-        % (r_thresh, r_plain))
-
-    # and it must still be a COUNT: near the hard count above the cut
-    hard = float((p.detach() >= tau).sum())
-    soft = float(threshold_soft_count(p.detach(), K, temp=0.002))
-    assert abs(soft - hard) < 2.0, (
-        "it stopped approximating the count it is supposed to be")
-
-
 def test_the_bounded_shape_starves_the_deepest_violator_and_the_hinges_do_not():
     """The measured multi-class failure, pinned as a property.
 
@@ -1662,3 +1608,127 @@ def test_every_trained_arm_wires_the_same_ce_skip(arm):
         assert not (reads and not binds), (
             "%s: %s() reads `ce_skip` but never binds it in its own scope -- "
             "this is a NameError the moment the arm runs" % (arm, fn.name))
+
+
+def test_the_margin_count_is_a_real_count_not_a_constant():
+    """The trap that killed the order-statistic version, pinned.
+
+    Centring the window on the K-th largest probability -- the obvious way to
+    put the gradient on the cut -- yields `sum_i sigma((p_i - tau)/T)`, which
+    counts how many items exceed the K-th largest. That is K - 0.5 for ANY
+    model, so it is a constant, `relu(s - K)` is identically zero, and no
+    gradient is ever produced. It was wired into the trainer and caught here.
+
+    The margin count must instead MOVE with the model and be able to exceed
+    the budget, which is what makes a violation visible at all.
+    """
+    from src.losses.transductive_loss import margin_window
+
+    torch.manual_seed(0)
+    K, cls = 8, 1
+    counts, hards, os_wide, os_narrow = [], [], [], []
+    for shift in (-4.0, 0.0, 4.0):
+        logits = torch.randn(40, 3) + torch.tensor([0.0, shift, 0.0])
+        proba = F.softmax(logits, dim=1)
+        counts.append(float(margin_window(proba, 0.02)[:, cls].sum()))
+        hards.append(float((proba.argmax(dim=1) == cls).sum()))
+        tau = torch.topk(proba[:, cls], K).values[-1]
+        os_wide.append(float(torch.sigmoid((proba[:, cls] - tau) / 0.02).sum()))
+        os_narrow.append(float(torch.sigmoid((proba[:, cls] - tau) / 1e-4).sum()))
+        assert abs(counts[-1] - hards[-1]) < 1.0, (
+            "margin count %.2f is not tracking the hard count %d"
+            % (counts[-1], hards[-1]))
+
+    swing = max(hards) - min(hards)
+    assert swing > 20 and max(counts) - min(counts) > 20, (
+        "the margin count barely moved (%s) as the class went from rare to "
+        "dominant -- it is not measuring the count" % counts)
+    assert max(counts) > K, "the count can never exceed the budget: no violation"
+
+    # The dead version, for the record. As T -> 0 it is EXACTLY K - 0.5 for every
+    # model: it counts the items above the K-th largest. At a usable T it
+    # smears wherever probabilities are packed tighter than T, but it is still
+    # pinned near the budget and still blind to the count -- here it spans
+    # 8.5 while the true count spans 34.
+    assert all(abs(c - (K - 0.5)) < 0.01 for c in os_narrow), os_narrow
+    assert max(os_wide) - min(os_wide) < swing / 3, (
+        "order-statistic count spread %.1f vs true spread %.1f -- this test "
+        "is supposed to show it does NOT track"
+        % (max(os_wide) - min(os_wide), swing))
+
+
+def test_the_margin_count_puts_its_gradient_on_the_boundary():
+    """Not on the unsure items. This is the entire point of the arm.
+
+    The plain count's per-item derivative is p(1-p), maximal at p = 0.5 and
+    ~zero at the cut. The margin count's is sigma'(m/T)/T, maximal at margin 0
+    -- at the items one step from flipping out of the class.
+    """
+    from src.losses.transductive_loss import margin_window
+
+    torch.manual_seed(1)
+    proba = F.softmax(torch.randn(60, 4), dim=1).requires_grad_(True)
+    cls = 2
+    margin = proba[:, cls] - torch.cat(
+        [proba[:, :cls], proba[:, cls + 1:]], dim=1).max(dim=1).values
+
+    (g_margin,) = torch.autograd.grad(
+        margin_window(proba, 0.02)[:, cls].sum(), proba, retain_graph=True)
+    (g_sum,) = torch.autograd.grad(proba[:, cls].sum(), proba)
+
+    at_cut = int(margin.detach().abs().argmin())
+    deep = int(margin.detach().argmax())
+    gm = g_margin[:, cls].abs()
+    assert gm[at_cut] > gm[deep] * 50, (
+        "the margin count weights a deeply-committed item (%.3g) comparably "
+        "to one at the boundary (%.3g)" % (gm[deep], gm[at_cut]))
+    # the plain count is flat in p: every item gets identical weight here, and
+    # the p(1-p) shape enters only through the softmax below it.
+    assert torch.allclose(g_sum[:, cls], torch.ones(60))
+
+
+def test_the_windowed_count_keeps_the_exact_full_N_gradient_when_chunked():
+    """The threshold count must not break the chunked detach construction.
+
+    That construction is what makes `constraint_chunk_size` gradient-neutral:
+    each chunk backprops through `total.detach() - chunk.detach() + chunk`,
+    whose VALUE is the full-N count and whose gradient reaches only that
+    chunk's items, so the chunks sum to the exact full-N gradient. It survives
+    the margin window because the window is a function of an item's OWN row --
+    it needs nothing from the other chunks. The order-statistic version did
+    not have that property, which is the second reason it is gone.
+    """
+    from src.losses.transductive_loss import margin_window
+
+    torch.manual_seed(0)
+    logits = torch.randn(40, 3) + torch.tensor([0.0, 2.0, 0.0])
+    logits = logits.requires_grad_(True)   # class 1 over budget, so relu > 0
+    K, T, cls = 8, 0.02, 1
+
+    def penalty(s):
+        return F.relu(s[cls] - K) ** 2
+
+    full = margin_window(F.softmax(logits, dim=1), T).sum(dim=0)
+    assert float(full[cls]) > K, "no violation, so the penalty gradient is 0"
+    (g_full,) = torch.autograd.grad(penalty(full), logits)
+
+    # Same construction the trainer runs, at chunk size 7 (not a divisor of 40,
+    # so the ragged last chunk is exercised too).
+    with torch.no_grad():
+        total = margin_window(F.softmax(logits, dim=1), T).sum(dim=0)
+    g_chunked = torch.zeros_like(logits)
+    for start in range(0, 40, 7):
+        sl = slice(start, min(start + 7, 40))
+        chunk = F.softmax(logits[sl], dim=1)
+        eff = margin_window(chunk, T)
+        g_soft = total.detach() - eff.sum(dim=0).detach() + eff.sum(dim=0)
+        (g,) = torch.autograd.grad(penalty(g_soft), logits, allow_unused=True)
+        g_chunked = g_chunked + g
+
+    assert torch.allclose(g_chunked, g_full, atol=1e-6), (
+        "chunking changed the windowed count's gradient (max diff %.3g) -- "
+        "the detach cancellation broke, so chunk size is no longer a free "
+        "knob" % float((g_chunked - g_full).abs().max()))
+    # And the chunk that owns no top-K item still contributes: the window is
+    # sigmoid, not an indicator, so items below the cut are not zeroed.
+    assert g_full.abs().sum() > 0

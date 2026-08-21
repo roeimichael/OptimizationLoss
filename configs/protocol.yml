@@ -149,6 +149,24 @@ blocks:
     # audit_config flagged exactly that, 6 arms, before this moved here.
     initial_rho: 0.5
     rho_target: 100.0         # rho_step is DERIVED from this; a config rho_step is ignored
+    # WHERE THE COUNT PUTS ITS GRADIENT. `sum` is the manuscript's count
+    # s_c = sum_i p_ic, whose per-item derivative is p(1-p): largest where the
+    # model is UNSURE, and ~zero at the cut, which is the only place a
+    # prediction can actually change. Measured at the K-th ranked item:
+    # p(1-p) = 0.026 at L30_G20 (0 of 4 seeds responded) vs 0.055 at L50_G30
+    # (4 of 4), and 0.0009 once CE has converged -- the same quantity that
+    # makes warm-up 50 a dead regime and a tight cap unwinnable.
+    #
+    # `threshold` keeps the count and moves its weight: it replaces p_ic with
+    # sigmoid((p_ic - tau_c)/T), tau_c the K-th largest probability, so the
+    # derivative PEAKS at the cut. tau is an order statistic, detached, and
+    # recomputed once per constraint epoch.
+    soft_count_mode: sum
+    cut_temp: 0.002           # ONLY read when soft_count_mode: threshold.
+    # ^ must be NARROWER than the MARGIN spacing near the boundary or the
+    # window flattens and p(1-p) dominates again -- it degrades silently back
+    # to `sum`. This is a margin scale, not a probability-gap scale: dose it
+    # against what `scripts/reachability.py` prints at the cut.
   # THE NULL-TREATMENT CONTROL. Identical to `tralo` in warm-up length, optimizer
   # restart, epoch count, transductive passes and allocator -- with the treatment
   # removed. total_constraint == 0 makes has_constraint False, so pass 2 is

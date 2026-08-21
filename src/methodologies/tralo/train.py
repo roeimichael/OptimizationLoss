@@ -33,6 +33,7 @@ from src.pipeline.warmup import make_ce_criterion, make_dataloader, make_optimiz
 from src.training.ce_schedule import CESaturationSkip
 from src.training.constraint_step import (
     constraint_autocast, constraint_backward, finish_constraint_step)
+from src.losses.transductive_loss import margin_window
 from src.training.logging import log_progress_to_csv, write_csv_header
 from src.training.metrics import compute_prediction_statistics
 from src.training.reordering import capped_scores, reordering_report
@@ -71,6 +72,8 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     CONSTRAINT_FP32 = bool(hp.get("constraint_fp32", False))
     CONSTRAINT_STEP_RULE = str(hp.get("constraint_step_rule", "shared"))
     CONSTRAINT_RANDOM_DIR = bool(hp.get("constraint_random_direction", False))
+    SOFT_COUNT_MODE = str(hp.get("soft_count_mode", "sum"))
+    CUT_TEMP = float(hp.get("cut_temp", 0.02))
     LR_CONSTRAINT = _required(hp, "lr_constraint")
     # Hoisted: the per-epoch snapshot clone is gated on this, and a
     # state_dict() copied to CPU each epoch for a checkpoint nothing
@@ -208,6 +211,8 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 chunk_logits = model(X_test[start:end])
                 chunk_proba = F.softmax(chunk_logits, dim=1)
                 chunk_preds = chunk_logits.argmax(dim=1)
+                if SOFT_COUNT_MODE == "margin":
+                    chunk_proba = margin_window(chunk_proba, CUT_TEMP)
                 total_global_soft += chunk_proba.sum(dim=0)
                 total_global_hard += torch.bincount(
                     chunk_preds, minlength=num_classes).float()
@@ -277,17 +282,22 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 # chunk routes gradient only through its own samples, but the
                 # value plugged into the penalty is the TOTAL soft count using
                 # this chunk's grad-attached partial.)
-                chunk_global = chunk_proba.sum(dim=0)
+                # Same window as pass 1. It is a per-item function of that
+                # item's own row, so the chunked detach construction still
+                # yields the exact full-N gradient.
+                chunk_eff = (margin_window(chunk_proba, CUT_TEMP)
+                             if SOFT_COUNT_MODE == "margin" else chunk_proba)
+                chunk_global = chunk_eff.sum(dim=0)
                 chunk_gids = group_ids[start:end]
                 chunk_local_soft = {}
                 for gid in criterion_constraint.local_groups:
                     mask = (chunk_gids == gid)
                     if mask.any():
-                        chunk_local_soft[gid] = chunk_proba[mask].sum(dim=0)
+                        chunk_local_soft[gid] = chunk_eff[mask].sum(dim=0)
                     else:
                         chunk_local_soft[gid] = torch.zeros(num_classes, device=device)
                 g_soft = (total_global_soft.detach()
-                          - chunk_proba.sum(dim=0).detach() + chunk_global)
+                          - chunk_eff.sum(dim=0).detach() + chunk_global)
                 l_soft = {}
                 for gid in total_local_soft:
                     l_soft[gid] = (total_local_soft[gid].detach()

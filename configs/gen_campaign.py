@@ -192,6 +192,10 @@ def _apply_constraint_step(P, args):
         P["constraint_phase"]["constraint_step_rule"] = args.constraint_step_rule
     if args.penalty_shape is not None:
         P["blocks"]["tralo"]["penalty_shape"] = args.penalty_shape
+    if args.soft_count_mode is not None:
+        P["blocks"]["tralo"]["soft_count_mode"] = args.soft_count_mode
+    if args.cut_temp is not None:
+        P["blocks"]["tralo"]["cut_temp"] = float(args.cut_temp)
     if args.constraint_random_direction:
         P["constraint_phase"]["constraint_random_direction"] = True
         print("  CONSTRAINT DIRECTION RANDOMISED: this campaign is a CONTROL, "
@@ -210,6 +214,16 @@ def _apply_constraint_step(P, args):
               "manuscript's Eq. 4," % shape)
         print("      so results from it are not comparable to the stored "
               "corpus without saying so.")
+    if P["blocks"]["tralo"].get("soft_count_mode") == "margin":
+        T = P["blocks"]["tralo"].get("cut_temp", 0.002)
+        print("  SOFT COUNT = MARGIN-CENTRED (T=%g): tralo's count keeps its "
+              "value but moves its" % T)
+        print("      gradient onto the decision boundary. A DIFFERENT ESTIMATOR "
+              "of the same constraint, so")
+        print("      it needs its own null and its own random-direction "
+              "control, and T must be")
+        print("      NARROWER than the margin spacing at the boundary or it "
+              "degrades silently back to `sum`.")
     if P["constraint_phase"].get("constraint_step_rule") == "sgd":
         print("  CONSTRAINT STEP = PLAIN SGD for every trained arm: the step no "
               "longer inherits CE's")
@@ -270,6 +284,21 @@ def main():
                         "absolute clip, hounie's gradient never reached it "
                         "(max 0.11 of 1.0) while fioretto's exceeded it by "
                         "80,000x -- a ~20x dose gap invisible to every gate.")
+    a.add_argument("--soft-count-mode", choices=["sum", "margin"],
+                   default=None,
+                   help="WHERE the count puts its gradient. `sum` is the "
+                        "manuscript's count, whose per-item derivative p(1-p) "
+                        "is largest where the model is unsure and ~zero at the "
+                        "cut -- the only place a prediction can change. "
+                        "`margin` keeps the count's VALUE and moves its "
+                        "WEIGHT onto the decision boundary by softening the "
+                        "ARGMAX. tralo only; the duals do not form this "
+                        "count.")
+    a.add_argument("--cut-temp", type=float, default=None,
+                   help="sigmoid width for --soft-count-mode margin. Must "
+                        "be NARROWER than the probability spacing at the cut "
+                        "or the window flattens and it degrades back to `sum`. "
+                        "This is a MARGIN scale, not a probability-gap one.")
     a.add_argument("--penalty-shape",
                    choices=["rational_bounded", "linear", "squared"],
                    default=None,

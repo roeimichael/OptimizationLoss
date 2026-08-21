@@ -30,52 +30,45 @@ import torch.nn.functional as F
 from src.utils.constants import UNLIMITED, EPSILON
 
 
-def threshold_soft_count(p, K, temp):
-    """A soft count whose per-item gradient lands ON the cut, not at p = 0.5.
+def margin_window(proba, temp):
+    """Soften the ARGMAX instead of summing probabilities. Returns (N, C).
 
-    The shipped soft count is `sum_i p_i`, so `d s / d logit_i = p_i(1 - p_i)`:
-    it peaks where the model is UNSURE and vanishes as `p -> 1`. The penalty
-    shape only rescales `d penalty / d s` -- for `linear` it is the constant
-    `1/K` -- so no shape moves WHERE the gradient lands. Measured on dermmnist
-    x ViTB16, the cut (the K-th largest probability) sits at p = 0.94 on a
-    4-epoch model and p = 0.999 once converged, where `p(1-p)` is 0.055 and
-    0.0009. That is why the penalty reshuffles the middle of the ranking --
-    Jaccard 0.29-0.42 against its own control -- and leaves prec@K unmoved.
+    WHY. The manuscript's count is `s_c = sum_i p_ic`, whose per-item
+    derivative is p(1-p): largest where the model is UNSURE, and ~zero at the
+    cut -- which is the only place a prediction can actually change. Measured
+    at the K-th ranked item, p(1-p) = 0.026 at L30_G20 (0 of 4 seeds responded)
+    vs 0.055 at L50_G30 (4 of 4), and 0.0009 once CE has converged. That single
+    quantity explains the headroom pattern, why warm-up 50 is a dead regime,
+    and why a tight cap cannot be won.
 
-    This keeps the count and moves its weight:
+    So put the weight on the cut. Item i is predicted c exactly when
+    `p_ic > max_{c' != c} p_ic'`, so this returns
 
-        s_c = sum_i sigmoid((p_i - tau) / temp),   tau = the K-th largest p_i
+        sigma((p_ic - max_{c' != c} p_ic') / T)
 
-    whose per-item derivative peaks exactly at `tau`. It remains a transductive
-    count -- in fact a closer approximation to the HARD count above the cut than
-    `sum_i p_i` is -- so this stays inside the paper's formulation instead of
-    bolting a per-item objective alongside it.
+    whose derivative peaks at margin 0 -- at the decision boundary, on the
+    items one step from flipping -- and vanishes for items buried deep inside
+    a class. Summing it over items gives a soft count that tracks the HARD
+    count (not the probability mass), so it is also the tighter relaxation:
+    the two agree to within a fraction of an item, where sum-of-p does not.
 
-    `tau` is detached: it is an order statistic of the model's own probabilities,
-    used to place the window, not a quantity to backpropagate through. No label
-    is involved, so the transductive setting is preserved.
+    A DEAD END THIS REPLACES, recorded because it is seductive and it is
+    wrong: centring the window on the K-th largest probability instead, i.e.
+    `sigma((p_ic - tau_c)/T)` with `tau_c` the K-th order statistic, gives a
+    quantity that counts how many items exceed the K-th largest -- which is
+    K - 0.5 for ANY model. It is a constant, the penalty on it is identically
+    zero, and it produces no gradient at all. It was wired into the trainer
+    and caught by the chunked-gradient test before it ever ran.
 
-    `temp` is a real dose knob WITH A HARD UPPER BOUND, found while testing this:
-    it must be small relative to the SPREAD OF PROBABILITIES NEAR THE CUT, not
-    merely small in absolute terms. The per-item gradient is
-
-        sigmoid'((p_i - tau)/temp) / temp   *   p_i(1 - p_i)
-
-    and if `temp` exceeds the local spacing the first factor is flat across the
-    whole window, leaving `p(1-p)` to dominate again -- which reproduces exactly
-    the defect this exists to fix. Concretely: on a converged model the top 20
-    probabilities span about 0.02, so `temp = 0.02` is already too coarse there
-    and `temp = 0.002` is not. As `temp -> 0` it approaches the hard count and
-    its gradient approaches a delta at the cut, which is useless from the other
-    direction. Sweep it, and sweep it against the measured spacing.
+    T must be narrower than the margin spacing near the boundary or the window
+    flattens and p(1-p) dominates again -- it degrades silently back to `sum`.
     """
-    k = int(K)
-    if k <= 0 or k >= p.numel():
-        # No cut to centre on. Fall back to the plain sum so the caller still
-        # gets a differentiable count rather than a silent zero.
-        return p.sum()
-    tau = torch.topk(p.detach(), k, largest=True).values[-1]
-    return torch.sigmoid((p - tau) / max(float(temp), EPSILON)).sum()
+    top2 = torch.topk(proba, 2, dim=1).values
+    # runner-up seen by each class: the best OTHER class. For the argmax that
+    # is the second best; for everyone else it is the best.
+    best, second = top2[:, :1], top2[:, 1:2]
+    other = torch.where(proba >= best, second, best)
+    return torch.sigmoid((proba - other) / max(float(temp), EPSILON))
 
 
 class MulticlassTransductiveLoss(nn.Module):
