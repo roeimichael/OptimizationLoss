@@ -27,6 +27,13 @@
 #                clip, focal_clip                           (in-campaign bars)
 #   dose         cut_window_items 5
 #   size         2 cells x 7 arms x 4 seeds = 56 runs
+#   COST         ~1450 epochs. The five trained arms share ONE cached warm-up
+#                (same base_model_id, verified), so only clip and focal_clip
+#                pay a full 30-epoch warm-up each. At ~1 min/epoch that is
+#                ~24 GPU-hours => ~12 h wall on the 2 GPUs the house rule
+#                allows. Budget a night, not an afternoon.
+#   ⚠️ NO RUN RECORDS ITS WALL TIME -- config.json has no duration key, so this
+#      is an estimate from "a 29-epoch run is ~30 minutes", not a measurement.
 #
 # UNDERPOWERED BY CONSTRUCTION: 2 cells cannot reach significance on any single
 # metric. This reports DIRECTION and per-cell consistency only. If it moves,
