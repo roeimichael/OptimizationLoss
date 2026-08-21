@@ -40,10 +40,23 @@
 # metric. This reports DIRECTION and per-cell consistency only. If it moves,
 # extend with octmnist -- a DATASET adds independence, a backbone only
 # resolution.
+#
+# PREREQUISITE, AND IT IS NOT AUTOMATIC. The server pulls from `origin`
+# (github.com/roeimichael/OptimizationLoss). Everything this campaign needs --
+# soft_count_mode, straight_through, cut_window_items, the tralo_margin /
+# tralo_st / tralo_coin arms, flag_live -- is committed LOCALLY and not pushed.
+# Run this on the laptop FIRST, and it needs Roei's ok because it publishes:
+#
+#     git push origin cleanup/consolidate-pipeline
+#
+# Then `git pull --ff-only` below actually fetches something. Without it the
+# server runs yesterday's code and every new arm fails on an unknown arm name
+# -- which is the good outcome; the bad one is a config key silently ignored.
 set -euo pipefail
 ROOT=results/margin1
 cd ~/OptimizationLoss
 git pull --ff-only
+git rev-parse --short HEAD   # must match the laptop, or stop
 python -m pytest tests -q
 python -m scripts.audit_config
 python -m scripts.smoke_arms --matrix
