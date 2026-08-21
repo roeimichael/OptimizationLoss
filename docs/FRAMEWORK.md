@@ -1544,6 +1544,44 @@ Given section 0, only two kinds of thing can still win, and they are the only th
    the whole test set the sigmoid is flat and it has silently degraded back to `sum`.
    Either way the run measures nothing, and neither shows up as an error.
 
+1c. **Optimise the metric at the budget, using LABELS** -- proposed 2026-08-21, not built.
+
+   This is where the day's measurements point, and it is the only proposal here that
+   escapes the trap 1b is stuck in. Three facts, each established above:
+
+   - post-hoc assignment is optimal GIVEN the probabilities, so a trained arm can only
+     win by changing the REPRESENTATION;
+   - the count penalty carries **no label information**, so every count-based arm is a
+     label-free regularizer, and the label-free prior in this project (`rank`) is a null;
+   - the cap itself is recoverable from training prevalence, so it adds ~nothing.
+
+   ⇒ **stop penalising the test count and start optimising the training objective AT
+   THE OPERATING POINT, with labels.** The score is precision@K on the capped class
+   (ccP; ccF1 is a rescaling of it). Nothing in the pipeline optimises that -- CE
+   optimises average log-likelihood over all items, which weights the whole ranking
+   equally and the cut not at all. A top-K surrogate on the TRAINING set does: for each
+   capped class take the items near the rank the budget implies and push true positives
+   above false positives across exactly that cut.
+
+   Why it is not a repeat of section 2: it uses **labels** (every rejected arm was
+   label-free), it acts **per item at the cut** (every rejected arm acted on an
+   aggregate), and post-hoc **cannot replicate it** -- post-hoc is optimal given the
+   ranking, and this changes the ranking using information post-hoc does not have.
+
+   The transductive cap keeps exactly one job in this design, and it is a real one:
+   **it says which K to optimise for.** That is the honest scope of the contribution
+   the data can support, and it is smaller than the manuscript currently claims.
+
+   ⚠️ **Novelty is the pairing, not the loss.** Top-K / precision@k surrogates and
+   learning-to-rank losses are well established; this is not a new loss family. The
+   claim would be "a transductive budget tells you the operating point, and optimising
+   there beats post-hoc thresholding of a CE model" -- which must be checked against
+   label-shift, prior-correction and top-K optimisation literature BEFORE building it.
+
+   ⚠️ **And it may still lose to `clip`**, because CE + optimal post-hoc is a strong
+   baseline and the training and test operating points differ by sampling noise. Build
+   it only after 1b reports, and only with the same in-campaign bars.
+
 2. **A regime where post-hoc is not optimal.** Post-hoc greedy is optimal only over its own
    candidate neighbourhood. It is weakest where the assignment is **coupled**: several capped
    classes plus local per-group caps. It is also uninformative where **train and test prevalence
