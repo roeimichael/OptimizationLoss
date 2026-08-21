@@ -168,10 +168,6 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     # exists to describe. Until now the field was computed, logged once, and
     # dropped: it never reached disk, so no scorer could ever read it.
     config['reordering'] = train_outputs.summary.get('reordering', {})
-    # Same reasoning as above: OUTSIDE config['results'], and recorded at
-    # all because "the gate never fired" and "the gate fired and did
-    # nothing" are different results that look identical in the metrics.
-    config['ce_skip'] = train_outputs.summary.get('ce_skip', {})
     if 'results_comparison' in train_outputs.summary:
         config['results_comparison'] = train_outputs.summary['results_comparison']
     log.info("sat_epoch=%s", best_metrics['satisfaction_epoch'] or 'N/A')

@@ -58,7 +58,8 @@ PROBES = [
 ]
 
 
-def run(arm, overrides, epochs, seed=1):
+def run(arm, overrides, epochs):
+    seed = 1
     """One smoke run with `overrides` applied; returns (md5, max raw grad norm)."""
     P = load_protocol()
     for block, kv in overrides:

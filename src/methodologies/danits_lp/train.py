@@ -41,7 +41,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     t_alloc = time.time()
     lp_res = solve_lp_assignment(
         y_proba=probs, groups=inputs.group_ids, cost_matrix=omega,
-        psi=psi_list, phi=phi_dict, verbose=False,
+        psi=psi_list, phi=phi_dict,
     )
     exec_time = time.time() - t_alloc
     if lp_res.status != "OPTIMAL":

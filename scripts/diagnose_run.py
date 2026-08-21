@@ -43,7 +43,8 @@ def _series(df, col):
     return pd.to_numeric(df[col], errors="coerce") if col in df.columns else None
 
 
-def _trajectory(s, k=6):
+def _trajectory(s):
+    k = 6
     """First few, last few -- enough to see direction without dumping 29 rows."""
     if s is None:
         return "absent"

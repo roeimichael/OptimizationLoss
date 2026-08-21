@@ -2320,12 +2320,15 @@ def test_coverage_targets_uses_a_whole_test_budget_not_the_smallest_group():
 
 
 def test_the_selection_arm_actually_threads_its_running_coverage_estimate():
-    """Inert-flag gate for `cov_ema`: passing it must CHANGE the loss.
+    """Inert-flag gate for `cov_ema`: it must set the coverage term's VALUE.
 
-    The stabilised coverage term takes its VALUE from a running estimate and
-    its GRADIENT from the current batch. Wiring the estimate into the signature
-    but never passing it from the loop would leave the whole fix inert, which
-    is this project's most frequent failure mode.
+    The stabilised coverage term takes its value from a running estimate and
+    its gradient from the current batch. Asserting only that the argument
+    "changes the loss" is too weak -- a broken construction that merely ADDED
+    the estimate (`cov_ema + cov`, no `- cov.detach()`) would pass that. So
+    this pins the actual property: with cov_ema = X the penalty must equal
+    cov_weight * (X - tau)^2 exactly, i.e. the value is the ESTIMATE and not
+    this batch's coverage.
     """
     import ast
     import io as _io
@@ -2334,14 +2337,21 @@ def test_the_selection_arm_actually_threads_its_running_coverage_estimate():
 
     from src.methodologies.select.train import selective_loss
 
+    tau, w, X = 0.03, 32.0, 0.20
     g = torch.full((64,), 0.5, requires_grad=True)
     probs = torch.full((64, 7), 1 / 7.0)
     y = torch.zeros(64, dtype=torch.long)
 
-    bare, _ = selective_loss(g, probs, y, 4, 0.03, 32.0)
-    with_ema, _ = selective_loss(g, probs, y, 4, 0.03, 32.0, cov_ema=0.20)
-    assert abs(float(bare) - float(with_ema)) > 1e-6, (
-        "cov_ema does not change the loss -- the argument is inert")
+    bare, cov, _b = selective_loss(g, probs, y, 4, tau, w)
+    with_ema, cov2, _b2 = selective_loss(g, probs, y, 4, tau, w, cov_ema=X)
+    assert abs(cov - 0.5) < 1e-6 and abs(cov2 - 0.5) < 1e-6
+
+    # The ONLY difference between the two is the coverage term's value.
+    delta = float(with_ema) - float(bare)
+    expected = w * ((X - tau) ** 2 - (cov - tau) ** 2)
+    assert abs(delta - expected) < 1e-4, (
+        "coverage term used %.6f, expected the estimate %.2f -> %.6f"
+        % (delta, X, expected))
 
     # ...and the gradient must still come from THIS batch, not the estimate.
     with_ema.backward()
@@ -2357,6 +2367,42 @@ def test_the_selection_arm_actually_threads_its_running_coverage_estimate():
     assert all(len(c.args) >= 7 or any(k.arg == "cov_ema" for k in c.keywords)
                for c in calls), (
         "selective_loss is called without cov_ema -- the stabilisation is inert")
+
+
+def test_the_selective_risk_is_centred_so_it_does_not_only_push_coverage_down():
+    """An UNcentred risk makes every item's gradient positive.
+
+    Normalising by the expected covered mass instead of g.sum() fixes the
+    variance but removes the centring the ratio estimator had for free:
+    d risk / d g_i = per_i / (n*tau) > 0 for every item, so the risk term
+    degenerates into a pure "cover nothing" force. Measured on a synthetic:
+    equilibrium coverage falls from 0.74*tau to 0.60*tau, and undershooting
+    the budget is the one regime where the two-allocator confound bites.
+    A selective risk must pull EASY items in and push hard ones out.
+    """
+    import torch
+
+    from src.methodologies.select.train import selective_loss
+
+    g = torch.full((64,), 0.5, requires_grad=True)
+    # All 64 ARE the capped class; the model is confident on the first half and
+    # wrong on the second, so the two halves differ in per-item LOSS, which is
+    # the quantity the selective risk is supposed to sort on. (Flipping the
+    # LABEL instead gives both halves the same loss and the baseline cancels
+    # everything -- a test that then passes on any implementation.)
+    probs = torch.zeros(64, 7)
+    probs[:, 4] = torch.cat([torch.full((32,), 0.95), torch.full((32,), 0.05)])
+    probs[:, 0] = 1 - probs[:, 4]
+    y = torch.full((64,), 4, dtype=torch.long)
+
+    # cov_weight 0 isolates the RISK term from the coverage pull.
+    loss, _cov, _b = selective_loss(g, probs, y, 4, 0.03, 0.0)
+    loss.backward()
+    easy, hard = g.grad[:32], g.grad[32:]
+    assert float(easy.mean()) < 0 < float(hard.mean()), (
+        "risk gradient is not centred: easy items %.4g, hard items %.4g -- "
+        "both signs must not be the same, or the term only pushes coverage "
+        "down" % (float(easy.mean()), float(hard.mean())))
 
 
 def test_no_methodology_reads_the_test_LABELS_except_to_count_them():
@@ -2529,3 +2575,29 @@ def test_the_scorer_says_a_skipped_run_CRASHED_rather_than_never_started(tmp_pat
     assert "OutOfMemoryError" in out, "the exception type was not surfaced"
     assert "tralo" in out and "NO scorable run" in out, (
         "the scorer did not say which arm contributed nothing")
+
+
+def test_two_cap_tags_that_produce_the_same_budget_are_one_cap_level():
+    """House rule 4 is about BUDGETS, not tag spellings.
+
+    `gen_campaign` refuses a single-cap campaign by comparing tag strings, which
+    any two distinct spellings satisfy. Measured 2026-08-21 on `results/dosefix`:
+    L40_G30 and L50_G30 both bind on the GLOBAL scope (local sums 82 and 103
+    against a global 62), so class 2 gets K=62 and class 4 K=67 in BOTH cells --
+    one budget level wearing two tags, and a per-cell count over them
+    double-counts a single measurement.
+    """
+    from scripts.verify_caps import duplicate_budget_tags
+
+    # the real dosefix numbers
+    dup = duplicate_budget_tags({2: {"L40_G30": 62, "L50_G30": 62},
+                                 4: {"L40_G30": 67, "L50_G30": 67}})
+    assert dup == [(2, 62, ["L40_G30", "L50_G30"]),
+                   (4, 67, ["L40_G30", "L50_G30"])], dup
+
+    # a genuine sweep must come back clean
+    assert duplicate_budget_tags({2: {"L50_G30": 62, "L50_G20": 41}}) == []
+
+    # ...and a partial collision must be reported for the colliding class only
+    dup = duplicate_budget_tags({2: {"a": 10, "b": 10}, 4: {"a": 10, "b": 20}})
+    assert dup == [(2, 10, ["a", "b"])], dup

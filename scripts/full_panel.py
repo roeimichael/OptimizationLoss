@@ -123,12 +123,12 @@ def equalize_multi(y_proba, gids, glob_c, loc, classes):
     return assigned
 
 
-def ece(y, P, bins=15):
-    """Expected calibration error on the top-1 prediction."""
+def ece(y, P):
+    """Expected calibration error on the top-1 prediction, 15 bins."""
     conf = P.max(axis=1)
     pred = P.argmax(axis=1)
     acc = (pred == y).astype(float)
-    edges = np.linspace(0.0, 1.0, bins + 1)
+    edges = np.linspace(0.0, 1.0, 16)
     e = 0.0
     for lo, hi in zip(edges[:-1], edges[1:]):
         m = (conf > lo) & (conf <= hi)

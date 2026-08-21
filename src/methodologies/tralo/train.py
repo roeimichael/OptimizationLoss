@@ -29,7 +29,6 @@ from src.losses import MulticlassTransductiveLoss
 from src.pipeline.contracts import TrainInputs, TrainOutputs, _required
 from src.pipeline.setup import setup_runtime
 from src.pipeline.warmup import make_ce_criterion, make_dataloader, make_optimizer
-from src.training.ce_schedule import CESaturationSkip
 from src.training.constraint_step import (
     constraint_autocast, constraint_backward, finish_constraint_step)
 from src.losses.transductive_loss import (margin_window, margins,
@@ -120,8 +119,13 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         | {c for bounds in local_con.values()
            for c in range(num_classes) if bounds[c] < UNLIMITED})
 
-    init_g = hp.get("lambda_global", 0.01)
-    init_l = hp.get("lambda_local", 0.01)
+    # REQUIRED, not defaulted. `tralo_null` is defined by zeroing exactly these
+    # two plus lambda_step -- and lambda_step already raises when missing. A
+    # hand-written null that omitted either of these would have silently trained
+    # with a LIVE lambda = 0.01 while calling itself a control, which is the one
+    # failure a control cannot survive.
+    init_g = _required(hp, "lambda_global")
+    init_l = _required(hp, "lambda_local")
     for c in constrained_classes:
         criterion_constraint.set_lambda_per_class(c, init_g, scope="global")
     for gid, bounds in local_con.items():
@@ -153,10 +157,6 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     warmup_scores = capped_scores(model, X_test, constrained_classes,
                                   chunk_size)
 
-    # ONE schedule object, built from the SHARED constraint_phase block, so a
-    # campaign cannot run this gate for one arm and not another -- the exact
-    # defect that got the original CE-skip deleted.
-    ce_skip = CESaturationSkip(hp)
     cached_train_acc = 0.0
 
     for epoch in range(warmup_epochs, total_epochs):
@@ -167,8 +167,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         epoch_ce = 0.0
         num_batches = max(len(train_loader), 1)
         train_correct, train_total = 0, 0
-        for batch_X, batch_y in ([] if ce_skip.should_skip()
-                                 else train_loader):
+        for batch_X, batch_y in train_loader:
             batch_X, batch_y = batch_X.to(device), batch_y.to(device)
             optimizer.zero_grad(set_to_none=True)
             with torch.amp.autocast("cuda", dtype=amp_dtype, enabled=use_amp):
@@ -187,7 +186,6 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 train_total += batch_y.size(0)
         cached_train_acc = ((train_correct / train_total)
                             if train_total > 0 else cached_train_acc)
-        ce_skip.update(cached_train_acc, epoch)
 
         # ---- Transductive pass 1: aggregate soft + hard counts (no_grad, eval) ----
         model.eval()
@@ -521,10 +519,6 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     return TrainOutputs(
         model=model,
         summary={
-            # WHETHER and WHEN the CE gate fired. "never fired" and
-            # "fired and did nothing" are different results that look
-            # identical in the metrics.
-            "ce_skip": ce_skip.summary(),
             "satisfaction_epoch": satisfaction_epoch,
             "best_sat_epoch": best_sat_epoch,
             "min_excess_epoch": min_excess_epoch,

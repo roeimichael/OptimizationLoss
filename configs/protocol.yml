@@ -95,30 +95,6 @@ constraint_phase:
   stable_count_threshold: 31
   constraint_chunk_size: 256
   enable_checkpoint_restore: false
-  # Stop the CE pass once train accuracy has converged, so the remaining
-  # constraint epochs are not outvoted. MEASURED 2026-08-20 on ViTB16 x
-  # dermmnist: every constraint epoch runs 126 CE optimizer steps and then ONE
-  # clipped constraint step, and TraLO's capped-class count went 125 -> 281
-  # against a budget of 67 -- the constraint phase made the violation WORSE and
-  # never satisfied on any epoch. An older version of this project turned CE off
-  # at saturation and TraLO satisfied. That mechanism was deleted for being
-  # declared by TraLO ALONE (gate off for TraLO, on for both duals, a 0.22 cc-F1
-  # artifact against a 0.019-0.031 margin) -- never for being harmful when
-  # applied fairly. It lives in THIS block, which every trained arm includes and
-  # no post-hoc arm does, so it cannot reach one arm and not another.
-  # 0.0 = off, which is the behaviour every result so far was produced under.
-  #
-  # THRESHOLD, set from the control campaign rather than inherited: TraLO's
-  # train accuracy does not climb monotonically past 0.995, it OSCILLATES --
-  # 0.9833 (ep10), 0.9936 (ep15), 0.9873 (ep20), 0.9934 (ep25), 0.9966 (ep30).
-  # The old code's 0.995 with patience 2 would therefore fire around epoch 28,
-  # or never, and the treatment would barely run while reading as a null. From
-  # epoch 10 onward every logged epoch is >= 0.983, so 0.98 fires at ~epoch 11
-  # and leaves ~19 constraint-only epochs. 0.98 is also the more defensible
-  # definition of "converged": at 0.98 train against 0.81 test, further CE is
-  # memorisation, not learning.
-  ce_skip_acc: 0.0
-  ce_skip_patience: 2
 
 # Read by the post-hoc allocators that chunk their forward pass.
 chunked:
@@ -251,10 +227,17 @@ blocks:
     rho_target: 100.0
   fioretto:
     fioretto_step_size: 0.005     # REQUIRED: fioretto_ldf/train.py raises without it
+    # Emitted here as well as on `alm`. Both packages READ this key, and ALM's
+    # docstring says the two arms differ in the DUAL UPDATE only -- so leaving
+    # it to a code default on this side means sweeping it from the generator
+    # moves ALM's multipliers and not LDF's, which is the same half-applied
+    # asymmetry in its config form. audit_config reports it as "silent".
+    fioretto_lambda_init: 0.0
   # Zero dose. lambda inits at 0.0 and only step_size moves it, so the primal
   # term is never added (gated `if lambda_g[c] > 0`, fioretto_ldf/train.py:251).
   fioretto_null:
     fioretto_step_size: 0.0
+    fioretto_lambda_init: 0.0
   hounie:
     hounie_eta_lambda: 0.01       # inline default is 0.1 -- 10x the paper. Never omit.
     hounie_eta_u: 0.01

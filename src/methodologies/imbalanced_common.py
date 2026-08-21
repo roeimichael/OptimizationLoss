@@ -19,6 +19,7 @@ from src.methodologies.danits_lp import solve_lp_assignment
 from src.pipeline.contracts import TrainInputs, TrainOutputs
 from src.utils.constants import UNLIMITED
 from src.utils.inference import chunked_probs
+from src.utils.constants import CONSTRAINT_CHUNK_SIZE
 
 log = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ def _lp_clip(model, inputs, device):
     """Shifman-LP allocation on the imbalanced-trained model's test-set softmax
     (identical formulation to danits_lp: identity cost, per-class psi + per-group phi)."""
     X_test = inputs.X_test.to(device)
-    chunk = int(inputs.hyperparams.get("constraint_chunk_size", 256))
+    chunk = int(inputs.hyperparams.get("constraint_chunk_size", CONSTRAINT_CHUNK_SIZE))
     probs = chunked_probs(model, X_test, chunk)
     n = inputs.num_classes
     omega = np.ones((n, n), dtype=np.float64) - np.eye(n, dtype=np.float64)
@@ -35,7 +36,7 @@ def _lp_clip(model, inputs, device):
     phi = {g: [int(v) if v < UNLIMITED else None for v in bounds]
            for g, bounds in (inputs.local_con or {}).items()}
     res = solve_lp_assignment(y_proba=probs, groups=inputs.group_ids,
-                              cost_matrix=omega, psi=psi, phi=phi, verbose=False)
+                              cost_matrix=omega, psi=psi, phi=phi)
     if res.status != "OPTIMAL":
         raise RuntimeError(f"imbalanced LP clip: solver status={res.status}")
     return res.y_pred, float(res.objective_value)

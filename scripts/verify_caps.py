@@ -27,6 +27,28 @@ from src.training.constraints import (compute_global_constraints,  # noqa: E402
                                       compute_local_constraints)
 
 
+def duplicate_budget_tags(eff_by_class):
+    """(class, K, [tags]) for every effective budget shared by 2+ cap tags.
+
+    TWO CAP TAGS ARE NOT TWO CAP LEVELS UNLESS THE BUDGET DIFFERS.
+    `gen_campaign` refuses a single-cap campaign by comparing the TAG STRINGS,
+    which any two distinct spellings satisfy. Measured 2026-08-21 on
+    `results/dosefix`: L40_G30 and L50_G30 both bind on the GLOBAL scope (local
+    sums 82 and 103 against a global 62), so class 2 gets K=62 and class 4
+    K=67 in BOTH cells -- one budget level wearing two tags. House rule 4
+    exists because a single-cap claim has been retracted three times.
+    """
+    out = []
+    for c, per_tag in sorted(eff_by_class.items()):
+        same = {}
+        for tag, eff in per_tag.items():
+            same.setdefault(eff, []).append(tag)
+        for eff, tags in sorted(same.items()):
+            if len(tags) > 1:
+                out.append((c, eff, sorted(tags)))
+    return out
+
+
 def load_test(dc):
     y = np.load(os.path.join(dc["data_dir"], "test_labels.npy")).ravel()
     meta = pd.read_csv(os.path.join(dc["data_dir"], "test_meta.csv"))
@@ -110,6 +132,7 @@ def main():
             inert.append("%s: groups carry no class information (max TV %.3f)"
                          % (ds, worst))
 
+        eff_by_class = {}
         for tag in args.caps:
             local_pct, global_pct = cap_pair(tag)
             try:
@@ -128,6 +151,7 @@ def main():
                 per_group = sorted(v[c] for v in lcon.values())
                 # the binding budget is min(global, sum of the local caps)
                 eff = min(K_g, sum(per_group))
+                eff_by_class.setdefault(c, {})[tag] = eff
                 print("    %-9s class %d: global K=%-5d local K per group=%s "
                       "sum=%d -> effective %d (%.1f%% of the %d true)"
                       % (tag, c, K_g, per_group, sum(per_group), eff,
@@ -169,6 +193,16 @@ def main():
                     print("              INERT LOCAL: every group cap >= that "
                           "group's true count, so no local cap can bind")
                     inert.append("%s %s class %d: local" % (ds, tag, c))
+
+        # See duplicate_budget_tags: two tags are not two levels.
+        for c, eff, tags in duplicate_budget_tags(eff_by_class):
+            print("    *** SAME BUDGET, DIFFERENT TAGS: class %d gets K=%d "
+                  "under %s." % (c, eff, " and ".join(tags)))
+            print("        Those are ONE cap level, not %d. The binding scope "
+                  "is the same in each, so any per-cell count over them "
+                  "double-counts a single measurement." % len(tags))
+            inert.append("%s class %d: %s all give K=%d -- one cap level"
+                         % (ds, c, "/".join(tags), eff))
         print()
 
     print("=" * 78)

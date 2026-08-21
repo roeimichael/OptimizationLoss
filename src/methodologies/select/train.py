@@ -50,6 +50,7 @@ import torch.nn.functional as F
 
 from src.pipeline.contracts import TrainInputs, TrainOutputs
 from src.pipeline.setup import setup_runtime
+from src.utils.constants import CONSTRAINT_CHUNK_SIZE
 from src.pipeline.warmup import make_ce_criterion, make_dataloader, make_optimizer
 from src.training.logging import log_progress_to_csv, write_csv_header
 from src.utils.constants import UNLIMITED
@@ -104,14 +105,16 @@ def coverage_targets(global_con, local_con, capped, n_test, num_classes):
     out = {}
     for c in capped:
         k = float(global_con[c]) if c < len(global_con) else UNLIMITED
-        local_total = 0.0
-        saw_local = False
-        for bounds in (local_con or {}).values():
-            if c < len(bounds) and bounds[c] is not None and float(bounds[c]) < UNLIMITED:
-                local_total += float(bounds[c])
-                saw_local = True
-        if saw_local:
-            k = min(k, local_total)
+        # The local sum is a whole-test ceiling ONLY when EVERY group caps this
+        # class. If even one group leaves it unlimited, that group can absorb
+        # any number of items and the sum of the others bounds nothing -- using
+        # it anyway would reinstate the smallest-group bug in a new branch (one
+        # group capped at 9 out of a global 67 would give tau = 9/n again).
+        groups = list((local_con or {}).values())
+        finite = [float(b[c]) for b in groups
+                  if c < len(b) and b[c] is not None and float(b[c]) < UNLIMITED]
+        if groups and len(finite) == len(groups):
+            k = min(k, sum(finite))
         if k >= UNLIMITED:
             raise ValueError(
                 "class %d has no finite budget in either scope, so it has no "
@@ -121,7 +124,8 @@ def coverage_targets(global_con, local_con, capped, n_test, num_classes):
     return out
 
 
-def selective_loss(g, probs, y, cls, tau, cov_weight, cov_ema=None):
+def selective_loss(g, probs, y, cls, tau, cov_weight, cov_ema=None,
+                   risk_ema=None):
     """Selective risk over the covered set, plus a pull toward the budget.
 
     `g` in [0,1] is how much this item is selected for class `cls`. The risk is
@@ -159,9 +163,25 @@ def selective_loss(g, probs, y, cls, tau, cov_weight, cov_ema=None):
     per_item = F.binary_cross_entropy(probs[:, cls].clamp(EPSILON, 1 - EPSILON),
                                       is_c, reduction="none")
     cov = g.mean()
-    risk = (g * per_item).sum() / (g.numel() * tau + EPSILON)
+    # CENTRED, and that is not cosmetic. Swapping g.sum() for the expected
+    # covered mass fixes the variance but also removes the CENTRING the ratio
+    # estimator had for free: d risk / d g_i becomes per_i / (n*tau), which is
+    # positive for EVERY item, so the risk term degenerates into a pure "cover
+    # nothing" force and only the coverage penalty holds it up. Measured on a
+    # 4000-item synthetic at tau = 0.031: equilibrium coverage falls from
+    # 0.74*tau (ratio) to 0.60*tau (fixed denominator), and undershooting the
+    # budget is the one regime where the two-allocator confound bites.
+    # Subtracting the DETACHED mean loss over the covered set restores it --
+    # easy items get a negative gradient and are pulled in, hard ones pushed
+    # out -- which is what a selective risk is supposed to do. Detached, so it
+    # shifts the gradient without carrying the small random denominator into
+    # it; smoothed for the same reason the coverage value is.
+    base = ((g * per_item).sum() / (g.sum() + EPSILON)).detach()
+    if risk_ema is not None:
+        base = torch.as_tensor(risk_ema, dtype=base.dtype, device=base.device)
+    risk = (g * (per_item - base)).sum() / (g.numel() * tau + EPSILON)
     cov_eff = cov if cov_ema is None else (cov_ema + cov - cov.detach())
-    return risk + cov_weight * (cov_eff - tau) ** 2, float(cov)
+    return risk + cov_weight * (cov_eff - tau) ** 2, float(cov), float(base)
 
 
 def train(inputs: TrainInputs) -> TrainOutputs:
@@ -215,6 +235,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             "'underpowered' before reading it as 'the method does not work'.",
             min(per_batch.values()), min(tau.values()), bs)
     cov_ema = {c: None for c in capped}
+    risk_ema = {c: None for c in capped}
     ema_beta = float(hp.get("select_cov_ema", 0.9))
     write_csv_header(str(inputs.csv_log_path), num_classes,
                      local_constraints=inputs.local_con)
@@ -231,14 +252,24 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 with torch.amp.autocast("cuda", dtype=amp_dtype, enabled=use_amp):
                     logits = model(xb)
                     ce = criterion_ce(logits, yb)
-                    g_all = torch.sigmoid(sel(feats["x"].float()))
+                    # OUTSIDE autocast on purpose. autocast casts an
+                    # nn.Linear's input down regardless of a preceding
+                    # .float(), so `g_all` would be bf16/fp16 -- and at
+                    # tau ~ 0.03 the bf16 ULP is 1.22e-4, i.e. 0.4% of the
+                    # target, on the very quantity the coverage penalty
+                    # squares. The head is one Linear; the cost is nil.
+                    with torch.amp.autocast("cuda", enabled=False):
+                        g_all = torch.sigmoid(sel(feats["x"].float()))
                     probs = torch.softmax(logits.float(), dim=1)
                     sel_loss = logits.new_zeros(())
+                    batch_base = {}
                     for j, c in enumerate(capped):
-                        li, cov = selective_loss(g_all[:, j], probs, yb, c,
-                                                 tau[c], cov_weight, cov_ema[c])
+                        li, cov, base = selective_loss(
+                            g_all[:, j], probs, yb, c, tau[c], cov_weight,
+                            cov_ema[c], risk_ema[c])
                         sel_loss = sel_loss + li
                         cov_seen[c] += cov * len(yb)
+                        batch_base[c] = base
                     loss = ce + eta * sel_loss
                 # Running coverage estimate, updated after the loss is built so
                 # it never enters the graph: `cov_ema[c]` read above is the
@@ -250,6 +281,9 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                     cur = float(g_all[:, j].mean())
                     cov_ema[c] = (cur if cov_ema[c] is None
                                   else ema_beta * cov_ema[c] + (1 - ema_beta) * cur)
+                    b = float(batch_base[c])
+                    risk_ema[c] = (b if risk_ema[c] is None
+                                   else ema_beta * risk_ema[c] + (1 - ema_beta) * b)
                 if scaler:
                     scaler.scale(loss).backward()
                     scaler.step(optimizer)
@@ -287,7 +321,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
 
 def _test_counts(model, inputs, device, hp, num_classes):
     """Hard counts on the test set, for the same log every other arm writes."""
-    chunk = int(hp.get("constraint_chunk_size", 128))
+    chunk = int(hp.get("constraint_chunk_size", CONSTRAINT_CHUNK_SIZE))
     model.eval()
     preds = []
     with torch.no_grad():

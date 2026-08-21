@@ -70,7 +70,8 @@ def get_predictions_with_probabilities(model, X_test):
     return preds, proba
 
 
-def compute_ece(y_true, y_proba, n_bins=15):
+def compute_ece(y_true, y_proba):
+    n_bins = 15
     confidences = np.max(y_proba, axis=1)
     predictions = np.argmax(y_proba, axis=1)
     correctness = (predictions == y_true).astype(float)

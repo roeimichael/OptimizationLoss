@@ -18,7 +18,6 @@ We therefore declare R as continuous NumVar(0, +inf) and let GLOP do the work.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
 from ortools.linear_solver import pywraplp
@@ -85,9 +84,8 @@ def solve_lp_assignment(
     y_proba: np.ndarray,
     groups: np.ndarray,
     cost_matrix: np.ndarray,
-    psi: dict[int, int] | list | None,
-    phi: dict | None,
-    verbose: bool = False,
+    psi: list,
+    phi: dict,
 ) -> LPResult:
     """
     Solve the paper's Phase-2 LP.
@@ -103,21 +101,13 @@ def solve_lp_assignment(
         Either (C, C) or (N, C, C). cost_matrix[..., i, j] is the cost of
         predicting class i when the true class is j (paper convention).
     psi
-        Global target-based constraint Psi(i). Either:
-          - None: no global constraints.
-          - list/tuple/array of length C: entries are int bounds or None/NaN
-            for "unconstrained for this class".
-          - dict[int, int]: mapping class index -> bound, missing keys are
-            treated as unconstrained.
+        Global target-based constraint Psi(i): a sequence of length C whose
+        entries are int bounds, or None for "unconstrained for this class".
     phi
-        Feature-based constraint Phi[lambda, i]. Either:
-          - None: no local constraints.
-          - dict[group_value -> list/array of length C] with int bounds or
-            None/NaN entries. Missing group keys mean "no local constraint
-            for that group". Missing class entries within a group are
-            treated as None.
-    verbose
-        Print solver progress.
+        Feature-based constraint Phi[lambda, i]: dict[group_value -> sequence
+        of length C], same entry convention as `psi`. A group absent from the
+        dict carries no local constraint; a group present here but absent from
+        `groups` is harmless (empty sum <= bound).
 
     Returns
     -------
@@ -150,8 +140,6 @@ def solve_lp_assignment(
     solver = pywraplp.Solver.CreateSolver("GLOP")
     if solver is None:
         raise RuntimeError("Could not create the OR-Tools GLOP solver")
-    if verbose:
-        solver.EnableOutput()
 
     # R[s, i] continuous in [0, +inf); TU guarantees integer optimum.
     R = np.empty((n_samples, n_classes), dtype=object)
@@ -183,8 +171,6 @@ def solve_lp_assignment(
 
     # (2) Feature-based: Σ_{s ∈ λ} R[s, i] ≤ Phi_λ(i)
     phi_norm = _normalize_phi(phi, n_classes)
-    # If phi specifies a group key that doesn't appear in `groups`, it is harmless
-    # (empty sum ≤ bound); no warning needed.
     for group_value, per_class_bounds in phi_norm.items():
         mask = groups == group_value
         sample_idxs = np.nonzero(mask)[0]
@@ -259,43 +245,22 @@ def solve_lp_assignment(
 # constraint normalization helpers
 # ----------------------------------------------------------------------
 
-def _normalize_psi(psi, n_classes: int) -> dict[int, Optional[int]]:
-    if psi is None:
-        return {}
-    if isinstance(psi, dict):
-        return {int(k): (None if _is_none(v) else int(v)) for k, v in psi.items()}
+def _normalize_psi(psi, n_classes: int) -> dict[int, int | None]:
     psi_arr = list(psi)
     if len(psi_arr) != n_classes:
         raise ValueError(f"psi must have length {n_classes}, got {len(psi_arr)}")
-    return {i: (None if _is_none(v) else int(v)) for i, v in enumerate(psi_arr)}
+    return {i: (None if v is None else int(v)) for i, v in enumerate(psi_arr)}
 
 
 def _normalize_phi(phi, n_classes: int) -> dict:
     """Return dict[group -> dict[class_idx -> int | None]]."""
-    if phi is None:
-        return {}
     out: dict = {}
     for g, bounds in phi.items():
-        if isinstance(bounds, dict):
-            out[g] = {
-                int(k): (None if _is_none(v) else int(v)) for k, v in bounds.items()
-            }
-            continue
         bounds_list = list(bounds)
         if len(bounds_list) != n_classes:
             raise ValueError(
                 f"phi[{g!r}] must have length {n_classes}, got {len(bounds_list)}"
             )
-        out[g] = {
-            i: (None if _is_none(v) else int(v)) for i, v in enumerate(bounds_list)
-        }
+        out[g] = {i: (None if v is None else int(v))
+                  for i, v in enumerate(bounds_list)}
     return out
-
-
-def _is_none(v) -> bool:
-    if v is None:
-        return True
-    try:
-        return bool(np.isnan(v))
-    except (TypeError, ValueError):
-        return False

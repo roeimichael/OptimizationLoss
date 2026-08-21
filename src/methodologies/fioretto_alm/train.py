@@ -40,7 +40,6 @@ from src.pipeline.contracts import TrainInputs, TrainOutputs, _required
 from src.pipeline.setup import setup_runtime
 from src.pipeline.warmup import (make_ce_criterion, make_dataloader,
                                  make_optimizer)
-from src.training.ce_schedule import CESaturationSkip
 from src.training.constraint_step import (
     constraint_autocast, constraint_backward, finish_constraint_step)
 from src.training.reordering import capped_scores, reordering_report
@@ -75,8 +74,8 @@ def _train_constraints(model, config, inputs, device):
     # ALM update hyperparameters. eta falls back to the Fioretto step size so a
     # config cloned from a Fioretto/TraLO cell runs without extra keys.
     eta = _required(hp, "alm_eta", float)
-    mu0 = float(hp.get("alm_mu0", 0.01))
-    mu_step = float(hp.get("alm_mu_step", 0.01))
+    mu0 = _required(hp, "alm_mu0")
+    mu_step = _required(hp, "alm_mu_step")
     batch_size = hp.get("batch_size", 64)
     # protocol.yml carries this in BOTH the constraint_phase and chunked
     # blocks, so the 256 inline default could only ever fire on a
@@ -144,11 +143,6 @@ def _train_constraints(model, config, inputs, device):
         csv.DictWriter(f, log_fields).writeheader()
 
     stable_count = 0  # consecutive satisfied epochs for early-stop parity
-    # ONE schedule object, built from the SHARED constraint_phase block, so a
-    # campaign cannot run this gate for one arm and not another -- the exact
-    # defect that got the original CE-skip deleted.
-    ce_skip = CESaturationSkip(hp)
-    cached_train_acc = 0.0
 
     for epoch in range(constraint_epochs):
         epoch_start = time.time()
@@ -157,9 +151,7 @@ def _train_constraints(model, config, inputs, device):
         # ---- Step 1: CE on TRAIN data (batched) ----
         model.train()
         ce_losses = []
-        train_correct, train_total = 0, 0
-        for batch_X, batch_y in ([] if ce_skip.should_skip()
-                                 else train_loader):
+        for batch_X, batch_y in train_loader:
             batch_X, batch_y = batch_X.to(device), batch_y.to(device)
             optimizer.zero_grad(set_to_none=True)
             with torch.amp.autocast("cuda", dtype=amp_dtype, enabled=use_amp):
@@ -173,13 +165,7 @@ def _train_constraints(model, config, inputs, device):
             else:
                 ce_loss.backward()
                 optimizer.step()
-            with torch.no_grad():
-                train_correct += (logits_ce.argmax(dim=1) == batch_y).sum().item()
-                train_total += batch_y.size(0)
 
-        cached_train_acc = ((train_correct / train_total)
-                            if train_total > 0 else cached_train_acc)
-        ce_skip.update(cached_train_acc, epoch)
 
         # ---- Step 2: constraint gradient on TEST data (transductive) ----
         model.eval()
@@ -263,6 +249,20 @@ def _train_constraints(model, config, inputs, device):
         # False on every epoch while `training_log.csv` faithfully wrote a
         # rising mu_t. That is a treatment that logs itself and never happens
         # -- the exact shape of this project's four inert flags.
+        # THE AUGMENTATION IS A PROPERTY OF THE CURRENT ITERATE, so it must be
+        # built from THIS epoch's residuals -- which are complete above -- and
+        # not left to Step 3, which runs AFTER the pass that uses it. Doing it
+        # there weighted epoch e by `lambda_e + mu_{e-1} * r_{e-1}^+`: a current
+        # multiplier plus a one-epoch-stale augmentation, on the term that
+        # DOMINATES lambda early. Under `constraint_grad_mode: clip` the
+        # magnitude error is cancelled, but the SCOPE MIX is not -- global and
+        # local residuals follow different trajectories, so the lag reweights
+        # one scope against the other and that survives the clip.
+        for c, r in residual_g.items():
+            aug_g[c] = mu_t * max(0.0, r)
+        for key, r in residual_l.items():
+            aug_l[key] = mu_t * max(0.0, r)
+
         has_work = (
             any(lambda_g.get(c, 0) + aug_g.get(c, 0.0) > 0
                 for c in violated_global) or
@@ -302,17 +302,15 @@ def _train_constraints(model, config, inputs, device):
                 random_direction=CONSTRAINT_RANDOM_DIR)
 
         # ---- Step 3: augmented-Lagrangian dual update ----
-        # lambda_c <- max(0, lambda_c + eta * r_c) + mu_t * (r_c)^+   (r_c signed)
-        # Hestenes/Powell: the MULTIPLIER is lam <- max(0, lam + eta*r). The
-        # augmentation mu_t*r+ is a property of the current iterate and is added
-        # to the PRIMAL weight at use time (see aug_g / aug_l below), never
-        # stored back into lam -- storing it compounds it every epoch.
+        # Hestenes/Powell: the MULTIPLIER ascends, lam <- max(0, lam + eta*r).
+        # ONLY the multiplier is updated here. The augmentation mu_t*(r)^+ is
+        # built from the current iterate ABOVE and added to the primal weight
+        # at use time -- never stored back into lam, which would compound it
+        # every epoch, and never deferred to here, which would lag it by one.
         for c, r in residual_g.items():
             lambda_g[c] = max(0.0, lambda_g[c] + eta * r)
-            aug_g[c] = mu_t * max(0.0, r)
         for key, r in residual_l.items():
             lambda_l[key] = max(0.0, lambda_l[key] + eta * r)
-            aug_l[key] = mu_t * max(0.0, r)
 
         if all_satisfied and satisfaction_epoch is None:
             satisfaction_epoch = epoch + 1
@@ -356,8 +354,7 @@ def _train_constraints(model, config, inputs, device):
             break
 
     return (satisfaction_epoch, best_sat_state, best_sat_epoch,
-            min_excess_state, min_excess_epoch, min_total_excess,
-            ce_skip.summary())
+            min_excess_state, min_excess_epoch, min_total_excess)
 
 
 def train(inputs: TrainInputs) -> TrainOutputs:
@@ -376,7 +373,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                                    _reorder_chunk)
 
     (satisfaction_epoch, best_sat_state, best_sat_epoch,
-     min_excess_state, min_excess_epoch, min_total_excess, ce_skip_summary
+     min_excess_state, min_excess_epoch, min_total_excess
      ) = _train_constraints(model, inputs.config, inputs, device)
 
     # Apples-to-apples checkpoint restore (mirrors TraLO/Fioretto): selection on
@@ -438,10 +435,6 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     return TrainOutputs(
         model=model,
         summary={
-            # WHETHER and WHEN the CE gate fired. "never fired" and
-            # "fired and did nothing" are different results that look
-            # identical in the metrics.
-            "ce_skip": ce_skip_summary,
             "satisfaction_epoch": satisfaction_epoch,
             "best_sat_epoch": best_sat_epoch,
             "min_excess_epoch": min_excess_epoch,

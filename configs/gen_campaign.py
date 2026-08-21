@@ -237,33 +237,6 @@ def _apply_constraint_step(P, args):
         print("      silently dropped to a non-finite gradient.")
 
 
-def _apply_ce_skip(P, args):
-    """Write the CE-skip override into the SHARED block, never per arm.
-
-    Doing it here rather than per-arm is the point: constraint_phase is included
-    by every trained arm and by no post-hoc arm, so one assignment either
-    reaches all four trained arms or none. The original CE-skip was deleted
-    precisely because it was declared by one arm and defaulted for the others.
-    """
-    if args.ce_skip_acc is not None:
-        P["constraint_phase"]["ce_skip_acc"] = float(args.ce_skip_acc)
-    if args.ce_skip_patience is not None:
-        P["constraint_phase"]["ce_skip_patience"] = int(args.ce_skip_patience)
-    acc = P["constraint_phase"].get("ce_skip_acc", 0.0)
-    if acc and acc > 0:
-        print("  CE-SKIP ON: the CE pass stops after train_acc >= %.3f for %d "
-              "consecutive epochs," % (acc, P["constraint_phase"].get(
-                  "ce_skip_patience", 2)))
-        print("      in EVERY trained arm. Without it the constraint step is "
-              "outvoted 126:1 and")
-        print("      the capped-class count RISES over the phase (measured "
-              "125 -> 281 against K=67).")
-        print("      Watch macro-F1 vs clip: satisfaction bought by wrecking "
-              "the classifier is")
-        print("      the `joint` arm's failure (cap held 98.8%% of epochs, "
-              "-0.067 AP).")
-
-
 def main():
     P = load_protocol()
     a = argparse.ArgumentParser()
@@ -346,22 +319,11 @@ def main():
                    help="evaluate the constraint pass in fp32 and bypass the "
                         "loss scaler. fioretto lost 10 of 29 constraint epochs "
                         "to non-finite gradients while reporting completed.")
-    a.add_argument("--ce-skip-acc", type=float, default=None,
-                   help="stop the CE pass once train accuracy holds at or above "
-                        "this for --ce-skip-patience consecutive epochs. Applies "
-                        "to EVERY trained arm or none -- it lives in the shared "
-                        "constraint_phase block. 0.0 disables (the default). "
-                        "Exists because a constraint epoch runs 126 CE steps and "
-                        "one clipped constraint step, so the constraint is "
-                        "outvoted 126:1 and the capped-class count RISES.")
-    a.add_argument("--ce-skip-patience", type=int, default=None,
-                   help="consecutive saturated epochs before the CE pass stops.")
     a.add_argument("--protocol", default=PROTOCOL_PATH, help="alternate protocol.yml")
     args = a.parse_args()
     # Reload FIRST: applying overrides and then replacing P discarded them.
     if args.protocol != PROTOCOL_PATH:
         P = load_protocol(args.protocol)
-    _apply_ce_skip(P, args)
     _apply_constraint_step(P, args)
 
     # `all` deliberately EXCLUDES the zero-dose siblings. Adding them is a

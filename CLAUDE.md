@@ -59,7 +59,7 @@ imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 161 regression tests, ~35s, no dataset needed
+python -m pytest tests -q                   # 163 regression tests, ~35s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -171,6 +171,15 @@ effect on anything anyone reads.
 **EIGHT of the eleven tables in `docs/paper/tables/` regenerate from
 `docs/paper/data/corpus/corpus_final.csv` byte-for-byte** via
 `docs/paper/scripts/make_*.py` -- run them and `git diff docs/paper/tables/` must
-be empty. ⚠️ `tab_ablation_complete`, `tab_deploy` and `tab_oct_backbone` have
+be empty. 🛑 **`make_main_table.py` needs `--two-metrics`**; the bare
+invocation writes a DIFFERENT table over the same `tab_ccf1.tex` (verified
+2026-08-21: bare = 54 insertions / 63 deletions, `--two-metrics` = byte-identical).
+It is the one generator whose default is not the shipped artefact, so run:
+
+```bash
+python docs/paper/scripts/make_main_table.py --two-metrics   # tab_ccf1.tex
+```
+
+⚠️ `tab_ablation_complete`, `tab_deploy` and `tab_oct_backbone` have
 **no generator and never did**, so an empty diff says nothing about those three. See `docs/paper/data/PROVENANCE.md`, including what the corpus itself
 can no longer be rebuilt from.
