@@ -1317,6 +1317,42 @@ Given section 0, only two kinds of thing can still win, and they are the only th
 
 **Anything that is not one of those two is a repeat of section 2. Do not run it.**
 
+### What 2026-08-21 changed about both of them
+
+**Path 1 is weaker than stated, in the method's favour.** The claim was that only a
+per-item objective can move the operating point, because a gradient that is a function of
+the aggregate count carries no information about WHICH items should rank higher. Measured
+against a matched lambda=0 control, the aggregate-count penalty **does** move it -- with
+the right shape at the right cap. `linear` at `L50_G30`: prec@K +0.030 at protocol length
+(n=1), `d capF1` +0.0078 over 4 seeds with sd 0.0017, and it beats a random step of the
+SAME norm (-0.0130) with non-overlapping distributions. It lifts precision@k on class 2 at
+every k from 20 to 150, which is a broad re-ranking.
+
+⇒ **the count gradient is not information-free.** Pushing a class's mass down is not
+uniform across items -- the items nearest the boundary move most -- so an aggregate
+penalty does re-rank. It just has to be **monotone** (the shipped bounded shape is
+negative at every cap) and it needs a cap **loose enough that the ranking has somewhere to
+improve**. Path 1 should be widened from "per-item only" to "**anything that measurably
+improves prec@K against its own lambda=0 control and against a same-norm coin**".
+
+**Path 2 is narrower than stated, against the method.** "Post-hoc greedy is optimal only
+over its own candidate neighbourhood, weakest on coupled multi-class + local caps" is now
+quantified, and the neighbourhood is nearly the whole space. The greedy clipper does ONE
+JOINT pass over every (item, capped class) pair, so it already solves the coupling; run
+against the LP optimum on identical probabilities it gives up **~0.005-0.015 capF1**, and
+**exactly 0** whenever every capped class sits above its budget.
+
+⇒ **coupled multi-class + local caps does NOT make post-hoc meaningfully suboptimal.**
+Do not build a method whose thesis is "post-hoc handles the coupling badly" -- there is at
+most ~0.01 there, and the measurement says it is usually 0. What remains of path 2 is the
+**distribution-shift** regime, where the cap carries information the training set does not.
+
+🚨 **And the real obstacle is neither of these.** At protocol length the constraint gained
++0.030 prec@K over its own control while the warm-up-1 training path started it **-0.075
+below `clip`** (n=1, seeds running). The method works; the regime it is required to run in
+costs more than the method earns. That gap -- not the penalty -- is what a win has to
+close.
+
 ---
 
 ## 5. Repository layout
