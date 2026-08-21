@@ -138,7 +138,11 @@ def main():
         print("no runs with predictions under %s" % root)
         return 1
 
-    print("REACHABILITY -- p(1-p) at the K-th ranked item, per cell\n")
+    print("SLOPE AT THE BUDGET CUT -- p(1-p) at the K-th RANKED item")
+    print("This is the CUT, not the decision boundary. See the second")
+    print("table: predictions change at the boundary, and there the slope")
+    print("is near its MAXIMUM.")
+    print()
     print("%-44s %6s %5s %8s %9s %s"
           % ("run", "class", "K", "p at K", "p(1-p)", "verdict"))
     print("-" * 92)
