@@ -520,6 +520,41 @@ def _terminal_collapse(run_dir):
     return (last, prev) if last < prev - 0.02 else None
 
 
+def _zero_lambda_arms(rows):
+    """Arms whose configured lambdas are both zero, read from the run config.
+
+    Not from the `_null` name suffix. The suffix is a convention, and a
+    convention is exactly the thing that drifts away from the config without
+    anything failing. An arm qualifies only if EVERY run of it that could be
+    read says lambda_global == lambda_local == 0.
+    """
+    def _find(d, key):
+        if isinstance(d, dict):
+            if key in d:
+                return d[key]
+            for v in d.values():
+                got = _find(v, key)
+                if got is not None:
+                    return got
+        return None
+
+    seen = collections.defaultdict(list)
+    for r in rows:
+        rd = r.get("run_dir")
+        if not rd:
+            continue
+        try:
+            with open(os.path.join(rd, "config.json"), encoding="utf-8") as fh:
+                cfg = json.load(fh)
+        except Exception:
+            continue
+        lg, ll = _find(cfg, "lambda_global"), _find(cfg, "lambda_local")
+        if lg is None or ll is None:
+            continue
+        seen[r["arm"]].append(float(lg) == 0.0 and float(ll) == 0.0)
+    return {a for a, flags in seen.items() if flags and all(flags)}
+
+
 def _identity_check(rows):
     """House rule 3: md5 the raw predictions across arms, BEFORE any metric.
 
@@ -575,14 +610,39 @@ def _identity_check(rows):
     # A cap level that changes nothing is the same failure wearing a different
     # hat: the baseline runs in the multiclass campaign were bit-identical
     # across caps, so 12 cells rested on 6 models.
+    zero_lam = _zero_lambda_arms(rows)
     for arm in arms:
         if arm in POSTHOC_ARMS:
             continue
         by_cap = collections.defaultdict(dict)
         for (ds, mdl, cap, capped, seed), h in per_arm[arm].items():
             by_cap[(ds, mdl, capped, seed)][cap] = h
-        collapsed = [k for k, v in by_cap.items()
-                     if len(v) > 1 and len(set(v.values())) == 1]
+        multi = {k: v for k, v in by_cap.items() if len(v) > 1}
+        collapsed = [k for k, v in multi.items() if len(set(v.values())) == 1]
+        if arm in zero_lam:
+            # A lambda=0 arm has the cap REMOVED from its loss, so the cap
+            # cannot reach training and its predictions MUST be identical
+            # across cap levels. Here identity is the POSITIVE CONTROL and its
+            # absence is the defect -- reporting it as "one run counted twice",
+            # which is what this check means for a treated arm, sends the
+            # reader hunting a bug in the one place there cannot be one.
+            if not multi:
+                continue
+            if len(collapsed) == len(multi):
+                print("  ok  %s (lambda=0): identical across cap levels in all "
+                      "%d groups, as it must be -- the cap is not in its loss. "
+                      "It is ONE run per (dataset, backbone, seed), so its "
+                      "effective n is cells / n_cap_levels, not cells."
+                      % (arm, len(multi)))
+            else:
+                print("  *** %s has lambda=0, yet its raw predictions DIFFER "
+                      "across cap levels in %d of %d groups. The cap is not in "
+                      "its loss, so it cannot legitimately change the model: "
+                      "either the cap is leaking into training or the run is "
+                      "nondeterministic. Every paired delta against this "
+                      "control is unattributable until that is settled."
+                      % (arm, len(multi) - len(collapsed), len(multi)))
+            continue
         if collapsed:
             print("  *** %s: raw predictions IDENTICAL across cap levels in %d "
                   "of %d (dataset, backbone, seed) groups -- those cells are "
@@ -636,8 +696,14 @@ def main():
                 # that pass entirely), and the panel reported only the controls.
                 # The tell is an error_log.json sitting beside the config.
                 st = cfg.get("status", "no status")
-                err = os.path.join(os.path.dirname(p), "error_log.json")
-                if os.path.exists(err):
+                # error_log*.json, not error_log.json. Renaming a crash log
+                # aside after fixing the cause is the obvious tidy-up, and it
+                # silently restores the exact blindness this block exists to
+                # remove: the run goes back to looking merely unstarted.
+                errs = sorted(glob.glob(os.path.join(os.path.dirname(p),
+                                                     "error_log*.json")))
+                if errs:
+                    err = errs[0]
                     try:
                         e = json.load(open(err))
                         e = e[-1] if isinstance(e, list) else e

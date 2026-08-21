@@ -28,7 +28,6 @@ skip, grad-clip recovery, best-checkpoint restore on the excess axis, and the
 the ALM/Fioretto comparison isolates ONLY the dual rule.
 """
 
-import csv
 import logging
 import time
 
@@ -38,12 +37,12 @@ import torch.nn.functional as F
 
 from src.pipeline.contracts import TrainInputs, TrainOutputs, _required
 from src.pipeline.setup import setup_runtime
-from src.pipeline.warmup import (make_ce_criterion, make_dataloader,
-                                 make_optimizer)
 from src.training.constraint_step import (
     constraint_autocast, constraint_backward, finish_constraint_step)
-from src.training.dual_arm import (ce_epoch, count_excess, run_dual_arm,
-                                   transductive_counts)
+from src.methodologies.dual_common import (Checkpoints, ce_epoch,
+                                          count_excess, dual_setup,
+                                          open_epoch_log, read_step_config,
+                                          run_dual_arm, transductive_counts)
 from src.utils.constants import UNLIMITED
 
 log = logging.getLogger(__name__)
@@ -52,20 +51,7 @@ log = logging.getLogger(__name__)
 def _train_constraints(model, inputs, device):
     """Augmented-Lagrangian dual optimization (ALM variant of Fioretto Alg. 1/2)."""
     hp = inputs.hyperparams
-    CLIP = _required(hp, "constraint_grad_clip")   # the treatment dose
-    # Defaults reproduce the pre-2026-08-20 behaviour EXACTLY, so a config
-    # generated before these keys existed still runs and still gives the same
-    # numbers. That is why _required is not used here: the danger it guards
-    # against is a default that silently disagrees with the protocol, and
-    # "clip"/False is the protocol's own historical value.
-    CONSTRAINT_GRAD_MODE = str(hp.get("constraint_grad_mode", "clip"))
-    CONSTRAINT_FP32 = bool(hp.get("constraint_fp32", False))
-    CONSTRAINT_STEP_RULE = str(hp.get("constraint_step_rule", "shared"))
-    CONSTRAINT_RANDOM_DIR = bool(hp.get("constraint_random_direction", False))
-    LR_CONSTRAINT = _required(hp, "lr_constraint")
-    # Hoisted: the per-epoch snapshot clone is gated on this, and a
-    # state_dict() copied to CPU each epoch for a checkpoint nothing
-    # reads is ~344 MB per epoch on ViTB16.
+    step_cfg = read_step_config(hp)
     allow_restore = _required(hp, "enable_checkpoint_restore", bool)
     constraint_epochs = _required(hp, "constraint_epochs", int)
     # Apples-to-apples: same early-stop policy as TraLO/Fioretto (5 consecutive
@@ -106,42 +92,19 @@ def _train_constraints(model, inputs, device):
              "%d global + %d local multipliers",
              constraint_epochs, lr_c, eta, mu0, mu_step, len(lambda_g), len(lambda_l))
 
-    optimizer = make_optimizer(model.parameters(), lr_c, device)
-    # Built from the config, exactly as tralo does. Constructing
-    # nn.CrossEntropyLoss() directly here silently ignored
-    # class_weighted_ce, so three of the four trained arms would have
-    # run a different CE from the fourth the moment that key was
-    # turned on -- and no gate could see it, because the key IS read
-    # (by tralo) and IS emitted.
-    criterion_ce = make_ce_criterion(inputs.config, inputs.y_train,
-                                     num_classes, device)
-    train_loader = make_dataloader(inputs.X_train, inputs.y_train, batch_size)
+    optimizer, criterion_ce, train_loader = dual_setup(
+        model, inputs, device, lr_c, batch_size)
 
     X_test_dev = inputs.X_test.to(device)
     unique_groups = np.unique(groups_np)
 
-    satisfaction_epoch = None
-    # Best-checkpoint restore (apples-to-apples with TraLO/Fioretto): snapshot
-    # model state BEFORE the constraint step at every epoch that satisfies or
-    # improves on the lowest total excess seen so far.
-    best_sat_state = None
-    best_sat_epoch = None
-    min_excess_state = None
-    min_excess_epoch = None
-    min_total_excess = float("inf")
+    ck = Checkpoints(allow_restore, "Fioretto ALM")
 
-    log_path = inputs.experiment_path / "training_log.csv"
     last_grad_norm = 0.0
     log_fields = ["epoch", "ce_loss", "constraint_loss", "total_excess",
                   "all_satisfied", "max_lambda_g", "mu_t",
-                  # The raw norm BEFORE the unit clip. It is the whole dose
-                  # question: FRAMEWORK measures the clip delivering exactly
-                  # 1.000 against a raw norm of thousands, which makes the
-                  # lambda ratchet a no-op. tralo logged it and these three
-                  # discarded it, so the comparison was one arm wide.
                   "grad_norm"]
-    with open(log_path, "w", newline="") as f:
-        csv.DictWriter(f, log_fields).writeheader()
+    write_row = open_epoch_log(inputs.experiment_path, log_fields)
 
     stable_count = 0  # consecutive satisfied epochs for early-stop parity
 
@@ -198,14 +161,7 @@ def _train_constraints(model, inputs, device):
                                     global_con, local_con)
         all_satisfied = (total_excess == 0)
 
-        snapshot_state = None
-        # Only clone when a restore could use it: every generated config
-        # sets enable_checkpoint_restore=false, and a full state_dict()
-        # copied to CPU each epoch is ~344 MB on ViTB16 for a checkpoint
-        # nothing ever reads.
-        if allow_restore and (all_satisfied or total_excess < min_total_excess):
-            snapshot_state = {k: v.detach().cpu().clone()
-                              for k, v in model.state_dict().items()}
+        snapshot_state = ck.snapshot(model, all_satisfied, total_excess)
 
         # MUST consult the SAME weights the chunk loss below uses. Reading
         # `lambda_*` alone made ALM's whole augmentation unreachable whenever
@@ -239,7 +195,7 @@ def _train_constraints(model, inputs, device):
         if has_work:
             optimizer.zero_grad(set_to_none=True)
             for i in range(0, len(X_test_dev), chunk_size):
-                with constraint_autocast(amp_dtype, use_amp, CONSTRAINT_FP32):
+                with constraint_autocast(amp_dtype, use_amp, step_cfg["fp32"]):
                     chunk_logits = model(X_test_dev[i:i + chunk_size])
                     chunk_proba = F.softmax(chunk_logits, dim=1)
                     chunk_loss = torch.zeros(1, device=device)
@@ -256,15 +212,12 @@ def _train_constraints(model, inputs, device):
                             if mask.any():
                                 chunk_loss = chunk_loss + w_l * chunk_proba[mask, c].sum()
                 if chunk_loss.item() > 0:
-                    constraint_backward(chunk_loss, scaler, CONSTRAINT_FP32)
+                    constraint_backward(chunk_loss, scaler, step_cfg["fp32"])
                     constraint_loss_val += chunk_loss.item()
                     did_backward = True
             if did_backward:
                 last_grad_norm, _applied = finish_constraint_step(
-                    model, optimizer, scaler, CLIP,
-                    mode=CONSTRAINT_GRAD_MODE, fp32=CONSTRAINT_FP32,
-                    step_rule=CONSTRAINT_STEP_RULE, lr=LR_CONSTRAINT,
-                random_direction=CONSTRAINT_RANDOM_DIR)
+                    model, optimizer, scaler, **step_cfg)
 
         # ---- Step 3: augmented-Lagrangian dual update ----
         # Hestenes/Powell: the MULTIPLIER ascends, lam <- max(0, lam + eta*r).
@@ -277,20 +230,9 @@ def _train_constraints(model, inputs, device):
         for key, r in residual_l.items():
             lambda_l[key] = max(0.0, lambda_l[key] + eta * r)
 
-        if all_satisfied and satisfaction_epoch is None:
-            satisfaction_epoch = epoch + 1
-            log.info("Fioretto ALM: first satisfaction at epoch %d", epoch + 1)
-        if all_satisfied:
-            stable_count += 1
-            if snapshot_state is not None:
-                best_sat_state = snapshot_state
-                best_sat_epoch = epoch + 1
-        else:
-            stable_count = 0
-        if total_excess < min_total_excess and snapshot_state is not None:
-            min_total_excess = total_excess
-            min_excess_state = snapshot_state
-            min_excess_epoch = epoch + 1
+        ck.record(snapshot_state, all_satisfied, total_excess, epoch)
+        # Apples-to-apples early stop: N consecutive satisfied epochs.
+        stable_count = stable_count + 1 if all_satisfied else 0
 
         row = {
             "epoch": epoch,
@@ -302,8 +244,7 @@ def _train_constraints(model, inputs, device):
             "mu_t": round(mu_t, 6),
             "grad_norm": round(float(last_grad_norm), 6),
         }
-        with open(log_path, "a", newline="") as f:
-            csv.DictWriter(f, log_fields).writerow(row)
+        write_row(row)
 
         if epoch < 5 or (epoch + 1) % 25 == 0 or epoch == constraint_epochs - 1:
             lam_str = " ".join(f"c{c}={lambda_g[c]:.3f}" for c in sorted(lambda_g))
@@ -318,8 +259,7 @@ def _train_constraints(model, inputs, device):
                      stable_count, epoch + 1)
             break
 
-    return (satisfaction_epoch, best_sat_state, best_sat_epoch,
-            min_excess_state, min_excess_epoch, min_total_excess)
+    return ck
 
 
 def train(inputs: TrainInputs) -> TrainOutputs:

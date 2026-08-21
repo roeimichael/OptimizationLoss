@@ -615,6 +615,23 @@ def test_the_audit_sees_keys_read_through_the_required_helper():
         assert "stable_count_threshold" in reads[meth], meth
         assert "enable_checkpoint_restore" in reads[meth], meth
 
+    # AND THE READ SET MUST STAY PER-ARM. Anything under audit_config's
+    # SHARED_DIRS is credited to EVERY methodology, so putting a constraint-
+    # phase key's only reader in src/training/ silently makes that key
+    # legitimate on `clip`. Measured: with `read_step_config` living there, a
+    # `clip` config carrying `constraint_grad_clip` audited CLEAN; with it in
+    # src/methodologies/dual_common.py the same config FAILS and names the key.
+    # The four trained arms share one reader either way -- only its address
+    # decides whether the gate can still see the difference.
+    for meth in ("heuristic", "danits_lp", "focal", "class_balanced",
+                 "logit_adjust"):
+        for key in ("constraint_grad_clip", "constraint_grad_mode",
+                    "constraint_step_rule", "constraint_random_direction"):
+            assert key not in reads[meth], (
+                "%s can read %s, so a post-hoc arm emitting it would audit "
+                "clean. Its reader has moved into a directory audit_config "
+                "unions into every methodology." % (meth, key))
+
 
 # ---------------------------------------------------------------------------
 # A read must not mutate the model's train/eval mode.
@@ -878,21 +895,22 @@ def test_every_trained_arm_reports_reordering():
     structural: every trainer that runs a constraint phase reaches the SAME two
     functions in the SAME module, and the scorer reads the field.
 
-    Reached DIRECTLY (tralo) or through `src/training/dual_arm.py`, which the
-    three duals share. Following the import chain rather than grepping one file
-    is what lets the shared tail exist at all -- and it still fails if an arm
-    grows a private copy or drops the summary field, because the module that
-    calls `reordering_report` is also the module that must write "reordering".
+    Reached DIRECTLY (tralo) or through `src/methodologies/dual_common.py`,
+    which the three duals share. Following the import chain rather than grepping
+    one file is what lets the shared tail exist at all -- and it still fails if
+    an arm grows a private copy or drops the summary field, because the module
+    that calls `reordering_report` is also the module that must write
+    "reordering".
     """
 
     def _reaches_reordering(src, seen):
         """Does this source call reordering_report and emit the summary key --
-        here, or in a src.training module it imports?"""
+        here, or in any first-party module it imports?"""
         if "reordering_report(" in src and '"reordering"' in src:
             return True
         for line in src.splitlines():
             line = line.strip()
-            if not line.startswith("from src.training."):
+            if not line.startswith("from src."):
                 continue
             mod = line.split()[1]
             path = mod.replace(".", os.sep) + ".py"
@@ -2667,3 +2685,153 @@ def test_framework_section_9_does_not_still_carry_the_retracted_3_seed_number():
     assert "RETRACTED AT 4 SEEDS" in head, (
         "FRAMEWORK section 9 shows the 3-seed ccF1 table with no retraction "
         "above it -- a reader quotes the first number they see.")
+
+
+def test_chunking_the_transductive_backward_does_not_change_the_gradient():
+    """`tralo/train.py` chunks the gradient-carrying pass and reconstructs the
+    full count as `total.detach() - chunk.detach() + chunk`, with a comment
+    claiming this "already yields the EXACT full-N gradient" and therefore that
+    `constraint_chunk_size` is a pure MEMORY knob.
+
+    That claim is load-bearing: ViTB16 + `constraint_fp32` OOMs at chunk 256
+    and again, intermittently, at 128, so the chunk has to be lowered mid
+    campaign -- which is only legitimate if it cannot move a number. The
+    penalty is NONLINEAR in the count, so chunking is exact only because
+    f(total) is evaluated at the full count while gradient flows through one
+    chunk: sum_j f'(total) * d(chunk_j)/dtheta = f'(total) * d(total)/dtheta.
+    This pins the implementation to that identity.
+    """
+    import torch
+    from src.losses.transductive_loss import MulticlassTransductiveLoss
+
+    torch.manual_seed(0)
+    N, C, D = 40, 4, 6
+    X = torch.randn(N, D)
+    gids = torch.tensor([i % 3 for i in range(N)])
+    glob_c = torch.full((C,), 1e10)
+    glob_c[1] = 5.0
+    glob_c[2] = 7.0
+    loc = {g: torch.full((C,), 1e10) for g in (0, 1, 2)}
+    for g in loc:
+        loc[g][1] = 2.0
+        loc[g][2] = 3.0
+
+    def grad_at(chunk):
+        torch.manual_seed(1)
+        lin = torch.nn.Linear(D, C)
+        crit = MulticlassTransductiveLoss(glob_c, loc, num_classes=C,
+                                          initial_rho=0.5)
+        crit.lambda_global_per_class = {1: 0.7, 2: 0.3}
+        crit.lambda_local_per_key = {(g, c): 0.5 for g in loc for c in (1, 2)}
+        with torch.no_grad():
+            tot_g = torch.softmax(lin(X), dim=1).sum(dim=0)
+            tot_l = {g: torch.softmax(lin(X[gids == g]), dim=1).sum(dim=0)
+                     for g in loc}
+        lin.zero_grad()
+        for st in range(0, N, chunk):
+            sl = slice(st, min(st + chunk, N))
+            pr = torch.softmax(lin(X[sl]), dim=1)
+            cg = pr.sum(dim=0)
+            cl = {}
+            for g in loc:
+                m = (gids[sl] == g)
+                cl[g] = pr[m].sum(dim=0) if m.any() else torch.zeros(C)
+            g_soft = tot_g.detach() - cg.detach() + cg
+            l_soft = {g: tot_l[g].detach() - cl[g].detach() + cl[g] for g in loc}
+            loss = (crit.compute_global_from_counts(g_soft)
+                    + crit.compute_local_from_counts(l_soft))
+            loss.backward()
+        return lin.weight.grad.clone()
+
+    ref = grad_at(N)                      # one chunk == unchunked
+    assert ref.abs().sum() > 0, "the probe produced a zero gradient, so it "        "cannot detect a chunking bug -- the caps are not binding"
+    for chunk in (1, 3, 7, 13, 40):
+        g = grad_at(chunk)
+        rel = (g - ref).abs().max() / ref.abs().max()
+        assert rel < 1e-5, (
+            "constraint_chunk_size=%d changes the constraint gradient by "
+            "%.2e relative -- it is NOT a pure memory knob, so lowering it "
+            "to survive an OOM would silently alter every number in the "
+            "campaign" % (chunk, float(rel)))
+
+
+def test_the_chunked_backward_in_tralo_still_uses_the_exact_construction():
+    """The math gate above proves the identity holds. This one proves the arm
+    that has to survive an OOM still IMPLEMENTS it, so the two cannot drift
+    apart and quietly stop `constraint_chunk_size` being free.
+
+    AST, not text. The first version of this gate matched the COMMENT that
+    says "No /n_chunks" and failed on correct code -- the same way a grep once
+    reported `rho_step` as read because a log line named it.
+    """
+    src = io.open(os.path.join(REPO, "src", "methodologies", "tralo",
+                               "train.py"), encoding="utf-8").read()
+    fn = next((n for n in ast.walk(ast.parse(src))
+               if isinstance(n, ast.FunctionDef) and n.name == "train"), None)
+    assert fn is not None, "tralo.train() not found"
+    code = ast.unparse(fn)          # comments are gone; this is real code
+
+    flat = "".join(code.split())
+    assert "total_global_soft.detach()" in flat, (
+        "the chunked backward no longer reconstructs the FULL global count "
+        "before evaluating the penalty, so what it differentiates is a "
+        "per-chunk penalty, not the full-N one")
+    assert "total_local_soft[gid].detach()" in flat, "same defect on LOCAL counts"
+
+    # a real division node, not a mention of one
+    for node in ast.walk(fn):
+        if (isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div)
+                and "n_chunks" in ast.unparse(node.right)):
+            raise AssertionError(
+                "tralo divides by n_chunks (`%s`). n_chunks is "
+                "ceil(N_test / constraint_chunk_size), so this makes the "
+                "constraint dose a function of the dataset size AND of a "
+                "memory knob -- derm 8, oct 4, tissue 10, i.e. 2.5x apart."
+                % ast.unparse(node))
+
+
+def test_resetting_crashed_runs_refuses_to_discard_a_finished_one():
+    """A run can carry a crash log AND be the real result: the dispatcher
+    retries, so the second attempt can finish beside the first one's log.
+
+    Reset by crash-log presence alone and you set those back to `pending` and
+    re-run them, overwriting a good result. That happened by hand on
+    `results/dosefix` -- two tralo runs that had crashed once, been retried and
+    finished 29/30 epochs were reset, and only a status listing caught it
+    before the dispatcher reached them.
+    """
+    from scripts.reset_crashed import eligible
+
+    ok, why = eligible({"status": "pending", "results": {"accuracy": 0.77}}, 29)
+    assert not ok, "would discard a finished run: " + why
+    assert "HAS RESULTS" in why
+
+    ok, why = eligible({"status": "running"}, 3)
+    assert not ok and "running" in why, "would reset a live run"
+
+    ok, why = eligible({"status": "pending", "results": {}}, 22)
+    assert not ok, "silently discarded 22 epochs of work: " + why
+
+    # the case it IS for: died on its face, nothing to keep
+    ok, why = eligible({"status": "pending", "failures": 2, "results": {}}, 1)
+    assert ok, "refused the actual crash case: " + why
+    ok, why = eligible({"status": "pending", "results": {}}, 0)
+    assert ok, "refused a run with no log at all: " + why
+
+
+def test_the_scorer_still_sees_a_crash_log_that_was_renamed_aside():
+    """Archiving `error_log.json` after fixing the cause is the natural tidy-up,
+    and it restores exactly the blindness the crash report exists to remove --
+    the dispatcher resets an interrupted run to `pending`, so with the log gone
+    a dead treatment arm is indistinguishable from one that never started.
+    """
+    src = io.open(os.path.join(REPO, "scripts", "full_panel.py"),
+                  encoding="utf-8").read()
+    fn = next((n for n in ast.walk(ast.parse(src))
+               if isinstance(n, ast.FunctionDef) and n.name == "main"), None)
+    assert fn is not None
+    code = ast.unparse(fn)
+    assert "error_log*.json" in code, (
+        "full_panel.main looks for a literal error_log.json, so a crash log "
+        "renamed aside (error_log.oom.json) makes the run report as plain "
+        "`pending` -- a dead arm reading as an unstarted one")

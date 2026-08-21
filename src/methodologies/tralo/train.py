@@ -26,6 +26,7 @@ import torch
 import torch.nn.functional as F
 
 from src.losses import MulticlassTransductiveLoss
+from src.methodologies.dual_common import read_step_config
 from src.pipeline.contracts import TrainInputs, TrainOutputs, _required
 from src.pipeline.setup import setup_runtime
 from src.pipeline.warmup import make_ce_criterion, make_dataloader, make_optimizer
@@ -43,16 +44,7 @@ log = logging.getLogger(__name__)
 def train(inputs: TrainInputs) -> TrainOutputs:
     config = inputs.config
     hp = inputs.hyperparams
-    CLIP = _required(hp, "constraint_grad_clip")   # the treatment dose
-    # Defaults reproduce the pre-2026-08-20 behaviour EXACTLY, so a config
-    # generated before these keys existed still runs and still gives the same
-    # numbers. That is why _required is not used here: the danger it guards
-    # against is a default that silently disagrees with the protocol, and
-    # "clip"/False is the protocol's own historical value.
-    CONSTRAINT_GRAD_MODE = str(hp.get("constraint_grad_mode", "clip"))
-    CONSTRAINT_FP32 = bool(hp.get("constraint_fp32", False))
-    CONSTRAINT_STEP_RULE = str(hp.get("constraint_step_rule", "shared"))
-    CONSTRAINT_RANDOM_DIR = bool(hp.get("constraint_random_direction", False))
+    step_cfg = read_step_config(hp)
     SOFT_COUNT_MODE = str(hp.get("soft_count_mode", "sum"))
     CUT_WINDOW_ITEMS = int(hp.get("cut_window_items", 5))
     STRAIGHT_THROUGH = bool(hp.get("straight_through", False))
@@ -70,7 +62,6 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             "soft_count_mode: margin requires straight_through: true. "
             "Windowing the gradient while the penalty reads sum_i p_ic is "
             "neither arm and is not a configuration this project runs.")
-    LR_CONSTRAINT = _required(hp, "lr_constraint")
     # Hoisted: the per-epoch snapshot clone is gated on this, and a
     # state_dict() copied to CPU each epoch for a checkpoint nothing
     # reads is ~344 MB per epoch on ViTB16.
@@ -307,7 +298,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             for ci in range(n_chunks):
                 start = ci * chunk_size
                 end = min(start + chunk_size, n_test)
-                with constraint_autocast(amp_dtype, use_amp, CONSTRAINT_FP32):
+                with constraint_autocast(amp_dtype, use_amp, step_cfg["fp32"]):
                     chunk_logits = model(X_test[start:end])
                 chunk_logits_f = chunk_logits.float()
                 chunk_proba = F.softmax(chunk_logits_f, dim=1)
@@ -348,16 +339,13 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 # memory knob. That is a confound across the three headline
                 # datasets, not a hyperparameter.
                 chunk_loss = chunk_loss + lg + ll
-                constraint_backward(chunk_loss, scaler, CONSTRAINT_FP32)
+                constraint_backward(chunk_loss, scaler, step_cfg["fp32"])
 
         last_grad_norm = 0.0
         did_backward = has_constraint
         if did_backward:
             last_grad_norm, _applied = finish_constraint_step(
-                model, optimizer, scaler, CLIP,
-                mode=CONSTRAINT_GRAD_MODE, fp32=CONSTRAINT_FP32,
-                step_rule=CONSTRAINT_STEP_RULE, lr=LR_CONSTRAINT,
-                random_direction=CONSTRAINT_RANDOM_DIR)
+                model, optimizer, scaler, **step_cfg)
 
         avg_ce = epoch_ce / num_batches
 
@@ -458,19 +446,6 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     model.eval()
     g_counts, l_counts, g_soft, l_soft = compute_prediction_statistics(
         model, X_test, group_ids, num_classes=num_classes)
-    final_violates = False
-    for c in range(num_classes):
-        if global_con[c] < UNLIMITED and g_counts.get(c, 0) > int(global_con[c]):
-            final_violates = True
-            break
-    if not final_violates and local_con:
-        for gid, bounds in local_con.items():
-            for c in range(num_classes):
-                if bounds[c] < UNLIMITED and l_counts.get(gid, {}).get(c, 0) > int(bounds[c]):
-                    final_violates = True
-                    break
-            if final_violates:
-                break
     final_total_excess = 0.0
     for c in range(num_classes):
         if global_con[c] < UNLIMITED:
@@ -480,6 +455,10 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             for c in range(num_classes):
                 if bounds[c] < UNLIMITED:
                     final_total_excess += max(0, l_counts.get(gid, {}).get(c, 0) - int(bounds[c]))
+    # `violates` is exactly `excess > 0`: the loop that used to compute it
+    # separately tested the same condition, term by term, on the same two
+    # scopes -- verified identical over 5000 randomized count/cap draws.
+    final_violates = final_total_excess > 0
 
     restored_from_epoch = None
     restore_kind = None

@@ -16,12 +16,15 @@ the same warm-up-baseline capture, final excess accounting, checkpoint restore
 and reordering report as the other two.
 """
 
+import csv
 import logging
 
 import torch
 import torch.nn.functional as F
 
 from src.pipeline.contracts import TrainInputs, TrainOutputs, _required
+from src.pipeline.warmup import (make_ce_criterion, make_dataloader,
+                                 make_optimizer)
 from src.training.reordering import capped_scores, reordering_report
 from src.utils.constants import UNLIMITED
 
@@ -56,6 +59,118 @@ def count_excess(hard_preds, groups_np, constrained_classes, global_con, local_c
                     gc = int(((hard_preds == c) & (groups_np == g_id)).sum())
                     excess += max(0, gc - int(bounds[c]))
     return excess
+
+
+class Checkpoints:
+    """Best-satisfied / lowest-excess model snapshots, on the EXCESS axis only.
+
+    Selecting a checkpoint by F1 over several candidates is double-dipping on
+    the evaluation metric, so the rule here reads the constraint excess and
+    nothing else. Each arm kept these five values as loose locals and handed
+    them back as a six-tuple, which is how the restore came to be gated in two
+    arms and unconditional in a third.
+
+    `allow_restore` gates the CLONE, not merely the restore: every config the
+    generator emits sets it false, and a `state_dict()` copied to CPU each
+    epoch is ~344 MB on ViTB16 for a checkpoint nothing ever reads.
+    """
+
+    def __init__(self, allow_restore, tag):
+        self.allow_restore = allow_restore
+        self.tag = tag
+        self.satisfaction_epoch = None
+        self.best_sat_state = None
+        self.best_sat_epoch = None
+        self.min_excess_state = None
+        self.min_excess_epoch = None
+        self.min_total_excess = float("inf")
+
+    def snapshot(self, model, satisfied, excess):
+        """Clone BEFORE the constraint step, so the state matches these counts.
+
+        Saving post-step state would mismatch the counts the epoch reported.
+        """
+        if self.allow_restore and (satisfied or excess < self.min_total_excess):
+            return {k: v.detach().cpu().clone()
+                    for k, v in model.state_dict().items()}
+        return None
+
+    def record(self, state, satisfied, excess, epoch):
+        """`epoch` is 0-based; stored epochs are +1 so cross-method tables
+        report the SAME epoch number for the same training step."""
+        if satisfied and self.satisfaction_epoch is None:
+            self.satisfaction_epoch = epoch + 1
+            log.info("%s: first satisfaction at epoch %d", self.tag, epoch + 1)
+        if satisfied and state is not None:
+            self.best_sat_state = state
+            self.best_sat_epoch = epoch + 1
+        if excess < self.min_total_excess and state is not None:
+            self.min_total_excess = excess
+            self.min_excess_state = state
+            self.min_excess_epoch = epoch + 1
+
+
+# The raw gradient norm BEFORE the unit clip belongs in every arm's log. It is
+# the whole dose question: the clip delivers exactly 1.000 against raw norms in
+# the thousands, which makes the lambda ratchet a no-op. tralo logged it and
+# the three duals discarded it, so the comparison was one arm wide.
+def open_epoch_log(experiment_path, fields):
+    """Write `training_log.csv`'s header now; return a one-row appender.
+
+    Every epoch, in every arm. Logging every fifth epoch once made a 2-epoch
+    diagnostic write a single row from BEFORE the treatment had differentiated,
+    so four configs with four different outputs wrote byte-identical logs.
+    """
+    path = experiment_path / "training_log.csv"
+    with open(path, "w", newline="") as f:
+        csv.DictWriter(f, fields).writeheader()
+
+    def append(row):
+        with open(path, "a", newline="") as f:
+            csv.DictWriter(f, fields).writerow(row)
+    return append
+
+
+def read_step_config(hp):
+    """The six knobs the constraint step reads, resolved ONCE for every arm.
+
+    Each arm read these itself, which is the same duplication that let the
+    delivered dose differ 20x between arms while every config said
+    `constraint_grad_clip: 1.0`. A default that drifts between arms is
+    invisible to `audit_config` -- the key HAS a reader in each of them -- so
+    the only durable fix is one reader.
+
+    Defaults reproduce the pre-2026-08-20 behaviour EXACTLY, so a config
+    generated before these keys existed still runs and still gives the same
+    numbers. That is why `_required` is not used for them: the danger it guards
+    against is a default that silently disagrees with the protocol, and
+    "clip"/False is the protocol's own historical value.
+
+    Splat it into `finish_constraint_step(model, optimizer, scaler, **cfg)`.
+    """
+    return {
+        "clip": _required(hp, "constraint_grad_clip"),   # the treatment dose
+        "mode": str(hp.get("constraint_grad_mode", "clip")),
+        "fp32": bool(hp.get("constraint_fp32", False)),
+        "step_rule": str(hp.get("constraint_step_rule", "shared")),
+        "lr": _required(hp, "lr_constraint"),
+        "random_direction": bool(hp.get("constraint_random_direction", False)),
+    }
+
+
+def dual_setup(model, inputs, device, lr, batch_size):
+    """Optimizer, CE criterion and train loader -- built the same way in every arm.
+
+    `criterion_ce` comes from the CONFIG, exactly as tralo builds it.
+    Constructing `nn.CrossEntropyLoss()` directly in a trainer silently ignores
+    `class_weighted_ce`, so three of the four trained arms would have run a
+    different CE from the fourth the moment that key was turned on -- and no
+    gate could see it, because the key IS read (by tralo) and IS emitted.
+    """
+    return (make_optimizer(model.parameters(), lr, device),
+            make_ce_criterion(inputs.config, inputs.y_train,
+                              inputs.num_classes, device),
+            make_dataloader(inputs.X_train, inputs.y_train, batch_size))
 
 
 def ce_epoch(model, train_loader, optimizer, criterion_ce, device,
@@ -120,8 +235,9 @@ def transductive_counts(model, X_test_dev, groups_np, unique_groups,
 def run_dual_arm(inputs: TrainInputs, train_constraints, tag) -> TrainOutputs:
     """Warm-up baseline -> the arm's dual loop -> excess -> restore -> report.
 
-    `train_constraints(model, inputs, device)` returns the six-tuple every dual
-    produces. `tag` only names the arm in the log lines.
+    `train_constraints(model, inputs, device)` runs the arm's own dual rule --
+    the only thing the comparison is about -- and returns its `Checkpoints`.
+    `tag` only names the arm in the log lines.
     """
     hp = inputs.hyperparams
     allow_restore = _required(hp, "enable_checkpoint_restore", bool)
@@ -137,9 +253,7 @@ def run_dual_arm(inputs: TrainInputs, train_constraints, tag) -> TrainOutputs:
     warmup_scores = capped_scores(model, inputs.X_test,
                                   inputs.constrained_classes, chunk_size)
 
-    (satisfaction_epoch, best_sat_state, best_sat_epoch,
-     min_excess_state, min_excess_epoch, min_total_excess
-     ) = train_constraints(model, inputs, device)
+    ck = train_constraints(model, inputs, device)
 
     # Apples-to-apples checkpoint restore (mirrors TraLO). The selection rule is
     # deterministic on the constraint-excess axis -- NOT on F1. Picking the
@@ -163,19 +277,19 @@ def run_dual_arm(inputs: TrainInputs, train_constraints, tag) -> TrainOutputs:
     # Default True: runs predating the flag keep their behaviour bit for bit.
     if not allow_restore:
         log.info("%s: enable_checkpoint_restore=False, keeping the trained model", tag)
-    if allow_restore and best_sat_state is not None and final_violates:
+    if allow_restore and ck.best_sat_state is not None and final_violates:
         log.info("%s: final violates; restoring best-satisfied checkpoint from epoch %d",
-                 tag, best_sat_epoch)
-        model.load_state_dict({k: v.to(device) for k, v in best_sat_state.items()})
-        restored_from_epoch = best_sat_epoch
+                 tag, ck.best_sat_epoch)
+        model.load_state_dict({k: v.to(device) for k, v in ck.best_sat_state.items()})
+        restored_from_epoch = ck.best_sat_epoch
         restore_kind = "fully_satisfied"
-    elif (allow_restore and min_excess_state is not None
-          and final_total_excess > min_total_excess):
+    elif (allow_restore and ck.min_excess_state is not None
+          and final_total_excess > ck.min_total_excess):
         log.info("%s: final excess=%d > min seen excess=%d (epoch %d); "
                  "restoring lowest-excess checkpoint",
-                 tag, int(final_total_excess), int(min_total_excess), min_excess_epoch)
-        model.load_state_dict({k: v.to(device) for k, v in min_excess_state.items()})
-        restored_from_epoch = min_excess_epoch
+                 tag, int(final_total_excess), int(ck.min_total_excess), ck.min_excess_epoch)
+        model.load_state_dict({k: v.to(device) for k, v in ck.min_excess_state.items()})
+        restored_from_epoch = ck.min_excess_epoch
         restore_kind = "min_excess"
 
     # AFTER the restore: the restored model is the one whose
@@ -186,11 +300,11 @@ def run_dual_arm(inputs: TrainInputs, train_constraints, tag) -> TrainOutputs:
     return TrainOutputs(
         model=model,
         summary={
-            "satisfaction_epoch": satisfaction_epoch,
-            "best_sat_epoch": best_sat_epoch,
-            "min_excess_epoch": min_excess_epoch,
-            "min_total_excess": (None if min_total_excess == float("inf")
-                                 else int(min_total_excess)),
+            "satisfaction_epoch": ck.satisfaction_epoch,
+            "best_sat_epoch": ck.best_sat_epoch,
+            "min_excess_epoch": ck.min_excess_epoch,
+            "min_total_excess": (None if ck.min_total_excess == float("inf")
+                                 else int(ck.min_total_excess)),
             "restored_from_epoch": restored_from_epoch,
             "restore_kind": restore_kind,
             # tau near 1.0 with a large bias_shift = the count moved and

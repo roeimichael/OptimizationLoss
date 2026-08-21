@@ -240,19 +240,32 @@ def _keys_in(paths):
 def per_methodology_reads():
     """Read set for each methodology = its own package + the shared pipeline that
     every methodology passes through. A key read by tralo but emitted on the
-    fioretto arm is hallucinated FOR FIORETTO, which a union audit cannot see."""
+    fioretto arm is hallucinated FOR FIORETTO, which a union audit cannot see.
+
+    ⚠️ Which is exactly why the drivers below sit in `src/methodologies/` and
+    not in `src/training/`. Anything under SHARED_DIRS is credited to EVERY
+    methodology, so moving a constraint-phase key's only reader there silently
+    makes it legitimate on `clip`. Measured: with `read_step_config` in
+    `src/training/`, a poisoned `clip` config carrying `constraint_grad_clip`
+    audited clean; with it here, the same config FAILS and names the key."""
     shared = set()
     for d in SHARED_DIRS:
         shared |= _keys_in(_walk(d))
-    common = _keys_in([os.path.join(METH_DIR, "imbalanced_common.py")])
+    # driver module -> the methodologies that import it
+    DRIVERS = {
+        "imbalanced_common.py": ("focal", "class_balanced", "logit_adjust"),
+        "dual_common.py": ("tralo", "fioretto_ldf", "fioretto_alm", "hounie_rcl"),
+    }
+    driver_keys = {f: _keys_in([os.path.join(METH_DIR, f)]) for f in DRIVERS}
     out = {}
     for m in sorted(os.listdir(METH_DIR)):
         d = os.path.join(METH_DIR, m)
         if not os.path.isdir(d) or m == "__pycache__":
             continue
         own = _keys_in(_walk(d))
-        if m in ("focal", "class_balanced", "logit_adjust"):
-            own |= common
+        for f, users in DRIVERS.items():
+            if m in users:
+                own |= driver_keys[f]
         out[m] = own | shared
     return out
 
