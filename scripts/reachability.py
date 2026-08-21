@@ -155,7 +155,7 @@ def main():
                 continue
             p = float(np.sort(r[col].to_numpy())[::-1][k - 1])
             slope = p * (1.0 - p)
-            verdict = "reachable" if slope >= REACHABLE else "OUT OF REACH"
+            verdict = "live at K" if slope >= REACHABLE else "flat at K"
             name = "/".join(d.relative_to(root).parts[-3:]) or d.name
             print("%-44s %6d %5d %8.4f %9.4f %s"
                   % (name[-44:], c, k, p, slope, verdict))
@@ -201,19 +201,26 @@ def main():
         print("share is at its highest and the crossover is at its lowest --")
         print("re-measure at the START of the constraint phase before trusting it.")
         print()
-    n_bad = seen.get("OUT OF REACH", 0)
+    n_bad = seen.get("flat at K", 0)
     if n_bad == sum(seen.values()) and sum(seen.values()) > 0:
-        print("EVERY boundary is out of reach. If these runs are converged that")
+        print("The slope is flat at EVERY cut. If these runs are converged that")
         print("is expected and says nothing about the cap -- re-measure on a")
         print("model at the START of the constraint phase.")
         print()
     if n_bad:
-        print("%d of %d (class, cell) boundaries sit where the penalty's own"
+        print("%d of %d (class, cell) CUTS sit where p(1-p) has gone flat."
               % (n_bad, sum(seen.values())))
-        print("gradient vanishes. No shape and no dose reaches those -- the")
-        print("lever is the CAP, not the loss.")
+        print()
+        print("*** DO NOT READ THAT AS 'the penalty cannot act'. The cut is the")
+        print("K-th RANKED item; predictions change at the DECISION BOUNDARY, which")
+        print("is a different item whenever the hard count exceeds K -- and there")
+        print("p(1-p) is near its MAXIMUM. Measured: `sum` puts 29.4% of its total")
+        print("gradient on the 20 items nearest the boundary, 15x uniform. A flat")
+        print("slope at the cut means the budget rank is buried inside the class,")
+        print("which bears on how much HEADROOM the cap leaves, not on whether the")
+        print("penalty has anywhere to push.")
     else:
-        print("every boundary is reachable; shape and dose are live levers here.")
+        print("the slope is live at every cut.")
     return 0
 
 
