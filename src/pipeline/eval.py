@@ -92,7 +92,7 @@ def evaluate_with_posthoc(model, X_test, y_test, group_ids, global_con, local_co
 
 
 def write_evaluation_outputs(experiment_path, y_test, group_ids, result,
-                             num_classes, global_con):
+                             num_classes, global_con, local_con=None):
     """Persist final + raw predictions and log per-class + Track1 summary.
 
     Call once, on the final chosen evaluation (after candidate selection).
@@ -107,12 +107,45 @@ def write_evaluation_outputs(experiment_path, y_test, group_ids, result,
     save_final_predictions(experiment_path / "final_predictions_raw.csv",
                            y_test, raw_pred, y_proba, group_ids)
 
+    violations = []
     for c in range(num_classes):
-        pred_count = (y_pred == c).sum()
+        pred_count = int((y_pred == c).sum())
         limit = int(global_con[c]) if global_con[c] < UNLIMITED else "INF"
-        status = ("OK" if (isinstance(limit, str) or pred_count <= limit)
-                  else f"VIOLATED by {pred_count - limit}")
-        log.info("Class %d: pred=%d limit=%s %s", c, pred_count, limit, status)
+        over = not isinstance(limit, str) and pred_count > limit
+        if over:
+            violations.append("global class %d: %d > %d" % (c, pred_count, limit))
+        log.info("Class %d: pred=%d limit=%s %s", c, pred_count, limit,
+                 "VIOLATED by %d" % (pred_count - limit) if over else "OK")
+
+    # BOTH scopes. This loop read `global_con` only, so a LOCAL cap violated in
+    # the stored predictions was not merely unreported -- it was never looked
+    # at. That matters for the class of cell the framework prescribes: a class
+    # capped only per-group has an UNLIMITED global budget, so every global
+    # check on it passes vacuously and the local one was the only real check.
+    for group_id, bounds in (local_con or {}).items():
+        mask = (np.asarray(group_ids) == group_id)
+        for c in range(num_classes):
+            lim = bounds[c] if c < len(bounds) else UNLIMITED
+            if lim is None or (isinstance(lim, float) and np.isnan(lim)):
+                continue
+            if lim < UNLIMITED:
+                n = int((y_pred[mask] == c).sum())
+                if n > lim:
+                    violations.append("local group %s class %d: %d > %d"
+                                      % (group_id, c, n, int(lim)))
+
+    # RAISE, do not log. `heuristic` already raises on its own violations, so
+    # the post-hoc arms hard-failed here while the trained arms wrote
+    # `status: completed` with "VIOLATED by N" at INFO level -- an asymmetry in
+    # which arms can silently ship an infeasible result, in the file that
+    # decides what every scorer reads. feasibility_check found zero violations
+    # over 199 runs, so this should never fire; that is the argument for making
+    # it fatal, not for leaving it as a log line.
+    if violations:
+        raise RuntimeError(
+            "final predictions violate %d cap(s) AFTER post-hoc adjustment: %s. "
+            "Refusing to write a run that does not satisfy its own constraints."
+            % (len(violations), violations[:5]))
 
     log.info("[Track1] flips=%d raw_satisfied=%s excess=%d",
              metrics["flips_required"],

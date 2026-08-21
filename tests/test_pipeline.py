@@ -2241,3 +2241,48 @@ def test_the_leakage_warning_is_measured_not_remembered(tmp_path, caplog):
         _warn_lesion_leakage(str(blind))
     assert any("CANNOT be checked" in r.getMessage() for r in caplog.records), (
         "a slice with no lesion_id must say it cannot tell, never assume clean")
+
+def test_final_predictions_that_violate_a_cap_are_refused_not_logged(tmp_path):
+    """A trained arm must not be able to ship an infeasible result.
+
+    `heuristic` raises on its own violations, so the post-hoc arms hard-failed
+    while the trained arms wrote `status: completed` with "VIOLATED by N" at
+    INFO level -- an asymmetry in which arms can silently ship an infeasible
+    result, in the file that decides what every scorer reads.
+
+    And the check read `global_con` only, so a LOCAL violation was not merely
+    unreported, it was never looked at. A class capped only per-group has an
+    UNLIMITED global budget, so every global check on it passes vacuously.
+    """
+    import numpy as np
+    import pytest as _pytest
+
+    from src.pipeline.eval import write_evaluation_outputs
+    from src.utils.constants import UNLIMITED
+
+    n = 12
+    y_test = np.zeros(n, dtype=int)
+    groups = np.array([0] * 6 + [1] * 6)
+    proba = np.tile(np.array([0.6, 0.4]), (n, 1))
+
+    def run(y_pred, global_con, local_con):
+        return write_evaluation_outputs(
+            tmp_path, y_test, groups,
+            {"y_pred": np.asarray(y_pred), "raw_pred": np.asarray(y_pred),
+             "y_proba": proba,
+             "metrics": {"flips_required": 0, "raw_all_satisfied": True,
+                         "raw_total_excess": 0}},
+            2, global_con, local_con)
+
+    # feasible under both scopes
+    run([1] * 2 + [0] * 10, [UNLIMITED, 4], {0: [UNLIMITED, 2], 1: [UNLIMITED, 2]})
+
+    # GLOBAL violated
+    with _pytest.raises(RuntimeError, match="violate"):
+        run([1] * 6 + [0] * 6, [UNLIMITED, 4], None)
+
+    # LOCAL violated while the global budget is UNLIMITED -- the case the
+    # global-only check could not see even in principle.
+    with _pytest.raises(RuntimeError, match="local group"):
+        run([1] * 5 + [0] * 7, [UNLIMITED, UNLIMITED],
+            {0: [UNLIMITED, 2], 1: [UNLIMITED, 2]})

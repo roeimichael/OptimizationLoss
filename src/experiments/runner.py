@@ -150,7 +150,8 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     best_meta = result['posthoc_meta']
     best_source = train_outputs.summary.get('checkpoint_source', 'final')
 
-    write_evaluation_outputs(experiment_path, y_true, group_ids, result, num_classes, global_con)
+    write_evaluation_outputs(experiment_path, y_true, group_ids, result, num_classes,
+                             global_con, local_con)
     best_metrics['satisfaction_epoch'] = train_outputs.summary.get('satisfaction_epoch')
     best_metrics['soft_hard_gap'] = train_outputs.summary.get('soft_hard_gap', {})
     best_metrics['best_sat_epoch'] = train_outputs.summary.get('best_sat_epoch')
