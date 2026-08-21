@@ -41,7 +41,16 @@ before GPU time goes into it. A boundary at p > 0.97 will not respond, and the
 honest move is to pick a different cap rather than tune a shape against a
 vanishing gradient.
 
-    python -m scripts.reachability <run-dir-or-campaign> [--caps L30_G20 L50_G30]
+AND IT DOSES `cut_temp`. `soft_count_mode: margin` replaces the count with the
+softened argmax, whose per-item weight is `sigma'(m/T)/T` at the margin
+`m = p_ic - max_{c' != c} p_ic'`, instead of `p(1-p)`. That only helps if T is
+matched to the cell's actual margin scale: too wide and the window spans
+everything, the sigmoid flattens, and p(1-p) dominates again -- it degrades
+silently back to `sum`. Too narrow and no item is inside it and the step is
+zero. The second table prints how many items land in the window at a given T,
+and how much of each count's total gradient reaches the items that can flip.
+
+    python -m scripts.reachability <run-dir-or-campaign> [--cut-temp 0.02]
 """
 
 import argparse
@@ -72,9 +81,46 @@ def budgets(run_dir):
     return out
 
 
+def margin_stats(r, c, k, temp):
+    """Margin scale for one capped class.
+
+    Returns (margin at the K-th ranked item, items inside the window, share of
+    the plain count's gradient on the 20 items nearest the boundary, the same
+    share for the margin count, a T that would put ~20 items in the window).
+
+    The two shares are what the arm trades one for the other: the plain count
+    weights an item by `p(1-p)` = dp/dlogit, the margin count by `sigma'(m/T)`.
+    Only items near margin 0 can change their prediction, so the share landing
+    there is the count's useful fraction.
+    """
+    cols = sorted((int(x[len("Prob_Class_"):]), x) for x in r.columns
+                  if x.startswith("Prob_Class_"))
+    P = r[[x for _, x in cols]].to_numpy(dtype=float)
+    others = np.delete(P, c, axis=1).max(axis=1)
+    m = P[:, c] - others
+    near = np.argsort(np.abs(m))[:20]
+
+    w_sum = P[:, c] * (1.0 - P[:, c])
+    z = np.clip(m / max(temp, 1e-12), -30.0, 30.0)
+    sig = 1.0 / (1.0 + np.exp(-z))
+    w_mar = sig * (1.0 - sig)
+
+    def share(w):
+        tot = float(w.sum())
+        return float(w[near].sum()) / tot if tot > 0 else 0.0
+
+    kth = int(np.argsort(P[:, c])[::-1][min(k, len(m)) - 1])
+    t_sug = float(np.sort(np.abs(m))[min(19, len(m) - 1)])
+    return float(m[kth]), int((np.abs(m) < temp).sum()),         share(w_sum), share(w_mar), t_sug
+
+
 def main():
     a = argparse.ArgumentParser(description=__doc__)
     a.add_argument("root")
+    a.add_argument("--cut-temp", type=float, default=0.02,
+                   help="T for the margin window, to be dosed against the "
+                        "margin scale this prints. Default matches "
+                        "configs/protocol.yml.")
     args = a.parse_args()
 
     root = Path(args.root)
@@ -88,6 +134,7 @@ def main():
           % ("run", "class", "K", "p at K", "p(1-p)", "verdict"))
     print("-" * 92)
     seen = {}
+    margin_rows = []
     for d in runs:
         K = budgets(d)
         if not K:
@@ -105,7 +152,47 @@ def main():
                   % (name[-44:], c, k, p, slope, verdict))
             seen.setdefault(verdict, 0)
             seen[verdict] += 1
+            margin_rows.append((name[-44:], c)
+                               + margin_stats(r, c, k, args.cut_temp))
     print()
+    if margin_rows:
+        print("MARGIN SCALE -- dosing `cut_temp` for soft_count_mode: margin"
+              "  (T = %g)" % args.cut_temp)
+        print()
+        print("%-44s %6s %8s %7s %9s %9s"
+              % ("run", "class", "m at K", "in win", "sum@20", "margin@20"))
+        print("-" * 92)
+        for name, c, m_at_k, n_in, sh_sum, sh_mar, t_sug in margin_rows:
+            print("%-44s %6d %8.4f %7d %8.1f%% %8.1f%%"
+                  % (name, c, m_at_k, n_in, 100 * sh_sum, 100 * sh_mar))
+        print()
+        print("`m at K` = the margin of the K-th ranked item. It is NOT the")
+        print("boundary unless the cap already binds exactly: if the hard count")
+        print("is 300 against K=44, the decision boundary sits at item 300 and")
+        print("the 256 items between them are what has to peel. A large `m at K`")
+        print("means the budget cut and the boundary are far apart, and the")
+        print("margin count will work inward from the boundary, not from K.")
+        print()
+        print("`in win` = items with |margin| < T: how many the penalty can")
+        print("actually reach. 0 means the arm takes a zero step. The whole")
+        print("test set means the window is not a window and it has degraded")
+        print("back to `sum`.")
+        print()
+        print("`sum@20` / `margin@20` = share of each count's total per-item")
+        print("gradient landing on the 20 items nearest the decision boundary")
+        print("-- the only items whose prediction can flip. That gap IS the")
+        print("arm's entire claim, measured on this cell rather than argued.")
+        n_in_all = [r[3] for r in margin_rows]
+        t_all = [r[6] for r in margin_rows]
+        print()
+        print("suggested T for ~20 items in window: %.3g .. %.3g (median %.3g)"
+              % (min(t_all), max(t_all), float(np.median(t_all))))
+        if max(n_in_all) == 0:
+            print("  T IS TOO NARROW ON EVERY CELL HERE: nothing is inside the")
+            print("  window, so the constraint would contribute no gradient.")
+        elif min(n_in_all) > 500:
+            print("  T IS TOO WIDE: the window holds hundreds of items, which")
+            print("  is the flat-sigmoid regime that reverts to `sum`.")
     n_bad = seen.get("OUT OF REACH", 0)
     if n_bad == sum(seen.values()) and sum(seen.values()) > 0:
         print("EVERY boundary is out of reach. If these runs are converged that")
