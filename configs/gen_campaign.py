@@ -382,7 +382,7 @@ def main():
     if added:
         print("NOTE: added the mandatory clippers ->", " ".join(added))
     if "tralo_margin" in arms or             P["blocks"]["tralo"].get("soft_count_mode") == "margin":
-        n = P["blocks"]["tralo"].get("cut_window_items", 8)
+        n = P["blocks"]["tralo"].get("cut_window_items", 5)
         print("  SOFT COUNT = MARGIN-CENTRED (%d items in the window): the "
               "count keeps its value" % n)
         print("      -- the penalty reads the HARD count -- and moves its "
@@ -394,6 +394,19 @@ def main():
         print("      constraint, other estimator), `tralo_null` (same "
               "estimator, no dose) and the")
         print("      clippers -- all of which must be in THIS campaign.")
+        if "tralo_st" in arms:
+            print("      DECOMPOSED: `tralo_st` is the same placement as "
+                  "`tralo` with only the count")
+            print("      VALUE fixed (hard, not sum_i p_ic). tralo -> "
+                  "tralo_st isolates the value fix,")
+            print("      tralo_st -> tralo_margin isolates the window. "
+                  "Bundled they are unattributable.")
+        elif "tralo_margin" in arms:
+            print("      *** NOT DECOMPOSED: `tralo_margin` changes the count "
+                  "VALUE (to the hard count)")
+            print("      *** and the gradient PLACEMENT at once. Without "
+                  "`tralo_st` a win cannot be")
+            print("      *** attributed to either. Add --arms ... tralo_st.")
         if "tralo" not in arms:
             print("      *** `tralo` is NOT in this campaign. Without it the "
                   "margin arm has nothing")

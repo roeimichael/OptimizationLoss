@@ -172,7 +172,19 @@ blocks:
     # at all. Wired into the trainer, caught by the chunked-gradient test
     # before it reached a GPU. A soft count must be able to EXCEED the budget.
     soft_count_mode: sum
-    cut_window_items: 8       # ONLY read when soft_count_mode: margin. A DOSE.
+    cut_window_items: 5       # ONLY read when soft_count_mode: margin. A DOSE.
+    # WHAT THE PENALTY READS. false = the soft count's own value, which is the
+    # manuscript. true = the HARD count, with the soft count supplying only the
+    # gradient (straight-through, free from the chunked detach construction).
+    #
+    # SEPARATE FROM soft_count_mode ON PURPOSE. Two different defects: the
+    # count's VALUE (sum_i p_ic tracks probability mass, not the hard count --
+    # on a toy it moved the count AWAY from the budget, 35 against a lambda=0
+    # control's 31) and the gradient's PLACEMENT (p(1-p) vs the margin window).
+    # Measured on the stored evidence, placement is worth at most 1.30x on the
+    # items that must actually flip, so an effect much larger than that is the
+    # value fix and not the window. Bundled, they are unattributable.
+    straight_through: false
     # ^ sweep {2, 5, 10, 20}. Measured GPU-free on the stored evidence (160
     # (class, cell) points, 3 datasets, end-of-run predictions), share of each
     # count's gradient landing on the 20 items nearest the DECISION BOUNDARY:
@@ -198,8 +210,11 @@ blocks:
   # manuscript's count can sit in ONE campaign. An arm-vs-arm delta is not a
   # result until the bar is in the same campaign, and that applies to two
   # estimators of the same constraint exactly as it applies to two methods.
+  tralo_st:
+    straight_through: true
   tralo_margin:
     soft_count_mode: margin
+    straight_through: true
   # THE NULL-TREATMENT CONTROL. Identical to `tralo` in warm-up length, optimizer
   # restart, epoch count, transductive passes and allocator -- with the treatment
   # removed. total_constraint == 0 makes has_constraint False, so pass 2 is
@@ -291,6 +306,14 @@ arms:
   # Shares `tralo_null` as its control -- at lambda 0 there is no constraint
   # gradient at all, so the choice of soft count is inert and a second null
   # would be a bit-identical run costing a full GPU slot.
+  # The 2x2 minus its useless corner. `tralo` is (soft value, p(1-p) placement)
+  # = the manuscript; `tralo_st` fixes only the VALUE; `tralo_margin` fixes both.
+  # The fourth corner -- margin placement on a soft value -- over-counts (56.6
+  # against a hard 45) and pushes past feasibility, which is measured and is the
+  # joint arm's failure mode, so it is not an arm.
+  tralo_st:
+    {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, tralo_st],
+     null_sibling: tralo_null}
   tralo_margin:
     {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, tralo_margin],
      null_sibling: tralo_null}

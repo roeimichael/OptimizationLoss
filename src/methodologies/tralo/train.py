@@ -74,7 +74,8 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     CONSTRAINT_STEP_RULE = str(hp.get("constraint_step_rule", "shared"))
     CONSTRAINT_RANDOM_DIR = bool(hp.get("constraint_random_direction", False))
     SOFT_COUNT_MODE = str(hp.get("soft_count_mode", "sum"))
-    CUT_WINDOW_ITEMS = int(hp.get("cut_window_items", 8))
+    CUT_WINDOW_ITEMS = int(hp.get("cut_window_items", 5))
+    STRAIGHT_THROUGH = bool(hp.get("straight_through", False))
     LR_CONSTRAINT = _required(hp, "lr_constraint")
     # Hoisted: the per-epoch snapshot clone is gated on this, and a
     # state_dict() copied to CPU each epoch for a checkpoint nothing
@@ -226,7 +227,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                         total_local_hard[gid] += torch.bincount(
                             chunk_preds[mask], minlength=num_classes).float()
 
-        # ---- soft_count_mode: margin ----
+        # ---- soft_count_mode / straight_through ----
         # T is DERIVED, per class, per epoch, so the window always holds
         # `cut_window_items` items. A fixed T is not a fixed dose: measured on
         # the stored dermmnist evidence, the T holding ~20 items spans
@@ -246,10 +247,23 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         if SOFT_COUNT_MODE == "margin":
             cut_temp = window_temp(torch.cat(kept_margins, dim=0),
                                    CUT_WINDOW_ITEMS)
+            del kept_margins
+        if STRAIGHT_THROUGH:
+            # Seed the detach construction below with the HARD count. Its value
+            # becomes exact while the gradient still comes from whichever soft
+            # count is selected -- a straight-through estimator that falls out
+            # of the construction already here.
+            #
+            # INDEPENDENT OF soft_count_mode ON PURPOSE. These are two separate
+            # fixes and bundling them makes the result unattributable: the
+            # count's VALUE (sum_i p_ic tracks probability mass, not the hard
+            # count) and the gradient's PLACEMENT (p(1-p) vs the margin window)
+            # are different defects. Measured on the stored evidence, placement
+            # is worth at most 1.30x on the items that must actually flip, so
+            # an effect much larger than that is the VALUE fix, not this arm.
             total_global_soft = total_global_hard.clone()
             for gid in total_local_soft:
                 total_local_soft[gid] = total_local_hard[gid].clone()
-            del kept_margins
 
         # Snapshot pre-step state (matches counts above).
         snapshot_global_satisfied = True

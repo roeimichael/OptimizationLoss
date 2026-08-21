@@ -1398,49 +1398,55 @@ Given section 0, only two kinds of thing can still win, and they are the only th
    and cannot become one**: n=1, random labels so no quality metric exists, a
    4-layer net, one dose. It says the knob is connected and points the right way.
 
-   🛑🛑 **THE MOTIVATING STORY IS PARTLY WRONG, AND MEASURING IT MOVED THE DEFAULT
-   BY 5x.** Measured GPU-free on the stored evidence (160 (class, cell) points,
-   3 datasets, 4 seeds, end-of-run predictions), share of each count's total
-   per-item gradient landing on the 20 items nearest the DECISION BOUNDARY:
+   🛑 **THE MOTIVATING STORY IS PARTLY WRONG, AND THE PROXY FOR IT IS INCOMPLETE.**
+   Both measured GPU-free on the stored evidence (`scripts/reachability.py` only
+   READS predictions; 160 (class, cell) points, 3 datasets, 4 seeds, end-of-run).
 
-       sum (the manuscript's count)      29.4%
-       margin, window =   2 items        96.1%   3.27x
-                          5 items        82.3%   2.80x
-                         10 items        45.5%   1.55x
-                         20 items        13.3%   0.45x   <- crossover is in here
-                         40 items         3.7%   0.13x   <- the default I shipped
-                        160 items         1.8%   0.06x
+   **(a) `sum` is NOT blind to the decision boundary.** It puts 29.4% of its total
+   per-item gradient on the 20 items nearest `m = 0` -- 2% of the items, so 15x
+   uniform. The older reasoning measured `p(1-p)` at the **K-th RANKED item** (0.94
+   early, 0.999 converged, so ~0), but **rank K is not the decision boundary**: with
+   a hard count of 300 against K = 44 the boundary is at item 300 and rank 44 is
+   buried inside the class. Items flip at `m = 0`, where `p_ic` is near the
+   runner-up and `p(1-p)` is near its MAXIMUM. Both numbers are right and they
+   describe **different points**. ⇒ never repeat "the gradient cannot reach the cut"
+   without saying which point it is about.
 
-   Two things follow, and the second matters more than the first.
+   **(b) On the target that actually matters, the window buys only 1.30x.** The set
+   that must move is not "the 20 nearest zero" -- it is the `hard - K` items with
+   the smallest POSITIVE margin, the ones that have to flip out. Median excess is 52
+   of 157 predicted. Share of gradient landing on THAT set, 134 violating points:
 
-   **(a) The default was on the wrong side of the crossover.** At 40 items the
-   derived T is 0.18-0.57, wide enough that the sigmoid is nearly flat over the
-   whole margin range -- the "window" spans everything and the weighting is nearly
-   uniform. `cut_window_items` is now **8**, and it is a DOSE: sweep {2, 5, 10, 20}.
-   It trades concentration against variance -- at 2 items the step direction is set
-   by two items and `normalize` then scales that to unit norm, which is a
-   high-variance estimator, not obviously a better one.
+       sum                    38.0%
+       margin,   2 items      49.3%   1.30x   <- the best available
+       margin,   5 items      41.9%   1.10x
+       margin,  10 items      29.0%   0.76x
+       margin,  40 items       8.5%   0.22x
 
-   **(b) `sum` is NOT blind to the boundary, and this framework said it was.**
-   29.4% of the weight on 2% of the items is 15x uniform. The reason the earlier
-   reasoning missed it: `p(1-p)` was measured at the **K-th ranked item** (p = 0.94
-   early, 0.999 converged, so ~0) -- but rank K is **not** the decision boundary.
-   When the hard count is 300 against K = 44, the boundary sits at item 300 and rank
-   44 is buried deep inside the class. Items flip at `m = 0`, where `p_ic` is close
-   to the runner-up and `p(1-p)` is near its maximum. Both measurements are correct
-   and they are about **different points**; the one that governs whether a
-   prediction changes is the one where `sum` already puts its weight.
+   ⇒ **gradient placement is worth at most 1.30x**, and only at a 2-item window,
+   which is a near-delta direction that `normalize` then scales to unit norm.
 
-   ⇒ the margin count is still better-targeted at narrow widths (3.3x at 2 items),
-   but the expected effect is **much smaller than "the gradient cannot reach the
-   cut" implies**, and that phrase should not be repeated without saying which
-   point it is about.
+   **(c) And yet placement is what produces the whole effect on the toy, so the
+   proxy is missing something.** The arm bundles two independent fixes, so they are
+   now two independent keys and three arms (`scripts/flag_live`, TinyNet, random
+   labels, 20 constraint epochs, K=11):
 
-   ⚠️ **All of this is measured on CONVERGED models.** At warm-up 1 margins are
-   smaller and `p(1-p)` is flatter, so `sum`'s 29.4% baseline will be LOWER and the
-   crossover will sit at a LARGER width. 10 items is therefore a conservative lower
-   bound, not the answer. Re-measure at the start of the constraint phase before
-   trusting any width.
+       arm            count value   placement    hard count
+       tralo_null     --            --                31
+       tralo          soft sum_p    p(1-p)            35     <- worse than no penalty
+       tralo_st       HARD          p(1-p)            32     <- value fix alone: ~nothing
+       tralo_margin   HARD          margin            12     <- at the budget
+
+   A 1.30x concentration difference cannot produce 32 -> 12. What the proxy misses:
+   it scores off-target gradient as merely WASTED, when for `sum` it is actively
+   spent lowering `p_ic` on items far below the boundary -- which cannot change any
+   prediction at any magnitude. `sum_i p_ic` can be reduced without moving a single
+   item across `m = 0`; `sum_i sigma(m_ic/T)` cannot. That is the real difference,
+   and it is not a concentration statistic.
+
+   🛑 **All of (c) is n=1 on random labels with no quality metric.** It says the
+   decomposition is worth running, and the three arms exist so the real campaign
+   attributes it. It is not evidence that the arm works.
 
    🎯 **T IS DERIVED, NOT CONFIGURED, AND THAT WAS FORCED BY MEASUREMENT.** The
    first version shipped `cut_temp: 0.02`, a guess. On the same evidence **T = 0.02
