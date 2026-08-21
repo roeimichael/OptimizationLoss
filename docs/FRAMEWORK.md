@@ -1398,33 +1398,59 @@ Given section 0, only two kinds of thing can still win, and they are the only th
    and cannot become one**: n=1, random labels so no quality metric exists, a
    4-layer net, one dose. It says the knob is connected and points the right way.
 
+   🛑🛑 **THE MOTIVATING STORY IS PARTLY WRONG, AND MEASURING IT MOVED THE DEFAULT
+   BY 5x.** Measured GPU-free on the stored evidence (160 (class, cell) points,
+   3 datasets, 4 seeds, end-of-run predictions), share of each count's total
+   per-item gradient landing on the 20 items nearest the DECISION BOUNDARY:
+
+       sum (the manuscript's count)      29.4%
+       margin, window =   2 items        96.1%   3.27x
+                          5 items        82.3%   2.80x
+                         10 items        45.5%   1.55x
+                         20 items        13.3%   0.45x   <- crossover is in here
+                         40 items         3.7%   0.13x   <- the default I shipped
+                        160 items         1.8%   0.06x
+
+   Two things follow, and the second matters more than the first.
+
+   **(a) The default was on the wrong side of the crossover.** At 40 items the
+   derived T is 0.18-0.57, wide enough that the sigmoid is nearly flat over the
+   whole margin range -- the "window" spans everything and the weighting is nearly
+   uniform. `cut_window_items` is now **8**, and it is a DOSE: sweep {2, 5, 10, 20}.
+   It trades concentration against variance -- at 2 items the step direction is set
+   by two items and `normalize` then scales that to unit norm, which is a
+   high-variance estimator, not obviously a better one.
+
+   **(b) `sum` is NOT blind to the boundary, and this framework said it was.**
+   29.4% of the weight on 2% of the items is 15x uniform. The reason the earlier
+   reasoning missed it: `p(1-p)` was measured at the **K-th ranked item** (p = 0.94
+   early, 0.999 converged, so ~0) -- but rank K is **not** the decision boundary.
+   When the hard count is 300 against K = 44, the boundary sits at item 300 and rank
+   44 is buried deep inside the class. Items flip at `m = 0`, where `p_ic` is close
+   to the runner-up and `p(1-p)` is near its maximum. Both measurements are correct
+   and they are about **different points**; the one that governs whether a
+   prediction changes is the one where `sum` already puts its weight.
+
+   ⇒ the margin count is still better-targeted at narrow widths (3.3x at 2 items),
+   but the expected effect is **much smaller than "the gradient cannot reach the
+   cut" implies**, and that phrase should not be repeated without saying which
+   point it is about.
+
+   ⚠️ **All of this is measured on CONVERGED models.** At warm-up 1 margins are
+   smaller and `p(1-p)` is flatter, so `sum`'s 29.4% baseline will be LOWER and the
+   crossover will sit at a LARGER width. 10 items is therefore a conservative lower
+   bound, not the answer. Re-measure at the start of the constraint phase before
+   trusting any width.
+
    🎯 **T IS DERIVED, NOT CONFIGURED, AND THAT WAS FORCED BY MEASUREMENT.** The
-   first version shipped `cut_temp: 0.02`, a guess. Measured on the stored dermmnist
-   evidence (MobileNetV3, 4 seeds, 2 cap tags, no GPU -- `scripts/reachability.py`
-   reads predictions): **T = 0.02 puts 0 to 3 items inside the window**, so the arm
-   would take a near-zero step, report a null, and write `completed`. The T that
-   holds ~20 items is **0.182 to 0.502 -- a 2.8x spread ACROSS SEEDS OF ONE CELL**,
-   and margins keep growing through the constraint phase as CE converges. One
-   absolute number applied to a quantity whose natural scale differs per seed and
-   per epoch is exactly the invisible dose gap `constraint_grad_mode: normalize`
-   was built to fix on the other axis. So the knob is `cut_window_items` -- a width
-   in ITEMS, dimensionless, and an empty window is impossible by construction.
-
-   🎯 **The penalty reads the HARD count.** A window wide enough to be useful
-   over-counts (56.6 against a hard 45 at 40 items), and a penalty reading an
-   inflated count keeps pushing after the cap is already satisfied -- which is the
-   over-dose failure the joint arm died of. The chunked construction already in the
-   trainer is `total.detach() - chunk.detach() + chunk`, so seeding `total` with the
-   hard count makes it a straight-through estimator for free: exact value, windowed
-   gradient. `cut_window_items` then moves ONLY where the gradient lands.
-
-   ⚠️ **One number I published was wrong and is corrected here.** The first
-   commit quoted "2-3% for `sum` vs 28-49% for `margin`" for the share of gradient
-   landing on the 20 boundary items. That was measured on a SYNTHETIC fixture. On
-   real dermmnist predictions `sum` already puts **25-43%** there, because a
-   converged model's probabilities are bimodal and `p(1-p)` is concentrated on the
-   few uncertain items anyway. The reallocation is real (25-43% -> ~100%) but it is
-   about 2.5x, not 15x.
+   first version shipped `cut_temp: 0.02`, a guess. On the same evidence **T = 0.02
+   puts 1.4 to 1.9 items inside the window on every one of the three datasets**, so
+   the arm would take a near-zero step, report a null, and write `completed`. The T
+   holding 20 items spans **0.074 to 0.502 across cells** -- 6.8x -- and margins
+   grow through the constraint phase as CE converges. One absolute number over a
+   quantity whose scale differs per seed and per epoch is exactly the invisible dose
+   gap `constraint_grad_mode: normalize` fixes on the other axis. So the knob is a
+   width in ITEMS: dimensionless, and an empty window is impossible by construction.
 
    ⚠️ **It is still an AGGREGATE count**, which is what path 1 says cannot win. The reason
    it is listed anyway is that path 1's own escape hatch is "per-item AT THE OPERATING

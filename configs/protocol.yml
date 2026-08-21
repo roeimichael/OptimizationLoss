@@ -172,7 +172,16 @@ blocks:
     # at all. Wired into the trainer, caught by the chunked-gradient test
     # before it reached a GPU. A soft count must be able to EXCEED the budget.
     soft_count_mode: sum
-    cut_window_items: 40      # ONLY read when soft_count_mode: margin.
+    cut_window_items: 8       # ONLY read when soft_count_mode: margin. A DOSE.
+    # ^ sweep {2, 5, 10, 20}. Measured GPU-free on the stored evidence (160
+    # (class, cell) points, 3 datasets, end-of-run predictions), share of each
+    # count's gradient landing on the 20 items nearest the DECISION BOUNDARY:
+    #   sum 29.4% | margin at 2 items 96.1%, 5 -> 82.3%, 10 -> 45.5%,
+    #   20 -> 13.3%, 40 -> 3.7%. The crossover is between 10 and 20, so a wide
+    # window is WORSE-targeted than the plain count, not better: at 40 items
+    # the derived T is 0.18-0.57 and the sigmoid is flat over the whole margin
+    # range. Narrow concentrates but raises variance -- at 2 items the step
+    # direction is set by two items and `normalize` scales that to unit norm.
     # ^ the sigmoid width T is DERIVED from this, per class, per epoch, so the
     # window always holds this many items. A fixed T is not a fixed dose:
     # measured on the stored dermmnist evidence, the T holding ~20 items spans

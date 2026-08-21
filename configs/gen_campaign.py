@@ -382,7 +382,7 @@ def main():
     if added:
         print("NOTE: added the mandatory clippers ->", " ".join(added))
     if "tralo_margin" in arms or             P["blocks"]["tralo"].get("soft_count_mode") == "margin":
-        n = P["blocks"]["tralo"].get("cut_window_items", 40)
+        n = P["blocks"]["tralo"].get("cut_window_items", 8)
         print("  SOFT COUNT = MARGIN-CENTRED (%d items in the window): the "
               "count keeps its value" % n)
         print("      -- the penalty reads the HARD count -- and moves its "

@@ -74,7 +74,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     CONSTRAINT_STEP_RULE = str(hp.get("constraint_step_rule", "shared"))
     CONSTRAINT_RANDOM_DIR = bool(hp.get("constraint_random_direction", False))
     SOFT_COUNT_MODE = str(hp.get("soft_count_mode", "sum"))
-    CUT_WINDOW_ITEMS = int(hp.get("cut_window_items", 40))
+    CUT_WINDOW_ITEMS = int(hp.get("cut_window_items", 8))
     LR_CONSTRAINT = _required(hp, "lr_constraint")
     # Hoisted: the per-epoch snapshot clone is gated on this, and a
     # state_dict() copied to CPU each epoch for a checkpoint nothing
