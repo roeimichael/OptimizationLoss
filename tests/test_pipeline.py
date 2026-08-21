@@ -2286,3 +2286,57 @@ def test_final_predictions_that_violate_a_cap_are_refused_not_logged(tmp_path):
     with _pytest.raises(RuntimeError, match="local group"):
         run([1] * 5 + [0] * 7, [UNLIMITED, UNLIMITED],
             {0: [UNLIMITED, 2], 1: [UNLIMITED, 2]})
+
+def test_the_deletion_table_does_not_claim_live_code_was_deleted():
+    """FRAMEWORK is the law, so a false claim in it is a defect, not a typo.
+
+    Section (f) listed `danits_lp`, `focal`, `class_balanced` and
+    `logit_adjust` as deleted methodology packages, and `cb_beta` /
+    `logit_adjust_tau` as removed keys. All four packages exist, are registered
+    in TRAIN_FNS, and are among the nine methodologies the PAPER claims; both
+    keys are live in protocol.yml. Anyone trusting the table would conclude
+    those arms are gone.
+
+    Rather than fix the prose and hope, the table is checked: anything it says
+    was removed must actually be absent.
+    """
+    import io as _io
+    import re
+
+    import yaml
+
+    from src.experiments.runner import TRAIN_FNS
+
+    text = _io.open("docs/FRAMEWORK.md", encoding="utf-8").read()
+    start = text.index("### (f) What was DELETED FROM THE CODE")
+    section = text[start:text.index(chr(10) + "### ", start + 10)]
+
+    proto = yaml.safe_load(_io.open("configs/protocol.yml", encoding="utf-8"))
+    live_keys = set(proto.get("core", {})) | set(proto.get("constraint_phase", {}))
+    for blk in proto.get("blocks", {}).values():
+        live_keys |= set(blk)
+
+    claimed = set()
+    for row in section.splitlines():
+        if not row.startswith("|") or row.startswith("| removed") or "---" in row:
+            continue
+        cells = row.split("|")
+        # Columns 1 AND 2 -- "removed" and "was". Reading only column 1 made the
+        # methodology half of this check VACUOUS: that row says "5 methodology
+        # packages" in column 1 and puts the actual names in column 2, so a
+        # false claim about a live package sailed through. Caught by running the
+        # negative control instead of trusting a green test.
+        text2 = " ".join(cells[1:3])
+        claimed |= set(re.findall(r"[a-z_][a-z0-9_]{2,}", text2))
+
+    assert claimed, "the deletion table parsed to nothing -- the check is vacuous"
+
+    still_live = sorted(k for k in claimed if k in live_keys)
+    assert not still_live, (
+        "FRAMEWORK section (f) says these were removed, but they are live keys "
+        "in protocol.yml: %s" % still_live)
+
+    registered = sorted(m for m in claimed if m in TRAIN_FNS)
+    assert not registered, (
+        "FRAMEWORK section (f) says these methodologies were deleted, but they "
+        "are registered in TRAIN_FNS: %s" % registered)

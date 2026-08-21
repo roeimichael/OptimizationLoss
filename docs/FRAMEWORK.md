@@ -1188,12 +1188,26 @@ guard**, not as an endpoint.
 - **"the constraint damages the representation"** -- the LR trap, invalid.
 - **"the gain is on the uncapped classes"** -- vs `clip` that is +0.0010, p=0.90.
 
-### (e) Dead code / inert flags found by audit
+### (e) Dead code / inert flags found by audit -- ALL FIXED, kept as a failure catalogue
 
-`rho_step` (log-only everywhere) - `base_loss`/`focal_alpha`/`focal_gamma` (dead in `arm_joint`,
-so its `focal_clip` arms were a second `clip`) - `reset_optimizer_at_sat` (bit-identical no-op at
-warm-up 1) - `tralo_uniform` class weights (documented no-op, it IS plain TraLO) -
-`class_balanced`/`logit_adjust` (inert on oct) - `by_k` (inert on oct).
+⚠️ **Every entry here is CLOSED. This section is history, not a worklist** -- it was read
+as an open list of known-bad things, which is exactly the failure mode of leaving a defect
+documented instead of fixed. Verified against the tree 2026-08-21:
+
+| flag | was | state now |
+|---|---|---|
+| `rho_step` | log-only, so the rho ramp was a no-op | ✅ **derived** in `tralo/train.py` from `rho_target`; no config key exists to get wrong |
+| `base_loss`, `alpha_kl` | keys no reader ever read | ✅ **deleted**; `audit_config` (AST) now fails the build on any such key |
+| `reset_optimizer_at_sat` | bit-identical no-op at warm-up 1 (16/16) | ✅ **deleted** |
+| `constraint_class_weights` (`by_k`/`inv_k`/`uniform`) | `uniform` was a documented no-op | ✅ **deleted** |
+| `enable_ce_skip` | reached only TraLO; a 0.22 cc-F1 artifact | ✅ **deleted**; a test pins that no trained arm can miss the gate |
+| `class_balanced`/`logit_adjust` inert on octmnist | a DATA fact, not dead code | ✅ explained: octmnist's groups are `index % 3` (see the dataset audit) |
+
+🔑 **The standing rule this section exists to enforce: a defect is either FIXED or it is
+not written down as an observation.** "This line is bad" in a document is a defect with a
+comment attached, and it will be re-found, re-investigated and re-explained by whoever
+reads it next. Fix it, then record the fix and the reason -- which is what the table above
+does.
 
 ### (f) What was DELETED FROM THE CODE on 2026-08-18, and why
 
@@ -1210,8 +1224,8 @@ merely defaulted off -- a config can no longer *imply* a knob that does not exis
 | `alpha_kl` + the whole KL anchor | KL to warm-up predictions | out of scope by decision |
 | `enable_ce_skip` + CE-skip machinery | stop CE at saturation | reached only TraLO; fabricated a 0.22 cc-F1 artifact |
 | `disable_freeze_on_satisfy` | ratchet/rho freeze ablation | never used; protocol freezes on satisfy |
-| `cb_beta`, `logit_adjust_tau` | class-balanced / logit-adjusted losses | inert on oct; `focal` is the real baseline |
-| 10 methodology packages | tralo_bounded, fioretto_rh/restart/alm, hounie_rh, alm_rh, danits_lp, focal, class_balanced, logit_adjust | dead arms |
+
+| 5 methodology packages | tralo_bounded, fioretto_rh, fioretto_restart, hounie_rh, alm_rh | dead arms |
 | 55 config generators (5,481 lines) | one per campaign | replaced by `configs/gen_campaign.py`, which asserts the protocol |
 | 47 analysis scripts (7,221 lines) | per-campaign figures/tables | replaced by `scripts/full_panel.py` |
 | `src/evaluation/` (2,527 lines) | census, bootstrap, FDR, win-bar sensitivity | superseded by `full_panel.py` |
@@ -1262,7 +1276,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 157 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 158 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1270,7 +1284,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (157 tests, ~35 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (158 tests, ~35 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -1977,7 +1991,7 @@ scripts/verify_caps.py   the caps bind, on the real dataset slices
 scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             157 tests, ~35 s, no dataset required
+tests/             158 tests, ~35 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
