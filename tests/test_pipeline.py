@@ -1891,3 +1891,30 @@ def test_straight_through_closes_the_K_equals_zero_trap():
     assert float(F.relu(torch.tensor(float(hard)) - K)) == 0.0, (
         "the hard value is NOT satisfiable at K=0 -- straight_through does not "
         "close the trap after all")
+
+
+def test_margin_without_straight_through_is_refused_not_silently_reinterpreted():
+    """The fourth corner of the 2x2 is a third semantics, so it must not run.
+
+    Pass 1 accumulates the plain `sum_i p_ic` into the running total; pass 2
+    windows each chunk. The detach construction then cancels a WINDOWED chunk
+    out of a PLAIN total, giving value `sum_i p_ic` with a windowed gradient --
+    neither `tralo` nor `tralo_margin`. And the windowed count over-counts
+    (56.6 against a hard 45), so the penalty pushes past feasibility, which is
+    the joint arm's measured failure mode.
+
+    The generator cannot emit this combination; a hand-written config can.
+    """
+    import inspect
+
+    from src.methodologies.tralo import train as tralo_train
+
+    src = inspect.getsource(tralo_train.train)
+    assert 'soft_count_mode: margin requires straight_through' in src, (
+        "the guard against margin-without-straight-through is gone; that "
+        "combination now runs and produces a third, undocumented estimator")
+    # and the protocol's own arm sets both, so the guard never fires in practice
+    import yaml
+    P = yaml.safe_load(io.open("configs/protocol.yml", encoding="utf-8").read())
+    blk = P["blocks"]["tralo_margin"]
+    assert blk.get("soft_count_mode") == "margin" and blk.get("straight_through") is True

@@ -76,6 +76,20 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     SOFT_COUNT_MODE = str(hp.get("soft_count_mode", "sum"))
     CUT_WINDOW_ITEMS = int(hp.get("cut_window_items", 5))
     STRAIGHT_THROUGH = bool(hp.get("straight_through", False))
+    if SOFT_COUNT_MODE == "margin" and not STRAIGHT_THROUGH:
+        # The fourth corner of the 2x2, and it is not an arm. Pass 1 would
+        # accumulate the PLAIN sum into total_global_soft while pass 2 windows
+        # each chunk, so the detach construction cancels a windowed chunk out
+        # of a plain total and silently yields a THIRD semantics: value
+        # sum_i p_ic, gradient from the window. Measured, the windowed count
+        # over-counts (56.6 against a hard 45), so the penalty pushes past
+        # feasibility -- the joint arm's failure mode. Refuse it rather than
+        # run it: the generator cannot emit this, but a hand-written config
+        # can, and a silent third semantics is how this project loses weeks.
+        raise ValueError(
+            "soft_count_mode: margin requires straight_through: true. "
+            "Windowing the gradient while the penalty reads sum_i p_ic is "
+            "neither arm and is not a configuration this project runs.")
     LR_CONSTRAINT = _required(hp, "lr_constraint")
     # Hoisted: the per-epoch snapshot clone is gated on this, and a
     # state_dict() copied to CPU each epoch for a checkpoint nothing
