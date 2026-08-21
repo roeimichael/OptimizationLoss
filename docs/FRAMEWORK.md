@@ -1642,15 +1642,35 @@ Given section 0, only two kinds of thing can still win, and they are the only th
      ICML 2023 "Weighted Sampling without Replacement for Deep Top-k Classification";
      NeurIPS 2024 "ST_k"), so 1c is not a new loss family.
 
-   ⚠️ **OPEN LEAD, NOT YET VERIFIED -- check before building 1c.** "Predict at most K
-   items as class c" is structurally a **COVERAGE CONSTRAINT**, and selective
-   classification optimises coverage-constrained risk during TRAINING (SelectiveNet,
-   Geifman & El-Yaniv; Chow's rule as the classical optimal rejection rule). If that maps
-   cleanly, 1c is "coverage-constrained selective prediction applied to a transductive
-   class-count budget" -- a much sharper positioning than "a top-K loss", and a related-
-   work item the manuscript probably lacks. 🛑 The search that would confirm it was rate
-   limited; **this is a lead recorded from background knowledge, not a checked citation.
-   Verify it before writing it down anywhere that matters.**
+   🔑🔑 **A PUBLISHED COUNTEREXAMPLE TO THE PESSIMISM ABOVE -- verified, and it changes
+   the outlook.** "Predict at most K items as class c" is structurally a **COVERAGE
+   CONSTRAINT**, and selective classification optimises coverage-constrained risk during
+   TRAINING. **SelectiveNet** (Geifman & El-Yaniv, *ICML 2019*, "SelectiveNet: A Deep
+   Neural Network with an Integrated Reject Option") states the setup we are in almost
+   exactly:
+
+   > "Existing rejection mechanisms are based mostly on a **threshold over the prediction
+   > confidence of a pre-trained network**. In contrast, SelectiveNet is trained to
+   > optimize both classification and rejection simultaneously, end-to-end. The result is
+   > a deep neural network that is **optimized over the covered domain**."
+
+   **Their baseline IS our `clip`** -- threshold a pretrained net's confidence -- and they
+   report a consistently improved risk-coverage trade-off against it.
+
+   ⇒ **the escape from "post-hoc is optimal given the probabilities" is in their own
+   words: optimised over the COVERED DOMAIN.** Post-hoc is optimal given the probabilities,
+   but training can change which probabilities you get, by fitting the model to the
+   sub-population it will actually predict on rather than to all of it. That is a
+   representation change thresholding cannot produce, and it is the one mechanism the
+   three pessimistic derivations do not rule out.
+
+   ⚠️ **The differences are real and must not be glossed.** Their coverage is one global
+   rate chosen by the user; ours is per-class counts on a specific test set, coupled
+   across classes and groups. Their metric is risk at coverage; ours is precision@K. And
+   they train the selection head jointly from scratch, where every arm here bolts a
+   penalty onto a warm-started CE model. ⇒ this makes 1c **plausible**, not proven, and
+   the design to copy is the joint selection head, not the penalty.
+
 
    ⚠️ **Novelty is the pairing, not the loss.** Top-K / precision@k surrogates and
    learning-to-rank losses are well established; this is not a new loss family. The
