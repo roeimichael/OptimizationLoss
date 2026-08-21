@@ -2673,3 +2673,40 @@ def test_no_autocast_banned_op_is_reachable_from_an_arm():
         "so the arm dies on its first GPU batch: %s. Write the loss out by "
         "hand on the clamped probability -- NOT the _with_logits variant, which "
         "computes a different quantity." % offenders)
+
+
+def test_the_selective_risks_centring_estimate_is_not_self_referential():
+    """`selective_loss` must return THIS batch's estimate, not the EMA it was given.
+
+    It returned the EMA-substituted value, and the trainer feeds the return
+    straight back into its EMA -- so the update was 0.9*x + 0.1*x = x and the
+    centring constant FROZE at batch 1 of epoch 1 and never moved again.
+
+    That is not a stale log line. d risk / d g_i = (per_i - centre)/(n*tau), so a
+    centre pinned to an untrained model's covered-set loss while per_item
+    collapses (CE saturates by epoch 10, L_CE 0.02) flips the sign for nearly
+    every item and turns the risk term into exactly the "cover everything" force
+    the centring exists to prevent. The tell was that `cov_ema`, three lines
+    away, IS recomputed from the batch -- the asymmetry between the two.
+    """
+    import torch
+
+    from src.methodologies.select.train import selective_loss
+
+    ema, beta, seen = None, 0.9, []
+    torch.manual_seed(0)
+    for b in range(5):
+        g = torch.rand(64, requires_grad=True)
+        # sharpen the probabilities each batch: the covered-set loss MUST move
+        probs = torch.softmax(torch.randn(64, 7) * (1.0 + 2.0 * b), dim=1)
+        y = torch.randint(0, 7, (64,))
+        _loss, _cov, base = selective_loss(g, probs, y, 4, 0.03, 32.0,
+                                           cov_ema=0.03, risk_ema=ema)
+        ema = base if ema is None else beta * ema + (1 - beta) * base
+        seen.append(base)
+
+    assert len(set(round(v, 9) for v in seen)) > 1, (
+        "selective_loss returned the SAME centring estimate on 5 batches whose "
+        "probabilities differ by 5x -- it is echoing the EMA it was handed, so "
+        "the caller's EMA can never move: %s" % seen)
+    assert abs(ema - seen[0]) > 1e-6, "the caller's EMA never left batch 1"

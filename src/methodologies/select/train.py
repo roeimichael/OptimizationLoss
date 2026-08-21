@@ -47,7 +47,7 @@ import logging
 import torch
 import torch.nn as nn
 
-from src.pipeline.contracts import TrainInputs, TrainOutputs
+from src.pipeline.contracts import TrainInputs, TrainOutputs, _required
 from src.pipeline.setup import setup_runtime
 from src.utils.constants import CONSTRAINT_CHUNK_SIZE
 from src.pipeline.warmup import make_ce_criterion, make_dataloader, make_optimizer
@@ -183,12 +183,22 @@ def selective_loss(g, probs, y, cls, tau, cov_weight, cov_ema=None,
     # out -- which is what a selective risk is supposed to do. Detached, so it
     # shifts the gradient without carrying the small random denominator into
     # it; smoothed for the same reason the coverage value is.
-    base = ((g * per_item).sum() / (g.sum() + EPSILON)).detach()
-    if risk_ema is not None:
-        base = torch.as_tensor(risk_ema, dtype=base.dtype, device=base.device)
-    risk = (g * (per_item - base)).sum() / (g.numel() * tau + EPSILON)
+    # TWO SEPARATE VALUES ON PURPOSE. `batch_base` is THIS batch's estimate and
+    # is what the caller feeds its EMA; `centre` is what the loss actually uses.
+    # Returning the EMA-substituted value instead made the EMA self-referential
+    # -- the caller computed 0.9*x + 0.1*x = x, so the centring constant froze
+    # at batch 1 of epoch 1 and never moved again. That is not a stale log line:
+    # d risk / d g_i = (per_i - centre)/(n*tau), so a centre pinned to an
+    # untrained model's loss while per_item collapses (CE saturates by epoch 10)
+    # flips the sign for nearly every item and turns the risk term into the
+    # "cover everything" force this centring exists to prevent.
+    batch_base = ((g * per_item).sum() / (g.sum() + EPSILON)).detach()
+    centre = (batch_base if risk_ema is None
+              else torch.as_tensor(risk_ema, dtype=batch_base.dtype,
+                                   device=batch_base.device))
+    risk = (g * (per_item - centre)).sum() / (g.numel() * tau + EPSILON)
     cov_eff = cov if cov_ema is None else (cov_ema + cov - cov.detach())
-    return risk + cov_weight * (cov_eff - tau) ** 2, float(cov), float(base)
+    return risk + cov_weight * (cov_eff - tau) ** 2, float(cov), float(batch_base)
 
 
 def train(inputs: TrainInputs) -> TrainOutputs:
@@ -198,8 +208,8 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     num_classes = inputs.num_classes
     capped = sorted(inputs.constrained_classes)
 
-    eta = float(hp.get("select_eta", 1.0))
-    cov_weight = float(hp.get("select_cov_weight", 32.0))
+    eta = _required(hp, "select_eta")
+    cov_weight = _required(hp, "select_cov_weight")
     warmup_epochs = int(hp["warmup_epochs"])
     n_epochs = int(hp["constraint_epochs"])
     lr = float(hp["lr_constraint"])
@@ -243,7 +253,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             min(per_batch.values()), min(tau.values()), bs)
     cov_ema = {c: None for c in capped}
     risk_ema = {c: None for c in capped}
-    ema_beta = float(hp.get("select_cov_ema", 0.9))
+    ema_beta = _required(hp, "select_cov_ema")
     write_csv_header(str(inputs.csv_log_path), num_classes,
                      local_constraints=inputs.local_con)
 
