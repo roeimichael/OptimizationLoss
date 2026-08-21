@@ -37,6 +37,14 @@ def load(root):
     runs = []
     for p in glob.glob(os.path.join(root, "**", "config.json"), recursive=True):
         c = json.load(open(p))
+        # Whether this run has actually produced anything. A campaign is
+        # normally read while it is still running, and without this the
+        # coverage check below reports PARITY FAILED on every campaign until
+        # its very last run lands -- which makes a real coverage failure
+        # indistinguishable from "not finished yet", and a gate that cries
+        # wolf on every invocation is a gate that stops being read.
+        c["_done"] = os.path.exists(
+            os.path.join(os.path.dirname(p), "final_predictions.csv"))
         runs.append(c)
     return runs
 
@@ -166,14 +174,31 @@ def main():
                str(r.get("dataset_config", {}).get("constrained_class")),
                r["hyperparams"]["seed"])
         cells[r["arm"]].add(key)
+    # The PLAN is every config on disk; DONE is the subset with predictions.
+    # An unbalanced plan is a real parity failure. A balanced plan that is
+    # unevenly finished is just a campaign in flight, and is reported as such.
+    done = collections.defaultdict(set)
+    for r in runs:
+        if r.get("_done"):
+            key = (r["dataset_mode"], r["model_name"], r["constraint_tag"],
+                   str(r.get("dataset_config", {}).get("constrained_class")),
+                   r["hyperparams"]["seed"])
+            done[r["arm"]].add(key)
     ref = cells[arms[0]]
+    in_flight = sum(1 for r in runs if not r.get("_done"))
     for arm in arms:
         d = cells[arm]
         mark = "OK  " if d == ref else "FAIL"
         if d != ref:
-            fails.append("%s covers %d cells, %s covers %d"
+            fails.append("%s plans %d cell-seeds, %s plans %d"
                          % (arm, len(d), arms[0], len(ref)))
-        print("   %s %-12s %d cell-seeds" % (mark, arm, len(d)))
+        print("   %s %-12s %d planned, %d finished"
+              % (mark, arm, len(d), len(done[arm])))
+    if in_flight:
+        print("   IN FLIGHT: %d of %d runs have no predictions yet. Coverage is"
+              % (in_flight, len(runs)))
+        print("      judged on the PLAN (configs on disk); uneven FINISHED")
+        print("      counts above are progress, not a parity failure.")
     caps = sorted({r["constraint_tag"] for r in runs})
     print("   cap levels: %s%s" % (caps, "" if len(caps) > 1 else "   <-- FAIL: need >=2"))
     if len(caps) < 2:
