@@ -1547,8 +1547,17 @@ Given section 0, only two kinds of thing can still win, and they are the only th
    to within a single item, and the cap `K = round(pct * n_test_c)` is recoverable from the
    TRAINING prevalence alone. ⇒ **the transductive cap carries essentially zero information the
    training set does not already contain** -- roughly the rounding, and nothing else. This is
-   not an observation about our results; it is a property of how the data was made, and it
-   predicts the null results rather than being explained by them.
+   not an observation about our results; it is a property of how the data was made.
+
+   ⚠️ **Be precise about what that does and does not say.** It does NOT say the cap is useless:
+   `clip` binds on 63-84% of runs, so the trained model's argmax counts really do differ from
+   the true test counts. But that is a MODEL error, not new information -- the model failed to
+   absorb a prior that was in its own training data. So the cap is redundant with the TRAINING
+   SET and not with the TRAINED MODEL, and correcting a trained model's count is exactly what
+   post-hoc does, optimally, for free. ⇒ the honest form of the claim: **every bit the cap
+   carries was available at training time, so any use of it that post-hoc cannot replicate has
+   to come from the REPRESENTATION, not from the count.** That is the same conclusion path 1
+   reaches from the other direction, and it is why they keep meeting.
 
    ⇒ **the only way to make the cap informative is a test set whose prevalence DIFFERS from
    train.** There are two routes and they are not equally costly.
