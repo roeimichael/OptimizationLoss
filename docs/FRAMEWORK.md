@@ -427,6 +427,40 @@ a direction to earn; loosen it and a monotone penalty finds something a coin can
 
 ---
 
+### (11) ⛔⛔ THE CAPPED CLASSES DO NOT COMPETE -- "coupled multi-class" is CLOSED
+
+Measured 2026-08-21 on the stored predictions, and independently re-verified.
+
+**The top-K sets of the capped classes are PAIRWISE DISJOINT in every one of 16
+dermmnist seed-cells**, at all three cap levels, computed from the RAW probabilities (not
+from the allocation, which is disjoint by construction and would make the check vacuous):
+
+| cap | K per class (1 / 2 / 4) | pairwise overlap |
+|---|---|---|
+| `L30_G30` | 31 / 66 / 67 | 0, 0, 0 -- all 4 seeds |
+| `L50_G50` | 52 / 110 / 112 | 0, 0, 0 -- all 4 seeds |
+| `L70_G70` | 72 / 154 / 156 | 0, 0, 0 -- all 4 seeds |
+
+✅ **LIVENESS CONTROL** -- the probe can detect overlap, so the zero means something.
+Sweeping the rank R on one cell: R=110 -> 0/0/0; R=150 -> 3/2/0; R=200 -> 23/19/6;
+R=300 -> 98/83/79; R=900 -> 744/722/740 against a random expectation of 404.
+
+🔑 **THIS IS THE MECHANISM BEHIND "greedy and LP give up EXACTLY 0".** The joint pass never
+has a conflict to resolve, because no item is near the budget boundary of two capped
+classes at once.
+
+⛔ **THEREFORE the standing hypothesis that "with several capped classes the assignment is
+COUPLED, so post-hoc greedy is only a HEURISTIC there" IS REFUTED ON OUR DATA.** It was
+recorded as the one real opening. It is not one -- not weakly, but completely: there is no
+coupling to exploit. ⚠️ Note this also strengthens the monotone-invariance closure: that
+argument is strictly single-class, and one might have expected the coupled allocator to
+break it. It does not, and now for a measured reason.
+
+⚠️ Measured on the LEAKED slice (the evidence tarball predates the lesion fix). Disjointness
+is structural and should survive, but re-check it once corrected-slice predictions exist.
+
+---
+
 ### (9) 🛑🛑 THE BASELINE IS NOT NEUTRAL: `tralo_null` STARTS ~5 ITEMS BEHIND `clip`
 
 Measured 2026-08-21 on `results/dosefix` (corrected lesion-disjoint derm x ViTB16 x
@@ -436,6 +470,31 @@ Measured 2026-08-21 on `results/dosefix` (corrected lesion-disjoint derm x ViTB1
 term is identically zero. `clip` is 30 warm-up epochs and no constraint phase. **Both are
 thirty epochs of cross-entropy on the same data, scored with the same allocator. They
 should tie.**
+
+⛔⛔ **RETRACTED AT 4 SEEDS -- AND THE REASON IS A COLLAPSED CONTROL.** The table below was
+3 seeds. With all four in, `tralo_null` - `clip` is **ccF1 -0.0002 = -0.06 items**, and
+macroF1 FLIPS to **+0.0221** in the null's favour.
+
+| seeds | d items (null - clip) | reading |
+|---|---|---|
+| 1, 2, 3 | -3.9, -6.9, -4.2 | a consistent ~5-item handicap |
+| 4 | **+14.8** | reverses it |
+| **all 4** | **-0.06 items** | **~zero** |
+
+🚨 **Seed 4's `clip` run COLLAPSED on its final epoch** -- train accuracy 0.9934 -> **0.9116**,
+where every other control run ends 0.9935-1.0000 -- and the pipeline keeps the last epoch
+UNCONDITIONALLY (no LR schedule, `enable_checkpoint_restore: false` by design). So the
+corrupted run IS the baseline at that seed: it scores ~15 items below its siblings and
+EVERY arm "beats" it there. **One collapsed control reversed the sign of a 4-seed headline.**
+`clip`'s across-seed sd here is **8.2 items**, or 1.6 excluding seed 4, against the 2.7 this
+document assumes elsewhere.
+
+⇒ **The honest statement is neither "-5.2 items" nor "no effect":** the handicap appears on
+3 of 4 seeds and the mean is zero because one control fell over. ✅ `full_panel` now detects
+a terminal-epoch collapse and says so, naming the arm and warning explicitly when the
+collapsed run is the CONTROL.
+
+*(superseded 3-seed table, kept so the retraction is legible)*
 
 | | AP | AUROC | ccP | ccF1 | macroF1 | acc | cells won |
 |---|---|---|---|---|---|---|---|
@@ -1486,7 +1545,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 165 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 167 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1494,7 +1553,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (165 tests, ~35 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (167 tests, ~35 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -2226,7 +2285,7 @@ scripts/verify_caps.py   the caps bind, on the real dataset slices
 scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             165 tests, ~35 s, no dataset required
+tests/             167 tests, ~35 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

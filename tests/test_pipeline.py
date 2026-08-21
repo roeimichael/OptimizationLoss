@@ -29,6 +29,20 @@ from src.methodologies.heuristic.train import (                      # noqa: E40
 from src.training.constraints import (compute_global_constraints,    # noqa: E402
                                       compute_local_constraints)
 from src.utils.constants import UNLIMITED                            # noqa: E402
+from scripts.full_panel import equalize_multi
+from src.experiments.runner import TRAIN_FNS
+from src.losses.transductive_loss import margin_window
+from src.methodologies.select.train import selective_loss
+from src.models import get_model
+from src.training.constraint_step import finish_constraint_step
+from src.utils.data_loader import _load_imagery_data as load_data
+from src.utils.posthoc_adjustment import targeted_correction
+import ast
+import pandas as pd
+import pathlib
+import re
+import torch.nn as nn
+import yaml
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -108,7 +122,6 @@ def test_empty_constraints_stay_connected_to_the_graph():
 # ------------------------------------------------------------- the budgets --
 
 def _frame(labels, groups):
-    import pandas as pd
     return pd.DataFrame({"label": np.asarray(labels), "grp": np.asarray(groups)})
 
 
@@ -313,7 +326,6 @@ def test_a_diverged_result_is_not_recorded_as_completed(tmp_path):
 def test_rerunning_does_not_turn_the_old_header_into_a_data_row(tmp_path):
     """A crashed run is reset to pending and re-dispatched into the same dir;
     rows are appended, so df["Epoch"].max() returned the STRING 'Epoch'."""
-    import pandas as pd
     from src.training.logging import log_progress_to_csv, write_csv_header
     p = tmp_path / "training_log.csv"
     for run in range(2):
@@ -343,7 +355,6 @@ def test_backbones_keep_their_pretrained_weights(name):
     pretrained 960->1280 projection. That projection is trained during warm-up
     only, and trained arms get ONE warm-up epoch against the post-hoc arms'
     thirty, so it biased the headline comparison on the headline backbone."""
-    from src.models import get_model
     torch.manual_seed(0)
     a = get_model(name, input_dim=None, n_classes=7, dropout=0.3, pretrained=True)
     torch.manual_seed(999)
@@ -360,8 +371,6 @@ def test_backbones_keep_their_pretrained_weights(name):
 def test_mobilenetv3_has_exactly_one_dropout_in_its_head():
     """The whole reason the classifier was rebuilt was to avoid a double
     dropout. Reusing the pretrained head must not reintroduce one."""
-    import torch.nn as nn
-    from src.models import get_model
     m = get_model("MobileNetV3", input_dim=None, n_classes=7,
                   dropout=0.3, pretrained=False)
     head = m.backbone.classifier
@@ -427,7 +436,6 @@ def test_a_missing_protocol_value_raises_instead_of_using_the_trap(key, tmp_path
     against 31 -- low enough that the early stop would actually fire, so an arm
     would stop training partway and still be scored at 'equal compute'."""
     import scripts.smoke_arms as sm
-    from src.experiments.runner import TRAIN_FNS
     P = load_protocol()
     inputs, _, _ = sm.make_inputs(P, "tralo", str(tmp_path))
     inputs.hyperparams.pop(key, None)
@@ -491,12 +499,11 @@ def test_the_scorer_pairs_on_the_capped_class(tmp_path):
     pair, so a +0.40 cell and a -0.40 cell collapsed to an exact tie while the
     header still printed two cells."""
     import scripts.full_panel as fp
-    src = io._io.open(os.path.join(REPO, "scripts", "full_panel.py"),
+    src = io.io.open(os.path.join(REPO, "scripts", "full_panel.py"),
                       encoding="utf-8").read() if False else open(
         os.path.join(REPO, "scripts", "full_panel.py"), encoding="utf-8").read()
     key = src.split("key = [")[1].split("]")[0]
     assert '"capped"' in key, "the capped class is not in the pairing key"
-    import pandas as pd
     with pytest.raises(ValueError, match="pairing key is missing"):
         fp._one(pd.Series([0.4, -0.4]))
     assert fp._one(pd.Series([0.4])) == 0.4
@@ -506,7 +513,6 @@ def test_the_scorer_pairs_on_the_capped_class(tmp_path):
 
 def _panel_verdict(tmp_path, n_better_cells, n_tied_cells, metric="AP"):
     """Build a synthetic campaign with a KNOWN answer and read the verdict."""
-    import pandas as pd
     cells = [("dermmnist", "MobileNetV3", "L30_G30"),
              ("dermmnist", "MobileNetV3", "L50_G30"),
              ("octmnist", "MobileNetV3", "L30_G30"),
@@ -622,8 +628,6 @@ def test_the_audit_sees_keys_read_through_the_required_helper():
 # the shape of defect this project keeps finding.
 # ---------------------------------------------------------------------------
 def test_metrics_helpers_restore_the_callers_mode():
-    import torch
-    import torch.nn as nn
     from src.training import metrics
 
     model = nn.Sequential(nn.Linear(4, 3), nn.Dropout(0.5))
@@ -659,8 +663,6 @@ def test_metrics_helpers_restore_the_callers_mode():
 # ---------------------------------------------------------------------------
 def _write_slice(d, n_train=12, n_test=8, n_classes=4, capped=2,
                  truncate_test_labels=False, drop_capped=False):
-    import numpy as np
-    import pandas as pd
     os.makedirs(d, exist_ok=True)
     rng = np.random.default_rng(0)
     ytr = np.array([i % n_classes for i in range(n_train)])
@@ -687,7 +689,6 @@ def _cfg(d, n_classes=4, capped=2):
 
 
 def test_loader_refuses_mismatched_image_and_label_counts(tmp_path):
-    from src.utils.data_loader import _load_imagery_data as load_data
     d = str(tmp_path / "bad_len")
     _write_slice(d, truncate_test_labels=True)
     with pytest.raises(ValueError, match="test_images.npy has 8 rows"):
@@ -695,7 +696,6 @@ def test_loader_refuses_mismatched_image_and_label_counts(tmp_path):
 
 
 def test_loader_refuses_a_slice_whose_labels_exceed_num_classes(tmp_path):
-    from src.utils.data_loader import _load_imagery_data as load_data
     d = str(tmp_path / "wrong_ds")
     _write_slice(d, n_classes=6)                 # 6 real classes...
     with pytest.raises(ValueError, match="num_classes is 4"):
@@ -703,7 +703,6 @@ def test_loader_refuses_a_slice_whose_labels_exceed_num_classes(tmp_path):
 
 
 def test_loader_refuses_a_slice_missing_the_capped_class(tmp_path):
-    from src.utils.data_loader import _load_imagery_data as load_data
     d = str(tmp_path / "no_capped")
     _write_slice(d, drop_capped=True)
     with pytest.raises(ValueError, match="does not occur in this slice"):
@@ -712,7 +711,6 @@ def test_loader_refuses_a_slice_missing_the_capped_class(tmp_path):
 
 def test_loader_accepts_a_well_formed_slice(tmp_path):
     """The guards must not fire on good data."""
-    from src.utils.data_loader import _load_imagery_data as load_data
     d = str(tmp_path / "good")
     _write_slice(d)
     out = load_data(_cfg(d))
@@ -731,7 +729,6 @@ def test_loader_accepts_a_well_formed_slice(tmp_path):
 # test is where they find out.
 # ---------------------------------------------------------------------------
 def test_penalty_gradient_is_non_monotone_above_rho_one():
-    import torch
 
     K = 67.0
 
@@ -784,7 +781,6 @@ def test_a_deep_violation_is_starved_by_a_milder_one_sharing_the_clip():
     shape, and the shape hands almost everything to whichever scope sits nearer
     its own peak. dermmnist has 3 groups, so every run already carries 4 terms.
     """
-    import torch
 
     K, rho, eps = 67.0, 100.0, 1e-8
 
@@ -817,9 +813,6 @@ def test_loader_detects_a_permuted_train_split(tmp_path):
     one, with a `label` column, and it is on disk in every slice. The redundant
     signal needed to catch this was there the whole time.
     """
-    import numpy as np
-    import pandas as pd
-    from src.utils.data_loader import _load_imagery_data as load_data
     d = str(tmp_path / "permuted")
     _write_slice(d)
     y = np.load(os.path.join(d, "train_labels.npy"))
@@ -832,9 +825,6 @@ def test_loader_detects_a_permuted_train_split(tmp_path):
 
 
 def test_loader_accepts_an_aligned_train_meta(tmp_path):
-    import numpy as np
-    import pandas as pd
-    from src.utils.data_loader import _load_imagery_data as load_data
     d = str(tmp_path / "aligned")
     _write_slice(d)
     y = np.load(os.path.join(d, "train_labels.npy"))
@@ -851,7 +841,6 @@ def test_the_null_arm_really_delivers_no_constraint():
     exactly zero it would be a weak treatment rather than a control, and the
     whole point of the arm would be lost silently.
     """
-    import yaml
     proto = yaml.safe_load(open("configs/protocol.yml", encoding="utf-8"))
     blk = proto["blocks"]["tralo_null"]
     for key in ("lambda_global", "lambda_local", "lambda_step"):
@@ -866,7 +855,6 @@ def test_the_null_arm_really_delivers_no_constraint():
     # zero lambda must make the summed penalty exactly zero, not merely small:
     # the trainer gates pass 2 on `total_constraint > 0`, so a 1e-30 residue
     # would still run a constraint step.
-    import torch
     from src.losses.transductive_loss import MulticlassTransductiveLoss as L
     total = torch.tensor(0.0)
     for soft, K in ((500.0, 67.0), (67.0, 67.0), (0.0, 67.0)):
@@ -896,8 +884,6 @@ def test_every_trained_arm_reports_reordering():
     grows a private copy or drops the summary field, because the module that
     calls `reordering_report` is also the module that must write "reordering".
     """
-    import io as _io
-    import os
 
     def _reaches_reordering(src, seen):
         """Does this source call reordering_report and emit the summary key --
@@ -913,14 +899,14 @@ def test_every_trained_arm_reports_reordering():
             if path in seen or not os.path.exists(path):
                 continue
             seen.add(path)
-            if _reaches_reordering(_io.open(path, encoding="utf-8").read(), seen):
+            if _reaches_reordering(io.open(path, encoding="utf-8").read(), seen):
                 return True
         return False
 
     trained = ["tralo", "fioretto_ldf", "hounie_rcl", "fioretto_alm"]
     for m in trained:
         path = os.path.join("src", "methodologies", m, "train.py")
-        src = _io.open(path, encoding="utf-8").read()
+        src = io.open(path, encoding="utf-8").read()
         assert "reordering_report" not in src or "def reordering_report" not in src, (
             "%s must use the shared diagnostic, not a private copy" % m)
         assert _reaches_reordering(src, set()), (
@@ -928,14 +914,14 @@ def test_every_trained_arm_reports_reordering():
 
     # it has to survive to disk, and outside config["results"] -- a NaN tau on
     # a constant score column would otherwise mark the run `diverged`
-    runner = _io.open(os.path.join("src", "experiments", "runner.py"),
+    runner = io.open(os.path.join("src", "experiments", "runner.py"),
                       encoding="utf-8").read()
     assert "config['reordering']" in runner
     results_blk = runner[runner.index("save_results_to_config(config"):]
     assert "reordering" not in results_blk[:results_blk.index("})")]
 
     # and the scorer must actually read it
-    panel = _io.open(os.path.join("scripts", "full_panel.py"), encoding="utf-8").read()
+    panel = io.open(os.path.join("scripts", "full_panel.py"), encoding="utf-8").read()
     assert 'cfg.get("reordering")' in panel
     assert "_reordering_check(rows)" in panel
 
@@ -947,10 +933,7 @@ def test_the_documented_test_count_is_the_real_one(request):
     collected 107. A reader uses the number to decide whether their checkout is
     complete, so a stale one says "you are missing tests" to someone who is not.
     """
-    import io as _io
-    import re
 
-    import pytest as _pytest
 
     # Only meaningful when the whole suite was collected. Running a single node
     # id collects 1, which would fail the guard on every targeted run.
@@ -959,13 +942,13 @@ def test_the_documented_test_count_is_the_real_one(request):
     # `n > 1` instead of skipping. Read the option itself.
     if (request.config.option.keyword
             or any("::" in a for a in request.config.args)):
-        _pytest.skip("subset run: the collected count is not the suite count")
+        pytest.skip("subset run: the collected count is not the suite count")
     n = request.session.testscollected or len(request.session.items)
     assert n > 1
 
     claimed = {}
     for path in ("CLAUDE.md", "docs/FRAMEWORK.md"):
-        txt = _io.open(path, encoding="utf-8").read()
+        txt = io.open(path, encoding="utf-8").read()
         for m in re.finditer(r"(\d+)\s+(?:regression\s+)?tests", txt):
             claimed.setdefault(path, set()).add(int(m.group(1)))
 
@@ -996,7 +979,6 @@ def test_every_trained_arm_has_a_working_zero_dose_sibling(null, parent, zeroed)
     Zeroing is a DIFFERENT knob in each arm and two of them have a trap, so the
     keys are named per arm rather than pattern-matched.
     """
-    import yaml
     proto = yaml.safe_load(open("configs/protocol.yml", encoding="utf-8"))
     blk = proto["blocks"][null]
     for key in zeroed:
@@ -1016,7 +998,6 @@ def test_alm_null_zeroes_the_augmentation_not_just_the_multiplier():
     augmentation of mu0 * excess on every epoch -- a weak treatment wearing a
     control's name, which is worse than having no control.
     """
-    import yaml
     blk = yaml.safe_load(open("configs/protocol.yml", encoding="utf-8"))["blocks"]["alm_null"]
     for epoch in (0, 14, 28):
         mu_t = blk["alm_mu0"] + blk["alm_mu_step"] * epoch
@@ -1032,7 +1013,6 @@ def test_hounie_null_does_not_trip_hounie_s_own_stability_guard():
     training a single epoch. eta_u moves only the slack u, which cannot reach
     the primal once lam is pinned at its 0.0 init.
     """
-    import yaml
     blk = yaml.safe_load(open("configs/protocol.yml", encoding="utf-8"))["blocks"]["hounie_null"]
     factor = abs(1.0 - 2.0 * blk["hounie_eta_u"] * blk["hounie_alpha"])
     assert factor < 1.0, (
@@ -1043,7 +1023,6 @@ def test_hounie_null_does_not_trip_hounie_s_own_stability_guard():
 def _load_panel():
     """full_panel.py is a script, not a package module."""
     import importlib.util
-    import sys
 
     spec = importlib.util.spec_from_file_location(
         "_full_panel", os.path.join("scripts", "full_panel.py"))
@@ -1066,7 +1045,6 @@ def test_equalize_multi_respects_every_capped_class_not_just_the_first():
     with no budget check, so a multi-capped-class campaign scored "equalized"
     metrics on an allocation that broke every cap after the first.
     """
-    import numpy as np
 
     panel = _load_panel()
     UNLIM = 10 ** 10
@@ -1096,7 +1074,6 @@ def test_equalize_multi_matches_the_single_class_path():
     """Its docstring promises "with one capped class this is exactly the old
     behaviour" -- i.e. top-K by probability. The single-class results the
     project still stands on were produced by that path."""
-    import numpy as np
 
     panel = _load_panel()
     UNLIM = 10 ** 10
@@ -1167,10 +1144,7 @@ def test_bh_monotonicity_and_that_aliases_do_not_widen_the_family():
 
 def _panel_run(tmp_path, constrained_class, n=12, n_cls=3):
     """A minimal scorable run directory: config.json + the two prediction CSVs."""
-    import json
 
-    import numpy as np
-    import pandas as pd
 
     d = tmp_path / "ds" / "M" / "L30_G30" / "arm" / "seed_1"
     d.mkdir(parents=True)
@@ -1248,12 +1222,7 @@ def test_targeted_correction_spends_the_whole_reachable_budget(pct):
     pointed the same way, so it would have read as a real loss for the trained
     arms. Assert the invariant force_exact=True actually promises.
     """
-    import numpy as np
-    import pandas as pd
 
-    from src.training.constraints import (compute_global_constraints,
-                                          compute_local_constraints)
-    from src.utils.posthoc_adjustment import targeted_correction
 
     n, n_cls, n_grp, capped = 2000, 7, 7, [4]
     for seed in range(8):
@@ -1321,7 +1290,6 @@ def test_every_training_log_gets_a_header_not_just_tralo_s(tmp_path):
         "first line is not the header -- pandas would eat epoch 1 as column names")
     assert len(lines) == 1 + 3, "expected a header plus one row per epoch"
 
-    import pandas as pd
     df = pd.read_csv(path)
     assert len(df) == 3, "an epoch was consumed by the header"
     assert "Grad_Norm" in df.columns and "Lambda_Global" in df.columns
@@ -1339,7 +1307,6 @@ def test_constraint_phase_reaches_every_trained_arm_and_no_posthoc_one():
     trained arm includes and no post-hoc arm does, so one assignment cannot
     reach one arm and not another.
     """
-    import yaml
     proto = yaml.safe_load(open("configs/protocol.yml", encoding="utf-8"))
     cp = proto["constraint_phase"]
 
@@ -1396,7 +1363,6 @@ def test_the_bounded_shape_starves_the_deepest_violator_and_the_hinges_do_not():
     across scopes has median 1.5x, and at equal excess the shape is exactly
     inert -- a common scalar times a fixed direction, divided out by the clip.
     """
-    import torch
     from src.losses.transductive_loss import MulticlassTransductiveLoss, UNLIMITED
 
     NC = 5
@@ -1433,8 +1399,6 @@ def test_normalize_delivers_the_same_step_size_whatever_the_raw_norm():
     smaller than tralo's on every one of its 29 epochs while both configs said
     constraint_grad_clip: 1.0.
     """
-    import torch
-    from src.training.constraint_step import finish_constraint_step
 
     def step(raw_scale, mode):
         m = torch.nn.Linear(4, 1, bias=False)
@@ -1472,8 +1436,6 @@ def test_the_random_direction_control_keeps_the_dose_and_drops_the_information()
     made the dedicated-Adam arm uninterpretable (it moved 8,900x further and
     cost AP -0.0938, and no one could say which half did it).
     """
-    import torch
-    from src.training.constraint_step import finish_constraint_step
 
     def step(random_direction):
         torch.manual_seed(0)
@@ -1515,8 +1477,6 @@ def test_the_random_direction_control_keeps_the_dose_and_drops_the_information()
 
 def test_a_non_finite_constraint_gradient_never_moves_the_weights():
     """fioretto lost 10 of 29 epochs to NaN/inf. It must lose them SAFELY."""
-    import torch
-    from src.training.constraint_step import finish_constraint_step
 
     for bad in (float("nan"), float("inf")):
         m = torch.nn.Linear(4, 1, bias=False)
@@ -1574,7 +1534,6 @@ def test_the_margin_count_is_a_real_count_not_a_constant():
     The margin count must instead MOVE with the model and be able to exceed
     the budget, which is what makes a violation visible at all.
     """
-    from src.losses.transductive_loss import margin_window
 
     torch.manual_seed(0)
     K, cls = 8, 1
@@ -1616,7 +1575,6 @@ def test_the_margin_count_puts_its_gradient_on_the_boundary():
     ~zero at the cut. The margin count's is sigma'(m/T)/T, maximal at margin 0
     -- at the items one step from flipping out of the class.
     """
-    from src.losses.transductive_loss import margin_window
 
     torch.manual_seed(1)
     proba = F.softmax(torch.randn(60, 4), dim=1).requires_grad_(True)
@@ -1731,7 +1689,6 @@ def test_every_trained_arm_has_a_null_sibling_the_gate_can_find():
     and the gate said nothing. Arms may now name another arm's null via
     `null_sibling`; this pins that every trained arm resolves to a real one.
     """
-    import yaml
 
     from configs.gen_campaign import _null_of
 
@@ -1764,11 +1721,9 @@ def test_the_inert_flag_gate_can_actually_detect_an_inert_flag():
     the harness is deterministic: if two runs of one arm already differ, no
     difference between two arms means anything.
     """
-    import subprocess
-    import sys as _sys
 
     same = subprocess.run(
-        [_sys.executable, "-m", "scripts.flag_live", "tralo", "tralo",
+        [sys.executable, "-m", "scripts.flag_live", "tralo", "tralo",
          "--constraint-epochs", "2"],
         capture_output=True, text=True)
     assert same.returncode == 1, (
@@ -1779,7 +1734,7 @@ def test_the_inert_flag_gate_can_actually_detect_an_inert_flag():
     assert "INERT" in same.stdout
 
     diff = subprocess.run(
-        [_sys.executable, "-m", "scripts.flag_live", "tralo", "tralo_margin",
+        [sys.executable, "-m", "scripts.flag_live", "tralo", "tralo_margin",
          "--constraint-epochs", "2"],
         capture_output=True, text=True)
     assert diff.returncode == 0, (
@@ -1798,7 +1753,6 @@ def test_the_scorers_posthoc_list_matches_the_protocol():
     stops reporting the one failure mode that has actually occurred (six models
     behind twelve cells).
     """
-    import yaml
 
     from scripts.full_panel import POSTHOC_ARMS
 
@@ -1866,7 +1820,6 @@ def test_margin_without_straight_through_is_refused_not_silently_reinterpreted()
         "the guard against margin-without-straight-through is gone; that "
         "combination now runs and produces a third, undocumented estimator")
     # and the protocol's own arm sets both, so the guard never fires in practice
-    import yaml
     P = yaml.safe_load(io.open("configs/protocol.yml", encoding="utf-8").read())
     blk = P["blocks"]["tralo_margin"]
     assert blk.get("soft_count_mode") == "margin" and blk.get("straight_through") is True
@@ -1886,12 +1839,8 @@ def test_the_allocator_does_not_fall_through_to_the_LP_when_G_is_less_than_L():
     is silent: caps still hold afterwards, so `smoke_arms --matrix` passes
     either way. This pins it on the cap tags actually being run.
     """
-    import pandas as pd
 
     from configs.gen_campaign import cap_pair
-    from src.training.constraints import (compute_global_constraints,
-                                          compute_local_constraints)
-    from src.utils.posthoc_adjustment import targeted_correction
 
     rng = np.random.default_rng(0)
     N, C, G = 600, 7, 5
@@ -1934,8 +1883,6 @@ def test_equalize_multi_fills_to_exactly_K_so_the_items_conversion_is_exact():
     exactly K either. The scorer re-equalizes from probabilities, which is why
     the house rule is to read `full_panel` and never the stored metrics.
     """
-    from src.utils.constants import UNLIMITED
-    from scripts.full_panel import equalize_multi
 
     rng = np.random.default_rng(0)
     N, C, G = 500, 7, 4
@@ -1968,7 +1915,6 @@ def test_budgets_reads_a_post_hoc_arm_not_just_a_trained_one(tmp_path):
     lookup returned {}. Any caller that skips a run with no budget then reports
     the treatment with no control and calls it a comparison.
     """
-    import pandas as pd
     from scripts.reachability import budgets
 
     d = tmp_path / "clip" / "seed_1"
@@ -1996,10 +1942,7 @@ def test_headroom_scores_the_control_the_way_the_scorer_does(tmp_path):
     this was caught. A headroom that can go negative is measuring two different
     allocations against each other.
     """
-    import numpy as np
-    from scripts.full_panel import equalize_multi
     from scripts.headroom import f1
-    from src.utils.constants import UNLIMITED
 
     rng = np.random.default_rng(0)
     n, K, cls = 200, 20, 1
@@ -2035,9 +1978,7 @@ def test_a_cap_that_does_not_bind_gives_the_constraint_zero_gradient():
     +10.8 on 2-of-4 binding. The mean cannot show this; only the per-seed count
     can, which is why scripts/headroom.py keeps the counts per seed.
     """
-    import torch
 
-    from src.losses.transductive_loss import MulticlassTransductiveLoss
 
     K = 56.0
     loss = MulticlassTransductiveLoss(global_constraints=[K, K],
@@ -2067,10 +2008,8 @@ def test_the_dermmnist_split_is_grouped_by_lesion_not_by_label():
     Source-level, so it runs with no dataset present -- and because the failure
     is silent: a leaky split produces better-looking numbers, not an error.
     """
-    import ast
-    import io as _io
 
-    src = _io.open("data/dermmnist/create_slices.py", encoding="utf-8").read()
+    src = io.open("data/dermmnist/create_slices.py", encoding="utf-8").read()
     # AST, not grep. This file DOCUMENTS the bug by name, so a substring check
     # fires on the prose explaining why the bug is gone -- the same trap that
     # made a grep report `rho_step` as read when only a log line named it.
@@ -2101,7 +2040,6 @@ def test_the_prevalence_shift_only_touches_the_test_split():
     recoverable from TRAINING prevalence to within about one item, so the budget
     tells the model something it could already compute.
     """
-    import numpy as np
 
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..",
                                     "data", "dermmnist"))
@@ -2138,7 +2076,6 @@ def test_the_leakage_warning_is_measured_not_remembered(tmp_path, caplog):
     """
     import logging
 
-    import pandas as pd
 
     from src.utils.data_loader import _warn_lesion_leakage
 
@@ -2187,11 +2124,8 @@ def test_final_predictions_that_violate_a_cap_are_refused_not_logged(tmp_path):
     unreported, it was never looked at. A class capped only per-group has an
     UNLIMITED global budget, so every global check on it passes vacuously.
     """
-    import numpy as np
-    import pytest as _pytest
 
     from src.pipeline.eval import write_evaluation_outputs
-    from src.utils.constants import UNLIMITED
 
     n = 12
     y_test = np.zeros(n, dtype=int)
@@ -2211,12 +2145,12 @@ def test_final_predictions_that_violate_a_cap_are_refused_not_logged(tmp_path):
     run([1] * 2 + [0] * 10, [UNLIMITED, 4], {0: [UNLIMITED, 2], 1: [UNLIMITED, 2]})
 
     # GLOBAL violated
-    with _pytest.raises(RuntimeError, match="violate"):
+    with pytest.raises(RuntimeError, match="violate"):
         run([1] * 6 + [0] * 6, [UNLIMITED, 4], None)
 
     # LOCAL violated while the global budget is UNLIMITED -- the case the
     # global-only check could not see even in principle.
-    with _pytest.raises(RuntimeError, match="local group"):
+    with pytest.raises(RuntimeError, match="local group"):
         run([1] * 5 + [0] * 7, [UNLIMITED, UNLIMITED],
             {0: [UNLIMITED, 2], 1: [UNLIMITED, 2]})
 
@@ -2233,18 +2167,14 @@ def test_the_deletion_table_does_not_claim_live_code_was_deleted():
     Rather than fix the prose and hope, the table is checked: anything it says
     was removed must actually be absent.
     """
-    import io as _io
-    import re
 
-    import yaml
 
-    from src.experiments.runner import TRAIN_FNS
 
-    text = _io.open("docs/FRAMEWORK.md", encoding="utf-8").read()
+    text = io.open("docs/FRAMEWORK.md", encoding="utf-8").read()
     start = text.index("### (f) What was DELETED FROM THE CODE")
     section = text[start:text.index(chr(10) + "### ", start + 10)]
 
-    proto = yaml.safe_load(_io.open("configs/protocol.yml", encoding="utf-8"))
+    proto = yaml.safe_load(io.open("configs/protocol.yml", encoding="utf-8"))
     live_keys = set(proto.get("core", {})) | set(proto.get("constraint_phase", {}))
     for blk in proto.get("blocks", {}).values():
         live_keys |= set(blk)
@@ -2285,10 +2215,7 @@ def test_the_coin_control_matches_the_delivered_step_not_the_clip_bound():
     for hounie, whose raw norms are 0.005-0.11 against clip 1.0 -- and the bias
     runs in the direction that flatters the treatment.
     """
-    import torch
-    import torch.nn as nn
 
-    from src.training.constraint_step import finish_constraint_step
 
     def delivered(mode, target_raw, coin):
         torch.manual_seed(0)
@@ -2354,12 +2281,8 @@ def test_the_selection_arm_actually_threads_its_running_coverage_estimate():
     cov_weight * (X - tau)^2 exactly, i.e. the value is the ESTIMATE and not
     this batch's coverage.
     """
-    import ast
-    import io as _io
 
-    import torch
 
-    from src.methodologies.select.train import selective_loss
 
     tau, w, X = 0.03, 32.0, 0.20
     g = torch.full((64,), 0.5, requires_grad=True)
@@ -2383,7 +2306,7 @@ def test_the_selection_arm_actually_threads_its_running_coverage_estimate():
         "no gradient reaches g -- the detach construction broke the graph")
 
     # ...and the training loop must actually pass it.
-    src = _io.open("src/methodologies/select/train.py", encoding="utf-8").read()
+    src = io.open("src/methodologies/select/train.py", encoding="utf-8").read()
     calls = [n for n in ast.walk(ast.parse(src))
              if isinstance(n, ast.Call)
              and getattr(n.func, "id", None) == "selective_loss"]
@@ -2404,9 +2327,7 @@ def test_the_selective_risk_is_centred_so_it_does_not_only_push_coverage_down():
     the budget is the one regime where the two-allocator confound bites.
     A selective risk must pull EASY items in and push hard ones out.
     """
-    import torch
 
-    from src.methodologies.select.train import selective_loss
 
     g = torch.full((64,), 0.5, requires_grad=True)
     # All 64 ARE the capped class; the model is confident on the first half and
@@ -2439,13 +2360,10 @@ def test_no_methodology_reads_the_test_LABELS_except_to_count_them():
     -labelling -- is exactly where an accidental read would be easy to write
     and impossible to notice, so this is a gate rather than a convention.
     """
-    import ast
-    import io as _io
-    import pathlib
 
     offenders = []
     for path in sorted(pathlib.Path("src/methodologies").rglob("*.py")):
-        tree = ast.parse(_io.open(path, encoding="utf-8").read())
+        tree = ast.parse(io.open(path, encoding="utf-8").read())
         # Every `len(...)` argument is an allowed context; collect them first.
         allowed = set()
         for node in ast.walk(tree):
@@ -2472,12 +2390,10 @@ def test_the_two_fioretto_arms_initialise_both_multiplier_scopes_alike():
     so the arm-vs-arm delta would be attributable to neither. Dormant at the
     protocol's 0.0, which is exactly why only a gate catches it.
     """
-    import ast
-    import io as _io
 
     for mod in ("fioretto_ldf", "fioretto_alm"):
         path = "src/methodologies/%s/train.py" % mod
-        tree = ast.parse(_io.open(path, encoding="utf-8").read())
+        tree = ast.parse(io.open(path, encoding="utf-8").read())
         assigns = [n for n in ast.walk(tree)
                    if isinstance(n, ast.Assign)
                    and any(isinstance(t, ast.Subscript)
@@ -2498,10 +2414,8 @@ def test_alm_gates_its_constraint_pass_on_the_weights_the_loss_uses():
     multipliers pinned at 0 and the augmentation climbing, the pass was skipped
     on every epoch while `training_log.csv` wrote a rising mu_t.
     """
-    import ast
-    import io as _io
 
-    src = _io.open("src/methodologies/fioretto_alm/train.py",
+    src = io.open("src/methodologies/fioretto_alm/train.py",
                    encoding="utf-8").read()
     tree = ast.parse(src)
     node = next((n for n in ast.walk(tree)
@@ -2531,10 +2445,6 @@ def test_no_f_string_placeholder_survives_in_a_plain_string_literal():
     handed straight to `print`. Docstrings are excluded -- this repo's carry
     real algebra, and `(1 - beta) / (1 - beta^n)` is not a formatting bug.
     """
-    import ast
-    import io as _io
-    import pathlib
-    import re
 
     PLACEHOLDER = re.compile(r"\{[A-Za-z_][A-Za-z0-9_.\[\]']*\}")
 
@@ -2548,7 +2458,7 @@ def test_no_f_string_placeholder_survives_in_a_plain_string_literal():
     roots = ([pathlib.Path("main.py")] + sorted(pathlib.Path("src").rglob("*.py"))
              + sorted(pathlib.Path("scripts").rglob("*.py")))
     for path in roots:
-        tree = ast.parse(_io.open(path, encoding="utf-8").read())
+        tree = ast.parse(io.open(path, encoding="utf-8").read())
         for node in ast.walk(tree):
             # (a) a plain fragment glued into an f-string: the exact slip.
             if isinstance(node, ast.JoinedStr):
@@ -2578,8 +2488,6 @@ def test_the_scorer_says_a_skipped_run_CRASHED_rather_than_never_started(tmp_pat
     the treatment was absent. The tell is an error_log.json beside the config.
     """
     import json as _json
-    import subprocess
-    import sys as _sys
 
     run = tmp_path / "ds" / "mdl" / "L50_G30" / "tralo" / "seed_1"
     run.mkdir(parents=True)
@@ -2589,7 +2497,7 @@ def test_the_scorer_says_a_skipped_run_CRASHED_rather_than_never_started(tmp_pat
         _json.dumps({"exception_type": "OutOfMemoryError"}), encoding="utf-8")
 
     out = subprocess.run(
-        [_sys.executable, "-m", "scripts.full_panel",
+        [sys.executable, "-m", "scripts.full_panel",
          "--campaign", str(tmp_path), "--control", "clip"],
         capture_output=True, text=True).stdout
 
@@ -2652,15 +2560,12 @@ def test_no_autocast_banned_op_is_reachable_from_an_arm():
     `scripts/smoke_arms.py` cannot cover this: it runs on cpu, where autocast is
     a no-op.
     """
-    import ast
-    import io as _io
-    import pathlib
 
     BANNED = {"binary_cross_entropy", "BCELoss"}
 
     offenders = []
     for path in sorted(pathlib.Path("src").rglob("*.py")):
-        tree = ast.parse(_io.open(path, encoding="utf-8").read())
+        tree = ast.parse(io.open(path, encoding="utf-8").read())
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
                 fn = getattr(node.func, "attr", getattr(node.func, "id", ""))
@@ -2689,9 +2594,7 @@ def test_the_selective_risks_centring_estimate_is_not_self_referential():
     the centring exists to prevent. The tell was that `cov_ema`, three lines
     away, IS recomputed from the batch -- the asymmetry between the two.
     """
-    import torch
 
-    from src.methodologies.select.train import selective_loss
 
     ema, beta, seen = None, 0.9, []
     torch.manual_seed(0)
@@ -2710,3 +2613,57 @@ def test_the_selective_risks_centring_estimate_is_not_self_referential():
         "probabilities differ by 5x -- it is echoing the EMA it was handed, so "
         "the caller's EMA can never move: %s" % seen)
     assert abs(ema - seen[0]) > 1e-6, "the caller's EMA never left batch 1"
+
+
+def test_the_scorer_detects_a_run_that_collapsed_on_its_final_epoch(tmp_path):
+    """The pipeline keeps the LAST epoch unconditionally, so one bad terminal
+    epoch is the model that gets scored -- and when that run is the CONTROL,
+    every arm appears to beat it at that seed.
+
+    Measured on `results/dosefix`: `clip` seed 4 ended 0.9934 -> 0.9116 while
+    the other seven controls ended 0.9935-1.0000, and it reversed the sign of
+    the 4-seed `tralo_null` vs `clip` headline. FRAMEWORK section 9 states
+    this; this test is what makes the statement checkable.
+    """
+    from scripts.full_panel import _terminal_collapse
+
+    n = [0]
+
+    def _log(accs):
+        n[0] += 1
+        d = tmp_path / ("r%d" % n[0])
+        d.mkdir()
+        rows = ["Epoch,Train_Acc"]
+        rows += ["%d,%.4f" % (i, a) for i, a in enumerate(accs)]
+        (d / "training_log.csv").write_text(chr(10).join(rows) + chr(10))
+        return str(d)
+
+    assert _terminal_collapse(_log([0.95, 0.98, 0.9934, 0.9116])) is not None, (
+        "the detector missed the exact drop it was written for "
+        "(dosefix clip seed 4, 0.9934 -> 0.9116)")
+
+    # NEGATIVE CONTROLS -- a gate is not done until it has been shown not to
+    # fire on the things it must leave alone.
+    for accs, why in [
+        ([0.95, 0.98, 0.9934, 0.9940], "a healthy run still improving"),
+        ([0.95, 0.98, 0.9934, 0.9900], "ordinary wobble, 0.0034 < 0.02"),
+        ([0.9116, 0.9934], "a run that RECOVERED -- only the last epoch is kept"),
+    ]:
+        assert _terminal_collapse(_log(accs)) is None, "fired on " + why
+    assert _terminal_collapse(str(tmp_path / "nope")) is None, (
+        "raised or fired on a missing training_log.csv")
+
+
+def test_framework_section_9_does_not_still_carry_the_retracted_3_seed_number():
+    """I published `tralo_null` - `clip` = -5.2 items from THREE seeds. The
+    fourth reverses it (4-seed mean -0.06 items) because the `clip` control at
+    that seed collapsed on its final epoch. The retraction has to sit ABOVE the
+    superseded table or the next reader quotes the dead number.
+    """
+    txt = io.open(os.path.join(REPO, "docs", "FRAMEWORK.md"),
+                  encoding="utf-8").read()
+    assert "-0.0188" in txt, "the 3-seed table vanished; keep it as superseded"
+    head = txt.split("-0.0188")[0]
+    assert "RETRACTED AT 4 SEEDS" in head, (
+        "FRAMEWORK section 9 shows the 3-seed ccF1 table with no retraction "
+        "above it -- a reader quotes the first number they see.")

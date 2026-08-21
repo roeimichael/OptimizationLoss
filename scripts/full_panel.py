@@ -486,6 +486,40 @@ def _allocator_check(rows):
               "produced those predictions." % (arm, n, tot, 100.0 * n / tot))
 
 
+def _terminal_collapse(run_dir):
+    """Did this run's LAST epoch fall off its own trajectory?
+
+    The pipeline keeps the final epoch's weights unconditionally -- no LR
+    schedule, no best-checkpoint (`enable_checkpoint_restore: false` is a
+    deliberate protocol choice, since restore was tested as an ARM and
+    rejected). So one bad terminal epoch is baked into whatever that run
+    becomes, and if the run is a CONTROL it is baked into every comparison
+    against it.
+
+    Measured 2026-08-21 on `results/dosefix`: `clip` seed 4 ended at train
+    accuracy 0.9116 after 0.9934 the epoch before, while every other control
+    run ended 0.9935-1.0000. It scored ~15 items below its siblings, so EVERY
+    arm "beat" clip at that seed -- and it flipped the 4-seed tralo_null-vs-clip
+    delta from -5 items to zero. A single collapsed control reversed the sign
+    of the headline number.
+
+    Returns (last, prev) when the drop exceeds the threshold, else None.
+    """
+    try:
+        df = pd.read_csv(os.path.join(run_dir, "training_log.csv"))
+    except Exception:
+        return None
+    if "Train_Acc" not in df.columns or len(df) < 2:
+        return None
+    acc = pd.to_numeric(df["Train_Acc"], errors="coerce").dropna()
+    if len(acc) < 2:
+        return None
+    last, prev = float(acc.iloc[-1]), float(acc.iloc[-2])
+    # 0.02 is ~10x the epoch-to-epoch wobble of a converged run here and well
+    # below the 0.08 drop actually observed, so it separates the two cleanly.
+    return (last, prev) if last < prev - 0.02 else None
+
+
 def _identity_check(rows):
     """House rule 3: md5 the raw predictions across arms, BEFORE any metric.
 
@@ -615,6 +649,10 @@ def main():
                 skipped[st] += 1
                 continue
             r = panel(os.path.dirname(p), cfg)
+            if r:
+                # carried so the terminal-collapse check can reach
+                # training_log.csv without re-globbing the campaign
+                r["run_dir"] = os.path.dirname(p)
             if not r:
                 # A COMPLETED run that cannot be scored vanished with no
                 # message: missing prediction files, no Prob_Class_ columns, or
@@ -655,6 +693,20 @@ def main():
             print("      %s" % d)
         if len(unscorable) > 10:
             print("      ... and %d more" % (len(unscorable) - 10))
+    collapsed = [(r["arm"], r["cap"], r["seed"]) + _terminal_collapse(r["run_dir"])
+                 for r in rows if r.get("run_dir") and _terminal_collapse(r["run_dir"])]
+    if collapsed:
+        print("")
+        print("*** %d RUN(S) COLLAPSED ON THEIR FINAL EPOCH -- and the pipeline"
+              % len(collapsed))
+        print("    keeps the last epoch unconditionally, so that is the model scored.")
+        for arm, cap, seed, last, prev in sorted(collapsed):
+            print("      %-12s %-10s seed %-4s train acc %.4f -> %.4f"
+                  % (arm, cap, seed, prev, last))
+        if any(a == args.control for a, _c, _s, _l, _p in collapsed):
+            print("    >>> ONE OF THESE IS THE CONTROL `%s`. Every arm will appear to"
+                  % args.control)
+            print("        beat it at that seed, and a 4-seed mean can change SIGN on it.")
     _allocator_check(rows)
     _identity_check(rows)
     _reordering_check(rows)
