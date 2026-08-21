@@ -1574,6 +1574,15 @@ wrong, and 2 changes the problem rather than the method.
        L30_G30       0.4331    0.4621     0.0290
        L50_G50       0.6091    0.6688     0.0597
 
+   ⚠️ **These are NOT the archived headroom numbers, and the difference is the metric,
+   not a contradiction.** The archived table (0.048-0.059 at L30, 0.115-0.131 at L50,
+   mean 0.0669) is **single-class**, class 4 alone, K = 67 and 112. The numbers above are
+   **macro-averaged over two capped classes** on the multi-class campaign. The CEILINGS
+   agree to four decimals -- 0.462 and 0.669 both ways -- which confirms the same formula
+   is being applied; only the achieved value differs, because a macro average over two
+   classes is a different quantity from one class's F1. ⇒ **never compare a headroom
+   figure across campaigns without checking how many classes it averages.**
+
    Headroom roughly DOUBLES from a 30% to a 50% cap, and the paired difference sd is
    0.0017 (L50_G30, linear) to 0.04 (L30_G20). ⇒ **L50 and L40 can resolve a win; L30
    is marginal and L20 cannot resolve one in principle.** That is why the campaign is
