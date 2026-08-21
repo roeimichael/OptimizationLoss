@@ -2102,3 +2102,74 @@ def test_a_cap_that_does_not_bind_gives_the_constraint_zero_gradient():
             pen.backward()
             assert float(soft.grad) == 0.0, (
                 "no gradient reaches the model from a satisfied cap")
+
+def test_the_dermmnist_split_is_grouped_by_lesion_not_by_label():
+    """The split MUST be group-aware. A label-only split leaks by construction.
+
+    HAM10000 photographs many lesions more than once -- 10,015 images over 7,470
+    lesions, 26.2% of lesions with more than one image. Splitting on the label
+    alone therefore puts two photographs of the SAME lesion on opposite sides:
+    measured, 38.7% of the test set and 67.3% of the melanoma test set shared a
+    lesion with a training image.
+
+    Source-level, so it runs with no dataset present -- and because the failure
+    is silent: a leaky split produces better-looking numbers, not an error.
+    """
+    import ast
+    import io as _io
+
+    src = _io.open("data/dermmnist/create_slices.py", encoding="utf-8").read()
+    # AST, not grep. This file DOCUMENTS the bug by name, so a substring check
+    # fires on the prose explaining why the bug is gone -- the same trap that
+    # made a grep report `rho_step` as read when only a log line named it.
+    tree = ast.parse(src)
+    called = {n.func.id for n in ast.walk(tree)
+              if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+    imported = {a.name for n in ast.walk(tree)
+                if isinstance(n, ast.ImportFrom) for a in n.names}
+    assert "StratifiedShuffleSplit" not in (called | imported), (
+        "create_slices.py is back to a label-only split. That is the leak.")
+    assert "StratifiedGroupKFold" in imported, "the grouped splitter must be used"
+    assert "StratifiedGroupKFold" in src and "groups=groups" in src, (
+        "the split must be grouped by lesion_id")
+    assert "lesion_id" in src and "image_id" in src, (
+        "both ids must be carried into the slice so the check is reproducible "
+        "from the slice alone")
+    assert "raise AssertionError" in src, (
+        "a slice that shares a lesion between train and test must FAIL rather "
+        "than reach disk -- nothing downstream can detect it")
+
+
+def test_the_prevalence_shift_only_touches_the_test_split():
+    """`--shift` must move test prevalence without creating leakage.
+
+    It drops whole images from the TEST side only, so no training item moves and
+    no lesion changes sides. The point is to break the correspondence that makes
+    K inferable: under a stratified split the capped class's test count is
+    recoverable from TRAINING prevalence to within about one item, so the budget
+    tells the model something it could already compute.
+    """
+    import numpy as np
+
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..",
+                                    "data", "dermmnist"))
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "_slices", os.path.join(os.path.dirname(__file__), "..", "data",
+                                "dermmnist", "create_slices.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    labels = np.array([4] * 200 + [0] * 800)
+    test_idx = np.arange(1000)
+    rng = np.random.default_rng(0)
+    kept = mod.shift_test(test_idx, labels, cls=4, factor=0.5, rng=rng)
+
+    assert (labels[kept] == 4).sum() == 100, "half the capped class must remain"
+    assert (labels[kept] == 0).sum() == 800, "no OTHER class may be touched"
+    assert set(kept).issubset(set(test_idx)), (
+        "the shift may only REMOVE test items -- it must never add one, which "
+        "is what would let a training item cross over")
+    before = (labels[test_idx] == 4).mean()
+    after = (labels[kept] == 4).mean()
+    assert after < before, "the whole point is that test prevalence moves"
