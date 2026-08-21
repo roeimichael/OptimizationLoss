@@ -89,11 +89,19 @@ python -m scripts.score_scan <root>         # AUROC / prec@K / Jaccard, grouped 
    order of magnitude, and macro-F1 is carried by the UNCAPPED classes, which swing with
    the seed. `d capF1` is quantised -- with exactly K predictions emitted, `F1 = 2TP/(K+n)`
    -- so it must be an integer multiple of `1/(K+n)` or there is an arithmetic bug.
+   **CONVERT IT TO ITEMS: `items = dF1 * (K+n)/2`.** `full_panel` prints the scale per
+   cell. The whole gap from `clip` to a PERFECT allocator is **1.9-9.9 items**, and the
+   paired seed sd is worth ~2.7 -- so 0.02 is not a small effect, it can be the entire
+   headroom, and a sub-item delta is a re-allocation, not a difference.
 3. **Check reachability before choosing a cap.** The penalty's per-item gradient scales
-   with `p(1-p)`, so it can only move the cut when the K-th ranked item is not already
-   near certainty. `p(1-p)` = 0.026 at `L30_G20` (0/4 seeds respond) vs 0.055 at
-   `L50_G30` (4/4). This is also what "CE saturates" means -- converging the model drops
-   that slope 60x, which is why warm-up 50 makes every method identical.
+   with `p(1-p)`. At the K-th RANKED item that is 0.026 at `L30_G20` (0/4 seeds respond)
+   vs 0.055 at `L50_G30` (4/4), and converging the model drops it 60x -- which is what
+   "CE saturates" means and why warm-up 50 makes every method identical.
+   ⚠️ **But rank K is NOT the decision boundary**, and the two get conflated. When the
+   hard count is 300 against K=44, the boundary is at item 300 and rank 44 is buried
+   inside the class. At the boundary `p(1-p)` is near its MAXIMUM, and `sum` already puts
+   29.4% of its gradient there. Say which point you mean; `docs/FRAMEWORK.md` section 4
+   has the measurement.
 
 `smoke_arms` exists because the config gates are structurally blind to a runtime
 crash: three arms once shipped with an undefined name in `train()`, burned all 29
