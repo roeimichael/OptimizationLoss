@@ -70,12 +70,19 @@ def margin_window(proba, temp):
     """Soften the ARGMAX instead of summing probabilities. Returns (N, C).
 
     WHY. The manuscript's count is `s_c = sum_i p_ic`, whose per-item
-    derivative is p(1-p): largest where the model is UNSURE, and ~zero at the
-    cut -- which is the only place a prediction can actually change. Measured
-    at the K-th ranked item, p(1-p) = 0.026 at L30_G20 (0 of 4 seeds responded)
-    vs 0.055 at L50_G30 (4 of 4), and 0.0009 once CE has converged. That single
-    quantity explains the headroom pattern, why warm-up 50 is a dead regime,
-    and why a tight cap cannot be won.
+    derivative is p(1-p). At the K-th RANKED item that is 0.026 at L30_G20
+    (0 of 4 seeds responded) vs 0.055 at L50_G30 (4 of 4), and 0.0009 once CE
+    has converged -- which is what "CE saturates" means and why warm-up 50 is
+    a dead regime.
+
+    !! But rank K is NOT the decision boundary, and conflating them overstates
+    this. When the hard count is 300 against K = 44 the boundary sits at item
+    300 and rank 44 is buried inside the class; at the boundary p(1-p) is near
+    its MAXIMUM, and measured on the stored evidence `sum` already places 29.4%
+    of its total gradient on the 20 items nearest it -- 15x uniform. What the
+    margin window buys is therefore smaller than "the gradient cannot reach the
+    cut" suggests: on the items that must actually flip it is at most 1.30x,
+    and only at a very narrow window. See docs/FRAMEWORK.md section 4.
 
     So put the weight on the cut: `sigma(m_ic / T)`, whose derivative peaks at
     margin 0 -- at the decision boundary, on the items one step from flipping

@@ -150,12 +150,17 @@ blocks:
     initial_rho: 0.5
     rho_target: 100.0         # rho_step is DERIVED from this; a config rho_step is ignored
     # WHERE THE COUNT PUTS ITS GRADIENT. `sum` is the manuscript's count
-    # s_c = sum_i p_ic, whose per-item derivative is p(1-p): largest where the
-    # model is UNSURE, and ~zero at the cut, which is the only place a
-    # prediction can actually change. Measured at the K-th ranked item:
-    # p(1-p) = 0.026 at L30_G20 (0 of 4 seeds responded) vs 0.055 at L50_G30
-    # (4 of 4), and 0.0009 once CE has converged -- the same quantity that
-    # makes warm-up 50 a dead regime and a tight cap unwinnable.
+    # s_c = sum_i p_ic, whose per-item derivative is p(1-p). At the K-th RANKED
+    # item that is 0.026 at L30_G20 (0 of 4 seeds responded) vs 0.055 at
+    # L50_G30 (4 of 4), and 0.0009 once CE has converged -- which is what "CE
+    # saturates" means and why warm-up 50 is a dead regime.
+    #
+    # WARNING: rank K is NOT the decision boundary. When the hard count is 300
+    # against K = 44 the boundary is at item 300 and rank 44 is buried inside
+    # the class; at the boundary p(1-p) is near its MAXIMUM and `sum` already
+    # puts 29.4% of its gradient on the 20 items nearest it. So the margin
+    # window buys less than "the gradient cannot reach the cut" implies --
+    # at most 1.30x on the items that must flip. FRAMEWORK section 4.
     #
     # `margin` keeps the count and moves its weight: it replaces p_ic with
     # sigmoid((p_ic - max_{c' != c} p_ic')/T) -- the softened ARGMAX -- whose
