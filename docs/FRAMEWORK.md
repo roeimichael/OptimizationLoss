@@ -280,6 +280,37 @@ this shape starves. Shape sets the see-saw's SIZE in exactly the predicted order
 `penalty_shape` as the dial on the coupling, never as a remedy. And note the two views
 disagree -- worse on every allocation-free measure, better after allocation.
 
+### (7) The two-allocator confound is EXACTLY ZERO -- except when an arm under-shoots
+
+The trained arms post-process with `targeted_correction` (`src/utils/posthoc_adjustment.py`:
+reduce over-limit, then fill under-limit, then local -- three sequential phases). `clip`
+and `focal_clip` use `apply_allocation_heuristic` (`src/methodologies/heuristic/train.py`:
+ONE joint pass over every (item, capped class) pair in descending probability, so the
+capped classes compete for the same items). Different code, so every tralo-vs-clip number
+in this project has carried a suspected confound.
+
+**Measured 2026-08-21, item by item, same probabilities through both procedures:**
+
+| run | raw counts vs budget | items differing | `d capF1` |
+|---|---|---|---|
+| mc29 `clip` / `null` / `tralo` (L50_G30) | both over | **0 of 2003** | 0.0000 |
+| `seed2/3/4_bounded` (L30_G20) | both over | **0 of 2003** | 0.0000 |
+| `seed1_bounded` (L30_G20) | **c4 = 40 UNDER K=45** | **12** | **+0.0149** |
+
+⇒ **identical whenever every capped class is over budget, which is the normal case.**
+They diverge only on the under-budget FILL path, and there the joint pass is better.
+🎯 **So the confound is not general -- it is a penalty specifically on arms that
+OVER-SUPPRESS a class below its own budget**, which is exactly what the shipped
+`rational_bounded` shape does. Seed 1's -0.0149 for that shape is precisely the amount
+the better allocator recovers.
+
+⇒ **Comparisons where all arms stay over budget are allocator-clean and need no caveat.**
+Where an arm under-shoots, re-score every arm through ONE allocator before reading it.
+⚠️ Do NOT swap the trained arms' allocator mid-campaign -- it would make later seeds
+incomparable to earlier ones.
+
+---
+
 ### (6) At `L30_G20` a COIN does the same damage -- the direction carries no information
 
 `constraint_random_direction` replaces the constraint gradient with a random vector of
