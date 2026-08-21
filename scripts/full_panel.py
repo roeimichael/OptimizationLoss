@@ -578,6 +578,7 @@ def main():
 
     rows = []
     skipped = collections.Counter()
+    crashed = collections.Counter()
     unscorable = []
     prov = collections.Counter()
     for camp in args.campaign:
@@ -592,7 +593,26 @@ def main():
             # place while leaving the OLD final_predictions.csv on disk, so the
             # previous code's predictions get scored as the new code's result.
             if cfg.get("status") != "completed":
-                skipped[cfg.get("status", "no status")] += 1
+                # A run that CRASHED is reset to `pending` by the dispatcher,
+                # which makes it indistinguishable from one that never started
+                # -- so a campaign whose entire TREATMENT arm died reads as
+                # "merely unfinished". Measured 2026-08-21: all 8 `tralo` runs
+                # of `results/dosefix` died of CUDA OOM in the transductive
+                # forward while every control completed (the lambda=0 arm skips
+                # that pass entirely), and the panel reported only the controls.
+                # The tell is an error_log.json sitting beside the config.
+                st = cfg.get("status", "no status")
+                err = os.path.join(os.path.dirname(p), "error_log.json")
+                if os.path.exists(err):
+                    try:
+                        e = json.load(open(err))
+                        e = e[-1] if isinstance(e, list) else e
+                        kind = e.get("exception_type", "unknown")
+                    except Exception:
+                        kind = "unreadable error_log.json"
+                    crashed[(cfg.get("arm", "?"), kind)] += 1
+                    st = "%s (CRASHED)" % st
+                skipped[st] += 1
                 continue
             r = panel(os.path.dirname(p), cfg)
             if not r:
@@ -641,6 +661,19 @@ def main():
     if skipped:
         print("skipped %d run(s) that are not completed: %s"
               % (sum(skipped.values()), dict(skipped)))
+    if crashed:
+        print("")
+        print("*** %d SKIPPED RUN(S) DID NOT MERELY FAIL TO START -- THEY CRASHED."
+              % sum(crashed.values()))
+        for (arm, kind), n in sorted(crashed.items()):
+            print("      %-16s %-24s %d run(s)" % (arm, kind, n))
+        print("    The dispatcher resets an interrupted run to `pending`, so a dead")
+        print("    arm looks identical to an unstarted one. If the crashed arm is the")
+        print("    TREATMENT, every comparison below is between controls only.")
+        for arm, _k in {(a, k) for a, k in crashed}:
+            if arm in RAW_MD5 or any(r.get("arm") == arm for r in rows):
+                continue
+            print("    >>> `%s` contributed NO scorable run at all." % arm)
     if not rows:
         sys.exit("no scorable runs")
     df = pd.DataFrame(rows)

@@ -1313,7 +1313,7 @@ documented instead of fixed. Verified against the tree 2026-08-21:
 | `base_loss`, `alpha_kl` | keys no reader ever read | ✅ **deleted**; `audit_config` (AST) now fails the build on any such key |
 | `reset_optimizer_at_sat` | bit-identical no-op at warm-up 1 (16/16) | ✅ **deleted** |
 | `constraint_class_weights` (`by_k`/`inv_k`/`uniform`) | `uniform` was a documented no-op | ✅ **deleted** |
-| `enable_ce_skip` | reached only TraLO; a 0.22 cc-F1 artifact | ✅ **deleted**; a test pins that no trained arm can miss the gate |
+| `enable_ce_skip` / `ce_skip_acc` | reached only TraLO; a 0.22 cc-F1 artifact | ✅ **deleted TWICE**. Re-added 2026-08-20 as a shared `CESaturationSkip` with `ce_skip_acc: 0.0`, which made the gate structurally unfireable: `self.skipping = True` is its only write and it sits under `if not self.enabled` where `enabled` is `threshold > 0.0`. Verified by md5 -- with the object stubbed out, 10 of 11 trained arms are bit-identical and the 11th (`tralo_coin`) is self-nondeterministic under its own negative control. **Deleted for good 2026-08-21**: an unfireable gate is a dormant re-add, not a knob. |
 | `class_balanced`/`logit_adjust` inert on octmnist | a DATA fact, not dead code | ✅ explained: octmnist's groups are `index % 3` (see the dataset audit) |
 
 🔑 **The standing rule this section exists to enforce: a defect is either FIXED or it is
@@ -1335,7 +1335,7 @@ merely defaulted off -- a config can no longer *imply* a knob that does not exis
 | `reset_optimizer_at_sat` | Adam reset at satisfaction | bit-identical no-op at warm-up 1 (16/16) |
 | `constraint_class_weights` (`by_k`/`inv_k`) | per-class penalty weighting | the `uniform` branch was a documented no-op |
 | `alpha_kl` + the whole KL anchor | KL to warm-up predictions | out of scope by decision |
-| `enable_ce_skip` + CE-skip machinery | stop CE at saturation | reached only TraLO; fabricated a 0.22 cc-F1 artifact |
+| `enable_ce_skip` + CE-skip machinery | stop CE at saturation | reached only TraLO; fabricated a 0.22 cc-F1 artifact. Re-added 2026-08-20 as a shared object defaulting to OFF, deleted again 2026-08-21 -- proved unfireable at the default, see section 2e |
 | `disable_freeze_on_satisfy` | ratchet/rho freeze ablation | never used; protocol freezes on satisfy |
 
 | 5 methodology packages | tralo_bounded, fioretto_rh, fioretto_restart, hounie_rh, alm_rh | dead arms |
@@ -1389,7 +1389,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 165 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 161 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1397,7 +1397,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (165 tests, ~35 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (161 tests, ~35 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -2129,7 +2129,7 @@ scripts/verify_caps.py   the caps bind, on the real dataset slices
 scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             165 tests, ~35 s, no dataset required
+tests/             161 tests, ~35 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

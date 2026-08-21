@@ -1305,22 +1305,19 @@ def test_every_training_log_gets_a_header_not_just_tralo_s(tmp_path):
     assert float(df["Lambda_Global"].iloc[0]) == 0.25
 
 
-def test_ce_skip_lives_in_the_shared_block_and_reaches_every_trained_arm():
-    """The defect that got CE-skip deleted was ASYMMETRY, not the mechanism.
+def test_constraint_phase_reaches_every_trained_arm_and_no_posthoc_one():
+    """A shared knob must reach all four trained arms, or none of them.
 
-    `enable_ce_skip` was declared by TraLO alone, so a campaign ran the gate off
-    for TraLO and on for both duals -- a 0.22 cc-F1 artifact against a
-    0.019-0.031 margin. The structural fix is that the keys live in
-    `constraint_phase`, which every trained arm includes and no post-hoc arm
-    does, so one assignment reaches all of them or none.
+    This is the structure the CE-saturation gate violated: its flag was
+    declared by TraLO alone, so a campaign ran it off for TraLO and on for
+    both duals -- a 0.22 cc-F1 artifact against a 0.019-0.031 margin. Any
+    shared constraint knob therefore lives in `constraint_phase`, which every
+    trained arm includes and no post-hoc arm does, so one assignment cannot
+    reach one arm and not another.
     """
     import yaml
     proto = yaml.safe_load(open("configs/protocol.yml", encoding="utf-8"))
     cp = proto["constraint_phase"]
-    assert "ce_skip_acc" in cp and "ce_skip_patience" in cp
-    assert cp["ce_skip_acc"] == 0.0, (
-        "the committed default must be OFF -- every result so far was produced "
-        "with CE running every epoch")
 
     trained = [a for a, spec in proto["arms"].items()
                if spec.get("phase") == "trained"]
@@ -1344,59 +1341,14 @@ def test_ce_skip_lives_in_the_shared_block_and_reaches_every_trained_arm():
                 (arm, sorted(leaked)))
             continue
         assert "constraint_phase" in spec["blocks"], (
-            "%s is a trained arm that does NOT include constraint_phase, so the "
-            "CE-skip gate would silently miss it. If it genuinely takes no "
-            "constraint step, declare `constraint_step: false` on the arm."
-            % arm)
+            "%s is a trained arm that does NOT include constraint_phase, so a "
+            "shared constraint knob would silently miss it. If it genuinely "
+            "takes no constraint step, declare `constraint_step: false`." % arm)
     for arm, spec in proto["arms"].items():
         if spec.get("phase") == "posthoc":
             assert "constraint_phase" not in (spec.get("blocks") or []), (
                 "%s is post-hoc; emitting a constraint-phase key for it would "
                 "be a key with no reader" % arm)
-
-    # and no arm-level block may redeclare it -- that is how the asymmetry
-    # reappears
-    for name, blk in (proto.get("blocks") or {}).items():
-        if isinstance(blk, dict):
-            for k in ("ce_skip_acc", "ce_skip_patience", "enable_ce_skip"):
-                assert k not in blk, (
-                    "block %r redeclares %s; it must come ONLY from the shared "
-                    "constraint_phase block" % (name, k))
-
-
-def test_ce_skip_is_a_live_gate_not_an_inert_flag():
-    """A flag that is read but changes nothing is this project's #1 failure."""
-    from src.training.ce_schedule import CESaturationSkip
-
-    off = CESaturationSkip({"ce_skip_acc": 0.0})
-    assert not off.enabled
-    for e in range(10):
-        off.update(1.0, e)
-    assert not off.should_skip(), "a disabled gate must never fire"
-
-    on = CESaturationSkip({"ce_skip_acc": 0.995, "ce_skip_patience": 2})
-    assert on.enabled
-    on.update(0.99, 0)
-    assert not on.should_skip(), "below threshold must not arm the gate"
-    on.update(0.996, 1)
-    assert not on.should_skip(), "one saturated epoch is not `patience`"
-    on.update(0.997, 2)
-    assert on.should_skip(), "two consecutive saturated epochs must fire it"
-    assert on.skip_from_epoch == 2
-
-    # the streak must RESET on a dip, or patience means nothing
-    r = CESaturationSkip({"ce_skip_acc": 0.995, "ce_skip_patience": 2})
-    r.update(0.996, 0)
-    r.update(0.5, 1)
-    r.update(0.996, 2)
-    assert not r.should_skip(), "a dip must reset the streak"
-    r.update(0.996, 3)
-    assert r.should_skip()
-
-    # and once fired it LATCHES -- an un-latching gate would let the 126 CE
-    # steps per epoch back in, which is the force it exists to remove
-    r.update(0.1, 4)
-    assert r.should_skip(), "the gate must latch"
 
 
 def test_the_bounded_shape_starves_the_deepest_violator_and_the_hinges_do_not():
@@ -1584,53 +1536,6 @@ def test_no_arm_hand_rolls_its_own_constraint_step(arm):
     assert "constraint_autocast" in src, (
         "%s does not use the shared constraint autocast, so --constraint-fp32 "
         "cannot reach it and it can still lose epochs to fp16 overflow" % arm)
-
-
-@pytest.mark.parametrize("arm", ["tralo", "fioretto_ldf", "hounie_rcl",
-                                 "fioretto_alm"])
-def test_every_trained_arm_wires_the_same_ce_skip(arm):
-    """All four must construct it, gate the CE loop on it, and feed it.
-
-    Checked as source structure rather than behaviour because the failure being
-    guarded is one arm silently not having the wiring at all -- which is
-    invisible to any test that only runs the arms that do.
-
-    The scope walk below is not decoration. The `in src` assertions alone
-    passed on 2026-08-20 while SIX arms could not run at all: the three duals
-    split their constraint phase into `_train_constraints`, so `ce_skip` was
-    constructed in that helper and `ce_skip.summary()` was read in `train()` --
-    two different scopes, every string present, `NameError` at runtime. Only
-    `smoke_arms` caught it, and only because it executes. A substring test
-    cannot see a scope, so it must not be the only guard on a name.
-    """
-    import ast
-    path = "src/methodologies/%s/train.py" % arm
-    src = open(path, encoding="utf-8").read()
-    assert "from src.training.ce_schedule import CESaturationSkip" in src
-    assert "ce_skip = CESaturationSkip(hp)" in src, (
-        "%s does not construct the gate" % arm)
-    assert "[] if ce_skip.should_skip()" in src, (
-        "%s does not gate its CE pass on it" % arm)
-    assert "ce_skip.update(cached_train_acc, epoch)" in src, (
-        "%s never feeds the gate, so it could never fire" % arm)
-    assert "ce_skip" in src.split("def train(")[-1], (
-        "%s does not report whether its gate fired -- 'never fired' and 'fired "
-        "and did nothing' are different results that look identical in the "
-        "metrics" % arm)
-
-    # every function that READS `ce_skip` must also BIND it in that same scope
-    for fn in [n for n in ast.walk(ast.parse(src))
-               if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]:
-        reads, binds = False, False
-        for n in ast.walk(fn):
-            if isinstance(n, ast.Name) and n.id == "ce_skip":
-                if isinstance(n.ctx, ast.Load):
-                    reads = True
-                else:
-                    binds = True
-        assert not (reads and not binds), (
-            "%s: %s() reads `ce_skip` but never binds it in its own scope -- "
-            "this is a NameError the moment the arm runs" % (arm, fn.name))
 
 
 def test_the_margin_count_is_a_real_count_not_a_constant():
@@ -2589,3 +2494,38 @@ def test_no_f_string_placeholder_survives_in_a_plain_string_literal():
     assert not offenders, (
         "these string literals contain an f-string placeholder but are not "
         "f-strings, so they print the braces: %s" % offenders)
+
+
+def test_the_scorer_says_a_skipped_run_CRASHED_rather_than_never_started(tmp_path):
+    """A dead treatment arm must not read as "campaign merely unfinished".
+
+    The dispatcher resets an interrupted run to `pending`, which makes a run
+    that CRASHED indistinguishable from one that never started. Measured
+    2026-08-21 on `results/dosefix`: all 8 `tralo` runs died of CUDA OOM in the
+    transductive forward while every control completed -- the lambda=0 arm
+    skips that pass entirely, so it never allocates the chunk that OOMs -- and
+    the panel reported a clean comparison between controls with no hint that
+    the treatment was absent. The tell is an error_log.json beside the config.
+    """
+    import json as _json
+    import subprocess
+    import sys as _sys
+
+    run = tmp_path / "ds" / "mdl" / "L50_G30" / "tralo" / "seed_1"
+    run.mkdir(parents=True)
+    (run / "config.json").write_text(
+        _json.dumps({"status": "pending", "arm": "tralo"}), encoding="utf-8")
+    (run / "error_log.json").write_text(
+        _json.dumps({"exception_type": "OutOfMemoryError"}), encoding="utf-8")
+
+    out = subprocess.run(
+        [_sys.executable, "-m", "scripts.full_panel",
+         "--campaign", str(tmp_path), "--control", "clip"],
+        capture_output=True, text=True).stdout
+
+    assert "CRASHED" in out, (
+        "a run with an error_log.json was reported as merely not-completed:\n%s"
+        % out[-1500:])
+    assert "OutOfMemoryError" in out, "the exception type was not surfaced"
+    assert "tralo" in out and "NO scorable run" in out, (
+        "the scorer did not say which arm contributed nothing")
