@@ -1583,6 +1583,24 @@ wrong, and 2 changes the problem rather than the method.
    classes is a different quantity from one class's F1. ⇒ **never compare a headroom
    figure across campaigns without checking how many classes it averages.**
 
+   🎯 **AND THE CAP LEVEL IS A TRADE-OFF, measured -- neither end is free.** How far over
+   budget the model starts, same runs:
+
+       cap        class   hard      K   excess   % over   headroom
+       L30_G30      1     79.8     31     48.8     157%    0.0290
+       L30_G30      2    150.0     66     84.0     127%    0.0290
+       L30_G30      4    106.2     67     39.2      59%    0.0290
+       L50_G50      1     68.0     52     16.0      31%    0.0597
+       L50_G50      2    158.0    110     48.0      44%    0.0597
+       L50_G50      4    138.8    112     26.8      24%    0.0597
+
+   A tight cap gives the constraint **2-3x more items to move and half the headroom to
+   win**; a loose one the reverse. ✅ Two things follow for the campaign: at L40/L50 the
+   excess is still 16-48 items, so the constraint is **not inert** there -- it is not a
+   case of picking a cap so loose that nothing binds -- and every cell starts **24-157%
+   over budget**, so the "seed already satisfied, takes no step" failure is unlikely at
+   these levels.
+
    Headroom roughly DOUBLES from a 30% to a 50% cap, and the paired difference sd is
    0.0017 (L50_G30, linear) to 0.04 (L30_G20). ⇒ **L50 and L40 can resolve a win; L30
    is marginal and L20 cannot resolve one in principle.** That is why the campaign is
