@@ -21,7 +21,7 @@ or dose" from "consistent signal at every seed". It also explains the archived
 headroom result -- headroom grows with the cap because a looser budget puts the
 cut where the gradient can still act, not merely because more items are in play.
 
-🛑 MEASURE IT EARLY -- THE WINDOW CLOSES AS CE CONVERGES. Reachability is not a
+*** MEASURE IT EARLY -- THE WINDOW CLOSES AS CE CONVERGES. Reachability is not a
 property of the cap alone; it is a property of the cap AND how converged the
 model is. The same L50_G30 cell measured on a 4-epoch model has its boundary at
 p = 0.939, and measured on the 30-epoch model at p = 0.9990 -- p(1-p) falls from
@@ -29,7 +29,7 @@ p = 0.939, and measured on the 30-epoch model at p = 0.9990 -- p(1-p) falls from
 constraint phase. Run it on a converged model and it will say OUT OF REACH for
 every cell, because by then it is.
 
-🔑 THIS IS WHAT "CE SATURATES" MEANS, MECHANICALLY. The oldest rule in the
+KEY: THIS IS WHAT "CE SATURATES" MEANS, MECHANICALLY. The oldest rule in the
 framework is never to run warm-up 50, because CE saturates and every method
 becomes identical. Saturation IS the boundary probability approaching 1: at
 p = 0.999 the penalty's per-item gradient at the cut is 0.001, so the count term
@@ -52,7 +52,7 @@ window is worse-targeted than the count it replaces. The crossover sits between
 10 and 20 items on converged models, and higher at warm-up 1. The second table
 below re-derives it on whatever runs you point it at.
 
-⚠️ `sum` IS NOT BLIND TO THE BOUNDARY, whatever the older reasoning says. 29.4%
+!! `sum` IS NOT BLIND TO THE BOUNDARY, whatever the older reasoning says. 29.4%
 of the weight on 2% of the items is 15x uniform. `p(1-p)` was measured at the
 K-th RANKED item, which is not the decision boundary: with a hard count of 300
 against K = 44 the boundary is at item 300 and rank 44 is buried inside the

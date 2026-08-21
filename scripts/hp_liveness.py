@@ -23,7 +23,7 @@ So the prediction this script tests, per knob:
     lambda_step                                    -> depends on whether the
                                                       ratchet outruns the clip
 
-⚠️ READ THE `clip binds` COLUMN. On this tiny smoke net the raw gradient norm
+!! READ THE `clip binds` COLUMN. On this tiny smoke net the raw gradient norm
 may sit BELOW the clip, in which case the clip is not normalising anything and a
 magnitude knob will look live here while being dead on a real backbone where the
 clip binds every epoch. A verdict from this script is only transferable when the
