@@ -904,7 +904,13 @@ warm-up with a different training loss is a dead flag, which has happened four t
 ### Scoring
 
 - **`scripts/full_panel.py` is the only scorer.** Never read `evaluation_metrics.csv`
-  (two-allocator confound).
+  (two-allocator confound). ✅ A second, concrete reason found 2026-08-21: the RUNTIME
+  allocator does not fill the budget exactly. On the stored evidence `targeted_correction`
+  emits **K-1 on 22 of 88** (run, capped class) pairs -- never OVER, so no cap is ever
+  violated, but not exactly K either, and one item is worth up to 0.006 capF1 here. The
+  scorer re-equalizes from the probabilities and does hit exactly K every time (pinned by
+  a test), so the shortfall never reaches a scored number -- but it does reach anything
+  read off the stored predictions.
 - **Atomic cell = (dataset, backbone, cap, method), averaged over the 4 seeds.**
   Never pool across levels, backbones, or datasets. Summaries **count cells**.
   A generator that sweeps a dimension must put that dimension **in the cell key**, not just
