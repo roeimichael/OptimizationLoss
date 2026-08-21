@@ -1376,6 +1376,60 @@ def test_ce_skip_is_a_live_gate_not_an_inert_flag():
     assert r.should_skip(), "the gate must latch"
 
 
+def test_the_threshold_soft_count_puts_its_gradient_on_the_cut():
+    """The whole point: move WHERE the gradient lands, not how big it is.
+
+    The plain soft count sum_i p_i has d s/d logit_i = p_i(1-p_i), which peaks
+    at p = 0.5 and vanishes as p -> 1. Measured, the cut sits at p = 0.94 on a
+    4-epoch model and 0.999 converged, so the plain count pushes hardest on
+    items the cap never reads. This asserts the replacement does the opposite.
+    """
+    import torch
+    from src.losses.transductive_loss import threshold_soft_count
+
+    # 200 items, probabilities spread over (0, 1). The cut is the 20th largest.
+    torch.manual_seed(0)
+    logits = torch.linspace(-4.0, 4.0, 200).clone().requires_grad_(True)
+    p = torch.sigmoid(logits)
+    K = 20
+    tau = torch.topk(p.detach(), K).values[-1]
+
+    # temp must be small relative to the spacing of probabilities near the cut.
+    # At 0.02 the window is wider than the whole top-20 spread (~0.022), the
+    # sigmoid factor goes flat across it, and p(1-p) dominates again -- the very
+    # defect this replaces. 0.002 is inside the spacing.
+    threshold_soft_count(p, K, temp=0.002).backward()
+    g_thresh = logits.grad.abs().clone()
+
+    logits.grad = None
+    p2 = torch.sigmoid(logits)
+    p2.sum().backward()
+    g_plain = logits.grad.abs().clone()
+
+    at_cut = int((p.detach() - tau).abs().argmin())
+    at_half = int((p.detach() - 0.5).abs().argmin())
+
+    # the plain count pushes hardest at p = 0.5, which is not where a cap reads
+    assert g_plain[at_half] > g_plain[at_cut]
+    # the threshold count pushes hardest AT the cut
+    assert g_thresh[at_cut] > g_thresh[at_half], (
+        "threshold_soft_count must concentrate its gradient at tau")
+    # and the WEIGHT must have moved toward the cut, which is the actual claim:
+    # the cut-to-midpoint gradient ratio should be orders of magnitude larger
+    # than the plain count's.
+    r_thresh = float(g_thresh[at_cut] / g_thresh[at_half])
+    r_plain = float(g_plain[at_cut] / g_plain[at_half])
+    assert r_thresh > 100 * r_plain, (
+        "gradient weight did not move to the cut: ratio %.3g vs %.3g"
+        % (r_thresh, r_plain))
+
+    # and it must still be a COUNT: near the hard count above the cut
+    hard = float((p.detach() >= tau).sum())
+    soft = float(threshold_soft_count(p.detach(), K, temp=0.002))
+    assert abs(soft - hard) < 2.0, (
+        "it stopped approximating the count it is supposed to be")
+
+
 def test_the_bounded_shape_starves_the_deepest_violator_and_the_hinges_do_not():
     """The measured multi-class failure, pinned as a property.
 

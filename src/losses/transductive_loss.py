@@ -30,6 +30,54 @@ import torch.nn.functional as F
 from src.utils.constants import UNLIMITED, EPSILON
 
 
+def threshold_soft_count(p, K, temp):
+    """A soft count whose per-item gradient lands ON the cut, not at p = 0.5.
+
+    The shipped soft count is `sum_i p_i`, so `d s / d logit_i = p_i(1 - p_i)`:
+    it peaks where the model is UNSURE and vanishes as `p -> 1`. The penalty
+    shape only rescales `d penalty / d s` -- for `linear` it is the constant
+    `1/K` -- so no shape moves WHERE the gradient lands. Measured on dermmnist
+    x ViTB16, the cut (the K-th largest probability) sits at p = 0.94 on a
+    4-epoch model and p = 0.999 once converged, where `p(1-p)` is 0.055 and
+    0.0009. That is why the penalty reshuffles the middle of the ranking --
+    Jaccard 0.29-0.42 against its own control -- and leaves prec@K unmoved.
+
+    This keeps the count and moves its weight:
+
+        s_c = sum_i sigmoid((p_i - tau) / temp),   tau = the K-th largest p_i
+
+    whose per-item derivative peaks exactly at `tau`. It remains a transductive
+    count -- in fact a closer approximation to the HARD count above the cut than
+    `sum_i p_i` is -- so this stays inside the paper's formulation instead of
+    bolting a per-item objective alongside it.
+
+    `tau` is detached: it is an order statistic of the model's own probabilities,
+    used to place the window, not a quantity to backpropagate through. No label
+    is involved, so the transductive setting is preserved.
+
+    `temp` is a real dose knob WITH A HARD UPPER BOUND, found while testing this:
+    it must be small relative to the SPREAD OF PROBABILITIES NEAR THE CUT, not
+    merely small in absolute terms. The per-item gradient is
+
+        sigmoid'((p_i - tau)/temp) / temp   *   p_i(1 - p_i)
+
+    and if `temp` exceeds the local spacing the first factor is flat across the
+    whole window, leaving `p(1-p)` to dominate again -- which reproduces exactly
+    the defect this exists to fix. Concretely: on a converged model the top 20
+    probabilities span about 0.02, so `temp = 0.02` is already too coarse there
+    and `temp = 0.002` is not. As `temp -> 0` it approaches the hard count and
+    its gradient approaches a delta at the cut, which is useless from the other
+    direction. Sweep it, and sweep it against the measured spacing.
+    """
+    k = int(K)
+    if k <= 0 or k >= p.numel():
+        # No cut to centre on. Fall back to the plain sum so the caller still
+        # gets a differentiable count rather than a silent zero.
+        return p.sum()
+    tau = torch.topk(p.detach(), k, largest=True).values[-1]
+    return torch.sigmoid((p - tau) / max(float(temp), EPSILON)).sum()
+
+
 class MulticlassTransductiveLoss(nn.Module):
 
     def __init__(self, global_constraints, local_constraints,
