@@ -1067,6 +1067,15 @@ Every attempt to deliver more constraint signal made it worse.**
 - **`rankpair`** (supervised pairwise hinge) -- null to negative.
 - **`budget_margin`** (hinge at the cap's implied threshold) -- the knob is live but only AUROC
   moves, i.e. it improves the ordering in a region the cap never reads. Untested on multi-class.
+  🔗 **2026-08-21: the SHIPPED penalty has the same failure mode**, which makes this a family
+  rather than one arm's quirk. At protocol length the count penalty improves AUROC (+0.0049),
+  ECE, Brier, NLL and ConfGap against `clip` while ccP falls **-0.0450**: better everywhere the
+  cap does not read, worse in the only place it does. **⇒ before rebuilding `budget_margin`,
+  state which metric it is supposed to move and check it is ccP.** An arm that moves AUROC has
+  already been run, twice.
+  ⚠️ But ccP is NOT immovable: in the `L50_G30` cell the same penalty with a `linear` shape
+  gains **+0.030 ccP over its own lambda=0 control**. The pessimistic reading ("only AUROC can
+  move") is a single-class result and does not survive the looser cap.
 
 ### (d) Retracted results -- claims that did not survive re-measurement
 
