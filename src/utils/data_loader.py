@@ -32,14 +32,6 @@ IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 3, 1
 # knows is 38.7% memorized is validating the wrong thing. Anyone who reads a
 # result should have seen these first.
 KNOWN_DATA_CAVEATS = {
-    'dermmnist': (
-        "38.7% of this test set (776/2003), and 67.3% of MELANOMA (150/223), "
-        "share a lesion_id with a TRAINING image. create_slices.py pools "
-        "DermaMNIST-C's leakage-free splits and re-splits stratified on the "
-        "label alone, while HAM10000 photographs many lesions more than once "
-        "(10,015 images, 7,470 lesions). Paired arm-vs-arm deltas survive this; "
-        "ABSOLUTE quality numbers do not. See FRAMEWORK section 1.",
-    ),
     'octmnist': (
         "the TRAINING slice is rebalanced. prep_octmnist.py takes 3,000 per "
         "class, which moves drusen from the official 7.95% to exactly 25% -- "
@@ -126,6 +118,44 @@ def data_fingerprint(y_train, y_test, groups_test):
         h.update(str(arr.shape).encode())
         h.update(np.ascontiguousarray(arr, dtype=np.int64).tobytes())
     return h.hexdigest()[:16]
+
+
+def _warn_lesion_leakage(data_dir):
+    """MEASURE the train/test lesion overlap. Do not assert one from memory.
+
+    This replaces a hardcoded caveat that read "38.7% of this test set
+    (776/2003) ... share a lesion_id with a TRAINING image". That number was
+    true when it was written and became FALSE the moment the split was fixed --
+    and it kept printing, on corrected data, naming a test-set size that no
+    longer existed. A stale warning about correctness is worse than none: it is
+    a correctness claim nobody re-checks.
+
+    So it is computed from the slice's own `lesion_id` column every load. Zero
+    leakage prints nothing. A slice with no `lesion_id` cannot be checked and
+    says exactly that, rather than being assumed clean -- the deprecated
+    pre-2026-08-21 slices are the ones missing the column.
+    """
+    tr = os.path.join(data_dir, 'train_meta.csv')
+    te = os.path.join(data_dir, 'test_meta.csv')
+    if not (os.path.exists(tr) and os.path.exists(te)):
+        return
+    a, b = pd.read_csv(tr), pd.read_csv(te)
+    if 'lesion_id' not in a.columns or 'lesion_id' not in b.columns:
+        log.warning(
+            "%s has no `lesion_id` column, so train/test leakage CANNOT be "
+            "checked. Slices built before 2026-08-21 pooled DermaMNIST-C's "
+            "leakage-free splits and re-split on the label alone, which leaked "
+            "38.7%% of the test set. Regenerate with data/dermmnist/"
+            "create_slices.py.", data_dir)
+        return
+    shared = set(a['lesion_id']) & set(b['lesion_id'])
+    if not shared:
+        return
+    hit = b['lesion_id'].isin(shared)
+    log.warning(
+        "%s LEAKS: %d lesion(s) appear in both splits, so %.1f%% of the test "
+        "set was seen in training. Absolute quality numbers from this slice are "
+        "not valid.", data_dir, len(shared), 100.0 * hit.mean())
 
 
 def _load_imagery_data(config):
@@ -255,6 +285,7 @@ def _load_imagery_data(config):
              len(local_con), len(y_test), len(y_train))
     for _caveat in KNOWN_DATA_CAVEATS.get(dataset_mode, ()):
         log.warning("%s: %s", dataset_mode, _caveat)
+    _warn_lesion_leakage(data_dir)
     config["data_fingerprint"] = data_fingerprint(y_train, y_test, groups_test)
     log.info("data fingerprint %s (%s)", config["data_fingerprint"], data_dir)
     return (X_train, X_test, y_train, y_test,

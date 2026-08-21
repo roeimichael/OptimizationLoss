@@ -245,7 +245,8 @@ def create_slices(all_images, all_labels, all_meta, shift=False,
             print(f"  {CLASS_NAMES[c]:>5}: train {train_pct:5.2f}%  "
                   f"test {test_pct:5.2f}%  ({diff:+.2f}){marker}")
 
-    print(f"\nCreated {NUM_SLICES} slices in {DATA_DIR}/{prefix}_1..{NUM_SLICES}/")
+    made = sorted(folds) if folds else list(range(1, NUM_SLICES + 1))
+    print(f"\nCreated {prefix} {made} in {DATA_DIR}/")
 
 
 def verify_independence(prefix='slice'):

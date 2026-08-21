@@ -2173,3 +2173,52 @@ def test_the_prevalence_shift_only_touches_the_test_split():
     before = (labels[test_idx] == 4).mean()
     after = (labels[kept] == 4).mean()
     assert after < before, "the whole point is that test prevalence moves"
+
+def test_the_leakage_warning_is_measured_not_remembered(tmp_path, caplog):
+    """A correctness claim nobody re-checks is worse than no claim.
+
+    The loader used to print a hardcoded caveat -- "38.7% of this test set
+    (776/2003) ... share a lesion_id with a TRAINING image". True when written;
+    FALSE the moment the split was fixed, and it kept printing on corrected
+    data, naming a test-set size that no longer existed. So it is computed from
+    the slice now: silent when clean, loud when leaking, and explicit that it
+    cannot tell when `lesion_id` is absent.
+    """
+    import logging
+
+    import pandas as pd
+
+    from src.utils.data_loader import _warn_lesion_leakage
+
+    def write(d, train_les, test_les):
+        d.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame({"label": [0] * len(train_les), "lesion_id": train_les}
+                     ).to_csv(d / "train_meta.csv", index=False)
+        pd.DataFrame({"label": [0] * len(test_les), "lesion_id": test_les}
+                     ).to_csv(d / "test_meta.csv", index=False)
+
+    clean = tmp_path / "clean"
+    write(clean, ["a", "b"], ["c", "d"])
+    with caplog.at_level(logging.WARNING):
+        _warn_lesion_leakage(str(clean))
+    assert not caplog.records, "a clean slice must print nothing"
+
+    leaky = tmp_path / "leaky"
+    write(leaky, ["a", "b"], ["a", "d"])
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        _warn_lesion_leakage(str(leaky))
+    assert any("LEAKS" in r.getMessage() for r in caplog.records), (
+        "a shared lesion must be reported")
+    assert any("50.0%" in r.getMessage() for r in caplog.records), (
+        "and the percentage must be MEASURED from this slice, not recalled")
+
+    blind = tmp_path / "blind"
+    blind.mkdir()
+    pd.DataFrame({"label": [0]}).to_csv(blind / "train_meta.csv", index=False)
+    pd.DataFrame({"label": [0]}).to_csv(blind / "test_meta.csv", index=False)
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        _warn_lesion_leakage(str(blind))
+    assert any("CANNOT be checked" in r.getMessage() for r in caplog.records), (
+        "a slice with no lesion_id must say it cannot tell, never assume clean")
