@@ -1857,3 +1857,37 @@ def test_the_scorers_posthoc_list_matches_the_protocol():
         "  only in the scorer:  %s\n"
         "  only in the protocol: %s"
         % (sorted(POSTHOC_ARMS - expected), sorted(expected - POSTHOC_ARMS)))
+
+
+def test_straight_through_closes_the_K_equals_zero_trap():
+    """A group with no true instances of the capped class gets K == 0 legitimately.
+
+    On the soft value that constraint can NEVER be satisfied: `sum_i p_ic` is
+    strictly positive for any softmax, even when the model predicts the class
+    for nobody in the group, so `relu(count - 0)` stays positive forever. It
+    contributes nothing useful and holds the ratchet gate open for every other
+    constraint, for the whole run -- a standing warning in this project.
+
+    The hard count CAN be exactly zero, so `straight_through: true` makes that
+    constraint satisfiable. This pins the difference rather than the fix, since
+    the K == 0 group is created by the data, not by a setting.
+    """
+    torch.manual_seed(4)
+    # class 2 is never the argmax, but it still carries probability mass
+    logits = torch.randn(80, 5)
+    others = torch.cat([logits[:, :2], logits[:, 3:]], dim=1).max(dim=1).values
+    logits[:, 2] = others - 1.5      # always second best, never the argmax
+    p = F.softmax(logits, dim=1)
+
+    hard = int((p.argmax(dim=1) == 2).sum())
+    soft = float(p[:, 2].sum())
+    assert hard == 0, "fixture broken: class 2 is predicted for %d items" % hard
+    assert soft > 0.5, "fixture broken: class 2 carries no mass (%.3f)" % soft
+
+    K = 0
+    assert float(F.relu(torch.tensor(soft) - K)) > 0.5, (
+        "the soft value is satisfiable at K=0, which would mean this trap is "
+        "not real")
+    assert float(F.relu(torch.tensor(float(hard)) - K)) == 0.0, (
+        "the hard value is NOT satisfiable at K=0 -- straight_through does not "
+        "close the trap after all")

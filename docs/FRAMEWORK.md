@@ -1190,7 +1190,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 146 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 147 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1198,7 +1198,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (146 tests, ~35 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (147 tests, ~35 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -1470,6 +1470,15 @@ Given section 0, only two kinds of thing can still win, and they are the only th
    gap `constraint_grad_mode: normalize` fixes on the other axis. So the knob is a
    width in ITEMS: dimensionless, and an empty window is impossible by construction.
 
+   ✅ **A side effect worth having: `straight_through` closes the K == 0 trap.** A
+   group holding no true instances of the capped class gets `K == 0` legitimately,
+   and on the soft value that constraint can NEVER be satisfied -- `sum_i p_ic` is
+   strictly positive for any softmax even when the class is predicted for nobody in
+   the group, so `relu(count - 0)` stays positive for the whole run, contributing
+   nothing while holding the ratchet gate open for every other constraint. The hard
+   count can be exactly zero. This is a standing warning in this project and
+   `straight_through: true` removes it; a test pins the difference.
+
    ⚠️ **It is still an AGGREGATE count**, which is what path 1 says cannot win. The reason
    it is listed anyway is that path 1's own escape hatch is "per-item AT THE OPERATING
    POINT", and this is an aggregate whose WEIGHT is concentrated there. If it fails, it
@@ -1549,7 +1558,7 @@ scripts/verify_caps.py   the caps bind, on the real dataset slices
 scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             146 tests, ~35 s, no dataset required
+tests/             147 tests, ~35 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
