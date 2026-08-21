@@ -1350,15 +1350,18 @@ Given section 0, only two kinds of thing can still win, and they are the only th
 
 1b. **A count whose gradient lands ON the cut** -- derived 2026-08-21, not yet run.
 
-   The defect is now mechanical rather than mysterious. The soft count is
-   `s_c = sum_i p_ic`, so `d s_c / d logit_ic = p_ic(1 - p_ic)`, which peaks at
-   `p = 0.5` and vanishes as `p -> 1`. The shape (`rational_bounded` / `linear` /
-   `squared`) only scales `d penalty / d s_c` -- for `linear` it is the constant `1/K` --
-   so **no choice of shape moves where the gradient lands.** Every shape pushes hardest on
-   items the model is unsure about, while the cap reads at the K-th ranked item, measured
-   at `p = 0.94` early and `p = 0.999` once converged. That is why the penalty reshuffles
-   the middle of the ranking (Jaccard 0.29-0.42 against the control) and leaves prec@K
-   where it was.
+   The soft count is `s_c = sum_i p_ic`, so `d s_c / d logit_ic = p_ic(1 - p_ic)`. The
+   shape (`rational_bounded` / `linear` / `squared`) only scales `d penalty / d s_c` --
+   for `linear` it is the constant `1/K` -- so **no choice of shape moves where the
+   gradient lands**, which is why thirteen shape arms measured the same thing. Where it
+   lands is fixed by `p(1-p)`.
+
+   ⚠️ **Read (a) below before using that as a motivation.** The obvious next sentence --
+   "so the gradient cannot reach the cut" -- is measured and it is WRONG as usually
+   stated. `p(1-p)` at the K-th RANKED item is ~0 (0.94 early, 0.999 converged), but rank
+   K is not where predictions change. At the decision boundary `p(1-p)` is near its
+   maximum, and `sum` already puts 29.4% of its weight there. The real difference is
+   narrower and is stated in (c).
 
    **The fix follows from the derivative, not from a new objective.** Keep the count, move
    its weight. An item is predicted `c` exactly when `p_ic > max_{c' != c} p_ic'`, so
@@ -1373,8 +1376,9 @@ Given section 0, only two kinds of thing can still win, and they are the only th
    label, and nothing from the other chunks: the chunked detach construction still gives the
    exact full-N gradient and `constraint_chunk_size` stays a free knob.
 
-   Shipped as `soft_count_mode: margin` + `cut_temp` (tralo only -- the duals never form
-   this count). Default `sum` is bit-identical.
+   Shipped as `soft_count_mode: margin` + `straight_through` + `cut_window_items`
+   (tralo only -- the duals never form this count), as the arms `tralo_margin` and
+   `tralo_st`. Default `sum` is bit-identical.
 
    ⛔ **A DEAD END, recorded because it is seductive.** The obvious version centres the
    window on the K-th largest probability, `sigmoid((p_ic - tau_c)/T)` with `tau_c` the
@@ -1383,20 +1387,6 @@ Given section 0, only two kinds of thing can still win, and they are the only th
    identically zero, and it produces **no gradient at all**. It was derived, wired into
    the trainer, and caught by the chunked-gradient test before it ever reached a GPU.
    A soft count must be able to EXCEED the budget or there is no violation to see.
-
-   ✅ **The mechanism separates, on a toy** (`scripts/flag_live`: TinyNet, 120
-   synthetic items, random labels, 20 constraint epochs, seed 1, K=11, protocol
-   default `constraint_grad_mode: clip`).
-
-       tralo_null (lambda=0)   hard count 31      <- CE alone drifts it up
-       tralo      (sum)        hard count 35      <- WORSE than no penalty
-       tralo_margin (margin)   hard count 12      <- holds at the budget
-
-   The plain count is not even DIRECTIONALLY controlling the hard count here, which
-   is the same thing the real runs show (class 4 pulled to 57 while class 2 rose to
-   410 against K=44; class 4 122 -> 346 at the sgd dose). 🛑 **This is not a result
-   and cannot become one**: n=1, random labels so no quality metric exists, a
-   4-layer net, one dose. It says the knob is connected and points the right way.
 
    🛑 **THE MOTIVATING STORY IS PARTLY WRONG, AND THE PROXY FOR IT IS INCOMPLETE.**
    Both measured GPU-free on the stored evidence (`scripts/reachability.py` only
