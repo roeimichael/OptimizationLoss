@@ -1190,7 +1190,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, five new gate scripts, and 143 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 144 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1198,7 +1198,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (143 tests, ~19 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (144 tests, ~28 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -1384,6 +1384,15 @@ Given section 0, only two kinds of thing can still win, and they are the only th
    the trainer, and caught by the chunked-gradient test before it ever reached a GPU.
    A soft count must be able to EXCEED the budget or there is no violation to see.
 
+   ✅ **It is not inert** (`scripts/flag_live`, 6 constraint epochs, TinyNet,
+   synthetic, seed 1, K=11). `tralo_null` and `tralo` both end at hard count 12;
+   `tralo_margin` ends at 7. The plain penalty moved the hard count **exactly zero
+   against its own zero-dose control**, while the soft count it was optimizing moved
+   35.374 -> 35.365. That decoupling is the whole argument, and it is visible on a
+   4-layer net. ⚠️ It is also n=1 on random labels and it **overshot** the budget,
+   which is the over-dose failure mode, not a win -- `cut_temp` and the clip are both
+   doses and both have to be swept.
+
    🎯 **The claim is measurable before the run.** `scripts/reachability.py` now reports,
    per cell, the share of each count's total per-item gradient landing on the 20 items
    nearest the decision boundary -- the only items whose prediction can change. On a
@@ -1470,7 +1479,7 @@ scripts/verify_caps.py   the caps bind, on the real dataset slices
 scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             143 tests, ~19 s, no dataset required
+tests/             144 tests, ~28 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

@@ -1766,3 +1766,36 @@ def test_every_trained_arm_has_a_null_sibling_the_gate_can_find():
     # constraint gradient is formed at all, so one null serves both.
     assert _null_of(P, "tralo_margin") == _null_of(P, "tralo") == "tralo_null"
     assert P["blocks"]["tralo_null"]["lambda_global"] == 0.0
+
+
+def test_the_inert_flag_gate_can_actually_detect_an_inert_flag():
+    """A gate nobody has seen fail is not known to work.
+
+    `flag_live` exists because inert flags are this project's most frequent
+    failure mode -- four occurrences, every one of which passed audit_config
+    (the key had a reader) and smoke_arms (the arm ran). Comparing an arm to
+    ITSELF must report inert, which both proves the detector fires and proves
+    the harness is deterministic: if two runs of one arm already differ, no
+    difference between two arms means anything.
+    """
+    import subprocess
+    import sys as _sys
+
+    same = subprocess.run(
+        [_sys.executable, "-m", "scripts.flag_live", "tralo", "tralo",
+         "--constraint-epochs", "2"],
+        capture_output=True, text=True)
+    assert same.returncode == 1, (
+        "an arm compared to itself was NOT reported inert -- either the "
+        "detector is broken or the harness is nondeterministic, and in the "
+        "second case the gate cannot distinguish a live flag from noise:\n%s"
+        % same.stdout[-600:])
+    assert "INERT" in same.stdout
+
+    diff = subprocess.run(
+        [_sys.executable, "-m", "scripts.flag_live", "tralo", "tralo_margin",
+         "--constraint-epochs", "2"],
+        capture_output=True, text=True)
+    assert diff.returncode == 0, (
+        "soft_count_mode: margin produced bit-identical predictions to sum, "
+        "so it is a fifth inert flag:\n%s" % diff.stdout[-600:])

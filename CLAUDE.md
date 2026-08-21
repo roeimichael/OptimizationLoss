@@ -59,11 +59,13 @@ imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 143 regression tests, ~19s, no dataset needed
+python -m pytest tests -q                   # 144 regression tests, ~28s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
                                             #   caps verified for the TRAINED arms too
+python -m scripts.flag_live <armA> <armB>    # md5 across arms: is the new flag LIVE
+                                            #   or a fifth inert one? (rule 3)
 python -m scripts.verify_caps               # what integer budget each cap tag really produces
 python -m scripts.check_parity <root>       # equal compute, same knobs, >=2 caps, sane warm-up sharing
 python -m scripts.reachability <early-run>  # CAN the penalty even reach this cell's cut?
