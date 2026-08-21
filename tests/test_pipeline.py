@@ -1688,50 +1688,84 @@ def test_the_margin_count_puts_its_gradient_on_the_boundary():
 
 
 def test_the_windowed_count_keeps_the_exact_full_N_gradient_when_chunked():
-    """The threshold count must not break the chunked detach construction.
+    """The shipped construction: value is the HARD count, gradient is the window.
 
-    That construction is what makes `constraint_chunk_size` gradient-neutral:
-    each chunk backprops through `total.detach() - chunk.detach() + chunk`,
-    whose VALUE is the full-N count and whose gradient reaches only that
-    chunk's items, so the chunks sum to the exact full-N gradient. It survives
-    the margin window because the window is a function of an item's OWN row --
-    it needs nothing from the other chunks. The order-statistic version did
-    not have that property, which is the second reason it is gone.
+    Each chunk backprops through `total.detach() - chunk.detach() + chunk`,
+    whose gradient reaches only that chunk's items, so the chunks sum to the
+    exact full-N gradient -- this is what makes `constraint_chunk_size`
+    gradient-neutral. In margin mode `total` is seeded with the HARD count, so
+    the same expression is also a straight-through estimator: the penalty
+    reads the true count and differentiates the window.
+
+    That matters because a wide window over-counts (56.6 against a hard 45 at
+    40 items), and a penalty reading an inflated count keeps pushing after the
+    cap is already satisfied -- the overshoot scripts/flag_live measured.
     """
-    from src.losses.transductive_loss import margin_window
+    from src.losses.transductive_loss import margin_window, margins, window_temp
 
     torch.manual_seed(0)
-    logits = torch.randn(40, 3) + torch.tensor([0.0, 2.0, 0.0])
-    logits = logits.requires_grad_(True)   # class 1 over budget, so relu > 0
-    K, T, cls = 8, 0.02, 1
+    logits = (torch.randn(40, 3) + torch.tensor([0.0, 2.0, 0.0])).requires_grad_(True)
+    K, cls = 8, 1
 
-    def penalty(s):
-        return F.relu(s[cls] - K) ** 2
+    def penalty(s_):
+        return F.relu(s_[cls] - K) ** 2
 
-    full = margin_window(F.softmax(logits, dim=1), T).sum(dim=0)
-    assert float(full[cls]) > K, "no violation, so the penalty gradient is 0"
-    (g_full,) = torch.autograd.grad(penalty(full), logits)
-
-    # Same construction the trainer runs, at chunk size 7 (not a divisor of 40,
-    # so the ragged last chunk is exercised too).
     with torch.no_grad():
-        total = margin_window(F.softmax(logits, dim=1), T).sum(dim=0)
+        proba0 = F.softmax(logits, dim=1)
+        T = window_temp(margins(proba0), 10)
+        hard = torch.zeros(3)
+        for c in range(3):
+            hard[c] = float((proba0.argmax(dim=1) == c).sum())
+    assert float(hard[cls]) > K, "no violation, so the penalty gradient is 0"
+
+    # reference: the full-batch gradient of the windowed count
+    full_soft = margin_window(F.softmax(logits, dim=1), T).sum(dim=0)
+    st_full = hard.detach() - full_soft.detach() + full_soft
+    assert torch.allclose(st_full.detach(), hard), "straight-through value is not the hard count"
+    (g_full,) = torch.autograd.grad(penalty(st_full), logits)
+
+    # chunk size 7, not a divisor of 40, so the ragged last chunk runs too
     g_chunked = torch.zeros_like(logits)
     for start in range(0, 40, 7):
         sl = slice(start, min(start + 7, 40))
-        chunk = F.softmax(logits[sl], dim=1)
-        eff = margin_window(chunk, T)
-        g_soft = total.detach() - eff.sum(dim=0).detach() + eff.sum(dim=0)
+        eff = margin_window(F.softmax(logits[sl], dim=1), T)
+        g_soft = hard.detach() - eff.sum(dim=0).detach() + eff.sum(dim=0)
+        assert torch.allclose(g_soft.detach(), hard)
         (g,) = torch.autograd.grad(penalty(g_soft), logits, allow_unused=True)
         g_chunked = g_chunked + g
 
     assert torch.allclose(g_chunked, g_full, atol=1e-6), (
-        "chunking changed the windowed count's gradient (max diff %.3g) -- "
-        "the detach cancellation broke, so chunk size is no longer a free "
-        "knob" % float((g_chunked - g_full).abs().max()))
-    # And the chunk that owns no top-K item still contributes: the window is
-    # sigmoid, not an indicator, so items below the cut are not zeroed.
+        "chunking changed the gradient (max diff %.3g) -- the detach "
+        "cancellation broke, so chunk size is no longer a free knob"
+        % float((g_chunked - g_full).abs().max()))
     assert g_full.abs().sum() > 0
+
+
+def test_the_window_width_is_in_items_so_the_dose_cannot_vanish():
+    """A fixed T is not a fixed dose, and an empty window is a silent null.
+
+    Measured on the stored dermmnist evidence (MobileNetV3, 4 seeds, two cap
+    tags): the T holding ~20 items at the boundary spans 0.182 .. 0.502 ACROSS
+    SEEDS OF ONE CELL, and T = 0.02 puts 0-3 items in the window -- a run that
+    contributes nothing, reports a null, and writes `completed`. Deriving T
+    from a width in items makes the dose dimensionless and non-empty by
+    construction.
+    """
+    from src.losses.transductive_loss import margins, window_temp
+
+    torch.manual_seed(3)
+    for scale in (0.5, 2.0, 8.0):        # flat, moderate and sharp models
+        proba = F.softmax(torch.randn(300, 5) * scale, dim=1)
+        m = margins(proba)
+        for n in (10, 40, 120):
+            T = window_temp(m, n)
+            for c in range(5):
+                inside = int((m[:, c].abs() < T[c]).sum())
+                assert abs(inside - n) <= 1, (
+                    "asked for %d items in the window, got %d (scale %.1f, "
+                    "class %d)" % (n, inside, scale, c))
+        # and T really does have to move to achieve that
+        assert float(window_temp(m, 120).max()) > float(window_temp(m, 10).max())
 
 
 def test_every_trained_arm_has_a_null_sibling_the_gate_can_find():

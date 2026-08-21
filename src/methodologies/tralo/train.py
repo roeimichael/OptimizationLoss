@@ -33,7 +33,8 @@ from src.pipeline.warmup import make_ce_criterion, make_dataloader, make_optimiz
 from src.training.ce_schedule import CESaturationSkip
 from src.training.constraint_step import (
     constraint_autocast, constraint_backward, finish_constraint_step)
-from src.losses.transductive_loss import margin_window
+from src.losses.transductive_loss import (margin_window, margins,
+                                          window_temp)
 from src.training.logging import log_progress_to_csv, write_csv_header
 from src.training.metrics import compute_prediction_statistics
 from src.training.reordering import capped_scores, reordering_report
@@ -73,7 +74,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     CONSTRAINT_STEP_RULE = str(hp.get("constraint_step_rule", "shared"))
     CONSTRAINT_RANDOM_DIR = bool(hp.get("constraint_random_direction", False))
     SOFT_COUNT_MODE = str(hp.get("soft_count_mode", "sum"))
-    CUT_TEMP = float(hp.get("cut_temp", 0.02))
+    CUT_WINDOW_ITEMS = int(hp.get("cut_window_items", 40))
     LR_CONSTRAINT = _required(hp, "lr_constraint")
     # Hoisted: the per-epoch snapshot clone is gated on this, and a
     # state_dict() copied to CPU each epoch for a checkpoint nothing
@@ -205,14 +206,15 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                                 for gid in criterion_constraint.local_groups}
             total_local_hard = {gid: torch.zeros(num_classes, device=device)
                                 for gid in criterion_constraint.local_groups}
+            kept_margins = [] if SOFT_COUNT_MODE == "margin" else None
             for ci in range(n_chunks):
                 start = ci * chunk_size
                 end = min(start + chunk_size, n_test)
                 chunk_logits = model(X_test[start:end])
                 chunk_proba = F.softmax(chunk_logits, dim=1)
                 chunk_preds = chunk_logits.argmax(dim=1)
-                if SOFT_COUNT_MODE == "margin":
-                    chunk_proba = margin_window(chunk_proba, CUT_TEMP)
+                if kept_margins is not None:
+                    kept_margins.append(margins(chunk_proba))
                 total_global_soft += chunk_proba.sum(dim=0)
                 total_global_hard += torch.bincount(
                     chunk_preds, minlength=num_classes).float()
@@ -223,6 +225,31 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                         total_local_soft[gid] += chunk_proba[mask].sum(dim=0)
                         total_local_hard[gid] += torch.bincount(
                             chunk_preds[mask], minlength=num_classes).float()
+
+        # ---- soft_count_mode: margin ----
+        # T is DERIVED, per class, per epoch, so the window always holds
+        # `cut_window_items` items. A fixed T is not a fixed dose: measured on
+        # the stored dermmnist evidence, the T holding ~20 items spans
+        # 0.182 .. 0.502 ACROSS SEEDS OF ONE CELL, and margins keep growing
+        # through the constraint phase as CE converges.
+        #
+        # And the count the penalty READS is the hard one. The existing chunked
+        # construction below is `total.detach() - chunk.detach() + chunk`, so
+        # seeding `total` with the HARD count makes the value exact while the
+        # gradient still comes from the window -- a straight-through estimator
+        # that falls out of the construction already here, no extra machinery.
+        # Without it the window over-counts (56.6 against a hard 45 at 40
+        # items) and the penalty keeps pushing after the cap is satisfied,
+        # which is the overshoot measured in scripts/flag_live. With it,
+        # `cut_window_items` moves ONLY where the gradient lands.
+        cut_temp = None
+        if SOFT_COUNT_MODE == "margin":
+            cut_temp = window_temp(torch.cat(kept_margins, dim=0),
+                                   CUT_WINDOW_ITEMS)
+            total_global_soft = total_global_hard.clone()
+            for gid in total_local_soft:
+                total_local_soft[gid] = total_local_hard[gid].clone()
+            del kept_margins
 
         # Snapshot pre-step state (matches counts above).
         snapshot_global_satisfied = True
@@ -285,7 +312,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 # Same window as pass 1. It is a per-item function of that
                 # item's own row, so the chunked detach construction still
                 # yields the exact full-N gradient.
-                chunk_eff = (margin_window(chunk_proba, CUT_TEMP)
+                chunk_eff = (margin_window(chunk_proba, cut_temp)
                              if SOFT_COUNT_MODE == "margin" else chunk_proba)
                 chunk_global = chunk_eff.sum(dim=0)
                 chunk_gids = group_ids[start:end]

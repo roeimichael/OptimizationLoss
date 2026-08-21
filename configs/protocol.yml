@@ -172,11 +172,19 @@ blocks:
     # at all. Wired into the trainer, caught by the chunked-gradient test
     # before it reached a GPU. A soft count must be able to EXCEED the budget.
     soft_count_mode: sum
-    cut_temp: 0.02            # ONLY read when soft_count_mode: margin.
-    # ^ must be NARROWER than the MARGIN spacing near the boundary or the
-    # window flattens and p(1-p) dominates again -- it degrades silently back
-    # to `sum`. This is a margin scale, not a probability-gap scale: dose it
-    # against what `scripts/reachability.py` prints at the cut.
+    cut_window_items: 40      # ONLY read when soft_count_mode: margin.
+    # ^ the sigmoid width T is DERIVED from this, per class, per epoch, so the
+    # window always holds this many items. A fixed T is not a fixed dose:
+    # measured on the stored dermmnist evidence, the T holding ~20 items spans
+    # 0.182 .. 0.502 ACROSS SEEDS OF ONE CELL, and T = 0.02 -- a plausible
+    # guess -- puts 0 to 3 items in the window, i.e. the constraint does
+    # nothing and the run reports a null while writing `completed`. Same
+    # defect `constraint_grad_mode: normalize` fixes on the other axis.
+    #
+    # It moves ONLY where the gradient lands, never what the count says: the
+    # penalty reads the HARD count via the chunked construction's own detach
+    # (value hard, gradient windowed). Without that the window over-counts and
+    # the penalty keeps pushing after the cap is satisfied.
   # The margin count, as an ARM rather than a global override, so it and the
   # manuscript's count can sit in ONE campaign. An arm-vs-arm delta is not a
   # result until the bar is in the same campaign, and that applies to two

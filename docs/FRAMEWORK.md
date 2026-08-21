@@ -1190,7 +1190,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 144 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 145 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1198,7 +1198,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (144 tests, ~28 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (145 tests, ~28 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -1384,21 +1384,47 @@ Given section 0, only two kinds of thing can still win, and they are the only th
    the trainer, and caught by the chunked-gradient test before it ever reached a GPU.
    A soft count must be able to EXCEED the budget or there is no violation to see.
 
-   ✅ **It is not inert** (`scripts/flag_live`, 6 constraint epochs, TinyNet,
-   synthetic, seed 1, K=11). `tralo_null` and `tralo` both end at hard count 12;
-   `tralo_margin` ends at 7. The plain penalty moved the hard count **exactly zero
-   against its own zero-dose control**, while the soft count it was optimizing moved
-   35.374 -> 35.365. That decoupling is the whole argument, and it is visible on a
-   4-layer net. ⚠️ It is also n=1 on random labels and it **overshot** the budget,
-   which is the over-dose failure mode, not a win -- `cut_temp` and the clip are both
-   doses and both have to be swept.
+   ✅ **The mechanism separates, on a toy** (`scripts/flag_live`: TinyNet, 120
+   synthetic items, random labels, 20 constraint epochs, seed 1, K=11, protocol
+   default `constraint_grad_mode: clip`).
 
-   🎯 **The claim is measurable before the run.** `scripts/reachability.py` now reports,
-   per cell, the share of each count's total per-item gradient landing on the 20 items
-   nearest the decision boundary -- the only items whose prediction can change. On a
-   synthetic 7-class cell that is 2-3% for `sum` and 28-49% for `margin`. Re-measure it
-   on the real cell before spending GPU time: if the reallocation is not there, the arm
-   has nothing to deliver.
+       tralo_null (lambda=0)   hard count 31      <- CE alone drifts it up
+       tralo      (sum)        hard count 35      <- WORSE than no penalty
+       tralo_margin (margin)   hard count 12      <- holds at the budget
+
+   The plain count is not even DIRECTIONALLY controlling the hard count here, which
+   is the same thing the real runs show (class 4 pulled to 57 while class 2 rose to
+   410 against K=44; class 4 122 -> 346 at the sgd dose). 🛑 **This is not a result
+   and cannot become one**: n=1, random labels so no quality metric exists, a
+   4-layer net, one dose. It says the knob is connected and points the right way.
+
+   🎯 **T IS DERIVED, NOT CONFIGURED, AND THAT WAS FORCED BY MEASUREMENT.** The
+   first version shipped `cut_temp: 0.02`, a guess. Measured on the stored dermmnist
+   evidence (MobileNetV3, 4 seeds, 2 cap tags, no GPU -- `scripts/reachability.py`
+   reads predictions): **T = 0.02 puts 0 to 3 items inside the window**, so the arm
+   would take a near-zero step, report a null, and write `completed`. The T that
+   holds ~20 items is **0.182 to 0.502 -- a 2.8x spread ACROSS SEEDS OF ONE CELL**,
+   and margins keep growing through the constraint phase as CE converges. One
+   absolute number applied to a quantity whose natural scale differs per seed and
+   per epoch is exactly the invisible dose gap `constraint_grad_mode: normalize`
+   was built to fix on the other axis. So the knob is `cut_window_items` -- a width
+   in ITEMS, dimensionless, and an empty window is impossible by construction.
+
+   🎯 **The penalty reads the HARD count.** A window wide enough to be useful
+   over-counts (56.6 against a hard 45 at 40 items), and a penalty reading an
+   inflated count keeps pushing after the cap is already satisfied -- which is the
+   over-dose failure the joint arm died of. The chunked construction already in the
+   trainer is `total.detach() - chunk.detach() + chunk`, so seeding `total` with the
+   hard count makes it a straight-through estimator for free: exact value, windowed
+   gradient. `cut_window_items` then moves ONLY where the gradient lands.
+
+   ⚠️ **One number I published was wrong and is corrected here.** The first
+   commit quoted "2-3% for `sum` vs 28-49% for `margin`" for the share of gradient
+   landing on the 20 boundary items. That was measured on a SYNTHETIC fixture. On
+   real dermmnist predictions `sum` already puts **25-43%** there, because a
+   converged model's probabilities are bimodal and `p(1-p)` is concentrated on the
+   few uncertain items anyway. The reallocation is real (25-43% -> ~100%) but it is
+   about 2.5x, not 15x.
 
    ⚠️ **It is still an AGGREGATE count**, which is what path 1 says cannot win. The reason
    it is listed anyway is that path 1's own escape hatch is "per-item AT THE OPERATING
@@ -1479,7 +1505,7 @@ scripts/verify_caps.py   the caps bind, on the real dataset slices
 scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             144 tests, ~28 s, no dataset required
+tests/             145 tests, ~28 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

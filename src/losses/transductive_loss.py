@@ -30,6 +30,42 @@ import torch.nn.functional as F
 from src.utils.constants import UNLIMITED, EPSILON
 
 
+def margins(proba):
+    """Per-item distance to the decision boundary, (N, C).
+
+    `m_ic = p_ic - max_{c' != c} p_ic'` is positive exactly when item i is
+    predicted class c, so `sum_i 1[m_ic > 0]` IS the hard count.
+    """
+    top2 = torch.topk(proba, 2, dim=1).values
+    best, second = top2[:, :1], top2[:, 1:2]
+    # the best OTHER class: for the argmax that is the runner-up, else the best
+    return proba - torch.where(proba >= best, second, best)
+
+
+def window_temp(m, n_items):
+    """T per class that puts ~`n_items` items inside the window. (C,)
+
+    WHY T IS DERIVED AND NOT CONFIGURED. A fixed T is not a fixed dose. On real
+    dermmnist runs (MobileNetV3, 4 seeds, two cap tags, measured 2026-08-21 off
+    the stored evidence) the T that puts ~20 items at the boundary ranges
+    0.182 .. 0.502 -- a 2.8x spread ACROSS SEEDS OF ONE CELL -- while T = 0.02
+    puts 0 to 3 items in the window, i.e. the constraint would contribute
+    essentially nothing and the run would report a null while writing
+    `completed`. Margins also grow through the constraint phase as CE
+    converges, so a T that is right at epoch 1 is too narrow by epoch 29.
+
+    This is the same defect `constraint_grad_mode: normalize` was built to fix
+    on the other axis: one absolute number applied to quantities whose natural
+    scale differs per arm, per seed and per epoch is a dose that varies
+    invisibly. Specifying the WINDOW WIDTH IN ITEMS makes it dimensionless --
+    comparable across cells, seeds and epochs by construction -- and removes
+    the silent-null failure entirely, since the window can no longer be empty.
+    """
+    k = max(1, min(int(n_items), m.shape[0]))
+    t = torch.sort(m.abs(), dim=0).values[k - 1]
+    return torch.clamp(t, min=EPSILON)
+
+
 def margin_window(proba, temp):
     """Soften the ARGMAX instead of summing probabilities. Returns (N, C).
 
@@ -41,16 +77,14 @@ def margin_window(proba, temp):
     quantity explains the headroom pattern, why warm-up 50 is a dead regime,
     and why a tight cap cannot be won.
 
-    So put the weight on the cut. Item i is predicted c exactly when
-    `p_ic > max_{c' != c} p_ic'`, so this returns
+    So put the weight on the cut: `sigma(m_ic / T)`, whose derivative peaks at
+    margin 0 -- at the decision boundary, on the items one step from flipping
+    -- and vanishes for items buried inside a class. Summed it tracks the HARD
+    count rather than the probability mass, so it is also the tighter
+    relaxation: the two agree to within a fraction of an item, where sum-of-p
+    does not.
 
-        sigma((p_ic - max_{c' != c} p_ic') / T)
-
-    whose derivative peaks at margin 0 -- at the decision boundary, on the
-    items one step from flipping -- and vanishes for items buried deep inside
-    a class. Summing it over items gives a soft count that tracks the HARD
-    count (not the probability mass), so it is also the tighter relaxation:
-    the two agree to within a fraction of an item, where sum-of-p does not.
+    `temp` is a scalar or a per-class (C,) tensor from `window_temp`.
 
     A DEAD END THIS REPLACES, recorded because it is seductive and it is
     wrong: centring the window on the K-th largest probability instead, i.e.
@@ -59,16 +93,8 @@ def margin_window(proba, temp):
     K - 0.5 for ANY model. It is a constant, the penalty on it is identically
     zero, and it produces no gradient at all. It was wired into the trainer
     and caught by the chunked-gradient test before it ever ran.
-
-    T must be narrower than the margin spacing near the boundary or the window
-    flattens and p(1-p) dominates again -- it degrades silently back to `sum`.
     """
-    top2 = torch.topk(proba, 2, dim=1).values
-    # runner-up seen by each class: the best OTHER class. For the argmax that
-    # is the second best; for everyone else it is the best.
-    best, second = top2[:, :1], top2[:, 1:2]
-    other = torch.where(proba >= best, second, best)
-    return torch.sigmoid((proba - other) / max(float(temp), EPSILON))
+    return torch.sigmoid(margins(proba) / temp)
 
 
 class MulticlassTransductiveLoss(nn.Module):
