@@ -887,20 +887,44 @@ def test_every_trained_arm_reports_reordering():
     It was written inside tralo/train.py and reached only TraLO -- the exact
     shape of the CE-skip asymmetry that produced a 0.22 cc-F1 artifact, and of
     the focal keys that were live in one arm and dead in another. The guard is
-    structural: every trainer that runs a constraint phase imports the SAME two
-    functions from the SAME module, and the scorer reads the field.
+    structural: every trainer that runs a constraint phase reaches the SAME two
+    functions in the SAME module, and the scorer reads the field.
+
+    Reached DIRECTLY (tralo) or through `src/training/dual_arm.py`, which the
+    three duals share. Following the import chain rather than grepping one file
+    is what lets the shared tail exist at all -- and it still fails if an arm
+    grows a private copy or drops the summary field, because the module that
+    calls `reordering_report` is also the module that must write "reordering".
     """
     import io as _io
     import os
+
+    def _reaches_reordering(src, seen):
+        """Does this source call reordering_report and emit the summary key --
+        here, or in a src.training module it imports?"""
+        if "reordering_report(" in src and '"reordering"' in src:
+            return True
+        for line in src.splitlines():
+            line = line.strip()
+            if not line.startswith("from src.training."):
+                continue
+            mod = line.split()[1]
+            path = mod.replace(".", os.sep) + ".py"
+            if path in seen or not os.path.exists(path):
+                continue
+            seen.add(path)
+            if _reaches_reordering(_io.open(path, encoding="utf-8").read(), seen):
+                return True
+        return False
 
     trained = ["tralo", "fioretto_ldf", "hounie_rcl", "fioretto_alm"]
     for m in trained:
         path = os.path.join("src", "methodologies", m, "train.py")
         src = _io.open(path, encoding="utf-8").read()
-        assert "from src.training.reordering import" in src, (
+        assert "reordering_report" not in src or "def reordering_report" not in src, (
             "%s must use the shared diagnostic, not a private copy" % m)
-        assert "reordering_report(" in src, "%s never calls it" % m
-        assert '"reordering"' in src, "%s never puts it in the summary" % m
+        assert _reaches_reordering(src, set()), (
+            "%s never reaches reordering_report / never puts it in the summary" % m)
 
     # it has to survive to disk, and outside config["results"] -- a NaN tau on
     # a constant score column would otherwise mark the run `diverged`
@@ -2601,3 +2625,51 @@ def test_two_cap_tags_that_produce_the_same_budget_are_one_cap_level():
     # ...and a partial collision must be reported for the colliding class only
     dup = duplicate_budget_tags({2: {"a": 10, "b": 10}, 4: {"a": 10, "b": 20}})
     assert dup == [(2, 10, ["a", "b"])], dup
+
+
+def test_no_autocast_banned_op_is_reachable_from_an_arm():
+    """CUDA autocast BANS a few ops; calling one under AMP is a hard error.
+
+    `select` called F.binary_cross_entropy. Every GPU run died in 11 seconds --
+    "binary_cross_entropy and BCELoss are unsafe to autocast" -- wrote a
+    header-only training_log.csv, and was reset to `pending` by the dispatcher,
+    so the campaign looked merely unfinished while burning the card.
+
+    ⚠️ THE BAN IS DYNAMIC, NOT LEXICAL, which is why this test is a blanket ban
+    rather than a scan of `with autocast` bodies. The offending call sat in
+    `selective_loss`, a module-level function that autocast never encloses
+    lexically -- it is only ever CALLED from inside the block. A lexical gate
+    written that way passed while the bug was present; this one was checked
+    against the real defect.
+
+    ⚠️ And the obvious fix is the wrong one. `binary_cross_entropy_with_logits`
+    IS autocast-safe, but it applies a SIGMOID to its input, and our argument is
+    a SOFTMAX probability, not that class's logit -- swapping it in silences the
+    crash while quietly computing a different loss. Write the BCE out by hand on
+    the already-clamped probability instead; it is bit-identical (verified, max
+    abs diff 0.0) and autocast-safe.
+
+    `scripts/smoke_arms.py` cannot cover this: it runs on cpu, where autocast is
+    a no-op.
+    """
+    import ast
+    import io as _io
+    import pathlib
+
+    BANNED = {"binary_cross_entropy", "BCELoss"}
+
+    offenders = []
+    for path in sorted(pathlib.Path("src").rglob("*.py")):
+        tree = ast.parse(_io.open(path, encoding="utf-8").read())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                fn = getattr(node.func, "attr", getattr(node.func, "id", ""))
+                if fn in BANNED:
+                    offenders.append("%s:%d %s"
+                                     % (path.as_posix(), node.lineno, fn))
+
+    assert not offenders, (
+        "CUDA autocast bans these ops and every training path runs under AMP, "
+        "so the arm dies on its first GPU batch: %s. Write the loss out by "
+        "hand on the clamped probability -- NOT the _with_logits variant, which "
+        "computes a different quantity." % offenders)

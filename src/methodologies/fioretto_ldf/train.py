@@ -19,13 +19,14 @@ from src.pipeline.warmup import (make_ce_criterion, make_dataloader,
                                  make_optimizer)
 from src.training.constraint_step import (
     constraint_autocast, constraint_backward, finish_constraint_step)
-from src.training.reordering import capped_scores, reordering_report
+from src.training.dual_arm import (ce_epoch, count_excess, run_dual_arm,
+                                   transductive_counts)
 from src.utils.constants import UNLIMITED
 
 log = logging.getLogger(__name__)
 
 
-def _train_constraints(model, config, inputs, device):
+def _train_constraints(model, inputs, device):
     """Fioretto Algorithm 1/2: linear penalty + per-constraint subgradient dual ascent."""
     hp = inputs.hyperparams
     CLIP = _required(hp, "constraint_grad_clip")   # the treatment dose
@@ -138,46 +139,14 @@ def _train_constraints(model, config, inputs, device):
         epoch_start = time.time()
 
         # ---- Step 1: CE on TRAIN data (batched) ----
-        model.train()
-        ce_losses = []
-        for batch_X, batch_y in train_loader:
-            batch_X, batch_y = batch_X.to(device), batch_y.to(device)
-            optimizer.zero_grad(set_to_none=True)
-            with torch.amp.autocast("cuda", dtype=amp_dtype, enabled=use_amp):
-                logits_ce = model(batch_X)
-                ce_loss = criterion_ce(logits_ce, batch_y)
-            ce_losses.append(ce_loss.item())
-            if scaler:
-                scaler.scale(ce_loss).backward()
-                scaler.step(optimizer)
-                scaler.update()
-            else:
-                ce_loss.backward()
-                optimizer.step()
+        ce_losses = ce_epoch(model, train_loader, optimizer, criterion_ce,
+                             device, amp_dtype, use_amp, scaler)
 
 
         # ---- Step 2: constraint gradient on TEST data (transductive) ----
-        # Apples-to-apples with TraLO: use model.eval() during the transductive
-        # pass so dropout is off and BN running stats are NOT updated from test
-        # data (would be a data-leakage source that flips a few borderline
-        # samples and corrupts the lambda update). TraLO does this for the same
-        # reason (AUDIT C1).
-        model.eval()
-        total_soft = torch.zeros(num_classes, device=device)
-        group_soft = {g: torch.zeros(num_classes, device=device) for g in unique_groups}
-        all_hard = []
-        with torch.no_grad():
-            for i in range(0, len(X_test_dev), chunk_size):
-                chunk_logits = model(X_test_dev[i:i + chunk_size])
-                chunk_proba = F.softmax(chunk_logits, dim=1)
-                total_soft += chunk_proba.sum(dim=0)
-                all_hard.append(chunk_logits.argmax(dim=1))
-                chunk_groups = groups_np[i:i + chunk_size]
-                for g in unique_groups:
-                    mask = (chunk_groups == g)
-                    if mask.any():
-                        group_soft[g] += chunk_proba[mask].sum(dim=0)
-            hard_preds = torch.cat(all_hard).cpu().numpy()
+        total_soft, group_soft, hard_preds = transductive_counts(
+            model, X_test_dev, groups_np, unique_groups, num_classes,
+            chunk_size, device)
 
         violations_g = {}
         violated_global = set()
@@ -210,17 +179,8 @@ def _train_constraints(model, config, inputs, device):
         # constraint step. Required so the snapshot state below reflects the
         # exact model that produced the satisfaction status (saving post-step
         # state would mismatch the next-pass counts).
-        hard_counts = {c: int((hard_preds == c).sum()) for c in constrained_classes}
-        total_excess = sum(
-            max(0, hard_counts[c] - int(global_con[c]))
-            for c in constrained_classes if global_con[c] < UNLIMITED
-        )
-        if local_con:
-            for g_id, bounds in local_con.items():
-                for c in constrained_classes:
-                    if bounds[c] < UNLIMITED:
-                        gc = int(((hard_preds == c) & (groups_np == g_id)).sum())
-                        total_excess += max(0, gc - int(bounds[c]))
+        total_excess = count_excess(hard_preds, groups_np, constrained_classes,
+                                    global_con, local_con)
         all_satisfied = (total_excess == 0)
 
         # Snapshot model state BEFORE constraint step (mirrors TraLO). Saved
@@ -325,97 +285,4 @@ def _train_constraints(model, config, inputs, device):
 
 
 def train(inputs: TrainInputs) -> TrainOutputs:
-    hp = inputs.hyperparams
-    allow_restore = _required(hp, "enable_checkpoint_restore", bool)
-    model = inputs.model
-    device = inputs.device
-
-    # Baseline for the reordering diagnostic, captured BEFORE a single
-    # constraint step. This used to exist only in tralo/train.py, so for these
-    # three arms "did the constraint phase reorder anything, or only shift a
-    # bias the scorer cannot see" was unanswerable -- the same asymmetry that
-    # made the CE-skip flag a 0.22 cc-F1 artifact.
-    _reorder_chunk = _required(inputs.hyperparams, "constraint_chunk_size", int)
-    _warmup_scores = capped_scores(model, inputs.X_test, inputs.constrained_classes,
-                                   _reorder_chunk)
-
-    (satisfaction_epoch, best_sat_state, best_sat_epoch,
-     min_excess_state, min_excess_epoch, min_total_excess
-     ) = _train_constraints(model, inputs.config, inputs, device)
-
-    # Apples-to-apples checkpoint restore (mirrors TraLO). Selection rule is
-    # deterministic on the constraint excess axis -- NOT on F1. Picking the
-    # checkpoint by F1 over multiple candidates is double-dipping on the
-    # evaluation metric.
-    constrained_classes = inputs.constrained_classes
-    global_con = inputs.global_con
-    local_con = inputs.local_con
-    groups_np = inputs.group_ids
-    X_test_dev = inputs.X_test.to(device)
-
-    model.eval()
-    with torch.no_grad():
-        chunk_size = _required(inputs.hyperparams, "constraint_chunk_size", int)
-        all_hard = []
-        for i in range(0, len(X_test_dev), chunk_size):
-            chunk_logits = model(X_test_dev[i:i + chunk_size])
-            all_hard.append(chunk_logits.argmax(dim=1))
-        hard_preds = torch.cat(all_hard).cpu().numpy()
-    final_total_excess = sum(
-        max(0, int((hard_preds == c).sum()) - int(global_con[c]))
-        for c in constrained_classes if global_con[c] < UNLIMITED
-    )
-    if local_con:
-        for g_id, bounds in local_con.items():
-            for c in constrained_classes:
-                if bounds[c] < UNLIMITED:
-                    gc = int(((hard_preds == c) & (groups_np == g_id)).sum())
-                    final_total_excess += max(0, gc - int(bounds[c]))
-    final_violates = final_total_excess > 0
-
-    restored_from_epoch = None
-    restore_kind = None
-    # PARITY with tralo, which gates this and whose campaigns set it False.
-    # Unconditional restore here meant that in a head-to-head only tralo kept
-    # its trained model, while these two were swapped for a checkpoint chosen
-    # on constraint satisfaction -- measured at -0.0351 AP within-run. Any
-    # tralo win over the duals would have carried that advantage for free.
-    # Default True: runs predating the flag keep their behaviour bit for bit.
-    if not allow_restore:
-        log.info("Fioretto: enable_checkpoint_restore=False, keeping the trained model")
-    if allow_restore and best_sat_state is not None and final_violates:
-        log.info("Fioretto: final violates; restoring best-satisfied checkpoint from epoch %d",
-                 best_sat_epoch)
-        model.load_state_dict({k: v.to(device) for k, v in best_sat_state.items()})
-        restored_from_epoch = best_sat_epoch
-        restore_kind = "fully_satisfied"
-    elif (allow_restore and min_excess_state is not None
-          and final_total_excess > min_total_excess):
-        log.info("Fioretto: final excess=%d > min seen excess=%d (epoch %d); "
-                 "restoring lowest-excess checkpoint",
-                 int(final_total_excess), int(min_total_excess), min_excess_epoch)
-        model.load_state_dict({k: v.to(device) for k, v in min_excess_state.items()})
-        restored_from_epoch = min_excess_epoch
-        restore_kind = "min_excess"
-
-    # AFTER the restore: the restored model is the one whose
-    # predictions the scorer reads.
-    _reorder = reordering_report(model, inputs.X_test, _warmup_scores,
-                                 inputs.constrained_classes,
-                                 _reorder_chunk)
-
-    return TrainOutputs(
-        model=model,
-        summary={
-            "satisfaction_epoch": satisfaction_epoch,
-            "best_sat_epoch": best_sat_epoch,
-            "min_excess_epoch": min_excess_epoch,
-            "min_total_excess": (None if min_total_excess == float("inf")
-                                 else int(min_total_excess)),
-            "restored_from_epoch": restored_from_epoch,
-            "restore_kind": restore_kind,
-            # tau near 1.0 with a large bias_shift = the count moved and
-            # the RANKING did not, which 9 of 13 scored metrics cannot see.
-            "reordering": _reorder,
-        },
-    )
+    return run_dual_arm(inputs, _train_constraints, "Fioretto")

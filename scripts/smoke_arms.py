@@ -92,6 +92,15 @@ def make_inputs(P, arm, tmp, seed=1):
         y_test=y_test, group_ids=groups,
         global_con=gcon, local_con=lcon, constrained_classes=[1],
         num_classes=N_CLASSES, config=config, hyperparams=hp,
+        # cpu ON PURPOSE: this harness must run anywhere, including a dev box
+        # with no GPU, and it is the gate that proves every arm RUNS.
+        # ⚠️ It therefore CANNOT see an AMP bug: setup_runtime returns
+        # use_amp=False on cpu, so the autocast regions are no-ops and an op
+        # that CUDA autocast BANS sails straight through. `select` passed here
+        # cleanly and then died on its first GPU batch. That class is covered
+        # instead by test_no_autocast_banned_op_is_reachable_from_an_arm, which
+        # is device-independent -- if you add another AMP-sensitive op, add it
+        # to that test's BANNED set, not to this file.
         device=torch.device("cpu"),
         experiment_path=path, csv_log_path=path / "training_log.csv"), gcon, lcon
 

@@ -46,7 +46,6 @@ import logging
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from src.pipeline.contracts import TrainInputs, TrainOutputs
 from src.pipeline.setup import setup_runtime
@@ -160,8 +159,16 @@ def selective_loss(g, probs, y, cls, tau, cov_weight, cov_ema=None,
     items inside its window.
     """
     is_c = (y == cls).float()
-    per_item = F.binary_cross_entropy(probs[:, cls].clamp(EPSILON, 1 - EPSILON),
-                                      is_c, reduction="none")
+    # WRITTEN OUT, not F.binary_cross_entropy. CUDA autocast BANS that op --
+    # "unsafe to autocast" -- and this is called from inside the autocast block,
+    # so every `select` run died in 11 s with a header-only training_log and was
+    # reset to `pending` by the dispatcher. NOT binary_cross_entropy_with_logits
+    # either: `probs` is a SOFTMAX probability, and the sigmoid of logits[:, cls]
+    # is a different quantity, so that "fix" would silently change the loss.
+    # `probs` is fp32 (logits.float() upstream) and p is already clamped, so this
+    # is bit-identical to the banned call -- verified, max abs diff 0.0.
+    p_c = probs[:, cls].clamp(EPSILON, 1 - EPSILON)
+    per_item = -(is_c * p_c.log() + (1.0 - is_c) * (1.0 - p_c).log())
     cov = g.mean()
     # CENTRED, and that is not cosmetic. Swapping g.sum() for the expected
     # covered mass fixes the variance but also removes the CENTRING the ratio
