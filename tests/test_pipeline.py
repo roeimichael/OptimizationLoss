@@ -82,8 +82,14 @@ def test_penalty_unchanged_for_positive_K(K, soft):
 def test_K0_constraint_has_a_gradient():
     """A group with no true instance of the capped class gets K=0 legitimately.
     It used to sit pinned at the penalty's own bound: a nonzero CONSTANT with
-    exactly zero gradient, permanently unsatisfiable, holding the ratchet gate
-    open for every other constraint."""
+    exactly zero gradient, so the constraint contributed nothing to the model at
+    all. `scale = max(K, 1)` fixed that.
+
+    NOTE the claim that used to be appended here -- that it also held the
+    ratchet gate open for every other constraint -- is FALSE and was removed
+    2026-08-22. The trainer computes satisfaction and the gate from the HARD
+    counts, which can be exactly zero. See
+    `test_the_trainer_decides_satisfaction_and_the_ratchet_from_HARD_counts`."""
     crit = _loss([0, UNLIMITED])
     soft = torch.tensor(12.0, requires_grad=True)
     crit._penalty(soft, 0).backward()
@@ -1798,9 +1804,16 @@ def test_straight_through_closes_the_K_equals_zero_trap():
 
     On the soft value that constraint can NEVER be satisfied: `sum_i p_ic` is
     strictly positive for any softmax, even when the model predicts the class
-    for nobody in the group, so `relu(count - 0)` stays positive forever. It
-    contributes nothing useful and holds the ratchet gate open for every other
-    constraint, for the whole run -- a standing warning in this project.
+    for nobody in the group, so `relu(count - 0)` stays positive forever.
+
+    That is where the standing warning stops being true. It does NOT hold the
+    ratchet gate open for every other constraint -- the trainer reads HARD
+    counts, which can be exactly zero (corrected 2026-08-22, FRAMEWORK 1b). What
+    the term really does is push `p_ic` down in that group permanently, which
+    for a group with genuinely no instances of the class is the RIGHT direction.
+    So `straight_through` switches real pressure off rather than repairing a
+    defect, and on iwildcam -- seven of fourteen ceilings at K == 0 -- that is a
+    decision to make on a measurement, not a fix to apply on sight.
 
     The hard count CAN be exactly zero, so `straight_through: true` makes that
     constraint satisfiable. This pins the difference rather than the fix, since
