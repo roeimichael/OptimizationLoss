@@ -427,6 +427,41 @@ a direction to earn; loosen it and a monotone penalty finds something a coin can
 
 ---
 
+### (12) ⛔⛔ `select` (1c, the jointly-trained SELECTION head) IS REJECTED
+
+`results/selectrun`, 32 runs, dermmnist x ViTB16 x {L70_G30, L70_G50} x 4 seeds,
+both clippers in-campaign, scored 2026-08-22. **It is the worst arm this project
+has measured.**
+
+| vs `clip` | AP | AUROC | ccF1 | macroF1 | acc | cells |
+|---|---|---|---|---|---|---|
+| `select` | **-0.1096** | -0.0326 | **-0.0804** = **-22 items** | -0.0873 | -0.0341 | **0 of 2 on every metric** |
+| `select_null` | +0.0018 | +0.0020 | -0.0053 = -1.5 items | +0.0169 | +0.0025 | 1/1, a tie |
+
+🔑 **THE NULL SEPARATES THE TWO EXPLANATIONS AND KILLS THE ARM, NOT THE SETUP.**
+`select_null` is the same warm-up, the same 29 epochs, the same allocator, with
+`select_eta: 0`. It TIES `clip`. So the loss is not the training setup and not
+warm-up 1 -- it is **the selective term itself**, and it costs 22 items.
+
+🚨 **It also destabilises training.** 2 of its 8 runs collapsed on the final
+epoch -- 0.9835 -> **0.6968** and 0.9881 -> **0.8368** -- against zero collapses
+in 8 `select_null` runs and one in 8 `clip`. The pipeline keeps the last epoch,
+so those collapses are the scored models.
+
+⇒ **Do not re-run it, at any `eta`, `tau` or `cov_weight`.** The direction is not
+marginal and the mechanism is understood: the coverage term trains the network to
+*abstain*, which is a different objective from ranking the capped class, and the
+allocator then has a worse ranking to threshold. Gap A1 (the selector's ordering
+is discarded at test time) was the reason to build it; the measurement says the
+ordering it produces is worse than the one CE gives for free.
+
+✅ **What survives is the null's reading**, which is worth more than the arm: at
+warm-up 1 with 29 further epochs, a trained arm that does NOTHING lands on
+`clip`. Together with section 9's corrected -0.06 items that is a SECOND,
+independent measurement that the warm-up-1 setup carries no handicap.
+
+---
+
 ### (11) ⛔⛔ THE CAPPED CLASSES DO NOT COMPETE -- "coupled multi-class" is CLOSED
 
 Measured 2026-08-21 on the stored predictions, and independently re-verified.

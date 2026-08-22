@@ -520,13 +520,22 @@ def _terminal_collapse(run_dir):
     return (last, prev) if last < prev - 0.02 else None
 
 
+# Every knob that scales an arm's treatment against CE. At zero the cap cannot
+# reach the weights, so the run is its own control -- whatever the arm is
+# called. `select_null` is the case that proved the lambda-only version too
+# narrow: it zeroes `select_eta` and carries no lambda at all, so it was
+# reported as "one run counted twice" when identity across caps is the thing
+# that MUST happen.
+TREATMENT_WEIGHT_KEYS = ("lambda_global", "lambda_local", "select_eta")
+
+
 def _zero_lambda_arms(rows):
-    """Arms whose configured lambdas are both zero, read from the run config.
+    """Arms whose treatment weight is zero, read from the run CONFIG.
 
     Not from the `_null` name suffix. The suffix is a convention, and a
-    convention is exactly the thing that drifts away from the config without
-    anything failing. An arm qualifies only if EVERY run of it that could be
-    read says lambda_global == lambda_local == 0.
+    convention is exactly the thing that drifts from the config without
+    anything failing. An arm qualifies only if every run of it that could be
+    read carries at least one treatment key and every key it carries is 0.
     """
     def _find(d, key):
         if isinstance(d, dict):
@@ -548,10 +557,11 @@ def _zero_lambda_arms(rows):
                 cfg = json.load(fh)
         except Exception:
             continue
-        lg, ll = _find(cfg, "lambda_global"), _find(cfg, "lambda_local")
-        if lg is None or ll is None:
+        vals = [_find(cfg, k) for k in TREATMENT_WEIGHT_KEYS]
+        vals = [v for v in vals if v is not None]
+        if not vals:
             continue
-        seen[r["arm"]].append(float(lg) == 0.0 and float(ll) == 0.0)
+        seen[r["arm"]].append(all(float(v) == 0.0 for v in vals))
     return {a for a, flags in seen.items() if flags and all(flags)}
 
 
@@ -629,13 +639,13 @@ def _identity_check(rows):
             if not multi:
                 continue
             if len(collapsed) == len(multi):
-                print("  ok  %s (lambda=0): identical across cap levels in all "
+                print("  ok  %s (treatment weight 0): identical across cap levels in "
                       "%d groups, as it must be -- the cap is not in its loss. "
                       "It is ONE run per (dataset, backbone, seed), so its "
                       "effective n is cells / n_cap_levels, not cells."
                       % (arm, len(multi)))
             else:
-                print("  *** %s has lambda=0, yet its raw predictions DIFFER "
+                print("  *** %s has treatment weight 0, yet its predictions DIFFER "
                       "across cap levels in %d of %d groups. The cap is not in "
                       "its loss, so it cannot legitimately change the model: "
                       "either the cap is leaking into training or the run is "
