@@ -442,13 +442,30 @@ arms:
   select_null:
     {methodology: select, phase: trained, blocks: [chunked, select_null],
      constraint_step: false}
-  fioretto:   {methodology: fioretto_ldf,   phase: trained, blocks: [constraint_phase, fioretto]}
-  hounie:     {methodology: hounie_rcl,     phase: trained, blocks: [constraint_phase, hounie]}
-  alm:        {methodology: fioretto_alm,   phase: trained, blocks: [constraint_phase, alm]}
-  # One zero-dose sibling per trained arm. Same code path, same warm-up, same
-  # epoch count, same optimizer restart, same transductive passes, same
-  # allocator -- treatment zeroed. See each _null block above for what "zeroed"
-  # means in that arm; it is a different knob in each, and two have traps.
+  # `null_sibling: tralo_null` for all three. At lambda 0 no constraint gradient
+  # is formed at all, so `dual_common`'s epoch loop and `tralo/train.py`'s
+  # collapse to the SAME pure-CE run -- the identical argument already applied
+  # to tralo_coin/st/margin above, extended across a code-path boundary.
+  #
+  # MEASURED, not assumed. In `results/dualbar2` all four zero-dose arms emit
+  # one md5 (`1bfa966cdf01`) at BOTH cap levels, and 47 of 49 training-log
+  # columns are equal -- the two exceptions being the limit columns, which are
+  # the budget itself. 32 of that campaign's 88 runs computed one control.
+  #
+  # The equivalence is GATED, because it is now load-bearing rather than
+  # incidental: test_every_zero_dose_arm_is_the_same_model_across_code_paths
+  # runs all four through the smoke harness and requires bit-identity, with a
+  # treated arm as its liveness control. If that test ever fails, a shared null
+  # is unsound and these three lines must go back to per-family nulls.
+  fioretto:   {methodology: fioretto_ldf,   phase: trained, blocks: [constraint_phase, fioretto],
+               null_sibling: tralo_null}
+  hounie:     {methodology: hounie_rcl,     phase: trained, blocks: [constraint_phase, hounie],
+               null_sibling: tralo_null}
+  alm:        {methodology: fioretto_alm,   phase: trained, blocks: [constraint_phase, alm],
+               null_sibling: tralo_null}
+  # The per-family zero-dose siblings are KEPT as named arms, not deleted: they
+  # are how the equivalence above gets re-verified on real data when something
+  # about the trainers changes. They are simply no longer scheduled by default.
   fioretto_null: {methodology: fioretto_ldf, phase: trained, blocks: [constraint_phase, fioretto_null]}
   hounie_null:   {methodology: hounie_rcl,   phase: trained, blocks: [constraint_phase, hounie_null]}
   alm_null:      {methodology: fioretto_alm, phase: trained, blocks: [constraint_phase, alm_null]}

@@ -420,7 +420,18 @@ def main():
     # or the campaign that produced its verdict stops being reproducible.
     named = {a for a in args.arms if a not in ("all", "all+null")}
     if "all+null" in args.arms:
-        requested = (set(P["arms"]) - rejected) | named
+        # `+null` means "and the null each arm is READ AGAINST", resolved
+        # through `null_sibling` and deduplicated -- NOT "every arm whose name
+        # ends in _null". It used to be the latter, which scheduled one
+        # bit-identical zero-dose run per FAMILY: 32 of `results/dualbar2`'s 88
+        # runs computed a single control four times over, 2.6 h of a 7 h
+        # campaign, verified by one shared md5 at both cap levels. Resolving
+        # through the sibling map collapses them automatically, and keeps the
+        # per-family nulls available by name for re-verifying the equivalence.
+        base = ({a for a in P["arms"] if not a.endswith("_null")}
+                - rejected) | named
+        requested = base | {_null_of(P, a) for a in base
+                            if _null_of(P, a) in P["arms"]}
     elif "all" in args.arms:
         requested = ({a for a in P["arms"]
                       if not a.endswith("_null") and a not in controls}

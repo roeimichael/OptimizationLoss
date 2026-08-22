@@ -4466,3 +4466,123 @@ def test_the_graph_probes_controls_are_fair():
     D = diffuse(P, real, 0.5)
     assert np.allclose(D.sum(axis=1), 1.0)
     assert (D >= 0).all()
+
+
+def _run_arm_probs(arm, methodology, seed=1):
+    """Test probabilities for any arm, assembled from protocol.yml.
+
+    The generic sibling of `_run_tralo_arm`, which patches the tralo module and
+    so cannot cross into `dual_common`. Crossing that boundary is the whole
+    point here.
+    """
+    import shutil
+    import tempfile
+
+    import scripts.smoke_arms as smoke
+
+    tmp = tempfile.mkdtemp(prefix="zerodose_")
+    try:
+        inputs, _g, _l = smoke.make_inputs(smoke.load_protocol(), arm, tmp,
+                                          seed=seed)
+        torch.manual_seed(seed)
+        out = TRAIN_FNS[methodology](inputs)
+        out.model.eval()
+        with torch.no_grad():
+            return F.softmax(out.model(inputs.X_test), dim=1).numpy()
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_every_zero_dose_arm_is_the_same_model_across_code_paths():
+    """At lambda 0 all four trained families collapse to the same CE run.
+
+    WHY THIS IS LOAD-BEARING AND NOT TRIVIA. `results/dualbar2` spends 32 of its
+    88 runs on four zero-dose arms that were confirmed BYTE-IDENTICAL on real
+    data -- one md5 (`1bfa966cdf01`) at both cap levels, and 47 of 49 training-log
+    columns equal, the two exceptions being the limit columns themselves. The
+    protocol already exploits this for the tralo family through `null_sibling`,
+    with the reasoning written at `configs/protocol.yml`: at lambda 0 there is no
+    constraint gradient, so a second null is a bit-identical run costing a GPU
+    slot.
+
+    Extending that to fioretto/hounie/alm crosses a CODE PATH boundary --
+    `dual_common` rather than `tralo/train.py` -- so the equivalence stops being
+    structural-by-inspection and has to be checked. This is that check. If it
+    ever fails, a shared null is no longer sound and the arms must be run
+    separately again.
+
+    Liveness: a TREATED arm must differ, or `identical` is being reported by a
+    harness that cannot tell anything apart.
+    """
+    nulls = {"tralo_null": "tralo", "fioretto_null": "fioretto_ldf",
+             "hounie_null": "hounie_rcl", "alm_null": "fioretto_alm"}
+    probs = {a: _run_arm_probs(a, m) for a, m in nulls.items()}
+
+    ref_name = "tralo_null"
+    ref = probs[ref_name]
+    for name, pr in probs.items():
+        if name == ref_name:
+            continue
+        assert np.array_equal(ref, pr), (
+            "%s is NOT bit-identical to %s at lambda 0 (max abs diff %g). The "
+            "shared `null_sibling` is unsound -- either restore the per-family "
+            "null arms or find what now differs between the code paths."
+            % (name, ref_name, float(np.abs(ref - pr).max())))
+
+    # LIVENESS: the same harness must separate a treated arm from the null,
+    # otherwise every equality above is vacuous.
+    treated = _run_arm_probs("fioretto", "fioretto_ldf")
+    assert not np.array_equal(ref, treated), (
+        "`fioretto` is bit-identical to the null on this harness, so it cannot "
+        "tell a treated arm from an untreated one and the equalities above "
+        "prove nothing")
+
+
+def test_all_plus_null_schedules_one_null_per_shared_zero_dose_model():
+    """`+null` means the null each arm is READ AGAINST, deduplicated.
+
+    It used to mean `every arm whose name ends in _null`, which scheduled one
+    bit-identical zero-dose run per FAMILY: 32 of `results/dualbar2`'s 88 runs
+    computed a single control four times. The clipper duplicates in that
+    campaign were already absorbed by the warm-up cache -- `clip` at the second
+    cap writes no training_log at all -- but the nulls are TRAINED arms and
+    genuinely re-ran 29 epochs each, so 24 runs of real compute.
+
+    Negative control: reverting the branch to `set(P['arms']) - rejected`
+    schedules four nulls and this FAILS.
+    """
+    import configs.gen_campaign as gc
+
+    P = gc.load_protocol() if hasattr(gc, "load_protocol") else None
+    if P is None:
+        import yaml
+        with io.open(os.path.join(REPO, "configs", "protocol.yml"),
+                     encoding="utf-8") as fh:
+            P = yaml.safe_load(fh)
+
+    rejected = set(P.get("rejected_arms", {}))
+    base = {a for a in P["arms"] if not a.endswith("_null")} - rejected
+    scheduled = base | {gc._null_of(P, a) for a in base
+                        if gc._null_of(P, a) in P["arms"]}
+
+    nulls = sorted(a for a in scheduled if a.endswith("_null"))
+    assert nulls == ["tralo_null"], (
+        "`all+null` schedules %s. Every family that shares a zero-dose model "
+        "must resolve to ONE null run; a second is bit-identical and costs a "
+        "full GPU slot." % nulls)
+
+    # every trained arm must still RESOLVE to a null that is actually there,
+    # or the dedup has silently orphaned an arm from its control
+    for a in sorted(base):
+        if P["arms"][a].get("phase") != "trained":
+            continue
+        sib = gc._null_of(P, a)
+        assert sib in scheduled or a in scheduled and sib not in P["arms"], (
+            "trained arm %s resolves to %s, which is not scheduled" % (a, sib))
+
+    # and the three per-family nulls must still EXIST as named arms, because
+    # they are how the equivalence gets re-verified on real data
+    for a in ("fioretto_null", "hounie_null", "alm_null"):
+        assert a in P["arms"], (
+            "%s was deleted rather than merely unscheduled -- the shared-null "
+            "equivalence can no longer be re-checked on real data" % a)
