@@ -107,7 +107,7 @@ def margin_window(proba, temp):
 class MulticlassTransductiveLoss(nn.Module):
 
     def __init__(self, global_constraints, local_constraints,
-                 num_classes=7, initial_rho=0.5,
+                 num_classes, initial_rho=0.5,
                  penalty_shape="rational_bounded"):
         super().__init__()
         self.num_classes = num_classes

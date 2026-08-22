@@ -69,8 +69,8 @@ def _round_to_K(count, percentage, scope_label):
     return K
 
 
-def compute_global_constraints(data, target_col, percentage, constrained_class=4,
-                               num_classes=7, **kwargs):
+def compute_global_constraints(data, target_col, percentage, constrained_class,
+                               num_classes, **kwargs):
     classes = normalize_constrained_classes(constrained_class)
     constraints = [UNLIMITED] * num_classes
     for c in classes:
@@ -80,7 +80,7 @@ def compute_global_constraints(data, target_col, percentage, constrained_class=4
 
 
 def compute_local_constraints(data, target_col, percentage, group_col,
-                              constrained_class=4, num_classes=7, **kwargs):
+                              constrained_class, num_classes, **kwargs):
     classes = normalize_constrained_classes(constrained_class)
     local = {}
     for group in data[group_col].unique():

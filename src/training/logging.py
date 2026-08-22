@@ -73,8 +73,16 @@ def log_progress_to_csv(csv_path, epoch, ce_loss, train_acc,
                         global_soft=None, local_soft=None,
                         lambda_global=0.0, lambda_local=0.0,
                         constraints=None, global_satisfied=True, local_satisfied=True,
-                        num_classes=7, grad_norm=0.0, local_constraints=None):
+                        num_classes=None, grad_norm=0.0, local_constraints=None):
+    # `7` used to be the default here and in four other signatures -- dermmnist's
+    # class count, baked in where a forgetful caller would have picked it up
+    # silently on an 8-class dataset. Derive it, or refuse.
     num_classes = len(constraints) if constraints else num_classes
+    if not num_classes:
+        raise ValueError(
+            "num_classes is required when `constraints` is empty. It used "
+            "to default to 7, which is dermmnist's class count and is "
+            "wrong for every other dataset.")
     global_counts = global_counts or {i: 0 for i in range(num_classes)}
     global_soft = global_soft or {i: 0.0 for i in range(num_classes)}
     local_counts = local_counts or {}

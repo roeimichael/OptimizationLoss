@@ -21,7 +21,7 @@ from src.utils.inference import chunked_forward
 from src.utils.constants import UNLIMITED
 
 
-def compute_prediction_statistics(model, X_test, group_ids, num_classes=7):
+def compute_prediction_statistics(model, X_test, group_ids, num_classes):
     was_training = model.training
     model.eval()
     with torch.no_grad():
