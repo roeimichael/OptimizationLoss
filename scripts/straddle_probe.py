@@ -37,8 +37,11 @@ budget `delta`,
 where `t` is the K-th largest score. That is exactly how many swaps a score
 change of size `delta` can perform, in ITEMS, directly comparable to every other
 effect in this project. `contested(delta)` -- how many items lie within `delta`
-of the cut at all -- is the label-free version, computable on a candidate
-dataset before any GPU time is spent.
+of the cut at all -- is the LABEL-free version, so it can be read on a test set
+whose labels are not to be touched, or on a fresh unlabelled set under an
+existing model. ⚠️ It is NOT model-free: without a model there is no ranking and
+so no cut, and it cannot screen a candidate dataset before training. The screen
+that runs before any GPU time is `dataset_screen`, from labels and metadata.
 
 ⚠️ It is an UPPER bound twice over. It assumes every near-cut item moves the
 RIGHT way, and it ignores the per-group ceilings, which can forbid a swap the

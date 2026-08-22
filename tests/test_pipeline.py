@@ -5167,3 +5167,58 @@ def test_the_straddle_shuffled_reference_does_not_track_the_error_geometry():
         "clean labels should leave FEWER swaps than chance", real, shuf)
     assert real["tailnoise"] > shuf["tailnoise"], (
         "buried positives should leave MORE swaps than chance", real, shuf)
+
+
+def test_no_runnable_command_in_the_docs_names_a_removed_dataset():
+    """The purge was enforced in the CODE and missed the DOCS.
+
+    `test_removed_datasets_cannot_be_selected_anywhere` pins protocol.yml, the
+    loader, the data directories and the generator's refusal -- and all of it
+    stayed green while `CLAUDE.md` still carried
+    `gen_campaign ... --datasets dermmnist tissuemnist` as the copy-paste
+    example. A command the generator now REFUSES is worse than a stale sentence:
+    it reads as the supported way to start, and the first thing it does is fail.
+
+    Prose ABOUT a removed dataset is deliberately still allowed -- the screen
+    results are the evidence for removing them and must stay readable. Only
+    executable lines are checked, which is the distinction that makes the rule
+    mechanical.
+    """
+    def command_lines(text):
+        """Fenced lines, comments stripped.
+
+        The comment half is stripped rather than the whole line skipped: the
+        `dataset_screen` block annotates its own command with the screen
+        results (`octmnist -7, tissuemnist -55 = DEAD`), which is the EVIDENCE
+        for the removal and has to stay. What must not survive is an
+        executable token naming one.
+        """
+        out, in_fence = [], False
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("```"):
+                in_fence = not in_fence
+                continue
+            if in_fence or stripped.startswith(("python ", "python3 ", "$ python")):
+                code = stripped.split("#", 1)[0].strip()
+                if code:
+                    out.append(code)
+        return out
+
+    # the checker must be capable of firing, or it proves nothing about the docs
+    poisoned = "\n".join(["```bash",
+                          "python -m configs.gen_campaign --datasets dermmnist",
+                          "```"])
+    assert any(d in ln for ln in command_lines(poisoned)
+               for d in REMOVED_DATASETS), (
+        "the extractor cannot see a bad command even when one is planted, so a "
+        "green result below would mean nothing")
+
+    for rel in ("CLAUDE.md", os.path.join("docs", "FRAMEWORK.md")):
+        path = os.path.join(REPO, rel)
+        with io.open(path, encoding="utf-8") as fh:
+            lines = command_lines(fh.read())
+        assert lines, "%s has no runnable lines -- extractor broken?" % rel
+        bad = [(ln, d) for ln in lines for d in REMOVED_DATASETS if d in ln]
+        assert not bad, (
+            "%s tells the reader to run a REMOVED dataset: %s" % (rel, bad[:3]))

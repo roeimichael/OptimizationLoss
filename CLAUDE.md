@@ -41,7 +41,8 @@ hinge, finer constraint granularity. **All of them are measured, and all made th
 main.py            dispatcher (kill -INT to stop; interrupted runs reset to pending)
 configs/           gen_campaign.py = THE generator (asserts the protocol, refuses to
                    emit a single-cap campaign, always adds both clippers)
-data/              dermmnist, octmnist, tissuemnist -- nothing else
+data/              iwildcam -- THE ONLY dataset. The original three are removed and
+                   unrunnable, not merely discouraged; see `docs/FRAMEWORK.md` 2(n)
 docs/FRAMEWORK.md  THE framework -- protocol, rejected ideas, code purge, open question
 docs/archive/      history, not instructions
 docs/paper/        the TMLR manuscript
@@ -59,7 +60,7 @@ imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 235 regression tests, ~80s, no dataset needed
+python -m pytest tests -q                   # 236 regression tests, ~80s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -137,7 +138,10 @@ python -m scripts.straddle_probe --campaign <root>  # how much of the ORACLE hea
                                             #   item misranked by a wide margin is not
                                             #   reachable at any dose. delta is MEASURED
                                             #   from each arm's own `_null` twin, not
-                                            #   assumed. `--self-test` gates it
+                                            #   assumed. `--self-test` gates it.
+                                            #   `contested` is LABEL-free but NOT
+                                            #   model-free -- no model, no ranking, no
+                                            #   cut. `dataset_screen` is the pre-GPU one
 ```
 
 `frozen_head_probe`, `graph_probe`, `scope_probe` and `straddle_probe` need
@@ -195,14 +199,17 @@ sweep `G < L` (e.g. `L50_G30`). See `docs/FRAMEWORK.md` section 1.
 Generate a campaign with:
 
 ```bash
-python -m configs.gen_campaign --root results/<name>     --datasets dermmnist tissuemnist --models MobileNetV3     --caps L30_G30 L50_G50 --arms all
+python -m configs.gen_campaign --root results/<name>     --datasets iwildcam --models MobileNetV3     --caps L20_G50 L30_G50 --arms all+null
 ```
 
 ## Datasets
 
-`iwildcam` (8 species, classes 2+7 capped, `location` = camera trap) -
-`dermmnist` (7 classes, MEL=4 capped, `loc_group`) - `octmnist` - `tissuemnist` (8 classes,
-class 4 capped, `synth_group`). **No AIDER, no EuroSAT, no others.**
+**`iwildcam` is the only one.** 8 species, classes 2 (impala) and 7 (cattle) capped,
+`location` = camera trap, and the test cameras are held out ENTIRE. **No AIDER, no
+EuroSAT, no others.**
+
+`dermmnist`, `octmnist` and `tissuemnist` are REMOVED -- the rows below are the evidence
+for why, not an offer to run them.
 
 🟢 **`iwildcam` is the ONE that can carry a constraint**, and the other three are now
 understood not to. Screen them with `scripts.dataset_screen`, which reports the
