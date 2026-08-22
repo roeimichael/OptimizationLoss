@@ -61,6 +61,48 @@ def count_excess(hard_preds, groups_np, constrained_classes, global_con, local_c
     return excess
 
 
+def count_fields(constrained_classes):
+    """Per-class count columns for the dual arms, named as `build_csv_header`.
+
+    WHY THIS EXISTS. `tralo` logs a per-class Limit/Hard/Soft triple every
+    epoch; the three dual arms logged only `total_excess`, a single summed
+    scalar. So the project's CENTRAL quantity -- what the count did, per capped
+    class, over the constraint phase -- was readable for one of four trained
+    arms and `n/a (schema)` for the other three, and every cross-arm count
+    comparison had to be reconstructed by hand from the stored predictions.
+
+    It also hid a real finding for longer than it should have: the constraint
+    moves one capped class at ~4x the noise floor and the other at or below it
+    (section 2 of docs/FRAMEWORK.md), which a SUMMED excess cannot show by
+    construction -- one class going down and the other up subtract inside it.
+
+    The counts are already computed. `transductive_counts` returns
+    `total_soft` and `hard_preds` every epoch and `count_excess` walks them;
+    only the writing was missing, so this costs no forward pass, no extra
+    device sync, and -- the part that matters -- draws nothing from the global
+    RNG, so it cannot move a result the way an extra shuffled-loader pass
+    would.
+
+    The names match `src/training/logging.py` exactly so `scripts/log_health`,
+    and anything else reading a training log, treats all four trained arms
+    identically instead of branching on the arm.
+    """
+    return [f"{p}_Class{c}" for c in sorted(constrained_classes)
+            for p in ("Limit", "Hard", "Soft")]
+
+
+def count_row(hard_preds, total_soft, constrained_classes, global_con):
+    """One epoch's per-class counts. Hard from argmax, soft from the sum."""
+    row = {}
+    soft = total_soft.detach().cpu().numpy()
+    for c in sorted(constrained_classes):
+        lim = global_con[c]
+        row[f"Limit_Class{c}"] = (int(lim) if lim < UNLIMITED else UNLIMITED)
+        row[f"Hard_Class{c}"] = int((hard_preds == c).sum())
+        row[f"Soft_Class{c}"] = float(soft[c])
+    return row
+
+
 class Checkpoints:
     """Best-satisfied / lowest-excess model snapshots, on the EXCESS axis only.
 

@@ -45,7 +45,8 @@ from src.pipeline.setup import setup_runtime
 from src.training.constraint_step import (
     constraint_autocast, constraint_backward, finish_constraint_step)
 from src.methodologies.dual_common import (Checkpoints, ce_epoch,
-                                          count_excess, dual_setup,
+                                          count_excess, count_fields,
+                                          count_row, dual_setup,
                                           open_epoch_log, read_step_config,
                                           run_dual_arm, transductive_counts)
 from src.utils.constants import UNLIMITED
@@ -125,6 +126,8 @@ def _train_constraints(model, inputs: TrainInputs, device):
                   "total_excess",
                   "all_satisfied", "max_lam_g", "max_u_g", "h_u",
                   "grad_norm"]
+    # The per-class counts every reader needs, named as tralo names them.
+    log_fields = log_fields + count_fields(constrained_classes)
     write_row = open_epoch_log(inputs.experiment_path, log_fields)
 
     ck = Checkpoints(allow_restore, "Hounie")
@@ -257,6 +260,8 @@ def _train_constraints(model, inputs: TrainInputs, device):
             "h_u": round(h_u, 6),
             "grad_norm": round(float(last_grad_norm), 6),
         }
+        row.update(count_row(hard_preds, total_soft,
+                             constrained_classes, global_con))
         write_row(row)
 
         if epoch < 5 or (epoch + 1) % 10 == 0 or epoch == constraint_epochs - 1:

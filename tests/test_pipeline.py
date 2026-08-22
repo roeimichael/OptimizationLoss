@@ -4644,3 +4644,66 @@ def test_the_panel_says_whether_it_could_have_seen_what_it_reports(capsys):
     mixed[("L50_G40", 1)] = 0.10
     out = _resolution_text(mixed, scale=2.56, capsys=capsys)
     assert "1 seed(s) in the least-replicated cell" in out, out
+
+
+@pytest.mark.parametrize("arm,methodology", [
+    ("fioretto", "fioretto_ldf"),
+    ("hounie", "hounie_rcl"),
+    ("alm", "fioretto_alm"),
+    ("tralo", "tralo"),
+])
+def test_every_trained_arm_logs_the_per_class_counts(arm, methodology):
+    """All four trained arms must answer the same question from their log.
+
+    `tralo` logged a per-class Limit/Hard/Soft triple every epoch; the three
+    duals logged only `total_excess`, one summed scalar. So the project's
+    central quantity -- what the count did, per capped class, across the
+    constraint phase -- was readable for one arm of four and `n/a (schema)`
+    for the rest, and every cross-arm count comparison had to be rebuilt by
+    hand from the stored predictions.
+
+    A SUMMED excess also cannot show the class asymmetry the framework
+    records (one capped class moved at ~4x the noise floor, the other at or
+    below it) -- one class rising and another falling subtract inside it.
+
+    Negative control: this was verified to FAIL on all three dual arms before
+    `count_fields`/`count_row` were added, and to pass on `tralo` throughout,
+    which is what made the asymmetry visible for one arm only.
+    """
+    import shutil
+    import tempfile
+
+    import pandas as pd
+    import scripts.smoke_arms as smoke
+
+    tmp = tempfile.mkdtemp(prefix="counts_")
+    try:
+        inputs, _g, _l = smoke.make_inputs(smoke.load_protocol(), arm, tmp,
+                                          seed=1)
+        TRAIN_FNS[methodology](inputs)
+        df = pd.read_csv(os.path.join(str(inputs.experiment_path),
+                                      "training_log.csv"))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    capped = [c for c in df.columns if c.startswith("Limit_Class")
+              and pd.to_numeric(df[c], errors="coerce").dropna().lt(1e9).any()]
+    assert capped, (
+        "%s logs no finite Limit_Class column, so no reader can tell which "
+        "class was capped or what the budget was" % arm)
+
+    for lim in capped:
+        c = lim[len("Limit_Class"):]
+        for prefix in ("Hard_Class", "Soft_Class"):
+            col = prefix + c
+            assert col in df.columns, (
+                "%s caps class %s but never logs %s -- its count trajectory "
+                "is unreadable from the log" % (arm, c, col))
+            v = pd.to_numeric(df[col], errors="coerce").dropna()
+            assert len(v) and (v >= 0).all(), (
+                "%s wrote no usable values in %s: %s" % (arm, col, list(v)))
+        # hard counts are argmax tallies, so they must be whole numbers
+        h = pd.to_numeric(df["Hard_Class" + c], errors="coerce").dropna()
+        assert np.allclose(h, h.round()), (
+            "%s wrote a non-integer hard count in Hard_Class%s: %s"
+            % (arm, c, list(h)))
