@@ -2450,6 +2450,34 @@ correction factor is unbounded here, where dermmnist's was 1.68x -- but that is
 an argument, not a measurement, until `scope_probe --calibrate` is run on a
 trained model.
 
+**THE SECOND-DATASET SEARCH -- where FMoW stands, 2026-08-22.** FMoW is the
+right shape on paper: 62 classes, heavily imbalanced, and a real domain axis
+(geography from the `polygon` centroid, time from `timestamp`). Two obstacles
+were measured rather than guessed, and both are recorded so the next attempt
+does not rediscover them.
+
+1. 🛑 **The official WILDS archive is GONE, not down.** The CodaLab bundle
+   answers **HTTP 500** while the CodaLab root answers 200 -- re-confirmed here
+   after the same result during the iWildCam work. Do not plan around it.
+2. 🚨 **The popular HuggingFace mirror `EVER-Z/fMoW_rgb` has a CORRUPT LABEL
+   COLUMN.** Its `category` field is truncated at the first underscore:
+   `place_of_worship` -> `place`, `oil_or_gas_facility` -> `oil`,
+   `recreational_facility` -> `recreational`. **This MERGES CLASSES** --
+   `airport`, `airport_hangar` and `airport_terminal` all become `airport`, so
+   three of the 62 collapse into one. A count-constrained experiment run on that
+   column would be capping a class that does not exist, and nothing downstream
+   would look wrong. ✅ **The full label survives in `image_name`**
+   (`place_of_worship_3475_4_rgb.jpg`), so derive the label by stripping the
+   trailing `_<id>_<seq>_rgb.jpg` and **never read `category`.**
+
+⚠️ **Screening it is not free the way iWildCam's was.** `dataset_screen` needs
+labels and groups only, but this mirror stores them inside 296 image-bearing
+parquet shards, and a column-selective read over HTTP did not finish in two
+minutes for ONE shard. So FMoW cannot be screened before downloading, which
+inverts the 2(n) discipline. **Do the download on the server, derive labels from
+`image_name`, and screen before training** -- the screen is still the gate, it
+just cannot come first here.
+
 ⚠️ **A NEW DATASET ALONE WILL NOT FIX THIS.** The splitter is half the problem:
 `create_slices.py` stratifies on the LABEL, which forces test prevalence to
 match train prevalence and is exactly why the global cap carries nothing. A
