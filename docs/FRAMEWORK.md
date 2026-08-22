@@ -1752,7 +1752,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 217 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 219 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1760,7 +1760,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (217 tests, ~40 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (219 tests, ~40 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -2261,6 +2261,70 @@ class 4 is 11.0% of a set whose largest class is **67.7%** and whose imbalance
 ratio is **62:1**. The genuinely hard classes (3 at 1.1%, 6 at 1.7%, 0 at 3.4%)
 are not capped, and cannot easily be: `K = 0.2 * 22 = 4` for class 3, and a cap
 rounding toward 0 is SKIPPED in the loss.
+
+### (m) 🔴🔴 THE SPLIT CARRIES NOTHING -- the local-cap direction is CLOSED, for 0 GPU-hours
+
+Section 2(l) proposed a 120-run campaign at `L20_G50` to make the local scope
+bind. **`scripts/scope_probe` priced it first and it is dead.** Not the campaign
+-- the direction.
+
+The contrast is exactly controlled (2(l)): `L20_G50` and `L50_G20` impose the
+SAME TOTAL, so the scope question is answerable from stored probabilities with
+the MODEL HELD FIXED. Three measurements on `results/dualbar2`, every one with a
+live control:
+
+| measurement | d items | sign | what it was |
+|---|---|---|---|
+| **pin the split at true proportions** | **-0.86** | 15/56 | what a binding local cap does |
+| C1 rotated ceilings | -5.46 | 0/56 | same total, wrong shape |
+| C2 reversed ceilings | -5.30 | 0/56 | same total, worst shape |
+| **best split found WITH labels** | **+4.18** | -- | an oracle, over 14 runs |
+| **the same oracle, TRANSFERRED** | **-0.89** | 12/30 | fit on run A, scored on run B |
+| **per-group prior calibration** | **-0.20** | 0/24 | label-free method candidate |
+
+**1. THE INSTRUMENT IS LIVE.** A wrong-shape split of the right size costs
+5.3-5.5 items at 0/56. That is more than half the entire `clip`-to-perfect
+headroom, so an effect of that size would have been seen. The null is a
+measurement.
+
+**2. THE ORACLE GAIN IS SELECTION NOISE, AND THIS IS THE TRAP.** Choosing the
+best of ~900 splits on the same 2014 labels that then score it gains +4.18
+items, which looks like the largest lever ever measured here. It transfers at
+**-0.89**, 12/30. The splits it picks are not even stable -- group 2's class-2
+budget ranges 14 to 33 across runs. 🛑 **`scope_probe` therefore prints the
+transfer UNCONDITIONALLY beside the oracle**; an own-oracle number alone is a
+headroom claim built out of noise, and with a seed sd near 2.7 items the
+selection alone buys several.
+
+**3. THE FREE SPLIT IS ALREADY THE BEST LABEL-FREE CHOICE.** Pinning at the true
+proportions costs 0.86 items; another run's oracle costs 0.89. Every alternative
+split costs about the same ~0.9, because the greedy allocator maximises expected
+TP given the probabilities and its own split is that optimum. A local cap does
+not add information -- it OVERRIDES the allocator's optimum with the proportional
+split, and the proportional split is not the good one.
+
+**4. AND THE PER-GROUP PRIOR IS NOT A LOOPHOLE IN 2(j).** 2(j) closed the prior
+shift because ONE multiplier per class is monotone and cannot reorder anything.
+A PER-GROUP multiplier is not monotone over the full set and CAN reorder across
+groups, which is exactly what sets the split -- so it needed its own measurement
+rather than an appeal to 2(j). It got one: corrections of 1.7x to 3.1x were
+applied, and **6 items moved.** The residual miscalibration is only 1.68x
+between groups while the top-K items are further apart than that. The model's
+per-group priors are already nearly right.
+
+🔑 **WHAT THIS COSTS AND SAVES.** Zero GPU-hours, against a 120-run campaign
+of roughly ten. This is the third direction closed by a CPU probe against runs
+that already existed (`frozen_head_probe`, `graph_probe`, now `scope_probe`), and
+the pattern is worth stating as a rule: **when a contrast can be made exactly
+controlled, price it offline before generating a campaign.**
+
+⚠️ **WHAT IT DOES NOT CLOSE.** All of this holds the MODEL fixed, so it prices
+the allocator half. Training under a binding local cap could in principle yield
+different probabilities. But the standing finding is that the constraint prunes
+and never re-ranks, and 2(l) measured the training-time local term acting purely
+on the TOTAL with the per-group SHARES unchanged (class 4 group 2, whose ceiling
+is punitively tight at 15 against 48/48, held share 0.146 treated vs 0.137
+zero-dose, p=0.296). Both halves say the same thing.
 
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
@@ -3027,7 +3091,7 @@ scripts/verify_caps.py   the caps bind, on the real dataset slices
 scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             217 tests, ~40 s, no dataset required
+tests/             219 tests, ~40 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

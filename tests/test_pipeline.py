@@ -4813,3 +4813,59 @@ def test_swapping_L_and_G_holds_the_total_budget_fixed():
     g_p, l_p = _budget_pair(pathological, "L50_G50", [1], 2)[1]
     assert (g_p, l_p) == (8, 6), (g_p, l_p)
     assert g_p != l_p
+
+
+# ------------------------------------------------------- the scope probe --
+
+def test_scope_probe_controls_preserve_the_total_exactly():
+    """The wrong-shape controls must change ONLY the shape.
+
+    `scope_probe` reports a null for the real pinned split against controls
+    that cost 5.3-5.5 items. That reading is only valid if the controls hold
+    the budget fixed -- if a permutation changed the total, the control would
+    be measuring a different budget and the null would be uninterpretable.
+    """
+    from scripts.scope_probe import _permute_ceilings
+    L = {0: [UNLIMITED, 14, UNLIMITED], 1: [UNLIMITED, 12, UNLIMITED],
+         2: [UNLIMITED, 15, UNLIMITED]}
+    classes = [1]
+    for order in ([1, 2, 0], [2, 1, 0]):
+        out = _permute_ceilings(L, classes, order)
+        assert sum(out[g][1] for g in out) == 41
+        assert sorted(out[g][1] for g in out) == [12, 14, 15]
+        # and it must actually MOVE them, or it is not a control at all
+        assert [out[g][1] for g in sorted(out)] != [14, 12, 15], order
+    # untouched classes stay untouched
+    assert all(out[g][0] == UNLIMITED and out[g][2] == UNLIMITED for g in out)
+    # NEGATIVE CONTROL: the identity order preserves the total AND the shape,
+    # so a test that only checked the total would pass on a broken control.
+    same = _permute_ceilings(L, classes, [0, 1, 2])
+    assert [same[g][1] for g in sorted(same)] == [14, 12, 15]
+
+
+def test_group_calibrate_hits_the_target_prior_per_group():
+    """Liveness: the correction must actually reach the prevalence it targets.
+
+    A null from `--calibrate` is only a measurement if the instrument moves the
+    priors it is asked to move. This pins that separately from whether moving
+    them helps.
+    """
+    from scripts.scope_probe import group_calibrate
+    rng = np.random.default_rng(0)
+    n, k = 600, 3
+    g = np.repeat([0, 1, 2], n // 3)
+    P = rng.dirichlet(np.ones(k), size=n)
+    targets = {0: [0, 30, 0], 1: [0, 120, 0], 2: [0, 60, 0]}
+    Q = group_calibrate(P, g, [1], targets)
+    for gg, want in ((0, 30 / 200), (1, 120 / 200), (2, 60 / 200)):
+        got = Q[g == gg, 1].mean()
+        # renormalisation pulls it off the exact target, so require it to close
+        # most of the gap rather than land on it
+        start = P[g == gg, 1].mean()
+        assert abs(got - want) < abs(start - want), (gg, start, got, want)
+    assert np.allclose(Q.sum(axis=1), 1.0)
+    # NEGATIVE CONTROL: permuting which group gets which target must give a
+    # DIFFERENT result, or the group_key argument is inert and both probe
+    # controls would be silently identical to the real row.
+    Q2 = group_calibrate(P, g, [1], targets, group_key=[1, 2, 0])
+    assert not np.allclose(Q, Q2)

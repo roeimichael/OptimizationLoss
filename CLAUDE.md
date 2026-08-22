@@ -59,7 +59,7 @@ imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 217 regression tests, ~40s, no dataset needed
+python -m pytest tests -q                   # 219 regression tests, ~40s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -104,6 +104,16 @@ python -m scripts.frozen_head_probe --run-dir <run> --seeds 1 2 ... # refit ONLY
                                             #   `seeds_needed` prices any survivor in
                                             #   CAMPAIGN seeds (topk/ptopk: +1.2-1.3
                                             #   items but ~24-36 seeds/cell => unaffordable)
+python -m scripts.scope_probe --campaign <root>   # `L20_G50` and `L50_G20` impose the
+                                            #   SAME TOTAL, so the local-vs-global SCOPE
+                                            #   question is answerable with the model held
+                                            #   fixed. CLOSED the local-cap direction:
+                                            #   pinning the split -0.86 items while
+                                            #   wrong-shape controls cost 5.3-5.5.
+                                            #   `--oracle-split` ALWAYS prints its
+                                            #   transfer: the best split found with labels
+                                            #   gains +4.18 and transfers at -0.89, so an
+                                            #   oracle quoted alone is selection noise
 python -m scripts.graph_probe --campaign <root>  # diffuse the scores over a kNN graph of
                                             #   the stored embeddings -- the one input the
                                             #   allocator provably lacks. NULL: +0.50
