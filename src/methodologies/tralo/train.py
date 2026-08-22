@@ -160,6 +160,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
 
     satisfaction_epoch = None
     stable_count = 0
+    constraint_steps_applied = constraint_steps_attempted = 0
     best_sat_state = None
     best_sat_epoch = None
     min_excess_state = None
@@ -371,8 +372,14 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         last_grad_norm = 0.0
         did_backward = has_constraint
         if did_backward:
-            last_grad_norm, _applied = finish_constraint_step(
+            last_grad_norm, applied = finish_constraint_step(
                 model, optimizer, scaler, **step_cfg)
+            # `applied` is False when the constraint gradient came back
+            # non-finite, and then no step landed this epoch. Counting it is
+            # the only way a reader can tell 29 steps from 19: the run still
+            # writes `status: completed` either way.
+            constraint_steps_attempted += 1
+            constraint_steps_applied += 1 if applied else 0
 
         avg_ce = epoch_ce / num_batches
 
@@ -533,6 +540,9 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             "restored_from_epoch": restored_from_epoch,
             "restore_kind": restore_kind,
             "soft_hard_gap": final_soft_hard_gap,
+            # THE DOSE THAT ACTUALLY LANDED -- see dual_common.record_step.
+            "constraint_steps_applied": int(constraint_steps_applied),
+            "constraint_steps_attempted": int(constraint_steps_attempted),
             # tau near 1.0 with a large bias_shift = the count moved and the
             # RANKING did not, which 9 of the scorer's 13 metrics cannot see.
             "reordering": reorder,

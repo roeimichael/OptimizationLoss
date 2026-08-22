@@ -196,8 +196,14 @@ def _train_constraints(model, inputs: TrainInputs, device):
             if did_backward:
                 # Grad clip + grad_norm>0 gate + scaler.update() always called
                 # (mirrors TraLO recovery pattern).
-                last_grad_norm, _applied = finish_constraint_step(
+                last_grad_norm, applied = finish_constraint_step(
                     model, optimizer, scaler, **step_cfg)
+                # `applied` is False when the constraint gradient
+                # was non-finite, and then NO step landed this
+                # epoch. Dropping it on the floor is how this arm
+                # ran a 62%-length constraint phase while writing
+                # `status: completed`.
+                ck.record_step(applied)
 
         # ---- Step 3: dual ascent on lambda (paper Eq. 5 / Alg. 2) ----
         # E[l_i] = (count_soft_i - K_i) / N_i  (per-constraint normalisation).

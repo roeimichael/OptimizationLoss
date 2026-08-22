@@ -33,6 +33,7 @@ import hashlib
 import io
 import glob
 import json
+import math
 import os
 import sys
 
@@ -486,6 +487,132 @@ def _allocator_check(rows):
               "produced those predictions." % (arm, n, tot, 100.0 * n / tot))
 
 
+COLLAPSE_DROP_AT_GAP_1 = 0.02
+
+
+def _collapse_threshold(gap):
+    """How big a terminal accuracy DROP counts as a collapse, over `gap` epochs.
+
+    0.02 was calibrated as "~10x the epoch-to-epoch wobble of a converged run".
+    That is right for a TRAINED arm, whose 29 constraint epochs are logged
+    adjacently, and wrong for a POST-HOC one. `src/pipeline/warmup.py` logs
+    `epoch < 3` and then every `max(1, warmup_epochs // 5)`-th epoch, so at the
+    protocol's `warmup_epochs: 30` a post-hoc arm's log holds epochs
+    1,2,3,6,12,18,24,30 and ITS LAST INTERVAL SPANS SIX EPOCHS. One constant
+    across both judged the control (always the post-hoc arm) and the treatment
+    (always the trained one) by different standards, which for a detector whose
+    loudest output is "the CONTROL collapsed" is the wrong asymmetry to have.
+
+    Fixing it in the LOGGER is not available. `compute_train_accuracy` iterates
+    the `shuffle=True` training loader, and a DataLoader iteration draws its
+    permutation seed from the global RNG -- so logging a different SET of
+    epochs changes every later epoch's batch order, and therefore the result
+    and every cached warm-up. Logging density is part of the numerics here.
+
+    MEASURED over the 4,862 `training_log.csv` files in this repository,
+    restricted to the converged tail (acc >= 0.9), the per-interval spread of a
+    NON-collapsing run grows about as sqrt(gap):
+
+        gap 1   n = 15,464   sd 0.00152   worst drop 0.0214
+        gap 5   n = 43,785   sd 0.00300   worst drop 0.0113   (1.97x; sqrt 5 = 2.24)
+
+    so sqrt scaling holds the design constant -- roughly 13x the wobble -- at
+    every logging density. At gap 6 that is 0.049, against a worst observed
+    non-collapse of 0.011 and the 0.082 drop of the run this detector was
+    written for (`dosefix` clip seed 4, 0.9934 -> 0.9116, itself logged at
+    gap 6), which it still catches by a factor of 1.7.
+    """
+    return COLLAPSE_DROP_AT_GAP_1 * math.sqrt(max(1, int(gap)))
+
+
+def _provenance_key(cfg):
+    """One run's provenance, as `((version, data_fingerprint), stamped)`.
+
+    PREFERS THE RUNNER'S STAMP. `code_version` is written by
+    `configs/gen_campaign` when the config is CREATED and is never revisited --
+    `main()` skips any config already marked completed and rewrites only the
+    pending ones -- so it describes the generator, not the run. Run half a
+    campaign, land a change to a training file, resume the rest, and every
+    config still carries the ORIGINAL value: the gate sees one provenance
+    across two pipelines and scores them as one comparison, which is the exact
+    thing it exists to refuse. `run_code_version` is stamped by
+    `src/experiments/runner.py` at execution time and describes the weights.
+
+    `stamped` is False when the run carries no runner stamp. Every one of the
+    14,524 archived runs is in that state, so a missing value must NOT crash
+    and must NOT invalidate: it degrades to the old, generator-level check --
+    which can still separate two generations -- and `main` says loudly that
+    those runs cannot be checked for mid-campaign drift.
+    """
+    rcv = cfg.get("run_code_version")
+    return ((rcv or cfg.get("code_version"), cfg.get("data_fingerprint")),
+            bool(rcv))
+
+
+DOSE_FRACTION_TOLERANCE = 0.05
+
+
+def _constraint_dose_check(rows):
+    """Did every trained arm actually TAKE the constraint steps it was given?
+
+    `finish_constraint_step` returns `applied`, which is False when the
+    constraint gradient came back NaN or inf -- on the FP16 path a NaN norm
+    fails the `> 0` gate and an inf norm is skipped inside `scaler.step`, so
+    either way no update lands. All four trainers used to bind that to
+    `_applied` and drop it, and `fioretto` consequently ran a 62%-length
+    constraint phase -- 10 of 29 epochs lost, 6 NaN and 4 inf -- while writing
+    `status: completed`. Two arms in one campaign can take 29 and 19 steps and
+    be reported as the same treatment at the same dose.
+
+    Nothing here can be recovered from a metric: a dropped step leaves no trace
+    in the predictions except the effect it did not have.
+
+    Runs from before this was recorded carry no counts. They are named rather
+    than skipped -- "we cannot tell" is a different answer from "they agree".
+    """
+    per = collections.defaultdict(lambda: [0, 0, 0, 0])   # app, att, runs, blind
+    for r in rows:
+        app, att = r.get("steps_applied"), r.get("steps_attempted")
+        cell = per[r["arm"]]
+        cell[2] += 1
+        if app is None or att is None:
+            cell[3] += 1
+            continue
+        cell[0] += int(app)
+        cell[1] += int(att)
+    trained = {a: v for a, v in per.items() if v[1] > 0}
+    blind = {a: v for a, v in per.items() if v[3] and v[1] == 0}
+    if not trained and not blind:
+        return
+    print("")
+    print("CONSTRAINT DOSE -- steps that LANDED, against steps attempted")
+    fracs = {}
+    for arm, (app, att, n, nb) in sorted(trained.items()):
+        frac = app / float(att)
+        fracs[arm] = frac
+        flag = "" if app == att else "   *** %d STEP(S) LOST" % (att - app)
+        print("  %-14s %5d / %-5d applied  (%.1f%%, %d run(s))%s"
+              % (arm, app, att, 100.0 * frac, n, flag))
+    for arm, (_a, _t, n, nb) in sorted(blind.items()):
+        print("  %-14s      no counts recorded (%d of %d run(s) predate the "
+              "field)" % (arm, nb, n))
+    if any(v[0] != v[1] for v in trained.values()):
+        print("    A lost step is a silent dose reduction: the epoch ran, the")
+        print("    gradient was non-finite, no update landed, and the run still")
+        print("    reports `status: completed`. `constraint_fp32: true`")
+        print("    decouples the constraint pass from the CE loss scale.")
+    if len(fracs) > 1 and (max(fracs.values()) - min(fracs.values())
+                           > DOSE_FRACTION_TOLERANCE):
+        lo = min(fracs, key=fracs.get)
+        hi = max(fracs, key=fracs.get)
+        print("    *** THESE ARMS DID NOT RUN AT THE SAME DOSE: `%s` landed "
+              "%.1f%% of its" % (hi, 100.0 * fracs[hi]))
+        print("        attempted steps and `%s` landed %.1f%%. An arm-vs-arm "
+              "delta across" % (lo, 100.0 * fracs[lo]))
+        print("        that gap is confounded with how much constraint phase "
+              "each one got.")
+
+
 def _terminal_collapse(run_dir):
     """Did this run's LAST epoch fall off its own trajectory?
 
@@ -497,33 +624,132 @@ def _terminal_collapse(run_dir):
     against it.
 
     Measured 2026-08-21 on `results/dosefix`: `clip` seed 4 ended at train
-    accuracy 0.9116 after 0.9934 the epoch before, while every other control
-    run ended 0.9935-1.0000. It scored ~15 items below its siblings, so EVERY
-    arm "beat" clip at that seed -- and it flipped the 4-seed tralo_null-vs-clip
-    delta from -5 items to zero. A single collapsed control reversed the sign
-    of the headline number.
+    accuracy 0.9116 after 0.9934, while every other control run ended
+    0.9935-1.0000. It scored ~15 items below its siblings, so EVERY arm "beat"
+    clip at that seed -- and it flipped the 4-seed tralo_null-vs-clip delta
+    from -5 items to zero. A single collapsed control reversed the sign of the
+    headline number.
 
-    Returns (last, prev) when the drop exceeds the threshold, else None.
+    THREE ANSWERS, NOT TWO:
+
+        ("collapse", (last, prev, gap))
+        ("ok",       (last, prev, gap))
+        ("nolog",    why)
+
+    `None` used to mean both "healthy" and "this run wrote no trajectory at
+    all", and the second is the commoner case on exactly the arm that matters.
+    A post-hoc arm that LOADS a cached warm-up writes no `training_log.csv`
+    whatsoever -- `src/pipeline/warmup.py` returns early on a cache hit and the
+    five post-hoc trainers log nothing -- and `clip` + `lp` share one
+    `base_model_id`, as do `focal_clip` + `focal_lp`, so whichever of each pair
+    the dispatcher runs SECOND is structurally invisible here. When that one is
+    the `--control`, the "ONE OF THESE IS THE CONTROL" warning cannot fire even
+    though its weights are byte-identical to an arm that did collapse.
+    `_collapse_report` resolves that case through the shared warm-up, and
+    reports whatever is left over, loudly.
     """
+    path = os.path.join(run_dir, "training_log.csv")
+    if not os.path.exists(path):
+        # A COMPLETED run with no log is not a healthy run.
+        return ("nolog", "no training_log.csv")
     try:
-        df = pd.read_csv(os.path.join(run_dir, "training_log.csv"))
-    except Exception:
-        return None
+        df = pd.read_csv(path)
+    except Exception as exc:
+        return ("nolog", "unreadable training_log.csv (%s)" % type(exc).__name__)
     # Two spellings, because the dual arms write their own log schema. They
     # recorded NO accuracy at all until 2026-08-22, so every fioretto/hounie/alm
     # run was invisible to this detector -- in an 80-run campaign that is 48
     # runs where a terminal collapse could not be seen, on the arms the
     # campaign exists to test.
     col = next((c for c in ("Train_Acc", "train_acc") if c in df.columns), None)
-    if col is None or len(df) < 2:
-        return None
-    acc = pd.to_numeric(df[col], errors="coerce").dropna()
+    if col is None:
+        return ("nolog", "no train-accuracy column")
+    ecol = next((c for c in ("Epoch", "epoch") if c in df.columns), None)
+    acc = pd.to_numeric(df[col], errors="coerce")
+    ep = (pd.to_numeric(df[ecol], errors="coerce") if ecol
+          else pd.Series(range(len(acc)), index=acc.index))
+    keep = acc.notna() & ep.notna()
+    acc, ep = acc[keep], ep[keep]
     if len(acc) < 2:
-        return None
+        return ("nolog", "fewer than 2 logged epochs")
     last, prev = float(acc.iloc[-1]), float(acc.iloc[-2])
-    # 0.02 is ~10x the epoch-to-epoch wobble of a converged run here and well
-    # below the 0.08 drop actually observed, so it separates the two cleanly.
-    return (last, prev) if last < prev - 0.02 else None
+    # THE GAP IS READ, NOT ASSUMED: the warm-up logger writes every sixth epoch
+    # at warmup_epochs=30, so "the previous row" is six epochs back for a
+    # post-hoc arm and one epoch back for a trained one.
+    gap = max(1, int(round(float(ep.iloc[-1]) - float(ep.iloc[-2]))))
+    detail = (last, prev, gap)
+    return (("collapse" if last < prev - _collapse_threshold(gap) else "ok"),
+            detail)
+
+
+def _collapse_report(rows, control):
+    """Terminal-epoch collapse across the campaign, INCLUDING the log-less arms.
+
+    A post-hoc arm that loaded a cached warm-up wrote no trajectory, but its
+    final weights ARE that warm-up's final epoch and `base_model_id` names the
+    warm-up exactly. So a sibling post-hoc arm on the same `base_model_id` and
+    seed answers the question for it: same weights, same verdict. Inheritance
+    is restricted to post-hoc arms because for a TRAINED arm the warm-up is one
+    epoch out of thirty, and its terminal epoch is not the scored model's.
+
+    Anything still undetermined is printed rather than skipped. A completed run
+    whose collapse status cannot be established is a hole in the check, and a
+    hole is what let one collapsed control through.
+    """
+    own, warm = {}, collections.defaultdict(list)
+    for i, r in enumerate(rows):
+        rd = r.get("run_dir")
+        own[i] = _terminal_collapse(rd) if rd else ("nolog", "no run_dir")
+        if own[i][0] != "nolog" and r.get("posthoc") and r.get("base_model_id"):
+            warm[(r["base_model_id"], r["seed"])].append((r["arm"], own[i]))
+
+    collapsed, unresolved = [], []
+    for i, r in enumerate(rows):
+        status, detail = own[i]
+        if status == "collapse":
+            collapsed.append((r["arm"], r["cap"], r["seed"]) + detail + (None,))
+            continue
+        if status == "ok":
+            continue
+        sibs = (warm.get((r.get("base_model_id"), r.get("seed")), [])
+                if r.get("posthoc") else [])
+        hit = next((sb for sb in sibs if sb[1][0] == "collapse"), None)
+        if hit:
+            collapsed.append((r["arm"], r["cap"], r["seed"]) + hit[1][1]
+                             + (hit[0],))
+        elif not sibs:
+            unresolved.append((r["arm"], r["cap"], r["seed"], detail))
+
+    if unresolved:
+        print("")
+        print("*** %d COMPLETED RUN(S) WROTE NO TRAINING TRAJECTORY, so a terminal"
+              % len(unresolved))
+        print("    collapse cannot be ruled out for them. A post-hoc arm that")
+        print("    loads a cached warm-up writes no training_log.csv at all, and")
+        print("    the pipeline keeps the last epoch unconditionally.")
+        for arm, cap, seed, why in sorted(unresolved, key=lambda t: tuple(map(str, t[:3]))):
+            print("      %-12s %-10s seed %-4s  %s" % (arm, cap, seed, why))
+        if any(a == control for a, _c, _s, _w in unresolved):
+            print("    >>> ONE OF THESE IS THE CONTROL `%s`, so the check that"
+                  % control)
+            print("        matters most is the one that could not run.")
+
+    if collapsed:
+        print("")
+        print("*** %d RUN(S) COLLAPSED ON THEIR FINAL EPOCH -- and the pipeline"
+              % len(collapsed))
+        print("    keeps the last epoch unconditionally, so that is the model scored.")
+        for arm, cap, seed, last, prev, gap, via in sorted(
+                collapsed, key=lambda t: tuple(map(str, t[:3]))):
+            print("      %-12s %-10s seed %-4s train acc %.4f -> %.4f "
+                  "over %d logged epoch(s)%s"
+                  % (arm, cap, seed, prev, last, gap,
+                     "  [via the shared warm-up, logged by `%s`]" % via
+                     if via else ""))
+        if any(a == control for a, _c, _s, _l, _p, _g, _v in collapsed):
+            print("    >>> ONE OF THESE IS THE CONTROL `%s`. Every arm will appear to"
+                  % control)
+            print("        beat it at that seed, and a 4-seed mean can change SIGN on it.")
 
 
 def _treatment_weight_keys():
@@ -727,6 +953,8 @@ def main():
     crashed = collections.Counter()
     unscorable = []
     prov = collections.Counter()
+    prov_src = collections.defaultdict(set)
+    unstamped = 0
     for camp in args.campaign:
         for p in glob.glob(camp + "/**/config.json", recursive=True):
             try:
@@ -771,6 +999,13 @@ def main():
                 # carried so the terminal-collapse check can reach
                 # training_log.csv without re-globbing the campaign
                 r["run_dir"] = os.path.dirname(p)
+                # and so it can answer for a post-hoc run that wrote NO log:
+                # its scored weights are the cached warm-up named by
+                # base_model_id, which a sibling post-hoc arm on the same id
+                # and seed did log.
+                r["base_model_id"] = cfg.get("base_model_id")
+                r["posthoc"] = (cfg.get("hyperparams") or {}).get(
+                    "constraint_epochs") == 0
             if not r:
                 # A COMPLETED run that cannot be scored vanished with no
                 # message: missing prediction files, no Prob_Class_ columns, or
@@ -781,9 +1016,15 @@ def main():
             if r:
                 r["lp_fallback"] = bool(
                     cfg.get("results", {}).get("lp_fallback_used", False))
+                _res = cfg.get("results") or {}
+                r["steps_applied"] = _res.get("constraint_steps_applied")
+                r["steps_attempted"] = _res.get("constraint_steps_attempted")
                 r["reordering"] = cfg.get("reordering") or {}
-                prov[(cfg.get("code_version"),
-                      cfg.get("data_fingerprint"))] += 1
+                key, stamped = _provenance_key(cfg)
+                prov[key] += 1
+                prov_src[key].add("runner" if stamped else "generator")
+                if not stamped:
+                    unstamped += 1
                 rows.append(r)
     if _degenerate:
         print("NOTE: capped class(es) %s have no positive or no negative instance "
@@ -796,11 +1037,21 @@ def main():
     # removal are not comparable, and gen_campaign re-stamps code_version on
     # PENDING runs while leaving completed ones alone, so one tree legitimately
     # carries two. check_parity catches this, but it runs BEFORE the campaign.
+    if unstamped:
+        print("")
+        print("*** %d of %d scorable run(s) carry NO `run_code_version`, so the"
+              % (unstamped, sum(prov.values())))
+        print("    provenance gate below reads the GENERATOR's commit for them.")
+        print("    That stamp is written when the config is created and never")
+        print("    updated, so it can separate two GENERATIONS but CANNOT see a")
+        print("    code change landed while the campaign was running -- resume a")
+        print("    half-finished campaign after editing a training file and both")
+        print("    halves still agree. Re-run them to get the runner's stamp.")
     if len(prov) > 1:
         print("REFUSED: these runs do not share a provenance --")
         for (cv, df), n in sorted(prov.items(), key=lambda kv: -kv[1]):
-            print("   %4d run(s)  code_version=%s  data_fingerprint=%s"
-                  % (n, cv, df))
+            print("   %4d run(s)  version=%s (%s)  data_fingerprint=%s"
+                  % (n, cv, "/".join(sorted(prov_src[(cv, df)])), df))
         sys.exit("Scoring across them would compare two pipelines, or two "
                  "datasets, as if they were one arm-vs-arm difference.")
     if unscorable:
@@ -811,20 +1062,8 @@ def main():
             print("      %s" % d)
         if len(unscorable) > 10:
             print("      ... and %d more" % (len(unscorable) - 10))
-    collapsed = [(r["arm"], r["cap"], r["seed"]) + _terminal_collapse(r["run_dir"])
-                 for r in rows if r.get("run_dir") and _terminal_collapse(r["run_dir"])]
-    if collapsed:
-        print("")
-        print("*** %d RUN(S) COLLAPSED ON THEIR FINAL EPOCH -- and the pipeline"
-              % len(collapsed))
-        print("    keeps the last epoch unconditionally, so that is the model scored.")
-        for arm, cap, seed, last, prev in sorted(collapsed):
-            print("      %-12s %-10s seed %-4s train acc %.4f -> %.4f"
-                  % (arm, cap, seed, prev, last))
-        if any(a == args.control for a, _c, _s, _l, _p in collapsed):
-            print("    >>> ONE OF THESE IS THE CONTROL `%s`. Every arm will appear to"
-                  % args.control)
-            print("        beat it at that seed, and a 4-seed mean can change SIGN on it.")
+    _collapse_report(rows, args.control)
+    _constraint_dose_check(rows)
     _allocator_check(rows)
     _identity_check(rows)
     _reordering_check(rows)

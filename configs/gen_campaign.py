@@ -28,10 +28,13 @@ import argparse
 import hashlib
 import json
 import os
-import subprocess
 import sys
 
 import yaml
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src.utils.gitver import git_version   # stdlib-only: no torch here  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PROTOCOL_PATH = os.path.join(HERE, "protocol.yml")
@@ -120,15 +123,16 @@ def compute_base_model_id(P, model_name, hp, dataset_mode, dc):
 
 
 def code_version():
-    """Short git SHA + dirty flag, so a re-run can detect code drift."""
-    try:
-        sha = subprocess.check_output(["git", "rev-parse", "--short=12", "HEAD"],
-                                      stderr=subprocess.DEVNULL).decode().strip()
-        dirty = subprocess.call(["git", "diff", "--quiet", "HEAD"],
-                                stderr=subprocess.DEVNULL) != 0
-        return sha + ("-dirty" if dirty else "")
-    except Exception:
-        return "unknown"
+    """The commit that WRITES this config -- not the one that runs it.
+
+    A config is stamped once, here, and `main()` never revisits a config it has
+    already written. So this records generation time and nothing else: land a
+    change to a training file half way through a campaign and every config
+    still carries this value. The commit that produced the WEIGHTS is stamped
+    by `src/experiments/runner.py` as `run_code_version`, and that is the one
+    the provenance gates read when it is present.
+    """
+    return git_version()
 
 
 def _cls_tag(dc):

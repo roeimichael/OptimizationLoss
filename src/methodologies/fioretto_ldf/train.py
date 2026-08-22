@@ -185,8 +185,14 @@ def _train_constraints(model, inputs, device):
                 # Grad clip + grad_norm>0 gate + scaler.update() always called
                 # (mirrors TraLO's recovery pattern). Prevents bad-step state
                 # leakage and unbounded step magnitudes.
-                last_grad_norm, _applied = finish_constraint_step(
+                last_grad_norm, applied = finish_constraint_step(
                     model, optimizer, scaler, **step_cfg)
+                # `applied` is False when the constraint gradient
+                # was non-finite, and then NO step landed this
+                # epoch. Dropping it on the floor is how this arm
+                # ran a 62%-length constraint phase while writing
+                # `status: completed`.
+                ck.record_step(applied)
 
         # ---- Step 3: subgradient dual update (Fioretto Eq. 5) ----
         for c, viol in violations_g.items():

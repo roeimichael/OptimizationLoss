@@ -30,7 +30,7 @@ TARGET.  A loss family earns a GPU campaign only if, against `ce`, on the
       (a) the paired mean `d ccF1` is worth **>= 1.0 item** -- `full_panel.py`
           states that a delta below one item "is not a delta, it is a different
           allocation of the same predictions";
-      (b) at least **7 of 8 split seeds** carry the sign;
+      (b) the paired two-sided **sign test** clears p <= 0.01;
       (c) the paired mean exceeds **2x its own standard error**.
     All three, or the answer is "no difference". This is a SCREEN, not a
     result: passing it buys a campaign, never a claim.
@@ -678,27 +678,64 @@ def _choose(n, k):
     return comb(n, k)
 
 
-def verdict(st, n_seeds, min_items, min_sign_frac):
+def seeds_needed(effect_items, sd_items, power=0.80, alpha=0.05):
+    """Paired seeds a GPU campaign needs to detect `effect_items` at `power`.
+
+    The probe resamples SPLITS and can afford dozens; a campaign resamples
+    training seeds and affords four. An effect can therefore be real here and
+    structurally invisible there, and that is a decision, not a footnote -- so
+    it is priced in the campaign's own unit. Normal approximation, two-sided:
+    n = (z_a/2 + z_b)^2 * sd^2 / d^2.
+    """
+    if not (np.isfinite(effect_items) and np.isfinite(sd_items))             or effect_items <= 0 or sd_items <= 0:
+        return float("nan")
+    z_a, z_b = 1.959963985, 0.8416212336   # alpha=0.05 two-sided, power=0.80
+    if (alpha, power) != (0.05, 0.80):     # anything else is computed, not guessed
+        from statistics import NormalDist
+        z_a = NormalDist().inv_cdf(1.0 - alpha / 2.0)
+        z_b = NormalDist().inv_cdf(power)
+    return int(np.ceil((z_a + z_b) ** 2 * sd_items ** 2 / effect_items ** 2))
+
+
+def verdict(st, n_seeds, min_items, max_sign_p):
     """The pre-registered bar, applied mechanically. See the module docstring
-    for why (c) reads standard ERROR and what the `[fragile]` tag means."""
-    need = int(np.ceil(min_sign_frac * n_seeds))
+    for why (c) reads standard ERROR and what the `[fragile]` tag means.
+
+    WHY (b) IS A SIGNIFICANCE LEVEL AND NOT A SIGN FRACTION. It was written as
+    `7.0/8.0` for an eight-seed run, where it is a p<=0.07 bar. A FRACTION does
+    not hold its meaning as seeds are added: the identical 87.5% demands
+    p=0.0703 at n=8, p=2.77e-4 at n=24 and p=5.56e-10 at n=64. Adding data made
+    the bar eight orders of magnitude harder, so the harness punished its own
+    precision and no amount of CPU could ever clear it. A level is invariant.
+    0.01 is STRICTER than the old rule at the size it was calibrated for -- at
+    n=8 it demands 8/8 (p=0.0078) where the fraction accepted 7/8 -- so this
+    tightens the screen where it was designed and only relaxes it where the
+    fraction had drifted into absurdity. Directional CONSISTENCY, the other job
+    the fraction was doing, is not lost: it is clause (c) plus the `[fragile]`
+    tag, which is the question "would a 4-seed campaign see this".
+    """
     m = abs(st["mean"])
     ok_size = m >= min_items
-    ok_sign = max(st["pos"], n_seeds - st["pos"]) >= need
+    ok_sign = st["sign_p"] <= max_sign_p
     ok_noise = (np.isfinite(st["sem"]) and st["sem"] > 0
                 and m >= 2.0 * st["sem"])
     if not ok_size:
         return "NO DIFFERENCE (%.2f < %.1f item)" % (m, min_items)
     if not ok_sign:
-        return "NO DIFFERENCE (sign %d/%d, needs %d)" % (st["pos"], n_seeds, need)
+        return "NO DIFFERENCE (sign %d/%d, p=%.3g > %.3g)" % (
+            st["pos"], n_seeds, st["sign_p"], max_sign_p)
     if not ok_noise:
         return "NO DIFFERENCE (mean %.2f < 2 sem = %.2f items)" % (
             m, 2.0 * st["sem"])
     tag = ""
     if not (np.isfinite(st["sd"]) and st["sd"] > 0 and m >= 2.0 * st["sd"]):
-        # The conservative reading, kept visible rather than kept as the rule.
-        tag = "  [fragile: %.2f < 2 sd = %.2f, a 4-seed campaign could miss it]" % (
-            m, 2.0 * st["sd"])
+        # The conservative reading, kept visible rather than kept as the rule --
+        # priced in SEEDS, because "worth a campaign" and "fragile" otherwise
+        # contradict each other and leave the reader to do the power
+        # calculation by hand. A campaign that cannot see its own effect is
+        # the expensive way to reproduce this line.
+        tag = "  [fragile: %.2f < 2 sd = %.2f; a GPU campaign needs ~%d seeds "               "per cell to see this, vs the standard 4]" % (
+                  m, 2.0 * st["sd"], seeds_needed(m, st["sd"]))
     return ("WORTH A CAMPAIGN" if st["mean"] > 0 else "WORSE, decisively") + tag
 
 
@@ -872,8 +909,9 @@ def main(argv=None):
                         "the value full_panel prints for a cell to override.")
     a.add_argument("--min-items", type=float, default=1.0,
                    help="pre-registered bar (a)")
-    a.add_argument("--min-sign-frac", type=float, default=7.0 / 8.0,
-                   help="pre-registered bar (b)")
+    a.add_argument("--max-sign-p", type=float, default=0.01,
+                   help="pre-registered bar (b), a significance level rather "
+                        "than a sign fraction -- see verdict()")
     a.add_argument("--headroom-items", type=float, default=9.9,
                    help="the top of the measured gap from `clip` to a PERFECT "
                         "allocator (docs/FRAMEWORK.md: 1.9-9.9 items). A probe "
@@ -986,7 +1024,7 @@ def main(argv=None):
         st = paired(d)
         summary[name] = {"per_seed_items": d, **st,
                          "verdict": verdict(st, len(args.seeds), args.min_items,
-                                            args.min_sign_frac)}
+                                            args.max_sign_p)}
         print("  %-14s %+9.2f %8.2f %8.2f %+8.2f %4d/%d %8.4f  %s"
               % (name, st["mean"], st["sd"], st["sem"], min(d), st["pos"],
                  len(args.seeds), st["sign_p"], summary[name]["verdict"]))

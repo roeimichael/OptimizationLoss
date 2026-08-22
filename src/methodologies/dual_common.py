@@ -84,6 +84,14 @@ class Checkpoints:
         self.min_excess_state = None
         self.min_excess_epoch = None
         self.min_total_excess = float("inf")
+        # HOW MANY CONSTRAINT STEPS ACTUALLY LANDED. finish_constraint_step
+        # returns `applied`, and every arm used to bind it to `_applied` and
+        # drop it -- so an epoch whose constraint gradient came back NaN or inf
+        # silently took no step while the run still wrote `status: completed`.
+        # Fioretto lost 10 of its 29 that way, and two arms in one campaign can
+        # therefore differ by a third of their dose with nothing reading it.
+        self.steps_applied = 0
+        self.steps_attempted = 0
 
     def snapshot(self, model, satisfied, excess):
         """Clone BEFORE the constraint step, so the state matches these counts.
@@ -94,6 +102,17 @@ class Checkpoints:
             return {k: v.detach().cpu().clone()
                     for k, v in model.state_dict().items()}
         return None
+
+    def record_step(self, applied):
+        """Count one attempted constraint step and whether it landed.
+
+        Called on every epoch that reached `finish_constraint_step`, so the
+        denominator is "epochs that formed a constraint gradient", not
+        `constraint_epochs` -- an arm that skipped the backward entirely never
+        attempted the step and must not be scored as having lost one.
+        """
+        self.steps_attempted += 1
+        self.steps_applied += 1 if applied else 0
 
     def record(self, state, satisfied, excess, epoch):
         """`epoch` is 0-based; stored epochs are +1 so cross-method tables
@@ -318,6 +337,12 @@ def run_dual_arm(inputs: TrainInputs, train_constraints, tag) -> TrainOutputs:
                                  else int(ck.min_total_excess)),
             "restored_from_epoch": restored_from_epoch,
             "restore_kind": restore_kind,
+            # THE DOSE THAT ACTUALLY LANDED. applied < attempted means
+            # non-finite constraint gradients dropped that epoch's step in
+            # silence; two arms at 29 and 19 are not at equal dose, and until
+            # this reached the run summary nothing could say so.
+            "constraint_steps_applied": int(ck.steps_applied),
+            "constraint_steps_attempted": int(ck.steps_attempted),
             # tau near 1.0 with a large bias_shift = the count moved and
             # the RANKING did not, which 9 of 13 scored metrics cannot see.
             "reordering": reorder,

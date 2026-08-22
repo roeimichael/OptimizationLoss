@@ -214,7 +214,20 @@ implementation for all four arms, because four hand-rolled copies are how this d
 
 **And fioretto silently ran a 62%-length constraint phase**: 10 of 29 epochs lost to
 non-finite gradients (6 NaN + 4 inf -- the RAW count; `dropna()` first hides the NaN and
-reports 4), while writing `status: completed`. `constraint_fp32: true` decouples the
+reports 4), while writing `status: completed`.
+
+✅ **IT IS NOW COUNTED AND REPORTED. Fixed 2026-08-22.** `finish_constraint_step` has
+always returned `applied` -- False when the norm is non-finite, because on the FP16 path a
+NaN norm fails the `> 0` gate and an inf norm is skipped inside `scaler.step` -- and all
+four trainers bound it to `_applied` and dropped it. Two arms in one campaign could take
+29 and 19 steps with nothing able to say so, and **a dropped step leaves no trace in the
+predictions except the effect it did not have**, so it is not recoverable from any metric.
+Each run now writes `constraint_steps_applied` / `constraint_steps_attempted` into
+`config['results']`, and `full_panel` prints a **CONSTRAINT DOSE** block that names any arm
+which lost a step and refuses to let a >5pp gap in applied-fraction pass unremarked.
+⚠️ The denominator is *epochs that formed a constraint gradient*, not
+`constraint_epochs`: a satisfied cap yields a zero penalty and no step is attempted, which
+is the zero-dose arms' normal state and must not read as a loss. `constraint_fp32: true` decouples the
 constraint pass from the CE loss scale. ⚠️ fp32 doubles the chunked-forward memory:
 `constraint_chunk_size: 256` OOMs on the 24 GB Quadro RTX 6000 (dsisco01) at
 ViTB16, 128 fits. **The card is 24 GB, not 22** -- this file, `protocol.yml`
@@ -605,6 +618,33 @@ document assumes elsewhere.
 3 of 4 seeds and the mean is zero because one control fell over. ✅ `full_panel` now detects
 a terminal-epoch collapse and says so, naming the arm and warning explicitly when the
 collapsed run is the CONTROL.
+
+⚠️ **AND THE DETECTOR HAD TWO BLIND SPOTS, BOTH ON THE CONTROL'S SIDE. Fixed 2026-08-22.**
+
+1. **A post-hoc arm that loads a cached warm-up writes NO `training_log.csv` at all.**
+   `src/pipeline/warmup.py` returns early on a cache hit and the five post-hoc trainers
+   log nothing, so the file never exists. `clip` + `lp` share one `base_model_id`
+   (`check_parity` gate 4 prints exactly that), as do `focal_clip` + `focal_lp` -- so
+   whichever of each pair the dispatcher runs SECOND was structurally invisible, and
+   when that one is the `--control` the "ONE OF THESE IS THE CONTROL" warning could not
+   fire even though its weights are byte-identical to an arm that did collapse.
+   `_terminal_collapse` now returns THREE answers (`collapse` / `ok` / `nolog`) instead
+   of a tuple-or-`None` that meant both "healthy" and "no trajectory", and
+   `_collapse_report` resolves a log-less post-hoc run through its shared warm-up and
+   prints anything still undetermined rather than skipping it.
+2. **The 0.02 threshold was calibrated for a ONE-epoch interval and applied to a SIX-epoch
+   one.** The warm-up logs `epoch < 3` and then every `max(1, warmup_epochs // 5)`-th
+   epoch, so at `warmup_epochs: 30` a post-hoc arm's rows are 1,2,3,6,12,18,24,30 while a
+   trained arm writes 29 adjacent ones -- the control and the treatment were held to
+   different bars. Measured over the 4,862 `training_log.csv` files in this repository,
+   converged tail only, the per-interval spread grows about as `sqrt(gap)`: **sd 0.00152
+   at gap 1 (n=15,464) against 0.00300 at gap 5 (n=43,785)**, so the threshold is now
+   `0.02 * sqrt(gap)` and the panel prints the span it judged.
+   ⛔ **It cannot be fixed in the LOGGER.** `compute_train_accuracy` iterates the
+   `shuffle=True` train loader, and a DataLoader iteration draws its permutation seed from
+   the global RNG -- so logging a different SET of epochs changes every later epoch's
+   batch order, the result, and every cached warm-up. **Logging density is part of the
+   numerics here.**
 
 *(superseded 3-seed table, kept so the retraction is legible)*
 
@@ -1712,7 +1752,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 192 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 206 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1720,10 +1760,40 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (192 tests, ~35 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (206 tests, ~40 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
+
+### ✅ A run now records the commit that PRODUCED IT, not the one that wrote its config
+
+Fixed 2026-08-22. `code_version` is stamped by `configs/gen_campaign` when a config is
+CREATED, and `main()` never revisits a config it has already written (it explicitly skips
+completed runs). Nothing in `src/` originated a version of its own -- verified by AST, not
+grep. So the stamp describes the GENERATOR, and the failure it invites is routine:
+
+> run half a campaign, land a change to a training file, resume the rest.
+
+Every config still carries the original value. `full_panel`'s provenance gate then sees ONE
+value across both halves and scores them as one comparison -- exactly what that gate exists
+to refuse -- and `model_cache` hands the post-change runs the pre-change warm-up on the same
+false agreement, because `base_model_id` hashes hyperparameters and not code.
+
+`src/experiments/runner.py` now stamps **`run_code_version`** (git SHA + `-dirty`) at
+EXECUTION time, written to disk BEFORE the status flips, since `update_experiment_status`
+reloads `config.json` and would drop an in-memory key. `full_panel`, `check_parity` and
+`model_cache` all prefer it. One implementation of the git call, in `src/utils/gitver.py`,
+shared by the generator and the runner -- four hand-rolled copies of one step is how the
+constraint dose came to differ 20x between arms.
+
+⚠️ **The 14,524 archived runs carry no such field, and a missing value DEGRADES rather
+than fails.** The gate falls back to the generator's stamp -- the old behaviour exactly --
+and says loudly that for those runs it can separate two GENERATIONS but not a code change
+landed mid-campaign. An archived warm-up cache is likewise never invalidated for lacking
+the field; invalidating them would retrain every cached warm-up in the project.
+⚠️ `-dirty` says the tree had uncommitted changes, not WHICH, so two dirty runs an edit
+apart still carry the same string. That limit is unchanged, and it is why `check_parity`
+warns on `-dirty` instead of passing it.
 
 ---
 
@@ -2492,7 +2562,7 @@ scripts/verify_caps.py   the caps bind, on the real dataset slices
 scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             192 tests, ~35 s, no dataset required
+tests/             206 tests, ~40 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

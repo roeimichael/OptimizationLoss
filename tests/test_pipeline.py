@@ -2654,18 +2654,31 @@ def test_the_scorer_detects_a_run_that_collapsed_on_its_final_epoch(tmp_path):
 
     n = [0]
 
-    def _log(accs):
+    def _log(accs, epochs=None):
         n[0] += 1
         d = tmp_path / ("r%d" % n[0])
         d.mkdir()
+        ep = epochs if epochs is not None else list(range(len(accs)))
         rows = ["Epoch,Train_Acc"]
-        rows += ["%d,%.4f" % (i, a) for i, a in enumerate(accs)]
+        rows += ["%d,%.4f" % (e, a) for e, a in zip(ep, accs)]
         (d / "training_log.csv").write_text(chr(10).join(rows) + chr(10))
         return str(d)
 
-    assert _terminal_collapse(_log([0.95, 0.98, 0.9934, 0.9116])) is not None, (
+    assert _terminal_collapse(_log([0.95, 0.98, 0.9934, 0.9116]))[0] == "collapse", (
         "the detector missed the exact drop it was written for "
         "(dosefix clip seed 4, 0.9934 -> 0.9116)")
+
+    # THE SAME DROP AS THE POST-HOC ARM LOGS IT. src/pipeline/warmup.py logs
+    # epoch < 3 and then every max(1, warmup_epochs // 5)-th epoch, so at the
+    # protocol's warmup_epochs=30 the rows are 1,2,3,6,12,18,24,30 and the last
+    # interval spans SIX epochs. `clip` seed 4 is a post-hoc arm, so this is
+    # the shape the real collapse had.
+    st, (last, prev, gap) = _terminal_collapse(
+        _log([0.90, 0.95, 0.96, 0.97, 0.98, 0.99, 0.9934, 0.9116],
+             epochs=[1, 2, 3, 6, 12, 18, 24, 30]))
+    assert st == "collapse", "missed the collapse at the real logging density"
+    assert gap == 6, "read the gap as %d; the warm-up logger writes every 6th " \
+                     "epoch at warmup_epochs=30" % gap
 
     # NEGATIVE CONTROLS -- a gate is not done until it has been shown not to
     # fire on the things it must leave alone.
@@ -2674,9 +2687,70 @@ def test_the_scorer_detects_a_run_that_collapsed_on_its_final_epoch(tmp_path):
         ([0.95, 0.98, 0.9934, 0.9900], "ordinary wobble, 0.0034 < 0.02"),
         ([0.9116, 0.9934], "a run that RECOVERED -- only the last epoch is kept"),
     ]:
-        assert _terminal_collapse(_log(accs)) is None, "fired on " + why
-    assert _terminal_collapse(str(tmp_path / "nope")) is None, (
-        "raised or fired on a missing training_log.csv")
+        assert _terminal_collapse(_log(accs))[0] == "ok", "fired on " + why
+
+    # AND THE THRESHOLD IS CALIBRATED PER GAP, not once for gap 1. Measured
+    # over the 4,862 logs in this repo, the per-interval spread of a converged
+    # run grows about as sqrt(gap) -- sd 0.00152 at gap 1 against 0.00300 at
+    # gap 5 -- so one constant judged the post-hoc control and the trained
+    # treatment by different standards.
+    drop = 0.03      # above the gap-1 bar, below the gap-6 one
+    assert _terminal_collapse(_log([0.99, 0.99 - drop]))[0] == "collapse"
+    assert _terminal_collapse(
+        _log([0.99, 0.99 - drop], epochs=[24, 30]))[0] == "ok", (
+        "a 0.03 drop across SIX epochs is inside the measured wobble at that "
+        "span; flagging it holds the control to a tighter bar than the arm")
+
+    # THREE ANSWERS, NOT TWO. `None` used to mean both "healthy" and "this run
+    # wrote no trajectory at all", and the second is the case that hid a
+    # post-hoc control whose warm-up came from cache.
+    assert _terminal_collapse(str(tmp_path / "nope"))[0] == "nolog", (
+        "a completed run with no training_log.csv reads as healthy")
+
+
+def test_a_posthoc_arm_that_wrote_no_log_is_not_silently_scored_as_healthy(capsys):
+    """`clip` + `lp` share one `base_model_id`, as do `focal_clip` + `focal_lp`.
+
+    Whichever of a pair the dispatcher runs SECOND loads the warm-up from cache
+    -- `src/pipeline/warmup.py` returns early on a hit and the five post-hoc
+    trainers write no CSV at all -- so it produces no `training_log.csv` and the
+    collapse detector cannot see it. Its weights are nevertheless byte-identical
+    to the sibling's, so when the log-less one is the `--control` the warning
+    that matters most is exactly the one that cannot fire.
+    """
+    from scripts.full_panel import _collapse_report
+
+    def _row(arm, rd, seed=4):
+        return {"arm": arm, "cap": "L50_G30", "seed": seed, "run_dir": rd,
+                "base_model_id": "MobileNetV3_dermmnist_deadbeef",
+                "posthoc": True}
+
+    import tempfile
+    tmp = tempfile.mkdtemp()
+    lp_dir = os.path.join(tmp, "lp")
+    os.makedirs(lp_dir)
+    with io.open(os.path.join(lp_dir, "training_log.csv"), "w",
+                 encoding="utf-8") as fh:
+        fh.write("Epoch,Train_Acc\n24,0.9934\n30,0.9116\n")
+    # `clip` ran second, hit the cache, wrote nothing.
+    rows = [_row("clip", os.path.join(tmp, "clip")), _row("lp", lp_dir)]
+
+    _collapse_report(rows, "clip")
+    out = capsys.readouterr().out
+    assert "COLLAPSED" in out, "the collapse was not reported at all"
+    assert "clip" in out and "via the shared warm-up" in out, (
+        "the log-less control was not resolved through its shared warm-up:\n"
+        + out)
+    assert "ONE OF THESE IS THE CONTROL" in out, (
+        "the control warning did not fire for an arm whose weights ARE the "
+        "collapsed ones:\n" + out)
+
+    # NEGATIVE CONTROL: with no sibling to inherit from, the run must be
+    # REPORTED as undetermined, never skipped.
+    _collapse_report([_row("clip", os.path.join(tmp, "clip"))], "clip")
+    out = capsys.readouterr().out
+    assert "WROTE NO TRAINING TRAJECTORY" in out, (
+        "a completed run with no trajectory vanished silently:\n" + out)
 
 
 
@@ -3893,3 +3967,423 @@ def test_the_duals_reset_grad_norm_every_epoch_instead_of_carrying_it_forward():
         assert all(id(a) in inside for a in resets), (
             "%s resets last_grad_norm OUTSIDE the epoch loop, so a slack epoch "
             "logs the previous epoch's gradient norm as its own" % pkg)
+
+
+def test_the_probe_is_invariant_to_global_rng_state():
+    """THE FLAKINESS GATE. A probe that answers differently depending on what
+    ran before it cannot be trusted to report "no difference" -- the answer it
+    returns most often.
+
+    History: this suite was reported flaky at ~1 in 3, on a ROTATING member of
+    the probe gates, each passing in isolation. Diagnosed on a disposable copy
+    and it was NOT order dependence and NOT global RNG (forward, reverse and
+    -k-only orderings all pass; three repeats with `random`, `numpy.random`
+    and `torch`'s global generators deliberately polluted all pass). The cause
+    was a mutation-verification harness rewriting `scripts/frozen_head_probe.py`
+    IN THE WORKING TREE while other agents ran `pytest tests` against the same
+    checkout -- one process editing another process's source, which reads
+    exactly like flakiness. The harness now works on a temporary copy.
+
+    This gate exists so the diagnosis stays true. It pins the two properties
+    that would have made the report real, and it is deliberately stronger than
+    what was needed: same answer after the globals are polluted, and the same
+    answer from a FRESH interpreter with a different hash seed.
+    """
+    import hashlib
+    import random as _random
+
+    baseline = FHP.determinism_digest()
+
+    # (1) same process, every global generator moved out from under it
+    _random.seed(20260822)
+    np.random.seed(4242)
+    torch.manual_seed(31337)
+    for _ in range(37):
+        _random.random()
+        np.random.rand()
+        torch.randn(5)
+    assert FHP.determinism_digest() == baseline, (
+        "the probe's answer changed after the global generators were "
+        "polluted: something in it draws from a global RNG instead of the "
+        "seeded one it is given")
+
+    # (2) a fresh interpreter, different hash seed, globals pre-polluted
+    env = dict(os.environ, CUDA_VISIBLE_DEVICES="", PYTHONHASHSEED="12345")
+    r = subprocess.run(
+        [sys.executable, "-c",
+         "import random,numpy,torch,sys;"
+         "random.seed();numpy.random.seed();torch.manual_seed(7);"
+         "[torch.randn(3) for _ in range(11)];"
+         "sys.path.insert(0, %r);"
+         "import scripts.frozen_head_probe as F;"
+         "print(F.determinism_digest())" % REPO],
+        cwd=REPO, capture_output=True, text=True, env=env)
+    assert r.returncode == 0, r.stderr[-2000:]
+    assert r.stdout.strip() == baseline, (
+        "a fresh interpreter gives a different digest (%s vs %s): the probe "
+        "depends on interpreter state, not only on its seed"
+        % (r.stdout.strip(), baseline))
+
+    # the digest must actually be a function of the run, not a constant string
+    assert baseline != FHP.determinism_digest(seed=2), (
+        "the digest does not change with the split seed, so it would not "
+        "detect a change in anything either"
+    )
+    assert len(baseline) == len(hashlib.md5(b"").hexdigest())
+
+
+# ---------------------------------------------------------------------------
+# The commit that RAN a config is not the commit that WROTE it
+# ---------------------------------------------------------------------------
+
+def test_the_runner_stamps_the_commit_that_produced_the_weights():
+    """`code_version` is stamped by the GENERATOR and never revisited.
+
+    `configs/gen_campaign.main()` writes it once per config and explicitly
+    skips any config already marked completed, so run half a campaign, land a
+    change to a training file and resume the rest: every config still carries
+    the ORIGINAL value. `full_panel`'s provenance gate then sees one value
+    across two pipelines and scores both halves as one comparison -- the exact
+    thing it was written to refuse -- and `model_cache` hands the post-change
+    runs the pre-change warm-up on the same false agreement.
+
+    AST, not grep: a comment naming the key would satisfy a text search.
+    """
+    src = io.open(os.path.join(REPO, "src", "experiments", "runner.py"),
+                  encoding="utf-8").read()
+    tree = ast.parse(src)
+
+    writes = [n for n in ast.walk(tree)
+              if isinstance(n, ast.Assign)
+              for t in n.targets
+              if isinstance(t, ast.Subscript)
+              and isinstance(t.slice, ast.Constant)
+              and t.slice.value == "run_code_version"]
+    assert writes, (
+        "src/experiments/runner.py never assigns run_code_version, so every "
+        "config still describes only the commit that generated it")
+
+    # and it must land on DISK before the status flips: update_experiment_status
+    # reloads config.json and rewrites it, so an in-memory key would be dropped.
+    fn = next(n for n in ast.walk(tree)
+              if isinstance(n, ast.FunctionDef) and n.name == "run_experiment")
+    calls = [n for n in ast.walk(fn)
+             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+             and n.func.id in ("save_config_to_path", "update_experiment_status")]
+    assert calls and calls[0].func.id == "save_config_to_path", (
+        "the stamp is not persisted before update_experiment_status reloads "
+        "config.json from disk, so a run that crashes carries no runner stamp")
+
+    # ONE implementation of the git call, shared by generator and runner.
+    for mod in ("configs/gen_campaign.py", "src/experiments/runner.py"):
+        code = ast.unparse(ast.parse(
+            io.open(os.path.join(REPO, *mod.split("/")), encoding="utf-8").read()))
+        assert "git_version" in code, (
+            "%s hand-rolls its own `git rev-parse` -- four hand-rolled copies "
+            "of one step is how the constraint dose drifted 20x between arms"
+            % mod)
+        assert "rev-parse" not in code, (
+            "%s still calls git directly instead of src/utils/gitver" % mod)
+
+
+def test_the_provenance_gate_reads_the_runners_stamp_and_degrades_without_it():
+    """The gate must prefer `run_code_version`, and must still work for the
+    14,524 archived runs that have none -- degrading to the old check with a
+    clear message, never crashing and never silently passing.
+    """
+    from scripts.full_panel import _provenance_key
+
+    gen, run = "aaaaaaaaaaaa", "bbbbbbbbbbbb"
+
+    # a run that says which commit produced its weights: that is the answer
+    key, stamped = _provenance_key(
+        {"code_version": gen, "run_code_version": run, "data_fingerprint": "d1"})
+    assert key == (run, "d1") and stamped is True
+
+    # THE FAILURE THIS EXISTS FOR: generated once, resumed after a code change.
+    # Both halves share `code_version`, so the old key CANNOT tell them apart;
+    # the runner's stamp splits them, which is a REFUSAL rather than a silent
+    # pass.
+    before = _provenance_key({"code_version": gen, "run_code_version": gen,
+                              "data_fingerprint": "d1"})[0]
+    after = _provenance_key({"code_version": gen, "run_code_version": run,
+                             "data_fingerprint": "d1"})[0]
+    assert before != after, (
+        "two runs of one campaign produced by different code still share a "
+        "provenance key, so the gate would score them as one comparison")
+
+    # an archived run: falls back to the generator's stamp, flagged as such
+    key, stamped = _provenance_key({"code_version": gen, "data_fingerprint": "d1"})
+    assert key == (gen, "d1"), "the fallback changed the archived behaviour"
+    assert stamped is False, (
+        "an unstamped run reports as stamped, so the panel would not warn "
+        "that the check is degraded for it")
+
+    # and a config with neither key must not raise
+    assert _provenance_key({}) == ((None, None), False)
+
+
+def test_the_model_cache_prefers_the_stamp_of_the_run_that_trained_it(
+        tmp_path, monkeypatch):
+    """`base_model_id` hashes hyperparameters, not code. The cache therefore
+    needs a code stamp -- and the generator's cannot see a change landed while
+    the campaign was running, which is precisely when a stale warm-up is handed
+    across a code boundary.
+
+    Every warm-up on disk predates the runner stamp, so a missing one must
+    degrade to the generator comparison rather than invalidate the cache.
+    """
+    from src.training import model_cache as MC
+
+    monkeypatch.setenv("OPTLOSS_MODEL_CACHE", str(tmp_path))
+
+    class _Tiny(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.fc = nn.Linear(2, 2)
+
+    monkeypatch.setattr(MC, "get_model", lambda *a, **k: _Tiny())
+    bmid = "TinyNet_smoke_deadbeefcafe"
+    dev = torch.device("cpu")
+
+    def _write(payload):
+        torch.save(dict({"model_state_dict": _Tiny().state_dict(),
+                         "base_model_id": bmid}, **payload),
+                   MC.get_cache_path(bmid))
+
+    def _load(cfg):
+        return MC.load_from_cache(bmid, dict({"model_name": "TinyNet",
+                                              "hyperparams": {"dropout": 0.3}},
+                                             **cfg), 2, dev)
+
+    # (1) a cache and a run that agree on the GENERATOR but not on the RUNNER.
+    #     This is the mid-campaign code change, and it must retrain.
+    _write({"code_version": "GEN1", "run_code_version": "RUN1"})
+    assert _load({"code_version": "GEN1", "run_code_version": "RUN2"}) is None, (
+        "the cache was reused across a code change that both configs' "
+        "generator stamps agree through")
+    assert _load({"code_version": "GEN1", "run_code_version": "RUN1"}) is not None
+
+    # (2) NEGATIVE CONTROL -- an archived cache with no runner stamp must NOT
+    #     be thrown away. Invalidating them all would retrain every warm-up.
+    _write({"code_version": "GEN1"})
+    assert _load({"code_version": "GEN1", "run_code_version": "RUN2"}) is not None, (
+        "a pre-stamp cache was invalidated; every warm-up on disk is one")
+    assert _load({"code_version": "GEN2"}) is None, (
+        "the generator fallback stopped rejecting a genuine version mismatch")
+
+
+# ---------------------------------------------------------------------------
+# A constraint step that did not land
+# ---------------------------------------------------------------------------
+
+TRAINERS_WITH_A_CONSTRAINT_STEP = [
+    ("tralo", "train.py"), ("fioretto_ldf", "train.py"),
+    ("hounie_rcl", "train.py"), ("fioretto_alm", "train.py"),
+]
+
+
+def test_no_trainer_discards_whether_the_constraint_step_actually_landed():
+    """`finish_constraint_step` returns `applied`, which is False when the
+    constraint gradient came back non-finite -- on the FP16 path a NaN norm
+    fails the `> 0` gate and an inf norm is skipped inside `scaler.step`, so
+    either way no update lands. All four trainers bound it to `_applied` and
+    dropped it, and `fioretto` consequently ran a 62%-length constraint phase
+    (10 of 29 epochs lost, 6 NaN + 4 inf) while writing `status: completed`.
+
+    Two arms in one campaign can take 29 and 19 steps, and until this was
+    recorded nothing could say so -- a dropped step leaves no trace in the
+    predictions except the effect it did not have.
+    """
+    for mod, fname in TRAINERS_WITH_A_CONSTRAINT_STEP:
+        path = os.path.join(REPO, "src", "methodologies", mod, fname)
+        tree = ast.parse(io.open(path, encoding="utf-8").read())
+        targets = []
+        for n in ast.walk(tree):
+            if not (isinstance(n, ast.Assign) and isinstance(n.value, ast.Call)):
+                continue
+            f = n.value.func
+            name = (f.id if isinstance(f, ast.Name)
+                    else f.attr if isinstance(f, ast.Attribute) else None)
+            if name != "finish_constraint_step":
+                continue
+            t = n.targets[0]
+            assert isinstance(t, ast.Tuple) and len(t.elts) == 2, (
+                "%s does not unpack finish_constraint_step's two returns" % mod)
+            targets.append(t.elts[1])
+        assert targets, "%s never calls finish_constraint_step" % mod
+        for t in targets:
+            assert isinstance(t, ast.Name) and not t.id.startswith("_"), (
+                "%s binds `applied` to %r -- an underscore name is how this "
+                "value was discarded in all four trainers"
+                % (mod, getattr(t, "id", t)))
+            reads = [n for n in ast.walk(tree)
+                     if isinstance(n, ast.Name) and n.id == t.id
+                     and isinstance(n.ctx, ast.Load)]
+            assert reads, (
+                "%s binds `applied` and never reads it, so a dropped "
+                "constraint step is still invisible" % mod)
+
+
+@pytest.mark.parametrize("arm", ["tralo", "fioretto", "hounie", "alm"])
+def test_a_run_reports_how_many_constraint_steps_it_actually_took(arm, tmp_path):
+    """The count has to reach the run summary, or no scorer can read it."""
+    import scripts.smoke_arms as SA
+
+    P = load_protocol()
+    torch.manual_seed(1)
+    inputs, _g, _l = SA.make_inputs(P, arm, str(tmp_path))
+    out = TRAIN_FNS[P["arms"][arm]["methodology"]](inputs)
+    app = out.summary.get("constraint_steps_applied")
+    att = out.summary.get("constraint_steps_attempted")
+    assert app is not None and att is not None, (
+        "%s does not report its applied/attempted constraint steps" % arm)
+    assert att >= 1, "%s attempted no constraint step at all" % arm
+    assert app == att, (
+        "%s lost %d of %d constraint steps on a tiny CPU model, where nothing "
+        "should overflow" % (arm, att - app, att))
+
+
+def test_a_zero_dose_arm_attempts_no_constraint_step():
+    """`tralo_null` sets every lambda to 0, so `has_constraint` is False and
+    transductive pass 2 is skipped entirely. The denominator must therefore be
+    "epochs that formed a constraint gradient", not `constraint_epochs` --
+    otherwise the null arm reads as having LOST all 29 of its steps.
+    """
+    import shutil
+    import tempfile
+
+    import scripts.smoke_arms as SA
+
+    P = load_protocol()
+    tmp = tempfile.mkdtemp()
+    try:
+        torch.manual_seed(1)
+        inputs, _g, _l = SA.make_inputs(P, "tralo_null", tmp)
+        out = TRAIN_FNS[P["arms"]["tralo_null"]["methodology"]](inputs)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    assert out.summary.get("constraint_steps_attempted") == 0, (
+        "the zero-dose arm attempted a constraint step; either the lambdas are "
+        "not zero or the counter is counting epochs rather than steps")
+    assert out.summary.get("constraint_steps_applied") == 0
+
+
+def test_the_panel_says_when_two_arms_did_not_take_the_same_number_of_steps(capsys):
+    """Reported loudly, because it cannot be recovered from any metric."""
+    from scripts.full_panel import _constraint_dose_check
+
+    def _rows(arm, applied, attempted, n=4):
+        return [{"arm": arm, "steps_applied": applied,
+                 "steps_attempted": attempted} for _ in range(n)]
+
+    # the measured case: fioretto lost 10 of its 29 epochs, tralo lost none
+    _constraint_dose_check(_rows("tralo", 29, 29) + _rows("fioretto", 19, 29))
+    out = capsys.readouterr().out
+    assert "STEP(S) LOST" in out, "a 10-of-29 loss was not named:\n" + out
+    assert "DID NOT RUN AT THE SAME DOSE" in out, (
+        "two arms a third of a constraint phase apart were reported as "
+        "comparable:\n" + out)
+
+    # NEGATIVE CONTROL -- equal, complete doses must say nothing alarming
+    _constraint_dose_check(_rows("tralo", 29, 29) + _rows("fioretto", 29, 29))
+    out = capsys.readouterr().out
+    assert "STEP(S) LOST" not in out and "SAME DOSE" not in out, (
+        "fired on two arms that took every step they attempted:\n" + out)
+
+    # and a campaign of runs from before the field existed is NAMED, not
+    # silently treated as agreement
+    _constraint_dose_check(_rows("tralo", None, None))
+    out = capsys.readouterr().out
+    assert "no counts recorded" in out, (
+        "runs with no step counts were passed over in silence:\n" + out)
+
+
+# The probe's pre-registered bar, clause (b). It was written as the fraction
+# 7/8 for an eight-seed run and never re-derived, so adding seeds made it
+# exponentially HARDER -- the harness punished its own precision. These two
+# gates hold the corrected form in place; both were confirmed to FAIL against
+# the fraction they replaced.
+
+
+def test_the_probes_sign_bar_does_not_get_harder_as_seeds_are_added():
+    """A fixed sign FRACTION is not a bar, it is a moving target.
+
+    Negative control, run before this gate was written: the old rule
+    `sign_frac >= 7/8` demands p=0.0703 at n=8 and p=5.56e-10 at n=64 for the
+    identical fraction, so a directionally identical effect that CLEARED the
+    bar at 8 seeds FAILED it at 64. That is the failure this asserts against.
+    """
+    import numpy as np
+
+    def sign_p_of_fraction(frac, n):
+        st = FHP.paired(np.array([1.0] * int(round(frac * n))
+                                 + [-1.0] * (n - int(round(frac * n)))))
+        return st["sign_p"]
+
+    # the defect, stated as arithmetic and independent of any result
+    p8, p64 = sign_p_of_fraction(7 / 8.0, 8), sign_p_of_fraction(7 / 8.0, 64)
+    assert p64 < p8 / 1e6, (
+        "the fixed-fraction bar is supposed to be the thing being ruled out; "
+        "if it no longer tightens with n this control has gone stale (%g -> %g)"
+        % (p8, p64))
+
+    # The corrected rule, clause (b) ISOLATED: one fixed sign consistency, one
+    # mean held well clear of clause (a)'s 1-item floor, only n varying. (A
+    # first draft of this gate drew the signs at random, which let the mean
+    # drift under the floor at large n and failed on clause (a) while claiming
+    # to test clause (b).) Clearing at n must imply clearing at every larger n.
+    blocked = []
+    for n in (8, 16, 24, 64, 128):
+        pos = int(np.ceil(0.78 * n))
+        d = np.array([5.0] * pos + [-1.0] * (n - pos))   # mean ~+3.7 always
+        st = FHP.paired(d)
+        assert abs(st["mean"]) > 1.0, "the floor must not be what decides here"
+        blocked.append(FHP.verdict(st, n, 1.0, 0.01).startswith("NO DIFF"))
+    assert blocked == sorted(blocked, reverse=True), (
+        "adding seeds un-cleared the bar: %s" % blocked)
+    assert not blocked[-1], "128 seeds of a 78%-consistent effect must clear"
+
+    # The same construction under the rule this replaced, at the size where
+    # the two fractions genuinely separate: 100 of 128 seeds carry the sign,
+    # sign p = 1.1e-10, and the 7/8 bar still returns NO DIFFERENCE. It is
+    # rejecting an effect significant at ten decimal places -- testing the
+    # wrong quantity, not being strict.
+    n = 128
+    pos = int(np.ceil(0.78 * n))
+    st = FHP.paired(np.array([5.0] * pos + [-1.0] * (n - pos)))
+    assert st["sign_p"] < 1e-9
+    assert pos < int(np.ceil((7 / 8.0) * n)), (
+        "the old fraction would have accepted this, so the control is stale")
+
+
+def test_the_probe_prices_a_fragile_effect_in_campaign_seeds():
+    """`WORTH A CAMPAIGN` and `[fragile]` contradict each other unless the
+    contradiction is priced. The probe resamples SPLITS and affords dozens; a
+    campaign resamples training seeds and affords four, so an effect can be
+    real here and structurally invisible there.
+
+    Negative control: before `seeds_needed` existed the tag said only
+    `a 4-seed campaign could miss it`, which is unfalsifiable -- it named no
+    number a reader could check or act on.
+    """
+    import numpy as np
+
+    # closed form, two-sided alpha=0.05 at 80% power
+    for effect, sd in ((1.28, 2.22), (1.20, 2.55), (5.0, 2.0)):
+        want = int(np.ceil((1.959963985 + 0.8416212336) ** 2 * sd ** 2
+                           / effect ** 2))
+        assert FHP.seeds_needed(effect, sd) == want
+
+    # monotone in both arguments, or it is not a power calculation
+    assert FHP.seeds_needed(1.0, 2.0) > FHP.seeds_needed(2.0, 2.0)
+    assert FHP.seeds_needed(1.0, 4.0) > FHP.seeds_needed(1.0, 2.0)
+
+    # degenerate input must not fabricate a seed count
+    assert not np.isfinite(FHP.seeds_needed(0.0, 2.0))
+    assert not np.isfinite(FHP.seeds_needed(1.0, 0.0))
+
+    # and the tag must actually carry the number to the reader
+    st = FHP.paired(np.where(np.arange(64) % 4 == 0, -1.0, 2.0))
+    v = FHP.verdict(st, 64, 1.0, 0.01)
+    assert "fragile" in v and "seeds per cell" in v, v

@@ -35,7 +35,10 @@ from src.pipeline.warmup import run_warmup
 from src.pipeline.features import EMBEDDING_CHUNK, save_test_embeddings
 from src.pipeline.eval import evaluate_with_posthoc, write_evaluation_outputs
 from src.training.logging import save_evaluation_metrics
-from src.utils.filesystem_manager import load_config_from_path, update_experiment_status
+from src.utils.filesystem_manager import (load_config_from_path,
+                                          save_config_to_path,
+                                          update_experiment_status)
+from src.utils.gitver import git_version
 from src.pipeline.setup import seed_all, runtime_provenance
 from src.pipeline.io import save_results_to_config
 
@@ -72,6 +75,21 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     if config.get('status', 'pending') == 'completed':
         log.info("Skipping completed: %s", experiment_path)
         return None
+    # THE COMMIT THAT PRODUCES THESE WEIGHTS, stamped at EXECUTION time.
+    # `code_version` is written by configs/gen_campaign when the config is
+    # created and is never revisited, so it describes the generator. Run half a
+    # campaign, land a change to a training file, resume the rest, and every
+    # config still carries the ORIGINAL stamp -- full_panel's provenance gate
+    # then sees one value across both halves and scores them as one comparison,
+    # which is precisely what that gate exists to refuse, and model_cache hands
+    # the post-change runs the pre-change warm-up on the same false agreement.
+    #
+    # Written to disk BEFORE the status flips: update_experiment_status reloads
+    # config.json from disk and rewrites it, so an in-memory key that has not
+    # landed yet would be dropped and a crashed run would carry no runner
+    # stamp at all.
+    config['run_code_version'] = git_version()
+    save_config_to_path(config, experiment_path)
     update_experiment_status(experiment_path, 'running')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     seed = config.get('hyperparams', {}).get('seed', None)
@@ -200,6 +218,15 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         'used_cached_model': from_cache,
         'samples_adjusted': int(best_adj),
         'lp_fallback_used': best_meta.get('lp_fallback_used', False),
+        # How many constraint steps LANDED, against how many were attempted.
+        # finish_constraint_step drops a step whose gradient is non-finite and
+        # says so in its return value; every trainer used to discard that, so
+        # an arm could lose a third of its constraint phase and still write
+        # `status: completed`. None for the post-hoc arms, which attempt none.
+        'constraint_steps_applied':
+            train_outputs.summary.get('constraint_steps_applied'),
+        'constraint_steps_attempted':
+            train_outputs.summary.get('constraint_steps_attempted'),
         'lp_fallback_candidates': best_meta.get('lp_fallback_candidates', 0),
         # which GPU and which AMP regime: FP16+scaler SKIPS an overflowing
         # optimizer step and BF16 does not, so the same config applies a

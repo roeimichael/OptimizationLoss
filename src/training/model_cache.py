@@ -56,6 +56,12 @@ def save_to_cache(model: nn.Module, base_model_id: str, config: Dict[str, Any]) 
         'model_state_dict': model.state_dict(),
         'base_model_id': base_model_id,
         'code_version': config.get('code_version'),
+        # The commit that RAN this warm-up, stamped by src/experiments/runner
+        # at execution time. `code_version` is the generator's, written when
+        # the config was created and never updated, so two runs either side of
+        # a mid-campaign change to a training file agree on it and this cache
+        # would be handed to both.
+        'run_code_version': config.get('run_code_version'),
         'data_fingerprint': config.get('data_fingerprint'),
         # The AMP regime is part of what trained these weights: the FP16
         # path SKIPS an overflowing optimizer step and BF16 does not, so
@@ -111,13 +117,35 @@ def load_from_cache(base_model_id: str, config: Dict[str, Any],
                     "Retraining.", base_model_id,
                     got_data or "an unrecorded slice", want_data)
         return None
-    want = config.get('code_version')
-    got = ckpt.get('code_version')
-    if want and got != want:
-        log.warning("Cache %s was written by code_version %s but this run is "
-                    "%s -- retraining rather than reusing it.",
-                    base_model_id, got or "an unrecorded version", want)
-        return None
+    # PREFER THE RUNNER'S STAMP. It is the commit that produced these weights;
+    # `code_version` is the commit that wrote the config, which is stamped once
+    # at generation and never revisited, so it cannot see a change that landed
+    # while the campaign was running.
+    #
+    # A cache written before the runner stamped anything carries no
+    # `run_code_version`. That must NOT invalidate it -- every warm-up on disk
+    # predates this field, and discarding them all would retrain the entire
+    # cache. It degrades to the generator comparison, and says so.
+    want_run = config.get('run_code_version')
+    got_run = ckpt.get('run_code_version')
+    if want_run and got_run:
+        if got_run != want_run:
+            log.warning("Cache %s was TRAINED by run_code_version %s but this "
+                        "run is %s -- retraining rather than reusing it.",
+                        base_model_id, got_run, want_run)
+            return None
+    else:
+        want = config.get('code_version')
+        got = ckpt.get('code_version')
+        log.info("Cache %s carries no runner stamp (cache=%s, run=%s); falling "
+                 "back to the GENERATOR's code_version, which cannot detect a "
+                 "code change landed mid-campaign.",
+                 base_model_id, got_run or "absent", want_run or "absent")
+        if want and got != want:
+            log.warning("Cache %s was written by code_version %s but this run "
+                        "is %s -- retraining rather than reusing it.",
+                        base_model_id, got or "an unrecorded version", want)
+            return None
     model = get_model(
         config['model_name'], n_classes=num_classes,
         dropout=hp['dropout'],

@@ -226,8 +226,14 @@ def _train_constraints(model, inputs, device):
                     constraint_loss_val += chunk_loss.item()
                     did_backward = True
             if did_backward:
-                last_grad_norm, _applied = finish_constraint_step(
+                last_grad_norm, applied = finish_constraint_step(
                     model, optimizer, scaler, **step_cfg)
+                # `applied` is False when the constraint gradient
+                # was non-finite, and then NO step landed this
+                # epoch. Dropping it on the floor is how this arm
+                # ran a 62%-length constraint phase while writing
+                # `status: completed`.
+                ck.record_step(applied)
 
         # ---- Step 3: augmented-Lagrangian dual update ----
         # Hestenes/Powell: the MULTIPLIER ascends, lam <- max(0, lam + eta*r).
