@@ -2672,11 +2672,30 @@ def test_the_scorer_detects_a_run_that_collapsed_on_its_final_epoch(tmp_path):
         "raised or fired on a missing training_log.csv")
 
 
-def test_framework_section_9_does_not_still_carry_the_retracted_3_seed_number():
-    """I published `tralo_null` - `clip` = -5.2 items from THREE seeds. The
+
+def _ast_module_docstring(src):
+    """The module docstring, via AST. Reading the first triple-quoted block by
+    string search would also match a comment or a nested string; this cannot.
+    """
+    import ast as _a
+    return _a.get_docstring(_a.parse(src)) or ""
+
+def test_framework_never_presents_a_closed_result_as_a_live_one():
+    """FRAMEWORK is the law, so a stale "still open" in it sends a week of GPU
+    into a question that is already answered. Two closures are pinned here.
+
+    (1) `tralo_null` - `clip` = -5.2 items was published from THREE seeds. The
     fourth reverses it (4-seed mean -0.06 items) because the `clip` control at
     that seed collapsed on its final epoch. The retraction has to sit ABOVE the
     superseded table or the next reader quotes the dead number.
+
+    (2) `select` (path 1c, the jointly-trained selection head) was REJECTED on
+    2026-08-22 -- -22 items vs `clip`, 0 of 2 cells on every metric, 2 of 8 runs
+    collapsing on their final epoch. Section 4 is titled THE ONE OPEN QUESTION
+    and listed 1c as "built, not run", told the reader "if 1b ties, go to 1c",
+    and headed the 1c entry with "not yet run". All three read as an invitation
+    to launch it. The section-12 verdict alone does not fix that, because
+    nobody reads a 2,300-line file end to end before acting on section 4.
     """
     txt = io.open(os.path.join(REPO, "docs", "FRAMEWORK.md"),
                   encoding="utf-8").read()
@@ -2685,6 +2704,38 @@ def test_framework_section_9_does_not_still_carry_the_retracted_3_seed_number():
     assert "RETRACTED AT 4 SEEDS" in head, (
         "FRAMEWORK section 9 shows the 3-seed ccF1 table with no retraction "
         "above it -- a reader quotes the first number they see.")
+
+    # (2) the select closure, checked where a reader would actually look.
+    assert "IS REJECTED" in txt, "section 12's verdict on `select` vanished"
+
+    # The section-4 STATE table is the first thing section 4 says. Its 1c row
+    # must carry the verdict, not a build status.
+    sec4 = txt.split("## 4. THE ONE OPEN QUESTION")[1]
+    row = [r for r in sec4.splitlines()[:20]
+           if r.startswith("|") and "SELECTION head" in r]
+    assert row, "section 4's STATE table lost its 1c row entirely"
+    assert "REJECTED" in row[0], (
+        "section 4's STATE table still advertises 1c as something to run: %r"
+        % row[0][:120])
+
+    # and no forward-looking instruction to go build it may survive anywhere.
+    for dead in ("go to 1c, **not** to a third count",
+                 "BUILT 2026-08-21, not yet run",
+                 "mechanism is available to 1c and to none of the arms run so far",
+                 "1c escapes"):
+        assert dead not in txt, (
+            "FRAMEWORK still tells the reader to build 1c: %r. `select` is "
+            "rejected (section 12) -- it lost 22 items and destabilised "
+            "training." % dead)
+
+    # The arm's own docstring is the other place a reader lands, via TRAIN_FNS.
+    arm = io.open(os.path.join(REPO, "src", "methodologies", "select",
+                               "train.py"), encoding="utf-8").read()
+    doc = _ast_module_docstring(arm)
+    assert "REJECTED" in doc, (
+        "src/methodologies/select/train.py opens by arguing the direction is "
+        "worth a campaign; it is rejected, and the module docstring is what "
+        "anyone reading the registry follows.")
 
 
 def test_chunking_the_transductive_backward_does_not_change_the_gradient():
@@ -2837,6 +2888,38 @@ def test_the_scorer_still_sees_a_crash_log_that_was_renamed_aside():
         "`pending` -- a dead arm reading as an unstarted one")
 
 
+def _code_identifiers(path):
+    """Every name the CODE references: identifiers, attributes, import aliases
+    and string literals -- with docstrings excluded.
+
+    AST, never grep. A grep once reported `rho_step` as read because a LOG LINE
+    named it, and the earlier version of the gate below compared raw file text,
+    so a COMMENT could satisfy it. Docstrings are dropped for the same reason;
+    string literals are kept, because a config key is read as `hp["key"]`.
+    """
+    tree = ast.parse(io.open(path, encoding="utf-8").read())
+    docs = set()
+    for n in ast.walk(tree):
+        if isinstance(n, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef,
+                          ast.ClassDef)) and n.body:
+            b = n.body[0]
+            if (isinstance(b, ast.Expr) and isinstance(b.value, ast.Constant)
+                    and isinstance(b.value.value, str)):
+                docs.add(id(b.value))
+    out = set()
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Name):
+            out.add(n.id)
+        elif isinstance(n, ast.Attribute):
+            out.add(n.attr)
+        elif isinstance(n, ast.alias):
+            out.add(n.asname or n.name.split(".")[-1])
+        elif (isinstance(n, ast.Constant) and isinstance(n.value, str)
+              and id(n) not in docs):
+            out.add(n.value)
+    return {n.lower() for n in out}
+
+
 def test_the_grad_carrying_chunk_and_the_no_grad_chunk_are_separate_keys():
     """`constraint_chunk_size` bounds a BACKWARD pass; the allocators' and
     `select`'s chunk bounds inference under no_grad. Two knobs.
@@ -2847,6 +2930,16 @@ def test_the_grad_carrying_chunk_and_the_no_grad_chunk_are_separate_keys():
     because the constraint phase had to drop to 128 to survive ViTB16 + fp32
     OOM while the no_grad path had no reason to move. The names are now
     distinct, so an arm cannot read one thinking it set the other.
+
+    THE SPLIT WAS INCOMPLETE UNTIL 2026-08-22, AND THIS GATE COULD NOT SEE IT.
+    `src/utils/constants.py` still exported the fallback as
+    `CONSTRAINT_CHUNK_SIZE`, and all four no_grad arms imported it under that
+    name to default `inference_chunk_size` -- so the constraint knob's NAME
+    carried the inference knob's VALUE, and "fixing" the constant to track
+    protocol's 128 would silently have halved the allocators' chunk. The old
+    check compared lowercase strings against raw file text, and the constant is
+    uppercase, so it passed. The comparison is now case-insensitive and runs
+    over AST identifiers.
     """
     import yaml
     proto = yaml.safe_load(io.open(os.path.join(REPO, "configs", "protocol.yml"),
@@ -2859,23 +2952,73 @@ def test_the_grad_carrying_chunk_and_the_no_grad_chunk_are_separate_keys():
         "collision check_parity cannot see through")
     assert "constraint_chunk_size" in proto["constraint_phase"]
 
+    # ONE SOURCE OF TRUTH FOR THE FALLBACK. `clip` and `focal_clip` carry no
+    # `chunked` block, so they fall back to the module constant while every
+    # other allocator reads the protocol's value. If the two drift, one knob
+    # has two values depending on which arm you ask.
+    from src.utils.constants import INFERENCE_CHUNK_SIZE
+    assert INFERENCE_CHUNK_SIZE == proto["chunked"]["inference_chunk_size"], (
+        "src.utils.constants.INFERENCE_CHUNK_SIZE is %r but protocol.yml says "
+        "%r -- the arms without the `chunked` block would chunk differently "
+        "from the ones with it" % (INFERENCE_CHUNK_SIZE,
+                                   proto["chunked"]["inference_chunk_size"]))
+
     # and the readers must not have drifted back: _required (grad path) vs
-    # .get (no_grad path) is what separates them at the call site
-    grad_path = ["tralo", "fioretto_ldf", "fioretto_alm", "hounie_rcl"]
-    for pkg in grad_path:
-        src = io.open(os.path.join(REPO, "src", "methodologies", pkg,
-                                   "train.py"), encoding="utf-8").read()
-        assert "inference_chunk_size" not in src, (
-            "%s reads the no_grad inference chunk for its gradient-carrying "
-            "pass -- at 256 that is the configuration that OOMs" % pkg)
+    # .get (no_grad path) is what separates them at the call site. Compared
+    # case-insensitively over AST identifiers, so neither a comment nor an
+    # UPPERCASE constant can satisfy or evade it.
+    for rel in [("tralo", "train.py"), ("fioretto_ldf", "train.py"),
+                ("fioretto_alm", "train.py"), ("hounie_rcl", "train.py"),
+                ("dual_common.py",)]:
+        names = _code_identifiers(
+            os.path.join(REPO, "src", "methodologies", *rel))
+        assert "inference_chunk_size" not in names, (
+            "%s names the no_grad inference chunk on its gradient-carrying "
+            "pass -- at 256 that is the configuration that OOMs" % rel[0])
     for rel in [("danits_lp", "train.py"), ("heuristic", "train.py"),
-                ("select", "train.py")]:
-        src = io.open(os.path.join(REPO, "src", "methodologies", *rel),
-                      encoding="utf-8").read()
-        assert "constraint_chunk_size" not in src, (
-            "%s reads the CONSTRAINT chunk for a no_grad pass; it does not "
+                ("select", "train.py"), ("imbalanced_common.py",)]:
+        names = _code_identifiers(
+            os.path.join(REPO, "src", "methodologies", *rel))
+        assert "constraint_chunk_size" not in names, (
+            "%s names the CONSTRAINT chunk on a no_grad pass; it does not "
             "carry the constraint_phase block, so it would silently fall back "
             "to the module default and stop tracking the protocol" % rel[0])
+
+    # THE OTHER HALF OF THE COLLISION. `src/utils/inference.py` had its own
+    # module-level INFERENCE_CHUNK_SIZE = 512 for the metrics forward pass --
+    # the same name as the configurable knob's fallback, carrying a different
+    # value. It is private now, and the two must stay uncoupled: re-chunking a
+    # forward pass re-associates the batch dimension, so unifying them
+    # perturbs reported metrics in the last bits, and this project reads
+    # arm-vs-arm identity at md5 resolution.
+    import src.utils.inference as _inf
+    assert not hasattr(_inf, "INFERENCE_CHUNK_SIZE"), (
+        "src/utils/inference.py exports INFERENCE_CHUNK_SIZE again -- the same "
+        "name as the protocol-backed fallback in src/utils/constants.py, "
+        "carrying a different value. That is the collision this split removed")
+    assert _inf._METRICS_FORWARD_CHUNK != INFERENCE_CHUNK_SIZE, (
+        "the metrics forward stride and the allocators' inference chunk are "
+        "now equal; if that is intended it is a metrics change and must be "
+        "made deliberately, not fall out of a rename")
+
+    # ONE CARD, ONE CAPACITY. The 128 value is justified by an OOM, and the
+    # three places stating it quoted 22 GB / 22GB / 24 GB for the same event on
+    # the same machine. The project owns exactly two GPUs -- a 24 GB Quadro RTX
+    # 6000 and a 96 GB RTX PRO 6000 Blackwell -- so a 22 GB card is not one of
+    # them, and the 96 GB one would not have OOM'd.
+    caps = {}
+    for site in ("configs/protocol.yml", "docs/FRAMEWORK.md",
+                 "scripts/dose_scan.py"):
+        txt = io.open(os.path.join(REPO, *site.split("/")),
+                      encoding="utf-8").read()
+        found = re.findall(r"(\d+)\s*GB[^.\n]{0,30}Quadro RTX 6000", txt)
+        assert found, (
+            "%s justifies constraint_chunk_size: 128 with an OOM but no "
+            "longer names the card and its capacity" % site)
+        caps[site] = set(found)
+    assert len(set().union(*caps.values())) == 1, (
+        "one OOM, one machine, and these files attribute it to cards of "
+        "different sizes: %s" % caps)
 
 
 def test_every_trained_arm_logs_a_train_accuracy_column():
@@ -2980,3 +3123,59 @@ def test_log_health_does_not_cry_wolf_on_a_warm_up_row_or_a_posthoc_arm(tmp_path
     assert read_run(bad)["nonfinite"], (
         "missed a NaN sitting beside real values -- a run once diverged to "
         "all-NaN and still wrote `completed`")
+
+
+def test_test_embeddings_come_out_at_the_width_the_head_declares():
+    """A wrong feature dim produces a silently meaningless embedding file --
+    the array still saves, still loads, and every offline analysis built on it
+    is garbage. The four backbones name their head differently (`heads` on ViT,
+    `fc` on RegNet, `classifier` on both MobileNets), so the width is looked up,
+    and this checks the lookup agrees with what the hook actually captures.
+    """
+    import torch
+    from src.models.model_factory import get_model
+    from src.pipeline.features import extract_test_embeddings, head_and_feature_dim
+
+    X = torch.randn(6, 3, 224, 224)
+    for name in ("MobileNetV3", "MobileNetV2", "RegNetY400MF", "ViTB16"):
+        model = get_model(name, 7, pretrained=False)
+        _head, dim = head_and_feature_dim(model)
+        feats = extract_test_embeddings(model, X, chunk=4)
+        assert feats.shape == (6, dim), (
+            "%s: the head declares %d features but the hook captured %s" %
+            (name, dim, (feats.shape,)))
+
+
+def test_treatment_weight_keys_covers_every_null_arm_and_no_treated_one():
+    """`_zero_lambda_arms` decides which arms are their own control. It read a
+    hardcoded tuple of lambda + `select_eta`, so `fioretto_null`,
+    `hounie_null` and `alm_null` -- which zero `fioretto_step_size`,
+    `hounie_eta_lambda` and `alm_eta`/`alm_mu0`/`alm_mu_step` -- fell through to
+    the treated branch and drew the "one run counted twice" false alarm on
+    three of four nulls.
+
+    The list is now derived from protocol.yml, and BOTH halves of the rule
+    matter: a key must be 0 in the null block AND non-zero in its treated twin.
+    `fioretto_lambda_init` is 0.0 in both, so taking every zero in a null block
+    would classify the TREATED fioretto as untreated -- worse than the bug.
+    """
+    import yaml
+    from scripts.full_panel import TREATMENT_WEIGHT_KEYS as KEYS
+
+    with io.open(os.path.join(REPO, "configs", "protocol.yml"),
+                 encoding="utf-8") as fh:
+        blocks = yaml.safe_load(fh)["blocks"]
+
+    for arm in ("tralo", "select", "fioretto", "hounie", "alm"):
+        null = blocks.get(arm + "_null")
+        if null is None:
+            continue
+        present = [null[k] for k in KEYS if k in null]
+        assert present and all(float(v) == 0.0 for v in present), (
+            "%s_null carries no treatment key that is zero, so it will be "
+            "scored as a TREATED arm: %s" % (arm, present))
+        live = blocks.get(arm) or {}
+        lv = [live[k] for k in KEYS if k in live]
+        assert lv and any(float(v) != 0.0 for v in lv), (
+            "the treated arm %s reads as untreated (%s) -- its cross-cap "
+            "identity check would be inverted" % (arm, lv))

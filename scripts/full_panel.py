@@ -526,13 +526,49 @@ def _terminal_collapse(run_dir):
     return (last, prev) if last < prev - 0.02 else None
 
 
-# Every knob that scales an arm's treatment against CE. At zero the cap cannot
-# reach the weights, so the run is its own control -- whatever the arm is
-# called. `select_null` is the case that proved the lambda-only version too
-# narrow: it zeroes `select_eta` and carries no lambda at all, so it was
-# reported as "one run counted twice" when identity across caps is the thing
-# that MUST happen.
-TREATMENT_WEIGHT_KEYS = ("lambda_global", "lambda_local", "select_eta")
+def _treatment_weight_keys():
+    """Every knob whose ZEROING is what makes a null arm a null.
+
+    DERIVED from configs/protocol.yml, not hardcoded, because a hardcoded tuple
+    silently stops covering the next null someone adds -- which it already did:
+    it listed lambda and `select_eta` only, so `fioretto_null`, `hounie_null`
+    and `alm_null` fell through to the treated-arm branch and got the "one run
+    counted twice" false alarm this mechanism exists to prevent.
+
+    The rule is a key that is 0 in an `X_null` block AND NON-ZERO in its `X`
+    twin. Both halves are needed. `fioretto_lambda_init` is 0.0 in BOTH, so it
+    is not what distinguishes them -- taking every zero in the null block would
+    classify the TREATED fioretto as untreated, which is worse than the bug it
+    replaces. `hounie_eta_u` is 0.01 in both and is excluded the same way.
+    """
+    keys = {"lambda_global", "lambda_local", "select_eta"}   # floor
+    try:
+        import yaml
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with io.open(os.path.join(root, "configs", "protocol.yml"),
+                     encoding="utf-8") as fh:
+            blocks = (yaml.safe_load(fh).get("blocks") or {})
+        for name, null_block in blocks.items():
+            if not (str(name).endswith("_null") and isinstance(null_block, dict)):
+                continue
+            twin = blocks.get(str(name)[:-len("_null")]) or {}
+            for k, v in null_block.items():
+                try:
+                    zeroed = float(v) == 0.0
+                except (TypeError, ValueError):
+                    continue
+                try:
+                    live = float(twin.get(k, 1.0)) != 0.0
+                except (TypeError, ValueError):
+                    live = True
+                if zeroed and live:
+                    keys.add(k)
+    except Exception:
+        pass
+    return tuple(sorted(keys))
+
+
+TREATMENT_WEIGHT_KEYS = _treatment_weight_keys()
 
 
 def _zero_lambda_arms(rows):

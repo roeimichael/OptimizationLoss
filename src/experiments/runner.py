@@ -32,6 +32,7 @@ from src.methodologies.logit_adjust.train import train as train_logit_adjust
 from src.methodologies.select.train import train as train_select
 from src.pipeline.contracts import TrainInputs
 from src.pipeline.warmup import run_warmup
+from src.pipeline.features import EMBEDDING_CHUNK, save_test_embeddings
 from src.pipeline.eval import evaluate_with_posthoc, write_evaluation_outputs
 from src.training.logging import save_evaluation_metrics
 from src.utils.filesystem_manager import load_config_from_path, update_experiment_status
@@ -55,7 +56,12 @@ TRAIN_FNS = {
     'focal': train_focal,                       # imbalanced warm-up + LP clip
     'class_balanced': train_class_balanced,
     'logit_adjust': train_logit_adjust,
-    'select': train_select,                     # 1c: jointly-trained selection head
+    # 1c, jointly-trained selection head. ⛔ REJECTED 2026-08-22 -- worst arm
+    # measured here (-22 items vs `clip`, 0 of 2 cells on every metric) and it
+    # destabilises training. Registered so `results/selectrun` stays readable
+    # and so `select_null` (a live control) can run; NOT a direction to resume.
+    # docs/FRAMEWORK.md section (12).
+    'select': train_select,
 }
 
 
@@ -151,6 +157,12 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
 
     write_evaluation_outputs(experiment_path, y_true, group_ids, result, num_classes,
                              global_con, local_con)
+    # Penultimate features, beside the predictions. Until now a finished run
+    # stored a 2014x7 score matrix and nothing else, so every question that
+    # needs the REPRESENTATION rather than the scores meant retraining. Never
+    # fatal: see save_test_embeddings.
+    save_test_embeddings(experiment_path, model, X_test_tensor,
+                         EMBEDDING_CHUNK, device=device)
     best_metrics['satisfaction_epoch'] = train_outputs.summary.get('satisfaction_epoch')
     best_metrics['soft_hard_gap'] = train_outputs.summary.get('soft_hard_gap', {})
     best_metrics['best_sat_epoch'] = train_outputs.summary.get('best_sat_epoch')

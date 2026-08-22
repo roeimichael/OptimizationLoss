@@ -1453,29 +1453,45 @@ the warm-up.
   consistency, never a starred verdict. If it is positive, the follow-up is **more SEEDS**,
   not more cells.
 
-### (c) Per-item losses -- all null so far
+### (c) Per-item losses -- three null, one REJECTED
 
 - **`rank`** (pairwise, transductive, top-K vs rest) -- null, 48/48. It is **self-referential**:
   no labels, so it can sharpen a cut but never reorder.
-- **`rankpair`** (supervised pairwise hinge) -- null to negative.
-🔑 **WHAT THIS LIST DOES AND DOES NOT CLOSE, stated 2026-08-21 before building 1c.**
-Every arm below adds a term that moves the SCORE ORDERING while leaving the
-classification loss untouched -- pairwise hinges and threshold hinges are score
-arithmetic. Three of them are null, which is strong evidence that **you cannot fix the
-ranking by pushing on the scores.**
+- **`rankpair`** (supervised pairwise hinge) -- ⚠️ **THIS CLOSURE HAS NO RECEIPT AND IS
+  HEREBY REOPENED.** Searched 2026-08-22: `results/rankpair` **does not exist**, on either
+  machine or in any archive; there is no CSV in `docs/paper/data/corpus/`, and no table in
+  `docs/archive/REJECTED_full_2026-08-18.md` -- which does carry a full receipts table for
+  `rank`. The archive describes the campaign as PLANNED (line 261) and at line 889 still
+  names it as the open question. "Null to negative" is a bare assertion that was then cited
+  as settled, which is exactly how the ALM dual weight stayed wrong by 10.3x.
+  ⇒ **The SUPERVISED per-item family is NOT closed.** `rank`'s null does not transfer to it:
+  `rank` is self-referential (no labels), and the whole reason to try a supervised version is
+  that labels are the one thing it lacks. Treat this line as an open question, not a wall.
+- **`select`** (jointly-trained SELECTION head, path 1c) -- ⛔⛔ **REJECTED 2026-08-22, and
+  it is the worst arm this project has measured**: -22 items vs `clip`, 0 of 2 cells on
+  every metric, plus 2 of 8 runs collapsing on their final epoch. Its own `select_null`
+  ties `clip`, so the selective TERM is what costs. **Do not re-run it at any `eta`, `tau`
+  or `cov_weight`.** Full record and the measured tables: section (12) above.
 
-That is NOT the same as a **selective** loss, which reweights the CLASSIFICATION loss so
-the model is optimised to be accurate *on the items it selects*. The representation
-changes, not just the offsets -- which is the mechanism SelectiveNet reports its gain
-from, and it is untested here. ⇒ 1c is still open, but only under this reading, and it
-inherits the same bar: **it must move ccP.** If it moves AUROC and not ccP it has
-reproduced `budget_margin` and the shipped penalty for a third time.
+🔑 **WHAT THIS LIST CLOSED, and how.** Every score-pushing arm here adds a term that moves
+the SCORE ORDERING while leaving the classification loss untouched -- pairwise hinges and
+threshold hinges are score arithmetic. Three of them are null, which is strong evidence
+that **you cannot fix the ranking by pushing on the scores.**
 
-⚠️ **Honest risk to state now:** the covered set here is ~30-50% of ONE class, so the
-selective loss optimises accuracy on a small, self-selected subset -- which is also a
-recipe for overfitting it, the exact failure `joint_objective` had (held the cap 98.8% of
-epochs, -0.067 AP). The pre-registered check is ccP against `clip` **with AP watched as a
-guard**, not as an endpoint.
+A **selective** loss was the one escape this list left open: it reweights the
+CLASSIFICATION loss so the model is optimised to be accurate *on the items it selects*, so
+the representation changes and not just the offsets -- the mechanism SelectiveNet reports
+its gain from. ⛔ **That escape is now closed by measurement, not by argument.** `select`
+was built for exactly this reading, inherited the same bar (**it must move ccP**), and
+missed it on every metric including AP. ⇒ **"reweight the classification loss toward the
+covered set" is a measured loss here, not an untested hope**, and the honest reading of
+section (12) is that the coverage term optimises ABSTENTION, which is a different
+objective from ranking the capped class.
+
+⚠️ **The risk stated in advance is the one that materialised**, which is why it is kept:
+the covered set is ~30-50% of ONE class, so the selective loss optimises accuracy on a
+small, self-selected subset -- a recipe for overfitting it, the exact failure
+`joint_objective` had (held the cap 98.8% of epochs, -0.067 AP). `select` lost 0.1096 AP.
 
 - **`budget_margin`** (hinge at the cap's implied threshold) -- the knob is live but only AUROC
   moves, i.e. it improves the ordering in a region the cap never reads. Untested on multi-class.
@@ -1585,7 +1601,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 174 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 176 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1593,7 +1609,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (174 tests, ~35 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (176 tests, ~35 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -1737,12 +1753,12 @@ five are what found the defects, and they are cheap:
 
 ## 4. THE ONE OPEN QUESTION
 
-**STATE, 2026-08-21 -- read this before the 300 lines below.**
+**STATE, 2026-08-22 -- read this before the 300 lines below.**
 
 | | what | status |
 |---|---|---|
 | **built, not run** | `tralo_margin` + `tralo_st` (1b) -- the count's gradient on the decision boundary, decomposed from the count's value | 56-run campaign ready, all gates green, `docs/launch_margin1.sh` |
-| **built, not run** | 1c -- optimise the metric at the budget **with LABELS**, via a jointly-trained SELECTION head | `src/methodologies/select/train.py`, arms `select` / `select_null`; all gates green including `--matrix`. ⚠️ dosed at tau ~ 0.03 against SelectiveNet's published 0.70-1.00 -- see the dose note in 1c below |
+| ⛔ **RUN AND REJECTED 2026-08-22** | 1c -- optimise the metric at the budget **with LABELS**, via a jointly-trained SELECTION head | `results/selectrun`, 32 runs: **-22 items vs `clip`, 0 of 2 cells on every metric**, 2 of 8 runs collapsed on the final epoch, and `select_null` TIES `clip` so the selective term owns the loss. **Do not re-run at any `eta`, `tau` or `cov_weight`.** Section (12); code kept at `src/methodologies/select/train.py` so the campaign stays readable |
 | **needs Roei** | path 2 -- a test set whose prevalence DIFFERS from train | a load-time subsample, NOT re-slicing |
 | **purged** | `budget_margin` (path 1) | must be rebuilt before it can run |
 
@@ -1775,22 +1791,27 @@ items before believing it.**
 so:** post-hoc is optimal GIVEN the probabilities; the cap adds no information the training
 set lacks (proved from `create_slices.py`); and under `K << n_true` the Bayes rule is
 top-K by probability, which IS the clipper. The only remaining lever is a better RANKING at
-the operating point, and that needs LABEL information -- which no count penalty has. ⇒ if 1b
-ties, go to 1c, **not** to a third count.
+the operating point, and that needs LABEL information -- which no count penalty has.
+⛔ **The old sentence here read "if 1b ties, go to 1c". 1c HAS BEEN RUN and it is
+rejected** (section 12), so a tie on 1b no longer has a labelled successor waiting: the
+remaining move is path 2, the regime change.
 
-✅ **But the pessimism is about COUNT PENALTIES, not about the problem.** SelectiveNet
+⛔ **THE COUNTEREXAMPLE DID NOT REPRODUCE HERE, AND THAT IS A MEASUREMENT.** SelectiveNet
 (ICML 2019) beats "a threshold over the prediction confidence of a pre-trained network"
 -- our `clip`, exactly -- in the analogous coverage-constrained setting, by training a
 selection head jointly so the network is "optimized over the covered domain". Post-hoc is
-optimal GIVEN the probabilities; training can change which probabilities you get. **That
-mechanism is available to 1c and to none of the arms run so far**, because every one of
-them bolts a penalty onto a warm-started CE model instead of fitting the model to the
-sub-population it will actually predict on.
+optimal GIVEN the probabilities; training can change which probabilities you get, and that
+mechanism was available to 1c and to no count-based arm. **We built it and it lost 22
+items.** The two standing caveats on that non-reproduction are stated where they belong,
+in 1c below: the dose is 23x outside the published regime (tau ~ 0.03 against 0.70-1.00),
+and SelectiveNet's own advantage is contested by Jaeger et al. (ICLR 2023). ⇒ **cite this
+as a measured negative on OUR setting, never as a refutation of SelectiveNet.**
 
-Given section 0, these are the only things that can still win, and the only things worth
-building. They are ordered by how much of the pessimism above they escape: **1c escapes
-all of it, 1b escapes none of it** and is being run anyway because the analysis could be
-wrong, and 2 changes the problem rather than the method.
+Given section 0, these were the only things that could still win. **Path 1c is now closed
+by measurement**, so what remains is 1b (built, not run, and pre-registered to tie) and
+path 2, which changes the problem rather than the method. Ordered by how much of the
+pessimism above they escape: 1c escaped all of it on paper and none of it in practice;
+**1b escapes none of it** and is being run anyway because the analysis could be wrong.
 
 1. **A per-item objective at the operating point** -- something whose gradient depends on an
    individual item's position relative to the budget, not on the aggregate count.
@@ -2073,7 +2094,22 @@ wrong, and 2 changes the problem rather than the method.
    the whole test set the sigmoid is flat and it has silently degraded back to `sum`.
    Either way the run measures nothing, and neither shows up as an error.
 
-1c. **Optimise the metric at the budget, using LABELS** -- BUILT 2026-08-21, not yet run.
+1c. **Optimise the metric at the budget, using LABELS** -- built 2026-08-21,
+   ⛔⛔ **RUN AND REJECTED 2026-08-22. THIS ENTRY IS A CLOSED PATH, NOT A PROPOSAL.**
+
+   🛑 **Read section (12) first.** `results/selectrun`, 32 runs: **AP -0.1096, ccF1
+   -0.0804 = -22 items, macroF1 -0.0873, 0 of 2 cells on every metric**, and 2 of 8 runs
+   collapsed on their final epoch (the pipeline keeps the last epoch, so those collapses
+   are the scored models). `select_null` -- same warm-up, same 29 epochs, same allocator,
+   `select_eta: 0` -- **TIES `clip`**, which is what makes the loss attributable to the
+   selective term and not to the regime. **Do not re-run it at any `eta`, `tau` or
+   `cov_weight`.**
+
+   Everything below this point is the DESIGN RATIONALE, kept because it states what was
+   pre-registered and what the two standing caveats on the result are. **None of it is an
+   argument to resume the path.** The mechanism is understood: the coverage term trains
+   the network to *abstain*, which is a different objective from ranking the capped class,
+   and the allocator is then handed a worse ranking to threshold.
 
    `src/methodologies/select/train.py`; arms `select` / `select_null`; `blocks: [chunked,
    select]` with `constraint_step: false`, since this arm takes no constraint step at all
@@ -2096,12 +2132,17 @@ wrong, and 2 changes the problem rather than the method.
    and Feng et al. report that a plain confidence threshold on a well-trained model
    matches or beats learned selection heads once the comparison is made at matched
    coverage. That is the same claim as our `clip` baseline, and it is the reason the
-   falsification below is pre-registered rather than optional: **if `select` beats `clip`,
+   falsification was pre-registered rather than optional: **if `select` beats `clip`,
    apply the identical head to `clip` and re-run.** If the head helps both equally, the
-   result is the head, not the joint training.
+   result is the head, not the joint training. ✅ **That branch never had to be taken:
+   `select` did not beat `clip`, it lost 22 items to it.** The pre-registration is kept
+   because it is what made the negative readable -- Jaeger et al.'s reading is the one our
+   own data now supports.
 
-   This is where the day's measurements point, and it is the only proposal here that
-   escapes the trap 1b is stuck in. Three facts, each established above:
+   **This was where 2026-08-21's measurements pointed** -- the only proposal that
+   escaped the trap 1b is stuck in, built on three facts each established above. The
+   facts still hold; the arm built on them does not. Kept so the next proposal is
+   checked against the same three rather than re-deriving them:
 
    - post-hoc assignment is optimal GIVEN the probabilities, so a trained arm can only
      win by changing the REPRESENTATION;
@@ -2146,7 +2187,8 @@ wrong, and 2 changes the problem rather than the method.
    exactly the clipper. That is the third independent derivation today of the same
    conclusion (the others: post-hoc is optimal given probabilities; the cap adds no
    information the training set lacks). ⇒ the setting is a **top-K selection problem**,
-   which is why 1c is the proposal that fits it and why every count penalty does not.
+   which is why 1c was the proposal that fit it and why every count penalty does not.
+   ⚠️ Being the right SHAPE of proposal did not make it work: 1c was measured and lost.
 
    📚 **Literature checked so far (2026-08-21), and one lead still open.**
 
@@ -2188,8 +2230,11 @@ wrong, and 2 changes the problem rather than the method.
    rate chosen by the user; ours is per-class counts on a specific test set, coupled
    across classes and groups. Their metric is risk at coverage; ours is precision@K. And
    they train the selection head jointly from scratch, where every arm here bolts a
-   penalty onto a warm-started CE model. ⇒ this makes 1c **plausible**, not proven, and
-   the design to copy is the joint selection head, not the penalty.
+   penalty onto a warm-started CE model. ⇒ this made 1c **plausible**, not proven -- and
+   the measurement came back negative. ⚠️ **The last difference is the one that was never
+   removed**: SelectiveNet trains the head jointly FROM SCRATCH, `select` bolts it onto a
+   1-epoch warm-up like every other arm here, so the non-reproduction is a result about
+   OUR setting and is not a refutation of theirs.
 
 
    ⚠️ **Novelty is the pairing, not the loss.** Top-K / precision@k surrogates and
@@ -2198,10 +2243,20 @@ wrong, and 2 changes the problem rather than the method.
    there beats post-hoc thresholding of a CE model" -- which must be checked against
    label-shift, prior-correction and top-K optimisation literature BEFORE building it.
 
-   🎯 **THE MINIMAL FORM, and it reuses machinery that already exists.** SelectiveNet
-   trains a selection head jointly; that is a large change. The smallest thing with the
-   same mechanism -- fit the model to the sub-population it will actually predict on --
-   is to **re-weight the CE loss on the TRAINING set toward the operating point**:
+   🎯 **THE MINIMAL FORM -- NOT WHAT WAS REJECTED, AND NOT THEREBY OPEN.** Be exact
+   about the scope of section (12): what lost 22 items is the SELECTION HEAD, whose
+   coverage term trains the network to abstain. The re-weighting below has no coverage
+   term and no abstention, so section (12)'s mechanism does not transfer to it -- but it
+   was never built, it shares 1c's core premise (fit the model to the sub-population it
+   will predict on), and that premise now has one measured negative against it.
+   ⛔ **So it is not a next step and must not be read as one.** It is recorded so that a
+   later proposal is not re-derived from scratch, and it would need its own case, its own
+   pre-registered bar and Roei's call before any GPU goes into it.
+
+   SelectiveNet trains a selection head jointly; that is a large change. The smallest
+   thing with the same mechanism -- fit the model to the sub-population it will actually
+   predict on -- is to **re-weight the CE loss on the TRAINING set toward the operating
+   point**:
 
        w_i  =  1 + eta * sum_{c capped} sigma'( m_ic / T )
 
@@ -2222,8 +2277,9 @@ wrong, and 2 changes the problem rather than the method.
    on the property proved in path 2.
 
    ⚠️ **And it may still lose to `clip`**, because CE + optimal post-hoc is a strong
-   baseline and the training and test operating points differ by sampling noise. Build
-   it only after 1b reports, and only with the same in-campaign bars.
+   baseline and the training and test operating points differ by sampling noise. ⛔ The
+   line here used to read "build it only after 1b reports"; with 1c measured and rejected,
+   building it is not scheduled at all.
 
 2. **A regime where post-hoc is not optimal.** Post-hoc greedy is optimal only over its own
    candidate neighbourhood. It is weakest where the assignment is **coupled**: several capped
@@ -2325,7 +2381,7 @@ scripts/verify_caps.py   the caps bind, on the real dataset slices
 scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             174 tests, ~35 s, no dataset required
+tests/             176 tests, ~35 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
