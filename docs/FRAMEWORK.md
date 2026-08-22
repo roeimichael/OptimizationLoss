@@ -2572,10 +2572,19 @@ allocation channel and means nothing new.
 oracle gap a step our size could even reach -- a tie is uninterpretable without
 it, because "no effect" and "no reachable effect" are different conclusions.
 
-🛑 **If AP and AUROC are both flat against `tralo_null` at 4 seeds, the
-representation channel is measured and closed**, and with it the last mechanism
-the structural argument leaves open. Say so plainly rather than looking for a
-fifth slice.
+🛑 **If AP and AUROC are both flat against `tralo_null` at 4 seeds AND the
+allocation-free RESOLUTION block says POWERED, the representation channel is
+measured and closed** -- and with it the last mechanism the structural argument
+leaves open. Say so plainly rather than looking for a fifth slice.
+
+⚠️ **The POWERED clause is not a formality, and it did not exist when this
+section was first written.** The RESOLUTION block converts to items via
+`items_per_001`, an F1 identity that does not apply to AP or AUROC, so the
+scorer printed a seed cost for `d ccF1` alone -- the one family post-hoc filling
+CAN reach -- and none for the family this verdict rests on. `full_panel` now
+prints a second block in native units for AP and AUROC. **A flat AP that comes
+back UNDERPOWERED closes nothing**; it says the campaign needs more seeds, and
+the block prints how many.
 
 **THE EXACT READ, in order.** Verified 2026-08-22 that `full_panel` accepts an
 arbitrary control and validates it against the arms present, so the twin
