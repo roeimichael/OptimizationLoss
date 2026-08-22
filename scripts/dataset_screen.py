@@ -92,8 +92,17 @@ def novelty_items(train, test, gcol, label="label", n_null=200, seed=0):
             te_g = test[test[gcol] == g]
             tr_g = train[train[gcol] == g]
             if len(tr_g) == 0:
+                # 🛑 AN UNSEEN GROUP IS THE STRONGEST CASE, NOT A MISSING ONE.
+                # Skipping it (the first version did) reports novelty 0 for a
+                # fully held-out-domain split -- the exact design the criterion
+                # asks for -- because no unit survives to be summed. A model
+                # that has never seen this group holds no group-specific prior,
+                # so the best it can do is fall back to the GLOBAL training
+                # prevalence. That is the honest baseline, and the deviation
+                # from it is precisely what the cap would be telling it.
                 unseen_groups.append(g)
                 unseen_items += len(te_g)
+                units.append((cell_counts(te_g), p_glob, len(te_g)))
                 continue
             units.append((cell_counts(te_g), cell_counts(tr_g) / len(tr_g),
                           len(te_g)))

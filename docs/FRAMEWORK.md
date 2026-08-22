@@ -1752,7 +1752,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 221 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 222 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1760,7 +1760,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (221 tests, ~40 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (222 tests, ~40 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -2405,6 +2405,44 @@ satisfies:
 | **RxRx1 (WILDS)** | 1139 | experimental batch | yes | too many classes; batch is not a meaningful "local" constraint |
 | **ISIC 2019** | 8 | acquisition source / body site | no, but sources differ sharply | keeps the medical framing and the derm continuity |
 | Camelyon17 | 2 | hospital | yes | **binary -- fails multi-class** |
+
+**✅ MEASURED 2026-08-22 -- iWildCam CLEARS STAGE 1 BY 48x.** Built a held-out
+camera slice from the iWildCam 2020 COCO annotations (`data/iwildcam/oodslice`):
+8 species, 150 training cameras, **7 test cameras with ZERO overlap**, 2,943 test
+images.
+
+| dataset | NET | z | LOCAL | GLOBAL | unseen |
+|---|---|---|---|---|---|
+| `dermmnist/slice_1` | +65 | 2.9 | +70 | -10 | 0 |
+| `octmnist/slice_1` | -7 | -0.4 | -10 | -46 | 0 |
+| `tissuemnist` | -56 | -1.9 | -52 | -90 | 0 |
+| **`iwildcam/oodslice`** | **+3131** | **97.4** | +3169 | +638 | **7** |
+
+And the novelty is genuinely DIFFERENTIAL, which is the part that matters: NET
+(3131) is nearly all of LOCAL (3169), with only 638 attributable to the global
+shift. Contrast `shift_1`, where 110 of 160 was global in disguise.
+
+**WHY THE STRUCTURE IS RIGHT, in one line:** the median camera sees **10 of 216
+species**, and camera 501 is impala/elephant/cattle while camera 408 is ocellated
+turkey/tapir/puma -- different continents. A species that dominates one camera is
+**absent** from another, so per-group ratios are effectively infinite against
+dermmnist's 5.4x, and the residual correction factor cannot be the 1.68x that
+made 2(m) a null.
+
+🛑 **ONE FIX WAS REQUIRED TO MEASURE THIS AT ALL, and it is the kind of bug
+that silently confirms a prior.** The screen originally SKIPPED groups absent
+from training. On a fully held-out-domain split -- the exact design this section
+recommends -- no unit survives the sum, so it returned `net_items 0.0,
+net_z nan`: the criterion would have rejected its own best case. A model that has
+never seen a group holds no group-specific prior and must fall back to the
+GLOBAL one, so that is the baseline the deviation is now measured against. Gated,
+with the skip re-injected as the negative control.
+
+⚠️ **STAGE 2 IS STILL OUTSTANDING.** dermmnist cleared stage 1 at +65 and still
+nulls. What makes iWildCam different in kind rather than degree is that the
+correction factor is unbounded here, where dermmnist's was 1.68x -- but that is
+an argument, not a measurement, until `scope_probe --calibrate` is run on a
+trained model.
 
 ⚠️ **A NEW DATASET ALONE WILL NOT FIX THIS.** The splitter is half the problem:
 `create_slices.py` stratifies on the LABEL, which forces test prevalence to
@@ -3177,7 +3215,7 @@ scripts/verify_caps.py   the caps bind, on the real dataset slices
 scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             221 tests, ~40 s, no dataset required
+tests/             222 tests, ~40 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

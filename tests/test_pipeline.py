@@ -4962,3 +4962,45 @@ def test_screen_calls_index_modulo_groups_dead():
     r2 = _screen_pair(train, rigged)
     assert r2["net_z"] > 5, ("screen is blind even to label-aligned groups: %r"
                              % r2)
+
+
+def test_screen_scores_fully_unseen_groups_against_the_global_prior():
+    """A held-out-domain split is the criterion's BEST case, not a missing one.
+
+    The first version skipped groups absent from training, which returns
+    novelty 0 for exactly the design FRAMEWORK 2(n) recommends -- no unit
+    survives to be summed. A model that has never seen a group holds no
+    group-specific prior and must fall back to the global one, so that is the
+    baseline the deviation is measured against.
+    """
+    rng = np.random.default_rng(0)
+    n_g = 800
+
+    def build(spec):
+        lab, grp = [], []
+        for gid, p in spec:
+            lab += list(rng.choice([0, 1, 2], size=n_g, p=p))
+            grp += [gid] * n_g
+        return _meta(lab, grp)
+
+    # train groups 0-2, test groups 10-12 -- disjoint, and each test group is
+    # dominated by a DIFFERENT class, the iWildCam structure in miniature
+    train = build([(0, [0.5, 0.3, 0.2]), (1, [0.4, 0.4, 0.2]),
+                   (2, [0.5, 0.2, 0.3])])
+    test = build([(10, [0.9, 0.05, 0.05]), (11, [0.05, 0.9, 0.05]),
+                  (12, [0.05, 0.05, 0.9])])
+    r = _screen_pair(train, test)
+    assert len(r["unseen_groups"]) == 3, r["unseen_groups"]
+    assert r["unseen_items"] == 3 * n_g
+    assert r["net_z"] > 10, ("fully unseen groups scored as no information: %r"
+                             % r)
+    assert r["net_items"] > 500, r["net_items"]
+
+    # NEGATIVE CONTROL: unseen groups that each match the OVERALL test mix
+    # carry no DIFFERENTIAL information -- the cap would only be restating the
+    # global shift, which 2(j) shut. NET must stay quiet while the groups are
+    # still reported as unseen.
+    flat = build([(10, [0.9, 0.05, 0.05])] * 3)
+    r2 = _screen_pair(train, flat)
+    assert len(r2["unseen_groups"]) == 1, r2["unseen_groups"]
+    assert r2["net_z"] < 2.0, ("a uniform unseen group leaked into NET: %r" % r2)
