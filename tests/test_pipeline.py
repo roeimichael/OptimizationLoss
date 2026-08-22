@@ -5582,3 +5582,87 @@ def test_the_generated_paper_tables_still_reproduce_from_the_corpus():
         for name, original in before.items():
             with io.open(os.path.join(tdir, name), "wb") as fh:
                 fh.write(original)
+
+
+def test_no_soft_count_satisfaction_flag_is_reintroduced():
+    """INERT FLAG REGRESSION -- occurrences five and six.
+
+    `global_constraints_satisfied` and `local_constraints_satisfied` were
+    assigned on every forward pass and read NOWHERE in the repo. Beyond being
+    dead they were WRONG in a way that matters here: they record satisfaction on
+    the SOFT count, and `sum_i p_ic` is strictly positive for any softmax, so at
+    K == 0 the flag is permanently False for a group that is in fact perfectly
+    satisfied. On iwildcam seven of fourteen per-group ceilings are K == 0, so
+    anyone who wired one of these up would have read "never satisfied" off a
+    healthy run.
+
+    The check is on ASSIGNMENT, via AST, because a mention in a comment (there
+    is one, explaining why they are gone) must not satisfy or trip it.
+    """
+    src_dir = os.path.join(REPO, "src")
+    offenders = []
+    for dirpath, _dirs, files in os.walk(src_dir):
+        for fname in files:
+            if not fname.endswith(".py"):
+                continue
+            path = os.path.join(dirpath, fname)
+            with io.open(path, encoding="utf-8") as fh:
+                tree = ast.parse(fh.read())
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Assign):
+                    continue
+                for tgt in node.targets:
+                    if (isinstance(tgt, ast.Attribute)
+                            and tgt.attr.endswith("constraints_satisfied")):
+                        offenders.append((os.path.relpath(path, REPO),
+                                          node.lineno, tgt.attr))
+    assert not offenders, (
+        "a soft-count satisfaction flag is being assigned again: %s. The "
+        "trainer decides satisfaction from the HARD counts; a soft flag is "
+        "permanently False at K=0." % offenders)
+
+
+def test_the_trainer_decides_satisfaction_and_the_ratchet_from_HARD_counts():
+    """The claim the K=0 docstring now rests on, pinned against the trainer.
+
+    `transductive_loss._penalty` tells the reader that a K == 0 constraint does
+    NOT hold the ratchet gate open, on the grounds that the trainer reads hard
+    counts. An earlier version of that docstring said the opposite and nearly
+    condemned a healthy campaign, so the claim is enforced rather than trusted:
+    every count the satisfaction snapshot and the ratchet compare against a
+    limit must be a `_hard` one.
+    """
+    path = os.path.join(REPO, "src", "methodologies", "tralo", "train.py")
+    with io.open(path, encoding="utf-8") as fh:
+        lines = fh.read().splitlines()
+
+    def count_uses(text):
+        """Lines that COMPARE a count, or bind one for a later comparison.
+
+        Logging lines that merely read `.item()` into a dict are excluded on
+        purpose -- the trainer builds `g_soft_d` / `l_soft_d` for the CSV, and
+        recording the soft count is correct. What must never be soft is the
+        value tested against a limit.
+        """
+        out = []
+        for ln in text.splitlines():
+            t = ln.strip()
+            counted = re.search(r"total_(local|global)_(hard|soft)", t)
+            if not counted:
+                continue
+            if re.search(r"[<>]=?", t) or re.match(r"\w*hard\w*\s*=\s*total_", t):
+                out.append(t)
+        return out
+
+    # the checker must be able to FIRE, or a green result below means nothing
+    poisoned = "if total_local_soft[g][c].item() > lc[c].item():"
+    assert any("_soft" in ln for ln in count_uses(poisoned)), (
+        "the extractor cannot see a soft comparison even when one is planted")
+
+    checked = count_uses(os.linesep.join(lines))
+    assert checked, "no count comparisons found -- the trainer moved"
+    soft = [ln for ln in checked if "_soft" in ln]
+    assert not soft, (
+        "the trainer is comparing a SOFT count against a limit: %s. At K=0 the "
+        "soft count is strictly positive, so this would make a satisfied group "
+        "read as violated for the whole run." % soft[:3])

@@ -1758,7 +1758,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 247 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 249 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1766,7 +1766,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (247 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (249 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -2973,14 +2973,34 @@ pessimism above they escape: 1c escaped all of it on paper and none of it in pra
    network can deliver through shared parameters -- it rules the failure mode out
    as a property of the objective, not as a property of the training.
 
-   ✅ **A side effect worth having: `straight_through` closes the K == 0 trap.** A
-   group holding no true instances of the capped class gets `K == 0` legitimately,
-   and on the soft value that constraint can NEVER be satisfied -- `sum_i p_ic` is
-   strictly positive for any softmax even when the class is predicted for nobody in
-   the group, so `relu(count - 0)` stays positive for the whole run, contributing
-   nothing while holding the ratchet gate open for every other constraint. The hard
-   count can be exactly zero. This is a standing warning in this project and
-   `straight_through: true` removes it; a test pins the difference.
+   ⚠️ **THE K == 0 TRAP, CORRECTED 2026-08-22 -- it is HALF of what this section
+   used to claim.** A group holding no true instance of the capped class gets
+   `K == 0` legitimately, and on the soft value that constraint can never be
+   satisfied: `sum_i p_ic` is strictly positive for any softmax even when the class
+   is predicted for nobody in the group, so `relu(count - 0)` stays positive for the
+   whole run. That much is true and `straight_through: true` removes it.
+
+   🛑 **What is NOT true is the consequence this file and the loss docstring both
+   asserted -- that it "holds the ratchet gate open for every other constraint".**
+   Read against `src/methodologies/tralo/train.py`: `snapshot_local_satisfied`,
+   `snapshot_global_satisfied` and `ratchet_gate` are all computed from
+   `total_local_hard` / `total_global_hard`, which CAN be exactly zero. A K == 0
+   group therefore neither blocks the freeze nor holds the ratchet open. The two
+   soft-count flags that did encode the wrong notion (`local_constraints_satisfied`,
+   `global_constraints_satisfied`) were assigned on every forward and **read nowhere
+   in the repo** -- inert flags five and six -- and are now deleted, with an AST test
+   preventing their return. **This matters because the wrong version nearly got
+   `results/iwc1` condemned as corrupt while it was healthy.**
+
+   ⚖️ **So `straight_through` is a KNOB here, not a fix.** What K == 0 really does is
+   contribute a permanent, non-vanishing gradient pushing `p_ic` down in that group
+   -- and for a group with genuinely no instances of the class **that direction is
+   correct**. `straight_through: true` makes the term satisfiable on the hard count
+   and thereby switches that pressure OFF. On iwildcam, where **seven of the fourteen
+   per-group ceilings are K == 0**, switching it off discards pressure that is
+   pointing the right way, so the protocol default (`false`, which is what every
+   `iwc1` arm runs) is the defensible setting rather than an oversight. Decide it on
+   the measurement, not on the word "trap".
 
    🛑 **THE STRUCTURAL PRIOR, WRITTEN DOWN BEFORE THE RUN.** Post-hoc assignment is
    optimal GIVEN THE PROBABILITIES -- greedy over its candidate neighbourhood, the LP
@@ -3429,7 +3449,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             247 tests, ~105 s, no dataset required
+tests/             249 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

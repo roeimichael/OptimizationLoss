@@ -113,8 +113,15 @@ class MulticlassTransductiveLoss(nn.Module):
         self.num_classes = num_classes
         self.penalty_shape = penalty_shape
         self.register_buffer('rho', torch.tensor(float(initial_rho)))
-        self.global_constraints_satisfied = False
-        self.local_constraints_satisfied = False
+        # NO soft-count satisfaction flag lives here, deliberately. Two used
+        # to (`global_constraints_satisfied` / `local_constraints_satisfied`),
+        # written on every forward and read NOWHERE in the repo -- inert flags
+        # five and six, the failure mode CLAUDE.md rule 3 exists for. Worse
+        # than useless: they encode satisfaction on the SOFT count, and at K=0
+        # `sum_i p_ic` is strictly positive for any softmax, so a soft flag is
+        # permanently False for a group that is in fact perfectly satisfied.
+        # The trainer decides satisfaction from the HARD counts, which can be
+        # exactly zero. Do not reintroduce a soft one.
         # lambda keys: class idx for global, (group_id, class) for local
         self.lambda_global_per_class = {}
         self.lambda_local_per_key = {}
@@ -137,16 +144,32 @@ class MulticlassTransductiveLoss(nn.Module):
         """Rational saturation plus a bounded quadratic, both in the excess E.
 
         The excess is measured against the TRUE K, but both terms are scaled by
-        max(K, 1). At K == 0 the unscaled forms are pinned at their own bound --
-        E/(E+0) == 1 and (E/0)^2/(1+(E/0)^2) == 1 -- so the penalty is a nonzero
-        CONSTANT with exactly zero gradient. A group holding no true instances of
-        the capped class gets K == 0 legitimately, and that constraint then sits
-        permanently unsatisfied: it contributes nothing to the model, but it
-        holds the ratchet gate open and blocks the satisfaction freeze for every
-        OTHER constraint, for the whole run.
+        max(K, 1). WITHOUT that scaling, at K == 0 the forms pin at their own
+        bound -- E/(E+0) == 1 and (E/0)^2/(1+(E/0)^2) == 1 -- so the penalty
+        would be a nonzero CONSTANT with exactly zero gradient, and a group
+        holding no true instance of the capped class would contribute nothing at
+        all. `scale = K if K >= 1 else 1.0` is what prevents that; it is the
+        identity for every K >= 1, so this is bit-identical to the previous form
+        on every run made before the fix.
 
-        max(K, 1) is the identity for every K >= 1, so this is bit-identical to
-        the previous form on every run made so far.
+        ⚠️ **WHAT IS STILL TRUE AT K == 0, AND WHAT IS NOT.** `sum_i p_ic` is
+        strictly positive for any softmax, so `relu(soft - 0)` never reaches
+        zero and this constraint is never satisfied ON THE SOFT COUNT. What that
+        does NOT do is stall the run: `src/methodologies/tralo/train.py` decides
+        both satisfaction and the ratchet gate from the HARD counts, which CAN
+        be exactly zero, so a K == 0 group neither holds the gate open nor
+        blocks the freeze for any other constraint. (An earlier version of this
+        docstring said it did. Read against the trainer before believing it --
+        the mistake nearly condemned a healthy campaign.)
+
+        What it DOES do is contribute a permanent, non-vanishing gradient
+        pushing p_ic down in that group. For a group with genuinely no instances
+        of the class that direction is CORRECT, which is why `straight_through`
+        is a knob and not a fix: it makes the term satisfiable on the hard count
+        and thereby switches the pressure off, which is not obviously what you
+        want on a dataset where K == 0 ceilings carry real information.
+        ⚠️ On iwildcam SEVEN of the fourteen per-group ceilings are K == 0, so
+        this is the common case there, not a corner.
         """
         E = F.relu(soft - K)
         scale = K if K >= 1 else 1.0
@@ -200,13 +223,11 @@ class MulticlassTransductiveLoss(nn.Module):
     def compute_global_from_counts(self, soft_counts):
         device = soft_counts.device
         if len(self.global_constraints) == 0:
-            self.global_constraints_satisfied = True
             return soft_counts.sum() * 0.0          # keeps the autograd graph alive
         con = self.global_constraints.to(device)
         entries = [(soft_counts[c], con[c], self.lambda_global_per_class.get(c, 0.0))
                    for c in self._capped(con, self.num_classes)]
-        total, satisfied, n = self._sum(entries, device)
-        self.global_constraints_satisfied = satisfied
+        total, _satisfied, n = self._sum(entries, device)
         return total if n else soft_counts.sum() * 0.0
 
     def _zero(self):
@@ -221,7 +242,6 @@ class MulticlassTransductiveLoss(nn.Module):
 
     def compute_local_from_counts(self, local_soft_counts):
         if not self.local_groups or not local_soft_counts:
-            self.local_constraints_satisfied = True
             for v in local_soft_counts.values():
                 return v.sum() * 0.0
             return self._zero()
@@ -234,8 +254,7 @@ class MulticlassTransductiveLoss(nn.Module):
             con = getattr(self, buffer_name).to(device)
             entries += [(soft[c], con[c], self.lambda_local_per_key.get((gid, c), 0.0))
                         for c in self._capped(con, self.num_classes)]
-        total, satisfied, n = self._sum(entries, device)
-        self.local_constraints_satisfied = satisfied
+        total, _satisfied, n = self._sum(entries, device)
         if n:
             return total
         for v in local_soft_counts.values():
