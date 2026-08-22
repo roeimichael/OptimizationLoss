@@ -80,7 +80,40 @@ python -m scripts.log_health <root>        # what the OPTIMISATION did, per run,
                                             #   satisfaction, count trajectory vs K
 python -m scripts.paired_seeds <scan-root>  # each arm minus its OWN lambda=0 twin, per seed
 python -m scripts.score_scan <root>         # AUROC / prec@K / Jaccard, grouped by CELL
+python -m scripts.headroom <root>           # items from `clip` to a PERFECT allocator,
+                                            #   per cell -- the ceiling any arm is chasing
 ```
+
+⚠️ `full_panel` now prints a **RESOLUTION** block per contrast: the within-cell
+seed sd in items, and the seeds needed at 80% power beside the seeds present. **Read it
+before the verdict.** A tie means "no effect" OR "not enough seeds", and those are
+opposite conclusions from the same table -- on the live `dualbar2` one contrast reads
+`observed +0.36 items, needs ~174 seeds per cell`. It refuses to print a figure at all
+when no cell has two seeds, rather than deriving one from nothing.
+
+## Pricing a direction BEFORE spending a GPU
+
+Both run on CPU in minutes against runs that already exist, and both carry their own
+liveness controls, so a null from them is a measurement rather than silence. Each closed
+a direction this project would otherwise have spent a campaign on.
+
+```bash
+python -m scripts.frozen_head_probe --run-dir <run> --seeds 1 2 ... # refit ONLY a linear
+                                            #   head on the frozen features under a
+                                            #   different loss; verdicts in ITEMS, and
+                                            #   `seeds_needed` prices any survivor in
+                                            #   CAMPAIGN seeds (topk/ptopk: +1.2-1.3
+                                            #   items but ~24-36 seeds/cell => unaffordable)
+python -m scripts.graph_probe --campaign <root>  # diffuse the scores over a kNN graph of
+                                            #   the stored embeddings -- the one input the
+                                            #   allocator provably lacks. NULL: +0.50
+                                            #   items, 10/19, while its shuffled-graph and
+                                            #   shuffled-feature controls lose 5.8-8.4
+```
+
+Both need `test_embeddings.npz`, written by `src/pipeline/features.py` at the end of every
+run finished after 2026-08-22. Runs predating it cannot be probed and **must not be
+substituted for with synthetic data** -- the probes refuse rather than fall back.
 
 **Three rules that cost a night each to learn:**
 
