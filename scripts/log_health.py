@@ -90,7 +90,12 @@ def read_run(d):
     # count columns: the canonical header reserves those for every arm, and a
     # post-hoc arm builds no constraint object, so every limit it writes is
     # UNLIMITED. Keying on the columns reported `clip` as 28/28 satisfied.
-    r["posthoc"] = not any(
+    # Only decidable on the WIDE schema. The narrow (dual) schema carries no
+    # Limit_Class columns at all, so "no finite limit" was true for every dual
+    # arm and `fioretto`/`hounie`/`alm` were reported as POST-HOC -- arms that
+    # run a full constraint phase, labelled as running none. The narrow schema
+    # answers the question a different way, through `all_satisfied`.
+    r["posthoc"] = r["wide"] and not any(
         c.startswith("Limit_Class")
         and (pd.to_numeric(df[c], errors="coerce").dropna() < 1e9).any()
         for c in df.columns)
@@ -118,6 +123,18 @@ def read_run(d):
         if len(g) >= 3:
             med = float(g.median())
             r["gn_pinned"] = (med, float(g.std()) < 1e-6 * max(1.0, med))
+
+    # --- total excess, the only count the narrow schema writes ---
+    r["excess"] = None
+    exc = _col(df, "total_excess")
+    if exc:
+        e = pd.to_numeric(df[exc], errors="coerce").dropna()
+        if len(e) >= 3:
+            y = e.to_numpy(dtype=float)
+            r["excess"] = {"first": float(y[0]), "last": float(y[-1]),
+                           "mean": float(y.mean()),
+                           "slope": float(np.polyfit(
+                               np.arange(len(y), dtype=float), y, 1)[0])}
 
     # --- capped-class count trajectory, wide schema only ---
     r["counts"] = {}
@@ -200,6 +217,13 @@ def main():
                       % (c, np.mean([x["first"] for x in v]),
                          np.mean([x["last"] for x in v]), v[0]["K"],
                          np.mean([x["slope"] for x in v])))
+        if not cs:
+            ex = [r["excess"] for r in rs if r.get("excess")]
+            if ex:
+                cs = ["total excess %.0f->%.0f (slope %+.2f/ep)"
+                      % (np.mean([e["first"] for e in ex]),
+                         np.mean([e["last"] for e in ex]),
+                         np.mean([e["slope"] for e in ex]))]
         print("  %-14s %5d %8s %14s   %s"
               % (arm, len(rs), "%.4f" % np.mean(accs) if accs else "n/a",
                  satr, "; ".join(cs) if cs else "n/a (schema)"))
