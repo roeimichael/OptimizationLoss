@@ -370,7 +370,7 @@ def main(argv=None):
     print("change of size d can perform at the cut.\n")
 
     rng = np.random.default_rng(0)
-    agg, n_ok = {}, 0
+    agg, agg_base, n_ok = {}, {}, 0
     pairs = [] if args.sweep else pair_runs(runs)
 
     if pairs:
@@ -388,9 +388,20 @@ def main(argv=None):
                   % (arm, "/".join(str(x) for x in cell), seed,
                      " ".join("c%d=%.4f" % (c, v["q"])
                               for c, v in sorted(disp.items()))))
-            collect(agg, probe(data, lambda c, s, _d=disp:
-                               [_d[c]["q"], 2 * _d[c]["q"], 10 * _d[c]["q"]],
-                               rng), names)
+            def ladder(c, _s, _d=disp):
+                q = _d[c]["q"]
+                return [q, 2 * q, 10 * q]
+
+            collect(agg, probe(data, ladder, rng), names)
+            # The NULL at the SAME delta. Without it the probe cannot say how
+            # much was reachable from the BASELINE's ranking, which is the
+            # reference `headroom.py` quotes -- and the null is a post-hoc
+            # clipper at equal compute with the allocator held fixed, so it is
+            # the right baseline rather than a convenient one.
+            try:
+                collect(agg_base, probe(load_real(null), ladder, rng), names)
+            except SystemExit:
+                pass
         print("")
     else:
         names = SWEEP_NAMES
@@ -409,6 +420,12 @@ def main(argv=None):
 
     if not n_ok:
         raise SystemExit("no probeable runs")
+    if agg_base:
+        print("  BASELINE -- the `_null` twin's own ranking, at the SAME delta.")
+        print("  This is what a post-hoc clipper at equal compute already had")
+        print("  within reach BEFORE any constraint was applied.")
+        report(agg_base, n_ok)
+        print("  TREATED -- the same cells after the constraint.")
     report(agg, n_ok)
 
     print("  READ THE CONTROL, AND ITS SIGN. `shuffled ctrl` keeps the score")

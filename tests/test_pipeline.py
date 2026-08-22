@@ -5005,6 +5005,7 @@ CAMPAIGN_TOOLS = [
     ("full_panel", ["--campaign", "{root}", "--control", "clip"]),
     ("graph_probe", ["--campaign", "{root}"]),
     ("scope_probe", ["--campaign", "{root}"]),
+    ("straddle_probe", ["--campaign", "{root}"]),
 ]
 
 
@@ -5352,6 +5353,14 @@ def test_the_straddle_probe_runs_end_to_end_on_a_campaign(tmp_path):
     assert "NOT calibrated" not in out, (
         "fell back to the swept ladder even though a twin exists")
     assert "CLASS 2" in out, out[-600:]
+    # The BASELINE block is not cosmetic: without the null's own reachability at
+    # the SAME delta there is nothing to read the treated number against, and
+    # the null is the post-hoc clipper at equal compute with the allocator held
+    # fixed -- the reference `headroom.py` quotes.
+    assert "BASELINE" in out and "TREATED" in out, out[-900:]
+    assert out.index("BASELINE") < out.index("TREATED"), (
+        "the baseline must be reported before the treated arm, or the reader "
+        "meets the treated number with nothing to compare it to")
 
 
 @pytest.mark.parametrize("n_pos_lt_K", [False, True])
