@@ -526,6 +526,36 @@ datasets:
     num_classes: 7
     group_column: loc_group     # HAM10000 anatomical site: real groups
     constrained_class: 4        # melanoma, 11.1% of test
+  iwildcam:
+    # THE FIRST DATASET THAT CLEARS THE FRAMEWORK 2(n) CRITERION.
+    # Held-out camera traps: the 7 test cameras are DISJOINT from the 150
+    # training cameras, so the model holds no per-camera species prior and the
+    # local cap is the only source of one. Measured novelty, differential and
+    # net of both sampling noise and the global shift:
+    #     dermmnist/slice_1   NET   +65 items (z=2.9)   unseen groups 0
+    #     iwildcam/oodslice   NET +3131 items (z=97.4)  unseen groups 7
+    #
+    # Capped classes 2 (impala) and 7 (cattle) are chosen for their per-camera
+    # STRUCTURE, not their frequency: they are seen at 3 and 4 of the 7 test
+    # cameras respectively, so their local budgets differ across cameras
+    # instead of being one number divided up. Classes 0/3/4/5 each appear at a
+    # single camera, which would make the local cap trivially equal to the
+    # global one.
+    #
+    # 4 of 7 cameras carry a K=0 ceiling for class 2. A ZERO CEILING ALWAYS
+    # BINDS, so unlike dermmnist -- where `lp_fallback_used` was False with 0
+    # candidates on all 52 completed runs -- the local scope constrains the
+    # OUTPUT here at EVERY cap level, including the ones where the global
+    # binds the totals. That is the regime FRAMEWORK 2(l) found had never
+    # once been tested.
+    #
+    #   L50_G20  class 2: global K= 74 | local [54,0,0,51,0,80,0] sum=185
+    #   L20_G50  class 2: global K=185 | local [22,0,0,20,0,32,0] sum= 74
+    #   L30_G30  is REDUNDANT here as everywhere: local sum equals global exactly.
+    data_dir: data/iwildcam/oodslice
+    num_classes: 8
+    group_column: location      # camera trap; test cameras DISJOINT from train
+    constrained_class: [2, 7]   # impala 12.6% / cattle 15.5% of test
   tissuemnist:
     data_dir: data/tissuemnist/slice_1
     num_classes: 8

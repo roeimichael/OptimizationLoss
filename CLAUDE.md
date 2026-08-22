@@ -59,7 +59,7 @@ imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 222 regression tests, ~40s, no dataset needed
+python -m pytest tests -q                   # 223 regression tests, ~40s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -177,10 +177,36 @@ Generate a campaign with:
 python -m configs.gen_campaign --root results/<name>     --datasets dermmnist tissuemnist --models MobileNetV3     --caps L30_G30 L50_G50 --arms all
 ```
 
-## Datasets (the only three)
+## Datasets
 
+`iwildcam` (8 species, classes 2+7 capped, `location` = camera trap) -
 `dermmnist` (7 classes, MEL=4 capped, `loc_group`) - `octmnist` - `tissuemnist` (8 classes,
 class 4 capped, `synth_group`). **No AIDER, no EuroSAT, no others.**
+
+🟢 **`iwildcam` is the ONE that can carry a constraint**, and the other three are now
+understood not to. Screen them with `scripts.dataset_screen`, which reports the
+DIFFERENTIAL per-group novelty net of sampling noise and the global shift:
+
+| dataset | NET items | z | unseen groups |
+|---|---|---|---|
+| **iwildcam/oodslice** | **+3131** | **97.4** | **7 (all test cameras)** |
+| dermmnist/slice_1 | +65 | 2.9 | 0 |
+| octmnist/slice_1 | -7 | -0.4 | 0 |
+| tissuemnist | -56 | -1.9 | 0 |
+
+⚠️ **octmnist and tissuemnist are structurally dead** -- `synth_group` is
+`np.arange(len(y)) % 3`, so their groups are i.i.d. draws from one distribution
+and the local scope is empty **by construction**. Two of the original three
+could never have tested the thing being tested. `data/dermmnist/shift_1` looks
+better at LOCAL=160 but 110 of that is the global shift replicated across
+groups; it has never been used and should not be.
+
+🛑 On `iwildcam`, **7 of 14 per-group ceilings are K=0** ("predict none of this
+species at this camera"). A zero ceiling binds regardless of sum slack, so the
+LOCAL scope constrains the output at every cap level -- unlike dermmnist, where
+`lp_fallback_used` was False with 0 candidates on all 52 runs. `gen_campaign`
+now reads the real budgets and says so; do NOT trust the sum-arithmetic line
+alone. See `docs/FRAMEWORK.md` section 2(n).
 
 ## Backbones
 

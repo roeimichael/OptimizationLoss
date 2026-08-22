@@ -141,6 +141,33 @@ def _cls_tag(dc):
     return "-".join(str(x) for x in (c if isinstance(c, list) else [c]))
 
 
+def _zero_ceilings(P, dataset, local_pct):
+    """(zero per-group ceilings, total cells) for a dataset's capped classes.
+
+    Returns (0, 0) when the slice is not present on this machine -- campaigns
+    are generated on laptops as well as on the server, and a missing dataset
+    must not crash generation. It reports nothing rather than guessing.
+    """
+    try:
+        import pandas as pd
+        from src.training.constraints import (compute_local_constraints,
+                                              normalize_constrained_classes)
+        dc = P["datasets"][dataset]
+        meta = os.path.join(dc["data_dir"], "test_meta.csv")
+        if not os.path.exists(meta):
+            return 0, 0
+        te = pd.read_csv(meta)
+        classes = normalize_constrained_classes(dc["constrained_class"])
+        L = compute_local_constraints(te, "label", local_pct,
+                                      dc["group_column"],
+                                      constrained_class=classes,
+                                      num_classes=dc["num_classes"])
+        cells = [L[g][c] for g in L for c in classes]
+        return sum(1 for v in cells if v == 0), len(cells)
+    except Exception:
+        return 0, 0
+
+
 def cap_pair(tag):
     """'L30_G50' -> [0.30, 0.50]: (local, global), independent by construction."""
     try:
@@ -214,6 +241,22 @@ def validate(P, args, resolved, arms):
         binds.setdefault(which.split()[0], []).append(tag)
         print("  cap %-10s L=%d%% G=%d%%  ->  binding scope: %s"
               % (tag, int(lp * 100), int(gp * 100), which))
+        # 🛑 SUM-SLACKNESS DOES NOT IMPLY NON-BINDING. The line above is
+        # pure arithmetic on the two percentages and was written against
+        # dermmnist, where every per-group ceiling is positive. A ceiling of
+        # ZERO binds absolutely, whatever the sum does -- and on a held-out-
+        # camera dataset most cells are zero, because a species simply is not
+        # at that camera. Reporting "local sum is 2.5x slack" there would call
+        # the local scope inert in the one campaign where it does the most
+        # work. So this reads the ACTUAL budgets rather than inferring them.
+        for ds in args.datasets:
+            zeros, total = _zero_ceilings(P, ds, lp)
+            if zeros:
+                print("     ^ but %s has %d of %d per-group ceiling(s) at "
+                      "K=0 for the capped class(es)." % (ds, zeros, total))
+                print("       A ZERO CEILING BINDS regardless of sum slack, so "
+                      "the LOCAL scope")
+                print("       constrains the output at this cap too.")
     if len(binds) == 1 and len(args.caps) > 1:
         only = list(binds)[0]
         other = "L20_G50" if only == "GLOBAL" else "L50_G20"

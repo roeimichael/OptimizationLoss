@@ -5004,3 +5004,48 @@ def test_screen_scores_fully_unseen_groups_against_the_global_prior():
     r2 = _screen_pair(train, flat)
     assert len(r2["unseen_groups"]) == 1, r2["unseen_groups"]
     assert r2["net_z"] < 2.0, ("a uniform unseen group leaked into NET: %r" % r2)
+
+
+def test_generator_reports_zero_ceilings_not_just_sum_slack(tmp_path):
+    """A K=0 per-group ceiling binds even when the local SUM is slack.
+
+    `gen_campaign`'s binding-scope line is pure arithmetic on the two cap
+    percentages and was written against dermmnist, where every per-group
+    ceiling is positive. On a held-out-camera dataset most cells are zero --
+    a species simply is not at that camera -- and reporting "local sum is 2.5x
+    slack" would call the local scope inert in the campaign where it does the
+    most work. That is the same class of mistake as the 2026-08-18 global-cap
+    bug and the 2026-08-22 local one, both of which went unnoticed at
+    generation time.
+    """
+    from configs.gen_campaign import _zero_ceilings
+
+    def protocol(frame, classes):
+        d = tmp_path / ("s%d" % len(list(tmp_path.iterdir())))
+        d.mkdir()
+        frame.to_csv(d / "test_meta.csv", index=False)
+        return {"datasets": {"x": {"data_dir": str(d), "num_classes": 4,
+                                   "group_column": "grp",
+                                   "constrained_class": classes}}}
+
+    # a species present at ONE group and absent from two -- iWildCam's shape
+    sparse = pd.DataFrame({
+        "label": [1] * 60 + [0] * 60 + [0] * 60,
+        "grp":   [0] * 60 + [1] * 60 + [2] * 60})
+    zeros, total = _zero_ceilings(protocol(sparse, [1]), "x", 0.5)
+    assert (zeros, total) == (2, 3), (zeros, total)
+
+    # NEGATIVE CONTROL: dermmnist's shape -- the class is present in EVERY
+    # group, so nothing is zero and the warning must stay silent. Without this
+    # the assertion above would pass on a function that always reports zeros.
+    dense = pd.DataFrame({
+        "label": ([1] * 30 + [0] * 30) * 3,
+        "grp":   [0] * 60 + [1] * 60 + [2] * 60})
+    assert _zero_ceilings(protocol(dense, [1]), "x", 0.5) == (0, 3)
+
+    # a slice absent from this machine must report nothing, never crash --
+    # campaigns are generated on laptops as well as on the server
+    missing = {"datasets": {"x": {"data_dir": str(tmp_path / "nope"),
+                                  "num_classes": 4, "group_column": "grp",
+                                  "constrained_class": [1]}}}
+    assert _zero_ceilings(missing, "x", 0.5) == (0, 0)
