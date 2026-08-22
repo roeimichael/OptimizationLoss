@@ -211,6 +211,13 @@ EuroSAT, no others.**
 `dermmnist`, `octmnist` and `tissuemnist` are REMOVED -- the rows below are the evidence
 for why, not an offer to run them.
 
+🔑 **Triage a candidate BEFORE downloading it** (`docs/FRAMEWORK.md` 2(n)): the GROUP's
+definition decides. Groups built from an index, a randomisation or a balanced assay design
+are dead by construction -- that is what killed octmnist (`synth_group = index % 3`) and it
+is why **rxrx1 fails too**, despite 1,139 classes and real batch effects: every siRNA
+appears in every experiment by design. **A dataset famous for DOMAIN SHIFT is not
+automatically one with PER-GROUP LABEL SHIFT, and only the second is usable here.**
+
 🟢 **`iwildcam` is the ONE that can carry a constraint**, and the other three are now
 understood not to. Screen them with `scripts.dataset_screen`, which reports the
 DIFFERENTIAL per-group novelty net of sampling noise and the global shift:

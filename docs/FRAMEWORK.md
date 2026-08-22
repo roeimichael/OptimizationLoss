@@ -2478,6 +2478,44 @@ inverts the 2(n) discipline. **Do the download on the server, derive labels from
 `image_name`, and screen before training** -- the screen is still the gate, it
 just cannot come first here.
 
+**TRIAGE A CANDIDATE BEFORE DOWNLOADING IT -- the group's DEFINITION decides.**
+`dataset_screen` is cheap but still needs the metadata in hand, and FMoW showed
+that getting metadata can cost more than the screen. Most candidates can be
+settled earlier than that, because the thing that killed octmnist and
+tissuemnist is visible in one sentence of the dataset's own documentation:
+`synth_group` is `np.arange(len(y)) % 3`, so groups are i.i.d. draws from one
+distribution and the local scope is empty **by construction**. Three questions,
+answerable from a README:
+
+1. **Is the label space multi-class and imbalanced?** Binary fails outright --
+   there is no allocation problem across classes to constrain.
+2. **Are the groups defined by something the LABEL DEPENDS ON** -- geography,
+   time, institution, device -- **or by an index, a randomisation, or a
+   balanced assay design?** The second kind is dead however large the dataset
+   is, and no amount of domain shift in the FEATURES repairs it: we need the
+   per-group CLASS distribution to differ.
+3. **Can whole groups be held out?** If the standard split is label-stratified,
+   the splitter has to be replaced (see the warning below).
+
+Applying it, ⚠️ **REASONED from the dataset designs, not measured** except where
+a NET figure is quoted above:
+
+| candidate | verdict | why |
+|---|---|---|
+| **iwildcam** | ✅ **LIVE, measured** | NET +3131, z=97.4, 7 unseen cameras. In use |
+| fmow | 🟡 live in principle | region/year; class mix genuinely varies by geography. Blocked on acquisition, above |
+| **rxrx1** | ⛔ **DEAD BY CONSTRUCTION** | 1,139 classes and real batch effects make it look ideal, but it is a **plate-based screen: every siRNA appears in every experiment by design**, so the per-group class distribution is uniform across groups. This is octmnist's failure in a prestigious costume -- the shift is in the FEATURES, and we need it in the per-group LABEL counts |
+| camelyon17 | ⛔ dead | 2 classes |
+| povertymap / globalwheat | ⛔ dead | regression / detection, no class budget |
+| geolifeclef, iNaturalist | 🟡 live in principle | geographic groups, species mix differs sharply by region; long tail is a feature here |
+| civilcomments | 🟡 live but out of scope | toxicity rate does differ by identity group, but the pipeline is imagery-only (`IMAGERY_DATASETS`) |
+
+🔑 **The rule worth keeping: a dataset famous for DOMAIN SHIFT is not
+automatically a dataset with PER-GROUP LABEL SHIFT, and only the second is what
+a per-group count cap can use.** rxrx1 is the clearest example -- it would have
+survived every generic "is this a real shift benchmark" check and still tested
+nothing.
+
 ⚠️ **A NEW DATASET ALONE WILL NOT FIX THIS.** The splitter is half the problem:
 `create_slices.py` stratifies on the LABEL, which forces test prevalence to
 match train prevalence and is exactly why the global cap carries nothing. A
