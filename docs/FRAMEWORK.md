@@ -2789,8 +2789,11 @@ optimal GIVEN the probabilities; training can change which probabilities you get
 mechanism was available to 1c and to no count-based arm. **We built it and it lost 22
 items.** The two standing caveats on that non-reproduction are stated where they belong,
 in 1c below: the dose is 23x outside the published regime (tau ~ 0.03 against 0.70-1.00),
-and SelectiveNet's own advantage is contested by Jaeger et al. (ICLR 2023). ⇒ **cite this
-as a measured negative on OUR setting, never as a refutation of SelectiveNet.**
+and SelectiveNet's own advantage is contested -- by Feng et al. (arXiv:2206.09034) on the
+mechanism, and by Jaeger et al. (ICLR 2023) on how strong a plain softmax baseline is;
+neither is a refutation of SelectiveNet and 1c states exactly what each one does say.
+⇒ **cite this as a measured negative on OUR setting, never as a refutation of
+SelectiveNet.**
 
 Given section 0, these were the only things that could still win. **Path 1c is now closed
 by measurement**, so what remains is 1b (built, not run, and pre-registered to tie) and
@@ -3113,16 +3116,34 @@ pessimism above they escape: 1c escaped all of it on paper and none of it in pra
    it is read as "the method does not work"** -- `cut_temp: 0.02` already produced exactly
    that silent null with 1.4-1.9 items inside its window.
 
-   ⚠️ **AND SELECTIVENET'S OWN ADVANTAGE IS CONTESTED.** Jaeger et al. (ICLR 2023, oral)
-   and Feng et al. report that a plain confidence threshold on a well-trained model
-   matches or beats learned selection heads once the comparison is made at matched
-   coverage. That is the same claim as our `clip` baseline, and it is the reason the
+   ⚠️ **AND SELECTIVENET'S OWN ADVANTAGE IS CONTESTED -- but check WHAT each paper
+   actually says, because an earlier draft of this passage overstated both.** Verified
+   against the abstracts 2026-08-22:
+
+   * **Jaeger, Lueth, Klein & Bungert, "A Call to Reflect on Evaluation Practices for
+     Failure Detection in Image Classification" (ICLR 2023, oral; arXiv:2211.15259).**
+     Their benchmark spans confidence-scoring methods across research silos, and the
+     load-bearing sentence is *"The revelation of a simple softmax response baseline as
+     the overall best performing method underlines the drastic shortcomings of current
+     evaluation."* 🛑 That is a statement about CONFIDENCE SCORING broadly. **The abstract
+     does not establish that SelectiveNet is in the benchmark at all**, and it states no
+     coverage range -- so do NOT cite this paper for "beats learned selection heads at
+     matched coverage". It supports the weaker and still useful claim that a plain softmax
+     threshold is a stronger baseline than the literature treats it as.
+   * **Feng, Ahmed, Hajimirsadeghi & Abdi, "Towards Better Selective Classification"
+     (arXiv:2206.09034).** This is the one that speaks to the mechanism, and its claim is
+     STRONGER for us than what was written here: *"the superior performance of
+     state-of-the-art methods is owed to training a more generalizable classifier rather
+     than their proposed selection mechanisms."* ⚠️ The abstract gives no accuracy figures,
+     so quote the mechanism claim and never a percentage-point number from it.
+
+   Between them that is the same suspicion as our `clip` baseline, and it is the reason the
    falsification was pre-registered rather than optional: **if `select` beats `clip`,
    apply the identical head to `clip` and re-run.** If the head helps both equally, the
    result is the head, not the joint training. ✅ **That branch never had to be taken:
    `select` did not beat `clip`, it lost 22 items to it.** The pre-registration is kept
-   because it is what made the negative readable -- Jaeger et al.'s reading is the one our
-   own data now supports.
+   because it is what made the negative readable -- and Feng et al.'s reading, that the
+   gain is the classifier and not the selector, is the one our own data now supports.
 
    **This was where 2026-08-21's measurements pointed** -- the only proposal that
    escaped the trap 1b is stuck in, built on three facts each established above. The
