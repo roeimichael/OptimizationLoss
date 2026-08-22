@@ -2544,6 +2544,15 @@ directions are pinned in `tests/`, including the negative control that matters:
 replacing the band with a position-BLIND one makes the share equal in both
 regimes and the gate FAIL, so it has been shown capable of failing.
 
+⚠️ **THE MEASURED DELTA IS A NET DISPLACEMENT, NOT A PATH LENGTH.** It is the
+treated-minus-null difference after all 29 constraint steps. For "what did this
+arm achieve" that is exactly right -- only the final ranking reaches the
+allocator, so an item that moved out and back contributes nothing. For "what
+COULD a bounded-step method achieve" it is a LOWER bound on the budget, since a
+non-monotone path covers more ground than its endpoints show. A small
+`reachable` therefore says THIS arm did not have the reach; it does not by
+itself prove no schedule could. State which question is being answered.
+
 🛑 **STATUS: no real-data number is in hand.** The instrument is built and gated;
 it has been run on synthetic regimes only. The first real reading is due on
 `results/iwc1`, which is the first campaign carrying `_null` twins on a dataset

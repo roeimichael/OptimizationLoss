@@ -68,6 +68,15 @@ at that measured delta is the ceiling for the constraint AS CONFIGURED, and the
 campaign's own effect size can be read against it. `--sweep` falls back to
 fractions of the score range when no twin exists, and says so.
 
+⚠️ **The measured delta is the NET displacement over all 29 constraint steps,
+not the path length.** For "what did this arm actually achieve" that is the
+right quantity -- only the final ranking reaches the allocator, so an item that
+moved out and back contributes nothing. For "what COULD a bounded-step method
+achieve" it is a LOWER bound on the budget, because a non-monotone path can
+cover more ground than its endpoints show. So a small `reachable` here says this
+arm did not have the reach; it does not by itself prove no schedule could. Say
+which of the two questions is being answered.
+
 THE SHUFFLED CONTROL, and which way it points. Permuting the scores keeps their
 DISTRIBUTION and destroys the ORDERING, so the swaps it leaves available depend
 only on n, K and prevalence -- measured at 10.80 vs 11.60 items across two
