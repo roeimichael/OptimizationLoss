@@ -4387,3 +4387,82 @@ def test_the_probe_prices_a_fragile_effect_in_campaign_seeds():
     st = FHP.paired(np.where(np.arange(64) % 4 == 0, -1.0, 2.0))
     v = FHP.verdict(st, 64, 1.0, 0.01)
     assert "fragile" in v and "seeds per cell" in v, v
+
+
+# FRAMEWORK 2(a3) and 2(g). Both sections make a claim ABOUT CODE, so both get
+# a gate. Negative controls for each were confirmed to FAIL before these went in.
+
+
+def test_normalize_makes_the_delivered_step_independent_of_the_violation():
+    """FRAMEWORK 2(a3): under `normalize` + `sgd` the parameter displacement
+    is exactly `lr * clip` per step, whatever the violation.
+
+    This is the magnitude half of the argument that the constraint is blind to
+    violation depth (2(a2) is the direction half). If a future edit lets the
+    raw norm through, the framework's `no dose-response to the cap level`
+    reading becomes wrong and this catches it.
+
+    Negative control: deleting the scale-UP branch in constraint_step.py makes
+    the small-gradient case deliver its raw norm and this FAILS.
+    """
+    import torch
+    from src.training.constraint_step import finish_constraint_step
+
+    lr, clip = 1e-3, 1.0
+    for scale in (1e-4, 1.0, 1e4):        # 8 orders of violation magnitude
+        model = torch.nn.Linear(6, 3, bias=False)
+        before = model.weight.detach().clone()
+        model.weight.grad = torch.full_like(model.weight, 1.0)
+        # a gradient whose norm is `scale` exactly
+        model.weight.grad *= scale / model.weight.grad.norm()
+        finish_constraint_step(model, optimizer=None, scaler=None, clip=clip,
+                               mode="normalize", fp32=True, step_rule="sgd",
+                               lr=lr)
+        moved = float((model.weight.detach() - before).norm())
+        # relative, at 1e-4: the parameters are float32 and the rescale is one
+        # more op on them, so ~1e-6 relative slop is arithmetic, not behaviour.
+        # The failure this guards against -- delivering the RAW norm -- is off
+        # by four orders of magnitude at the ends of this sweep, not six
+        # decimal places.
+        assert abs(moved - lr * clip) < 1e-4 * lr * clip, (
+            "raw norm %g delivered a step of %g, not lr*clip=%g -- the "
+            "constraint has become sensitive to violation magnitude, which "
+            "contradicts FRAMEWORK 2(a3)" % (scale, moved, lr * clip))
+
+
+def test_the_graph_probes_controls_are_fair():
+    """FRAMEWORK 2(g) reads the `diffused` column only because C1 and C2 moved.
+    A control that differs from the treatment in anything besides the geometry
+    would make that reading invalid, so the fairness is asserted, not assumed.
+
+    Negative controls, both confirmed to FAIL: drawing C1's neighbours WITH
+    replacement (degree collapses); and dropping the `idx >= arange` self-skip
+    (C1 gains self-loops the real graph does not have).
+    """
+    import numpy as np
+    from scripts.graph_probe import diffuse, knn_affinity
+
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(60, 8)).astype(np.float32)
+    k = 5
+    real = knn_affinity(X, k)
+    ctrl = knn_affinity(X, k, np.random.default_rng(1), shuffle_neighbours=True)
+
+    for name, W in (("real", real), ("C1", ctrl)):
+        assert np.allclose(W, W.T), "%s graph is not symmetric" % name
+        assert float(np.trace(W)) == 0.0, "%s graph has self-loops" % name
+        # k directed edges per row, so every row has at least k after
+        # symmetrising -- the control must not be sparser than the treatment
+        assert W.sum(axis=1).min() >= k, "%s row fell below k" % name
+    assert real.sum() > 0 and ctrl.sum() > 0
+    # the control must actually be a DIFFERENT graph, or it tests nothing
+    assert not np.allclose(real, ctrl)
+
+    # alpha=0 must be the identity, or the baseline comparison is confounded
+    P = rng.random((60, 4))
+    P = P / P.sum(axis=1, keepdims=True)
+    assert np.allclose(diffuse(P, real, 0.0), P, atol=1e-12)
+    # and every diffused row is still a distribution
+    D = diffuse(P, real, 0.5)
+    assert np.allclose(D.sum(axis=1), 1.0)
+    assert (D >= 0).all()

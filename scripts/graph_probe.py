@@ -1,0 +1,212 @@
+"""Does the TEST-SET GEOMETRY carry ordering information the allocator cannot see?
+
+WHY THIS EXISTS. Six independent measurements now say training-time count
+pressure cannot win, and they agree on the mechanism:
+
+  * the penalty's gradient is NON-MONOTONE in the violation -- a scope 8x over
+    budget receives 167x less pull than one 58% over (FRAMEWORK 2a2);
+  * under `constraint_grad_mode: normalize` the DELIVERED step is exactly
+    `lr * clip` every epoch, so its magnitude carries no violation information
+    either (`src/training/constraint_step.py`, verified 2026-08-22:
+    `clip_grad_norm_` caps, then anything below is scaled back UP to `clip`);
+  * the count never approaches the budget anyway -- 2.5-3.5x over for the whole
+    run (FRAMEWORK 2b-post);
+  * post-hoc top-K allocation then fixes the count EXACTLY and is provably
+    optimal for expected TP given the probabilities;
+  * so the only thing training can win is the ORDERING -- and the constraint
+    re-ranks about a third of the selected set while a pure RNG RESEED at zero
+    dose re-ranks exactly as much (2026-08-22: the top-K set moved 12-20 of
+    41-44 items for every treated arm, 15-20 of 41-44 for `tralo_reseed`).
+
+So an ordering gain has to come from information the allocator does not have.
+The allocator consumes a 2014x7 SCORE matrix. It has never seen the 2014x960
+GEOMETRY. That asymmetry is the entire hypothesis this file tests.
+
+THE SETTING MAKES THIS LEGITIMATE, and that is the point worth stating. The cap
+is a TRANSDUCTIVE statement about the test set -- we are told how many positives
+it contains -- so the test features are already inside the problem definition.
+Diffusion here uses NO labels: only the test features and the model's own
+probabilities. And the cap makes it unusually safe. A smoother that improves the
+ordering but drifts in calibration is normally dangerous; here the allocator
+re-imposes the exact budget afterwards, so ONLY the ordering survives to the
+metric.
+
+WHAT IS AND IS NOT NEW. Graph diffusion of scores is classical (Zhou 2004,
+Zhu and Ghahramani 2002) and is not claimed here. What is new is the
+composition: diffusing inside a transductive COUNT-CONSTRAINED problem, where an
+optimal allocator re-imposes the budget afterwards and therefore strips
+everything except the ordering. The classical method is the instrument, not the
+result.
+
+BUDGET. One documented default per knob, no search -- `k=10`, `alpha=0.5`.
+A family that needs a search to clear a screen has failed the screen, and a
+search here would be tuning on the very test set the endpoint is computed on.
+
+TWO NEGATIVE CONTROLS, both reported every run, because a gain from
+re-normalisation alone would look identical to a gain from geometry:
+
+  C1  a degree-preserving SHUFFLED graph -- same k, same row count, neighbours
+      drawn at random. Diffusion over noise must not help.
+  C2  SHUFFLED FEATURES -- the real graph construction applied to a permuted
+      feature matrix, which breaks the correspondence between an item and its
+      own embedding while preserving the feature distribution exactly.
+
+If either control moves the endpoint, the effect is not geometry and the run
+says so.
+
+    python -m scripts.graph_probe <run-dir> [<run-dir> ...]
+    python -m scripts.graph_probe --campaign <root>
+"""
+import argparse
+import glob
+import os
+
+import numpy as np
+
+from scripts.frozen_head_probe import (allocate, budgets, cc_f1, items_per_001,
+                                       load_real, paired, seeds_needed)
+
+K_DEFAULT = 10
+ALPHA_DEFAULT = 0.5
+
+
+def knn_affinity(feats, k, rng=None, shuffle_neighbours=False):
+    """Symmetric cosine kNN affinity, self-loops removed.
+
+    Cosine because the head that consumes these features is linear, so its
+    decision geometry is angular; the raw norms vary several-fold across items
+    and would otherwise weight the graph by nothing more than activation scale.
+    """
+    X = np.asarray(feats, np.float32)
+    X = X / np.clip(np.linalg.norm(X, axis=1, keepdims=True), 1e-12, None)
+    S = X @ X.T
+    np.fill_diagonal(S, -np.inf)                 # never a neighbour of itself
+    n = len(S)
+    k = int(min(k, n - 1))
+    if shuffle_neighbours:
+        # C1: keep k neighbours per row, choose WHICH at random. Degree and
+        # sparsity are preserved exactly; only the geometry is destroyed.
+        rng = np.random.default_rng(0) if rng is None else rng
+        idx = np.stack([rng.choice(n - 1, size=k, replace=False)
+                        for _ in range(n)])
+        idx = idx + (idx >= np.arange(n)[:, None])   # skip self without bias
+    else:
+        idx = np.argpartition(-S, k, axis=1)[:, :k]
+    W = np.zeros((n, n), np.float32)
+    rows = np.repeat(np.arange(n), k)
+    W[rows, idx.ravel()] = 1.0
+    W = np.maximum(W, W.T)                       # symmetrise
+    return W
+
+
+def diffuse(P, W, alpha):
+    """Zhou-style propagation, solved exactly rather than iterated.
+
+    F = (1-a) (I - a D^-1/2 W D^-1/2)^-1 P, then renormalised to a
+    distribution. n is only a couple of thousand here, so the solve is exact
+    and there is no iteration count to tune -- one fewer knob that could be
+    searched.
+    """
+    d = np.asarray(W.sum(axis=1)).ravel()
+    dinv = 1.0 / np.sqrt(np.clip(d, 1e-12, None))
+    S = (W * dinv[:, None] * dinv[None, :]).astype(np.float64)
+    F = (1.0 - alpha) * np.linalg.solve(
+        np.eye(len(W), dtype=np.float64) - alpha * S,
+        np.asarray(P, np.float64))
+    F = np.clip(F, 0.0, None)
+    return F / np.clip(F.sum(axis=1, keepdims=True), 1e-12, None)
+
+
+def score(run_dir, k, alpha):
+    """Baseline and each variant, through the run's OWN endpoint, in items."""
+    d = load_real(run_dir)
+    y, g, classes = d.y, d.groups, d.classes
+    G, L = budgets(y, g, classes, d.local_pct, d.global_pct, d.n_classes)
+    P = d.ref_probs
+
+    def endpoint(Q):
+        alloc = allocate(Q, g, G, L, classes)
+        return cc_f1(y, alloc, classes), items_per_001(y, alloc, classes)
+
+    base_f1, scale = endpoint(P)
+    rng = np.random.default_rng(0)
+    variants = {
+        "diffused": lambda: diffuse(P, knn_affinity(d.features, k), alpha),
+        "C1_shuffled_graph": lambda: diffuse(
+            P, knn_affinity(d.features, k, rng, shuffle_neighbours=True), alpha),
+        "C2_shuffled_features": lambda: diffuse(
+            P, knn_affinity(d.features[rng.permutation(len(d.features))], k),
+            alpha),
+    }
+    out = {}
+    for name, build in variants.items():
+        f1, _ = endpoint(build())
+        out[name] = (f1 - base_f1) / 0.01 * scale       # items
+    out["_base_ccF1"] = base_f1
+    out["_items_per_001"] = scale
+    return out
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("runs", nargs="*")
+    ap.add_argument("--campaign")
+    ap.add_argument("-k", type=int, default=K_DEFAULT)
+    ap.add_argument("--alpha", type=float, default=ALPHA_DEFAULT)
+    args = ap.parse_args()
+
+    runs = list(args.runs)
+    if args.campaign:
+        runs += [os.path.dirname(p) for p in sorted(glob.glob(
+            os.path.join(args.campaign, "**", "test_embeddings.npz"),
+            recursive=True))]
+    if not runs:
+        raise SystemExit("no run directories given")
+
+    print("GRAPH PROBE -- k=%d, alpha=%.2f, no search, %d run(s)"
+          % (args.k, args.alpha, len(runs)))
+    print("Diffusion reads the test FEATURES and the model's own probabilities.")
+    print("It reads no labels. The allocator re-imposes the exact budget after,")
+    print("so only a change in ORDERING can reach the number below.\n")
+
+    rows, names = {}, []
+    for r in runs:
+        try:
+            s = score(r, args.k, args.alpha)
+        except SystemExit as exc:
+            print("  skipped %s: %s" % (r, exc))
+            continue
+        names.append(os.path.relpath(r, args.campaign or os.path.dirname(r)))
+        for key, v in s.items():
+            rows.setdefault(key, []).append(v)
+
+    if not names:
+        raise SystemExit("no probeable runs")
+
+    print("  %-46s %10s %10s %10s"
+          % ("run", "diffused", "C1 graph", "C2 feats"))
+    for i, nm in enumerate(names):
+        print("  %-46s %+10.2f %+10.2f %+10.2f"
+              % (nm[-46:], rows["diffused"][i], rows["C1_shuffled_graph"][i],
+                 rows["C2_shuffled_features"][i]))
+
+    print("\n  PAIRED OVER %d RUN(S), each against its OWN undiffused scores, "
+          "in items" % len(names))
+    print("  %-24s %9s %7s %7s %8s %9s"
+          % ("variant", "d items", "sd", "sem", "sign", "sign p"))
+    for key in ("diffused", "C1_shuffled_graph", "C2_shuffled_features"):
+        st = paired(np.asarray(rows[key]))
+        print("  %-24s %+9.2f %7.2f %7.2f %5d/%-2d %9.4f"
+              % (key, st["mean"], st["sd"], st["sem"], st["pos"], st["n"],
+                 st["sign_p"]))
+    st = paired(np.asarray(rows["diffused"]))
+    if st["mean"] > 0 and np.isfinite(st["sd"]) and st["sd"] > 0:
+        print("\n  a GPU campaign would need ~%d seeds per cell to see this "
+              "effect, vs the standard 4" % seeds_needed(st["mean"], st["sd"]))
+    print("\n  READ THE CONTROLS FIRST. If C1 or C2 moved, the effect is "
+          "re-normalisation,\n  not geometry, and the `diffused` column means "
+          "nothing.")
+
+
+if __name__ == "__main__":
+    main()

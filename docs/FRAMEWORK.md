@@ -1752,7 +1752,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 206 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 208 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1760,7 +1760,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (206 tests, ~40 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (208 tests, ~40 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -1796,6 +1796,151 @@ apart still carry the same string. That limit is unchanged, and it is why `check
 warns on `-dirty` instead of passing it.
 
 ---
+
+### (a3) 🔴🔴 AND THE MAGNITUDE CARRIES NO VIOLATION INFORMATION EITHER
+
+Section (a2) shows the penalty's gradient DIRECTION is anti-correlated with the
+violation depth. This is the other half, and together they close the argument.
+
+**Verified from source 2026-08-22, `src/training/constraint_step.py`.** Under
+`constraint_grad_mode: normalize` with `step_rule: sgd`:
+
+1. `clip_grad_norm_(model.parameters(), max_norm=clip)` caps the norm at `clip`;
+2. the branch below it scales anything with `raw_norm < clip` back **UP** by
+   `clip / raw_norm`, so the delivered gradient norm is **exactly `clip`**;
+3. the SGD step is `p.add_(p.grad, alpha=-lr)`.
+
+So the parameter displacement per constraint step is **exactly `lr * clip`**, and
+the total over the phase is **`lr * clip * n_steps`**. The violation magnitude
+enters the update **only through the direction, never the size.**
+
+🛑 **A model 200 items over budget takes the identical-size step to one 1 item
+over.** That is not a feedback controller, it is a fixed bias. Consequences that
+were each measured separately and are now one fact:
+
+- **no dose-response to the cap level.** `alm`'s mean excess is 211 at `L50_G20`
+  and 143 at `L50_G40` -- a 1.5x difference in violation -- yet its total bias
+  push is -0.956 and -1.245 nats, flat and if anything inverted. Same for
+  fioretto (-1.331 vs -1.295).
+- **the two cap levels are EQUAL PRESSURE, UNEQUAL OPPORTUNITY.** They do not
+  differ in how hard the constraint pushes, only in what the allocator is then
+  asked to do (`L50_G40` has 33.0 items of headroom against `L50_G20`'s 11.0).
+  A reading that treats the tighter cap as "more constrained training" is wrong.
+- **the separation from the null is established by epoch ~6 and then flat**,
+  because a fixed-magnitude step cannot settle at a boundary.
+
+**MEASURED, not only derived.** Final soft count of the scored model, all eight
+treated runs, `results/dualbar2` seed 1:
+
+| cap | K (c2 / c4) | alm | fioretto | hounie | tralo | mean | the null |
+|---|---|---|---|---|---|---|---|
+| `L50_G20` | 41 / 44 | 97.5 / 154.2 | 139.2 / 90.6 | 90.1 / 104.1 | 102.8 / 79.1 | **107.4 / 107.0** | 165.3 / 223.5 |
+| `L50_G40` | 82 / 89 | 153.3 / 82.6 | 105.2 / 118.6 | 99.8 / 91.9 | 114.5 / 118.3 | **118.2 / 102.9** | 165.3 / 223.5 |
+
+**The budget DOUBLES and the arms land in the same ~100-120 band.** The
+constraint is not steering toward K; it applies a fixed displacement and stops
+wherever that lands. (Scatter is honest: within `L50_G40` class 2 spans
+99.8-153.3, so between-arm variation is comparable to between-cap. The supported
+claim is "the endpoint is set far more by the fixed step budget than by K", not
+"the endpoint is identical".)
+
+🛑 **A TRAP THIS SETS.** Because the landing zone is fixed and the target moves,
+the same arms sit at ~2.5x budget at `L50_G20` and ~1.2x at `L50_G40`. Loosen the
+cap enough and they would start reporting satisfaction; tighten it and they never
+would -- **with no change to the method at all.** Any feasibility, excess or
+satisfaction statistic compared ACROSS cap levels is reading the cap, not the
+arm. That is `flips` in a new costume, and it is why section 5's metric rules
+forbid the family.
+
+⚠️ **And the constraint phase does not converge.** `tralo` at `L50_G40` takes
+class 4's soft count down to 69.3 against K=89 -- feasible -- and back up to
+141.8 by the final epoch, which is the model that gets scored. Feasibility is not
+a metric and that is not a loss; it is evidence that the phase **oscillates with
+an amplitude comparable to the entire effect being measured**, which is what a
+fixed-magnitude step at a boundary must do.
+
+⚠️ **This is not an argument against `normalize`.** Equalizing the delivered
+norm is what makes the four arms comparable at all -- without it hounie delivers
+a ~0.05-norm step against fioretto's clipped 1.0, a ~20x dose gap no config gate
+can see. The point is that the equalization SPENDS the magnitude channel, and
+nothing else was ever putting violation information into it, because the shape
+(a2) had already inverted the direction channel.
+
+### (g) 🔴🔴 TRANSDUCTIVE GEOMETRY IS A NULL -- and it was the last candidate
+
+**The argument that produced this test.** Post-hoc top-K allocation is provably
+optimal for expected TP *given the probabilities*, so training can only win by
+improving the ORDERING; and the constraint's re-ranking is the same size as a
+coin flip (below). An ordering gain therefore has to come from information the
+allocator does not have. **The allocator consumes a 2014x7 SCORE matrix and has
+never seen the 2014x960 GEOMETRY.** That was the last asymmetry left.
+
+`scripts/graph_probe.py` tests it directly: a symmetric cosine kNN graph over
+the stored penultimate features, Zhou-style diffusion of the model's own
+probabilities (solved exactly, no iteration count to tune), then the run's OWN
+endpoint. It reads **no labels** -- only test features and the model's scores --
+so it is legitimate in a setting where the cap is already a transductive
+statement about the test set. The classical method is the instrument, not a
+claim.
+
+**RESULT, 19 runs of `results/dualbar2`, paired, each against its own
+undiffused scores, at the pre-registered default `k=10, alpha=0.5`:**
+
+| variant | d items | sign | sign p |
+|---|---|---|---|
+| **diffused (the real geometry)** | **+0.50** | 10/19 | **1.0000** |
+| C1 shuffled graph (same degree, random neighbours) | **-5.80** | 2/19 | 0.0007 |
+| C2 shuffled features (real graph, permuted rows) | **-8.36** | 1/19 | 0.0001 |
+
+🔑 **The controls make this a MEASUREMENT, not silence.** Destroying the
+geometry costs 5.8-8.4 items decisively, so the instrument is live and the
+geometry demonstrably carries ordering information. The real graph then buys
+**nothing**: +0.50 items on a 10/19 coin flip. All of the information the
+geometry holds is **already in the model's own scores** by the time the
+allocator sees them.
+
+**The whole grid is flat, so this is not a dose failure.** `alpha` swept
+0.05-0.9 at k=10: +0.54, +0.31, +0.27, +0.34, +0.14, +0.60, +0.23, every sign
+test between 0.45 and 1.00. `k` swept 3-1600 at alpha=0.05: -0.59, -0.46, +0.54,
++0.85, **+1.07**, +0.48, -0.35, -2.13, -2.86.
+
+⚠️ **The `k=100` cell reads +1.07 items at p=0.049 and it is NOT a finding.** It
+is the best of ~34 searched cells (uncorrected), the pre-registered point gave
++0.50, and the apparent monotone rise in `k` was tested and **turns over** --
+which is what a searched maximum does. Recorded here so it is not rediscovered
+and believed.
+
+**DO NOT RUN** a GPU campaign for graph diffusion, nor a wider (k, alpha)
+search. Cost of this closure: about twenty minutes of CPU on runs that already
+existed.
+
+### (h) THE CONSTRAINT RE-RANKS EXACTLY AS MUCH AS A COIN FLIP
+
+Measured 2026-08-22 on `results/dualbar2` `L50_G20` seed 1, capped-class
+probabilities against the shared lambda=0 twin:
+
+| arm | dose | mean log-odds shift | rank rho | top-K set moved |
+|---|---|---|---|---|
+| tralo | full | -3.35 / -4.72 nats | 0.78 / 0.81 | 15/41, 19/44 |
+| fioretto | full | -2.17 / -4.39 | 0.82 / 0.84 | 18/41, 16/44 |
+| hounie | full | -1.68 / -3.04 | 0.79 / 0.83 | 12/41, 17/44 |
+| alm | full | -3.16 / -3.05 | 0.80 / 0.83 | 14/41, 20/44 |
+| **`tralo_reseed`** | **zero** | **+1.82 / +0.89** | 0.79 / 0.73 | **15/41, 20/44** |
+
+Two things, and the second is the one that matters:
+
+1. ✅ **The SIGN of the mean shift separates cleanly** -- all four trained arms
+   push the capped classes DOWN, the zero-dose reseed pushes them UP. The
+   constraint is doing something systematic and it is the intended direction.
+2. 🛑 **The re-ranking is indistinguishable from noise.** Every treated arm moves
+   29-45% of the selected set, and **a pure RNG reseed at zero dose moves the
+   same 15/41 and 20/44.** The constraint re-ranks no more than re-seeding does.
+
+⚠️ **Correcting a plausible mis-reading of this table.** The shift is *not* a
+near-uniform translation, and it must not be described as one: the per-item sd
+is **5.1-5.9 nats against a mean of 1.7-4.7**, so the spread is larger than the
+shift. An allocator IS invariant to a uniform per-class shift, but that is not
+what this is -- the re-ranking above is real, it is simply not aimed.
 
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
@@ -2562,7 +2707,7 @@ scripts/verify_caps.py   the caps bind, on the real dataset slices
 scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             206 tests, ~40 s, no dataset required
+tests/             208 tests, ~40 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
