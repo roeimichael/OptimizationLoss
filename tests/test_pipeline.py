@@ -5222,3 +5222,133 @@ def test_no_runnable_command_in_the_docs_names_a_removed_dataset():
         bad = [(ln, d) for ln in lines for d in REMOVED_DATASETS if d in ln]
         assert not bad, (
             "%s tells the reader to run a REMOVED dataset: %s" % (rel, bad[:3]))
+
+
+def _write_run(run_dir, arm, seed, probs, y, groups, tag="L30_G50"):
+    """A minimal but REAL run directory: exactly the three files `load_real`
+    reads, in the shapes `full_panel` writes them."""
+    os.makedirs(run_dir, exist_ok=True)
+    np.savez(os.path.join(run_dir, "test_embeddings.npz"),
+             features=np.asarray(probs, np.float32))
+    cols = {"True_Label": y, "Group_ID": groups}
+    for c in range(probs.shape[1]):
+        cols["Prob_Class_%d" % c] = probs[:, c]
+    pd.DataFrame(cols).to_csv(
+        os.path.join(run_dir, "final_predictions_raw.csv"), index=False)
+    with io.open(os.path.join(run_dir, "config.json"), "w",
+                 encoding="utf-8") as fh:
+        json.dump({"arm": arm, "dataset_mode": "iwildcam",
+                   "model_name": "MobileNetV3", "constraint_tag": tag,
+                   "constraint": [0.30, 0.50],
+                   "dataset_config": {"constrained_class": [2]},
+                   "hyperparams": {"seed": seed}}, fh)
+
+
+def _pair_fixture(tmp_path, eps=0.04, shifted_frac=0.10):
+    """A treated/null twin differing by a KNOWN displacement in class 2.
+
+    Mass is moved between two columns so the rows still sum to 1 -- `load_real`
+    renormalises, and a fixture that relied on renormalisation would measure
+    the renormaliser instead of the injected shift.
+    """
+    rng = np.random.default_rng(7)
+    n, n_cls = 400, 3
+    y = rng.integers(0, n_cls, n)
+    groups = rng.integers(0, 2, n)
+    P = rng.dirichlet(np.ones(n_cls) * 2.0, size=n)
+
+    treated = P.copy()
+    k = int(n * shifted_frac)
+    idx = np.argsort(-P[:, 2])[:k]            # move the top scorers
+    treated[idx, 2] += eps
+    treated[idx, 0] -= eps
+    assert treated.min() > 0, "fixture pushed a probability negative"
+
+    root = os.path.join(str(tmp_path), "camp")
+    _write_run(os.path.join(root, "a_tralo"), "tralo", 1, treated, y, groups)
+    _write_run(os.path.join(root, "b_null"), "tralo_null", 1, P, y, groups)
+    # DECOY: a null at a different seed must not be paired with the arm above
+    _write_run(os.path.join(root, "c_null_s2"), "tralo_null", 2, P, y, groups)
+    return root
+
+
+def test_the_straddle_probe_pairs_a_treated_run_with_its_own_null_twin(tmp_path):
+    """`pair_runs` is the half of this probe that decides WHAT is compared, and
+    a mis-pair would silently redefine the measured displacement. Pinned with a
+    decoy null at another seed, because pairing on the arm name alone -- the
+    obvious implementation -- would happily take it.
+    """
+    from scripts.straddle_probe import pair_runs
+
+    root = _pair_fixture(tmp_path)
+    runs = [os.path.join(root, d) for d in sorted(os.listdir(root))]
+    pairs = pair_runs(runs)
+
+    assert len(pairs) == 1, [(p[0], p[2]) for p in pairs]
+    arm, _cell, seed, treated, null = pairs[0]
+    assert (arm, seed) == ("tralo", 1)
+    assert treated.endswith("a_tralo") and null.endswith("b_null")
+
+
+def test_the_straddle_probe_recovers_the_displacement_it_was_given(tmp_path):
+    """The measured delta must be the injected one, or every `reachable` read
+    against it is scaled by an unknown factor. 10% of items were moved by
+    exactly eps, so the 95th percentile of |dp| sits inside that block and must
+    come back as eps.
+    """
+    from scripts.straddle_probe import measured_delta
+
+    eps = 0.04
+    root = _pair_fixture(tmp_path, eps=eps, shifted_frac=0.10)
+    _data, disp = measured_delta(os.path.join(root, "a_tralo"),
+                                 os.path.join(root, "b_null"))
+
+    assert set(disp) == {2}, disp
+    assert disp[2]["q"] == pytest.approx(eps, abs=1e-6), disp
+    assert disp[2]["median"] == pytest.approx(0.0, abs=1e-9), (
+        "90% of items were untouched, so the median displacement must be 0")
+
+
+def test_the_straddle_probe_refuses_to_difference_two_different_test_sets(tmp_path):
+    """Differencing runs scored on different test sets would produce a
+    displacement built from mismatched rows -- a large, meaningless number that
+    looks like a strong constraint. It must refuse rather than broadcast.
+    """
+    from scripts.straddle_probe import measured_delta
+
+    rng = np.random.default_rng(3)
+    root = os.path.join(str(tmp_path), "mixed")
+    for name, n in (("a_tralo", 200), ("b_null", 200)):
+        P = rng.dirichlet(np.ones(3) * 2.0, size=n)
+        _write_run(os.path.join(root, name),
+                   "tralo" if "tralo" == name.split("_")[1] else "tralo_null",
+                   1, P, rng.integers(0, 3, n), rng.integers(0, 2, n))
+
+    with pytest.raises(SystemExit) as exc:
+        measured_delta(os.path.join(root, "a_tralo"),
+                       os.path.join(root, "b_null"))
+    assert "not the same test set" in str(exc.value)
+
+
+def test_the_straddle_probe_runs_end_to_end_on_a_campaign(tmp_path):
+    """The measured path end to end, through `main`. The self-test only ever
+    exercises the SWEEP path, so without this the mode that will actually be
+    pointed at `results/iwc1` would ship unrun.
+    """
+    from scripts import straddle_probe as SP
+
+    root = _pair_fixture(tmp_path)
+    buf = io.StringIO()
+    stdout = sys.stdout
+    try:
+        sys.stdout = buf
+        SP.main(["--campaign", root])
+    finally:
+        sys.stdout = stdout
+    out = buf.getvalue()
+
+    assert "DELTA IS MEASURED" in out, out[-600:]
+    assert "1 treated/null twin pair" in out, out[-600:]
+    assert "NOT calibrated" not in out, (
+        "fell back to the swept ladder even though a twin exists")
+    assert "CLASS 2" in out, out[-600:]

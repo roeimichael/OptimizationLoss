@@ -1067,10 +1067,12 @@ def main(argv=None):
     print()
 
     if args.synthetic:
-        print("  *** SYNTHETIC. These numbers describe a generative model with")
-        print("  *** the real dermmnist composition, NOT dermmnist. They")
-        print("  *** license a statement about the LOSSES and the HARNESS and")
-        print("  *** no statement whatsoever about this project's data.")
+        print("  *** SYNTHETIC. These numbers describe a generative model whose")
+        print("  *** group x class COMPOSITION was copied from dermmnist. The")
+        print("  *** features are Gaussian draws, not images, and dermmnist is")
+        print("  *** itself a REMOVED dataset (FRAMEWORK 2(n)). They license a")
+        print("  *** statement about the LOSSES and the HARNESS, and no")
+        print("  *** statement whatsoever about this project's data.")
         print()
 
     if args.json_out:
