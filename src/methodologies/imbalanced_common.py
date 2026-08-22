@@ -19,7 +19,7 @@ from src.methodologies.danits_lp import solve_lp_assignment
 from src.pipeline.contracts import TrainInputs, TrainOutputs
 from src.utils.constants import UNLIMITED
 from src.utils.inference import chunked_probs
-from src.utils.constants import CONSTRAINT_CHUNK_SIZE
+from src.utils.constants import INFERENCE_CHUNK_SIZE
 
 log = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ def _lp_clip(model, inputs, device):
     """Shifman-LP allocation on the imbalanced-trained model's test-set softmax
     (identical formulation to danits_lp: identity cost, per-class psi + per-group phi)."""
     X_test = inputs.X_test.to(device)
-    chunk = int(inputs.hyperparams.get("inference_chunk_size", CONSTRAINT_CHUNK_SIZE))
+    chunk = int(inputs.hyperparams.get("inference_chunk_size", INFERENCE_CHUNK_SIZE))
     probs = chunked_probs(model, X_test, chunk)
     n = inputs.num_classes
     omega = np.ones((n, n), dtype=np.float64) - np.eye(n, dtype=np.float64)

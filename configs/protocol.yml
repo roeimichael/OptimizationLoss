@@ -94,8 +94,9 @@ constraint_phase:
   lr_constraint: 0.0001       # MUST equal core.lr -- unequal lr fabricated a -16.7pp finding
   stable_count_threshold: 31
   # 128, NOT 256. The constraint pass runs a BACKWARD over the test set, and
-  # with `constraint_fp32: true` a chunk of 256 exhausts a 24 GB card on
-  # ViT-B/16: measured 2026-08-21, all 8 `tralo` runs of `results/dosefix` died
+  # with `constraint_fp32: true` a chunk of 256 exhausts
+  # the 24 GB Quadro RTX 6000 (dsisco01) on ViT-B/16: measured 2026-08-21,
+  # all 8 `tralo` runs of `results/dosefix` died
   # of CUDA OOM at tralo/train.py's transductive forward, were reset to
   # `pending` by the dispatcher, and the campaign came back looking merely
   # unfinished with every CONTROL completed -- the lambda=0 arm survives
@@ -205,6 +206,15 @@ blocks:
     # penalty reads the HARD count via the chunked construction's own detach
     # (value hard, gradient windowed). Without that the window over-counts and
     # the penalty keeps pushing after the cap is satisfied.
+    #
+    # THE RNG-STREAM PERTURBATION. false on every arm except `tralo_reseed`,
+    # which is the deliberate version of the reseed control (see its block
+    # below). Emitted rather than left to the code's default for the same
+    # reason `constraint_random_direction: false` is emitted: a key read with a
+    # default and never written is a knob whose value lives in a literal, and
+    # this file's rule 2 exists because hounie ran at 10x the paper's eta that
+    # way.
+    rng_reseed: false
   # The margin count, as an ARM rather than a global override, so it and the
   # manuscript's count can sit in ONE campaign. An arm-vs-arm delta is not a
   # result until the bar is in the same campaign, and that applies to two
@@ -243,6 +253,35 @@ blocks:
     lambda_local: 0.0
     initial_rho: 0.5
     rho_target: 100.0
+    rng_reseed: false
+  # THE RESEED CONTROL -- the NOISE FLOOR under every count trajectory.
+  #
+  # It carries `tralo_null`'s block and overrides ONE key, so it is that arm by
+  # construction and cannot drift from it: same warm-up cache, same 29 epochs,
+  # same allocator, lambda identically 0 so `has_constraint` is False and no
+  # constraint step is ever taken. The only difference is that the CE phase
+  # consumes a DIFFERENT RNG stream -- one extra draw from the global generator
+  # before training, and nothing else.
+  #
+  # WHY IT IS AN ARM AND NOT AN ACCIDENT. Measured on `results/dosefix`
+  # 2026-08-22 and independently verified -- RMS separation of the capped-class
+  # hard count over epochs >= 4:
+  #
+  #     the constraint (tralo vs its own lambda=0 twin)  75.6 / 85.3  @L40_G30
+  #     the constraint (tralo vs its own lambda=0 twin)  74.6 / 95.2  @L50_G30
+  #     nothing but the RNG stream (two pure-CE runs)    82.8 / 95.0
+  #
+  # The constraint's whole measurable footprint on the count is 0.90-1.00x a
+  # reseed. That floor existed only because `select_null` sets `select_eta: 0`
+  # and its selection head draws from the global RNG -- a pure-CE run on
+  # `tralo_null`'s seed and warm-up cache, differing only in the stream. Nobody
+  # had put a reseed control in a campaign; the noise floor was in the data by
+  # accident. "The constraint moved the count 75 items" is not a result until
+  # it is stated as "the constraint moved it 75 and a reseed moves it 83", so
+  # gen_campaign REFUSES a campaign that holds a trained arm without this one.
+  # FRAMEWORK section 13.
+  tralo_reseed:
+    rng_reseed: true
   fioretto:
     fioretto_step_size: 0.005     # REQUIRED: fioretto_ldf/train.py raises without it
     # Emitted here as well as on `alm`. Both packages READ this key, and ALM's
@@ -308,6 +347,12 @@ blocks:
 # `phase: posthoc`  -> warm-up total_epochs, constraint 0 (the warm-up IS the run)
 # `phase: trained`  -> warm-up trained_warmup, constraint total_epochs - trained_warmup
   # ---- 1c: the jointly-trained SELECTION head -------------------------------
+  # ⛔ REJECTED 2026-08-22 (docs/FRAMEWORK.md section 12). `results/selectrun`,
+  # 32 runs: -22 items vs `clip`, 0 of 2 cells on EVERY metric, and 2 of 8 runs
+  # collapsed on their final epoch. `select_null` (eta 0) ties `clip`, so it is
+  # the selective term that costs, not the regime. DO NOT re-tune `select_eta`,
+  # `select_cov_weight` or the coverage target: the values below are kept so
+  # that campaign stays reproducible, not as a starting point for a sweep.
   # Deliberately NOT given the `constraint_phase` block. This arm has no
   # constraint step at all -- no gradient clip, no step rule, no dual -- so
   # inheriting those ten keys would emit eight that nothing reads, which is
@@ -367,8 +412,25 @@ arms:
      null_sibling: tralo_null}
   # Same code path as tralo, treatment zeroed. See the tralo_null block above.
   tralo_null: {methodology: tralo,          phase: trained, blocks: [constraint_phase, tralo_null]}
+  # THE RESEED CONTROL. `tralo_null` plus one draw from the global generator --
+  # the deliberate version of what `select_null` did by accident. It is
+  # `null_sibling: tralo_null` because that is the arm it must be READ against:
+  # the pair IS the measurement, and neither half means anything alone.
+  #
+  # `count_control: true` does two things, and both are deliberate. It keeps
+  # this arm OUT of `--arms all` -- adding a trained arm is a compute decision,
+  # the same rule that keeps the zero-dose siblings out -- and it makes
+  # gen_campaign REFUSE any campaign holding a trained arm without it, because
+  # a trained arm is exactly what writes a count trajectory and a count
+  # trajectory without this floor beside it is not readable. `--arms all+null`
+  # includes it.
+  tralo_reseed:
+    {methodology: tralo, phase: trained,
+     blocks: [constraint_phase, tralo_null, tralo_reseed],
+     null_sibling: tralo_null, count_control: true}
   # 1c. Not a count penalty and not a score-pushing term -- it reweights the
   # CLASSIFICATION loss over the covered set. See src/methodologies/select/train.py.
+  # ⛔ `select` is REJECTED (section 12); `select_null` remains a live control.
   # `constraint_step: false` is load-bearing, not decoration: it declares that
   # this arm takes NO constraint step, so it is exempt from the rule that every
   # trained arm carries `constraint_phase`. The exemption is checked -- an arm
@@ -391,9 +453,33 @@ arms:
   hounie_null:   {methodology: hounie_rcl,   phase: trained, blocks: [constraint_phase, hounie_null]}
   alm_null:      {methodology: fioretto_alm, phase: trained, blocks: [constraint_phase, alm_null]}
 
+# Arms the framework has REJECTED. `gen_campaign` subtracts these from `all`
+# and `all+null`, and shouts if one is named explicitly. Naming still works, so
+# the campaign that produced the verdict stays reproducible -- a rejected arm
+# just cannot arrive by default. An entry here is a claim with a receipt: put
+# the section that holds the measurement in the value.
+rejected_arms:
+  select: >-
+    docs/FRAMEWORK.md section 12, scored 2026-08-22: -0.1096 AP and -0.0804 ccF1
+    = -22 items vs `clip`, 0 of 2 cells on every metric, and 2 of 8 runs
+    collapsed on their final epoch. `select_null` ties `clip`, so the selective
+    term owns the loss. Do not re-run at any eta, tau or cov_weight.
+  select_null: >-
+    the zero-dose sibling of a rejected arm. Kept runnable so section 12 can be
+    reproduced, but it is warm-up 1 plus 29 CE epochs -- which `tralo_null`
+    already provides in any campaign that carries a live arm.
+
 # Added to every campaign whether requested or not: an arm-vs-arm delta is not a
 # result until the bar is in the same campaign.
 mandatory_arms: [clip, focal_clip]
+# REQUIRED, but conditionally, so it is a refusal rather than an auto-add: any
+# campaign holding a TRAINED arm holds a count trajectory, and a count
+# trajectory is unreadable without the reseed floor beside it (the constraint
+# moves the capped count 0.90-1.00x as far as re-randomising the dropout stream
+# does). Auto-adding it would grow the trained half of a campaign silently,
+# which is the scope expansion this project has a rule against, so gen_campaign
+# names it and stops instead. Post-hoc-only campaigns write no count trajectory
+# and are not affected.
 # NOT mandatory yet -- that is Roei's call, and it is the same argument that put
 # the clippers here. Every trained arm now HAS a zero-dose sibling
 # (`tralo_null`, `fioretto_null`, `hounie_null`, `alm_null`) separating the

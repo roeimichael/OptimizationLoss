@@ -55,6 +55,25 @@ def _null_of(P, arm):
     return P["arms"][arm].get("null_sibling", arm + "_null")
 
 
+def count_control_arms(P):
+    """Arms flagged `count_control` in the YAML: the RESEED floor.
+
+    A trained arm writes a per-epoch capped-class count, and that trajectory is
+    what every "the constraint moved the count by N" claim is read out of.
+    Measured 2026-08-22 and independently verified, turning the constraint on
+    moves that count by RMS 75-95 items while merely re-randomising the RNG
+    stream of two pure-CE runs moves it 83-95 -- 0.90-1.00x. So the trajectory
+    is not readable without the reseed arm beside it, and `validate` refuses a
+    campaign that has one without the other.
+
+    Flagged in the YAML rather than matched on a name, for the same reason
+    `null_sibling` exists: `_null_of` found its control by appending "_null",
+    and `tralo_margin` -- the arm that most needed one -- silently resolved to
+    an arm that does not exist while the gate said nothing.
+    """
+    return {a for a, spec in P["arms"].items() if spec.get("count_control")}
+
+
 def resolve_block(P, name):
     """A block name is either a top-level section or an entry under `blocks`."""
     if name in P.get("blocks", {}):
@@ -147,7 +166,7 @@ def resolve_datasets(P, args):
     return out
 
 
-def validate(P, args, resolved):
+def validate(P, args, resolved, arms):
     if len(set(args.caps)) < 2:
         sys.exit("REFUSED: at least two cap levels are required. A claim from cells "
                  "sharing one cap level has been retracted three times.")
@@ -187,6 +206,43 @@ def validate(P, args, resolved):
                 sys.exit("REFUSED: %s constrained_class %s is out of range for "
                          "num_classes=%s. A cap on a nonexistent class is silently "
                          "skipped by the loss." % (ds, c, dc["num_classes"]))
+    # LAST, deliberately. The three refusals above name a defect in the campaign
+    # SPEC; this one names a missing control, and a spec error must be reported
+    # before a hygiene error or the user fixes the wrong thing.
+    controls = count_control_arms(P)
+    trained = sorted(a for a in arms if P["arms"][a].get("phase") == "trained")
+    if trained and not controls:
+        # No arm carries the flag at all. Refusing with an empty "Add: --arms"
+        # would be a puzzle, and it is a different defect from a campaign that
+        # merely forgot the control: the PROTOCOL has lost it.
+        sys.exit(
+            "REFUSED: this campaign holds trained arm(s) %s and "
+            "configs/protocol.yml declares\n"
+            "  no `count_control` arm at all, so there is nothing to bound "
+            "their count trajectories\n"
+            "  against. Restore the reseed control (FRAMEWORK section 13) "
+            "rather than generating a\n"
+            "  campaign whose counts cannot be read."
+            % " ".join(trained))
+    if trained and not (controls & set(arms)):
+        sys.exit(
+            "REFUSED: this campaign holds trained arm(s) %s and no reseed "
+            "control.\n"
+            "  A trained arm writes a per-epoch capped-class count, and that "
+            "trajectory is what\n"
+            "  'the constraint moved the count by N items' is read out of. "
+            "Measured 2026-08-22\n"
+            "  and independently verified: turning the constraint ON moves "
+            "that count by RMS\n"
+            "  75-95 items, and RESEEDING two pure-CE runs moves it 83-95. "
+            "The constraint's\n"
+            "  whole measurable footprint on the count is 0.90-1.00x a "
+            "reseed, so without the\n"
+            "  floor in THIS campaign no count trajectory is attributable -- "
+            "the same argument\n"
+            "  that puts both clippers in every campaign.\n"
+            "  Add: --arms ... %s"
+            % (" ".join(trained), " ".join(sorted(controls))))
 
 
 def _apply_constraint_step(P, args):
@@ -332,12 +388,49 @@ def main():
     # `all` costs because new arms were defined is the scope expansion this
     # project has a rule against. Name them to get them; the warning below
     # fires every time they are missing.
+    # `all` also EXCLUDES arms the framework has rejected. `select` was
+    # measured on 2026-08-22 (docs/FRAMEWORK.md section 12) at -22 items
+    # against `clip`, 0 of 2 cells on every metric, with 2 of 8 runs collapsing
+    # on their final epoch -- and FRAMEWORK says do not re-run it. Until this
+    # subtraction existed, `--arms all` ran it anyway: the generator was
+    # spending GPU on a closed question and putting a known-unstable arm into
+    # every campaign, which is the generator contradicting the law.
+    # Naming a rejected arm explicitly still works, so `results/selectrun`
+    # stays reproducible; it just cannot arrive by default any more.
+    # And `all` excludes the reseed control for the SAME reason it excludes the
+    # zero-dose siblings: it is a trained arm, so auto-adding it would grow what
+    # `all` costs without anyone deciding to spend that. It is not left to a
+    # warning, though -- `validate` REFUSES when a trained arm is present
+    # without it, because a count trajectory read without its reseed floor is
+    # not a measurement. `all+null` includes it.
+    rejected = set(P.get("rejected_arms", {}))
+    controls = count_control_arms(P)
+    # NAMED ARMS ARE ADDED TO `all`, NOT DISCARDED BY IT. `all` used to REPLACE
+    # args.arms outright, so `--arms all tralo_null` produced a campaign with no
+    # tralo_null in it -- while this same function printed "Add: --arms ...
+    # tralo_null" and the refusal below printed "Add: --arms ... tralo_reseed".
+    # The tool was instructing the user in a form the tool ignored, and the
+    # result looks exactly like a campaign that was generated correctly.
+    # Explicit naming also beats the rejected-arm subtraction: `all` must not
+    # schedule a rejected arm, but asking for one by name has to keep working
+    # or the campaign that produced its verdict stops being reproducible.
+    named = {a for a in args.arms if a not in ("all", "all+null")}
     if "all+null" in args.arms:
-        requested = set(P["arms"])
+        requested = (set(P["arms"]) - rejected) | named
     elif "all" in args.arms:
-        requested = {a for a in P["arms"] if not a.endswith("_null")}
+        requested = ({a for a in P["arms"]
+                      if not a.endswith("_null") and a not in controls}
+                     - rejected) | named
     else:
-        requested = set(args.arms)
+        requested = named
+    for arm in sorted(requested & rejected):
+        print("!! %s IS REJECTED and you named it explicitly: %s"
+              % (arm, P["rejected_arms"][arm]))
+    if not (requested & rejected):
+        skipped = sorted(rejected & set(P["arms"])) if (
+            "all" in args.arms or "all+null" in args.arms) else []
+        if skipped:
+            print("NOTE: 'all' skips the rejected arm(s) ->", " ".join(skipped))
     mandatory = set(P["mandatory_arms"])
     arms = sorted(requested | mandatory)
     added = sorted(mandatory - requested)
@@ -382,7 +475,7 @@ def main():
             print("      *** to be an estimator OF: add --arms ... tralo.")
 
     resolved = resolve_datasets(P, args)
-    validate(P, args, resolved)
+    validate(P, args, resolved, arms)
 
     todo = [(ds, mdl, tag, arm, seed)
             for seed in P["protocol"]["seeds"] for ds in args.datasets
@@ -500,6 +593,21 @@ def main():
         print("      delta vs clip cannot be attributed to the constraint rather")
         print("      than to the regime. Add: --arms ... %s"
               % " ".join(sorted({_null_of(P, a) for a in orphaned})))
+    # Say what it is FOR, not just that it is present. The reseed arm is the
+    # only control in this campaign that bounds the count trajectory, and a
+    # reader who does not know that will report the constraint's count movement
+    # as if the alternative were zero.
+    present = sorted(count_control_arms(P) & set(arms))
+    if present:
+        print("  RESEED FLOOR in campaign -> %s" % " ".join(present))
+        print("      lambda = 0 and one extra draw from the global generator, "
+              "so it is `tralo_null`")
+        print("      re-randomised. Read every count trajectory against it: "
+              "the constraint moves")
+        print("      the capped count RMS 75-95 items and a reseed moves it "
+              "83-95, so a count")
+        print("      movement is only a result once it is stated as a RATIO to "
+              "this arm's.")
     print("  protocol: %s" % os.path.relpath(args.protocol))
     print("  code_version:", version)
     return 0

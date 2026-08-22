@@ -87,7 +87,8 @@ def main():
     a.add_argument("--epochs", type=int, default=4)
     a.add_argument("--chunk", type=int, default=128,
                    help="constraint_chunk_size. 256 OOMs at ViTB16 under "
-                        "constraint_fp32 on a 22GB card; 128 fits.")
+                        "constraint_fp32 on the 24 GB Quadro RTX 6000 "
+                        "(dsisco01); 128 fits.")
     a.add_argument("--gpu", default="0")
     a.add_argument("--shapes", nargs="+", default=["rational_bounded"],
                    choices=["rational_bounded", "linear", "squared"])

@@ -1,20 +1,42 @@
 """select: a jointly-trained SELECTION head. Path 1c of docs/FRAMEWORK.md section 4.
 
-WHY THIS IS NOT A FOURTH SCORE-PUSHING ARM. `rank`, `rankpair` and `budget_margin` all
+⛔⛔ REJECTED 2026-08-22. DO NOT RE-RUN IT, AT ANY `eta`, `tau` OR `cov_weight`.
+`results/selectrun`, 32 runs, dermmnist x ViTB16 x {L70_G30, L70_G50} x 4 seeds, both
+clippers in-campaign. It is the worst arm this project has measured: vs `clip` it loses
+AP -0.1096, ccF1 -0.0804 = **-22 items**, macroF1 -0.0873, and wins **0 of 2 cells on
+every metric**. Its own `select_null` (`select_eta: 0`, same warm-up, same 29 epochs,
+same allocator) TIES `clip` -- so the loss is the selective term itself, not the training
+setup and not warm-up 1. It also destabilises training: 2 of its 8 runs collapsed on the
+final epoch (0.9835 -> 0.6968, 0.9881 -> 0.8368) against zero collapses in 8
+`select_null` runs, and the pipeline keeps the last epoch, so those collapses are the
+scored models. Full record: docs/FRAMEWORK.md section (12).
+
+The code is kept because `results/selectrun` is only interpretable next to it, and
+because `select_null` is a live control -- it is the second independent measurement that
+the warm-up-1 regime carries no handicap. It is NOT kept as a direction to resume.
+The paragraphs below explain what the code does and why each line is shaped as it is;
+they are no longer an argument that it is worth running.
+
+WHY IT WAS NOT A FOURTH SCORE-PUSHING ARM. `rank`, `rankpair` and `budget_margin` all
 add a term that moves the SCORE ORDERING while leaving the classification loss untouched.
 All three are null, which is good evidence that the ranking cannot be fixed by pushing on
 scores. This does something else: it reweights the CLASSIFICATION loss so the model is
 optimised to be accurate **on the items it selects**. The representation changes, not the
-offsets.
+offsets. ⇒ the measurement says that representation is WORSE than the one CE gives for
+free: the coverage term trains the network to *abstain*, which is a different objective
+from ranking the capped class, and the allocator is then handed a worse ranking to
+threshold.
 
 CREDIT. The mechanism is SelectiveNet (Geifman & El-Yaniv, ICML 2019): a selection head
 `g` trained jointly with the classifier `f`, optimising the risk over the covered domain
 plus a quadratic penalty pulling coverage to a target. Their reported baseline is "a
 threshold over the prediction confidence of a pre-trained network" -- which is exactly our
-`clip` arm -- and they beat it. That is why this direction is worth one campaign.
+`clip` arm -- and they beat it. That is why the direction got one campaign. It did not
+reproduce here, and the dose gap below is the standing caveat on that non-reproduction:
+their coverage targets are 0.70-1.00 and a BUDGET gives us ~0.03.
 
-WHAT IS OURS, and it is where any novelty has to live. SelectiveNet covers ONE global
-fraction of ALL items with a single scalar coverage target. Here:
+WHAT WAS OURS. SelectiveNet covers ONE global fraction of ALL items with a single scalar
+coverage target. Here:
   - coverage is PER CAPPED CLASS, from that class's transductive budget `K_c / n_test`;
   - the capped classes are COUPLED -- they compete for the same items through the softmax,
     which is the see-saw that makes every count penalty move items between classes rather
@@ -25,21 +47,22 @@ class rather than one for the run.
 
 HOW THE BUDGET ENTERS. `tau_c = K_c / n_test` is the fraction of the TEST set the budget
 allows for class c. It is a single scalar per class -- the same information the count
-penalty gets -- but it is applied per item, at training time, where labels exist. That is
-the whole bet: the budget is not new information (train and test prevalence agree by
+penalty gets -- but it is applied per item, at training time, where labels exist. That was
+the bet: the budget is not new information (train and test prevalence agree by
 construction, see section 4), so the only way to win is to spend it better, and the only
 place labels exist is the training set.
 
-!! THE BAR, pre-registered: it must move **ccP**. An arm that moves AUROC and not ccP has
-reproduced `budget_margin` and the shipped penalty for a third time -- both improve
-AUROC/ECE/Brier/NLL while ccP FALLS, i.e. they improve the ordering everywhere the cap
-does not read. AP is watched as an overfitting guard, not as an endpoint: the covered set
-is a small self-selected subset, which is how `joint_objective` held the cap on 98.8% of
-epochs and lost 0.067 AP.
+THE BAR IT WAS PRE-REGISTERED AGAINST, and the reading it earned: it had to move **ccP**,
+because an arm that moves AUROC and not ccP has reproduced `budget_margin` and the shipped
+penalty for a third time -- both improve AUROC/ECE/Brier/NLL while ccP FALLS, i.e. they
+improve the ordering everywhere the cap does not read. AP was watched as an overfitting
+guard, not as an endpoint, because the covered set is a small self-selected subset, which
+is how `joint_objective` held the cap on 98.8% of epochs and lost 0.067 AP. ⇒ the arm did
+not clear that bar, and it did not fail marginally: it lost every metric including AP.
 
 No post-hoc behaviour changes: `g` is a training-time device. Allocation at test time is
-the same allocator every other trained arm uses, so an arm-vs-arm delta is attributable to
-the representation and not to a different filling rule.
+the same allocator every other trained arm uses, so the arm-vs-arm delta above is
+attributable to the representation and not to a different filling rule.
 """
 
 import logging
@@ -49,7 +72,7 @@ import torch.nn as nn
 
 from src.pipeline.contracts import TrainInputs, TrainOutputs, _required
 from src.pipeline.setup import setup_runtime
-from src.utils.constants import CONSTRAINT_CHUNK_SIZE
+from src.utils.constants import INFERENCE_CHUNK_SIZE
 from src.pipeline.warmup import make_ce_criterion, make_dataloader, make_optimizer
 from src.training.logging import log_progress_to_csv, write_csv_header
 from src.utils.constants import UNLIMITED
@@ -91,8 +114,8 @@ def coverage_targets(global_con, local_con, capped, n_test, num_classes):
     ceiling over group g ALONE. The selection head's coverage is `g.mean()` over
     a batch drawn from every group, so the numerator has to be a whole-test
     quantity too. Taking `min` across groups picks the SMALLEST GROUP's budget
-    and divides it by the whole test set: on derm L50_G30 that is 9/2004 instead
-    of 67/2004, a 7.4x over-tightening, and it makes tau move with the LOCAL tag
+    and divides it by the whole test set: on derm L50_G30 that is 9/2003 instead
+    of 67/2003, a 7.4x over-tightening, and it makes tau move with the LOCAL tag
     while the global cap is unchanged -- so a `G < L` cap sweep would be sweeping
     the smallest group rather than the constraint under test.
 
@@ -139,7 +162,7 @@ def selective_loss(g, probs, y, cls, tau, cov_weight, cov_ema=None,
 
     !! BOTH ESTIMATORS ARE STABILISED, and the reason is a measured dosing
     trap this project has hit before. SelectiveNet's coverage targets are
-    0.70-1.00. Ours is `K_c / n_test` = 62/2014 = 0.031 -- a 23x extrapolation.
+    0.70-1.00. Ours is `K_c / n_test` = 62/2003 = 0.031 -- a 23x extrapolation.
     At batch_size 64 that is ~2 COVERED ITEMS PER BATCH, so:
 
       - dividing the risk by `g.sum()` (expectation ~2) is a ratio estimator
@@ -338,7 +361,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
 
 def _test_counts(model, inputs, device, hp, num_classes):
     """Hard counts on the test set, for the same log every other arm writes."""
-    chunk = int(hp.get("inference_chunk_size", CONSTRAINT_CHUNK_SIZE))
+    chunk = int(hp.get("inference_chunk_size", INFERENCE_CHUNK_SIZE))
     model.eval()
     preds = []
     with torch.no_grad():

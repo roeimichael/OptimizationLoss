@@ -457,6 +457,32 @@ directional. Its whole measurable footprint on the count is a re-randomisation.
 the count 75 items" is not a result until it is stated as "the constraint moved it 75 and a
 reseed moves it 83". Carry a reseed arm in every campaign that reads a count.
 
+✅ **IT IS NOW AN ARM, AND THE GENERATOR REFUSES A CAMPAIGN WITHOUT IT (2026-08-22).**
+The floor above came out of `select_null` by accident, and an accident is not a control:
+that arm is `select`-methodology, is REJECTED (section 12), and nothing kept its
+perturbation fixed. `tralo_reseed` makes it deliberate.
+
+| | what it is |
+|---|---|
+| definition | `blocks: [constraint_phase, tralo_null, tralo_reseed]` -- it CARRIES `tralo_null`'s block and overrides ONE key, so the two cannot drift apart. Verified: the assembled hyperparameters differ in `rng_reseed` and nothing else. |
+| dose | zero. `lambda_global = lambda_local = lambda_step = 0`, so `total_constraint == 0`, `has_constraint` is False and transductive pass 2 is skipped entirely. Pinned by spying on `constraint_backward` / `finish_constraint_step`. |
+| perturbation | ONE draw from the global generator, `torch.rand(1)`, at the top of `tralo/train.py`. Everything downstream that consumes it -- the DataLoader's per-epoch shuffle seed, CPU dropout -- then runs on a different stream. |
+| warm-up | SHARED with `tralo` and `tralo_null` (one `base_model_id`). The draw is inside the constraint phase precisely so it cannot reach the warm-up: `run_experiment` re-seeds after the warm-up, and a draw before it would change WHAT GETS CACHED depending on which of the three arms the dispatcher happened to run first. |
+| scoring | `full_panel._zero_lambda_arms` reads it as UNTREATED from the config, not from the `_null` suffix -- which it does not have. |
+
+🔑 **The gate is a REFUSAL, not an auto-add.** A trained arm is exactly what writes a
+per-epoch capped-class count, so `gen_campaign` refuses any campaign holding a trained
+arm without `tralo_reseed`, names the arm to add, and prints what the pair is for. It is
+excluded from `--arms all` for the same reason the zero-dose siblings are -- adding a
+trained arm is a compute decision, and silently growing what `all` costs is the scope
+expansion this project has a rule against. `--arms all+null` carries it. Post-hoc-only
+campaigns write no count trajectory and are not affected.
+
+⚠️ **ONE reseed arm serves the whole campaign**, on the same argument that gives the coin
+one arm: at lambda 0 the tralo path is 1 warm-up epoch + 29 CE epochs, which is the regime
+every trained arm shares, and the floor being measured is a property of that regime rather
+than of a dual rule. A `fioretto`-specific reseed would measure the same thing twice.
+
 🔬 **MECHANISM, derived and verified by autograd.** With the shipped `sum` count the penalty
 is `P = sum_c w_c * sum_i p_ic`, and one step on the logits changes the count by
 `dS_j = -eta * sum_c w_c * sum_i p_ij p_ic (delta_jc - p_ij - p_ic + ||p_i||^2)`. The
@@ -715,6 +741,13 @@ changing the allocator.
 
 `scripts/dose_scan.py --with-null` runs it; `scripts/score_scan.py` prefers it as the
 baseline row and says so loudly when it is absent.
+
+⚠️ **And the `_null` arm alone is NOT enough for a count claim.** It says how much of the
+count movement is the constraint rather than the regime; it says nothing about how much
+movement is available for free. That is `tralo_reseed` (section 13), which is `tralo_null`
+with the RNG stream perturbed and nothing else -- and it moves the capped count 0.90-1.00x
+as far as the constraint does. `gen_campaign` REFUSES a campaign that holds a trained arm
+without it.
 
 ---
 
@@ -1109,6 +1142,35 @@ Deciding this requires choosing a convention and re-deriving each paper's step
 size in it. **Until then, do not claim these are three distinct dual
 baselines.**
 
+**2. `training_log.csv` IS TWO DIFFERENT FILES, AND ITS EPOCH COLUMN MEANS TWO
+DIFFERENT THINGS.** Recorded 2026-08-22, pinned by a test. Same filename, same
+directory layout, one axis with two definitions:
+
+| | writer | epoch column | first constraint row at warm-up 1 | warm-up rows |
+|---|---|---|---|---|
+| `tralo`, `select` | `log_progress_to_csv` (`build_csv_header`) | `Epoch`, **absolute and 1-based** -- the loop runs `range(warmup_epochs, total_epochs)` and the writer adds 1 | `Epoch = 2` | **kept** -- `write_csv_header` rewrites the header and preserves existing rows |
+| `fioretto`, `hounie`, `alm` | `open_epoch_log` | `epoch`, **relative to the constraint phase and 0-based** -- `range(constraint_epochs)`, logged raw | `epoch = 0` | **destroyed** -- the writer opens `"w"` and truncates the warm-up's rows |
+
+⇒ **the same training step is row `Epoch = 2` in one arm and row `epoch = 0` in
+the other**, a two-row offset, and the duals' log cannot answer a question about
+warm-up at all. Both spellings differ in case as well, which is what stops a
+naive `df["Epoch"]` from silently reading the wrong axis -- it raises instead.
+
+⚠️ **What this does NOT break, checked:** `full_panel`'s terminal-collapse
+detector reads the LAST row and accepts both spellings, so it is convention-free;
+`df["Epoch"].max()` is only ever documented for TraLO. **What it does break:** any
+cross-arm plot of a quantity against epoch, and any attempt to read epoch 1 out of
+a dual's log -- section 9's "epoch 1 is bit-identical" check is a tralo-only
+measurement for this reason, not by choice.
+
+🛑 **Not unified, deliberately, and this is a decision not a deferral.** The two
+schemas carry different columns (the duals log `total_excess` and `max_lambda_g`,
+which the count schema has no place for), so merging them is a change to what
+every stored log contains -- it would make the 14,524-run provenance archive
+unreadable by whichever reader is kept. The asymmetry is documented and pinned
+instead: a test asserts each arm keeps its own convention, so neither can drift
+onto the other's meaning without saying so.
+
 ### ✅ ANSWERED 2026-08-20, on real data (`results/vit_diag`, ViTB16 x dermmnist x L30_G30, seed 1)
 
 The paragraph above said the first campaign under this protocol would answer
@@ -1499,7 +1561,7 @@ the warm-up.
   consistency, never a starred verdict. If it is positive, the follow-up is **more SEEDS**,
   not more cells.
 
-### (c) Per-item losses -- three null, one REJECTED
+### (c) Per-item losses -- one null, one AUROC-only, one REJECTED, one REOPENED
 
 - **`rank`** (pairwise, transductive, top-K vs rest) -- null, 48/48. It is **self-referential**:
   no labels, so it can sharpen a cut but never reorder.
@@ -1521,8 +1583,11 @@ the warm-up.
 
 🔑 **WHAT THIS LIST CLOSED, and how.** Every score-pushing arm here adds a term that moves
 the SCORE ORDERING while leaving the classification loss untouched -- pairwise hinges and
-threshold hinges are score arithmetic. Three of them are null, which is strong evidence
-that **you cannot fix the ranking by pushing on the scores.**
+threshold hinges are score arithmetic. **`rank` is null 48/48 and `budget_margin` moves
+only AUROC** -- the region the cap never reads -- which is evidence that you cannot fix the
+ranking by pushing on the scores. ⚠️ It used to read "three of them are null", counting
+`rankpair`; that closure has no receipt and is reopened above, so the evidence here is TWO
+arms, not three.
 
 A **selective** loss was the one escape this list left open: it reweights the
 CLASSIFICATION loss so the model is optimised to be accurate *on the items it selects*, so
@@ -1647,7 +1712,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 176 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 190 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1655,7 +1720,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (176 tests, ~35 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (190 tests, ~35 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -2427,7 +2492,7 @@ scripts/verify_caps.py   the caps bind, on the real dataset slices
 scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             176 tests, ~35 s, no dataset required
+tests/             190 tests, ~35 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
@@ -2444,6 +2509,12 @@ evidence/          TWO tarballs that must be extracted into ONE tree to be scora
 Nine methodologies: `tralo` - the duals `fioretto_ldf` / `hounie_rcl` / `fioretto_alm` -
 the two allocators `heuristic` (greedy) / `danits_lp` (LP-LG) - and the imbalanced recipes
 `focal` / `class_balanced` / `logit_adjust`, which are LP-clipped.
+
+⚠️ **`src/methodologies/` holds TEN packages, and the tenth is not a tenth
+baseline.** `select` is path 1c, it is **rejected** (section 12), it appears in no
+`.tex` file, and `gen_campaign` subtracts it from `--arms all`. So "nine
+methodologies, all claimed in the paper" stays exactly true -- but anyone counting
+directories finds ten, and this is the line that says why.
 
 ## 6. Evidence appendix
 

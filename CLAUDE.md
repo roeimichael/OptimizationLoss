@@ -59,7 +59,7 @@ imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 176 regression tests, ~35s, no dataset needed
+python -m pytest tests -q                   # 190 regression tests, ~35s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -84,10 +84,14 @@ python -m scripts.score_scan <root>         # AUROC / prec@K / Jaccard, grouped 
 
 **Three rules that cost a night each to learn:**
 
-1. **Carry the `_null` arm** (`--arms all+null`). It is the same warm-up, allocator and
-   seed with lambda=0, so it isolates the constraint -- and it doubles as a post-hoc
-   clipper at equal compute with the allocator held fixed. Without it **no count
-   trajectory is attributable**: CE alone swings the capped counts 242 -> 227 -> 324 -> 233.
+1. **Carry the `_null` arm AND `tralo_reseed`** (`--arms all+null`). The null is the same
+   warm-up, allocator and seed with lambda=0, so it isolates the constraint -- and it
+   doubles as a post-hoc clipper at equal compute with the allocator held fixed. Without
+   it **no count trajectory is attributable**: CE alone swings the capped counts
+   242 -> 227 -> 324 -> 233. `tralo_reseed` is that null with the RNG stream perturbed and
+   nothing else, and it is the **noise floor**: the constraint moves the capped count RMS
+   75-95 items, a reseed moves it 83-95. `gen_campaign` REFUSES a campaign that holds a
+   trained arm without it.
 2. **Read `d capF1` beside `d macroF1`.** Paired over seeds their precision differs by an
    order of magnitude, and macro-F1 is carried by the UNCAPPED classes, which swing with
    the seed. `d capF1` is quantised -- with exactly K predictions emitted, `F1 = 2TP/(K+n)`

@@ -1,16 +1,33 @@
-# Shared chunked forward pass for GPU memory-safe inference.
-# Used by trainer, metrics, and posthoc_adjustment modules.
+# Shared chunked forward passes for GPU memory-safe inference.
+#
+# TWO functions, TWO consumers, and they are not the same knob:
+#   `chunked_forward` -- src/training/metrics.py only. Stride below.
+#   `chunked_probs`   -- the allocator arms (heuristic, danits_lp,
+#                        imbalanced_common), which pass the protocol's
+#                        `inference_chunk_size`.
+# The header used to say "trainer, metrics, and posthoc_adjustment"; the
+# trainer and posthoc_adjustment import nothing from here, so the docstring
+# named two consumers that do not exist and hid the one that does.
 
 import torch
 
-INFERENCE_CHUNK_SIZE = 512
+# NOT `inference_chunk_size`, and deliberately not unified with it. This is a
+# fixed stride for the metrics forward pass; the config key is the allocators'
+# knob and defaults to src.utils.constants.INFERENCE_CHUNK_SIZE (256).
+# They carry different values (512 vs 256) and must keep doing so: re-chunking
+# a forward pass re-associates the batch dimension, so switching this to 256
+# perturbs the reported metrics in the last bits -- and this project reads
+# arm-vs-arm identity at md5 resolution, where "mathematically identical" is
+# not the same claim as "identical". Private, so the name cannot be imported
+# and mistaken for the configurable one.
+_METRICS_FORWARD_CHUNK = 512
 
 
 def chunked_forward(model, X):
-    if len(X) <= INFERENCE_CHUNK_SIZE:
+    if len(X) <= _METRICS_FORWARD_CHUNK:
         return model(X)
-    chunks = [model(X[i:i + INFERENCE_CHUNK_SIZE])
-              for i in range(0, len(X), INFERENCE_CHUNK_SIZE)]
+    chunks = [model(X[i:i + _METRICS_FORWARD_CHUNK])
+              for i in range(0, len(X), _METRICS_FORWARD_CHUNK)]
     return torch.cat(chunks, dim=0)
 
 

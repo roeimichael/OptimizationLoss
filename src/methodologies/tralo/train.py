@@ -62,6 +62,33 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             "soft_count_mode: margin requires straight_through: true. "
             "Windowing the gradient while the penalty reads sum_i p_ic is "
             "neither arm and is not a configuration this project runs.")
+    # THE RESEED CONTROL (`tralo_reseed`). ONE draw from the global generator
+    # and nothing else -- no extra parameter, no extra step, no change to the
+    # loss. Everything downstream that consumes the global RNG (the
+    # DataLoader's shuffle seed, drawn afresh per epoch, and CPU dropout) then
+    # runs on a different stream, so this arm is `tralo_null` re-randomised.
+    #
+    # WHY HERE AND NOT EARLIER. run_experiment re-seeds AFTER the warm-up, so
+    # this is the first RNG consumer of the constraint phase and the draw
+    # cannot reach the warm-up. That matters: `tralo_reseed` shares
+    # `base_model_id` with `tralo` and `tralo_null` on purpose, and exactly one
+    # of the three trains the cached model. A draw made before the warm-up
+    # would change WHAT GETS CACHED depending on which arm ran first, so the
+    # matched control would stop being matched -- silently, and differently on
+    # every machine.
+    #
+    # WHY ONE DRAW IS THE RIGHT DOSE. It reproduces the perturbation that
+    # produced the measured floor: `select_null` (`select_eta: 0`) is a pure-CE
+    # run on the same seed and warm-up cache whose only side effect is
+    # constructing an nn.Linear selection head, i.e. a handful of draws from
+    # the global generator before its first batch. Reseeding that way moves the
+    # capped-class hard count by RMS 83-95 items while turning the constraint
+    # ON moves it 75-95. The stream is either the same or it is not; a second
+    # draw would not make it "more reseeded".
+    if bool(hp.get("rng_reseed", False)):
+        torch.rand(1)
+        log.info("rng_reseed: one draw taken from the global generator. This "
+                 "is the RESEED CONTROL -- zero dose, perturbed stream.")
     # Hoisted: the per-epoch snapshot clone is gated on this, and a
     # state_dict() copied to CPU each epoch for a checkpoint nothing
     # reads is ~344 MB per epoch on ViTB16.

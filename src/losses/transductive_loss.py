@@ -240,7 +240,13 @@ class MulticlassTransductiveLoss(nn.Module):
             return total
         for v in local_soft_counts.values():
             return v.sum() * 0.0
-        return self._zero(device)
+        # `_zero` takes no argument -- it reads the device off the module's own
+        # buffer. This line said `self._zero(device)`, i.e. a TypeError waiting
+        # on a branch that the loop above currently makes unreachable (the
+        # empty case already returned at the top of the function). Reachability
+        # is not a guarantee, and a fallback that raises is worse than no
+        # fallback.
+        return self._zero()
 
     # ---- lambda / rho -------------------------------------------------------
     def set_lambda_per_class(self, class_idx, value, scope='global', group_id=None):
