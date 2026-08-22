@@ -20,7 +20,7 @@ log = logging.getLogger(__name__)
 def train(inputs: TrainInputs) -> TrainOutputs:
     from src.methodologies.danits_lp import solve_lp_assignment
 
-    chunk_size = int(inputs.hyperparams.get("constraint_chunk_size",
+    chunk_size = int(inputs.hyperparams.get("inference_chunk_size",
                                             CONSTRAINT_CHUNK_SIZE))
     device = inputs.device
     X_test = inputs.X_test.to(device)

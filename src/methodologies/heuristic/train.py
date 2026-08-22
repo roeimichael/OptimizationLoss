@@ -149,7 +149,7 @@ def verify_allocation(y_pred, groups, global_constraints, local_constraints,
 def train(inputs: TrainInputs) -> TrainOutputs:
     device = inputs.device
     X_test = inputs.X_test.to(device)
-    chunk_size = int(inputs.hyperparams.get("constraint_chunk_size",
+    chunk_size = int(inputs.hyperparams.get("inference_chunk_size",
                                             CONSTRAINT_CHUNK_SIZE))
     probs = chunked_probs(inputs.model, X_test, chunk_size)
 

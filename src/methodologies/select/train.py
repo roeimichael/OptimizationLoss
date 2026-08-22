@@ -338,7 +338,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
 
 def _test_counts(model, inputs, device, hp, num_classes):
     """Hard counts on the test set, for the same log every other arm writes."""
-    chunk = int(hp.get("constraint_chunk_size", CONSTRAINT_CHUNK_SIZE))
+    chunk = int(hp.get("inference_chunk_size", CONSTRAINT_CHUNK_SIZE))
     model.eval()
     preds = []
     with torch.no_grad():

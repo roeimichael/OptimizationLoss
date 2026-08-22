@@ -20,7 +20,8 @@ import sys
 # knobs that must be IDENTICAL across every arm; if they differ, the comparison
 # measures the knob and not the method
 SHARED_KEYS = ["lr", "lr_constraint", "dropout", "batch_size", "pretrained",
-               "class_weighted_ce", "constraint_chunk_size", "stable_count_threshold",
+               "class_weighted_ce", "constraint_chunk_size", "inference_chunk_size",
+               "stable_count_threshold",
                # measured at -0.0351 AP within-run: if one arm restores its best
                # feasible checkpoint and another keeps its final model, the delta
                # between them is the restore, not the method

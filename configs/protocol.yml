@@ -107,9 +107,16 @@ constraint_phase:
   constraint_chunk_size: 128
   enable_checkpoint_restore: false
 
-# Read by the post-hoc allocators that chunk their forward pass.
+# Read by the arms that chunk a NO-GRAD forward pass: the post-hoc allocators,
+# and `select`'s test-set count. A DIFFERENT KEY from the constraint phase's
+# `constraint_chunk_size` on purpose. They are two knobs, and while they shared
+# a name `check_parity` read the campaign as broken -- it compares a key across
+# the arms that carry it, so the allocators' 256 and the constraint phase's 128
+# looked like one setting disagreeing with itself. They are not comparable:
+# the constraint chunk bounds a backward pass (which is why ViTB16 + fp32 OOMs
+# at 256), this one bounds inference under no_grad and costs almost nothing.
 chunked:
-  constraint_chunk_size: 256
+  inference_chunk_size: 256
 
 blocks:
   tralo:

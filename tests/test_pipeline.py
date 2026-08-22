@@ -2835,3 +2835,44 @@ def test_the_scorer_still_sees_a_crash_log_that_was_renamed_aside():
         "full_panel.main looks for a literal error_log.json, so a crash log "
         "renamed aside (error_log.oom.json) makes the run report as plain "
         "`pending` -- a dead arm reading as an unstarted one")
+
+
+def test_the_grad_carrying_chunk_and_the_no_grad_chunk_are_separate_keys():
+    """`constraint_chunk_size` bounds a BACKWARD pass; the allocators' and
+    `select`'s chunk bounds inference under no_grad. Two knobs.
+
+    While they shared one name, `check_parity` -- which compares a key across
+    every arm that carries it -- read a correctly generated campaign as broken
+    ("constraint_chunk_size differs: ['128', '256']") and blocked every launch,
+    because the constraint phase had to drop to 128 to survive ViTB16 + fp32
+    OOM while the no_grad path had no reason to move. The names are now
+    distinct, so an arm cannot read one thinking it set the other.
+    """
+    import yaml
+    proto = yaml.safe_load(io.open(os.path.join(REPO, "configs", "protocol.yml"),
+                                   encoding="utf-8"))
+    assert "inference_chunk_size" in proto["chunked"], (
+        "the no_grad chunk lost its own name; if it is called "
+        "constraint_chunk_size again, check_parity fails on every campaign")
+    assert "constraint_chunk_size" not in proto["chunked"], (
+        "the `chunked` block emits constraint_chunk_size again -- that is the "
+        "collision check_parity cannot see through")
+    assert "constraint_chunk_size" in proto["constraint_phase"]
+
+    # and the readers must not have drifted back: _required (grad path) vs
+    # .get (no_grad path) is what separates them at the call site
+    grad_path = ["tralo", "fioretto_ldf", "fioretto_alm", "hounie_rcl"]
+    for pkg in grad_path:
+        src = io.open(os.path.join(REPO, "src", "methodologies", pkg,
+                                   "train.py"), encoding="utf-8").read()
+        assert "inference_chunk_size" not in src, (
+            "%s reads the no_grad inference chunk for its gradient-carrying "
+            "pass -- at 256 that is the configuration that OOMs" % pkg)
+    for rel in [("danits_lp", "train.py"), ("heuristic", "train.py"),
+                ("select", "train.py")]:
+        src = io.open(os.path.join(REPO, "src", "methodologies", *rel),
+                      encoding="utf-8").read()
+        assert "constraint_chunk_size" not in src, (
+            "%s reads the CONSTRAINT chunk for a no_grad pass; it does not "
+            "carry the constraint_phase block, so it would silently fall back "
+            "to the module default and stop tracking the protocol" % rel[0])
