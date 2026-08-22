@@ -121,7 +121,6 @@ def _train_constraints(model, inputs: TrainInputs, device):
 
     X_test_dev = inputs.X_test.to(device)
 
-    last_grad_norm = 0.0
     log_fields = ["epoch", "train_acc", "ce_loss", "constraint_loss",
                   "total_excess",
                   "all_satisfied", "max_lam_g", "max_u_g", "h_u",
@@ -133,6 +132,16 @@ def _train_constraints(model, inputs: TrainInputs, device):
 
 
     for epoch in range(constraint_epochs):
+        # Reset EVERY epoch. Hoisted above the loop it was carried
+        # forward: the arms only reassign it inside `if did_backward`,
+        # so an epoch where the constraint went slack logged the
+        # PREVIOUS epoch's norm as if it were this one's. tralo resets
+        # per-epoch and logs 0.0, so a tralo-vs-dual dose comparison off
+        # this column was asymmetric by construction -- and grad_norm is
+        # the column this project uses to decide whether two arms got a
+        # comparable dose. Verified inert on results/dualbar2 (no slack
+        # epoch occurs there), so no stored number moves.
+        last_grad_norm = 0.0
         epoch_start = time.time()
 
         # ---- Step 1: CE on TRAIN (theta SGD on L_ce) ----

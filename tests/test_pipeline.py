@@ -3682,14 +3682,22 @@ def test_the_probe_split_is_deterministic_disjoint_and_group_stratified():
     other, _ = FHP.stratified_halves(d.y, d.groups, 4)
     assert not np.array_equal(a1, other), "the seed does not change the split"
 
-    # group composition is preserved in BOTH halves, which is what makes the
-    # local budgets comparable across them
+    # THE (class, group) CELL, not the group share. A plain random half keeps
+    # the group shares to within a few percent all by itself, so asserting on
+    # those passes on an unstratified split and gates nothing -- measured, a
+    # random half is off by up to 12.5 items on a single (class, group) cell
+    # while the stratified one is off by at most 1.0. Those cells ARE the local
+    # budgets: `compute_local_constraints` takes a percentage of each of them.
     for half in (a1, b1):
-        for g in np.unique(d.groups):
-            share_all = float((d.groups == g).mean())
-            share_half = float((d.groups[half] == g).mean())
-            assert abs(share_all - share_half) < 0.03, (
-                "group %d drifts %.3f -> %.3f" % (g, share_all, share_half))
+        for c in range(7):
+            for g in np.unique(d.groups):
+                tot = int(((d.y == c) & (d.groups == g)).sum())
+                if tot == 0:
+                    continue
+                got = int(((d.y[half] == c) & (d.groups[half] == g)).sum())
+                assert abs(got - tot / 2.0) <= 1.0, (
+                    "class %d group %d: %d of %d in this half -- the local "
+                    "budget is not comparable across halves" % (c, g, got, tot))
 
 
 def test_the_probes_liveness_control_is_itself_live():
@@ -3810,3 +3818,78 @@ def test_the_probe_refuses_a_run_directory_with_no_embeddings(tmp_path):
     assert "test_embeddings.npz" in msg
     assert "synthetic" in msg.lower(), (
         "the refusal must say why substituting synthetic data is not the fix")
+
+
+def test_the_probe_prints_only_ascii_so_a_warning_cannot_be_truncated():
+    """A non-ASCII byte in a print SILENTLY TRUNCATES the report.
+
+    Measured: the probe's "your resolution is coarser than the whole question"
+    warning began with a stop-sign glyph, and on this project's Windows
+    workstation (cp1252) the run ended at the line BEFORE it -- with exit code
+    0 and no traceback in the piped output. The truncated section was the one
+    that says a null is unreadable, so the failure mode is "the harness stops
+    telling you it cannot see" and nothing announces it.
+
+    Scoped to this one file because it is the only script whose output is a
+    verdict a human acts on directly, and because a repo-wide rule would fail
+    on documents that legitimately carry glyphs.
+    """
+    src = io.open(os.path.join(REPO, "scripts", "frozen_head_probe.py"),
+                  encoding="utf-8").read()
+    bad = [i + 1 for i, line in enumerate(src.splitlines())
+           if any(ord(ch) > 127 for ch in line)]
+    assert not bad, (
+        "non-ASCII on line(s) %s of frozen_head_probe.py: on a cp1252 console "
+        "the report stops there, silently and with exit code 0" % bad)
+
+    # NEGATIVE CONTROL: the scan must actually see one when it is there, or it
+    # would pass on a file it never really examined.
+    probe_ascii = chr(0x2014) + 'x'
+    assert [i + 1 for i, line in enumerate([probe_ascii, 'y'])
+            if any(ord(ch) > 127 for ch in line)] == [1]
+
+
+def test_the_duals_reset_grad_norm_every_epoch_instead_of_carrying_it_forward():
+    """`grad_norm` is the column this project reads to decide whether two arms
+    got a comparable dose -- the whole 20x inter-arm argument is built from it.
+
+    The three duals only reassign `last_grad_norm` inside `if did_backward`, so
+    with the declaration hoisted above the epoch loop an epoch where the
+    constraint went slack logged the PREVIOUS epoch's norm as if it were its
+    own. tralo resets per-epoch and writes 0.0, so the same slack epoch is an
+    honest zero in one arm and a fabricated repeat in another -- an asymmetry
+    between a treatment and its comparison, in the telemetry, invisible to
+    every config gate.
+
+    AST, not text: the assignment must be INSIDE the `for epoch` loop.
+    """
+    import ast as _ast
+    for pkg in ("fioretto_ldf", "hounie_rcl", "fioretto_alm"):
+        src = io.open(os.path.join(REPO, "src", "methodologies", pkg,
+                                   "train.py"), encoding="utf-8").read()
+        tree = _ast.parse(src)
+        # the epoch loop lives in `_train_constraints`, not `train` -- found by
+        # searching for it rather than by assuming, after assuming wrongly once
+        fn = next((n for n in _ast.walk(tree)
+                   if isinstance(n, _ast.FunctionDef)
+                   and any(isinstance(x, _ast.For) and isinstance(x.target, _ast.Name)
+                           and x.target.id == "epoch" for x in _ast.walk(n))), None)
+        assert fn is not None, "%s: no function contains a `for epoch` loop" % pkg
+
+        def _assigns(node):
+            return [n for n in _ast.walk(node)
+                    if isinstance(n, _ast.Assign)
+                    and any(isinstance(t, _ast.Name) and t.id == "last_grad_norm"
+                            for t in n.targets)]
+
+        loops = [n for n in _ast.walk(fn)
+                 if isinstance(n, _ast.For)
+                 and isinstance(n.target, _ast.Name) and n.target.id == "epoch"]
+        assert loops, "%s: no `for epoch` loop found" % pkg
+        inside = {id(a) for lp in loops for a in _assigns(lp)}
+        resets = [a for a in _assigns(fn)
+                  if isinstance(a.value, _ast.Constant) and a.value.value == 0.0]
+        assert resets, "%s: `last_grad_norm = 0.0` disappeared entirely" % pkg
+        assert all(id(a) in inside for a in resets), (
+            "%s resets last_grad_norm OUTSIDE the epoch loop, so a slack epoch "
+            "logs the previous epoch's gradient norm as its own" % pkg)

@@ -86,7 +86,6 @@ def _train_constraints(model, inputs, device):
 
     ck = Checkpoints(allow_restore, "Fioretto")
 
-    last_grad_norm = 0.0
     log_fields = ["epoch", "train_acc", "ce_loss", "constraint_loss",
                   "total_excess",
                   "all_satisfied", "max_lambda_g",
@@ -96,6 +95,16 @@ def _train_constraints(model, inputs, device):
     stable_count = 0  # consecutive epochs with all_satisfied for early-stop parity with TraLO
 
     for epoch in range(constraint_epochs):
+        # Reset EVERY epoch. Hoisted above the loop it was carried
+        # forward: the arms only reassign it inside `if did_backward`,
+        # so an epoch where the constraint went slack logged the
+        # PREVIOUS epoch's norm as if it were this one's. tralo resets
+        # per-epoch and logs 0.0, so a tralo-vs-dual dose comparison off
+        # this column was asymmetric by construction -- and grad_norm is
+        # the column this project uses to decide whether two arms got a
+        # comparable dose. Verified inert on results/dualbar2 (no slack
+        # epoch occurs there), so no stored number moves.
+        last_grad_norm = 0.0
         epoch_start = time.time()
 
         # ---- Step 1: CE on TRAIN data (batched) ----
