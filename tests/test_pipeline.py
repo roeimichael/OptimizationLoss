@@ -5462,3 +5462,114 @@ def test_the_allocation_free_power_statement_reads_the_seed_NOISE(tmp_path):
     tail = out.split("RESOLUTION of the ALLOCATION-FREE metrics")[1][:800]
     assert "UNDERPOWERED" in tail, tail
     assert "NOT evidence" in tail, tail
+
+
+def test_the_main_table_generator_needs_two_metrics_to_reproduce_the_shipped_file():
+    """The one generator whose DEFAULT is not the shipped artefact.
+
+    `make_main_table.py --two-metrics` reproduces `tab_ccf1.tex` byte for byte;
+    the bare invocation writes a DIFFERENT table over the same path. CLAUDE.md
+    has carried that warning, with the exact diff size, as prose only -- so the
+    single command in this repo that can silently corrupt a paper table on a
+    routine "regenerate the tables" pass was guarded by a sentence.
+
+    The bare run is the NEGATIVE CONTROL and is not incidental: if both
+    invocations produced the same bytes the flag would be decorative and the
+    warning wrong, which is worth knowing either way.
+
+    The file is restored from the bytes read at entry, in a finally, rather than
+    with `git checkout` -- a test that repairs a tracked file must not depend on
+    the working tree being clean when it started.
+    """
+    gen = os.path.join(REPO, "docs", "paper", "scripts", "make_main_table.py")
+    tab = os.path.join(REPO, "docs", "paper", "tables", "tab_ccf1.tex")
+    if not (os.path.exists(gen) and os.path.exists(tab)):
+        pytest.skip("paper table generator or its output is not present")
+
+    with io.open(tab, "rb") as fh:
+        shipped = fh.read()
+    try:
+        r = subprocess.run([sys.executable, gen, "--two-metrics"],
+                           cwd=REPO, capture_output=True, text=True)
+        assert r.returncode == 0, r.stderr[-800:]
+        with io.open(tab, "rb") as fh:
+            assert fh.read() == shipped, (
+                "make_main_table.py --two-metrics no longer reproduces the "
+                "shipped tab_ccf1.tex -- either the corpus moved or the "
+                "generator changed, and the paper table is now unbacked")
+
+        r = subprocess.run([sys.executable, gen], cwd=REPO,
+                           capture_output=True, text=True)
+        assert r.returncode == 0, r.stderr[-800:]
+        with io.open(tab, "rb") as fh:
+            bare = fh.read()
+        assert bare != shipped, (
+            "the bare invocation now reproduces the shipped table too, so "
+            "--two-metrics is decorative and CLAUDE.md's warning is stale")
+    finally:
+        with io.open(tab, "wb") as fh:
+            fh.write(shipped)
+
+
+# The three tables in `docs/paper/tables/` that have NO generator and never did.
+# An empty `git diff docs/paper/tables/` says NOTHING about these -- naming them
+# is what keeps the test below from over-claiming.
+UNGENERATED_TABLES = ("tab_ablation_complete.tex", "tab_deploy.tex",
+                      "tab_oct_backbone.tex")
+
+TABLE_GENERATORS = (("make_main_table.py", ("--two-metrics",)),
+                    ("make_backbone_tables.py", ()),
+                    ("make_graft_table.py", ()),
+                    ("make_granular_tables.py", ()))
+
+
+def test_the_generated_paper_tables_still_reproduce_from_the_corpus():
+    """`git diff docs/paper/tables/` must be empty after regenerating.
+
+    This is the invariant that says the shipped paper is still BACKED by
+    `corpus_final.csv`. It has been documented in CLAUDE.md and never enforced,
+    so a corpus edit or a generator change would have unbacked a table silently
+    and the next person to regenerate would have seen a diff with no way to tell
+    whether the old file or the new one was right.
+
+    The three ungenerated tables are asserted UNTOUCHED rather than ignored. A
+    clean diff is evidence about the eight and about nothing else, and stating
+    that here stops the test from being read as "the tables reproduce".
+    """
+    tdir = os.path.join(REPO, "docs", "paper", "tables")
+    sdir = os.path.join(REPO, "docs", "paper", "scripts")
+    if not os.path.isdir(tdir):
+        pytest.skip("paper tables are not present")
+
+    before = {}
+    for name in sorted(os.listdir(tdir)):
+        if name.endswith(".tex"):
+            with io.open(os.path.join(tdir, name), "rb") as fh:
+                before[name] = fh.read()
+    assert before, "no .tex tables found"
+
+    try:
+        for script, flags in TABLE_GENERATORS:
+            path = os.path.join(sdir, script)
+            if not os.path.exists(path):
+                pytest.skip("%s is not present" % script)
+            r = subprocess.run([sys.executable, path] + list(flags),
+                               cwd=REPO, capture_output=True, text=True)
+            assert r.returncode == 0, "%s failed: %s" % (script, r.stderr[-600:])
+
+        changed = []
+        for name, original in before.items():
+            with io.open(os.path.join(tdir, name), "rb") as fh:
+                if fh.read() != original:
+                    changed.append(name)
+        assert not changed, (
+            "these tables no longer reproduce from the corpus: %s" % changed)
+
+        for name in UNGENERATED_TABLES:
+            assert name in before, (
+                "%s is named as ungenerated but is not in tables/ -- the list "
+                "has drifted" % name)
+    finally:
+        for name, original in before.items():
+            with io.open(os.path.join(tdir, name), "wb") as fh:
+                fh.write(original)
