@@ -369,6 +369,90 @@ def _signflip_p(x):
     return hits / float(1 << D), D
 
 
+
+def _resolution_readout(perseed, df, arm, control):
+    """How many seeds this contrast needs, in the campaign's own unit.
+
+    WHY THIS IS PRINTED AND NOT LEFT TO THE READER. The table above reports a
+    delta, a p and a BH q, and none of the three says whether the comparison
+    could have SEEN the effect it is reporting on. A tie at four seeds means
+    "no effect" or "not enough seeds", and those are opposite conclusions.
+
+    The seed sd is measured WITHIN a cell and then pooled across cells, because
+    that is the replication the campaign actually buys when it adds a seed.
+    Cells with one seed contribute nothing to the sd and are counted out loud.
+
+    ⚠️ DO NOT ASSUME the null contrast is the quieter one. Every TRAINED arm
+    shares a `base_model_id` with its zero-dose null -- warm-up 1 for both --
+    while `clip` cannot, because the protocol gives post-hoc arms warm-up 30.
+    That much is structural and verified from the run configs. It is tempting
+    to conclude the shared warm-up cancels as common mode and makes the null
+    contrast cheaper in seeds. **It was tested and it does not hold.** On
+    `results/dualbar2` at two seeds the isolation swung 0.2 items for `alm` --
+    which is where the idea came from -- and 8.8 items for `fioretto`, worse
+    than that arm's own 6.5-item swing against `clip`. The warm-up draw is
+    shared; the constraint phase's own stochasticity is not, and it can
+    dominate. Which contrast is quieter is therefore an empirical question per
+    campaign, which is the reason this readout measures it instead of
+    reasoning about it.
+    """
+    if perseed is None or not len(perseed):
+        return
+    try:
+        from scripts.frozen_head_probe import seeds_needed
+    except Exception:                                  # noqa: BLE001
+        return
+
+    scale = {}
+    for _, r in df.iterrows():
+        v = r.get("items_per_001")
+        if v is None or not np.isfinite(v):
+            continue
+        scale.setdefault((r["dataset"], r["model"], r["cap"], r["capped"]),
+                         []).append(float(v))
+    if not scale:
+        return
+
+    sds, ns, means = [], [], []
+    for key, g in perseed.groupby(level=[0, 1, 2, 3]):
+        sc = scale.get(key)
+        if not sc:
+            continue
+        sc = float(np.mean(sc))
+        means.append(float(g.mean()) / 0.01 * sc)
+        ns.append(len(g))
+        if len(g) >= 2:
+            sds.append(float(g.std(ddof=1)) / 0.01 * sc)
+    if not means:
+        return
+
+    print("")
+    print("  RESOLUTION of this contrast -- can it see what it is reporting?")
+    single = sum(1 for n in ns if n < 2)
+    if not sds:
+        print("     every cell has ONE seed, so the seed sd is not estimable and")
+        print("     nothing in the table above is separable from seed noise.")
+        return
+    sd = float(np.mean(sds))
+    eff = abs(float(np.mean(means)))
+    # the FEWEST seeds in any cell, not the median: power is set by the
+    # least-replicated cell, and a median of [2, 1] truncating to 1 reported a
+    # cell count that matched no cell.
+    have = int(min(ns))
+    print("     paired seed sd  %6.2f items  (within cell, pooled over %d cell(s))"
+          % (sd, len(sds)))
+    print("     observed d ccF1 %+6.2f items  at %d seed(s) in the "
+          "least-replicated cell" % (float(np.mean(means)), have))
+    if eff > 0:
+        need = seeds_needed(eff, sd)
+        verdict = ("POWERED" if have >= need else
+                   "UNDERPOWERED -- a tie here is not evidence of no effect")
+        print("     to detect an effect THIS SIZE at 80%% power needs ~%d seeds "
+              "per cell: %s" % (need, verdict))
+    if single:
+        print("     %d cell(s) have a single seed and contribute no sd" % single)
+
+
 def _clustered_readout(results, pvals, control, arm):
     """The honest n for a claim meant to generalize is the DATASET count.
 
@@ -1122,6 +1206,7 @@ def main():
             RAW_MD5[args.control][k] == RAW_MD5[arm][k] for k in shared)
 
         results = []          # (title, metric, row-tuple) collected, then BH
+        perseed_ccf1 = None   # pre-collapse pairs, for the resolution readout
         for title, metrics in GROUPS:
             for m in metrics:
                 # Restrict to the PAIR being compared before dropping
@@ -1142,6 +1227,12 @@ def main():
                 cell = q.groupby(level=[0, 1, 2, 3]).mean()
                 c, t = cell[args.control], cell[arm]
                 d = t - c
+                if m == "ccF1":
+                    # Keep the PRE-COLLAPSE pairs. The cell mean is the right
+                    # unit to TEST on, but it cannot say how many seeds the
+                    # contrast needs, and that question is what decides whether
+                    # a null is a finding or an underpowered read.
+                    perseed_ccf1 = q[arm] - q[args.control]
                 if m in ABOVE_CAP_ONLY and (c.min() < 1.0 or t.min() < 1.0):
                     results.append((title, m, ("UNDERSHOOT", c, t, d, None, None)))
                     continue
@@ -1279,6 +1370,8 @@ def main():
                 per = d.groupby(level=[0, 1, 2, 3]).mean().round(4)
                 print("            per-cell: %s"
                       % {"/".join(str(x) for x in k): v for k, v in per.items()})
+
+        _resolution_readout(perseed_ccf1, df, arm, args.control)
 
         _clustered_readout(results, pvals, args.control, arm)
 

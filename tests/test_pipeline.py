@@ -4586,3 +4586,61 @@ def test_all_plus_null_schedules_one_null_per_shared_zero_dose_model():
         assert a in P["arms"], (
             "%s was deleted rather than merely unscheduled -- the shared-null "
             "equivalence can no longer be re-checked on real data" % a)
+
+
+def _resolution_text(deltas_by_cell_seed, scale, capsys):
+    """Run `_resolution_readout` on a synthetic contrast and return its text."""
+    import pandas as pd
+    from scripts.full_panel import _resolution_readout
+
+    idx, vals = [], []
+    for (cap, seed), v in deltas_by_cell_seed.items():
+        idx.append(("dermmnist", "MobileNetV3", cap, "2-4", seed))
+        vals.append(v)
+    per = pd.Series(vals, index=pd.MultiIndex.from_tuples(idx))
+    df = pd.DataFrame([{"dataset": "dermmnist", "model": "MobileNetV3",
+                        "cap": cap, "capped": "2-4", "items_per_001": scale}
+                       for cap in {c for c, _ in deltas_by_cell_seed}])
+    _resolution_readout(per, df, "tralo", "clip")
+    return capsys.readouterr().out
+
+
+def test_the_panel_says_whether_it_could_have_seen_what_it_reports(capsys):
+    """A tie means `no effect` or `not enough seeds`, and those are opposite.
+
+    The table prints a delta, a Wilcoxon p and a BH q, none of which says
+    whether the contrast could have RESOLVED the effect it reports on. This is
+    the readout that says so.
+
+    Negative control, confirmed to FAIL before the single-seed guard existed:
+    a campaign with one seed per cell has no estimable seed sd at all, and a
+    readout that computed one anyway would print a confident seeds-needed
+    figure derived from nothing.
+    """
+    # (a) one seed per cell -- must refuse, not invent a number
+    out = _resolution_text({("L50_G20", 1): 0.02, ("L50_G40", 1): 0.03},
+                           scale=2.56, capsys=capsys)
+    assert "not estimable" in out, out
+    assert "seeds per cell" not in out, (
+        "a seeds-needed figure was printed with no estimable sd: %s" % out)
+
+    # (b) a large effect against a small spread -- powered at the seeds present
+    small = {("L50_G20", s): 0.10 + 0.001 * s for s in (1, 2, 3, 4)}
+    out = _resolution_text(small, scale=2.56, capsys=capsys)
+    assert "POWERED" in out and "UNDERPOWERED" not in out, out
+
+    # (c) a small effect against a large spread -- must say UNDERPOWERED and
+    #     name a seed count larger than what is present
+    noisy = {("L50_G20", s): d for s, d in
+             zip((1, 2, 3, 4), (0.30, -0.28, 0.26, -0.24))}
+    out = _resolution_text(noisy, scale=2.56, capsys=capsys)
+    assert "UNDERPOWERED" in out, out
+    need = int(out.split("needs ~")[1].split(" ")[0])
+    assert need > 4, "a near-zero mean on a huge spread needs many seeds, got %d" % need
+
+    # (d) power is set by the LEAST-replicated cell, never the median: a
+    #     median of [4, 1] truncates to 2 and matches no cell that exists.
+    mixed = dict(small)
+    mixed[("L50_G40", 1)] = 0.10
+    out = _resolution_text(mixed, scale=2.56, capsys=capsys)
+    assert "1 seed(s) in the least-replicated cell" in out, out
