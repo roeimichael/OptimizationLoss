@@ -1752,7 +1752,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 216 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 217 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1760,7 +1760,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (216 tests, ~40 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (217 tests, ~40 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -2170,11 +2170,22 @@ where the budget cuts the contested middle and collapses at both ends. The cell
 with 3x the headroom is the cell where a coin flip moves furthest, and that is
 why the loose cap flatters everything including the control.
 
-### (l) 🛑🛑 THE LOCAL CAP HAS NEVER BOUND EITHER -- the mirror of the 2026-08-18 bug
+### (l) 🛑🛑 THE LOCAL CAP HAS NEVER BOUND THE OUTPUT -- the mirror of the 2026-08-18 bug
 
 **Found 2026-08-22, Roei's question: "are we monitoring multiclass constraints,
 on both global and local?"** The answer is that we monitor multiclass correctly
 and have **only ever tested the GLOBAL scope.**
+
+⚠️ **STATE THIS PRECISELY -- there are two senses of "bind" and they disagree
+here.** The local term is LIVE IN THE LOSS: `Lambda_Local` ratchets 0.06 -> 1.02
+and the groups sit far over their ceilings all through training (`dualbar2`
+`L50_G40` seed 1 ends group 2 class 2 at **63 against a limit of 38**). What has
+never happened is the local cap binding **at allocation**, which is the sense
+that reaches every metric -- the allocator imposes the tighter GLOBAL total
+first, and the resulting per-group split has landed inside every local ceiling
+every time. So training-time local pressure exists and is then **overwritten**:
+whatever it did to the distribution, the allocator re-derives that distribution
+under a budget the local caps do not constrain.
 
 **THE ARITHMETIC.** Local caps are per-GROUP ceilings, so their sum is
 `L * total_true` while the global is `G * total_true`. Therefore:
@@ -2197,8 +2208,13 @@ and silently made the LOCAL scope inert. **Nobody checked the other side.**
 | L50_G40 | 2 | **82** | 35 / 30 / 38 | 103 | 1.3x |
 | L50_G40 | 4 | **89** | 48 / 48 / 15 | 111 | 1.2x |
 
+⚠️ Note both `dualbar2` caps are `L50`, so their **local ceilings are
+IDENTICAL** (35/30/38 and 48/48/15 in both rows above). The campaign varies only
+`G`: it is a pure GLOBAL sweep, and no campaign to date has varied the local
+budget at all.
+
 ✅ **CONFIRMED EMPIRICALLY, not only by arithmetic:** `lp_fallback_used` is
-**False in all 50 completed runs, with 0 candidates**. The LP fallback fires only
+**False in all 52 completed runs, with 0 candidates**. The LP fallback fires only
 when the greedy allocation violates a local group ceiling, so a campaign-wide
 zero means the local ceilings were never once the binding constraint at
 allocation time.
@@ -2223,6 +2239,22 @@ of the formulation that has never been the binding constraint in any campaign.
 
 **TO TEST IT: sweep `L < G`** (e.g. `L20_G50`, where the local sum is 41 against
 a global 102). That is a cap-tag change, not new code.
+
+🔑 **AND THE CONTRAST IS EXACTLY CONTROLLED, which was not obvious.** Per-group
+`L%` sums to `L%` of the total, so `L20_G50` imposes the SAME TOTAL BUDGET as
+`L50_G20` -- 41 for class 2 and 44 for class 4 in both -- and differs only in
+whether the split across groups is also pinned:
+
+| cap | class 2 budget | class 4 budget | what is constrained |
+|---|---|---|---|
+| `L50_G20` | 41 total, split free | 44 total, split free | the TOTAL only |
+| `L20_G50` | 41 as **14 / 12 / 15** | 44 as **19 / 19 / 6** | total AND distribution |
+
+Holding the total fixed and moving only the scope is the clean form of the
+experiment, so **the two caps belong in ONE campaign** -- comparing against
+`dualbar2` instead would cross a `code_version` boundary. Verified that no group
+budget rounds to 0 at either level (a `K = 0` constraint is silently SKIPPED in
+the loss).
 
 ⚠️ **And the capped classes are mid-frequency, not rare** -- class 2 is 10.2% and
 class 4 is 11.0% of a set whose largest class is **67.7%** and whose imbalance
@@ -2995,7 +3027,7 @@ scripts/verify_caps.py   the caps bind, on the real dataset slices
 scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             216 tests, ~40 s, no dataset required
+tests/             217 tests, ~40 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

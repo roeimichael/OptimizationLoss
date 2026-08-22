@@ -4747,3 +4747,69 @@ def test_the_generator_says_which_scope_each_cap_binds(tmp_path):
     assert "EVERY cap in this campaign binds" not in out, (
         "warned about a campaign that spans both scopes -- the gate cries "
         "wolf: %s" % out[-1500:])
+
+
+def _budget_pair(df, tag, classes, num_classes):
+    """(global K, summed local K) per capped class, for one cap tag."""
+    local_pct, global_pct = cap_pair(tag)
+    g = compute_global_constraints(df, "label", global_pct,
+                                   constrained_class=classes,
+                                   num_classes=num_classes)
+    loc = compute_local_constraints(df, "label", local_pct, "grp",
+                                    constrained_class=classes,
+                                    num_classes=num_classes)
+    return {c: (g[c], sum(v[c] for v in loc.values())) for c in classes}
+
+
+def test_swapping_L_and_G_holds_the_total_budget_fixed():
+    """FRAMEWORK 2(l): L20_G50 and L50_G20 impose the SAME TOTAL, different scope.
+
+    Per-group L% sums to L% of the total, so swapping the two percentages keeps
+    the number of predictions the allocator may emit and changes only whether
+    the split across groups is pinned. That is what makes the scope contrast a
+    controlled experiment rather than two different budgets, and it is a claim
+    about banker's rounding, so it is measured and not assumed.
+
+    Real dermmnist structure: capped classes 2 and 4 over three `loc_group`s.
+    """
+    counts = {2: [70, 60, 75], 4: [97, 95, 30]}
+    labels, groups = [], []
+    for c, per_group in counts.items():
+        for gid, n in enumerate(per_group):
+            labels += [c] * n
+            groups += [gid] * n
+    for gid, n in enumerate([1101 - 70 - 97, 695 - 60 - 95, 218 - 75 - 30]):
+        labels += [5] * n
+        groups += [gid] * n
+    df = _frame(labels, groups)
+
+    tight = _budget_pair(df, "L50_G20", [2, 4], 7)
+    loose = _budget_pair(df, "L20_G50", [2, 4], 7)
+
+    for c, total in ((2, 41), (4, 44)):
+        g_tight, l_tight = tight[c]
+        g_loose, l_loose = loose[c]
+        assert g_tight == total, (c, g_tight)
+        assert l_loose == total, (c, l_loose)
+        # the totals coincide, so only the SCOPE differs between the two tags
+        assert g_tight == l_loose
+        # and each tag's own non-binding scope really is slack
+        assert l_tight > g_tight, ("L50_G20 should bind GLOBAL", c, tight[c])
+        assert g_loose > l_loose, ("L20_G50 should bind LOCAL", c, loose[c])
+
+    # NEGATIVE CONTROL 1: the match is a property of SWAPPING, not of any two
+    # tags. L30_G50 shares the global with L20_G50 and matches neither total.
+    other = _budget_pair(df, "L30_G50", [2, 4], 7)
+    for c in (2, 4):
+        assert other[c][1] != tight[c][0], (
+            "a non-swapped tag matched the total -- the assertion above is "
+            "vacuous: %r" % (other[c],))
+
+    # NEGATIVE CONTROL 2: sum-of-rounds equalling round-of-sum is NOT free.
+    # Three groups of 5 at 50% give 2+2+2=6 against a global round(7.5)=8, so
+    # the equality above is measuring real arithmetic and would catch drift.
+    pathological = _frame(([1] * 5 + [0] * 20) * 3,
+                          [0] * 25 + [1] * 25 + [2] * 25)
+    g_p, l_p = _budget_pair(pathological, "L50_G50", [1], 2)[1]
+    assert (g_p, l_p) == (8, 6), (g_p, l_p)
+    assert g_p != l_p
