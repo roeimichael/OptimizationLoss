@@ -192,6 +192,44 @@ def validate(P, args, resolved, arms):
                   "levels."
                   % ([t for t, _g in tags], int(lp * 100),
                      " ".join(t for t, _g in tags)))
+    # WHICH SCOPE ACTUALLY BINDS, stated per tag. Local caps are per-GROUP
+    # ceilings, so their sum is `L * total_true` against the global's
+    # `G * total_true` -- the comparison is L vs G and nothing else.
+    #
+    # This exists because the project has now made the SAME mistake in both
+    # directions. Until 2026-08-18 the global cap had never bound (`G >= L`
+    # throughout) and every result was a local-cap result. The fix was "sweep
+    # `G < L`", which worked -- and silently made the LOCAL scope inert:
+    # `results/dualbar2` ran L50_G20 and L50_G40, both `G < L`, and
+    # `lp_fallback_used` came back False on all 50 completed runs with 0
+    # candidates, i.e. a local ceiling was never once the binding constraint.
+    # Neither direction was noticed at generation time, twice, because nothing
+    # printed this line.
+    binds = {}
+    for tag in args.caps:
+        lp, gp = cap_pair(tag)
+        which = ("GLOBAL (local sum is %.1fx slack)" % (lp / gp) if gp < lp
+                 else "LOCAL (global is %.1fx slack)" % (gp / lp) if gp > lp
+                 else "IDENTICAL -- global exactly equals the local sum")
+        binds.setdefault(which.split()[0], []).append(tag)
+        print("  cap %-10s L=%d%% G=%d%%  ->  binding scope: %s"
+              % (tag, int(lp * 100), int(gp * 100), which))
+    if len(binds) == 1 and len(args.caps) > 1:
+        only = list(binds)[0]
+        other = "L20_G50" if only == "GLOBAL" else "L50_G20"
+        print("  !! EVERY cap in this campaign binds the %s scope. The other "
+              "scope is carried" % only)
+        print("     but slack, so nothing here tests it -- which is how the "
+              "global cap went")
+        print("     unmeasured until 2026-08-18 and the local one until "
+              "2026-08-22.")
+        print("     A binding LOCAL cap is not the same constraint: it fixes "
+              "the DISTRIBUTION")
+        print("     across groups, where a global cap fixes only the TOTAL. "
+              "Add e.g. %s" % other)
+        print("     to test the other scope, or say plainly that this campaign "
+              "tests one.")
+
     lr = P["core"]["lr"]
     lr_c = P["constraint_phase"]["lr_constraint"]
     if lr != lr_c:

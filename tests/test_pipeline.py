@@ -4707,3 +4707,43 @@ def test_every_trained_arm_logs_the_per_class_counts(arm, methodology):
         assert np.allclose(h, h.round()), (
             "%s wrote a non-integer hard count in Hard_Class%s: %s"
             % (arm, c, list(h)))
+
+
+def test_the_generator_says_which_scope_each_cap_binds(tmp_path):
+    """Local caps are per-GROUP ceilings, so the binding scope is L vs G.
+
+    Local sum is `L * total_true` against the global's `G * total_true`, so
+    `G < L` means the GLOBAL binds and the local is slack, and `G > L` the
+    reverse. Nothing printed this, and the project has now made the same
+    mistake in BOTH directions: until 2026-08-18 every campaign ran `G >= L`
+    so the global cap had never bound, and the fix -- sweep `G < L` -- made the
+    LOCAL scope inert instead. `results/dualbar2` ran L50_G20 and L50_G40, both
+    `G < L`, and `lp_fallback_used` was False on all 50 completed runs with 0
+    candidates: a local ceiling was never once the binding constraint.
+
+    Negative control: with the readout removed, a campaign whose caps all bind
+    one scope generates silently, which is exactly what happened twice.
+    """
+    # the arithmetic itself, independent of any output
+    for tag, expect in (("L50_G20", "GLOBAL"), ("L50_G40", "GLOBAL"),
+                        ("L20_G50", "LOCAL"), ("L30_G30", "IDENTICAL")):
+        lp, gp = cap_pair(tag)
+        got = ("GLOBAL" if gp < lp else "LOCAL" if gp > lp else "IDENTICAL")
+        assert got == expect, "%s: expected %s, got %s" % (tag, expect, got)
+
+    # every cap binding ONE scope must be called out by name
+    r = _gen(tmp_path / "same", "--caps", "L50_G20", "L50_G40")
+    out = r.stdout + r.stderr
+    assert "binding scope: GLOBAL" in out, out[-1500:]
+    assert "EVERY cap in this campaign binds the GLOBAL scope" in out, (
+        "a campaign that tests only one scope generated without saying so: %s"
+        % out[-1500:])
+    assert "L20_G50" in out, "the warning must name the fix"
+
+    # a campaign that spans BOTH scopes must NOT be warned at
+    r = _gen(tmp_path / "both", "--caps", "L50_G20", "L20_G50")
+    out = r.stdout + r.stderr
+    assert "binding scope: GLOBAL" in out and "binding scope: LOCAL" in out, out[-1500:]
+    assert "EVERY cap in this campaign binds" not in out, (
+        "warned about a campaign that spans both scopes -- the gate cries "
+        "wolf: %s" % out[-1500:])

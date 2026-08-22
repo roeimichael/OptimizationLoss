@@ -1752,7 +1752,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 215 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 216 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1760,7 +1760,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (215 tests, ~40 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (216 tests, ~40 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -2169,6 +2169,66 @@ K=41** -- the same shape as section (i)'s allocation-noise curve, which peaks
 where the budget cuts the contested middle and collapses at both ends. The cell
 with 3x the headroom is the cell where a coin flip moves furthest, and that is
 why the loose cap flatters everything including the control.
+
+### (l) 🛑🛑 THE LOCAL CAP HAS NEVER BOUND EITHER -- the mirror of the 2026-08-18 bug
+
+**Found 2026-08-22, Roei's question: "are we monitoring multiclass constraints,
+on both global and local?"** The answer is that we monitor multiclass correctly
+and have **only ever tested the GLOBAL scope.**
+
+**THE ARITHMETIC.** Local caps are per-GROUP ceilings, so their sum is
+`L * total_true` while the global is `G * total_true`. Therefore:
+
+| regime | binding scope |
+|---|---|
+| `G > L` | LOCAL binds, global inert |
+| `G = L` | identical, global redundant |
+| **`G < L`** | **GLOBAL binds, local slack** |
+
+🛑 **This is the exact mirror of the 2026-08-18 finding.** That one said the
+global cap had never bound, and the fix was "sweep `G < L`". The fix worked --
+and silently made the LOCAL scope inert. **Nobody checked the other side.**
+`results/dualbar2` runs `L50_G20` and `L50_G40`, both `G < L`:
+
+| cap | class | global K | local K per group | local sum | slack |
+|---|---|---|---|---|---|
+| L50_G20 | 2 | **41** | 35 / 30 / 38 | 103 | 2.5x |
+| L50_G20 | 4 | **44** | 48 / 48 / 15 | 111 | 2.5x |
+| L50_G40 | 2 | **82** | 35 / 30 / 38 | 103 | 1.3x |
+| L50_G40 | 4 | **89** | 48 / 48 / 15 | 111 | 1.2x |
+
+✅ **CONFIRMED EMPIRICALLY, not only by arithmetic:** `lp_fallback_used` is
+**False in all 50 completed runs, with 0 candidates**. The LP fallback fires only
+when the greedy allocation violates a local group ceiling, so a campaign-wide
+zero means the local ceilings were never once the binding constraint at
+allocation time.
+
+🔑 **WHY THIS IS THE MOST PROMISING UNTESTED REGIME.** Section 3's standing
+objection is *"a count says how MANY, never WHICH"*, which is why post-hoc top-K
+is optimal and every arm ties. **That objection is about the GLOBAL cap.** A
+binding LOCAL cap says "at most 35 in g0, 30 in g1, 38 in g2" -- it constrains
+the DISTRIBUTION across groups, not just the total. That is strictly more than a
+scalar, and on this data the groups are genuinely different populations:
+
+| group | size | class 2 | prevalence | class 4 |
+|---|---|---|---|---|
+| g0 | 1101 | 70 | **6.4%** | 97 |
+| g1 | 695 | 60 | 8.6% | 95 |
+| g2 | 218 | 75 | **34.4%** | 30 |
+
+A **5.4x** class-2 prevalence spread across groups, and a 5x size spread. ⚠️ It
+does NOT follow that a binding local cap beats a clipper -- the allocator can use
+local caps too, which is what `lp_fallback` exists for. But it is the only part
+of the formulation that has never been the binding constraint in any campaign.
+
+**TO TEST IT: sweep `L < G`** (e.g. `L20_G50`, where the local sum is 41 against
+a global 102). That is a cap-tag change, not new code.
+
+⚠️ **And the capped classes are mid-frequency, not rare** -- class 2 is 10.2% and
+class 4 is 11.0% of a set whose largest class is **67.7%** and whose imbalance
+ratio is **62:1**. The genuinely hard classes (3 at 1.1%, 6 at 1.7%, 0 at 3.4%)
+are not capped, and cannot easily be: `K = 0.2 * 22 = 4` for class 3, and a cap
+rounding toward 0 is SKIPPED in the loss.
 
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
@@ -2935,7 +2995,7 @@ scripts/verify_caps.py   the caps bind, on the real dataset slices
 scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             215 tests, ~40 s, no dataset required
+tests/             216 tests, ~40 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

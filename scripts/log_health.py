@@ -17,6 +17,7 @@ import argparse
 import glob
 import json
 import os
+import re
 
 import numpy as np
 import pandas as pd
@@ -156,6 +157,40 @@ def read_run(d):
         r["counts"][c] = {"K": K, "first": float(y[0]), "last": float(y[-1]),
                           "mean": float(y.mean()), "min": float(y.min()),
                           "max": float(y.max()), "slope": slope}
+
+    # --- the LOCAL scope, per (group, class). This was unread entirely, on a
+    #     protocol whose local caps are per-GROUP ceilings: with 2 capped
+    #     classes and 3 groups the loss carries 2 x (1 global + 3 local) = 8
+    #     terms and only the 2 global ones were being watched.
+    #
+    #     It is the scope where FRAMEWORK 2(a2) says the damage is: the
+    #     penalty's gradient is non-monotone in the violation, so the
+    #     WORST-violating group is starved by a milder one at 167:1, and the
+    #     terms compete for one unit-norm clip. That is invisible in any
+    #     global count and invisible in `total_excess`, which sums it away. ---
+    r["group_counts"] = {}
+    for col in df.columns:
+        m = re.match(r"^Group(\d+)_Limit_Class(\d+)$", str(col))
+        if not m:
+            continue
+        gid, c = int(m.group(1)), int(m.group(2))
+        lim = pd.to_numeric(df[col], errors="coerce").dropna()
+        if lim.empty or float(lim.iloc[-1]) >= 1e9:
+            continue                              # uncapped in this group
+        hc = "Group%d_Hard_Class%d" % (gid, c)
+        if hc not in df.columns:
+            continue
+        h = pd.to_numeric(df[hc], errors="coerce").dropna()
+        if r["wide"] and len(h) > 1:
+            h = h.iloc[1:]                        # drop the warm-up row
+        if len(h) < 3:
+            continue
+        K = float(lim.iloc[-1])
+        y = h.to_numpy(dtype=float)
+        r["group_counts"][(gid, c)] = {
+            "K": K, "first": float(y[0]), "last": float(y[-1]),
+            "mean": float(y.mean()), "over": float(np.maximum(y - K, 0).mean()),
+            "slope": float(np.polyfit(np.arange(len(y), dtype=float), y, 1)[0])}
     return r
 
 
@@ -227,6 +262,61 @@ def main():
         print("  %-14s %5d %8s %14s   %s"
               % (arm, len(rs), "%.4f" % np.mean(accs) if accs else "n/a",
                  satr, "; ".join(cs) if cs else "n/a (schema)"))
+
+    # --- the LOCAL scope, per arm. Reported separately from the global one
+    #     because they are different constraints with different budgets, and
+    #     the protocol's local caps are per-GROUP ceilings. ---
+    keys = sorted({k for r in runs for k in r.get("group_counts", {})})
+    if keys:
+        print("")
+        print("LOCAL SCOPE -- per (group, capped class), which no global count "
+              "and no `total_excess` can show")
+        print("  %-14s %-14s %6s %14s %10s %9s"
+              % ("arm", "group/class", "K", "count first->last",
+                 "mean over", "slope/ep"))
+        for arm in sorted({r["arm"] or "?" for r in runs if r.get("group_counts")}):
+            rs = [r for r in runs if (r["arm"] or "?") == arm and r.get("group_counts")]
+            for gid, c in keys:
+                v = [r["group_counts"][(gid, c)] for r in rs
+                     if (gid, c) in r["group_counts"]]
+                if not v:
+                    continue
+                print("  %-14s g%d / class%-4d %6.0f %6.0f -> %-6.0f %10.1f %+9.2f"
+                      % (arm, gid, c, v[0]["K"],
+                         np.mean([x["first"] for x in v]),
+                         np.mean([x["last"] for x in v]),
+                         np.mean([x["over"] for x in v]),
+                         np.mean([x["slope"] for x in v])))
+
+        # FRAMEWORK 2(a2): the penalty's gradient is non-monotone in the
+        # violation, so the WORST-violating group is starved by a milder one
+        # (167:1 measured) and the terms compete for one unit-norm clip. The
+        # signature is the deepest violator improving LEAST. Checked here
+        # rather than left to a reader, because it is invisible in every
+        # aggregate this project prints.
+        for arm in sorted({r["arm"] or "?" for r in runs if r.get("group_counts")}):
+            rs = [r for r in runs if (r["arm"] or "?") == arm and r.get("group_counts")]
+            per = {}
+            for k in keys:
+                v = [r["group_counts"][k] for r in rs if k in r["group_counts"]]
+                if v:
+                    per[k] = (np.mean([x["over"] for x in v]),
+                              np.mean([x["slope"] for x in v]))
+            live = {k: v for k, v in per.items() if v[0] > 0}
+            if len(live) < 2:
+                continue
+            worst = max(live, key=lambda k: live[k][0])
+            mildest = min(live, key=lambda k: live[k][0])
+            if live[worst][1] >= live[mildest][1]:
+                print("  !! %s: the WORST-violating scope g%d/class%d "
+                      "(over by %.0f) is falling SLOWER than the mildest "
+                      "g%d/class%d (over by %.0f): %+.2f vs %+.2f per epoch."
+                      % (arm, worst[0], worst[1], live[worst][0],
+                         mildest[0], mildest[1], live[mildest][0],
+                         live[worst][1], live[mildest][1]))
+                print("     That is FRAMEWORK 2(a2)'s starvation signature -- "
+                      "the penalty's gradient is non-monotone in the violation "
+                      "and the scopes compete for one unit-norm clip.")
 
     pinned = [r for r in runs if r["gn_pinned"] and r["gn_pinned"][1]]
     if pinned:
