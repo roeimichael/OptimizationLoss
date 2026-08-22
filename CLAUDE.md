@@ -183,6 +183,14 @@ pipeline -- there is no setting to get wrong. Same for the CE-saturation skip
 ## Infrastructure
 
 - **Never run experiments locally.** SSH `dsisco01` / `dsisco02`, `conda activate optloss`.
+- 🛑 **NEVER touch `src/`, `configs/` or `main.py` on the SERVER while a campaign is
+  running** -- not even a comment. `code_version` is a git hash, so any edit splits the
+  campaign into two non-comparable halves and turns `check_parity`'s "every arm from one
+  commit" red. Deploy after the last run, never during. `scripts/` is exempt and safe to
+  update mid-flight: nothing under it is on `src.experiments.runner`'s import path, which
+  is why the scorer and the offline probes can be iterated while runs land. **Check
+  `git status --porcelain src/ configs/ main.py` on the server, not just `git status`** --
+  a tree dirty only in `scripts/` is the normal working state and says nothing.
 - **Max 2 GPUs.** Run `nvidia-smi` **with owner lookup** first; never share a GPU with another user.
 - dsisco01 = Quadro RTX 6000 (FP16 + GradScaler). dsisco02 = RTX PRO 6000 Blackwell (BF16 AMP).
   Record which one a result came from.
