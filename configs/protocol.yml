@@ -450,7 +450,18 @@ arms:
   # MEASURED, not assumed. In `results/dualbar2` all four zero-dose arms emit
   # one md5 (`1bfa966cdf01`) at BOTH cap levels, and 47 of 49 training-log
   # columns are equal -- the two exceptions being the limit columns, which are
-  # the budget itself. 32 of that campaign's 88 runs computed one control.
+  # the budget itself.
+  #
+  # THE ARITHMETIC, stated exactly, because a rounded version of it has already
+  # been quoted wrong. 4 null arms x 2 caps x 4 seeds = 32 null runs, and the
+  # null is ALSO cap-blind, so they collapse to 4 distinct models -- one per
+  # seed. 28 of the 32 are redundant. The sibling map below removes 24 of them
+  # (3 arms x 2 caps x 4 seeds); the last 4 need cross-cap reuse of a TRAINED
+  # model, which is a cache change and is not done here.
+  # ⚠️ The two CLIPPERS are not part of this. They look duplicated across caps
+  # and are not waste: a post-hoc arm's model IS its warm-up, so the second cap
+  # hits the warm-up cache and writes no training_log at all. Timing them by
+  # mtime gaps says 4.4 min and attributes the previous run's tail to them.
   #
   # The equivalence is GATED, because it is now load-bearing rather than
   # incidental: test_every_zero_dose_arm_is_the_same_model_across_code_paths
