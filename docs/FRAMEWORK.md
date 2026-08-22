@@ -2577,6 +2577,30 @@ representation channel is measured and closed**, and with it the last mechanism
 the structural argument leaves open. Say so plainly rather than looking for a
 fifth slice.
 
+**THE EXACT READ, in order.** Verified 2026-08-22 that `full_panel` accepts an
+arbitrary control and validates it against the arms present, so the twin
+contrast needs no new scorer:
+
+```bash
+python -m scripts.log_health results/iwc1                          # 0. did it RUN
+python -m scripts.full_panel --campaign results/iwc1 --control tralo_null  # 1. THE VERDICT
+python -m scripts.full_panel --campaign results/iwc1 --control clip        # 2. the bar
+python -m scripts.straddle_probe --campaign results/iwc1           # 3. was it REACHABLE
+```
+
+Step 0 first, every time: a dead arm reads as `pending`, and all eight tralo
+runs of one campaign once OOM'd while the campaign merely looked unfinished.
+Step 1 is the pre-registered verdict and it is read from the **ALLOCATION-FREE**
+block (AP, AUROC) -- not from ccF1, which is the allocation channel. Step 2 is
+the quality bar and answers a different question; a step-1 win with a step-2
+loss is still a loss. Step 3 is what makes a TIE interpretable, per 2(o).
+
+⚠️ `paired_seeds` reports `d AUROC` but **no AP**, and reads the ALLOCATED
+predictions file. That is sound -- post-hoc rewrites `Predicted_Label` and never
+the `Prob_Class_*` columns, so its AUROC is genuinely allocation-free -- but it
+does not carry the second half of the pre-registered verdict. Use `full_panel`
+for the verdict and `paired_seeds` only for the per-seed spread.
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 **The single most useful fact in this project: regime effects are ~8 pp. Method effects are ~0.1 pp.**
