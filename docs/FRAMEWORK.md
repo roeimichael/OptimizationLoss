@@ -1927,14 +1927,36 @@ probabilities against the shared lambda=0 twin:
 | alm | full | -3.16 / -3.05 | 0.80 / 0.83 | 14/41, 20/44 |
 | **`tralo_reseed`** | **zero** | **+1.82 / +0.89** | 0.79 / 0.73 | **15/41, 20/44** |
 
-Two things, and the second is the one that matters:
+⛔ **CLAIM 1 IS REFUTED. It read: "the SIGN of the mean shift separates cleanly
+-- trained arms push the capped classes DOWN, the zero-dose reseed pushes them
+UP." That rested on ONE zero-dose draw and the second draw killed it.** The
+seed-2 numbers, same statistic, same cell:
 
-1. ✅ **The SIGN of the mean shift separates cleanly** -- all four trained arms
-   push the capped classes DOWN, the zero-dose reseed pushes them UP. The
-   constraint is doing something systematic and it is the intended direction.
-2. 🛑 **The re-ranking is indistinguishable from noise.** Every treated arm moves
-   29-45% of the selected set, and **a pure RNG reseed at zero dose moves the
-   same 15/41 and 20/44.** The constraint re-ranks no more than re-seeding does.
+| arm | dose | c2 | c4 | top-K set moved |
+|---|---|---|---|---|
+| tralo | full | -3.36 | -3.14 | 20/41, 13/44 |
+| alm | full | -2.60 | -1.57 | 17/41, 15/44 |
+| hounie | full | -2.15 | -1.66 | 15/41, 16/44 |
+| fioretto | full | -1.96 | -2.54 | 15/41, 16/44 |
+| **`tralo_reseed`** | **ZERO** | **-3.14** | **-3.40** | 16/41, 14/44 |
+
+**At seed 2 the zero-dose control is MORE negative than three of the four
+treated arms.** Its own shift swung +1.82 -> -3.14 nats on class 2 between
+seeds -- about 5 nats -- so the control's variance is larger than the entire
+treated range, and one draw per seed cannot estimate it. **The mean log-odds
+shift is not shown to be a treatment effect.**
+
+⚠️ Worth recording rather than hiding, because it is genuinely odd: the TREATED
+shifts reproduce well across the two seeds (tralo c2 -3.35 -> -3.36, fioretto
+-2.17 -> -1.96, hounie -1.68 -> -2.15, alm -3.16 -> -2.60) while the zero-dose
+control does not. That is a reason to keep measuring it, not a reason to claim
+it -- a stable treatment against an unstable control at n=2 per arm is exactly
+the shape a lucky control draw produces.
+
+✅ **CLAIM 2 STANDS, and it is the one that mattered.** Every treated arm moves
+29-45% of the selected set; the pure RNG reseed at zero dose moves the same --
+15/41 and 20/44 at seed 1, 16/41 and 14/44 at seed 2. **The constraint re-ranks
+no more than re-seeding does, at both seeds.**
 
 ⚠️ **Correcting a plausible mis-reading of this table.** The shift is *not* a
 near-uniform translation, and it must not be described as one: the per-item sd
@@ -2026,9 +2048,13 @@ the capped classes' odds by `w` on the shipped `clip` model and re-allocate:
 reseed does.** The within-class ranking is what the allocator consumes, and a per-class
 reweighting barely disturbs it.
 
-**Step 2. The constraint's entire systematic signature IS a per-class prior shift.**
-Section (h) measures it at -1.7 to -4.7 nats, i.e. odds x 0.009 to 0.18 -- squarely
-inside the range above. Build a synthetic twin of the null whose ONLY difference is that
+**Step 2. The per-class shift, whatever causes it, explains almost none of the
+re-allocation.** Section (h) measures the shift at -1.7 to -4.7 nats, i.e.
+odds x 0.009 to 0.18 -- squarely inside the range above. ⚠️ Section (h) now shows
+that shift is **not established as a treatment effect** (the zero-dose control
+produced one just as large at seed 2), which does not weaken this step; it
+strengthens it. The comparison below is per-arm and asks only how much of THAT
+ARM's re-allocation its OWN mean shift accounts for. Build a synthetic twin of the null whose ONLY difference is that
 same mean shift, and compare it to what the arm actually did:
 
 | arm | measured shift (c2, c4) | items moved, ACTUAL | items moved, PURE SHIFT |
@@ -2039,11 +2065,16 @@ same mean shift, and compare it to what the arm actually did:
 | alm | -3.16, -3.05 | 14/41, 20/44 | 2/41, 2/44 |
 | **`tralo_reseed`** (zero dose) | +1.82, +0.89 | **15/41, 20/44** | 1/41, 2/44 |
 
-🔑 **THE DECOMPOSITION. The constraint = (a) a prior shift worth 1-4 items of
-re-allocation, which is the ONE transform top-K is built to ignore, plus (b) 11-18 items
-of UNAIMED movement that a zero-dose RNG reseed reproduces exactly.** Roughly 80% of what
-the constraint does to the allocation is not explained by the only thing it does
-systematically.
+🔑 **THE DECOMPOSITION. Each arm's own mean shift accounts for 1-4 of the 12-20 items
+it re-allocates -- and that shift is the ONE transform top-K is built to ignore. The
+other 11-18 items are UNAIMED, and a zero-dose RNG reseed reproduces them exactly, at
+both seeds.** Roughly 80% of what any arm does to the allocation is unexplained by its
+own systematic component, and the remaining 20% is the part the allocator discards.
+
+⚠️ **Stated WITHOUT attributing the shift to the constraint**, because section (h)'s
+second zero-dose draw showed it is not established as a treatment effect. That makes the
+conclusion stronger, not weaker: the constraint's attributable footprint is SMALLER than
+the decomposition's already-small systematic term.
 
 That is why every arm ties, stated once and completely. It is not a dose problem, a
 shape problem, an optimizer problem or an estimator problem -- all four were swept and
