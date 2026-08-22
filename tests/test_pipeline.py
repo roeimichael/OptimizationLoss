@@ -2876,3 +2876,45 @@ def test_the_grad_carrying_chunk_and_the_no_grad_chunk_are_separate_keys():
             "%s reads the CONSTRAINT chunk for a no_grad pass; it does not "
             "carry the constraint_phase block, so it would silently fall back "
             "to the module default and stop tracking the protocol" % rel[0])
+
+
+def test_every_trained_arm_logs_a_train_accuracy_column():
+    """The collapse detector reads train accuracy, so an arm that logs none is
+    invisible to it -- and the pipeline keeps the FINAL epoch unconditionally,
+    which is what makes a terminal collapse the scored model.
+
+    The three dual arms wrote their own 7-column log schema with no accuracy in
+    it, so `fioretto`, `hounie` and `alm` could collapse silently. In an 80-run
+    campaign that is 48 unwatched runs, on exactly the arms under test.
+    """
+    import ast as _ast
+    trained = {"tralo": ("tralo", "train.py"),
+               "select": ("select", "train.py"),
+               "fioretto_ldf": ("fioretto_ldf", "train.py"),
+               "fioretto_alm": ("fioretto_alm", "train.py"),
+               "hounie_rcl": ("hounie_rcl", "train.py")}
+    for name, rel in trained.items():
+        src = io.open(os.path.join(REPO, "src", "methodologies", *rel),
+                      encoding="utf-8").read()
+        code = _ast.unparse(_ast.parse(src))     # comments cannot satisfy this
+        # Either the arm names the field itself, or it delegates to the
+        # canonical writer, which always emits Train_Acc. Naming the field was
+        # too strict: `select` passes the accuracy positionally to
+        # log_progress_to_csv, and its logs do carry Train_Acc.
+        assert ("train_acc" in code or "Train_Acc" in code
+                or "log_progress_to_csv" in code), (
+            "%s neither logs a train-accuracy field nor calls the canonical "
+            "writer, so scripts/full_panel.py cannot see a terminal collapse "
+            "in any of its runs" % name)
+
+    # and the detector must accept BOTH spellings, or adding the column to the
+    # duals silently fails to switch it on
+    panel = io.open(os.path.join(REPO, "scripts", "full_panel.py"),
+                    encoding="utf-8").read()
+    fn = next(n for n in _ast.walk(_ast.parse(panel))
+              if isinstance(n, _ast.FunctionDef) and n.name == "_terminal_collapse")
+    body = _ast.unparse(fn)
+    for spelling in ("Train_Acc", "train_acc"):
+        assert spelling in body, (
+            "_terminal_collapse does not know the %r spelling, so one log "
+            "schema is unwatched" % spelling)

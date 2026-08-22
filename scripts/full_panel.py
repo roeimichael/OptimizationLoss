@@ -509,9 +509,15 @@ def _terminal_collapse(run_dir):
         df = pd.read_csv(os.path.join(run_dir, "training_log.csv"))
     except Exception:
         return None
-    if "Train_Acc" not in df.columns or len(df) < 2:
+    # Two spellings, because the dual arms write their own log schema. They
+    # recorded NO accuracy at all until 2026-08-22, so every fioretto/hounie/alm
+    # run was invisible to this detector -- in an 80-run campaign that is 48
+    # runs where a terminal collapse could not be seen, on the arms the
+    # campaign exists to test.
+    col = next((c for c in ("Train_Acc", "train_acc") if c in df.columns), None)
+    if col is None or len(df) < 2:
         return None
-    acc = pd.to_numeric(df["Train_Acc"], errors="coerce").dropna()
+    acc = pd.to_numeric(df[col], errors="coerce").dropna()
     if len(acc) < 2:
         return None
     last, prev = float(acc.iloc[-1]), float(acc.iloc[-2])

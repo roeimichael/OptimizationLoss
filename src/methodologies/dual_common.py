@@ -175,14 +175,22 @@ def dual_setup(model, inputs, device, lr, batch_size):
 
 def ce_epoch(model, train_loader, optimizer, criterion_ce, device,
              amp_dtype, use_amp, scaler):
-    """One epoch of cross-entropy on the TRAIN split; returns the batch losses.
+    """One CE epoch on the TRAIN split; returns (batch losses, train accuracy).
 
     CE keeps running through every constraint epoch, which is what makes the
     trained arms equal-compute with the post-hoc ones: 30 optimizer epochs on
     both sides, no arm getting more opportunity to memorize than another.
+
+    The accuracy is not decoration. The pipeline keeps the FINAL epoch
+    unconditionally, so a run that falls off its own trajectory on the last
+    epoch is the model that gets scored -- three such collapses were found in
+    64 runs, one of them a CONTROL, and that single run reversed the sign of a
+    4-seed headline. The detector for it reads train accuracy, and the dual
+    arms did not record any, so a collapsed dual run was invisible.
     """
     model.train()
     ce_losses = []
+    correct = seen = 0
     for batch_X, batch_y in train_loader:
         batch_X, batch_y = batch_X.to(device), batch_y.to(device)
         optimizer.zero_grad(set_to_none=True)
@@ -190,6 +198,9 @@ def ce_epoch(model, train_loader, optimizer, criterion_ce, device,
             logits_ce = model(batch_X)
             ce_loss = criterion_ce(logits_ce, batch_y)
         ce_losses.append(ce_loss.item())
+        with torch.no_grad():
+            correct += (logits_ce.argmax(dim=1) == batch_y).sum().item()
+            seen += batch_y.size(0)
         if scaler:
             scaler.scale(ce_loss).backward()
             scaler.step(optimizer)
@@ -197,7 +208,7 @@ def ce_epoch(model, train_loader, optimizer, criterion_ce, device,
         else:
             ce_loss.backward()
             optimizer.step()
-    return ce_losses
+    return ce_losses, (correct / seen if seen else 0.0)
 
 
 def transductive_counts(model, X_test_dev, groups_np, unique_groups,

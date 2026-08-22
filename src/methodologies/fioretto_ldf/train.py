@@ -87,7 +87,8 @@ def _train_constraints(model, inputs, device):
     ck = Checkpoints(allow_restore, "Fioretto")
 
     last_grad_norm = 0.0
-    log_fields = ["epoch", "ce_loss", "constraint_loss", "total_excess",
+    log_fields = ["epoch", "train_acc", "ce_loss", "constraint_loss",
+                  "total_excess",
                   "all_satisfied", "max_lambda_g",
                   "grad_norm"]
     write_row = open_epoch_log(inputs.experiment_path, log_fields)
@@ -98,7 +99,7 @@ def _train_constraints(model, inputs, device):
         epoch_start = time.time()
 
         # ---- Step 1: CE on TRAIN data (batched) ----
-        ce_losses = ce_epoch(model, train_loader, optimizer, criterion_ce,
+        ce_losses, train_acc = ce_epoch(model, train_loader, optimizer, criterion_ce,
                              device, amp_dtype, use_amp, scaler)
 
 
@@ -190,6 +191,7 @@ def _train_constraints(model, inputs, device):
 
         row = {
             "epoch": epoch,
+            "train_acc": round(train_acc, 4),
             "ce_loss": round(np.mean(ce_losses), 6),
             "constraint_loss": round(constraint_loss_val, 6),
             "total_excess": total_excess,
