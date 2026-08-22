@@ -62,6 +62,28 @@ def reordering_report(model, X_test, before, classes, chunk_size):
             tau = rho = float("nan")
         # the single logit shift that best explains the soft-count change, on
         # the log-odds scale where a uniform bias IS an additive constant
+        #
+        # ⚠️ `eps` CLIPS A LOT OF REAL DATA HERE, and anyone reading
+        # `shift_residual_sd` will and should worry about it: on
+        # `results/dualbar2`, 35-73% of capped-class probabilities fall BELOW
+        # 1e-6, so for most items the log-odds below is the constant -13.8
+        # rather than a score. Treated runs are also more clipped than their
+        # nulls (mean 0.590 vs 0.473), which is exactly the direction that
+        # would manufacture a lower dispersion for treated runs out of nothing.
+        #
+        # MEASURED, 2026-08-22, and it does NOT explain the separation:
+        # clipped-fraction vs `shift_residual_sd` over 29 runs is r = -0.360
+        # (p = 0.055, spearman -0.250), about 13% of the variance, against
+        # r = -0.942 for the constraint's actual soft-count displacement. And
+        # the clipped fraction does NOT separate the groups on its own --
+        # zero-dose 0.268-0.580 against treated 0.381-0.730, overlapping --
+        # while `shift_residual_sd` does. So the clip is a real limitation of
+        # the SCALE and not the cause of the effect.
+        #
+        # It is left at 1e-6 deliberately rather than tightened: a smaller eps
+        # does not recover information, it hands the dispersion to the extreme
+        # tail of a float32 softmax, and changing it would silently break
+        # comparability with every stored run.
         eps = 1e-6
         lb = np.log(np.clip(b, eps, 1 - eps) / np.clip(1 - b, eps, 1 - eps))
         la = np.log(np.clip(a, eps, 1 - eps) / np.clip(1 - a, eps, 1 - eps))
