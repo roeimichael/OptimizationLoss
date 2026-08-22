@@ -4869,3 +4869,96 @@ def test_group_calibrate_hits_the_target_prior_per_group():
     # controls would be silently identical to the real row.
     Q2 = group_calibrate(P, g, [1], targets, group_key=[1, 2, 0])
     assert not np.allclose(Q, Q2)
+
+
+# ----------------------------------------------------- the dataset screen --
+
+def _meta(labels, groups):
+    return pd.DataFrame({"label": np.asarray(labels),
+                         "loc_group": np.asarray(groups)})
+
+
+def _screen_pair(train, test):
+    from scripts.dataset_screen import novelty_items
+    return novelty_items(train, test, "loc_group", n_null=200, seed=0)
+
+
+def test_screen_net_ignores_a_uniform_shift_but_sees_a_differential_one():
+    """NET must separate one multiplier in disguise from a real reordering.
+
+    This is the claim that disqualified `data/dermmnist/shift_1`: it scores 160
+    items of LOCAL novelty but only 50 NET, because 110 of them are the global
+    shift replicated across all three groups. A uniform per-group shift IS a
+    single global multiplier, which FRAMEWORK 2(j) showed is monotone and cannot
+    reorder anything, so counting it as per-group information would recommend a
+    dataset that provably cannot work.
+    """
+    rng = np.random.default_rng(0)
+    n_g = 900
+    base = [0.10, 0.20, 0.30]
+
+    def build(p_by_group):
+        lab, grp = [], []
+        for gid, p in enumerate(p_by_group):
+            draws = rng.choice([0, 1], size=n_g, p=[1 - p, p])
+            lab += list(draws)
+            grp += [gid] * n_g
+        return _meta(lab, grp)
+
+    def relabel(p_by_group, w):
+        """Apply ONE per-class multiplier to every group, then renormalise.
+
+        This is the label-shift model: p_test(y) = w_y p_train(y) with the SAME
+        w in every group. Note that simply doubling each group's positive RATE
+        is NOT this -- it forces the negative class to move by 0.89 / 0.75 /
+        0.57 across the three groups, which is a differential shift and which
+        NET correctly fires on.
+        """
+        out = []
+        for p in p_by_group:
+            num = p * w[1]
+            out.append(num / (num + (1 - p) * w[0]))
+        return out
+
+    train = build(base)
+
+    # (a) UNIFORM label shift: one multiplier per class, every group. Global
+    #     moves a lot; nothing is reorderable, so NET must stay quiet.
+    uniform = build(relabel(base, [1.0, 2.0]))
+    a = _screen_pair(train, uniform)
+    assert a["global_z"] > 5, a
+    assert a["net_z"] < 2.0, ("a uniform shift leaked into NET: %r" % a)
+
+    # (b) DIFFERENTIAL shift at a HELD global rate: group 0 up, group 2 down,
+    #     mean preserved. Global must stay quiet; NET must fire.
+    differential = build([0.30, 0.20, 0.10])
+    b = _screen_pair(train, differential)
+    assert abs(b["global_z"]) < 3, ("global fired on a mean-preserving "
+                                    "reshuffle: %r" % b)
+    assert b["net_z"] > 5, ("NET missed a pure differential shift: %r" % b)
+    assert b["net_items"] > 100, b["net_items"]
+
+
+def test_screen_calls_index_modulo_groups_dead():
+    """`synth_group = index % 3` is the octmnist/tissuemnist construction.
+
+    It makes every group an i.i.d. draw from one distribution, so the local
+    scope carries nothing by construction. The screen must return that as
+    sampling noise, or it would recommend re-running the two datasets already
+    known to test nothing.
+    """
+    rng = np.random.default_rng(1)
+    n = 2700
+    train = _meta(rng.choice([0, 1, 2], size=n, p=[0.6, 0.3, 0.1]),
+                  np.arange(n) % 3)
+    test = _meta(rng.choice([0, 1, 2], size=n, p=[0.6, 0.3, 0.1]),
+                 np.arange(n) % 3)
+    r = _screen_pair(train, test)
+    assert r["net_z"] < 2.0, ("index%%3 groups scored as informative: %r" % r)
+    # NEGATIVE CONTROL: the same test labels with groups assigned BY LABEL
+    # instead of by index must fire, or the assertion above is vacuous.
+    rigged = test.copy()
+    rigged["loc_group"] = (test["label"] == 0).astype(int)
+    r2 = _screen_pair(train, rigged)
+    assert r2["net_z"] > 5, ("screen is blind even to label-aligned groups: %r"
+                             % r2)

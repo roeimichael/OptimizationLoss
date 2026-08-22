@@ -1752,7 +1752,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 219 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 221 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1760,7 +1760,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (219 tests, ~40 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (221 tests, ~40 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -2325,6 +2325,92 @@ and never re-ranks, and 2(l) measured the training-time local term acting purely
 on the TOTAL with the per-group SHARES unchanged (class 4 group 2, whose ceiling
 is punitively tight at 15 against 48/48, held share 0.146 treated vs 0.137
 zero-dose, p=0.296). Both halves say the same thing.
+
+### (n) 🟢 THE DATASET CRITERION -- what a dataset must have for ANY of this to work
+
+**Roei, 2026-08-22: "the whole issue that stands between us and making the dual
+method work is finding a correct dataset."** Correct, and the criterion is now
+measurable. `scripts/dataset_screen` computes it from labels and metadata alone
+-- no images, no model, no GPU.
+
+**THE ARGUMENT, from the nulls.** Post-hoc top-K is provably optimal for
+expected TP *given the probabilities*, so training can only win by producing
+better probabilities. The constraint's sole contribution is information: it
+states counts. That can only help if it is information the TRAINING SET DOES NOT
+ALREADY CARRY. Two measurements pin which kind:
+
+* **2(j): a GLOBAL count cap cannot help on ANY dataset.** One multiplier per
+  class is monotone, so it cannot reorder two items; a 1000x correction moved
+  fewer than an RNG reseed. **That route is shut permanently, not per-dataset.**
+* **2(m): a PER-GROUP multiplier is not monotone and CAN reorder across
+  groups.** That is the only live route, and it is what a local cap is.
+
+🛑 **THEREFORE THE METRIC IS THE *DIFFERENTIAL* PER-GROUP SHIFT, AND NOTHING
+ELSE.** If every group shifts by the same factor, that is one global multiplier
+wearing N hats -- dead by 2(j). `dataset_screen` reports `NET`: the per-group
+deviation after rescaling each group by the observed GLOBAL shift, minus a
+simulated sampling-noise null.
+
+**⚠️ BOTH SUBTRACTIONS ARE LOAD-BEARING, and the first version had neither.**
+Without the noise null the screen scored dermmnist at "62x the seed noise" --
+a group of 218 manufactures tens of "novel" items by binomial noise alone.
+Without the global rescale it scored `shift_1` at 160.
+
+| slice | NET | LOCAL | GLOBAL | verdict |
+|---|---|---|---|---|
+| `dermmnist/slice_1` | **+65** (z=2.9) | +70 | -10 | stage 1 pass |
+| `dermmnist/shift_1` | **+50** (z=2.5) | +160 (z=7.1) | +154 (z=7.4) | **110 of its 160 is global shift in disguise** |
+| `octmnist/slice_1` | **-7** (z=-0.4) | -7 | -46 | **DEAD** |
+| `tissuemnist` | **-55** (z=-1.9) | -55 | -90 | **DEAD** |
+
+✅ **The screen passes its negative control:** oct and tissue come back dead,
+which they must -- their `synth_group` is literally `np.arange(len(y)) % 3`
+(`scripts/prep_octmnist.py`), so the groups are i.i.d. draws from one
+distribution and the local scope is empty **by construction**. Any screen that
+called them live would be broken. `shift_1` has **never been used in any
+campaign**, and now should not be: its differential content is no better than
+the slice we already run.
+
+**🔑 STAGE 1 IS NECESSARY, NOT SUFFICIENT -- and dermmnist is the proof.** It
+carries **65 items** of genuine differential per-group information, and 2(m) fed
+a model the TRUE per-group counts and moved **6 items**, for -0.20. Information
+existing is not the same as being convertible into ORDERING. A per-group
+multiplier only flips items whose scores sit within its ratio of the cut; on
+dermmnist the residual factor is **1.68x** and the top-K items are further apart
+than that. **Stage 2 is `scripts.scope_probe --calibrate`** and it needs one
+trained model.
+
+**WHAT TO LOOK FOR, stated so it can be checked before downloading anything:**
+
+1. **Test groups ABSENT from training.** The maximal case: the model holds no
+   prior for them, so the cap is the ONLY source and the correction is
+   unbounded rather than 1.68x. **Every dataset we own has `unseen = 0`.**
+2. **Per-group class distributions differing by orders of magnitude**, not the
+   5.4x on dermmnist -- ideally a class common in one group and absent in
+   another.
+3. **A real, semantic group variable.** `index % 3` is not one. dermmnist's
+   `loc_group` (body site) genuinely is, which is why it is the only one of the
+   three to pass stage 1.
+4. **Meaningful multi-class imbalance with rare classes**, and every per-group
+   budget must round above 0 -- **a `K = 0` constraint is silently skipped in
+   the loss**, so a cap that rounds a rare class to zero disables itself.
+
+**SHORTLIST, ranked by criterion 1**, which is the one no dataset we own
+satisfies:
+
+| candidate | classes | group | test groups unseen? | note |
+|---|---|---|---|---|
+| **iWildCam (WILDS)** | 182 species | camera trap | **YES, explicitly disjoint** | long tail; per-camera species sets barely overlap. Best structural fit. Non-medical. |
+| **FMoW (WILDS)** | 62 land-use | region x year | partly -- OOD split is by YEAR, regions recur | regions are natural, well-sized groups |
+| **RxRx1 (WILDS)** | 1139 | experimental batch | yes | too many classes; batch is not a meaningful "local" constraint |
+| **ISIC 2019** | 8 | acquisition source / body site | no, but sources differ sharply | keeps the medical framing and the derm continuity |
+| Camelyon17 | 2 | hospital | yes | **binary -- fails multi-class** |
+
+⚠️ **A NEW DATASET ALONE WILL NOT FIX THIS.** The splitter is half the problem:
+`create_slices.py` stratifies on the LABEL, which forces test prevalence to
+match train prevalence and is exactly why the global cap carries nothing. A
+WILDS-style dataset run through a label-stratified splitter would reproduce
+every null in this document. **Split BY GROUP, holding groups out.**
 
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
@@ -3091,7 +3177,7 @@ scripts/verify_caps.py   the caps bind, on the real dataset slices
 scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             219 tests, ~40 s, no dataset required
+tests/             221 tests, ~40 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

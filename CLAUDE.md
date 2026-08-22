@@ -59,7 +59,7 @@ imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 219 regression tests, ~40s, no dataset needed
+python -m pytest tests -q                   # 221 regression tests, ~40s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -104,6 +104,16 @@ python -m scripts.frozen_head_probe --run-dir <run> --seeds 1 2 ... # refit ONLY
                                             #   `seeds_needed` prices any survivor in
                                             #   CAMPAIGN seeds (topk/ptopk: +1.2-1.3
                                             #   items but ~24-36 seeds/cell => unaffordable)
+python -m scripts.dataset_screen <slice-dir> ...  # CAN a count constraint carry
+                                            #   information here? Labels + metadata only,
+                                            #   no images/model/GPU. Read the NET column:
+                                            #   the DIFFERENTIAL per-group shift, after
+                                            #   subtracting BOTH a sampling-noise null and
+                                            #   the global shift. octmnist -7, tissuemnist
+                                            #   -55 = DEAD (`synth_group` is `index % 3`);
+                                            #   derm slice_1 +65 passes stage 1 and STILL
+                                            #   nulls, so stage 1 is necessary only --
+                                            #   stage 2 is `scope_probe --calibrate`
 python -m scripts.scope_probe --campaign <root>   # `L20_G50` and `L50_G20` impose the
                                             #   SAME TOTAL, so the local-vs-global SCOPE
                                             #   question is answerable with the model held
