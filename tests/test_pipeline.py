@@ -5666,3 +5666,62 @@ def test_the_trainer_decides_satisfaction_and_the_ratchet_from_HARD_counts():
         "the trainer is comparing a SOFT count against a limit: %s. At K=0 the "
         "soft count is strictly positive, so this would make a satisfied group "
         "read as violated for the whole run." % soft[:3])
+
+
+def _log_health_campaign(tmp_path, accs, arm="tralo"):
+    """A campaign whose training_log.csv walks `accs` over epochs."""
+    root = os.path.join(str(tmp_path), "camp")
+    for seed in (1, 2, 3):
+        d = os.path.join(root, "%s_seed%d" % (arm, seed))
+        os.makedirs(d, exist_ok=True)
+        pd.DataFrame({"Epoch": list(range(1, len(accs) + 1)),
+                      "Train_Acc": list(accs),
+                      "L_CE": [0.5] * len(accs)}).to_csv(
+            os.path.join(d, "training_log.csv"), index=False)
+        with io.open(os.path.join(d, "config.json"), "w", encoding="utf-8") as fh:
+            json.dump({"arm": arm, "status": "completed",
+                       "dataset_mode": "iwildcam", "model_name": "MobileNetV3",
+                       "constraint_tag": "L30_G50", "constraint": [0.30, 0.50],
+                       "dataset_config": {"constrained_class": [2]},
+                       "hyperparams": {"seed": seed}}, fh)
+    r = subprocess.run([sys.executable, "-m", "scripts.log_health", root],
+                       cwd=REPO, capture_output=True, text=True)
+    return r.stdout + r.stderr
+
+
+def test_log_health_flags_a_model_already_converged_before_the_constraint_phase(tmp_path):
+    """Rule 1 fixes warm-up at 1 because warm-up 50 saturates CE and every
+    method becomes identical -- but that boundary was calibrated on dermmnist
+    and is stated as a warm-up LENGTH, while what matters is where the model
+    ENDS UP. iWildCam's warm-up reaches ~95.6% in ONE epoch, so an easy dataset
+    can enter the saturated regime through a door rule 1 does not cover, and a
+    tie across all arms would be the saturation rather than the methods.
+
+    `log_health` is step 0 of the iwc1 read, so the pointer belongs there.
+    """
+    out = _log_health_campaign(tmp_path, [0.956, 0.956, 0.957, 0.956])
+    assert "CONVERGENCE AT THE START OF THE CONSTRAINT PHASE" in out, out[-1200:]
+    assert "ALREADY CONVERGED" in out, out[-1200:]
+    assert "scripts.reachability" in out, (
+        "the flag must point at the instrument that actually measures p(1-p) "
+        "at the cut -- accuracy is only a proxy")
+
+
+@pytest.mark.parametrize("accs,why", [
+    ([0.40, 0.55, 0.70, 0.88], "a big gain must not read as saturated"),
+    ([0.30, 0.30, 0.31, 0.30], "a flat but LOW run is not saturation, it is a "
+                               "model that never learned"),
+])
+def test_log_health_does_not_cry_saturation_on_a_healthy_run(tmp_path, accs, why):
+    """NEGATIVE CONTROL, both halves of the signature separately.
+
+    The flag requires an already-high warm-up AND a constraint phase that moved
+    nothing. A readout keyed on either alone would fire on an ordinary run: a
+    hard dataset can start low and climb, and a broken run can sit flat at 30%.
+    Firing on those would train the reader to ignore it, which is worse than
+    not having it.
+    """
+    out = _log_health_campaign(tmp_path, accs)
+    assert "CONVERGENCE AT THE START OF THE CONSTRAINT PHASE" in out, out[-800:]
+    assert "ALREADY CONVERGED" not in out, (why, out[-800:])
+    assert "not the saturated signature" in out, out[-800:]

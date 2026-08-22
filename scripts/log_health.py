@@ -22,6 +22,13 @@ import re
 import numpy as np
 import pandas as pd
 
+# The saturated SIGNATURE, both halves required: an already-high warm-up AND
+# a constraint phase that changed nothing. Either alone is ordinary -- a hard
+# dataset can gain little from a good start, and an easy one can still have
+# gradient left at the cut. Named here rather than inlined so the levels this
+# points at `reachability` for are visible without reading the function.
+SATURATED_ACC = 0.93
+FLAT_GAIN = 0.005
 COLLAPSE_DROP = 0.02   # ~10x the epoch-to-epoch wobble of a converged run
 
 
@@ -56,12 +63,19 @@ def read_run(d):
     # --- collapse on the FINAL epoch: the pipeline keeps it unconditionally ---
     r["collapse"] = None
     r["acc_final"] = None
+    r["acc_first"] = None
+    r["acc_gain"] = None
     if acc:
         a = pd.to_numeric(df[acc], errors="coerce").dropna()
         if len(a) >= 2 and float(a.iloc[-1]) < float(a.iloc[-2]) - COLLAPSE_DROP:
             r["collapse"] = (float(a.iloc[-2]), float(a.iloc[-1]))
         if len(a):
             r["acc_final"] = float(a.iloc[-1])
+            # The warm-up epoch, and what the CONSTRAINT phase added on top
+            # of it. `_saturation_readout` needs both: either alone is
+            # ordinary, the pair is the signature.
+            r["acc_first"] = float(a.iloc[0])
+            r["acc_gain"] = float(a.iloc[-1]) - float(a.iloc[0])
 
     # --- non-finite in a column that is actually being written. A diverged run
     #     once wrote `completed`, so this matters -- but scanning every column
@@ -194,6 +208,50 @@ def read_run(d):
     return r
 
 
+def _saturation_readout(runs):
+    """Did the model arrive at the constraint phase ALREADY CONVERGED?
+
+    Rule 1 fixes warm-up at 1 because at warm-up 50 CE saturates and every
+    method becomes identical. That boundary was calibrated on dermmnist. It is
+    stated as a warm-up LENGTH, but what actually matters is where the model
+    ENDS UP, and an easier dataset can reach the same place in one epoch --
+    iWildCam's warm-up hits ~95.6% in a single epoch. So rule 1's protection
+    does not transfer to a new dataset for free.
+
+    WHY BOTH HALVES ARE REQUIRED. A high warm-up accuracy alone is not the
+    problem; a hard dataset can start well and still have plenty of gradient at
+    the cut. A flat constraint phase alone is not either. The pair -- already
+    converged AND nothing moved -- is the signature.
+
+    ⚠️ THIS IS A PROXY, AND IT IS LABELLED ONE. The quantity that decides
+    reachability is `p(1-p)` at the cut, which `scripts.reachability` measures
+    from the predictions. Accuracy is a coarse stand-in that happens to be
+    visible in the training log alone, so this prints a POINTER, never a
+    verdict.
+    """
+    have = [r for r in runs if r.get("acc_first") is not None
+            and r.get("acc_gain") is not None]
+    if not have:
+        return
+    first = float(np.median([r["acc_first"] for r in have]))
+    gain = float(np.median([r["acc_gain"] for r in have]))
+    print("")
+    print("CONVERGENCE AT THE START OF THE CONSTRAINT PHASE  (%d run(s))"
+          % len(have))
+    print("   warm-up epoch accuracy          %6.3f  (median)" % first)
+    print("   added by all constraint epochs  %+6.3f  (median)" % gain)
+    if first >= SATURATED_ACC and abs(gain) <= FLAT_GAIN:
+        print("   [!] the model was ALREADY CONVERGED when the constraint phase")
+        print("       began, and the constraint phase moved accuracy by ~nothing.")
+        print("       Warm-up 1 does not guarantee an unsaturated regime on every")
+        print("       dataset -- rule 1's boundary was calibrated on dermmnist.")
+        print("       RUN `python -m scripts.reachability <run>` BEFORE reading a")
+        print("       contrast: a tie here may be the saturation, not the method.")
+    else:
+        print("   -> not the saturated signature (needs acc >= %.2f AND "
+              "|gain| <= %.3f)" % (SATURATED_ACC, FLAT_GAIN))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("root")
@@ -232,6 +290,8 @@ def main():
             print("   %-54s %s"
                   % (os.path.relpath(r["dir"], args.root),
                      ", ".join("%s x%d" % kv for kv in worst)))
+
+    _saturation_readout(runs)
 
     print("\nPER ARM")
     print("  %-14s %5s %8s %14s   %s"
