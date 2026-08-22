@@ -2042,6 +2042,44 @@ be run, and here is why in two parts:
 ⇒ **Do not ask for new slices, and do not implement the load-time subsample.** The
 question it was going to answer is answered.
 
+### (j-pre) PRE-REGISTERED: what section (j) predicts for `results/dualbar2`
+
+**Written 2026-08-22 with 28 of 88 runs complete and NO cell at four seeds.**
+Committed before the data exists so the mechanism can be wrong rather than
+merely fitted. Section (j) says the constraint is a per-class prior shift the
+allocator is nearly invariant to, plus unaimed noise. If that is right, the
+COUNT is where the reproducible signal lives and QUALITY is where it does not.
+
+Already visible at two seeds, and it is what prompted this:
+
+| arm | excess separation vs own null, s1 -> s2 | ccF1 isolation, items, s1 -> s2 |
+|---|---|---|
+| `alm` | -237.9 -> -257.1 (reproduces to 8%) | -4.0 -> -3.8 |
+| `fioretto` | -209.4 -> -244.8 (reproduces to 17%) | +0.8 -> **-7.9** |
+
+**THE PREDICTIONS**, to be read at four seeds in `L50_G20`:
+
+1. **The count separation reproduces.** Per arm, the coefficient of variation of
+   the mean excess separation from its own null, across the four seeds, is
+   **below 25%**.
+2. **The quality isolation does not.** For at least three of the four trained
+   arms, the seed sd of the ccF1 isolation **exceeds its own |mean|**.
+3. 🔑 **The count does not predict the quality -- this is the sharp one.** Across
+   the sixteen (arm, seed) pairs, |Spearman rho| between the excess separation
+   and the ccF1 isolation is **below 0.5**. A monotone per-class shift moves the
+   count and is exactly what a threshold-at-budget allocator ignores, so a
+   strong correlation here would REFUTE section (j).
+
+**What would falsify (j).** Any of: a count separation that varies more than the
+quality isolation; an arm whose ccF1 isolation is stable across four seeds at a
+magnitude above 4 items; or |rho| >= 0.5 in prediction 3. Prediction 3 is the one
+to weight -- 1 and 2 are close to restatements of what two seeds already show,
+while 3 is a relationship not yet looked at.
+
+⚠️ **This pre-registers a MECHANISM, not a win.** None of the three predictions
+becoming true makes any arm beat `clip`; they would only establish why it does
+not. The primary endpoint remains ccF1 vs `clip`, seed-paired, per cell.
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 **The single most useful fact in this project: regime effects are ~8 pp. Method effects are ~0.1 pp.**
