@@ -1942,7 +1942,7 @@ is **5.1-5.9 nats against a mean of 1.7-4.7**, so the spread is larger than the
 shift. An allocator IS invariant to a uniform per-class shift, but that is not
 what this is -- the re-ranking above is real, it is simply not aimed.
 
-### (i) 🔑 WHICH CAP TO SWEEP: the RNG noise is maximal where the budget cuts the CONTESTED middle
+### (i) ALLOCATION noise is maximal where the budget cuts the CONTESTED middle (NOT a cap recommendation -- see the correction)
 
 **How to choose a cap level, measured 2026-08-22.** `tralo_null` and
 `tralo_reseed` differ by exactly one `torch.rand(1)` call -- same warm-up, same
@@ -1974,15 +1974,40 @@ noise** on this draw:
 | `L50_G20` | 11.0 items | **0.16** | **1.4%** |
 | `L50_G40` | 33.0 items | **12.02** | **36%** |
 
-🛑 **The TIGHT cap is the better-powered cell, despite having less to win.** An
-arm that shows something real should show it at `L50_G20` first, and an effect of
-similar size at `L50_G40` deserves MORE scepticism, not less. Do not read "more
-headroom" as "more likely to separate".
+⚠️⚠️ **CORRECTED THE SAME DAY, BEFORE IT WAS ACTED ON. The first version of this
+section concluded "the tight cap is the better-powered cell". That over-reached
+and the conclusion is WITHDRAWN.** What the curve above measures is a pair of
+models differing ONLY in the RNG STREAM, with the warm-up SHARED -- so it is the
+noise the ALLOCATOR contributes, not the noise a seed contributes. A seed change
+also redraws the warm-up, and section (j-pre)'s two-seed data shows that
+component is far larger and does NOT follow this curve: at `L50_G20`, where the
+stream-only gap is 0.16-0.8 items, `fioretto`'s isolation swung **8.8 items**
+across seeds, against that cell's 11 items of total headroom.
 
-⚠️ **n=1 noise draw**, re-allocated at eight budgets. The SHAPE of the curve is
-mechanism and will hold; the magnitudes need the other three seeds. Recorded
-now because it changes which cell to read first, and reading the wrong one first
-is how a null gets called a win.
+**What the measurement DOES license**, and it is still worth having:
+
+- the ALLOCATION-induced component of noise is non-monotone in K, peaking where
+  the budget cuts the contested middle. That is mechanism and will hold.
+- therefore `L50_G40` carries a large allocation-noise term that `L50_G20` does
+  not, **on top of** whatever seed noise both share.
+
+**What it does NOT license:** any ranking of the two cells by total power. That
+needs the seed component at both caps, which arrives with the four-seed cells.
+
+🛑 **This section is currently IN TENSION with section 1's ceiling rule**
+("at G20 the prize is smaller than the noise ... prefer the looser cap; headroom
+grows with it"). Both are unresolved and neither should be acted on yet:
+
+- section 1's rule compares the CAPPED-CLASS headroom against the **macro-F1**
+  seed sd (+-0.04), and section 1 itself says macro-F1 is carried by the UNCAPPED
+  classes -- so it is the wrong noise for that prize;
+- this section's curve uses the right metric but the wrong noise SOURCE
+  (stream, not seed).
+
+⇒ **Neither cell is currently known to be better powered.** The four-seed cells
+settle it by giving the seed sd of the ccF1 isolation at both caps, which is
+exactly what `full_panel`'s RESOLUTION block now prints. Until then, sweep both
+and read both, which the protocol requires anyway.
 
 ### (j) 🔴🔴🔴 THE COMPLETE MECHANISM: the constraint is a PRIOR SHIFT, and top-K is invariant to prior shifts
 
