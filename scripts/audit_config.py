@@ -427,6 +427,28 @@ def main():
     if len(sys.argv) > 1:
         root = sys.argv[1]
         tmp = None
+        # 🛑 A ROOT WITH NO CONFIGS MUST FAIL, NOT PASS.
+        # Every check below iterates `glob(root/**/config.json)`, so an empty
+        # or wrong root made all of them vacuously true and the audit printed
+        # "OK -- arms sharing an id agree on all 12 warm-up keys" over zero
+        # arms. `audit_config --help` did exactly that: it took `--help` as the
+        # root, found nothing, and reported green. That is this project's own
+        # mistake pattern 1 -- a check that reports green while not looking --
+        # inside the tool built to catch it.
+        if root in ("-h", "--help"):
+            print(__doc__ or "usage: python -m scripts.audit_config [CAMPAIGN_ROOT]")
+            return 0
+        if not os.path.isdir(root):
+            raise SystemExit("audit_config: %r is not a directory. Pass a "
+                             "campaign root, or no argument to audit a freshly "
+                             "generated one." % root)
+        found = glob.glob(os.path.join(root, "**", "config.json"), recursive=True)
+        if not found:
+            raise SystemExit(
+                "audit_config: no config.json anywhere under %r. Every check "
+                "here iterates that glob, so auditing this root would report "
+                "OK over ZERO configs -- which is indistinguishable from a "
+                "clean campaign and is how a green audit means nothing." % root)
     else:
         tmp = tempfile.mkdtemp(prefix="cfgaudit_")
         root = tmp

@@ -4993,3 +4993,58 @@ def test_removed_datasets_cannot_be_selected_anywhere():
         assert r.returncode == 0, r.stderr[-800:]
     finally:
         shutil.rmtree(os.path.join(REPO, "_ctrl_ok"), ignore_errors=True)
+
+
+CAMPAIGN_TOOLS = [
+    ("audit_config", ["{root}"]),
+    ("check_parity", ["{root}"]),
+    ("log_health", ["{root}"]),
+    ("score_scan", ["{root}"]),
+    ("headroom", ["{root}"]),
+    ("paired_seeds", ["{root}"]),
+    ("full_panel", ["--campaign", "{root}", "--control", "clip"]),
+    ("graph_probe", ["--campaign", "{root}"]),
+    ("scope_probe", ["--campaign", "{root}"]),
+]
+
+
+@pytest.mark.parametrize("tool,argv", CAMPAIGN_TOOLS,
+                         ids=[t for t, _ in CAMPAIGN_TOOLS])
+def test_a_campaign_tool_fails_on_an_empty_root(tool, argv, tmp_path):
+    """A tool pointed at nothing must FAIL, never report clean.
+
+    Every one of these iterates a glob over the campaign root, so an empty or
+    wrong root makes each check vacuously true. `audit_config --help` took
+    `--help` as the root, found zero configs and printed "OK -- arms sharing an
+    id agree on all 12 warm-up keys" over zero arms; `log_health` printed its
+    reason but returned 0, and since `main()` is called bare the code was
+    discarded anyway. Both are this project's own mistake pattern 1 -- a check
+    that reports green while not looking -- living inside the tools built to
+    catch it.
+
+    Exit code, not stdout, because that is what a script chaining on these
+    reads.
+    """
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    r = subprocess.run(
+        [sys.executable, "-m", "scripts." + tool]
+        + [a.format(root=str(empty)) for a in argv],
+        cwd=REPO, capture_output=True, text=True)
+    assert r.returncode != 0, (
+        "%s exited 0 on a root with no runs -- indistinguishable from a clean "
+        "campaign:\n%s" % (tool, (r.stdout or "")[-500:]))
+
+
+def test_the_empty_root_guard_is_not_satisfied_by_a_tool_that_always_fails():
+    """NEGATIVE CONTROL for the parametrised test above.
+
+    Every assertion there is `returncode != 0`, which a tool that crashed on
+    everything would also satisfy. This pins that the same tools SUCCEED on a
+    root that does hold runs, so the guard is measuring emptiness rather than
+    brokenness.
+    """
+    r = subprocess.run([sys.executable, "-m", "scripts.audit_config"],
+                       cwd=REPO, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr[-800:]
+    assert "every emitted value has a reader" in r.stdout

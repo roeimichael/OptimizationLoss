@@ -204,8 +204,12 @@ def main():
                              recursive=True))
     runs = [r for r in (read_run(os.path.dirname(p)) for p in paths) if r]
     if not runs:
-        print("no readable training logs under", args.root)
-        return
+        # EXIT NON-ZERO. Printing the reason and returning 0 made an empty or
+        # wrong root indistinguishable from a clean campaign to anything that
+        # chains on this command -- and `main()` is called bare, so a returned
+        # code would have been discarded anyway. Every other campaign tool here
+        # already exits 1; this one did not.
+        raise SystemExit("no readable training logs under %s" % args.root)
 
     print("%d run(s) with a readable log  (%d wide schema, %d narrow)"
           % (len(runs), sum(r["wide"] for r in runs),
