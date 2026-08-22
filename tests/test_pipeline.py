@@ -11,6 +11,7 @@ Runs in a few seconds on CPU and needs no dataset.
 import io
 import json
 import os
+import shutil
 import subprocess
 import sys
 
@@ -233,7 +234,7 @@ def _gen(tmp, *extra):
     # gate itself is tested by
     # test_generator_refuses_a_count_reading_campaign_without_the_reseed_control.
     cmd = [sys.executable, "-m", "configs.gen_campaign", "--root", str(tmp),
-           "--datasets", "dermmnist",
+           "--datasets", "iwildcam",
            "--arms", "tralo", "tralo_reseed"] + list(extra)
     return subprocess.run(cmd, cwd=REPO, capture_output=True, text=True)
 
@@ -276,10 +277,10 @@ def test_mandatory_clippers_are_always_added(tmp_path):
 # -------------------------------------------------- the warm-up cache identity
 
 def _bid(P, arm, seed=1, **over):
-    dc = dict(P["datasets"]["dermmnist"])
+    dc = dict(P["datasets"]["iwildcam"])
     hp = build_hyperparams(P, P["arms"][arm], seed)
     hp.update(over)
-    return compute_base_model_id(P, "MobileNetV3", hp, "dermmnist", dc)
+    return compute_base_model_id(P, "MobileNetV3", hp, "iwildcam", dc)
 
 
 def test_arms_differing_only_in_the_allocator_share_a_warm_up():
@@ -471,7 +472,7 @@ def test_parity_catches_two_arms_sharing_one_warm_up_with_different_objectives(t
     clip. This gate used to print the sharing groups and ask a human to look."""
     r = subprocess.run(
         [sys.executable, "-m", "configs.gen_campaign", "--root", str(tmp_path),
-         "--datasets", "dermmnist", "--models", "MobileNetV3",
+         "--datasets", "iwildcam", "--models", "MobileNetV3",
          "--caps", "L30_G30", "L50_G30", "--arms", "clip", "focal_clip"],
         cwd=REPO, capture_output=True, text=True)
     assert r.returncode == 0
@@ -495,7 +496,7 @@ def test_verify_caps_fails_when_it_cannot_read_a_slice(tmp_path):
     """It printed 'CAP CHECK OK -- every cap tag produces a real integer budget
     on every dataset' having opened no file at all."""
     r = subprocess.run(
-        [sys.executable, "-m", "scripts.verify_caps", "--datasets", "dermmnist"],
+        [sys.executable, "-m", "scripts.verify_caps", "--datasets", "iwildcam"],
         cwd=str(tmp_path), capture_output=True, text=True,
         env={**os.environ, "PYTHONPATH": REPO})
     assert r.returncode == 1, "a gate that cannot fail is not a gate"
@@ -520,14 +521,16 @@ def test_the_scorer_pairs_on_the_capped_class(tmp_path):
 
 def _panel_verdict(tmp_path, n_better_cells, n_tied_cells, metric="AP"):
     """Build a synthetic campaign with a KNOWN answer and read the verdict."""
-    cells = [("dermmnist", "MobileNetV3", "L30_G30"),
-             ("dermmnist", "MobileNetV3", "L50_G30"),
-             ("octmnist", "MobileNetV3", "L30_G30"),
-             ("octmnist", "MobileNetV3", "L50_G30"),
-             ("tissuemnist", "MobileNetV3", "L30_G30"),
-             ("tissuemnist", "MobileNetV3", "L50_G30"),
-             ("dermmnist", "MobileNetV2", "L30_G30"),
-             ("dermmnist", "MobileNetV2", "L50_G30")]
+    # 8 DISTINCT cells. They used to span three datasets; with only iwildcam
+    # live the axis moved to backbone x cap. Distinctness is load-bearing --
+    # a repeated (dataset, model, cap) writes into the same directory, so the
+    # later cell silently overwrites the earlier one and the panel sees fewer
+    # pairs than the test believes it built.
+    cells = [(ds, m, cap)
+             for m in ("MobileNetV3", "MobileNetV2", "RegNetY400MF", "ViTB16")
+             for cap in ("L30_G30", "L50_G30")
+             for ds in ("iwildcam",)]
+    assert len(set(cells)) == len(cells) == 8
     N, K = 200, 4
     for i, (ds, model, cap) in enumerate(cells[:n_better_cells + n_tied_cells]):
         for arm, boost in (("clip", 0.0),
@@ -706,7 +709,7 @@ def _write_slice(d, n_train=12, n_test=8, n_classes=4, capped=2,
 
 
 def _cfg(d, n_classes=4, capped=2):
-    return {"dataset_mode": "dermmnist", "dataset_config": {
+    return {"dataset_mode": "iwildcam", "dataset_config": {
         "data_dir": d, "num_classes": n_classes, "constrained_class": capped,
         "group_column": "grp", "target_column": "label"},
         "constraint": [0.5, 0.5]}
@@ -2021,121 +2024,6 @@ def test_a_cap_that_does_not_bind_gives_the_constraint_zero_gradient():
             assert float(soft.grad) == 0.0, (
                 "no gradient reaches the model from a satisfied cap")
 
-def test_the_dermmnist_split_is_grouped_by_lesion_not_by_label():
-    """The split MUST be group-aware. A label-only split leaks by construction.
-
-    HAM10000 photographs many lesions more than once -- 10,015 images over 7,470
-    lesions, 26.2% of lesions with more than one image. Splitting on the label
-    alone therefore puts two photographs of the SAME lesion on opposite sides:
-    measured, 38.7% of the test set and 67.3% of the melanoma test set shared a
-    lesion with a training image.
-
-    Source-level, so it runs with no dataset present -- and because the failure
-    is silent: a leaky split produces better-looking numbers, not an error.
-    """
-
-    src = io.open("data/dermmnist/create_slices.py", encoding="utf-8").read()
-    # AST, not grep. This file DOCUMENTS the bug by name, so a substring check
-    # fires on the prose explaining why the bug is gone -- the same trap that
-    # made a grep report `rho_step` as read when only a log line named it.
-    tree = ast.parse(src)
-    called = {n.func.id for n in ast.walk(tree)
-              if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
-    imported = {a.name for n in ast.walk(tree)
-                if isinstance(n, ast.ImportFrom) for a in n.names}
-    assert "StratifiedShuffleSplit" not in (called | imported), (
-        "create_slices.py is back to a label-only split. That is the leak.")
-    assert "StratifiedGroupKFold" in imported, "the grouped splitter must be used"
-    assert "StratifiedGroupKFold" in src and "groups=groups" in src, (
-        "the split must be grouped by lesion_id")
-    assert "lesion_id" in src and "image_id" in src, (
-        "both ids must be carried into the slice so the check is reproducible "
-        "from the slice alone")
-    assert "raise AssertionError" in src, (
-        "a slice that shares a lesion between train and test must FAIL rather "
-        "than reach disk -- nothing downstream can detect it")
-
-
-def test_the_prevalence_shift_only_touches_the_test_split():
-    """`--shift` must move test prevalence without creating leakage.
-
-    It drops whole images from the TEST side only, so no training item moves and
-    no lesion changes sides. The point is to break the correspondence that makes
-    K inferable: under a stratified split the capped class's test count is
-    recoverable from TRAINING prevalence to within about one item, so the budget
-    tells the model something it could already compute.
-    """
-
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..",
-                                    "data", "dermmnist"))
-    import importlib.util
-    spec = importlib.util.spec_from_file_location(
-        "_slices", os.path.join(os.path.dirname(__file__), "..", "data",
-                                "dermmnist", "create_slices.py"))
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-
-    labels = np.array([4] * 200 + [0] * 800)
-    test_idx = np.arange(1000)
-    rng = np.random.default_rng(0)
-    kept = mod.shift_test(test_idx, labels, cls=4, factor=0.5, rng=rng)
-
-    assert (labels[kept] == 4).sum() == 100, "half the capped class must remain"
-    assert (labels[kept] == 0).sum() == 800, "no OTHER class may be touched"
-    assert set(kept).issubset(set(test_idx)), (
-        "the shift may only REMOVE test items -- it must never add one, which "
-        "is what would let a training item cross over")
-    before = (labels[test_idx] == 4).mean()
-    after = (labels[kept] == 4).mean()
-    assert after < before, "the whole point is that test prevalence moves"
-
-def test_the_leakage_warning_is_measured_not_remembered(tmp_path, caplog):
-    """A correctness claim nobody re-checks is worse than no claim.
-
-    The loader used to print a hardcoded caveat -- "38.7% of this test set
-    (776/2003) ... share a lesion_id with a TRAINING image". True when written;
-    FALSE the moment the split was fixed, and it kept printing on corrected
-    data, naming a test-set size that no longer existed. So it is computed from
-    the slice now: silent when clean, loud when leaking, and explicit that it
-    cannot tell when `lesion_id` is absent.
-    """
-    import logging
-
-
-    from src.utils.data_loader import _warn_lesion_leakage
-
-    def write(d, train_les, test_les):
-        d.mkdir(parents=True, exist_ok=True)
-        pd.DataFrame({"label": [0] * len(train_les), "lesion_id": train_les}
-                     ).to_csv(d / "train_meta.csv", index=False)
-        pd.DataFrame({"label": [0] * len(test_les), "lesion_id": test_les}
-                     ).to_csv(d / "test_meta.csv", index=False)
-
-    clean = tmp_path / "clean"
-    write(clean, ["a", "b"], ["c", "d"])
-    with caplog.at_level(logging.WARNING):
-        _warn_lesion_leakage(str(clean))
-    assert not caplog.records, "a clean slice must print nothing"
-
-    leaky = tmp_path / "leaky"
-    write(leaky, ["a", "b"], ["a", "d"])
-    caplog.clear()
-    with caplog.at_level(logging.WARNING):
-        _warn_lesion_leakage(str(leaky))
-    assert any("LEAKS" in r.getMessage() for r in caplog.records), (
-        "a shared lesion must be reported")
-    assert any("50.0%" in r.getMessage() for r in caplog.records), (
-        "and the percentage must be MEASURED from this slice, not recalled")
-
-    blind = tmp_path / "blind"
-    blind.mkdir()
-    pd.DataFrame({"label": [0]}).to_csv(blind / "train_meta.csv", index=False)
-    pd.DataFrame({"label": [0]}).to_csv(blind / "test_meta.csv", index=False)
-    caplog.clear()
-    with caplog.at_level(logging.WARNING):
-        _warn_lesion_leakage(str(blind))
-    assert any("CANNOT be checked" in r.getMessage() for r in caplog.records), (
-        "a slice with no lesion_id must say it cannot tell, never assume clean")
 
 def test_final_predictions_that_violate_a_cap_are_refused_not_logged(tmp_path):
     """A trained arm must not be able to ship an infeasible result.
@@ -2846,7 +2734,7 @@ def test_nothing_presents_a_closed_result_as_a_live_one(tmp_path):
     extra = sorted(count_control_arms(proto))
     r = subprocess.run(
         [sys.executable, "-m", "configs.gen_campaign", "--root", str(root),
-         "--datasets", "dermmnist", "--caps", "L30_G30", "L50_G50",
+         "--datasets", "iwildcam", "--caps", "L30_G30", "L50_G50",
          "--arms", "all"] + extra, cwd=REPO, capture_output=True, text=True)
     assert r.returncode == 0, r.stdout + r.stderr
     line = next(l for l in r.stdout.splitlines()
@@ -2870,7 +2758,7 @@ def test_nothing_presents_a_closed_result_as_a_live_one(tmp_path):
 
     r2 = subprocess.run(
         [sys.executable, "-m", "configs.gen_campaign",
-         "--root", str(root / "explicit"), "--datasets", "dermmnist",
+         "--root", str(root / "explicit"), "--datasets", "iwildcam",
          "--caps", "L30_G30", "L50_G50", "--arms", "select"] + extra,
         cwd=REPO, capture_output=True, text=True)
     assert r2.returncode == 0, r2.stdout + r2.stderr
@@ -2885,7 +2773,7 @@ def test_nothing_presents_a_closed_result_as_a_live_one(tmp_path):
     # expansion and therefore its own way to swallow a named arm
     r3 = subprocess.run(
         [sys.executable, "-m", "configs.gen_campaign",
-         "--root", str(root / "allnull"), "--datasets", "dermmnist",
+         "--root", str(root / "allnull"), "--datasets", "iwildcam",
          "--caps", "L30_G30", "L50_G50", "--arms", "all+null", "select"],
         cwd=REPO, capture_output=True, text=True)
     assert r3.returncode == 0, r3.stdout + r3.stderr
@@ -3566,7 +3454,7 @@ def _gen_arms(tmp, *arms):
     """gen_campaign with an explicit arm list and nothing else implied."""
     return subprocess.run(
         [sys.executable, "-m", "configs.gen_campaign", "--root", str(tmp),
-         "--datasets", "dermmnist", "--caps", "L30_G30", "L50_G30",
+         "--datasets", "iwildcam", "--caps", "L30_G30", "L50_G30",
          "--arms"] + list(arms),
         cwd=REPO, capture_output=True, text=True)
 
@@ -4595,10 +4483,10 @@ def _resolution_text(deltas_by_cell_seed, scale, capsys):
 
     idx, vals = [], []
     for (cap, seed), v in deltas_by_cell_seed.items():
-        idx.append(("dermmnist", "MobileNetV3", cap, "2-4", seed))
+        idx.append(("iwildcam", "MobileNetV3", cap, "2-4", seed))
         vals.append(v)
     per = pd.Series(vals, index=pd.MultiIndex.from_tuples(idx))
-    df = pd.DataFrame([{"dataset": "dermmnist", "model": "MobileNetV3",
+    df = pd.DataFrame([{"dataset": "iwildcam", "model": "MobileNetV3",
                         "cap": cap, "capped": "2-4", "items_per_001": scale}
                        for cap in {c for c, _ in deltas_by_cell_seed}])
     _resolution_readout(per, df, "tralo", "clip")
@@ -5049,3 +4937,59 @@ def test_generator_reports_zero_ceilings_not_just_sum_slack(tmp_path):
                                   "num_classes": 4, "group_column": "grp",
                                   "constrained_class": [1]}}}
     assert _zero_ceilings(missing, "x", 0.5) == (0, 0)
+
+
+# ------------------------------------------------- the removed datasets --
+
+REMOVED_DATASETS = ("dermmnist", "octmnist", "tissuemnist")
+
+
+def test_removed_datasets_cannot_be_selected_anywhere():
+    """The three original datasets must be UNRUNNABLE, not merely discouraged.
+
+    `scripts.dataset_screen` measured that none of them can carry a count
+    constraint: octmnist and tissuemnist build `synth_group` as
+    `np.arange(len(y)) % 3`, so their groups are i.i.d. draws from one
+    distribution and the local scope is empty BY CONSTRUCTION; dermmnist clears
+    the screen at +65 items and still nulls, because its test groups ARE its
+    training groups. Deleting the data is not enough on its own -- a stale
+    campaign root, a copied command line or an old config would quietly bring
+    one back, and every number it produced would look ordinary. So the ban is
+    enforced at all three gates a dataset has to pass.
+    """
+    import yaml
+    from configs.gen_campaign import PROTOCOL_PATH
+    from src.utils.data_loader import IMAGERY_DATASETS
+
+    with io.open(PROTOCOL_PATH, encoding="utf-8") as fh:
+        declared = set(yaml.safe_load(fh)["datasets"])
+    assert declared == {"iwildcam"}, declared
+    assert IMAGERY_DATASETS == {"iwildcam"}, IMAGERY_DATASETS
+    for name in REMOVED_DATASETS:
+        assert name not in declared
+        assert name not in IMAGERY_DATASETS
+        assert not os.path.exists(os.path.join(REPO, "data", name)), name
+
+    # the generator must REFUSE, not silently emit an unrunnable campaign
+    for name in REMOVED_DATASETS:
+        r = subprocess.run(
+            [sys.executable, "-m", "configs.gen_campaign",
+             "--root", os.path.join(REPO, "_never_written"),
+             "--datasets", name, "--models", "MobileNetV3",
+             "--caps", "L30_G30", "L50_G30", "--arms", "clip"],
+            cwd=REPO, capture_output=True, text=True)
+        assert r.returncode != 0, "generator accepted %s: %s" % (name, r.stdout)
+        assert name in (r.stderr + r.stdout)
+    assert not os.path.exists(os.path.join(REPO, "_never_written"))
+
+    # NEGATIVE CONTROL: the live dataset must still pass all of the above, or
+    # the assertions are satisfied by a generator that refuses everything.
+    r = subprocess.run(
+        [sys.executable, "-m", "configs.gen_campaign",
+         "--root", os.path.join(REPO, "_ctrl_ok"), "--datasets", "iwildcam",
+         "--models", "MobileNetV3", "--caps", "L30_G30", "L50_G30",
+         "--arms", "clip"], cwd=REPO, capture_output=True, text=True)
+    try:
+        assert r.returncode == 0, r.stderr[-800:]
+    finally:
+        shutil.rmtree(os.path.join(REPO, "_ctrl_ok"), ignore_errors=True)

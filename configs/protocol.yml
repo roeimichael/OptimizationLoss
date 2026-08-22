@@ -521,11 +521,18 @@ mandatory_arms: [clip, focal_clip]
 # Add them with --arms ... tralo_null fioretto_null hounie_null alm_null.
 
 datasets:
-  dermmnist:
-    data_dir: data/dermmnist/slice_1
-    num_classes: 7
-    group_column: loc_group     # HAM10000 anatomical site: real groups
-    constrained_class: 4        # melanoma, 11.1% of test
+  # 🛑 dermmnist, octmnist and tissuemnist were REMOVED 2026-08-22.
+  # `scripts.dataset_screen` measured that none of them can carry a count
+  # constraint, so no campaign should be able to select one by accident:
+  #   iwildcam/oodslice  NET +3131 items (z=97.4)  unseen groups 7
+  #   dermmnist/slice_1  NET   +65 items (z= 2.9)  unseen groups 0
+  #   octmnist/slice_1   NET    -7 items (z=-0.4)  unseen groups 0
+  #   tissuemnist        NET   -56 items (z=-1.9)  unseen groups 0
+  # oct and tissue are dead BY CONSTRUCTION -- `synth_group` was
+  # `np.arange(len(y)) % 3`. derm passes the screen and still nulls,
+  # because its test groups ARE its training groups. The full record
+  # stays in docs/FRAMEWORK.md 2(n) and in the archive; what is gone is
+  # the ability to RUN them. Restoring one needs a screen number first.
   iwildcam:
     # THE FIRST DATASET THAT CLEARS THE FRAMEWORK 2(n) CRITERION.
     # Held-out camera traps: the 7 test cameras are DISJOINT from the 150
@@ -556,17 +563,12 @@ datasets:
     num_classes: 8
     group_column: location      # camera trap; test cameras DISJOINT from train
     constrained_class: [2, 7]   # impala 12.6% / cattle 15.5% of test
-  tissuemnist:
-    data_dir: data/tissuemnist/slice_1
-    num_classes: 8
-    group_column: synth_group   # no group metadata -> fixed synthetic split
-    constrained_class: 4        # GE (glomerular endothelial), 171/2400 = 7.1% of test
-  octmnist:
-    data_dir: data/octmnist/slice_1
-    num_classes: 4
-    group_column: synth_group
-    constrained_class: 2        # drusen; class order is (CNV, DME, drusen, normal)
-
+    disjoint_groups: true       # test cameras MUST NOT appear in train.
+                                # Read by src/utils/data_loader.py, which
+                                # RAISES on overlap rather than warning:
+                                # one shared camera restores the per-camera
+                                # prior the model is supposed to lack, and
+                                # silently turns this back into dermmnist.
 models: [MobileNetV3, MobileNetV2, RegNetY400MF, ViTB16]
 
 # Keys that change WHAT THE WARM-UP OPTIMIZES. These and only these enter

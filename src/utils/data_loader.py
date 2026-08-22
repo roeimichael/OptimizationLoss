@@ -14,11 +14,17 @@ from src.training.constraints import (compute_global_constraints,
 
 log = logging.getLogger(__name__)
 
-# The only three datasets in scope (docs/FRAMEWORK.md section 1). aider,
-# eurosat, retinamnist, bloodmnist, organamnist and the native-resolution
-# variants were dropped; their data is deleted and they must not come back
-# without a decision recorded in the framework.
-IMAGERY_DATASETS = {'dermmnist', 'octmnist', 'tissuemnist'}
+# The only dataset in scope (docs/FRAMEWORK.md section 2(n)). dermmnist,
+# octmnist and tissuemnist were REMOVED 2026-08-22 after the screen measured
+# that none of them can carry a count constraint: octmnist and tissuemnist
+# build `synth_group` as `np.arange(len(y)) % 3`, so their groups are i.i.d.
+# draws from one distribution and the local scope is empty BY CONSTRUCTION;
+# dermmnist clears the screen at +65 items and still nulls, because its test
+# groups are the training groups and the model has already learned their
+# priors. aider, eurosat, retinamnist, bloodmnist, organamnist and the
+# native-resolution variants were dropped earlier. None may come back without
+# a `dataset_screen` number recorded in the framework.
+IMAGERY_DATASETS = {'iwildcam'}
 
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(1, 3, 1, 1)
 IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 3, 1, 1)
@@ -31,16 +37,7 @@ IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 3, 1
 # validates row alignment meticulously while staying silent about a test set it
 # knows is 38.7% memorized is validating the wrong thing. Anyone who reads a
 # result should have seen these first.
-KNOWN_DATA_CAVEATS = {
-    'octmnist': (
-        "the TRAINING slice is rebalanced. prep_octmnist.py takes 3,000 per "
-        "class, which moves drusen from the official 7.95% to exactly 25% -- "
-        "the same as the test split. The manuscript's stated mechanism for "
-        "OctMNIST being the hard-binding case is that train and test "
-        "prevalences DISAGREE (8% vs 25%); our own prep removed that "
-        "disagreement. See FRAMEWORK section 1.",
-    ),
-}
+KNOWN_DATA_CAVEATS = {}
 
 
 def _ensure_3channel(images):
@@ -109,42 +106,47 @@ def data_fingerprint(y_train, y_test, groups_test):
     return h.hexdigest()[:16]
 
 
-def _warn_lesion_leakage(data_dir):
-    """MEASURE the train/test lesion overlap. Do not assert one from memory.
+def _check_group_leakage(data_dir, group_column, must_be_disjoint):
+    """MEASURE whether any TEST group also appears in TRAIN. Never assume it.
 
-    This replaces a hardcoded caveat that read "38.7% of this test set
-    (776/2003) ... share a lesion_id with a TRAINING image". That number was
-    true when it was written and became FALSE the moment the split was fixed --
-    and it kept printing, on corrected data, naming a test-set size that no
-    longer existed. A stale warning about correctness is worse than none: it is
-    a correctness claim nobody re-checks.
+    This replaces a dermmnist-specific `lesion_id` check, because the hazard
+    changed with the dataset. On a held-out-domain slice the entire premise is
+    that the model has never seen the test groups: FRAMEWORK 2(n) selected
+    iwildcam precisely because its 7 test cameras are disjoint from the 150
+    training cameras, which is what makes the local cap the only source of a
+    per-camera prior. One camera appearing on both sides silently restores the
+    prior and turns the campaign back into dermmnist, where the same
+    measurement nulled -- and nothing downstream would say so.
 
-    So it is computed from the slice's own `lesion_id` column every load. Zero
-    leakage prints nothing. A slice with no `lesion_id` cannot be checked and
-    says exactly that, rather than being assumed clean -- the deprecated
-    pre-2026-08-21 slices are the ones missing the column.
+    `must_be_disjoint` comes from the dataset config, so a slice that is
+    SUPPOSED to share groups is not flagged and one that is not supposed to
+    raises rather than warns. A warning is the wrong severity for a fault that
+    invalidates every number the run produces.
     """
     tr = os.path.join(data_dir, 'train_meta.csv')
     te = os.path.join(data_dir, 'test_meta.csv')
     if not (os.path.exists(tr) and os.path.exists(te)):
         return
     a, b = pd.read_csv(tr), pd.read_csv(te)
-    if 'lesion_id' not in a.columns or 'lesion_id' not in b.columns:
+    if group_column not in a.columns or group_column not in b.columns:
         log.warning(
-            "%s has no `lesion_id` column, so train/test leakage CANNOT be "
-            "checked. Slices built before 2026-08-21 pooled DermaMNIST-C's "
-            "leakage-free splits and re-split on the label alone, which leaked "
-            "38.7%% of the test set. Regenerate with data/dermmnist/"
-            "create_slices.py.", data_dir)
+            "%s: `%s` is missing from one of the meta files, so train/test "
+            "group overlap CANNOT be checked.", data_dir, group_column)
         return
-    shared = set(a['lesion_id']) & set(b['lesion_id'])
+    shared = set(a[group_column]) & set(b[group_column])
     if not shared:
         return
-    hit = b['lesion_id'].isin(shared)
-    log.warning(
-        "%s LEAKS: %d lesion(s) appear in both splits, so %.1f%% of the test "
-        "set was seen in training. Absolute quality numbers from this slice are "
-        "not valid.", data_dir, len(shared), 100.0 * hit.mean())
+    hit = b[group_column].isin(shared)
+    msg = ("%s: %d group(s) appear in BOTH splits, so %.1f%% of the test set "
+           "comes from a group the model trained on."
+           % (data_dir, len(shared), 100.0 * hit.mean()))
+    if must_be_disjoint:
+        raise ValueError(
+            msg + " This slice declares `disjoint_groups: true`, which is the "
+            "property the whole design rests on: with the groups shared the "
+            "model already holds their priors and the local cap carries "
+            "nothing new. Rebuild the split by GROUP.")
+    log.warning(msg)
 
 
 def _load_imagery_data(config):
@@ -229,8 +231,7 @@ def _load_imagery_data(config):
     # train_labels.npy had no second source of truth to be caught against.
     # That reasoning was wrong: all three prep scripts DO write a
     # train_meta.csv with a `label` column, and it is on disk in every slice
-    # (dermmnist label,class_name,sex,loc_group / octmnist
-    # label,class_name,filename,synth_group / tissuemnist
+    # (iwildcam label,class_name,filename,location
     # label,class_name,synth_group). The redundant signal was there all along.
     train_meta_path = os.path.join(data_dir, 'train_meta.csv')
     if os.path.exists(train_meta_path):
@@ -274,7 +275,8 @@ def _load_imagery_data(config):
              len(local_con), len(y_test), len(y_train))
     for _caveat in KNOWN_DATA_CAVEATS.get(dataset_mode, ()):
         log.warning("%s: %s", dataset_mode, _caveat)
-    _warn_lesion_leakage(data_dir)
+    _check_group_leakage(data_dir, group_col,
+                         bool(ds.get('disjoint_groups', False)))
     config["data_fingerprint"] = data_fingerprint(y_train, y_test, groups_test)
     log.info("data fingerprint %s (%s)", config["data_fingerprint"], data_dir)
     return (X_train, X_test, y_train, y_test,

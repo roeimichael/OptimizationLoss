@@ -26,6 +26,7 @@ import glob
 import json
 import os
 import subprocess
+import io
 import sys
 import tempfile
 
@@ -415,6 +416,13 @@ def audit_identity(root):
     return bad
 
 
+def _protocol_datasets():
+    """The datasets the protocol actually declares, in declaration order."""
+    import yaml
+    with io.open(os.path.join("configs", "protocol.yml"), encoding="utf-8") as fh:
+        return list(yaml.safe_load(fh)["datasets"])
+
+
 def main():
     if len(sys.argv) > 1:
         root = sys.argv[1]
@@ -424,7 +432,13 @@ def main():
         root = tmp
         subprocess.check_call(
             [sys.executable, "-m", "configs.gen_campaign", "--root", root,
-             "--datasets", "dermmnist", "tissuemnist", "octmnist",
+             # EVERY dataset the protocol declares, read from the protocol
+             # rather than hardcoded. The old literal list outlived the
+             # datasets themselves: when dermmnist/octmnist/tissuemnist were
+             # removed on 2026-08-22 this audit crashed with a bare argparse
+             # exit 2, and an audit that dies when the config changes is an
+             # audit nobody can use to VERIFY the change.
+             "--datasets", *_protocol_datasets(),
              "--models", "MobileNetV3", "MobileNetV2", "RegNetY400MF", "ViTB16",
              # all+null, NOT all. `all` is deliberately compute-neutral and
              # excludes the zero-dose siblings, which is right for a CAMPAIGN
