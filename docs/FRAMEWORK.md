@@ -216,7 +216,12 @@ implementation for all four arms, because four hand-rolled copies are how this d
 non-finite gradients (6 NaN + 4 inf -- the RAW count; `dropna()` first hides the NaN and
 reports 4), while writing `status: completed`. `constraint_fp32: true` decouples the
 constraint pass from the CE loss scale. ⚠️ fp32 doubles the chunked-forward memory:
-`constraint_chunk_size: 256` OOMs on a 22 GB card at ViTB16, 128 fits.
+`constraint_chunk_size: 256` OOMs on the 24 GB Quadro RTX 6000 (dsisco01) at
+ViTB16, 128 fits. **The card is 24 GB, not 22** -- this file, `protocol.yml`
+and `scripts/dose_scan.py` quoted three capacities for one OOM, and the
+project owns exactly two GPUs (dsisco01's 24 GB Quadro RTX 6000 and dsisco02's
+96 GB RTX PRO 6000 Blackwell), so a 22 GB card is not one of them and 96 GB
+would not have OOM'd. A test now pins the three sites to one figure.
 
 ### (3) TraLO's constraint phase moves the count the WRONG way
 
@@ -1580,7 +1585,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 173 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 174 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1588,7 +1593,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (173 tests, ~35 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (174 tests, ~35 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -2320,7 +2325,7 @@ scripts/verify_caps.py   the caps bind, on the real dataset slices
 scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             173 tests, ~35 s, no dataset required
+tests/             174 tests, ~35 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

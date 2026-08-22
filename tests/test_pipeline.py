@@ -2261,14 +2261,14 @@ def test_coverage_targets_uses_a_whole_test_budget_not_the_smallest_group():
 
     `local_con[g][c]` bounds group g alone; `g.mean()` covers the whole batch.
     Taking min across groups put the SMALLEST group's budget over the whole
-    test set -- 9/2004 instead of 67/2004 on derm L50_G30, a 7.4x
+    test set -- 9/2003 instead of 67/2003 on derm L50_G30, a 7.4x
     over-tightening -- and made tau move with the LOCAL tag while the global
     cap was unchanged, so a G<L sweep would sweep the smallest group.
     """
     from src.methodologies.select.train import coverage_targets
     from src.training.constraints import UNLIMITED
 
-    n = 2004
+    n = 2003          # dermmnist slice_1 test n, per docs/FRAMEWORK.md
     loc = {g: [UNLIMITED] * 7 for g in ("a", "b", "c")}
     loc["a"][4], loc["b"][4], loc["c"][4] = 75.0, 28.0, 9.0   # sum 112
 
@@ -2918,3 +2918,65 @@ def test_every_trained_arm_logs_a_train_accuracy_column():
         assert spelling in body, (
             "_terminal_collapse does not know the %r spelling, so one log "
             "schema is unwatched" % spelling)
+
+
+def test_log_health_does_not_cry_wolf_on_a_warm_up_row_or_a_posthoc_arm(tmp_path):
+    """`scripts/log_health.py` executes the house rule "validate from the
+    training log, never from a final number". Two ways it can be worse than
+    nothing, both of which it did on its first run:
+
+    1. It flagged NON-FINITE VALUES on every tralo run that logged a warm-up
+       epoch. That row is written before the constraint object exists, so its
+       limits are legitimately blank -- exactly one NaN per constraint column.
+       A divergence detector that fires on healthy runs gets ignored.
+    2. It reported `clip` as satisfied 28/28. A post-hoc arm runs no constraint
+       phase, so satisfaction is vacuous for it, and feasibility is not a metric
+       in this project precisely because the allocator makes the clipper
+       feasible by construction.
+    """
+    from scripts.log_health import read_run
+
+    def mk(name, rows, header):
+        d = tmp_path / name
+        d.mkdir()
+        (d / "training_log.csv").write_text(
+            header + chr(10) + chr(10).join(rows) + chr(10))
+        (d / "config.json").write_text('{"arm": "%s", "status": "completed"}' % name)
+        return str(d)
+
+    wide = "Epoch,Train_Acc,L_CE,Hard_Class2,Limit_Class2,Group0_Hard_Class2"
+    # a warm-up row (Epoch 1) with blank constraint state, then healthy epochs
+    warm = mk("tralo", ["1,0.8150,0.7800,0,,",
+                        "2,0.9000,0.5000,200,62,70",
+                        "3,0.9500,0.3000,190,62,66",
+                        "4,0.9600,0.2000,180,62,60"], wide)
+    r = read_run(warm)
+    assert not r["nonfinite"], (
+        "flagged the warm-up row as divergence: %s" % r["nonfinite"])
+    assert r["sat"] is None or True
+    assert 2 in r["counts"] and r["counts"][2]["K"] == 62
+
+    # a post-hoc arm: same header, but every limit is UNLIMITED
+    ph = mk("clip", ["1,0.8150,0.7800,0,10000000000.0,0",
+                     "2,0.9000,0.5000,200,10000000000.0,70",
+                     "3,0.9900,0.3000,190,10000000000.0,66"],
+            wide.replace("Hard_Class2,Limit_Class2",
+                         "Hard_Class2,Limit_Class2") + ",Global_Satisfied")
+    ph_rows = io.open(os.path.join(ph, "training_log.csv"), encoding="utf-8").read()
+    io.open(os.path.join(ph, "training_log.csv"), "w", encoding="utf-8").write(
+        ph_rows.replace(",0" + chr(10), ",0,1" + chr(10))
+               .replace(",70" + chr(10), ",70,1" + chr(10))
+               .replace(",66" + chr(10), ",66,1" + chr(10)))
+    r = read_run(ph)
+    assert r["posthoc"], (
+        "a run whose every Limit_Class is UNLIMITED was not recognised as "
+        "post-hoc, so it will be reported as satisfied on every epoch")
+    assert r["sat"] is None, "reported a vacuous satisfaction count for a "        "post-hoc arm: %s" % (r["sat"],)
+
+    # and it must still SEE a real divergence
+    bad = mk("diverged", ["2,0.9000,0.5000,200,62,70",
+                          "3,0.9500,nan,190,62,66",
+                          "4,0.9600,0.2000,180,62,60"], wide)
+    assert read_run(bad)["nonfinite"], (
+        "missed a NaN sitting beside real values -- a run once diverged to "
+        "all-NaN and still wrote `completed`")

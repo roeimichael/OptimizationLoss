@@ -59,7 +59,7 @@ imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 173 regression tests, ~35s, no dataset needed
+python -m pytest tests -q                   # 174 regression tests, ~35s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -75,6 +75,9 @@ python -m scripts.reachability <early-run>  # CAN the penalty even reach this ce
 
 ```bash
 python -m scripts.full_panel --campaign <root> --control clip   # THE scorer, seed-paired
+python -m scripts.log_health <root>        # what the OPTIMISATION did, per run, from
+                                            #   training_log.csv -- collapse, divergence,
+                                            #   satisfaction, count trajectory vs K
 python -m scripts.paired_seeds <scan-root>  # each arm minus its OWN lambda=0 twin, per seed
 python -m scripts.score_scan <root>         # AUROC / prec@K / Jaccard, grouped by CELL
 ```
