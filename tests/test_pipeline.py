@@ -5393,3 +5393,72 @@ def test_the_straddle_count_saturates_exactly_at_the_oracle_gap(n_pos_lt_K):
     # monotone in delta -- a wider window can only expose more swaps
     got = [b["reachable"] for b in r["bands"]]
     assert got == sorted(got), got
+
+
+def _panel_stdout(tmp_path, boost, jitter, seed0=0):
+    """A campaign whose treated arm differs in AP by `boost`, with per-seed
+    variability `jitter`. Returns full stdout of the scorer."""
+    cells = [(ds, m, cap)
+             for m in ("MobileNetV3", "MobileNetV2")
+             for cap in ("L30_G30", "L50_G30")
+             for ds in ("iwildcam",)]
+    N, K = 300, 4
+    for i, (ds, model, cap) in enumerate(cells):
+        for arm in ("clip", "tralo"):
+            for seed in (1, 2, 3, 4):
+                rng = np.random.default_rng(seed0 + 1000 * i + seed)
+                y = rng.integers(0, K, size=N)
+                z = rng.normal(size=(N, K))
+                if arm == "tralo":
+                    # a per-SEED offset: the within-cell spread of d AP is what
+                    # the resolution block estimates its sd from
+                    off = boost + jitter * np.random.default_rng(
+                        seed0 + 7919 * i + 13 * seed).normal()
+                    z[np.arange(N), y] += off
+                P = np.exp(z) / np.exp(z).sum(1, keepdims=True)
+                d = tmp_path / model / ds / cap / arm / ("seed_%d" % seed)
+                d.mkdir(parents=True, exist_ok=True)
+                cols = {"True_Label": y, "Predicted_Label": P.argmax(1),
+                        "Group_ID": rng.integers(0, 3, size=N)}
+                for c in range(K):
+                    cols["Prob_Class_%d" % c] = P[:, c]
+                for f in ("final_predictions_raw.csv", "final_predictions.csv"):
+                    pd.DataFrame(cols).to_csv(d / f, index=False)
+                (d / "config.json").write_text(json.dumps(
+                    {"arm": arm, "methodology": "x", "model_name": model,
+                     "dataset_mode": ds, "constraint_tag": cap,
+                     "constraint": [0.5, 0.3], "status": "completed",
+                     "dataset_config": {"constrained_class": 1, "num_classes": K},
+                     "hyperparams": {"seed": seed}}))
+    r = subprocess.run([sys.executable, "-m", "scripts.full_panel",
+                        "--campaign", str(tmp_path), "--control", "clip"],
+                       cwd=REPO, capture_output=True, text=True)
+    return r.stdout + r.stderr
+
+
+def test_the_allocation_free_metrics_get_their_own_power_statement(tmp_path):
+    """The RESOLUTION block converts to ITEMS via `items_per_001`, which is an
+    F1 identity and does not apply to AP or AUROC -- so the scorer printed a
+    power statement for exactly one metric family, and it is the family post-hoc
+    filling can reach. Any verdict resting on the allocation-free metrics (which
+    is what FRAMEWORK 2(p) pre-registers for iwc1) had NO seed cost attached,
+    which is the "no effect vs not enough seeds" conflation the items block was
+    built to prevent.
+    """
+    out = _panel_stdout(tmp_path, boost=1.2, jitter=0.0)
+    assert "RESOLUTION of the ALLOCATION-FREE metrics" in out, out[-2500:]
+    assert "AP" in out and "AUROC" in out
+    assert "NOT items" in out, "the block must refuse to invent an items scale"
+
+
+def test_the_allocation_free_power_statement_reads_the_seed_NOISE(tmp_path):
+    """NEGATIVE CONTROL. A readout that always printed POWERED would satisfy the
+    test above. A near-zero effect swamped by per-seed spread must come back
+    UNDERPOWERED, or the block is decoration and a tie in AP would still be
+    reported as a settled null.
+    """
+    out = _panel_stdout(tmp_path, boost=0.0, jitter=0.9, seed0=555)
+    assert "RESOLUTION of the ALLOCATION-FREE metrics" in out, out[-2500:]
+    tail = out.split("RESOLUTION of the ALLOCATION-FREE metrics")[1][:800]
+    assert "UNDERPOWERED" in tail, tail
+    assert "NOT evidence" in tail, tail

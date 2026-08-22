@@ -52,6 +52,12 @@ from src.training.constraints import (compute_global_constraints,  # noqa: E402
 from src.utils.constants import UNLIMITED                          # noqa: E402
 
 
+# Allocation-free metrics that get their own power statement. They cannot be
+# moved by post-hoc filling, which is exactly why a verdict may rest on them --
+# and why a tie in them must never be reported without its seed cost.
+FREE_RESOLUTION = ("AP", "AUROC")
+
+
 def _one(series):
     """Aggregator for the seed pivot: there must be exactly ONE run per
     (cell, seed, arm). More than one means the pairing key is missing a
@@ -451,6 +457,70 @@ def _resolution_readout(perseed, df, arm, control):
               "per cell: %s" % (need, verdict))
     if single:
         print("     %d cell(s) have a single seed and contribute no sd" % single)
+
+
+def _resolution_free_readout(perseed, arm, control):
+    """Power for the ALLOCATION-FREE metrics, in their OWN units.
+
+    WHY THIS EXISTS SEPARATELY. The RESOLUTION block above converts to ITEMS
+    via `items_per_001`, which is an F1 identity (`F1 = 2TP/(K+n)`) and does not
+    apply to AP or AUROC. So for years it printed a power statement for exactly
+    one metric family -- and the family it covered is the one post-hoc filling
+    can reach. Whenever a verdict rests on the allocation-free family instead,
+    a flat table carried NO power statement at all, which is precisely the
+    "no effect" vs "not enough seeds" conflation the items block was built to
+    prevent. FRAMEWORK 2(p) pre-registers the iwc1 verdict on d AP and d AUROC,
+    so that gap had to close before the campaign lands rather than after.
+
+    No items conversion is invented here. AP and AUROC are reported in native
+    units, which is honest and still answers the only question that matters:
+    is the observed effect large against the seed noise of THIS campaign.
+    """
+    if not perseed:
+        return
+    try:
+        from scripts.frozen_head_probe import seeds_needed
+    except Exception:                                  # noqa: BLE001
+        return
+
+    rows = []
+    for m, series in sorted(perseed.items()):
+        if series is None or not len(series):
+            continue
+        sds, ns, means = [], [], []
+        for _key, g in series.groupby(level=[0, 1, 2, 3]):
+            means.append(float(g.mean()))
+            ns.append(len(g))
+            if len(g) >= 2:
+                sds.append(float(g.std(ddof=1)))
+        if not means:
+            continue
+        rows.append((m, np.mean(means), np.mean(sds) if sds else None,
+                     int(min(ns))))
+    if not rows:
+        return
+
+    print("")
+    print("  RESOLUTION of the ALLOCATION-FREE metrics -- these cannot be moved")
+    print("  by post-hoc filling, so a verdict resting on them needs its own")
+    print("  power statement. Native units, NOT items: the items scale is an F1")
+    print("  identity and does not apply here.")
+    print("     %-8s %12s %12s %8s   %s"
+          % ("metric", "observed d", "seed sd", "seeds", "verdict"))
+    for m, eff, sd, have in rows:
+        if sd is None:
+            print("     %-8s %+12.4f %12s %8d   every cell has ONE seed -- "
+                  "not separable from seed noise" % (m, eff, "n/a", have))
+            continue
+        if abs(eff) <= 0:
+            print("     %-8s %+12.4f %12.4f %8d   exactly zero -- no effect "
+                  "size to power" % (m, eff, sd, have))
+            continue
+        need = seeds_needed(abs(eff), sd)
+        verdict = ("POWERED" if have >= need else
+                   "UNDERPOWERED (~%d needed) -- a tie here is NOT evidence "
+                   "of no effect" % need)
+        print("     %-8s %+12.4f %12.4f %8d   %s" % (m, eff, sd, have, verdict))
 
 
 def _clustered_readout(results, pvals, control, arm):
@@ -1207,6 +1277,7 @@ def main():
 
         results = []          # (title, metric, row-tuple) collected, then BH
         perseed_ccf1 = None   # pre-collapse pairs, for the resolution readout
+        perseed_free = {}     # ditto for the allocation-free family
         for title, metrics in GROUPS:
             for m in metrics:
                 # Restrict to the PAIR being compared before dropping
@@ -1233,6 +1304,8 @@ def main():
                     # contrast needs, and that question is what decides whether
                     # a null is a finding or an underpowered read.
                     perseed_ccf1 = q[arm] - q[args.control]
+                if m in FREE_RESOLUTION:
+                    perseed_free[m] = q[arm] - q[args.control]
                 if m in ABOVE_CAP_ONLY and (c.min() < 1.0 or t.min() < 1.0):
                     results.append((title, m, ("UNDERSHOOT", c, t, d, None, None)))
                     continue
@@ -1372,6 +1445,7 @@ def main():
                       % {"/".join(str(x) for x in k): v for k, v in per.items()})
 
         _resolution_readout(perseed_ccf1, df, arm, args.control)
+        _resolution_free_readout(perseed_free, arm, args.control)
 
         _clustered_readout(results, pvals, args.control, arm)
 
