@@ -59,7 +59,7 @@ imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 231 regression tests, ~65s, no dataset needed
+python -m pytest tests -q                   # 235 regression tests, ~80s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -93,9 +93,9 @@ when no cell has two seeds, rather than deriving one from nothing.
 
 ## Pricing a direction BEFORE spending a GPU
 
-Both run on CPU in minutes against runs that already exist, and both carry their own
-liveness controls, so a null from them is a measurement rather than silence. Each closed
-a direction this project would otherwise have spent a campaign on.
+All five run on CPU in minutes against artefacts that already exist, and every one carries
+its own liveness control, so a null from them is a measurement rather than silence. Each
+closed a direction this project would otherwise have spent a campaign on.
 
 ```bash
 python -m scripts.frozen_head_probe --run-dir <run> --seeds 1 2 ... # refit ONLY a linear
@@ -129,11 +129,32 @@ python -m scripts.graph_probe --campaign <root>  # diffuse the scores over a kNN
                                             #   allocator provably lacks. NULL: +0.50
                                             #   items, 10/19, while its shuffled-graph and
                                             #   shuffled-feature controls lose 5.8-8.4
+python -m scripts.straddle_probe --campaign <root>  # how much of the ORACLE headroom is
+                                            #   REACHABLE by a step the size ours actually
+                                            #   is? `headroom.py` assumes the ranking can
+                                            #   be rewritten arbitrarily; 2(a3) measured
+                                            #   that we deliver exactly `lr*clip`, so an
+                                            #   item misranked by a wide margin is not
+                                            #   reachable at any dose. delta is MEASURED
+                                            #   from each arm's own `_null` twin, not
+                                            #   assumed. `--self-test` gates it
 ```
 
-Both need `test_embeddings.npz`, written by `src/pipeline/features.py` at the end of every
-run finished after 2026-08-22. Runs predating it cannot be probed and **must not be
+`frozen_head_probe`, `graph_probe`, `scope_probe` and `straddle_probe` need
+`test_embeddings.npz`, written by `src/pipeline/features.py` at the end of every run
+finished after 2026-08-22. Runs predating it cannot be probed and **must not be
 substituted for with synthetic data** -- the probes refuse rather than fall back.
+`dataset_screen` is the exception: labels and metadata only, so it runs on a candidate
+slice before a single image is ever loaded.
+
+⚠️ **Read `straddle_probe`'s shuffled control in the right DIRECTION.** Shuffling the
+scores does not send `reachable` to zero, it RAISES it -- a random top-K scatters
+positives on both sides of the cut. It is a *reference* (it depends on n, K and prevalence
+only, measured at 10.8 vs 11.6 items across two regimes whose error structures differ 5x),
+and the SIGN of the deviation is the result: `reachable << ctrl` means the ranking already
+took the easy swaps, `~= ctrl` means the statistic is reading the score distribution and
+means nothing, and `>> ctrl` means positives are parked BELOW the cut -- the one case in
+which a cut-local method has something real to win.
 
 **Three rules that cost a night each to learn:**
 

@@ -5048,3 +5048,122 @@ def test_the_empty_root_guard_is_not_satisfied_by_a_tool_that_always_fails():
                        cwd=REPO, capture_output=True, text=True)
     assert r.returncode == 0, r.stderr[-800:]
     assert "every emitted value has a reader" in r.stdout
+
+
+# ---------------------------------------------------------------------------
+# `scripts/straddle_probe.py` asks how much of the ORACLE headroom a step the
+# size of ours can actually reach. Its whole claim is that it reads WHERE the
+# errors sit rather than HOW MANY there are, so both tests below are about that
+# distinction and not about any particular number.
+# ---------------------------------------------------------------------------
+
+def test_the_straddle_gate_separates_errors_at_the_cut_from_buried_ones():
+    """The gate must PASS on the two regimes whose error geometry is known.
+
+    `matched` leaves its few residual errors AT the cut; `tailnoise` plants
+    positives far below it. A statistic that reports the same reachable SHARE
+    for both is counting errors, not locating them, and every number it prints
+    about a real campaign would be uninterpretable.
+    """
+    from scripts import straddle_probe as SP
+
+    SP.self_test(n_seeds=3)          # raises SystemExit on failure
+
+
+def test_the_straddle_gate_fails_when_the_statistic_ignores_position():
+    """NEGATIVE CONTROL ON THE GATE ITSELF.
+
+    A gate that has never been shown to fail is not a gate. Replace the band
+    with a position-BLIND one -- every false positive above the cut and every
+    true positive below it counts, however far away -- and the reachable share
+    becomes the oracle gap in BOTH regimes, so the separation vanishes. The
+    gate must reject that, or it would have signed off on a statistic that
+    reads the error rate.
+    """
+    from scripts import straddle_probe as SP
+
+    original = SP.straddle
+
+    def position_blind(scores, is_pos, K, deltas):
+        # `original`, not `SP.straddle` -- the name is about to be rebound and
+        # calling through it would recurse instead of mutating.
+        real = original(scores, is_pos, K, deltas)
+        for b in real["bands"]:
+            b["reachable"] = real["oracle"]      # reachable regardless of delta
+        return real
+
+    try:
+        SP.straddle = position_blind
+        with pytest.raises(SystemExit) as exc:
+            SP.self_test(n_seeds=3)
+    finally:
+        SP.straddle = original
+    assert "SELF-TEST FAILED" in str(exc.value), (
+        "the gate exited for some other reason than the mutation")
+
+
+def test_the_straddle_swap_count_is_bounded_by_both_sides_and_by_the_oracle():
+    """The arithmetic, pinned directly: a swap needs BOTH a false positive to
+    push out and a true positive to pull in, and no number of swaps can beat
+    the unbounded oracle gap. Constructed so the two sides are deliberately
+    unequal -- an implementation that returned either side alone, or their sum,
+    would pass a symmetric fixture.
+    """
+    from scripts.straddle_probe import straddle
+
+    # scores descending; K=4 so the cut sits at 0.60
+    scores = np.array([0.95, 0.80, 0.70, 0.60, 0.55, 0.50, 0.10, 0.05])
+    is_pos = np.array([True, False, False, False, True, True, True, False])
+
+    r = straddle(scores, is_pos, 4, [0.06, 0.5])
+    assert r["cut"] == pytest.approx(0.60)
+    # 3 false positives above the cut, 3 true positives below it, 1 TP above
+    assert r["oracle"] == min(4, 4) - 1 == 3
+
+    near = r["bands"][0]
+    # within 0.06: FPs at 0.60 only (0.70/0.80 are further); TP at 0.55 only
+    assert near["reachable"] == 1, near
+    wide = r["bands"][1]
+    # within 0.5 both sides offer 3, but the oracle gap caps the useful count
+    assert wide["reachable"] == 3 <= r["oracle"], wide
+
+
+def test_the_straddle_shuffled_reference_does_not_track_the_error_geometry():
+    """The shuffled arm is a REFERENCE, not a second measurement.
+
+    Permuting the scores destroys the ordering, so what is left depends on n,
+    K and prevalence only. It must therefore be near-EQUAL across two regimes
+    whose true error structures differ several-fold -- that insensitivity is
+    exactly what licenses reading the real number against it. (It also rises
+    rather than collapsing, which is why the docstring warns against reading it
+    as a must-collapse control.)
+    """
+    from scripts import straddle_probe as SP
+    from scripts.frozen_head_probe import make_synthetic
+
+    rng = np.random.default_rng(0)
+    shuf, real, oracle = {}, {}, {}
+    for regime in ("matched", "tailnoise"):
+        agg = {}
+        for seed in range(3):
+            SP.collect(agg, SP.probe(make_synthetic(regime, seed),
+                                     SP.sweep_deltas, rng), SP.SWEEP_NAMES)
+        widest = SP.SWEEP_NAMES[-1]
+        shuf[regime] = sum(np.mean([b["reachable"] for b in agg[c]["shuf"][widest]])
+                           for c in agg)
+        real[regime] = sum(np.mean([b["reachable"] for b in agg[c]["bands"][widest]])
+                           for c in agg)
+        oracle[regime] = sum(float(np.mean(agg[c]["oracle"])) for c in agg)
+
+    # the thing the reference is supposed to be blind to really does differ
+    assert oracle["tailnoise"] > 3 * oracle["matched"], oracle
+    # ...and the reference stays put anyway
+    lo, hi = sorted(shuf.values())
+    assert hi < 1.6 * lo, (
+        "the shuffled reference moved with the error geometry (%s), so it is "
+        "measuring the same thing as the real arm" % shuf)
+    # the real arm, by contrast, must move -- and cross the reference
+    assert real["matched"] < shuf["matched"], (
+        "clean labels should leave FEWER swaps than chance", real, shuf)
+    assert real["tailnoise"] > shuf["tailnoise"], (
+        "buried positives should leave MORE swaps than chance", real, shuf)

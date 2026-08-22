@@ -1758,7 +1758,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 231 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 235 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1766,7 +1766,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (231 tests, ~65 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (235 tests, ~80 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -2455,6 +2455,69 @@ trained model.
 match train prevalence and is exactly why the global cap carries nothing. A
 WILDS-style dataset run through a label-stratified splitter would reproduce
 every null in this document. **Split BY GROUP, holding groups out.**
+
+### (o) 🔧 THE REACHABILITY CEILING -- `straddle_probe`, an INSTRUMENT not yet a result
+
+**The gap this closes in our own accounting.** `scripts/headroom.py` reports the
+distance from `clip` to a PERFECT allocator, 1.9-9.9 items, and that number has
+been quoted throughout this document as "the prize". It is an ORACLE quantity:
+it assumes the ranking can be rewritten arbitrarily. **Ours cannot.** 2(a3)
+measured that under `constraint_grad_mode: normalize` the delivered displacement
+is exactly `lr * clip` per step, so the constraint moves scores by a BOUNDED
+amount, and an item misranked by a wide margin is unreachable at any dose. So
+part of the headroom we have been chasing was never available to any arm, and
+nothing in the repo said how much.
+
+**The quantity.** With exactly K predictions emitted for a capped class,
+improving the endpoint means SWAPPING -- a false positive above the cut leaves,
+a true positive below it enters -- so within a displacement budget `delta`,
+
+    reachable(delta) = min( #FP in [t, t+delta], #TP in [t-delta, t) )
+
+with `t` the K-th largest score. In ITEMS, comparable to everything else here.
+`contested(delta)`, how many items lie within `delta` of the cut at all, is the
+label-free version and can be computed on a candidate dataset before any GPU
+time is spent. ⚠️ It is an UPPER bound twice over: it assumes every near-cut
+item moves the RIGHT way, and it ignores the per-group ceilings, which can forbid
+a swap the global count allows.
+
+**`delta` is MEASURED, not assumed.** Given a treated run and its `_null` twin
+at the same seed -- same warm-up, same allocator, same RNG, lambda=0 -- the
+per-item difference in the capped-class score IS the displacement the constraint
+delivered. That makes `reachable` at the measured delta the ceiling for the
+constraint AS CONFIGURED. Assuming a delta instead would have made the whole
+statistic unfalsifiable, which is how `rho_step` and the lambda ratchet were
+tuned against a quantity that turned out to be cancelled.
+
+⚠️ **THE SHUFFLED CONTROL POINTS THE OTHER WAY -- do not read it as
+must-collapse.** Permuting the scores keeps their DISTRIBUTION and destroys the
+ORDERING, and `reachable` then RISES, because a random top-K scatters positives
+on both sides of the cut. It came out at 10.8 vs 11.6 items across two regimes
+whose true error structures differ 5x, so it depends on n, K and prevalence only
+-- a reference, not a second measurement. The SIGN of the deviation is the
+reading:
+
+| observed | means |
+|---|---|
+| `reachable << ctrl` | the ranking already took the easy swaps; what remains at the cut is genuinely hard |
+| `reachable ~= ctrl` | no ranking information at the cut -- the statistic is reading the score distribution and reports NOTHING |
+| `reachable >> ctrl` | positives are parked BELOW the cut beyond chance -- **the one configuration in which a cut-local method has something real to win** |
+
+**THE GATE, and its negative control.** `--self-test` runs two synthetic regimes
+whose error GEOMETRY is known: `matched` (clean labels, residual errors sit AT
+the cut) must show a HIGH reachable share, `tailnoise` (positives planted among
+the lowest-scoring items) a LOW one. Measured: oracle gap 8.60 vs 44.40 items,
+and the share separates on **5 of 5 resolved deltas** (0.05/0.00, 0.14/0.05,
+0.26/0.14, 0.72/0.42). The gate deliberately reads the whole delta ladder rather
+than the widest band, where almost anything is reachable in either regime. Both
+directions are pinned in `tests/`, including the negative control that matters:
+replacing the band with a position-BLIND one makes the share equal in both
+regimes and the gate FAIL, so it has been shown capable of failing.
+
+🛑 **STATUS: no real-data number is in hand.** The instrument is built and gated;
+it has been run on synthetic regimes only. The first real reading is due on
+`results/iwc1`, which is the first campaign carrying `_null` twins on a dataset
+that clears 2(n). **Do not quote a reachability figure until that lands.**
 
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
@@ -3220,8 +3283,13 @@ scripts/smoke_arms.py    every arm runs end to end on synthetic tensors, ~40 s; 
 scripts/verify_caps.py   the caps bind, on the real dataset slices
 scripts/check_parity.py  equal compute, shared knobs, warm-up cache sharing
 scripts/prep_*.py        dataset preparation
+scripts/dataset_screen.py     CAN a count cap carry information here? labels + metadata only
+scripts/frozen_head_probe.py  refit only a linear head on frozen features, verdicts in items
+scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embeddings
+scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
+scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             231 tests, ~40 s, no dataset required
+tests/             235 tests, ~80 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
