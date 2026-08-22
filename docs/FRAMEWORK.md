@@ -2667,10 +2667,23 @@ contrast needs no new scorer:
 
 ```bash
 python -m scripts.log_health results/iwc1                          # 0. did it RUN
+python -m scripts.reachability <one-completed-run>                 # 0b. IS CE SATURATED HERE
 python -m scripts.full_panel --campaign results/iwc1 --control tralo_null  # 1. THE VERDICT
 python -m scripts.full_panel --campaign results/iwc1 --control clip        # 2. the bar
 python -m scripts.straddle_probe --campaign results/iwc1           # 3. was it REACHABLE
 ```
+
+🛑 **STEP 0b IS NOT OPTIONAL ON THIS DATASET, AND IT IS NEW.** Rule 1 fixes
+warm-up at 1 because at warm-up 50 CE saturates and every method becomes
+identical -- but that regime boundary was calibrated on **dermmnist**, a hard
+7-class problem. **iWildCam's warm-up reaches 95.6% accuracy in ONE epoch**
+(observed 2026-08-22 in the iwc1 log): eight camera-trap species are far more
+separable than skin lesions. If CE is already saturated at warm-up 1 here, then
+warm-up 1 on iwildcam is warm-up 50 on dermmnist, the regime protection is void,
+and a tie across all arms would be the SATURATION and not the methods -- the
+single most-repeated failure in this document, arriving through a door rule 1
+does not cover. `reachability` measures `p(1-p)` at the cut; 2(a4) records that
+converging the model drops it 60x. **Read it before reading any contrast.**
 
 Step 0 first, every time: a dead arm reads as `pending`, and all eight tralo
 runs of one campaign once OOM'd while the campaign merely looked unfinished.
