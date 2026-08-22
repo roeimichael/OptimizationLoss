@@ -1984,6 +1984,64 @@ mechanism and will hold; the magnitudes need the other three seeds. Recorded
 now because it changes which cell to read first, and reading the wrong one first
 is how a null gets called a win.
 
+### (j) 🔴🔴🔴 THE COMPLETE MECHANISM: the constraint is a PRIOR SHIFT, and top-K is invariant to prior shifts
+
+**This is the capstone of sections (a2), (a3), (g) and (h), measured 2026-08-22, and
+it also CLOSES PATH 2 without spending a campaign.**
+
+**Step 1. Post-hoc top-K is nearly invariant to a per-class prior correction.** Multiply
+the capped classes' odds by `w` on the shipped `clip` model and re-allocate:
+
+| w (odds multiplier) | 0.1 | 0.25 | 0.5 | 2 | 4 | 10 | 100 |
+|---|---|---|---|---|---|---|---|
+| top-K items moved, c2 | 2/41 | 1/41 | 1/41 | 0/41 | 1/41 | 2/41 | 4/41 |
+| top-K items moved, c4 | 3/44 | 2/44 | 1/44 | 1/44 | 2/44 | 3/44 | 7/44 |
+
+**A 1000x prior correction moves at most 4 and 7 items -- fewer than a single RNG
+reseed does.** The within-class ranking is what the allocator consumes, and a per-class
+reweighting barely disturbs it.
+
+**Step 2. The constraint's entire systematic signature IS a per-class prior shift.**
+Section (h) measures it at -1.7 to -4.7 nats, i.e. odds x 0.009 to 0.18 -- squarely
+inside the range above. Build a synthetic twin of the null whose ONLY difference is that
+same mean shift, and compare it to what the arm actually did:
+
+| arm | measured shift (c2, c4) | items moved, ACTUAL | items moved, PURE SHIFT |
+|---|---|---|---|
+| tralo | -3.35, -4.72 | 15/41, 19/44 | **4/41, 3/44** |
+| fioretto | -2.17, -4.39 | 18/41, 16/44 | 3/41, 2/44 |
+| hounie | -1.68, -3.04 | 12/41, 17/44 | 2/41, 1/44 |
+| alm | -3.16, -3.05 | 14/41, 20/44 | 2/41, 2/44 |
+| **`tralo_reseed`** (zero dose) | +1.82, +0.89 | **15/41, 20/44** | 1/41, 2/44 |
+
+🔑 **THE DECOMPOSITION. The constraint = (a) a prior shift worth 1-4 items of
+re-allocation, which is the ONE transform top-K is built to ignore, plus (b) 11-18 items
+of UNAIMED movement that a zero-dose RNG reseed reproduces exactly.** Roughly 80% of what
+the constraint does to the allocation is not explained by the only thing it does
+systematically.
+
+That is why every arm ties, stated once and completely. It is not a dose problem, a
+shape problem, an optimizer problem or an estimator problem -- all four were swept and
+all four are downstream of this.
+
+### 🛑 THEREFORE PATH 2 (a test set whose prevalence differs from train) IS CLOSED
+
+Section 4 lists the prior-shift regime as the one setting where the cap carries real
+information, marked "needs Roei" because it touches the data path. It does not need to
+be run, and here is why in two parts:
+
+- **the CHEAP version cannot create the regime.** A load-time subsample changes the
+  prior and nothing else: every item's score is unchanged, so the within-class ranking
+  is unchanged, and step 1 above shows the allocator is invariant to exactly that.
+- **the EXPENSIVE version does not create a GAP.** Training on a shifted prior would
+  genuinely degrade the model's ranking and so raise the headroom -- but post-hoc
+  allocation is optimal for expected TP **given the probabilities**, and that optimality
+  is distribution-free. A bigger headroom is a bigger prize for the CLIPPER too. Shift
+  changes how much is on the table; it does not change who can reach it.
+
+⇒ **Do not ask for new slices, and do not implement the load-time subsample.** The
+question it was going to answer is answered.
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 **The single most useful fact in this project: regime effects are ~8 pp. Method effects are ~0.1 pp.**
