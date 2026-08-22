@@ -2136,6 +2136,40 @@ while 3 is a relationship not yet looked at.
 becoming true makes any arm beat `clip`; they would only establish why it does
 not. The primary endpoint remains ccF1 vs `clip`, seed-paired, per cell.
 
+### (k) INTERIM, n=2: no arm beats a ONE-`torch.rand(1)` reseed, and in the loose cap none comes close
+
+**Recorded 2026-08-22 at 46 of 88 runs, verified independently of the analysis
+agent, and NOT callable -- two seeds per cell.** It is written down now so it
+cannot be retrofitted once the four-seed cells land.
+
+Isolation = arm minus its OWN zero-dose null at the SAME seed, in items:
+
+| arm | G20 s1 | G20 s2 | G20 mean | G40 s1 | G40 s2 | **G40 mean** |
+|---|---|---|---|---|---|---|
+| **`tralo_reseed`** (ZERO dose) | +0.2 | -2.0 | -0.9 | +12.0 | +4.0 | **+8.0** |
+| hounie | +4.0 | -1.8 | +1.1 | +11.9 | -1.8 | +5.0 |
+| alm | -3.0 | -3.8 | -3.4 | +7.9 | -0.7 | +3.6 |
+| fioretto | +1.8 | -7.9 | -3.1 | +8.0 | -3.1 | +2.4 |
+| tralo | +2.8 | -4.0 | -0.6 | -0.2 | -7.2 | **-3.7** |
+
+**In `L50_G40` the zero-dose arm has the best mean isolation of any arm, is the
+only arm positive at both seeds, and is the only arm with positive AP isolation
+at both seeds** (+0.0181 / +0.0043; every treated arm is negative at seed 2 in
+both cells). `tralo` is the worst arm overall despite looking mildly positive at
+seed 1.
+
+⚠️ **DO NOT read this as "RNG is better."** In `L50_G20` the reseed does NOT win
+(-0.9, third of five). The correct reading is that **every treatment effect sits
+inside the RNG band**, and in one of two cells the RNG draw happened to land
+above all of them. That is a statement about RESOLUTION, not about the reseed.
+
+🔑 **Two independent findings agree here, which is why it is worth recording at
+n=2.** The reseed's OWN seed-to-seed swing is **8.0 items at K=82 and 2.2 at
+K=41** -- the same shape as section (i)'s allocation-noise curve, which peaks
+where the budget cuts the contested middle and collapses at both ends. The cell
+with 3x the headroom is the cell where a coin flip moves furthest, and that is
+why the loose cap flatters everything including the control.
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 **The single most useful fact in this project: regime effects are ~8 pp. Method effects are ~0.1 pp.**
