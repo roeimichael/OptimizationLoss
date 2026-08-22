@@ -228,6 +228,14 @@ def _saturation_readout(runs):
     from the predictions. Accuracy is a coarse stand-in that happens to be
     visible in the training log alone, so this prints a POINTER, never a
     verdict.
+
+    AND THE PROXY IS WEAKEST EXACTLY WHERE IT MATTERS MOST. The column is
+    `Train_Acc`. On a dataset whose test groups are HELD OUT -- iwildcam's test
+    cameras are disjoint from training -- a converged TRAIN accuracy is fully
+    compatible with an uncertain model on the TEST set, which is where the cut
+    lives and where the constraint acts. So this flag firing on an OOD split is
+    a reason to measure, not a reason to despair; on an in-domain split it is
+    much closer to a verdict. Either way `reachability` settles it.
     """
     have = [r for r in runs if r.get("acc_first") is not None
             and r.get("acc_gain") is not None]

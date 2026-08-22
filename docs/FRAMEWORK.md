@@ -2685,6 +2685,16 @@ single most-repeated failure in this document, arriving through a door rule 1
 does not cover. `reachability` measures `p(1-p)` at the cut; 2(a4) records that
 converging the model drops it 60x. **Read it before reading any contrast.**
 
+⚖️ **AND IT MAY CUT THE OTHER WAY -- do not pre-judge it.** The 95.6% is
+`Train_Acc`, and iwildcam's test cameras are DISJOINT from training. A converged
+TRAIN accuracy on a held-out-domain split is perfectly compatible with an
+uncertain model on the TEST set, which is where the cut lives and where the
+constraint acts -- and that is the very property 2(n) selected this dataset for.
+So the saturation question is genuinely OPEN here in a way it was not on
+dermmnist, where train and test are the same domain. `reachability`, measured on
+the TEST predictions, is what answers it. Do not read `log_health`'s convergence
+flag as a verdict in either direction.
+
 Step 0 first, every time: a dead arm reads as `pending`, and all eight tralo
 runs of one campaign once OOM'd while the campaign merely looked unfinished.
 Step 1 is the pre-registered verdict and it is read from the **ALLOCATION-FREE**
