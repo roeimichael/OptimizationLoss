@@ -1942,6 +1942,48 @@ is **5.1-5.9 nats against a mean of 1.7-4.7**, so the spread is larger than the
 shift. An allocator IS invariant to a uniform per-class shift, but that is not
 what this is -- the re-ranking above is real, it is simply not aimed.
 
+### (i) 🔑 WHICH CAP TO SWEEP: the RNG noise is maximal where the budget cuts the CONTESTED middle
+
+**How to choose a cap level, measured 2026-08-22.** `tralo_null` and
+`tralo_reseed` differ by exactly one `torch.rand(1)` call -- same warm-up, same
+data, same lambda 0 -- and both are cap-blind, so ONE pair of models can be
+re-allocated at any budget. Their ccF1 gap, in items, seed 1 of
+`results/dualbar2`:
+
+| K (class 2) | 10 | 20 | **41** | 62 | **82** | 123 | 164 | 205 |
+|---|---|---|---|---|---|---|---|---|
+| gap, items | -1.04 | -0.96 | **-0.16** | -6.09 | **-12.02** | -11.06 | -1.20 | -1.13 |
+
+(205 is the class's true count, so the last column is a budget that takes
+essentially everything.)
+
+🔑 **Pure RNG noise is NOT monotone in K. It peaks in the middle and collapses at
+both ends.** The mechanism is direct: at a tight budget the selected set is the
+high-confidence head that every model ranks the same way, so two models cannot
+disagree much; at a budget approaching the true count both are forced to take
+nearly everything and the sets re-converge; in between, the budget cuts through
+the ranks where they actually disagree.
+
+**Consequence for campaign design, and it inverts the obvious reading.**
+`L50_G40` has 3x the headroom of `L50_G20` (33.0 items against 11.0), which
+makes it look like the better place to find an effect. It also has **75x the
+noise** on this draw:
+
+| cap | headroom | RNG noise | noise as a fraction of headroom |
+|---|---|---|---|
+| `L50_G20` | 11.0 items | **0.16** | **1.4%** |
+| `L50_G40` | 33.0 items | **12.02** | **36%** |
+
+🛑 **The TIGHT cap is the better-powered cell, despite having less to win.** An
+arm that shows something real should show it at `L50_G20` first, and an effect of
+similar size at `L50_G40` deserves MORE scepticism, not less. Do not read "more
+headroom" as "more likely to separate".
+
+⚠️ **n=1 noise draw**, re-allocated at eight budgets. The SHAPE of the curve is
+mechanism and will hold; the magnitudes need the other three seeds. Recorded
+now because it changes which cell to read first, and reading the wrong one first
+is how a null gets called a win.
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 **The single most useful fact in this project: regime effects are ~8 pp. Method effects are ~0.1 pp.**
