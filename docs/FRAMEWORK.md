@@ -810,7 +810,13 @@ were **deleted from the pipeline** on 2026-08-18 (section 2f). They cannot be re
 
 ### Scope
 
-- **Datasets: `dermmnist`, `octmnist`, `tissuemnist`.** Nothing else. No AIDER, no EuroSAT.
+- **Dataset: `iwildcam` (held-out camera traps).** Nothing else. 🛑 `dermmnist`,
+  `octmnist` and `tissuemnist` were REMOVED 2026-08-22 -- section 2(n) has the measurement
+  and the reasoning. They are not deprecated, they are UNRUNNABLE: the protocol declares
+  only `iwildcam`, `data_loader.IMAGERY_DATASETS` holds only `iwildcam`, and the generator
+  exits non-zero on a removed name, all three gated by
+  `test_removed_datasets_cannot_be_selected_anywhere`. Restoring one requires a
+  `scripts.dataset_screen` number first. No AIDER, no EuroSAT.
 - **Backbones: `MobileNetV3` (headline), `MobileNetV2`, `RegNetY400MF`, `ViTB16`.** Nothing else.
   These are exactly the four the manuscript claims. `ShuffleNetV2`, `TinyCNN`, `SmallCNN` and
   `MediumCNN` were deleted on 2026-08-18 -- none appears in any `.tex` file, so no written
@@ -3203,7 +3209,7 @@ close.
 main.py            dispatcher (kill -INT to stop; interrupted runs reset to pending)
 configs/protocol.yml   EVERY experimental constant -- epochs, seeds, lr, caps, arms, backbones
 configs/gen_campaign.py  THE generator: reads protocol.yml, holds no constant of its own
-data/              dermmnist, octmnist, tissuemnist -- nothing else
+data/              iwildcam -- nothing else (the other three removed 2026-08-22, section 2(n))
 docs/FRAMEWORK.md  this file
 docs/archive/      history, not instructions
 docs/paper/        the TMLR manuscript (main.tex is the professor's -- never edit)

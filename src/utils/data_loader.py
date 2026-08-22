@@ -30,16 +30,6 @@ IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(1, 3, 
 IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 3, 1, 1)
 
 
-# Measured problems with the DATA ITSELF, surfaced every time it is loaded.
-#
-# Both are recorded in docs/FRAMEWORK.md with their measurements, and neither is
-# a loader defect -- they are prep-script design choices. But a loader that
-# validates row alignment meticulously while staying silent about a test set it
-# knows is 38.7% memorized is validating the wrong thing. Anyone who reads a
-# result should have seen these first.
-KNOWN_DATA_CAVEATS = {}
-
-
 def _ensure_3channel(images):
     """Grayscale (N,1,H,W) -> (N,3,H,W). Assumes NCHW, and runs BEFORE the
     NHWC->NCHW coercion, so it has to recognise NHWC grayscale (N,H,W,1) and
@@ -273,8 +263,6 @@ def _load_imagery_data(config):
     log.info("mode=%s classes=%d constrained=%s global=%s local_groups=%d test=%d train=%d",
              dataset_mode, num_classes, constrained_class, global_con,
              len(local_con), len(y_test), len(y_train))
-    for _caveat in KNOWN_DATA_CAVEATS.get(dataset_mode, ()):
-        log.warning("%s: %s", dataset_mode, _caveat)
     _check_group_leakage(data_dir, group_col,
                          bool(ds.get('disjoint_groups', False)))
     config["data_fingerprint"] = data_fingerprint(y_train, y_test, groups_test)
