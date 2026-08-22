@@ -5352,3 +5352,44 @@ def test_the_straddle_probe_runs_end_to_end_on_a_campaign(tmp_path):
     assert "NOT calibrated" not in out, (
         "fell back to the swept ladder even though a twin exists")
     assert "CLASS 2" in out, out[-600:]
+
+
+@pytest.mark.parametrize("n_pos_lt_K", [False, True])
+def test_the_straddle_count_saturates_exactly_at_the_oracle_gap(n_pos_lt_K):
+    """THE SATURATION IDENTITY, both branches of the min.
+
+    As delta grows, `fp_near -> K - tp_above` and `tp_near -> n_pos - tp_above`,
+    so reachable(inf) = min(K, n_pos) - tp_above = oracle EXACTLY. That is what
+    licenses reading this probe as a refinement of `headroom.py` rather than as
+    a competing estimate of the same thing -- they agree in the limit by
+    construction. It also forces reachable <= oracle at every delta.
+
+    Both branches are exercised because they saturate through DIFFERENT sides
+    of the min: with n_pos >= K the false positives above the cut run out
+    first, with n_pos < K the true positives below it do. An implementation
+    that returned only one side would pass on one branch alone.
+    """
+    from scripts.straddle_probe import straddle
+
+    rng = np.random.default_rng(11)
+    n = 300
+    K = 60
+    prevalence = 0.05 if n_pos_lt_K else 0.40
+    scores = rng.random(n)
+    is_pos = rng.random(n) < prevalence
+    if n_pos_lt_K:
+        assert is_pos.sum() < K, is_pos.sum()
+    else:
+        assert is_pos.sum() > K, is_pos.sum()
+
+    ladder = [1e-4, 1e-3, 1e-2, 0.1, 0.5, 10.0]
+    r = straddle(scores, is_pos, K, ladder)
+
+    for band in r["bands"]:
+        assert band["reachable"] <= r["oracle"], (band, r["oracle"])
+    assert r["bands"][-1]["reachable"] == r["oracle"], (
+        "a delta far wider than the score range must collect the ENTIRE oracle "
+        "gap; got %s of %s" % (r["bands"][-1]["reachable"], r["oracle"]))
+    # monotone in delta -- a wider window can only expose more swaps
+    got = [b["reachable"] for b in r["bands"]]
+    assert got == sorted(got), got

@@ -1758,7 +1758,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 240 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 242 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1766,7 +1766,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (240 tests, ~80 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (242 tests, ~80 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -2520,6 +2520,62 @@ regimes and the gate FAIL, so it has been shown capable of failing.
 it has been run on synthetic regimes only. The first real reading is due on
 `results/iwc1`, which is the first campaign carrying `_null` twins on a dataset
 that clears 2(n). **Do not quote a reachability figure until that lands.**
+
+### (p) 📌 PRE-REGISTRATION for `results/iwc1` -- written 2026-08-22, BEFORE the data
+
+Recorded before the campaign lands so the read cannot be rationalised
+afterwards. This document has twice had a result explained after the fact and
+retracted later; a prediction on the record is the cheapest guard against a
+third.
+
+**PREDICTION 1 -- the ALLOCATION channel will null, and the binding cap will not
+save it.** 2(n) chose iwildcam because 7 of its 14 per-group ceilings are K=0,
+which makes the LOCAL scope bind at every cap level for the first time. ⚠️ **A
+binding cap is not an informative one.** A K=0 ceiling is a per-group multiplier
+of ZERO -- the strongest reordering 2(m) allows -- and the post-hoc allocator
+applies it exactly and for free, by zeroing that cell and reassigning each item
+to its best ALLOWED class. Given the probabilities that reassignment is optimal,
+so the clipper collects the entire benefit of the structure that was the reason
+for picking this dataset. Expect `tralo` vs `clip` to tie on every
+budget-equalized metric.
+
+**PREDICTION 2 -- the REPRESENTATION channel is the live one, and iwc1 is the
+first dataset on which it can be tested at all.** The caps are transductive:
+they are computed from the TEST set and applied during training, so the
+constraint is a weak label on the target domain and training under it is
+transductive adaptation, not allocation. On dermmnist that channel was empty by
+construction -- train and test are the SAME domain (2(k): the cap is recoverable
+from training prevalence to within one item), so there was nothing to adapt to.
+On iwildcam the test cameras are DISJOINT and unseen, which is a real domain
+shift. **This is the one mechanism in the project that the "top-K is optimal
+given the probabilities" argument does not cover**, because it changes the
+probabilities rather than the allocation.
+
+**THE DISCRIMINATING MEASUREMENT, and it already exists.** The two channels
+separate cleanly on the metric families `full_panel` already prints:
+
+| channel | signature |
+|---|---|
+| allocation only | budget-equalized metrics move, ALLOCATION-FREE metrics (AP, AUROC) flat |
+| representation | **AP / AUROC move**, and they cannot be moved by post-hoc anything |
+
+So the verdict on iwc1 is read from **`d AP` and `d AUROC` of `tralo` against
+`tralo_null`** -- same warm-up, same allocator, same seed, lambda=0 -- and NOT
+from ccF1 against `clip`. Allocation-free metrics are computed from
+probabilities alone, so no amount of post-hoc filling can manufacture them; this
+is the family that survived the quota-fill audit. A ccF1 win with AP flat is the
+allocation channel and means nothing new.
+
+⚠️ **Pre-register the null too.** `tralo_reseed` moves the capped count RMS
+83-95 items on its own, so a count change is not evidence of anything. And per
+2(o), `straddle_probe` must be run on the same campaign to say how much of the
+oracle gap a step our size could even reach -- a tie is uninterpretable without
+it, because "no effect" and "no reachable effect" are different conclusions.
+
+🛑 **If AP and AUROC are both flat against `tralo_null` at 4 seeds, the
+representation channel is measured and closed**, and with it the last mechanism
+the structural argument leaves open. Say so plainly rather than looking for a
+fifth slice.
 
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
@@ -3291,7 +3347,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             240 tests, ~80 s, no dataset required
+tests/             242 tests, ~80 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

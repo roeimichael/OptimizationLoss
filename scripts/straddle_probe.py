@@ -47,6 +47,19 @@ that runs before any GPU time is `dataset_screen`, from labels and metadata.
 RIGHT way, and it ignores the per-group ceilings, which can forbid a swap the
 global count allows. A method cannot beat this number; it can easily fall short.
 
+THE SATURATION IDENTITY -- why this REFINES `headroom.py` rather than competing
+with it. As `delta` grows, `fp_near -> K - tp_above` and
+`tp_near -> n_pos - tp_above`, so
+
+    reachable(inf) = min(K, n_pos) - tp_above = oracle,   exactly.
+
+The two agree in the limit, by construction and not by luck. What the delta
+ladder adds is the RATE of approach, which is the distance distribution of the
+misranked items -- so `reachable` never contradicts a headroom figure, it says
+how far the scores would have to move to collect it. It also follows that
+`reachable <= oracle` at every delta, which is pinned as a regression: an
+implementation returning a sum, or one side of the min, would break it.
+
 WHERE `delta` COMES FROM. Assuming one is the whole difficulty, so the default
 mode MEASURES it: given a treated run and its `_null` twin at the same seed --
 same warm-up, same allocator, same RNG, lambda=0 -- the per-item difference in
