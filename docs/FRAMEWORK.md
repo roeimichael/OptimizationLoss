@@ -432,6 +432,52 @@ a direction to earn; loosen it and a monotone penalty finds something a coin can
 
 ---
 
+### (13) ⛔⛔ THE CONSTRAINT'S EFFECT ON THE COUNT IS AT OR BELOW A DROPOUT RESEED
+
+Measured on `results/dosefix`, 2026-08-22, and verified independently. RMS separation of
+the capped-class hard count over epochs >= 4, per seed, then averaged:
+
+| what changed | class 2 | class 4 |
+|---|---|---|
+| **the constraint** -- `tralo` vs its own lambda=0 twin @ L40_G30 | 75.6 | 85.3 |
+| **the constraint** -- `tralo` vs its own lambda=0 twin @ L50_G30 | 74.6 | 95.2 |
+| **nothing but the RNG stream** -- two pure-CE runs | **82.8** | **95.0** |
+
+🔑 **THE NOISE FLOOR WAS ALREADY IN THE DATA.** `select_null` sets `select_eta: 0`, so its
+loss is `ce + 0 * sel_loss` -- a PURE CE run on the same seed and the same warm-up cache as
+`tralo_null`. It differs only in that its selection head draws from the global RNG, so the
+dropout masks and batch order are a different stream. It is a free, in-campaign,
+same-warm-up reseed control, and nobody had used it as one.
+
+⇒ **Turning the constraint on perturbs the capped count by LESS than reseeding dropout
+does** -- 0.90-1.00x, on both classes, at both cap tags. The constraint is not weak but
+directional. Its whole measurable footprint on the count is a re-randomisation.
+
+⚠️ **THIS IS THE CONTROL EVERY COUNT TRAJECTORY HAS BEEN MISSING.** "The constraint moved
+the count 75 items" is not a result until it is stated as "the constraint moved it 75 and a
+reseed moves it 83". Carry a reseed arm in every campaign that reads a count.
+
+🔬 **MECHANISM, derived and verified by autograd.** With the shipped `sum` count the penalty
+is `P = sum_c w_c * sum_i p_ic`, and one step on the logits changes the count by
+`dS_j = -eta * sum_c w_c * sum_i p_ij p_ic (delta_jc - p_ij - p_ic + ||p_i||^2)`. The
+cross-term (`j != c`, both capped) is NEGATIVE whenever `p_j + p_c > ||p_i||^2` -- i.e. on
+exactly the items where the two capped classes hold most of the mass -- so pushing class 2
+down pushes class 4 UP. Verified on a 2-vs-4 confusion item (p2 = p4 = 0.45): class 2 moves
+-0.134 while class 4 moves **+0.040**, so 30% of the push is traded rather than evacuated.
+**The mass is not removed, it is exchanged.** That is the see-saw, in closed form.
+
+⚠️ **BUT THE PROPOSED FIX DOES NOT BUY WHAT IT LOOKS LIKE IT BUYS.** Renormalising each
+capped class over `{c} + uncapped` zeroes the cross-term by construction, and on that item
+class 4 flips from +0.040 to -0.043. Measured over a full 2014-item population under the
+protocol's `constraint_grad_mode: normalize`, however, the aggregate movement is
+**0.95x, not larger** -- the per-item see-saw correlation falls from **-0.319 to -0.166**,
+but `d(S2+S4)` does not improve. A per-unit-eta probe on an UNNORMALISED gradient shows a
+2-3x gain; `normalize` renormalises exactly that gain away, and `normalize` is what we run.
+⇒ Worth testing for the see-saw, not for the dose. Predict a halved cross-class
+correlation and NO increase in count movement.
+
+---
+
 ### (12) ⛔⛔ `select` (1c, the jointly-trained SELECTION head) IS REJECTED
 
 `results/selectrun`, 32 runs, dermmnist x ViTB16 x {L70_G30, L70_G50} x 4 seeds,
