@@ -14,7 +14,7 @@ entirely.
 
 ## 0. BOTTOM LINE
 
-0. 🟢🟢 **fMoW IS THE FIND, and it beats every camera trap on the measure that matters.**
+1. 🟢🟢 **fMoW IS THE FIND, and it beats every camera trap on the measure that matters.**
    Satellite imagery, groups = **country**, whole countries held out entire:
    **NET +2969, z=79.7, NET/LOCAL 95.8%, 10 unseen countries**, and it survives §3's
    control at **100.0%** because a country is an ATOMIC group. Its per-group binding
@@ -23,32 +23,40 @@ entirely.
    leaves BOTH camera traps AND dermatology, and the images are **1.65 GB, already
    cropped to the AOI and resized to 224x224 JPEG**, which is our pipeline's format.
    **This is the acquisition to make.**
-1. 🟢 **ISIC 2019 also clears stage 1** -- the first *medical* non-camera-trap set to do
-   so -- but only in
-   ONE form: **BCN_20000 only, groups = (anatomical site x age band), held out entire.**
+2. 🟢 **ISIC 2019 also clears stage 1** -- the first *medical*
+   non-camera-trap set to do so -- but only in ONE form: **BCN_20000 only, groups = (anatomical site x age band), held out entire.**
    NET **+1705 items, z=47.7, NET/LOCAL 84.9%, 10 unseen groups** -- third on NET/LOCAL
    behind `cct` (90.6%) and `iwildcam` (88.7%), and clear of every other camera trap.
-2. 🛑 **The obvious ISIC design is DEAD, and it is the one anyone would have tried.**
+3. 🛑 **The obvious ISIC design is DEAD, and it is the one anyone would have tried.**
    Grouping by acquisition archive (Barcelona / Vienna / MSK) and holding one out gives
    **NET -141 items, z=-2.7** against a GLOBAL of +5581. With a single held-out
    institution the per-group shift and the global shift are the same object, and 2(j)
    shut the global route permanently. **A cross-hospital split of ISIC tests nothing.**
-3. 🚨 **A new failure mode was found, and it inflates NET by up to 5.7x.** `dataset_screen`
+4. 🚨 **A new failure mode was found, and it inflates NET by up to 5.7x.** `dataset_screen`
    credits an unseen group with the GLOBAL training prior. That is right for an ATOMIC
    group (a camera) and **too generous for a group built as a PRODUCT of factors that
    both appear in training** -- a model that has seen (head/neck, 60s) and (upper
    extremity, 70s) can interpolate (head/neck, 70s). Section 3 measures it and
    `scripts/factorial_control.py` now gates it. **Every camera-trap dataset is unaffected
    (99.8-100.1%). The best-looking ISIC variant lost 82% of its NET.**
-4. ⛔ Fitzpatrick17k, DomainNet, Office-Home and ENA24 are **rejected with measured
+5. ⛔ **"WHICH INSTITUTION COLLECTED IT" IS DEAD, MEASURED ON THREE INDEPENDENT
+   DATASETS.** ISIC 2019 archives (NET **-141**), HAM10000 acquisition sources (NET
+   **-86**), and the full 553,019-image ISIC Archive by attribution (**NET/LOCAL 22.3%**,
+   only 2 holdable groups after coverage-matching). The cause is structural, not
+   per-dataset: too few levels, so the per-group correction degenerates into the one
+   global multiplier 2(j) already shut. **Stop proposing institution as the group
+   variable.** And the full archive adds a confound of its own -- label coverage runs
+   **1.7% to 100%** across contributors, so a naive screen would be reading annotation
+   policy (§4c).
+6. ⛔ Fitzpatrick17k, DomainNet, Office-Home and ENA24 are **rejected with measured
    numbers**, not on reasoning alone. ENA24's previously unreproduced rejection is now
    reproduced.
-5. 📌 **Acquire `fmow` first, `cct` second, `isic` third.** `fmow` is **1.65 GB** and is
+7. 📌 **Acquire `fmow` first, `cct` second, `isic` third.** `fmow` is **1.65 GB** and is
    the only candidate that is independent of everything we hold; `cct` is ~8 GB, 27%
    fetched, wiring committed, and buys consistency rather than independence; `isic` is
    9.8 GB transient / 1.8 GB steady. All three take the dataset count from 1 to 4 and the
    *independent* count from 1 to 3.
-6. 🛑 **The cheap fMoW route the shortlist assumed does not exist.** `danielz01/fMoW` on
+8. 🛑 **The cheap fMoW route the shortlist assumed does not exist.** `danielz01/fMoW` on
    HuggingFace is **gated** (`HTTP 401, x-error-code: GatedRepo`) and there is no token on
    either machine, so its byte-exact WILDS parquet is not readable anonymously. The route
    that DOES work is `jbourcier/fmow-rgb-baseline`, whose per-image JSON sidecars ship
@@ -60,11 +68,12 @@ entirely.
 ## 1. THE TABLE -- every candidate considered
 
 **Provenance is marked per row.** All numbers are from `scripts.dataset_screen`, in
-ITEMS. `A`, `B`, `C` and `L` are four invocations of the screen made during this run (`L` was run
-locally while the ssh jump host was down; `A`, `B` and `C` on `dsisco01`); **all four contain
-`iwildcam` and all three server runs contain `cct`, and every one returns them
+ITEMS. `A`, `B`, `C`, `D` and `L` are five invocations of the screen made during this run (`L` was run
+locally while the ssh jump host was down; `A`-`D` on `dsisco01`; `D` is the ISIC-Archive
+run, whose pool is the first 145k rows of a date-ordered cursor and is marked so); **all five contain
+`iwildcam` and runs `A`-`C` contain `cct`, and every one returns them
 bit-identically** (+3133/3531/994 and
-+2546/2810/540), so all four are on one scale and NET/LOCAL may be read across them.
++2546/2810/540), so all five are on one scale and NET/LOCAL may be read across them.
 Nothing here is a stored number divided into a fresh one.
 
 | dataset / slice | modality | group variable | NET | z | LOCAL | GLOBAL | **NET/LOCAL** | unseen | run | verdict |
@@ -82,6 +91,10 @@ Nothing here is a stored number divided into a fresh one.
 | `isic/srcsiteage` | dermoscopy | archive x site x age | +1751 | 58.7 | 1811 | 360 | 96.7% | 10 | B | 🛑 REJECT -- 69% interpolable |
 | `isic/srcage` | dermoscopy | archive x age band | +1537 | 56.1 | 2204 | 1401 | 69.7% | 7 | A+B | 🛑 REJECT -- 69% interpolable |
 | `isic/srcsite` | dermoscopy | archive x body site | +1125 | 35.9 | 1777 | 1225 | 63.3% | 12 | A+B | ⛔ REJECT -- survives 72.7% but on an ANNOTATION artefact, see §4 |
+| `isicarch/institution` | dermoscopy | contributing institution | +1136 | 20.6 | 5096 | 4742 | **22.3%** | 2 | D | ⛔ REJECT -- 78% global, only 2 holdable groups, §4c |
+| `isicarch/inst x site` | dermoscopy | institution x body site | +1396 | 39.6 | 1383 | 1075 | ~100% | 5 | D | ⛔ REJECT -- control returns 112%, uninformative at this size, §4c |
+| `ham10000/source` (retrospective) | dermoscopy | acquisition source | **-86** | **-2.5** | 1427 | 1424 | -6.0% | 1 | L | ⛔ **DEAD -- §5b, the same failure as `isic/src`** |
+| `ham10000/source x site` (retrospective) | dermoscopy | source x body site | +690 | 34.1 | 758 | 200 | 91.0% | 4 | L | ⛔ REJECT -- survives only 52.8% (+365), §5b |
 | `isic/site` | dermoscopy | body site | +1488 | 33.7 | 3303 | 3223 | 45.0% | 2 | L | ⛔ REJECT -- 98% of LOCAL is global shift |
 | `isic/src` | dermoscopy | acquisition archive | **-141** | **-2.7** | 5576 | 5581 | -2.5% | 1 | L | ⛔ **DEAD -- the cross-hospital split, §2** |
 | `fitzpatrick17k` (atlas x skin type) | clinical derm | source atlas x Fitzpatrick type | +369 | 11.8 | 582 | 332 | 63.4% | 6 | A+B | ⛔ REJECT -- 12% of iwildcam's density, no zero ceilings, URL-scrape acquisition |
@@ -298,6 +311,12 @@ train 17,670 / test 3,442 · **10 unseen countries** (CAN, DZA, EGY, IND, IRQ, J
 NLD, PHL, TUR) · imbalance 1.7x · rarest test class 320. The training set is 17,670
 against iwildcam's 20,000, so **no compute confound** -- unlike ISIC's 8,381.
 
+**Seed stability, four seeds of the same definition** (different country sets each time):
+NET **+2969 / +2767 / +2401 / +2310**, unseen groups 9-11, and the factorial control
+returns **100.1% / 100.1% / 99.9% / 100.0%** every time. Compare ISIC/BCN, whose control
+ratio swings 50-128% across its four seeds because its raking baseline is itself fitted.
+**fMoW has no such fragility: an atomic group leaves nothing for the control to eat.**
+
 **🟢 THE BINDING STRUCTURE IS BETTER THAN IWILDCAM'S.** A K=0 ceiling binds regardless of
 sum slack, and here the classes that have them are also the well-sized ones:
 
@@ -401,11 +420,37 @@ explicitly:
   novelty statistic for structural reasons. `diagnosis_2` has 18 archive-wide and a much
   more comparable per-site set. Top 8 are taken, as everywhere else in this document.
 
-⏳ **STATUS: the pull is in flight** (~113k of 553,019 rows at the time of writing) and a
-chained job builds the coverage-matched slice and screens it against `iwildcam`, `cct`,
-`fmow` and `isic/bcn` in ONE invocation the moment it lands
-(`~/_isic_chain.log`). 📌 **Whatever it returns, it does not change the top
-recommendation**: §4b's `fmow` is atomic-grouped, 5x cheaper, has better binding structure
+**📊 AND THE MEASUREMENT, on the coverage-matched pool (38,657 rows, 6 institutions,
+label `diagnosis_2`, top 8 classes), screened against `iwildcam` and `fmow` in one run:**
+
+| slice | NET | z | LOCAL | GLOBAL | **NET/LOCAL** | unseen | survives §3 |
+|---|---|---|---|---|---|---|---|
+| `isicarch/institution` | +1136 | 20.6 | 5096 | 4742 | **22.3%** | 2 | 99.9% |
+| `isicarch/institution x site` | +1396 | 39.6 | 1383 | 1075 | ~100% | 5 | 112.0% |
+| *(reference)* `fmow/country` | +2969 | 79.7 | 3100 | 1087 | 95.8% | 10 | 100.0% |
+
+⛔ **The institution axis fails again, and this is now the THIRD independent dataset on
+which it fails.** `isicarch/institution` puts **78% of its local signal into the global
+shift** -- the `shift_1` trap that 2(n) already names -- and it yields only **2 holdable
+test groups**, because coverage-matching leaves 6 institutions and only 2 of those are
+small enough to hold out while all 8 classes survive. The factorial fallback recovers
+groups but its control returns 112%, i.e. the raking baseline is noisier than the global
+one and the ratio is not informative at this size.
+
+🔑 **THE RULE THIS THIRD REPLICATION EARNS.** Across ISIC 2019 archives (NET -141, 4
+levels), HAM10000 acquisition sources (NET -86, 4 levels) and the full ISIC Archive
+attributions (NET/LOCAL 22.3%, 6 usable levels), **"which institution collected it" has
+never once produced usable differential per-group information in this project** -- however
+sharply the institutions differ in class mix. The reason is structural and is §2's rule:
+too few levels, so the per-group correction degenerates toward one global multiplier.
+**Stop proposing institution as the group variable.** What works is a group variable with
+many levels and whole ones held out: 176 countries, 216 cameras.
+
+⏳ **The full pull is still in flight** (the table above is the first 145k of 553,019 rows, date-ordered
+cursor) and a chained job re-runs the coverage table and the screen on the complete pull
+the moment it lands (`~/_isic_chain.log`). It can add rows to these 6 institutions and a
+few more contributors; it cannot repair a 22.3% differential fraction or manufacture
+levels. 📌 **And it does not change the top recommendation**: §4b's `fmow` is atomic-grouped, 5x cheaper, has better binding structure
 and carries no coverage confound at all.
 
 ---
@@ -421,6 +466,8 @@ and carries no coverage confound at all.
 | **DomainNet** | **NET +57, z=1.2 -- below the screen's own z=2 threshold.** `quickdraw` holds **exactly 350 train images for every one of its 345 classes** (verified here: the set of its per-class counts is `{350}`), so `P(y \| quickdraw)` is uniform to the item -- octmnist's `index % 3` in a new costume. And **0 of the 1380 (domain x class) cells are empty**, so there is not one K=0 ceiling to bind on |
 | **Office-Home** | not screened: all 65 classes provably appear in all 4 domains (per-domain minimum images-per-class 15/39/38/23), so the label support is identical across groups and the local scope is empty by construction. The Art-vs-rest difference is group SIZE (2,427 vs ~4,400), not class prior |
 | **ENA24** | ⛔ **previously "REPORTED, not reproduced" in 2(n) -- now REPRODUCED.** Downloaded `ena24.json` (3.78 MB) and checked the union of keys over all 9,676 image records: `['file_name','height','id','width']`. **No `location` on any image.** The dataset has no group variable, so the local scope does not exist. Rejection stands |
+| **ISIC Archive by institution** | 78% of its local signal is the global shift, and coverage-matching leaves only 2 holdable groups. §4c |
+| **HAM10000 by acquisition source** | 4 levels, one legal holdout, NET **-86 (z=-2.5)**. §5b |
 | **So2Sat LCZ42** | not screened, and deliberately: *"for each city we reduced the number of samples of each of the nonurban classes A to G to N_m"* -- the per-city composition of **7 of its 17 classes is set by the dataset's own capping rule**. That is octmnist's failure with a different mechanism. A NET over all 17 classes would be uninterpretable; if it is ever screened, restrict to the untouched urban classes 1-10 and say so |
 | **fMoW via `danielz01/fMoW`** | ⛔ **GATED** (`HTTP 401`, `x-error-code: GatedRepo`), no token on either machine. The dataset is NOT rejected -- see §4b for the route that works |
 | **fMoW via `EVER-Z/fMoW_rgb`** | corrupt `category` column, unchanged from 2(n). §4b takes the label from the PATH instead, where the trap cannot bite |
@@ -583,9 +630,13 @@ again, so re-screening a camera trap means re-downloading its LILA annotation
 
 * `scripts/factorial_control.py` -- the §3 control. Gate any product-shaped group
   through it before quoting a NET. Atomic groups return ~100% and cost nothing.
+* `scripts/prep_fmow.py` -- builds the §4b slice. `--meta-only` is the 52 MB stage-1
+  screen; a full run streams the 1.65 GB image tarball and keeps only the slice's members.
+  Asserts country AND site disjointness, and takes the label from the PATH so 2(n)'s
+  truncated-`category` trap cannot bite.
 * `scripts/prep_isic.py` -- builds the slice, `--meta-only` for the 2.5 MB screen and a
   full run to extract only the slice's members from the 9.77 GB zip. Enforces group AND
   lesion disjointness and prints the leak count.
 
-Neither is on `src.experiments.runner`'s import path, so both are safe to deploy while a
+None of the three is on `src.experiments.runner`'s import path, so all are safe to deploy while a
 campaign runs.
