@@ -3196,19 +3196,27 @@ wanted:
    constraint phase actually does to the model: it does not re-rank toward the
    budget, it degrades the ranking it was given.
 
-**STEP 3 -- was there anything to win. `straddle_probe`: the oracle gap is
-0.00 to 1.50 items and `ccP` is 0.999.** At these caps the allocator is already
-essentially perfect, so the 2(o) question answers itself: the reachable headroom
-is under two items and the measured effect is a loss several times that size.
+**STEP 3 -- was there anything to win. `straddle_probe`, re-run 2026-08-23:**
 
-⛔ **AND THE OBVIOUS ESCAPE IS CLOSED, FOR ZERO GPU-HOURS.** "Run a looser cap
-where the headroom is bigger" is the natural next move: sweeping K upward, the
-oracle gap peaks at 40.00 / 38.75 items at `K = n_pos`, twenty times what the
-run caps leave. **It does not survive its own control.** At that cap
-`reachable` is 18.00 against a shuffled-score control of 17.00 -- and 2(o) is
-explicit that `~= ctrl` means the statistic is reading the score distribution
-and means nothing. The headroom is real and it is not reachable by a step the
-size ours actually is. Do not spend a campaign on a loose cap.
+    cell / class                          emits K   true   ORACLE gap   reachable   shuffled ctrl
+    L20_G50 / class 2                          74    370      1.00         1.00        25.00
+    L20_G50 / class 7                          92    456      0.00         0.00        68.75
+    L30_G50 / class 2                         111    370      1.00         1.00        18.50
+    L30_G50 / class 7                         137    456      1.00         1.00        55.25
+
+**The oracle gap is 0.00 to 1.00 items**, and `ccP` is 0.999. At these caps the
+allocator is already perfect to within one item, so the 2(o) question answers
+itself: there was nothing to win, and the measured effect is a loss thirty times
+that size.
+
+⛔ **AND THE CONTROL SAYS THE CUT IS NOT WHERE THE WIN IS.** `reachable` is far
+BELOW its shuffled control in every cell (1.00 vs 18.50-25.00, 0.00 vs 68.75),
+and 2(o) is explicit about the sign: `reachable << ctrl` means **the ranking
+already took the easy swaps**. The one case worth training for is
+`reachable >> ctrl`, positives parked below the cut, and iwc1 is its opposite in
+all four (cell, class) combinations. A cut-local method has nothing to collect
+here however it is tuned -- a measurement, and cheaper than the campaign it
+saves.
 
 🛑 **WHAT MAY AND MAY NOT BE CLAIMED FROM THIS.** The CELL floor binds exactly
 as 2(p) predicted: 2 cells gives a minimum attainable Wilcoxon p of 0.500, so
