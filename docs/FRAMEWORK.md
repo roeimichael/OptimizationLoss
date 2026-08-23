@@ -1883,7 +1883,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 297 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 299 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1891,7 +1891,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (297 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (299 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -3073,6 +3073,55 @@ predictions file. That is sound -- post-hoc rewrites `Predicted_Label` and never
 the `Prob_Class_*` columns, so its AUROC is genuinely allocation-free -- but it
 does not carry the second half of the pre-registered verdict. Use `full_panel`
 for the verdict and `paired_seeds` only for the per-seed spread.
+
+### (q) ⛔ THE FROZEN-HEAD PROBE DOES NOT TRANSFER TO iwildcam -- measured 2026-08-23
+
+`frozen_head_probe` is one of the five pre-GPU pricing tools, and every number
+ever quoted from it (`topk`/`ptopk` +1.2-1.3 items at ~24-36 seeds/cell) came
+from **dermmnist**, a REMOVED dataset. Run on iwildcam embeddings it cannot be
+read at all, and the tool says so itself.
+
+Run on `results/iwc1` (MobileNetV3, L30_G50, `tralo_null`, the CE-only
+representation), 8 seeds, corruption ladder 0.1 / 0.5 / 1 / 2:
+
+    alpha 0.1      +0.00 items   0/8 negative   -
+    alpha 0.5      +0.00 items   0/8 negative   -
+    alpha 1       -35.09 items   8/8 negative   resolved
+    alpha 2       -72.04 items   8/8 negative   resolved
+
+🛑 **The probe RESOLVES 35.09 items on this feature space, and the entire
+question is 1.9-9.9 items.** So every `NO DIFFERENCE` it prints here --
+`topk` -0.28, `pauc` +0.00, `ptopk` -0.70 -- is **not a null, it is an absence
+of measurement**, and none of them may be quoted. The resolution is a property
+of the FEATURE SPACE, not of the harness, so it must be re-read on every
+embedding file rather than inherited from the dermmnist runs.
+
+**WHY iwildcam is the hard case for this instrument, and it is the same fact as
+everywhere else in (p-post):** the top-K set here is unambiguous (`ccP` 0.999,
+oracle gap 0.00-1.50 items). Small perturbations move nothing at all, and then
+the head collapses between alpha 0.5 and 1. There is no graded middle for the
+probe to sit in. A dataset on which the cheap probe works is one where the cut
+is contested -- which is exactly the dataset property the whole project has
+been unable to find.
+
+⇒ **The loss-family direction (top-K surrogates, pAUC, perturbed top-K) cannot
+be priced on iwildcam by this route.** That is a statement about the
+instrument, not a verdict on the losses. Do not report it as one, and do not
+spend a GPU campaign on the strength of a row this probe printed on iwildcam
+features.
+
+⚠️ **AND THE ADVERTISED INVOCATION COULD NEVER HAVE PASSED THE GATE.** The
+liveness test is a two-sided sign test, so n seeds agreeing give
+`p = 2^(1-n)`; at the default `--max-sign-p 0.01` it needs **8** non-zero
+seeds. `CLAUDE.md` shows `--seeds 1 2 ...` and the natural reading is the
+protocol's 4. At 4 seeds the probe measured a **72-item** corruption -- ten
+times the whole headroom -- and still printed `NOTHING DETECTED AT ANY ALPHA`,
+which reads as "the probe saw nothing" when what it could not do was clear its
+own floor. It now prints the required number, the number actually run, and the
+largest damage that failed to clear it. Gated by
+`test_the_probe_says_how_many_seeds_its_own_liveness_gate_needs`, whose
+negative control moves `--max-sign-p` to 0.2 and requires the printed
+requirement to fall to 4 -- so the number is derived, not hardcoded.
 
 ### (p-post) 🔴🔴 THE READ, EXECUTED 2026-08-23 -- the representation channel is MEASURED, and it moved the WRONG WAY
 
@@ -4388,7 +4437,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             297 tests, ~105 s, no dataset required
+tests/             299 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

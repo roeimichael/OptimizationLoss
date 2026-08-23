@@ -1083,10 +1083,34 @@ def main(argv=None):
             print("     resolution is a property of the FEATURE SPACE, not of the")
             print("     harness, so it must be re-read on every embedding file.")
     else:
+        # "add seeds" without the NUMBER is the same underspecification this
+        # project fixed everywhere else by printing `seeds_needed`. The sign
+        # test here is two-sided, so a unanimous split of `nz` non-zero seeds
+        # gives p = 2^(1-nz); the gate cannot pass until that is <=
+        # max_sign_p, at ANY effect size. At the default 0.01 that is 8 -- and
+        # the invocation in the docs uses 4, which measured a 72-item
+        # corruption on iwildcam and still printed NOTHING DETECTED. Someone
+        # reading that would have concluded the probe saw nothing, when what
+        # it could not do was clear its own floor.
+        need = 1
+        while 2.0 ** (1 - need) > args.max_sign_p:
+            need += 1
+        worst = max((abs(st["mean"]) for _x, st in live), default=0.0)
         print("  NOTHING DETECTED AT ANY ALPHA. The probe cannot see damage it")
         print("  inflicted itself, so every null above is unfalsifiable and")
         print("  none of them may be reported. Widen --corrupt-alphas or add")
         print("  seeds before reading a single row of this run.")
+        print()
+        print("  HOW MANY SEEDS. The sign test is two-sided, so n seeds that")
+        print("  all move the same way give p = 2^(1-n). At --max-sign-p %g"
+              % args.max_sign_p)
+        print("  the gate needs at least %d seeds with a NON-ZERO delta, and"
+              % need)
+        print("  you ran %d. Below that it cannot pass whatever the effect"
+              % len(args.seeds))
+        print("  size: the largest corruption above moved %.2f items and still"
+              % worst)
+        print("  did not clear it. Exactly-zero deltas do not count toward n.")
     print()
 
     if args.synthetic:

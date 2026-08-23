@@ -60,7 +60,7 @@ imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 297 regression tests, ~105s, no dataset needed
+python -m pytest tests -q                   # 299 regression tests, ~105s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -99,12 +99,22 @@ its own liveness control, so a null from them is a measurement rather than silen
 closed a direction this project would otherwise have spent a campaign on.
 
 ```bash
-python -m scripts.frozen_head_probe --run-dir <run> --seeds 1 2 ... # refit ONLY a linear
-                                            #   head on the frozen features under a
-                                            #   different loss; verdicts in ITEMS, and
+python -m scripts.frozen_head_probe --run-dir <run> --seeds 1 2 3 4 5 6 7 8  # refit ONLY a
+                                            #   linear head on the frozen features under
+                                            #   a different loss; verdicts in ITEMS, and
                                             #   `seeds_needed` prices any survivor in
                                             #   CAMPAIGN seeds (topk/ptopk: +1.2-1.3
                                             #   items but ~24-36 seeds/cell => unaffordable)
+                                            #   ⚠️ EIGHT seeds, not four: the liveness gate
+                                            #   is a sign test, p = 2^(1-n), so at
+                                            #   --max-sign-p 0.01 it CANNOT pass below 8 at
+                                            #   any effect size. At 4 it called a 72-item
+                                            #   corruption `NOTHING DETECTED`.
+                                            #   ⛔ AND IT DOES NOT TRANSFER TO iwildcam:
+                                            #   resolution there is 35.09 items against a
+                                            #   1.9-9.9 item question, so every
+                                            #   `NO DIFFERENCE` is an absence of
+                                            #   measurement, not a null. FRAMEWORK 2(q)
 python -m scripts.prep_iwildcam --annotations <cct.json>     --out data/<name>/oodslice --meta-only  # screen a CANDIDATE dataset with NO
                                             #   images and no GPU: any
                                             #   COCO-CameraTraps annotation file

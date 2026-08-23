@@ -5741,6 +5741,55 @@ def test_log_health_does_not_cry_saturation_on_a_healthy_run(tmp_path, accs, why
     assert "not the saturated signature" in out, out[-800:]
 
 
+def _probe_liveness_output(max_sign_p=None):
+    """Force the probe's liveness gate to FAIL, on synthetic data so no
+    dataset or embedding file is needed."""
+    cmd = [sys.executable, "-m", "scripts.frozen_head_probe",
+           "--synthetic", "matched", "--seeds", "1", "2",
+           "--corrupt-alphas", "0.0001"]
+    if max_sign_p is not None:
+        cmd += ["--max-sign-p", str(max_sign_p)]
+    r = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True)
+    return r.stdout + r.stderr
+
+
+def test_the_probe_says_how_many_seeds_its_own_liveness_gate_needs():
+    """The gate is a two-sided sign test, so n seeds moving the same way give
+    p = 2^(1-n). At the default --max-sign-p 0.01 it cannot pass below EIGHT
+    non-zero seeds, at any effect size -- and the invocation in CLAUDE.md uses
+    four. Run that way on iwc1 the probe measured a 72-item corruption, ten
+    times the entire 1.9-9.9 item headroom, and still printed NOTHING
+    DETECTED. A reader would take that as "the probe saw nothing" when what it
+    could not do was clear its own floor.
+
+    "Add seeds" without the number is the underspecification this project
+    fixed everywhere else by printing `seeds_needed`, so the probe now prints
+    the number too.
+    """
+    out = _probe_liveness_output()
+    assert "NOTHING DETECTED AT ANY ALPHA" in out, out[-800:]
+    assert "HOW MANY SEEDS" in out, out[-800:]
+    assert "at least 8 seeds" in out, (
+        "2^(1-n) <= 0.01 first holds at n=8, and the message must say 8 "
+        "rather than leaving the reader to derive it" + out[-800:])
+    assert "you ran 2" in out, (
+        "it must also say how many were actually run, or the number is "
+        "advice without a comparison" + out[-800:])
+
+
+def test_the_seed_requirement_is_derived_from_the_threshold_not_hardcoded():
+    """NEGATIVE CONTROL. A message that always prints 8 would pass the gate
+    above while being wrong for every non-default threshold. Loosening
+    --max-sign-p to 0.2 makes 2^(1-n) <= 0.2 first hold at n=4, so the printed
+    number must move with it.
+    """
+    out = _probe_liveness_output(max_sign_p=0.2)
+    assert "at least 4 seeds" in out, (
+        "at --max-sign-p 0.2 the requirement is 4, not 8 -- the number has to "
+        "be computed from the threshold" + out[-800:])
+    assert "at least 8 seeds" not in out, out[-800:]
+
+
 GRAFT_CSV = "docs/paper/data/corpus/review_graft_2026-07.csv"
 
 
