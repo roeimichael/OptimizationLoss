@@ -1883,7 +1883,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 290 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 292 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1891,7 +1891,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (290 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (292 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -3255,6 +3255,68 @@ effect does not depend on the group definition, does not scale with cap
 tightness, and disappears against a post-hoc arm. **What the corpus refutes is a
 claim the paper does not make.**
 
+### 🔬 THE HINGE ABLATION IS NOT BUDGET-EQUALIZED -- audited 2026-08-23
+
+The paper's central mechanistic finding names the undershoot hinge as
+load-bearing. `ablation_no_hinge.csv` (24 runs, octmnist, 3 backbones x
+{L30_G30, L40_G40} x 4 seeds) pairs exactly against `paper_final`'s `tralo` on
+the same cells, so the ablation recomputes directly:
+
+| metric | hinge - no_hinge | cells | sign p | detectable at 4 seeds |
+|---|---|---|---|---|
+| **cc_f1** | **+3.23 pp** | **6/6** | 0.031 | 3.05 pp -- **clears it** |
+| cc_rec | +3.10 pp | 6/6 | 0.031 | 2.52 pp -- clears it |
+| **cc_prec** | **-3.31 pp** | **0/6** | 0.031 | 3.50 pp |
+| f1_macro | +1.09 pp | 5/6 | 0.219 | 1.70 pp -- does not clear |
+
+**So the paper's claim reproduces.** But precision and recall move in OPPOSITE
+directions, and with exactly K predictions emitted that is arithmetically
+impossible -- `prec = TP/K` and `rec = TP/n_pos` are both monotone in TP, so
+they must move together. The arms are not at the same budget.
+
+🛑 **They are not: `rec/prec = K/n_pos`, and the hinge arm emits 16.3% MORE
+predictions, on 24 of 24 pairs.** House rule 5 says filling to the boundary is
+FREE, so part of that +3.23 pp is the fill and not the hinge. This is the
+flips-is-not-a-metric failure appearing inside the paper's own central ablation.
+
+📐 **How much of it? There is an exact threshold.** At the SAME emitted count
+both arms share the F1 denominator, so the hinge wins iff
+`rec_h > rec_n + (K_h - K_n) * q`, where `q` is the precision of the items the
+no-hinge arm did not emit. Solving for the break-even `q*`:
+
+| backbone | cap | **q\*** | that arm's own precision |
+|---|---|---|---|
+| MobileNetV3 | L40_G40 | **0.099** | 0.938 |
+| MobileNetV3 | L30_G30 | 0.457 | 0.961 |
+| RegNetY400MF | L40_G40 | 0.441 | 0.885 |
+| RegNetY400MF | L30_G30 | 0.733 | 0.934 |
+| ViTB16 | L40_G40 | 0.762 | 0.930 |
+| ViTB16 | L30_G30 | **0.986** | 0.929 |
+
+**The verdict is CELL-DEPENDENT and the corpus cannot decide it.** On
+MobileNetV3/L40_G40 the hinge survives equalization only if its next-ranked
+items would be correct under 10% of the time, against an arm averaging 94% --
+implausible, so that cell is very likely fill. On ViTB16/L30_G30 the marginal
+items would have to exceed 98.6%, so that cell very likely is not. Pooled
+`q* = 0.580` against an average precision of 0.929.
+
+**And nothing in the corpus can measure `q`.** `cc_prec`, `cc_rec` and `cc_f1`
+are the only constrained-class columns and none of them sees an item that was
+not emitted. Settling it needs the RAW predictions, and the evidence tarball
+holds `mcbar` + `multiclass` only -- not `paper_final`, not `g5_hinge_oct`.
+
+⏭️ **So there are exactly two honest resolutions**, and the hinge being deleted
+from the codebase (2b) does not remove the need for one:
+1. Restore the hinge, re-run the ablation under the current protocol, and score
+   it with `full_panel`, whose `equalize` emits exactly K by construction so the
+   fill cannot contribute. That is what the budget-equalized family is FOR.
+2. Or state in the paper that the hinge ablation compares arms at different
+   emitted counts, and that the constrained-class gain is therefore an upper
+   bound.
+
+Doing neither leaves the paper's central mechanistic claim resting on a
+comparison its own house rules forbid.
+
 ⚠️ The live divergence is elsewhere and is already recorded in 1b: the paper's
 mechanism includes the **undershoot hinge**, which this framework REJECTED and
 DELETED. A paper whose central mechanistic finding names a component the
@@ -4167,7 +4229,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             290 tests, ~105 s, no dataset required
+tests/             292 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

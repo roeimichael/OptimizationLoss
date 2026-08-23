@@ -7167,3 +7167,79 @@ def test_the_papers_octmnist_tightcap_claim_reproduces_from_the_corpus():
             by = {m: 100 * sub["mean"].mean()
                   for m, sub in rr.groupby("model") if len(sub) >= 5}
             assert by["ViTB16"] == max(by.values()), by
+
+
+def _hinge_pairs():
+    """with-hinge (`paper_final`) against no-hinge, paired on backbone/cap/seed."""
+    import pandas as pd
+
+    base = os.path.join(REPO, "docs", "paper", "data", "corpus")
+    if not os.path.exists(os.path.join(base, "ablation_no_hinge.csv")):
+        pytest.skip("hinge ablation not present in this worktree")
+    nh = pd.read_csv(os.path.join(base, "ablation_no_hinge.csv")).rename(
+        columns={"cap": "constraint_tag"})
+    d = pd.read_csv(os.path.join(base, "corpus_final.csv"))
+    wh = d[(d.sweep == "paper_final") & (d.dataset == "octmnist")
+           & (d.method == "tralo")
+           & (d.constraint_tag.isin(["L30_G30", "L40_G40"]))]
+    key = ["model", "constraint_tag", "seed"]
+    cols = ["cc_f1", "cc_prec", "cc_rec", "f1_macro"]
+    return wh[key + cols].merge(nh[key + cols], on=key, suffixes=("_h", "_n"))
+
+
+def test_the_hinge_ablation_compares_arms_at_DIFFERENT_emitted_counts():
+    """House rule 5 -- post-hoc filling to the boundary is FREE -- inside the
+    paper's own central mechanistic ablation.
+
+    The tell is arithmetic, not statistical: with exactly K predictions emitted,
+    `prec = TP/K` and `rec = TP/n_pos` are both monotone in TP, so they cannot
+    move in opposite directions. In this ablation cc_prec falls 3.31 pp on 6 of
+    6 cells while cc_rec rises 3.10 pp on 6 of 6. That is only possible if the
+    arms emit different counts -- and `rec/prec = K/n_pos` says the hinge arm
+    emits 16.3% more, on 24 of 24 pairs.
+
+    Part of the +3.23 pp cc_f1 is therefore the fill. How much turns on the
+    precision of items the no-hinge arm did NOT emit, which no column in the
+    corpus records.
+    """
+    m = _hinge_pairs()
+    assert len(m) == 24, len(m)
+
+    # opposite directions -- the arithmetic impossibility at equal budget
+    cell = m.groupby(["model", "constraint_tag"])
+    dp = cell.apply(lambda s: (s["cc_prec_h"] - s["cc_prec_n"]).mean())
+    dr = cell.apply(lambda s: (s["cc_rec_h"] - s["cc_rec_n"]).mean())
+    assert (dp < 0).all(), dp.to_dict()
+    assert (dr > 0).all(), dr.to_dict()
+
+    # and the count ratio that explains it
+    ratio = (m["cc_rec_h"] / m["cc_prec_h"]) / (m["cc_rec_n"] / m["cc_prec_n"])
+    assert (ratio > 1).all(), int((ratio <= 1).sum())
+    assert 1.10 < ratio.mean() < 1.25, ratio.mean()
+
+
+def test_the_hinge_break_even_precision_is_cell_dependent():
+    """The exact threshold FRAMEWORK records, and why the corpus cannot decide.
+
+    At the same emitted count both arms share the F1 denominator, so the hinge
+    wins iff `rec_h > rec_n + (K_h - K_n) * q` for `q` the precision of the
+    unfilled items. `q*` ranges from 0.099 -- implausible against an arm
+    averaging 94% precision, so that cell is very likely fill -- to 0.986, which
+    very likely is not. A single verdict for the ablation is not available.
+    """
+    m = _hinge_pairs()
+    kh = m["cc_rec_h"] / m["cc_prec_h"]
+    kn = m["cc_rec_n"] / m["cc_prec_n"]
+    m = m.assign(q=(m["cc_rec_h"] - m["cc_rec_n"]) / (kh - kn))
+    per = m.groupby(["model", "constraint_tag"])["q"].mean()
+
+    assert per.min() < 0.15, per.to_dict()      # a cell that is very likely fill
+    assert per.max() > 0.95, per.to_dict()      # and one that very likely is not
+    assert 0.4 < m["q"].mean() < 0.75, m["q"].mean()
+
+    # the corpus holds no column that could measure q
+    import pandas as pd
+    corpus = pd.read_csv(os.path.join(REPO, "docs", "paper", "data", "corpus",
+                                      "corpus_final.csv"), nrows=1)
+    assert not (set(corpus.columns) - {"cc_prec", "cc_rec", "cc_f1"}) & {
+        "marginal_precision", "cc_prec_at_k", "auroc", "ap"}, corpus.columns
