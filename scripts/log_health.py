@@ -63,7 +63,12 @@ def read_run(d):
     sat = _col(df, "Global_Satisfied", "all_satisfied")
 
     r = {"dir": d, "rows": len(df), "wide": "Train_Acc" in df.columns,
-         "status": cfg.get("status"), "arm": cfg.get("arm")}
+         "status": cfg.get("status"), "arm": cfg.get("arm"),
+         # How many constraint steps the run ACTUALLY applied. The starvation
+         # check below is a claim about the PENALTY's gradient, so it may not
+         # be made about a run whose penalty never fired.
+         "steps_applied": (cfg.get("results") or {}).get(
+             "constraint_steps_applied")}
 
     # --- collapse on the FINAL epoch: the pipeline keeps it unconditionally ---
     r["collapse"] = None
@@ -381,6 +386,20 @@ def main():
                               np.mean([x["slope"] for x in v]))
             live = {k: v for k, v in per.items() if v[0] > 0}
             if len(live) < 2:
+                continue
+            # 2(a2) is a statement about how the PENALTY's gradient splits
+            # across competing scopes, so it cannot describe an arm that took
+            # no constraint step. `tralo_null` and `tralo_reseed` are lambda=0
+            # twins and iwc1 recorded `constraint_steps_applied: 0` on all 8
+            # runs of each -- their per-scope drift is CE alone, and the
+            # warning fired on it, attributing a penalty mechanism to an arm
+            # with no penalty. The same guard covers a LIVE arm whose cap
+            # never bound in a seed, which is the same situation arrived at a
+            # different way. Runs predating the key report None; those keep
+            # the old behaviour rather than losing the diagnostic silently.
+            applied = [r.get("steps_applied") for r in rs]
+            applied = [x for x in applied if isinstance(x, (int, float))]
+            if applied and not any(x > 0 for x in applied):
                 continue
             worst = max(live, key=lambda k: live[k][0])
             mildest = min(live, key=lambda k: live[k][0])

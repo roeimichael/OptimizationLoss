@@ -5741,6 +5741,88 @@ def test_log_health_does_not_cry_saturation_on_a_healthy_run(tmp_path, accs, why
     assert "not the saturated signature" in out, out[-800:]
 
 
+def _starvation_campaign(tmp_path, arms):
+    """A campaign with the starvation SIGNATURE: the deepest-violating scope
+    improving least. `arms` maps arm name -> constraint_steps_applied.
+
+    Every arm gets byte-identical count trajectories, so the only thing that
+    can change the verdict is the steps key.
+    """
+    root = os.path.join(str(tmp_path), "camp")
+    for arm, steps in arms.items():
+        for seed in (1, 2, 3):
+            d = os.path.join(root, "%s_seed%d" % (arm, seed))
+            os.makedirs(d, exist_ok=True)
+            n = 6
+            pd.DataFrame({
+                "Epoch": list(range(1, n + 1)),
+                "Train_Acc": [0.40, 0.50, 0.60, 0.70, 0.75, 0.80],
+                "L_CE": [0.5] * n,
+                # deepest violator, and it is RISING (falling slowest)
+                "Group53_Limit_Class7": [10.0] * n,
+                "Group53_Hard_Class7": [200, 200, 202, 204, 206, 208],
+                # mildest violator, flat
+                "Group218_Limit_Class7": [10.0] * n,
+                "Group218_Hard_Class7": [10, 11, 11, 11, 11, 11],
+            }).to_csv(os.path.join(d, "training_log.csv"), index=False)
+            cfg = {"arm": arm, "status": "completed",
+                   "dataset_mode": "iwildcam", "model_name": "MobileNetV3",
+                   "constraint_tag": "L30_G50", "constraint": [0.30, 0.50],
+                   "dataset_config": {"constrained_class": [7]},
+                   "hyperparams": {"seed": seed}}
+            if steps is not None:
+                cfg["results"] = {"constraint_steps_applied": steps}
+            with io.open(os.path.join(d, "config.json"), "w",
+                         encoding="utf-8") as fh:
+                json.dump(cfg, fh)
+    r = subprocess.run([sys.executable, "-m", "scripts.log_health", root],
+                       cwd=REPO, capture_output=True, text=True)
+    return r.stdout + r.stderr
+
+
+def test_the_starvation_warning_is_never_made_about_an_arm_with_no_penalty(tmp_path):
+    """FRAMEWORK 2(a2) describes how the PENALTY's gradient splits across
+    competing scopes. That sentence cannot be true of an arm whose penalty
+    never fired -- and on `results/iwc1` the warning fired on `tralo_reseed`,
+    a lambda=0 twin that recorded `constraint_steps_applied: 0` on all 8 runs.
+    Its per-scope drift is CE alone (+0.05/epoch against tralo's +1.15), so the
+    readout attributed a penalty mechanism to an arm with no penalty, on the
+    one arm the project uses as its NOISE FLOOR.
+
+    The same guard covers a live arm whose cap never bound in a seed, which is
+    the identical situation reached a different way (memory: "a satisfied cap
+    gives ZERO constraint gradient, so the arm is its own null in that seed").
+
+    Gate and negative control in ONE campaign: both arms carry byte-identical
+    count trajectories, so the steps key is the only possible cause of a
+    difference in verdict.
+    """
+    out = _starvation_campaign(tmp_path, {"tralo": 19, "tralo_reseed": 0})
+    live = [ln for ln in out.splitlines() if "starvation signature" in ln
+            or "WORST-violating" in ln]
+    blob = chr(10).join(live)
+    assert "tralo:" in blob, (
+        "the signature is present in the fixture, so the LIVE arm must still "
+        "be flagged -- a guard that silences everything is not a fix " + out)
+    assert "tralo_reseed:" not in blob, (
+        "a lambda=0 twin took no constraint step, so 2(a2) cannot describe "
+        "it " + out)
+
+
+def test_the_starvation_guard_keeps_working_on_runs_predating_the_key(tmp_path):
+    """NEGATIVE CONTROL on the guard itself.
+
+    Runs finished before `constraint_steps_applied` was recorded report None.
+    Treating absent as zero would silently delete the diagnostic across the
+    whole existing corpus -- a guard that over-fires is a different defect, not
+    a safer one. Absent keeps the old behaviour; only a MEASURED zero silences.
+    """
+    out = _starvation_campaign(tmp_path, {"tralo": None})
+    assert "starvation signature" in out, (
+        "with no steps key recorded there is no evidence of zero, so the "
+        "diagnostic must still print " + out)
+
+
 def test_the_straddle_probe_never_pools_two_cells_into_one_row(tmp_path):
     """Rule 4: the atomic cell is (dataset, backbone, cap, method) and pooling
     across any of them is this project's most-repeated analysis error.

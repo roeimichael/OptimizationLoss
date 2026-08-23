@@ -1883,7 +1883,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 293 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 295 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1891,7 +1891,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (293 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (295 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -3074,6 +3074,133 @@ the `Prob_Class_*` columns, so its AUROC is genuinely allocation-free -- but it
 does not carry the second half of the pre-registered verdict. Use `full_panel`
 for the verdict and `paired_seeds` only for the per-seed spread.
 
+### (p-post) 🔴🔴 THE READ, EXECUTED 2026-08-23 -- the representation channel is MEASURED, and it moved the WRONG WAY
+
+`results/iwc1`, MobileNetV3 x iwildcam x {L20_G50, L30_G50} x 4 seeds, 9 arms,
+all 72 runs completed. Every number below was re-derived from the campaign on
+the day it was written, not carried over from a note.
+
+**The pre-registration expected a TIE and said a powered tie would close the
+channel. It is not a tie.** Both RANKING metrics moved, both are POWERED against
+their own detectable threshold, and both moved in the LOSING direction on 2 of 2
+cells.
+
+**STEP 1 -- THE VERDICT. `tralo` against `tralo_null` (same warm-up, same
+allocator, same seed, lambda=0):**
+
+    family        metric   control    tralo     delta   cells   seed sd  detectable  verdict
+    RANKING       AP        0.9585   0.9279   -0.0306    0/2     0.0155     0.0217   POWERED
+    RANKING       AUROC     0.9903   0.9793   -0.0110    0/2     0.0064     0.0089   POWERED
+    CALIBRATION   ECE       0.1549   0.1805   +0.0256    0/2     0.0184     0.0258   underpowered
+    CALIBRATION   Brier     0.3453   0.3961   +0.0508    0/2     0.0365     0.0511   underpowered
+    CALIBRATION   NLL       1.2319   1.4400   +0.2082    0/2     0.2141     0.2998   underpowered
+    CALIBRATION   ConfGap   0.1053   0.0961   -0.0093    0/2     0.0201     0.0282   underpowered
+    EQUALIZED     ccF1      -- d = -0.0018 = -0.95 items, ~17 seeds needed: underpowered
+
+=> **State it as the equivalence the section demanded: any AUROC effect larger
+than 0.0089 would have been seen, and what was seen was -0.0110 -- a LOSS. Any
+AP effect larger than 0.0217 would have been seen, and what was seen was
+-0.0306 -- a LOSS.** The channel is not empty. It is negative.
+
+⚠️ **THE PRE-REGISTERED CONTROL IS WHAT MADE IT READABLE, and that is the
+transferable lesson.** The same `tralo` effect measured against `clip` instead
+of against its own twin is **AUROC -0.0108 with sd 0.0123, detectable 0.0172:
+UNDERPOWERED**. Identical effect, opposite power verdict. The twin shares the
+warm-up, so pairing against it removes the warm-up seed variance and halves the
+sd (0.0064 vs 0.0123); pairing against `clip` leaves that variance in the
+residual. **A contrast is not powered or unpowered on its own -- it is powered
+against a particular control**, and choosing the control BEFORE the data is what
+bought the resolution here. 2(p) picked the twin for attribution reasons and got
+the power for free.
+
+**STEP 2 -- the bar. Every arm against `clip`, allocation-free only:**
+
+    arm                d AP   verdict         d AUROC   verdict
+    lp              +0.0000   DEAD FLAG       +0.0000   DEAD FLAG (bit-identical)
+    tralo_null      -0.0030   underpowered    +0.0002   underpowered
+    tralo_reseed    -0.0086   underpowered    +0.0008   underpowered
+    focal_clip      -0.0130   underpowered    +0.0012   underpowered
+    tralo           -0.0336   POWERED         -0.0108   underpowered
+    alm             -0.0639   underpowered    -0.0133   underpowered
+    fioretto        -0.1035   underpowered    -0.0291   underpowered
+    hounie          -0.2156   POWERED         -0.0739   POWERED
+
+Three things fall out of that column, and none of them is the headline anyone
+wanted:
+
+1. 🟢 **`lp` is BIT-IDENTICAL to `clip` on all six allocation-free metrics, and
+   that is the instrument liveness control passing on real data.** A post-hoc
+   allocator rewrites `Predicted_Label` and never the probability columns, so it
+   provably cannot move this family -- and now the panel has DEMONSTRATED it on
+   the very campaign the verdict is read from, rather than the reader taking the
+   argument on faith. If a future allocator ever shows a non-zero AP here, the
+   scorer is reading an allocated column and the verdict is void.
+2. **Both lambda=0 twins sit at zero** (`tralo_null` -0.0030/+0.0002,
+   `tralo_reseed` -0.0086/+0.0008, all four underpowered). So the -0.0336 is
+   attributable to the CONSTRAINT and not to the warm-up, the allocator or the
+   RNG stream. Rule 1 of the three-rules block, doing exactly its job.
+3. 🔴 **The losses are ORDERED BY CONSTRAINT PRESSURE.** null -0.0030, reseed
+   -0.0086, `tralo` -0.0336, `alm` -0.0639, `fioretto` -0.1035, `hounie`
+   -0.2156. More dual machinery, monotonically worse ranking, across four
+   independently-implemented families. That is a dose-response curve pointing
+   the wrong way, and it is the cleanest statement this project has of what the
+   constraint phase actually does to the model: it does not re-rank toward the
+   budget, it degrades the ranking it was given.
+
+**STEP 3 -- was there anything to win. `straddle_probe`: the oracle gap is
+0.00 to 1.50 items and `ccP` is 0.999.** At these caps the allocator is already
+essentially perfect, so the 2(o) question answers itself: the reachable headroom
+is under two items and the measured effect is a loss several times that size.
+
+⛔ **AND THE OBVIOUS ESCAPE IS CLOSED, FOR ZERO GPU-HOURS.** "Run a looser cap
+where the headroom is bigger" is the natural next move: sweeping K upward, the
+oracle gap peaks at 40.00 / 38.75 items at `K = n_pos`, twenty times what the
+run caps leave. **It does not survive its own control.** At that cap
+`reachable` is 18.00 against a shuffled-score control of 17.00 -- and 2(o) is
+explicit that `~= ctrl` means the statistic is reading the score distribution
+and means nothing. The headroom is real and it is not reachable by a step the
+size ours actually is. Do not spend a campaign on a loose cap.
+
+🛑 **WHAT MAY AND MAY NOT BE CLAIMED FROM THIS.** The CELL floor binds exactly
+as 2(p) predicted: 2 cells gives a minimum attainable Wilcoxon p of 0.500, so
+every line in both tables prints `NOT CALLABLE` and **no significance claim is
+available in either direction** -- including the negative one. What IS available
+is the within-cell power statement, and it is unanimous: 0 of 2 cells, both
+POWERED, same sign. Say "on both cells measured, the constraint cost the ranking
+more than this campaign could have missed"; never "the constraint significantly
+degrades the ranking", which 2 cells cannot support at any effect size.
+
+📌 **SCOPE, per 1-pre.** iwc1 is MobileNetV3, so it is a GENERALIZATION check
+and NOT the headline cell. The a-priori headline backbone is ViTB16, which is
+also the best-resolved backbone for a method contrast in the corpus (gap/sd 0.82
+against MobileNetV3 0.38). `results/iwc2` is that cell -- same slice, same two
+caps, ViTB16, `clip` / `focal_clip` / `tralo` / `tralo_null` / `tralo_reseed` --
+launched 2026-08-23 08:50 on dsisco01 GPU 3 at `code_version 3bb7e8b4`. **It is
+the first genuinely pre-registered test of this verdict**, because the
+prediction now exists in writing before its data: if the mechanism above is
+real, iwc2 must show `tralo` LOSING AP and AUROC to `tralo_null`, and the
+lambda=0 twins sitting at zero against `clip`.
+
+⚠️ **STEP 0 FOUND A DEFECT IN THE READOUT ITSELF, now fixed.** The `log_health`
+starvation warning fired on `tralo_reseed` -- a lambda=0 twin with
+`constraint_steps_applied: 0` on all 8 runs -- attributing the 2(a2) penalty
+mechanism to an arm that has no penalty, on the one arm this project uses as its
+NOISE FLOOR. The warning is now gated on positive evidence that a constraint
+step was applied, which also covers a live arm whose cap never bound in a seed.
+Gated by `test_the_starvation_warning_is_never_made_about_an_arm_with_no_penalty`
+(both arms carry byte-identical trajectories, so the steps key is the only
+possible cause of a difference) and by a second control asserting that runs
+predating the key keep the diagnostic rather than losing it silently.
+
+📎 **STEP 0b, for the record.** `reachability` reports 2 of 2 (class, cell) cuts
+sitting where `p(1-p)` has gone flat. Read it with the caveat the script itself
+prints: the cut is the K-th RANKED item and predictions change at the DECISION
+BOUNDARY, which is a different item whenever the hard count exceeds K. So this
+bears on how much HEADROOM the cap leaves -- and step 3 independently measured
+that headroom at under two items -- not on whether the penalty had anywhere to
+push. The saturation question 2(p) raised is therefore answered in the direction
+that matters: there was little to win here, and the arm lost anyway.
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 **The single most useful fact in this project: regime effects are ~8 pp. Method effects are ~0.1 pp.**
@@ -3591,6 +3718,8 @@ five are what found the defects, and they are cheap:
 |---|---|---|
 | **built, not run** | `tralo_margin` + `tralo_st` (1b) -- the count's gradient on the decision boundary, decomposed from the count's value | 56-run campaign ready, all gates green, `docs/launch_margin1.sh` |
 | ⛔ **RUN AND REJECTED 2026-08-22** | 1c -- optimise the metric at the budget **with LABELS**, via a jointly-trained SELECTION head | `results/selectrun`, 32 runs: **-22 items vs `clip`, 0 of 2 cells on every metric**, 2 of 8 runs collapsed on the final epoch, and `select_null` TIES `clip` so the selective term owns the loss. **Do not re-run at any `eta`, `tau` or `cov_weight`.** Section (12); code kept at `src/methodologies/select/train.py` so the campaign stays readable |
+| 🔴 **RUN 2026-08-23, NEGATIVE and POWERED** | the REPRESENTATION channel (2(p)) -- the last mechanism the structural argument left open | `results/iwc1`, 72 runs: `tralo` vs its own lambda=0 twin is **AP -0.0306 (detectable 0.0217) and AUROC -0.0110 (detectable 0.0089), both POWERED, 0 of 2 cells**. Losses ordered by constraint pressure across four dual families. Section (p-post). ⚠️ 2 cells => NOT significance-testable in either direction |
+| **running** | the same test on the a-priori headline backbone | `results/iwc2`, ViTB16, launched 2026-08-23 on dsisco01 GPU 3 |
 | **needs Roei** | path 2 -- a test set whose prevalence DIFFERS from train | a load-time subsample, NOT re-slicing |
 | **purged** | `budget_margin` (path 1) | must be rebuilt before it can run |
 
@@ -4259,7 +4388,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             293 tests, ~105 s, no dataset required
+tests/             295 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
