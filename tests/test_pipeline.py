@@ -6663,3 +6663,151 @@ def test_on_ccF1_tralo_is_not_separable_from_the_other_duals():
     for other in ("fioretto_ldf", "tralo_bounded"):
         r = _corpus_contrast("cc_f1", "tralo", other)
         assert r["p"] > 0.05, (other, r)
+
+
+def _build_iwc_fixture(root, arms=("clip", "tralo", "tralo_null",
+                                   "tralo_reseed")):
+    """An iwc1-SHAPED campaign: iwildcam x MobileNetV3 x 2 caps x 4 seeds,
+    with the capped class ABSENT from 4 of 7 cameras -- the K=0 ceiling that
+    is why 2(n) chose this dataset -- and plentiful at the other 3, so no
+    budget rounds to zero. Writes everything the four tools of the
+    pre-registered read consume: raw and allocated predictions, embeddings,
+    a training log, and a config.
+    """
+    import pandas as pd
+
+    ARMS = tuple(arms)
+
+    N, K = 420, 8
+    CAPPED = 2
+    PRESENT = (0, 3, 5)          # class 2 lives at 3 of 7 cameras, as on iwildcam
+
+    def labels(rng):
+        """A label/camera assignment where the capped class is ABSENT from 4 of the
+        7 cameras -- iwildcam's defining property (a K=0 ceiling that always binds)
+        -- and plentiful at the other 3, so no budget rounds to zero."""
+        g = rng.integers(0, 7, size=N)
+        y = rng.integers(0, K, size=N)
+        y[(y == CAPPED) & ~np.isin(g, PRESENT)] = 1        # move it off those cams
+        for cam in PRESENT:                                # and guarantee enough
+            idx = np.where(g == cam)[0]
+            y[idx[:max(1, len(idx) // 3)]] = CAPPED
+        return y, g
+
+    for cap, pct in (("L20_G50", 0.20), ("L30_G50", 0.30)):
+        for arm in ARMS:
+            for seed in (1, 2, 3, 4):
+                rng = np.random.default_rng(abs(hash((cap, arm, seed))) % (2**31))
+                y, g = labels(np.random.default_rng(seed))     # split is per SEED
+                z = rng.normal(size=(N, K))
+                z[np.arange(N), y] += 1.2
+                if arm == "tralo":
+                    z[:, CAPPED] += 0.15 * rng.normal(size=N)
+                P = np.exp(z) / np.exp(z).sum(1, keepdims=True)
+                d = os.path.join(root, "MobileNetV3", "iwildcam", cap, arm,
+                                 "seed_%d" % seed)
+                os.makedirs(d, exist_ok=True)
+                cols = {"True_Label": y, "Predicted_Label": P.argmax(1), "Group_ID": g}
+                for c in range(K):
+                    cols["Prob_Class_%d" % c] = P[:, c]
+                for f in ("final_predictions_raw.csv", "final_predictions.csv"):
+                    pd.DataFrame(cols).to_csv(os.path.join(d, f), index=False)
+                np.savez(os.path.join(d, "test_embeddings.npz"),
+                         features=P.astype(np.float32))
+                posthoc = arm == "clip"
+                ep = 30 if posthoc else 1
+                n_ep = ep + (0 if posthoc else 29)
+                pd.DataFrame({
+                    "epoch": np.arange(1, n_ep + 1),
+                    "phase": (["warmup"] * ep) + (["constraint"] * (n_ep - ep)),
+                    "Train_Acc": np.linspace(0.55, 0.93, n_ep),
+                    "Test_Acc": np.linspace(0.50, 0.86, n_ep),
+                    "Total_Loss": np.linspace(1.6, 0.4, n_ep),
+                    "Limit_Class%d" % CAPPED: [40] * n_ep,
+                    "Count_Class%d" % CAPPED: rng.integers(30, 60, n_ep),
+                }).to_csv(os.path.join(d, "training_log.csv"), index=False)
+                json.dump({"arm": arm, "methodology": arm,
+                           "model_name": "MobileNetV3", "dataset_mode": "iwildcam",
+                           "constraint_tag": cap, "constraint": [pct, 0.50],
+                           "status": "completed", "code_version": "deadbeef",
+                           "dataset_config": {"constrained_class": [CAPPED],
+                                              "num_classes": K},
+                           "hyperparams": {"seed": seed,
+                                           "constraint_epochs": 0 if posthoc else 29,
+                                           "warmup_epochs": 30 if posthoc else 1}},
+                          open(os.path.join(d, "config.json"), "w"))
+
+
+def _run_step(cmd):
+    """Bytes, not text=True -- these tools print emoji and cp1252 hands back
+    None rather than raising, which reads as "the tool printed nothing"."""
+    r = subprocess.run([sys.executable, "-m"] + cmd, cwd=REPO,
+                       capture_output=True,
+                       env=dict(os.environ, PYTHONIOENCODING="utf-8"))
+    return (r.returncode, r.stdout.decode("utf-8", "replace")
+            + r.stderr.decode("utf-8", "replace"))
+
+
+def test_the_preregistered_iwc1_read_runs_end_to_end(tmp_path):
+    """FRAMEWORK 2(p) fixes the iwc1 read as four commands in a required order.
+    Three of the four had never been run against a campaign carrying `_null`
+    twins, because no such campaign exists yet -- so the first time the order
+    would have been executed was the night the data landed, which is the worst
+    possible moment to discover that step 1 exits 1.
+
+    It nearly did. The first fixture built here crashed `full_panel` inside
+    `_round_to_K` -- a per-camera budget of 0.20 x 2 items rounding to K=0, which
+    the trainer refuses by design. That turned out to be the fixture's fault
+    rather than a live risk (`gen_campaign` calls the SAME
+    `compute_local_constraints`, so a campaign whose caps would raise at scoring
+    time cannot be generated in the first place) but only checking showed that.
+
+    Runs all four steps against an iwc1-shaped campaign and asserts each
+    produces the block the pre-registration reads out of it.
+    """
+    root = os.path.join(str(tmp_path), "iwc")
+    _build_iwc_fixture(root)
+    run = os.path.join(root, "MobileNetV3", "iwildcam", "L20_G50", "tralo",
+                       "seed_1")
+
+    rc, out = _run_step(["scripts.log_health", root])          # 0. did it RUN
+    assert rc == 0, out[-2000:]
+    for arm in ("clip", "tralo", "tralo_null", "tralo_reseed"):
+        assert arm in out, (arm, out[-2000:])
+
+    rc, out = _run_step(["scripts.reachability", run])         # 0b. saturated?
+    assert rc == 0, out[-2000:]
+
+    rc, out = _run_step(["scripts.full_panel", "--campaign", root,   # 1. VERDICT
+                         "--control", "tralo_null"])
+    assert rc == 0, out[-2000:]
+    i = out.find("tralo   vs   tralo_null")
+    assert i > 0, "the pre-registered contrast is missing" + out[-2000:]
+    verdict = out[i:i + 6000]
+    assert "-- RANKING --" in verdict, verdict[:2500]
+    assert "detectable" in verdict, verdict[:2500]
+
+    rc, out = _run_step(["scripts.full_panel", "--campaign", root,   # 2. the bar
+                         "--control", "clip"])
+    assert rc == 0, out[-2000:]
+
+    rc, out = _run_step(["scripts.straddle_probe", "--campaign", root])  # 3.
+    assert rc == 0, out[-2000:]
+    assert "treated/null twin pair(s)" in out, out[-2000:]
+    assert "shuffled ctrl" in out, out[-2000:]
+
+
+def test_step_1_refuses_when_the_null_twin_is_missing(tmp_path):
+    """Negative control for the read above, and the failure it must catch.
+
+    The whole pre-registration rests on `tralo` being contrasted with its OWN
+    lambda=0 twin. If that arm is absent -- died, never scheduled, reset to
+    pending -- step 1 has to REFUSE rather than fall back to some other
+    control and produce a verdict for a different question.
+    """
+    root = os.path.join(str(tmp_path), "iwc_nonull")
+    _build_iwc_fixture(root, arms=("clip", "tralo"))
+    rc, out = _run_step(["scripts.full_panel", "--campaign", root,
+                         "--control", "tralo_null"])
+    assert rc != 0, "step 1 produced a verdict with no null twin" + out[-1500:]
+    assert "tralo_null" in out, out[-1500:]
