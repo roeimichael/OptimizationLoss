@@ -1,0 +1,136 @@
+# THE PROTOCOL. Every value the generator emits comes from this file.
+#
+# gen_campaign.py contains NO experimental constants -- if a number decides what
+# an experiment does, it is here. Two rules keep this honest, both enforced by
+# `python -m scripts.audit_config`:
+#
+#   1. Every key emitted must be READ by the methodology it is emitted for.
+#      A key the code never reads makes a config claim a knob that does not
+#      exist (base_loss, rho_step and alpha_kl were each exactly that).
+#   2. Every key the code reads must be EMITTED, never left to a default.
+#      hounie_rcl's inline default is 0.1 while the paper says 0.01, so an
+#      unset key silently ran a different method.
+#
+# Read sets are per methodology, so an arm carries its own block and nothing
+# else: `lambda_step` on the fioretto arm would be hallucinated even though
+# tralo reads it.
+
+protocol:
+  total_epochs: 30        # optimizer epochs, IDENTICAL both sides = equal compute
+  trained_warmup: 1       # warm-up 50 saturates CE; warm-up 5 is a dead zone
+  seeds: [1, 2, 3, 4]
+
+# Emitted on EVERY arm and verified by scripts/check_parity.py. These four are
+# the comparison contract itself, so they are written even where the training
+# code does not read them (constraint_epochs: 0 states "this arm has no
+# constraint phase", which is what makes equal compute checkable).
+contract_keys: [warmup_epochs, constraint_epochs, seed, lr]
+
+# Read by the shared warm-up for every methodology (src/pipeline/warmup.py,
+# src/models/model_factory.py).
+core:
+  lr: 0.0001
+  dropout: 0.3
+  batch_size: 64
+  pretrained: true
+  class_weighted_ce: false
+
+# Read only by methodologies that run a constraint phase.
+constraint_phase:
+  lr_constraint: 0.0001       # MUST equal core.lr -- unequal lr fabricated a -16.7pp finding
+  stable_count_threshold: 31
+  constraint_chunk_size: 256
+  enable_checkpoint_restore: false
+
+# Read by the post-hoc allocators that chunk their forward pass.
+chunked:
+  constraint_chunk_size: 256
+
+blocks:
+  tralo:
+    lambda_step: 0.05
+    lambda_global: 0.01       # initial lambda, global scope
+    lambda_local: 0.01        # initial lambda, local (per-group) scope
+    initial_rho: 0.5
+    rho_target: 100.0         # rho_step is DERIVED from this; a config rho_step is ignored
+  fioretto:
+    fioretto_step_size: 0.005     # REQUIRED: fioretto_ldf/train.py raises without it
+  hounie:
+    hounie_eta_lambda: 0.01       # inline default is 0.1 -- 10x the paper. Never omit.
+    hounie_eta_u: 0.01
+    hounie_alpha: 10.0
+  alm:
+    alm_eta: 0.005
+    alm_mu0: 0.01
+    alm_mu_step: 0.01
+    fioretto_step_size: 0.005
+    fioretto_lambda_init: 0.0
+    enable_checkpoint_restore: false
+  lp:
+    danits_cost_preset: identity  # identity misclassification cost, per the paper
+  focal:
+    warmup_loss: focal
+    focal_alpha: 0.25
+    focal_gamma: 2.0
+  class_balanced:
+    warmup_loss: class_balanced
+    cb_beta: 0.9999
+  logit_adjust:
+    warmup_loss: logit_adjust
+    logit_adjust_tau: 1.0
+
+# `phase: posthoc`  -> warm-up total_epochs, constraint 0 (the warm-up IS the run)
+# `phase: trained`  -> warm-up trained_warmup, constraint total_epochs - trained_warmup
+arms:
+  clip:       {methodology: heuristic,      phase: posthoc, blocks: []}
+  focal_clip: {methodology: heuristic,      phase: posthoc, blocks: [focal]}
+  lp:         {methodology: danits_lp,      phase: posthoc, blocks: [chunked, lp]}
+  focal_lp:   {methodology: focal,          phase: posthoc, blocks: [chunked, focal]}
+  cb_lp:      {methodology: class_balanced, phase: posthoc, blocks: [chunked, class_balanced]}
+  la_lp:      {methodology: logit_adjust,   phase: posthoc, blocks: [chunked, logit_adjust]}
+  tralo:      {methodology: tralo,          phase: trained, blocks: [constraint_phase, tralo]}
+  fioretto:   {methodology: fioretto_ldf,   phase: trained, blocks: [constraint_phase, fioretto]}
+  hounie:     {methodology: hounie_rcl,     phase: trained, blocks: [constraint_phase, hounie]}
+  alm:        {methodology: fioretto_alm,   phase: trained, blocks: [constraint_phase, alm]}
+
+# Added to every campaign whether requested or not: an arm-vs-arm delta is not a
+# result until the bar is in the same campaign.
+mandatory_arms: [clip, focal_clip]
+
+datasets:
+  dermmnist:
+    data_dir: data/dermmnist/slice_1
+    num_classes: 7
+    group_column: loc_group     # HAM10000 anatomical site: real groups
+    constrained_class: 4        # melanoma, 11.1% of test
+  tissuemnist:
+    data_dir: data/tissuemnist/slice_1
+    num_classes: 8
+    group_column: synth_group   # no group metadata -> fixed synthetic split
+    constrained_class: 4        # GE (glomerular endothelial), 171/2400 = 7.1% of test
+  octmnist:
+    data_dir: data/octmnist/slice_1
+    num_classes: 4
+    group_column: synth_group
+    constrained_class: 2        # drusen; class order is (CNV, DME, drusen, normal)
+
+models: [MobileNetV3, MobileNetV2, RegNetY400MF, ViTB16]
+
+# Keys that change WHAT THE WARM-UP OPTIMIZES. These and only these enter
+# base_model_id, so two arms share a cached warm-up exactly when they should:
+# `clip` and `lp` differ only in the allocator and reuse one trained model,
+# while `focal_clip` trains its own because its objective differs. Anything that
+# changes the warm-up and is missing here silently reuses the wrong model.
+warmup_identity_keys:
+  - lr
+  - dropout
+  - batch_size
+  - warmup_epochs
+  - pretrained
+  - class_weighted_ce
+  - seed
+  - warmup_loss
+  - focal_alpha
+  - focal_gamma
+  - cb_beta
+  - logit_adjust_tau

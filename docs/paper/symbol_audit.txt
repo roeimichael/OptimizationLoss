@@ -1,0 +1,110 @@
+SYMBOL & VARIABLE AUDIT — research_proposal_updated (1).tex
+================================================================
+
+SYMBOL          | MEANING                                      | INTRODUCED (line) | USED IN (lines)
+----------------|----------------------------------------------|-------------------|------------------
+C               | Number of classes                            | 84 (text)         | 84,86,92
+C*              | Set of constrained classes                   | 92 (text)         | 92,95,96,109,189,190
+G               | Set of subgroups {1,...,G}                   | 84 (text)         | 84,96,109
+D_train         | Labeled training set {(x_i, y_i)}           | 84 (text)         | 84,107
+D_test          | Test set {(x_j, g_j)}                       | 84 (text)         | 84,107
+x_i             | Input sample (training)                     | 84 (text)         | 84
+y_i             | Label for training sample i                 | 84 (text)         | 84,99
+x_j             | Input sample (test)                         | 84 (text)         | 84,86
+g_j             | Subgroup membership of test sample j        | 84 (text)         | 84,96
+N               | Number of training samples                  | 84 (text)         | 84
+M               | Number of test samples                      | 84 (text)         | 84,95,101,123
+f_theta         | Neural network (maps input to logits)       | 84 (text)         | 84,86,107
+theta           | Model parameters                            | 84 (implicit)     | 105,107,187,200,202
+theta*          | Optimal model parameters                    | 105 (eq)          | 107
+theta_0         | Warmup model parameters                     | 191,194 (text)    | 191,194,200,202
+p_{j,c}         | Softmax probability of sample j, class c    | 86 (eq)           | 86,123,124
+y_hat_j         | Predicted class label for sample j          | 95 (eq)           | 95,96
+K_c             | Global prediction budget for class c        | 95 (eq)           | 95,99,109,189
+K_c^(g)         | Local prediction budget for class c, grp g  | 96 (eq)           | 96,109,190
+alpha           | Tightness parameter for budget sizing       | 99 (text)         | 99,101
+K               | Generic budget (used in penalty formulas)   | 51 (intro text)   | 51,56,109,130,140,147,154,159,204,275
+X               | Available slots (in example text)           | 99 (text)         | 99
+K_MEL           | Budget for melanoma class (example)         | 101 (text)        | 101
+s_c             | Global soft count for class c               | 109,123 (eq)      | 109,123,130,154,189
+s_c^(g)         | Local soft count for class c, group g       | 109,124 (eq)      | 109,124,190
+s               | Generic soft count (in penalty formulas)    | 130 (eq)          | 130,154
+E               | Soft excess = ReLU(s - K)                   | 130 (eq)          | 130,140,147,154,159,163,170,178
+phi(E,K)        | Rational saturation penalty component       | 140 (eq)          | 140,154,163,170,178
+psi(E,K)        | Bounded quadratic penalty component         | 147 (eq)          | 147,154,163,170,178
+ell(s,K)        | Combined penalty function                   | 154 (eq)          | 154,159,189,190
+rho             | Quadratic penalty coefficient               | 154,157 (eq+text) | 154,157,159,202
+rho_0           | Initial value of rho                        | 157 (text)        | 157,202
+rho_target      | Target value of rho                         | 157 (text)        | 157,202
+L(theta)        | Total training loss                         | 187 (eq)          | 187
+L_CE            | Cross-entropy loss                          | 188 (eq)          | 188,200
+L_global        | Global constraint loss (sum of ell)         | 189 (eq label)    | 189
+L_local         | Local constraint loss (sum of ell)          | 190 (eq label)    | 190
+D_KL            | KL divergence                               | 191 (eq)          | 191
+p^theta         | Current model predictions (in KL)           | 191 (eq)          | 191
+p^{theta_0}     | Warmup model predictions (in KL)            | 191 (eq)          | 191
+lambda_g        | Global constraint weight                    | 189,194 (eq+text) | 189,194,202
+lambda_l        | Local constraint weight                     | 190,194 (eq+text) | 190,194,202
+alpha (KL)      | KL regularization strength                  | 191,194 (eq+text) | 191,194
+T_w             | Number of warmup epochs                     | 200 (text)        | 200
+T_c             | Number of constraint epochs                 | 202 (text)        | 202
+T_cons          | Consecutive satisfaction epochs for early stop| 202 (text)       | 202
+
+
+================================================================
+FLAGS / INCONSISTENCIES
+================================================================
+
+FLAG 1 — DUAL USE OF "alpha"
+  Line 99: alpha = tightness parameter for budget sizing (alpha in (0,1])
+  Line 191,194: alpha = KL regularization strength
+  SAME LETTER, TWO DIFFERENT MEANINGS. This will confuse readers.
+  Suggestion: rename one of them (e.g., use beta or alpha_kl for the KL weight).
+
+FLAG 2 — DUAL USE OF "K"
+  Line 51,56: K used generically in intro text ("at most K cases", "top-K selection")
+  Line 95,96,99: K_c used as the formal budget per class
+  Line 130,140,147,154: K used as generic budget in penalty formulas
+  Line 204: K used in post-hoc description
+  Line 275: K used in convergence figure description
+  The generic K in formulas and K_c in constraints are technically different symbols.
+  In the penalty equations, K stands for whichever budget applies (K_c or K_c^(g)).
+  This is acceptable shorthand but could be made explicit with a note.
+
+FLAG 3 — "s" vs "s_c" INCONSISTENCY
+  Line 109 (eq:objective): uses s_c and s_c^(g) in the constraint
+  Line 130 (eq:excess): uses bare "s" and "K" without subscripts
+  The excess E = ReLU(s - K) uses generic s,K but the actual computation
+  always uses s_c,K_c or s_c^(g),K_c^(g). This is fine as shorthand notation
+  but the transition from specific (s_c) to generic (s) is never stated.
+
+FLAG 4 — "X" UNDEFINED VARIABLE
+  Line 99: "a clinic simply has X available slots per cycle"
+  X is used as a placeholder variable in running text but is never defined
+  as a formal symbol. It could be confused with the input space X (calligraphic).
+  Minor issue since it's clearly informal, but a reviewer might note it.
+
+FLAG 5 — INDICATOR FUNCTION NOTATION
+  Lines 95-96: uses (y_hat_j = c) without the indicator function notation 1[...]
+  The earlier version used the standard notation with the indicator function.
+  Current notation (y_hat_j = c) is ambiguous — it looks like an equality
+  assignment rather than a count. Standard would be: sum of 1[y_hat_j = c].
+
+FLAG 6 — "c'" IN SOFTMAX
+  Line 86: c' is used as the summation index in the softmax denominator.
+  c' is never formally introduced — it's just a dummy variable.
+  This is standard practice and not an issue, just noting for completeness.
+
+FLAG 7 — rho NOT IN TOTAL LOSS EQUATION
+  Line 187-191 (eq:total_loss): The total loss equation shows lambda_g, lambda_l, alpha
+  but rho does not appear explicitly. rho is inside ell(s,K) from eq:combined.
+  The text on line 194 describes lambda_g, lambda_l, and alpha but does not mention rho.
+  The reader needs to remember from eq:combined that rho is embedded in ell.
+  Not an error, but worth noting since rho is discussed extensively in Step 2.
+
+FLAG 8 — T_cons INTRODUCED WITHOUT DEFINITION
+  Line 202: "Training terminates early when constraints remain satisfied for
+  T_cons epochs without constraint pressure."
+  T_cons is used here for the first time but never defined (what value?).
+  T_w and T_c are also not given values, but they are standard "number of epochs"
+  parameters. T_cons is more specific and might need a brief note.
