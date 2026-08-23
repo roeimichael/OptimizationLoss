@@ -6847,3 +6847,49 @@ def test_warmup_moves_the_clipper_gap_and_NOT_the_method_gap():
     sem = vs_dual_1["sd_pp"] / np.sqrt(vs_dual_1["cells"])
     assert abs(vs_dual_1["mean_pp"] - vs_dual_50["mean_pp"]) < 2 * sem, (
         vs_dual_1, vs_dual_50, sem)
+
+
+def test_the_win_does_not_scale_with_cap_tightness():
+    """The second control on the compute-vs-constraint question.
+
+    If the win came from the count constraint doing work, a TIGHTER cap should
+    buy more of it. Within every dataset the slope of the per-cell delta on the
+    cap percentage is >= 0 -- flat, or growing as the cap LOOSENS -- which is
+    backwards for a constraint mechanism, and doubly so because the clipper is
+    hurt more at tight caps and that would push the delta the other way.
+
+    Per rule 4 the slope is computed WITHIN each dataset. This is a null with a
+    consistent sign, not a positive result, and the gate is written that way:
+    it asserts the sign agrees everywhere and that no dataset shows the
+    tighter-is-better pattern a constraint mechanism needs.
+    """
+    import pandas as pd
+    from scipy import stats
+
+    f = os.path.join(REPO, "docs", "paper", "data", "corpus",
+                     "corpus_final.csv")
+    if not os.path.exists(f):
+        pytest.skip("corpus not present in this worktree")
+    d = pd.read_csv(f)
+    cell = ["dataset", "model", "constraint_tag", "constrained_class",
+            "group_column", "warmup_epochs", "sweep"]
+    d = d[d["method"].isin(["tralo", "heuristic"])]
+    w = d.pivot_table(index=cell + ["seed"], columns="method",
+                      values="f1_macro", aggfunc="mean").dropna()
+    w = w.assign(delta=w["tralo"] - w["heuristic"])
+    g = w.groupby(level=list(range(len(cell))))["delta"]
+    r = pd.DataFrame({"n": g.size(), "mean": g.mean()}).reset_index()
+    r = r[(r["n"] >= 2) & (r["warmup_epochs"] == 50)]
+    r["L"] = r["constraint_tag"].str.extract(r"L(\d+)").astype(float)
+
+    seen = 0
+    for ds, sub in r.groupby("dataset"):
+        if sub["L"].nunique() < 3 or len(sub) < 10:
+            continue
+        seen += 1
+        slope = stats.linregress(sub["L"], sub["mean"]).slope
+        assert slope >= -0.0005, (
+            "%s shows the tighter-cap-is-better pattern a constraint mechanism "
+            "predicts (slope %+.4f pp/pt), so section 3's second control no "
+            "longer holds" % (ds, 100 * slope))
+    assert seen == 4, seen

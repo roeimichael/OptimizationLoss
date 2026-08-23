@@ -1854,7 +1854,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 282 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 283 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1862,7 +1862,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (282 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (283 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -3072,6 +3072,37 @@ significance only by being consistent across 262 cells (65% of them), never
 because any single cell can see it. Section 3's "~0.1 pp" was right, and this is
 what it looks like with 260 cells and a p-value.
 
+🧭 **AND IT DOES NOT SCALE WITH CONSTRAINT PRESSURE, which is the second
+control.** If the +1.7 pp came from the count constraint doing work, a TIGHTER
+cap -- more binding, more pressure -- should buy more of it. Regressing the
+per-cell `tralo - heuristic` delta on the local cap percentage, warm-up 50:
+
+| dataset | cells | cap levels | slope (pp per cap-point) | p |
+|---|---|---|---|---|
+| dermmnist | 88 | 9 | **+0.023** | 0.010 |
+| tissuemnist | 91 | 9 | +0.018 | 0.198 |
+| octmnist | 29 | 9 | +0.014 | 0.328 |
+| aider | 28 | 5 | +0.001 | 0.875 |
+
+**All four slopes are >= 0 -- the effect is flat or grows as the cap LOOSENS**,
+which is backwards for a constraint mechanism and doubly so because the clipper
+should be hurt MORE at tight caps (it has to delete more predictions), which
+would push the delta the other way.
+
+⚠️ Read it as a null with a consistent sign, not as a positive result: r is
+0.03-0.27 and only dermmnist is individually significant. The claim is "cap
+tightness does not drive the effect", 4 of 4 datasets agreeing, not "loose caps
+are better". Per rule 4 the slope is computed WITHIN each dataset; the pooled
+version (+0.017, p=0.021) is reported only to show it is not hiding a
+cancellation.
+
+**So two independent controls point the same way.** `danits_lp` says the effect
+needs a training phase; the cap sweep says it does not need the cap to bind.
+What the corpus CANNOT do is separate "extra epochs" from "extra epochs with
+some auxiliary objective", because it holds no trained arm at lambda=0. That is
+exactly the gap `tralo_null` exists to fill, and why `gen_campaign` refuses a
+campaign that schedules a trained arm without it.
+
 🔧 **An instrument fact worth keeping.** The seed sd of a dual-vs-dual contrast
 is **0.48-0.63 pp**, a THIRD of dual-vs-clipper's 1.47 pp: two trained methods
 share most of their variance and the paired difference cancels it. So a
@@ -3917,7 +3948,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             282 tests, ~105 s, no dataset required
+tests/             283 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
