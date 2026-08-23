@@ -1854,7 +1854,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 276 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 279 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1862,7 +1862,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (276 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (279 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -3028,6 +3028,45 @@ for the verdict and `paired_seeds` only for the per-seed spread.
 Every "win" that turned out to be a regime difference in disguise was bigger than every real
 method effect.
 
+📐 **MEASURED ON THE PAPER'S OWN CORPUS, 2026-08-23 -- the ~0.1 pp is now a
+number with 260 cells behind it, and the win DECOMPOSES.** Paired per seed
+within cell, `warmup_epochs = 50`, macro-F1:
+
+| contrast | trained? | mean | wins | sign p | per-cell detectable at 4 seeds |
+|---|---|---|---|---|---|
+| tralo - **heuristic** | vs POST-HOC | **+1.85 pp** | 184/236 | 1.8e-18 | 2.05 pp |
+| fioretto_ldf - heuristic | vs POST-HOC | +1.64 pp | 177/234 | 1.7e-15 | |
+| tralo_bounded - heuristic | vs POST-HOC | +1.54 pp | 187/252 | 7.3e-15 | |
+| hounie_rcl - heuristic | vs POST-HOC | +1.13 pp | 159/234 | 4.2e-08 | |
+| **danits_lp - heuristic** | **POST-HOC vs POST-HOC** | **-0.06 pp** | **84/257** | 3e-08 | |
+| tralo - fioretto_ldf | same compute | **+0.15 pp** | 170/262 | 1.7e-06 | 0.71 pp |
+| tralo - tralo_bounded | same compute | **+0.13 pp** | 164/260 | 2.9e-05 | 0.68 pp |
+| tralo - hounie_rcl | same compute | +0.73 pp | 185/264 | 5.7e-11 | 0.88 pp |
+
+**Read the danits_lp row first: it is the control.** Every TRAINED method beats
+the clipper by 1.1-1.9 pp, and the one method that is also POST-HOC does not --
+it loses. So the effect tracks *having a constraint phase*, not *which* one.
+
+🔢 **The decomposition: of TraLO's +1.85 pp over the clipper, about +1.7 pp is
+"being a trained method at all" and about +0.15 pp is TraLO.** That is roughly
+92% / 8%, and the 8% is BELOW its own per-cell bound of 0.71 pp -- it reaches
+significance only by being consistent across 262 cells (65% of them), never
+because any single cell can see it. Section 3's "~0.1 pp" was right, and this is
+what it looks like with 260 cells and a p-value.
+
+🔧 **An instrument fact worth keeping.** The seed sd of a dual-vs-dual contrast
+is **0.48-0.63 pp**, a THIRD of dual-vs-clipper's 1.47 pp: two trained methods
+share most of their variance and the paired difference cancels it. So a
+method-vs-method question is roughly 3x cheaper in seeds than the same question
+asked against the clipper -- but it answers a different one, and the
+clipper is the bar that has to be cleared.
+
+⚠️ **On cc-F1 the method-specific part vanishes entirely.** `tralo - fioretto_ldf`
+is +0.54 pp at **p=0.073** and `tralo - tralo_bounded` +0.51 pp at **p=0.072** --
+neither callable. Only `tralo - hounie_rcl` (+2.06 pp) survives. TraLO is
+indistinguishable from Fioretto and from its own bounded variant on the
+constrained-class metric.
+
 1. **Warm-up 1 over warm-up 50.** Not because it wins, but because warm-up 50 makes every method
    identical -- CE is saturated, so the constraint phase is ~30 unit-norm steps on a frozen
    representation and all methods land within 0.1 pp.
@@ -3833,7 +3872,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             276 tests, ~105 s, no dataset required
+tests/             279 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

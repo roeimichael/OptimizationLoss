@@ -6575,3 +6575,91 @@ def test_the_scorer_prints_pure_ASCII():
     assert not bad, (
         "full_panel prints non-ASCII, which returns None from text-mode "
         "subprocess capture under cp1252: %s" % bad)
+
+
+def _corpus_contrast(metric, treated, control, warmup=50):
+    """Paired `treated - control` per seed within cell, at one warm-up."""
+    import pandas as pd
+    from scipy import stats
+    from scripts.full_panel import detectable_at
+
+    f = os.path.join(REPO, "docs", "paper", "data", "corpus",
+                     "corpus_final.csv")
+    if not os.path.exists(f):
+        pytest.skip("corpus not present in this worktree")
+    d = pd.read_csv(f)
+    cell = ["dataset", "model", "constraint_tag", "constrained_class",
+            "group_column", "warmup_epochs", "sweep"]
+    d = d[d["method"].isin([treated, control])]
+    w = d.pivot_table(index=cell + ["seed"], columns="method", values=metric,
+                      aggfunc="mean").dropna()
+    w = w.assign(delta=w[treated] - w[control])
+    g = w.groupby(level=list(range(len(cell))))["delta"]
+    r = pd.DataFrame({"n": g.size(), "mean": g.mean(),
+                      "sd": g.std(ddof=1)}).reset_index()
+    r = r[(r["warmup_epochs"] == warmup) & (r["n"] >= 2)]
+    wins = int((r["mean"] > 0).sum())
+    return {"cells": len(r), "mean_pp": 100 * r["mean"].mean(),
+            "wins": wins,
+            "p": stats.binomtest(wins, len(r), 0.5).pvalue,
+            "sd_pp": 100 * float(r["sd"].median()),
+            "mde_pp": 100 * detectable_at(float(r["sd"].median()), 4)}
+
+
+def test_the_macroF1_win_is_compute_not_method():
+    """Section 3 says method effects are ~0.1 pp. FRAMEWORK now decomposes the
+    paper's headline into the two parts, and this gate holds the decomposition.
+
+    The control is `danits_lp`: it is the one method that is BOTH constrained
+    and POST-HOC, so under the compute hypothesis it should not win. It loses.
+    Every TRAINED method wins by 1.1-1.9 pp. So the effect tracks having a
+    constraint phase, not which one -- and TraLO's own increment over the best
+    alternative dual is ~0.15 pp, below its per-cell detectable bound.
+    """
+    trained = {m: _corpus_contrast("f1_macro", m, "heuristic")
+               for m in ("tralo", "fioretto_ldf", "hounie_rcl",
+                         "tralo_bounded")}
+    posthoc = _corpus_contrast("f1_macro", "danits_lp", "heuristic")
+
+    # every trained method clears +1 pp over the clipper
+    for m, r in trained.items():
+        assert r["mean_pp"] > 1.0, (m, r)
+        assert r["wins"] / r["cells"] > 0.6, (m, r)
+
+    # the post-hoc control does NOT -- this is the load-bearing comparison
+    assert posthoc["mean_pp"] < 0.2, posthoc
+    assert posthoc["wins"] / posthoc["cells"] < 0.5, posthoc
+
+    # and TraLO's method-specific part is small AND under its own bound
+    for other in ("fioretto_ldf", "tralo_bounded"):
+        r = _corpus_contrast("f1_macro", "tralo", other)
+        assert 0.0 < r["mean_pp"] < 0.5, (other, r)
+        assert r["mean_pp"] < r["mde_pp"], (
+            "%s: the method-specific effect now clears its own per-cell bound, "
+            "so section 3's decomposition needs rewriting: %s" % (other, r))
+
+    # the decomposition itself: ~92%% of the clipper win is not TraLO-specific
+    share = _corpus_contrast("f1_macro", "tralo", "fioretto_ldf")["mean_pp"]         / trained["tralo"]["mean_pp"]
+    assert share < 0.15, share
+
+
+def test_a_dual_vs_dual_contrast_is_better_resolved_than_dual_vs_clipper():
+    """The instrument fact FRAMEWORK section 3 records: two trained methods
+    share most of their seed variance, so the paired difference cancels it and
+    the contrast costs roughly a third the seed noise. It changes what a
+    campaign can afford to ask, so it is checked rather than remembered.
+    """
+    vs_clip = _corpus_contrast("f1_macro", "tralo", "heuristic")["sd_pp"]
+    vs_dual = _corpus_contrast("f1_macro", "tralo", "fioretto_ldf")["sd_pp"]
+    assert vs_dual < vs_clip / 2.0, (vs_dual, vs_clip)
+    assert 1.2 < vs_clip < 1.8 and 0.3 < vs_dual < 0.8, (vs_clip, vs_dual)
+
+
+def test_on_ccF1_tralo_is_not_separable_from_the_other_duals():
+    """The caveat beside the decomposition. On the constrained-class metric the
+    method-specific part does not merely shrink, it stops being callable:
+    tralo - fioretto_ldf and tralo - tralo_bounded both sit at p ~ 0.07.
+    """
+    for other in ("fioretto_ldf", "tralo_bounded"):
+        r = _corpus_contrast("cc_f1", "tralo", other)
+        assert r["p"] > 0.05, (other, r)
