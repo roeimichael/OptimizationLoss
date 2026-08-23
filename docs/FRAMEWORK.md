@@ -1405,6 +1405,51 @@ the runner used to default to 0.01 while a generator defaulted to 0.005. **`houn
 defaults are 0.1**, ten times the paper's 0.01, so an unset key silently runs a different method.
 The generator now sets every per-method step explicitly; never rely on a default.
 
+### 🔴 THE CORPUS NEVER MEASURED THE RANKING CHANNEL -- audited 2026-08-23
+
+**Every outcome column in the paper's evidence base is either budget-equalized
+or a banned non-metric. Not one row anywhere carries AUROC, AP, Brier, NLL or
+ConfGap.**
+
+`corpus_final.csv` -- 7,574 rows, the source of EIGHT of the eleven tables --
+has exactly seven outcome columns: `acc`, `f1_macro`, `cc_f1`, `cc_rec`,
+`cc_prec`, `flips`, `sat`. The first five are budget-equalized; the last two are
+house-rule-5 non-metrics. Widen to all 17 files under
+`docs/paper/data/corpus/` (~9,700 rows) and the ONLY allocation-free column that
+appears anywhere is `ece`, in four auxiliary files. The paper of record mentions
+`cc-F1` 45 times and `macro-F1` 41 times, and AUROC, AP, Brier and NLL zero
+times each.
+
+**Why this is structural and not an omission.** Section 2 established that a
+post-hoc allocator thresholds the ranking at the budget, so the score IS the
+ranking and training can only beat allocation by changing the ORDER. 2(p)
+splits the allocation-free family accordingly: AP and AUROC read order and
+nothing else, while ECE / Brier / NLL / ConfGap move under a rescale that
+reorders nothing -- so **the one allocation-free metric the corpus does carry is
+in the family that provably changes no allocation.** The corpus therefore cannot
+exhibit the representation channel, and no re-analysis of it can recover one:
+per `docs/paper/data/PROVENANCE.md` the corpus is a FROZEN INPUT, the runs are
+gone from both machines and both building scripts with them.
+
+🔎 **The one ranking measurement the paper era can still produce, and it is
+negative.** `evidence/predictions_*.tar.gz` holds raw predictions for 128 runs
+(0.9% of the corpus: `mcbar` 72 + `multiclass` 56), so AUROC and AP ARE
+computable there. Scored 2026-08-23, five contrasts, 4 seeds: **10 POWERED
+lines, 9 of them calibration. Exactly one POWERED RANKING line exists --
+`tralo_byk` AUROC -0.0097, a LOSS.** ⚠️ It sits in a 2-cell contrast, where the
+sign test cannot call anything (min attainable p = 0.5), so it is POWERED and
+NOT CALLABLE at once: the seed noise is small enough to see the effect and there
+are too few cells to attribute it. Quote it as "the only ranking effect the
+paper's own evidence can resolve, and it points the wrong way", never as a
+result.
+
+**What follows for the manuscript.** Nothing in it is falsified by this -- it is
+a gap in what was measured, not an error in what was reported. But a sentence of
+the form "TraLO improves the model rather than the allocation" is not supported
+by any number in the corpus, because the corpus contains no number of that kind.
+`full_panel` records the six allocation-free metrics on every new run, so iwc1
+is the first campaign that will carry them at all. See 2(p) for the seed cost.
+
 ### Dataset scope check against the paper
 
 | dataset | capped class | paper's share | on disk | status |
@@ -1758,7 +1803,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 264 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 266 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1766,7 +1811,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (264 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (266 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -3627,7 +3672,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             264 tests, ~105 s, no dataset required
+tests/             266 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

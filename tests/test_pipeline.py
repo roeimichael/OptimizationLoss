@@ -6088,3 +6088,82 @@ def test_every_allocation_free_metric_gets_a_power_statement():
     # and the two families are not interchangeable: only the ranking one is
     # invariant to a rescale, which is what the printed reading rule claims
     assert set(FP.FREE_RANKING) == {"AP", "AUROC"}
+
+
+RANKING_COLUMNS = {"auroc", "auc", "ap", "auprc", "aupr", "average_precision",
+                   "roc_auc", "ap_capped", "auroc_capped"}
+
+
+def _ranking_columns_in(corpus_dir):
+    """{file: [ranking columns]} for every csv under `corpus_dir`."""
+    import glob
+
+    found = {}
+    for f in sorted(glob.glob(os.path.join(corpus_dir, "*.csv"))):
+        with io.open(f, encoding="utf-8", errors="replace") as fh:
+            header = fh.readline()
+        cols = [c.strip().strip('"').lower() for c in header.split(",")]
+        hit = [c for c in cols if c in RANKING_COLUMNS]
+        if hit:
+            found[os.path.basename(f)] = hit
+    return found
+
+
+def test_the_paper_corpus_carries_no_ranking_metric():
+    """FRAMEWORK 1b claims the corpus never measured the ranking channel.
+
+    That is a claim about files in this repo, so it is checked rather than
+    asserted. `corpus_final.csv` -- 7,574 rows behind eight of the eleven
+    tables -- has seven outcome columns and every one is budget-equalized
+    (acc, f1_macro, cc_f1, cc_rec, cc_prec) or a house-rule-5 non-metric
+    (flips, sat). Across all 17 files the only allocation-free column that
+    appears at all is `ece`, which is CALIBRATION and therefore provably cannot
+    change any top-K set.
+
+    IF THIS TEST EVER FAILS, THAT IS GOOD NEWS and 1b must be rewritten: a
+    ranking column appeared, and the paper can finally say something about the
+    channel its own structural argument rests on.
+    """
+    corpus = os.path.join(REPO, "docs", "paper", "data", "corpus")
+    if not os.path.isdir(corpus):
+        pytest.skip("corpus not present in this worktree")
+
+    found = _ranking_columns_in(corpus)
+    assert not found, (
+        "FRAMEWORK 1b says the corpus carries no ranking metric, but: %s" % found)
+
+    # the positive half: the claim is "only ECE, and only in four files"
+    import glob
+    with_ece = []
+    for f in sorted(glob.glob(os.path.join(corpus, "*.csv"))):
+        with io.open(f, encoding="utf-8", errors="replace") as fh:
+            cols = [c.strip().strip('"').lower()
+                    for c in fh.readline().split(",")]
+        if "ece" in cols:
+            with_ece.append(os.path.basename(f))
+    assert with_ece == ["ablation_no_hinge.csv", "extra_robustness_corpus.csv",
+                        "imbalanced_baselines.csv", "native224_ham10000.csv"], with_ece
+
+    # and corpus_final, which is what eight tables read, carries none of it
+    with io.open(os.path.join(corpus, "corpus_final.csv"),
+                 encoding="utf-8", errors="replace") as fh:
+        cols = [c.strip().strip('"').lower() for c in fh.readline().split(",")]
+    for banned in ("ece", "brier", "nll", "confgap"):
+        assert banned not in cols, banned
+
+
+def test_the_ranking_column_detector_actually_detects(tmp_path):
+    """Negative control for the test above.
+
+    A detector that finds nothing because it looks for nothing would pass the
+    corpus audit forever and silently stop being evidence. Plant one.
+    """
+    d = str(tmp_path)
+    io.open(os.path.join(d, "clean.csv"), "w", encoding="utf-8").write(
+        "dataset,model,seed,acc,f1_macro,cc_f1,flips" + chr(10) + "a,b,1,0,0,0,0" + chr(10))
+    assert _ranking_columns_in(d) == {}
+
+    io.open(os.path.join(d, "planted.csv"), "w", encoding="utf-8").write(
+        "dataset,model,seed,acc,AUROC,AP" + chr(10) + "a,b,1,0,0.9,0.8" + chr(10))
+    hit = _ranking_columns_in(d)
+    assert hit == {"planted.csv": ["auroc", "ap"]}, hit
