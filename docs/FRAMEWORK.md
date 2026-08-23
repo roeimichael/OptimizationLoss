@@ -3201,6 +3201,37 @@ nothing about the count constraint.** That is not a retraction of the paper's
 numbers -- they are what they are -- it is a statement about what they can be
 attributed to, and the answer is: not the mechanism the paper is named for.
 
+🟢 **AND THE CONSTRUCTIVE READING, WHICH IS THE IMPORTANT ONE: the mechanism has
+never been tested, so it has not been refuted either.** Line up what the four
+corpus datasets could have shown:
+
+| dataset | local scope | could a per-group cap carry information? |
+|---|---|---|
+| tissuemnist | `synth_group` = `index % 3` | **no, by construction** |
+| octmnist | `synth_group` = `index % 3` | **no, by construction** |
+| aider | `synth_group` = `index % 3` | **no, by construction** |
+| dermmnist | `loc_group` | NET +65, z=2.9 -- clears stage 1 and still nulls; test groups ARE training groups |
+
+**Not one of them.** So three years of campaigns measured a constraint that had
+nothing to constrain, and the honest summary of the corpus is not "the mechanism
+failed" but "the mechanism was never given a chance to act". Those are different
+conclusions and only the second is recoverable.
+
+🎯 **That is exactly what makes `results/iwc1` the first real experiment rather
+than the next one.** iwildcam is the first dataset that clears 2(n): NET +3131
+at z=97.4, seven test cameras absent from training ENTIRELY, and 7 of 14
+per-group ceilings at K=0 -- a zero ceiling binds regardless of sum slack, so
+the LOCAL scope constrains the output at every cap level for the first time.
+2(p) already frames iwc1 as the first test of the REPRESENTATION channel; this
+section adds that it is also the first test of the LOCAL CONSTRAINT channel, for
+the same reason.
+
+⚠️ Which sharpens the stakes rather than softening them. iwc1 cannot produce a
+significant positive at 2 cells (2(p)), so the best available outcome is a
+bounded null on a dataset where the mechanism CAN act -- and that would be worth
+more than every positive cell in the corpus, because it would be the first one
+measured where the question is answerable.
+
 🧭 **AND IT DOES NOT SCALE WITH CONSTRAINT PRESSURE, which is the second
 control.** If the +1.7 pp came from the count constraint doing work, a TIGHTER
 cap -- more binding, more pressure -- should buy more of it. Regressing the
