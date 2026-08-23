@@ -52,16 +52,92 @@ from src.training.constraints import (compute_global_constraints,  # noqa: E402
 from src.utils.constants import UNLIMITED                          # noqa: E402
 
 
+# Allocation-free metrics that get their own power statement. They cannot be
+# moved by post-hoc filling, which is exactly why a verdict may rest on them --
+# and why a tie in them must never be reported without its seed cost.
+#
+# THE SPLIT IS NOT COSMETIC. "Allocation-free" is two different guarantees and
+# only one of them answers this project's question:
+#
+#   RANKING     AP, AUROC. Invariant to ANY strictly monotone rescale of the
+#               scores, so they move only if the ORDER changed -- and order is
+#               the only thing a top-K allocator reads. A move here is the
+#               representation channel of FRAMEWORK 2(p).
+#   CALIBRATION ECE, Brier, NLL, ConfGap. Move when the order changes OR when
+#               the probabilities are merely rescaled with the order intact.
+#               A temperature or prior shift moves these and provably cannot
+#               change any top-K set (2(j)), so a calibration-only move is a
+#               real effect that changes NO allocation.
+#
+# Measured on the stored evidence: focal_clip vs clip moves ECE -0.069 on 6 of
+# 6 cells while AUROC moves +0.005 and AP -0.0001. Reading that as "the
+# probabilities changed, so the representation channel is live" would be the
+# error this split exists to block.
+FREE_RANKING = ("AP", "AUROC")
+FREE_CALIBRATION = ("ECE", "Brier", "NLL", "ConfGap")
+FREE_RESOLUTION = FREE_RANKING + FREE_CALIBRATION
+
+# The budget-equalized table gets one too. It has no items scale outside ccF1,
+# and printing macro-F1 -- the paper's headline -- with no seed cost is the same
+# omission ConfGap had.
+EQ_RESOLUTION = ("ccP", "ccR", "ccF1", "macroP", "macroR", "macroF1", "acc")
+
+
+RUN_DIRS = {}         # df index -> run directory, for the collision message
+LEAF_DEPTH = 5        # model/dataset/cap/arm/seed_N -- the per-cell path tail
+
+
+def _collision_msg(idx):
+    """Name the RIGHT cause when two runs land on one (cell, seed, arm) key.
+
+    TWO different mistakes produce this collision and they need opposite fixes,
+    so a message that names only one sends the reader hunting in the wrong
+    place:
+
+      * `--campaign` was pointed at a tree holding MORE THAN ONE campaign, so
+        the colliding runs are the same cell under two different roots. The
+        stored-evidence tarball is exactly this shape -- `mcbar` and
+        `multiclass` side by side -- and the earlier message ("the pairing key
+        is missing a dimension") sent the reader into the scorer when the fix
+        was to pass a narrower `--campaign`.
+      * the campaign really does sweep an axis the pairing key does not name,
+        and averaging the runs would pool it.
+
+    The tell is WHERE the paths diverge. Identical cell tail under different
+    prefixes is two campaigns; anything else is a missing dimension. Either way
+    the paths themselves are printed, because that is what the reader needs.
+    """
+    paths = [RUN_DIRS[i] for i in idx if i in RUN_DIRS]
+    head = "%d runs share one (cell, seed, arm) key." % len(idx)
+    if len(paths) < 2:
+        return (head + " Averaging them would pool whatever axis separates "
+                "them, so the pairing key is missing a dimension the campaign "
+                "varies. (No run paths recorded, so which one cannot be said.)")
+    parts = [os.path.normpath(q).replace(os.sep, "/").split("/") for q in paths]
+    lines = [head]
+    if len({"/".join(q[-LEAF_DEPTH:]) for q in parts}) == 1:
+        lines.append("  SAME cell path under DIFFERENT roots: `--campaign` "
+                     "points at a tree holding more than one campaign. Score "
+                     "each campaign root separately -- pooling them is not a "
+                     "scorer setting to change.")
+    else:
+        lines.append("  Same layout, different run paths: the campaign sweeps "
+                     "an axis the pairing key does not name, and averaging "
+                     "these would pool it.")
+    lines += ["    " + q for q in sorted(paths)[:6]]
+    if len(paths) > 6:
+        lines.append("    ... and %d more" % (len(paths) - 6))
+    return chr(10).join(lines)
+
+
 def _one(series):
     """Aggregator for the seed pivot: there must be exactly ONE run per
-    (cell, seed, arm). More than one means the pairing key is missing a
-    dimension, and silently averaging them is how a swept axis gets pooled."""
+    (cell, seed, arm). More than one means either two campaigns got pooled or
+    the pairing key is missing a dimension, and silently averaging them is how
+    a swept axis gets pooled. `_collision_msg` separates the two."""
     vals = series.dropna()
     if len(vals) > 1:
-        raise ValueError(
-            "%d runs share one (cell, seed, arm) key -- the pairing key is "
-            "missing a dimension that the campaign varies. Averaging them "
-            "would pool the swept axis." % len(vals))
+        raise ValueError(_collision_msg(list(vals.index)))
     return vals.iloc[0] if len(vals) else float("nan")
 
 
@@ -451,6 +527,164 @@ def _resolution_readout(perseed, df, arm, control):
               "per cell: %s" % (need, verdict))
     if single:
         print("     %d cell(s) have a single seed and contribute no sd" % single)
+
+
+def detectable_at(sd, n_seeds, power=0.80, alpha=0.05):
+    """Smallest effect `n_seeds` can see -- the number a NULL has to be stated with.
+
+    `seeds_needed` answers "how many seeds would I need"; this inverts it to
+    "what would I have caught with the seeds I have". They are the same
+    arithmetic (`n = z^2 sd^2 / d^2` solved the other way, `d = z sd / sqrt n`),
+    but only one of them can be written into a conclusion.
+
+    FRAMEWORK 2(p) requires the iwc1 null be stated as an equivalence -- not
+    "AUROC was flat" but "any AUROC effect larger than X would have been seen,
+    and none was" -- because a flat result with no bound attached is the "tie
+    means no effect" conflation the RESOLUTION block exists to stop. The panel
+    already held sd and the seed count; it just never printed the third number.
+    """
+    if not (np.isfinite(sd) and sd > 0 and n_seeds and n_seeds > 0):
+        return float("nan")
+    z = 1.959963985 + 0.8416212336
+    if (alpha, power) != (0.05, 0.80):
+        from statistics import NormalDist
+        z = NormalDist().inv_cdf(1.0 - alpha / 2.0) + NormalDist().inv_cdf(power)
+    return float(z * sd / np.sqrt(float(n_seeds)))
+
+
+def _perseed_rows(perseed):
+    """[(metric, mean delta, within-cell seed sd, min seeds)] -- the three
+    numbers every power statement needs, computed once for whichever family
+    asks. The sd is pooled WITHIN cells, never across them (house rule 4)."""
+    rows = []
+    for m, series in sorted(perseed.items()):
+        if series is None or not len(series):
+            continue
+        sds, ns, means = [], [], []
+        for _key, g in series.groupby(level=[0, 1, 2, 3]):
+            means.append(float(g.mean()))
+            ns.append(len(g))
+            if len(g) >= 2:
+                sds.append(float(g.std(ddof=1)))
+        if not means:
+            continue
+        rows.append((m, np.mean(means), np.mean(sds) if sds else None,
+                     int(min(ns))))
+    return rows
+
+
+def _power_row(m, eff, sd, have, seeds_needed):
+    """One printed line: delta, sd, seeds, the bound, the verdict."""
+    if sd is None:
+        return ("     %-8s %+12.4f %12s %6d %12s   every cell has ONE seed "
+                "-- not separable from seed noise" % (m, eff, "n/a", have, "n/a"))
+    mde = detectable_at(sd, have)
+    if abs(eff) <= 0:
+        return ("     %-8s %+12.4f %12.4f %6d %12.4f   exactly zero -- "
+                "bound the null at this size, do not call it no effect"
+                % (m, eff, sd, have, mde))
+    need = seeds_needed(abs(eff), sd)
+    verdict = ("POWERED" if have >= need else
+               "UNDERPOWERED (~%d needed) -- a tie here is NOT evidence "
+               "of no effect" % need)
+    return ("     %-8s %+12.4f %12.4f %6d %12.4f   %s"
+            % (m, eff, sd, have, mde, verdict))
+
+
+def _resolution_eq_readout(perseed, arm, control):
+    """Power for the BUDGET-EQUALIZED metrics, in their OWN units.
+
+    WHY THIS EXISTS. The items block above prices `d ccF1` and nothing else,
+    because `items = dF1 * (K+n)/2` is an F1 identity over the CAPPED classes
+    and does not extend to macro-F1 or accuracy. So the panel printed
+    **macro-F1 -- the metric the paper headlines** -- with a delta, a
+    better/worse count, a Wilcoxon p and no seed cost anywhere. That is the
+    ConfGap defect a second time, in the family that carries the paper's claim,
+    and it is worse here: macro-F1 is known to be carried by the UNCAPPED
+    classes, which swing with the seed, so it is the noisiest number on the
+    page and the one quoted most often.
+
+    No items conversion is invented. Native units, and `detectable` says what
+    the seeds present would have caught.
+
+    ⚠️ ccP / ccR / ccF1 are one metric in three costumes, and so are
+    macroP / macroR / macroF1 -- all monotone in the same counts. Three lines
+    agreeing is arithmetic, not corroboration.
+    """
+    rows = _perseed_rows(perseed)
+    if not rows:
+        return
+    try:
+        from scripts.frozen_head_probe import seeds_needed
+    except Exception:                                  # noqa: BLE001
+        return
+
+    print("")
+    print("  RESOLUTION of the BUDGET-EQUALIZED metrics -- native units.")
+    print("  `d ccF1` also appears in ITEMS above; that conversion is an F1")
+    print("  identity over the capped classes and does NOT extend to macroF1")
+    print("  or acc, which is why they are priced here instead of converted.")
+    print("  NOTE: macroF1 is carried by the UNCAPPED classes, so it is the")
+    print("  noisiest line on this page and the one the paper headlines.")
+    print("     %-8s %12s %12s %6s %12s   %s"
+          % ("metric", "observed d", "seed sd", "seeds", "detectable",
+             "verdict"))
+    order = {m: i for i, m in enumerate(EQ_RESOLUTION)}
+    for m, eff, sd, have in sorted(rows, key=lambda r: order.get(r[0], 99)):
+        print(_power_row(m, eff, sd, have, seeds_needed))
+
+
+def _resolution_free_readout(perseed, arm, control):
+    """Power for the ALLOCATION-FREE metrics, in their OWN units.
+
+    WHY THIS EXISTS SEPARATELY. The RESOLUTION block above converts to ITEMS
+    via `items_per_001`, which is an F1 identity (`F1 = 2TP/(K+n)`) and does not
+    apply to AP or AUROC. So for years it printed a power statement for exactly
+    one metric family -- and the family it covered is the one post-hoc filling
+    can reach. Whenever a verdict rests on the allocation-free family instead,
+    a flat table carried NO power statement at all, which is precisely the
+    "no effect" vs "not enough seeds" conflation the items block was built to
+    prevent. FRAMEWORK 2(p) pre-registers the iwc1 verdict on d AP and d AUROC,
+    so that gap had to close before the campaign lands rather than after.
+
+    No items conversion is invented here. AP and AUROC are reported in native
+    units, which is honest and still answers the only question that matters:
+    is the observed effect large against the seed noise of THIS campaign.
+    """
+    if not perseed:
+        return
+    try:
+        from scripts.frozen_head_probe import seeds_needed
+    except Exception:                                  # noqa: BLE001
+        return
+
+    rows = _perseed_rows(perseed)
+    if not rows:
+        return
+
+    print("")
+    print("  RESOLUTION of the ALLOCATION-FREE metrics -- these cannot be moved")
+    print("  by post-hoc filling, so a verdict resting on them needs its own")
+    print("  power statement. Native units, NOT items: the items scale is an F1")
+    print("  identity and does not apply here.")
+    print("  RANKING moves = the order changed = the only channel a top-K")
+    print("  allocator can see. CALIBRATION moves alone = a rescale, which")
+    print("  provably leaves every top-K set untouched (FRAMEWORK 2(j)).")
+    print("  `detectable` is what the seeds present WOULD have caught. State a")
+    print("  flat result with it -- \"any effect above this would have shown\"")
+    print("  -- never as \"no effect\", which the seeds cannot support.")
+    order = {m: i for i, m in enumerate(FREE_RESOLUTION)}
+    rows.sort(key=lambda r: order.get(r[0], 99))
+    fam = None
+    print("     %-8s %12s %12s %6s %12s   %s"
+          % ("metric", "observed d", "seed sd", "seeds", "detectable",
+             "verdict"))
+    for m, eff, sd, have in rows:
+        this = "RANKING" if m in FREE_RANKING else "CALIBRATION"
+        if this != fam:
+            fam = this
+            print("    -- %s --" % this)
+        print(_power_row(m, eff, sd, have, seeds_needed))
 
 
 def _clustered_readout(results, pvals, control, arm):
@@ -1186,6 +1420,9 @@ def main():
     # collapse to an exact tie while the header still reports two cells. That is
     # mistake-pattern 6 (pooling the swept axis) presenting as mistake-pattern 8
     # (a bug that reads as a tie) -- inside the scorer written to prevent both.
+    RUN_DIRS.clear()
+    if "run_dir" in df:
+        RUN_DIRS.update(df["run_dir"].to_dict())
     key = ["dataset", "model", "cap", "capped", "seed"]
     print("arms:", {a_: int((df.arm == a_).sum()) for a_ in arms})
     print("cells:", df.groupby(["dataset", "model", "cap", "capped"]).ngroups,
@@ -1207,6 +1444,8 @@ def main():
 
         results = []          # (title, metric, row-tuple) collected, then BH
         perseed_ccf1 = None   # pre-collapse pairs, for the resolution readout
+        perseed_free = {}     # ditto for the allocation-free family
+        perseed_eq = {}       # ditto for the budget-equalized family
         for title, metrics in GROUPS:
             for m in metrics:
                 # Restrict to the PAIR being compared before dropping
@@ -1233,6 +1472,10 @@ def main():
                     # contrast needs, and that question is what decides whether
                     # a null is a finding or an underpowered read.
                     perseed_ccf1 = q[arm] - q[args.control]
+                if m in FREE_RESOLUTION:
+                    perseed_free[m] = q[arm] - q[args.control]
+                if m in EQ_RESOLUTION:
+                    perseed_eq[m] = q[arm] - q[args.control]
                 if m in ABOVE_CAP_ONLY and (c.min() < 1.0 or t.min() < 1.0):
                     results.append((title, m, ("UNDERSHOOT", c, t, d, None, None)))
                     continue
@@ -1372,6 +1615,8 @@ def main():
                       % {"/".join(str(x) for x in k): v for k, v in per.items()})
 
         _resolution_readout(perseed_ccf1, df, arm, args.control)
+        _resolution_free_readout(perseed_free, arm, args.control)
+        _resolution_eq_readout(perseed_eq, arm, args.control)
 
         _clustered_readout(results, pvals, args.control, arm)
 

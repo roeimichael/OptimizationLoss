@@ -38,6 +38,11 @@ from pathlib import Path
 
 import pandas as pd
 
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.utils.constants import UNLIMITED                     # noqa: E402
+
 RUNNER = "src.experiments.runner"
 
 
@@ -137,8 +142,8 @@ def main():
         # happened to run first, and silently dropped it from the sweep.
         caps = [int(c[len("Limit_Class"):]) for c in d.columns
                 if c.startswith("Limit_Class")
-                and pd.to_numeric(d[c], errors="coerce").lt(1e9).any()]
-        d = d[pd.to_numeric(d["Limit_Class%d" % caps[0]], errors="coerce").lt(1e9)] if caps else d
+                and pd.to_numeric(d[c], errors="coerce").lt(UNLIMITED).any()]
+        d = d[pd.to_numeric(d["Limit_Class%d" % caps[0]], errors="coerce").lt(UNLIMITED)] if caps else d
         if not caps:
             print("   no finite Limit_Class column -- nothing was capped")
             continue

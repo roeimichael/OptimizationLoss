@@ -144,7 +144,12 @@ class ProbeData:
 
     def __init__(self, features, y, groups, classes, local_pct, global_pct,
                  ref_probs, ref_name, label, ref_is_ceiling=False):
-        self.features = np.asarray(features, dtype=np.float32)
+        # None is allowed and is NOT a placeholder: a probe that reads only
+        # the model's PROBABILITIES has no use for features, and handing it
+        # zeros would let it compute a plausible number on nothing. Left None,
+        # any accidental use fails on the spot.
+        self.features = (None if features is None
+                         else np.asarray(features, dtype=np.float32))
         self.y = np.asarray(y, dtype=int)
         self.groups = np.asarray(groups, dtype=int)
         self.classes = list(classes)
@@ -163,24 +168,47 @@ class ProbeData:
         self.n_classes = int(self.y.max()) + 1
         if self.ref_probs is not None:
             self.n_classes = max(self.n_classes, self.ref_probs.shape[1])
-        if len(self.features) != len(self.y) or len(self.y) != len(self.groups):
+        if len(self.y) != len(self.groups):
             raise ValueError(
-                "features/labels/groups disagree on length (%d/%d/%d)"
-                % (len(self.features), len(self.y), len(self.groups)))
+                "labels/groups disagree on length (%d/%d)"
+                % (len(self.y), len(self.groups)))
+        if self.features is not None and len(self.features) != len(self.y):
+            raise ValueError(
+                "features/labels disagree on length (%d/%d)"
+                % (len(self.features), len(self.y)))
 
 
-def load_real(run_dir):
+def _load_features(emb):
+    """The stored embeddings, or a refusal naming why they are absent."""
+    with np.load(emb) as z:
+        if "features" not in z:
+            raise SystemExit(
+                "%s has no `features` array (keys: %s). src/pipeline/features.py "
+                "writes exactly that key." % (emb, list(z.keys())))
+        return z["features"]
+
+
+def load_real(run_dir, require_features=True):
     """A finished run directory: embeddings + raw predictions + config.
 
     Reads `final_predictions_raw.csv` for the labels, the groups and the
     model's own probabilities, exactly as `full_panel.panel` does -- the raw
     file, never the allocated one, because the allocated file has already had
     the endpoint applied to it.
+
+    `require_features=False` drops the embeddings requirement, and is ONLY for
+    probes that read the probabilities alone. The standing rule -- a run made
+    before `src/pipeline/features.py` landed cannot be probed, and must not be
+    substituted for with synthetic data -- exists because a probe that NEEDS
+    features cannot get them. Applying it to a probe that never touches
+    features excludes the 128 stored-evidence runs for no reason. `.features`
+    is then None rather than a placeholder.
     """
     emb = os.path.join(run_dir, EMBEDDING_FILE)
     raw = os.path.join(run_dir, "final_predictions_raw.csv")
     cfg_path = os.path.join(run_dir, "config.json")
-    missing = [p for p in (emb, raw, cfg_path) if not os.path.exists(p)]
+    needed = (emb, raw, cfg_path) if require_features else (raw, cfg_path)
+    missing = [p for p in needed if not os.path.exists(p)]
     if missing:
         raise SystemExit(
             "cannot probe %s -- missing %s.\n"
@@ -191,12 +219,7 @@ def load_real(run_dir):
             % (run_dir, ", ".join(os.path.basename(p) for p in missing),
                EMBEDDING_FILE))
 
-    with np.load(emb) as z:
-        if "features" not in z:
-            raise SystemExit(
-                "%s has no `features` array (keys: %s). src/pipeline/features.py "
-                "writes exactly that key." % (emb, list(z.keys())))
-        feats = z["features"]
+    feats = _load_features(emb) if require_features else None
     t = pd.read_csv(raw)
     if "Group_ID" not in t.columns:
         raise SystemExit(
@@ -1067,10 +1090,12 @@ def main(argv=None):
     print()
 
     if args.synthetic:
-        print("  *** SYNTHETIC. These numbers describe a generative model with")
-        print("  *** the real dermmnist composition, NOT dermmnist. They")
-        print("  *** license a statement about the LOSSES and the HARNESS and")
-        print("  *** no statement whatsoever about this project's data.")
+        print("  *** SYNTHETIC. These numbers describe a generative model whose")
+        print("  *** group x class COMPOSITION was copied from dermmnist. The")
+        print("  *** features are Gaussian draws, not images, and dermmnist is")
+        print("  *** itself a REMOVED dataset (FRAMEWORK 2(n)). They license a")
+        print("  *** statement about the LOSSES and the HARNESS, and no")
+        print("  *** statement whatsoever about this project's data.")
         print()
 
     if args.json_out:

@@ -32,6 +32,17 @@ Shards are streamed and DELETED after each one, so peak disk stays near a single
 shard rather than the 90GB the full mirror would need.
 
     python -m scripts.prep_iwildcam --out data/iwildcam/oodslice
+
+STAGE 1 WITHOUT THE DOWNLOAD. `--meta-only` stops after the split and writes
+just the label/location CSVs, which is everything `dataset_screen` reads. The
+split builder below is generic COCO-CameraTraps -- `categories[].id/name`,
+`annotations[].image_id/category_id`, `images[].id/file_name/location` -- so it
+also reads Terra Incognita / Caltech Camera Traps, whose annotations are
+published separately from the images. That makes a candidate dataset screenable
+for the cost of one JSON:
+
+    python -m scripts.prep_iwildcam --annotations <cct.json>         --out data/<name>/oodslice --meta-only
+    python -m scripts.dataset_screen data/<name>/oodslice
 """
 import argparse
 import io
@@ -100,6 +111,24 @@ def build_split(ann_path, n_classes, min_per_camera, test_target, seed=0):
     return tr, te, names, sorted(test_cams)
 
 
+def write_meta(out_dir, split, labels, filenames, locations):
+    """Write the ONE file `dataset_screen` reads: label + location per item.
+
+    Factored out because the stage-1 screen needs no images, no model and no
+    GPU, and until 2026-08-23 there was no way to reach it without downloading
+    the images anyway -- `collect` wrote these two CSVs from inside the shard
+    loop. That made "screen a candidate before acquiring it", which 2(n)
+    presents as the whole point of having a stage-1 screen, unreachable in
+    practice on every dataset except the one already on disk.
+    """
+    os.makedirs(out_dir, exist_ok=True)
+    pd.DataFrame({"label": np.asarray(labels, np.int64),
+                  "class_name": ["c%d" % int(v) for v in labels],
+                  "filename": list(filenames),
+                  "location": list(locations)}).to_csv(
+        os.path.join(out_dir, "%s_meta.csv" % split), index=False)
+
+
 def collect(targets, out_dir, cache):
     """Stream shards, keep only wanted images, delete each shard after."""
     from PIL import Image
@@ -147,11 +176,7 @@ def collect(targets, out_dir, cache):
         y = np.asarray([r[1] for r in rows], np.int64)
         np.save(os.path.join(out_dir, "%s_images.npy" % split), x)
         np.save(os.path.join(out_dir, "%s_labels.npy" % split), y)
-        pd.DataFrame({"label": y,
-                      "class_name": ["c%d" % v for v in y],
-                      "filename": [r[3] for r in rows],
-                      "location": [r[2] for r in rows]}).to_csv(
-            os.path.join(out_dir, "%s_meta.csv" % split), index=False)
+        write_meta(out_dir, split, y, [r[3] for r in rows], [r[2] for r in rows])
         print("  wrote %s: %s images" % (split, x.shape))
     return got
 
@@ -165,6 +190,10 @@ def main():
     ap.add_argument("--min-per-camera", type=int, default=120)
     ap.add_argument("--test-target", type=int, default=1800)
     ap.add_argument("--train-per-class", type=int, default=2500)
+    ap.add_argument("--meta-only", action="store_true",
+                    help="write only the label/location CSVs and stop, so "
+                         "`dataset_screen` can price a candidate dataset "
+                         "BEFORE a single image is downloaded")
     args = ap.parse_args()
 
     tr, te, names, cams = build_split(args.annotations, args.classes,
@@ -188,6 +217,21 @@ def main():
           % len(set(te["location"]) & set(tr["location"])))
     print("  test per class: %s" % te["label"].value_counts().sort_index().to_dict())
     print("")
+
+    if args.meta_only:
+        for split, frame in (("train", tr), ("test", te)):
+            write_meta(args.out, split, frame["label"], frame["file_name"],
+                       frame["location"])
+        print("  META ONLY -- no images fetched. Wrote train_meta.csv and "
+              "test_meta.csv to %s" % args.out)
+        print("  ⚠️  This is the INTENDED slice. The full run screens the "
+              "DELIVERED one, which is smaller whenever a shard fails to "
+              "download, so a meta-only NET is an upper bound on the real "
+              "one -- good enough to REJECT a candidate, never to accept a "
+              "borderline one.")
+        print("")
+        print("  now run:  python -m scripts.dataset_screen %s" % args.out)
+        return
 
     targets = {}
     for split, frame in (("train", tr), ("test", te)):
