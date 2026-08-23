@@ -5780,3 +5780,109 @@ def test_the_straddle_probe_never_pools_two_cells_into_one_row(tmp_path):
     assert "1 run(s)" in out, (
         "a cell is reporting more runs than it holds, which is the pooling "
         "this test exists to catch:" + chr(10) + out[-1500:])
+
+
+def test_delta_for_contested_hits_the_requested_band_size():
+    """Bisection on a monotone step function, so the target must be met exactly
+    wherever ties do not straddle it. A band that missed its target would make
+    the matched ladder no more comparable than the one it replaced."""
+    from scripts.straddle_probe import delta_for_contested, cut_score
+
+    rng = np.random.default_rng(2)
+    scores = rng.random(600)
+    K = 120
+    t = cut_score(scores, K)
+    for target in (10, 50, 200):
+        d = delta_for_contested(scores, K, target)
+        got = int((np.abs(scores - t) <= d).sum())
+        assert got == target, (target, got, d)
+
+
+def test_delta_for_contested_is_what_removes_the_density_confound():
+    """THE JUSTIFICATION FOR THE LADDER, pinned directly.
+
+    A delta swept as a fraction of the SCORE RANGE covers a different number of
+    items depending on how dense the scores are around the cut, which is exactly
+    what made the stored-evidence cap trend unreadable: the reachable share fell
+    with the cap in 24 of 33 series, and `contested` fell with it in 22 of 33,
+    so thinning density explained the same numbers. Holding the band SIZE fixed
+    is what separates them.
+
+    Two score sets with the same range and very different densities at the cut.
+    The fraction-of-range band must disagree between them; the matched band must
+    not.
+    """
+    from scripts.straddle_probe import delta_for_contested, cut_score
+
+    rng = np.random.default_rng(4)
+    n, K = 800, 400                    # K at the median, so the cut is placed
+                                       # by the DISTRIBUTION and not by the rank
+    # dense at the cut: one tight cluster, the cut lands in its middle
+    dense = np.clip(rng.normal(0.5, 0.03, n), 0.0, 1.0)
+    # sparse at the cut: two clusters with a GAP where the median falls, so the
+    # K-th ranked score sits at the edge of the upper one
+    sparse = np.clip(np.concatenate([rng.normal(0.2, 0.03, n // 2),
+                                     rng.normal(0.8, 0.03, n - n // 2)]),
+                     0.0, 1.0)
+    for s in (dense, sparse):          # same range, so the fraction is the same
+        s[0], s[1] = 0.0, 1.0
+
+    frac = 0.01
+    counts_frac = []
+    counts_matched = []
+    for s in (dense, sparse):
+        t = cut_score(s, K)
+        counts_frac.append(int((np.abs(s - t) <= frac * (s.max() - s.min())).sum()))
+        d = delta_for_contested(s, K, 50)
+        counts_matched.append(int((np.abs(s - t) <= d).sum()))
+
+    assert counts_frac[0] > 3 * counts_frac[1], (
+        "the fixture is not actually testing the confound -- the two densities "
+        "give similar band sizes at a fixed fraction: %s" % counts_frac)
+    assert counts_matched == [50, 50], (
+        "the matched ladder failed to hold the band size fixed: %s"
+        % counts_matched)
+
+
+def test_delta_for_contested_survives_a_degenerate_cut():
+    """K outside (0, n) gives an infinite cut and there is no band to size. It
+    must return a finite 0.0 rather than propagate a nan into every downstream
+    count."""
+    from scripts.straddle_probe import delta_for_contested
+
+    scores = np.linspace(0.0, 1.0, 50)
+    for K in (0, -3, 50, 99):
+        d = delta_for_contested(scores, K, 10)
+        assert np.isfinite(d), (K, d)
+
+
+def test_match_contested_end_to_end_reports_the_band_it_asked_for(tmp_path):
+    """The flag end to end: the `contested` column must equal the target, or the
+    ladder is not doing the one thing it exists to do."""
+    from scripts import straddle_probe as SP
+
+    rng = np.random.default_rng(9)
+    n = 400
+    root = os.path.join(str(tmp_path), "mc")
+    y = rng.integers(0, 3, n)
+    P = rng.dirichlet(np.ones(3) * 2.0, size=n)
+    _write_run(os.path.join(root, "a"), "clip", 1, P, y,
+               rng.integers(0, 2, n))
+
+    buf = io.StringIO()
+    stdout = sys.stdout
+    try:
+        sys.stdout = buf
+        SP.main(["--campaign", root, "--match-contested"])
+    finally:
+        sys.stdout = stdout
+    out = buf.getvalue()
+
+    assert "contested=50" in out, out[-900:]
+    for line in out.splitlines():
+        if line.strip().startswith("contested=50"):
+            cols = line.split()
+            assert float(cols[1]) == 50.0, line
+            break
+    else:
+        raise AssertionError("no contested=50 row in:" + chr(10) + out[-900:])
