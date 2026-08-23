@@ -1883,7 +1883,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 292 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 293 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1891,7 +1891,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (292 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (293 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -3305,6 +3305,36 @@ are the only constrained-class columns and none of them sees an item that was
 not emitted. Settling it needs the RAW predictions, and the evidence tarball
 holds `mcbar` + `multiclass` only -- not `paper_final`, not `g5_hinge_oct`.
 
+🔴 **AND THE SAME TEST ON THE FULL LEAVE-ONE-OUT ABLATION IS THE REAL RESULT:
+THE TWO "LOAD-BEARING" COMPONENTS ARE EXACTLY THE TWO THAT CHANGE THE EMITTED
+COUNT.** `extra_robustness_corpus.csv`'s `B_loo_ablation` block carries
+`cc_support`, so the emitted count `K = rec*support/prec` is EXACT rather than
+proportional. Full `tralo` against each leave-one-out arm, 32 pairs each,
+dermmnist + octmnist x 3 backbones x 2 caps x 4 seeds:
+
+| ablation | d cc_f1 | **K_full / K_ablated** | d prec | d rec |
+|---|---|---|---|---|
+| **no_reset** | **+8.80 pp** | **1.440** | -0.018 | +0.071 |
+| no_freeze | +0.13 pp | **1.002** | +0.001 | +0.001 |
+| no_rho | +0.10 pp | **1.000** | +0.002 | +0.001 |
+| plus_kl | -0.48 pp | **1.011** | -0.016 | -0.003 |
+
+**The three components the paper reports as NEUTRAL leave the emitted count
+untouched (1.000-1.011). The one it reports as load-bearing raises it 44%.**
+Together with the hinge's 16%, both of the paper's two carried components move
+the budget and none of the neutral ones does. That is exactly the pattern
+"cc-F1 is measuring native satisfaction" predicts -- and the paper's own
+appendix already says native satisfaction is a deployment property and **not a
+headline**.
+
+⚖️ **The reset comes off far better than the hinge, and the numbers say why.**
+Its break-even `q*` is 0.742-0.942 against ablated-arm precisions of
+0.870-0.943 -- so `q*` sits JUST BELOW the arm's average in 7 of 8 cells. Items
+ranked below the cut are normally less precise than the average, so the reset's
+advantage plausibly survives equalization. The hinge's `q*` ran 0.099-0.986 with
+several cells needing implausibly low marginal precision. **Reset: probably
+real. Hinge: cell-dependent, often not.** Neither is decidable from the corpus.
+
 ⏭️ **So there are exactly two honest resolutions**, and the hinge being deleted
 from the codebase (2b) does not remove the need for one:
 1. Restore the hinge, re-run the ablation under the current protocol, and score
@@ -4229,7 +4259,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             292 tests, ~105 s, no dataset required
+tests/             293 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

@@ -7243,3 +7243,50 @@ def test_the_hinge_break_even_precision_is_cell_dependent():
                                       "corpus_final.csv"), nrows=1)
     assert not (set(corpus.columns) - {"cc_prec", "cc_rec", "cc_f1"}) & {
         "marginal_precision", "cc_prec_at_k", "auroc", "ap"}, corpus.columns
+
+
+def test_only_the_load_bearing_components_change_the_emitted_count():
+    """The sharpest form of the budget-equalization finding.
+
+    `B_loo_ablation` carries `cc_support`, so `K = rec*support/prec` is exact.
+    The three components the paper reports as NEUTRAL leave the emitted count
+    at 1.000-1.011. The one it reports as LOAD-BEARING raises it 44%, and the
+    hinge (measured separately) raises it 16%. Both carried components move the
+    budget; no neutral one does.
+
+    That is what "cc-F1 is measuring native satisfaction" predicts, and the
+    paper's own appendix says native satisfaction is not a headline. If a
+    neutral component ever starts moving the count, or a carried one stops, the
+    reading in FRAMEWORK needs revisiting rather than aging.
+    """
+    import pandas as pd
+
+    base = os.path.join(REPO, "docs", "paper", "data", "corpus")
+    f = os.path.join(base, "extra_robustness_corpus.csv")
+    if not os.path.exists(f):
+        pytest.skip("robustness corpus not present in this worktree")
+    e = pd.read_csv(f)
+    c = pd.read_csv(os.path.join(base, "corpus_final.csv"))
+    b = e[e["block"] == "B_loo_ablation"].copy()
+    b["K_a"] = b["cc_recall"] * b["cc_support"] / b["cc_prec"]
+    b = b.rename(columns={"cc_f1": "f1_a", "cc_prec": "prec_a",
+                          "cc_recall": "rec_a"})
+    key = ["dataset", "model", "constraint_tag", "seed"]
+    full = (c[(c.method == "tralo") & (c.warmup_epochs == 50)]
+            [key + ["cc_f1", "cc_prec", "cc_rec"]].drop_duplicates(key)
+            .rename(columns={"cc_f1": "f1_f", "cc_prec": "prec_f",
+                             "cc_rec": "rec_f"}))
+
+    ratio = {}
+    for sb, sub in b.groupby("subblock"):
+        m = sub.merge(full, on=key)
+        assert len(m) == 32, (sb, len(m))
+        m["K_f"] = m["rec_f"] * m["cc_support"] / m["prec_f"]
+        ratio[sb] = float((m["K_f"] / m["K_a"]).mean())
+
+    assert ratio["no_reset"] > 1.3, ratio
+    for neutral in ("no_freeze", "no_rho", "plus_kl"):
+        assert abs(ratio[neutral] - 1.0) < 0.05, (neutral, ratio)
+    assert ratio["no_reset"] > 5 * max(abs(ratio[n] - 1.0)
+                                       for n in ("no_freeze", "no_rho",
+                                                 "plus_kl")), ratio
