@@ -6972,3 +6972,32 @@ def test_dropping_the_leaked_dataset_changes_nothing():
         assert lo <= mean <= hi, (treated, control, mean)
         wins = sum(w * n for _m, w, n in rows) / tot
         assert (wins > 0.5) == want_win, (treated, control, wins)
+
+
+def test_the_paper_reports_exactly_the_datasets_tralo_wins_on():
+    """The disclosure FRAMEWORK 1b now records, held to the files.
+
+    The manuscript names three datasets and the corpus contains four. The three
+    named are the three where TraLO wins macro-F1; the unnamed one is the one
+    where it loses. Nothing in the paper is contradicted by that -- it never
+    claims aider -- but the ratio is what a reviewer asks about, and it should
+    not have to be rediscovered.
+
+    If the paper ever starts reporting aider, or aider stops losing, this fails
+    and the disclosure paragraph needs rewriting rather than quietly aging.
+    """
+    tex = os.path.join(REPO, "docs", "paper", "main_edited_by_roei.tex")
+    if not os.path.exists(tex):
+        pytest.skip("paper of record not present in this worktree")
+    body = io.open(tex, encoding="utf-8", errors="replace").read().lower()
+
+    by = _corpus_by_dataset("tralo", "heuristic")
+    named = {ds for ds in by if ds in body}
+    unnamed = set(by) - named
+
+    assert named == {"dermmnist", "octmnist", "tissuemnist"}, named
+    assert unnamed == {"aider"}, unnamed
+    for ds in named:
+        assert by[ds][0] > 0, (ds, by[ds])
+    for ds in unnamed:
+        assert by[ds][0] < 0, (ds, by[ds])

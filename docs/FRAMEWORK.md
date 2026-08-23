@@ -1854,7 +1854,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 286 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 287 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1862,7 +1862,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (286 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (287 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -3082,6 +3082,28 @@ DATASET, so the honest generalization statement is **3 of 4**, which is section
 "184 of 236 cells, p=1.8e-18" above is a statement about CELLS and must never be
 quoted as if it were about datasets.
 
+📄 **THE PAPER DOES NOT REPORT aider AT ALL** -- `main_edited_by_roei.tex`
+names OctMNIST 58 times, DermMNIST 31 and TissueMNIST 18, and aider zero. So
+nothing in the manuscript is contradicted by the reversal. But the shape is
+worth stating plainly, because a reviewer will: **the three datasets reported
+are the three where TraLO wins, and the one excluded is the one where it loses.**
+
+⚖️ **This was deliberated, not hidden -- and the corpus now settles it.**
+`docs/archive/PROFESSOR_REVIEW.md` item 2 asks in as many words whether to "keep
+it as the saturated-regime ablation ... or drop it from the headline and move to
+an appendix", and item 3 records a known "AIDER F1 gap" for Hounie. So the
+question was open and documented; what was missing was the number. It is
+**-0.53 pp on 86% of cells**, and that turns an open decision into a disclosure
+obligation: a paper reporting 3 of 4 datasets should say which the fourth was
+and why it was dropped, in its own words, rather than leave the ratio to be
+discovered.
+
+⚠️ **And do not read `docs/archive/REJECTED_full_2026-08-18.md`'s "aider already
+a winner" as a result.** In context it is a 2026-05 note about which datasets
+are still worth SEARCHING for -- "already in the set", not "TraLO wins there".
+The corpus says the opposite of the second reading. The archive is history and
+is not being edited; the correction lives here, where it is live.
+
 ✅ **What DOES hold in every dataset separately:**
 * `danits_lp` -- the post-hoc control -- wins **46 / 33 / 28 / 29%** of cells.
   Below half everywhere. The control is not carried by one dataset.
@@ -3978,7 +4000,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             286 tests, ~105 s, no dataset required
+tests/             287 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
