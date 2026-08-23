@@ -70,6 +70,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.utils.constants import UNLIMITED                     # noqa: E402
+
 # Below this, the boundary item is one the model is already certain about and
 # the penalty's per-item gradient there is negligible. Calibrated on the two
 # cells above, so treat it as a flag, not a law.
@@ -100,7 +105,7 @@ def budgets(run_dir):
         for col in t.columns:
             if col.startswith("Limit_Class"):
                 v = pd.to_numeric(t[col], errors="coerce")
-                v = v[v < 1e9]
+                v = v[v < UNLIMITED]
                 if len(v):
                     out[int(col[len("Limit_Class"):])] = int(v.iloc[-1])
     if out:

@@ -7,7 +7,13 @@ Previously these values were redeclared in 7+ modules with the dangerous
 quirk that `metrics.py` declared a local UNLIMITED=1e9 while everyone
 else used 1e10 -- meaning a constraint set to UNLIMITED was correctly
 skipped by the loss but incorrectly registered as ACTIVE by the metric
-layer. See docs/AUDIT_FINDINGS_2026-04-26.md S3.
+layer. The audit that found it (2026-04-26 S3) did not survive the doc
+purge, so the record is here and nowhere else; do not replace this with
+a pointer.
+
+⚠️ The same mismatch came back as bare `1e9` literals in four analysis
+scripts and was removed again 2026-08-23. Import the sentinel; never
+re-derive the threshold.
 """
 
 # Sentinel for "no cap on this class". Any K >= UNLIMITED is treated as

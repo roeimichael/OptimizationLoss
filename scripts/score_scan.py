@@ -33,6 +33,11 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import f1_score, roc_auc_score, average_precision_score
 
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.utils.constants import UNLIMITED                     # noqa: E402
+
 def capped_classes(run_dir):
     """The capped classes, from the run's own config.
 
@@ -62,7 +67,7 @@ def budgets(run_dir):
     for col in t.columns:
         if col.startswith("Limit_Class"):
             v = pd.to_numeric(t[col], errors="coerce")
-            v = v[v < 1e9]
+            v = v[v < UNLIMITED]
             if len(v):
                 out[int(col[len("Limit_Class"):])] = int(v.iloc[-1])
     return out

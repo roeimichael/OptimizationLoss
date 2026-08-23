@@ -22,6 +22,11 @@ import re
 import numpy as np
 import pandas as pd
 
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.utils.constants import UNLIMITED                     # noqa: E402
+
 # The saturated SIGNATURE, both halves required: an already-high warm-up AND
 # a constraint phase that changed nothing. Either alone is ordinary -- a hard
 # dataset can gain little from a good start, and an easy one can still have
@@ -112,7 +117,7 @@ def read_run(d):
     # answers the question a different way, through `all_satisfied`.
     r["posthoc"] = r["wide"] and not any(
         c.startswith("Limit_Class")
-        and (pd.to_numeric(df[c], errors="coerce").dropna() < 1e9).any()
+        and (pd.to_numeric(df[c], errors="coerce").dropna() < UNLIMITED).any()
         for c in df.columns)
     r["sat"] = None
     if sat and ep and not r["posthoc"]:
@@ -158,7 +163,7 @@ def read_run(d):
         if hc not in df.columns or lc not in df.columns:
             continue
         lim = pd.to_numeric(df[lc], errors="coerce").dropna()
-        if lim.empty or float(lim.iloc[-1]) >= 1e9:
+        if lim.empty or float(lim.iloc[-1]) >= UNLIMITED:
             continue                              # uncapped class
         h = pd.to_numeric(df[hc], errors="coerce").dropna()
         if r["wide"] and len(h) > 1:
@@ -189,7 +194,7 @@ def read_run(d):
             continue
         gid, c = int(m.group(1)), int(m.group(2))
         lim = pd.to_numeric(df[col], errors="coerce").dropna()
-        if lim.empty or float(lim.iloc[-1]) >= 1e9:
+        if lim.empty or float(lim.iloc[-1]) >= UNLIMITED:
             continue                              # uncapped in this group
         hc = "Group%d_Hard_Class%d" % (gid, c)
         if hc not in df.columns:

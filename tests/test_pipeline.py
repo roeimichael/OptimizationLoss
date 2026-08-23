@@ -6167,3 +6167,106 @@ def test_the_ranking_column_detector_actually_detects(tmp_path):
         "dataset,model,seed,acc,AUROC,AP" + chr(10) + "a,b,1,0,0.9,0.8" + chr(10))
     hit = _ranking_columns_in(d)
     assert hit == {"planted.csv": ["auroc", "ap"]}, hit
+
+
+POINTER_RE = re.compile(
+    r"(?:docs|scripts|configs|src|tests)/[A-Za-z0-9_/.-]+"
+    r"\.(?:md|tex|pdf|sh|ya?ml|py|csv)")
+
+LIVE_TREES = ("src", "configs", "scripts")
+
+
+def _broken_pointers(root, trees=LIVE_TREES, extra=()):
+    """{file: [targets that do not exist]} for every path-like string in `trees`.
+
+    A comment pointing at a deleted file is worse than no comment: it reads as
+    provenance and sends the next person looking for a record that is gone.
+    Two were live when this was written -- `docs/REJECTED.md` from
+    `src/models/imagery/vit.py` and `docs/AUDIT_FINDINGS_2026-04-26.md` from
+    `src/utils/constants.py`, the second of which exists nowhere in the repo or
+    its history, so the fact it recorded had to be inlined.
+    """
+    import glob
+
+    files = list(extra)
+    for t in trees:
+        files += glob.glob(os.path.join(root, t, "**", "*.py"), recursive=True)
+        files += glob.glob(os.path.join(root, t, "**", "*.yml"), recursive=True)
+    broken = {}
+    for f in sorted(set(files)):
+        if os.sep + "__pycache__" in f:
+            continue
+        with io.open(f, encoding="utf-8", errors="replace") as fh:
+            text = fh.read()
+        bad = sorted({t for t in POINTER_RE.findall(text)
+                      if not os.path.exists(os.path.join(root, t))})
+        if bad:
+            broken[os.path.relpath(f, root).replace(os.sep, "/")] = bad
+    return broken
+
+
+def test_no_live_file_points_at_a_deleted_doc():
+    """Every docs/ scripts/ configs/ src/ path named in live code must exist."""
+    broken = _broken_pointers(REPO)
+    assert not broken, (
+        "these files point at paths that do not exist: %s" % broken)
+
+
+def test_the_pointer_detector_actually_detects(tmp_path):
+    """Negative control: a detector that finds nothing is not a gate."""
+    d = str(tmp_path)
+    os.makedirs(os.path.join(d, "src"))
+    io.open(os.path.join(d, "src", "ok.py"), "w", encoding="utf-8").write(
+        "# see configs/real.yml" + chr(10))
+    io.open(os.path.join(d, "configs"), "w", encoding="utf-8")  # placeholder
+    os.remove(os.path.join(d, "configs"))
+    os.makedirs(os.path.join(d, "configs"))
+    io.open(os.path.join(d, "configs", "real.yml"), "w", encoding="utf-8").write("a: 1")
+    assert _broken_pointers(d, trees=("src",)) == {}
+
+    io.open(os.path.join(d, "src", "bad.py"), "w", encoding="utf-8").write(
+        "# see docs/GONE.md and scripts/vanished.py" + chr(10))
+    hit = _broken_pointers(d, trees=("src",))
+    assert hit == {"src/bad.py": ["docs/GONE.md", "scripts/vanished.py"]}, hit
+
+
+def test_the_unlimited_sentinel_is_never_re_derived():
+    """`UNLIMITED` is 1e10 and nothing may hard-code a different threshold.
+
+    `src/utils/constants.py` exists because `metrics.py` once declared a local
+    `UNLIMITED=1e9` while the rest of the codebase used 1e10, so a constraint
+    set to UNLIMITED was skipped by the loss and registered as ACTIVE by the
+    metric layer. The same literal came back as a bare `1e9` in four analysis
+    scripts -- dose_scan, log_health, reachability, score_scan -- each asking
+    "was this class capped" against a threshold they re-derived. It happened to
+    be conservative and therefore harmless, which is exactly why it survived.
+
+    AST, not grep: `constants.py` still DESCRIBES the 1e9 defect in prose, and
+    a grep counts that as a violation.
+    """
+    import ast
+    import glob
+
+    offenders = []
+    for tree in ("src", "scripts", "configs"):
+        for f in glob.glob(os.path.join(REPO, tree, "**", "*.py"), recursive=True):
+            if os.sep + "__pycache__" in f:
+                continue
+            with io.open(f, encoding="utf-8", errors="replace") as fh:
+                src = fh.read()
+            try:
+                node = ast.parse(src)
+            except SyntaxError:
+                continue
+            for n in ast.walk(node):
+                if isinstance(n, ast.Constant) and isinstance(n.value, float):
+                    if 1e9 <= n.value < 1e10:
+                        offenders.append("%s:%d = %r" % (
+                            os.path.relpath(f, REPO).replace(os.sep, "/"),
+                            n.lineno, n.value))
+    assert not offenders, (
+        "these re-derive the UNLIMITED threshold instead of importing it: %s"
+        % offenders)
+
+    from src.utils.constants import UNLIMITED
+    assert UNLIMITED == 1e10
