@@ -1854,7 +1854,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 283 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 286 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1862,7 +1862,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (283 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (286 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -3065,6 +3065,36 @@ within cell, `warmup_epochs = 50`, macro-F1:
 the clipper by 1.1-1.9 pp, and the one method that is also POST-HOC does not --
 it loses. So the effect tracks *having a constraint phase*, not *which* one.
 
+🛑 **AND THE +1.85 pp IS NOT UNIFORM -- it REVERSES on one of the four
+datasets.** The pooled figure is rule 4's hazard in its purest form, so break it
+out (macro-F1, warm-up 50):
+
+| dataset | tralo - heuristic | cells positive | danits_lp - heuristic | tralo - fioretto_ldf |
+|---|---|---|---|---|
+| tissuemnist | +3.24 pp | 91% | -0.04 pp | +0.09 pp |
+| octmnist | +2.28 pp | 97% | -0.35 pp | +0.43 pp |
+| dermmnist | +1.02 pp | 78% | -0.03 pp | +0.02 pp |
+| **aider** | **-0.53 pp** | **14%** | +0.02 pp | +0.45 pp |
+
+**TraLO LOSES on aider, on 86% of its cells.** The clustered unit is the
+DATASET, so the honest generalization statement is **3 of 4**, which is section
+0's exact sign-flip floor -- p=0.25, not significant at any cell count. The
+"184 of 236 cells, p=1.8e-18" above is a statement about CELLS and must never be
+quoted as if it were about datasets.
+
+✅ **What DOES hold in every dataset separately:**
+* `danits_lp` -- the post-hoc control -- wins **46 / 33 / 28 / 29%** of cells.
+  Below half everywhere. The control is not carried by one dataset.
+* `tralo - fioretto_ldf` stays under **+0.45 pp** everywhere. The
+  method-specific part is small in all four, including the one where TraLO beats
+  the clipper by 3.24 pp and the one where it loses.
+* Dropping dermmnist entirely -- its test set is LEAKED (2, 38.7%/67.3% MEL) --
+  changes nothing: `tralo - heuristic` **+2.33 pp** (115/148),
+  `danits_lp - heuristic` **-0.09 pp** (51/157), `tralo - fioretto_ldf`
+  **+0.24 pp** (121/163). The decomposition does not depend on the contaminated
+  dataset.
+
+
 🔢 **The decomposition: of TraLO's +1.85 pp over the clipper, about +1.7 pp is
 "being a trained method at all" and about +0.15 pp is TraLO.** That is roughly
 92% / 8%, and the 8% is BELOW its own per-cell bound of 0.71 pp -- it reaches
@@ -3948,7 +3978,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             283 tests, ~105 s, no dataset required
+tests/             286 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

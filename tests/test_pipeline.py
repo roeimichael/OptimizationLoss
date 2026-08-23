@@ -6893,3 +6893,82 @@ def test_the_win_does_not_scale_with_cap_tightness():
             "predicts (slope %+.4f pp/pt), so section 3's second control no "
             "longer holds" % (ds, 100 * slope))
     assert seen == 4, seen
+
+
+def _corpus_by_dataset(treated, control, metric="f1_macro", warmup=50):
+    """{dataset: (mean pp, win fraction, cells)} -- the breakout rule 4 demands."""
+    import pandas as pd
+
+    f = os.path.join(REPO, "docs", "paper", "data", "corpus",
+                     "corpus_final.csv")
+    if not os.path.exists(f):
+        pytest.skip("corpus not present in this worktree")
+    d = pd.read_csv(f)
+    cell = ["dataset", "model", "constraint_tag", "constrained_class",
+            "group_column", "warmup_epochs", "sweep"]
+    d = d[d["method"].isin([treated, control])]
+    w = d.pivot_table(index=cell + ["seed"], columns="method", values=metric,
+                      aggfunc="mean").dropna()
+    w = w.assign(delta=w[treated] - w[control])
+    g = w.groupby(level=list(range(len(cell))))["delta"]
+    r = pd.DataFrame({"n": g.size(), "mean": g.mean()}).reset_index()
+    r = r[(r["n"] >= 2) & (r["warmup_epochs"] == warmup)]
+    return {ds: (100 * sub["mean"].mean(), float((sub["mean"] > 0).mean()),
+                 len(sub))
+            for ds, sub in r.groupby("dataset") if len(sub) >= 4}
+
+
+def test_the_clipper_win_reverses_on_one_dataset():
+    """The pooled +1.85 pp is rule 4's hazard: it hides a dataset where TraLO
+    LOSES. aider comes back -0.53 pp on 86% of its cells, so the honest
+    generalization statement is 3 of 4 datasets -- section 0's sign-flip floor,
+    p=0.25 -- and the cell-level p=1.8e-18 is a statement about CELLS only.
+
+    Gated because the pooled number is the quotable one and the breakout is the
+    true one, and nothing else in the repo keeps them attached.
+    """
+    by = _corpus_by_dataset("tralo", "heuristic")
+    assert set(by) == {"aider", "dermmnist", "octmnist", "tissuemnist"}, by
+    losers = [ds for ds, (mean, _w, _n) in by.items() if mean < 0]
+    assert losers == ["aider"], by
+    assert by["aider"][1] < 0.2, by["aider"]
+    assert sum(1 for m, _w, _n in by.values() if m > 0) == 3, by
+
+
+def test_the_posthoc_control_and_the_method_gap_hold_in_every_dataset():
+    """What survives the breakout, and it is the load-bearing half.
+
+    The post-hoc control must lose EVERYWHERE -- if it were carried by one
+    dataset the compute explanation would be one dataset's artifact. And the
+    method-specific gap must stay small everywhere, including in the dataset
+    where TraLO beats the clipper most and the one where it loses.
+    """
+    ctrl = _corpus_by_dataset("danits_lp", "heuristic")
+    for ds, (mean, win, _n) in ctrl.items():
+        assert win < 0.5, (ds, mean, win)
+        assert mean < 0.1, (ds, mean, win)
+
+    gap = _corpus_by_dataset("tralo", "fioretto_ldf")
+    for ds, (mean, _w, _n) in gap.items():
+        assert abs(mean) < 0.5, (ds, mean)
+
+
+def test_dropping_the_leaked_dataset_changes_nothing():
+    """dermmnist's test set is LEAKED (38.7%/67.3% MEL). A decomposition that
+    needed it would be worthless. Removing it entirely leaves every leg intact
+    and the clipper win slightly LARGER.
+    """
+    import pandas as pd
+    from scipy import stats
+
+    for treated, control, lo, hi, want_win in (
+            ("tralo", "heuristic", 1.5, 3.5, True),
+            ("danits_lp", "heuristic", -1.0, 0.1, False),
+            ("tralo", "fioretto_ldf", 0.0, 0.6, True)):
+        by = _corpus_by_dataset(treated, control)
+        rows = [(m, w, n) for ds, (m, w, n) in by.items() if ds != "dermmnist"]
+        tot = sum(n for _m, _w, n in rows)
+        mean = sum(m * n for m, _w, n in rows) / tot
+        assert lo <= mean <= hi, (treated, control, mean)
+        wins = sum(w * n for _m, w, n in rows) / tot
+        assert (wins > 0.5) == want_win, (treated, control, wins)
