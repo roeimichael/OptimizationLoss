@@ -6355,3 +6355,100 @@ def test_detectable_at_is_the_exact_inverse_of_seeds_needed():
     # degenerate inputs refuse rather than return a number that reads as a bound
     for bad in ((0.0, 4), (float("nan"), 4), (1.0, 0)):
         assert not np.isfinite(detectable_at(*bad)), bad
+
+
+def _cct_json(path, alpha, n_loc=10, per_loc=200, n_cls=4, seed=3):
+    """A COCO-CameraTraps annotation file with a tunable per-camera class mix.
+
+    `alpha=None` gives every camera the SAME distribution -- octmnist's failure
+    mode, where `synth_group` was `index % 3` so the groups were i.i.d. draws
+    from one distribution and the local scope was empty by construction.
+    """
+    rng = np.random.default_rng(seed)
+    images, anns = [], []
+    iid = 0
+    for loc in range(n_loc):
+        w = (np.ones(n_cls) / n_cls if alpha is None
+             else rng.dirichlet(np.ones(n_cls) * alpha))
+        for _ in range(per_loc):
+            c = int(rng.choice(n_cls, p=w))
+            images.append({"id": iid, "file_name": "img%06d.jpg" % iid,
+                           "location": loc})
+            anns.append({"image_id": iid, "category_id": c})
+            iid += 1
+    with io.open(path, "w", encoding="utf-8") as fh:
+        json.dump({"categories": [{"id": i, "name": "sp%d" % i}
+                                  for i in range(n_cls)],
+                   "images": images, "annotations": anns}, fh)
+
+
+def _screen_a_cct(tmp, alpha, tag):
+    """annotations -> --meta-only -> dataset_screen, and return the verdict."""
+    d = os.path.join(tmp, tag)
+    os.makedirs(d, exist_ok=True)
+    ann = os.path.join(d, "ann.json")
+    _cct_json(ann, alpha)
+    out = os.path.join(d, "slice")
+    # bytes, not text=True: both scripts print emoji and the Windows default
+    # codec returns None for stdout rather than raising, which reads as "the
+    # script printed nothing" -- a silent way for this gate to stop checking.
+    env = dict(os.environ, PYTHONIOENCODING="utf-8")
+
+    def run(cmd):
+        r = subprocess.run(cmd, cwd=REPO, capture_output=True, env=env)
+        so = r.stdout.decode("utf-8", "replace")
+        se = r.stderr.decode("utf-8", "replace")
+        assert r.returncode == 0, so + se
+        return so
+
+    prep = run([sys.executable, "-m", "scripts.prep_iwildcam",
+                "--annotations", ann, "--out", out, "--classes", "4",
+                "--min-per-camera", "50", "--test-target", "400",
+                "--train-per-class", "300", "--meta-only"])
+    return out, prep, run([sys.executable, "-m", "scripts.dataset_screen", out])
+
+
+def test_a_candidate_dataset_can_be_screened_before_it_is_downloaded(tmp_path):
+    """2(n) presents stage 1 as the PRE-GPU, pre-image screen. Until
+    2026-08-23 it was not reachable that way on any dataset not already on disk:
+    `prep_iwildcam` wrote the two CSVs `dataset_screen` reads from INSIDE the
+    shard-download loop, so pricing a candidate cost the full acquisition the
+    screen exists to avoid. `--meta-only` closes that, and the split builder is
+    generic COCO-CameraTraps, so Terra Incognita / CCT screens the same way.
+
+    This runs the whole chain -- annotations -> meta -> verdict -- and asserts
+    NO image was fetched.
+    """
+    out, prep_out, screen = _screen_a_cct(str(tmp_path), 0.35, "live")
+
+    assert "META ONLY" in prep_out, prep_out
+    for split in ("train", "test"):
+        f = os.path.join(out, "%s_meta.csv" % split)
+        assert os.path.exists(f), f
+        cols = io.open(f, encoding="utf-8").readline().strip().split(",")
+        assert cols == ["label", "class_name", "filename", "location"], cols
+    assert not [f for f in os.listdir(out) if f.endswith(".npy")], (
+        "--meta-only wrote image arrays, so it downloaded something")
+
+    assert "STAGE 1 PASS" in screen, screen[-800:]
+    assert "ABSENT from train" in screen, screen[-800:]
+
+
+def test_identical_per_group_mixes_screen_DEAD_even_with_unseen_groups(tmp_path):
+    """The negative control, and it is the whole point of the screen.
+
+    Give every camera the SAME class distribution and the local scope is empty
+    BY CONSTRUCTION -- octmnist and tissuemnist, whose `synth_group` was
+    `index % 3`. The screen must call it DEAD. Crucially it must do so WHILE
+    still reporting unseen test groups: held-out groups are criterion 1 and are
+    NOT sufficient, which is the distinction that let two of the original three
+    datasets be run for months against a question they could not test.
+    """
+    _out, _prep, screen = _screen_a_cct(str(tmp_path), None, "dead")
+
+    assert "DEAD" in screen, screen[-800:]
+    assert "within sampling noise" in screen, screen[-800:]
+    # and the trap it protects against: unseen groups are still reported
+    assert "ABSENT from train" in screen, (
+        "the fixture lost its held-out cameras, so this no longer controls for "
+        "criterion 1" + chr(10) + screen[-800:])

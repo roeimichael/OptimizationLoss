@@ -60,7 +60,7 @@ imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 271 regression tests, ~105s, no dataset needed
+python -m pytest tests -q                   # 273 regression tests, ~105s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -105,6 +105,10 @@ python -m scripts.frozen_head_probe --run-dir <run> --seeds 1 2 ... # refit ONLY
                                             #   `seeds_needed` prices any survivor in
                                             #   CAMPAIGN seeds (topk/ptopk: +1.2-1.3
                                             #   items but ~24-36 seeds/cell => unaffordable)
+python -m scripts.prep_iwildcam --annotations <cct.json>     --out data/<name>/oodslice --meta-only  # screen a CANDIDATE dataset with NO
+                                            #   images and no GPU: any
+                                            #   COCO-CameraTraps annotation file
+                                            #   (iWildCam, Terra Incognita/CCT)
 python -m scripts.dataset_screen <slice-dir> ...  # CAN a count constraint carry
                                             #   information here? Labels + metadata only,
                                             #   no images/model/GPU. Read the NET column:

@@ -1803,7 +1803,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 271 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 273 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1811,7 +1811,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (271 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (273 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -2455,6 +2455,7 @@ satisfies:
 | **FMoW (WILDS)** | 62 land-use | region x year | partly -- OOD split is by YEAR, regions recur | regions are natural, well-sized groups |
 | **RxRx1 (WILDS)** | 1139 | experimental batch | yes | too many classes; batch is not a meaningful "local" constraint |
 | **ISIC 2019** | 8 | acquisition source / body site | no, but sources differ sharply | keeps the medical framing and the derm continuity |
+| **Terra Incognita / CCT** | ~10-16 species | camera trap location | **YES, by design -- test locations have NO training data** | 20 traps, Beery et al. ECCV 2018. Same structure and same authors as iWildCam, which is the problem as well as the appeal -- see below |
 | Camelyon17 | 2 | hospital | yes | **binary -- fails multi-class** |
 
 **✅ MEASURED 2026-08-22 -- iWildCam CLEARS STAGE 1 BY 48x.** Built a held-out
@@ -2550,10 +2551,74 @@ a NET figure is quoted above:
 | **iwildcam** | ✅ **LIVE, measured** | NET +3131, z=97.4, 7 unseen cameras. In use |
 | fmow | 🟡 live in principle | region/year; class mix genuinely varies by geography. Blocked on acquisition, above |
 | **rxrx1** | ⛔ **DEAD BY CONSTRUCTION** | 1,139 classes and real batch effects make it look ideal, but it is a **plate-based screen: every siRNA appears in every experiment by design**, so the per-group class distribution is uniform across groups. This is octmnist's failure in a prestigious costume -- the shift is in the FEATURES, and we need it in the per-group LABEL counts |
+| **terra_incognita** | 🟡 **live in principle, and the only candidate SCREENABLE BEFORE DOWNLOAD** | see below |
 | camelyon17 | ⛔ dead | 2 classes |
 | povertymap / globalwheat | ⛔ dead | regression / detection, no class budget |
 | geolifeclef, iNaturalist | 🟡 live in principle | geographic groups, species mix differs sharply by region; long tail is a feature here |
 | civilcomments | 🟡 live but out of scope | toxicity rate does differ by identity group, but the pipeline is imagery-only (`IMAGERY_DATASETS`) |
+
+**TERRA INCOGNITA -- the candidate that can be screened for the cost of a JSON,
+2026-08-23.** Beery, Van Horn and Perona, ECCV 2018 (Caltech Camera Traps):
+twenty camera traps, and the benchmark exists specifically to measure
+"generalization to new locations where no training data is available". Criterion
+1 is satisfied by the dataset's own design rather than by a slice we build.
+
+⚡ **Why it is worth naming despite the shortlist already being long: it is
+screenable BEFORE acquisition, and as of 2026-08-23 that is a real command
+rather than an aspiration.** FMoW is blocked because its metadata only comes
+with the shards -- 2(n) records that reading one shard costs minutes. Terra
+Incognita ships COCO-CameraTraps annotations separately from the images, and
+`prep_iwildcam.build_split` reads exactly that schema
+(`categories[].id/name`, `annotations[].image_id/category_id`,
+`images[].id/file_name/location`), which is the format iWildCam inherited.
+
+⚠️ **The chain did not actually work end to end until it was fixed.** 2(n)
+presents stage 1 as the pre-GPU, pre-image screen, but `prep_iwildcam` wrote the
+two CSVs `dataset_screen` reads from INSIDE the shard-download loop -- so
+pricing a candidate cost the full acquisition the screen exists to avoid, on
+every dataset not already on disk. `--meta-only` stops after the split:
+
+```bash
+python -m scripts.prep_iwildcam --annotations <cct.json>     --out data/<name>/oodslice --meta-only     # no images, no GPU
+python -m scripts.dataset_screen data/<name>/oodslice
+```
+
+Gated end to end on a synthetic COCO-CameraTraps file, with the octmnist failure
+as its negative control: give every camera the SAME class mix and the screen
+returns **DEAD, NET -10 items, z=-0.8** -- while STILL reporting the held-out
+cameras. Criterion 1 without criterion 2 looks exactly like a live dataset until
+the NET column is read, which is how two of the original three were run for
+months against a question they could not test.
+
+⚠️ A meta-only NET is the INTENDED slice, not the delivered one: if shards fail
+during a later real acquisition the slice shrinks. So it is an upper bound --
+good enough to REJECT a candidate, never to accept a borderline one.
+
+🛑 **BUT IT BUYS LESS INDEPENDENCE THAN IT LOOKS.** Section 0's clustered floor
+is about DATASETS being independent draws, and two camera-trap corpora by the
+same authors, in the same modality, with the same failure mode are not two draws
+-- a reviewer will read them as one. So:
+
+* For **resolution** (more cells, tighter CIs) Terra Incognita is cheap and fine.
+* For **generality** it is weak, and FMoW's satellite imagery is worth its
+  acquisition cost precisely because it is not another camera trap.
+
+And criterion 2 still has to be MEASURED, not assumed. rxrx1 is the standing
+warning: designed-in domain shift with a per-group label distribution that is
+uniform by construction. iWildCam scored NET +3131 because its species mix
+genuinely differs per camera; Terra Incognita plausibly does the same, and
+"plausibly" is what the screen exists to replace.
+
+⏭️ **NEXT ACTION, and it needs a human:** fetching the CCT annotation JSON is a
+download, so it is not something to do unasked. Once it is in hand the screen is
+one command and needs no GPU.
+
+🧮 **AND THIS IS NOW THE CRITICAL PATH, not a nice-to-have.** 2(p) records the
+two power floors: at one dataset the clustered sign-flip floor is p=1.000, and
+**no number of seeds, cells or backbones moves it.** Generality is blocked on a
+second dataset and on nothing else. That reorders the queue -- a second backbone
+buys resolution the campaign can already almost see, a second DATASET buys the
+only thing it structurally cannot.
 
 🔑 **The rule worth keeping: a dataset famous for DOMAIN SHIFT is not
 automatically a dataset with PER-GROUP LABEL SHIFT, and only the second is what
@@ -3717,7 +3782,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             271 tests, ~105 s, no dataset required
+tests/             273 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
