@@ -291,6 +291,20 @@ pipeline -- there is no setting to get wrong. Same for the CE-saturation skip
   is why the scorer and the offline probes can be iterated while runs land. **Check
   `git status --porcelain src/ configs/ main.py` on the server, not just `git status`** --
   a tree dirty only in `scripts/` is the normal working state and says nothing.
+- 🛑 **THE CAMPAIGN CHECKOUT IS A WORKTREE, SO THE FREEZE COVERS GIT PLUMBING TOO.**
+  `~/optloss-audit/.git` is a FILE, not a directory:
+  `gitdir: /home/dsi/michaer8/OptimizationLoss/.git/worktrees/optloss-audit`. Four
+  worktrees share **one object store** in `~/OptimizationLoss/.git` -- `OptimizationLoss`
+  itself, `optloss-audit` (LIVE), `optloss-select`, and `OL-replication`. So a command run
+  in a SIBLING checkout can reach into the running campaign's git. While a campaign is
+  running, **never run `git gc`, `git prune`, `git repack`, `git reflog expire` or
+  `git worktree prune` anywhere in that family**, including in a checkout that looks
+  unrelated. The file-level freeze above is necessary and NOT sufficient: it protects
+  `src/ configs/ main.py`, and this protects the objects `code_version` resolves against.
+  Branch-level work in a sibling worktree (fetch, checkout, reset of its OWN tree) is fine
+  -- different branch, different working tree, no repack.
+  `cd ~/OptimizationLoss && git worktree list` prints the whole family; run it before any
+  git maintenance, because "I am in a different directory" is not isolation here.
 - **Max 2 GPUs.** Run `nvidia-smi` **with owner lookup** first; never share a GPU with another user.
 - dsisco01 = Quadro RTX 6000 (FP16 + GradScaler). dsisco02 = RTX PRO 6000 Blackwell (BF16 AMP).
   Record which one a result came from.

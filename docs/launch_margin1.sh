@@ -2,14 +2,16 @@
 # THE MARGIN-COUNT DECOMPOSITION CAMPAIGN. Fire when dsisco is reachable.
 #
 # REGIME, stated out loud before launching (FRAMEWORK rule):
-#   dataset      dermmnist  (test set is LEAKED 38.7% -- PAIRED arm-vs-arm
-#                            survives the shared confound; NO absolute number
-#                            from this campaign may be quoted)
+#   dataset      iwildcam   -- RETARGETED 2026-08-23. This script said
+#                            `dermmnist`, which is REMOVED: `gen_campaign` now
+#                            hard-refuses it ("invalid choice"), so the script
+#                            could not have run, while FRAMEWORK still listed it
+#                            as "all gates green". Fixed rather than annotated.
 #   backbone     MobileNetV3
 #   caps         L50_G30, L40_G30   -- two levels, and G < L on both so the
 #                                      GLOBAL scope actually binds
-#   capped       classes 2 and 4    -- coupled multi-class, the one real opening,
-#                                     AND nearly equal in size (n = 220 vs 223),
+#   capped       classes 2 and 7    -- iwildcam's capped pair (impala, cattle).
+#                                     The old 2/4 were dermmnist classes,
 #                                     so the penalty's 1/K gradient asymmetry is
 #                                     ~1.01x between them. The penalty is f(E/K),
 #                                     so a bigger budget gets a SMALLER gradient
@@ -54,17 +56,26 @@
 # -- which is the good outcome; the bad one is a config key silently ignored.
 set -euo pipefail
 ROOT=results/margin1
-cd ~/OptimizationLoss
+cd ~/optloss-audit          # THE campaign checkout. ~/OptimizationLoss is a
+                            # SIBLING WORKTREE sharing one object store; running
+                            # here is not the same as running there.
+
+# 🛑 DO NOT PULL WHILE A CAMPAIGN IS RUNNING. `code_version` is a git hash, so
+# moving HEAD mid-flight splits a live campaign into two non-comparable halves.
+if pgrep -u "$(whoami)" -f "envs/optloss/bin/python main.py" >/dev/null 2>&1; then
+    echo "REFUSING: a dispatcher is running. Deploy after the last run, never during."
+    exit 1
+fi
 git pull --ff-only
 git rev-parse --short HEAD   # must match the laptop, or stop
 python -m pytest tests -q
 python -m scripts.audit_config
 python -m scripts.smoke_arms --matrix
 python -m configs.gen_campaign --root "$ROOT" \
-    --datasets dermmnist --models MobileNetV3 \
+    --datasets iwildcam --models MobileNetV3 \
     --caps L50_G30 L40_G30 \
     --arms tralo tralo_st tralo_margin tralo_coin tralo_null \
-    --constrained-class 2 4
+    --constrained-class 2 7
 python -m scripts.verify_caps "$ROOT"
 python -m scripts.check_parity "$ROOT"
 python -m scripts.flag_live tralo tralo_st tralo_margin tralo_coin tralo_null
@@ -73,10 +84,10 @@ cat <<'READ'
 
 HOW TO READ IT -- fixed in advance, so it cannot drift after the numbers land.
 
-  python -m scripts.full_panel --campaign RESULTS/margin1 --control clip
-  python -m scripts.full_panel --campaign RESULTS/margin1 --control tralo_null
-  python -m scripts.full_panel --campaign RESULTS/margin1 --control tralo_coin
-  python -m scripts.full_panel --campaign RESULTS/margin1 --control tralo
+  python -m scripts.full_panel --campaign results/margin1 --control clip
+  python -m scripts.full_panel --campaign results/margin1 --control tralo_null
+  python -m scripts.full_panel --campaign results/margin1 --control tralo_coin
+  python -m scripts.full_panel --campaign results/margin1 --control tralo
 
 `clip` is the headline bar and the stronger clipper. `tralo_null` separates the
 REGIME from the treatment. `tralo_coin` is the pre-registered kill condition.

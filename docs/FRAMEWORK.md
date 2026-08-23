@@ -1511,6 +1511,23 @@ exhibit the representation channel, and no re-analysis of it can recover one:
 per `docs/paper/data/PROVENANCE.md` the corpus is a FROZEN INPUT, the runs are
 gone from both machines and both building scripts with them.
 
+⚠️ **"0.9% is re-scorable" IS ABOUT THE `evidence/` TARBALLS, NOT ABOUT THE
+DISK -- corrected 2026-08-23.** Counted directly: `archive/raw_runs/` holds
+**11,648** `final_predictions*.csv` and `archive/legacy/results/` a further
+**442**, roughly 94x what the tarballs carry. The 0.9% figure is still exactly
+right for what was PACKAGED as evidence, and every claim resting on the tarballs
+stands. But do not read it as "the older work is unrecoverable" -- it is on
+disk, and `archive/` is gitignored so it costs a clone nothing.
+🛑 **It answers no current question, though**, and that is the part that
+matters: every dataset under it is REMOVED -- aider, dermmnist, eurosat,
+tissuemnist, plus ablation roots. Section 2(n) rules all of them structurally
+incapable of testing a per-group count constraint, so more predictions on dead
+datasets buy no measurement. Useful for auditing what the paper era DID, never
+for a new result. ✅ Independently checked: the rejected-arm campaigns this
+document names (nsteps, sepopt, granularity, headroom, joint, beta, rank, ortho,
+budgetprobe, mcbar_regnet, mcbar_duals, mcjoint) have **0** prediction files
+each, so the "cannot be re-scored" claim about THOSE is exact.
+
 🔎 **The one ranking measurement the paper era can still produce, and it is
 negative.** `evidence/predictions_*.tar.gz` holds raw predictions for 128 runs
 (0.9% of the corpus: `mcbar` 72 + `multiclass` 56), so AUROC and AP ARE
@@ -3896,7 +3913,7 @@ five are what found the defects, and they are cheap:
 
 | | what | status |
 |---|---|---|
-| **built, not run** | `tralo_margin` + `tralo_st` (1b) -- the count's gradient on the decision boundary, decomposed from the count's value | 56-run campaign ready, all gates green, `docs/launch_margin1.sh` |
+| **built, not run** | `tralo_margin` + `tralo_st` (1b) -- the count's gradient on the decision boundary, decomposed from the count's value | `docs/launch_margin1.sh`. ⚠️ **"all gates green" was stale**: the script targeted `dermmnist`, a REMOVED dataset that `gen_campaign` now refuses outright, so it could not have run. Retargeted 2026-08-23 to iwildcam with capped classes 2/7, pointed at the real campaign checkout, and given a refuse-if-a-dispatcher-is-running guard. Re-run its gates before trusting it again |
 | ⛔ **RUN AND REJECTED 2026-08-22** | 1c -- optimise the metric at the budget **with LABELS**, via a jointly-trained SELECTION head | `results/selectrun`, 32 runs: **-22 items vs `clip`, 0 of 2 cells on every metric**, 2 of 8 runs collapsed on the final epoch, and `select_null` TIES `clip` so the selective term owns the loss. **Do not re-run at any `eta`, `tau` or `cov_weight`.** Section (12); code kept at `src/methodologies/select/train.py` so the campaign stays readable |
 | 🔴 **RUN 2026-08-23, NEGATIVE and POWERED** | the REPRESENTATION channel (2(p)) -- the last mechanism the structural argument left open | `results/iwc1`, 72 runs: `tralo` vs its own lambda=0 twin is **AP -0.0306 (detectable 0.0217) and AUROC -0.0110 (detectable 0.0089), both POWERED, 0 of 2 cells**. Losses ordered by constraint pressure across four dual families. Section (p-post). ⚠️ 2 cells => NOT significance-testable in either direction |
 | **running** | the same test on the a-priori headline backbone | `results/iwc2`, ViTB16, launched 2026-08-23 on dsisco01 GPU 3 |

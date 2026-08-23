@@ -1,3 +1,9 @@
+> 🛑 **ARCHIVED 2026-08-23 -- HISTORY, NOT INSTRUCTIONS.**
+> `docs/FRAMEWORK.md` is the ONLY operational document. Where this file
+> disagrees with it, FRAMEWORK wins and this file is wrong.
+> The warm-up-50 chain is a DEAD regime (FRAMEWORK: warm-up 1 / constraint 29 for trained arms, warm-up 30 / constraint 0 for post-hoc).
+> Do not run anything on the strength of this page.
+
 # Warmup-Headroom Ablation
 
 **One-line:** does TraLO's *quality* advantage over the baselines grow as warmup headroom shrinks?
