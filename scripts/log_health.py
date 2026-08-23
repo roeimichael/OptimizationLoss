@@ -305,9 +305,29 @@ def main():
         print("\nNON-FINITE VALUES (a diverged run once wrote `completed`)")
         for r in nf:
             worst = sorted(r["nonfinite"].items(), key=lambda kv: -kv[1])[:3]
-            print("   %-54s %s"
+            print("   %-54s %s   of %d rows, %s constraint step(s) applied"
                   % (os.path.relpath(r["dir"], args.root),
-                     ", ".join("%s x%d" % kv for kv in worst)))
+                     ", ".join("%s x%d" % kv for kv in worst),
+                     r["rows"],
+                     "?" if r.get("steps_applied") is None
+                     else r["steps_applied"]))
+        # The flag was worth an investigation once and should not cost one
+        # twice. Under FP16 AMP the GradScaler DELIBERATELY produces
+        # non-finite gradients, skips those steps and halves the scale, so a
+        # handful of them is the scaler working. Divergence is the case where
+        # the run ALSO lost its step budget. Measured on `results/iwc2`
+        # (ViTB16, FP16 + GradScaler on dsisco01): 7-8 non-finite Grad_Norm
+        # rows per tralo run, and 21-22 of the 29 constraint steps still
+        # applied -- against 18-21 for MobileNetV3 on the same settings. So
+        # that campaign was healthy and the flag alone did not say so.
+        print("   Read the two columns TOGETHER. Under FP16 AMP the "
+              "GradScaler produces")
+        print("   non-finite gradients ON PURPOSE, skips those steps and "
+              "halves the scale,")
+        print("   so a few rows with the step budget INTACT is the scaler "
+              "working, not")
+        print("   divergence. A run that lost its steps as well is the one "
+              "to worry about.")
 
     _saturation_readout(runs)
 

@@ -5847,6 +5847,63 @@ def test_the_identity_gate_would_notice_a_divergence(tmp_path):
                  "exact identity, not approximate agreement")
 
 
+def _nonfinite_campaign(tmp_path, steps_applied):
+    """One run carrying non-finite Grad_Norm rows, with a chosen step budget."""
+    root = os.path.join(str(tmp_path), "camp")
+    d = os.path.join(root, "tralo_seed1")
+    os.makedirs(d, exist_ok=True)
+    n = 6
+    pd.DataFrame({
+        "Epoch": list(range(1, n + 1)),
+        "Train_Acc": [0.40, 0.55, 0.70, 0.80, 0.85, 0.88],
+        "L_CE": [0.5] * n,
+        "Grad_Norm": [1.0, float("inf"), 1.0, float("nan"), 1.0, 1.0],
+    }).to_csv(os.path.join(d, "training_log.csv"), index=False)
+    cfg = {"arm": "tralo", "status": "completed",
+           "dataset_mode": "iwildcam", "model_name": "ViTB16",
+           "constraint_tag": "L30_G50", "constraint": [0.30, 0.50],
+           "dataset_config": {"constrained_class": [2]},
+           "hyperparams": {"seed": 1},
+           "results": {"constraint_steps_applied": steps_applied}}
+    with io.open(os.path.join(d, "config.json"), "w", encoding="utf-8") as fh:
+        json.dump(cfg, fh)
+    r = subprocess.run([sys.executable, "-m", "scripts.log_health", root],
+                       cwd=REPO, capture_output=True, text=True)
+    return r.stdout + r.stderr
+
+
+def test_the_nonfinite_flag_prints_the_step_budget_beside_it(tmp_path):
+    """The flag says "a diverged run once wrote `completed`", and on
+    `results/iwc2` it fired on every ViTB16 tralo run. Under FP16 AMP the
+    GradScaler produces non-finite gradients ON PURPOSE, skips those steps and
+    halves the scale, so a few rows are the scaler working. What separates
+    that from divergence is whether the run still spent its constraint step
+    budget -- iwc2 kept 21-22 of 29, more than MobileNetV3's 18-21 on the same
+    settings, so it was healthy.
+
+    Establishing that took a real investigation. The readout now carries the
+    step count beside the row count so it does not cost one again.
+    """
+    out = _nonfinite_campaign(tmp_path, steps_applied=22)
+    assert "NON-FINITE VALUES" in out, out[-800:]
+    assert "22 constraint step(s) applied" in out, (
+        "the step budget must appear beside the non-finite count, or the "
+        "flag raises a question it does not answer" + out[-900:])
+    assert "GradScaler produces" in out, (
+        "and the reading has to be stated, not left to the reader" + out[-900:])
+
+
+def test_the_nonfinite_step_budget_is_read_from_the_run_not_assumed(tmp_path):
+    """NEGATIVE CONTROL. A line that always printed the healthy number would
+    pass the gate above while hiding the one case that matters -- non-finite
+    values AND a lost step budget, which is what divergence looks like.
+    """
+    out = _nonfinite_campaign(tmp_path, steps_applied=0)
+    assert "0 constraint step(s) applied" in out, (
+        "the number must come from the run" + out[-900:])
+    assert "22 constraint step(s) applied" not in out, out[-900:]
+
+
 def _starvation_campaign(tmp_path, arms):
     """A campaign with the starvation SIGNATURE: the deepest-violating scope
     improving least. `arms` maps arm name -> constraint_steps_applied.
