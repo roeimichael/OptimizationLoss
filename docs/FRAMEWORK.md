@@ -3190,6 +3190,24 @@ decides whether a local cap can carry information at all -- how the group is
 defined -- **does not move the result**, 78% against 78%. A mechanism that
 depends on per-group information cannot produce that.
 
+🔎 **AND THE SAME HOLDS ON THE CAPPED-CLASS METRICS, where the constraint's
+signature should be STRONGEST -- this was looked for, not assumed.** Repeating
+all three controls on `cc_f1`, `cc_prec` and `cc_rec` (tralo vs heuristic,
+warm-up 50, synth-group cells against real-group cells):
+
+| metric | synth (scope empty) | real groups |
+|---|---|---|
+| cc_f1 | +1.13 pp, 62% | +0.59 pp, 67% |
+| cc_prec | +2.25 pp, 67% | +1.27 pp, 70% |
+| cc_rec | +0.83 pp, 62% | +0.41 pp, 64% |
+
+Larger on the cells where the local scope is empty, in all three; win rates 2-5
+points apart, which is inside the standard error of a proportion at n=88. Cap
+slopes within dataset are near zero and MIXED in sign (-0.006 to +0.019). Every
+one of the three tracks the DATASET instead (tissuemnist > octmnist ~ dermmnist
+> aider, negative). **There is no metric in the corpus on which the count
+constraint leaves a fingerprint.**
+
 ⚠️ And the "real" arm is not much of a control either: 2(n) measured dermmnist's
 `loc_group` at NET +65 items, z=2.9 -- it clears stage 1 and still nulls,
 because its test groups ARE its training groups. **No dataset in the corpus has

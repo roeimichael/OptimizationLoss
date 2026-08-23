@@ -7103,6 +7103,21 @@ def test_the_win_is_the_same_where_the_local_scope_is_empty_by_construction():
         "real), so section 3's third control no longer holds and the "
         "constraint may be doing work after all" % (ws, wr))
 
+    # AND the same must hold on the CAPPED-CLASS metrics, where a count
+    # constraint's fingerprint should be strongest if it has one. Looked for,
+    # not assumed: if any of these ever separates by group definition, the
+    # constraint is doing something and section 3 needs rewriting.
+    for metric in ("cc_f1", "cc_prec", "cc_rec"):
+        w2 = d.pivot_table(index=cell + ["seed"], columns="method",
+                           values=metric, aggfunc="mean").dropna()
+        w2 = w2.assign(delta=w2["tralo"] - w2["heuristic"])
+        g2 = w2.groupby(level=list(range(len(cell))))["delta"]
+        r2 = pd.DataFrame({"n": g2.size(), "mean": g2.mean()}).reset_index()
+        r2 = r2[(r2["n"] >= 2) & (r2["warmup_epochs"] == 50)]
+        a = (r2[r2["group_column"] == "synth_group"]["mean"] > 0).mean()
+        b = (r2[r2["group_column"] != "synth_group"]["mean"] > 0).mean()
+        assert abs(a - b) < 0.08, (metric, a, b)
+
     # and the counter-example that keeps the claim honest
     aider = r[r["dataset"] == "aider"]
     assert (aider["group_column"] == "synth_group").all()
