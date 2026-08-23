@@ -7124,3 +7124,46 @@ def test_the_win_is_the_same_where_the_local_scope_is_empty_by_construction():
     assert aider["mean"].mean() < 0, (
         "aider no longer loses, so 'synthetic groups cause wins' would need "
         "ruling out again")
+
+
+def test_the_papers_octmnist_tightcap_claim_reproduces_from_the_corpus():
+    """The abstract's second specific claim, recomputed independently.
+
+    "one regime shows a consistent advantage across all backbones tested:
+    OctMNIST at tight caps, with the largest gains on a ViT-B/16". In its own
+    regime -- octmnist, cc_f1, warm-up 50 -- TraLO beats every dual baseline and
+    the clipper, and ViTB16 shows the largest gain of the backbones tested.
+
+    Gated because an audit that only looks for failures is not an audit, and
+    because this is the claim most likely to be casually generalized: it is
+    about the CONSTRAINED-CLASS metric in ONE dataset at ONE cap band, not about
+    the overall quality margin, which the 92/8 decomposition attributes to
+    training rather than to TraLO.
+    """
+    for other, lo in (("hounie_rcl", 1.5), ("fioretto_ldf", 0.8),
+                      ("tralo_bounded", 0.7), ("heuristic", 0.2)):
+        r = _corpus_contrast("cc_f1", "tralo", other)
+        # _corpus_contrast pools datasets; redo restricted to octmnist
+        import pandas as pd
+        from scipy import stats
+        f = os.path.join(REPO, "docs", "paper", "data", "corpus",
+                         "corpus_final.csv")
+        d = pd.read_csv(f)
+        cell = ["dataset", "model", "constraint_tag", "constrained_class",
+                "group_column", "warmup_epochs", "sweep"]
+        d = d[d["method"].isin(["tralo", other]) & (d["dataset"] == "octmnist")]
+        w = d.pivot_table(index=cell + ["seed"], columns="method",
+                          values="cc_f1", aggfunc="mean").dropna()
+        w = w.assign(delta=w["tralo"] - w[other])
+        g = w.groupby(level=list(range(len(cell))))["delta"]
+        rr = pd.DataFrame({"n": g.size(), "mean": g.mean()}).reset_index()
+        rr = rr[(rr["n"] >= 2) & (rr["warmup_epochs"] == 50)]
+        assert len(rr) == 29, (other, len(rr))
+        assert 100 * rr["mean"].mean() > lo, (other, 100 * rr["mean"].mean())
+        wins = int((rr["mean"] > 0).sum())
+        assert stats.binomtest(wins, len(rr), 0.5).pvalue < 0.05, (other, wins)
+
+        if other == "fioretto_ldf":
+            by = {m: 100 * sub["mean"].mean()
+                  for m, sub in rr.groupby("model") if len(sub) >= 5}
+            assert by["ViTB16"] == max(by.values()), by

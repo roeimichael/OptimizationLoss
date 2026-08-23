@@ -1883,7 +1883,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 289 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 290 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1891,7 +1891,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (289 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (290 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -3219,6 +3219,47 @@ nothing about the count constraint.** That is not a retraction of the paper's
 numbers -- they are what they are -- it is a statement about what they can be
 attributed to, and the answer is: not the mechanism the paper is named for.
 
+✅ **AND THE PAPER'S OWN CLAIMS SURVIVE ALL OF IT -- checked 2026-08-23, because
+an audit that only looks for failures is not an audit.** Recomputed
+independently from the corpus, the abstract's two specific claims hold:
+
+* **"constraint-time training ... improving overall classification quality by
+  1.6 to 5.3 pp over satisfying the cap after training".** Note the subject:
+  **constraint-time TRAINING**, not TraLO. That is exactly the attribution the
+  92/8 decomposition above supports. The abstract does not claim the margin for
+  TraLO's mechanism, and the loose reading that it does is the reader's error,
+  not the paper's.
+* **"one regime shows a consistent advantage across all backbones tested:
+  OctMNIST at tight caps, with the largest gains on a ViT-B/16".** In its own
+  regime (octmnist, `cc_f1`, warm-up 50):
+
+  | contrast | cells | mean | wins | sign p |
+  |---|---|---|---|---|
+  | tralo - hounie_rcl | 29 | +2.25 pp | 27/29 | 1.6e-06 |
+  | tralo - fioretto_ldf | 29 | +1.18 pp | 23/29 | 0.0023 |
+  | tralo - tralo_bounded | 29 | +1.09 pp | 24/29 | 0.00055 |
+  | tralo - heuristic | 29 | +0.56 pp | 21/29 | 0.024 |
+
+  and by backbone: **ViTB16 +1.90 pp (8/9)**, RegNetY400MF +1.15, MobileNetV3
+  +0.62 -- ViT largest, as written. By cap level the effect peaks at L30 (+4.60)
+  and L40 (+2.88) and is ~0 at L10 and L20; the paper's "tight cap" is L40
+  (Sec. Results), so its definition and its data agree.
+
+🔑 **The two findings are consistent, and it is worth being precise about why.**
+octmnist is a `synth_group` dataset, so its local scope is empty by
+construction -- and the paper never attributes this advantage to per-group
+information. It attributes it to **the optimizer reset and the undershoot
+hinge**, two portable components, and explicitly reports the saturating penalty
+shape as NEUTRAL. Today's audit independently supports that attribution: the
+effect does not depend on the group definition, does not scale with cap
+tightness, and disappears against a post-hoc arm. **What the corpus refutes is a
+claim the paper does not make.**
+
+⚠️ The live divergence is elsewhere and is already recorded in 1b: the paper's
+mechanism includes the **undershoot hinge**, which this framework REJECTED and
+DELETED. A paper whose central mechanistic finding names a component the
+codebase no longer has is the thing to reconcile -- not the headline.
+
 🟢 **AND THE CONSTRUCTIVE READING, WHICH IS THE IMPORTANT ONE: the mechanism has
 never been tested, so it has not been refuted either.** Line up what the four
 corpus datasets could have shown:
@@ -4126,7 +4167,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             289 tests, ~105 s, no dataset required
+tests/             290 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
