@@ -124,6 +124,35 @@ GENERALIZATION check on a fixed headline -- it does not promote that backbone to
 the headline. Changing the headline after seeing results re-opens exactly the
 garden of forking paths this note closes.
 
+✅ **INDEPENDENTLY CONFIRMED 2026-08-23, and the ORDER is what makes this
+quotable.** The choice was made a priori on 2026-08-20 for design reasons. Only
+afterwards was the corpus asked which backbone best RESOLVES a method-vs-method
+question, and ViTB16 wins on both terms of the ratio (macro-F1, warm-up 50,
+`tralo - fioretto_ldf`):
+
+| backbone | cells | method gap | wins | seed sd | gap / sd |
+|---|---|---|---|---|---|
+| **ViTB16** | 27 | **+0.27 pp** | 74% | **0.33 pp** | **0.82** |
+| MobileNetV3 | 117 | +0.18 pp | 69% | 0.48 pp | 0.38 |
+| RegNetY400MF | 42 | +0.13 pp | 58% | 0.57 pp | 0.23 |
+| MobileNetV2 | 15 | +0.09 pp | 69% | 0.66 pp | 0.14 |
+
+**ViTB16 has the largest method gap AND the smallest seed noise, so it resolves
+the method question better than twice as well as MobileNetV3.**
+
+🛑 **This is a confirmation, NOT the reason, and the distinction is the whole
+point of the note above.** Had the corpus been read first and the backbone
+chosen from it, this would be selection on the outcome. It was not; the decision
+is dated 2026-08-20 and this measurement 2026-08-23. Quote it in that order or
+not at all.
+
+⚠️ **Note for the clipper contrast, which behaves differently.** Against
+`heuristic` the best backbone is RegNetY400MF (+3.51 pp, 93% of cells), and
+**ShuffleNetV2 REVERSES (-0.75 pp, 33%)** -- a second reversal beside aider's,
+on a backbone since deleted from scope. The backbone that best answers "is TraLO
+better than a clipper" is not the one that best answers "is TraLO better than
+Fioretto", and neither is a reason to move the headline.
+
 ⚠️ Practical consequence: ViTB16 is ~28 s/epoch, so a 30-epoch run is ~14
 minutes and a full sweep is days on one GPU. Exploration therefore runs in two
 stages -- **scout at 1-2 seeds to locate a region, then CONFIRM at 4 seeds
@@ -1854,7 +1883,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 287 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 288 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1862,7 +1891,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (287 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (288 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -2973,7 +3002,12 @@ its test set and its warm-up, so two of them agreeing is section 0's sign-flip
 floor and not independent replication. Widening needs a BACKBONE (resolution) or
 a DATASET (independence); more seeds buy neither. If the verdict comes back flat
 and POWERED, the honest next step is a second backbone on the same slice, which
-is the cheapest cell the protocol allows.
+is the cheapest cell the protocol allows -- and **that backbone is ViTB16**,
+which is the a-priori headline (1-pre) and, independently, the best-resolved
+backbone for a method contrast in the corpus (gap/sd 0.82 against MobileNetV3's
+0.38). ⚠️ If iwc1 itself is running on MobileNetV3, then by 1-pre it is a
+GENERALIZATION check and not the headline cell, and the verdict must be worded
+that way.
 
 **THE EXACT READ, in order.** Verified 2026-08-22 that `full_panel` accepts an
 arbitrary control and validates it against the arms present, so the twin
@@ -4000,7 +4034,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             287 tests, ~105 s, no dataset required
+tests/             288 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

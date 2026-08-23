@@ -7001,3 +7001,50 @@ def test_the_paper_reports_exactly_the_datasets_tralo_wins_on():
         assert by[ds][0] > 0, (ds, by[ds])
     for ds in unnamed:
         assert by[ds][0] < 0, (ds, by[ds])
+
+
+def test_ViTB16_resolves_the_method_question_best():
+    """1-pre records a CONFIRMATION of an a-priori choice, and confirmations rot
+    quietly. ViTB16 must have both the largest method gap and the smallest seed
+    sd among the backbones the paper claims -- that is what "resolves it twice
+    as well" means, and it is the only reason the note is quotable at all.
+
+    The order matters more than the number: the backbone was chosen 2026-08-20
+    and this measured 2026-08-23. If ViTB16 ever stops winning both terms, 1-pre
+    must say so rather than keep a stale confirmation attached to a decision
+    that stands on its own.
+    """
+    import pandas as pd
+
+    f = os.path.join(REPO, "docs", "paper", "data", "corpus",
+                     "corpus_final.csv")
+    if not os.path.exists(f):
+        pytest.skip("corpus not present in this worktree")
+    d = pd.read_csv(f)
+    cell = ["dataset", "model", "constraint_tag", "constrained_class",
+            "group_column", "warmup_epochs", "sweep"]
+    d = d[d["method"].isin(["tralo", "fioretto_ldf"])]
+    w = d.pivot_table(index=cell + ["seed"], columns="method",
+                      values="f1_macro", aggfunc="mean").dropna()
+    w = w.assign(delta=w["tralo"] - w["fioretto_ldf"])
+    g = w.groupby(level=list(range(len(cell))))["delta"]
+    r = pd.DataFrame({"n": g.size(), "mean": g.mean(),
+                      "sd": g.std(ddof=1)}).reset_index()
+    r = r[(r["n"] >= 2) & (r["warmup_epochs"] == 50)]
+
+    # only the four backbones the paper claims
+    claimed = ("ViTB16", "MobileNetV3", "MobileNetV2", "RegNetY400MF")
+    stat = {}
+    for m, sub in r.groupby("model"):
+        if m in claimed and len(sub) >= 10:
+            stat[m] = (100 * sub["mean"].mean(), 100 * float(sub["sd"].median()))
+    assert "ViTB16" in stat and len(stat) >= 3, stat
+
+    gap, sd = stat["ViTB16"]
+    for m, (g2, sd2) in stat.items():
+        if m == "ViTB16":
+            continue
+        assert gap >= g2, ("ViTB16 no longer has the largest method gap", stat)
+        assert sd <= sd2, ("ViTB16 no longer has the smallest seed sd", stat)
+    ratios = {m: g2 / sd2 for m, (g2, sd2) in stat.items()}
+    assert ratios["ViTB16"] > 2 * ratios["MobileNetV3"], ratios
