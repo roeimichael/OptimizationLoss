@@ -588,18 +588,42 @@ datasets:
     # from 1.00 to 0.50, but a reviewer is entitled to call the two one unit.
     # A genuinely independent third must be non-camera-trap (ISIC 2019).
     #
-    # Capped classes 2 (rabbit) and 6 (bobcat) chosen by iwildcam's criterion:
-    # per-camera STRUCTURE, not frequency. Each is present at 3 of the 5 test
-    # cameras, so 2 of 5 local ceilings are K=0 and a zero ceiling ALWAYS
-    # binds. Their camera supports DIFFER ({51,78,135} vs {37,51,78}), so the
-    # two local budget vectors are not one number divided up. Rejected: class 7
-    # (cat) appears at ONE test camera, making the local cap trivially equal to
-    # the global one -- the exact case iwildcam excluded -- and class 5 (bird)
-    # appears at all five, so it carries no zero ceiling at all.
+    # CAPPED CLASSES: chosen by iwildcam's criterion -- per-camera STRUCTURE,
+    # not frequency -- and the choice is a TRADE-OFF, so here is the whole
+    # table rather than the two winning rows. Test counts by camera
+    # (cols = 37 / 51 / 53 / 78 / 135), verified 2026-08-23 from test_meta.csv:
     #
-    #   test counts by camera (cols = 37 / 51 / 53 / 78 / 135):
-    #     class 2 rabbit: [  0, 243,   0,   3, 180]  total 426
-    #     class 6 bobcat: [ 12, 263,   0, 107,   0]  total 382
+    #   class            37   51   53   78  135   total  zero ceilings  support
+    #   0                 0  236    0  376    0     612       3         {51,78}
+    #   1                 6  144    0  104   20     274       1         {37,51,78,135}
+    #   2 rabbit          0  243    0    3  180     426       2         {51,78,135}
+    #   3               151    0   42    0   88     281       2         {37,53,135}
+    #   4                 0   12    3  345    0     360       2         {51,53,78}
+    #   5 bird            6    9   92    6  136     249       0    <== no zero ceiling
+    #   6 bobcat         12  263    0  107    0     382       2         {37,51,78}
+    #   7 cat             0    0    0  401    0     401       4    <== ONE camera
+    #
+    # Two properties are wanted and they PULL APART, which is why the pick is
+    # not simply the top of one column:
+    #   (a) ZERO CEILINGS. A K=0 ceiling binds regardless of sum slack, so it
+    #       is what makes the LOCAL scope constrain the output at all.
+    #   (b) DISTINCT SUPPORTS. If one capped class's cameras are a SUBSET of
+    #       the other's, the two local budget vectors are one constraint
+    #       wearing two hats rather than two.
+    #
+    # Class 0 wins (a) outright -- 3 zero ceilings and the largest test count
+    # at 612 -- but its support {51,78} is a strict SUBSET of both class 2's
+    # and class 6's, so pairing it with either fails (b). Classes 2 and 6 take
+    # 2 zero ceilings each (4 of 10, against iwildcam's 7 of 14) and their
+    # supports are genuinely non-nested: 135 is in class 2's and not class 6's,
+    # 37 is in class 6's and not class 2's. They are chosen because they are
+    # the pair that satisfies BOTH, not because 3-of-5 presence is a criterion.
+    # ⚠️ If a CCT campaign ever wants maximum binding structure and can accept
+    # nested supports, class 0 is the alternative and the reason is above.
+    #
+    # Rejected outright: class 7 (cat) sits at ONE test camera, so the local
+    # cap collapses onto the global one -- the exact case iwildcam excluded --
+    # and class 5 (bird) sits at all five, carrying no zero ceiling at all.
     data_dir: data/cct/oodslice
     num_classes: 8
     group_column: location      # camera trap; test cameras DISJOINT from train

@@ -2592,6 +2592,71 @@ ceilings and the largest test count (612) -- and is the first thing to
 reconsider if a CCT campaign is ever designed. It was not chosen; note the
 choice rather than assume it was optimised.
 
+#### 📡 THE FULL CAMERA-TRAP SWEEP -- six datasets screened in ONE run, 2026-08-23
+
+LILA hosts ~30 COCO-CameraTraps sets and `prep_iwildcam`'s reader parses them
+unmodified, so screening is cheap and was done exhaustively rather than one at
+a time. All metadata-only, no images, no GPU. **Every row below was re-run
+locally, not taken from a report:**
+
+| dataset | NET | z | LOCAL | GLOBAL | **NET/LOCAL** | unseen |
+|---|---|---|---|---|---|---|
+| `cct/oodslice` | +2546 | 75.8 | 2810 | 540 | **90.6%** | 5 |
+| `iwildcam/oodslice` | +3133 | 96.3 | 3531 | 994 | **88.7%** | 7 |
+| `idaho/oodslice` | +2291 | 77.0 | 2946 | 1262 | 77.8% | 3 |
+| `wcs/oodslice` | +3440 | 103.7 | 4640 | 2611 | 74.1% | 5 |
+| `wellington/oodslice` | +1331 | 52.3 | 2027 | 1093 | 65.7% | 2 |
+| `serengeti/oodslice` | +1646 | 55.9 | 2914 | 2136 | 56.5% | 5 |
+| `ena24` | -- | -- | -- | -- | -- | ⛔ REPORTED to have no group variable (`KeyError: 'location'`). **NOT reproduced -- its slice is not on disk**, so re-screen before relying on the rejection |
+
+🔑 **RANK ON NET/LOCAL, NOT ON NET, and a large GLOBAL column is a NEGATIVE
+signal.** NET/LOCAL is the fraction of the novelty that is genuinely
+DIFFERENTIAL across groups; the remainder is the global shift replicated
+across them, which 2(j) proved is one multiplier per class and therefore
+cannot reorder ANY top-K set. `wcs` has the largest headline NET of all
+(+3440) and is fourth on the measure that matters, because 26% of its local
+signal is global. This is the `shift_1` trap (110 of 160 global in disguise)
+in a new costume.
+
+⚠️ **AND THE RATIO MUST COME FROM ONE RUN.** Dividing this run's LOCAL into
+the stored NET in the table above gives iwildcam 99% and puts it first;
+measured consistently in a single invocation it is 88.7% and **`cct` edges it
+at 90.6%**. The two are close and both are far clear of the rest, so nothing
+downstream changes -- but the ordering of the top two comes from mixing a
+stored number with fresh ones, which is the same apples-to-oranges this
+document has been burned by before. Compute the ratio inside one screen.
+
+✅ **NO LEAKAGE, checked rather than assumed.** iWildCam draws partly from
+WCS-contributed data, so a shared image between candidates was a real risk.
+Filename overlap between `iwildcam` and `cct` is **0** of 22,943 vs 22,985,
+and each dataset's own train/test overlap is **0**. Re-check this for any
+further candidate before it is admitted; dermmnist shipped with a 38.7% leak.
+
+Two candidates carry a caveat that shows up only on inspection:
+
+* **`idaho`** -- 4 of its 8 classes are camera artefacts (`snow on lens`,
+  `foggy lens`, `vegetation obstruction`, `malfunction`). That IS real
+  per-group label shift, since a broken camera produces many broken frames,
+  but it is degenerate rather than ecological and a reviewer may say so. Only
+  3 test cameras.
+* **`wellington`** -- only 2 test groups, so the local scope has almost
+  nothing to differentiate between.
+
+⛔ **NONE OF THEM BUYS INDEPENDENCE.** Every survivor is a camera-trap set
+read through the same COCO-CameraTraps schema, and several share contributors.
+They raise the dataset count, so section 0's exact sign-flip floor improves
+(1 dataset p=1.000, 2 datasets p=0.500), and a reviewer may still fairly call
+the whole family one generalization unit. **A genuinely independent third has
+to leave camera traps entirely** -- ISIC 2019 is the standing candidate and is
+NOT yet screened.
+
+🛑 **AND NOTE WHAT THIS SWEEP CANNOT FIX.** There is no dataset on which the
+GLOBAL scope carries information: 2(j) is structural, not empirical. Whether
+the global cap BINDS is a cap-tag choice (`G < L`, e.g. `L50_G30`), never a
+dataset property. So the sweep can only ever improve the LOCAL differential,
+which is the one live route -- and (p-post) has just measured that route
+negative on iwildcam.
+
 🛑 **CCT IS NOT AN INDEPENDENT GENERALIZATION UNIT.** Same authors, same
 modality, same schema, same COCO-CameraTraps reader as iwildcam. It moves the
 dataset count from 1 to 2, so section 0's exact sign-flip floor improves from
