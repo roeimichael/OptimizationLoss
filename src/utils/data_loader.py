@@ -24,7 +24,7 @@ log = logging.getLogger(__name__)
 # priors. aider, eurosat, retinamnist, bloodmnist, organamnist and the
 # native-resolution variants were dropped earlier. None may come back without
 # a `dataset_screen` number recorded in the framework.
-IMAGERY_DATASETS = {'iwildcam'}
+IMAGERY_DATASETS = {'iwildcam', 'cct'}
 
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(1, 3, 1, 1)
 IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 3, 1, 1)

@@ -569,6 +569,44 @@ datasets:
                                 # one shared camera restores the per-camera
                                 # prior the model is supposed to lack, and
                                 # silently turns this back into dermmnist.
+  cct:
+    # THE SECOND DATASET THAT CLEARS THE FRAMEWORK 2(n) CRITERION.
+    # Caltech Camera Traps / Terra Incognita (Beery et al., ECCV 2018), read by
+    # the same generic COCO-CameraTraps split builder as iwildcam: 5 test
+    # cameras held out ENTIRE from 128 training cameras, 0 overlap.
+    # Screened 2026-08-23 with `scripts.dataset_screen` (meta only, no images):
+    #     iwildcam/oodslice   NET +3131 items (z=97.4)  unseen groups 7
+    #     cct/oodslice        NET +2546 items (z=75.8)  unseen groups 5
+    #     dermmnist/slice_1   NET   +65 items (z= 2.9)  unseen groups 0
+    # NET 2546 of LOCAL 2810, so the novelty is genuinely DIFFERENTIAL and not
+    # the global shift replicated across groups -- contrast dermmnist shift_1,
+    # where 110 of its 160 was global in disguise.
+    #
+    # NOT AN INDEPENDENT GENERALIZATION UNIT FROM iwildcam. Same authors, same
+    # sensor modality, same schema; FRAMEWORK 2(n) flags this. It raises the
+    # dataset count D from 1 to 2, moving the exact sign-flip floor 2^(1-D)
+    # from 1.00 to 0.50, but a reviewer is entitled to call the two one unit.
+    # A genuinely independent third must be non-camera-trap (ISIC 2019).
+    #
+    # Capped classes 2 (rabbit) and 6 (bobcat) chosen by iwildcam's criterion:
+    # per-camera STRUCTURE, not frequency. Each is present at 3 of the 5 test
+    # cameras, so 2 of 5 local ceilings are K=0 and a zero ceiling ALWAYS
+    # binds. Their camera supports DIFFER ({51,78,135} vs {37,51,78}), so the
+    # two local budget vectors are not one number divided up. Rejected: class 7
+    # (cat) appears at ONE test camera, making the local cap trivially equal to
+    # the global one -- the exact case iwildcam excluded -- and class 5 (bird)
+    # appears at all five, so it carries no zero ceiling at all.
+    #
+    #   test counts by camera (cols = 37 / 51 / 53 / 78 / 135):
+    #     class 2 rabbit: [  0, 243,   0,   3, 180]  total 426
+    #     class 6 bobcat: [ 12, 263,   0, 107,   0]  total 382
+    data_dir: data/cct/oodslice
+    num_classes: 8
+    group_column: location      # camera trap; test cameras DISJOINT from train
+    constrained_class: [2, 6]   # rabbit 14.3% / bobcat 12.8% of test
+    disjoint_groups: true       # same guard as iwildcam: data_loader RAISES on
+                                # any train/test camera overlap.
+
 models: [MobileNetV3, MobileNetV2, RegNetY400MF, ViTB16]
 
 # Keys that change WHAT THE WARM-UP OPTIMIZES. These and only these enter

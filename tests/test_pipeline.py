@@ -4976,8 +4976,8 @@ def test_removed_datasets_cannot_be_selected_anywhere():
 
     with io.open(PROTOCOL_PATH, encoding="utf-8") as fh:
         declared = set(yaml.safe_load(fh)["datasets"])
-    assert declared == {"iwildcam"}, declared
-    assert IMAGERY_DATASETS == {"iwildcam"}, IMAGERY_DATASETS
+    assert declared == {"iwildcam", "cct"}, declared
+    assert IMAGERY_DATASETS == {"iwildcam", "cct"}, IMAGERY_DATASETS
     for name in REMOVED_DATASETS:
         assert name not in declared
         assert name not in IMAGERY_DATASETS
