@@ -126,6 +126,8 @@ from scripts.frozen_head_probe import (allocate, budgets, load_real,
 SWEEP_FRACS = (0.001, 0.003, 0.01, 0.03, 0.1)
 SWEEP_NAMES = ["%.3f x range" % f for f in SWEEP_FRACS]
 MEASURED_NAMES = ["measured q95", "2x measured", "10x measured"]
+CONTESTED_TARGETS = (20, 50, 100)
+CONTESTED_NAMES = ["contested=%d" % n for n in CONTESTED_TARGETS]
 
 
 def cut_score(scores, K):
@@ -155,6 +157,39 @@ def straddle(scores, is_pos, K, deltas):
                       "reachable": min(fp_near, tp_near)})
     return {"K": int(K), "n_pos": int(is_pos.sum()), "cut": t,
             "oracle": int(oracle), "bands": bands}
+
+
+def delta_for_contested(scores, K, target):
+    """The delta whose band holds ~`target` items around the cut.
+
+    WHY THIS EXISTS. Sweeping delta as a FRACTION OF THE SCORE RANGE makes
+    cross-cap comparison unreadable: at a looser cap the cut sits somewhere else
+    in the score distribution, so the same fraction covers a different number of
+    items. Measured on the stored evidence -- the reachable SHARE of the oracle
+    gap falls as the cap loosens in 24 of 33 series (sign p=0.014), which looks
+    like a geometry result until the control is read: `contested` falls too, in
+    22 of 33 (p=0.080). Thinning density explains the same numbers, and that
+    parameterisation cannot separate the two.
+
+    Holding the CONTESTED MASS fixed removes the confound: the band always holds
+    the same number of items, so a change in `reachable` is a change in how many
+    of them are useful swaps, which is the geometry question.
+
+    Bisection on delta, since `contested` is monotone non-decreasing in it.
+    """
+    scores = np.asarray(scores, float)
+    t = cut_score(scores, K)
+    if not np.isfinite(t):
+        return 0.0
+    hi = float(np.max(np.abs(scores - t))) or 1.0
+    lo = 0.0
+    for _ in range(60):
+        mid = 0.5 * (lo + hi)
+        if int((np.abs(scores - t) <= mid).sum()) < target:
+            lo = mid
+        else:
+            hi = mid
+    return hi
 
 
 def emitted_K(data):
@@ -196,14 +231,41 @@ def sweep_deltas(_c, scores):
     return [f * span for f in SWEEP_FRACS]
 
 
+def matched_deltas_for(data):
+    """A ladder that holds the CONTESTED MASS fixed instead of the delta.
+
+    Returns a `deltas_for(c, scores)` closure, because the cut depends on the
+    emitted K and that is per class.
+    """
+    Ks = emitted_K(data)
+
+    def deltas_for(c, scores):
+        return [delta_for_contested(scores, Ks[c], n) for n in CONTESTED_TARGETS]
+    return deltas_for
+
+
 # ------------------------------------------------- the measured displacement --
 
 def _meta(run_dir):
     with open(os.path.join(run_dir, "config.json"), encoding="utf-8") as fh:
         cfg = json.load(fh)
+    # The ARM is part of the cell. FRAMEWORK rule 4 fixes the atomic cell at
+    # (dataset, backbone, cap, METHOD), and it belongs here for a reason
+    # specific to this probe: the arm IS the ranking, and the ranking is the
+    # whole object being measured. Averaging `clip` with `tralo_uniform` in one
+    # row describes neither.
+    # TWO keys, deliberately, because they answer different questions.
+    # `cell` is for REPORTING and includes the ARM: rule 4 fixes the atomic
+    # cell at (dataset, backbone, cap, METHOD), and here the arm IS the
+    # ranking -- the whole object being measured -- so averaging `clip` with
+    # `tralo_uniform` into one row describes neither.
+    # `pair_cell` is for PAIRING and excludes it, because a treated arm and its
+    # `_null` twin differ in exactly that field and must still find each other.
+    base = (cfg.get("dataset_mode"), cfg.get("model_name"),
+            cfg.get("constraint_tag"))
     return {"arm": cfg.get("arm"),
-            "cell": (cfg.get("dataset_mode"), cfg.get("model_name"),
-                     cfg.get("constraint_tag")),
+            "cell": base + (cfg.get("arm"),),
+            "pair_cell": base,
             "seed": (cfg.get("hyperparams") or {}).get("seed")}
 
 
@@ -219,7 +281,7 @@ def pair_runs(run_dirs):
             m = _meta(r)
         except (OSError, ValueError):
             continue
-        by_key[(m["cell"], m["seed"], m["arm"])] = r
+        by_key[(m["pair_cell"], m["seed"], m["arm"])] = r
     pairs = []
     for (cell, seed, arm), r in sorted(by_key.items(),
                                        key=lambda kv: str(kv[0])):
@@ -233,7 +295,10 @@ def pair_runs(run_dirs):
 
 def measured_delta(treated, null, quantile=0.95):
     """How far the constraint moved the capped-class scores, in score units."""
-    a, b = load_real(treated), load_real(null)
+    # probabilities only: this probe never touches `.features`, so runs
+    # predating src/pipeline/features.py are legitimately probeable here.
+    a, b = (load_real(treated, require_features=False),
+            load_real(null, require_features=False))
     if len(a.y) != len(b.y) or not np.array_equal(a.y, b.y):
         raise SystemExit("%s and %s are not the same test set -- refusing to "
                          "difference them" % (treated, null))
@@ -248,12 +313,22 @@ def measured_delta(treated, null, quantile=0.95):
 
 # ------------------------------------------------------------------- report --
 
-def collect(agg, rows, names):
+def collect(agg, rows, names, cell=None):
+    """Accumulate one run into the aggregate, keyed by (CELL, class).
+
+    The cell is part of the key, not decoration. `full_panel` groups by
+    (dataset, model, cap, capped) because pooling across any of them is this
+    project's most-repeated analysis error -- and the stored-evidence tree is
+    exactly the shape that punishes it: 128 runs spanning THREE datasets and
+    THREE cap levels, where "class 1" means a different class in each. Pooling
+    them produced a confident row describing nothing.
+    """
     for c, v in rows.items():
-        a = agg.setdefault(c, {"oracle": [], "K": [], "n_pos": [],
-                               "bands": collections.defaultdict(list),
-                               "shuf": collections.defaultdict(list),
-                               "order": list(names)})
+        key = (cell, c)
+        a = agg.setdefault(key, {"oracle": [], "K": [], "n_pos": [],
+                                 "bands": collections.defaultdict(list),
+                                 "shuf": collections.defaultdict(list),
+                                 "order": list(names)})
         a["oracle"].append(v["oracle"])
         a["K"].append(v["K"])
         a["n_pos"].append(v["n_pos"])
@@ -269,33 +344,48 @@ def reachable_share(agg, band):
     counts, and a class with a 1-item gap must not weigh the same as one with
     20. Averaging the per-class ratios did exactly that.
     """
-    num = sum(np.mean([b["reachable"] for b in agg[c]["bands"][band]])
-              for c in agg if band in agg[c]["bands"])
-    den = sum(float(np.mean(agg[c]["oracle"])) for c in agg)
+    num = sum(np.mean([b["reachable"] for b in agg[k]["bands"][band]])
+              for k in agg if band in agg[k]["bands"])
+    den = sum(float(np.mean(agg[k]["oracle"])) for k in agg)
     return num / den if den > 0 else 0.0
 
 
 def report(agg, n_runs):
-    for c in sorted(agg):
-        a = agg[c]
-        orc = float(np.mean(a["oracle"]))
-        print("  CLASS %d -- emits K=%.0f, %.0f true in test, %d run(s)"
-              % (c, np.mean(a["K"]), np.mean(a["n_pos"]), n_runs))
-        print("    unbounded ORACLE gap: %.2f items" % orc)
-        print("    %-14s %10s %10s %13s"
-              % ("delta", "contested", "reachable", "shuffled ctrl"))
-        for nm in a["order"]:
-            print("    %-14s %10.1f %10.2f %13.2f"
-                  % (nm,
-                     np.mean([b["contested"] for b in a["bands"][nm]]),
-                     np.mean([b["reachable"] for b in a["bands"][nm]]),
-                     np.mean([b["reachable"] for b in a["shuf"][nm]])))
-        best = max(np.mean([b["reachable"] for b in a["bands"][nm]])
-                   for nm in a["order"])
-        print("    -> at the widest delta, %.2f of the %.2f oracle items are "
-              "reachable (%.0f%%)"
-              % (best, orc, 100.0 * best / orc if orc > 0 else 0.0))
-        print("")
+    """One block per CELL. Never one block per class across cells."""
+    cells = []
+    for cell, _c in agg:
+        if cell not in cells:
+            cells.append(cell)
+    for cell in sorted(cells, key=lambda x: str(x)):
+        if cell is not None:
+            print("  CELL %s" % "/".join(str(x) for x in cell))
+        for (cl, c) in sorted((k for k in agg if k[0] == cell),
+                              key=lambda k: k[1]):
+            _report_one(agg[(cl, c)], c)
+
+
+def _report_one(a, c):
+    """One class within one cell. Split from `report` so the cell loop
+    stays readable; the run count is taken from this key alone."""
+    orc = float(np.mean(a["oracle"]))
+    n_runs = len(a["oracle"])
+    print("  CLASS %d -- emits K=%.0f, %.0f true in test, %d run(s)"
+          % (c, np.mean(a["K"]), np.mean(a["n_pos"]), n_runs))
+    print("    unbounded ORACLE gap: %.2f items" % orc)
+    print("    %-14s %10s %10s %13s"
+          % ("delta", "contested", "reachable", "shuffled ctrl"))
+    for nm in a["order"]:
+        print("    %-14s %10.1f %10.2f %13.2f"
+              % (nm,
+                 np.mean([b["contested"] for b in a["bands"][nm]]),
+                 np.mean([b["reachable"] for b in a["bands"][nm]]),
+                 np.mean([b["reachable"] for b in a["shuf"][nm]])))
+    best = max(np.mean([b["reachable"] for b in a["bands"][nm]])
+               for nm in a["order"])
+    print("    -> at the widest delta, %.2f of the %.2f oracle items are "
+          "reachable (%.0f%%)"
+          % (best, orc, 100.0 * best / orc if orc > 0 else 0.0))
+    print("")
 
 
 def self_test(n_seeds=5, verbose=False):
@@ -307,15 +397,15 @@ def self_test(n_seeds=5, verbose=False):
         a = {}
         for seed in range(n_seeds):
             collect(a, probe(make_synthetic(regime, seed), sweep_deltas, rng),
-                    SWEEP_NAMES)
+                    SWEEP_NAMES, ("synthetic", regime))
         if verbose:
             print("  REGIME %s" % regime)
             report(a, n_seeds)
         agg[regime] = a
-        oracle[regime] = sum(float(np.mean(a[c]["oracle"])) for c in a)
+        oracle[regime] = sum(float(np.mean(a[k]["oracle"])) for k in a)
         shuf_tot[regime] = {nm: sum(np.mean([b["reachable"]
-                                             for b in a[c]["shuf"][nm]])
-                                    for c in a) for nm in SWEEP_NAMES}
+                                             for b in a[k]["shuf"][nm]])
+                                    for k in a) for nm in SWEEP_NAMES}
 
     print("  oracle gap: matched %.2f items, tailnoise %.2f items"
           % (oracle["matched"], oracle["tailnoise"]))
@@ -356,6 +446,10 @@ def main(argv=None):
     ap.add_argument("--self-test", action="store_true")
     ap.add_argument("--verbose", action="store_true",
                     help="per-class tables inside --self-test")
+    ap.add_argument("--match-contested", action="store_true",
+                    help="hold the number of items near the cut FIXED instead "
+                         "of the delta -- the only ladder comparable across "
+                         "cap levels")
     ap.add_argument("--sweep", action="store_true",
                     help="fractions of the score range instead of the measured "
                          "treated-minus-null displacement")
@@ -380,7 +474,7 @@ def main(argv=None):
 
     rng = np.random.default_rng(0)
     agg, agg_base, n_ok = {}, {}, 0
-    pairs = [] if args.sweep else pair_runs(runs)
+    pairs = [] if (args.sweep or args.match_contested) else pair_runs(runs)
 
     if pairs:
         names = MEASURED_NAMES
@@ -401,31 +495,42 @@ def main(argv=None):
                 q = _d[c]["q"]
                 return [q, 2 * q, 10 * q]
 
-            collect(agg, probe(data, ladder, rng), names)
+            # cell + arm for REPORTING: `pair_runs` keys on the cell WITHOUT
+            # the arm so a twin can be found, but two treated arms in one
+            # campaign must not land in the same row.
+            collect(agg, probe(data, ladder, rng), names, cell + (arm,))
             # The NULL at the SAME delta. Without it the probe cannot say how
             # much was reachable from the BASELINE's ranking, which is the
             # reference `headroom.py` quotes -- and the null is a post-hoc
             # clipper at equal compute with the allocator held fixed, so it is
             # the right baseline rather than a convenient one.
             try:
-                collect(agg_base, probe(load_real(null), ladder, rng), names)
+                collect(agg_base, probe(load_real(null, require_features=False),
+                                        ladder, rng), names,
+                        cell + (arm + "_null",))
             except SystemExit:
                 pass
         print("")
     else:
-        names = SWEEP_NAMES
-        if not args.sweep:
+        names = CONTESTED_NAMES if args.match_contested else SWEEP_NAMES
+        if not args.sweep and not args.match_contested:
             print("  NO treated/null twin pairs found, so delta cannot be")
             print("  measured and is swept as a fraction of the score range")
             print("  instead. These numbers are NOT calibrated to our step.\n")
         for r in runs[:args.limit]:
             try:
-                data = load_real(r)
+                data = load_real(r, require_features=False)
             except SystemExit as exc:
                 print("  skipped %s: %s" % (r, exc))
                 continue
             n_ok += 1
-            collect(agg, probe(data, sweep_deltas, rng), names)
+            try:
+                cell = _meta(r)["cell"]
+            except (OSError, ValueError):
+                cell = None
+            ladder = (matched_deltas_for(data) if args.match_contested
+                      else sweep_deltas)
+            collect(agg, probe(data, ladder, rng), names, cell)
 
     if not n_ok:
         raise SystemExit("no probeable runs")

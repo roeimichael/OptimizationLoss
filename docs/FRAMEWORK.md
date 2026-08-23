@@ -1758,7 +1758,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 252 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 253 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1766,7 +1766,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (252 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (253 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -2590,6 +2590,45 @@ COULD a bounded-step method achieve" it is a LOWER bound on the budget, since a
 non-monotone path covers more ground than its endpoints show. A small
 `reachable` therefore says THIS arm did not have the reach; it does not by
 itself prove no schedule could. State which question is being answered.
+
+**FIRST REAL-DATA EXERCISE, 2026-08-22 -- and it produced a METHOD warning, not
+a result.** Run over the 128 stored-evidence runs (`evidence/`, extracted into
+one tree: dermmnist 56, octmnist 48, tissuemnist 24, MobileNetV3, caps
+L30_G30 / L50_G50 / L70_G70, arms clip / focal_clip / tralo_uniform / tralo_byk).
+Nothing here is a claim about the METHOD -- all three datasets are removed, derm
+is leaked, oct and tissue have `index % 3` groups, and every cap has L = G so
+the global scope is redundant throughout. What it bought is the instrument.
+
+🚨 **THE POOLING TRAP, WALKED INTO TWICE.** The first run pooled all 128 into
+one table -- three datasets and three cap levels, where "class 1" names a
+different class in each. The second pooled the four ARMS inside each cell, and
+the arm IS the ranking, the whole object being measured. Both are rule 4, and
+neither was caught by care: they were caught by the numbers looking too clean.
+**The fix is in the tool** -- `straddle_probe` now keys every aggregate on
+(dataset, backbone, cap, ARM, class), and a test builds two datasets with
+deliberately different geometry and fails if they land in one row.
+
+🔴 **THE FINDING THAT DIED IN ITS OWN CONTROL -- keep this one.** With delta
+swept as a FRACTION OF THE SCORE RANGE, the reachable share of the oracle gap
+FELL as the cap loosened, in **24 of 33** (arm, dataset, class) series. That
+reads as a geometry result: loose caps have more headroom but it sits farther
+from the cut. Then the control: `contested` -- how many items lie in the band at
+all -- falls too, in **22 of 33**. Thinning density explains the same numbers.
+
+So the delta was re-parameterised to hold the CONTESTED MASS fixed at 50 items
+(`--match-contested`), and **the direction REVERSED**: reachable items now RISE
+with the cap in **23 of 33** series. The original trend was the confound, end to
+end. ⚠️ **Never read a cross-cap comparison off the fraction-of-range ladder** --
+it is fine within one cell and meaningless across cap levels, because the cut
+moves into a differently-dense part of the score distribution.
+
+🛑 **AND THE REVERSED VERSION IS NOT A FINDING EITHER.** dermmnist and octmnist
+rise; tissuemnist falls. The honest n is **3 datasets**, not 33 series -- series
+inside a dataset share its test set, and arms share a warm-up. Two datasets
+agreeing is not a result, it is section 0's exact sign-flip floor. **No claim is
+made here about whether tight or loose caps are more reachable.** The usable
+output is the method warning above and a ladder that can answer the question
+properly when a campaign with `_null` twins exists.
 
 🛑 **STATUS: no real-data number is in hand.** The instrument is built and gated;
 it has been run on synthetic regimes only. The first real reading is due on
@@ -3519,7 +3558,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             252 tests, ~105 s, no dataset required
+tests/             253 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

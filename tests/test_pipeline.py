@@ -5238,7 +5238,8 @@ def test_no_runnable_command_in_the_docs_names_a_removed_dataset():
             "%s tells the reader to run a REMOVED dataset: %s" % (rel, bad[:3]))
 
 
-def _write_run(run_dir, arm, seed, probs, y, groups, tag="L30_G50"):
+def _write_run(run_dir, arm, seed, probs, y, groups, tag="L30_G50",
+               dataset="iwildcam"):
     """A minimal but REAL run directory: exactly the three files `load_real`
     reads, in the shapes `full_panel` writes them."""
     os.makedirs(run_dir, exist_ok=True)
@@ -5251,7 +5252,7 @@ def _write_run(run_dir, arm, seed, probs, y, groups, tag="L30_G50"):
         os.path.join(run_dir, "final_predictions_raw.csv"), index=False)
     with io.open(os.path.join(run_dir, "config.json"), "w",
                  encoding="utf-8") as fh:
-        json.dump({"arm": arm, "dataset_mode": "iwildcam",
+        json.dump({"arm": arm, "dataset_mode": dataset,
                    "model_name": "MobileNetV3", "constraint_tag": tag,
                    "constraint": [0.30, 0.50],
                    "dataset_config": {"constrained_class": [2]},
@@ -5738,3 +5739,44 @@ def test_log_health_does_not_cry_saturation_on_a_healthy_run(tmp_path, accs, why
     assert "CONVERGENCE AT THE START OF THE CONSTRAINT PHASE" in out, out[-800:]
     assert "ALREADY CONVERGED" not in out, (why, out[-800:])
     assert "not the saturated signature" in out, out[-800:]
+
+
+def test_the_straddle_probe_never_pools_two_cells_into_one_row(tmp_path):
+    """Rule 4: the atomic cell is (dataset, backbone, cap, method) and pooling
+    across any of them is this project's most-repeated analysis error.
+
+    The stored-evidence tree is precisely the shape that punishes it -- 128 runs
+    over THREE datasets and THREE cap levels, where "class 1" names a different
+    class in each -- and the first run of this probe over that tree DID pool
+    them, producing a confident table describing nothing. Careful invocation is
+    not the fix; the tool grouping by cell is.
+    """
+    from scripts import straddle_probe as SP
+
+    rng = np.random.default_rng(5)
+    n = 300
+    root = os.path.join(str(tmp_path), "twocell")
+    y = rng.integers(0, 3, n)
+    groups = rng.integers(0, 2, n)
+    for ds, sharp in (("iwildcam", 6.0), ("otherset", 0.4)):
+        # `sharp` moves the score geometry, so a pooled row could not equal
+        # either cell's row and the assertion below cannot pass by accident
+        P = rng.dirichlet(np.ones(3) * sharp, size=n)
+        _write_run(os.path.join(root, ds), "clip", 1, P, y, groups, dataset=ds)
+
+    buf = io.StringIO()
+    stdout = sys.stdout
+    try:
+        sys.stdout = buf
+        SP.main(["--campaign", root, "--sweep"])
+    finally:
+        sys.stdout = stdout
+    out = buf.getvalue()
+
+    assert out.count("CELL ") >= 2, (
+        "two datasets collapsed into one block:" + chr(10) + out[-1500:])
+    assert "iwildcam" in out and "otherset" in out, out[-1500:]
+    # and each cell reports its own run count, not the pooled one
+    assert "1 run(s)" in out, (
+        "a cell is reporting more runs than it holds, which is the pooling "
+        "this test exists to catch:" + chr(10) + out[-1500:])

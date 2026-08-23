@@ -60,7 +60,7 @@ imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 252 regression tests, ~105s, no dataset needed
+python -m pytest tests -q                   # 253 regression tests, ~105s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -139,6 +139,11 @@ python -m scripts.straddle_probe --campaign <root>  # how much of the ORACLE hea
                                             #   reachable at any dose. delta is MEASURED
                                             #   from each arm's own `_null` twin, not
                                             #   assumed. `--self-test` gates it.
+                                            #   ⚠️ `--match-contested` is the ONLY
+                                            #   ladder comparable ACROSS cap levels:
+                                            #   the fraction-of-range one reversed a
+                                            #   24/33 trend once density was held
+                                            #   fixed. Aggregates key on the ARM too.
                                             #   `contested` is LABEL-free but NOT
                                             #   model-free -- no model, no ranking, no
                                             #   cut. `dataset_screen` is the pre-GPU one
