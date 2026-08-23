@@ -6270,3 +6270,55 @@ def test_the_unlimited_sentinel_is_never_re_derived():
 
     from src.utils.constants import UNLIMITED
     assert UNLIMITED == 1e10
+
+
+def test_the_two_power_floors_are_printed_and_the_framework_quotes_them(tmp_path):
+    """FRAMEWORK 2(p) quotes `gen_campaign`'s power block verbatim.
+
+    Two floors bind on iwc1 and they are independent. The SEED floor -- can a
+    cell resolve an effect of this size -- is the MDE table in 2(p). The CELL
+    floor is this one, and it is harsher: at 2 cells the exact Wilcoxon floor is
+    p=0.5, so after BH over eleven metrics NO metric can reach a *** verdict at
+    any effect size. That is arithmetic and it was true before iwc1 launched, so
+    a positive iwc1 headline is unavailable whatever lands -- which is exactly
+    why the pre-registered verdict is stated as a NULL with a bound, and why the
+    doc must not drift from what the generator prints.
+
+    The negative control is a 9-cell campaign, where the UNDERPOWERED line must
+    switch off; a warning that is always on carries no information.
+    """
+    fw = io.open(os.path.join(REPO, "docs", "FRAMEWORK.md"),
+                 encoding="utf-8").read()
+
+    def gen(root, models, caps):
+        r = subprocess.run(
+            [sys.executable, "-m", "configs.gen_campaign", "--root", str(root),
+             "--datasets", "iwildcam", "--models"] + models +
+            ["--caps"] + caps + ["--arms", "all+null"],
+            cwd=REPO, capture_output=True, text=True)
+        assert r.returncode == 0, r.stdout + r.stderr
+        return r.stdout
+
+    out = gen(os.path.join(str(tmp_path), "two"), ["MobileNetV3"],
+              ["L20_G50", "L30_G50"])
+    for quoted in ("2 cells", "UNDERPOWERED", "9 cells is the minimum",
+                   "1 dataset(s)", "p=1.000"):
+        assert quoted in out, (quoted, out[-1500:])
+        assert quoted in fw, (
+            "FRAMEWORK 2(p) quotes the power block but has drifted from it: "
+            "%r is printed and not documented" % quoted)
+
+    # NEGATIVE CONTROL: at the 9 cells the generator itself names, the
+    # UNDERPOWERED verdict must clear.
+    nine = gen(os.path.join(str(tmp_path), "nine"),
+               ["MobileNetV3", "MobileNetV2", "RegNetY400MF"],
+               ["L20_G50", "L30_G50", "L50_G30"])
+    assert "9 cells" in nine, nine[-1500:]
+    assert "UNDERPOWERED: with" not in nine, (
+        "the cell-count warning fires at 9 cells too, so it says nothing about "
+        "2:" + chr(10) + nine[-1500:])
+
+    # the generalization floor, however, is about DATASETS and must NOT clear
+    assert "1 dataset(s)" in nine and "p=1.000" in nine, (
+        "adding backbones bought independence it cannot buy" + chr(10)
+        + nine[-1500:])

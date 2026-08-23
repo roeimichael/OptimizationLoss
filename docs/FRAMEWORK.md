@@ -1803,7 +1803,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 269 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 270 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1811,7 +1811,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (269 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (270 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -2814,6 +2814,43 @@ lands both campaigns' `clip/seed_1` on one (cell, seed, arm) key. `_one` refuses
 colliding paths, because the old message blamed the pairing key and sent the
 reader into the scorer instead of into the path they passed.
 
+🧱 **TWO POWER FLOORS BIND, NOT ONE, AND THEY ARE INDEPENDENT.** The table above
+is the SEED floor -- can a cell see an effect of this size. `gen_campaign`
+prints the other one, the CELL floor, and it is harsher. Regenerated
+2026-08-23 for `--datasets iwildcam --models MobileNetV3 --caps L20_G50 L30_G50`:
+
+    2 cells -> exact Wilcoxon floor p=0.50000; a lone mover needs p < 0.00455
+    *** UNDERPOWERED: with 2 cells NO single metric can reach a *** verdict,
+        whatever the effect size. 9 cells is the minimum for one.
+    GENERALIZATION: 1 dataset(s) -> exact sign-flip floor p=1.000
+
+**So no iwc1 contrast can ever be significant, at any effect size.** That is
+arithmetic, not pessimism, and it was true before the campaign launched.
+
+⚖️ **This does NOT sink the pre-registered verdict, because the verdict is a
+NULL.** The two floors answer different questions and only one of them applies
+here:
+
+* The Wilcoxon floor governs REJECTING the null -- claiming an effect. iwc1
+  cannot do that, so a positive iwc1 headline is unavailable whatever lands.
+* The seed floor governs BOUNDING the null -- saying how big an effect would
+  have had to be to show up. That is what "closed" means, and it is exactly the
+  MDE table above.
+
+**So state the null as an equivalence, with the number in it.** Not "AUROC was
+flat" but **"any AUROC effect larger than ~0.013 would have been seen, and none
+was"**, and the same for AP at ~0.035. A flat result with no bound attached is
+the "tie means no effect" conflation that the RESOLUTION block exists to stop.
+
+🛑 **AND SCOPE IT TO WHAT WAS RUN.** Two cells from ONE dataset and ONE backbone
+support "closed for MobileNetV3 on iwildcam at these two caps". They do not
+support "the representation channel is empty" -- cells inside one dataset share
+its test set and its warm-up, so two of them agreeing is section 0's sign-flip
+floor and not independent replication. Widening needs a BACKBONE (resolution) or
+a DATASET (independence); more seeds buy neither. If the verdict comes back flat
+and POWERED, the honest next step is a second backbone on the same slice, which
+is the cheapest cell the protocol allows.
+
 **THE EXACT READ, in order.** Verified 2026-08-22 that `full_panel` accepts an
 arbitrary control and validates it against the arms present, so the twin
 contrast needs no new scorer:
@@ -3672,7 +3709,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             269 tests, ~105 s, no dataset required
+tests/             270 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
