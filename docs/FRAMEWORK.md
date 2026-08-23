@@ -1758,7 +1758,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 262 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 264 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1766,7 +1766,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (262 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (264 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -2668,10 +2668,21 @@ probabilities rather than the allocation.
 **THE DISCRIMINATING MEASUREMENT, and it already exists.** The two channels
 separate cleanly on the metric families `full_panel` already prints:
 
-| channel | signature |
-|---|---|
-| allocation only | budget-equalized metrics move, ALLOCATION-FREE metrics (AP, AUROC) flat |
-| representation | **AP / AUROC move**, and they cannot be moved by post-hoc anything |
+| channel | signature | does it change an allocation? |
+|---|---|---|
+| allocation only | budget-equalized metrics move, allocation-free metrics flat | yes, and post-hoc gets it for free |
+| **calibration only** | **ECE / Brier / NLL / ConfGap move, AP / AUROC flat** | **NO -- provably none** |
+| representation | **AP / AUROC move**, and no post-hoc step can touch them | yes, and only training can produce it |
+
+⚠️ **THE MIDDLE ROW IS NEW, 2026-08-23, AND IT IS THE ONE THAT WOULD HAVE BEEN
+MISREAD.** "Allocation-free" was treated as one family, and it is two. AP and
+AUROC read the ORDER of the score column and nothing else, so a strictly
+monotone rescale leaves them BIT-identical; ECE, Brier, NLL and ConfGap move
+under a rescale that reorders nothing. A top-K allocator reads order alone, so a
+calibration-only move -- a temperature or prior shift -- **provably changes no
+allocation**, which is 2(j) restated in the metric panel. Gated by
+`test_a_temperature_rescale_moves_calibration_and_NOT_the_ranking`, whose
+negative control checks that a genuine reordering DOES reach AUROC.
 
 So the verdict on iwc1 is read from **`d AP` and `d AUROC` of `tralo` against
 `tralo_null`** -- same warm-up, same allocator, same seed, lambda=0 -- and NOT
@@ -2706,10 +2717,14 @@ allocation-free block had never run on real data when it was written. Run it on
 the 128 prediction-bearing runs (`mcbar` 72 + `multiclass` 56, MobileNetV3,
 4 seeds) and the within-cell seed sd is stable across all five contrasts:
 
-| metric | seed sd (5 contrasts) | median | **MDE at the protocol's 4 seeds** |
-|---|---|---|---|
-| AP | 0.0202 - 0.0274 | 0.0252 | **~0.035** |
-| AUROC | 0.0058 - 0.0108 | 0.0094 | **~0.013** |
+| family | metric | seed sd (5 contrasts) | median | **MDE at the protocol's 4 seeds** |
+|---|---|---|---|---|
+| RANKING | AP | 0.0202 - 0.0274 | 0.0252 | **~0.035** |
+| RANKING | AUROC | 0.0058 - 0.0108 | 0.0094 | **~0.013** |
+| CALIBRATION | ECE | 0.0125 - 0.0303 | 0.0276 | ~0.039 |
+| CALIBRATION | Brier | 0.0242 - 0.0583 | 0.0512 | ~0.072 |
+| CALIBRATION | NLL | 0.2544 - 0.5198 | 0.3660 | ~0.51 |
+| CALIBRATION | ConfGap | 0.0085 - 0.0212 | 0.0199 | ~0.028 |
 
 `seeds_needed = ceil(z^2 sd^2 / d^2)` with `z = 1.960 + 0.842`, so `n <= 4`
 exactly when `d >= sd * sqrt(z^2/4) = 1.401 sd`. **AUROC is resolved ~2.7x better than AP on identical runs**, which
@@ -2717,13 +2732,25 @@ is a fact about the estimators and not about any method: AP integrates over the
 whole precision-recall curve and inherits the seed-to-seed churn of the tail,
 AUROC does not.
 
+🔴 **THE CENSUS IS THE RESULT: 10 POWERED lines across the 5 contrasts, and 9
+of them are CALIBRATION.** Exactly one RANKING line clears 4 seeds in the entire
+stored evidence -- `tralo_byk` AUROC **-0.0097**, a LOSS -- while `focal_clip`
+clears ECE, NLL and ConfGap on BOTH campaigns, unanimously and in the improving
+direction, with AP and AUROC never once resolved. So this instrument, at this
+seed count, **routinely resolves recalibration and almost never resolves
+reordering**. That is not a property of the methods; it is the sd column above,
+and it is the single most important thing to know before reading iwc1.
+
 Two consequences for the read below, both of them binding:
 
-1. **The verdict should lead with AUROC.** Not because it is more favourable --
-   the one POWERED line in the whole exercise is `tralo_byk` AUROC **-0.0097**,
-   a LOSS -- but because it is the only allocation-free metric this protocol can
-   see at 4 seeds. Reporting a flat AP as "closed" while its own block says
-   ~1.4 million seeds is the failure this section was written to prevent.
+1. **The verdict leads with AUROC, and a calibration move is NOT a substitute
+   for it.** AUROC is the best-resolved RANKING metric by a factor of 2.7 over
+   AP, and ranking is the only channel a top-K allocator can see. The temptation
+   the census above sets up is precise: iwc1 will very likely come back with
+   POWERED calibration lines and flat ranking lines, because that is what this
+   instrument does. **That pattern is a recalibration, and 2(j) says it moves no
+   top-K set.** Reporting a flat AP as "closed" while its own block says
+   ~1.4 million seeds is the other half of the same failure.
 2. **A representation effect smaller than ~0.013 AUROC is invisible at 4 seeds,
    and the honest report is "not measured", not "no effect".** If iwc1 comes
    back flat and UNDERPOWERED, the next move is seeds on the SAME cells, not a
@@ -3600,7 +3627,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             262 tests, ~105 s, no dataset required
+tests/             264 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

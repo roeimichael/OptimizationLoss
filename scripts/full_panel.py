@@ -55,7 +55,27 @@ from src.utils.constants import UNLIMITED                          # noqa: E402
 # Allocation-free metrics that get their own power statement. They cannot be
 # moved by post-hoc filling, which is exactly why a verdict may rest on them --
 # and why a tie in them must never be reported without its seed cost.
-FREE_RESOLUTION = ("AP", "AUROC")
+#
+# THE SPLIT IS NOT COSMETIC. "Allocation-free" is two different guarantees and
+# only one of them answers this project's question:
+#
+#   RANKING     AP, AUROC. Invariant to ANY strictly monotone rescale of the
+#               scores, so they move only if the ORDER changed -- and order is
+#               the only thing a top-K allocator reads. A move here is the
+#               representation channel of FRAMEWORK 2(p).
+#   CALIBRATION ECE, Brier, NLL, ConfGap. Move when the order changes OR when
+#               the probabilities are merely rescaled with the order intact.
+#               A temperature or prior shift moves these and provably cannot
+#               change any top-K set (2(j)), so a calibration-only move is a
+#               real effect that changes NO allocation.
+#
+# Measured on the stored evidence: focal_clip vs clip moves ECE -0.069 on 6 of
+# 6 cells while AUROC moves +0.005 and AP -0.0001. Reading that as "the
+# probabilities changed, so the representation channel is live" would be the
+# error this split exists to block.
+FREE_RANKING = ("AP", "AUROC")
+FREE_CALIBRATION = ("ECE", "Brier", "NLL", "ConfGap")
+FREE_RESOLUTION = FREE_RANKING + FREE_CALIBRATION
 
 
 RUN_DIRS = {}         # df index -> run directory, for the collision message
@@ -550,9 +570,19 @@ def _resolution_free_readout(perseed, arm, control):
     print("  by post-hoc filling, so a verdict resting on them needs its own")
     print("  power statement. Native units, NOT items: the items scale is an F1")
     print("  identity and does not apply here.")
+    print("  RANKING moves = the order changed = the only channel a top-K")
+    print("  allocator can see. CALIBRATION moves alone = a rescale, which")
+    print("  provably leaves every top-K set untouched (FRAMEWORK 2(j)).")
+    order = {m: i for i, m in enumerate(FREE_RESOLUTION)}
+    rows.sort(key=lambda r: order.get(r[0], 99))
+    fam = None
     print("     %-8s %12s %12s %8s   %s"
           % ("metric", "observed d", "seed sd", "seeds", "verdict"))
     for m, eff, sd, have in rows:
+        this = "RANKING" if m in FREE_RANKING else "CALIBRATION"
+        if this != fam:
+            fam = this
+            print("    -- %s --" % this)
         if sd is None:
             print("     %-8s %+12.4f %12s %8d   every cell has ONE seed -- "
                   "not separable from seed noise" % (m, eff, "n/a", have))

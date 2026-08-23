@@ -5996,3 +5996,95 @@ def test_the_mde_at_four_seeds_is_1_4_sd():
 
     # and the ratio the section leans on: AUROC resolves ~2.7x better than AP
     assert 2.6 <= 0.0252 / 0.0094 <= 2.8
+
+
+def test_a_temperature_rescale_moves_calibration_and_NOT_the_ranking():
+    """The claim the RANKING / CALIBRATION split rests on, checked not asserted.
+
+    `full_panel` now prints the allocation-free power block in two families and
+    tells the reader that a CALIBRATION-only move is a rescale which cannot
+    change any top-K set. That is a mathematical claim about the metrics: AP and
+    AUROC read the ORDER of the score column and nothing else, so a strictly
+    monotone rescale must leave them BIT-identical, while ECE / Brier / NLL /
+    ConfGap all move.
+
+    It matters because the stored evidence produces exactly this pattern --
+    focal_clip vs clip moves ECE -0.069, NLL -1.12 and ConfGap +0.066, all
+    POWERED and unanimous 6/0, while AP and AUROC come back UNDERPOWERED. Read
+    without the split that is "the probabilities changed, so the representation
+    channel is live"; read with it, it is a recalibration that provably changes
+    no allocation at all.
+
+    Temperature scaling in logit space, two classes, so "monotone in the score
+    column" is exact rather than approximate.
+    """
+    from sklearn.metrics import average_precision_score, roc_auc_score, log_loss
+    from scripts.full_panel import ece, brier
+
+    rng = np.random.default_rng(11)
+    n = 600
+    z = rng.normal(0.0, 2.0, n)                      # logit of class 1
+    y = (rng.random(n) < 1.0 / (1.0 + np.exp(-z))).astype(int)
+
+    def cols(zz):
+        p1 = 1.0 / (1.0 + np.exp(-zz))
+        return np.column_stack([1.0 - p1, p1])
+
+    def panel_of(zz):
+        P = cols(zz)
+        conf = P.max(axis=1)
+        ok = P.argmax(axis=1) == y
+        return {
+            "AP": average_precision_score(y, P[:, 1]),
+            "AUROC": roc_auc_score(y, P[:, 1]),
+            "ECE": ece(y, P),
+            "Brier": brier(y, P),
+            "NLL": log_loss(y, P, labels=[0, 1]),
+            "ConfGap": float(conf[ok].mean() - conf[~ok].mean()),
+        }
+
+    base = panel_of(z)
+    hot = panel_of(z / 3.0)          # strictly monotone: order is untouched
+
+    for m in ("AP", "AUROC"):
+        assert base[m] == hot[m], (m, base[m], hot[m])
+
+    for m in ("ECE", "Brier", "NLL", "ConfGap"):
+        assert abs(base[m] - hot[m]) > 1e-6, (m, base[m], hot[m])
+
+    # NEGATIVE CONTROL: a genuine REORDERING must reach the ranking family, or
+    # the test above is only saying that these metrics are hard to move.
+    zz = z.copy()
+    hi, lo = int(np.argmax(zz)), int(np.argmin(zz))
+    zz[hi], zz[lo] = zz[lo], zz[hi]
+    assert abs(panel_of(zz)["AUROC"] - base["AUROC"]) > 1e-6
+
+
+def test_every_allocation_free_metric_gets_a_power_statement():
+    """No metric may sit in the allocation-free table with no seed cost beside it.
+
+    The block was born covering AP and AUROC only, because those are the two the
+    iwc1 pre-registration names. ConfGap then turned out to be the SHARPEST of
+    the six on the stored evidence -- |d|/sd = 4.3 against AUROC's 0.47 -- and
+    it was printing a unanimous 6/0 delta with no power statement anywhere. The
+    families must PARTITION the table, so adding a metric to one and forgetting
+    the other is a test failure rather than a silent omission.
+    """
+    from scripts import full_panel as FP
+
+    table = None
+    for title, metrics in FP.GROUPS:
+        if title.startswith("ALLOCATION-FREE"):
+            table = list(metrics)
+    assert table, "the allocation-free group vanished from GROUPS"
+
+    assert set(FP.FREE_RESOLUTION) == set(table), (
+        "allocation-free metrics with no power statement: %s; "
+        "priced but not in the table: %s"
+        % (sorted(set(table) - set(FP.FREE_RESOLUTION)),
+           sorted(set(FP.FREE_RESOLUTION) - set(table))))
+    assert not (set(FP.FREE_RANKING) & set(FP.FREE_CALIBRATION))
+    assert set(FP.FREE_RANKING) | set(FP.FREE_CALIBRATION) == set(table)
+    # and the two families are not interchangeable: only the ranking one is
+    # invariant to a rescale, which is what the printed reading rule claims
+    assert set(FP.FREE_RANKING) == {"AP", "AUROC"}
