@@ -6322,3 +6322,36 @@ def test_the_two_power_floors_are_printed_and_the_framework_quotes_them(tmp_path
     assert "1 dataset(s)" in nine and "p=1.000" in nine, (
         "adding backbones bought independence it cannot buy" + chr(10)
         + nine[-1500:])
+
+
+def test_detectable_at_is_the_exact_inverse_of_seeds_needed():
+    """`detectable` is the number a NULL gets stated with, so it has to be the
+    honest inverse of the number a POSITIVE gets priced with, not an
+    approximation that happens to look right at n=4.
+
+    `seeds_needed(d, sd) = ceil(z^2 sd^2 / d^2)` and
+    `detectable_at(sd, n) = z sd / sqrt(n)` are the same equation solved for
+    different unknowns, so the round trip must close AND be tight: n seeds
+    catch it, n-1 do not.
+    """
+    from scripts.frozen_head_probe import seeds_needed
+    from scripts.full_panel import detectable_at
+
+    for sd in (0.0058, 0.0094, 0.0252, 0.35, 2.7):
+        for n in (2, 4, 8, 25, 100):
+            d = detectable_at(sd, n)
+            assert seeds_needed(d * 1.001, sd) <= n, (sd, n, d)
+            assert seeds_needed(d * 0.999, sd) > n, (sd, n, d)
+
+    # the factor FRAMEWORK 2(p) prints, and the two figures in its table
+    assert round(detectable_at(1.0, 4), 3) == 1.401
+    assert round(detectable_at(0.0252, 4), 3) == 0.035     # AP
+    assert round(detectable_at(0.0094, 4), 3) == 0.013     # AUROC
+
+    # more seeds must buy resolution, and at the sqrt rate -- quadrupling the
+    # seeds halves the bound, which is why "add seeds" is expensive advice
+    assert abs(detectable_at(1.0, 16) - detectable_at(1.0, 4) / 2.0) < 1e-12
+
+    # degenerate inputs refuse rather than return a number that reads as a bound
+    for bad in ((0.0, 4), (float("nan"), 4), (1.0, 0)):
+        assert not np.isfinite(detectable_at(*bad)), bad

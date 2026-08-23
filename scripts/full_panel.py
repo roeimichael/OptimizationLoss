@@ -524,6 +524,29 @@ def _resolution_readout(perseed, df, arm, control):
         print("     %d cell(s) have a single seed and contribute no sd" % single)
 
 
+def detectable_at(sd, n_seeds, power=0.80, alpha=0.05):
+    """Smallest effect `n_seeds` can see -- the number a NULL has to be stated with.
+
+    `seeds_needed` answers "how many seeds would I need"; this inverts it to
+    "what would I have caught with the seeds I have". They are the same
+    arithmetic (`n = z^2 sd^2 / d^2` solved the other way, `d = z sd / sqrt n`),
+    but only one of them can be written into a conclusion.
+
+    FRAMEWORK 2(p) requires the iwc1 null be stated as an equivalence -- not
+    "AUROC was flat" but "any AUROC effect larger than X would have been seen,
+    and none was" -- because a flat result with no bound attached is the "tie
+    means no effect" conflation the RESOLUTION block exists to stop. The panel
+    already held sd and the seed count; it just never printed the third number.
+    """
+    if not (np.isfinite(sd) and sd > 0 and n_seeds and n_seeds > 0):
+        return float("nan")
+    z = 1.959963985 + 0.8416212336
+    if (alpha, power) != (0.05, 0.80):
+        from statistics import NormalDist
+        z = NormalDist().inv_cdf(1.0 - alpha / 2.0) + NormalDist().inv_cdf(power)
+    return float(z * sd / np.sqrt(float(n_seeds)))
+
+
 def _resolution_free_readout(perseed, arm, control):
     """Power for the ALLOCATION-FREE metrics, in their OWN units.
 
@@ -573,29 +596,37 @@ def _resolution_free_readout(perseed, arm, control):
     print("  RANKING moves = the order changed = the only channel a top-K")
     print("  allocator can see. CALIBRATION moves alone = a rescale, which")
     print("  provably leaves every top-K set untouched (FRAMEWORK 2(j)).")
+    print("  `detectable` is what the seeds present WOULD have caught. State a")
+    print("  flat result with it -- \"any effect above this would have shown\"")
+    print("  -- never as \"no effect\", which the seeds cannot support.")
     order = {m: i for i, m in enumerate(FREE_RESOLUTION)}
     rows.sort(key=lambda r: order.get(r[0], 99))
     fam = None
-    print("     %-8s %12s %12s %8s   %s"
-          % ("metric", "observed d", "seed sd", "seeds", "verdict"))
+    print("     %-8s %12s %12s %6s %12s   %s"
+          % ("metric", "observed d", "seed sd", "seeds", "detectable",
+             "verdict"))
     for m, eff, sd, have in rows:
         this = "RANKING" if m in FREE_RANKING else "CALIBRATION"
         if this != fam:
             fam = this
             print("    -- %s --" % this)
         if sd is None:
-            print("     %-8s %+12.4f %12s %8d   every cell has ONE seed -- "
-                  "not separable from seed noise" % (m, eff, "n/a", have))
+            print("     %-8s %+12.4f %12s %6d %12s   every cell has ONE seed "
+                  "-- not separable from seed noise"
+                  % (m, eff, "n/a", have, "n/a"))
             continue
+        mde = detectable_at(sd, have)
         if abs(eff) <= 0:
-            print("     %-8s %+12.4f %12.4f %8d   exactly zero -- no effect "
-                  "size to power" % (m, eff, sd, have))
+            print("     %-8s %+12.4f %12.4f %6d %12.4f   exactly zero -- "
+                  "bound the null at this size, do not call it no effect"
+                  % (m, eff, sd, have, mde))
             continue
         need = seeds_needed(abs(eff), sd)
         verdict = ("POWERED" if have >= need else
                    "UNDERPOWERED (~%d needed) -- a tie here is NOT evidence "
                    "of no effect" % need)
-        print("     %-8s %+12.4f %12.4f %8d   %s" % (m, eff, sd, have, verdict))
+        print("     %-8s %+12.4f %12.4f %6d %12.4f   %s"
+              % (m, eff, sd, have, mde, verdict))
 
 
 def _clustered_readout(results, pvals, control, arm):

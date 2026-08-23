@@ -1803,7 +1803,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 270 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 271 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1811,7 +1811,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (270 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (271 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -2842,6 +2842,14 @@ flat" but **"any AUROC effect larger than ~0.013 would have been seen, and none
 was"**, and the same for AP at ~0.035. A flat result with no bound attached is
 the "tie means no effect" conflation that the RESOLUTION block exists to stop.
 
+✅ **The number is now printed, so it does not have to be derived by hand.**
+`full_panel`'s allocation-free block carries a `detectable` column --
+`z*sd/sqrt(n)`, the exact inverse of `seeds_needed` -- which is what the seeds
+actually present WOULD have caught. Read it off the campaign, not off the table
+above: the table is the stored-evidence prior and iwc1 prints its own. Note the
+sqrt: quadrupling the seeds only halves the bound, which is why "add seeds" is
+expensive advice and why a backbone (a new cell) usually beats it.
+
 🛑 **AND SCOPE IT TO WHAT WAS RUN.** Two cells from ONE dataset and ONE backbone
 support "closed for MobileNetV3 on iwildcam at these two caps". They do not
 support "the representation channel is empty" -- cells inside one dataset share
@@ -3709,7 +3717,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             270 tests, ~105 s, no dataset required
+tests/             271 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
