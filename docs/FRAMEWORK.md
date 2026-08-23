@@ -1854,7 +1854,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 281 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 282 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1862,7 +1862,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (281 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (282 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -3088,6 +3088,33 @@ constrained-class metric.
 1. **Warm-up 1 over warm-up 50.** Not because it wins, but because warm-up 50 makes every method
    identical -- CE is saturated, so the constraint phase is ~30 unit-norm steps on a frozen
    representation and all methods land within 0.1 pp.
+
+   ⚠️ **QUALIFIED 2026-08-23 -- warm-up 1 buys HEADROOM, not method
+   discrimination, and the stated rationale conflates them.** The corpus carries
+   the whole warm-up axis, and the two contrasts behave completely differently:
+
+   | warm-up | tralo - heuristic (compute + method) | tralo - fioretto_ldf (method only) |
+   |---|---|---|
+   | 1 | **+15.20 pp** (10 cells) | **+0.21 pp** (10 cells, 70%) |
+   | 2 / 3 / 4 / 5 | +4.59 / +4.74 / +2.19 / +0.59 | +0.27 pp at 3 |
+   | 50 | +1.85 pp (236 cells) | **+0.15 pp** (262 cells, 65%) |
+
+   **The vs-clipper gap moves 8x across the regime. The method-vs-method gap
+   does not move at all** -- 0.15 to 0.27 pp everywhere, and at warm-up 1 it is
+   +0.21 +- 0.15 pp (sd 0.47 over 10 cells), statistically indistinguishable
+   from the warm-up-50 value and from zero.
+
+   So "warm-up 50 makes every method identical" is true, and **so is warm-up 1**.
+   What warm-up 1 actually provides is a large, readable gap against the
+   POST-HOC baseline -- headroom for the constraint phase to act in -- and Rule 1
+   stands on that. It does NOT make TraLO easier to tell from Fioretto, and a
+   campaign run at warm-up 1 to separate two duals is spending the regime on the
+   wrong question.
+
+   🛑 Two caveats, both real: **10 cells against 262**, and the warm-up-1 rows
+   carry the LR trap of 1b. Treat the direction as established and the magnitude
+   as provisional. It is recorded because the natural misreading -- "methods
+   separate at warm-up 1" -- is the one that would size a campaign wrongly.
 2. **Equal compute is mandatory.** It is worth 7-9 pp on its own.
 3. **`clip` is the strongest baseline on quality; `focal_clip` on calibration.** A base-loss swap
    on a clipper is free and buys a 16/16 calibration rout. Carry both.
@@ -3890,7 +3917,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             281 tests, ~105 s, no dataset required
+tests/             282 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

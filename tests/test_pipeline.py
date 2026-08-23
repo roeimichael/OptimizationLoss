@@ -6811,3 +6811,39 @@ def test_step_1_refuses_when_the_null_twin_is_missing(tmp_path):
                          "--control", "tralo_null"])
     assert rc != 0, "step 1 produced a verdict with no null twin" + out[-1500:]
     assert "tralo_null" in out, out[-1500:]
+
+
+def test_warmup_moves_the_clipper_gap_and_NOT_the_method_gap():
+    """Section 3 justifies warm-up 1 by saying warm-up 50 makes every method
+    identical. The corpus says every warm-up does.
+
+    Across the warm-up axis the vs-CLIPPER gap moves about 8x (+15.20 pp at 1
+    against +1.85 pp at 50) while the METHOD-vs-method gap does not move at all
+    (+0.21 pp against +0.15 pp). So warm-up 1 buys HEADROOM against the post-hoc
+    baseline, which is what Rule 1 needs, and it does NOT buy discrimination
+    between two duals -- the misreading that would size a campaign wrongly.
+
+    Gated because the qualification is easy to lose and the corpus is frozen, so
+    the numbers can only change if someone edits the file.
+    """
+    vs_clip_1 = _corpus_contrast("f1_macro", "tralo", "heuristic", warmup=1)
+    vs_clip_50 = _corpus_contrast("f1_macro", "tralo", "heuristic", warmup=50)
+    vs_dual_1 = _corpus_contrast("f1_macro", "tralo", "fioretto_ldf", warmup=1)
+    vs_dual_50 = _corpus_contrast("f1_macro", "tralo", "fioretto_ldf", warmup=50)
+
+    # the clipper gap collapses as warm-up rises
+    assert vs_clip_1["mean_pp"] > 5 * vs_clip_50["mean_pp"], (
+        vs_clip_1["mean_pp"], vs_clip_50["mean_pp"])
+
+    # the method gap does not move -- same order of magnitude at both ends
+    assert 0.5 < vs_dual_1["mean_pp"] / vs_dual_50["mean_pp"] < 2.5, (
+        vs_dual_1["mean_pp"], vs_dual_50["mean_pp"])
+    for r in (vs_dual_1, vs_dual_50):
+        assert r["mean_pp"] < 0.5, r
+
+    # and the warm-up-1 estimate is too thin to overturn that: 10 cells, and its
+    # own standard error covers the warm-up-50 value
+    assert vs_dual_1["cells"] == 10, vs_dual_1["cells"]
+    sem = vs_dual_1["sd_pp"] / np.sqrt(vs_dual_1["cells"])
+    assert abs(vs_dual_1["mean_pp"] - vs_dual_50["mean_pp"]) < 2 * sem, (
+        vs_dual_1, vs_dual_50, sem)
