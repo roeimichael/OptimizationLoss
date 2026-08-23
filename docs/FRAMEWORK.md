@@ -1883,7 +1883,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 288 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 289 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1891,7 +1891,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (288 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (289 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -3158,6 +3158,49 @@ significance only by being consistent across 262 cells (65% of them), never
 because any single cell can see it. Section 3's "~0.1 pp" was right, and this is
 what it looks like with 260 cells and a p-value.
 
+🔴🔴 **THE THIRD CONTROL, AND IT IS THE ONE THAT SETTLES IT: 63% OF THE
+HEADLINE'S CELLS HAVE A LOCAL SCOPE THAT IS EMPTY BY CONSTRUCTION -- AND THE WIN
+IS BIGGER THERE.** The corpus records which group variable each cell used, and
+only ONE dataset used a real one:
+
+| dataset | group_column | cells | tralo - heuristic | cells positive |
+|---|---|---|---|---|
+| tissuemnist | **synth_group** | 91 | **+3.24 pp** | 91% |
+| octmnist | **synth_group** | 29 | **+2.28 pp** | 97% |
+| dermmnist | loc_group | 83 | +1.00 pp | 77% |
+| dermmnist | sex | 5 | +1.37 pp | 100% |
+| aider | **synth_group** | 28 | -0.53 pp | 14% |
+
+| | cells | mean | wins |
+|---|---|---|---|
+| **`synth_group` -- local scope empty by construction** | **148 (63%)** | **+2.33 pp** | 115/148 (**78%**) |
+| real groups (`loc_group` / `sex`) | 88 | +1.02 pp | 69/88 (**78%**) |
+
+`synth_group` is `np.arange(len(y)) % 3` (2(n)). The groups are therefore i.i.d.
+draws from ONE distribution, so every group's class distribution is identical by
+construction and a per-group cap is exactly the global cap divided by three --
+which 2(j) proved cannot reorder a top-K set at any size. **On 63% of the
+headline's cells the local constraint provably carries zero information, and
+those cells show a LARGER win at an IDENTICAL win rate.**
+
+🛑 **The point is that the group definition makes NO difference.** aider is also
+`synth_group` and loses, so "synthetic groups cause wins" is false and is not
+the claim. The claim is the reverse and it is stronger: the one variable that
+decides whether a local cap can carry information at all -- how the group is
+defined -- **does not move the result**, 78% against 78%. A mechanism that
+depends on per-group information cannot produce that.
+
+⚠️ And the "real" arm is not much of a control either: 2(n) measured dermmnist's
+`loc_group` at NET +65 items, z=2.9 -- it clears stage 1 and still nulls,
+because its test groups ARE its training groups. **No dataset in the corpus has
+a local scope carrying real information. iwildcam is the first**, at NET +3131,
+z=97.4, with 7 test cameras absent from training entirely.
+
+**So the corpus supports "training beats post-hoc allocation" and supports
+nothing about the count constraint.** That is not a retraction of the paper's
+numbers -- they are what they are -- it is a statement about what they can be
+attributed to, and the answer is: not the mechanism the paper is named for.
+
 🧭 **AND IT DOES NOT SCALE WITH CONSTRAINT PRESSURE, which is the second
 control.** If the +1.7 pp came from the count constraint doing work, a TIGHTER
 cap -- more binding, more pressure -- should buy more of it. Regressing the
@@ -4034,7 +4077,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             288 tests, ~105 s, no dataset required
+tests/             289 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

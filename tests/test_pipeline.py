@@ -7048,3 +7048,64 @@ def test_ViTB16_resolves_the_method_question_best():
         assert sd <= sd2, ("ViTB16 no longer has the smallest seed sd", stat)
     ratios = {m: g2 / sd2 for m, (g2, sd2) in stat.items()}
     assert ratios["ViTB16"] > 2 * ratios["MobileNetV3"], ratios
+
+
+def test_the_win_is_the_same_where_the_local_scope_is_empty_by_construction():
+    """The third and decisive control on compute-vs-constraint.
+
+    `synth_group` is `np.arange(len(y)) % 3` (2(n)), so its groups are i.i.d.
+    draws from ONE distribution: every group's class distribution is identical
+    by construction, a per-group cap is exactly the global cap divided by three,
+    and 2(j) proved a global prior shift cannot reorder a top-K set at any size.
+    On those cells the local constraint provably carries zero information.
+
+    63% of the headline's cells are those cells, and they show a LARGER win at
+    an IDENTICAL win rate. The group definition is the one variable that decides
+    whether a local cap can carry information at all, and it does not move the
+    result -- which a mechanism depending on per-group information cannot do.
+
+    NOTE the claim is "the group definition makes no difference", NOT "synthetic
+    groups cause wins": aider is also synth_group and loses. The gate is written
+    to fail if the win rates ever separate, in either direction.
+    """
+    import pandas as pd
+
+    f = os.path.join(REPO, "docs", "paper", "data", "corpus",
+                     "corpus_final.csv")
+    if not os.path.exists(f):
+        pytest.skip("corpus not present in this worktree")
+    d = pd.read_csv(f)
+    cell = ["dataset", "model", "constraint_tag", "constrained_class",
+            "group_column", "warmup_epochs", "sweep"]
+    d = d[d["method"].isin(["tralo", "heuristic"])]
+    w = d.pivot_table(index=cell + ["seed"], columns="method",
+                      values="f1_macro", aggfunc="mean").dropna()
+    w = w.assign(delta=w["tralo"] - w["heuristic"])
+    g = w.groupby(level=list(range(len(cell))))["delta"]
+    r = pd.DataFrame({"n": g.size(), "mean": g.mean()}).reset_index()
+    r = r[(r["n"] >= 2) & (r["warmup_epochs"] == 50)]
+
+    synth = r[r["group_column"] == "synth_group"]
+    real = r[r["group_column"] != "synth_group"]
+    assert len(synth) + len(real) == len(r) == 236, (len(synth), len(real))
+
+    # most of the headline sits where the local scope cannot work
+    assert len(synth) / len(r) > 0.6, len(synth) / len(r)
+
+    # and it is not a smaller effect there -- it is larger
+    assert synth["mean"].mean() > real["mean"].mean(), (
+        synth["mean"].mean(), real["mean"].mean())
+
+    # the load-bearing assertion: the win RATE does not separate
+    ws, wr = (synth["mean"] > 0).mean(), (real["mean"] > 0).mean()
+    assert abs(ws - wr) < 0.05, (
+        "the win rate now depends on the group definition (%.2f synth vs %.2f "
+        "real), so section 3's third control no longer holds and the "
+        "constraint may be doing work after all" % (ws, wr))
+
+    # and the counter-example that keeps the claim honest
+    aider = r[r["dataset"] == "aider"]
+    assert (aider["group_column"] == "synth_group").all()
+    assert aider["mean"].mean() < 0, (
+        "aider no longer loses, so 'synthetic groups cause wins' would need "
+        "ruling out again")
