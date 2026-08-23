@@ -5741,6 +5741,63 @@ def test_log_health_does_not_cry_saturation_on_a_healthy_run(tmp_path, accs, why
     assert "not the saturated signature" in out, out[-800:]
 
 
+GRAFT_CSV = "docs/paper/data/corpus/review_graft_2026-07.csv"
+
+
+def test_the_anti_windup_arm_is_identical_to_its_host_as_the_paper_states():
+    """The paper asserts this TWICE, in the main text and in the appendix:
+    Fioretto-LDF with dual restarts "deploys predictions IDENTICAL to plain
+    Fioretto-LDF in every cell", because the deployed checkpoint is selected on
+    the constraint-excess axis before first feasibility and the restart
+    machinery only acts after it. `tab_graft` ships `host` and `+restart` as
+    two columns printing the same six numbers.
+
+    Nothing enforced that sentence. The table is generated from this CSV, so a
+    regeneration in which the two arms diverge would leave a false claim in the
+    paper with no error anywhere -- and this project has retracted results for
+    exactly that shape of silence. Both metrics, all 24 cells, exact equality:
+    the paper says identical PREDICTIONS, which is stronger than close metrics.
+    """
+    df = pd.read_csv(GRAFT_CSV)
+    key = ["model", "tag", "seed"]
+    host = df[df["method"] == "fioretto_ldf"].set_index(key)
+    rest = df[df["method"] == "fioretto_restart"].set_index(key)
+    common = host.index.intersection(rest.index)
+    assert len(common) == 24, (
+        "expected 3 backbones x 2 caps x 4 seeds = 24 cells, got %d"
+        % len(common))
+    for m in ("cc_f1", "macro_f1"):
+        bad = [k for k in common
+               if float(host.loc[k, m]) != float(rest.loc[k, m])]
+        assert not bad, (
+            "the paper claims the anti-windup arm deploys IDENTICAL "
+            "predictions in every cell, so %s must match exactly. It differs "
+            "in %d cell(s): %s. Either the claim or the data is now wrong."
+            % (m, len(bad), bad[:4]))
+
+
+def test_the_identity_gate_would_notice_a_divergence(tmp_path):
+    """NEGATIVE CONTROL. A gate asserting two columns are equal passes just as
+    happily when it is reading one column twice, so it has to be shown failing
+    on a perturbed copy before it is worth anything.
+    """
+    df = pd.read_csv(GRAFT_CSV)
+    i = df.index[df["method"] == "fioretto_restart"][0]
+    df.loc[i, "cc_f1"] = float(df.loc[i, "cc_f1"]) + 1e-9
+    alt = os.path.join(str(tmp_path), "perturbed.csv")
+    df.to_csv(alt, index=False)
+
+    key = ["model", "tag", "seed"]
+    d2 = pd.read_csv(alt)
+    host = d2[d2["method"] == "fioretto_ldf"].set_index(key)
+    rest = d2[d2["method"] == "fioretto_restart"].set_index(key)
+    common = host.index.intersection(rest.index)
+    bad = [k for k in common
+           if float(host.loc[k, "cc_f1"]) != float(rest.loc[k, "cc_f1"])]
+    assert bad, ("a one-nanounit change must be caught -- the paper's claim is "
+                 "exact identity, not approximate agreement")
+
+
 def _starvation_campaign(tmp_path, arms):
     """A campaign with the starvation SIGNATURE: the deepest-violating scope
     improving least. `arms` maps arm name -> constraint_steps_applied.

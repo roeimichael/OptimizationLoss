@@ -1883,7 +1883,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 295 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 297 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1891,7 +1891,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (295 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (297 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -4388,7 +4388,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             295 tests, ~105 s, no dataset required
+tests/             297 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

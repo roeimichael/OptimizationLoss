@@ -226,4 +226,31 @@ hinge arm cannot be refereed against `g5_component_ablation` (that campaign's
 removal flags did not take effect: five of six arms land within 0.005 of `full`,
 including `no_reset`, which the released `B_loo_ablation` block puts at +0.079).
 
+### What `review_graft_2026-07.csv` is and is not, measured 2026-08-23
+
+`cc_f1` in this file is `f1_for_class` -- the F1 of the ONE capped class, not a
+macro over several -- so each value is exactly `2*TP/(K+n)` with integer `TP`,
+`K` the emitted count and `n` the true count. That identity lets two properties
+be checked from the CSV alone, with no run directories:
+
+1. ✅ **The anti-windup arm is bit-identical to its host in all 24 cells**, on
+   both `cc_f1` and `macro_f1`. The paper states this twice and explains the
+   mechanism (the deployed checkpoint is selected before first feasibility, and
+   restarts only act after it), and `tab_graft` prints `host` and `+restart` as
+   two columns of the same six numbers. It is now enforced by
+   `test_the_anti_windup_arm_is_identical_to_its_host_as_the_paper_states`,
+   with a negative control that perturbs one value by 1e-9.
+2. ⚠️ **The arms did NOT emit the same number of capped-class predictions.** In
+   24 of 24 cells no single `(K+n) <= 6000` divides into every arm's reduced
+   denominator -- in one cell the arms imply multiples of 321, 155, 40 and 161
+   simultaneously, whose LCM is 64 million. So these cc-F1 values sit at each
+   method's OWN operating point; they are not budget-equalized the way
+   `scripts/full_panel.py` equalizes (fill to exactly K). That is the expected
+   output of dual methods rather than a fault, but it means a cc-F1 gap between
+   two arms here mixes allocation with quality, and it cannot be separated after
+   the fact: **the raw predictions for this campaign no longer exist**
+   (`evidence/` keeps predictions for `mcbar` and `multiclass` only), so the
+   table cannot be re-scored at equal budget. Re-derive the property with
+   `Fraction(v).limit_denominator(10**7)` on each `cc_f1`.
+
 See `README_DATA.md` for the per-file detail on the corpus CSVs.
