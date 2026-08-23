@@ -2554,6 +2554,64 @@ And the novelty is genuinely DIFFERENTIAL, which is the part that matters: NET
 (3131) is nearly all of LOCAL (3169), with only 638 attributable to the global
 shift. Contrast `shift_1`, where 110 of 160 was global in disguise.
 
+#### 🟡 CANDIDATE #2: Caltech Camera Traps / Terra Incognita -- SCREENED 2026-08-23, images NOT acquired
+
+The only other dataset to clear stage 1. Screened metadata-only, exactly as
+this section prescribes, before a single image was fetched:
+
+| dataset | NET | z | LOCAL | GLOBAL | unseen |
+|---|---|---|---|---|---|
+| **`cct/oodslice`** | **+2546** | **75.8** | +2810 | +540 | **5** |
+| `iwildcam/oodslice` (same run) | +3133 | 96.3 | +3531 | +994 | 7 |
+
+NET (2546) is most of LOCAL (2810), so the novelty is differential rather than
+a global shift replicated across cameras -- the same test `shift_1` failed.
+
+**The structure is verified from the metadata, not asserted.** 128 train
+cameras against 5 test cameras with **overlap 0**, and the per-camera class
+counts give:
+
+| capped class | test n | cameras present | ZERO ceilings | support |
+|---|---|---|---|---|
+| 0 | 612 | 2 of 5 | **3** | {51, 78} |
+| **2 (rabbit)** | 426 | 3 of 5 | **2** | {51, 78, 135} |
+| **6 (bobcat)** | 382 | 3 of 5 | **2** | {37, 51, 78} |
+| 5 (bird) | 249 | 5 of 5 | 0 | ⛔ no zero ceiling, local scope adds nothing |
+| 7 (cat) | 401 | 1 of 5 | 4 | ⛔ local collapses onto the global scope |
+
+Classes **2 and 6** satisfy the criterion this section sets: a K=0 ceiling
+binds regardless of sum slack, so a class ABSENT from some test cameras and
+present in others makes the LOCAL scope bind. Their supports also DIFFER
+({51,78,135} vs {37,51,78}), so the two local budget vectors are not one number
+divided up -- the failure mode that would make two capped classes a single
+constraint wearing two hats. 4 of 10 per-group ceilings are zero, against
+iwildcam's 7 of 14.
+
+📌 **Class 0 has strictly MORE binding structure than either pick** -- 3 zero
+ceilings and the largest test count (612) -- and is the first thing to
+reconsider if a CCT campaign is ever designed. It was not chosen; note the
+choice rather than assume it was optimised.
+
+🛑 **CCT IS NOT AN INDEPENDENT GENERALIZATION UNIT.** Same authors, same
+modality, same schema, same COCO-CameraTraps reader as iwildcam. It moves the
+dataset count from 1 to 2, so section 0's exact sign-flip floor improves from
+p=1.000 to p=0.500, and a reviewer may still fairly call the two one unit. It
+buys CONSISTENCY, not independence. A genuinely independent third would have to
+leave camera traps entirely.
+
+⛔ **The images are NOT on disk and no run is possible.** Only
+`train_meta.csv` / `test_meta.csv` exist (20,000 / 2,985 rows). Acquiring the
+images is a ~8 GB fetch from LILA and needs Roei's approval.
+
+⚠️ **The WIRING is already committed (`3ea7d35f`) but MUST NOT BE DEPLOYED
+while `results/iwc2` runs.** It is purely additive -- `protocol.yml` gains a
+`cct` block (38 insertions, 0 deletions) and `IMAGERY_DATASETS` goes from
+`{'iwildcam'}` to `{'iwildcam', 'cct'}` -- so it cannot change what an
+iwildcam run does. That is why it is safe to have committed, and it is still
+not safe to deploy: `code_version` is a git hash, so moving the campaign
+checkout off `3bb7e8b4` mid-flight splits iwc2 into two non-comparable halves
+whatever the diff contains. Deploy after the last run, never during.
+
 **WHY THE STRUCTURE IS RIGHT, in one line:** the median camera sees **10 of 216
 species**, and camera 501 is impala/elephant/cattle while camera 408 is ocellated
 turkey/tapir/puma -- different continents. A species that dominates one camera is
