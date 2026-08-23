@@ -1405,6 +1405,57 @@ the runner used to default to 0.01 while a generator defaulted to 0.005. **`houn
 defaults are 0.1**, ten times the paper's 0.01, so an unset key silently runs a different method.
 The generator now sets every per-method step explicitly; never rely on a default.
 
+### ⚖️ THE HEADLINE IS NOT SEED NOISE -- priced from the corpus itself, 2026-08-23
+
+The noise-floor finding (three identical `clip` runs spreading 0.0358 macro-F1
+against a 0.0017 headline effect) left an obvious objection open: **is the
+paper's macro-F1 win just seed variance?** The corpus carries `seed` and
+`f1_macro`, so the question is answerable directly rather than by analogy, and
+the answer is **no.**
+
+Paired `tralo` minus `heuristic` per seed, within cell, at the paper's own
+protocol (`warmup_epochs = 50`), 236 cells with >= 2 seeds:
+
+| | |
+|---|---|
+| within-cell paired seed sd | **1.47 pp** (median; IQR 1.11-2.29 over all 263 cells) |
+| detectable at 4 seeds | **2.05 pp** |
+| observed per-cell \|delta\| | 1.30 pp (median) |
+| **cells clearing their OWN bound** | **32.2% -- 76 of 236** |
+| aggregate direction | **tralo wins 184 of 236, sign p = 1.8e-18, mean +1.85 pp** |
+| **restricted to the 76 resolvable cells** | **tralo wins 83%, mean +3.84 pp** |
+
+🟢 **The robustness check that matters PASSES.** If the aggregate were carried by
+noise, throwing away the cells too noisy to resolve would collapse it. It does
+the opposite: the win rate holds and the effect roughly DOUBLES. A noise
+explanation predicts the reverse, so it is refuted rather than merely
+un-supported.
+
+🛑 **What this does NOT do, and the distinction is the whole point.** Seed power
+and comparison validity are different failures, and only the first is addressed
+here:
+
+* **Per cell, two thirds of the table is unresolvable.** The median cell reports
+  1.30 pp against its own 2.05 pp bound, so **any individual per-cell macro-F1
+  number below ~2 pp is inside its own seed noise** even though the aggregate is
+  not. The paper reports per-cell numbers. Quote the aggregate, never a single
+  sub-2 pp cell.
+* **It says nothing about the confounds that actually retracted the win.**
+  Unequal compute and `lr_constraint` 5e-6 vs 1e-4 (1b) are biases, not
+  variance, and no amount of seed power touches a bias. The equal-compute bar
+  still has `tralo` LOSING macro-F1 (0.6895 vs the clipper's 0.7069).
+
+⚠️ **AND THE WARM-UP-1 ROW IS THE LR TRAP, NOT A RESULT.** The same computation
+at `warmup_epochs = 1` returns **+15.20 pp, 10 of 10 cells** across 10 cells.
+That is eight times the warm-up-50 effect and it is exactly the shape 1b
+documents: unequal `lr_constraint` fabricated a 16.7 pp finding that became
+1.7 pp once equalized. **Do not quote it.** It is recorded here so that nobody
+rediscovers it and mistakes it for the regime effect of section 3.
+
+**So the reviewer objection this answers is "your effect is seed noise" -- and
+it is answered.** The objection it does not answer is "your baseline had less
+compute and a 20x smaller learning rate", which remains the live one.
+
 ### 🔴 THE CORPUS NEVER MEASURED THE RANKING CHANNEL -- audited 2026-08-23
 
 **Every outcome column in the paper's evidence base is either budget-equalized
@@ -1803,7 +1854,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 273 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 276 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1811,7 +1862,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (273 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (276 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -3782,7 +3833,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             273 tests, ~105 s, no dataset required
+tests/             276 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

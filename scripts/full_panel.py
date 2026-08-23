@@ -77,6 +77,11 @@ FREE_RANKING = ("AP", "AUROC")
 FREE_CALIBRATION = ("ECE", "Brier", "NLL", "ConfGap")
 FREE_RESOLUTION = FREE_RANKING + FREE_CALIBRATION
 
+# The budget-equalized table gets one too. It has no items scale outside ccF1,
+# and printing macro-F1 -- the paper's headline -- with no seed cost is the same
+# omission ConfGap had.
+EQ_RESOLUTION = ("ccP", "ccR", "ccF1", "macroP", "macroR", "macroF1", "acc")
+
 
 RUN_DIRS = {}         # df index -> run directory, for the collision message
 LEAF_DEPTH = 5        # model/dataset/cap/arm/seed_N -- the per-cell path tail
@@ -547,6 +552,88 @@ def detectable_at(sd, n_seeds, power=0.80, alpha=0.05):
     return float(z * sd / np.sqrt(float(n_seeds)))
 
 
+def _perseed_rows(perseed):
+    """[(metric, mean delta, within-cell seed sd, min seeds)] -- the three
+    numbers every power statement needs, computed once for whichever family
+    asks. The sd is pooled WITHIN cells, never across them (house rule 4)."""
+    rows = []
+    for m, series in sorted(perseed.items()):
+        if series is None or not len(series):
+            continue
+        sds, ns, means = [], [], []
+        for _key, g in series.groupby(level=[0, 1, 2, 3]):
+            means.append(float(g.mean()))
+            ns.append(len(g))
+            if len(g) >= 2:
+                sds.append(float(g.std(ddof=1)))
+        if not means:
+            continue
+        rows.append((m, np.mean(means), np.mean(sds) if sds else None,
+                     int(min(ns))))
+    return rows
+
+
+def _power_row(m, eff, sd, have, seeds_needed):
+    """One printed line: delta, sd, seeds, the bound, the verdict."""
+    if sd is None:
+        return ("     %-8s %+12.4f %12s %6d %12s   every cell has ONE seed "
+                "-- not separable from seed noise" % (m, eff, "n/a", have, "n/a"))
+    mde = detectable_at(sd, have)
+    if abs(eff) <= 0:
+        return ("     %-8s %+12.4f %12.4f %6d %12.4f   exactly zero -- "
+                "bound the null at this size, do not call it no effect"
+                % (m, eff, sd, have, mde))
+    need = seeds_needed(abs(eff), sd)
+    verdict = ("POWERED" if have >= need else
+               "UNDERPOWERED (~%d needed) -- a tie here is NOT evidence "
+               "of no effect" % need)
+    return ("     %-8s %+12.4f %12.4f %6d %12.4f   %s"
+            % (m, eff, sd, have, mde, verdict))
+
+
+def _resolution_eq_readout(perseed, arm, control):
+    """Power for the BUDGET-EQUALIZED metrics, in their OWN units.
+
+    WHY THIS EXISTS. The items block above prices `d ccF1` and nothing else,
+    because `items = dF1 * (K+n)/2` is an F1 identity over the CAPPED classes
+    and does not extend to macro-F1 or accuracy. So the panel printed
+    **macro-F1 -- the metric the paper headlines** -- with a delta, a
+    better/worse count, a Wilcoxon p and no seed cost anywhere. That is the
+    ConfGap defect a second time, in the family that carries the paper's claim,
+    and it is worse here: macro-F1 is known to be carried by the UNCAPPED
+    classes, which swing with the seed, so it is the noisiest number on the
+    page and the one quoted most often.
+
+    No items conversion is invented. Native units, and `detectable` says what
+    the seeds present would have caught.
+
+    ⚠️ ccP / ccR / ccF1 are one metric in three costumes, and so are
+    macroP / macroR / macroF1 -- all monotone in the same counts. Three lines
+    agreeing is arithmetic, not corroboration.
+    """
+    rows = _perseed_rows(perseed)
+    if not rows:
+        return
+    try:
+        from scripts.frozen_head_probe import seeds_needed
+    except Exception:                                  # noqa: BLE001
+        return
+
+    print("")
+    print("  RESOLUTION of the BUDGET-EQUALIZED metrics -- native units.")
+    print("  `d ccF1` also appears in ITEMS above; that conversion is an F1")
+    print("  identity over the capped classes and does NOT extend to macroF1")
+    print("  or acc, which is why they are priced here instead of converted.")
+    print("  NOTE: macroF1 is carried by the UNCAPPED classes, so it is the")
+    print("  noisiest line on this page and the one the paper headlines.")
+    print("     %-8s %12s %12s %6s %12s   %s"
+          % ("metric", "observed d", "seed sd", "seeds", "detectable",
+             "verdict"))
+    order = {m: i for i, m in enumerate(EQ_RESOLUTION)}
+    for m, eff, sd, have in sorted(rows, key=lambda r: order.get(r[0], 99)):
+        print(_power_row(m, eff, sd, have, seeds_needed))
+
+
 def _resolution_free_readout(perseed, arm, control):
     """Power for the ALLOCATION-FREE metrics, in their OWN units.
 
@@ -571,20 +658,7 @@ def _resolution_free_readout(perseed, arm, control):
     except Exception:                                  # noqa: BLE001
         return
 
-    rows = []
-    for m, series in sorted(perseed.items()):
-        if series is None or not len(series):
-            continue
-        sds, ns, means = [], [], []
-        for _key, g in series.groupby(level=[0, 1, 2, 3]):
-            means.append(float(g.mean()))
-            ns.append(len(g))
-            if len(g) >= 2:
-                sds.append(float(g.std(ddof=1)))
-        if not means:
-            continue
-        rows.append((m, np.mean(means), np.mean(sds) if sds else None,
-                     int(min(ns))))
+    rows = _perseed_rows(perseed)
     if not rows:
         return
 
@@ -610,23 +684,7 @@ def _resolution_free_readout(perseed, arm, control):
         if this != fam:
             fam = this
             print("    -- %s --" % this)
-        if sd is None:
-            print("     %-8s %+12.4f %12s %6d %12s   every cell has ONE seed "
-                  "-- not separable from seed noise"
-                  % (m, eff, "n/a", have, "n/a"))
-            continue
-        mde = detectable_at(sd, have)
-        if abs(eff) <= 0:
-            print("     %-8s %+12.4f %12.4f %6d %12.4f   exactly zero -- "
-                  "bound the null at this size, do not call it no effect"
-                  % (m, eff, sd, have, mde))
-            continue
-        need = seeds_needed(abs(eff), sd)
-        verdict = ("POWERED" if have >= need else
-                   "UNDERPOWERED (~%d needed) -- a tie here is NOT evidence "
-                   "of no effect" % need)
-        print("     %-8s %+12.4f %12.4f %6d %12.4f   %s"
-              % (m, eff, sd, have, mde, verdict))
+        print(_power_row(m, eff, sd, have, seeds_needed))
 
 
 def _clustered_readout(results, pvals, control, arm):
@@ -1387,6 +1445,7 @@ def main():
         results = []          # (title, metric, row-tuple) collected, then BH
         perseed_ccf1 = None   # pre-collapse pairs, for the resolution readout
         perseed_free = {}     # ditto for the allocation-free family
+        perseed_eq = {}       # ditto for the budget-equalized family
         for title, metrics in GROUPS:
             for m in metrics:
                 # Restrict to the PAIR being compared before dropping
@@ -1415,6 +1474,8 @@ def main():
                     perseed_ccf1 = q[arm] - q[args.control]
                 if m in FREE_RESOLUTION:
                     perseed_free[m] = q[arm] - q[args.control]
+                if m in EQ_RESOLUTION:
+                    perseed_eq[m] = q[arm] - q[args.control]
                 if m in ABOVE_CAP_ONLY and (c.min() < 1.0 or t.min() < 1.0):
                     results.append((title, m, ("UNDERSHOOT", c, t, d, None, None)))
                     continue
@@ -1555,6 +1616,7 @@ def main():
 
         _resolution_readout(perseed_ccf1, df, arm, args.control)
         _resolution_free_readout(perseed_free, arm, args.control)
+        _resolution_eq_readout(perseed_eq, arm, args.control)
 
         _clustered_readout(results, pvals, args.control, arm)
 

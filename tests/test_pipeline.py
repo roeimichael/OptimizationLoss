@@ -6452,3 +6452,126 @@ def test_identical_per_group_mixes_screen_DEAD_even_with_unseen_groups(tmp_path)
     assert "ABSENT from train" in screen, (
         "the fixture lost its held-out cameras, so this no longer controls for "
         "criterion 1" + chr(10) + screen[-800:])
+
+
+def _headline_power_table():
+    """Paired tralo-minus-heuristic macro-F1 per seed, within cell, from the
+    corpus. The exact computation FRAMEWORK 1b quotes."""
+    import pandas as pd
+    from scipy import stats
+    from scripts.full_panel import detectable_at
+
+    f = os.path.join(REPO, "docs", "paper", "data", "corpus",
+                     "corpus_final.csv")
+    if not os.path.exists(f):
+        pytest.skip("corpus not present in this worktree")
+    d = pd.read_csv(f)
+    cell = ["dataset", "model", "constraint_tag", "constrained_class",
+            "group_column", "warmup_epochs", "sweep"]
+    d = d[d["method"].isin(["tralo", "heuristic"])]
+    w = d.pivot_table(index=cell + ["seed"], columns="method",
+                      values="f1_macro", aggfunc="mean").dropna()
+    w["delta"] = w["tralo"] - w["heuristic"]
+    g = w.groupby(level=list(range(len(cell))))["delta"]
+    res = pd.DataFrame({"n": g.size(), "mean": g.mean(),
+                        "sd": g.std(ddof=1)}).dropna()
+    res = res[res["n"] >= 2].reset_index()
+    res["mde"] = [detectable_at(sd, n) for sd, n in zip(res["sd"], res["n"])]
+    return res, stats
+
+
+def test_the_paper_headline_is_not_seed_noise_and_strengthens_when_resolved():
+    """FRAMEWORK 1b prices the macro-F1 headline against the corpus's OWN seeds.
+
+    The claim is specific and falsifiable: the aggregate is not carried by
+    unresolvable cells, because restricting to the cells whose effect clears
+    their own detectable bound makes the effect BIGGER, not smaller. A
+    noise explanation predicts the opposite, so this is a refutation and not
+    merely an absence of evidence.
+
+    Gated because it is the one reviewer objection the project can currently
+    answer, and an answer nobody can re-derive is worth nothing.
+    """
+    res, stats = _headline_power_table()
+    w50 = res[res["warmup_epochs"] == 50]
+    assert len(w50) == 236, len(w50)
+
+    # the four numbers the table prints
+    assert abs(100 * w50["sd"].median() - 1.47) < 0.05, w50["sd"].median()
+    assert abs(100 * detectable_of(w50) - 2.05) < 0.05, detectable_of(w50)
+    assert abs(100 * w50["mean"].abs().median() - 1.30) < 0.05
+    resolvable = w50[w50["mean"].abs() >= w50["mde"]]
+    assert len(resolvable) == 76, len(resolvable)
+
+    # aggregate direction, and that it SURVIVES the restriction
+    wins = int((w50["mean"] > 0).sum())
+    assert wins == 184, wins
+    assert stats.binomtest(wins, len(w50), 0.5).pvalue < 1e-15
+    rate_all = wins / len(w50)
+    rate_res = (resolvable["mean"] > 0).mean()
+    assert rate_res >= rate_all - 0.02, (rate_all, rate_res)
+    assert resolvable["mean"].mean() > 1.8 * w50["mean"].mean(), (
+        "the effect no longer grows on the resolvable subset, so the "
+        "noise-explanation refutation in 1b has stopped holding")
+
+    # and the caveat: MOST cells cannot resolve their own number
+    assert len(resolvable) / len(w50) < 0.4, (
+        "1b says two thirds of the table is unresolvable per cell")
+
+
+def detectable_of(sub):
+    from scripts.full_panel import detectable_at
+    return detectable_at(float(sub["sd"].median()), 4)
+
+
+def test_the_warmup_1_row_is_flagged_as_the_LR_trap_not_a_result():
+    """1b records +15.20 pp at warm-up 1 specifically so nobody rediscovers it
+    and reads it as section 3's regime effect. It is the shape the LR trap
+    makes -- 1b documents an unequal `lr_constraint` fabricating 16.7 pp that
+    became 1.7 pp once equalized -- and the corpus cannot separate the two.
+    The gate keeps the number honest and keeps the warning attached to it.
+    """
+    res, _ = _headline_power_table()
+    w1 = res[res["warmup_epochs"] == 1]
+    assert len(w1) == 10, len(w1)
+    assert 14.0 < 100 * w1["mean"].mean() < 16.5, w1["mean"].mean()
+    assert (w1["mean"] > 0).all()
+
+    fw = io.open(os.path.join(REPO, "docs", "FRAMEWORK.md"),
+                 encoding="utf-8").read()
+    i = fw.find("+15.20 pp")
+    assert i > 0, "1b no longer quotes the warm-up-1 figure"
+    near = fw[i - 400:i + 700]
+    assert "LR TRAP" in near.upper(), (
+        "the +15.20 pp figure is quoted without the LR-trap warning attached")
+    assert "Do not quote it" in near, near[:300]
+
+
+def test_the_scorer_prints_pure_ASCII():
+    """`full_panel`'s stdout is piped, redirected and parsed, and this suite
+    parses it with the host default codec. On Windows that is cp1252, where a
+    single emoji makes `subprocess.run(text=True)` hand back **None** instead of
+    raising -- so five unrelated scorer tests failed with "NoneType has no
+    attribute splitlines" and nothing pointed at the character that caused it.
+
+    The scorer is the one tool whose output is read by machines as well as
+    people. Keep it ASCII; put the emoji in FRAMEWORK.md.
+
+    AST, not grep: the file's own comments discuss the check and would otherwise
+    count as violations.
+    """
+    import ast
+
+    f = os.path.join(REPO, "scripts", "full_panel.py")
+    tree = ast.parse(io.open(f, encoding="utf-8").read())
+    bad = {}
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)                 and n.func.id == "print":
+            for a in ast.walk(n):
+                if isinstance(a, ast.Constant) and isinstance(a.value, str):
+                    hits = sorted({c for c in a.value if ord(c) > 127})
+                    if hits:
+                        bad[n.lineno] = "".join(hits)
+    assert not bad, (
+        "full_panel prints non-ASCII, which returns None from text-mode "
+        "subprocess capture under cp1252: %s" % bad)
