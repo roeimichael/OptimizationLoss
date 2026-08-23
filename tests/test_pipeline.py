@@ -5886,3 +5886,113 @@ def test_match_contested_end_to_end_reports_the_band_it_asked_for(tmp_path):
             break
     else:
         raise AssertionError("no contested=50 row in:" + chr(10) + out[-900:])
+
+
+def _collide(paths):
+    """Fire `_one` on two runs sitting at `paths` and return the message."""
+    import pandas as pd
+    from scripts import full_panel as FP
+
+    FP.RUN_DIRS.clear()
+    FP.RUN_DIRS.update({i: q for i, q in enumerate(paths)})
+    try:
+        FP._one(pd.Series([1.0] * len(paths), index=list(range(len(paths)))))
+    except ValueError as e:
+        return str(e)
+    finally:
+        FP.RUN_DIRS.clear()
+    raise AssertionError("_one accepted %d runs on one key" % len(paths))
+
+
+def test_two_campaign_roots_are_named_as_two_campaigns():
+    """The collision that the stored evidence actually produces.
+
+    `mcbar` and `multiclass` sit side by side under one tree, so pointing
+    `--campaign` at the tree lands both campaigns' `clip/seed_1` on the same
+    (cell, seed, arm) key. The old message said "the pairing key is missing a
+    dimension", which is the OTHER cause and sends the reader into the scorer
+    instead of into the path they passed.
+    """
+    msg = _collide([
+        "/ev/results/mcbar/MobileNetV3/dermmnist/L50_G50/clip/seed_1",
+        "/ev/results/multiclass/MobileNetV3/dermmnist/L50_G50/clip/seed_1",
+    ])
+    assert "DIFFERENT roots" in msg, msg
+    assert "campaign root separately" in msg, msg
+    assert "mcbar" in msg and "multiclass" in msg, msg
+
+
+def test_a_real_missing_dimension_is_NOT_called_two_campaigns():
+    """Negative control for the test above.
+
+    Same root, genuinely different run paths -- the campaign sweeps something
+    the pairing key does not name. The two-campaign diagnosis must stay silent,
+    or it becomes a message that says the same thing whatever happened, which
+    is worth less than the one it replaced.
+    """
+    msg = _collide([
+        "/ev/results/iwc1/MobileNetV3/iwildcam/L30_G50/tralo/seed_1",
+        "/ev/results/iwc1/MobileNetV3/iwildcam/L30_G50/tralo_lr9/seed_1",
+    ])
+    assert "DIFFERENT roots" not in msg, msg
+    assert "sweeps an axis the pairing key does not name" in msg, msg
+
+
+def test_the_collision_still_refuses_with_no_paths_recorded():
+    """No `run_dir` column -- older rows, or a caller that never set RUN_DIRS.
+
+    The guard must still REFUSE. Degrading to a silent average is the failure
+    it exists to prevent, and the message has to admit it cannot say which of
+    the two causes fired rather than guessing one.
+    """
+    import pandas as pd
+    from scripts import full_panel as FP
+
+    FP.RUN_DIRS.clear()
+    with pytest.raises(ValueError) as ei:
+        FP._one(pd.Series([1.0, 2.0], index=[0, 1]))
+    msg = str(ei.value)
+    assert "2 runs share one" in msg, msg
+    assert "which one cannot be said" in msg, msg
+    assert "DIFFERENT roots" not in msg, msg
+
+
+def test_one_passes_through_a_single_run_and_an_empty_group():
+    """The guard must not become a refusal to score anything."""
+    import pandas as pd
+    from scripts import full_panel as FP
+
+    assert FP._one(pd.Series([0.75], index=[3])) == 0.75
+    assert np.isnan(FP._one(pd.Series([], dtype=float)))
+    assert np.isnan(FP._one(pd.Series([float("nan")], index=[1])))
+
+
+def test_the_mde_at_four_seeds_is_1_4_sd():
+    """FRAMEWORK 2(p) prints a detectability table -- AP ~0.035, AUROC ~0.013 --
+    and both entries come from ONE derivation: at the protocol's 4 seeds,
+    `seeds_needed(d, sd) <= 4` iff `d >= 1.4 sd`. That is a claim about
+    `seeds_needed`, so it is gated rather than trusted. A drift in the power
+    constants would leave the table quietly wrong while the scorer stayed
+    self-consistent, and the whole point of pre-registering the number is that
+    it is checkable before the campaign lands.
+    """
+    from scripts.frozen_head_probe import seeds_needed
+
+    # The crossing is EXACT, not the round 1.4 it looks like: with
+    # n = ceil(z^2 sd^2 / d^2), `n <= 4` iff `d >= sd * sqrt(z^2 / 4)`, and
+    # z^2 = 7.8489 rather than 7.84 -- so d = 1.4 sd lands one seed on the
+    # WRONG side of the ceiling. Writing 1.4 into the table is fine to two
+    # figures; writing it into the gate is not.
+    k = float(np.sqrt((1.959963985 + 0.8416212336) ** 2 / 4.0))
+    assert round(k, 3) == 1.401, k
+
+    for sd in (0.0058, 0.0094, 0.0202, 0.0252, 0.0274, 1.0, 2.7):
+        assert seeds_needed(k * sd * 1.001, sd) <= 4, sd
+        assert seeds_needed(k * sd * 0.999, sd) > 4, sd
+
+    # the two figures the table actually prints, from the measured medians
+    assert round(k * 0.0252, 3) == 0.035     # AP
+    assert round(k * 0.0094, 3) == 0.013     # AUROC
+
+    # and the ratio the section leans on: AUROC resolves ~2.7x better than AP
+    assert 2.6 <= 0.0252 / 0.0094 <= 2.8

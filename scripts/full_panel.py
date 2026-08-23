@@ -58,16 +58,61 @@ from src.utils.constants import UNLIMITED                          # noqa: E402
 FREE_RESOLUTION = ("AP", "AUROC")
 
 
+RUN_DIRS = {}         # df index -> run directory, for the collision message
+LEAF_DEPTH = 5        # model/dataset/cap/arm/seed_N -- the per-cell path tail
+
+
+def _collision_msg(idx):
+    """Name the RIGHT cause when two runs land on one (cell, seed, arm) key.
+
+    TWO different mistakes produce this collision and they need opposite fixes,
+    so a message that names only one sends the reader hunting in the wrong
+    place:
+
+      * `--campaign` was pointed at a tree holding MORE THAN ONE campaign, so
+        the colliding runs are the same cell under two different roots. The
+        stored-evidence tarball is exactly this shape -- `mcbar` and
+        `multiclass` side by side -- and the earlier message ("the pairing key
+        is missing a dimension") sent the reader into the scorer when the fix
+        was to pass a narrower `--campaign`.
+      * the campaign really does sweep an axis the pairing key does not name,
+        and averaging the runs would pool it.
+
+    The tell is WHERE the paths diverge. Identical cell tail under different
+    prefixes is two campaigns; anything else is a missing dimension. Either way
+    the paths themselves are printed, because that is what the reader needs.
+    """
+    paths = [RUN_DIRS[i] for i in idx if i in RUN_DIRS]
+    head = "%d runs share one (cell, seed, arm) key." % len(idx)
+    if len(paths) < 2:
+        return (head + " Averaging them would pool whatever axis separates "
+                "them, so the pairing key is missing a dimension the campaign "
+                "varies. (No run paths recorded, so which one cannot be said.)")
+    parts = [os.path.normpath(q).replace(os.sep, "/").split("/") for q in paths]
+    lines = [head]
+    if len({"/".join(q[-LEAF_DEPTH:]) for q in parts}) == 1:
+        lines.append("  SAME cell path under DIFFERENT roots: `--campaign` "
+                     "points at a tree holding more than one campaign. Score "
+                     "each campaign root separately -- pooling them is not a "
+                     "scorer setting to change.")
+    else:
+        lines.append("  Same layout, different run paths: the campaign sweeps "
+                     "an axis the pairing key does not name, and averaging "
+                     "these would pool it.")
+    lines += ["    " + q for q in sorted(paths)[:6]]
+    if len(paths) > 6:
+        lines.append("    ... and %d more" % (len(paths) - 6))
+    return chr(10).join(lines)
+
+
 def _one(series):
     """Aggregator for the seed pivot: there must be exactly ONE run per
-    (cell, seed, arm). More than one means the pairing key is missing a
-    dimension, and silently averaging them is how a swept axis gets pooled."""
+    (cell, seed, arm). More than one means either two campaigns got pooled or
+    the pairing key is missing a dimension, and silently averaging them is how
+    a swept axis gets pooled. `_collision_msg` separates the two."""
     vals = series.dropna()
     if len(vals) > 1:
-        raise ValueError(
-            "%d runs share one (cell, seed, arm) key -- the pairing key is "
-            "missing a dimension that the campaign varies. Averaging them "
-            "would pool the swept axis." % len(vals))
+        raise ValueError(_collision_msg(list(vals.index)))
     return vals.iloc[0] if len(vals) else float("nan")
 
 
@@ -1256,6 +1301,9 @@ def main():
     # collapse to an exact tie while the header still reports two cells. That is
     # mistake-pattern 6 (pooling the swept axis) presenting as mistake-pattern 8
     # (a bug that reads as a tie) -- inside the scorer written to prevent both.
+    RUN_DIRS.clear()
+    if "run_dir" in df:
+        RUN_DIRS.update(df["run_dir"].to_dict())
     key = ["dataset", "model", "cap", "capped", "seed"]
     print("arms:", {a_: int((df.arm == a_).sum()) for a_ in arms})
     print("cells:", df.groupby(["dataset", "model", "cap", "capped"]).ngroups,

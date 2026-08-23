@@ -1758,7 +1758,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 257 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 262 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1766,7 +1766,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (257 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (262 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -2700,6 +2700,48 @@ prints a second block in native units for AP and AUROC. **A flat AP that comes
 back UNDERPOWERED closes nothing**; it says the campaign needs more seeds, and
 the block prints how many.
 
+📏 **WHAT "POWERED" WILL COST -- measured 2026-08-23 on the stored evidence, so
+the clause above is a NUMBER before the data lands, not a hope.** The
+allocation-free block had never run on real data when it was written. Run it on
+the 128 prediction-bearing runs (`mcbar` 72 + `multiclass` 56, MobileNetV3,
+4 seeds) and the within-cell seed sd is stable across all five contrasts:
+
+| metric | seed sd (5 contrasts) | median | **MDE at the protocol's 4 seeds** |
+|---|---|---|---|
+| AP | 0.0202 - 0.0274 | 0.0252 | **~0.035** |
+| AUROC | 0.0058 - 0.0108 | 0.0094 | **~0.013** |
+
+`seeds_needed = ceil(z^2 sd^2 / d^2)` with `z = 1.960 + 0.842`, so `n <= 4`
+exactly when `d >= sd * sqrt(z^2/4) = 1.401 sd`. **AUROC is resolved ~2.7x better than AP on identical runs**, which
+is a fact about the estimators and not about any method: AP integrates over the
+whole precision-recall curve and inherits the seed-to-seed churn of the tail,
+AUROC does not.
+
+Two consequences for the read below, both of them binding:
+
+1. **The verdict should lead with AUROC.** Not because it is more favourable --
+   the one POWERED line in the whole exercise is `tralo_byk` AUROC **-0.0097**,
+   a LOSS -- but because it is the only allocation-free metric this protocol can
+   see at 4 seeds. Reporting a flat AP as "closed" while its own block says
+   ~1.4 million seeds is the failure this section was written to prevent.
+2. **A representation effect smaller than ~0.013 AUROC is invisible at 4 seeds,
+   and the honest report is "not measured", not "no effect".** If iwc1 comes
+   back flat and UNDERPOWERED, the next move is seeds on the SAME cells, not a
+   fifth slice.
+
+⚠️ These sd's come from dermmnist / octmnist / tissuemnist -- **removed
+datasets** (2(n)), so they are a PRIOR on the instrument, not a prediction about
+iwildcam. iwildcam's test cameras are held out entire, which can widen the seed
+spread rather than narrow it. Read the block iwc1 prints; do not substitute this
+table for it.
+
+⚠️ **`--campaign` takes ONE campaign root.** The evidence tarball holds `mcbar`
+and `multiclass` side by side, and pointing the scorer at the tree above them
+lands both campaigns' `clip/seed_1` on one (cell, seed, arm) key. `_one` refuses
+-- correctly -- and now names which of the two causes fired and prints the
+colliding paths, because the old message blamed the pairing key and sent the
+reader into the scorer instead of into the path they passed.
+
 **THE EXACT READ, in order.** Verified 2026-08-22 that `full_panel` accepts an
 arbitrary control and validates it against the arms present, so the twin
 contrast needs no new scorer:
@@ -3558,7 +3600,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             257 tests, ~105 s, no dataset required
+tests/             262 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
