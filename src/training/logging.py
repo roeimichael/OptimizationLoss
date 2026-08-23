@@ -14,7 +14,12 @@ log = logging.getLogger(__name__)
 
 def build_csv_header(num_classes, local_constraints=None):
     header = ['Epoch', 'Train_Acc', 'L_CE', 'L_Global', 'L_Local',
-              'L_KL', 'Lambda_Global', 'Lambda_Local', 'Global_Satisfied', 'Local_Satisfied']
+              # Grad_Norm replaces the dead L_KL column: it is the PRE-clip
+              # constraint gradient norm, which decides whether the
+              # unit-norm clip binds -- and therefore whether two arms with
+              # different normalizations are comparable at all.
+              'Grad_Norm', 'Lambda_Global', 'Lambda_Local',
+              'Global_Satisfied', 'Local_Satisfied']
     for i in range(num_classes):
         header += [f'Limit_Class{i}', f'Hard_Class{i}', f'Soft_Class{i}']
     if local_constraints:
@@ -25,6 +30,14 @@ def build_csv_header(num_classes, local_constraints=None):
                     header += [f'Group{gid}_Hard_Class{c}', f'Group{gid}_Soft_Class{c}',
                                f'Group{gid}_Limit_Class{c}']
     return header
+
+
+def _is_int(field):
+    try:
+        int(field)
+        return True
+    except (TypeError, ValueError):
+        return False
 
 
 def write_csv_header(csv_path, num_classes, local_constraints=None):
@@ -38,6 +51,13 @@ def write_csv_header(csv_path, num_classes, local_constraints=None):
             writer.writerow(header)
             for line in existing_lines:
                 fields = line.strip().split(',')
+                # Drop any previous header. A crashed run is reset to `pending`
+                # and re-dispatched into the same directory, and rows are
+                # appended -- so without this the old header becomes a data row
+                # and the documented `df["Epoch"].max()` idiom returns the
+                # STRING 'Epoch' instead of the last epoch.
+                if not fields or not _is_int(fields[0]):
+                    continue
                 while len(fields) < len(header):
                     fields.append('')
                 writer.writerow(fields[:len(header)])
@@ -52,7 +72,7 @@ def log_progress_to_csv(csv_path, epoch, ce_loss, train_acc,
                         global_soft=None, local_soft=None,
                         lambda_global=0.0, lambda_local=0.0,
                         constraints=None, global_satisfied=True, local_satisfied=True,
-                        num_classes=7, kl_loss=0.0, local_constraints=None):
+                        num_classes=7, grad_norm=0.0, local_constraints=None):
     num_classes = len(constraints) if constraints else num_classes
     global_counts = global_counts or {i: 0 for i in range(num_classes)}
     global_soft = global_soft or {i: 0.0 for i in range(num_classes)}
@@ -61,8 +81,11 @@ def log_progress_to_csv(csv_path, epoch, ce_loss, train_acc,
     constraints = constraints or [UNLIMITED] * num_classes
     group_ids_sorted = sorted(local_constraints.keys()) if local_constraints else []
     row = [epoch + 1, f"{train_acc:.4f}", f"{ce_loss:.6f}", f"{global_loss:.6f}",
-           f"{local_loss:.6f}", f"{kl_loss:.6f}",
-           f"{lambda_global:.2f}", f"{lambda_local:.2f}",
+           f"{local_loss:.6f}", f"{grad_norm:.6f}",
+           # 4dp, not 2: lambda_step is 0.002 in most campaigns, so two decimals
+           # quantise the ratchet to 5x its own increment and a run that climbed
+           # 0.070 -> 0.074 reads as flat.
+           f"{lambda_global:.4f}", f"{lambda_local:.4f}",
            1 if global_satisfied else 0, 1 if local_satisfied else 0]
     for i in range(num_classes):
         limit = int(constraints[i]) if constraints[i] < UNLIMITED else 'inf'

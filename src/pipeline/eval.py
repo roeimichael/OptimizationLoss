@@ -42,7 +42,16 @@ def evaluate_with_posthoc(model, X_test, y_test, group_ids, global_con, local_co
         y_pred = precomputed_predictions
     else:
         y_pred = raw_pred
-        needs_adjustment = any(global_con[c] < UNLIMITED for c in constrained_classes)
+        # Both scopes. Gating on the GLOBAL cap alone meant a class capped only
+        # per-group was never adjusted post-hoc, so the arm reported whatever
+        # raw argmax produced and the local caps were simply not enforced. That
+        # is exactly the configuration the framework now prescribes for making
+        # the global scope testable (sweep G < L), and the local-only case.
+        needs_adjustment = (
+            any(global_con[c] < UNLIMITED for c in constrained_classes)
+            or any(bounds[c] < UNLIMITED
+                   for bounds in (local_con or {}).values()
+                   for c in constrained_classes))
         if needs_adjustment:
             y_pred, adj, posthoc_meta = targeted_correction(
                 y_proba, group_ids, global_con, local_con, constrained_classes,

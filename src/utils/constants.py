@@ -16,3 +16,8 @@ UNLIMITED = 1e10
 
 # Numerical safety floor for logarithms / divisions.
 EPSILON = 1e-8
+
+# Default rows per forward pass over the test set when a config does not
+# set `constraint_chunk_size`. Lived in tralo/train.py, where danits_lp
+# could not see it and hardcoded its own 256 instead.
+CONSTRAINT_CHUNK_SIZE = 256

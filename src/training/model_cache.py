@@ -2,6 +2,8 @@
 # Cache key is base_model_id (hash of warmup-relevant hyperparameters).
 
 import logging
+import os
+import tempfile
 import time
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -16,19 +18,40 @@ log = logging.getLogger(__name__)
 
 
 def get_cache_path(base_model_id: str) -> Path:
-    cache_dir = Path('model_cache')
-    cache_dir.mkdir(exist_ok=True)
+    """Repo-rooted, not CWD-relative: campaigns are launched from several
+    working directories and a relative path silently gave each one its own
+    cache (or, worse, made one dispatcher's cache invisible to the other)."""
+    cache_dir = Path(os.environ.get("OPTLOSS_MODEL_CACHE")
+                     or Path(__file__).resolve().parents[2] / "model_cache")
+    cache_dir.mkdir(parents=True, exist_ok=True)
     return cache_dir / f"{base_model_id}.pt"
 
 
 def save_to_cache(model: nn.Module, base_model_id: str, config: Dict[str, Any]) -> None:
+    """Write via a temp file + os.replace.
+
+    Two dispatchers (one per GPU) share one NFS home and therefore one cache
+    dir. Both can miss on the same id and both write it; a non-atomic torch.save
+    lets the second one land on top of the first mid-write, and the loser reads
+    a truncated file.
+    """
     path = get_cache_path(base_model_id)
-    torch.save({
+    payload = {
         'model_state_dict': model.state_dict(),
         'base_model_id': base_model_id,
+        'code_version': config.get('code_version'),
         'config': config,
-        'saved_at': time.strftime('%Y-%m-%d')
-    }, path)
+        'saved_at': time.strftime('%Y-%m-%d'),
+    }
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix='.tmp')
+    os.close(fd)
+    try:
+        torch.save(payload, tmp)
+        os.replace(tmp, path)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        raise
     log.info("Model cached: %s", base_model_id)
 
 
@@ -43,6 +66,16 @@ def load_from_cache(base_model_id: str, config: Dict[str, Any],
         default=None, context=f"Loading cached model {base_model_id}"
     )
     if ckpt is None or ckpt.get('base_model_id') != base_model_id:
+        return None
+    # base_model_id hashes the hyperparameters, not the code. A cache written
+    # before a change to what the warm-up OPTIMIZES is silently wrong -- exactly
+    # how the pre-ImageNet-normalization caches survived a norm change.
+    want = config.get('code_version')
+    got = ckpt.get('code_version')
+    if want and got != want:
+        log.warning("Cache %s was written by code_version %s but this run is "
+                    "%s -- retraining rather than reusing it.",
+                    base_model_id, got or "an unrecorded version", want)
         return None
     model = get_model(
         config['model_name'], input_dim=input_dim, n_classes=num_classes,

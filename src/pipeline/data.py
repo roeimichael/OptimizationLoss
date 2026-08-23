@@ -38,7 +38,16 @@ def load_data(config) -> LoadedData:
              time.time() - t0, X_train.shape, X_test.shape)
 
     ds = config.get("dataset_config", {})
-    constrained_class = ds.get("constrained_class", num_classes - 1)
+    # No default. data_loader raises on a missing constrained_class, so
+    # defaulting to num_classes-1 here meant the two halves of the same load
+    # disagreed -- and a silent cap on whichever class happens to be last is
+    # exactly the kind of thing that gets measured for a week before anyone
+    # notices.
+    if "constrained_class" not in ds:
+        raise KeyError(
+            "dataset_config.constrained_class is required; there is no sensible "
+            "default for which class to cap.")
+    constrained_class = ds["constrained_class"]
     if isinstance(constrained_class, (list, tuple)):
         constrained_classes = list(constrained_class)
     else:

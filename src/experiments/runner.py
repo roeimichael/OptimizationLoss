@@ -12,20 +12,40 @@ import torch
 from src.pipeline.data import load_data
 from src.utils.error_handler import logger, log_exception
 from src.methodologies.tralo.train import train as train_tralo                      # was tralo_fioretto
-from src.methodologies.tralo_bounded.train import train as train_tralo_bounded      # was tralo (vanilla baseline)
 from src.methodologies.fioretto_ldf.train import train as train_fioretto_ldf
 from src.methodologies.hounie_rcl.train import train as train_hounie_rcl
 from src.methodologies.heuristic.train import train as train_heuristic
-from src.methodologies.danits_lp.train import train as train_danits_lp
+from src.methodologies.danits_lp.train import train as train_danits_lp          # LP-LG clipper (Shifman)
+from src.methodologies.fioretto_alm.train import train as train_fioretto_alm    # ALM dual
+from src.methodologies.focal.train import train as train_focal                  # imbalanced + LP clip
+from src.methodologies.class_balanced.train import train as train_class_balanced
+from src.methodologies.logit_adjust.train import train as train_logit_adjust
 from src.pipeline.contracts import TrainInputs
 from src.pipeline.warmup import run_warmup
 from src.pipeline.eval import evaluate_with_posthoc, write_evaluation_outputs
 from src.training.logging import save_evaluation_metrics
 from src.utils.filesystem_manager import load_config_from_path, update_experiment_status
-from src.pipeline.setup import seed_all
+from src.pipeline.setup import seed_all, runtime_provenance
 from src.pipeline.io import save_results_to_config
 
 log = logging.getLogger(__name__)
+
+
+# The dispatch table. Module level so scripts.smoke_arms can execute every
+# arm without going through run_experiment -- a config audit cannot see a
+# runtime crash, and three arms once shipped with an undefined name here.
+TRAIN_FNS = {
+    'tralo': train_tralo,
+    'tralo_fioretto': train_tralo,              # ALIAS for backward-compat with completed configs
+    'fioretto_ldf': train_fioretto_ldf,
+    'hounie_rcl': train_hounie_rcl,
+    'heuristic': train_heuristic,               # the post-hoc clippers: clip / focal_clip
+    'danits_lp': train_danits_lp,               # LP-LG: the OTHER post-hoc clipper
+    'fioretto_alm': train_fioretto_alm,         # ALM: third dual-ascent baseline
+    'focal': train_focal,                       # imbalanced warm-up + LP clip
+    'class_balanced': train_class_balanced,
+    'logit_adjust': train_logit_adjust,
+}
 
 
 @logger()
@@ -62,6 +82,14 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
     warmup_time = time.time() - warmup_start
     log.info("TIMING warmup=%.2fs (%d epochs, cached=%s)",
              warmup_time, config['hyperparams']['warmup_epochs'], from_cache)
+    # Re-seed AFTER the warm-up. run_warmup either trains (drawing RNG for init,
+    # dropout and shuffling) or returns a cached model (drawing none), so
+    # otherwise the constraint phase starts from a different RNG state depending
+    # on whether the cache happened to be warm. The four trained arms share one
+    # base_model_id, so exactly one of them trains it and the other three load
+    # it -- same config, different batch order, and method effects here are
+    # ~0.1 pp.
+    seed_all(seed)
     constraint_start = time.time()
     train_inputs = TrainInputs(
         model=model,
@@ -77,15 +105,7 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         csv_log_path=csv_log_path,
     )
     methodology = config.get('methodology', 'tralo')
-    train_fns = {
-        'tralo': train_tralo,                       # NEW: breakthrough is the headline tralo
-        'tralo_bounded': train_tralo_bounded,       # legacy bounded-only baseline
-        'tralo_fioretto': train_tralo,              # ALIAS for backward-compat with completed configs
-        'fioretto_ldf': train_fioretto_ldf,
-        'hounie_rcl': train_hounie_rcl,
-        'heuristic': train_heuristic,
-        'danits_lp': train_danits_lp,
-    }
+    train_fns = TRAIN_FNS
     if methodology not in train_fns:
         raise ValueError(f"Unknown methodology for run_experiment: {methodology!r}")
     train_outputs = train_fns[methodology](train_inputs)
@@ -141,6 +161,10 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         'samples_adjusted': int(best_adj),
         'lp_fallback_used': best_meta.get('lp_fallback_used', False),
         'lp_fallback_candidates': best_meta.get('lp_fallback_candidates', 0),
+        # which GPU and which AMP regime: FP16+scaler SKIPS an overflowing
+        # optimizer step and BF16 does not, so the same config applies a
+        # different number of steps on the two servers
+        'runtime': runtime_provenance(device),
     })
     log.info("Done: accuracy=%.4f source=%s time=%.2fs path=%s",
              best_metrics['accuracy'], best_source, training_time, experiment_path)
@@ -156,8 +180,13 @@ def main() -> None:
     try:
         run_experiment(args.config_path)
     except Exception as e:
-        log_exception(e, context=f"Experiment: {experiment_path}")
-        update_experiment_status(str(experiment_path), 'pending')
+        # experiment_path= was missing, so _save_error_to_file never ran and a
+        # failure left NO trace on disk -- the run just reappeared as pending on
+        # the next dispatch, forever, with the reason only in a lost stdout.
+        log_exception(e, context=f"Experiment: {experiment_path}",
+                      experiment_path=experiment_path)
+        update_experiment_status(str(experiment_path), 'pending',
+                                 count_failure=True)
         exit(1)
 
 
