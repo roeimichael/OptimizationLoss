@@ -221,6 +221,18 @@ ROOT=results/uniform1
 #      it is common-mode -- read the arm against its own null, never against
 #      clip alone.
 #
+#    !! AND ONE MORE THING TO READ THE RESULT WITH. Every arm here resolves to
+#      constraint_step_rule=shared, under which a change to the COUNT FUNCTION
+#      reaches the weights through a 7.4% channel: two count gradients pointing
+#      in OPPOSITE directions (180 deg) deliver updates only 9.1 deg apart, a
+#      ~20x angular compression, monotone across the range. That is a POWER
+#      consideration for the tralo vs tralo_uniform contrast, NOT a predicted
+#      null -- a consistent per-step difference compounds over 29 steps, and
+#      1b-pre(6) shows compounding can separate arms whose per-step contrast is
+#      small. Practical consequence: `flag_live tralo tralo_uniform` is more
+#      load-bearing here than usual, and an underpowered uniform-vs-sum result
+#      should be attributed to the CHANNEL before it is attributed to the idea.
+#
 #    This block is advice, not an edit: the arm list below is UNCHANGED so the
 #    script still matches PIN=ea77ab80. Change both together or neither.
 # ═══════════════════════════════════════════════════════════════════════════

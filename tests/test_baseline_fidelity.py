@@ -2219,6 +2219,26 @@ def test_a_COIN_and_the_REAL_constraint_gradient_deliver_the_SAME_step():
         "FRAMEWORK 2(t) says so; if it has gone away, re-derive that." % zeroed[2])
     assert B1 == 0.9
 
+    # --- the same channel compresses a change to the COUNT FUNCTION, which is
+    #     what `tralo` vs `tralo_uniform` is. Monotone, and even a 180-degree
+    #     flip survives as single digits.
+    from scripts.ortho_survival import count_change_attenuation
+    outs = []
+    for cg in (0.99, 0.90, 0.50, 0.00, -1.00):
+        cu, ai, ao = count_change_attenuation(cg, np.random.default_rng(9), n=n)
+        outs.append(ao)
+        assert ao < ai, "attenuation inverted at cos=%.2f: %.2f -> %.2f" % (cg, ai, ao)
+    assert outs == sorted(outs), (
+        "delivered angle is no longer monotone in the count-function difference: %s"
+        % outs)
+    assert outs[-1] < 15.0, (
+        "two OPPOSITE count functions now deliver updates %.1f degrees apart. "
+        "FRAMEWORK 2(t) quotes ~9 as a POWER consideration for the staged "
+        "campaign; re-derive it before quoting." % outs[-1])
+    assert outs[-1] > 1.0, (
+        "the compression is now total (%.2f deg), which would make the probe "
+        "report a constant rather than a measurement" % outs[-1])
+
 
 def test_no_script_CRASHES_when_it_prints_its_own_conclusion():
     """A probe must not die on the console the user actually runs it on.

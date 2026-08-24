@@ -304,6 +304,42 @@ def dose_matched_delivery(rng, n=DIM, epoch=3):
     ]
 
 
+def count_change_attenuation(cos_gg, rng, n=DIM, epoch=3):
+    """How much of a CHANGE TO THE COUNT FUNCTION survives to the weights?
+
+    `tralo` and `tralo_uniform` differ in `g`. On the step where they first
+    diverge they share `m_CE`, so the update difference is `(1-b1)*(g'-g)/sqrt(v)`
+    against a total dominated by `b1*m_CE/sqrt(v)`.
+
+    `cos_gg` is how different the two count functions are. Returns
+    (cos(u, u'), input angle in degrees, output angle in degrees).
+
+    !! PER-STEP ONLY. This is a geometry, not an outcome. A consistent
+    difference COMPOUNDS over the 29 constraint steps, and 1b-pre(6) is direct
+    evidence that compounding can separate arms whose per-step contrast is
+    small. Read this as a power consideration, never as a predicted null -- the
+    version of this file that forgot that distinction produced a retraction.
+    """
+    m_n, _, sv_n = MEASURED[epoch]
+    m_ce = _unit(rng, n) * m_n
+    lv = rng.uniform(-1.0, 1.0, n)
+    sv = 10.0 ** lv
+    sv *= sv_n / np.linalg.norm(sv)
+
+    base = _unit(rng, n)
+    perp = _unit(rng, n)
+    perp -= (perp @ base) * base
+    perp /= np.linalg.norm(perp)
+
+    g = base * 1.0
+    gp = (cos_gg * base + np.sqrt(max(0.0, 1.0 - cos_gg ** 2)) * perp) * 1.0
+    u = (B1 * m_ce + (1.0 - B1) * g) / (sv + 1e-8)
+    up = (B1 * m_ce + (1.0 - B1) * gp) / (sv + 1e-8)
+    cu = float(u @ up) / (np.linalg.norm(u) * np.linalg.norm(up))
+    deg = lambda c: float(np.degrees(np.arccos(np.clip(c, -1.0, 1.0))))
+    return cu, deg(cos_gg), deg(cu)
+
+
 def self_test(rng):
     """The projection MUST survive when neither destroyer is active."""
     m_ce, g, sv = MEASURED[1]
@@ -501,6 +537,28 @@ def main():
     print("  2(s) has all 24 constraint terms NEGATIVE, so delivering more of")
     print("  the direction may deepen the damage. It makes the question")
     print("  answerable; it does not answer it.")
+
+    print()
+    print("  " + "=" * 66)
+    print("  AND WHAT THIS MEANS FOR COMPARING COUNT FUNCTIONS (tralo vs")
+    print("  tralo_uniform): a change to `g` reaches the weights through the")
+    print("  same 7.4% channel.")
+    print()
+    print("  %-14s %-14s %s" % ("cos(g, g')", "cos(u, u')", "angle in -> out"))
+    print("  " + "-" * 50)
+    for cg in (0.99, 0.90, 0.50, 0.00, -1.00):
+        cu, ai, ao = count_change_attenuation(cg, rng)
+        print("  %-14.2f %-14.6f %.1f deg -> %.2f deg" % (cg, cu, ai, ao))
+    print()
+    print("  Two count functions pointing in OPPOSITE directions differ by")
+    print("  only ~9 degrees once delivered -- a ~20x angular compression.")
+    print()
+    print("  !! POWER CONSIDERATION, NOT A PREDICTED NULL. This is per-step")
+    print("  geometry; a consistent difference COMPOUNDS over 29 steps, and")
+    print("  1b-pre(6) is direct evidence that compounding can separate arms")
+    print("  whose per-step contrast is small. The version of this reasoning")
+    print("  that forgot the distinction produced a retraction on 2026-08-25.")
+    print("  Keep `flag_live` (md5 across arms) as the gate it always was.")
 
 
 if __name__ == "__main__":

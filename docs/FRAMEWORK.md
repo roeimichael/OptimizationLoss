@@ -4093,6 +4093,36 @@ what its name says.** It is not inert -- `project_out` really does change
 Whatever `tralo_ortho` measures, it is not "the constraint no longer undoes CE
 progress", because the delivered step's CE inner product is unchanged to 0.0%.
 
+#### The same channel compresses a change to the COUNT FUNCTION
+
+`tralo` vs `tralo_uniform` differ in `g`. On the step where they first diverge
+they share `m_CE`, so the update difference is `(1-b1)*(g'-g)/sqrt(v)` against a
+total dominated by `b1*m_CE/sqrt(v)` -- the same 7.4% channel:
+
+| `cos(g, g')` | 0.99 | 0.90 | 0.50 | 0.00 | **-1.00** |
+|---|---|---|---|---|---|
+| angle between the count gradients | 8.1 deg | 25.8 deg | 60 deg | 90 deg | **180 deg** |
+| **angle between the DELIVERED updates** | 0.64 deg | 2.0 deg | 4.6 deg | 6.4 deg | **9.1 deg** |
+
+**Two count functions pointing in exactly OPPOSITE directions deliver updates
+9.1 degrees apart** -- a ~20x angular compression, monotone across the range.
+
+🛑 **READ THIS AS A POWER CONSIDERATION, NOT AS A PREDICTED NULL.** It is
+per-step geometry. A consistent difference **compounds over the 29 constraint
+steps**, and 1b-pre(6) is direct evidence that compounding *can* separate arms
+whose per-step contrast is small -- `linear` and a coin have non-overlapping
+distributions at `L50_G30`. Converting this geometry into an outcome claim is
+exactly the error retracted in 1b-pre(6) on the same day this was measured, and
+it is not to be repeated here.
+
+**What it does license:** `scripts/flag_live` (md5 across arms, CLAUDE.md
+rule 3) remains the gate, and it is *more* load-bearing than usual for the
+staged campaign -- an arm whose count change is compressed 20x per step is an
+arm whose predictions could plausibly come back identical. It also means the
+`uniform` vs `sum` contrast is being read through a channel that carries a small
+fraction of it, so an underpowered result there should be attributed to the
+channel before it is attributed to the idea.
+
 🛑 **CONSEQUENCE FOR THE STAGED CAMPAIGN.** `tralo_ortho` is one of the eight
 arms in `docs/launch_uniform.sh` (36 of its 288 runs). Its stated purpose is
 now void, so those runs should be **reallocated to seeds on the arms that do
