@@ -1630,3 +1630,58 @@ def test_uncF1_is_exactly_the_classes_the_constraint_never_names(tmp_path):
     assert abs(C * r["macroF1"] - (m * r["ccF1"] + (C - m) * wrong)) > 1e-6, (
         "the capped and uncapped classes score identically in this fixture, so "
         "it cannot distinguish a correct label list from a wrong one")
+
+
+def test_a_count_must_be_INVARIANT_to_the_logit_gauge():
+    """Softmax fixes the relative logits and nothing fixes the absolute ones.
+
+    `z` and `z + c` describe the same model: softmax is invariant to a per-item
+    additive shift, CE never penalises it, and nothing in training pins it. So
+    any count whose gradient CHANGES under that shift has a dose that drifts
+    with a quantity the objective does not control -- invisibly, which is this
+    project's signature failure (`constraint_grad_mode` across arms, `cut_temp`
+    across seeds, `hounie` at 1% of its intended dose).
+
+    Measured 2026-08-24 on a stored run, four gauges (`log p`, `log p` with the
+    row max at 0, `log p + 5`, `log p - 5`): the shipped `sum` count returns
+    2.361e-04 on p > 0.99 items in ALL FOUR, while the proposed one-vs-rest
+    count returns 4.518e-2 / 4.409e-2 / 1.955e-3 / 4.882e-2 -- a **23x** spread
+    from a shift that changes no prediction.
+
+    This is the SECOND independent reason `ovr` is closed. The first is that it
+    fixes a leak that costs nothing (2(s)): the softmax cross-term perturbs the
+    uncapped logits and provably cannot reorder them.
+
+    The gate is on `sum`, which must stay invariant. `ovr` is kept only as the
+    negative control that proves the check can fail.
+    """
+    import numpy as np
+    from scripts.collateral_probe import grad_count
+
+    rng = np.random.default_rng(11)
+    p = rng.random((300, 6)) ** 2
+    p = p / p.sum(axis=1, keepdims=True)
+    base = np.log(p)
+    capped = [1, 4]
+
+    def unit(z, mode):
+        g = grad_count(z, capped, mode)
+        return g / np.linalg.norm(g)
+
+    ref = unit(base, "sum")
+    for shift, label in ((5.0, "+5"), (-5.0, "-5"),
+                         (None, "row max -> 0")):
+        z = (base - base.max(axis=1, keepdims=True) if shift is None
+             else base + shift)
+        assert np.allclose(unit(z, "sum"), ref, atol=1e-9), (
+            "`sum`'s gradient moved under a gauge shift (%s). It is a function "
+            "of softmax(z) alone and cannot; if this fires, the count now reads "
+            "the absolute logits and its dose drifts with them" % label)
+
+    # NEGATIVE CONTROL: a sigmoid-on-logit count MUST move, or the check above
+    # is passing because the fixture cannot distinguish the two.
+    o_ref = unit(base, "ovr")
+    o_shift = unit(base + 5.0, "ovr")
+    assert not np.allclose(o_shift, o_ref, atol=1e-6), (
+        "even the one-vs-rest count was gauge-invariant here, so this fixture "
+        "cannot detect the defect it exists to detect")

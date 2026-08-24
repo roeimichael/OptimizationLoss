@@ -59,6 +59,9 @@ import os
 import numpy as np
 import torch
 
+from pathlib import Path
+
+from scripts.reachability import budgets
 from src.losses.transductive_loss import uniform_grad_count
 
 MODES = ("sum", "uniform", "ovr")
@@ -179,10 +182,14 @@ def main():
     a.add_argument("--target", type=int, default=20,
                    help="capped predictions each mode must remove before its "
                         "collateral is read -- the EFFECT is what is matched")
+    a.add_argument("--feasibility", action="store_true",
+                   help="ignore --target; ask instead whether each mode can "
+                        "remove this run's OWN excess (raw count - K), i.e. "
+                        "reach feasibility through the output layer at all")
     a.add_argument("--no-self-test", action="store_true")
     args = a.parse_args()
 
-    rows, unreachable = [], []
+    rows, unreachable, attempted = [], [], 0
     for raw, cfg in runs(args.campaign, args.arm):
         t = pd.read_csv(raw)
         cols = sorted((c for c in t.columns if c.startswith("Prob_Class_")),
@@ -196,13 +203,27 @@ def main():
         cell = "%s/%s" % (cfg.get("model_name"), cfg.get("constraint_tag"))
         if not args.no_self_test:
             self_test(z0, capped)
+        attempted += 1
+        target = args.target
+        if args.feasibility:
+            # The excess the model ACTUALLY has to shed, not a round number.
+            # `budgets` reads the training log first and falls back to the
+            # config, because a post-hoc arm logs `Limit_Class = inf` and a
+            # caller that skips it drops the control silently.
+            K = budgets(Path(raw).parent)
+            pred = softmax(z0).argmax(1)
+            target = int(sum(max(0, int((pred == c).sum()) - int(K[c]))
+                             for c in capped if c in K))
+            if target <= 0:
+                attempted -= 1
+                continue      # already feasible: nothing to reach
         for mode in MODES:
-            eta = eta_for(z0, capped, mode, args.target)
+            eta = eta_for(z0, capped, mode, target)
             if eta is None:
                 unreachable.append((cell, mode))
                 continue
             r = report(z0, step(z0, capped, mode, eta), capped)
-            r.update(mode=mode, cell=cell, eta=eta)
+            r.update(mode=mode, cell=cell, eta=eta, target=target)
             rows.append(r)
 
     if not rows:
@@ -210,31 +231,38 @@ def main():
                          % (args.campaign, args.arm))
 
     df = pd.DataFrame(rows)
-    n_runs = len(df[df["mode"] == "sum"])
+    n_runs = attempted
     print("=" * 80)
-    print("COLLATERAL AT MATCHED EFFECT  --  arm=%s, %d run(s), target=%d "
-          "capped preds removed" % (args.arm, n_runs, args.target))
+    if args.feasibility:
+        print("CAN THE COUNT REACH FEASIBILITY AT ALL?  --  arm=%s, %d run(s)"
+              % (args.arm, n_runs))
+        print("  target is each run's OWN excess (raw count - K), mean %.1f "
+              "items" % df["target"].mean())
+    else:
+        print("COLLATERAL AT MATCHED EFFECT  --  arm=%s, %d run(s), target=%d "
+              "capped preds removed" % (args.arm, n_runs, args.target))
     print("  self-test PASSED: `ovr` moves no uncapped logit, `sum` does, and")
     print("  a zero-size step moves nothing.")
     print("=" * 80)
-    print("  %-9s %8s %14s %16s %16s"
-          % ("mode", "runs", "eta needed", "unc logit max", "unc->unc flips"))
+    print("  %-9s %12s %14s %16s %16s"
+          % ("mode", "reached", "eta needed", "unc logit max", "unc->unc flips"))
     for mode in MODES:
-        s = df[df["mode"] == mode]
-        if s.empty:
-            print("  %-9s %8d   -- never reaches the target at any dose --"
-                  % (mode, 0))
+        sub = df[df["mode"] == mode]
+        reached = "%d/%d" % (len(sub), n_runs)
+        if sub.empty:
+            print("  %-9s %12s   -- never reaches it at eta <= %.0f --"
+                  % (mode, reached, ETA_MAX))
             continue
-        print("  %-9s %8d %14.3f %16.6f %16.2f"
-              % (mode, len(s), s["eta"].mean(), s["unc_logit_moved"].mean(),
-                 s["unc_to_unc_flips"].mean()))
+        print("  %-9s %12s %14.3f %16.6f %16.2f"
+              % (mode, reached, sub["eta"].mean(),
+                 sub["unc_logit_moved"].mean(), sub["unc_to_unc_flips"].mean()))
     if unreachable:
-        seen = sorted({m for _, m in unreachable})
-        print("  UNREACHABLE for %s in %d cell(s): the mode cannot remove %d "
-              "capped" % (",".join(seen), len(unreachable), args.target))
-        print("  predictions at eta <= %.0f, by which point the logits have "
-              "moved" % ETA_MAX)
-        print("  tens of units. That is a verdict, not a gap.")
+        print("  A run counted as NOT reached could not get there at any")
+        print("  eta <= %.0f, by which point the logits have moved tens of"
+              % ETA_MAX)
+        print("  units. That is a verdict, not a gap -- and the averages above")
+        print("  are over the runs that DID reach it, so a mode with a low")
+        print("  `reached` is being flattered by the rows it is missing.")
     print()
     print("  `unc->unc flips` is the damage: an item that preferred one")
     print("  UNCAPPED class and now prefers a DIFFERENT uncapped one. It is")

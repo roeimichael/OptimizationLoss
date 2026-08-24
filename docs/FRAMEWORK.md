@@ -1915,7 +1915,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 361 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 362 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1923,7 +1923,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (361 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (362 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -3638,6 +3638,62 @@ Zero flips across a 50x dose range, at the end of which the uncapped logits
 have moved **79 units**. The cross-term perturbs the uncapped block and
 provably cannot reorder it, so `ovr` removes a leak that costs nothing.
 
+⛔⛔ **AND A SECOND, INDEPENDENT REASON `ovr` IS CLOSED: IT IS NOT
+GAUGE-INVARIANT.** `z` and `z + c` describe the same model -- softmax is
+invariant to a per-item additive shift, CE never penalises one, and nothing in
+training pins the absolute logit scale. `S_c = sum_i softmax(z)_ic` is a
+function of `softmax(z)` alone and is therefore invariant by construction.
+`S_c = sum_i sigmoid(z_ic)` reads the absolute logits and is not. Measured on a
+stored run across four gauges (`log p`; `log p` with the row max at 0;
+`log p + 5`; `log p - 5`), the push on a `p > 0.99` capped item:
+
+| count | log p | max->0 | +5 | -5 |
+|---|---|---|---|---|
+| `sum` | 2.361e-04 | 2.361e-04 | 2.361e-04 | 2.361e-04 |
+| `ovr` | 4.518e-02 | 4.409e-02 | **1.955e-03** | 4.882e-02 |
+
+**23x from a shift that changes no prediction.** A count whose dose drifts with
+a quantity the objective does not control is the invisible-dose failure this
+project has hit three times already (`constraint_grad_mode` across arms,
+`cut_temp` across seeds, `hounie` at 1% of its intended dose). Gated by
+`test_a_count_must_be_INVARIANT_to_the_logit_gauge`, with `ovr` kept only as
+the negative control that proves the check can fire.
+
+⚠️ **SO READ THE NEXT TABLE'S `ovr` COLUMN AS GAUGE-BOUND.** Its `sum` column
+is invariant and is the result.
+
+#### 2(a2) QUANTIFIED: where the shipped count's push actually goes
+
+Unit-normalised push on the capped logit, by how confident that item is
+(56 stored runs). 2(a2) established that the penalty's gradient vanishes on the
+worst violations; this is that statement in numbers:
+
+| `p` on the capped class | `sum` | `ovr` (gauge-bound) |
+|---|---|---|
+| 0.00 - 0.50 | 1.263e-03 | 1.093e-03 |
+| 0.50 - 0.90 | **3.826e-02** | 4.466e-02 |
+| 0.90 - 0.99 | 8.530e-03 | 4.620e-02 |
+| **0.99 - 1.00** | **3.739e-04** | 4.623e-02 |
+
+**`sum`'s push at `p > 0.99` is 102x smaller than its own peak** -- and a
+`p > 0.99` capped prediction is exactly the violation the cap most needs
+removed. The constraint is strongest on the items it least needs to move.
+
+Consequence, measured with `--feasibility` (each run stepped until it sheds its
+OWN excess, mean 207.6 items): at `eta = 4096`, where the logits have moved
+tens of units and which is orders above anything training delivers, `sum`
+leaves a **residual excess of 100.4 items and reaches feasibility in 25 of
+56 runs**. The rest is immovable along that direction at any dose.
+
+✅ **AND IT IS NOT THE SEE-SAW -- that was tested and REFUTED.** The obvious
+explanation is 2(a)'s cross-term pushing one capped class up as another goes
+down. It does not happen: **no capped class rose in 56 of 56 runs** under
+`sum`. All of them fall, and simply not far enough -- e.g. counts
+`[92, 180, 184]` against `K = [52, 110, 112]` land at `[56, 115, 106]`, still
+over on two classes. The residual is the confident items, not an exchange.
+(`ovr` is the one that shows a rise, in 5 of 56, because suppressing only the
+class it targets lets a sibling capped class take the vacated items.)
+
 🔑 **THEREFORE THE uncF1 DAMAGE DOES NOT COME THROUGH THE OUTPUT LAYER.** It
 comes through the **shared backbone** -- 29 epochs of constraint gradient
 flowing into the features, which moves every class because every class reads
@@ -5006,7 +5062,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             361 tests, ~105 s, no dataset required
+tests/             362 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
