@@ -2415,3 +2415,46 @@ def test_the_straddle_probe_BASELINE_reports_its_own_coverage():
     assert "n_base_skipped" in src, (
         "straddle_probe no longer counts skipped baseline runs, so it cannot "
         "warn that the two blocks do not cover the same runs")
+
+
+def test_family_split_does_not_count_an_UNMEASURABLE_cell_as_a_LOSS():
+    """`nan > 0` is False, so a NaN cell was silently scored against the arm.
+
+    full_panel returns np.nan for uncF1 with no capped classes, for ConfGap when
+    every item is correct, and for AP/AUROC in degenerate cells. Counting those
+    in the denominator turns "2 won, 3 unmeasurable, 4 lost" into "2/9", which
+    reads as a much weaker result than the data support -- or a much stronger
+    one, depending on which way the NaNs fell.
+    """
+    import io as _io
+    import numpy as np
+
+    src = _io.open("scripts/family_split.py", encoding="utf-8").read()
+    tree = ast.parse(src)
+    fn = [n for n in ast.walk(tree)
+          if isinstance(n, ast.FunctionDef) and n.name == "main"]
+    assert fn, "main() vanished from family_split"
+
+    names = {n.id for n in ast.walk(fn[0]) if isinstance(n, ast.Name)}
+    assert "nan_cells" in names, (
+        "family_split no longer separates unmeasurable cells, so a NaN metric "
+        "is counted as a lost cell again")
+    assert any(isinstance(n, ast.Attribute) and n.attr == "isfinite"
+               for n in ast.walk(fn[0])), (
+        "the win count no longer tests np.isfinite, so `nan > 0` decides it")
+
+    # The arithmetic the fix rests on, measured rather than assumed.
+    assert not (np.nan > 0), "nan > 0 is now True, which changes the whole fix"
+    vals = {"a": 0.5, "b": float("nan"), "c": -0.2}
+    won = sum(1 for v in vals.values() if np.isfinite(v) and v > 0)
+    res = sum(1 for v in vals.values() if np.isfinite(v))
+    assert (won, res) == (1, 2), (won, res)
+
+    # And the drop of incomplete cell-seeds must be reported, not just done.
+    m = [n for n in ast.walk(tree)
+         if isinstance(n, ast.FunctionDef) and n.name == "matched"]
+    assert m, "matched() vanished"
+    assert any(isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+               and n.func.id == "print" for n in ast.walk(m[0])), (
+        "matched() drops incomplete cell-seeds without reporting how many. "
+        "'16 matched' reads very differently when 18 existed than when 200 did")

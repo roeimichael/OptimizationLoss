@@ -1951,6 +1951,20 @@ a number over the smaller set, with the header still describing the larger one.
 | `scripts/check_parity.py` | the protocol's full `warmup_identity_keys` list | the gate narrows to **one** key and still prints **PARITY OK** | ✅ warns that the gate is now weaker than PARITY OK implies |
 | `scripts/variance_probe.py` | any run whose metric will not parse | this is the **NOISE FLOOR**, which every effect in this project is judged against (0.0358 macro-F1 = 21x the effect it was measuring). A spread over a silently smaller set understates it | ✅ prints how many runs were dropped per metric, and says so explicitly when fewer than 2 remain |
 
+**Two more of the same class in `family_split`, found in the same sweep:**
+
+* `won = sum(1 for c in percell if np.mean(percell[c]) > 0)` counted a **NaN**
+  cell as a LOSS, because `nan > 0` is False. `full_panel` returns NaN for
+  `uncF1` with no capped classes, for `ConfGap` when every item is correct, and
+  for `AP`/`AUROC` in degenerate cells -- so "2 won, 3 unmeasurable, 4 lost" was
+  printed as **`2/9`**. ✅ unmeasurable cells are now excluded from the
+  denominator and counted separately in the line.
+* `matched()` dropped every incomplete cell-seed **silently**. Its own docstring
+  records that unmatched pooling once compared `clip` on 7 cells against a
+  treatment on 6. ✅ it now prints how many were dropped and which arm was
+  missing -- "16 matched" reads very differently when 18 existed than when 200
+  did.
+
 ✅ **Four other silent swallows were examined and KEPT**, each with a recorded
 reason: feature-detecting an optional torch API (`bisect_determinism`), the
 error writer that must not raise while recording a failure
@@ -2030,7 +2044,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 374 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 375 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -2038,7 +2052,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (374 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (375 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -5477,7 +5491,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             374 tests, ~105 s, no dataset required
+tests/             375 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

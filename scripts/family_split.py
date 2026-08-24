@@ -70,7 +70,21 @@ def matched(rows, arms):
     seeds = collections.defaultdict(set)
     for (cell, arm, seed) in rows:
         seeds[(cell, seed)].add(arm)
-    return sorted(k for k, have in seeds.items() if set(arms) <= have)
+    keep = sorted(k for k, have in seeds.items() if set(arms) <= have)
+    # Report the DROP. "16 matched cell-seeds" reads very differently when 18
+    # existed than when 200 did, and silence made the two look identical.
+    dropped = collections.Counter()
+    for k, have in seeds.items():
+        if set(arms) <= have:
+            continue
+        for a in sorted(set(arms) - have):
+            dropped[a] += 1
+    if dropped:
+        print("  %d of %d cell-seed(s) DROPPED as incomplete. Missing arm "
+              "counts: %s" % (len(seeds) - len(keep), len(seeds),
+                              ", ".join("%s x%d" % (a, n)
+                                        for a, n in dropped.most_common())))
+    return keep
 
 
 def null_identity(rows, keys, nulls):
@@ -147,10 +161,19 @@ def main():
                 cons.append(signed(metric, v_a - v_n))
                 tot.append(signed(metric, v_a - v_c))
                 percell[c].append(signed(metric, v_a - v_n))
-            won = sum(1 for c in percell if np.mean(percell[c]) > 0)
-            print("     %-10s %+12.4f %+12.4f %+12.4f   %d/%d"
+            # A cell whose metric is NaN is UNMEASURABLE, not a loss. `nan > 0`
+            # is False, so counting it in the denominator would have reported
+            # "2/9" for a contrast that actually resolved 6 cells -- the
+            # absent-data-reads-as-a-value class, in the win column.
+            cellmeans = {c: np.mean(percell[c]) for c in percell}
+            nan_cells = [c for c, v in cellmeans.items() if not np.isfinite(v)]
+            won = sum(1 for v in cellmeans.values() if np.isfinite(v) and v > 0)
+            res = len(cellmeans) - len(nan_cells)
+            print("     %-10s %+12.4f %+12.4f %+12.4f   %d/%d%s"
                   % (fam, np.mean(comp), np.mean(cons), np.mean(tot),
-                     won, len(percell)))
+                     won, res,
+                     "  (%d cell(s) UNMEASURABLE, excluded)" % len(nan_cells)
+                     if nan_cells else ""))
         if args.floor:
             fk = [(c, s) for c, s in keys
                   if (c, args.floor, s) in rows and (c, "tralo_null", s) in rows]
