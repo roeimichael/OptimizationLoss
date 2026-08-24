@@ -179,8 +179,9 @@
 set -euo pipefail
 
 ROOT=results/uniform1
-PIN=eb453a57                 # the commit carrying BOTH candidate fixes:
-                             # soft_count_mode uniform and ortho_project.
+PIN=ea77ab80                 # the commit carrying ALL THREE arms:
+                             # soft_count_mode uniform, ortho_project and
+                             # head_only.
                              # Pinned, not "latest": a campaign
                              # generated on one commit and run on another is
                              # the split this project just spent a morning

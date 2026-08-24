@@ -3926,6 +3926,36 @@ rather than lowering it:
   audited after the fact;
 * **pre-restore metrics**, or the restore re-runs the same compression.
 
+🛑 **AND IT SHIPS WITH ITS OWN CONTROL, `tralo_head`, WHICH IS NOT OPTIONAL.**
+An `ortho` null read alone means either "the projection is too weak" or "the
+backbone was never the culprit" -- opposite conclusions from one table, and
+exactly the shape of null this project has misread before. `tralo_head`
+confines the constraint gradient to the classifier head so the backbone cannot
+move under it at all, testing 2(s)'s hypothesis outright instead of trying to
+fix it. CE still trains the whole model, so the +0.0145 compute term is intact.
+Read together they separate:
+
+| `tralo_head` | `tralo_ortho` | conclusion |
+|---|---|---|
+| recovers | null | real effect, wrong tool -- keep the mechanism, change the instrument |
+| recovers | recovers | the backbone is confirmed as the channel |
+| null | null | **the backbone hypothesis is dead.** The damage is intrinsic to training under a count penalty, and the post-hoc clipper is the honest recommendation |
+
+The head is identified BY SHAPE -- the single `nn.Linear` emitting `n_classes`
+logits -- because the four backbones name it `classifier` / `fc` / `heads` and
+a name list breaks on the fifth. It REFUSES on ambiguity rather than confining
+the constraint to an arbitrary layer while still logging `head_only: true`.
+Verified on all four: exactly weight + bias, 10,248 / 10,248 / 3,528 / 6,152
+parameters.
+
+⚠️ **The masking runs BEFORE the norm bound**, so the arm differs from its
+control in the constraint's SUPPORT and not its dose -- but the whole step then
+lands on **0.09-0.46%** of the parameters in this campaign's three backbones,
+two to three orders more per-parameter movement than `tralo` delivers there.
+Holding the per-parameter step instead would shrink the arm's total step below
+its control's and fail `check_parity`. The convention is total norm; the
+consequence is stated so it is read with the result.
+
 Until that campaign exists, the honest entry for `ortho` is **OPEN**, and this
 section replaces its listing among the rejected.
 
