@@ -326,9 +326,26 @@ against the four the shipped PDF draws.
 
 ⇒ **`fig_deployment` as shipped shows a `joint (no edits)` arm and a
 `global cap only` arm; `fig_octmnist` as shipped shows an `ALM` series. No
-script in this repository draws any of them.** Those figures were made by
-earlier versions of the generators, and the current versions are not a
-regeneration of them but a different figure.
+script in this repository draws any of them, AND THE CORPUS DOES NOT CONTAIN
+THEM EITHER** -- `corpus_final.csv`'s `method` column holds exactly six values
+(`danits_lp`, `fioretto_ldf`, `heuristic`, `hounie_rcl`, `tralo`,
+`tralo_bounded`), which is precisely `make_deployment_fig.py`'s hardcoded
+`METHOD_ORDER`. So those panels cannot be produced from the committed data by
+the committed code at any setting: **their input no longer exists**, and that
+is not recoverable, only recorded.
+
+🛑 **AND THE DEPLOYMENT FIGURE WOULD NOW SILENTLY DROP A CLAIMED BACKBONE.**
+`make_deployment_fig.py` hardcodes
+
+    BACKBONE_ORDER = ["MobileNetV3", "RegNetY400MF", "ViTB16"]
+
+-- three. The shipped PDF draws **`MobileNetV2` as well**, `corpus_final.csv`
+carries it (its `model` column holds seven: `EfficientNetB0`, `MobileNetV2`,
+`MobileNetV3`, `RegNetY400MF`, `ResNet18`, `ShuffleNetV2`, `ViTB16`), and
+`CLAUDE.md` names MobileNetV2 as one of the four backbones **the paper claims**.
+Re-running this generator therefore produces a figure with one fewer claimed
+backbone than the one in the manuscript, and nothing warns. That is a live
+hazard the next time anyone regenerates figures before a submission.
 
 🛑 **`joint` IS A REJECTED ARM** (FRAMEWORK 2: `joint_objective` holds the cap
 98.8% of epochs and overfits, AP -0.067). A shipped figure displaying it is not
