@@ -1500,6 +1500,18 @@ appears anywhere is `ece`, in four auxiliary files. The paper of record mentions
 `cc-F1` 45 times and `macro-F1` 41 times, and AUROC, AP, Brier and NLL zero
 times each.
 
+🔴 **AND IT CARRIES NO `_null` ARM EITHER -- verified against the file
+2026-08-24.** The `method` column holds exactly six values: `danits_lp` (1247),
+`fioretto_ldf` (1230), `heuristic` (1249), `hounie_rcl` (1238), `tralo` (1310)
+and `tralo_bounded` (1300). **Not one lambda = 0 twin in 7,574 rows.** Every
+trained method there gets 29 constraint epochs the post-hoc arms do not, so
+each corpus number is `compute + constraint` as a single quantity and **no row
+in the paper's evidence base can attribute its margin to the constraint**.
+Section 2(s) separates the two on `results/xfam1`, which does carry the twins,
+and finds the constraint half NEGATIVE for all three dual families on all eight
+metrics. This is not repairable by re-analysis: the corpus is a frozen input
+and the runs it would need were never made.
+
 **Why this is structural and not an omission.** Section 2 established that a
 post-hoc allocator thresholds the ranking at the budget, so the score IS the
 ranking and training can only beat allocation by changing the ORDER. 2(p)
@@ -1900,7 +1912,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 353 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 356 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1908,7 +1920,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (353 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (356 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -3490,6 +3502,144 @@ Launch: `docs/launch_uniform.sh` (9 cells, 6 arms, 4 seeds = 216 runs; 9 cells
 is deliberate -- sign-test floor 0.00391 against BH 0.00455, so unlike iwc1/iwc2
 it can return a CALLABLE verdict). Read with `order_probe --evictions` FIRST.
 
+### (s) 🔴🔴🔴 EVERY DUAL'S MARGIN IS THE 29 EPOCHS, AND THE FAMILY ORDERING IS COLLATERAL DAMAGE
+
+`results/xfam1`, dsisco02, scored 2026-08-24 at 141 of 324 runs. iwildcam x
+{MobileNetV2, MobileNetV3, RegNetY400MF} x {L20_G50, L30_G50, L50_G30} = 9
+cells, 16 matched cell-seeds, nine arms including **a lambda=0 twin for every
+dual family** -- the thing the 7,574-row corpus does not have in a single row
+(see the corpus audit in section 1), and without which no published number in
+this project could be attributed to a constraint rather than to compute.
+
+Read with `python -m scripts.family_split --campaign results/xfam1`.
+
+🔑 **THE POSITIVE CONTROL IS EXACT, AND IT COMES FIRST.** At lambda = 0 the
+dual family is irrelevant: same cached warm-up, same allocator, same seed, no
+constraint gradient. So `tralo_null`, `fioretto_null` and `hounie_null` must be
+the SAME RUN. They are -- **byte-identical raw predictions in 12 of 12
+cell-seeds** (md5, CLAUDE.md rule 3), while `tralo_reseed` and `clip` differ
+from them everywhere. Three consequences, all load-bearing:
+
+* the compute term is **one number**, not one per family, by construction;
+* the per-family constraint term is therefore a clean difference;
+* two thirds of the null runs in a cross-family campaign are **redundant
+  compute** -- the next one wants ONE full null plus a one-cell identity
+  check across families, not one null per family, which frees 64 of 324 runs.
+
+`family_split` checks the digests and **refuses to print a table** if they ever
+diverge, because then something other than lambda differs between the families
+and every constraint term below would be contaminated.
+
+#### The decomposition
+
+`total = compute + constraint`, identically, per seed:
+
+    total      = arm      - clip        what the manuscript reports
+    compute    = arm_null - clip        29 epochs at lambda = 0
+    constraint = arm      - arm_null    the method's OWN contribution
+
+| metric | compute (all three) | constraint `tralo` | constraint `fioretto` | constraint `hounie` | reseed floor |
+|---|---|---|---|---|---|
+| macroF1 | **+0.0145** | -0.0113 | -0.0026 | -0.0092 | -0.0044 |
+| uncF1 | +0.0194 | **-0.0144** | **-0.0027** | **-0.0114** | -0.0058 |
+| ccF1 | -0.0003 | -0.0020 | -0.0023 | -0.0028 | -0.0001 |
+| AP | -0.0060 | **-0.0609** | **-0.1218** | **-0.1362** | +0.0241 |
+| AUROC | -0.0047 | -0.0102 | -0.0454 | -0.0474 | +0.0089 |
+| ECE | -0.0006 | -0.0296 | -0.0497 | -0.0504 | -0.0036 |
+| Brier | -0.0020 | -0.0566 | -0.1003 | -0.0973 | -0.0032 |
+| NLL | -0.0477 | -0.3692 | -0.6093 | -0.5467 | -0.0969 |
+
+Signs are oriented so **+ is better** on every row, including the three where
+lower is better natively. `ccF1` converts at **5.2 items per 0.01** here.
+
+🛑 **NOT ONE OF THE 24 CONSTRAINT TERMS IS POSITIVE.** Eight metrics, three
+families, and every method's entire margin over `clip` is the 29 epochs that
+every trained arm gets and the post-hoc clipper does not. This is section 3's
+"regime beats method" measured directly instead of inferred -- and it is the
+first time the inference has had the twin it needs.
+
+🔑 **THE PUBLISHED ORDERING IS A DAMAGE RANKING WEARING A BENEFIT RANKING'S
+CLOTHES.** On macro-F1 the totals are `fioretto` +0.0118 > `hounie` +0.0052 >
+`tralo` +0.0031, which is exactly the manuscript's ordering. The compute term
+is identical across the three, so that ordering is `0.0145` minus the damage --
+i.e. it ranks the families by how little each one spoils a gain none of them
+produced. **TraLO is not "improving less". It is subtracting more.**
+
+⚠️ **AND `fioretto`'s ADVANTAGE SITS BELOW THE NOISE FLOOR.** `tralo_reseed`
+-- the same null with one RNG draw perturbed and nothing else -- moves macroF1
+**-0.0044**, and `fioretto`'s whole constraint term is **-0.0026**. So
+"fioretto's constraint is gentle on macro-F1" is not distinguishable from
+"fioretto's constraint does nothing to macro-F1", and the metric the paper
+headlines cannot separate the two.
+
+#### The ordering REVERSES on the only channel an allocator can see
+
+A top-K allocator reads the ranking and nothing else; a calibration move
+provably leaves every top-K set untouched (section 2(j)). On AP the constraint
+terms are `tralo` **-0.0609** against `fioretto` -0.1218 and `hounie` -0.1362
+-- TraLO damages the ranking **2.0x and 2.2x less**. On AUROC it is -0.0102
+against -0.0454 and -0.0474: **4.5x and 4.6x less**.
+
+**TraLO is the gentlest of the three on the representation and the harshest on
+the composite, and nobody was scoring the channel where it wins.** That is not
+a rescue -- all three are still negative, and negative is the finding -- but it
+says the shortfall is not in the constraint machinery TraLO was designed
+around.
+
+#### Where the difference actually lives
+
+`ccF1` and `uncF1` split macro-F1 into the classes the constraint names and the
+six it does not. The capped-class terms are **-0.0020 / -0.0023 / -0.0028** --
+about one item, near-identical, and all three inside each other's noise. The
+uncapped terms are **-0.0144 / -0.0027 / -0.0114**, a **5.3x spread**.
+
+🔑 **All three dual families do the same negligible thing to the classes the
+constraint is about, and differ five-fold in what they do to the classes it
+never mentions.** The entire cross-family story is collateral damage.
+
+#### Mechanism, and the fix it names
+
+The shipped count is `S_c = sum_i softmax(z)_ic`, so
+`dS_c/dz_k = -sum_i p_ic p_ik` is **nonzero for every uncapped k**: one push on
+a capped class moves all eight logits, and the amount each item's uncapped
+block moves scales with `p_ic`. That is a per-item disturbance of classes the
+objective never mentions, which is exactly what `d uncF1` measures.
+
+A one-vs-rest count `S_c = sum_i sigmoid(z_ic)` has `dS_c/dz_k = 0` **exactly**
+for `k != c`. The uncapped logits are then untouched at ANY dose, so no item
+can change which uncapped class it prefers; lowering `z_c` can only convert a
+`predicted c` item into `predicted k`, which is the intended effect of a cap.
+The logits are already in hand at `src/methodologies/tralo/train.py:234`, so
+this is implementable without a pipeline change.
+
+⚠️ **This is NOT section 2(a)'s renormalisation and it is not measured yet.**
+2(a) zeroes the **capped-vs-capped** cross-term and was scored on *count
+movement*, which is not a metric (rule 5); it came out 0.95x and was shelved.
+This is the **capped-vs-uncapped** term scored on *uncapped F1*, a different
+quantity against a different objective. The offline price is
+`scripts/collateral_probe.py`, which steps each mode until it removes the SAME
+number of capped predictions and reads the uncapped damage there -- **matched
+on effect, not on dose**, because at one unit-norm step no mode flips a single
+uncapped prediction and an equal-dose read returns 0 vs 0 and says nothing.
+
+Gated by `test_ovr_count_has_ZERO_gradient_outside_the_capped_columns` (with
+`sum` as the negative control: if it had no uncapped gradient either there
+would be nothing to fix) and by
+`test_family_split_REFUSES_when_the_zero_lambda_twins_are_not_one_run`.
+
+#### What this does NOT support
+
+* **Nothing outside iwildcam.** One dataset, so the clustered-by-dataset unit
+  is p = 1.000 by construction. Every p below is a CELL-level sign test.
+* **The callable subset is smaller than the table.** Surviving BH at 0/9 cells,
+  p = 0.0039: ECE, Brier and NLL for all three families, and AP and AUROC for
+  `fioretto` and `hounie`. `tralo`'s AP loss is 1/8 cells, p = 0.0273, BH
+  q = 0.060 -- **directional, not called**. Every macroF1 and ccF1 contrast is
+  UNDERPOWERED at the seed level (53, 9 and 19 seeds per cell needed).
+* **16 matched cell-seeds is 2 seeds in 6 cells and 1 in 3.** The campaign is
+  at 141 of 324 and the table must be re-read at 4 seeds before any of the
+  underpowered lines is quoted.
+
 ---
 
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
@@ -4679,7 +4829,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             353 tests, ~105 s, no dataset required
+tests/             356 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

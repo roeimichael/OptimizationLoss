@@ -1262,3 +1262,119 @@ def test_headroom_uses_the_BINDING_budget_not_the_inert_global():
     L_open = dict(L)
     L_open[9] = {2: UNLIMITED}
     assert effective_budget(G, L_open, 2) == 185
+
+
+def test_ovr_count_has_ZERO_gradient_outside_the_capped_columns():
+    """The one-vs-rest count's entire claim, checked rather than asserted.
+
+    `scripts/family_split.py` on `results/xfam1` (16 matched cell-seeds, 9
+    cells, 2026-08-24) found the three dual families damage the CAPPED classes
+    near-identically (-0.0020 to -0.0028 ccF1, about one item) and differ 5.3x
+    in what they do to the six classes the constraint never names (-0.0027 to
+    -0.0144 uncF1). The published ordering of the families is that collateral.
+
+    The shipped count is `S_c = sum_i softmax(z)_ic`, whose derivative
+    `-sum_i p_ic p_ik` is nonzero for EVERY uncapped k, so one capped-class
+    push moves all eight logits. `S_c = sum_i sigmoid(z_ic)` cannot: its
+    support is the capped columns only, at any dose. That is the whole reason
+    to consider it, so it is a gate and not a comment.
+    """
+    import numpy as np
+    from scripts.collateral_probe import grad_count
+
+    rng = np.random.default_rng(0)
+    z = rng.normal(size=(64, 8))
+    capped, unc = [2, 7], [0, 1, 3, 4, 5, 6]
+
+    g_ovr = grad_count(z, capped, "ovr")
+    assert np.all(g_ovr[:, unc] == 0.0), (
+        "`ovr` moved an uncapped logit; its only claim is that it cannot")
+    assert np.any(g_ovr[:, capped] != 0.0), (
+        "`ovr` moved nothing at all -- an inert mode passes the line above "
+        "trivially, which is this project's most frequent failure mode")
+
+    # NEGATIVE CONTROL: the shipped count MUST fail the same assertion, or
+    # there is no collateral to remove and the whole direction is void.
+    g_sum = grad_count(z, capped, "sum")
+    assert np.any(g_sum[:, unc] != 0.0), (
+        "`sum` has no uncapped gradient either, so `ovr` fixes nothing")
+
+
+def test_the_collateral_probe_does_not_REDERIVE_a_gradient_src_already_owns():
+    """It did, for one revision on 2026-08-24, and got it wrong.
+
+    The hand-written `uniform` gradient divided by `p(1-p)`, which explodes for
+    the small `p` that most items carry, so after unit-normalisation the term
+    that actually lowers the capped logit was negligible: the probe reported
+    the arm moving the capped count by -0.0000. `results/uniform1` was already
+    generated, gated and staged to launch on that arm. A probe that silently
+    prices a staged campaign at zero is worse than no probe.
+
+    The fix is structural rather than a corrected formula: autograd the
+    SHIPPED function, so a change in `src` cannot leave this file behind.
+    """
+    import ast
+    import io
+    import numpy as np
+
+    src = io.open("scripts/collateral_probe.py", encoding="utf-8").read()
+    tree = ast.parse(src)
+    imported = {
+        alias.name
+        for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)
+        and (node.module or "").startswith("src.losses")
+        for alias in node.names
+    }
+    assert "uniform_grad_count" in imported, (
+        "the probe must autograd the shipped count, not restate its gradient")
+    assert not [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)
+                and "uniform" in n.name], (
+        "a local `uniform` gradient is back in the probe; that is the exact "
+        "defect this gate exists for")
+
+    # BEHAVIOURAL HALF: the bug showed up as a mode that moved nothing. Both
+    # shipped modes must actually push the capped logits down.
+    from scripts.collateral_probe import grad_count
+    rng = np.random.default_rng(1)
+    z = rng.normal(size=(128, 8))
+    for mode in ("sum", "uniform"):
+        g = grad_count(z, [2, 7], mode)
+        assert np.abs(g[:, [2, 7]]).sum() > 1e-6, (
+            "%r delivers no capped-class gradient, which is how the "
+            "hand-derived version read" % mode)
+
+
+def test_family_split_REFUSES_when_the_zero_lambda_twins_are_not_one_run():
+    """At lambda = 0 the dual family is irrelevant, so the nulls ARE one run.
+
+    Same warm-up cache, same allocator, same seed, no constraint gradient:
+    `tralo_null`, `fioretto_null` and `hounie_null` must produce byte-identical
+    raw predictions. Measured on `results/xfam1` 2026-08-24: identical in 12 of
+    12 cell-seeds, which is what licenses reporting ONE compute term instead of
+    three and makes the per-family attribution meaningful.
+
+    If they ever diverge, something other than lambda differs between the
+    families and every constraint term in that table is contaminated. The tool
+    must refuse rather than print one.
+    """
+    from scripts.family_split import matched, null_identity
+
+    nulls = ["tralo_null", "fioretto_null", "hounie_null"]
+    cell = ("MobileNetV3", "L30_G50", "2-7")
+    agree = {(cell, n, 1): {"raw_md5": "deadbeef"} for n in nulls}
+    assert null_identity(agree, [(cell, 1)], nulls) == [], (
+        "identical digests were reported as a divergence")
+
+    diverge = dict(agree)
+    diverge[(cell, "hounie_null", 1)] = {"raw_md5": "0ther"}
+    assert null_identity(diverge, [(cell, 1)], nulls), (
+        "a diverging null passed; every per-family attribution would be "
+        "contaminated and the tool would print it anyway")
+
+    # And the matcher must drop a cell-seed that is missing an arm, or `clip`
+    # gets measured on cells the treatment was never run on.
+    rows = {(cell, a, 1): {} for a in ["clip", "tralo", "tralo_null"]}
+    rows[(cell, "clip", 2)] = {}
+    need = ["clip", "tralo", "tralo_null"]
+    assert matched(rows, need) == [(cell, 1)], (
+        "seed 2 has only `clip` and must not form a pair")

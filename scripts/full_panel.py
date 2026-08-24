@@ -393,6 +393,16 @@ def panel(run_dir, cfg):
         "macroP": precision_score(y, eq, average="macro", zero_division=0),
         "macroR": recall_score(y, eq, average="macro", zero_division=0),
         "macroF1": f1_score(y, eq, average="macro", zero_division=0),
+        # macroF1 is CARRIED by the uncapped classes -- 6 of 8 on iwildcam --
+        # so a macroF1 move is unattributable until this line is beside it.
+        # Measured 2026-08-24 on xfam1: the three dual families damage the
+        # CAPPED classes near-identically (-0.0018 to -0.0027 ccF1) and differ
+        # 4x in what they do to the classes the constraint never names. The
+        # composite hid that completely.
+        "uncF1": (f1_score(y, eq, average="macro", zero_division=0,
+                           labels=[c for c in range(P.shape[1])
+                                   if c in set(y.tolist()) and c not in classes])
+                  if len(classes) else np.nan),
         "acc": accuracy_score(y, eq),
         # -------- as-run
         # NOT satisfaction. Both allocators fill the budget UPWARD to exactly K
