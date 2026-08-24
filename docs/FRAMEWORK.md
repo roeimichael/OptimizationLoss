@@ -3956,6 +3956,32 @@ Holding the per-parameter step instead would shrink the arm's total step below
 its control's and fail `check_parity`. The convention is total norm; the
 consequence is stated so it is read with the result.
 
+✅ **BOTH ARMS ARE PRE-GATED, AND THE RECEIPTS ARE FROM A REAL RUN, 2026-08-24.**
+Every gate in `CLAUDE.md` runs on synthetic tensors on CPU, so all of it was
+executed without a dataset and without the server:
+
+| gate | result |
+|---|---|
+| `audit_config` | every emitted key has a reader, every reader a key |
+| `smoke_arms` | `tralo_ortho` and `tralo_head` run end to end |
+| `smoke_arms --matrix` | caps hold in **12 of 12** combinations -- {1, 2} capped classes x {L30_G30, L50_G30}, both arms |
+| `flag_live` | **"Every flag is connected on every binding seed"**, exit 0. Distinct md5s from `tralo` and from each other |
+| `check_parity` | 288 runs, 8 arms x 36, one commit |
+| `pytest tests` | 366, including four new gates each shown to FAIL when broken |
+
+🛑 **`flag_live` is the one that matters here.** `ortho_project`'s 8-run
+predecessor left zero prediction files, so nothing about it could be audited
+after the fact, and an inert flag passes `audit_config` (the key has a reader)
+AND `smoke_arms` (the arm does not crash) while producing a full campaign of
+meaningless numbers -- which has happened four times in this project. The md5
+check is the only gate that separates a live treatment from a renamed control,
+and both arms clear it.
+
+⚠️ Read nothing else off that harness. Random labels, a 4-layer net at chance
+accuracy, one dose: the same four arms gave capped counts 31/35/32/12, then
+0/0/0/0, then 120/120/119/119 across three seeds. **Connectedness survives it;
+ordering does not.**
+
 Until that campaign exists, the honest entry for `ortho` is **OPEN**, and this
 section replaces its listing among the rejected.
 
