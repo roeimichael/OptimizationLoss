@@ -1474,3 +1474,102 @@ def test_reachability_prices_the_run_s_OWN_count_not_always_p_times_1_minus_p():
     import pytest
     with pytest.raises(SystemExit):
         slope_at(p, 10, "margin")
+
+
+def test_ortho_project_removes_the_CE_component_and_LEAVES_THE_DOSE_ALONE():
+    """`tralo_ortho`, reopened by FRAMEWORK 2(t), gated before it is launched.
+
+    2(s) measured that the constraint's damage to the six uncapped classes does
+    NOT arrive through the output layer -- the softmax cross-term perturbs
+    those logits and provably cannot reorder them, zero flips across a 50x dose
+    range. It arrives through the SHARED BACKBONE, which is what a projection
+    onto the complement of the CE gradient acts on.
+
+    Two properties, and the second is the one that makes the contrast legal:
+
+    1. the delivered gradient is ORTHOGONAL to the CE reference, and
+    2. its NORM is exactly what the unprojected arm delivers.
+
+    (2) holds because the projection runs BEFORE `clip_grad_norm_`, so
+    `normalize` rescales the projected gradient to `clip` like any other. If it
+    ran after, the treatment would take a SHORTER step than its control and
+    direction would be confounded with dose -- the trap that made the hounie
+    baseline meaningless (`src/training/constraint_step.py` docstring).
+
+    The predecessor campaign left ZERO prediction files, so nothing about this
+    flag can be audited after the fact. It gets a gate before it gets a GPU.
+    """
+    import torch
+    from src.training.constraint_step import finish_constraint_step, snapshot_grads
+
+    def run(with_ref):
+        torch.manual_seed(0)
+        m = torch.nn.Linear(6, 3, bias=False)
+        ref = [torch.randn(3, 6)]
+        m.weight.grad = torch.randn(3, 6)
+        raw = m.weight.grad.detach().clone()
+        finish_constraint_step(m, None, None, clip=1.0, mode="normalize",
+                               fp32=True, step_rule="sgd", lr=0.0,
+                               ortho_ref=ref if with_ref else None)
+        g = m.weight.grad.detach()
+        return float((g * ref[0]).sum()), float(g.norm()), raw, ref[0]
+
+    dot_on, nrm_on, _, _ = run(True)
+    dot_off, nrm_off, _, _ = run(False)
+
+    assert abs(dot_on) < 1e-4, (
+        "the delivered gradient is not orthogonal to the CE reference; "
+        "dot=%g" % dot_on)
+    # NEGATIVE CONTROL: without the reference it must NOT be orthogonal, or
+    # the assertion above is passing because the gradient happens to be.
+    assert abs(dot_off) > 1e-3, (
+        "the unprojected gradient was already orthogonal, so this fixture "
+        "cannot tell the projection from a no-op; dot=%g" % dot_off)
+    # DOSE HELD: both arms deliver exactly `clip`.
+    assert abs(nrm_on - 1.0) < 1e-5 and abs(nrm_off - 1.0) < 1e-5, (
+        "normalize did not deliver exactly clip (%g vs %g); the projected arm "
+        "would differ from its control in dose as well as direction"
+        % (nrm_on, nrm_off))
+
+    # A non-finite CE gradient must yield NO reference: on the FP16 path
+    # `scaler.step` skips such an update, and projecting against a direction
+    # the model never moved in would remove something that never happened.
+    m = torch.nn.Linear(4, 2, bias=False)
+    m.weight.grad = torch.full((2, 4), float("nan"))
+    assert snapshot_grads(m) is None
+    m.weight.grad = torch.ones(2, 4)
+    assert snapshot_grads(m) is not None
+
+
+def test_the_tralo_trainer_actually_READS_ortho_project():
+    """An inert flag is this project's most frequent defect -- four and counting.
+
+    `ortho_project` has no surviving predecessor run to audit against (its 8-run
+    campaign left zero prediction files, FRAMEWORK 2(t)), so a config-level
+    check is all that exists before the campaign. AST, not grep: a mention in a
+    comment is not a read.
+    """
+    import ast
+    import io
+
+    src = io.open("src/methodologies/tralo/train.py", encoding="utf-8").read()
+    tree = ast.parse(src)
+    reads = [
+        n for n in ast.walk(tree)
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+        and n.func.attr == "get" and n.args
+        and isinstance(n.args[0], ast.Constant)
+        and n.args[0].value == "ortho_project"
+    ]
+    assert reads, "`ortho_project` is in the protocol with no reader in train()"
+
+    # and the reference must reach the step, or the flag reads and does nothing
+    passes = [
+        n for n in ast.walk(tree)
+        if isinstance(n, ast.Call)
+        and getattr(n.func, "id", getattr(n.func, "attr", None))
+        == "finish_constraint_step"
+        and any(k.arg == "ortho_ref" for k in n.keywords)
+    ]
+    assert passes, (
+        "the flag is read but `ortho_ref` never reaches finish_constraint_step")

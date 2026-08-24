@@ -1863,7 +1863,6 @@ merely defaulted off -- a config can no longer *imply* a knob that does not exis
 | `alpha_kl` + the whole KL anchor | KL to warm-up predictions | out of scope by decision |
 | `enable_ce_skip` + CE-skip machinery | stop CE at saturation | reached only TraLO; fabricated a 0.22 cc-F1 artifact. Re-added 2026-08-20 as a shared object defaulting to OFF, deleted again 2026-08-21 -- proved unfireable at the default, see section 2e |
 | `disable_freeze_on_satisfy` | ratchet/rho freeze ablation | never used; protocol freezes on satisfy |
-| `ortho_project` | CE-orthogonal constraint gradient | ⚠️ **NO VERDICT** -- deleted without one. Its 8 runs measured **AP +0.0041 pre-restore, in its favour**. Added to this table 2026-08-24 to record that the row was missing; see 2(t), which REOPENS it |
 
 | 5 methodology packages | tralo_bounded, fioretto_rh, fioretto_restart, hounie_rh, alm_rh | dead arms |
 | 55 config generators (5,481 lines) | one per campaign | replaced by `configs/gen_campaign.py`, which asserts the protocol |
@@ -1916,7 +1915,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 358 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 360 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1924,7 +1923,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (358 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (360 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -3736,13 +3735,25 @@ are K = 0 and the local scope binds at every cap level. The effect there could
 be larger or smaller; **nothing in hand predicts which**, and quoting +0.0041
 as the expected iwildcam effect would repeat 2(m)'s error.
 
-🔧 **AND THE FLAG IS GONE FROM THE CODE.** `grep -rn ortho src/ configs/ main.py`
-returns nothing: `ortho_project` was purged in the 2026-08-18 code deletion --
-**and it is not in 2(f)'s table of what was deleted and why**, which is the
-record that deletion is supposed to leave. It has been added there now, marked
-`NO VERDICT`. Reopening therefore means re-implementing the projection, not
-just generating a campaign. That is a few lines in the constraint step, and it
-must ship with a liveness gate before it ships with a campaign.
+🔧 **THE FLAG HAD BEEN PURGED, AND IS NOW BACK.** `grep -rn ortho src/ configs/ main.py`
+`ortho_project` was purged in the 2026-08-18 code deletion **without an entry
+in 2(f)'s table of what was deleted and why**, which is the record a deletion
+is supposed to leave -- so the flag vanished and the direction was filed as
+closed with neither a verdict nor a deletion reason anywhere.
+
+It is re-implemented as of 2026-08-24: `snapshot_grads` takes the CE gradient
+off the parameters after the CE loop (free -- it is cleared on the next line
+anyway), and `project_out` removes the constraint step's component along it
+**before** the norm bound, so under `constraint_grad_mode: normalize` the
+projected and unprojected arms deliver exactly the same step size and differ in
+direction alone. Projecting after the bound would shorten the treatment's step
+and confound direction with dose; that is gated, with the post-bound version as
+the negative control.
+
+⚠️ The reference is **one CE minibatch**, not the epoch's CE direction -- the
+cheap estimate, and the honest description of what is removed is "the component
+along the last CE step actually taken". A full-epoch reference costs a second
+pass over the training set every epoch.
 
 ⚠️ Do not confuse this with `separate_constraint_optimizer`, which IS rejected
 with a verdict (AP -0.0938, p = 0.0006, 2(f)) and which `CLAUDE.md` names in
@@ -4960,7 +4971,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             358 tests, ~105 s, no dataset required
+tests/             360 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

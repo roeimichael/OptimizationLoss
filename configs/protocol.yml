@@ -173,6 +173,12 @@ blocks:
     # before it reached a GPU. A soft count must be able to EXCEED the budget.
     soft_count_mode: sum
     cut_window_items: 5       # ONLY read when soft_count_mode: margin. A DOSE.
+    # Declared here as well as in `tralo_ortho` so the trainer's inline
+    # default has a protocol value to agree with. Every arm but
+    # `tralo_ortho` runs the unprojected step, and an inline default
+    # that no protocol key confirms is how a knob silently diverges
+    # from what the configs claim.
+    ortho_project: false
     # WHAT THE PENALTY READS. false = the soft count's own value, which is the
     # manuscript. true = the HARD count, with the soft count supplying only the
     # gradient (straight-through, free from the chunked detach construction).
@@ -244,6 +250,29 @@ blocks:
   # already exactly sum_i p_ic, so pass 1 stays correct either way.
   tralo_uniform:
     soft_count_mode: uniform
+  # THE CE-ORTHOGONAL ARM. The constraint gradient is projected onto the
+  # orthogonal complement of the last CE minibatch gradient, so enforcing the
+  # cap cannot undo the CE progress just made. Direction only: the projection
+  # runs BEFORE the norm bound, so under `constraint_grad_mode: normalize` the
+  # delivered step is exactly `constraint_grad_clip` for this arm and for
+  # `tralo`, and they differ in nothing else.
+  #
+  # WHY IT IS BACK. FRAMEWORK 2(s) measured that the constraint's damage to the
+  # six uncapped classes does NOT arrive through the output layer -- the
+  # softmax cross-term perturbs those logits and provably cannot reorder them,
+  # zero flips across a 50x dose range. It arrives through the SHARED BACKBONE,
+  # which is what this projection acts on.
+  #
+  # 2(t) recovered what was actually run before: 8 runs, one cell, dermmnist x
+  # MobileNetV3 x L30_G30, no clipper in the campaign, zero surviving
+  # predictions -- and AP +0.0041 in its favour, under a checkpoint selector
+  # biased against it. It was filed as rejected without a verdict.
+  #
+  # 🛑 LIVENESS FIRST: `python -m scripts.flag_live tralo tralo_ortho`. An
+  # inert flag is this project's most frequent defect and this one has no
+  # surviving predecessor to audit against.
+  tralo_ortho:
+    ortho_project: true
   # THE NULL-TREATMENT CONTROL. Identical to `tralo` in warm-up length, optimizer
   # restart, epoch count, transductive passes and allocator -- with the treatment
   # removed. total_constraint == 0 makes has_constraint False, so pass 2 is
@@ -438,6 +467,13 @@ arms:
      null_sibling: tralo_null}
   tralo_uniform:
     {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, tralo_uniform],
+     null_sibling: tralo_null}
+  # DIRECTION, not placement: the count is untouched and the STEP is projected.
+  # Shares `tralo_null` for the same reason the others do -- at lambda 0 there
+  # is no constraint gradient, so there is nothing to project and a dedicated
+  # null would be a bit-identical run costing a GPU slot.
+  tralo_ortho:
+    {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, tralo_ortho],
      null_sibling: tralo_null}
   # Same code path as tralo, treatment zeroed. See the tralo_null block above.
   tralo_null: {methodology: tralo,          phase: trained, blocks: [constraint_phase, tralo_null]}

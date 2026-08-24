@@ -118,9 +118,73 @@ def _randomize_direction(model, clip, seed_tensor):
                 p.grad.mul_(scale)
 
 
+def snapshot_grads(model):
+    """The CE gradient still sitting on the parameters, cloned. (list or None)
+
+    Called right after the CE loop and BEFORE the `zero_grad` that opens the
+    constraint pass, so it costs one clone and no extra forward/backward.
+
+    ⚠️ IT IS ONE MINIBATCH, not the epoch's CE direction. That is the cheap
+    estimate, and it is the honest description of what `ortho_project` removes:
+    the component along the LAST CE step actually taken, which is also the
+    step whose progress the constraint is most likely to undo. A full-epoch
+    reference would cost a second pass over the training set every epoch.
+
+    Returns None if any grad is non-finite -- on the FP16 path `scaler.step`
+    skips a non-finite update, and projecting against a reference that was
+    never applied would remove a direction the model never moved in.
+    """
+    ref = []
+    for prm in model.parameters():
+        if prm.grad is None:
+            ref.append(None)
+            continue
+        if not torch.isfinite(prm.grad).all():
+            return None
+        ref.append(prm.grad.detach().clone())
+    return ref if any(r is not None for r in ref) else None
+
+
+def project_out(model, ref):
+    """Remove the component of the constraint gradient along `ref`, in place.
+
+    `g <- g - (<g,r>/<r,r>) r`, the projection onto the orthogonal complement,
+    so enforcing the cap cannot undo the CE progress just made. Returns the
+    coefficient removed, which is what `Ortho Fired` logs: a run whose
+    coefficient is 0.0 every epoch did nothing, and `ortho_project` would then
+    be an inert flag -- this project's most frequent failure mode, four
+    occurrences and counting.
+
+    THE ORDER MATTERS AND IT IS DELIBERATE. This runs BEFORE the norm bound in
+    `finish_constraint_step`, so the projected gradient is renormalised to
+    exactly `clip` afterwards under `mode="normalize"`. The projected and
+    unprojected arms therefore deliver the SAME step size and differ only in
+    DIRECTION -- the same argument that makes `random_direction` a legal
+    control. Projecting after the bound would shorten the treatment's step and
+    confound direction with dose, which is the trap that made the hounie
+    baseline meaningless.
+    """
+    params = [prm for prm in model.parameters()]
+    dot = 0.0
+    nrm = 0.0
+    for prm, r in zip(params, ref):
+        if r is None or prm.grad is None:
+            continue
+        dot = dot + float((prm.grad * r).sum())
+        nrm = nrm + float((r * r).sum())
+    if nrm <= 0.0:
+        return 0.0
+    a = dot / nrm
+    with torch.no_grad():
+        for prm, r in zip(params, ref):
+            if r is not None and prm.grad is not None:
+                prm.grad.sub_(r, alpha=a)
+    return a
+
+
 def finish_constraint_step(model, optimizer, scaler, clip, mode="clip",
                            fp32=False, step_rule="shared", lr=None,
-                           random_direction=False):
+                           random_direction=False, ortho_ref=None):
     """Bound the constraint gradient and take the step.
 
     Returns (raw_norm, applied). `raw_norm` is the true pre-clip norm, so a log
@@ -129,6 +193,19 @@ def finish_constraint_step(model, optimizer, scaler, clip, mode="clip",
     """
     if scaler is not None and not fp32:
         scaler.unscale_(optimizer)
+
+    # BEFORE the bound, so the projected step is renormalised to the same size
+    # as the unprojected one and the arms differ in direction alone.
+    if ortho_ref is not None:
+        # LOGGED, NOT RETURNED. The return arity is gated
+        # (`test_..._unpacks_finish_constraint_steps_two_returns`) because
+        # `applied` was once dropped by a caller and 10 of 29 epochs vanished
+        # silently. The liveness gate for this flag is the project's standard
+        # one -- `scripts/flag_live tralo tralo_ortho`, md5 over the raw
+        # predictions (CLAUDE.md rule 3) -- and a coefficient in the log is a
+        # per-epoch diagnostic beside it, not a substitute for it.
+        log.info("ortho_project: removed CE component, coef=%.6g",
+                 project_out(model, ortho_ref))
 
     # returns the total norm BEFORE clipping, and caps in place
     raw = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=clip)

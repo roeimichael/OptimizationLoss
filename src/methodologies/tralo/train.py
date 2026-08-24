@@ -31,7 +31,8 @@ from src.pipeline.contracts import TrainInputs, TrainOutputs, _required
 from src.pipeline.setup import setup_runtime
 from src.pipeline.warmup import make_ce_criterion, make_dataloader, make_optimizer
 from src.training.constraint_step import (
-    constraint_autocast, constraint_backward, finish_constraint_step)
+    constraint_autocast, constraint_backward, finish_constraint_step,
+    snapshot_grads)
 from src.losses.transductive_loss import (margin_window, margins,
                                           uniform_grad_count, window_temp)
 from src.training.logging import log_progress_to_csv, write_csv_header
@@ -53,6 +54,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             "An unrecognised mode silently ran `sum` under a different arm "
             "name, which is this project's most frequent defect."
             % SOFT_COUNT_MODE)
+    ORTHO_PROJECT = bool(hp.get("ortho_project", False))
     step_cfg = read_step_config(hp)
     CUT_WINDOW_ITEMS = int(hp.get("cut_window_items", 5))
     STRAIGHT_THROUGH = bool(hp.get("straight_through", False))
@@ -213,6 +215,11 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 train_total += batch_y.size(0)
         cached_train_acc = ((train_correct / train_total)
                             if train_total > 0 else cached_train_acc)
+
+        # The CE gradient is still on the parameters here and is cleared on the
+        # next line, so this is the only free place to take it. `ortho_project`
+        # removes the constraint step's component along it; see project_out.
+        ortho_ref = snapshot_grads(model) if ORTHO_PROJECT else None
 
         # ---- Transductive pass 1: aggregate soft + hard counts (no_grad, eval) ----
         model.eval()
@@ -390,7 +397,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         did_backward = has_constraint
         if did_backward:
             last_grad_norm, applied = finish_constraint_step(
-                model, optimizer, scaler, **step_cfg)
+                model, optimizer, scaler, ortho_ref=ortho_ref, **step_cfg)
             # `applied` is False when the constraint gradient came back
             # non-finite, and then no step landed this epoch. Counting it is
             # the only way a reader can tell 29 steps from 19: the run still
