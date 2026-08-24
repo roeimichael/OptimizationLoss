@@ -1573,3 +1573,60 @@ def test_the_tralo_trainer_actually_READS_ortho_project():
     ]
     assert passes, (
         "the flag is read but `ortho_ref` never reaches finish_constraint_step")
+
+
+def test_uncF1_is_exactly_the_classes_the_constraint_never_names(tmp_path):
+    """`C * macroF1 == m * ccF1 + (C - m) * uncF1`, exactly.
+
+    macro-F1 is CARRIED by the uncapped classes -- six of eight on iwildcam --
+    and the scorer printed the composite for months without ever printing what
+    drives it. FRAMEWORK 2(s) rests on the split: the three dual families damage
+    the capped classes near-identically (-0.0020 to -0.0028 ccF1, about one
+    item) and differ 5.3x on the classes the constraint never mentions
+    (-0.0027 to -0.0144 uncF1). If `uncF1`'s label list were wrong -- one
+    capped class leaking in, or an absent class counted -- the identity breaks
+    and that entire section is arithmetic on a bad column.
+
+    Verified 2026-08-24 on 56 stored runs from `evidence/`: holds on 56 of 56.
+    This gate reproduces it on a synthetic run so it cannot regress without the
+    server.
+    """
+    import json
+    import numpy as np
+    import pandas as pd
+    from scripts.full_panel import panel
+
+    rng = np.random.default_rng(3)
+    n, C = 240, 5
+    y = rng.integers(0, C, size=n)
+    P = rng.random((n, C)) ** 2
+    P[np.arange(n), y] += 1.4                       # a model with real signal
+    P = P / P.sum(axis=1, keepdims=True)
+    d = tmp_path / "run"
+    d.mkdir()
+    frame = pd.DataFrame({"True_Label": y, "Predicted_Label": P.argmax(1),
+                          "Group_ID": rng.integers(0, 3, size=n)})
+    for c in range(C):
+        frame["Prob_Class_%d" % c] = P[:, c]
+    frame.to_csv(d / "final_predictions_raw.csv", index=False)
+    frame.to_csv(d / "final_predictions.csv", index=False)
+    cfg = {"dataset_mode": "synthetic", "model_name": "M", "constraint_tag": "T",
+           "arm": "a", "hyperparams": {"seed": 1}, "constraint": [0.3, 0.3],
+           "dataset_config": {"constrained_class": [1, 3]}}
+    json.dump(cfg, open(d / "config.json", "w"))
+
+    r = panel(str(d), cfg)
+    assert r is not None, "the fixture did not produce a scorable run"
+    m = len(r["capped"].split("-"))
+    assert m == 2
+    assert abs(C * r["macroF1"] - (m * r["ccF1"] + (C - m) * r["uncF1"])) < 1e-9, (
+        "uncF1 is not the complement of ccF1 within macroF1: "
+        "macro=%.9f cc=%.9f unc=%.9f" % (r["macroF1"], r["ccF1"], r["uncF1"]))
+
+    # NEGATIVE CONTROL: the identity is not vacuous -- it must FAIL if uncF1
+    # were the macro over ALL classes, which is the obvious wrong label list.
+    from sklearn.metrics import f1_score
+    wrong = f1_score(y, P.argmax(1), average="macro", zero_division=0)
+    assert abs(C * r["macroF1"] - (m * r["ccF1"] + (C - m) * wrong)) > 1e-6, (
+        "the capped and uncapped classes score identically in this fixture, so "
+        "it cannot distinguish a correct label list from a wrong one")
