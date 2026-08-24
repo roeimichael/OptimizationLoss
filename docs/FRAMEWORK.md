@@ -1912,7 +1912,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 356 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 357 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1920,7 +1920,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (356 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (357 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -3597,35 +3597,61 @@ uncapped terms are **-0.0144 / -0.0027 / -0.0114**, a **5.3x spread**.
 constraint is about, and differ five-fold in what they do to the classes it
 never mentions.** The entire cross-family story is collateral damage.
 
-#### Mechanism, and the fix it names
+#### Mechanism: the leak is real, the obvious fix is a NULL, and that is the result
 
 The shipped count is `S_c = sum_i softmax(z)_ic`, so
 `dS_c/dz_k = -sum_i p_ic p_ik` is **nonzero for every uncapped k**: one push on
-a capped class moves all eight logits, and the amount each item's uncapped
-block moves scales with `p_ic`. That is a per-item disturbance of classes the
-objective never mentions, which is exactly what `d uncF1` measures.
+a capped class moves all eight logits. That looked like the whole story, and a
+one-vs-rest count `S_c = sum_i sigmoid(z_ic)`, whose gradient is **exactly
+zero** outside the capped columns at any dose, was staged as the fix.
 
-A one-vs-rest count `S_c = sum_i sigmoid(z_ic)` has `dS_c/dz_k = 0` **exactly**
-for `k != c`. The uncapped logits are then untouched at ANY dose, so no item
-can change which uncapped class it prefers; lowering `z_c` can only convert a
-`predicted c` item into `predicted k`, which is the intended effect of a cap.
-The logits are already in hand at `src/methodologies/tralo/train.py:234`, so
-this is implementable without a pipeline change.
+⛔ **IT IS A NULL, measured for 0 GPU-hours, and the algebra says why.** The
+update adds `+eta * p_ic * p_ik` to `z_k`, which is **monotone increasing in
+`p_ik`** -- it widens the gaps in the uncapped block in the direction they
+already point. It SHARPENS the existing order and cannot invert it.
 
-⚠️ **This is NOT section 2(a)'s renormalisation and it is not measured yet.**
-2(a) zeroes the **capped-vs-capped** cross-term and was scored on *count
-movement*, which is not a metric (rule 5); it came out 0.95x and was shelved.
-This is the **capped-vs-uncapped** term scored on *uncapped F1*, a different
-quantity against a different objective. The offline price is
-`scripts/collateral_probe.py`, which steps each mode until it removes the SAME
-number of capped predictions and reads the uncapped damage there -- **matched
-on effect, not on dose**, because at one unit-norm step no mode flips a single
-uncapped prediction and an equal-dose read returns 0 vs 0 and says nothing.
+`scripts/collateral_probe.py`, 16 stored runs, effect matched at 20 / 50 / 100
+/ 200 capped predictions removed (dose is matched on EFFECT, not step size --
+at one unit-norm step no mode flips anything and an equal-dose read returns
+0 vs 0 and says nothing):
 
-Gated by `test_ovr_count_has_ZERO_gradient_outside_the_capped_columns` (with
-`sum` as the negative control: if it had no uncapped gradient either there
-would be nothing to fix) and by
-`test_family_split_REFUSES_when_the_zero_lambda_twins_are_not_one_run`.
+| target | `sum` eta | `sum` uncapped logit moved | `sum` unc->unc flips | `ovr` flips |
+|---|---|---|---|---|
+| 20 | 7.5 | 0.77 | **0.00** | 0.00 |
+| 50 | 87.2 | 9.76 | **0.00** | 0.00 |
+| 100 | 149.7 | 12.03 | **0.00** | 0.00 |
+| 200 | 1091.7 | **79.12** | **0.00** | 0.00 |
+
+Zero flips across a 50x dose range, at the end of which the uncapped logits
+have moved **79 units**. The cross-term perturbs the uncapped block and
+provably cannot reorder it, so `ovr` removes a leak that costs nothing.
+
+🔑 **THEREFORE THE uncF1 DAMAGE DOES NOT COME THROUGH THE OUTPUT LAYER.** It
+comes through the **shared backbone** -- 29 epochs of constraint gradient
+flowing into the features, which moves every class because every class reads
+the same representation. That is the lever `docs/launch_uniform.sh` named in
+advance as the fallback if the output-space fix failed: **the parameter set the
+constraint is allowed to touch, not the count it is computed from.**
+
+⚠️ **This is NOT section 2(a)'s renormalisation.** 2(a) zeroes the
+**capped-vs-capped** cross-term and was scored on *count movement*, not a
+metric (rule 5); it came out 0.95x and was shelved. This is the
+**capped-vs-uncapped** term scored on *uncapped F1*. Different quantity,
+different objective, same verdict.
+
+⚠️ **A SECOND FINDING FELL OUT: the shipped count SATURATES.** `sum` and
+`uniform` could not remove 100 capped predictions in 10 of 16 cells, or 200 in
+20 of 32, at any `eta <= 4096` -- by which point the logits have moved tens of
+units. `ovr` reached every target up to 200 and 8 of 16 at 400. So the softmax
+count has a hard ceiling on how much cap it can enforce through the output
+layer, which is 2(a2)'s vanishing gradient measured from the other side. It is
+not a reason to run `ovr`: enforcement is not the binding problem here, the
+allocator already fills to exactly K.
+
+Gated by `test_the_softmax_cross_term_CANNOT_reorder_the_uncapped_classes`
+(negative control: random noise on the same block MUST reorder it, or the
+assertion is passing for a trivial reason) and by
+`test_ovr_count_has_ZERO_gradient_outside_the_capped_columns`.
 
 #### What this does NOT support
 
@@ -4829,7 +4855,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             356 tests, ~105 s, no dataset required
+tests/             357 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

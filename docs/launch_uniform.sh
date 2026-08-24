@@ -43,10 +43,35 @@
 #   dose         constraint_grad_mode normalize -- ESSENTIAL HERE. It fixes the
 #                delivered step to a protocol constant, so `tralo` and
 #                `tralo_uniform` differ ONLY in the DIRECTION of the step and
-#                not in its size. Under `clip` the two modes could deliver
+#                not in its NORM. Under `clip` the two modes could deliver
 #                different norms and any difference would be a dose effect,
 #                which is unattributable and is exactly the trap that made the
 #                hounie baseline meaningless.
+#
+#                ⚠️ EQUAL NORM IS NOT EQUAL EFFECT, measured 2026-08-24 AFTER
+#                this campaign was generated (`scripts.collateral_probe`, 16
+#                stored runs, effect matched). To remove the same 20 capped
+#                predictions, `sum` needs eta 7.5 and `uniform` needs 51.9 --
+#                **`uniform` does ~7x less cap enforcement per unit step** --
+#                and `uniform` failed to reach 100 removals in several cells at
+#                any eta <= 4096 while `sum` reached it. `normalize` equalises
+#                the NORM, which is what makes the contrast legal, but it
+#                cannot equalise the WORK, so `tralo_uniform` is underdosed
+#                relative to `tralo` by construction.
+#
+#                This does not invalidate the contrast -- direction is the
+#                thing under test and the norm is held fixed -- but it makes
+#                ONE failure mode much more likely than the pre-registration
+#                assumed: `tralo_uniform` taking a near-zero effective step,
+#                moving no count, and writing `completed`. That reads as "the
+#                fix is harmless" when it is really "the fix never acted".
+#
+#                🛑 SO THE FIRST READ IS A LIVENESS READ, NOT A VERDICT:
+#                    python -m scripts.log_health results/uniform1
+#                `tralo_uniform`'s capped-count trajectory must MOVE relative
+#                to `tralo_null`. If it does not, the arm is a silent null,
+#                the comparison is void, and the answer is a dose sweep on
+#                `lr_constraint` for that arm alone -- NOT a verdict.
 #   size         9 cells x 6 arms x 4 seeds = 216 runs
 #
 # PRE-REGISTERED, before any run (and duplicated in the source docstring of

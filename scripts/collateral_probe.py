@@ -101,7 +101,12 @@ def removed(z0, z1, capped):
     return int(a - b)
 
 
-def eta_for(z0, capped, mode, target, hi=4096.0):
+ETA_MAX = 4096.0          # at this step the logits have already moved ~79
+                          # units, so "unreachable" means unreachable in
+                          # practice -- but the bound is named, not implied
+
+
+def eta_for(z0, capped, mode, target, hi=ETA_MAX):
     """Smallest eta removing >= `target` capped predictions, or None.
 
     Bisection is valid because the step direction is fixed and the capped
@@ -227,7 +232,9 @@ def main():
         seen = sorted({m for _, m in unreachable})
         print("  UNREACHABLE for %s in %d cell(s): the mode cannot remove %d "
               "capped" % (",".join(seen), len(unreachable), args.target))
-        print("  predictions at ANY dose, which is a verdict, not a gap.")
+        print("  predictions at eta <= %.0f, by which point the logits have "
+              "moved" % ETA_MAX)
+        print("  tens of units. That is a verdict, not a gap.")
     print()
     print("  `unc->unc flips` is the damage: an item that preferred one")
     print("  UNCAPPED class and now prefers a DIFFERENT uncapped one. It is")

@@ -1378,3 +1378,54 @@ def test_family_split_REFUSES_when_the_zero_lambda_twins_are_not_one_run():
     need = ["clip", "tralo", "tralo_null"]
     assert matched(rows, need) == [(cell, 1)], (
         "seed 2 has only `clip` and must not form a pair")
+
+
+def test_the_softmax_cross_term_CANNOT_reorder_the_uncapped_classes():
+    """The proposed one-vs-rest fix was aimed at damage that does not exist.
+
+    Section 2(s) measured that the three dual families differ 5.3x in what they
+    do to the six classes the constraint never names, and the obvious culprit
+    was the softmax cross-term: `dS_c/dz_k = -sum_i p_ic p_ik` is nonzero for
+    every uncapped k, so a capped push moves all eight logits. A one-vs-rest
+    count zeroes that term exactly, and was staged as the fix.
+
+    IT IS A NULL, and the algebra says why. The update adds `+eta * p_ic * p_ik`
+    to `z_k`, which is MONOTONE INCREASING in `p_ik` -- it widens the gaps in
+    the uncapped block in the direction they already point. It sharpens the
+    existing order; it cannot invert it.
+
+    Measured to match (`scripts/collateral_probe.py`, 16 stored runs, 2026-08-24,
+    effect matched at 20/50/100/200 capped predictions removed): ZERO
+    uncapped-to-uncapped prediction flips at every target, up to eta = 1091
+    where the uncapped logits have moved 79 units. So the uncF1 damage in
+    section 2(s) does NOT come through the output layer, and the lever is the
+    parameter set the constraint may touch -- not the count.
+    """
+    import numpy as np
+    from scripts.collateral_probe import softmax, step
+
+    rng = np.random.default_rng(7)
+    z = rng.normal(size=(256, 8)) * 2.0
+    capped, unc = [2, 7], [0, 1, 3, 4, 5, 6]
+
+    for eta in (1.0, 50.0, 1000.0):
+        z1 = step(z, capped, "sum", eta)
+        before = np.argsort(z[:, unc], axis=1)
+        after = np.argsort(z1[:, unc], axis=1)
+        assert np.array_equal(before, after), (
+            "the softmax cross-term reordered the uncapped block at eta=%g; "
+            "if this ever fires, the one-vs-rest fix is live again" % eta)
+
+    # NEGATIVE CONTROL: a perturbation that is NOT monotone in p_ik must
+    # reorder them, or the assertion above is passing for a trivial reason
+    # (e.g. `step` silently returning its input).
+    noisy = z.copy()
+    noisy[:, unc] += rng.normal(size=(256, len(unc))) * 3.0
+    assert not np.array_equal(np.argsort(z[:, unc], axis=1),
+                              np.argsort(noisy[:, unc], axis=1)), (
+        "even random noise did not reorder the block, so the check is inert")
+
+    # And the capped classes MUST actually move, or nothing was enforced.
+    z1 = step(z, capped, "sum", 50.0)
+    assert softmax(z1)[:, capped].sum() < softmax(z)[:, capped].sum(), (
+        "the step did not reduce the capped soft count at all")
