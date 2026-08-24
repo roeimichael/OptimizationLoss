@@ -353,6 +353,9 @@ def panel(run_dir, cfg):
     _relcnt = float(sum((rel == c).sum() for c in classes))
     conf = P.max(axis=1)
     ok = (P.argmax(axis=1) == y)
+    # The macro denominator is a property of the DATA, never of the arm's
+    # predictions. See the comment on `macroP` below.
+    present = sorted(set(y.tolist()))
 
     return {
         "raw_md5": raw_md5,
@@ -387,12 +390,20 @@ def panel(run_dir, cfg):
         "NLL": log_loss(y, P, labels=list(range(P.shape[1]))),
         "ConfGap": float(conf[ok].mean() - conf[~ok].mean()) if (~ok).any() else np.nan,
         # -------- budget-equalized
+        # `present` pins the macro denominator to the DATA. Without an explicit
+        # `labels=`, sklearn averages over `unique(y) | unique(pred)` -- so an
+        # arm that predicts a class absent from y_true is averaged over one MORE
+        # class than an arm that does not, and the two macro-F1s are then not
+        # comparable. Measured: same truth, phantom-class arm 0.8289 vs 1.0000.
+        # `score_scan.py` and `paired_seeds.py` already pin it this way; this
+        # line was the one composite that did not. It is a no-op on iwildcam,
+        # where all 8 classes appear in every test split, and a guard elsewhere.
         "ccP": precision_score(y, eq, labels=classes, average="macro", zero_division=0),
         "ccR": recall_score(y, eq, labels=classes, average="macro", zero_division=0),
         "ccF1": f1_score(y, eq, labels=classes, average="macro", zero_division=0),
-        "macroP": precision_score(y, eq, average="macro", zero_division=0),
-        "macroR": recall_score(y, eq, average="macro", zero_division=0),
-        "macroF1": f1_score(y, eq, average="macro", zero_division=0),
+        "macroP": precision_score(y, eq, labels=present, average="macro", zero_division=0),
+        "macroR": recall_score(y, eq, labels=present, average="macro", zero_division=0),
+        "macroF1": f1_score(y, eq, labels=present, average="macro", zero_division=0),
         # macroF1 is CARRIED by the uncapped classes -- 6 of 8 on iwildcam --
         # so a macroF1 move is unattributable until this line is beside it.
         # Measured 2026-08-24 on xfam1: the three dual families damage the
@@ -400,8 +411,7 @@ def panel(run_dir, cfg):
         # 4x in what they do to the classes the constraint never names. The
         # composite hid that completely.
         "uncF1": (f1_score(y, eq, average="macro", zero_division=0,
-                           labels=[c for c in range(P.shape[1])
-                                   if c in set(y.tolist()) and c not in classes])
+                           labels=[c for c in present if c not in classes])
                   if len(classes) else np.nan),
         "acc": accuracy_score(y, eq),
         # -------- as-run

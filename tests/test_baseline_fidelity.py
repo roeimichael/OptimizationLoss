@@ -1966,3 +1966,77 @@ def test_the_deployment_figure_REFUSES_a_bar_it_has_no_data_for():
         "make_deployment caught %d exception(s) again. The dot overlay used to "
         "swallow KeyError and hide exactly the absence this guard exists to "
         "catch." % len(handlers))
+
+
+def test_the_macro_denominator_is_the_DATA_not_the_arm_s_predictions():
+    """Two arms scored on one truth must be averaged over the same classes.
+
+    With no explicit `labels=`, sklearn macro-averages over
+    `unique(y_true) | unique(y_pred)`. So an arm that emits a class absent from
+    y_true is divided by one MORE class than an arm that does not, and the two
+    macro-F1s stop being comparable -- in a project whose entire output is
+    arm-minus-arm differences on exactly this metric.
+    """
+    import io as _io
+    import numpy as np
+    from sklearn.metrics import f1_score
+
+    # --- the hazard, measured. Class 7 exists in NEITHER arm's truth.
+    y = np.array([0, 1, 2, 3, 4, 5, 6] * 10)
+    quiet = y.copy()                    # never predicts the phantom class
+    loud = y.copy()
+    loud[::11] = 7                      # predicts it, always wrongly
+    unpinned = [f1_score(y, p, average="macro", zero_division=0)
+                for p in (quiet, loud)]
+    assert unpinned[0] != unpinned[1], (
+        "sklearn no longer changes the macro denominator with the prediction "
+        "set; if that is genuinely true this pin is harmless but redundant")
+
+    pinned = [f1_score(y, p, labels=sorted(set(y.tolist())),
+                       average="macro", zero_division=0)
+              for p in (quiet, loud)]
+    assert pinned[0] == 1.0, pinned
+    # The loud arm is still punished for its wrong predictions -- pinning the
+    # denominator must not launder a real error away.
+    assert pinned[1] < 1.0, (
+        "pinning `labels` hid the loud arm's wrong predictions entirely, which "
+        "would be a worse bug than the one it fixes")
+
+    # --- full_panel pins all three macro metrics (AST: a comment is not a kwarg).
+    src = _io.open("scripts/full_panel.py", encoding="utf-8").read()
+    tree = ast.parse(src)
+    fn = [n for n in ast.walk(tree)
+          if isinstance(n, ast.FunctionDef) and n.name == "panel"]
+    assert fn, "panel() vanished from scripts/full_panel.py"
+
+    wanted = {"macroP": "precision_score", "macroR": "recall_score",
+              "macroF1": "f1_score"}
+    seen = {}
+    for d in ast.walk(fn[0]):
+        if not isinstance(d, ast.Dict):
+            continue
+        for k, v in zip(d.keys, d.values):
+            if (isinstance(k, ast.Constant) and k.value in wanted
+                    and isinstance(v, ast.Call)):
+                seen[k.value] = {kw.arg for kw in v.keywords}
+    missing = sorted(k for k in wanted if k not in seen)
+    assert not missing, "panel() no longer emits %s" % missing
+    unpinned_keys = sorted(k for k, kws in seen.items() if "labels" not in kws)
+    assert not unpinned_keys, (
+        "%s computed without an explicit `labels=`, so their denominator is "
+        "again `unique(y) | unique(pred)` and an arm that emits an absent class "
+        "is averaged over more classes than one that does not" % unpinned_keys)
+
+    # --- and `present` is derived from y alone, never from the predictions.
+    assigns = [n for n in ast.walk(fn[0])
+               if isinstance(n, ast.Assign)
+               and any(isinstance(t, ast.Name) and t.id == "present"
+                       for t in n.targets)]
+    assert len(assigns) == 1, (
+        "expected exactly one `present = ...` in panel(), found %d" % len(assigns))
+    names = {n.id for n in ast.walk(assigns[0].value) if isinstance(n, ast.Name)}
+    assert "y" in names, "`present` is no longer derived from y"
+    for forbidden in ("eq", "pred", "P"):
+        assert forbidden not in names, (
+            "`present` is derived from `%s`, which is prediction-dependent -- "
+            "that reintroduces exactly the bug this pins shut" % forbidden)

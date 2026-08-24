@@ -1848,6 +1848,35 @@ comment attached, and it will be re-found, re-investigated and re-explained by w
 reads it next. Fix it, then record the fix and the reason -- which is what the table above
 does.
 
+#### 🆕 A SECOND CLASS, found 2026-08-25: **ABSENT DATA THAT READS AS A VALUE**
+
+The rows above are all one class -- a knob that does nothing. This is the mirror:
+a quantity that is *missing* but is rendered, printed or averaged as though it
+were *measured*. Two instances, both fixed, both gated, both found by asking
+"what would this show me if the data were simply not there?"
+
+| site | absent value became | why it was dangerous | state |
+|---|---|---|---|
+| `docs/paper/scripts/make_deployment_fig.py` | a `NaN` bar height, from `reindex` | **`ax.bar` draws a `NaN` height and a `0.00` height to byte-identical pixels** (measured: both PNGs 236 bytes). That figure's headline claim is that the post-hoc clippers sit at ~0.00 native satisfaction -- so a `(backbone, method)` cell that had vanished from the corpus would have drawn as an empty bar and read as **evidence FOR the claim**. `reindex` also silently DROPS any corpus key the hardcoded orders omit. | ✅ `_require_full_grid` raises instead of drawing, and prints what it excludes. The dot overlay's `except KeyError: pts = []` -- the same swallow one layer down -- is removed. Gated by `test_the_deployment_figure_REFUSES_a_bar_it_has_no_data_for`. |
+| `scripts/full_panel.py` `macroP`/`macroR`/`macroF1` | an F1 of `0.0` for a class with no true instances, **and a denominator that moved with the arm** | With no explicit `labels=`, sklearn macro-averages over `unique(y_true) \| unique(y_pred)`. An arm emitting a class absent from `y_true` is divided by one MORE class than an arm that does not -- measured, same truth: **0.8289 vs 1.0000**. This project reads nothing but arm-minus-arm differences on exactly this metric. | ✅ pinned to `present = sorted(set(y))`, matching `score_scan.py` and `paired_seeds.py`, which already did it. Gated by `test_the_macro_denominator_is_the_DATA_not_the_arm_s_predictions`. |
+
+⚠️ **The second one was NOT reachable on iwildcam and was fixed anyway.** All 8
+classes appear in the `oodslice` test split (counts 720/480/370/180/210/367/160/456),
+so the union never varies and the pin is a **verified no-op** -- 200/200 random
+prediction vectors give bit-identical macro-F1 before and after, and no committed
+number moves. It was reachable only if a future slice lost a class, or the moment
+anyone scored **per group** -- and the per-group structure makes that acute:
+camera 130's test rows are class 7 **only**, camera 516's are class 3 **only**,
+and cameras 53/306/410 hold only classes 2 and 7. A per-camera macro-F1 would
+have hit this on the first run.
+
+🔑 **The generalisation, worth more than either fix:** this project's gates all ask
+*"is this flag live?"*. Neither of these was a dead flag -- both were live code
+doing the wrong thing with **missing input**. The question that finds them is
+**"what does this render when the data is absent, and is that distinguishable
+from a real measurement?"** Where the two are indistinguishable, absence must
+raise, not draw.
+
 ### (f) What was DELETED FROM THE CODE on 2026-08-18, and why
 
 Every failed idea had left a flag, a branch and a default behind. The knobs are gone, not
@@ -1915,7 +1944,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 368 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 369 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1923,7 +1952,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (368 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (369 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -5208,7 +5237,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             368 tests, ~105 s, no dataset required
+tests/             369 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
