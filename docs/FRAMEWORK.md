@@ -391,83 +391,50 @@ incomparable to earlier ones.
 
 ### (6) At `L30_G20` a COIN does the same damage -- the direction carries no information
 
-🔑 **MECHANISM FOUND 2026-08-25, and it CHANGES WHAT THIS SECTION MEANS.** The
-title above is what was measured; the conclusion "the direction carries no
-information" is one reading of it, and it is the wrong one. The right one is
-that **the direction was never delivered**. Both this arm and its control put a
-norm-`clip` vector into `prm.grad`; Adam then adds `b1 * m_CE` to both, and that
-term is **92.6%** of the result. Measured with the real norms
-(`python -m scripts.ortho_survival`):
+⛔ **RETRACTION, 2026-08-25, of an edit made to this section EARLIER THE SAME
+DAY.** That edit claimed the coin null has a mechanism -- that under a shared
+Adam the treatment and its control deliver the same vector
+(`cos = 0.9937`), so the campaign "could not have resolved the constraint
+direction whatever it contained". **That inference is withdrawn.** It was wrong
+in two independent ways, and the disproof was already sitting four paragraphs
+below it in this same section:
 
-| preconditioner spread | 0 | 1 | 2 | 3 |
-|---|---|---|---|---|
-| **cos(real step, coin step)** | **0.9937** | **0.9937** | **0.9935** | **0.9935** |
-| cos(real step, CE momentum) | 0.9968 | 0.9968 | 0.9968 | 0.9968 |
+1. **The data refute it.** At `L50_G30`, in the same cell with the same seeds
+   and the same control, `linear` scores **+0.0078 (4/4 seeds, sd 0.0017)** and
+   the coin **-0.0130 (1/4)** -- *"the distributions do not overlap"*. If the
+   two arms delivered indistinguishable steps that could not happen.
+2. **The inference does not follow even from its own number.** A per-step cosine
+   of 0.994 is not outcome-indistinguishability: a 0.6% consistent directional
+   difference **compounds over 29 steps**, and the effects at issue here are
+   0.008-0.013 `capF1`. I converted a per-step geometry into a claim about a
+   29-step trajectory without doing the compounding.
 
-**The treatment and its control deliver the same vector to four significant
-figures.** A campaign comparing them was never able to resolve the constraint
-direction, whatever that direction contained. The liveness control is the
-probe's own: set `|m_CE| = 0` and the two steps become orthogonal
-(cos ~ 0), so the 0.994 is a measurement and not a constant.
+**And the premise was never checked.** The measurement assumes
+`constraint_step_rule: shared`. That is the protocol default
+(`configs/protocol.yml:82`, no block overrides it), but **I did not verify what
+these diagnostic campaigns ran**, and the contemporaneous `results/dosefix`
+(section 2(b-pre)) used `constraint_step_rule: sgd` -- under which the step is
+`p.add_(p.grad, alpha=-lr)`, the direction is delivered at `cos = 1.0`, and none
+of the momentum argument applies. `evidence/provenance_2026-08-18.tar.gz` holds
+**zero** `constraint_random_direction` configs, so the campaign postdates the
+archive and its step rule cannot be recovered from it.
 
-⇒ **do not cite this section as evidence that a constraint direction cannot
-help.** It is evidence that THIS pipeline cannot deliver one. The same
-correction applies to every arm in 2(a) and 2(c) that tied its control: a tie
-between two arms whose delivered steps are 99.4% identical is a property of the
-optimizer, not of the idea. 🛑 It does **not** rehabilitate any of those ideas
-either -- none of them has been tested -- and the arms that lost outright
-(`select`, `beta`, `joint`) lost by margins far outside this.
+✅ **WHAT SURVIVES, because it was measured rather than inferred:** under
+`constraint_step_rule: shared`, the per-step update is `~92.6%` stale CE
+momentum and `cos(real step, coin step) = 0.9937`
+(`python -m scripts.ortho_survival`). That is a true statement about the
+default step rule and it is why `tralo_ortho`'s guarantee dies (2(t)) --
+`tralo_ortho` provably runs under `shared`. It is **not** a re-reading of the
+campaign below, and the conclusion that section reaches from its own data is
+unaffected.
 
-⚠️ **AND IT DOES NOT MAKE THE CONSTRAINT LOOK BETTER.** 2(s) measured all 24
-constraint terms negative against a lambda=0 twin. Delivering more of the
-constraint direction is as likely to deepen that as to reverse it; nothing here
-predicts the sign.
-
-**What would change it, and why it is NOT a launchable arm yet.** Clearing only
-Adam's `m` before the constraint step -- keeping `v`, so this is NOT the
-rejected `separate_constraint_optimizer` -- moves the delivered step's alignment
-with the constraint gradient from **0.078 to 1.000**:
-
-| | cos(update, g) | cos(update, m_CE) | relative magnitude |
-|---|---|---|---|
-| shared (shipped) | 0.0777 | 0.9968 | 1.000 |
-| `m` zeroed | **1.0000** | -0.0019 | **0.080** |
-
-🛑 **Read the last column before the first.** Clearing `m` shrinks the delivered
-step **12.5x**, so an arm built that way alone would differ from its control in
-DOSE as well as direction -- the exact confound that made the hounie baseline
-meaningless and that `constraint_random_direction` exists to avoid.
-
-🟢 **BUT THE CONFOUND IS REMOVABLE, AND THAT MAKES A LEGAL ARM.** Renormalising
-the cleared step back to the SHARED step's norm changes the direction and
-nothing else -- which is precisely the property that makes the random-direction
-control legal in the first place:
-
-| variant | cos(update, g) | dose vs shipped |
-|---|---|---|
-| shipped (shared `m`) | 0.0802 | 1.000 |
-| `m` cleared | 1.0000 | 0.080 |
-| `m` cleared + bias correction `1/(1-b1)` | 1.0000 | 0.795 |
-| **`m` cleared + renorm to shared** | **1.0000** | **1.000** |
-
-⇒ **a direction-only arm is constructible: alignment 0.08 -> 1.00 at dose
-1.000.** It would be the first design in this project that actually TESTS the
-constraint direction, and `constraint_random_direction` is its ready-made
-control. Two implementation requirements, both easy to get wrong:
-
-* **`m` must be SAVED AND RESTORED around the constraint step.** Clearing it and
-  walking away changes the CE phase that follows, and the arm would then differ
-  from its control in CE dynamics too.
-* **`v` is KEPT.** That is the whole distinction from
-  `separate_constraint_optimizer` (rejected, AP -0.0938): `v` sets the step
-  scale, and a fresh one is what let that arm move 8,900x further.
-
-⚠️ **THIS IS NOT A PREDICTION THAT IT HELPS.** 2(s) measured all 24 constraint
-terms NEGATIVE against a lambda = 0 twin, on every metric and every dual family.
-Delivering more of the constraint direction may deepen that rather than reverse
-it. This makes the question answerable; it does not answer it, and the arm must
-be read on `d capF1` in ITEMS against `tralo_null`, never on native
-satisfaction.
+🔑 **THE LESSON, which is the reason this retraction is kept in full.** A
+mechanism that explains a result is not evidence for itself. This one was
+derived, written into the operational document, and committed **before reading
+the rest of the section it was reframing** -- which contained the disproof.
+Section 3b already lists "chose the metric after seeing the numbers" as a
+mistake pattern; this is its sibling: *chose the mechanism after seeing the
+null, then stopped reading.*
 
 `constraint_random_direction` replaces the constraint gradient with a random vector of
 the SAME norm: the dose is held exactly and only the information is removed. It is the
@@ -4035,6 +4002,15 @@ argument that a projection acts on parameter gradients during training, which no
 stored artefact records. That is true of the *gradients* and irrelevant to the
 *guarantee*, which is algebra and can be checked without a single run.
 `python -m scripts.ortho_survival`.
+
+🔑 **THE PREMISE, CHECKED RATHER THAN ASSUMED.** All of this is about the Adam
+path. Under `constraint_step_rule: sgd` the step is `p -= lr * g` -- no
+momentum, no preconditioner -- and the projection WOULD be delivered in full.
+Every trained TraLO arm resolves to **`shared`**
+(`constraint_phase.constraint_step_rule`, no block overrides it), so the verdict
+applies to what actually ships. Gated inside
+`test_ortho_project_s_GUARANTEE_DOES_NOT_REACH_THE_WEIGHTS`, which fails if any
+of `tralo` / `tralo_ortho` / `tralo_head` ever resolves to `sgd`.
 
 **What the guarantee is.** `project_out` sets `<g_con, r> = 0` on the raw
 gradient. A step `-lr*u` changes the CE loss by `-lr*<grad_CE, u>` to first

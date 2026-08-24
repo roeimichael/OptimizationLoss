@@ -2127,6 +2127,31 @@ def test_ortho_project_s_GUARANTEE_DOES_NOT_REACH_THE_WEIGHTS():
     # b1 is the constant the bound is computed from.
     assert B1 == 0.9, "B1 changed; the 7.4% momentum share must be recomputed"
 
+    # --- THE LOAD-BEARING PREMISE. Everything above is about the Adam path.
+    #     Under `constraint_step_rule: sgd` the step is `p -= lr*g`, there is no
+    #     momentum and no preconditioner, and the projection WOULD be delivered
+    #     in full. So the verdict holds only while these arms resolve to
+    #     "shared". Checked, not assumed -- I asserted it once without checking
+    #     and had to retract a different claim for exactly that reason.
+    import yaml
+    P = yaml.safe_load(_io.open("configs/protocol.yml", encoding="utf-8").read())
+    cp, blocks, arms = P["constraint_phase"], P["blocks"], P["arms"]
+    for name in ("tralo", "tralo_ortho", "tralo_head"):
+        spec = arms.get(name)
+        assert spec, "arm %s vanished from the registry" % name
+        rule = None
+        for b in spec.get("blocks", []):
+            if b == "constraint_phase":
+                rule = cp.get("constraint_step_rule")
+            blk = blocks.get(b) or {}
+            if "constraint_step_rule" in blk:
+                rule = blk["constraint_step_rule"]
+        assert rule == "shared", (
+            "%s now resolves to constraint_step_rule=%r. Under 'sgd' the step is "
+            "p -= lr*g with no momentum and no preconditioner, so the projection "
+            "IS delivered and FRAMEWORK 2(t)'s 0.0%% verdict does not apply to "
+            "this arm. Re-derive it before quoting." % (name, rule))
+
     # --- AND THE SISTER ARM: `head_only` masks by parameter set, not direction.
     #     Zeroing a gradient does NOT freeze the parameter -- Adam carries
     #     `m <- 0.9*m + 0.1*0`. FRAMEWORK 2(t) states 90.4% and reads the arm as
@@ -2145,13 +2170,19 @@ def test_ortho_project_s_GUARANTEE_DOES_NOT_REACH_THE_WEIGHTS():
 
 
 def test_a_COIN_and_the_REAL_constraint_gradient_deliver_the_SAME_step():
-    """1b-pre(6)'s null has a mechanism, and it is not "the direction is uninformative".
+    """Under `step_rule=shared`, a coin and the real gradient give the same PER-STEP update.
 
     Both the treatment and its random-direction control put a norm-`clip` vector
     into `prm.grad`. Adam then adds `b1 * m_CE` to both, and that term is ~92.6%
-    of the result. The two arms therefore deliver nearly the same vector, so the
-    campaign could not have distinguished them whatever the constraint direction
-    contained.
+    of the result, so the two deliver nearly the same vector on any single step.
+
+    ⛔ THIS IS NOT AN EXPLANATION OF 1b-pre(6)'s NULL, and an earlier version of
+    this test said it was. A 0.6% consistent directional difference COMPOUNDS
+    over 29 steps, and that section measures coin and `linear` with
+    NON-OVERLAPPING distributions at L50_G30 -- which a same-step reading cannot
+    produce. The claim was retracted 2026-08-25. What survives is a forward
+    warning about `tralo_coin` as a control: its contrast with the treatment is
+    ~0.6% per step, so its power comes from compounding, not step geometry.
     """
     import numpy as np
     from scripts.ortho_survival import coin_equivalence, momentum_reset, B1
