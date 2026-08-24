@@ -74,11 +74,59 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.utils.constants import UNLIMITED                     # noqa: E402
+from src.losses.transductive_loss import uniform_grad_count   # noqa: E402
 
 # Below this, the boundary item is one the model is already certain about and
 # the penalty's per-item gradient there is negligible. Calibrated on the two
 # cells above, so treat it as a flag, not a law.
 REACHABLE = 0.040
+
+
+def slope_at(p_col, k, mode):
+    """Per-item gradient of the configured count at the K-th ranked item.
+
+    WHY THIS TAKES `mode`. `p(1-p)` is the slope of `sum` and of NOTHING else,
+    and `soft_count_mode` has had three legal values since 2026-08-24. This
+    file hardcoded `p(1-p)` and printed it as THE reachability verdict, so a
+    `uniform` campaign -- whose whole purpose is that the per-item slope is a
+    population CONSTANT -- would have been priced with the slope of the arm it
+    replaces, and priced `flat at K` exactly where it is designed to be live.
+
+    `uniform`'s weight comes from the shipped function rather than being
+    restated: `uniform_grad_count` returns `p + w*(u - u.detach())` with
+    `du_c/dz_c = 1`, so the slope in the class logit is `w` for EVERY item.
+    """
+    import torch
+    srt = np.sort(p_col)[::-1]
+    p = float(srt[k - 1])
+    if mode == "sum":
+        return p * (1.0 - p), p
+    if mode == "uniform":
+        # The slope must be taken w.r.t. the class LOGIT, not w.r.t. p: the
+        # whole construction rests on `du_c/dz_c = 1`, and differentiating
+        # against p instead returns `w / (p(1-p))` -- item-dependent, which is
+        # the exact property `uniform` exists to remove. So push logits through
+        # a softmax, as the trainer does. Collapsing the other classes into one
+        # column is exact here, because `u_c = z_c - logsumexp(k != c)` already
+        # treats them as a single competitor.
+        q = np.clip(p_col, 1e-12, 1.0 - 1e-12)
+        z = np.stack([np.log(q), np.log1p(-q)], axis=1)
+        t = torch.tensor(z, dtype=torch.float64, requires_grad=True)
+        uniform_grad_count(torch.softmax(t, dim=1))[:, 0].sum().backward()
+        return float(t.grad[:, 0].mean()), p
+    raise SystemExit(
+        "soft_count_mode %r has no reachability slope here. `margin`'s slope "
+        "is the sigmoid's and depends on the DERIVED window temperature, "
+        "which the second table below already prices per width -- read that "
+        "instead of a single number at K." % mode)
+
+
+def count_mode(run_dir):
+    try:
+        cfg = json.load(open(run_dir / "config.json"))
+    except Exception:
+        return "sum"
+    return str((cfg.get("hyperparams") or {}).get("soft_count_mode", "sum"))
 
 
 def budgets(run_dir):
@@ -179,7 +227,9 @@ def main():
     print("is near its MAXIMUM.")
     print()
     print("%-44s %6s %5s %8s %9s %s"
-          % ("run", "class", "K", "p at K", "p(1-p)", "verdict"))
+          % ("run", "class", "K", "p at K", "d count", "verdict"))
+    print("`d count` is the slope of the run's OWN soft_count_mode, not always"
+          " p(1-p).")
     print("-" * 92)
     seen = {}
     margin_rows = []
@@ -192,8 +242,7 @@ def main():
             col = "Prob_Class_%d" % c
             if col not in r.columns or k > len(r):
                 continue
-            p = float(np.sort(r[col].to_numpy())[::-1][k - 1])
-            slope = p * (1.0 - p)
+            slope, p = slope_at(r[col].to_numpy(), k, count_mode(d))
             verdict = "live at K" if slope >= REACHABLE else "flat at K"
             name = "/".join(d.relative_to(root).parts[-3:]) or d.name
             print("%-44s %6d %5d %8.4f %9.4f %s"

@@ -1429,3 +1429,48 @@ def test_the_softmax_cross_term_CANNOT_reorder_the_uncapped_classes():
     z1 = step(z, capped, "sum", 50.0)
     assert softmax(z1)[:, capped].sum() < softmax(z)[:, capped].sum(), (
         "the step did not reduce the capped soft count at all")
+
+
+def test_reachability_prices_the_run_s_OWN_count_not_always_p_times_1_minus_p():
+    """`p(1-p)` is the slope of `sum` and of nothing else.
+
+    `soft_count_mode` has had three legal values since `uniform` landed, and
+    `scripts/reachability.py` hardcoded `p(1-p)` and printed it as THE
+    reachability verdict. `results/uniform1` was staged on `uniform`, whose
+    entire purpose is that the per-item slope is a population CONSTANT -- so
+    the tool would have priced the new arm with the slope of the arm it
+    replaces, and called it `flat at K` in exactly the cells it is designed to
+    make live.
+
+    Same defect class as the probe that hand-derived a gradient `src` already
+    owns: the weight now comes from `uniform_grad_count` through autograd, and
+    it is taken w.r.t. the class LOGIT. Differentiating against `p` instead
+    returns `w / (p(1-p))`, which is item-DEPENDENT -- the precise property
+    `uniform` exists to remove, so that error inverts the reading.
+    """
+    import numpy as np
+    from scripts.reachability import slope_at
+
+    rng = np.random.default_rng(0)
+    p = rng.random(500) * 0.9 + 0.05
+
+    # `uniform` is the population mean p(1-p), identical wherever you cut
+    w = float((p * (1.0 - p)).mean())
+    lo, _ = slope_at(p, 10, "uniform")
+    hi, _ = slope_at(p, 400, "uniform")
+    assert abs(lo - w) < 1e-9 and abs(hi - w) < 1e-9, (
+        "the uniform slope is not the shipped population weight; if it varies "
+        "with the cut, it was differentiated against p and not the logit")
+
+    # NEGATIVE CONTROL: `sum` MUST vary with the cut, or the assertion above
+    # is passing because every mode returns the same constant.
+    s_lo, _ = slope_at(p, 10, "sum")
+    s_hi, _ = slope_at(p, 400, "sum")
+    assert abs(s_lo - s_hi) > 1e-3, (
+        "`sum`'s slope did not move across the cut, so the contrast is inert")
+    assert abs(s_lo - p[np.argsort(-p)[9]] * (1 - p[np.argsort(-p)[9]])) < 1e-9
+
+    # An unpriceable mode must REFUSE, not silently fall back to p(1-p)
+    import pytest
+    with pytest.raises(SystemExit):
+        slope_at(p, 10, "margin")
