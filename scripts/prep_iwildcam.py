@@ -224,7 +224,7 @@ def main():
                        frame["location"])
         print("  META ONLY -- no images fetched. Wrote train_meta.csv and "
               "test_meta.csv to %s" % args.out)
-        print("  ⚠️  This is the INTENDED slice. The full run screens the "
+        print("  !!  This is the INTENDED slice. The full run screens the "
               "DELIVERED one, which is smaller whenever a shard fails to "
               "download, so a meta-only NET is an upper bound on the real "
               "one -- good enough to REJECT a candidate, never to accept a "

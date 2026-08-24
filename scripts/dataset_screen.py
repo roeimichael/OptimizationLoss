@@ -219,7 +219,7 @@ def main():
                  r["global_z"], len(r["unseen_groups"])))
 
     print("")
-    print("  ⚠️ STAGE 1 ONLY. Passing here is NECESSARY, NOT SUFFICIENT.")
+    print("  !! STAGE 1 ONLY. Passing here is NECESSARY, NOT SUFFICIENT.")
     print("  dermmnist scores +69 items (z=3.4) of real per-group novelty and")
     print("  still nulls: FRAMEWORK 2(m) fed a model the TRUE per-group counts")
     print("  and only 6 items moved. Information existing is not the same as it")

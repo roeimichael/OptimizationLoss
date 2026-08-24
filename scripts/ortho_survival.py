@@ -265,6 +265,45 @@ def momentum_reset(spread, rng, n=DIM, epoch=3):
     return out[0], out[1]
 
 
+def dose_matched_delivery(rng, n=DIM, epoch=3):
+    """Can the constraint DIRECTION be delivered without changing the DOSE?
+
+    The shipped step is `(b1*m_CE + (1-b1)*g)/sqrt(v)`, which is ~8% aligned
+    with `g`. Clearing `m` gives alignment 1.0 but shrinks the step 12.5x, and
+    an arm that differs from its control in dose as well as direction is the
+    confound `constraint_random_direction` exists to avoid.
+
+    Renormalising the cleared step back to the SHARED step's norm removes that:
+    it changes the direction and nothing else, which is exactly the property
+    that makes the random-direction control legal.
+
+    Returns a list of (name, cos(u, g), norm relative to the shipped step).
+    """
+    m_n, _, sv_n = MEASURED[epoch]
+    m_ce = _unit(rng, n) * m_n
+    g = _unit(rng, n) * 1.0                      # the clip's output, 2(a3)
+    lv = rng.uniform(-0.5, 0.5, n)
+    sv = 10.0 ** lv
+    sv *= sv_n / np.linalg.norm(sv)
+
+    pre = g / (sv + 1e-8)
+    u_shared = (B1 * m_ce + (1.0 - B1) * g) / (sv + 1e-8)
+    base = np.linalg.norm(u_shared)
+
+    def row(name, u):
+        d = np.linalg.norm(u) * np.linalg.norm(pre)
+        return (name, float(u @ pre) / d if d > 0 else float("nan"),
+                float(np.linalg.norm(u) / base))
+
+    cleared = ((1.0 - B1) * g) / (sv + 1e-8)
+    return [
+        row("shipped (shared m)", u_shared),
+        row("m cleared", cleared),
+        row("m cleared + bias corr", cleared / (1.0 - B1)),
+        row("m cleared + renorm", cleared * (base / np.linalg.norm(cleared))),
+    ]
+
+
 def self_test(rng):
     """The projection MUST survive when neither destroyer is active."""
     m_ce, g, sv = MEASURED[1]
@@ -428,13 +467,30 @@ def main():
     for name, r in zip(("shared", "m zeroed"), momentum_reset(1.0, rng)):
         print("  %-11s %-15.4f %-15.4f %.3f" % (name, r[0], r[1], r[2]))
     print()
-    print("  ⚠️ THE DOSE MOVES WITH IT and that is not priced here. Clearing `m`")
+    print("  !! THE DOSE MOVES WITH IT and that is not priced here. Clearing `m`")
     print("  shrinks the delivered step by the factor in the last column, so an")
     print("  arm built this way differs from its control in MAGNITUDE as well as")
     print("  direction -- the exact confound that made the hounie baseline")
     print("  meaningless. Adam's bias correction is the obvious lever and it is")
     print("  NOT evaluated here. Do not launch this on the strength of the")
     print("  cosine column alone.")
+
+    print()
+    print("  ...AND THE DOSE CONFOUND IS REMOVABLE. Renormalising the cleared")
+    print("  step back to the SHARED step's norm changes direction and nothing")
+    print("  else -- the property that makes the random-direction control legal:")
+    print()
+    print("  %-26s %-11s %s" % ("variant", "cos(u, g)", "dose vs shipped"))
+    print("  " + "-" * 56)
+    for name, cg, rel in dose_matched_delivery(rng):
+        print("  %-26s %-11.4f %.3f" % (name, cg, rel))
+    print()
+    print("  => a DIRECTION-ONLY arm is constructible: cos 0.08 -> 1.00 at dose")
+    print("  1.000. That is the first design that would actually TEST the")
+    print("  constraint direction. !! It is not a prediction that it helps --")
+    print("  2(s) has all 24 constraint terms NEGATIVE, so delivering more of")
+    print("  the direction may deepen the damage. It makes the question")
+    print("  answerable; it does not answer it.")
 
 
 if __name__ == "__main__":

@@ -310,18 +310,18 @@ def main():
     moved = float(np.mean(rows["local_only__moved"]))
     print("")
     if ctrl < 1.0:
-        print("  ⚠️  PROBE CANNOT RESOLVE THIS. Both wrong-shape controls moved the")
+        print("  !!  PROBE CANNOT RESOLVE THIS. Both wrong-shape controls moved the")
         print("     endpoint less than one item (max %.2f), so a null in the real" % ctrl)
         print("     row is silence, not a measurement. Do not price the campaign on it.")
     elif abs(real["mean"]) < 1.0:
-        print("  → NULL, and it is a MEASUREMENT: the controls move %.2f items, so a"
+        print("  -> NULL, and it is a MEASUREMENT: the controls move %.2f items, so a"
               % ctrl)
         print("     real effect of that size would have shown. Pinning the split")
         print("     changes the endpoint by %+.2f items while re-assigning %.0f items."
               % (real["mean"], moved))
         print("     That is a RE-ALLOCATION, not a difference.")
     else:
-        print("  → the pinned split moves the endpoint %+.2f items (%d/%d runs)."
+        print("  -> the pinned split moves the endpoint %+.2f items (%d/%d runs)."
               % (real["mean"], real["pos"], real["n"]))
         if np.isfinite(real["sd"]) and real["sd"] > 0 and real["mean"] > 0:
             print("     a GPU campaign would need ~%d seeds per cell to see it, "

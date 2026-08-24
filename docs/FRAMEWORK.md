@@ -434,11 +434,40 @@ with the constraint gradient from **0.078 to 1.000**:
 | `m` zeroed | **1.0000** | -0.0019 | **0.080** |
 
 🛑 **Read the last column before the first.** Clearing `m` shrinks the delivered
-step **12.5x**, so such an arm would differ from its control in DOSE as well as
-direction -- the exact confound that made the hounie baseline meaningless and
-that `constraint_random_direction` exists to avoid. Adam's bias correction is
-the obvious lever and it is **not evaluated**. Nobody should launch this on the
-cosine column alone.
+step **12.5x**, so an arm built that way alone would differ from its control in
+DOSE as well as direction -- the exact confound that made the hounie baseline
+meaningless and that `constraint_random_direction` exists to avoid.
+
+🟢 **BUT THE CONFOUND IS REMOVABLE, AND THAT MAKES A LEGAL ARM.** Renormalising
+the cleared step back to the SHARED step's norm changes the direction and
+nothing else -- which is precisely the property that makes the random-direction
+control legal in the first place:
+
+| variant | cos(update, g) | dose vs shipped |
+|---|---|---|
+| shipped (shared `m`) | 0.0802 | 1.000 |
+| `m` cleared | 1.0000 | 0.080 |
+| `m` cleared + bias correction `1/(1-b1)` | 1.0000 | 0.795 |
+| **`m` cleared + renorm to shared** | **1.0000** | **1.000** |
+
+⇒ **a direction-only arm is constructible: alignment 0.08 -> 1.00 at dose
+1.000.** It would be the first design in this project that actually TESTS the
+constraint direction, and `constraint_random_direction` is its ready-made
+control. Two implementation requirements, both easy to get wrong:
+
+* **`m` must be SAVED AND RESTORED around the constraint step.** Clearing it and
+  walking away changes the CE phase that follows, and the arm would then differ
+  from its control in CE dynamics too.
+* **`v` is KEPT.** That is the whole distinction from
+  `separate_constraint_optimizer` (rejected, AP -0.0938): `v` sets the step
+  scale, and a fresh one is what let that arm move 8,900x further.
+
+⚠️ **THIS IS NOT A PREDICTION THAT IT HELPS.** 2(s) measured all 24 constraint
+terms NEGATIVE against a lambda = 0 twin, on every metric and every dual family.
+Delivering more of the constraint direction may deepen that rather than reverse
+it. This makes the question answerable; it does not answer it, and the arm must
+be read on `d capF1` in ITEMS against `tralo_null`, never on native
+satisfaction.
 
 `constraint_random_direction` replaces the constraint gradient with a random vector of
 the SAME norm: the dose is held exactly and only the information is removed. It is the
@@ -1926,6 +1955,20 @@ doing the wrong thing with **missing input**. The question that finds them is
 from a real measurement?"** Where the two are indistinguishable, absence must
 raise, not draw.
 
+#### 🆕 A THIRD CLASS, found 2026-08-25: **THE TOOL DIES MID-REPORT**
+
+| site | what happened | state |
+|---|---|---|
+| `scripts/ortho_survival.py`, `scripts/scope_probe.py` (x3), `scripts/dataset_screen.py`, `scripts/prep_iwildcam.py` | a `print` containing an emoji raises `UnicodeEncodeError` on a **cp1252 console** -- the Windows default -- and the script **exits 1 mid-report**, so everything already printed reads as the complete output | ✅ printed strings ASCII-ised (`!!`, `->`, `=>`); docstrings, comments and every `.md` keep their emoji. Gated by `test_no_script_CRASHES_when_it_prints_its_own_conclusion` (AST over `print`/`SystemExit`/`sys.exit`) |
+
+🔑 **Why this is not cosmetic.** It was found because `ortho_survival` died
+between its table and the caveat that qualifies it -- the reader would have got
+the number without the warning. And `scope_probe`'s crash sits inside the
+**`PROBE CANNOT RESOLVE THIS`** branch: it would fail exactly when its job is to
+report that it cannot answer, which is the one message this project most needs
+to survive. These run clean on the servers (Linux, UTF-8); the bug is invisible
+there and fatal locally.
+
 ### (f) What was DELETED FROM THE CODE on 2026-08-18, and why
 
 Every failed idea had left a flag, a branch and a default behind. The knobs are gone, not
@@ -1993,7 +2036,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 371 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 372 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -2001,7 +2044,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (371 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (372 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -5401,7 +5444,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             371 tests, ~105 s, no dataset required
+tests/             372 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

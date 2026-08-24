@@ -2187,3 +2187,53 @@ def test_a_COIN_and_the_REAL_constraint_gradient_deliver_the_SAME_step():
         "confound is the reason this is not a launchable arm as it stands, and "
         "FRAMEWORK 2(t) says so; if it has gone away, re-derive that." % zeroed[2])
     assert B1 == 0.9
+
+
+def test_no_script_CRASHES_when_it_prints_its_own_conclusion():
+    """A probe must not die on the console the user actually runs it on.
+
+    Windows defaults stdout to cp1252, which cannot encode the emoji this
+    project's docs use freely. A `print` containing one raises
+    UnicodeEncodeError and the script exits 1 -- MID-REPORT, so whatever it had
+    already printed reads as the complete output. Found 2026-08-25 when
+    `ortho_survival` died between its table and the caveat that qualifies it,
+    and `scope_probe`'s crash sits in the `PROBE CANNOT RESOLVE THIS` branch:
+    it would fail exactly when it needs to say it cannot answer.
+
+    Docstrings, comments and every .md file are unaffected and keep their emoji.
+    """
+    import io as _io
+    import os
+
+    offenders = {}
+    for root in ("scripts", "docs/paper/scripts"):
+        if not os.path.isdir(root):
+            continue
+        for f in sorted(os.listdir(root)):
+            if not f.endswith(".py"):
+                continue
+            path = os.path.join(root, f).replace(os.sep, "/")
+            tree = ast.parse(_io.open(path, encoding="utf-8").read())
+            bad = []
+            for node in ast.walk(tree):
+                emitting = (
+                    isinstance(node, ast.Call)
+                    and ((isinstance(node.func, ast.Name)
+                          and node.func.id in ("print", "SystemExit"))
+                         or (isinstance(node.func, ast.Attribute)
+                             and node.func.attr == "exit")))
+                if not emitting:
+                    continue
+                for lit in ast.walk(node):
+                    if (isinstance(lit, ast.Constant)
+                            and isinstance(lit.value, str)
+                            and any(ord(c) > 127 for c in lit.value)):
+                        bad.append(lit.lineno)
+            if bad:
+                offenders[path] = sorted(set(bad))
+
+    assert not offenders, (
+        "these scripts print non-ASCII and will raise UnicodeEncodeError on a "
+        "cp1252 console, exiting 1 mid-report: %s. Use ASCII in printed strings "
+        "(!! for the warning sign, -> and => for the arrows); docstrings, "
+        "comments and .md files may keep their emoji." % offenders)
