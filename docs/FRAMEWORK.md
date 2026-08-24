@@ -3412,9 +3412,35 @@ reads the ORDER of the capped class and nothing else. At the arm's own budget:
 | **NET items per cell** | **-30.44**, 16/16 negative | **+0.38** |
 
 ⇒ **attributable to the constraint on iwc2: -30.81 items per cell, a 38.6 pp
-precision gap.** Section 4 puts the whole headroom from `clip` to a PERFECT
-allocator at 1.9-9.9 items, so on that backbone this is several times the entire
-prize, spent backwards.
+precision gap.**
+
+🟢🟢 **AND THE PRIZE ON iwildcam IS 10x WHAT SECTION 4 SAYS. Section 4's
+"2 to 18 items" is a dermmnist number and dermmnist is REMOVED.** Measured
+2026-08-24, `scripts.headroom results/iwc2 --control clip`, i.e. the gap from
+`clip` to a PERFECT RANKING on the dataset we actually run:
+
+| cap | class | achieved capF1 | ceiling | headroom |
+|---|---|---|---|---|
+| L20_G50 | 2 | 0.3266 | 0.6667 | **94.4 items** |
+| L20_G50 | 7 | 0.3349 | 0.6667 | **113.5 items** |
+| L30_G50 | 2 | 0.4532 | 0.6667 | **59.2 items** |
+| L30_G50 | 7 | 0.4604 | 0.6667 | **70.6 items** |
+
+**59 to 114 items per class, not 2 to 18.** The model achieves 0.33-0.46 of a
+0.667 ceiling, so it is capturing about half of what a perfect ranking would.
+
+⚠️ **THIS RETIRES THE CENTRAL PESSIMISM FOR iwildcam, and only for iwildcam.**
+"Seed noise is comparable to the entire headroom, which is why arms tie" was
+TRUE on dermmnist, where the prize was ~5 items against a paired seed sd worth
+~2.7. It does not transfer: on iwildcam there is an order of magnitude more room
+than the noise. ⇒ **re-price every direction that was closed on "there is
+nothing to win" before treating it as closed.** A direction rejected because it
+could only be worth 2 items was rejected against the wrong ceiling.
+
+It also re-scales 2(r) itself: the constraint's -3 to -31 items is now a
+fraction of the prize rather than several times it. The damage is still real and
+still worth removing -- it is free to remove -- but "we are spending 3-16x the
+headroom backwards" was priced off dermmnist and is withdrawn.
 
 ⚠️ **THE MAGNITUDE IS BACKBONE-DEPENDENT AND iwc2 IS THE EXTREME. Quote the pair,
 never the -30.8 alone.** Replicated on `results/iwc1` (MobileNetV3, same dataset,
