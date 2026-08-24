@@ -58,6 +58,40 @@ BACKBONE_LABELS = {
 BACKBONE_HATCH = {"MobileNetV3": "", "RegNetY400MF": "///", "ViTB16": "..."}
 
 
+
+def _require_full_grid(piv, pf):
+    """Refuse to draw a bar this corpus cannot support, and DECLARE what is left out.
+
+    Measured 2026-08-25: `ax.bar` renders a NaN height and a 0.00 height to
+    BYTE-IDENTICAL pixels. This figure's entire claim is that the post-hoc
+    clippers sit at ~0.00 native satisfaction, so a (backbone, method) cell
+    that is simply ABSENT from the corpus would appear as an empty bar and read
+    as evidence FOR that claim. `reindex` produces exactly that NaN, silently.
+
+    The second half is the mirror defect: `reindex` also DROPS any corpus key
+    the hardcoded orders omit, equally silently. `corpus_final.csv` carries
+    seven models and this figure draws three; that is a deliberate choice
+    (`make_backbone_tables.py` reports MobileNetV2 separately), but a silent
+    choice is indistinguishable from an accident, so it is printed.
+    """
+    missing = [(bb, m) for bb in BACKBONE_ORDER for m in METHOD_ORDER
+               if not np.isfinite(piv.loc[bb, m])]
+    if missing:
+        cells = "; ".join("%s x %s" % c for c in missing)
+        raise SystemExit(
+            "REFUSING to write fig_deployment: %d (backbone, method) cell(s) are "
+            "absent from %s and would be drawn as an empty bar that is "
+            "pixel-identical to a measured 0.00 -- which is this figure's "
+            "headline claim for the post-hoc clippers. Cells: %s"
+            % (len(missing), os.path.relpath(SRC, ROOT), cells))
+
+    drop_models = sorted(set(pf["model"].unique()) - set(BACKBONE_ORDER))
+    drop_methods = sorted(set(pf["method"].unique()) - set(METHOD_ORDER))
+    print("EXCLUDED FROM THIS FIGURE (declared, not silent):")
+    print("  models  not drawn: %s" % (drop_models or "(none)"))
+    print("  methods not drawn: %s" % (drop_methods or "(none)"))
+
+
 def make_deployment():
     df = pd.read_csv(SRC)
     pf = df[df["sweep"] == "paper_final"].copy()
@@ -68,6 +102,8 @@ def make_deployment():
     n_per = (pf.groupby(["model", "method"])["sat"].count()
                .unstack().reindex(index=BACKBONE_ORDER, columns=METHOD_ORDER))
     ds_mean = (pf.groupby(["model", "method", "dataset"])["sat"].mean())
+
+    _require_full_grid(piv, pf)
 
     n_methods = len(METHOD_ORDER)
     n_bb = len(BACKBONE_ORDER)
@@ -89,11 +125,11 @@ def make_deployment():
                hatch=BACKBONE_HATCH[bb], label=BACKBONE_LABELS[bb], zorder=3)
         # Overlay per-dataset means (3 datasets) so the spread behind each bar shows.
         for i, m in enumerate(METHOD_ORDER):
-            try:
-                pts = [ds_mean.loc[(bb, m, d)] for d in
-                       sorted(pf[(pf.model == bb) & (pf.method == m)]["dataset"].unique())]
-            except KeyError:
-                pts = []
+            # No try/except: _require_full_grid has established that (bb, m) is
+            # populated, so every dataset this filter yields has a mean. Swallowing
+            # a KeyError here would hide the absence the guard exists to catch.
+            pts = [ds_mean.loc[(bb, m, d)] for d in
+                   sorted(pf[(pf.model == bb) & (pf.method == m)]["dataset"].unique())]
             if pts:
                 jit = np.linspace(-bar_w * 0.18, bar_w * 0.18, len(pts))
                 # clip_on=False + white edge: dots at exactly 0.00 (clippers) would

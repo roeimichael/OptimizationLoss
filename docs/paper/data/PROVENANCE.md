@@ -334,18 +334,42 @@ THEM EITHER** -- `corpus_final.csv`'s `method` column holds exactly six values
 the committed code at any setting: **their input no longer exists**, and that
 is not recoverable, only recorded.
 
-🛑 **AND THE DEPLOYMENT FIGURE WOULD NOW SILENTLY DROP A CLAIMED BACKBONE.**
-`make_deployment_fig.py` hardcodes
+🛑 **AND THE SHIPPED FIGURE WAS DRAWN FROM A WIDER SLICE THAN THE ONE THE CODE
+READS.** `make_deployment_fig.py` filters `sweep == 'paper_final'`, and that
+sweep holds exactly the three backbones it names and the six methods it names:
 
-    BACKBONE_ORDER = ["MobileNetV3", "RegNetY400MF", "ViTB16"]
+| | in `sweep == 'paper_final'` (n=1944) |
+|---|---|
+| models | `MobileNetV3`, `RegNetY400MF`, `ViTB16` -- **exactly `BACKBONE_ORDER`** |
+| methods | the six above -- **exactly `METHOD_ORDER`** |
 
--- three. The shipped PDF draws **`MobileNetV2` as well**, `corpus_final.csv`
-carries it (its `model` column holds seven: `EfficientNetB0`, `MobileNetV2`,
-`MobileNetV3`, `RegNetY400MF`, `ResNet18`, `ShuffleNetV2`, `ViTB16`), and
-`CLAUDE.md` names MobileNetV2 as one of the four backbones **the paper claims**.
-Re-running this generator therefore produces a figure with one fewer claimed
-backbone than the one in the manuscript, and nothing warns. That is a live
-hazard the next time anyone regenerates figures before a submission.
+So the generator drops nothing from its own slice. But the shipped PDF draws
+**`MobileNetV2`**, which in this corpus lives only in *other* sweeps
+(`paper_backbones` 288 rows, `blackwell_validation` 80, and eleven more) and is
+reported separately by `make_backbone_tables.py` ("the 3 main-grid backbones +
+MobileNetV2"). ⇒ the committed figure was built over a **different and wider
+row set** than `sweep == 'paper_final'`, in addition to using series
+(`joint`, `global cap only`, `ALM`) that no sweep contains at all.
+
+⚠️ **CORRECTION, 2026-08-25.** An earlier version of this entry said the
+generator "would silently drop a claimed backbone" because MobileNetV2 is in
+`corpus_final.csv` but not in `BACKBONE_ORDER`. **That was wrong** -- it
+compared the hardcoded list against the whole 7,574-row file instead of against
+the `paper_final` slice the generator actually reads. There is no drop. The
+real defect in that generator was a different one, and it is now fixed:
+
+🔧 **FIXED 2026-08-25 -- an ABSENT bar was pixel-identical to this figure's
+headline claim.** `piv` came from `groupby(...).unstack().reindex(...)`, so a
+`(backbone, method)` cell missing from the corpus became `NaN`, and
+`ax.bar` renders a `NaN` height and a `0.00` height to **byte-identical
+pixels** (measured: both PNGs 236 bytes). This figure's entire claim is that
+the post-hoc clippers sit at ~0.00 native satisfaction -- so a cell that had
+simply *vanished from the data* would have drawn as an empty bar and read as
+**evidence for the paper's claim**. `make_deployment_fig.py` now calls
+`_require_full_grid`, which raises rather than draws, and prints the models and
+methods it excludes instead of dropping them silently. The dot-overlay's
+`except KeyError: pts = []`, the same swallow one layer down, is removed.
+Gated by `test_the_deployment_figure_REFUSES_a_bar_it_has_no_data_for`.
 
 🛑 **`joint` IS A REJECTED ARM** (FRAMEWORK 2: `joint_objective` holds the cap
 98.8% of epochs and overfits, AP -0.067). A shipped figure displaying it is not

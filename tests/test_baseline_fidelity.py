@@ -1886,3 +1886,83 @@ def test_flag_live_REFUSES_post_hoc_arms_instead_of_calling_them_inert():
         "`warmup_loss` is now read in %s. If a post-hoc methodology reads it "
         "directly, flag_live could see the difference and the blanket refusal "
         "should be narrowed to the allocator-only arms." % readers)
+
+
+def test_the_deployment_figure_REFUSES_a_bar_it_has_no_data_for():
+    """An absent cell must not render as this figure's headline claim.
+
+    fig_deployment's claim is that the post-hoc clippers sit at ~0.00 native
+    satisfaction. `reindex` turns a missing (backbone, method) cell into NaN,
+    and matplotlib draws a NaN bar and a 0.00 bar identically -- so vanished
+    data would have read as evidence FOR the claim.
+    """
+    import importlib.util
+    import os
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import pandas as pd
+
+    # --- the premise, measured, not assumed: NaN and 0.00 are the same picture.
+    import io as _io
+    pngs = []
+    for h in (np.nan, 0.0):
+        f, a = plt.subplots(figsize=(1, 1))
+        a.set_ylim(0, 1)
+        a.axis("off")
+        a.bar([0], [h], width=0.5, color="black")
+        buf = _io.BytesIO()
+        f.savefig(buf, format="png", dpi=40)
+        plt.close(f)
+        pngs.append(buf.getvalue())
+    assert pngs[0] == pngs[1], (
+        "matplotlib now distinguishes a NaN bar from a 0.00 bar. If that is "
+        "really true the guard below can be relaxed -- but verify it visually "
+        "first, because this test is the only thing asserting it."
+    )
+
+    # --- the guard itself refuses.
+    path = "docs/paper/scripts/make_deployment_fig.py"
+    spec = importlib.util.spec_from_file_location("_mkdep", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    full = pd.DataFrame(
+        1.0, index=mod.BACKBONE_ORDER, columns=mod.METHOD_ORDER)
+    pf = pd.DataFrame({
+        "model": mod.BACKBONE_ORDER * len(mod.METHOD_ORDER),
+        "method": [m for m in mod.METHOD_ORDER
+                   for _ in mod.BACKBONE_ORDER],
+    })
+    mod._require_full_grid(full, pf)          # complete grid: passes
+
+    holed = full.copy()
+    holed.loc[mod.BACKBONE_ORDER[0], mod.METHOD_ORDER[-1]] = np.nan
+    try:
+        mod._require_full_grid(holed, pf)
+    except SystemExit as e:
+        assert "REFUSING" in str(e) and mod.METHOD_ORDER[-1] in str(e), str(e)
+    else:
+        raise AssertionError(
+            "_require_full_grid accepted a grid with a hole, so an absent "
+            "post-hoc-clipper cell would still be drawn as a ~0.00 bar")
+
+    # --- and the generator actually calls it (AST: a mention in a docstring
+    #     or a comment is not a call).
+    tree = ast.parse(_io.open(path, encoding="utf-8").read())
+    fn = [n for n in tree.body
+          if isinstance(n, ast.FunctionDef) and n.name == "make_deployment"]
+    assert fn, "make_deployment vanished from %s" % path
+    calls = [n.func.id for n in ast.walk(fn[0])
+             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)]
+    assert "_require_full_grid" in calls, (
+        "make_deployment no longer calls _require_full_grid, so the guard is "
+        "dead code and a hole in the grid draws silently again")
+
+    # --- the same swallow one layer down must stay removed.
+    handlers = [h for h in ast.walk(fn[0]) if isinstance(h, ast.ExceptHandler)]
+    assert not handlers, (
+        "make_deployment caught %d exception(s) again. The dot overlay used to "
+        "swallow KeyError and hide exactly the absence this guard exists to "
+        "catch." % len(handlers))
