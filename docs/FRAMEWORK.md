@@ -1539,6 +1539,9 @@ for a new result. ✅ Independently checked: the rejected-arm campaigns this
 document names (nsteps, sepopt, granularity, headroom, joint, beta, rank, ortho,
 budgetprobe, mcbar_regnet, mcbar_duals, mcjoint) have **0** prediction files
 each, so the "cannot be re-scored" claim about THOSE is exact.
+⚠️ **`ortho` is in that list by accident** -- this document names no verdict
+for it anywhere, and its 8-run campaign violates three of the five rules.
+Section 2(t) reopens it; do not read its presence here as a rejection.
 
 🔎 **The one ranking measurement the paper era can still produce, and it is
 negative.** `evidence/predictions_*.tar.gz` holds raw predictions for 128 runs
@@ -1860,6 +1863,7 @@ merely defaulted off -- a config can no longer *imply* a knob that does not exis
 | `alpha_kl` + the whole KL anchor | KL to warm-up predictions | out of scope by decision |
 | `enable_ce_skip` + CE-skip machinery | stop CE at saturation | reached only TraLO; fabricated a 0.22 cc-F1 artifact. Re-added 2026-08-20 as a shared object defaulting to OFF, deleted again 2026-08-21 -- proved unfireable at the default, see section 2e |
 | `disable_freeze_on_satisfy` | ratchet/rho freeze ablation | never used; protocol freezes on satisfy |
+| `ortho_project` | CE-orthogonal constraint gradient | ⚠️ **NO VERDICT** -- deleted without one. Its 8 runs measured **AP +0.0041 pre-restore, in its favour**. Added to this table 2026-08-24 to record that the row was missing; see 2(t), which REOPENS it |
 
 | 5 methodology packages | tralo_bounded, fioretto_rh, fioretto_restart, hounie_rh, alm_rh | dead arms |
 | 55 config generators (5,481 lines) | one per campaign | replaced by `configs/gen_campaign.py`, which asserts the protocol |
@@ -3665,6 +3669,107 @@ assertion is passing for a trivial reason) and by
 * **16 matched cell-seeds is 2 seeds in 6 cells and 1 in 3.** The campaign is
   at 141 of 324 and the table must be re-read at 4 seeds before any of the
   underpowered lines is quoted.
+
+### (t) 🟡 `ortho` IS NOT REFUTED, IT IS UNTESTED -- and 2(s) points straight at it
+
+⚠️ **CORRECTION TO THIS DOCUMENT'S OWN RECORD, made 2026-08-24.** Section 1
+names `ortho` in the list of "rejected-arm campaigns this document names".
+**This document never named a verdict for it.** Grep the file: `ortho` appears
+three times, once in that list, once in a mistake-pattern row about a
+checkpoint selector, once in the repository layout. There is no result section,
+no table and no reason. A direction cannot be closed by appearing in a list of
+closed directions.
+
+**What `ortho` is.** The constraint gradient projected onto the orthogonal
+complement of the CE gradient, so enforcing the cap cannot undo CE progress.
+`ortho_project: true`.
+
+**What was actually run**, recovered from `evidence/provenance_2026-08-18.tar.gz`
+(all 14,524 configs): `ortho_project` appears in **24 configs, true in 4**. The
+campaign is `newdirections/arm_ortho/results/ortho`:
+
+| | |
+|---|---|
+| runs | **8** -- `ortho_on` x 4 seeds, `ortho_off` x 4 seeds |
+| cell | **one**: dermmnist x MobileNetV3 x **L30_G30** |
+| regime | warm-up 1 / constraint 29, `lr_constraint` 1e-4 -- the LIVE regime |
+| clipper in campaign | **none**. Neither `clip` nor `focal_clip` |
+| prediction files | **0** -- it cannot be re-scored, ever |
+
+That campaign violates three of the five rules at the top of `CLAUDE.md`:
+**rule 2** (both clippers in the campaign -- it has neither), **rule 4** (at
+least two cap levels -- it has one, and `L30_G30` is the level where the global
+cap is REDUNDANT by section 1's arithmetic), and the dataset is **dermmnist**,
+which section 2(n) rules structurally incapable of carrying a per-group count
+constraint and which is 38.7% test-set leaked.
+
+🔑 **AND ITS ONE NUMBER IS POSITIVE.** The archive records
+**AP +0.0041 pre-restore** for the projection, against +0.0003 after the
+end-of-run checkpoint restore -- and states the reason in its own words: the
+restore's criterion is *total excess*, **exactly the quantity the projection
+deliberately trades away**, so the treatment arm was systematically handed worse
+candidates. The selector compressed the effect ~13x and it was biased against
+the treatment.
+
+⇒ **The only measurement of the orthogonal projection is in its favour, made
+under a selector designed to disfavour it, on 8 runs in one cell of a dead
+dataset at the one cap level where the global scope does nothing.** That is not
+a refutation. It is an absence of measurement, and it has been filed as a
+refutation since 2026-08-18.
+
+#### Why it matters NOW
+
+2(s) measured that the constraint's damage to the six uncapped classes does
+**not** arrive through the output layer -- the softmax cross-term perturbs
+those logits but provably cannot reorder them, zero flips across a 50x dose
+range. It arrives through the **shared backbone**, which is precisely what a
+projection onto the complement of the CE gradient acts on. Of every
+intervention this project has tried, it is the only one aimed at the mechanism
+2(s) actually found, and the only one whose recorded sign is positive.
+
+🛑 **SIZE IT HONESTLY BEFORE SPENDING A GPU.** 2(s) puts TraLO's AP constraint
+term at **-0.0609**. A projection worth +0.0041 recovers **~7% of that**. On
+its own that is a nibble, not a fix -- and the +0.0041 was measured where the
+cap barely binds (`L30_G30` on dermmnist, `lp_fallback_used` False with 0
+candidates on all 52 derm runs), whereas on iwildcam 7 of 14 per-group ceilings
+are K = 0 and the local scope binds at every cap level. The effect there could
+be larger or smaller; **nothing in hand predicts which**, and quoting +0.0041
+as the expected iwildcam effect would repeat 2(m)'s error.
+
+🔧 **AND THE FLAG IS GONE FROM THE CODE.** `grep -rn ortho src/ configs/ main.py`
+returns nothing: `ortho_project` was purged in the 2026-08-18 code deletion --
+**and it is not in 2(f)'s table of what was deleted and why**, which is the
+record that deletion is supposed to leave. It has been added there now, marked
+`NO VERDICT`. Reopening therefore means re-implementing the projection, not
+just generating a campaign. That is a few lines in the constraint step, and it
+must ship with a liveness gate before it ships with a campaign.
+
+⚠️ Do not confuse this with `separate_constraint_optimizer`, which IS rejected
+with a verdict (AP -0.0938, p = 0.0006, 2(f)) and which `CLAUDE.md` names in
+its do-not-run list. That one gives the constraint its own Adam state. This one
+changes the DIRECTION of the shared step and leaves the optimizer alone. They
+are different interventions and only one of them was measured.
+
+⛔ **THERE IS NO OFFLINE PRICE FOR THIS ONE.** Every probe in section 2 that
+closed a direction for 0 GPU-hours read stored *outputs*. A projection acts on
+*parameter gradients during training*, which no stored artefact records. So
+unlike the one-vs-rest count in 2(s), this cannot be killed from `evidence/`
+and a campaign is the only instrument. That raises the bar on the campaign
+rather than lowering it:
+
+* **both clippers in-campaign** (rule 2), **at least two cap levels with
+  `G < L`** so the global scope binds (rule 4 + section 1);
+* **`tralo_null` and `tralo_reseed`**, so the projection is read against
+  lambda = 0 and against the RNG floor, not against `ortho_off` alone;
+* **liveness first**: `scripts/flag_live tralo tralo_ortho` must show the raw
+  predictions DIFFER, and `Ortho Fired Frac` must be non-zero. `ortho_project`
+  would be the fifth inert flag in this project's history if it were not
+  checked, and a campaign whose 4-run predecessor left no predictions cannot be
+  audited after the fact;
+* **pre-restore metrics**, or the restore re-runs the same compression.
+
+Until that campaign exists, the honest entry for `ortho` is **OPEN**, and this
+section replaces its listing among the rejected.
 
 ---
 
