@@ -111,6 +111,22 @@
 #               layer was measured and cleared; `tralo_uniform` is being run
 #               because 2(r)'s eviction finding is independent of that and
 #               still stands, not because the output-space story survived.
+#               ✅ AND 2(s) GAVE IT A MECHANISM. Per-item push, unit-normalised,
+#               by how confident the item is on the capped class:
+#                   p          sum         uniform
+#                   0.5-0.9    3.83e-02    7.29e-03    <- sum's 100x peak
+#                   0.99-1.0   3.74e-04    8.85e-03    <- 23.7x the other way
+#               `sum` concentrates on the boundary band (the cut sits at
+#               p=0.536; 2(r)'s evicted items average p=0.788), which is
+#               exactly the eviction 2(r) measured. `uniform` is flat, and it
+#               is GAUGE-INVARIANT to machine precision where the one-vs-rest
+#               alternative was not.
+#               🛑 IT WILL ENFORCE LESS, AND THAT IS PREDICTED, NOT A FAILURE.
+#               At matched effect `uniform` reaches feasibility in 11 of 56
+#               stored runs against `sum`'s 25. Flattening the gradient does
+#               not make the constraint stronger, it aims it differently. So a
+#               LOWER native satisfaction for this arm is expected; judge it on
+#               d capF1 in ITEMS against `tralo_null`, never on enforcement.
 #
 #   AND FOR `tralo_ortho`, stated separately because the two can fail
 #   differently:

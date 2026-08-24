@@ -3685,6 +3685,44 @@ tens of units and which is orders above anything training delivers, `sum`
 leaves a **residual excess of 100.4 items and reaches feasibility in 25 of
 56 runs**. The rest is immovable along that direction at any dose.
 
+🟢 **AND `uniform` IS THE GAUGE-INVARIANT VERSION OF THE FIX `ovr` COULD NOT
+BE.** The log-odds coordinate `u_c = log(p_c/(1-p_c))` is a function of
+`softmax(z)` alone, so `uniform` passes the gauge test `ovr` fails --
+`max |g(z) - g(z+5)| = 1.7e-15` over 16 runs, machine precision. Splitting each
+unit-normalised gradient into the CAPPED column (the work) and the uncapped
+ones (where the norm budget leaks):
+
+| `p` on the capped class | `sum` capped | `sum` uncapped | `uniform` capped | `uniform` uncapped |
+|---|---|---|---|---|
+| 0.00 - 0.50 | 1.263e-03 | 1.385e-03 | 4.844e-03 | 3.160e-03 |
+| 0.50 - 0.90 | **3.826e-02** | 9.959e-03 | 7.294e-03 | 3.307e-03 |
+| 0.90 - 0.99 | 8.530e-03 | 2.145e-03 | 1.028e-02 | 2.456e-03 |
+| **0.99 - 1.00** | **3.739e-04** | 9.352e-05 | **8.849e-03** | 2.301e-03 |
+
+**`uniform` is flat (4.8e-03 to 1.0e-02 across the whole range) and delivers
+23.7x more push than `sum` on `p > 0.99` violations -- and unlike `ovr`'s 123x,
+this number survives a gauge shift, so it is a property of the method.** The
+off-diagonal concern does not materialise either: `uniform`'s `1/(1-p_c)`
+off-diagonal stays at 2.3e-03 on the confident items rather than exploding.
+
+⚠️ **BUT `uniform` IS A GENERALIST AND `sum` IS A SPECIALIST, AND ON TOTAL
+COUNT REDUCTION THE SPECIALIST WINS.** In the 0.50-0.90 band `sum` delivers 5x
+more push than `uniform`, and that is where most items sit -- which is why the
+`--feasibility` read has `sum` reaching feasibility in 25 of 56 runs against
+`uniform`'s 11, with residuals 100.4 and 125.7. Flattening the gradient does
+not make the constraint stronger. It makes it *differently aimed*.
+
+🔑 **AND THAT IS 2(r)'s FIX WITH A MECHANISM UNDER IT.** 2(r) measured that the
+constraint evicts items that are true positives 68.8% of the time while
+admitting ones that are true positives 30.1% of the time, with the cut at
+`p = 0.536` and evicted items averaging `p = 0.788`. That is the 0.50-0.90
+band -- exactly where `sum` puts its 100x peak, and consistent with section 1's
+independent measurement that `sum` lands 29.4% of its gradient on the 2% of
+items nearest the boundary. `uniform` removes that concentration by
+construction. So `results/uniform1` is not testing "a stronger constraint", it
+is testing **whether spreading the same step off the boundary stops the
+eviction** -- and its own `--feasibility` row predicts it will enforce LESS.
+
 ✅ **AND IT IS NOT THE SEE-SAW -- that was tested and REFUTED.** The obvious
 explanation is 2(a)'s cross-term pushing one capped class up as another goes
 down. It does not happen: **no capped class rose in 56 of 56 runs** under
