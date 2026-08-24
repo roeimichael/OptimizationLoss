@@ -3678,6 +3678,32 @@ assertion is passing for a trivial reason) and by
   at 141 of 324 and the table must be re-read at 4 seeds before any of the
   underpowered lines is quoted.
 
+#### Relation to the manuscript -- it CORROBORATES, then goes further
+
+`docs/paper/main_edited_by_roei.tex` already concedes the host-vs-ingredient
+half of this. Its graft experiment adds TraLO's optimizer reset and undershoot
+hinge to both dual baselines and reports that this recovers a median 86% and
+92% of TraLO's margin over them, concluding in its own words that once the
+recipe is grafted **the three methods are statistically interchangeable**, and
+that "the two portable ingredients, not the host, carry the constrained-class
+advantage". 2(s) reaches the same place from the other side -- a lambda = 0
+twin instead of a component graft -- and agrees.
+
+🛑 **WHAT 2(s) ADDS IS NOT IN THE PAPER AND MUST NOT BE PUT THERE YET.** The
+paper says the ingredients carry the advantage. 2(s) says the ingredients carry
+**nothing**: the compute term is the whole margin and every constraint term is
+negative. That is a strictly stronger claim, it cannot be made from the corpus
+(no nulls in 7,574 rows), and it currently rests on 2 seeds in 6 cells of one
+dataset. Before it touches the manuscript it needs, at minimum:
+
+* `xfam1` complete at 4 seeds in all 9 cells (it is at 141 of 324);
+* the macroF1 and ccF1 contrasts to clear their own resolution -- `full_panel`
+  currently prices them at 53, 9 and 19 seeds per cell, so some of them will
+  NOT clear and the honest report is a stated MDE, not a null;
+* a second dataset, or the generality claim stays a direction. Section 2(n)
+  rules the other three structurally incapable, so this is a real constraint on
+  what the finding can ever say, not a scheduling problem.
+
 ### (t) 🟡 `ortho` IS NOT REFUTED, IT IS UNTESTED -- and 2(s) points straight at it
 
 ⚠️ **CORRECTION TO THIS DOCUMENT'S OWN RECORD, made 2026-08-24.** Section 1
