@@ -60,20 +60,31 @@ def _train_constraints(model, inputs: TrainInputs, device):
     allow_restore = _required(hp, "enable_checkpoint_restore", bool)
     constraint_epochs = _required(hp, "constraint_epochs", int)
     lr_c = _required(hp, "lr_constraint", float)
-    # Default dual-step bumped 10x for apples-to-apples convergence speed.
-    # At 0.01 (original) lambda grows ~0.01/epoch when (count_soft-K)/N ~= 0.04
-    # -> constraint contribution to L_total is ~1e-3, ~25x weaker than CE.
-    # The model effectively trains CE-only for 100+ epochs before lambda
-    # builds up. With 0.1 lambda hits meaningful magnitude by ep 10.
+    # REQUIRED so it cannot be defaulted. The paper's value is 0.1
+    # (arXiv:2306.02426 App. F); protocol.yml carries it and cites the line.
+    #
+    # This read once carried an inline default, under a comment arguing the
+    # value should be raised "for apples-to-apples convergence speed" because
+    # lambda grows too slowly to matter against CE. That argument is about the
+    # DOSE, and the dose is set by `constraint_grad_clip` / `constraint_grad_mode`,
+    # which rescale the delivered step regardless of lambda -- under
+    # `normalize` they remove its magnitude entirely. Reaching for eta_lambda
+    # instead does not buy dose, it silently runs a different method, and no
+    # gate can see it because the key HAS a reader and IS emitted.
     eta_lambda = _required(hp, "hounie_eta_lambda", float)
     eta_u = _required(hp, "hounie_eta_u", float)
-    alpha = float(hp.get("hounie_alpha", 10.0))
+    # REQUIRED, not defaulted. This read carried an inline 10.0 while the
+    # protocol moved to the paper's 1.0, which is the same two-places-disagree
+    # shape as eta_lambda above: a config omitting the key would have run a
+    # 10x stiffer relaxation cost, silently, with the key emitted and read.
+    alpha = _required(hp, "hounie_alpha", float)
     if abs(1.0 - 2.0 * eta_u * alpha) >= 1.0:
         raise ValueError(
             f"hounie_rcl: eta_u={eta_u} with alpha={alpha} gives stability "
             f"factor {1.0 - 2.0 * eta_u * alpha:+.3f}; |factor| >= 1 means the "
             f"perturbation u oscillates or diverges instead of converging to "
-            f"lambda/(2*alpha). The paper's value is eta_u=0.01.")
+            f"lambda/(2*alpha). arXiv:2306.02426 App. F uses eta_u=0.1 with "
+            f"h(u)=||u||^2 (alpha=1), i.e. factor 0.8.")
     batch_size = hp.get("batch_size", 64)
     # protocol.yml carries this in BOTH the constraint_phase and chunked
     # blocks, so the 256 inline default could only ever fire on a

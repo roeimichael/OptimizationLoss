@@ -362,6 +362,28 @@ def _apply_constraint_step(P, args):
               "step size is now a" % P["constraint_phase"]["constraint_grad_clip"])
         print("      protocol constant, so what differs between arms is "
               "direction, not dose.")
+    else:
+        # Say it HERE too, so the generator and check_parity agree. `clip` is
+        # the default only because it keeps every stored result reproducible;
+        # it is not the mode a cross-family comparison may be read out of, and
+        # `scripts.check_parity` REFUSES a multi-family campaign that carries
+        # it. A generator that emits silently what the gate then rejects is the
+        # tool contradicting itself, which this file already has a rule about.
+        print("  CONSTRAINT GRAD MODE = clip: the delivered step is "
+              "min(raw_norm, %s), and the"
+              % P["constraint_phase"]["constraint_grad_clip"])
+        print("      trained arms' natural gradient scales differ by orders of "
+              "magnitude -- hounie")
+        print("      divides its primal by n_test, fioretto and alm sum it. "
+              "Measured on one")
+        print("      warm-up model with every config saying the same clip: "
+              "hounie 0.005-0.11,")
+        print("      tralo 0.64-1826, fioretto 17,667-80,827. So under `clip` "
+              "the arms differ in")
+        print("      DOSE as well as direction. Fine for a ONE-FAMILY "
+              "campaign; for more than")
+        print("      one, add --constraint-grad-mode normalize or "
+              "check_parity will refuse it.")
     shape = P["blocks"]["tralo"].get("penalty_shape", "rational_bounded")
     if shape != "rational_bounded":
         print("  PENALTY SHAPE = %s for every trained arm: this is NOT the "

@@ -6,6 +6,14 @@ lr_constraint (worth 16 pp), a cap level present for one arm and not another, or
 two arms silently sharing a cached warm-up so one of them was never really run.
 This checks all four on the generated configs.
 
+Two of them are NOT questions about whether the arms agree, and reading them
+that way is how both stayed invisible for months. `lr_constraint` agreeing at
+5e-6 on every arm IS the LR trap (2b), and `constraint_grad_mode` agreeing at
+`clip` on every arm is exactly the ~20x delivered-dose gap of FRAMEWORK 1b-pre
+finding (2), because the clip DELIVERS min(raw, clip) over natural gradient
+scales that are orders of magnitude apart (2c). Both are checked against the
+protocol, not against the other arms.
+
     python -m scripts.check_parity results/<campaign>
 
 Exit code 1 if anything fails, so it can gate a launch.
@@ -31,7 +39,141 @@ SHARED_KEYS = ["lr", "lr_constraint", "dropout", "batch_size", "pretrained",
                # did not check. Dormant today -- gen_campaign has no flag to
                # vary it, so every block gets 1.0 -- but the sweep protocol.yml
                # recommends (0.3 / 1.0 / 3.0) would have gone ungated.
-               "constraint_grad_clip"]
+               "constraint_grad_clip",
+               # ...and the three knobs that decide what actually HAPPENS to
+               # that gradient, which were not checked at all.
+               # `constraint_grad_clip` alone says nothing: `clip` vs
+               # `normalize` decides whether the clip's ceiling is also its
+               # floor, `sgd` vs `shared` sends the same-norm gradient through
+               # two different optimizers, and fp32 decides whether an epoch can
+               # be dropped to a non-finite gradient. All three live in the
+               # SHARED `constraint_phase` block, so no arm may override them.
+               #
+               # `constraint_random_direction` is deliberately NOT here: it is
+               # ARM-DEFINING. `tralo_coin` IS the arm whose constraint step is
+               # a random vector of the same norm, so requiring it to agree
+               # across arms would refuse every campaign carrying the coin
+               # control -- the one arm that answers "did the direction matter".
+               "constraint_grad_mode", "constraint_step_rule",
+               "constraint_fp32"]
+
+# Trained methodologies whose constraint gradients live on natively different
+# scales. See _check_dose below.
+TRAINED_METHODOLOGIES = {"tralo", "fioretto_ldf", "hounie_rcl", "fioretto_alm",
+                         "select"}
+
+
+def _check_lr_trap(runs, fails):
+    """`lr_constraint` must EQUAL `lr`, not merely agree across the arms.
+
+    THE GATE THAT WAS MISSING, and the one this file's own docstring already
+    claimed. Section 2 checks that each key holds one value across the arms --
+    which an LR-trapped campaign satisfies perfectly: every arm carries
+    lr 1e-4 and every trained arm carries lr_constraint 5e-6. That campaign
+    printed "PARITY OK -- this campaign is a fair comparison".
+
+    It is not a small knob. The trained arms build their constraint-phase
+    optimizer with `lr_constraint` and force every param group onto it, so ALL
+    29 cross-entropy epochs of a trained arm run at `lr_constraint` while the
+    clipper's 30 warm-up epochs run at `lr`. Unequal, the comparison is one
+    epoch of matched training against 29 of detuned training -- which is what
+    fabricated a -16.7 pp finding that was -1.7 pp once equalized, and why the
+    protocol says lr_constraint MUST equal lr.
+
+    `gen_campaign` refuses this at generation, but the 2,972 trapped pairs in
+    the provenance archive were never written by today's generator, and a
+    hand-edited or resumed config never passes through it at all.
+    """
+    print("2b. LEARNING RATE  (lr_constraint MUST EQUAL lr -- not merely agree)")
+    bad = collections.defaultdict(set)
+    seen = 0
+    for cfg in runs:
+        hp = cfg["hyperparams"]
+        if "lr_constraint" not in hp or "lr" not in hp:
+            continue
+        seen += 1
+        if hp["lr_constraint"] != hp["lr"]:
+            bad[(json.dumps(hp["lr"]), json.dumps(hp["lr_constraint"]))].add(
+                cfg["arm"])
+    if not seen:
+        print("   --   no arm carries both keys (post-hoc-only campaign)")
+    elif not bad:
+        print("   OK   every trained arm trains at one learning rate")
+    else:
+        for (lr, lrc), arms_ in sorted(bad.items()):
+            fails.append("THE LR TRAP: lr=%s but lr_constraint=%s on %s -- the "
+                         "trained arms run 29 of their 30 epochs at the wrong "
+                         "learning rate" % (lr, lrc, " ".join(sorted(arms_))))
+            print("   FAIL lr=%s vs lr_constraint=%s on %s"
+                  % (lr, lrc, " ".join(sorted(arms_))))
+    print()
+
+
+def _check_dose(runs, fails):
+    """Under `constraint_grad_mode: clip` the arms are NOT at the same dose.
+
+    `finish_constraint_step` delivers `min(raw_norm, constraint_grad_clip)`, and
+    the trained arms' natural gradient scales are orders of magnitude apart by
+    construction: `hounie_rcl` divides its primal violation by n_test / N_g to
+    match its own dual, `fioretto_ldf` and `fioretto_alm` sum it, and `tralo`
+    weights a bounded penalty. Measured on one warm-up model with every config
+    saying `constraint_grad_clip: 1.0`, the raw norms ran 0.005-0.11 (hounie),
+    0.64-1826 (tralo) and 17,667-80,827 (fioretto) -- so hounie delivered its
+    raw ~0.05-norm step while the others delivered a unit one.
+
+    That is a ~20x dose difference between arms which no config gate could see,
+    because every config says 1.0. `normalize` rescales instead of capping, so
+    the step size becomes a protocol constant and what differs between arms is
+    DIRECTION -- which is what the comparison is supposed to be about.
+
+    Scoped to campaigns holding MORE THAN ONE trained methodology: with a single
+    trained family the delivered dose is whatever that family produces, and it
+    is constant across everything being compared.
+    """
+    modes = collections.defaultdict(set)
+    fams = collections.defaultdict(set)
+    for cfg in runs:
+        hp = cfg["hyperparams"]
+        meth = cfg.get("methodology")
+        if meth not in TRAINED_METHODOLOGIES or not hp.get("constraint_epochs"):
+            continue
+        # The zero-dose siblings never form a constraint gradient, so they are
+        # at the same (zero) dose whatever the mode is, and a campaign that
+        # holds only nulls has nothing to be unmatched. Same `_null` convention
+        # gen_campaign's `all` uses.
+        if cfg["arm"].endswith("_null"):
+            continue
+        modes[hp.get("constraint_grad_mode", "clip")].add(cfg["arm"])
+        fams[meth].add(cfg["arm"])
+    if len(fams) < 2:
+        return
+    print("2c. CONSTRAINT DOSE  (%d trained methodologies in one campaign)"
+          % len(fams))
+    for meth in sorted(fams):
+        print("   %-14s %s" % (meth, " ".join(sorted(fams[meth]))))
+    clipped = modes.get("clip", set())
+    if clipped:
+        fails.append(
+            "UNMATCHED CONSTRAINT DOSE: constraint_grad_mode=clip with %d "
+            "trained methodologies (%s). The clip DELIVERS min(raw, %s) and "
+            "the arms' natural gradient scales differ by orders of magnitude "
+            "-- measured ~20x apart with every config saying the same clip. "
+            "Regenerate with --constraint-grad-mode normalize, or run one "
+            "family per campaign."
+            % (len(fams), " ".join(sorted(clipped)),
+               sorted({json.dumps(c["hyperparams"].get("constraint_grad_clip"))
+                       for c in runs
+                       if "constraint_grad_clip" in c["hyperparams"]})))
+        print("   FAIL constraint_grad_mode=clip -- delivered step is "
+              "min(raw, clip), and")
+        print("        raw differs by orders of magnitude between these "
+              "families, so the")
+        print("        arms differ in DOSE as well as direction. Use "
+              "--constraint-grad-mode normalize.")
+    else:
+        print("   OK   constraint_grad_mode=%s -- every arm delivers the same "
+              "step norm" % " ".join(sorted(modes)))
+    print()
 
 
 def load(root):
@@ -163,6 +305,14 @@ def main():
         note = "" if not missing else "   (absent on: %s)" % " ".join(missing)
         print("   %s %-24s %s%s" % (status, k, sorted(vals), note))
     print()
+
+    # ---- 2b/2c. the two knobs whose EQUALITY ACROSS ARMS is not the point ----
+    # Section 2 asks "do the arms agree on this value". These two ask "is the
+    # agreed value itself a fair comparison" -- lr_constraint agreeing at 5e-6
+    # on every arm IS the LR trap, and constraint_grad_mode agreeing at `clip`
+    # on every arm is exactly how the ~20x dose gap stayed invisible.
+    _check_lr_trap(runs, fails)
+    _check_dose(runs, fails)
 
     # ---- 3. cell coverage ---------------------------------------------------
     print("3. COVERAGE  (every arm must cover the same cells and seeds)")

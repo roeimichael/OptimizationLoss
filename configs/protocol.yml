@@ -296,17 +296,32 @@ blocks:
     fioretto_step_size: 0.0
     fioretto_lambda_init: 0.0
   hounie:
-    hounie_eta_lambda: 0.01       # inline default is 0.1 -- 10x the paper. Never omit.
-    hounie_eta_u: 0.01
-    hounie_alpha: 10.0
+    # arXiv:2306.02426 (Hounie, Ribeiro, Chamon), App. F: "dual learning rate
+    # eta_lambda = 0.1 ... and a perturbation learning rate eta_u = 0.1", with
+    # "a quadratic penalty on the perturbation h(u) = ||u||^2_2", i.e. alpha=1.
+    # App. G's ablation grid for eta_lambda is {0.1, 0.5, 1, 2} and it reports
+    # "the rates that were used in the paper (eta_u = 0.1, eta_lambda = 2)".
+    # 0.01 appears NOWHERE in the paper as a rate.
+    #
+    # We shipped 0.01 / 0.01 / 10.0 until 2026-08-23. That triple keeps the
+    # paper's u-contraction |1 - 2*eta_u*alpha| = 0.8 exactly, so the SHAPE of
+    # the perturbation dynamics was faithful -- but u* = lambda/(2*alpha), so a
+    # 10x smaller lambda times a 10x larger alpha made the relaxation ~100x
+    # smaller than the paper's, and the resilient term could not reach the
+    # model: alpha swept 0.05 -> 10.0 emitted BIT-IDENTICAL predictions.
+    # At the values below the same 200x sweep emits three distinct prediction
+    # sets, so `hounie_alpha` is live and the arm measures the method it names.
+    hounie_eta_lambda: 0.1
+    hounie_eta_u: 0.1
+    hounie_alpha: 1.0
   # Zero dose. eta_u is deliberately NOT zeroed: hounie_rcl/train.py:85 refuses
   # abs(1 - 2*eta_u*alpha) >= 1.0, and eta_u=0 gives exactly 1.0, so the arm
   # would raise. eta_u moves only the slack u, which cannot reach the primal
   # once lam is pinned at its 0.0 init.
   hounie_null:
     hounie_eta_lambda: 0.0
-    hounie_eta_u: 0.01
-    hounie_alpha: 10.0
+    hounie_eta_u: 0.1
+    hounie_alpha: 1.0
   alm:
     alm_eta: 0.005
     alm_mu0: 0.01
