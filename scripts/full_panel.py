@@ -87,6 +87,39 @@ RUN_DIRS = {}         # df index -> run directory, for the collision message
 LEAF_DEPTH = 5        # model/dataset/cap/arm/seed_N -- the per-cell path tail
 
 
+def effective_budget(G, L, c):
+    """The budget that actually BINDS: min(global, sum of the local ceilings).
+
+    🛑 THIS USED TO READ `int(G[c])`, THE GLOBAL ALONE, AND IT INFLATED THE
+    PRIZE BY AN ORDER OF MAGNITUDE ON iwildcam. Local caps are per-group
+    ceilings, so their SUM already bounds the count; whenever that sum is below
+    the global, the global is INERT and cannot be reached. `gen_campaign` says
+    so out loud for every cap it emits ("INERT GLOBAL: K=185 is above the local
+    sum 111, so it can never bind"), and this tool ignored it.
+
+    The ceiling is `2K/(K+n)`, so an over-large K raises it twice over -- it
+    both admits more true positives and enlarges the denominator more slowly.
+    On iwildcam L30_G50 class 2 the global is 185 against a local sum of 111,
+    which reads a ceiling of 0.667 where the reachable one is 0.462, and prints
+    59 items of headroom where the real gap is 4.0. Measured 2026-08-24 against
+    the equalized top-K counted directly off the stored predictions.
+
+    The module docstring already warned that "local caps can put it out of
+    reach". That was a comment describing a defect instead of a fix, and it
+    stood while the number it qualified was quoted as the project's effect
+    size.
+
+    UNLIMITED local ceilings are excluded from the sum rather than added, since
+    a group with no ceiling places no bound on the total.
+    """
+    k = int(G[c]) if G[c] < UNLIMITED else UNLIMITED
+    parts = [int(b[c]) for b in L.values() if b[c] < UNLIMITED]
+    if parts and len(parts) == len(L):
+        # Every group is capped, so the sum is a real bound on the total. If
+        # even one group is uncapped the local scope bounds nothing globally.
+        k = min(k, sum(parts))
+    return k
+
 def _collision_msg(idx):
     """Name the RIGHT cause when two runs land on one (cell, seed, arm) key.
 
@@ -307,7 +340,15 @@ def panel(run_dir, cfg):
                          for c in scorable])) if scorable else np.nan
     _auc = float(np.mean([roc_auc_score((y == c).astype(int), P[:, c])
                           for c in scorable])) if scorable else np.nan
-    _Ksum = float(sum(G[c] for c in classes))
+    # THE BINDING budget per class, not the global alone. Local caps are
+    # per-group ceilings so their SUM already bounds the count, and on iwildcam
+    # the global sits ABOVE that sum and can never bind. Reading the global here
+    # inflated the denominator 1.67x on L30_G50 -- the same defect that made
+    # `headroom.py` print 59 items of prize where the real gap is 2.0
+    # (fixed 2026-08-24). These three quantities are NOT metrics under rule 5,
+    # but they are printed, and a diagnostic with a wrong denominator still
+    # misleads.
+    _Ksum = float(sum(effective_budget(G, L, c) for c in classes))
     _rawcnt = float(sum((rawp == c).sum() for c in classes))
     _relcnt = float(sum((rel == c).sum() for c in classes))
     conf = P.max(axis=1)

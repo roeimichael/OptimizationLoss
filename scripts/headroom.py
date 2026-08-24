@@ -63,7 +63,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from scripts.full_panel import equalize_multi
+from scripts.full_panel import effective_budget, equalize_multi
 from src.training.constraints import (compute_global_constraints,
                                       compute_local_constraints,
                                       normalize_constrained_classes)
@@ -99,40 +99,6 @@ def load(d):
     classes = [c for c in classes
                if G[c] < UNLIMITED or any(b[c] < UNLIMITED for b in L.values())]
     return (y, g, P, classes, G, L) if classes else None
-
-
-def effective_budget(G, L, c):
-    """The budget that actually BINDS: min(global, sum of the local ceilings).
-
-    🛑 THIS USED TO READ `int(G[c])`, THE GLOBAL ALONE, AND IT INFLATED THE
-    PRIZE BY AN ORDER OF MAGNITUDE ON iwildcam. Local caps are per-group
-    ceilings, so their SUM already bounds the count; whenever that sum is below
-    the global, the global is INERT and cannot be reached. `gen_campaign` says
-    so out loud for every cap it emits ("INERT GLOBAL: K=185 is above the local
-    sum 111, so it can never bind"), and this tool ignored it.
-
-    The ceiling is `2K/(K+n)`, so an over-large K raises it twice over -- it
-    both admits more true positives and enlarges the denominator more slowly.
-    On iwildcam L30_G50 class 2 the global is 185 against a local sum of 111,
-    which reads a ceiling of 0.667 where the reachable one is 0.462, and prints
-    59 items of headroom where the real gap is 4.0. Measured 2026-08-24 against
-    the equalized top-K counted directly off the stored predictions.
-
-    The module docstring already warned that "local caps can put it out of
-    reach". That was a comment describing a defect instead of a fix, and it
-    stood while the number it qualified was quoted as the project's effect
-    size.
-
-    UNLIMITED local ceilings are excluded from the sum rather than added, since
-    a group with no ceiling places no bound on the total.
-    """
-    k = int(G[c]) if G[c] < UNLIMITED else UNLIMITED
-    parts = [int(b[c]) for b in L.values() if b[c] < UNLIMITED]
-    if parts and len(parts) == len(L):
-        # Every group is capped, so the sum is a real bound on the total. If
-        # even one group is uncapped the local scope bounds nothing globally.
-        k = min(k, sum(parts))
-    return k
 
 
 def f1(y, pred, c):
