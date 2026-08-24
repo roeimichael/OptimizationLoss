@@ -302,3 +302,40 @@ committed PDF is what the current code produces.
 ⚠️ Re-running them REWRITES the PDFs in place. Restore with
 `git checkout -- docs/paper/figures/` unless the change is intended -- and the
 two byte-identical ones will come back clean either way.
+
+### WHAT differs, decompressed and read out
+
+The PDF content streams were decompressed and their drawing operators and text
+strings compared. `fig_convergence` is the control: **identical operator
+profile and identical 103 text draws**, so the method sees a real difference
+when there is one and none when there is not.
+
+🛑 **THE SHIPPED FIGURES DRAW SERIES THE GENERATORS NO LONGER MENTION.**
+
+| figure | text only in the SHIPPED pdf | text only in the CURRENT code |
+|---|---|---|
+| `fig_deployment` | **`joint (no edits)`**, **`global cap only`**, `MobileNetV2`, `-dataset mean (joint)` | `-dataset mean` |
+| `fig_octmnist` | **`ALM`**, `MobileNetV2`, `RegNetY`, `-400MF`, ticks `0.05 / 0.10 / 0.15` | `RegNet`, ticks `0.04 / 0.08`, `0.3 / 0.5 / 0.7` |
+| `fig_mechanism` | *(text identical, 135 = 135)* -- but **575 fewer line segments** | -- |
+| `fig_loss_shape` | 18 fewer text draws; glyph fragments `h`, `m` | -- |
+
+`grep -ril` over `make_deployment_fig.py` and `make_octmnist_fig.py` finds
+**none** of `joint`, `ALM`, `global cap only`, `MobileNetV2` or `no edits`. The
+deployment generator declares exactly one series, `label="per-dataset mean"`,
+against the four the shipped PDF draws.
+
+⇒ **`fig_deployment` as shipped shows a `joint (no edits)` arm and a
+`global cap only` arm; `fig_octmnist` as shipped shows an `ALM` series. No
+script in this repository draws any of them.** Those figures were made by
+earlier versions of the generators, and the current versions are not a
+regeneration of them but a different figure.
+
+🛑 **`joint` IS A REJECTED ARM** (FRAMEWORK 2: `joint_objective` holds the cap
+98.8% of epochs and overfits, AP -0.067). A shipped figure displaying it is not
+automatically wrong -- it may be shown *as* a negative result -- but it cannot
+be checked against code that no longer produces it, and no one should assume
+the panel means what the current script would draw.
+
+⚠️ `fig_mechanism` is the subtler case: every label is identical and only the
+GEOMETRY moved (-575 `l` operators). A reader diffing labels would call it
+unchanged. The curves are what changed.
