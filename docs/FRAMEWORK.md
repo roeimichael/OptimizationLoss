@@ -1944,7 +1944,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 369 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 370 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1952,7 +1952,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (369 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (370 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -3937,12 +3937,127 @@ its do-not-run list. That one gives the constraint its own Adam state. This one
 changes the DIRECTION of the shared step and leaves the optimizer alone. They
 are different interventions and only one of them was measured.
 
-⛔ **THERE IS NO OFFLINE PRICE FOR THIS ONE.** Every probe in section 2 that
-closed a direction for 0 GPU-hours read stored *outputs*. A projection acts on
-*parameter gradients during training*, which no stored artefact records. So
-unlike the one-vs-rest count in 2(s), this cannot be killed from `evidence/`
-and a campaign is the only instrument. That raises the bar on the campaign
-rather than lowering it:
+⛔ **CORRECTION 2026-08-25: THERE *IS* AN OFFLINE PRICE, AND IT IS DAMNING.**
+This paragraph used to read "there is no offline price for this one" -- on the
+argument that a projection acts on parameter gradients during training, which no
+stored artefact records. That is true of the *gradients* and irrelevant to the
+*guarantee*, which is algebra and can be checked without a single run.
+`python -m scripts.ortho_survival`.
+
+**What the guarantee is.** `project_out` sets `<g_con, r> = 0` on the raw
+gradient. A step `-lr*u` changes the CE loss by `-lr*<grad_CE, u>` to first
+order, so that zero is a claim of **CE-neutrality**: enforcing the cap neither
+helps nor undoes CE progress. That is the entire rationale for the arm.
+
+**Where it dies.** The step that lands is not `g_con`. It is Adam's
+`m/sqrt(v)`, and two things there are untouched by the projection:
+
+1. **Momentum.** `<m_new, r> = b1*<m_CE, r> + (1-b1)*<g_perp, r>`. The
+   projection zeroes only the second term. The stale CE momentum rides at full
+   weight `b1 = 0.9`.
+2. **Diagonal preconditioning.** `<g, r> = 0` does **not** imply
+   `<g/sqrt(v), r> = 0`. A coordinate-wise rescale is not an isometry, so
+   orthogonality installed before Adam is not orthogonality after it.
+
+**The bound, assumption-free.** After the clip the constraint gradient has norm
+exactly 1.0 (2(a3): the clip delivers 1.000 against raw norms of 2,560-12,400),
+so its share of the momentum vector is
+`(1-b1)*1.0 / (b1*|m_CE| + (1-b1)*1.0)` = **7.4%** at the measured
+`|m_CE| = 1.394`. The projection can only ever act on that share; the other
+**92.6% is stale CE momentum**, which points along the CE direction by
+construction.
+
+**The measurement.** Norms are the real per-epoch values from
+`paper/scripts/adam_contamination.py` on octmnist L50. The one quantity not
+measured is the coordinate-wise spread of `v`, so it is swept four orders of
+magnitude and the whole curve is reported. Projected vs unprojected share one
+RNG draw, so the difference is the projection and not Monte-Carlo noise:
+
+| | flat `v` | spread 1 | spread 2 | spread 3 |
+|---|---|---|---|---|
+| `\|cos(update, CE)\|` | 0.9993 | 0.8420 | 0.6518 | 0.5360 |
+| **removed by the projection** | **0.0%** | **0.0%** | **0.0%** | **0.0%** |
+
+**0.0% in all 12 conditions, across three epochs.** And that is the arm's *best
+case*: it assumes the reference IS the CE momentum, whereas
+`ortho_ref = snapshot_grads(model)` captures **one minibatch's gradient**. Swept
+over `rho = cos(ref, m_CE)` in {1.0, 0.5, 0.2, 0.05} the removal is 0.01% and
+below -- every realistic reference buys less than the best case, and the best
+case buys nothing.
+
+⚠️ **AND THE SCRIPT THAT PRODUCED THOSE NORMS IS NOT IN THIS TREE.**
+`git log --all -- '*adam_contamination*'` is empty; the audit that measured
+`|m_CE|`, `|g_con|` and `|sqrt(v)|` lived outside this repository. So the
+verdict is stated so that **it does not depend on them.** The removable share
+has a closed form, `removed = (1-b1)/(b1*ratio + (1-b1))` with
+`ratio = |m_CE|/|g_con|`:
+
+| `\|m_CE\|/\|g_con\|` | 0.01 | **0.111** | 0.5 | **1.4** | **3.0** | 10.0 |
+|---|---|---|---|---|---|---|
+| max removable | 91.7% | **50.0%** | 18.2% | **7.4%** | **3.6%** | 1.1% |
+
+0.111 is `(1-b1)/b1`, the break-even. The measured pair sits at **1.4-3.0**,
+more than an order of magnitude clear of it. ⇒ the conclusion fails only if the
+CE momentum were roughly **ten times smaller** than the constraint gradient,
+which would be a different pipeline. And note the two numbers are consistent,
+not contradictory: **7.4% is the ceiling on what could be removed from the
+momentum, and 0.0% is what survives `sqrt(v)` to reach the weights.**
+
+⚠️ **The probe's own controls decide whether the 0.0% is a measurement or
+silence,** and they pass: with momentum off and a flat preconditioner the
+projection removes **>99%** (so the instrument can see the effect); momentum
+alone carries the CE direction back to **cos = 0.9993**; and a spread
+preconditioner alone breaks orthogonality on its own. `--self-test` gates all
+four.
+
+🔑 **AND THE INTERVENTION THAT *DOES* ACT ON THE 92.6% IS ALREADY REJECTED.**
+A dedicated constraint Adam -- `separate_constraint_optimizer` -- removes the
+stale momentum outright, and it sits in 2(f)'s table at **AP -0.0938,
+p = 0.0006**. ⚠️ Read that as *directional and confounded*, not as a clean
+verdict: it moved the arm **8,900x further**, so dose and mechanism are not
+separated there (section 1b-pre(6)). What it does establish is that this axis
+has been intervened on once, hard, and it went badly.
+
+⇒ **The honest entry for `ortho` is no longer OPEN. It is: the flag does not do
+what its name says.** It is not inert -- `project_out` really does change
+`prm.grad`, and `flag_live` would show differing predictions -- but the *reason*
+2(t) reopened it, that a projection acts on the mechanism 2(s) found, is void.
+Whatever `tralo_ortho` measures, it is not "the constraint no longer undoes CE
+progress", because the delivered step's CE inner product is unchanged to 0.0%.
+
+🛑 **CONSEQUENCE FOR THE STAGED CAMPAIGN.** `tralo_ortho` is one of the eight
+arms in `docs/launch_uniform.sh` (36 of its 288 runs). Its stated purpose is
+now void, so those runs should be **reallocated to seeds on the arms that do
+have a live rationale** -- `tralo_uniform`, which is gauge-invariant and whose
+mechanism 2(s) measured, and `tralo_head`, which confines the constraint by
+*parameter set* rather than by gradient direction and is therefore untouched by
+this argument. Note the asymmetry, and note it PRECISELY, because the obvious version of it is
+wrong. It is **not** true that "a zeroed coordinate stays zero through `m` and
+`v`" -- measured with real `torch.optim.Adam`, a coordinate whose gradient is
+set to 0.0 still moves at **90.4%** of an unmasked coordinate's step, because
+`m <- 0.9*m + 0.1*0` decays but does not vanish. The ratio converges to
+`b1 = 0.9` from below as the CE phase lengthens -- 0.670 after 1 CE step, 0.819
+after 3, **0.904 after the 126 the trainer actually runs** -- so a longer CE
+phase makes the mask LESS effective, not more. **`head_only` does not freeze
+the backbone.** What it does deliver is that **no constraint information**
+reaches the backbone: the residual drift is pure CE momentum, which the
+`lambda = 0` twin carries too, so it is common-mode in the only contrast that
+matters. Read that arm as *"the constraint sees only the head"*, never as
+*"the backbone is frozen"*.
+
+⇒ the two arms fail differently, and only one fails fatally. `ortho`'s
+guarantee is **quantitatively destroyed** -- 0.0% of the promised CE-neutrality
+is delivered. `head_only`'s guarantee **survives in the form that matters**,
+with a residual that cancels against its own control. **`tralo_head` is the
+surviving member of the pair.**
+
+**If anyone still wants the CE-neutrality the projection promises**, it has to
+be applied to the DELIVERED update rather than the raw gradient -- capture `w`
+before and after `optimizer.step()`, project `dw` off `r`, re-apply. That is a
+different intervention with a different cost, and it is **not priced**; do not
+treat this paragraph as an endorsement of it.
+
+If it is run anyway, the bar is unchanged:
 
 * **both clippers in-campaign** (rule 2), **at least two cap levels with
   `G < L`** so the global scope binds (rule 4 + section 1);
@@ -5237,7 +5352,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             369 tests, ~105 s, no dataset required
+tests/             370 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

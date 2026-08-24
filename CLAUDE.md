@@ -60,7 +60,7 @@ imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 369 regression tests, ~105s, no dataset needed
+python -m pytest tests -q                   # 370 regression tests, ~105s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -144,6 +144,24 @@ python -m scripts.graph_probe --campaign <root>  # diffuse the scores over a kNN
                                             #   allocator provably lacks. NULL: +0.50
                                             #   items, 10/19, while its shuffled-graph and
                                             #   shuffled-feature controls lose 5.8-8.4
+python -m scripts.ortho_survival             # does an intervention installed in
+                                            #   `prm.grad` SURVIVE Adam? It mostly does
+                                            #   not, and this is the cheapest probe here
+                                            #   -- pure algebra, no artefact needed.
+                                            #   `ortho_project` delivers **0.0%** of its
+                                            #   promised CE-neutrality in 16/16
+                                            #   conditions (92.6% of the momentum is
+                                            #   stale CE the projection never touches;
+                                            #   `sqrt(v)` breaks the orthogonality of
+                                            #   the 7.4% it does). And a gradient-MASKED
+                                            #   coordinate still steps at **90.4%** of an
+                                            #   unmasked one, so `head_only` does not
+                                            #   freeze the backbone -- it only keeps
+                                            #   constraint INFORMATION out of it.
+                                            #   ⚠️ THE GENERAL RULE: `prm.grad` is not
+                                            #   the delivery mechanism, Adam is. Verify
+                                            #   any grad-level arm at the WEIGHT-DELTA
+                                            #   level. `--self-test` gates it.
 python -m scripts.straddle_probe --campaign <root>  # how much of the ORACLE headroom is
                                             #   REACHABLE by a step the size ours actually
                                             #   is? `headroom.py` assumes the ranking can

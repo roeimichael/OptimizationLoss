@@ -233,6 +233,16 @@ def finish_constraint_step(model, optimizer, scaler, clip, mode="clip",
         # Holding the per-parameter step instead would leave the arm taking a
         # far smaller total step than its control, which confounds support
         # with dose -- the trap that made the hounie baseline meaningless.
+        #
+        # ⚠️ ZEROING A GRADIENT DOES NOT FREEZE THE PARAMETER. Adam carries
+        # `m <- 0.9*m + 0.1*0`, so a masked coordinate still steps at 90.4% of
+        # an unmasked one at the 126 CE steps/epoch this trainer runs
+        # (measured with real torch.optim.Adam,
+        # `scripts/ortho_survival.py`). The backbone therefore still DRIFTS
+        # through the constraint phase -- on stale CE momentum, carrying no
+        # constraint information. That drift is present in the lambda=0 twin
+        # too, so it is common-mode in the contrast; but never describe this
+        # arm as freezing the backbone, because it does not.
         with torch.no_grad():
             for prm in model.parameters():
                 if prm.grad is not None and id(prm) not in head_ids:

@@ -2040,3 +2040,105 @@ def test_the_macro_denominator_is_the_DATA_not_the_arm_s_predictions():
         assert forbidden not in names, (
             "`present` is derived from `%s`, which is prediction-dependent -- "
             "that reintroduces exactly the bug this pins shut" % forbidden)
+
+
+def test_ortho_project_s_GUARANTEE_DOES_NOT_REACH_THE_WEIGHTS():
+    """The projection is CE-neutral in the raw gradient and nowhere else.
+
+    `project_out` sets `<g_con, grad_CE> = 0`, which to first order claims the
+    constraint step neither helps nor undoes CE progress. But the step that
+    lands is Adam's `m/sqrt(v)`, and two things there are untouched by it:
+    b1 = 0.9 of the momentum is stale CE momentum, and the diagonal
+    preconditioner is not an isometry so it does not preserve orthogonality.
+    """
+    import io as _io
+    import numpy as np
+    from scripts.ortho_survival import survival, ref_mismatch, MEASURED, B1
+
+    n = 20_000
+    m_ce, g, sv = MEASURED[3]
+
+    def pair(fn, **kw):
+        sd = int(np.random.default_rng(0).integers(0, 2 ** 31 - 1))
+        on = fn(np.random.default_rng(sd), project=True, **kw)
+        off = fn(np.random.default_rng(sd), project=False, **kw)
+        return on, off, ((off - on) / off if off > 0 else float("nan"))
+
+    # --- the negative control FIRST: with both destroyers disabled the
+    #     projection must remove essentially ALL of the CE inner product.
+    #     Without this the headline below is vacuous.
+    on, off, frac = pair(
+        lambda r, project: survival(m_ce, g, sv, 0.0, r, use_momentum=False,
+                                    use_precond=False, project=project, n=n))
+    assert frac > 0.99, (
+        "with no momentum and a flat preconditioner the projection removed only "
+        "%.1f%% of the CE inner product; the probe cannot detect the thing it "
+        "exists to measure" % (100.0 * frac))
+
+    # --- the headline: turn the real optimizer back on and it removes nothing.
+    for spread in (0.0, 2.0):
+        on, off, frac = pair(
+            lambda r, project, s=spread: survival(m_ce, g, sv, s, r,
+                                                  project=project, n=n))
+        assert abs(frac) < 0.01, (
+            "spread=%.1f: the projection removed %.2f%% of the update's CE "
+            "inner product. If that is now materially non-zero the offline "
+            "verdict in FRAMEWORK 2(t) must be re-derived before it is quoted."
+            % (spread, 100.0 * frac))
+
+    # --- and it is no better when the reference is a single minibatch (rho<1),
+    #     which is what `snapshot_grads` actually captures.
+    for rho in (1.0, 0.2):
+        sd = int(np.random.default_rng(1).integers(0, 2 ** 31 - 1))
+        on, off = ref_mismatch(m_ce, g, sv, 2.0, rho,
+                               np.random.default_rng(sd), n=n)
+        frac = (off - on) / off if off > 0 else float("nan")
+        assert abs(frac) < 0.01, (
+            "rho=%.2f removed %.2f%%" % (rho, 100.0 * frac))
+
+    # --- the probe's PREMISE: the projection really does run before the
+    #     optimizer in the shipped code. If it ever moves after `optimizer.step`
+    #     the model above describes code that no longer exists.
+    src = _io.open("src/training/constraint_step.py", encoding="utf-8").read()
+    tree = ast.parse(src)
+    fn = [x for x in ast.walk(tree)
+          if isinstance(x, ast.FunctionDef) and x.name == "finish_constraint_step"]
+    assert fn, "finish_constraint_step vanished"
+
+    def first_line(pred):
+        hits = [x.lineno for x in ast.walk(fn[0])
+                if isinstance(x, ast.Call) and pred(x)]
+        return min(hits) if hits else None
+
+    proj = first_line(lambda c: isinstance(c.func, ast.Name)
+                      and c.func.id == "project_out")
+    clip = first_line(lambda c: isinstance(c.func, ast.Attribute)
+                      and c.func.attr == "clip_grad_norm_")
+    step = first_line(lambda c: isinstance(c.func, ast.Attribute)
+                      and c.func.attr == "step")
+    assert proj is not None, "project_out is no longer called in the step"
+    assert clip is not None and proj < clip, (
+        "project_out no longer runs BEFORE clip_grad_norm_, so the projected "
+        "and unprojected arms no longer share a dose")
+    assert step is not None and proj < step, (
+        "project_out now runs after the optimizer step; ortho_survival models "
+        "the opposite order and its verdict does not apply")
+
+    # b1 is the constant the bound is computed from.
+    assert B1 == 0.9, "B1 changed; the 7.4% momentum share must be recomputed"
+
+    # --- AND THE SISTER ARM: `head_only` masks by parameter set, not direction.
+    #     Zeroing a gradient does NOT freeze the parameter -- Adam carries
+    #     `m <- 0.9*m + 0.1*0`. FRAMEWORK 2(t) states 90.4% and reads the arm as
+    #     "the constraint sees only the head", never "the backbone is frozen".
+    from scripts.ortho_survival import masked_coordinate_drift
+    dh, db, ratio = masked_coordinate_drift()
+    assert dh != 0.0, "the unmasked coordinate did not move; the probe is inert"
+    assert 0.85 < ratio < 0.95, (
+        "a gradient-masked coordinate now steps at %.3f of the unmasked one; "
+        "FRAMEWORK 2(t) quotes 0.904 and reads `tralo_head` against it" % ratio)
+    # It rises toward b1 as the CE phase lengthens -- a longer CE phase makes
+    # the mask LESS effective. Anyone who assumes the opposite reads it backwards.
+    assert (masked_coordinate_drift(ce_steps=1)[2]
+            < masked_coordinate_drift(ce_steps=126)[2]), (
+        "the masked-coordinate drift no longer grows with the CE phase length")
