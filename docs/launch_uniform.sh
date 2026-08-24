@@ -12,8 +12,12 @@
 # The control is the whole measurement: `tralo_reseed` moves a comparable 63
 # items and nets +0.38, evicted and admitted precision equal to three decimals.
 # So a perturbation of no consequence swaps items of equal quality, and this one
-# does not. -30.8 items is attributable to the constraint, against a total
-# headroom from `clip` to a PERFECT allocator of 1.9-9.9 items.
+# does not. -30.8 items is attributable to the constraint. For scale, the
+# headroom from `clip` to a PERFECT RANKING on iwildcam of 59-114 items per
+# class (scripts.headroom, 2026-08-24). NOT the 1.9-9.9 that FRAMEWORK
+# section 4 quotes -- that is a dermmnist number for a REMOVED dataset. So
+# the damage is a fraction of the prize here, not several times it, and it is
+# worth removing because it is FREE, not because it is the whole game.
 #
 # And it is not a boundary effect: the cut sits at p=0.536 while evicted items
 # average p=0.788 and admitted ones p=0.251.
