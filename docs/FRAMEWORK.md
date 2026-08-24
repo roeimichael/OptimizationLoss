@@ -3398,6 +3398,69 @@ that headroom at under two items -- not on whether the penalty had anywhere to
 push. The saturation question 2(p) raised is therefore answered in the direction
 that matters: there was little to win here, and the arm lost anyway.
 
+### (r) 🔴🔴🔴 THE CONSTRAINT EVICTS THE CORRECT ITEMS -- measured 2026-08-24, and it is the mechanism
+
+`scripts/order_probe.py --evictions`, `results/iwc2`, `tralo` against its OWN
+lambda=0 twin, 16 (cell, class, seed) points. The allocator is a top-K, so it
+reads the ORDER of the capped class and nothing else. At the arm's own budget:
+
+| | `tralo` | `tralo_reseed` (control) |
+|---|---|---|
+| items moved per cell | 73.1 of K=399 | 62.8 |
+| precision of what it **EVICTED** | **0.6880** | 0.4860 |
+| precision of what it **ADMITTED** | **0.3007** | 0.4844 |
+| **NET items per cell** | **-30.44**, 16/16 negative | **+0.38** |
+
+⇒ **attributable to the constraint: -30.81 items per cell, a 38.6 pp precision
+gap.** Section 4 puts the whole headroom from `clip` to a PERFECT allocator at
+1.9-9.9 items, so this is **3-16x the entire prize, spent backwards.** It is the
+single largest measured effect in this project, and it is ours.
+
+🔑 **THE CONTROL IS THE WHOLE MEASUREMENT.** EVICTED items sat in the twin's
+top-K *by construction*, so they outrank ADMITTED ones and **any** perturbation
+nets negative on this statistic. `tralo_reseed` moves a COMPARABLE number of
+items and nets +0.38, with evicted and admitted precision equal to three
+decimals -- a perturbation of no consequence swaps items of equal quality.
+Never quote the arm's number without it.
+
+⛔ **IT IS NOT A BOUNDARY OR PLACEMENT EFFECT.** The cut sits at p=0.5359 while
+evicted items average **p=0.7884** and admitted ones **p=0.2510**. The damage
+spans the whole range, not the margin. ⇒ **`tralo_margin` is not predicted to
+fix this**: 4(b) prices placement at <=1.30x on the items that must flip, and
+placement is not what is wrong. `docs/launch_margin1.sh` still answers its own
+question (value vs placement) but it does not answer this one.
+
+⚠️ **READ THE BAND, NOT THE GLOBAL RHO.** Pooled Spearman against the twin is
+0.6953 for `tralo` and 0.6694 for the reseed -- globally the constraint
+preserves order slightly BETTER than noise. Restricted to the contested band
+(ranks K/2..2K) it is 0.6134 against 0.7011, **worse than noise, 16/16**. A
+probe reporting only the global number calls this a null.
+
+🟢 **THE FIX, BUILT AND PRE-REGISTERED: `soft_count_mode: uniform`
+(`tralo_uniform`).** The cap is satisfiable with ZERO reordering -- drop the
+class logit by a constant and every `p_ic` falls monotonically while the order
+is exactly preserved -- so a harmless path always exists and the shipped loss
+simply does not take it. `d(sum_i p_ic)/dz_ic = p(1-p)` differs per item, which
+is what singles items out. `uniform` keeps the count's VALUE exact and makes the
+per-item gradient CONSTANT in log-odds, where `du_c/dz_c = 1` exactly, so a
+uniform step is a bias shift and cannot reorder. Same dose (`w` is the mean of
+`p(1-p)`), different distribution. Live by md5 on every binding seed
+(`flag_live`), gated on the gradient itself with autograd rather than on the
+smoke harness, which cannot see it (rho=0.999965 for both modes).
+
+**PREDICTED**: recovers the ~30 items and lands `tralo` ON its own null.
+**NOT predicted**: that it BEATS the null -- a uniform shift is a prior shift and
+2(j) says top-K is invariant to those. The claim is "the constraint becomes
+free". **FALSIFIED IF** net items vs the twin stays materially negative, which
+would put the damage in the SHARED BACKBONE rather than the per-item output
+term, and move the next lever to which parameters the constraint may touch.
+
+Launch: `docs/launch_uniform.sh` (9 cells, 6 arms, 4 seeds = 216 runs; 9 cells
+is deliberate -- sign-test floor 0.00391 against BH 0.00455, so unlike iwc1/iwc2
+it can return a CALLABLE verdict). Read with `order_probe --evictions` FIRST.
+
+---
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 **The single most useful fact in this project: regime effects are ~8 pp. Method effects are ~0.1 pp.**
