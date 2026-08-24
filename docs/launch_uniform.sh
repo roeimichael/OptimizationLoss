@@ -38,6 +38,7 @@
 #   arms         tralo          sum_i p_ic,   gradient p(1-p)   the manuscript
 #                tralo_uniform  sum_i p_ic,   gradient CONSTANT fix 1: PLACEMENT
 #                tralo_ortho    step projected off the CE grad  fix 2: DIRECTION
+#                tralo_head     constraint confined to the head THE CONTROL
 #                tralo_null     lambda = 0                      the twin
 #                tralo_reseed   the twin, one RNG draw          the noise floor
 #                clip, focal_clip                               in-campaign bars
@@ -54,10 +55,27 @@
 #                as rejected without ever being tested.
 #
 #                THE TWO FIXES ARE ORTHOGONAL AND SHARE EVERY CONTROL, so one
-#                campaign answers both: 7 arms x 9 cells x 4 seeds = 252 runs
-#                against 216 + 216 = 432 for two campaigns, and it makes them
-#                a HEAD-TO-HEAD under identical controls instead of two
-#                readings that can only be compared across campaigns.
+#                campaign answers both: 8 arms x 9 cells x 4 seeds = 288 runs
+#                against 216 x 3 = 648 for three campaigns, and it makes them
+#                a HEAD-TO-HEAD under identical controls instead of readings
+#                that can only be compared across campaigns.
+#
+#                📌 `tralo_head` IS THE THIRD ARM AND IT IS A CONTROL, NOT A
+#                CANDIDATE. It confines the constraint gradient to the
+#                classifier head, so the backbone cannot move under it at
+#                all -- the hypothesis behind `tralo_ortho`, tested outright.
+#                WITHOUT IT AN `ortho` NULL IS UNATTRIBUTABLE: it would mean
+#                either that the projection is too weak or that the backbone
+#                was never the culprit, and those are opposite conclusions.
+#                With it they separate:
+#                  head recovers, ortho does not -> real effect, wrong tool
+#                  both recover                   -> backbone confirmed
+#                  neither recovers               -> backbone hypothesis DEAD;
+#                                                    the damage is intrinsic to
+#                                                    training under a count
+#                                                    penalty, and the post-hoc
+#                                                    clipper is the honest
+#                                                    recommendation
 #   dose         constraint_grad_mode normalize -- ESSENTIAL HERE. It fixes the
 #                delivered step to a protocol constant, so `tralo` and
 #                `tralo_uniform` differ ONLY in the DIRECTION of the step and
@@ -90,7 +108,7 @@
 #                to `tralo_null`. If it does not, the arm is a silent null,
 #                the comparison is void, and the answer is a dose sweep on
 #                `lr_constraint` for that arm alone -- NOT a verdict.
-#   size         9 cells x 7 arms x 4 seeds = 252 runs
+#   size         9 cells x 8 arms x 4 seeds = 288 runs
 #
 # PRE-REGISTERED, before any run (and duplicated in the source docstring of
 # `uniform_grad_count` so it cannot be quietly rewritten):
@@ -209,7 +227,7 @@ PY=$HOME/anaconda3/envs/optloss/bin/python
     --datasets iwildcam \
     --models MobileNetV2 MobileNetV3 RegNetY400MF \
     --caps L20_G50 L30_G50 L50_G30 \
-    --arms tralo tralo_uniform tralo_ortho tralo_null tralo_reseed clip focal_clip \
+    --arms tralo tralo_uniform tralo_ortho tralo_head tralo_null tralo_reseed \n           clip focal_clip \
     --constraint-grad-mode normalize
 
 # THE THREE GATES. Each refuses a different way to waste a week, and a campaign
@@ -222,6 +240,7 @@ PY=$HOME/anaconda3/envs/optloss/bin/python
 # md5 check across arms, and it is the difference between an arm and a rename.
 "$PY" -m scripts.flag_live tralo tralo_uniform
 "$PY" -m scripts.flag_live tralo tralo_ortho
+"$PY" -m scripts.flag_live tralo tralo_head
 
 GPU=${GPU:-0}
 # main.py prompts for a GPU and reads the answer from stdin. With

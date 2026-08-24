@@ -32,7 +32,7 @@ from src.pipeline.setup import setup_runtime
 from src.pipeline.warmup import make_ce_criterion, make_dataloader, make_optimizer
 from src.training.constraint_step import (
     constraint_autocast, constraint_backward, finish_constraint_step,
-    snapshot_grads)
+    head_parameter_ids, snapshot_grads)
 from src.losses.transductive_loss import (margin_window, margins,
                                           uniform_grad_count, window_temp)
 from src.training.logging import log_progress_to_csv, write_csv_header
@@ -55,6 +55,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             "name, which is this project's most frequent defect."
             % SOFT_COUNT_MODE)
     ORTHO_PROJECT = bool(hp.get("ortho_project", False))
+    HEAD_ONLY = bool(hp.get("head_only", False))
     step_cfg = read_step_config(hp)
     CUT_WINDOW_ITEMS = int(hp.get("cut_window_items", 5))
     STRAIGHT_THROUGH = bool(hp.get("straight_through", False))
@@ -220,6 +221,10 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         # next line, so this is the only free place to take it. `ortho_project`
         # removes the constraint step's component along it; see project_out.
         ortho_ref = snapshot_grads(model) if ORTHO_PROJECT else None
+        # Resolved every epoch rather than cached: it is a dict lookup over
+        # modules, and a cached id() set would silently go stale if anything
+        # ever rebuilds a layer mid-run.
+        head_ids = head_parameter_ids(model, num_classes) if HEAD_ONLY else None
 
         # ---- Transductive pass 1: aggregate soft + hard counts (no_grad, eval) ----
         model.eval()
@@ -397,7 +402,8 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         did_backward = has_constraint
         if did_backward:
             last_grad_norm, applied = finish_constraint_step(
-                model, optimizer, scaler, ortho_ref=ortho_ref, **step_cfg)
+                model, optimizer, scaler, ortho_ref=ortho_ref,
+                head_ids=head_ids, **step_cfg)
             # `applied` is False when the constraint gradient came back
             # non-finite, and then no step landed this epoch. Counting it is
             # the only way a reader can tell 29 steps from 19: the run still

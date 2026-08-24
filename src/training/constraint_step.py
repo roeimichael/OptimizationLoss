@@ -118,6 +118,32 @@ def _randomize_direction(model, clip, seed_tensor):
                 p.grad.mul_(scale)
 
 
+def head_parameter_ids(model, n_classes):
+    """ids of the classifier head's parameters -- the Linear that emits logits.
+
+    IDENTIFIED, NOT HARDCODED. The four backbones name their head differently
+    (`classifier` on MobileNetV2/V3, `fc` on RegNetY400MF, `heads` on ViTB16),
+    so a name list would be a landmine the day a fifth arrives. All four end in
+    `nn.Linear(feat, n_classes)`, so that is the rule.
+
+    It REFUSES on ambiguity rather than guessing. `out_features == n_classes`
+    could in principle match an intermediate layer; if it matches more than one
+    Linear, or none, the head is not determined and a silently-wrong choice
+    would confine the constraint to the wrong parameters while every config and
+    log still read `head_only: true` -- an inert flag with a plausible name,
+    which is this project's most frequent defect.
+    """
+    hits = [m for m in model.modules()
+            if isinstance(m, torch.nn.Linear) and m.out_features == n_classes]
+    if len(hits) != 1:
+        raise ValueError(
+            "head_only needs exactly one Linear with out_features == %d to "
+            "identify the classifier head; found %d. Name the head explicitly "
+            "for this backbone rather than letting the constraint land on an "
+            "arbitrary layer." % (n_classes, len(hits)))
+    return {id(prm) for prm in hits[0].parameters()}
+
+
 def snapshot_grads(model):
     """The CE gradient still sitting on the parameters, cloned. (list or None)
 
@@ -184,7 +210,8 @@ def project_out(model, ref):
 
 def finish_constraint_step(model, optimizer, scaler, clip, mode="clip",
                            fp32=False, step_rule="shared", lr=None,
-                           random_direction=False, ortho_ref=None):
+                           random_direction=False, ortho_ref=None,
+                           head_ids=None):
     """Bound the constraint gradient and take the step.
 
     Returns (raw_norm, applied). `raw_norm` is the true pre-clip norm, so a log
@@ -196,6 +223,21 @@ def finish_constraint_step(model, optimizer, scaler, clip, mode="clip",
 
     # BEFORE the bound, so the projected step is renormalised to the same size
     # as the unprojected one and the arms differ in direction alone.
+    if head_ids is not None:
+        # BEFORE the bound, like the projection, so `normalize` renormalises
+        # what is left to exactly `clip`. THE CONSEQUENCE IS DELIBERATE AND
+        # MUST BE READ WITH THE RESULT: the whole step norm is then delivered
+        # to the head, so this arm moves the head MORE than `tralo` does. It
+        # answers "does confining the constraint to the head remove the
+        # damage", not "does freezing the backbone help, all else equal".
+        # Holding the per-parameter step instead would leave the arm taking a
+        # far smaller total step than its control, which confounds support
+        # with dose -- the trap that made the hounie baseline meaningless.
+        with torch.no_grad():
+            for prm in model.parameters():
+                if prm.grad is not None and id(prm) not in head_ids:
+                    prm.grad.zero_()
+
     if ortho_ref is not None:
         # LOGGED, NOT RETURNED. The return arity is gated
         # (`test_..._unpacks_finish_constraint_steps_two_returns`) because

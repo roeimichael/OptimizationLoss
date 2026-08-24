@@ -179,6 +179,9 @@ blocks:
     # that no protocol key confirms is how a knob silently diverges
     # from what the configs claim.
     ortho_project: false
+    # Same reason as ortho_project: the base value is declared so the
+    # trainer's inline default has a protocol key to agree with.
+    head_only: false
     # WHAT THE PENALTY READS. false = the soft count's own value, which is the
     # manuscript. true = the HARD count, with the soft count supplying only the
     # gradient (straight-through, free from the chunked detach construction).
@@ -273,6 +276,45 @@ blocks:
   # surviving predecessor to audit against.
   tralo_ortho:
     ortho_project: true
+  # THE POSITIVE CONTROL FOR `tralo_ortho`, and the sharper test of the
+  # hypothesis behind it. FRAMEWORK 2(s) concluded the constraint's damage to
+  # the uncapped classes arrives through the SHARED BACKBONE. `tralo_ortho`
+  # tries to fix that by projecting the step off the CE direction; this arm
+  # tests the hypothesis outright by confining the constraint gradient to the
+  # classifier head, so the backbone cannot move under it at all.
+  #
+  # WHY BOTH. An `ortho` null alone is unattributable -- it could mean the
+  # projection is too weak OR that the backbone was never the culprit. Run
+  # beside this arm the two cases separate: if `head_only` also nulls, the
+  # backbone hypothesis is dead and the damage is intrinsic to training under
+  # a count penalty; if `head_only` recovers and `ortho` does not, the
+  # projection is the wrong instrument for a real effect.
+  #
+  # ⚠️ CE STILL TRAINS THE WHOLE MODEL. Only the CONSTRAINT step is confined,
+  # so the 29 epochs of CE that produce the +0.0145 compute term are untouched
+  # and this arm keeps them.
+  #
+  # ⚠️ AND IT DELIVERS THE WHOLE STEP NORM TO THE HEAD, by the same
+  # `normalize`-after-masking rule that keeps every other arm at one dose. So
+  # it answers "does confining the constraint to the head remove the damage",
+  # NOT "does freezing the backbone help, all else equal".
+  #
+  # SIZE THAT, because the head is small. Measured on the real backbones, the
+  # identified head is weight + bias only:
+  #     MobileNetV3    10,248 / 4,212,280   0.243%
+  #     MobileNetV2    10,248 / 2,234,120   0.459%
+  #     RegNetY400MF    3,528 / 3,906,672   0.090%
+  #     ViTB16          6,152 / 85,804,808  0.007%
+  # so the same total norm lands on 0.09-0.46% of the parameters in this
+  # campaign's three backbones -- a per-parameter step two to three orders
+  # larger than `tralo` delivers there. Holding the per-parameter step instead
+  # would make this arm's TOTAL step far smaller than its control's, which
+  # breaks the one thing `constraint_grad_mode: normalize` exists to hold
+  # fixed and would fail `check_parity`. The convention is total norm; the
+  # consequence is stated here so it is read with the result and not
+  # discovered in it.
+  tralo_head:
+    head_only: true
   # THE NULL-TREATMENT CONTROL. Identical to `tralo` in warm-up length, optimizer
   # restart, epoch count, transductive passes and allocator -- with the treatment
   # removed. total_constraint == 0 makes has_constraint False, so pass 2 is
@@ -474,6 +516,9 @@ arms:
   # null would be a bit-identical run costing a GPU slot.
   tralo_ortho:
     {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, tralo_ortho],
+     null_sibling: tralo_null}
+  tralo_head:
+    {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, tralo_head],
      null_sibling: tralo_null}
   # Same code path as tralo, treatment zeroed. See the tralo_null block above.
   tralo_null: {methodology: tralo,          phase: trained, blocks: [constraint_phase, tralo_null]}

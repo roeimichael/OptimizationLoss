@@ -1685,3 +1685,113 @@ def test_a_count_must_be_INVARIANT_to_the_logit_gauge():
     assert not np.allclose(o_shift, o_ref, atol=1e-6), (
         "even the one-vs-rest count was gauge-invariant here, so this fixture "
         "cannot detect the defect it exists to detect")
+
+
+def test_head_only_confines_the_constraint_and_STILL_delivers_the_full_dose():
+    """`tralo_head` -- the positive control that makes `tralo_ortho` readable.
+
+    FRAMEWORK 2(s) concluded the constraint's damage to the uncapped classes
+    arrives through the shared backbone. `tralo_ortho` tries to fix that;
+    `tralo_head` tests it outright by confining the constraint gradient to the
+    classifier head. Run alone, an `ortho` null cannot distinguish "the
+    projection is too weak" from "the backbone was never the culprit"; run
+    beside this arm, those separate.
+
+    Three properties:
+      1. every non-head gradient is EXACTLY zero -- not small, zero;
+      2. the head's gradient is not;
+      3. the delivered norm is still exactly `clip`, so the arm differs from
+         its control in the constraint's SUPPORT and not in its dose.
+
+    (3) is why the masking runs before the bound. Masking after would leave
+    this arm taking a far smaller total step than `tralo`, which confounds
+    support with dose -- the trap that made the hounie baseline meaningless.
+    """
+    import torch
+    from src.training.constraint_step import (finish_constraint_step,
+                                              head_parameter_ids)
+
+    n_classes = 4
+
+    def build():
+        torch.manual_seed(5)
+        return torch.nn.Sequential(torch.nn.Linear(8, 6),      # "backbone"
+                                   torch.nn.ReLU(),
+                                   torch.nn.Linear(6, n_classes))  # head
+
+    def run(mask):
+        m = build()
+        ids = head_parameter_ids(m, n_classes) if mask else None
+        for prm in m.parameters():
+            prm.grad = torch.randn_like(prm)
+        finish_constraint_step(m, None, None, clip=1.0, mode="normalize",
+                               fp32=True, step_rule="sgd", lr=0.0,
+                               head_ids=ids)
+        back = [prm.grad for prm in m[0].parameters()]
+        head = [prm.grad for prm in m[2].parameters()]
+        total = torch.cat([prm.grad.reshape(-1) for prm in m.parameters()])
+        return back, head, float(total.norm())
+
+    back_on, head_on, nrm_on = run(True)
+    back_off, _, nrm_off = run(False)
+
+    assert all(float(g.abs().max()) == 0.0 for g in back_on), (
+        "a non-head gradient survived the mask; the constraint still reaches "
+        "the backbone and the arm does not test what it claims")
+    assert any(float(g.abs().max()) > 0 for g in head_on), (
+        "the head gradient is zero too -- the arm is inert, which passes the "
+        "assertion above trivially")
+    # NEGATIVE CONTROL: unmasked, the backbone MUST carry gradient.
+    assert any(float(g.abs().max()) > 0 for g in back_off), (
+        "the backbone had no gradient even unmasked, so this fixture cannot "
+        "tell the mask from a no-op")
+    # DOSE HELD: masking happens before the bound, so both deliver `clip`.
+    assert abs(nrm_on - 1.0) < 1e-5 and abs(nrm_off - 1.0) < 1e-5, (
+        "normalize did not deliver exactly clip (%g vs %g); the head-only arm "
+        "would differ from its control in dose as well as support"
+        % (nrm_on, nrm_off))
+
+
+def test_head_parameter_ids_REFUSES_an_ambiguous_head():
+    """A silently-wrong head is an inert flag with a plausible name.
+
+    The four backbones name their head differently (`classifier`, `fc`,
+    `heads`), so identification is by shape -- the single Linear emitting
+    `n_classes` logits. If that matches more than one layer, or none, the head
+    is not determined, and confining the constraint to an arbitrary layer would
+    still log `head_only: true` and still write `completed`.
+    """
+    import pytest
+    import torch
+    from src.training.constraint_step import head_parameter_ids
+
+    ok = torch.nn.Sequential(torch.nn.Linear(8, 6), torch.nn.Linear(6, 3))
+    assert len(head_parameter_ids(ok, 3)) == 2          # weight and bias
+
+    ambiguous = torch.nn.Sequential(torch.nn.Linear(8, 3), torch.nn.Linear(3, 3))
+    with pytest.raises(ValueError, match="exactly one Linear"):
+        head_parameter_ids(ambiguous, 3)
+
+    with pytest.raises(ValueError, match="exactly one Linear"):
+        head_parameter_ids(ok, 99)                       # no head at all
+
+
+def test_the_tralo_trainer_actually_READS_head_only():
+    """Same AST check `ortho_project` gets, for the same reason."""
+    import ast
+    import io
+
+    tree = ast.parse(io.open("src/methodologies/tralo/train.py",
+                             encoding="utf-8").read())
+    assert [n for n in ast.walk(tree)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "get" and n.args
+            and isinstance(n.args[0], ast.Constant)
+            and n.args[0].value == "head_only"], (
+        "`head_only` is in the protocol with no reader in train()")
+    assert [n for n in ast.walk(tree)
+            if isinstance(n, ast.Call)
+            and getattr(n.func, "id", getattr(n.func, "attr", None))
+            == "finish_constraint_step"
+            and any(k.arg == "head_ids" for k in n.keywords)], (
+        "the flag is read but `head_ids` never reaches finish_constraint_step")
