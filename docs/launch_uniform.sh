@@ -13,7 +13,7 @@
 # items and nets +0.38, evicted and admitted precision equal to three decimals.
 # So a perturbation of no consequence swaps items of equal quality, and this one
 # does not. -30.8 items is attributable to the constraint. For scale, the
-# headroom from `clip` to a PERFECT RANKING on iwildcam of 59-114 items per
+# headroom from `clip` to a PERFECT RANKING on iwildcam is 59-114 items per
 # class (scripts.headroom, 2026-08-24). NOT the 1.9-9.9 that FRAMEWORK
 # section 4 quotes -- that is a dermmnist number for a REMOVED dataset. So
 # the damage is a fraction of the prize here, not several times it, and it is
