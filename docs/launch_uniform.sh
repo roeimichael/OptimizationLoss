@@ -189,6 +189,42 @@
 set -euo pipefail
 
 ROOT=results/uniform1
+#
+# ═══════════════════════════════════════════════════════════════════════════
+# 🛑 READ BEFORE LAUNCHING -- `tralo_ortho`'s RATIONALE WAS REFUTED 2026-08-25,
+#    AFTER this script was written. `python -m scripts.ortho_survival`.
+#
+#    `project_out` sets <g_con, grad_CE> = 0 on the RAW gradient, and that zero
+#    is the arm's whole rationale: to first order a step -lr*u changes CE by
+#    -lr*<grad_CE,u>, so the arm claims CE-neutrality. But the step that lands
+#    is Adam's m/sqrt(v), and the projection touches neither part of it --
+#    b1 = 0.9 of the momentum is stale CE momentum, and sqrt(v) is not an
+#    isometry so it does not preserve orthogonality.
+#
+#    MEASURED: the projection removes 0.0% of the update's CE inner product in
+#    12 of 12 conditions, and that is its BEST case (it assumes the reference
+#    IS the CE momentum; snapshot_grads captures one minibatch).
+#
+#    ⇒ WHATEVER `tralo_ortho` MEASURES, IT IS NOT "the constraint no longer
+#      undoes CE progress". Its 36 of these 288 runs buy an arm with no live
+#      hypothesis. RECOMMENDED: drop it and put those runs into SEEDS on
+#      `tralo_uniform` and `tralo_head`, taking each cell from 4 to 6 seeds --
+#      which is what the underpowered contrasts in FRAMEWORK 2(s) actually
+#      need (53 / 9 / 19 seeds per cell on the macroF1 and ccF1 lines).
+#
+#    ⚠️ `tralo_head` IS NOT AFFECTED, but its description here is. Zeroing a
+#      gradient does NOT freeze a parameter: real torch.optim.Adam moves a
+#      masked coordinate at 90.4% of an unmasked one at 126 CE steps/epoch,
+#      and that RISES toward b1 as the CE phase lengthens. The arm delivers
+#      "no constraint INFORMATION reaches the backbone", not "the backbone is
+#      frozen". The residual drift is CE momentum, which tralo_null has too, so
+#      it is common-mode -- read the arm against its own null, never against
+#      clip alone.
+#
+#    This block is advice, not an edit: the arm list below is UNCHANGED so the
+#    script still matches PIN=ea77ab80. Change both together or neither.
+# ═══════════════════════════════════════════════════════════════════════════
+#
 PIN=ea77ab80                 # the commit carrying ALL THREE arms:
                              # soft_count_mode uniform, ortho_project and
                              # head_only.
