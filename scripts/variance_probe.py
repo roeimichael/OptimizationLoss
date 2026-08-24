@@ -149,12 +149,22 @@ def main():
     worst = None
     for k in WATCH:
         vals = []
+        dropped = 0
         for r in results:
             try:
                 vals.append(float(r[k]))
             except (KeyError, TypeError, ValueError):
-                pass
+                # NOT `pass`. This is the NOISE FLOOR, which every effect in
+                # this project is judged against. A spread computed over a
+                # silently smaller set of runs understates it.
+                dropped += 1
+        if dropped:
+            print("  !! %-18s %d of %d run(s) had no usable value and were "
+                  "DROPPED -- the spread below is over the rest"
+                  % (k, dropped, len(results)))
         if len(vals) < 2:
+            print("  !! %-18s fewer than 2 usable runs; NO spread reported"
+                  % k)
             continue
         spread = max(vals) - min(vals)
         sd = statistics.stdev(vals) if len(vals) > 2 else float("nan")

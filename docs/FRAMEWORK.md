@@ -1936,6 +1936,33 @@ report that it cannot answer, which is the one message this project most needs
 to survive. These run clean on the servers (Linux, UTF-8); the bug is invisible
 there and fatal locally.
 
+#### 🆕 A FOURTH CLASS, found 2026-08-25: **THE INSTRUMENT DROPS DATA WITHOUT SAYING SO**
+
+The third class was a tool that dies loudly in the wrong place. This is the
+opposite and worse: a tool that survives by discarding an input and then prints
+a number over the smaller set, with the header still describing the larger one.
+`except ...: pass` is the whole mechanism. Found by asking the class question of
+2(e) on the probes: *what does this report when an input is missing?*
+
+| site | what was silently dropped | why it mattered | state |
+|---|---|---|---|
+| `scripts/straddle_probe.py` | a `_null` twin that fails to load, via `except SystemExit: pass` | the **BASELINE** block could be built from fewer runs than the **TREATED** block printed directly below it, while its header says they are the same cells. `report()` also took a run count and **ignored** it, so nothing anywhere stated the coverage | ✅ skip is printed and counted; `report()` prints its own `n_runs`; the baseline is labelled with `n_base`, not the treatment's `n_ok`; a divergence prints "these blocks DO NOT COVER THE SAME RUNS" |
+| `scripts/full_panel.py` `_treatment_weight_keys` | every key derived from `protocol.yml`, falling back to the floor | the floor is **exactly** the hardcoded list this function's own docstring records as a bug -- `fioretto_null`, `hounie_null` and `alm_null` then fall through to the treated-arm branch. A scorer quietly regressing to a known defect is worse than one that crashes | ✅ warns on stderr, naming the three arms that will be misread |
+| `scripts/check_parity.py` | the protocol's full `warmup_identity_keys` list | the gate narrows to **one** key and still prints **PARITY OK** | ✅ warns that the gate is now weaker than PARITY OK implies |
+| `scripts/variance_probe.py` | any run whose metric will not parse | this is the **NOISE FLOOR**, which every effect in this project is judged against (0.0358 macro-F1 = 21x the effect it was measuring). A spread over a silently smaller set understates it | ✅ prints how many runs were dropped per metric, and says so explicitly when fewer than 2 remain |
+
+✅ **Four other silent swallows were examined and KEPT**, each with a recorded
+reason: feature-detecting an optional torch API (`bisect_determinism`), the
+error writer that must not raise while recording a failure
+(`src/utils/error_handler`), an optional `config.json` for a log diagnostic
+(`log_health`), and a fallback to an equivalent source (`hp_liveness`).
+
+Gated by `test_no_scorer_or_gate_DROPS_DATA_WITHOUT_SAYING_SO`, an AST walk over
+`scripts/`, `docs/paper/scripts/` and `src/` with `SILENT_SWALLOW_ALLOWED` as
+the exemption list -- **and the test also fails on a STALE exemption**, because
+an allowlist entry that outlives its code silently re-permits the bug if the
+code returns.
+
 ### (f) What was DELETED FROM THE CODE on 2026-08-18, and why
 
 Every failed idea had left a flag, a branch and a default behind. The knobs are gone, not
@@ -2003,7 +2030,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 372 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 374 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -2011,7 +2038,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (372 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (374 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -5450,7 +5477,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             372 tests, ~105 s, no dataset required
+tests/             374 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

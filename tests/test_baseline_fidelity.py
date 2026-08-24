@@ -2288,3 +2288,130 @@ def test_no_script_CRASHES_when_it_prints_its_own_conclusion():
         "cp1252 console, exiting 1 mid-report: %s. Use ASCII in printed strings "
         "(!! for the warning sign, -> and => for the arrows); docstrings, "
         "comments and .md files may keep their emoji." % offenders)
+
+
+# A handler may swallow silently ONLY for a reason recorded here. Everything
+# else must report, because a scorer or gate that drops data without saying so
+# produces a number over a smaller set than the reader believes.
+SILENT_SWALLOW_ALLOWED = {
+    ("scripts/bisect_determinism.py", "AttributeError"):
+        "feature-detecting an optional torch API; absence is the answer",
+    ("src/utils/error_handler.py", "Exception"):
+        "this IS the error writer; it must not raise while recording a failure",
+    ("scripts/log_health.py", "Exception"):
+        "config.json is optional for this diagnostic; the training log is the input",
+    ("scripts/hp_liveness.py", "Exception"):
+        "falls back to summary['last_grad_norm'], an equivalent source",
+}
+
+
+def test_no_scorer_or_gate_DROPS_DATA_WITHOUT_SAYING_SO():
+    """`except ...: pass` in an instrument is a number over a smaller set.
+
+    Found 2026-08-25 in straddle_probe, whose BASELINE block could be built
+    from fewer runs than the TREATED block printed directly below it while the
+    header said they were the same cells. The audit then found the same shape
+    in full_panel (silently regressing to the exact hardcoded key list its own
+    docstring records as a bug), check_parity (a parity gate quietly narrowing
+    to ONE key and still printing PARITY OK) and variance_probe (the NOISE
+    FLOOR every effect here is judged against, over a silently smaller set).
+    """
+    import io as _io
+    import os
+
+    found = {}
+    for root in ("scripts", "docs/paper/scripts", "src"):
+        for dirpath, _, files in os.walk(root):
+            if "__pycache__" in dirpath:
+                continue
+            for f in sorted(files):
+                if not f.endswith(".py"):
+                    continue
+                path = os.path.join(dirpath, f).replace(os.sep, "/")
+                tree = ast.parse(_io.open(path, encoding="utf-8").read())
+                for h in ast.walk(tree):
+                    if not isinstance(h, ast.ExceptHandler):
+                        continue
+                    body = [n for n in h.body
+                            if not (isinstance(n, ast.Expr)
+                                    and isinstance(n.value, ast.Constant)
+                                    and isinstance(n.value.value, str))]
+                    if not (len(body) == 1 and isinstance(body[0], ast.Pass)):
+                        continue
+                    t = h.type
+                    if isinstance(t, ast.Name):
+                        name = t.id
+                    elif t is None:
+                        name = "BARE"
+                    else:
+                        name = ast.unparse(t)
+                    if (path, name) not in SILENT_SWALLOW_ALLOWED:
+                        found.setdefault((path, name), []).append(h.lineno)
+
+    assert not found, (
+        "new silent swallow(s): %s. An `except ...: pass` in a scorer, gate or "
+        "probe drops data and still prints a number. Either report the drop "
+        "(print/stderr, and count it) or add an entry to "
+        "SILENT_SWALLOW_ALLOWED saying why absence is genuinely the answer."
+        % {("%s except %s" % k): v for k, v in found.items()})
+
+    # The allowlist must not outlive what it names -- a stale entry is
+    # permission nobody is checking.
+    stale = []
+    for (path, name) in SILENT_SWALLOW_ALLOWED:
+        if not os.path.exists(path):
+            stale.append((path, name))
+            continue
+        tree = ast.parse(_io.open(path, encoding="utf-8").read())
+        names = set()
+        for h in ast.walk(tree):
+            if not isinstance(h, ast.ExceptHandler):
+                continue
+            body = [n for n in h.body
+                    if not (isinstance(n, ast.Expr)
+                            and isinstance(n.value, ast.Constant)
+                            and isinstance(n.value.value, str))]
+            if len(body) == 1 and isinstance(body[0], ast.Pass):
+                t = h.type
+                names.add(t.id if isinstance(t, ast.Name)
+                          else "BARE" if t is None else ast.unparse(t))
+        if name not in names:
+            stale.append((path, name))
+    assert not stale, (
+        "SILENT_SWALLOW_ALLOWED names swallows that no longer exist: %s. "
+        "Remove the entries -- a stale exemption silently re-permits the bug "
+        "if the code comes back." % stale)
+
+
+def test_the_straddle_probe_BASELINE_reports_its_own_coverage():
+    """The BASELINE and TREATED blocks are comparable only over the same runs."""
+    import io as _io
+
+    src = _io.open("scripts/straddle_probe.py", encoding="utf-8").read()
+    tree = ast.parse(src)
+
+    fn = [n for n in ast.walk(tree)
+          if isinstance(n, ast.FunctionDef) and n.name == "report"]
+    assert fn, "report() vanished from straddle_probe"
+    assert "n_runs" in {a.arg for a in fn[0].args.args}, "report lost n_runs"
+    used = any(isinstance(n, ast.Name) and n.id == "n_runs"
+               for n in ast.walk(fn[0]))
+    assert used, (
+        "report() accepts n_runs and ignores it again. That is what let the "
+        "BASELINE block be built from fewer runs than the TREATED block "
+        "without anything saying so")
+
+    main = [n for n in ast.walk(tree)
+            if isinstance(n, ast.FunctionDef) and n.name == "main"]
+    assert main, "main() vanished"
+    calls = [n for n in ast.walk(main[0])
+             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+             and n.func.id == "report"]
+    assert len(calls) == 2, "expected two report() calls, found %d" % len(calls)
+    args = {ast.unparse(c.args[1]) for c in calls}
+    assert args == {"n_base", "n_ok"}, (
+        "the two report() calls now pass %s. The baseline must be labelled "
+        "with ITS OWN run count, not the treatment's." % sorted(args))
+    assert "n_base_skipped" in src, (
+        "straddle_probe no longer counts skipped baseline runs, so it cannot "
+        "warn that the two blocks do not cover the same runs")

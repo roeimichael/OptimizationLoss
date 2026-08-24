@@ -203,8 +203,16 @@ def _identity_keys():
         keys = proto.get("warmup_identity_keys")
         if keys:
             return list(keys)
-    except Exception:
-        pass
+    except Exception as exc:
+        # NOT `pass`. The narrowed fallback below is deliberate; announcing it
+        # is mandatory. A parity gate that quietly checks ONE key instead of the
+        # protocol's full list still prints PARITY OK, and this project has been
+        # burned four times by a check that passed because it stopped looking.
+        sys.stderr.write(
+            "WARNING check_parity: configs/protocol.yml unreadable (%s: %s). "
+            "Falling back to checking ONLY 'warmup_loss' -- this gate is now "
+            "much weaker than PARITY OK implies.\n"
+            % (type(exc).__name__, exc))
     # If the protocol cannot be read, check the one key that is known to have
     # collided rather than silently checking nothing.
     return ["warmup_loss"]

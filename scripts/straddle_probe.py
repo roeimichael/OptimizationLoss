@@ -351,7 +351,15 @@ def reachable_share(agg, band):
 
 
 def report(agg, n_runs):
-    """One block per CELL. Never one block per class across cells."""
+    """One block per CELL. Never one block per class across cells.
+
+    `n_runs` is the number of runs THIS aggregate was built from, and it is
+    printed. It used to be accepted and ignored, which let the BASELINE block
+    be built from fewer runs than the TREATED block it sits above without
+    anything saying so -- the two are only comparable when they cover the same
+    runs, and the header claims they do.
+    """
+    print("  (over %d run(s))" % n_runs)
     cells = []
     for cell, _c in agg:
         if cell not in cells:
@@ -474,6 +482,7 @@ def main(argv=None):
 
     rng = np.random.default_rng(0)
     agg, agg_base, n_ok = {}, {}, 0
+    n_base = n_base_skipped = 0
     pairs = [] if (args.sweep or args.match_contested) else pair_runs(runs)
 
     if pairs:
@@ -508,8 +517,14 @@ def main(argv=None):
                 collect(agg_base, probe(load_real(null, require_features=False),
                                         ladder, rng), names,
                         cell + (arm + "_null",))
-            except SystemExit:
-                pass
+            except SystemExit as exc:
+                # NOT `pass`. A silently dropped baseline run makes the BASELINE
+                # block cover fewer runs than the TREATED block directly below
+                # it, while the header says they are the same cells.
+                n_base_skipped += 1
+                print("    baseline skipped for %s: %s" % (arm, exc))
+            else:
+                n_base += 1
         print("")
     else:
         names = CONTESTED_NAMES if args.match_contested else SWEEP_NAMES
@@ -538,7 +553,12 @@ def main(argv=None):
         print("  BASELINE -- the `_null` twin's own ranking, at the SAME delta.")
         print("  This is what a post-hoc clipper at equal compute already had")
         print("  within reach BEFORE any constraint was applied.")
-        report(agg_base, n_ok)
+        if n_base_skipped:
+            print("  !! %d BASELINE RUN(S) COULD NOT BE LOADED. This block and the"
+                  % n_base_skipped)
+            print("  TREATED one below it DO NOT COVER THE SAME RUNS, so the two")
+            print("  are not paired and their difference is not attributable.")
+        report(agg_base, n_base)
         print("  TREATED -- the same cells after the constraint.")
     report(agg, n_ok)
 

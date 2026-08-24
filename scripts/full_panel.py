@@ -1168,8 +1168,19 @@ def _treatment_weight_keys():
                     live = True
                 if zeroed and live:
                     keys.add(k)
-    except Exception:
-        pass
+    except Exception as exc:
+        # NOT `pass`. The floor below is a legitimate fallback; SILENCE is not.
+        # Falling back to the floor alone is precisely the hardcoded behaviour
+        # this function's docstring records as a bug: `fioretto_null`,
+        # `hounie_null` and `alm_null` then fall through to the treated-arm
+        # branch. A scorer that quietly regresses to a known defect is worse
+        # than one that crashes.
+        sys.stderr.write(
+            "WARNING full_panel: could not derive the treatment-weight keys "
+            "from configs/protocol.yml (%s: %s). Falling back to %s, which does "
+            "NOT cover fioretto_null / hounie_null / alm_null -- those will be "
+            "misread as treated arms.\n"
+            % (type(exc).__name__, exc, sorted(keys)))
     return tuple(sorted(keys))
 
 
