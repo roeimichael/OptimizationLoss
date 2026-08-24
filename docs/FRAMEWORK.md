@@ -3411,10 +3411,46 @@ reads the ORDER of the capped class and nothing else. At the arm's own budget:
 | precision of what it **ADMITTED** | **0.3007** | 0.4844 |
 | **NET items per cell** | **-30.44**, 16/16 negative | **+0.38** |
 
-⇒ **attributable to the constraint: -30.81 items per cell, a 38.6 pp precision
-gap.** Section 4 puts the whole headroom from `clip` to a PERFECT allocator at
-1.9-9.9 items, so this is **3-16x the entire prize, spent backwards.** It is the
-single largest measured effect in this project, and it is ours.
+⇒ **attributable to the constraint on iwc2: -30.81 items per cell, a 38.6 pp
+precision gap.** Section 4 puts the whole headroom from `clip` to a PERFECT
+allocator at 1.9-9.9 items, so on that backbone this is several times the entire
+prize, spent backwards.
+
+⚠️ **THE MAGNITUDE IS BACKBONE-DEPENDENT AND iwc2 IS THE EXTREME. Quote the pair,
+never the -30.8 alone.** Replicated on `results/iwc1` (MobileNetV3, same dataset,
+same 2 cells x 4 seeds) the DIRECTION holds and the size does not:
+
+| | iwc2 (ViTB16) | iwc1 (MobileNetV3) |
+|---|---|---|
+| tralo net items | -30.44 (16/16 neg) | -10.81 (12/16 neg) |
+| reseed control | **+0.38** | **-7.38** |
+| attributable | **-30.81** | **-3.43** |
+
+The control moves too, and that is the point: on MobileNetV3 a pointless reseed
+already costs 7.4 items, so most of iwc1's -10.8 is geometry rather than method.
+On ViTB16 the reseed is free and the whole -30.4 is the constraint. Two
+campaigns, one direction, an order of magnitude between them -- so the effect is
+real and its SIZE is not yet pinned. `uniform1` has 9 cells and three backbones
+and is what settles that.
+
+🔑 **AND ACROSS THE DUALS, TraLO IS THE LEAST DAMAGING -- not the worst.**
+`results/iwc1`, every trained dual against the common CE-only reference
+`tralo_null`. That reference is legitimate for all of them because all four
+`_null` arms emit BIT-IDENTICAL predictions (md5 15a27900511b), so
+`fioretto_null` IS `tralo_null`. Attributable = net minus the -7.38 control:
+
+| arm | net items | attributable |
+|---|---|---|
+| **tralo** | -10.81 | **-3.4** |
+| alm | -20.75 | -13.4 |
+| fioretto | -23.06 | -15.7 |
+| hounie | -63.25 | -55.9 |
+
+⇒ the corpus ordering (fioretto ahead of tralo on macro-F1) does NOT hold on
+iwildcam once each arm is read against its own lambda=0 twin in items. Every
+dual is negative; ours is negative by the least. ⚠️ Do NOT extend this row to
+`lp`: it is a post-hoc arm at warm-up 30, so it does not share the reference
+model and its +4.38 is not comparable to the four above.
 
 🔑 **THE CONTROL IS THE WHOLE MEASUREMENT.** EVICTED items sat in the twin's
 top-K *by construction*, so they outrank ADMITTED ones and **any** perturbation
