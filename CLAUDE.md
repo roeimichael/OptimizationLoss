@@ -343,5 +343,10 @@ python docs/paper/scripts/make_main_table.py --two-metrics   # tab_ccf1.tex
 ```
 
 ⚠️ `tab_ablation_complete`, `tab_deploy` and `tab_oct_backbone` have
-**no generator and never did**, so an empty diff says nothing about those three. See `docs/paper/data/PROVENANCE.md`, including what the corpus itself
+**no generator and never did**, so an empty diff says nothing about those three.
+⚠️ **Nor does it say anything about the FIGURES.** Verified 2026-08-25: of the six
+PDFs under `docs/paper/figures/`, two regenerate byte-for-byte and **four do not**
+(-888 to -4,617 bytes, all smaller). Not the data -- `make_loss_shape_fig.py` reads
+no data file and still differs -- and not the toolchain, same matplotlib and font
+subsets. The committed figures came from earlier versions of their generators. See `docs/paper/data/PROVENANCE.md`, including what the corpus itself
 can no longer be rebuilt from.

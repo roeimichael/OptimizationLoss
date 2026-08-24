@@ -254,3 +254,51 @@ be checked from the CSV alone, with no run directories:
    `Fraction(v).limit_denominator(10**7)` on each `cc_f1`.
 
 See `README_DATA.md` for the per-file detail on the corpus CSVs.
+
+---
+
+## THE FIGURES DO NOT ALL REGENERATE -- checked 2026-08-25
+
+`CLAUDE.md` records that eight of the eleven **tables** rebuild from
+`corpus_final.csv` byte-for-byte. **That was re-verified today and holds:** run
+every `docs/paper/scripts/make_*.py` (with `--two-metrics` on
+`make_main_table.py`) and `git diff docs/paper/tables/` is empty.
+
+**The FIGURES are a different story, and nothing said so before.** The same run
+rewrote six PDFs under `docs/paper/figures/`:
+
+| figure | shipped | regenerated | delta |
+|---|---|---|---|
+| `fig_convergence` | 52,002 | 52,002 | **0** |
+| `fig_datasets` | 245,169 | 245,169 | **0** |
+| `fig_loss_shape` | 58,786 | 57,898 | -888 |
+| `fig_octmnist` | 47,414 | 44,852 | -2,562 |
+| `fig_mechanism` | 44,781 | 41,238 | -3,543 |
+| `fig_deployment` | 86,202 | 81,585 | -4,617 |
+
+**Two reproduce exactly and four do not, all four smaller.** The two that match
+are what make this readable: they prove the pipeline is deterministic, so the
+other four differ in CONTENT rather than in a timestamp.
+
+🔑 **AND IT IS NOT THE DATA.** Every input those generators read is present
+(`corpus_final.csv` and one `training_log.csv`, both on disk), and
+`make_loss_shape_fig.py` **reads no data file at all** -- it draws the penalty
+shape analytically -- yet still regenerates 888 bytes smaller. Nor is it the
+toolchain: shipped and regenerated PDFs both carry
+`Matplotlib v3.10.5` and the identical font subsets
+(`CZRBLR+STIXGeneral-Regular`, `FHXFSG+TimesNewRomanPSMT`,
+`FTXWZA+STIXGeneral-Italic`).
+
+⇒ **The committed versions of those four figures were produced by earlier
+versions of their generators.** What the paper shows is not what the scripts
+now draw, and the difference has never been characterised.
+
+🛑 **So an empty `git diff docs/paper/tables/` says nothing about the figures**,
+exactly as it says nothing about `tab_ablation_complete`, `tab_deploy` and
+`tab_oct_backbone`, which have no generator at all. Before any figure is
+quoted, re-run its generator and look at the result; do not assume the
+committed PDF is what the current code produces.
+
+⚠️ Re-running them REWRITES the PDFs in place. Restore with
+`git checkout -- docs/paper/figures/` unless the change is intended -- and the
+two byte-identical ones will come back clean either way.
