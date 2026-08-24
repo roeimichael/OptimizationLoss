@@ -3664,6 +3664,24 @@ is invariant and is the result.
 
 #### 2(a2) QUANTIFIED: where the shipped count's push actually goes
 
+🛑 **READ THE NEXT THREE TABLES WITH THIS CAVEAT.** They are measured on the
+128 stored runs in `evidence/`, which are `mcbar` + `multiclass` -- **dermmnist
+and octmnist**, both REMOVED under 2(n), and dermmnist 38.7% test-leaked. That
+is acceptable for what is being measured and not for more:
+
+* **The algebra is dataset-independent** and holds anywhere -- gauge invariance,
+  the monotonicity that makes the cross-term unable to reorder, the fact that
+  `sum`'s per-item slope is `p(1-p)`. Those are properties of the objective.
+* **The NUMBERS are distribution-dependent.** Which confidence band holds most
+  items, how far the 102x collapse actually bites, and what fraction of the
+  excess is reachable all depend on the score distribution, and iwildcam's is
+  not dermmnist's. ⚠️ **Re-run `collateral_probe` on `results/xfam1` before
+  quoting any figure below as an iwildcam quantity.**
+* Leakage does not threaten these specifically -- no label enters the
+  computation; the probe reads probabilities and budgets only. It is listed
+  because the runs are otherwise unusable and someone will ask.
+
+
 Unit-normalised push on the capped logit, by how confident that item is
 (56 stored runs). 2(a2) established that the penalty's gradient vanishes on the
 worst violations; this is that statement in numbers:
