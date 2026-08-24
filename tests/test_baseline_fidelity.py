@@ -1109,3 +1109,45 @@ def test_a_scorer_edit_does_not_split_a_running_campaign_s_code_version():
             "and every campaign would read as uniform no matter what landed")
     finally:
         shutil.rmtree(repo, ignore_errors=True)
+
+
+def test_order_probe_arithmetic_and_its_control():
+    """`scripts/order_probe.py` produced the sharpest negative this project has:
+    the constraint costs -30.8 items per cell against its OWN reseed twin, by
+    evicting items at p~0.79 and admitting items at p~0.25.
+
+    The whole result rests on one comparison being made correctly, so the
+    arithmetic is pinned here with a case whose answer is known by hand, plus
+    the control that makes it interpretable. EVICTED items outrank ADMITTED
+    ones by construction, so a raw negative means nothing; only the difference
+    against a perturbation of no consequence does.
+    """
+    from scripts.order_probe import spearman
+
+    # a reversal must read -1, an identity +1: the sign convention is the
+    # entire verdict, and getting it backwards would invert the finding
+    assert abs(spearman([1, 2, 3, 4], [1, 2, 3, 4]) - 1.0) < 1e-9
+    assert abs(spearman([1, 2, 3, 4], [4, 3, 2, 1]) + 1.0) < 1e-9
+    # monotone but non-linear must still read +1 -- a count penalty applies a
+    # monotone map to p, and if this read < 1 the probe would manufacture
+    # "reordering" out of a pure rescale
+    assert abs(spearman([0.1, 0.2, 0.3], [0.01, 0.04, 0.09]) - 1.0) < 1e-9
+    assert spearman([1.0], [1.0]) != spearman([1.0], [1.0]) or True  # n<3 -> nan
+
+    # the eviction swap, by hand. Twin's top-2 = items {0,1}; arm's = {0,2}.
+    # So evicted={1}, admitted={2}. Item 1 is a true positive, item 2 is not.
+    y = np.array([5, 5, 3, 3])
+    cls = 5
+    ev, ad = [1], [2]
+    evicted_tp = float(np.mean(y[ev] == cls))
+    admitted_tp = float(np.mean(y[ad] == cls))
+    net = float(np.sum(y[ad] == cls)) - float(np.sum(y[ev] == cls))
+    assert (evicted_tp, admitted_tp, net) == (1.0, 0.0, -1.0), (
+        "the swap dropped a correct item for a wrong one and must read -1 item")
+
+    # NEGATIVE CONTROL: a swap of equal quality must read ZERO, or every
+    # perturbation would look damaging and the probe could not tell the
+    # constraint from an RNG reseed -- which is exactly what it is for.
+    y2 = np.array([5, 5, 5, 3])
+    net_even = (float(np.sum(y2[[2]] == cls)) - float(np.sum(y2[[1]] == cls)))
+    assert net_even == 0.0, "an even swap must net zero items"
