@@ -1151,3 +1151,76 @@ def test_order_probe_arithmetic_and_its_control():
     y2 = np.array([5, 5, 5, 3])
     net_even = (float(np.sum(y2[[2]] == cls)) - float(np.sum(y2[[1]] == cls)))
     assert net_even == 0.0, "an even swap must net zero items"
+
+
+def test_uniform_count_has_a_CONSTANT_per_item_gradient_and_sum_does_not():
+    """The defining property of `soft_count_mode: uniform`, tested where it is
+    exact rather than where it is noisy.
+
+    `scripts/order_probe` measured that the shipped count evicts true positives
+    and admits false ones for a net -30.4 items per cell (16/16), against a
+    reseed control that nets +0.38. The cause is that `d(sum_i p_ic)/dz_ic` is
+    `p(1-p)`, which differs per item, so the penalty reorders the class. The
+    fix is a count whose per-item gradient is CONSTANT, since a constant step
+    in the class logit is a pure bias shift and a bias shift cannot reorder.
+
+    The smoke harness cannot see this -- 120 items of random labels give
+    rho=0.999965 for both modes, i.e. the cap barely binds -- so the property
+    is checked directly on the gradient, which is where it is a theorem.
+    """
+    import torch
+    from src.losses.transductive_loss import uniform_grad_count
+
+    torch.manual_seed(0)
+    C = 4
+    z = torch.randn(64, C, dtype=torch.float64, requires_grad=True)
+    cls = 1
+
+    # --- the shipped count: gradient is p(1-p), and it VARIES ---
+    p = torch.softmax(z, dim=1)
+    p.sum(dim=0)[cls].backward()
+    g_sum = z.grad[:, cls].clone()
+    expected = (p[:, cls] * (1 - p[:, cls])).detach()
+    assert torch.allclose(g_sum, expected, atol=1e-9), "sum's gradient is not p(1-p)"
+    assert g_sum.std().item() > 1e-3, (
+        "NEGATIVE CONTROL FAILED: the shipped count's per-item gradient is "
+        "already constant on this input, so the test cannot tell the two "
+        "modes apart and proves nothing")
+
+    # --- uniform: value identical, gradient constant ---
+    z.grad = None
+    p2 = torch.softmax(z, dim=1)
+    eff = uniform_grad_count(p2)
+    assert torch.allclose(eff.detach(), p2.detach(), atol=1e-12), (
+        "the VALUE must stay exactly sum_i p_ic, or the penalty is comparing a "
+        "different quantity to K and the cap no longer means what it says")
+    eff.sum(dim=0)[cls].backward()
+    g_uni = z.grad[:, cls].clone()
+    spread = (g_uni.max() - g_uni.min()).item() / max(1e-12, g_uni.abs().mean().item())
+    assert spread < 1e-6, (
+        "uniform's per-item gradient is not constant (relative spread %.3g) -- "
+        "it can still single items out and reorder the class" % spread)
+
+    # dose comparable: `w` is the mean of p(1-p), so the two modes deliver the
+    # same total pull and differ only in how it is distributed
+    assert abs(g_uni.mean().item() - g_sum.mean().item()) < 1e-9, (
+        "uniform changed the total dose, not just its distribution -- then any "
+        "difference in a campaign is a dose effect and unattributable")
+
+
+def test_an_unknown_soft_count_mode_is_refused_not_silently_run_as_sum():
+    """A typo used to fall through to the `sum` branch and run the manuscript's
+    arm under another arm's name. That is this project's most frequent failure
+    mode -- an inert flag -- and it has cost four separate occasions.
+    """
+    import pytest as _pytest
+    from src.methodologies.tralo.train import train as tralo_train
+    from src.experiments.runner import TrainInputs  # noqa: F401
+
+    class _Stub:
+        pass
+    stub = _Stub()
+    stub.config = {}
+    stub.hyperparams = {"soft_count_mode": "unifrom"}   # deliberate typo
+    with _pytest.raises(ValueError, match="soft_count_mode must be one of"):
+        tralo_train(stub)

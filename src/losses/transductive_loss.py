@@ -66,6 +66,73 @@ def window_temp(m, n_items):
     return torch.clamp(t, min=EPSILON)
 
 
+def uniform_grad_count(proba):
+    """Value = `p_ic`, gradient = the SAME for every item. Returns (N, C).
+
+    WHY THIS EXISTS -- measured, not argued (`scripts/order_probe.py`,
+    `results/iwc2`, 16 cell-class-seed points, 2026-08-24).
+
+    The shipped count `sum_i p_ic` has per-item derivative `p(1-p)`, so the
+    penalty pushes different items by different amounts and REORDERS the class.
+    It is very good at it and it chooses badly: against its own lambda=0 twin
+    the constraint moves 73 items per cell, and the ones it pushes OUT of the
+    budget are true positives 68.8% of the time while the ones it pulls IN are
+    true positives 30.1% of the time. **Net -30.4 items per cell, 16/16
+    negative.** The control settles it -- `tralo_reseed` moves a comparable 63
+    items and nets +0.38, with evicted and admitted precision equal to three
+    decimals, so a perturbation of no consequence swaps items of equal quality
+    and this one does not.
+
+    It is NOT a boundary effect, which is what the margin window addresses: the
+    cut sits at p=0.536 but the evicted items average p=0.788 and the admitted
+    ones p=0.251. The damage spans the whole range.
+
+    THE FIX FOLLOWS FROM THE GEOMETRY. The cap is satisfiable with ZERO
+    reordering: drop the capped class's logit by a constant and every `p_ic`
+    falls monotonically while the order is exactly preserved. A harmless path
+    always exists; the shipped loss simply does not take it, because nothing in
+    the objective values the order. So take it explicitly.
+
+    The right coordinate is the log-odds `u_ic = log(p_ic / (1 - p_ic))`,
+    because `u_c = z_c - log sum_{k != c} exp(z_k)` gives `du_c/dz_c = 1`
+    EXACTLY -- a uniform step in u is a uniform step in the class logit, which
+    is a pure bias shift, which cannot reorder. So:
+
+        value      p_ic                     (exact, so the K comparison is
+                                             unchanged and the penalty still
+                                             reads a real count)
+        gradient   dS/du_i = w, constant    (uniform, so no item is singled out)
+
+    built with the same detach construction the straight-through estimator
+    already uses here. `w` is the mean of `p(1-p)` over the batch, which is the
+    average of what the shipped gradient would have been -- so the total dose is
+    comparable and only its DISTRIBUTION across items changes. Under
+    `constraint_grad_mode: normalize` the delivered step is rescaled anyway, so
+    `w` sets units, not strength.
+
+    ⚠️ WHAT THIS DOES NOT DO. Uniform in OUTPUT space is not uniform in
+    PARAMETER space: the items share a backbone, so the update can still move
+    the representation and reorder through it. That channel is measured
+    NEGATIVE on its own (`iwc1`/`iwc2`, AP -0.031 / -0.094 vs the twin). This
+    mode removes the SYSTEMATIC per-item differentiation the penalty injects;
+    it does not freeze the network. `order_probe` measures which of the two was
+    doing the damage -- if `rho_arm` goes to ~1 and net items to ~0, it was the
+    output-space term; if not, it is the representation and the next lever is
+    the backbone, not the count.
+
+    PRE-REGISTERED PREDICTION, so it cannot be rewritten after the fact: this
+    recovers the -30.4 items and lands `tralo` on its own null. It is NOT
+    predicted to BEAT the null -- a uniform shift is a prior shift, and top-K is
+    invariant to prior shifts (FRAMEWORK 2(j)). Beating the null needs
+    information the ranking lacks, which is the reopened supervised per-item
+    family (2(c)), not this. "The constraint becomes free" is the claim.
+    """
+    p = proba.clamp(EPSILON, 1.0 - EPSILON)
+    u = torch.log(p) - torch.log1p(-p)
+    w = (p * (1.0 - p)).mean(dim=0, keepdim=True).detach()
+    return p.detach() + w * (u - u.detach())
+
+
 def margin_window(proba, temp):
     """Soften the ARGMAX instead of summing probabilities. Returns (N, C).
 

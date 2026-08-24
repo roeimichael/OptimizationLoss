@@ -33,7 +33,7 @@ from src.pipeline.warmup import make_ce_criterion, make_dataloader, make_optimiz
 from src.training.constraint_step import (
     constraint_autocast, constraint_backward, finish_constraint_step)
 from src.losses.transductive_loss import (margin_window, margins,
-                                          window_temp)
+                                          uniform_grad_count, window_temp)
 from src.training.logging import log_progress_to_csv, write_csv_header
 from src.training.metrics import compute_prediction_statistics
 from src.training.reordering import capped_scores, reordering_report
@@ -44,8 +44,16 @@ log = logging.getLogger(__name__)
 def train(inputs: TrainInputs) -> TrainOutputs:
     config = inputs.config
     hp = inputs.hyperparams
-    step_cfg = read_step_config(hp)
     SOFT_COUNT_MODE = str(hp.get("soft_count_mode", "sum"))
+    if SOFT_COUNT_MODE not in ("sum", "margin", "uniform"):
+        # Checked BEFORE read_step_config so a typo is reported as a typo
+        # rather than as whichever required key happens to be read first.
+        raise ValueError(
+            "soft_count_mode must be one of sum / margin / uniform, got %r. "
+            "An unrecognised mode silently ran `sum` under a different arm "
+            "name, which is this project's most frequent defect."
+            % SOFT_COUNT_MODE)
+    step_cfg = read_step_config(hp)
     CUT_WINDOW_ITEMS = int(hp.get("cut_window_items", 5))
     STRAIGHT_THROUGH = bool(hp.get("straight_through", False))
     if SOFT_COUNT_MODE == "margin" and not STRAIGHT_THROUGH:
@@ -338,8 +346,17 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 # Same window as pass 1. It is a per-item function of that
                 # item's own row, so the chunked detach construction still
                 # yields the exact full-N gradient.
-                chunk_eff = (margin_window(chunk_proba, cut_temp)
-                             if SOFT_COUNT_MODE == "margin" else chunk_proba)
+                if SOFT_COUNT_MODE == "margin":
+                    chunk_eff = margin_window(chunk_proba, cut_temp)
+                elif SOFT_COUNT_MODE == "uniform":
+                    # Value is exactly `p`, so pass 1's plain sum above is
+                    # already the right total and the detach construction
+                    # below stays exact. Only the per-item gradient changes,
+                    # from p(1-p) to a constant -- see uniform_grad_count for
+                    # the measurement that forced it.
+                    chunk_eff = uniform_grad_count(chunk_proba)
+                else:
+                    chunk_eff = chunk_proba
                 chunk_global = chunk_eff.sum(dim=0)
                 chunk_gids = group_ids[start:end]
                 chunk_local_soft = {}

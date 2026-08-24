@@ -233,6 +233,17 @@ blocks:
   tralo_margin:
     soft_count_mode: margin
     straight_through: true
+  # THE ORDER-PRESERVING COUNT. Measured 2026-08-24 with scripts/order_probe:
+  # against its own lambda=0 twin the shipped count moves 73 items per cell and
+  # the ones it pushes OUT of the budget are true positives 68.8% of the time
+  # while the ones it pulls IN are 30.1% -- net -30.4 items, 16/16 cells. The
+  # reseed control moves a comparable 63 items and nets +0.38, so that is the
+  # constraint choosing, not noise. `uniform` keeps the count's VALUE exact and
+  # makes its per-item gradient constant in log-odds, which is a pure bias
+  # shift and cannot reorder. straight_through is NOT required: the value is
+  # already exactly sum_i p_ic, so pass 1 stays correct either way.
+  tralo_uniform:
+    soft_count_mode: uniform
   # THE NULL-TREATMENT CONTROL. Identical to `tralo` in warm-up length, optimizer
   # restart, epoch count, transductive passes and allocator -- with the treatment
   # removed. total_constraint == 0 makes has_constraint False, so pass 2 is
@@ -424,6 +435,9 @@ arms:
      null_sibling: tralo_null}
   tralo_margin:
     {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, tralo_margin],
+     null_sibling: tralo_null}
+  tralo_uniform:
+    {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, tralo_uniform],
      null_sibling: tralo_null}
   # Same code path as tralo, treatment zeroed. See the tralo_null block above.
   tralo_null: {methodology: tralo,          phase: trained, blocks: [constraint_phase, tralo_null]}
