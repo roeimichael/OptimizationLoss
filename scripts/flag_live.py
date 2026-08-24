@@ -21,6 +21,27 @@ NOT A RESULT. Synthetic tensors, random labels, a 4-layer net, n=1. It answers
 "is this knob connected" and nothing else -- in particular a count that moves
 here may still be worthless on real data, and a count that CRUSHES the hard
 count here is showing the over-dose failure mode, not a win.
+
+🛑 TRAINED ARMS ONLY, AND IT REFUSES THE REST -- added 2026-08-25 after this
+file called `clip`, `focal_clip`, `lp`, `focal_lp`, `cb_lp` and `la_lp` INERT
+and printed "do not launch a campaign on it" about the two bars every campaign
+in this project is scored against.
+
+They are not inert. The harness calls `TRAIN_FNS[methodology]` directly and
+therefore runs NEITHER of the two phases a post-hoc arm's treatment lives in:
+
+  * the WARM-UP. `warmup_loss` (focal / class_balanced / logit_adjust) is read
+    in `make_ce_criterion`, reached from `run_warmup`, which only
+    `src/experiments/runner.py` calls. Bypassing the runner bypasses it, so
+    `focal_clip` trains no differently from `clip` HERE and identically to it
+    in this harness alone.
+  * the ALLOCATOR. `clip` vs `lp` differ in how the budget is filled, which
+    happens downstream of the model this file hashes.
+
+So a post-hoc arm can only ever come back bit-identical, and reporting that as
+INERT is a false alarm about the healthiest arms in the protocol. Refusing is
+the fix; the trained arms, whose treatment IS inside the function this harness
+calls, are unaffected and still checked.
 """
 import argparse
 import hashlib
@@ -51,6 +72,23 @@ def main():
     unknown = [x for x in args.arms if x not in P["arms"]]
     if unknown:
         print("unknown arm(s): %s" % " ".join(unknown))
+        return 1
+
+    posthoc = [x for x in args.arms if P["arms"][x].get("phase") == "posthoc"]
+    if posthoc:
+        print("REFUSING to judge post-hoc arm(s): %s" % " ".join(posthoc))
+        print()
+        print("This harness calls the methodology directly, so it runs neither")
+        print("phase a post-hoc arm's treatment lives in:")
+        print("  * the WARM-UP -- `warmup_loss` is read in make_ce_criterion,")
+        print("    reached only from run_warmup, which only the runner calls;")
+        print("  * the ALLOCATOR -- downstream of the model hashed here.")
+        print()
+        print("They would come back bit-identical no matter how live they are,")
+        print("and this file used to call that INERT. Cover them with")
+        print("`scripts.smoke_arms` (they run and their caps hold) and with a")
+        print("campaign's own md5s over `final_predictions_raw.csv`, which are")
+        print("written after both phases.")
         return 1
 
     tmp = tempfile.mkdtemp(prefix="flag_live_")

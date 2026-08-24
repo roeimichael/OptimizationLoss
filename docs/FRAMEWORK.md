@@ -1915,7 +1915,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 366 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 367 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1923,7 +1923,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (366 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (367 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -3969,6 +3969,40 @@ executed without a dataset and without the server:
 | `check_parity` | 288 runs, 8 arms x 36, one commit |
 | `pytest tests` | 366, including four new gates each shown to FAIL when broken |
 
+✅ **AND A FULL LIVENESS SWEEP OF THE TRAINED ARMS, 2026-08-25: NO FIFTH
+INERT FLAG.** All eleven trained treatment arms -- `tralo`, `tralo_st`,
+`tralo_margin`, `tralo_uniform`, `tralo_ortho`, `tralo_head`, `tralo_coin`,
+`fioretto`, `hounie`, `alm`, `select` -- produce **distinct md5s on every
+binding seed**. Section 2(e)'s inert-flag catalogue gains no entry.
+
+🛑 **BUT THE SWEEP FOUND A DEFECT IN THE GATE ITSELF, and it was pointed at the
+healthiest arms in the protocol.** Run over the six POST-HOC arms, `flag_live`
+reported `clip`, `focal_clip`, `lp`, `focal_lp`, `cb_lp` and `la_lp` all
+bit-identical and printed *"do not launch a campaign on it"* -- about the two
+bars every campaign here is scored against and four of the nine methodologies
+the paper claims.
+
+**They are not inert; the harness cannot see them.** It calls
+`TRAIN_FNS[methodology]` directly and therefore runs neither phase a post-hoc
+arm's treatment lives in:
+
+* the **WARM-UP** -- `warmup_loss` (focal / class_balanced / logit_adjust) is
+  read in `make_ce_criterion`, reached only from `run_warmup`, which only
+  `src/experiments/runner.py` calls. Verified by AST: `warmup_loss` has exactly
+  one reader in the whole of `src/`, and it is `src/pipeline/warmup.py`.
+* the **ALLOCATOR** -- `clip` vs `lp` differ in how the budget is filled, which
+  is downstream of the model `flag_live` hashes.
+
+So a post-hoc arm comes back identical however live it is. `flag_live` now
+**refuses** them, names both reasons, and points at what does cover them
+(`smoke_arms` for running and caps; a campaign's own `final_predictions_raw.csv`
+md5s, which are written after both phases). A gate that condemns the healthy is
+worse than no gate -- this project has already had a correct `iwc1` nearly
+thrown out by a claim of the same shape. Gated by
+`test_flag_live_REFUSES_post_hoc_arms_instead_of_calling_them_inert`, which
+also pins the one-reader claim so the refusal can be narrowed the day a
+methodology reads `warmup_loss` directly.
+
 🛑 **`flag_live` is the one that matters here.** `ortho_project`'s 8-run
 predecessor left zero prediction files, so nothing about it could be audited
 after the fact, and an inert flag passes `audit_config` (the key has a reader)
@@ -5174,7 +5208,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             366 tests, ~105 s, no dataset required
+tests/             367 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

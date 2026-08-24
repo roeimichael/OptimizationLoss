@@ -1826,3 +1826,63 @@ def test_the_feasibility_target_is_the_runs_OWN_excess_not_a_round_number():
     # and the probe's own softmax->argmax path must agree with that count
     z = np.log(np.eye(3)[pred] * 0.9 + 0.05)
     assert int((softmax(z).argmax(1) == 0).sum()) == 12
+
+
+def test_flag_live_REFUSES_post_hoc_arms_instead_of_calling_them_inert():
+    """It called `clip` and `focal_clip` INERT. They are not.
+
+    Run 2026-08-25 as a sweep over every post-hoc arm, this file reported
+    bit-identical predictions for `clip`, `focal_clip`, `lp`, `focal_lp`,
+    `cb_lp` and `la_lp` and printed "do not launch a campaign on it" -- about
+    the two bars every campaign in this project is scored against, and about
+    four of the nine methodologies the paper claims.
+
+    The arms are healthy; the harness cannot see them. It calls
+    `TRAIN_FNS[methodology]` directly and so runs neither phase a post-hoc
+    arm's treatment lives in: the WARM-UP, where `warmup_loss` is read via
+    `make_ce_criterion` from `run_warmup` -- reached only from
+    `src/experiments/runner.py` -- and the ALLOCATOR, which is downstream of
+    the model this file hashes. A post-hoc arm therefore comes back identical
+    however live it is.
+
+    A gate that condemns the healthy is worse than no gate: this project has
+    already had a correct `iwc1` nearly thrown out by a claim of the same
+    shape. The fix is to refuse and say why.
+    """
+    import ast
+    import io
+
+    from configs.gen_campaign import load_protocol
+
+    P = load_protocol()
+    posthoc = [a for a, v in P["arms"].items() if v.get("phase") == "posthoc"]
+    assert {"clip", "focal_clip"} <= set(posthoc), (
+        "the two in-campaign bars are no longer post-hoc; re-derive this gate")
+
+    src = io.open("scripts/flag_live.py", encoding="utf-8").read()
+    tree = ast.parse(src)
+    assert [n for n in ast.walk(tree)
+            if isinstance(n, ast.Constant) and n.value == "posthoc"], (
+        "flag_live no longer tests for the post-hoc phase, so it will call the "
+        "clippers inert again")
+
+    # The claim that makes the refusal necessary: `warmup_loss` is reachable
+    # ONLY through the runner, which this harness bypasses. If a methodology
+    # ever reads it directly, the refusal can be narrowed -- but not before.
+    import os
+    readers = []
+    for root, _, files in os.walk("src"):
+        for f in files:
+            if not f.endswith(".py"):
+                continue
+            path = os.path.join(root, f)
+            for n in ast.walk(ast.parse(io.open(path, encoding="utf-8").read())):
+                if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                        and n.func.attr == "get" and n.args
+                        and isinstance(n.args[0], ast.Constant)
+                        and n.args[0].value == "warmup_loss"):
+                    readers.append(path.replace(os.sep, "/"))
+    assert readers == ["src/pipeline/warmup.py"], (
+        "`warmup_loss` is now read in %s. If a post-hoc methodology reads it "
+        "directly, flag_live could see the difference and the blanket refusal "
+        "should be narrowed to the allocator-only arms." % readers)
