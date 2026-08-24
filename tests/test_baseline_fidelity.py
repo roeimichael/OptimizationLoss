@@ -2142,3 +2142,48 @@ def test_ortho_project_s_GUARANTEE_DOES_NOT_REACH_THE_WEIGHTS():
     assert (masked_coordinate_drift(ce_steps=1)[2]
             < masked_coordinate_drift(ce_steps=126)[2]), (
         "the masked-coordinate drift no longer grows with the CE phase length")
+
+
+def test_a_COIN_and_the_REAL_constraint_gradient_deliver_the_SAME_step():
+    """1b-pre(6)'s null has a mechanism, and it is not "the direction is uninformative".
+
+    Both the treatment and its random-direction control put a norm-`clip` vector
+    into `prm.grad`. Adam then adds `b1 * m_CE` to both, and that term is ~92.6%
+    of the result. The two arms therefore deliver nearly the same vector, so the
+    campaign could not have distinguished them whatever the constraint direction
+    contained.
+    """
+    import numpy as np
+    from scripts.ortho_survival import coin_equivalence, momentum_reset, B1
+
+    n = 20_000
+
+    # --- LIVENESS FIRST. With no CE momentum the two steps MUST diverge; if
+    #     they do not, the probe is reporting a constant and means nothing.
+    c0, _, share0 = coin_equivalence(1.0, np.random.default_rng(3), n=n,
+                                     m_scale=0.0)
+    assert share0 > 0.99, "m_scale=0 should hand the whole step to the constraint"
+    assert abs(c0) < 0.1, (
+        "with the CE momentum removed a coin still delivers the same step as the "
+        "real gradient (cos=%.4f); the probe cannot tell them apart at all" % c0)
+
+    # --- the finding: with the real CE momentum they are the same step.
+    for spread in (0.0, 1.0, 2.0, 3.0):
+        c, c_ce, share = coin_equivalence(spread, np.random.default_rng(4), n=n)
+        assert c > 0.98, (
+            "spread=%.1f: cos(real, coin) = %.4f. FRAMEWORK 1b-pre(6) reads its "
+            "coin null against ~0.994; if the delivered steps have genuinely "
+            "diverged that reading must be redone." % (spread, c))
+        assert c_ce > 0.98, "the delivered step is no longer dominated by m_CE"
+        assert 0.05 < share < 0.10, "constraint share moved off 7.4%%: %.3f" % share
+
+    # --- and clearing `m` alone would hand the direction back -- WITH a dose
+    #     change that must never be quoted without the cosine.
+    shared, zeroed = momentum_reset(1.0, np.random.default_rng(5), n=n)
+    assert shared[0] < 0.2, "shared optimizer already delivers the constraint dir"
+    assert zeroed[0] > 0.95, "clearing m did not hand the direction back"
+    assert zeroed[2] < 0.2, (
+        "clearing `m` no longer shrinks the delivered step (rel=%.3f). The dose "
+        "confound is the reason this is not a launchable arm as it stands, and "
+        "FRAMEWORK 2(t) says so; if it has gone away, re-derive that." % zeroed[2])
+    assert B1 == 0.9

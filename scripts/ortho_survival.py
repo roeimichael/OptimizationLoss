@@ -192,6 +192,79 @@ def removal_fraction(ratio):
     return (1.0 - B1) / (B1 * ratio + (1.0 - B1))
 
 
+def coin_equivalence(spread, rng, n=DIM, epoch=3, m_scale=1.0):
+    """How similar is the DELIVERED step when `g` is real vs a coin of equal norm?
+
+    Section 1b-pre(6) measured that a random direction does the same damage as
+    the real constraint gradient and concluded "the direction carries no
+    information". This asks the prior question: is the direction ever
+    DELIVERED? Both arms put a norm-1.0 vector into `prm.grad` (2(a3): the clip
+    always binds, so the delivered norm is exactly `clip`), and Adam then adds
+    `b1 * m_CE` to both.
+
+    Returns (cos(u_real, u_coin), cos(u_real, m_CE-direction), constraint share).
+    """
+    m_ce_norm, _, sv_norm = MEASURED[epoch]
+    m_ce_norm *= m_scale              # m_scale=0 is the liveness control: with no
+    g_norm = 1.0                      # what the clip delivers, not the raw norm
+                                      # CE momentum the two steps MUST diverge.
+    m_ce = _unit(rng, n) * m_ce_norm
+    g_real = _unit(rng, n) * g_norm
+    g_coin = _unit(rng, n) * g_norm
+    if spread > 0.0:
+        lv = rng.uniform(-spread / 2.0, spread / 2.0, n)
+        sv = 10.0 ** lv
+        sv *= sv_norm / np.linalg.norm(sv)
+    else:
+        sv = np.full(n, sv_norm / np.sqrt(n))
+
+    u_real = (B1 * m_ce + (1.0 - B1) * g_real) / (sv + 1e-8)
+    u_coin = (B1 * m_ce + (1.0 - B1) * g_coin) / (sv + 1e-8)
+    u_ce = m_ce / (sv + 1e-8)
+
+    def cos(a, b):
+        d = np.linalg.norm(a) * np.linalg.norm(b)
+        return float(a @ b) / d if d > 0 else float("nan")
+
+    share = (1.0 - B1) * g_norm / (B1 * m_ce_norm + (1.0 - B1) * g_norm)
+    return cos(u_real, u_coin), cos(u_real, u_ce), share
+
+
+def momentum_reset(spread, rng, n=DIM, epoch=3):
+    """What would zeroing ONLY `m` before the constraint step buy?
+
+    NOT `separate_constraint_optimizer` (rejected, AP -0.0938): that one gets a
+    fresh `v` as well, and `v` is what sets the step scale. Keeping the CE `v`
+    and clearing only `m` isolates the DIRECTION.
+
+    Returns ((cos_g, cos_ce, relative magnitude) shared,
+             (cos_g, cos_ce, relative magnitude) with m zeroed).
+    """
+    m_ce_norm, _, sv_norm = MEASURED[epoch]
+    m_ce = _unit(rng, n) * m_ce_norm
+    g = _unit(rng, n) * 1.0
+    if spread > 0.0:
+        lv = rng.uniform(-spread / 2.0, spread / 2.0, n)
+        sv = 10.0 ** lv
+        sv *= sv_norm / np.linalg.norm(sv)
+    else:
+        sv = np.full(n, sv_norm / np.sqrt(n))
+
+    def cos(a, b):
+        d = np.linalg.norm(a) * np.linalg.norm(b)
+        return float(a @ b) / d if d > 0 else float("nan")
+
+    out = []
+    base = None
+    for m in (B1 * m_ce + (1.0 - B1) * g, (1.0 - B1) * g):
+        u = m / (sv + 1e-8)
+        if base is None:
+            base = np.linalg.norm(u)
+        out.append((cos(u, g / (sv + 1e-8)), cos(u, m_ce / (sv + 1e-8)),
+                    np.linalg.norm(u) / base))
+    return out[0], out[1]
+
+
 def self_test(rng):
     """The projection MUST survive when neither destroyer is active."""
     m_ce, g, sv = MEASURED[1]
@@ -326,6 +399,42 @@ def main():
     print("  is pure CE momentum, which the lambda=0 twin has too, so it is")
     print("  common-mode in the contrast that matters. Read the arm as")
     print("  'the constraint sees only the head', never as 'the backbone is frozen'.")
+
+    print()
+    print("  " + "=" * 66)
+    print("  WHY A COIN DID THE SAME DAMAGE (1b-pre(6)) -- the direction was")
+    print("  never DELIVERED. Both arms put a norm-1.0 vector into prm.grad;")
+    print("  Adam adds b1*m_CE to both.")
+    print()
+    print("  %-9s %-16s %-17s %s" % ("spread", "cos(real,coin)", "cos(real,m_CE)",
+                                     "constraint share"))
+    print("  " + "-" * 62)
+    for spread in (0.0, 1.0, 2.0, 3.0):
+        c, cm, share = coin_equivalence(spread, rng)
+        print("  %-9.1f %-16.4f %-17.4f %.1f%%" % (spread, c, cm, 100.0 * share))
+    print()
+    print("  The real step and the coin step are ~99.4% the same vector. The")
+    print("  null was never evidence that the constraint direction is")
+    print("  uninformative -- it is what a shared optimizer produces whatever")
+    print("  you put in the gradient.")
+
+    print()
+    print("  AND WHAT CLEARING ONLY `m` WOULD BUY (keeps v, so NOT the rejected")
+    print("  separate_constraint_optimizer):")
+    print()
+    print("  %-11s %-15s %-15s %s" % ("variant", "cos(upd,g)", "cos(upd,m_CE)",
+                                      "rel. magnitude"))
+    print("  " + "-" * 58)
+    for name, r in zip(("shared", "m zeroed"), momentum_reset(1.0, rng)):
+        print("  %-11s %-15.4f %-15.4f %.3f" % (name, r[0], r[1], r[2]))
+    print()
+    print("  ⚠️ THE DOSE MOVES WITH IT and that is not priced here. Clearing `m`")
+    print("  shrinks the delivered step by the factor in the last column, so an")
+    print("  arm built this way differs from its control in MAGNITUDE as well as")
+    print("  direction -- the exact confound that made the hounie baseline")
+    print("  meaningless. Adam's bias correction is the obvious lever and it is")
+    print("  NOT evaluated here. Do not launch this on the strength of the")
+    print("  cosine column alone.")
 
 
 if __name__ == "__main__":

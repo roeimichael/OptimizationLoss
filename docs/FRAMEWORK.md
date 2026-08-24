@@ -391,6 +391,55 @@ incomparable to earlier ones.
 
 ### (6) At `L30_G20` a COIN does the same damage -- the direction carries no information
 
+🔑 **MECHANISM FOUND 2026-08-25, and it CHANGES WHAT THIS SECTION MEANS.** The
+title above is what was measured; the conclusion "the direction carries no
+information" is one reading of it, and it is the wrong one. The right one is
+that **the direction was never delivered**. Both this arm and its control put a
+norm-`clip` vector into `prm.grad`; Adam then adds `b1 * m_CE` to both, and that
+term is **92.6%** of the result. Measured with the real norms
+(`python -m scripts.ortho_survival`):
+
+| preconditioner spread | 0 | 1 | 2 | 3 |
+|---|---|---|---|---|
+| **cos(real step, coin step)** | **0.9937** | **0.9937** | **0.9935** | **0.9935** |
+| cos(real step, CE momentum) | 0.9968 | 0.9968 | 0.9968 | 0.9968 |
+
+**The treatment and its control deliver the same vector to four significant
+figures.** A campaign comparing them was never able to resolve the constraint
+direction, whatever that direction contained. The liveness control is the
+probe's own: set `|m_CE| = 0` and the two steps become orthogonal
+(cos ~ 0), so the 0.994 is a measurement and not a constant.
+
+⇒ **do not cite this section as evidence that a constraint direction cannot
+help.** It is evidence that THIS pipeline cannot deliver one. The same
+correction applies to every arm in 2(a) and 2(c) that tied its control: a tie
+between two arms whose delivered steps are 99.4% identical is a property of the
+optimizer, not of the idea. 🛑 It does **not** rehabilitate any of those ideas
+either -- none of them has been tested -- and the arms that lost outright
+(`select`, `beta`, `joint`) lost by margins far outside this.
+
+⚠️ **AND IT DOES NOT MAKE THE CONSTRAINT LOOK BETTER.** 2(s) measured all 24
+constraint terms negative against a lambda=0 twin. Delivering more of the
+constraint direction is as likely to deepen that as to reverse it; nothing here
+predicts the sign.
+
+**What would change it, and why it is NOT a launchable arm yet.** Clearing only
+Adam's `m` before the constraint step -- keeping `v`, so this is NOT the
+rejected `separate_constraint_optimizer` -- moves the delivered step's alignment
+with the constraint gradient from **0.078 to 1.000**:
+
+| | cos(update, g) | cos(update, m_CE) | relative magnitude |
+|---|---|---|---|
+| shared (shipped) | 0.0777 | 0.9968 | 1.000 |
+| `m` zeroed | **1.0000** | -0.0019 | **0.080** |
+
+🛑 **Read the last column before the first.** Clearing `m` shrinks the delivered
+step **12.5x**, so such an arm would differ from its control in DOSE as well as
+direction -- the exact confound that made the hounie baseline meaningless and
+that `constraint_random_direction` exists to avoid. Adam's bias correction is
+the obvious lever and it is **not evaluated**. Nobody should launch this on the
+cosine column alone.
+
 `constraint_random_direction` replaces the constraint gradient with a random vector of
 the SAME norm: the dose is held exactly and only the information is removed. It is the
 control that `separate_constraint_optimizer` never had -- that arm moved 8,900x further
@@ -1944,7 +1993,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 370 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 371 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1952,7 +2001,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (370 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (371 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -5352,7 +5401,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             370 tests, ~105 s, no dataset required
+tests/             371 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
