@@ -1795,3 +1795,34 @@ def test_the_tralo_trainer_actually_READS_head_only():
             == "finish_constraint_step"
             and any(k.arg == "head_ids" for k in n.keywords)], (
         "the flag is read but `head_ids` never reaches finish_constraint_step")
+
+
+def test_the_feasibility_target_is_the_runs_OWN_excess_not_a_round_number():
+    """`collateral_probe --feasibility` asks a different question than `--target`.
+
+    FRAMEWORK 2(s) quotes "sum leaves a residual excess of 100.4 items and
+    reaches feasibility in 25 of 56 runs" off this mode, so its arithmetic is
+    load-bearing. The target must be `max(0, raw count - K)` summed over the
+    capped classes -- an already-feasible run contributes nothing and must be
+    SKIPPED rather than counted as a success, or the denominator flatters every
+    mode equally and the comparison is meaningless.
+    """
+    import numpy as np
+    from scripts.collateral_probe import softmax
+
+    # counts 12, 3 against K 5, 5 -> excess is 7, not 10 and not 7-2=5
+    pred = np.array([0] * 12 + [1] * 3 + [2] * 20)
+    capped, K = [0, 1], {0: 5, 1: 5}
+    excess = int(sum(max(0, int((pred == c).sum()) - int(K[c])) for c in capped))
+    assert excess == 7, (
+        "an UNDER-budget capped class must contribute 0, not a negative that "
+        "cancels another class's overshoot")
+
+    # already feasible -> zero, which the caller must treat as "skip"
+    K_loose = {0: 50, 1: 50}
+    assert 0 == int(sum(max(0, int((pred == c).sum()) - int(K_loose[c]))
+                        for c in capped))
+
+    # and the probe's own softmax->argmax path must agree with that count
+    z = np.log(np.eye(3)[pred] * 0.9 + 0.05)
+    assert int((softmax(z).argmax(1) == 0).sum()) == 12

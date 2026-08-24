@@ -168,6 +168,16 @@
 #               training under a count penalty at all -- which would make the
 #               post-hoc clipper the honest recommendation.
 #
+# 🛑 THREE CANDIDATE ARMS IS THREE SHOTS, AND NOTHING CORRECTS ACROSS THEM.
+# `full_panel`'s BH controls the false-discovery rate across the metrics in ONE
+# arm's table against ONE control. It does not correct across arms, and it says
+# so in its own output. With `tralo_uniform`, `tralo_ortho` and `tralo_head` in
+# one campaign, "an arm cleared q<0.05" is one of three tries, so a lone winner
+# needs its q multiplied by 3 before it is quoted -- Bonferroni over the arm
+# family is the conservative and honest version. `tralo_head` is a CONTROL, not
+# a candidate, so it does not consume a try when it is read as the ortho/head
+# pair; it does the moment it is quoted alone as a win.
+#
 # HOW TO READ IT, in this order, and stop at the first one that fails:
 #   python -m scripts.rig_status --campaign results/uniform1
 #   python -m scripts.order_probe --campaign results/uniform1 --arm tralo_uniform
