@@ -1900,7 +1900,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 352 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 353 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -1908,7 +1908,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (352 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (353 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -3414,69 +3414,38 @@ reads the ORDER of the capped class and nothing else. At the arm's own budget:
 ⇒ **attributable to the constraint on iwc2: -30.81 items per cell, a 38.6 pp
 precision gap.**
 
-🟢🟢 **AND THE PRIZE ON iwildcam IS 10x WHAT SECTION 4 SAYS. Section 4's
-"2 to 18 items" is a dermmnist number and dermmnist is REMOVED.** Measured
-2026-08-24, `scripts.headroom results/iwc2 --control clip`, i.e. the gap from
-`clip` to a PERFECT RANKING on the dataset we actually run:
+🛑 **AND THE PRIZE ON iwildcam IS 0.2 TO 2.0 ITEMS -- SMALLER THAN dermmnist,
+not larger. A TOOL BUG SAID OTHERWISE FOR ONE HOUR ON 2026-08-24.**
+`scripts/headroom.py` set `K = int(G[c])`, the GLOBAL cap alone. Local caps are
+per-group ceilings so their SUM already bounds the count, and on iwildcam the
+global is INERT above it -- `gen_campaign` prints exactly that for every cap it
+emits ("INERT GLOBAL: K=185 is above the local sum 111, so it can never bind").
+The ceiling `2K/(K+n)` then read 0.667 where the reachable one is 0.462, and the
+tool printed **59-114 items of headroom where the real gap is 0.2-2.0**.
 
-| cap | class | achieved capF1 | ceiling | headroom |
-|---|---|---|---|---|
-| L20_G50 | 2 | 0.3266 | 0.6667 | **94.4 items** |
-| L20_G50 | 7 | 0.3349 | 0.6667 | **113.5 items** |
-| L30_G50 | 2 | 0.4532 | 0.6667 | **59.2 items** |
-| L30_G50 | 7 | 0.4604 | 0.6667 | **70.6 items** |
+Fixed (`effective_budget`, gated both directions). Corrected, `results/iwc2`:
 
-**59 to 114 items per class, not 2 to 18.** The model achieves 0.33-0.46 of a
-0.667 ceiling, so it is capturing about half of what a perfect ranking would.
+| cap | class | n | K (binding) | ceiling | achieved | headroom |
+|---|---|---|---|---|---|---|
+| L20_G50 | 2 | 370 | 74 | 0.3333 | 0.3266 | **1.5 items** |
+| L20_G50 | 7 | 456 | 92 | 0.3358 | 0.3349 | **0.2 items** |
+| L30_G50 | 2 | 370 | 111 | 0.4615 | 0.4532 | **2.0 items** |
+| L30_G50 | 7 | 456 | 137 | 0.4621 | 0.4604 | **0.5 items** |
 
-⚠️ **THIS RETIRES THE CENTRAL PESSIMISM FOR iwildcam, and only for iwildcam.**
-"Seed noise is comparable to the entire headroom, which is why arms tie" was
-TRUE on dermmnist, where the prize was ~5 items against a paired seed sd worth
-~2.7. It does not transfer: on iwildcam there is an order of magnitude more room
-than the noise. ⇒ **re-price every direction that was closed on "there is
-nothing to win" before treating it as closed.** A direction rejected because it
-could only be worth 2 items was rejected against the wrong ceiling.
+Independently confirmed by counting the equalized top-K straight off the stored
+predictions: 0.0-4.0 items. And it agrees with (q)'s "oracle gap 0.00-1.50
+items", which was right all along and which the buggy number contradicted.
 
-It also re-scales 2(r) itself: the constraint's -3 to -31 items is now a
-fraction of the prize rather than several times it. The damage is still real and
-still worth removing -- it is free to remove -- but "we are spending 3-16x the
-headroom backwards" was priced off dermmnist and is withdrawn.
+⇒ **`clip` is already within TWO ITEMS of a perfect allocator on iwildcam.**
+Section 4's pessimism is not merely intact, it is stronger here than on
+dermmnist. Nothing in this document is reopened by headroom, and the
+"re-price every closed direction" note that briefly stood here is WITHDRAWN.
 
-⚠️ **THE MAGNITUDE IS BACKBONE-DEPENDENT AND iwc2 IS THE EXTREME. Quote the pair,
-never the -30.8 alone.** Replicated on `results/iwc1` (MobileNetV3, same dataset,
-same 2 cells x 4 seeds) the DIRECTION holds and the size does not:
-
-| | iwc2 (ViTB16) | iwc1 (MobileNetV3) |
-|---|---|---|
-| tralo net items | -30.44 (16/16 neg) | -10.81 (12/16 neg) |
-| reseed control | **+0.38** | **-7.38** |
-| attributable | **-30.81** | **-3.43** |
-
-The control moves too, and that is the point: on MobileNetV3 a pointless reseed
-already costs 7.4 items, so most of iwc1's -10.8 is geometry rather than method.
-On ViTB16 the reseed is free and the whole -30.4 is the constraint. Two
-campaigns, one direction, an order of magnitude between them -- so the effect is
-real and its SIZE is not yet pinned. `uniform1` has 9 cells and three backbones
-and is what settles that.
-
-🔑 **AND ACROSS THE DUALS, TraLO IS THE LEAST DAMAGING -- not the worst.**
-`results/iwc1`, every trained dual against the common CE-only reference
-`tralo_null`. That reference is legitimate for all of them because all four
-`_null` arms emit BIT-IDENTICAL predictions (md5 15a27900511b), so
-`fioretto_null` IS `tralo_null`. Attributable = net minus the -7.38 control:
-
-| arm | net items | attributable |
-|---|---|---|
-| **tralo** | -10.81 | **-3.4** |
-| alm | -20.75 | -13.4 |
-| fioretto | -23.06 | -15.7 |
-| hounie | -63.25 | -55.9 |
-
-⇒ the corpus ordering (fioretto ahead of tralo on macro-F1) does NOT hold on
-iwildcam once each arm is read against its own lambda=0 twin in items. Every
-dual is negative; ours is negative by the least. ⚠️ Do NOT extend this row to
-`lp`: it is a post-hoc arm at warm-up 30, so it does not share the reference
-model and its +4.38 is not comparable to the four above.
+⇒ **It also restores the scale of (r) itself.** The constraint costs 3.4 items
+(MobileNetV3) to 30.8 (ViTB16) against a prize of 0.2-2.0. That is not a
+fraction of the headroom -- it is **2 to 150 times it, spent backwards**, which
+is the largest measured effect in this project and the one thing worth removing
+before any win is attempted.
 
 🔑 **THE CONTROL IS THE WHOLE MEASUREMENT.** EVICTED items sat in the twin's
 top-K *by construction*, so they outrank ADMITTED ones and **any** perturbation
@@ -4710,7 +4679,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             352 tests, ~105 s, no dataset required
+tests/             353 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

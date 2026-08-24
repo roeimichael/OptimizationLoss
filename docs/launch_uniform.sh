@@ -12,12 +12,14 @@
 # The control is the whole measurement: `tralo_reseed` moves a comparable 63
 # items and nets +0.38, evicted and admitted precision equal to three decimals.
 # So a perturbation of no consequence swaps items of equal quality, and this one
-# does not. -30.8 items is attributable to the constraint. For scale, the
-# headroom from `clip` to a PERFECT RANKING on iwildcam is 59-114 items per
-# class (scripts.headroom, 2026-08-24). NOT the 1.9-9.9 that FRAMEWORK
-# section 4 quotes -- that is a dermmnist number for a REMOVED dataset. So
-# the damage is a fraction of the prize here, not several times it, and it is
-# worth removing because it is FREE, not because it is the whole game.
+# does not. -30.8 items is attributable to the constraint on ViTB16, and -3.4 on
+# MobileNetV3 (results/iwc1), where a pointless reseed already costs 7.4 items.
+#
+# For scale: the headroom from `clip` to a PERFECT allocator on iwildcam is
+# 0.2-2.0 items per class (scripts.headroom, corrected 2026-08-24 -- the tool
+# had been using the INERT global cap instead of the binding local sum and
+# reported 59-114). So the constraint is spending 2-150x the entire prize
+# backwards. Removing that is the largest available win on this dataset.
 #
 # And it is not a boundary effect: the cut sits at p=0.536 while evicted items
 # average p=0.788 and admitted ones p=0.251.

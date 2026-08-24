@@ -1224,3 +1224,41 @@ def test_an_unknown_soft_count_mode_is_refused_not_silently_run_as_sum():
     stub.hyperparams = {"soft_count_mode": "unifrom"}   # deliberate typo
     with _pytest.raises(ValueError, match="soft_count_mode must be one of"):
         tralo_train(stub)
+
+
+def test_headroom_uses_the_BINDING_budget_not_the_inert_global():
+    """`scripts/headroom.py` priced every direction in this project, and for an
+    hour on 2026-08-24 it priced them 30x too high.
+
+    It set `K = int(G[c])`, the GLOBAL cap alone. Local caps are per-group
+    ceilings, so their SUM already bounds the count, and on iwildcam the global
+    sits ABOVE that sum and can never bind -- `gen_campaign` prints exactly
+    that for every cap it emits. The ceiling is `2K/(K+n)`, so an unreachable K
+    inflates it twice over: on L30_G50 class 2 it read 0.667 against a
+    reachable 0.462 and printed 59 items of headroom where the real gap is 2.0.
+
+    The module docstring already said "local caps can put it out of reach".
+    That was a comment describing a defect instead of a fix, and the number it
+    qualified was quoted as the project's effect size.
+    """
+    from scripts.headroom import effective_budget
+    from src.utils.constants import UNLIMITED
+
+    # iwildcam L30_G50 class 2, real numbers: global 185, local sum 111
+    G = {2: 185}
+    L = {130: {2: 0}, 218: {2: 0}, 320: {2: 0}, 516: {2: 0},
+         1: {2: 31}, 2: {2: 32}, 3: {2: 48}}
+    assert effective_budget(G, L, 2) == 111, (
+        "the inert global is being used; this is the 30x inflation")
+
+    # NEGATIVE CONTROL 1: when the global is TIGHTER it must win, or the fix
+    # has simply replaced one wrong answer with another
+    assert effective_budget({2: 50}, L, 2) == 50
+
+    # NEGATIVE CONTROL 2: one uncapped group means the local scope bounds
+    # nothing globally, so the global must stand alone. Silently summing the
+    # capped groups there would UNDER-count the budget and invent headroom in
+    # the opposite direction.
+    L_open = dict(L)
+    L_open[9] = {2: UNLIMITED}
+    assert effective_budget(G, L_open, 2) == 185
