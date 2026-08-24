@@ -1057,3 +1057,55 @@ def test_the_generator_refuses_a_trained_arm_without_its_reseed_floor(tmp_path):
         cwd=REPO, capture_output=True, text=True)
     assert r.returncode != 0
     assert "reseed" in (r.stdout + r.stderr).lower()
+
+
+def test_a_scorer_edit_does_not_split_a_running_campaign_s_code_version():
+    """`code_version` must move when the TRAINING code moves, and only then.
+
+    On 2026-08-24 `results/iwc3` came back split: `3bb7e8b411e8` on its first
+    two runs and `3bb7e8b411e8-dirty` on the next two, because a scorer under
+    `scripts/` was deployed between them. Every file the runner imports was
+    byte-identical across the two halves, and `check_parity` correctly refused
+    the campaign anyway -- so a rule CLAUDE.md states ("scripts/ is exempt and
+    safe to update mid-flight") was true of the code and false of the stamp.
+
+    Both directions are exercised on a throwaway repo, because a gate that only
+    checks the quiet case cannot tell a scoped diff from a broken one.
+    """
+    import shutil
+    from src.utils.gitver import git_version
+
+    repo = tempfile.mkdtemp()
+    try:
+        def git(*a):
+            subprocess.run(["git"] + list(a), cwd=repo, check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        git("init", "-q")
+        git("config", "user.email", "t@t"); git("config", "user.name", "t")
+        for rel in ("src/pipeline", "scripts", "configs"):
+            os.makedirs(os.path.join(repo, rel), exist_ok=True)
+        for rel in ("src/pipeline/train.py", "scripts/score.py",
+                    "configs/protocol.yml", "main.py"):
+            with open(os.path.join(repo, rel), "w", encoding="utf-8") as fh:
+                fh.write("original\n")
+        git("add", "-A"); git("commit", "-qm", "base")
+        assert not git_version(repo).endswith("-dirty"), "clean tree read dirty"
+
+        # a scorer edit must NOT move the stamp
+        with open(os.path.join(repo, "scripts/score.py"), "w",
+                  encoding="utf-8") as fh:
+            fh.write("edited\n")
+        assert not git_version(repo).endswith("-dirty"), (
+            "editing scripts/ still splits code_version -- this is the exact "
+            "defect that split results/iwc3")
+
+        # NEGATIVE CONTROL: a training-path edit MUST move it, or the scoping
+        # has silently disabled the stamp altogether
+        with open(os.path.join(repo, "src/pipeline/train.py"), "w",
+                  encoding="utf-8") as fh:
+            fh.write("edited\n")
+        assert git_version(repo).endswith("-dirty"), (
+            "editing src/ no longer marks the tree dirty -- the stamp is dead "
+            "and every campaign would read as uniform no matter what landed")
+    finally:
+        shutil.rmtree(repo, ignore_errors=True)
