@@ -36,10 +36,28 @@
 #   capped       classes 2 and 7 (impala, cattle)
 #   warm-up      1 / constraint 29 for trained arms; 30 / 0 for post-hoc
 #   arms         tralo          sum_i p_ic,   gradient p(1-p)   the manuscript
-#                tralo_uniform  sum_i p_ic,   gradient CONSTANT the fix
+#                tralo_uniform  sum_i p_ic,   gradient CONSTANT fix 1: PLACEMENT
+#                tralo_ortho    step projected off the CE grad  fix 2: DIRECTION
 #                tralo_null     lambda = 0                      the twin
 #                tralo_reseed   the twin, one RNG draw          the noise floor
 #                clip, focal_clip                               in-campaign bars
+#
+#                📌 AMENDMENT, 2026-08-24, BEFORE ANY RUN OF THIS CAMPAIGN
+#                EXISTS. `tralo_ortho` was added after the campaign was first
+#                generated and before it was launched, on the strength of
+#                FRAMEWORK 2(s): the constraint's damage to the six UNCAPPED
+#                classes does not arrive through the output layer at all --
+#                the softmax cross-term perturbs those logits and provably
+#                cannot reorder them (zero flips across a 50x dose range) --
+#                so it arrives through the shared backbone, which is what the
+#                projection acts on. 2(t) then found that direction was filed
+#                as rejected without ever being tested.
+#
+#                THE TWO FIXES ARE ORTHOGONAL AND SHARE EVERY CONTROL, so one
+#                campaign answers both: 7 arms x 9 cells x 4 seeds = 252 runs
+#                against 216 + 216 = 432 for two campaigns, and it makes them
+#                a HEAD-TO-HEAD under identical controls instead of two
+#                readings that can only be compared across campaigns.
 #   dose         constraint_grad_mode normalize -- ESSENTIAL HERE. It fixes the
 #                delivered step to a protocol constant, so `tralo` and
 #                `tralo_uniform` differ ONLY in the DIRECTION of the step and
@@ -72,7 +90,7 @@
 #                to `tralo_null`. If it does not, the arm is a silent null,
 #                the comparison is void, and the answer is a dose sweep on
 #                `lr_constraint` for that arm alone -- NOT a verdict.
-#   size         9 cells x 6 arms x 4 seeds = 216 runs
+#   size         9 cells x 7 arms x 4 seeds = 252 runs
 #
 # PRE-REGISTERED, before any run (and duplicated in the source docstring of
 # `uniform_grad_count` so it cannot be quietly rewritten):
@@ -89,18 +107,47 @@
 #               damage is coming through the SHARED BACKBONE, not through the
 #               per-item output term, and the next lever is the parameter set
 #               the constraint is allowed to touch -- not the count.
+#               ⚠️ 2(s) ALREADY MAKES THIS THE LIKELIER OUTCOME. The output
+#               layer was measured and cleared; `tralo_uniform` is being run
+#               because 2(r)'s eviction finding is independent of that and
+#               still stands, not because the output-space story survived.
+#
+#   AND FOR `tralo_ortho`, stated separately because the two can fail
+#   differently:
+#   PREDICTED   uncF1 vs the twin recovers toward 0 while ccF1 is unchanged.
+#               2(s) puts TraLO's constraint at -0.0144 uncF1 and -0.0020 ccF1;
+#               the projection is aimed at the first and should not touch the
+#               second. Read `full_panel`'s uncF1 line BESIDE ccF1, never
+#               macroF1 alone -- macroF1 is their sum and hides which moved.
+#   NOT PREDICTED  a ccF1 gain. Nothing about projecting the step off the CE
+#               direction makes the allocator better, and 2(s) measured the
+#               capped-class term as near-identical across all three dual
+#               families, i.e. not the thing that varies.
+#   SIZE IT     the one prior measurement is AP +0.0041 against 2(s)'s -0.0609
+#               AP constraint term: ~7% recovery, from a cell where the cap
+#               barely bound. A nibble at that size. It is run because it is
+#               the only intervention aimed at the mechanism 2(s) found and
+#               the only one whose recorded sign is positive -- not because
+#               +0.0041 is expected to reappear.
+#   FALSIFIED IF  uncF1 vs the twin is unchanged. Then the backbone story is
+#               wrong too, and what remains is that the damage is intrinsic to
+#               training under a count penalty at all -- which would make the
+#               post-hoc clipper the honest recommendation.
 #
 # HOW TO READ IT, in this order, and stop at the first one that fails:
 #   python -m scripts.rig_status --campaign results/uniform1
 #   python -m scripts.order_probe --campaign results/uniform1 --arm tralo_uniform
 #   python -m scripts.order_probe --campaign results/uniform1 --arm tralo_uniform --evictions
+#   python -m scripts.order_probe --campaign results/uniform1 --arm tralo_ortho
+#   python -m scripts.family_split --campaign results/uniform1
 #   python -m scripts.full_panel  --campaign results/uniform1 --control tralo_null
 #   python -m scripts.full_panel  --campaign results/uniform1 --control clip
 set -euo pipefail
 
 ROOT=results/uniform1
-PIN=c5e65623                 # the commit that introduced soft_count_mode:
-                             # uniform. Pinned, not "latest": a campaign
+PIN=eb453a57                 # the commit carrying BOTH candidate fixes:
+                             # soft_count_mode uniform and ortho_project.
+                             # Pinned, not "latest": a campaign
                              # generated on one commit and run on another is
                              # the split this project just spent a morning
                              # cleaning out of results/iwc3.
@@ -146,7 +193,7 @@ PY=$HOME/anaconda3/envs/optloss/bin/python
     --datasets iwildcam \
     --models MobileNetV2 MobileNetV3 RegNetY400MF \
     --caps L20_G50 L30_G50 L50_G30 \
-    --arms tralo tralo_uniform tralo_null tralo_reseed clip focal_clip \
+    --arms tralo tralo_uniform tralo_ortho tralo_null tralo_reseed clip focal_clip \
     --constraint-grad-mode normalize
 
 # THE THREE GATES. Each refuses a different way to waste a week, and a campaign
@@ -158,6 +205,7 @@ PY=$HOME/anaconda3/envs/optloss/bin/python
 # Is the new flag LIVE, or a fifth inert one? (CLAUDE.md rule 3.) This is the
 # md5 check across arms, and it is the difference between an arm and a rename.
 "$PY" -m scripts.flag_live tralo tralo_uniform
+"$PY" -m scripts.flag_live tralo tralo_ortho
 
 GPU=${GPU:-0}
 # main.py prompts for a GPU and reads the answer from stdin. With
