@@ -1992,6 +1992,31 @@ the exemption list -- **and the test also fails on a STALE exemption**, because
 an allowlist entry that outlives its code silently re-permits the bug if the
 code returns.
 
+🟢 **AND THE TRAINING PIPELINE ITSELF CAME BACK CLEAN.** `src/` and `main.py`
+were audited on the same question 2026-08-25. Exactly one defect --
+`lp_fallback_*` above -- and it lives in the *recording* layer. Every
+aggregation point inside the pipeline was already guarded, and several carry the
+history in their own comments:
+
+* `src/training/metrics.py` skips empty ECE bins explicitly rather than taking
+  `mean()` of nothing;
+* `src/utils/posthoc_adjustment.py` writes both meta keys on **all three** of
+  `targeted_correction`'s return paths -- the gap is upstream, in the arms that
+  never call it;
+* `src/training/logging.py` does materialise a missing counts dict as all
+  zeros, **but its only consumer knows**: `scripts/log_health.py` excludes
+  warm-up rows ("their counts are zero, which registers as trivially
+  satisfied"), treats an all-blank column as *not logged*, and identifies a
+  post-hoc arm by a finite `Limit_Class` rather than by column presence --
+  having twice got that wrong before. Gated by
+  `test_log_health_does_not_cry_wolf_on_a_warm_up_row_or_a_posthoc_arm`.
+
+🔑 **The distribution is the finding.** All ten instances of this class sit in
+the **analysis and presentation** layer -- scorers, probes, figure and table
+generators -- and none in the training path. That is what repeated auditing
+looks like from the outside: the pipeline has been hardened for a year and the
+tools that read it have not. **Audit the reader, not the writer.**
+
 ### (f) What was DELETED FROM THE CODE on 2026-08-18, and why
 
 Every failed idea had left a flag, a branch and a default behind. The knobs are gone, not
