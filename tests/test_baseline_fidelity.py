@@ -2823,19 +2823,25 @@ def test_a_documented_command_passes_FLAGS_THAT_EXIST():
 
     Same class as `test_a_staged_launch_script_NAMES_ONLY_ARMS_THAT_EXIST`: a
     command that only ever runs by hand, once, on a server, is the command least
-    likely to have been run. `CLAUDE.md` and `docs/FRAMEWORK.md` between them
-    carry 43 `python -m ...` invocations, and a flag that argparse does not
-    declare exits 2 exactly the way the mangled `--arms` line did.
+    likely to have been run. Scope is `CLAUDE.md`, `docs/FRAMEWORK.md` and
+    every `docs/*.sh` INCLUDING their comment blocks -- 71 invocations. The
+    comment blocks are the point, not an afterthought: `launch_uniform.sh`'s
+    seven-command read-order, the thing someone copies line by line once the
+    campaign lands, is comments end to end, and stripping them left it
+    outside the one gate written for hand-run commands.
+
+    A flag argparse does not declare exits 2 exactly the way the mangled
+    `--arms` line did.
 
     Flags are read by AST from each module's `add_argument` calls, never by
     grep: this project has already been burned once by a grep that reported
     `rho_step` as live because a LOG LINE named it.
 
-    Audited 2026-08-25: 43 invocations, zero bad flags. That zero is a
+    Audited 2026-08-25: 71 invocations, zero bad flags. That zero is a
     measurement and not silence, because the checker was shown to fire on
-    `--two-metric` (the real flag is `--two-metrics`) and on `--controls` (the
-    real one is `--control`) while passing the genuine `--campaign` -- i.e. it
-    responds to exactly the near-miss typo it exists to catch.
+    `--two-metric` (the real flag is `--two-metrics`), on `--controls` (the
+    real one is `--control`), and on a `--eviction` typo planted in the
+    read-order COMMENT block -- while passing the genuine `--campaign`.
     """
     import io
     import re
@@ -2869,11 +2875,17 @@ def test_a_documented_command_passes_FLAGS_THAT_EXIST():
     for doc in sources:
         text = io.open(doc, encoding="utf-8").read()
         if doc.endswith(".sh"):
-            # Comments discuss commands; only real invocations count. And
-            # bash line continuations must be joined first, or every flag
-            # on a wrapped line is invisible to this gate.
-            text = "\n".join(l for l in text.splitlines()
-                              if not l.lstrip().startswith("#"))
+            # Strip the `#` MARKER, do not drop the line. The read-order
+            # block in launch_uniform.sh -- the seven commands whose whole
+            # purpose is to be copied by a human after the campaign lands
+            # -- lives entirely in comments. Dropping comment lines put it
+            # outside the one gate written for hand-run commands. (The arm
+            # gate above still drops them, deliberately: its prose names
+            # REMOVED arms on purpose.)
+            text = "\n".join(re.sub(r"^\s*#\s?", "", l)
+                             for l in text.splitlines())
+            # bash line continuations must be joined or every flag on a
+            # wrapped line is invisible.
             text = text.replace(chr(92) + "\n", " ")
         for m in CMD.finditer(text):
             mod, rest = m.group(1), m.group(2)
