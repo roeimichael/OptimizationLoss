@@ -2120,7 +2120,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 388 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 390 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -2284,7 +2284,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 388 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 390 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -2292,7 +2292,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (388 tests, ~150 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (390 tests, ~180 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -3809,6 +3809,58 @@ that headroom at under two items -- not on whether the penalty had anywhere to
 push. The saturation question 2(p) raised is therefore answered in the direction
 that matters: there was little to win here, and the arm lost anyway.
 
+#### 🔴🔴🔴 REPLICATED AND **CALLED** AT 9 CELLS -- `results/iwc3`, read 2026-08-25
+
+`iwc1` measured this on 2 cells, where the exact sign-test floor is p = 0.25 and
+nothing can clear BH. `iwc3` is the same question at **9 cells**: iwildcam x
+{MobileNetV2, MobileNetV3, RegNetY400MF} x {L20_G50, L30_G50, L50_G30}, arms
+`clip` / `focal_clip` / `tralo` / `tralo_null` / `tralo_reseed`, 4 seeds = 180
+runs, complete, **zero error logs, one `code_version`**. At 9 cells the floor is
+p = 0.0039, so a 0-of-9 sweep is callable and a BH-corrected verdict exists.
+
+`tralo` against **its own lambda = 0 twin** -- same warm-up, same allocator,
+same seed, the constraint the only difference:
+
+| metric | tralo_null | tralo | delta | cells won | BH q | verdict |
+|---|---|---|---|---|---|---|
+| AP | 0.9443 | 0.9049 | **-0.0394** | **0/9** | 0.0072 | *** LOSS |
+| AUROC | 0.9889 | 0.9795 | **-0.0094** | **0/9** | 0.0072 | *** LOSS |
+| ECE | 0.1653 | 0.1907 | -0.0254 | 0/9 | 0.0072 | *** LOSS |
+| Brier | 0.3692 | 0.4168 | -0.0476 | 0/9 | 0.0072 | *** LOSS |
+| NLL | 1.2053 | 1.4598 | -0.2545 | 0/9 | 0.0072 | *** LOSS |
+| ConfGap | 0.1065 | 0.0928 | -0.0136 | 1/8 | 0.0143 | *** LOSS |
+| ccF1 | 0.4175 | 0.4177 | +0.0002 | 5/3 | 0.5312 | tie (**0.1 items**) |
+| macroF1 | 0.6100 | 0.6012 | -0.0087 | 1/8 | 0.0107 | *** LOSS |
+| acc | 0.6147 | 0.6054 | -0.0093 | 0/9 | 0.0072 | *** LOSS |
+
+🔑 **AND THE NOISE FLOOR SPLITS THE TABLE IN TWO, WHICH IS THE WHOLE POINT OF
+CARRYING IT.** `tralo_reseed` is the same null with the RNG stream perturbed and
+nothing else. Against the twin it reads:
+
+    AP +0.0030 tie   AUROC +0.0005 tie   Brier +0.0041 tie   NLL +0.0019 tie
+    macroF1 -0.0104 *** LOSS 0/9         acc -0.0070 *** LOSS 0/9
+
+* **macroF1 and acc are NOT attributable to the constraint.** A pure reseed
+  costs MORE macro-F1 (-0.0104) than the constraint does (-0.0087), in the same
+  0-of-9 sweep. Anyone quoting `tralo`'s macro-F1 loss here is quoting the
+  seed.
+* **AP, AUROC, Brier and NLL ARE attributable.** The reseed moves them 0.0005
+  to 0.0041 and ties; the constraint moves them 0.0094 to 0.2545 and sweeps
+  0/9. That is **2x to 130x the floor**, in the one channel a top-K allocator
+  can read.
+* **ccF1 is a tie worth 0.1 items**, against a paired seed sd of 2.11 items and
+  a headroom of 1.9-9.9. `full_panel` prices detecting an effect that size at
+  ~152 seeds per cell. The honest report is a stated MDE, not a null.
+
+**So the finding is not "TraLO is noisy". It is that the constraint pays a
+measurable, repeatable price in the representation and buys nothing back in the
+allocation** -- and the metric the manuscript headlines is precisely the one
+that cannot tell the two apart.
+
+⚠️ **This run also lost 328 of 1044 constraint steps (68.6% landed).** See (u):
+the damage above was done at roughly two thirds of the intended dose, which
+makes it a LOWER bound, not an overstatement.
+
 ### (r) 🔴🔴🔴 THE CONSTRAINT EVICTS THE CORRECT ITEMS -- measured 2026-08-24, and it is the mechanism
 
 `scripts/order_probe.py --evictions`, `results/iwc2`, `tralo` against its OWN
@@ -3897,16 +3949,16 @@ free". **FALSIFIED IF** net items vs the twin stays materially negative, which
 would put the damage in the SHARED BACKBONE rather than the per-item output
 term, and move the next lever to which parameters the constraint may touch.
 
-Launch: `docs/launch_uniform.sh` (9 cells, 6 arms, 4 seeds = 216 runs; 9 cells
+Launch: `docs/launch_uniform.sh` (9 cells, 7 arms, 4 seeds = 252 runs; 9 cells
 is deliberate -- sign-test floor 0.00391 against BH 0.00455, so unlike iwc1/iwc2
 it can return a CALLABLE verdict). Read with `order_probe --evictions` FIRST.
 
 ### (s) 🔴🔴🔴 EVERY DUAL'S MARGIN IS THE 29 EPOCHS, AND THE FAMILY ORDERING IS COLLATERAL DAMAGE
 
-`results/xfam1`, dsisco02, scored 2026-08-24 at 141 of 324 runs. iwildcam x
-{MobileNetV2, MobileNetV3, RegNetY400MF} x {L20_G50, L30_G50, L50_G30} = 9
-cells, 16 matched cell-seeds, nine arms including **a lambda=0 twin for every
-dual family** -- the thing the 7,574-row corpus does not have in a single row
+`results/xfam1`, dsisco02, **complete at 324 of 324 runs, zero crashed**,
+scored 2026-08-25. iwildcam x {MobileNetV2, MobileNetV3, RegNetY400MF} x
+{L20_G50, L30_G50, L50_G30} = 9 cells, **36 matched cell-seeds** (4 seeds in
+every cell), nine arms including **a lambda=0 twin for every dual family** -- the thing the 7,574-row corpus does not have in a single row
 (see the corpus audit in section 1), and without which no published number in
 this project could be attributed to a constraint rather than to compute.
 
@@ -3915,7 +3967,7 @@ Read with `python -m scripts.family_split --campaign results/xfam1`.
 🔑 **THE POSITIVE CONTROL IS EXACT, AND IT COMES FIRST.** At lambda = 0 the
 dual family is irrelevant: same cached warm-up, same allocator, same seed, no
 constraint gradient. So `tralo_null`, `fioretto_null` and `hounie_null` must be
-the SAME RUN. They are -- **byte-identical raw predictions in 12 of 12
+the SAME RUN. They are -- **byte-identical raw predictions in 36 of 36
 cell-seeds** (md5, CLAUDE.md rule 3), while `tralo_reseed` and `clip` differ
 from them everywhere. Three consequences, all load-bearing:
 
@@ -3937,47 +3989,67 @@ and every constraint term below would be contaminated.
     compute    = arm_null - clip        29 epochs at lambda = 0
     constraint = arm      - arm_null    the method's OWN contribution
 
-| metric | compute (all three) | constraint `tralo` | constraint `fioretto` | constraint `hounie` | reseed floor |
-|---|---|---|---|---|---|
-| macroF1 | **+0.0145** | -0.0113 | -0.0026 | -0.0092 | -0.0044 |
-| uncF1 | +0.0194 | **-0.0144** | **-0.0027** | **-0.0114** | -0.0058 |
-| ccF1 | -0.0003 | -0.0020 | -0.0023 | -0.0028 | -0.0001 |
-| AP | -0.0060 | **-0.0609** | **-0.1218** | **-0.1362** | +0.0241 |
-| AUROC | -0.0047 | -0.0102 | -0.0454 | -0.0474 | +0.0089 |
-| ECE | -0.0006 | -0.0296 | -0.0497 | -0.0504 | -0.0036 |
-| Brier | -0.0020 | -0.0566 | -0.1003 | -0.0973 | -0.0032 |
-| NLL | -0.0477 | -0.3692 | -0.6093 | -0.5467 | -0.0969 |
+✅ **RE-READ AT THE FULL 324 RUNS, 2026-08-25** -- the campaign finished during
+a multi-hour SSH outage. **36 matched cell-seeds over the same 9 cells** (4 seeds
+everywhere, against 16 cell-seeds before), nulls byte-identical in **36 of 36**,
+zero crashed runs. These are the numbers to quote; the 141-run column is kept
+beside them because two claims moved.
+
+| metric | compute (all three) | `tralo` | `fioretto` | `hounie` | reseed floor | *(compute @141)* |
+|---|---|---|---|---|---|---|
+| macroF1 | +0.0059 | -0.0048 | **+0.0005** | -0.0021 | -0.0028 | *+0.0145* |
+| uncF1 | +0.0083 | **-0.0062** | **+0.0009** | **-0.0022** | -0.0041 | *+0.0194* |
+| ccF1 | -0.0014 | -0.0004 | -0.0008 | -0.0018 | +0.0010 | *-0.0003* |
+| AP | **+0.0143** | **-0.0809** | **-0.1405** | **-0.1567** | -0.0016 | *-0.0060* |
+| AUROC | **+0.0016** | -0.0179 | -0.0555 | -0.0560 | +0.0016 | *-0.0047* |
+| ECE | **+0.0052** | -0.0328 | -0.0504 | -0.0549 | -0.0064 | *-0.0006* |
+| Brier | **+0.0101** | -0.0613 | -0.1036 | -0.1079 | -0.0137 | *-0.0020* |
+| NLL | **+0.0135** | -0.3517 | -0.5788 | -0.5977 | -0.0616 | *-0.0477* |
+
+🔄 **THE COMPUTE TERM FLIPPED SIGN ON FIVE OF EIGHT METRICS.** At 141 runs the
+29 extra epochs read as helping macro-F1 and *hurting* AP, AUROC and all three
+calibration metrics. At 324 they help on **every metric**, and the macro-F1 gain
+halves (+0.0145 -> +0.0059). The 141-run signs were a half-filled campaign, not
+a finding -- which is what that read's own caveat said, and this is the receipt.
 
 Signs are oriented so **+ is better** on every row, including the three where
 lower is better natively. `ccF1` converts at **5.2 items per 0.01** here.
 
-🛑 **NOT ONE OF THE 24 CONSTRAINT TERMS IS POSITIVE.** Eight metrics, three
-families, and every method's entire margin over `clip` is the 29 epochs that
-every trained arm gets and the post-hoc clipper does not. This is section 3's
-"regime beats method" measured directly instead of inferred -- and it is the
-first time the inference has had the twin it needs.
+🛑 **22 OF THE 24 CONSTRAINT TERMS ARE NEGATIVE, AND THE OTHER TWO ARE ZERO.**
+⚠️ At 141 runs this said "not one of the 24 is positive". That is **no longer
+literally true**: `fioretto`'s macroF1 (+0.0005) and uncF1 (+0.0009) came out
+positive at 4 seeds. Neither is a win. Both win **4 of 9 cells** -- under half --
+and both sit **inside the reseed floor**, which moves macroF1 -0.0028 and uncF1
+-0.0041 on RNG alone. So the honest statement is *indistinguishable from zero*,
+and the finding survives in substance while losing its absolute form: **no dual
+family's constraint produces a positive contribution on any metric**, and every
+method's entire margin over `clip` is the 29 epochs that every trained arm gets
+and the post-hoc clipper does not. This is section 3's "regime beats method"
+measured directly instead of inferred.
 
 🔑 **THE PUBLISHED ORDERING IS A DAMAGE RANKING WEARING A BENEFIT RANKING'S
-CLOTHES.** On macro-F1 the totals are `fioretto` +0.0118 > `hounie` +0.0052 >
-`tralo` +0.0031, which is exactly the manuscript's ordering. The compute term
-is identical across the three, so that ordering is `0.0145` minus the damage --
+CLOTHES.** On macro-F1 the totals are `fioretto` +0.0063 > `hounie` +0.0038 >
+`tralo` +0.0011, which is exactly the manuscript's ordering. The compute term
+is identical across the three, so that ordering is `0.0059` minus the damage --
 i.e. it ranks the families by how little each one spoils a gain none of them
 produced. **TraLO is not "improving less". It is subtracting more.**
 
 ⚠️ **AND `fioretto`'s ADVANTAGE SITS BELOW THE NOISE FLOOR.** `tralo_reseed`
 -- the same null with one RNG draw perturbed and nothing else -- moves macroF1
-**-0.0044**, and `fioretto`'s whole constraint term is **-0.0026**. So
-"fioretto's constraint is gentle on macro-F1" is not distinguishable from
-"fioretto's constraint does nothing to macro-F1", and the metric the paper
-headlines cannot separate the two.
+**-0.0028**, and `fioretto`'s whole constraint term is **+0.0005**, a fifth of
+that. So "fioretto's constraint is gentle on macro-F1" is not distinguishable
+from "fioretto's constraint does nothing to macro-F1", and the metric the paper
+headlines cannot separate the two. It wins **4 of 9 cells**, which is the
+coin-flip cell count.
 
 #### The ordering REVERSES on the only channel an allocator can see
 
 A top-K allocator reads the ranking and nothing else; a calibration move
 provably leaves every top-K set untouched (section 2(j)). On AP the constraint
-terms are `tralo` **-0.0609** against `fioretto` -0.1218 and `hounie` -0.1362
--- TraLO damages the ranking **2.0x and 2.2x less**. On AUROC it is -0.0102
-against -0.0454 and -0.0474: **4.5x and 4.6x less**.
+terms are `tralo` **-0.0809** against `fioretto` -0.1405 and `hounie` -0.1567
+-- TraLO damages the ranking **1.74x and 1.94x less**. On AUROC it is -0.0179
+against -0.0555 and -0.0560: **3.10x and 3.13x less**. The reversal narrowed at
+4 seeds (it read 2.0x/2.2x and 4.5x/4.6x at 141 runs) and it did not close.
 
 **TraLO is the gentlest of the three on the representation and the harshest on
 the composite, and nobody was scoring the channel where it wins.** That is not
@@ -3988,9 +4060,10 @@ around.
 #### Where the difference actually lives
 
 `ccF1` and `uncF1` split macro-F1 into the classes the constraint names and the
-six it does not. The capped-class terms are **-0.0020 / -0.0023 / -0.0028** --
-about one item, near-identical, and all three inside each other's noise. The
-uncapped terms are **-0.0144 / -0.0027 / -0.0114**, a **5.3x spread**.
+six it does not. The capped-class terms are **-0.0004 / -0.0008 / -0.0018** --
+**0.2 to 0.9 items**, under one item each, near-identical, and all three inside
+each other's noise. The uncapped terms are **-0.0062 / +0.0009 / -0.0022**, a
+range **5.1x wider** than the capped one and spanning zero.
 
 🔑 **All three dual families do the same negligible thing to the classes the
 constraint is about, and differ five-fold in what they do to the classes it
@@ -4177,14 +4250,19 @@ assertion is passing for a trivial reason) and by
 
 * **Nothing outside iwildcam.** One dataset, so the clustered-by-dataset unit
   is p = 1.000 by construction. Every p below is a CELL-level sign test.
-* **The callable subset is smaller than the table.** Surviving BH at 0/9 cells,
-  p = 0.0039: ECE, Brier and NLL for all three families, and AP and AUROC for
-  `fioretto` and `hounie`. `tralo`'s AP loss is 1/8 cells, p = 0.0273, BH
-  q = 0.060 -- **directional, not called**. Every macroF1 and ccF1 contrast is
-  UNDERPOWERED at the seed level (53, 9 and 19 seeds per cell needed).
-* **16 matched cell-seeds is 2 seeds in 6 cells and 1 in 3.** The campaign is
-  at 141 of 324 and the table must be re-read at 4 seeds before any of the
-  underpowered lines is quoted.
+* **The callable subset is smaller than the table, and at 4 seeds it GREW.**
+  **All fifteen** ranking/calibration contrasts -- AP, AUROC, ECE, Brier and
+  NLL for each of the three families -- now lose in **0 of 9 cells**, sign-test
+  p = 0.0039, clearing BH at 0.00455. At 141 runs `tralo`'s AP was 1/8 cells,
+  q = 0.060, "directional, not called"; at 324 it is 0/9 and **called**.
+  The three F1 contrasts are the ones that stay uncallable: macroF1 4/9, 4/9,
+  5/9; ccF1 5/9, 3/9, 2/9; uncF1 5/9, 4/9, 5/9 -- coin flips, and UNDERPOWERED
+  at the seed level besides.
+* ✅ **The re-read at 4 seeds is DONE (2026-08-25).** This bullet used to say
+  "16 matched cell-seeds is 2 seeds in 6 cells and 1 in 3, re-read before
+  quoting". The campaign finished, the table above is the 36-cell-seed one, and
+  the two claims that moved are flagged inline. Nothing here is provisional on
+  seed count any more; it is provisional on **one dataset**.
 
 #### Relation to the manuscript -- it CORROBORATES, then goes further
 
@@ -4199,15 +4277,17 @@ twin instead of a component graft -- and agrees.
 
 🛑 **WHAT 2(s) ADDS IS NOT IN THE PAPER AND MUST NOT BE PUT THERE YET.** The
 paper says the ingredients carry the advantage. 2(s) says the ingredients carry
-**nothing**: the compute term is the whole margin and every constraint term is
-negative. That is a strictly stronger claim, it cannot be made from the corpus
-(no nulls in 7,574 rows), and it currently rests on 2 seeds in 6 cells of one
-dataset. Before it touches the manuscript it needs, at minimum:
+**nothing**: the compute term is the whole margin and 22 of the 24 constraint
+terms are negative while the other two sit inside the reseed floor. That is a
+strictly stronger claim, it cannot be made from the corpus (no nulls in 7,574
+rows), and it rests on 4 seeds in 9 cells of **one dataset**. Before it touches
+the manuscript it needs, at minimum:
 
-* `xfam1` complete at 4 seeds in all 9 cells (it is at 141 of 324);
-* the macroF1 and ccF1 contrasts to clear their own resolution -- `full_panel`
-  currently prices them at 53, 9 and 19 seeds per cell, so some of them will
-  NOT clear and the honest report is a stated MDE, not a null;
+* ✅ `xfam1` complete at 4 seeds in all 9 cells -- **done 2026-08-25, 324/324**;
+* the macroF1 and ccF1 contrasts to clear their own resolution -- at 4 seeds
+  they did NOT: 2-5 cells of 9, which is a coin flip, so the honest report for
+  those three rows is a stated MDE and not a null. The five ranking and
+  calibration rows DID clear, at 0/9 for every family;
 * a second dataset, or the generality claim stays a direction. Section 2(n)
   rules the other three structurally incapable, so this is a real constraint on
   what the finding can ever say, not a scheduling problem.
@@ -4568,6 +4648,75 @@ ordering does not.**
 
 Until that campaign exists, the honest entry for `ortho` is **OPEN**, and this
 section replaces its listing among the rejected.
+
+### (u) 🔴🔴🔴 A SIXTH DEFECT CLASS: THE TREATMENT THAT REPORTS `completed` AND NEVER LANDED
+
+2(e) catalogues five ways a knob can be dead. This is a sixth, and it is worse,
+because the arm is live, the flag is live, the config is right, the run
+finishes, and the **dose** is missing.
+
+**MEASURED 2026-08-25, on the live campaign, before it was 2% done:**
+
+    campaign   arm             steps landed / attempted   soft_count_mode
+    uniform1   tralo             29 / 29     100.0%       sum
+    uniform1   tralo_head        29 / 29     100.0%       sum
+    uniform1   tralo_uniform      1 / 29     **3.4%**     uniform
+    iwc3       tralo            716 / 1044    68.6%       sum
+    xfam1      tralo / fioretto / hounie      100.0%      sum
+
+`results/uniform1` exists to test exactly one thing -- `soft_count_mode:
+uniform` -- and **that arm was running at 3.4% of its dose while every other
+arm ran at 100%**. A campaign in that state does not measure a loss shape. It
+measures a dose, wearing a loss shape's clothes.
+
+#### The cause, and it is one line
+
+`uniform_grad_count` builds the log-odds `u = log p - log1p(-p)`, guarded by
+
+    p = proba.clamp(EPSILON, 1.0 - EPSILON)          # EPSILON = 1e-8
+
+**That upper bound is a no-op in every dtype the pipeline uses.** float32's own
+epsilon is 1.19e-7, float16's is 9.8e-4, bfloat16's is 7.8e-3 -- so `1 - 1e-8`
+rounds to exactly 1.0 on the cast into the tensor. Then `log1p(-p)` is -inf,
+`u` is +inf, the straight-through term `w * (u - u.detach())` is `inf - inf` =
+NaN, `finish_constraint_step` drops the update, and the run writes `status:
+completed`. The lower bound is equally dead in float16, where 1e-8 is below the
+smallest subnormal and rounds to 0.
+
+`sum` is untouched because `p(1-p)` never takes a logarithm -- which is why the
+three `sum` arms landed 100% in the same campaign and the contrast looked
+healthy from every angle except this one.
+
+🔑 **WHY READING THE EXPRESSION NEVER FOUND IT.** Python evaluates `1.0 -
+EPSILON` in float64, where it *is* representable (0.99999999). The bound only
+dies on the cast. The line is correct in the interpreter and wrong in the
+tensor, and no amount of staring at it helps.
+
+#### The fix, and what it does NOT fix
+
+`clamp_probability` in `src/utils/constants.py` takes its epsilon from the
+tensor's own dtype, so `1 - eps` is by construction representable wherever the
+tensor lives. Both call sites now use it (`uniform_grad_count`, and the
+rejected `select` arm's per-item CE, which had the identical bug).
+
+⚠️ **The clamp stops the NaN. It does not give the arm its resolution back.**
+At bfloat16 the log-odds now saturate at **+-4.85**; at float32 the same
+quantity reaches **+-15.9**. An arm whose count is defined in log-odds must run
+under `constraint_fp32: true` or its behaviour is a function of which GPU it
+landed on. `uniform1` is relaunched with it set.
+
+✅ Gated by `test_a_probability_clamp_SURVIVES_THE_DTYPE_IT_ACTUALLY_RUNS_IN`,
+which asserts finiteness of value AND gradient in float16, bfloat16 and
+float32, and AST-scans `src/` for any hand-written `clamp(EPSILON, 1 -
+EPSILON)`. Negative control: it FAILS on the shipped code with
+`uniform_grad_count returned a non-finite VALUE in torch.float16`, on exactly
+the saturated probabilities iwildcam produces.
+
+🛑 **THE GENERAL RULE, and it is cheap to apply.** `full_panel` already prints
+`CONSTRAINT DOSE -- steps that LANDED, against steps attempted` and already
+refuses to let two arms at different landing rates be compared silently. **Read
+that block FIRST, on the first completed runs, not at the end.** It cost 4 runs
+here. At `iwc3` it would have cost 180 and did.
 
 ---
 
@@ -5758,7 +5907,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             388 tests, ~150 s, no dataset required
+tests/             390 tests, ~180 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

@@ -3317,3 +3317,256 @@ def test_the_iwildcam_arrays_are_NOT_in_git_but_the_meta_csvs_ARE():
         "arrays are now tracked in git: %s. That is a repository-size problem "
         "in its own right, and it also means the launch guard's premise has "
         "changed." % npys[:3])
+
+
+def test_a_documented_campaign_SIZE_matches_what_the_script_GENERATES():
+    """The arm gate checks the names. Nothing checked the COUNT.
+
+    `docs/FRAMEWORK.md` announced the live campaign as
+
+        Launch: `docs/launch_uniform.sh` (9 cells, 6 arms, 4 seeds = 216 runs
+
+    while the script it names generates **7 arms and 252 runs**. The arm count
+    had been raised from 6 to 7 in the script and never in the document that
+    tells an operator what is running, so the two disagreed for a day about a
+    live campaign -- and the wrong number is the one in the file CLAUDE.md
+    calls the only operational document.
+
+    It is the same defect class as the mangled `--arms` line: a staged artefact
+    that only a human ever reads, so nothing ever parsed it. This gate parses
+    it. Two checks, both static:
+
+    * every fully-specified triple anywhere in `docs/` -- N cells, M arms,
+      S seeds = R runs -- must satisfy N*M*S == R. Partly-specified ones
+      ("3 arms x 9 cells x 2 = 54 runs", where the 2 is extra SEEDS) are
+      skipped deliberately: the rule is about arithmetic that claims to be
+      complete, not about prose.
+    * where a document NAMES a launch script, the triple beside that name must
+      be the size that script actually generates: models x datasets x caps
+      cells, `--arms` widened by `mandatory_arms`, times `protocol.seeds`.
+      A script's own comment block may discuss counterfactual sizes (uniform1
+      records 288 as first generated and 336 for a ViTB16 extension), so the
+      requirement there is that at least ONE triple in it is the real one.
+
+    Negative controls, run 2026-08-25: the gate FAILED on the 216/6-arm line
+    that was live in FRAMEWORK when it was written, and FAILED again on a
+    planted `= 253 runs` typo in the script's own size line.
+    """
+    import io
+    import re
+    import shlex
+
+    BS = chr(92)
+    P = load_protocol()
+    seeds = len(P["protocol"]["seeds"])
+    mandatory = list(P.get("mandatory_arms", []))
+
+    UNIT = re.compile(r"(\d+)\s*(cells?|arms?|seeds?)")
+    RUNS = re.compile(r"=\s*(\d+)\s*runs")
+
+    def triples(text):
+        """Every fully-specified (cells, arms, seeds) = runs claim in `text`."""
+        out = []
+        for m in RUNS.finditer(text):
+            window = text[max(0, m.start() - 90):m.start()]
+            found = {}
+            for num, unit in UNIT.findall(window):
+                found[unit.rstrip("s")] = int(num)
+            if len(found) == 3:
+                out.append((found["cell"], found["arm"], found["seed"],
+                            int(m.group(1)),
+                            text[max(0, m.start() - 90):m.end()].strip()))
+        return out
+
+    # ---- what each launch script actually generates -------------------------
+    true_size = {}
+    for name in sorted(f for f in os.listdir("docs") if f.endswith(".sh")):
+        path = os.path.join("docs", name)
+        raw = io.open(path, encoding="utf-8").read()
+        code = "\n".join(l for l in raw.splitlines()
+                         if not l.lstrip().startswith("#"))
+        code = code.replace(BS + "\n", " ")
+        for line in code.splitlines():
+            if "-m configs.gen_campaign" not in line:
+                continue
+            toks = shlex.split(line, posix=True)
+
+            def listarg(flag):
+                if flag not in toks:
+                    return []
+                i = toks.index(flag) + 1
+                vals = []
+                while i < len(toks) and not toks[i].startswith("--"):
+                    vals.append(toks[i])
+                    i += 1
+                return vals
+
+            arms = set(listarg("--arms")) | set(mandatory)
+            cells = (max(1, len(listarg("--models")))
+                     * max(1, len(listarg("--datasets")))
+                     * max(1, len(listarg("--caps"))))
+            true_size[name] = (cells, len(arms), seeds,
+                               cells * len(arms) * seeds)
+
+    assert true_size, "no launch script parsed, so this gate checked nothing"
+
+    # ---- check 1: the arithmetic is self-consistent everywhere ---------------
+    docs = [os.path.join("docs", f) for f in sorted(os.listdir("docs"))
+            if f.endswith(".sh") or f == "FRAMEWORK.md"] + ["CLAUDE.md"]
+    checked = 0
+    for path in docs:
+        if not os.path.exists(path):
+            continue
+        for c, a, s, r, snippet in triples(io.open(path, encoding="utf-8").read()):
+            assert c * a * s == r, (
+                "%s states a campaign size that does not multiply: %d cells x "
+                "%d arms x %d seeds is %d, not %d.\n    %s"
+                % (path, c, a, s, c * a * s, r, snippet))
+            checked += 1
+    assert checked, (
+        "no campaign-size arithmetic found in docs/, so check 1 is silent. "
+        "Either the phrasing changed or the window above stopped matching.")
+
+    # ---- check 2: a script's own comment block states its REAL size ----------
+    for name, size in sorted(true_size.items()):
+        path = os.path.join("docs", name)
+        stated = [t[:4] for t in triples(io.open(path, encoding="utf-8").read())]
+        assert size in stated, (
+            "%s generates %d cells x %d arms x %d seeds = %d runs, and its own "
+            "comment block never says so. It states %s. An operator reads the "
+            "size line, not the invocation." % ((path,) + size + (stated,)))
+
+    # ---- check 3: a document that NAMES a script quotes its REAL size --------
+    for path in ["docs/FRAMEWORK.md", "CLAUDE.md"]:
+        if not os.path.exists(path):
+            continue
+        lines = io.open(path, encoding="utf-8").read().splitlines()
+        for i, line in enumerate(lines):
+            for name, size in true_size.items():
+                if name not in line:
+                    continue
+                window = "\n".join(lines[i:i + 3])
+                near = [t[:4] for t in triples(window)]
+                if not near:
+                    continue
+                assert near[0] == size, (
+                    "%s:%d names %s and states %d cells x %d arms x %d seeds = "
+                    "%d runs. That script generates %d cells x %d arms x %d "
+                    "seeds = %d runs. The document an operator reads to learn "
+                    "what is running disagrees with the thing that is running."
+                    % ((path, i + 1, name) + near[0] + size))
+
+
+def test_a_probability_clamp_SURVIVES_THE_DTYPE_IT_ACTUALLY_RUNS_IN():
+    """`clamp(EPSILON, 1 - EPSILON)` is a NO-OP at the top, in every dtype.
+
+    EPSILON is 1e-8. float32's own epsilon is 1.19e-7, so `1.0 - 1e-8`
+    rounds to exactly 1.0 -- and in float16 (eps 9.8e-4) and bfloat16
+    (eps 7.8e-3) it is not close. The clamp that exists to keep a
+    probability out of {0, 1} therefore does not, and the lower bound is
+    equally dead in float16, where 1e-8 is below the smallest subnormal
+    and rounds to 0.
+
+    MEASURED, on the live campaign, 2026-08-25. `results/uniform1` exists to
+    test `soft_count_mode: uniform`, whose count is built on the log-odds
+    `u = log p - log1p(-p)`. With p clamped to a value that is still exactly
+    1.0, `log1p(-p)` is -inf, `u` is +inf, and the straight-through term
+    `w * (u - u.detach())` is inf - inf = NaN. `finish_constraint_step` then
+    drops the step, and the run still writes `status: completed`:
+
+        arm             steps landed / attempted
+        tralo             29 / 29    100.0%      (soft_count_mode: sum)
+        tralo_head        29 / 29    100.0%      (soft_count_mode: sum)
+        tralo_uniform      1 / 29      3.4%      (soft_count_mode: uniform)
+
+    The one arm the campaign was built to measure ran at **3.4% of its
+    dose**, and every other arm ran at full dose, so the comparison was not
+    merely weak -- it was a dose contrast wearing a loss-shape contrast's
+    clothes. Nothing in the predictions records a step that did not happen.
+    `sum` is untouched because `p * (1 - p)` never takes a logarithm.
+
+    The fix is `clamp_probability`, which takes its epsilon from the tensor's
+    OWN dtype, so the bound is representable wherever the tensor lives. This
+    gate holds three things: the helper is finite in all three dtypes, the
+    two call sites use it, and no call site re-derives `1 - EPSILON` by hand
+    (an AST scan, never a grep -- this project has been burned by a grep that
+    read a log line as a live use).
+    """
+    import ast
+    import io
+    import torch
+
+    from src.utils.constants import EPSILON, clamp_probability
+
+    # The root fact, stated so it cannot quietly stop being true. Python
+    # computes `1.0 - EPSILON` in float64, where it IS representable
+    # (0.99999999) -- the bound only dies on the cast into the tensor's dtype,
+    # which is exactly why reading the expression never revealed it.
+    for dtype in (torch.float16, torch.bfloat16, torch.float32):
+        assert float(torch.tensor(1.0 - EPSILON, dtype=dtype)) == 1.0, (
+            "`1 - EPSILON` is now representable in %s, so the hand-written "
+            "clamp is no longer a no-op there; re-derive the dtype-aware "
+            "bounds below before relaxing this." % dtype)
+
+    saturated = [0.0, 1e-12, 0.5, 0.99, 0.999, 1.0 - 1e-9, 1.0]
+    for dtype in (torch.float16, torch.bfloat16, torch.float32):
+        p = torch.tensor([saturated], dtype=dtype, requires_grad=True)
+        q = clamp_probability(p)
+        assert torch.isfinite(q).all(), (
+            "clamp_probability left a non-finite value in %s" % dtype)
+        assert (q > 0).all() and (q < 1).all(), (
+            "clamp_probability returned a value at 0 or 1 in %s: %s"
+            % (dtype, q))
+
+        u = torch.log(q) - torch.log1p(-q)
+        assert torch.isfinite(u).all(), (
+            "the log-odds are non-finite in %s even after the clamp: %s"
+            % (dtype, u))
+
+        from src.losses.transductive_loss import uniform_grad_count
+        s = uniform_grad_count(p.detach().clone().requires_grad_(True))
+        assert torch.isfinite(s).all(), (
+            "uniform_grad_count returned a non-finite VALUE in %s" % dtype)
+
+    # The gradient, which is what actually reaches the optimizer and what was
+    # silently dropped. float32 only: autograd through log in half precision
+    # is not what the constraint pass runs, `constraint_fp32` is.
+    p = torch.tensor([saturated], dtype=torch.float32, requires_grad=True)
+    uniform_grad_count(p).sum().backward()
+    assert torch.isfinite(p.grad).all(), (
+        "uniform_grad_count produced a non-finite GRADIENT on saturated "
+        "probabilities: %s. This is the failure that cost `tralo_uniform` 28 "
+        "of its 29 constraint steps." % p.grad)
+
+    # No site may re-derive the bound by hand. AST, so a comment or a log line
+    # naming EPSILON cannot pass for a use.
+    class Finder(ast.NodeVisitor):
+        def __init__(self):
+            self.bad = []
+
+        def visit_Call(self, node):
+            name = getattr(node.func, "attr", None) or getattr(
+                node.func, "id", None)
+            if name == "clamp":
+                for a in list(node.args) + [k.value for k in node.keywords]:
+                    if (isinstance(a, ast.BinOp)
+                            and isinstance(a.op, ast.Sub)
+                            and isinstance(a.left, ast.Constant)
+                            and float(a.left.value) == 1.0
+                            and getattr(a.right, "id", None) == "EPSILON"):
+                        self.bad.append(node.lineno)
+            self.generic_visit(node)
+
+    offenders = []
+    for root, _dirs, files in os.walk("src"):
+        for fn in files:
+            if not fn.endswith(".py"):
+                continue
+            path = os.path.join(root, fn)
+            f = Finder()
+            f.visit(ast.parse(io.open(path, encoding="utf-8").read()))
+            offenders += [(path, ln) for ln in f.bad]
+    assert not offenders, (
+        "these sites clamp a probability with a hand-written `1 - EPSILON`, "
+        "which is a no-op at the top in every dtype: %s. Use "
+        "`clamp_probability` from src.utils.constants." % offenders)

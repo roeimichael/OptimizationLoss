@@ -60,7 +60,7 @@ imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 388 regression tests, ~150s, no dataset needed
+python -m pytest tests -q                   # 390 regression tests, ~180s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -76,6 +76,14 @@ python -m scripts.reachability <early-run>  # CAN the penalty even reach this ce
 
 ```bash
 python -m scripts.full_panel --campaign <root> --control clip   # THE scorer, seed-paired
+#   ^ 🛑 READ ITS `CONSTRAINT DOSE` BLOCK ON THE FIRST COMPLETED RUNS,
+#     NOT AT THE END. A non-finite constraint gradient makes
+#     `finish_constraint_step` drop the update while the run still writes
+#     `status: completed`, so an arm can run at 3.4% of its dose and look
+#     healthy from every other angle. Measured: `tralo_uniform` 1/29 steps
+#     against `tralo` 29/29 in the SAME campaign (FRAMEWORK 2(u)); `iwc3`
+#     lost 328 of 1044. full_panel refuses to compare arms more than 5
+#     percentage points apart -- but only once you look.
 python -m scripts.log_health <root>        # what the OPTIMISATION did, per run, from
                                             #   training_log.csv -- collapse, divergence,
                                             #   satisfaction, count trajectory vs K

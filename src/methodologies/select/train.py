@@ -75,11 +75,9 @@ from src.pipeline.setup import setup_runtime
 from src.utils.constants import INFERENCE_CHUNK_SIZE
 from src.pipeline.warmup import make_ce_criterion, make_dataloader, make_optimizer
 from src.training.logging import log_progress_to_csv, write_csv_header
-from src.utils.constants import UNLIMITED
+from src.utils.constants import UNLIMITED, EPSILON, clamp_probability
 
 log = logging.getLogger(__name__)
-
-EPSILON = 1e-8
 
 
 def head_and_feature_dim(model):
@@ -190,7 +188,7 @@ def selective_loss(g, probs, y, cls, tau, cov_weight, cov_ema=None,
     # is a different quantity, so that "fix" would silently change the loss.
     # `probs` is fp32 (logits.float() upstream) and p is already clamped, so this
     # is bit-identical to the banned call -- verified, max abs diff 0.0.
-    p_c = probs[:, cls].clamp(EPSILON, 1 - EPSILON)
+    p_c = clamp_probability(probs[:, cls])
     per_item = -(is_c * p_c.log() + (1.0 - is_c) * (1.0 - p_c).log())
     cov = g.mean()
     # CENTRED, and that is not cosmetic. Swapping g.sum() for the expected

@@ -27,7 +27,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.utils.constants import UNLIMITED, EPSILON
+from src.utils.constants import UNLIMITED, EPSILON, clamp_probability
 
 
 def margins(proba):
@@ -127,7 +127,7 @@ def uniform_grad_count(proba):
     information the ranking lacks, which is the reopened supervised per-item
     family (2(c)), not this. "The constraint becomes free" is the claim.
     """
-    p = proba.clamp(EPSILON, 1.0 - EPSILON)
+    p = clamp_probability(proba)
     u = torch.log(p) - torch.log1p(-p)
     w = (p * (1.0 - p)).mean(dim=0, keepdim=True).detach()
     return p.detach() + w * (u - u.detach())
