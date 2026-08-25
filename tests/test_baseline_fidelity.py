@@ -3842,3 +3842,96 @@ def test_the_dose_reader_CATCHES_BOTH_HISTORICAL_FAILURES():
     report({"tralo": [29, 29, 1, 0, 0, 0], "tralo_null": [0, 0, 4, 0, 0, 0]},
            {}, out=buf)
     assert "lambda=0 twin does" in buf.getvalue(), buf.getvalue()
+
+
+def test_no_script_PRINTS_a_character_the_windows_console_cannot_ENCODE():
+    """One emoji in a `print` kills the process AFTER printing the table.
+
+    The console here is cp1252. `print("\u26a0 ...")` raises
+    UnicodeEncodeError, so a report renders in full, looks finished, and the
+    process exits 1 on the very next line -- which reads as "the tool crashed"
+    when the numbers above it are correct and complete, or worse, as "the tool
+    ran" when the lines after it never printed.
+
+    `scripts/ceiling_screen.py` did exactly this on its first run against
+    iwildcam: six rows and the verdict block came out, then a traceback where
+    the caveat should have been.
+
+    The scope is what actually reaches a terminal -- string constants inside a
+    `print(...)` or a `....write(...)` call, read by AST. Docstrings, comments
+    and FRAMEWORK prose are untouched, and this file's own tables of emoji stay
+    legal. Audited 2026-08-25 over all of `scripts/`: zero offenders once
+    ceiling_screen was fixed, so the class is closed rather than merely noted.
+    """
+    import ast
+    import io
+
+    offenders = []
+    for root, _dirs, files in os.walk("scripts"):
+        for fn in sorted(files):
+            if not fn.endswith(".py"):
+                continue
+            path = os.path.join(root, fn)
+            tree = ast.parse(io.open(path, encoding="utf-8").read())
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                name = (getattr(node.func, "id", None)
+                        or getattr(node.func, "attr", None))
+                if name not in ("print", "write"):
+                    continue
+                for arg in list(node.args) + [k.value for k in node.keywords]:
+                    for sub in ast.walk(arg):
+                        if (isinstance(sub, ast.Constant)
+                                and isinstance(sub.value, str)):
+                            bad = sorted({c for c in sub.value if ord(c) > 127})
+                            if bad:
+                                offenders.append((path, node.lineno,
+                                                  "".join(bad)))
+
+    assert not offenders, (
+        "these sites print a character cp1252 cannot encode, so the process "
+        "dies mid-report on Windows: %s" % offenders[:8])
+
+
+def test_the_ceiling_screen_CAN_SAY_YES_and_reproduces_the_measured_budgets():
+    """A screen that only ever says no decides nothing, so gate both answers.
+
+    `scripts/ceiling_screen.py` prices a dataset BEFORE a campaign: the whole
+    prize for any method is `(1-p)*K` items, because emitting only K
+    predictions for a class with n true instances caps cc-F1 at `2K/(K+n)`.
+
+    Two things must hold or it is decoration. It must reproduce the budgets
+    `headroom` measured from stored predictions -- K = 74 / 92 / 111 / 137 and
+    ceilings 0.3333 / 0.3358 / 0.4615 / 0.4621 on iwildcam -- from LABELS
+    alone, with no model; and it must be able to return WORTH RUNNING, which
+    it does as soon as the ranking is worse or the budget larger.
+    """
+    import io
+
+    from scripts.ceiling_screen import report, self_test
+
+    buf = io.StringIO()
+    assert self_test(out=buf) == 0, buf.getvalue()
+
+    # The four measured (cap, class) budgets, priced from labels alone.
+    measured = [("L20_G50", 2, 370, 185, 74, 74, "0.3333"),
+                ("L20_G50", 7, 456, 228, 92, 92, "0.3358"),
+                ("L30_G50", 2, 370, 185, 111, 111, "0.4615"),
+                ("L30_G50", 7, 456, 228, 137, 137, "0.4621")]
+    for tag, c, n, kg, kl, k, ceiling in measured:
+        buf = io.StringIO()
+        worth = report([(tag, c, n, kg, kl, k)], out=buf)
+        text = buf.getvalue()
+        assert ceiling in text, (
+            "%s class %d: ceiling 2*%d/(%d+%d) should print %s\n%s"
+            % (tag, c, k, k, n, ceiling, text))
+        assert worth == 0 and "PRIZE BELOW THE NOISE" in text, (
+            "iwildcam's measured cells must not read as worth running:\n%s"
+            % text)
+
+    # ... and it must be able to say yes.
+    buf = io.StringIO()
+    assert report([("L80_G80", 2, 370, 300, 300, 300)], ccp=0.95,
+                  out=buf) == 1, buf.getvalue()
+    assert "WORTH RUNNING" in buf.getvalue()

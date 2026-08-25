@@ -2127,7 +2127,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 393 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 395 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -2291,7 +2291,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 393 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 395 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -2299,7 +2299,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (393 tests, ~180 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (395 tests, ~180 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -4908,6 +4908,42 @@ pairwise hinges, `select` -- is trying to reorder items inside a set that is
 already all-correct. That is why they tie, and it is NOT evidence about the
 idea. It is the ceiling.
 
+#### THE SCREEN, so this is asked BEFORE the next dataset is downloaded
+
+`scripts/ceiling_screen.py` prices a candidate from LABELS AND THE CAP POLICY
+alone -- no images, no model, no GPU -- because `K` is computable from them and
+the bound is arithmetic:
+
+```
+python -m scripts.ceiling_screen data/iwildcam/oodslice \
+    --caps L20_G50 L30_G50 L50_G30 --classes 2 7
+```
+
+| cap | class | n | K | K/n | ceiling | prize | vs noise |
+|---|---|---|---|---|---|---|---|
+| L20_G50 | 2 | 370 | 74 | 20.0% | 0.3333 | 0.34 | 0.16x |
+| L20_G50 | 7 | 456 | 92 | 20.2% | 0.3358 | 0.42 | 0.20x |
+| L30_G50 | 2 | 370 | 111 | 30.0% | 0.4615 | 0.51 | 0.24x |
+| L30_G50 | 7 | 456 | 137 | 30.0% | 0.4621 | 0.63 | 0.30x |
+| L50_G30 | 2 | 370 | 111 | 30.0% | 0.4615 | 0.51 | 0.24x |
+| L50_G30 | 7 | 456 | 137 | 30.0% | 0.4621 | 0.63 | 0.30x |
+
+It reproduces `headroom`'s K and ceiling **exactly** -- 74 / 92 / 111 / 137 and
+0.3333 / 0.3358 / 0.4615 / 0.4621 -- with no model and no predictions, which is
+an independent check on both tools. It also names the binding scope per row, so
+the inert-global bug that cost 30x cannot come back silently: at `L50_G30` the
+GLOBAL binds (111 against a local sum of 185) and at `L20_G50` the LOCAL does
+(74 against a global of 185).
+
+It can say yes. At `p = 0.95` a `K = 300` budget prices at 15 items and reads
+**WORTH RUNNING**; a screen that only ever refuses decides nothing, and that is
+in its `--self-test`.
+
+⚠️ **`dataset_screen` and `ceiling_screen` are INDEPENDENT and a candidate needs
+BOTH.** The first asks whether the counts carry information the training set
+lacks; the second asks whether there is anything to win with it. iwildcam passes
+the first at **+3131 items, z = 97.4** and fails the second at **0.34-0.63**.
+
 #### What this leaves, stated plainly
 
 * **On the CAPPED classes, the best any method can do here is TIE.** That is not
@@ -6116,7 +6152,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             393 tests, ~180 s, no dataset required
+tests/             395 tests, ~180 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

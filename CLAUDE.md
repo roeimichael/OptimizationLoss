@@ -60,7 +60,7 @@ imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 393 regression tests, ~180s, no dataset needed
+python -m pytest tests -q                   # 395 regression tests, ~180s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -143,6 +143,24 @@ python -m scripts.dataset_screen <slice-dir> ...  # CAN a count constraint carry
                                             #   derm slice_1 +65 passes stage 1 and STILL
                                             #   nulls, so stage 1 is necessary only --
                                             #   stage 2 is `scope_probe --calibrate`
+python -m scripts.ceiling_screen <slice-dir> --caps L20_G50 L30_G50 --classes 2 7
+                                            #   the OTHER half of the question, and it is
+                                            #   independent: even where the counts carry
+                                            #   information, the PRIZE can be zero.
+                                            #   Emitting only K predictions for a class
+                                            #   with n true instances caps cc-F1 at
+                                            #   `2K/(K+n)`, so the WHOLE prize for any
+                                            #   method is `(1-p)*K` items -- no loss, dual,
+                                            #   allocator or optimizer changes that bound.
+                                            #   🛑 On iwildcam K/n is 16-30%, ccP is
+                                            #   already 0.9954, and the prize is
+                                            #   **0.34-0.63 items against a 2.11-item seed
+                                            #   sd** -- so the best any method can do on
+                                            #   the capped classes here is TIE. FRAMEWORK
+                                            #   2(v). Labels + cap policy only; it
+                                            #   reproduces `headroom`'s K and ceiling
+                                            #   exactly with NO model. `--self-test` gates
+                                            #   it, and it CAN say WORTH RUNNING.
 python -m scripts.scope_probe --campaign <root>   # `L20_G50` and `L50_G20` impose the
                                             #   SAME TOTAL, so the local-vs-global SCOPE
                                             #   question is answerable with the model held
