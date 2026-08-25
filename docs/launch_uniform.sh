@@ -417,8 +417,39 @@ test -z "$(git status --porcelain src/ configs/ main.py)" || {
     echo "REFUSING: src/ configs/ main.py are dirty -- code_version would be"
     echo "  stamped -dirty and the campaign would read as split."; exit 1; }
 
-mkdir -p data
-[ -e data/iwildcam ] || ln -s ~/optloss-audit/data/iwildcam data/iwildcam
+# 🛑 DO NOT TEST FOR THE DIRECTORY. `data/iwildcam/oodslice/train_meta.csv` and
+# `test_meta.csv` are TRACKED IN GIT, so checking out ANY commit creates
+# `data/iwildcam/oodslice/` holding those two CSVs and nothing else. The guard
+# that used to be here --
+#
+#     [ -e data/iwildcam ] || ln -s ~/optloss-audit/data/iwildcam data/iwildcam
+#
+# -- then saw the directory, skipped the link, and every run died on
+# `train_images.npy`. It cost a launch on 2026-08-25: the dispatcher walked the
+# whole campaign in four minutes at 0% GPU, and because an interrupted run resets
+# to `pending` the tree afterwards looked merely unstarted. THE ARRAYS ARE NOT IN
+# GIT AND NEVER WILL BE -- test for the file the runner actually opens.
+#
+# Link the ARRAYS only, not the directory: the tracked CSVs stay tracked, so
+# `git status` stays clean and `code_version` stays a clean hash rather than
+# `-dirty`.
+IWSRC=~/optloss-audit/data/iwildcam/oodslice
+IWDST=data/iwildcam/oodslice
+test -d "$IWSRC" || { echo "REFUSING: $IWSRC does not exist on this host."; exit 1; }
+mkdir -p "$IWDST"
+for f in "$IWSRC"/*.npy; do
+    b=$(basename "$f")
+    [ -e "$IWDST/$b" ] || ln -s "$f" "$IWDST/$b"
+done
+# AND VERIFY, because linking silently does nothing when the source glob is
+# empty. `-s` follows the symlink, so a dangling link fails here too.
+for need in train_images train_labels test_images test_labels; do
+    test -s "$IWDST/$need.npy" || {
+        echo "REFUSING: $IWDST/$need.npy is missing or empty after linking."
+        echo "  Every run would die on it, instantly, and reset to pending."
+        exit 1; }
+done
+echo "data OK: $(ls "$IWDST"/*.npy | wc -l) arrays linked from $IWSRC"
 
 PY=$HOME/anaconda3/envs/optloss/bin/python
 "$PY" -m configs.gen_campaign \

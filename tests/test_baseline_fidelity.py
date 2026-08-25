@@ -3244,3 +3244,76 @@ def test_the_CE_autocorrelation_is_MEASURED_and_the_probe_responds_to_batch_size
         "at the measured rho the trajectory now OPENS materially over 29 steps "
         "(%.2f -> %.2f deg), which reverses the conclusion that the per-step "
         "compression is the whole story" % (at_meas[0], at_meas[2]))
+
+
+def test_a_launch_script_VERIFIES_THE_DATA_ARRAY_not_just_the_directory():
+    """A guard that tests the wrong thing is worse than no guard.
+
+    `docs/launch_uniform.sh` linked the dataset into its fresh worktree with
+
+        [ -e data/iwildcam ] || ln -s ~/optloss-audit/data/iwildcam data/iwildcam
+
+    But `data/iwildcam/oodslice/train_meta.csv` and `test_meta.csv` ARE TRACKED
+    IN GIT. Checking out any commit therefore creates `data/iwildcam/oodslice/`
+    holding those two CSVs and nothing else, the `-e` test sees a directory, the
+    link is skipped, and every run dies instantly on `train_images.npy`.
+
+    Measured cost, 2026-08-25: the dispatcher walked all 252 runs in about four
+    minutes at 0% GPU. And because an interrupted run resets to `pending`, the
+    campaign afterwards looked merely unstarted rather than broken -- the same
+    silent shape `smoke_arms` exists for.
+
+    So: any launch script that links a dataset must test for a `.npy` the runner
+    actually opens, and must REFUSE rather than proceed. The directory test is
+    banned outright, since git will keep re-creating that directory.
+    """
+    import io
+    import re
+
+    checked = 0
+    for name in sorted(f for f in os.listdir("docs") if f.endswith(".sh")):
+        path = os.path.join("docs", name)
+        text = io.open(path, encoding="utf-8").read()
+        code = "\n".join(l for l in text.splitlines()
+                         if not l.lstrip().startswith("#"))
+        if "ln -s" not in code or "iwildcam" not in code:
+            continue
+        checked += 1
+        assert not re.search(r"\[\s*-e\s+\S*data/iwildcam\s*\]", code), (
+            "%s guards the dataset link with a directory test. git tracks CSVs "
+            "inside data/iwildcam/oodslice, so that directory always exists and "
+            "the link is always skipped." % path)
+        assert re.search(r"\.npy", code), (
+            "%s links a dataset but never names a .npy. The runner opens "
+            "train_images.npy; a guard that does not mention it cannot know "
+            "whether the link worked." % path)
+        assert "REFUSING" in code, (
+            "%s links a dataset without a refusal path. Linking silently does "
+            "nothing when the source glob is empty, and the campaign then "
+            "burns every run and resets them all to pending." % path)
+
+    assert checked, (
+        "no launch script links the dataset, so this gate checked nothing -- "
+        "either the link moved or the scripts did")
+
+
+def test_the_iwildcam_arrays_are_NOT_in_git_but_the_meta_csvs_ARE():
+    """The asymmetry the guard above exists for, pinned so it cannot drift.
+
+    If someone ever commits the arrays, the directory test becomes harmless and
+    this gate should be revisited. If someone ever REMOVES the CSVs from git,
+    the directory stops being auto-created and the old guard would have worked.
+    Either change invalidates the reasoning, so both are asserted.
+    """
+    tracked = subprocess.run(["git", "ls-files", "data/"],
+                             capture_output=True, text=True).stdout.split()
+    csvs = [f for f in tracked if f.endswith(".csv")]
+    npys = [f for f in tracked if f.endswith(".npy")]
+    assert csvs, (
+        "no CSV under data/ is tracked any more, so checking out a commit no "
+        "longer creates data/iwildcam/oodslice and the directory-test guard "
+        "would have been fine. Re-read the gate above before trusting it.")
+    assert not npys, (
+        "arrays are now tracked in git: %s. That is a repository-size problem "
+        "in its own right, and it also means the launch guard's premise has "
+        "changed." % npys[:3])
