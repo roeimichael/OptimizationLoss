@@ -1749,11 +1749,24 @@ def test_the_inert_flag_gate_can_actually_detect_an_inert_flag():
     """A gate nobody has seen fail is not known to work.
 
     `flag_live` exists because inert flags are this project's most frequent
-    failure mode -- four occurrences, every one of which passed audit_config
-    (the key had a reader) and smoke_arms (the arm ran). Comparing an arm to
-    ITSELF must report inert, which both proves the detector fires and proves
-    the harness is deterministic: if two runs of one arm already differ, no
-    difference between two arms means anything.
+    failure mode -- the catalogue is `docs/FRAMEWORK.md` 2(e), and every entry
+    passed audit_config (the key had a reader) and smoke_arms (the arm ran).
+    Comparing an arm to ITSELF must report inert, which both proves the detector
+    fires and proves the harness is deterministic: if two runs of one arm
+    already differ, no difference between two arms means anything.
+
+    Then every TREATMENT ARM A STAGED CAMPAIGN IS ABOUT TO RUN must be live.
+    The list is read out of `docs/*.sh` rather than hardcoded, so an arm added
+    to a launch script is covered the moment it is staged instead of the next
+    time somebody remembers this test. That is not hypothetical: this gate
+    checked `tralo_margin` while `docs/launch_uniform.sh` sat staged with
+    `tralo_uniform` and `tralo_head` as its two candidates and 252 GPU-runs
+    behind them -- and `flag_live`'s own docstring lists a PREVIOUS
+    `tralo_uniform` among the arms that shipped inert.
+
+    Shown to FAIL 2026-08-25 by setting `head_only: false`, which makes
+    `tralo_head` a rename of `tralo`: the gate named the arm and said it was
+    staged to run.
     """
 
     same = subprocess.run(
@@ -1767,13 +1780,46 @@ def test_the_inert_flag_gate_can_actually_detect_an_inert_flag():
         % same.stdout[-600:])
     assert "INERT" in same.stdout
 
-    diff = subprocess.run(
-        [sys.executable, "-m", "scripts.flag_live", "tralo", "tralo_margin",
-         "--constraint-epochs", "2"],
-        capture_output=True, text=True)
-    assert diff.returncode == 0, (
-        "soft_count_mode: margin produced bit-identical predictions to sum, "
-        "so it is a fifth inert flag:\n%s" % diff.stdout[-600:])
+    import shlex
+
+    P = load_protocol()
+    staged = set()
+    for name in sorted(f for f in os.listdir("docs") if f.endswith(".sh")):
+        text = io.open(os.path.join("docs", name), encoding="utf-8").read()
+        text = "\n".join(l for l in text.splitlines()
+                         if not l.lstrip().startswith("#"))
+        text = text.replace(chr(92) + "\n", " ")
+        for line in text.splitlines():
+            if "-m configs.gen_campaign" not in line:
+                continue
+            toks = shlex.split(line, posix=True)
+            if "--arms" not in toks:
+                continue
+            j = toks.index("--arms") + 1
+            while j < len(toks) and not toks[j].startswith("--"):
+                staged.add(toks[j])
+                j += 1
+
+    controls = {a for a, s in P["arms"].items() if s.get("count_control")}
+    treatments = sorted(
+        a for a in staged
+        if a != "tralo"
+        and P["arms"].get(a, {}).get("phase") == "trained"
+        and not a.endswith("_null")
+        and a not in controls)
+    assert treatments, (
+        "no staged launch script names a trained treatment arm, so this "
+        "gate checked nothing -- the --arms parse stopped matching")
+
+    for arm in treatments:
+        diff = subprocess.run(
+            [sys.executable, "-m", "scripts.flag_live", "tralo", arm,
+             "--constraint-epochs", "2"],
+            capture_output=True, text=True)
+        assert diff.returncode == 0, (
+            "%s produces BIT-IDENTICAL predictions to `tralo`, so it is a "
+            "rename and not an arm -- and it is STAGED TO RUN in a "
+            "campaign:\n%s" % (arm, diff.stdout[-600:]))
 
 
 def test_the_scorers_posthoc_list_matches_the_protocol():
