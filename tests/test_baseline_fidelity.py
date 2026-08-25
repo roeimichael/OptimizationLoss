@@ -3817,5 +3817,28 @@ def test_the_dose_reader_CATCHES_BOTH_HISTORICAL_FAILURES():
 
     # and the very start of a campaign is not a failure
     buf = io.StringIO()
-    assert report({"clip": [0, 0, 0, 4]}, {}, out=buf) == 0
+    assert report({"clip": [0, 0, 0, 4, 0]}, {}, out=buf) == 0
     assert "normal state at the very start" in buf.getvalue()
+
+    # A YOUNG campaign must not read as an OLD one. On its first outing this
+    # printed "36 run(s) predate the field" for 36 runs that had not started,
+    # which tells the reader their checkout is stale when it is merely early.
+    # `status` is what separates the two and nothing else can.
+    buf = io.StringIO()
+    report({"tralo": [29, 29, 1, 0, 0], "tralo_uniform": [0, 0, 0, 36, 0]},
+           {"tralo": {"bfloat16"}}, out=buf)
+    text = buf.getvalue()
+    assert "no FINISHED run yet (36" in text, text
+    assert "predate" not in text, text
+
+    buf = io.StringIO()
+    report({"tralo": [29, 29, 1, 0, 0], "clip": [0, 0, 0, 0, 36]},
+           {"tralo": {"bfloat16"}}, out=buf)
+    assert "predate the field" in buf.getvalue(), buf.getvalue()
+
+    # A lambda=0 twin attempts no steps and is NOT a post-hoc arm. Calling it
+    # one mislabels the control this project cannot read a campaign without.
+    buf = io.StringIO()
+    report({"tralo": [29, 29, 1, 0, 0], "tralo_null": [0, 0, 4, 0, 0]},
+           {}, out=buf)
+    assert "lambda=0 twin" in buf.getvalue(), buf.getvalue()

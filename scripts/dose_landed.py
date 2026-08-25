@@ -55,8 +55,17 @@ DOSE_FRACTION_TOLERANCE = 0.05
 
 
 def read_root(root):
-    """(arm -> [applied, attempted, runs_with_counts, runs_without], amps)."""
-    per = collections.defaultdict(lambda: [0, 0, 0, 0])
+    """(arm -> [applied, attempted, with_counts, unfinished, blind], amps).
+
+    `unfinished` and `blind` are counted apart on purpose. On a RUNNING
+    campaign most runs have no counts because they have not run yet, and
+    calling that "predates the field" -- which is what this printed on its
+    first outing against a live campaign -- tells the reader their campaign is
+    old when it is merely young. `status` separates them: the dispatcher
+    writes `pending` until a run finishes, and only a finished one says
+    `completed`.
+    """
+    per = collections.defaultdict(lambda: [0, 0, 0, 0, 0])
     amps = collections.defaultdict(set)
     for path in glob.glob(os.path.join(root, "**", "config.json"),
                           recursive=True):
@@ -73,7 +82,10 @@ def read_root(root):
         app = res.get("constraint_steps_applied")
         att = res.get("constraint_steps_attempted")
         if app is None or att is None:
-            cell[3] += 1
+            if str(cfg.get("status", "pending")) == "completed":
+                cell[4] += 1
+            else:
+                cell[3] += 1
             continue
         cell[0] += int(app)
         cell[1] += int(att)
@@ -83,15 +95,24 @@ def read_root(root):
 
 def report(per, amps, tolerance=DOSE_FRACTION_TOLERANCE, out=sys.stdout):
     """Print the table. Returns the number of PROBLEMS found."""
+    def slot(v, i):
+        return v[i] if len(v) > i else 0
+
     trained = {a: v for a, v in per.items() if v[1] > 0}
-    posthoc = sorted(a for a, v in per.items() if v[1] == 0 and v[2])
-    blind = sorted(a for a, v in per.items() if v[1] == 0 and not v[2] and v[3])
+    zero_dose = sorted(a for a, v in per.items() if v[1] == 0 and v[2])
+    waiting = sorted(a for a, v in per.items()
+                     if v[1] == 0 and not v[2] and slot(v, 3))
+    blind = sorted(a for a, v in per.items()
+                   if v[1] == 0 and not v[2] and slot(v, 4))
 
     if not trained:
         out.write("no completed run records a constraint-step count yet.\n")
+        if waiting:
+            out.write("  %d arm(s) have no FINISHED run yet: %s\n"
+                      % (len(waiting), ", ".join(waiting)))
         if blind:
-            out.write("  %d arm(s) have runs but no counts: %s\n"
-                      % (len(blind), ", ".join(blind)))
+            out.write("  %d arm(s) finished without counts, i.e. they predate "
+                      "the field: %s\n" % (len(blind), ", ".join(blind)))
         out.write("  This is the normal state at the very start of a "
                   "campaign. Re-run it once a TRAINED arm completes.\n")
         return 0
@@ -100,7 +121,7 @@ def report(per, amps, tolerance=DOSE_FRACTION_TOLERANCE, out=sys.stdout):
     out.write("CONSTRAINT DOSE -- steps that LANDED, against steps attempted\n")
     fracs = {}
     for arm in sorted(trained):
-        app, att, n, nb = trained[arm]
+        app, att, n = trained[arm][0], trained[arm][1], trained[arm][2]
         frac = app / float(att)
         fracs[arm] = frac
         amp = "/".join(sorted(amps.get(arm) or ["?"]))
@@ -109,12 +130,18 @@ def report(per, amps, tolerance=DOSE_FRACTION_TOLERANCE, out=sys.stdout):
                   % (arm, app, att, 100.0 * frac, n, amp, flag))
         if app != att:
             problems += 1
-    for arm in posthoc:
-        out.write("  %-16s %s\n" % (arm, "post-hoc: 0 steps attempted, as it "
-                                         "should be"))
+    for arm in zero_dose:
+        # A post-hoc clipper, or a lambda = 0 twin -- both attempt none, and
+        # calling either one "post-hoc" mislabels the control this project
+        # cannot read a campaign without.
+        out.write("  %-16s 0 steps attempted, as it should be "
+                  "(post-hoc arm, or a lambda=0 twin)\n" % arm)
+    for arm in waiting:
+        out.write("  %-16s no FINISHED run yet (%d still pending or "
+                  "running)\n" % (arm, slot(per[arm], 3)))
     for arm in blind:
-        out.write("  %-16s no counts recorded (%d run(s) predate the field)\n"
-                  % (arm, per[arm][3]))
+        out.write("  %-16s finished without counts: %d run(s) "
+                  "predate the field\n" % (arm, slot(per[arm], 4)))
 
     if problems:
         out.write("\n  A lost step is a SILENT dose reduction: the epoch ran, "
@@ -152,14 +179,14 @@ def self_test(out=sys.stdout):
     """The gate. A reporter that cannot fail is not a check."""
     ok = True
 
-    per = {"a": [29, 29, 1, 0], "b": [1, 29, 1, 0]}
+    per = {"a": [29, 29, 1, 0, 0], "b": [1, 29, 1, 0, 0]}
     n = report(per, {"a": {"bfloat16"}, "b": {"bfloat16"}}, out=open(os.devnull, "w"))
     if n < 2:
         out.write("SELF-TEST FAIL: a 3.4%% arm beside a 100%% one reported "
                   "%d problem(s), expected at least 2\n" % n)
         ok = False
 
-    per = {"a": [29, 29, 1, 0], "b": [29, 29, 1, 0]}
+    per = {"a": [29, 29, 1, 0, 0], "b": [29, 29, 1, 0, 0]}
     n = report(per, {}, out=open(os.devnull, "w"))
     if n != 0:
         out.write("SELF-TEST FAIL: two arms both at 100%% reported %d "
@@ -168,13 +195,30 @@ def self_test(out=sys.stdout):
 
     # Every arm low: the HOST case, which must still be caught even though the
     # arms agree with each other.
-    per = {"a": [716, 1044, 36, 0], "b": [720, 1044, 36, 0]}
+    per = {"a": [716, 1044, 36, 0, 0], "b": [720, 1044, 36, 0, 0]}
     n = report(per, {"a": {"float16"}, "b": {"float16"}},
                out=open(os.devnull, "w"))
     if n < 2:
         out.write("SELF-TEST FAIL: two arms both at ~69%% reported %d "
                   "problem(s); agreeing with each other is not the same as "
                   "landing\n" % n)
+        ok = False
+
+    # A YOUNG campaign must not read as an OLD one. This is exactly the
+    # wording the tool got wrong on its first outing against a live campaign.
+    import io as _io
+    buf = _io.StringIO()
+    report({"tralo_uniform": [0, 0, 0, 36, 0]}, {}, out=buf)
+    if "predate" in buf.getvalue() or "no FINISHED run yet" not in buf.getvalue():
+        out.write("SELF-TEST FAIL: 36 unstarted runs reported as predating "
+                  "the field:\n%s" % buf.getvalue())
+        ok = False
+
+    buf = _io.StringIO()
+    report({"tralo": [0, 0, 0, 0, 36]}, {}, out=buf)
+    if "predate" not in buf.getvalue():
+        out.write("SELF-TEST FAIL: 36 COMPLETED runs with no counts must be "
+                  "reported as predating the field:\n%s" % buf.getvalue())
         ok = False
 
     out.write("SELF-TEST %s\n" % ("PASS" if ok else "FAIL"))
