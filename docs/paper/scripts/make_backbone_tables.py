@@ -51,16 +51,31 @@ def cell_gaps(df, metric, bases):
     out = {}
     for (ds, mdl), g in df.groupby(["dataset", "model"]):
         recs = []
+        dropped = []
         for tag, gg in g.groupby("constraint_tag"):
             piv = gg.pivot_table(index="seed", columns="method", values=metric)
             have = [b for b in bases if b in piv]
             if "tralo" not in piv or not have:
+                dropped.append("%s (no %s at all)"
+                               % (tag, "tralo" if "tralo" not in piv
+                                  else "baseline"))
                 continue
             best = piv[have].max(axis=1)
             d = (piv["tralo"] - best).dropna()
             if len(d) >= 3:
                 recs.append((float(d.mean()), int((d >= EPS).sum()),
                              int((d <= -EPS).sum()), len(d)))
+            else:
+                # REPORTED, not silent. In the emitted table a cap level that
+                # was DISCARDED for thin seeds is indistinguishable from one
+                # that was never run -- both just shrink the W/T/L total. Only
+                # the first is a caveat about the analysis, and it is real:
+                # dermmnist x MobileNetV2 x L40_G40 keeps 2 of 5 seeds.
+                dropped.append("%s (%d of %d seeds after dropna)"
+                               % (tag, len(d), len(piv)))
+        if dropped:
+            print("  !! %s/%s: %d cap level(s) EXCLUDED from W/T/L for thin "
+                  "seeds: %s" % (ds, mdl, len(dropped), "; ".join(dropped)))
         out[(ds, mdl)] = recs
     return out
 

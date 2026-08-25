@@ -2458,3 +2458,62 @@ def test_family_split_does_not_count_an_UNMEASURABLE_cell_as_a_LOSS():
                and n.func.id == "print" for n in ast.walk(m[0])), (
         "matched() drops incomplete cell-seeds without reporting how many. "
         "'16 matched' reads very differently when 18 existed than when 200 did")
+
+
+def test_the_backbone_table_SAYS_when_a_cap_level_is_excluded(capsys):
+    """A discarded cap level and one that was never run look identical in W/T/L.
+
+    `cell_gaps` skips a cap tag when fewer than 3 seeds survive `.dropna()`, and
+    when `tralo` or every baseline is missing. Both just shrink the W/T/L total,
+    so the emitted table cannot distinguish "we ran this and threw it away" from
+    "this was never run" -- and only the first is a caveat about the analysis.
+    It is real: on the shipped corpus, dermmnist x MobileNetV2 x L40_G40 keeps
+    2 of 5 seeds, while MobileNetV2's other thin rows are genuine coverage
+    (5 and 7 cap levels exist on octmnist and tissuemnist).
+
+    `dropna` has caused a scorer bug in this project before -- a lagging third
+    arm deleted pairs from every comparison -- which is why this one reports.
+    """
+    import importlib.util
+    import io as _io
+    import numpy as np
+    import pandas as pd
+
+    path = "docs/paper/scripts/make_backbone_tables.py"
+    src = _io.open(path, encoding="utf-8").read()
+
+    # --- structural: the skip branches must feed a reported list.
+    tree = ast.parse(src)
+    fn = [n for n in ast.walk(tree)
+          if isinstance(n, ast.FunctionDef) and n.name == "cell_gaps"]
+    assert fn, "cell_gaps vanished from %s" % path
+    prints = [n for n in ast.walk(fn[0])
+              if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+              and n.func.id == "print"]
+    assert prints, (
+        "cell_gaps no longer prints anything, so a cap level excluded for thin "
+        "seeds is invisible in both the table and the run log")
+
+    # --- behavioural: a thin cap level must actually produce the warning.
+    spec = importlib.util.spec_from_file_location("_bbtest", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)          # emits the real tables; unchanged
+    capsys.readouterr()
+
+    rows = []
+    for tag, n_seed in (("L30_G30", 4), ("L50_G50", 2)):
+        for seed in range(n_seed):
+            for meth, val in (("tralo", 0.50), ("fioretto_ldf", 0.49)):
+                rows.append({"dataset": "d", "model": "m", "constraint_tag": tag,
+                             "seed": seed, "method": meth, "cc_f1": val})
+    frame = pd.DataFrame(rows)
+    out = mod.cell_gaps(frame, "cc_f1", ["fioretto_ldf"])
+    text = capsys.readouterr().out
+    assert "L50_G50" in text and "EXCLUDED" in text, (
+        "a cap level with 2 seeds was dropped without a word. stdout was: %r"
+        % text)
+    assert "L30_G30" not in text, (
+        "a cap level with enough seeds was reported as excluded: %r" % text)
+    assert len(out[("d", "m")]) == 1, (
+        "expected exactly the 4-seed cap level to survive, got %d records"
+        % len(out[("d", "m")]))

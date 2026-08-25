@@ -380,3 +380,41 @@ the panel means what the current script would draw.
 ⚠️ `fig_mechanism` is the subtler case: every label is identical and only the
 GEOMETRY moved (-575 `l` operators). A reader diffing labels would call it
 unchanged. The curves are what changed.
+
+## The backbone tables cover fewer cap levels for MobileNetV2, and one is a DISCARD
+
+`make_backbone_tables.py` emits `tab_backbone_generality.tex` and
+`tab_deploy_backbone.tex`, and both regenerate **byte-for-byte**. Their W/T/L
+triples sum to the number of cap levels behind each row, and those totals are
+**not equal across rows**:
+
+| backbone | W/T/L totals (Table A, the three datasets) |
+|---|---|
+| MobileNetV3 | 9 / 9 / 9 |
+| RegNetY-400MF | 9 / 9 / 9 |
+| ViT-B/16 | 9 / 9 / 9 |
+| **MobileNetV2** | **7 / 6 / 5** |
+
+Measured 2026-08-25, and **most of that is genuine coverage, not a defect**:
+only 5 cap levels exist for `octmnist x MobileNetV2` and 7 for
+`tissuemnist x MobileNetV2`, because MobileNetV2 lives in the `paper_backbones`
+sweep rather than `paper_final`.
+
+🔑 **But ONE of them is a discard, and the table cannot show the difference.**
+`dermmnist x MobileNetV2 x L40_G40` **was run and was thrown away**: only 2 of
+its 5 seeds survive the `.dropna()` that pairs `tralo` against the best
+baseline, and `cell_gaps` requires 3. In the emitted table that is
+indistinguishable from a cap level that never ran -- both simply shrink the
+W/T/L total -- yet only the first is a caveat about the *analysis*.
+
+⚠️ `dropna` has produced a scorer bug in this project before: it once ran over
+ALL arms, so a lagging third arm deleted pairs from every comparison.
+
+✅ **FIXED 2026-08-25 by making the generator SAY SO**, not by changing the
+table -- both `.tex` files still regenerate byte-for-byte. `cell_gaps` now
+prints every excluded cap level with its surviving seed count, and separately
+reports the `no tralo / no baseline at all` branch (which removes three cap
+levels from `dermmnist x ShuffleNetV2`, a row that does not reach the paper).
+Gated by `test_the_backbone_table_SAYS_when_a_cap_level_is_excluded`, which
+checks both directions: a thin cap level must be reported, and a healthy one
+must not.
