@@ -4857,6 +4857,19 @@ The answer to (2) decides how every archived FP16 number is read, and it costs
 nothing extra to ask -- which is the whole reason this campaign is on the FP16
 host rather than the free BF16 one.
 
+✅ **QUESTION (2) IS ANSWERED, on iwc4's FIRST trained run, 2026-08-25:**
+
+    tralo   29 / 29   100.0%   amp=float16      (iwc3, same host, no flag: 68.6%)
+
+`--constraint-fp32` removes the FP16 GradScaler loss **entirely**, on the host
+that produced it. So the ~31% shortfall in `iwc1`, `iwc2` and `iwc3` is a
+FIXABLE setting and not a property of the hardware, and every number from those
+three is a **lower bound on constraint effect that can now be lifted**. It cost
+one run to learn, against 292 runs of not knowing.
+
+Question (1) -- does the 0-of-9 sweep survive at full dose -- waits for the
+campaign, and its falsification condition is fixed above and not to be edited.
+
 ⚠️ **`--constraint-fp32` CHANGES TWO THINGS, and the pre-registration owns**
 **that.** It raises the step COUNT (68.6% -> 100% is the prediction) *and* it
 runs the constraint pass at float32 rather than float16, so the step DIRECTION
