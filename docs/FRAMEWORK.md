@@ -3861,6 +3861,42 @@ that cannot tell the two apart.
 the damage above was done at roughly two thirds of the intended dose, which
 makes it a LOWER bound, not an overstatement.
 
+#### What the OPTIMISATION did, from `log_health` -- 132 readable logs
+
+The metrics above are the outcome. This is the process, and it rules out the
+two ways a table like that gets believed for the wrong reason.
+
+* **No terminal collapse.** Final training accuracy is 0.9982-0.9989 across
+  all five arms, with no run off its own trajectory. The trap in
+  `project_terminal_collapse_trap` -- one control ending 0.9934 -> 0.9116 and
+  reversing a headline -- is not present here.
+* **The regime is LIVE, not the saturated one.** Warm-up ends at 0.963 median
+  and the constraint epochs add **+0.036**, against the saturated signature's
+  `acc >= 0.93 AND |gain| <= 0.005`. This is not warm-up 50 in disguise.
+* **The constraint is never satisfied: 0 of 1073 epochs**, for `tralo` and for
+  its twin alike.
+
+🔑 **AND THE COUNT TRAJECTORY SAYS THE SAME THING THE METRICS DO, IN ITEMS.**
+Over all 29 constraint epochs, mean capped-class count, first epoch to last:
+
+| arm | class 2 (K=185) | class 7 (K=228) | slope /epoch |
+|---|---|---|---|
+| `tralo` | 367 -> 363 (**-4**) | 458 -> 461 (**+3**) | -0.38 / +0.26 |
+| `tralo_null` | 367 -> 368 (+1) | 459 -> 465 (+6) | +0.16 / -0.07 |
+| `tralo_reseed` | 393 -> 371 (**-22**) | 436 -> 459 (**+23**) | **-0.79 / +0.80** |
+
+**Perturbing the RNG stream moves the capped count five to eight times more
+than the constraint does**, in the same cells, over the same epochs, against
+violations of 182 and 230 items. That is section (13) measured again on
+iwildcam at 9 cells, and it is measured per class rather than as an RMS.
+
+🔴 **THE STARVATION SIGNATURE IS PRESENT AND `log_health` NAMES IT.** Per
+(group, class) scope, `tralo`'s WORST violation -- `g53/class7`, over by 148 --
+*rises* at **+0.69/epoch**, while the already-satisfied `g218/class2`, over by
+0, sits at -0.02. The penalty's gradient is non-monotone in the violation and
+the scopes compete for one unit-norm clip: 2(a2), on this dataset, at this cap
+sweep, in the campaign whose metrics are quoted above.
+
 ### (r) 🔴🔴🔴 THE CONSTRAINT EVICTS THE CORRECT ITEMS -- measured 2026-08-24, and it is the mechanism
 
 `scripts/order_probe.py --evictions`, `results/iwc2`, `tralo` against its OWN
