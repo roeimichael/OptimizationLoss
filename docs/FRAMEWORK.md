@@ -4746,6 +4746,33 @@ The provenance was there the whole time: `results.runtime` records `amp_dtype`,
 was added. Nothing read it. This is the same shape as every other defect in
 2(e) -- the record existed, the reader did not.
 
+#### 🔁 THE SAME DEFECT AT THE OTHER END, found by looking for it
+
+`EPSILON` guards a divisor in `window_temp` as `clamp(t, min=EPSILON)`. In
+float16 the smallest SUBNORMAL is 5.96e-8, so 1e-8 rounds to exactly 0 and the
+floor becomes `clamp(min=0)`. `margin_window` then computes
+`sigmoid(margin / 0)`, which is **NaN at margin 0** -- the items AT the
+decision boundary, which are the entire point of a margin window.
+
+Measured 2026-08-25, `sigmoid(m / clamp(0, min=EPSILON))`:
+
+| dtype | clamped temp | result at margin 0 |
+|---|---|---|
+| float16 | **0.0** | **NaN** |
+| bfloat16 | 1.00e-8 | 0.5 |
+| float32 | 1.00e-8 | 0.5 |
+
+`tralo_margin` is not in any live campaign, but `docs/launch_margin1.sh`
+stages it, and `margin1`'s host would decide whether it NaNs. Fixed by
+`clamp_denominator`, whose floor is `finfo(dtype).tiny` (the smallest NORMAL,
+not `.eps` -- this bounds a divisor, not a distance from 1). float32 and
+bfloat16 are unchanged at 1e-8; float16 becomes 6.10e-5.
+
+⚠️ **SCOPE, stated so the boundary is a decision and not an oversight.** The
+gate covers CLAMPS only. `x / (s + EPSILON)` has the same rounding, but
+whether it is safe depends on `s` -- in the two live cases `s >= 1` -- so
+flagging the additive form would be noise, not a finding.
+
 #### 📌 PRE-REGISTERED: `results/iwc4`, written 2026-08-25 BEFORE the launch
 
 `docs/launch_iwc4.sh`. iwc3's exact design -- 9 cells, `tralo` / `tralo_null` /
@@ -4767,6 +4794,17 @@ and silently skip the second.
 The answer to (2) decides how every archived FP16 number is read, and it costs
 nothing extra to ask -- which is the whole reason this campaign is on the FP16
 host rather than the free BF16 one.
+
+⚠️ **`--constraint-fp32` CHANGES TWO THINGS, and the pre-registration owns**
+**that.** It raises the step COUNT (68.6% -> 100% is the prediction) *and* it
+runs the constraint pass at float32 rather than float16, so the step DIRECTION
+also stops carrying fp16 rounding. The two are not separable in this campaign.
+They are not equal in size, though: under `constraint_grad_mode: clip` the
+delivered step is `min(raw, K)` and 2(a3) measured that the clip binds at
+exactly 1.000 against raw norms of 2,560-12,400, so MAGNITUDE is void and only
+direction and count are live. A precision change perturbs direction at the
+level of rounding; the dose change is a third of the phase. **Report it as a
+dose result with a precision confound, never as a clean dose result.**
 
 🛑 **THE GENERAL RULE, and it is cheap to apply.** `full_panel` already prints
 `CONSTRAINT DOSE -- steps that LANDED, against steps attempted` and already

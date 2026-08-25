@@ -3538,6 +3538,21 @@ def test_a_probability_clamp_SURVIVES_THE_DTYPE_IT_ACTUALLY_RUNS_IN():
         "probabilities: %s. This is the failure that cost `tralo_uniform` 28 "
         "of its 29 constraint steps." % p.grad)
 
+    # The same failure at the other end: `clamp(min=EPSILON)` in float16 is
+    # `clamp(min=0)`, and `window_temp` then makes `sigmoid(margin / 0)` NaN
+    # for a margin of exactly 0 -- the items AT the decision boundary, which
+    # are the whole point of the margin window.
+    from src.losses.transductive_loss import window_temp, margin_window
+    for dtype in (torch.float16, torch.bfloat16, torch.float32):
+        flat = torch.zeros((6, 3), dtype=dtype)
+        t = window_temp(flat, 3)
+        assert torch.isfinite(t).all() and (t > 0).all(), (
+            "window_temp returned a non-positive temperature in %s: %s"
+            % (dtype, t))
+        w = margin_window(torch.full((6, 3), 1.0 / 3.0, dtype=dtype), t)
+        assert torch.isfinite(w).all(), (
+            "margin_window is non-finite in %s at zero margin: %s" % (dtype, w))
+
     # No site may re-derive the bound by hand. AST, so a comment or a log line
     # naming EPSILON cannot pass for a use.
     class Finder(ast.NodeVisitor):
@@ -3549,11 +3564,19 @@ def test_a_probability_clamp_SURVIVES_THE_DTYPE_IT_ACTUALLY_RUNS_IN():
                 node.func, "id", None)
             if name == "clamp":
                 for a in list(node.args) + [k.value for k in node.keywords]:
+                    # `clamp(EPSILON, 1 - EPSILON)` -- dead at the top.
                     if (isinstance(a, ast.BinOp)
                             and isinstance(a.op, ast.Sub)
                             and isinstance(a.left, ast.Constant)
                             and float(a.left.value) == 1.0
                             and getattr(a.right, "id", None) == "EPSILON"):
+                        self.bad.append(node.lineno)
+                    # `clamp(min=EPSILON)` -- dead at the BOTTOM in float16,
+                    # where 1e-8 is under the smallest subnormal and rounds to
+                    # 0. Scope is deliberately CLAMPS ONLY: an additive guard
+                    # like `x / (s + EPSILON)` has the same rounding but its
+                    # safety depends on `s`, so flagging it would be noise.
+                    elif getattr(a, "id", None) == "EPSILON":
                         self.bad.append(node.lineno)
             self.generic_visit(node)
 

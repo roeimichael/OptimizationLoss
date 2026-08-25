@@ -27,7 +27,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.utils.constants import UNLIMITED, EPSILON, clamp_probability
+from src.utils.constants import (UNLIMITED, EPSILON, clamp_probability,
+                                 clamp_denominator)
 
 
 def margins(proba):
@@ -63,7 +64,7 @@ def window_temp(m, n_items):
     """
     k = max(1, min(int(n_items), m.shape[0]))
     t = torch.sort(m.abs(), dim=0).values[k - 1]
-    return torch.clamp(t, min=EPSILON)
+    return clamp_denominator(t)
 
 
 def uniform_grad_count(proba):

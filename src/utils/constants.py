@@ -58,6 +58,27 @@ def clamp_probability(p):
     eps = max(EPSILON, float(torch.finfo(p.dtype).eps))
     return p.clamp(eps, 1.0 - eps)
 
+
+def clamp_denominator(t):
+    """Floor `t` away from zero, in the dtype it actually lives in.
+
+    Same failure as `clamp_probability`, at the other end. `t.clamp(min=EPSILON)`
+    reads as "never divide by zero" and is not: EPSILON is 1e-8 and float16's
+    smallest SUBNORMAL is 5.96e-8, so 1e-8 rounds to exactly 0 there and the
+    clamp becomes `clamp(min=0)`. Measured: `window_temp` then returns 0, and
+    `sigmoid(margin / 0)` is **NaN** for a margin of 0 -- i.e. for exactly the
+    items at the decision boundary, which is the entire point of the margin
+    window.
+
+    The floor is `finfo(dtype).tiny`, the smallest NORMAL, not `.eps`: this
+    bounds a divisor, not a distance from 1. In float32 and bfloat16 tiny is
+    1.18e-38, so EPSILON already dominates and nothing changes; in float16 it
+    is 6.10e-5, which is the smallest value that can actually divide there.
+    """
+    import torch
+
+    return t.clamp(min=max(EPSILON, float(torch.finfo(t.dtype).tiny)))
+
 # Default rows per NO-GRAD forward pass over the test set when a config does
 # not set `inference_chunk_size`. Lived in tralo/train.py, where danits_lp
 # could not see it and hardcoded its own 256 instead.
