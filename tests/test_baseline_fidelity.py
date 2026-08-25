@@ -2854,12 +2854,27 @@ def test_a_documented_command_passes_FLAGS_THAT_EXIST():
                         out.add(a.value)
         return out
 
+    # Interpreter-agnostic: the docs write `python -m`, the launch scripts
+    # write `"$PY" -m`. Anchor on `-m <module>`, which is the part that
+    # matters and the part neither can spell differently.
     CMD = re.compile(
-        r"python\s+-m\s+((?:scripts|configs|docs\.paper\.scripts)"
+        r"-m\s+((?:scripts|configs|docs\.paper\.scripts)"
         r"\.[a-z_0-9]+)([^\n`]*)")
+    # The launch scripts are in scope for exactly the reason the arm gate
+    # above exists: they run once, on a server, by hand.
+    sources = ["CLAUDE.md", "docs/FRAMEWORK.md"]
+    sources += [os.path.join("docs", f) for f in sorted(os.listdir("docs"))
+                if f.endswith(".sh")]
     bad, seen = [], 0
-    for doc in ("CLAUDE.md", "docs/FRAMEWORK.md"):
+    for doc in sources:
         text = io.open(doc, encoding="utf-8").read()
+        if doc.endswith(".sh"):
+            # Comments discuss commands; only real invocations count. And
+            # bash line continuations must be joined first, or every flag
+            # on a wrapped line is invisible to this gate.
+            text = "\n".join(l for l in text.splitlines()
+                              if not l.lstrip().startswith("#"))
+            text = text.replace(chr(92) + "\n", " ")
         for m in CMD.finditer(text):
             mod, rest = m.group(1), m.group(2)
             path = mod.replace(".", os.sep) + ".py"
