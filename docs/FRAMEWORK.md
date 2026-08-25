@@ -4887,7 +4887,7 @@ refuses to let two arms at different landing rates be compared silently. **Read
 that block FIRST, on the first completed runs, not at the end.** It cost 4 runs
 here. At `iwc3` it would have cost 180 and did.
 
-### (v) 🛑🛑🛑 ON iwildcam THE CAPPED-CLASS CEILING IS **ALREADY REACHED**
+### (v) 🛑🛑🛑 AT EVERY CAP THIS PROTOCOL SWEEPS, THE WHOLE PRIZE IS BELOW THE SEED NOISE
 
 `python -m scripts.headroom results/iwc3`, 2026-08-25, 9 cells, 4 seeds, control
 `clip`. This is the gap to a PERFECT RANKING -- not to a better method, and not
@@ -4956,6 +4956,53 @@ in its `--self-test`.
 BOTH.** The first asks whether the counts carry information the training set
 lacks; the second asks whether there is anything to win with it. iwildcam passes
 the first at **+3131 items, z = 97.4** and fails the second at **0.34-0.63**.
+
+#### ⚠️ CORRECTION TO THIS SECTION, made the same day it was written
+
+The heading says the ceiling is *already reached*, and that is true **only at
+the cap levels this protocol sweeps**. Measured off the same 36 `clip` runs, at
+budgets the protocol has never run, the prize is NOT zero -- and neither is the
+noise. Both are in items; `prize = (1 - p@K) * K` is the gap to a perfect
+ranking and `seed sd` is the within-cell sd of TP@K across the 4 seeds:
+
+| K/n | class 2 p@K | prize | seed sd | prize/sd | class 7 prize | seed sd | prize/sd |
+|---|---|---|---|---|---|---|---|
+| **20%** | 0.9944 | 0.42 | 0.80 | **0.52x** | 0.00 | 0.00 | -- |
+| **30%** | 0.9895 | 1.17 | 1.96 | **0.60x** | 0.00 | 0.00 | -- |
+| 40% | 0.9854 | 2.17 | 3.66 | 0.59x | 0.17 | 0.41 | 0.41x |
+| **50%** | 0.9779 | 4.08 | 6.20 | **0.66x** | 0.42 | 0.73 | 0.57x |
+| 60% | 0.9688 | 6.92 | 8.36 | 0.83x | 1.50 | 2.39 | 0.63x |
+| 70% | 0.9556 | 11.50 | 10.44 | **1.10x** | 3.58 | 4.42 | 0.81x |
+| 80% | 0.9392 | 18.00 | 11.52 | **1.56x** | 11.08 | 7.79 | 1.42x |
+| 90% | 0.9104 | 29.83 | 13.45 | **2.22x** | 24.58 | 12.91 | 1.90x |
+
+(bold rows are `L20`, `L30`, `L50` -- the only levels the protocol runs.)
+
+🔑 **THE PRIZE AND THE NOISE GROW TOGETHER, and the ratio is what matters.**
+A looser cap does buy headroom -- 0.42 items at 20% becomes 29.83 at 90% -- but
+it cuts deeper into the contested middle and the allocation noise rises with
+it, which is 2(i) measured on this dataset. `prize/sd` is **0.41 to 0.66 at
+every cap the protocol sweeps**, crosses 1.0 only above K/n ~ 70%, and reaches
+2.2x at 90%.
+
+⇒ **Three statements, in decreasing strength, and only the first two are
+safe:**
+
+1. **At L20 / L30 / L50 the entire gap to a PERFECT ranking is smaller than the
+   seed noise.** A method capturing 100% of it would still not be detectable at
+   4 seeds. This is the closure that matters, because it is the region every
+   campaign in this project has run.
+2. **The ratio is monotone in K/n and the protocol has never gone above 0.5.**
+   If a looser cap is ever run, price it here first -- and re-measure the sd
+   there rather than reusing 2.11, which is a `L20`-`L50` number.
+3. ~~Nothing can ever be won on iwildcam~~ is NOT established. What is
+   established is that at K/n <= 0.5 nothing can be MEASURED. At K/n = 0.9 a
+   method capturing half the prize would sit at ~1.1x the seed sd, which is
+   still not enough at 4 seeds -- but that is a power statement, not a null.
+
+⚠️ And a looser cap costs the research question something real: at K/n = 0.9 the
+budget admits 90% of the true positives, so the constraint barely constrains.
+**Say what the cap is buying before proposing to loosen it.**
 
 #### What this leaves, stated plainly
 

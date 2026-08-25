@@ -22,15 +22,32 @@ that bound. It is set by `K` and by how good the ranking already is.
 WHY IT BITES. `p` is not independent of `K/n`. When the budget is a small
 fraction of the true positives, the top-K set is drawn from a pool several
 times its own size and is filled with correct items almost by default.
-Measured on `results/iwc3` (FRAMEWORK 2(v)): `K/n` is 16-30%, `ccP` is 0.9954,
-and the prize is **0.0 to 1.0 items in six (cap, class) combinations, exactly
-0.0 in four of them** -- against a paired seed sd of 2.11 items. Every
-score-pushing arm this project has built was reordering items inside a set that
-was already all-correct.
 
-So a dataset is only worth a campaign if `K` is large enough that `(1-p)K`
-clears the seed noise. That needs LABELS and the CAP POLICY and nothing else --
-no images, no model, no GPU -- which is why this runs before a download.
+🛑 AND THE NOISE MOVES THE SAME WAY, which is why a prize alone decides
+nothing. A looser cap buys headroom AND cuts deeper into the contested middle,
+so the seed sd rises with it. Both measured on `results/iwc3`, 36 `clip` runs,
+9 cells, 4 seeds, pooled over the two capped classes:
+
+    K/n     p@K      prize    seed sd   prize/sd
+    20%   0.9972      0.21      0.40      0.52x      <- L20, the protocol
+    30%   0.9948      0.58      0.98      0.59x      <- L30 / L50, the protocol
+    50%   0.9881      2.20      3.47      0.63x
+    70%   0.9722      7.24      7.43      0.97x
+    80%   0.9544     13.50      9.66      1.40x
+    90%   0.9252     24.94     13.18      1.89x
+
+So the honest statement about iwildcam is NOT "there is no prize". It is that
+**at every cap this protocol sweeps the whole gap to a perfect ranking is
+smaller than the seed noise**, so a method capturing 100% of it would still not
+be detectable at 4 seeds. The ratio is monotone in `K/n` and crosses 1.0 only
+above ~70%, where the budget admits most of the true positives and the
+constraint barely constrains. FRAMEWORK 2(v).
+
+A dataset is worth a campaign where `(1-p@K)*K` is a comfortable multiple of
+the seed sd AT THAT `K/n`. `K` needs LABELS and the CAP POLICY and nothing else
+-- no images, no model, no GPU -- which is why this runs before a download;
+`p@K` and the sd need a model, so the built-in curve is iwildcam's and is a
+guide to WHERE to look, never a substitute for measuring them.
 
 The budgets are not re-derived here. `compute_local_constraints` and
 `compute_global_constraints` are imported from the training path, and the
@@ -47,6 +64,51 @@ import sys
 
 SEED_NOISE_ITEMS = 2.11          # iwc3, paired within-cell sd. FRAMEWORK 2(p-post)
 MEASURED_CCP = 0.9954            # iwc3, `tralo_null` against `clip`
+
+# 🛑 A FIXED p IS WRONG, AND IT WAS WRONG HERE FIRST. `p` is precision at the
+# cut, and it FALLS as the budget grows -- a bigger K reaches further down the
+# ranking. Holding it at 0.9954 said "iwildcam has no prize at any cap", when
+# the truth is narrower and more useful: it has no prize at the caps this
+# protocol sweeps.
+#
+# And the noise moves too, in the same direction, which is 2(i): a looser cap
+# cuts deeper into the contested middle. Quoting a prize against a fixed sd
+# measured at L20-L50 overstates it by up to 6x.
+#
+# Both curves, measured on `results/iwc3`, 36 `clip` runs, 9 cells, 4 seeds,
+# pooled over the two capped classes. `sd` is the within-cell sd of TP@K across
+# seeds, in items. FRAMEWORK 2(v).
+#
+#            K/n     p@K      sd(items)
+IWILDCAM_CURVE = [
+    (0.20, 0.9972, 0.40),
+    (0.30, 0.9948, 0.98),
+    (0.40, 0.9923, 2.04),
+    (0.50, 0.9881, 3.47),
+    (0.60, 0.9817, 5.38),
+    (0.70, 0.9722, 7.43),
+    (0.80, 0.9544, 9.66),
+    (0.90, 0.9252, 13.18),
+]
+
+
+def calibrated(ratio, curve=IWILDCAM_CURVE):
+    """(p, sd_items) at this K/n, linearly interpolated, clamped at the ends.
+
+    ⚠️ THIS IS AN iwildcam CALIBRATION AND IT DOES NOT TRANSFER. It is here so
+    the screen stops pretending p is constant, not so a candidate dataset can
+    be priced without measuring its own. On a new dataset use it to see WHERE
+    the ratio might become measurable, then measure p and sd there.
+    """
+    if ratio <= curve[0][0]:
+        return curve[0][1], curve[0][2]
+    if ratio >= curve[-1][0]:
+        return curve[-1][1], curve[-1][2]
+    for (r0, p0, s0), (r1, p1, s1) in zip(curve, curve[1:]):
+        if r0 <= ratio <= r1:
+            w = (ratio - r0) / (r1 - r0)
+            return p0 + w * (p1 - p0), s0 + w * (s1 - s0)
+    return curve[-1][1], curve[-1][2]
 
 
 def budgets(meta_path, caps, classes, group_col, num_classes):
@@ -75,44 +137,63 @@ def budgets(meta_path, caps, classes, group_col, num_classes):
     return out
 
 
-def report(rows, ccp=MEASURED_CCP, noise=SEED_NOISE_ITEMS, out=sys.stdout):
-    """Print the table. Returns the number of (cap, class) cells worth running."""
+def report(rows, ccp=None, noise=None, out=sys.stdout):
+    """Print the table. Returns the number of (cap, class) cells worth running.
+
+    `ccp` and `noise` override the K/n-dependent calibration with constants --
+    for the self-test, and for a dataset whose own p and sd have been measured.
+    """
     out.write("CEILING SCREEN -- how many items can ANY method win here?\n")
     out.write("  ceiling = 2K/(K+n): you cannot recall what you may not emit.\n")
-    out.write("  prize   = (1-p)*K items, p = precision at the cut. No loss, "
-              "dual,\n            allocator or optimizer changes this bound.\n")
-    out.write("  Reference: paired seed sd %.2f items; measured p = %.4f "
-              "(iwc3).\n\n" % (noise, ccp))
-    out.write("  %-10s %6s %7s %8s %9s %9s %8s %9s  %s\n"
-              % ("cap", "class", "n", "K", "K/n", "ceiling", "prize", "vs noise",
-                 "verdict"))
+    out.write("  prize   = (1-p@K)*K items. No loss, dual, allocator or\n"
+              "            optimizer changes this bound.\n")
+    out.write("  BOTH p@K and the seed sd move with K/n, in the SAME direction:\n"
+              "  a looser cap buys headroom AND cuts deeper into the contested\n"
+              "  middle. The ratio is the only thing worth reading.\n")
+    if ccp is None and noise is None:
+        out.write("  p@K and sd are interpolated from the iwildcam curve "
+                  "(iwc3, 36 clip runs).\n"
+                  "  !! THEY DO NOT TRANSFER. On a new dataset use them to see "
+                  "WHERE the ratio\n"
+                  "     could become measurable, then measure p and sd there.\n")
+    out.write("\n")
+    out.write("  %-10s %6s %7s %8s %8s %8s %8s %7s %8s  %s\n"
+              % ("cap", "class", "n", "K", "K/n", "p@K", "prize", "sd",
+                 "prize/sd", "verdict"))
     worth = 0
     for tag, c, n, kg, kl, k in rows:
         ratio = k / float(n) if n else 0.0
         ceiling = 2.0 * k / (k + n) if (k + n) else 0.0
-        prize = (1.0 - ccp) * k
-        rel = prize / noise if noise else 0.0
-        if rel >= 1.0:
+        cal_p, cal_sd = calibrated(ratio)
+        p = cal_p if ccp is None else ccp
+        sd = cal_sd if noise is None else noise
+        prize = (1.0 - p) * k
+        rel = (prize / sd) if sd else float("inf") if prize else 0.0
+        if rel >= 2.0:
             verdict = "WORTH RUNNING"
             worth += 1
-        elif rel >= 0.5:
+        elif rel >= 1.0:
             verdict = "marginal"
         else:
             verdict = "*** PRIZE BELOW THE NOISE"
-        out.write("  %-10s %6d %7d %8d %8.1f%% %9.4f %8.2f %8.2fx  %s\n"
-                  % (tag, c, n, k, 100.0 * ratio, ceiling, prize, rel, verdict))
+        out.write("  %-10s %6d %7d %8d %7.1f%% %8.4f %8.2f %7.2f %7.2fx  %s\n"
+                  % (tag, c, n, k, 100.0 * ratio, p, prize, sd, rel, verdict))
+        out.write("             ^ ceiling %.4f" % ceiling)
         if kg != k or kl != k:
-            out.write("             ^ global K=%d, local sum K=%d, BINDING K=%d\n"
+            out.write("   global K=%d, local sum K=%d, BINDING K=%d"
                       % (kg, kl, k))
+        out.write("\n")
     if not worth:
-        out.write("\n  *** NO (cap, class) CELL HAS A PRIZE ABOVE THE SEED "
-                  "NOISE.\n")
-        out.write("      The best any method can do on the capped classes here "
-                  "is TIE, and\n"
-                  "      every trained arm still shares a backbone with the "
-                  "UNCAPPED ones,\n"
-                  "      where 2(s) measures only downside. Raise K, or change "
-                  "the dataset.\n")
+        out.write("\n  *** NO (cap, class) CELL HAS A PRIZE WORTH TWICE THE "
+                  "SEED NOISE.\n")
+        out.write("      A method would have to capture the WHOLE gap to a "
+                  "perfect ranking\n"
+                  "      to show here, and every trained arm still shares a "
+                  "backbone with the\n"
+                  "      UNCAPPED classes, where 2(s) measures only downside. "
+                  "Raise K/n, or\n"
+                  "      change the dataset -- and re-measure p and sd wherever "
+                  "you move to.\n")
     # ASCII only, deliberately. The Windows console is cp1252 and a single
     # emoji in a print raises UnicodeEncodeError *mid-report*, so the table
     # above is printed and the process dies with exit 1 on the line after it.
@@ -149,22 +230,37 @@ def self_test(out=sys.stdout):
                   "bug can come back silently:\n%s" % text)
         ok = False
 
-    # A budget that is most of the class: K=300 of n=370 -> 1.38 items, still
-    # under the noise at p=0.9954, and that is the honest answer.
+    # THE CALIBRATION MUST MOVE. A fixed p said iwildcam had no prize at ANY
+    # cap, which is false and was the first thing this tool got wrong. At
+    # K/n = 0.81 the curve gives p ~ 0.952 and the prize is ~14 items, an
+    # order of magnitude above what a constant 0.9954 reports.
     buf = _io.StringIO()
     report([("L80_G80", 2, 370, 300, 300, 300)], out=buf)
-    if "1.38" not in buf.getvalue():
-        out.write("SELF-TEST FAIL: prize at K=300 should be (1-0.9954)*300 = "
-                  "1.38 items:\n%s" % buf.getvalue())
+    text = buf.getvalue()
+    row = [l for l in text.splitlines() if "L80_G80" in l][0]
+    prize_loose = float(row.split()[6])
+    if not (10.0 < prize_loose < 20.0):
+        out.write("SELF-TEST FAIL: at K/n=0.81 the prize should be ~14 items, "
+                  "got %.2f. The p@K calibration is not being applied:\n%s"
+                  % (prize_loose, text))
+        ok = False
+
+    # ... and the NOISE must move with it, or a loose cap looks free.
+    if float(row.split()[7]) < 5.0:
+        out.write("SELF-TEST FAIL: the seed sd at K/n=0.81 is ~9.7 items, not "
+                  "%s. Quoting a loose-cap prize against a tight-cap sd "
+                  "overstates it up to 6x:\n%s" % (row.split()[7], text))
         ok = False
 
     # The screen must be able to say YES, or it is not a screen. A worse
     # ranking makes the same budget worth chasing.
     buf = _io.StringIO()
-    worth = report([("L80_G80", 2, 370, 300, 300, 300)], ccp=0.95, out=buf)
+    worth = report([("L80_G80", 2, 370, 300, 300, 300)], ccp=0.90, noise=3.0,
+                   out=buf)
     if worth != 1 or "WORTH RUNNING" not in buf.getvalue():
-        out.write("SELF-TEST FAIL: at p=0.95 a K=300 budget is 15 items and "
-                  "must read as worth running:\n%s" % buf.getvalue())
+        out.write("SELF-TEST FAIL: at p=0.90 against sd 3.0 a K=300 budget is "
+                  "30 items and must read as worth running:\n%s"
+                  % buf.getvalue())
         ok = False
 
     out.write("SELF-TEST %s\n" % ("PASS" if ok else "FAIL"))
@@ -182,8 +278,15 @@ def main():
     ap.add_argument("--group-column", default="location",
                     help="the group column in test_meta.csv")
     ap.add_argument("--num-classes", type=int, default=8)
-    ap.add_argument("--ccp", type=float, default=MEASURED_CCP,
-                    help="assumed precision at the cut (default: iwc3's 0.9954)")
+    ap.add_argument("--ccp", type=float, default=None,
+                    help="override p@K with a constant. Default: interpolate "
+                         "the measured K/n curve, because p FALLS as the "
+                         "budget grows and a constant said iwildcam had no "
+                         "prize at any cap")
+    ap.add_argument("--noise", type=float, default=None,
+                    help="override the seed sd with a constant, in items. "
+                         "Default: interpolate the measured curve -- the noise "
+                         "grows with K too")
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()
 
@@ -198,7 +301,7 @@ def main():
 
     rows = budgets(meta, args.caps, args.classes, args.group_column,
                    args.num_classes)
-    return 0 if report(rows, ccp=args.ccp) else 1
+    return 0 if report(rows, ccp=args.ccp, noise=args.noise) else 1
 
 
 if __name__ == "__main__":

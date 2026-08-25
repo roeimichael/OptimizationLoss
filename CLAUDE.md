@@ -152,15 +152,23 @@ python -m scripts.ceiling_screen <slice-dir> --caps L20_G50 L30_G50 --classes 2 
                                             #   `2K/(K+n)`, so the WHOLE prize for any
                                             #   method is `(1-p)*K` items -- no loss, dual,
                                             #   allocator or optimizer changes that bound.
-                                            #   🛑 On iwildcam K/n is 16-30%, ccP is
-                                            #   already 0.9954, and the prize is
-                                            #   **0.34-0.63 items against a 2.11-item seed
-                                            #   sd** -- so the best any method can do on
-                                            #   the capped classes here is TIE. FRAMEWORK
-                                            #   2(v). Labels + cap policy only; it
-                                            #   reproduces `headroom`'s K and ceiling
-                                            #   exactly with NO model. `--self-test` gates
-                                            #   it, and it CAN say WORTH RUNNING.
+                                            #   🛑 AND THE NOISE MOVES THE SAME WAY, so
+                                            #   a prize alone decides nothing. Measured on
+                                            #   iwc3, prize/sd is **0.52-0.64x at L20/L30/
+                                            #   L50 -- every cap this protocol sweeps** --
+                                            #   crosses 1.0 only above K/n ~ 70% and hits
+                                            #   1.9x at 90%, where the budget admits most
+                                            #   of the true positives and the constraint
+                                            #   barely constrains. So a method capturing
+                                            #   100% of the gap to a PERFECT ranking still
+                                            #   would not be detectable at 4 seeds here.
+                                            #   FRAMEWORK 2(v). K comes from labels + cap
+                                            #   policy only and reproduces `headroom`'s K
+                                            #   and ceiling exactly with NO model; p@K and
+                                            #   the sd are an iwildcam curve and are a
+                                            #   guide to WHERE to look, never a substitute
+                                            #   for measuring them. `--self-test` gates it,
+                                            #   and it CAN say WORTH RUNNING.
 python -m scripts.scope_probe --campaign <root>   # `L20_G50` and `L50_G20` impose the
                                             #   SAME TOTAL, so the local-vs-global SCOPE
                                             #   question is answerable with the model held

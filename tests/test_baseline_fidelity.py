@@ -3930,8 +3930,28 @@ def test_the_ceiling_screen_CAN_SAY_YES_and_reproduces_the_measured_budgets():
             "iwildcam's measured cells must not read as worth running:\n%s"
             % text)
 
-    # ... and it must be able to say yes.
+    # ... and it must be able to say yes. The bar is prize >= 2x the sd,
+    # because a method never captures the WHOLE gap to a perfect ranking.
     buf = io.StringIO()
-    assert report([("L80_G80", 2, 370, 300, 300, 300)], ccp=0.95,
+    assert report([("L80_G80", 2, 370, 300, 300, 300)], ccp=0.90, noise=3.0,
                   out=buf) == 1, buf.getvalue()
     assert "WORTH RUNNING" in buf.getvalue()
+
+    # THE CALIBRATION MUST MOVE WITH K/n, in BOTH columns. A fixed p said
+    # iwildcam had no prize at any cap -- false, and the first thing this tool
+    # got wrong. A fixed sd then makes a loose cap look free.
+    buf = io.StringIO()
+    report([("L20_G50", 2, 370, 185, 74, 74),
+            ("L80_G80", 2, 370, 300, 300, 300)], out=buf)
+    rows = [l.split() for l in buf.getvalue().splitlines()
+            if l.strip().startswith(("L20_G50", "L80_G80"))]
+    tight, loose = rows[0], rows[1]
+    assert float(loose[5]) < float(tight[5]) - 0.02, (
+        "p@K must FALL as the budget grows: %s vs %s" % (tight[5], loose[5]))
+    assert float(loose[7]) > 5.0 * float(tight[7]), (
+        "the seed sd must RISE with the budget (0.40 -> 9.66 items on "
+        "iwildcam): %s vs %s" % (tight[7], loose[7]))
+    # and the ratio at the protocol's own cap must stay under 1
+    assert float(tight[8].rstrip("x")) < 1.0, (
+        "L20 is a cap this protocol sweeps and its whole prize is under the "
+        "seed noise: %s" % tight)
