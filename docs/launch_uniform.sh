@@ -150,6 +150,25 @@
 #                `log_health` still belongs in the read-order -- for collapse,
 #                divergence and what the optimisation DID. Just not as the
 #                liveness verdict.
+#   DOSE         🛑 `--constraint-fp32` IS NOT OPTIONAL FOR THIS CAMPAIGN.
+#                `uniform` defines its count in LOG-ODDS. Under AMP the
+#                clamp that keeps p out of {0,1} was a no-op in every
+#                dtype (EPSILON 1e-8 against float32's own eps 1.19e-7),
+#                so `log1p(-p)` went -inf, the straight-through term went
+#                NaN, `finish_constraint_step` dropped the update, and the
+#                run wrote `status: completed` anyway. Measured on the
+#                FIRST launch, at 4 of 252 runs:
+#                    tralo          29/29  100.0%   sum
+#                    tralo_head     29/29  100.0%   sum
+#                    tralo_uniform   1/29    3.4%   uniform
+#                The clamp is fixed at PIN 38d96ba4 and can no longer
+#                produce a NaN -- but at bfloat16 it now saturates the
+#                log-odds at +-4.85 against float32's +-15.9, so without
+#                `--constraint-fp32` the arm's RESOLUTION would still
+#                depend on which GPU it landed on. Both are needed.
+#                ⚠️ VERIFY IT, do not assume it: the first thing to read
+#                once ANY run completes is full_panel's `CONSTRAINT DOSE`
+#                block. If tralo_uniform is not at 100%, stop the campaign.
 #   size         9 cells x 7 arms x 4 seeds = 252 runs
 #                (8 arms x 4 = 288 as first generated; `tralo_ortho` was
 #                 removed 2026-08-25, see the block below)
@@ -364,9 +383,14 @@ ROOT=results/uniform1
 #    refuted arm in a campaign.
 # ═══════════════════════════════════════════════════════════════════════════
 #
-PIN=ea77ab80                 # the commit carrying ALL THREE arms:
-                             # soft_count_mode uniform, ortho_project and
-                             # head_only.
+PIN=38d96ba4                 # the commit carrying ALL THREE arms
+                             # (soft_count_mode uniform, ortho_project,
+                             # head_only) AND the dtype-safe probability
+                             # clamp. ea77ab80 has the arms and NOT the
+                             # clamp, and the first launch on it landed
+                             # 1 of 29 constraint steps on tralo_uniform
+                             # against 29 of 29 on tralo -- see the
+                             # DOSE block above and FRAMEWORK 2(u).
                              # Pinned, not "latest": a campaign
                              # generated on one commit and run on another is
                              # the split this project just spent a morning
@@ -459,7 +483,8 @@ PY=$HOME/anaconda3/envs/optloss/bin/python
     --caps L20_G50 L30_G50 L50_G30 \
     --arms tralo tralo_uniform tralo_head tralo_null tralo_reseed \
            clip focal_clip \
-    --constraint-grad-mode normalize
+    --constraint-grad-mode normalize \
+    --constraint-fp32
 
 # THE THREE GATES. Each refuses a different way to waste a week, and a campaign
 # that launches past a red one is how this project loses nights.
