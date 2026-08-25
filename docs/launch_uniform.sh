@@ -442,6 +442,27 @@ if [ "${MINE:-0}" -ge 2 ]; then
     exit 1
 fi
 
+# 🛑 REFUSE TO RUN FROM INSIDE THE TREE THIS SCRIPT IS ABOUT TO CHECK OUT.
+# Two lines below, `git checkout --detach $PIN` runs on $TREE. Bash reads a
+# script incrementally, by byte offset, so if this file lives in $TREE the
+# checkout rewrites it underneath the interpreter at an offset it has not
+# reached yet -- and what then runs is the PINNED script's campaign, not the
+# one the operator read. Copy it out first:
+#
+#     git show origin/headroom/small-cnn:docs/<this file> > ~/<this file>
+#     GPU=<n> bash ~/<this file>
+#
+SELF=$(cd "$(dirname "$0")" && pwd -P)
+TREEP=$(cd "$(eval echo $TREE)" 2>/dev/null && pwd -P || true)
+case "${TREEP:-__none__}" in
+  "") ;;
+  *) case "$SELF/" in
+       "$TREEP"/*) echo "REFUSING: this script lives inside \$TREE ($TREEP),"
+                    echo "  and it is about to git-checkout that tree. Copy it out and"
+                    echo "  run the copy -- see the block above."; exit 1 ;;
+     esac ;;
+esac
+
 if [ ! -d "$TREE" ]; then
     git -C ~/OptimizationLoss worktree add "$TREE" --detach "$PIN"
 fi

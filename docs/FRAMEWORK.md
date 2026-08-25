@@ -4746,6 +4746,28 @@ The provenance was there the whole time: `results.runtime` records `amp_dtype`,
 was added. Nothing read it. This is the same shape as every other defect in
 2(e) -- the record existed, the reader did not.
 
+#### 📌 PRE-REGISTERED: `results/iwc4`, written 2026-08-25 BEFORE the launch
+
+`docs/launch_iwc4.sh`. iwc3's exact design -- 9 cells, `tralo` / `tralo_null` /
+`tralo_reseed` / `clip` / `focal_clip`, 4 seeds, 180 runs -- with **one knob
+different**, `--constraint-fp32`, on **dsisco01 on purpose**. The BF16 host
+already lands 100%, so running it there would answer the first question below
+and silently skip the second.
+
+1. **Does the 0-of-9 sweep survive at full dose?** iwc3 is a LOWER bound (less
+   dose, less constraint, and the finding is that the constraint damages), so
+   the prediction is *at least as negative*. **FALSIFIED IF** `tralo` loses AP
+   in fewer than 8 of 9 cells, or by a margin smaller than iwc3's -0.0394 --
+   in which case 2(p-post) is a DOSE result and is retracted as a constraint
+   result.
+2. **Does `constraint_fp32` remove the FP16 loss?** Read straight off the
+   `CONSTRAINT DOSE` block on the FIRST completed run. If `tralo` is not at
+   100%, the campaign is measuring the scaler and must be stopped, not scored.
+
+The answer to (2) decides how every archived FP16 number is read, and it costs
+nothing extra to ask -- which is the whole reason this campaign is on the FP16
+host rather than the free BF16 one.
+
 🛑 **THE GENERAL RULE, and it is cheap to apply.** `full_panel` already prints
 `CONSTRAINT DOSE -- steps that LANDED, against steps attempted` and already
 refuses to let two arms at different landing rates be compared silently. **Read

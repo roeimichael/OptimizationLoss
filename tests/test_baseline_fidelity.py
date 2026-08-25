@@ -3624,17 +3624,27 @@ def test_a_launch_scripts_PIN_carries_the_same_gen_campaign_invocation():
                 break
         if not pin:
             continue
+        # THE PRIMARY DEFENCE is the out-of-tree refusal, because it removes
+        # the hazard instead of tracking it: a script run from outside $TREE
+        # cannot be rewritten by a checkout of $TREE, whatever the pin holds.
+        # Every script that checks out a pin must carry it.
+        if "checkout" in here and "$PIN" in here:
+            assert 'REFUSING: this script lives inside' in here, (
+                "%s does `git checkout --detach $PIN` on $TREE and does not "
+                "refuse to run from inside $TREE. Bash reads a script by byte "
+                "offset, so the checkout rewrites it mid-execution."
+                % path)
+
         rel = path.replace(os.sep, "/")
         try:
             there = subprocess.check_output(
                 ["git", "show", "%s:%s" % (pin, rel)],
                 stderr=subprocess.STDOUT).decode("utf-8", "replace")
-        except (subprocess.CalledProcessError, OSError) as exc:
-            raise AssertionError(
-                "%s pins %s, and `git show %s:%s` fails: %s. The launch does "
-                "`git checkout --detach $PIN` on the tree this file lives in, "
-                "so a pin that does not carry this file rewrites it "
-                "mid-execution." % (path, pin, pin, rel, exc))
+        except (subprocess.CalledProcessError, OSError):
+            # A script newer than its own pin. Allowed, because a commit
+            # cannot name its own hash and the out-of-tree guard above already
+            # makes the rewrite impossible -- but only in that order.
+            continue
 
         mine, theirs = invocation(here), invocation(there)
         if mine is None and theirs is None:
