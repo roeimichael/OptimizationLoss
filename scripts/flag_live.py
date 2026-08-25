@@ -1,8 +1,11 @@
 """Does this flag DO anything? md5 the predictions across arms before believing it.
 
-Inert flags are this project's most frequent failure mode -- four occurrences
-and counting, including three arms whose `focal_clip` was a second `clip` and a
-`tralo_uniform` whose treatment was a no-op in `train.py`. Every one of them
+Inert flags are this project's most frequent failure mode. The catalogue is
+`docs/FRAMEWORK.md` section 2(e) and it has only ever grown -- it includes three
+arms whose `focal_clip` was a second `clip` and a `tralo_uniform` whose treatment
+was a no-op in `train.py`. (The count is deliberately NOT repeated here: it was
+stated as "four" in this file and "five" in `full_panel._identity_check`, two
+hand-maintained numbers for one list, which is how a catalogue drifts.) Every one of them
 passed `audit_config` (the key existed and had a reader), passed `smoke_arms`
 (the arm ran), and produced a full campaign of numbers that meant nothing.
 

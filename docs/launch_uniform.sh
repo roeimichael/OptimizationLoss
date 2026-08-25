@@ -113,12 +113,43 @@
 #                moving no count, and writing `completed`. That reads as "the
 #                fix is harmless" when it is really "the fix never acted".
 #
-#                🛑 SO THE FIRST READ IS A LIVENESS READ, NOT A VERDICT:
-#                    python -m scripts.log_health results/uniform1
-#                `tralo_uniform`'s capped-count trajectory must MOVE relative
-#                to `tralo_null`. If it does not, the arm is a silent null,
+#                🛑 SO THE FIRST READ IS A LIVENESS READ, NOT A VERDICT --
+#                AND IT IS AN md5, NOT A COUNT:
+#                    python -m scripts.full_panel --campaign results/uniform1 #                           --control tralo_null
+#                and read the `RAW-PREDICTION IDENTITY` block it prints BEFORE
+#                any metric table. If `tralo_uniform` and `tralo_null` hash
+#                bit-identically on all cell-seeds, the arm is a silent null,
 #                the comparison is void, and the answer is a dose sweep on
 #                `lr_constraint` for that arm alone -- NOT a verdict.
+#
+#                ⚠️ THIS BLOCK USED TO SAY `log_health`, AND TO JUDGE ON THE
+#                COUNT TRAJECTORY. Both were wrong, corrected 2026-08-25:
+#                  * `log_health` prints a PER-ARM AGGREGATE ("capped-class
+#                    count vs K"), so comparing two arms with it is an eyeball
+#                    across run means. Every other read in this project is
+#                    seed-paired; this one silently was not.
+#                  * "the count must MOVE" is house rule 5 -- count movement is
+#                    NOT a metric -- and this same file already says to judge
+#                    the arm on `d capF1` in ITEMS and never on enforcement.
+#                    The liveness criterion contradicted the verdict criterion
+#                    three screens apart.
+#                  * `full_panel._identity_check` is house rule 3 executed:
+#                    per (cell, arm, seed) md5 of the raw predictions, run
+#                    before any metric, and it distinguishes "identical on SOME
+#                    seeds" (the cap never bound there -- untreated seeds, real
+#                    zeros that dilute the effect) from "identical on ALL"
+#                    (inert flag).
+#                🔑 `scripts.flag_live` CANNOT do this job post-campaign. It is
+#                a SYNTHETIC harness -- 4-layer net, random labels, n=1 -- so
+#                the two `flag_live` calls below are pre-launch wiring checks
+#                only. `hp_liveness_real` exists because smoke-net verdicts
+#                INVERT on a real backbone, and the same caveat applies here.
+#                And `tralo_uniform` is not a hypothetical: `flag_live`'s own
+#                docstring lists it among the arms that once shipped INERT.
+#
+#                `log_health` still belongs in the read-order -- for collapse,
+#                divergence and what the optimisation DID. Just not as the
+#                liveness verdict.
 #   size         9 cells x 7 arms x 4 seeds = 252 runs
 #                (8 arms x 4 = 288 as first generated; `tralo_ortho` was
 #                 removed 2026-08-25, see the block below)
@@ -200,6 +231,19 @@
 #
 # HOW TO READ IT, in this order, and stop at the first one that fails:
 #   python -m scripts.rig_status --campaign results/uniform1
+#     ^ did the RIG behave: right conda, one dispatcher, no shared GPU.
+#   python -m scripts.full_panel  --campaign results/uniform1 --control tralo_null
+#     ^ 🛑 LIVENESS FIRST, and only the `RAW-PREDICTION IDENTITY` block at
+#       the top of its output. `tralo_uniform` bit-identical to `tralo_null` on
+#       ALL cell-seeds = inert arm, stop here. On SOME cell-seeds = the cap
+#       never bound on those seeds; they are untreated, real zeros that dilute
+#       the effect, and the treated count is what gets reported. This is the
+#       SAME command as the last line -- run it first for the md5, last for the
+#       metrics, and do not read the metrics until the md5 is clean.
+#   python -m scripts.log_health  results/uniform1
+#     ^ what the OPTIMISATION did: collapse, divergence, satisfaction. NOT the
+#       liveness verdict -- its per-arm table is an aggregate, and judging on
+#       count movement is house rule 5.
 #   python -m scripts.order_probe --campaign results/uniform1 --arm tralo_uniform
 #   python -m scripts.order_probe --campaign results/uniform1 --arm tralo_uniform --evictions
 #   python -m scripts.family_split --campaign results/uniform1 --families tralo tralo_uniform tralo_head

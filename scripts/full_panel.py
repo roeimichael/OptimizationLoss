@@ -1227,9 +1227,9 @@ def _identity_check(rows):
     """House rule 3: md5 the raw predictions across arms, BEFORE any metric.
 
     Two arms whose raw predictions hash identically on every seed of every cell
-    did not do two different things. Five occurrences on record, most recently
-    `clip` and `focal_clip` sharing a base_model_id so focal_clip silently
-    loaded clip's warm-up. The tell is always available and always ignored,
+    did not do two different things. The catalogue is `docs/FRAMEWORK.md`
+    section 2(e); the most recent entry is `clip` and `focal_clip` sharing a
+    base_model_id, so focal_clip silently loaded clip's warm-up. The tell is always available and always ignored,
     because it lives in a file nobody opens once the metrics table exists.
     """
     per_arm = collections.defaultdict(dict)
