@@ -371,21 +371,43 @@ def count_gradient_angle(p_c):
     return float(np.degrees(np.arccos(np.clip(c, -1.0, 1.0))))
 
 
-def count_change_compounding(cos_gg, ce_rho, rng, epoch=3, steps=29, n=30_000):
+def count_change_compounding(cos_gg, ce_rho, rng, epoch=3, steps=29,
+                            n=30_000, ce_between=126):
     """`count_change_attenuation` over the WHOLE constraint phase, not one step.
 
     1b-pre(6) was retracted for converting a per-step geometry into a claim
     about a 29-step trajectory "without doing the compounding". This does it.
 
-    THE MECHANISM. Adam carries `m <- b1*m + (1-b1)*g`. Two arms whose count
-    gradients differ by a CONSISTENT `(g - g')` accumulate that difference
-    geometrically: `m_A - m_B = (1 - b1^k)(g - g')`, exactly, independent of the
-    angle. At k=1 that is 0.100 of the difference; at k=29 it is **0.953**. So
-    the per-step compression is a STEP-1 property and it decays away.
+    ⛔ THE FIRST VERSION OF THIS FUNCTION WAS WRONG, and the error is worth
+    keeping because it is the one this file already carries a retraction for.
+    It applied the momentum accumulation `m_A - m_B = (1 - b1^k)(g - g')` --
+    correct for CONSECUTIVE steps, 0.100 at k=1 rising to 0.953 at k=29 -- and
+    concluded the per-step compression "decays away". **The constraint steps are
+    not consecutive.** `src/methodologies/tralo/train.py:192-212` runs the whole
+    CE batch loop, one `optimizer.step()` per batch, and calls
+    `finish_constraint_step` ONCE per epoch at line 404. So **126 CE steps sit
+    between consecutive constraint steps** and `b1^126 = 1.7e-6`: the momentum
+    carries essentially NOTHING of one constraint step's difference into the
+    next. With `c` CE steps between, the difference present at a constraint step
+    is `(1-b1)/(1 - b1^(c+1))`, which is 1.000 at c=0 and **0.1000 at c=126** --
+    i.e. exactly the single-step value, forever.
+
+    THE MECHANISM THAT DOES OPERATE is accumulation in the WEIGHTS, not the
+    momentum. Each constraint step displaces `w` slightly differently and those
+    displacements add up even though the momentum resets between them. That is
+    what 1b-pre(6) meant by "compounds over 29 steps", and it is roughly linear
+    in k rather than geometric: cumulative trajectories open **0.44 -> 2.30
+    degrees** over 29 steps at a realistic input angle, ending **4.0%** of the
+    distance travelled apart. Real, ~5.2x, and about an order of magnitude
+    weaker than the consecutive-step model claims.
 
     THE MODEL, stated because it decides the magnitude:
+      * `ce_between` is the number of CE optimizer steps between constraint
+        steps. It DEFAULTS TO 126, the pipeline's real value; passing 0 gives
+        the consecutive-step model that produced the retracted claim above and
+        is kept only so the difference can be shown;
       * the constraint direction is CONSISTENT across steps (same penalty, same
-        fixed test set), so it accumulates coherently;
+        fixed test set), so it accumulates coherently in the weights;
       * the CE direction is refreshed each step and `ce_rho` says how correlated
         consecutive ones are. This is the input NOTHING here measures, and the
         answer moves 3.8x across its plausible range -- which is why this
@@ -418,19 +440,24 @@ def count_change_compounding(cos_gg, ce_rho, rng, epoch=3, steps=29, n=30_000):
     first = None
     deg = lambda c: float(np.degrees(np.arccos(np.clip(c, -1.0, 1.0))))
     for k in range(1, steps + 1):
-        d = ce_rho * anchor + np.sqrt(max(0.0, 1.0 - ce_rho ** 2)) * _unit(rng, n)
-        ce = d / np.linalg.norm(d) * ce_norm
-        mA = B1 * mA + (1.0 - B1) * (ce + g)
-        mB = B1 * mB + (1.0 - B1) * (ce + gp)
-        uA = mA / (sv + 1e-8)
-        uB = mB / (sv + 1e-8)
-        dA += uA
-        dB += uB
+        # the constraint step: ONE per epoch
+        mA = B1 * mA + (1.0 - B1) * g
+        mB = B1 * mB + (1.0 - B1) * gp
+        dA += mA / (sv + 1e-8)
+        dB += mB / (sv + 1e-8)
+        # then the epoch's CE batch loop, which both arms share
+        for _ in range(ce_between):
+            d = ce_rho * anchor + np.sqrt(max(0.0, 1.0 - ce_rho ** 2)) * _unit(rng, n)
+            ce = d / np.linalg.norm(d) * ce_norm
+            mA = B1 * mA + (1.0 - B1) * ce
+            mB = B1 * mB + (1.0 - B1) * ce
+            dA += mA / (sv + 1e-8)
+            dB += mB / (sv + 1e-8)
+        c_now = deg(float(dA @ dB) / (np.linalg.norm(dA) * np.linalg.norm(dB)))
         if k == 1:
-            first = deg(float(uA @ uB) / (np.linalg.norm(uA) * np.linalg.norm(uB)))
-    last = deg(float(uA @ uB) / (np.linalg.norm(uA) * np.linalg.norm(uB)))
-    cum = deg(float(dA @ dB) / (np.linalg.norm(dA) * np.linalg.norm(dB)))
-    return first, last, cum, float(np.linalg.norm(dA - dB) / np.linalg.norm(dA))
+            first = c_now
+    cum = c_now
+    return first, cum, cum, float(np.linalg.norm(dA - dB) / np.linalg.norm(dA))
 
 
 def self_test(rng):
@@ -516,12 +543,22 @@ def main():
         raise SystemExit(0 if self_test(rng) else 1)
 
     if a.compounding:
-        print("DOES A COUNT-FUNCTION CHANGE STAY COMPRESSED OVER 29 STEPS?")
-        print("1b-pre(6) was retracted for not doing this arithmetic. Here it is.")
+        print("DOES A COUNT-FUNCTION CHANGE COMPOUND OVER THE 29 STEPS?")
+        print("1b-pre(6) was retracted for not doing this arithmetic. Here it")
+        print("is -- and the FIRST version of this section got it wrong too.")
         print()
-        print("  STEP 1 IS NOT THE CAMPAIGN. Adam accumulates a CONSISTENT")
-        print("  difference as (1 - b1^k): 0.100 at k=1, %.3f at k=29."
-              % (1 - B1 ** 29))
+        print("  THE CONSTRAINT STEPS ARE NOT CONSECUTIVE. train.py runs the")
+        print("  whole CE batch loop (one optimizer.step per batch, ~126) and")
+        print("  calls finish_constraint_step ONCE per epoch. So b1^126 =")
+        print("  %.2e of one constraint step's momentum survives to the next."
+              % (B1 ** 126))
+        print("  Difference present AT a constraint step with c CE steps")
+        print("  between = (1-b1)/(1-b1^(c+1)):")
+        for c in (0, 10, 126):
+            print("     c=%-4d -> %.4f%s" % (c, (1 - B1) / (1 - B1 ** (c + 1)),
+                                             "   <- the pipeline" if c == 126 else ""))
+        print("  At c=126 that is the SINGLE-STEP value, forever. Momentum does")
+        print("  not compound it. The WEIGHTS do.")
         print()
         print("  And the INPUT angle is not 180. `sum`'s per-item gradient is")
         print("  p(1-p) and `uniform`'s is their mean; both are elementwise")
@@ -529,21 +566,24 @@ def main():
         for label, pc in _P_CASES(rng):
             print("     %-34s %5.1f deg" % (label, count_gradient_angle(pc)))
         print()
-        print("  %-24s %10s %10s %11s %9s"
-              % ("CE-direction model", "step 1", "step 29", "cumul 29", "sep/len"))
+        print("  CUMULATIVE trajectory separation, input angle 29.4 deg:")
+        print("  %-30s %10s %11s %9s"
+              % ("CE-direction model", "after 1", "after 29", "sep/len"))
         real = np.cos(np.radians(29.4))
         for rho, label in ((0.0, "fresh each step"), (0.5, "half-correlated"),
-                           (0.9, "highly correlated"), (0.99, "near-fixed")):
-            f, l, c, s = count_change_compounding(real, rho, rng)
-            print("  %-24s %7.2f deg %7.2f deg %8.2f deg %9.3f"
-                  % (label, f, l, c, s))
+                           (0.9, "highly correlated")):
+            f, _, c, s = count_change_compounding(real, rho, rng, n=12000)
+            print("  %-30s %7.2f deg %8.2f deg %9.4f" % (label, f, c, s))
+        f0, _, c0, s0 = count_change_compounding(real, 0.0, rng, n=12000,
+                                                 ce_between=0)
+        print("  %-30s %7.2f deg %8.2f deg %9.4f"
+              % ("(consecutive -- NOT the pipeline)", f0, c0, s0))
         print()
-        print("  ^ the SIGN is settled: compounding raises the contrast, it does")
-        print("    not compress it. The MAGNITUDE is not -- it moves 3.8x across")
-        print("    a CE-correlation range nothing here measures, so this is a")
-        print("    power consideration and NOT a predicted effect size. Turning")
-        print("    it into one is the error 1b-pre(6) was retracted for, in the")
-        print("    opposite direction.")
+        print("  ^ compounding is REAL but ~5x over 29 steps, not the ~10x-larger")
+        print("    figure the consecutive-step model gives. The end separation is")
+        print("    a few percent of the distance travelled. SIGN settled, size")
+        print("    small, and it stays a POWER consideration -- reading it as a")
+        print("    predicted difference is 1b-pre(6)'s error mirrored.")
         raise SystemExit(0)
 
     print("DOES `ortho_project`'s ORTHOGONALITY REACH THE WEIGHTS?")

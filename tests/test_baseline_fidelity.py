@@ -2239,27 +2239,45 @@ def test_a_COIN_and_the_REAL_constraint_gradient_deliver_the_SAME_step():
         "the compression is now total (%.2f deg), which would make the probe "
         "report a constant rather than a measurement" % outs[-1])
 
-    # --- AND STEP 1 IS NOT THE CAMPAIGN. Both launch scripts quoted the number
-    #     above as the power consideration for a 29-STEP contrast. Adam
-    #     accumulates a CONSISTENT difference as (1 - b1^k), so the compression
-    #     belongs to the first step and decays: 0.100 at k=1, 0.953 at k=29.
+    # --- THE CONSTRAINT STEPS ARE NOT CONSECUTIVE, and a version of this gate
+    #     asserted that they were. train.py:192-212 runs the whole CE batch
+    #     loop (one optimizer.step per batch) and calls finish_constraint_step
+    #     ONCE per epoch at line 404, so ~126 CE steps sit between constraint
+    #     steps and the momentum carries b1^126 of one into the next.
     from scripts.ortho_survival import (count_change_compounding,
                                         count_gradient_angle)
-    carried = [1 - B1 ** k for k in (1, 29)]
-    assert abs(carried[0] - 0.1) < 1e-12
-    assert carried[1] > 0.95, (
-        "the 29-step accumulation is %.3f, so the compounding argument in "
-        "FRAMEWORK 2(e) no longer holds" % carried[1])
+    CE_PER_EPOCH = 126
+    assert B1 ** CE_PER_EPOCH < 1e-5, (
+        "b1^%d = %.3e is no longer negligible, so a constraint step's momentum "
+        "DOES reach the next one and the geometric accumulation applies after "
+        "all" % (CE_PER_EPOCH, B1 ** CE_PER_EPOCH))
+    at_step = lambda c: (1 - B1) / (1 - B1 ** (c + 1))
+    assert abs(at_step(CE_PER_EPOCH) - (1 - B1)) < 1e-5, (
+        "with %d CE steps between, the difference present at a constraint step "
+        "must be the SINGLE-STEP value (1-b1)=%.3f, got %.4f"
+        % (CE_PER_EPOCH, 1 - B1, at_step(CE_PER_EPOCH)))
+    assert at_step(0) > 9 * at_step(CE_PER_EPOCH), (
+        "consecutive and interleaved no longer differ, so the distinction this "
+        "gate exists to pin is moot")
 
-    first, last, cum, sep = count_change_compounding(
-        np.cos(np.radians(29.4)), 0.0, np.random.default_rng(11), n=8000)
-    assert last > first * 3.0, (
-        "the contrast no longer OPENS over 29 steps (%.2f -> %.2f deg). Both "
-        "launch scripts now say compounding raises it; fix them together with "
-        "this gate or they contradict each other." % (first, last))
-    assert 0.0 < sep < 5.0 and cum > first, (
-        "cumulative displacement separation is implausible: %.3f, %.2f deg"
-        % (sep, cum))
+    # What DOES compound is the weight trajectory -- real, modest, and utterly
+    # dependent on an assumption nothing measures.
+    rng3 = np.random.default_rng(11)
+    fresh = count_change_compounding(np.cos(np.radians(29.4)), 0.0, rng3, n=6000)
+    corr = count_change_compounding(np.cos(np.radians(29.4)), 0.5, rng3, n=6000)
+    assert fresh[2] > fresh[0] * 2.0, (
+        "the trajectory no longer opens at all over 29 steps (%.2f -> %.2f "
+        "deg); FRAMEWORK 1b-pre(6) says compounding is what separates these "
+        "arms" % (fresh[0], fresh[2]))
+    assert fresh[3] < 0.25, (
+        "end separation is %.3f of the distance travelled. The retracted "
+        "consecutive-step model gave ~0.44; if the real one now agrees, the "
+        "interleaving is not being modelled." % fresh[3])
+    assert fresh[3] > 5 * corr[3], (
+        "the CE-correlation assumption no longer dominates the magnitude "
+        "(%.4f vs %.4f). It does, by ~30x, and that is exactly why this is a "
+        "power consideration and never a predicted effect size."
+        % (fresh[3], corr[3]))
 
     # --- and the INPUT angle can never be the 180 the scripts used to quote:
     #     p(1-p) and its mean are both elementwise NON-NEGATIVE.
@@ -3109,3 +3127,64 @@ def test_order_probe_resolves_its_TWIN_from_the_campaign_on_disk():
         assert null_of("tralo", xfam) == "tralo_null"
     finally:
         shutil.rmtree(root, ignore_errors=True)
+
+
+def test_the_constraint_step_is_NOT_inside_the_CE_batch_loop():
+    """The premise a whole analysis rested on, and that nobody had checked.
+
+    On 2026-08-25 I computed that a count-function difference compounds through
+    Adam's momentum as `(1 - b1^k)` -- 0.100 at one step rising to 0.953 at 29 --
+    and wrote it into FRAMEWORK, CLAUDE.md and both launch scripts as a
+    correction to the recorded per-step figure.
+
+    That law holds for CONSECUTIVE steps. These are not consecutive.
+    `src/methodologies/tralo/train.py` runs the full CE batch loop with one
+    `optimizer.step()` per batch, and calls `finish_constraint_step` ONCE per
+    epoch AFTER it. About 126 CE steps therefore sit between two constraint
+    steps, `b1^126 = 1.7e-6`, and the momentum carries essentially nothing
+    across. The compression is a single-step property that never decays, which
+    is what the file said before I "corrected" it.
+
+    It is the same error the retraction in FRAMEWORK 1b-pre(6) is kept for --
+    "the premise was never checked" -- committed while citing that retraction.
+    So the premise is now a gate rather than a sentence.
+
+    AST, not grep: a comment mentioning the batch loop must not satisfy this.
+    """
+    import io
+
+    src = io.open("src/methodologies/tralo/train.py", encoding="utf-8").read()
+    tree = ast.parse(src)
+
+    def calls(node, name):
+        for n in ast.walk(node):
+            if isinstance(n, ast.Call):
+                f = n.func
+                if isinstance(f, ast.Name) and f.id == name:
+                    return True
+                if isinstance(f, ast.Attribute) and f.attr == name:
+                    return True
+        return False
+
+    batch_loops = [n for n in ast.walk(tree)
+                   if isinstance(n, ast.For)
+                   and isinstance(n.iter, ast.Name)
+                   and "loader" in n.iter.id]
+    assert batch_loops, (
+        "no `for ... in *loader` loop found in tralo/train.py, so this gate "
+        "cannot locate the CE batch loop it exists to reason about")
+
+    for loop in batch_loops:
+        assert calls(loop, "step"), (
+            "the CE batch loop no longer takes an optimizer step, so the "
+            "126-steps-between figure is wrong in the other direction")
+        assert not calls(loop, "finish_constraint_step"), (
+            "finish_constraint_step is now INSIDE the CE batch loop. Constraint "
+            "steps would then be consecutive-ish and the momentum WOULD "
+            "accumulate a count-function difference geometrically -- which "
+            "reverses the analysis in FRAMEWORK 1b-pre(6) and in "
+            "scripts/ortho_survival --compounding. Re-derive both before "
+            "shipping this.")
+
+    assert calls(tree, "finish_constraint_step"), (
+        "tralo/train.py no longer calls finish_constraint_step at all")

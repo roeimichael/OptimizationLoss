@@ -428,46 +428,62 @@ default step rule and it is why `tralo_ortho`'s guarantee dies (2(t)) --
 campaign below, and the conclusion that section reaches from its own data is
 unaffected.
 
-✅ **AND THE COMPOUNDING THE RETRACTION SAID WAS SKIPPED IS NOW DONE**, 2026-08-25:
-`python -m scripts.ortho_survival --compounding`. It changes the sign of the
-conclusion the per-step number was being used for, and it does so twice.
+⛔⛔ **A SECOND RETRACTION IN THIS SECTION, 2026-08-25, OF AN EDIT MADE TO IT
+EARLIER THE SAME DAY -- AND IT IS THE SAME MISTAKE AS THE FIRST.**
 
-**1. The compression is a STEP-1 property and it decays away.** Adam carries
-`m <- b1*m + (1-b1)*g`, so two arms whose count gradients differ by a
-**consistent** `(g - g')` accumulate that difference as
+That edit said the compounding had finally been done, and claimed: Adam
+accumulates a consistent count-gradient difference as `(1 - b1^k)`, so the
+recorded "~7.4% channel" is a STEP-1 number that "decays away", reaching 0.953
+by k=29; the two arms' updates therefore open to 4.7-16.5 degrees with 8-31% of
+the trajectory separating them. **All of those numbers are withdrawn.**
 
-    ||m_A - m_B|| / ||g - g'||  =  1 - b1^k      exactly, and INDEPENDENT of the angle
+**The premise was never checked, again.** `(1 - b1^k)` is the accumulation for
+**consecutive** steps. The constraint steps are not consecutive:
+`src/methodologies/tralo/train.py:192-212` runs the entire CE batch loop with one
+`optimizer.step()` per batch and calls `finish_constraint_step` **once per
+epoch** at line 404. So about **126 CE steps sit between two constraint steps**,
+and `b1^126 = 1.7e-6`. With `c` CE steps between, the difference present at a
+constraint step is
 
-which is **0.100 at k=1 and 0.953 at k=29** -- a 9.5x rise over the constraint
-phase. Closed form and simulation agree to 2.2e-16. So "a ~7.4% channel" is true
-of the first step and false of the campaign.
+    (1 - b1) / (1 - b1^(c+1))     = 1.000 at c=0,  0.1457 at c=10,  **0.1000 at c=126**
 
-**2. The input angle was never 180.** `sum`'s per-item gradient is `p(1-p)`;
-`uniform`'s is their mean. **Both vectors are elementwise non-negative**, so the
-angle between them is bounded below 90 degrees *by construction* -- measured at
-**18.7 to 49.6 degrees** across plausible `p` distributions, ~28 for a
-trained-like split. 180 was the abstract extreme the probe was SWEPT over, and
-it was being quoted as if it described `tralo` vs `tralo_uniform`.
+i.e. at the pipeline's real spacing it is **exactly the single-step value,
+forever**. The momentum does not compound it at all. *The file was right before
+I corrected it.*
 
-Compounded at the real ~29 degree input, the two arms' updates open from
-**2.1 degrees at step 1 to 4.7-16.5 at step 29**, cumulative displacements
-4.7-17.7 apart, trajectory separation 8-31% of the distance travelled.
+🔑 **WHAT DOES COMPOUND IS THE WEIGHT TRAJECTORY, and it is small.** Each
+constraint step displaces `w` a little differently and those displacements add
+even though the momentum resets between them -- which is what this section meant
+by "compounds over 29 steps" in the first place. Measured with the interleaving
+modelled (`ortho_survival --compounding`), cumulative trajectories at a
+realistic input angle:
 
-🛑 **THE SIGN IS SETTLED; THE MAGNITUDE IS NOT, AND THAT DISTINCTION IS THE
-WHOLE POINT.** Compounding *raises* the contrast rather than compressing it, so
-the note in both launch scripts had the direction backwards and is fixed. But
-that range spans **3.8x** on how correlated consecutive CE gradient directions
-are -- which nothing in this project measures -- and the model holds the CE
-stream identical for both arms (first order), which stops being true the moment
-the weights diverge. So it stays a POWER consideration. **Turning it into a
-predicted effect size would be this section's own error mirrored**: the
-retraction was for reading a per-step geometry as a predicted null, and reading
-this one as a predicted difference is the same move with the sign flipped.
+| CE-direction model | after 1 step | after 29 | separation / length |
+|---|---|---|---|
+| fresh each step | 0.44 deg | **2.31 deg** | 0.040 |
+| half-correlated | 0.08 deg | **0.08 deg** | 0.0013 |
+| highly correlated | 0.05 deg | 0.04 deg | 0.0007 |
+| *(consecutive -- the retracted model)* | *2.28 deg* | *25.39 deg* | *0.441* |
 
-Gated inside `test_a_COIN_and_the_REAL_constraint_gradient_deliver_the_SAME_step`,
-shown to FAIL both by resetting the momentum each step (the contrast stops
-opening: 4.83 -> 4.80 degrees) and by letting the count gradient change sign
-(the angle goes to 155 degrees and the non-negativity argument is void).
+So compounding is real at ~5x under an uncorrelated-CE assumption and **absent
+under a correlated one**, and consecutive-vs-interleaved is a ~10x error in the
+end separation. The spread across the CE-correlation assumption is **31x**, not
+the 3.8x the retracted edit reported.
+
+✅ **ONE PART SURVIVES, because it is geometry and not dynamics: the input
+angle is never 180 degrees.** `sum`'s per-item gradient is `p(1-p)` and
+`uniform`'s is their mean; **both are elementwise non-negative**, so the angle
+between them is bounded below 90 by construction -- **18.7 to 49.6 degrees**
+measured over plausible `p` distributions, ~28 for a trained-like split. 180 was
+the abstract extreme the probe is swept over and it was being quoted as if it
+described `tralo` vs `tralo_uniform`. Both launch scripts keep that correction
+and lose the rest.
+
+🛑 **THE PREMISE IS NOW A GATE, NOT A SENTENCE.**
+`test_the_constraint_step_is_NOT_inside_the_CE_batch_loop` reads
+`tralo/train.py` by AST and fails if `finish_constraint_step` ever moves inside
+the batch loop -- because that single edit would make the geometric accumulation
+correct and reverse everything above. Shown to FAIL by making exactly that move.
 
 🔑 **THE LESSON, which is the reason this retraction is kept in full.** A
 mechanism that explains a result is not evidence for itself. This one was
@@ -2075,7 +2091,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 384 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 385 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -2239,7 +2255,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 384 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 385 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -2247,7 +2263,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (384 tests, ~150 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (385 tests, ~150 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -5713,7 +5729,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             384 tests, ~150 s, no dataset required
+tests/             385 tests, ~150 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

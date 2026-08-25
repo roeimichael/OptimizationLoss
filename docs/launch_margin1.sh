@@ -60,15 +60,22 @@
 #     direction. So this campaign's entire contrast set runs through the shared
 #     Adam, and how much of a count-function change survives to the weights is
 #     the power question for every pair in it.
-#   * ⚠️ THE "~7.4% CHANNEL, 180 deg IN 9.1 deg OUT" THAT USED TO BE QUOTED
-#     HERE IS A STEP-1 NUMBER, and this campaign takes 29 steps. Corrected
-#     2026-08-25 with `python -m scripts.ortho_survival --compounding`: Adam
-#     accumulates a CONSISTENT difference as `(1 - b1^k)` -- exactly, and
-#     independent of the angle -- which is 0.100 at k=1 and **0.953 at k=29**.
-#     The compression belongs to the first step and decays away. Compounded at
-#     a realistic input angle the two arms' updates open from ~2 deg at step 1
-#     to 4.7-16.5 deg at step 29. Compounding RAISES the contrast; the old note
-#     had the direction backwards.
+#   * ⛔ A CORRECTION MADE HERE 2026-08-25 WAS ITSELF WRONG AND IS RETRACTED
+#     THE SAME DAY. It said the "~7.4% channel, 180 deg in 9.1 deg out" was a
+#     STEP-1 number because Adam accumulates the difference as `(1-b1^k)` to
+#     0.953 by step 29. That law is for CONSECUTIVE steps, and these are not:
+#     train.py runs the whole CE batch loop with one optimizer.step per batch
+#     and calls finish_constraint_step ONCE per epoch, so ~126 CE steps sit
+#     between constraint steps and `b1^126 = 1.7e-6`. The difference present at
+#     a constraint step is `(1-b1)/(1-b1^(c+1))` = **0.1000 at c=126** -- the
+#     single-step value, forever. The original per-step figure was right.
+#   * ✅ WHAT SURVIVES FROM THAT CORRECTION: the input angle is never 180.
+#     `p(1-p)` and its mean are both elementwise NON-NEGATIVE, so a sum-vs-
+#     uniform style contrast is 18.7-49.6 deg. 180 is the sweep extreme.
+#   * WHAT ACTUALLY COMPOUNDS is the WEIGHT trajectory and it is small: 0.44 ->
+#     2.31 deg over 29 steps under uncorrelated CE, and 0.08 -> 0.08 (not at
+#     all) under half-correlated CE -- a 31x swing on an unmeasured assumption.
+#     `python -m scripts.ortho_survival --compounding`.
 #   * It is still a POWER consideration and NOT a predicted effect, because the
 #     range above spans 3.8x on how correlated consecutive CE gradients are and
 #     nothing here measures that. The direct evidence that these arms CAN

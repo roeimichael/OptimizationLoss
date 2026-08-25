@@ -60,7 +60,7 @@ imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 384 regression tests, ~150s, no dataset needed
+python -m pytest tests -q                   # 385 regression tests, ~150s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -144,23 +144,27 @@ python -m scripts.graph_probe --campaign <root>  # diffuse the scores over a kNN
                                             #   allocator provably lacks. NULL: +0.50
                                             #   items, 10/19, while its shuffled-graph and
                                             #   shuffled-feature controls lose 5.8-8.4
-python -m scripts.ortho_survival --compounding  # 🆕 does a change to the COUNT
-                                             #   FUNCTION stay compressed over all
-                                             #   29 steps? NO. Adam accumulates a
-                                             #   CONSISTENT difference as
-                                             #   `(1-b1^k)`: 0.100 at k=1 and
-                                             #   **0.953 at k=29**. The "7.4%
-                                             #   channel" is a STEP-1 number and
-                                             #   both launch scripts quoted it at a
-                                             #   29-step contrast. And the input
-                                             #   angle is never 180 -- `p(1-p)` and
-                                             #   its mean are both elementwise
-                                             #   NON-NEGATIVE, so it is 18.7-49.6
-                                             #   deg. Compounding RAISES the
-                                             #   contrast; sign settled, magnitude
-                                             #   NOT (3.8x on an unmeasured CE
-                                             #   correlation) -- power consideration
-                                             #   only, never a predicted effect.
+python -m scripts.ortho_survival --compounding  # does a count-function change
+                                             #   compound over the 29 steps?
+                                             #   ⚠️ MOSTLY NOT, and the first
+                                             #   answer here was WRONG. Adam's
+                                             #   `(1-b1^k)` accumulation is for
+                                             #   CONSECUTIVE steps; train.py puts
+                                             #   ~126 CE steps between constraint
+                                             #   steps (`b1^126 = 1.7e-6`), so the
+                                             #   difference at a constraint step is
+                                             #   `(1-b1)/(1-b1^(c+1))` = **0.1000**,
+                                             #   the single-step value, forever.
+                                             #   The WEIGHT trajectory does
+                                             #   compound, weakly: 0.44 -> 2.31 deg
+                                             #   over 29 steps under uncorrelated
+                                             #   CE and 0.08 -> 0.08 under
+                                             #   half-correlated -- a 31x swing on
+                                             #   an unmeasured assumption. ✅ The
+                                             #   one solid part: the sum-vs-uniform
+                                             #   angle is 18.7-49.6 deg, NEVER 180,
+                                             #   because `p(1-p)` and its mean are
+                                             #   both elementwise non-negative.
 python -m scripts.ortho_survival             # does an intervention installed in
                                             #   `prm.grad` SURVIVE Adam? It mostly does
                                             #   not, and this is the cheapest probe here

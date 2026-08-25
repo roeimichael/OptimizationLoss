@@ -307,38 +307,37 @@ ROOT=results/uniform1
 #      clip alone.
 #
 #    !! AND ONE MORE THING TO READ THE RESULT WITH. Every arm here resolves to
-#      constraint_step_rule=shared, and the "~7.4% channel / 180 deg in, 9.1 deg
-#      out, ~20x compression" that used to be quoted here is WRONG TWICE,
-#      corrected 2026-08-25 by `python -m scripts.ortho_survival --compounding`:
+#      constraint_step_rule=shared. Two corrections to what used to be here,
+#      one that STANDS and one that was itself wrong and is RETRACTED.
 #
-#      1. IT IS A STEP-1 NUMBER, AND THERE ARE 29 STEPS. Adam carries
-#         `m <- b1*m + (1-b1)*g`, so two arms whose count gradients differ by a
-#         CONSISTENT amount accumulate that difference as `(1 - b1^k)`, exactly
-#         and independent of the angle: **0.100 at k=1, 0.953 at k=29**, a 9.5x
-#         rise. The compression is a property of the FIRST step and it decays
-#         away. This is the compounding 1b-pre(6) was retracted for skipping.
-#      2. THE INPUT ANGLE IS NOT 180. `sum`'s per-item gradient is `p(1-p)` and
-#         `uniform`'s is their mean. BOTH ARE ELEMENTWISE NON-NEGATIVE, so the
-#         angle between them is bounded below 90 BY CONSTRUCTION -- measured at
-#         18.7-49.6 deg over plausible p distributions, ~28 deg for a
-#         trained-like split. 180 deg was the abstract extreme the probe was
-#         SWEPT over, never this contrast.
+#      ✅ STANDS -- THE INPUT ANGLE IS NEVER 180. `sum`'s per-item gradient is
+#      `p(1-p)` and `uniform`'s is their mean. BOTH ARE ELEMENTWISE
+#      NON-NEGATIVE, so the angle between them is bounded below 90 BY
+#      CONSTRUCTION: 18.7-49.6 deg over plausible p distributions, ~28 for a
+#      trained-like split. 180 deg is the abstract extreme
+#      `count_change_attenuation` is SWEPT over, never this contrast.
 #
-#      Compounded at the real ~29 deg input, the two arms' updates open from
-#      **2.1 deg at step 1 to 4.7-16.5 deg at step 29**, with cumulative
-#      displacements 4.7-17.7 deg apart and a trajectory separation of
-#      8-31% of the distance travelled.
+#      ⛔ RETRACTED, same day it was written -- "the 7.4% channel is only a
+#      STEP-1 number because Adam accumulates the difference as (1-b1^k) to
+#      0.953 by step 29". That law is for CONSECUTIVE steps. The constraint
+#      steps are NOT consecutive: train.py runs the whole CE batch loop, one
+#      optimizer.step per batch, and calls finish_constraint_step ONCE per
+#      epoch, so ~126 CE steps sit between them and b1^126 = 1.7e-6. The
+#      difference present at a constraint step is (1-b1)/(1-b1^(c+1)) = 0.1000
+#      at c=126 -- the single-step value, forever. The per-step figure was
+#      right; I "corrected" a correct number without checking the premise,
+#      which is the error 1b-pre(6) is kept in the framework for.
 #
-#      🛑 THE SIGN IS SETTLED, THE MAGNITUDE IS NOT. Compounding RAISES the
-#      contrast rather than compressing it, so the old note had the direction
-#      backwards. But the range above spans 3.8x on how correlated consecutive
-#      CE gradient directions are, which nothing measures, and the model holds
-#      the CE stream identical for both arms (first order). So this stays a
-#      POWER consideration and must not be turned into a predicted effect size
-#      -- that is 1b-pre(6)'s error in the opposite direction.
-#      Practical consequence is unchanged: `flag_live tralo tralo_uniform` is
-#      load-bearing, and an underpowered result should be attributed to the
-#      CHANNEL before it is attributed to the idea.
+#      WHAT ACTUALLY COMPOUNDS is the WEIGHT trajectory, and it is small:
+#      cumulative separation opens 0.44 -> 2.31 deg over 29 steps under
+#      uncorrelated CE, and 0.08 -> 0.08 (i.e. not at all) under half-correlated
+#      CE. That is a 31x swing on an assumption nothing measures.
+#
+#      ⇒ PRACTICAL CONSEQUENCE, UNCHANGED FROM THE ORIGINAL: a count-function
+#      change reaches the weights weakly, this is a POWER consideration and NOT
+#      a predicted null, `flag_live tralo tralo_uniform` is load-bearing, and an
+#      underpowered result should be attributed to the CHANNEL before it is
+#      attributed to the idea. `python -m scripts.ortho_survival --compounding`.
 #
 #    ⚠️ THE ONE DESIGN GAP LEFT, NAMED INSTEAD OF QUIETLY CARRIED. This
 #      campaign tests the fix on MobileNetV2, MobileNetV3 and RegNetY400MF. The
