@@ -418,3 +418,39 @@ levels from `dermmnist x ShuffleNetV2`, a row that does not reach the paper).
 Gated by `test_the_backbone_table_SAYS_when_a_cap_level_is_excluded`, which
 checks both directions: a thin cap level must be reported, and a healthy one
 must not.
+
+## 🛑 `tab_granular_asym`'s macro column rests on ONE seed in 8 of its cells
+
+The cc-F1 columns pair TraLO against the best trained **dual**; the
+`$\Delta$mac` column beside them pairs it against the best **clipper**. Each
+survives its own `.dropna()`, so the two can be built from different seeds --
+and `cell_stats` recorded `cc_n` but **not** `mac_n`, so nothing in the emitted
+table disclosed it.
+
+Measured 2026-08-25 over `corpus_final.csv`:
+
+| selection | mismatched cells |
+|---|---|
+| `paper_final` / dermmnist, octmnist, tissuemnist | **0** |
+| `tab_granular_asym`: dermmnist `paperv2_phase2` | **4** |
+| `tab_granular_asym`: tissuemnist `g2_asym_tissue_aider` | **4** |
+
+The 8 are exactly the four asymmetric caps -- `L20_G50`, `L30_G80`, `L50_G20`,
+`L80_G30` -- on both datasets, every one of them `mac_n = 1` against `cc_n = 4`.
+**A one-seed mean has no variance and no pairing power**, and it sits in a
+column whose neighbours are four-seed paired means.
+
+⚠️ **The main tables are unaffected** -- every `paper_final` cell agrees -- so
+this is specific to the asymmetric-cap appendix table.
+
+✅ `cell_stats` now records `mac_n` and prints a warning naming each cell.
+`tab_granular_asym.tex` and every other emitted table **still regenerate
+byte-for-byte**; the numbers are correct for what they are, and the defect was
+that the table did not disclose the `n` behind one column.
+
+🛑 **THE REMAINING DECISION IS NOT A CODE ONE.** Whether that column should
+carry its `n`, be dropped, or be re-run at four seeds changes a shipped
+appendix table, which is the professor's call. Gated by
+`test_the_granular_table_SAYS_when_its_macro_column_has_fewer_seeds`, which
+checks both directions -- it must warn on a thin cell and must not cry wolf on a
+matched one.

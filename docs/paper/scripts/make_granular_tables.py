@@ -58,6 +58,20 @@ def cell_stats(sub):
         best_cl = mac[clips].max(axis=1)
         pair = pd.concat([mac["tralo"], best_cl], axis=1, keys=["tralo", "best"]).dropna()
         r["mac_delta"] = (pair["tralo"] - pair["best"]).mean()
+        # RECORDED, like cc_n. The macro column pairs TraLO against the best
+        # CLIPPER while the cc columns pair it against the best trained DUAL, so
+        # the two survive `.dropna()` independently and their seed counts can
+        # differ. Measured 2026-08-25: identical on every paper_final cell, but
+        # in tab_granular_asym `mac_delta` rests on ONE seed in 8 cells (all
+        # four asymmetric caps, both datasets) beside a cc column using four.
+        # A one-seed mean has no variance and no pairing power.
+        r["mac_n"] = len(pair)
+    if r.get("cc_n") and r.get("mac_n") and r["cc_n"] != r["mac_n"]:
+        who = sub.iloc[0]
+        print("  !! %s/%s/%s: the macro column uses %d seed(s) while the cc "
+              "columns use %d. A one-seed mean has no variance."
+              % (who.get("dataset"), who.get("model"),
+                 who.get("constraint_tag"), r["mac_n"], r["cc_n"]))
     return r
 
 

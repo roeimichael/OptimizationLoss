@@ -2517,3 +2517,57 @@ def test_the_backbone_table_SAYS_when_a_cap_level_is_excluded(capsys):
     assert len(out[("d", "m")]) == 1, (
         "expected exactly the 4-seed cap level to survive, got %d records"
         % len(out[("d", "m")]))
+
+
+def test_the_granular_table_SAYS_when_its_macro_column_has_fewer_seeds(capsys):
+    """`Delta mac` and the cc columns pair against DIFFERENT baselines.
+
+    The cc columns pair TraLO against the best trained DUAL; the macro column
+    pairs it against the best CLIPPER. Each survives `.dropna()` independently,
+    so their seed counts can differ -- and `cell_stats` recorded `cc_n` but not
+    `mac_n`, so a reader of tab_granular_asym had no way to see it.
+
+    Measured 2026-08-25 on the shipped corpus: identical on every paper_final
+    cell, but in tab_granular_asym the macro column rests on ONE seed in 8 cells
+    (L20_G50, L30_G80, L50_G20, L80_G30 on both dermmnist and tissuemnist)
+    beside cc columns using four. A one-seed mean has no variance.
+    """
+    import importlib.util
+    import pandas as pd
+
+    path = "docs/paper/scripts/make_granular_tables.py"
+    spec = importlib.util.spec_from_file_location("_gtest", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)          # emits the real tables; unchanged
+    capsys.readouterr()
+
+    def frame(n_clip_seeds):
+        rows = []
+        for seed in range(4):
+            rows.append({"dataset": "d", "model": "m", "constraint_tag": "L1_G1",
+                         "seed": seed, "method": "tralo",
+                         "cc_f1": 0.5, "f1_macro": 0.6})
+            rows.append({"dataset": "d", "model": "m", "constraint_tag": "L1_G1",
+                         "seed": seed, "method": mod.DUALS[0],
+                         "cc_f1": 0.4, "f1_macro": 0.5})
+            if seed < n_clip_seeds:
+                rows.append({"dataset": "d", "model": "m",
+                             "constraint_tag": "L1_G1", "seed": seed,
+                             "method": mod.CLIP[0], "cc_f1": 0.3,
+                             "f1_macro": 0.55})
+        return pd.DataFrame(rows)
+
+    # --- the hazard: the clipper is present for only one seed.
+    r = mod.cell_stats(frame(1))
+    text = capsys.readouterr().out
+    assert r is not None and r.get("mac_n") == 1 and r.get("cc_n") == 4, r
+    assert "macro column uses 1 seed" in text, (
+        "cell_stats no longer warns when the macro column has fewer seeds than "
+        "the cc columns. stdout was: %r" % text)
+
+    # --- and it must NOT cry wolf when the counts agree.
+    r = mod.cell_stats(frame(4))
+    text = capsys.readouterr().out
+    assert r.get("mac_n") == r.get("cc_n") == 4, r
+    assert "macro column uses" not in text, (
+        "warned on a cell whose seed counts agree: %r" % text)
