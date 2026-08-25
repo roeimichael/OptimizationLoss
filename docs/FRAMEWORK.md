@@ -1909,6 +1909,13 @@ the warm-up.
   ⇒ **The SUPERVISED per-item family is NOT closed.** `rank`'s null does not transfer to it:
   `rank` is self-referential (no labels), and the whole reason to try a supervised version is
   that labels are the one thing it lacks. Treat this line as an open question, not a wall.
+  🛑 **PRICED 2026-08-25, and the price closes it ON iwildcam.** The receipt it was
+  missing is not a null result -- it is the size of the prize. `headroom` on `results/iwc3`
+  reports the gap from `clip` to a **PERFECT RANKING** as **0.0 to 1.0 items**, and
+  **exactly 0.0 in four of the six (cap, class) combinations**: see 2(v). A supervised
+  pairwise hinge is a ranking arm, so that is its ceiling, and iwc3's own paired seed sd
+  is 2.11 items. It cannot be measured here at any affordable seed count. The family stays
+  open as an IDEA and is unaffordable on the only dataset this project has.
 - **`select`** (jointly-trained SELECTION head, path 1c) -- ⛔⛔ **REJECTED 2026-08-22, and
   it is the worst arm this project has measured**: -22 items vs `clip`, 0 of 2 cells on
   every metric, plus 2 of 8 runs collapsing on their final epoch. Its own `select_null`
@@ -4866,6 +4873,59 @@ dose result with a precision confound, never as a clean dose result.**
 refuses to let two arms at different landing rates be compared silently. **Read
 that block FIRST, on the first completed runs, not at the end.** It cost 4 runs
 here. At `iwc3` it would have cost 180 and did.
+
+### (v) 🛑🛑🛑 ON iwildcam THE CAPPED-CLASS CEILING IS **ALREADY REACHED**
+
+`python -m scripts.headroom results/iwc3`, 2026-08-25, 9 cells, 4 seeds, control
+`clip`. This is the gap to a PERFECT RANKING -- not to a better method, and not
+to a better allocator, which is already optimal given these probabilities.
+
+| cap | class | n | K | ceiling `2K/(K+n)` | achieved | **headroom in ITEMS** |
+|---|---|---|---|---|---|---|
+| L20_G50 | 2 | 370 | 74 | 0.3333 | 0.3333 | **-0.0** |
+| L20_G50 | 7 | 456 | 92 | 0.3358 | 0.3333 | **0.7** |
+| L30_G50 | 2 | 370 | 111 | 0.4615 | 0.4615 | **0.0** |
+| L30_G50 | 7 | 456 | 137 | 0.4621 | 0.4587 | **1.0** |
+| L50_G30 | 2 | 370 | 111 | 0.4615 | 0.4615 | **0.0** |
+| L50_G30 | 7 | 456 | 137 | 0.4621 | 0.4621 | **-0.0** |
+
+**The entire prize is 0.0 to 1.0 items, and in FOUR of the six it is exactly
+zero.** iwc3's own paired seed sd is **2.11 items**. The prize is smaller than
+the noise, on every cell, by construction rather than by bad luck.
+
+#### WHY -- and it is arithmetic, not a property of any method
+
+When you may emit only `K` predictions for a class with `n` true instances, the
+best possible cc-F1 is `2K/(K+n)`: precision 1, recall `K/n`. On iwildcam `K` is
+**74 to 137 against n = 370 to 456**, so the budget is 16-30% of the true
+positives, and the top-K set is drawn from a pool of positives four to six times
+its own size. The model fills it with correct items already -- `ccP` is **0.9954**
+against its lambda=0 twin -- so `achieved` equals `ceiling` to four decimals.
+
+🔑 **There is nothing left for a ranking to win.** Every score-pushing arm this
+project has built or proposed -- `rank`, `rankpair`, `budget_margin`, the
+pairwise hinges, `select` -- is trying to reorder items inside a set that is
+already all-correct. That is why they tie, and it is NOT evidence about the
+idea. It is the ceiling.
+
+#### What this leaves, stated plainly
+
+* **On the CAPPED classes, the best any method can do here is TIE.** That is not
+  pessimism; it is `achieved == ceiling` in four of six.
+* **On the UNCAPPED classes there is only downside**, because every trained arm
+  shares a backbone with them: 2(s) measures `uncF1` at -0.0062 for `tralo`, and
+  the whole cross-family ordering as collateral damage there.
+* ⇒ **The only method that can come out non-negative on iwildcam is one that
+  provably does not touch the uncapped classes -- and its best case is a tie.**
+  That is the honest frame for `tralo_uniform` and `tralo_head` in `uniform1`:
+  their pre-registered claim is *the constraint becomes free*, and 2(v) says
+  free IS the ceiling, so the campaign is correctly aimed. It is not aimed at a
+  win, and no campaign on this dataset can be.
+* ⚠️ **This does NOT generalise off iwildcam.** The ceiling is set by `K/n`. A
+  dataset where the budget is a large fraction of the true positives has a real
+  prize; iwildcam does not, because 2(n) selected it for per-group label SHIFT,
+  which is a different property. **Any claim that the method cannot work must
+  say `K/n` before it says anything else.**
 
 ---
 
