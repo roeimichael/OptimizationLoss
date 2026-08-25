@@ -37,8 +37,9 @@
 #   warm-up      1 / constraint 29 for trained arms; 30 / 0 for post-hoc
 #   arms         tralo          sum_i p_ic,   gradient p(1-p)   the manuscript
 #                tralo_uniform  sum_i p_ic,   gradient CONSTANT fix 1: PLACEMENT
-#                tralo_ortho    step projected off the CE grad  fix 2: DIRECTION
-#                tralo_head     constraint confined to the head THE CONTROL
+#                tralo_head     constraint confined to the head fix 2: REACH
+#                (tralo_ortho   step projected off the CE grad  REMOVED
+#                                                               2026-08-25)
 #                tralo_null     lambda = 0                      the twin
 #                tralo_reseed   the twin, one RNG draw          the noise floor
 #                clip, focal_clip                               in-campaign bars
@@ -59,23 +60,33 @@
 #                against 216 x 3 = 648 for three campaigns, and it makes them
 #                a HEAD-TO-HEAD under identical controls instead of readings
 #                that can only be compared across campaigns.
+#                (`tralo_ortho` was then removed, so the shared-controls
+#                 argument now carries `tralo_uniform` and `tralo_head`:
+#                 7 arms x 9 cells x 4 seeds = 252 runs. See the block
+#                 marked REFUTED below.)
 #
-#                📌 `tralo_head` IS THE THIRD ARM AND IT IS A CONTROL, NOT A
-#                CANDIDATE. It confines the constraint gradient to the
-#                classifier head, so the backbone cannot move under it at
-#                all -- the hypothesis behind `tralo_ortho`, tested outright.
-#                WITHOUT IT AN `ortho` NULL IS UNATTRIBUTABLE: it would mean
-#                either that the projection is too weak or that the backbone
-#                was never the culprit, and those are opposite conclusions.
-#                With it they separate:
-#                  head recovers, ortho does not -> real effect, wrong tool
-#                  both recover                   -> backbone confirmed
-#                  neither recovers               -> backbone hypothesis DEAD;
-#                                                    the damage is intrinsic to
-#                                                    training under a count
-#                                                    penalty, and the post-hoc
-#                                                    clipper is the honest
-#                                                    recommendation
+#                📌 `tralo_head` IS NOW THE WHOLE BACKBONE TEST, and that is
+#                a PROMOTION, not a leftover. It was written as the control
+#                that made an `ortho` null attributable -- a null could mean
+#                the projection was too weak OR that the backbone was never
+#                the culprit, and those are opposite conclusions. With
+#                `tralo_ortho` refuted offline and removed, the ambiguity it
+#                was guarding against is gone with it: `head_only` keeps
+#                constraint information out of the backbone DIRECTLY, with no
+#                projection to be too weak. It reads on its own:
+#                  head recovers uncF1  -> the damage travels through the
+#                                          backbone, and the lever is the
+#                                          parameter set the constraint may
+#                                          touch
+#                  head does not        -> backbone hypothesis DEAD; the damage
+#                                          is intrinsic to training under a
+#                                          count penalty, and the post-hoc
+#                                          clipper is the honest recommendation
+#                ⚠️ It does NOT freeze the backbone -- a gradient-masked
+#                coordinate still steps at 90.4% of an unmasked one under real
+#                Adam (`scripts.ortho_survival`). The residual is CE momentum,
+#                which `tralo_null` carries too, so it is common-mode: read
+#                this arm against its own null, never against `clip` alone.
 #   dose         constraint_grad_mode normalize -- ESSENTIAL HERE. It fixes the
 #                delivered step to a protocol constant, so `tralo` and
 #                `tralo_uniform` differ ONLY in the DIRECTION of the step and
@@ -108,7 +119,9 @@
 #                to `tralo_null`. If it does not, the arm is a silent null,
 #                the comparison is void, and the answer is a dose sweep on
 #                `lr_constraint` for that arm alone -- NOT a verdict.
-#   size         9 cells x 8 arms x 4 seeds = 288 runs
+#   size         9 cells x 7 arms x 4 seeds = 252 runs
+#                (8 arms x 4 = 288 as first generated; `tralo_ortho` was
+#                 removed 2026-08-25, see the block below)
 #
 # PRE-REGISTERED, before any run (and duplicated in the source docstring of
 # `uniform_grad_count` so it cannot be quietly rewritten):
@@ -146,8 +159,10 @@
 #               LOWER native satisfaction for this arm is expected; judge it on
 #               d capF1 in ITEMS against `tralo_null`, never on enforcement.
 #
-#   AND FOR `tralo_ortho`, stated separately because the two can fail
-#   differently:
+#   ⛔ AND FOR `tralo_ortho` -- VOID, 2026-08-25. The arm is not in this
+#   campaign. The pre-registration is KEPT rather than deleted, because what was
+#   predicted before a refutation is part of the record and erasing it would
+#   leave only the refutation. Nothing below is a live prediction:
 #   PREDICTED   uncF1 vs the twin recovers toward 0 while ccF1 is unchanged.
 #               2(s) puts TraLO's constraint at -0.0144 uncF1 and -0.0020 ccF1;
 #               the projection is aimed at the first and should not touch the
@@ -168,21 +183,25 @@
 #               training under a count penalty at all -- which would make the
 #               post-hoc clipper the honest recommendation.
 #
-# 🛑 THREE CANDIDATE ARMS IS THREE SHOTS, AND NOTHING CORRECTS ACROSS THEM.
+# 🛑 TWO CANDIDATE ARMS IS TWO SHOTS, AND NOTHING CORRECTS ACROSS THEM.
 # `full_panel`'s BH controls the false-discovery rate across the metrics in ONE
 # arm's table against ONE control. It does not correct across arms, and it says
-# so in its own output. With `tralo_uniform`, `tralo_ortho` and `tralo_head` in
-# one campaign, "an arm cleared q<0.05" is one of three tries, so a lone winner
-# needs its q multiplied by 3 before it is quoted -- Bonferroni over the arm
-# family is the conservative and honest version. `tralo_head` is a CONTROL, not
-# a candidate, so it does not consume a try when it is read as the ortho/head
-# pair; it does the moment it is quoted alone as a win.
+# so in its own output. With `tralo_uniform` and `tralo_head` in one campaign,
+# "an arm cleared q<0.05" is one of two tries, so a lone winner needs its q
+# multiplied by 2 before it is quoted -- Bonferroni over the arm family is the
+# conservative and honest version.
+# ⚠️ DROPPING `tralo_ortho` LOWERED THIS MULTIPLIER FROM 3 TO 2, and that
+# is a REASON TO STATE IT, not a bonus to pocket quietly. An arm removed after
+# the pre-registration was written but BEFORE any run existed costs nothing;
+# an arm removed after seeing its numbers would be exactly the selection this
+# multiplier exists to price. This one was removed on an offline proof about
+# Adam, with zero runs of this campaign in existence -- `results/uniform1` does
+# not exist on either host. That is the whole reason the multiplier may move.
 #
 # HOW TO READ IT, in this order, and stop at the first one that fails:
 #   python -m scripts.rig_status --campaign results/uniform1
 #   python -m scripts.order_probe --campaign results/uniform1 --arm tralo_uniform
 #   python -m scripts.order_probe --campaign results/uniform1 --arm tralo_uniform --evictions
-#   python -m scripts.order_probe --campaign results/uniform1 --arm tralo_ortho
 #   python -m scripts.family_split --campaign results/uniform1
 #   python -m scripts.full_panel  --campaign results/uniform1 --control tralo_null
 #   python -m scripts.full_panel  --campaign results/uniform1 --control clip
@@ -206,11 +225,30 @@ ROOT=results/uniform1
 #    IS the CE momentum; snapshot_grads captures one minibatch).
 #
 #    ⇒ WHATEVER `tralo_ortho` MEASURES, IT IS NOT "the constraint no longer
-#      undoes CE progress". Its 36 of these 288 runs buy an arm with no live
-#      hypothesis. RECOMMENDED: drop it and put those runs into SEEDS on
-#      `tralo_uniform` and `tralo_head`, taking each cell from 4 to 6 seeds --
-#      which is what the underpowered contrasts in FRAMEWORK 2(s) actually
-#      need (53 / 9 / 19 seeds per cell on the macroF1 and ccF1 lines).
+#      undoes CE progress". Its 36 runs buy an arm with no live hypothesis, so
+#      it is DROPPED from the arm list below.
+#
+#    🛑 AND THE REALLOCATION FIRST WRITTEN HERE WAS WRONG TWICE, caught
+#      2026-08-25 before it could be run. It said: put the 36 freed runs into
+#      seeds on `tralo_uniform` and `tralo_head`, 4 -> 6 per cell.
+#        (1) IT IS NOT EXPRESSIBLE. `seeds` is ONE global list in
+#            `configs/protocol.yml` (`seeds: [1, 2, 3, 4]`), read once at
+#            `gen_campaign.py:599` for EVERY arm. There is no per-arm seed
+#            count, so "6 seeds on two arms" cannot be generated at all -- only
+#            "6 seeds on all arms", which is 378 runs, not 288.
+#        (2) IT WOULD HAVE BEEN DISCARDED IF IT WERE. Every read here is
+#            seed-paired against the twin, and `family_split` keeps a cell-seed
+#            only when EVERY arm is present (`set(arms) <= have`). Seeds 5 and
+#            6 living on the treatment arms but not on `tralo_null` are dropped
+#            wholesale: 36 runs for zero information. The tool would have said
+#            so rather than crashed, which is the quiet version of the failure.
+#      ⇒ extra seeds must go on the CONTROL too or not at all, and that is
+#        3 arms x 9 cells x 2 = 54 runs against 36 freed. It does not fit -- and
+#        it would not have bought much: 4 -> 6 seeds narrows a mean's CI by 18%
+#        while 2(s)'s underpowered lines need 9, 19 and 53 seeds per cell.
+#      ⇒ DECIDED: 7 arms x 9 cells x 4 seeds = 252 runs. Spend 36 fewer, not
+#        36 differently. The primary read is `order_probe` net items vs the
+#        twin, which was 16/16 at -30 items and is not seed-limited.
 #
 #    ⚠️ `tralo_head` IS NOT AFFECTED, but its description here is. Zeroing a
 #      gradient does NOT freeze a parameter: real torch.optim.Adam moves a
@@ -233,8 +271,29 @@ ROOT=results/uniform1
 #      load-bearing here than usual, and an underpowered uniform-vs-sum result
 #      should be attributed to the CHANNEL before it is attributed to the idea.
 #
-#    This block is advice, not an edit: the arm list below is UNCHANGED so the
-#    script still matches PIN=ea77ab80. Change both together or neither.
+#    ⚠️ THE ONE DESIGN GAP LEFT, NAMED INSTEAD OF QUIETLY CARRIED. This
+#      campaign tests the fix on MobileNetV2, MobileNetV3 and RegNetY400MF. The
+#      measurement that MOTIVATES it is -30.44 items on **ViTB16**
+#      (results/iwc2, the header at the top of this file); the same probe on
+#      MobileNetV3 read **-3.4** (results/iwc1). The paired seed sd is ~2.7
+#      items, so on the CNNs this campaign is trying to detect the REMOVAL of
+#      an effect about the size of its own noise -- t ~ 2.5 at 4 seeds, against
+#      ~23 on ViTB16. It is testing the fix where the disease is mildest.
+#      ⇒ CHECK THIS BEFORE LAUNCHING, the moment the servers answer:
+#          python -m scripts.order_probe --campaign results/iwc1 --arm tralo --evictions
+#          python -m scripts.order_probe --campaign results/iwc2 --arm tralo --evictions
+#        and compare the CAP LEVELS the two ran at. -3.4 vs -30.8 is a
+#        CROSS-CAMPAIGN pair and this project has been burned by those; if the
+#        caps differ it is not a backbone effect at all. If they match, add
+#        ViTB16 as a fourth backbone -- 12 cells x 7 arms x 4 seeds = 336 runs
+#        -- and read the three CNNs as the replication, not the headline.
+#
+#    THIS BLOCK IS NOW AN EDIT, NOT ADVICE. `tralo_ortho` is out of the arm list
+#    below. PIN=ea77ab80 is UNCHANGED and still correct: it is the commit whose
+#    `src/` IMPLEMENTS the arms, and running a SUBSET of what a commit
+#    implements needs no different commit. The earlier "change both together or
+#    neither" was a false constraint, and it was the stated reason for leaving a
+#    refuted arm in a campaign.
 # ═══════════════════════════════════════════════════════════════════════════
 #
 PIN=ea77ab80                 # the commit carrying ALL THREE arms:
@@ -286,7 +345,8 @@ PY=$HOME/anaconda3/envs/optloss/bin/python
     --datasets iwildcam \
     --models MobileNetV2 MobileNetV3 RegNetY400MF \
     --caps L20_G50 L30_G50 L50_G30 \
-    --arms tralo tralo_uniform tralo_ortho tralo_head tralo_null tralo_reseed \n           clip focal_clip \
+    --arms tralo tralo_uniform tralo_head tralo_null tralo_reseed \
+           clip focal_clip \
     --constraint-grad-mode normalize
 
 # THE THREE GATES. Each refuses a different way to waste a week, and a campaign
@@ -298,7 +358,6 @@ PY=$HOME/anaconda3/envs/optloss/bin/python
 # Is the new flag LIVE, or a fifth inert one? (CLAUDE.md rule 3.) This is the
 # md5 check across arms, and it is the difference between an arm and a rename.
 "$PY" -m scripts.flag_live tralo tralo_uniform
-"$PY" -m scripts.flag_live tralo tralo_ortho
 "$PY" -m scripts.flag_live tralo tralo_head
 
 GPU=${GPU:-0}

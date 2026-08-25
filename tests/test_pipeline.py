@@ -5226,6 +5226,16 @@ def test_no_runnable_command_in_the_docs_names_a_removed_dataset():
                 code = stripped.split("#", 1)[0].strip()
                 if code:
                     out.append(code)
+        # An odd number of fences makes every line after the last one read as
+        # code, and this gate then reports PROSE and MARKDOWN TABLE ROWS as
+        # "runnable commands naming a removed dataset". That happened on
+        # 2026-08-25 and the message sent the reader hunting for a command that
+        # does not exist. An unbalanced fence must be reported AS an unbalanced
+        # fence.
+        assert not in_fence, (
+            "unbalanced ``` fence: an odd number of fence lines, so everything "
+            "after the last one is being read as code. Fix the fence -- do not "
+            "read the failure below it as a real finding.")
         return out
 
     # the checker must be capable of firing, or it proves nothing about the docs

@@ -2017,6 +2017,62 @@ generators -- and none in the training path. That is what repeated auditing
 looks like from the outside: the pipeline has been hardened for a year and the
 tools that read it have not. **Audit the reader, not the writer.**
 
+#### 🆕 A FIFTH CLASS, found 2026-08-25: **THE STAGED ARTEFACT NOBODY PARSES**
+
+`docs/launch_uniform.sh` had carried, since it was written, an arm list that
+bash resolves to something other than what it reads as:
+
+```text
+--arms tralo tralo_uniform tralo_ortho tralo_head tralo_null tralo_reseed \n           clip focal_clip \
+```
+
+That `\n` is **not a newline**. A backslash inside an unquoted bash word escapes
+the next character, so the shell passes a bare argument `n`. `gen_campaign`'s
+`choices=` rejects it, exit 2, and `set -euo pipefail` kills the script. The
+campaign dies **at launch** -- after a GPU has been found, the worktree taken and
+the pin checked out -- for a defect that was in the file the whole time.
+
+🔑 **The class is not "a typo". It is that a launch script is the only executable
+artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
+`scripts/` are all imported by 381 tests. `main.py` runs every campaign.
+`docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
+the server, once, under time pressure. Two of them existed; one was broken.
+
+⚠️ **AND FAILING LOUDLY WAS LUCK.** Measured by dropping each token of that
+line in turn and reading what `gen_campaign` actually does:
+
+| token lost | generator | outcome |
+|---|---|---|
+| `clip`, `focal_clip` | auto-re-added (`mandatory_arms`) | **harmless** |
+| `tralo_reseed` | REFUSED, exit 1 | **caught** |
+| `tralo`, `tralo_uniform`, `tralo_head` | exit 0, 216 runs | silent |
+| **`tralo_null`** | **exit 0, 216 runs** | 🛑 **silent and fatal** |
+
+Losing the twin prints `*** NO ZERO-DOSE CONTROL for: ...` and **exits 0**. In a
+launch script that warning scrolls past inside the generator's own output, `set
+-e` does nothing about it, and the dispatcher starts 45 seconds later. The
+campaign would run to completion and be **unreadable**: every contrast in it is
+seed-paired against the twin, so `family_split` finds no null and `full_panel
+--control tralo_null` has no control. 216 runs, unattributable -- which is
+section 3b's defect (`corpus_final.csv` has zero `_null` arms) reproduced from
+scratch by a stray backslash.
+
+✅ Gated by `test_a_staged_launch_script_NAMES_ONLY_ARMS_THAT_EXIST`, which
+parses every `docs/*.sh` the way bash does (`shlex`, posix, after removing
+backslash-NEWLINE only) and checks two things: every arm named EXISTS in
+`configs/protocol.yml`, and every **trained** arm named has its `_null` sibling
+named beside it. Shown to FAIL on all three breaks -- the original `
+`, a
+mangled-away `tralo_null`, and a duplicated arm.
+
+🔑 **THE GENERALISATION, and it is the same one as the fourth class turned
+around.** The fourth class was *audit the reader, not the writer*. This one is
+**an artefact that only one machine ever executes is the artefact least likely to
+have been executed.** Anything in this repo that is run once, elsewhere, by hand
+-- launch scripts, deploy commands, the `ssh` one-liners in operational docs --
+is in that category. `bash -n` and a `shlex` parse are the cheapest gate this
+project has, and neither had ever been pointed at them.
+
 ### (f) What was DELETED FROM THE CODE on 2026-08-18, and why
 
 Every failed idea had left a flag, a branch and a default behind. The knobs are gone, not
@@ -2084,7 +2140,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 379 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 381 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -2092,7 +2148,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (379 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (381 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -5558,7 +5614,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             379 tests, ~105 s, no dataset required
+tests/             381 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

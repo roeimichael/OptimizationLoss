@@ -2708,3 +2708,176 @@ def test_no_script_exists_without_being_NAMED_where_someone_will_look():
         "the docs name scripts that do not exist: %s. Either restore them or "
         "remove the reference -- a documented command that errors is worse "
         "than an undocumented one that works." % ghosts)
+
+
+def test_a_staged_launch_script_NAMES_ONLY_ARMS_THAT_EXIST():
+    """A launch script is code that runs once, on a server, under time pressure.
+
+    `docs/launch_uniform.sh` carried, for a day, this line:
+
+        --arms tralo tralo_uniform tralo_ortho tralo_head tralo_null \
+               tralo_reseed \n           clip focal_clip \
+
+    That `\n` is not a newline. A backslash inside an unquoted bash word
+    escapes the next character, so the shell passed a bare argument `n`, and
+    `gen_campaign`'s `choices=` rejected it with exit 2 under `set -e`. The
+    campaign would have died AT LAUNCH -- after the operator had found a free
+    GPU, taken the worktree and checked out the pin -- for a reason that was
+    visible in the file the whole time.
+
+    It failed loudly, which is the only good thing about it -- but that was
+    luck, not design. Measured 2026-08-25 by dropping each token of that line in
+    turn and reading what `gen_campaign` actually does:
+
+        clip, focal_clip   auto-re-added (`mandatory_arms`)  -> HARMLESS
+        tralo_reseed       REFUSED, exit 1                   -> CAUGHT
+        tralo, tralo_uniform, tralo_head, tralo_null
+                           exit 0, 216 runs written          -> SILENT
+
+    Losing `tralo_null` is the bad one. It prints `*** NO ZERO-DOSE CONTROL
+    for: ...` and exits 0, and in a launch script that warning scrolls past
+    inside the generator's own output with `set -euo pipefail` doing nothing
+    about it and the dispatcher starting 45 seconds later. The campaign would
+    run to completion and be unreadable: every contrast here is seed-paired
+    against the twin, so `family_split` would find no null and `full_panel
+    --control tralo_null` would have no control. 216 runs, unattributable.
+
+    So this gate does two things, both statically, from the script and
+    `configs/protocol.yml`: every arm named must EXIST, and every trained arm
+    named must have its `_null` sibling named beside it. It is the sibling of
+    the gate that refuses a config key with no reader -- an arm name with no
+    arm, and a treatment with no twin.
+    """
+    import io
+    import shlex
+
+    BS = chr(92)
+    scripts = sorted(f for f in os.listdir("docs") if f.endswith(".sh"))
+    assert scripts, "docs/ carries no launch script, which cannot be right"
+
+    P = load_protocol()
+    valid = set(P["arms"]) | {"all", "all+null"}
+    checked = 0
+
+    for name in scripts:
+        path = os.path.join("docs", name)
+        text = io.open(path, encoding="utf-8").read()
+        # Comment lines first: the prose above these invocations discusses arms
+        # by name, including removed ones, and that is exactly what it is for.
+        text = "\n".join(l for l in text.splitlines()
+                         if not l.lstrip().startswith("#"))
+        # Then bash's line continuation -- backslash-NEWLINE vanishes, while a
+        # backslash followed by any other character does not. That asymmetry is
+        # the whole bug.
+        text = text.replace(BS + "\n", " ")
+
+        for line in text.splitlines():
+            # The INVOCATION form, not the bare word. `launch_margin1.sh`
+            # prints a briefing from a heredoc whose prose says "gen_campaign
+            # skipping completed runs makes the extension cheap", and that is
+            # not a command.
+            if "-m configs.gen_campaign" not in line:
+                continue
+            toks = shlex.split(line, posix=True)
+            assert "--arms" in toks, (
+                "%s invokes gen_campaign without --arms, so it silently gets "
+                "the default single-arm campaign" % path)
+            i = toks.index("--arms") + 1
+            arms = []
+            while i < len(toks) and not toks[i].startswith("--"):
+                arms.append(toks[i])
+                i += 1
+            bad = [a for a in arms if a not in valid]
+            assert not bad, (
+                "%s passes arm name(s) %s that `configs/protocol.yml` does not "
+                "define. bash resolved the --arms line to %s. This script dies "
+                "at launch." % (path, bad, arms))
+            assert len(set(arms)) == len(arms), (
+                "%s names an arm twice: %s" % (path, arms))
+
+            # The silent one. `gen_campaign` prints a warning and exits 0.
+            orphaned = sorted(
+                a for a in arms
+                if P["arms"].get(a, {}).get("phase") == "trained"
+                and not a.endswith("_null")
+                and P["arms"][a].get("null_sibling", a + "_null") in P["arms"]
+                and P["arms"][a].get("null_sibling", a + "_null") not in arms)
+            assert not orphaned, (
+                "%s names trained arm(s) %s with no zero-dose twin in the same "
+                "campaign. gen_campaign PRINTS this and exits 0, so `set -e` "
+                "will not stop the launch 45 seconds later -- and the finished "
+                "campaign cannot attribute anything to the constraint rather "
+                "than to the 29 extra epochs. Add: %s"
+                % (path, orphaned,
+                   sorted({P["arms"][a].get("null_sibling", a + "_null")
+                           for a in orphaned})))
+            checked += 1
+
+    assert checked, (
+        "no launch script invoked gen_campaign, so this gate checked nothing. "
+        "Either the scripts moved or the parse above stopped matching.")
+
+
+def test_a_documented_command_passes_FLAGS_THAT_EXIST():
+    """The ghost-script gate checks the module exists. This checks its flags do.
+
+    Same class as `test_a_staged_launch_script_NAMES_ONLY_ARMS_THAT_EXIST`: a
+    command that only ever runs by hand, once, on a server, is the command least
+    likely to have been run. `CLAUDE.md` and `docs/FRAMEWORK.md` between them
+    carry 43 `python -m ...` invocations, and a flag that argparse does not
+    declare exits 2 exactly the way the mangled `--arms` line did.
+
+    Flags are read by AST from each module's `add_argument` calls, never by
+    grep: this project has already been burned once by a grep that reported
+    `rho_step` as live because a LOG LINE named it.
+
+    Audited 2026-08-25: 43 invocations, zero bad flags. That zero is a
+    measurement and not silence, because the checker was shown to fire on
+    `--two-metric` (the real flag is `--two-metrics`) and on `--controls` (the
+    real one is `--control`) while passing the genuine `--campaign` -- i.e. it
+    responds to exactly the near-miss typo it exists to catch.
+    """
+    import io
+    import re
+    import shlex
+
+    def declared_flags(modpath):
+        tree = ast.parse(io.open(modpath, encoding="utf-8").read())
+        out = set()
+        for n in ast.walk(tree):
+            if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                    and n.func.attr == "add_argument"):
+                for a in n.args:
+                    if (isinstance(a, ast.Constant)
+                            and isinstance(a.value, str)
+                            and a.value.startswith("-")):
+                        out.add(a.value)
+        return out
+
+    CMD = re.compile(
+        r"python\s+-m\s+((?:scripts|configs|docs\.paper\.scripts)"
+        r"\.[a-z_0-9]+)([^\n`]*)")
+    bad, seen = [], 0
+    for doc in ("CLAUDE.md", "docs/FRAMEWORK.md"):
+        text = io.open(doc, encoding="utf-8").read()
+        for m in CMD.finditer(text):
+            mod, rest = m.group(1), m.group(2)
+            path = mod.replace(".", os.sep) + ".py"
+            if not os.path.exists(path):
+                continue        # the ghost-script gate owns this case
+            have = declared_flags(path)
+            try:
+                toks = shlex.split(rest, posix=True)
+            except ValueError:
+                continue        # an unterminated quote is prose, not a command
+            seen += 1
+            for u in (t for t in toks if t.startswith("--")):
+                if u.split("=")[0] not in have:
+                    bad.append("%s: `python -m %s ... %s`" % (doc, mod, u))
+
+    assert seen >= 20, (
+        "only %d documented invocations parsed, so this gate is reading almost "
+        "nothing -- the command format in the docs probably changed" % seen)
+    assert not bad, (
+        "the operational docs pass flags that argparse does not declare, so "
+        "these commands exit 2 for whoever copies them: %s" % bad)
