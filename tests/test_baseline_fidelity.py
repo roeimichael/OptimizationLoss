@@ -3769,3 +3769,53 @@ def test_the_out_of_tree_guard_REFUSES_ONLY_WHEN_IT_SHOULD():
         "no launch script carries the out-of-tree guard, so this executed "
         "nothing. Either the guard was removed or the extraction above stopped "
         "matching it.")
+
+
+def test_the_dose_reader_CATCHES_BOTH_HISTORICAL_FAILURES():
+    """`scripts/dose_landed.py` is the check that must run FIRST, so gate it.
+
+    Two campaigns lost their treatment silently and both were caught late:
+
+        uniform1   `tralo_uniform` 1/29 (3.4%) beside `tralo` 29/29 -- ONE arm
+                   low, its siblings fine, i.e. the LOSS SHAPE.
+        iwc3       716/1044 (68.6%) with a step lost in 36 of 36 runs -- EVERY
+                   trained arm low, i.e. the HOST (FP16 + GradScaler).
+
+    The second is the one a naive spread check misses: the arms AGREE with each
+    other at 69%, so "did these arms run at the same dose" says yes while the
+    honest answer is that none of them ran at the dose it was given. Both
+    shapes are in the script's `--self-test` and both are asserted here.
+    """
+    import io
+
+    from scripts.dose_landed import report, self_test
+
+    buf = io.StringIO()
+    assert self_test(out=buf) == 0, buf.getvalue()
+    assert "SELF-TEST PASS" in buf.getvalue()
+
+    # one arm low, siblings fine -> named as the loss shape
+    buf = io.StringIO()
+    n = report({"tralo": [29, 29, 1, 0], "tralo_uniform": [1, 29, 1, 0]},
+               {"tralo": {"bfloat16"}, "tralo_uniform": {"bfloat16"}}, out=buf)
+    text = buf.getvalue()
+    assert n >= 2 and "DID NOT RUN AT THE SAME DOSE" in text, text
+    assert "LOSS SHAPE" in text, text
+
+    # every arm low -> named as the host, even though the arms agree
+    buf = io.StringIO()
+    n = report({"tralo": [716, 1044, 36, 0], "fioretto": [720, 1044, 36, 0]},
+               {"tralo": {"float16"}, "fioretto": {"float16"}}, out=buf)
+    text = buf.getvalue()
+    assert n >= 2, text
+    assert "STEP(S) LOST" in text, text
+
+    # the clean case must stay quiet, or the check is noise
+    buf = io.StringIO()
+    assert report({"tralo": [29, 29, 1, 0], "hounie": [29, 29, 1, 0]},
+                  {}, out=buf) == 0, buf.getvalue()
+
+    # and the very start of a campaign is not a failure
+    buf = io.StringIO()
+    assert report({"clip": [0, 0, 0, 4]}, {}, out=buf) == 0
+    assert "normal state at the very start" in buf.getvalue()

@@ -60,7 +60,7 @@ imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 392 regression tests, ~180s, no dataset needed
+python -m pytest tests -q                   # 393 regression tests, ~180s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -75,6 +75,12 @@ python -m scripts.reachability <early-run>  # CAN the penalty even reach this ce
 ## Reading a result
 
 ```bash
+python -m scripts.dose_landed <root>        # 🛑 RUN THIS FIRST, AND ON A RUNNING
+#   CAMPAIGN. Per-arm `steps landed / attempted` straight out of config.json --
+#   no predictions, no pairing, seconds on a campaign that is 1% done. ONE arm
+#   low = the loss shape (`tralo_uniform` 1/29 beside `tralo` 29/29); EVERY arm
+#   low = the host (`iwc3` 716/1044, FP16 + GradScaler skips an overflowing
+#   step). Read the `amp` column to tell them apart. `--self-test` gates it.
 python -m scripts.full_panel --campaign <root> --control clip   # THE scorer, seed-paired
 #   ^ 🛑 READ ITS `CONSTRAINT DOSE` BLOCK ON THE FIRST COMPLETED RUNS,
 #     NOT AT THE END. A non-finite constraint gradient makes
