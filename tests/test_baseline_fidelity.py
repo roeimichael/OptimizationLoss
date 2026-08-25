@@ -3570,3 +3570,81 @@ def test_a_probability_clamp_SURVIVES_THE_DTYPE_IT_ACTUALLY_RUNS_IN():
         "these sites clamp a probability with a hand-written `1 - EPSILON`, "
         "which is a no-op at the top in every dtype: %s. Use "
         "`clamp_probability` from src.utils.constants." % offenders)
+
+
+def test_a_launch_scripts_PIN_carries_the_same_gen_campaign_invocation():
+    """The script checks out `$PIN` onto the tree it is itself stored in.
+
+        cd "$TREE"
+        git checkout -q --detach "$PIN"
+
+    Bash reads a script incrementally, by byte offset. If the pinned commit's
+    copy of `docs/launch_uniform.sh` differs from the one being executed, the
+    file changes underneath the interpreter at an offset it has not reached
+    yet -- and the campaign that then generates is the PINNED script's
+    campaign, not the one the operator read.
+
+    It nearly happened on 2026-08-25. `--constraint-fp32` was added to the
+    invocation and PIN still named the commit before it, so the launch would
+    have re-checked-out a script with no `--constraint-fp32` and regenerated
+    the same 3.4%-dose campaign the flag exists to prevent.
+
+    A commit cannot name its own hash, so the requirement is not "PIN equals
+    HEAD". It is narrower and it is the part that decides what runs: **the
+    gen_campaign invocation at PIN must be token-for-token the invocation in
+    the working copy.** Prose may drift; the campaign may not.
+
+    Negative control, 2026-08-25: with PIN left at 38d96ba4 this FAILS with
+    the `--constraint-fp32` token present in the working copy and absent at
+    the pin.
+    """
+    import io
+    import shlex
+    import subprocess
+
+    BS = chr(92)
+
+    def invocation(text):
+        code = "\n".join(l for l in text.splitlines()
+                         if not l.lstrip().startswith("#"))
+        code = code.replace(BS + "\n", " ")
+        for line in code.splitlines():
+            if "-m configs.gen_campaign" in line:
+                return shlex.split(line, posix=True)
+        return None
+
+    checked = 0
+    for name in sorted(f for f in os.listdir("docs") if f.endswith(".sh")):
+        path = os.path.join("docs", name)
+        here = io.open(path, encoding="utf-8").read()
+        pin = None
+        for line in here.splitlines():
+            if line.startswith("PIN="):
+                pin = line[4:].split("#")[0].strip()
+                break
+        if not pin:
+            continue
+        rel = path.replace(os.sep, "/")
+        try:
+            there = subprocess.check_output(
+                ["git", "show", "%s:%s" % (pin, rel)],
+                stderr=subprocess.STDOUT).decode("utf-8", "replace")
+        except (subprocess.CalledProcessError, OSError) as exc:
+            raise AssertionError(
+                "%s pins %s, and `git show %s:%s` fails: %s. The launch does "
+                "`git checkout --detach $PIN` on the tree this file lives in, "
+                "so a pin that does not carry this file rewrites it "
+                "mid-execution." % (path, pin, pin, rel, exc))
+
+        mine, theirs = invocation(here), invocation(there)
+        if mine is None and theirs is None:
+            continue
+        assert mine == theirs, (
+            "%s pins %s, but the gen_campaign invocation there is NOT the one "
+            "in this file.\n  here : %s\n  at %s: %s\nThe checkout would "
+            "replace this script with one that generates a different "
+            "campaign." % (path, pin, mine, pin, theirs))
+        checked += 1
+
+    assert checked, (
+        "no launch script declared a PIN, so this gate checked nothing.")

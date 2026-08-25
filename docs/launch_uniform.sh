@@ -376,14 +376,25 @@ ROOT=results/uniform1
 #        -- and read the three CNNs as the replication, not the headline.
 #
 #    THIS BLOCK IS NOW AN EDIT, NOT ADVICE. `tralo_ortho` is out of the arm list
-#    below. PIN=ea77ab80 is UNCHANGED and still correct: it is the commit whose
+#    below. Dropping an arm needs no new PIN: the pin is the commit whose
 #    `src/` IMPLEMENTS the arms, and running a SUBSET of what a commit
 #    implements needs no different commit. The earlier "change both together or
 #    neither" was a false constraint, and it was the stated reason for leaving a
 #    refuted arm in a campaign.
+#
+#    🛑 BUT THE PIN MUST STILL CONTAIN **THIS FILE**, and that is a
+#    different requirement. The script does `cd $TREE` and then
+#    `git checkout --detach $PIN` -- on the tree it is itself stored in. Bash
+#    reads a script incrementally, so checking out a commit whose
+#    `docs/launch_uniform.sh` differs rewrites the file mid-execution, at a
+#    byte offset bash has not reached yet. Whenever the gen_campaign
+#    invocation below changes, bump PIN to a commit that carries the new
+#    invocation -- in a FOLLOW-UP commit, since a commit cannot name its own
+#    hash. Gated by
+#    `test_a_launch_scripts_PIN_carries_the_same_gen_campaign_invocation`.
 # ═══════════════════════════════════════════════════════════════════════════
 #
-PIN=38d96ba4                 # the commit carrying ALL THREE arms
+PIN=1e7829c7                 # the commit carrying ALL THREE arms
                              # (soft_count_mode uniform, ortho_project,
                              # head_only) AND the dtype-safe probability
                              # clamp. ea77ab80 has the arms and NOT the

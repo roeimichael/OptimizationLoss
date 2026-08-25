@@ -2120,7 +2120,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 390 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 391 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -2284,7 +2284,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 390 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 391 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -2292,7 +2292,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (390 tests, ~180 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (391 tests, ~180 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -4712,6 +4712,40 @@ EPSILON)`. Negative control: it FAILS on the shipped code with
 `uniform_grad_count returned a non-finite VALUE in torch.float16`, on exactly
 the saturated probabilities iwildcam produces.
 
+#### 🔴 AND IT IS NOT ONE ARM. **EVERY FP16 CAMPAIGN RAN AT ~70% DOSE.**
+
+Audited 2026-08-25 over every campaign on the server that records the counts,
+5,364 attempted steps:
+
+| campaign | AMP dtype | landed | runs with a lost step |
+|---|---|---|---|
+| `iwc1` | float16 | **68.8%** | 24 / 32 |
+| `iwc2` | float16 | **74.6%** | 8 / 8 |
+| `iwc3` | float16 | **68.6%** | **36 / 36** |
+| `xfam1` | bfloat16 | **100.0%** | 0 / 108 |
+
+The split is exactly the AMP dtype, and the mechanism is not the clamp bug
+above: **FP16 + `GradScaler` SKIPS an optimizer step whose gradient overflows,**
+and BF16, which has float32's exponent range, does not. dsisco01 is the FP16
+host and dsisco02 the BF16 one, so *which server a campaign landed on set its
+constraint dose*, at roughly a third of the phase.
+
+🔑 **Read the SIGN of that before deciding what it costs.** Less dose means
+less constraint, and every iwc* finding is that the constraint DAMAGES the
+representation. So those numbers are **lower bounds** -- iwc3's 0-of-9 sweep
+was produced by two thirds of the intended pressure. The confound does not
+threaten the negative results; it would threaten a positive one.
+
+⚠️ **It DOES forbid one thing: comparing an arm across hosts.** Within a
+campaign every arm shares the dtype, so the internal contrasts are sound.
+Across campaigns they are not, and 2(s)'s cross-family table is BF16 while
+2(p-post)'s is FP16.
+
+The provenance was there the whole time: `results.runtime` records `amp_dtype`,
+`amp_enabled`, the CUDA version and the device on every run since the field
+was added. Nothing read it. This is the same shape as every other defect in
+2(e) -- the record existed, the reader did not.
+
 🛑 **THE GENERAL RULE, and it is cheap to apply.** `full_panel` already prints
 `CONSTRAINT DOSE -- steps that LANDED, against steps attempted` and already
 refuses to let two arms at different landing rates be compared silently. **Read
@@ -5907,7 +5941,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             390 tests, ~180 s, no dataset required
+tests/             391 tests, ~180 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
