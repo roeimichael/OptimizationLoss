@@ -340,6 +340,99 @@ def count_change_attenuation(cos_gg, rng, n=DIM, epoch=3):
     return cu, deg(cos_gg), deg(cu)
 
 
+def _P_CASES(rng):
+    """Plausible capped-class probability distributions, for the angle sweep."""
+    n = 2000
+    return [
+        ("uniform(0,1)", rng.uniform(0, 1, n)),
+        ("beta(0.5,0.5)  U-shaped", rng.beta(0.5, 0.5, n)),
+        ("beta(2,5)      mass low", rng.beta(2, 5, n)),
+        ("beta(0.2,0.2)  very confident", rng.beta(0.2, 0.2, n)),
+        ("trained-like 90% <0.1, 10% >0.9",
+         np.concatenate([rng.uniform(0, 0.1, int(n * 0.9)),
+                         rng.uniform(0.9, 1.0, n - int(n * 0.9))])),
+    ]
+
+
+def count_gradient_angle(p_c):
+    """The REAL angle between `sum`'s and `uniform`'s per-item gradients.
+
+    Not assumed -- computed. `sum`'s is `p(1-p)` per item; `uniform`'s is a
+    constant equal to their mean. BOTH VECTORS ARE ELEMENTWISE NON-NEGATIVE, so
+    the angle between them is bounded below 90 degrees by construction and can
+    never be the 180 that `count_change_attenuation` is swept over.
+
+    Measured over plausible p distributions: 19.8 deg (mass low) to 50.7 deg
+    (very confident), ~29 deg for a trained-like split. Returns degrees.
+    """
+    g_sum = np.asarray(p_c, dtype=float) * (1.0 - np.asarray(p_c, dtype=float))
+    g_uni = np.full_like(g_sum, g_sum.mean())
+    c = float(g_sum @ g_uni) / (np.linalg.norm(g_sum) * np.linalg.norm(g_uni))
+    return float(np.degrees(np.arccos(np.clip(c, -1.0, 1.0))))
+
+
+def count_change_compounding(cos_gg, ce_rho, rng, epoch=3, steps=29, n=30_000):
+    """`count_change_attenuation` over the WHOLE constraint phase, not one step.
+
+    1b-pre(6) was retracted for converting a per-step geometry into a claim
+    about a 29-step trajectory "without doing the compounding". This does it.
+
+    THE MECHANISM. Adam carries `m <- b1*m + (1-b1)*g`. Two arms whose count
+    gradients differ by a CONSISTENT `(g - g')` accumulate that difference
+    geometrically: `m_A - m_B = (1 - b1^k)(g - g')`, exactly, independent of the
+    angle. At k=1 that is 0.100 of the difference; at k=29 it is **0.953**. So
+    the per-step compression is a STEP-1 property and it decays away.
+
+    THE MODEL, stated because it decides the magnitude:
+      * the constraint direction is CONSISTENT across steps (same penalty, same
+        fixed test set), so it accumulates coherently;
+      * the CE direction is refreshed each step and `ce_rho` says how correlated
+        consecutive ones are. This is the input NOTHING here measures, and the
+        answer moves 3.8x across its plausible range -- which is why this
+        returns a spread and not a number;
+      * both arms see the SAME CE stream (frozen landscape, first order). Once
+        the weights actually diverge the CE gradients diverge too, and this
+        model cannot say in which direction that pushes.
+
+    Returns (step1_deg, step29_deg, cumulative29_deg, separation_over_length).
+    """
+    m_n, _, sv_n = MEASURED[epoch]
+    lv = rng.uniform(-1.0, 1.0, n)
+    sv = 10.0 ** lv
+    sv *= sv_n / np.linalg.norm(sv)
+    base = _unit(rng, n)
+    perp = _unit(rng, n)
+    perp -= (perp @ base) * base
+    perp /= np.linalg.norm(perp)
+    g = base
+    gp = cos_gg * base + np.sqrt(max(0.0, 1.0 - cos_gg ** 2)) * perp
+    # CE per-step norm calibrated so a random-direction stream HOLDS ||m|| at
+    # the measured value -- without this the step-1 angle does not reproduce
+    # `count_change_attenuation` and the model is not anchored to anything.
+    ce_norm = m_n * np.sqrt(1.0 - B1 ** 2) / (1.0 - B1)
+    anchor = _unit(rng, n)
+    mA = _unit(rng, n) * m_n
+    mB = mA.copy()
+    dA = np.zeros(n)
+    dB = np.zeros(n)
+    first = None
+    deg = lambda c: float(np.degrees(np.arccos(np.clip(c, -1.0, 1.0))))
+    for k in range(1, steps + 1):
+        d = ce_rho * anchor + np.sqrt(max(0.0, 1.0 - ce_rho ** 2)) * _unit(rng, n)
+        ce = d / np.linalg.norm(d) * ce_norm
+        mA = B1 * mA + (1.0 - B1) * (ce + g)
+        mB = B1 * mB + (1.0 - B1) * (ce + gp)
+        uA = mA / (sv + 1e-8)
+        uB = mB / (sv + 1e-8)
+        dA += uA
+        dB += uB
+        if k == 1:
+            first = deg(float(uA @ uB) / (np.linalg.norm(uA) * np.linalg.norm(uB)))
+    last = deg(float(uA @ uB) / (np.linalg.norm(uA) * np.linalg.norm(uB)))
+    cum = deg(float(dA @ dB) / (np.linalg.norm(dA) * np.linalg.norm(dB)))
+    return first, last, cum, float(np.linalg.norm(dA - dB) / np.linalg.norm(dA))
+
+
 def self_test(rng):
     """The projection MUST survive when neither destroyer is active."""
     m_ce, g, sv = MEASURED[1]
@@ -370,6 +463,41 @@ def self_test(rng):
         print("     FAIL: diagonal rescale preserved orthogonality, which is false")
         ok = False
 
+    # control E: the compounding law itself. m_A - m_B = (1 - b1^k)(g - g'),
+    # exactly and independent of the angle. If this drifts, every number in
+    # `count_change_compounding` is built on a broken accumulator.
+    n = 20_000
+    base = _unit(rng, n)
+    perp = _unit(rng, n)
+    perp -= (perp @ base) * base
+    perp /= np.linalg.norm(perp)
+    worst = 0.0
+    for cg in (-1.0, 0.0, 0.5):
+        gg = base
+        gp = cg * base + np.sqrt(max(0.0, 1.0 - cg ** 2)) * perp
+        mA = np.zeros(n)
+        mB = np.zeros(n)
+        full = np.linalg.norm(gg - gp)
+        for k in range(1, 30):
+            mA = B1 * mA + (1.0 - B1) * gg
+            mB = B1 * mB + (1.0 - B1) * gp
+            worst = max(worst, abs(np.linalg.norm(mA - mB) / full - (1 - B1 ** k)))
+    print("  control E  momentum accumulation vs (1-b1^k)          -> max err %.2e"
+          % worst)
+    if not worst < 1e-9:
+        print("     FAIL: the accumulator does not follow the closed form")
+        ok = False
+
+    # control F: and it must be a REAL rise, not a restatement. At k=1 the
+    # difference present is 0.100; at k=29 it is 0.953. If those were equal the
+    # whole compounding argument would be vacuous.
+    lo, hi = 1 - B1 ** 1, 1 - B1 ** 29
+    print("  control F  difference carried: step1=%.3f step29=%.3f (%.1fx)"
+          % (lo, hi, hi / lo))
+    if not hi / lo > 5.0:
+        print("     FAIL: no compounding to speak of, so the section is moot")
+        ok = False
+
     print("  SELF-TEST: %s" % ("PASS" if ok else "FAIL"))
     return ok
 
@@ -377,6 +505,8 @@ def self_test(rng):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--self-test", action="store_true")
+    ap.add_argument("--compounding", action="store_true",
+                    help="a count-function change over all 29 steps, not one")
     ap.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
     rng = np.random.default_rng(a.seed)
@@ -384,6 +514,37 @@ def main():
     if a.self_test:
         print("SELF-TEST -- each control isolates ONE destroyer")
         raise SystemExit(0 if self_test(rng) else 1)
+
+    if a.compounding:
+        print("DOES A COUNT-FUNCTION CHANGE STAY COMPRESSED OVER 29 STEPS?")
+        print("1b-pre(6) was retracted for not doing this arithmetic. Here it is.")
+        print()
+        print("  STEP 1 IS NOT THE CAMPAIGN. Adam accumulates a CONSISTENT")
+        print("  difference as (1 - b1^k): 0.100 at k=1, %.3f at k=29."
+              % (1 - B1 ** 29))
+        print()
+        print("  And the INPUT angle is not 180. `sum`'s per-item gradient is")
+        print("  p(1-p) and `uniform`'s is their mean; both are elementwise")
+        print("  NON-NEGATIVE, so the angle is bounded below 90 by construction:")
+        for label, pc in _P_CASES(rng):
+            print("     %-34s %5.1f deg" % (label, count_gradient_angle(pc)))
+        print()
+        print("  %-24s %10s %10s %11s %9s"
+              % ("CE-direction model", "step 1", "step 29", "cumul 29", "sep/len"))
+        real = np.cos(np.radians(29.4))
+        for rho, label in ((0.0, "fresh each step"), (0.5, "half-correlated"),
+                           (0.9, "highly correlated"), (0.99, "near-fixed")):
+            f, l, c, s = count_change_compounding(real, rho, rng)
+            print("  %-24s %7.2f deg %7.2f deg %8.2f deg %9.3f"
+                  % (label, f, l, c, s))
+        print()
+        print("  ^ the SIGN is settled: compounding raises the contrast, it does")
+        print("    not compress it. The MAGNITUDE is not -- it moves 3.8x across")
+        print("    a CE-correlation range nothing here measures, so this is a")
+        print("    power consideration and NOT a predicted effect size. Turning")
+        print("    it into one is the error 1b-pre(6) was retracted for, in the")
+        print("    opposite direction.")
+        raise SystemExit(0)
 
     print("DOES `ortho_project`'s ORTHOGONALITY REACH THE WEIGHTS?")
     print("norms measured on octmnist L50 (adam_contamination.py); b1=%.2f, d=%d"

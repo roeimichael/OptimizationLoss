@@ -428,6 +428,47 @@ default step rule and it is why `tralo_ortho`'s guarantee dies (2(t)) --
 campaign below, and the conclusion that section reaches from its own data is
 unaffected.
 
+✅ **AND THE COMPOUNDING THE RETRACTION SAID WAS SKIPPED IS NOW DONE**, 2026-08-25:
+`python -m scripts.ortho_survival --compounding`. It changes the sign of the
+conclusion the per-step number was being used for, and it does so twice.
+
+**1. The compression is a STEP-1 property and it decays away.** Adam carries
+`m <- b1*m + (1-b1)*g`, so two arms whose count gradients differ by a
+**consistent** `(g - g')` accumulate that difference as
+
+    ||m_A - m_B|| / ||g - g'||  =  1 - b1^k      exactly, and INDEPENDENT of the angle
+
+which is **0.100 at k=1 and 0.953 at k=29** -- a 9.5x rise over the constraint
+phase. Closed form and simulation agree to 2.2e-16. So "a ~7.4% channel" is true
+of the first step and false of the campaign.
+
+**2. The input angle was never 180.** `sum`'s per-item gradient is `p(1-p)`;
+`uniform`'s is their mean. **Both vectors are elementwise non-negative**, so the
+angle between them is bounded below 90 degrees *by construction* -- measured at
+**18.7 to 49.6 degrees** across plausible `p` distributions, ~28 for a
+trained-like split. 180 was the abstract extreme the probe was SWEPT over, and
+it was being quoted as if it described `tralo` vs `tralo_uniform`.
+
+Compounded at the real ~29 degree input, the two arms' updates open from
+**2.1 degrees at step 1 to 4.7-16.5 at step 29**, cumulative displacements
+4.7-17.7 apart, trajectory separation 8-31% of the distance travelled.
+
+🛑 **THE SIGN IS SETTLED; THE MAGNITUDE IS NOT, AND THAT DISTINCTION IS THE
+WHOLE POINT.** Compounding *raises* the contrast rather than compressing it, so
+the note in both launch scripts had the direction backwards and is fixed. But
+that range spans **3.8x** on how correlated consecutive CE gradient directions
+are -- which nothing in this project measures -- and the model holds the CE
+stream identical for both arms (first order), which stops being true the moment
+the weights diverge. So it stays a POWER consideration. **Turning it into a
+predicted effect size would be this section's own error mirrored**: the
+retraction was for reading a per-step geometry as a predicted null, and reading
+this one as a predicted difference is the same move with the sign flipped.
+
+Gated inside `test_a_COIN_and_the_REAL_constraint_gradient_deliver_the_SAME_step`,
+shown to FAIL both by resetting the momentum each step (the contrast stops
+opening: 4.83 -> 4.80 degrees) and by letting the count gradient change sign
+(the angle goes to 155 degrees and the non-negativity argument is void).
+
 🔑 **THE LESSON, which is the reason this retraction is kept in full.** A
 mechanism that explains a result is not evidence for itself. This one was
 derived, written into the operational document, and committed **before reading

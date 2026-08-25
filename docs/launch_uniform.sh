@@ -307,16 +307,38 @@ ROOT=results/uniform1
 #      clip alone.
 #
 #    !! AND ONE MORE THING TO READ THE RESULT WITH. Every arm here resolves to
-#      constraint_step_rule=shared, under which a change to the COUNT FUNCTION
-#      reaches the weights through a 7.4% channel: two count gradients pointing
-#      in OPPOSITE directions (180 deg) deliver updates only 9.1 deg apart, a
-#      ~20x angular compression, monotone across the range. That is a POWER
-#      consideration for the tralo vs tralo_uniform contrast, NOT a predicted
-#      null -- a consistent per-step difference compounds over 29 steps, and
-#      1b-pre(6) shows compounding can separate arms whose per-step contrast is
-#      small. Practical consequence: `flag_live tralo tralo_uniform` is more
-#      load-bearing here than usual, and an underpowered uniform-vs-sum result
-#      should be attributed to the CHANNEL before it is attributed to the idea.
+#      constraint_step_rule=shared, and the "~7.4% channel / 180 deg in, 9.1 deg
+#      out, ~20x compression" that used to be quoted here is WRONG TWICE,
+#      corrected 2026-08-25 by `python -m scripts.ortho_survival --compounding`:
+#
+#      1. IT IS A STEP-1 NUMBER, AND THERE ARE 29 STEPS. Adam carries
+#         `m <- b1*m + (1-b1)*g`, so two arms whose count gradients differ by a
+#         CONSISTENT amount accumulate that difference as `(1 - b1^k)`, exactly
+#         and independent of the angle: **0.100 at k=1, 0.953 at k=29**, a 9.5x
+#         rise. The compression is a property of the FIRST step and it decays
+#         away. This is the compounding 1b-pre(6) was retracted for skipping.
+#      2. THE INPUT ANGLE IS NOT 180. `sum`'s per-item gradient is `p(1-p)` and
+#         `uniform`'s is their mean. BOTH ARE ELEMENTWISE NON-NEGATIVE, so the
+#         angle between them is bounded below 90 BY CONSTRUCTION -- measured at
+#         18.7-49.6 deg over plausible p distributions, ~28 deg for a
+#         trained-like split. 180 deg was the abstract extreme the probe was
+#         SWEPT over, never this contrast.
+#
+#      Compounded at the real ~29 deg input, the two arms' updates open from
+#      **2.1 deg at step 1 to 4.7-16.5 deg at step 29**, with cumulative
+#      displacements 4.7-17.7 deg apart and a trajectory separation of
+#      8-31% of the distance travelled.
+#
+#      🛑 THE SIGN IS SETTLED, THE MAGNITUDE IS NOT. Compounding RAISES the
+#      contrast rather than compressing it, so the old note had the direction
+#      backwards. But the range above spans 3.8x on how correlated consecutive
+#      CE gradient directions are, which nothing measures, and the model holds
+#      the CE stream identical for both arms (first order). So this stays a
+#      POWER consideration and must not be turned into a predicted effect size
+#      -- that is 1b-pre(6)'s error in the opposite direction.
+#      Practical consequence is unchanged: `flag_live tralo tralo_uniform` is
+#      load-bearing, and an underpowered result should be attributed to the
+#      CHANNEL before it is attributed to the idea.
 #
 #    ⚠️ THE ONE DESIGN GAP LEFT, NAMED INSTEAD OF QUIETLY CARRIED. This
 #      campaign tests the fix on MobileNetV2, MobileNetV3 and RegNetY400MF. The

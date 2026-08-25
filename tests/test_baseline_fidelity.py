@@ -2232,12 +2232,47 @@ def test_a_COIN_and_the_REAL_constraint_gradient_deliver_the_SAME_step():
         "delivered angle is no longer monotone in the count-function difference: %s"
         % outs)
     assert outs[-1] < 15.0, (
-        "two OPPOSITE count functions now deliver updates %.1f degrees apart. "
-        "FRAMEWORK 2(t) quotes ~9 as a POWER consideration for the staged "
-        "campaign; re-derive it before quoting." % outs[-1])
+        "two OPPOSITE count functions now deliver updates %.1f degrees apart "
+        "ON THE FIRST STEP; ~9 is the recorded value. Re-derive before quoting."
+        % outs[-1])
     assert outs[-1] > 1.0, (
         "the compression is now total (%.2f deg), which would make the probe "
         "report a constant rather than a measurement" % outs[-1])
+
+    # --- AND STEP 1 IS NOT THE CAMPAIGN. Both launch scripts quoted the number
+    #     above as the power consideration for a 29-STEP contrast. Adam
+    #     accumulates a CONSISTENT difference as (1 - b1^k), so the compression
+    #     belongs to the first step and decays: 0.100 at k=1, 0.953 at k=29.
+    from scripts.ortho_survival import (count_change_compounding,
+                                        count_gradient_angle)
+    carried = [1 - B1 ** k for k in (1, 29)]
+    assert abs(carried[0] - 0.1) < 1e-12
+    assert carried[1] > 0.95, (
+        "the 29-step accumulation is %.3f, so the compounding argument in "
+        "FRAMEWORK 2(e) no longer holds" % carried[1])
+
+    first, last, cum, sep = count_change_compounding(
+        np.cos(np.radians(29.4)), 0.0, np.random.default_rng(11), n=8000)
+    assert last > first * 3.0, (
+        "the contrast no longer OPENS over 29 steps (%.2f -> %.2f deg). Both "
+        "launch scripts now say compounding raises it; fix them together with "
+        "this gate or they contradict each other." % (first, last))
+    assert 0.0 < sep < 5.0 and cum > first, (
+        "cumulative displacement separation is implausible: %.3f, %.2f deg"
+        % (sep, cum))
+
+    # --- and the INPUT angle can never be the 180 the scripts used to quote:
+    #     p(1-p) and its mean are both elementwise NON-NEGATIVE.
+    rng2 = np.random.default_rng(5)
+    for name, pc in (("uniform", rng2.uniform(0, 1, 2000)),
+                     ("confident", rng2.beta(0.2, 0.2, 2000)),
+                     ("low mass", rng2.beta(2, 5, 2000))):
+        a = count_gradient_angle(pc)
+        assert 0.0 < a < 90.0, (
+            "%s: sum-vs-uniform angle %.1f deg. Both gradient vectors are "
+            "elementwise non-negative, so anything at or above 90 means the "
+            "count changed sign somewhere and the geometry argument is void."
+            % (name, a))
 
 
 def test_no_script_CRASHES_when_it_prints_its_own_conclusion():

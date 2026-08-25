@@ -144,6 +144,23 @@ python -m scripts.graph_probe --campaign <root>  # diffuse the scores over a kNN
                                             #   allocator provably lacks. NULL: +0.50
                                             #   items, 10/19, while its shuffled-graph and
                                             #   shuffled-feature controls lose 5.8-8.4
+python -m scripts.ortho_survival --compounding  # 🆕 does a change to the COUNT
+                                             #   FUNCTION stay compressed over all
+                                             #   29 steps? NO. Adam accumulates a
+                                             #   CONSISTENT difference as
+                                             #   `(1-b1^k)`: 0.100 at k=1 and
+                                             #   **0.953 at k=29**. The "7.4%
+                                             #   channel" is a STEP-1 number and
+                                             #   both launch scripts quoted it at a
+                                             #   29-step contrast. And the input
+                                             #   angle is never 180 -- `p(1-p)` and
+                                             #   its mean are both elementwise
+                                             #   NON-NEGATIVE, so it is 18.7-49.6
+                                             #   deg. Compounding RAISES the
+                                             #   contrast; sign settled, magnitude
+                                             #   NOT (3.8x on an unmeasured CE
+                                             #   correlation) -- power consideration
+                                             #   only, never a predicted effect.
 python -m scripts.ortho_survival             # does an intervention installed in
                                             #   `prm.grad` SURVIVE Adam? It mostly does
                                             #   not, and this is the cheapest probe here

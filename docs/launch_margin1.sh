@@ -57,17 +57,26 @@
 #
 #   * ALL FOUR trained arms differ from each other only in the COUNT FUNCTION or
 #     its PLACEMENT -- soft vs hard value, p(1-p) vs margin, real vs random
-#     direction. Under `shared` a change to the count function reaches the
-#     weights through a ~7.4% channel: two count gradients pointing in OPPOSITE
-#     directions (180 deg) deliver updates only 9.1 deg apart
-#     (`python -m scripts.ortho_survival`). This campaign's entire contrast set
-#     runs through that compression.
-#   * It is a POWER consideration, NOT a predicted null. A consistent per-step
-#     difference compounds over 29 steps, and the direct evidence is in this
-#     project's own record: at `L50_G30` `linear` scores +0.0078 (4/4 seeds)
-#     against the coin's -0.0130 (1/4), distributions not overlapping. Reading
-#     the compression as "the arms must tie" is exactly the inference retracted
-#     in 1b-pre(6).
+#     direction. So this campaign's entire contrast set runs through the shared
+#     Adam, and how much of a count-function change survives to the weights is
+#     the power question for every pair in it.
+#   * ⚠️ THE "~7.4% CHANNEL, 180 deg IN 9.1 deg OUT" THAT USED TO BE QUOTED
+#     HERE IS A STEP-1 NUMBER, and this campaign takes 29 steps. Corrected
+#     2026-08-25 with `python -m scripts.ortho_survival --compounding`: Adam
+#     accumulates a CONSISTENT difference as `(1 - b1^k)` -- exactly, and
+#     independent of the angle -- which is 0.100 at k=1 and **0.953 at k=29**.
+#     The compression belongs to the first step and decays away. Compounded at
+#     a realistic input angle the two arms' updates open from ~2 deg at step 1
+#     to 4.7-16.5 deg at step 29. Compounding RAISES the contrast; the old note
+#     had the direction backwards.
+#   * It is still a POWER consideration and NOT a predicted effect, because the
+#     range above spans 3.8x on how correlated consecutive CE gradients are and
+#     nothing here measures that. The direct evidence that these arms CAN
+#     separate is in this project's own record: at `L50_G30` `linear` scores
+#     +0.0078 (4/4 seeds) against the coin's -0.0130 (1/4), distributions not
+#     overlapping. Reading a compression as "the arms must tie" is exactly the
+#     inference retracted in 1b-pre(6); reading a compounding as "the arms must
+#     differ" would be the same error mirrored.
 #
 #   ⇒ so `flag_live` between EVERY pair of trained arms is load-bearing here,
 #     and an ambiguous margin-vs-soft result should be attributed to the CHANNEL
