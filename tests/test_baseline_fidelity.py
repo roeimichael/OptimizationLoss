@@ -2896,3 +2896,61 @@ def test_a_documented_command_passes_FLAGS_THAT_EXIST():
     assert not bad, (
         "the operational docs pass flags that argparse does not declare, so "
         "these commands exit 2 for whoever copies them: %s" % bad)
+
+
+def test_a_launch_script_CANNOT_SEE_A_LIVE_RUN_by_looking_for_main_py():
+    """The dispatcher is not the only process, and both launch scripts thought
+    it was.
+
+    `main.py` spawns every run as a subprocess:
+
+        subprocess.run([sys.executable, '-u', '-m', RUNNER_MODULE, config])
+
+    with `RUNNER_MODULE = 'src.experiments.runner'`. That command line contains
+    no `main.py`. So the guard both scripts shipped --
+
+        pgrep -u "$(whoami)" -f "envs/optloss/bin/python main.py"
+
+    -- reports a clear host whenever the dispatcher has been killed but its
+    runner is still alive. CLAUDE.md records that exact event as an operational
+    failure that has already happened: "a killed dispatcher leaving three
+    runners alive writing into a directory a fresh dispatcher had claimed".
+    The guard meant to prevent it was blind to it.
+
+    The runner module name is read from `main.py` by AST rather than hardcoded
+    here, so renaming it makes this gate demand the new name instead of
+    silently passing on the old one.
+    """
+    import io
+
+    src = io.open("main.py", encoding="utf-8").read()
+    runner = None
+    for node in ast.walk(ast.parse(src)):
+        if isinstance(node, ast.Assign):
+            for tgt in node.targets:
+                if (isinstance(tgt, ast.Name) and tgt.id == "RUNNER_MODULE"
+                        and isinstance(node.value, ast.Constant)):
+                    runner = node.value.value
+    assert runner, (
+        "main.py no longer defines RUNNER_MODULE as a literal, so this gate "
+        "cannot learn what a run process is called")
+
+    checked = 0
+    for name in sorted(f for f in os.listdir("docs") if f.endswith(".sh")):
+        path = os.path.join("docs", name)
+        text = io.open(path, encoding="utf-8").read()
+        code = "\n".join(l for l in text.splitlines()
+                         if not l.lstrip().startswith("#"))
+        if "pgrep" not in code:
+            continue
+        checked += 1
+        assert runner in code, (
+            "%s guards against a running campaign with pgrep but never looks "
+            "for %r. main.py runs each experiment as `python -u -m %s`, so a "
+            "killed dispatcher's orphaned runner is invisible to this guard "
+            "and the script will happily start a second dispatcher into the "
+            "same tree." % (path, runner, runner))
+
+    assert checked, (
+        "no launch script uses pgrep, so this gate checked nothing -- either "
+        "the guard was removed or the scripts moved")

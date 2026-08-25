@@ -311,10 +311,23 @@ TREE=~/optloss-uniform       # its OWN worktree. NOT ~/optloss-audit (iwc3 is
                              # prune, repack or worktree prune while any
                              # campaign in the family is running.
 
-if pgrep -u "$(whoami)" -f "envs/optloss/bin/python main.py" >/dev/null 2>&1; then
-    echo "REFUSING: a dispatcher is already running on this host."
+# THE DISPATCHER IS NOT THE ONLY PROCESS, and this guard used to think it was.
+# main.py spawns each run as `python -u -m src.experiments.runner <config>`
+# (main.py:121), whose command line contains NO "main.py". So a killed
+# dispatcher leaves live runners that a main.py-only pgrep cannot see -- which
+# is verbatim the failure CLAUDE.md records: "a killed dispatcher leaving three
+# runners alive writing into a directory a fresh dispatcher had claimed". Check
+# for BOTH. `|| true` because pgrep exits 1 on no match and `set -e` is on.
+BUSY=$( { pgrep -u "$(whoami)" -f "envs/optloss/bin/python .*main.py" || true
+          pgrep -u "$(whoami)" -f "src.experiments.runner"           || true
+        } | sort -u | wc -l)
+if [ "$BUSY" -gt 0 ]; then
+    echo "REFUSING: $BUSY dispatcher/runner process(es) already alive as $(whoami)."
     echo "  Deploy after the last run, never during. One dispatcher per host,"
     echo "  and the house limit is 2 GPUs across the cluster."
+    echo "  If these are a killed dispatcher's orphaned runners, stop them by"
+    echo "  explicit PID -- never pkill -- then re-check with:"
+    echo "      python -m scripts.rig_status"
     exit 1
 fi
 

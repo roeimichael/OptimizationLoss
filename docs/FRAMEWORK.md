@@ -2034,7 +2034,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 381 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 382 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -2064,6 +2064,39 @@ backslash-NEWLINE only) and checks two things: every arm named EXISTS in
 named beside it. Shown to FAIL on all three breaks -- the original `
 `, a
 mangled-away `tralo_null`, and a duplicated arm.
+
+🛑 **AND THE SAME SWEEP FOUND THE GUARD BOTH SCRIPTS USE IS BLIND TO THE
+THING IT GUARDS AGAINST.** Both shipped:
+
+```text
+pgrep -u "$(whoami)" -f "envs/optloss/bin/python main.py"
+```
+
+`main.py` runs every experiment as a subprocess --
+`[sys.executable, '-u', '-m', RUNNER_MODULE, config]` with
+`RUNNER_MODULE = 'src.experiments.runner'` (`main.py:121`) -- and **that command
+line contains no `main.py`**. So a dispatcher that was killed while a run was in
+flight leaves a live runner this guard cannot see, and the script reports a
+clear host and starts a second dispatcher into the same tree. That is verbatim
+the operational failure `CLAUDE.md` already records ("a killed dispatcher
+leaving three runners alive writing into a directory a fresh dispatcher had
+claimed"): **the guard written to prevent it could not detect it.** Both scripts
+now count dispatcher AND runner processes, `sort -u` so one PID matching both
+patterns counts once; verified across all four states (orphaned runner alone,
+dispatcher alone, same PID twice, idle host). Gated by
+`test_a_launch_script_CANNOT_SEE_A_LIVE_RUN_by_looking_for_main_py`, which reads
+`RUNNER_MODULE` out of `main.py` by AST so renaming it makes the gate demand the
+new name rather than pass on the old one.
+
+📌 Two more in the same file, both found by asking "what does this actually
+resolve to": `launch_margin1.sh` told the operator to run
+`git push origin cleanup/consolidate-pipeline` and asked for permission on the
+grounds that it publishes -- but that branch is not the publish target
+(`headroom/small-cnn` is), so the push would advance a branch nothing reads and
+the `git pull --ff-only` after it would still fetch nothing. Everything the
+script claimed was unpushed is in fact already on the remote. And its
+"if it moves, extend with octmnist" escape route points at a dataset 2(n)
+removed, so the independence it promises cannot be bought.
 
 🔑 **THE GENERALISATION, and it is the same one as the fourth class turned
 around.** The fourth class was *audit the reader, not the writer*. This one is
@@ -2140,7 +2173,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 381 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 382 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -2148,7 +2181,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (381 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (382 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -5614,7 +5647,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             381 tests, ~105 s, no dataset required
+tests/             382 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

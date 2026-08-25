@@ -42,18 +42,61 @@
 # metric. This reports DIRECTION and per-cell consistency only. If it moves,
 # extend with octmnist -- a DATASET adds independence, a backbone only
 # resolution.
+# ⛔ EXCEPT octmnist IS REMOVED (FRAMEWORK 2(n)): `synth_group` is
+#    `np.arange(len(y)) % 3`, so its groups are i.i.d. draws from one
+#    distribution and the local scope is empty BY CONSTRUCTION. There is no
+#    second dataset to extend with. iwildcam is the only one, so the
+#    independence this line promises is not purchasable -- say the campaign
+#    tests one dataset rather than implying a route out.
 #
-# PREREQUISITE, AND IT IS NOT AUTOMATIC. The server pulls from `origin`
-# (github.com/roeimichael/OptimizationLoss). Everything this campaign needs --
-# soft_count_mode, straight_through, cut_window_items, the tralo_margin /
-# tralo_st / tralo_coin arms, flag_live -- is committed LOCALLY and not pushed.
-# Run this on the laptop FIRST, and it needs Roei's ok because it publishes:
+# 🔑 STATE THE STEP RULE, because the last time it was assumed instead of
+# checked the conclusion had to be retracted (FRAMEWORK 1b-pre(6): "the premise
+# was never checked"). This campaign sets no override, so it resolves to the
+# protocol default `constraint_step_rule: shared` (configs/protocol.yml:82).
+# That matters twice here:
 #
-#     git push origin cleanup/consolidate-pipeline
+#   * ALL FOUR trained arms differ from each other only in the COUNT FUNCTION or
+#     its PLACEMENT -- soft vs hard value, p(1-p) vs margin, real vs random
+#     direction. Under `shared` a change to the count function reaches the
+#     weights through a ~7.4% channel: two count gradients pointing in OPPOSITE
+#     directions (180 deg) deliver updates only 9.1 deg apart
+#     (`python -m scripts.ortho_survival`). This campaign's entire contrast set
+#     runs through that compression.
+#   * It is a POWER consideration, NOT a predicted null. A consistent per-step
+#     difference compounds over 29 steps, and the direct evidence is in this
+#     project's own record: at `L50_G30` `linear` scores +0.0078 (4/4 seeds)
+#     against the coin's -0.0130 (1/4), distributions not overlapping. Reading
+#     the compression as "the arms must tie" is exactly the inference retracted
+#     in 1b-pre(6).
 #
-# Then `git pull --ff-only` below actually fetches something. Without it the
-# server runs yesterday's code and every new arm fails on an unknown arm name
-# -- which is the good outcome; the bad one is a config key silently ignored.
+#   ⇒ so `flag_live` between EVERY pair of trained arms is load-bearing here,
+#     and an ambiguous margin-vs-soft result should be attributed to the CHANNEL
+#     before it is attributed to the idea. Under `sgd` none of this applies --
+#     the direction is delivered at cos = 1.0 -- so if the step rule is ever
+#     changed, delete this block rather than leaving it to mislead.
+#
+# ✅ THE PREREQUISITE IS DONE. Verified 2026-08-25 against the remote:
+# soft_count_mode, straight_through, cut_window_items and the tralo_margin /
+# tralo_st / tralo_coin arms are all present in
+# `origin/headroom/small-cnn:configs/protocol.yml`, and scripts/flag_live.py is
+# on that branch too. Nothing needs publishing before this runs.
+#
+# 🛑 AND THE INSTRUCTION THAT USED TO BE HERE WAS WRONG, not merely stale.
+# It said to run `git push origin cleanup/consolidate-pipeline`, and asked for
+# Roei's ok on the grounds that it publishes. That branch is NOT the publish
+# target: HEAD sits on `cleanup/consolidate-pipeline` locally, but every commit
+# is published to `headroom/small-cnn` (push with `HEAD:headroom/small-cnn`).
+# Pushing `cleanup/consolidate-pipeline` would advance a branch nothing reads
+# and the `git pull --ff-only` below would still fetch nothing -- i.e. it asked
+# for permission to perform an outward-facing action that was both unnecessary
+# and ineffective.
+#
+# ⚠️ STILL CHECK ONE THING BY HAND, because it cannot be checked from the
+# laptop: `git pull --ff-only` below assumes `~/optloss-audit` is ON a branch.
+# If that worktree is detached at a pin -- which is how `launch_uniform.sh`
+# deliberately runs -- the pull fails. Confirm with `git -C ~/optloss-audit
+# status -sb` before relying on the pull, and prefer an explicit
+# `git fetch origin && git checkout --detach <sha>` if it is detached.
 set -euo pipefail
 ROOT=results/margin1
 cd ~/optloss-audit          # THE campaign checkout. ~/OptimizationLoss is a
@@ -62,8 +105,23 @@ cd ~/optloss-audit          # THE campaign checkout. ~/OptimizationLoss is a
 
 # 🛑 DO NOT PULL WHILE A CAMPAIGN IS RUNNING. `code_version` is a git hash, so
 # moving HEAD mid-flight splits a live campaign into two non-comparable halves.
-if pgrep -u "$(whoami)" -f "envs/optloss/bin/python main.py" >/dev/null 2>&1; then
-    echo "REFUSING: a dispatcher is running. Deploy after the last run, never during."
+# THE DISPATCHER IS NOT THE ONLY PROCESS, and this guard used to think it was.
+# main.py spawns each run as `python -u -m src.experiments.runner <config>`
+# (main.py:121), whose command line contains NO "main.py". So a killed
+# dispatcher leaves live runners that a main.py-only pgrep cannot see -- which
+# is verbatim the failure CLAUDE.md records: "a killed dispatcher leaving three
+# runners alive writing into a directory a fresh dispatcher had claimed". Check
+# for BOTH. `|| true` because pgrep exits 1 on no match and `set -e` is on.
+BUSY=$( { pgrep -u "$(whoami)" -f "envs/optloss/bin/python .*main.py" || true
+          pgrep -u "$(whoami)" -f "src.experiments.runner"           || true
+        } | sort -u | wc -l)
+if [ "$BUSY" -gt 0 ]; then
+    echo "REFUSING: $BUSY dispatcher/runner process(es) already alive as $(whoami)."
+    echo "  Deploy after the last run, never during. One dispatcher per host,"
+    echo "  and the house limit is 2 GPUs across the cluster."
+    echo "  If these are a killed dispatcher's orphaned runners, stop them by"
+    echo "  explicit PID -- never pkill -- then re-check with:"
+    echo "      python -m scripts.rig_status"
     exit 1
 fi
 git pull --ff-only
