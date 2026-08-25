@@ -4619,8 +4619,17 @@ def test_the_generator_says_which_scope_each_cap_binds(tmp_path):
     mistake in BOTH directions: until 2026-08-18 every campaign ran `G >= L`
     so the global cap had never bound, and the fix -- sweep `G < L` -- made the
     LOCAL scope inert instead. `results/dualbar2` ran L50_G20 and L50_G40, both
-    `G < L`, and `lp_fallback_used` was False on all 50 completed runs with 0
-    candidates: a local ceiling was never once the binding constraint.
+    `G < L`, and `lp_fallback_used` was False with 0 candidates on every one of
+    those runs THAT RAN THE ALLOCATOR: a local ceiling was never once the
+    binding constraint.
+
+    !! The qualifier was added 2026-08-25 and it matters. Six arms set
+    `skip_targeted_correction=True`, so the runner writes the DEFAULTS
+    `False`/`0` for them -- `clip` and `focal_clip` among them, which rule 2
+    puts in every campaign. The conclusion is unchanged because it rests on the
+    trained arms, where the field is measured; "on all 50 completed runs"
+    overstated the support. Gated by
+    `test_the_lp_fallback_fields_are_a_DEFAULT_for_the_post_hoc_arms`.
 
     Negative control: with the readout removed, a campaign whose caps all bind
     one scope generates silently, which is exactly what happened twice.

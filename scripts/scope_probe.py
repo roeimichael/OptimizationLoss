@@ -1,9 +1,18 @@
 """At a MATCHED TOTAL, does pinning the per-group split change the output?
 
 WHY THIS EXISTS. FRAMEWORK 2(l) found that the local cap has never bound the
-OUTPUT: `lp_fallback_used` is False with 0 candidates on every completed run,
-because the allocator imposes the tighter GLOBAL total first and the split it
-lands on has been inside every local ceiling every time. The proposed fix is a
+OUTPUT: `lp_fallback_used` is False with 0 candidates on every run THAT RAN THE
+ALLOCATOR, because the allocator imposes the tighter GLOBAL total first and the
+split it lands on has been inside every local ceiling every time.
+
+!! THE SCOPE QUALIFIER IS LOAD-BEARING, added 2026-08-25. Six arms -- `clip`,
+`focal_clip`, `lp`, `focal_lp`, `cb_lp`, `la_lp` -- set
+`skip_targeted_correction=True`, so `src/pipeline/eval.py` never populates
+`posthoc_meta` and `src/experiments/runner.py` writes the DEFAULTS
+`lp_fallback_used=False, lp_fallback_candidates=0`. For those arms the field is
+not a measurement, and two of them are in every campaign by CLAUDE.md rule 2.
+The conclusion still holds -- it rests on the trained arms, where the field IS
+measured -- but "on every completed run" overstated its support. The proposed fix is a
 campaign at `L20_G50`, where the local ceilings become the binding ones.
 
 That campaign is ~120 runs and ~10 GPU-hours, so price it first.

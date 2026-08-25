@@ -2571,3 +2571,87 @@ def test_the_granular_table_SAYS_when_its_macro_column_has_fewer_seeds(capsys):
     assert r.get("mac_n") == r.get("cc_n") == 4, r
     assert "macro column uses" not in text, (
         "warned on a cell whose seed counts agree: %r" % text)
+
+
+def test_the_lp_fallback_fields_are_a_DEFAULT_for_the_post_hoc_arms():
+    """`lp_fallback_used=False, lp_fallback_candidates=0` is not always measured.
+
+    The chain, verified from source rather than remembered:
+      1. five methodologies set `skip_targeted_correction=True`;
+      2. `src/pipeline/eval.py` initialises `posthoc_meta = {}` and populates it
+         ONLY inside the branch that skip bypasses;
+      3. `src/experiments/runner.py` then reads it with `.get(k, <default>)`,
+         writing `False` and `0` -- both of which are MEANINGFUL measured values
+         elsewhere.
+    So for those arms the field records that nothing ran, in a form
+    indistinguishable from "the allocator ran and found nothing". Two of them,
+    `clip` and `focal_clip`, are in every campaign by CLAUDE.md rule 2.
+
+    This is the sibling of the `flag_live` defect fixed earlier the same day:
+    the post-hoc arms do not traverse the pipeline path the field describes.
+    """
+    import io as _io
+    import os
+    import yaml
+
+    # --- 1. which methodologies skip the allocator
+    skippers = set()
+    for dirpath, _, files in os.walk("src/methodologies"):
+        if "__pycache__" in dirpath:
+            continue
+        for f in files:
+            if not f.endswith(".py"):
+                continue
+            path = os.path.join(dirpath, f)
+            tree = ast.parse(_io.open(path, encoding="utf-8").read())
+            for kw in ast.walk(tree):
+                if (isinstance(kw, ast.keyword)
+                        and kw.arg == "skip_targeted_correction"
+                        and isinstance(kw.value, ast.Constant)
+                        and kw.value.value is True):
+                    skippers.add(os.path.basename(dirpath)
+                                 if os.path.basename(dirpath) != "methodologies"
+                                 else os.path.splitext(f)[0])
+    assert "danits_lp" in skippers and "heuristic" in skippers, skippers
+
+    # --- 2. eval.py leaves the meta EMPTY on that path
+    ev = _io.open("src/pipeline/eval.py", encoding="utf-8").read()
+    tree = ast.parse(ev)
+    fn = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)
+          and any(isinstance(x, ast.Assign)
+                  and any(isinstance(t, ast.Name) and t.id == "posthoc_meta"
+                          for t in x.targets)
+                  and isinstance(x.value, ast.Dict) and not x.value.keys
+                  for x in ast.walk(n))]
+    assert fn, ("src/pipeline/eval.py no longer initialises posthoc_meta to an "
+                "empty dict; re-derive this test's premise")
+
+    # --- 3. runner.py fills the gap with values that mean something else
+    rn = _io.open("src/experiments/runner.py", encoding="utf-8").read()
+    tree = ast.parse(rn)
+    defaults = {}
+    for c in ast.walk(tree):
+        if (isinstance(c, ast.Call) and isinstance(c.func, ast.Attribute)
+                and c.func.attr == "get" and len(c.args) == 2
+                and isinstance(c.args[0], ast.Constant)
+                and str(c.args[0].value).startswith("lp_fallback")):
+            defaults[c.args[0].value] = getattr(c.args[1], "value", "?")
+    assert defaults.get("lp_fallback_used") is False, defaults
+    assert defaults.get("lp_fallback_candidates") == 0, defaults
+
+    # --- 4. so name the arms, from the registry, and keep the list honest
+    P = yaml.safe_load(_io.open("configs/protocol.yml", encoding="utf-8").read())
+    defaulted = sorted(a for a, spec in P["arms"].items()
+                       if spec.get("methodology") in skippers)
+    assert set(defaulted) >= {"clip", "focal_clip", "lp"}, defaulted
+    assert "tralo" not in defaulted and "fioretto" not in defaulted, defaulted
+
+    # --- 5. and the two places that state the claim must carry the qualifier.
+    sp = _io.open("scripts/scope_probe.py", encoding="utf-8").read()
+    assert "THAT RAN THE\nALLOCATOR" in sp or "THAT RAN THE ALLOCATOR" in sp, (
+        "scope_probe's docstring dropped the scope qualifier and again reads "
+        "`lp_fallback_used` as measured on every completed run")
+    tp = _io.open("tests/test_pipeline.py", encoding="utf-8").read()
+    assert "THAT RAN THE ALLOCATOR" in tp, (
+        "test_the_generator_says_which_scope_each_cap_binds dropped the scope "
+        "qualifier from its docstring")

@@ -2059,7 +2059,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 377 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 378 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -2067,7 +2067,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (377 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (378 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -2478,6 +2478,33 @@ with 3x the headroom is the cell where a coin flip moves furthest, and that is
 why the loose cap flatters everything including the control.
 
 ### (l) 🛑🛑 THE LOCAL CAP HAS NEVER BOUND THE OUTPUT -- the mirror of the 2026-08-18 bug
+
+⚠️ **SCOPE QUALIFIER ADDED 2026-08-25, and it narrows the SUPPORT without
+changing the CONCLUSION.** This section's evidence is
+`lp_fallback_used = False` with `0` candidates, stated as holding "on all 50
+completed runs". **It is not measured on all of them.** Six arms --
+`clip`, `focal_clip`, `lp`, `focal_lp`, `cb_lp`, `la_lp` -- reach the runner
+through methodologies that set `skip_targeted_correction=True`, so
+`src/pipeline/eval.py` leaves `posthoc_meta = {}` and
+`src/experiments/runner.py` fills it with `.get('lp_fallback_used', False)` and
+`.get('lp_fallback_candidates', 0)`. **Both defaults are values that mean
+something else**, and `clip` + `focal_clip` are in every campaign by CLAUDE.md
+rule 2.
+
+⇒ read the evidence as **"on every run that RAN the allocator"**. The
+conclusion stands, because it rests on the trained arms where the field is
+genuinely measured; what was wrong was the claimed breadth.
+
+🔑 **This is the SIBLING of the `flag_live` defect fixed the same day** -- there,
+the gate called six post-hoc arms INERT because the harness runs neither the
+warm-up nor the allocator. **Same root cause: the post-hoc arms do not traverse
+the pipeline path the field describes, so a field read across all arms mixes
+measurement with default.** Ask it of any other per-run field before quoting one
+across arms. Gated by
+`test_the_lp_fallback_fields_are_a_DEFAULT_for_the_post_hoc_arms`, which walks
+the whole chain from the methodologies through `eval.py` to `runner.py` rather
+than trusting any single line.
+
 
 **Found 2026-08-22, Roei's question: "are we monitoring multiclass constraints,
 on both global and local?"** The answer is that we monitor multiclass correctly
@@ -5506,7 +5533,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             377 tests, ~105 s, no dataset required
+tests/             378 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
