@@ -3012,3 +3012,65 @@ def test_family_split_resolves_a_twin_the_way_the_CAMPAIGN_ran_it():
     # And a family whose dedicated null is absent falls back rather than
     # inventing an arm name that exists nowhere.
     assert null_of("fioretto", uni) == "tralo_null"
+
+
+def test_order_probe_resolves_its_TWIN_from_the_campaign_on_disk():
+    """`--null` was the fixed string "tralo_null".
+
+    Correct for every command in `launch_uniform.sh`'s read-order -- `tralo`,
+    `tralo_uniform` and `tralo_head` all share one twin -- and quietly wrong for
+    `--arm fioretto` on a cross-family campaign, where the twin actually run is
+    `fioretto_null`. The probe would have compared a Fioretto arm against
+    TraLO's null and printed a clean-looking table. Same defect class as
+    `family_split`'s concatenation, one tool over.
+
+    The fragile half is the path arithmetic, not the lookup: the arm set is
+    discovered by globbing `<campaign>/*/*/*/*/seed_*` and taking the parent
+    directory name. This builds both campaign shapes on disk and checks it.
+
+    Behaviour on every documented invocation is unchanged -- each still resolves
+    to `tralo_null` -- which is the point: the fix removes a foot-gun without
+    moving a single published number.
+    """
+    import glob
+    import shutil
+
+    from scripts.family_split import null_of
+
+    layouts = {
+        "uniform1": ["tralo", "tralo_uniform", "tralo_head", "tralo_null",
+                     "tralo_reseed", "clip", "focal_clip"],
+        "xfam1": ["tralo", "fioretto", "hounie", "tralo_null", "fioretto_null",
+                  "hounie_null", "tralo_reseed", "clip"],
+    }
+    root = tempfile.mkdtemp(prefix="order_probe_layout_")
+    try:
+        for camp, arms in layouts.items():
+            for arm in arms:
+                for seed in (1, 2):
+                    os.makedirs(os.path.join(root, camp, "iwildcam",
+                                             "MobileNetV3", "L20_G50", arm,
+                                             "seed_%d" % seed))
+
+        def discover(camp):
+            return {os.path.basename(os.path.dirname(d))
+                    for d in glob.glob(os.path.join(root, camp,
+                                                    "*", "*", "*", "*",
+                                                    "seed_*"))}
+
+        uni = discover("uniform1")
+        xfam = discover("xfam1")
+        assert uni == set(layouts["uniform1"]), (
+            "the glob no longer finds the arms: got %s" % sorted(uni))
+        assert xfam == set(layouts["xfam1"]), (
+            "the glob no longer finds the arms: got %s" % sorted(xfam))
+
+        # uniform1: one shared twin, which is what makes the campaign readable.
+        for arm in ("tralo", "tralo_uniform", "tralo_head"):
+            assert null_of(arm, uni) == "tralo_null", arm
+        # xfam1: the DEDICATED nulls, or 2(s)'s positive control evaporates.
+        assert null_of("fioretto", xfam) == "fioretto_null"
+        assert null_of("hounie", xfam) == "hounie_null"
+        assert null_of("tralo", xfam) == "tralo_null"
+    finally:
+        shutil.rmtree(root, ignore_errors=True)

@@ -52,6 +52,8 @@ import os
 import numpy as np
 import pandas as pd
 
+from scripts.family_split import null_of
+
 RAW = "final_predictions_raw.csv"
 
 
@@ -100,11 +102,24 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--campaign", required=True)
     ap.add_argument("--arm", default="tralo")
-    ap.add_argument("--null", default="tralo_null")
+    # NOT a fixed "tralo_null". That is correct for `tralo`, `tralo_uniform`
+    # and `tralo_head` -- which share one twin -- and quietly WRONG for
+    # `--arm fioretto` on a cross-family campaign, where the twin actually run
+    # is `fioretto_null`. Resolved from the campaign the same way
+    # `family_split` does: dedicated null if this campaign ran one, shared
+    # `null_sibling` otherwise. An explicit --null always wins.
+    ap.add_argument("--null", default=None,
+                    help="lambda=0 twin; default resolves from --arm")
     ap.add_argument("--reseed", default="tralo_reseed")
     ap.add_argument("--evictions", action="store_true",
                     help="which items did it move, and were they the right ones")
     args = ap.parse_args()
+    if args.null is None:
+        present = {os.path.basename(os.path.dirname(d))
+                   for d in glob.glob(os.path.join(args.campaign,
+                                                   "*", "*", "*", "*", "seed_*"))}
+        args.null = null_of(args.arm, present)
+        print("  --null not given; resolved %s -> %s" % (args.arm, args.null))
 
     if args.evictions:
         e = evictions(args.campaign, args.arm, args.null, args.reseed)
