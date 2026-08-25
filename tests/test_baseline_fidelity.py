@@ -3188,3 +3188,59 @@ def test_the_constraint_step_is_NOT_inside_the_CE_batch_loop():
 
     assert calls(tree, "finish_constraint_step"), (
         "tralo/train.py no longer calls finish_constraint_step at all")
+
+
+def test_the_CE_autocorrelation_is_MEASURED_and_the_probe_responds_to_batch_size():
+    """The one number the compounding analysis swings 31x on.
+
+    `count_change_compounding` needs to know how correlated consecutive CE
+    minibatch gradients are. Every version of that analysis until 2026-08-25
+    swept it as an assumption and quoted whichever row suited the argument. At
+    ce_rho=0 the trajectory opens ~5x over 29 steps; at 0.5 it does not open at
+    all. That is the whole disagreement.
+
+    Measured on a real net with real `torch.optim.Adam` at the trainer's own
+    spacing -- `batch_size: 64` from protocol.yml, and 8064/64 = 126 steps per
+    epoch, which is exactly what runs between two constraint steps. It comes out
+    ~0.13 in epoch 1 and FALLS as the model fits, so warm-up 1 is its high point
+    and the compounding is ~1.1x, not 5x. The per-step compression is the story.
+
+    THE LIVENESS CONTROL IS THE BATCH SIZE. If the probe returned a constant it
+    would prove nothing, so it must respond to the one knob that provably drives
+    minibatch noise: a 512-batch must show a markedly HIGHER cosine than a
+    64-batch, because averaging more samples leaves less noise and more signal.
+    """
+    from scripts.ortho_survival import (ce_gradient_autocorrelation,
+                                        count_change_compounding)
+
+    acs = ce_gradient_autocorrelation(epochs=2)
+    assert len(acs) == 2
+    assert 0.0 < acs[0] < 0.35, (
+        "lag-1 CE gradient cosine at the trainer's batch size is %.3f. The "
+        "compounding tables in FRAMEWORK 1b-pre(6) assume it is small; "
+        "re-derive them before quoting." % acs[0])
+    assert acs[1] < acs[0], (
+        "the autocorrelation no longer falls as the model fits (%.3f -> %.3f), "
+        "so warm-up 1 is not its high point and the argument that this is its "
+        "WORST case no longer holds" % (acs[0], acs[1]))
+
+    big = ce_gradient_autocorrelation(batch=512, epochs=1)[0]
+    assert big > 2.5 * acs[0], (
+        "LIVENESS CONTROL FAILED: batch 512 gives %.3f against batch 64's "
+        "%.3f. If averaging 8x more samples does not raise the cosine, this "
+        "probe is not measuring minibatch noise and its value is an artefact."
+        % (big, acs[0]))
+
+    # And the consequence: at the measured value the channel does not compound.
+    rng = np.random.default_rng(3)
+    at_zero = count_change_compounding(np.cos(np.radians(29.4)), 0.0, rng, n=6000)
+    at_meas = count_change_compounding(np.cos(np.radians(29.4)), round(acs[0], 3),
+                                       rng, n=6000)
+    assert at_meas[3] < at_zero[3] / 3.0, (
+        "the measured autocorrelation no longer collapses the compounding "
+        "(%.4f vs %.4f at rho=0). FRAMEWORK 1b-pre(6) says it does, by ~8x."
+        % (at_meas[3], at_zero[3]))
+    assert at_meas[2] < at_meas[0] * 2.0, (
+        "at the measured rho the trajectory now OPENS materially over 29 steps "
+        "(%.2f -> %.2f deg), which reverses the conclusion that the per-step "
+        "compression is the whole story" % (at_meas[0], at_meas[2]))

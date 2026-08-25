@@ -60,7 +60,7 @@ imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 385 regression tests, ~150s, no dataset needed
+python -m pytest tests -q                   # 386 regression tests, ~150s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -160,7 +160,15 @@ python -m scripts.ortho_survival --compounding  # does a count-function change
                                              #   over 29 steps under uncorrelated
                                              #   CE and 0.08 -> 0.08 under
                                              #   half-correlated -- a 31x swing on
-                                             #   an unmeasured assumption. ✅ The
+                                             #   an assumption -- NOW MEASURED: a
+                                             #   real net at the trainer's own
+                                             #   batch 64 / 126 steps-per-epoch
+                                             #   gives lag-1 CE cosine **0.128**
+                                             #   at warm-up 1, falling after. At
+                                             #   that value the trajectory opens
+                                             #   0.26 -> 0.30 deg, i.e. NOT AT
+                                             #   ALL, so the per-step figure is
+                                             #   the whole story. ✅ The
                                              #   one solid part: the sum-vs-uniform
                                              #   angle is 18.7-49.6 deg, NEVER 180,
                                              #   because `p(1-p)` and its mean are

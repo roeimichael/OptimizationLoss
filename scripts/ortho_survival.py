@@ -460,6 +460,57 @@ def count_change_compounding(cos_gg, ce_rho, rng, epoch=3, steps=29,
     return first, cum, cum, float(np.linalg.norm(dA - dB) / np.linalg.norm(dA))
 
 
+def ce_gradient_autocorrelation(batch=64, width=256, epochs=2, n=8064,
+                                d=64, classes=8, seed=1):
+    """cos between CONSECUTIVE CE minibatch gradients. Real net, real Adam.
+
+    This is the parameter `count_change_compounding` swings 31x on, and until
+    2026-08-25 nothing measured it -- the tables just swept an assumption.
+
+    WHY THE DEFAULTS. `configs/protocol.yml` sets `batch_size: 64`, and
+    n/batch = 8064/64 = **126 steps per epoch**, which is exactly what the
+    trainer runs between two constraint steps. So the minibatch-noise regime is
+    matched by construction rather than by hope.
+
+    MEASURED: lag-1 cosine **0.128 in epoch 1**, 0.056 in epoch 2, 0.025 in
+    epoch 3 -- it FALLS as the model fits, so warm-up 1 is its high point.
+    Batch size drives it hard (0.057 at 32, 0.128 at 64, 0.395 at 256, 0.580 at
+    512), which is the tell that it is minibatch noise and not curvature.
+
+    ⚠️ A SYNTHETIC MLP IS NOT MobileNetV3 ON iwildcam. Take the ~0.1 as an
+    order of magnitude with a mechanism attached, not as the campaign's number.
+
+    Returns a list of per-epoch lag-1 cosines.
+    """
+    import torch
+    import torch.nn as nn
+
+    torch.manual_seed(0)
+    W = torch.randn(d, classes) * 0.8
+    X = torch.randn(n, d)
+    y = (X @ W + 0.5 * torch.randn(n, classes)).argmax(1)
+
+    torch.manual_seed(seed)
+    model = nn.Sequential(nn.Linear(d, width), nn.ReLU(), nn.Linear(width, classes))
+    opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+    lossf = nn.CrossEntropyLoss()
+    out = []
+    for _ in range(epochs):
+        perm = torch.randperm(n)
+        grads = []
+        for i in range(0, n, batch):
+            idx = perm[i:i + batch]
+            opt.zero_grad(set_to_none=True)
+            lossf(model(X[idx]), y[idx]).backward()
+            g = torch.cat([q.grad.reshape(-1) for q in model.parameters()
+                           if q.grad is not None])
+            grads.append((g / g.norm()).detach().clone())
+            opt.step()
+        G = torch.stack(grads)
+        out.append(float((G[:-1] * G[1:]).sum(1).mean()))
+    return out
+
+
 def self_test(rng):
     """The projection MUST survive when neither destroyer is active."""
     m_ce, g, sv = MEASURED[1]
@@ -566,12 +617,25 @@ def main():
         for label, pc in _P_CASES(rng):
             print("     %-34s %5.1f deg" % (label, count_gradient_angle(pc)))
         print()
+        print("  AND ce_rho IS NO LONGER AN ASSUMPTION. Real net, real Adam,")
+        print("  batch 64 and 8064/64 = 126 steps/epoch -- the trainer's own")
+        print("  spacing. lag-1 cosine between consecutive CE minibatch")
+        print("  gradients, by epoch:")
+        acs = ce_gradient_autocorrelation(epochs=3)
+        for i, c in enumerate(acs, 1):
+            print("     epoch %d -> %.4f%s" % (i, c, "   <- warm-up 1 regime"
+                                               if i == 1 else ""))
+        print("  It FALLS as the model fits, so warm-up 1 is its high point.")
+        print("  (Synthetic MLP, not MobileNetV3: an order of magnitude with a")
+        print("  mechanism, not the campaign's number.)")
+        print()
         print("  CUMULATIVE trajectory separation, input angle 29.4 deg:")
         print("  %-30s %10s %11s %9s"
               % ("CE-direction model", "after 1", "after 29", "sep/len"))
         real = np.cos(np.radians(29.4))
-        for rho, label in ((0.0, "fresh each step"), (0.5, "half-correlated"),
-                           (0.9, "highly correlated")):
+        for rho, label in ((0.0, "0.00 uncorrelated (assumed)"),
+                           (round(acs[0], 3), "%.3f MEASURED, warm-up 1" % acs[0]),
+                           (0.5, "0.50 half-correlated")):
             f, _, c, s = count_change_compounding(real, rho, rng, n=12000)
             print("  %-30s %7.2f deg %8.2f deg %9.4f" % (label, f, c, s))
         f0, _, c0, s0 = count_change_compounding(real, 0.0, rng, n=12000,
@@ -579,11 +643,14 @@ def main():
         print("  %-30s %7.2f deg %8.2f deg %9.4f"
               % ("(consecutive -- NOT the pipeline)", f0, c0, s0))
         print()
-        print("  ^ compounding is REAL but ~5x over 29 steps, not the ~10x-larger")
-        print("    figure the consecutive-step model gives. The end separation is")
-        print("    a few percent of the distance travelled. SIGN settled, size")
-        print("    small, and it stays a POWER consideration -- reading it as a")
-        print("    predicted difference is 1b-pre(6)'s error mirrored.")
+        print("  ^ AT THE MEASURED ce_rho THERE IS ESSENTIALLY NO COMPOUNDING.")
+        print("    The ~5x growth belongs to the ce_rho=0 assumption; the")
+        print("    measured value collapses it to ~1.1x and half a percent of")
+        print("    the distance travelled. So the per-step compression IS the")
+        print("    story, which is what this project recorded before I")
+        print("    'corrected' it. Still a POWER consideration and NOT a")
+        print("    predicted null -- parameter separation is not items, and")
+        print("    1b-pre(6) is the standing warning against that leap.")
         raise SystemExit(0)
 
     print("DOES `ortho_project`'s ORTHOGONALITY REACH THE WEIGHTS?")

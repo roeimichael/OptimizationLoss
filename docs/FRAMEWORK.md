@@ -470,6 +470,35 @@ under a correlated one**, and consecutive-vs-interleaved is a ~10x error in the
 end separation. The spread across the CE-correlation assumption is **31x**, not
 the 3.8x the retracted edit reported.
 
+✅ **AND THAT ASSUMPTION IS NOW A MEASUREMENT** (`ortho_survival --compounding`,
+which runs it). A real net under real `torch.optim.Adam` at the trainer's own
+spacing -- `batch_size: 64` from `configs/protocol.yml`, and 8064/64 = **126
+steps per epoch**, exactly what runs between two constraint steps -- gives a
+lag-1 cosine between consecutive CE minibatch gradients of
+
+| epoch | lag-1 cos |
+|---|---|
+| **1 (the warm-up-1 regime)** | **0.128** |
+| 2 | 0.056 |
+| 3 | 0.025 |
+
+It **falls as the model fits**, so warm-up 1 is its high point, and the batch
+size drives it (0.057 at 32, 0.128 at 64, 0.395 at 256, 0.580 at 512) -- which
+is the tell that it is minibatch noise rather than curvature, and which doubles
+as the probe's liveness control.
+
+🛑 **AT THE MEASURED VALUE THERE IS ESSENTIALLY NO COMPOUNDING: 0.26 -> 0.30
+degrees over 29 steps, 0.5% of the distance travelled.** The ~5x growth belongs
+entirely to the `ce_rho = 0` assumption. So the per-step compression IS the
+story -- which is what this project recorded before I "corrected" it, and the
+second independent reason the retraction above was necessary.
+
+⚠️ A synthetic MLP is not MobileNetV3 on iwildcam: take ~0.1 as an order of
+magnitude with a mechanism attached, not as the campaign's number. And this is
+still a POWER consideration and **not a predicted null** -- parameter separation
+is not items, and 1b-pre(6) is the standing warning against exactly that leap.
+Gated by `test_the_CE_autocorrelation_is_MEASURED_and_the_probe_responds_to_batch_size`.
+
 ✅ **ONE PART SURVIVES, because it is geometry and not dynamics: the input
 angle is never 180 degrees.** `sum`'s per-item gradient is `p(1-p)` and
 `uniform`'s is their mean; **both are elementwise non-negative**, so the angle
@@ -2091,7 +2120,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 385 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 386 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -2255,7 +2284,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 385 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 386 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -2263,7 +2292,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (385 tests, ~150 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (386 tests, ~150 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -5729,7 +5758,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             385 tests, ~150 s, no dataset required
+tests/             386 tests, ~150 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
