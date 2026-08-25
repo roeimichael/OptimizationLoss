@@ -2655,3 +2655,56 @@ def test_the_lp_fallback_fields_are_a_DEFAULT_for_the_post_hoc_arms():
     assert "THAT RAN THE ALLOCATOR" in tp, (
         "test_the_generator_says_which_scope_each_cap_binds dropped the scope "
         "qualifier from its docstring")
+
+
+def test_no_script_exists_without_being_NAMED_where_someone_will_look():
+    """A tool nobody knows about is a tool nobody runs.
+
+    `docs/FRAMEWORK.md` is by this project's own rule the only operational
+    document, and `CLAUDE.md` is the entry point. A script named in neither is
+    invisible, however good it is. Audited 2026-08-25: eight were, and they were
+    not dead code -- `rig_status` checks the exact silent operational failures
+    CLAUDE.md warns about in prose, `factorial_control` bounds where
+    `dataset_screen` is valid, and `hp_liveness_real` exists because
+    `hp_liveness`'s smoke-net verdicts INVERT on the real backbone.
+
+    This is the sibling of `audit_config`'s rule: no config key without a
+    reader, and no script without a mention.
+    """
+    import io as _io
+    import os
+
+    cl = _io.open("CLAUDE.md", encoding="utf-8").read()
+    fw = _io.open("docs/FRAMEWORK.md", encoding="utf-8").read()
+    names = [f[:-3] for f in sorted(os.listdir("scripts"))
+             if f.endswith(".py") and f != "__init__.py"]
+    assert names, "scripts/ is empty, which cannot be right"
+
+    missing = [n for n in names if n not in cl and n not in fw]
+    assert not missing, (
+        "these scripts are named in neither CLAUDE.md nor docs/FRAMEWORK.md, so "
+        "nobody reading the operational docs knows they exist: %s. Add a line "
+        "saying what each one refuses, or delete it." % missing)
+
+    # And the reverse: a doc naming a script that no longer exists sends the
+    # reader to a command that errors.
+    import re
+    # A `git show <rev>:scripts/x.py` is a DELIBERATE reference to a deleted
+    # file with its retrieval attached -- that is the correct way to keep a
+    # receipt for evidence the repo no longer carries, so it does not count as
+    # a ghost. Strip those first.
+    RETRIEVAL = re.compile(r"git show [^\s`]*:scripts/[a-z_][a-z0-9_]*\.py")
+    referenced = set()
+    for text in (cl, fw):
+        text = RETRIEVAL.sub("", text)
+        referenced |= set(re.findall(r"scripts\.([a-z_][a-z0-9_]*)", text))
+        referenced |= set(re.findall(r"scripts/([a-z_][a-z0-9_]*)\.py", text))
+    # docs/paper/scripts/ is a second, legitimate home -- `make_main_table` and
+    # friends live there, and the `scripts/<name>.py` pattern matches both.
+    paper = [f[:-3] for f in os.listdir("docs/paper/scripts")
+             if f.endswith(".py")] if os.path.isdir("docs/paper/scripts") else []
+    ghosts = sorted(r for r in referenced if r not in names and r not in paper)
+    assert not ghosts, (
+        "the docs name scripts that do not exist: %s. Either restore them or "
+        "remove the reference -- a documented command that errors is worse "
+        "than an undocumented one that works." % ghosts)

@@ -60,7 +60,7 @@ imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 378 regression tests, ~105s, no dataset needed
+python -m pytest tests -q                   # 379 regression tests, ~105s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -237,6 +237,60 @@ Generate a campaign with:
 
 ```bash
 python -m configs.gen_campaign --root results/<name>     --datasets iwildcam --models MobileNetV3     --caps L20_G50 L30_G50 --arms all+null
+```
+
+## Eight more tools that exist and were invisible here
+
+Audited 2026-08-25: these are in `scripts/`, are useful, and were named in
+neither this file nor `docs/FRAMEWORK.md` -- which by this project's own rule
+means nobody ran them.
+
+```bash
+python -m scripts.rig_status                 # 🛑 RUN THIS BEFORE AND AFTER EVERY
+                                             #   LAUNCH. Every operational failure
+                                             #   here has been SILENT and every row
+                                             #   is one that already happened: a
+                                             #   launch that ran 40 runs on CPU
+                                             #   because `bash -c` re-sourced
+                                             #   .bashrc and flipped conda to base;
+                                             #   a killed dispatcher leaving three
+                                             #   runners alive writing into a
+                                             #   directory a fresh dispatcher had
+                                             #   claimed; a sibling checkout sharing
+                                             #   the live campaign's git object
+                                             #   store; a GPU picking up a second
+                                             #   user. None of those raise.
+python -m scripts.factorial_control          # the CONTROL for `dataset_screen`, and
+                                             #   it bounds where that screen is
+                                             #   valid. 2(n)'s baseline gives an
+                                             #   unseen group the global training
+                                             #   prevalence -- right for an ATOMIC
+                                             #   group (a camera, a trap), TOO
+                                             #   GENEROUS for one built as a PRODUCT
+                                             #   of factors that both appear in
+                                             #   training, because the model can
+                                             #   interpolate. Run it on any
+                                             #   subpopulation slice before
+                                             #   believing the screen.
+python -m scripts.hp_liveness_real           # `hp_liveness` answers "which knob can
+                                             #   change a result" on the SMOKE NET,
+                                             #   where the clip never engages -- so
+                                             #   lambda/rho read LIVE and
+                                             #   `constraint_grad_clip` reads INERT,
+                                             #   and on ViTB16 both verdicts INVERT.
+                                             #   A knob sweep justified by the smoke
+                                             #   net sweeps cancelled quantities.
+python -m scripts.derive_dual_weights        # the receipt for FRAMEWORK 2's
+                                             #   dual-weight table
+python -m scripts.diagnose_run <run-dir>     # stage-by-stage read of ONE run's log
+python -m scripts.reset_crashed <root>       # reset CRASHED runs for retry, and
+                                             #   nothing else
+python -m scripts.prep_isic ...              # candidate slice: held-out
+                                             #   SUBPOPULATION, the first
+                                             #   non-camera-trap ⇒ screen it with
+                                             #   `factorial_control`, not
+                                             #   `dataset_screen` alone
+python -m scripts.prep_fmow ...              # candidate slice: held-out COUNTRY
 ```
 
 ## Datasets

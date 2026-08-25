@@ -932,7 +932,7 @@ formulation was exercised.
 
 #### The dermmnist test set shares lesions with its training set
 
-**Receipt: `python -m scripts.check_lesion_leakage`** (server, or anywhere
+**Receipt: `git show 61e34c0a^:scripts/check_lesion_leakage.py`** -- the script was DELETED by that commit ("purge: remove dermmnist, octmnist and tissuemnist from the runnable path") along with the dataset it checks, so it is no longer a runnable command. The receipt is still retrievable and still reproduces; it needs (server, or anywhere
 `dermmnist_c_metadata.csv` is -- it needs the metadata CSV only, no images and
 no GPU, because `StratifiedShuffleSplit` consumes `len(X)` and `y` so the exact
 indices reproduce from the labels). It asserts its copy of `BASE_SEED` and
@@ -1007,13 +1007,13 @@ same 80/20, same base seed) and **cannot be checked from what this repo stores**
 per-instance identifier survives into the slices. Whether TissueMNIST's source split
 carries a donor/patient grouping needs checking at MedMNIST before its absolute numbers
 are quoted either. octmnist is unaffected by this specific mechanism:
-`scripts/prep_octmnist.py` keeps the official test split whole.
+`prep_octmnist.py` (deleted by `61e34c0a`) keeps the official test split whole.
 
 #### Only dermmnist has real groups
 
 A local cap is a *different* constraint from the global one only if the groups
 differ in class composition. `synth_group` is built by round-robin over array
-order (`scripts/prep_octmnist.py:71`, `np.arange(len(y)) % 3`) or a random
+order (`prep_octmnist.py:72`, `np.arange(len(y)) % 3` -- retrieve with `git show 61e34c0a^:scripts/prep_octmnist.py`, the commit that purged it) or a random
 permutation, so every group receives the same class mix. Measured as the
 total-variation distance between each group's class distribution and the whole
 test set's:
@@ -1052,10 +1052,10 @@ Measured on 2026-08-19 straight from the `medmnist` package:
 | official OCTMNIST train | 97,477 | 7,754 = **7.95%** |
 | official train+val (what we pool) | 108,309 | 8,616 = **7.96%** |
 | official test | 1,000 | 250 = **25.00%** |
-| **our training slice** (`scripts/prep_octmnist.py`) | **12,000** | **3,000 = 25.00%** |
+| **our training slice** (`prep_octmnist.py`, deleted by `61e34c0a`) | **12,000** | **3,000 = 25.00%** |
 
 The 8% is exact -- **about MedMNIST**. It is not true of our data.
-`prep_octmnist.py:16` takes `N_PER_CLASS_TRAIN = 3000` stratified, which
+`prep_octmnist.py:15` takes `N_PER_CLASS_TRAIN = 3000` stratified, which
 rebalances drusen from 7.95% to exactly 25%, the same as the test split. So the
 prevalence disagreement the mechanism rests on **was removed by our own prep
 script**, and a CE warm-up on our slice has no reason to under-predict drusen.
@@ -2084,7 +2084,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 378 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 379 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -2092,7 +2092,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (378 tests, ~105 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (379 tests, ~105 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -2724,7 +2724,7 @@ Without the global rescale it scored `shift_1` at 160.
 
 ✅ **The screen passes its negative control:** oct and tissue come back dead,
 which they must -- their `synth_group` is literally `np.arange(len(y)) % 3`
-(`scripts/prep_octmnist.py`), so the groups are i.i.d. draws from one
+(`prep_octmnist.py`, deleted by `61e34c0a`), so the groups are i.i.d. draws from one
 distribution and the local scope is empty **by construction**. Any screen that
 called them live would be broken. `shift_1` has **never been used in any
 campaign**, and now should not be: its differential content is no better than
@@ -4144,7 +4144,7 @@ so its share of the momentum vector is
 construction.
 
 **The measurement.** Norms are the real per-epoch values from
-`paper/scripts/adam_contamination.py` on octmnist L50. The one quantity not
+an `adam_contamination.py` audit on octmnist L50 -- a script that has NEVER been committed to this repository, see the caveat below. The one quantity not
 measured is the coordinate-wise spread of `v`, so it is swept four orders of
 magnitude and the whole curve is reported. Projected vs unprojected share one
 RNG draw, so the difference is the projection and not Monte-Carlo noise:
@@ -5558,7 +5558,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             378 tests, ~105 s, no dataset required
+tests/             379 tests, ~105 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
