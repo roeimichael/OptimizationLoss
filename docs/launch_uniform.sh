@@ -202,7 +202,10 @@
 #   python -m scripts.rig_status --campaign results/uniform1
 #   python -m scripts.order_probe --campaign results/uniform1 --arm tralo_uniform
 #   python -m scripts.order_probe --campaign results/uniform1 --arm tralo_uniform --evictions
-#   python -m scripts.family_split --campaign results/uniform1
+#   python -m scripts.family_split --campaign results/uniform1 --families tralo tralo_uniform tralo_head
+#     ^ --families IS REQUIRED HERE. The default is `tralo fioretto hounie`,
+#       and this campaign has no fioretto or hounie, so the bare command
+#       exits with "No cell-seed carries all of ..." and prints nothing.
 #   python -m scripts.full_panel  --campaign results/uniform1 --control tralo_null
 #   python -m scripts.full_panel  --campaign results/uniform1 --control clip
 set -euo pipefail

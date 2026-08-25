@@ -2966,3 +2966,49 @@ def test_a_launch_script_CANNOT_SEE_A_LIVE_RUN_by_looking_for_main_py():
     assert checked, (
         "no launch script uses pgrep, so this gate checked nothing -- either "
         "the guard was removed or the scripts moved")
+
+
+def test_family_split_resolves_a_twin_the_way_the_CAMPAIGN_ran_it():
+    """A dedicated null arm beats the shared one, and both beat concatenation.
+
+    `family_split` derived each family's twin as `fam + "_null"`. That is right
+    for `xfam1`, which deliberately RAN `fioretto_null` and `hounie_null` as
+    separate arms so their byte-identity with `tralo_null` is a measurement --
+    the positive control the module's own docstring calls free and mandatory.
+
+    It is wrong for `results/uniform1`, where `tralo_uniform` and `tralo_head`
+    share `tralo_null` via `null_sibling` (protocol.yml, because at lambda = 0
+    they are the same run). Concatenation invented `tralo_uniform_null`, which
+    exists nowhere, so the tool refused a campaign whose twin was present --
+    and it is step 5 of that campaign's own read-order.
+
+    The obvious fix, resolving everything through `null_sibling`, is the
+    opposite bug: protocol.yml points `fioretto` and `hounie` at `tralo_null`
+    too, so it would stop reading xfam1's dedicated nulls and silently turn its
+    positive control into a tautology. Hence: dedicated if the campaign ran one,
+    shared otherwise.
+    """
+    from scripts.family_split import null_of
+
+    xfam = {"tralo", "fioretto", "hounie", "tralo_null", "fioretto_null",
+            "hounie_null", "tralo_reseed", "clip"}
+    uni = {"tralo", "tralo_uniform", "tralo_head", "tralo_null",
+           "tralo_reseed", "clip", "focal_clip"}
+
+    # xfam1 must be UNCHANGED -- this is the published read.
+    assert null_of("fioretto", xfam) == "fioretto_null"
+    assert null_of("hounie", xfam) == "hounie_null"
+    assert null_of("tralo", xfam) == "tralo_null"
+
+    # uniform1 must become READABLE.
+    assert null_of("tralo_uniform", uni) == "tralo_null"
+    assert null_of("tralo_head", uni) == "tralo_null"
+    assert null_of("tralo", uni) == "tralo_null"
+
+    # The floor arm resolves the same way the hardcoded string used to.
+    assert null_of("tralo_reseed", uni) == "tralo_null"
+    assert null_of("tralo_reseed", xfam) == "tralo_null"
+
+    # And a family whose dedicated null is absent falls back rather than
+    # inventing an arm name that exists nowhere.
+    assert null_of("fioretto", uni) == "tralo_null"

@@ -30,6 +30,7 @@ pure collateral damage and it is where the families actually differ.
 
 import argparse
 import collections
+import io
 import json
 import os
 
@@ -102,6 +103,44 @@ def signed(metric, d):
     return -d if metric in LOWER_BETTER else d
 
 
+def _protocol_arms():
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    try:
+        import yaml
+        with io.open(os.path.join(root, "configs", "protocol.yml"),
+                     encoding="utf-8") as fh:
+            return yaml.safe_load(fh)["arms"]
+    except Exception:
+        return {}                   # scoring outside the repo: best effort
+
+
+def null_of(fam, present):
+    """The lambda=0 twin of `fam`, preferring a DEDICATED null arm if the
+    campaign ran one.
+
+    Two rules, and the order matters:
+
+    1. `fam + "_null"` IF THAT ARM IS IN THE CAMPAIGN. This is xfam1's design:
+       it ran `fioretto_null` and `hounie_null` as separate arms precisely so
+       that their byte-identity with `tralo_null` is a MEASUREMENT. Resolving
+       them to the shared twin instead would silently discard that positive
+       control -- the one this module's docstring calls free and mandatory.
+    2. Otherwise `null_sibling` from protocol.yml, which points
+       `tralo_uniform`, `tralo_head`, `tralo_st`, `tralo_margin`, `tralo_coin`
+       (and the dual families) at the SHARED `tralo_null`, because at lambda = 0
+       they are all the same run.
+
+    Concatenation alone invented `tralo_uniform_null`, which exists nowhere, so
+    this tool refused to read a single-family campaign whose twin was sitting
+    right there. `results/uniform1` is exactly that campaign and this script is
+    step 5 of its read-order. `null_sibling` alone would have broken xfam1.
+    """
+    dedicated = fam + "_null"
+    if dedicated in present:
+        return dedicated
+    return _protocol_arms().get(fam, {}).get("null_sibling", dedicated)
+
+
 def main():
     a = argparse.ArgumentParser(description=__doc__)
     a.add_argument("--campaign", required=True)
@@ -113,7 +152,16 @@ def main():
     args = a.parse_args()
 
     rows = load(args.campaign)
-    nulls = [f + "_null" for f in args.families]
+    present = {arm for (_, arm, _) in rows}
+    twin = {f: null_of(f, present) for f in args.families}
+    nulls = sorted(set(twin.values()))
+    # Say what resolved to what, and by which rule. Several arms legitimately
+    # SHARE one twin, and a reader who assumes one-null-per-family would
+    # mis-read the identity line below as a measurement when it is a tautology.
+    print("  twin per family: %s"
+          % ", ".join("%s -> %s%s" % (f, twin[f],
+                                      "" if twin[f] == f + "_null" else " (shared)")
+                      for f in args.families))
     need = [args.control] + list(args.families) + nulls
     keys = matched(rows, need)
     if not keys:
@@ -135,8 +183,16 @@ def main():
     print("=" * 94)
     print("FAMILY SPLIT  --  %d matched cell-seed(s) over %d cell(s), control=%s"
           % (len(keys), len(cells), args.control))
-    print("  nulls byte-identical in all %d: the compute term is ONE number, "
-          "not one per family" % len(keys))
+    if len(nulls) == 1:
+        print("  ONE twin arm (%s) shared by every family here, so the compute "
+              "term is one" % nulls[0])
+        print("  number BY CONSTRUCTION. The byte-identity check above is "
+              "vacuous, not passed --")
+        print("  it is a measurement only when the families carry SEPARATE "
+              "null arms, as xfam1 did.")
+    else:
+        print("  nulls byte-identical in all %d: the compute term is ONE "
+              "number, not one per family" % len(keys))
     print("=" * 94)
 
     scale = float(np.mean([rows[(c, args.control, s)]["items_per_001"]
@@ -150,7 +206,7 @@ def main():
               % ("family", "compute", "constraint", "total",
                  "cells won (constraint)"))
         for fam in args.families:
-            nul = fam + "_null"
+            nul = twin[fam]
             comp, cons, tot = [], [], []
             percell = collections.defaultdict(list)
             for c, s in keys:
@@ -175,11 +231,12 @@ def main():
                      "  (%d cell(s) UNMEASURABLE, excluded)" % len(nan_cells)
                      if nan_cells else ""))
         if args.floor:
+            fnul = null_of(args.floor, present)
             fk = [(c, s) for c, s in keys
-                  if (c, args.floor, s) in rows and (c, "tralo_null", s) in rows]
+                  if (c, args.floor, s) in rows and (c, fnul, s) in rows]
             if fk:
                 d = [signed(metric, rows[(c, args.floor, s)][metric]
-                            - rows[(c, "tralo_null", s)][metric]) for c, s in fk]
+                            - rows[(c, fnul, s)][metric]) for c, s in fk]
                 print("     %-10s %12s %+12.4f %12s   noise floor: RNG stream "
                       "only, over %d" % (args.floor, "-", np.mean(d), "-", len(fk)))
         if metric == "ccF1":
