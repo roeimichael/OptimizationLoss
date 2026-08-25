@@ -55,7 +55,8 @@ DOSE_FRACTION_TOLERANCE = 0.05
 
 
 def read_root(root):
-    """(arm -> [applied, attempted, with_counts, unfinished, blind], amps).
+    """(arm -> [applied, attempted, with_counts, unfinished, blind,
+              posthoc_done], amps).
 
     `unfinished` and `blind` are counted apart on purpose. On a RUNNING
     campaign most runs have no counts because they have not run yet, and
@@ -65,7 +66,7 @@ def read_root(root):
     writes `pending` until a run finishes, and only a finished one says
     `completed`.
     """
-    per = collections.defaultdict(lambda: [0, 0, 0, 0, 0])
+    per = collections.defaultdict(lambda: [0, 0, 0, 0, 0, 0])
     amps = collections.defaultdict(set)
     for path in glob.glob(os.path.join(root, "**", "config.json"),
                           recursive=True):
@@ -82,10 +83,15 @@ def read_root(root):
         app = res.get("constraint_steps_applied")
         att = res.get("constraint_steps_attempted")
         if app is None or att is None:
-            if str(cfg.get("status", "pending")) == "completed":
-                cell[4] += 1
-            else:
+            if str(cfg.get("status", "pending")) != "completed":
                 cell[3] += 1
+            elif (cfg.get("hyperparams") or {}).get("constraint_epochs") == 0:
+                # A post-hoc arm attempts none and writes None, not 0. That is
+                # correct, and reading it as a missing record made the two
+                # clippers look like stale runs on a campaign minutes old.
+                cell[5] += 1
+            else:
+                cell[4] += 1
             continue
         cell[0] += int(app)
         cell[1] += int(att)
@@ -98,21 +104,32 @@ def report(per, amps, tolerance=DOSE_FRACTION_TOLERANCE, out=sys.stdout):
     def slot(v, i):
         return v[i] if len(v) > i else 0
 
+    def state(arm):
+        """ONE line per non-trained arm. An arm can be in several states at
+        once -- some runs finished, some not -- and printing it once per state
+        made the same clipper appear twice in the same table."""
+        v = per[arm]
+        bits = []
+        if v[2]:
+            bits.append("%d finished with 0 steps attempted, as a lambda=0 "
+                        "twin does" % v[2])
+        if slot(v, 5):
+            bits.append("%d finished post-hoc, which attempts none"
+                        % slot(v, 5))
+        if slot(v, 4):
+            bits.append("%d finished with NO counts: they predate the field"
+                        % slot(v, 4))
+        if slot(v, 3):
+            bits.append("%d still pending or running" % slot(v, 3))
+        return "; ".join(bits) or "no runs"
+
     trained = {a: v for a, v in per.items() if v[1] > 0}
-    zero_dose = sorted(a for a, v in per.items() if v[1] == 0 and v[2])
-    waiting = sorted(a for a, v in per.items()
-                     if v[1] == 0 and not v[2] and slot(v, 3))
-    blind = sorted(a for a, v in per.items()
-                   if v[1] == 0 and not v[2] and slot(v, 4))
+    others = sorted(a for a in per if a not in trained)
 
     if not trained:
         out.write("no completed run records a constraint-step count yet.\n")
-        if waiting:
-            out.write("  %d arm(s) have no FINISHED run yet: %s\n"
-                      % (len(waiting), ", ".join(waiting)))
-        if blind:
-            out.write("  %d arm(s) finished without counts, i.e. they predate "
-                      "the field: %s\n" % (len(blind), ", ".join(blind)))
+        for arm in others:
+            out.write("  %-16s %s\n" % (arm, state(arm)))
         out.write("  This is the normal state at the very start of a "
                   "campaign. Re-run it once a TRAINED arm completes.\n")
         return 0
@@ -130,18 +147,8 @@ def report(per, amps, tolerance=DOSE_FRACTION_TOLERANCE, out=sys.stdout):
                   % (arm, app, att, 100.0 * frac, n, amp, flag))
         if app != att:
             problems += 1
-    for arm in zero_dose:
-        # A post-hoc clipper, or a lambda = 0 twin -- both attempt none, and
-        # calling either one "post-hoc" mislabels the control this project
-        # cannot read a campaign without.
-        out.write("  %-16s 0 steps attempted, as it should be "
-                  "(post-hoc arm, or a lambda=0 twin)\n" % arm)
-    for arm in waiting:
-        out.write("  %-16s no FINISHED run yet (%d still pending or "
-                  "running)\n" % (arm, slot(per[arm], 3)))
-    for arm in blind:
-        out.write("  %-16s finished without counts: %d run(s) "
-                  "predate the field\n" % (arm, slot(per[arm], 4)))
+    for arm in others:
+        out.write("  %-16s %s\n" % (arm, state(arm)))
 
     if problems:
         out.write("\n  A lost step is a SILENT dose reduction: the epoch ran, "
@@ -179,14 +186,14 @@ def self_test(out=sys.stdout):
     """The gate. A reporter that cannot fail is not a check."""
     ok = True
 
-    per = {"a": [29, 29, 1, 0, 0], "b": [1, 29, 1, 0, 0]}
+    per = {"a": [29, 29, 1, 0, 0, 0], "b": [1, 29, 1, 0, 0, 0]}
     n = report(per, {"a": {"bfloat16"}, "b": {"bfloat16"}}, out=open(os.devnull, "w"))
     if n < 2:
         out.write("SELF-TEST FAIL: a 3.4%% arm beside a 100%% one reported "
                   "%d problem(s), expected at least 2\n" % n)
         ok = False
 
-    per = {"a": [29, 29, 1, 0, 0], "b": [29, 29, 1, 0, 0]}
+    per = {"a": [29, 29, 1, 0, 0, 0], "b": [29, 29, 1, 0, 0, 0]}
     n = report(per, {}, out=open(os.devnull, "w"))
     if n != 0:
         out.write("SELF-TEST FAIL: two arms both at 100%% reported %d "
@@ -195,7 +202,7 @@ def self_test(out=sys.stdout):
 
     # Every arm low: the HOST case, which must still be caught even though the
     # arms agree with each other.
-    per = {"a": [716, 1044, 36, 0, 0], "b": [720, 1044, 36, 0, 0]}
+    per = {"a": [716, 1044, 36, 0, 0, 0], "b": [720, 1044, 36, 0, 0, 0]}
     n = report(per, {"a": {"float16"}, "b": {"float16"}},
                out=open(os.devnull, "w"))
     if n < 2:
@@ -208,17 +215,32 @@ def self_test(out=sys.stdout):
     # wording the tool got wrong on its first outing against a live campaign.
     import io as _io
     buf = _io.StringIO()
-    report({"tralo_uniform": [0, 0, 0, 36, 0]}, {}, out=buf)
-    if "predate" in buf.getvalue() or "no FINISHED run yet" not in buf.getvalue():
+    report({"tralo_uniform": [0, 0, 0, 36, 0, 0]}, {}, out=buf)
+    if "predate" in buf.getvalue() or "still pending or running" not in buf.getvalue():
         out.write("SELF-TEST FAIL: 36 unstarted runs reported as predating "
                   "the field:\n%s" % buf.getvalue())
         ok = False
 
     buf = _io.StringIO()
-    report({"tralo": [0, 0, 0, 0, 36]}, {}, out=buf)
+    report({"tralo": [0, 0, 0, 0, 36, 0]}, {}, out=buf)
     if "predate" not in buf.getvalue():
         out.write("SELF-TEST FAIL: 36 COMPLETED runs with no counts must be "
                   "reported as predating the field:\n%s" % buf.getvalue())
+        ok = False
+
+    # A finished POST-HOC run writes None, not 0, and that is correct. Read
+    # as a missing record it made the two clippers look stale on a campaign
+    # minutes old.
+    buf = _io.StringIO()
+    report({"tralo": [29, 29, 1, 0, 0, 0], "clip": [0, 0, 0, 34, 0, 2]},
+           {}, out=buf)
+    if "predate" in buf.getvalue() or "post-hoc" not in buf.getvalue():
+        out.write("SELF-TEST FAIL: a finished post-hoc run must not read as "
+                  "predating the field:\n%s" % buf.getvalue())
+        ok = False
+    if buf.getvalue().count("  clip ") > 1:
+        out.write("SELF-TEST FAIL: one arm printed on more than one line:"
+                  "\n%s" % buf.getvalue())
         ok = False
 
     out.write("SELF-TEST %s\n" % ("PASS" if ok else "FAIL"))

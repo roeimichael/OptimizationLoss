@@ -3796,7 +3796,7 @@ def test_the_dose_reader_CATCHES_BOTH_HISTORICAL_FAILURES():
 
     # one arm low, siblings fine -> named as the loss shape
     buf = io.StringIO()
-    n = report({"tralo": [29, 29, 1, 0], "tralo_uniform": [1, 29, 1, 0]},
+    n = report({"tralo": [29, 29, 1, 0, 0, 0], "tralo_uniform": [1, 29, 1, 0, 0, 0]},
                {"tralo": {"bfloat16"}, "tralo_uniform": {"bfloat16"}}, out=buf)
     text = buf.getvalue()
     assert n >= 2 and "DID NOT RUN AT THE SAME DOSE" in text, text
@@ -3804,7 +3804,7 @@ def test_the_dose_reader_CATCHES_BOTH_HISTORICAL_FAILURES():
 
     # every arm low -> named as the host, even though the arms agree
     buf = io.StringIO()
-    n = report({"tralo": [716, 1044, 36, 0], "fioretto": [720, 1044, 36, 0]},
+    n = report({"tralo": [716, 1044, 36, 0, 0, 0], "fioretto": [720, 1044, 36, 0, 0, 0]},
                {"tralo": {"float16"}, "fioretto": {"float16"}}, out=buf)
     text = buf.getvalue()
     assert n >= 2, text
@@ -3812,12 +3812,12 @@ def test_the_dose_reader_CATCHES_BOTH_HISTORICAL_FAILURES():
 
     # the clean case must stay quiet, or the check is noise
     buf = io.StringIO()
-    assert report({"tralo": [29, 29, 1, 0], "hounie": [29, 29, 1, 0]},
+    assert report({"tralo": [29, 29, 1, 0, 0, 0], "hounie": [29, 29, 1, 0, 0, 0]},
                   {}, out=buf) == 0, buf.getvalue()
 
     # and the very start of a campaign is not a failure
     buf = io.StringIO()
-    assert report({"clip": [0, 0, 0, 4, 0]}, {}, out=buf) == 0
+    assert report({"clip": [0, 0, 0, 4, 0, 0]}, {}, out=buf) == 0
     assert "normal state at the very start" in buf.getvalue()
 
     # A YOUNG campaign must not read as an OLD one. On its first outing this
@@ -3825,20 +3825,20 @@ def test_the_dose_reader_CATCHES_BOTH_HISTORICAL_FAILURES():
     # which tells the reader their checkout is stale when it is merely early.
     # `status` is what separates the two and nothing else can.
     buf = io.StringIO()
-    report({"tralo": [29, 29, 1, 0, 0], "tralo_uniform": [0, 0, 0, 36, 0]},
+    report({"tralo": [29, 29, 1, 0, 0, 0], "tralo_uniform": [0, 0, 0, 36, 0, 0]},
            {"tralo": {"bfloat16"}}, out=buf)
     text = buf.getvalue()
-    assert "no FINISHED run yet (36" in text, text
+    assert "36 still pending or running" in text, text
     assert "predate" not in text, text
 
     buf = io.StringIO()
-    report({"tralo": [29, 29, 1, 0, 0], "clip": [0, 0, 0, 0, 36]},
+    report({"tralo": [29, 29, 1, 0, 0, 0], "clip": [0, 0, 0, 0, 36, 0]},
            {"tralo": {"bfloat16"}}, out=buf)
     assert "predate the field" in buf.getvalue(), buf.getvalue()
 
     # A lambda=0 twin attempts no steps and is NOT a post-hoc arm. Calling it
     # one mislabels the control this project cannot read a campaign without.
     buf = io.StringIO()
-    report({"tralo": [29, 29, 1, 0, 0], "tralo_null": [0, 0, 4, 0, 0]},
+    report({"tralo": [29, 29, 1, 0, 0, 0], "tralo_null": [0, 0, 4, 0, 0, 0]},
            {}, out=buf)
-    assert "lambda=0 twin" in buf.getvalue(), buf.getvalue()
+    assert "lambda=0 twin does" in buf.getvalue(), buf.getvalue()

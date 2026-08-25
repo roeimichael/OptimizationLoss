@@ -4746,6 +4746,25 @@ The provenance was there the whole time: `results.runtime` records `amp_dtype`,
 was added. Nothing read it. This is the same shape as every other defect in
 2(e) -- the record existed, the reader did not.
 
+#### ✅ THE FIX IS CONFIRMED ON THE RELAUNCH, 2026-08-25
+
+`results/uniform1` was stopped at 4 of 252 runs, regenerated at the clamp fix
+with `--constraint-fp32`, and relaunched. On the first completed run of each
+trained arm:
+
+    tralo           29 / 29   100.0%   amp=bfloat16
+    tralo_head      29 / 29   100.0%   amp=bfloat16
+    tralo_uniform   29 / 29   100.0%   amp=bfloat16      (was 1 / 29)
+
+So the campaign is now measuring the LOSS SHAPE, which is what it was built
+to measure, rather than a numerical failure in one of the three arms.
+
+`scripts/dose_landed.py` is the reader, and it is the one command to run
+FIRST on a live campaign: no predictions, no pairing, seconds at 1% done. It
+names which of the two causes it is looking at -- one arm low is the loss
+shape, every arm low is the host -- because the two need different fixes and
+only one of them is recoverable by relaunching the same campaign.
+
 #### 🔁 THE SAME DEFECT AT THE OTHER END, found by looking for it
 
 `EPSILON` guards a divisor in `window_temp` as `clamp(t, min=EPSILON)`. In
