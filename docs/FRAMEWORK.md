@@ -1971,6 +1971,21 @@ error writer that must not raise while recording a failure
 (`src/utils/error_handler`), an optional `config.json` for a log diagnostic
 (`log_health`), and a fallback to an equivalent source (`hp_liveness`).
 
+🔑 **THE SWEEP IS COMPLETE, AND IT FOUND ONE PATTERN THAT PREDICTS THE BUG.**
+All eleven generators under `docs/paper/scripts/` were audited on 2026-08-25.
+They divide cleanly:
+
+| pattern | generators | outcome |
+|---|---|---|
+| **asserts the seed count, refuses otherwise** -- `assert len(s) == 4`, `assert (n_per_cell == 4).all()` | `make_main_table`, `make_graft_table` | ✅ **clean by construction.** A thin cell raises; it cannot reach the table |
+| **`.dropna()` / `reindex` and carry on** | `make_deployment_fig`, `make_backbone_tables`, `make_granular_tables` | ⚠️ **all three carried a defect** -- an empty bar indistinguishable from 0.00, a discarded cap level indistinguishable from one never run, and a one-seed column beside four-seed neighbours |
+| reads one file, or no data at all | `make_convergence_fig`, `make_datasets_fig`, `make_figs`, `make_loss_shape_fig`, `make_octmnist_fig` | ✅ nothing to drop; `make_octmnist_fig` was measured and its `dropna` removes **0** rows across 3 backbones x 9 cap tags |
+
+⇒ **the rule for the next generator: assert the shape you expect, do not repair
+it.** `assert len(s) == 4` is three words and it made two of these files immune
+to a class that hit all three of their neighbours. Every defect above came from
+a function that quietly accepted a smaller input and returned a number anyway.
+
 Gated by `test_no_scorer_or_gate_DROPS_DATA_WITHOUT_SAYING_SO`, an AST walk over
 `scripts/`, `docs/paper/scripts/` and `src/` with `SILENT_SWALLOW_ALLOWED` as
 the exemption list -- **and the test also fails on a STALE exemption**, because
