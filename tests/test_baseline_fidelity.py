@@ -3658,3 +3658,91 @@ def test_a_launch_scripts_PIN_carries_the_same_gen_campaign_invocation():
 
     assert checked, (
         "no launch script declared a PIN, so this gate checked nothing.")
+
+
+def test_the_out_of_tree_guard_REFUSES_ONLY_WHEN_IT_SHOULD():
+    """A guard that always refuses is as broken as no guard, and quieter.
+
+    The refusal added on 2026-08-25 read
+
+        case "${TREEP:-__none__}" in
+          "") ;;
+          *) case "$SELF/" in "$TREEP"/*) ... exit 1 ;; esac ;;
+        esac
+
+    `${TREEP:-__none__}` substitutes the DEFAULT when TREEP is empty, so the
+    `""` arm is unreachable and control falls into `*` with TREEP still empty
+    -- making the inner pattern `/*`, which matches every absolute path. On a
+    FIRST launch, where $TREE does not exist yet and TREEP is therefore empty,
+    the script refused to run at all. It did exactly that on iwc4.
+
+    So the guard is EXECUTED here, in bash, in the three states that matter,
+    rather than pattern-matched for. Static checks cannot see this class of
+    bug: the text was present and correct-looking the whole time.
+    """
+    import io
+    import shutil
+    import subprocess
+    import tempfile
+
+    bash = shutil.which("bash")
+    if not bash:
+        pytest.skip("no bash on this host; the guard is shell code")
+
+    NL = "\n"
+    scripts = sorted(f for f in os.listdir("docs") if f.endswith(".sh"))
+    checked = 0
+    for name in scripts:
+        text = io.open(os.path.join("docs", name), encoding="utf-8").read()
+        if 'REFUSING: this script lives inside' not in text:
+            continue
+        start = text.index('SELF=$(cd "$(dirname "$0")"')
+        end = text.index(NL + "fi" + NL, start) + len(NL + "fi" + NL)
+        guard = text[start:end]
+
+        tmp = tempfile.mkdtemp()
+        try:
+            tree = os.path.join(tmp, "tree").replace(os.sep, "/")
+            outside = os.path.join(tmp, "outside").replace(os.sep, "/")
+            os.makedirs(outside)
+            body = ('TREE=%s%s%s%secho REACHED_THE_END%s'
+                    % (tree, NL, guard, NL, NL))
+
+            def run(where):
+                path = os.path.join(where, "g.sh")
+                io.open(path, "w", encoding="utf-8", newline=NL).write(body)
+                return subprocess.run(
+                    [bash, path.replace(os.sep, "/")],
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+            # 1. $TREE does not exist yet -- the FIRST-launch state.
+            out = run(outside)
+            assert b"REACHED_THE_END" in out.stdout, (
+                "%s refuses when $TREE does not exist yet, so it can never "
+                "launch a campaign for the first time. Output: %s"
+                % (name, out.stdout))
+
+            # 2. $TREE exists, the script is elsewhere -- the correct usage.
+            os.makedirs(tree)
+            out = run(outside)
+            assert b"REACHED_THE_END" in out.stdout, (
+                "%s refuses from OUTSIDE an existing $TREE, which is the only "
+                "supported way to run it. Output: %s" % (name, out.stdout))
+
+            # 3. the script IS inside $TREE -- the hazard.
+            out = run(tree)
+            assert b"REACHED_THE_END" not in out.stdout, (
+                "%s runs from INSIDE $TREE, where the checkout it is about to "
+                "do rewrites it mid-execution. Output: %s"
+                % (name, out.stdout))
+            assert b"REFUSING" in out.stdout, (
+                "%s exits from inside $TREE without saying why: %s"
+                % (name, out.stdout))
+            checked += 1
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    assert checked, (
+        "no launch script carries the out-of-tree guard, so this executed "
+        "nothing. Either the guard was removed or the extraction above stopped "
+        "matching it.")

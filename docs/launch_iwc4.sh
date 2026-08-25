@@ -99,15 +99,18 @@ ROOT=results/iwc4
 #
 SELF=$(cd "$(dirname "$0")" && pwd -P)
 TREEP=$(cd "$(eval echo $TREE)" 2>/dev/null && pwd -P || true)
-case "${TREEP:-__none__}" in
-  "") ;;
-  *) case "$SELF/" in
-       "$TREEP"/*) echo "REFUSING: this script lives inside \$TREE ($TREEP),"
-                   echo "  and it is about to git-checkout that tree. Copy it"
-                   echo "  out and run the copy -- see the block above."
-                   exit 1 ;;
-     esac ;;
-esac
+# `[ -n "$TREEP" ]`, NOT `${TREEP:-__none__}`: on a FIRST launch $TREE does not
+# exist yet, so TREEP is empty -- and an empty prefix turns the glob below into
+# `/*`, which matches every absolute path and refuses unconditionally. That is
+# exactly what it did on the first iwc4 launch.
+if [ -n "$TREEP" ]; then
+    case "$SELF/" in
+      "$TREEP"/*) echo "REFUSING: this script lives inside \$TREE ($TREEP),"
+                  echo "  and it is about to git-checkout that tree. Copy it"
+                  echo "  out and run the copy -- see the block above."
+                  exit 1 ;;
+    esac
+fi
 
 # THE DISPATCHER IS NOT THE ONLY PROCESS. main.py spawns each run as
 # `python -u -m src.experiments.runner <config>`, whose command line contains
