@@ -5042,6 +5042,47 @@ safe:**
 budget admits 90% of the true positives, so the constraint barely constrains.
 **Say what the cap is buying before proposing to loosen it.**
 
+### 2(w0) ⛔ **THE WHOLE UNREAD-CAMPAIGN BACKLOG IS DEAD, AND IT IS ONE REASON**
+
+Audited 2026-08-26. Eight campaigns sat on the server either complete-and-never-
+read or part-finished, and they were carried as a standing to-do for weeks:
+
+| campaign | runs | why it was kept |
+|---|---|---|
+| `dosefix` | 32/32 | complete, never scored |
+| `dualbar2` | 88/88 | complete; the only 4-dual set with a null PER FAMILY |
+| `selectrun` | 32/32 | complete |
+| `mc29` | 13/14 | one run short |
+| `vit_diag` | 18/49 | part-finished |
+| `mnv3bar` | 17/80 | part-finished |
+| `vit_ceskip` | 1/48 | barely started |
+| `mc_sgd` | 0/32 | generated, never started |
+
+**Every one of them is `dermmnist`.** Not a single iwildcam run among them. So
+all eight close the same way and none of it is a judgement call:
+
+* they **cannot be read** -- the dermmnist test set is leaked, 38.7% overall and
+  67.3% of melanoma (2(o));
+* they **cannot be finished** -- the dataset is removed from `data/` and
+  unrunnable, not merely discouraged (2(n));
+* `vit_ceskip` could not be finished even with the data, because it sweeps
+  `enable_ce_skip`, a key DELETED from the pipeline.
+
+⇒ **Delete them from the backlog and do not re-derive this.** The check that
+settles it is one command and it is the FIRST one to run on any campaign whose
+provenance is not immediately obvious:
+
+```bash
+ls -d results/<root>/*/*/ | awk -F/ '{print $(NF-1)}' | sort -u   # the DATASET
+```
+
+🔑 The general lesson, and it has now cost this project twice: **an unread
+result is not automatically a pending result.** Check what dataset and what
+code version produced it BEFORE scheduling time to read it -- a campaign on a
+withdrawn dataset is history, and scoring it would only manufacture numbers
+that cannot be quoted.
+
+
 ### 2(w) 🟢 **THE FIRST ARM THAT TAKES A FULL DOSE AND DOES NOT DAMAGE THE
 RANKING** -- `results/uniform1`, 252 runs, complete 2026-08-26
 
@@ -5093,6 +5134,46 @@ ranking cost.** `tralo_head` ties everything because it barely constrains at
 all -- 1.7x the RNG floor -- so ITS tie carries no information, and this is the
 outcome-level confirmation of 2(u): masking `prm.grad` does not freeze the
 backbone, it only starves the constraint. **`head_only` is not the fix.**
+
+#### 🔑 THE CONTROL THAT SETTLES IT: EACH ARM AGAINST **ITS OWN BACKBONE'S** RNG FLOOR
+
+A campaign-wide mean can hide a backbone. `tralo_reseed` gives a per-backbone
+noise floor for free -- it is the same null with the RNG stream perturbed, and
+because the cap is not in its loss its delta is IDENTICAL across all three cap
+levels (span 0.0000, visible in the table and a useful self-check). Score each
+arm against the floor of the backbone it ran on:
+
+| AP delta vs own null | L20_G50 | L30_G50 | L50_G30 | span | that backbone's RNG floor |
+|---|---|---|---|---|---|
+| `tralo` MobileNetV2 | -0.0853 | -0.1347 | -0.0525 | 0.0822 | +0.0002 |
+| `tralo` MobileNetV3 | -0.0452 | -0.0633 | -0.0903 | 0.0451 | +0.0207 |
+| `tralo` RegNetY400MF | -0.0500 | -0.0478 | -0.1099 | 0.0621 | -0.0255 |
+| **`tralo_uniform` MobileNetV2** | **+0.0236** | **+0.0309** | **+0.0243** | **0.0073** | +0.0002 |
+| **`tralo_uniform` MobileNetV3** | **+0.0004** | **+0.0058** | **+0.0173** | **0.0169** | +0.0207 |
+| **`tralo_uniform` RegNetY400MF** | **-0.0355** | **-0.0197** | **-0.0199** | **0.0158** | -0.0255 |
+
+⇒ **`tralo` is below its own backbone's floor in 9 of 9 cells. `tralo_uniform`
+is at or above it in 9 of 9.** RegNetY400MF is the one backbone where
+`tralo_uniform` reads negative -- and that backbone's RNG floor is itself
+-0.0255, so two of its three cells are SMALLER in magnitude than reseeding
+alone. Quote the floor beside it or that cell reads as a loss it is not.
+
+#### 🔑 AND THE DAMAGE NO LONGER TRACKS CONSTRAINT PRESSURE
+
+The three cap levels apply different pressure, so the SPAN across them prices
+how the arm behaves as the constraint pushes harder. `tralo` swings 0.045 to
+0.082 of AP across caps; **`tralo_uniform` swings 0.007 to 0.017, a 4 to 11x
+tighter band**, and does not trend toward the tight cap. Its freedom is
+a property of the count function, not of a lucky operating point.
+
+⚠️ **THIS DOES NOT LICENSE A DOSE SWEEP, and the reason is already measured.**
+The obvious follow-up -- if it is free, buy more of it -- is void twice over.
+Magnitude is not a lever: under `constraint_grad_mode: clip` the step is exactly
+`lr*clip` whatever lambda says, so a lambda sweep would be a FIFTH inert flag
+(house rule 3). And step COUNT cannot rise without breaking equal compute
+against the clippers, which rule 2 forbids and which warm-up 50 already closed
+from the other side. **The live test is a fourth BACKBONE, not a bigger dose.**
+
 
 #### ⚠️ WHAT SURVIVES IS CALIBRATION-ONLY, WHICH 2(j) SAYS CANNOT COST AN ALLOCATION
 
