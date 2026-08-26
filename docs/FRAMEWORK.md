@@ -4905,8 +4905,51 @@ FIXABLE setting and not a property of the hardware, and every number from those
 three is a **lower bound on constraint effect that can now be lifted**. It cost
 one run to learn, against 292 runs of not knowing.
 
-Question (1) -- does the 0-of-9 sweep survive at full dose -- waits for the
-campaign, and its falsification condition is fixed above and not to be edited.
+✅✅ **QUESTION (1) IS ANSWERED TOO, AND THE PRE-REGISTRATION HELD.**
+Read at 106 of 180 runs, 9 cells x 3 complete seeds, 2026-08-26. The condition
+fixed before launch was: **`tralo` at 100% dose loses AP in at least 8 of 9
+cells, by a margin no smaller than iwc3's -0.0394.** Measured:
+
+| | iwc3, 68.6% dose, FP16 | **iwc4, 100% dose, FP16 + fp32** | uniform1, 100%, BF16 |
+|---|---|---|---|
+| AP | -0.0394 | **-0.0585  8 of 9  \*\*\* q=0.0123** | -0.0754  9 of 9 |
+| AUROC | -0.0094 | **-0.0136  7 of 9  \*\*\*** | -0.0172  9 of 9 |
+| NLL | +0.2545 | **+0.4923  9 of 9  \*\*\*** | +0.3206  9 of 9 |
+
+⇒ **The damage is 1.5 to 1.9x LARGER at full dose, on two different hosts.**
+iwc3 was a lower bound exactly as 2(u) predicted, the sweep survives, and
+2(p-post) is CONFIRMED rather than retracted. Note the cross-host replication
+was free: uniform1's `tralo` arm ran the same three backbones and the same
+three caps on the BF16 host, so it is an independent replicate of iwc4 and it
+agrees in sign, in size and in cell count.
+
+#### 🔑 AND THE macroF1 LOSS IS **EXACTLY** THE RESEED FLOOR -- to four decimals
+
+The control that decides attribution, in the same table:
+
+| iwc4, vs `tralo_null` | `tralo` | `tralo_reseed` (RNG only) | ratio |
+|---|---|---|---|
+| AP | -0.0585 \*\*\* | -0.0101 tie | **5.8x the floor -- ATTRIBUTABLE** |
+| AUROC | -0.0136 \*\*\* | -0.0019 tie | **7.2x -- ATTRIBUTABLE** |
+| Brier | +0.0849 \*\*\* | +0.0224 \*\*\* | 3.8x -- partly attributable |
+| ECE | +0.0444 \*\*\* | +0.0129 \*\*\* | 3.4x -- partly attributable |
+| **macroF1** | **-0.0156 \*\*\* 1/8** | **-0.0156 \*\*\* 0/9** | **1.00x -- NOT ATTRIBUTABLE** |
+
+🛑 **Perturbing the RNG stream and changing nothing else costs the SAME
+macro-F1 as the entire constraint**, to four decimal places, and does it in 9
+of 9 cells against the constraint's 8. So a macro-F1 number quoted against the
+clipper is measuring the seed, and **macro-F1 is what the paper headlines**
+(2(a)). The ranking metrics are the opposite case: 5.8 and 7.2x the floor.
+
+⚠️ Read at 3 seeds of 4, so the sizes will move; the SIGNS and the
+attribution will not, because they already agree with two finished campaigns.
+Re-read at 180/180.
+
+The falsification condition above is left exactly as it was written before
+launch, and is not to be edited now that it has been met. The point of
+fixing it in advance was that it COULD have come back positive, in which
+case the damage would have been a dosing artefact and 2(p-post) would be
+retracted here instead.
 
 ⚠️ **`--constraint-fp32` CHANGES TWO THINGS, and the pre-registration owns**
 **that.** It raises the step COUNT (68.6% -> 100% is the prediction) *and* it
