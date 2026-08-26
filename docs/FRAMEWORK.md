@@ -5042,6 +5042,143 @@ safe:**
 budget admits 90% of the true positives, so the constraint barely constrains.
 **Say what the cap is buying before proposing to loosen it.**
 
+### 2(w) 🟢 **THE FIRST ARM THAT TAKES A FULL DOSE AND DOES NOT DAMAGE THE
+RANKING** -- `results/uniform1`, 252 runs, complete 2026-08-26
+
+Every previous section here reports a cost. This one reports a fix, and it is
+the direct answer to 2(t): the constraint evicts the CORRECT items because the
+`sum` count carries a `p(1-p)` gradient that is largest exactly where the model
+is most confident. `tralo_uniform` replaces that count with a straight-through
+log-odds count whose per-item weight is FLAT. Pre-registered prediction: the
+ranking damage disappears and the arm ties its own null. **It did.**
+
+9 cells (3 backbones x 3 caps), 4 seeds, 7 arms, one campaign, one commit. All
+three trained arms landed **1044 of 1044** constraint steps (100.0%, bfloat16),
+and `full_panel` cleared house rule 3: every arm pair differs on at least one
+cell-seed.
+
+| vs its OWN lambda=0 twin | `tralo` | **`tralo_uniform`** | `tralo_head` | `tralo_reseed` (RNG floor) |
+|---|---|---|---|---|
+| AP | **-0.0754  0/9  \*\*\* LOSS** | **+0.0030  6/3  tie** | +0.0026 tie | -0.0016 tie |
+| AUROC | **-0.0172  0/9  \*\*\* LOSS** | **+0.0027  6/3  tie** | +0.0024 tie | +0.0016 tie |
+| ECE | +0.0320  0/9  \*\*\* LOSS | +0.0126  loss, not after BH | +0.0050 tie | +0.0064 tie |
+| Brier | +0.0570  0/9  \*\*\* LOSS | +0.0177  tie | +0.0101 tie | +0.0137 tie |
+| NLL | +0.3206  0/9  \*\*\* LOSS | +0.2398  1/8  \*\*\* LOSS | -0.0047 tie | +0.0616 tie |
+| ConfGap | -0.0186  0/9  \*\*\* LOSS | -0.0191  0/9  \*\*\* LOSS | +0.0077  9/0  \*\*\* WIN | -0.0092 tie |
+| ccF1 | +0.0003 tie | +0.0010 tie | +0.0002 tie | +0.0010 tie |
+| macroF1 | -0.0057 tie | +0.0012 tie | (tie) | -0.0028 tie |
+
+**AP goes from a clean 0-of-9 sweep at BH q = 0.0072 to a 6/3 tie, sign
+flipped, at the same dose in the same campaign.** AUROC does the same. The
+residual `tralo_uniform` deltas are the size of the RNG-only reseed floor, which
+is what -- the constraint became free -- actually means.
+
+#### 🔑 THE TIE IS NOT CHEAP: IT STILL ENFORCES. And `tralo_head` does not.
+
+A tie against the null is worthless if the arm simply stopped constraining, so
+read it beside how far each arm pulled the raw count toward its budget. This is
+a **liveness check, not a metric** -- house rule 5 stands, `raw_over_K` ranks
+nothing -- but -- did the treatment do anything -- is exactly what it can answer.
+
+| arm | count pull | x the RNG floor | AP damage |
+|---|---|---|---|
+| `tralo` | -0.0733 | 7.5x | **-0.0754 \*\*\* LOSS** |
+| **`tralo_uniform`** | **-0.0409** | **4.2x** | **+0.0030 tie** |
+| `tralo_head` | -0.0170 | 1.7x | +0.0026 tie |
+| `tralo_reseed` | -0.0098 | 1.0x | -0.0016 tie |
+| `clip` / `focal_clip` | -0.0055 / -0.0000 | 0.6x / 0.0x | -- |
+
+⇒ **`tralo_uniform` keeps 56% of `tralo`s enforcement and pays none of its
+ranking cost.** `tralo_head` ties everything because it barely constrains at
+all -- 1.7x the RNG floor -- so ITS tie carries no information, and this is the
+outcome-level confirmation of 2(u): masking `prm.grad` does not freeze the
+backbone, it only starves the constraint. **`head_only` is not the fix.**
+
+#### ⚠️ WHAT SURVIVES IS CALIBRATION-ONLY, WHICH 2(j) SAYS CANNOT COST AN ALLOCATION
+
+`tralo_uniform` still loses NLL (+0.2398) and ConfGap (-0.0191) against its
+null, both at \*\*\*. Both are CALIBRATION. 2(j) proves a monotone rescale leaves
+every top-K set untouched, so this damage is confined to the one channel that
+provably buys and costs no items. It is also the expected signature: a flat
+log-odds push moves the probability SCALE and not the ORDER -- and the
+REORDERING block shows exactly that, `tralo_uniform` carrying the LARGEST bias
+shift of any arm (-4.60 against `tralo` -4.16 and the null -3.57) while its
+rank correlation with the warm-up model stays at the nulls value
+(tau 0.520 vs 0.523) where `tralo` falls to 0.500.
+
+#### ⛔ AND IT STILL WINS NOTHING. Say both halves or the result is a lie.
+
+`tralo_uniform` beats `clip` on AP by +0.0173 (7/2, lean win) and on macroF1 by
++0.0071. **Neither is a constraint win.** `tralo_null` -- same compute, lambda=0
+-- already beats `clip` by +0.0143 AP and +0.0059 macroF1. Subtract and the
+constraints own contribution is +0.0030 AP and +0.0012 macroF1: the tie above.
+This is 2(r) again, unchanged -- **the win is compute, not method** -- and the
+fix does not alter it.
+
+On the budget-equalized metrics it is a tie at 0.50 items needing ~101 seeds per
+cell. That was never in doubt: 2(v) prices the WHOLE prize at these caps at
+0.04 to 0.09x the paired seed noise, so no method could have shown a win here.
+
+🔑 **The honest one-line claim, and it is a real one:** on iwildcam at
+warm-up 1, **the TraLO constraint can now be applied at full dose for free.**
+It was previously not free -- it cost AP 0.0754, about 2 to 150x the entire
+prize, spent backwards. Free is not profitable, and this campaign cannot show
+profitable at K/n = 16-30%. But every count-constraint direction this project
+has left was blocked behind -- the constraint damages the representation -- and
+that blocker is now measured, understood and removed.
+
+
+#### 🛑 THIRD PASS, AND THE LAST: THE PAIRED NOISE IS **LARGER**, NOT SMALLER
+
+The ratios above use `sd(TP@K)` for ONE arm across seeds. Every comparison in
+this project is seed-PAIRED against the arm's own lambda=0 twin, and pairing
+normally shrinks the noise -- so the obvious next question is whether that
+makes a loose cap affordable. **It does the opposite.** Measured on the same
+iwc3 predictions, all three in the same per-class TP items:
+
+| K/n | K | prize | unpaired sd | **reseed sd** | **treated sd** | prize/reseed | prize/treated |
+|---|---|---|---|---|---|---|---|
+| 20% | 74 | 0.42 | 0.80 | **6.17** | **7.59** | 0.07x | **0.05x** |
+| 30% | 111 | 1.17 | 1.96 | **8.32** | **9.73** | 0.14x | **0.12x** |
+| 50% | 185 | 4.08 | 6.20 | **10.61** | **16.67** | 0.38x | **0.24x** |
+| 70% | 259 | 11.50 | 10.44 | **15.30** | **23.74** | 0.75x | **0.48x** |
+| 80% | 296 | 18.00 | 11.52 | **19.79** | **28.42** | 0.91x | **0.63x** |
+| 90% | 333 | 29.83 | 13.45 | **23.35** | **29.07** | 1.28x | **1.03x** |
+
+(class 2; class 7 is the same shape, 0.00x to 0.92x. `reseed sd` is
+sd(`tralo_reseed` - `tralo_null`), RNG stream only. `treated sd` is
+sd(`tralo` - `tralo_null`), the contrast actually run.)
+
+🔑 **WHY PAIRING FAILS HERE, and it is structural.** `tralo` and `tralo_null`
+share ONE warm-up epoch and then train 29 more apart. They are not two
+readings of one model, they are two models. Pairing cancels almost nothing and
+adds the variance of a second training -- so the paired sd is 7.6 to 29.1
+items where the unpaired one is 0.8 to 13.5.
+
+⇒ **The RNG-only floor alone matches or exceeds the ENTIRE prize at every cap
+level, on both capped classes.** `prize/reseed` is 0.07x at L20 and reaches
+1.28x only at K/n = 0.9. That is the answer to "why did ~20 arms tie": the
+design's noise floor is larger than its prize everywhere in the region it can
+run, and no loss function moves either number.
+
+⚠️ **THREE NOISE NUMBERS EXIST AND THEY ARE NOT INTERCHANGEABLE.** This
+section quoted two of them before getting to the right one, so state which is
+meant, every time:
+
+* **unpaired** `sd(TP@K)` for one arm -- what an absolute quality claim faces;
+* **reseed-paired** -- the RNG-only floor, and the honest bar for any arm;
+* **treated-paired** -- what the contrast you are actually running faces;
+* `full_panel`'s **2.11 items** is a FOURTH thing: the paired sd of `d ccF1`
+  MACRO-averaged over both capped classes and converted through `(K+n)/2`. It
+  is not comparable to the per-class TP items above and must not be
+  substituted for them.
+
+✅ **WHAT THIS DOES NOT TOUCH: the DAMAGE is still callable.** 2(p-post)'s
+AP -0.0394 at 0 of 9 cells is a large effect measured against its own noise,
+not a prize. `uniform1` and `iwc4` both measure damage, not prize, and both
+are correctly aimed. The ceiling on what they can conclude is a TIE with the
+null -- which is what `uniform1` pre-registered, in those words.
+
 #### What this leaves, stated plainly
 
 * **On the CAPPED classes, the best any method can do here is TIE.** That is not

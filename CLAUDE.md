@@ -154,14 +154,22 @@ python -m scripts.ceiling_screen <slice-dir> --caps L20_G50 L30_G50 --classes 2 
                                             #   allocator or optimizer changes that bound.
                                             #   🛑 AND THE NOISE MOVES THE SAME WAY, so
                                             #   a prize alone decides nothing. Measured on
-                                            #   iwc3, prize/sd is **0.52-0.64x at L20/L30/
-                                            #   L50 -- every cap this protocol sweeps** --
-                                            #   crosses 1.0 only above K/n ~ 70% and hits
-                                            #   1.9x at 90%, where the budget admits most
-                                            #   of the true positives and the constraint
-                                            #   barely constrains. So a method capturing
-                                            #   100% of the gap to a PERFECT ranking still
-                                            #   would not be detectable at 4 seeds here.
+                                            #   iwc3 against the PAIRED sd -- the noise the
+                                            #   contrast actually run faces -- prize/sd is
+                                            #   **0.04-0.09x at L20/L30/L50 and NEVER
+                                            #   reaches 1.0, topping out at 0.90x at
+                                            #   K/n=90%**. 🛑 Pairing GROWS the noise here
+                                            #   (7.6-29.1 items vs 0.8-13.5 unpaired):
+                                            #   `tralo` and `tralo_null` share one warm-up
+                                            #   epoch then train 29 apart, so they are two
+                                            #   MODELS, not two readings of one. The
+                                            #   RNG-only `tralo_reseed` floor alone already
+                                            #   matches the whole prize. So a method
+                                            #   capturing 100% of the gap to a PERFECT
+                                            #   ranking would not be detectable at 4 seeds
+                                            #   at ANY cap. Quote which of the four noise
+                                            #   numbers you mean -- FRAMEWORK 2(v) lists
+                                            #   them and they differ up to 12x.
                                             #   FRAMEWORK 2(v). K comes from labels + cap
                                             #   policy only and reproduces `headroom`'s K
                                             #   and ceiling exactly with NO model; p@K and

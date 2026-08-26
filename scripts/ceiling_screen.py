@@ -28,13 +28,19 @@ nothing. A looser cap buys headroom AND cuts deeper into the contested middle,
 so the seed sd rises with it. Both measured on `results/iwc3`, 36 `clip` runs,
 9 cells, 4 seeds, pooled over the two capped classes:
 
-    K/n     p@K      prize    seed sd   prize/sd
-    20%   0.9972      0.21      0.40      0.52x      <- L20, the protocol
-    30%   0.9948      0.58      0.98      0.59x      <- L30 / L50, the protocol
-    50%   0.9881      2.20      3.47      0.63x
-    70%   0.9722      7.24      7.43      0.97x
-    80%   0.9544     13.50      9.66      1.40x
-    90%   0.9252     24.94     13.18      1.89x
+    K/n     p@K      prize   unpaired  PAIRED sd   prize/PAIRED
+    20%   0.9972      0.21      0.40       4.75      0.04x   <- L20, protocol
+    30%   0.9948      0.58      0.98       6.35      0.09x   <- L30/L50, protocol
+    50%   0.9881      2.20      3.47      11.12      0.20x
+    70%   0.9722      7.24      7.43      17.86      0.41x
+    80%   0.9544     13.50      9.66      24.95      0.54x
+    90%   0.9252     24.94     13.18      27.83      0.90x
+
+⚠️ THE `unpaired` COLUMN IS THE WRONG NOISE FOR THIS PROJECT and this file
+quoted it first. Every contrast here is seed-PAIRED against the arm's own
+lambda=0 twin -- and pairing does not shrink the noise, it GROWS it, because
+`tralo` and `tralo_null` share one warm-up epoch and then train 29 apart. They
+are two models, not two readings of one. The screen prices against `PAIRED`.
 
 So the honest statement about iwildcam is NOT "there is no prize". It is that
 **at every cap this protocol sweeps the whole gap to a perfect ranking is
@@ -79,16 +85,21 @@ MEASURED_CCP = 0.9954            # iwc3, `tralo_null` against `clip`
 # pooled over the two capped classes. `sd` is the within-cell sd of TP@K across
 # seeds, in items. FRAMEWORK 2(v).
 #
-#            K/n     p@K      sd(items)
+# `sd` is the PAIRED within-cell sd of `tralo` - `tralo_null` in TP@K items,
+# which is the noise the contrast this project runs actually faces. The
+# unpaired figure is 6-12x SMALLER and pricing against it overstates every
+# ratio; it is kept in the header table only so the two are never confused.
+#
+#            K/n     p@K      sd(items, PAIRED)
 IWILDCAM_CURVE = [
-    (0.20, 0.9972, 0.40),
-    (0.30, 0.9948, 0.98),
-    (0.40, 0.9923, 2.04),
-    (0.50, 0.9881, 3.47),
-    (0.60, 0.9817, 5.38),
-    (0.70, 0.9722, 7.43),
-    (0.80, 0.9544, 9.66),
-    (0.90, 0.9252, 13.18),
+    (0.20, 0.9972, 4.75),
+    (0.30, 0.9948, 6.35),
+    (0.40, 0.9923, 8.74),
+    (0.50, 0.9881, 11.12),
+    (0.60, 0.9817, 14.49),
+    (0.70, 0.9722, 17.86),
+    (0.80, 0.9544, 24.95),
+    (0.90, 0.9252, 27.83),
 ]
 
 
