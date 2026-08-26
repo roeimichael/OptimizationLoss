@@ -3844,6 +3844,106 @@ def test_the_dose_reader_CATCHES_BOTH_HISTORICAL_FAILURES():
     assert "lambda=0 twin does" in buf.getvalue(), buf.getvalue()
 
 
+def test_EVERY_script_offering_a_self_test_actually_PASSES_it():
+    """Discovered, not enumerated -- so a NEW probe is gated the day it lands.
+
+    Three of the six scripts carrying a `--self-test` had no gate at all when
+    this was written (`collateral_probe`, `ortho_survival`, `paired_noise`),
+    because each earlier gate named ONE script by hand. An enumerated list
+    only ever covers what its author remembered; this walks `scripts/` and
+    runs whatever it finds, so the next one is covered before anyone thinks
+    to add it.
+
+    Each of these self-tests exists because the probe it guards makes a claim
+    that would otherwise be unfalsifiable -- `paired_noise` asserts it CAN
+    report that pairing helped, `ceiling_screen` asserts it CAN say WORTH
+    RUNNING. A probe that can only ever return one verdict is not a
+    measurement, and a self-test nobody runs is not a gate.
+    """
+    import ast
+    import glob
+    import importlib
+    import inspect
+    import io as _io
+    import os
+    import subprocess
+    import sys
+
+    found = []
+    for path in sorted(glob.glob(os.path.join('scripts', '*.py'))):
+        src = _io.open(path, encoding='utf-8').read()
+        tree = ast.parse(src)
+        names = [n.name for n in tree.body if isinstance(n, ast.FunctionDef)]
+        if 'self_test' not in names:
+            continue
+        found.append(os.path.splitext(os.path.basename(path))[0])
+
+    assert len(found) >= 5, (
+        'expected several self-testing probes, found %r -- if scripts/ moved, '
+        'this gate is silently checking nothing' % (found,))
+
+    # Two shapes exist, and a bare `except TypeError` around the call hides
+    # the difference -- it swallows a TypeError raised INSIDE a self-test and
+    # reports the probe as merely old-signature. Dispatch on the signature
+    # instead. `ortho_survival`'s takes an RNG and is reachable only through
+    # its CLI, which is what a person runs anyway. `collateral_probe`'s needs
+    # a real campaign and cannot be gated here at all: NAME it, so a new
+    # script joining that category is noticed rather than quietly uncovered.
+    NEEDS_A_CAMPAIGN = {'collateral_probe'}
+
+    failures = []
+    skipped = []
+    for name in found:
+        if name in NEEDS_A_CAMPAIGN:
+            skipped.append(name)
+            continue
+        mod = importlib.import_module('scripts.' + name)
+        params = inspect.signature(mod.self_test).parameters
+        required = [p for p in params.values()
+                    if p.default is inspect.Parameter.empty
+                    and p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]
+        if required:
+            proc = subprocess.run(
+                [sys.executable, '-m', 'scripts.' + name, '--self-test'],
+                capture_output=True, text=True, timeout=900)
+            if proc.returncode != 0:
+                failures.append('%s (via CLI):%s%s%s'
+                                % (name, chr(10), proc.stdout, proc.stderr))
+            continue
+        # Three conventions are in use and all three must be honoured, or the
+        # gate reports a pass it did not observe: return an exit code into an
+        # `out` stream; return a code with no stream; or return None and raise
+        # SystemExit on failure (`straddle_probe`). Treating None as failure
+        # would red-flag a healthy probe; treating SystemExit as an error
+        # would crash the gate instead of reporting the probe.
+        buf = _io.StringIO()
+        try:
+            rc = mod.self_test(out=buf) if 'out' in params else mod.self_test()
+        except SystemExit as exc:
+            rc = exc.code
+        if rc not in (0, None):
+            failures.append('%s: rc=%r%s%s'
+                            % (name, rc, chr(10), buf.getvalue()))
+
+    assert not failures, ('a shipped probe fails its own self-test:%s%s'
+                          % (chr(10), (chr(10) * 2).join(failures)))
+    # The skip list must be EARNED, not declared. Comparing `skipped` against
+    # NEEDS_A_CAMPAIGN would be a tautology -- `skipped` is built by exactly
+    # that membership test, so the assertion could never fail and anyone could
+    # silence this gate by adding a name to the set. Instead, make each skip
+    # prove itself: a probe that genuinely needs a campaign CANNOT self-test
+    # standalone, so its CLI must refuse. If it succeeds, the skip is unearned.
+    for name in sorted(skipped):
+        proc = subprocess.run(
+            [sys.executable, '-m', 'scripts.' + name, '--self-test'],
+            capture_output=True, text=True, timeout=900)
+        assert proc.returncode != 0, (
+            '%s sits on the needs-a-campaign skip list, but its --self-test '
+            'SUCCEEDS standalone -- so the skip is unearned and the probe is '
+            'going ungated for no reason. Remove it from NEEDS_A_CAMPAIGN and '
+            'let this gate run it.' % name)
+
+
 def test_no_script_PRINTS_a_character_the_windows_console_cannot_ENCODE():
     """One emoji in a `print` kills the process AFTER printing the table.
 

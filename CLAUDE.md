@@ -60,7 +60,7 @@ imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 396 regression tests, ~180s, no dataset needed
+python -m pytest tests -q                   # 397 regression tests, ~180s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -177,6 +177,29 @@ python -m scripts.ceiling_screen <slice-dir> --caps L20_G50 L30_G50 --classes 2 
                                             #   guide to WHERE to look, never a substitute
                                             #   for measuring them. `--self-test` gates it,
                                             #   and it CAN say WORTH RUNNING.
+python -m scripts.paired_noise --campaign <root>  # 🛑 THE COMPANION TO
+                                            #   `ceiling_screen`, AND THE ONE THAT
+                                            #   DECIDES ITS VERDICT. A prize is priced
+                                            #   against a noise, and FOUR different
+                                            #   noises exist here. It prints three of
+                                            #   them side by side in the same per-class
+                                            #   TP items: `unpaired` (one arm across
+                                            #   seeds), `reseed` (RNG only -- the floor
+                                            #   under ANY paired contrast) and `treated`
+                                            #   (the contrast actually run). ⚠️ **PAIRING
+                                            #   GROWS THE NOISE ON THIS DESIGN, 6-12x**:
+                                            #   `tralo` and `tralo_null` share ONE
+                                            #   warm-up epoch then train 29 apart, so
+                                            #   they are two MODELS, not two readings of
+                                            #   one. Measured on iwc3, class 2 at
+                                            #   K/n=0.2: prize 0.42 items against an
+                                            #   unpaired sd of 0.80 (0.52x) but a treated
+                                            #   sd of 7.59 (**0.05x**). The 4th number is
+                                            #   `full_panel`'s `paired seed sd`, which is
+                                            #   macro-averaged `d ccF1` in different
+                                            #   units -- NEVER substitute it. `--self-test`
+                                            #   gates it, and its liveness case proves the
+                                            #   tool CAN report that pairing helped.
 python -m scripts.scope_probe --campaign <root>   # `L20_G50` and `L50_G20` impose the
                                             #   SAME TOTAL, so the local-vs-global SCOPE
                                             #   question is answerable with the model held
