@@ -5285,6 +5285,43 @@ level, on both capped classes.** `prize/reseed` is 0.07x at L20 and reaches
 design's noise floor is larger than its prize everywhere in the region it can
 run, and no loss function moves either number.
 
+#### 🛑 THE SEED COLUMN: THIS IS CLOSED BY THE **CAP CHOICE**, NOT BY PHYSICS
+
+A ratio below 1.0 reads as -- shut, everywhere -- and that reading is wrong.
+Convert it to the seeds per cell needed at 80% power to detect the WHOLE prize
+and the picture separates into two different verdicts (class 2, iwc3):
+
+| K/n | prize | treated sd | **seeds per cell** | verdict |
+|---|---|---|---|---|
+| 20% (`L20`, protocol) | 0.42 | 7.59 | **2607** | hopeless |
+| 30% (`L30`/`L50`, protocol) | 1.17 | 9.73 | **546** | hopeless |
+| 50% | 4.08 | 16.67 | **131** | hopeless |
+| 70% | 11.50 | 23.74 | **33** | expensive |
+| 80% | 18.00 | 28.42 | **20** | affordable |
+| **90%** | **29.83** | **29.07** | **7** | **cheaper than the protocol already runs** |
+
+🔑 **At K/n = 0.9, SEVEN seeds per cell would resolve the entire prize, and
+this protocol already runs four.** So the reason nothing has been measurable
+here is the CAP LEVEL, not the method, not the dataset and not the noise. The
+three caps the protocol sweeps sit at 16-30% of n, which is the far end of the
+hopeless column. That is a design choice, and it was never priced.
+
+⚠️ **AND THE CATCH, WHICH IS REAL AND MUST BE SAID WITH IT.** At K/n = 0.9 the
+budget admits 90% of the true positives, so the cap barely constrains: a win
+there is a win in a regime where the constraint is nearly vacuous, and it is
+NOT evidence for the tight-cap regime the paper is about. The two facts
+together are the honest statement:
+
+* where the constraint BINDS, no method can be shown to work at any affordable
+  seed count;
+* where a method could be shown to work, the constraint barely binds.
+
+That is a property of the EXPERIMENT, not of TraLO, and it is the single most
+useful thing this section knows. Quote the seed count with the K/n beside it,
+always -- and remember a method capturing HALF the prize costs 4x the seeds
+(28 per cell at K/n = 0.9, still affordable; 2184 at L20, still not).
+
+
 ✅ **THE RECEIPT.** `python -m scripts.paired_noise --campaign results/iwc3`
 reproduces every column of the table above from the stored predictions, and
 `--self-test` gates it. Its liveness case is the one that matters: it builds

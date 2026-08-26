@@ -117,15 +117,34 @@ def prizes(bar):
     return out
 
 
+def seeds_needed(effect, sd, power_const=7.85):
+    """Seeds per cell to detect `effect` against `sd` at 80% power, alpha .05.
+
+    `8 * (sd/effect)**2` to the accuracy that matters here -- the answers span
+    four orders of magnitude, so the constant is never the thing in doubt.
+
+    This is the column that turns the table from a verdict into a decision.
+    "The prize is below the noise" reads as closed everywhere; the seed count
+    says WHERE it is closed. On iwc3 the FULL prize needs ~2600 seeds per cell
+    at K/n = 0.2 and **~8 at K/n = 0.9** -- so the protocol's caps are hopeless
+    and a loose cap is merely expensive. Quote it for the effect a method could
+    plausibly capture, not for the whole prize: half the prize costs 4x the
+    seeds.
+    """
+    if not effect or effect != effect or not sd or sd != sd:
+        return float("nan")
+    return power_const * (sd / effect) ** 2
+
+
 def report(bar, floor_sd, treated_sd, classes, fracs, out=sys.stdout):
     """Print the table. Returns the number of (cls, frac) rows where the prize
     clears the TREATED noise, i.e. rows where a method could show something."""
     un = unpaired_sd(bar)
     pr = prizes(bar)
     worth = 0
-    out.write("  %-4s %-6s %7s %8s %9s %9s %9s %9s %9s\n"
+    out.write("  %-4s %-6s %7s %8s %9s %9s %9s %9s %9s %8s\n"
               % ("cls", "K/n", "K", "prize", "unpaired", "reseed", "treated",
-                 "pr/reseed", "pr/treated"))
+                 "pr/reseed", "pr/treated", "seeds"))
     for c in classes:
         for f in fracs:
             if (c, f) not in pr:
@@ -138,18 +157,25 @@ def report(bar, floor_sd, treated_sd, classes, fracs, out=sys.stdout):
             rb = prize / b if b else float("nan")
             if rb == rb and rb >= 1.0:
                 worth += 1
+            need = seeds_needed(prize, b)
             out.write("  %-4d %-5.0f%% %7.0f %8.2f %9.2f %9.2f %9.2f "
-                      "%8.2fx %8.2fx\n"
-                      % (c, 100 * f, k, prize, u, a, b, ra, rb))
+                      "%8.2fx %8.2fx %8s\n"
+                      % (c, 100 * f, k, prize, u, a, b, ra, rb,
+                         "-" if need != need else "%.0f" % need))
         out.write("\n")
     out.write("  reseed = RNG only, the floor under ANY paired contrast.\n"
               "  treated = the contrast actually run. If `treated` exceeds\n"
               "  `unpaired`, pairing is COSTING resolution, not buying it --\n"
-              "  the two arms are two models rather than two readings of one.\n")
+              "  the two arms are two models rather than two readings of one.\n"
+              "  seeds  = per cell, at 80% power, to detect the WHOLE prize.\n"
+              "           A method capturing half of it costs 4x that.\n")
     if not worth:
         out.write("\n  NO row has a prize at or above the treated noise: at\n"
                   "  every K/n here, a method capturing 100%% of the gap to a\n"
-                  "  perfect ranking would still not be detectable.\n")
+                  "  perfect ranking would still not be detectable AT 4 SEEDS.\n"
+                  "  Read the `seeds` column before calling any of it closed --\n"
+                  "  it separates 'hopeless' from merely 'expensive', and those\n"
+                  "  are different decisions.\n")
     return worth
 
 
@@ -217,7 +243,24 @@ def self_test(out=sys.stdout):
                   "sd: %.6f, expected 0\n" % got)
         ok = False
 
-    # 5. The verdict must be able to say YES. A screen that can only refuse
+    # 5. The seed count must be right, and must scale as the SQUARE of the
+    #    effect -- the whole point of the column is that halving the effect
+    #    quadruples the cost, which is the part people get wrong by eye.
+    got = seeds_needed(10.0, 10.0)
+    if abs(got - 7.85) > 1e-9:
+        out.write("SELF-TEST FAIL: effect == sd must need ~8 seeds, got "
+                  "%.3f\n" % got)
+        ok = False
+    if abs(seeds_needed(5.0, 10.0) / seeds_needed(10.0, 10.0) - 4.0) > 1e-9:
+        out.write("SELF-TEST FAIL: halving the effect must QUADRUPLE the "
+                  "seeds\n")
+        ok = False
+    if seeds_needed(0.0, 10.0) == seeds_needed(0.0, 10.0):
+        out.write("SELF-TEST FAIL: a zero effect needs infinite seeds and "
+                  "must report nan, not a number\n")
+        ok = False
+
+    # 6. The verdict must be able to say YES. A screen that can only refuse
     #    decides nothing.
     bar = _synth(lambda ci, si: 5 + si)            # p@K ~ 0.32 => big prize
     worth = report(bar, {(2, 0.2): 0.5}, {(2, 0.2): 0.5}, [2], [0.2],

@@ -198,6 +198,20 @@ python -m scripts.paired_noise --campaign <root>  # 🛑 THE COMPANION TO
                                             #   `full_panel`'s `paired seed sd`, which is
                                             #   macro-averaged `d ccF1` in different
                                             #   units -- NEVER substitute it. `--self-test`
+                                            #   🔑 **READ THE `seeds` COLUMN, NOT THE
+                                            #   RATIO.** A ratio below 1.0 reads as shut
+                                            #   everywhere; the seeds-per-cell at 80% power
+                                            #   separates hopeless from merely expensive.
+                                            #   iwc3 class 2: **2607 seeds at L20, 546 at
+                                            #   L30/L50 -- but only 7 at K/n=0.9**, and the
+                                            #   protocol already runs 4. So this is closed
+                                            #   by the CAP CHOICE, not by physics. ⚠️ The
+                                            #   catch, and say it every time: at K/n=0.9
+                                            #   the cap barely binds, so where the
+                                            #   constraint BINDS nothing is measurable, and
+                                            #   where something is measurable the
+                                            #   constraint hardly constrains. Half the
+                                            #   prize costs 4x the seeds.
                                             #   gates it, and its liveness case proves the
                                             #   tool CAN report that pairing helped.
 python -m scripts.scope_probe --campaign <root>   # `L20_G50` and `L50_G20` impose the
