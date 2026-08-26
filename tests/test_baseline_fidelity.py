@@ -3955,3 +3955,109 @@ def test_the_ceiling_screen_CAN_SAY_YES_and_reproduces_the_measured_budgets():
     assert float(tight[8].rstrip("x")) < 1.0, (
         "L20 is a cap this protocol sweeps and its whole prize is under the "
         "seed noise: %s" % tight)
+
+
+def test_no_numerical_guard_in_the_TRAINING_PATH_is_a_no_op():
+    """The dead-guard class, audited to its edge instead of one instance at a time.
+
+    Two were found on 2026-08-25: `clamp(EPSILON, 1 - EPSILON)`, whose upper
+    bound is a no-op in every dtype, and `clamp(min=EPSILON)`, whose lower one
+    is a no-op in float16. Both produced NaN, both dropped constraint steps,
+    both wrote `status: completed` anyway.
+
+    So the whole surface was enumerated by AST: 63 sites in `src/` that take a
+    logarithm, a square root, or divide by something non-constant. The triage,
+    2026-08-25, with the reason for each rather than a count:
+
+      * `constraint_step._randomize_direction`  guarded, `if total > 0`
+      * `constraint_step.project_out`           guarded, `if nrm <= 0: return`
+      * `constraint_step` normalize rescale     only reached when raw > 0
+      * `hounie_rcl` group means                guarded, `max(1, group_sizes[g])`
+      * `transductive_loss._penalty`            `scale = K if K >= 1 else 1.0`
+      * `reordering` log-odds                   eps 1e-6 in float64, where
+                                                `1 - eps` IS representable
+      * `imbalanced_losses.LogitAdjustedLoss`   clamp 1e-12 on a float32 buffer
+      * `select` risk denominators              `+ EPSILON` on a float32 sum
+      * everything else                         `pathlib` `/`, not division
+
+    Enumeration is not verification, so the paths are EXERCISED here with the
+    inputs that would break them -- a class with no training instances, a
+    zero-norm reference, an all-zero gradient, K = 0, a saturated softmax --
+    in float16, bfloat16 and float32. Anything non-finite is a defect of the
+    same class, whatever it looks like in the source.
+
+    Negative controls, both run 2026-08-25:
+      * deleting `if nrm <= 0.0: return 0.0` from `project_out` fails this
+        with `ZeroDivisionError: float division by zero` -- the zero-reference
+        case is a Python float division, so it raises rather than returning
+        nan, which is the better failure and is still a failure nothing else
+        was checking for;
+      * deleting the `clamp(min=1e-12)` from `LogitAdjustedLoss` fails it on
+        `log_prior`, because a class with no training instances has prior 0.
+
+    ⚠️ NOT every guard here is load-bearing for FINITENESS, and the difference
+    matters. Replacing `scale = K if K >= 1 else 1.0` with `float(K)` in
+    `_penalty` does NOT fail this gate: at K = 0 the `+ EPSILON` keeps the
+    quotient finite, it just makes it enormous. That guard protects the SCALE,
+    which is section 2(a2)'s subject, not this one. A gate that claimed it
+    covered both would be lying about one.
+    """
+    import torch
+
+    from src.losses.imbalanced_losses import (class_balanced_criterion,
+                                              logit_adjusted_criterion)
+    from src.losses.transductive_loss import (MulticlassTransductiveLoss,
+                                              margins, margin_window,
+                                              uniform_grad_count, window_temp)
+    from src.training.constraint_step import _randomize_direction, project_out
+
+    # 1. The count relaxations, on a SATURATED softmax in every dtype. That is
+    #    the input iwildcam actually produces -- warm-up ends at 0.998 train
+    #    accuracy -- and it is what killed `tralo_uniform`.
+    for dtype in (torch.float16, torch.bfloat16, torch.float32):
+        p = torch.tensor([[1.0, 0.0, 0.0],
+                          [0.0, 1.0, 0.0],
+                          [1.0 / 3, 1.0 / 3, 1.0 / 3]], dtype=dtype)
+        assert torch.isfinite(uniform_grad_count(p)).all(), dtype
+        assert torch.isfinite(margins(p)).all(), dtype
+        t = window_temp(margins(p), 2)
+        assert torch.isfinite(t).all() and (t > 0).all(), (dtype, t)
+        assert torch.isfinite(margin_window(p, t)).all(), dtype
+
+    # 2. The penalty, at K = 0 -- SEVEN of iwildcam's fourteen per-group
+    #    ceilings are zero, so this is the common case there, not a corner.
+    for shape in ("linear", "squared", "rational_bounded"):
+        loss = MulticlassTransductiveLoss([1e10, 1e10, 1e10], {},
+                                          num_classes=3,
+                                          penalty_shape=shape)
+        for K in (0, 1, 500):
+            for soft in (0.0, 0.5, 1e6):
+                v = loss._penalty(torch.tensor(soft), K)
+                assert torch.isfinite(v).all(), (shape, K, soft, v)
+
+    # 3. A class with NO training instances: prior 0, log(0) = -inf unclamped.
+    y = torch.tensor([0, 0, 1, 1, 1])          # class 2 never appears
+    crit = logit_adjusted_criterion(y, 3, torch.device("cpu"))
+    assert torch.isfinite(crit.log_prior).all(), crit.log_prior
+    logits = torch.zeros(4, 3, requires_grad=True)
+    out = crit(logits, torch.tensor([0, 1, 0, 1]))
+    out.backward()
+    assert torch.isfinite(out) and torch.isfinite(logits.grad).all()
+
+    cb = class_balanced_criterion(y, 3, torch.device("cpu"))
+    assert torch.isfinite(cb.weight).all(), cb.weight
+
+    # 4. A gradient that is exactly zero, and a reference that is exactly zero.
+    #    `clip / total` and `dot / nrm` are both divisions by a quantity the
+    #    caller does not control.
+    net = torch.nn.Linear(3, 2)
+    for prm in net.parameters():
+        prm.grad = torch.zeros_like(prm)
+    _randomize_direction(net, 1.0, torch.zeros(1))
+    assert all(torch.isfinite(p.grad).all() for p in net.parameters())
+
+    for prm in net.parameters():
+        prm.grad = torch.ones_like(prm)
+    coef = project_out(net, [torch.zeros_like(p) for p in net.parameters()])
+    assert coef == 0.0, "a zero reference must project to nothing, not to nan"
+    assert all(torch.isfinite(p.grad).all() for p in net.parameters())

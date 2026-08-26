@@ -2127,7 +2127,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 395 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 396 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -2291,7 +2291,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 395 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 396 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -2299,7 +2299,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (395 tests, ~180 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (396 tests, ~180 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -4789,6 +4789,44 @@ The provenance was there the whole time: `results.runtime` records `amp_dtype`,
 was added. Nothing read it. This is the same shape as every other defect in
 2(e) -- the record existed, the reader did not.
 
+#### 🔍 THE CLASS IS AUDITED TO ITS EDGE, not one instance at a time
+
+Two dead guards were found by accident. The rest of the surface was then
+enumerated by AST -- **63 sites in `src/` that take a logarithm, a square root,
+or divide by something non-constant** -- and triaged with a reason each, not a
+count:
+
+| site | why it is safe |
+|---|---|
+| `constraint_step._randomize_direction` | `if total > 0` |
+| `constraint_step.project_out` | `if nrm <= 0.0: return 0.0` |
+| `constraint_step` normalize rescale | only reached when `raw > 0` |
+| `hounie_rcl` group means | `max(1, group_sizes[g])` |
+| `transductive_loss._penalty` | `scale = K if K >= 1 else 1.0` |
+| `reordering` log-odds | eps 1e-6 in **float64**, where `1 - eps` IS representable |
+| `LogitAdjustedLoss` | `clamp(min=1e-12)` on a **float32** buffer |
+| `select` risk denominators | `+ EPSILON` on a float32 sum that is >= 0 |
+| the remaining ~40 | `pathlib` `/`, not division |
+
+**Enumeration is not verification**, so the paths are now EXERCISED by
+`test_no_numerical_guard_in_the_TRAINING_PATH_is_a_no_op` with the inputs that
+would break them -- a class with no training instances, a zero-norm reference,
+an all-zero gradient, K = 0, a saturated softmax -- in all three dtypes.
+
+Negative controls: deleting `project_out`'s zero-reference guard fails it with
+`ZeroDivisionError` (the zero case is a Python float division, so it raises
+rather than returning nan -- a failure nothing else was checking for), and
+deleting `LogitAdjustedLoss`'s clamp fails it on a zero-prior class.
+
+⚠️ **One honest limit, written into the gate.** Not every guard here is
+load-bearing for FINITENESS. Replacing `scale = K if K >= 1 else 1.0` with
+`float(K)` does NOT fail it: at K = 0 the `+ EPSILON` keeps the quotient finite,
+it only makes it enormous. That guard protects the SCALE, which is 2(a2)'s
+subject. A gate claiming to cover both would be lying about one.
+
+⇒ **The dead-guard class is CLOSED at two instances**, both fixed, with the
+remaining 61 sites checked rather than assumed.
+
 #### ✅ THE FIX IS CONFIRMED ON THE RELAUNCH, 2026-08-25
 
 `results/uniform1` was stopped at 4 of 252 runs, regenerated at the clamp fix
@@ -6212,7 +6250,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             395 tests, ~180 s, no dataset required
+tests/             396 tests, ~180 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
