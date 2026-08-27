@@ -4923,27 +4923,39 @@ was free: uniform1's `tralo` arm ran the same three backbones and the same
 three caps on the BF16 host, so it is an independent replicate of iwc4 and it
 agrees in sign, in size and in cell count.
 
-#### 🔑 AND THE macroF1 LOSS IS **EXACTLY** THE RESEED FLOOR -- to four decimals
+#### 🔑 WHAT IS ATTRIBUTABLE AND WHAT IS THE SEED -- FINAL, 180/180, 4 seeds
 
-The control that decides attribution, in the same table:
+⚠️ **CORRECTION, 2026-08-27.** Read at 106/180 with 3 seeds, `tralo` and
+`tralo_reseed` both showed macroF1 -0.0156 and this section said the macro-F1
+damage **was** the reseed floor, 1.00x, to four decimals. **At the full 4
+seeds that is wrong**: the ratio is 1.51x, and the metric that is actually
+indistinguishable from a reseed is **macroP**, not macroF1. The four-decimal
+agreement was a three-seed coincidence. Never read an attribution ratio off a
+partial campaign -- the floor moves more than the treatment does.
 
-| iwc4, vs `tralo_null` | `tralo` | `tralo_reseed` (RNG only) | ratio |
+| iwc4 final, vs `tralo_null` | `tralo` | `tralo_reseed` (RNG only) | ratio |
 |---|---|---|---|
-| AP | -0.0585 \*\*\* | -0.0101 tie | **5.8x the floor -- ATTRIBUTABLE** |
-| AUROC | -0.0136 \*\*\* | -0.0019 tie | **7.2x -- ATTRIBUTABLE** |
-| Brier | +0.0849 \*\*\* | +0.0224 \*\*\* | 3.8x -- partly attributable |
-| ECE | +0.0444 \*\*\* | +0.0129 \*\*\* | 3.4x -- partly attributable |
-| **macroF1** | **-0.0156 \*\*\* 1/8** | **-0.0156 \*\*\* 0/9** | **1.00x -- NOT ATTRIBUTABLE** |
+| AP | -0.0572 \*\*\* 0/9 | +0.0030 tie | **19.1x -- ATTRIBUTABLE** |
+| AUROC | -0.0146 \*\*\* 0/9 | +0.0005 tie | **29.2x -- ATTRIBUTABLE** |
+| NLL | +0.3297 \*\*\* 0/9 | +0.0019 tie | ATTRIBUTABLE |
+| Brier | +0.0632 \*\*\* 0/9 | +0.0041 tie | ATTRIBUTABLE |
+| **macroP** | **-0.0136 \*\*\* 0/9** | **-0.0135 \*\*\* 0/9** | **1.01x -- NOT ATTRIBUTABLE** |
+| macroF1 | -0.0157 \*\*\* 0/9 | -0.0104 \*\*\* 0/9 | 1.51x -- two thirds is seed |
+| macroR | -0.0102 1/8 | -0.0061 2/7 | 1.67x |
+| acc | -0.0121 \*\*\* 0/9 | -0.0070 \*\*\* 0/9 | 1.73x |
+| ccF1 | -0.0007 tie | +0.0011 tie | 0.64x -- the RESEED moves it more |
 
-🛑 **Perturbing the RNG stream and changing nothing else costs the SAME
-macro-F1 as the entire constraint**, to four decimal places, and does it in 9
-of 9 cells against the constraint's 8. So a macro-F1 number quoted against the
-clipper is measuring the seed, and **macro-F1 is what the paper headlines**
-(2(a)). The ranking metrics are the opposite case: 5.8 and 7.2x the floor.
+🛑 **The warning survives the correction and is arguably worse stated
+correctly.** Perturbing the RNG stream and changing nothing else costs
+-0.0104 macro-F1 **in 9 of 9 cells** -- two thirds of the entire constraint
+effect, and systematic rather than noisy. macro-F1 is carried by the UNCAPPED
+classes and **macro-F1 is what the paper headlines** (2(a)). A macro-F1 delta
+of this size quoted without its `tralo_reseed` twin beside it is mostly
+measuring the seed. On macroP it is measuring nothing else at all.
 
-⚠️ Read at 3 seeds of 4, so the sizes will move; the SIGNS and the
-attribution will not, because they already agree with two finished campaigns.
-Re-read at 180/180.
+✅ The ranking channel is the opposite and it got STRONGER at 4 seeds: the
+reseed floor on AP and AUROC settled to a tie, so the ratios rose from 5.8x
+and 7.2x at three seeds to **19.1x and 29.2x**.
 
 The falsification condition above is left exactly as it was written before
 launch, and is not to be edited now that it has been met. The point of
