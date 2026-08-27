@@ -5097,6 +5097,54 @@ safe:**
 budget admits 90% of the true positives, so the constraint barely constrains.
 **Say what the cap is buying before proposing to loosen it.**
 
+### 2(w1) ⛔ **THERE IS NO SECOND iwildcam SLICE. THE SHIPPED ONE IS THE ONLY**
+**VIABLE DRAW** -- measured 2026-08-27, labels and metadata only, no GPU
+
+`oodslice` holds out 7 cameras and trains on 143. Those 143 look like a free
+pool of alternative holdouts -- a SECOND disjoint slice with a different group
+structure, at no download and no image cost, which is the only replication of
+2(w) available without a new dataset. **It does not exist.** The capped
+species live in cameras that contain nothing else:
+
+| | class 2 (impala) | class 7 (cattle) |
+|---|---|---|
+| instances in train | 2500 | 2500 |
+| cameras containing it, of 143 | 52 | 49 |
+| share held by camera **501** alone | **55%** | **33%** |
+| share held by its top 7 cameras | 74% | 55% |
+
+Nine cameras hold at least 20 of BOTH capped classes. **All nine contain zero
+images of any other class** -- camera 501 is 2201 images of pure impala and
+cattle. Widen it to -- at least 30 other-class images AND at least 15 of a
+capped class -- and the answer is **0 cameras of 143**. 77 of the 143 are
+single-class outright.
+
+⇒ **Any holdout with enough capped instances to constrain is ~100% capped**,
+which deletes the six uncapped classes from test -- and macro-F1, the metric
+the paper headlines, is carried by exactly those. The shipped slice is the
+one draw that is not degenerate: 2943 test images, 370 + 456 capped, **2117
+other, all 8 classes present**.
+
+#### 🛑 AND THE SAME NUMBERS BOUND EVERY RESULT IN THIS PROJECT
+
+In the shipped test slice the capped classes appear in **3 of 7 cameras
+(class 2) and 4 of 7 (class 7)**, and within those one camera carries 43%
+(160/370) and 50% (229/456). That independently reproduces the documented
+-- 7 of 14 per-group ceilings are K=0 -- from the other direction: 4 zero
+cells for class 2 plus 3 for class 7 is exactly 7.
+
+So the LOCAL scope, which 2(n) says is what makes iwildcam usable at all, is
+carried by **three or four cameras**, not seven. Quote that whenever a
+per-group result is described as holding across groups.
+
+⇒ **Replication of 2(w) needs a new DATASET, not a new slice.** The cheap
+screen still applies and needs no images: any COCO-CameraTraps annotation
+file (Terra Incognita / CCT) can go through
+`prep_iwildcam --meta-only` then `dataset_screen`, and 2(n) already gives the
+triage rule -- a group built from an index, a randomisation or a balanced
+assay design is dead by construction.
+
+
 ### 2(w0) ⛔ **THE WHOLE UNREAD-CAMPAIGN BACKLOG IS DEAD, AND IT IS ONE REASON**
 
 Audited 2026-08-26. Eight campaigns sat on the server either complete-and-never-
