@@ -5207,12 +5207,43 @@ arm against the floor of the backbone it ran on:
 | **`tralo_uniform` MobileNetV3** | **+0.0004** | **+0.0058** | **+0.0173** | **0.0169** | +0.0207 |
 | **`tralo_uniform` RegNetY400MF** | **-0.0355** | **-0.0197** | **-0.0199** | **0.0158** | -0.0255 |
 
-⇒ **`tralo` is below its own backbone's floor in 9 of 9 cells. `tralo_uniform`
-is at or above it in 9 of 9.** RegNetY400MF is the one backbone where
-`tralo_uniform` reads negative -- and that backbone's RNG floor is itself
--0.0255, so two of its three cells are SMALLER in magnitude than reseeding
-alone. Quote the floor beside it or that cell reads as a loss it is not.
+⚠️ **CORRECTION 2026-08-27.** This first read -- `tralo` below its backbone's
+floor in 9 of 9, `tralo_uniform` at or above in 9 of 9 -- and the second half
+is **wrong**. MobileNetV3's reseed draw is **+0.0207**, i.e. that particular
+RNG perturbation IMPROVED AP, so `tralo_uniform`'s +0.0004 / +0.0058 / +0.0173
+all sit BELOW it. Counted properly it is 5 of 9, not 9 of 9.
 
+🔑 **The test itself is the mistake, and it is worth naming.** A single
+`tralo_reseed` draw is ONE realization, not an sd, so a SIGNED comparison
+against it is not a threshold -- on MobileNetV2 the draw is +0.0002 and every
+arm 'clears' it; on MobileNetV3 it is +0.0207 and almost nothing does. Use the
+reseed for the MAGNITUDE of the noise, or use `paired_noise` for a real sd.
+Do not use one draw as a per-cell bar.
+
+**What the cells actually say, counting signs, across all four backbones:**
+
+| | cells | `tralo` negative | `tralo_uniform` positive | mean `tralo` | mean `tralo_uniform` | mean reseed |
+|---|---|---|---|---|---|---|
+| uniform1 (3 MobileNet-class) | 9 | **9 of 9** | 6 of 9 | -0.0754 | +0.0030 | -0.0016 |
+| vitu1 (ViTB16) | 3 | **3 of 3** | 2 of 3 | -0.0933 | +0.0087 | -0.0142 |
+| **combined** | **12** | **12 of 12** | **8 of 12** | | | |
+
+⇒ **`tralo` damages AP in 12 of 12 cells across four backbones, and
+`tralo_uniform` does not damage it in any campaign-level reading.** That is
+the claim the data supports. The stronger per-cell version does not survive.
+
+ViTB16 per cap, with the flat reseed line beside it (span 0 by construction,
+because the cap is not in the reseed's loss -- a useful self-check):
+
+| ViTB16 AP vs own null | L20_G50 | L30_G50 | L50_G30 | span |
+|---|---|---|---|---|
+| `tralo` | -0.0481 | -0.0834 | **-0.1484** | 0.1003 |
+| **`tralo_uniform`** | **+0.0145** | **-0.0096** | **+0.0213** | **0.0309** |
+| `tralo_reseed` | -0.0142 | -0.0142 | -0.0142 | 0.0000 |
+
+⚠️ `L50_G30` is the GLOBAL-bound cell: local 50% but global 30%, so its
+binding budget equals `L30_G50`'s and only the SCOPE differs. `tralo` is 1.8x
+worse there on the same budget, which is a scope effect and not a dose one.
 #### 🔑 AND THE DAMAGE NO LONGER TRACKS CONSTRAINT PRESSURE
 
 The three cap levels apply different pressure, so the SPAN across them prices
@@ -5233,15 +5264,44 @@ from the other side. **The live test is a fourth BACKBONE, not a bigger dose.**
 #### ⚠️ WHAT SURVIVES IS CALIBRATION-ONLY, WHICH 2(j) SAYS CANNOT COST AN ALLOCATION
 
 `tralo_uniform` still loses NLL (+0.2398) and ConfGap (-0.0191) against its
-null, both at \*\*\*. Both are CALIBRATION. 2(j) proves a monotone rescale leaves
-every top-K set untouched, so this damage is confined to the one channel that
-provably buys and costs no items. It is also the expected signature: a flat
-log-odds push moves the probability SCALE and not the ORDER -- and the
-REORDERING block shows exactly that, `tralo_uniform` carrying the LARGEST bias
-shift of any arm (-4.60 against `tralo` -4.16 and the null -3.57) while its
-rank correlation with the warm-up model stays at the nulls value
-(tau 0.520 vs 0.523) where `tralo` falls to 0.500.
+null on the MobileNets, both at \*\*\*. Both are CALIBRATION. 2(j) proves a
+monotone rescale leaves every top-K set untouched, so that damage is confined
+to the one channel that provably buys and costs no items. On ViTB16 even that
+goes away: NLL -0.0070 (tie) and Brier -0.0279 (3/0, BETTER than the null).
 
+#### 🛑 CORRECTION 2026-08-27: THE MECHANISM IS **NOT** -- SCALE MOVES, ORDER DOES NOT --
+
+This section first explained the fix as a pure gauge shift: `tralo_uniform`
+carries the largest bias shift of any arm while holding its rank correlation
+with the warm-up model at the null's value. That reading came from the
+MobileNets alone, and **`vitu1` refutes it as a general mechanism.**
+
+| tau vs warm-up (lower = MORE reordering) | null | reseed | `tralo` | `tralo_uniform` |
+|---|---|---|---|---|
+| uniform1, 3 MobileNet-class backbones | 0.5229 | 0.5418 | 0.5004 (d -0.023) | **0.5203 (d -0.003)** |
+| **vitu1, ViTB16** | 0.5019 | 0.5148 | 0.4904 (d -0.012) | **0.4371 (d -0.065)** |
+
+On ViTB16 `tralo_uniform` reorders **5.6x MORE than `tralo` does**, and its AP
+is +0.0087 while `tralo`'s is -0.0933. So it is not preserving the ranking.
+
+⇒ **The correct statement is weaker and more interesting: `tralo_uniform`
+does not damage the ranking, and NOT because it leaves the ranking alone.**
+Whatever reordering the flat count induces is benign or mildly helpful, while
+the `p(1-p)` count's is harmful. The gauge-shift story survives only as a
+description of the MobileNet cells, and must not be quoted as the mechanism.
+
+✅ **What IS consistent across both campaigns is the bias shift**, and it is
+the liveness evidence: relative to its own null, `tralo_uniform` moves the
+logit scale 8.2x the RNG floor on the MobileNets and **26.4x on ViTB16**, in
+both cases MORE than `tralo` (4.6x and 6.1x). The arm is emphatically not
+inert on either.
+
+⚠️ **AND `raw_over_K` IS NOT USABLE AS LIVENESS ON ViTB16.** On the MobileNets
+the post-hoc arms sat at 0.0-0.6x the floor, so an arm at 4.2x was clearly
+enforcing. On ViTB16 `clip` reads 5.7x and `focal_clip` 6.3x -- the same as
+`tralo_uniform`'s 6.3x -- because these are DIFFERENT MODELS with different raw
+counts, not arms with different enforcement. Use the bias shift there, and
+say which of the two you mean.
 #### ⛔ AND IT STILL WINS NOTHING. Say both halves or the result is a lie.
 
 `tralo_uniform` beats `clip` on AP by +0.0173 (7/2, lean win) and on macroF1 by
