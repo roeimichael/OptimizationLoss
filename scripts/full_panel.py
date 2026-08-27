@@ -931,6 +931,45 @@ def _provenance_key(cfg):
 DOSE_FRACTION_TOLERANCE = 0.05
 
 
+def _completeness_warning(n_scored, skipped, out=None):
+    """Say what FRACTION of the campaign this panel is, and returns it.
+
+    WHY. The scorer silently drops every run that is not `completed`, which is
+    correct -- and then prints a table indistinguishable from a finished
+    campaign's. Read at 106 of 180 runs, `results/iwc4` gave `tralo` macroF1
+    -0.0156 against `tralo_reseed`'s -0.0156 and that four-decimal agreement
+    went into FRAMEWORK 2(u) as "the macro-F1 damage IS the reseed floor".
+    At 180 of 180 it is 1.51x, and the metric that actually matches a reseed is
+    macroP. The coincidence was three seeds deep.
+
+    🔑 THE RULE THIS ENCODES: effect SIGNS are stable early, RATIOS are not,
+    because the FLOOR moves more than the treatment does. The same read put
+    AP at 5.8x the reseed floor; the finished campaign says 19.1x, purely
+    because the floor settled from -0.0101 to a tie.
+
+    `skipped` is the Counter of run statuses the loader dropped. Pending and
+    running runs mean unfinished; anything else is its own problem and is
+    reported elsewhere.
+    """
+    if out is None:
+        out = sys.stdout
+    unfinished = sum(n for st, n in skipped.items()
+                     if str(st).split()[0] in ("pending", "running"))
+    total = n_scored + unfinished
+    if not unfinished or not total:
+        return 1.0
+    frac = n_scored / float(total)
+    out.write("*** THIS CAMPAIGN IS %.0f%% COMPLETE -- %d of %d run(s) scored, "
+              "%d still pending.\n" % (100 * frac, n_scored, total, unfinished))
+    out.write("    Read SIGNS, not RATIOS. An attribution ratio taken from a "
+              "partial campaign\n"
+              "    has been wrong before: the reseed FLOOR moves more than the "
+              "treatment does,\n"
+              "    so `arm / floor` is the least stable number on this page. "
+              "Re-read at 100%.\n")
+    return frac
+
+
 def _constraint_dose_check(rows):
     """Did every trained arm actually TAKE the constraint steps it was given?
 
@@ -1444,6 +1483,7 @@ def main():
                   % (n, cv, "/".join(sorted(prov_src[(cv, df)])), df))
         sys.exit("Scoring across them would compare two pipelines, or two "
                  "datasets, as if they were one arm-vs-arm difference.")
+    _completeness_warning(len(rows), skipped)
     if unscorable:
         print("*** %d run(s) are COMPLETED but produced nothing scorable. They are"
               % len(unscorable))

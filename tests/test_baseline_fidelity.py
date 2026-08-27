@@ -3944,6 +3944,61 @@ def test_EVERY_script_offering_a_self_test_actually_PASSES_it():
             'let this gate run it.' % name)
 
 
+def test_the_panel_SAYS_when_it_is_scoring_an_unfinished_campaign():
+    """The scorer drops non-completed runs, then prints a finished-looking table.
+
+    This gate exists because that cost a wrong entry in FRAMEWORK 2(u). Read at
+    106 of 180 runs, `results/iwc4` showed `tralo` macroF1 -0.0156 against
+    `tralo_reseed`'s -0.0156, and that four-decimal agreement was written up as
+    "the macro-F1 damage IS the reseed floor". At 180 of 180 the ratio is 1.51x
+    and the metric that actually matches a reseed is macroP.
+
+    The reason is worth encoding rather than remembering: the FLOOR moves more
+    than the treatment does, so `arm / floor` is the least stable quantity on
+    the page. The same partial read put AP at 5.8x; the finished campaign says
+    19.1x, purely because the reseed floor settled from -0.0101 to a tie.
+
+    Crashed runs must NOT trigger it -- they are reported by their own block,
+    and double-reporting them would train the reader to skip both.
+    """
+    import collections
+    import io as _io
+
+    from scripts.full_panel import _completeness_warning
+
+    buf = _io.StringIO()
+    frac = _completeness_warning(106, collections.Counter({'pending': 74}),
+                                 out=buf)
+    text = buf.getvalue()
+    assert abs(frac - 106 / 180.0) < 1e-9, frac
+    assert '59%' in text, text
+    assert '106 of 180' in text, text
+    assert 'RATIOS' in text and 'SIGNS' in text, text
+
+    # A finished campaign must say nothing at all: a warning that fires always
+    # is a warning nobody reads.
+    buf = _io.StringIO()
+    assert _completeness_warning(180, collections.Counter(), out=buf) == 1.0
+    assert buf.getvalue() == '', buf.getvalue()
+
+    # Crashed/diverged runs are a DIFFERENT failure with its own report.
+    buf = _io.StringIO()
+    _completeness_warning(170, collections.Counter({'diverged (CRASHED)': 10}),
+                          out=buf)
+    assert buf.getvalue() == '', buf.getvalue()
+
+    # And it must actually be WIRED IN -- a helper nobody calls is not a gate.
+    import ast
+    import io as _io2
+    tree = ast.parse(_io2.open('scripts/full_panel.py', encoding='utf-8').read())
+    called = [n for n in ast.walk(tree)
+              if isinstance(n, ast.Call)
+              and getattr(n.func, 'id', '') == '_completeness_warning']
+    assert called, ('_completeness_warning is defined but never called, so the '
+                    'panel would go back to scoring a half-finished campaign '
+                    'silently')
+
+
 def test_no_script_PRINTS_a_character_the_windows_console_cannot_ENCODE():
     """One emoji in a `print` kills the process AFTER printing the table.
 
