@@ -54,6 +54,28 @@ def _dev(counts_obs, counts_exp):
     return float(np.abs(counts_obs - counts_exp).sum())
 
 
+GENERIC_SLICE_DIRS = ("oodslice", "slice_1", "shift_1", "data", ".")
+
+
+def slice_label(path):
+    """A name that IDENTIFIES the slice, not the convention it was cut with.
+
+    Every candidate slice is written to `<dataset>/oodslice`, so the bare
+    basename is the same string for all of them. Screening the 21-candidate
+    inventory printed `oodslice` on all 21 rows and was unreadable -- which
+    matters because this tool exists to be run on MANY slices at once and its
+    whole output is the comparison between them. Walk up until the component
+    says something.
+    """
+    parts = [p for p in os.path.normpath(path).replace("\\", "/").split("/") if p]
+    keep = []
+    for p in reversed(parts):
+        keep.insert(0, p)
+        if p not in GENERIC_SLICE_DIRS:
+            break
+    return "/".join(keep) if keep else path
+
+
 def novelty_items(train, test, gcol, label="label", n_null=200, seed=0):
     """How many items does knowing the TEST counts buy over predicting them
     from TRAINING prevalence -- IN EXCESS OF SAMPLING NOISE?
@@ -245,7 +267,7 @@ def main():
     print("  PRECONDITION only -- dermmnist has a 5.4x spread and still nulls.")
     print("")
     for r in rows:
-        name = os.path.basename(os.path.dirname(r["path"] + os.sep)) or r["path"]
+        name = slice_label(r["path"])
         if r["gcol"] is None:
             print("  %-22s NO GROUP COLUMN -- the local scope does not exist here."
                   % name)

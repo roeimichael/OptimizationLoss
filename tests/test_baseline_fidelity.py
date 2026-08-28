@@ -4351,3 +4351,29 @@ def test_the_eviction_NET_ITEMS_is_priced_and_flagged_as_a_global_topK():
     assert "GLOBAL TOP-K, NOT THE ALLOCATOR THAT RAN" in src, (
         "the global-top-K caveat was removed; the number is 6.5x the "
         "allocator's on loose1 and must not be quoted bare")
+
+
+def test_dataset_screen_NAMES_the_slice_not_the_convention():
+    """Screening 21 candidates printed `oodslice` on all 21 rows.
+
+    Every candidate slice is written to `<dataset>/oodslice` by convention, so
+    `os.path.basename(dirname(path))` is the SAME string for all of them. This
+    tool exists to be run on many slices at once -- its entire output is the
+    comparison between them -- so a label that cannot tell them apart makes
+    the multi-slice mode useless. Measured 2026-08-28 on the ~/_cand
+    inventory: 21 rows, one distinguishable name.
+    """
+    from scripts.dataset_screen import slice_label
+
+    got = {slice_label(p) for p in (
+        "/home/x/_cand/fmow_country/oodslice",
+        "/home/x/_cand/isic_src/oodslice/",
+        "data/iwildcam/oodslice",
+        "data/dermmnist/slice_1",
+    )}
+    assert len(got) == 4, (
+        "four different slices collapsed to %d label(s): %s" % (len(got), got))
+    assert slice_label("data/iwildcam/oodslice") == "iwildcam/oodslice"
+    assert slice_label("data/dermmnist/slice_1") == "dermmnist/slice_1"
+    # a non-generic leaf is already informative and must not gain a parent
+    assert slice_label("data/tissuemnist") == "tissuemnist"
