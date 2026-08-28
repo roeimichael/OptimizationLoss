@@ -4288,3 +4288,66 @@ def test_the_order_verdict_REFUSES_to_call_a_coin_flip():
             pd.Series([-0.05] * 36 + [0.05] * 36), out=out)
     assert "BAND CLEARS" not in out.getvalue(), (
         "the band note fired on a 36/72 band, i.e. on nothing")
+
+
+def test_the_eviction_NET_ITEMS_is_priced_and_flagged_as_a_global_topK():
+    """`--evictions` reported +16.50 items with no noise and no caveat.
+
+    Two independent defects, both measured on `results/loose1` 2026-08-28:
+
+    1. NO POWER. The verdict branched on `d_net` against a bare +/-1.0 items,
+       so +16.50 printed "the constraint's swaps are BETTER than a reseed's"
+       with nothing saying the within-cell paired sd is of the same order.
+
+    2. WRONG ALLOCATOR. The sets are `argsort(-p)[:K]` on the raw class
+       column, i.e. a GLOBAL top-K. The allocator that actually ran is
+       LP/greedy under per-group ceilings, and on iwildcam 7 of 14 local
+       ceilings are K=0, so it cannot take the global top-K. `full_panel
+       --control tralo_null` scored the same campaign at tralo +9.24 items
+       against tralo_reseed +6.71, i.e. +2.53 attributable -- the probe's
+       number was 6.5x too large.
+    """
+    import ast
+    import io
+
+    import numpy as np
+    import pandas as pd
+
+    from scripts.order_probe import paired_sd_items
+
+    # The pooled sd must be a WITHIN-cell sd: a constant per-cell offset is a
+    # real difference, not noise, and pooling it in would hide effects.
+    rng = np.random.RandomState(0)
+    rows = []
+    for mdl in ("A", "B"):
+        for cap in ("L80", "L90"):
+            for cls in (2, 7):
+                for s, b in zip(range(4), rng.randn(4) * 5):
+                    rows.append(dict(model=mdl, cap=cap, seed="seed_%d" % s,
+                                     cls=cls, net_items=b))
+    arm = pd.DataFrame(rows)
+    ctrl = arm.copy()
+    ctrl["net_items"] = ctrl.net_items - 3.0
+    sd, n_cells = paired_sd_items(arm, ctrl)
+    assert n_cells == 8 and abs(sd) < 1e-9, (
+        "a constant offset per cell must pool to sd 0, got %.6f" % sd)
+
+    # ...and it must still SEE real noise, or it is a constant-zero stub.
+    ctrl2 = arm.copy()
+    ctrl2["net_items"] = ctrl2.net_items + rng.randn(len(ctrl2)) * 4
+    sd2, _ = paired_sd_items(arm, ctrl2)
+    assert sd2 > 1.0, "independent noise must give sd > 0, got %.3f" % sd2
+
+    # And the evictions block must actually USE it and carry the caveat.
+    src = io.open("scripts/order_probe.py", encoding="utf-8").read()
+    tree = ast.parse(src)
+    fn = next(f for f in ast.walk(tree)
+              if isinstance(f, ast.FunctionDef) and f.name == "main")
+    called = {c.func.id for c in ast.walk(fn)
+              if isinstance(c, ast.Call) and isinstance(c.func, ast.Name)}
+    assert "paired_sd_items" in called, (
+        "main() computes an eviction NET without ever pricing it against the "
+        "within-cell seed sd -- that is the defect this gate exists for")
+    assert "GLOBAL TOP-K, NOT THE ALLOCATOR THAT RAN" in src, (
+        "the global-top-K caveat was removed; the number is 6.5x the "
+        "allocator's on loose1 and must not be quoted bare")

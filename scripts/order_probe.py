@@ -108,6 +108,26 @@ def _points_needed(dd, power_const=7.85):
     return int(math.ceil(power_const * (s / e) ** 2))
 
 
+def paired_sd_items(arm, ctrl):
+    """(sd, n_cells) of (arm - ctrl) net items, pooled the way paired_noise is.
+
+    RMS of the WITHIN-cell sds, never one sd over the flattened set: a
+    cell-to-cell mean shift is a real difference between cells, not noise, and
+    pooling it in inflates the sd and hides an effect.
+    """
+    key = ["model", "cap", "seed", "cls"]
+    if arm.empty or ctrl.empty:
+        return float("nan"), 0
+    m = arm.merge(ctrl, on=key, suffixes=("_a", "_b"))
+    if m.empty:
+        return float("nan"), 0
+    m["d"] = m.net_items_a - m.net_items_b
+    sds = m.groupby(["model", "cap", "cls"]).d.std(ddof=1).dropna()
+    if not len(sds):
+        return float("nan"), 0
+    return float(np.sqrt((sds ** 2).mean())), int(len(sds))
+
+
 def load(run_dir):
     f = os.path.join(run_dir, RAW)
     if not os.path.exists(f):
@@ -224,6 +244,34 @@ def main():
         print("     net items      %+.2f per cell   (arm %+.2f minus control %+.2f)"
               % (d_net, e["net_items"].mean(), c["net_items"].mean()))
         print("     precision gap  %+.1f pp" % (100 * d_gap))
+        print()
+        sd_i, n_cells = paired_sd_items(e, c)
+        need = (int(math.ceil(7.85 * (sd_i / abs(d_net)) ** 2))
+                if d_net and sd_i == sd_i and sd_i else -1)
+        print("   RESOLUTION -- can this contrast see what it is reporting?")
+        print("     paired seed sd %6.2f items  (within cell, pooled over %d "
+              "cell(s))" % (sd_i, n_cells))
+        if need > 0:
+            print("     to detect %+.2f items at 80%% power needs ~%d seeds "
+                  "per cell: %s" % (d_net, need,
+                                    "OK" if need <= 4 else "UNDERPOWERED"))
+        print()
+        print("   !! THIS IS A GLOBAL TOP-K, NOT THE ALLOCATOR THAT RAN.")
+        print("      The sets above are argsort(-p)[:K] on the raw class "
+              "column. The deployed")
+        print("      allocator is LP/greedy under PER-GROUP ceilings, and on "
+              "iwildcam 7 of 14")
+        print("      local ceilings are K=0 -- so it cannot take the global "
+              "top-K and does not.")
+        print("      MEASURED on results/loose1 2026-08-28: this block said "
+              "+16.50 items")
+        print("      attributable where `full_panel --control tralo_null` "
+              "said tralo +9.24 and")
+        print("      tralo_reseed +6.71, i.e. +2.53 attributable -- this "
+              "number was 6.5x too")
+        print("      large. Use it to read WHICH items moved and WHY. Quote "
+              "`full_panel` for")
+        print("      HOW MANY.")
         print()
         if d_net < -1.0:
             print("   => the constraint's swaps are WORSE than a pointless reseed's by")
