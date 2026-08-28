@@ -5239,6 +5239,33 @@ against a reseed floor that TIES on both -- roughly 16x and 4.7x. That is the
 first constraint effect in this project that is positive AND attributable, and
 it is a ranking effect, not an allocation one.
 
+🔢 **THE ccF1 COLUMN IN ITEMS** -- measured 2026-08-28 with `full_panel
+--control tralo_null`, i.e. through the LP allocator that actually ran. These
+are the numbers to quote:
+
+| vs `tralo_null` | items | paired seed sd | seeds needed at 80% |
+|---|---|---|---|
+| **`tralo`** | **+9.24** | 10.37 | ~10 |
+| `tralo_reseed` (RNG floor) | +6.71 | 9.49 | ~16 |
+| `tralo_uniform` | +5.91 | 10.82 | ~26 |
+| `clip` | +5.22 | 10.85 | ~34 |
+| `focal_clip` | +3.63 | 10.55 | ~67 |
+
+⇒ the constraint's **attributable share is 9.24 - 6.71 = +2.53 items**, and
+`tralo` beats `clip` by **+4.02 items**, of which a pure reseed alone supplies
+1.49. 🛑 **Every one of these is UNDERPOWERED at the 4 seeds the protocol
+runs** -- the within-cell paired sd is ~10 items against effects of 3-9. The
+signs are right; the magnitudes are not resolvable inside a cell.
+
+🔑 **Which is exactly why `dom1` is designed on CELL-LEVEL SIGN CONSISTENCY**
+(the pre-registration asks for 6 of 9 cells), not on within-cell magnitude.
+Nine cells give a sign-test floor of 0.0039, which is reachable; within-cell
+power at these sds is not.
+
+⛔ **Do NOT quote `order_probe --evictions`' +16.50 items for this campaign.**
+It scores a GLOBAL top-K rather than the LP allocator and is 6.5x too large.
+See 2(w4).
+
 ⚠️ 6 cells, so every verdict reads -- win (not after BH) --: the exact Wilcoxon
 floor is 0.031 and BH over 11 metrics needs 0.0045. `gen_campaign` states 9
 cells as the minimum for a `***`, which is why `dom1` is 9.
@@ -5271,13 +5298,129 @@ That is the same quantity as the work-to-prize ratio: 294 evictions for a
 The flat count cannot exploit the loose regime because it declines to
 concentrate anywhere -- which is exactly why it is safe in the tight one.
 
-⇒ **The design lesson for TraLO: the count function should concentrate at the
-CUT (rank K), not at the decision boundary (p = 0.5).** Those coincide only
-when the cap is loose. An arm that does this already exists and is untested
-here: `soft_count_mode: margin` with `cut_window_items`, which windows the
-gradient around the cut by construction. **It is the next arm to run**, and it
-is the one candidate that could be positive in BOTH regimes rather than
-trading one for the other.
+⇒ **The design lesson for TraLO: the count function should concentrate where
+an item can actually FLIP, not at `p = 0.5`.**
+
+🛑🛑 **CORRECTION 2026-08-28 -- the sentence that stood here was wrong, and it
+had already been used to queue an arm.** It read: *"the count should
+concentrate at the CUT (rank K), not at the decision boundary (p = 0.5) ...
+`soft_count_mode: margin` with `cut_window_items` windows the gradient around
+the cut by construction."* Both halves are wrong.
+
+`margins()` in `src/losses/transductive_loss.py` is `m_ic = p_ic -
+max_{c' != c} p_ic'`, and its own docstring says **"per-item distance to the
+DECISION BOUNDARY"**. There are **three** distinct points here and the old
+sentence collapsed two of them and mislabelled a third:
+
+| target | sits at | what it is |
+|---|---|---|
+| `p(1-p)` peak | `p_c = 0.5` | the SHIPPED count |
+| **decision boundary**, `m = 0` | `p_c = 0.20` in the case measured below | **what `margin` actually windows** |
+| the **cut**, rank K | a *ranking position* | what was claimed; nothing implements it |
+
+Measured directly (8 classes, `scripts` not needed -- pure algebra on
+`margins`): item A with `p_0 = 0.50` and runner-up `0.30` gets **1.56x** the
+`p(1-p)` weight of item B with `p_0 = 0.20` and runner-up `0.20`. **B is the
+one that can flip**, and only the margin window ranks it first. So `p = 0.5` is
+*not* the decision boundary, and `cut_window_items` is **misnamed** -- it sets
+a **boundary** window, not a cut window.
+
+✅ **`margin` survives the correction, on a stronger reason.**
+`scripts/order_probe`'s docstring carries it: every penalty this project ships
+has the form `f(sum_i p_ic)`, whose per-item logit gradient is
+`f'(S) * p_ic(1 - p_ic)` -- a function of `p_ic` **alone**, hence a monotone
+map on the logit channel, and **a monotone map cannot move an item across
+another**. It moves the cut; it cannot re-rank. `margin` reads the whole row,
+so two items with equal `p_ic` but different runners-up get different
+gradients. It is the **only** arm in the family that can reorder through the
+direct channel.
+
+⚠️ **But that argument bounds the DIRECT channel only** -- 2(w4) measures both
+shipped arms reordering more than a reseed via the shared weights. `margin`
+makes reordering **targeted**, not possible.
+
+🎯 **`tralo_margin` and `tralo_st` are fully built, protocol-registered,
+null-sibling-tested and gated in `gen_campaign` -- and have NEVER RUN.** Zero
+run directories across all nine server worktrees, checked 2026-08-28.
+`tralo_st` is the decomposition arm: `tralo` = (soft value, `p(1-p)`
+placement), `tralo_st` = the value fixed only, `tralo_margin` = both. **They
+are the next arms to run.**
+
+
+### 2(w4) 🔬🔬 **`order_probe` HAD NO SIGNIFICANCE GATE -- and the band/global**
+### **DISSOCIATION it was hiding**
+
+🛑 **The probe was calling coin flips.** Its verdict branched on the bare
+pooled mean of `rho_arm - rho_reseed` with **no test at all**, so a mean of
+`-0.0076` at a **27/48** split printed *"the constraint reordered MORE than a
+reseed. The order-preservation argument does NOT hold here."*
+
+The tell is the second arm it fired on. **`tralo_uniform` read 26/48, p=0.66,
+and got the same verdict** -- and `tralo_uniform`'s per-item gradient is
+constant in log-odds, so on the direct channel it is a pure bias shift that
+**cannot reorder**; `configs/protocol.yml` says exactly that at its
+definition. That arm is this probe's built-in **negative control**, and the
+probe failed it.
+
+✅ Fixed: an exact two-sided binomial `sign_test` (verified against
+`scipy.binomtest` for all k in 0..48), the verdict split out of `main()` so it
+runs on a synthetic split with no campaign, and points-needed-at-80%-power
+printed on every tie so "no effect" and "not enough points" stay separable.
+The gate drives both real splits and a 40/48 live control; reverting the fix
+makes it fail.
+
+#### The dissociation the gate exposed
+
+Global rho is taken over the whole capped class and is dominated by the easy
+mass. The **band** is ranks K/2..2K, where the cut actually falls. The probe
+printed both and branched on neither correctly -- and they come apart:
+
+| campaign (caps) | arm | GLOBAL | BAND |
+|---|---|---|---|
+| `vitu1` ViTB16 (tight) | `tralo_uniform` | **-0.1325, 24/24, q=0.007** | **+0.0427, 5/24 OTHER way, q=0.025** |
+| `iwc4` MNv2/3 (tight) | `tralo` | **-0.0355, 50/72, q=0.007** | -0.0172, 46/72, q=0.067 |
+| `uniform1` MNx3 (tight) | `tralo_uniform` | **-0.0312, 48/72, q=0.028** | +0.0154, 31/72, ns |
+| `uniform1` MNx3 (tight) | `tralo` | -0.0100, 41/72, ns | -0.0454, 45/72, q=0.103 |
+| `loose1` MNx3 (**LOOSE**) | `tralo`, `tralo_uniform` | **ns** (p=0.47, 0.67) | **ns** (p=1.00, 0.47) |
+
+BH over **all 14** sign tests run; only the **q < 0.05** rows are callable.
+
+🔑 **`tralo_uniform` reorders the EASY MASS and PROTECTS THE CUT.** On ViTB16
+it reorders more than a reseed in **24 of 24** points globally while reordering
+the contested band **LESS** than pure RNG noise in 19 of 24. That is the
+mechanism for 2(w), and it **resolves the paradox recorded there** -- the tau
+0.4371 reading said `tralo_uniform` "reorders 5.6x more than `tralo` and still
+improves AP". It reorders more *overall* and less *where it matters*.
+
+⚠️ **`tralo`'s band effect does NOT survive BH** (q=0.067 and 0.103 on two
+independent campaigns). Same sign twice, suggestive, **not callable**.
+
+⚠️ **The monotone-map argument bounds the DIRECT channel only.** Both arms do
+reorder more than a reseed at tight caps, because the shared weights are a
+second channel. State which channel before quoting the argument.
+
+🟢 **At LOOSE caps nothing reorders at all** -- all four tests tie. Which is
+consistent with 2(w3): that is the regime where the constraint helps, and it
+helps by moving the **cut**, not the ranking.
+
+#### `--evictions` overstates by 6.5x -- it is not the allocator that ran
+
+It reported *"+16.50 items per cell attributable; the constraint's swaps are
+BETTER than a reseed's"*. Two independent defects, both now fixed:
+
+1. **NO POWER.** It branched on `d_net` against a bare `+/-1.0` items and
+   printed no noise at all. The within-cell paired seed sd is **18.11 items**,
+   larger than the effect. It now prints a RESOLUTION block: **~10 seeds per
+   cell needed, UNDERPOWERED** at the 4 the protocol runs.
+2. **WRONG ALLOCATOR.** Its sets are `argsort(-p)[:K]` on the raw class column
+   -- a **GLOBAL top-K**. The allocator that actually ran is LP/greedy under
+   per-group ceilings, and **7 of 14 iwildcam local ceilings are K=0**, so it
+   cannot take the global top-K and does not. `full_panel --control
+   tralo_null` scored the same campaign at `tralo` **+9.24** items against
+   `tralo_reseed` **+6.71**, i.e. **+2.53 attributable**.
+
+⇒ **Read `order_probe` for WHICH items moved and WHY. Quote `full_panel` for
+HOW MANY.** Both fixes are gated in `tests/test_baseline_fidelity.py`.
 
 
 ### 2(w0) ⛔ **THE WHOLE UNREAD-CAMPAIGN BACKLOG IS DEAD, AND IT IS ONE REASON**
