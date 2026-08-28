@@ -225,7 +225,7 @@ def main():
           % ("dataset", "n_test", "cls", "groups", "imbal", "rarest"))
     for r in rows:
         print("  %-34s %7d %6d %7d %7.1fx %9d"
-              % (r["path"][-34:], r["n_test"], r["n_classes"], r["n_groups"],
+              % (slice_label(r["path"])[-34:], r["n_test"], r["n_classes"], r["n_groups"],
                  r["imbalance"], r["rarest"]))
 
     print("")
@@ -236,7 +236,7 @@ def main():
              "unseen"))
     for r in rows:
         print("  %-30s %+9.0f %6.1f %+9.0f %6.1f %+9.0f %6.1f %7d"
-              % (r["path"][-30:], r["net_items"], r["net_z"],
+              % (slice_label(r["path"])[-30:], r["net_items"], r["net_z"],
                  r["local_items"], r["local_z"], r["global_items"],
                  r["global_z"], len(r["unseen_groups"])))
 
