@@ -5133,6 +5133,56 @@ safe:**
 budget admits 90% of the true positives, so the constraint barely constrains.
 **Say what the cap is buying before proposing to loosen it.**
 
+### 2(w2b) 🛑 **THE FACTORIAL GATE DECIDES, NOT THE NET COLUMN**
+### **-- 21 candidates screened, and stage 1 picks the wrong winner**
+
+Audited 2026-08-28. **21 candidate slices were already staged in `~/_cand` on
+dsisco02** (fmow x6, ISIC x7, BCN x3, ISIC-archive x2, Fitzpatrick x2,
+DomainNet) and had never been screened as a set. `dataset_screen` runs on all
+of them in minutes -- labels and metadata only, no images, no GPU.
+
+`scripts.factorial_control` then credits the model with **interpolating a
+product group's two factors**. An ATOMIC group must return **~100%**: there is
+nothing to interpolate. That is the positive control, and `iwildcam` supplies
+it.
+
+| slice | modality / group | NET | LOCAL | GLOBAL | unseen | **survives** |
+|---|---|---|---|---|---|---|
+| **`iwildcam/oodslice`** | camera trap / camera | +3133 | +3531 | +994 | 7 | **100.1%** |
+| **`fmow_s1`** | **satellite / COUNTRY** | +2767 | +2817 | +712 | 10 | **100.1%** |
+| `fmow_country` | satellite / country | +2969 | +3100 | +1087 | 10 | (same family) |
+| `isicarch_instsite` | dermoscopy / inst x site | +2010 | +2169 | +572 | 7 | 86.3% |
+| `bcn_s2` | dermoscopy / BCN | +2031 | +2029 | **+91** | 8 | **50.4%** |
+| `isic_ssa` | dermoscopy | +1751 | +1811 | +360 | 10 | **30.8%** |
+| `isic_siteage` | dermoscopy / site x age | +2169 | +2204 | +464 | 7 | **17.6%** |
+| `domainnet` | -- | +57 (z=1.2) | +365 | +308 | 2 | ⛔ DEAD |
+| `isic_src` | 1 group | **-141** | +5576 | +5581 | 1 | ⛔ DEAD |
+
+🔑 **STAGE 1 PICKS THE WRONG WINNER, AND THIS IS THE POINT.** `bcn_s2` has the
+cleanest differential in the whole inventory -- its global excess is **+91**
+against a local **+2029**, i.e. **4%**, better than iwildcam's 28%. Then the
+factorial gate **halves it**. And `isic_siteage`, the second-best on stage 1,
+**collapses +2169 -> +380**: "site x age" is a PRODUCT whose factors both
+appear in training, so the model interpolates. ⇒ **Rank candidates on
+`factorial_control` SURVIVAL, never on the NET or the NET/GLOBAL ratio.**
+
+🛑 **Two more NET-column traps in the same run**, both invisible in the local
+number alone. `isic_src` reads LOCAL **+5576** at z=92.5 -- the largest local
+figure in the inventory -- and GLOBAL **+5581**, so its entire local signal IS
+one global shift and NET is **-141**. `isicarch_inst` is LOCAL +5796 against
+GLOBAL +5203 (90%). **A huge LOCAL with no NET is the dermmnist failure mode
+(2(n)), and it recurs.**
+
+⇒ **THE THREE-DATASET PLAN**, across three genuinely different modalities:
+`iwildcam` (camera trap, RUNNABLE), **`fmow`** (satellite by country, the only
+clean candidate, 100.1%), and `isicarch_instsite` (dermoscopy, 86.3%, caveated).
+
+🎯 **The fmow ask is ~21,100 images** (17,670 train + 3,442 test), because it
+is a SLICE -- a few GB, not the 3.5 TB corpus. That makes it a real decision.
+⚠️ Both gates are still **necessary only**: dermmnist scored +65 at z=2.9 and
+nulled anyway. Stage 2 is `scope_probe --calibrate` and needs a trained model.
+
+
 ### 2(w2) 🟢 **TWO MORE DATASETS PASS THE SCREEN -- the one-dataset era ends**
 screened 2026-08-28, labels and metadata only, no images and no GPU
 
