@@ -4007,6 +4007,42 @@ this project could be attributed to a constraint rather than to compute.
 
 Read with `python -m scripts.family_split --campaign results/xfam1`.
 
+🛑 **`full_panel` REFUSES `xfam1` -- ITS `run_code_version` IS SPLIT, AND THE
+SPLIT IS BENIGN BUT REAL.** Audited 2026-08-28. The GENERATOR stamped one
+commit on all 324 runs; the RUNNER stamped **142 at `9b89ce26d6bb` and 182 at
+`9b89ce26d6bb-dirty`**. That is the pre-2026-08-24 whole-tree `git_version`
+defect -- it diffed the entire tree, so deploying a scorer flipped the stamp
+(see the `git_version` scoping fix, now `TRAINING_PATHS = (src, configs,
+main.py)` and verified deployed on both hosts).
+
+**Four independent checks say the split cannot bias an arm contrast:**
+
+| check | result |
+|---|---|
+| aliased with ARM? | **no** -- every one of the 9 arms splits ~16 clean / ~20 dirty |
+| `(model, cap, seed)` groups internally pure? | **35 of 36** -- one straddles (`RegNetY400MF`, `L20_G50`, `seed_2`) |
+| dose per half | **100.0% both** -- 1360/1360 clean, 1700/1700 dirty |
+| `data_fingerprint` | **identical**, `6b836adf59ec7d56` |
+
+Per cell the split is **2 clean / 2 dirty in 6 of 9 cells** (RegNet is 2/3,
+1/3, 1/3). So every arm sees the same seeds on the same versions, and since a
+`(cell, seed)` group is internally pure, every PAIRED contrast is
+version-consistent. ⇒ **a balanced nuisance factor: it inflates variance, it
+cannot bias `arm - control`.**
+
+⚠️ **Do NOT weaken the refusal to score it.** Splitting the campaign by
+version leaves **2 seeds per cell** and makes 2 of 9 cells unpairable, so each
+half is hopeless on its own; and the gate is right as a default policy. The
+100%-dose row above matters because the commits immediately after this pin
+include *"the probability clamp was a no-op in every dtype, and it cost the
+live campaign 96.6% of its dose"* -- that defect did **not** touch either half
+of `xfam1`, which is the direct evidence the dirt was not on the training path.
+
+🔑 **`results/dom1` SUPERSEDES `xfam1` on exactly this question** and is why it
+was built: 9 cells, 16 arms, all four duals with their own nulls, both scopes,
+**one clean `code_version`** (verified: all 384 configs stamp `1d92117363d2`,
+no `-dirty`). Quote `xfam1` as a prior, `dom1` as the result.
+
 🔑 **THE POSITIVE CONTROL IS EXACT, AND IT COMES FIRST.** At lambda = 0 the
 dual family is irrelevant: same cached warm-up, same allocator, same seed, no
 constraint gradient. So `tralo_null`, `fioretto_null` and `hounie_null` must be
