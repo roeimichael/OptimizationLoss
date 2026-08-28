@@ -409,7 +409,7 @@ python -m scripts.prep_fmow ...              # candidate slice: held-out COUNTRY
 
 ## Datasets
 
-**`iwildcam` is the only one.** 8 species, classes 2 (impala) and 7 (cattle) capped,
+**`iwildcam` is the only RUNNABLE one** (the only one with images on the server; two more pass the screen -- see the table). 8 species, classes 2 (impala) and 7 (cattle) capped,
 `location` = camera trap, and the test cameras are held out ENTIRE. **No AIDER, no
 EuroSAT, no others.**
 
@@ -427,12 +427,23 @@ automatically one with PER-GROUP LABEL SHIFT, and only the second is usable here
 understood not to. Screen them with `scripts.dataset_screen`, which reports the
 DIFFERENTIAL per-group novelty net of sampling noise and the global shift:
 
-| dataset | NET items | z | unseen groups |
-|---|---|---|---|
-| **iwildcam/oodslice** | **+3131** | **97.4** | **7 (all test cameras)** |
-| dermmnist/slice_1 | +65 | 2.9 | 0 |
-| octmnist/slice_1 | -7 | -0.4 | 0 |
-| tissuemnist | -56 | -1.9 | 0 |
+| dataset | group | NET items | z | unseen groups | status |
+|---|---|---|---|---|---|
+| **iwildcam/oodslice** | camera | **+3133** | **96.3** | **7** | 🟢 RUNNABLE, images on the server |
+| **fmow/oodslice** | **country** | **+2969** | **79.7** | **10** | 🟡 screened 2026-08-28, META ONLY |
+| **terra/oodslice** | camera | **+2546** | **75.8** | **5** | 🟡 screened 2026-08-28, META ONLY |
+| dermmnist/slice_1 | synth | +65 | 2.9 | 0 | ⛔ leaked + removed |
+| octmnist/slice_1 | `index % 3` | -7 | -0.4 | 0 | ⛔ dead by construction |
+| tissuemnist | `index % 3` | -56 | -1.9 | 0 | ⛔ dead by construction |
+
+🟡 **`fmow` and `terra` PASS stage 1 but have NO IMAGES yet.** Rebuild their
+meta in minutes on CPU with `prep_fmow --meta-only` / `prep_iwildcam
+--annotations <cct.json> --meta-only`, then `dataset_screen`. ⚠️ Stage 1 is
+NECESSARY ONLY -- dermmnist passed it at z=2.9 and still nulled. And their
+PRIZE is unmeasured: `ceiling_screen` prices them off **iwildcam's** p@K curve,
+which it says does not transfer. The number to go and get is fmow's real p@K:
+**it needs only `<= 0.92` at L30 to clear twice the noise, where iwildcam
+measures 0.9948-0.9972.** See `docs/FRAMEWORK.md` 2(w2).
 
 ⚠️ **octmnist and tissuemnist are structurally dead** -- `synth_group` is
 `np.arange(len(y)) % 3`, so their groups are i.i.d. draws from one distribution

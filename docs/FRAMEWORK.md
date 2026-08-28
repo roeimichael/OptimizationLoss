@@ -5097,6 +5097,77 @@ safe:**
 budget admits 90% of the true positives, so the constraint barely constrains.
 **Say what the cap is buying before proposing to loosen it.**
 
+### 2(w2) 🟢 **TWO MORE DATASETS PASS THE SCREEN -- the one-dataset era ends**
+screened 2026-08-28, labels and metadata only, no images and no GPU
+
+2(w1) shows no second iwildcam SLICE exists, so replication needs a new
+DATASET. Two candidates were prepared meta-only and screened beside the
+incumbent. **Both pass stage 1, and both have UNSEEN test groups**, which is
+the strongest form 2(n) asks for -- training carries no prior for them at all,
+so the cap is the only source of information about their composition.
+
+| dataset | group | NET items | z | unseen | n_test | cls | imbal | rarest |
+|---|---|---|---|---|---|---|---|---|
+| `iwildcam/oodslice` | camera | +3133 | 96.3 | 7 | 2943 | 8 | 4.5x | 160 |
+| **`fmow/oodslice`** | **country** | **+2969** | **79.7** | **10** | 3442 | 8 | 1.7x | 320 |
+| **`terra/oodslice`** | camera | **+2546** | **75.8** | 5 | 2985 | 8 | 2.5x | 249 |
+| dermmnist/slice_1 | synth | +65 | 2.9 | **0** | -- | -- | -- | -- |
+| octmnist / tissuemnist | `index % 3` | -7 / -56 | -0.4 / -1.9 | **0** | -- | -- | -- | -- |
+
+Reproduce, in minutes, on CPU:
+
+```bash
+python -m scripts.prep_fmow --meta-only --cache <cache> --out <dir>/fmow/oodslice
+curl -sL -o cct.json.zip https://lilawildlife.blob.core.windows.net/lila-wildlife/caltechcameratraps/labels/caltech_camera_traps.json.zip
+python -m scripts.prep_iwildcam --annotations <cct>.json --out <dir>/terra/oodslice --meta-only
+python -m scripts.dataset_screen <dir>/terra/oodslice <dir>/fmow/oodslice data/iwildcam/oodslice
+```
+
+🔑 **`fmow` is the scientifically valuable one and `terra` is the cheap one.**
+`terra` is Caltech Camera Traps: same sensor, same COCO-CameraTraps format,
+same held-out-camera group -- so it reads through `prep_iwildcam` unchanged,
+and that similarity is also its weakness. It replicates on nearly the same
+structure. `fmow` is satellite imagery grouped by COUNTRY, the first candidate
+that is not a camera trap, so it is the one that can say whether 2(w) is a
+property of the method or of wildlife photography.
+
+#### ⚠️ WHAT THIS DOES **NOT** SAY, and both limits are load-bearing
+
+**1. Stage 1 is necessary, not sufficient, and this project has been burned by
+exactly that.** dermmnist scored +65 items at z=2.9 -- a real per-group shift
+-- and still nulled in 2(m), where feeding a model the TRUE per-group counts
+moved 6 items. Information existing is not the same as it being convertible
+into ORDERING. Stage 2 is `scope_probe --calibrate` and needs a trained model.
+
+**2. The PRIZE is unmeasured on both, and `ceiling_screen`'s verdict for them
+is borrowed, not measured.** Run on `fmow` it prints PRIZE BELOW THE NOISE at
+every cap -- but its `p@K` and `sd` columns are an **iwildcam calibration
+that the tool itself says does not transfer**. The K structure is comparable
+(K = 64-165 at K/n 20-30%), so the verdict is really -- IF fmow's ranking were
+as good as iwildcam's, the prize would be equally hopeless.
+
+🔑 **That is the number to go and get, and it is a single threshold:**
+
+| fmow cap | class | K | p@K needed for prize = 1.0x sd | for 2.0x |
+|---|---|---|---|---|
+| L20_G50 | 2 | 109 | 0.9564 | **0.9128** |
+| L30_G50 | 2 | 165 | 0.9612 | **0.9224** |
+| L30_G50 | 7 | 96 | 0.9339 | **0.8677** |
+
+**iwildcam's MEASURED p@K at these K/n is 0.9948 to 0.9972**, which is why its
+prize is 0.4-4 items. fmow needs only `p@K <= ~0.92` at L30 to clear twice the
+noise. Satellite imagery over eight confusable land-use classes is a much
+harder ranking problem than eight African species, so this is plausible --
+**and it is unmeasured**. It is the first thing to measure there, it needs one
+trained model, and it decides whether fmow is the dataset on which this method
+can finally be shown to win or lose. ⚠️ The `sd` moves with the prize (2(v)),
+so re-measure BOTH with `scripts.paired_noise` rather than assuming iwildcam's.
+
+⚠️ `prep_*` warns that a meta-only NET is an UPPER bound on the delivered
+slice, since shards can fail to download -- good enough to REJECT a candidate,
+never to accept a borderline one. At z = 76 and 80 neither is borderline.
+
+
 ### 2(w1) ⛔ **THERE IS NO SECOND iwildcam SLICE. THE SHIPPED ONE IS THE ONLY**
 **VIABLE DRAW** -- measured 2026-08-27, labels and metadata only, no GPU
 
