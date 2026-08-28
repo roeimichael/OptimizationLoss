@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-#  results/margin1  --  THE TWO ARMS THAT WERE BUILT AND NEVER RUN
+#  results/margin2  --  THE TWO ARMS THAT WERE BUILT AND NEVER RUN
 #
 #   why        `tralo_margin` and `tralo_st` are fully implemented,
 #              protocol-registered, null-sibling-tested and gated in
@@ -55,6 +55,14 @@
 #   arms       tralo          the manuscript count -- the thing to beat
 #              tralo_st       value fixed only     \ the decomposition,
 #              tralo_margin   value + placement    / never run before
+#              tralo_coin     RANDOM direction, same norm -- THE CONTROL FOR
+#                             A PLACEMENT CLAIM, and it is the whole reason
+#                             this campaign can conclude anything about
+#                             placement. If a random direction of the same
+#                             norm moves the metric as much as `margin` does,
+#                             then WHERE the gradient lands is not what is
+#                             doing the work. Carried over from the
+#                             superseded `launch_margin1.sh`.
 #              tralo_uniform  the current best at tight caps (2(w))
 #              tralo_null     lambda=0 twin, SHARED by all four (at lambda=0
 #                             there is no constraint gradient, so a dedicated
@@ -91,7 +99,15 @@
 #   9 cells, so a `***` is reachable; but the per-regime splits (3 and 6) are
 #   DIRECTION claims only, exactly as the generator warns.
 #
-#   size       9 cells x 8 arms x 4 seeds = 288 runs.
+#   size       9 cells x 9 arms x 4 seeds = 324 runs.
+#
+#   supersedes `docs/launch_margin1.sh`, which was staged, never fired, and
+#              is DELETED rather than left to be picked up by mistake. It was
+#              MobileNetV3 only at {L50_G30, L40_G30} = 2 cells, which the
+#              generator's own power line calls unable to reach a `***` at any
+#              effect size. Its `tralo_coin` control is kept; its caps are not,
+#              because the regime axis of 2(w3) did not exist when it was
+#              written.
 #              🔪 CUT IT AT THE ROOT. Read the FIRST completed tight cell
 #              before it has run a day. Only a POSITIVE `tralo_margin` signal
 #              earns the rest -- a negative one ends it now.
@@ -114,7 +130,7 @@
 #              (BF16) it is a no-op.
 #
 #   read it    python -m scripts.rig_status
-#              python -m scripts.dose_landed results/margin1
+#              python -m scripts.dose_landed results/margin2
 #                ^ 🛑 FIRST, AND ON THE RUNNING CAMPAIGN. `tralo_uniform` once
 #                  landed 1 of 29 steps beside `tralo` at 29/29 in the SAME
 #                  campaign while both wrote `status: completed`. These two
@@ -125,9 +141,9 @@
 #                  project has four already. If the md5s match, the arm is
 #                  inert and every number below it is `tralo` wearing a label.
 #              python -m scripts.flag_live tralo tralo_st
-#              python -m scripts.full_panel --campaign results/margin1 --control clip
-#              python -m scripts.full_panel --campaign results/margin1 --control tralo_null
-#              python -m scripts.order_probe --campaign results/margin1 --arm tralo_margin
+#              python -m scripts.full_panel --campaign results/margin2 --control clip
+#              python -m scripts.full_panel --campaign results/margin2 --control tralo_null
+#              python -m scripts.order_probe --campaign results/margin2 --arm tralo_margin
 #                ^ the direct-channel question this arm exists for: does it
 #                  reorder more than a reseed, and DOES IT DO SO IN THE BAND?
 #                  2(w4) shows global and band dissociate.
@@ -136,20 +152,20 @@
 set -euo pipefail
 
 PIN=1d921173                 # same training path as uniform1/vitu1/loose1/dom1
-TREE=~/optloss-margin        # its OWN worktree. Worktrees share one object
+TREE=~/optloss-margin2        # its OWN worktree. Worktrees share one object
                              # store, so this fetches and checks out its own
                              # tree and runs NO git maintenance: never gc,
                              # prune, repack or worktree prune while any
                              # campaign is running.
-ROOT=results/margin1
+ROOT=results/margin2
 
 # 🛑 REFUSE TO RUN FROM INSIDE THE TREE THIS SCRIPT IS ABOUT TO CHECK OUT.
 # Bash reads a script incrementally, by byte offset, so a checkout of $TREE
 # would rewrite this file underneath the interpreter at an offset it has not
 # reached yet. Copy it out first:
 #
-#     git show origin/headroom/small-cnn:docs/launch_margin1.sh > ~/launch_margin1.sh
-#     GPU=0 bash ~/launch_margin1.sh
+#     git show origin/headroom/small-cnn:docs/launch_margin2.sh > ~/launch_margin2.sh
+#     GPU=0 bash ~/launch_margin2.sh
 #
 SELF=$(cd "$(dirname "$0")" && pwd -P)
 TREEP=$(cd "$(eval echo $TREE)" 2>/dev/null && pwd -P || true)
@@ -226,7 +242,7 @@ PY=$HOME/anaconda3/envs/optloss/bin/python
     --datasets iwildcam \
     --models MobileNetV2 MobileNetV3 RegNetY400MF \
     --caps L30_G50 L90_G95 L95_G80 \
-    --arms tralo tralo_st tralo_margin tralo_uniform \
+    --arms tralo tralo_st tralo_margin tralo_coin tralo_uniform \
            tralo_null tralo_reseed \
     --constraint-grad-mode normalize \
     --constraint-fp32
@@ -246,10 +262,10 @@ GPU=${GPU:-0}
 # main.py prompts for a GPU and reads the answer from stdin. With
 # CUDA_VISIBLE_DEVICES pinned to one device it sees exactly one, so the answer
 # is always index 0 -- NOT $GPU, which is the physical id.
-echo 0 > /tmp/gpuchoice_margin1
+echo 0 > /tmp/gpuchoice_margin2
 setsid env CUDA_VISIBLE_DEVICES="$GPU" EXPERIMENT_DIR="$ROOT" \
     PYTHONIOENCODING=utf-8 nohup "$PY" main.py \
-    > /tmp/margin1.log 2>&1 < /tmp/gpuchoice_margin1 &
+    > /tmp/margin2.log 2>&1 < /tmp/gpuchoice_margin2 &
 sleep 25
 echo "launched $ROOT on GPU $GPU from $TREE at $PIN"
-tail -5 /tmp/margin1.log || true
+tail -5 /tmp/margin2.log || true
