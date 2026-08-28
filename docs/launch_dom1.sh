@@ -84,6 +84,29 @@
 #               Both pin the SAME commit or the join is a split code_version.
 #               Partition by ROOT, never by --filter (reference: multi-GPU).
 #
+#   grad mode   **`normalize`, and this is forced, not preferred.**
+#               `check_parity` REFUSES four trained methodologies under
+#               `clip`, and it is right: the clip delivers `min(raw, 1.0)`
+#               while the arms' natural gradient norms are hounie 0.005-0.11,
+#               tralo 0.64-1826, fioretto 17,667-80,827. So fioretto and alm
+#               saturate the clip and hounie NEVER reaches it -- a ~20x dose
+#               spread with every config file saying `constraint_grad_clip:
+#               1.0`. A dual-vs-dual delta across that gap measures the dose.
+#
+#               The objection to `normalize` is that it erases the dual knobs.
+#               It mostly does not erase anything that was LIVE: FRAMEWORK
+#               2(e) measured that under `clip` the delivered step is exactly
+#               `lr*clip` regardless of lambda, so **magnitude is already void**
+#               and only DIRECTION and step COUNT are live levers. `normalize`
+#               makes that explicit and, unlike `clip`, makes it EQUAL across
+#               arms. lambda still sets the relative weight of the global and
+#               local terms, i.e. the direction, which is what survives.
+#
+#               ⚠️ SAY IT WHEN QUOTING THE RESULT: this compares the four
+#               duals at a MATCHED step size, not at each method's own
+#               natural one. `xfam1` made the same choice (252 runs,
+#               `normalize`), so the two are at least commensurable.
+#
 #   host        dsisco02 (RTX PRO 6000 Blackwell, BF16 AMP), GPU 0.
 #
 #   read it     python -m scripts.rig_status
@@ -195,7 +218,7 @@ PY=$HOME/anaconda3/envs/optloss/bin/python
     --arms tralo tralo_uniform fioretto hounie alm \
            tralo_null fioretto_null hounie_null alm_null tralo_reseed \
            lp focal_lp cb_lp la_lp \
-    --constraint-grad-mode clip \
+    --constraint-grad-mode normalize \
     --constraint-fp32
 
 # THE THREE GATES. Each refuses a different way to waste a week.
