@@ -13,10 +13,18 @@
 #   🟢 AND THERE NOW IS SUCH A REGIME. `results/loose1` (144 runs, 100% dose,
 #   L80/L90) is the first campaign in which the constraint HELPS:
 #
-#                        vs clip        AP        AUROC      ccF1
-#       tralo                      +0.0396 6/0  +0.0091 6/0  +0.0052 5/1
-#       tralo_null (compute only)  +0.0143 4/2  +0.0016 tie  -0.0068 0/6
-#       => the CONSTRAINT's share  +0.0253      +0.0075      +0.0120
+#       PAIRED vs its own tralo_null      AP        AUROC        ccF1
+#       tralo                        +0.0253 5/1  +0.0075 6/0  +0.0120 6/0
+#       tralo_reseed  (RNG floor)    -0.0016 tie  +0.0016 tie  +0.0088 6/0
+#       tralo_uniform                +0.0005 tie  +0.0038 tie  +0.0077 6/0
+#
+#   🛑 READ THE RESEED ROW. A pure RNG reseed also produces a 6/0 ccF1 -- win --
+#   of +0.0088, so `tralo`'s +0.0120 is only **1.36x the floor** and
+#   `tralo_uniform`'s +0.0077 is BELOW it. **The ccF1 gain at loose caps is
+#   mostly the seed.** What survives its control is the RANKING: AP +0.0253
+#   and AUROC +0.0075 against a floor that TIES on both. That is the first
+#   attributable positive constraint effect in the project, and it is a
+#   ranking effect, not an allocation one.
 #
 #   The sign is the opposite of every tight-cap campaign, where `tralo` costs
 #   AP 0.057 to 0.093 against its own null. FRAMEWORK 2(w3) has the mechanism:
@@ -60,6 +68,13 @@
 #               plus tralo_null / fioretto_null / hounie_null / alm_null so
 #               every dual is read against its own compute, and tralo_reseed
 #               as the RNG floor (gen_campaign REFUSES without it).
+#
+#   ⚠️ **THE PRE-REGISTRATION BELOW IS STATED ON ccF1 AND THAT IS NOW KNOWN
+#   TO BE THE WEAK METRIC HERE** -- loose1's reseed floor eats 73% of the ccF1
+#   effect. It is left EXACTLY as written because it was fixed before the data
+#   and changing it after seeing loose1 would be the whole disease. Read AP and
+#   AUROC beside it, and read every arm against `tralo_reseed` before calling
+#   any ccF1 ordering a result.
 #
 #   ⚠️ FALSIFIABLE, stated before the data. The claim is DOMINANCE, not a
 #   clean sweep -- "some positivity", not 100%. So:

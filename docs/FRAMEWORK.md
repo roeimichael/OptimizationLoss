@@ -5216,6 +5216,70 @@ triage rule -- a group built from an index, a randomisation or a balanced
 assay design is dead by construction.
 
 
+### 2(w3) 🟢🟢 **THE CONSTRAINT HELPS AT LOOSE CAPS -- the first attributable**
+**positive effect in the project** -- `results/loose1`, 144 runs, complete 2026-08-28
+
+6 cells (3 backbones x L80_G95, L90_G95), 4 seeds, both trained arms at
+**696/696 steps = 100.0%**. Paired against each arm's own lambda=0 twin:
+
+| vs `tralo_null` | AP | AUROC | ccF1 |
+|---|---|---|---|
+| **`tralo`** | **+0.0253  5/1** | **+0.0075  6/0** | +0.0120  6/0 |
+| `tralo_reseed` (RNG floor) | -0.0016 tie | +0.0016 tie | **+0.0088  6/0** |
+| `tralo_uniform` | +0.0005 tie | +0.0038 tie | +0.0077  6/0 |
+
+🛑 **READ THE RESEED ROW FIRST, because it eats most of one column.** A pure
+RNG reseed also produces a 6-of-6 ccF1 -- win -- of +0.0088. So `tralo`'s
++0.0120 is **1.36x the floor** and `tralo_uniform`'s +0.0077 is **BELOW** it.
+**The ccF1 gain here is mostly the seed.** A 6/0 sweep is not evidence when
+the null arm also sweeps 6/0.
+
+✅ **What survives its control is the RANKING.** AP +0.0253 and AUROC +0.0075
+against a reseed floor that TIES on both -- roughly 16x and 4.7x. That is the
+first constraint effect in this project that is positive AND attributable, and
+it is a ranking effect, not an allocation one.
+
+⚠️ 6 cells, so every verdict reads -- win (not after BH) --: the exact Wilcoxon
+floor is 0.031 and BH over 11 metrics needs 0.0045. `gen_campaign` states 9
+cells as the minimum for a `***`, which is why `dom1` is 9.
+
+#### 🔑🔑 THE REGIME REVERSAL: THE TWO COUNT FUNCTIONS SUIT OPPOSITE CAPS
+
+| AP vs own null | tight caps L20-L50 | loose caps L80-L90 |
+|---|---|---|
+| **`tralo`** (`sum`, weight `p(1-p)`) | **-0.0572 to -0.0933, 0 of 12 cells** | **+0.0253, 5/1** |
+| **`tralo_uniform`** (flat log-odds) | **+0.0030 to +0.0087, tie** | **+0.0005, tie** |
+| `tralo_reseed` | -0.0016 to -0.0142 | -0.0016 tie |
+
+**Each count wins exactly where the other fails.** The fix of 2(w) is not a
+strict improvement -- it is a fix FOR THE TIGHT-CAP REGIME, and at loose caps
+the original count is the better one by 50x.
+
+🔑 **THE MECHANISM, and it closes 2(t) and 4 together.** `sum`'s per-item
+weight `p(1-p)` is maximal at `p = 0.5`, i.e. AT THE DECISION BOUNDARY. Where
+the boundary sits relative to the cut is what changes with the cap:
+
+* **tight cap**: the hard count is ~368 against `K = 74`, so the boundary is at
+  item 368 and the cut is at 74 -- **buried deep inside the class**. `sum` puts
+  its largest push ~294 items away from the cut, on items it should not touch,
+  and 2(t) measured the result: it evicts at `p ~ 0.79` and admits at `p ~ 0.25`.
+* **loose cap**: the count is 368 against `K = 333`, so boundary and cut are 35
+  items apart and `p(1-p)` pushes almost exactly where the decision is made.
+
+That is the same quantity as the work-to-prize ratio: 294 evictions for a
+0.42-item prize at L20 (**700x**), 35 for a 29.8-item prize at L90 (**1.2x**).
+The flat count cannot exploit the loose regime because it declines to
+concentrate anywhere -- which is exactly why it is safe in the tight one.
+
+⇒ **The design lesson for TraLO: the count function should concentrate at the
+CUT (rank K), not at the decision boundary (p = 0.5).** Those coincide only
+when the cap is loose. An arm that does this already exists and is untested
+here: `soft_count_mode: margin` with `cut_window_items`, which windows the
+gradient around the cut by construction. **It is the next arm to run**, and it
+is the one candidate that could be positive in BOTH regimes rather than
+trading one for the other.
+
+
 ### 2(w0) ⛔ **THE WHOLE UNREAD-CAMPAIGN BACKLOG IS DEAD, AND IT IS ONE REASON**
 
 Audited 2026-08-26. Eight campaigns sat on the server either complete-and-never-
