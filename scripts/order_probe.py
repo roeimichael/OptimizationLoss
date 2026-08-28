@@ -47,7 +47,9 @@ A NULL HERE IS A MEASUREMENT, not silence, because the reseed arm bounds what
 import argparse
 import glob
 import json
+import math
 import os
+import sys
 
 import numpy as np
 import pandas as pd
@@ -68,6 +70,42 @@ def spearman(a, b):
     rb = rb - rb.mean()
     d = np.sqrt((ra * ra).sum() * (rb * rb).sum())
     return float((ra * rb).sum() / d) if d > 0 else float("nan")
+
+
+def sign_test(k, n):
+    """Two-sided exact binomial p for k successes in n, under p=0.5.
+
+    WHY THIS EXISTS. The verdict below used to branch on the bare POOLED MEAN
+    of (rho_arm - rho_reseed), with no test at all, so a mean of -0.0076 on a
+    27/48 split -- a coin flip -- printed "the constraint reordered MORE than a
+    reseed. The order-preservation argument does NOT hold here." Measured on
+    `results/loose1` 2026-08-28, that fired for `tralo` (27/48, p=0.47) AND for
+    `tralo_uniform` (26/48, p=0.66).
+
+    `tralo_uniform` is this probe's built-in NEGATIVE CONTROL: its per-item
+    gradient is constant in log-odds, so on the direct channel it is a pure
+    bias shift and CANNOT reorder (configs/protocol.yml says so at its
+    definition). A verdict that calls it "reordered MORE" is a verdict that
+    fails its own control, which is exactly the failure this project keeps
+    finding elsewhere -- a tie read as an effect because nothing gated it.
+    """
+    n, k = int(n), int(k)
+    if n <= 0:
+        return float("nan")
+    tail = sum(math.comb(n, i) for i in range(min(k, n - k) + 1))
+    return min(1.0, 2.0 * tail / float(2 ** n))
+
+
+def _points_needed(dd, power_const=7.85):
+    """Points at 80% power to call the observed mean against its own spread.
+
+    Same constant `scripts/paired_noise.py` prices seeds with, so a tie here
+    reports which of the two things it is -- no effect, or not enough points.
+    """
+    e, s = abs(float(dd.mean())), float(dd.std(ddof=1))
+    if not e or e != e or s != s:
+        return -1
+    return int(math.ceil(power_const * (s / e) ** 2))
 
 
 def load(run_dir):
@@ -271,28 +309,61 @@ def main():
     if have_ctrl:
         print()
         d2 = d.dropna(subset=["rho_arm", "rho_reseed"])
-        dd = d2["rho_arm"] - d2["rho_reseed"]
-        db = (d2["rho_arm_band"] - d2["rho_reseed_band"]).dropna()
-        print("VERDICT -- read the SIGN, never rho alone")
-        print("   rho_arm - rho_reseed        %+.4f   (%d/%d points where the "
-              "constraint reordered MORE than a reseed)"
-              % (dd.mean(), int((dd < 0).sum()), len(dd)))
-        print("   band                        %+.4f   (%d/%d)"
-              % (db.mean(), int((db < 0).sum()), len(db)))
-        print()
-        if dd.mean() >= 0:
-            print("   => rho_arm >= rho_reseed: the constraint preserved the "
-                  "order at least as well as")
-            print("      doing NOTHING and reseeding. It moved the cut, not "
-                  "the ranking -- which is what")
-            print("      `sum_i f(p_ic)` is mathematically able to do, and all "
-                  "it is able to do.")
-        else:
-            print("   => the constraint reordered MORE than a reseed. The "
-                  "order-preservation argument")
-            print("      does NOT hold here; the representation channel is "
-                  "doing something. Say how much.")
+        verdict(d2["rho_arm"] - d2["rho_reseed"],
+                (d2["rho_arm_band"] - d2["rho_reseed_band"]).dropna())
     return 0
+
+
+def verdict(dd, db, out=None, alpha=0.05):
+    """Print the reorder verdict, GATED on an exact sign test.
+
+    Split out of `main` so the gate can run on a synthetic split with no
+    campaign: `tests/` drives it with a 27/48 coin flip and asserts it refuses
+    to call a direction. See `sign_test` for what it used to do instead.
+    """
+    out = out or sys.stdout
+    n_g, k_g = int((dd != 0).sum()), int((dd < 0).sum())
+    n_b, k_b = int((db != 0).sum()), int((db < 0).sum())
+    p_g, p_b = sign_test(k_g, n_g), sign_test(k_b, n_b)
+    w = out.write
+    w("VERDICT -- the SIGN, and whether the sign is DISTINGUISHABLE from a "
+      "coin\n")
+    w("   rho_arm - rho_reseed        %+.4f   (%d/%d points reordered MORE "
+      "than a reseed, sign p=%.3f)\n" % (dd.mean(), k_g, n_g, p_g))
+    w("   band                        %+.4f   (%d/%d, sign p=%.3f)\n"
+      % (db.mean() if n_b else float("nan"), k_b, n_b, p_b))
+    w("\n")
+    if not n_g or p_g >= alpha:
+        w("   => TIE. The constraint is INDISTINGUISHABLE from a pure RNG "
+          "reseed (p=%.3f at\n" % p_g)
+        w("      %d points; %d/%d is a coin flip). What order movement there "
+          "is, is SEED.\n" % (n_g, k_g, n_g))
+        w("      This is the EXPECTED reading for any `sum_i f(p_ic)` "
+          "penalty: its per-item\n")
+        w("      gradient is a function of `p_ic` ALONE, hence a monotone map "
+          "on the logit\n")
+        w("      channel, and a monotone map cannot move an item across "
+          "another. It moves the\n")
+        w("      CUT, not the RANKING.\n")
+        w("      A tie is 'no effect' OR 'not enough points' -- to call the "
+          "observed %+.4f at\n" % dd.mean())
+        w("      80%% power would need ~%d points, against the %d here.\n"
+          % (_points_needed(dd), n_g))
+    elif dd.mean() >= 0:
+        w("   => rho_arm >= rho_reseed, and it CLEARS the coin (p=%.3f): the "
+          "constraint\n" % p_g)
+        w("      preserved the order at least as well as doing NOTHING and "
+          "reseeding. It moved\n")
+        w("      the cut, not the ranking -- which is what `sum_i f(p_ic)` is "
+          "mathematically able\n")
+        w("      to do, and all it is able to do.\n")
+    else:
+        w("   => the constraint reordered MORE than a reseed, and it CLEARS "
+          "the coin (p=%.3f).\n" % p_g)
+        w("      The order-preservation argument does NOT hold here; the "
+          "representation\n")
+        w("      channel is doing something. Say how much.\n")
+    return p_g
 
 
 

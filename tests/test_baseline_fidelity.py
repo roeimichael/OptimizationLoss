@@ -4216,3 +4216,55 @@ def test_no_numerical_guard_in_the_TRAINING_PATH_is_a_no_op():
     coef = project_out(net, [torch.zeros_like(p) for p in net.parameters()])
     assert coef == 0.0, "a zero reference must project to nothing, not to nan"
     assert all(torch.isfinite(p.grad).all() for p in net.parameters())
+
+
+def test_the_order_verdict_REFUSES_to_call_a_coin_flip():
+    """A pooled-mean sign with no test called `tralo_uniform` a reorderer.
+
+    `scripts/order_probe` branched on `dd.mean() >= 0` alone, so on
+    `results/loose1` (2026-08-28) a mean of -0.0076 at a 27/48 split printed
+    "the constraint reordered MORE than a reseed. The order-preservation
+    argument does NOT hold here."
+
+    The killer is the SECOND arm it fired on. `tralo_uniform`'s per-item
+    gradient is constant in log-odds, so on the direct channel it is a pure
+    bias shift that CANNOT reorder -- configs/protocol.yml says exactly that at
+    its definition. It read 26/48, p=0.66, and got the same verdict. That arm
+    is this probe's built-in negative control, and the probe failed it.
+
+    So this gate drives BOTH real splits and asserts they read TIE, and drives
+    a 40/48 split to prove the verdict has not simply been muted.
+    """
+    import io
+
+    import pandas as pd
+
+    from scripts.order_probe import sign_test, verdict
+
+    def call(k, n):
+        dd = pd.Series([-0.01] * k + [0.01] * (n - k))
+        out = io.StringIO()
+        p = verdict(dd, pd.Series([0.001] * n), out=out)
+        return p, out.getvalue()
+
+    # The two splits measured on loose1. Neither may be called.
+    for k, arm in ((27, "tralo"), (26, "tralo_uniform")):
+        p, txt = call(k, 48)
+        assert p >= 0.05, "%s: %d/48 is a coin flip, p=%.3f" % (arm, k, p)
+        assert "TIE" in txt, (
+            "%s reads %d/48 (sign p=%.3f) and the verdict did NOT say TIE. "
+            "That is the defect this gate exists for -- a pooled-mean sign "
+            "with nothing gating it. Verdict was:\n%s" % (arm, k, p, txt))
+        assert "reordered MORE than a reseed, and it CLEARS" not in txt
+
+    # ...and the verdict is still LIVE: a real effect must still be called.
+    p, txt = call(40, 48)
+    assert p < 0.05 and "CLEARS the coin" in txt, (
+        "40/48 is p=%.4g and must still be called a real effect, or this gate "
+        "has been passed by muting the verdict rather than gating it:\n%s"
+        % (p, txt))
+
+    # The test itself must be exact, not an approximation that drifts.
+    assert abs(sign_test(27, 48) - 0.4709) < 5e-4
+    assert abs(sign_test(24, 48) - 1.0) < 1e-12
+    assert sign_test(0, 48) < 1e-13
