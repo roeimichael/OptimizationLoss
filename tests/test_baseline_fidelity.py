@@ -4268,3 +4268,23 @@ def test_the_order_verdict_REFUSES_to_call_a_coin_flip():
     assert abs(sign_test(27, 48) - 0.4709) < 5e-4
     assert abs(sign_test(24, 48) - 1.0) < 1e-12
     assert sign_test(0, 48) < 1e-13
+
+    # And the case the verdict must not let a reader walk past: global TIE
+    # while the BAND clears. Global rho is diluted by the easy mass; the band
+    # is ranks K/2..2K, where the cut falls. These are uniform1's real splits
+    # (2026-08-28): global 41/72 p=0.289, band 45/72 p=0.044.
+    out = io.StringIO()
+    verdict(pd.Series([-0.01] * 41 + [0.01] * 31),
+            pd.Series([-0.05] * 45 + [0.05] * 27), out=out)
+    txt = out.getvalue()
+    assert "TIE" in txt and "BAND CLEARS" in txt, (
+        "global ties (41/72) but the band clears (45/72, p=0.044) and the "
+        "verdict did not say so. The band is the statistic that matters and "
+        "printing it without acting on it is how it gets missed:\n%s" % txt)
+
+    # CONTROL: a band that is itself a coin must NOT raise the note.
+    out = io.StringIO()
+    verdict(pd.Series([-0.01] * 41 + [0.01] * 31),
+            pd.Series([-0.05] * 36 + [0.05] * 36), out=out)
+    assert "BAND CLEARS" not in out.getvalue(), (
+        "the band note fired on a 36/72 band, i.e. on nothing")

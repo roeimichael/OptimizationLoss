@@ -363,6 +363,26 @@ def verdict(dd, db, out=None, alpha=0.05):
         w("      The order-preservation argument does NOT hold here; the "
           "representation\n")
         w("      channel is doing something. Say how much.\n")
+    # THE BAND IS THE INFORMATIVE STATISTIC AND IT IS NOT WHAT THE VERDICT
+    # ABOVE BRANCHES ON. Global rho is taken over the whole capped class, which
+    # is dominated by the easy mass and reads ~1.0 for any two models; the band
+    # is ranks K/2..2K, where the cut actually falls. So the case that matters
+    # -- global TIE, band CLEARS -- would otherwise be printed and missed.
+    # Measured on `results/uniform1` (tight caps) 2026-08-28: global -0.0100 at
+    # 41/72 p=0.289, band -0.0454 at 45/72 p=0.044.
+    if n_b and p_b < alpha and (p_g >= alpha or not n_g):
+        w("\n")
+        w("   !! BUT THE BAND CLEARS WHILE THE GLOBAL TIES (band p=%.3f vs "
+          "global p=%.3f).\n" % (p_b, p_g))
+        w("      Global rho is diluted by the easy mass; the band is ranks "
+          "K/2..2K, where the\n")
+        w("      cut falls. On the items the allocator actually contests this "
+          "arm reordered\n")
+        w("      %s a reseed. That is the representation channel, and it is "
+          "the\n" % ("MORE than" if db.mean() < 0 else "LESS than"))
+        w("      one channel a `sum_i f(p_ic)` penalty CAN reach.\n")
+        w("      One test among several: quote it with its multiplicity, not "
+          "as a standalone p.\n")
     return p_g
 
 
