@@ -57,13 +57,19 @@ evidence/          two tarballs: provenance for 14,524 runs, predictions for 128
 Nine methodologies, all claimed in the paper: `tralo` - duals `fioretto_ldf` / `hounie_rcl` /
 `fioretto_alm` - allocators `heuristic` (greedy clip) / `danits_lp` (LP-LG, Shifman) - and the
 imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
-⛔ **BUT ONLY FIVE ARE DISTINCT ON iwildcam** (md5 over `dom1`, 24/24 cell-seeds,
-FRAMEWORK 2(x1)): `danits_lp` == `heuristic` and `class_balanced` == `heuristic`,
-byte-identical, and `focal_lp` == `focal_clip`. `class_balanced` is inert because
-**iwildcam's TRAIN set is exactly 2500/class -- imbalance 1.0x** (the 4.5x figure is
-the TEST set), so its weights are exactly 1.0 and weighted CE is plain CE. The AST
-audit passes, `base_model_id` differs, the cache does not collide -- **only the md5
-catches it.** Never report `lp` or `cb_lp` as an independent baseline.
+⛔ **BUT `class_balanced` IS INERT ON iwildcam** (FRAMEWORK 2(x1)): the TRAIN set
+is **exactly 2500/class -- imbalance 1.0x** (the 4.5x figure is the TEST set), so its
+weights are exactly 1.0 and weighted CE is plain CE. `cb_lp`'s raw predictions are
+byte-identical to `clip`'s in 24/24 despite a different `base_model_id`. The AST audit
+passes, the cache does not collide, `audit_config`/`check_parity` are green -- **only
+hashing `final_predictions_raw.csv` finds it.** Any baseline reading the TRAINING prior
+is dead here; run `np.bincount(train_labels)` before claiming one.
+🛑 **AND `full_panel` IS ALLOCATOR-BLIND BY CONSTRUCTION**: it re-derives its own
+equal-budget allocation from the raw probabilities, so two arms sharing a warm-up model
+score `+0.0000` on every budget-equalized metric however differently they allocate.
+`lp` vs `clip` reads `+0.0000 p=1.000` while their deployed predictions differ in 23/24.
+Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
+
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash

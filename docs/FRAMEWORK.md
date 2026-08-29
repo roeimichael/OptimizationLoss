@@ -5508,39 +5508,86 @@ doing the work and the extra compute is a cost. That is consistent with 2(w3)
 and is the regime this result lives in -- **all three caps here are LOOSE**.
 
 
-### 2(x1) ⛔⛔ **THREE OF THE NINE "METHODOLOGIES" ARE THE SAME ARM ON iwildcam**
+### 2(x1) ⛔ **`class_balanced` IS INERT ON iwildcam -- and the headline table**
+### **CANNOT SEE AN ALLOCATOR AT ALL**
 
-Found by md5 on `dom1`'s raw predictions (rule 3), 24 cell-seeds:
+🛑 **CORRECTION, SAME DAY.** This section first read *"three of the nine
+methodologies are the same arm"*, from an md5 over `final_predictions_raw.csv`
+that found `lp == clip`, `focal_lp == focal_clip` and `cb_lp == clip` at 24/24.
+**Two of those three were a misreading of which file to hash**, and
+`full_panel`'s own comment says so at the hashing site: *"the ALLOCATED
+predictions can differ while the raw ones are identical, which is exactly
+`clip` vs `lp` and is NOT an inert flag."*
 
-| pair | identical | why |
+| pair | RAW same | **ALLOCATED same** | what it means |
+|---|---|---|---|
+| `lp` **vs** `clip` | 24/24 | **1/24** | same warm-up MODEL, allocator genuinely differs |
+| `focal_lp` **vs** `focal_clip` | 24/24 | **1/24** | same |
+| **`cb_lp` vs `clip`** | **24/24** | 1/24 | **same model from a DIFFERENT recipe -- the real finding** |
+| `la_lp` vs `clip` | 0/24 | 0/24 | different model |
+
+`lp` and `clip` **share `base_model_id` by construction** -- they are one
+warm-up with two allocators -- so identical raw predictions is what they are
+supposed to produce and says nothing. Hash `final_predictions.csv` to compare
+allocators; hash `final_predictions_raw.csv` to compare models.
+
+#### ✅ WHAT SURVIVES: `class_balanced` is inert, and it is not a code bug
+
+`cb_lp` carries a **different** `base_model_id` (`7e92e1b76bc5` vs
+`067715022594`), so it genuinely retrained under its own cache key -- and
+landed on **byte-identical raw predictions**. The reason is arithmetic:
+`data/iwildcam/oodslice/train_labels.npy` is **exactly 2500 images in each of
+the 8 classes, imbalance 1.0x**. The class-balanced weight
+`(1-beta)/(1-beta^n_c)` normalised to mean 1 is then **exactly 1.0 for every
+class** (verified `max|w-1| = 0.0e+00` at beta 0.9999 and 0.999), and weighted
+CE with unit weights *is* plain CE.
+
+🔑 **THE 4.5x IMBALANCE QUOTED FOR iwildcam IS THE TEST SET. TRAIN IS 1.0x.**
+⇒ **any baseline whose mechanism reads the TRAINING prior is inert here.** That
+is `class_balanced` outright. Check `np.bincount(train_labels)` before claiming
+any imbalance recipe as a comparison.
+
+⚠️ **No audit this project owns catches this.** The AST audit passes -- all four
+recipe keys have readers at `src/losses/imbalanced_losses.py:85-92`. The cache
+key differs, so no collision is flagged. `audit_config` and `check_parity` are
+green. **Only hashing the raw predictions finds it**, and it is inert by DATA,
+not by code.
+
+#### 🛑 AND THE ONE THAT MATTERS FOR THE PAPER: THE PANEL IS ALLOCATOR-BLIND
+
+`full_panel` re-derives its OWN allocation from the raw probabilities for every
+arm -- `eq = equalize(P, g, G, L, cls)` -- so that arms are compared at an equal
+budget. That is correct and deliberate, and it has a consequence nobody wrote
+down: **two arms sharing a warm-up model score `+0.0000` on every
+budget-equalized metric no matter how differently they allocate.** `lp` vs
+`clip` reads `+0.0000 p=1.000` on ccF1, AP, AUROC and macroF1 while their
+deployed predictions differ in **23 of 24** cell-seeds.
+
+⇒ **The headline table cannot evaluate an allocator, by construction.** Any
+claim comparing `danits_lp` (Shifman-LP) against `heuristic` needs the
+AS-DEPLOYED numbers, not the equalized panel. On the as-deployed ccF1 with
+budgets matched (emitted counts identical), `tralo` beats `lp` by **+0.0046 in
+4/4 local cells and +0.0082 in 2/2 global cells**.
+
+#### THE SCOPE SPLIT -- `dom1` carries both, and they agree
+
+As-deployed ccF1, `tralo` minus rival, **emitted counts equal so this is not
+free fill**:
+
+| vs | LOCAL-binding (4 cells) | GLOBAL-binding (2 cells) |
 |---|---|---|
-| `lp` (danits_lp / Shifman-LP) **==** `clip` (greedy) | **24 / 24** | the LP never beats greedy here |
-| `focal_lp` **==** `focal_clip` | **24 / 24** | same, with the focal recipe |
-| `cb_lp` (class_balanced) **==** `clip` | **24 / 24** | **the training set is exactly balanced** |
-| `la_lp` (logit_adjust) vs `clip` | 0 / 24 | genuinely different |
+| `clip` | **+0.0037, 3/4** | **+0.0082, 2/2** |
+| `lp` | **+0.0046, 4/4** | **+0.0082, 2/2** |
+| `fioretto` | +0.0011, 2/4 | +0.0046, 2/2 |
+| `tralo_uniform` | +0.0034, 3/4 | +0.0052, 2/2 |
+| `tralo_reseed` (floor) | +0.0010, 3/4 | +0.0063, 2/2 |
+| `hounie` | +0.0019, 3/4 | +0.0002, 1/2 |
+| **`alm`** | **-0.0025, 1/4** | **-0.0008, 1/2** |
 
-🛑 **`class_balanced` CANNOT DO ANYTHING ON iwildcam, AND IT IS NOT A BUG.**
-`data/iwildcam/oodslice/train_labels.npy` is **exactly 2500 images in every one
-of the 8 classes** -- imbalance **1.0x**. The class-balanced weight is
-`(1-beta)/(1-beta^n_c)` normalised to mean 1, so with all `n_c` equal it is
-**exactly 1.0 for every class** (verified: `max|w-1| = 0.0e+00` at beta 0.9999
-and 0.999). Weighted CE with unit weights is arithmetically plain CE, hence
-byte-identical predictions. The code is correct; the *dataset* removes the
-method. ⚠️ Note `base_model_id` DOES differ (`7e92e1b76bc5` vs `067715022594`),
-so the cache is not colliding -- it genuinely retrained and landed in the same
-place.
-
-⚠️ **The 4.5x imbalance quoted for iwildcam is the TEST set.** Train is 1.0x by
-construction. Any baseline whose mechanism reads the TRAINING prior is
-therefore inert here: that is `class_balanced` outright, and it is why
-`logit_adjust`'s prior term is near-constant too (it survives only because
-`LogitAdjustedLoss` is not a pure per-class rescale).
-
-⇒ **The paper claims nine methodologies. On the only runnable dataset,
-`heuristic`, `danits_lp` and `class_balanced` are ONE arm**, and `focal` is one
-arm whether LP-clipped or not. Say "five distinct arms on iwildcam", and do not
-report `lp` or `cb_lp` as independent baselines without this line beside them.
-
+✅ **TraLO beats both clippers in BOTH scopes** -- which is the form the thesis
+claim needs. ⚠️ **It loses to `alm` in both**, by well under one item. ⚠️ 2
+cells is a p-floor of 0.50: the GLOBAL column is a DIRECTION, never a
+significance claim.
 
 ### 2(w4) 🔬🔬 **`order_probe` HAD NO SIGNIFICANCE GATE -- and the band/global**
 ### **DISSOCIATION it was hiding**
