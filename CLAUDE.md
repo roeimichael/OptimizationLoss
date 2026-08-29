@@ -57,6 +57,13 @@ evidence/          two tarballs: provenance for 14,524 runs, predictions for 128
 Nine methodologies, all claimed in the paper: `tralo` - duals `fioretto_ldf` / `hounie_rcl` /
 `fioretto_alm` - allocators `heuristic` (greedy clip) / `danits_lp` (LP-LG, Shifman) - and the
 imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
+⛔ **BUT ONLY FIVE ARE DISTINCT ON iwildcam** (md5 over `dom1`, 24/24 cell-seeds,
+FRAMEWORK 2(x1)): `danits_lp` == `heuristic` and `class_balanced` == `heuristic`,
+byte-identical, and `focal_lp` == `focal_clip`. `class_balanced` is inert because
+**iwildcam's TRAIN set is exactly 2500/class -- imbalance 1.0x** (the 4.5x figure is
+the TEST set), so its weights are exactly 1.0 and weighted CE is plain CE. The AST
+audit passes, `base_model_id` differs, the cache does not collide -- **only the md5
+catches it.** Never report `lp` or `cb_lp` as an independent baseline.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash

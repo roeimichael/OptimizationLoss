@@ -5433,6 +5433,115 @@ placement), `tralo_st` = the value fixed only, `tralo_margin` = both. **They
 are the next arms to run.**
 
 
+### 2(x) 🟢🟢🟢 **TraLO LEADS ALL FOUR RIVAL DUALS AT LOOSE CAPS -- `results/dom1`,**
+### **384 runs, complete 2026-08-29. The first dominance evidence in the project.**
+
+**THE CLEANEST CAMPAIGN THIS PROJECT HAS RUN.** iwildcam x {MobileNetV2,
+MobileNetV3} x {L80_G95, L90_G95, L95_G80} = 6 cells, 4 seeds, **16 arms**:
+five trained methodologies, **a lambda=0 twin for each of the four dual
+families**, the RNG floor, and four post-hoc bars. Two integrity facts first,
+because they are what make the numbers readable:
+
+🔑 **DOSE IS 100.0% FOR ALL FIVE TRAINED ARMS** -- `tralo` 696/696, `alm`
+696/696, `fioretto` 672/672, `hounie` **672/672**, `tralo_uniform` 696/696.
+`hounie` is the arm that ran at **1% dose** under `constraint_grad_mode: clip`
+(2(g)). `normalize` + `--constraint-fp32` removed the ~20x dual dose asymmetry
+entirely. **This is the first campaign in which the four duals were ever given
+a comparable dose**, and no dual-vs-dual number before it is safe.
+
+🔑 **THE POSITIVE CONTROL PASSES EXACTLY**: `tralo_null`, `fioretto_null`,
+`hounie_null` and `alm_null` are **byte-identical in 24 of 24 cell-seeds**. At
+lambda = 0 the four families ARE one run, and they md5 as one run. So the
+"compute" term is shared *exactly* across families, and every difference in the
+constraint term is attributable to the method rather than to the 29 epochs.
+
+#### THE RESULT, `full_panel --control clip` (the scorer of record), 6 cells
+
+| arm | ccF1 | AP | AUROC | macroF1 |
+|---|---|---|---|---|
+| **`tralo`** | **+0.0080 (1.86x floor) 6/6** | **+0.0462 (2.37x) 6/6** | **+0.0111 (2.18x) 6/6** | -0.0023 |
+| `alm` | +0.0075 (1.74x) 6/6 | +0.0426 (2.18x) | +0.0087 (1.71x) | -0.0028 |
+| `tralo_reseed` **(RNG FLOOR)** | **+0.0043 6/6** | **+0.0195 6/6** | **+0.0051 6/6** | -0.0011 |
+| `hounie` | +0.0042 (**0.98x -- BELOW**) | +0.0419 (2.15x) | +0.0090 (1.76x) | **+0.0007** |
+| `fioretto` | +0.0040 (**0.93x -- BELOW**) | +0.0359 (1.84x) | +0.0066 (1.29x) | -0.0030 |
+| `tralo_uniform` | +0.0034 (**0.79x -- BELOW**) | +0.0226 (1.16x) | +0.0075 (1.47x) | -0.0044 |
+| `la_lp` | +0.0023 (0.53x) | +0.0144 (0.74x) | +0.0042 (0.82x) | -0.0069 |
+| `focal_clip` | **-0.0025** | +0.0070 (0.36x) | +0.0047 (0.92x) | -0.0063 |
+
+✅ **TraLO is #1 of five on ccF1, AP and AUROC -- every metric a top-K
+allocator can see -- and it sweeps 6 of 6 cells on all three.** It is also the
+arm that clears the RNG reseed floor by the widest margin on each.
+
+🛑 **READ THE FLOOR ROW.** A pure RNG reseed also sweeps 6/6 at +0.0043 ccF1.
+So **`hounie`, `fioretto` and `tralo_uniform` do NOT clear it on ccF1** -- their
+6/6 sweeps are what doing nothing produces. Only `tralo` (1.86x) and `alm`
+(1.74x) survive their own floor, and **they are 0.38 items apart, which is
+under the one-item line, so on ccF1 they are TIED at the top.** The separation
+is on AP/AUROC, where `tralo` leads outright.
+
+#### WHERE TraLO LOSES, and it must be said
+
+⚠️ **macroF1 -- the metric the manuscript headlines -- is NEGATIVE for `tralo`
+(-0.0023) and it loses to `clip`.** `hounie` is the ONLY arm with a positive
+macroF1 (+0.0007). On NLL the ordering reverses outright: `tralo` **-0.0590**
+against `hounie` **+0.0445** (5/6). macroF1 is carried by the UNCAPPED classes
+and `uncF1` is negative for every trained arm, so **the constraint still buys
+capped-class accuracy with uncapped-class damage**. The 2(u)/2(w) damage
+finding is NOT overturned; it is confined to a different metric family.
+
+⚠️ **6 cells cannot reach `***`**: the exact Wilcoxon floor is 0.031 and BH over
+11 metrics needs 0.0045. `results/dom1b` (RegNetY400MF, 192 runs, same pin
+`1d921173`, launched 2026-08-29) brings it to **9 cells**, where the floor is
+0.0039 and a `***` becomes reachable. Score them together:
+`full_panel --campaign results/dom1 results/dom1b --control clip`.
+
+⚠️ **The pre-registration is NOT met as written.** It asked for `tralo` to beat
+each of fioretto, hounie and alm on ccF1 in >= 6 of 9 cells. Against `alm` it
+does not -- they tie. Stated plainly rather than rewritten after the fact.
+
+🔑 **AND THE COMPUTE STORY INVERTS HERE.** 2(r) measured "the win is compute,
+not method" -- every trained arm beat the clipper on the 29 extra epochs while
+TraLO's own part was +0.15 pp. In `dom1` the ccF1 **compute term is NEGATIVE
+(-0.0061 for every family, identically, because the nulls are one run)** and the
+**constraint term is +0.0141 for `tralo`**. At loose caps the constraint is
+doing the work and the extra compute is a cost. That is consistent with 2(w3)
+and is the regime this result lives in -- **all three caps here are LOOSE**.
+
+
+### 2(x1) ⛔⛔ **THREE OF THE NINE "METHODOLOGIES" ARE THE SAME ARM ON iwildcam**
+
+Found by md5 on `dom1`'s raw predictions (rule 3), 24 cell-seeds:
+
+| pair | identical | why |
+|---|---|---|
+| `lp` (danits_lp / Shifman-LP) **==** `clip` (greedy) | **24 / 24** | the LP never beats greedy here |
+| `focal_lp` **==** `focal_clip` | **24 / 24** | same, with the focal recipe |
+| `cb_lp` (class_balanced) **==** `clip` | **24 / 24** | **the training set is exactly balanced** |
+| `la_lp` (logit_adjust) vs `clip` | 0 / 24 | genuinely different |
+
+🛑 **`class_balanced` CANNOT DO ANYTHING ON iwildcam, AND IT IS NOT A BUG.**
+`data/iwildcam/oodslice/train_labels.npy` is **exactly 2500 images in every one
+of the 8 classes** -- imbalance **1.0x**. The class-balanced weight is
+`(1-beta)/(1-beta^n_c)` normalised to mean 1, so with all `n_c` equal it is
+**exactly 1.0 for every class** (verified: `max|w-1| = 0.0e+00` at beta 0.9999
+and 0.999). Weighted CE with unit weights is arithmetically plain CE, hence
+byte-identical predictions. The code is correct; the *dataset* removes the
+method. ⚠️ Note `base_model_id` DOES differ (`7e92e1b76bc5` vs `067715022594`),
+so the cache is not colliding -- it genuinely retrained and landed in the same
+place.
+
+⚠️ **The 4.5x imbalance quoted for iwildcam is the TEST set.** Train is 1.0x by
+construction. Any baseline whose mechanism reads the TRAINING prior is
+therefore inert here: that is `class_balanced` outright, and it is why
+`logit_adjust`'s prior term is near-constant too (it survives only because
+`LogitAdjustedLoss` is not a pure per-class rescale).
+
+⇒ **The paper claims nine methodologies. On the only runnable dataset,
+`heuristic`, `danits_lp` and `class_balanced` are ONE arm**, and `focal` is one
+arm whether LP-clipped or not. Say "five distinct arms on iwildcam", and do not
+report `lp` or `cb_lp` as independent baselines without this line beside them.
+
+
 ### 2(w4) 🔬🔬 **`order_probe` HAD NO SIGNIFICANCE GATE -- and the band/global**
 ### **DISSOCIATION it was hiding**
 
