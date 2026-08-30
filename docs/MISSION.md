@@ -5,7 +5,7 @@
 every working session. If it is stale, that is a defect -- fix it before doing
 anything else.
 
-Last updated: **2026-08-30**.
+Last updated: **2026-08-30** (second pass: the mechanism, and the independent-n correction).
 
 ---
 
@@ -18,10 +18,10 @@ backbone at one cap". The bar the work is held to:
 | axis | required | have now | gap |
 |---|---|---|---|
 | **datasets** | **3** | **1** (iwildcam) | `fmow` screened + passes the factorial gate, needs ~21k images. Third TBD |
-| **backbones** | **3** | 2 in `dom1` (**both MobileNet**) + RegNet landing | ViTB16 at LOOSE caps is the hole |
+| **backbones** | **3** | **4 exist**: MobileNetV2/V3 (`dom1`), RegNetY400MF (`dom1b`), **ViTB16 (`vitu1` tight + `loosevit1` loose, already complete)** | not coverage -- CELLS. ViTB16 has 3 tight + 2 loose contrast cells and **no rival-dual arms at all** |
 | **constraint pairs** | **varied**, both **equal and unequal** local:global ratios | 3, **all loose**, only 1 unequal-binding | `margin2`'s matched 2x2 (4 tags, 2 budgets x 2 scopes) closes this the moment a GPU frees |
-| **consistency** | wins across **regimes**, not one | wins at L80-L95 only; **loses at L20-L50** | the central open problem |
-| **metrics** | ccF1 **and** macroF1 both defensible | ccF1 +, **macroF1 NEGATIVE** | the central open problem |
+| **consistency** | wins across **regimes**, not one | wins at L80-L95; **loses at L20-L50, and now we know why** | the mechanism is found (2(y)); the question is whether ANY count function can fix it |
+| **metrics** | ccF1 **and** macroF1 both defensible | backbone-dependent: macroF1 **-0.0022 on MobileNet** (`dom1`) but **+0.0196 tight / +0.0021 loose on ViTB16** | the damage is a REPRESENTATION effect (2(z1)), not allocation -- and it is not universal |
 
 🛑 **Winning only at L80/L90 is not a result.** If TraLO loses at every other
 constraint pair, the claim is "TraLO helps when the constraint barely binds",
@@ -47,21 +47,45 @@ which is not the thesis.
 | TraLO > fioretto | **AP 3/6 cells, p=1.00. A coin flip.** |
 | TraLO > alm | 4/6 on everything, p=0.69. Not shown. |
 | TraLO > hounie | 6/6 AP+AUROC, p=0.031 -- **fails BH** |
-| Anything survives correction | **0 of 20 contrasts.** Structural: at 6 cells the sign floor is 0.031, so best q = 0.62 |
-| macroF1 | **-0.0022, 2/6 cells -- BELOW the reseed floor.** `hounie` is the only positive arm |
+| Anything survives correction | **0 of 20 contrasts** -- and it is worse than that: the independent unit is **(model, seed) = 8**, not 6 cells, because a lambda=0 twin is byte-identical across cap tags. **8 of 9 dom1 sweeps evaporate at n=8**; only class 4's allocated damage survives (0/8, p=0.0078). FRAMEWORK 2(z) |
+| macroF1 | **-0.0022, 2/6 on MobileNet** -- but **+0.0196 (3/3) tight and +0.0021 loose on ViTB16**, against a reseed floor of -0.0366 loose. Backbone-dependent, and the damage is REPRESENTATION drift, not allocation (RAW -0.0107 is 44% LARGER than deployed -0.0074) |
 | TraLO enforces better | **REFUTED.** Pulls +6.2 items vs hounie +23.4. The WEAKEST of the four |
 | Constraints ever satisfied in training | **0 of 696 epochs.** The post-hoc allocator does all of it |
 | dom1 is the headline | **No.** FRAMEWORK 1-pre fixed **ViTB16** a priori; dom1 has none |
 
-### The mechanism we currently believe
+### The mechanism -- FOUND 2026-08-30, and it is geometric
 
-TraLO improves the **capped** classes (+10.7 items ccF1) by **damaging the
-uncapped** ones (uncF1 -0.0077, 1/6), and the net on macroF1 is **negative**.
-The gain is concentrated where the **global** scope binds (`L95_G80`: AP +0.0439
-vs fioretto) and reverses where the **local** scope binds (`L80_G95`: -0.0084) --
-**at an identical budget**, so it is scope, not tightness.
+**`gap = hard_count - K` is the distance between the point the penalty pushes
+(the decision boundary) and the point the metric reads (the cut).** The allocator
+emits exactly K by rank, so quality is decided at rank K; but `p(1-p)` peaks at
+the boundary, and `margin` windows the boundary too.
 
----
+| regime | gap (items) | p at the cut | boundary/cut gradient ratio |
+|---|---|---|---|
+| LOOSE K/n=0.90 | 14 - 76 | 0.68 - 0.96 | **1.9 - 6.6x** |
+| TIGHT K/n=0.20 | 235 - 442 | 0.999 - 1.000 | **420 - 81,926x** |
+
+12 of 26 measured points have the cut in a dead zone, and the split is **exactly
+by K/n** -- not by dataset, not by backbone. Since `gap ~ n_pos (1 - K/n)`, this
+is structural and would reproduce on any dataset.
+
+⇒ **at loose caps the penalty's pressure lands near the cut and helps; at tight
+caps it lands 200-440 ranks away and is pure damage.** That is the whole regime
+reversal, and it also explains `uniform`: a flat per-item slope declines to aim,
+which loses where aiming pays (loose) and wins where there is nowhere good to aim
+(tight). Confirmed WITHIN campaigns on ViTB16 -- `tralo` AP **-0.0933** tight /
+**+0.0064** loose, `tralo_uniform` **+0.0087** tight / **-0.0091** loose.
+
+⛔ **The count-function family cannot reach the cut.** A cut-centred count is
+pinned to K-1 for any model (`margin_window`'s docstring; the detach variant was
+checked 2026-08-30 and is not a way out). So the tight regime is closed to this
+family by geometry, not by dose or shape.
+
+🎯 **The falsifiable consequence, written before `margin2` runs:** `margin`
+windows the boundary, so it should gain in the 6 LOOSE cells and NOT in the 6
+TIGHT ones. If it gains at tight caps, this mechanism is wrong.
+
+Tool: `python -m scripts.cut_gap <roots>` (`--self-test` gates it). FRAMEWORK 2(y).
 
 ## 2. THE KNOB LEDGER -- what has been tried on TraLO itself
 
@@ -69,9 +93,9 @@ vs fioretto) and reverses where the **local** scope binds (`L80_G95`: -0.0084) -
 
 | knob | verdict | evidence |
 |---|---|---|
-| `soft_count_mode: sum` (shipped) | 🟡 wins LOOSE, loses TIGHT | AP +0.0253 loose / -0.0572..-0.0933 tight |
-| `soft_count_mode: uniform` | 🟡 the mirror: fixes TIGHT, weak LOOSE | `uniform1` -0.0754 -> +0.0030 |
-| `soft_count_mode: margin` | ❓ **NEVER RUN** -- staged in `launch_margin2.sh` | the only arm that can reorder on the direct channel |
+| `soft_count_mode: sum` (shipped) | 🟡 wins LOOSE, loses TIGHT -- **and the reason is now known**, 2(y) | AP +0.0253..+0.0064 loose / -0.0572..-0.0933 tight. The gradient sits at the boundary, 200-440 ranks from the cut when the cap is tight |
+| `soft_count_mode: uniform` | ✅ **the tight-cap tool**, and 2(y) says why: a flat slope declines to aim | ViTB16 AP **+0.0087 tight** (only arm above the floor) / **-0.0091 loose**. `uniform1` -0.0754 -> +0.0030 |
+| `soft_count_mode: margin` | ❓ **NEVER RUN** -- staged in `launch_margin2.sh`. 🎯 **PREDICTED to gain LOOSE and NOT tight** (2(y)): it windows the BOUNDARY, which is the wrong point at tight caps | the only arm that can reorder on the direct channel |
 | `tralo_st` (hard-count value fix) | ❓ **NEVER RUN** -- same campaign | isolates VALUE from PLACEMENT |
 | `straight_through` | ✅ keeps count value exact | -- |
 | `constraint_grad_mode: normalize` | ✅ **required** -- `clip` gives a ~20x dose spread across duals | `check_parity` refuses `clip` |
@@ -88,6 +112,7 @@ vs fioretto) and reverses where the **local** scope binds (`L80_G95`: -0.0084) -
 | KL anchor | ⛔ deleted from the pipeline | |
 | `select` arm | ⛔ worst measured, -22 items | |
 | `rank` / `beta` arms | ⛔ null / rejected | |
+| cut-centred count `sigma((p-tau_K)/T)` | ⛔ **CLOSED BY ALGEBRA** -- counts items above the K-th largest = K-1 for ANY model. Detaching `tau` gives a gradient but was not shown to measure the violation | `margin_window` docstring; re-checked 2026-08-30 |
 
 🎯 **The next knob is `margin` + `st` + `coin`** -- `docs/launch_margin2.sh`,
 **432 runs, 12 cells**, re-validated 2026-08-30 (`gen_campaign` emits 432,
@@ -145,32 +170,37 @@ distribution", not "local vs global".
 Work top-down. When one finishes, score it, update sections 1-2 of this file
 and FRAMEWORK 3(0), then start the next.
 
-1. 🔴 **`dom1b` -> 9 cells.** Running (dsisco01 GPU 3). On landing:
-   `full_panel --campaign results/dom1 results/dom1b --control clip` and
-   `--control tralo_null`. **Pre-register the primary contrast BEFORE scoring.**
-   It is also the out-of-sample test of the L95_G80 scope hypothesis on a
-   genuinely different architecture.
-2. 🔴 **Loose-cap ViTB16 at >= 6 cells.** The pre-registered headline backbone,
-   currently 2 cells at loose caps. Decides whether `dom1` is about TraLO or
-   about MobileNet. **Highest-value missing run.**
-3. 🔴 **`margin2`** (`docs/launch_margin2.sh`, **432 runs, 12 cells**, ready
-   and re-validated 2026-08-30). The next real TraLO improvement, and the only
-   queued campaign that spans TIGHT + LOOSE + both scopes at ONE code_version.
-   **Pre-registration is written into the script header and is now fixed** --
-   one primary (`tralo_margin` - `tralo` on AP, >= 10 of 12 cells, p=0.0386),
-   with regime-consistency, the reseed floor, scope, the `tralo_coin`
-   placement control and **macroF1/uncF1** as named secondaries. It may not be
-   edited again now that it is queued.
-   ⛔ BLOCKED ON A GPU, not on readiness -- 2026-08-30 all 4 GPUs on dsisco02
-   (nirgal, zehavid) and 3 of 4 on dsisco01 are other users'; the 4th is our
-   own `dom1b`.
-4. 🟡 **A tight-cap campaign that can actually resolve** -- the current tight-cap
-   nulls are underpowered, not negative. Either more cells or a cap where the
-   prize clears the noise (2(v): K/n=0.9 needs 7 seeds, L20 needs 2607).
-5. 🟡 **Unequal L:G ratios beyond L95_G80** -- e.g. `L50_G20`, `L70_G40`, to test
-   the scope hypothesis at other budgets.
+1. 🔴 **ViTB16 LOOSE, from 2 cells to >= 6.** `loosevit1` already exists, is
+   100% dose, md5-clean, single `code_version`, carries `tralo_null` +
+   `tralo_reseed` + both clippers -- and on it **`tralo` is positive on every
+   metric including macroF1** (AP +0.0064, ccF1 +0.0017, macroF1 +0.0021, all
+   2/0) against a reseed floor that is NEGATIVE (AP -0.0113, macroF1 -0.0366).
+   That is the best-looking result in the project and it sits on **2 cells,
+   min attainable p = 0.500, NOT CALLABLE**. More loose cap tags on ViTB16
+   (L85, L95, plus the matched `L95_G80`) is the cheapest route to a callable
+   headline. **Highest value per GPU-hour available.**
+2. 🔴 **`margin2`** (`docs/launch_margin2.sh`, 432 runs, 12 cells, validated
+   2026-08-30, pre-registration fixed). Now carries a falsifiable prediction
+   from 2(y): gain in the 6 LOOSE cells, none in the 6 TIGHT ones.
+   ⛔ Blocked on a GPU, not on readiness.
+3. 🔴 **ViTB16 needs RIVAL DUALS.** `hounie`, `fioretto`, `alm`, `danits_lp` have
+   **never run on ViTB16 on iwildcam** -- they exist there only in the dermmnist
+   `vit_diag`/`vit_ceskip` campaigns, which are 86/97 pending on a dataset that
+   is removed from disk. So the `dom1` dominance claim **cannot be reproduced on
+   the pre-registered headline backbone** without new GPU time. This is the
+   single biggest hole in the dominance story.
+4. 🟡 **`dom1b`** -- running, ~137/192 at last check. On landing:
+   `full_panel --campaign results/dom1 results/dom1b`, but **report at n =
+   (model, seed), not cells** (2(z)).
+5. 🟡 **Unequal L:G ratios beyond L95_G80** -- `margin2`'s matched 2x2 covers two
+   budgets; `L50_G20` / `L70_G40` would extend it.
 6. 🟢 **`fmow` images (~21k)** -- the only route to dataset #2. Needs the user's
    go-ahead for the download.
+
+⛔ **Do NOT re-run ViTB16 tight caps.** `vitu1` is complete, 100% dose, and says
+`tralo` is 6.6x WORSE than the RNG floor there (AP -0.0933 vs -0.0142). 2(y)
+explains why and predicts no count function fixes it. `iwc2` is also ViTB16 tight
+but ran at **74.6% dose** (fp16 without `--constraint-fp32`) -- drop it.
 
 ---
 

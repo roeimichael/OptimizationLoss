@@ -1957,6 +1957,139 @@ small, self-selected subset -- a recipe for overfitting it, the exact failure
   gains **+0.030 ccP over its own lambda=0 control**. The pessimistic reading ("only AUROC can
   move") is a single-class result and does not survive the looser cap.
 
+### (y) THE REGIME REVERSAL HAS A MECHANISM: the boundary is not the cut
+
+**Measured 2026-08-30, `scripts/cut_gap.py` (`--self-test` gates it), over 5
+campaigns, 3 backbones, 2 capped classes, 4 seeds.** This is the explanation for
+2(w)'s reversal, which until now was an unexplained empirical fact.
+
+Every count penalty this project ships puts its per-item gradient at or near the
+**decision boundary**. `sum`'s weight is `p(1-p)`, maximal at p = 0.5, i.e. on
+items one step from flipping. `margin` windows that same point explicitly. But
+deployed quality is decided at the **cut**: the post-hoc allocator emits exactly
+K items by probability rank, whatever the model's hard count is. Those are
+different items, and `gap = hard_count - K` is the distance between them.
+
+| regime | cap | gap (items) | p at the cut | slope_bd / slope_K |
+|---|---|---|---|---|
+| LOOSE K/n=0.90 | L90_G95 | 14 - 76 | 0.676 - 0.959 | 1.9 - 6.6 |
+| LOOSE K/n=0.80 | L80_G95 | 51 - 123 | 0.832 - 0.995 | 2.8 - 47.3 |
+| TIGHT K/n=0.30 | L30_G50 / L50_G30 | 198 - 397 | 0.997 - 1.000 | 79 - 32,387 |
+| TIGHT K/n=0.20 | L20_G50 | 235 - 442 | 0.999 - 1.000 | 420 - 81,926 |
+
+**12 of 26 (campaign, cap, class) points have the cut in a dead zone**
+(`p(1-p) < 0.005` at rank K), and the split is exactly by K/n: every dead point
+is at 0.20 or 0.30, every live one at 0.80 or 0.90. Not by dataset, not by
+backbone.
+
+At a loose cap the two points are ~25 items apart and carry comparable gradient,
+so pressure aimed at the boundary lands near the cut. At a tight cap they are
+200-440 items apart and the cut sits at p = 0.9999, where `p(1-p)` is 0.0001 --
+**four to five orders of magnitude less pull than the boundary carries**. The
+push is not weak. It is aimed somewhere the metric never looks.
+
+🔑 **AND IT IS STRUCTURAL, NOT A PROPERTY OF iwildcam.** `gap = hard - K`, and
+the hard count is roughly `n_pos` for any reasonably calibrated model, so
+`gap ~ n_pos (1 - K/n)`. The gap is set by the CAP FRACTION and vanishes only as
+K/n -> 1. Any boundary-concentrating count penalty inherits this on any dataset.
+
+✅ **IT EXPLAINS `uniform`, WHICH WAS PREVIOUSLY JUST AN OBSERVATION.**
+`uniform_grad_count`'s per-item slope is a population constant, so it does not
+concentrate at the boundary: a liability at loose caps (it declines to aim where
+aiming pays) and an asset at tight ones (there is no good place to aim, so
+spreading beats missing). Confirmed on **ViTB16**, the headline backbone, and the
+arms are compared WITHIN a campaign so the amp/host difference between `vitu1`
+and `loosevit1` does not touch it:
+
+| ViTB16, vs its own lambda=0 twin | `tralo` (sum) AP | `tralo_uniform` AP |
+|---|---|---|
+| TIGHT `vitu1`, 3 cells | **-0.0933** (0/3) | **+0.0087** (2/1) |
+| LOOSE `loosevit1`, 2 cells | **+0.0064** (2/0) | **-0.0091** (0/2) |
+
+The reseed floor is AP -0.0142 (tight) and -0.0113 (loose). So at tight caps
+`tralo` is **6.6x WORSE than the RNG floor**, and `uniform` is the only arm above
+it; at loose caps that ordering inverts. ⚠️ Neither campaign is callable on its
+own (min attainable p = 0.250 at 3 cells, 0.500 at 2), so this is a DIRECTION
+claim across two campaigns, not a significant one.
+
+🎯 **WHAT IT PREDICTS, RECORDED BEFORE `margin2` LAUNCHES.** `soft_count_mode:
+margin` windows the BOUNDARY, so it cannot fix the tight regime -- it aims the
+same pressure at the same wrong point, only more sharply. `margin2` runs 6 tight
+cells and 6 loose ones; the prediction is that `tralo_margin` gains in the LOOSE
+cells and does NOT in the tight ones. **If it gains at tight caps this mechanism
+is wrong**, and that is the point of writing it down first.
+
+⛔ **AND THE OBVIOUS FIX IS ALREADY CLOSED.** A cut-centred count
+`sigma((p_ic - tau_c)/T)` with `tau_c` the K-th order statistic counts the items
+above the K-th largest, which is **K - 1 exactly, for any model**
+(`src/losses/transductive_loss.py: margin_window`). Checked 2026-08-30 whether
+detaching `tau` evades that: it does produce a non-zero gradient, so the stated
+"identically zero" reasoning is exact only in the T -> 0 limit -- but the
+detached variant was not shown to measure the violation either, and nothing here
+recommends building it. ⇒ **the count-function family cannot reach the cut**, and
+the tight regime is closed to it by geometry rather than by dose or shape.
+
+### (z) THE INDEPENDENT UNIT IS (model, seed), NOT THE CELL -- 8 of 9 dom1 significances evaporate
+
+**Measured 2026-08-30 on `dom1`.** A lambda=0 twin's raw predictions are
+**byte-identical across cap tags** (md5, 4/4 seeds, both backbones) -- correct by
+construction, since at lambda=0 the cap touches only the allocator. So the three
+cap levels within one (model, seed) share ONE control, and counting them as three
+independent cells triple-counts the control.
+
+The correct independent unit is **(model, seed) = 8**, with the caps as
+correlated replicates. `full_panel` states this itself in its parity block and it
+was not being read.
+
+| result on dom1 | as 6 cells | at n=8 | verdict |
+|---|---|---|---|
+| RAW capped, tralo-null | p=0.031 | 7/8, p=0.0703 | evaporates |
+| ALLOC capped, tralo-null | p=0.031 | 7/8, p=0.0703 | evaporates |
+| ALLOC c2 / c7, tralo-null | p=0.031 | 7/8, p=0.0703 | evaporates |
+| RAW capped, tralo-reseed | p=0.031 | 7/8, p=0.0703 | evaporates |
+| LP-minus-topK allocator cost | p=0.031 | 2/8, p=0.2891 | evaporates |
+| **ALLOC class 4, tralo-null, -0.0411** | p=0.031 | **0/8, p=0.0078** | **SURVIVES** |
+
+⚠️ Class 3 is also 0/8 (p=0.0078) at a mean of **-0.0005** -- perfect sign
+consistency at numerically zero magnitude. Sign without magnitude is not an
+effect; quote both.
+
+🛑 **Every "6/6 cells" ever reported on a 3-cap campaign must be restated this
+way.** The claim in 3(0) that dom1's sweeps were bare-but-real was too generous.
+
+### (z1) THE RAW CAPPED GAIN IS REAL, AND THE ALLOCATOR KEEPS 35% OF IT
+
+Two corrections to how dom1 was read, both measured 2026-08-30.
+
+**The raw gain is not a budget artifact, but it is smaller than argmax says.**
+`final_predictions_raw.csv` is a plain argmax and is NOT budget-equalized, so the
+first reading (+0.0436 capped ccF1, 6/6) mixed quality with count. Re-scored with
+both arms taking top-K at the SAME K: **+0.0363, 5/6, p=0.219**. So 83% is
+quality -- corroborated directly by **+30 true positives at an identical K=380**,
+which no arithmetic can manufacture -- but the sweep does not survive, and at the
+correct n=8 nothing here is callable.
+
+**The constraint does NOT simply push counts down.** It suppresses class 7 by
+**-31.9 items** (0/6) and *inflates* class 2 by **+19.4** (5/6): it redistributes
+softmax mass rather than shrinking it. The run configs corroborate this
+independently (`reordering.class_2.soft_before 337.0 -> soft_after 356.6`).
+⇒ never describe the constraint as "reducing the count" without naming the class.
+
+**What the allocator costs is the RULE, not the budget.** At three matched
+budgets: a global top-K at the allocator's own K keeps **+0.0344**, the LP keeps
+**+0.0121**. The tighter budget costs 0.0019 (5%); the LP allocation rule costs
+0.0223 (**65%**). The LP imposes the same per-group budgets on both arms -- 7 of
+14 per-group ceilings are K=0 on iwildcam -- which forces the two arms' deployed
+outputs toward each other and absorbs most of the ranking difference.
+⚠️ At n=8 this contrast is 2/8, p=0.289: the magnitude is large, the sign
+consistency is not established.
+
+**The uncapped damage is in the MODEL, not the allocator.** It is fully present
+pre-allocator (RAW -0.0107) and is **44% larger there than deployed** (-0.0074),
+so allocation cannot be its source. It is concentrated in exactly two classes
+(c1 -0.0330, c4 -0.0411) and nearly cancelled by c6 (+0.0234). Only c4 has an
+allocator-attributable component: ~7.7 evicted items/run land there.
+
 ### (d) Retracted results -- claims that did not survive re-measurement
 
 - **"TraLO beats the clipper"** -- beat `focal_clip` only; `clip` beats `focal_clip` by more.
