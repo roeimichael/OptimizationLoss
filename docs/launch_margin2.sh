@@ -122,17 +122,38 @@
 #   cells (3 backbones x {L30_G50, L50_G30}) and 6 LOOSE cells (3 backbones x
 #   {L80_G95, L95_G80}).
 #
+#   🛑 THE UNIT IS (model, seed), NOT THE CELL. The 12 cells are NOT 12
+#   independent draws, and pretending otherwise is the exact error FRAMEWORK
+#   2(z) caught on dom1. Two reasons, both checked with `verify_caps`:
+#     * `L80_G95` and `L95_G80` give class 2 the SAME K=296, and `L30_G50` /
+#       `L50_G30` the same K=111. Each pair is ONE budget through two scopes,
+#       so the pair members are matched replicates, not independent cells.
+#     * all four cap tags within one (model, seed) share ONE warm-up model.
+#   The independent unit is therefore **(model, seed) = 3 x 4 = 12**, which
+#   really are independent -- each seed trains its own warm-up, with its own
+#   `base_model_id`. Average the 4 cap tags within a (model, seed), then sign
+#   test over those 12. It is a coincidence that 3x4 and 3x4 are both 12; the
+#   number is the same and the UNIT is not, so say which one you mean.
+#
 #   PRIMARY, and there is exactly ONE so BH has a multiplier of 1:
-#     `tralo_margin` - `tralo`, on **AP**, exact two-sided sign test over all
-#     12 cells. PASS = positive in >= 10 of 12 (p = 2*79/4096 = 0.0386).
-#     9 of 12 is p = 0.1460 and does NOT pass. Every other number below is
-#     SECONDARY and must be reported with that word attached.
+#     `tralo_margin` - `tralo`, on **AP**, exact two-sided sign test over the
+#     12 independent (model, seed) units. PASS = positive in >= 10 of 12
+#     (p = 2*79/4096 = 0.0386). 9 of 12 is p = 0.1460 and does NOT pass.
+#     Report the 12-CELL sign test beside it, labelled as the correlated
+#     reading, so the two can be compared -- but the PRIMARY is the unit one.
+#     Every other number below is SECONDARY and carries that word.
 #
 #   SECONDARY, pre-specified so they cannot be fished for afterwards:
 #     * REGIME CONSISTENCY -- the reason the 2x2 exists. `tralo_margin` -
 #       `tralo` positive in >= 4 of the 6 TIGHT cells AND >= 4 of the 6 LOOSE
 #       cells. A method that buys one regime with the other has fixed nothing,
 #       and that is exactly the failure mode of the two shipped counts.
+#       🎯 ⚠️ AND THE MECHANISM PREDICTS THIS FAILS. FRAMEWORK 2(y),
+#       written 2026-08-30 BEFORE this campaign ran: `margin` windows the
+#       DECISION BOUNDARY, and at K/n=0.30 the boundary sits 198-397 items
+#       from the cut, where the deployed metric is decided. So the prediction
+#       on record is LOOSE gains, TIGHT does not. If the tight cells gain,
+#       2(y) is wrong and that is the more valuable outcome of the two.
 #     * FLOOR -- both must clear `tralo_reseed` - `tralo_null` on the same
 #       metric and cells. An arm at or below the RNG floor produced nothing.
 #     * SCOPE -- `tralo` - `fioretto` larger in the GLOBAL-binding cells than

@@ -4398,6 +4398,11 @@ def test_a_launch_scripts_stated_SIZE_and_SIGN_TEST_are_arithmetic_not_prose():
 
     src = open(os.path.join(REPO, "docs/launch_margin2.sh"),
                 encoding="utf-8").read()
+    # The header is PROSE and wraps. Anchoring a pattern to one physical line
+    # makes the gate fail on a harmless reflow and -- worse -- pass if someone
+    # reflows a threshold out of existence. Strip the comment markers and
+    # collapse whitespace, so the checks below read meaning, not layout.
+    flat = re.sub(r"\s+", " ", re.sub(r"(?m)^#", "", src))
 
     # The invocation spans several lines with continuations, so join them
     # before tokenising -- a regex that stops at the newline reads 5 of the
@@ -4443,7 +4448,7 @@ def test_a_launch_scripts_stated_SIZE_and_SIGN_TEST_are_arithmetic_not_prose():
 
     # the PASS threshold, and the value it is contrasted against, are both
     # asserted so neither can drift from the cell count.
-    m = re.search(r"PASS = positive in >= (\d+) of (\d+) \(p = 2\*(\d+)/(\d+) = ([\d.]+)\)", src)
+    m = re.search(r"PASS = positive in >= (\d+) of (\d+) \(p = 2\*(\d+)/(\d+) = ([\d.]+)\)", flat)
     assert m, "the primary PASS threshold is not stated in a checkable form"
     k, n, num, den, p = (int(m.group(1)), int(m.group(2)), int(m.group(3)),
                          int(m.group(4)), float(m.group(5)))
@@ -4454,7 +4459,7 @@ def test_a_launch_scripts_stated_SIZE_and_SIGN_TEST_are_arithmetic_not_prose():
         "%d of %d is p=%.4f, header says %.4f" % (k, n, two_sided(k, n), p))
     assert p < 0.05, "the stated PASS threshold does not actually pass"
     # and the near miss must be stated as a FAIL, so nobody reads k-1 as a win
-    m = re.search(r"(\d+) of (\d+) is p = ([\d.]+) and does NOT pass", src)
+    m = re.search(r"(\d+) of (\d+) is p = ([\d.]+) and does NOT pass", flat)
     assert m and int(m.group(1)) == k - 1 and int(m.group(2)) == n, (
         "the header does not state the near-miss cell count as a failure")
     assert abs(two_sided(k - 1, n) - float(m.group(3))) < 5e-5
@@ -4462,12 +4467,27 @@ def test_a_launch_scripts_stated_SIZE_and_SIGN_TEST_are_arithmetic_not_prose():
 
     # the regime split must PARTITION the cells, not overlap or leave a gap:
     # a secondary stated over more cells than exist is unfalsifiable.
-    m = re.search(r">= (\d+) of the (\d+) TIGHT cells AND >= (\d+) of the (\d+) LOOSE", src)
+    m = re.search(r">= (\d+) of the (\d+) TIGHT cells AND >= (\d+) of the (\d+) LOOSE", flat)
     assert m, "the regime-consistency secondary is not stated in a checkable form"
     assert int(m.group(2)) + int(m.group(4)) == cells, (
         "TIGHT %s + LOOSE %s != %d cells" % (m.group(2), m.group(4), cells))
 
     # macroF1 is the metric the user has had to ask for twice. It is a NAMED
     # secondary here, and this gate is what keeps it named.
-    assert "macroF1 AND uncF1" in src, (
+    assert "macroF1 AND uncF1" in flat, (
         "macroF1/uncF1 dropped out of the pre-registered secondaries")
+
+    # The cells are NOT independent: `verify_caps` reports that L80_G95 and
+    # L95_G80 give class 2 the same K=296, and L30_G50/L50_G30 the same K=111,
+    # so each pair is one budget through two scopes; and all four tags within a
+    # (model, seed) share one warm-up. Counting them as independent draws is
+    # the error FRAMEWORK 2(z) caught on dom1, where 8 of 9 sweeps evaporated
+    # once the unit was corrected. A pre-registration that does not name its
+    # unit will be read at whichever n flatters the result.
+    assert "(model, seed)" in flat, (
+        "the header never names its independent unit -- with two matched cap "
+        "pairs and a shared warm-up, `12 cells` is not 12 independent draws")
+    assert re.search(r"sign test over the \d+ independent \(model, seed\) units",
+                     flat), (
+        "the primary must state that its sign test runs over independent "
+        "(model, seed) units, not over cells")
