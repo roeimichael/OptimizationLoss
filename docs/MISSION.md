@@ -194,6 +194,16 @@ distribution", not "local vs global".
 Work top-down. When one finishes, score it, update sections 1-2 of this file
 and FRAMEWORK 3(0), then start the next.
 
+0. 🟢 **RUNNING: `equaldose1`** (216 runs, dsisco01 GPU 3, pin `10d37518`).
+   Is the dominance claim a 3.4% head start? `tralo` and `alm` attempt 29
+   constraint steps per run, `fioretto` and `hounie` 28, at identical
+   `constraint_epochs: 29` -- verified at the gradient level (epoch-1 grad norm
+   3.09 vs **0.0**). `tralo_lam0` starts lambda at 0 so its first step carries a
+   zero gradient exactly as theirs does. **The first thing to check on the
+   first completed run is `Grad_Norm` at epoch 1: 0.0 for `tralo_lam0`, ~3.09
+   for `tralo`. If not, the arm is inert and the campaign is void.**
+   ⚠️ 8 independent (model, seed) units, so only 8/8 (p=0.0078) is significant;
+   7/8 is p=0.0703 and is a DIRECTION. Say which was met.
 1. 🔴 **ViTB16 LOOSE, from 2 cells to >= 6.** `loosevit1` already exists, is
    100% dose, md5-clean, single `code_version`, carries `tralo_null` +
    `tralo_reseed` + both clippers -- and on it **`tralo` is positive on every
@@ -203,7 +213,10 @@ and FRAMEWORK 3(0), then start the next.
    min attainable p = 0.500, NOT CALLABLE**. More loose cap tags on ViTB16
    (L85, L95, plus the matched `L95_G80`) is the cheapest route to a callable
    headline. **Highest value per GPU-hour available.**
-2. 🔴 **`vitdom1`** (`docs/launch_vitdom1.sh`, 240 runs, 6 cells, validated
+2. ⏸️ **`vitdom1` -- HELD pending the 0-PRE decision.** 240 ViTB16 runs
+   pointed at a paper section that may not exist. Ready and validated; do not
+   launch until A/B/C is chosen.
+   🔴 **`vitdom1`** (`docs/launch_vitdom1.sh`, 240 runs, 6 cells, validated
    2026-08-30). **ViTB16 has never run a single rival dual on iwildcam**, so
    the dominance claim cannot be reproduced on the pre-registered headline
    backbone. Six LOOSE cap tags, five distinct budgets plus the `L80_G95` /
