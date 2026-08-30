@@ -104,6 +104,12 @@ python -m scripts.full_panel --campaign <root> --control clip   # THE scorer, se
 #     lost 328 of 1044. full_panel refuses to compare arms more than 5
 #     percentage points apart -- but only once you look.
 python -m scripts.log_health <root>        # what the OPTIMISATION did, per run, from
+#   🛑 ITS CROSS-ARM COUNT TABLE IS NOT COMPARABLE. The arms write different
+#   log SCHEMAS (tralo* 76 cols, hounie 16, alm 15, fioretto 14), and for every
+#   TRAINED arm the last logged `Hard_Class2` disagrees with the model's actual
+#   predictions (alm logs 340, emits 467; 0/24 agree) while both nulls agree
+#   24/24. Reading that table gave the EXACT OPPOSITE of the truth on dom1.
+#   Measure any count from `final_predictions_raw.csv`. FRAMEWORK 3(0c).
                                             #   training_log.csv -- collapse, divergence,
                                             #   satisfaction, count trajectory vs K
 python -m scripts.paired_seeds <scan-root>  # each arm minus its OWN lambda=0 twin, per seed
@@ -474,7 +480,9 @@ alone. See `docs/FRAMEWORK.md` section 2(n).
 
 ## Backbones
 
-`MobileNetV3` (headline), `MobileNetV2`, `RegNetY400MF`, `ViTB16`. **Nothing else** -- these are
+**`ViTB16` IS THE HEADLINE**, fixed a priori 2026-08-20 (FRAMEWORK 1-pre) so a win found on
+another backbone cannot be promoted after the fact. `MobileNetV3`, `MobileNetV2`,
+`RegNetY400MF` are the other three. **Nothing else** -- these are
 exactly the four the paper claims. ShuffleNetV2 and the small CNNs were deleted; they appear in
 no `.tex` file.
 

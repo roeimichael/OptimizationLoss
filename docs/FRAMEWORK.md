@@ -6011,6 +6011,138 @@ null -- which is what `uniform1` pre-registered, in those words.
 
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
+### 3(0) 🛑 **STATUS BOARD, updated 2026-08-30 -- read this before section 3's older text**
+
+Section 3 below was written against the warm-up-50 corpus and is HISTORY. This
+board is the live state. It is updated every time a campaign lands; if it is
+stale, that is a defect.
+
+| claim | status | evidence | what would kill it |
+|---|---|---|---|
+| Constraint HELPS at loose caps | 🟢 holds | `loose1` AP +0.0253 5/1 vs a tying reseed | a loose-cap null that also moves |
+| Constraint HARMS at tight caps | 🔴 holds | `iwc4` AP -0.0572 9/9; `vitu1` **-0.0933 0/3** | -- |
+| TraLO > `clip` at loose caps | 🟢 holds | `dom1` 6/6 cells ccF1/AP/AUROC | dom1b reversing it |
+| TraLO > **hounie** | 🟡 direction | `dom1` AP+AUROC 6/6, p=0.031, **fails BH** | 9-cell read |
+| TraLO > **fioretto** | 🔴 **NOT shown** | AP **3/6 cells, p=1.00** -- a coin flip | -- |
+| TraLO > **alm** | 🔴 **NOT shown** | 4/6 on every metric, p=0.69 | -- |
+| TraLO is a better ENFORCER | 🔴 **REFUTED** | pulls **+6.2 items** vs hounie **+23.4** -- the WEAKEST of the four | -- |
+| `tralo_uniform` fixes tight caps | 🟡 holds, tight only | `uniform1` AP -0.0754 -> +0.0030 | -- |
+| macroF1 (the paper's headline) | 🔴 negative | `dom1` -0.0023, loses to `clip` | -- |
+| Any result on ViTB16, the HEADLINE backbone | 🔴 **absent at loose caps** | `loosevit1` is 2 cells, p-floor 0.50 | running it properly |
+| Second dataset | ⛔ none | `fmow` screened, needs ~21k images | -- |
+
+### 3(0d) 🔑 **WHY EVERY dom1 CAP IS L80+ -- and the matched pair hiding in it**
+
+Asked 2026-08-30: is the cap set so high because of dataset size, or because it
+stops working when tightened? Neither. Measured against the count the lambda=0
+model naturally emits:
+
+| cap | class | n_true | K_global | K_local sum | **K binding** | natural count | must drop | K/n |
+|---|---|---|---|---|---|---|---|---|
+| L80_G95 | 2 | 370 | 352 | **296** | 296 | 358.1 | **62 (17.3%)** | 0.80 |
+| L80_G95 | 7 | 456 | 433 | **364** | 364 | 468.9 | **105 (22.4%)** | 0.80 |
+| L90_G95 | 2 | 370 | 352 | **333** | 333 | 358.1 | 25 (7.0%) | 0.90 |
+| L90_G95 | 7 | 456 | 433 | **411** | 411 | 468.9 | 58 (12.3%) | 0.90 |
+| L95_G80 | 2 | 370 | **296** | 352 | 296 | 358.1 | **62 (17.3%)** | 0.80 |
+| L95_G80 | 7 | 456 | **365** | 433 | 365 | 468.9 | **104 (22.2%)** | 0.80 |
+
+✅ **THE CAP IS NOT VACUOUS.** Even at "L95" the model must drop 17-22% of its
+capped predictions. The tag is a percentage of the LOCAL budget, and the LOCAL
+SUM is far below the global -- so `L80_G95` binds at K/n = **0.80**, not 0.95.
+**Never read tightness off the tag; read `K binding` off the labels.**
+
+🔑🔑 **AND `L80_G95` AND `L95_G80` ARE A MATCHED PAIR.** Both bind at K = 296 /
+364-365, i.e. **the same total budget**, through **different scopes** -- local
+in one, global in the other. That is the controlled contrast `scope_probe` was
+built for, sitting inside `dom1` by construction. So the finding that TraLO
+beats fioretto by **+0.0439 AP at L95_G80 and loses by -0.0084 at L80_G95** is
+**not** a tightness effect: the budget is held fixed and only the SCOPE moves.
+
+⚠️ **WHY NO TIGHT CAP IN dom1, stated honestly: it was selected out.** Tight
+caps are measured to HARM (2(u): `iwc4` AP -0.0572 in 9/9; `vitu1` -0.0933), and
+2(v) priced the tight-cap prize at **0.04-0.09x the paired noise**, i.e. below
+detection at 4 seeds. So loose caps are both where the effect exists and where
+it is measurable. That is defensible -- and it is still **selection on the
+outcome**, because the regime was chosen after `loose1` reported it. The arms
+and criterion in `launch_dom1.sh` were pre-registered; **the regime was not.**
+Say so whenever the dom1 result is quoted.
+
+### 3(0a) 🛑🛑 **dom1 IS NOT A HEADLINE RESULT -- IT IS A GENERALIZATION CHECK**
+
+§1-pre fixed the headline backbone as **ViTB16**, a priori, on 2026-08-20,
+precisely so that a win found on some other backbone could not be promoted after
+the fact. **`dom1` contains no ViTB16 at all** -- it is MobileNetV2 +
+MobileNetV3, i.e. one architecture family. `dom1b` adds RegNetY400MF.
+
+So by this document's own binding rule, `dom1`'s positive result is a
+**generalization check on a fixed headline, not the headline**. And on the
+actual headline backbone the picture inverts:
+
+| ViTB16, `vitu1`, tight caps, vs its OWN null | AP | macroF1 |
+|---|---|---|
+| **`tralo`** | **-0.0933, 0/3 cells** | -- |
+| `clip` | -0.0045, 0/3 | -0.0089 |
+| `focal_clip` (a POST-HOC baseline) | **+0.0219, 3/0** | **+0.0194** |
+
+⇒ **On the headline backbone TraLO is 0.115 AP WORSE than a post-hoc focal
+clipper.** The loose-cap ViTB16 evidence (`loosevit1`) is **2 cells**, whose
+exact sign floor is p=0.50 -- nothing is callable there at any effect size.
+
+🎯 **The single highest-value missing run is loose-cap ViTB16 at >= 6 cells.**
+Until it exists, "TraLO wins" is a claim about MobileNet.
+
+### 3(0b) 🔴🔴 **TraLO IS THE WEAKEST ENFORCER OF THE FOUR DUALS**
+
+Measured on `dom1` from the PREDICTIONS (see 3(0c) -- the training logs cannot
+be used for this). "pull" = items moved toward the cap vs the arm's own
+lambda=0 twin, so 0 is "did nothing":
+
+| arm | pull (items) | mean excess over K | dAP vs null | dccF1 vs null |
+|---|---|---|---|---|
+| `hounie` | **+23.4** | +45.9 | +0.0327 | +0.0103 |
+| `fioretto` | **+23.2** | +46.2 | +0.0268 | +0.0101 |
+| `alm` | +17.8 | +51.5 | +0.0335 | +0.0136 |
+| **`tralo`** | **+6.2** | +63.1 | **+0.0371** | **+0.0141** |
+| `tralo_uniform` | +4.9 | +64.4 | +0.0135 | +0.0095 |
+| `tralo_reseed` (RNG floor) | -0.3 | +69.6 | +0.0104 | +0.0104 |
+
+🔑 **TraLO buys the most quality for a QUARTER of the enforcement.** Whatever
+else it is, it is not a better constrained optimizer -- on this campaign it is
+the one that does least. ⚠️ Do not fit a curve to six points: the correlation
+between pull and dAP is +0.61 and meaningless at n=6. The FACT is the ordering.
+
+🛑 **AND NO ARM EVER SATISFIES THE CONSTRAINTS: `0 of 696` epochs, every trained
+arm.** Mean excess stays +45.9 to +69.3 items above K. The post-hoc allocator
+does 100% of the actual satisfying; the constraint phase only tilts the scores.
+
+### 3(0c) ⛔ **THE TRAINING LOGS ARE NOT COMMENSURABLE ACROSS ARMS**
+
+Found 2026-08-30, and it produced a wrong conclusion before it was caught. The
+arms write **different log schemas**: `tralo`* 76 columns, `hounie` 16, `alm`
+15, `fioretto` 14, post-hoc arms 34. `log_health` prints their count
+trajectories in one table as if they were the same quantity. They are not.
+
+Worse, for every **trained** arm the last logged hard count **disagrees with the
+model's actual predictions**:
+
+| arm | log's last `Hard_Class2` | actual raw prediction count | agree |
+|---|---|---|---|
+| `tralo_null` | 393 | 393 | **24/24** |
+| `alm_null` | 393 | 393 | **24/24** |
+| `tralo` | 428 | 419 | 0/24 |
+| `alm` | **340** | **467** | 0/24 |
+| `fioretto` | 343 | 402 | 0/24 |
+| `hounie` | 332 | 413 | 0/24 |
+
+The logs make `alm`/`fioretto`/`hounie` look like they drive the count to the
+cap (340/343/332 against K=352) when their deployed counts are 402-467. Reading
+that table alone gives **the exact opposite** of 3(0b).
+
+⇒ **Never compare a count across arms from `training_log.csv`. Measure it from
+`final_predictions_raw.csv`.** The nulls agreeing 24/24 is the control that
+proves the disagreement is real and specific to arms that take constraint steps.
+
+
 **The single most useful fact in this project: regime effects are ~8 pp. Method effects are ~0.1 pp.**
 Every "win" that turned out to be a regime difference in disguise was bigger than every real
 method effect.
