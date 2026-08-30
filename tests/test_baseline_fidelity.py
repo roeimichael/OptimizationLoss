@@ -4377,3 +4377,97 @@ def test_dataset_screen_NAMES_the_slice_not_the_convention():
     assert slice_label("data/dermmnist/slice_1") == "dermmnist/slice_1"
     # a non-generic leaf is already informative and must not gain a parent
     assert slice_label("data/tissuemnist") == "tissuemnist"
+
+
+def test_a_launch_scripts_stated_SIZE_and_SIGN_TEST_are_arithmetic_not_prose():
+    """A launch header is a pre-registration, so its numbers are claims.
+
+    `docs/launch_margin2.sh` states a cap grid, a cell count, a run count and a
+    PASS threshold with an exact binomial p beside it. Every one of those is a
+    number a human typed, and this campaign has already been re-scoped once
+    (3 cap tags -> a matched 2x2), which is exactly when such numbers go stale:
+    the size line said `9 cells x 9 arms x 4 seeds = 324` for a grid that emits
+    432. `check_parity` cannot catch it -- it reads the CONFIGS, not the prose
+    that justified them.
+
+    So: re-derive the arithmetic from the flags the script actually passes to
+    `gen_campaign`, and re-derive the sign-test thresholds from scratch.
+    """
+    import math
+    import re
+
+    src = open(os.path.join(REPO, "docs/launch_margin2.sh"),
+                encoding="utf-8").read()
+
+    # The invocation spans several lines with continuations, so join them
+    # before tokenising -- a regex that stops at the newline reads 5 of the
+    # 7 arms and silently under-counts the campaign by 192 runs.
+    body = src[src.index('gen_campaign'):]
+    toks = re.sub('\\\\\\s*\\n\\s*', ' ', body).split()
+
+    def flag(name):
+        assert '--' + name in toks, (
+            'launch_margin2.sh passes no --%s' % name)
+        vals = []
+        for t in toks[toks.index('--' + name) + 1:]:
+            if t.startswith('--'):
+                break
+            vals.append(t)
+        assert vals, '--%s is passed with no value' % name
+        return vals
+
+    models, caps, arms = flag("models"), flag("caps"), flag("arms")
+    # gen_campaign ALWAYS adds both clippers; CLAUDE.md rule 2 and the
+    # generator's own assertion. They are cells' arms too and must be counted.
+    n_arms = len(set(arms) | {"clip", "focal_clip"})
+    cells = len(models) * len(caps)            # one dataset: iwildcam
+    runs = cells * n_arms * 4                  # 4 seeds, the atomic cell
+
+    m = re.search(r"#\s+size\s+(\d+) cells x (\d+) arms x (\d+) seeds = (\d+) runs", src)
+    assert m, "no parseable `size` line in the header"
+    said = tuple(int(g) for g in m.groups())
+    assert said == (cells, n_arms, 4, runs), (
+        "the header says %s but the flags give %s cells x %s arms x 4 seeds "
+        "= %s runs" % (said, cells, n_arms, runs))
+
+    # every cap tag named in the header's table must be one the script runs,
+    # and vice versa -- a table row for a cap that was dropped is a lie that
+    # reads as evidence.
+    tabled = set(re.findall(r"^#\s+(L\d+_G\d+)\s+\d+", src, re.M))
+    assert tabled == set(caps), (
+        "header cap table %s != --caps %s" % (sorted(tabled), sorted(caps)))
+
+    def two_sided(k, n):
+        tail = sum(math.comb(n, i) for i in range(min(k, n - k) + 1))
+        return min(1.0, 2.0 * tail / float(2 ** n))
+
+    # the PASS threshold, and the value it is contrasted against, are both
+    # asserted so neither can drift from the cell count.
+    m = re.search(r"PASS = positive in >= (\d+) of (\d+) \(p = 2\*(\d+)/(\d+) = ([\d.]+)\)", src)
+    assert m, "the primary PASS threshold is not stated in a checkable form"
+    k, n, num, den, p = (int(m.group(1)), int(m.group(2)), int(m.group(3)),
+                         int(m.group(4)), float(m.group(5)))
+    assert n == cells, "PASS is stated over %d cells, the grid has %d" % (n, cells)
+    assert den == 2 ** n, "2^%d is %d, not %d" % (n, 2 ** n, den)
+    assert num == sum(math.comb(n, i) for i in range(k, n + 1))
+    assert abs(two_sided(k, n) - p) < 5e-5, (
+        "%d of %d is p=%.4f, header says %.4f" % (k, n, two_sided(k, n), p))
+    assert p < 0.05, "the stated PASS threshold does not actually pass"
+    # and the near miss must be stated as a FAIL, so nobody reads k-1 as a win
+    m = re.search(r"(\d+) of (\d+) is p = ([\d.]+) and does NOT pass", src)
+    assert m and int(m.group(1)) == k - 1 and int(m.group(2)) == n, (
+        "the header does not state the near-miss cell count as a failure")
+    assert abs(two_sided(k - 1, n) - float(m.group(3))) < 5e-5
+    assert two_sided(k - 1, n) >= 0.05
+
+    # the regime split must PARTITION the cells, not overlap or leave a gap:
+    # a secondary stated over more cells than exist is unfalsifiable.
+    m = re.search(r">= (\d+) of the (\d+) TIGHT cells AND >= (\d+) of the (\d+) LOOSE", src)
+    assert m, "the regime-consistency secondary is not stated in a checkable form"
+    assert int(m.group(2)) + int(m.group(4)) == cells, (
+        "TIGHT %s + LOOSE %s != %d cells" % (m.group(2), m.group(4), cells))
+
+    # macroF1 is the metric the user has had to ask for twice. It is a NAMED
+    # secondary here, and this gate is what keeps it named.
+    assert "macroF1 AND uncF1" in src, (
+        "macroF1/uncF1 dropped out of the pre-registered secondaries")

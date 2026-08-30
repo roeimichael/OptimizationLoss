@@ -19,7 +19,7 @@ backbone at one cap". The bar the work is held to:
 |---|---|---|---|
 | **datasets** | **3** | **1** (iwildcam) | `fmow` screened + passes the factorial gate, needs ~21k images. Third TBD |
 | **backbones** | **3** | 2 in `dom1` (**both MobileNet**) + RegNet landing | ViTB16 at LOOSE caps is the hole |
-| **constraint pairs** | **varied**, both **equal and unequal** local:global ratios | 3, **all loose**, only 1 unequal-binding | tight caps + more L:G ratios |
+| **constraint pairs** | **varied**, both **equal and unequal** local:global ratios | 3, **all loose**, only 1 unequal-binding | `margin2`'s matched 2x2 (4 tags, 2 budgets x 2 scopes) closes this the moment a GPU frees |
 | **consistency** | wins across **regimes**, not one | wins at L80-L95 only; **loses at L20-L50** | the central open problem |
 | **metrics** | ccF1 **and** macroF1 both defensible | ccF1 +, **macroF1 NEGATIVE** | the central open problem |
 
@@ -90,9 +90,30 @@ vs fioretto) and reverses where the **local** scope binds (`L80_G95`: -0.0084) -
 | `rank` / `beta` arms | ⛔ null / rejected | |
 
 🎯 **The next knob is `margin` + `st` + `coin`** -- `docs/launch_margin2.sh`,
-324 runs, 9 cells, parity-checked, never fired. It is the only untested corner
-of the count-function 2x2 and the only arm whose per-item gradient is not a
-function of `p_ic` alone.
+**432 runs, 12 cells**, re-validated 2026-08-30 (`gen_campaign` emits 432,
+`check_parity` PASSES), never fired. `margin` is the only untested corner of
+the count-function 2x2 and the only arm whose per-item gradient is not a
+function of `p_ic` alone -- every other penalty this project ships has the form
+`f(sum_i p_ic)`, whose logit gradient `f'(S) p_ic(1-p_ic)` is a monotone map
+and therefore **cannot move an item across another on the direct channel**.
+
+Its cap grid is a **matched 2x2**, which is what makes it answer the regime
+question rather than just adding cells:
+
+| tag | K (cls 2 / cls 7) | budget | what is pinned |
+|---|---|---|---|
+| `L30_G50` | 111 / 137 | K/n=0.30 | the DISTRIBUTION across groups |
+| `L50_G30` | 111 / 137 | K/n=0.30 | only the TOTAL |
+| `L80_G95` | 296 / 364 | K/n=0.80 | the DISTRIBUTION across groups |
+| `L95_G80` | 296 / 365 | K/n=0.80 | only the TOTAL |
+
+Each row-pair imposes the **same total budget through a different scope**, so
+scope is isolated with tightness held fixed. ⚠️ 7 of 14 per-group ceilings are
+K=0, and a zero ceiling binds however much slack the sum has -- so
+"global-binding" never means the local scope is off. Say "pinned vs free
+distribution", not "local vs global".
+⛔ Do NOT add `L30_G30`: at `L30_G50` the global K=185 sits above the local sum
+111, so the global term is INERT and the two tags are ONE cap level.
 
 ---
 
@@ -132,8 +153,17 @@ and FRAMEWORK 3(0), then start the next.
 2. 🔴 **Loose-cap ViTB16 at >= 6 cells.** The pre-registered headline backbone,
    currently 2 cells at loose caps. Decides whether `dom1` is about TraLO or
    about MobileNet. **Highest-value missing run.**
-3. 🔴 **`margin2`** (`docs/launch_margin2.sh`, 324 runs, ready). The next real
-   TraLO improvement, and it spans TIGHT + LOOSE + both scopes in one campaign.
+3. 🔴 **`margin2`** (`docs/launch_margin2.sh`, **432 runs, 12 cells**, ready
+   and re-validated 2026-08-30). The next real TraLO improvement, and the only
+   queued campaign that spans TIGHT + LOOSE + both scopes at ONE code_version.
+   **Pre-registration is written into the script header and is now fixed** --
+   one primary (`tralo_margin` - `tralo` on AP, >= 10 of 12 cells, p=0.0386),
+   with regime-consistency, the reseed floor, scope, the `tralo_coin`
+   placement control and **macroF1/uncF1** as named secondaries. It may not be
+   edited again now that it is queued.
+   ⛔ BLOCKED ON A GPU, not on readiness -- 2026-08-30 all 4 GPUs on dsisco02
+   (nirgal, zehavid) and 3 of 4 on dsisco01 are other users'; the 4th is our
+   own `dom1b`.
 4. 🟡 **A tight-cap campaign that can actually resolve** -- the current tight-cap
    nulls are underpowered, not negative. Either more cells or a cap where the
    prize clears the noise (2(v): K/n=0.9 needs 7 seeds, L20 needs 2607).
@@ -169,7 +199,7 @@ for k,v in sorted(seen.items(), key=lambda kv:-sum(kv[1].values())):
 PY'
 
 # 4. gates, before ANY launch
-python -m pytest tests -q          # must be 401 (bump when you add one)
+python -m pytest tests -q          # must be 402 (bump when you add one)
 python -m scripts.audit_config
 python -m scripts.smoke_arms
 ```

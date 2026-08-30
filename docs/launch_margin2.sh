@@ -73,33 +73,100 @@
 #              clip           \ auto-added mandatory clippers. `clip` is the
 #              focal_clip     / STRONGER quality bar.
 #
-#   caps       L30_G50   TIGHT, local-binding   -- where `tralo` DAMAGES
-#              L90_G95   LOOSE, local-binding   -- where `tralo` HELPS
-#              L95_G80   LOOSE, GLOBAL-binding  -- the other scope
-#              Three caps chosen so the REGIME REVERSAL of 2(w3) is inside one
-#              campaign at one code_version. `tralo` is -0.0572..-0.0933 AP at
-#              tight caps and +0.0253 at loose ones; `tralo_uniform` is the
-#              mirror. The whole question for `margin` is whether it is
-#              positive in BOTH columns instead of trading one for the other.
-#              ⚠️ On iwildcam 7 of 14 per-group ceilings are K=0, so the LOCAL
-#              scope binds at EVERY cap including L90_G95. L95_G80 is the only
-#              one here where the global scope also binds.
+#   caps       A 2x2 OF {TIGHT, LOOSE} x {LOCAL-BINDING, GLOBAL-BINDING},
+#              AT MATCHED BUDGETS. Verified with `scripts.verify_caps`:
 #
-#   ⚠️ FALSIFIABLE, STATED BEFORE THE DATA. The point of this campaign is the
-#   REGIME question, so the pre-registration is stated per regime:
-#     * PASS: `tralo_margin` beats `tralo` on AP in at least 2 of the 3 TIGHT
-#       cells AND at least 2 of the 6 LOOSE cells, against `tralo_reseed` as
-#       the floor in both -- i.e. it does not trade one regime for the other.
-#     * FAIL: `tralo_margin` is below `tralo_reseed` on AP in either regime,
-#       or it is worse than `tralo_uniform` in the tight cells AND worse than
-#       `tralo` in the loose ones, which would make it strictly dominated.
-#     * INFORMATIVE EITHER WAY: `tralo` -> `tralo_st` sizes the VALUE fix on
-#       its own. That number has never been measured and is worth having even
-#       if `tralo_margin` fails.
-#   9 cells, so a `***` is reachable; but the per-regime splits (3 and 6) are
-#   DIRECTION claims only, exactly as the generator warns.
+#                tag        class 2 K   class 7 K   binding scope   budget
+#                L30_G50        111         137     LOCAL           K/n=0.30
+#                L50_G30        111         137     GLOBAL          K/n=0.30
+#                L80_G95        296         364     LOCAL           K/n=0.80
+#                L95_G80        296         365     GLOBAL          K/n=0.80
 #
-#   size       9 cells x 9 arms x 4 seeds = 324 runs.
+#              🔑 EACH ROW-PAIR IMPOSES THE SAME TOTAL BUDGET THROUGH A
+#              DIFFERENT SCOPE. `L30_G50` pins the DISTRIBUTION across groups
+#              (per-group ceilings [0,0,0,0,31,32,48]); `L50_G30` pins only the
+#              TOTAL (111) and leaves the split free under looser local
+#              ceilings [0,0,0,0,51,54,80]. So scope is isolated with the
+#              budget held FIXED -- the confound between "tighter" and
+#              "differently scoped" is removed by construction.
+#
+#              This answers the two things the 3-cap version could not:
+#                (a) REGIME CONSISTENCY. `tralo` is +0.0253..+0.0371 AP at
+#                    loose caps and -0.0572..-0.0933 at tight ones. A method
+#                    that only wins where the cap barely binds is not the
+#                    thesis. Both regimes are now inside ONE campaign at ONE
+#                    code_version.
+#                (b) SCOPE. dom1 found `tralo` beats fioretto by +0.0439 AP at
+#                    L95_G80 and LOSES by -0.0084 at L80_G95 -- same budget.
+#                    That was 2 cells and post-hoc. This tests it at a second
+#                    budget, on 3 backbones, pre-registered.
+#
+#              ⛔ DO NOT ADD `L30_G30`. verify_caps: at L30_G50 the global
+#              K=185 sits ABOVE the local sum 111, so it is INERT and the tag
+#              runs the same experiment as L30_G30. They are ONE cap level and
+#              counting both double-counts a single measurement.
+#              🛑 THE SCOPE CONTRAST IS NARROWER THAN THE TAG SUGGESTS,
+#              and `gen_campaign` says so on all four tags. 7 of 14 per-group
+#              ceilings are K=0 (no true instance of that species at that
+#              camera), and a ZERO ceiling binds regardless of how much slack
+#              the sum has. So "GLOBAL-binding" NEVER means the local scope is
+#              off -- it means the three NON-ZERO groups' ceilings are slack.
+#              What the pair actually contrasts is a PINNED distribution over
+#              those three groups against a FREE one at the same total. State
+#              it that way; do not write "local vs global".
+#
+#   ⚠️ FALSIFIABLE, FIXED BEFORE THE DATA. Restated 2026-08-30 when the
+#   cap grid changed from 3 tags to the matched 2x2. That edit is legitimate
+#   ONLY because no run of this campaign exists yet -- a pre-registration may
+#   be rewritten before the data and never after. The grid now gives 6 TIGHT
+#   cells (3 backbones x {L30_G50, L50_G30}) and 6 LOOSE cells (3 backbones x
+#   {L80_G95, L95_G80}).
+#
+#   PRIMARY, and there is exactly ONE so BH has a multiplier of 1:
+#     `tralo_margin` - `tralo`, on **AP**, exact two-sided sign test over all
+#     12 cells. PASS = positive in >= 10 of 12 (p = 2*79/4096 = 0.0386).
+#     9 of 12 is p = 0.1460 and does NOT pass. Every other number below is
+#     SECONDARY and must be reported with that word attached.
+#
+#   SECONDARY, pre-specified so they cannot be fished for afterwards:
+#     * REGIME CONSISTENCY -- the reason the 2x2 exists. `tralo_margin` -
+#       `tralo` positive in >= 4 of the 6 TIGHT cells AND >= 4 of the 6 LOOSE
+#       cells. A method that buys one regime with the other has fixed nothing,
+#       and that is exactly the failure mode of the two shipped counts.
+#     * FLOOR -- both must clear `tralo_reseed` - `tralo_null` on the same
+#       metric and cells. An arm at or below the RNG floor produced nothing.
+#     * SCOPE -- `tralo` - `fioretto` larger in the GLOBAL-binding cells than
+#       in the LOCAL-binding ones, at BOTH budgets. The out-of-sample test of
+#       the dom1 L95_G80 finding, which was 2 cells and post-hoc.
+#     * DECOMPOSITION -- `tralo` -> `tralo_st` sizes the count's VALUE fix
+#       alone. Never measured; worth having even if `tralo_margin` fails.
+#     * CONTROL -- if `tralo_coin` (random direction, same norm) moves AP as
+#       much as `tralo_margin`, then PLACEMENT is not what does the work and
+#       the margin direction is dead regardless of its sign.
+#     * 🛑 macroF1 AND uncF1 -- `tralo_margin` - `tralo`, same 12 cells.
+#       This is the OTHER central defect, not a nice-to-have. On dom1 `tralo`
+#       buys ccF1 +0.0141 (6/6) with uncF1 -0.0077 (1/6) and lands macroF1
+#       **-0.0022 (2/6)**, below the reseed floor. The mechanism predicts
+#       `margin` should help here: the penalty's cross-term redistributes the
+#       mass it removes from class c across the other classes in proportion to
+#       `p_ij`, so every item pushed off a capped class becomes a FALSE
+#       POSITIVE somewhere uncapped. Windowing the push onto items already at
+#       their decision boundary is exactly the subset whose reassignment costs
+#       least. If macroF1 does not improve, the window is not finding those
+#       items and the mechanism story is wrong.
+#
+#   FAIL, stated so it can actually happen: `tralo_margin` at or below
+#   `tralo_reseed` on AP in either regime, or `tralo_coin` matching it, or
+#   fewer than 10 of 12 cells positive on the primary.
+#
+#   🛑 macroF1 IS REPORTED BESIDE ccF1 IN EVERY TABLE. On dom1 `tralo`
+#   is ccF1 +0.0141 (6/6) and macroF1 **-0.0022 (2/6)** -- it buys capped-class
+#   accuracy with uncapped-class damage, and a ccF1-only report hides that.
+#
+#   size       12 cells x 9 arms x 4 seeds = 432 runs (3 backbones x 4 caps).
+#              12 cells gives an exact sign floor of 2/2^12 = 0.0005, so a
+#              pre-registered primary contrast clears BH with room to spare --
+#              which 6 cells provably cannot (see docs/MISSION.md rule 3).
 #
 #   supersedes `docs/launch_margin1.sh`, which was staged, never fired, and
 #              is DELETED rather than left to be picked up by mistake. It was
@@ -241,7 +308,7 @@ PY=$HOME/anaconda3/envs/optloss/bin/python
     --root "$ROOT" \
     --datasets iwildcam \
     --models MobileNetV2 MobileNetV3 RegNetY400MF \
-    --caps L30_G50 L90_G95 L95_G80 \
+    --caps L30_G50 L50_G30 L80_G95 L95_G80 \
     --arms tralo tralo_st tralo_margin tralo_coin tralo_uniform \
            tralo_null tralo_reseed \
     --constraint-grad-mode normalize \
