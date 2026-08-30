@@ -2054,6 +2054,86 @@ does not.
   Fixed 2026-08-30 to key on the model; the geometry reproduces disaggregated,
   but the first table printed backbone-averages under per-cap labels.
 
+### (z2) 🔴🔴🔴 THE MANUSCRIPT CLAIMS NOTHING ON iwildcam
+
+**Audited 2026-08-30. `grep -ril iwildcam docs/paper/` returns ZERO files.**
+Not the `.tex` sources, not `tables/`, not the figure generators, not
+`corpus_final.csv`. The manuscript names DermMNIST (31), OctMNIST (58),
+TissueMNIST (18) and HAM10000 (11), at **warm-up 50**, with **no lambda=0
+twins**.
+
+Meanwhile `data/` on every server worktree holds **only iwildcam**, all three
+MedMNIST datasets are removed from disk, and every campaign run since
+2026-08-21 is iwildcam at **warm-up 1**.
+
+⇒ **the paper and the evidence base share no dataset, no warm-up regime and no
+controls.** Every iwildcam result -- `dom1`, `loose1`, `uniform1`, `vitu1`,
+`loosevit1`, `iwc4` -- currently has **no destination**, and every paper claim
+rests on data that is quarantined or deleted. This is the largest single fact
+about the project's state and it contains every other gap below.
+
+It is not, by itself, an argument for either direction. The two coherent
+resolutions are: rewrite the empirical section around iwildcam (in which case
+the corpus tables go, and they cannot be rebuilt), or restore a MedMNIST
+dataset that survives the leakage audit (octmnist keeps MedMNIST's official
+split and was CLEAN; dermmnist leaked 38.7%). **Deciding this is Roei's call
+and it should be made before the next campaign, not after.**
+
+### (z3) 🛑 TRALO GETS 29 CONSTRAINT STEPS, FIORETTO AND HOUNIE GET 28
+
+**Measured 2026-08-30 on `dom1`, 24 runs per arm, and verified at the GRADIENT
+level -- this is a real dose difference, not an accounting one.**
+
+| arm | attempted/run | lambda at epoch 1 | logged grad norm, epoch 1 |
+|---|---|---|---|
+| `tralo` | **29** | **0.06** | **3.09** -- a real step |
+| `alm` | **29** | mu0 > 0 | **6426.97** -- a real step |
+| `fioretto` | **28** | 0 | **0.0** -- no step |
+| `hounie` | **28** | 0 | **0.0** -- no step |
+
+All four are configured `constraint_epochs: 29`, and **`dose_landed` printed
+100.0% for all four**, because that figure is `applied / attempted` WITHIN an
+arm and is structurally blind to a cross-arm gap. Fixed 2026-08-30: it now
+prints a CROSS-ARM ATTEMPTS PER RUN block.
+
+**The cause.** The subgradient duals guard their step on `has_work` (is any
+lambda > 0) and perform the dual update at the END of the epoch, so their first
+constraint epoch does nothing. TraLO guards on `has_constraint` and initialises
+lambda to **0.06**.
+
+⚠️ **This is faithful to the published algorithms** -- `lambda^0 = 0` is what
+subgradient dual ascent specifies -- so it is a property of the METHODS, not a
+handicap this harness imposes. Do not "fix" it by hacking a baseline. But it is
+a **1-in-29 = 3.4% dose advantage to TraLO in every head-to-head ever run
+here**, it comes from a hyperparameter WE chose, and a reviewer will ask
+whether the win is the method or the head start.
+
+⇒ **State it in every dominance claim**, and run the clean test: a `tralo` arm
+with `lambda_init = 0`, which takes 28 effective steps like the rivals. If the
+win survives that, it is not the head start.
+
+### (z4) COVERAGE, AUDITED -- what has never been measured
+
+Audited 2026-08-30 over 2,095 configs; 1,816 completed in live campaigns.
+
+| hole | what it undermines |
+|---|---|
+| **ViTB16 x any rival dual = 0 runs anywhere** | the dominance claim on the pre-registered headline backbone |
+| `alm` / `lp` at TIGHT exist only in `iwc1` (now quarantined); `alm_null` at TIGHT is 0 runs everywhere | any tight-cap dual comparison |
+| `tralo_st`, `tralo_margin`, `tralo_coin`, `tralo_ortho` never run anywhere | the whole count-function 2x2 |
+| **MID caps (L55-L70) on iwildcam: 0 runs** | the tight/loose reversal is measured only at its endpoints |
+| `tralo_head` never at LOOSE, never on ViTB16 | -- |
+| `tralo_bounded` is a compiled Table 1 column whose code is DELETED | that table row is unreproducible |
+
+Two more identity findings, both by md5:
+* **`cb_lp` is byte-identical to `lp`** in 24/24 `dom1` and 10/10 `dom1b` cells,
+  RAW and DEPLOYED. (2(x1) recorded it as identical to `clip`; it is identical
+  to `lp`, which is the same conclusion about the arm and a different sentence.)
+* **`dom1`'s four lambda=0 nulls are byte-identical to each other**, so its 16
+  arms yield only 10 byte-distinct raw prediction sets per cell. A future
+  campaign needs ONE null, not four -- which is 3 arms x 4 seeds x n_caps of
+  free GPU time.
+
 ### (z) THE INDEPENDENT UNIT IS (model, seed), NOT THE CELL -- 8 of 9 dom1 significances evaporate
 
 **Measured 2026-08-30 on `dom1`.** A lambda=0 twin's raw predictions are

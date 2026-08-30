@@ -179,6 +179,7 @@ def report(per, amps, tolerance=DOSE_FRACTION_TOLERANCE, out=sys.stdout):
                           "an overflowing step.\n" % spread)
             out.write("      Fix and RELAUNCH -- a dropped step cannot be "
                       "recovered from the outputs.\n")
+    cross_arm_attempts(per, out)
     return problems
 
 
@@ -246,6 +247,52 @@ def self_test(out=sys.stdout):
     out.write("SELF-TEST %s\n" % ("PASS" if ok else "FAIL"))
     return 0 if ok else 1
 
+
+def cross_arm_attempts(per, out):
+    """ATTEMPTED steps per RUN, compared ACROSS arms.
+
+    The percentage in the table above is `applied / attempted` WITHIN one
+    arm, so an arm that never ATTEMPTS a step it should have attempted reads
+    a clean 100.0%. Measured on `dom1`: `tralo` and `alm` attempt 29 steps
+    per run while `fioretto` and `hounie` attempt 28 -- all four configured
+    at `constraint_epochs: 29`, and all four printed as 100.0%.
+
+    The difference is real, not cosmetic, and was verified at the gradient
+    level. The subgradient duals guard their step on `has_work` (is any
+    lambda > 0) and update the dual at the END of the epoch, so their first
+    constraint epoch does no work: logged `grad_norm` is exactly 0.0 at
+    epoch 1 for both. TraLO guards on `has_constraint` and initialises
+    lambda to 0.06, so it steps at epoch 1 with `Grad_Norm` 3.09; ALM does
+    too, at 6426.97.
+
+    That is faithful to the published algorithms (lambda^0 = 0 for
+    subgradient dual ascent), so it is a property of the METHODS rather than
+    a handicap this harness imposes. But it is a 1-in-29 = 3.4% dose
+    advantage to TraLO in every head-to-head, it comes from a hyperparameter
+    WE chose, and it must be stated in any dominance claim. The clean test
+    is a TraLO arm with lambda_init = 0.
+    """
+    rate = {}
+    for arm, v in per.items():
+        attempted, runs = v[1], v[2]
+        if attempted and runs:
+            rate[arm] = attempted / float(runs)
+    if len(set(round(r, 3) for r in rate.values())) <= 1:
+        return
+    hi = max(rate.values())
+    out.write(chr(10) + 'CROSS-ARM ATTEMPTS PER RUN -- the asymmetry the '
+              'percentages above cannot show' + chr(10))
+    for arm in sorted(rate, key=lambda a: (-rate[a], a)):
+        r = rate[arm]
+        tail = ''
+        if abs(r - hi) > 1e-9:
+            tail = '   <-- %.1f%% fewer steps than the top arm' % (
+                100.0 * (hi - r) / hi)
+        out.write('  %-18s %6.2f attempted/run%s' % (arm, r, tail) + chr(10))
+    out.write('  Every arm above can still read 100%, because that figure '
+              'is applied/attempted' + chr(10))
+    out.write('  WITHIN an arm. A dominance claim across these arms is NOT '
+              'at equal dose.' + chr(10))
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])

@@ -9,6 +9,32 @@ Last updated: **2026-08-30** (second pass: the mechanism, and the independent-n 
 
 ---
 
+## ⚠️ 0-PRE. THE DECISION THAT BLOCKS EVERYTHING (2026-08-30)
+
+**`grep -ril iwildcam docs/paper/` returns ZERO files.** The manuscript is a
+DermMNIST / OctMNIST / TissueMNIST / HAM10000 paper at **warm-up 50 with no
+lambda=0 twins**. Every campaign run since 2026-08-21 is **iwildcam at warm-up
+1 with twins**, and all three MedMNIST datasets are removed from disk.
+
+⇒ **the paper and the evidence base share no dataset, no warm-up regime and
+no controls.** Every iwildcam result currently has no destination, and every
+paper claim rests on data that is quarantined or deleted.
+
+**This is Roei's call and it should be made before the next campaign:**
+
+| option | cost | consequence |
+|---|---|---|
+| **A. Rewrite the empirical section around iwildcam** | the 8 corpus-generated tables go, and the corpus **cannot be rebuilt** | the paper matches the evidence, and inherits warm-up 1 + real controls |
+| **B. Restore a MedMNIST dataset** | re-download + re-run; `octmnist` was CLEAN in the leakage audit (keeps MedMNIST's official split), `dermmnist` leaked 38.7% | the corpus tables survive, but `octmnist`'s groups are `index % 3` -- **dead by construction** for the local scope (FRAMEWORK 2(n)) |
+| **C. Both** | most expensive | iwildcam as the headline, MedMNIST as the legacy comparison |
+
+⚠️ Option B has a trap already measured: `octmnist` passes the leakage audit
+but **fails the information screen** (NET -7 items, z=-0.4), so a count
+constraint carries nothing there. B restores the tables at the cost of a
+dataset that cannot test the thesis.
+
+---
+
 ## 0. THE GOAL, stated so it can be failed
 
 Make **TraLO** the best of the constrained-optimization methodologies, on the

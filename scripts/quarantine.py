@@ -61,6 +61,34 @@ REGISTRY = {
         keep_for="the only evidence that --constraint-fp32 is load-bearing on "
                  "ViTB16; superseded for results by `vitu1` at 100% dose",
         scorable=False),
+    "iwc3": dict(
+        reason="fp16+GradScaler with `constraint_fp32: False`: landed 716/1044 "
+               "constraint steps, 68.6% -- a LOWER landing rate than `iwc2`, "
+               "which was quarantined for exactly this. Superseded by `iwc4` "
+               "(same design, 1044/1044, fp32 True)",
+        keep_for="the receipt that fp16 without --constraint-fp32 silently "
+                 "drops a third of the dose on a CNN",
+        scorable=False),
+    "iwc1": dict(
+        reason="fp16+GradScaler with `constraint_fp32: False`: alm landed "
+               "51.7%, fioretto 57.1%, tralo 66.8%, hounie 100% -- an "
+               "arm-DEPENDENT dose spread, so its cross-arm ordering is a "
+               "measurement of the GradScaler. It also carries no per-family "
+               "nulls, the only live campaign with a trained arm lacking its "
+               "own twin",
+        keep_for="the receipt for the representation-channel finding, and for "
+                 "how far an fp16 dose can diverge BETWEEN arms",
+        scorable=False),
+    "xfam1": dict(
+        reason="fails `check_parity`: `run_code_version` splits by SEED, "
+               "`9b89ce26d6bb` x142 against `9b89ce26d6bb-dirty` x182 (seed 1 "
+               "clean, seeds 3-4 dirty). Its commit predates the "
+               "`TRAINING_PATHS` fix `ca373f4e` by 53 minutes, so the dirty "
+               "flag still diffed the WHOLE tree -- most likely a `scripts/` "
+               "deploy, but unprovable after the fact",
+        keep_for="the receipt that all four constraint terms are negative, "
+                 "and the only TIGHT-cap source for the rival duals",
+        scorable=False),
     "mc_sgd": dict(reason="dermmnist: leaked test set AND removed from disk. "
                           "32 pending, 0 completed -- nothing ever ran",
                    keep_for="nothing", scorable=False),
