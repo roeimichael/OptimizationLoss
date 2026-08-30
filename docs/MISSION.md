@@ -53,39 +53,37 @@ which is not the thesis.
 | Constraints ever satisfied in training | **0 of 696 epochs.** The post-hoc allocator does all of it |
 | dom1 is the headline | **No.** FRAMEWORK 1-pre fixed **ViTB16** a priori; dom1 has none |
 
-### The mechanism -- FOUND 2026-08-30, and it is geometric
+### The regime step is REAL. The explanation for it is NOT. (corrected 2026-08-30)
 
-**`gap = hard_count - K` is the distance between the point the penalty pushes
-(the decision boundary) and the point the metric reads (the cut).** The allocator
-emits exactly K by rank, so quality is decided at rank K; but `p(1-p)` peaks at
-the boundary, and `margin` windows the boundary too.
+✅ **The solid part.** The CNN warm-ups are shared across campaigns, which
+gives a within-model tight-vs-loose contrast with no confound. Paired on the
+**12 warm-up models present in both regimes**: `tralo` moves **+6.24 items
+from tight to loose, 12/12, sign p = 0.00049** (the exact floor at n=12), while
+**the reseed floor does not move at all** (5/12, p = 0.774). Floor-corrected,
++5.30 items, 12/12. This is the cleanest attributable result the project has.
 
-| regime | gap (items) | p at the cut | boundary/cut gradient ratio |
-|---|---|---|---|
-| LOOSE K/n=0.90 | 14 - 76 | 0.68 - 0.96 | **1.9 - 6.6x** |
-| TIGHT K/n=0.20 | 235 - 442 | 0.999 - 1.000 | **420 - 81,926x** |
+⛔ **The part that failed.** The geometric account -- that the penalty aims at
+the decision boundary while the metric reads the cut, `gap = hard - K` -- is
+**consistent but not discriminated, and its sharp prediction failed**:
 
-12 of 26 measured points have the cut in a dead zone, and the split is **exactly
-by K/n** -- not by dataset, not by backbone. Since `gap ~ n_pos (1 - K/n)`, this
-is structural and would reproduce on any dataset.
+* `gap`, `slope_K` and `K/n` are one variable in three costumes within a model
+  (`rho(gap, K) = -1.0000` exactly, hard count constant in 40/40 groups).
+* Both `gap` and `slope_K` **reverse sign** once the cap is held fixed.
+* `tralo_uniform` was predicted to order oppositely. It does not -- same sign
+  at every level.
 
-⇒ **at loose caps the penalty's pressure lands near the cut and helps; at tight
-caps it lands 200-440 ranks away and is pure damage.** That is the whole regime
-reversal, and it also explains `uniform`: a flat per-item slope declines to aim,
-which loses where aiming pays (loose) and wins where there is nowhere good to aim
-(tight). Confirmed WITHIN campaigns on ViTB16 -- `tralo` AP **-0.0933** tight /
-**+0.0064** loose, `tralo_uniform` **+0.0087** tight / **-0.0091** loose.
+⇒ quote the geometry as an unrefuted account, never as a measured cause.
+Testing it needs `gap` varied at FIXED `K/n`. FRAMEWORK 2(y).
 
-⛔ **The count-function family cannot reach the cut.** A cut-centred count is
-pinned to K-1 for any model (`margin_window`'s docstring; the detach variant was
-checked 2026-08-30 and is not a way out). So the tight regime is closed to this
-family by geometry, not by dose or shape.
+🛑 **And the absolute loose-cap win does not survive honest units.** At the
+cell level `tralo - null` reads 15/20 (p=0.041); at the **16 distinct warm-up
+models it is 11/16, p = 0.21**, and it beats the reseed floor 11/16, p = 0.21.
+**macroF1 and uncapped F1 are NEGATIVE in 11 of 16 units.** The relative
+(loose-minus-tight) statement survives; the absolute one does not.
 
-🎯 **The falsifiable consequence, written before `margin2` runs:** `margin`
-windows the boundary, so it should gain in the 6 LOOSE cells and NOT in the 6
-TIGHT ones. If it gains at tight caps, this mechanism is wrong.
-
-Tool: `python -m scripts.cut_gap <roots>` (`--self-test` gates it). FRAMEWORK 2(y).
+⚠️ **`dom1` is not independent of `loose1`.** Its L80_G95 and L90_G95 cells
+are byte-identical to `loose1`'s in 80/80 files; `dom1` contributes only
+L95_G80. Only **20 distinct warm-up models** exist across all five campaigns.
 
 ## 2. THE KNOB LEDGER -- what has been tried on TraLO itself
 

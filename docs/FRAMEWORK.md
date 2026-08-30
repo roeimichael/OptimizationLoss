@@ -1957,77 +1957,102 @@ small, self-selected subset -- a recipe for overfitting it, the exact failure
   gains **+0.030 ccP over its own lambda=0 control**. The pessimistic reading ("only AUROC can
   move") is a single-class result and does not survive the looser cap.
 
-### (y) THE REGIME REVERSAL HAS A MECHANISM: the boundary is not the cut
+### (y) THE REGIME STEP IS REAL AND ATTRIBUTABLE. THE GEOMETRIC EXPLANATION FOR IT IS NOT.
 
-**Measured 2026-08-30, `scripts/cut_gap.py` (`--self-test` gates it), over 5
-campaigns, 3 backbones, 2 capped classes, 4 seeds.** This is the explanation for
-2(w)'s reversal, which until now was an unexplained empirical fact.
+⚠️ **This section was written on 2026-08-30 claiming a MECHANISM and is
+corrected the same day.** The claim was tested and mostly failed. What survives
+is stated first; what does not follows it. Tool: `scripts/cut_gap.py`.
 
-Every count penalty this project ships puts its per-item gradient at or near the
-**decision boundary**. `sum`'s weight is `p(1-p)`, maximal at p = 0.5, i.e. on
-items one step from flipping. `margin` windows that same point explicitly. But
-deployed quality is decided at the **cut**: the post-hoc allocator emits exactly
-K items by probability rank, whatever the model's hard count is. Those are
-different items, and `gap = hard_count - K` is the distance between them.
+#### ✅ What is solid: the regime step, paired within the warm-up
 
-| regime | cap | gap (items) | p at the cut | slope_bd / slope_K |
-|---|---|---|---|---|
-| LOOSE K/n=0.90 | L90_G95 | 14 - 76 | 0.676 - 0.959 | 1.9 - 6.6 |
-| LOOSE K/n=0.80 | L80_G95 | 51 - 123 | 0.832 - 0.995 | 2.8 - 47.3 |
-| TIGHT K/n=0.30 | L30_G50 / L50_G30 | 198 - 397 | 0.997 - 1.000 | 79 - 32,387 |
-| TIGHT K/n=0.20 | L20_G50 | 235 - 442 | 0.999 - 1.000 | 420 - 81,926 |
+The CNN warm-ups are **shared across campaigns** -- one warm-up per
+(model, seed) spans `uniform1` (TIGHT), `loose1` and `dom1` (LOOSE). That is
+usually a nuisance; here it is a gift, because it gives a **within-model**
+tight-vs-loose contrast with no backbone, host or amp confound. Paired on the
+**12 CNN warm-up models present in both regimes**:
 
-**12 of 26 (campaign, cap, class) points have the cut in a dead zone**
-(`p(1-p) < 0.005` at rank K), and the split is exactly by K/n: every dead point
-is at 0.20 or 0.30, every live one at 0.80 or 0.90. Not by dataset, not by
-backbone.
+| contrast | result |
+|---|---|
+| `tralo` delta LOOSE > TIGHT | **12/12, +6.24 items, sign p = 0.00049** |
+| floor-corrected (`delta - floor`) | **12/12, +5.30 items, p = 0.00049** |
+| **the FLOOR itself**, LOOSE > TIGHT | **5/12, +0.94 items, p = 0.774** |
+| `tralo - tralo_uniform`, LOOSE > TIGHT | 11/12, +3.67 items, p = 0.0063 |
 
-At a loose cap the two points are ~25 items apart and carry comparable gradient,
-so pressure aimed at the boundary lands near the cut. At a tight cap they are
-200-440 items apart and the cut sits at p = 0.9999, where `p(1-p)` is 0.0001 --
-**four to five orders of magnitude less pull than the boundary carries**. The
-push is not weak. It is aimed somewhere the metric never looks.
+**The floor does not move with regime, so the step belongs to the constraint.**
+p = 0.00049 is the exact sign floor at n = 12, i.e. the best this design can
+report. This is the cleanest attributable result the project has.
 
-🔑 **AND IT IS STRUCTURAL, NOT A PROPERTY OF iwildcam.** `gap = hard - K`, and
-the hard count is roughly `n_pos` for any reasonably calibrated model, so
-`gap ~ n_pos (1 - K/n)`. The gap is set by the CAP FRACTION and vanishes only as
-K/n -> 1. Any boundary-concentrating count penalty inherits this on any dataset.
+⛔ But the step is a STEP, not a gradient. Within-warm-up dose-response over K
+is +0.614 (22/24, p = 3.6e-5) across the full K = 74..411 range, and **+0.250
+(10/16, p = 0.45) -- null -- for warm-ups living in only one regime**, i.e.
+over a narrow K range. There is no dose axis here, only tight versus loose.
 
-✅ **IT EXPLAINS `uniform`, WHICH WAS PREVIOUSLY JUST AN OBSERVATION.**
-`uniform_grad_count`'s per-item slope is a population constant, so it does not
-concentrate at the boundary: a liability at loose caps (it declines to aim where
-aiming pays) and an asset at tight ones (there is no good place to aim, so
-spreading beats missing). Confirmed on **ViTB16**, the headline backbone, and the
-arms are compared WITHIN a campaign so the amp/host difference between `vitu1`
-and `loosevit1` does not touch it:
+#### ⛔ What failed: the geometric explanation
 
-| ViTB16, vs its own lambda=0 twin | `tralo` (sum) AP | `tralo_uniform` AP |
-|---|---|---|
-| TIGHT `vitu1`, 3 cells | **-0.0933** (0/3) | **+0.0087** (2/1) |
-| LOOSE `loosevit1`, 2 cells | **+0.0064** (2/0) | **-0.0091** (0/2) |
+The proposed account was that the penalty aims at the DECISION BOUNDARY while
+the metric reads the CUT, and that `gap = hard_count - K` is therefore the
+cause. The geometry itself is not in dispute -- at K/n = 0.20 the cut sits at
+p = 0.9999 where `p(1-p)` = 0.0001, against 0.59-0.99 at K/n = 0.90. **The
+causal reading is.**
 
-The reseed floor is AP -0.0142 (tight) and -0.0113 (loose). So at tight caps
-`tralo` is **6.6x WORSE than the RNG floor**, and `uniform` is the only arm above
-it; at loose caps that ordering inverts. ⚠️ Neither campaign is callable on its
-own (min attainable p = 0.250 at 3 cells, 0.500 at 2), so this is a DIRECTION
-claim across two campaigns, not a significant one.
+1. **`gap`, `slope_K` and `K/n` are one variable in three costumes.** Within a
+   warm-up model the hard count is constant across every cap tag (verified,
+   40/40 groups), so `gap = hard - K` is an exact decreasing affine function of
+   K: measured `rho(gap, K) = -1.0000`. `slope_K` follows K at mean rho +0.937.
+   **They cannot be separated even in principle on this design.**
+2. **The only prying-apart variation is between backbones at a fixed cap** --
+   10 strata of n = 4, where a PERFECT ordering reaches at best p = 0.083.
+   Stratified permutation over 20k draws: `gap~delta` p = 0.30,
+   `slope_K~delta` p = 0.55. **Null.**
+3. **`gap` and `slope_K` REVERSE SIGN when the cap is held fixed.**
+   `rho(gap, delta)` is -0.291 pooled and **+0.590 within TIGHT (p = 0.002)**.
+   Their pooled correlations are between-cap artefacts. Only `K/n` orders the
+   effect robustly, and `K/n` is a restatement of the cap, not a mechanism.
+4. **⛔ THE SHARP PREDICTION FAILED.** The account predicted `tralo_uniform`
+   would order OPPOSITELY in `gap`. It does not: both arms' slopes have the
+   SAME sign at every level, and uniform's one nominally significant result
+   dies against its own floor (+0.451 p = 0.012 raw -> +0.126 p = 0.492
+   floor-corrected).
 
-🎯 **WHAT IT PREDICTS, RECORDED BEFORE `margin2` LAUNCHES.** `soft_count_mode:
-margin` windows the BOUNDARY, so it cannot fix the tight regime -- it aims the
-same pressure at the same wrong point, only more sharply. `margin2` runs 6 tight
-cells and 6 loose ones; the prediction is that `tralo_margin` gains in the LOOSE
-cells and does NOT in the tight ones. **If it gains at tight caps this mechanism
-is wrong**, and that is the point of writing it down first.
+⇒ **Cite the geometry as an unrefuted account, never as a measured cause.**
+On these five campaigns it is observationally identical to "loose caps help,
+tight caps hurt". Testing it requires varying `gap` at FIXED `K/n`, which needs
+a dataset or backbone whose calibration differs far more than the 3-126 item
+spread available here, or a deliberate miscalibration arm.
 
-⛔ **AND THE OBVIOUS FIX IS ALREADY CLOSED.** A cut-centred count
-`sigma((p_ic - tau_c)/T)` with `tau_c` the K-th order statistic counts the items
-above the K-th largest, which is **K - 1 exactly, for any model**
-(`src/losses/transductive_loss.py: margin_window`). Checked 2026-08-30 whether
-detaching `tau` evades that: it does produce a non-zero gradient, so the stated
-"identically zero" reasoning is exact only in the T -> 0 limit -- but the
-detached variant was not shown to measure the violation either, and nothing here
-recommends building it. ⇒ **the count-function family cannot reach the cut**, and
-the tight regime is closed to it by geometry rather than by dose or shape.
+#### 🛑 And the absolute loose-cap claim does NOT survive honest units
+
+At the cell level `tralo - tralo_null` at loose caps reads 15/20 (p = 0.041)
+and beats its floor 14/20. **At the 16 distinct warm-up models it is 11/16
+(p = 0.21), and beats the floor 11/16 (p = 0.21).** The cell-level significance
+is manufactured by counting cap levels as independent replicates of one model.
+
+| loose caps, 16 warm-up units | result |
+|---|---|
+| `tralo - null` > 0 | 11/16, p = 0.2101 |
+| `tralo` beats the reseed floor | 11/16, p = 0.2101 |
+| `tralo` > `tralo_uniform` | 12/16, p = 0.0768 |
+| **d macroF1 > 0** | **5/16, p = 0.2101, mean -0.0009** |
+| **d uncapped F1 > 0** | **5/16, p = 0.2101, mean -0.0030** |
+
+⇒ **`tralo` is not established as beating its own RNG floor at loose caps**,
+and macroF1 and uncapped F1 are NEGATIVE in 11 of 16 units. The relative
+statement (loose minus tight, paired on the warm-up) survives; the absolute one
+does not.
+
+#### ⚠️ TWO STRUCTURAL FACTS THAT CHANGE EVERY n
+
+* **`dom1`'s L80_G95 and L90_G95 cells are BYTE-IDENTICAL to `loose1`'s** --
+  80/80 `final_predictions.csv` across 5 arms x 2 models x 2 caps x 4 seeds.
+  `dom1` contributes only **L95_G80**. Any count that treats `dom1` and
+  `loose1` as separate evidence double-counts 8 cells.
+* **Only 20 distinct warm-up models exist** across `uniform1`, `vitu1`,
+  `loose1`, `loosevit1` and `dom1` -- 16 in TIGHT, 16 in LOOSE, **12 in both**.
+  Only ViTB16 has separate warm-ups per regime.
+* 🐛 `cut_gap.summarise` originally grouped by (campaign, cap, class),
+  **pooling across backbones** in violation of the seed-only averaging rule.
+  Fixed 2026-08-30 to key on the model; the geometry reproduces disaggregated,
+  but the first table printed backbone-averages under per-cap labels.
 
 ### (z) THE INDEPENDENT UNIT IS (model, seed), NOT THE CELL -- 8 of 9 dom1 significances evaporate
 

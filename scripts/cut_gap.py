@@ -10,50 +10,65 @@ emits exactly K items by probability rank, whatever the model's hard count is.
 Those are two different items, and `hard_count - K` is the distance between
 them -- between the point the penalty can push and the point the metric reads.
 
-*** THIS IS THE MECHANISM OF THE REGIME REVERSAL. Measured over 5 campaigns,
-3 backbones, 2 capped classes and 4 seeds:
+⚠️ STATUS: AN UNREFUTED ACCOUNT THAT THIS DESIGN CANNOT DISCRIMINATE.
+Read this before quoting the geometry as a cause. Tested 2026-08-30 over the
+five campaigns below, and the test was mostly negative:
+
+  * `gap`, `slope_K` and `K/n` are NOT three hypotheses. Within one warm-up
+    model the hard count is constant across every cap tag (verified, 40/40
+    groups), so `gap = hard - K` is an exact decreasing affine function of K:
+    measured `rho(gap, K) = -1.0000`. `K/n` is exactly increasing in K and
+    `slope_K` near-deterministically so (mean rho +0.937). Inside a model they
+    are ONE VARIABLE IN THREE COSTUMES and cannot be separated at all.
+  * The only variation that could pry them apart is between backbones at a
+    fixed cap: 10 strata of n=4, where a PERFECT ordering reaches at best
+    p=0.083. Stratified permutation, 20k draws: gap~delta p=0.30,
+    slope_K~delta p=0.55. Null.
+  * Both `gap` and `slope_K` REVERSE SIGN once the cap is held fixed
+    (`rho(gap, delta)` pooled -0.291, within TIGHT **+0.590**, p=0.002), so
+    their pooled correlations are between-cap artefacts. Only `K/n` orders the
+    effect robustly -- and `K/n` is a restatement of the cap, not a mechanism.
+  * ⛔ **THE SHARP PREDICTION FAILED.** This account predicted
+    `tralo_uniform` should order OPPOSITELY in `gap`. It does not: the two
+    arms' slopes have the SAME sign at every level, and uniform's one nominally
+    significant result dies against its own floor (+0.451 p=0.012 raw ->
+    +0.126 p=0.492 floor-corrected).
+
+✅ WHAT IS SOLID, AND IT IS THE PART WORTH KEEPING. The regime step itself is
+real and cleanly attributable. Paired on the **12 CNN warm-up models that
+appear in BOTH regimes** -- identical base weights, so no backbone, host or amp
+confound -- `tralo` moves **+6.24 items from tight to loose in 12 of 12**
+(sign p=0.00049, the exact floor at n=12), while **the reseed floor does not
+move** (5/12, p=0.77). Floor-corrected it is +5.30 items, 12/12. The geometry
+below is a plausible and unrefuted account OF that step; it is not a measured
+cause of it, and it must not be cited as one.
+
+🛑 TO ACTUALLY TEST IT you must vary `gap` at FIXED `K/n`, which this design
+cannot do -- the hard count is constant within a model. That needs a dataset or
+backbone whose calibration differs far more than the 3-126 item spread here, or
+a deliberate miscalibration arm.
+
+MEASURED GEOMETRY (the numbers themselves are not in doubt; their causal
+reading is). Over 5 campaigns, 4 backbones, 2 capped classes, 4 seeds:
 
     regime          cap          gap (items)   p at the cut   slope_bd/slope_K
-    LOOSE  K/n=0.90  L90_G95          14 -  76   0.676-0.959         1.9 -   6.6
-    LOOSE  K/n=0.80  L80_G95          51 - 123   0.832-0.995         2.8 -  47.3
-    TIGHT  K/n=0.30  L30/L50         198 - 397   0.997-1.000        79   - 32387
-    TIGHT  K/n=0.20  L20_G50         235 - 442   0.999-1.000       420   - 81926
+    LOOSE  K/n=0.90  L90_G95           3 -  79   0.587-0.986        1.9 -   6.6
+    LOOSE  K/n=0.80  L80_G95          40 - 126   0.718-0.999        2.8 -  47.3
+    TIGHT  K/n=0.30  L30/L50         198 - 397   0.997-1.000       79   - 32387
+    TIGHT  K/n=0.20  L20_G50         235 - 442   0.999-1.000      420   - 81926
 
-At a loose cap the boundary and the cut are ~25 items apart and carry
-comparable gradient, so pressure aimed at the boundary lands near the cut and
-the constraint helps. At a tight cap they are 200-440 items apart and the cut
-sits at p = 0.9999, where `p(1-p)` is 0.0001 -- the penalty has four to five
-orders of magnitude MORE pull at the boundary than at the point that decides
-the metric. The push is not weak; it is aimed somewhere the metric never looks.
+At a tight cap the cut sits at p = 0.9999, where `p(1-p)` is 0.0001. That is a
+fact about where the gradient is, and it is compatible with -- but does not
+establish -- the claim that misplacement is WHY the tight regime fails.
 
-AND IT IS STRUCTURAL, NOT A PROPERTY OF THIS DATASET. `gap = hard - K` and the
-hard count is roughly `n_pos` for any reasonably calibrated model, so
-`gap ~ n_pos * (1 - K/n)`. The gap is therefore set by the CAP FRACTION and
-shrinks to zero only as K/n -> 1. Any boundary-concentrating count penalty
-inherits this, on any dataset.
-
-*** WHAT IT PREDICTS, AND THE PREDICTION IS FALSIFIABLE. `soft_count_mode:
-margin` windows the BOUNDARY, so it cannot fix the tight regime -- it aims the
-same pressure at the same wrong point, only more sharply. `results/margin2`
-runs 6 tight cells and 6 loose ones, and this file's prediction, recorded
-before it launched, is that `tralo_margin` gains in the LOOSE cells and does
-NOT in the tight ones. If it gains at tight caps, this mechanism is wrong.
-
-*** AND IT EXPLAINS `uniform`. `uniform_grad_count`'s per-item slope is a
-population constant, so it does NOT concentrate at the boundary. That is a
-liability at loose caps (it declines to aim where aiming pays) and an asset at
-tight ones (there is no good place to aim, so spreading beats missing). The
-measured reversal -- `sum` wins loose and loses tight, `uniform` the reverse --
-is exactly what this geometry predicts, and it was previously recorded as an
-unexplained empirical fact.
-
-⚠️ WHAT THIS DOES NOT SAY. It does not say the penalty is too weak, and it does
-not say the cut is unreachable in principle. It says the gradient is placed at
-the boundary while the metric reads the cut, and that the two coincide only as
-K/n -> 1. Reaching the cut with a count function is a separate question, and it
-is CLOSED: a cut-centred count `sigma((p_ic - tau_c)/T)` with `tau_c` the K-th
-order statistic counts the items above the K-th largest, which is K - 1
-exactly, for any model -- see `src/losses/transductive_loss.py: margin_window`.
+⚠️ TWO STRUCTURAL FACTS THIS TOOL WILL NOT TELL YOU, and both change the n:
+  * `dom1`'s L80_G95 and L90_G95 cells are **byte-identical to `loose1`'s**
+    (80/80 `final_predictions.csv`). `dom1` contributes only L95_G80.
+  * The CNN warm-ups are **shared across campaigns**: one warm-up per
+    (model, seed) spans `uniform1` + `loose1` + `dom1`. Only **20 distinct
+    warm-up models exist** across all five, 12 of them in both regimes. Only
+    ViTB16 has separate warm-ups per regime.
+  ⇒ count units by WARM-UP, not by campaign or by cell.
 
 K is taken from the arm's own `final_predictions.csv`, which emits exactly K,
 so this needs no cap arithmetic and makes no assumption about which scope
@@ -126,15 +141,27 @@ def measure(root, arm="tralo_null"):
     return pd.DataFrame(rows)
 
 
-def summarise(df):
-    g = (df.groupby(["campaign", "cap", "cls"])
+def summarise(df, by_model=True):
+    """Per (campaign, model, cap, class). MODEL IS IN THE KEY, deliberately.
+
+    This grouped by (campaign, cap, cls) when it was written, which POOLS
+    ACROSS BACKBONES -- a direct violation of the project's own rule that the
+    atomic cell is (dataset, backbone, cap, method) and that nothing is ever
+    averaged across backbones. Every number the first version printed was a
+    backbone-average wearing a per-cap label. The geometry reproduces once
+    disaggregated, but the table was wrong and a per-cell claim could not have
+    been checked against it. Caught 2026-08-30.
+    """
+    keys = ["campaign", "model", "cap", "cls"] if by_model else ["campaign", "cap", "cls"]
+    g = (df.groupby(keys)
            .agg(seeds=("seed", "nunique"), K=("K", "mean"), hard=("hard", "mean"),
                 n_pos=("n_pos", "mean"), gap=("gap", "mean"), p_K=("p_K", "mean"),
                 slope_K=("slope_K", "mean"), slope_bd=("slope_bd", "mean"))
            .reset_index())
     g["K_over_n"] = g.K / g.n_pos
     g["ratio"] = g.slope_bd / g.slope_K.replace(0, np.nan)
-    return g.sort_values(["cls", "K_over_n", "campaign"])
+    return g.sort_values(["cls", "K_over_n"] + (["model"] if by_model else [])
+                         + ["campaign"])
 
 
 def report(g, out=sys.stdout):

@@ -44,6 +44,11 @@ configs/           gen_campaign.py = THE generator (asserts the protocol, refuse
 data/              iwildcam -- THE ONLY dataset. The original three are removed and
                    unrunnable, not merely discouraged; see `docs/FRAMEWORK.md` 2(n)
 docs/FRAMEWORK.md  THE framework -- protocol, rejected ideas, code purge, open question
+docs/MISSION.md    THE RESUME POINT -- goal, knob ledger, priority queue
+docs/PLAYBOOK.md   WHAT TO DO WHEN A CAMPAIGN LANDS -- the integrity gates in
+                   order, how to read the logs and their three traps, and a
+                   branch per outcome (win / null / loss / gates red) decided
+                   in advance. Read it BEFORE scoring, not after.
 docs/archive/      history, not instructions
 docs/paper/        the TMLR manuscript
 results/           experiment outputs
@@ -83,6 +88,33 @@ python -m scripts.flag_live <armA> <armB>    # md5 across arms: is the new flag 
 python -m scripts.verify_caps               # what integer budget each cap tag really produces
 python -m scripts.check_parity <root>       # equal compute, same knobs, >=2 caps, sane warm-up sharing
 python -m scripts.reachability <early-run>  # CAN the penalty even reach this cell's cut?
+python -m scripts.quarantine --list         # 🛑 IS THIS CAMPAIGN ALREADY DEAD?
+#   Ten campaigns are marked and `full_panel` REFUSES them (exit 1) unless you
+#   pass --allow-quarantined. Each marker names the defect AND what the runs
+#   are still a receipt for, because dead and worthless are different: `iwc2`
+#   landed 74.6% of its dose with `check_parity` GREEN and is the only evidence
+#   that `--constraint-fp32` is load-bearing on ViTB16; the dermmnist campaigns
+#   sit on a test set that leaks 38.7% of itself. Both produce a full,
+#   plausible panel -- the refusal is the point.
+#   `--apply` is a DRY RUN; `--apply --execute` writes markers, drops `pending`
+#   runs that must never execute (dead dataset, or a quarantined campaign the
+#   dispatcher would still pick up -- a marker does not stop main.py, an absent
+#   config does) and corrects a `running` status with no process behind it.
+#   ⛔ It NEVER deletes a `completed` run. `results/` is gitignored, disk is
+#   31% used with 588T free, so space is never a reason. `--self-test` gates it
+#   in both directions: it must refuse the dead AND allow the live.
+python -m scripts.cut_gap <roots>           # where is the CUT, and can anything
+#   reach it? `gap = hard_count - K` is the distance between the point the
+#   penalty pushes (the decision boundary, where `p(1-p)` peaks) and the point
+#   the metric reads (rank K, because the allocator emits exactly K). At
+#   K/n=0.20 the cut sits at p=0.9999 where `p(1-p)`=0.0001; at K/n=0.90 it is
+#   0.59-0.99.
+#   ⚠️ READ ITS STATUS BLOCK: the geometry is measured, the CAUSAL reading is
+#   NOT. Within a warm-up the hard count is constant, so `gap`, `slope_K` and
+#   `K/n` are one variable in three costumes (`rho(gap,K) = -1.0000`), both
+#   `gap` and `slope_K` REVERSE SIGN once the cap is fixed, and the account's
+#   sharp `tralo_uniform` prediction FAILED. Cite it as an unrefuted account,
+#   never as a cause. FRAMEWORK 2(y). `--self-test` gates it.
 ```
 
 ## Reading a result

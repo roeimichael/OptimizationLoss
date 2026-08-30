@@ -1375,7 +1375,36 @@ def main():
     a.add_argument("--percell", action="store_true")
     a.add_argument("--allow-weak-control", action="store_true",
                    help="permit --control focal_clip even though clip is present")
+    a.add_argument("--allow-quarantined", action="store_true",
+                   help="score a campaign `scripts.quarantine` has marked "
+                        "dead. There is almost never a reason: the marker "
+                        "names the defect and what the runs are still for")
     args = a.parse_args()
+
+    # A QUARANTINED CAMPAIGN MUST NOT BE SCORED BY ACCIDENT. Every entry in
+    # the registry is a campaign whose numbers look ordinary and are not:
+    # `iwc2` landed 74.6% of its dose while `check_parity` stayed green, and
+    # the dermmnist campaigns sit on a test set that leaks 38.7% of itself.
+    # Both produce a full, plausible panel. The refusal is the point.
+    try:
+        from scripts.quarantine import is_quarantined
+    except Exception:                       # the gate must never be the
+        is_quarantined = lambda _r: None    # reason a scorer stops working
+    blocked = [(c, q) for c in args.campaign
+               for q in [is_quarantined(c)] if q]
+    if blocked and not args.allow_quarantined:
+        for c, q in blocked:
+            print("REFUSING to score %s" % c)
+            print("  reason   : %s" % q.get("reason"))
+            print("  keep for : %s" % q.get("keep_for"))
+        print("")
+        print("Pass --allow-quarantined only if you know why the marker is")
+        print("there and are reporting the campaign as quarantined anyway.")
+        return 1
+    for c, q in blocked:
+        print("!! SCORING A QUARANTINED CAMPAIGN: %s -- %s"
+              % (c, q.get("reason")))
+        print("")
 
     rows = []
     skipped = collections.Counter()
@@ -1783,4 +1812,8 @@ def _items_scale(rows):
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit(main()), NOT a bare main(): the quarantine refusal above
+    # returns 1, and a discarded return value exits 0 -- so a launch
+    # script or a test that checks the exit code would sail straight
+    # through a refusal it printed. A gate that cannot fail is decor.
+    sys.exit(main())
