@@ -72,7 +72,7 @@ which is not the thesis.
 |---|---|
 | TraLO > fioretto | **AP 3/6 cells, p=1.00. A coin flip.** |
 | TraLO > alm | 4/6 on everything, p=0.69. Not shown. |
-| TraLO > hounie | 6/6 AP+AUROC, p=0.031 -- **fails BH** |
+| TraLO > hounie | 6/6 AP+AUROC on dom1, p=0.031, **fails BH** -- and on dom1b (RegNet) `tralo` is **4th of 5 on AP and 3rd on AUROC**, both **below its own reseed floor**. The ranking lead does not reproduce. FRAMEWORK 2(z5) |
 | Anything survives correction | **0 of 20 contrasts** -- and it is worse than that: the independent unit is **(model, seed) = 8**, not 6 cells, because a lambda=0 twin is byte-identical across cap tags. **8 of 9 dom1 sweeps evaporate at n=8**; only class 4's allocated damage survives (0/8, p=0.0078). FRAMEWORK 2(z) |
 | macroF1 | **-0.0022, 2/6 on MobileNet** -- but **+0.0196 (3/3) tight and +0.0021 loose on ViTB16**, against a reseed floor of -0.0366 loose. Backbone-dependent, and the damage is REPRESENTATION drift, not allocation (RAW -0.0107 is 44% LARGER than deployed -0.0074) |
 | TraLO enforces better | **REFUTED.** Pulls +6.2 items vs hounie +23.4. The WEAKEST of the four |
@@ -234,9 +234,7 @@ and FRAMEWORK 3(0), then start the next.
    is removed from disk. So the `dom1` dominance claim **cannot be reproduced on
    the pre-registered headline backbone** without new GPU time. This is the
    single biggest hole in the dominance story.
-5. 🟡 **`dom1b`** -- running, ~137/192 at last check. On landing:
-   `full_panel --campaign results/dom1 results/dom1b`, but **report at n =
-   (model, seed), not cells** (2(z)).
+5. ✅ **`dom1b` -- DONE and scored.** 192/192, all gates green. The ccF1 lead reproduces on RegNetY400MF (2.49x the floor) but the **AP and AUROC lead does NOT** -- `tralo` is 4th and 3rd, both below its own reseed floor, with `alm` first. Confounded with the numeric regime (Blackwell bf16 vs Quadro fp16), so it is scored standalone. Nothing in it is significant and nothing could be: 4 warm-up units, sign floor p=0.125. FRAMEWORK 2(z5).
 6. 🟡 **Unequal L:G ratios beyond L95_G80** -- `margin2`'s matched 2x2 covers two
    budgets; `L50_G20` / `L70_G40` would extend it.
 7. 🟢 **`fmow` images (~21k)** -- the only route to dataset #2. Needs the user's

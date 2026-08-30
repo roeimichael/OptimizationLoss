@@ -80,7 +80,8 @@ FREE_RESOLUTION = FREE_RANKING + FREE_CALIBRATION
 # The budget-equalized table gets one too. It has no items scale outside ccF1,
 # and printing macro-F1 -- the paper's headline -- with no seed cost is the same
 # omission ConfGap had.
-EQ_RESOLUTION = ("ccP", "ccR", "ccF1", "macroP", "macroR", "macroF1", "acc")
+EQ_RESOLUTION = ("ccP", "ccR", "ccF1", "macroP", "macroR", "macroF1", "uncF1",
+                 "acc")
 
 
 RUN_DIRS = {}         # df index -> run directory, for the collision message
@@ -459,8 +460,15 @@ GROUPS = [
     # monotone in the same TP count, so they agree to the fourth decimal of the
     # p-value by construction. Quote one of them, never three as if they
     # corroborated each other.
+    # `uncF1` IS PRINTED, and it was not until 2026-08-30. It was computed at
+    # line ~413 and left out of this list, so it existed in the frame and
+    # reached no reader -- while `macroF1` sat right beside it carrying a
+    # number that is 6/8 uncapped classes on iwildcam. Every "the constraint
+    # damages the uncapped classes" claim had to be recomputed by hand from an
+    # imported `panel()`. A metric that is computed and not printed is worse
+    # than one that is missing: it looks covered.
     ("BUDGET-EQUALIZED (filled to exactly K; ccP/ccR/ccF1 are one metric in three costumes)",
-     ["ccP", "ccR", "ccF1", "macroP", "macroR", "macroF1", "acc"]),
+     ["ccP", "ccR", "ccF1", "macroP", "macroR", "macroF1", "uncF1", "acc"]),
     # 🛑 NOT A RESULT FAMILY. Post-hoc adjustment fills to the constraint
     # boundary for free at the end of every pipeline, so "how far outside the
     # cap the raw model sat" and "how many flips the free step performed" buy

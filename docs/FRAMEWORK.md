@@ -2054,6 +2054,82 @@ does not.
   Fixed 2026-08-30 to key on the model; the geometry reproduces disaggregated,
   but the first table printed backbone-averages under per-cap labels.
 
+### (z5) 🔴🔴 dom1b: THE RANKING-METRIC LEAD DOES NOT REPRODUCE ON RegNetY400MF
+
+**Scored 2026-08-30, 192/192, all gates green** (dose 100% on all five trained
+arms, `check_parity` OK on one commit, no inert arm, **0 of 136 runs show a
+terminal collapse**, `constraint_fp32: true`).
+
+| metric | `tralo` rank of 5, dom1 | rank, dom1b | vs its OWN reseed floor |
+|---|---|---|---|
+| ccF1 | **1** (+0.0141) | **1** (+0.0058) | 2.49x the floor ✅ |
+| AP | **1** (+0.0371) | **4** (+0.0314; `alm` +0.0458) | **0.97x -- BELOW the floor** ❌ |
+| AUROC | **1** (+0.0106) | **3** (+0.0044; `alm` +0.0069) | **0.77x -- BELOW the floor** ❌ |
+
+⇒ **the ccF1 lead reproduces; the ranking lead does not.** `alm` takes both
+ranking metrics on RegNet, and on both `tralo`'s gain over its own lambda=0
+twin is smaller than a pure RNG reseed buys. **The ranking channel is the only
+one a top-K allocator can see**, so this is the channel that mattered.
+
+⚠️ **BACKBONE AND NUMERIC REGIME CHANGED TOGETHER.** dom1 ran Blackwell
+bfloat16 with no GradScaler; dom1b ran Quadro float16 + GradScaler. Same
+commit, same 100% dose, same `constraint_fp32`. So dom1b **cannot** be pooled
+with dom1, and a dom1-vs-dom1b difference cannot be assigned to the backbone or
+to the regime alone. Write it as *"not reproduced on RegNetY400MF under a
+different numeric regime"*, never as *"backbone-specific"*.
+
+🛑 **NOTHING IN dom1b IS SIGNIFICANT AND NOTHING COULD BE.** One backbone x
+4 seeds = **4 warm-up units**, exact sign floor **p = 0.125**; at the 3 cap
+tags it is p = 0.25. Every RESOLUTION block reads UNDERPOWERED -- `tralo` vs
+its null needs **~24 seeds per cell** against 4 present. Every tie here is an
+absence of measurement, not a null.
+
+**The item decomposition, which is the useful part.** `tralo` - `clip` =
+**+8.44 items**, of which **+4.06 is compute** (the lambda=0 twin at equal
+epochs) and **+1.76 more is RNG** (reseed - null), leaving **+2.62 items for
+the constraint term** -- against a within-cell paired seed sd of 6.56-7.52
+items, i.e. **0.35-0.40 sd**.
+
+**macroF1 / uncF1.** All 15 arm x cell combinations are negative on macroF1
+(`tralo` -0.0081, 0/3; uncF1 -0.0127, 0/3). ⚠️ **But the reseed floor is MORE
+negative** (-0.0098 / -0.0138), so on RegNet the macro damage is **inside the
+RNG floor and is not attributable to the constraint**. Against `clip`, `tralo`
+reads macroF1 +0.0078 while **`tralo_null` at equal compute reads +0.0159** --
+the lambda=0 twin BEATS the constrained arm by +0.0081. The macroF1 gain over
+the clipper is compute, and the constraint subtracts from it. Third backbone
+to say so.
+
+🐛 **`base_model_id` COLLIDES ACROSS CAMPAIGNS** -- identical in 24/24 shared
+(arm, seed) keys between dom1b and loose1. It does not collide in fact, for two
+independent reasons: `get_cache_path` roots the cache per WORKTREE, and
+`load_from_cache` refuses a cache trained under a different AMP regime. The
+weight md5s differ and 0 of 48 predictions match. **But the key alone would not
+have protected a same-worktree, same-AMP relaunch.** Do not rely on
+`base_model_id` to prove two campaigns trained different models; md5 the
+weights.
+
+### (z6) ⚠️ "FIRST OF FIVE, 6/6 CELLS" IS A POOLED MEAN, NOT A PER-CELL SWEEP
+
+Corrected 2026-08-30. dom1's headline was quoted here and to Roei as `tralo`
+first of five on ccF1/AP/AUROC "6/6 cells each". That conflates two things:
+
+* **`tralo` is first on the POOLED MEAN delta** for all three metrics. True.
+* **"6/6 cells" is the sign test of `tralo` vs its own null** -- positive in
+  6 of 6 cells. Also true, and a different statement.
+* **On absolute per-cell RANK among the five trained arms, dom1's `tralo`
+  takes only 2/6 firsts on ccF1, 2/6 on AP and 3/6 on AUROC.** dom1b's takes
+  2/3, 0/3, 0/3.
+
+⇒ "first of five in 6/6 cells" was never measured and must not be written.
+Say which of the three statements is meant, every time.
+
+🐛 **AND `full_panel` COMPUTED `uncF1` WITHOUT EVER PRINTING IT.** It was in
+the frame from line ~413 and absent from `GROUPS`, so the standing rule "read
+uncF1 beside macroF1" could not be satisfied from the tool's own output and
+every uncapped-damage number had to be recomputed by hand. Fixed 2026-08-30:
+`uncF1` is now in the printed group and in `EQ_RESOLUTION`. A metric that is
+computed and not printed is worse than a missing one -- it looks covered.
+
 ### (z2) 🔴🔴🔴 THE MANUSCRIPT CLAIMS NOTHING ON iwildcam
 
 **Audited 2026-08-30. `grep -ril iwildcam docs/paper/` returns ZERO files.**
