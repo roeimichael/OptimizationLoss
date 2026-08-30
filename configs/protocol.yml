@@ -315,6 +315,35 @@ blocks:
   # discovered in it.
   tralo_head:
     head_only: true
+  # THE EQUAL-DOSE CONTROL FOR EVERY HEAD-TO-HEAD. Measured 2026-08-30 on dom1
+  # and dom1b: `tralo` and `alm` attempt 29 constraint steps per run while
+  # `fioretto` and `hounie` attempt 28, at an identical `constraint_epochs: 29`
+  # -- and `dose_landed` printed 100.0% for all four, because that figure is
+  # applied/attempted WITHIN an arm.
+  #
+  # Verified at the GRADIENT level, so it is dose and not accounting. The
+  # subgradient duals guard their step on `has_work` (is any lambda > 0) and
+  # update the dual at the END of the epoch, so their first constraint epoch
+  # does nothing: logged `grad_norm` is exactly 0.0 at epoch 1 for both. TraLO
+  # guards on `has_constraint`, which is structural, and starts at
+  # lambda_global 0.01, so it takes a real step at epoch 1 (`Grad_Norm` 3.09).
+  #
+  # That is faithful to the published algorithms -- lambda^0 = 0 is what
+  # subgradient dual ascent specifies -- so it must NOT be fixed by hacking a
+  # baseline. It is fixed by giving TraLO the same start and seeing whether the
+  # win survives. This arm is `tralo` with lambda initialised to 0 and the
+  # ratchet UNCHANGED (`lambda_step` stays 0.05), so epoch 1 carries a zero
+  # gradient exactly as the duals' does, the ratchet lifts lambda at the end of
+  # it, and epochs 2..29 run normally -- 28 effective steps, matching them.
+  #
+  # It is NOT `tralo_null`: the null zeroes `lambda_step` too, so lambda stays 0
+  # forever and no constraint is ever applied. Here only the STARTING value is
+  # 0. Read `Lambda_Global` in the log to tell them apart -- it must rise here
+  # and stay flat in the null.
+  tralo_lam0:
+    lambda_step: 0.05
+    lambda_global: 0.0
+    lambda_local: 0.0
   # THE NULL-TREATMENT CONTROL. Identical to `tralo` in warm-up length, optimizer
   # restart, epoch count, transductive passes and allocator -- with the treatment
   # removed. total_constraint == 0 makes has_constraint False, so pass 2 is
@@ -509,6 +538,12 @@ arms:
      null_sibling: tralo_null}
   tralo_uniform:
     {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, tralo_uniform],
+     null_sibling: tralo_null}
+  # Shares `tralo_null` for the usual reason: at lambda 0 with lambda_step 0
+  # there is no constraint gradient, so a dedicated null would be a
+  # bit-identical run costing a GPU slot.
+  tralo_lam0:
+    {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, tralo_lam0],
      null_sibling: tralo_null}
   # DIRECTION, not placement: the count is untouched and the STEP is projected.
   # Shares `tralo_null` for the same reason the others do -- at lambda 0 there
