@@ -202,6 +202,12 @@ and FRAMEWORK 3(0), then start the next.
    zero gradient exactly as theirs does. **The first thing to check on the
    first completed run is `Grad_Norm` at epoch 1: 0.0 for `tralo_lam0`, ~3.09
    for `tralo`. If not, the arm is inert and the campaign is void.**
+   ✅ **VOID CHECK PASSED 2026-08-30 on the first completed run**
+   (`MobileNetV2/L80_G95/tralo_lam0/seed_1`). Epoch-1 `Grad_Norm`:
+   `tralo` **2.16** (steps), `tralo_lam0` **0.0**, `fioretto` **0.0**,
+   `hounie` **0.0** -- the control now matches the duals exactly. And it is
+   NOT the null: its `Lambda_Global` rises 0.025 -> 0.05 -> 0.075 and it steps
+   from epoch 2 (grad 18.69), where `tralo_null` stays 0.0 forever.
    ⚠️ 8 independent (model, seed) units, so only 8/8 (p=0.0078) is significant;
    7/8 is p=0.0703 and is a DIRECTION. Say which was met.
 1. 🔴 **ViTB16 LOOSE, from 2 cells to >= 6.** `loosevit1` already exists, is
