@@ -179,22 +179,30 @@ and FRAMEWORK 3(0), then start the next.
    min attainable p = 0.500, NOT CALLABLE**. More loose cap tags on ViTB16
    (L85, L95, plus the matched `L95_G80`) is the cheapest route to a callable
    headline. **Highest value per GPU-hour available.**
-2. 🔴 **`margin2`** (`docs/launch_margin2.sh`, 432 runs, 12 cells, validated
+2. 🔴 **`vitdom1`** (`docs/launch_vitdom1.sh`, 240 runs, 6 cells, validated
+   2026-08-30). **ViTB16 has never run a single rival dual on iwildcam**, so
+   the dominance claim cannot be reproduced on the pre-registered headline
+   backbone. Six LOOSE cap tags, five distinct budgets plus the `L80_G95` /
+   `L95_G80` scope pair at an identical K=296. Also takes `loosevit1`'s
+   NOT-CALLABLE 2-cell positive to 6 cells. Deliberately loose-only, and
+   deliberately without per-family nulls -- the header says why.
+3. 🔴 **`margin2`** (`docs/launch_margin2.sh`, 432 runs, 12 cells, validated
    2026-08-30, pre-registration fixed). Now carries a falsifiable prediction
    from 2(y): gain in the 6 LOOSE cells, none in the 6 TIGHT ones.
    ⛔ Blocked on a GPU, not on readiness.
-3. 🔴 **ViTB16 needs RIVAL DUALS.** `hounie`, `fioretto`, `alm`, `danits_lp` have
+4. ✅ ~~ViTB16 needs rival duals~~ -- **this is now queued as `vitdom1`, item 2.**
+   Kept here only so the hole is not re-discovered: `hounie`, `fioretto`, `alm`, `danits_lp` have
    **never run on ViTB16 on iwildcam** -- they exist there only in the dermmnist
    `vit_diag`/`vit_ceskip` campaigns, which are 86/97 pending on a dataset that
    is removed from disk. So the `dom1` dominance claim **cannot be reproduced on
    the pre-registered headline backbone** without new GPU time. This is the
    single biggest hole in the dominance story.
-4. 🟡 **`dom1b`** -- running, ~137/192 at last check. On landing:
+5. 🟡 **`dom1b`** -- running, ~137/192 at last check. On landing:
    `full_panel --campaign results/dom1 results/dom1b`, but **report at n =
    (model, seed), not cells** (2(z)).
-5. 🟡 **Unequal L:G ratios beyond L95_G80** -- `margin2`'s matched 2x2 covers two
+6. 🟡 **Unequal L:G ratios beyond L95_G80** -- `margin2`'s matched 2x2 covers two
    budgets; `L50_G20` / `L70_G40` would extend it.
-6. 🟢 **`fmow` images (~21k)** -- the only route to dataset #2. Needs the user's
+7. 🟢 **`fmow` images (~21k)** -- the only route to dataset #2. Needs the user's
    go-ahead for the download.
 
 ⛔ **Do NOT re-run ViTB16 tight caps.** `vitu1` is complete, 100% dose, and says
