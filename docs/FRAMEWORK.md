@@ -2054,50 +2054,90 @@ does not.
   Fixed 2026-08-30 to key on the model; the geometry reproduces disaggregated,
   but the first table printed backbone-averages under per-cap labels.
 
-### (z8) 🟢 THE COUNT-FUNCTION REVERSAL, MEASURED PER CAP -- AND IT IS CLEAN
+### (z8) 🟢 THE COUNT-FUNCTION REVERSAL -- GATED, DEDUPLICATED, AND WHAT IT IS NOT
 
-Measured 2026-08-31 from the 372-cell table. `tralo_uniform` minus `tralo`, one
-row per cap tag, every backbone that has both arms at that cap. Effective K is
-`min(global, local sum)` as `verify_caps` states it, so the tag is NOT the
-budget and the K/n column is the real axis.
+Measured 2026-08-31 from the 372-cell table, then RE-DERIVED after running the
+integrity gates, which changed the numbers. Both versions are kept here because
+the first was quoted before the gates were run and that is the error to learn.
+
+**THE GATES, run on all six source campaigns.**
+
+| gate | result |
+|---|---|
+| dose | **100%** on every trained arm, and `tralo`/`tralo_uniform` ATTEMPT the same steps in every campaign (1044, 696, 348, 232), so the contrast is dose-matched |
+| `check_parity` | green: 30 optimizer epochs every arm, matched lr / lr_constraint / dropout / batch / pretrained |
+| `code_version` | ONE per campaign, none split. Three distinct commits ACROSS campaigns, but every delta is computed WITHIN one campaign, so no delta crosses a commit |
+| saturation | warm-up acc 0.961-0.964, constraint epochs add +0.034-0.036 -> **NOT the saturated signature**. The live regime |
+| terminal collapse | none. Final acc 0.9951-0.9995 on every arm in every campaign |
+| inert flag | `tralo` vs `tralo_uniform` raw md5s **differ in every cell checked**. The `soft_count_mode` flag is LIVE, not a fifth inert one |
+
+🐛 **DUPLICATION FOUND, AND IT CHANGED THE RESULT.** `dom1` and `loose1`
+hold **byte-identical runs** on the cells they share -- md5 of
+`final_predictions_raw.csv` matches on 8 of 8 checked (MobileNetV2 and V3 x
+L80_G95 and L90_G95 x both arms). Counting both inflated the loose-side n from
+13 to 17. Deduplicated:
 
 | cap | K (cls 2, n=370) | K/n | dAP | dAUROC | AP wins |
 |---|---|---|---|---|---|
-| L20_G50 | 74 | 0.20 | **+0.0579** | +0.0139 | **4/4** |
-| L30_G50 | 111 | 0.30 | **+0.0842** | +0.0206 | **4/4** |
-| L50_G30 | 111 *(global binds)* | 0.30 | **+0.1110** | +0.0270 | **4/4** |
-| **L60_G95** | **222** | **0.60** | **-- never run --** | | |
-| L80_G95 | 296 | 0.80 | -0.0157 | -0.0016 | 1/7 |
+| L20_G50 | 74 | 0.20 | +0.0579 | +0.0139 | 4/4 |
+| L30_G50 | 111 | 0.30 | +0.0842 | +0.0206 | 4/4 |
+| L50_G30 | 111 *(global binds)* | 0.30 | +0.1110 | +0.0270 | 4/4 |
+| **L60_G95** | **222** | **0.60** | **never run** | | |
+| L80_G95 | 296 | 0.80 | -0.0137 | -0.0010 | 1/5 |
 | L95_G80 | 296 *(global binds)* | 0.80 | -0.0164 | -0.0020 | 1/3 |
-| L90_G95 | 333 | 0.90 | -0.0224 | -0.0034 | **0/7, p=0.016** |
+| L90_G95 | 333 | 0.90 | -0.0231 | -0.0036 | **0/5** |
 
-⇒ **12/12 positive at tight, 2/17 positive at loose.** The sign flip is
-unanimous, it holds on all four backbones independently, and it is the largest
-and most consistent structural effect in the corpus. dAP at L50_G30 is
-**+0.1110**, which is an order of magnitude above the seed noise.
+**TIGHT 12/12 positive, mean +0.0844. LOOSE 2/13 positive, mean -0.0179.**
 
-🔑 **THE UNIFORM ADVANTAGE GROWS AS THE TIGHT CAPS LOOSEN, THEN CRASHES.**
-+0.058 -> +0.084 -> +0.111 across K/n 0.20 -> 0.30, then -0.016 by 0.80. So the
-crossover is bracketed at **0.30 < K/n < 0.80** and NOTHING has ever been run
-inside it. `vitdom2`'s `L60_G95` is K/n = 0.60, the first interior point, and it
-halves that interval whichever way it falls.
+⚠️ **A CORRECTED SIGNIFICANCE CLAIM.** `L90_G95` was written here as
+"0/7, p=0.016". After dedup it is **0/5, p=0.0625**, which does NOT reach 0.05.
+No individual cap level is significant.
 
-⚠️ **A SCOPE EFFECT MAY BE HIDING HERE, AND IT IS NOT YET A RESULT.**
-`L30_G50` and `L50_G30` impose the SAME effective K=111 through different
-scopes -- local sum in the first, global in the second -- and they read
-**+0.0842 against +0.1110**. `L80_G95` and `L95_G80` are the same-K pair at the
-other end and agree closely (-0.0157 vs -0.0164). Four cells each, so the tight
-pair's gap is well inside the noise and must NOT be quoted as a scope finding
-until a campaign varies scope at fixed K on purpose. Recorded because the
-same-K pairs are the cheapest scope test available and nobody has used them.
+🛑🛑 **AND THE CELL IS NOT THE INDEPENDENT UNIT (2(z)).** The three cap
+tags within a (model, seed) SHARE ONE WARM-UP, so 12 tight "cells" are 4
+backbones x 3 correlated replicates, not 12 draws. On the correct unit the
+tight result is **4 of 4 backbones, exact sign floor p = 2/2^4 = 0.125**, and
+the loose result is 5 units. **Neither reaches p < 0.05 on the honest unit.**
+What is defensible is a UNANIMOUS DIRECTION with a large effect, not a
+significant one. This is the same trap that evaporated 8 of 9 dom1 sweeps.
 
-🛑 **THIS IS THE ARGUMENT FOR THE CUT-WINDOWED COUNT.** Neither count
-function is right everywhere: `sum` puts its gradient where `p(1-p)` peaks, at
-the decision boundary, which is 294 items from the cut at K/n=0.20 and 35 at
-K/n=0.90; `uniform` spreads it flat and so cannot reorder at all. A count that
-windows the CUT would not have to choose. `tralo_margin` is implemented and
-gated (`smoke_arms --matrix` passes it) and has **never been run anywhere**. It
-is the one remaining design step, and this table is its motivation.
+⚠️ **ONE CELL FLIPS WITH THE NUMERIC REGIME.** RegNetY400MF at L80_G95 reads
+**+0.0074 under fp16 (`dom1b`)** and **-0.0283 under bf16 (`loose1`)** -- same
+backbone, same cap, opposite sign. It is one of the two positive loose cells.
+Do not treat the loose side as cleanly unanimous.
+
+🔑 **WHAT `log_health` SHOWS, AND IT REFRAMES THE MECHANISM.** The caps are
+**never satisfied during training at ANY cap level** (`satisfied 0/N` in every
+campaign). Satisfaction is not the variable. The DISTANCE to K is:
+
+* **LOOSE:** `tralo` ends class 2 at **396 against K=352** and class 7 at
+  **425 against K=433** -- at or already UNDER budget. There is nearly no work
+  to do, so `sum`'s targeted push does no damage.
+* **TIGHT:** class 2 ends at **370 against K=185**, twice the budget, never
+  converging. The constraint must move the count enormously, and that is where
+  `sum`'s `p(1-p)` weighting reorders destructively while `uniform` cannot.
+
+So the reversal is not "uniform is better at tight caps" as a property of the
+cap. It is that the DAMAGE only materialises when the constraint has real work
+to do. ⚠️ Note also that the NULL's count slope is steeper than the
+constraint's (-0.70/ep against -0.33/ep at tight), so CE drift moves the count
+more than the constraint does -- no count trajectory is attributable without
+its twin.
+
+✅ **The crossover is still bracketed at 0.30 < K/n < 0.80 with nothing run
+inside it**, and `vitdom2`'s `L60_G95` (K/n = 0.60) remains the right first
+interior probe.
+
+⚠️ **A SCOPE EFFECT MAY BE HIDING HERE AND IS NOT A RESULT.** `L30_G50` and
+`L50_G30` impose the same K=111 through different scopes and read +0.0842 vs
++0.1110; the same-K pair at the loose end agrees closely (-0.0137 vs -0.0164).
+Four and three cells. Well inside the noise. Recorded only because the same-K
+pairs are the cheapest scope test available and nobody has used them.
+
+🛑 **THIS REMAINS THE ARGUMENT FOR THE CUT-WINDOWED COUNT.** `tralo_margin`
+is implemented and passes `smoke_arms --matrix` and has never been run
+anywhere. But WHERE to window depends on where the crossover is, so it waits on
+`L60_G95`.
 
 ### (z7) 🛑🛑🛑 `tralo` DOES NOT BEAT THE CLIPPER. `tralo_uniform` DOES.
 
