@@ -496,10 +496,20 @@ def main(argv=None):
                 print("  skipped %s: %s" % (treated, exc))
                 continue
             n_ok += 1
+            # med and max print beside q95 because the ladder below is
+            # ANCHORED on q95 (`[q, 2q, 10q]`), so a reader has to be able to
+            # see whether that anchor is representative or a tail artefact.
+            # They were computed in `measured_delta` and read by nobody until
+            # 2026-08-31 -- the same defect as `full_panel`'s uncF1, and the
+            # reason `tests/test_metric_coverage.py` now gates this class.
             print("    %-14s %-26s seed %s  |dp| q95 %s"
                   % (arm, "/".join(str(x) for x in cell), seed,
                      " ".join("c%d=%.4f" % (c, v["q"])
                               for c, v in sorted(disp.items()))))
+            print("    %-14s %-26s        med/max %s"
+                  % ("", "", " ".join(
+                      "c%d=%.4f/%.4f" % (c, v["median"], v["max"])
+                      for c, v in sorted(disp.items()))))
             def ladder(c, _s, _d=disp):
                 q = _d[c]["q"]
                 return [q, 2 * q, 10 * q]

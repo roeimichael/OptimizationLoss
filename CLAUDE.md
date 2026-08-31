@@ -148,6 +148,13 @@ python -m scripts.paired_seeds <scan-root>  # each arm minus its OWN lambda=0 tw
 python -m scripts.score_scan <root>         # AUROC / prec@K / Jaccard, grouped by CELL
 python -m scripts.headroom <root>           # items from `clip` to a PERFECT allocator,
                                             #   per cell -- the ceiling any arm is chasing
+python -m scripts.cell_table --campaign <roots> --out cells.csv   # the SURVEY, not the
+#   verdict. `full_panel` prints CONTRASTS, so the absolute level an arm reached
+#   is nowhere in its output. This emits one row per (campaign, dataset, model,
+#   cap, arm) with mean, within-cell seed sd and n_seeds for every metric, plus
+#   `dose` and `n_md5`. SEED IS THE ONLY COLLAPSED AXIS and the key is asserted
+#   at runtime -- `--self-test` builds cells differing only by backbone and
+#   requires they stay separate. Quarantine-gated like `full_panel`.
 ```
 
 ⚠️ `full_panel` now prints a **RESOLUTION** block per contrast: the within-cell
