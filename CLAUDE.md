@@ -580,6 +580,19 @@ pipeline -- there is no setting to get wrong. Same for the CE-saturation skip
   is why the scorer and the offline probes can be iterated while runs land. **Check
   `git status --porcelain src/ configs/ main.py` on the server, not just `git status`** --
   a tree dirty only in `scripts/` is the normal working state and says nothing.
+- 🛑 **PIN THE CAMPAIGN TREE AT THE COMMIT ITS CONFIGS WERE GENERATED FROM, AND
+  STOP MOVING IT.** `code_version` is `git rev-parse HEAD` -- only the `-dirty`
+  SUFFIX is scoped to `TRAINING_PATHS`. So **any commit at all, including a
+  docs-only one, desynchronises a staged campaign**: the configs keep the old
+  stamp while the runner would write the new one, and `check_parity` fails the
+  campaign on a change that touched nothing the runner imports. Fast-forwarding
+  a staged tree "to pick up the latest docs" is how that happens.
+  Either regenerate the configs after moving HEAD (they must end up a single
+  stamp -- check with
+  `python -c "import glob,json;print({json.load(open(f))['code_version'] for f in glob.glob('<root>/*/*/*/*/*/config.json')})"`)
+  or, better, leave the tree alone once staged. A `scripts/` update can still be
+  copied in by hand: `scripts/` is outside `TRAINING_PATHS`, so it does not flip
+  `-dirty` and does not move HEAD.
 - 🛑 **THE CAMPAIGN CHECKOUT IS A WORKTREE, SO THE FREEZE COVERS GIT PLUMBING TOO.**
   `~/optloss-audit/.git` is a FILE, not a directory:
   `gitdir: /home/dsi/michaer8/OptimizationLoss/.git/worktrees/optloss-audit`. Four
