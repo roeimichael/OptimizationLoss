@@ -265,3 +265,73 @@ def test_dose_landed_reports_cross_arm_attempts_not_only_within_arm():
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))
+
+
+# --------------------------------------------------------------------------
+# 6. the budget is equalized: every arm emits EXACTLY K, both directions
+# --------------------------------------------------------------------------
+# The corpus mistake was that cc-F1 was partly a BUDGET measurement:
+# corr(budget, d ccF1) was +0.81 on `hounie`, and the hinge arm emitted 16.3%
+# more predictions in 24/24 pairs so part of its +3.23 pp was free fill.
+# Verified 2026-08-31 that the live pipeline cannot do this -- 16 of 16 dom1
+# arms deploy an identical 296/364 while their RAW counts span 278-391 and
+# 430-550. These gates keep it that way, and the one that matters is the
+# UNDERSHOOT case: clipping down is the obvious half, filling up is the half
+# that makes two arms comparable.
+
+def _alloc(n_cls, argmax_class, n, K, capped):
+    """Probabilities whose plain argmax is `argmax_class` for every item."""
+    import numpy as np
+    from scripts.full_panel import equalize_multi
+    rng = np.random.RandomState(0)
+    P = rng.uniform(0.0, 0.10, size=(n, n_cls))
+    P[:, argmax_class] += 0.80
+    P = P / P.sum(axis=1, keepdims=True)
+    glob = np.full(n_cls, 10 ** 9, dtype=float)
+    for c in capped:
+        glob[c] = K
+    return equalize_multi(P, None, glob, {}, list(capped)), P
+
+
+def test_allocator_fills_UP_to_exactly_K_when_the_model_undershoots():
+    """The half that makes arms comparable, and the half that is easy to lose.
+
+    `hounie` and `tralo_uniform` both finish UNDER budget on dom1 (raw 288 and
+    281 against K=296) and both deploy exactly 296. If undershoot were left
+    short, an arm would be penalised for satisfying the cap early and the
+    comparison would become a budget measurement.
+    """
+    import numpy as np
+    # argmax is class 0 for every item, so class 1 is raw-EMPTY
+    assigned, _ = _alloc(n_cls=3, argmax_class=0, n=100, K=30, capped=(1,))
+    got = int((assigned == 1).sum())
+    assert got == 30, (
+        "the allocator emitted %d for a capped class with K=30 when the model's "
+        "own argmax emitted 0. Undershoot must be filled UP to exactly K, or "
+        "arms are compared at different budgets." % got)
+
+
+def test_allocator_clips_DOWN_to_exactly_K_when_the_model_overshoots():
+    import numpy as np
+    # argmax is the capped class 1 for every one of the 100 items
+    assigned, _ = _alloc(n_cls=3, argmax_class=1, n=100, K=30, capped=(1,))
+    got = int((assigned == 1).sum())
+    assert got == 30, (
+        "the allocator emitted %d for a capped class with K=30 when the model "
+        "wanted 100. Overshoot must be clipped DOWN to exactly K." % got)
+
+
+def test_NEGATIVE_CONTROL_a_clip_only_allocator_FAILS_the_undershoot_gate():
+    """Prove the undershoot gate can fail, by scoring what clip-only would give.
+
+    A naive `argmax then clip` never adds predictions, so on the undershoot
+    fixture it emits 0 against K=30. If the gate above ever passes for an
+    implementation that behaves like this, the gate is broken.
+    """
+    import numpy as np
+    _, P = _alloc(n_cls=3, argmax_class=0, n=100, K=30, capped=(1,))
+    clip_only = P.argmax(axis=1)                      # never fills, only clips
+    got = int((clip_only == 1).sum())
+    assert got != 30, "the fixture does not actually exercise undershoot"
+    assert got == 0, (
+        "expected the clip-only reference to emit 0; got %d" % got)

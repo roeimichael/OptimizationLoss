@@ -2054,6 +2054,55 @@ does not.
   Fixed 2026-08-30 to key on the model; the geometry reproduces disaggregated,
   but the first table printed backbone-averages under per-cap labels.
 
+### (z9) ✅ THE BUDGET IS EQUALIZED, BOTH IN THE SCORER AND AS DEPLOYED -- RECEIPT
+
+The corpus mistake was that cc-F1 was **partly a budget measurement**:
+`corr(budget, d ccF1)` was **+0.81** on `hounie`, and matching the budget cut
+TraLO's head-to-heads 3-4x. The hinge ablation had the same defect from the
+other side -- the hinge arm emitted **16.3% more predictions in 24/24 pairs**,
+so part of its +3.23 pp was free fill. Verified 2026-08-31 that neither can
+happen in the current pipeline. Both halves are checked because they are
+different mechanisms.
+
+**1. THE SCORER.** `full_panel.panel()` re-derives its own allocation with
+`equalize_multi`, which walks every (item, capped class) pair in descending
+probability and assigns while the class has global AND local room. Empirical
+proof rather than the comment: `items_per_001` is derived from
+`(eq == c).sum() + (y == c).sum()`, so it is constant across arms if and only
+if every arm emitted the same count. Across **all 44 cell groups** in the live
+corpus it is identical for every arm, **max spread 0.0000000000**.
+
+**2. AS DEPLOYED.** `final_predictions.csv`, dom1 / MobileNetV3 / L80_G95,
+seed 1, all 16 arms. K = 296 for class 2 and 364 for class 7:
+
+| arm | deployed c2 | deployed c7 | RAW c2/c7 before the allocator |
+|---|---|---|---|
+| alm | 296 | 364 | **391**/442  (over -> clipped DOWN) |
+| fioretto | 296 | 364 | 387/430 |
+| tralo | 296 | 364 | 346/471 |
+| clip / lp / cb_lp | 296 | 364 | 318/507 |
+| tralo_reseed | 296 | 364 | 304/520 |
+| la_lp | 296 | 364 | 297/530 |
+| hounie | 296 | 364 | **288**/437  (UNDER -> filled UP) |
+| tralo_uniform | 296 | 364 | **281**/546  (UNDER -> filled UP) |
+| the four nulls | 296 | 364 | 278/550 |
+
+⇒ **16 of 16 arms deploy an identical budget** while their raw counts span
+278-391 on class 2 and 430-550 on class 7. The fill works in BOTH directions:
+an arm over budget is clipped down, and an arm that finishes SHORT is topped up
+to exactly K by the same allocator. `posthoc_adjustment` phase 2 runs with
+`force_exact=True`, and `heuristic/train.py` pass 1 walks every (item, capped
+class) pair, which is why undershoot is filled rather than left short.
+
+⇒ So no ccF1, macroF1, uncF1 or acc number in the live corpus can be a budget
+measurement, and `raw_over_K` is the only column that reads the pre-allocator
+count. AP and AUROC are allocation-free and never touched the budget at all.
+
+⚠️ **This is a property of the SCORER and the PIPELINE, not of the arms.** It
+is exactly why `full_panel` is allocator-blind (2(x1)) and why two arms sharing
+a warm-up read `+0.0000` on every budget-equalized metric. An allocator
+comparison must use `final_predictions.csv`, never the panel.
+
 ### (z8) 🟢 THE COUNT-FUNCTION REVERSAL -- GATED, DEDUPLICATED, AND WHAT IT IS NOT
 
 Measured 2026-08-31 from the 372-cell table, then RE-DERIVED after running the
@@ -2645,7 +2694,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 411 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 414 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -2809,7 +2858,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 411 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 414 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -2817,7 +2866,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (411 tests, ~180 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (414 tests, ~180 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -7846,7 +7895,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             411 tests, ~180 s, no dataset required
+tests/             414 tests, ~180 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
