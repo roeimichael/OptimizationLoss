@@ -2130,6 +2130,41 @@ ccF1 12/15 (p=0.035) and AP 12/15 (p=0.035); `fioretto` and `hounie` are
 weaker and both LOSE uncF1. `tralo` vs `alm` head to head is 9/15 on every
 metric, p=0.61 -- **a tie, on CNNs only.**
 
+⚠️⚠️ **AND THE DOMINANCE HALF IS NOT SETTLED, BECAUSE IT HAS ONLY EVER
+BEEN MEASURED IN `uniform`'s WORST REGIME.** Checked 2026-08-31, and it
+qualifies everything above:
+
+| contrast | cells | AP | verdict |
+|---|---|---|---|
+| `tralo_uniform` - `alm` | **9, ALL LOOSE** | **1/9, p=0.039** | **LOSS** |
+| `tralo_uniform` - `hounie` | **9, ALL LOOSE** | **1/9, p=0.039** | **LOSS** |
+| `tralo` - `alm` | 15, all loose | 9/15, p=0.61 | tie |
+| `tralo` - `hounie` | 15, all loose | 11/15, p=0.12 | direction only |
+
+**Every cell in which `tralo_uniform` has ever met a rival dual is a LOOSE
+cap** (dom1, dom1b and equaldose1 are `L80_G95 / L90_G95 / L95_G80` and nothing
+else). Loose is exactly where `sum` beats `uniform` head to head, AP 15/17
+p=0.0023. So `tralo_uniform` has been compared against the duals **only in the
+regime its own count function is known to lose**, and the p=0.039 is
+confounded with that, not a verdict on the arm.
+
+⇒ **Two different claims, two different evidence bases, and they must be kept
+apart:**
+
+* **vs the CLIPPER: decided.** 29 cells spanning BOTH regimes and all four
+  backbones, `tralo_uniform` wins AP and AUROC 25/29 (p=0.0001) and never
+  loses a metric. This is the claim FRAMEWORK 2(z7) rests on.
+* **vs the RIVAL DUALS: OPEN, and currently pointing the wrong way.** 9 loose
+  cells, no tight, no mid, no ViTB16. `tralo` looks better there and
+  `tralo_uniform` looks worse, and the regime confound explains the sign.
+
+🛑 So the consolidation is a decision about the DESIGN SPACE (stop adding
+count variants, `tralo_uniform` is the default), NOT yet a decision about which
+arm carries the dominance claim. `vitdom2` carries BOTH `tralo_uniform` and
+`tralo` across tight, MID and loose against all three duals for exactly this
+reason: it is the first campaign in which the regime and the rival vary
+independently. Do not retire `tralo` until it lands.
+
 🛑 **CONSOLIDATION DECISION, 2026-08-31: `tralo_uniform` IS TraLO.** It is
 the only variant that beats the clipper without ever losing, and the only one
 whose gain clears its own reseed floor. `tralo` (sum) is retained as the
@@ -2525,7 +2560,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 402 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 411 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -2689,7 +2724,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 402 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 411 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -2697,7 +2732,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (402 tests, ~180 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (411 tests, ~180 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -7726,7 +7761,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             402 tests, ~180 s, no dataset required
+tests/             411 tests, ~180 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

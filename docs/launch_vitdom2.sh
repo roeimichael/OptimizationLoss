@@ -123,9 +123,13 @@
 #   the best method even after consolidation. Either outcome is reportable and
 #   neither is a reason to add another arm.
 #
-#   size       6 cells x 9 arms x 4 seeds = 216 runs (2 backbones x 3 caps).
-#              Half are ViTB16: `vitu1` did 72 ViTB16 runs in 10.1 h, so budget
-#              roughly 20-30 h on two GPUs.
+#   size       SPLIT ACROSS TWO ROOTS, one per GPU, because two dispatchers on
+#              a shared NFS home must be partitioned by root path and never by
+#              a filter on one root. Each root is
+#                3 cells x 9 arms x 4 seeds = 108 runs   (1 backbone x 3 caps)
+#              so 216 runs across the two, and 6 cells when they are scored
+#              together. `vitu1` did 72 ViTB16 runs in 10.1 h, so budget
+#              roughly 20-30 h wall clock with both roots running.
 #
 #   dose       `--constraint-fp32` mandatory and passed. `iwc1` is the receipt:
 #              fp16 without it gave an ARM-DEPENDENT spread, alm 51.7% against
