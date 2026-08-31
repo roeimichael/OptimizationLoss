@@ -281,10 +281,20 @@ and FRAMEWORK 3(0), then start the next.
    trajectory vs K; then `full_panel --control clip` reading its CONSTRAINT
    DOSE block on the FIRST completed runs; then `boundary_probe --control
    tralo_null` against the `tralo_reseed` floor.
-   🔑 **THE PRE-REGISTERED PREDICTION**: `tralo_cut` moves the capped count
-   at TIGHT caps by a larger ratio-to-reseed than `tralo` does. If the count
-   trajectory does not respond, the aim fix is dead and the whole cluster-C
-   direction closes with it.
+   🔑 **THE PRE-REGISTERED PREDICTION -- CORRECTED 2026-09-01, and the
+   first version was WRONG.** It said `tralo_cut` would move the capped COUNT
+   more at tight caps. Measured (2(z13)): `sum` already moves the count **4.02x
+   / 2.94x the reseed floor** at tight caps, because the hard count is a
+   BOUNDARY readout and the boundary is exactly where `p(1-p)` peaks. That
+   prediction tested the wrong quantity -- CLAUDE.md rule 3, caught by running
+   the check before the GPU. The correct one:
+   > `tralo_cut` changes the **EMITTED top-K set** at TIGHT caps by more,
+   > relative to the `tralo_reseed` floor, than `tralo` does -- read from
+   > `boundary_probe --control tralo_null` on `final_predictions.csv`, in net
+   > items. Its HARD COUNT is expected to move LESS than `tralo`'s, not more,
+   > because the cut window deliberately takes gradient off the boundary.
+   If the emitted set does not move relative to the floor, the aim fix is dead
+   and cluster C closes with it.
 2. 🔴 **ViTB16 LOOSE, from 2 cells to >= 6.** `loosevit1` already exists, is
    100% dose, md5-clean, single `code_version`, carries `tralo_null` +
    `tralo_reseed` + both clippers -- and on it **`tralo` is positive on every

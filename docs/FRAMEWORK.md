@@ -2152,6 +2152,59 @@ gradient can still find nothing to win there. This closes the question "why has
 nothing worked", and opens "does aiming fix it" -- do not report the second as
 answered by the first.
 
+### (z13) 🔴🔴 THE CONSTRAINT IS NOT WEAK AT TIGHT CAPS. IT IS STRONG
+AND AIMED AT THE WRONG POINT -- and my own prediction had the sign backwards
+
+Measured 2026-09-01 from `final_predictions_raw.csv` (the mandated source --
+the logged `Hard_Class*` disagrees with the model's predictions on every
+trained arm, 3(0c)). Each arm differenced against its OWN `tralo_null` twin,
+then stated as a RATIO to the RNG floor, which normalises WITHIN campaign.
+
+| campaign | cls | pairs | \|tralo-null\| | \|reseed-null\| | ratio |
+|---|---|---|---|---|---|
+| **TIGHT** `iwc1` K/n=20-30% | 2 | 8 | 76.4 | 19.0 | **4.02x** |
+| **TIGHT** `iwc1` K/n=20-30% | 7 | 8 | 67.6 | 23.0 | **2.94x** |
+| **LOOSE** `loose1` K/n=80-90% | 2 | 24 | 44.9 | 47.5 | 0.94x |
+| **LOOSE** `loose1` K/n=80-90% | 7 | 24 | 57.5 | 50.2 | 1.14x |
+
+⛔ **I PRE-REGISTERED THE OPPOSITE AND WAS WRONG.** MISSION queue item 1
+predicted `tralo_cut` would move the capped COUNT more at tight caps because
+`sum` supposedly could not reach there. `sum` reaches tight caps fine -- 3-4x
+the floor.
+
+✅ **AND IT IS NOT A CONTRADICTION OF 2(z12). IT IS 2(z12) SHARPENED, AND THE
+ERROR WAS CLAUDE.md RULE 3.** The HARD COUNT counts items whose argmax is the
+capped class, i.e. items at the DECISION BOUNDARY -- exactly where `p(1-p)` is
+MAXIMAL. So `sum` is very good at moving the hard count and simultaneously puts
+**0.0001** of its gradient at rank K, ~300 ranks away. Both are true; they
+describe different points. The hard count is a BOUNDARY readout and cannot
+test a claim about the CUT.
+
+⇒ **THE DEFECT RESTATED, and this is the version to quote**: the constraint
+at tight caps is not weak. It is **strong, and pointed 300 ranks from where the
+metric reads**. That is why 2(z11) finds its item-level effect at the RNG floor
+while the count moves 4x the floor: it is moving the wrong items, hard.
+
+✅ **IT ALSO EXPLAINS THE LOOSE COLUMN WITHOUT A NEW ASSUMPTION.** At K/n=0.9
+the cap barely binds, so the violation and hence the gradient are small and the
+count sits at the floor -- the "where the constraint BINDS nothing is
+measurable, and where something is measurable the constraint hardly
+constrains" trade-off already recorded in `paired_noise`.
+
+🛑 **CONSEQUENCE FOR `cutwin1`: THE READOUT CHANGES.** The pre-registered
+prediction must NOT be about the hard count. It is:
+
+> `tralo_cut` changes the **EMITTED top-K set** at TIGHT caps by more, relative
+> to the `tralo_reseed` floor, than `tralo` does -- measured by
+> `boundary_probe --control tralo_null` on `final_predictions.csv`, in net
+> items. The hard count is expected to move LESS than `tralo`'s, not more,
+> because the cut window deliberately removes gradient from the boundary.
+
+⚠️ **CONFOUND, stated because the ratio does not remove it**: tight and
+loose come from DIFFERENT campaigns and different backbones, so this is a
+cross-campaign DIRECTION, not a within-cell contrast. `cutwin1` carries both
+cap levels in ONE campaign and is the clean test.
+
 ### (z11) 🔴🔴🔴 AT THE ITEM LEVEL THE CONSTRAINT IS AT THE RNG FLOOR, AND
 `tralo_uniform` IS BELOW IT IN BOTH REGIMES
 
