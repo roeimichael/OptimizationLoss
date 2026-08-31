@@ -2054,6 +2054,51 @@ does not.
   Fixed 2026-08-30 to key on the model; the geometry reproduces disaggregated,
   but the first table printed backbone-averages under per-cap labels.
 
+### (z10) 🟢🟢 THE CONSTRAINT DOES RESHAPE THE SELECTION -- AND WHY IT INVERTS
+
+Measured 2026-08-31 with `scripts/boundary_probe.py`, 288 cell-seed-class
+comparisons, 12,362 individual item swaps. **This is the mechanism behind
+2(z8)'s reversal, and it is not a correlation.**
+
+Both arms deploy EXACTLY K (2(z9)), so the count is uninformative by
+construction and the only question is WHICH K items. With `evicted` = clipper's
+selection minus the arm's, and `admitted` = the reverse (always equal in size):
+
+| regime | arm | swapped | prec ADMITTED | prec EVICTED | **net items** | median depth |
+|---|---|---|---|---|---|---|
+| tight | `tralo_uniform` | 3649 | 0.923 | **0.996** | **-265** | 85 |
+| tight | `tralo` | 3710 | 0.885 | **0.996** | **-411** | 89 |
+| loose | `tralo_uniform` | 1599 | 0.860 | 0.846 | **+22** | 84 |
+| loose | `tralo` | 1669 | 0.893 | 0.836 | **+95** | 84 |
+| loose | `alm` | 1735 | 0.915 | 0.840 | **+129** | 90 |
+
+✅ **THE CONSTRAINT IS NOT INERT AND NOT COSMETIC.** It reaches a median
+**84-90 ranks BELOW the clipper's cut** in every condition, and some crossings
+come from 400+ ranks down. It really does pull in items the clipper rejected.
+
+🔑 **THE INVERSION HAS ONE CAUSE: HOW GOOD THE CLIPPER'S SET ALREADY IS.**
+At tight caps the clipper's selected items are **99.6% correct**, so there is
+nothing left to win and every swap trades a true positive for something worse.
+At loose caps the clipper's set is only **~84% correct**, so there is real room
+and the admitted items are BETTER than those they displace.
+
+⇒ So the reversal is NOT a property of the cap. The damage appears only when
+the clipper had nothing left to give; the benefit only when its selection was
+diluted enough to improve on. This also explains the ORDERING inside each
+regime: at loose the arm that reaches hardest wins (`alm` +129 > `tralo` +95 >
+`tralo_uniform` +22), and at tight the same aggression is what costs
+(`tralo` -411 worse than `tralo_uniform` -265).
+
+🛑 **AND IT CONNECTS TO THE CEILING RESULT.** 2(headroom) measured the prize
+from `clip` to a PERFECT allocator at 0.0-1.0 items in 4 of 6 tight cells,
+because ccP is already 0.9954. This is the same fact seen from the other side,
+now with the swap-level receipt: at tight K/n the top-K is nearly all true
+positives, so no method can win there, whatever its loss shape.
+
+⚠️ **Quote `net` beside the swap count, NEVER the swap count alone.** A pure
+RNG reseed moves 63 items for a net of +0.38. A large swap count is what noise
+looks like.
+
 ### (z9) ✅ THE BUDGET IS EQUALIZED, BOTH IN THE SCORER AND AS DEPLOYED -- RECEIPT
 
 The corpus mistake was that cc-F1 was **partly a budget measurement**:
