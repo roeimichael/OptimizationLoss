@@ -78,7 +78,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 414 regression tests, ~180s, no dataset needed
+python -m pytest tests -q                   # 423 regression tests, ~180s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -316,6 +316,38 @@ python -m scripts.ortho_survival --compounding  # does a count-function change
                                              #   angle is 18.7-49.6 deg, NEVER 180,
                                              #   because `p(1-p)` and its mean are
                                              #   both elementwise non-negative.
+python -m scripts.bias_shift_probe --self-test  # ⛔ REFUTES `tralo_uniform`'s
+                                            #   founding claim. Its docstring argues a
+                                            #   uniform step in log-odds is "a pure bias
+                                            #   shift, which cannot reorder". The step is
+                                            #   taken in PARAMETERS, not logits:
+                                            #   `dz_i = -lr*g*n*(fbar.f_i + 1)`, which
+                                            #   VARIES with `fbar.f_i`. It reorders, and it
+                                            #   does so with the backbone FROZEN -- the leak
+                                            #   is in the linear head. The only update that
+                                            #   provably cannot reorder is one confined to
+                                            #   `b_c`, and THAT one is useless: a constant
+                                            #   added to `z_c` leaves the within-class order
+                                            #   untouched, so the emitted top-K is
+                                            #   bit-identical. Pure algebra, no artefact.
+python -m scripts.step_direction_probe --glob "<root>/*/iwildcam/*/tralo*/seed_*"
+                                            #   🛑 THE ONE THAT PRICES A NEW COUNT
+                                            #   FUNCTION BEFORE YOU BUILD IT. Every count
+                                            #   `S_c = sum_i phi(p_ic)` has head gradient
+                                            #   `sum_i g_i f_i`, a g-weighted MEAN FEATURE,
+                                            #   and `normalize` discards the magnitude -- so
+                                            #   a new count can only matter if it changes
+                                            #   the DIRECTION. Measured on real features the
+                                            #   family is THREE clusters: {uniform, 1-p},
+                                            #   {sum, margin}, {p, linear, cut-window}, at
+                                            #   ~0.99 within and 0.58-0.87 between. So
+                                            #   `tralo_margin` is 0.989 from `tralo` and
+                                            #   will mostly REPRODUCE it.
+                                            #   ⚠️ RUN IT ON REAL FEATURES. A Gaussian
+                                            #   toy says 1.0000 for all six and is WRONG;
+                                            #   real post-ReLU features are non-negative and
+                                            #   anisotropic and give uniform-vs-sum 0.7479.
+                                            #   `--self-test` gates it in BOTH directions.
 python -m scripts.ortho_survival             # does an intervention installed in
                                             #   `prm.grad` SURVIVE Adam? It mostly does
                                             #   not, and this is the cheapest probe here

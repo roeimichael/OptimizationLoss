@@ -7600,3 +7600,181 @@ def test_only_the_load_bearing_components_change_the_emitted_count():
     assert ratio["no_reset"] > 5 * max(abs(ratio[n] - 1.0)
                                        for n in ("no_freeze", "no_rho",
                                                  "plus_kl")), ratio
+
+
+# ---------------------------------------------------------------------------
+# The cut window (FRAMEWORK 2(z12)). The fifth gate is the one that matters: it
+# fails if the count is ever rebuilt the way the recorded dead end was, i.e.
+# with the window used as the VALUE instead of only as the gradient weight.
+# ---------------------------------------------------------------------------
+
+def _cut_fixture(n=2000, C=5, cls=2, K=120, seed=0):
+    torch.manual_seed(seed)
+    z = torch.randn(n, C) * 3.0
+    z[:, cls] += 2.0
+    z.requires_grad_(True)
+    return z, F.softmax(z, dim=1), cls, K
+
+
+def _cut(proba, K, n_items=40):
+    from src.losses.transductive_loss import cut_params
+    return cut_params(proba, torch.full((proba.shape[1],), K), n_items)
+
+
+def test_sech2_is_precise_where_naive_is_valid_and_finite_where_it_is_not():
+    """Two properties, and the second is why the helper exists at all.
+
+    `1 / cosh(x)**2` has the right VALUE everywhere (it saturates to 0.0) but a
+    `nan` GRADIENT for |x| >= 100. The obvious stable rewrite
+    `4*sigmoid(2x)*(1-sigmoid(2x))` fixes that and underflows to exactly 0.0 at
+    x = 10, where the true value is 8.2e-09. The shipped form must do neither.
+    """
+    from src.losses.transductive_loss import sech2
+
+    x = torch.tensor([0.0, 0.5, 1.0, 5.0, 10.0, 40.0])
+    assert torch.allclose(sech2(x), 1.0 / torch.cosh(x) ** 2, rtol=1e-5,
+                          atol=0.0)
+    assert float(sech2(torch.tensor([10.0]))) > 1e-9, (
+        "underflowed at x=10 -- this is the sigmoid-form regression")
+
+    big = torch.tensor([100.0, 400.0], requires_grad=True)
+    g = torch.autograd.grad(sech2(big).sum(), big)[0]
+    assert torch.isfinite(g).all()
+
+    ref = torch.tensor([100.0, 400.0], requires_grad=True)
+    gn = torch.autograd.grad((1.0 / torch.cosh(ref) ** 2).sum(), ref)[0]
+    assert torch.isnan(gn).any(), (
+        "the naive form stopped producing nan gradients, so this gate no "
+        "longer measures anything -- delete it rather than let it pass")
+
+
+def test_the_cut_window_count_value_is_exactly_the_sum_of_probabilities():
+    from src.losses.transductive_loss import cut_window_count
+    z, proba, cls, K = _cut_fixture()
+    tau, temp = _cut(proba, K)
+    assert torch.allclose(cut_window_count(proba, tau, temp), proba,
+                          atol=1e-5), (
+        "the VALUE must stay sum-of-p or the reported excess is wrong and the "
+        "penalty stops reading a real count")
+
+
+def test_the_cut_window_gradient_is_exactly_the_intended_weight():
+    from src.losses.transductive_loss import cut_window_count, sech2
+    from src.utils.constants import clamp_probability
+    z, proba, cls, K = _cut_fixture()
+    tau, temp = _cut(proba, K)
+    S = cut_window_count(proba, tau, temp)[:, cls].sum()
+    got = torch.autograd.grad(S, z, retain_graph=True)[0][:, cls]
+
+    p = clamp_probability(proba).detach()
+    u = (torch.log(p) - torch.log1p(-p))[:, cls]
+    want = sech2((u - tau[cls]) / temp[cls])
+    assert torch.allclose(got, want, atol=1e-4), (
+        "du_c/dz_c is 1 exactly, so the delivered gradient must equal the "
+        "window weight itself")
+
+
+def test_the_cut_window_puts_its_gradient_where_the_shipped_count_does_not():
+    from src.losses.transductive_loss import cut_window_count
+    from src.utils.constants import clamp_probability
+    z, proba, cls, K = _cut_fixture()
+    p = clamp_probability(proba).detach()[:, cls]
+    u = torch.log(p) - torch.log1p(-p)
+    band = torch.argsort(u, descending=True)[K - 20:K + 20]
+
+    shipped = p * (1 - p)                 # the sum count's per-item derivative
+    tau, temp = _cut(proba, K)
+    S = cut_window_count(proba, tau, temp)[:, cls].sum()
+    cut = torch.autograd.grad(S, z)[0][:, cls].abs()
+
+    m_shipped = float(shipped[band].sum() / shipped.sum())
+    m_cut = float(cut[band].sum() / cut.sum())
+    assert m_cut > 10 * m_shipped, (
+        "cut window %.4f vs shipped %.4f -- the whole point is the ratio"
+        % (m_cut, m_shipped))
+    assert m_cut > 0.25
+
+
+def test_NEGATIVE_CONTROL_the_window_as_a_COUNT_is_the_recorded_dead_end():
+    """The failure mode `cut_window_count` exists to avoid, kept executable.
+
+    Centring the window on the K-th order statistic and using it AS THE COUNT
+    gives a quantity pinned at K - 0.5 for any model, so the excess collapses
+    and the penalty cannot push. If someone ever rebuilds the count that way,
+    this fails.
+    """
+    from src.losses.transductive_loss import cut_window_count
+    z, proba, cls, K = _cut_fixture()
+    p = proba[:, cls].clamp(1e-6, 1 - 1e-6)
+    u = torch.log(p) - torch.log1p(-p)
+    tau_d = torch.sort(u.detach(), descending=True).values[K - 1]
+
+    dead = torch.sigmoid((u - tau_d) / 0.03).sum()
+    assert abs(float(dead) - (K - 0.5)) < 2.0, (
+        "the dead end must still BE dead, or this control is not controlling "
+        "anything (got %.3f against K-0.5 = %.1f)" % (float(dead), K - 0.5))
+    true_excess = float(p.sum()) - K
+    assert true_excess > 100 and max(0.0, float(dead) - K) < 2.0
+
+    tau, temp = _cut(proba, K)
+    live = float(cut_window_count(proba, tau, temp)[:, cls].sum())
+    assert abs(live - float(p.sum())) < 1.0
+    assert live - K > 100
+
+
+@pytest.mark.parametrize("K", [0, 1, 10 ** 9])
+def test_the_cut_window_never_returns_a_silent_zero_column(K):
+    """K = 0 and K >= n have no cut. Falling back to FLAT is a choice; falling
+    back to ZERO would be a silent null of exactly the kind rule 3 exists for.
+    """
+    from src.losses.transductive_loss import cut_window_count
+    z, proba, cls, _ = _cut_fixture()
+    tau, temp = _cut(proba, K)
+    S = cut_window_count(proba, tau, temp)[:, cls].sum()
+    g = torch.autograd.grad(S, z)[0][:, cls]
+    assert float(g.abs().sum()) > 0.0, (
+        "K=%s produced a zero gradient column -- that is an inert arm that "
+        "would still write status: completed" % K)
+
+
+def test_the_cut_window_keeps_the_exact_full_N_gradient_when_chunked():
+    """The reason `tau` and `temp` are arguments rather than derived inside.
+
+    The constraint pass is chunked (23 chunks on iwildcam) and the detach
+    construction at the call site is exact only when the per-item weight does
+    not depend on chunk membership. Deriving the cut from whatever tensor the
+    count is handed would give a PER-CHUNK order statistic, a different
+    quantity in every chunk. The cut-window twin of
+    `test_the_windowed_count_keeps_the_exact_full_N_gradient_when_chunked`.
+    """
+    from src.losses.transductive_loss import cut_window_count
+    z, proba, cls, K = _cut_fixture()
+    tau, temp = _cut(proba, K)
+    full = torch.autograd.grad(
+        cut_window_count(proba, tau, temp)[:, cls].sum(), z,
+        retain_graph=True)[0][:, cls]
+
+    acc = torch.zeros_like(full)
+    for start in range(0, z.shape[0], 128):
+        sl = slice(start, min(start + 128, z.shape[0]))
+        zc = z[sl].detach().clone().requires_grad_(True)
+        eff = cut_window_count(F.softmax(zc, dim=1), tau, temp)
+        acc[sl] = torch.autograd.grad(eff[:, cls].sum(), zc)[0][:, cls]
+    assert torch.allclose(full, acc, atol=1e-6), (
+        "chunked gradient differs from full-N by %.3e -- the cut must be "
+        "hoisted out of the chunk loop" % float((full - acc).abs().max()))
+
+    # NEGATIVE CONTROL: deriving the cut PER CHUNK must visibly break it, or
+    # this gate asserts a property that holds for free.
+    bad = torch.zeros_like(full)
+    n = z.shape[0]
+    for start in range(0, n, 128):
+        sl = slice(start, min(start + 128, n))
+        zc = z[sl].detach().clone().requires_grad_(True)
+        pc = F.softmax(zc, dim=1)
+        t_c, T_c = _cut(pc, max(1, int(K * pc.shape[0] / n)))
+        eff = cut_window_count(pc, t_c, T_c)
+        bad[sl] = torch.autograd.grad(eff[:, cls].sum(), zc)[0][:, cls]
+    assert not torch.allclose(full, bad, atol=1e-6), (
+        "a per-chunk cut produced the same gradient as the full-N cut, so "
+        "this gate cannot detect the bug it exists for")

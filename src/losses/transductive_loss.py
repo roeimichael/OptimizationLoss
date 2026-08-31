@@ -134,6 +134,153 @@ def uniform_grad_count(proba):
     return p.detach() + w * (u - u.detach())
 
 
+def sech2(x):
+    """`sech^2(x)`, stable AND precise. Both halves were measured, 2026-08-31.
+
+    The naive `1 / cosh(x)**2` returns the right VALUE everywhere -- it
+    saturates to 0.0 rather than to inf -- but its GRADIENT is `nan` for
+    |x| >= 100, because the backward pass differentiates through an overflowed
+    `cosh`. On real iwildcam logits the capped-class log-odds run past 30 and
+    the window argument past 100, so that is reachable, not hypothetical.
+
+    The obvious stable rewrite `4 * sigmoid(2x) * (1 - sigmoid(2x))` fixes the
+    gradient and LOSES PRECISION: at x = 10 it underflows to exactly 0.0 where
+    the true value is 8.2e-09, because `sigmoid(20)` rounds to 1.0 in float32
+    and the complement is then exactly zero. This form keeps both:
+
+        sech^2(x) = 4 * e^(-2|x|) / (1 + e^(-2|x|))^2
+
+    `e^(-2|x|)` underflows smoothly toward zero and never overflows, so the
+    value is accurate down to the exponent floor and the gradient stays finite.
+    """
+    a = torch.exp(-2.0 * x.abs())
+    return 4.0 * a / (1.0 + a) ** 2
+
+
+def cut_window_count(proba, tau, temp):
+    """Value = `p_ic` exactly; gradient mass concentrated AT THE CUT. (N, C).
+
+    WHY THIS EXISTS -- measured on real stored features, not argued
+    (`scripts/step_direction_probe.py`, `iwc1`, 24 (run, class) pairs,
+    2026-08-31, FRAMEWORK 2(z12)).
+
+    The shipped count `sum_i p_ic` has per-item derivative `p(1-p)`, which is
+    MAXIMAL at p = 0.5 and VANISHING at p = 1. On iwildcam at tight caps the
+    K-th ranked item -- the cut, the only place where moving an item changes
+    the emitted top-K set -- sits at p = 0.99984 to 1.00000. So the fraction of
+    the shipped penalty's total gradient landing on the 40 items straddling the
+    cut is:
+
+        uniform  0.0136        sum p(1-p)  0.0000 - 0.0005        this  0.70 - 0.83
+
+    **0.00%.** The penalty spends its entire budget deep inside the class where
+    movement cannot change the emitted set, and nothing where the metric reads.
+    That is why the reordering it does produce measures at the RNG floor
+    (2(z11)): with respect to the metric it is arbitrary.
+
+    It also derives the measured regime reversal with no new assumption. At
+    loose caps the cut falls to p = 0.59 - 0.99, where `p(1-p)` finally has
+    mass -- which is exactly where `sum` wins (+0.0253 AP at L80/L90) and
+    `uniform` is the reverse.
+
+    HOW. The same straight-through construction `uniform_grad_count` uses, so
+    the count the penalty reads is unchanged and only the gradient's
+    DISTRIBUTION over items differs:
+
+        value      p_ic                      (exact -- the K comparison and the
+                                              reported excess are untouched)
+        gradient   dS/du_i = sech^2((u_i - u_K) / T)
+
+    with `u = log(p / (1 - p))`, `u_K` the K-th largest `u` (detached, so no
+    gradient flows through the choice of cut), and T set from the data so the
+    window holds ~`n_items` ITEMS.
+
+    🛑 T IS SET IN ITEMS, NOT IN LOGITS, AND THAT IS LOAD-BEARING. At a
+    fixed T = 1.0 the mass at the cut collapses from 0.830 to 0.111 between
+    class 2 and class 7 OF THE SAME RUN, purely because the logit spread near
+    the cut differs. This is `window_temp`'s lesson on a second axis; see its
+    docstring.
+
+    ⚠️ A DEAD END THIS IS NOT, and the difference is the whole design.
+    `margin_window` records that centring the window on the K-th order
+    statistic and using it AS THE COUNT gives a quantity pinned at K - 0.5 for
+    any model. VERIFIED 2026-08-31 across seven temperatures: at T -> 0 it
+    reads 120.09 against K - 0.5 = 119.5 and reports an excess of 0.2 where the
+    true soft excess is 636.4, so the penalty on it is ~zero and it cannot
+    push. THIS function keeps the VALUE as `sum_i p_ic` and replaces ONLY the
+    gradient, so the excess it reports stays true and the penalty stays live.
+    The regression suite gates both halves.
+
+    ⚠️ WHAT IS NOT CLAIMED. That aiming at the cut WINS. It is necessary,
+    not sufficient: `ceiling_screen` bounds the whole prize at 1.9-9.9 items
+    and `headroom` reads 0.0-1.0 on iwildcam's tight cells, so a
+    correctly-aimed gradient can still find nothing to take. This fixes a
+    gradient that provably could not reach the cut; whether the cut is worth
+    reaching is the experiment.
+
+    🛑 `tau` AND `temp` ARE (C,) TENSORS COMPUTED ONCE OVER THE FULL TEST
+    SET by `cut_params`, and passed IN. They are deliberately not derived here.
+    The constraint pass is CHUNKED (`constraint_chunk_size`, 23 chunks on
+    iwildcam) and the detach construction at the call site is exact only when
+    the per-item weight does not depend on chunk membership. Deriving `tau`
+    from whatever tensor this is handed would give a PER-CHUNK cut -- a
+    different quantity in every chunk, and not the full-N gradient.
+    `test_the_windowed_count_keeps_the_exact_full_N_gradient_when_chunked`
+    is the gate; `margin_window` takes its `temp` from `window_temp` for the
+    same reason.
+
+    ⚠️ THE CUT IS PER CLASS OVER THE FULL TEST SET, NOT PER GROUP. A
+    per-(group, class) cut is the more faithful object -- the LOCAL budget is
+    per group -- but the test set is NOT ordered by group (1889 contiguous runs
+    over 2943 rows; all 23 chunks span more than one group), so a per-group cut
+    has no existing scoping to inherit and would need its own pre-pass. Global
+    first, and say so, rather than a per-chunk approximation of a per-group
+    quantity.
+    """
+    p = clamp_probability(proba)
+    u = torch.log(p) - torch.log1p(-p)
+    w = sech2((u.detach() - tau) / temp)
+    return p.detach() + w * (u - u.detach())
+
+
+def cut_params(proba_full, budgets, n_items):
+    """(tau, temp), both (C,): WHERE the cut is and HOW WIDE the window is.
+
+    Computed once per constraint epoch over the FULL test set, then held fixed
+    across chunks -- see `cut_window_count`. `tau_c` is the K-th largest
+    log-odds for class c, i.e. the score of the last item the allocator emits.
+    `temp_c` is the distance from `tau_c` to the `n_items`-th nearest item, so
+    the window holds ~`n_items` ITEMS whatever the local logit scale.
+
+    🛑 WIDTH IN ITEMS IS LOAD-BEARING, and this is `window_temp`'s lesson
+    on a second axis. At a fixed temp = 1.0 the gradient mass at the cut
+    collapses from 0.830 to 0.111 between class 2 and class 7 OF THE SAME RUN,
+    purely because the logit spread near the cut differs. A fixed temp is not a
+    fixed dose.
+
+    Classes with no cut inside the item set -- K < 1 ("predict none") or
+    K >= n (the budget cannot bind) -- get temp = +inf, which makes `sech2`
+    return 1.0 everywhere, i.e. a FLAT weight. Flat, never zero: a zero column
+    is a silent null of exactly the kind CLAUDE.md rule 3 exists for, and it
+    would still write `status: completed`.
+    """
+    p = clamp_probability(proba_full)
+    u = (torch.log(p) - torch.log1p(-p)).detach()
+    n, C = u.shape
+    tau = torch.zeros(C, dtype=u.dtype, device=u.device)
+    temp = torch.full((C,), float("inf"), dtype=u.dtype, device=u.device)
+    k = max(1, min(int(n_items), n))
+    for c in range(C):
+        K = int(budgets[c]) if float(budgets[c]) < float(n) else n
+        if K < 1 or K >= n:
+            continue
+        col = u[:, c]
+        t = torch.sort(col, descending=True).values[K - 1]
+        tau[c] = t
+        temp[c] = clamp_denominator(torch.sort((col - t).abs()).values[k - 1])
+    return tau, temp
+
+
 def margin_window(proba, temp):
     """Soften the ARGMAX instead of summing probabilities. Returns (N, C).
 

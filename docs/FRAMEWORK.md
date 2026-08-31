@@ -2094,6 +2094,30 @@ the emitted top-K set:
 | L30_G50 | 2 | 111 | 0.99984 | 0.0136 | **0.0005** | 0.168 | 0.700 |
 | L30_G50 | 7 | 137 | 1.00000 | 0.0136 | **0.0000** | 0.068 | 0.158 |
 
+⚠️ **REPRODUCIBILITY.** The `cut-window` column was first produced by an
+ad-hoc inline script, i.e. by tooling that was not committed -- the exact defect
+this project's own naming gate exists to catch. `scripts/step_direction_probe.py`
+now carries the cut-centred weighting (`--n-items`), so every column above
+regenerates from committed code. Fixed 2026-09-01. The per-cell table is a
+deduped L20/L30 subset; the committed probe's POOLED figure over all 24 pairs
+is the reproducible receipt, and it is sharper still:
+
+| weighting | mass at the cut | min | max |
+|---|---|---|---|
+| **`cut_window`** | **0.3486** | 0.0950 | 0.7786 |
+| `p` | 0.1039 | 0.0637 | 0.1976 |
+| `linear_z` | 0.0816 | 0.0560 | 0.1284 |
+| `uniform` | 0.0136 | 0.0136 | 0.0136 |
+| **`sum` (SHIPPED)** | **0.0001** | 0.0000 | 0.0034 |
+| `margin_sech2` (the BOUNDARY window) | **0.0000** | 0.0000 | 0.0000 |
+| `one_minus_p` | 0.0000 | 0.0000 | 0.0000 |
+
+🛑 **`margin_sech2` IS EXACTLY 0.0000.** The boundary window -- the count
+`tralo_margin` would run -- puts LITERALLY NONE of its gradient at the cut, and
+`margin2` is 432 runs staged against it. That is the conflation in CLAUDE.md
+rule 3 costing a campaign, and it is the strongest single argument for running
+the cut window first.
+
 🔴 **`p(1-p)` IS MAXIMAL AT p=0.5 AND VANISHING AT p=1, AND THE TIGHT-CAP
 CUT SITS AT p=0.99984-1.00000.** So the shipped penalty spends its entire
 budget deep inside the class where movement cannot change the emitted set, and
@@ -2115,8 +2139,11 @@ are the same conflation the rule warns about, and here they are ~300 items and
 `sech^2((z_i - z_(K)) / T)` centred on the K-th RANKED logit. 🛑 **AND SET T
 IN ITEMS, NOT IN LOGITS** -- at a fixed T=1.0 the cut window already collapses
 from 0.830 to 0.111 between class 2 and class 7 of the SAME run, purely because
-the logit spread near the cut differs. `_window_from_items` already exists in
-`src/losses/transductive_loss.py` for exactly this reason; use it.
+the logit spread near the cut differs. ⚠️ **An earlier version of this
+line named `_window_from_items` as the helper to reuse. THAT FUNCTION DOES NOT
+EXIST** -- the real one is `window_temp`, and it is NOT directly reusable: it
+measures distance from ZERO (the boundary), not from `tau` (the cut).
+`cut_window_count` therefore inlines its own sort. Corrected 2026-09-01.
 
 ⚠️ **WHAT IS NOT YET SHOWN.** That aiming at the cut HELPS. It is necessary,
 not sufficient: `ceiling_screen` bounds the whole prize at 1.9-9.9 items and
