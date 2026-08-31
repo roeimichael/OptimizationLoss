@@ -159,14 +159,29 @@ def main(argv=None):
     a.add_argument("--classes", nargs="+", type=int, default=[2, 7])
     a.add_argument("--n-items", type=int, default=40,
                    help="items inside the cut window (T is derived from this)")
+    a.add_argument("--limit", type=int, default=0,
+                   help="cap the number of run dirs (0 = no cap). "
+                        "Prints what it dropped.")
     a.add_argument("--self-test", action="store_true")
     args = a.parse_args(argv)
     if args.self_test:
         return self_test()
 
-    runs = args.runs or sorted(glob.glob(args.glob))[:12]
+    # 🛑 THIS WAS `[:12]`, AND IT WAS A SILENT CAP. `sorted()` is alphabetical,
+    # so on a 24-run cell it kept the first two or three ARMS and dropped the
+    # rest -- a subset that looks like a campaign and is not one. It produced
+    # the first version of the FRAMEWORK 2(z12) table, which read 24 pairs when
+    # the campaign held far more. No silent caps: unlimited by default, and if
+    # a limit is asked for, say what it dropped.
+    runs = args.runs or sorted(glob.glob(args.glob))
     if not runs:
         raise SystemExit("no runs")
+    if args.limit and args.limit < len(runs):
+        print("!! --limit %d applied: %d of %d run dir(s) DROPPED. `sorted()` "
+              "is alphabetical, so this biases toward whichever arms sort "
+              "first -- do not read a cross-arm number off a limited run."
+              % (args.limit, len(runs) - args.limit, len(runs)))
+        runs = runs[:args.limit]
 
     keys = None
     acc = {}

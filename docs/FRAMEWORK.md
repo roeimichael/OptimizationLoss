@@ -2205,6 +2205,77 @@ loose come from DIFFERENT campaigns and different backbones, so this is a
 cross-campaign DIRECTION, not a within-cell contrast. `cutwin1` carries both
 cap levels in ONE campaign and is the clean test.
 
+### (z14) ✅ THE CUT GEOMETRY HOLDS ON ALL FOUR BACKBONES -- but its SIZE is
+regime-dependent, which repurposes half of `cutwin1` as a negative control
+
+Measured 2026-09-01 on LIVE campaigns only (`uniform1` + `vitu1` tight,
+`loose1` + `loosevit1` loose), balanced: the 6 arms present on all four
+backbones x 4 seeds = 48 (run, class) pairs per cell, 20 cells. K is
+model-independent and identical across backbones at each cap, so the backbone
+contrast is exactly controlled.
+
+| backbone | regime | `cut_window` mass | **`sum` mass** | ratio | cos(p, cutw) |
+|---|---|---|---|---|---|
+| MobileNetV3 | TIGHT | 0.3795 | 0.0010 | **361x** | 0.975 |
+| MobileNetV3 | LOOSE | 0.7319 | **0.1527** | 4.8x | 0.902 |
+| MobileNetV2 | TIGHT | 0.5518 | 0.0019 | 283x | 0.983 |
+| MobileNetV2 | LOOSE | 0.7489 | **0.1537** | 4.9x | 0.905 |
+| RegNetY400MF | TIGHT | 0.7038 | 0.0019 | 361x | 0.976 |
+| RegNetY400MF | LOOSE | 0.7487 | **0.1371** | 5.5x | 0.926 |
+| **ViTB16** | **TIGHT** | **0.7652** | **0.0066** | **116x** | 0.978 |
+| **ViTB16** | **LOOSE** | 0.7440 | **0.1386** | 5.4x | 0.949 |
+
+✅ **THE THREE CLUSTERS HOLD ON EVERY BACKBONE, and are SHARPEST ON ViTB16**
+(within-minus-between cosine 0.363-0.399 vs 0.174-0.253 on the CNNs). Clusters
+A `{uniform, 1-p}` and B `{sum, margin}` never lose a member anywhere.
+
+🛑 **BUT THE ADVANTAGE IS 116-361x AT TIGHT AND ONLY 4.8-5.5x AT LOOSE**,
+uniformly. At loose caps `sum` ALREADY carries 0.07-0.21 of its gradient at the
+cut, and `cut_window` MIGRATES from cluster C to cluster B on all four
+backbones (cos to B 0.950-0.985 vs to C 0.885-0.918). That is the decision
+boundary collapsing onto the cut as K/n rises -- the same fact that makes `sum`
+win loose -- and it means **at loose caps the cut window IS approximately
+`sum`.**
+
+⇒ **THIS REPURPOSES `cutwin1`'s L90_G95 HALF AS A BUILT-IN NEGATIVE CONTROL**,
+and makes the pre-registration two-sided and much harder to satisfy by chance:
+
+> at **L30_G50** `tralo_cut` moves the emitted top-K set more than `tralo`
+> does relative to the `tralo_reseed` floor; at **L90_G95** the two are
+> approximately the SAME arm (cos 0.90-0.95) and must behave alike. A
+> `tralo_cut` that "wins" in BOTH regimes is reading noise, not the mechanism.
+
+⚠️ **AND MobileNetV3 UNDERSTATES THE EFFECT 2x ON THE HEADLINE BACKBONE**
+(tight `cut_window` mass 0.380 vs ViTB16's 0.765). `cutwin1` is deliberately
+run on the WEAKER backbone: if the mechanism shows there it should show harder
+on ViTB16, and a null there is the conservative reading. Do not promote a
+MobileNetV3 result to ViTB16 without running it.
+
+⚠️ `linear_z` moves C->B on **ViTB16 at tight caps only** -- the one genuinely
+backbone-specific reassignment (to-B 0.883 vs to-C 0.855, replicated on the
+independent `iwc2` ViT campaign, and never on any CNN). Thin margin; noted, not
+leaned on.
+
+**CORRECTION TO 2(z12).** Its table came from `scripts/step_direction_probe`
+when that tool still had a **silent `[:12]` cap** on `--glob`. `sorted()` is
+alphabetical, so it kept the first two or three ARMS of one cap tag and called
+it 24 pairs. The cap is removed (`--limit`, loud when used). The geometry
+SURVIVES the correction -- the full `iwc1` MobileNetV3 set reads `cut_window`
+0.3841 / `sum` 0.0004 against the quoted 0.3486 / 0.0001 -- and 2(z12) also
+drew on **`iwc1`, which is QUARANTINED**; the live replacements agree (0.3655
+`uniform1`, 0.4313 `iwc4`), so the quarantine did not distort it. The table
+above is the live-campaign basis and is the one to quote.
+
+⚠️ **SIDE FINDING, and it affects a past claim.** `dom1`'s CNN LOOSE runs are
+**byte-identical to `loose1`'s** -- md5 of `final_predictions.csv` matches
+**96/96** on MobileNetV3 + MobileNetV2 at L80_G95 and L90_G95, embeddings too.
+`dom1b` RegNet vs `loose1` is 0/12, i.e. genuinely independent. Determinism
+would explain identical output from identical configs, so this is not yet
+established as a defect -- but either way **`dom1` is NOT an independent
+replication of `loose1` on those cells and the two must never be counted as
+separate evidence.** The duals (`alm`, `fioretto`, `hounie`) are unique to
+`dom1`, so the dominance contrast itself is untouched.
+
 ### (z11) 🔴🔴🔴 AT THE ITEM LEVEL THE CONSTRAINT IS AT THE RNG FLOOR, AND
 `tralo_uniform` IS BELOW IT IN BOTH REGIMES
 
