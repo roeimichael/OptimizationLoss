@@ -2054,6 +2054,62 @@ does not.
   Fixed 2026-08-30 to key on the model; the geometry reproduces disaggregated,
   but the first table printed backbone-averages under per-cap labels.
 
+### (z11) 🔴🔴🔴 AT THE ITEM LEVEL THE CONSTRAINT IS AT THE RNG FLOOR, AND
+`tralo_uniform` IS BELOW IT IN BOTH REGIMES
+
+Measured 2026-08-31, `boundary_probe --control tralo_null`, so every arm is
+against its OWN lambda=0 twin with the warm-up, seed and allocator held fixed.
+**This is the control that decides 2(z10), and it was run second.**
+
+| regime | arm | swapped | net items |
+|---|---|---|---|
+| tight | **`tralo_reseed` (pure RNG)** | 3357 | **+89** |
+| tight | `tralo_head` | 3362 | +11 |
+| tight | `tralo_uniform` | 3534 | **-43** |
+| tight | `tralo` | 3647 | **-189** |
+| loose | `alm` | 1749 | **+255** |
+| loose | `tralo` | 1662 | **+221** |
+| loose | **`tralo_reseed` (pure RNG)** | 1576 | **+167** |
+| loose | `tralo_uniform` | 1683 | **+148** |
+
+🔴 **THE SWAP COUNT IS NOISE.** A pure RNG reseed moves **3357** items where
+the constraint arms move 3362-3647. The constraint relocates no more of the
+selection than re-rolling the seed does. This is the count-level result
+(75-95 RMS constrained vs 83-95 from a reseed) now confirmed at the level of
+WHICH ITEMS are chosen, which is the level that decides the metric.
+
+🔴 **`tralo_uniform` IS BELOW THE RNG FLOOR IN BOTH REGIMES**: -43 against
++89 at tight, +148 against +167 at loose. `tralo` clears the floor at loose
+(+221) and is far below at tight (-189). **`alm` is the only arm clearly above
+the floor anywhere** (+255, loose).
+
+⚠️ **AND IT REFUTES THE ORDER-PRESERVATION PREMISE.** `tralo_uniform`'s whole
+design claim is that a uniform gradient in log-odds is a pure BIAS SHIFT and so
+cannot reorder. If that held, it would swap ~0 items against its own twin. It
+swaps **3534**. The cause is almost certainly 2(prm-grad): **`prm.grad` is not
+the delivery mechanism, Adam is.** A gradient uniform across items does not stay
+uniform after `sqrt(v)` per-parameter scaling and momentum mixing with CE --
+exactly as `ortho_project` delivered 0.0% of its promised CE-neutrality in
+16/16 conditions. The uniform count is an intervention on `prm.grad`, and this
+project has already measured that such interventions mostly do not survive.
+
+⇒ **VERIFY `tralo_uniform` AT THE WEIGHT-DELTA LEVEL** before any further
+claim rests on its order-preservation story. `scripts/ortho_survival.py` is the
+tool and it needs no artefact.
+
+⚠️ **WHAT THIS DOES NOT OVERTURN.** `tralo_uniform` still beats `clip` on AP
+and AUROC 25/29 (2(z7)), and that contrast is against a DIFFERENT model at
+equal compute, which is a different question from this one. Both are true: it
+is better than the post-hoc bar, and its item-level movement against its own
+twin does not clear the RNG floor. Quote whichever question is being asked, and
+never one as evidence for the other.
+
+⚠️ **LIMITS OF THIS TABLE.** Pooled item counts over cells and seeds, not a
+paired significance test, and `tralo_reseed` is ONE alternative RNG draw per
+seed rather than the floor's distribution -- so its +89 is a sample, not a mean.
+The robust part is the MAGNITUDE agreement (3357 vs 3362-3647), which does not
+depend on the draw.
+
 ### (z10) 🟢🟢 THE CONSTRAINT DOES RESHAPE THE SELECTION -- AND WHY IT INVERTS
 
 Measured 2026-08-31 with `scripts/boundary_probe.py`, 288 cell-seed-class
