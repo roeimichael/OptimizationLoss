@@ -168,7 +168,7 @@
 # =============================================================================
 set -euo pipefail
 
-PIN=3cc95e64
+PIN=1d4e179e
 TREE=~/optloss-vitdom2
 
 # TWO ROOTS, ONE PER GPU, SPLIT BY BACKBONE. The NFS home is shared between
