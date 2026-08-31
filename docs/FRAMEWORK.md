@@ -2054,6 +2054,77 @@ does not.
   Fixed 2026-08-30 to key on the model; the geometry reproduces disaggregated,
   but the first table printed backbone-averages under per-cap labels.
 
+### (z12) 🔴🔴🔴 THE SHIPPED COUNT FUNCTION PUTS **0.00%** OF ITS
+GRADIENT AT THE CUT -- the mechanism behind z11, and the fix it forces
+
+Measured 2026-08-31 on REAL stored `test_embeddings.npz`, `iwc1`, 24 (run,
+class) pairs. `scripts/step_direction_probe.py`, `--self-test` gated in BOTH
+directions (it reports 0.701 on a steerable geometry, so a collinearity here is
+a measurement).
+
+**(a) THE COUNT-FUNCTION FAMILY IS THREE DIRECTIONS, NOT ONE.** The gradient of
+any `S_c = sum_i phi(p_ic)` w.r.t. the head weights is `sum_i g_i f_i`, a
+g-weighted mean of the test features. Cosines between those directions, on real
+features:
+
+| cluster | members | mutual cosine |
+|---|---|---|
+| A flat / decreasing | `uniform`, `1-p` | **0.986** |
+| B peaked at p=0.5 | **`sum` p(1-p)**, `margin` | **0.989** |
+| C increasing in p | `p`, `linear` z | **0.989** |
+
+Between clusters 0.58-0.87. ⚠️ **A GAUSSIAN TOY SAYS 1.0000 FOR ALL OF THEM
+AND IS WRONG** -- real post-ReLU features are non-negative and anisotropic and
+give `uniform` vs `sum` = **0.7479**, not 1.0. Never price this on synthetic
+features.
+
+✅ **CONSEQUENCE, PRE-REGISTERED**: `tralo_margin` sits at cosine **0.989**
+from `tralo`, so running it will mostly REPRODUCE `tralo`. It is the arm held
+in reserve and it is now predicted to be a near-duplicate. Do not spend a
+campaign on it before the cut window below.
+
+**(b) AND NONE OF THE THREE AIMS AT THE CUT.** Fraction of total gradient mass
+on the 40 items straddling rank K -- the only items whose movement can change
+the emitted top-K set:
+
+| cap | cls | K | p at the cut | `uniform` | **`sum` (SHIPPED)** | `p` | cut-window |
+|---|---|---|---|---|---|---|---|
+| L20_G50 | 2 | 74 | 1.00000 | 0.0136 | **0.0000** | 0.148 | 0.830 |
+| L20_G50 | 7 | 92 | 1.00000 | 0.0136 | **0.0000** | 0.072 | 0.111 |
+| L30_G50 | 2 | 111 | 0.99984 | 0.0136 | **0.0005** | 0.168 | 0.700 |
+| L30_G50 | 7 | 137 | 1.00000 | 0.0136 | **0.0000** | 0.068 | 0.158 |
+
+🔴 **`p(1-p)` IS MAXIMAL AT p=0.5 AND VANISHING AT p=1, AND THE TIGHT-CAP
+CUT SITS AT p=0.99984-1.00000.** So the shipped penalty spends its entire
+budget deep inside the class where movement cannot change the emitted set, and
+**nothing** where the metric reads. Every item it moves is collateral. That is
+z11 explained: the reordering measures at the RNG floor because it is, with
+respect to the metric, arbitrary.
+
+✅ **AND IT DERIVES THE REGIME REVERSAL WITH NO NEW ASSUMPTION.** At loose caps
+the cut falls to p=0.59-0.99, where `p(1-p)` finally has mass -- which is
+exactly where `sum` wins (+0.0253 AP at L80/L90) and `uniform` is the reverse.
+The reversal was an observation; it is now a consequence.
+
+⚠️ **THIS IS RULE 3 OF `CLAUDE.md` BITING FOR REAL.** `margin_window` targets
+the DECISION BOUNDARY (p=0.5). The metric reads at RANK K. At tight caps those
+are the same conflation the rule warns about, and here they are ~300 items and
+~10 logits apart. A window at the boundary is not a window at the cut.
+
+⇒ **THE FIX: WINDOW THE CUT, NOT THE BOUNDARY.** Weight
+`sech^2((z_i - z_(K)) / T)` centred on the K-th RANKED logit. 🛑 **AND SET T
+IN ITEMS, NOT IN LOGITS** -- at a fixed T=1.0 the cut window already collapses
+from 0.830 to 0.111 between class 2 and class 7 of the SAME run, purely because
+the logit spread near the cut differs. `_window_from_items` already exists in
+`src/losses/transductive_loss.py` for exactly this reason; use it.
+
+⚠️ **WHAT IS NOT YET SHOWN.** That aiming at the cut HELPS. It is necessary,
+not sufficient: `ceiling_screen` bounds the whole prize at 1.9-9.9 items and
+`headroom` reads 0.0-1.0 on iwildcam's tight cells, so a correctly-aimed
+gradient can still find nothing to win there. This closes the question "why has
+nothing worked", and opens "does aiming fix it" -- do not report the second as
+answered by the first.
+
 ### (z11) 🔴🔴🔴 AT THE ITEM LEVEL THE CONSTRAINT IS AT THE RNG FLOOR, AND
 `tralo_uniform` IS BELOW IT IN BOTH REGIMES
 
