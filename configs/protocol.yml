@@ -273,8 +273,21 @@ blocks:
   # afterwards: aiming at the cut is NECESSARY, not sufficient. At tight caps
   # the clipper's selected set is already 99.6% correct and `headroom` reads
   # 0.0-1.0 items, so a correctly-aimed gradient can still find nothing to
-  # take. What is predicted is that the count trajectory responds where `sum`
-  # measurably cannot.
+  # take.
+  #
+  # WHAT IS PREDICTED, and read it on the right quantity. An earlier version of
+  # this comment said "the count trajectory responds where `sum` measurably
+  # cannot". THAT WAS WRONG and is FRAMEWORK 2(z13): `sum` already moves the
+  # hard count 4.02x / 2.94x the reseed floor at tight caps, because the HARD
+  # COUNT is a DECISION-BOUNDARY readout and the boundary is exactly where
+  # p(1-p) peaks. It cannot test a claim about the CUT -- CLAUDE.md rule 3.
+  #
+  #   -> `tralo_cut` moves the EMITTED top-K set at tight caps by more,
+  #      relative to the `tralo_reseed` floor, than `tralo` does. Read it from
+  #      `boundary_probe --control tralo_null` on `final_predictions.csv`, in
+  #      net items -- never from the hard count.
+  #   -> its HARD count should move LESS than `tralo`'s, not more, because this
+  #      window deliberately takes gradient OFF the boundary.
   tralo_cut:
     soft_count_mode: cut
     cut_window_items: 40
