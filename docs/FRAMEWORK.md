@@ -2054,6 +2054,90 @@ does not.
   Fixed 2026-08-30 to key on the model; the geometry reproduces disaggregated,
   but the first table printed backbone-averages under per-cap labels.
 
+### (z7) 🛑🛑🛑 `tralo` DOES NOT BEAT THE CLIPPER. `tralo_uniform` DOES.
+
+**Measured 2026-08-31 across ALL 372 live cells, 1,340 runs, 4 backbones, both
+cap regimes (`scripts/cell_table.py`). This is the first all-backbone
+all-regime head-to-head and it settles the count-function question.**
+
+`tralo` (the shipped `sum` count) vs `clip`, 44 paired cells:
+
+| metric | wins/n | mean d | p | verdict |
+|---|---|---|---|---|
+| ccF1 | 22/44 | +0.0027 | 1.000 | **TIE** |
+| macroF1 | 23/44 | -0.0005 | 0.880 | tie |
+| AP | 21/44 | **-0.0182** | 0.880 | **LOSS** |
+| AUROC | 20/44 | **-0.0048** | 0.652 | **LOSS** |
+| acc | 21/44 | -0.0021 | 0.880 | LOSS |
+
+⇒ **the basic assumption is FALSE as stated.** Pooled over the regimes
+`tralo` does not beat the post-hoc bar on any metric.
+
+**It is entirely a REGIME split, and the tight half is a rout:**
+
+| | ccF1 | AP | AUROC |
+|---|---|---|---|
+| TIGHT (21 cells) | **2/21, p=0.0002** | **0/21, p<1e-4** | **0/21, p<1e-4** |
+| LOOSE (23 cells) | 20/23, p=0.0005 | 21/23, p=0.0001 | 20/23, p=0.0005 |
+
+`tralo` loses AP in **0 of 21** tight cells and wins in **21 of 23** loose ones.
+The same arm, the same code, opposite verdicts at three-star significance.
+
+**`tralo_uniform` vs `clip`, 29 paired cells -- THIS is the arm that wins:**
+
+| metric | wins/n | mean d | p |
+|---|---|---|---|
+| macroF1 | 22/29 | +0.0059 | **0.0081** |
+| uncF1 | 22/29 | +0.0071 | **0.0081** |
+| AP | **25/29** | +0.0163 | **0.0001** |
+| AUROC | **25/29** | +0.0047 | **0.0001** |
+| ccF1 | 17/29 | +0.0021 | 0.458 (tie) |
+| acc | 13/29 | +0.0013 | 0.711 (tie) |
+
+⇒ **`tralo_uniform` beats the clipper on both RANKING metrics and on both
+uncapped-class metrics, and ties on ccF1 and acc. It never loses.** AP and
+AUROC are the only two metrics that can change a top-K set, so this is the
+family in which a win is possible at all.
+
+🔑 **AND IT SURVIVES THE NOISE FLOOR, WHERE `tralo` DOES NOT.**
+
+| contrast | ccF1 | AUROC |
+|---|---|---|
+| `tralo` - own null | 28/44, p=0.096 | 22/44, p=1.000 |
+| **RNG reseed** - same null | **29/44, p=0.049** | 20/44, p=0.652 |
+| `tralo_uniform` - own null | 21/29, p=0.024 | **23/29, p=0.0023** |
+
+A pure RNG reseed wins ccF1 in **more** cells (29/44) than `tralo` does
+(28/44). So **TraLO's ccF1 gain over its own twin is at or below the reseed
+floor and is not attributable.** But the floor does NOT move AUROC (20/44,
+p=0.65) while `tralo_uniform` does (23/29, p=0.0023) -- so **the uniform arm's
+RANKING gain is the one attributable effect in the corpus.**
+
+✅ **The collateral damage is gone too.** `tralo` - null costs uncF1 in 12/44
+cells (p=0.0037) and acc in 13/44 (p=0.0096). `tralo_uniform` - null is 14/29
+on both, a clean tie. The uniform count removes the damage at 4-backbone scale,
+confirming 2(u2) beyond the single campaign it was found on.
+
+⚠️ **The one thing `sum` still wins is LOOSE caps**, head to head against
+uniform: ccF1 13/17 (p=0.049), AP 15/17 (p=0.0023), AUROC 15/17. At TIGHT the
+same contrast is AP **0/12** and AUROC **0/12** (p=0.0005) the other way. Both
+directions are three-star. The count function is regime-dependent and neither
+mode is right everywhere -- which is the argument for the CUT-WINDOWED count
+(`tralo_margin`), never run anywhere.
+
+**The rival duals, for scale** (15 cells, no ViTB16): `alm` beats `clip` on
+ccF1 12/15 (p=0.035) and AP 12/15 (p=0.035); `fioretto` and `hounie` are
+weaker and both LOSE uncF1. `tralo` vs `alm` head to head is 9/15 on every
+metric, p=0.61 -- **a tie, on CNNs only.**
+
+🛑 **CONSOLIDATION DECISION, 2026-08-31: `tralo_uniform` IS TraLO.** It is
+the only variant that beats the clipper without ever losing, and the only one
+whose gain clears its own reseed floor. `tralo` (sum) is retained as the
+loose-cap comparison and as the ablation that shows what the count function is
+worth. Everything else in the family is a guardrail or is retired: `tralo_st`,
+`tralo_ortho`, `tralo_head` and `tralo_coin` are controls that answered their
+question, and `tralo_margin` is the ONE remaining design step.
+
 ### (z5) 🔴🔴 dom1b: THE RANKING-METRIC LEAD DOES NOT REPRODUCE ON RegNetY400MF
 
 **Scored 2026-08-30, 192/192, all gates green** (dose 100% on all five trained
