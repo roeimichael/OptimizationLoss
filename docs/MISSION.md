@@ -288,13 +288,23 @@ and FRAMEWORK 3(0), then start the next.
    BOUNDARY readout and the boundary is exactly where `p(1-p)` peaks. That
    prediction tested the wrong quantity -- CLAUDE.md rule 3, caught by running
    the check before the GPU. The correct one:
-   > `tralo_cut` changes the **EMITTED top-K set** at TIGHT caps by more,
-   > relative to the `tralo_reseed` floor, than `tralo` does -- read from
+   > **TIGHT (L30_G50)**: `tralo_cut` changes the **EMITTED top-K set** by
+   > more, relative to the `tralo_reseed` floor, than `tralo` does -- read from
    > `boundary_probe --control tralo_null` on `final_predictions.csv`, in net
-   > items. Its HARD COUNT is expected to move LESS than `tralo`'s, not more,
-   > because the cut window deliberately takes gradient off the boundary.
-   If the emitted set does not move relative to the floor, the aim fix is dead
-   and cluster C closes with it.
+   > items. Its HARD COUNT should move LESS than `tralo`'s, not more, because
+   > the cut window deliberately takes gradient off the boundary.
+   > **LOOSE (L90_G95)**: `tralo_cut` and `tralo` are approximately THE SAME
+   > ARM (cosine 0.90 on MobileNetV3; `sum` already carries 0.15 of its
+   > gradient at the cut there) and must behave alike.
+   🛑 **THE LOOSE HALF IS A BUILT-IN NEGATIVE CONTROL** (2(z14)), which
+   makes this two-sided and hard to satisfy by chance: **a `tralo_cut` that
+   "wins" in BOTH regimes is reading noise, not the mechanism.** If the emitted
+   set does not move at TIGHT relative to the floor, the aim fix is dead and
+   cluster C closes with it.
+   ⚠️ **MobileNetV3 is the WEAK backbone for this on purpose**: its tight
+   `cut_window` mass is 0.380 against ViTB16's 0.765, so this is the
+   conservative test -- and a null here must NOT be promoted to ViTB16 without
+   running ViTB16.
 2. 🔴 **ViTB16 LOOSE, from 2 cells to >= 6.** `loosevit1` already exists, is
    100% dose, md5-clean, single `code_version`, carries `tralo_null` +
    `tralo_reseed` + both clippers -- and on it **`tralo` is positive on every
