@@ -33,7 +33,8 @@ from src.pipeline.warmup import make_ce_criterion, make_dataloader, make_optimiz
 from src.training.constraint_step import (
     constraint_autocast, constraint_backward, finish_constraint_step,
     head_parameter_ids, snapshot_grads)
-from src.losses.transductive_loss import (margin_window, margins,
+from src.losses.transductive_loss import (cut_params, cut_window_count,
+                                          margin_window, margins,
                                           uniform_grad_count, window_temp)
 from src.training.logging import log_progress_to_csv, write_csv_header
 from src.training.metrics import compute_prediction_statistics
@@ -46,13 +47,13 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     config = inputs.config
     hp = inputs.hyperparams
     SOFT_COUNT_MODE = str(hp.get("soft_count_mode", "sum"))
-    if SOFT_COUNT_MODE not in ("sum", "margin", "uniform"):
+    if SOFT_COUNT_MODE not in ("sum", "margin", "uniform", "cut"):
         # Checked BEFORE read_step_config so a typo is reported as a typo
         # rather than as whichever required key happens to be read first.
         raise ValueError(
-            "soft_count_mode must be one of sum / margin / uniform, got %r. "
-            "An unrecognised mode silently ran `sum` under a different arm "
-            "name, which is this project's most frequent defect."
+            "soft_count_mode must be one of sum / margin / uniform / cut, "
+            "got %r. An unrecognised mode silently ran `sum` under a different "
+            "arm name, which is this project's most frequent defect."
             % SOFT_COUNT_MODE)
     ORTHO_PROJECT = bool(hp.get("ortho_project", False))
     HEAD_ONLY = bool(hp.get("head_only", False))
@@ -240,6 +241,11 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             total_local_hard = {gid: torch.zeros(num_classes, device=device)
                                 for gid in criterion_constraint.local_groups}
             kept_margins = [] if SOFT_COUNT_MODE == "margin" else None
+            # The CUT is an order statistic over the FULL test set, so it
+            # cannot be formed chunk by chunk. Same shape as `kept_margins`:
+            # collect in pass 1, reduce once, hold fixed across pass 2's
+            # chunks. See `cut_window_count` for why per-chunk is wrong.
+            kept_proba = [] if SOFT_COUNT_MODE == "cut" else None
             for ci in range(n_chunks):
                 start = ci * chunk_size
                 end = min(start + chunk_size, n_test)
@@ -248,6 +254,8 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 chunk_preds = chunk_logits.argmax(dim=1)
                 if kept_margins is not None:
                     kept_margins.append(margins(chunk_proba))
+                if kept_proba is not None:
+                    kept_proba.append(chunk_proba)
                 total_global_soft += chunk_proba.sum(dim=0)
                 total_global_hard += torch.bincount(
                     chunk_preds, minlength=num_classes).float()
@@ -280,6 +288,26 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             cut_temp = window_temp(torch.cat(kept_margins, dim=0),
                                    CUT_WINDOW_ITEMS)
             del kept_margins
+
+        # WHERE the cut is, once, over the full test set (FRAMEWORK 2(z12)).
+        #
+        # K IS THE EFFECTIVE BUDGET, `min(global, sum of the local budgets)`,
+        # not `global_con[c]`. The global cap is redundant at L30_G30 and inert
+        # at any G > L, so on most of this project's cap tags `global_con[c]`
+        # is UNLIMITED while the local sum is what actually binds -- and a cut
+        # placed at an unlimited K is no cut at all. CLAUDE.md states this as
+        # "the cap tag is not the budget"; it is equally true of the config key.
+        cut_tau = cut_win = None
+        if SOFT_COUNT_MODE == "cut":
+            eff_K = []
+            for c in range(num_classes):
+                local_sum = sum(float(v[c]) for v in local_con.values()) \
+                    if local_con else float(UNLIMITED)
+                eff_K.append(min(float(global_con[c]), local_sum))
+            cut_tau, cut_win = cut_params(
+                torch.cat(kept_proba, dim=0),
+                torch.tensor(eff_K, device=device), CUT_WINDOW_ITEMS)
+            del kept_proba
         if STRAIGHT_THROUGH:
             # Seed the detach construction below with the HARD count. Its value
             # becomes exact while the gradient still comes from whichever soft
@@ -367,6 +395,15 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                     # from p(1-p) to a constant -- see uniform_grad_count for
                     # the measurement that forced it.
                     chunk_eff = uniform_grad_count(chunk_proba)
+                elif SOFT_COUNT_MODE == "cut":
+                    # Value is exactly `p`, like `uniform`, so pass 1's plain
+                    # sum is already the right total and the detach
+                    # construction stays exact -- `straight_through` is not
+                    # required. `cut_tau` / `cut_win` come from pass 1 over the
+                    # FULL test set and are held fixed here, so the per-item
+                    # weight does not depend on chunk membership and the
+                    # chunked gradient equals the full-N one exactly.
+                    chunk_eff = cut_window_count(chunk_proba, cut_tau, cut_win)
                 else:
                     chunk_eff = chunk_proba
                 chunk_global = chunk_eff.sum(dim=0)

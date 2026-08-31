@@ -114,6 +114,18 @@ def slope_at(p_col, k, mode):
         t = torch.tensor(z, dtype=torch.float64, requires_grad=True)
         uniform_grad_count(torch.softmax(t, dim=1))[:, 0].sum().backward()
         return float(t.grad[:, 0].mean()), p
+    if mode == "cut":
+        # The window is CENTRED on rank K by construction, so the slope at the
+        # K-th ranked item is sech^2(0) = 1.0 exactly -- its maximum, and the
+        # largest value any count in this project takes there. That is the
+        # whole design and it needs no data to state.
+        #
+        # ⚠️ DO NOT READ THIS AS A DOSE. Under `constraint_grad_mode:
+        # normalize` the delivered step is rescaled to `constraint_grad_clip`
+        # regardless, so a slope of 1.0 against `sum`'s 0.026 is a statement
+        # about WHERE the gradient sits in the ranking, not about how hard it
+        # pushes. FRAMEWORK 2(z12) and the magnitude-is-void result.
+        return 1.0, p
     raise SystemExit(
         "soft_count_mode %r has no reachability slope here. `margin`'s slope "
         "is the sigmoid's and depends on the DERIVED window temperature, "

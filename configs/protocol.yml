@@ -253,6 +253,31 @@ blocks:
   # already exactly sum_i p_ic, so pass 1 stays correct either way.
   tralo_uniform:
     soft_count_mode: uniform
+  # THE CUT-WINDOWED COUNT (FRAMEWORK 2(z12)). The shipped count's per-item
+  # derivative p(1-p) is MAXIMAL at p=0.5 and VANISHING at p=1, and on iwildcam
+  # at tight caps the K-th ranked item -- the cut, the only place where moving
+  # an item changes the emitted top-K set -- sits at p=0.99984 to 1.00000.
+  # Measured on real stored features, the fraction of total gradient mass on
+  # the 40 items straddling the cut is 0.0001 for `sum`, 0.0136 for `uniform`,
+  # and EXACTLY 0.0000 for `margin` (which windows the BOUNDARY, not the cut --
+  # the conflation CLAUDE.md rule 3 warns about). This puts 0.35 there.
+  #
+  # straight_through is NOT required, for `uniform`'s reason: the value is
+  # already exactly sum_i p_ic, so pass 1 stays correct either way.
+  #
+  # `cut_window_items` sets the window width in ITEMS. At a fixed temperature
+  # the mass at the cut collapses 0.830 -> 0.111 between two classes of the
+  # SAME run, so a fixed temperature is not a fixed dose.
+  #
+  # NOT PREDICTED TO WIN, and this is pre-registered so it cannot be rewritten
+  # afterwards: aiming at the cut is NECESSARY, not sufficient. At tight caps
+  # the clipper's selected set is already 99.6% correct and `headroom` reads
+  # 0.0-1.0 items, so a correctly-aimed gradient can still find nothing to
+  # take. What is predicted is that the count trajectory responds where `sum`
+  # measurably cannot.
+  tralo_cut:
+    soft_count_mode: cut
+    cut_window_items: 40
   # THE CE-ORTHOGONAL ARM. The constraint gradient is projected onto the
   # orthogonal complement of the last CE minibatch gradient, so enforcing the
   # cap cannot undo the CE progress just made. Direction only: the projection
@@ -538,6 +563,9 @@ arms:
      null_sibling: tralo_null}
   tralo_uniform:
     {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, tralo_uniform],
+     null_sibling: tralo_null}
+  tralo_cut:
+    {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, tralo_cut],
      null_sibling: tralo_null}
   # Shares `tralo_null` for the usual reason: at lambda 0 with lambda_step 0
   # there is no constraint gradient, so a dedicated null would be a

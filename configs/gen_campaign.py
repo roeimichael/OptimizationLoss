@@ -423,7 +423,7 @@ def main():
                         "absolute clip, hounie's gradient never reached it "
                         "(max 0.11 of 1.0) while fioretto's exceeded it by "
                         "80,000x -- a ~20x dose gap invisible to every gate.")
-    a.add_argument("--soft-count-mode", choices=["sum", "margin", "uniform"],
+    a.add_argument("--soft-count-mode", choices=["sum", "margin", "uniform", "cut"],
                    default=None,
                    help="WHERE the count puts its gradient. `sum` is the "
                         "manuscript's count, whose per-item derivative p(1-p) "
