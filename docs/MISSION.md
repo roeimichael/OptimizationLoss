@@ -35,6 +35,61 @@ dataset that cannot test the thesis.
 
 ---
 
+## 🔴 0-NOW. THE MATHEMATICAL DEFECT, FOUND 2026-08-31/09-01
+
+Three measurements, in the order they were made. FRAMEWORK 2(z11), 2(z12).
+
+**(1) At the item level the constraint is at the RNG floor.** `boundary_probe
+--control tralo_null`, every arm against its OWN lambda=0 twin. A pure reseed
+moves **3357** items where the constraint arms move 3362-3647, and nets **+89**
+at tight / **+167** at loose against `tralo_uniform`'s **-43** / **+148**. So
+`tralo_uniform` does not clear its own noise floor in either regime; only
+`tralo` at loose (+221) and `alm` (+255) do.
+
+**(2) `tralo_uniform`'s founding claim is false.** Its docstring argues a
+uniform step in log-odds is "a pure bias shift, which cannot reorder". The step
+is taken in PARAMETERS, not logits: `dz_i = -lr*g*n*(fbar.f_i + 1)`, which
+varies with `fbar.f_i`. It reorders, with the backbone FROZEN -- the leak is in
+the linear head. `scripts/bias_shift_probe.py`. The only provably harmless
+update is one confined to `b_c`, and that one is useless: a constant added to
+`z_c` leaves the within-class order untouched, so the emitted top-K is
+bit-identical.
+
+**(3) AND THE ROOT CAUSE. The shipped count puts 0.00% of its gradient at the
+cut.** `p(1-p)` is maximal at p=0.5 and vanishing at p=1; the tight-cap cut sits
+at **p = 0.99984 to 1.00000**. Fraction of gradient mass on the 40 items
+straddling rank K, measured on real stored features over 24 (run, class) pairs:
+
+| weighting | mass at the cut |
+|---|---|
+| `cut_window` | **0.3486** |
+| `p` | 0.1039 |
+| `uniform` | 0.0136 |
+| **`sum` -- THE SHIPPED COUNT** | **0.0001** |
+| `margin` -- the BOUNDARY window | **0.0000** |
+
+⇒ The penalty spends its whole budget where movement cannot change the
+emitted set, and nothing where the metric reads. **That is (1) explained**: the
+reordering is at the RNG floor because it is arbitrary with respect to the
+metric. It also **derives the regime reversal with no new assumption** -- at
+loose caps the cut falls to p=0.59-0.99 where `p(1-p)` finally has mass, which
+is exactly where `sum` wins.
+
+🛑 **AND IT PRICES `margin2` BEFORE IT RUNS.** `tralo_margin` windows the
+DECISION BOUNDARY, puts **exactly 0.0000** at the cut, and sits at cosine
+**0.989** from `tralo` -- so its 432 staged runs would mostly reproduce `tralo`.
+That is CLAUDE.md rule 3's conflation costing a campaign. Run the cut window
+first.
+
+⚠️ **WHAT IS NOT CLAIMED: that aiming at the cut WINS.** Necessary, not
+sufficient. At tight caps the clipper's set is already 99.6% correct and
+`headroom` reads 0.0-1.0 items, so a correctly-aimed gradient can still find
+nothing to take -- it may fix the aim and still lose in the very regime it was
+built for. What IS predicted is that the count trajectory responds where `sum`
+measurably cannot.
+
+---
+
 ## 0. THE GOAL, stated so it can be failed
 
 Make **TraLO** the best of the constrained-optimization methodologies, on the
@@ -119,7 +174,8 @@ L95_G80. Only **20 distinct warm-up models** exist across all five campaigns.
 |---|---|---|
 | `soft_count_mode: sum` (shipped) | 🟡 wins LOOSE, loses TIGHT -- **and the reason is now known**, 2(y) | AP +0.0253..+0.0064 loose / -0.0572..-0.0933 tight. The gradient sits at the boundary, 200-440 ranks from the cut when the cap is tight |
 | `soft_count_mode: uniform` | ✅ **the tight-cap tool**, and 2(y) says why: a flat slope declines to aim | ViTB16 AP **+0.0087 tight** (only arm above the floor) / **-0.0091 loose**. `uniform1` -0.0754 -> +0.0030 |
-| `soft_count_mode: margin` | ❓ **NEVER RUN** -- staged in `launch_margin2.sh`. 🎯 **PREDICTED to gain LOOSE and NOT tight** (2(y)): it windows the BOUNDARY, which is the wrong point at tight caps | the only arm that can reorder on the direct channel |
+| `soft_count_mode: margin` | ⛔ **NEVER RUN, AND NOW REPRICED DOWNWARD** (2026-09-01). Still staged as `margin2` (432 runs) but it windows the BOUNDARY, and the boundary is measured to carry **exactly 0.0000** of the gradient at the cut. 🛑 **Run `cutwin1` first** | cosine **0.989** to `tralo` on real features, so 432 runs would mostly reproduce `tralo`. FRAMEWORK 2(z12) |
+| `soft_count_mode: cut` (**NEW**, `tralo_cut`) | 🟢 **BUILT, GATED, STAGED as `cutwin1`** -- the fix 0-NOW derives. Value stays exactly `sum_i p_ic`, only the gradient weight moves to a window on rank K, width in ITEMS. ⚠️ **NOT predicted to win** -- aiming is necessary, not sufficient | mass at the cut **0.0001 -> 0.3486** (pooled, 24 run-class pairs, real features). Chunked gradient == full-N exactly (maxdiff 0.00e+00). `flag_live` md5-distinct on every binding seed. 423 tests, `audit_config`, `smoke_arms --matrix` all green |
 | `tralo_st` (hard-count value fix) | ❓ **NEVER RUN** -- same campaign | isolates VALUE from PLACEMENT |
 | `straight_through` | ✅ keeps count value exact | -- |
 | `constraint_grad_mode: normalize` | ✅ **required** -- `clip` gives a ~20x dose spread across duals | `check_parity` refuses `clip` |
@@ -210,7 +266,26 @@ and FRAMEWORK 3(0), then start the next.
    from epoch 2 (grad 18.69), where `tralo_null` stays 0.0 forever.
    ⚠️ 8 independent (model, seed) units, so only 8/8 (p=0.0078) is significant;
    7/8 is p=0.0703 and is a DIRECTION. Say which was met.
-1. 🔴 **ViTB16 LOOSE, from 2 cells to >= 6.** `loosevit1` already exists, is
+1. 🟢 **STAGED, LAUNCHES ON THE FIRST FREE GPU: `cutwin1`** (56 runs,
+   `~/optloss-cutwin`, pin `63dd8c6b`, grabber armed). The SMALL validation of
+   the 0-NOW fix, deliberately not a grid. MobileNetV3 x {L30_G50 (K/n=30%),
+   L90_G95 (K/n=90%)} x {`tralo_cut`, `tralo`, `tralo_uniform`, `tralo_null`,
+   `tralo_reseed`, `clip`, `focal_clip`} x 4 seeds, `normalize` so the arms
+   differ in DIRECTION and not in dose.
+   ⚠️ **2 cells, so it CANNOT reach significance on any metric** -- the
+   generator says so itself. It is a mechanism check, not a verdict, and must
+   be reported as direction + per-cell consistency only.
+   **What it must show before anything is built on it**, in this order:
+   `dose_landed` 100% and dose-matched; `flag_live` md5-distinct from `tralo`
+   on the real runs; `log_health` for collapse/divergence and the count
+   trajectory vs K; then `full_panel --control clip` reading its CONSTRAINT
+   DOSE block on the FIRST completed runs; then `boundary_probe --control
+   tralo_null` against the `tralo_reseed` floor.
+   🔑 **THE PRE-REGISTERED PREDICTION**: `tralo_cut` moves the capped count
+   at TIGHT caps by a larger ratio-to-reseed than `tralo` does. If the count
+   trajectory does not respond, the aim fix is dead and the whole cluster-C
+   direction closes with it.
+2. 🔴 **ViTB16 LOOSE, from 2 cells to >= 6.** `loosevit1` already exists, is
    100% dose, md5-clean, single `code_version`, carries `tralo_null` +
    `tralo_reseed` + both clippers -- and on it **`tralo` is positive on every
    metric including macroF1** (AP +0.0064, ccF1 +0.0017, macroF1 +0.0021, all
@@ -219,7 +294,7 @@ and FRAMEWORK 3(0), then start the next.
    min attainable p = 0.500, NOT CALLABLE**. More loose cap tags on ViTB16
    (L85, L95, plus the matched `L95_G80`) is the cheapest route to a callable
    headline. **Highest value per GPU-hour available.**
-2. ⏸️ **`vitdom1` -- HELD pending the 0-PRE decision.** 240 ViTB16 runs
+3. ⏸️ **`vitdom1` -- HELD pending the 0-PRE decision.** 240 ViTB16 runs
    pointed at a paper section that may not exist. Ready and validated; do not
    launch until A/B/C is chosen.
    🔴 **`vitdom1`** (`docs/launch_vitdom1.sh`, 240 runs, 6 cells, validated
@@ -229,21 +304,21 @@ and FRAMEWORK 3(0), then start the next.
    `L95_G80` scope pair at an identical K=296. Also takes `loosevit1`'s
    NOT-CALLABLE 2-cell positive to 6 cells. Deliberately loose-only, and
    deliberately without per-family nulls -- the header says why.
-3. 🔴 **`margin2`** (`docs/launch_margin2.sh`, 432 runs, 12 cells, validated
+4. 🔴 **`margin2`** (`docs/launch_margin2.sh`, 432 runs, 12 cells, validated
    2026-08-30, pre-registration fixed). Now carries a falsifiable prediction
    from 2(y): gain in the 6 LOOSE cells, none in the 6 TIGHT ones.
    ⛔ Blocked on a GPU, not on readiness.
-4. ✅ ~~ViTB16 needs rival duals~~ -- **this is now queued as `vitdom1`, item 2.**
+5. ✅ ~~ViTB16 needs rival duals~~ -- **this is now queued as `vitdom1`, item 2.**
    Kept here only so the hole is not re-discovered: `hounie`, `fioretto`, `alm`, `danits_lp` have
    **never run on ViTB16 on iwildcam** -- they exist there only in the dermmnist
    `vit_diag`/`vit_ceskip` campaigns, which are 86/97 pending on a dataset that
    is removed from disk. So the `dom1` dominance claim **cannot be reproduced on
    the pre-registered headline backbone** without new GPU time. This is the
    single biggest hole in the dominance story.
-5. ✅ **`dom1b` -- DONE and scored.** 192/192, all gates green. The ccF1 lead reproduces on RegNetY400MF (2.49x the floor) but the **AP and AUROC lead does NOT** -- `tralo` is 4th and 3rd, both below its own reseed floor, with `alm` first. Confounded with the numeric regime (Blackwell bf16 vs Quadro fp16), so it is scored standalone. Nothing in it is significant and nothing could be: 4 warm-up units, sign floor p=0.125. FRAMEWORK 2(z5).
-6. 🟡 **Unequal L:G ratios beyond L95_G80** -- `margin2`'s matched 2x2 covers two
+6. ✅ **`dom1b` -- DONE and scored.** 192/192, all gates green. The ccF1 lead reproduces on RegNetY400MF (2.49x the floor) but the **AP and AUROC lead does NOT** -- `tralo` is 4th and 3rd, both below its own reseed floor, with `alm` first. Confounded with the numeric regime (Blackwell bf16 vs Quadro fp16), so it is scored standalone. Nothing in it is significant and nothing could be: 4 warm-up units, sign floor p=0.125. FRAMEWORK 2(z5).
+7. 🟡 **Unequal L:G ratios beyond L95_G80** -- `margin2`'s matched 2x2 covers two
    budgets; `L50_G20` / `L70_G40` would extend it.
-7. 🟢 **`fmow` images (~21k)** -- the only route to dataset #2. Needs the user's
+8. 🟢 **`fmow` images (~21k)** -- the only route to dataset #2. Needs the user's
    go-ahead for the download.
 
 ⛔ **Do NOT re-run ViTB16 tight caps.** `vitu1` is complete, 100% dose, and says
