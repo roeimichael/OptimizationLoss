@@ -2054,6 +2054,51 @@ does not.
   Fixed 2026-08-30 to key on the model; the geometry reproduces disaggregated,
   but the first table printed backbone-averages under per-cap labels.
 
+### (z8) 🟢 THE COUNT-FUNCTION REVERSAL, MEASURED PER CAP -- AND IT IS CLEAN
+
+Measured 2026-08-31 from the 372-cell table. `tralo_uniform` minus `tralo`, one
+row per cap tag, every backbone that has both arms at that cap. Effective K is
+`min(global, local sum)` as `verify_caps` states it, so the tag is NOT the
+budget and the K/n column is the real axis.
+
+| cap | K (cls 2, n=370) | K/n | dAP | dAUROC | AP wins |
+|---|---|---|---|---|---|
+| L20_G50 | 74 | 0.20 | **+0.0579** | +0.0139 | **4/4** |
+| L30_G50 | 111 | 0.30 | **+0.0842** | +0.0206 | **4/4** |
+| L50_G30 | 111 *(global binds)* | 0.30 | **+0.1110** | +0.0270 | **4/4** |
+| **L60_G95** | **222** | **0.60** | **-- never run --** | | |
+| L80_G95 | 296 | 0.80 | -0.0157 | -0.0016 | 1/7 |
+| L95_G80 | 296 *(global binds)* | 0.80 | -0.0164 | -0.0020 | 1/3 |
+| L90_G95 | 333 | 0.90 | -0.0224 | -0.0034 | **0/7, p=0.016** |
+
+⇒ **12/12 positive at tight, 2/17 positive at loose.** The sign flip is
+unanimous, it holds on all four backbones independently, and it is the largest
+and most consistent structural effect in the corpus. dAP at L50_G30 is
+**+0.1110**, which is an order of magnitude above the seed noise.
+
+🔑 **THE UNIFORM ADVANTAGE GROWS AS THE TIGHT CAPS LOOSEN, THEN CRASHES.**
++0.058 -> +0.084 -> +0.111 across K/n 0.20 -> 0.30, then -0.016 by 0.80. So the
+crossover is bracketed at **0.30 < K/n < 0.80** and NOTHING has ever been run
+inside it. `vitdom2`'s `L60_G95` is K/n = 0.60, the first interior point, and it
+halves that interval whichever way it falls.
+
+⚠️ **A SCOPE EFFECT MAY BE HIDING HERE, AND IT IS NOT YET A RESULT.**
+`L30_G50` and `L50_G30` impose the SAME effective K=111 through different
+scopes -- local sum in the first, global in the second -- and they read
+**+0.0842 against +0.1110**. `L80_G95` and `L95_G80` are the same-K pair at the
+other end and agree closely (-0.0157 vs -0.0164). Four cells each, so the tight
+pair's gap is well inside the noise and must NOT be quoted as a scope finding
+until a campaign varies scope at fixed K on purpose. Recorded because the
+same-K pairs are the cheapest scope test available and nobody has used them.
+
+🛑 **THIS IS THE ARGUMENT FOR THE CUT-WINDOWED COUNT.** Neither count
+function is right everywhere: `sum` puts its gradient where `p(1-p)` peaks, at
+the decision boundary, which is 294 items from the cut at K/n=0.20 and 35 at
+K/n=0.90; `uniform` spreads it flat and so cannot reorder at all. A count that
+windows the CUT would not have to choose. `tralo_margin` is implemented and
+gated (`smoke_arms --matrix` passes it) and has **never been run anywhere**. It
+is the one remaining design step, and this table is its motivation.
+
 ### (z7) 🛑🛑🛑 `tralo` DOES NOT BEAT THE CLIPPER. `tralo_uniform` DOES.
 
 **Measured 2026-08-31 across ALL 372 live cells, 1,340 runs, 4 backbones, both
