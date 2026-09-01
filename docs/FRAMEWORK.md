@@ -2334,6 +2334,65 @@ quantified from the other side: iwildcam gives a model that is PERFECT at the
 tight cut. The screen number to go and get is fmow's `prec@K`, and anything at
 or above 1.0 there means the same dead end. 2(w2).
 
+### (z16) 🛑🛑🛑 THE CAP IS ONLY A TASK IN A NARROW WINDOW, AND IT IS A
+DIFFERENT WINDOW PER CLASS. **Most of this project's campaigns tested a
+non-task.**
+
+Roei's question, 2026-09-01: put the cap somewhere it actually forces a
+choice, before running any more grids. Measured on `loose1`, MobileNetV3,
+`tralo_null` (the unconstrained twin), all seeds.
+
+Three conditions, and **all three must hold** or the cell measures nothing:
+
+| | condition | fails when |
+|---|---|---|
+| **BINDS** | `hard_count > K` | K above the model's own count -- the cap is free |
+| **PRIZE** | `errors@K > 0` | the top-K is already perfect, nothing to swap |
+| **WIGGLE** | `p@K < 0.99` | the cut sits in saturated territory |
+
+**class 2** -- n_true 370, model predicts **336** unconstrained:
+
+| K/n | K | errors | p@K | binds | verdict |
+|---|---|---|---|---|---|
+| 0.30 | 111 | 0.0 | 0.99996 | yes | no prize |
+| 0.50 | 185 | 1.0 | 0.99859 | yes | saturated |
+| 0.60 | 222 | 2.5 | 0.99395 | yes | saturated |
+| **0.70** | 259 | 8.0 | 0.95510 | yes | **TASK** |
+| **0.80** | 296 | 15.0 | 0.71779 | yes | **TASK** |
+| **0.90** | 333 | 27.8 | 0.58649 | yes | **TASK** |
+| 1.00 | 370 | 46.0 | 0.28713 | **NO** | cap slack |
+
+**class 7** -- n_true 456, model predicts **490** unconstrained:
+
+| K/n | K | errors | p@K | binds | verdict |
+|---|---|---|---|---|---|
+| 0.30-0.80 | 137-365 | 3.2-16.5 | >= 0.99968 | yes | saturated |
+| **0.90** | 410 | 27.5 | 0.98881 | yes | **TASK** |
+| **1.00** | 456 | 43.5 | 0.71844 | yes | **TASK** |
+| 1.10 | 502 | 70.8 | 0.37616 | **NO** | cap slack |
+
+🛑 **THE WINDOW IS SQUEEZED FROM BOTH SIDES.** From below by saturation and
+by the top-K already being perfect; from above by the cap simply not binding.
+Class 2: **K/n 0.70-0.90**. Class 7: **K/n 0.90-1.00**. The ONLY overlap is
+**exactly K/n = 0.90**, i.e. `L90_G95` -- which is the single cell TraLO's
++0.0253 AP came from.
+
+⛔ **CONSEQUENCE: EVERY L20 / L30 / L50 CAMPAIGN TESTED A NON-TASK.** At those
+tags class 2 has 0.0-1.0 errors inside K and class 7's cut sits at p >= 0.9999.
+A null there is not evidence about the method; it is the absence of a question.
+This is the single best explanation on record for why so many arms tied.
+
+⚠️ **AND THE PROTOCOL CANNOT EXPRESS THE RIGHT CAP.** `L<local>_G<global>`
+applies ONE fraction to EVERY capped class, so at any single tag at least one
+class is in the wrong regime -- at 0.90 class 2 sits at the top of its window
+and class 7 at the very bottom of its. **A per-class cap fraction (class 2 at
+0.80, class 7 at 0.95) is the fix**, and it is a `src/training/constraints.py`
+change, not a knob.
+
+⇒ **BEFORE ANY FURTHER GRID**: verify the three conditions on the intended
+cells. A cap that does not bind, has no errors, or sits at p@K ~ 1 cannot
+distinguish any two methods, however well aimed either of them is.
+
 ### (z11) 🔴🔴🔴 AT THE ITEM LEVEL THE CONSTRAINT IS AT THE RNG FLOOR, AND
 `tralo_uniform` IS BELOW IT IN BOTH REGIMES
 
