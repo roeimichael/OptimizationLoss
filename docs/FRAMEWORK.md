@@ -2406,8 +2406,9 @@ verdicts including a negative control that a genuine task IS reported as one.
 🛑 **THE WINDOW IS SQUEEZED FROM BOTH SIDES.** From below by saturation and
 by the top-K already being perfect; from above by the cap simply not binding.
 Class 2: **K/n 0.70-0.90**. Class 7: **K/n 0.90-1.00**. The ONLY overlap is
-**exactly K/n = 0.90**, i.e. `L90_G95` -- which is the single cell TraLO's
-+0.0253 AP came from.
+**exactly K/n = 0.90**, i.e. `L90_G95` -- one of the TWO cap tags TraLO's
++0.0253 AP came from (`loose1`, 5/1 over **6** cells, 2(w3); it is not a
+single cell).
 
 ⛔ **CONSEQUENCE: EVERY L20 / L30 / L50 CAMPAIGN TESTED A NON-TASK.** At those
 tags class 2 has 0.0-1.0 errors inside K and class 7's cut sits at p >= 0.9999.
@@ -2609,8 +2610,9 @@ longer the only way to ask the question.
 TASK, `tralo` IS THE ONLY ARM POSITIVE ON EVERY METRIC AND IT CLEARS THE RNG
 FLOOR BY 2.8x.
 
-`loosevit1` (ViTB16, iwildcam, 48 runs, all completed) lives in a SIXTH
-worktree, `~/optloss-loosevit`, which was not in CLAUDE.md's checkout list. Its
+`loosevit1` (ViTB16, iwildcam, 48 runs, all completed) lives in
+`~/optloss-loosevit`, one of the **fourteen** worktrees sharing the object
+store (2(z22)) and one that no doc listed until 2026-09-01. Its
 two cap tags are `L80_G95` and `L90_G95`, and 2(z17)'s ViTB16 windows (class 2
 **0.60-0.90**, class 7 **0.90-1.00**) split them:
 
@@ -2678,6 +2680,12 @@ which would have added cells that are not tasks.
 ### (z21) 🟢🟢 `dom1` READ ON ITS TASK CELLS: `tralo` CLEARS ITS OWN RNG FLOOR
 IN **4 OF 4**, LEADS EVERY RIVAL DUAL ON ccF1, AND `tralo_uniform` IS BELOW THE
 FLOOR IN 4 OF 4.
+
+🛑 **CORRECTED BY 2(z24) 2026-09-01, READ IT FIRST.** The task cells below
+were classified from a window that is a MEAN over seeds spreading 105 items,
+and imported from another campaign's model. On the strict per-seed rule `dom1` has 3 task cells, not 4, all MobileNetV2, so
+its 2 independent units are **1**. The SIGNS below are unchanged;
+the unit count and the p-value are not.
 
 `dom1` (384 runs, **16 arms**, MobileNetV2 + MobileNetV3, `L80_G95` `L90_G95`
 `L95_G80`) is complete, 4 seeds in every cell, `n_md5 == n_seeds` in all 96
@@ -2823,6 +2831,14 @@ measurement of what was asked.
 SECOND CAMPAIGN, AND THE HONEST SIGNIFICANCE IS **p = 0.0625 ON 4 INDEPENDENT
 UNITS**, NOT 7/8 ON CELLS.
 
+🛑 **CORRECTED BY 2(z24) 2026-09-01, READ IT FIRST.** The task cells below
+were classified from a window that is a MEAN over seeds spreading 105 items,
+and imported from another campaign's model. `loose1` and `dom1` are BYTE-IDENTICAL on MobileNetV2's lambda=0 arm (8/8), so
+they are one model, not two campaigns; `loose1`/MobileNetV3 and
+`loose1`/RegNetY400MF have ZERO strict task cells. **4 of 4, p=0.0625 becomes
+3 of 3, p=0.125.** The SIGNS below are unchanged;
+the unit count and the p-value are not.
+
 `dom1b` (192 runs, RegNetY400MF, 16 arms) and `loose1` (144 runs, MobileNetV2 +
 MobileNetV3 + RegNetY400MF, tralo family only) were both complete and both
 unread. Gates first: **dose 100% on every trained arm in both**, `check_parity`
@@ -2894,9 +2910,11 @@ channels disagree, and which one is quoted changes the winner.
 ⚠️ **TWO RATIO COLUMNS ARE UNREADABLE AND MUST NOT BE PRINTED AS RATIOS.**
 Where the floor mean is near zero or negative (`loose1` dAP floor **-0.0060**,
 `loose1` dmacroF1 floor -0.0005) the ratio is arithmetic garbage (-4.32x) and
-only the sign count carries information. On that sign count `tralo` is **5/5
-above the floor on dAP in `loose1`, sign p = 0.031** -- the single strongest
-line in the project, on 5 non-independent cells over 3 backbones.
+only the sign count carries information. On that sign count `tralo` is above the floor on dAP in **5 of 5** `loose1`
+cells -- but those five collapse to **3 independent (campaign, backbone)
+units**, where the attainable floor is p = 0.25. 🛑 **Quote it as 3/3,
+direction only.** Printing p = 0.031 off those five cells is the same
+anticonservative count this section rules out 17 lines above.
 
 ✅ **A POSITIVE CHECK ON THE LAMBDA TOGGLE.** In `dom1b`, `alm_null`,
 `fioretto_null`, `hounie_null` and `tralo_null` are **byte-identical in 12 of
@@ -2918,6 +2936,109 @@ pairwise distinct in every group.**
 gap. It is under `full_panel`'s 5-point refusal threshold so the comparison
 stands, but the duals are not at literally identical dose. 2(z19) closed this
 objection directly with `tralo_lam0`.
+
+### (z24) 🛑🛑🛑 THE TASK WINDOW WAS A **MEAN OVER SEEDS THAT SPREAD 105 ITEMS**,
+AND TWO OF THE CAMPAIGNS BEHIND 2(z23) SHARE **ONE** lambda=0 MODEL,
+BYTE-IDENTICAL. THE INDEPENDENT-UNIT COUNT FALLS FROM **4 TO 3**, AND ViTB16
+HAS **ZERO** STRICT TASK CELLS AT ANY CAP EVER RUN.
+
+Found 2026-09-01 while re-deriving 2(z16)'s window on `loose1`'s own reference
+arm instead of importing `iwc3`'s row. Three separate defects, each of which
+alone would have been enough.
+
+**1. THE STATISTIC WAS WRONG.** `scripts/task_window.sweep` averaged the
+unconstrained hard count across runs and then applied `MIN_FORCED = 10` to
+that mean. On iwildcam/MobileNetV3 the four lambda=0 seeds predict
+
+    class 2:  278   329   354   383      mean 336, SPREAD 105 items
+
+so at `L90_G95` (K=333) the mean says `forced = 3` and the cap reads "barely
+binds", while the cap actually evicts **50 items in one seed and is entirely
+slack in two others**. No seed resembles the mean. The same is true of every
+backbone: the per-seed range is 60 to 106 items wide everywhere measured.
+
+✅ **FIXED.** `task_window` now computes `forced` PER SEED, prints the range
+and a `binds n/N` column, and emits a new verdict `** PARTIAL n/N **` where
+the cap poses its question to some seeds only. `recommend()` and the
+`-> TASK WINDOW` line accept `** TASK **` only. Gated in both directions:
+per-seed `[5, 60, 60, 60]` must read PARTIAL 3/4 **and** the same numbers
+passed as their own mean must read `** TASK **`, so the check cannot pass by
+refusing everything.
+
+⛔ **2. AND HERE IS THE INFERENCE THAT DOES NOT FOLLOW, TESTED AND REFUTED.**
+The natural reading of a slack seed is "the penalty is `relu(hard - K) = 0`,
+so the treated arm IS its own null there, so that seed dilutes the contrast to
+zero." That is what this file believed on 2026-08-21. **It is false on
+iwildcam.** md5 of `final_predictions_raw.csv`, dom1/MobileNetV3, 12
+(cap, seed) pairs: `tralo` and `tralo_null` are **DISTINCT in 4 of 4 slack
+seeds**, identical in none. Two structural reasons, both specific to this
+dataset: the binding scope is the LOCAL per-group ceiling and **7 of its 14
+are K = 0**, so a camera carrying any prediction of that class violates its
+ceiling however slack the class TOTAL is; and the penalty reads SOFT counts,
+which exceed K while the hard count does not. So `forced` is a statement about
+the class total ONLY. Read PARTIAL as "the cap does not pose the same question
+to every seed", never as "those seeds are free nulls".
+
+🛑 **3. THE WINDOW WAS IMPORTED FROM ANOTHER CAMPAIGN'S MODEL.**
+`configs/task_windows.yml` is keyed by (dataset, backbone), but a row is
+measured from ONE campaign's unconstrained arm. Measured per campaign on
+MobileNetV3 class 2, all on **the same four cached warm-up checkpoints**:
+
+| campaign | lambda=0 count | window (per-seed rule) |
+|---|---|---|
+| `dom1`, `loose1` | **336** | 0.70 only |
+| `equaldose1`, `iwc3` | **355** | 0.70 only |
+
+The yml carries `iwc3`'s 355. At K=333 that is 22 evicted items against
+`dom1`'s 3, i.e. the difference between a task and a non-task, and the warm-up
+cache does NOT explain it: `base_model_id` is shared across all four
+campaigns, so the divergence is in the 29 CE-only epochs after warm-up.
+✅ `configs.task_cells.classify` now returns the row's `provenance` so a
+caller can print whose model the verdict came from.
+
+🛑🛑 **4. `dom1` AND `loose1` ARE NOT TWO CAMPAIGNS ON MobileNetV2.** Their
+`tralo_null` raw predictions are **byte-identical in 8 of 8 (cap, seed)
+pairs** (`7f1ff13ebc`, `1df6ab42f8`, `b51c30725d`, `7ab05f80c4`). 2(z23)'s
+"`loose1`'s MobileNet subset is a near-exact replication of `dom1`" is not a
+replication: it is the same model read twice.
+
+#### The recount, on the strict per-seed rule
+
+A cell is a TASK only where BOTH capped classes bind in EVERY seed.
+
+| campaign / backbone | strict task cells | of |
+|---|---|---|
+| `dom1` / MobileNetV2 | **3** (L80, L90, L95_G80) | 3 |
+| `dom1b` / RegNetY400MF | **2** (L80, L95_G80) | 3 |
+| `loose1` / MobileNetV2 | 2 (L80, L90) | 2 |
+| `equaldose1` / MobileNetV2 | **2** (L80, L95_G80) | 3 |
+| `dom1` / MobileNetV3 | 0 | 3 |
+| `loose1` / MobileNetV3 | 0 | 2 |
+| `loose1` / RegNetY400MF | 0 | 2 |
+| `loosevit1` / **ViTB16** | **0** | 2 |
+| `equaldose1` / MobileNetV3 | 0 | 3 |
+
+⇒ **3 distinct lambda=0 models carry every strict task cell in the project**:
+`dom1`+`loose1`/MobileNetV2 (one model), `dom1b`/RegNetY400MF, and
+`equaldose1`/MobileNetV2. 2(z23)'s "4 of 4 independent units, sign
+p = 0.0625" is **3 of 3, p = 0.125**, and two of the three are the same
+backbone. 2(z21)'s 4 task cells are 3, all MobileNetV2, so its 2 units are 1.
+
+✅ **WHAT SURVIVES, AND IT IS NOT NOTHING.** Every sign is unchanged: `tralo`
+is above its own reseed floor in all three surviving units, and the arm
+ordering `tralo > alm ~ fioretto > hounie` is untouched because it was never
+computed from the window. The dilution in a PARTIAL cell biases a measured
+effect TOWARD zero, so the positive readings are conservative rather than
+inflated. What falls is the COUNT of independent units and therefore the
+p-value, which was already only 0.0625.
+
+🛑 **AND THE HEADLINE BACKBONE HAS NEVER RUN A TASK CELL.** ViTB16's per-seed
+windows are class 2 `0.70` and class 7 `0.90`, which **do not overlap**, so no
+single-fraction tag can express one. Both caps ever run there (`L80_G95`,
+`L90_G95`) are PARTIAL 6/8 on class 2. The tag that works is the per-class
+form **`L70-90_G95`**, which is exactly what `taskwin2` is running on
+MobileNetV3 and what `vittask1` must run on ViTB16.
+
 
 ### (z11) 🔴🔴🔴 AT THE ITEM LEVEL THE CONSTRAINT IS AT THE RNG FLOOR, AND
 `tralo_uniform` IS BELOW IT IN BOTH REGIMES
@@ -3660,7 +3781,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 433 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 435 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -3824,7 +3945,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 433 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 435 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -3832,7 +3953,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (433 tests, ~180 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (435 tests, ~180 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -6960,7 +7081,7 @@ makes reordering **targeted**, not possible.
 
 🎯 **`tralo_margin` and `tralo_st` are fully built, protocol-registered,
 null-sibling-tested and gated in `gen_campaign` -- and have NEVER RUN.** Zero
-run directories across all nine server worktrees, checked 2026-08-28.
+run directories across all **fourteen** server worktrees, recounted 2026-09-01 (2(z22)); the 2026-08-28 pass saw only nine and undercounted.
 `tralo_st` is the decomposition arm: `tralo` = (soft value, `p(1-p)`
 placement), `tralo_st` = the value fixed only, `tralo_margin` = both. **They
 are the next arms to run.**
@@ -8861,7 +8982,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             433 tests, ~180 s, no dataset required
+tests/             435 tests, ~180 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

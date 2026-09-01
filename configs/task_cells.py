@@ -143,6 +143,25 @@ def classify(P, TW, dataset, model, cap_tag):
     THE THREE NEGATIVES ARE NOT THE SAME and must never be collapsed. An
     unmeasured backbone is an unknown; a missing slice is a missing instrument;
     only "non_task" is a statement about the experiment.
+
+    🛑 THE RETURNED VERDICT CARRIES ITS `provenance`, AND CALLERS MUST PRINT
+    IT. A window row is keyed by (dataset, backbone), but the thing it was
+    measured from is one CAMPAIGN's unconstrained model, and that model does
+    not transfer. Measured 2026-09-01 on MobileNetV3 class 2: the lambda=0 arm
+    predicts 336 in `dom1` and `loose1` against 355 in `equaldose1` and `iwc3`,
+    on the SAME four cached warm-up checkpoints. At `L90_G95` (K=333) that is
+    the difference between evicting 3 items and evicting 22, i.e. between
+    "barely binds" and a task. Two published cells were classified off the
+    wrong campaign's row this way.
+
+    ⚠️ AND THE WINDOW IS A MEAN OVER SEEDS WHOSE SPREAD IS 105 ITEMS. The
+    same four seeds predict 278, 329, 354 and 383, so at K=333 the cap evicts
+    50 items in one seed and is slack in two others while the MEAN says 3.
+    `scripts.task_window` now reports `binds n/N` and a `** PARTIAL n/N **`
+    verdict per fraction; this function still reads the pooled window, so a
+    "task" here can still be a cell whose cap binds in only some seeds. Run
+    `scripts.task_window` on the campaign's OWN reference arm before resting a
+    result on a boundary cell.
     """
     if not TW:
         return dict(status="no_window", classes={})
@@ -168,13 +187,16 @@ def classify(P, TW, dataset, model, cap_tag):
         margin = max(0.0, lo - ratio, ratio - hi)
         per[c] = dict(K=K, n=n, ratio=ratio, lo=lo, hi=hi, ok=ok,
                       margin=margin, snapped=bool(ok and margin > 0))
-    return dict(status="task" if ok_all else "non_task", classes=per)
+    return dict(status="task" if ok_all else "non_task", classes=per,
+                provenance=" ".join((w.get("provenance") or
+                                     "UNRECORDED").split()))
 
 
 def self_test(out=sys.stdout):
     """Gate the predicate in BOTH directions, and gate that the three
     NEGATIVES stay distinguishable. Never claims a pass it did not run."""
     ok = True
+    skipped = 0
 
     def check(name, cond):
         nonlocal ok
@@ -239,6 +261,7 @@ def self_test(out=sys.stdout):
     P = load_protocol()
     dc = P["datasets"]["iwildcam"]
     if not os.path.exists(os.path.join(dc["data_dir"], "test_meta.csv")):
+        skipped += 1
         print("  %-64s %s" % ("end-to-end classify (needs the iwildcam slice)",
                               "SKIPPED -- slice not on this machine"), file=out)
     else:
@@ -259,7 +282,19 @@ def self_test(out=sys.stdout):
               or all(v["margin"] <= tol for v in r90["classes"].values()))
 
     print("", file=out)
-    print("ALL PASS" if ok else "FAILURES ABOVE", file=out)
+    # 🛑 NEVER PRINT AN UNQUALIFIED PASS OVER A SKIP. A self-test that
+    # skipped its only end-to-end case has not shown the gate works; it has
+    # shown the pure predicates work. Saying "ALL PASS" there is the same
+    # silent-fallback shape the gate itself exists to prevent.
+    if not ok:
+        print("FAILURES ABOVE", file=out)
+    elif skipped:
+        print("PASS, but %d END-TO-END CASE(S) SKIPPED. The gate was NOT "
+              "exercised against real" % skipped, file=out)
+        print("data on this machine -- re-run where the slice exists "
+              "before trusting it.", file=out)
+    else:
+        print("ALL PASS", file=out)
     return 0 if ok else 1
 
 

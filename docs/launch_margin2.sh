@@ -1,5 +1,57 @@
 #!/usr/bin/env bash
 # =============================================================================
+# 🛑🛑 SUPERSEDED 2026-09-01 -- DO NOT RUN THIS AS WRITTEN.
+#
+#   7 of its 12 (backbone x cap) cells are dead. Both TIGHT tags
+#   are dead on all three backbones, which is the entire tight half of
+#   its 2x2 design.
+#
+#   The task window (FRAMEWORK 2(z16)/2(z17), measured on all four backbones)
+#   says a cap poses a question only where it evicts >= 10 predictions, leaves
+#   ERRORS inside K, and cuts at p@K < 0.99. Classified against
+#   `configs/task_windows.yml` on 2026-09-01:
+#
+#     all three backbones  L30_G50  NON-TASK  both classes K/n=0.300
+#     all three backbones  L50_G30  NON-TASK  both classes K/n=0.300
+#     MobileNetV2          L80_G95  ✅ TASK
+#     MobileNetV3          L80_G95  NON-TASK  c7 K/n=0.798, window 0.90-1.00
+#     RegNetY400MF         L80_G95  ✅ TASK
+#     all three backbones  L90_G95  ✅ TASK
+#
+#   🔑 THE 2x2 COLLAPSES. Its design was {tight, loose} x {local-binding,
+#      global-binding}, but `L30_G50` and `L50_G30` BOTH land at K/n=0.300
+#      because the tighter scope is what actually binds. So the tight row
+#      is one cap level twice over, and both halves of it are outside every
+#      backbone's window. The scope contrast survives; the tight LEVEL does
+#      not.
+#
+#   `configs/gen_campaign.py` now REFUSES these caps, so this script exits
+#   non-zero as written. That refusal is the correct outcome and this banner
+#   exists so the refusal is not mistaken for a broken generator.
+#
+#   TO REVIVE IT: keep the scope contrast, move it INTO the window. Measured
+#   2026-09-01 on the real slice, `L90_G95` against `L95_G90` is a BETTER
+#   version of the 2x2's scope row than the tags it shipped with:
+#
+#       tag        cls   global   sum local   eff K   binds
+#       L90_G95      2      352         333     333   local
+#       L90_G95      7      433         411     411   local
+#       L95_G90      2      333         352     333   GLOBAL
+#       L95_G90      7      410         433     410   GLOBAL
+#
+#   Class 2 is budget-matched EXACTLY (333 both ways) and class 7 to within
+#   ONE item, so the only thing that changes between the two arms is which
+#   scope does the cutting. Both tags are inside the window on all three
+#   backbones. `L30_G50` / `L50_G30` matched budgets too, but at K/n=0.300
+#   where nothing is measurable.
+#   🛑 AND PRICE IT OFFLINE FIRST: `scripts.scope_probe` answers the
+#   local-vs-global question with the model held FIXED and no GPU, and it has
+#   already closed the local-cap direction once (pinning the split -0.86
+#   items against wrong-shape controls at 5.3-5.5).
+#   Everything below the banner is preserved as the ORIGINAL reasoning, which
+#   was sound on every axis EXCEPT the cap placement.
+# =============================================================================
+# =============================================================================
 #  results/margin2  --  THE TWO ARMS THAT WERE BUILT AND NEVER RUN
 #
 #   why        `tralo_margin` and `tralo_st` are fully implemented,

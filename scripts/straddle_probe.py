@@ -461,7 +461,14 @@ def main(argv=None):
     ap.add_argument("--sweep", action="store_true",
                     help="fractions of the score range instead of the measured "
                          "treated-minus-null displacement")
-    ap.add_argument("--limit", type=int, default=16)
+    ap.add_argument("--limit", type=int, default=0,
+                    help="cap the pairs/runs processed (0 = no cap). "
+                         "PRINTS what it dropped. This defaulted to 16 and "
+                         "was silent: `pair_runs` sorts by cell key, so the "
+                         "truncation removed whole CELLS -- the "
+                         "alphabetically-later cap level -- turning a "
+                         "two-cap claim into a one-cap one with no message. "
+                         "Same defect as step_direction_probe's old [:12].")
     args = ap.parse_args(argv)
 
     if args.self_test:
@@ -489,7 +496,13 @@ def main(argv=None):
         names = MEASURED_NAMES
         print("  DELTA IS MEASURED, from %d treated/null twin pair(s).\n"
               % len(pairs))
-        for arm, cell, seed, treated, null in pairs[:args.limit]:
+        if args.limit and args.limit < len(pairs):
+            print("  !! --limit %d applied: %d of %d twin pair(s) DROPPED. "
+                  "Pairs are sorted by CELL, so this drops whole cap levels "
+                  "-- do not read a cross-cap number off a limited run."
+                  % (args.limit, len(pairs) - args.limit, len(pairs)))
+        for arm, cell, seed, treated, null in (
+                pairs[:args.limit] if args.limit else pairs):
             try:
                 data, disp = measured_delta(treated, null)
             except SystemExit as exc:
@@ -542,7 +555,12 @@ def main(argv=None):
             print("  NO treated/null twin pairs found, so delta cannot be")
             print("  measured and is swept as a fraction of the score range")
             print("  instead. These numbers are NOT calibrated to our step.\n")
-        for r in runs[:args.limit]:
+        if args.limit and args.limit < len(runs):
+            print("  !! --limit %d applied: %d of %d run(s) DROPPED, and "
+                  "`sorted()` is alphabetical so this biases toward whichever "
+                  "arms sort first."
+                  % (args.limit, len(runs) - args.limit, len(runs)))
+        for r in (runs[:args.limit] if args.limit else runs):
             try:
                 data = load_real(r, require_features=False)
             except SystemExit as exc:

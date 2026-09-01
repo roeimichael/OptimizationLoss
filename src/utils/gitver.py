@@ -72,5 +72,16 @@ def git_version(repo_root=None):
             ["git", "diff", "--quiet", "HEAD", "--"] + list(TRAINING_PATHS),
             cwd=root, stderr=subprocess.DEVNULL) != 0
         return sha + ("-dirty" if dirty else "")
-    except Exception:
+    except Exception as e:
+        # 🛑 SAY IT. "unknown" is not a neutral placeholder: it compares
+        # EQUAL to itself, so every "one commit per campaign" gate passes and
+        # the model cache reuses weights across any code change. Silence here
+        # is how a campaign becomes uncomparable without anything going red.
+        # `check_parity` gate 5 now FAILS on it rather than warning.
+        import sys as _sys
+        print("WARNING: git is unavailable (%s), so code_version is "
+              "'unknown'. Every commit-equality check will now PASS "
+              "vacuously and the model cache may reuse weights across a code "
+              "change. Do not score a campaign stamped this way."
+              % type(e).__name__, file=_sys.stderr)
         return "unknown"

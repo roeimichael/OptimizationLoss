@@ -1,5 +1,39 @@
 #!/usr/bin/env bash
 # =============================================================================
+# 🛑🛑 SUPERSEDED 2026-09-01 -- DO NOT RUN THIS AS WRITTEN.
+#
+#   240 staged runs, and 200 of them sit at a cap that cannot
+#   distinguish any two methods. 5 of its 6 cap tags are dead.
+#
+#   The task window (FRAMEWORK 2(z16)/2(z17), measured on all four backbones)
+#   says a cap poses a question only where it evicts >= 10 predictions, leaves
+#   ERRORS inside K, and cuts at p@K < 0.99. Classified against
+#   `configs/task_windows.yml` on 2026-09-01:
+#
+#     ViTB16  L75_G95   NON-TASK   c7 K/n=0.750, window 0.90-1.00
+#     ViTB16  L80_G95   NON-TASK   c7 K/n=0.798, window 0.90-1.00
+#     ViTB16  L85_G95   NON-TASK   c7 K/n=0.851, window 0.90-1.00
+#     ViTB16  L90_G95   ✅ TASK    c2 0.900, c7 0.901, both inside
+#     ViTB16  L95_G95   NON-TASK   c2 K/n=0.951, window 0.60-0.90
+#     ViTB16  L95_G80   NON-TASK   c7 K/n=0.800, window 0.90-1.00
+#
+#   🔑 THE TWO CAPPED CLASSES' WINDOWS DO NOT OVERLAP ON ViTB16 (c2
+#      0.60-0.90, c7 0.90-1.00), so NO single fraction can sit inside
+#      both. Only `L90_G95` lands in the 0.005 snap zone of each. That is
+#      not a coincidence to route around, it is why the per-class tag form
+#      `L<c2>-<c7>_G<g>` exists.
+#
+#   `configs/gen_campaign.py` now REFUSES these caps, so this script exits
+#   non-zero as written. That refusal is the correct outcome and this banner
+#   exists so the refusal is not mistaken for a broken generator.
+#
+#   TO REVIVE IT: re-issue with per-class tags, e.g.
+#     --caps L70-90_G95 L80-95_G95 L85-100_G95
+#   which gives three DISTINCT cap levels with both classes in window.
+#   Everything below the banner is preserved as the ORIGINAL reasoning, which
+#   was sound on every axis EXCEPT the cap placement.
+# =============================================================================
+# =============================================================================
 #  results/vitdom1  --  THE DOMINANCE CLAIM, ON THE BACKBONE IT WAS PROMISED ON
 #
 #   why        FRAMEWORK 1-pre fixed **ViTB16** as the headline backbone a

@@ -217,10 +217,13 @@ def main(argv=None):
     # campaign produces a full, plausible table. A SURVEY is if anything more
     # dangerous than a verdict here -- the rows get read side by side with live
     # ones and the marker is nowhere on the page.
-    try:
-        from scripts.quarantine import is_quarantined
-    except Exception:
-        is_quarantined = lambda _r: None
+    # 🛑 NO FALLBACK. This import used to be wrapped in a bare handler that
+    # replaced the gate with `lambda _r: None`, so copying this file into a
+    # worktree whose `scripts/` predates `quarantine.py` -- the hand-deploy
+    # CLAUDE.md explicitly sanctions mid-flight -- turned the refusal off with
+    # no message. A gate that cannot fail is decoration. If this import breaks,
+    # the survey must break.
+    from scripts.quarantine import is_quarantined
     blocked = [(c, q) for c in args.campaign for q in [is_quarantined(c)] if q]
     if blocked and not args.allow_quarantined:
         for c, q in blocked:

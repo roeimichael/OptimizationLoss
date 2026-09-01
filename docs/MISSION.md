@@ -37,6 +37,23 @@ dataset that cannot test the thesis.
 
 ## 🟢 0-RESULT. WHAT THE TASK WINDOW CHANGED, 2026-09-01
 
+🛑 **CORRECTED THE SAME DAY BY FRAMEWORK 2(z24). READ THAT FIRST.** Three
+defects sat under the numbers below: the window was a **MEAN over seeds whose
+unconstrained counts spread 105 items** (so a cell can be a "task" whose cap
+binds in half its seeds); each window row was **imported from another
+campaign's model** (MobileNetV3 class 2 reads 336 in `dom1`/`loose1` and 355 in
+`equaldose1`/`iwc3`, on the SAME cached warm-ups); and `dom1` and `loose1` are
+**byte-identical on MobileNetV2's lambda=0 arm in 8 of 8 pairs**, so they are
+one model, not two campaigns.
+
+⇒ **3 distinct lambda=0 models carry every strict task cell in the project.**
+`4 of 4, p = 0.0625` is **`3 of 3, p = 0.125`**. Every SIGN below is unchanged
+and the dilution biases toward zero, so the positive readings are conservative;
+what falls is the UNIT COUNT. And **ViTB16 has ZERO strict task cells at any
+cap ever run** -- its classes' per-seed windows are 0.70 and 0.90 and do not
+overlap, so only `L70-90_G95` can express one.
+
+
 2(z17) made it possible to ask, for the first time, whether a cell poses a
 question. Applying that to campaigns **already complete on disk** -- no GPU --
 changes the picture. Read each arm against **its own lambda=0 null**, and price
@@ -71,8 +88,8 @@ metric-dependent -- say which metric every time.
 the dose-matched `tralo_lam0` +0.0287. The 3.4% step head start is not the
 source of the lead.
 
-⛔ **`tralo_uniform` never leads anywhere**, and clears its own floor in only
-**3 of 8** measured task cells (`dom1` 0/4, `loose1` 1/5, `dom1b` 2/3), plus -3.50
+⛔ **`tralo_uniform` never leads anywhere**, and clears its own floor in
+**3 of 12** measured task cells (`dom1` 0/4, `loose1` 1/5, `dom1b` 2/3), plus -3.50
 items against a 0.51 floor on ViTB16. It was already below the floor at tight caps
 (2(z11)). Do not run it again -- but "refuted in every regime" overstates it.
 
@@ -164,7 +181,7 @@ both its capped classes have literally ZERO errors inside K.
 🔑 **This is the best explanation on record for why ~20 arms tied**, and it is
 independent of (1)-(3): (3) says the gradient is aimed away from the cut, (4)
 says the cut was placed where there is nothing to win. Both had to be fixed
-before a null means anything. `taskwin1` is the first campaign with both fixed.
+before a null means anything. `taskwin2` is the first campaign with both fixed.
 
 ✅ Two independent lines now name the same cap: `paired_noise` prices K/n=0.90
 at ~7 seeds per cell against 546-2607 at L20/L30/L50, and the task window says
@@ -263,9 +280,9 @@ L95_G80. Only **20 distinct warm-up models** exist across all five campaigns.
 | knob | verdict | evidence |
 |---|---|---|
 | `soft_count_mode: sum` (shipped) | 🟡 wins LOOSE, loses TIGHT -- **and the reason is now known**, 2(y) | AP +0.0253..+0.0064 loose / -0.0572..-0.0933 tight. The gradient sits at the boundary, 200-440 ranks from the cut when the cap is tight |
-| `soft_count_mode: uniform` | ⛔ **DO NOT RUN AGAIN 2026-09-01** (weaker than 'refuted': see the cross-campaign count). Was logged as "the tight-cap tool", but tight caps are now measured NON-TASKS (2(z17)) and in the cells that ARE tasks it clears its own reseed floor in only **3 of 8** measured task cells (`dom1` 0/4, `loose1` 1/5, `dom1b` 2/3) and is **-3.50 items against a 0.51 floor on ViTB16** (2(z20), 2(z21), 2(z23)). It never LEADS anywhere. Its founding order-preservation claim was also refuted (0-NOW (2)) | old row: ViTB16 AP +0.0087 tight / -0.0091 loose, `uniform1` -0.0754 -> +0.0030. Those tight-cap numbers stand as measurements and no longer support the verdict |
-| `soft_count_mode: margin` | ⛔ **NEVER RUN, AND NOW REPRICED DOWNWARD** (2026-09-01). Still staged as `margin2` (432 runs) but it windows the BOUNDARY, and the boundary is measured to carry **exactly 0.0000** of the gradient at the cut. 🛑 **Run `taskwin1` first** | cosine **0.989** to `tralo` on real features, so 432 runs would mostly reproduce `tralo`. FRAMEWORK 2(z12) |
-| `soft_count_mode: cut` (**NEW**, `tralo_cut`) | 🟢 **BUILT, GATED, STAGED as `taskwin1`** -- the fix 0-NOW derives. Value stays exactly `sum_i p_ic`, only the gradient weight moves to a window on rank K, width in ITEMS. ⚠️ **NOT predicted to win** -- aiming is necessary, not sufficient | mass at the cut **0.0001 -> 0.3486** (pooled, 24 run-class pairs, real features). Chunked gradient == full-N exactly (maxdiff 0.00e+00). `flag_live` md5-distinct on every binding seed. 423 tests, `audit_config`, `smoke_arms --matrix` all green |
+| `soft_count_mode: uniform` | ⛔ **DO NOT RUN AGAIN 2026-09-01** (weaker than 'refuted': see the cross-campaign count). Was logged as "the tight-cap tool", but tight caps are now measured NON-TASKS (2(z17)) and in the cells that ARE tasks it clears its own reseed floor in **3 of 8** of the cells 2(z23) counts (`loose1` 1/5, `dom1b` 2/3) and in **0 of 4** `dom1` task cells (2(z21)) -- **3 of 12 overall** and is **-3.50 items against a 0.51 floor on ViTB16** (2(z20), 2(z21), 2(z23)). It never LEADS anywhere. Its founding order-preservation claim was also refuted (0-NOW (2)) | old row: ViTB16 AP +0.0087 tight / -0.0091 loose, `uniform1` -0.0754 -> +0.0030. Those tight-cap numbers stand as measurements and no longer support the verdict |
+| `soft_count_mode: margin` | ⛔ **NEVER RUN, AND NOW REPRICED DOWNWARD** (2026-09-01). Still staged as `margin2` (432 runs) but it windows the BOUNDARY, and the boundary is measured to carry **exactly 0.0000** of the gradient at the cut. 🛑 **Run `taskwin2` first** | cosine **0.989** to `tralo` on real features, so 432 runs would mostly reproduce `tralo`. FRAMEWORK 2(z12) |
+| `soft_count_mode: cut` (**NEW**, `tralo_cut`) | 🟢 **BUILT, GATED, RUNNING as `taskwin2`** -- the fix 0-NOW derives. Value stays exactly `sum_i p_ic`, only the gradient weight moves to a window on rank K, width in ITEMS. ⚠️ **NOT predicted to win** -- aiming is necessary, not sufficient | mass at the cut **0.0001 -> 0.3486** (pooled, 24 run-class pairs, real features). Chunked gradient == full-N exactly (maxdiff 0.00e+00). `flag_live` md5-distinct on every binding seed. 435 tests, `audit_config`, `smoke_arms --matrix` all green |
 | `tralo_st` (hard-count value fix) | ❓ **NEVER RUN** -- same campaign | isolates VALUE from PLACEMENT |
 | `straight_through` | ✅ keeps count value exact | -- |
 | `constraint_grad_mode: normalize` | ✅ **required** -- `clip` gives a ~20x dose spread across duals | `check_parity` refuses `clip` |
@@ -341,7 +358,7 @@ Work top-down. When one finishes, score it, update sections 1-2 of this file
 and FRAMEWORK 3(0), then start the next.
 
 0. 🟢 **RUNNING (204/216): `equaldose1`** -- and it has ALREADY ANSWERED
-   BOTH ITS OWN QUESTION AND `taskwin1`'s. FRAMEWORK 2(z19).
+   BOTH ITS OWN QUESTION AND `taskwin2`'s. FRAMEWORK 2(z19).
    ✅ **Dose: closed, in TraLO's favour.** `tralo` +0.0275 AP against
    `tralo_lam0` +0.0287 -- indistinguishable, so the 3.4% step head start is
    NOT the source of the lead.
@@ -374,10 +391,18 @@ and FRAMEWORK 3(0), then start the next.
    from epoch 2 (grad 18.69), where `tralo_null` stays 0.0 forever.
    ⚠️ 8 independent (model, seed) units, so only 8/8 (p=0.0078) is significant;
    7/8 is p=0.0703 and is a DIRECTION. Say which was met.
-1. 🟢 **STAGED, LAUNCHES ON THE FIRST FREE GPU: `taskwin1`** (48 runs,
-   `~/optloss-cutwin`, tree pinned `6658ef8c`, grabber `~/grab_taskwin1.sh`
-   armed on dsisco01 and watching BOTH hosts). It replaces `cutwin1`, which was
-   deleted: `cutwin1` used `L30_G50`, and 2(z16)/2(z17) then established that
+1. 🟢🟢 **RUNNING NOW: `taskwin2`** (48 runs, dsisco01 GPU 3, ours exclusively,
+   `~/optloss-cutwin`, tree pinned `6658ef8c`, dispatcher PID 18190).
+   🛑 **`taskwin1` WAS KILLED AT 3/48 AND REGENERATED.** It was staged without
+   `--constraint-fp32`, and its first trained run landed **20 / 29 = 69.0%** on
+   `amp=float16` -- dead centre of `dose_landed`'s documented FP16 + GradScaler
+   host signature. Measured across every completed run in every worktree:
+   `constraint_fp32: true` is **15284 / 15284 steps over 532 runs and 6
+   campaigns**, `false` is 86.9% over 189. `taskwin2` carries the flag and its
+   `tralo` lands **29 / 29 = 100.0%** on the same host and the same arm.
+   ⚠️ **`gen_campaign` DEFAULTS THE FLAG OFF**, which is how this happened; put
+   `--constraint-fp32` in every launch line until that default changes.
+   It replaces `cutwin1`, which was deleted: `cutwin1` used `L30_G50`, and 2(z16)/2(z17) then established that
    L30 poses no question on any backbone. **It is the first campaign in this
    project whose caps were chosen by MEASURING that the cap poses a question.**
    MobileNetV3 x {`L80-100_G95`, `L70-90_G95`} x {`tralo_cut`, `tralo`,
@@ -508,7 +533,7 @@ for k,v in sorted(seen.items(), key=lambda kv:-sum(kv[1].values())):
 PY'
 
 # 4. gates, before ANY launch
-python -m pytest tests -q          # must be 402 (bump when you add one)
+python -m pytest tests -q          # must be 433 (bump when you add one)
 python -m scripts.audit_config
 python -m scripts.smoke_arms
 ```

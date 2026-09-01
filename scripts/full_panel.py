@@ -932,8 +932,42 @@ def _provenance_key(cfg):
     those runs cannot be checked for mid-campaign drift.
     """
     rcv = cfg.get("run_code_version")
-    return ((rcv or cfg.get("code_version"), cfg.get("data_fingerprint")),
-            bool(rcv))
+    cv = rcv or cfg.get("code_version")
+    fp = cfg.get("data_fingerprint")
+    # 🛑 A MISSING VALUE MUST NOT COMPARE EQUAL TO ANOTHER MISSING VALUE.
+    # Both halves used to fall back to None, and `None == None`, so two runs
+    # that recorded nothing agreed perfectly, `len(prov) == 1`, and the
+    # provenance refusal passed vacuously. Verified across 152 live configs:
+    # `data_fingerprint` is None on every one of them, because it is written at
+    # runtime and any config that never reached data loading carries None. This
+    # is the same defect already fixed in `src/utils/gitver.py`, reappearing at
+    # a consumer: one shared value is not one provenance.
+    # ⚠️ BUT A SENTINEL PER RUN WOULD BE WORSE, NOT BETTER. `data_fingerprint`
+    # is written at RUNTIME, so it is None on every one of the 14,524 archived
+    # configs and on 152 of 152 live ones. Making each absence unique would
+    # refuse every campaign this project owns, i.e. manufacture a disagreement
+    # where there is only an absence. The correct treatment is the same one
+    # `check_parity` gives an "unknown" commit: keep the key STABLE so the runs
+    # still group, and make the CALLER say that this half of the gate did not
+    # run. `_provenance_gaps` is what it reads.
+    return ((cv if cv is not None else MISSING_CV,
+             fp if fp is not None else MISSING_FP), bool(rcv))
+
+
+MISSING_CV = "<no code_version recorded>"
+MISSING_FP = "<no data_fingerprint recorded>"
+
+
+def _provenance_gaps(prov):
+    """(runs with no code_version, runs with no data_fingerprint, total).
+
+    A gate that reports nothing when its input is absent is the shape of defect
+    this project has found six times. `len(prov) == 1` over a set of blanks is
+    "one value", never "one provenance"."""
+    total = sum(prov.values())
+    no_cv = sum(n for (cv, _fp), n in prov.items() if cv == MISSING_CV)
+    no_fp = sum(n for (_cv, fp), n in prov.items() if fp == MISSING_FP)
+    return no_cv, no_fp, total
 
 
 DOSE_FRACTION_TOLERANCE = 0.05
@@ -1465,10 +1499,13 @@ def main():
     # `iwc2` landed 74.6% of its dose while `check_parity` stayed green, and
     # the dermmnist campaigns sit on a test set that leaks 38.7% of itself.
     # Both produce a full, plausible panel. The refusal is the point.
-    try:
-        from scripts.quarantine import is_quarantined
-    except Exception:                       # the gate must never be the
-        is_quarantined = lambda _r: None    # reason a scorer stops working
+    # 🛑 NO FALLBACK. This import used to be wrapped in a bare handler that
+    # replaced the gate with `lambda _r: None`, so copying this file into a
+    # worktree whose `scripts/` predates `quarantine.py` -- the hand-deploy
+    # CLAUDE.md explicitly sanctions mid-flight -- turned the refusal off with
+    # no message. A gate that cannot fail is decoration. If this import breaks,
+    # the scorer must break.
+    from scripts.quarantine import is_quarantined
     blocked = [(c, q) for c in args.campaign
                for q in [is_quarantined(c)] if q]
     if blocked and not args.allow_quarantined:
@@ -1584,6 +1621,20 @@ def main():
         print("    code change landed while the campaign was running -- resume a")
         print("    half-finished campaign after editing a training file and both")
         print("    halves still agree. Re-run them to get the runner's stamp.")
+    _no_cv, _no_fp, _tot = _provenance_gaps(prov)
+    if _no_fp:
+        print("")
+        print("*** %d of %d scorable run(s) record NO `data_fingerprint`, so the"
+              % (_no_fp, _tot))
+        print("    DATA half of the provenance gate DID NOT RUN for them. They")
+        print("    agree below because they all recorded nothing, which is not")
+        print("    the same as agreeing. It is written at runtime, so any run")
+        print("    that never reached data loading carries none.")
+    if _no_cv:
+        print("")
+        print("*** %d of %d scorable run(s) record NO code version at all, from"
+              % (_no_cv, _tot))
+        print("    EITHER stamp. For those the provenance gate below is vacuous.")
     if len(prov) > 1:
         print("REFUSED: these runs do not share a provenance --")
         for (cv, df), n in sorted(prov.items(), key=lambda kv: -kv[1]):
@@ -1676,10 +1727,32 @@ def main():
                 # unrelated 2/4 arm cut a complete 4-seed comparison to
                 # two pairs and made it read as a tie.
                 pairdf = df[df["arm"].isin([args.control, arm])]
-                q = pairdf.pivot_table(index=key, columns="arm",
-                                       values=m, aggfunc=_one).dropna()
+                q_all = pairdf.pivot_table(index=key, columns="arm",
+                                           values=m, aggfunc=_one)
+                q = q_all.dropna()
+                n_dropped = len(q_all) - len(q)
                 if args.control not in q or arm not in q:
+                    print("  %-9s NOT COMPARED: one of the two arms has no "
+                          "finite value on any of the %d seed key(s)."
+                          % (m, len(q_all)))
                     continue
+                if not len(q):
+                    # 🛑 ZERO PAIRS READS AS THE STRONGEST NULL ON THE PAGE.
+                    # `(d == 0).all()` is vacuously True on an empty Series, so
+                    # the verdict chain below prints "no movement in this metric
+                    # (arms differ)" at wilcoxon 1.0000 with a BH q beside it,
+                    # from nothing at all. The `better + worse < 6` NOT CALLABLE
+                    # floor sits BELOW that branch and never runs. This happens
+                    # whenever the two arms finished disjoint seeds, or the
+                    # treatment crashed on exactly the seeds the control landed.
+                    print("  %-9s ZERO paired seed(s): these arms share no "
+                          "(cell, seed) key, so NOTHING was measured. This is "
+                          "not a null." % m)
+                    continue
+                if n_dropped:
+                    print("  %-9s NOTE: %d of %d seed key(s) dropped -- one arm "
+                          "missing or non-finite there. The contrast below is "
+                          "over %d." % (m, n_dropped, len(q_all), len(q)))
                 # Average seeds WITHIN a cell before testing. The atomic unit
                 # is the cell, not the seed-pair: seeds share the test set, the
                 # cap and the cached warm-up, so testing them as independent

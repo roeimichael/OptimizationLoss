@@ -129,8 +129,7 @@ def campaign_roots(home=None):
     return out
 
 
-def is_quarantined(root):
-    """What the scorers call. Returns the marker dict, or None."""
+def _marker_at(root):
     p = os.path.join(root, MARKER)
     if not os.path.exists(p):
         name = os.path.basename(os.path.normpath(root))
@@ -140,6 +139,30 @@ def is_quarantined(root):
     except Exception:
         return dict(reason="unreadable %s -- treat as quarantined" % MARKER,
                     scorable=False)
+
+
+def is_quarantined(root):
+    """What the scorers call. Returns the marker dict, or None.
+
+    🛑 CHECKS EVERY ANCESTOR, NOT JUST `root`. The marker sits at the
+    campaign root, but scoring one backbone at a time is a normal thing to do:
+    `--campaign results/iwc3/ViTB16` used to walk straight past the marker at
+    `results/iwc3` and print a full, plausible panel for a campaign that landed
+    68.6% of its dose. Thirteen campaigns carry a marker, so this was thirteen
+    ways to score a dead campaign by adding one path component.
+
+    The walk stops at a directory named `results` (or at the filesystem root),
+    so it can never reach outside a campaign tree.
+    """
+    p = os.path.abspath(root)
+    while True:
+        q = _marker_at(p)
+        if q:
+            return q
+        parent = os.path.dirname(p)
+        if parent == p or os.path.basename(p) == "results":
+            return None
+        p = parent
 
 
 def scan(root):

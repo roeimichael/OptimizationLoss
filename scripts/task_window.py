@@ -62,31 +62,94 @@ def load(run_dir, cls, raw=True):
 
 
 def verdict(errors, p_at_K, forced):
-    if forced <= 0:
+    """`forced` is the PER-SEED list of (hard_count - K), never a mean.
+
+    🛑 THE MEAN IS THE WRONG STATISTIC HERE, and reading it cost this
+    project two published cells. On iwildcam/MobileNetV3 the four seeds of one
+    lambda=0 cell predict 278, 329, 354 and 383 for class 2 -- a spread of 105
+    items. At K=333 the mean is 336, so `forced = 3` and the cap reads
+    "barely binds"; in fact it evicts 50 items in one seed and is entirely
+    SLACK in two others. No seed resembles the mean.
+
+    ⛔ AND HERE IS WHAT `PARTIAL` DOES **NOT** MEAN, because the obvious
+    reading is wrong and was tested. The tempting inference is "the cap is
+    already satisfied in that seed, so the penalty is zero, so the treated arm
+    IS its own null there and the seed dilutes the contrast to zero." Measured
+    on dom1/MobileNetV3, 12 (cap, seed) pairs: `tralo` and `tralo_null` are
+    md5-DISTINCT in **4 of 4 slack seeds**, not identical in any. Two reasons,
+    both structural on iwildcam: the binding scope is the LOCAL per-group
+    ceiling and 7 of its 14 are K=0, so a camera with any prediction of that
+    class violates its ceiling however slack the class TOTAL is; and the
+    penalty reads SOFT counts, which exceed K while the hard count does not.
+
+    So `forced` is a statement about the CLASS TOTAL only. Read PARTIAL as
+    "this cap does not pose the same question to every seed", never as "those
+    seeds are free nulls". A cap is called a TASK only where it binds in EVERY
+    seed; where it binds in some, the verdict names the fraction rather than
+    rounding it to a boolean in either direction.
+    """
+    forced = list(forced)
+    if not forced:
+        return "no data"
+    if max(forced) <= 0:
         return "cap slack"
-    if forced < MIN_FORCED:
+    n_bind = sum(1 for f in forced if f >= MIN_FORCED)
+    if n_bind == 0:
         return "barely binds"
     if errors <= 0:
         return "no prize"
     if p_at_K >= WIGGLE_MAX:
         return "saturated"
+    if n_bind < len(forced):
+        return "** PARTIAL %d/%d **" % (n_bind, len(forced))
     return "** TASK **"
 
 
 def sweep(runs, cls, fractions=FRACTIONS):
     """One row per K/n: mean errors, p@K, whether the cap binds, verdict."""
-    Y, PR, H = [], [], []
+    Y, PR, H, cells, unread = [], [], [], set(), []
     for rd in runs:
         try:
             y, pr, h = load(rd, cls)
-        except Exception:
+        except (OSError, KeyError, ValueError) as e:
+            # An unreadable run used to vanish uncounted, so a glob that
+            # matched 12 directories and read 2 reported a 2-run window as
+            # though it were 12.
+            unread.append((rd, type(e).__name__))
             continue
+        # <root>/<Backbone>/<dataset>/<cap>/<arm>/<seed>
+        parts = os.path.normpath(rd).split(os.sep)
+        if len(parts) >= 5:
+            cells.add(tuple(parts[-5:-3]))
         Y.append(y)
         PR.append(pr)
         H.append(h)
+    if unread:
+        print("  !! %d run(s) in this glob could not be read and are NOT in "
+              "the counts below: %s"
+              % (len(unread), ", ".join("%s (%s)" % u for u in unread[:3])),
+              file=sys.stderr)
+    if len(cells) > 1:
+        # 🛑 THIS FUNCTION WRITES POLICY. Its output goes into
+        # `configs/task_windows.yml`, which `gen_campaign` enforces as a HARD
+        # REFUSAL on every future campaign. Averaging p@K across backbones
+        # pulls a saturated cell under WIGGLE_MAX and launders it into a
+        # `** TASK **`, and that verdict then becomes permanent.
+        raise SystemExit(
+            "REFUSED: task_window is per (backbone, dataset) and this glob "
+            "spans %s. Averaging p@K and the hard count across them turns a "
+            "saturated cell into a task, and this tool's output becomes the "
+            "generator's refusal policy. Run one glob per backbone."
+            % sorted("/".join(c) for c in cells))
     if not Y:
         return None
     n_true = int((Y[0] == cls).sum())
+    if n_true <= 0:
+        raise SystemExit(
+            "REFUSED: class %d has ZERO true instances in this test slice, so "
+            "K = max(1, round(frac * 0)) = 1 at every fraction and every row "
+            "would read as a task. That is a fake greenlight written into the "
+            "policy file, not a measurement." % cls)
     hard = float(np.mean(H))
     rows = []
     for frac in fractions:
@@ -97,10 +160,15 @@ def sweep(runs, cls, fractions=FRACTIONS):
             errs.append(int((y[o[:K]] != cls).sum()))
             pks.append(float(pr[o[K - 1]]))
         e, pk = float(np.mean(errs)), float(np.mean(pks))
+        per_seed = [h - K for h in H]          # NOT mean(H) - K; see verdict()
         forced = hard - K
+        n_bind = sum(1 for f in per_seed if f >= MIN_FORCED)
         rows.append(dict(frac=frac, K=K, errors=e, p_at_K=pk,
-                         forced=forced, binds=forced > 0,
-                         verdict=verdict(e, pk, forced)))
+                         forced=forced, forced_per_seed=per_seed,
+                         forced_min=min(per_seed), forced_max=max(per_seed),
+                         n_bind=n_bind, n_seeds=len(per_seed),
+                         binds=forced > 0,
+                         verdict=verdict(e, pk, per_seed)))
     return dict(cls=cls, n_true=n_true, hard=hard, n_seeds=len(Y), rows=rows)
 
 
@@ -187,6 +255,82 @@ def self_test(out=sys.stdout):
     check("cap evicting only %d item(s) -> 'barely binds', not a task"
           % r["forced"], r["verdict"] == "barely binds")
 
+    # (g) 🛑 THE ONE THIS FILE GOT WRONG. Four seeds whose MEAN count clears
+    #     the cap while ONE of them does not must NOT read as a task: in that
+    #     seed the penalty is identically zero and the treated arm is its own
+    #     null, so the cell is a diluted measurement, not a clean one.
+    #     Built to mirror the real numbers: hard counts 210, 260, 260, 260
+    #     against K=200 give a mean of 247.5 (forced 47.5, comfortably over
+    #     MIN_FORCED) while seed one evicts only 10 ... so make it 205 to sit
+    #     under the threshold.
+    partial = []
+    for i, hardc in enumerate((205, 260, 260, 260)):
+        d3 = os.path.join(base, "partial%d" % i)
+        y = np.zeros(n, dtype=int)
+        y[idx[:100]] = cls
+        pr = np.linspace(0.90, 0.10, n)
+        write(d3, y, pr, [cls] * hardc + [0] * (n - hardc))
+        partial.append(d3)
+    r = sweep(partial, cls, fractions=(2.0,))["rows"][0]
+    check("one seed of four below MIN_FORCED -> PARTIAL, not '** TASK **' "
+          "(mean forced %.1f, per seed %s)"
+          % (r["forced"], r["forced_per_seed"]),
+          r["verdict"] == "** PARTIAL 3/4 **")
+    check("...and the mean ALONE would have said TASK, so the check is live",
+          verdict(r["errors"], r["p_at_K"], [r["forced"]]) == "** TASK **")
+
+    # (h) LIVENESS for (g): four seeds that ALL bind must still read TASK, or
+    #     the new rule just refuses everything.
+    allbind = []
+    for i in range(4):
+        d4 = os.path.join(base, "allbind%d" % i)
+        y = np.zeros(n, dtype=int)
+        y[idx[:100]] = cls
+        pr = np.linspace(0.90, 0.10, n)
+        write(d4, y, pr, [cls] * (255 + i) + [0] * (n - 255 - i))
+        allbind.append(d4)
+    r = sweep(allbind, cls, fractions=(2.0,))["rows"][0]
+    check("LIVENESS: four seeds that ALL bind -> '** TASK **' (%d/%d)"
+          % (r["n_bind"], r["n_seeds"]), r["verdict"] == "** TASK **")
+    check("recommend() never returns a PARTIAL row",
+          all(x["verdict"] == "** TASK **"
+              for x in [recommend(sweep(partial, cls))] if x))
+
+    # (i) 🛑 THE POLICY GUARD. This tool's output is pasted into
+    #     configs/task_windows.yml, which gen_campaign enforces as a hard
+    #     refusal, so a glob that spans two backbones writes a pooled window
+    #     into permanent policy. Averaging p@K across a saturated backbone and
+    #     an unsaturated one pulls the mean under WIGGLE_MAX.
+    two = []
+    for bb in ("BackboneA", "BackboneB"):
+        d5 = os.path.join(base, bb, "iwildcam", "L90_G95", "tralo_null", "seed_1")
+        y = np.zeros(n, dtype=int)
+        y[idx[:100]] = cls
+        write(d5, y, np.linspace(0.90, 0.10, n), [cls] * 260 + [0] * (n - 260))
+        two.append(d5)
+    try:
+        sweep(two, cls, fractions=(2.0,))
+        check("a glob spanning TWO backbones is REFUSED", False)
+    except SystemExit:
+        check("a glob spanning TWO backbones is REFUSED", True)
+    # LIVENESS: one backbone, same shape, must still work.
+    r = sweep(two[:1], cls, fractions=(2.0,))
+    check("LIVENESS: the same glob restricted to ONE backbone still sweeps",
+          r is not None and r["n_seeds"] == 1)
+
+    # (j) a class with ZERO true instances would read as a task at every
+    #     fraction, because K = max(1, round(frac * 0)) = 1. That is a fake
+    #     greenlight written into the policy file.
+    d6 = os.path.join(base, "BackboneC", "iwildcam", "L90_G95", "tralo_null",
+                      "seed_1")
+    write(d6, np.zeros(n, dtype=int), np.linspace(0.9, 0.1, n),
+          [cls] * 200 + [0] * (n - 200))
+    try:
+        sweep([d6], cls, fractions=(0.5,))
+        check("a class with ZERO true instances is REFUSED", False)
+    except SystemExit:
+        check("a class with ZERO true instances is REFUSED", True)
+
     # (f) the recommender returns something inside the window, or nothing
     res = sweep([os.path.join(base, "task")], cls)
     rec = recommend(res)
@@ -217,6 +361,11 @@ def main(argv=None):
           "WIGGLE p@K < %.2f" % (MIN_FORCED, WIGGLE_MAX))
     print("'forced' = the model's unconstrained count minus K: how many "
           "predictions the cap actually evicts.")
+    print("READ THE PER-SEED COLUMN, NOT THE MEAN. On iwildcam/MobileNetV3 the")
+    print("four seeds spread 105 items, so a mean 'forced' of 3 can be 50 in one")
+    print("seed and -55 in another. PARTIAL n/N means the cap poses its question")
+    print("to only n seeds -- NOT that the other seeds are free nulls, which was")
+    print("tested by md5 and refuted (see verdict.__doc__).")
     print("%d reference run(s)\n" % len(runs))
     any_task = False
     for cls in args.classes:
@@ -226,12 +375,16 @@ def main(argv=None):
             continue
         print("  class %d   n_true=%d   model predicts %.0f unconstrained   "
               "(%d seed(s))" % (cls, res["n_true"], res["hard"], res["n_seeds"]))
-        print("    %6s %7s %8s %9s %8s   %s"
-              % ("K/n", "K", "errors", "p_at_K", "forced", "verdict"))
+        print("    %6s %7s %8s %9s %8s %15s %6s   %s"
+              % ("K/n", "K", "errors", "p_at_K", "forced",
+                 "forced per seed", "binds", "verdict"))
         for r in res["rows"]:
-            print("    %6.2f %7d %8.1f %9.5f %8.0f   %s"
+            print("    %6.2f %7d %8.1f %9.5f %8.0f %15s %6s   %s"
                   % (r["frac"], r["K"], r["errors"], r["p_at_K"],
-                     r["forced"], r["verdict"]))
+                     r["forced"],
+                     "%.0f..%.0f" % (r["forced_min"], r["forced_max"]),
+                     "%d/%d" % (r["n_bind"], r["n_seeds"]),
+                     r["verdict"]))
         rec = recommend(res)
         if rec:
             any_task = True

@@ -325,6 +325,17 @@ class MulticlassTransductiveLoss(nn.Module):
                  num_classes, initial_rho=0.5,
                  penalty_shape="rational_bounded"):
         super().__init__()
+        # An unrecognised shape fell through the dispatch below to
+        # `rational_bounded`, so a `penalty_shape: quadratic` arm would have
+        # run the DEFAULT shape under a different arm name and "tied the
+        # default" -- because it was the default. Same argument as the
+        # soft_count_mode guard in methodologies/tralo/train.py, which was
+        # written after that failure mode cost a campaign.
+        if penalty_shape not in ("rational_bounded", "linear", "squared"):
+            raise ValueError(
+                "penalty_shape must be one of rational_bounded / linear / "
+                "squared, got %r. An unrecognised shape silently ran "
+                "rational_bounded under a different arm name." % penalty_shape)
         self.num_classes = num_classes
         self.penalty_shape = penalty_shape
         self.register_buffer('rho', torch.tensor(float(initial_rho)))
@@ -488,6 +499,19 @@ class MulticlassTransductiveLoss(nn.Module):
             self.lambda_global_per_class[class_idx] = float(value)
         elif scope == 'local' and group_id is not None:
             self.lambda_local_per_key[(group_id, class_idx)] = float(value)
+        else:
+            # 🛑 A NO-OP HERE IS INVISIBLE AND FATAL. `get_lambda_per_class`
+            # and the two `compute_*` paths all default a missing lambda to
+            # 0.0, so a typo'd scope (or scope='local' with no group_id) leaves
+            # the penalty multiplied by zero: the arm becomes its own lambda=0
+            # twin while `L_Global`/`L_Local` log 0.0 and every gate stays
+            # green. The ratchet reads then writes through this same pair, so
+            # it would also freeze at zero forever.
+            raise ValueError(
+                "set_lambda_per_class(scope=%r, group_id=%r) would set "
+                "nothing, leaving lambda at 0.0 and making this arm its own "
+                "null. scope must be 'global', or 'local' WITH a group_id."
+                % (scope, group_id))
 
     def get_lambda_per_class(self, class_idx, scope='global', group_id=None):
         if scope == 'global':

@@ -209,11 +209,29 @@ def read_step_config(hp):
 
     Splat it into `finish_constraint_step(model, optimizer, scaler, **cfg)`.
     """
+    mode = str(hp.get("constraint_grad_mode", "clip"))
+    step_rule = str(hp.get("constraint_step_rule", "shared"))
+    # 🛑 SAME GUARD AS `penalty_shape` AND `soft_count_mode`, FOR THE SAME
+    # REASON. `finish_constraint_step` compares each of these against exactly
+    # ONE literal ("normalize", "sgd"), so any other spelling -- `normalise`,
+    # `Normalize`, `SGD` -- falls through to the DEFAULT behaviour and the arm
+    # runs the default under a different arm name, then ties the default
+    # because it IS the default. `audit_config` stays green (the key has a
+    # reader) and `check_parity` stays green (one value across arms); only an
+    # md5 across arms would catch it, and only if someone runs one.
+    if mode not in ("clip", "normalize"):
+        raise ValueError(
+            "constraint_grad_mode must be clip / normalize, got %r. An "
+            "unrecognised value silently runs `clip`." % mode)
+    if step_rule not in ("shared", "sgd"):
+        raise ValueError(
+            "constraint_step_rule must be shared / sgd, got %r. An "
+            "unrecognised value silently runs `shared`." % step_rule)
     return {
         "clip": _required(hp, "constraint_grad_clip"),   # the treatment dose
-        "mode": str(hp.get("constraint_grad_mode", "clip")),
+        "mode": mode,
         "fp32": bool(hp.get("constraint_fp32", False)),
-        "step_rule": str(hp.get("constraint_step_rule", "shared")),
+        "step_rule": step_rule,
         "lr": _required(hp, "lr_constraint"),
         "random_direction": bool(hp.get("constraint_random_direction", False)),
     }

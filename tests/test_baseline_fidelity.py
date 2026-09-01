@@ -4402,6 +4402,15 @@ def test_a_launch_scripts_stated_SIZE_and_SIGN_TEST_are_arithmetic_not_prose():
 
     src = open(os.path.join(REPO, "docs/launch_margin2.sh"),
                 encoding="utf-8").read()
+    # A SUPERSEDED banner sits ABOVE the original header and carries its own
+    # cap table -- the REPLACEMENT caps, which deliberately differ from the
+    # ones the script runs. Parsing it as the header would fail this gate on
+    # the very correction it is there to announce. Strip it, then hold the
+    # original header to the same arithmetic as before.
+    if "SUPERSEDED" in src:
+        rule = src.index(chr(10) + "# " + "=" * 20,
+                         src.index("SUPERSEDED"))
+        src = src[rule + 1:]
     # The header is PROSE and wraps. Anchoring a pattern to one physical line
     # makes the gate fail on a harmless reflow and -- worse -- pass if someone
     # reflows a threshold out of existence. Strip the comment markers and

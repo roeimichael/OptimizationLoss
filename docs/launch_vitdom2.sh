@@ -1,5 +1,36 @@
 #!/usr/bin/env bash
 # =============================================================================
+# 🛑🛑 SUPERSEDED 2026-09-01 -- DO NOT RUN THIS AS WRITTEN.
+#
+#   108 staged runs, 72 of them at a dead cap. 2 of its 3 cap
+#   tags pose no question.
+#
+#   The task window (FRAMEWORK 2(z16)/2(z17), measured on all four backbones)
+#   says a cap poses a question only where it evicts >= 10 predictions, leaves
+#   ERRORS inside K, and cuts at p@K < 0.99. Classified against
+#   `configs/task_windows.yml` on 2026-09-01:
+#
+#     ViTB16  L30_G50   NON-TASK   both classes K/n=0.300
+#     ViTB16  L60_G95   NON-TASK   c7 K/n=0.599, window 0.90-1.00
+#     ViTB16  L90_G95   ✅ TASK    c2 0.900, c7 0.901
+#
+#   🔑 ITS STATED PURPOSE WAS THE MID CAPS, AND THAT PURPOSE SURVIVES.
+#      "L55-L70 is 0 runs anywhere" is still true and still worth closing.
+#      What is wrong is that a bare `L60_G95` puts class 7 at K/n=0.599
+#      against a 0.90-1.00 window, so the mid cell measures nothing. The
+#      per-class form fixes exactly this.
+#
+#   `configs/gen_campaign.py` now REFUSES these caps, so this script exits
+#   non-zero as written. That refusal is the correct outcome and this banner
+#   exists so the refusal is not mistaken for a broken generator.
+#
+#   TO REVIVE IT: --caps L60-90_G95 L70-95_G95 L80-100_G95, which walks
+#   class 2 through the mid range it was after while holding class 7
+#   inside its own window.
+#   Everything below the banner is preserved as the ORIGINAL reasoning, which
+#   was sound on every axis EXCEPT the cap placement.
+# =============================================================================
+# =============================================================================
 #  results/vitdom2  --  DOES THE CONSOLIDATED TraLO BEAT THE CLIPPER AND THE
 #                       RIVAL DUALS, ON THE HEADLINE BACKBONE, IN EVERY REGIME?
 #

@@ -130,7 +130,18 @@ def main():
         if got is None:
             continue
         y, g, P, classes, G, L = got
-        tag = next((p for p in d.parts if re.match(r"^L\d+_G\d+$", p)), "?")
+        # `L\d+_G\d+` does NOT match the per-class form `L80-100_G95`, so
+        # every run fell through to "?" and `cells` pooled BOTH cap levels
+        # into one entry with n and K frozen from whichever run arrived
+        # first. Those are exactly the tags the current protocol mandates.
+        tag = next((p for p in d.parts
+                    if re.match(r"^L\d+(-\d+)*_G\d+$", p)), None)
+        if tag is None:
+            raise SystemExit(
+                "REFUSED: no cap tag in %s. Pooling cap levels is the one "
+                "axis this project has retracted a claim over three times, "
+                "so this refuses rather than bucketing the run under '?'."
+                % d)
         arm = d.parts[-2]
         pred = P.argmax(1)
         eq = equalize_multi(P, g, G, L, classes) if arm == args.control else None

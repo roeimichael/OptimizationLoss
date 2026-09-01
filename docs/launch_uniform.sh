@@ -1,4 +1,35 @@
 #!/usr/bin/env bash
+# =============================================================================
+# 🛑🛑 SUPERSEDED 2026-09-01 -- 9 OF ITS 9 (backbone x cap) CELLS POSE
+#    NO QUESTION. This campaign has already RUN, so the banner is about how to
+#    READ it as much as about re-running it.
+#
+#   A cap poses a question only where it evicts >= 10 predictions, leaves
+#   ERRORS inside K, and cuts at p@K < 0.99 (FRAMEWORK 2(z16), 2(z17)).
+#   Classified against `configs/task_windows.yml` on 2026-09-01:
+#
+#     MobileNetV2   L20_G50     NON-TASK   class 2 K/n=0.200 vs 0.80-1.00, class 7 K/n=0.202 vs 0.80-0.90
+#     MobileNetV2   L30_G50     NON-TASK   class 2 K/n=0.300 vs 0.80-1.00, class 7 K/n=0.300 vs 0.80-0.90
+#     MobileNetV2   L50_G30     NON-TASK   class 2 K/n=0.300 vs 0.80-1.00, class 7 K/n=0.300 vs 0.80-0.90
+#     MobileNetV3   L20_G50     NON-TASK   class 2 K/n=0.200 vs 0.70-0.90, class 7 K/n=0.202 vs 0.90-1.00
+#     MobileNetV3   L30_G50     NON-TASK   class 2 K/n=0.300 vs 0.70-0.90, class 7 K/n=0.300 vs 0.90-1.00
+#     MobileNetV3   L50_G30     NON-TASK   class 2 K/n=0.300 vs 0.70-0.90, class 7 K/n=0.300 vs 0.90-1.00
+#     RegNetY400MF  L20_G50     NON-TASK   class 2 K/n=0.200 vs 0.60-0.90, class 7 K/n=0.202 vs 0.80-1.00
+#     RegNetY400MF  L30_G50     NON-TASK   class 2 K/n=0.300 vs 0.60-0.90, class 7 K/n=0.300 vs 0.80-1.00
+#     RegNetY400MF  L50_G30     NON-TASK   class 2 K/n=0.300 vs 0.60-0.90, class 7 K/n=0.300 vs 0.80-1.00
+#
+#   ⚠️ AND READ 2(z24) BEFORE QUOTING ANY NUMBER FROM THIS CAMPAIGN. The
+#   window above is a MEAN over seeds whose unconstrained counts spread 105
+#   items, so a cell marked TASK here can still be one whose cap binds in only
+#   some seeds. `scripts.task_window` now reports `binds n/N` per fraction; run
+#   it on THIS campaign's own `tralo_null` runs rather than trusting the row.
+#
+#   `configs/gen_campaign.py` REFUSES the dead caps now, so re-running this
+#   script as written exits non-zero. That refusal is correct, not a broken
+#   generator. Re-issue with per-class tags (`L<c2>-<c7>_G<g>`) inside both
+#   classes' windows -- the two capped classes' windows differ on every
+#   backbone, so one fraction cannot sit inside both.
+# =============================================================================
 # THE ORDER-PRESERVING COUNT CAMPAIGN. Fire the moment a GPU frees.
 #
 # WHY, in one measurement (`scripts/order_probe --evictions`, results/iwc2,

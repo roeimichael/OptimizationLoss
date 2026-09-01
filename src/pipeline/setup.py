@@ -68,7 +68,19 @@ def seed_all(seed):
     rather than at hour 19.
     """
     if seed is None:
-        return
+        # 🛑 NOT A NO-OP. Returning here skips all seven settings below,
+        # including `cudnn.benchmark = False` and
+        # `use_deterministic_algorithms(True)`, so the run trains
+        # nondeterministically and still writes `status: completed` with
+        # plausible metrics. The seed lives in the DIRECTORY name (`seed_3/`),
+        # so every scorer groups it correctly and the cell looks like a normal
+        # 4-seed cell. `tralo_reseed` -- the RNG-only noise floor that every
+        # paired contrast is priced against -- is meaningless if this stream is
+        # not controlled. `seed` is in protocol.yml's contract_keys.
+        raise ValueError(
+            "seed is None. Seeding would be skipped entirely and the run "
+            "would be silently nondeterministic while its directory still "
+            "says seed_N. Set hyperparams.seed.")
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)

@@ -59,9 +59,18 @@ def budgets(run_dir):
     `Limit_Class<c>` is written every epoch and is inf for an uncapped class,
     so the finite ones are the budgets the allocator actually enforced.
     """
+    # 🛑 RETURNING {} HERE DROPS THE ARM FROM THE TABLE SILENTLY, and a
+    # post-hoc arm runs `constraint_epochs: 0` so it may legitimately have no
+    # readable log -- which is the CLIPPER, the bar every comparison is
+    # scored against. `scripts/reachability.py` carries the fixed twin of
+    # this function; this one had no fallback and no message.
     try:
         t = pd.read_csv(run_dir / "training_log.csv")
-    except Exception:
+    except Exception as e:
+        print("  !! no readable training_log.csv in %s (%s): its budgets are "
+              "UNKNOWN, so it will be missing from the operating-point table "
+              "and from every Jaccard row it should have anchored."
+              % (run_dir, type(e).__name__), file=sys.stderr)
         return {}
     out = {}
     for col in t.columns:

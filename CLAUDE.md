@@ -78,7 +78,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 433 regression tests, ~180s, no dataset needed
+python -m pytest tests -q                   # 435 regression tests, ~180s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -334,13 +334,35 @@ python -m scripts.task_window --glob "<root>/<Backbone>/iwildcam/*/tralo_null/se
                                             #   (`hard_count - K`, a count not a
                                             #   boolean -- L90 evicts THREE on class 2
                                             #   and looks binding), there are ERRORS
-                                            #   inside K, and p@K < 0.99. On iwildcam
-                                            #   the window is class 2 K/n 0.70-0.80 and
-                                            #   class 7 0.90-1.00, which DO NOT OVERLAP
-                                            #   on MobileNetV3 -- so one fraction for
-                                            #   both classes cannot express a valid
-                                            #   experiment. Every L20/L30/L50 campaign
-                                            #   tested a NON-TASK. FRAMEWORK 2(z16).
+                                            #   inside K, and p@K < 0.99. Every
+                                            #   L20/L30/L50 campaign tested a NON-TASK.
+                                            #   🛑 DO NOT QUOTE A K/n RANGE IN PROSE.
+                                            #   It was stated three incompatible ways in
+                                            #   this repo and two published cells were
+                                            #   classified off the wrong one.
+                                            #   `configs/task_windows.yml` is the ONLY
+                                            #   place a window is a number; ask
+                                            #   `configs.task_cells.classify`, which
+                                            #   returns K, n, K/n, the window, the
+                                            #   grid-snap margin, the row's PROVENANCE
+                                            #   and one of task / non_task / no_window /
+                                            #   no_data. FRAMEWORK 2(z16), 2(z24).
+                                            #   ⚠️ AND IT IS PER CAMPAIGN, NOT JUST
+                                            #   PER BACKBONE. The lambda=0 count is 336
+                                            #   in dom1/loose1 and 355 in
+                                            #   equaldose1/iwc3 on the SAME cached
+                                            #   warm-ups; at K=333 that is 3 evicted
+                                            #   items against 22. Re-measure on the
+                                            #   campaign's OWN reference arm.
+                                            #   ⚠️ AND READ `binds n/N`, NOT THE MEAN.
+                                            #   The four seeds spread 105 items, so a
+                                            #   mean `forced` of 3 is 50 in one seed and
+                                            #   -55 in another. A `** PARTIAL n/N **`
+                                            #   cap poses its question to n seeds only.
+                                            #   ⛔ That does NOT make the other seeds
+                                            #   free nulls: md5 says tralo differs from
+                                            #   its null in 4/4 slack seeds, because 7
+                                            #   of 14 LOCAL ceilings are K=0.
 python -m scripts.bias_shift_probe --self-test  # ⛔ REFUTES `tralo_uniform`'s
                                             #   founding claim. Its docstring argues a
                                             #   uniform step in log-odds is "a pure bias
@@ -465,8 +487,17 @@ sweep `G < L` (e.g. `L50_G30`). See `docs/FRAMEWORK.md` section 1.
 Generate a campaign with:
 
 ```bash
-python -m configs.gen_campaign --root results/<name>     --datasets iwildcam --models MobileNetV3     --caps L80-100_G95 L70-90_G95 --arms all+null
+python -m configs.gen_campaign --root results/<name>     --datasets iwildcam --models MobileNetV3     --caps L80-100_G95 L70-90_G95 --arms all+null --constraint-fp32
 ```
+
+🔑 **`--constraint-fp32` IS NOT OPTIONAL, IT IS THE DOSE, AND `gen_campaign`
+DEFAULTS IT OFF.** Measured over every completed run in every worktree:
+`true` lands **15284 / 15284 constraint steps across 532 runs and 6 campaigns**
+(`dom1` `dom1b` `equaldose1` `iwc4` `loose1` `loosevit1`, not one step lost);
+`false` lands 86.9% over 189 runs, and that group is the quarantine list.
+`taskwin1` was staged without it, landed **20/29 = 69.0%** on `amp=float16`, and
+had to be killed at 3/48 and regenerated as `taskwin2`, which lands **29/29** on
+the same host. FRAMEWORK 2(u).
 
 ⛔ **THE CAPS IN THAT LINE USED TO BE `L20_G50 L30_G50`, AND THAT CAMPAIGN
 MEASURES NOTHING.** A cap poses a question only where it evicts >= 10

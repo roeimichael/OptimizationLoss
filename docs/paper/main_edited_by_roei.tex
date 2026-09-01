@@ -861,9 +861,14 @@ Sec.~\ref{sec:oct}, largest on ViT-B/16) and the global-tighter
 asymmetric ($G{<}L$) caps of DermMNIST ($+0.8$pp over MobileNetV3's full
 asymmetric grid, reproduced on RegNet{\color{blue}Y-400MF} and tied on ViT{\color{blue}-B/16} over the four shared
 cap pairs; \emph{preliminary}, as only MobileNetV3 has the full grid).
-Every other regime, including all symmetric caps, is a statistical tie
-(symmetric tissue+derm mean cc-F1 gap $-0.0013$, seed winrate $29\%$,
-$n{=}216$), and none is a loss. Against the post-hoc clippers macro-F1 is
+Every other regime, including all symmetric caps, is within seed noise on
+the cell means (symmetric tissue+derm mean cc-F1 gap $-0.0013$, $n{=}216$).
+{\color{blue}We report the direction rather than calling it a tie: the
+paired seed winrate there is $29\%$, so TraLO is behind on roughly seven of
+every ten paired comparisons even though the mean gap is a fraction of one
+prediction. A mean within noise and a winrate far from $50\%$ are
+compatible -- a small consistent deficit -- and the honest reading is a
+small deficit, not an absence of difference.} Against the post-hoc clippers macro-F1 is
 higher for TraLO on every regime (Sec.~\ref{sec:deploy}). All of these
 statements are scoped to the three MedMNIST-derived datasets we ran.
 
@@ -2005,9 +2010,12 @@ $8\%$ of the training data but $25\%$ of the balanced test split. A model warmed
 up on cross-entropy therefore \emph{under}-predicts drusen on the test set
 before any constraint is applied, so a tight cap binds against a count the model
 was already reluctant to produce, and the constrained class has real recall to
-lose. On TissueMNIST and DermMNIST the warmup model already predicts the
-constrained class at close to its capped rate, so the same cap is nearly
-inactive. The regime map of Sec.~\ref{sec:regime} is largely this distinction
+lose. {\color{blue}On TissueMNIST and DermMNIST the cap binds at least as hard by
+count -- the warmup model over-demands it by $2.4$--$4.8	imes$ at $L30$,
+more than OctMNIST's $2.0$--$2.5	imes$ -- so what distinguishes OctMNIST is
+not how hard the cap binds but what it binds \emph{against}: only there does
+the cap oppose a class the model under-predicts, leaving real recall to
+recover.} The regime map of Sec.~\ref{sec:regime} is largely this distinction
 made quantitative: the methods separate where the cap binds against the model's
 own tendency, and tie where it does not.
 

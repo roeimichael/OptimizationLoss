@@ -164,8 +164,24 @@ def _zero_ceilings(P, dataset, local_pct):
                                       num_classes=dc["num_classes"])
         cells = [L[g][c] for g in L for c in classes]
         return sum(1 for v in cells if v == 0), len(cells)
-    except Exception:
+    except FileNotFoundError:
         return 0, 0
+    except Exception as exc:
+        # 🛑 (0, 0) PRINTS AS "no zero ceilings", WHICH IS THE WRONG ANSWER
+        # WEARING THE RIGHT SHAPE. This function exists precisely because the
+        # sum arithmetic lies about the local scope: on iwildcam 7 of 14
+        # per-group ceilings are K=0, and a ZERO ceiling binds absolutely
+        # whatever the sum does. Swallowing an error here reports the local
+        # scope as inert in the one campaign where it does the most work. It
+        # also silently swallowed two deliberate refusals: `_round_to_K`
+        # raising on a budget that rounds to zero, and `task_cells` raising on
+        # a test_meta.csv with no `label` column.
+        raise SystemExit(
+            "REFUSED: could not read the real per-group budgets for %s at "
+            "local %s (%s: %s). Without them the binding-scope line is sum "
+            "arithmetic only, which has called the local scope inert where it "
+            "was doing the most work." % (dataset, local_pct,
+                                          type(exc).__name__, exc))
 
 
 # The task-window logic lives in `configs/task_cells.py` so the GENERATOR and
@@ -193,13 +209,26 @@ def task_window_gate(P, args, resolved):
     """
     TW = load_windows()
     if not TW:
+        # 🛑 THE MUTE BRANCH. Every other exit from this function says what
+        # it could not check; this one skipped the ENTIRE gate and printed
+        # nothing, so deleting or corrupting the windows file silently
+        # re-enabled every cap the gate exists to refuse.
+        print("  !! THE TASK-WINDOW GATE DID NOT RUN AT ALL. "
+              "configs/task_windows.yml is")
+        print("     missing, empty, or unparseable, so NO cap in this campaign "
+              "was checked")
+        print("     against FRAMEWORK 2(z17). 24 of 24 cells at L20/L30/L50 "
+              "pose no question")
+        print("     and would generate without complaint. Restore the file "
+              "before launching.")
         return
-    rows, bad, unknown, measured = [], [], set(), False
+    rows, bad, unknown, absent, measured = [], [], set(), set(), False
     for ds in args.datasets:
         for model in args.models:
             for tag in args.caps:
                 r = classify(P, TW, ds, model, tag)
                 if r["status"] == "no_data":
+                    absent.add(ds)
                     continue
                 if r["status"] == "no_window":
                     unknown.add("%s/%s" % (ds, model))
@@ -217,6 +246,21 @@ def task_window_gate(P, args, resolved):
         print("     before trusting any null from it. An unmeasured backbone "
               "is an unknown,")
         print("     not a known task.")
+    # 🛑 SAY SO WHEN THE GATE DID NOT RUN. Campaigns are generated on
+    # laptops, where the slice is absent, every cell returns `no_data` and
+    # this function would otherwise return having printed NOTHING and
+    # refused nothing -- a 24-of-24-non-task refusal that is a silent no-op.
+    # That is the exact shape of the defect this gate exists to prevent, so
+    # it is loud rather than mute. The `no_window` branch above already is.
+    for ds in sorted(absent):
+        print("  !! THE TASK-WINDOW GATE DID NOT RUN for %s: the slice is "
+              "not on this" % ds)
+        print("     machine, so no cap could be checked. This campaign is "
+              "UNGATED against")
+        print("     FRAMEWORK 2(z17). Generate on the server, or re-check "
+              "there before")
+        print("     launching: 24 of 24 cells at L20/L30/L50 pose no "
+              "question.")
     if not measured:
         return
     print("  TASK WINDOW (FRAMEWORK 2(z16)/2(z17)) -- does each cap pose a "
@@ -264,9 +308,11 @@ def _gate_self_test():
     from configs import task_cells
     rc = task_cells.self_test()
     ok = rc == 0
+    skipped = False
     P = load_protocol()
     dc = P["datasets"]["iwildcam"]
     if not os.path.exists(os.path.join(dc["data_dir"], "test_meta.csv")):
+        skipped = True
         print("  %-64s %s" % ("end-to-end refusal (needs the iwildcam slice)",
                               "SKIPPED -- slice not on this machine"))
     else:
@@ -293,7 +339,15 @@ def _gate_self_test():
                                   "FAIL"))
             ok = False
     print("")
-    print("ALL PASS" if ok else "FAILURES ABOVE")
+    if not ok:
+        print("FAILURES ABOVE")
+    elif skipped:
+        print("PASS, but the END-TO-END REFUSAL was SKIPPED. This run did "
+              "NOT show that the generator")
+        print("refuses a dead cap. Re-run on the server before trusting "
+              "it.")
+    else:
+        print("ALL PASS")
     return 0 if ok else 1
 
 
