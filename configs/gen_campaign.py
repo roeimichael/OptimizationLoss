@@ -523,6 +523,14 @@ def validate(P, args, resolved, arms):
             "  Add: --arms ... %s"
             % (" ".join(trained), " ".join(sorted(controls))))
 
+    # LAST of the refusals, and deliberately so. An unequal lr, a missing
+    # reseed floor and a single cap level are all SPEC errors -- the
+    # campaign asks the wrong question. This one says the campaign asks the
+    # right question at 87% of the intended dose, so it belongs after them:
+    # a reader who has both problems should be told about the spec one first.
+    # `arms` is resolved by here, so post-hoc-only campaigns are recognised.
+    fp32_gate(P, args, arms)
+
 
 def _apply_constraint_step(P, args):
     """Constraint-step knobs, into the SHARED block for the same reason.
@@ -592,6 +600,61 @@ def _apply_constraint_step(P, args):
         print("  CONSTRAINT PASS IN FP32: no loss scaler on the constraint "
               "step, so an epoch cannot be")
         print("      silently dropped to a non-finite gradient.")
+
+
+def fp32_gate(P, args, arms):
+    """REFUSE a campaign with trained arms and `constraint_fp32: false`.
+
+    🛑 THIS IS A GATE BECAUSE THE PROSE ALREADY FAILED. `docs/PLAYBOOK.md`
+    has said "`--constraint-fp32` is mandatory" for weeks, and `taskwin1` was
+    still staged without it on 2026-09-01 and had to be killed at 3/48: its
+    first trained run landed 20 of 29 steps (69.0%) on `amp=float16`, dead
+    centre of the documented FP16 + GradScaler signature. Regenerated with the
+    flag, the same arm on the same host landed 29 of 29.
+
+    Measured over every completed run in every worktree that records a step
+    count:
+
+        constraint_fp32: true    15284 / 15284 = 100.0%   532 runs, 6 campaigns
+        constraint_fp32: false    4684 /  5393 =  86.9%   189 runs
+
+    Not one step lost in 532 runs with it on, and the `false` group is the
+    quarantine list. The default is False, which is how this keeps happening,
+    so the refusal lives here rather than in a doc nobody re-reads at launch.
+    """
+    if P["constraint_phase"].get("constraint_fp32"):
+        return
+    trained = [a for a in arms
+               if (P["arms"].get(a) or {}).get("phase") != "posthoc"]
+    if not trained:
+        return                      # a post-hoc-only campaign takes no steps
+    if getattr(args, "allow_fp16_constraint", False):
+        print("  !! --allow-fp16-constraint: %d trained arm(s) will run the "
+              "constraint step" % len(trained))
+        print("     under the CE loss scaler. Expect to lose ~13%% of the dose "
+              "on an FP16 host,")
+        print("     and say so in the write-up.")
+        return
+    sys.exit(chr(10).join([
+        "REFUSED: %d trained arm(s) (%s) with `constraint_fp32: false`."
+        % (len(trained), " ".join(sorted(trained))),
+        "",
+        "  Without it the FP16 GradScaler skips an optimizer step whose "
+        "gradient overflows,",
+        "  and the run still writes `status: completed`. Measured across every "
+        "completed run",
+        "  in every worktree:",
+        "",
+        "      constraint_fp32: true    15284 / 15284 = 100.0%   532 runs, 6 "
+        "campaigns",
+        "      constraint_fp32: false    4684 /  5393 =  86.9%   189 runs",
+        "",
+        "  `taskwin1` was staged without it, landed 20/29 on its first trained "
+        "run, and had",
+        "  to be killed at 3/48. Pass --constraint-fp32, or "
+        "--allow-fp16-constraint to",
+        "  proceed anyway and say so in the write-up.",
+    ]))
 
 
 def main():
@@ -685,6 +748,10 @@ def main():
                         "the direction at the smallest step in the dose sweep. "
                         "Distinct from the rejected dedicated-Adam arm, whose "
                         "step was ~8,900x larger.")
+    a.add_argument("--allow-fp16-constraint", action="store_true",
+                   help="generate anyway with constraint_fp32 false. Expect to "
+                        "lose ~13%% of the dose on an FP16 host; the campaign "
+                        "will say so.")
     a.add_argument("--constraint-fp32", action="store_true", default=None,
                    help="evaluate the constraint pass in fp32 and bypass the "
                         "loss scaler. fioretto lost 10 of 29 constraint epochs "

@@ -2610,6 +2610,27 @@ longer the only way to ask the question.
 TASK, `tralo` IS THE ONLY ARM POSITIVE ON EVERY METRIC AND IT CLEARS THE RNG
 FLOOR BY 2.8x.
 
+🛑 **CORRECTED BY 2(z24) 2026-09-01, AND THIS ONE IS THE SHARPEST CASE.**
+The "one cell that is a measured task" was classified from a window that is a
+MEAN over seeds. Re-measured on `loosevit1`'s OWN 8 `tralo_null` runs, PER SEED:
+ViTB16 class 2 is a strict task at K/n **0.60 and 0.70 only**, and at 0.90 the
+cap binds in **6 of 8** seeds (`** PARTIAL 6/8 **`). Class 7 is a task at 0.90
+only. So `L90_G95` is a PARTIAL cell, not a clean one, and **ViTB16 has ZERO
+strict task cells at any cap ever run**.
+
+⚠️ Read the result below as a DIRECTION measured on a cell whose cap poses its
+question to three quarters of its seeds. The dilution biases +1.41 items TOWARD
+zero, so the sign is if anything conservative, but "the one cell that is a
+measured task" is no longer an accurate description of it, and n=1 cell was
+never a significance claim.
+
+🔑 **THIS IS WHY `vittask1` EXISTS AND WHY IT IS NOT A REPEAT OF `loosevit1`.**
+The two ViTB16 classes' per-seed windows are 0.70 and 0.90 and do NOT overlap,
+so no single-fraction tag can express a strict cell. `vittask1` runs the
+per-class tags `L60-90_G95` and `L70-90_G95`, which are the only two that sit
+inside both. `loosevit1` could not have tested them: the per-class cap form did
+not exist when it was generated.
+
 `loosevit1` (ViTB16, iwildcam, 48 runs, all completed) lives in
 `~/optloss-loosevit`, one of the **fourteen** worktrees sharing the object
 store (2(z22)) and one that no doc listed until 2026-09-01. Its
@@ -3781,7 +3802,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 437 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 439 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -3945,7 +3966,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 437 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 439 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -3953,7 +3974,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (437 tests, ~180 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (439 tests, ~180 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -8982,7 +9003,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             437 tests, ~180 s, no dataset required
+tests/             439 tests, ~180 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

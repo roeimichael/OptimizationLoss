@@ -453,7 +453,12 @@ def main():
         tmp = tempfile.mkdtemp(prefix="cfgaudit_")
         root = tmp
         subprocess.check_call(
-            [sys.executable, "-m", "configs.gen_campaign", "--root", root,
+            # `--constraint-fp32` because the generator now REFUSES trained
+            # arms without it (fp16 + GradScaler silently drops ~13% of the
+            # dose). This probe campaign is never trained, so the flag only
+            # gets it past the gate.
+            [sys.executable, "-m", "configs.gen_campaign",
+             "--constraint-fp32", "--root", root,
              # EVERY dataset the protocol declares, read from the protocol
              # rather than hardcoded. The old literal list outlived the
              # datasets themselves: when dermmnist/octmnist/tissuemnist were

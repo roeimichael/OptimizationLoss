@@ -87,12 +87,33 @@ python -m scripts.cut_gap <root>              # where is the cut, and is it reac
 `iwc2`, which lost a quarter of its dose. Green parity plus red dose is a
 common combination; run both.
 
-### The AMP trap, stated because it is silent
+### The AMP trap, now a GATE because saying it was not enough
 
 `--constraint-fp32` is mandatory. Without it, fp16 + GradScaler skips
 overflowing steps and the dose quietly drops: ViTB16 landed **173/232 (74.6%)**
 without it and **232/232** with it, on the same host. Check `amp` and
 `constraint_fp32` in `config.json` for every campaign you compare.
+
+🛑 **THIS PARAGRAPH EXISTED AND `taskwin1` WAS STILL STAGED WITHOUT THE FLAG**
+(2026-09-01). Its first trained run landed **20 / 29 = 69.0%** and it was
+killed at 3/48 and regenerated as `taskwin2`, which lands **29 / 29** on the
+same host and the same arm. The generator's default is `false`, and no amount
+of prose survives that. So `configs/gen_campaign.py` now **REFUSES** a campaign
+with trained arms and `constraint_fp32: false`, quoting the measurement:
+
+| `constraint_fp32` | landed / attempted | runs | campaigns |
+|---|---|---|---|
+| **true** | **15284 / 15284 = 100.0%** | 532 | dom1, dom1b, equaldose1, iwc4, loose1, loosevit1 |
+| false | 4684 / 5393 = 86.9% | 189 | iwc1, iwc2, iwc3, taskwin1, uniform1_VOID, xfam1 |
+
+`--allow-fp16-constraint` overrides it and says in the output what it let
+through. Note the `false` column IS the quarantine list.
+
+🔑 **AND DECIDE ON THE FIRST TRAINED RUN, NOT THE LAST.** `dose_landed`'s
+own rule is "one arm low = the loss shape, EVERY arm low = the host". Do not
+wait for every arm to prove the host: the `amp` column plus the table above
+settles it on run one. Restarting at 3/48 cost 30 minutes; the same decision at
+48/48 would have cost seven hours.
 
 ---
 
@@ -232,6 +253,37 @@ numbers get quoted from campaigns nobody re-checked.
 ---
 
 ## 6. SPECIFIC CONTINGENCIES FOR WHAT IS QUEUED NOW
+
+### `taskwin2` -- 48 runs, RUNNING NOW, and `vittask1` -- 48 runs, STAGED
+
+The first two campaigns in this project whose caps were chosen by MEASURING
+that the cap poses a question, and the first carrying `tralo_cut`. Together
+they are 4 cells over 2 backbones at ONE `code_version` (`6658ef8cbc59`), so
+score them together, never separately.
+
+`taskwin2` MobileNetV3 x {`L70-90_G95`, `L80-100_G95`};
+`vittask1` ViTB16 x {`L60-90_G95`, `L70-90_G95`}. Both carry
+`clip focal_clip tralo tralo_cut tralo_null tralo_reseed` x 4 seeds,
+`normalize`, `--constraint-fp32`.
+
+*Primary:* `tralo_cut - tralo` in ITEMS on `d capF1`, per cell, against
+`tralo_reseed - tralo_null` measured IN THE SAME CAMPAIGN. 4 cells is 2
+independent (campaign, backbone) units, so the honest ceiling is 2/2, sign
+p = 0.25. These campaigns can report DIRECTION and per-cell consistency and
+nothing else; the generator says so in its own POWER block.
+
+| outcome | what it means | next move |
+|---|---|---|
+| **`tralo_cut` > `tralo`, above the campaign's own floor, 4/4 cells** | aiming the count function at the cut buys something where the cap actually poses a question | the first positive on a MEASURED task cell. Add the other two backbones at their OWN per-class task caps before any claim |
+| **`tralo_cut` ~ `tralo`** | the count function is not the lever, and 2(z12)'s cosine predicted it (`margin` is 0.989 from `tralo`) | ledger it as run-and-null. Do NOT then run `margin2`: same family, and its caps are dead |
+| **`tralo_cut` < `tralo`** | moving gradient mass to the cut COSTS, a real result about where the mass should sit | FRAMEWORK 2 immediately; it retires the whole cut-window family |
+| **both below the reseed floor** | the cap poses a question and no method answers it | the strongest negative available here, and worth more than another arm |
+
+⚠️ **READ THE PER-SEED BINDING BEFORE THE VERDICT.** 2(z24): `L80-100_G95`
+puts MobileNetV3 class 2 at K/n 0.800, where the cap binds in 3 of 4 seeds on
+the reference model, while `L70-90_G95` binds in 4 of 4. Run
+`scripts.task_window` on THIS campaign's own `tralo_null` runs rather than on
+the yml row, and quote `binds n/N` beside every cell.
 
 ### `vitdom1` -- 240 runs, ViTB16, 6 loose caps, the rival duals
 

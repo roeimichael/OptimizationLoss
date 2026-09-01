@@ -59,6 +59,7 @@ says so.
 """
 import argparse
 import glob
+import io
 import os
 
 import numpy as np
@@ -183,15 +184,32 @@ def _per_cell_report(names, rows, keys):
     print("      A backbone or a cap level is not a replicate: the")
     print("      unconstrained count, the ranking quality and K all move with")
     print("      both. Count CELLS, never runs.")
-    print("  %-34s %5s %s"
-          % ("cell", "n", "  ".join("%13s" % k[:13] for k in keys)))
+    try:
+        from scripts.frozen_head_probe import seeds_needed
+    except Exception:
+        seeds_needed = None
+    print("  %-30s %4s %s %8s %6s %7s"
+          % ("cell", "n", "  ".join("%12s" % k[:12] for k in keys),
+             "sd", "sign", "seeds"))
     for c in sorted(cells):
         idx = cells[c]
-        vals = ["%+13.2f" % (sum(rows[k][i] for i in idx) / float(len(idx)))
+        v0 = [rows[keys[0]][i] for i in idx]
+        m0 = sum(v0) / float(len(v0))
+        sd0 = (sum((x - m0) ** 2 for x in v0) / max(1, len(v0) - 1)) ** 0.5
+        pos = sum(1 for x in v0 if x > 0)
+        need = ("%7s" % (seeds_needed(m0, sd0)
+                         if seeds_needed and m0 > 0 and sd0 > 0 else "-"))
+        vals = ["%+12.2f" % (sum(rows[k][i] for i in idx) / float(len(idx)))
                 for k in keys]
-        print("  %-34s %5d %s" % ("/".join(c)[-34:], len(idx), "  ".join(vals)))
-    print("      %d cell(s) is the sample size for any sign test, not %d run(s)."
-          % (len(cells), len(names)))
+        print("  %-30s %4d %s %8.2f %3d/%-2d %s"
+              % ("/".join(c)[-30:], len(idx), "  ".join(vals), sd0, pos,
+                 len(idx), need))
+    n_pos = sum(1 for c in cells
+                if sum(rows[keys[0]][i] for i in cells[c]) > 0)
+    print("      CELL sign test on `%s`: %d of %d positive. That is the sample"
+          % (keys[0], n_pos, len(cells)))
+    print("      size, not %d run(s), and `seeds` is per cell at 80%% power."
+          % len(names))
     return cells
 
 
@@ -201,6 +219,9 @@ def main():
     ap.add_argument("--campaign")
     ap.add_argument("-k", type=int, default=K_DEFAULT)
     ap.add_argument("--alpha", type=float, default=ALPHA_DEFAULT)
+    ap.add_argument("--dump", help="write the per-run rows to this CSV, "
+                                   "so the per-ARM question can be asked "
+                                   "without recomputing the diffusion")
     args = ap.parse_args()
 
     runs = list(args.runs)

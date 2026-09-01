@@ -245,7 +245,13 @@ def _gen(tmp, *extra):
     # about generation MECHANICS, not about whether the cap poses a
     # question; the window gate itself is tested by
     # test_the_generator_refuses_a_cap_that_poses_no_question.
-    cmd = [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask", "--root", str(tmp),
+    # `--constraint-fp32` for the third such reason: the generator now REFUSES
+    # trained arms without it, because fp16 + GradScaler silently drops ~13% of
+    # the constraint steps and `taskwin1` was staged that way anyway. These
+    # tests are about generation MECHANICS; the dose gate itself is tested by
+    # test_the_generator_refuses_trained_arms_without_constraint_fp32.
+    cmd = [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask",
+           "--constraint-fp32", "--root", str(tmp),
            "--datasets", "iwildcam",
            "--arms", "tralo", "tralo_reseed"] + list(extra)
     return subprocess.run(cmd, cwd=REPO, capture_output=True, text=True)
@@ -483,7 +489,7 @@ def test_parity_catches_two_arms_sharing_one_warm_up_with_different_objectives(t
     identically, so focal_clip loaded clip's model and silently became a second
     clip. This gate used to print the sharing groups and ask a human to look."""
     r = subprocess.run(
-        [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask", "--root", str(tmp_path),
+        [sys.executable, "-m", "configs.gen_campaign", "--constraint-fp32", "--allow-nontask", "--root", str(tmp_path),
          "--datasets", "iwildcam", "--models", "MobileNetV3",
          "--caps", "L30_G30", "L50_G30", "--arms", "clip", "focal_clip"],
         cwd=REPO, capture_output=True, text=True)
@@ -2798,7 +2804,7 @@ def test_nothing_presents_a_closed_result_as_a_live_one(tmp_path):
     from configs.gen_campaign import count_control_arms
     extra = sorted(count_control_arms(proto))
     r = subprocess.run(
-        [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask", "--root", str(root),
+        [sys.executable, "-m", "configs.gen_campaign", "--constraint-fp32", "--allow-nontask", "--root", str(root),
          "--datasets", "iwildcam", "--caps", "L30_G30", "L50_G50",
          "--arms", "all"] + extra, cwd=REPO, capture_output=True, text=True)
     assert r.returncode == 0, r.stdout + r.stderr
@@ -2822,7 +2828,7 @@ def test_nothing_presents_a_closed_result_as_a_live_one(tmp_path):
             "use -> %s" % (" ".join(extra), arm, line.strip()))
 
     r2 = subprocess.run(
-        [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask",
+        [sys.executable, "-m", "configs.gen_campaign", "--constraint-fp32", "--allow-nontask",
          "--root", str(root / "explicit"), "--datasets", "iwildcam",
          "--caps", "L30_G30", "L50_G50", "--arms", "select"] + extra,
         cwd=REPO, capture_output=True, text=True)
@@ -2837,7 +2843,7 @@ def test_nothing_presents_a_closed_result_as_a_live_one(tmp_path):
     # the same must hold through the `all+null` branch, which has its own
     # expansion and therefore its own way to swallow a named arm
     r3 = subprocess.run(
-        [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask",
+        [sys.executable, "-m", "configs.gen_campaign", "--constraint-fp32", "--allow-nontask",
          "--root", str(root / "allnull"), "--datasets", "iwildcam",
          "--caps", "L30_G30", "L50_G50", "--arms", "all+null", "select"],
         cwd=REPO, capture_output=True, text=True)
@@ -3518,7 +3524,8 @@ def test_the_reseed_control_reads_as_untreated_to_the_scorer(tmp_path):
 def _gen_arms(tmp, *arms):
     """gen_campaign with an explicit arm list and nothing else implied."""
     return subprocess.run(
-        [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask", "--root", str(tmp),
+        [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask",
+         "--constraint-fp32", "--root", str(tmp),
          "--datasets", "iwildcam", "--caps", "L30_G30", "L50_G30",
          "--allow-nontask", "--arms"] + list(arms),
         cwd=REPO, capture_output=True, text=True)
@@ -5072,7 +5079,7 @@ def test_removed_datasets_cannot_be_selected_anywhere():
     # the generator must REFUSE, not silently emit an unrunnable campaign
     for name in REMOVED_DATASETS:
         r = subprocess.run(
-            [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask",
+            [sys.executable, "-m", "configs.gen_campaign", "--constraint-fp32", "--allow-nontask",
              "--root", os.path.join(REPO, "_never_written"),
              "--datasets", name, "--models", "MobileNetV3",
              "--caps", "L30_G30", "L50_G30", "--arms", "clip"],
@@ -5084,7 +5091,7 @@ def test_removed_datasets_cannot_be_selected_anywhere():
     # NEGATIVE CONTROL: the live dataset must still pass all of the above, or
     # the assertions are satisfied by a generator that refuses everything.
     r = subprocess.run(
-        [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask",
+        [sys.executable, "-m", "configs.gen_campaign", "--constraint-fp32", "--allow-nontask",
          "--root", os.path.join(REPO, "_ctrl_ok"), "--datasets", "iwildcam",
          "--models", "MobileNetV3", "--caps", "L30_G30", "L50_G30",
          "--arms", "clip"], cwd=REPO, capture_output=True, text=True)
@@ -6633,7 +6640,7 @@ def test_the_two_power_floors_are_printed_and_the_framework_quotes_them(tmp_path
 
     def gen(root, models, caps):
         r = subprocess.run(
-            [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask", "--root", str(root),
+            [sys.executable, "-m", "configs.gen_campaign", "--constraint-fp32", "--allow-nontask", "--root", str(root),
              "--datasets", "iwildcam", "--models"] + models +
             ["--caps"] + caps + ["--arms", "all+null"],
             cwd=REPO, capture_output=True, text=True)
@@ -7829,7 +7836,7 @@ def test_the_generator_refuses_a_cap_that_poses_no_question(tmp_path):
     """
     def gen(root, caps, extra=()):
         return subprocess.run(
-            [sys.executable, "-m", "configs.gen_campaign", "--root", str(root),
+            [sys.executable, "-m", "configs.gen_campaign", "--constraint-fp32", "--root", str(root),
              "--datasets", "iwildcam", "--models", "MobileNetV3",
              "--caps"] + list(caps) +
             ["--arms", "tralo", "tralo_reseed"] + list(extra),
@@ -8286,3 +8293,118 @@ def test_the_pooling_probes_say_when_they_pooled_across_cells():
         clean = render(names[:2], {k: v[:2] for k, v in rows.items()})
         assert "POOLS" not in clean, (mod, clean)
         assert "legal aggregate" in clean, (mod, clean)
+
+
+def test_dataset_screen_never_upgrades_a_verdict_it_could_not_compute():
+    """`dataset_screen` decides which dataset gets a GPU campaign.
+
+    Its ladder tested `net_z < 2.0` for DEAD, and `summarise` returns nan for z
+    when the sampling-noise null has zero spread. `nan < 2.0` is False, so an
+    UNDEFINED significance test skipped the DEAD branch entirely and the slice
+    fell through to MARGINAL or STAGE 1 PASS on a different number. An absent
+    measurement upgraded the verdict.
+
+    The second half of the same defect: the ladder gated on NET and reported
+    LOCAL, so `net=1, local=500` printed "DEAD: local novelty 500 items is
+    BELOW the 2.7-item seed noise" -- self-contradictory on its own line. LOCAL
+    includes the global shift replicated across groups, which FRAMEWORK 2(j)
+    shows cannot reorder a top-K at any size.
+    """
+    from scripts.dataset_screen import verdict_lines
+
+    def r(net, z, local, gcol="location"):
+        return dict(gcol=gcol, net_items=net, net_z=z, local_items=local,
+                    unseen_groups=[], unseen_items=0, path="x/slice")
+
+    # 🛑 the defect: an undefined z with a big LOCAL number
+    out = " ".join(verdict_lines(r(1.0, float("nan"), 500.0), "s"))
+    assert "UNDECIDABLE" in out, out
+    assert "STAGE 1 PASS" not in out and "MARGINAL" not in out, (
+        "an undefined significance test still upgrades the verdict: " + out)
+
+    # the ladder must gate and report the SAME number
+    out = " ".join(verdict_lines(r(1.0, 5.0, 500.0), "s"))
+    assert "DEAD" in out and "NET novelty 1 items" in out, out
+    assert "DEAD: local novelty 500" not in out, (
+        "the verdict still reports LOCAL while testing NET: " + out)
+
+    # LIVENESS, all three live branches, so the ladder is not stuck on one
+    assert "DEAD" in " ".join(verdict_lines(r(50.0, 1.0, 50.0), "s"))       # z
+    assert "MARGINAL" in " ".join(verdict_lines(r(5.0, 5.0, 5.0), "s"))
+    assert "STAGE 1 PASS" in " ".join(verdict_lines(r(500.0, 9.0, 500.0), "s"))
+    assert "NO GROUP COLUMN" in " ".join(
+        verdict_lines(r(500.0, 9.0, 500.0, gcol=None), "s"))
+
+    # 🛑 AND THE NOISE DIVISOR CHANGES THE ANSWER. The default 2.7 is the
+    # paired seed sd on dermmnist, a REMOVED and leaked dataset; iwildcam
+    # measures 4.75 to 27.83, so every default boundary is 1.8x to 10x too
+    # generous. A slice that passes at 2.7 must be able to fail at 27.83, or
+    # --noise does nothing.
+    lenient = " ".join(verdict_lines(r(30.0, 9.0, 30.0), "s", noise=2.7))
+    strict = " ".join(verdict_lines(r(30.0, 9.0, 30.0), "s", noise=27.83))
+    assert "STAGE 1 PASS" in lenient, lenient
+    assert "STAGE 1 PASS" not in strict, (
+        "--noise does not move the verdict, so pricing a candidate at the "
+        "real iwildcam noise is impossible: " + strict)
+
+
+def test_the_generator_refuses_trained_arms_without_constraint_fp32(tmp_path):
+    """`--constraint-fp32` is the DOSE, and prose already failed to enforce it.
+
+    `docs/PLAYBOOK.md` has said "mandatory" for weeks. `taskwin1` was staged
+    without it anyway on 2026-09-01 and had to be killed at 3/48: its first
+    trained run landed 20 of 29 steps (69.0%) on `amp=float16`, dead centre of
+    the FP16 + GradScaler signature. Regenerated with the flag, the same arm on
+    the same host landed 29 of 29.
+
+    Across every completed run in every worktree that records a step count:
+    `true` is 15284/15284 over 532 runs and 6 campaigns, `false` is 86.9% over
+    189 runs and that group IS the quarantine list. The argparse default is
+    False, which is how it keeps happening, so the refusal belongs in the
+    generator.
+
+    Four directions, because a gate that only ever refuses is as useless as one
+    that only ever passes.
+    """
+    meta = os.path.join(REPO, "data", "iwildcam", "oodslice", "test_meta.csv")
+    if not os.path.exists(meta):
+        pytest.skip("iwildcam slice absent")
+
+    def gen(sub, extra):
+        return subprocess.run(
+            [sys.executable, "-m", "configs.gen_campaign",
+             "--root", str(tmp_path / sub), "--datasets", "iwildcam",
+             "--models", "MobileNetV3",
+             "--caps", "L70-90_G95", "L80-100_G95",
+             "--arms"] + extra,
+            cwd=REPO, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+    TRAINED = ["tralo", "tralo_null", "tralo_reseed"]
+
+    # (a) trained arms, no flag -> REFUSED, and the message carries the number
+    r = gen("a", TRAINED)
+    out = r.stdout.decode("utf-8", "replace")
+    assert r.returncode != 0, out
+    assert "constraint_fp32: false" in out, out
+    assert "15284 / 15284" in out, (
+        "the refusal does not quote the measurement it rests on: " + out)
+
+    # (b) LIVENESS -- with the flag it must generate
+    r = gen("b", TRAINED + ["--constraint-fp32"])
+    assert r.returncode == 0, r.stdout.decode("utf-8", "replace")
+
+    # (c) the override proceeds AND says so, so a campaign run this way cannot
+    #     look like one run correctly
+    r = gen("c", TRAINED + ["--allow-fp16-constraint"])
+    out = r.stdout.decode("utf-8", "replace")
+    assert r.returncode == 0, out
+    assert "--allow-fp16-constraint" in out and "written" in out, out
+
+    # (d) a POST-HOC-only campaign takes no constraint steps, so refusing it
+    #     would fire on a campaign the flag cannot affect
+    r = gen("d", ["clip", "focal_clip"])
+    out = r.stdout.decode("utf-8", "replace")
+    assert r.returncode == 0, out
+    assert "constraint_fp32: false" not in out, (
+        "the dose gate fired on a post-hoc-only campaign, which attempts no "
+        "constraint steps at all: " + out)

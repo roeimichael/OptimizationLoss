@@ -38,7 +38,13 @@ import os
 import numpy as np
 import pandas as pd
 
-SEED_NOISE_ITEMS = 2.7      # FRAMEWORK: paired seed sd, dermmnist x MobileNetV3
+# ⚠️ THIS DIVISOR IS FROM A REMOVED DATASET, AND EVERY BOUNDARY ABOVE RESTS ON
+# IT. 2.7 is the paired seed sd on dermmnist x MobileNetV3, and dermmnist is
+# removed and was leaked. The live figure this project measures on iwildcam is
+# 4.75 to 27.83 items (`ceiling_screen.IWILDCAM_CURVE`), so every threshold here
+# is 1.8x to 10x too generous. `--noise` overrides it; the verdicts print which
+# value they used, because a PASS at 2.7 can be a DEAD at 27.8.
+SEED_NOISE_ITEMS = 2.7      # dermmnist x MobileNetV3, paired seed sd
 GROUP_CANDIDATES = ("loc_group", "synth_group", "group", "domain", "site",
                     "location", "hospital", "region", "group_id")
 
@@ -209,15 +215,81 @@ def screen(path):
             "heterogeneity": heterogeneity_items(te, gcol), **nov}
 
 
+def verdict_lines(r, name, noise=None):
+    """The verdict ladder, as data rather than as prints.
+
+    Extracted so it can be gated. It decided which datasets this project
+    would spend a campaign on, and it lived inside `main()` where nothing
+    could reach it -- which is why an undefined z fell through DEAD into
+    STAGE 1 PASS for as long as it did.
+    """
+    noise = SEED_NOISE_ITEMS if noise is None else float(noise)
+    out = []
+    if r["gcol"] is None:
+        out.append("  %-22s NO GROUP COLUMN -- the local scope does not exist here."
+                  % name)
+    elif not np.isfinite(r["net_z"]):
+            # 🛑 AN UNDEFINED SIGNIFICANCE TEST USED TO **UPGRADE** THE VERDICT.
+            # `summarise` returns nan for z when the null spread is 0, and
+            # `nan < 2.0` is False, so the DEAD branch was skipped entirely and
+            # the slice fell through to MARGINAL or STAGE 1 PASS on its LOCAL
+            # number. An absent measurement must never read as a pass.
+        out.append("  %-22s UNDECIDABLE: the sampling-noise null has zero "
+                  "spread, so z is" % name)
+        out.append("  %-22s   undefined and NOTHING was tested. This is not a "
+                  "pass. Usually it" % "")
+        out.append("  %-22s   means one group, or identical groups -- check "
+                  "the group column." % "")
+    elif r["net_z"] < 2.0:
+        out.append("  %-22s DEAD: NET per-group novelty %+.0f items is within "
+                  "sampling noise (z=%.1f)." % (name, r["net_items"], r["net_z"]))
+    elif r["net_items"] < noise:
+            # ⚠️ GATE ON `net`, REPORT `net`. This branch used to print
+            # `local_items` while testing `net_items`, so a slice with net=1
+            # and local=500 printed "DEAD: local novelty 500 items is BELOW
+            # the 2.7-item seed noise", which contradicts itself on its own
+            # line. LOCAL includes the global shift replicated across groups,
+            # which is one multiplier in disguise; NET is the reorderable part.
+        out.append("  %-22s DEAD: NET novelty %.0f items is BELOW the %.1f-item "
+                  "seed noise (local reads %.0f, but that includes the global "
+                  "shift)." % (name, r["net_items"], noise,
+                               r["local_items"]))
+    elif r["net_items"] < 3 * noise:
+        out.append("  %-22s MARGINAL: NET novelty %.0f items against %.1f-item "
+                  "noise (local %.0f)." % (name, r["net_items"],
+                                           noise, r["local_items"]))
+    else:
+        out.append("  %-22s STAGE 1 PASS (necessary, not sufficient): NET "
+                  "novelty %.0f items, %.0fx seed noise (local %.0f)."
+                  % (name, r["net_items"], r["net_items"] / noise,
+                     r["local_items"]))
+    return out
+
+
 def main():
+    global SEED_NOISE_ITEMS
     ap = argparse.ArgumentParser()
     ap.add_argument("paths", nargs="+", help="slice dirs with train/test_meta.csv")
+    ap.add_argument("--noise", type=float, default=SEED_NOISE_ITEMS,
+                    help="paired seed sd in items, the divisor every verdict "
+                         "below is scaled by. The default %.1f is dermmnist x "
+                         "MobileNetV3, and dermmnist is REMOVED and was leaked; "
+                         "iwildcam measures 4.75 to 27.83. Pass the number for "
+                         "the dataset and backbone you actually intend to run."
+                         % SEED_NOISE_ITEMS)
     args = ap.parse_args()
+    SEED_NOISE_ITEMS = float(args.noise)
 
     print("DATASET SCREEN -- can a count constraint carry information here?")
-    print("Everything is in ITEMS. Reference: paired seed sd is ~%.1f items and"
-          % SEED_NOISE_ITEMS)
-    print("the whole clip-to-perfect headroom is 1.9-9.9 items on dermmnist.")
+    print("Everything is in ITEMS. Every verdict below is scaled by a paired "
+          "seed sd of")
+    print("%.2f items%s. On iwildcam the measured range is 4.75 to 27.83, so a "
+          "PASS at 2.7"
+          % (SEED_NOISE_ITEMS,
+             " (the default: dermmnist x MobileNetV3, a REMOVED dataset)"
+             if abs(SEED_NOISE_ITEMS - 2.7) < 1e-9 else " (--noise)"))
+    print("can be a DEAD at 27.8. Pass --noise to price it for the dataset you "
+          "will run.")
     print("")
 
     rows = [screen(p) for p in args.paths]
@@ -268,22 +340,8 @@ def main():
     print("")
     for r in rows:
         name = slice_label(r["path"])
-        if r["gcol"] is None:
-            print("  %-22s NO GROUP COLUMN -- the local scope does not exist here."
-                  % name)
-        elif r["net_z"] < 2.0:
-            print("  %-22s DEAD: NET per-group novelty %+.0f items is within "
-                  "sampling noise (z=%.1f)." % (name, r["net_items"], r["net_z"]))
-        elif r["net_items"] < SEED_NOISE_ITEMS:
-            print("  %-22s DEAD: local novelty %.0f items is BELOW the %.1f-item "
-                  "seed noise." % (name, r["local_items"], SEED_NOISE_ITEMS))
-        elif r["local_items"] < 3 * SEED_NOISE_ITEMS:
-            print("  %-22s MARGINAL: local novelty %.0f items against %.1f-item "
-                  "noise." % (name, r["local_items"], SEED_NOISE_ITEMS))
-        else:
-            print("  %-22s STAGE 1 PASS (necessary, not sufficient): local "
-                  "novelty %.0f items, %.0fx seed noise." % (name, r["local_items"],
-                              r["local_items"] / SEED_NOISE_ITEMS))
+        for line in verdict_lines(r, name):
+            print(line)
         if r["unseen_groups"]:
             print("  %-22s   and %d test group(s) are ABSENT from train (%d "
                   "items) -- training carries no prior for them at all."
