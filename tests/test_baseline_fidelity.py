@@ -4491,3 +4491,77 @@ def test_a_launch_scripts_stated_SIZE_and_SIGN_TEST_are_arithmetic_not_prose():
                      flat), (
         "the primary must state that its sign test runs over independent "
         "(model, seed) units, not over cells")
+
+
+# ---------------------------------------------------------------------------
+# Per-class cap fractions (FRAMEWORK 2(z16)). The two capped classes on
+# iwildcam have task windows that DO NOT OVERLAP on MobileNetV3, so one
+# fraction for both cannot express a valid experiment. These gates protect the
+# backward compatibility of every config written before that existed.
+# ---------------------------------------------------------------------------
+
+def _cap_df():
+    import pandas as pd
+    return pd.DataFrame({"label": [2] * 100 + [7] * 200 + [0] * 50,
+                         "g": [0] * 175 + [1] * 175})
+
+
+def test_a_scalar_cap_fraction_is_bit_identical_to_the_historical_behaviour():
+    """Every config written before per-class caps carries a scalar. If this
+    ever changes, every archived budget silently becomes non-comparable.
+    """
+    from src.training.constraints import compute_global_constraints
+    g = compute_global_constraints(_cap_df(), "label", 0.8,
+                                   constrained_class=[2, 7], num_classes=8)
+    assert g[2] == 80 and g[7] == 160
+
+
+def test_a_per_class_cap_fraction_is_read_positionally():
+    from src.training.constraints import (compute_global_constraints,
+                                          compute_local_constraints)
+    g = compute_global_constraints(_cap_df(), "label", [0.8, 1.0],
+                                   constrained_class=[2, 7], num_classes=8)
+    assert g[2] == 80 and g[7] == 200, (
+        "L80-100 on classes [2,7] must cap class 2 at 80%% and class 7 at "
+        "100%%, got %s" % [g[2], g[7]])
+
+    # reversing the list must reverse the budgets, or it is not positional
+    r = compute_global_constraints(_cap_df(), "label", [1.0, 0.8],
+                                   constrained_class=[2, 7], num_classes=8)
+    assert r[2] == 100 and r[7] == 160
+
+    # group 0 = rows 0..174 -> 100 of class 2, 75 of class 7
+    # group 1 = rows 175..349 -> 0 of class 2, 125 of class 7
+    loc = compute_local_constraints(_cap_df(), "label", [0.8, 1.0], "g",
+                                    constrained_class=[2, 7], num_classes=8)
+    assert loc[0][2] == 80 and loc[0][7] == 75
+    assert loc[1][2] == 0 and loc[1][7] == 125
+
+
+def test_NEGATIVE_CONTROL_a_mismatched_cap_list_raises_rather_than_recycling():
+    """Silently recycling or truncating would cap the wrong class at the wrong
+    level and look completely normal in every log.
+    """
+    import pytest as _pytest
+    from src.training.constraints import compute_global_constraints
+    for bad in ([0.8], [0.8, 0.9, 1.0]):
+        with _pytest.raises(ValueError):
+            compute_global_constraints(_cap_df(), "label", bad,
+                                       constrained_class=[2, 7], num_classes=8)
+
+
+def test_the_cap_tag_parses_both_the_scalar_and_the_per_class_form():
+    from configs.gen_campaign import cap_pair
+    assert cap_pair("L30_G50") == [0.30, 0.50]
+    assert cap_pair("L90_G95") == [0.90, 0.95]
+    assert cap_pair("L80-100_G95") == [[0.80, 1.00], 0.95]
+
+
+def test_a_cap_above_100_percent_is_legal_and_still_binds():
+    """K/n = 1.00 is NOT degenerate: on iwildcam class 7 the model predicts 490
+    against 456 true, so a budget equal to the true count still evicts 34.
+    """
+    from src.training.constraints import compute_global_constraints
+    g = compute_global_constraints(_cap_df(), "label", [1.0, 1.2],
+                                   constrained_class=[2, 7], num_classes=8)
+    assert g[2] == 100 and g[7] == 240

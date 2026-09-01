@@ -169,14 +169,33 @@ def _zero_ceilings(P, dataset, local_pct):
 
 
 def cap_pair(tag):
-    """'L30_G50' -> [0.30, 0.50]: (local, global), independent by construction."""
+    """'L30_G50' -> [0.30, 0.50]: (local, global), independent by construction.
+
+    PER-CLASS LOCAL CAPS: 'L80-100_G95' -> [[0.80, 1.00], 0.95]. The list is
+    read POSITIONALLY against `constrained_class`, so L80-100 with classes
+    [2, 7] caps class 2 at 80% and class 7 at 100%.
+
+    WHY (FRAMEWORK 2(z16)). A cap poses a question only where it forces out
+    >= 10 predictions, leaves errors inside K, and sits at p@K < 0.99. On
+    iwildcam those windows are class 2 at K/n 0.70-0.80 and class 7 at
+    0.90-1.00, and on MobileNetV3 they DO NOT OVERLAP -- so a single fraction
+    could not express a valid two-class experiment at all, and every
+    L20/L30/L50 campaign ran on a NON-TASK.
+
+    A percentage ABOVE 100 is legal and is not degenerate: class 7's model
+    predicts 490 against 456 true, so K/n = 1.00 still evicts 34.
+    """
     try:
         local, glob = tag.split("_")
         if local[0] != "L" or glob[0] != "G":
             raise ValueError
-        return [int(local[1:]) / 100.0, int(glob[1:]) / 100.0]
+        parts = local[1:].split("-")
+        loc = ([int(x) / 100.0 for x in parts] if len(parts) > 1
+               else int(parts[0]) / 100.0)
+        return [loc, int(glob[1:]) / 100.0]
     except (ValueError, IndexError):
-        sys.exit("bad cap tag %r -- expected L<pct>_G<pct>, e.g. L30_G50" % tag)
+        sys.exit("bad cap tag %r -- expected L<pct>_G<pct> (e.g. L30_G50) or "
+                 "per-class L<pct>-<pct>_G<pct> (e.g. L80-100_G95)" % tag)
 
 
 def resolve_datasets(P, args):
@@ -209,7 +228,11 @@ def validate(P, args, resolved, arms):
     locals_ = {}
     for tag in args.caps:
         lp, gp = cap_pair(tag)
-        locals_.setdefault(lp, []).append((tag, gp))
+        # A per-class local cap is a LIST and lists are unhashable. Key on a
+        # tuple so the duplicate-experiment check below works for both forms
+        # rather than crashing on the per-class one.
+        key = tuple(lp) if isinstance(lp, (list, tuple)) else lp
+        locals_.setdefault(key, []).append((tag, gp))
     for lp, tags in locals_.items():
         if len({gp for _t, gp in tags}) > 1 and len(tags) > 1:
             print("NOTE: caps %s share local %d%%. They are the SAME experiment "
@@ -217,7 +240,9 @@ def validate(P, args, resolved, arms):
                   "sum of the local caps). Run `python -m scripts.verify_caps "
                   "--caps %s` on the real slices before trusting them as two "
                   "levels."
-                  % ([t for t, _g in tags], int(lp * 100),
+                  % ([t for t, _g in tags],
+                     ("/".join(str(int(x * 100)) for x in lp)
+                      if isinstance(lp, tuple) else int(lp * 100)),
                      " ".join(t for t, _g in tags)))
     # WHICH SCOPE ACTUALLY BINDS, stated per tag. Local caps are per-GROUP
     # ceilings, so their sum is `L * total_true` against the global's
@@ -235,12 +260,23 @@ def validate(P, args, resolved, arms):
     binds = {}
     for tag in args.caps:
         lp, gp = cap_pair(tag)
-        which = ("GLOBAL (local sum is %.1fx slack)" % (lp / gp) if gp < lp
-                 else "LOCAL (global is %.1fx slack)" % (gp / lp) if gp > lp
+        # A per-class local cap has one fraction per capped class, so the
+        # L-vs-G comparison is per class. Report the TIGHTEST, which is the
+        # one that decides whether the local scope can bind at all.
+        lp_list = list(lp) if isinstance(lp, (list, tuple)) else [lp]
+        lp_cmp = max(lp_list)
+        which = ("GLOBAL (local sum is %.1fx slack)" % (lp_cmp / gp) if gp < lp_cmp
+                 else "LOCAL (global is %.1fx slack)" % (gp / lp_cmp) if gp > lp_cmp
                  else "IDENTICAL -- global exactly equals the local sum")
         binds.setdefault(which.split()[0], []).append(tag)
-        print("  cap %-10s L=%d%% G=%d%%  ->  binding scope: %s"
-              % (tag, int(lp * 100), int(gp * 100), which))
+        print("  cap %-12s L=%s G=%d%%  ->  binding scope: %s"
+              % (tag, "/".join("%d%%" % int(x * 100) for x in lp_list),
+                 int(gp * 100), which))
+        if len(lp_list) > 1:
+            print("     ^ PER-CLASS local caps, read positionally against "
+                  "constrained_class. FRAMEWORK 2(z16): the two capped classes "
+                  "have task windows that do not overlap, so one fraction "
+                  "cannot pose a question for both.")
         # 🛑 SUM-SLACKNESS DOES NOT IMPLY NON-BINDING. The line above is
         # pure arithmetic on the two percentages and was written against
         # dermmnist, where every per-group ceiling is positive. A ceiling of
@@ -250,7 +286,7 @@ def validate(P, args, resolved, arms):
         # the local scope inert in the one campaign where it does the most
         # work. So this reads the ACTUAL budgets rather than inferring them.
         for ds in args.datasets:
-            zeros, total = _zero_ceilings(P, ds, lp)
+            zeros, total = _zero_ceilings(P, ds, lp)   # accepts either form
             if zeros:
                 print("     ^ but %s has %d of %d per-group ceiling(s) at "
                       "K=0 for the capped class(es)." % (ds, zeros, total))

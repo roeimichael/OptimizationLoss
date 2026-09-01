@@ -35,6 +35,40 @@ def normalize_constrained_classes(constrained_class):
     return [int(c) for c in out]
 
 
+def cap_fraction_for(percentage, cls, classes):
+    """The cap fraction for ONE capped class. Scalar or one value per class.
+
+    WHY PER-CLASS EXISTS (FRAMEWORK 2(z16), measured 2026-09-01). A cap poses a
+    question only where it forces out >= 10 predictions, leaves errors inside K,
+    and sits at p@K < 0.99. On iwildcam those windows are **class 2: K/n
+    0.70-0.80** and **class 7: K/n 0.90-1.00**, and on MobileNetV3 they DO NOT
+    OVERLAP. With one fraction for every capped class the correct two-class
+    experiment was literally inexpressible, and every L20/L30/L50 campaign this
+    project ran tested a NON-TASK. So this is not a convenience knob.
+
+    A scalar keeps the historical behaviour EXACTLY -- every config written
+    before this existed carries one, and must produce byte-identical budgets.
+
+    A sequence is read in the order `constrained_class` lists the classes, and
+    its length must match. Silently recycling or truncating would cap the wrong
+    class at the wrong level and look completely normal in every log.
+    """
+    if isinstance(percentage, (int, float)):
+        return float(percentage)
+    seq = list(percentage)
+    if len(seq) != len(classes):
+        raise ValueError(
+            "cap fraction list has %d entr(ies) for %d constrained class(es) "
+            "%s. It is read positionally, so a mismatch would cap the wrong "
+            "class at the wrong level."
+            % (len(seq), len(classes), classes))
+    try:
+        return float(seq[list(classes).index(int(cls))])
+    except ValueError:
+        raise ValueError("class %r is not in constrained_class %s"
+                         % (cls, list(classes)))
+
+
 def _round_to_K(count, percentage, scope_label):
     """Round count*percentage to an integer K and refuse to silently produce K=0
     when there ARE samples to classify. K=0 with count>0 is a config bug
@@ -75,7 +109,8 @@ def compute_global_constraints(data, target_col, percentage, constrained_class,
     constraints = [UNLIMITED] * num_classes
     for c in classes:
         count = (data[target_col] == c).sum()
-        constraints[c] = _round_to_K(count, percentage, f"global K (class {c})")
+        pct = cap_fraction_for(percentage, c, classes)
+        constraints[c] = _round_to_K(count, pct, f"global K (class {c})")
     return constraints
 
 
@@ -90,7 +125,8 @@ def compute_local_constraints(data, target_col, percentage, group_col,
         constraints = [UNLIMITED] * num_classes
         for c in classes:
             count = (gdata[target_col] == c).sum()
+            pct = cap_fraction_for(percentage, c, classes)
             constraints[c] = _round_to_K(
-                count, percentage, f"local K (group {group}, class {c})")
+                count, pct, f"local K (group {group}, class {c})")
         local[group] = constraints
     return local
