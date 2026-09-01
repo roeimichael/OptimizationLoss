@@ -2605,6 +2605,142 @@ mid-window on BOTH classes (which no cell here achieves -- every cell above sits
 at a window EDGE for at least one class), and it adds `tralo_cut`. It is no
 longer the only way to ask the question.
 
+### (z20) 🟢🟢🟢 ON THE HEADLINE BACKBONE, IN THE ONE CELL THAT IS A MEASURED
+TASK, `tralo` IS THE ONLY ARM POSITIVE ON EVERY METRIC AND IT CLEARS THE RNG
+FLOOR BY 2.8x.
+
+`loosevit1` (ViTB16, iwildcam, 48 runs, all completed) lives in a SIXTH
+worktree, `~/optloss-loosevit`, which was not in CLAUDE.md's checkout list. Its
+two cap tags are `L80_G95` and `L90_G95`, and 2(z17)'s ViTB16 windows (class 2
+**0.60-0.90**, class 7 **0.90-1.00**) split them:
+
+| cell | class 2 K/n | class 7 K/n | verdict |
+|---|---|---|---|
+| **`L90_G95`** | 0.900 | 0.901 | ✅ **TASK on both classes** |
+| `L80_G95` | 0.800 | 0.798 | ⛔ class 7 below its window |
+
+Gates first: dose **116/116 on both trained arms in both cells**, `check_parity`
+OK, one `code_version` `74f858657154`, not quarantined, `n_md5 = 4` for every
+arm in every cell (no inert flag). 4 seeds everywhere.
+
+**Each arm MINUS its own `tralo_null` twin. ✅ TASK CELL `L90_G95`:**
+
+| arm | dAP | dAUROC | dccF1 | dmacroF1 | ccF1 items |
+|---|---|---|---|---|---|
+| **`tralo`** | **+0.0083** | **+0.0023** | **+0.0018** | **-0.0008** | **+1.41** |
+| `tralo_uniform` | -0.0162 | -0.0019 | -0.0045 | -0.0129 | -3.50 |
+| `clip` | -0.0230 | -0.0037 | -0.0077 | -0.0137 | -6.05 |
+| `focal_clip` | -0.0070 | -0.0001 | -0.0039 | -0.0169 | -3.07 |
+| **`tralo_reseed` (RNG FLOOR)** | -0.0113 | -0.0010 | **-0.0006** | -0.0384 | **-0.51** |
+
+🟢 **`tralo` is the ONLY arm positive on all four**, and its ccF1 movement is
+**1.41 items against an RNG floor of 0.51 -- 2.8x.** This is the first time in
+this project that a trained arm's ccF1 movement clears its own reseed floor in
+a cell whose cap is a MEASURED task. Its macroF1 damage is **-0.0008**, i.e.
+none, while the floor itself sits at -0.0384 and every other arm at -0.0129 to
+-0.0169.
+
+⛔ **AND `tralo_uniform` IS BELOW THE FLOOR HERE**, -3.50 items against -0.51,
+which is 2(z11)'s tight-cap verdict reproduced in a task cell. The uniform count
+is not the fix.
+
+**The NON-task cell `L80_G95`, same campaign, same arms:**
+
+| arm | dAP | dccF1 | ccF1 items |
+|---|---|---|---|
+| `tralo` | +0.0045 | +0.0015 | +1.13 |
+| **`tralo_reseed`** | -0.0113 | +0.0012 | **+0.91** |
+
+⇒ `tralo` is +1.13 items against a floor of +0.91 -- only **1.24x**. **The task
+cell separates the constraint from the noise more than twice as well as the
+non-task cell does** (2.8x vs 1.24x), on the same campaign, the same backbone
+and the same arms, with only the cap moved from K/n 0.80 to 0.90.
+
+⚠️ **AND IT DOES NOT REPRODUCE THE SIGN OF 2(z19).** On MobileNetV2/V3
+(`equaldose1`) restricting to task cells made the ratio WORSE (1.10x -> 0.68x);
+on ViTB16 it makes it BETTER (1.24x -> 2.8x). So "task cells help" is NOT
+established as a general rule -- what IS established is that the cell selection
+changes the answer, in both directions, which is why it must be measured rather
+than assumed.
+
+🛑 **ONE CELL. NOT CALLABLE.** A single cell has a minimum attainable sign-test
+p of 0.500, and 4 seeds give 0.125 at best. This is a DIRECTION on the
+pre-registered headline backbone, not a result, and it must never be quoted as
+significant. The floor it clears is itself 0.51 items, which is small enough
+that a second cell could move the ratio a long way.
+
+⇒ **THE NEXT CAMPAIGN IS ViTB16 AT SEVERAL TASK CELLS.** ViTB16's two windows
+overlap only at K/n=0.90, so more cells require the per-class cap form
+(2(z16)): e.g. `L70-90_G95`, `L80-95_G95`, `L85-100_G95` all sit mid-window on
+both classes. This supersedes MISSION queue item 2's "more loose cap tags",
+which would have added cells that are not tasks.
+
+### (z21) 🟢🟢 `dom1` READ ON ITS TASK CELLS: `tralo` CLEARS ITS OWN RNG FLOOR
+IN **4 OF 4**, LEADS EVERY RIVAL DUAL ON ccF1, AND `tralo_uniform` IS BELOW THE
+FLOOR IN 4 OF 4.
+
+`dom1` (384 runs, **16 arms**, MobileNetV2 + MobileNetV3, `L80_G95` `L90_G95`
+`L95_G80`) is complete, 4 seeds in every cell, `n_md5 == n_seeds` in all 96
+cells (no inert flag). Its value here is that **each dual carries its OWN
+lambda=0 null** (`alm_null`, `fioretto_null`, `hounie_null`, `tralo_null`), so
+every number below is that method's constraint term, not its compute.
+
+2(z17)'s windows make 4 of its 6 cells tasks: all three MobileNetV2 caps plus
+`MobileNetV3/L90_G95`.
+
+**ccF1 in ITEMS, each arm minus ITS OWN null, per cell. T = task cell:**
+
+| cell | | `tralo` | `alm` | `fioretto` | `hounie` | `uniform` | **FLOOR** |
+|---|---|---|---|---|---|---|---|
+| MobileNetV2/L80_G95 | **T** | **13.23** | 12.95 | 6.61 | 2.98 | 7.53 | 9.34 |
+| MobileNetV2/L90_G95 | **T** | **11.26** | 7.86 | 9.14 | 8.47 | 4.78 | 6.84 |
+| MobileNetV2/L95_G80 | **T** | 11.61 | **12.64** | 6.38 | 10.23 | 2.11 | 5.63 |
+| MobileNetV3/L90_G95 | **T** | 13.72 | 10.46 | **15.17** | 11.82 | 10.62 | 10.68 |
+| MobileNetV3/L80_G95 | | 7.21 | **11.35** | 2.09 | 6.10 | 8.49 | 8.89 |
+| MobileNetV3/L95_G80 | | 7.30 | 6.41 | 7.02 | 7.37 | **9.51** | 5.86 |
+
+**Above its own floor, in the 4 TASK cells:**
+
+| arm | cells above floor | mean items | ratio to floor |
+|---|---|---|---|
+| **`tralo`** | **4 / 4** | **12.46** | **1.53x** |
+| `alm` | 3 / 4 | 10.98 | 1.35x |
+| `fioretto` | 3 / 4 | 9.32 | 1.15x |
+| `hounie` | 3 / 4 | 8.37 | 1.03x |
+| **`tralo_uniform`** | **0 / 4** | 6.26 | **0.77x** |
+| `tralo_reseed` (the floor) | -- | 8.12 | 1.00x |
+
+🟢 **`tralo` is the only arm above its floor in every task cell**, and it leads
+every rival dual on mean ccF1 items. `alm` leads on AP (+0.0426 vs +0.0403), so
+the ordering is metric-dependent and must be quoted as such. 4/4 is a sign-test
+p of 0.0625 -- a DIRECTION, not significance.
+
+⛔ **`tralo_uniform` IS BELOW THE FLOOR IN 4 OF 4 TASK CELLS.** 2(z11) found it
+below the floor at tight caps; it is below the floor in the task regime too.
+**The uniform count is refuted where it matters, not only where it does not.**
+
+🔴 **AND THE ORDERING SCRAMBLES IN THE 2 NON-TASK CELLS**, exactly as 2(z19)
+found on `equaldose1`: `tralo` clears its floor in only 1 of 2 there, and
+`tralo_uniform` -- bottom of the table in the task cells -- is the best arm in
+`MobileNetV3/L95_G80`. Cell selection changes the winner. Every historical
+ranking in this project pooled cells without asking which posed a question.
+
+⚠️ **THE macroF1 SIGN FLIPS WITH THE CELL TYPE, AND THE FLOOR FLIPS WITH IT.**
+In the task cells every method's macroF1 vs its own null is neutral-to-positive
+(`tralo` +0.0008, `alm` +0.0044, floor **+0.0047**); in the non-task cells every
+one is negative (-0.0064 to -0.0170, floor **-0.0124**). So the universal
+macroF1 damage of 2(xfam1) is confined to the non-task cells in ABSOLUTE terms
+-- but the RNG floor moves the same way and by the same amount, so **relative to
+the floor the damage does not disappear** (`tralo` is -0.0039 vs floor in task
+cells and +0.0041 in non-task). Quote the ratio, never the raw delta.
+
+🛑 **THE FLOOR IS NOT PORTABLE BETWEEN CAMPAIGNS.** `dom1`'s reseed floor is
+**5.63-10.68 items** per task cell; `equaldose1`'s, on the SAME two backbones at
+the SAME three cap tags, is **3.39** and of the opposite sign. A floor measured
+in one campaign says nothing about another -- it must come from the reseed arm
+inside the campaign being scored. This is 2(v)'s "say which of the four noise
+numbers you mean", now with a fifth axis: WHICH CAMPAIGN.
+
 ### (z11) 🔴🔴🔴 AT THE ITEM LEVEL THE CONSTRAINT IS AT THE RNG FLOOR, AND
 `tralo_uniform` IS BELOW IT IN BOTH REGIMES
 

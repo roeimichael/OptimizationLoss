@@ -632,9 +632,19 @@ pipeline -- there is no setting to get wrong. Same for the CE-saturation skip
   `-dirty` and does not move HEAD.
 - 🛑 **THE CAMPAIGN CHECKOUT IS A WORKTREE, SO THE FREEZE COVERS GIT PLUMBING TOO.**
   `~/optloss-audit/.git` is a FILE, not a directory:
-  `gitdir: /home/dsi/michaer8/OptimizationLoss/.git/worktrees/optloss-audit`. Four
-  worktrees share **one object store** in `~/OptimizationLoss/.git` -- `OptimizationLoss`
-  itself, `optloss-audit` (LIVE), `optloss-select`, and `OL-replication`. So a command run
+  `gitdir: /home/dsi/michaer8/OptimizationLoss/.git/worktrees/optloss-audit`.
+  ⛔ **FOURTEEN worktrees share ONE object store** in `~/OptimizationLoss/.git`
+  (this file said FOUR until 2026-09-01, and the freeze below is only as wide as
+  the list it names). Counted with `git worktree list`:
+  `OptimizationLoss` itself, `OL-replication` (**marked `prunable`**),
+  `optloss-audit`, `optloss-cutwin`, `optloss-dom`, `optloss-domb`,
+  `optloss-equaldose`, `optloss-iwc4`, `optloss-loose`, `optloss-loosevit`,
+  `optloss-select`, `optloss-uniform`, `optloss-vitdom2`, `optloss-vitu`.
+  🔑 **AND RESULTS ARE SCATTERED ACROSS THEM, NOT COLLECTED.** `loosevit1` --
+  the only iwildcam ViTB16 campaign at loose caps, and the source of 2(z20) --
+  sits in `optloss-loosevit`, which no doc listed, so nobody had scored it.
+  Run `git worktree list` and inventory `*/results/` before concluding that a
+  question has no data. So a command run
   in a SIBLING checkout can reach into the running campaign's git. While a campaign is
   running, **never run `git gc`, `git prune`, `git repack`, `git reflog expire` or
   `git worktree prune` anywhere in that family**, including in a checkout that looks

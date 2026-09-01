@@ -35,6 +35,49 @@ dataset that cannot test the thesis.
 
 ---
 
+## 🟢 0-RESULT. WHAT THE TASK WINDOW CHANGED, 2026-09-01
+
+2(z17) made it possible to ask, for the first time, whether a cell poses a
+question. Applying that to campaigns **already complete on disk** -- no GPU --
+changes the picture. Read each arm against **its own lambda=0 null**, and price
+it against the **`tralo_reseed` floor measured inside the same campaign**.
+
+| campaign | backbone(s) | task cells | `tralo` vs ITS floor, ccF1 items |
+|---|---|---|---|
+| **`dom1`** (384 runs, 16 arms) | MobileNetV2/V3 | 4 of 6 | **12.46 vs 8.12 = 1.53x, above in 4/4 cells** |
+| **`loosevit1`** (48 runs) | **ViTB16 (headline)** | 1 of 2 | **1.41 vs 0.51 = 2.8x**, only arm positive on all four metrics |
+| `equaldose1` (216 runs, 9 arms) | MobileNetV2/V3 | 4 of 6 | 2.32 vs 3.39 = **0.68x** |
+
+✅ **`tralo` leads every rival dual on ccF1 in the task cells of both `dom1`
+and `equaldose1`, and is the only arm above its own floor in 4/4 of `dom1`'s.**
+`alm` leads on AP in `dom1` (+0.0426 vs +0.0403), so the ordering is
+metric-dependent -- say which metric every time.
+
+✅ **The dose objection is closed.** `equaldose1`: `tralo` +0.0275 AP against
+the dose-matched `tralo_lam0` +0.0287. The 3.4% step head start is not the
+source of the lead.
+
+⛔ **`tralo_uniform` is below the floor in 4 of 4 `dom1` task cells** and at
+-3.50 items against a 0.51 floor on ViTB16. It was already below the floor at
+tight caps (2(z11)). It is refuted in every regime now measured.
+
+🔴 **NOT ESTABLISHED, and do not let the above imply it.** Every figure here is
+a mean over cells or a 4/4 sign count -- min sign-test p is 0.0625, and
+`full_panel`'s paired reading calls every line UNDERPOWERED (9-17 seeds needed).
+`equaldose1` puts `tralo` BELOW its floor at 0.68x on the same backbones and
+caps where `dom1` puts it above at 1.53x, and the two campaigns' floors differ
+2.4x in magnitude and in SIGN. **The floor is not portable between campaigns**
+(2(z21)); measure it inside whatever is being scored.
+
+🔑 **The one structural claim that IS supported across all three campaigns:
+which method looks best depends on whether the cell poses a question.** `alm`
+is best on ccF1 in `equaldose1`'s non-task cells and second-worst in its task
+cells; `tralo_uniform` is the best arm in one `dom1` non-task cell and the worst
+in all four task cells. Every historical ranking in this project pooled cells
+without asking.
+
+---
+
 ## 🔴 0-NOW. THE TWO DEFECTS, FOUND 2026-08-31/09-01
 
 Four measurements, in the order they were made. FRAMEWORK 2(z11), 2(z12),
@@ -205,7 +248,7 @@ L95_G80. Only **20 distinct warm-up models** exist across all five campaigns.
 | knob | verdict | evidence |
 |---|---|---|
 | `soft_count_mode: sum` (shipped) | 🟡 wins LOOSE, loses TIGHT -- **and the reason is now known**, 2(y) | AP +0.0253..+0.0064 loose / -0.0572..-0.0933 tight. The gradient sits at the boundary, 200-440 ranks from the cut when the cap is tight |
-| `soft_count_mode: uniform` | ✅ **the tight-cap tool**, and 2(y) says why: a flat slope declines to aim | ViTB16 AP **+0.0087 tight** (only arm above the floor) / **-0.0091 loose**. `uniform1` -0.0754 -> +0.0030 |
+| `soft_count_mode: uniform` | ⛔ **REJECTED 2026-09-01.** Was logged as "the tight-cap tool", but tight caps are now measured NON-TASKS (2(z17)) and in the cells that ARE tasks it is **below its own reseed floor in 4 of 4** (2(z21)) and **-3.50 items against a 0.51 floor on ViTB16** (2(z20)). Its founding order-preservation claim was also refuted (0-NOW (2)) | old row: ViTB16 AP +0.0087 tight / -0.0091 loose, `uniform1` -0.0754 -> +0.0030. Those tight-cap numbers stand as measurements and no longer support the verdict |
 | `soft_count_mode: margin` | ⛔ **NEVER RUN, AND NOW REPRICED DOWNWARD** (2026-09-01). Still staged as `margin2` (432 runs) but it windows the BOUNDARY, and the boundary is measured to carry **exactly 0.0000** of the gradient at the cut. 🛑 **Run `taskwin1` first** | cosine **0.989** to `tralo` on real features, so 432 runs would mostly reproduce `tralo`. FRAMEWORK 2(z12) |
 | `soft_count_mode: cut` (**NEW**, `tralo_cut`) | 🟢 **BUILT, GATED, STAGED as `taskwin1`** -- the fix 0-NOW derives. Value stays exactly `sum_i p_ic`, only the gradient weight moves to a window on rank K, width in ITEMS. ⚠️ **NOT predicted to win** -- aiming is necessary, not sufficient | mass at the cut **0.0001 -> 0.3486** (pooled, 24 run-class pairs, real features). Chunked gradient == full-N exactly (maxdiff 0.00e+00). `flag_live` md5-distinct on every binding seed. 423 tests, `audit_config`, `smoke_arms --matrix` all green |
 | `tralo_st` (hard-count value fix) | ❓ **NEVER RUN** -- same campaign | isolates VALUE from PLACEMENT |
@@ -366,7 +409,23 @@ and FRAMEWORK 3(0), then start the next.
    The same two cap tags are ALSO inside ViTB16's measured windows (class 2
    0.60-0.90, class 7 0.90-1.00), so the ViTB16 extension needs no new cap
    design, only GPUs.
-2. 🔴 **ViTB16 LOOSE, from 2 cells to >= 6.** `loosevit1` already exists, is
+2. 🔴🔴 **ViTB16 AT SEVERAL TASK CELLS -- now the highest-value campaign.**
+   2(z20): on the headline backbone, in the ONE cell that is a measured task
+   (`loosevit1/ViTB16/L90_G95`), `tralo` is the only arm positive on AP, AUROC,
+   ccF1 and macroF1, and its 1.41 items is **2.8x** its own reseed floor. One
+   cell cannot reach significance; more task cells can.
+   🔑 ViTB16's two windows overlap only at K/n=0.90, so more cells REQUIRE
+   per-class caps (2(z16)). Generate with:
+   ```
+   python -m configs.gen_campaign --root results/vittask1 --datasets iwildcam \n     --models ViTB16 --caps L70-90_G95 L80-95_G95 L85-100_G95 --arms all+null
+   ```
+   ⛔ **AND IT REPLACES `vitdom2_vit`, WHICH IS STAGED WRONG.** That campaign
+   sits at 0/108 in `~/optloss-vitdom2` with caps `L30_G50 L60_G95 L90_G95`:
+   on ViTB16 only `L90_G95` is a task, so **2 of its 3 cap tags -- 72 of 108
+   runs -- would measure nothing.** It predates the window gate, which now
+   refuses exactly this. Do not launch it as staged.
+2b. 🔴 **ViTB16 LOOSE, from 2 cells to >= 6.** (superseded framing, kept for
+   its numbers) `loosevit1` already exists, is
    100% dose, md5-clean, single `code_version`, carries `tralo_null` +
    `tralo_reseed` + both clippers -- and on it **`tralo` is positive on every
    metric including macroF1** (AP +0.0064, ccF1 +0.0017, macroF1 +0.0021, all
