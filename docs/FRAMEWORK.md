@@ -8091,6 +8091,37 @@ L20, 546 at L30/L50, 7 at K/n=0.9). The design is under-powered by 3-9x at
 `L90_G95`, which the per-seed re-measurement reclassified as PARTIAL
 (2(z24b)). At the strict bar the claim is a coin flip.
 
+### 🎯 THE COROLLARY: TWO STAGED CAMPAIGNS CROSS p<0.05, AND NOTHING ELSE DOES
+
+At `n` unanimous units the one-sided sign test is exactly `0.5^n`:
+
+| units | p | |
+|---|---|---|
+| 4 (today) | 0.0625 | above the bar, and it CANNOT go lower |
+| **5** | **0.03125** | **below** |
+| 6 | 0.01562 | below |
+
+Verified against `configs.task_cells.classify` on 2026-09-01:
+
+| campaign | backbone | cap | status | buys |
+|---|---|---|---|---|
+| `taskwin2` | MobileNetV3 | `L70-90_G95` | **task** | **unit 5** |
+| `taskwin2` | MobileNetV3 | `L80-100_G95` | `unmeasured` | nothing -- c7 sits at K/n 0.950 |
+| `vittask1` | ViTB16 | `L60-90_G95` | **task** | **unit 6**, and it is the HEADLINE backbone |
+| `vittask1` | ViTB16 | `L70-90_G95` | **task** | same unit (one campaign, one warm-up) |
+
+Both are already staged, single `code_version`, `constraint_fp32: true`,
+warm-up 1 / constraint 29, six arms including `tralo_null` and
+`tralo_reseed`. `taskwin2` is at 39/48 with dose **203/203 and 174/174**.
+
+🔑 **So the deciding experiment is not a new idea -- it is finishing the two
+campaigns already on the disk.** No knob, no loss variant and no extra cap
+level moves the headline p below 0.05; only a fifth and sixth independent unit
+does. Anything that delays those two campaigns costs the result directly.
+
+⚠️ **And it can go the other way.** Unit 5 disagreeing takes 4/5 to p=0.1875 --
+WORSE than today. The two campaigns are the test, not a formality.
+
 ✅ **WHAT MAY BE WRITTEN.** "In every independent unit measured, the constraint
 moves cc-F1 in TraLO's favour relative to its own lambda=0 twin (4/4 units,
 sign p=0.0625, +1.6 to +13.2 items)", stated beside the unit count, the

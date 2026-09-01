@@ -140,6 +140,37 @@ Broken to paper-level items with `scripts/paper_rows.py` -- one row per
 * ⛔ **Dominance over the rival duals is NOT shown**: `tralo` is #1 of four in
   **3 of 6** strict cells. The `dom1` "leads all four" reading included
   `L90_G95`, now PARTIAL.
+### 🎯 THE COROLLARY: TWO STAGED CAMPAIGNS CROSS p<0.05, AND NOTHING ELSE DOES
+
+At `n` unanimous units the one-sided sign test is exactly `0.5^n`:
+
+| units | p | |
+|---|---|---|
+| 4 (today) | 0.0625 | above the bar, and it CANNOT go lower |
+| **5** | **0.03125** | **below** |
+| 6 | 0.01562 | below |
+
+Verified against `configs.task_cells.classify` on 2026-09-01:
+
+| campaign | backbone | cap | status | buys |
+|---|---|---|---|---|
+| `taskwin2` | MobileNetV3 | `L70-90_G95` | **task** | **unit 5** |
+| `taskwin2` | MobileNetV3 | `L80-100_G95` | `unmeasured` | nothing -- c7 sits at K/n 0.950 |
+| `vittask1` | ViTB16 | `L60-90_G95` | **task** | **unit 6**, and it is the HEADLINE backbone |
+| `vittask1` | ViTB16 | `L70-90_G95` | **task** | same unit (one campaign, one warm-up) |
+
+Both are already staged, single `code_version`, `constraint_fp32: true`,
+warm-up 1 / constraint 29, six arms including `tralo_null` and
+`tralo_reseed`. `taskwin2` is at 39/48 with dose **203/203 and 174/174**.
+
+🔑 **So the deciding experiment is not a new idea -- it is finishing the two
+campaigns already on the disk.** No knob, no loss variant and no extra cap
+level moves the headline p below 0.05; only a fifth and sixth independent unit
+does. Anything that delays those two campaigns costs the result directly.
+
+⚠️ **And it can go the other way.** Unit 5 disagreeing takes 4/5 to p=0.1875 --
+WORSE than today. The two campaigns are the test, not a formality.
+
 * 🔑 **Power tracks `K/n`.** The single cell that resolves needs 2 seeds and is
   the highest-`K/n` cell present; `L80` cells need 13-37 and we run 4. If a
   cell must resolve on its own, run it at high `K/n` or run 10+ seeds.
