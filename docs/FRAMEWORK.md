@@ -8081,6 +8081,56 @@ null -- which is what `uniform1` pre-registered, in those words.
   which is a different property. **Any claim that the method cannot work must
   say `K/n` before it says anything else.**
 
+### 2(z27) 🛑🛑🛑 **THE INDEPENDENT UNIT IS (backbone, HOST). A NEW CAMPAIGN BUYS NOTHING**
+
+Measured 2026-09-01: md5 of `final_predictions_raw.csv` for EVERY `tralo_null`
+on iwildcam across all 14 worktrees, grouped by (backbone, seed).
+
+**There are EXACTLY TWO distinct null models per (backbone, seed), however many
+campaigns exist.** Nine MobileNetV3 campaigns share two models. And the two
+groups are the two HOSTS:
+
+| group | GPU | `amp_dtype` | `grad_scaler` | campaigns |
+|---|---|---|---|---|
+| **a** | NVIDIA RTX PRO 6000 (dsisco02) | `bfloat16` | False | `dom1` `loose1` `uniform1` `xfam1` |
+| **B** | Quadro RTX 6000 (dsisco01) | `float16` | True | `equaldose1` `iwc1` `iwc3` `iwc4` `taskwin2` |
+
+🛑 **`base_model_id` IS IDENTICAL ACROSS BOTH GROUPS** --
+`MobileNetV3_iwildcam_f598484ecba1` for all five campaigns checked -- so the id
+CANNOT separate them and only the md5 can. The warm-up is genuinely shared; the
+divergence is the numerics of the 29 lambda=0 epochs. This is the mirror of the
+usual cache trap: there the id collides and the model is reused; here the id
+collides and the model is NOT the same.
+
+**This confirms the unit map of 2(z26) exactly**, and explains it:
+
+| unit | backbone | host | campaigns |
+|---|---|---|---|
+| A1 | MobileNetV2 | a / dsisco02 | `dom1` = `loose1` byte-identically |
+| A2 | MobileNetV2 | B / dsisco01 | `equaldose1` |
+| B1 | RegNetY400MF | B / dsisco01 | `dom1b` |
+| B2 | RegNetY400MF | a / dsisco02 | `loose1` |
+
+🔑 **THE OPERATIONAL RULE, AND IT DECIDES WHAT TO RUN NEXT:**
+
+> **A new campaign on an already-used (backbone, host) buys NO independent
+> unit.** There are 4 backbones x 2 hosts = **8 possible units** on iwildcam,
+> and four are spent. Another MobileNetV2 or RegNetY400MF campaign on either
+> host adds cells and adds nothing to the sign test.
+
+So `taskwin2` (MobileNetV3 x dsisco01) and `vittask1` (ViTB16 x dsisco01) are
+units 5 and 6 **because they are new BACKBONES**, not because they are new
+campaigns -- and units 7 and 8 are the same two backbones on dsisco02, which is
+the cheapest remaining evidence in the project. No new design, no new knob.
+
+⚠️ **AND SAY WHAT THE AXIS IS, EVERY TIME.** These units are independent
+MODELS. They are not independent datasets, splits or tasks: all of them sit on
+one iwildcam slice. A sign test over them supports **"the sign is stable across
+backbones and numerics"**, never "across datasets". The second dataset question
+(2(w2), 2(w2c)) is a different and still-open one.
+
+---
+
 ### 2(z26) 🛑🛑🛑 **BROKEN TO PAPER-LEVEL ITEMS, ONE ROW IN 158 RESOLVES**
 
 `scripts/paper_rows.py` (added 2026-09-01, `--self-test` gates it) emits one

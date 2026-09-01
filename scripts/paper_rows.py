@@ -45,24 +45,42 @@ import math
 import os
 import sys
 
-# MEASURED INDEPENDENT UNITS. The key is md5 of `final_predictions_raw.csv`
-# on the lambda=0 twin -- the model BOTH arms of a contrast are built on.
+# MEASURED INDEPENDENT UNITS, and THE UNIT IS (backbone, HOST).
 #
-# CELLS ARE NOT REPLICATES. `dom1` and `loose1` are byte-identical on
-# MobileNetV2 in 8/8 (cap, seed) pairs, because a campaign's two cap levels
-# share one warm-up and the two campaigns were generated from one config. So
-# eight MobileNetV2 cells are FOUR units, a 4/4 agreement is p=0.0625 and NOT
-# p=0.0039, and quoting the cell count as the replicate count inflates the
-# evidence by two orders of magnitude.
+# Measured 2026-09-01 by md5'ing `final_predictions_raw.csv` of every
+# `tralo_null` on iwildcam across all 14 worktrees. The result is not one model
+# per campaign -- it is EXACTLY TWO per (backbone, seed), however many
+# campaigns exist. Nine MobileNetV3 campaigns share two models. And the two
+# groups are the two HOSTS:
+#
+#   group a  RTX PRO 6000 (dsisco02)  bfloat16  grad_scaler False
+#            dom1  loose1  uniform1  xfam1
+#   group B  Quadro RTX 6000 (dsisco01)  float16  grad_scaler True
+#            equaldose1  iwc1  iwc3  iwc4  taskwin2
+#
+# `base_model_id` is IDENTICAL across both groups (`MobileNetV3_iwildcam_
+# f598484ecba1`), so the id cannot separate them and only the md5 can. What
+# differs is the numerics of the 29 lambda=0 epochs, not the warm-up.
+#
+# 🛑 CONSEQUENCE: A NEW CAMPAIGN ON AN ALREADY-USED (backbone, host) BUYS NO
+# UNIT. There are 4 backbones x 2 hosts = 8 possible units on iwildcam and four
+# are spent. `taskwin2` (MobileNetV3 x dsisco01) and `vittask1` (ViTB16 x
+# dsisco01) are units 5 and 6 because they are new BACKBONES, not new
+# campaigns.
+#
+# ⚠️ AND SAY WHAT THE AXIS IS. These units are independent MODELS. They are
+# not independent datasets, splits or tasks -- all four share one iwildcam
+# slice. A sign test over them supports "the sign is stable across backbones
+# and numerics", never "across datasets".
 #
 # An entry ABSENT here is UNVERIFIED, not independent -- the default must not
 # be the flattering one.
 MEASURED_UNITS = {
-    ("dom1", "MobileNetV2"): "A1",
-    ("loose1", "MobileNetV2"): "A1",        # md5-identical to dom1, 4/4 seeds
-    ("equaldose1", "MobileNetV2"): "A2",    # distinct md5
-    ("dom1b", "RegNetY400MF"): "B1",
-    ("loose1", "RegNetY400MF"): "B2",       # distinct md5
+    ("dom1", "MobileNetV2"): "A1",          # a / dsisco02
+    ("loose1", "MobileNetV2"): "A1",        # a -- md5-identical to dom1, 4/4
+    ("equaldose1", "MobileNetV2"): "A2",    # B / dsisco01
+    ("dom1b", "RegNetY400MF"): "B1",        # B / dsisco01
+    ("loose1", "RegNetY400MF"): "B2",       # a / dsisco02
 }
 
 # The contrasts a paper row may carry, and what each one licenses.

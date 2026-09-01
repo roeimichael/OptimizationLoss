@@ -171,6 +171,15 @@ does. Anything that delays those two campaigns costs the result directly.
 ⚠️ **And it can go the other way.** Unit 5 disagreeing takes 4/5 to p=0.1875 --
 WORSE than today. The two campaigns are the test, not a formality.
 
+🔑 **AND UNITS 7 AND 8 ARE FREE.** The unit is `(backbone, HOST)`, measured
+2026-09-01 (FRAMEWORK 2(z27)): there are exactly TWO null models per
+(backbone, seed) across all 14 worktrees, and they are dsisco02/bfloat16 vs
+dsisco01/float16. So `taskwin2` and `vittask1` re-run on **dsisco02** are units
+7 and 8 at no design cost -- 6/6 is p=0.0156, 8/8 is p=0.0039. Blocked today
+only because all four dsisco02 GPUs are held by other users.
+⛔ **And the converse: another MobileNetV2 or RegNetY400MF campaign on either
+host buys NO unit.** It adds cells and moves no p-value.
+
 * 🔑 **Power tracks `K/n`.** The single cell that resolves needs 2 seeds and is
   the highest-`K/n` cell present; `L80` cells need 13-37 and we run 4. If a
   cell must resolve on its own, run it at high `K/n` or run 10+ seeds.
