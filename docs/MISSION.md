@@ -282,7 +282,25 @@ distribution", not "local vs global".
 Work top-down. When one finishes, score it, update sections 1-2 of this file
 and FRAMEWORK 3(0), then start the next.
 
-0. 🟢 **RUNNING: `equaldose1`** (216 runs, dsisco01 GPU 3, pin `10d37518`).
+0. 🟢 **RUNNING (204/216): `equaldose1`** -- and it has ALREADY ANSWERED
+   BOTH ITS OWN QUESTION AND `taskwin1`'s. FRAMEWORK 2(z19).
+   ✅ **Dose: closed, in TraLO's favour.** `tralo` +0.0275 AP against
+   `tralo_lam0` +0.0287 -- indistinguishable, so the 3.4% step head start is
+   NOT the source of the lead.
+   ✅ **4 of its 6 cells are inside the measured task window** (all three
+   MobileNetV2 caps + `MobileNetV3/L90_G95`), and in those cells `tralo` leads
+   every rival on ccF1 (+2.32 items vs `fioretto` +1.62, `alm` -0.73, `hounie`
+   -2.30, both clippers below -2.7) and is the ONLY arm with near-zero macroF1
+   damage (-0.0011).
+   🔴 **But the RNG reseed floor in those cells is 3.39 items against
+   `tralo`'s 2.32 -- 0.68x, BELOW the floor**, and restricting to task cells
+   makes that ratio worse, not better (1.10x over all 6).
+   🔑 **The ordering CHANGES with cell selection**: `alm` is best on ccF1 in
+   the non-task cells (+5.85) and second worst in the task cells (-0.73).
+   ⚠️ Means over cells, not paired tests; the nulls' effective n is 2, not 6.
+   Directions and ordering only -- no ratios until 216/216.
+   (original framing below)
+0b. 🟢 **RUNNING: `equaldose1`** (216 runs, dsisco01 GPU 3, pin `10d37518`).
    Is the dominance claim a 3.4% head start? `tralo` and `alm` attempt 29
    constraint steps per run, `fioretto` and `hounie` 28, at identical
    `constraint_epochs: 29` -- verified at the gradient level (epoch-1 grad norm

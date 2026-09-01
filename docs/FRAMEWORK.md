@@ -2536,6 +2536,75 @@ or a backbone whose unconstrained count sits much further from K).
 the non-tasks that defect (4) identifies.** Neither was visible without the
 other, and the pair together explains the tie history better than either alone.
 
+### (z19) 🟢🔴 THE TASK-WINDOW QUESTION IS ANSWERABLE ON DATA ALREADY IN HAND,
+AND IT ANSWERS BOTH WAYS: `tralo` LEADS EVERY RIVAL IN THE TASK CELLS, AND
+STILL DOES NOT CLEAR THE RNG FLOOR.
+
+`equaldose1` was built for a different question (is TraLO's lead a 3.4% step
+head start?), but its caps are LOOSE, and 2(z17)'s measured windows put **4 of
+its 6 cells inside the window on both capped classes**: all three MobileNetV2
+caps, plus `MobileNetV3/L90_G95`. So the question `taskwin1` was staged to ask
+is answerable now, at 4 cells with 9 arms and no GPU.
+
+Integrity first: dose **100% on every arm**, `check_parity` OK, one
+`code_version` `10d375183f8c`, not quarantined, `n_md5 == n_seeds` in every
+cell (no inert flag). All four task cells hold 4 seeds; the 12 unfinished runs
+sit in `MobileNetV3/L95_G80`, a NON-task cell.
+
+**Each arm MINUS its own `tralo_null` twin, mean over cells, ccF1 in items:**
+
+| arm | TASK cells (4) dAP | dccF1 items | dmacroF1 | NON-task (2) dccF1 items |
+|---|---|---|---|---|
+| **`tralo`** | **+0.0275** | **+2.32** | **-0.0011** | +3.96 |
+| `tralo_lam0` | **+0.0287** | **+2.67** | -0.0110 | +2.37 |
+| `fioretto` | +0.0218 | +1.62 | -0.0015 | +0.58 |
+| `alm` | +0.0219 | **-0.73** | -0.0036 | **+5.85** |
+| `hounie` | +0.0243 | **-2.30** | -0.0080 | +1.63 |
+| `clip` | +0.0044 | -2.78 | -0.0080 | -2.91 |
+| `focal_clip` | -0.0069 | -2.80 | -0.0141 | -2.59 |
+| **`tralo_reseed` (RNG FLOOR)** | **-0.0157** | **-3.39** | -0.0063 | -0.45 |
+
+✅ **THE DOSE QUESTION IS ANSWERED, IN TraLO'S FAVOUR.** `tralo` (+0.0275 AP)
+and `tralo_lam0` (+0.0287) are indistinguishable, and `tralo_lam0` is the
+dose-matched arm whose first constraint step carries a zero gradient exactly as
+the duals' does. **The 3.4% step head start is NOT the source of TraLO's lead.**
+That was `equaldose1`'s designed question and it is now closed.
+
+✅ **AND IN THE TASK CELLS `tralo` LEADS EVERY RIVAL ON ccF1**: +2.32 items
+against `fioretto` +1.62, `alm` **-0.73**, `hounie` **-2.30**, and both clippers
+below -2.7. It is also **the only arm whose macroF1 damage is near zero**
+(-0.0011, against -0.0036 to -0.0141 for everything else) -- the uncapped-class
+damage that 2(xfam) found universal is absent here for `tralo` alone.
+
+🔴 **BUT IT DOES NOT CLEAR THE RNG FLOOR, AND RESTRICTING TO TASK CELLS MAKES
+THAT WORSE.** A pure reseed moves ccF1 by **3.39 items** in the same cells,
+against `tralo`'s **2.32** -- a ratio of **0.68x**. Over all 6 cells the same
+comparison reads 2.63 vs 2.39 (1.10x), so **the task cells are where the
+constraint looks WEAKEST relative to noise**, not strongest. The prize being
+real does not make it reachable.
+
+🔑🔑 **THE ORDERING CHANGES WITH THE CELL SELECTION, WHICH IS THE POINT.**
+`alm` is the best arm on ccF1 in the 2 NON-task cells (+5.85) and the second
+WORST in the 4 task cells (-0.73); `tralo` is the reverse. **Which method looks
+best depends on whether the cell poses a question at all.** That is direct
+evidence the task window is not a bookkeeping refinement: it selects the
+answer. Every historical ranking in this project was computed over cells that
+2(z17) shows were mostly non-tasks.
+
+⚠️ **WHAT THIS IS NOT.** These are means over cells, not paired tests --
+`full_panel`'s paired version over all 6 cells reads `tralo` +0.0256 AP 6/0,
++0.0035 ccF1 5/1, and calls every line UNDERPOWERED (9-17 seeds needed). And
+the two nulls are ONE run per (dataset, backbone, seed) replicated across cap
+levels, so their effective n is cells / n_cap_levels: the reseed floor here
+rests on 2 independent units, not 6. Quote the direction and the ordering;
+do not quote the ratio as settled. FRAMEWORK 2(v), and the standing rule that
+signs hold early while ratios do not.
+
+⇒ **`taskwin1` KEEPS ITS VALUE BUT LOSES ITS URGENCY.** It adds per-class caps
+mid-window on BOTH classes (which no cell here achieves -- every cell above sits
+at a window EDGE for at least one class), and it adds `tralo_cut`. It is no
+longer the only way to ask the question.
+
 ### (z11) 🔴🔴🔴 AT THE ITEM LEVEL THE CONSTRAINT IS AT THE RNG FLOOR, AND
 `tralo_uniform` IS BELOW IT IN BOTH REGIMES
 
