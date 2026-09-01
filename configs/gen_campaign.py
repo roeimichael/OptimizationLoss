@@ -26,6 +26,7 @@ skipped by the loss.
 """
 import argparse
 import hashlib
+import io
 import json
 import os
 import sys
@@ -194,6 +195,128 @@ from configs.task_cells import (cap_pair, classify,  # noqa: E402,F401
                                 in_window, load_windows, tolerance)
 
 
+# Arms whose ENTIRE mechanism is a function of the TRAINING class prior. On a
+# BALANCED training set each one collapses to plain CE and is not a baseline at
+# all -- it is a second copy of its own allocator. FRAMEWORK 2(x1), 2(x2).
+PRIOR_ARMS = {
+    "class_balanced":
+        "weights are (1-beta)/(1-beta^n_c) normalised to mean 1. At equal n_c "
+        "every weight is exactly 1.0, so weighted CE IS plain CE -- the "
+        "gradients are BITWISE equal and the raw predictions hash identical "
+        "to `clip` in 24/24",
+    "logit_adjust":
+        "adds tau*log(prior) to the logits. At a uniform prior that is a "
+        "CONSTANT vector and log_softmax is shift-invariant, so the objective "
+        "is unchanged (loss delta 0.0, max grad delta 9.3e-10). "
+        "*** ITS PREDICTIONS STILL DIFFER *** -- the constant moves float "
+        "rounding and 30 epochs compound it -- so md5 does NOT catch this one "
+        "and 2(x1)'s table mislabelled it a `different model`",
+}
+
+# max/min training class count. Below this the prior carries essentially no
+# information and the arms above are inert. iwildcam measures EXACTLY 1.0000
+# (2500 per class over 8 classes); dermmnist/octmnist/tissuemnist are far
+# above it, which is why the published `imbalanced_baselines.csv` is unaffected.
+BALANCE_TOL = 1.05
+
+
+def train_imbalance(dc):
+    """max/min TRAINING class count, or None when the labels are not on disk.
+
+    None means UNKNOWN and the caller must not refuse on it. The 4.5x figure
+    quoted for iwildcam is the TEST set; reading the wrong one is how
+    `class_balanced` survived as a baseline for a whole campaign.
+    """
+    import collections
+    import csv
+    d = dc.get("data_dir") or ""
+    meta = os.path.join(d, "train_meta.csv")
+    if os.path.exists(meta):
+        with open(meta, encoding="utf-8") as fh:
+            counts = collections.Counter(
+                r["label"] for r in csv.DictReader(fh) if r.get("label") != "")
+    else:
+        npy = os.path.join(d, "train_labels.npy")
+        if not os.path.exists(npy):
+            return None
+        try:
+            import numpy as np
+            counts = collections.Counter(np.load(npy).ravel().tolist())
+        except Exception:
+            return None
+    if not counts or min(counts.values()) == 0:
+        return None
+    return max(counts.values()) / float(min(counts.values()))
+
+
+def prior_arm_gate(P, args, arms, explicit=None):
+    """Drop, or REFUSE, a prior-reading baseline on a BALANCED training set.
+
+    Not a style rule -- a measurement. `cb_lp` burned a full 24-run campaign on
+    iwildcam producing raw predictions byte-identical to `clip`'s, with
+    `audit_config`, `check_parity` and a distinct `base_model_id` all green.
+    Only hashing the predictions found it, and for `la_lp` not even that works.
+
+    Two different situations, and collapsing them makes `--arms all` unusable:
+
+      * the user NAMED the arm  -> REFUSE. Asking for `cb_lp` on iwildcam is a
+        mistake worth stopping, and `--allow-inert-baseline` is the override.
+      * it arrived via `all`    -> DROP it and say so, the same way `all`
+        already skips `rejected_arms`. `all` means "every baseline the paper
+        claims", and on this dataset two of them are not baselines.
+
+    Returns the set to drop. Silent when the labels are absent: unknown is not
+    balanced.
+    """
+    explicit = set(explicit or ())
+    named = [a for a in arms if P["arms"].get(a, {}).get("methodology")
+             in PRIOR_ARMS]
+    if not named:
+        return set()
+    inert, unknown = [], []
+    for ds in args.datasets:
+        dc = P["datasets"].get(ds) or {}
+        imb = train_imbalance(dc)
+        if imb is None:
+            unknown.append(ds)
+        elif imb < BALANCE_TOL:
+            inert.append((ds, imb))
+    for ds in unknown:
+        print("  !! THE PRIOR-ARM GATE DID NOT RUN for %s: no train_meta.csv "
+              "or train_labels.npy" % ds)
+        print("     on this machine, so %s were NOT checked. Run "
+              "`np.bincount(train_labels)`" % "/".join(sorted(named)))
+        print("     on the server before believing any number from them.")
+    if not inert:
+        return set()
+    for ds, imb in inert:
+        print("")
+        print("  INERT HERE: %s has a BALANCED training set (max/min = "
+              "%.4f), so these arms" % (ds, imb))
+        print("  are not baselines on it -- they are second copies of their "
+              "own allocator:")
+        for a in sorted(named):
+            print("    %-14s %s" % (a, PRIOR_ARMS[P["arms"][a]["methodology"]]))
+    if getattr(args, "allow_inert_baseline", False):
+        print("")
+        print("  !! --allow-inert-baseline: emitting %d arm(s) that are "
+              "MATHEMATICALLY PLAIN CE" % len(named))
+        print("     on this dataset (%s). Any contrast against them measures "
+              "the allocator" % ", ".join(a for a, _ in inert))
+        print("     and the RNG, never the recipe. Say so in the write-up.")
+        return set()
+    told = sorted(set(named) & explicit)
+    if told:
+        raise SystemExit(
+            "  You named %s explicitly. Drop them, or pass "
+            "--allow-inert-baseline and say\n  in the write-up what it let "
+            "through. FRAMEWORK 2(x1), 2(x2)." % ", ".join(told))
+    print("")
+    print("  NOTE: 'all' skips the arm(s) that are inert here -> %s"
+          % " ".join(sorted(named)))
+    return set(named)
+
+
 def task_window_gate(P, args, resolved):
     """REFUSE a campaign whose caps pose no question. FRAMEWORK 2(z16), 2(z17).
 
@@ -348,6 +471,52 @@ def _gate_self_test():
     skipped = False
     P = load_protocol()
     dc = P["datasets"]["iwildcam"]
+
+    # --- the PRIOR-ARM gate, all three directions ------------------------
+    class _PA(object):
+        datasets = ["iwildcam"]
+        allow_inert_baseline = False
+
+    imb = train_imbalance(dc)
+    if imb is None:
+        print("  %-64s %s" % ("prior-arm gate (needs the iwildcam train split)",
+                              "SKIPPED -- labels not on this machine"))
+    else:
+        cases = [
+            # (arms, allow, must_raise, label)
+            # (arms, explicit, allow, must_raise, must_drop, label)
+            (["cb_lp", "la_lp"], {"cb_lp", "la_lp"}, False, True, None,
+             "NAMING cb_lp/la_lp on a balanced train set is REFUSED"),
+            (["cb_lp", "la_lp"], set(), False, False, {"cb_lp", "la_lp"},
+             "...but arriving via `all` they are DROPPED, not refused"),
+            (["tralo", "clip", "focal_lp"], set(), False, False, set(),
+             "...and an arm that does NOT read the prior is untouched"),
+            (["cb_lp"], {"cb_lp"}, True, False, set(),
+             "...and --allow-inert-baseline lets it through"),
+        ]
+        for arms, expl, allow, must_raise, must_drop, label in cases:
+            _PA.allow_inert_baseline = allow
+            raised, dropped = False, None
+            try:
+                buf, keep = io.StringIO(), sys.stdout
+                sys.stdout = buf
+                try:
+                    dropped = prior_arm_gate(P, _PA, arms, explicit=expl)
+                finally:
+                    sys.stdout = keep
+            except SystemExit:
+                raised = True
+            good = raised == must_raise and (must_drop is None
+                                             or dropped == must_drop)
+            print("  %-64s %s" % (label, "OK" if good else "FAIL"))
+            ok = ok and good
+        # the measurement itself, so a wrong prior cannot pass as balanced
+        good = abs(imb - 1.0) < 1e-9
+        print("  %-64s %s"
+              % ("iwildcam TRAIN imbalance is exactly 1.0000 (not the 4.5x "
+                 "TEST figure)", "OK" if good else "FAIL (%.4f)" % imb))
+        ok = ok and good
+
     if not os.path.exists(os.path.join(dc["data_dir"], "test_meta.csv")):
         skipped = True
         print("  %-64s %s" % ("end-to-end refusal (needs the iwildcam slice)",
@@ -709,6 +878,11 @@ def main():
     a.add_argument("--arms", nargs="+", default=["tralo"],
                    choices=sorted(P["arms"]) + ["all", "all+null"],
                    help="'all' runs the full panel: every baseline the paper claims")
+    a.add_argument("--allow-inert-baseline", action="store_true",
+                   help="generate `cb_lp` / `la_lp` even on a dataset whose "
+                        "TRAINING set is balanced, where both are "
+                        "mathematically plain CE and are not baselines at "
+                        "all. FRAMEWORK 2(x1), 2(x2).")
     a.add_argument("--allow-nontask", action="store_true",
                    help="generate even where a cap sits OUTSIDE the "
                         "measured task window "
@@ -862,6 +1036,10 @@ def main():
             print("NOTE: 'all' skips the rejected arm(s) ->", " ".join(skipped))
     mandatory = set(P["mandatory_arms"])
     arms = sorted(requested | mandatory)
+    # Drop the arms that are mathematically plain CE on THIS dataset, or refuse
+    # if they were named outright. Before the configs are written, so a dropped
+    # arm never reaches disk. FRAMEWORK 2(x1), 2(x2).
+    arms = sorted(set(arms) - prior_arm_gate(P, args, arms, explicit=named))
     added = sorted(mandatory - requested)
     if added:
         print("NOTE: added the mandatory clippers ->", " ".join(added))

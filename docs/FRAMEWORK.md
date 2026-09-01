@@ -7574,6 +7574,29 @@ it reweights by `(1-p)^gamma` per EXAMPLE and never reads the prior, so it is
 live at any class balance. Any `la_lp` number already published is `lp` plus
 RNG noise and must be relabelled or dropped, not defended.
 
+✅ **NOTHING PUBLISHED IS AFFECTED, AND THAT IS MEASURED.** All 120
+`class_balanced` / `logit_adjust` rows in `docs/paper/data/manifest/experiments.csv`
+sit on `dermmnist` (40), `octmnist` (40) and `tissuemnist` (40) -- **zero on
+iwildcam** -- and on those three the mechanism is LIVE, which is measured and
+not assumed: paired against `danits_lp` on the same (dataset, model, cap, seed),
+`class_balanced` moves cc-F1 by up to **0.0811** over 36 pairs and
+`logit_adjust` by up to **0.0721**. (9 and 4 of those 36 are exactly identical,
+but so are 6 of `focal`'s -- which never reads the prior -- so that is the LP
+allocator returning the same top-K, not inertness.) `imbalanced_baselines.csv` is likewise 312 rows of
+dermmnist/octmnist/tissuemnist only. No number needs relabelling; the finding
+scopes to the ONE runnable dataset, where it means the two arms cannot be run
+as baselines at all.
+
+✅ **AND THE GENERATOR NOW REFUSES THEM.** `configs.gen_campaign.prior_arm_gate`
+measures `max/min` over the TRAINING class counts (`train_meta.csv`, else
+`train_labels.npy`) and refuses `cb_lp` / `la_lp` below `BALANCE_TOL = 1.05`.
+It is a measurement, not a hardcoded dataset name, so it will refuse the next
+balanced slice too. Absent labels print `THE PRIOR-ARM GATE DID NOT RUN` --
+unknown is not balanced. `--allow-inert-baseline` overrides and says what it
+let through. Gated in `--self-test` in all three directions plus the
+measurement itself (iwildcam TRAIN = 1.0000 exactly, so a run that read the
+4.5x TEST figure by mistake would fail the gate).
+
 ⚠️ **AND THE RULE GENERALISES.** Before claiming any loss variant is live,
 `assert not torch.equal(grad_variant, grad_ce)` is the WRONG test. The right
 one is `max|grad_variant - grad_ce| > fp_noise_floor`, with the floor measured

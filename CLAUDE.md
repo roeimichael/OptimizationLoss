@@ -69,13 +69,23 @@ evidence/          two tarballs: provenance for 14,524 runs, predictions for 128
 Nine methodologies, all claimed in the paper: `tralo` - duals `fioretto_ldf` / `hounie_rcl` /
 `fioretto_alm` - allocators `heuristic` (greedy clip) / `danits_lp` (LP-LG, Shifman) - and the
 imbalanced recipes `focal` / `class_balanced` / `logit_adjust`, each LP-clipped.
-⛔ **BUT `class_balanced` IS INERT ON iwildcam** (FRAMEWORK 2(x1)): the TRAIN set
-is **exactly 2500/class -- imbalance 1.0x** (the 4.5x figure is the TEST set), so its
-weights are exactly 1.0 and weighted CE is plain CE. `cb_lp`'s raw predictions are
-byte-identical to `clip`'s in 24/24 despite a different `base_model_id`. The AST audit
-passes, the cache does not collide, `audit_config`/`check_parity` are green -- **only
-hashing `final_predictions_raw.csv` finds it.** Any baseline reading the TRAINING prior
-is dead here; run `np.bincount(train_labels)` before claiming one.
+⛔ **BUT `class_balanced` AND `logit_adjust` ARE BOTH INERT ON iwildcam**
+(FRAMEWORK 2(x1), 2(x2)): the TRAIN set is **exactly 2500/class -- imbalance 1.0x**
+(the 4.5x figure is the TEST set). `class_balanced`'s weights are then exactly 1.0 and
+weighted CE is plain CE **bitwise**; `logit_adjust` adds `tau*log(prior)`, a CONSTANT
+vector, and `log_softmax` is shift-invariant, so its objective is unchanged too.
+🛑 **AND THEY FAIL DIFFERENTLY, WHICH IS WHY ONLY ONE WAS CAUGHT.** `cb_lp`'s raw
+predictions are byte-identical to `clip`'s in 24/24; **`la_lp`'s DIFFER in 24/24**,
+because the constant moves float rounding by ~1e-9 and 30 epochs compound it. So
+**md5 divergence is NOT evidence of a live mechanism** -- identical predictions prove
+inertness, different ones prove nothing. To clear a LOSS variant, compare its GRADIENT
+against CE on the real training prior (`max|g_v - g_ce|` was 9.3e-10 here, eight orders
+inside the noise). `focal` survives: it reweights per EXAMPLE and never reads the prior.
+✅ `gen_campaign` now REFUSES `cb_lp`/`la_lp` on a dataset whose TRAIN set is balanced
+(`--allow-inert-baseline` overrides and says what it let through), and measures the
+prior rather than hardcoding iwildcam. Nothing published is affected: all 120
+`class_balanced`/`logit_adjust` rows in the corpus are on the three removed datasets,
+where the prior really is imbalanced.
 🛑 **AND `full_panel` IS ALLOCATOR-BLIND BY CONSTRUCTION**: it re-derives its own
 equal-budget allocation from the raw probabilities, so two arms sharing a warm-up model
 score `+0.0000` on every budget-equalized metric however differently they allocate.
