@@ -20,8 +20,9 @@ BUDGET-EQUALIZED -- every arm filled to exactly K by the same rule, so the
         acc
 
 AS-RUN -- what the method actually did before any equalization.
-        sat      native satisfaction (flips == 0)
-        cnt/K    realized constrained count over the cap
+        raw_feasible  native satisfaction, emitted under this name (the
+                      docstring said `sat` until 2026-09-01)
+        cnt_over_K    realized constrained count over the cap (was `cnt/K`)
         flips    how many predictions post-hoc had to change
 
 Usage:

@@ -181,6 +181,14 @@ def render(recs, out=sys.stdout):
       "allocator" + chr(10))
     w("  is 1.9-9.9 items, so a sub-item delta is a re-allocation, not a "
       "difference." + chr(10))
+    w("  `items` IS APPROXIMATE: `full_panel` macro-averages ccF1 over BOTH "
+      "capped" + chr(10))
+    w("  classes, whose (K+n) differ, so the macro delta has no single "
+      "quantum and one" + chr(10))
+    w("  scale cannot be exact for both. Exact only PER CLASS. Signs and "
+      "orders of" + chr(10))
+    w("  magnitude are safe; do not quote an items figure to two decimals as "
+      "exact." + chr(10))
     w("  `sd` and `seeds` are LOWER BOUNDS: they assume the two arms are "
       "independent," + chr(10))
     w("  and they are not -- an arm and its null are two MODELS sharing one "

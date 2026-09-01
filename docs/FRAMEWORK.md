@@ -1519,7 +1519,8 @@ warm-up with a different training loss is a dead flag, which has happened four t
 - **`d capF1` is QUANTISED, so check it against the integer.** When the allocator emits
   exactly K predictions for class c, `P = TP/K` and `R = TP/n`, so **F1 = 2TP/(K+n)** --
   linear in the number of correct items. Every capped-class F1 delta must therefore be an
-  integer multiple of `1/(K+n)`; a value that is not is an arithmetic bug. The -0.0149
+  integer multiple of `2/(K+n)` -- **not** `1/(K+n)`, because `TP` is an integer so
+  a delta of half an item cannot occur; a value that is not is an arithmetic bug. The -0.0149
   above is exactly **4 correct predictions lost out of the 89 selected**, at every seed.
 - **Check the cell's CEILING before spending GPU on it.** Recall on a capped class is hard
   limited to `K/n_true`, so `F1_cap <= 2K/(K+n)`. On dermmnist the entire headroom is
@@ -2625,7 +2626,8 @@ measured task" is no longer an accurate description of it, and n=1 cell was
 never a significance claim.
 
 🔑 **THIS IS WHY `vittask1` EXISTS AND WHY IT IS NOT A REPEAT OF `loosevit1`.**
-The two ViTB16 classes' per-seed windows are 0.70 and 0.90 and do NOT overlap,
+The two ViTB16 classes' per-seed windows are 0.60-0.70 and 0.90 (the yml is
+the only place either is a number) and do NOT overlap,
 so no single-fraction tag can express a strict cell. `vittask1` runs the
 per-class tags `L60-90_G95` and `L70-90_G95`, which are the only two that sit
 inside both. `loosevit1` could not have tested them: the per-class cap form did
@@ -3533,7 +3535,9 @@ All four are configured `constraint_epochs: 29`, and **`dose_landed` printed
 arm and is structurally blind to a cross-arm gap. Fixed 2026-08-30: it now
 prints a CROSS-ARM ATTEMPTS PER RUN block.
 
-**The cause.** The subgradient duals guard their step on `has_work` (is any
+**The cause.** The subgradient duals guard their step on `has_work` -- spelled
+`has_active` in `hounie_rcl/train.py:181`, which is also the one dual whose
+zero lambda init is hard-coded in Python with no `protocol.yml` knob -- (is any
 lambda > 0) and perform the dual update at the END of the epoch, so their first
 constraint epoch does nothing. TraLO guards on `has_constraint` and initialises
 lambda to **0.06**.
@@ -3802,7 +3806,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 448 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 501 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -3966,7 +3970,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 448 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 501 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -3974,7 +3978,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (448 tests, ~180 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (501 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -7526,6 +7530,56 @@ doing the work and the extra compute is a cost. That is consistent with 2(w3)
 and is the regime this result lives in -- **all three caps here are LOOSE**.
 
 
+### 2(x2) ⛔⛔ **`logit_adjust` IS INERT TOO -- AND md5 CANNOT SEE IT**
+
+Found 2026-09-01 by the stage-1 gate agent, verified here against the shipped
+`src/losses/imbalanced_losses.py`. **`la_lp` is not a baseline on iwildcam. It
+is a reseed of `lp`.**
+
+`LogitAdjustedLoss.forward` is `F.cross_entropy(logits + tau * log_prior, t)`.
+iwildcam's TRAIN set is exactly 2500/class, so `prior` is uniform and
+`log_prior` is the CONSTANT vector `log(1/8) = -2.0794` in every coordinate.
+`log_softmax` is shift-invariant, so adding a constant to every logit changes
+the objective **not at all**. Same arithmetic as 2(x1), different mechanism.
+
+Measured on the real criterion at batch 64:
+
+| arm | loss vs CE | max abs grad diff | gradients BITWISE equal? | md5 of raw preds |
+|---|---|---|---|---|
+| `class_balanced` | 0.0 | **0.0** | **YES** | identical to `clip`, 24/24 |
+| `logit_adjust` | 0.0 | **9.3e-10** | **NO** | **DIFFERS from `clip`, 24/24** |
+
+🛑🛑 **THIS IS THE NEW FAILURE MODE, AND IT IS THE INVERSE OF RULE 3.** Rule 3
+says hash the raw predictions, because an inert flag leaves them identical.
+`logit_adjust` is inert and its predictions DIFFER -- the `-2.0794` shifts
+float rounding by ~1e-9 per step, and 30 epochs compound that into a genuinely
+different model. So:
+
+> **md5 DIVERGENCE IS NOT EVIDENCE OF A LIVE MECHANISM.** Identical predictions
+> prove inertness; different predictions prove nothing at all. 2(x1)'s md5
+> table lists `la_lp` as "different model" and that reading was wrong.
+
+The only instrument that catches this is the one used above: **evaluate the
+criterion against plain CE on the real training prior and compare the
+GRADIENTS**, which is what `tests/gates/test_g1_data.py` gate 4 now does. Its
+liveness control is the same criterion on a 4.5x prior, where the loss moves
+3.8e-2 -- so the tool can tell inert from live.
+
+**CONSEQUENCE FOR THE PAPER.** Of the nine claimed methodologies, on the only
+runnable dataset **two of the three imbalanced recipes are non-baselines**:
+`class_balanced` exactly, `logit_adjust` mechanistically. `focal` survives --
+it reweights by `(1-p)^gamma` per EXAMPLE and never reads the prior, so it is
+live at any class balance. Any `la_lp` number already published is `lp` plus
+RNG noise and must be relabelled or dropped, not defended.
+
+⚠️ **AND THE RULE GENERALISES.** Before claiming any loss variant is live,
+`assert not torch.equal(grad_variant, grad_ce)` is the WRONG test. The right
+one is `max|grad_variant - grad_ce| > fp_noise_floor`, with the floor measured
+on the same shapes. At 9.3e-10 against a gradient of order 1e-1, `logit_adjust`
+is eight orders of magnitude inside the noise.
+
+---
+
 ### 2(x1) ⛔ **`class_balanced` IS INERT ON iwildcam -- and the headline table**
 ### **CANNOT SEE AN ALLOCATOR AT ALL**
 
@@ -7956,10 +8010,12 @@ and the picture separates into two different verdicts (class 2, iwc3):
 | 50% | 4.08 | 16.67 | **131** | hopeless |
 | 70% | 11.50 | 23.74 | **33** | expensive |
 | 80% | 18.00 | 28.42 | **20** | affordable |
-| **90%** | **29.83** | **29.07** | **7** | **cheaper than the protocol already runs** |
+| **90%** | **29.83** | **29.07** | **7-8** | **~2x the protocol's 4, and affordable** |
 
-🔑 **At K/n = 0.9, SEVEN seeds per cell would resolve the entire prize, and
-this protocol already runs four.** So the reason nothing has been measurable
+🔑 **At K/n = 0.9, SEVEN TO EIGHT seeds per cell would resolve the entire
+prize, against the four this protocol already runs.** (7 from the unrounded
+inputs, 8 recomputed from the prize and sd as printed above -- the point is the
+order of magnitude, and it is the only row where that order is single digits.) So the reason nothing has been measurable
 here is the CAP LEVEL, not the method, not the dataset and not the noise. The
 three caps the protocol sweeps sit at 16-30% of n, which is the far end of the
 hopeless column. That is a design choice, and it was never priced.
@@ -8037,6 +8093,13 @@ the reading is uncomfortable and load-bearing:
 | rows in a **strict task** cell | 158 |
 | of those, **resolved at 2 sd** | **1** |
 | the one that resolves | A1 / MobileNetV2 / `L95_G80` / `tralo` vs `clip`, +9.85 items |
+
+⚠️ **THE `items` FIGURES ARE APPROXIMATE, AND SIGNS ARE WHAT THEY SUPPORT.**
+`full_panel` macro-averages cc-F1 over BOTH capped classes, and class 2 and
+class 7 have different `(K+n)`. So the macro delta has no single quantum and
+no single `(K+n)/2` converts it exactly; `items_from_f1` is exact only PER
+CLASS. Every sign, ordering and order of magnitude below stands; a two-decimal
+items figure does not. Found by the stage-6 gate agent 2026-09-01.
 
 **No other contrast in this corpus separates from its own seed noise in its own
 cell.** Every other number we quote is a SIGN, not a measurement, and the sd
@@ -9453,7 +9516,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             448 tests, ~180 s, no dataset required
+tests/             501 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

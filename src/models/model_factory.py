@@ -16,10 +16,13 @@ from .imagery import (
 )
 
 MODEL_REGISTRY = {
-    'MobileNetV3': MobileNetV3Classifier,      # headline
+    # THE HEADLINE IS ViTB16, fixed a priori 2026-08-20 (FRAMEWORK 1-pre) so
+    # that a win found on another backbone cannot be promoted after the fact.
+    # These comments said the opposite until 2026-09-01.
+    'MobileNetV3': MobileNetV3Classifier,
     'MobileNetV2': MobileNetV2Classifier,
     'RegNetY400MF': RegNetY400MFClassifier,
-    'ViTB16': ViTB16Classifier,                # the non-CNN check
+    'ViTB16': ViTB16Classifier,                # THE HEADLINE
 }
 
 

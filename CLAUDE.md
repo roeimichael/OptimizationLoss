@@ -22,7 +22,14 @@ it, `docs/FRAMEWORK.md` wins.
    `clip` is the stronger quality bar. An arm-vs-arm delta is not a result until the bar is in
    the same campaign.
 3. **md5 the raw predictions across arms before reading any metric.** Inert flags are this
-   project's most frequent failure mode -- four occurrences and counting.
+   project's most frequent failure mode -- **five** occurrences and counting (the fifth
+   is `graph_probe --dump`, an argparse DESTINATION, which `audit_config` cannot see).
+   🛑 **BUT md5 IS ONE-SIDED.** Identical predictions prove inertness; DIFFERENT
+   predictions prove nothing. `logit_adjust` on iwildcam is mathematically plain CE
+   (uniform train prior => a constant added to every logit => shift-invariant) yet its
+   predictions differ from `clip` in 24/24, because the constant moves float rounding by
+   1e-9 and 30 epochs compound it. To clear a LOSS variant, compare its GRADIENT against
+   CE on the real training prior. FRAMEWORK 2(x2).
 4. **Atomic cell = (dataset, backbone, cap, method) over 4 seeds. Count cells.** Never pool
    across cap levels, backbones or datasets. Always sweep at least two cap levels -- a
    single-cap claim has been retracted three times.
@@ -78,7 +85,18 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 448 regression tests, ~180s, no dataset needed
+python -m pytest tests -q                   # 501 regression tests, ~200s, no dataset needed
+python -m scripts.preflight --before-launch # 🛑 THE STAGED GATE. `tests/` gates the CODE;
+#   `tests/gates/` gates the EXPERIMENT -- six buckets, one per pipeline stage, each
+#   encoding failure modes this project actually PAID for, at the point where each is
+#   still cheap to catch. `--before-launch` runs stages 1-4 (data / budget / model /
+#   grid): everything answerable from configs and labels alone, no GPU, no dataset for
+#   2-4. Then `--stage trainlog` on the FIRST completed run and `--stage results`
+#   before quoting a number. `--stage all`, `--list`. Exit code is pytest's, so it
+#   drops into CI -- `.github/workflows/preflight.yml` runs the six as a matrix.
+#   Every gate carries a NEGATIVE CONTROL in the same test: a gate that has never
+#   failed has never been shown to work. A typo'd stage name errors, it does not
+#   silently run nothing.
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -150,6 +168,23 @@ python -m scripts.paired_seeds <scan-root>  # each arm minus its OWN lambda=0 tw
 python -m scripts.score_scan <root>         # AUROC / prec@K / Jaccard, grouped by CELL
 python -m scripts.headroom <root>           # items from `clip` to a PERFECT allocator,
                                             #   per cell -- the ceiling any arm is chasing
+python -m scripts.paper_rows --cells cells.csv --out paper_rows.csv  # 🛑 THE PAPER ROW,
+#   and the one that says what may actually be WRITTEN. Takes `cell_table`'s CSV and
+#   emits one line per (cell, CONTRAST) -- vs `clip`, vs the arm's OWN lambda=0 twin
+#   (resolved per FAMILY, so `alm`'s effect is never attributed to tralo's model), and
+#   vs the `tralo_reseed` RNG floor -- in ITEMS, beside the cell's task-window status
+#   and the seeds needed at 80% power. NOTHING is averaged over cells.
+#   🔑 IT CARRIES THE INDEPENDENT UNIT, AND THAT IS THE POINT. `dom1` and `loose1` are
+#   ONE model byte-identically, and two cap levels in one campaign share a warm-up, so
+#   EIGHT cells are FOUR units. A campaign pair absent from `MEASURED_UNITS` reads
+#   `UNVERIFIED`, never a free replicate. Sign tests go over UNITS: 4/4 is p=0.0625,
+#   not p=0.0039.
+#   ⚠️ Run on the corpus 2026-09-01: **1 of 158 strict-task rows clears 2 sd**, and
+#   that sd is a LOWER bound (it assumes the arms are independent; they are two models
+#   sharing a warm-up, measured at 6-12x). Everything else is a SIGN, not a
+#   measurement. `items` is approximate -- `full_panel` macro-averages over both
+#   capped classes whose (K+n) differ, so no single scale is exact for both.
+#   FRAMEWORK 2(z26). `--self-test` gates it, including that the cautious default holds.
 python -m scripts.cell_table --campaign <roots> --out cells.csv   # the SURVEY, not the
 #   verdict. `full_panel` prints CONTRASTS, so the absolute level an arm reached
 #   is nowhere in its output. This emits one row per (campaign, dataset, model,
@@ -272,7 +307,7 @@ python -m scripts.paired_noise --campaign <root>  # 🛑 THE COMPANION TO
                                             #   everywhere; the seeds-per-cell at 80% power
                                             #   separates hopeless from merely expensive.
                                             #   iwc3 class 2: **2607 seeds at L20, 546 at
-                                            #   L30/L50 -- but only 7 at K/n=0.9**, and the
+                                            #   L30/L50 -- but only 7-8 at K/n=0.9**, and the
                                             #   protocol already runs 4. So this is closed
                                             #   by the CAP CHOICE, not by physics. ⚠️ The
                                             #   catch, and say it every time: at K/n=0.9
@@ -477,7 +512,8 @@ which a cut-local method has something real to win.
 2. **Read `d capF1` beside `d macroF1`.** Paired over seeds their precision differs by an
    order of magnitude, and macro-F1 is carried by the UNCAPPED classes, which swing with
    the seed. `d capF1` is quantised -- with exactly K predictions emitted, `F1 = 2TP/(K+n)`
-   -- so it must be an integer multiple of `1/(K+n)` or there is an arithmetic bug.
+   -- so it must be an integer multiple of `2/(K+n)` (**not** `1/(K+n)`: TP is an
+   integer, so half an item cannot occur) or there is an arithmetic bug.
    **CONVERT IT TO ITEMS: `items = dF1 * (K+n)/2`.** `full_panel` prints the scale per
    cell. The whole gap from `clip` to a PERFECT allocator is **1.9-9.9 items**, and the
    paired seed sd is worth ~2.7 -- so 0.02 is not a small effect, it can be the entire

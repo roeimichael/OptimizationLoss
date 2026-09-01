@@ -135,14 +135,25 @@ def classify(P, TW, dataset, model, cap_tag):
     """Is (dataset, model, cap_tag) a TASK cell?
 
     Returns a dict with `status` in:
-      "task"        every capped class sits inside its measured window
-      "non_task"    at least one class is outside -- the cell measures nothing
+      "task"        every capped class sits inside its STRICT window -- the
+                    cap binds in EVERY seed
+      "partial"     every capped class is inside the wider PARTIAL band: the
+                    cap binds in SOME seeds only, so a slack seed contributes
+                    zero constraint gradient and dilutes the contrast toward
+                    nothing. Positives here are conservative; nulls are weak.
+      "unmeasured"  the ratio falls in the GAP between the strict and partial
+                    bands, off the 0.1 measurement grid by more than the
+                    snapping tolerance. Nobody has measured this K/n.
+      "non_task"    at least one class is outside every band -- it measures
+                    nothing
       "no_window"   this (dataset, backbone) has never been measured
       "no_data"     the slice is not on this machine, so nothing can be said
 
-    THE THREE NEGATIVES ARE NOT THE SAME and must never be collapsed. An
-    unmeasured backbone is an unknown; a missing slice is a missing instrument;
-    only "non_task" is a statement about the experiment.
+    SIX statuses, and the FOUR negatives are not the same. An unmeasured
+    backbone is an unknown; a missing slice is a missing instrument; a gap
+    ratio is a K/n nobody has looked at; only "non_task" is a statement about
+    the experiment. Collapsing any of them into "non_task" turns an absence of
+    measurement into a null, which is the inversion FRAMEWORK 2(z25) is about.
 
     🛑 THE RETURNED VERDICT CARRIES ITS `provenance`, AND CALLERS MUST PRINT
     IT. A window row is keyed by (dataset, backbone), but the thing it was

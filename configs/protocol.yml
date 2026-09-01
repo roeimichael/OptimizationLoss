@@ -319,7 +319,13 @@ blocks:
   # the uncapped classes arrives through the SHARED BACKBONE. `tralo_ortho`
   # tries to fix that by projecting the step off the CE direction; this arm
   # tests the hypothesis outright by confining the constraint gradient to the
-  # classifier head, so the backbone cannot move under it at all.
+  # classifier head, so no constraint INFORMATION reaches the backbone.
+  #
+  # NOT 'the backbone cannot move under it at all' -- that is false and this
+  # comment said it until 2026-09-01. Masking a gradient does NOT freeze the
+  # parameter: Adam's stale CE momentum still steps a masked coordinate at
+  # 90.4% of an unmasked one (`scripts.ortho_survival`). The backbone keeps
+  # moving; it just stops hearing the constraint.
   #
   # WHY BOTH. An `ortho` null alone is unattributable -- it could mean the
   # projection is too weak OR that the backbone was never the culprit. Run
