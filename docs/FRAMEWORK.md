@@ -7042,6 +7042,66 @@ NET is +2766 at z=80.4. The open number is **fmow's own p@K at the cap**, which
 needs a finished unconstrained run on fmow -- i.e. the images.
 
 
+### 2(z24b) 🛑 **ALL FOUR WINDOWS RE-MEASURED PER SEED -- THE**
+### **STRICT ONES ARE HALF THE WIDTH, AND `taskwin2` RUNS ON THE EDGE**
+
+2(z24) found that `task_window` applied `MIN_FORCED` to the MEAN unconstrained
+count and fixed the TOOL. `configs/task_windows.yml` was never regenerated, so
+the file every launch is gated against still carried the mean-based ranges.
+Re-measured 2026-09-01 on the same reference runs, reading `binds n/N`:
+
+| backbone | class 2 STRICT (4/4) | class 7 STRICT (4/4) | old (mean) c2 | old c7 |
+|---|---|---|---|---|
+| **ViTB16** | **0.60-0.70** | **0.90** | 0.60-0.90 | 0.90-1.00 |
+| **MobileNetV3** | **0.70** | **0.90** | 0.70-0.90 | 0.90-1.00 |
+| **MobileNetV2** | **0.80** | **0.80** | 0.80-1.00 | 0.80-0.90 |
+| **RegNetY400MF** | **0.60-0.80** | **0.80-0.90** | 0.60-0.90 | 0.80-1.00 |
+
+Everything the old file called a task above those ranges is PARTIAL: e.g.
+MobileNetV3 class 2 binds in **3 of 4** seeds at 0.80 and 0.90 and **1 of 4**
+at 1.00; class 7 binds **2 of 4** at 1.00.
+
+✅ **PARTIAL IS RECORDED, NOT REFUSED.** A slack seed has
+`relu(hard-K) = 0` on the class total, so it dilutes toward zero -- a positive
+measured in a partial cell is CONSERVATIVE. But its effective n is below its
+seed count, so a NULL there is weaker evidence than a null in a strict cell,
+and the two must never be quoted the same way. The yml now carries `class:`
+(strict) and `partial:` per backbone; `classify` returns **task / partial /
+unmeasured / non_task**; `gen_campaign` takes strict silently and partial with
+a printed label naming the ratio. Refusing partial outright would leave
+MobileNetV2 with exactly ONE legal cap and MobileNetV3 with one -- too narrow
+to run an experiment in.
+
+🛑 **AND A FOURTH STATUS WAS NEEDED, BECAUSE ONE LIVE CAP IS IN A GAP
+NOBODY MEASURED.** The windows come off a 0.1 grid. `L80-100_G95` puts
+MobileNetV3 class 7 at **K/n = 0.950** -- exactly halfway between the strict
+0.90 and the partial 1.00, and **ten times** the 0.005 snapping tolerance from
+either. Calling that `non_task` claims a measurement nobody took; calling it
+`task` is worse. It now reports **`unmeasured`**, with the nearest measured
+fraction printed beside it.
+
+🔑 **WHAT THIS SAYS ABOUT THE TWO CAMPAIGNS IN FLIGHT:**
+
+| campaign | cap | verdict |
+|---|---|---|
+| `taskwin2` (MobileNetV3) | `L70-90_G95` | ✅ **STRICT task cell**, 4/4 both classes |
+| `taskwin2` (MobileNetV3) | `L80-100_G95` | ⚠️ class 2 **PARTIAL 3/4**, class 7 **UNMEASURED** at 0.950 |
+| `vittask1` (ViTB16) | `L60-90_G95` | ✅ **STRICT**, 4/4 both classes |
+| `vittask1` (ViTB16) | `L70-90_G95` | ✅ **STRICT**, 4/4 both classes |
+
+So **`vittask1` is clean on both cells** -- and it is the first ViTB16 campaign
+that is, which retires "ViTB16 has zero strict task cells at any cap ever run"
+(true of L20/L30/L50; `vittask1` is the campaign that fixes it). **`taskwin2`
+is clean on half.** Its `L70-90_G95` half carries the arm-vs-arm claim; the
+`L80-100_G95` half is a second reading whose cell was never characterised at
+its own K/n, and it must be labelled that way wherever it is quoted.
+
+🔑 **ONE MORE MEASURED CHANGE.** The two classes' windows no longer
+differ on EVERY backbone: **MobileNetV2's strict windows COINCIDE at
+0.80/0.80**, so it is the one backbone where the plain single-fraction form
+`L80_G95` expresses a valid experiment. The per-class form is still required on
+the other three. Gated both ways in `configs/task_cells.py --self-test`.
+
 ### 2(z25) 🛑 **THE PROBES RETURNED A PLAUSIBLE DEFAULT INSTEAD OF**
 ### **REFUSING -- four sites, one defect class, and the FIFTH inert flag**
 

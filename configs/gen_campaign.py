@@ -222,7 +222,8 @@ def task_window_gate(P, args, resolved):
         print("     and would generate without complaint. Restore the file "
               "before launching.")
         return
-    rows, bad, unknown, absent, measured = [], [], set(), set(), False
+    rows, bad, soft, gaps = [], [], [], []
+    unknown, absent, measured = set(), set(), False
     for ds in args.datasets:
         for model in args.models:
             for tag in args.caps:
@@ -236,8 +237,12 @@ def task_window_gate(P, args, resolved):
                 measured = True
                 for c, v in sorted(r["classes"].items()):
                     rows.append((model, tag, c, v["K"], v["n"], v["ratio"],
-                                 v["lo"], v["hi"], v["ok"]))
-                    if not v["ok"]:
+                                 v["lo"], v["hi"], v["band"]))
+                    if v["band"] == "partial":
+                        soft.append((model, tag, c, v["ratio"]))
+                    elif v["band"] == "unmeasured":
+                        gaps.append((model, tag, c, v["ratio"], v["hi"]))
+                    elif not v["ok"]:
                         bad.append((model, tag, c, v["ratio"], v["lo"], v["hi"]))
     for u in sorted(unknown):
         print("  !! NO MEASURED TASK WINDOW for %s, so it is NOT gated. "
@@ -267,10 +272,42 @@ def task_window_gate(P, args, resolved):
           "question?")
     print("    %-13s %-13s %4s %6s %6s %7s %12s  %s"
           % ("model", "cap", "cls", "K", "n", "K/n", "window", ""))
-    for model, tag, c, K, n, ratio, lo, hi, ok in rows:
+    for model, tag, c, K, n, ratio, lo, hi, band in rows:
         print("    %-13s %-13s %4d %6d %6d %7.3f   %4.2f-%4.2f  %s"
               % (model, tag, c, K, n, ratio, lo, hi,
-                 "in" if ok else "** OUTSIDE **"))
+                 {"strict": "in",
+                  "partial": "** PARTIAL -- binds in SOME seeds only **",
+                  "unmeasured": "** NEVER MEASURED at this K/n **"}.get(
+                     band, "** OUTSIDE **")))
+    if gaps:
+        print("  !! %d cell(s) sit in the GAP between the strict and partial "
+              "bands, where" % len(gaps))
+        print("     nothing was measured. The windows come off a 0.1 grid; "
+              "these ratios are")
+        print("     not on it and not within the snapping tolerance of it, so "
+              "neither a task")
+        print("     nor a non-task claim is available. Measure the fraction, "
+              "or move the cap.")
+        for model, tag, c, ratio, hi in gaps:
+            print("       %-13s %-13s class %d  K/n %.3f  (nearest measured "
+                  "%.2f)" % (model, tag, c, ratio, hi))
+    if soft:
+        # ALLOWED, AND LABELLED. Refusing here would leave MobileNetV2 with
+        # exactly ONE legal cap (0.80/0.80) and MobileNetV3 with one
+        # (0.70/0.90), which is too narrow to run an experiment in. But a
+        # partial cell has a smaller effective n than its seed count suggests,
+        # so a NULL there is weaker evidence than a null in a strict cell --
+        # and that is the reading the campaign must carry from the start.
+        print("  !! %d (model, cap, class) cell(s) are PARTIAL: the cap binds "
+              "in SOME seeds" % len(soft))
+        print("     only, so the effective n is below the seed count. A "
+              "positive measured")
+        print("     here is CONSERVATIVE (a slack seed dilutes toward zero); a "
+              "NULL is NOT")
+        print("     evidence of no effect. Say PARTIAL wherever this campaign "
+              "is quoted.")
+        for model, tag, c, ratio in soft:
+            print("       %-13s %-13s class %d  K/n %.3f" % (model, tag, c, ratio))
     if bad and not getattr(args, "allow_nontask", False):
         lines = ["REFUSED: %d of %d (model, cap, class) cell(s) sit OUTSIDE "
                  "the measured task window." % (len(bad), len(rows))]

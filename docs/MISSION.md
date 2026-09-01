@@ -415,6 +415,30 @@ and FRAMEWORK 3(0), then start the next.
    | `L80-100_G95` | **0.800** (K=296) | **0.950** (K=433) | GLOBAL |
    | `L70-90_G95` | **0.700** (K=259) | **0.901** (K=411) | LOCAL |
 
+   🛑 **RE-MEASURED PER SEED 2026-09-01 -- HALF OF THIS CAMPAIGN IS
+   NOT A STRICT TASK CELL.** FRAMEWORK 2(z24b). The windows above came from
+   `task_windows.yml`, which still carried the MEAN-based ranges that 2(z24)
+   retired. Reading `binds n/N` on the same reference runs, MobileNetV3's
+   strict windows are class 2 **0.70 only** and class 7 **0.90 only**:
+
+   | cap tag | class 2 | class 7 | verdict |
+   |---|---|---|---|
+   | `L70-90_G95` | 0.700 **strict 4/4** | 0.901 **strict 4/4** | ✅ **TASK CELL** |
+   | `L80-100_G95` | 0.800 **PARTIAL 3/4** | 0.950 **UNMEASURED** | ⚠️ label it |
+
+   0.950 is halfway between the strict 0.90 and the partial 1.00, ten times the
+   0.005 snapping tolerance from either, so nobody measured that fraction.
+   ⇒ **The arm-vs-arm claim rides on the `L70-90_G95` half.** The other half is
+   a second reading, conservative if positive (a slack seed dilutes toward
+   zero) and NOT evidence of no effect if null. Say PARTIAL / UNMEASURED
+   wherever it is quoted. `classify` now returns four statuses and
+   `gen_campaign` prints the label, so this cannot be staged unlabelled again.
+
+   🟢 **`vittask1` IS CLEAN ON BOTH CELLS** -- ViTB16 strict windows are
+   class 2 0.60-0.70 and class 7 0.90, so `L60-90_G95` and `L70-90_G95` are
+   both 4/4 on both classes. It is the FIRST ViTB16 campaign that is, which
+   retires "ViTB16 has zero strict task cells" (true of L20/L30/L50 only).
+
    Windows on MobileNetV3: class 2 **0.70-0.90**, class 7 **0.90-1.00**. All
    four land inside. The two tags also differ in WHICH SCOPE BINDS, so the
    local-vs-global question is carried for free.

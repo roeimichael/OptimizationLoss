@@ -7887,12 +7887,29 @@ def test_the_task_window_file_is_measured_not_invented(tmp_path):
     for model, row in iw.items():
         assert row.get("provenance"), "%s has no provenance" % model
         for cls, (lo, hi) in row["class"].items():
-            assert 0.0 <= lo < hi <= 2.0, "%s class %s: %s" % (model, cls, (lo, hi))
+            # lo == hi is LEGAL and now common: re-measured per seed
+            # (FRAMEWORK 2(z24b)) the strict windows collapse to ONE
+            # fraction on MobileNetV3 (class 2 = 0.70, class 7 = 0.90).
+            # A window is a range over a measured GRID, not an interval
+            # that must have width.
+            assert 0.0 <= lo <= hi <= 2.0, "%s class %s: %s" % (model, cls, (lo, hi))
     # the two capped classes' windows are DIFFERENT on every backbone, which is
     # why per-class cap fractions had to exist at all
     for model, row in iw.items():
-        assert row["class"][2] != row["class"][7], \
-            "%s: identical windows would make per-class caps pointless" % model
+        # NOT "on every backbone" any more, and that is a MEASUREMENT. Per
+        # seed (FRAMEWORK 2(z24b)) MobileNetV2's two strict windows COINCIDE
+        # at 0.80/0.80, so it is the one backbone where the plain
+        # single-fraction form expresses a valid experiment. The per-class
+        # form is still REQUIRED on the other three, which is what this
+        # asserts.
+        if model != "MobileNetV2":
+            assert row["class"][2] != row["class"][7], (
+                "%s: identical windows would make per-class caps pointless"
+                % model)
+        assert set(row.get("partial") or {}) == {2, 7}, (
+            "%s has no PARTIAL band. A window recorded only where "
+            "EVERY seed binds hides the cells that bind in some, "
+            "and those are not the same verdict" % model)
 
 
 def test_the_scorers_can_tell_a_task_cell_from_a_non_task_one(tmp_path):
@@ -7915,13 +7932,13 @@ def test_the_scorers_can_tell_a_task_cell_from_a_non_task_one(tmp_path):
 
     c = pd.DataFrame([
         dict(dataset="iwildcam", model="MobileNetV3", cap="L30_G50"),
-        dict(dataset="iwildcam", model="MobileNetV3", cap="L90_G95"),
-        dict(dataset="iwildcam", model="NoSuchNet", cap="L90_G95"),
+        dict(dataset="iwildcam", model="MobileNetV3", cap="L70-90_G95"),
+        dict(dataset="iwildcam", model="NoSuchNet", cap="L70-90_G95"),
     ])
     got = list(annotate_task(c)["task"])
     assert got[0] == "non_task", "L30_G50 on MobileNetV3 is a measured non-task"
     assert got[1] == "task", (
-        "L90_G95 on MobileNetV3 IS a task; a column that only ever says "
+        "L70-90_G95 on MobileNetV3 IS a task; a column that only ever says "
         "non_task cannot be read")
     assert got[2] == "no_window", (
         "an UNMEASURED backbone read as %r. An unknown is not a known "
@@ -7954,7 +7971,7 @@ def test_full_panel_says_when_a_contrast_pools_cells_that_pose_no_question():
         return buf.getvalue()
 
     mixed = render([
-        dict(dataset="iwildcam", model="MobileNetV3", cap="L90_G95"),
+        dict(dataset="iwildcam", model="MobileNetV3", cap="L70-90_G95"),
         dict(dataset="iwildcam", model="MobileNetV3", cap="L30_G50"),
     ])
     assert "NO QUESTION" in mixed, mixed
@@ -7965,7 +7982,7 @@ def test_full_panel_says_when_a_contrast_pools_cells_that_pose_no_question():
     # LIVENESS: an all-task campaign must not carry the warning, or the warning
     # is decoration rather than information.
     clean = render([
-        dict(dataset="iwildcam", model="MobileNetV3", cap="L90_G95"),
+        dict(dataset="iwildcam", model="MobileNetV3", cap="L70-90_G95"),
     ])
     assert "pose NO question" not in clean, clean
     assert "all 1 measured cell(s) pose a question" in clean, clean

@@ -49,6 +49,7 @@ import glob
 import json
 import math
 import os
+import io
 import sys
 
 import numpy as np
@@ -156,9 +157,58 @@ def budget_for(df, cls):
     return int((df["Predicted_Label"] == cls).sum())
 
 
+def self_test(out=sys.stdout):
+    """The gate. This probe produced the sharpest NEGATIVE in the project --
+    "the constraint re-ranks exactly as much as a coin flip" -- so every rung
+    of its ladder has to be reachable, or the negative is an artefact of a
+    verdict function that can only say one thing.
+
+    Four rungs, on synthetic differences: nothing to test, coin flip, reorders
+    MORE than a reseed, reorders LESS. Pure arithmetic, no campaign.
+    """
+    rng = np.random.default_rng(0)
+    n = 48
+    cases = [
+        ("zero points", np.zeros(n), "NOTHING TO TEST", ("TIE", "monotone map")),
+        ("coin flip", rng.normal(size=n) * 1e-4, "TIE", ("NOTHING TO TEST",)),
+        ("reordered MORE", np.array([-1.0] * 40 + [1.0] * 8),
+         "reordered MORE than a reseed, and it CLEARS",
+         ("TIE", "NOTHING TO TEST")),
+        ("preserved order", np.array([1.0] * 40 + [-1.0] * 8),
+         "rho_arm >= rho_reseed, and it CLEARS",
+         ("TIE", "NOTHING TO TEST")),
+    ]
+    ok = True
+    w = out.write
+    w("SELF-TEST -- can the ladder reach all four rungs?" + chr(10) + chr(10))
+    for name, dd, want, forbid in cases:
+        buf = io.StringIO()
+        verdict(dd, dd, out=buf)
+        txt = buf.getvalue()
+        bad = [f for f in forbid if f in txt]
+        if want not in txt or bad:
+            w("  FAIL  %-14s expected %r, forbade %r, got:%s%s"
+              % (name, want, bad or list(forbid), chr(10), txt))
+            ok = False
+        else:
+            w("  PASS  %-14s -> %s" % (name, want) + chr(10))
+
+    # `sign_test` is what separates rung 2 from rungs 3-4, so pin its two ends.
+    if not (sign_test(24, 48) > 0.9 and sign_test(40, 48) < 0.001):
+        w("  FAIL  sign_test: 24/48 must be a coin (%.3f) and 40/48 must clear "
+          "(%.5f)" % (sign_test(24, 48), sign_test(40, 48)) + chr(10))
+        ok = False
+    else:
+        w("  PASS  sign_test 24/48 p=%.3f, 40/48 p=%.5f"
+          % (sign_test(24, 48), sign_test(40, 48)) + chr(10))
+    w("SELF-TEST %s%s" % ("PASSED" if ok else "FAILED", chr(10)))
+    return 0 if ok else 1
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--campaign", required=True)
+    ap.add_argument("--campaign")
+    ap.add_argument("--self-test", action="store_true")
     ap.add_argument("--arm", default="tralo")
     # NOT a fixed "tralo_null". That is correct for `tralo`, `tralo_uniform`
     # and `tralo_head` -- which share one twin -- and quietly WRONG for
@@ -172,6 +222,10 @@ def main():
     ap.add_argument("--evictions", action="store_true",
                     help="which items did it move, and were they the right ones")
     args = ap.parse_args()
+    if args.self_test:
+        sys.exit(self_test())
+    if not args.campaign:
+        ap.error("--campaign is required, or --self-test")
     if args.null is None:
         present = {os.path.basename(os.path.dirname(d))
                    for d in glob.glob(os.path.join(args.campaign,

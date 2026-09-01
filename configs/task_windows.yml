@@ -41,31 +41,68 @@ meta:
   measured_on: "2026-09-01"
   reference_arm: tralo_null
 
+# STRICT vs PARTIAL, re-measured per seed 2026-09-01 (FRAMEWORK 2(z24)).
+#
+# The `class:` ranges below USED to be computed from the MEAN unconstrained
+# count over seeds, and no seed resembles the mean: on MobileNetV3 the four
+# lambda=0 seeds predict 278/329/354/383 for class 2, a spread of 105 items.
+# `scripts.task_window` now reports `binds n/N` per fraction, so each window
+# splits in two:
+#
+#   strict   the cap BINDS in every seed (4/4) and has prize + wiggle. This is
+#            the cell a clean arm-vs-arm claim needs.
+#   partial  it binds in only some seeds. NOT invalid -- a slack seed dilutes
+#            toward zero, so a positive measured here is CONSERVATIVE -- but it
+#            must be LABELLED, because the effective n is smaller than it looks
+#            and a null there is weaker evidence than a null in a strict cell.
+#
+# `gen_campaign` takes strict silently, takes partial with a printed label
+# naming n/N, and refuses anything outside both.
+#
+# WHAT THIS COST WHEN IT WAS MISSING: `taskwin2` staged MobileNetV3 x
+# `L80-100_G95`, which the mean-based file called a task. Per seed it is class
+# 2 at 0.80 = 3/4 and class 7 at 1.00 = 2/4 -- half that campaign is a PARTIAL
+# cell. Its other tag, `L70-90_G95`, is 4/4 on both classes.
 windows:
   iwildcam:
     ViTB16:
-      provenance: "iwc2/ViTB16/iwildcam, 8 tralo_null runs. iwc2 is
-        quarantined for constraint DOSE, which cannot affect a lambda=0 arm's
-        ranking; no other iwildcam ViTB16 runs exist."
+      provenance: "iwc2/ViTB16/iwildcam, 8 tralo_null runs, re-measured per
+        seed 2026-09-01. iwc2 is quarantined for constraint DOSE, which cannot
+        affect a lambda=0 arm's ranking; no other iwildcam ViTB16 runs exist."
       unconstrained_count: {2: 347, 7: 487}
-      class:
-        2: [0.60, 0.90]
-        7: [0.90, 1.00]
+      class:                     # strict: every seed binds
+        2: [0.60, 0.70]
+        7: [0.90, 0.90]
+      partial:                   # binds in some seeds; label it
+        2: [0.80, 0.90]          #   0.80 3/4, 0.90 3/4
+        7: [1.00, 1.10]          #   1.00 2/4, 1.10 1/4
     MobileNetV3:
-      provenance: "iwc3/MobileNetV3/iwildcam, 12 tralo_null runs."
+      provenance: "iwc3/MobileNetV3/iwildcam, 12 tralo_null runs, re-measured
+        per seed 2026-09-01."
       unconstrained_count: {2: 355, 7: 478}
       class:
-        2: [0.70, 0.90]
-        7: [0.90, 1.00]
+        2: [0.70, 0.70]
+        7: [0.90, 0.90]
+      partial:
+        2: [0.80, 1.00]          #   0.80 3/4, 0.90 3/4, 1.00 1/4
+        7: [1.00, 1.10]          #   1.00 2/4, 1.10 1/4
     MobileNetV2:
-      provenance: "iwc3/MobileNetV2/iwildcam, 12 tralo_null runs."
+      provenance: "iwc3/MobileNetV2/iwildcam, 12 tralo_null runs, re-measured
+        per seed 2026-09-01."
       unconstrained_count: {2: 405, 7: 421}
       class:
-        2: [0.80, 1.00]
-        7: [0.80, 0.90]
+        2: [0.80, 0.80]
+        7: [0.80, 0.80]
+      partial:
+        2: [0.90, 1.10]          #   0.90 3/4, 1.00 3/4, 1.10 2/4
+        7: [0.90, 1.00]          #   0.90 1/4, 1.00 1/4
     RegNetY400MF:
-      provenance: "iwc3/RegNetY400MF/iwildcam, 12 tralo_null runs."
+      provenance: "iwc3/RegNetY400MF/iwildcam, 12 tralo_null runs, re-measured
+        per seed 2026-09-01."
       unconstrained_count: {2: 345, 7: 498}
       class:
-        2: [0.60, 0.90]
-        7: [0.80, 1.00]
+        2: [0.60, 0.80]
+        7: [0.80, 0.90]
+      partial:
+        2: [0.90, 1.00]          #   0.90 1/4, 1.00 1/4
+        7: [1.00, 1.20]          #   1.00 3/4, 1.10 1/4, 1.20 1/4

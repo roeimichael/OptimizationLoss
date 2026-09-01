@@ -173,12 +173,31 @@ def classify(P, TW, dataset, model, cap_tag):
     if eff is None:
         return dict(status="no_data", classes={})
     tol = tolerance(TW)
-    per, ok_all = {}, True
+    partial_w = w.get("partial") or {}
+    per, ok_all, any_all = {}, True, True
     for c, (K, n) in sorted(eff.items()):
         ratio = (K / float(n)) if n else 0.0
         lo, hi = w["class"][c]
         ok = in_window(ratio, lo, hi, tol)
+        # STRICT vs PARTIAL. The strict band is where the cap binds in EVERY
+        # seed; the partial band is where it binds in some. A partial cell is
+        # not invalid -- a slack seed dilutes toward zero, so a positive there
+        # is conservative -- but its effective n is smaller than it looks, so
+        # it must never be folded into `task`. FRAMEWORK 2(z24).
+        plo, phi = partial_w.get(c, (None, None))
+        part = bool(plo is not None and in_window(ratio, plo, phi, tol))
+        # 🛑 THE GAP BETWEEN THE BANDS WAS NEVER MEASURED. The windows are
+        # ranges over a 0.1 GRID, so interpolating inside a contiguous run of
+        # measured points is fair -- but a ratio sitting BETWEEN the strict
+        # band and the partial band is in neither, and the verdict flips
+        # across it. `L80-100_G95` puts MobileNetV3 class 7 at K/n = 0.950,
+        # exactly halfway between the strict 0.90 and the partial 1.00, ten
+        # times the snapping tolerance from both. Reporting that as
+        # `non_task` claims a measurement nobody took. FRAMEWORK 2(z24).
+        gap = bool(plo is not None and not ok and not part
+                   and ((hi < ratio < plo) or (phi < ratio < lo)))
         ok_all = ok_all and ok
+        any_all = any_all and (ok or part)
         # `margin` is how far OUTSIDE the window this ratio sits (0 when
         # strictly inside). A cell with a tiny positive margin is a task only
         # through the grid-snapping tolerance, and 46% of this project's
@@ -186,8 +205,15 @@ def classify(P, TW, dataset, model, cap_tag):
         # rather than having it folded into a boolean.
         margin = max(0.0, lo - ratio, ratio - hi)
         per[c] = dict(K=K, n=n, ratio=ratio, lo=lo, hi=hi, ok=ok,
-                      margin=margin, snapped=bool(ok and margin > 0))
-    return dict(status="task" if ok_all else "non_task", classes=per,
+                      margin=margin, snapped=bool(ok and margin > 0),
+                      partial=part, gap=gap,
+                      band=("strict" if ok else "partial" if part else
+                            "unmeasured" if gap else "outside"))
+    unmeasured = any(v["gap"] for v in per.values())
+    return dict(status=("task" if ok_all else
+                        "partial" if any_all else
+                        "unmeasured" if unmeasured else "non_task"),
+                classes=per,
                 provenance=" ".join((w.get("provenance") or
                                      "UNRECORDED").split()))
 
@@ -213,9 +239,21 @@ def self_test(out=sys.stdout):
           set(iw) >= {"ViTB16", "MobileNetV3", "MobileNetV2", "RegNetY400MF"})
     check("every row carries provenance naming the runs it came from",
           all(r.get("provenance") for r in iw.values()))
-    check("the two capped classes' windows DIFFER on every backbone "
-          "(else per-class caps would be pointless)",
-          all(r["class"][2] != r["class"][7] for r in iw.values()))
+    # ⚠️ NOT "on every backbone" ANY MORE, and that is a MEASUREMENT. Under
+    # the mean-based windows the two classes differed everywhere, which is why
+    # the per-class tag exists. Per seed, MobileNetV2's strict windows COINCIDE
+    # at 0.80/0.80, so it is the one backbone where the plain single-fraction
+    # form `L80_G95` expresses a valid experiment. The per-class form is still
+    # REQUIRED on the other three.
+    differ = {m for m, r in iw.items() if r["class"][2] != r["class"][7]}
+    check("the two capped classes' windows differ on 3 of the 4 backbones, "
+          "so the per-class cap form is required",
+          len(differ) == 3 and "MobileNetV2" not in differ)
+    check("MobileNetV2's two windows COINCIDE, so a single fraction is legal "
+          "there",
+          iw["MobileNetV2"]["class"][2] == iw["MobileNetV2"]["class"][7])
+    check("every row carries a PARTIAL band beside its strict one",
+          all(set(r.get("partial") or {}) == {2, 7} for r in iw.values()))
 
     lo2, hi2 = iw["MobileNetV3"]["class"][2]
     lo7, hi7 = iw["MobileNetV3"]["class"][7]
@@ -223,10 +261,25 @@ def self_test(out=sys.stdout):
           % (lo2, hi2), not in_window(0.30, lo2, hi2, tol))
     check("L20 class 7 (K/n=0.20) is OUTSIDE MobileNetV3 %.2f-%.2f"
           % (lo7, hi7), not in_window(0.20, lo7, hi7, tol))
-    check("LIVENESS: taskwin1 class 2 (K/n=0.800) is INSIDE",
-          in_window(0.800, lo2, hi2, tol))
-    check("LIVENESS: taskwin1 class 7 (K/n=0.950) is INSIDE",
-          in_window(0.950, lo7, hi7, tol))
+    # ⛔ THESE USED TO ASSERT `L80-100_G95` WAS A TASK ON MobileNetV3, off the
+    # MEAN windows. Per seed class 2 at 0.800 binds in 3 of 4 (PARTIAL) and
+    # class 7 at 0.950 falls in the GAP between the strict 0.90 and the partial
+    # 1.00 -- ten times the snapping tolerance from either, so nobody ever
+    # measured that fraction. `taskwin2` runs that tag on half its cells, and
+    # this is the reading it must carry. Its other tag is strict on both.
+    plo2, phi2 = iw["MobileNetV3"]["partial"][2]
+    check("taskwin2 L80-100 class 2 (K/n=0.800) is PARTIAL, not strict",
+          not in_window(0.800, lo2, hi2, tol)
+          and in_window(0.800, plo2, phi2, tol))
+    plo7, phi7 = iw["MobileNetV3"]["partial"][7]
+    check("taskwin2 L80-100 class 7 (K/n=0.950) is in neither band -- never "
+          "measured",
+          not in_window(0.950, lo7, hi7, tol)
+          and not in_window(0.950, plo7, phi7, tol))
+    check("LIVENESS: taskwin2 L70-90 class 2 (K/n=0.700) is STRICT",
+          in_window(0.700, lo2, hi2, tol))
+    check("LIVENESS: taskwin2 L70-90 class 7 (K/n=0.901) is STRICT",
+          in_window(0.901, lo7, hi7, tol))
     check("a window EDGE is inside, not excluded by float noise",
           in_window(hi2, lo2, hi2, tol) and in_window(lo7, lo7, hi7, tol))
 
@@ -266,20 +319,32 @@ def self_test(out=sys.stdout):
                               "SKIPPED -- slice not on this machine"), file=out)
     else:
         r30 = classify(P, TW, "iwildcam", "MobileNetV3", "L30_G50")
+        rok = classify(P, TW, "iwildcam", "MobileNetV3", "L70-90_G95")
         r90 = classify(P, TW, "iwildcam", "MobileNetV3", "L90_G95")
         check("end to end: L30_G50 on MobileNetV3 is a NON-TASK",
               r30["status"] == "non_task")
-        check("LIVENESS end to end: L90_G95 on MobileNetV3 IS a task",
-              r90["status"] == "task")
+        check("LIVENESS end to end: L70-90_G95 on MobileNetV3 IS a task",
+              rok["status"] == "task")
+        # THE THIRD STATUS, AND THE REASON IT EXISTS. Under the MEAN-based
+        # windows `L90_G95` read `task`; per seed its class 2 binds in 3 of 4
+        # and class 7 in 2 of 4, so it is PARTIAL. Collapsing partial into
+        # task is what let `taskwin2` stage half a campaign on one.
+        check("L90_G95 on MobileNetV3 is PARTIAL, not task and not non-task",
+              r90["status"] == "partial")
+        check("a partial cell names its band per class",
+              any(v["band"] == "partial" for v in r90["classes"].values())
+              and all(v["band"] in ("strict", "partial", "outside")
+                      for v in r90["classes"].values()))
         check("classify reports per-class K, n and K/n, not just a boolean",
-              set(r90["classes"]) == {2, 7}
+              set(rok["classes"]) == {2, 7}
               and all({"K", "n", "ratio", "lo", "hi", "ok", "margin",
-                       "snapped"} <= set(v) for v in r90["classes"].values()))
+                       "snapped", "band"} <= set(v)
+                      for v in rok["classes"].values()))
         # a strictly-inside cell must NOT be reported as snapped, or the flag
         # cannot single out the edge cases it exists for
         check("a strictly-inside ratio is not flagged as grid-snapped",
-              not any(v["snapped"] for v in r90["classes"].values())
-              or all(v["margin"] <= tol for v in r90["classes"].values()))
+              not any(v["snapped"] for v in rok["classes"].values())
+              or all(v["margin"] <= tol for v in rok["classes"].values()))
 
     print("", file=out)
     # 🛑 NEVER PRINT AN UNQUALIFIED PASS OVER A SKIP. A self-test that
