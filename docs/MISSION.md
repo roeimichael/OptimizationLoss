@@ -439,6 +439,22 @@ and FRAMEWORK 3(0), then start the next.
    both 4/4 on both classes. It is the FIRST ViTB16 campaign that is, which
    retires "ViTB16 has zero strict task cells" (true of L20/L30/L50 only).
 
+   ✅ **EARLY GATES, RUN AT 24 OF 48 (2026-09-01) -- ALL GREEN.**
+   - **DOSE 100.0%**: `tralo` 116/116 and `tralo_cut` 116/116 on
+     `amp=float16`. The `--constraint-fp32` regeneration did its job; the
+     killed `taskwin1` landed 69% on the same host and arm.
+   - **RULE 3 (md5 across arms): `tralo_cut` is DISTINCT from `tralo` in 4 of
+     4** completed (cell, seed) pairs. The new count function is LIVE, not a
+     sixth inert flag. ⚠️ Do not skip this: `cb_lp` was byte-identical to
+     `clip` in 24/24 with every config gate green.
+   - **Consistency**: `clip`, `focal_clip`, `tralo_null` and `tralo_reseed`
+     are byte-identical ACROSS the two cap levels, as they must be -- they
+     share a warm-up and the cap is applied downstream by the allocator --
+     while `tralo` and `tralo_cut` differ across caps, as they must.
+   - The dispatcher interleaves the two caps, so both sit at 12/24: **no cell
+     is complete and nothing is scorable yet.** Do not read `full_panel`
+     until a cell has all 4 seeds on every arm.
+
    Windows on MobileNetV3: class 2 **0.70-0.90**, class 7 **0.90-1.00**. All
    four land inside. The two tags also differ in WHICH SCOPE BINDS, so the
    local-vs-global question is carried for free.
