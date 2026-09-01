@@ -327,9 +327,12 @@ and FRAMEWORK 3(0), then start the next.
    DOSE block on the FIRST completed runs; then `boundary_probe --control
    tralo_null` against the `tralo_reseed` floor.
    🔑 **THE PRE-REGISTERED PREDICTION.** Both cap tags are now LOOSE-ish
-   (K/n 0.70-0.95), which is where 2(z12) says `sum` already carries real mass
-   at the cut -- so the tight-vs-loose contrast that `cutwin1` was built around
-   is GONE, and the prediction changes with it:
+   (K/n 0.70-0.95), and 2(z18) has now MEASURED what that costs: at these
+   budgets `cut_window` sits at cosine **0.926-0.951** from `sum` (against
+   0.716-0.728 at the tight caps), with only 4.5-6.9x its cut mass rather than
+   thousands. So the tight-vs-loose contrast `cutwin1` was built around is GONE,
+   `tralo_cut` is expected to behave like `tralo` here, and the prediction
+   changes with it:
    > `tralo_cut` and `tralo` are aimed at nearly the same place here and should
    > behave ALIKE on the count. The discriminating quantity is the **EMITTED
    > top-K set** against the `tralo_reseed` floor: with the cap finally inside

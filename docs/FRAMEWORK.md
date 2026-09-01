@@ -2489,6 +2489,53 @@ campaign to use them.
 weak regime, it is a regime with nothing to measure, and that is now established
 on every backbone the paper claims.
 
+### (z18) 🔑🔑 THE AIM FIX AND THE TASK WINDOW ARE ANTI-CORRELATED. Where
+`tralo_cut` has the most room, the cap poses no question; where the cap poses a
+question, `sum` already aims reasonably well.
+
+Priced BEFORE the GPU, 2026-09-01, `step_direction_probe` on real stored
+features, MobileNetV3, `tralo_null`, unlimited (6-8 run-class pairs per row).
+Tight rows from `iwc3`, loose rows from `equaldose1`.
+
+| cap | K/n | cos(`cut_window`, `sum`) | cut mass, `sum` | cut mass, `cut_window` | ratio | a TASK? |
+|---|---|---|---|---|---|---|
+| `L20_G50` | 0.20 | **0.716** | 0.0000 | 0.3034 | unbounded | ⛔ no |
+| `L30_G50` | 0.30 | **0.728** | 0.0000 | 0.3222 | unbounded | ⛔ no |
+| `L50_G30` | 0.30 | **0.728** | 0.0001 | 0.3222 | ~3000x | ⛔ no |
+| `L80_G95` | 0.80 | **0.926** | 0.0972 | 0.6733 | **6.9x** | ✅ yes |
+| `L90_G95` | 0.90 | **0.951** | 0.1589 | 0.7086 | **4.5x** | ✅ yes |
+
+✅ **`L30_G50` and `L50_G30` give byte-identical probe rows**, which is the
+expected consequence of `K_eff = min(global, sum of local)`: both land on
+K/n=0.30, and `tralo_null` shares one warm-up across cap tags, so identical p
+and identical K give identical everything. A useful confirmation that the
+effective-budget arithmetic in `gen_campaign` matches what the runs deploy.
+
+🛑 **THE CONSEQUENCE FOR `tralo_cut`, STATED BEFORE THE CAMPAIGN RUNS.** In the
+task window it is **not** a distinct method from `tralo` in any strong sense:
+0.926-0.951 cosine is 18-22 degrees of separation, against 0.716-0.728 (44
+degrees) at the tight caps where it was designed to matter. It is not INERT --
+the cut mass still differs 4.5-6.9x and `flag_live` reports md5-distinct raw
+predictions -- but the expectation is a small difference, not a new arm.
+
+⇒ **`taskwin1` IS NOT A `tralo_cut` VS `tralo` EXPERIMENT, AND MUST NOT BE
+REPORTED AS ONE.** Its question is the one 2(z17) made askable for the first
+time: **with the cap finally inside the measured window, does ANY trained arm
+clear the `tralo_reseed` floor?** Every previous null carried the escape hatch
+"the cap was in the wrong place". These two cells remove it.
+
+⚠️ **AND IT PRICES THE WHOLE CLUSTER-C DIRECTION DOWNWARD.** Aiming at the cut
+was derived (2(z12)) from the tight-cap geometry, where `sum` puts 0.0001 of
+its gradient at the cut. That geometry is real and it is measured -- but it
+lives entirely in cells that pose no question. In the cells that do, the aim was
+never far wrong. Cluster C is therefore a fix to a defect that only exists where
+nothing can be won, unless the task window itself moves (a different dataset,
+or a backbone whose unconstrained count sits much further from K).
+
+🔑 The honest summary of 0-NOW: **defect (3) is real but is largely confined to
+the non-tasks that defect (4) identifies.** Neither was visible without the
+other, and the pair together explains the tie history better than either alone.
+
 ### (z11) 🔴🔴🔴 AT THE ITEM LEVEL THE CONSTRAINT IS AT THE RNG FLOOR, AND
 `tralo_uniform` IS BELOW IT IN BOTH REGIMES
 
