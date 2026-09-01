@@ -244,6 +244,54 @@ def group_calibrate(P, g, classes, targets, factor_map=None, group_key=None):
     return Q / np.clip(Q.sum(axis=1, keepdims=True), 1e-12, None)
 
 
+
+def _cell_of(run_dir):
+    """(backbone, dataset, cap) for a run, from its path.
+
+    <root>/<Backbone>/<dataset>/<cap>/<arm>/<seed>. Returns None when the path
+    is too shallow to say, which is honest: an unknown cell must not silently
+    join a known one.
+    """
+    parts = os.path.normpath(os.path.abspath(run_dir)).split(os.sep)
+    return tuple(parts[-5:-2]) if len(parts) >= 5 else None
+
+
+def _per_cell_report(names, rows, keys):
+    """RULE 4: never pool across backbones, cap levels or datasets.
+
+    The pooled block above keys on the REGIME NAME only, so a `--campaign`
+    spanning three backbones and two cap levels produced ONE line per regime
+    and ran a sign test over it. That is the aggregation this project has
+    retracted a result over three times, and a direction-closing verdict was
+    published off it. The pooled line stays so the published number remains
+    reproducible; this block is what says whether it was legal.
+    """
+    cells = {}
+    for i, nm in enumerate(names):
+        cells.setdefault(_cell_of(nm) or ("?", "?", "?"), []).append(i)
+    if len(cells) <= 1:
+        print("")
+        print("  ONE CELL (%s), so the pooled block above is a legal aggregate."
+              % ("/".join(sorted(cells)[0]) if cells else "none"))
+        return cells
+    print("")
+    print("  *** THE BLOCK ABOVE POOLS %d CELLS, AND RULE 4 FORBIDS THAT."
+          % len(cells))
+    print("      A backbone or a cap level is not a replicate: the")
+    print("      unconstrained count, the ranking quality and K all move with")
+    print("      both. Count CELLS, never runs.")
+    print("  %-34s %5s %s"
+          % ("cell", "n", "  ".join("%13s" % k[:13] for k in keys)))
+    for c in sorted(cells):
+        idx = cells[c]
+        vals = ["%+13.2f" % (sum(rows[k][i] for i in idx) / float(len(idx)))
+                for k in keys]
+        print("  %-34s %5d %s" % ("/".join(c)[-34:], len(idx), "  ".join(vals)))
+    print("      %d cell(s) is the sample size for any sign test, not %d run(s)."
+          % (len(cells), len(names)))
+    return cells
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("runs", nargs="*")
@@ -314,6 +362,8 @@ def main():
               % (key, st["mean"], st["sd"], st["sem"], st["pos"], st["n"],
                  st["sign_p"], float(np.mean(rows[key + "__moved"]))))
 
+    _per_cell_report(names, rows,
+                     ("local_only", "C1_rotated", "C2_reversed"))
     real = stats["local_only"]
     ctrl = max(abs(stats["C1_rotated"]["mean"]), abs(stats["C2_reversed"]["mean"]))
     moved = float(np.mean(rows["local_only__moved"]))

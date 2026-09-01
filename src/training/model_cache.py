@@ -103,7 +103,30 @@ def load_from_cache(base_model_id: str, config: Dict[str, Any],
     # The data behind a data_dir can change without the path changing.
     want_amp = _amp_regime()
     got_amp = ckpt.get('amp_regime')
-    if want_amp and got_amp and got_amp != want_amp:
+    # 🛑 BOTH SIDES ABSENT USED TO MEAN "NO CHECK", SILENTLY. This condition was
+    # `want_amp and got_amp and got_amp != want_amp`, so it was and-chained on
+    # its own inputs: `_amp_regime()` returning None (its except swallows any
+    # failure) or a cache predating the field made the comparison not happen at
+    # all, with no message. dsisco01 is FP16 + GradScaler and dsisco02 is BF16,
+    # on a shared NFS home with ONE cache directory, so this is the check that
+    # keeps a warm-up from crossing hosts. The third gate below (`run_code_
+    # version`) already degrades explicitly and logs when it cannot run; these
+    # two did not. Two of three.
+    if not want_amp:
+        # ⚠️ WARN, do not invalidate. `_amp_regime()` returns None whenever
+        # the runtime probe fails, which is reachable off-GPU, and refusing the
+        # cache there would retrain every warm-up on disk in exactly the
+        # environment least able to tell whether that was necessary. The defect
+        # being fixed is the SILENCE, not the reuse.
+        log.warning("Cache %s: this process's AMP regime could not be "
+                    "determined, so the FP16-vs-BF16 check DID NOT RUN. This "
+                    "warm-up may have come from the other host.",
+                    base_model_id)
+    elif not got_amp:
+        log.info("Cache %s predates `amp_regime`, so the FP16-vs-BF16 check "
+                 "cannot run for it. Reusing it assumes one host.",
+                 base_model_id)
+    elif got_amp != want_amp:
         log.warning("Cache %s was trained under AMP regime %s but this run "
                     "is %s -- the FP16 path skips overflowing optimizer "
                     "steps and BF16 does not, so they are not the same "
@@ -111,6 +134,12 @@ def load_from_cache(base_model_id: str, config: Dict[str, Any],
         return None
     want_data = config.get('data_fingerprint')
     got_data = ckpt.get('data_fingerprint')
+    if not want_data:
+        # Same shape: `want_data and ...` skipped the whole comparison when
+        # this run had not recorded a fingerprint. Say so rather than passing.
+        log.info("Cache %s: this run records no `data_fingerprint`, so the "
+                 "slice-changed-under-the-same-path check DID NOT RUN.",
+                 base_model_id)
     if want_data and got_data != want_data:
         log.warning("Cache %s was trained on data fingerprint %s but this run "
                     "loaded %s -- the slice changed under the same path. "

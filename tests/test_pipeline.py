@@ -8158,3 +8158,131 @@ def test_every_launch_script_either_runs_task_caps_or_says_it_is_superseded():
     assert banded and clean, (
         "the check saw %d superseded and %d clean script(s); with zero of "
         "either kind one branch of this gate is untested" % (banded, clean))
+
+
+def test_the_dose_block_cannot_drop_an_arm_that_took_zero_constraint_steps():
+    """An arm that ATTEMPTED zero constraint steps used to vanish from the
+    CONSTRAINT DOSE table entirely, while still being scored and BH-tested.
+
+    It fell between the two buckets: not `trained` (attempted == 0) and not
+    `blind` (its runs DO record counts). The state is reachable -- the trainer
+    sets `did_backward = has_constraint` and `has_constraint = total_constraint
+    > 0`, so a run whose cap never binds increments neither counter, and
+    FRAMEWORK already records that the cap does not bind in every seed.
+
+    That is the worst shape this block can take: the reader sees a healthy
+    100% line for the other arm and no mention of the one that got no
+    treatment at all.
+    """
+    import contextlib
+    import io as _io
+    from scripts.full_panel import _constraint_dose_check
+
+    def render(rows):
+        buf = _io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            _constraint_dose_check(rows)
+        return buf.getvalue()
+
+    def run(arm, app, att):
+        return dict(arm=arm, steps_applied=app, steps_attempted=att)
+
+    out = render([run("tralo", 29, 29) for _ in range(4)]
+                 + [run("alm", 0, 0) for _ in range(4)])
+    assert "tralo" in out and "116 / 116" in out, out   # summed over 4 runs
+    assert "alm" in out, (
+        "an arm that attempted ZERO constraint steps is absent from the dose "
+        "table while being scored below it:\n" + out)
+    assert "ZERO constraint steps ATTEMPTED" in out, out
+    # and the block must say the arm-vs-arm dose check could not run, because
+    # only one arm has a measurable dose
+    assert "could NOT run" in out, out
+
+    # A partially-blind arm must not report its measured subset's percentage
+    # under the FULL run count: 1 run at 29/29 plus 3 with no counts is not
+    # "100.0%, 4 run(s)".
+    out = render([run("tralo", 29, 29)]
+                 + [run("tralo", None, None) for _ in range(3)]
+                 + [run("fioretto", 28, 28) for _ in range(4)])
+    assert "RECORD NO COUNTS" in out, out
+    tralo_line = [l for l in out.splitlines() if l.strip().startswith("tralo")]
+    assert len(tralo_line) == 1, out
+    assert "100.0%, 4 run(s)" not in tralo_line[0], (
+        "a run count of 4 printed beside a percentage measured on 1: " + out)
+    assert "1 of 4 run(s); 3 RECORD NO COUNTS" in tralo_line[0], out
+    # LIVENESS on the same render: the fully-measured arm keeps the plain
+    # form, so the disclosure is attached to the arm it is about.
+    fio = [l for l in out.splitlines() if l.strip().startswith("fioretto")]
+    assert fio and "100.0%, 4 run(s)" in fio[0], out
+
+    # LIVENESS: an ordinary healthy campaign must carry NONE of those three
+    # warnings, or they are decoration.
+    clean = render([run("tralo", 29, 29) for _ in range(4)]
+                   + [run("alm", 29, 29) for _ in range(4)])
+    for noise in ("ZERO constraint steps ATTEMPTED", "RECORD NO COUNTS",
+                  "could NOT run", "DID NOT RUN AT THE SAME DOSE"):
+        assert noise not in clean, (
+            "%r fires on a clean campaign, so it will stop being read:\n%s"
+            % (noise, clean))
+    assert "100.0%" in clean and "tralo" in clean and "alm" in clean, clean
+
+
+def test_the_pooling_probes_say_when_they_pooled_across_cells():
+    """`scope_probe` and `graph_probe` aggregate a whole `--campaign` tree into
+    ONE row per regime, keyed on the regime name and nothing else.
+
+    Both carry a PUBLISHED direction-closing verdict computed that way:
+    "transductive geometry is a NULL, +0.50 items, 10/19" and "pinning the
+    split costs -0.86 items while wrong-shape controls cost 5.3-5.5". Neither
+    keys on (backbone, cap), so both figures span backbones and cap levels --
+    the aggregation rule 4 forbids, and the one this project has retracted a
+    result over three times.
+
+    The pooled line stays, so the published numbers remain reproducible. What
+    must exist is the block that says whether the pooling was legal, and it
+    must be silent when there is only one cell.
+    """
+    import contextlib
+    import io as _io
+    import importlib
+
+    names = ["r/MobileNetV3/iwildcam/L90_G95/tralo/seed_1",
+             "r/MobileNetV3/iwildcam/L90_G95/tralo/seed_2",
+             "r/ViTB16/iwildcam/L80_G95/tralo/seed_1"]
+
+    for mod, keys in (("scripts.scope_probe",
+                       ("local_only", "C1_rotated", "C2_reversed")),
+                      ("scripts.graph_probe",
+                       ("diffused", "C1_shuffled_graph",
+                        "C2_shuffled_features"))):
+        M = importlib.import_module(mod)
+        assert M._cell_of(names[0]) == ("MobileNetV3", "iwildcam", "L90_G95"), (
+            "%s cannot derive a cell from a run path" % mod)
+
+        # The three runs average to -2.00 pooled, while the two cells are
+        # +1.50 and -9.00. A pooled mean that no cell resembles is exactly the
+        # shape rule 4 exists to stop.
+        rows = {k: [0.0, 0.0, 0.0] for k in keys}
+        rows[keys[0]] = [1.0, 2.0, -9.0]
+
+        def render(nm, rw):
+            buf = _io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                M._per_cell_report(nm, rw, keys)
+            return buf.getvalue()
+
+        out = render(names, rows)
+        assert "POOLS 2 CELLS" in out, (mod, out)
+        assert "MobileNetV3/iwildcam/L90_G95" in out and \
+               "ViTB16/iwildcam/L80_G95" in out, (mod, out)
+        assert "+1.50" in out and "-9.00" in out, (
+            "%s reported the pooled mean but not the per-cell means, so the "
+            "sign flip between cells is still invisible:\n%s" % (mod, out))
+        assert "not 3 run(s)" in out, (mod, out)
+
+        # LIVENESS: a single-cell campaign is a legal aggregate and must NOT
+        # carry the warning, or it fires on every invocation and stops being
+        # read.
+        clean = render(names[:2], {k: v[:2] for k, v in rows.items()})
+        assert "POOLS" not in clean, (mod, clean)
+        assert "legal aggregate" in clean, (mod, clean)

@@ -1042,17 +1042,43 @@ def _constraint_dose_check(rows):
         cell[1] += int(att)
     trained = {a: v for a, v in per.items() if v[1] > 0}
     blind = {a: v for a, v in per.items() if v[3] and v[1] == 0}
-    if not trained and not blind:
+    # 🛑 THE ARM THAT USED TO VANISH. An arm whose runs DO record counts but
+    # whose `steps_attempted` is 0 on every one of them is in neither bucket:
+    # not `trained` (att == 0) and not `blind` (the counts are there). It
+    # disappeared from this table entirely while still being scored, ranked and
+    # BH-tested below, and the block declared the campaign healthy. That state
+    # is reachable: the trainer sets `did_backward = has_constraint` and
+    # `has_constraint = total_constraint > 0`, so a run whose cap never binds
+    # increments neither counter. Zero attempted steps is not "nothing to
+    # report", it IS the report -- a lambda=0 twin and a post-hoc arm are the
+    # only arms allowed to be here, and they are named as such rather than
+    # dropped.
+    zero_att = {a: v for a, v in per.items() if v[1] == 0 and not v[3]}
+    if not trained and not blind and not zero_att:
         return
     print("")
     print("CONSTRAINT DOSE -- steps that LANDED, against steps attempted")
     fracs = {}
+    partial = []
     for arm, (app, att, n, nb) in sorted(trained.items()):
         frac = app / float(att)
         fracs[arm] = frac
         flag = "" if app == att else "   *** %d STEP(S) LOST" % (att - app)
-        print("  %-14s %5d / %-5d applied  (%.1f%%, %d run(s))%s"
-              % (arm, app, att, 100.0 * frac, n, flag))
+        # The percentage is over the MEASURED runs only. Printing it beside the
+        # full run count reads as 100% of four runs when it is 100% of one.
+        seen = "%d run(s)" % n if not nb else (
+            "%d of %d run(s); %d RECORD NO COUNTS" % (n - nb, n, nb))
+        if nb:
+            partial.append(arm)
+        print("  %-14s %5d / %-5d applied  (%.1f%%, %s)%s"
+              % (arm, app, att, 100.0 * frac, seen, flag))
+    for arm, (_a, _t, n, _nb) in sorted(zero_att.items()):
+        print("  %-14s      ZERO constraint steps ATTEMPTED in all %d run(s). "
+              "Correct for a" % (arm, n))
+        print("  %-14s      post-hoc arm or a lambda=0 twin; for any other arm "
+              "it means the" % "")
+        print("  %-14s      treatment never ran and every delta for it is a "
+              "null by construction." % "")
     for arm, (_a, _t, n, nb) in sorted(blind.items()):
         print("  %-14s      no counts recorded (%d of %d run(s) predate the "
               "field)" % (arm, nb, n))
@@ -1061,6 +1087,15 @@ def _constraint_dose_check(rows):
         print("    gradient was non-finite, no update landed, and the run still")
         print("    reports `status: completed`. `constraint_fp32: true`")
         print("    decouples the constraint pass from the CE loss scale.")
+    if len(fracs) < 2:
+        print("    NOTE: the %d-point dose comparison could NOT run -- only %d "
+              "arm(s) have a" % (int(DOSE_FRACTION_TOLERANCE * 100), len(fracs)))
+        print("    measurable dose here, so no arm-vs-arm gap was checked.")
+    if partial:
+        print("    NOTE: %s carr%s runs with NO counts, so the percentage above "
+              "is over" % (", ".join("`%s`" % a for a in partial),
+                           "y" if len(partial) > 1 else "ies"))
+        print("    the measured subset only. The real dose can be lower.")
     if len(fracs) > 1 and (max(fracs.values()) - min(fracs.values())
                            > DOSE_FRACTION_TOLERANCE):
         lo = min(fracs, key=fracs.get)
