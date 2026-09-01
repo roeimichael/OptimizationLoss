@@ -2832,8 +2832,10 @@ a GPU.
 
 **Three record corrections the census forced:**
 
-1. **THIRTEEN campaigns carry `QUARANTINE.json`, not ten.** CLAUDE.md said ten;
-   the extra three are `dosefix`, `vit_ceskip`, `vit_diag`. Corrected.
+1. **FOURTEEN campaigns carry `QUARANTINE.json`, not ten.** CLAUDE.md said ten;
+   the extra three were `dosefix`, `vit_ceskip`, `vit_diag`. `taskwin1` was
+   added 2026-09-01 (no `--constraint-fp32`, 20/29 = 69.0%, superseded by
+   `taskwin2` at 100% on the same host). Corrected.
 2. **11 `config.json` sit at depth 6 rather than 5**, all under
    `optloss-audit/vit_diag` in `_hp_liveness/` and `_variance_probe*/` instead
    of `seed_N/`. They are diagnostic sub-runs, not protocol runs, and any tool

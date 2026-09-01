@@ -10,6 +10,7 @@ scripts/quarantine.py, scripts/full_panel.py, docs/FRAMEWORK.md 2(u), 2(z3),
 import contextlib
 import io
 import json
+import re
 import os
 import subprocess
 import sys
@@ -395,9 +396,26 @@ def test_dead_arms_and_quarantined_campaigns_are_not_merely_unfinished(
             os.path.join(ROOT, "scripts", "full_panel.py"),
             encoding="utf-8").read():
         fails.append("full_panel no longer globs error_log*.json")
-    if len(quarantine.REGISTRY) != 13:
-        fails.append("%d quarantined campaigns, docs say THIRTEEN"
-                     % len(quarantine.REGISTRY))
+    # The count is NOT hardcoded here. A literal in a third place makes every
+    # legitimate quarantine fail this gate, and the fix becomes "bump the
+    # number" -- a chore, not a check. Read the word CLAUDE.md actually prints
+    # and require the registry to match it, so adding a campaign forces the doc
+    # update and nothing else.
+    _WORDS = {"ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13,
+              "fourteen": 14, "fifteen": 15, "sixteen": 16, "seventeen": 17,
+              "eighteen": 18, "nineteen": 19, "twenty": 20}
+    _m = re.search(r"([A-Za-z]+)\s+campaigns are marked",
+                   io.open(os.path.join(ROOT, "CLAUDE.md"),
+                           encoding="utf-8").read())
+    if not _m:
+        fails.append("CLAUDE.md no longer states how many campaigns are marked")
+    elif _m.group(1).lower() not in _WORDS:
+        # fail CLOSED: an unparseable word must not read as agreement
+        fails.append("CLAUDE.md says %r campaigns are marked, which is not a "
+                     "number word this gate knows" % _m.group(1))
+    elif len(quarantine.REGISTRY) != _WORDS[_m.group(1).lower()]:
+        fails.append("%d quarantined campaigns, CLAUDE.md says %s"
+                     % (len(quarantine.REGISTRY), _m.group(1).upper()))
     if any(e.get("scorable") for e in quarantine.REGISTRY.values()):
         fails.append("a quarantine entry claims to be scorable")
     q = _campaign(tmp_path / "quar", P, MIXED)

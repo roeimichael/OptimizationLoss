@@ -40,6 +40,7 @@ import argparse
 import glob
 import json
 import os
+import subprocess
 import sys
 import time
 
@@ -49,6 +50,17 @@ MARKER = "QUARANTINE.json"
 # still good for -- because "dead" and "worthless" are different, and every
 # entry below is still the receipt for something.
 REGISTRY = {
+    "taskwin1": dict(
+        reason="staged WITHOUT --constraint-fp32 (`constraint_fp32: False` in "
+               "all 8 tralo configs): `tralo` landed 20/29 constraint steps, "
+               "69.0%, on amp=float16. Killed at 3/48 and regenerated as "
+               "`taskwin2`, which lands 203/203 and 174/174 on the SAME host, "
+               "same backbone and the same two cap tags",
+        keep_for="the CLEANEST A/B on --constraint-fp32 in the project: "
+                 "taskwin1 69.0% vs taskwin2 100%, with host, backbone, caps "
+                 "and arms all held fixed. `iwc2` and `iwc3` compare across "
+                 "designs; this pair does not",
+        scorable=False),
     "uniform1_VOID_dose3.4pct_2026-08-25": dict(
         reason="ran at 3.4% of its constraint dose; superseded by `uniform1`",
         keep_for="the receipt for FRAMEWORK 2(u): an arm can land 1 of 29 steps "
@@ -115,6 +127,8 @@ REGISTRY = {
 
 # A dataset that is gone from disk. A `pending` run against one can never
 # execute, so it is the one category safe to remove.
+_UNSET = object()   # "not passed" -- distinct from None, which means "unknown"
+
 DEAD_DATASETS = ("dermmnist", "octmnist", "tissuemnist")
 
 
@@ -148,7 +162,7 @@ def is_quarantined(root):
     campaign root, but scoring one backbone at a time is a normal thing to do:
     `--campaign results/iwc3/ViTB16` used to walk straight past the marker at
     `results/iwc3` and print a full, plausible panel for a campaign that landed
-    68.6% of its dose. Thirteen campaigns carry a marker, so this was thirteen
+    68.6% of its dose. Fourteen campaigns carry a marker, so this was fourteen
     ways to score a dead campaign by adding one path component.
 
     The walk stops at a directory named `results` (or at the filesystem root),
@@ -165,10 +179,33 @@ def is_quarantined(root):
         p = parent
 
 
-def scan(root):
+def live_config_paths():
+    """Config paths a LIVE runner currently holds, or None if that is unknown.
+
+    None is NOT the empty set, and the difference is the whole point: an empty
+    set licenses removal, None must forbid it. `ps` failing must never read as
+    "no runner is using this file". Same fail-closed direction as the
+    unreadable-marker gate.
+    """
+    try:
+        txt = subprocess.check_output(["ps", "-eo", "args="],
+                                      stderr=subprocess.DEVNULL)
+    except Exception:
+        return None
+    out = set()
+    for line in txt.decode("utf-8", "replace").splitlines():
+        for tok in line.split():
+            if tok.endswith("config.json"):
+                out.add(os.path.realpath(tok))
+    return out
+
+
+def scan(root, live=_UNSET):
     """Status counts, dataset set, and the runs that can never execute."""
-    counts, datasets, unrunnable, stale = {}, set(), [], []
+    counts, datasets, unrunnable, stale, held = {}, set(), [], [], []
     quarantined = is_quarantined(root) is not None
+    if live is _UNSET:
+        live = live_config_paths()
     for f in glob.glob(os.path.join(root, "*", "*", "*", "*", "seed_*",
                                     "config.json")):
         try:
@@ -188,9 +225,25 @@ def scan(root):
         # dispatcher; an absent config does.
         if st == "pending" and (ds in DEAD_DATASETS or quarantined):
             unrunnable.append(f)
-        if st == "running" and (time.time() - os.path.getmtime(f)) > 2 * 86400:
+        elif st == "running" and quarantined:
+            # `main.py` RESETS `running` to `pending` when a dispatcher starts
+            # on the root, so a `running` config in a DEAD campaign is exactly
+            # as dispatchable as a pending one -- the same hazard the block
+            # above exists to close, and this branch was missing until
+            # 2026-09-01. `taskwin1` was left holding two of them.
+            #
+            # The 2-day mtime guard below is for LIVE campaigns, where age is
+            # the only evidence a run died. Here the campaign must never
+            # execute at ALL, so age is irrelevant and the only question is
+            # whether a process holds the file right now. `live is None` means
+            # we could not find out, and then we do not touch it.
+            if live is not None and os.path.realpath(f) not in live:
+                unrunnable.append(f)
+            else:
+                held.append(f)
+        elif st == "running" and (time.time() - os.path.getmtime(f)) > 2 * 86400:
             stale.append(f)
-    return counts, datasets, unrunnable, stale
+    return counts, datasets, unrunnable, stale, held
 
 
 def cmd_list(home=None, out=sys.stdout):
@@ -199,7 +252,7 @@ def cmd_list(home=None, out=sys.stdout):
     print("-" * 118, file=out)
     for root in campaign_roots(home):
         name = os.path.basename(root)
-        counts, _, unrunnable, stale = scan(root)
+        counts, _, unrunnable, stale, held = scan(root)
         if not counts:
             continue
         q = is_quarantined(root)
@@ -216,6 +269,10 @@ def cmd_list(home=None, out=sys.stdout):
         if stale:
             print("%-36s %-9s   %d run(s) claim `running` with no process behind "
                   "them" % ("", "", len(stale)), file=out)
+        if held:
+            print("%-36s %-9s   %d `running` config(s) NOT removed: a live "
+                  "process holds them, or `ps` was unreadable"
+                  % ("", "", len(held)), file=out)
     return 0
 
 
@@ -224,7 +281,7 @@ def cmd_apply(execute=False, home=None, out=sys.stdout):
     wrote = removed = fixed = 0
     for root in campaign_roots(home):
         name = os.path.basename(root)
-        counts, _, unrunnable, stale = scan(root)
+        counts, _, unrunnable, stale, held = scan(root)
         if not counts:
             continue
         entry = REGISTRY.get(name)
@@ -323,6 +380,36 @@ def self_test(out=sys.stdout):
         # and none may be marked scorable -- that would be a contradiction
         checks.append(("no registry entry claims to be scorable",
                        not any(e.get("scorable") for e in REGISTRY.values())))
+
+        # A `running` config inside a QUARANTINED root is exactly as
+        # dispatchable as a `pending` one, because `main.py` resets it on
+        # start. Gate all three directions: it goes; it is SPARED when a live
+        # process holds it or when `ps` is unreadable; and a live campaign
+        # loses nothing to the branch. `taskwin1` was left holding two of them
+        # until 2026-09-01.
+        qroot = os.path.join(tmp, "results", "a_dead_campaign")
+        for arm, st in (("a", "pending"), ("b", "running"),
+                        ("c", "running"), ("d", "completed")):
+            d = os.path.join(qroot, "M", "iwildcam", "L80_G95", arm, "seed_1")
+            os.makedirs(d)
+            json.dump({"status": st, "dataset_mode": "iwildcam"},
+                      open(os.path.join(d, "config.json"), "w"))
+        json.dump(dict(reason="self-test fixture", scorable=False),
+                  open(os.path.join(qroot, MARKER), "w"))
+        heldp = os.path.realpath(os.path.join(
+            qroot, "M", "iwildcam", "L80_G95", "b", "seed_1", "config.json"))
+        _, _, un1, _, hd1 = scan(qroot, live={heldp})
+        checks.append(("a `running` run in a DEAD campaign is dropped too -- "
+                       "main.py would reset it to pending and run it",
+                       len(un1) == 2 and len(hd1) == 1 and heldp not in un1))
+        _, _, un2, _, hd2 = scan(qroot, live=None)
+        checks.append(("...but NOT when `ps` is unreadable: unknown is not the "
+                       "empty set, so it fails CLOSED",
+                       len(un2) == 1 and len(hd2) == 2))
+        os.remove(os.path.join(qroot, MARKER))
+        _, _, un3, _, hd3 = scan(qroot, live=set())
+        checks.append(("...and a LIVE campaign loses nothing to that branch",
+                       not un3 and not hd3))
 
         print("SELF-TEST\n", file=out)
         for label, good in checks:

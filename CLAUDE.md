@@ -107,8 +107,11 @@ python -m scripts.verify_caps               # what integer budget each cap tag r
 python -m scripts.check_parity <root>       # equal compute, same knobs, >=2 caps, sane warm-up sharing
 python -m scripts.reachability <early-run>  # CAN the penalty even reach this cell's cut?
 python -m scripts.quarantine --list         # 🛑 IS THIS CAMPAIGN ALREADY DEAD?
-#   THIRTEEN campaigns are marked (counted on disk 2026-09-01; this line
-#   said TEN, the extra three are `dosefix`, `vit_ceskip`, `vit_diag`)
+#   FOURTEEN campaigns are marked (2026-09-01; this line said TEN, then
+#   THIRTEEN -- the three were `dosefix`, `vit_ceskip`, `vit_diag`, and the
+#   fourteenth is `taskwin1`, staged WITHOUT --constraint-fp32 and landing
+#   20/29 = 69.0%. It is the CLEANEST A/B on that flag in the project:
+#   taskwin1 69.0% vs taskwin2 100%, same host, backbone, caps and arms)
 #   and `full_panel` REFUSES them (exit 1) unless you
 #   pass --allow-quarantined. Each marker names the defect AND what the runs
 #   are still a receipt for, because dead and worthless are different: `iwc2`

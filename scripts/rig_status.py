@@ -34,7 +34,38 @@ OK, WARN, FAIL = "OK", "WARN", "FAIL"
 # The runner is what actually trains. It is a CHILD of the dispatcher, and it
 # does not die when the dispatcher does -- that is the orphan bug.
 RUNNER_PAT = re.compile(r"src\.experiments\.runner")
-DISPATCH_PAT = re.compile(r"python\s+main\.py")
+DISPATCH_PAT = re.compile(r"python\s+main\.py")   # kept for the self-test only
+
+
+def is_dispatcher(args):
+    """Is this command line a DISPATCHER, or something that merely MENTIONS one?
+
+    The substring `python\s+main\.py` matched three things that are not
+    dispatchers, and produced a FAIL on a perfectly healthy rig on 2026-09-01:
+
+      * the wrapper shell -- `bash -c '... && python main.py'` -- which is the
+        dispatcher's own PARENT and always present when it was launched detached
+      * `setsid ... python main.py`, same story
+      * the `pgrep -f "python main.py"` that goes looking for it
+
+    A FAIL that cries wolf is worse than no check at all: it is the one people
+    learn to scroll past, and then the real one scrolls past too.
+
+    So: the EXECUTABLE must be a python, and the first non-flag argument must be
+    `main.py`. `-m` and `-c` disqualify -- those are the runner
+    (`python -u -m src.experiments.runner ...`) and inline code, not the
+    dispatcher.
+    """
+    toks = args.split()
+    if not toks or not os.path.basename(toks[0]).startswith("python"):
+        return False
+    rest = toks[1:]
+    i = 0
+    while i < len(rest) and rest[i].startswith("-"):
+        if rest[i] in ("-m", "-c"):
+            return False
+        i += 1
+    return i < len(rest) and os.path.basename(rest[i]) == "main.py"
 
 
 # --------------------------------------------------------------------------
@@ -53,7 +84,7 @@ def orphaned_runners(procs):
     children alive, writing into the same run directory as the relaunch.
     """
     live = {p["pid"] for p in procs}
-    dispatchers = [p for p in procs if DISPATCH_PAT.search(p["args"])]
+    dispatchers = [p for p in procs if is_dispatcher(p["args"])]
     runners = [p for p in procs if RUNNER_PAT.search(p["args"])]
     if dispatchers:
         return []
@@ -175,7 +206,7 @@ def dispatcher_roots(procs):
     """
     roots = set()
     for p in procs:
-        if not DISPATCH_PAT.search(p["args"]):
+        if not is_dispatcher(p["args"]):
             continue
         try:
             with open("/proc/%d/environ" % p["pid"], "rb") as fh:
@@ -222,13 +253,86 @@ def _row(rows, status, name, detail):
     rows.append((status, name, detail))
 
 
+def self_test(out=sys.stdout):
+    """Gate `is_dispatcher` in BOTH directions on real command lines.
+
+    Every REJECT below was observed on dsisco01 on 2026-09-01 and every one of
+    them made the old substring match report `2 running at once -- two
+    dispatchers race on the same run dirs` against a single healthy dispatcher.
+    """
+    w = out.write
+    ACCEPT = [
+        "/home/dsi/michaer8/anaconda3/envs/optloss/bin/python main.py",
+        "python main.py",
+        "python -u main.py --filter results/taskwin2",
+        "/usr/bin/python3.10 main.py",
+    ]
+    REJECT = [
+        # the wrapper shell -- the dispatcher's own parent, always present
+        "bash -c cd ~/optloss-cutwin && python main.py",
+        "/bin/sh -c setsid python main.py > log 2>&1",
+        # the search that goes looking for it
+        "grep --color=auto python main.py",
+        "ps -u michaer8 -o pid,ppid,etime,cmd",
+        # a RUNNER is not a dispatcher, and it is a child of one
+        "python -u -m src.experiments.runner results/taskwin2/.../config.json",
+        # a scorer that merely names the file
+        "python -m scripts.dose_landed results/taskwin2 main.py",
+        "",
+    ]
+    bad = ([("ACCEPT", a) for a in ACCEPT if not is_dispatcher(a)] +
+           [("REJECT", r) for r in REJECT if is_dispatcher(r)])
+    ok = not bad
+    for kind, line in bad:
+        w("  FAIL  should %s: %r%s" % (kind, line, chr(10)))
+    if ok:
+        w("  PASS  %d dispatcher command lines accepted, %d non-dispatchers "
+          "rejected" % (len(ACCEPT), len(REJECT)) + chr(10))
+        w("        including the wrapper shell and the pgrep that looks for "
+          "it -- both of" + chr(10) + "        which the old substring match "
+          "counted as dispatchers" + chr(10))
+
+    # the old pattern MUST have been broken, or this fix is inert
+    fooled = [r for r in REJECT if r and DISPATCH_PAT.search(r)]
+    if not fooled:
+        w("  FAIL  the OLD substring match rejects everything too, so this "
+          "change is inert" + chr(10))
+        ok = False
+    else:
+        w("  PASS  liveness: the old substring match was fooled by %d of these "
+          "(%s)" % (len(fooled), ", ".join(r.split()[0] for r in fooled))
+          + chr(10))
+
+    # and the count that actually gets reported
+    procs = [{"pid": 1, "ppid": 0, "args": "bash -c ... python main.py"},
+             {"pid": 2, "ppid": 1, "args": "python main.py"},
+             {"pid": 3, "ppid": 2, "args": "python -u -m src.experiments.runner c.json"}]
+    n = len([q for q in procs if is_dispatcher(q["args"])])
+    if n != 1:
+        w("  FAIL  a wrapper + dispatcher + runner must count as ONE "
+          "dispatcher, got %d%s" % (n, chr(10)))
+        ok = False
+    else:
+        w("  PASS  wrapper + dispatcher + runner counts as ONE, so a healthy "
+          "detached" + chr(10) + "        launch no longer reports a race"
+          + chr(10))
+
+    w(chr(10) + "SELF-TEST %s%s" % ("PASSED" if ok else "FAILED", chr(10)))
+    return 0 if ok else 1
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--campaign", action="append", default=None,
                     help="campaign root to check; repeatable. "
                          "Default: every results/* holding runs.")
     ap.add_argument("--repo", default=".", help="repo root to inspect")
+    ap.add_argument("--self-test", action="store_true",
+                    help="gate the predicates and exit")
     args = ap.parse_args()
+
+    if args.self_test:
+        return self_test()
 
     rows = []
 
@@ -263,7 +367,7 @@ def main():
 
     # 4. processes ---------------------------------------------------------
     procs = read_procs()
-    disp = [p for p in procs if DISPATCH_PAT.search(p["args"])]
+    disp = [p for p in procs if is_dispatcher(p["args"])]
     if len(disp) > 1:
         _row(rows, FAIL, "dispatchers",
              "%d running at once -- two dispatchers race on the same run dirs"
