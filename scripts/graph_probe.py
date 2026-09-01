@@ -213,6 +213,37 @@ def _per_cell_report(names, rows, keys):
     return cells
 
 
+KEYS = ("diffused", "C1_shuffled_graph", "C2_shuffled_features")
+
+
+def write_dump(path, names, rows):
+    """One row per RUN, with the arm split out of the path.
+
+    \U0001f6d1 THIS FUNCTION EXISTS BECAUSE `--dump` WAS DECLARED AND NEVER
+    READ -- it parsed, the probe ran to completion, and no file appeared. That
+    is the inert-flag failure mode CLAUDE.md rule 3 counts, and this was the
+    fifth occurrence. It prints what it wrote so the next reader does not have
+    to trust it.
+    """
+    import csv
+    cols = ["run", "backbone", "dataset", "cap", "arm", "seed"] + list(KEYS)
+    with io.open(path, "w", encoding="utf-8", newline="") as fh:
+        w = csv.writer(fh)
+        w.writerow(cols)
+        for i, nm in enumerate(names):
+            parts = os.path.normpath(nm).split(os.sep)
+            cell = _cell_of(nm) or ("?", "?", "?")
+            arm = parts[-2] if len(parts) >= 2 else "?"
+            seed = parts[-1] if parts else "?"
+            w.writerow([nm] + list(cell) + [arm, seed] +
+                       ["%.6f" % rows[k][i] for k in KEYS])
+    print("  wrote %d row(s) x %d column(s) to %s"
+          % (len(names), len(cols), path))
+    print("  THE QUESTION IT IS FOR: group by `arm`. If every arm gains the "
+          "same,\n  the geometry raises the BASELINE and no arm-vs-arm delta "
+          "moves.")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("runs", nargs="*")
@@ -221,7 +252,13 @@ def main():
     ap.add_argument("--alpha", type=float, default=ALPHA_DEFAULT)
     ap.add_argument("--dump", help="write the per-run rows to this CSV, "
                                    "so the per-ARM question can be asked "
-                                   "without recomputing the diffusion")
+                                   "without recomputing the diffusion. "
+                                   "The probe is paired against each run's "
+                                   "OWN undiffused scores, so a gain here may "
+                                   "be available to EVERY arm -- which would "
+                                   "raise the baseline and change no "
+                                   "arm-vs-arm delta. That question needs "
+                                   "these rows")
     args = ap.parse_args()
 
     runs = list(args.runs)
@@ -278,6 +315,8 @@ def main():
     print("\n  READ THE CONTROLS FIRST. If C1 or C2 moved, the effect is "
           "re-normalisation,\n  not geometry, and the `diffused` column means "
           "nothing.")
+    if args.dump:
+        write_dump(args.dump, names, rows)
 
 
 if __name__ == "__main__":

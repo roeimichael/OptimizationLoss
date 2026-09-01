@@ -8,12 +8,15 @@ numbers are now mechanically checked.
 
 Runs in a few seconds on CPU and needs no dataset.
 """
+import importlib
 import io
 import json
+import math
 import os
 import shutil
 import subprocess
 import sys
+import tempfile
 
 import numpy as np
 import pytest
@@ -8232,6 +8235,220 @@ def test_the_dose_block_cannot_drop_an_arm_that_took_zero_constraint_steps():
             "%r fires on a clean campaign, so it will stop being read:\n%s"
             % (noise, clean))
     assert "100.0%" in clean and "tralo" in clean and "alm" in clean, clean
+
+
+def test_every_probe_flag_is_actually_read():
+    """The fifth inert flag was `graph_probe --dump`, and it was mine.
+
+    It parsed, the probe ran to completion over 384 runs, printed its whole
+    report, and wrote no file -- twice, because the first failure looked like a
+    missing /tmp. `audit_config` covers config KEYS; nothing covered argparse
+    DESTINATIONS, which fail exactly the same way and just as silently.
+
+    AST, not grep: a flag named in a docstring or a help string is not read.
+    """
+    import argparse
+    for mod_name in ("scripts.graph_probe", "scripts.straddle_probe",
+                     "scripts.scope_probe", "scripts.factorial_control",
+                     "scripts.ceiling_screen", "scripts.task_window"):
+        mod = importlib.import_module(mod_name)
+        src = ast.parse(io.open(mod.__file__, encoding="utf-8").read())
+        declared = set()
+        for node in ast.walk(src):
+            if (isinstance(node, ast.Call)
+                    and getattr(node.func, "attr", "") == "add_argument"):
+                for a in node.args:
+                    if isinstance(a, ast.Constant) and str(a.value).startswith("--"):
+                        declared.add(str(a.value)[2:].replace("-", "_"))
+                for kw in node.keywords:
+                    if kw.arg == "dest" and isinstance(kw.value, ast.Constant):
+                        declared.add(str(kw.value.value))
+        # every `args.<x>` / `<x>=args.<x>` read anywhere in the module
+        read = {n.attr for n in ast.walk(src)
+                if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name)
+                and n.value.id in ("args", "a", "ns")}
+        # argparse itself consumes these
+        read |= {"help", "self_test"}
+        unread = sorted(d for d in declared if d not in read)
+        assert not unread, (
+            "%s declares %s and never reads it. A flag that parses and does "
+            "nothing is the inert-flag failure this project has hit five "
+            "times." % (mod_name, unread))
+    assert argparse  # the import is the point of the loop above
+
+
+def test_the_graph_probe_dump_writes_the_arm_column_it_exists_for():
+    """The dump exists to answer one question the pooled report cannot: does
+    diffusion help the TREATED arm more than the clipper? If every arm gains
+    the same, the geometry raises the BASELINE and no arm-vs-arm delta moves --
+    which would make FRAMEWORK 2(g)'s correction irrelevant to the thesis. So
+    the `arm` column is the payload, not decoration.
+    """
+    gp = importlib.import_module("scripts.graph_probe")
+    names = [os.path.join("MobileNetV3", "iwildcam", "L90_G95", "tralo", "seed_1"),
+             os.path.join("MobileNetV3", "iwildcam", "L90_G95", "clip", "seed_1")]
+    rows = {"diffused": [4.73, 0.11],
+            "C1_shuffled_graph": [-25.2, -24.0],
+            "C2_shuffled_features": [-30.3, -29.1]}
+    path = os.path.join(tempfile.mkdtemp(), "gp.csv")
+    gp.write_dump(path, names, rows)
+
+    lines = [l.strip() for l in io.open(path, encoding="utf-8") if l.strip()]
+    assert lines[0].split(",")[1:6] == ["backbone", "dataset", "cap", "arm",
+                                        "seed"]
+    body = [l.split(",") for l in lines[1:]]
+    assert len(body) == 2
+    assert [r[4] for r in body] == ["tralo", "clip"], (
+        "the arm must come out of the path, or the per-arm question still "
+        "cannot be asked")
+    assert [r[1] for r in body] == ["MobileNetV3", "MobileNetV3"]
+    assert float(body[0][6]) == 4.73 and float(body[1][6]) == 0.11
+
+
+def test_straddle_probe_calls_an_inert_arm_inert_not_unreachable():
+    """Its delta ladder is anchored on `q95` of |p_treated - p_null|, so an arm
+    byte-identical to its own twin gives delta = 0 and `reachable = 0` in every
+    band -- and the report reads "the constraint as configured cannot collect
+    the oracle gap however it is tuned". That closes a direction on an arm that
+    never ran. Inert flags are this project's most frequent failure mode
+    (CLAUDE.md rule 3, four occurrences; `cb_lp` is byte-identical to `clip` in
+    24/24), so the probe has to name the case.
+
+    Both directions, plus an AST check that the branch actually skips the pair
+    -- a flag that is computed and not acted on is the defect it guards.
+    """
+    sp = importlib.import_module("scripts.straddle_probe")
+    dead = {2: {"q": 0.0, "median": 0.0, "max": 0.0},
+            7: {"q": 0.0, "median": 0.0, "max": 0.0}}
+    live = {2: {"q": 0.0, "median": 0.0, "max": 1e-6},   # q95 0, but it MOVED
+            7: {"q": 0.02, "median": 0.001, "max": 0.4}}
+    assert sp.is_inert(dead) is True
+    assert sp.is_inert(live) is False, (
+        "an arm that moved even one item is not inert -- a q95 of zero is a "
+        "small dose, which is exactly what this probe exists to price")
+
+    src = ast.parse(io.open(sp.__file__, encoding="utf-8").read())
+    calls = [n for n in ast.walk(src)
+             if isinstance(n, ast.Call) and getattr(n.func, "id", "") == "is_inert"]
+    assert calls, "is_inert is defined and never called"
+    guards = [n for n in ast.walk(src)
+              if isinstance(n, ast.If)
+              and isinstance(n.test, ast.Call)
+              and getattr(n.test.func, "id", "") == "is_inert"
+              and any(isinstance(b, ast.Continue) for b in n.body)]
+    assert guards, (
+        "the inert branch must SKIP the pair; computing the flag and then "
+        "pricing the run anyway is the same defect with a comment attached")
+
+
+def test_the_ceiling_screen_cannot_kill_a_dataset_it_never_measured():
+    """Its p@K and seed sd are iwildcam's, and it said so in prose while the
+    VERDICT column went on printing `PRIZE BELOW THE NOISE` for datasets whose
+    own curve nobody has measured. iwildcam sits at p@K 0.9948-0.9972; FRAMEWORK
+    2(w2) prices fmow at `p@K <= 0.92`, a bar iwildcam's numbers can neither
+    pass nor test. So the screen would have killed the second dataset on the
+    first dataset's ranking quality.
+
+    Both directions: it must still reach a verdict on iwildcam itself.
+    """
+    cs = importlib.import_module("scripts.ceiling_screen")
+    cell = [("L30_G50", 2, 370, 185, 111, 111)]
+
+    buf = io.StringIO()
+    worth = cs.report(cell, out=buf, native=False)
+    txt = buf.getvalue()
+    assert worth == 0 and "PRIZE BELOW THE NOISE" not in txt
+    assert "NOTHING WAS DECIDED" in txt and "needs p@K <= " in txt
+
+    # the printed bar is the real one, checked from both sides
+    need = float(txt.split("needs p@K <= ")[1].split()[0])
+    assert cs.report(cell, ccp=need - 1e-3, noise=6.35,
+                     out=io.StringIO()) == 1
+    assert cs.report(cell, ccp=need + 1e-3, noise=6.35,
+                     out=io.StringIO()) == 0
+
+    # LIVENESS: on its own dataset the screen still decides.
+    buf = io.StringIO()
+    assert cs.report(cell, out=buf, native=True) == 0
+    assert "PRIZE BELOW THE NOISE" in buf.getvalue()
+
+
+def test_the_ceiling_screen_says_when_its_curve_was_extrapolated():
+    """`calibrated` clamped silently outside K/n 0.20-0.90 and returned the
+    endpoint as if measured. The per-class caps now in the protocol run to
+    K/n = 1.00 (`L80-100_G95`), so the clamp fires in the live campaigns, not
+    in a corner case.
+    """
+    cs = importlib.import_module("scripts.ceiling_screen")
+    assert cs.calibrated(0.95)[2] is True
+    assert cs.calibrated(0.10)[2] is True
+    assert cs.calibrated(0.50)[2] is False
+    buf = io.StringIO()
+    cs.report([("L100_G95", 2, 370, 370, 370, 370)], out=buf)
+    assert "OUTSIDE the measured" in buf.getvalue()
+    buf = io.StringIO()
+    cs.report([("L50_G50", 2, 370, 185, 185, 185)], out=buf)
+    assert "OUTSIDE the measured" not in buf.getvalue()
+
+
+def test_the_factorial_gate_cannot_report_a_pass_it_did_not_measure():
+    """`survives ~100%` used to be reachable without raking a single group.
+
+    `str.split(sep)[0]` and `[-1]` both return the WHOLE string when the
+    separator is absent, so `f0 == f1`, every unseen group kept `p_glob`, and
+    the additive arm was the global arm. FRAMEWORK 2(w2b) published five atomic
+    datasets at 99.8-100.1% as a PASSED negative control and ranked the
+    candidate datasets on that column -- but iwildcam and fmow are ATOMIC
+    (camera, country), so 0 of their groups were ever factorised. The scatter
+    in that row was the null draw.
+
+    Two directions, because a refusal that always refuses is not a gate either.
+    """
+    fc = importlib.import_module("scripts.factorial_control")
+    root = tempfile.mkdtemp()
+    live = fc.control(fc._synthetic(os.path.join(root, "f"), seed=0), sep="|")
+    dead = fc.control(os.path.join(root, "f"), sep="@")
+
+    assert live["raked"] == live["unseen"] > 0
+    assert live["survives"] < 60.0, (
+        "on a slice whose held-out cell IS the product of the observed "
+        "marginals the raked baseline must absorb most of the novelty, got "
+        "%.1f%%" % live["survives"])
+    assert "survives" in chr(10).join(fc.report(live, "live"))
+
+    assert dead["raked"] == 0
+    assert math.isnan(dead["survives"]), (
+        "a separator that never occurs must yield NO survival figure, got "
+        "%.1f%%" % dead["survives"])
+    txt = chr(10).join(fc.report(dead, "dead"))
+    assert "NOT A CONTROL" in txt and "survives" not in txt, (
+        "the refusal must replace the survival figure, not sit beside it")
+    assert dead["net_global"] == dead["net_additive"], (
+        "with nothing raked the two arms are the same arm, so they must agree "
+        "EXACTLY -- an RNG-only difference is what made ~100%% look measured")
+
+
+def test_the_factorial_gate_reports_the_undiluted_ratio():
+    """The ratio used to span the whole slice, but the arms differ only on the
+    UNSEEN units -- every seen group contributes identically to both. So the
+    figure was dragged toward 100% in proportion to how much of the test set
+    was seen: on a slice where raking is exact it read 47.5 / 76.0 / 91.9% as
+    the unseen share fell 20 -> 7 -> 2.4%, while the truth stayed near 20-26%.
+
+    Every candidate in `~/_cand` happens to be 100% unseen, so no published
+    number moved -- which is exactly why this needs a test rather than a note.
+    """
+    fc = importlib.import_module("scripts.factorial_control")
+    root = tempfile.mkdtemp()
+    r = fc.control(fc._synthetic(os.path.join(root, "f"), seed=0,
+                                 n_unseen=300, n_seen=2000), sep="|")
+    assert r["raked"] > 0
+    assert r["survives_diluted"] > r["survives"] + 10.0, (
+        "expected the whole-slice figure to sit well above the unseen-only "
+        "one (%.1f%% vs %.1f%%)" % (r["survives_diluted"], r["survives"]))
+    assert r["survives"] < 60.0, (
+        "the headline must be the UNDILUTED ratio, got %.1f%%" % r["survives"])
+    assert "diluted by the seen groups" in chr(10).join(fc.report(r, "x"))
 
 
 def test_the_pooling_probes_say_when_they_pooled_across_cells():

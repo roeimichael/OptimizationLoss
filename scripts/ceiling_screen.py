@@ -104,22 +104,28 @@ IWILDCAM_CURVE = [
 
 
 def calibrated(ratio, curve=IWILDCAM_CURVE):
-    """(p, sd_items) at this K/n, linearly interpolated, clamped at the ends.
+    """(p, sd_items, extrapolated) at this K/n, linearly interpolated.
 
     ⚠️ THIS IS AN iwildcam CALIBRATION AND IT DOES NOT TRANSFER. It is here so
     the screen stops pretending p is constant, not so a candidate dataset can
     be priced without measuring its own. On a new dataset use it to see WHERE
     the ratio might become measurable, then measure p and sd there.
+
+    🛑 THE THIRD RETURN IS THE CLAMP, AND IT USED TO BE SILENT. Outside
+    K/n 0.20-0.90 this returns the nearest ENDPOINT, which is not a
+    measurement of anything -- and the per-class caps now in use run to
+    K/n = 1.00 (`L80-100_G95`), so the clamp fires in the live protocol, not
+    in some corner. Callers must say when they are reading it.
     """
     if ratio <= curve[0][0]:
-        return curve[0][1], curve[0][2]
+        return curve[0][1], curve[0][2], ratio < curve[0][0]
     if ratio >= curve[-1][0]:
-        return curve[-1][1], curve[-1][2]
+        return curve[-1][1], curve[-1][2], ratio > curve[-1][0]
     for (r0, p0, s0), (r1, p1, s1) in zip(curve, curve[1:]):
         if r0 <= ratio <= r1:
             w = (ratio - r0) / (r1 - r0)
-            return p0 + w * (p1 - p0), s0 + w * (s1 - s0)
-    return curve[-1][1], curve[-1][2]
+            return p0 + w * (p1 - p0), s0 + w * (s1 - s0), False
+    return curve[-1][1], curve[-1][2], True
 
 
 def budgets(meta_path, caps, classes, group_col, num_classes):
@@ -148,12 +154,19 @@ def budgets(meta_path, caps, classes, group_col, num_classes):
     return out
 
 
-def report(rows, ccp=None, noise=None, out=sys.stdout):
+def report(rows, ccp=None, noise=None, out=sys.stdout, native=True):
     """Print the table. Returns the number of (cap, class) cells worth running.
 
     `ccp` and `noise` override the K/n-dependent calibration with constants --
     for the self-test, and for a dataset whose own p and sd have been measured.
+
+    🛑 `native=False` says the built-in curve is BORROWED: this is not
+    iwildcam and its own p@K and sd have never been measured. The verdict
+    column then cannot kill, because the kill would be iwildcam's. It reports
+    the p@K this dataset would NEED instead, which is the number to go and get
+    -- FRAMEWORK 2(w2) prices fmow at `p@K <= 0.92` on exactly this arithmetic.
     """
+    borrowed = (not native) and ccp is None and noise is None
     out.write("CEILING SCREEN -- how many items can ANY method win here?\n")
     out.write("  ceiling = 2K/(K+n): you cannot recall what you may not emit.\n")
     out.write("  prize   = (1-p@K)*K items. No loss, dual, allocator or\n"
@@ -167,6 +180,14 @@ def report(rows, ccp=None, noise=None, out=sys.stdout):
                   "  !! THEY DO NOT TRANSFER. On a new dataset use them to see "
                   "WHERE the ratio\n"
                   "     could become measurable, then measure p and sd there.\n")
+    if borrowed:
+        out.write("  *** BORROWED CALIBRATION: this is not iwildcam and its own "
+                  "p@K and sd\n"
+                  "      have never been measured, so NO CELL BELOW CAN BE "
+                  "KILLED HERE. The\n"
+                  "      `needs p@K` column is what to go and measure; a cell "
+                  "clears the bar\n"
+                  "      if this dataset's real p@K is at or below it.\n")
     out.write("\n")
     out.write("  %-10s %6s %7s %8s %8s %8s %8s %7s %8s  %s\n"
               % ("cap", "class", "n", "K", "K/n", "p@K", "prize", "sd",
@@ -175,12 +196,16 @@ def report(rows, ccp=None, noise=None, out=sys.stdout):
     for tag, c, n, kg, kl, k in rows:
         ratio = k / float(n) if n else 0.0
         ceiling = 2.0 * k / (k + n) if (k + n) else 0.0
-        cal_p, cal_sd = calibrated(ratio)
+        cal_p, cal_sd, clamped = calibrated(ratio)
         p = cal_p if ccp is None else ccp
         sd = cal_sd if noise is None else noise
         prize = (1.0 - p) * k
         rel = (prize / sd) if sd else float("inf") if prize else 0.0
-        if rel >= 2.0:
+        # The p@K at which the prize would clear twice this sd.
+        needed = (1.0 - 2.0 * sd / k) if k else float("nan")
+        if borrowed:
+            verdict = "UNPRICED HERE, needs p@K <= %.4f" % needed
+        elif rel >= 2.0:
             verdict = "WORTH RUNNING"
             worth += 1
         elif rel >= 1.0:
@@ -193,8 +218,18 @@ def report(rows, ccp=None, noise=None, out=sys.stdout):
         if kg != k or kl != k:
             out.write("   global K=%d, local sum K=%d, BINDING K=%d"
                       % (kg, kl, k))
+        if clamped and ccp is None and noise is None:
+            out.write("   !! K/n %.2f is OUTSIDE the measured 0.20-0.90, so p "
+                      "and sd are the ENDPOINT, not an interpolation"
+                      % ratio)
         out.write("\n")
-    if not worth:
+    if borrowed:
+        out.write("\n  *** NOTHING WAS DECIDED. Every verdict above is "
+                  "iwildcam's, applied to a\n"
+                  "      dataset that has never been measured. Measure p@K "
+                  "with a finished\n"
+                  "      unconstrained run, then re-run with --ccp/--noise.\n")
+    elif not worth:
         out.write("\n  *** NO (cap, class) CELL HAS A PRIZE WORTH TWICE THE "
                   "SEED NOISE.\n")
         out.write("      A method would have to capture the WHOLE gap to a "
@@ -274,6 +309,46 @@ def self_test(out=sys.stdout):
                   % buf.getvalue())
         ok = False
 
+    # A BORROWED CURVE MUST NOT KILL. iwildcam's own p@K is 0.9948-0.9972, so
+    # every foreign dataset inherits `PRIZE BELOW THE NOISE` from a number
+    # nobody measured on it -- and FRAMEWORK 2(w2) prices fmow at p@K <= 0.92,
+    # a bar iwildcam's curve can neither pass nor test.
+    buf = _io.StringIO()
+    worth = report([("L30_G50", 2, 370, 185, 111, 111)], out=buf, native=False)
+    text = buf.getvalue()
+    if "PRIZE BELOW THE NOISE" in text or worth:
+        out.write("SELF-TEST FAIL: a borrowed calibration must not return a "
+                  "kill verdict:\n%s" % text)
+        ok = False
+    if "needs p@K <= " not in text or "NOTHING WAS DECIDED" not in text:
+        out.write("SELF-TEST FAIL: the borrowed case must print the p@K to go "
+                  "and measure, and say nothing was decided:\n%s" % text)
+        ok = False
+    # ... and the bar it prints must be the one that clears 2x the sd.
+    need = float(text.split("needs p@K <= ")[1].split()[0])
+    for delta, want in ((-1e-3, 1), (+1e-3, 0)):
+        buf2 = _io.StringIO()
+        got = report([("L30_G50", 2, 370, 185, 111, 111)], ccp=need + delta,
+                     noise=6.35, out=buf2)
+        if got != want:
+            out.write("SELF-TEST FAIL: at p@K = %.4f (bar %.4f) the cell must "
+                      "read worth=%d, got %d:\n%s"
+                      % (need + delta, need, want, got, buf2.getvalue()))
+            ok = False
+
+    # THE CLAMP MUST ANNOUNCE ITSELF. The live per-class caps run to K/n = 1.00
+    # and the curve stops at 0.90, so the endpoint is returned as if measured.
+    if calibrated(0.95)[2] is not True or calibrated(0.50)[2] is not False:
+        out.write("SELF-TEST FAIL: calibrated() must report whether it "
+                  "extrapolated\n")
+        ok = False
+    buf = _io.StringIO()
+    report([("L100_G95", 2, 370, 370, 370, 370)], out=buf)
+    if "OUTSIDE the measured" not in buf.getvalue():
+        out.write("SELF-TEST FAIL: a K/n outside 0.20-0.90 must say so:\n%s"
+                  % buf.getvalue())
+        ok = False
+
     out.write("SELF-TEST %s\n" % ("PASS" if ok else "FAIL"))
     return 0 if ok else 1
 
@@ -298,6 +373,10 @@ def main():
                     help="override the seed sd with a constant, in items. "
                          "Default: interpolate the measured curve -- the noise "
                          "grows with K too")
+    ap.add_argument("--native-calibration", action="store_true",
+                    help="the built-in curve WAS measured on this dataset. "
+                         "Inferred for any path under iwildcam; pass it "
+                         "explicitly only if you measured the curve yourself")
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()
 
@@ -310,9 +389,14 @@ def main():
         print("no test_meta.csv under %s" % args.slice_dir)
         return 2
 
+    native = (args.native_calibration
+              or "iwildcam" in args.slice_dir.replace(chr(92), "/").lower())
     rows = budgets(meta, args.caps, args.classes, args.group_column,
                    args.num_classes)
-    return 0 if report(rows, ccp=args.ccp, noise=args.noise) else 1
+    worth = report(rows, ccp=args.ccp, noise=args.noise, native=native)
+    if not native and args.ccp is None and args.noise is None:
+        return 3          # UNDECIDED: 1 would be a kill this tool cannot make
+    return 0 if worth else 1
 
 
 if __name__ == "__main__":

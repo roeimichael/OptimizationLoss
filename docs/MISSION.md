@@ -205,7 +205,7 @@ backbone at one cap". The bar the work is held to:
 
 | axis | required | have now | gap |
 |---|---|---|---|
-| **datasets** | **3** | **1** (iwildcam) | `fmow` screened + passes the factorial gate, needs ~21k images. Third TBD |
+| **datasets** | **3** | **1** (iwildcam) | `fmow` screened; the factorial gate DOES NOT APPLY (country is atomic) -- 2(w2c). Needs ~21k images + its own p@K. Third TBD |
 | **backbones** | **3** | **4 exist**: MobileNetV2/V3 (`dom1`), RegNetY400MF (`dom1b`), **ViTB16 (`vitu1` tight + `loosevit1` loose, already complete)** | not coverage -- CELLS. ViTB16 has 3 tight + 2 loose contrast cells and **no rival-dual arms at all** |
 | **constraint pairs** | **varied**, both **equal and unequal** local:global ratios | 3, **all loose**, only 1 unequal-binding | `margin2`'s matched 2x2 (4 tags, 2 budgets x 2 scopes) closes this the moment a GPU frees |
 | **consistency** | wins across **regimes**, not one | wins at L80-L95; **loses at L20-L50, and now we know why** | the mechanism is found (2(y)); the question is whether ANY count function can fix it |
@@ -500,6 +500,22 @@ and FRAMEWORK 3(0), then start the next.
    budgets; `L50_G20` / `L70_G40` would extend it.
 8. 🟢 **`fmow` images (~21k)** -- the only route to dataset #2. Needs the user's
    go-ahead for the download.
+   ⛔ **CORRECTED 2026-09-01 -- BOTH GATES ON THIS DECISION WERE
+   RETURNING iwildcam's ANSWER.** FRAMEWORK 2(w2c), 2(z25).
+   `factorial_control` scored `fmow_s1` at **100.1%** and that number was
+   never measured: a country is ATOMIC, `--sep` never occurs in the label,
+   so 0 of 10 groups were raked and the two arms were the same arm. The
+   0.1% was the null draw. **8 of the 21 candidates read that way,**
+   `iwildcam` included -- which means this gate had no positive control at
+   all until `--self-test` grew a synthetic one. And `ceiling_screen`
+   printed `PRIZE BELOW THE NOISE` for fmow off **iwildcam's** p@K curve,
+   which it says does not transfer; it now refuses and prints the p@K to
+   go and measure instead.
+   🔑 **fmow is STILL the right ask** -- atomic group, 2(n)'s baseline
+   sound, stage-1 NET +2766 at z=80.4. What changed is the GROUND: say
+   "the factorial gate does not apply", never "it scored 100.1%". The one
+   open number is **fmow's own p@K at the cap**, and that needs the images
+   plus one unconstrained run -- there is no cheaper route to it.
 
 ⛔ **Do NOT re-run ViTB16 tight caps.** `vitu1` is complete, 100% dose, and says
 `tralo` is 6.6x WORSE than the RNG floor there (AP -0.0933 vs -0.0142). 2(y)
@@ -533,12 +549,29 @@ for k,v in sorted(seen.items(), key=lambda kv:-sum(kv[1].values())):
 PY'
 
 # 4. gates, before ANY launch
-python -m pytest tests -q          # must be 433 (bump when you add one)
+python -m pytest tests -q          # must be 446 (bump when you add one)
 python -m scripts.audit_config
 python -m scripts.smoke_arms
 ```
 
 **Then pick up item 1 of the queue that is not already running.**
+
+🛑 **AND ON THE FIRST TRAINED RUN OF ANYTHING YOU LAUNCH, NOT AT THE END:**
+
+```bash
+python -m scripts.dose_landed <root>     # `amp` column beside the percentage
+```
+
+A trained arm landing 25-31% below its attempted steps on `amp=float16` is the
+HOST, not the loss shape, and the fix is `--constraint-fp32`. Measured over
+every completed run in every worktree: with the flag, **15284 / 15284 steps
+across 532 runs and 6 campaigns**; without it, 86.9% over 189 runs, and that
+group is the quarantine list. `gen_campaign` now REFUSES a campaign with
+trained arms and `constraint_fp32: false`, so this cannot recur from the
+generator -- but a campaign staged before 2026-09-01 can still carry it.
+`taskwin1` did, landed 20/29, and was killed at 3/48 and relaunched as
+`taskwin2`. Deciding on run one cost thirty minutes; deciding at 48/48 would
+have cost seven hours.
 
 ### Reading a landed campaign, in this order and no other
 

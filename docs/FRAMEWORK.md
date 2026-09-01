@@ -3802,7 +3802,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 439 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 446 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -3966,7 +3966,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 439 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 446 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -3974,7 +3974,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (439 tests, ~180 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (446 tests, ~180 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -6811,6 +6811,21 @@ budget admits 90% of the true positives, so the constraint barely constrains.
 ### 2(w2b) 🛑 **THE FACTORIAL GATE DECIDES, NOT THE NET COLUMN**
 ### **-- 21 candidates screened, and stage 1 picks the wrong winner**
 
+⛔⛔ **CORRECTED 2026-09-01 -- THE TWO TOP-RANKED ROWS OF THE TABLE BELOW WERE
+NEVER MEASURED, AND ONE OF THEM WAS THIS GATE'S OWN POSITIVE CONTROL.** See
+2(w2c). `factorial_control` split `location` on `--sep` and read tokens `[0]`
+and `[-1]`. When the separator is ABSENT both are the whole string, `f0 == f1`,
+every unseen group kept `p_glob`, and the additive arm WAS the global arm -- so
+`survives` came out ~100% by arithmetic, with the 0.1-0.2% scatter supplied by
+the null draw. **8 of the 21 candidates rake ZERO groups**, `iwildcam` and every
+`fmow` slice among them, because a camera and a country are ATOMIC. The claim
+below that iwildcam "supplies" the positive control is therefore void: an atomic
+dataset cannot supply one, and this gate had none until `--self-test` grew a
+synthetic slice on which raking is exact. **The ranking RULE survives; the
+ranking does not** -- an atomic group has no survival number to rank. The
+FACTORIAL rows reproduce to the decimal, so every conclusion resting on one of
+those stands. Read the corrected table in 2(w2c), not this one.
+
 Audited 2026-08-28. **21 candidate slices were already staged in `~/_cand` on
 dsisco02** (fmow x6, ISIC x7, BCN x3, ISIC-archive x2, Fitzpatrick x2,
 DomainNet) and had never been screened as a set. `dataset_screen` runs on all
@@ -6856,6 +6871,185 @@ clean candidate, 100.1%), and `isicarch_instsite` (dermoscopy, 86.3%, caveated).
 is a SLICE -- a few GB, not the 3.5 TB corpus. That makes it a real decision.
 ⚠️ Both gates are still **necessary only**: dermmnist scored +65 at z=2.9 and
 nulled anyway. Stage 2 is `scope_probe --calibrate` and needs a trained model.
+
+
+### 2(w2c) ⛔ **THE FACTORIAL GATE COULD NOT FAIL, AND ITS RANKING MIXED**
+### **A MEASUREMENT WITH AN ARITHMETIC IDENTITY -- 21 candidates re-run**
+
+Found and fixed 2026-09-01. Two defects in `scripts/factorial_control`, both
+pushing `survives` toward a reassuring 100%, which is the direction that keeps
+a bad candidate alive.
+
+**1. THE PERCENTAGE WAS REACHABLE WITHOUT RAKING A SINGLE GROUP.**
+`s.str.split(sep)[0]` and `[-1]` both return the WHOLE string when `sep` does
+not occur, so `f0 == f1`, the `f0 != f1` guard sent every unseen group to
+`q = p_glob`, and `units_add` was element-wise EQUAL to `units_glob`. `obs` was
+then bit-identical between the arms and only the null draw moved the number.
+Measured on a synthetic atomic slice, **three different separators return the
+same 99.6%** (net_glob +393 vs net_add +392) with 0 of 6 groups factorised. So
+a genuinely atomic group and a WRONG `--sep` were indistinguishable, and both
+read as PASSED. ✅ Fixed: `raked` is counted and printed, and `raked = 0`
+prints **NOT A CONTROL** instead of a figure. The two arms now share their null
+draws, so an un-raked slice returns *exactly* equal nets rather than a
+plausible 99.6.
+
+**2. THE RATIO WAS DILUTED BY THE SEEN GROUPS.** `survives` spanned the whole
+slice, but the arms differ only on the UNSEEN units -- every seen group
+contributes identically to both -- so the figure was dragged toward 100% in
+proportion to the seen share. On a slice built so that raking is EXACTLY right,
+6 seeds per row:
+
+| unseen share of test | shipped ratio | unseen-only ratio |
+|---|---|---|
+| 65.2% | 87.1% | 81.4% |
+| 20.0% | 47.5% | **19.6%** |
+| 7.0% | 76.0% | **21.2%** |
+| 2.4% | 91.9% | **26.1%** |
+
+The right-hand column is flat, as it must be; the shipped column was reading the
+unseen SHARE. ✅ `survives` is now the unseen-only ratio and the diluted figure
+is printed beside it, labelled. 🔑 **No published candidate number moved**,
+because every `~/_cand` slice is built 100% unseen -- which is exactly why this
+needed a test and not a note.
+
+**THE CORRECTED TABLE.** All 21 candidates, re-run on CPU in minutes:
+
+| slice | group | NET | unseen | raked | **survives** |
+|---|---|---|---|---|---|
+| `isic_siteage` | site x age | +2168 | 7 | 7/7 | **17.6%** |
+| `isic_srcage` | src x age | +1533 | 7 | 7/7 | **30.7%** |
+| `isic_ssa` | src x site x age | +1749 | 10 | 10/10 | **31.0%** ⚠️ 3 factors, 2 used |
+| `bcn_s2` | site x age | +2033 | 8 | 8/8 | **50.4%** |
+| `bcn_s1` | site x age | +1567 | 9 | 9/9 | 68.7% |
+| `isic_srcsite` | src x site | +1123 | 12 | 12/12 | 72.4% |
+| `isic_bcn` | site x age | +1704 | 10 | 10/10 | 83.6% |
+| `isicarch_instsite` | inst x site | +2012 | 7 | 7/7 | **86.3%** |
+| `fitz_atlasfst` | atlas x FST | +369 | 6 | **2/6** | 90.5% ⚠️ 4 groups ungated |
+| `bcn_s3` | site x age | +1596 | 10 | 10/10 | **128.2%** ⚠️ see below |
+| `iwildcam/oodslice` | **camera** | +3130 | 7 | **0/7** | ⛔ NOT A CONTROL |
+| `fmow_s1` | **country** | +2766 | 10 | **0/10** | ⛔ NOT A CONTROL |
+| `fmow_country` | country | +2968 | 10 | **0/10** | ⛔ NOT A CONTROL |
+| `fmow_check` | country | +2968 | 10 | 0/10 | ⛔ NOT A CONTROL |
+| `fmow_s2` / `fmow_s3` / `fmow_country_wide` | country | +2309 / +2401 / +2188 | 11 / 9 / 12 | 0 | ⛔ NOT A CONTROL |
+| `isicarch_inst` | institution | +2557 | 4 | 0/4 | ⛔ NOT A CONTROL |
+| `isic_site` | site | +1484 | 2 | 0/2 | ⛔ NOT A CONTROL |
+| `fitz_skintype` | FST | +180 | 2 | 0/2 | ⛔ NOT A CONTROL |
+| `domainnet` | domain | +57 (z=1.2) | 2 | 0/2 | ⛔ DEAD on stage 1 |
+| `isic_src` | 1 group | **-144** | 1 | 0/1 | ⛔ DEAD on stage 1 |
+
+🔑 **WHAT ACTUALLY CHANGES.** The factorial rows reproduce the old table to
+the decimal (`isicarch_instsite` 86.3, `bcn_s2` 50.4, `isic_siteage` 17.6,
+`isic_ssa` 30.8 -> 31.0), so the `isic_siteage` collapse and the rule "rank on
+SURVIVAL, never on NET" both stand. What falls is the TOP of the ranking:
+`iwildcam` and `fmow` were never on the same axis as the rest. **fmow remains
+the clean second dataset** -- a country is atomic, so there are no factors to
+interpolate and 2(n)'s baseline is sound there -- but the ground is "the gate
+does not apply", NOT "it scored 100.1%". Quote it that way.
+
+⚠️ **THREE ROWS CARRY A CAVEAT THE OLD TABLE COULD NOT SHOW.**
+
+- `isic_ssa` is a **THREE**-factor group (`BCN|anterior torso|60s`) scored as
+  two: only the FIRST and LAST tokens are used, so `site` is silently dropped
+  and its 31.0% credits the model with interpolating src x age only. The tool
+  now says so per slice.
+- `fitz_atlasfst` rakes **2 of 6** groups; the other four have a factor level
+  that is itself unseen, so two thirds of its 90.5% is the ungated baseline.
+- `bcn_s3` reads **128.2%** -- raking WORSE than the global prior. The old
+  docstring blamed "raking is noisy on a small training set". It is the SHIFT:
+  `net_expect` applies the GLOBAL test-vs-train label shift to both baselines,
+  and at a 100% unseen share that shift is computed largely FROM these very
+  groups, so a raked baseline is corrected twice. Measured -- the raking
+  estimate sits **0.014** from the truth in L1 and **0.126** after the shift,
+  while the global baseline is IMPROVED by it. **Every `~/_cand` slice is 100%
+  unseen**, so this caveat covers the whole table: the item counts are safer
+  than the ratio. It is `dataset_screen`'s own definition of NET, so it is not
+  fixable inside this tool -- the tool now prints the unseen share and warns
+  above 50%.
+
+✅ GATED IN BOTH DIRECTIONS, in `--self-test` and in two regression tests
+(`test_the_factorial_gate_cannot_report_a_pass_it_did_not_measure`,
+`test_the_factorial_gate_reports_the_undiluted_ratio`): a synthetic slice whose
+held-out cell IS the product of the observed training marginals must MEASURE
+(19.7% over 6 seeds), and the same slice under a wrong separator must REFUSE.
+
+⛔ **THE OTHER HALF OF THE SAME GATE HAD THE SAME SHAPE: `ceiling_screen`
+KILLED A CANDIDATE ON iwildcam's RANKING QUALITY.** Fixed 2026-09-01. Its
+`p@K` and seed sd come from one measured curve -- iwc3, 36 `clip` runs -- and
+the docstring said loudly that it does not transfer, while the VERDICT column
+went on printing `*** PRIZE BELOW THE NOISE` for datasets whose own curve
+nobody has measured. iwildcam sits at **p@K 0.9948-0.9972**; 2(w2) prices fmow
+at **p@K <= 0.92**, a bar iwildcam's numbers can neither pass nor test. A
+prose warning beside a kill verdict is a kill verdict. ✅ Now: a BORROWED
+calibration prints `UNPRICED HERE, needs p@K <= 0.8856` per cell -- the number
+to go and measure -- refuses to count any cell as worth running, says
+`NOTHING WAS DECIDED`, and exits **3**, not 1, so no caller can read it as
+dead. `--native-calibration` (inferred for any path under `iwildcam`) restores
+the deciding behaviour, and passing a measured `--ccp/--noise` does too.
+
+⚠️ **AND ITS CLAMP WAS SILENT.** `calibrated` returns the nearest ENDPOINT
+outside K/n 0.20-0.90 as though it were interpolated -- and the per-class caps
+now in the protocol run to **K/n = 1.00** (`L80-100_G95`), so the clamp fires
+in the live campaigns, not in a corner. It now returns a third value saying so
+and the row prints `!! K/n 1.00 is OUTSIDE the measured 0.20-0.90`. Both are
+gated in `--self-test` and in
+`test_the_ceiling_screen_cannot_kill_a_dataset_it_never_measured` /
+`test_the_ceiling_screen_says_when_its_curve_was_extrapolated`, each in both
+directions -- iwildcam itself must still reach a verdict.
+
+🔑 **SO THE fmow DECISION NEEDS ONE MEASUREMENT, AND ONLY ONE.** Both
+gates on the second dataset were returning iwildcam's answer: the factorial
+gate by arithmetic identity, the ceiling screen by borrowed calibration.
+Neither now claims anything about fmow. What is still true is that fmow's
+group (country) is ATOMIC, so 2(n)'s baseline is sound there, and its stage-1
+NET is +2766 at z=80.4. The open number is **fmow's own p@K at the cap**, which
+needs a finished unconstrained run on fmow -- i.e. the images.
+
+
+### 2(z25) 🛑 **THE PROBES RETURNED A PLAUSIBLE DEFAULT INSTEAD OF**
+### **REFUSING -- four sites, one defect class, and the FIFTH inert flag**
+
+Audited 2026-09-01. The four offline probes decide which directions get a GPU
+campaign, so a probe that answers when it cannot measure is more expensive than
+one that crashes. All four failures below are the SAME shape: a code path
+returns something readable, every gate stays green, and the output is
+indistinguishable from a real measurement.
+
+| tool | what it returned | what was true |
+|---|---|---|
+| `factorial_control` | `survives 100.1%`, PASSED | 0 of 7 groups factorised (2(w2c)) |
+| `factorial_control` | ratio over the whole slice | the arms differ only on the unseen units |
+| `ceiling_screen` | `*** PRIZE BELOW THE NOISE` | p@K and sd were another dataset's |
+| `ceiling_screen` | interpolated p at K/n = 1.00 | the curve stops at 0.90; that is the endpoint |
+| `straddle_probe` | `reachable = 0` at the measured delta | the ARM was byte-identical to its null |
+| `graph_probe` | a complete report, no file | `--dump` was declared and never read |
+
+⛔ **THE INERT-FLAG COUNT IS FIVE, AND THE FIFTH ONE IS MINE.** CLAUDE.md
+rule 3 counts four (`rho_step`, and `base_loss`/`focal_alpha`/`focal_gamma` in
+`arm_joint`). `graph_probe --dump` is the fifth: it parsed, the probe ran to
+completion over 384 runs, printed its entire report, exited 0, and wrote
+nothing. It took two full 15-minute runs to notice, because the first empty
+result read as a missing `/tmp` file. `audit_config` covers config KEYS;
+**nothing covered argparse DESTINATIONS**, which fail the same way and just as
+silently. ✅ `test_every_probe_flag_is_actually_read` now walks the AST of all
+six probes and requires every `--flag` to be read as `args.<dest>` somewhere in
+its module. Negative control: run against `graph_probe.py` at the parent
+commit it reports `['dump']`.
+
+🛑 **`straddle_probe` WOULD HAVE CLOSED A DIRECTION ON AN INERT ARM.** Its
+delta ladder is anchored on `q95` of `|p_treated - p_null|`, so an arm
+byte-identical to its own twin gives delta = 0, `reachable = 0` in every band,
+and the report reads *"the constraint as configured cannot collect the oracle
+gap however it is tuned"* -- a physics claim about the cut, produced by an arm
+that never ran. This is not hypothetical here: `cb_lp`'s raw predictions are
+byte-identical to `clip`'s in 24 of 24. ✅ Inert twins are now named per pair
+and excluded from the aggregate; if EVERY pair is inert the probe prints
+`NOTHING WAS MEASURED` and exits **3**, not 0.
+
+✅ **THE GENERAL RULE THIS SECTION EXISTS FOR.** A probe may return a number
+or refuse; it may not return a number that means "I could not measure". Every
+refusal added here is gated in BOTH directions -- the refusal must fire on the
+broken input AND the tool must still decide on the good one -- because a gate
+that always refuses closes as many directions as one that never does.
 
 
 ### 2(w2) 🟢 **TWO MORE DATASETS PASS THE SCREEN -- the one-dataset era ends**
@@ -9003,7 +9197,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             439 tests, ~180 s, no dataset required
+tests/             446 tests, ~180 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

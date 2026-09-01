@@ -311,6 +311,21 @@ def measured_delta(treated, null, quantile=0.95):
     return a, per_class
 
 
+def is_inert(disp):
+    """Did the treated arm move ANY probability away from its null?
+
+    🛑 IF NOT, EVERY BAND IS `reachable = 0` AND THE PROBE READS AS A
+    PHYSICS RESULT. The ladder is anchored on `q95` of |dp|, so an arm that is
+    byte-identical to its twin gives delta = 0, `reachable(0) = 0` in every
+    band, and the report says "the constraint as configured cannot collect the
+    oracle gap however it is tuned" -- closing a direction on an arm that never
+    ran. Inert flags are this project's most frequent failure mode (CLAUDE.md
+    rule 3, four occurrences, and `cb_lp` is byte-identical to `clip` in
+    24/24), so this probe must name the case rather than price it.
+    """
+    return all(v["max"] == 0.0 for v in disp.values())
+
+
 # ------------------------------------------------------------------- report --
 
 def collect(agg, rows, names, cell=None):
@@ -492,6 +507,7 @@ def main(argv=None):
     n_base = n_base_skipped = 0
     pairs = [] if (args.sweep or args.match_contested) else pair_runs(runs)
 
+    n_inert = 0
     if pairs:
         names = MEASURED_NAMES
         print("  DELTA IS MEASURED, from %d treated/null twin pair(s).\n"
@@ -507,6 +523,16 @@ def main(argv=None):
                 data, disp = measured_delta(treated, null)
             except SystemExit as exc:
                 print("  skipped %s: %s" % (treated, exc))
+                continue
+            if is_inert(disp):
+                n_inert += 1
+                print("    %-14s %-26s seed %s  *** INERT: identical to its "
+                      "_null in EVERY class." % (arm, "/".join(
+                          str(x) for x in cell), seed))
+                print("    %-14s %-26s        delta = 0, so every band would "
+                      "read reachable = 0. That is this ARM, not the geometry "
+                      "-- md5 it (rule 3) before touching the loss."
+                      % ("", ""))
                 continue
             n_ok += 1
             # med and max print beside q95 because the ladder below is
@@ -548,6 +574,20 @@ def main(argv=None):
                 print("    baseline skipped for %s: %s" % (arm, exc))
             else:
                 n_base += 1
+        if n_inert:
+            print("  !! %d of %d twin pair(s) were INERT and are NOT in the "
+                  "numbers below." % (n_inert, n_inert + n_ok))
+        if n_inert and not n_ok:
+            print("")
+            print("  *** NOTHING WAS MEASURED. Every treated arm is identical "
+                  "to its own")
+            print("      `_null`, so the delta this probe prices is exactly "
+                  "zero and a")
+            print("      `reachable = 0` here would be a statement about the "
+                  "FLAG, not")
+            print("      about the cut. Verify the arm is live "
+                  "(`scripts.flag_live`) first.")
+            return 3
         print("")
     else:
         names = CONTESTED_NAMES if args.match_contested else SWEEP_NAMES

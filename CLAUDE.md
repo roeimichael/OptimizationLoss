@@ -78,7 +78,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 439 regression tests, ~180s, no dataset needed
+python -m pytest tests -q                   # 446 regression tests, ~180s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -534,8 +534,8 @@ python -m scripts.rig_status                 # 🛑 RUN THIS BEFORE AND AFTER EV
                                              #   the live campaign's git object
                                              #   store; a GPU picking up a second
                                              #   user. None of those raise.
-python -m scripts.factorial_control          # the CONTROL for `dataset_screen`, and
-                                             #   it bounds where that screen is
+python -m scripts.factorial_control --self-test   # the CONTROL for `dataset_screen`,
+                                             #   and it bounds where that screen is
                                              #   valid. 2(n)'s baseline gives an
                                              #   unseen group the global training
                                              #   prevalence -- right for an ATOMIC
@@ -546,6 +546,25 @@ python -m scripts.factorial_control          # the CONTROL for `dataset_screen`,
                                              #   interpolate. Run it on any
                                              #   subpopulation slice before
                                              #   believing the screen.
+                                             #   READ `raked`, NOT THE PERCENTAGE.
+                                             #   When `--sep` is absent from the
+                                             #   label, `split[0]` and `split[-1]`
+                                             #   are the SAME string, every unseen
+                                             #   group keeps the global prior, and
+                                             #   the two arms become one arm -- so
+                                             #   `survives` was ~100% by ARITHMETIC.
+                                             #   `raked=0` now prints NOT A CONTROL.
+                                             #   8 of 21 candidates rake zero,
+                                             #   `iwildcam` and every `fmow` among
+                                             #   them, so the old table's two
+                                             #   top rows (both 100.1%) were never
+                                             #   measured and iwildcam was NOT the
+                                             #   positive control it was quoted as.
+                                             #   fmow is still the clean second
+                                             #   dataset -- because a country is
+                                             #   ATOMIC and the gate does not apply,
+                                             #   NOT because it scored 100.1%.
+                                             #   FRAMEWORK 2(w2c).
 python -m scripts.hp_liveness_real           # `hp_liveness` answers "which knob can
                                              #   change a result" on the SMOKE NET,
                                              #   where the clip never engages -- so

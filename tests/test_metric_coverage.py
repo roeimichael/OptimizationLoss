@@ -161,8 +161,18 @@ def test_NEGATIVE_CONTROL_the_straddle_gate_catches_an_unread_statistic():
     # computation in place -- the state this file was in until 2026-08-31
     corrupted = src.replace('"c%d=%.4f/%.4f" % (c, v["median"], v["max"])', '""')
     assert corrupted != src, "negative control did not modify the source"
-    assert _unread_delta_keys(corrupted) == {"median", "max"}, (
-        "the gate FAILED TO FAIL when median/max stopped being read")
+    # `max` acquired a SECOND reader on 2026-09-01: `is_inert` uses it to tell
+    # an arm identical to its own `_null` from an unreachable cut. So removing
+    # the print alone no longer orphans it, and the control must say which
+    # site it removed -- otherwise this test silently weakens the day any
+    # statistic gains a second consumer.
+    assert _unread_delta_keys(corrupted) == {"median"}, (
+        "the gate FAILED TO FAIL when median stopped being read")
+    both = corrupted.replace('return all(v["max"] == 0.0 for v in disp.values())',
+                             "return False")
+    assert both != corrupted, "is_inert is no longer the second reader of max"
+    assert _unread_delta_keys(both) == {"median", "max"}, (
+        "with BOTH readers removed the gate must orphan max as well")
 
 
 # --------------------------------------------------------------------------
