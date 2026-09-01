@@ -8025,6 +8025,82 @@ null -- which is what `uniform1` pre-registered, in those words.
   which is a different property. **Any claim that the method cannot work must
   say `K/n` before it says anything else.**
 
+### 2(z26) 🛑🛑🛑 **BROKEN TO PAPER-LEVEL ITEMS, ONE ROW IN 158 RESOLVES**
+
+`scripts/paper_rows.py` (added 2026-09-01, `--self-test` gates it) emits one
+line per (cell, contrast) and averages NOTHING over cells. Run against the 234
+cells of `dom1` + `dom1b` + `loose1` + `equaldose1` it produces 393 rows, and
+the reading is uncomfortable and load-bearing:
+
+| | |
+|---|---|
+| rows in a **strict task** cell | 158 |
+| of those, **resolved at 2 sd** | **1** |
+| the one that resolves | A1 / MobileNetV2 / `L95_G80` / `tralo` vs `clip`, +9.85 items |
+
+**No other contrast in this corpus separates from its own seed noise in its own
+cell.** Every other number we quote is a SIGN, not a measurement, and the sd
+used here is a LOWER BOUND (it assumes the two arms are independent; they are
+two models sharing one warm-up, measured at 6-12x, FRAMEWORK 2(v)).
+
+**So the entire evidence base is sign consistency over the FOUR independent
+units**, not over the eight cells and certainly not over the 158 rows:
+
+| contrast | units positive | sign p | per-unit items |
+|---|---|---|---|
+| `tralo` vs its own **null** | **4/4** | **0.0625** | A1 +11.61/+13.23 · A2 +1.71/+3.80 · B1 +4.38/+4.60 · B2 +1.62 |
+| `tralo` vs `clip` | 3/4 | 0.3125 | A1 +5.77/+9.85 · A2 +2.84/+4.48 · B1 +6.40/+7.98 · **B2 -1.80** |
+| `tralo` vs `tralo_reseed` | 3/4 | 0.3125 | A1 +3.89/+5.98 · A2 +6.54/+7.32 · B1 +1.62/+2.42 · **B2 -1.74** |
+
+🔑 **`p=0.0625` IS THE FLOOR AT FOUR UNITS.** A 4/4 sign test cannot go below
+it, so no amount of agreement in this corpus reaches 0.05. **The bar is not
+crossed by finding a bigger effect, only by adding a fifth independent unit.**
+That, not another knob, is what `taskwin2` and `vittask1` buy.
+
+⛔ **`B2` (`loose1` / RegNetY400MF / `L80_G95`) DISSENTS ON ALL THREE
+CONTRASTS**, -1.80 / +1.62 / -1.74. One unit in four is negative against both
+the clipper and the RNG floor. It is not noise-shaped -- it is consistent
+within itself -- and it must appear in any table that shows the other three.
+
+🔑 **THE TABLE PROVES ITS OWN INDEPENDENCE CLAIM.** `dom1` and `loose1` at
+MobileNetV2 `L80_G95` print IDENTICAL rows (+5.77 / +13.23 / +3.89) because
+they are one model byte-for-byte. Anyone reading the cell list as eight
+replicates would have doubled that unit and reported p=0.0039.
+
+**POWER, per cell, lower bound, for `tralo` vs `clip`:**
+
+| unit | backbone | cap | items | sd >= | seeds needed >= | seeds run |
+|---|---|---|---|---|---|---|
+| A1 | MobileNetV2 | `L95_G80` | +9.85 | 4.80 | **2** | 4 |
+| B1 | RegNetY400MF | `L80_G95` | +6.40 | 7.97 | 13 | 4 |
+| B1 | RegNetY400MF | `L95_G80` | +7.98 | 11.07 | 16 | 4 |
+| A1 | MobileNetV2 | `L80_G95` | +5.77 | 8.67 | 18 | 4 |
+| A2 | MobileNetV2 | `L95_G80` | +4.48 | 7.72 | 24 | 4 |
+| A2 | MobileNetV2 | `L80_G95` | +2.84 | 6.15 | 37 | 4 |
+| B2 | RegNetY400MF | `L80_G95` | -1.80 | 7.54 | 139 | 4 |
+
+The one cell that resolves is the one needing 2 seeds, and it is the highest
+`K/n` cell in the table. That is `paired_noise`'s curve showing up in the
+results rather than in a screen: **seeds needed falls as `K/n` rises** (2607 at
+L20, 546 at L30/L50, 7 at K/n=0.9). The design is under-powered by 3-9x at
+`L80`, and roughly correctly powered at `L95`.
+
+⛔ **DOMINANCE OVER THE RIVAL DUALS IS NOT SHOWN.** `tralo` is #1 of the four
+(`tralo`/`alm`/`fioretto`/`hounie`) in **3 of 6** strict task cells. The
+"leads all four duals" reading of `dom1` came from a cell list that included
+`L90_G95`, which the per-seed re-measurement reclassified as PARTIAL
+(2(z24b)). At the strict bar the claim is a coin flip.
+
+✅ **WHAT MAY BE WRITTEN.** "In every independent unit measured, the constraint
+moves cc-F1 in TraLO's favour relative to its own lambda=0 twin (4/4 units,
+sign p=0.0625, +1.6 to +13.2 items)", stated beside the unit count, the
+dissenting unit on the other two contrasts, and the fact that one cell in 158
+separates from its own noise.
+⛔ **WHAT MAY NOT.** Any per-cell effect size quoted as a measurement, any
+count of CELLS used as a count of replicates, and any dominance claim.
+
+---
+
 ---
 
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time

@@ -110,6 +110,42 @@ without asking.
 
 ---
 
+## 🛑 0-PAPER. WHAT THE CORPUS ACTUALLY SUPPORTS, 2026-09-01
+
+Broken to paper-level items with `scripts/paper_rows.py` -- one row per
+(cell, contrast), NOTHING averaged over cells. 393 rows from `dom1` + `dom1b`
++ `loose1` + `equaldose1`. FRAMEWORK 2(z26) has the full tables.
+
+**The number that decides how this is written up:**
+
+> **1 of 158 strict-task rows separates from its own seed noise at 2 sd**, and
+> that sd is a LOWER bound. Everything else we quote is a SIGN, not a
+> measurement.
+
+**The evidence is sign consistency over FOUR independent units, not 8 cells:**
+
+| contrast | units | sign p |
+|---|---|---|
+| `tralo` vs its own null (attribution) | **4/4** | **0.0625** |
+| `tralo` vs `clip` (the quality bar) | 3/4 | 0.3125 |
+| `tralo` vs `tralo_reseed` (RNG floor) | 3/4 | 0.3125 |
+
+* 🔑 **0.0625 is the FLOOR at four units.** No amount of agreement in this
+  corpus reaches p<0.05. **The bar is crossed by adding a FIFTH INDEPENDENT
+  UNIT, not by another knob.** That is exactly what `taskwin2` (MobileNetV3,
+  which has ZERO task cells today) and `vittask1` (ViTB16, the headline
+  backbone, also ZERO) are for. They are the highest-value runs available.
+* ⛔ `B2` (`loose1`/RegNetY400MF/`L80_G95`) dissents on all three contrasts.
+  It goes in the table.
+* ⛔ **Dominance over the rival duals is NOT shown**: `tralo` is #1 of four in
+  **3 of 6** strict cells. The `dom1` "leads all four" reading included
+  `L90_G95`, now PARTIAL.
+* 🔑 **Power tracks `K/n`.** The single cell that resolves needs 2 seeds and is
+  the highest-`K/n` cell present; `L80` cells need 13-37 and we run 4. If a
+  cell must resolve on its own, run it at high `K/n` or run 10+ seeds.
+
+---
+
 ## 🔴 0-NOW. THE TWO DEFECTS, FOUND 2026-08-31/09-01
 
 Four measurements, in the order they were made. FRAMEWORK 2(z11), 2(z12),
