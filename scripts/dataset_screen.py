@@ -34,6 +34,7 @@ the whole `clip`-to-perfect headroom is 1.9-9.9 items. A cap whose novelty is
 """
 import argparse
 import os
+import sys
 
 import numpy as np
 import pandas as pd
@@ -266,10 +267,82 @@ def verdict_lines(r, name, noise=None):
     return out
 
 
+def _synthetic(tmp, kind, n_class=4, n_group=6, per=500, seed=0):
+    """Two slices with the SAME global label shift and different LOCAL structure.
+
+    `dead`: groups are `index % n_group`, i.i.d. draws from one distribution --
+    exactly how `octmnist` and `tissuemnist` were built, and the reason they
+    could never have tested the thing being tested.
+    `live`: each group draws its own prevalence, and the TEST groups are held
+    out entire, which is the `iwildcam` shape.
+    """
+    import pandas as pd
+    rng = np.random.default_rng(seed)
+    base = rng.dirichlet(np.ones(n_class))
+    tr, te = [], []
+    for g in range(n_group):
+        p = base if kind == "dead" else rng.dirichlet(np.ones(n_class) * 0.35)
+        lab = rng.choice(n_class, size=per, p=p)
+        tr += [{"location": "g%d" % g, "label": int(c)} for c in lab]
+    for g in range(n_group, n_group + 4):
+        p = base if kind == "dead" else rng.dirichlet(np.ones(n_class) * 0.35)
+        lab = rng.choice(n_class, size=per, p=p)
+        te += [{"location": "g%d" % g, "label": int(c)} for c in lab]
+    if kind == "dead":
+        # ... and make the GROUPS an index, so no group differs from any other
+        for i, r in enumerate(te):
+            r["location"] = "g%d" % (n_group + i % 4)
+    os.makedirs(tmp, exist_ok=True)
+    pd.DataFrame(tr).to_csv(os.path.join(tmp, "train_meta.csv"), index=False)
+    pd.DataFrame(te).to_csv(os.path.join(tmp, "test_meta.csv"), index=False)
+    return tmp
+
+
+def self_test(out=sys.stdout):
+    """The gate. This screen CLOSED two datasets and OPENED two others, so a
+    verdict it can only ever return one way decides nothing.
+
+    Both directions on synthetic slices with the SAME global shift: groups
+    built from an INDEX must read DEAD (octmnist/tissuemnist by construction),
+    and groups with their own prevalences must clear stage 1.
+    """
+    import tempfile
+    root = tempfile.mkdtemp()
+    ok = True
+    seen = {}
+    for kind in ("dead", "live"):
+        r = screen(_synthetic(os.path.join(root, kind), kind))
+        seen[kind] = r
+        for line in verdict_lines(r, kind):
+            out.write(line + chr(10))
+    if seen["dead"]["net_z"] >= 2.0:
+        out.write("SELF-TEST FAIL: groups built as an INDEX are i.i.d. draws "
+                  "from one distribution and MUST read DEAD, got NET %+.0f at "
+                  "z=%.1f%s" % (seen["dead"]["net_items"],
+                                seen["dead"]["net_z"], chr(10)))
+        ok = False
+    if not (seen["live"]["net_z"] >= 2.0
+            and seen["live"]["net_items"] > SEED_NOISE_ITEMS):
+        out.write("SELF-TEST FAIL: per-group prevalences ARE the signal this "
+                  "screen exists to find; it must clear stage 1, got NET %+.0f "
+                  "at z=%.1f%s" % (seen["live"]["net_items"],
+                                   seen["live"]["net_z"], chr(10)))
+        ok = False
+    # And the undecidable branch must not read as a pass.
+    lines = chr(10).join(verdict_lines(
+        dict(seen["live"], net_z=float("nan")), "nan-z"))
+    if "UNDECIDABLE" not in lines or "PASS" in lines:
+        out.write("SELF-TEST FAIL: an undefined z must not upgrade the "
+                  "verdict:" + chr(10) + lines + chr(10))
+        ok = False
+    out.write("SELF-TEST %s%s" % ("PASSED" if ok else "FAILED", chr(10)))
+    return 0 if ok else 1
+
+
 def main():
     global SEED_NOISE_ITEMS
     ap = argparse.ArgumentParser()
-    ap.add_argument("paths", nargs="+", help="slice dirs with train/test_meta.csv")
+    ap.add_argument("paths", nargs="*", help="slice dirs with train/test_meta.csv")
     ap.add_argument("--noise", type=float, default=SEED_NOISE_ITEMS,
                     help="paired seed sd in items, the divisor every verdict "
                          "below is scaled by. The default %.1f is dermmnist x "
@@ -277,7 +350,12 @@ def main():
                          "iwildcam measures 4.75 to 27.83. Pass the number for "
                          "the dataset and backbone you actually intend to run."
                          % SEED_NOISE_ITEMS)
+    ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()
+    if args.self_test:
+        sys.exit(self_test())
+    if not args.paths:
+        ap.error("give at least one slice dir, or --self-test")
     SEED_NOISE_ITEMS = float(args.noise)
 
     print("DATASET SCREEN -- can a count constraint carry information here?")

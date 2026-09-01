@@ -3802,7 +3802,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 446 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 448 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -3966,7 +3966,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 446 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 448 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -3974,7 +3974,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (446 tests, ~180 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (448 tests, ~180 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -4127,6 +4127,43 @@ and believed.
 **DO NOT RUN** a GPU campaign for graph diffusion, nor a wider (k, alpha)
 search. Cost of this closure: about twenty minutes of CPU on runs that already
 existed.
+
+🛑 **RE-OPENED AND RE-CLOSED 2026-09-01, ON A STRONGER GROUND.** The
+measurement above was taken on **dermmnist**, which is REMOVED and whose test
+set leaks 38.7% of itself, and it was POOLED across cells. Re-run on
+`dom1` (iwildcam, 384 runs, `--dump`), diffusion is NOT a null: `+2.01` items
+pooled, 232/384 runs, and per cell it is `-0.65 / -0.18 / +1.28` on
+MobileNetV2 against `+3.79 / +4.73 / +3.09` on MobileNetV3. The controls are
+clean and large in the right direction (shuffled graph `-13.11`, shuffled
+features `-16.31`), so this is geometry, not re-normalisation.
+
+⛔ **AND IT IS STILL NOT A DIRECTION, FOR A REASON THE OLD READING COULD NOT
+SEE: THE PROBE IS POST-HOC AND SCORES EVERY ARM AGAINST ITS OWN UNDIFFUSED
+SCORES.** A gain available to every arm raises the BASELINE and moves no
+arm-vs-arm delta. Measured per arm, 24 runs each, `d items`:
+
+| arm | gain | arm | gain |
+|---|---|---|---|
+| `tralo_reseed` | **+3.51** | `cb_lp` / `clip` / `lp` | +1.37 |
+| `alm_null` / `fioretto_null` / `hounie_null` / `tralo_null` | **+2.91** | `tralo_uniform` | +1.34 |
+| `focal_clip` / `focal_lp` | +2.11 | `la_lp` | +1.17 |
+| `hounie` +1.84, `tralo` **+1.83**, `alm` +1.43 | | `fioretto` | +1.10 |
+
+**The UNTREATED arms gain the MOST.** `tralo_null` collects +2.91 against
+`tralo`'s +1.83, so diffusing everything would move the treated-minus-null
+contrast **-1.08 items AGAINST TraLO**. Per cell that difference is
+`+1.95 / +0.68 / +0.16` (MobileNetV2) and `-3.80 / -6.38 / +0.94`
+(MobileNetV3): **4 of 6 cells positive, sign p = 0.34, a coin**, and the two
+largest effects are both negative. ⇒ The geometry is real and it belongs to
+the BASELINE. **DO NOT RUN a GPU campaign for it** -- the instruction stands,
+now for the right reason.
+
+🔑 **A FREE AUDIT FELL OUT OF THE SAME TABLE.** The probe reads only
+features and probabilities, and it reproduces the known byte-identities
+exactly: the four `*_null` arms all read **+2.91**, and `cb_lp` = `clip` =
+`lp` = **+1.37**. That is 2(x1) (`class_balanced` is inert on iwildcam) and
+the shared lambda=0 model, recovered by an instrument that knows nothing about
+either. A per-arm column disagreeing with a known identity is a defect signal.
 
 ### (h) THE CONSTRAINT RE-RANKS EXACTLY AS MUCH AS A COIN FLIP
 
@@ -7022,6 +7059,8 @@ indistinguishable from a real measurement.
 | `ceiling_screen` | interpolated p at K/n = 1.00 | the curve stops at 0.90; that is the endpoint |
 | `straddle_probe` | `reachable = 0` at the measured delta | the ARM was byte-identical to its null |
 | `graph_probe` | a complete report, no file | `--dump` was declared and never read |
+| `order_probe` | `=> TIE ... INDISTINGUISHABLE from a reseed` | ZERO points differed -- nothing was compared |
+| `tralo` + `ortho_project` | an unprojected constraint step | the CE reference was non-finite; no trace in the log |
 
 ⛔ **THE INERT-FLAG COUNT IS FIVE, AND THE FIFTH ONE IS MINE.** CLAUDE.md
 rule 3 counts four (`rho_step`, and `base_loss`/`focal_alpha`/`focal_gamma` in
@@ -7044,6 +7083,56 @@ that never ran. This is not hypothetical here: `cb_lp`'s raw predictions are
 byte-identical to `clip`'s in 24 of 24. ✅ Inert twins are now named per pair
 and excluded from the aggregate; if EVERY pair is inert the probe prints
 `NOTHING WAS MEASURED` and exits **3**, not 0.
+
+🛑 **TWO MORE OF THE SAME SHAPE, FOUND WITH THE TABLE ABOVE AS THE
+SEARCH PATTERN.** `order_probe.verdict` branched on `if not n_g or p_g >=
+alpha`, so "the effect is a coin flip" and "not one point differs" printed the
+SAME verdict -- and the TIE branch goes on to explain the mechanism (a
+monotone map on the logit channel cannot reorder), which reads as a CONFIRMED
+account for a run that compared nothing. `n_g` counts points where the arm and
+its reseed differ AT ALL, so zero is an inert arm or an empty glob. ✅ Now
+`NOTHING TO TEST`, with the mechanism paragraph suppressed, and both liveness
+directions gated -- a genuine 48-point coin flip must still read TIE.
+
+🛑 And in the TRAINER: `snapshot_grads` returns `None` whenever any CE
+gradient is non-finite, which is routine on the FP16 path, and
+`finish_constraint_step` then takes an **UNPROJECTED** step. The arm keeps its
+name, writes `status: completed`, and nothing said which epochs got the
+treatment -- the same shape as the dose defect `dose_landed` exists for. ✅
+Counted and warned per epoch. (Latent today: no live arm sets
+`ortho_project`, and `ortho_survival` measures that the projection delivers
+**0.0%** of its promised CE-neutrality anyway.)
+
+✅ **AND THREE PROBES THAT MADE DIRECTION-CLOSING CLAIMS HAD NO
+`--self-test` AT ALL.** `test_EVERY_script_offering_a_self_test_actually_PASSES_it`
+DISCOVERS them rather than enumerating, so each is gated the moment it lands.
+15 of the 45 scripts now carry one.
+
+- **`graph_probe`** -- 2(g) is a NULL, and a null is worth nothing unless the
+  instrument could have said otherwise. The gate builds the case diffusion is
+  supposed to win (positives clustered in feature space, scores noisy) and
+  requires a real gain there -- **+13 of 105 items** -- then requires the
+  shuffled-feature control to take it away (**-1**). It also writes a dump and
+  reads it back, because `--dump` was inert for its whole first life.
+- **`dataset_screen`** -- it CLOSED octmnist and tissuemnist and OPENED fmow
+  and terra. Gated both ways on synthetic slices carrying the SAME global
+  shift: groups built from an INDEX must read **DEAD** (z=-1.7, beside the
+  real octmnist -0.4 and tissuemnist -1.9) and groups with their own
+  prevalences must clear stage 1. Plus the `nan`-z branch, which used to
+  UPGRADE the verdict.
+- **`scope_probe`** -- it closed the local-cap direction on "pinning the split
+  costs -0.86 items while wrong-shape controls cost 5.3-5.5", and that is
+  legal ONLY if the control differs in SHAPE and not in DOSE. Nothing checked
+  that `_permute_ceilings` preserves the budget. It does; now gated, with a
+  negative control that moves one ceiling by ONE and must be caught, plus the
+  identity permutation as a no-op and `_splits` enumerating every composition
+  exactly once.
+
+⚠️ Writing that last gate reproduced the defect class inside the gate itself:
+a `for ... else` printed its PASS line **unconditionally**, because `else`
+fires whenever the loop does not `break` -- so it would have printed PASS
+directly beside its own FAIL. Fixed with an explicit flag. The pattern is
+worth recognising: `for/else` in a checker is almost always this bug.
 
 ✅ **THE GENERAL RULE THIS SECTION EXISTS FOR.** A probe may return a number
 or refuse; it may not return a number that means "I could not measure". Every
@@ -9197,7 +9286,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             446 tests, ~180 s, no dataset required
+tests/             448 tests, ~180 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

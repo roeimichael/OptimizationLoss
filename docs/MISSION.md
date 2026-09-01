@@ -549,7 +549,7 @@ for k,v in sorted(seen.items(), key=lambda kv:-sum(kv[1].values())):
 PY'
 
 # 4. gates, before ANY launch
-python -m pytest tests -q          # must be 446 (bump when you add one)
+python -m pytest tests -q          # must be 448 (bump when you add one)
 python -m scripts.audit_config
 python -m scripts.smoke_arms
 ```

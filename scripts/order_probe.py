@@ -381,7 +381,23 @@ def verdict(dd, db, out=None, alpha=0.05):
     w("   band                        %+.4f   (%d/%d, sign p=%.3f)\n"
       % (db.mean() if n_b else float("nan"), k_b, n_b, p_b))
     w("\n")
-    if not n_g or p_g >= alpha:
+    if not n_g:
+        # NOT a tie. `n_g` counts points where the arm and its reseed differ
+        # AT ALL, so zero of them means nothing was compared -- an inert arm
+        # whose predictions are byte-identical, or an empty input. Printing
+        # TIE here also printed the monotone-map paragraph below it, which
+        # reads as a CONFIRMED MECHANISM for a run that produced no data.
+        w("   => NOTHING TO TEST. Not one point differs between the arm and "
+          "its reseed,\n")
+        w("      so there is no sign to test and no effect size to bound. "
+          "That is a\n")
+        w("      statement about the INPUT, not about reordering: either the "
+          "arm is inert\n")
+        w("      (md5 its `final_predictions_raw.csv` against the twin -- "
+          "CLAUDE.md rule 3,\n")
+        w("      five occurrences) or the glob matched nothing usable.\n")
+        return
+    if p_g >= alpha:
         w("   => TIE. The constraint is INDISTINGUISHABLE from a pure RNG "
           "reseed (p=%.3f at\n" % p_g)
         w("      %d points; %d/%d is a coin flip). What order movement there "

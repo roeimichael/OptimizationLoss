@@ -78,7 +78,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 446 regression tests, ~180s, no dataset needed
+python -m pytest tests -q                   # 448 regression tests, ~180s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -293,11 +293,27 @@ python -m scripts.scope_probe --campaign <root>   # `L20_G50` and `L50_G20` impo
                                             #   transfer: the best split found with labels
                                             #   gains +4.18 and transfers at -0.89, so an
                                             #   oracle quoted alone is selection noise
-python -m scripts.graph_probe --campaign <root>  # diffuse the scores over a kNN graph of
-                                            #   the stored embeddings -- the one input the
-                                            #   allocator provably lacks. NULL: +0.50
-                                            #   items, 10/19, while its shuffled-graph and
-                                            #   shuffled-feature controls lose 5.8-8.4
+python -m scripts.graph_probe --campaign <root> --dump <csv>  # diffuse the scores over
+                                            #   a kNN graph of the stored embeddings -- the
+                                            #   one input the allocator provably lacks.
+                                            #   ⛔ THE OLD "NULL: +0.50 items, 10/19" WAS
+                                            #   MEASURED ON dermmnist, WHICH IS REMOVED AND
+                                            #   LEAKS 38.7%. On iwildcam it is NOT a null:
+                                            #   +2.01 items, 232/384, controls clean
+                                            #   (-13.1 / -16.3).
+                                            #   🔑 AND IT IS STILL NOT A DIRECTION.
+                                            #   The probe is POST-HOC and scores each arm
+                                            #   against its OWN undiffused scores, so a gain
+                                            #   every arm shares raises the BASELINE and
+                                            #   moves no contrast. Per arm the UNTREATED
+                                            #   ones gain MOST: `tralo_null` +2.91 vs
+                                            #   `tralo` +1.83, i.e. -1.08 items AGAINST
+                                            #   TraLO; 4 of 6 cells positive, sign p=0.34.
+                                            #   `--dump` writes the per-arm rows -- it was
+                                            #   an INERT FLAG until 2026-09-01, the fifth.
+                                            #   `--self-test` gates it: diffusion must WIN
+                                            #   on clustered features and the shuffled
+                                            #   control must take it away. FRAMEWORK 2(g).
 python -m scripts.ortho_survival --compounding  # does a count-function change
                                              #   compound over the 29 steps?
                                              #   ⚠️ MOSTLY NOT, and the first

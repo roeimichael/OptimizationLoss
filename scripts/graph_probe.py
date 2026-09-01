@@ -61,6 +61,7 @@ import argparse
 import glob
 import io
 import os
+import sys
 
 import numpy as np
 
@@ -244,12 +245,80 @@ def write_dump(path, names, rows):
           "moves.")
 
 
+def self_test(out=sys.stdout):
+    """The gate. A probe that can only return NULL is not a measurement.
+
+    2(g) is a direction-closing NULL, and a null is only worth anything if the
+    instrument could have said otherwise. So this builds the case diffusion is
+    SUPPOSED to win -- positives clustered in feature space, scores noisy
+    enough that the ranking is mediocre -- and requires a real gain there,
+    then requires the same gain to VANISH when the features are shuffled.
+
+    Pure functions only: no run directory, no embeddings on disk, seconds on
+    CPU.
+    """
+    rng = np.random.default_rng(0)
+    n, dim, k, alpha = 400, 8, 20, 0.5
+    y = (rng.random(n) < 0.3)
+    centre = rng.normal(size=dim)
+    feats = rng.normal(size=(n, dim)) * 0.9 + np.outer(y, centre) * 2.2
+    # A mediocre score: the truth, buried under noise of comparable size.
+    p1 = np.clip(0.5 + 0.16 * y + rng.normal(scale=0.16, size=n), 1e-3, 1 - 1e-3)
+    Pm = np.stack([1.0 - p1, p1], axis=1)
+    K = int(y.sum())
+
+    def prec_at_K(col):
+        return float(y[np.argsort(-col)[:K]].sum())
+
+    base = prec_at_K(Pm[:, 1])
+    real = prec_at_K(diffuse(Pm, knn_affinity(feats, k), alpha)[:, 1])
+    shuf = prec_at_K(diffuse(Pm, knn_affinity(
+        feats[rng.permutation(n)], k), alpha)[:, 1])
+
+    w = out.write
+    w("SELF-TEST -- could this probe report a WIN if there were one?\n\n")
+    w("  positives clustered in feature space, scores deliberately noisy\n")
+    w("  %-26s %6.0f of %d correct in the top-K\n" % ("undiffused", base, K))
+    w("  %-26s %6.0f   (%+.0f items)\n" % ("diffused", real, real - base))
+    w("  %-26s %6.0f   (%+.0f items)  <- CONTROL\n"
+      % ("diffused, shuffled feats", shuf, shuf - base))
+    ok = True
+    if real - base < 10:
+        w("\n  FAIL: the geometry is the label here and diffusion gained only "
+          "%+.0f items.\n        The probe cannot report a win, so its NULL on "
+          "real data means nothing.\n" % (real - base))
+        ok = False
+    if real - shuf < 5:
+        w("\n  FAIL: shuffling the features cost only %.0f items, so the gain "
+          "is not\n        geometry -- it is re-normalisation, and the "
+          "`diffused` column is void.\n" % (real - shuf))
+        ok = False
+    if ok:
+        w("\n  PASS: it CAN say yes (%+.0f items), and the control takes it "
+          "away (%+.0f).\n" % (real - base, shuf - base))
+    # And the dump must actually write -- `--dump` was declared and never read
+    # for its whole first life (FRAMEWORK 2(z25)).
+    import tempfile
+    path = os.path.join(tempfile.mkdtemp(), "d.csv")
+    write_dump(path, [os.path.join("B", "d", "cap", "tralo", "seed_1")],
+               {kk: [1.0] for kk in KEYS})
+    rows = [l for l in io.open(path, encoding="utf-8") if l.strip()]
+    if len(rows) != 2 or "arm" not in rows[0]:
+        w("  FAIL: --dump wrote %d row(s)\n" % (len(rows) - 1))
+        ok = False
+    else:
+        w("  PASS: --dump writes, with the `arm` column it exists for.\n")
+    w("SELF-TEST %s\n" % ("PASSED" if ok else "FAILED"))
+    return 0 if ok else 1
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("runs", nargs="*")
     ap.add_argument("--campaign")
     ap.add_argument("-k", type=int, default=K_DEFAULT)
     ap.add_argument("--alpha", type=float, default=ALPHA_DEFAULT)
+    ap.add_argument("--self-test", action="store_true")
     ap.add_argument("--dump", help="write the per-run rows to this CSV, "
                                    "so the per-ARM question can be asked "
                                    "without recomputing the diffusion. "
@@ -260,6 +329,8 @@ def main():
                                    "arm-vs-arm delta. That question needs "
                                    "these rows")
     args = ap.parse_args()
+    if args.self_test:
+        sys.exit(self_test())
 
     runs = list(args.runs)
     if args.campaign:

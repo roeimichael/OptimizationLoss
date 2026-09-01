@@ -56,6 +56,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             "arm name, which is this project's most frequent defect."
             % SOFT_COUNT_MODE)
     ORTHO_PROJECT = bool(hp.get("ortho_project", False))
+    ortho_skipped = 0
     HEAD_ONLY = bool(hp.get("head_only", False))
     step_cfg = read_step_config(hp)
     CUT_WINDOW_ITEMS = int(hp.get("cut_window_items", 5))
@@ -222,6 +223,17 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         # next line, so this is the only free place to take it. `ortho_project`
         # removes the constraint step's component along it; see project_out.
         ortho_ref = snapshot_grads(model) if ORTHO_PROJECT else None
+        if ORTHO_PROJECT and ortho_ref is None:
+            # `snapshot_grads` returns None when any CE grad is non-finite,
+            # which is routine on the FP16 path -- and `finish_constraint_step`
+            # then takes an UNPROJECTED step with no trace in the log. An arm
+            # that skips its own treatment on some epochs is not the arm it
+            # says it is, and the count is the only way to know how many.
+            ortho_skipped += 1
+            log.warning(
+                "ortho_project: NO CE reference this epoch (non-finite CE "
+                "grad), so the constraint step is UNPROJECTED. Skipped %d of "
+                "%d constraint epoch(s) so far.", ortho_skipped, epoch)
         # Resolved every epoch rather than cached: it is a dict lookup over
         # modules, and a cached id() set would silently go stale if anything
         # ever rebuilds a layer mid-run.

@@ -59,7 +59,9 @@ on this data and the run says so instead of reporting a null.
 import argparse
 import glob
 import itertools
+import math
 import os
+import sys
 
 import numpy as np
 
@@ -309,6 +311,99 @@ def _per_cell_report(names, rows, keys):
     return cells
 
 
+def self_test(out=sys.stdout):
+    """The gate, on the one property the whole probe rests on.
+
+    `scope_probe` closed the local-cap direction: pinning the split cost -0.86
+    items while wrong-shape controls cost 5.3-5.5. That comparison is only
+    legal if the control differs from the treatment in SHAPE and not in DOSE
+    -- confounding direction with dose is the trap that made the hounie
+    baseline meaningless (2(z3)). `_permute_ceilings` is what guarantees it,
+    and nothing checked that it does.
+
+    Also gates `_splits`, which the oracle enumerates over: a generator that
+    silently drops splits would make the oracle headroom an underestimate and
+    the direction look MORE closed than it is.
+    """
+    import itertools
+    rng = np.random.default_rng(0)
+    ok = True
+    w = out.write
+    w("SELF-TEST -- is the wrong-shape control the same DOSE?" + chr(10) + chr(10))
+
+    classes, gids = [2, 7], list(range(6))
+    L = {g: [int(x) for x in rng.integers(0, 40, size=8)] for g in gids}
+    before = {c: sorted(L[g][c] for g in gids) for c in classes}
+    order = [3, 0, 5, 1, 4, 2]
+    out_L = _permute_ceilings(L, classes, order)
+    after = {c: sorted(out_L[g][c] for g in gids) for c in classes}
+    if before != after:
+        w("  FAIL: the permuted control changed the BUDGET, so it differs from"
+          + chr(10) + "        the treatment in dose as well as shape."
+          + chr(10))
+        ok = False
+    elif all(out_L[g][c] == L[g][c] for g in gids for c in classes):
+        w("  FAIL: the permutation left every ceiling where it was, so the "
+          "control" + chr(10) + "        is the treatment." + chr(10))
+        ok = False
+    else:
+        w("  PASS  budget preserved exactly (%s), assignment changed."
+          % ", ".join("class %d total %d" % (c, sum(before[c]))
+                      for c in classes) + chr(10))
+
+    # ... and an UNCAPPED class must be untouched: the permutation is per class.
+    if any(out_L[g][0] != L[g][0] for g in gids):
+        w("  FAIL: an uncapped class was permuted too." + chr(10))
+        ok = False
+    else:
+        w("  PASS  uncapped classes untouched." + chr(10))
+
+    # LIVENESS the other way: the identity order must be a no-op, or the gate
+    # above would pass for a function that merely scrambles something.
+    same = _permute_ceilings(L, classes, list(range(len(gids))))
+    if any(same[g][c] != L[g][c] for g in gids for c in classes):
+        w("  FAIL: the IDENTITY permutation changed the ceilings." + chr(10))
+        ok = False
+    else:
+        w("  PASS  identity permutation is a no-op." + chr(10))
+
+    splits_ok = True          # NOT a for/else: that runs unless the loop
+    for total, n in ((5, 3), (7, 2), (4, 4)):   # BREAKs, so it printed PASS
+        got = list(_splits(total, n))           # beside its own FAIL.
+        want = math.comb(total + n - 1, n - 1)
+        if len(got) != want or len(set(got)) != want:
+            w("  FAIL: _splits(%d,%d) yielded %d tuple(s), %d distinct; the "
+              "oracle enumerates" % (total, n, len(got), len(set(got)))
+              + chr(10) + "        over these, so a gap understates the "
+              "headroom. Expected %d." % want + chr(10))
+            splits_ok = False
+        elif any(sum(s) != total for s in got):
+            w("  FAIL: _splits(%d,%d) yielded a tuple that does not sum to the "
+              "total." % (total, n) + chr(10))
+            splits_ok = False
+    if splits_ok:
+        w("  PASS  _splits enumerates every composition, exactly once."
+          + chr(10))
+    ok = ok and splits_ok
+
+    # NEGATIVE CONTROL: a permutation that leaks budget must be CAUGHT, or the
+    # three PASSes above are compatible with no check at all.
+    leaky = {g: list(L[g]) for g in gids}
+    leaky[gids[0]][classes[0]] += 1
+    caught = (sorted(leaky[g][classes[0]] for g in gids)
+              != sorted(L[g][classes[0]] for g in gids))
+    if not caught:
+        w("  FAIL: the budget comparison cannot see a changed ceiling."
+          + chr(10))
+        ok = False
+    else:
+        w("  PASS  negative control: a budget that moved by ONE is caught."
+          + chr(10))
+    assert itertools  # kept: the import documents what a composition is
+    w("SELF-TEST %s%s" % ("PASSED" if ok else "FAILED", chr(10)))
+    return 0 if ok else 1
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("runs", nargs="*")
@@ -331,7 +426,10 @@ def main():
                          "per-group prevalence, then allocate with a "
                          "FREE split. A method candidate, not a "
                          "headroom measure.")
+    ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()
+    if args.self_test:
+        sys.exit(self_test())
 
     runs = list(args.runs)
     if args.campaign:

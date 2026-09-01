@@ -21,6 +21,7 @@ import ast
 import copy
 import csv
 import hashlib
+import io
 import json
 import os
 import subprocess
@@ -1113,6 +1114,45 @@ def test_a_scorer_edit_does_not_split_a_running_campaign_s_code_version():
             "and every campaign would read as uniform no matter what landed")
     finally:
         shutil.rmtree(repo, ignore_errors=True)
+
+
+def test_order_probe_does_not_call_zero_points_a_tie():
+    """`if not n_g or p_g >= alpha` printed the SAME verdict for "the effect is
+    a coin flip" and "not one point differs" -- and the TIE branch goes on to
+    explain WHY, with the monotone-map argument, which reads as a confirmed
+    mechanism for a run that produced no data at all.
+
+    `n_g` counts points where the arm and its reseed differ AT ALL, so zero of
+    them is an inert arm (byte-identical predictions -- five occurrences in
+    this repo) or an empty glob. Both directions gated: a real coin flip must
+    still read TIE.
+    """
+    import numpy as np
+
+    from scripts.order_probe import verdict
+
+    buf = io.StringIO()
+    verdict(np.zeros(40), np.zeros(40), out=buf)
+    txt = buf.getvalue()
+    assert "NOTHING TO TEST" in txt
+    assert "TIE" not in txt, (
+        "zero points is a statement about the input, not about reordering")
+    assert "monotone map" not in txt, (
+        "the mechanism paragraph must not be printed for a run that compared "
+        "nothing")
+
+    # LIVENESS 1: a genuine coin flip is still a TIE, with the mechanism.
+    rng = np.random.default_rng(0)
+    dd = rng.normal(size=48) * 1e-4
+    buf = io.StringIO()
+    verdict(dd, dd, out=buf)
+    assert "TIE" in buf.getvalue() and "monotone map" in buf.getvalue()
+
+    # LIVENESS 2: a real one-sided effect still clears.
+    dd = np.array([-1.0] * 40 + [1.0] * 8)
+    buf = io.StringIO()
+    verdict(dd, dd, out=buf)
+    assert "TIE" not in buf.getvalue()
 
 
 def test_order_probe_arithmetic_and_its_control():

@@ -8237,6 +8237,44 @@ def test_the_dose_block_cannot_drop_an_arm_that_took_zero_constraint_steps():
     assert "100.0%" in clean and "tralo" in clean and "alm" in clean, clean
 
 
+def test_a_skipped_ortho_projection_is_counted_not_silent():
+    """`snapshot_grads` returns None whenever ANY CE gradient is non-finite --
+    routine on the FP16 path -- and `finish_constraint_step` then takes an
+    UNPROJECTED step. The arm keeps its name, writes `status: completed`, and
+    nothing in the log says which epochs got the treatment.
+
+    That is the same shape as the dose defect the project already measures per
+    arm (`dose_landed`): a run at 3.4% of its dose looked healthy from every
+    other angle. So the skip is counted and warned, and the trigger is gated
+    here directly.
+    """
+    import torch
+
+    from src.training.constraint_step import snapshot_grads
+
+    net = torch.nn.Linear(4, 3)
+    net(torch.randn(8, 4)).sum().backward()
+    assert snapshot_grads(net) is not None, "a finite CE grad must snapshot"
+
+    net.weight.grad[0, 0] = float("inf")
+    assert snapshot_grads(net) is None, (
+        "a non-finite CE grad must refuse to be a projection reference -- "
+        "projecting against a direction the model never moved in is worse "
+        "than not projecting")
+
+    src = ast.parse(io.open("src/methodologies/tralo/train.py",
+                            encoding="utf-8").read())
+    guards = [n for n in ast.walk(src)
+              if isinstance(n, ast.If)
+              and "ortho_ref" in ast.dump(n.test)
+              and "ORTHO_PROJECT" in ast.dump(n.test)]
+    assert guards, (
+        "nothing notices when the projection reference is unavailable")
+    body = ast.dump(guards[0])
+    assert "ortho_skipped" in body and "warning" in body, (
+        "the skip must be COUNTED and warned, not merely branched on")
+
+
 def test_every_probe_flag_is_actually_read():
     """The fifth inert flag was `graph_probe --dump`, and it was mine.
 
