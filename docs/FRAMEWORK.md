@@ -2276,6 +2276,64 @@ replication of `loose1` on those cells and the two must never be counted as
 separate evidence.** The duals (`alm`, `fioretto`, `hounie`) are unique to
 `dom1`, so the dominance contrast itself is untouched.
 
+### (z15) ⛔⛔⛔ AT TIGHT CAPS ON iwildcam THE PRIZE IS **EXACTLY ZERO**, AND
+CE SATURATION IS A SEPARATE FACT THAT MERELY COINCIDES WITH IT
+
+Measured 2026-09-01 on `uniform1` + `loose1`, MobileNetV3, `clip` arm, all
+seeds. This is the question 2(z12)-2(z14) never asked, and it governs them.
+
+| cell | cls | K | p@K | prec@K | errors <= K | errors in +-20 band |
+|---|---|---|---|---|---|---|
+| TIGHT L20_G50 | 2 | 74 | 1.00000 | **1.0000** | **0.0** | 0.0 |
+| TIGHT L20_G50 | 7 | 92 | 1.00000 | **1.0000** | **0.0** | 0.0 |
+| TIGHT L30_G50 | 2 | 111 | 0.99999 | **1.0000** | **0.0** | 0.8 |
+| TIGHT L30_G50 | 7 | 137 | 1.00000 | **1.0000** | **0.0** | 0.0 |
+| TIGHT L50_G30 | 2 | 111 | 0.99999 | **1.0000** | **0.0** | 0.8 |
+| LOOSE L80_G95 | 2 | 296 | 0.79122 | 0.9493 | **15.0** | 10.2 |
+| LOOSE L80_G95 | 7 | 364 | 0.99929 | 0.9533 | **17.0** | 13.5 |
+| LOOSE L90_G95 | 2 | 333 | **0.38433** | 0.9144 | **28.5** | 17.5 |
+| LOOSE L90_G95 | 7 | 411 | 0.99253 | 0.9264 | **30.2** | 11.0 |
+
+⛔ **AT EVERY TIGHT CELL THE CLIPPER'S SELECTION IS 100% CORRECT.** Zero
+errors inside K. There is no swap that improves it, only swaps that damage it.
+No loss, count function, dual, allocator or optimizer can beat a perfect
+selection. This is `headroom`'s "0.0 items in 4 of 6 cells" seen directly.
+
+🛑 **SO IT DOES NOT MATTER THAT `sum` CANNOT REACH THE CUT AT TIGHT CAPS**
+(2(z12)) -- **there is nothing at the cut to reach.** 2(z12) diagnosed a real
+mechanism in a regime that has no prize. Both statements stand; the second one
+governs.
+
+⚠️ **AND IT DOWNGRADES THE CUT WINDOW.** `cut_window` beats `sum` on aim by
+**361x at tight** and **4.8x at loose** (2(z14)). Tight is where it wins the
+comparison and where the prize is 0.0. Loose is where the prize is 15-30 items
+and where it is only 0.90-0.95 from `sum`, i.e. barely a different arm.
+⇒ **The cut window is unlikely to help anywhere on iwildcam**, and
+`cutwin1`'s L30_G50 half is dead by construction. Predicted BEFORE running it.
+
+✅ **CE SATURATION IS REAL BUT IS NOT THE BINDING CONSTRAINT.** Measured on
+the same logs: `L_CE` falls **0.4603 -> 0.0044 (epoch 16) -> 0.0010 (epoch 30)**
+and `Soft/Hard` reaches **1.000 by epoch 16**. Warm-up 1 buys only ~2 epochs,
+because ~126 CE steps run between consecutive constraint steps, so the model is
+collapsed for ~25 of the 29 constraint epochs.
+⚠️ **BUT precision@K is a RANKING property, not a confidence property.** A
+perfectly calibrated, unsaturated model that ranked the same 111 items would
+still have prec@K = 1.0000 and nothing to fix. **Un-saturating CE cannot create
+errors to win back, so it does not open the tight regime.** Saturation and the
+zero prize coincide here; they are not cause and effect. Do not spend a
+campaign on a CE schedule expecting it to unlock tight caps.
+
+⇒ **WHERE THE WORK IS.** The only iwildcam cell with BOTH slack and errors is
+**LOOSE, class 2**: at L90 `p@K = 0.384` (not saturated at all), prec@K 0.9144,
+**28.5 errors inside K and 17.5 in the reachable band**. Class 7 stays saturated
+(p@K 0.992-0.999) even at loose. So the live target is narrow and specific, and
+it is the same place `tralo` already measured +0.0253 AP.
+
+⇒ **AND WHAT IT MEANS FOR DATASET #2.** The reason to want `fmow` is now
+quantified from the other side: iwildcam gives a model that is PERFECT at the
+tight cut. The screen number to go and get is fmow's `prec@K`, and anything at
+or above 1.0 there means the same dead end. 2(w2).
+
 ### (z11) 🔴🔴🔴 AT THE ITEM LEVEL THE CONSTRAINT IS AT THE RNG FLOOR, AND
 `tralo_uniform` IS BELOW IT IN BOTH REGIMES
 
