@@ -44,9 +44,23 @@ it against the **`tralo_reseed` floor measured inside the same campaign**.
 
 | campaign | backbone(s) | task cells | `tralo` vs ITS floor, ccF1 items |
 |---|---|---|---|
-| **`dom1`** (384 runs, 16 arms) | MobileNetV2/V3 | 4 of 6 | **12.46 vs 8.12 = 1.53x, above in 4/4 cells** |
+| **`dom1`** (384 runs, 16 arms) | MobileNetV2/V3 | 4 of 6 | **12.46 vs 8.12 = 1.53x**, above in 4/4 cells |
+| **`dom1b`** (192 runs, 16 arms) | **RegNetY400MF** | 3 of 3 | **4.38 vs 1.76 = 2.49x**, above in 3/3 |
+| **`loose1`** (144 runs) | MNv2/MNv3/RegNet | 5 of 6 | **9.65 vs 6.27 = 1.54x**, above in 4/5 |
 | **`loosevit1`** (48 runs) | **ViTB16 (headline)** | 1 of 2 | **1.41 vs 0.51 = 2.8x**, only arm positive on all four metrics |
 | `equaldose1` (216 runs, 9 arms) | MobileNetV2/V3 | 4 of 6 | 2.32 vs 3.39 = **0.68x** |
+
+🛑 **THE CELL COUNTS ABOVE ARE NOT INDEPENDENT UNITS.** Cells at different cap
+levels on the same backbone share ONE lambda=0 warm-up model, so "4/4 cells" is
+2 independent units. **The honest statistic is the 4 (campaign, backbone) pairs
+in 2(z23): `tralo - tralo_reseed` is positive in 4 of 4, sign p = 0.0625.**
+Counting cells gives 7/8 and p=0.035, which is anticonservative -- do not quote it.
+
+✅ **IT REPLICATES ACROSS CAMPAIGNS AND HARDWARE.** `loose1`'s MobileNet subset
+reads 12.74 items / 3-of-3 / 1.42x against `dom1`'s 12.46 / 4-of-4 / 1.53x --
+different campaign, different `code_version`, same answer. RegNet reads 2.49x
+(fp16, one commit) and 2.24x (bf16, another commit). The arm ORDERING
+`tralo > alm ~ fioretto > hounie` is identical in `dom1` and `dom1b`.
 
 ✅ **`tralo` leads every rival dual on ccF1 in the task cells of both `dom1`
 and `equaldose1`, and is the only arm above its own floor in 4/4 of `dom1`'s.**
@@ -57,9 +71,10 @@ metric-dependent -- say which metric every time.
 the dose-matched `tralo_lam0` +0.0287. The 3.4% step head start is not the
 source of the lead.
 
-⛔ **`tralo_uniform` is below the floor in 4 of 4 `dom1` task cells** and at
--3.50 items against a 0.51 floor on ViTB16. It was already below the floor at
-tight caps (2(z11)). It is refuted in every regime now measured.
+⛔ **`tralo_uniform` never leads anywhere**, and clears its own floor in only
+**3 of 8** measured task cells (`dom1` 0/4, `loose1` 1/5, `dom1b` 2/3), plus -3.50
+items against a 0.51 floor on ViTB16. It was already below the floor at tight caps
+(2(z11)). Do not run it again -- but "refuted in every regime" overstates it.
 
 🔴 **NOT ESTABLISHED, and do not let the above imply it.** Every figure here is
 a mean over cells or a 4/4 sign count -- min sign-test p is 0.0625, and
@@ -248,7 +263,7 @@ L95_G80. Only **20 distinct warm-up models** exist across all five campaigns.
 | knob | verdict | evidence |
 |---|---|---|
 | `soft_count_mode: sum` (shipped) | 🟡 wins LOOSE, loses TIGHT -- **and the reason is now known**, 2(y) | AP +0.0253..+0.0064 loose / -0.0572..-0.0933 tight. The gradient sits at the boundary, 200-440 ranks from the cut when the cap is tight |
-| `soft_count_mode: uniform` | ⛔ **REJECTED 2026-09-01.** Was logged as "the tight-cap tool", but tight caps are now measured NON-TASKS (2(z17)) and in the cells that ARE tasks it is **below its own reseed floor in 4 of 4** (2(z21)) and **-3.50 items against a 0.51 floor on ViTB16** (2(z20)). Its founding order-preservation claim was also refuted (0-NOW (2)) | old row: ViTB16 AP +0.0087 tight / -0.0091 loose, `uniform1` -0.0754 -> +0.0030. Those tight-cap numbers stand as measurements and no longer support the verdict |
+| `soft_count_mode: uniform` | ⛔ **DO NOT RUN AGAIN 2026-09-01** (weaker than 'refuted': see the cross-campaign count). Was logged as "the tight-cap tool", but tight caps are now measured NON-TASKS (2(z17)) and in the cells that ARE tasks it clears its own reseed floor in only **3 of 8** measured task cells (`dom1` 0/4, `loose1` 1/5, `dom1b` 2/3) and is **-3.50 items against a 0.51 floor on ViTB16** (2(z20), 2(z21), 2(z23)). It never LEADS anywhere. Its founding order-preservation claim was also refuted (0-NOW (2)) | old row: ViTB16 AP +0.0087 tight / -0.0091 loose, `uniform1` -0.0754 -> +0.0030. Those tight-cap numbers stand as measurements and no longer support the verdict |
 | `soft_count_mode: margin` | ⛔ **NEVER RUN, AND NOW REPRICED DOWNWARD** (2026-09-01). Still staged as `margin2` (432 runs) but it windows the BOUNDARY, and the boundary is measured to carry **exactly 0.0000** of the gradient at the cut. 🛑 **Run `taskwin1` first** | cosine **0.989** to `tralo` on real features, so 432 runs would mostly reproduce `tralo`. FRAMEWORK 2(z12) |
 | `soft_count_mode: cut` (**NEW**, `tralo_cut`) | 🟢 **BUILT, GATED, STAGED as `taskwin1`** -- the fix 0-NOW derives. Value stays exactly `sum_i p_ic`, only the gradient weight moves to a window on rank K, width in ITEMS. ⚠️ **NOT predicted to win** -- aiming is necessary, not sufficient | mass at the cut **0.0001 -> 0.3486** (pooled, 24 run-class pairs, real features). Chunked gradient == full-N exactly (maxdiff 0.00e+00). `flag_live` md5-distinct on every binding seed. 423 tests, `audit_config`, `smoke_arms --matrix` all green |
 | `tralo_st` (hard-count value fix) | ❓ **NEVER RUN** -- same campaign | isolates VALUE from PLACEMENT |

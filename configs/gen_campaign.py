@@ -168,69 +168,14 @@ def _zero_ceilings(P, dataset, local_pct):
         return 0, 0
 
 
-TASK_WINDOWS_PATH = os.path.join(HERE, "task_windows.yml")
-
-
-def load_task_windows(path=TASK_WINDOWS_PATH):
-    """The MEASURED K/n windows in which a cap poses a question, or None."""
-    if not os.path.exists(path):
-        return None
-    with open(path, encoding="utf-8") as f:
-        return yaml.safe_load(f)
-
-
-def in_window(ratio, lo, hi, tol=0.0):
-    """Is this K/n inside a measured task window? Pure, so it is testable with
-    no dataset on disk."""
-    return (lo - tol) <= ratio <= (hi + tol)
-
-
-def _effective_budgets(P, dataset, lp, gp):
-    """{class: (K_eff, n_true)} for one cap, or None if the slice is absent.
-
-    K_eff = min(global budget, SUM of the per-group local budgets) -- what the
-    allocator can actually emit. Reading one scope alone has twice called a cap
-    binding when the other scope was the one that bound.
-
-    Returns None ONLY when the slice is genuinely not on this machine, because
-    campaigns are generated on laptops as well as on the server. A slice that
-    IS present and cannot be read raises: the first version of this function
-    read labels from `test_labels.npy`, which does not exist on the laptop
-    where the meta does, and a bare `except` turned the whole gate into a
-    silent no-op that still printed nothing and refused nothing.
-    """
-    import numpy as np
-    import pandas as pd
-    from src.training.constraints import (compute_global_constraints,
-                                          compute_local_constraints,
-                                          normalize_constrained_classes)
-    dc = P["datasets"][dataset]
-    meta = os.path.join(dc["data_dir"], "test_meta.csv")
-    if not os.path.exists(meta):
-        return None
-    te = pd.read_csv(meta)
-    if "label" not in te.columns:
-        npy = os.path.join(dc["data_dir"], "test_labels.npy")
-        if not os.path.exists(npy):
-            sys.exit("REFUSED: %s has a test_meta.csv with no `label` column "
-                     "and no test_labels.npy beside it, so the task window "
-                     "cannot be checked. Fix the slice rather than "
-                     "generating an ungated campaign." % dataset)
-        te["label"] = np.load(npy)
-    y = te["label"].to_numpy()
-    classes = normalize_constrained_classes(dc["constrained_class"])
-    G = compute_global_constraints(te, "label", gp,
-                                   constrained_class=classes,
-                                   num_classes=dc["num_classes"])
-    L = compute_local_constraints(te, "label", lp, dc["group_column"],
-                                  constrained_class=classes,
-                                  num_classes=dc["num_classes"])
-    out = {}
-    for c in classes:
-        c = int(c)
-        lsum = sum(int(L[g][c]) for g in L)
-        out[c] = (min(int(G[c]), lsum), int((y == c).sum()))
-    return out
+# The task-window logic lives in `configs/task_cells.py` so the GENERATOR and
+# the SCORERS read one source of truth. It must stay under `configs/` rather
+# than `scripts/`: `scripts/` is outside TRAINING_PATHS and is deployable
+# mid-campaign, so a `configs` -> `scripts` import would start splitting
+# `code_version` on a scorer deploy. `cap_pair` is re-exported because tests and
+# other callers import it from here.
+from configs.task_cells import (cap_pair, classify,  # noqa: E402,F401
+                                in_window, load_windows, tolerance)
 
 
 def task_window_gate(P, args, resolved):
@@ -246,31 +191,25 @@ def task_window_gate(P, args, resolved):
     refusal, for a (dataset, backbone) with no measured row: an unmeasured
     backbone is an unknown, not a known non-task.
     """
-    TW = load_task_windows()
+    TW = load_windows()
     if not TW:
         return
-    tol = float(TW.get("meta", {}).get("tolerance", 0.0))
     rows, bad, unknown, measured = [], [], set(), False
     for ds in args.datasets:
-        wds = (TW.get("windows") or {}).get(ds) or {}
         for model in args.models:
-            w = wds.get(model)
             for tag in args.caps:
-                lp, gp = cap_pair(tag)
-                eff = _effective_budgets(P, ds, lp, gp)
-                if eff is None:
+                r = classify(P, TW, ds, model, tag)
+                if r["status"] == "no_data":
                     continue
-                if not w:
+                if r["status"] == "no_window":
                     unknown.add("%s/%s" % (ds, model))
                     continue
                 measured = True
-                for c, (K, n) in sorted(eff.items()):
-                    ratio = (K / float(n)) if n else 0.0
-                    lo, hi = w["class"][c]
-                    ok = in_window(ratio, lo, hi, tol)
-                    rows.append((model, tag, c, K, n, ratio, lo, hi, ok))
-                    if not ok:
-                        bad.append((model, tag, c, ratio, lo, hi))
+                for c, v in sorted(r["classes"].items()):
+                    rows.append((model, tag, c, v["K"], v["n"], v["ratio"],
+                                 v["lo"], v["hi"], v["ok"]))
+                    if not v["ok"]:
+                        bad.append((model, tag, c, v["ratio"], v["lo"], v["hi"]))
     for u in sorted(unknown):
         print("  !! NO MEASURED TASK WINDOW for %s, so it is NOT gated. "
               "Measure it with" % u)
@@ -321,41 +260,14 @@ def task_window_gate(P, args, resolved):
 
 
 def _gate_self_test():
-    """Gate the gate, in BOTH directions. Never claims a pass it did not run."""
-    ok = True
-
-    def check(name, cond):
-        nonlocal ok
-        ok = ok and cond
-        print("  %-66s %s" % (name, "PASS" if cond else "FAIL"))
-
-    TW = load_task_windows()
-    check("configs/task_windows.yml loads", bool(TW))
-    if not TW:
-        return 1
-    tol = float(TW["meta"]["tolerance"])
-    w = TW["windows"]["iwildcam"]["MobileNetV3"]["class"]
-    lo2, hi2 = w[2]
-    lo7, hi7 = w[7]
-    check("L30 class 2 (K/n=0.30) is OUTSIDE MobileNetV3 window %.2f-%.2f"
-          % (lo2, hi2), not in_window(0.30, lo2, hi2, tol))
-    check("L20 class 7 (K/n=0.20) is OUTSIDE MobileNetV3 window %.2f-%.2f"
-          % (lo7, hi7), not in_window(0.20, lo7, hi7, tol))
-    check("LIVENESS: taskwin1 class 2 (K/n=0.800) is INSIDE",
-          in_window(0.800, lo2, hi2, tol))
-    check("LIVENESS: taskwin1 class 7 (K/n=0.950) is INSIDE",
-          in_window(0.950, lo7, hi7, tol))
-    check("a window EDGE is inside, not excluded by float noise",
-          in_window(hi2, lo2, hi2, tol) and in_window(lo7, lo7, hi7, tol))
-    check("every backbone the paper claims has a measured row",
-          set(TW["windows"]["iwildcam"]) >=
-          {"ViTB16", "MobileNetV3", "MobileNetV2", "RegNetY400MF"})
-
+    """Gate the gate in BOTH directions, plus the shared module's own gates."""
+    from configs import task_cells
+    rc = task_cells.self_test()
+    ok = rc == 0
     P = load_protocol()
     dc = P["datasets"]["iwildcam"]
-    have = os.path.exists(os.path.join(dc["data_dir"], "test_meta.csv"))
-    if not have:
-        print("  %-66s %s" % ("end-to-end refusal (needs the iwildcam slice)",
+    if not os.path.exists(os.path.join(dc["data_dir"], "test_meta.csv")):
+        print("  %-64s %s" % ("end-to-end refusal (needs the iwildcam slice)",
                               "SKIPPED -- slice not on this machine"))
     else:
         class A(object):
@@ -365,48 +277,24 @@ def _gate_self_test():
             caps = ["L20_G50", "L30_G50"]
         try:
             task_window_gate(P, A, None)
-            check("end to end: an L20/L30 campaign is REFUSED", False)
+            print("  %-64s %s" % ("end to end: an L20/L30 campaign is REFUSED",
+                                  "FAIL"))
+            ok = False
         except SystemExit:
-            check("end to end: an L20/L30 campaign is REFUSED", True)
+            print("  %-64s %s" % ("end to end: an L20/L30 campaign is REFUSED",
+                                  "PASS"))
         A.caps = ["L80-100_G95", "L70-90_G95"]
         try:
             task_window_gate(P, A, None)
-            check("LIVENESS end to end: taskwin1 caps are ALLOWED", True)
+            print("  %-64s %s" % ("LIVENESS end to end: taskwin1 caps ALLOWED",
+                                  "PASS"))
         except SystemExit:
-            check("LIVENESS end to end: taskwin1 caps are ALLOWED", False)
+            print("  %-64s %s" % ("LIVENESS end to end: taskwin1 caps ALLOWED",
+                                  "FAIL"))
+            ok = False
     print("")
     print("ALL PASS" if ok else "FAILURES ABOVE")
     return 0 if ok else 1
-
-
-def cap_pair(tag):
-    """'L30_G50' -> [0.30, 0.50]: (local, global), independent by construction.
-
-    PER-CLASS LOCAL CAPS: 'L80-100_G95' -> [[0.80, 1.00], 0.95]. The list is
-    read POSITIONALLY against `constrained_class`, so L80-100 with classes
-    [2, 7] caps class 2 at 80% and class 7 at 100%.
-
-    WHY (FRAMEWORK 2(z16)). A cap poses a question only where it forces out
-    >= 10 predictions, leaves errors inside K, and sits at p@K < 0.99. On
-    iwildcam those windows are class 2 at K/n 0.70-0.80 and class 7 at
-    0.90-1.00, and on MobileNetV3 they DO NOT OVERLAP -- so a single fraction
-    could not express a valid two-class experiment at all, and every
-    L20/L30/L50 campaign ran on a NON-TASK.
-
-    A percentage ABOVE 100 is legal and is not degenerate: class 7's model
-    predicts 490 against 456 true, so K/n = 1.00 still evicts 34.
-    """
-    try:
-        local, glob = tag.split("_")
-        if local[0] != "L" or glob[0] != "G":
-            raise ValueError
-        parts = local[1:].split("-")
-        loc = ([int(x) / 100.0 for x in parts] if len(parts) > 1
-               else int(parts[0]) / 100.0)
-        return [loc, int(glob[1:]) / 100.0]
-    except (ValueError, IndexError):
-        sys.exit("bad cap tag %r -- expected L<pct>_G<pct> (e.g. L30_G50) or "
-                 "per-class L<pct>-<pct>_G<pct> (e.g. L80-100_G95)" % tag)
 
 
 def resolve_datasets(P, args):

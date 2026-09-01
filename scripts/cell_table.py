@@ -109,6 +109,46 @@ def cells(df):
     return pd.DataFrame(out).sort_values(CELL_KEY)
 
 
+def annotate_task(c):
+    """Add a `task` column: does each cell's cap pose a QUESTION at all?
+
+    FRAMEWORK 2(z16)/2(z17)/2(z21). Which method looks best CHANGES with the
+    cell selection -- `alm` is the best arm on ccF1 in `equaldose1`'s non-task
+    cells and the second worst in its task cells -- so a survey that cannot
+    tell the two apart invites exactly the pooling this table exists to
+    prevent.
+
+    THE THREE NEGATIVES STAY DISTINCT. `non_task` is a statement about the
+    experiment; `no_window` means that (dataset, backbone) was never measured;
+    `no_data` means the slice is not on this machine. Collapsing them would let
+    an unmeasured backbone read as a known non-task.
+    """
+    try:
+        from configs.gen_campaign import load_protocol
+        from configs.task_cells import classify, load_windows
+        P, TW = load_protocol(), load_windows()
+    except Exception as e:
+        c["task"] = "unavailable"
+        print("  !! task-window column unavailable (%s). The rows are still "
+              "correct; they just cannot say which cells pose a question."
+              % type(e).__name__)
+        return c
+    cache = {}
+    out = []
+    for ds, model, cap in zip(c["dataset"], c["model"], c["cap"]):
+        key = (ds, model, cap)
+        if key not in cache:
+            try:
+                cache[key] = classify(P, TW, ds, model, cap)["status"]
+            except SystemExit:
+                cache[key] = "no_data"
+            except Exception:
+                cache[key] = "no_window"
+        out.append(cache[key])
+    c["task"] = out
+    return c
+
+
 def self_test(out=sys.stdout):
     """The gate must REFUSE to pool anything but seed, and must blank a lone sd."""
     ok = True
@@ -199,8 +239,21 @@ def main(argv=None):
             print("  skipped %-40s %d" % (k, v))
         return 1
     c = cells(df)
+    c = annotate_task(c)
     print("%d completed runs -> %d cells (seed is the ONLY collapsed axis)"
           % (len(df), len(c)))
+    counts = c.drop_duplicates(["dataset", "model", "cap"])["task"]
+    tally = {k: int(v) for k, v in counts.value_counts().items()}
+    print("  cap poses a question in %d of %d (dataset, model, cap) "
+          "cell(s): %s"
+          % (tally.get("task", 0), int(counts.size), tally))
+    if tally.get("non_task"):
+        print("  !! %d cell(s) pose NO question (FRAMEWORK 2(z17)). "
+              "Their arms cannot be" % tally["non_task"])
+        print("     distinguished by construction, and pooling them "
+              "with the task cells has")
+        print("     changed which method wins -- 2(z19), 2(z21). "
+              "Split on the `task` column.")
     for k, v in skipped.most_common():
         print("  skipped %-40s %d" % (k, v))
     if args.out:

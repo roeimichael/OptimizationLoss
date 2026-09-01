@@ -7858,3 +7858,137 @@ def test_the_task_window_file_is_measured_not_invented(tmp_path):
     for model, row in iw.items():
         assert row["class"][2] != row["class"][7], \
             "%s: identical windows would make per-class caps pointless" % model
+
+
+def test_the_scorers_can_tell_a_task_cell_from_a_non_task_one(tmp_path):
+    """`cell_table` must label each cell with whether its cap poses a question.
+
+    FRAMEWORK 2(z19)/2(z21): pooling task and non-task cells has CHANGED which
+    method wins -- `alm` is best on ccF1 in `equaldose1`'s non-task cells and
+    second worst in its task cells. A survey that cannot tell them apart invites
+    exactly the pooling the table exists to prevent.
+
+    Both directions, plus the rule that the three NEGATIVES stay distinct: a
+    backbone whose window was never measured must NOT read as a known non-task.
+    """
+    import pandas as pd
+    from scripts.cell_table import annotate_task
+
+    meta = os.path.join(REPO, "data", "iwildcam", "oodslice", "test_meta.csv")
+    if not os.path.exists(meta):
+        pytest.skip("iwildcam slice absent: nothing to classify")
+
+    c = pd.DataFrame([
+        dict(dataset="iwildcam", model="MobileNetV3", cap="L30_G50"),
+        dict(dataset="iwildcam", model="MobileNetV3", cap="L90_G95"),
+        dict(dataset="iwildcam", model="NoSuchNet", cap="L90_G95"),
+    ])
+    got = list(annotate_task(c)["task"])
+    assert got[0] == "non_task", "L30_G50 on MobileNetV3 is a measured non-task"
+    assert got[1] == "task", (
+        "L90_G95 on MobileNetV3 IS a task; a column that only ever says "
+        "non_task cannot be read")
+    assert got[2] == "no_window", (
+        "an UNMEASURED backbone read as %r. An unknown is not a known "
+        "non-task, and collapsing them would retire a backbone nobody "
+        "measured" % got[2])
+
+
+def test_full_panel_says_when_a_contrast_pools_cells_that_pose_no_question():
+    """The panel prints contrasts averaged over cells. If some of those cells
+    cannot distinguish any two arms, the average is a measurement blended with
+    a non-measurement, and nothing else on the page says so.
+
+    Liveness matters as much as the warning here: a block that fires on every
+    campaign is noise, so an all-task campaign must NOT be warned about.
+    """
+    import io as _io
+    import contextlib
+    import pandas as pd
+    from scripts.full_panel import print_task_cells
+
+    meta = os.path.join(REPO, "data", "iwildcam", "oodslice", "test_meta.csv")
+    if not os.path.exists(meta):
+        pytest.skip("iwildcam slice absent: nothing to classify")
+
+    def render(rows):
+        df = pd.DataFrame(rows)
+        buf = _io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            print_task_cells(df)
+        return buf.getvalue()
+
+    mixed = render([
+        dict(dataset="iwildcam", model="MobileNetV3", cap="L90_G95"),
+        dict(dataset="iwildcam", model="MobileNetV3", cap="L30_G50"),
+    ])
+    assert "NO QUESTION" in mixed, mixed
+    assert "pose NO question" in mixed, (
+        "the panel listed a non-task cell but never warned that the contrasts "
+        "below average it in:\n" + mixed)
+
+    # LIVENESS: an all-task campaign must not carry the warning, or the warning
+    # is decoration rather than information.
+    clean = render([
+        dict(dataset="iwildcam", model="MobileNetV3", cap="L90_G95"),
+    ])
+    assert "pose NO question" not in clean, clean
+    assert "all 1 measured cell(s) pose a question" in clean, clean
+
+
+def test_the_training_path_never_imports_from_scripts():
+    """`scripts/` is deployable mid-campaign ONLY because nothing the runner
+    imports reads it.
+
+    `code_version` is `git rev-parse HEAD` with a `-dirty` suffix scoped to
+    TRAINING_PATHS = src/, configs/, main.py. On 2026-08-24 a scorer deploy
+    still split a live campaign's stamp, and the rule that came out of it is
+    that `scripts/` must stay OUTSIDE the training path. Today
+    `scripts/cell_table.py` and `scripts/full_panel.py` started importing
+    `configs.task_cells`. That direction is safe; the REVERSE would silently
+    put the scorer back on the runner's import path.
+
+    AST, not grep: a string or a comment naming `scripts` is not an import,
+    and this project has already been misled once by grepping for a name that
+    appeared only in a log line.
+    """
+    import ast as _ast
+    offenders = []
+    for sub in ("src", "configs"):
+        root = os.path.join(REPO, sub)
+        for dirpath, _dirs, files in os.walk(root):
+            for fn in files:
+                if not fn.endswith(".py"):
+                    continue
+                path = os.path.join(dirpath, fn)
+                with io.open(path, encoding="utf-8") as f:
+                    tree = _ast.parse(f.read(), filename=path)
+                for node in _ast.walk(tree):
+                    if isinstance(node, _ast.Import):
+                        for al in node.names:
+                            if al.name.split(".")[0] == "scripts":
+                                offenders.append((path, node.lineno, al.name))
+                    elif isinstance(node, _ast.ImportFrom):
+                        if (node.module or "").split(".")[0] == "scripts":
+                            offenders.append((path, node.lineno, node.module))
+    assert not offenders, (
+        "the training path imports from scripts/, which makes a scorer deploy "
+        "able to split a live campaign's code_version: %r" % (offenders,))
+
+    # NEGATIVE CONTROL: the check must be able to FIND such an import, or an
+    # empty result means nothing.
+    probe = os.path.join(REPO, "configs", "_import_direction_probe.py")
+    io.open(probe, "w", encoding="utf-8").write("from scripts import full_panel\n")
+    try:
+        found = []
+        with io.open(probe, encoding="utf-8") as f:
+            tree = _ast.parse(f.read(), filename=probe)
+        for node in _ast.walk(tree):
+            if isinstance(node, _ast.ImportFrom) and \
+                    (node.module or "").split(".")[0] == "scripts":
+                found.append(node.module)
+        assert found == ["scripts"], (
+            "the AST scan cannot detect a scripts import even when one is "
+            "there, so its clean result above says nothing")
+    finally:
+        os.remove(probe)

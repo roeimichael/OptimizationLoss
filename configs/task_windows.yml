@@ -22,8 +22,21 @@ meta:
     min_forced: 10        # scripts.task_window.MIN_FORCED
     wiggle_max: 0.99      # scripts.task_window.WIGGLE_MAX
   fraction_grid: [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2]
-  # The grid is coarse, so a window edge is accurate to one grid step. The
-  # gate applies `tolerance` on each side rather than pretending otherwise.
+  # WHAT THE TOLERANCE IS FOR, because it is LOAD-BEARING: 336 of the 736
+  # completed runs that land in a task cell (46%) qualify only through it.
+  #
+  # It is GRID SNAPPING, not a widening of the window. The windows above were
+  # measured on `fraction_grid`, whose step is 0.1. A cap TAG does not produce
+  # a round K/n -- `L80_G95` gives class 7 K/n = 0.798 and `L90_G95` gives
+  # 0.901, because K is an integer budget over an integer class count. Those
+  # two values are 0.002 and 0.001 from the grid points 0.80 and 0.90, which
+  # were THEMSELVES measured and found to be tasks. Snapping them is reading
+  # the measurement, not extrapolating past it.
+  #
+  # 0.005 is 1/20th of the grid step, so it can only ever rescue a value that
+  # rounds to an already-measured point. `configs/task_cells.py::self_test`
+  # asserts that relationship, so raising this number without re-measuring on a
+  # finer grid FAILS rather than silently widening every window.
   tolerance: 0.005
   measured_on: "2026-09-01"
   reference_arm: tralo_null

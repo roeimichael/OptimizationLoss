@@ -78,7 +78,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 430 regression tests, ~180s, no dataset needed
+python -m pytest tests -q                   # 433 regression tests, ~180s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -89,7 +89,9 @@ python -m scripts.verify_caps               # what integer budget each cap tag r
 python -m scripts.check_parity <root>       # equal compute, same knobs, >=2 caps, sane warm-up sharing
 python -m scripts.reachability <early-run>  # CAN the penalty even reach this cell's cut?
 python -m scripts.quarantine --list         # 🛑 IS THIS CAMPAIGN ALREADY DEAD?
-#   Ten campaigns are marked and `full_panel` REFUSES them (exit 1) unless you
+#   THIRTEEN campaigns are marked (counted on disk 2026-09-01; this line
+#   said TEN, the extra three are `dosefix`, `vit_ceskip`, `vit_diag`)
+#   and `full_panel` REFUSES them (exit 1) unless you
 #   pass --allow-quarantined. Each marker names the defect AND what the runs
 #   are still a receipt for, because dead and worthless are different: `iwc2`
 #   landed 74.6% of its dose with `check_parity` GREEN and is the only evidence

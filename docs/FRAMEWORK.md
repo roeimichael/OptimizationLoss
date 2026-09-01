@@ -2701,6 +2701,13 @@ every number below is that method's constraint term, not its compute.
 
 **Above its own floor, in the 4 TASK cells:**
 
+🛑 **AND THE 4 CELLS ARE NOT 4 INDEPENDENT UNITS.** Cells at different cap
+levels on the SAME backbone share one lambda=0 warm-up model -- `tralo_reseed`'s
+dAP is literally constant across caps within a backbone -- so `dom1`'s four task
+cells (MobileNetV2 x 3 caps + MobileNetV3 x 1) are **2 independent units**, not
+4. The 4/4 below is a per-cell count and must never be turned into a sign-test
+p. The independent statistic is in 2(z23).
+
 | arm | cells above floor | mean items | ratio to floor |
 |---|---|---|---|
 | **`tralo`** | **4 / 4** | **12.46** | **1.53x** |
@@ -2710,14 +2717,24 @@ every number below is that method's constraint term, not its compute.
 | **`tralo_uniform`** | **0 / 4** | 6.26 | **0.77x** |
 | `tralo_reseed` (the floor) | -- | 8.12 | 1.00x |
 
+⚠️ **TWO OF THESE FOUR TASK CELLS ARE GRID-SNAPPED** (2(z22)):
+MobileNetV2 `L80_G95` (class 7 K/n 0.798) and MobileNetV2 `L90_G95`
+(class 7 0.901) sit 0.002 and 0.001 outside a window edge and are tasks
+through the tolerance. Both edges are measured grid points, so this is
+rounding rather than extrapolation -- but the 4/4 below is 2 strictly
+inside plus 2 snapped, and should be quoted that way.
+
 🟢 **`tralo` is the only arm above its floor in every task cell**, and it leads
 every rival dual on mean ccF1 items. `alm` leads on AP (+0.0426 vs +0.0403), so
 the ordering is metric-dependent and must be quoted as such. 4/4 is a sign-test
 p of 0.0625 -- a DIRECTION, not significance.
 
-⛔ **`tralo_uniform` IS BELOW THE FLOOR IN 4 OF 4 TASK CELLS.** 2(z11) found it
-below the floor at tight caps; it is below the floor in the task regime too.
-**The uniform count is refuted where it matters, not only where it does not.**
+⛔ **`tralo_uniform` IS BELOW THE FLOOR IN 4 OF 4 OF *THESE* TASK CELLS**, and
+2(z11) found it below the floor at tight caps too. ⚠️ **But it is NOT below the
+floor everywhere**: `dom1b` puts it 2/3 ABOVE (1.61x) and `loose1` 1/5, so
+across all 8 measured task cells it clears its floor in **3 of 8** (2(z23)).
+The verdict that survives is the weaker one -- it never LEADS, and it is the
+worst arm in the campaign with the most cells -- not "refuted everywhere".
 
 🔴 **AND THE ORDERING SCRAMBLES IN THE 2 NON-TASK CELLS**, exactly as 2(z19)
 found on `equaldose1`: `tralo` clears its floor in only 1 of 2 there, and
@@ -2740,6 +2757,167 @@ the SAME three cap tags, is **3.39** and of the opposite sign. A floor measured
 in one campaign says nothing about another -- it must come from the reseed arm
 inside the campaign being scored. This is 2(v)'s "say which of the four noise
 numbers you mean", now with a fifth axis: WHICH CAMPAIGN.
+
+### (z22) 📊 THE CENSUS: **1376 OF 2112** COMPLETED iwildcam RUNS SIT AT A CAP
+THAT POSES NO QUESTION, AND 46% OF THE ONES THAT DO NOT ARE WITHIN 0.002 OF A
+WINDOW EDGE.
+
+Counted 2026-09-01 across all FOURTEEN worktrees, every `results/` tree, from
+`config.json` status only. Buckets are disjoint; precedence is
+quarantined > removed dataset > unmapped cap > task/non-task.
+
+| bucket | completed runs | cells |
+|---|---|---|
+| QUARANTINED | 817 | 36 |
+| iwildcam **NON-TASK** | 750 | 27 |
+| iwildcam **TASK** | 736 | 17 |
+| **total completed, whole project** | **2303** | **80** |
+
+Setting quarantine aside (a quarantined run still sits in a cell): of **2112**
+completed iwildcam runs, **1376 are NON-TASK and 736 are TASK**. ⛔ **All 626
+quarantined iwildcam runs are NON-TASK -- not one quarantined run sits in a
+task cell.** Every dermmnist run (191) is inside a quarantined campaign, so the
+removed-dataset bucket reads zero only because quarantine absorbs it; flipping
+precedence to dataset-first gives no-window 191, quarantined 626, and the same
+totals.
+
+⚠️ **THE 0.005 TOLERANCE IS LOAD-BEARING, AND HERE IS WHY IT IS STILL HONEST.**
+336 of the 736 task-cell runs (**46%**) qualify only through it. They are
+`L80_G95` (class 7 K/n = **0.798** against a window edge of 0.80) and
+MobileNetV2 `L90_G95` (class 7 **0.901** against an edge of 0.90). Those are
+0.002 and 0.001 from grid points that were **themselves measured and found to
+be tasks** -- `fraction_grid` has a step of 0.1, and a cap TAG cannot produce a
+round K/n because K is an integer budget over an integer class count. The
+tolerance SNAPS to an already-measured point; it does not extrapolate past one.
+`configs/task_cells.py` now asserts `tolerance <= grid_step / 10` so raising it
+without re-measuring on a finer grid FAILS, and `classify` reports a per-class
+`margin` and `snapped` flag so an edge case is visible rather than folded into
+a boolean.
+
+🛑 **AND THE TWO CAMPAIGNS EVER GENERATED WITH TASK-WINDOW CAPS HAVE ZERO
+COMPLETED RUNS.** `taskwin1`'s `L70-90_G95` / `L80-100_G95` are the only
+per-class cap tags in the project's history and it is 48/48 pending, blocked on
+a GPU.
+
+**Three record corrections the census forced:**
+
+1. **THIRTEEN campaigns carry `QUARANTINE.json`, not ten.** CLAUDE.md said ten;
+   the extra three are `dosefix`, `vit_ceskip`, `vit_diag`. Corrected.
+2. **11 `config.json` sit at depth 6 rather than 5**, all under
+   `optloss-audit/vit_diag` in `_hp_liveness/` and `_variance_probe*/` instead
+   of `seed_N/`. They are diagnostic sub-runs, not protocol runs, and any tool
+   that globs at a fixed depth silently omits them. Excluded above; including
+   them gives 2313 completed.
+3. **420 `seed_*` directories hold no `config.json` at all** (`uniform1_VOID`
+   240, `mnv3bar` 62, `vit_ceskip` 46, `vit_diag` 40, `mc_sgd` 32). All are in
+   quarantined campaigns and hold only `error_log*.json` or `training_log.csv`,
+   so they conceal no completed runs -- but a tool counting DIRECTORIES rather
+   than configs would over-report this project's output by 18%.
+
+⇒ **The tie history now has a denominator.** Roughly two thirds of every
+iwildcam run ever completed was spent in cells where no two methods can be
+distinguished. That is not a re-interpretation of the results; it is a
+measurement of what was asked.
+
+### (z23) 🟢🟢 THE TASK-CELL RESULT REPLICATES ON A FOURTH BACKBONE AND IN A
+SECOND CAMPAIGN, AND THE HONEST SIGNIFICANCE IS **p = 0.0625 ON 4 INDEPENDENT
+UNITS**, NOT 7/8 ON CELLS.
+
+`dom1b` (192 runs, RegNetY400MF, 16 arms) and `loose1` (144 runs, MobileNetV2 +
+MobileNetV3 + RegNetY400MF, tralo family only) were both complete and both
+unread. Gates first: **dose 100% on every trained arm in both**, `check_parity`
+OK, one `code_version` each (`1d92117363d2`, `74f858657154`), neither
+quarantined, `n_md5 == n_seeds` in every cell.
+
+`dom1b` is **3 of 3 task cells**; `loose1` is **5 task, 1 non-task**
+(MobileNetV3 `L80_G95`, class 7 at K/n 0.798 against a 0.90-1.00 window).
+
+**ccF1 in ITEMS, arm minus ITS OWN null, task cells:**
+
+| campaign | arm | mean items | above own floor | ratio |
+|---|---|---|---|---|
+| `dom1b` (3 cells) | **`tralo`** | **4.38** | **3/3** | **2.49x** |
+| | `alm` | 2.87 | 2/3 | 1.63x |
+| | `fioretto` | 2.82 | 2/3 | 1.60x |
+| | `tralo_uniform` | 2.84 | 2/3 | 1.61x |
+| | `hounie` | 1.33 | 2/3 | 0.76x |
+| | `tralo_reseed` | 1.76 | THE FLOOR | 1.00x |
+| `loose1` (5 cells) | **`tralo`** | **9.65** | **4/5** | **1.54x** |
+| | `tralo_uniform` | 5.39 | 1/5 | 0.86x |
+| | `tralo_reseed` | 6.27 | THE FLOOR | 1.00x |
+
+✅ **THE ARM ORDERING REPLICATES EXACTLY.** `dom1b`: tralo 4.38 > alm 2.87 ~
+fioretto 2.82 > hounie 1.33. `dom1`: tralo 12.46 > alm 10.98 > fioretto 9.32 >
+hounie 8.37. Same rank order on a different backbone, and `tralo` is again the
+only arm above its floor in every cell.
+
+✅ **AND `loose1`'s MobileNet SUBSET IS A NEAR-EXACT REPLICATION OF `dom1`**:
+`tralo` 12.74 items, 3/3 above floor, 1.42x, floor 8.95 -- against `dom1`'s
+12.46, 4/4, 1.53x, floor 8.12. **Different campaign, different code version,
+same two backbones, same answer.**
+
+✅ **THE FOURTH BACKBONE AGREES WITH `dom1`, NOT WITH `equaldose1`.** RegNet
+reads 2.49x in `dom1b` (fp16, `1d921173`) and 2.24x in `loose1` (bf16,
+`74f85865`) -- two different GPUs, two different AMP regimes, two different
+commits, reproducing independently. That is the `loosevit1`/ViTB16 regime
+(2.8x), not `equaldose1`'s 0.68x.
+
+🛑🛑 **THE INDEPENDENCE CORRECTION, AND IT REVISES 2(z21).** Cells at different
+cap levels on the SAME backbone within a campaign **share one lambda=0 warm-up
+model** -- confirmed directly: `tralo_reseed`'s dAP is literally constant across
+caps within a backbone. So the 8 task cells are **not 8 independent units**.
+The independent units are the 4 **(campaign, backbone)** pairs, and
+`tralo - tralo_reseed` is positive in all four:
+
+| unit | items |
+|---|---|
+| `dom1b` RegNetY400MF | +2.62 |
+| `loose1` MobileNetV2 | +4.16 |
+| `loose1` MobileNetV3 | +3.03 |
+| `loose1` RegNetY400MF | +2.78 |
+
+**4 of 4, sign p = 0.0625.** Counting the 8 cells instead gives 7/8 and
+p = 0.035, and **that number is anticonservative and must not be quoted.**
+This is the same clustering error as 2(z19)'s "the nulls' effective n is
+cells / n_cap_levels", now shown to bite the TREATED arms too.
+
+⛔ **NO SINGLE CELL IS SIGNIFICANT ON ITS OWN.** Per-seed paired
+`tralo - floor` at 4 seeds gives t from -0.79 to +3.34; the per-cell paired sd
+is **1.4 to 21.4 items**, so the SEM at 4 seeds is 0.7-10.7 against effects of
+1.6-13.7.
+
+⚠️ **AP DOES NOT CORROBORATE ccF1 ON RegNet.** In `dom1b` `tralo` is **0.97x
+its floor on AP** (1/3) while `alm` leads at 1.42x (3/3). So the RegNet result
+is an ALLOCATION-quality result at these caps, not a ranking result -- the two
+channels disagree, and which one is quoted changes the winner.
+
+⚠️ **TWO RATIO COLUMNS ARE UNREADABLE AND MUST NOT BE PRINTED AS RATIOS.**
+Where the floor mean is near zero or negative (`loose1` dAP floor **-0.0060**,
+`loose1` dmacroF1 floor -0.0005) the ratio is arithmetic garbage (-4.32x) and
+only the sign count carries information. On that sign count `tralo` is **5/5
+above the floor on dAP in `loose1`, sign p = 0.031** -- the single strongest
+line in the project, on 5 non-independent cells over 3 backbones.
+
+✅ **A POSITIVE CHECK ON THE LAMBDA TOGGLE.** In `dom1b`, `alm_null`,
+`fioretto_null`, `hounie_null` and `tralo_null` are **byte-identical in 12 of
+12 groups**. At lambda=0 the family term vanishes and all four share one
+warm-up and one allocator, so this is exactly right -- and it means `dom1b`'s
+per-family nulls are nominally present but informationally degenerate
+(`alm - alm_null` IS `alm - tralo_null`), and that `tralo_reseed` is a
+legitimate shared floor for all four families there.
+
+⚠️ Also byte-identical in `dom1b`: `cb_lp == clip == lp` and
+`focal_clip == focal_lp`. The first is FRAMEWORK 2(x1)'s documented `cb_lp`
+inertness; the rest are allocator-only siblings sharing a pre-allocator raw
+file, which is expected and is why allocators must be compared on
+`final_predictions.csv`. **All five trained arms and `tralo_reseed` are
+pairwise distinct in every group.**
+
+⚠️ `fioretto` and `hounie` attempt **28** constraint steps per run against
+`tralo`/`alm`/`tralo_uniform`'s **29** in both campaigns -- the familiar 3.4%
+gap. It is under `full_panel`'s 5-point refusal threshold so the comparison
+stands, but the duals are not at literally identical dose. 2(z19) closed this
+objection directly with `tralo_lam0`.
 
 ### (z11) 🔴🔴🔴 AT THE ITEM LEVEL THE CONSTRAINT IS AT THE RNG FLOOR, AND
 `tralo_uniform` IS BELOW IT IN BOTH REGIMES
@@ -3482,7 +3660,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 430 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 433 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -3646,7 +3824,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 430 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 433 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -3654,7 +3832,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (430 tests, ~180 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (433 tests, ~180 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -8683,7 +8861,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             430 tests, ~180 s, no dataset required
+tests/             433 tests, ~180 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

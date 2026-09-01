@@ -1376,6 +1376,77 @@ def _identity_check(rows):
         print("  every arm pair differs on at least one cell-seed")
 
 
+def print_task_cells(df):
+    """Say which of THIS campaign's cells pose a question, before any contrast.
+
+    FRAMEWORK 2(z17)/2(z19)/2(z21). A cap outside its measured K/n window
+    cannot distinguish any two methods -- the top-K is already perfect, or the
+    cut sits at p ~ 1, or the cap evicts almost nothing -- so a contrast that
+    pools task and non-task cells averages a measurement with a non-measurement.
+    That is not hypothetical: `alm` is the best arm on ccF1 in `equaldose1`'s
+    non-task cells and the second worst in its task cells, and `tralo_uniform`
+    is the best arm in one `dom1` non-task cell and the worst in all four of
+    its task cells.
+
+    This block is INFORMATIONAL, deliberately. `full_panel` refuses a
+    quarantined campaign because those runs are dead; a non-task cell is alive
+    and its runs are real, they simply cannot answer the question being asked.
+    The right response is to split the report, which is a judgement for whoever
+    is reading -- so this names the split rather than making it.
+    """
+    try:
+        from configs.gen_campaign import load_protocol
+        from configs.task_cells import classify, load_windows
+        P, TW = load_protocol(), load_windows()
+        if not TW:
+            return
+    except Exception:
+        return
+    seen, rows = set(), []
+    for ds, model, cap in zip(df["dataset"], df["model"], df["cap"]):
+        k = (ds, model, cap)
+        if k in seen:
+            continue
+        seen.add(k)
+        try:
+            rows.append((k, classify(P, TW, ds, model, cap)))
+        except SystemExit:
+            return
+        except Exception:
+            return
+    if not rows or all(r[1]["status"] in ("no_window", "no_data")
+                       for r in rows):
+        return
+    n_task = sum(1 for _, r in rows if r["status"] == "task")
+    n_non = sum(1 for _, r in rows if r["status"] == "non_task")
+    print("")
+    print("TASK CELLS -- does the cap pose a question? (FRAMEWORK 2(z17))")
+    for (ds, model, cap), r in sorted(rows):
+        if r["status"] == "task":
+            tag = "TASK"
+        elif r["status"] == "non_task":
+            tag = "** NO QUESTION **"
+        elif r["status"] == "no_window":
+            tag = "window never measured for this backbone"
+        else:
+            tag = "slice not on this machine"
+        detail = "  ".join(
+            "c%d K/n=%.3f %s%.2f-%.2f%s" % (c, v["ratio"],
+                                            "" if v["ok"] else "OUTSIDE ",
+                                            v["lo"], v["hi"], "")
+            for c, v in sorted(r["classes"].items()))
+        print("  %-12s %-13s %-34s %s" % (model, cap, tag, detail))
+    if n_non:
+        print("  !! %d of %d cell(s) pose NO question. Every contrast below "
+              "AVERAGES them" % (n_non, n_task + n_non))
+        print("     with the %d that do. Pooling the two has CHANGED which "
+              "method wins" % n_task)
+        print("     (2(z19), 2(z21)) -- split the report, or say plainly that "
+              "it is pooled.")
+    elif n_task:
+        print("  all %d measured cell(s) pose a question." % n_task)
+
+
 def main():
     a = argparse.ArgumentParser()
     a.add_argument("--campaign", required=True, nargs="+")
@@ -1576,6 +1647,7 @@ def main():
     print("arms:", {a_: int((df.arm == a_).sum()) for a_ in arms})
     print("cells:", df.groupby(["dataset", "model", "cap", "capped"]).ngroups,
           " seeds:", df.seed.nunique())
+    print_task_cells(df)
 
     for arm in arms:
         if arm == args.control:
