@@ -198,11 +198,14 @@ def test_the_generator_refuses_an_unequal_lr_constraint(tmp_path, P):
     trapped["constraint_phase"]["lr_constraint"] = 5e-6
     proto = tmp_path / "trap_protocol.yml"
     proto.write_text(yaml.safe_dump(trapped), encoding="utf-8")
+    # --allow-nontask: L30/L50 are outside the measured task window, and
+    # this test is about the LR gate, which sits behind it.
     argv = ["--root", str(tmp_path / "camp"), "--datasets", "iwildcam",
             "--models", "MobileNetV3", "--caps", "L30_G50", "L50_G30",
+            "--allow-nontask",
             "--arms", "tralo", "tralo_null", "tralo_reseed"]
     bad = subprocess.run(
-        [sys.executable, "-m", "configs.gen_campaign", "--protocol", str(proto)]
+        [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask", "--protocol", str(proto)]
         + argv, cwd=REPO, capture_output=True, text=True)
     assert bad.returncode != 0, "the generator emitted an LR-trapped campaign"
     assert "lr_constraint" in (bad.stdout + bad.stderr)
@@ -1051,9 +1054,10 @@ def test_the_reseed_control_actually_moves_the_model(P):
 def test_the_generator_refuses_a_trained_arm_without_its_reseed_floor(tmp_path):
     """Both controls are structural, not optional."""
     r = subprocess.run(
-        [sys.executable, "-m", "configs.gen_campaign", "--root",
+        [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask", "--root",
          str(tmp_path / "c"), "--datasets", "iwildcam", "--models",
-         "MobileNetV3", "--caps", "L30_G50", "L50_G30", "--arms", "tralo"],
+         "MobileNetV3", "--caps", "L30_G50", "L50_G30", "--allow-nontask",
+         "--arms", "tralo"],
         cwd=REPO, capture_output=True, text=True)
     assert r.returncode != 0
     assert "reseed" in (r.stdout + r.stderr).lower()

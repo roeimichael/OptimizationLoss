@@ -78,7 +78,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 428 regression tests, ~180s, no dataset needed
+python -m pytest tests -q                   # 430 regression tests, ~180s, no dataset needed
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -201,6 +201,15 @@ python -m scripts.dataset_screen <slice-dir> ...  # CAN a count constraint carry
                                             #   derm slice_1 +65 passes stage 1 and STILL
                                             #   nulls, so stage 1 is necessary only --
                                             #   stage 2 is `scope_probe --calibrate`
+python -m scripts.task_window --glob '<runs of tralo_null/clip>' --classes 2 7
+#   🛑 IS THE CAP A QUESTION AT ALL? Needs a finished UNCONSTRAINED run
+#   (not a pre-GPU screen), and it is per (dataset, BACKBONE). Reports the
+#   K/n window in which the cap BINDS (evicts >= 10), has a PRIZE (errors
+#   inside K) and has WIGGLE (p@K < 0.99). On iwildcam every backbone's
+#   window is inside K/n 0.60-1.00, so L20/L30/L50 are ALL non-tasks --
+#   24 of 24 cells. The measured windows live in `configs/task_windows.yml`
+#   and `gen_campaign` REFUSES caps outside them. `--self-test` gates it,
+#   `python -m configs.gen_campaign --self-test` gates the refusal.
 python -m scripts.ceiling_screen <slice-dir> --caps L20_G50 L30_G50 --classes 2 7
                                             #   the OTHER half of the question, and it is
                                             #   independent: even where the counts carry
@@ -454,8 +463,22 @@ sweep `G < L` (e.g. `L50_G30`). See `docs/FRAMEWORK.md` section 1.
 Generate a campaign with:
 
 ```bash
-python -m configs.gen_campaign --root results/<name>     --datasets iwildcam --models MobileNetV3     --caps L20_G50 L30_G50 --arms all+null
+python -m configs.gen_campaign --root results/<name>     --datasets iwildcam --models MobileNetV3     --caps L80-100_G95 L70-90_G95 --arms all+null
 ```
+
+⛔ **THE CAPS IN THAT LINE USED TO BE `L20_G50 L30_G50`, AND THAT CAMPAIGN
+MEASURES NOTHING.** A cap poses a question only where it evicts >= 10
+predictions, leaves errors inside K, and cuts at `p@K < 0.99`. Measured on all
+four backbones (`docs/FRAMEWORK.md` 2(z16), 2(z17)): **24 of 24 (backbone x
+class x cap) cells at L20/L30/L50 fail at least one of those, and 8 of 8 at
+K/n=0.90 pass**. At L20/L30 on ViTB16 both capped classes have literally ZERO
+errors inside K. `gen_campaign` now REFUSES those caps against the measured
+windows in `configs/task_windows.yml`; `--allow-nontask` overrides it and says
+in the output what it let through.
+
+🔑 The two classes' windows DIFFER on every backbone, so the per-class form
+`L<c2>-<c7>_G<g>` is required, not optional -- one fraction cannot sit inside
+both. `L80-100_G95` caps class 2 at 80% and class 7 at 100%.
 
 ## Eight more tools that exist and were invisible here
 

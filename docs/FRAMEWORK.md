@@ -2425,6 +2425,70 @@ change, not a knob.
 cells. A cap that does not bind, has no errors, or sits at p@K ~ 1 cannot
 distinguish any two methods, however well aimed either of them is.
 
+### (z17) 🛑🛑🛑 THE NON-TASK IS UNIVERSAL: **24 OF 24** (backbone x class x cap)
+CELLS AT L20 / L30 / L50 POSE NO QUESTION, ON ALL FOUR BACKBONES
+
+2(z16) measured the task window on MobileNetV3 and inferred the consequence for
+the rest. Measured 2026-09-01 on all four backbones, `tralo_null` (the
+unconstrained twin), iwildcam, 8-12 reference runs each. ViTB16 comes from
+`iwc2`, which is quarantined for constraint DOSE -- irrelevant to a lambda=0
+arm, whose ranking is a valid reading of what an unconstrained ViTB16 does.
+
+**Every backbone HAS a task window. None of them is anywhere near the caps this
+project ran.** The lowest window edge across all four is **K/n = 0.60**.
+
+| backbone | unconstrained count, class 2 | window, class 2 | unconstrained count, class 7 | window, class 7 | overlap |
+|---|---|---|---|---|---|
+| **ViTB16** | 347 / 370 | 0.60-0.90 | 487 / 456 | 0.90-1.00 | only **0.90** |
+| MobileNetV3 | 355 / 370 | 0.70-0.90 | 478 / 456 | 0.90-1.00 | only **0.90** |
+| MobileNetV2 | 405 / 370 | 0.80-1.00 | 421 / 456 | 0.80-0.90 | 0.80, 0.90 |
+| RegNetY400MF | 345 / 370 | 0.60-0.90 | 498 / 456 | 0.80-1.00 | 0.80, 0.90 |
+
+⛔ **THE VERDICT AT THE CAPS THE CORPUS ACTUALLY RAN.** 4 backbones x 2 classes
+x {L20, L30, L50} = **24 cells, and not one is a task**: 12 read `no prize`
+(zero errors inside K) and 12 read `saturated` (p@K >= 0.9938). The same 4 x 2
+grid at K/n = 0.90 is **8 of 8 a TASK**.
+
+| K/n | errors@K, range over the 8 (backbone, class) | p@K, range | tasks |
+|---|---|---|---|
+| 0.20 | **0.0 - 2.5** | 0.99978 - 1.00000 | **0 / 8** |
+| 0.30 | **0.0 - 3.0** | 0.99945 - 1.00000 | **0 / 8** |
+| 0.50 | **0.0 - 7.8** | 0.99381 - 1.00000 | **0 / 8** |
+| **0.90** | **14.5 - 43.8** | **0.48820 - 0.96096** | **8 / 8** |
+
+🔑 **THIS IS THE QUANTIFIED FORM OF THE CE-SATURATION WORRY, AND IT LOCATES THE
+FAULT IN THE CAP, NOT IN THE MODEL.** The model is not uniformly saturated. The
+cap was placed deep inside the region where it is. Move the cut from K/n=0.20 to
+0.90 and p@K falls from ~1.0 to 0.49-0.96 while the errors available to fix rise
+from 0.0-2.5 to 14.5-43.8. The wiggle room was always there; every campaign cut
+above it.
+
+⛔ **SO THE HEADLINE BACKBONE IS COVERED TOO.** 2(z16) left open whether ViTB16
+escaped. It does not: at L20 and L30 **both** its capped classes read `no prize`
+outright -- zero errors inside K, so there exists no swap that improves the
+selection and only swaps that damage it. A null in those cells is the absence of
+a question, and the corpus is full of them.
+
+✅ **AND THE TWO INDEPENDENT LINES AGREE ON THE SAME CAP.** `paired_noise`
+priced K/n=0.90 at **~7 seeds per cell** against 546-2607 at L20/L30/L50
+(2(v)); the task window independently says 0.90 is the only single fraction
+that is a task for both classes on all four backbones. The cheap regime and the
+answerable regime are the same regime. The standing caveat in 2(v) -- "where the
+constraint BINDS nothing is measurable" -- is now **too pessimistic as stated**:
+at 0.90 the cap still forces out 11-88 predictions on every backbone, which is
+binding by any count-based reading.
+
+⚠️ **The single-fraction protocol has exactly ONE legal cap on iwildcam, and it
+is a corner.** At 0.90 class 2 sits at the TOP of its window on three backbones
+and class 7 at the BOTTOM of its on two. Per-class cap fractions
+(`src/training/constraints.py:cap_fraction_for`, 2(z16)) are what let the
+campaign sit mid-window on both classes at once; `taskwin1` is the first
+campaign to use them.
+
+⇒ **NO GRID AT L20 / L30 / L50 IS TO BE RUN AGAIN ON iwildcam.** It is not a
+weak regime, it is a regime with nothing to measure, and that is now established
+on every backbone the paper claims.
+
 ### (z11) 🔴🔴🔴 AT THE ITEM LEVEL THE CONSTRAINT IS AT THE RNG FLOOR, AND
 `tralo_uniform` IS BELOW IT IN BOTH REGIMES
 
@@ -3166,7 +3230,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 428 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 430 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -3330,7 +3394,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 428 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 430 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -3338,7 +3402,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (428 tests, ~180 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (430 tests, ~180 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -8367,7 +8431,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             428 tests, ~180 s, no dataset required
+tests/             430 tests, ~180 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

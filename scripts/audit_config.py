@@ -468,7 +468,7 @@ def main():
              # nothing to run, and skipping the four newest and highest-stakes
              # arms is this project's own mistake pattern 1 -- a check that
              # reports green while not looking -- one layer up.
-             "--caps", "L30_G30", "L50_G50", "--arms", "all+null"],
+             "--caps", "L30_G30", "L50_G50", "--allow-nontask", "--arms", "all+null"],
             stdout=subprocess.DEVNULL)
 
     emitted, per_arm, n = collect_emitted(root)

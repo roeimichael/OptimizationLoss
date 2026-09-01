@@ -1,0 +1,58 @@
+# MEASURED TASK WINDOWS -- the K/n range in which a cap poses a QUESTION.
+#
+# A count cap can only distinguish two methods where all three hold at once
+# (scripts/task_window.py, FRAMEWORK 2(z16) and 2(z17)):
+#
+#   BINDS    the cap evicts >= min_forced predictions the model would have made
+#   PRIZE    errors@K > 0, i.e. the top-K is not already perfect
+#   WIGGLE   p@K < wiggle_max, i.e. the cut is not buried in saturated scores
+#
+# Outside the window a cell measures the ABSENCE of a question, and a null
+# there is not evidence about any method. 24 of 24 (backbone x class x cap)
+# cells at L20/L30/L50 on iwildcam are outside it on every backbone.
+#
+# THIS FILE IS MEASURED, NOT CHOSEN. Regenerate a row with:
+#   python -m scripts.task_window --glob '<runs of an UNCONSTRAINED arm>' \
+#          --classes 2 7
+# and paste the reported window. It is per (dataset, backbone): the
+# unconstrained hard count and the ranking quality both move with the backbone.
+
+meta:
+  criteria:
+    min_forced: 10        # scripts.task_window.MIN_FORCED
+    wiggle_max: 0.99      # scripts.task_window.WIGGLE_MAX
+  fraction_grid: [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2]
+  # The grid is coarse, so a window edge is accurate to one grid step. The
+  # gate applies `tolerance` on each side rather than pretending otherwise.
+  tolerance: 0.005
+  measured_on: "2026-09-01"
+  reference_arm: tralo_null
+
+windows:
+  iwildcam:
+    ViTB16:
+      provenance: "iwc2/ViTB16/iwildcam, 8 tralo_null runs. iwc2 is
+        quarantined for constraint DOSE, which cannot affect a lambda=0 arm's
+        ranking; no other iwildcam ViTB16 runs exist."
+      unconstrained_count: {2: 347, 7: 487}
+      class:
+        2: [0.60, 0.90]
+        7: [0.90, 1.00]
+    MobileNetV3:
+      provenance: "iwc3/MobileNetV3/iwildcam, 12 tralo_null runs."
+      unconstrained_count: {2: 355, 7: 478}
+      class:
+        2: [0.70, 0.90]
+        7: [0.90, 1.00]
+    MobileNetV2:
+      provenance: "iwc3/MobileNetV2/iwildcam, 12 tralo_null runs."
+      unconstrained_count: {2: 405, 7: 421}
+      class:
+        2: [0.80, 1.00]
+        7: [0.80, 0.90]
+    RegNetY400MF:
+      provenance: "iwc3/RegNetY400MF/iwildcam, 12 tralo_null runs."
+      unconstrained_count: {2: 345, 7: 498}
+      class:
+        2: [0.60, 0.90]
+        7: [0.80, 1.00]

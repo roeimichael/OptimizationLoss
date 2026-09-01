@@ -168,6 +168,217 @@ def _zero_ceilings(P, dataset, local_pct):
         return 0, 0
 
 
+TASK_WINDOWS_PATH = os.path.join(HERE, "task_windows.yml")
+
+
+def load_task_windows(path=TASK_WINDOWS_PATH):
+    """The MEASURED K/n windows in which a cap poses a question, or None."""
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def in_window(ratio, lo, hi, tol=0.0):
+    """Is this K/n inside a measured task window? Pure, so it is testable with
+    no dataset on disk."""
+    return (lo - tol) <= ratio <= (hi + tol)
+
+
+def _effective_budgets(P, dataset, lp, gp):
+    """{class: (K_eff, n_true)} for one cap, or None if the slice is absent.
+
+    K_eff = min(global budget, SUM of the per-group local budgets) -- what the
+    allocator can actually emit. Reading one scope alone has twice called a cap
+    binding when the other scope was the one that bound.
+
+    Returns None ONLY when the slice is genuinely not on this machine, because
+    campaigns are generated on laptops as well as on the server. A slice that
+    IS present and cannot be read raises: the first version of this function
+    read labels from `test_labels.npy`, which does not exist on the laptop
+    where the meta does, and a bare `except` turned the whole gate into a
+    silent no-op that still printed nothing and refused nothing.
+    """
+    import numpy as np
+    import pandas as pd
+    from src.training.constraints import (compute_global_constraints,
+                                          compute_local_constraints,
+                                          normalize_constrained_classes)
+    dc = P["datasets"][dataset]
+    meta = os.path.join(dc["data_dir"], "test_meta.csv")
+    if not os.path.exists(meta):
+        return None
+    te = pd.read_csv(meta)
+    if "label" not in te.columns:
+        npy = os.path.join(dc["data_dir"], "test_labels.npy")
+        if not os.path.exists(npy):
+            sys.exit("REFUSED: %s has a test_meta.csv with no `label` column "
+                     "and no test_labels.npy beside it, so the task window "
+                     "cannot be checked. Fix the slice rather than "
+                     "generating an ungated campaign." % dataset)
+        te["label"] = np.load(npy)
+    y = te["label"].to_numpy()
+    classes = normalize_constrained_classes(dc["constrained_class"])
+    G = compute_global_constraints(te, "label", gp,
+                                   constrained_class=classes,
+                                   num_classes=dc["num_classes"])
+    L = compute_local_constraints(te, "label", lp, dc["group_column"],
+                                  constrained_class=classes,
+                                  num_classes=dc["num_classes"])
+    out = {}
+    for c in classes:
+        c = int(c)
+        lsum = sum(int(L[g][c]) for g in L)
+        out[c] = (min(int(G[c]), lsum), int((y == c).sum()))
+    return out
+
+
+def task_window_gate(P, args, resolved):
+    """REFUSE a campaign whose caps pose no question. FRAMEWORK 2(z16), 2(z17).
+
+    A cap outside the measured window cannot distinguish any two methods: the
+    top-K is already perfect, or the cut sits at p ~ 1, or the cap evicts almost
+    nothing. 24 of 24 (backbone x class x cap) cells at L20/L30/L50 on iwildcam
+    are outside it, on every backbone the paper claims -- which is the best
+    single explanation on record for why so many arms tied.
+
+    Silent when the slice is absent (nothing to measure) and a WARNING, not a
+    refusal, for a (dataset, backbone) with no measured row: an unmeasured
+    backbone is an unknown, not a known non-task.
+    """
+    TW = load_task_windows()
+    if not TW:
+        return
+    tol = float(TW.get("meta", {}).get("tolerance", 0.0))
+    rows, bad, unknown, measured = [], [], set(), False
+    for ds in args.datasets:
+        wds = (TW.get("windows") or {}).get(ds) or {}
+        for model in args.models:
+            w = wds.get(model)
+            for tag in args.caps:
+                lp, gp = cap_pair(tag)
+                eff = _effective_budgets(P, ds, lp, gp)
+                if eff is None:
+                    continue
+                if not w:
+                    unknown.add("%s/%s" % (ds, model))
+                    continue
+                measured = True
+                for c, (K, n) in sorted(eff.items()):
+                    ratio = (K / float(n)) if n else 0.0
+                    lo, hi = w["class"][c]
+                    ok = in_window(ratio, lo, hi, tol)
+                    rows.append((model, tag, c, K, n, ratio, lo, hi, ok))
+                    if not ok:
+                        bad.append((model, tag, c, ratio, lo, hi))
+    for u in sorted(unknown):
+        print("  !! NO MEASURED TASK WINDOW for %s, so it is NOT gated. "
+              "Measure it with" % u)
+        print("     python -m scripts.task_window --glob <unconstrained runs>")
+        print("     before trusting any null from it. An unmeasured backbone "
+              "is an unknown,")
+        print("     not a known task.")
+    if not measured:
+        return
+    print("  TASK WINDOW (FRAMEWORK 2(z16)/2(z17)) -- does each cap pose a "
+          "question?")
+    print("    %-13s %-13s %4s %6s %6s %7s %12s  %s"
+          % ("model", "cap", "cls", "K", "n", "K/n", "window", ""))
+    for model, tag, c, K, n, ratio, lo, hi, ok in rows:
+        print("    %-13s %-13s %4d %6d %6d %7.3f   %4.2f-%4.2f  %s"
+              % (model, tag, c, K, n, ratio, lo, hi,
+                 "in" if ok else "** OUTSIDE **"))
+    if bad and not getattr(args, "allow_nontask", False):
+        lines = ["REFUSED: %d of %d (model, cap, class) cell(s) sit OUTSIDE "
+                 "the measured task window." % (len(bad), len(rows))]
+        for model, tag, c, ratio, lo, hi in bad:
+            lines.append("  %s %s class %d: K/n=%.3f, window %.2f-%.2f"
+                         % (model, tag, c, ratio, lo, hi))
+        lines += [
+            "",
+            "  Outside the window the cap either forces out almost nothing, "
+            "leaves NO errors",
+            "  inside K, or cuts at p@K ~ 1. None of those can distinguish "
+            "two methods, so the",
+            "  cell measures the ABSENCE of a question and its null is not "
+            "evidence about any",
+            "  method. Measured on all four backbones: 24 of 24 cells at "
+            "L20/L30/L50 are outside.",
+            "",
+            "  Pick caps inside the window, PER CLASS where the classes' "
+            "windows do not overlap:",
+            "    --caps L80-100_G95 L70-90_G95",
+            "  or pass --allow-nontask and say in the write-up that the "
+            "campaign cannot",
+            "  distinguish its arms by construction.",
+        ]
+        sys.exit("\n".join(lines))
+    if bad:
+        print("  !! --allow-nontask: %d cell(s) pose NO question and are "
+              "generated anyway." % len(bad))
+        print("     Their nulls are the absence of a measurement, not a "
+              "result. Say so.")
+
+
+def _gate_self_test():
+    """Gate the gate, in BOTH directions. Never claims a pass it did not run."""
+    ok = True
+
+    def check(name, cond):
+        nonlocal ok
+        ok = ok and cond
+        print("  %-66s %s" % (name, "PASS" if cond else "FAIL"))
+
+    TW = load_task_windows()
+    check("configs/task_windows.yml loads", bool(TW))
+    if not TW:
+        return 1
+    tol = float(TW["meta"]["tolerance"])
+    w = TW["windows"]["iwildcam"]["MobileNetV3"]["class"]
+    lo2, hi2 = w[2]
+    lo7, hi7 = w[7]
+    check("L30 class 2 (K/n=0.30) is OUTSIDE MobileNetV3 window %.2f-%.2f"
+          % (lo2, hi2), not in_window(0.30, lo2, hi2, tol))
+    check("L20 class 7 (K/n=0.20) is OUTSIDE MobileNetV3 window %.2f-%.2f"
+          % (lo7, hi7), not in_window(0.20, lo7, hi7, tol))
+    check("LIVENESS: taskwin1 class 2 (K/n=0.800) is INSIDE",
+          in_window(0.800, lo2, hi2, tol))
+    check("LIVENESS: taskwin1 class 7 (K/n=0.950) is INSIDE",
+          in_window(0.950, lo7, hi7, tol))
+    check("a window EDGE is inside, not excluded by float noise",
+          in_window(hi2, lo2, hi2, tol) and in_window(lo7, lo7, hi7, tol))
+    check("every backbone the paper claims has a measured row",
+          set(TW["windows"]["iwildcam"]) >=
+          {"ViTB16", "MobileNetV3", "MobileNetV2", "RegNetY400MF"})
+
+    P = load_protocol()
+    dc = P["datasets"]["iwildcam"]
+    have = os.path.exists(os.path.join(dc["data_dir"], "test_meta.csv"))
+    if not have:
+        print("  %-66s %s" % ("end-to-end refusal (needs the iwildcam slice)",
+                              "SKIPPED -- slice not on this machine"))
+    else:
+        class A(object):
+            datasets = ["iwildcam"]
+            models = ["MobileNetV3"]
+            allow_nontask = False
+            caps = ["L20_G50", "L30_G50"]
+        try:
+            task_window_gate(P, A, None)
+            check("end to end: an L20/L30 campaign is REFUSED", False)
+        except SystemExit:
+            check("end to end: an L20/L30 campaign is REFUSED", True)
+        A.caps = ["L80-100_G95", "L70-90_G95"]
+        try:
+            task_window_gate(P, A, None)
+            check("LIVENESS end to end: taskwin1 caps are ALLOWED", True)
+        except SystemExit:
+            check("LIVENESS end to end: taskwin1 caps are ALLOWED", False)
+    print("")
+    print("ALL PASS" if ok else "FAILURES ABOVE")
+    return 0 if ok else 1
+
+
 def cap_pair(tag):
     """'L30_G50' -> [0.30, 0.50]: (local, global), independent by construction.
 
@@ -309,6 +520,11 @@ def validate(P, args, resolved, arms):
         print("     to test the other scope, or say plainly that this campaign "
               "tests one.")
 
+    # A SPEC refusal, so it comes before the hygiene ones below: a campaign
+    # whose caps pose no question is not a campaign with a missing control,
+    # it is a campaign with nothing to measure.
+    task_window_gate(P, args, resolved)
+
     lr = P["core"]["lr"]
     lr_c = P["constraint_phase"]["lr_constraint"]
     if lr != lr_c:
@@ -437,6 +653,10 @@ def _apply_constraint_step(P, args):
 
 
 def main():
+    # Before the parser: --root and --datasets are required for a real
+    # generation, and the self-test generates nothing.
+    if "--self-test" in sys.argv:
+        sys.exit(_gate_self_test())
     P = load_protocol()
     a = argparse.ArgumentParser()
     a.add_argument("--root", required=True)
@@ -447,6 +667,15 @@ def main():
     a.add_argument("--arms", nargs="+", default=["tralo"],
                    choices=sorted(P["arms"]) + ["all", "all+null"],
                    help="'all' runs the full panel: every baseline the paper claims")
+    a.add_argument("--allow-nontask", action="store_true",
+                   help="generate even where a cap sits OUTSIDE the "
+                        "measured task window "
+                        "(configs/task_windows.yml). The cells it lets "
+                        "through cannot distinguish two methods by "
+                        "construction, so their nulls are the absence "
+                        "of a measurement -- say so in the write-up.")
+    a.add_argument("--self-test", action="store_true",
+                   help="gate the task-window gate in both directions and exit")
     a.add_argument("--constrained-class", nargs="+", type=int, default=None,
                    help="override the YAML's capped class(es) for every dataset; "
                         "one index or several for the coupled multi-class setting")

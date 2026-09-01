@@ -5,7 +5,7 @@
 every working session. If it is stale, that is a defect -- fix it before doing
 anything else.
 
-Last updated: **2026-08-30** (second pass: the mechanism, and the independent-n correction).
+Last updated: **2026-09-01** (the TASK WINDOW: the cap, not the model, was the defect -- 2(z16)/2(z17)).
 
 ---
 
@@ -35,9 +35,11 @@ dataset that cannot test the thesis.
 
 ---
 
-## 🔴 0-NOW. THE MATHEMATICAL DEFECT, FOUND 2026-08-31/09-01
+## 🔴 0-NOW. THE TWO DEFECTS, FOUND 2026-08-31/09-01
 
-Three measurements, in the order they were made. FRAMEWORK 2(z11), 2(z12).
+Four measurements, in the order they were made. FRAMEWORK 2(z11), 2(z12),
+2(z16), 2(z17). (1)-(3) are the AIM of the gradient; (4) is the PLACEMENT of
+the cap, and they are independent.
 
 **(1) At the item level the constraint is at the RNG floor.** `boundary_probe
 --control tralo_null`, every arm against its OWN lambda=0 twin. A pure reseed
@@ -80,6 +82,36 @@ DECISION BOUNDARY, puts **exactly 0.0000** at the cut, and sits at cosine
 **0.989** from `tralo` -- so its 432 staged runs would mostly reproduce `tralo`.
 That is CLAUDE.md rule 3's conflation costing a campaign. Run the cut window
 first.
+
+**(4) AND THE SECOND DEFECT IS THE CAP, NOT THE MODEL. Every campaign this
+project ran cut ABOVE the region where the model is uncertain.** Roei's worry
+was that warm-up CE saturates and leaves no wiggle room at the constraint
+border. Measured on all four backbones, `tralo_null`, iwildcam (2(z16),
+2(z17)): a cap poses a question only when it BINDS (evicts >= 10), has a PRIZE
+(errors inside K) and has WIGGLE (p@K < 0.99).
+
+| K/n | errors@K over the 8 (backbone, class) | p@K | cells that are a TASK |
+|---|---|---|---|
+| 0.20 | 0.0 - 2.5 | 0.99978 - 1.00000 | **0 / 8** |
+| 0.30 | 0.0 - 3.0 | 0.99945 - 1.00000 | **0 / 8** |
+| 0.50 | 0.0 - 7.8 | 0.99381 - 1.00000 | **0 / 8** |
+| **0.90** | **14.5 - 43.8** | **0.48820 - 0.96096** | **8 / 8** |
+
+⇒ **24 of 24 cells at L20/L30/L50 pose no question, and 8 of 8 at K/n=0.90 do.**
+The saturation is real but it is LOCAL: move the cut to 0.90 and p@K falls from
+~1.0 to 0.49-0.96 with 14-44 fixable errors appearing. **The wiggle room was
+always there and every campaign cut above it**, ViTB16 included -- at L20/L30
+both its capped classes have literally ZERO errors inside K.
+
+🔑 **This is the best explanation on record for why ~20 arms tied**, and it is
+independent of (1)-(3): (3) says the gradient is aimed away from the cut, (4)
+says the cut was placed where there is nothing to win. Both had to be fixed
+before a null means anything. `taskwin1` is the first campaign with both fixed.
+
+✅ Two independent lines now name the same cap: `paired_noise` prices K/n=0.90
+at ~7 seeds per cell against 546-2607 at L20/L30/L50, and the task window says
+0.90 is the only single fraction that is a task for both classes on all four
+backbones. **The cheap regime and the answerable regime are the same regime.**
 
 ⚠️ **WHAT IS NOT CLAIMED: that aiming at the cut WINS.** Necessary, not
 sufficient. At tight caps the clipper's set is already 99.6% correct and
@@ -174,8 +206,8 @@ L95_G80. Only **20 distinct warm-up models** exist across all five campaigns.
 |---|---|---|
 | `soft_count_mode: sum` (shipped) | 🟡 wins LOOSE, loses TIGHT -- **and the reason is now known**, 2(y) | AP +0.0253..+0.0064 loose / -0.0572..-0.0933 tight. The gradient sits at the boundary, 200-440 ranks from the cut when the cap is tight |
 | `soft_count_mode: uniform` | ✅ **the tight-cap tool**, and 2(y) says why: a flat slope declines to aim | ViTB16 AP **+0.0087 tight** (only arm above the floor) / **-0.0091 loose**. `uniform1` -0.0754 -> +0.0030 |
-| `soft_count_mode: margin` | ⛔ **NEVER RUN, AND NOW REPRICED DOWNWARD** (2026-09-01). Still staged as `margin2` (432 runs) but it windows the BOUNDARY, and the boundary is measured to carry **exactly 0.0000** of the gradient at the cut. 🛑 **Run `cutwin1` first** | cosine **0.989** to `tralo` on real features, so 432 runs would mostly reproduce `tralo`. FRAMEWORK 2(z12) |
-| `soft_count_mode: cut` (**NEW**, `tralo_cut`) | 🟢 **BUILT, GATED, STAGED as `cutwin1`** -- the fix 0-NOW derives. Value stays exactly `sum_i p_ic`, only the gradient weight moves to a window on rank K, width in ITEMS. ⚠️ **NOT predicted to win** -- aiming is necessary, not sufficient | mass at the cut **0.0001 -> 0.3486** (pooled, 24 run-class pairs, real features). Chunked gradient == full-N exactly (maxdiff 0.00e+00). `flag_live` md5-distinct on every binding seed. 423 tests, `audit_config`, `smoke_arms --matrix` all green |
+| `soft_count_mode: margin` | ⛔ **NEVER RUN, AND NOW REPRICED DOWNWARD** (2026-09-01). Still staged as `margin2` (432 runs) but it windows the BOUNDARY, and the boundary is measured to carry **exactly 0.0000** of the gradient at the cut. 🛑 **Run `taskwin1` first** | cosine **0.989** to `tralo` on real features, so 432 runs would mostly reproduce `tralo`. FRAMEWORK 2(z12) |
+| `soft_count_mode: cut` (**NEW**, `tralo_cut`) | 🟢 **BUILT, GATED, STAGED as `taskwin1`** -- the fix 0-NOW derives. Value stays exactly `sum_i p_ic`, only the gradient weight moves to a window on rank K, width in ITEMS. ⚠️ **NOT predicted to win** -- aiming is necessary, not sufficient | mass at the cut **0.0001 -> 0.3486** (pooled, 24 run-class pairs, real features). Chunked gradient == full-N exactly (maxdiff 0.00e+00). `flag_live` md5-distinct on every binding seed. 423 tests, `audit_config`, `smoke_arms --matrix` all green |
 | `tralo_st` (hard-count value fix) | ❓ **NEVER RUN** -- same campaign | isolates VALUE from PLACEMENT |
 | `straight_through` | ✅ keeps count value exact | -- |
 | `constraint_grad_mode: normalize` | ✅ **required** -- `clip` gives a ~20x dose spread across duals | `check_parity` refuses `clip` |
@@ -266,12 +298,25 @@ and FRAMEWORK 3(0), then start the next.
    from epoch 2 (grad 18.69), where `tralo_null` stays 0.0 forever.
    ⚠️ 8 independent (model, seed) units, so only 8/8 (p=0.0078) is significant;
    7/8 is p=0.0703 and is a DIRECTION. Say which was met.
-1. 🟢 **STAGED, LAUNCHES ON THE FIRST FREE GPU: `cutwin1`** (56 runs,
-   `~/optloss-cutwin`, pin `63dd8c6b`, grabber armed). The SMALL validation of
-   the 0-NOW fix, deliberately not a grid. MobileNetV3 x {L30_G50 (K/n=30%),
-   L90_G95 (K/n=90%)} x {`tralo_cut`, `tralo`, `tralo_uniform`, `tralo_null`,
-   `tralo_reseed`, `clip`, `focal_clip`} x 4 seeds, `normalize` so the arms
-   differ in DIRECTION and not in dose.
+1. 🟢 **STAGED, LAUNCHES ON THE FIRST FREE GPU: `taskwin1`** (48 runs,
+   `~/optloss-cutwin`, tree pinned `6658ef8c`, grabber `~/grab_taskwin1.sh`
+   armed on dsisco01 and watching BOTH hosts). It replaces `cutwin1`, which was
+   deleted: `cutwin1` used `L30_G50`, and 2(z16)/2(z17) then established that
+   L30 poses no question on any backbone. **It is the first campaign in this
+   project whose caps were chosen by MEASURING that the cap poses a question.**
+   MobileNetV3 x {`L80-100_G95`, `L70-90_G95`} x {`tralo_cut`, `tralo`,
+   `tralo_null`, `tralo_reseed`, `clip`, `focal_clip`} x 4 seeds, `normalize`
+   so the arms differ in DIRECTION and not in dose.
+   ✅ **THE BUDGETS ARE VERIFIED AGAINST THE TASK WINDOW**, not assumed:
+
+   | cap tag | class 2 K/n | class 7 K/n | binding scope |
+   |---|---|---|---|
+   | `L80-100_G95` | **0.800** (K=296) | **0.950** (K=433) | GLOBAL |
+   | `L70-90_G95` | **0.700** (K=259) | **0.901** (K=411) | LOCAL |
+
+   Windows on MobileNetV3: class 2 **0.70-0.90**, class 7 **0.90-1.00**. All
+   four land inside. The two tags also differ in WHICH SCOPE BINDS, so the
+   local-vs-global question is carried for free.
    ⚠️ **2 cells, so it CANNOT reach significance on any metric** -- the
    generator says so itself. It is a mechanism check, not a verdict, and must
    be reported as direction + per-cell consistency only.
@@ -281,30 +326,25 @@ and FRAMEWORK 3(0), then start the next.
    trajectory vs K; then `full_panel --control clip` reading its CONSTRAINT
    DOSE block on the FIRST completed runs; then `boundary_probe --control
    tralo_null` against the `tralo_reseed` floor.
-   🔑 **THE PRE-REGISTERED PREDICTION -- CORRECTED 2026-09-01, and the
-   first version was WRONG.** It said `tralo_cut` would move the capped COUNT
-   more at tight caps. Measured (2(z13)): `sum` already moves the count **4.02x
-   / 2.94x the reseed floor** at tight caps, because the hard count is a
-   BOUNDARY readout and the boundary is exactly where `p(1-p)` peaks. That
-   prediction tested the wrong quantity -- CLAUDE.md rule 3, caught by running
-   the check before the GPU. The correct one:
-   > **TIGHT (L30_G50)**: `tralo_cut` changes the **EMITTED top-K set** by
-   > more, relative to the `tralo_reseed` floor, than `tralo` does -- read from
-   > `boundary_probe --control tralo_null` on `final_predictions.csv`, in net
-   > items. Its HARD COUNT should move LESS than `tralo`'s, not more, because
-   > the cut window deliberately takes gradient off the boundary.
-   > **LOOSE (L90_G95)**: `tralo_cut` and `tralo` are approximately THE SAME
-   > ARM (cosine 0.90 on MobileNetV3; `sum` already carries 0.15 of its
-   > gradient at the cut there) and must behave alike.
-   🛑 **THE LOOSE HALF IS A BUILT-IN NEGATIVE CONTROL** (2(z14)), which
-   makes this two-sided and hard to satisfy by chance: **a `tralo_cut` that
-   "wins" in BOTH regimes is reading noise, not the mechanism.** If the emitted
-   set does not move at TIGHT relative to the floor, the aim fix is dead and
-   cluster C closes with it.
-   ⚠️ **MobileNetV3 is the WEAK backbone for this on purpose**: its tight
-   `cut_window` mass is 0.380 against ViTB16's 0.765, so this is the
-   conservative test -- and a null here must NOT be promoted to ViTB16 without
-   running ViTB16.
+   🔑 **THE PRE-REGISTERED PREDICTION.** Both cap tags are now LOOSE-ish
+   (K/n 0.70-0.95), which is where 2(z12) says `sum` already carries real mass
+   at the cut -- so the tight-vs-loose contrast that `cutwin1` was built around
+   is GONE, and the prediction changes with it:
+   > `tralo_cut` and `tralo` are aimed at nearly the same place here and should
+   > behave ALIKE on the count. The discriminating quantity is the **EMITTED
+   > top-K set** against the `tralo_reseed` floor: with the cap finally inside
+   > the window, **at least one trained arm must clear the reseed floor on
+   > `d capF1` in items**, in both cells. If NO arm clears the floor even with
+   > a cap that is a measured task, then the cap placement was never the
+   > binding problem and cluster C closes with it.
+   🛑 **THIS IS THE ONE PREDICTION THAT CANNOT BE SATISFIED BY REPAIRING THE
+   CAP.** Every prior null had the escape hatch "the cap was in the wrong
+   place". 2(z17) removes that hatch for these two cells specifically, which is
+   the whole point of running them before any grid.
+   ⚠️ **MobileNetV3 only, on purpose** -- small first, per Roei 2026-09-01.
+   The same two cap tags are ALSO inside ViTB16's measured windows (class 2
+   0.60-0.90, class 7 0.90-1.00), so the ViTB16 extension needs no new cap
+   design, only GPUs.
 2. 🔴 **ViTB16 LOOSE, from 2 cells to >= 6.** `loosevit1` already exists, is
    100% dose, md5-clean, single `code_version`, carries `tralo_null` +
    `tralo_reseed` + both clippers -- and on it **`tralo` is positive on every

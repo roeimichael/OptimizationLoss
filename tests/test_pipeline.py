@@ -239,7 +239,13 @@ def _gen(tmp, *extra):
     # something else, so they carry the control rather than trip that gate; the
     # gate itself is tested by
     # test_generator_refuses_a_count_reading_campaign_without_the_reseed_control.
-    cmd = [sys.executable, "-m", "configs.gen_campaign", "--root", str(tmp),
+    # `--allow-nontask` for the same reason: the generator REFUSES caps
+    # outside the measured task window (FRAMEWORK 2(z16)/2(z17)), and the
+    # L30/L50 tags below are all outside it on iwildcam. These tests are
+    # about generation MECHANICS, not about whether the cap poses a
+    # question; the window gate itself is tested by
+    # test_the_generator_refuses_a_cap_that_poses_no_question.
+    cmd = [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask", "--root", str(tmp),
            "--datasets", "iwildcam",
            "--arms", "tralo", "tralo_reseed"] + list(extra)
     return subprocess.run(cmd, cwd=REPO, capture_output=True, text=True)
@@ -477,7 +483,7 @@ def test_parity_catches_two_arms_sharing_one_warm_up_with_different_objectives(t
     identically, so focal_clip loaded clip's model and silently became a second
     clip. This gate used to print the sharing groups and ask a human to look."""
     r = subprocess.run(
-        [sys.executable, "-m", "configs.gen_campaign", "--root", str(tmp_path),
+        [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask", "--root", str(tmp_path),
          "--datasets", "iwildcam", "--models", "MobileNetV3",
          "--caps", "L30_G30", "L50_G30", "--arms", "clip", "focal_clip"],
         cwd=REPO, capture_output=True, text=True)
@@ -2792,7 +2798,7 @@ def test_nothing_presents_a_closed_result_as_a_live_one(tmp_path):
     from configs.gen_campaign import count_control_arms
     extra = sorted(count_control_arms(proto))
     r = subprocess.run(
-        [sys.executable, "-m", "configs.gen_campaign", "--root", str(root),
+        [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask", "--root", str(root),
          "--datasets", "iwildcam", "--caps", "L30_G30", "L50_G50",
          "--arms", "all"] + extra, cwd=REPO, capture_output=True, text=True)
     assert r.returncode == 0, r.stdout + r.stderr
@@ -2816,7 +2822,7 @@ def test_nothing_presents_a_closed_result_as_a_live_one(tmp_path):
             "use -> %s" % (" ".join(extra), arm, line.strip()))
 
     r2 = subprocess.run(
-        [sys.executable, "-m", "configs.gen_campaign",
+        [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask",
          "--root", str(root / "explicit"), "--datasets", "iwildcam",
          "--caps", "L30_G30", "L50_G50", "--arms", "select"] + extra,
         cwd=REPO, capture_output=True, text=True)
@@ -2831,7 +2837,7 @@ def test_nothing_presents_a_closed_result_as_a_live_one(tmp_path):
     # the same must hold through the `all+null` branch, which has its own
     # expansion and therefore its own way to swallow a named arm
     r3 = subprocess.run(
-        [sys.executable, "-m", "configs.gen_campaign",
+        [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask",
          "--root", str(root / "allnull"), "--datasets", "iwildcam",
          "--caps", "L30_G30", "L50_G50", "--arms", "all+null", "select"],
         cwd=REPO, capture_output=True, text=True)
@@ -3512,9 +3518,9 @@ def test_the_reseed_control_reads_as_untreated_to_the_scorer(tmp_path):
 def _gen_arms(tmp, *arms):
     """gen_campaign with an explicit arm list and nothing else implied."""
     return subprocess.run(
-        [sys.executable, "-m", "configs.gen_campaign", "--root", str(tmp),
+        [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask", "--root", str(tmp),
          "--datasets", "iwildcam", "--caps", "L30_G30", "L50_G30",
-         "--arms"] + list(arms),
+         "--allow-nontask", "--arms"] + list(arms),
         cwd=REPO, capture_output=True, text=True)
 
 
@@ -5041,7 +5047,7 @@ def test_removed_datasets_cannot_be_selected_anywhere():
     # the generator must REFUSE, not silently emit an unrunnable campaign
     for name in REMOVED_DATASETS:
         r = subprocess.run(
-            [sys.executable, "-m", "configs.gen_campaign",
+            [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask",
              "--root", os.path.join(REPO, "_never_written"),
              "--datasets", name, "--models", "MobileNetV3",
              "--caps", "L30_G30", "L50_G30", "--arms", "clip"],
@@ -5053,7 +5059,7 @@ def test_removed_datasets_cannot_be_selected_anywhere():
     # NEGATIVE CONTROL: the live dataset must still pass all of the above, or
     # the assertions are satisfied by a generator that refuses everything.
     r = subprocess.run(
-        [sys.executable, "-m", "configs.gen_campaign",
+        [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask",
          "--root", os.path.join(REPO, "_ctrl_ok"), "--datasets", "iwildcam",
          "--models", "MobileNetV3", "--caps", "L30_G30", "L50_G30",
          "--arms", "clip"], cwd=REPO, capture_output=True, text=True)
@@ -6602,7 +6608,7 @@ def test_the_two_power_floors_are_printed_and_the_framework_quotes_them(tmp_path
 
     def gen(root, models, caps):
         r = subprocess.run(
-            [sys.executable, "-m", "configs.gen_campaign", "--root", str(root),
+            [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask", "--root", str(root),
              "--datasets", "iwildcam", "--models"] + models +
             ["--caps"] + caps + ["--arms", "all+null"],
             cwd=REPO, capture_output=True, text=True)
@@ -7778,3 +7784,77 @@ def test_the_cut_window_keeps_the_exact_full_N_gradient_when_chunked():
     assert not torch.allclose(full, bad, atol=1e-6), (
         "a per-chunk cut produced the same gradient as the full-N cut, so "
         "this gate cannot detect the bug it exists for")
+
+
+def test_the_generator_refuses_a_cap_that_poses_no_question(tmp_path):
+    """A cap outside the MEASURED task window cannot distinguish two methods.
+
+    FRAMEWORK 2(z16)/2(z17): a count cap poses a question only where it evicts
+    >= 10 predictions, leaves errors inside K, and cuts at p@K < 0.99. Measured
+    on all four backbones, 24 of 24 (backbone x class x cap) cells at
+    L20/L30/L50 on iwildcam fail at least one of those, and 8 of 8 at K/n=0.90
+    pass. So most of this project's campaigns measured the ABSENCE of a
+    question, and their nulls are not evidence about any method.
+
+    Both directions, because a gate that only ever refuses is indistinguishable
+    from a broken generator:
+      - L20/L30 must be REFUSED and must write NO configs
+      - `taskwin1`'s per-class caps must be ALLOWED and must emit
+      - `--allow-nontask` must be a genuine override, not decoration
+    """
+    def gen(root, caps, extra=()):
+        return subprocess.run(
+            [sys.executable, "-m", "configs.gen_campaign", "--root", str(root),
+             "--datasets", "iwildcam", "--models", "MobileNetV3",
+             "--caps"] + list(caps) +
+            ["--arms", "tralo", "tralo_reseed"] + list(extra),
+            cwd=REPO, capture_output=True, text=True)
+
+    meta = os.path.join(REPO, "data", "iwildcam", "oodslice", "test_meta.csv")
+    if not os.path.exists(meta):
+        pytest.skip("iwildcam slice absent: the window gate has nothing to read")
+
+    bad = gen(tmp_path / "dead", ["L20_G50", "L30_G50"])
+    out = bad.stdout + bad.stderr
+    assert bad.returncode != 0, "an L20/L30 campaign was emitted:\n" + out[-1500:]
+    assert "OUTSIDE the measured task window" in out, out[-1500:]
+    assert not list((tmp_path / "dead").rglob("config.json")), \
+        "REFUSED but wrote configs anyway"
+
+    # LIVENESS. The caps `taskwin1` actually runs are inside both classes'
+    # windows (class 2 at K/n 0.800 and 0.700, class 7 at 0.950 and 0.901),
+    # so the gate must let them through -- otherwise it refuses everything and
+    # says nothing.
+    ok = gen(tmp_path / "live", ["L80-100_G95", "L70-90_G95"])
+    assert ok.returncode == 0, ok.stdout[-1500:] + ok.stderr[-1500:]
+    assert list((tmp_path / "live").rglob("config.json")), "emitted nothing"
+
+    # and the override must actually override
+    forced = gen(tmp_path / "forced", ["L20_G50", "L30_G50"], ["--allow-nontask"])
+    assert forced.returncode == 0, forced.stdout[-1500:] + forced.stderr[-1500:]
+    assert "pose NO question" in (forced.stdout + forced.stderr), \
+        "--allow-nontask generated silently; it must say what it let through"
+
+
+def test_the_task_window_file_is_measured_not_invented(tmp_path):
+    """`configs/task_windows.yml` is the gate's only input, so a wrong row
+    silently mis-gates every future campaign. Three properties it must hold:
+
+      - every backbone the paper claims has a row, or that backbone is ungated
+      - every window is a real interval inside [0, 2]
+      - every row carries provenance naming the runs it was measured from
+    """
+    import yaml as _yaml
+    path = os.path.join(REPO, "configs", "task_windows.yml")
+    TW = _yaml.safe_load(open(path, encoding="utf-8"))
+    iw = TW["windows"]["iwildcam"]
+    assert set(iw) >= {"ViTB16", "MobileNetV3", "MobileNetV2", "RegNetY400MF"}
+    for model, row in iw.items():
+        assert row.get("provenance"), "%s has no provenance" % model
+        for cls, (lo, hi) in row["class"].items():
+            assert 0.0 <= lo < hi <= 2.0, "%s class %s: %s" % (model, cls, (lo, hi))
+    # the two capped classes' windows are DIFFERENT on every backbone, which is
+    # why per-class cap fractions had to exist at all
+    for model, row in iw.items():
+        assert row["class"][2] != row["class"][7], \
+            "%s: identical windows would make per-class caps pointless" % model
