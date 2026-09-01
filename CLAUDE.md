@@ -316,6 +316,20 @@ python -m scripts.ortho_survival --compounding  # does a count-function change
                                              #   angle is 18.7-49.6 deg, NEVER 180,
                                              #   because `p(1-p)` and its mean are
                                              #   both elementwise non-negative.
+python -m scripts.task_window --glob "<root>/<Backbone>/iwildcam/*/tralo_null/seed_*"
+                                            #   🛑 RUN THIS BEFORE CHOOSING CAP TAGS.
+                                            #   A cap poses a question only if all
+                                            #   three hold: it FORCES OUT >=10 items
+                                            #   (`hard_count - K`, a count not a
+                                            #   boolean -- L90 evicts THREE on class 2
+                                            #   and looks binding), there are ERRORS
+                                            #   inside K, and p@K < 0.99. On iwildcam
+                                            #   the window is class 2 K/n 0.70-0.80 and
+                                            #   class 7 0.90-1.00, which DO NOT OVERLAP
+                                            #   on MobileNetV3 -- so one fraction for
+                                            #   both classes cannot express a valid
+                                            #   experiment. Every L20/L30/L50 campaign
+                                            #   tested a NON-TASK. FRAMEWORK 2(z16).
 python -m scripts.bias_shift_probe --self-test  # ⛔ REFUTES `tralo_uniform`'s
                                             #   founding claim. Its docstring argues a
                                             #   uniform step in log-odds is "a pure bias

@@ -2371,6 +2371,38 @@ Three conditions, and **all three must hold** or the cell measures nothing:
 | **1.00** | 456 | 43.5 | 0.71844 | yes | **TASK** |
 | 1.10 | 502 | 70.8 | 0.37616 | **NO** | cap slack |
 
+⛔⛔ **CORRECTION, SAME DAY: "BINDS" MUST BE A COUNT, NOT A BOOLEAN, AND THAT
+REMOVES THE OVERLAP ENTIRELY.** `hard_count > K` is passed by a cap that evicts
+ONE item. At K/n=0.90 on MobileNetV3 class 2 the model predicts **336** against
+K=**333**, so the cap forces out **three predictions** and constrains
+essentially nothing while looking binding. Requiring >= 10 forced evictions:
+
+| backbone | class 2 window | class 7 window | overlap |
+|---|---|---|---|
+| **MobileNetV3** | **K/n 0.70-0.80** | K/n 0.90-1.00 | **NONE** |
+| ViTB16 | K/n 0.60-0.90 | K/n 0.90-1.00 | only 0.90 |
+
+⛔ **ON MobileNetV3 NO SINGLE CAP FRACTION MAKES BOTH CAPPED CLASSES A TASK.**
+The protocol applies one fraction to every capped class, so **the correct
+experiment is currently INEXPRESSIBLE** there, and on ViTB16 it is expressible
+only at one marginal point. Per-class caps are not a refinement, they are
+REQUIRED for the two-class setting to pose a question at all.
+
+✅ **THE CAPS TO USE**, both mid-window on both backbones:
+
+| class | K/n | K | forced out | errors@K | p@K | verdict |
+|---|---|---|---|---|---|---|
+| 2 | **0.80** | 296 | 40 | 15.0 | 0.718 | TASK |
+| 7 | **1.00** | 456 | 34 | 43.5 | 0.718 | TASK |
+
+Note class 7 needs **K/n = 1.00** -- a budget EQUAL to the true count. That is
+not a degenerate cap: the model predicts 490 against 456 true, so it still
+evicts 34, and its cut sits at p=0.718. A cap above `n_true` is legitimate
+whenever the model over-predicts, and the protocol has never used one.
+
+🛑 `scripts/task_window.py` is the gate, `--self-test` covers all five
+verdicts including a negative control that a genuine task IS reported as one.
+
 🛑 **THE WINDOW IS SQUEEZED FROM BOTH SIDES.** From below by saturation and
 by the top-K already being perfect; from above by the cap simply not binding.
 Class 2: **K/n 0.70-0.90**. Class 7: **K/n 0.90-1.00**. The ONLY overlap is
