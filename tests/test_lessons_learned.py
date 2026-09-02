@@ -899,6 +899,204 @@ def test_a_cache_check_that_cannot_RUN_says_so_instead_of_passing(
         % (why, [r.getMessage() for r in caplog.records] or "nothing"))
 
 
+# ---------------------------------------------------------------------------
+# BATCH 3 -- mined 2026-09-02 from the COMMIT HISTORY (1,009 commits, 174 of
+# them defect fixes). Batch 1 gated what was removed and batch 2 what can rot;
+# these three are settings whose whole value is that they are EXACTLY right,
+# and each was arrived at by discarding a plausible near-miss.
+# ---------------------------------------------------------------------------
+
+
+def test_deterministic_algorithms_is_STRICT_because_warn_only_takes_the_other_branch():
+    """The 21x noise floor, and why the obvious setting did not fix it
+    (2026-08-20, commit 5836d9ba).
+
+    Three IDENTICAL runs -- same arm, seed, config, GPU, back to back -- spread
+    0.0358 macro-F1 against a 0.0017 headline effect. 21x. Measured WITH
+    `cudnn.deterministic`, `benchmark=False` and `CUBLAS_WORKSPACE_CONFIG`
+    already set, so none of those was the answer. Bisecting stage by stage:
+    model init identical, batch order identical, forward loss at step 0
+    identical, GRADIENTS at step 0 different in all four processes. The fused
+    SDPA attention backward.
+
+    THE TRAP, and it is the reason this test exists rather than a comment:
+    `warn_only=True` is NOT a softer version of the setting. PyTorch reads
+    `deterministicAlgorithmsWarnOnly()` INSIDE the attention backward and takes
+    the nondeterministic branch when it is true. So the flag reads as enabled,
+    logs nothing, and the floor stays. Flipping it to False gives one hash
+    across four processes at a 5.5% cost (54.70s -> 57.72s per 126 steps);
+    disabling the fused kernels instead costs 62.97s.
+
+    Every measurement in this project is priced against a noise floor. If this
+    silently reverts, the floor returns to 21x the effect and nothing else in
+    the suite would notice.
+    """
+    import torch
+    from src.pipeline.setup import seed_all, runtime_provenance
+
+    src = read("src", "pipeline", "setup.py")
+    assert "warn_only=False" in src, (
+        "`use_deterministic_algorithms` is no longer called with "
+        "warn_only=False. warn_only=True is not a milder setting -- PyTorch "
+        "takes the NONDETERMINISTIC branch in the attention backward when it "
+        "is true, which is the 0.0358 macro-F1 floor against a 0.0017 effect.")
+
+    # Strict mode makes an op with no deterministic implementation RAISE, so
+    # it must not leak out of this test into the rest of the suite.
+    was_det = torch.are_deterministic_algorithms_enabled()
+    was_warn = torch.is_deterministic_algorithms_warn_only_enabled()
+    was_cudnn = torch.backends.cudnn.deterministic
+    try:
+        seed_all(1)
+        assert torch.are_deterministic_algorithms_enabled(), (
+            "seed_all left deterministic algorithms OFF")
+        assert not torch.is_deterministic_algorithms_warn_only_enabled(), (
+            "deterministic algorithms are in WARN-ONLY mode, which is the "
+            "nondeterministic branch, not a strict one")
+        assert torch.backends.cudnn.deterministic is True, (
+            "cudnn.deterministic is off; it is not sufficient on its own but "
+            "it is still part of the regime that was measured")
+    finally:
+        torch.use_deterministic_algorithms(was_det, warn_only=was_warn)
+        torch.backends.cudnn.deterministic = was_cudnn
+
+    # `seed_all(None)` would skip all seven settings silently while the run
+    # still writes `seed_N/` in its path, so it must raise rather than return.
+    with pytest.raises(ValueError):
+        seed_all(None)
+
+    prov = runtime_provenance(torch.device("cpu"))
+    for key in ("deterministic", "deterministic_warn_only",
+                "cudnn_deterministic", "cublas_workspace_config"):
+        assert key in prov, (
+            "runtime_provenance no longer records `%s`. The runs that first "
+            "showed the 21x floor could not say which determinism regime "
+            "produced them, which is why this is recorded per run." % key)
+
+
+def test_CUBLAS_WORKSPACE_CONFIG_is_set_BEFORE_torch_is_imported():
+    """An env var that is read once, at CUDA init (2026-08-20, and it is a
+    PLACEMENT property, not a presence one).
+
+    `torch.use_deterministic_algorithms(True)` raises on every cuBLAS matmul
+    unless CUBLAS_WORKSPACE_CONFIG is set, and cuBLAS reads it when the handle
+    is created -- so setting it after `import torch` has already initialised
+    CUDA is a no-op that still looks correct in `os.environ`. Both entry points
+    set it at module top, above the torch import, and a reorder-safe import
+    sorter or a routine tidy-up would silently break it.
+
+    Line numbers via AST, because `import torch` also appears inside functions
+    and in comments.
+    """
+    bad = []
+    for path in ("main.py", os.path.join("src", "experiments", "runner.py")):
+        tree = ast.parse(read(path))
+        env_line = torch_line = None
+        for node in ast.walk(tree):
+            if (env_line is None and isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "setdefault"
+                    and any(isinstance(a, ast.Constant)
+                            and a.value == "CUBLAS_WORKSPACE_CONFIG"
+                            for a in node.args)):
+                env_line = node.lineno
+            if torch_line is None and isinstance(node, ast.Import):
+                if any(a.name == "torch" or a.name.startswith("torch.")
+                       for a in node.names):
+                    torch_line = node.lineno
+        if env_line is None:
+            bad.append("%s never sets CUBLAS_WORKSPACE_CONFIG; "
+                       "use_deterministic_algorithms then raises on every "
+                       "cuBLAS matmul" % path)
+        elif torch_line is not None and env_line > torch_line:
+            bad.append("%s sets CUBLAS_WORKSPACE_CONFIG at line %d, AFTER "
+                       "`import torch` at line %d. cuBLAS reads it when the "
+                       "handle is created, so this is a silent no-op"
+                       % (path, env_line, torch_line))
+    assert not bad, "\n  ".join([""] + bad)
+
+
+# (backbone, the modules its torchvision head must STILL contain after the
+# builder has touched it). MobileNetV3 is the only one whose pretrained head
+# carries a projection worth keeping; the other three end in a bare Linear, so
+# rebuilding their head throws nothing away.
+HEAD_SHAPE = {
+    "MobileNetV3": {"projection": (960, 1280), "activation": "Hardswish"},
+    "MobileNetV2": {"projection": None, "activation": None},
+    "RegNetY400MF": {"projection": None, "activation": None},
+    "ViTB16": {"projection": None, "activation": None},
+}
+
+
+@pytest.mark.parametrize("backbone", sorted(HEAD_SHAPE))
+def test_a_backbone_replaces_ONLY_its_final_layer_and_keeps_ONE_dropout(backbone):
+    """MobileNetV3 threw away its pretrained projection, biasing the HEADLINE
+    (2026-08-19, commit 05097fcb).
+
+    MobileNetV2, RegNetY400MF and ViTB16 keep the pretrained backbone and
+    replace only the final layer. MobileNetV3 rebuilt its ENTIRE classifier --
+    including the 960->1280 projection -- from random, to avoid the original
+    head's double dropout.
+
+    That is worse than a fairness gap between backbones. The projection is
+    trained during warm-up ONLY, and the protocol gives trained arms ONE
+    warm-up epoch against the post-hoc arms' thirty. So on the headline
+    backbone the trained arms began from a materially worse model than the
+    baseline they are measured against -- a bias pointing straight at the
+    comparison the paper makes.
+
+    The double dropout is avoided by setting the EXISTING Dropout's p, not by
+    adding a second one. Checked with pretrained=False, because the structure
+    is torchvision's either way: a rebuilt head has no Hardswish and no
+    960->1280 Linear, so this distinguishes them without downloading weights.
+    """
+    import torch.nn as nn
+    from src.models import get_model
+
+    p = 0.3
+    model = get_model(backbone, n_classes=8, dropout=p, pretrained=False)
+
+    heads = [m for name, m in model.named_modules()
+             if name.endswith(("classifier", "heads", "fc"))]
+    assert heads, "%s exposes no recognisable head" % backbone
+    head = heads[-1]
+    layers = list(head.modules())
+
+    drops = [m for m in layers if isinstance(m, nn.Dropout)]
+    assert len(drops) == 1, (
+        "%s has %d Dropout layers in its head, not 1. The double dropout is "
+        "the defect the MobileNetV3 rebuild was introduced to avoid, and "
+        "rebuilding was a worse cure than the disease."
+        % (backbone, len(drops)))
+    assert abs(drops[0].p - p) < 1e-9, (
+        "%s ignored the configured dropout p=%.2f and kept %.2f -- the fix is "
+        "to SET the existing Dropout's p, not to add another one"
+        % (backbone, p, drops[0].p))
+
+    linears = [m for m in layers if isinstance(m, nn.Linear)]
+    assert linears, "%s head has no Linear" % backbone
+    assert linears[-1].out_features == 8, (
+        "%s final layer emits %d classes, not 8"
+        % (backbone, linears[-1].out_features))
+
+    want = HEAD_SHAPE[backbone]
+    if want["projection"]:
+        a, b = want["projection"]
+        kept = [m for m in linears
+                if (m.in_features, m.out_features) == (a, b)]
+        assert kept, (
+            "%s no longer keeps its pretrained %d->%d projection. Rebuilding "
+            "the whole classifier discards a layer that only warm-up trains, "
+            "and trained arms get ONE warm-up epoch against the post-hoc "
+            "arms' thirty -- so the loss lands entirely on the treated side "
+            "of the headline comparison. Mutate the head in place: set the "
+            "existing Dropout's p and replace head[-1] only."
+            % (backbone, a, b))
+        assert any(type(m).__name__ == want["activation"] for m in layers), (
+            "%s head has no %s, so it is not torchvision's head any more -- "
+            "it was rebuilt" % (backbone, want["activation"]))
+
+
 def test_no_test_in_this_file_states_a_lesson_without_a_DATE():
     """The convention that makes this catalogue re-checkable (2026-09-02).
 
