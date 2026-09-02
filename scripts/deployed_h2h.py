@@ -176,19 +176,36 @@ def seeds_needed(diffs):
 
 
 def rng_floor(cell, get):
-    """Median |arm - its own reseed twin| over every arm that has one.
+    """Median |NULL - its own reseed twin|, per family. The RNG-only noise.
 
-    This is the noise an arm-vs-arm contrast actually faces on this design:
-    `tralo` and `tralo_reseed` differ in the RNG stream and in nothing else, so
-    whatever separates them is not a method.
+    🛑 CORRECTED 2026-09-02, and the old version was measuring the treatment.
+    It paired `tralo` with `tralo_reseed` and asserted they "differ in the RNG
+    stream and in nothing else". They do not. `configs/protocol.yml` builds
+    `tralo_reseed` from blocks `[constraint_phase, tralo_null, tralo_reseed]`,
+    so it INHERITS `tralo_null`'s `lambda_step: 0.0` and adds only
+    `rng_reseed: True`. `tralo_reseed` is a lambda=0 arm. So
+    `|tralo - tralo_reseed|` is a TREATED-vs-UNTREATED contrast carrying the
+    very effect the floor is supposed to be measured against.
+
+    The RNG-only pair is `fam_null` vs `fam_reseed` -- both lambda=0, differing
+    in the RNG stream and nothing else. That is what this now computes.
+
+    ⚠️ THE DIRECTION OF THE ERROR IS THE OPPOSITE OF THE OBVIOUS ONE, so do not
+    "fix" it back. Measured on dom1 over 24 paired cell-seeds in captured TP
+    items: the old contaminated floor is median **4.0**, the true RNG-only floor
+    is median **6.5**, and the treatment itself is median +7.5 (19/24 positive).
+    The contaminated floor was too LOW, not too high, so the tool was
+    REFUSING TOO SELDOM -- it named a #1 in cells where the true noise already
+    covered the spread. Correcting it makes this tool MORE conservative and
+    makes "the head-to-head is inside the noise" a stronger statement, not a
+    weaker one.
     """
     gaps = []
-    for arm, seedmap in cell.items():
-        twin = reseed_of(arm)
-        if not twin or twin not in cell:
-            continue
-        d, _ = paired(seedmap, cell[twin], get)
-        gaps += [abs(x) for x in d]
+    for fam in FAMILIES:
+        a, b = fam + "_null", fam + "_reseed"
+        if a in cell and b in cell:
+            d, _ = paired(cell[a], cell[b], get)
+            gaps += [abs(x) for x in d]
     return (st.median(gaps), len(gaps)) if gaps else (None, 0)
 
 
@@ -327,10 +344,13 @@ def self_test(w=sys.stdout.write):
     g = lambda r: float(r["TP"])
 
     # 1. a REAL separation, with a tight RNG floor, must be NAMED.
+    # The floor is now |null - reseed|, both lambda=0. A TIGHT floor means
+    # those two agree; the treated arm's own level is irrelevant to it.
     live = _cell({"clip":         [600, 601, 599, 600],
                   "tralo":        [640, 641, 639, 640],
                   "alm":          [610, 611, 609, 610],
-                  "tralo_reseed": [640, 641, 639, 640]})
+                  "tralo_null":   [600, 601, 599, 600],
+                  "tralo_reseed": [600, 601, 599, 600]})
     order, first = rank_cell(live, "clip", g)
     floor, _ = rng_floor(live, g)
     spread = order[0][1] - order[-1][1]
@@ -342,7 +362,8 @@ def self_test(w=sys.stdout.write):
     dead = _cell({"clip":         [600, 601, 599, 600],
                   "tralo":        [604, 606, 601, 605],
                   "alm":          [605, 602, 606, 601],
-                  "tralo_reseed": [600, 605, 603, 604]})
+                  "tralo_null":   [600, 601, 599, 600],
+                  "tralo_reseed": [604, 597, 603, 596]})
     order, first = rank_cell(dead, "clip", g)
     floor, nf = rng_floor(dead, g)
     spread = order[0][1] - order[-1][1]

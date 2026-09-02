@@ -12,6 +12,211 @@ report the conflict instead.
 
 ---
 
+## 0. Corrections from adversarial review (2026-09-02)
+
+Three independent reviewers attacked this document — loss mathematics,
+experimental statistics, theoretical framing — each instructed to verify against
+source rather than trust the prose. **Everything below was then re-verified
+here before being accepted.** Findings I could not reproduce are not listed.
+
+### 0.1 A defect in the RNG floor, and it is in the shipped scorer
+
+`configs/protocol.yml` builds `tralo_reseed` from blocks
+`[constraint_phase, tralo_null, tralo_reseed]`. It therefore **inherits
+`tralo_null`'s `lambda_step: 0.0`** and adds only `rng_reseed: True`.
+`tralo_reseed` **is a lambda = 0 arm.**
+
+So `|tralo − tralo_reseed|` is a *treated-vs-untreated* contrast, not an
+RNG-only one — and `scripts/deployed_h2h.rng_floor` was computing exactly that
+while its docstring asserted the two "differ in the RNG stream and in nothing
+else". The genuine RNG-only pair is `tralo_null` vs `tralo_reseed`.
+
+Measured on `dom1`, 24 paired cell-seeds, captured TP items over classes 2+7:
+
+| contrast | median | mean | what it is |
+|---|---|---|---|
+| `\|tralo − tralo_reseed\|` | **4.0** | 5.50 | what the floor *used* |
+| `\|tralo_null − tralo_reseed\|` | **6.5** | 8.62 | the true RNG-only floor |
+| `(tralo − tralo_null)` signed | **+7.5** | +9.21 | the treatment, 19/24 positive |
+
+🔑 **The direction of the error is the opposite of the obvious one.** The
+contaminated floor was too **low**, so the tool was refusing too *seldom*. The
+correction makes `deployed_h2h` more conservative and makes §8.1's "the
+head-to-head is inside the noise" a **stronger** statement. Fixed, with the
+self-test fixtures rebuilt around the lambda = 0 pair.
+
+⚠️ **`MIN_PRIZE = 3.0` in `configs/task_windows.yml` was derived from the same
+contaminated quantity.** On this evidence the RNG-only floor is ~6.5 items, so
+the prize bar is roughly half what it should be — and that bar gates the task
+windows, which gate the strict-cell set, which gates the unit ledger, which
+gates the headline. **Not yet re-derived. This is the highest-priority open
+item and it propagates.**
+
+### 0.2 §3.2's chain rule was wrong, and the correction strengthens the claim
+
+The document stated `d penalty / d z_ic = penalty'(S) · p_ic(1 − p_ic)`. That is
+the **single-capped-class** expression. The protocol caps **two** classes, and
+softmax couples them. The true gradient of the shipped loss is
+
+```
+    dL/dz_ij  =  sum over capped c of  pen_c'(S_c) · p_ic · (delta_cj − p_ij)
+```
+
+Verified against fp64 autograd on the shipped penalty with two binding budgets:
+the document's formula errs by **5.98e-03**; the full-Jacobian expression is
+exact to **3.5e-18**. Consequences the old formula denied:
+
+* the **cross term** `− pen_7'(S_7) p_i7 p_i2` reaches **1.131×** the diagonal
+  term, and can flip the sign of the net push on the capped logit — measured:
+  1 sign disagreement in 200 items;
+* the penalty also pushes **uncapped** logits (max |grad| 5.98e-03 where the
+  document implied exactly zero) — a second reordering channel;
+* the per-item scalar is not one scalar: with local scopes it is
+  `lambda_g pen'(S_c) + lambda_{(g(i),c)} pen'(S_{g(i),c})`, which varies **by
+  group** (14 groups, 7 of them permanently active at K = 0).
+
+Every omitted term is *also* item-dependent, so §3.2's conclusion — the penalty
+reorders — survives and is reinforced. But nothing quantitative may be built on
+`pen' · p(1−p)` as an equality.
+
+### 0.3 The "harmless path" is harmless for one capped class only
+
+Subtracting a constant from `z_c` preserves class `c`'s order exactly (verified:
+order identical, all `p_ic` fell). But with **two** capped classes it reorders
+the *sibling*: a −1.0 shift on class 2 changes class 7's top-K by **3 items at
+K = 50, 11 at K = 200, 41 at K = 800** (n = 5000). So "the cap is satisfiable
+with zero reordering" is a theorem for |Ccap| = 1 and false for the protocol
+actually run. The same qualifier applies to §8.8's "only an update confined to
+`b_c` provably cannot reorder".
+
+### 0.4 §3.5 is a heuristic, not a theorem
+
+"A new count can only matter if it changes the direction" ignores the **value**
+channel: `src/methodologies/tralo/train.py` gates the entire backward on
+`has_constraint = total_constraint > 0`. A count whose *value* can reach `≤ K`
+switches whole epochs off that `sum p` — permanently violated at K = 0 groups —
+would have pushed. The repo's own `cut_window_count` records the extreme case: a
+count pinned at `K − 0.5`, reporting excess 0.2 against a true 636.4, which
+"cannot push" **with no direction change at all**.
+
+### 0.5 Statistical claims that did not survive
+
+* **`items = d(F1)·(K+n)/2` is exact per class only.** The reported cc-F1 is
+  macro-averaged over two classes with different `(K+n)` (666 and 820 at
+  dom1/MNv2/L80_G95), so `d(macro)` lives on a **two-quantum lattice** and the
+  single-scale inversion over-states a class-2-only move by **1.116×** and
+  understates a class-7-only move by **0.906×**. §5.1 presented the algebra
+  clean; `paper_rows.py` and FRAMEWORK 2(z26) already carry the caveat.
+* **The "1.9–9.9 items" headroom figure is from dermmnist** — the removed,
+  leaking dataset (`full_panel.py` says so at the definition site). On iwildcam
+  `ceiling_screen` gives 0.21–0.58 items at the old tight caps and 13.5–24.9 at
+  the live loose caps. §5.1's calibration paragraph is wrong-dataset.
+* **"1 of 158 rows clears 2 sd" is the chance expectation, not a finding.** The
+  bar `|d| ≥ 2·sd` with `d` a 4-seed mean and `sd` the per-seed scale is a Welch
+  `t ≥ 4` with df 3–6; over 158 rows chance alone yields ≈1.1 rows at df = 6 and
+  ≈4.4 at df = 3. The honest statement is **0 of 158 resolve beyond chance** —
+  which is *more* pessimistic than the document claimed, not less. The "sd is a
+  lower bound" gloss is also directionally unsupported: a shared warm-up implies
+  Cov ≥ 0, making the independence formula an over-estimate.
+* **The sign-test p-values are one-sided and were never labelled.** Two-sided
+  they are 0.125 / 0.0625 / 0.0078.
+* 🛑 **The shipped `paper_rows.MEASURED_UNITS` contains FOUR units** (A1, A2,
+  B1, C1), and FRAMEWORK 2(z26) states the current-recipe result as **4/4,
+  p = 0.0625**. This document's §7 claims **5/5, p = 0.031**. The two cannot both
+  be right, and the discrepancy is **unresolved as of writing**. Until it is,
+  treat the headline as 4/4, p = 0.0625.
+
+### 0.6 §8.1 does not refute dominance — it fails to measure it
+
+A ratio of medians of *absolute* differences cannot separate location from
+scale. With `sd ≈ 5.9` items, a genuine uniform **+2-item** dominance moves
+median|X| only from 3.98 to ≈4.25 — indistinguishable from 1.00×. The correct
+statement is **"dominance is unresolved at this resolution"**, not "refuted".
+Note this is *more* favourable to the thesis than what was written, and it also
+resolves the standing contradiction between §7 ("leads all four rival duals")
+and §8.1 ("dominance refuted") — both were over-claims in opposite directions.
+
+### 0.7 §1.2's transductivity argument does not hold
+
+The claim that sample-specific budgets are "the only reason a training-time
+method could beat a test-time one" is wrong: the post-hoc allocator sees the
+budgets too, so there is **no information surplus**. Auditing the information
+sets, the trained arm knows nothing the post-hoc arm cannot. What actually
+differs, at equal compute, is the **set of reachable rankings** — an
+optimisation-geometry object, not an information one.
+
+Worse for the current framing: given the *true* posterior, the optimal feasible
+labelling is an assignment LP over the posterior and the budgets — **computable
+entirely post hoc**. So no training-time method can beat post-hoc-on-the-truth,
+and the thesis question reduces to whether ~14 bag-marginal numbers improve a
+*finite-sample* ranking estimate already trained on thousands of labels. That is
+an LLP question, and LLP theory says bag marginals are weak supervision.
+
+### 0.8 §9.2 is not one theorem — but a real theorem package sits just below it
+
+The strong conjecture is **false**: a constructed two-cluster feature geometry
+with a shared linear head produces a strict, deterministic allocation
+improvement from one aggregate-count step, and **TENT** (Wang et al., ICLR 2021)
+is a published counterexample — test-batch entropy minimisation is a separable,
+permutation-invariant, multiset-only objective that demonstrably helps.
+
+What *is* provable, and covers TraLO, every φ-count variant, and all four rival
+duals:
+
+1. **No value-level selection.** `L` is invariant under permuting test items
+   (CE never reads them; every `S = Σφ(p_ic)` is symmetric), so `L` is a function
+   of the *multiset* while the `clip` allocation is a function of the *ranks*.
+   Any procedure reading only values of `L` cannot prefer a correct ordering
+   over the worst ordering with the same multiset.
+2. **The budget enters only as a scalar gain.** `∇_θ P = a(t)·V(θ)` with
+   `a(t) = λ(t)·ψ'(S;K) ≥ 0` and `V(θ)` **independent of K**. The budget's
+   information is reduced by the mechanism to a few non-negative scalars.
+3. **Corollary — the four duals are one family.** They differ only in the gain
+   schedule `μ(t)`, spanning the same cone. Their deployed differences *should*
+   sit at the noise floor. **§8.1 is therefore a confirmed prediction, not an
+   embarrassment.**
+4. **Binary + decoupled ⇒ provable invariance.** The order is preserved for all
+   time; the reordering channel exists only through softmax coupling (C ≥ 3) and
+   weight sharing.
+5. **Conditional harm lemma.** If current scores exhaust the available label
+   information (`P(y=c|·) = q(s)`, q nondecreasing), any label-blind reordering
+   has non-negative expected deficit. Applied to §8.3's own numbers:
+   `73 × (0.688 − 0.301) ≈ −28.3` predicted against **−30.4 measured**.
+
+Also corrected: §2's "both allocators are functions of the ranking" is **false
+for the LP**, which maximises a linear functional of cardinal values — a
+within-class monotone recalibration can flip its optimum with all rankings
+intact. §8.4's invariance argument is exact for `clip` only, and only up to the
+multiclass renormalisation channel (`p'_ic = w_c p_ic / Σ_k w_k p_ik` is not
+within-class monotone for C ≥ 3).
+
+### 0.9 What the reviewers agree the thesis should become
+
+All three converge: **the negative structural result is the stronger and more
+defensible thesis**, provided it renounces *impossibility* and claims instead:
+no selection pressure (proved), provable invariance in degenerate regimes
+(proved), expected harm under measured monotone calibration (proved
+conditionally, and it predicts §8.3 to ~7%), and measured nulls here.
+
+Two blocking inconsistencies must be fixed first: **§7 vs §8.3** (5/5 positive
+vs its own twin, against 16/16 negative vs the same twin — presumably different
+corpora, never stated), and the **asymmetric corpus boundary** (§10 restricts the
+corpus to one recipe; the positives obey it, the negative mechanism numbers in
+§8.3/§8.5/§8.6 quote archived off-recipe campaigns).
+
+### 0.10 The decisive experiment nobody has run
+
+For §9.3's warm-up confound: a **budget-permuted twin** — identical code and
+schedule, budgets permuted across groups within a class. By the scalar-gain
+lemma this changes *only* the gain trajectory, leaving the field direction
+untouched, so it is the closest matched control obtainable. If the effect
+survives permutation, the budgets are not doing the work and both the
+transductive claim and the constraint claim fail. If it dies, the constraint
+claim survives its strongest available test. **This is cheap and it is the next
+campaign.**
+
+---
+
 ## 1. The problem
 
 ### 1.1 Setting
@@ -147,14 +352,21 @@ The penalty is a function of the aggregate `S_c = sum_i p_ic`. By the chain
 rule, the per-item derivative is
 
 ```
-    d penalty / d p_ic  =  penalty'(S) ,   the SAME scalar for every i
+    d penalty / d p_ic  =  penalty'(S) ,   the same scalar within one (class, scope) term
 ```
 
-but `p_ic` is a softmax output, so `d p_ic / d z_ic = p_ic (1 - p_ic)`, giving
+⚠️ **CORRECTED — see §0.2.** The full gradient of the shipped loss, over both
+capped classes and every scope, is
 
 ```
-    d penalty / d z_ic  =  penalty'(S) * p_ic (1 - p_ic)
+    dL/dz_ij  =  sum over capped c of  pen_c'(S_c) * p_ic * (delta_cj - p_ij)
 ```
+
+The single-capped-class collapse `pen'(S) * p_ic(1 - p_ic)` is what this
+section originally stated; it omits a cross-class term reaching 1.131x the
+diagonal, omits the push on uncapped logits, and hides the per-group variation
+of the scalar. Use it for intuition about the `p(1-p)` profile, never as an
+equality.
 
 **So the penalty pushes different items by different amounts, peaking at
 `p = 1/2`, and therefore reorders the class.** This is not a side effect — it is
@@ -163,11 +375,16 @@ allocator at all.
 
 The measured consequence is Section 8.3 and it is negative.
 
-**The harmless path exists and the loss does not take it.** The cap is
-satisfiable with *zero* reordering: subtract a constant from the capped class's
-logit, and every `p_ic` falls monotonically while the within-class order is
-exactly preserved. Nothing in the objective values the order, so nothing selects
-this path.
+**The harmless path exists and the loss does not take it.** Subtract a constant
+from the capped class's logit: every `p_ic` falls monotonically and the
+within-class order is exactly preserved. Nothing in the objective values the
+order, so nothing selects this path — and worse, it is *anti*-selected, since
+steepest descent concentrates the demotion on mid-`p` items precisely because
+that maximises count-change per unit step norm.
+
+⚠️ **But "zero reordering" holds for ONE capped class only (§0.3).** With
+classes 2 and 7 both capped, a bias shift on `z_2` reorders class 7 — measured
+at 3 / 11 / 41 items moved at K = 50 / 200 / 800.
 
 ### 3.3 Schedule
 
