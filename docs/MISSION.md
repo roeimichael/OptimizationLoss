@@ -13,7 +13,7 @@ fronts the pipeline, see 0-CLEAN).
 
 ## 🛑 0-NOW. READ `docs/COVERAGE.md` BEFORE ANY NUMBER BELOW (2026-09-02)
 
-Three findings from today supersede parts of every section that follows.
+Four findings from today supersede parts of every section that follows.
 
 **1. The head-to-head between the four duals is measuring the RNG.** Scored on
 the AS-DEPLOYED predictions in exact captured items over 19 cells
@@ -36,6 +36,27 @@ its OWN re-derived equal-budget allocation, not the deployed file, and the two
 disagree in RANK ORDER: at `dom1`/MNv2/`L80_G95` the panel puts `tralo` +5.77
 over `alm` +5.49 while both capture **exactly 2602 items**. The ordering is a
 macro-averaging artefact over two classes whose `(K+n)` differ.
+
+**4. Two of the four "rival duals" are ONE method, and TraLO's 83-degree
+direction difference changes nothing.** Every trained arm's constraint gradient
+is `sum_j c_j * dS_j/dtheta` with `c_j >= 0`, and `constraint_grad_mode:
+normalize` rescales the result to exactly `constraint_grad_clip` -- scaling UP
+below the bound, not only down -- so the magnitude is discarded. At a fixed
+model state `fioretto_alm` and `fioretto_ldf` both build weights proportional
+to `relu(S_j - K_j)`: **cos = 1.0000 in 192 of 192 stored states**
+(`scripts/dual_cone_probe.py`). On the deployed predictions
+`|alm - fioretto|` is **0.83x the RNG floor**. So the paper's "four duals" is
+THREE, and a dominance claim counting them separately counts one comparison
+twice.
+
+🔑 The sharper half: `tralo` IS a different direction -- median cosine **+0.11
+against the duals, 83 degrees, and >60 degrees in 124 of 192 states**, sometimes
+anti-aligned at -0.86 -- and **every trained-arm contrast still sits at or below
+the RNG floor** (2.0 to 3.5 items against a floor of 3.0). A constraint
+direction can be rotated most of a right angle with no measurable effect on what
+is emitted. That is the strongest form of the structural null this project has,
+and it is evidence FOR section 4's account, not against it. FRAMEWORK 2(z28),
+gated by two mutation-tested regression tests.
 
 ⚠️ **AND THE CAP SCREEN THAT CHOSE THESE CAMPAIGNS' CAPS WAS WRONG.**
 `task_window` counted the PRIZE over a GLOBAL top-K while every allocator here

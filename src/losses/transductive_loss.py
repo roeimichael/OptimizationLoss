@@ -94,10 +94,30 @@ def uniform_grad_count(proba):
     always exists; the shipped loss simply does not take it, because nothing in
     the objective values the order. So take it explicitly.
 
-    The right coordinate is the log-odds `u_ic = log(p_ic / (1 - p_ic))`,
+    The chosen coordinate is the log-odds `u_ic = log(p_ic / (1 - p_ic))`,
     because `u_c = z_c - log sum_{k != c} exp(z_k)` gives `du_c/dz_c = 1`
-    EXACTLY -- a uniform step in u is a uniform step in the class logit, which
-    is a pure bias shift, which cannot reorder. So:
+    EXACTLY.
+
+    ⛔ **THE ARGUMENT THAT FOLLOWED FROM THAT USED TO END "...so a uniform step
+    in u is a uniform step in the class logit, which is a pure bias shift,
+    which cannot reorder". IT IS FALSE, AND IT IS FALSE ONE STEP EARLIER THAN
+    `bias_shift_probe` SAYS.** That probe refutes the claim in PARAMETER space.
+    It also fails in LOGIT space, which is elementary and needs no model:
+    `du_c/dz_c = 1` is only the diagonal, and the off-diagonal is
+
+        du_c/dz_j = -p_j / (1 - p_c)        for j != c
+
+    which is NOT zero and VARIES PER ITEM. Verified against autograd in float64
+    (2026-09-02): the identity holds to 1.1e-16, `max |off-diagonal| = 0.825`,
+    and the per-item spread of that maximum is 0.30. So a step of equal size in
+    every item's `u_ic` still moves the other logits by item-dependent amounts,
+    and reordering is available to it before the backbone is even involved.
+
+    What survives, and it is the whole reason to keep this function: the step
+    no longer SINGLES OUT items through `p(1-p)`, which is the specific
+    differentiation measured at -30.4 items. That is a real change and it is
+    the one this arm tests. It is NOT order preservation, and nothing here may
+    be described as order-preserving. So:
 
         value      p_ic                     (exact, so the K comparison is
                                              unchanged and the penalty still

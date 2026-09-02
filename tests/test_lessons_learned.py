@@ -1100,6 +1100,150 @@ def test_a_backbone_replaces_ONLY_its_final_layer_and_keeps_ONE_dropout(backbone
             "it was rebuilt" % (backbone, want["activation"]))
 
 
+def test_normalize_mode_discards_the_gradient_MAGNITUDE_in_both_directions():
+    """`normalize` is why two dual arms collapse into one (2026-09-02).
+
+    `finish_constraint_step(mode="normalize")` must deliver a step of norm
+    EXACTLY `clip`, scaling UP when the raw norm is below the bound and down
+    when it is above. That is the whole reason `fioretto_alm` and
+    `fioretto_ldf` are not two baselines on this corpus: at any fixed model
+    state both build a weight vector proportional to `relu(S_j - K_j)`, so they
+    differ only in a scalar, and a mode that deletes the scalar deletes the
+    difference. Measured at cos = 1.0000 in 192 of 192 stored states
+    (`scripts/dual_cone_probe.py`), and the deployed contrast
+    `|alm - fioretto|` sits at 0.83x the RNG floor. FRAMEWORK 2(z28).
+
+    The NEGATIVE CONTROL is `mode="clip"`, which must NOT scale a small
+    gradient up. If both modes normalised, the test would pass while proving
+    nothing.
+    """
+    import torch
+    from src.training.constraint_step import finish_constraint_step
+
+    def deliver(mode, scale):
+        m = torch.nn.Linear(4, 3, bias=False)
+        opt = torch.optim.SGD(m.parameters(), lr=0.0)   # lr=0: measure, do not move
+        m.weight.grad = torch.full_like(m.weight, scale)
+        finish_constraint_step(m, opt, None, clip=1.0, mode=mode, fp32=True)
+        return float(torch.linalg.vector_norm(m.weight.grad))
+
+    small, big = 1e-4, 10.0
+    assert abs(deliver("normalize", small) - 1.0) < 1e-5, (
+        "mode=normalize did not scale a SMALL constraint gradient up to clip. "
+        "Then the delivered dose still depends on each arm's own scale, and "
+        "the 20x hounie/fioretto dose gap that normalize exists to remove is "
+        "back. FRAMEWORK 2(z28).")
+    assert abs(deliver("normalize", big) - 1.0) < 1e-5, (
+        "mode=normalize did not scale a LARGE constraint gradient down to clip")
+
+    assert deliver("clip", small) < 0.5, (
+        "NEGATIVE CONTROL FAILED: mode=clip scaled a small gradient UP. clip "
+        "must only shrink, or it is normalize under another name and the "
+        "corpus's two modes are one mode.")
+    assert abs(deliver("clip", big) - 1.0) < 1e-5, (
+        "mode=clip did not cap a large gradient at clip")
+
+
+def test_the_two_fioretto_arms_build_PROPORTIONAL_weights_at_a_fixed_state():
+    """ALM's dual rule is LDF's rule times a scalar (2026-09-02).
+
+    LDF accumulates `lambda_j = T * step * relu(r_j)`. ALM accumulates
+    `lambda_j = T * eta * relu(r_j)` and adds `mu_T * relu(r_j)`. At a FIXED
+    model state -- where `r_j` does not move -- both are a scalar times
+    `relu(r_j)`, so their constraint gradients are the same ray and
+    `constraint_grad_mode: normalize` makes them the same step. The paper
+    claims them as two independent duals; on this corpus they are one.
+    FRAMEWORK 2(z28).
+
+    Gated here rather than only in the probe because the probe is not run in
+    CI, and the claim is about the SHIPPED update rules: if either arm's rule
+    changes, this must go red.
+    """
+    import numpy as np
+    from scripts.dual_cone_probe import DEFAULT_CFG, arm_weights
+
+    soft = np.array([420.0, 60.0, 310.0, 15.0])
+    hard = np.array([400.0, 55.0, 300.0, 10.0])
+    K = np.array([100.0, 40.0, 0.0, 30.0])       # one slack scope, one K=0
+    sizes = np.array([2943.0, 400.0, 400.0, 220.0])
+
+    W = arm_weights(soft, hard, K, sizes, 29, DEFAULT_CFG)
+    a, b = W["fioretto_alm"][-1], W["fioretto_ldf"][-1]
+    cos = float(a @ b / (np.linalg.norm(a) * np.linalg.norm(b)))
+    assert cos > 1 - 1e-12, (
+        "fioretto_alm and fioretto_ldf no longer build proportional weights "
+        "(cos=%.12f). Either a dual rule changed -- in which case they are now "
+        "two baselines and 2(z28) must be revised -- or this test's model of "
+        "one of them drifted from src/methodologies/." % cos)
+
+    # NEGATIVE CONTROL: tralo must NOT be proportional to them, or the check
+    # is measuring a bug in arm_weights rather than a property of the rules.
+    t = W["tralo"][-1]
+    cos_t = float(t @ b / (np.linalg.norm(t) * np.linalg.norm(b)))
+    assert cos_t < 0.99, (
+        "NEGATIVE CONTROL FAILED: tralo's weights are proportional to "
+        "fioretto's too (cos=%.6f), so arm_weights is collapsing every arm "
+        "and the cos=1.0 above proves nothing." % cos_t)
+
+
+def test_a_uniform_step_in_LOG_ODDS_is_not_a_bias_shift_and_can_reorder():
+    """`uniform_grad_count`'s founding claim, refuted in LOGIT space (2026-09-02).
+
+    The docstring used to argue: `u_c = z_c - log sum_{k!=c} e^{z_k}` gives
+    `du_c/dz_c = 1` exactly, therefore a uniform step in u is a pure bias shift
+    on the class logit, therefore it cannot reorder.
+
+    The identity is true and the conclusion does not follow. `du_c/dz_c = 1` is
+    only the DIAGONAL. The off-diagonal is `du_c/dz_j = -p_j/(1-p_c)`, which is
+    nonzero and varies per item, so a step of equal size in every item's u still
+    moves the other logits by item-dependent amounts.
+
+    `scripts/bias_shift_probe.py` already refutes the claim in PARAMETER space.
+    This is the same refutation one level earlier, and it needs no model at all
+    -- which is why it belongs in the catalogue: the parameter-space argument
+    can be argued about, this one cannot.
+    """
+    import torch
+
+    torch.manual_seed(0)
+    z = torch.randn(64, 8, dtype=torch.float64, requires_grad=True)
+    p = torch.softmax(z, dim=1)
+    u = torch.log(p) - torch.log1p(-p)
+
+    J = torch.zeros(64, 8, 8, dtype=torch.float64)
+    for c in range(8):
+        J[:, c, :] = torch.autograd.grad(u[:, c].sum(), z, retain_graph=True)[0]
+
+    diag = torch.diagonal(J, dim1=1, dim2=2)
+    assert float((diag - 1).abs().max()) < 1e-10, (
+        "du_c/dz_c is no longer exactly 1, so the log-odds coordinate is not "
+        "doing what uniform_grad_count assumes")
+
+    off = J.clone()
+    for c in range(8):
+        off[:, c, c] = 0.0
+    pd = p.detach()
+    want = torch.zeros_like(off)
+    for c in range(8):
+        for j in range(8):
+            if j != c:
+                want[:, c, j] = -pd[:, j] / (1 - pd[:, c])
+    assert float((off - want).abs().max()) < 1e-9, (
+        "du_c/dz_j is no longer -p_j/(1-p_c); the algebra this lesson rests on "
+        "has changed")
+
+    assert float(off.abs().max()) > 1e-2, (
+        "the off-diagonals of du/dz came out ZERO. If that were true a uniform "
+        "step in u WOULD be a pure bias shift and uniform_grad_count's "
+        "original claim would stand. It is not true; this assertion exists so "
+        "the claim cannot quietly return to the docstring.")
+
+    per_item = off.abs().amax(dim=(1, 2))
+    assert float(per_item.max() - per_item.min()) > 1e-2, (
+        "the off-diagonal coupling is CONSTANT across items, which would make "
+        "it a shift after all. Measured spread was 0.30 on 2026-09-02.")
+
+
 def test_no_test_in_this_file_states_a_lesson_without_a_DATE():
     """The convention that makes this catalogue re-checkable (2026-09-02).
 
