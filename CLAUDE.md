@@ -52,6 +52,13 @@ data/              iwildcam -- THE ONLY dataset. The original three are removed 
                    unrunnable, not merely discouraged; see `docs/FRAMEWORK.md` 2(n)
 docs/FRAMEWORK.md  THE framework -- protocol, rejected ideas, code purge, open question
 docs/MISSION.md    THE RESUME POINT -- goal, knob ledger, priority queue
+docs/COVERAGE.md   🗺️ WHAT WE ACTUALLY HAVE vs WHAT THE PAPER NEEDS, built
+                   from all 2,671 configs in all 14 worktrees. Read BEFORE
+                   proposing a campaign. Carries THE GATE (does TraLO clear
+                   its own reseed floor? today 3/5 units -- NO) and the
+                   checklist of holes: ViTB16 has zero fioretto/hounie/alm,
+                   every run caps the same 2 classes, no symmetric cap ever,
+                   1 dataset of 3
 docs/PLAYBOOK.md   WHAT TO DO WHEN A CAMPAIGN LANDS -- the integrity gates in
                    order, how to read the logs and their three traps, and a
                    branch per outcome (win / null / loss / gates red) decided

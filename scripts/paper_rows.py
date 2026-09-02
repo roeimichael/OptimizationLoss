@@ -81,6 +81,12 @@ MEASURED_UNITS = {
     ("equaldose1", "MobileNetV2"): "A2",    # B / dsisco01
     ("dom1b", "RegNetY400MF"): "B1",        # B / dsisco01
     ("loose1", "RegNetY400MF"): "B2",       # a / dsisco02
+    # UNIT 5, md5-verified 2026-09-02. `taskwin2`'s MobileNetV3 null hashes to
+    # 1aa30e5a25 -- the B/dsisco01 model it shares with equaldose1, iwc1, iwc3
+    # and iwc4. None of those contributed a strict-task unit (their caps are
+    # L20/L30/L50 or non_task), and MobileNetV3 is a backbone absent from
+    # A1/A2/B1/B2 entirely, so this is genuinely the fifth.
+    ("taskwin2", "MobileNetV3"): "C1",      # B / dsisco01
 }
 
 # The contrasts a paper row may carry, and what each one licenses.

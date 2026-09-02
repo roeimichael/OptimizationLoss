@@ -110,6 +110,30 @@ without asking.
 
 ---
 
+## 🗺️ 0-MAP. WHERE THE COVERAGE ACTUALLY IS -- `docs/COVERAGE.md`
+
+Built 2026-09-02 from every `config.json` in all 14 worktrees (2,671 configs,
+2,367 completed), not from a campaign list. Read it before proposing a
+campaign. The four holes, in order of size:
+
+1. 🛑 **`ViTB16` -- the a-priori HEADLINE -- has ZERO runs of `fioretto`,
+   `hounie` or `alm`.** The paper's core comparison has never been run on the
+   backbone the paper leads with. All four duals exist on the other three.
+2. 🛑 **Every iwildcam run constrains the SAME two classes, `[2, 7]`** --
+   400 of 400 configs checked. One class, three, four, or a different pair:
+   never run.
+3. 🛑 **No symmetric (`L == G`) cap has ever been run on iwildcam**, and 4 of
+   the 9 tags have an INERT global cap. Only `L50_G30` and `L95_G80` bind it.
+4. 🛑 **1 dataset of 3.** `fmow` is the clean second; measure its p@K first.
+
+🔑 **AND THE GATE COMES BEFORE ALL OF IT.** `tralo` does NOT yet clear its own
+RNG floor (`vs_reseed` 3/5 units, p=0.50) and beats `clip` in 4/5 (p=0.19).
+Only the attribution contrast passes (`vs_null` 5/5, p=0.031). **Grid coverage
+of a method that has not cleared its noise floor buys nothing** -- 2,367 runs
+already say so. `docs/COVERAGE.md` states the pass condition.
+
+---
+
 ## 🛑 0-PAPER. WHAT THE CORPUS ACTUALLY SUPPORTS, 2026-09-01
 
 Broken to paper-level items with `scripts/paper_rows.py` -- one row per
