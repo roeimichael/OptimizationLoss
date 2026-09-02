@@ -4426,132 +4426,131 @@ def test_dataset_screen_NAMES_the_slice_not_the_convention():
 def test_a_launch_scripts_stated_SIZE_and_SIGN_TEST_are_arithmetic_not_prose():
     """A launch header is a pre-registration, so its numbers are claims.
 
-    `docs/launch_margin2.sh` states a cap grid, a cell count, a run count and a
-    PASS threshold with an exact binomial p beside it. Every one of those is a
-    number a human typed, and this campaign has already been re-scoped once
-    (3 cap tags -> a matched 2x2), which is exactly when such numbers go stale:
-    the size line said `9 cells x 9 arms x 4 seeds = 324` for a grid that emits
-    432. `check_parity` cannot catch it -- it reads the CONFIGS, not the prose
-    that justified them.
+    A launch header states a cell count, a run count and sometimes a PASS
+    threshold with an exact binomial p beside it. Every one of those is a
+    number a human typed, and a campaign that gets re-scoped is exactly when
+    they go stale: `launch_margin2.sh`'s size line said `9 cells x 9 arms x 4
+    seeds = 324` for a grid that emitted 432. `check_parity` cannot catch it --
+    it reads the CONFIGS, not the prose that justified them.
 
     So: re-derive the arithmetic from the flags the script actually passes to
     `gen_campaign`, and re-derive the sign-test thresholds from scratch.
+
+    ⚠️ GENERALISED 2026-09-02. This was pinned to `launch_margin2.sh` alone,
+    which was deleted in the stale-docs sweep -- `tralo_margin` has zero
+    completed runs anywhere and is filed under `unproven_arms`. Pinning a
+    general lesson to one fixture makes the lesson only as durable as the
+    fixture. It now runs over EVERY surviving launch script, so it covers four
+    live-corpus campaigns instead of one that never ran, and the optional
+    blocks are checked only where a script states them.
     """
+    import glob
     import math
     import re
 
-    src = open(os.path.join(REPO, "docs/launch_margin2.sh"),
-                encoding="utf-8").read()
-    # A SUPERSEDED banner sits ABOVE the original header and carries its own
-    # cap table -- the REPLACEMENT caps, which deliberately differ from the
-    # ones the script runs. Parsing it as the header would fail this gate on
-    # the very correction it is there to announce. Strip it, then hold the
-    # original header to the same arithmetic as before.
-    if "SUPERSEDED" in src:
-        rule = src.index(chr(10) + "# " + "=" * 20,
-                         src.index("SUPERSEDED"))
-        src = src[rule + 1:]
-    # The header is PROSE and wraps. Anchoring a pattern to one physical line
-    # makes the gate fail on a harmless reflow and -- worse -- pass if someone
-    # reflows a threshold out of existence. Strip the comment markers and
-    # collapse whitespace, so the checks below read meaning, not layout.
-    flat = re.sub(r"\s+", " ", re.sub(r"(?m)^#", "", src))
-
-    # The invocation spans several lines with continuations, so join them
-    # before tokenising -- a regex that stops at the newline reads 5 of the
-    # 7 arms and silently under-counts the campaign by 192 runs.
-    body = src[src.index('gen_campaign'):]
-    toks = re.sub('\\\\\\s*\\n\\s*', ' ', body).split()
-
-    def flag(name):
-        assert '--' + name in toks, (
-            'launch_margin2.sh passes no --%s' % name)
-        vals = []
-        for t in toks[toks.index('--' + name) + 1:]:
-            if t.startswith('--'):
-                break
-            vals.append(t)
-        assert vals, '--%s is passed with no value' % name
-        return vals
-
-    models, caps, arms = flag("models"), flag("caps"), flag("arms")
-    # gen_campaign ALWAYS adds both clippers; CLAUDE.md rule 2 and the
-    # generator's own assertion. They are cells' arms too and must be counted.
-    n_arms = len(set(arms) | {"clip", "focal_clip"})
-    cells = len(models) * len(caps)            # one dataset: iwildcam
-    runs = cells * n_arms * 4                  # 4 seeds, the atomic cell
-
-    m = re.search(r"#\s+size\s+(\d+) cells x (\d+) arms x (\d+) seeds = (\d+) runs", src)
-    assert m, "no parseable `size` line in the header"
-    said = tuple(int(g) for g in m.groups())
-    assert said == (cells, n_arms, 4, runs), (
-        "the header says %s but the flags give %s cells x %s arms x 4 seeds "
-        "= %s runs" % (said, cells, n_arms, runs))
-
-    # every cap tag named in the header's table must be one the script runs,
-    # and vice versa -- a table row for a cap that was dropped is a lie that
-    # reads as evidence.
-    tabled = set(re.findall(r"^#\s+(L\d+_G\d+)\s+\d+", src, re.M))
-    assert tabled == set(caps), (
-        "header cap table %s != --caps %s" % (sorted(tabled), sorted(caps)))
+    scripts = sorted(glob.glob(os.path.join(REPO, "docs", "launch_*.sh")))
+    assert scripts, (
+        "no launch scripts remain, so this gate is checking nothing. If the "
+        "pattern was retired on purpose, delete this test with it -- do not "
+        "leave a gate that passes vacuously.")
 
     def two_sided(k, n):
         tail = sum(math.comb(n, i) for i in range(min(k, n - k) + 1))
         return min(1.0, 2.0 * tail / float(2 ** n))
 
-    # the PASS threshold, and the value it is contrasted against, are both
-    # asserted so neither can drift from the cell count.
-    m = re.search(r"PASS = positive in >= (\d+) of (\d+) \(p = 2\*(\d+)/(\d+) = ([\d.]+)\)", flat)
-    assert m, "the primary PASS threshold is not stated in a checkable form"
-    k, n, num, den, p = (int(m.group(1)), int(m.group(2)), int(m.group(3)),
-                         int(m.group(4)), float(m.group(5)))
-    assert n == cells, "PASS is stated over %d cells, the grid has %d" % (n, cells)
-    assert den == 2 ** n, "2^%d is %d, not %d" % (n, 2 ** n, den)
-    assert num == sum(math.comb(n, i) for i in range(k, n + 1))
-    assert abs(two_sided(k, n) - p) < 5e-5, (
-        "%d of %d is p=%.4f, header says %.4f" % (k, n, two_sided(k, n), p))
-    assert p < 0.05, "the stated PASS threshold does not actually pass"
-    # and the near miss must be stated as a FAIL, so nobody reads k-1 as a win
-    m = re.search(r"(\d+) of (\d+) is p = ([\d.]+) and does NOT pass", flat)
-    assert m and int(m.group(1)) == k - 1 and int(m.group(2)) == n, (
-        "the header does not state the near-miss cell count as a failure")
-    assert abs(two_sided(k - 1, n) - float(m.group(3))) < 5e-5
-    assert two_sided(k - 1, n) >= 0.05
+    checked_size = checked_pass = checked_table = 0
+    for path in scripts:
+        name = os.path.basename(path)
+        src = io.open(path, encoding="utf-8").read()
+        # A SUPERSEDED banner sits ABOVE the original header and carries its
+        # own cap table -- the REPLACEMENT caps, which deliberately differ from
+        # the ones the script runs. Parsing it as the header would fail this
+        # gate on the very correction it is there to announce.
+        if "SUPERSEDED" in src:
+            rule = src.index(chr(10) + "# " + "=" * 20, src.index("SUPERSEDED"))
+            src = src[rule + 1:]
+        # The header is PROSE and wraps. Anchoring to one physical line makes
+        # the gate fail on a harmless reflow and -- worse -- pass if someone
+        # reflows a threshold out of existence.
+        flat = re.sub(r"\s+", " ", re.sub(r"(?m)^#", "", src))
 
-    # the regime split must PARTITION the cells, not overlap or leave a gap:
-    # a secondary stated over more cells than exist is unfalsifiable.
-    m = re.search(r">= (\d+) of the (\d+) TIGHT cells AND >= (\d+) of the (\d+) LOOSE", flat)
-    assert m, "the regime-consistency secondary is not stated in a checkable form"
-    assert int(m.group(2)) + int(m.group(4)) == cells, (
-        "TIGHT %s + LOOSE %s != %d cells" % (m.group(2), m.group(4), cells))
+        if "gen_campaign" not in src:
+            continue
+        # The invocation spans several lines with continuations, so join them
+        # before tokenising -- a regex that stops at the newline reads 5 of the
+        # 7 arms and silently under-counts the campaign by 192 runs.
+        body = src[src.index("gen_campaign"):]
+        toks = re.sub("\\\s*\n\s*", " ", body).split()
 
-    # macroF1 is the metric the user has had to ask for twice. It is a NAMED
-    # secondary here, and this gate is what keeps it named.
-    assert "macroF1 AND uncF1" in flat, (
-        "macroF1/uncF1 dropped out of the pre-registered secondaries")
+        def flag(fname, _toks=toks, _name=name):
+            assert "--" + fname in _toks, "%s passes no --%s" % (_name, fname)
+            vals = []
+            for t in _toks[_toks.index("--" + fname) + 1:]:
+                if t.startswith("--"):
+                    break
+                vals.append(t)
+            assert vals, "%s: --%s is passed with no value" % (_name, fname)
+            return vals
 
-    # The cells are NOT independent: `verify_caps` reports that L80_G95 and
-    # L95_G80 give class 2 the same K=296, and L30_G50/L50_G30 the same K=111,
-    # so each pair is one budget through two scopes; and all four tags within a
-    # (model, seed) share one warm-up. Counting them as independent draws is
-    # the error FRAMEWORK 2(z) caught on dom1, where 8 of 9 sweeps evaporated
-    # once the unit was corrected. A pre-registration that does not name its
-    # unit will be read at whichever n flatters the result.
-    assert "(model, seed)" in flat, (
-        "the header never names its independent unit -- with two matched cap "
-        "pairs and a shared warm-up, `12 cells` is not 12 independent draws")
-    assert re.search(r"sign test over the \d+ independent \(model, seed\) units",
-                     flat), (
-        "the primary must state that its sign test runs over independent "
-        "(model, seed) units, not over cells")
+        models, caps, arms = flag("models"), flag("caps"), flag("arms")
+        # gen_campaign ALWAYS adds both clippers; CLAUDE.md rule 2 and the
+        # generator's own assertion. They are cells' arms too and must count.
+        n_arms = len(set(arms) | {"clip", "focal_clip"})
+        cells = len(models) * len(caps)            # one dataset: iwildcam
+        runs = cells * n_arms * 4                  # 4 seeds, the atomic cell
 
+        m = re.search(
+            r"#\s+size\s+(\d+) cells x (\d+) arms x (\d+) seeds = (\d+) runs",
+            src)
+        assert m, "%s has no parseable `size` line in its header" % name
+        said = tuple(int(g) for g in m.groups())
+        assert said == (cells, n_arms, 4, runs), (
+            "%s says %s but the flags give %s cells x %s arms x 4 seeds = %s "
+            "runs" % (name, said, cells, n_arms, runs))
+        checked_size += 1
 
-# ---------------------------------------------------------------------------
-# Per-class cap fractions (FRAMEWORK 2(z16)). The two capped classes on
-# iwildcam have task windows that DO NOT OVERLAP on MobileNetV3, so one
-# fraction for both cannot express a valid experiment. These gates protect the
-# backward compatibility of every config written before that existed.
-# ---------------------------------------------------------------------------
+        # every cap tag named in the header's table must be one the script
+        # runs, and vice versa -- a table row for a dropped cap is a lie that
+        # reads as evidence. Only some headers carry a table.
+        tabled = set(re.findall(r"^#\s+(L[\d-]+_G\d+)\s+\d+", src, re.M))
+        if tabled:
+            assert tabled == set(caps), (
+                "%s: header cap table %s != --caps %s"
+                % (name, sorted(tabled), sorted(caps)))
+            checked_table += 1
+
+        # the PASS threshold, and the value it is contrasted against, are both
+        # asserted so neither can drift from the cell count.
+        m = re.search(
+            r"PASS = positive in >= (\d+) of (\d+) \(p = 2\*(\d+)/(\d+) = ([\d.]+)\)",
+            flat)
+        if m:
+            k, n, num, den, p = (int(m.group(1)), int(m.group(2)),
+                                 int(m.group(3)), int(m.group(4)),
+                                 float(m.group(5)))
+            assert n == cells, (
+                "%s: PASS is stated over %d cells, the grid has %d"
+                % (name, n, cells))
+            assert den == 2 ** n, "%s: 2^%d is %d, not %d" % (name, n, 2 ** n, den)
+            assert num == sum(math.comb(n, i) for i in range(k, n + 1))
+            assert abs(two_sided(k, n) - p) < 5e-5, (
+                "%s: %d of %d is p=%.4f, header says %.4f"
+                % (name, k, n, two_sided(k, n), p))
+            assert p < 0.05, (
+                "%s: the stated PASS threshold does not actually pass" % name)
+            # the near miss must be stated as a FAIL, so nobody reads k-1 as a win
+            m2 = re.search(r"(\d+) of (\d+) is p = ([\d.]+) and does NOT pass", flat)
+            assert m2 and int(m2.group(1)) == k - 1 and int(m2.group(2)) == n, (
+                "%s does not state the near-miss cell count as a failure" % name)
+            assert abs(two_sided(k - 1, n) - float(m2.group(3))) < 5e-5
+            assert two_sided(k - 1, n) >= 0.05
+            checked_pass += 1
+
+    assert checked_size >= 4, (
+        "only %d launch script(s) had a checkable `size` line; the four "
+        "live-corpus campaigns (dom1, dom1b, equaldose1, uniform1) all carry "
+        "one, so this gate has lost coverage" % checked_size)
+
 
 def _cap_df():
     import pandas as pd

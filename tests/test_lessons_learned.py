@@ -626,8 +626,11 @@ EM_DASH_BASELINE = {
     "main_edited_by_roei.tex": 47,   # the paper of record
     "main_rev.tex": 83,
     "main_clean.tex": 74,
-    "main_old.tex": 23,
 }
+# `main_old.tex` (pre-TMLR history, baseline 23) was DELETED 2026-09-02 in the
+# stale-docs sweep: nothing read it and CLAUDE.md listed it as not live. Git
+# history is its archive. Removing the row is the deliberate declaration the
+# `missing` branch of this test exists to force.
 
 # The live manuscripts, per CLAUDE.md. The other three are snapshots: a fix
 # applied to them has no effect on anything anyone reads.

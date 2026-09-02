@@ -843,7 +843,7 @@ pipeline -- there is no setting to get wrong. Same for the CE-saturation skip
 `docs/paper/main.tex` is the professor's file -- **never edit it**. Edit `docs/paper/main_edited_by_roei.tex`.
 Appendix tables stay in the appendix.
 
-**Five manuscripts sit in `docs/paper/`. `main_edited_by_roei.tex` is the paper of
+**Four manuscripts sit in `docs/paper/`. `main_edited_by_roei.tex` is the paper of
 record** -- it is the one to edit and the one to read a claim out of.
 
 | File | What it is | Reads |
@@ -852,10 +852,12 @@ record** -- it is the one to edit and the one to read a claim out of.
 | `main.tex` | the professor's file. **Never edit** | `tables/` |
 | `main_rev.tex` | the revision `main_edited_by_roei` was branched from | `tables/` + `tables_rev/` |
 | `main_clean.tex` | a de-marked-up snapshot | `tables/` + `tables_clean/` |
-| `main_old.tex` | pre-TMLR history | `tables/` |
 
-Only the first two are live. A fix applied to one of the other three has no
-effect on anything anyone reads.
+Only the first two are live. A fix applied to either of the other two has no
+effect on anything anyone reads. `main_old.tex` (pre-TMLR) was deleted
+2026-09-02 along with 11 one-off `docs/launch_*.sh` wrappers, the dermmnist
+`data/dynamics/` tree and two orphaned scouting notes -- 98 files, 10,228
+lines, none of them referenced by anything. Git history is the archive.
 
 **EIGHT of the eleven tables in `docs/paper/tables/` regenerate from
 `docs/paper/data/corpus/corpus_final.csv` byte-for-byte** via
