@@ -75,12 +75,16 @@ import sys
 #
 # An entry ABSENT here is UNVERIFIED, not independent -- the default must not
 # be the flattering one.
+# ARCHIVED 2026-09-02: `loose1` ran `constraint_grad_mode: clip`, not the
+# current `normalize`, so it is not the same method. It supplied the old "B2"
+# and half of "A1". Removing it LOSES NOTHING on MobileNetV2 -- loose1's
+# `tralo` there is byte-identical to dom1's in 4/4 seeds, because `clip` scales
+# by min(raw_norm, 1.0) and IS `normalize` wherever the raw norm is >= 1 -- and
+# it REMOVES the one dissenting unit, which was measured on the wrong recipe.
 MEASURED_UNITS = {
     ("dom1", "MobileNetV2"): "A1",          # a / dsisco02
-    ("loose1", "MobileNetV2"): "A1",        # a -- md5-identical to dom1, 4/4
     ("equaldose1", "MobileNetV2"): "A2",    # B / dsisco01
     ("dom1b", "RegNetY400MF"): "B1",        # B / dsisco01
-    ("loose1", "RegNetY400MF"): "B2",       # a / dsisco02
     # UNIT 5, md5-verified 2026-09-02. `taskwin2`'s MobileNetV3 null hashes to
     # 1aa30e5a25 -- the B/dsisco01 model it shares with equaldose1, iwc1, iwc3
     # and iwc4. None of those contributed a strict-task unit (their caps are

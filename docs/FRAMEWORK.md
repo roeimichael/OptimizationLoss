@@ -8156,6 +8156,40 @@ backbones and numerics"**, never "across datasets". The second dataset question
 
 ---
 
+### 2(z26-CORRECTED) 🛑 **THE UNIT TABLE BELOW CARRIED A STALE-RECIPE UNIT**
+
+Corrected 2026-09-02. The reading below was computed over five units, one of
+which -- `B2 = loose1 / RegNetY400MF` -- ran `constraint_grad_mode: clip`, not
+the current `normalize`. It is a **different method**, and it was the single
+unit that dissented on all three contrasts. `loose1` is archived.
+
+**On the current recipe only (4 units, `docs/COVERAGE.md`):**
+
+| contrast | was (5 units, mixed recipe) | now (4 units, one recipe) |
+|---|---|---|
+| `tralo` vs `clip` | 4/5, p=0.188 | **4/4, p=0.0625** |
+| `tralo` vs its own null | 5/5, p=0.031 | 4/4, p=0.0625 |
+| `tralo` vs `tralo_reseed` | 3/5, p=0.500 | **3/4, p=0.3125** |
+| #1 of four duals | 3/6 cells | 3/6 cells |
+
+⚠️ **Removing `loose1` costs no MobileNetV2 data**: its `tralo` there is
+byte-identical to `dom1`'s in 4/4 seeds despite a different `grad_mode` and a
+different `code_version`, because `clip` scales by `min(raw_norm, 1.0)` and IS
+`normalize` wherever the raw norm is >= 1. The two modes coincide exactly in
+that regime. Measured 2026-09-02, not assumed.
+
+🛑 **THE GENERAL LESSON, AND IT IS THE THIRD TIME.** A corpus assembled by
+campaign NAME rather than by RECIPE mixes methods. Five distinct TraLO
+configurations existed across 277 completed `tralo` runs; only 106 were the
+current one. Group by `(constraint_fp32, constraint_grad_mode, code_version)`
+BEFORE counting anything.
+
+**The paragraphs below are retained for the per-cell arithmetic and the power
+tables, which are unaffected. Read their unit counts as the pre-correction
+ones.**
+
+---
+
 ### 2(z26) 🛑🛑🛑 **BROKEN TO PAPER-LEVEL ITEMS, ONE ROW IN 158 RESOLVES**
 
 `scripts/paper_rows.py` (added 2026-09-01, `--self-test` gates it) emits one

@@ -110,27 +110,45 @@ without asking.
 
 ---
 
-## 🗺️ 0-MAP. WHERE THE COVERAGE ACTUALLY IS -- `docs/COVERAGE.md`
+## 🗺️ 0-MAP. THE CLEAN CORPUS -- `docs/COVERAGE.md`
 
-Built 2026-09-02 from every `config.json` in all 14 worktrees (2,671 configs,
-2,367 completed), not from a campaign list. Read it before proposing a
-campaign. The four holes, in order of size:
+**Rebuilt 2026-09-02 after clearing the stale corpus.** Walking every
+`config.json` in all 14 worktrees found **FIVE distinct TraLO configurations**
+across 277 completed `tralo` runs. Only one is current:
 
-1. 🛑 **`ViTB16` -- the a-priori HEADLINE -- has ZERO runs of `fioretto`,
-   `hounie` or `alm`.** The paper's core comparison has never been run on the
-   backbone the paper leads with. All four duals exist on the other three.
-2. 🛑 **Every iwildcam run constrains the SAME two classes, `[2, 7]`** --
-   400 of 400 configs checked. One class, three, four, or a different pair:
-   never run.
-3. 🛑 **No symmetric (`L == G`) cap has ever been run on iwildcam**, and 4 of
-   the 9 tags have an INERT global cap. Only `L50_G30` and `L95_G80` bind it.
-4. 🛑 **1 dataset of 3.** `fmow` is the clean second; measure its p@K first.
+> **`iwildcam` + `constraint_fp32: True` + `constraint_grad_mode: normalize`.**
 
-🔑 **AND THE GATE COMES BEFORE ALL OF IT.** `tralo` does NOT yet clear its own
-RNG floor (`vs_reseed` 3/5 units, p=0.50) and beats `clip` in 4/5 (p=0.19).
-Only the attribution contrast passes (`vs_null` 5/5, p=0.031). **Grid coverage
-of a method that has not cleared its noise floor buys nothing** -- 2,367 runs
-already say so. `docs/COVERAGE.md` states the pass condition.
+**18 campaigns / 1,326 configs moved to
+`~/optloss-archive-stale-2026-09-02/`** -- ten stale-recipe iwildcam campaigns,
+seven dermmnist ones on the leaked test set, and `vitdom2_*` (current recipe but
+staged entirely on rejected caps). `results/` now holds **1,228 configs, all one
+recipe**.
+
+🔑 **CLEARING CHANGED THE RESULT.** The old "unit B2" that dissented on all
+three contrasts was `loose1`, which ran `grad_mode: clip`. With it gone:
+
+| contrast | units | sign p | |
+|---|---|---|---|
+| `tralo` vs `clip` | **4/4** | 0.0625 | ✅ beats the bar everywhere |
+| `tralo` vs its own null | **4/4** | 0.0625 | ✅ attributable |
+| `tralo` vs `tralo_reseed` | **3/4** | 0.3125 | ⛔ fails on MobileNetV3 |
+| #1 of the four duals | **3/6 cells** | 0.66 | ⛔ dominance not shown |
+
+🛑 **THE ONE FAILURE IS SPECIFIC.** On MobileNetV3 (`taskwin2`, C1) `tralo`
+beats `clip` by +7.32 items but beats its own `_null` by **+0.75** -- below the
+one-item quantum -- and **loses to a pure RNG reseed by 0.27**. So there the
+gain is the REGIME, not the constraint.
+
+🔑 **AND THE HEAD-TO-HEAD PATTERN IS THE CAP.** TraLO is #1 in **2 of 3** cells
+at the tighter `L80_G95` and **1 of 3** at the looser `L95_G80`. Where the cap
+binds hard TraLO leads; where it is slack `alm` and `fioretto` overtake.
+
+⛔ **DO NOT EXPAND THE GRID.** More datasets / backbones / class-counts is
+written down in COVERAGE section 5 and is explicitly NOT queued. The only
+question on the table is making `tralo` clear its reseed floor and lead the
+duals. Two staged campaigns answer it: `vittask1` (running) and **`vitdual1`
+(88 runs, the four duals on ViTB16 -- the paper's core comparison on the
+paper's headline backbone, never yet run)**.
 
 ---
 

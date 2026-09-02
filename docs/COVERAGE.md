@@ -1,161 +1,151 @@
-# COVERAGE -- what we actually have, against what the paper needs
+# COVERAGE -- the corpus that counts, and what it says
 
-Built 2026-09-02 from **every `config.json` under every one of the 14 worktrees**
-(2,671 configs, 2,367 completed). Not from memory, not from a campaign list.
+Rebuilt 2026-09-02 **after clearing the stale corpus**. Every number here comes
+from runs produced by ONE version of TraLO.
 
-> **THE ORDER OF OPERATIONS.** Nothing below the line "THE GATE" gets run until
-> the gate is passed. Grid coverage is worthless if the method it is covering
-> does not work, and this project has already produced 2,367 runs of a method
-> that has not cleared its own noise floor.
-
----
-
-## THE GATE: does TraLO work on ONE model?
-
-**NOT YET.** Measured 2026-09-02 over the five independent units that exist
-(`scripts/paper_rows.py`, strict task cells only, nothing averaged over cells):
-
-| contrast | units positive | sign p | what it means |
-|---|---|---|---|
-| `tralo` vs its own **lambda=0 twin** | **5/5** | **0.031** | the constraint changes the model, attributably |
-| `tralo` vs **`clip`** | 4/5 | 0.188 | does not beat the quality bar |
-| `tralo` vs **`tralo_reseed`** | **3/5** | 0.500 | **does not clear its own RNG floor** |
-
-**The third row is the gate**, and it is the one that got WORSE when the fifth
-unit landed (3/4 -> 3/5). An effect below the reseed floor is not an effect: a
-reseed changes nothing but the RNG stream, so anything TraLO does that a reseed
-also does is not attributable to the constraint.
-
-Per-unit `vs_reseed`, in items:
-
-| unit | backbone x host | items |
-|---|---|---|
-| A1 | MobileNetV2 x dsisco02 | +3.89, +5.98 |
-| A2 | MobileNetV2 x dsisco01 | +6.54, +7.32 |
-| B1 | RegNetY400MF x dsisco01 | +1.62, +2.42 |
-| B2 | RegNetY400MF x dsisco02 | **-1.74** |
-| C1 | MobileNetV3 x dsisco01 | **-0.27** |
-
-⚠️ And **1 of 158 strict-task rows separates from its own seed noise at 2 sd**
-(FRAMEWORK 2(z26)). Everything above is a SIGN, not a measurement.
-
-**PASSING THE GATE MEANS:** `vs_reseed` positive in every unit measured, with at
-least 5 units, and at least one cell whose effect clears 2 sd on its own. Today:
-3/5, and one cell.
+> ## THE RECIPE
+>
+> **`iwildcam` + `constraint_fp32: True` + `constraint_grad_mode: normalize`.**
+>
+> Anything else is a different method and is not in this document.
 
 ---
 
-## 1. DATASETS -- 1 of 3
+## 0. WHAT WAS CLEARED, AND WHY
 
-| dataset | runs | status |
-|---|---|---|
-| **iwildcam** | **2,176** | 🟢 the only runnable one; images on the server |
-| dermmnist | 191 | ⛔ test set leaks 38.7%; removed from disk |
-| octmnist | 0 | ⛔ `synth_group = index % 3`; dead by construction |
-| tissuemnist | 0 | ⛔ same |
-| **fmow** | 0 | 🟡 passes the screen (NET +2969, z=79.7), **META ONLY, no images** |
-| **terra** | 0 | 🟡 passes the screen (NET +2546, z=75.8), **META ONLY, no images** |
+Walking every `config.json` in all 14 worktrees found **five distinct TraLO
+configurations** across 277 completed `tralo` runs. Only one is current.
 
-**Gap: 2 more datasets.** `fmow` is the clean second (a country is an ATOMIC
-group, so `factorial_control` does not apply). Its prize is unmeasured -- it
-needs `p@K <= 0.92` at L30 to clear twice the noise, where iwildcam measures
-0.9948-0.9972. **Get fmow's real p@K before downloading images.**
-
-## 2. BACKBONES -- 4 claimed, but the comparison is on 3
-
-Runs per backbone on iwildcam, and which of the paper's four duals each has:
-
-| backbone | runs | `tralo` | `fioretto` | `hounie` | `alm` | |
-|---|---|---|---|---|---|---|
-| **ViTB16** | 166 | 30 | **0** | **0** | **0** | 🛑 **HEADLINE, and the comparison has NEVER been run on it** |
-| MobileNetV3 | 783 | 97 | 44 | 44 | 32 | ✅ all four |
-| MobileNetV2 | 670 | 82 | 36 | 36 | 24 | ✅ all four |
-| RegNetY400MF | 557 | 68 | 24 | 24 | 12 | ✅ all four |
-
-🛑 **THIS IS THE BIGGEST SINGLE HOLE.** `ViTB16` was fixed as the headline a
-priori on 2026-08-20 precisely so a win could not be promoted after the fact --
-and the paper's core comparison (TraLO vs Fioretto vs Hounie vs the clippers)
-has never been run on it. `vittask1` (in flight) runs `tralo` + `tralo_cut` +
-both clippers on ViTB16, but **not** `fioretto` / `hounie` / `alm`.
-
-## 3. CONSTRAINT PAIRS -- asymmetric is covered, symmetric is NOT
-
-| cap tag | scope | MNv2 | MNv3 | RegNet | ViT |
+| cfg | runs | `fp32` | `grad_mode` | campaigns | |
 |---|---|---|---|---|---|
-| `L20_G50` | asym L<G, global INERT | 111 | 140 | 104 | 44 |
-| `L30_G50` | asym L<G, global INERT | 107 | 140 | 104 | 44 |
-| `L80_G95` | asym L<G, global INERT | 124 | 124 | 88 | 24 |
-| `L90_G95` | asym L<G, global INERT | 124 | 124 | 88 | 24 |
-| `L50_G30` | **asym L>G, global BINDS** | 104 | 104 | 104 | 24 |
-| `L95_G80` | **asym L>G, global BINDS** | 100 | 100 | 64 | **0** |
-| `L60-90_G95` | per-class L | 0 | 0 | 0 | 6 |
-| `L70-90_G95` | per-class L | 0 | 27 | 0 | 5 |
-| `L80-100_G95` | per-class L | 0 | 24 | 0 | 0 |
+| **1** | **106** | **True** | **normalize** | `dom1` `dom1b` `equaldose1` `taskwin2` `uniform1` `vittask1` | ✅ **THE recipe** |
+| 2 | 80 | True | clip | `iwc4` `loose1` `loosevit1` `vitu1` | arms differ in DOSE as well as direction |
+| 3 | 52 | False | clip | `iwc1` `iwc2` `iwc3` | 68.6-74.6% of the dose lands |
+| 4 | 36 | False | normalize | `xfam1` | `run_code_version` splits by SEED |
+| 5 | 3 | False | normalize | `taskwin1` `uniform1_VOID` | 69.0% and 3.4% of dose |
 
-⛔ **NOT ONE SYMMETRIC (`L == G`) CAP HAS EVER BEEN RUN ON iwildcam.** And that
-is deliberate, not an oversight: at `L == G` the global cap is **redundant** --
-local caps are per-group ceilings, so their sum already bounds the count
-(FRAMEWORK 1). A symmetric pair therefore tests the local scope only. If the
-paper wants to claim a symmetric/asymmetric contrast, it must say that the
-symmetric arm is a local-only control, not a second scope.
+**18 campaigns / 1,326 configs moved to `~/optloss-archive-stale-2026-09-02/`**
+(a move, not an unlink: same filesystem, reversible, and `results/` no longer
+contains them so no tool can glob them). Ten stale-recipe iwildcam campaigns,
+seven dermmnist campaigns on the leaked test set, and `vitdom2_cnn` /
+`vitdom2_vit`, which were on the current recipe but staged entirely on caps the
+task-window gate rejects.
 
-⚠️ **Four of the nine tags have an INERT global cap** (`L < G`). Only `L50_G30`
-and `L95_G80` make the global scope bind.
+🔑 **THE ONE THING THE CLEARING CHANGED IN THE RESULT.** The old 5-unit reading
+carried `B2 = loose1 / RegNetY400MF`, the single unit that DISSENTED on all
+three contrasts. `loose1` is cfg2, a different method. With it gone,
+`tralo` vs `clip` goes from 4/5 to **4/4**.
 
-## 4. CONSTRAINED CLASSES -- **one configuration, ever**
-
-**Every single iwildcam run constrains exactly `[2, 7]`** (impala, cattle).
-Checked across 400 configs spanning every campaign: 400 of 400.
-
-**Never run: 1 class. 3 classes. 4 classes. A different pair. A different
-grouping.** This axis is completely unexplored, and it is the one most likely to
-matter -- the local scope's teeth come from the 7 of 14 per-group ceilings that
-are `K=0`, and that count is a function of WHICH classes are capped.
-
-## 5. ARMS -- the methodology panel
-
-| covered on iwildcam | |
-|---|---|
-| duals | `tralo` `fioretto` `hounie` `alm` (3 backbones, not ViTB16) |
-| allocators | `clip` `focal_clip` `lp` (`danits_lp`) |
-| imbalanced | `focal_lp` ✅ · `cb_lp` ⛔ inert · `la_lp` ⛔ inert (2(x1), 2(x2)) |
-| controls | `tralo_null` `tralo_reseed` `alm_null` `fioretto_null` `hounie_null` `tralo_lam0` |
-| variants | `tralo_uniform` (rejected) `tralo_head` `tralo_cut` (10 runs, negative so far) |
-
-⛔ `cb_lp` and `la_lp` are **not baselines on iwildcam** -- both reduce to plain
-CE on its balanced train set. `gen_campaign` now refuses them there.
+⚠️ **And removing `loose1` loses no MobileNetV2 data at all.** Its `tralo` there
+is **byte-identical to `dom1`'s in 4/4 seeds**, despite a different
+`grad_mode` AND a different `code_version` -- because `clip` scales the step by
+`min(raw_norm, 1.0)`, which **is** `normalize` wherever the raw norm is >= 1.
+The two modes coincide exactly in that regime. Measured, not assumed.
 
 ---
 
-## THE CHECKLIST
+## 1. THE GATE: is TraLO good enough to build a grid on?
 
-### Gate (do this first, nothing else counts until it passes)
+**NOT YET, and it is close.** Four independent units, strict task cells only,
+nothing averaged across cells (`scripts/paper_rows.py`).
 
-- [ ] `tralo` beats `tralo_reseed` in **every** unit measured (today 3/5)
-- [ ] at least **one cell** whose effect clears 2 sd on its own (today 1 of 158)
-- [ ] `tralo` beats `clip` in every unit (today 4/5)
+| contrast | units | sign p | |
+|---|---|---|---|
+| `tralo` vs **`clip`** | **4/4** | 0.0625 | ✅ beats the quality bar in every unit |
+| `tralo` vs its own **`_null`** | **4/4** | 0.0625 | ✅ attributable to the constraint |
+| `tralo` vs **`tralo_reseed`** | **3/4** | 0.3125 | ⛔ **does not clear its own RNG floor** |
+| **#1 of the four duals** | **3/6 cells** | 0.66 | ⛔ **dominance not shown** |
 
-### Then, and only then, the grid
+Per unit, in items:
 
-- [ ] **3 datasets** -- have 1 (iwildcam). fmow next, and measure its p@K FIRST
-- [ ] **3+ backbones with the full dual panel** -- have 3; **ViTB16 has none**
-- [ ] **symmetric AND asymmetric pairs** -- have asymmetric only, and symmetric
-      is a local-only control by construction, so say so
-- [ ] **a global cap that BINDS** -- only `L50_G30` and `L95_G80` do
-- [ ] **varying the number of constrained classes** -- 1, 2, 3, 4 and different
-      groupings. Currently **2, always the same 2**
-- [ ] every cap inside its measured task window (`configs/task_windows.yml`)
-- [ ] every trained arm with its `_null` twin and the `tralo_reseed` floor
-- [ ] `--constraint-fp32` on every trained arm (it is the dose)
-- [ ] 4 seeds minimum; more where `paper_rows` says the cell needs them
+| unit | backbone x host | vs `clip` | vs `_null` | vs `reseed` |
+|---|---|---|---|---|
+| A1 | MobileNetV2 x dsisco02 (`dom1`) | +5.77, +9.85 | +11.61, +13.23 | +3.89, +5.98 |
+| A2 | MobileNetV2 x dsisco01 (`equaldose1`) | +2.84, +4.48 | +1.71, +3.80 | +6.54, +7.32 |
+| B1 | RegNetY400MF x dsisco01 (`dom1b`) | +6.40, +7.98 | +4.38, +4.60 | +1.62, +2.42 |
+| C1 | MobileNetV3 x dsisco01 (`taskwin2`) | +7.32 | +0.75 | **-0.27** |
 
-### Cheapest next moves, in order
+🛑 **C1 IS THE FAILURE, AND IT IS SPECIFIC.** On MobileNetV3 `tralo` beats
+`clip` by a healthy +7.32 items but beats its own `_null` by only **+0.75** --
+below the one-item quantum -- and **loses to a pure RNG reseed by 0.27**. So on
+that backbone the +7.32 is the REGIME (30 trained epochs), not the constraint.
 
-1. **Finish `vittask1`** (in flight). Unit 6, and the first ViTB16 task cells.
-2. **`vitdual1`: `fioretto` + `hounie` + `alm` on ViTB16** at `L70-90_G95`.
-   Closes the headline hole. ~48 runs.
-3. **Re-run `taskwin2` + `vittask1` on dsisco02** -- units 7 and 8 for free,
-   because the unit is `(backbone, host)` (FRAMEWORK 2(z27)).
-4. **A one-class and a three-class cap on iwildcam**, same backbone, same host.
-   The first probe of an axis with zero coverage.
-5. **fmow p@K**, on CPU from labels, before any download.
+**PASS CONDITION:** `vs_reseed` positive in every unit, AND `tralo` #1 of the
+four duals in a clear majority of cells. Today 3/4 and 3/6.
+
+## 2. THE HEAD-TO-HEAD, per cell, vs `clip`, in items
+
+| unit | campaign | backbone | cap | `tralo` | `alm` | `fioretto` | `hounie` | #1 |
+|---|---|---|---|---|---|---|---|---|
+| A1 | `dom1` | MobileNetV2 | `L80_G95` | **+5.77** | +5.49 | -0.85 | -4.48 | tralo |
+| A1 | `dom1` | MobileNetV2 | `L95_G80` | +9.85 | **+10.87** | +4.61 | +8.47 | alm |
+| A2 | `equaldose1` | MobileNetV2 | `L80_G95` | +2.84 | +1.67 | **+3.45** | -8.31 | fioretto |
+| A2 | `equaldose1` | MobileNetV2 | `L95_G80` | **+4.48** | +1.67 | +2.00 | +4.41 | tralo |
+| B1 | `dom1b` | RegNetY400MF | `L80_G95` | **+6.40** | +0.78 | +2.14 | -1.83 | tralo |
+| B1 | `dom1b` | RegNetY400MF | `L95_G80` | +7.98 | +9.41 | **+10.37** | +9.15 | fioretto |
+| C1 | `taskwin2` | MobileNetV3 | `L70-90_G95` | +7.32 | -- | -- | -- | (no rivals run) |
+
+🔑 **THE PATTERN IS THE CAP, NOT THE BACKBONE.** TraLO is #1 in **2 of 3**
+cells at the TIGHTER `L80_G95` and **1 of 3** at the looser `L95_G80`. Where
+the cap binds hard, TraLO leads; where it is slack, `alm` and `fioretto`
+overtake it. That is a lead worth chasing and it is the direction to work on.
+
+⚠️ **`hounie` is erratic**: -8.31 to +9.15 across four cells. Do not read its
+mean.
+
+## 3. WHAT THE CLEAN CORPUS ACTUALLY CONTAINS
+
+**1,228 configs in `results/`, all one recipe.**
+
+| campaign | runs | backbone | caps | arms |
+|---|---|---|---|---|
+| `dom1` | 384 | MNv2, MNv3 | `L80_G95` `L90_G95` `L95_G80` | all four duals + nulls + clippers |
+| `dom1b` | 192 | RegNetY400MF | `L80_G95` `L90_G95` `L95_G80` | all four duals + nulls + clippers |
+| `equaldose1` | 216 | MNv2, MNv3 | `L80_G95` `L90_G95` `L95_G80` | all four duals + nulls + clippers |
+| `uniform1` | 252 | MNv2, MNv3, RegNet | `L20_G50` `L30_G50` `L50_G30` | `tralo` `tralo_uniform` + controls |
+| `taskwin2` | 48 | MobileNetV3 | `L70-90_G95` `L80-100_G95` | `tralo` `tralo_cut` + controls |
+| `vittask1` | 48 | **ViTB16** | `L60-90_G95` `L70-90_G95` | `tralo` `tralo_cut` + controls |
+| `vitdual1` | 88 | **ViTB16** | `L60-90_G95` `L70-90_G95` | **all four duals** + nulls + clippers |
+
+⚠️ `uniform1`'s caps are all measured NON-TASK (2(z17)), so it contributes no
+task cells. It stays because it is on the current recipe and is the `_uniform`
+count-function evidence.
+
+**Backbone coverage of the four-dual comparison, on the current recipe:**
+
+| backbone | four duals? |
+|---|---|
+| MobileNetV2 | ✅ `dom1`, `equaldose1` |
+| RegNetY400MF | ✅ `dom1b` |
+| MobileNetV3 | ✅ `dom1`, `equaldose1` (non-task caps); `taskwin2` is tralo-only |
+| **ViTB16** (headline) | 🔵 **`vitdual1` STAGED, 88 runs, not yet run** |
+
+## 4. THE ONLY QUESTION ON THE TABLE
+
+**Not** "cover more datasets/backbones/class-counts". That grid is real and it
+is written down in section 5, but it is gated behind this:
+
+> **Make `tralo` clear its own reseed floor in every unit, and lead the four
+> duals in a clear majority of cells.**
+
+Two experiments answer it, both already staged:
+
+1. **`vittask1`** (running) -- `tralo` on ViTB16, the headline backbone.
+2. **`vitdual1`** (staged, 88 runs) -- the four duals head-to-head on ViTB16
+   at both strict task caps. **This is the paper's core comparison on the
+   paper's chosen backbone, and it has never been run.**
+
+Then diagnose C1: why is `tralo - null` only +0.75 items on MobileNetV3 when it
+is +11.6 to +13.2 on MobileNetV2?
+
+## 5. THE GRID, FOR LATER (do not start these)
+
+Written down so it is not re-derived, and explicitly **not** queued.
+
+- [ ] **3 datasets** -- have 1. `fmow` is the clean second; measure its `p@K`
+      on CPU from labels first, it needs `<= 0.92` at L30
+- [ ] **symmetric (`L == G`) caps** -- never run, and at `L == G` the global
+      cap is exactly redundant, so it is a local-only control, not a scope
+- [ ] **varying the constrained classes** -- **400 of 400 configs cap exactly
+      `[2, 7]`**. One class, three, four, different groupings: never run
+- [ ] a global cap that binds -- only `L50_G30` and `L95_G80` do
