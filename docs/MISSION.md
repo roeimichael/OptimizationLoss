@@ -6,7 +6,8 @@ every working session. If it is stale, that is a defect -- fix it before doing
 anything else.
 
 Last updated: **2026-09-02** (the SCREEN was the defect, the head-to-head is RNG,
-and both GPUs are now loaded -- see 0-RUNNING).
+both GPUs are loaded -- see 0-RUNNING -- and the step gate now
+fronts the pipeline, see 0-CLEAN).
 
 ---
 
@@ -94,6 +95,58 @@ Refill it. Queued in order:
 3. **Units 7-8 are free on dsisco02**: RegNetY400MF and ViTB16 there have never
    been run. Those are NEW units, worth more than seeds, but dsisco02 is fully
    occupied by other users.
+
+---
+
+## 🧹 0-CLEAN. THE STEP GATE AND THE SYNC (2026-09-02)
+
+**`python -m scripts.run_campaign --root <root> --step <step>`** is now the way
+a campaign moves forward. Five steps -- `stage`, `verify`, `launch`,
+`firstrun`, `score` -- each running BOTH the `tests/gates` bucket that proves
+the detector works and the instrument that runs it against THIS campaign.
+
+🔑 **THREE OUTCOMES, NOT TWO.** pass / FAIL / **UNRUNNABLE**. A campaign
+worktree is pinned at the commit its configs were generated from, the gate
+buckets import `configs.task_cells`, and that module postdates `1d921173`.
+`configs/` is frozen mid-campaign, so on `optloss-domb` that gate genuinely
+cannot execute. It is reported as having verified NOTHING -- not as a failure
+of the campaign. A gate that cries wolf gets switched off, and that is how this
+project lost `taskwin1`'s dose.
+
+### What the cleanup actually found
+
+The tracked Python was NOT the bloat: `dead_code` reports three dead symbols in
+`configs+src+scripts`, and an orphan audit finds zero orphaned scripts. The
+redundancy was one-off documents and never-run staging debris.
+
+* **-10,228 lines / 94 files** deleted: seven `docs/launch_*.sh` for archived
+  or never-run campaigns, `docs/paper/data/dynamics/` (dermmnist, a removed and
+  leaking dataset), two orphaned scouting notes, `main_old.tex`.
+* **The four live-corpus launch scripts were RESTORED** after the first sweep
+  took all eleven and eight gates went red. `dom1`, `dom1b`, `equaldose1` and
+  `uniform1` launch scripts are provenance for how the corpus was made.
+* **Three local `results/` roots were off-recipe staging debris** -- 152 configs,
+  ZERO completed runs, arms since rejected, not on the server. They kept
+  `rig_status` permanently red. Removed. No completed run was touched.
+
+### The sync gap, and it was worse than expected
+
+**`tests/gates/` existed on ZERO server worktrees**, and the worktree running
+`seed58a` was missing 11 scripts including `task_window`, `deployed_h2h`,
+`cell_table` and `paper_rows` -- every current scorer. Both trees are outside
+`TRAINING_PATHS`, so `scripts/` and `tests/` were copied by hand into
+`optloss-domb`, `optloss-cutwin` and `OptimizationLoss`. `code_version` is
+unchanged in all three and the training paths are clean.
+
+🛑 **THE STANDING RULE THIS IMPLIES.** A campaign worktree is pinned, so
+it drifts from `main` the moment anything lands. Re-sync `scripts/` and
+`tests/` by hand before scoring anything on the server, and NEVER by moving its
+HEAD.
+
+Running all 23 self-tests on the server at each pinned commit found
+`collateral_probe` uninvokable -- inverted flag behind a required `--campaign`.
+Fixed with a standalone `--self-test` and a no-op injection as its negative
+control. 23/23 now.
 
 ---
 
