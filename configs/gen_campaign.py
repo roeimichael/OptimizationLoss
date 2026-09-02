@@ -345,7 +345,7 @@ def task_window_gate(P, args, resolved):
         print("     and would generate without complaint. Restore the file "
               "before launching.")
         return
-    rows, bad, soft, gaps = [], [], [], []
+    rows, bad, soft, gaps, nostrict = [], [], [], [], []
     unknown, absent, measured = set(), set(), False
     for ds in args.datasets:
         for model in args.models:
@@ -365,6 +365,17 @@ def task_window_gate(P, args, resolved):
                         soft.append((model, tag, c, v["ratio"]))
                     elif v["band"] == "unmeasured":
                         gaps.append((model, tag, c, v["ratio"], v["hi"]))
+                    elif v["band"] == "no_strict":
+                        # \U0001f6d1 A WARNING, NOT A REFUSAL, ON PURPOSE.
+                        # An empty strict band comes from ONE re-measurement
+                        # (2026-09-02) under a prize bar -- MIN_PRIZE = 3.0 --
+                        # that is itself a single estimate of the RNG floor.
+                        # Refusing on it would lock the project out of a whole
+                        # backbone on a criterion chosen the same day, and
+                        # TraLO is not yet consistent enough for anything here
+                        # to be settled policy. So it is reported loudly and
+                        # the campaign is allowed.
+                        nostrict.append((model, tag, c, v["ratio"]))
                     elif not v["ok"]:
                         bad.append((model, tag, c, v["ratio"], v["lo"], v["hi"]))
     for u in sorted(unknown):
@@ -396,12 +407,18 @@ def task_window_gate(P, args, resolved):
     print("    %-13s %-13s %4s %6s %6s %7s %12s  %s"
           % ("model", "cap", "cls", "K", "n", "K/n", "window", ""))
     for model, tag, c, K, n, ratio, lo, hi, band in rows:
-        print("    %-13s %-13s %4d %6d %6d %7.3f   %4.2f-%4.2f  %s"
-              % (model, tag, c, K, n, ratio, lo, hi,
+        # `lo`/`hi` are None when the backbone has an EMPTY strict band -- a
+        # measured fact (no fraction both binds in 4/4 and clears the 3-item
+        # RNG floor), not a missing row. Formatting it with %4.2f raised
+        # TypeError and killed the table mid-print.
+        win = "  none  " if lo is None else "%4.2f-%4.2f" % (lo, hi)
+        print("    %-13s %-13s %4d %6d %6d %7.3f   %s  %s"
+              % (model, tag, c, K, n, ratio, win,
                  {"strict": "in",
                   "partial": "** PARTIAL -- binds in SOME seeds only **",
-                  "unmeasured": "** NEVER MEASURED at this K/n **"}.get(
-                     band, "** OUTSIDE **")))
+                  "unmeasured": "** NEVER MEASURED at this K/n **",
+                  "no_strict": "** NO STRICT BAND EXISTS on this backbone **"}
+                 .get(band, "** OUTSIDE **")))
     if gaps:
         print("  !! %d cell(s) sit in the GAP between the strict and partial "
               "bands, where" % len(gaps))
@@ -431,12 +448,32 @@ def task_window_gate(P, args, resolved):
               "is quoted.")
         for model, tag, c, ratio in soft:
             print("       %-13s %-13s class %d  K/n %.3f" % (model, tag, c, ratio))
+    if nostrict:
+        print("  !! %d (model, cap, class) cell(s) sit on a backbone with NO "
+              "STRICT BAND at any" % len(nostrict))
+        print("     fraction: at every K/n where the cap still binds in 4/4 "
+              "seeds the local prize")
+        print("     is under the %.1f-item RNG floor, and wherever the prize "
+              "clears the floor the" % float((TW.get("meta", {}).get("criteria", {}) or {})
+        .get("min_prize", float("nan"))))
+        print("     cap has gone slack in some seed. THIS IS A WARNING, NOT A "
+              "REFUSAL -- the")
+        print("     floor is one estimate from one corpus and nothing here is "
+              "settled. Expect a")
+        print("     small effect and say so wherever the campaign is quoted.")
+        for model, tag, c, ratio in nostrict:
+            print("       %-13s %-13s class %d  K/n %.3f" % (model, tag, c, ratio))
     if bad and not getattr(args, "allow_nontask", False):
         lines = ["REFUSED: %d of %d (model, cap, class) cell(s) sit OUTSIDE "
                  "the measured task window." % (len(bad), len(rows))]
         for model, tag, c, ratio, lo, hi in bad:
-            lines.append("  %s %s class %d: K/n=%.3f, window %.2f-%.2f"
-                         % (model, tag, c, ratio, lo, hi))
+            lines.append(
+                "  %s %s class %d: K/n=%.3f, window %s"
+                % (model, tag, c, ratio,
+                   ("NONE -- no fraction on the grid both binds in 4/4 seeds "
+                    "and clears the 3.0-item RNG floor. There is no legal cap "
+                    "for this class on this backbone." if lo is None
+                    else "%.2f-%.2f" % (lo, hi))))
         lines += [
             "",
             "  Outside the window the cap either forces out almost nothing, "
@@ -996,6 +1033,12 @@ def main():
     # without it, because a count trajectory read without its reseed floor is
     # not a measurement. `all+null` includes it.
     rejected = set(P.get("rejected_arms", {}))
+    # UNPROVEN is not REJECTED. Both are skipped by `all` and both stay
+    # runnable by name, but the message must not claim a measurement that was
+    # never taken -- an arm with zero completed runs LOST NOTHING, it was never
+    # entered. Merged into one set only for the skip; reported separately.
+    unproven = set(P.get("unproven_arms", {}))
+    rejected |= unproven
     controls = count_control_arms(P)
     # NAMED ARMS ARE ADDED TO `all`, NOT DISCARDED BY IT. `all` used to REPLACE
     # args.arms outright, so `--arms all tralo_null` produced a campaign with no
@@ -1027,13 +1070,22 @@ def main():
     else:
         requested = named
     for arm in sorted(requested & rejected):
-        print("!! %s IS REJECTED and you named it explicitly: %s"
-              % (arm, P["rejected_arms"][arm]))
+        if arm in unproven:
+            print("!! %s IS UNPROVEN (zero completed runs anywhere) and you "
+                  "named it explicitly: %s" % (arm, P["unproven_arms"][arm]))
+        else:
+            print("!! %s IS REJECTED and you named it explicitly: %s"
+                  % (arm, P["rejected_arms"][arm]))
     if not (requested & rejected):
-        skipped = sorted(rejected & set(P["arms"])) if (
-            "all" in args.arms or "all+null" in args.arms) else []
+        allsel = "all" in args.arms or "all+null" in args.arms
+        skipped = sorted((rejected - unproven) & set(P["arms"])) if allsel else []
+        skipped_u = sorted(unproven & set(P["arms"])) if allsel else []
         if skipped:
-            print("NOTE: 'all' skips the rejected arm(s) ->", " ".join(skipped))
+            print("NOTE: 'all' skips the REJECTED arm(s) (measured, and they "
+                  "lost) ->", " ".join(skipped))
+        if skipped_u:
+            print("NOTE: 'all' skips the UNPROVEN arm(s) (zero completed runs "
+                  "-- never measured, NOT refuted) ->", " ".join(skipped_u))
     mandatory = set(P["mandatory_arms"])
     arms = sorted(requested | mandatory)
     # Drop the arms that are mathematically plain CE on THIS dataset, or refuse

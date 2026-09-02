@@ -10,9 +10,16 @@ and the cell cannot distinguish any two methods, however well aimed either is:
                                  nothing while still passing a `hard > K` test.
                                  If K is above the model's own count the
                                  constraint is free and every arm ties.
-    PRIZE    errors@K > 0        the top-K is not already perfect. If every
+    PRIZE    errors@K >=        the budget is not already perfect, AND the
+             MIN_PRIZE            gain available exceeds the RNG floor. If every
                                  selected item is correct there is no swap that
-                                 improves it, only swaps that damage it.
+                                 improves it, only swaps that damage it -- and
+                                 if only 0.8 items are wrong, reseeding the same
+                                 arm moves the count further than a perfect
+                                 method could (measured floor: 3.0 items).
+                                 \U0001f6d1 AND IT IS COUNTED UNDER THE LOCAL
+                                 PER-GROUP BUDGET, not a global top-K: see
+                                 `select_local`.
     WIGGLE   p@K < 0.99          the cut is not buried in saturated territory.
                                  At p@K = 1.0 the items either side of the cut
                                  are indistinguishable to any gradient.
@@ -43,22 +50,101 @@ import sys
 
 import numpy as np
 
+# The SAME rounding the trainer and full_panel use. Imported, never
+# reimplemented: a screen that rounds differently from the trainer
+# selects a cap the campaign does not actually run.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.training.constraints import _round_to_K  # noqa: E402
+
 WIGGLE_MAX = 0.99          # p@K at or above this is saturated territory
 MIN_FORCED = 10            # items the cap must evict to be more than nominal
+
+# The PRIZE bar, and it is a MEASUREMENT, not a preference. `errors > 0` was
+# the old test, and it passes a cell whose entire available gain is 0.8 items
+# -- a quarter of the noise the contrast actually faces.
+#
+# Measured 2026-09-02 over the clean corpus (17 task cells, 4 seeds each):
+# |tralo - tralo_reseed| on the SAME cell and seed, where the ONLY difference
+# is the RNG stream, is median 3.0 TP items per capped class (class 2: 3.0,
+# class 7: 3.0, n=70 each; p90 8-9). So a prize below 3 items cannot be
+# distinguished from reseeding the same arm, at any dose, by any method.
+#
+# Raising this is a decision to spend seeds: the bar scales as 1/sqrt(n).
+MIN_PRIZE = 3.0
 FRACTIONS = (0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2)
 
 
 def load(run_dir, cls, raw=True):
-    """(true labels, prob of cls, model's UNCONSTRAINED hard count for cls)."""
+    """(true labels, prob of cls, GROUP ids, unconstrained hard count for cls).
+
+    `groups` is None when the predictions carry no `Group_ID`. That is NOT
+    silently collapsed to a single group: a one-group reading is exactly the
+    global top-K this tool was wrong to use, so `sweep` refuses the local
+    numbers instead of printing the global ones under a local heading.
+    """
     name = "final_predictions_raw.csv" if raw else "final_predictions.csv"
     path = os.path.join(run_dir, name)
-    y, pr, hard = [], [], 0
+    y, pr, g, hard = [], [], [], 0
     with open(path) as f:
-        for r in csv.DictReader(f):
+        rd = csv.DictReader(f)
+        has_g = "Group_ID" in (rd.fieldnames or [])
+        for r in rd:
             y.append(int(r["True_Label"]))
             pr.append(float(r["Prob_Class_%d" % cls]))
+            if has_g:
+                g.append(r["Group_ID"])
             hard += int(int(r["Predicted_Label"]) == cls)
-    return np.array(y), np.array(pr, dtype=float), hard
+    return (np.array(y), np.array(pr, dtype=float),
+            (np.array(g) if has_g else None), hard)
+
+
+def local_budget(n_gc, frac):
+    """K for one group, by the SAME rounding the trainer and full_panel use.
+
+    `_round_to_K` raises when a positive count rounds to zero, because in the
+    trainer that is a config bug. Here it is a legitimate sweep point, and the
+    honest reading is "this group gets no budget at this fraction" -- so it is
+    caught and counted, not propagated as a crash.
+    """
+    if n_gc <= 0:
+        return 0, False
+    try:
+        return int(_round_to_K(n_gc, frac, "task_window sweep")), False
+    except ValueError:
+        return 0, True
+
+
+def select_local(y, pr, groups, cls, frac):
+    """The items the LOCAL allocator would actually emit, and its cuts.
+
+    \U0001f6d1 THIS IS THE FIX FOR THE DEFECT THAT CHOSE THIS PROJECT'S CAPS.
+    The screen used to rank the WHOLE test set and take a global top-K, but
+    every allocator here is per-group: each camera gets its own ceiling
+    `round(frac * n_{g,c})`, and on iwildcam 7 of 14 of those ceilings are
+    ZERO. A high-scoring item in a zero-budget group is counted by a global
+    top-K and can never be emitted by the real allocator, so the "errors
+    inside K" prize was measured on a set that is not deployable.
+
+    Measured 2026-09-02 on taskwin2 / MobileNetV3, class 2 at K/n=0.70:
+    8.5 errors under the global top-K, 2.00 under the per-group budget -- a
+    4.25x overstatement, and `L70-90_G95` was selected as THE strict task cap
+    on the inflated figure.
+
+    Returns (selected indices, per-group cut probabilities, budgets, n_zero).
+    """
+    sel, cuts, budgets, n_zero = [], [], [], 0
+    for gid in np.unique(groups):
+        m = np.flatnonzero(groups == gid)
+        n_gc = int((y[m] == cls).sum())
+        K_g, vanished = local_budget(n_gc, frac)
+        n_zero += int(vanished)
+        if K_g <= 0:
+            continue
+        order = m[np.argsort(-pr[m])][:K_g]
+        sel.extend(order.tolist())
+        cuts.append(float(pr[order[-1]]))
+        budgets.append(K_g)
+    return np.array(sel, dtype=int), cuts, budgets, n_zero
 
 
 def verdict(errors, p_at_K, forced):
@@ -98,6 +184,10 @@ def verdict(errors, p_at_K, forced):
         return "barely binds"
     if errors <= 0:
         return "no prize"
+    if errors < MIN_PRIZE:
+        # A prize smaller than the RNG floor is not a small task, it is an
+        # unmeasurable one: reseeding the SAME arm moves the count further.
+        return "prize<floor %.1f" % errors
     if p_at_K >= WIGGLE_MAX:
         return "saturated"
     if n_bind < len(forced):
@@ -107,10 +197,10 @@ def verdict(errors, p_at_K, forced):
 
 def sweep(runs, cls, fractions=FRACTIONS):
     """One row per K/n: mean errors, p@K, whether the cap binds, verdict."""
-    Y, PR, H, cells, unread = [], [], [], set(), []
+    Y, PR, G, H, cells, unread = [], [], [], [], set(), []
     for rd in runs:
         try:
-            y, pr, h = load(rd, cls)
+            y, pr, g, h = load(rd, cls)
         except (OSError, KeyError, ValueError) as e:
             # An unreadable run used to vanish uncounted, so a glob that
             # matched 12 directories and read 2 reported a 2-run window as
@@ -123,6 +213,7 @@ def sweep(runs, cls, fractions=FRACTIONS):
             cells.add(tuple(parts[-5:-3]))
         Y.append(y)
         PR.append(pr)
+        G.append(g)
         H.append(h)
     if unread:
         print("  !! %d run(s) in this glob could not be read and are NOT in "
@@ -152,24 +243,52 @@ def sweep(runs, cls, fractions=FRACTIONS):
             "policy file, not a measurement." % cls)
     hard = float(np.mean(H))
     rows = []
+    have_groups = all(g is not None for g in G)
     for frac in fractions:
         K = max(1, int(round(frac * n_true)))
-        errs, pks = [], []
-        for y, pr in zip(Y, PR):
+        errs, pks = [], []                     # GLOBAL top-K (diagnostic only)
+        lerrs, lpks, lKs, lzero = [], [], [], []   # per-group, the DEPLOYED one
+        for y, pr, g in zip(Y, PR, G):
             o = np.argsort(-pr)
             errs.append(int((y[o[:K]] != cls).sum()))
             pks.append(float(pr[o[K - 1]]))
+            if g is None:
+                continue
+            sel, cuts, buds, nz = select_local(y, pr, g, cls, frac)
+            lerrs.append(int((y[sel] != cls).sum()) if len(sel) else 0)
+            lKs.append(int(sum(buds)))
+            lzero.append(nz)
+            # The cut is per GROUP, so the single number that answers WIGGLE is
+            # the budget-weighted mean of the group cuts: the average
+            # probability at which the allocator actually stops admitting.
+            lpks.append(float(np.average(cuts, weights=buds)) if buds else 1.0)
         e, pk = float(np.mean(errs)), float(np.mean(pks))
         per_seed = [h - K for h in H]          # NOT mean(H) - K; see verdict()
         forced = hard - K
         n_bind = sum(1 for f in per_seed if f >= MIN_FORCED)
-        rows.append(dict(frac=frac, K=K, errors=e, p_at_K=pk,
-                         forced=forced, forced_per_seed=per_seed,
-                         forced_min=min(per_seed), forced_max=max(per_seed),
-                         n_bind=n_bind, n_seeds=len(per_seed),
-                         binds=forced > 0,
-                         verdict=verdict(e, pk, per_seed)))
-    return dict(cls=cls, n_true=n_true, hard=hard, n_seeds=len(Y), rows=rows)
+        row = dict(frac=frac, K=K, errors=e, p_at_K=pk,
+                   forced=forced, forced_per_seed=per_seed,
+                   forced_min=min(per_seed), forced_max=max(per_seed),
+                   n_bind=n_bind, n_seeds=len(per_seed),
+                   binds=forced > 0)
+        if have_groups:
+            # The LOCAL numbers drive the verdict, because they are the ones
+            # the allocator can reach. `forced` stays on the global hard count:
+            # it asks how many predictions the cap evicts, which is a property
+            # of the model's raw output, not of the allocation.
+            row.update(local_errors=float(np.mean(lerrs)),
+                       local_p_at_K=float(np.mean(lpks)),
+                       local_K=float(np.mean(lKs)),
+                       zero_budget_groups=float(np.mean(lzero)),
+                       verdict=verdict(float(np.mean(lerrs)),
+                                       float(np.mean(lpks)), per_seed))
+        else:
+            row.update(local_errors=None, local_p_at_K=None, local_K=None,
+                       zero_budget_groups=None,
+                       verdict="NO GROUPS -- unscreenable")
+        rows.append(row)
+    return dict(cls=cls, n_true=n_true, hard=hard, n_seeds=len(Y),
+                have_groups=have_groups, rows=rows)
 
 
 def recommend(res):
@@ -190,7 +309,22 @@ def self_test(out=sys.stdout):
         ok = ok and cond
         print("  %-64s %s" % (name, "PASS" if cond else "FAIL"), file=out)
 
-    def write(d, y, pr, pred, C=3, cls=1):
+    def write(d, y, pr, pred, C=3, cls=1, groups=None):
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, "final_predictions_raw.csv"), "w",
+                  newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["True_Label", "Predicted_Label"]
+                       + ["Prob_Class_%d" % k for k in range(C)]
+                       + ["Group_ID"])
+            for i in range(len(y)):
+                row = [0.0] * C
+                row[cls] = pr[i]
+                w.writerow([y[i], pred[i]] + row
+                           + [("g0" if groups is None else groups[i])])
+
+    def write_nogroup(d, y, pr, pred, C=3, cls=1):
+        """The same fixture WITHOUT a Group_ID column, for the refusal gate."""
         os.makedirs(d, exist_ok=True)
         with open(os.path.join(d, "final_predictions_raw.csv"), "w",
                   newline="") as f:
@@ -337,6 +471,93 @@ def self_test(out=sys.stdout):
     check("recommend() lands inside the task window, or returns None",
           rec is None or rec["verdict"] == "** TASK **")
 
+    # ---------------------------------------------------------------- LOCAL
+    # \U0001f6d1 THE GATE FOR THE DEFECT THAT CHOSE THIS PROJECT'S CAPS.
+    # Two groups. Group A holds every true instance and ranks them perfectly,
+    # so the allocator's per-group budget lands on 25 correct items and there
+    # is NOTHING to win. Group B holds no true instance at all, so its ceiling
+    # is round(frac * 0) = 0 -- yet its items carry the HIGHEST scores, so a
+    # global top-K selects 25 of them and reports 25 errors of "prize" on a set
+    # the allocator can never emit.
+    #
+    # The check is two-sided ON PURPOSE: the LOCAL verdict must be "no prize"
+    # AND the GLOBAL column must still say "** TASK **". Without the second
+    # half the fixture could pass by being uniformly dead.
+    d = os.path.join(base, "zerobudget")
+    ya = [cls] * 50 + [0] * 50            # group A: 50 true, ranked first
+    yb = [0] * 100                        # group B: none true -> ceiling 0
+    pra = list(np.linspace(0.90, 0.10, 100))
+    prb = list(np.linspace(0.98, 0.91, 100))   # outranks all of A, globally
+    write(d, np.array(ya + yb), np.array(pra + prb),
+          [cls] * 25 + [0] * 75 + [cls] * 60 + [0] * 40,
+          groups=["A"] * 100 + ["B"] * 100)
+    r = sweep([d], cls, fractions=(0.5,))["rows"][0]
+    check("ZERO-BUDGET GROUP: local prize is 0 -> 'no prize' (local errors %.1f)"
+          % r["local_errors"],
+          r["local_errors"] == 0 and r["verdict"] == "no prize")
+    check("  NEGATIVE CONTROL: the GLOBAL top-K would have said TASK "
+          "(global errors %.1f, p@K %.3f)" % (r["errors"], r["p_at_K"]),
+          verdict(r["errors"], r["p_at_K"], r["forced_per_seed"]) == "** TASK **")
+    check("  and the two disagree by more than 2x (%.1f global vs %.1f local)"
+          % (r["errors"], r["local_errors"]),
+          r["errors"] > 2 * max(r["local_errors"], 0.5))
+    check("  the zero-budget group is COUNTED, not silently dropped (%.0f)"
+          % r["zero_budget_groups"], r["zero_budget_groups"] >= 0)
+
+    # LIVENESS: the local reading must still be able to FIND a prize. Same two
+    # groups, but now group B holds true instances too, so it earns a budget
+    # and its errors are reachable.
+    d = os.path.join(base, "localprize")
+    yb2 = ([0] * 40 + [cls] * 60)          # B: 60 true, but ranked BADLY
+    write(d, np.array(ya + yb2), np.array(pra + prb),
+          [cls] * 25 + [0] * 75 + [cls] * 60 + [0] * 40,
+          groups=["A"] * 100 + ["B"] * 100)
+    r2 = sweep([d], cls, fractions=(0.5,))["rows"][0]
+    check("LIVENESS: errors inside the LOCAL budget are still found (%.1f)"
+          % r2["local_errors"], r2["local_errors"] > 0)
+
+    # A missing Group_ID must REFUSE, not quietly report the global number
+    # under a local heading. That silent-default is the exact defect class
+    # already fixed once in the probes.
+    d = os.path.join(base, "nogroup")
+    write_nogroup(d, np.array(ya + yb), np.array(pra + prb),
+                  [cls] * 25 + [0] * 75 + [cls] * 60 + [0] * 40)
+    res_ng = sweep([d], cls, fractions=(0.5,))
+    check("NO Group_ID -> 'NO GROUPS -- unscreenable', never a silent global read",
+          res_ng["have_groups"] is False
+          and res_ng["rows"][0]["verdict"] == "NO GROUPS -- unscreenable"
+          and res_ng["rows"][0]["local_errors"] is None)
+    check("  and recommend() returns None on it, so no cap can be picked",
+          recommend(res_ng) is None)
+
+    # \U0001f6d1 THE PRIZE FLOOR, both directions. A prize under the measured
+    # RNG floor must be named as such, and one above it must still pass --
+    # otherwise the new bar would simply switch the screen off.
+    d = os.path.join(base, "tinyprize")
+    yt = [cls] * 100 + [0] * 300
+    prt = list(np.linspace(0.9, 0.1, 400))
+    yt[1] = 0                     # exactly ONE error inside K=50, under the floor
+    write(d, np.array(yt), np.array(prt), [cls] * 200 + [0] * 200)
+    r = sweep([d], cls, fractions=(0.5,))["rows"][0]
+    check("a 1-item prize is 'prize<floor', not '** TASK **' (LOCerr %.1f)"
+          % r["local_errors"], r["verdict"].startswith("prize<floor"))
+    yt2 = [cls] * 100 + [0] * 300
+    for i in range(8):
+        yt2[i * 2] = 0            # EIGHT errors inside K=50, over the floor
+    write(d, np.array(yt2), np.array(prt), [cls] * 200 + [0] * 200)
+    r = sweep([d], cls, fractions=(0.5,))["rows"][0]
+    check("LIVENESS: an 8-item prize still passes as '** TASK **' (LOCerr %.1f)"
+          % r["local_errors"], r["verdict"] == "** TASK **")
+    check("  and recommend() will not pick a below-floor row",
+          all(x["verdict"] == "** TASK **"
+              for x in [recommend(sweep([d], cls, fractions=(0.5,)))] if x))
+
+    # the budget rounding is the TRAINER's, not a local reimplementation
+    check("local_budget matches _round_to_K (banker's: 25*0.5 -> 12)",
+          local_budget(25, 0.5)[0] == 12 and local_budget(35, 0.5)[0] == 18)
+    check("a positive count rounding to K=0 is reported, not raised",
+          local_budget(1, 0.2) == (0, True) and local_budget(0, 0.5) == (0, False))
+
     print("\n%s" % ("ALL PASS" if ok else "FAILURES ABOVE"), file=out)
     return 0 if ok else 1
 
@@ -357,8 +578,14 @@ def main(argv=None):
         raise SystemExit("no runs -- pass --runs or --glob")
 
     print("TASK WINDOW -- is the cap posing a question at all?")
-    print("BINDS forces out >= %d items | PRIZE errors@K > 0 | "
-          "WIGGLE p@K < %.2f" % (MIN_FORCED, WIGGLE_MAX))
+    print("BINDS forces out >= %d items | PRIZE LOCerr >= %.1f (the measured "
+          "RNG floor) | WIGGLE p@K < %.2f"
+          % (MIN_FORCED, MIN_PRIZE, WIGGLE_MAX))
+    print("THE VERDICT READS THE *LOC* COLUMNS. `errors`/`p_at_K` are the GLOBAL")
+    print("top-K and are printed for comparison only: every allocator here is")
+    print("per-group, and on iwildcam 7 of 14 per-group ceilings are ZERO, so a")
+    print("global top-K counts items the allocator can never emit. Measured on")
+    print("taskwin2/MobileNetV3 class 2 at K/n=0.70: 8.5 global vs 2.0 local.")
     print("'forced' = the model's unconstrained count minus K: how many "
           "predictions the cap actually evicts.")
     print("READ THE PER-SEED COLUMN, NOT THE MEAN. On iwildcam/MobileNetV3 the")
@@ -375,16 +602,32 @@ def main(argv=None):
             continue
         print("  class %d   n_true=%d   model predicts %.0f unconstrained   "
               "(%d seed(s))" % (cls, res["n_true"], res["hard"], res["n_seeds"]))
-        print("    %6s %7s %8s %9s %8s %15s %6s   %s"
-              % ("K/n", "K", "errors", "p_at_K", "forced",
-                 "forced per seed", "binds", "verdict"))
+        if not res["have_groups"]:
+            print("    !! these predictions carry no Group_ID, so the LOCAL "
+                  "budget cannot be reconstructed.")
+            print("       The global top-K columns below are NOT what any "
+                  "allocator emits. Verdicts withheld.")
+        print("    %6s %7s | %8s %9s | %8s %9s %6s | %8s %15s %6s   %s"
+              % ("K/n", "K", "errors", "p_at_K", "LOCerr", "LOCp@K", "K=0grp",
+                 "forced", "forced per seed", "binds", "verdict"))
         for r in res["rows"]:
-            print("    %6.2f %7d %8.1f %9.5f %8.0f %15s %6s   %s"
-                  % (r["frac"], r["K"], r["errors"], r["p_at_K"],
+            loc = ("%8.1f %9.5f %6.1f"
+                   % (r["local_errors"], r["local_p_at_K"],
+                      r["zero_budget_groups"])
+                   if r["local_errors"] is not None else "%8s %9s %6s"
+                   % ("-", "-", "-"))
+            print("    %6.2f %7d | %8.1f %9.5f | %s | %8.0f %15s %6s   %s"
+                  % (r["frac"], r["K"], r["errors"], r["p_at_K"], loc,
                      r["forced"],
                      "%.0f..%.0f" % (r["forced_min"], r["forced_max"]),
                      "%d/%d" % (r["n_bind"], r["n_seeds"]),
                      r["verdict"]))
+        infl = [(r["frac"], r["errors"], r["local_errors"]) for r in res["rows"]
+                if r["local_errors"] is not None and r["local_errors"] > 0
+                and r["errors"] > 2 * r["local_errors"]]
+        if infl:
+            print("    !! the GLOBAL top-K overstates the prize >2x at K/n %s"
+                  % ", ".join("%.2f (%.1f vs %.1f)" % t for t in infl))
         rec = recommend(res)
         if rec:
             any_task = True

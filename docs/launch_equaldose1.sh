@@ -1,31 +1,29 @@
 #!/usr/bin/env bash
 # =============================================================================
-# 🛑🛑 SUPERSEDED 2026-09-01 -- 2 OF ITS 6 (backbone x cap) CELLS POSE
-#    NO QUESTION. This campaign has already RUN, so the banner is about how to
-#    READ it as much as about re-running it.
+# ⚠️ THE 2026-09-01 "SUPERSEDED" BANNER ON THIS FILE IS WITHDRAWN (2026-09-02).
+#    It said 2 of 6 (backbone x cap) cells pose NO QUESTION, on the strength of
+#    class 7's window being 0.90-1.00. That window counted the PRIZE over a
+#    GLOBAL top-K while every allocator here is per-group -- and 7 of 14
+#    per-group ceilings on iwildcam are ZERO, so the global top-K counts items
+#    no allocator can emit and reads the cut where no group cuts. Re-measured
+#    per group, class 7's window is 0.60-0.80 (MNv2) / 0.70-0.90 (MNv3) and
+#    NONE of this campaign's cells is a non-task:
 #
-#   A cap poses a question only where it evicts >= 10 predictions, leaves
-#   ERRORS inside K, and cuts at p@K < 0.99 (FRAMEWORK 2(z16), 2(z17)).
-#   Classified against `configs/task_windows.yml` on 2026-09-01:
+#      MobileNetV2   L80_G95     TASK       c2 0.800 strict | c7 0.798 strict
+#      MobileNetV2   L90_G95     partial    c2 0.900        | c7 0.901
+#      MobileNetV2   L95_G80     TASK       c2 0.800 strict | c7 0.800 strict
+#      MobileNetV3   L80_G95     partial    c2 0.800        | c7 0.798 strict
+#      MobileNetV3   L90_G95     partial    c2 0.900        | c7 0.901 strict
+#      MobileNetV3   L95_G80     partial    c2 0.800        | c7 0.800 strict
 #
-#     MobileNetV2   L80_G95     ✅ TASK
-#     MobileNetV2   L90_G95     ✅ TASK
-#     MobileNetV2   L95_G80     ✅ TASK
-#     MobileNetV3   L80_G95     NON-TASK   class 7 K/n=0.798 vs 0.90-1.00
-#     MobileNetV3   L90_G95     ✅ TASK
-#     MobileNetV3   L95_G80     NON-TASK   class 7 K/n=0.800 vs 0.90-1.00
+#    PARTIAL means the cap binds in SOME seeds only: a positive there is
+#    CONSERVATIVE, a null is NOT evidence of no effect. Say PARTIAL wherever
+#    those four cells are quoted.
 #
-#   ⚠️ AND READ 2(z24) BEFORE QUOTING ANY NUMBER FROM THIS CAMPAIGN. The
-#   window above is a MEAN over seeds whose unconstrained counts spread 105
-#   items, so a cell marked TASK here can still be one whose cap binds in only
-#   some seeds. `scripts.task_window` now reports `binds n/N` per fraction; run
-#   it on THIS campaign's own `tralo_null` runs rather than trusting the row.
-#
-#   `configs/gen_campaign.py` REFUSES the dead caps now, so re-running this
-#   script as written exits non-zero. That refusal is correct, not a broken
-#   generator. Re-issue with per-class tags (`L<c2>-<c7>_G<g>`) inside both
-#   classes' windows -- the two capped classes' windows differ on every
-#   backbone, so one fraction cannot sit inside both.
+#    This campaign has already RUN. As deployed it supplies two of the five
+#    independent units (MNv2 and MNv3, both on dsisco01/fp16), and its
+#    MobileNetV3 warm-up is md5-identical to `taskwin2`'s in 4/4 seeds, so the
+#    two are ONE unit and must never be counted twice.
 # =============================================================================
 # =============================================================================
 #  results/equaldose1  --  IS THE DOMINANCE CLAIM A 3.4% HEAD START?

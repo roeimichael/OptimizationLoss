@@ -678,7 +678,59 @@ arms:
 # the campaign that produced the verdict stays reproducible -- a rejected arm
 # just cannot arrive by default. An entry here is a claim with a receipt: put
 # the section that holds the measurement in the value.
+# ARMS THAT HAVE NEVER PRODUCED A SINGLE COMPLETED RUN, anywhere in the
+# 14-worktree family (counted 2026-09-02 over every `config.json` with
+# `status: completed`). They are DECLARATION DEBT, not results: nothing in the
+# corpus, the paper or any doc rests on them.
+#
+# \U0001f6d1 THEY ARE NOT `rejected_arms`, AND THE DIFFERENCE IS THE WHOLE
+# POINT OF THIS PROJECT'S BOOKKEEPING. A rejected arm was MEASURED and lost; an
+# unproven arm was never measured. Filing the second as the first would claim a
+# result nobody produced -- the exact error the `no prize` / `prize<floor` /
+# `no data` split in `task_window` exists to prevent.
+#
+# `--arms all` skips them. Naming one explicitly still works, so building the
+# evidence is one flag away; when it exists, move the arm out of this list.
+unproven_arms:
+  tralo_ortho: "0 completed runs. And `scripts/ortho_survival` already prices
+    it as unpromising WITHOUT a campaign: `ortho_project` delivers 0.0% of its
+    promised CE-neutrality in 16/16 conditions, because 92.6% of the momentum
+    is stale CE the projection never touches and `sqrt(v)` breaks the
+    orthogonality of the 7.4% it does. Run the probe, not the campaign."
+  tralo_margin: "0 completed runs. `scripts/step_direction_probe` measures its
+    head-gradient direction at cosine 0.989 from `tralo` on REAL features, so
+    it would mostly reproduce `tralo` at full campaign cost."
+  tralo_coin: "0 completed runs and no recorded rationale anywhere in docs/.
+    Declared and never exercised."
+  tralo_st: "0 completed runs. Named in FRAMEWORK's inert-flag discussion as
+    one of eleven trained arms, but no run of it survives in results/."
+
 rejected_arms:
+  tralo_cut: "REJECTED on its first campaign, 2026-09-02. `taskwin2` landed
+    48/48 at 232/232 dose and it did not beat `tralo`. Held one confirmation
+    short of final only because `vittask1` was stopped at 13/48; do not re-run
+    it on MobileNetV3, where the class-2 strict band is empty anyway."
+  tralo_uniform: "REJECTED. 0 of 4 task cells, and its FOUNDING CLAIM is
+    refuted by `scripts/bias_shift_probe`: the docstring argued a uniform step
+    in log-odds is a pure bias shift that cannot reorder, but the step is taken
+    in PARAMETERS -- `dz_i = -lr*g*n*(fbar.f_i + 1)`, which varies with
+    `fbar.f_i` -- so it reorders, and it does so through the linear head
+    alone. Separately it ran
+    at 1/29 dose in one campaign while `tralo` ran 29/29. Pure algebra, no
+    artefact needed to re-check."
+  cb_lp: "MATHEMATICALLY PLAIN CE on iwildcam, so it is not a baseline here.
+    The TRAIN set is exactly 2500/class (imbalance 1.0x -- the 4.5x figure is
+    the TEST set), so `class_balanced`'s weights are exactly 1.0 and weighted
+    CE is plain CE BITWISE: its raw predictions are byte-identical to `clip`'s
+    in 24/24. Legitimate on a dataset whose TRAIN prior is actually skewed;
+    `prior_arm_gate` decides per dataset and `--allow-inert-baseline` overrides."
+  la_lp: "MATHEMATICALLY PLAIN CE on iwildcam, and it FAILS DIFFERENTLY from
+    `cb_lp`, which is why only one was caught. `logit_adjust` adds
+    `tau*log(prior)`, a CONSTANT vector, and `log_softmax` is shift-invariant,
+    so the objective is unchanged -- yet its predictions DIFFER from `clip` in
+    24/24, because the constant moves float rounding by ~1e-9 and 30 epochs
+    compound it. Gradient delta vs CE: max 9.3e-10. md5 divergence is NOT
+    evidence of a live mechanism."
   select: >-
     docs/FRAMEWORK.md section 12, scored 2026-08-22: -0.1096 AP and -0.0804 ccF1
     = -22 items vs `clip`, 0 of 2 cells on every metric, and 2 of 8 runs

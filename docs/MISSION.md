@@ -5,7 +5,48 @@
 every working session. If it is stale, that is a defect -- fix it before doing
 anything else.
 
-Last updated: **2026-09-01** (the TASK WINDOW: the cap, not the model, was the defect -- 2(z16)/2(z17)).
+Last updated: **2026-09-02** (the SCREEN was the defect, and the head-to-head is RNG).
+
+---
+
+## 🛑 0-NOW. READ `docs/COVERAGE.md` BEFORE ANY NUMBER BELOW (2026-09-02)
+
+Three findings from today supersede parts of every section that follows.
+
+**1. The head-to-head between the four duals is measuring the RNG.** Scored on
+the AS-DEPLOYED predictions in exact captured items over 19 cells
+(`scripts/deployed_h2h.py`): a #1 arm can be named in **6 cells and refused in
+13**, and of the 6 it is `alm` 2, `tralo` 2, `fioretto` 2. Paired per seed,
+`|tralo - a rival dual|` has median **4.0 items** and `|tralo - tralo_reseed|`
+-- the SAME arm with only the RNG stream perturbed -- has median **4.0 items**.
+Ratio 1.00x. **10 of 19 cells change their #1 when one seed is dropped.**
+
+**2. But `tralo` vs the clippers is now p<0.05, and the old reading could not
+have been.** There are **FIVE** independent units, not four: `dom1` carries
+MobileNetV3 as well as MobileNetV2 and was never counted, and `taskwin2` +
+`equaldose1` MobileNetV3 are md5-identical in 4/4 seeds so they are ONE unit,
+not two. As deployed: `tralo` > `clip` in **5/5 units (p=0.031)** and
+`tralo` > its own `_null` in **5/5 (p=0.031)**. A sign test floors at `0.5^n`,
+so four unanimous units could not go below 0.0625 at any effect size.
+
+**3. `full_panel` was the wrong instrument for "which arm wins".** It scores
+its OWN re-derived equal-budget allocation, not the deployed file, and the two
+disagree in RANK ORDER: at `dom1`/MNv2/`L80_G95` the panel puts `tralo` +5.77
+over `alm` +5.49 while both capture **exactly 2602 items**. The ordering is a
+macro-averaging artefact over two classes whose `(K+n)` differ.
+
+⚠️ **AND THE CAP SCREEN THAT CHOSE THESE CAMPAIGNS' CAPS WAS WRONG.**
+`task_window` counted the PRIZE over a GLOBAL top-K while every allocator here
+is per-group with 7 of 14 ceilings at K=0 -- 8.5 errors global vs 2.0 local on
+MobileNetV3 class 2, a 4.25x overstatement -- and passed PRIZE on `errors > 0`
+when the RNG floor is 3.0 items. Fixed, gated 23 ways. Consequence:
+`taskwin2`'s `L70-90_G95` was never a task cell, which is the whole explanation
+for its +0.75 items; and `dom1`/`equaldose1` were wrongly retired as
+SUPERSEDED, so both banners are withdrawn.
+
+🔑 **NOTHING HERE IS SETTLED POLICY.** The rebuilt
+`configs/task_windows.yml` is a single re-measurement under a prize bar chosen
+the same day. `gen_campaign` WARNS on an empty band, it does not refuse.
 
 ---
 
@@ -399,7 +440,7 @@ L95_G80. Only **20 distinct warm-up models** exist across all five campaigns.
 |---|---|---|
 | `soft_count_mode: sum` (shipped) | 🟡 wins LOOSE, loses TIGHT -- **and the reason is now known**, 2(y) | AP +0.0253..+0.0064 loose / -0.0572..-0.0933 tight. The gradient sits at the boundary, 200-440 ranks from the cut when the cap is tight |
 | `soft_count_mode: uniform` | ⛔ **DO NOT RUN AGAIN 2026-09-01** (weaker than 'refuted': see the cross-campaign count). Was logged as "the tight-cap tool", but tight caps are now measured NON-TASKS (2(z17)) and in the cells that ARE tasks it clears its own reseed floor in **3 of 8** of the cells 2(z23) counts (`loose1` 1/5, `dom1b` 2/3) and in **0 of 4** `dom1` task cells (2(z21)) -- **3 of 12 overall** and is **-3.50 items against a 0.51 floor on ViTB16** (2(z20), 2(z21), 2(z23)). It never LEADS anywhere. Its founding order-preservation claim was also refuted (0-NOW (2)) | old row: ViTB16 AP +0.0087 tight / -0.0091 loose, `uniform1` -0.0754 -> +0.0030. Those tight-cap numbers stand as measurements and no longer support the verdict |
-| `soft_count_mode: margin` | ⛔ **NEVER RUN, AND NOW REPRICED DOWNWARD** (2026-09-01). Still staged as `margin2` (432 runs) but it windows the BOUNDARY, and the boundary is measured to carry **exactly 0.0000** of the gradient at the cut. 🛑 **Run `taskwin2` first** | cosine **0.989** to `tralo` on real features, so 432 runs would mostly reproduce `tralo`. FRAMEWORK 2(z12) |
+| `soft_count_mode: margin` | ⛔ **NEVER RUN, AND NOW REPRICED DOWNWARD** (2026-09-01). **NOT staged** -- checked 2026-09-02, no `margin2` exists on disk anywhere; this line said it was. It windows the BOUNDARY, and the boundary is measured to carry **exactly 0.0000** of the gradient at the cut. 🛑 **Run `taskwin2` first** | cosine **0.989** to `tralo` on real features, so 432 runs would mostly reproduce `tralo`. FRAMEWORK 2(z12) |
 | `soft_count_mode: cut` (`tralo_cut`) | ⛔ **REJECTED on its first campaign, 2026-09-02.** `taskwin2` landed 48/48 at 232/232 dose and `tralo_cut` is WORSE than `tralo` in **both** cells on **all three** contrasts. In the strict task cell it is NEGATIVE against the clipper. Aiming the gradient at the cut was necessary and is now measured to be insufficient. 🟡 One confirmation outstanding: `vittask1` runs it on ViTB16 and will give a second backbone before this is final | strict cell `L70-90_G95`: `tralo_cut` **-0.46 / -7.02 / -8.05** items (vs clip / null / reseed) against `tralo` **+7.32 / +0.75 / -0.27** -- **7.8 items behind on every contrast**. Unmeasured cell `L80-100_G95`: **+6.64 / +1.24 / -0.95** against `tralo` **+10.86 / +5.47 / +3.28** -- 4.2 behind. The build was sound (mass at the cut 0.0001 -> 0.3486, chunked gradient == full-N exactly, md5-distinct on every binding seed); the HYPOTHESIS was wrong |
 | `tralo_st` (hard-count value fix) | ❓ **NEVER RUN** -- same campaign | isolates VALUE from PLACEMENT |
 | `straight_through` | ✅ keeps count value exact | -- |

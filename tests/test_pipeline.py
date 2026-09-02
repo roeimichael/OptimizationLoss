@@ -7886,12 +7886,21 @@ def test_the_task_window_file_is_measured_not_invented(tmp_path):
     assert set(iw) >= {"ViTB16", "MobileNetV3", "MobileNetV2", "RegNetY400MF"}
     for model, row in iw.items():
         assert row.get("provenance"), "%s has no provenance" % model
-        for cls, (lo, hi) in row["class"].items():
-            # lo == hi is LEGAL and now common: re-measured per seed
-            # (FRAMEWORK 2(z24b)) the strict windows collapse to ONE
-            # fraction on MobileNetV3 (class 2 = 0.70, class 7 = 0.90).
-            # A window is a range over a measured GRID, not an interval
-            # that must have width.
+        for cls, band in row["class"].items():
+            # AN EMPTY BAND IS LEGAL AND IS A MEASUREMENT. Re-measured with
+            # the per-group prize (2026-09-02) MobileNetV3 class 2 has NO
+            # fraction that both binds in 4/4 seeds and clears the 3.0-item
+            # RNG floor, and ViTB16 has only ONE seed so no strict band can be
+            # claimed from it at all. Those rows must still carry a PARTIAL
+            # band, which the assertion at the end of this test requires.
+            if not band:
+                assert row.get("partial", {}).get(cls), (
+                    "%s class %s has an EMPTY strict band AND no partial "
+                    "band, so the row says nothing at all" % (model, cls))
+                continue
+            lo, hi = band
+            # lo == hi is LEGAL: a window is a range over a measured GRID,
+            # not an interval that must have width.
             assert 0.0 <= lo <= hi <= 2.0, "%s class %s: %s" % (model, cls, (lo, hi))
     # the two capped classes' windows are DIFFERENT on every backbone, which is
     # why per-class cap fractions had to exist at all
@@ -7902,8 +7911,11 @@ def test_the_task_window_file_is_measured_not_invented(tmp_path):
         # single-fraction form expresses a valid experiment. The per-class
         # form is still REQUIRED on the other three, which is what this
         # asserts.
-        if model != "MobileNetV2":
-            assert row["class"][2] != row["class"][7], (
+        # Only meaningful where BOTH classes have a band. Where one is empty
+        # the per-class form is required a fortiori -- one fraction cannot sit
+        # inside a window that does not exist.
+        if row["class"][2] and row["class"][7]:
+            assert row["class"][2] != row["class"][7] or model == "MobileNetV2", (
                 "%s: identical windows would make per-class caps pointless"
                 % model)
         assert set(row.get("partial") or {}) == {2, 7}, (
@@ -7932,13 +7944,24 @@ def test_the_scorers_can_tell_a_task_cell_from_a_non_task_one(tmp_path):
 
     c = pd.DataFrame([
         dict(dataset="iwildcam", model="MobileNetV3", cap="L30_G50"),
-        dict(dataset="iwildcam", model="MobileNetV3", cap="L70-90_G95"),
+        # THE LIVENESS CELL MOVED BACKBONE ON 2026-09-02. It was MobileNetV3
+        # x L70-90_G95 until the per-group prize emptied that backbone's
+        # class-2 strict band; MobileNetV2 x L80_G95 is now the cell that IS a
+        # task (c2 K/n 0.800 and c7 0.798, both strict).
+        dict(dataset="iwildcam", model="MobileNetV2", cap="L80_G95"),
         dict(dataset="iwildcam", model="NoSuchNet", cap="L70-90_G95"),
     ])
     got = list(annotate_task(c)["task"])
-    assert got[0] == "non_task", "L30_G50 on MobileNetV3 is a measured non-task"
+    # WHAT MATTERS IS THAT THE SCORER LABELS IT AS POSING NO QUESTION, not
+    # which flavour of "no". After the 2026-09-02 window rebuild MobileNetV3
+    # class 2 has no strict band at all, so this cell reads `no_strict_band`
+    # rather than `non_task`. Both bar it from a claim; pinning the string
+    # failed the gate for a relabel while the measurement was unchanged.
+    assert got[0] in ("non_task", "no_strict_band"), (
+        "L30_G50 on MobileNetV3 poses no question and the scorer must say so; "
+        "it said %r" % (got[0],))
     assert got[1] == "task", (
-        "L70-90_G95 on MobileNetV3 IS a task; a column that only ever says "
+        "L80_G95 on MobileNetV2 IS a task; a column that only ever says "
         "non_task cannot be read")
     assert got[2] == "no_window", (
         "an UNMEASURED backbone read as %r. An unknown is not a known "
@@ -7971,7 +7994,10 @@ def test_full_panel_says_when_a_contrast_pools_cells_that_pose_no_question():
         return buf.getvalue()
 
     mixed = render([
-        dict(dataset="iwildcam", model="MobileNetV3", cap="L70-90_G95"),
+        # MobileNetV2 x L80_G95 is the task cell as of the 2026-09-02 window
+        # rebuild; MobileNetV3 x L70-90_G95 stopped being one when that
+        # backbone's class-2 strict band emptied.
+        dict(dataset="iwildcam", model="MobileNetV2", cap="L80_G95"),
         dict(dataset="iwildcam", model="MobileNetV3", cap="L30_G50"),
     ])
     assert "NO QUESTION" in mixed, mixed
@@ -7982,7 +8008,7 @@ def test_full_panel_says_when_a_contrast_pools_cells_that_pose_no_question():
     # LIVENESS: an all-task campaign must not carry the warning, or the warning
     # is decoration rather than information.
     clean = render([
-        dict(dataset="iwildcam", model="MobileNetV3", cap="L70-90_G95"),
+        dict(dataset="iwildcam", model="MobileNetV2", cap="L80_G95"),
     ])
     assert "pose NO question" not in clean, clean
     assert "all 1 measured cell(s) pose a question" in clean, clean
@@ -8162,7 +8188,14 @@ def test_every_launch_script_either_runs_task_caps_or_says_it_is_superseded():
                 r = classify(P, TW, "iwildcam", m, tag)
                 if r["status"] == "non_task":
                     dead.append((m, tag))
-        is_banded = "SUPERSEDED" in src[:4000]
+        # A WITHDRAWN banner is not a banner. `launch_dom1.sh` had its
+        # 2026-09-01 retirement withdrawn on 2026-09-02 (the window that
+        # retired it counted the prize over a global top-K), and the
+        # withdrawal necessarily has to NAME the thing it withdraws -- so a
+        # bare substring test read the retraction as the retirement and failed
+        # the file for saying it was runnable again.
+        is_banded = ("SUPERSEDED" in src[:4000]
+                     and "WITHDRAWN" not in src[:4000])
         if dead:
             banded += 1
             assert is_banded, (
@@ -8172,10 +8205,21 @@ def test_every_launch_script_either_runs_task_caps_or_says_it_is_superseded():
                 "why." % (os.path.basename(path), len(dead), dead[:4]))
         else:
             clean += 1
-            assert not is_banded, (
-                "%s is marked SUPERSEDED but every one of its caps is a task "
-                "cell. A stale banner retires a runnable campaign."
-                % os.path.basename(path))
+            # A CAMPAIGN CAN BE SUPERSEDED FOR A REASON THAT IS NOT THE CAP.
+            # `loose1`, `loosevit1`, `vitu1`, `iwc4` and `vitdom2` all ran a
+            # DIFFERENT RECIPE (`constraint_grad_mode: clip`, or fp32 off) and
+            # are archived out of `results/` for that -- their caps are fine.
+            # Requiring a non-task cap to justify every banner would force us
+            # to un-retire five campaigns that are genuinely not corpus. So a
+            # banner is legitimate when it NAMES a reason; it is stale only
+            # when it claims the cap poses no question and the cap does.
+            other_reason = any(w in src[:4000] for w in
+                               ("RECIPE", "ARCHIVED", "DOSE", "LEAK"))
+            assert not is_banded or other_reason, (
+                "%s is marked SUPERSEDED, every one of its caps IS a task "
+                "cell, and the banner names no other reason (RECIPE / "
+                "ARCHIVED / DOSE / LEAK). A stale banner retires a runnable "
+                "campaign." % os.path.basename(path))
 
     assert checked >= 3, (
         "only %d launch script(s) were checked; the glob or the flag parser "

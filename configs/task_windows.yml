@@ -1,31 +1,56 @@
 # MEASURED TASK WINDOWS -- the K/n range in which a cap poses a QUESTION.
 #
 # A count cap can only distinguish two methods where all three hold at once
-# (scripts/task_window.py, FRAMEWORK 2(z16) and 2(z17)):
+# (scripts/task_window.py, FRAMEWORK 2(z16), 2(z17), 2(z28)):
 #
 #   BINDS    the cap evicts >= min_forced predictions the model would have made
-#   PRIZE    errors@K > 0, i.e. the top-K is not already perfect
+#   PRIZE    LOCerr >= min_prize -- errors inside the budget the LOCAL
+#            allocator actually emits, and enough of them to clear the RNG floor
 #   WIGGLE   p@K < wiggle_max, i.e. the cut is not buried in saturated scores
 #
 # Outside the window a cell measures the ABSENCE of a question, and a null
-# there is not evidence about any method. 24 of 24 (backbone x class x cap)
-# cells at L20/L30/L50 on iwildcam are outside it on every backbone.
+# there is not evidence about any method.
 #
 # THIS FILE IS MEASURED, NOT CHOSEN. Regenerate a row with:
-#   python -m scripts.task_window --glob '<runs of an UNCONSTRAINED arm>' \
+#   python -m scripts.task_window --glob '<runs of an UNCONSTRAINED arm>'
 #          --classes 2 7
-# and paste the reported window. It is per (dataset, backbone): the
-# unconstrained hard count and the ranking quality both move with the backbone.
+# and paste the reported window.
+#
+# =====================================================================
+# REWRITTEN 2026-09-02. THE PREVIOUS WINDOWS WERE WRONG IN TWO WAYS AND
+# THE TWO PUSHED IN OPPOSITE DIRECTIONS, WHICH IS WHY NEITHER SHOWED UP.
+#
+#   1. The PRIZE was counted on a GLOBAL top-K. Every allocator here is
+#      per-group, and on iwildcam 7 of 14 per-group ceilings are ZERO, so a
+#      global top-K counts high-scoring items the allocator can NEVER emit.
+#      Measured on MobileNetV3 class 2 at K/n=0.70: 8.5 errors global vs 2.0
+#      local, a 4.25x overstatement. It overstates by >2x at 8 of 11
+#      fractions. => the old windows were too GENEROUS about the prize.
+#
+#   2. The WIGGLE was read at the same global cut, which sits far higher than
+#      any group's own cut. MobileNetV3 class 2 at K/n=0.30 reads p@K=0.99998
+#      globally (saturated, rejected) and 0.98258 locally (unsaturated).
+#      => the old windows were too STRICT about saturation.
+#
+#   3. PRIZE passed on `errors > 0`, so a cell whose entire available gain was
+#      0.8 items counted as a task. The RNG floor -- |tralo - tralo_reseed| on
+#      the SAME cell and seed, differing only in the RNG stream -- is median
+#      3.0 TP items per capped class (n=70 per class, clean corpus). Nothing
+#      below that is measurable at 4 seeds by any method.
+#
+# NET EFFECT: the windows MOVED, they did not merely shrink or grow, and one
+# of them EMPTIED. See `per_model` under each backbone for the receipts.
+# =====================================================================
 
 meta:
   criteria:
     min_forced: 10        # scripts.task_window.MIN_FORCED
+    min_prize: 3.0        # scripts.task_window.MIN_PRIZE -- the measured RNG floor
     wiggle_max: 0.99      # scripts.task_window.WIGGLE_MAX
   fraction_grid: [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2]
-  # WHAT THE TOLERANCE IS FOR, because it is LOAD-BEARING: 336 of the 736
-  # completed runs that land in a task cell (46%) qualify only through it.
+  # WHAT THE TOLERANCE IS FOR, because it is LOAD-BEARING.
   #
-  # It is GRID SNAPPING, not a widening of the window. The windows above were
+  # It is GRID SNAPPING, not a widening of the window. The windows below were
   # measured on `fraction_grid`, whose step is 0.1. A cap TAG does not produce
   # a round K/n -- `L80_G95` gives class 7 K/n = 0.798 and `L90_G95` gives
   # 0.901, because K is an integer budget over an integer class count. Those
@@ -38,16 +63,11 @@ meta:
   # asserts that relationship, so raising this number without re-measuring on a
   # finer grid FAILS rather than silently widening every window.
   tolerance: 0.005
-  measured_on: "2026-09-01"
+  measured_on: "2026-09-02"
   reference_arm: tralo_null
 
-# STRICT vs PARTIAL, re-measured per seed 2026-09-01 (FRAMEWORK 2(z24)).
-#
-# The `class:` ranges below USED to be computed from the MEAN unconstrained
-# count over seeds, and no seed resembles the mean: on MobileNetV3 the four
-# lambda=0 seeds predict 278/329/354/383 for class 2, a spread of 105 items.
-# `scripts.task_window` now reports `binds n/N` per fraction, so each window
-# splits in two:
+# =====================================================================
+# STRICT vs PARTIAL, per seed.
 #
 #   strict   the cap BINDS in every seed (4/4) and has prize + wiggle. This is
 #            the cell a clean arm-vs-arm claim needs.
@@ -55,54 +75,112 @@ meta:
 #            toward zero, so a positive measured here is CONSERVATIVE -- but it
 #            must be LABELLED, because the effective n is smaller than it looks
 #            and a null there is weaker evidence than a null in a strict cell.
+#   []       NO strict band exists at ANY fraction on the grid. Not "not yet
+#            measured" -- measured, and empty. See MobileNetV3 class 2.
 #
 # `gen_campaign` takes strict silently, takes partial with a printed label
-# naming n/N, and refuses anything outside both.
+# naming n/N, WARNS on an empty band, and refuses only a cap that is outside a
+# measured non-empty window.
 #
-# WHAT THIS COST WHEN IT WAS MISSING: `taskwin2` staged MobileNetV3 x
-# `L80-100_G95`, which the mean-based file called a task. Per seed it is class
-# 2 at 0.80 = 3/4 and class 7 at 1.00 = 2/4 -- half that campaign is a PARTIAL
-# cell. Its other tag, `L70-90_G95`, is 4/4 on both classes.
+# ⚠️ THIS FILE IS PROVISIONAL AND IS NOT POLICY. The bands below come
+# from ONE re-measurement (2026-09-02) under a prize bar, MIN_PRIZE = 3.0,
+# that is itself a single estimate of the RNG floor from a single corpus.
+# TraLO is not yet consistently better than its rivals, so nothing about what
+# to test on is settled -- an empty band is a reason to EXPECT a small effect
+# and to say so, not a reason the generator should lock a backbone out.
+#
+# 🛑 THE WINDOW IS A PROPERTY OF THE REFERENCE MODEL, NOT OF THE BACKBONE.
+# The same backbone on two hosts gives two different unconstrained counts and
+# therefore two different windows: MobileNetV3 class 2 predicts 336 items in
+# `dom1` (dsisco02/bf16) and 355 in `equaldose1` (dsisco01/fp16), and the
+# window is [0.60, 0.70] on the first and EMPTY on the second.
+#
+# So each `class:` band below is the INTERSECTION over every model measured for
+# that backbone -- the conservative choice, since a cap inside the intersection
+# poses a question on either host. `per_model` keeps the individual readings,
+# and a backbone with only ONE model measured says so.
+# =====================================================================
 windows:
   iwildcam:
-    ViTB16:
-      provenance: "iwc2/ViTB16/iwildcam, 8 tralo_null runs, re-measured per
-        seed 2026-09-01. iwc2 is quarantined for constraint DOSE, which cannot
-        affect a lambda=0 arm's ranking; no other iwildcam ViTB16 runs exist."
-      unconstrained_count: {2: 347, 7: 487}
-      class:                     # strict: every seed binds
-        2: [0.60, 0.70]
-        7: [0.90, 0.90]
-      partial:                   # binds in some seeds; label it
-        2: [0.80, 0.90]          #   0.80 3/4, 0.90 3/4
-        7: [1.00, 1.10]          #   1.00 2/4, 1.10 1/4
-    MobileNetV3:
-      provenance: "iwc3/MobileNetV3/iwildcam, 12 tralo_null runs, re-measured
-        per seed 2026-09-01."
-      unconstrained_count: {2: 355, 7: 478}
+    MobileNetV2:
+      provenance: "INTERSECTION of two models re-measured 2026-09-02 with the
+        per-group prize: dom1 (dsisco02/bf16, 4 tralo_null seeds) and
+        equaldose1 (dsisco01/fp16, 4 seeds). Both are on the current recipe."
+      unconstrained_count: {2: 405, 7: 421}   # equaldose1, the tighter model
+      per_model:
+        dom1_dsisco02_bf16: {hard: {2: 380, 7: 448}, strict: {2: [0.60, 0.90], 7: [0.60, 0.90]}}
+        equaldose1_dsisco01_fp16: {hard: {2: 405, 7: 421}, strict: {2: [0.70, 0.80], 7: [0.60, 0.80]}}
       class:
-        2: [0.70, 0.70]
-        7: [0.90, 0.90]
+        2: [0.70, 0.80]
+        7: [0.60, 0.80]
+      partial:
+        2: [0.90, 1.10]          #   equaldose1: 0.90 3/4, 1.00 3/4, 1.10 2/4
+        7: [0.90, 1.00]          #   equaldose1: 0.90 1/4, 1.00 1/4
+
+    MobileNetV3:
+      # 🛑 CLASS 2 HAS NO STRICT BAND AT ANY FRACTION ON THE fp16 MODEL, and
+      # the intersection is therefore EMPTY. This is a measurement, not a gap.
+      # At every fraction where the cap still binds in 4/4 seeds the local
+      # prize is under the 3.0-item RNG floor (0.2 / 0.8 / 1.0 / 1.0 / 1.8 /
+      # 2.2 items at K/n 0.20-0.70), and at every fraction where the prize
+      # clears the floor the cap has stopped binding in some seed (0.80 3/4,
+      # 0.90 3/4, 1.00 1/4).
+      #
+      # THIS IS THE EXPLANATION FOR taskwin2. `L70-90_G95` puts class 2 at
+      # K/n = 0.70 on exactly this model, where the whole available prize is
+      # 2.2 items against a 3.0-item floor -- and `tralo` there beat its own
+      # null by +0.75 items. The cell could not have produced more.
+      provenance: "INTERSECTION of two models re-measured 2026-09-02 with the
+        per-group prize: dom1 (dsisco02/bf16, 4 tralo_null seeds) gives class 2
+        [0.60, 0.70]; equaldose1 (dsisco01/fp16, 4 seeds, the model taskwin2
+        also uses) gives class 2 NO strict band at all. Intersection is empty."
+      unconstrained_count: {2: 355, 7: 478}
+      per_model:
+        dom1_dsisco02_bf16: {hard: {2: 336, 7: 490}, strict: {2: [0.60, 0.70], 7: [0.50, 0.90]}}
+        equaldose1_dsisco01_fp16: {hard: {2: 355, 7: 478}, strict: {2: [], 7: [0.70, 0.90]}}
+      class:
+        2: []                    # measured, and EMPTY -- see the note above
+        7: [0.70, 0.90]
       partial:
         2: [0.80, 1.00]          #   0.80 3/4, 0.90 3/4, 1.00 1/4
         7: [1.00, 1.10]          #   1.00 2/4, 1.10 1/4
-    MobileNetV2:
-      provenance: "iwc3/MobileNetV2/iwildcam, 12 tralo_null runs, re-measured
-        per seed 2026-09-01."
-      unconstrained_count: {2: 405, 7: 421}
-      class:
-        2: [0.80, 0.80]
-        7: [0.80, 0.80]
-      partial:
-        2: [0.90, 1.10]          #   0.90 3/4, 1.00 3/4, 1.10 2/4
-        7: [0.90, 1.00]          #   0.90 1/4, 1.00 1/4
+
     RegNetY400MF:
-      provenance: "iwc3/RegNetY400MF/iwildcam, 12 tralo_null runs, re-measured
-        per seed 2026-09-01."
+      provenance: "dom1b/RegNetY400MF (dsisco01/fp16), 4 tralo_null seeds,
+        re-measured 2026-09-02 with the per-group prize. ONE model only -- this
+        band is not an intersection and may narrow when a second host is run."
       unconstrained_count: {2: 345, 7: 498}
+      per_model:
+        dom1b_dsisco01_fp16: {hard: {2: 345, 7: 498}, strict: {2: [0.70, 0.80], 7: [0.60, 0.90]}}
       class:
-        2: [0.60, 0.80]
-        7: [0.80, 0.90]
+        2: [0.70, 0.80]
+        7: [0.60, 0.90]
       partial:
         2: [0.90, 1.00]          #   0.90 1/4, 1.00 1/4
         7: [1.00, 1.20]          #   1.00 3/4, 1.10 1/4, 1.20 1/4
+
+    ViTB16:
+      # ⚠️ ONE SEED. The headline backbone's window is NOT measured.
+      # `binds n/N` reads 1/1 here, which cannot distinguish a cap that binds
+      # everywhere from one that binds in a quarter of seeds -- and on every
+      # other backbone the four seeds spread 60-105 items. The band below is
+      # therefore recorded as PARTIAL, not strict, so `gen_campaign` labels any
+      # ViTB16 cap rather than passing it silently.
+      #
+      # The previous entry here was measured on `iwc2`, which is quarantined
+      # AND archived, AND used the global top-K. It is gone, not superseded.
+      #
+      # RE-MEASURE THE MOMENT vitdual1's tralo_null arms land: that campaign
+      # carries 8 of them at two caps on this exact backbone and host.
+      provenance: "vittask1/ViTB16 (dsisco01/fp16), ONE tralo_null seed,
+        2026-09-02, per-group prize. NOT a measured window -- a single seed
+        cannot establish `binds n/N`. Recorded as partial pending vitdual1."
+      unconstrained_count: {2: 379, 7: 454}
+      per_model:
+        vittask1_dsisco01_fp16: {hard: {2: 379, 7: 454}, seeds: 1, strict_1seed: {2: [0.70, 0.90], 7: [0.70, 0.90]}}
+      class:
+        2: []                    # no strict band can be claimed from one seed
+        7: []
+      partial:
+        2: [0.70, 0.90]          #   1 seed only -- treat as provisional
+        7: [0.70, 0.90]

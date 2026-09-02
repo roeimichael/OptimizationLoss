@@ -138,14 +138,24 @@ def test_classify_keeps_every_status_distinct_and_the_24_of_24_census(
     a measurement nobody took. NEGATIVE CONTROLS: an unmeasured backbone and an
     absent slice must not read `non_task`, and a loose per-class tag must read
     `task` somewhere -- a classifier that only refuses decides nothing."""
+    # 🛑 A SEVENTH STATUS EXISTS AS OF 2026-09-02: `no_strict_band`,
+    # for a class whose strict window is measured and EMPTY. And the (model,
+    # tag) that produces each status MOVED when the windows were rebuilt with
+    # the per-group prize -- MobileNetV3 `L70-90_G95` was the `task` example
+    # and is now the `no_strict_band` one. What this gate protects is that the
+    # statuses stay DISTINGUISHABLE, so the pairs below are chosen to hit each
+    # one and the assertion is on distinctness, not on any particular label.
     fails, seen = [], {}
-    for tag, want in (("L70-90_G95", "task"), ("L90_G95", "partial"),
-                      ("L80-100_G95", "unmeasured"), ("L30_G50", "non_task")):
-        got = classify(protocol, windows, "iwildcam", "MobileNetV3", tag)
+    for model, tag, want in (("MobileNetV2", "L80_G95", "task"),
+                             ("MobileNetV3", "L90_G95", "partial"),
+                             ("MobileNetV2", "L85_G95", "unmeasured"),
+                             ("MobileNetV2", "L30_G50", "non_task"),
+                             ("MobileNetV3", "L70-90_G95", "no_strict_band")):
+        got = classify(protocol, windows, "iwildcam", model, tag)
         seen[want] = got["status"]
         if got["status"] != want:
-            fails.append("MobileNetV3 %s: status=%r, expected %r"
-                         % (tag, got["status"], want))
+            fails.append("%s %s: status=%r, expected %r"
+                         % (model, tag, got["status"], want))
         if want in ("task", "partial") and not got.get("provenance"):
             fails.append("%s carries no provenance; a window row is measured "
                          "from ONE campaign's model and does not transfer" % tag)
@@ -164,12 +174,19 @@ def test_classify_keeps_every_status_distinct_and_the_24_of_24_census(
     for model in BACKBONES:
         for tag in NON_TASK_TAGS:
             r = classify(protocol, windows, "iwildcam", model, tag)
-            if r["status"] != "non_task":
-                fails.append("%s %s reads %r; 2(z17) measured non_task"
-                             % (model, tag, r["status"]))
+            # THE CENSUS ASSERTS THE FINDING, NOT ITS LABEL. 2(z17) measured
+            # that L20/L30/L50 pose no question on any backbone; after the
+            # 2026-09-02 rebuild some of those cells say so as `no_strict_band`
+            # (the class has no strict window at all) rather than `non_task`
+            # (this K/n is outside one). Both mean "do not run a campaign
+            # here"; pinning the string would have failed the gate for a
+            # relabel while the measurement was unchanged.
+            if r["status"] in ("task", "partial"):
+                fails.append("%s %s reads %r; 2(z17) measured that it poses "
+                             "NO question" % (model, tag, r["status"]))
             for c, v in r["classes"].items():
                 cells += 1
-                if v["band"] != "outside":
+                if v["band"] not in ("outside", "no_strict"):
                     fails.append("%s %s c%d band=%r at K/n=%.4f"
                                  % (model, tag, c, v["band"], v["ratio"]))
     if cells != 24:

@@ -27,17 +27,24 @@ from configs.gen_campaign import (build_hyperparams, cap_pair,  # noqa: E402
 
 pytestmark = pytest.mark.stage4_grid
 
-# The two caps `taskwin2` runs, measured INSIDE MobileNetV3's task window
-# (configs/task_windows.yml, 2(z24)). Two levels, because a claim from one has
-# been retracted three times.
-CAPS = ["L70-90_G95", "L80-100_G95"]
+# 🛑 THIS FIXTURE MOVED BACKBONE ON 2026-09-02, AND THE MOVE IS ITSELF
+# A RESULT. It used to be MobileNetV3 x {L70-90_G95, L80-100_G95} -- the caps
+# `taskwin2` actually ran -- because the old windows called them tasks. Under
+# the per-group prize (FRAMEWORK 2(z28)) MobileNetV3 class 2 has NO strict band
+# at ANY fraction, so no cap on that backbone is a valid campaign and the
+# generator rightly refuses every one. The valid-campaign fixture therefore has
+# to live on MobileNetV2, whose window is class 2 [0.70,0.80] / class 7
+# [0.60,0.80]: `L70_G95` and `L80_G95` are inside both.
+# Two levels, because a claim from one cap has been retracted three times.
+MODEL = "MobileNetV2"
+CAPS = ["L70_G95", "L80_G95"]
 DEAD_CAPS = ["L20_G50", "L30_G50"]     # 24 of 24 cells pose no question, 2(z17)
 SLICE = os.path.join(ROOT, "data", "iwildcam", "oodslice", "test_meta.csv")
 TRIO = ["tralo", "tralo_null", "tralo_reseed"]
 MIXED = ["clip", "tralo", "tralo_null"]
 
 
-def _cfg(P, arm, cap, seed, model="MobileNetV3", ds="iwildcam"):
+def _cfg(P, arm, cap, seed, model=MODEL, ds="iwildcam"):
     """One run's config.json, built through the GENERATOR's own functions, so a
     broken variant differs from a real campaign in exactly one field."""
     hp = build_hyperparams(P, P["arms"][arm], seed)
@@ -98,7 +105,7 @@ def _parity(root):
 def _gen(root, arms, caps=CAPS, extra=(), protocol=None):
     """The real generator, as a subprocess. Never into results/."""
     cmd = [sys.executable, "-m", "configs.gen_campaign", "--root", str(root),
-           "--datasets", "iwildcam", "--models", "MobileNetV3", "--caps"]
+           "--datasets", "iwildcam", "--models", MODEL, "--caps"]
     cmd += list(caps) + ["--arms"] + list(arms) + list(extra)
     cmd += ["--protocol", str(protocol)] if protocol else []
     p = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True,
@@ -426,7 +433,7 @@ def test_dead_arms_and_quarantined_campaigns_are_not_merely_unfinished(
         json.dump({"reason": "synthetic", "scorable": False}, fh)
     if quarantine.is_quarantined(q) is None:
         fails.append("a marked campaign read as clean")
-    if quarantine.is_quarantined(os.path.join(q, "MobileNetV3")) is None:
+    if quarantine.is_quarantined(os.path.join(q, MODEL)) is None:
         fails.append("scoring one backbone walked past the root marker")
     report(fails, "liveness defects")
 

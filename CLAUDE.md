@@ -67,8 +67,9 @@ one campaign running `grad_mode: clip`.
 * **18 campaigns / 1,326 configs are archived** at
   `~/optloss-archive-stale-2026-09-02/` (moved, not unlinked, so `results/`
   cannot glob them). `iwc1-4` `loose1` `loosevit1` `vitu1` `xfam1` `taskwin1`
-  `uniform1_VOID` `vitdom2_cnn` `vitdom2_vit` + 7 dermmnist campaigns. They are
-  still the receipts for what they measured; they are not corpus.
+  `uniform1_VOID` `vitdom2_cnn` `vitdom2_vit`, plus seven campaigns on the
+  removed leaked-test-set dataset. They are still the receipts for what they
+  measured; they are not corpus, and none of them is runnable.
 * **`results/` holds `dom1` `dom1b` `equaldose1` `uniform1` `taskwin2`
   `vittask1` `vitdual1` and nothing else**, all one recipe.
 * `scripts.rig_status` now REFUSES a campaign off the recipe, and refuses one
@@ -196,6 +197,21 @@ python -m scripts.dose_landed <root>        # 🛑 RUN THIS FIRST, AND ON A RUNN
 #   low = the loss shape (`tralo_uniform` 1/29 beside `tralo` 29/29); EVERY arm
 #   low = the host (`iwc3` 716/1044, FP16 + GradScaler skips an overflowing
 #   step). Read the `amp` column to tell them apart. `--self-test` gates it.
+python -m scripts.deployed_h2h --campaign <roots> --control clip  # 🛑 THE ARM-VS-ARM
+#   ONE, and NOT a duplicate of full_panel. full_panel scores its OWN re-derived
+#   equal-budget allocation, so it is allocator-blind by design and answers
+#   "whose RANKING is better"; this reads `final_predictions.csv` -- what would
+#   actually be deployed -- in EXACT captured items. They disagree in RANK
+#   ORDER: at dom1/MNv2/L80_G95 the panel puts `tralo` +5.77 over `alm` +5.49
+#   while both capture exactly 2602 items, an artefact of cc-F1 being
+#   macro-averaged over two classes whose (K+n) differ.
+#   🔑 IT REFUSES TO NAME A #1 when the spread is under the RNG floor,
+#   and on the clean corpus that is most cells: 19 cells, #1 namable in 6,
+#   refused in 13, and |tralo - rival| median 4.0 items against
+#   |tralo - tralo_reseed| median 4.0 -- ratio 1.00x. `--self-test` gates it.
+python -m scripts.dead_code --paths configs src   # what is DECLARED and never
+#   referenced. AST, never grep: a name in a docstring is not a call. A REPORT,
+#   not a gate -- a getattr-built call is invisible to it, so confirm by hand.
 python -m scripts.full_panel --campaign <root> --control clip   # THE scorer, seed-paired
 #   ^ 🛑 READ ITS `CONSTRAINT DOSE` BLOCK ON THE FIRST COMPLETED RUNS,
 #     NOT AT THE END. A non-finite constraint gradient makes

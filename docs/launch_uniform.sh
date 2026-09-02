@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 # =============================================================================
 # 🛑🛑 SUPERSEDED 2026-09-01 -- 9 OF ITS 9 (backbone x cap) CELLS POSE
+#
+#   ARCHIVED 2026-09-02 -- AND THE RECIPE IS THE REASON, not the cap.
+#   This campaign ran tralo_uniform is REJECTED (0 of 4 task cells), so it is a DIFFERENT METHOD from the
+#   current recipe (iwildcam + constraint_fp32:True +
+#   constraint_grad_mode:normalize). It is moved out of results/ to
+#   `~/optloss-archive-stale-2026-09-02/` and must not be pooled with
+#   the corpus. Its caps are fine; its method is not the one we score.
+#
 #    NO QUESTION. This campaign has already RUN, so the banner is about how to
 #    READ it as much as about re-running it.
 #

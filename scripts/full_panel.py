@@ -1488,7 +1488,13 @@ def print_task_cells(df):
                        for r in rows):
         return
     n_task = sum(1 for _, r in rows if r["status"] == "task")
-    n_non = sum(1 for _, r in rows if r["status"] == "non_task")
+    # `no_strict_band` is a SEVENTH status added 2026-09-02: the class's strict
+    # window is measured and EMPTY, so no cap poses a question on that backbone
+    # at all. It counts toward the pooling warning exactly like `non_task` --
+    # both mean this cell cannot distinguish two arms -- but it is a different
+    # fact and the tag below says which.
+    n_non = sum(1 for _, r in rows
+                if r["status"] in ("non_task", "no_strict_band"))
     print("")
     print("TASK CELLS -- does the cap pose a question? (FRAMEWORK 2(z17))")
     for (ds, model, cap), r in sorted(rows):
@@ -1496,14 +1502,20 @@ def print_task_cells(df):
             tag = "TASK"
         elif r["status"] == "non_task":
             tag = "** NO QUESTION **"
+        elif r["status"] == "no_strict_band":
+            tag = "** NO QUESTION -- class has NO strict window at all **"
         elif r["status"] == "no_window":
             tag = "window never measured for this backbone"
         else:
             tag = "slice not on this machine"
+        # `lo`/`hi` are None on an EMPTY strict band, and %.2f on None raises
+        # TypeError -- which killed the whole panel, not just this line.
         detail = "  ".join(
-            "c%d K/n=%.3f %s%.2f-%.2f%s" % (c, v["ratio"],
-                                            "" if v["ok"] else "OUTSIDE ",
-                                            v["lo"], v["hi"], "")
+            "c%d K/n=%.3f %s" % (
+                c, v["ratio"],
+                "no strict band" if v.get("lo") is None
+                else "%s%.2f-%.2f" % ("" if v["ok"] else "OUTSIDE ",
+                                      v["lo"], v["hi"]))
             for c, v in sorted(r["classes"].items()))
         print("  %-12s %-13s %-34s %s" % (model, cap, tag, detail))
     if n_non:
