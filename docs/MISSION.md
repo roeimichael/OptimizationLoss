@@ -5,7 +5,8 @@
 every working session. If it is stale, that is a defect -- fix it before doing
 anything else.
 
-Last updated: **2026-09-02** (the SCREEN was the defect, and the head-to-head is RNG).
+Last updated: **2026-09-02** (the SCREEN was the defect, the head-to-head is RNG,
+and both GPUs are now loaded -- see 0-RUNNING).
 
 ---
 
@@ -47,6 +48,52 @@ SUPERSEDED, so both banners are withdrawn.
 🔑 **NOTHING HERE IS SETTLED POLICY.** The rebuilt
 `configs/task_windows.yml` is a single re-measurement under a prize bar chosen
 the same day. `gen_campaign` WARNS on an empty band, it does not refuse.
+
+---
+
+## 🟢 0-RUNNING. WHAT IS IN FLIGHT RIGHT NOW (2026-09-02, both GPUs)
+
+We hold **2 of 4 GPUs on dsisco01, which is the cap.** GPU 0 is `nirgal` and
+GPU 2 is `zehavid`; never share. The next free slot is one of OURS finishing,
+not another user leaving.
+
+| root | worktree | GPU | commit | runs | what it decides |
+|---|---|---|---|---|---|
+| `vitdual1` | `optloss-cutwin` | 3 | `6658ef8c` | 88 | the four duals on **ViTB16**, the headline backbone, which has zero fioretto/hounie/alm. Also carries 8 `tralo_null` seeds at two caps -- the ONLY way to replace the 1-seed ViTB16 task window |
+| `seed58a` | `optloss-domb` | 1 | `1d921173` | 40 | **seeds 5-8** of `dom1b`/RegNetY400MF at `L80_G95` + `L90_G95` |
+
+### Why `seed58a` is seeds and not a new campaign
+
+A new campaign on an already-measured (backbone, host) buys NOTHING -- the
+warm-up is cached under the same `base_model_id`, so it is the same model. All
+four backbones on dsisco01 are spent or in flight. What is NOT spent is SEEDS.
+
+`paired_noise` prices the powered corner exactly: at K/n = 0.9 a cell needs
+**7-8 seeds at 80% power**, against 546 at K/n = 0.5 and 2607 at 0.2. The
+protocol runs 4. So `L90_G95` is the one cap where doubling the seeds crosses
+the power threshold instead of chasing it -- and this is the direct answer to
+"1 of 158 strict-task rows resolves". It is generated at `dom1b`'s EXACT commit
+`1d92117363d2` and lands on the same fp16 + GradScaler regime, so seeds 5-8
+merge into dom1b's existing cells rather than forming new ones.
+
+⚠️ **The catch, and state it every time the result is quoted:** at
+K/n = 0.9 the cap barely binds. Where the constraint BINDS nothing is
+measurable, and where something is measurable the constraint hardly
+constrains. `L80_G95` is strict on BOTH classes for RegNetY400MF and
+`L90_G95` is strict on class 7 only (class 2 is PARTIAL there), so the two
+caps are not interchangeable and must not be pooled.
+
+### When a GPU frees
+
+Refill it. Queued in order:
+1. **Re-measure the ViTB16 task window** the moment `vitdual1`'s `tralo_null`
+   arms land -- `configs/task_windows.yml` currently records ViTB16 from ONE
+   seed and both strict bands are empty for that reason alone.
+2. **Seeds 5-8 for MobileNetV2** (`equaldose1`, commit `10d37518`) at the same
+   two caps -- the second unit to cross 8 seeds.
+3. **Units 7-8 are free on dsisco02**: RegNetY400MF and ViTB16 there have never
+   been run. Those are NEW units, worth more than seeds, but dsisco02 is fully
+   occupied by other users.
 
 ---
 
