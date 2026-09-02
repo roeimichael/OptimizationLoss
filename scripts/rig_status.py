@@ -219,6 +219,60 @@ def dispatcher_roots(procs):
     return roots
 
 
+# THE CURRENT TraLO RECIPE. Anything else is a DIFFERENT METHOD, not a variant.
+#
+# Found 2026-09-02 by walking every config.json in all 14 worktrees: FIVE
+# distinct TraLO configurations existed across 277 completed `tralo` runs, and
+# only 106 were the current one. A corpus assembled by campaign NAME rather
+# than by RECIPE silently mixes methods, and it did -- the single unit that
+# dissented on all three contrasts turned out to be the one campaign running
+# `constraint_grad_mode: clip`.
+#
+# `results/` is now one recipe. This row is what keeps it that way.
+CURRENT_RECIPE = {"constraint_fp32": True, "constraint_grad_mode": "normalize"}
+
+# Arms that take a constraint step. A post-hoc arm has no dose and no grad
+# mode, so it is exempt: reading its absent keys as a violation would make this
+# row fire on every healthy campaign.
+def _is_trained(cfg):
+    hp = cfg.get("hyperparams") or {}
+    return int(hp.get("constraint_epochs") or 0) > 0
+
+
+def recipe_of(cfgs):
+    """The distinct (fp32, grad_mode) pairs among a campaign's TRAINED arms.
+
+    Returns a sorted list. Empty means the campaign is post-hoc only, which is
+    not a violation. More than one entry means the campaign mixes recipes
+    INTERNALLY, which is worse than being on the wrong one.
+    """
+    out = set()
+    for c in cfgs:
+        if not _is_trained(c):
+            continue
+        hp = c.get("hyperparams") or {}
+        out.add((hp.get("constraint_fp32"), hp.get("constraint_grad_mode")))
+    return sorted(out, key=lambda t: (str(t[0]), str(t[1])))
+
+
+def recipe_verdict(pairs):
+    """(status, message) for a campaign's recipe. `pairs` from recipe_of."""
+    want = (CURRENT_RECIPE["constraint_fp32"],
+            CURRENT_RECIPE["constraint_grad_mode"])
+    if not pairs:
+        return "ok", "post-hoc only, no constraint step to mis-dose"
+    if len(pairs) > 1:
+        return "fail", ("MIXES %d recipes internally: %s -- the arms are not "
+                        "the same method" % (len(pairs),
+                        " ".join("fp32=%s/%s" % p for p in pairs)))
+    got = pairs[0]
+    if got == want:
+        return "ok", "fp32=True/normalize"
+    return "fail", ("fp32=%s/%s, not %s/%s -- a DIFFERENT METHOD. Archive it or "
+                    "score it separately; do NOT pool it with the current "
+                    "corpus" % (got[0], got[1], want[0], want[1]))
+
+
 def campaign_configs(root):
     out = []
     for f in glob.glob(os.path.join(root, "*", "*", "*", "*", "seed_*",
@@ -316,6 +370,29 @@ def self_test(out=sys.stdout):
         w("  PASS  wrapper + dispatcher + runner counts as ONE, so a healthy "
           "detached" + chr(10) + "        launch no longer reports a race"
           + chr(10))
+
+    # the RECIPE row, both directions
+    def cfg(fp32, mode, trained=True):
+        return {"hyperparams": {"constraint_fp32": fp32,
+                                "constraint_grad_mode": mode,
+                                "constraint_epochs": 29 if trained else 0}}
+    cases = [
+        ([cfg(True, "normalize"), cfg(True, "normalize")], "ok",
+         "the current recipe passes"),
+        ([cfg(True, "clip")], "fail",
+         "grad_mode=clip is refused -- it is a different method"),
+        ([cfg(False, "normalize")], "fail",
+         "fp32=False is refused -- it lands 69-87% of the dose"),
+        ([cfg(True, "normalize"), cfg(True, "clip")], "fail",
+         "a campaign MIXING two recipes internally is refused"),
+        ([cfg(None, None, trained=False)], "ok",
+         "a post-hoc-only campaign is EXEMPT, not a violation"),
+    ]
+    for cfgs, want, label in cases:
+        got = recipe_verdict(recipe_of(cfgs))[0]
+        good = got == want
+        w("  %-4s %s%s" % ("PASS" if good else "FAIL", label, chr(10)))
+        ok = ok and good
 
     w(chr(10) + "SELF-TEST %s%s" % ("PASSED" if ok else "FAILED", chr(10)))
     return 0 if ok else 1
@@ -434,6 +511,9 @@ def main():
                  "here and resets them to pending" % (summary, n_running))
         else:
             _row(rows, OK, "campaign %s" % name, summary)
+        rst, rmsg = recipe_verdict(recipe_of(cfgs))
+        if rst != "ok":
+            _row(rows, FAIL, "recipe %s" % name, rmsg)
 
     # 7. disk --------------------------------------------------------------
     df = _sh("df -h ~ | tail -1")
