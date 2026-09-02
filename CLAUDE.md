@@ -52,6 +52,36 @@ data/              iwildcam -- THE ONLY dataset. The original three are removed 
                    unrunnable, not merely discouraged; see `docs/FRAMEWORK.md` 2(n)
 docs/FRAMEWORK.md  THE framework -- protocol, rejected ideas, code purge, open question
 docs/MISSION.md    THE RESUME POINT -- goal, knob ledger, priority queue
+🛑 **THE RECIPE, AND IT IS THE ONLY CORPUS THAT COUNTS (2026-09-02).**
+
+```
+iwildcam + constraint_fp32: True + constraint_grad_mode: normalize
+```
+
+**Anything else is a DIFFERENT METHOD, not a variant.** FIVE distinct TraLO
+configurations existed across 277 completed `tralo` runs; only 106 were
+current. A corpus assembled by campaign NAME rather than by RECIPE mixes
+methods, and it did: the one unit that dissented on all three contrasts was the
+one campaign running `grad_mode: clip`.
+
+* **18 campaigns / 1,326 configs are archived** at
+  `~/optloss-archive-stale-2026-09-02/` (moved, not unlinked, so `results/`
+  cannot glob them). `iwc1-4` `loose1` `loosevit1` `vitu1` `xfam1` `taskwin1`
+  `uniform1_VOID` `vitdom2_cnn` `vitdom2_vit` + 7 dermmnist campaigns. They are
+  still the receipts for what they measured; they are not corpus.
+* **`results/` holds `dom1` `dom1b` `equaldose1` `uniform1` `taskwin2`
+  `vittask1` `vitdual1` and nothing else**, all one recipe.
+* `scripts.rig_status` now REFUSES a campaign off the recipe, and refuses one
+  that mixes recipes internally. It caught `vitdual1` staged on `clip` before a
+  single run executed. **`gen_campaign` DEFAULTS `--constraint-grad-mode` to
+  `clip`, so pass `--constraint-grad-mode normalize` explicitly, every time.**
+* ⚠️ **`clip` and `normalize` COINCIDE EXACTLY wherever the raw gradient norm
+  is >= 1**, because `clip` scales by `min(raw_norm, 1.0)`. Measured: `loose1`
+  (clip) and `dom1` (normalize) produce BYTE-IDENTICAL `tralo` predictions on
+  MobileNetV2 in 4/4 seeds despite different commits. So a `clip` campaign is
+  not automatically wrong -- it is UNVERIFIABLE, because whether it equals
+  `normalize` depends on a norm nobody logged per step.
+
 docs/COVERAGE.md   🗺️ WHAT WE ACTUALLY HAVE vs WHAT THE PAPER NEEDS, built
                    from all 2,671 configs in all 14 worktrees. Read BEFORE
                    proposing a campaign. Carries THE GATE (does TraLO clear
