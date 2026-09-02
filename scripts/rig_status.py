@@ -38,7 +38,7 @@ DISPATCH_PAT = re.compile(r"python\s+main\.py")   # kept for the self-test only
 
 
 def is_dispatcher(args):
-    """Is this command line a DISPATCHER, or something that merely MENTIONS one?
+    r"""Is this command line a DISPATCHER, or something that merely MENTIONS one?
 
     The substring `python\s+main\.py` matched three things that are not
     dispatchers, and produced a FAIL on a perfectly healthy rig on 2026-09-01:

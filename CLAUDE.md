@@ -133,7 +133,15 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 501 regression tests, ~200s, no dataset needed
+python -m pytest tests -q                   # 520 regression tests, ~250s, no dataset needed
+#   `tests/test_lessons_learned.py` is the CATALOGUE OF LESSONS ALREADY PAID FOR:
+#   rejected backbones and datasets with the measured reason each was dropped,
+#   the ten deleted config footguns, the BF16/compute-capability split between
+#   the two hosts, the oldest allocator bug (an argmax fallback that ignored the
+#   cap), the local-scope mirror of it, and a sweep that RUNS all 22 `--self-test`
+#   entry points -- nothing else ever ran them together. Every entry is dated and
+#   was mutation-tested: 13 mutations, 13 caught, including a false-positive
+#   control that a COMMENT naming a deleted key must NOT fire.
 python -m scripts.preflight --before-launch # 🛑 THE STAGED GATE. `tests/` gates the CODE;
 #   `tests/gates/` gates the EXPERIMENT -- six buckets, one per pipeline stage, each
 #   encoding failure modes this project actually PAID for, at the point where each is
