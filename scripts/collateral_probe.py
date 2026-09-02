@@ -52,6 +52,7 @@ SELF-TEST (runs by default; `--no-self-test` to skip):
 """
 
 import argparse
+import sys
 import glob
 import json
 import os
@@ -173,10 +174,66 @@ def self_test(z0, capped):
                          "contrast is void.")
 
 
+def standalone_self_test(w=sys.stdout.write):
+    """Run `self_test`'s properties on SYNTHETIC logits, with no campaign.
+
+    WARNING: NOT the fallback-to-a-toy defect (conftest, `slice_dir`). That rule is
+    about MEASURING a campaign against synthetic data and reporting the number
+    as if it were real. Nothing is measured here: `step` and `report` are pure
+    functions of the logits, and the claims under test -- `ovr` cannot move an
+    uncapped logit, `sum` can -- are algebraic and hold for any input. Feeding
+    them real logits made the liveness check unrunnable anywhere the artefacts
+    are absent, which is CI and every fresh checkout.
+
+    Added 2026-09-02: this was the ONE script of 23 whose `--self-test` could
+    not run, because the flag was inverted (`--no-self-test`) and gated behind
+    a `--campaign` that is `required=True`. A liveness check that cannot be
+    invoked is not a liveness check.
+    """
+    ok = True
+
+    def check(good, label):
+        nonlocal ok
+        w("  %-4s %s\n" % ("PASS" if good else "FAIL", label))
+        ok = ok and good
+
+    rng = np.random.default_rng(0)
+    z0 = rng.normal(size=(400, 8))
+    capped = [2, 7]
+    try:
+        self_test(z0, capped)
+        check(True, "the three properties hold on synthetic logits")
+    except SystemExit as exc:
+        check(False, "self_test rejected synthetic logits: %s" % exc)
+
+    # NEGATIVE CONTROL. A check that has never failed has never been shown to
+    # work. Replace `step` with a no-op -- the exact failure this probe exists
+    # to detect, an intervention that is installed and delivers nothing (see
+    # `ortho_survival`: `prm.grad` is not the delivery mechanism) -- and
+    # require `self_test` to catch it.
+    g = globals()
+    real = g["step"]
+    g["step"] = lambda z, capped_, mode, size: z
+    try:
+        self_test(z0, capped)
+        check(False, "NEGATIVE CONTROL: `step` was replaced by a NO-OP and "
+                     "self_test still passed, so it proves nothing")
+    except SystemExit:
+        check(True, "NEGATIVE CONTROL: self_test FAILS when `step` does nothing")
+    finally:
+        g["step"] = real
+
+    w("\nSELF-TEST %s\n" % ("PASSED" if ok else "FAILED"))
+    return 0 if ok else 1
+
+
 def main():
     import pandas as pd
     a = argparse.ArgumentParser(description=__doc__)
-    a.add_argument("--campaign", required=True)
+    a.add_argument("--self-test", action="store_true",
+                   help="run the property checks on synthetic logits and "
+                        "exit; needs no campaign and no artefacts")
+    a.add_argument("--campaign")
     a.add_argument("--arm", default="tralo_null",
                    help="a lambda=0 arm: the state the constraint acts FROM")
     a.add_argument("--target", type=int, default=20,
@@ -188,6 +245,11 @@ def main():
                         "reach feasibility through the output layer at all")
     a.add_argument("--no-self-test", action="store_true")
     args = a.parse_args()
+
+    if args.self_test:
+        return standalone_self_test()
+    if not args.campaign:
+        a.error("--campaign is required (or use --self-test)")
 
     rows, unreachable, attempted = [], [], 0
     for raw, cfg in runs(args.campaign, args.arm):

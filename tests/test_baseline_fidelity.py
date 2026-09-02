@@ -3930,10 +3930,21 @@ def test_EVERY_script_offering_a_self_test_actually_PASSES_it():
     # the difference -- it swallows a TypeError raised INSIDE a self-test and
     # reports the probe as merely old-signature. Dispatch on the signature
     # instead. `ortho_survival`'s takes an RNG and is reachable only through
-    # its CLI, which is what a person runs anyway. `collateral_probe`'s needs
-    # a real campaign and cannot be gated here at all: NAME it, so a new
-    # script joining that category is noticed rather than quietly uncovered.
-    NEEDS_A_CAMPAIGN = {'collateral_probe'}
+    # its CLI, which is what a person runs anyway. A script whose self-test
+    # genuinely cannot run without a campaign is NAMED here, so a new one
+    # joining that category is noticed rather than quietly uncovered.
+    #
+    # EMPTY since 2026-09-02, and that is the point of the assertion below.
+    # `collateral_probe` was the only member: its flag was INVERTED
+    # (`--no-self-test`) and gated behind a `--campaign` marked
+    # `required=True`, so its liveness check could not be invoked anywhere the
+    # artefacts were absent -- which is CI and every fresh checkout. It now has
+    # a standalone `--self-test` running the same properties on synthetic
+    # logits, with a no-op injection as the negative control. That is legitimate
+    # here and not the fallback-to-a-toy defect: `step` and `report` are pure
+    # functions and the claims under test are algebraic, so nothing is being
+    # MEASURED against synthetic data.
+    NEEDS_A_CAMPAIGN = set()
 
     failures = []
     skipped = []

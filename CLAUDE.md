@@ -153,6 +153,26 @@ python -m scripts.preflight --before-launch # 🛑 THE STAGED GATE. `tests/` gat
 #   Every gate carries a NEGATIVE CONTROL in the same test: a gate that has never
 #   failed has never been shown to work. A typo'd stage name errors, it does not
 #   silently run nothing.
+python -m scripts.run_campaign --root <root> --step <step>   # 🛑 THE STEP GATE.
+#   Runs the right checks at the right point in a campaign's life and REFUSES
+#   to move on when they are red. Five steps: `stage` (before a config exists),
+#   `verify` (generated, not yet launched), `launch` (rig health), `firstrun`
+#   (the FIRST completed runs) and `score` (before any number is quoted).
+#   Each step runs BOTH the `tests/gates` bucket that proves the DETECTOR works
+#   and the INSTRUMENT that runs it against THIS campaign -- either alone is a
+#   half measure.
+#   🔑 THREE OUTCOMES, NOT TWO: pass, FAIL, and UNRUNNABLE. A campaign worktree
+#   is PINNED at the commit its configs were generated from, and the gate
+#   buckets import training-path modules that may postdate it
+#   (`configs.task_cells` on `optloss-domb`). `configs/` is frozen mid-campaign,
+#   so that gate genuinely cannot execute there -- and reporting it RED would
+#   blame a healthy campaign for version skew. It is named, loudly, as having
+#   verified NOTHING. `--skip` toggles a check or a whole step and every skip is
+#   announced the same way. `--self-test` gates all three outcomes.
+#   ⚠️ `firstrun` IS THE ONE THAT MATTERS: `tralo_uniform` ran at 1/29 dose
+#   beside `tralo` at 29/29 in the SAME campaign and still wrote
+#   `status: completed`; `iwc3` lost 328 of 1044 steps; `taskwin1` landed 20/29.
+#   All three were visible in the first finished run.
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
