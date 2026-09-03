@@ -45,6 +45,7 @@ MobileNetV3 does not transfer to ViTB16 -- re-measure rather than assume.
 import argparse
 import csv
 import glob
+import hashlib
 import os
 import sys
 
@@ -198,6 +199,7 @@ def verdict(errors, p_at_K, forced):
 def sweep(runs, cls, fractions=FRACTIONS):
     """One row per K/n: mean errors, p@K, whether the cap binds, verdict."""
     Y, PR, G, H, cells, unread = [], [], [], [], set(), []
+    seen, dupes = {}, []
     for rd in runs:
         try:
             y, pr, g, h = load(rd, cls)
@@ -207,10 +209,38 @@ def sweep(runs, cls, fractions=FRACTIONS):
             # though it were 12.
             unread.append((rd, type(e).__name__))
             continue
+        # 🛑 A RUN IS NOT A SEED, AND A CAP LEVEL IS NOT A SEED EITHER. The
+        # reference arm here is a lambda=0 null, which carries no constraint
+        # term, so its RAW predictions CANNOT depend on the cap -- only the
+        # allocation downstream can. Measured 2026-09-03 on vitdual1/ViTB16:
+        # `L60-90_G95/tralo_null/seed_1` and `L70-90_G95/tralo_null/seed_1`
+        # are byte-identical (md5 3701265ff7c3e9f2, one base_model_id), so a
+        # glob spanning two cap levels offered THREE runs and two models. A
+        # window written off the inflated count claims a `binds n/N` nobody
+        # measured, and `binds` is exactly what the one-seed entry this
+        # replaces was rejected for being unable to establish.
+        # This is `dom1`/`loose1` one level deeper: there the WARM-UP was
+        # shared, here the whole trained model is.
         # <root>/<Backbone>/<dataset>/<cap>/<arm>/<seed>
+        # ⚠️ REGISTER THE CELL BEFORE ANY `continue`. The
+        # cross-backbone refusal below counts cells, and dropping a duplicate
+        # ahead of this line makes two identical runs on two backbones look
+        # like one cell -- disabling the refusal that keeps a saturated cell
+        # from being averaged into a `** TASK **`.
         parts = os.path.normpath(rd).split(os.sep)
         if len(parts) >= 5:
             cells.add(tuple(parts[-5:-3]))
+        # The identity is the class probabilities AND the hard count. Hashing
+        # the probabilities alone collapses two runs that rank identically but
+        # predict different totals -- and the hard count is exactly what
+        # `binds n/N` is computed from, so it is part of what makes a run a
+        # distinct observation.
+        fp = hashlib.md5(np.ascontiguousarray(
+            pr, dtype=np.float64).tobytes() + repr(h).encode()).hexdigest()
+        if fp in seen:
+            dupes.append((rd, seen[fp]))
+            continue
+        seen[fp] = rd
         Y.append(y)
         PR.append(pr)
         G.append(g)
@@ -220,6 +250,16 @@ def sweep(runs, cls, fractions=FRACTIONS):
               "the counts below: %s"
               % (len(unread), ", ".join("%s (%s)" % u for u in unread[:3])),
               file=sys.stderr)
+    if dupes:
+        print("  !! %d run(s) are BYTE-IDENTICAL to an earlier run and are "
+              "counted ONCE, not as extra seeds. A lambda=0 reference has no "
+              "constraint term, so its raw predictions cannot depend on the "
+              "cap: a glob spanning cap levels multiplies runs without "
+              "adding models. %d run(s) -> %d distinct model(s)."
+              % (len(dupes), len(dupes) + len(seen), len(seen)),
+              file=sys.stderr)
+        for rd, first in dupes[:4]:
+            print("       %s == %s" % (rd, first), file=sys.stderr)
     if len(cells) > 1:
         # 🛑 THIS FUNCTION WRITES POLICY. Its output goes into
         # `configs/task_windows.yml`, which `gen_campaign` enforces as a HARD
@@ -402,7 +442,12 @@ def self_test(out=sys.stdout):
         d3 = os.path.join(base, "partial%d" % i)
         y = np.zeros(n, dtype=int)
         y[idx[:100]] = cls
-        pr = np.linspace(0.90, 0.10, n)
+        # A per-seed offset, because these are four MODELS. Three of them once
+        # shared one probability array and the byte-identical-run dedupe in
+        # `sweep` rightly collapsed them to one, turning a 4-seed fixture into
+        # a 2-seed one. Real seeds never coincide in float; the fixture must
+        # not either. 1e-6 preserves the ranking and p@K.
+        pr = np.linspace(0.90, 0.10, n) - i * 1e-6
         write(d3, y, pr, [cls] * hardc + [0] * (n - hardc))
         partial.append(d3)
     r = sweep(partial, cls, fractions=(2.0,))["rows"][0]
@@ -558,6 +603,41 @@ def self_test(out=sys.stdout):
     check("a positive count rounding to K=0 is reported, not raised",
           local_budget(1, 0.2) == (0, True) and local_budget(0, 0.5) == (0, False))
 
+    # (i) 🛑 A RUN IS NOT A SEED, AND A CAP LEVEL IS NOT A SEED. The
+    #     reference arm is a lambda=0 null, which carries no constraint term,
+    #     so its RAW predictions cannot depend on the cap -- only the
+    #     allocation downstream can. A glob spanning two cap levels therefore
+    #     offers the SAME model twice and inflates `binds n/N`, the exact
+    #     quantity the window is written from. Measured 2026-09-03 on
+    #     vitdual1/ViTB16: three completed `tralo_null` runs, TWO models
+    #     (md5 3701265ff7c3e9f2 twice). Counting runs would have written a
+    #     3-seed window off 2 observations.
+    y = np.zeros(n, dtype=int)
+    y[np.random.default_rng(7).permutation(n)[:100]] = cls
+    pr = np.linspace(0.90, 0.10, n)
+    pred = [cls] * 150 + [0] * (n - 150)
+    dup_a, dup_b = os.path.join(base, "dupA"), os.path.join(base, "dupB")
+    write(dup_a, y, pr, pred)
+    write(dup_b, y, pr, pred)
+    r = sweep([dup_a, dup_b], cls, fractions=(0.5,))
+    check("TWO byte-identical runs count as ONE model, not two seeds "
+          "(n_seeds %d)" % r["n_seeds"], r["n_seeds"] == 1)
+    #     NEGATIVE CONTROL, and it is the one that matters: a dedupe that
+    #     collapsed genuine replicates would destroy every real measurement
+    #     while looking correct on the case above.
+    dif = os.path.join(base, "dif")
+    write(dif, y, pr - 1e-6, pred)
+    r = sweep([dup_a, dif], cls, fractions=(0.5,))
+    check("  NEGATIVE CONTROL: two DIFFERENT runs stay two seeds "
+          "(n_seeds %d)" % r["n_seeds"], r["n_seeds"] == 2)
+    #     and a run differing ONLY in its hard count is also two, because the
+    #     hard count is what `binds n/N` is computed from.
+    hdif = os.path.join(base, "hdif")
+    write(hdif, y, pr, [cls] * 190 + [0] * (n - 190))
+    r = sweep([dup_a, hdif], cls, fractions=(0.5,))
+    check("  NEGATIVE CONTROL: same ranking, different hard count -> two "
+          "seeds (n_seeds %d)" % r["n_seeds"], r["n_seeds"] == 2)
+
     print("\n%s" % ("ALL PASS" if ok else "FAILURES ABOVE"), file=out)
     return 0 if ok else 1
 
@@ -593,7 +673,14 @@ def main(argv=None):
     print("seed and -55 in another. PARTIAL n/N means the cap poses its question")
     print("to only n seeds -- NOT that the other seeds are free nulls, which was")
     print("tested by md5 and refuted (see verdict.__doc__).")
-    print("%d reference run(s)\n" % len(runs))
+    # NOT "reference runs": this is the GLOB size. Unreadable runs and
+    # byte-identical duplicates are both subtracted downstream, and this
+    # file already carries one defect of exactly that shape (a glob
+    # matching 12 directories and reading 2 reported a 12-run window).
+    # The number a window is written from is the per-class seed count.
+    print("%d run(s) matched the glob -- the DISTINCT-MODEL count is the "
+          "per-class (n seed(s)) figure below, and it is what the window "
+          "is written from.\n" % len(runs))
     any_task = False
     for cls in args.classes:
         res = sweep(runs, cls)

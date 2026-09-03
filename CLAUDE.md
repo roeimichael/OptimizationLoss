@@ -134,7 +134,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 540 regression tests, ~250s, no dataset needed
+python -m pytest tests -q                   # 541 regression tests, ~250s, no dataset needed
 #   `tests/test_lessons_learned.py` is the CATALOGUE OF LESSONS ALREADY PAID FOR:
 #   rejected backbones and datasets with the measured reason each was dropped,
 #   the ten deleted config footguns, the BF16/compute-capability split between
@@ -676,9 +676,15 @@ errors inside K. `gen_campaign` now REFUSES those caps against the measured
 windows in `configs/task_windows.yml`; `--allow-nontask` overrides it and says
 in the output what it let through.
 
-🔑 The two classes' windows DIFFER on every backbone, so the per-class form
-`L<c2>-<c7>_G<g>` is required, not optional -- one fraction cannot sit inside
-both. `L80-100_G95` caps class 2 at 80% and class 7 at 100%.
+🔑 The per-class form `L<c2>-<c7>_G<g>` exists because the two classes'
+windows differ on **some** backbones -- `L80-100_G95` caps class 2 at 80% and
+class 7 at 100%. ⚠️ **IT IS NOT "every backbone" ANY MORE, AND THAT IS A
+MEASUREMENT.** MobileNetV2's two strict windows coincide at 0.80, and **ViTB16
+joined it 2026-09-03**: measured off two distinct `vitdual1` nulls, both classes
+come back **[0.80, 0.90]** on the 0.1 grid (the underlying prizes still differ,
+class 2 3.5/6.0 items against class 7 4.5/8.0, but the grid verdict does not).
+So on half the backbones a single fraction is legal, written per-class or not.
+Ask `configs.task_cells.classify`; never assume the form is forced.
 
 ## Eight more tools that exist and were invisible here
 

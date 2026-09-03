@@ -7907,15 +7907,20 @@ def test_the_task_window_file_is_measured_not_invented(tmp_path):
     for model, row in iw.items():
         # NOT "on every backbone" any more, and that is a MEASUREMENT. Per
         # seed (FRAMEWORK 2(z24b)) MobileNetV2's two strict windows COINCIDE
-        # at 0.80/0.80, so it is the one backbone where the plain
-        # single-fraction form expresses a valid experiment. The per-class
-        # form is still REQUIRED on the other three, which is what this
-        # asserts.
+        # at 0.80/0.80, so the plain single-fraction form expresses a valid
+        # experiment there. ViTB16 JOINED IT on 2026-09-03: measured off two
+        # distinct `vitdual1` nulls (FRAMEWORK 2(z38)) both classes come back
+        # [0.80, 0.90] on the 0.1 grid -- the underlying prizes still differ
+        # (class 2 3.5/6.0 items, class 7 4.5/8.0) but the GRID verdict does
+        # not, so `L80-80` and `L90-90` are one fraction written per-class.
+        # The per-class form is still REQUIRED on the other two, which is what
+        # this asserts. A backbone joins this list only WITH its measurement.
         # Only meaningful where BOTH classes have a band. Where one is empty
         # the per-class form is required a fortiori -- one fraction cannot sit
         # inside a window that does not exist.
         if row["class"][2] and row["class"][7]:
-            assert row["class"][2] != row["class"][7] or model == "MobileNetV2", (
+            assert (row["class"][2] != row["class"][7]
+                    or model in ("MobileNetV2", "ViTB16")), (
                 "%s: identical windows would make per-class caps pointless"
                 % model)
         assert set(row.get("partial") or {}) == {2, 7}, (

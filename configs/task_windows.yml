@@ -160,27 +160,41 @@ windows:
         7: [1.00, 1.20]          #   1.00 3/4, 1.10 1/4, 1.20 1/4
 
     ViTB16:
-      # ⚠️ ONE SEED. The headline backbone's window is NOT measured.
-      # `binds n/N` reads 1/1 here, which cannot distinguish a cap that binds
-      # everywhere from one that binds in a quarter of seeds -- and on every
-      # other backbone the four seeds spread 60-105 items. The band below is
-      # therefore recorded as PARTIAL, not strict, so `gen_campaign` labels any
-      # ViTB16 cap rather than passing it silently.
+      # 🛑 TWO MODELS, AND A CAP LEVEL IS NOT A SEED. vitdual1 holds
+      # THREE completed `tralo_null` runs, but a lambda=0 arm carries no
+      # constraint term, so its RAW predictions cannot depend on the cap:
+      # L60-90/seed_1 and L70-90/seed_1 are BYTE-IDENTICAL (md5
+      # 3701265ff7c3e9f2, one base_model_id ViTB16_iwildcam_9ef746e8e9e5).
+      # Only the ALLOCATION differs between them. So the count here is two
+      # distinct models, seeds 1 and 2, not three -- reading the run count
+      # would have inflated it by half. This is the same trap as `dom1` and
+      # `loose1` being one model, one level deeper: there the WARM-UP was
+      # shared, here the whole 30-epoch model is.
       #
-      # The previous entry here was measured on `iwc2`, which is quarantined
-      # AND archived, AND used the global top-K. It is gone, not superseded.
+      # The previous entry here was one vittask1 seed, recorded as PARTIAL
+      # [0.70, 0.90] because `binds 1/1` cannot establish a band. That band
+      # was too WIDE: at K/n 0.70 class 2 binds 2/2 but its prize is 2.5
+      # items against the 3.0 floor -- and against a ~4-item RNG floor, so the
+      # whole question there is smaller than the noise. `vitdual1`'s pending
+      # L70-90_G95 arm was dropped for exactly this and replaced by
+      # L90-90_G95, leaving {L80-80, L90-90}, both in-window on BOTH classes.
       #
-      # RE-MEASURE THE MOMENT vitdual1's tralo_null arms land: that campaign
-      # carries 8 of them at two caps on this exact backbone and host.
-      provenance: "vittask1/ViTB16 (dsisco01/fp16), ONE tralo_null seed,
-        2026-09-02, per-group prize. NOT a measured window -- a single seed
-        cannot establish `binds n/N`. Recorded as partial pending vitdual1."
-      unconstrained_count: {2: 379, 7: 454}
+      # The entry before THAT was `iwc2`, quarantined AND archived AND on a
+      # global top-K. Gone, not superseded.
+      #
+      # STILL ONLY TWO MODELS: the protocol runs four seeds, so re-measure
+      # when vitdual1's L80-80 / L90-90 nulls land (8 more, 4 distinct).
+      provenance: "vitdual1/ViTB16 (dsisco01/fp16), TWO distinct tralo_null
+        models (seeds 1-2; the third completed run is byte-identical to seed 1
+        because lambda=0 makes a null cap-invariant), 2026-09-03, per-group
+        prize, MIN_PRIZE 3.0. Strict band binds 2/2 across it."
+      unconstrained_count: {2: 362, 7: 472}
       per_model:
+        vitdual1_dsisco01_fp16: {hard: {2: 362, 7: 472}, seeds: 2, strict: {2: [0.80, 0.90], 7: [0.80, 0.90]}}
         vittask1_dsisco01_fp16: {hard: {2: 379, 7: 454}, seeds: 1, strict_1seed: {2: [0.70, 0.90], 7: [0.70, 0.90]}}
       class:
-        2: []                    # no strict band can be claimed from one seed
-        7: []
+        2: [0.80, 0.90]          #   binds 2/2; LOCerr 3.5 at 0.80, 6.0 at 0.90
+        7: [0.80, 0.90]          #   binds 2/2; LOCerr 4.5 at 0.80, 8.0 at 0.90
       partial:
-        2: [0.70, 0.90]          #   1 seed only -- treat as provisional
-        7: [0.70, 0.90]
+        2: []                    #   1.00 binds 0/2 -- slack, not partial
+        7: [1.00, 1.00]          #   1.00 binds 1/2

@@ -203,7 +203,15 @@ def classify(P, TW, dataset, model, cap_tag):
         # not invalid -- a slack seed dilutes toward zero, so a positive there
         # is conservative -- but its effective n is smaller than it looks, so
         # it must never be folded into `task`. FRAMEWORK 2(z24).
-        plo, phi = partial_w.get(c, (None, None))
+        # An EMPTY partial band is a MEASUREMENT too, exactly as the empty
+        # strict band above is, and it must behave like an absent row rather
+        # than crash. `.get(c, (None, None))` only covers the ABSENT case: a
+        # row written `2: []` returns `[]` and unpacking it raises
+        # ValueError. ViTB16 is the live case -- at K/n 1.00 the cap binds
+        # 0/2 on class 2 and 1/2 on class 7, so class 2 has a partial band
+        # that is genuinely empty while class 7's is not.
+        pband = partial_w.get(c)
+        plo, phi = pband if pband else (None, None)
         part = bool(plo is not None and in_window(ratio, plo, phi, tol))
         # 🛑 THE GAP BETWEEN THE BANDS WAS NEVER MEASURED. The windows are
         # ranges over a 0.1 GRID, so interpolating inside a contiguous run of
@@ -289,9 +297,24 @@ def self_test(out=sys.stdout):
           and iw["MobileNetV3"]["class"][7] != [])
     check("  and the empty band still carries a partial band beside it",
           bool(iw["MobileNetV3"]["partial"][2]))
-    check("ViTB16 claims NO strict band from its single seed",
-          iw["ViTB16"]["class"][2] == [] and iw["ViTB16"]["class"][7] == []
-          and bool(iw["ViTB16"]["partial"][2]))
+    # ViTB16 was recorded with NO strict band while it had ONE seed, because
+    # `binds n/N` cannot be established from one. It was MEASURED on
+    # 2026-09-03 from two distinct `vitdual1` nulls (FRAMEWORK 2(z38)) and now
+    # has one. Its two classes COINCIDE on the 0.1 grid, so this is also the
+    # backbone that proves `differ` above is a some-backbone claim and not an
+    # every-backbone one.
+    check("ViTB16 now HAS a measured strict band, both classes [0.80, 0.90]",
+          iw["ViTB16"]["class"][2] == [0.80, 0.90]
+          and iw["ViTB16"]["class"][7] == [0.80, 0.90])
+    # 🛑 AND ITS class-2 PARTIAL BAND IS EMPTY, which is a
+    # MEASUREMENT: at K/n 1.00 the cap binds 0 of 2 seeds on class 2 and 1 of
+    # 2 on class 7. `classify` unpacked `partial_w.get(c, (None, None))`,
+    # which covers an ABSENT row but not a row written `2: []` -- that
+    # returned `[]` and raised ValueError, taking the gate down on a legal
+    # value. Same defect as the empty STRICT band above, one field over.
+    check("  ViTB16 class 2 has an EMPTY partial band and class 7 does not",
+          iw["ViTB16"]["partial"][2] == []
+          and iw["ViTB16"]["partial"][7] != [])
 
     lo7, hi7 = iw["MobileNetV3"]["class"][7]
     check("L20 class 7 (K/n=0.20) is OUTSIDE MobileNetV3 %.2f-%.2f"

@@ -462,3 +462,62 @@ def test_the_generator_refuses_caps_outside_the_measured_task_window(tmp_path):
         fails.append("the measured in-window caps %s were refused:\n%s"
                      % (CAPS, out))
     report(fails, "task-window defects")
+
+
+def test_an_empty_partial_band_classifies_rather_than_crashing(monkeypatch):
+    """2026-09-03. A window row written `2: []` is a MEASUREMENT -- no
+    fraction binds in only SOME seeds -- and must behave exactly like an
+    absent row. ViTB16 is the live case: at K/n 1.00 the cap binds 0/2 on
+    class 2 and 1/2 on class 7, so class 2's partial band is genuinely empty
+    while class 7's is not. `classify` unpacked
+    `partial_w.get(c, (None, None))`, which covers only the ABSENT row; an
+    empty list returns `[]` and unpacking it raised ValueError, taking the
+    whole task-window gate down on a legal value. The empty STRICT band was
+    already handled -- this is the same measurement one field over.
+
+    NEGATIVE CONTROLS, both in this test: (a) the old expression still raises
+    on the very input used here, so the test is exercising the crashing shape
+    and not a benign one; (b) a NON-empty partial band is still honoured, so
+    the fix did not simply switch `partial` off and make everything read
+    `outside`. Data-free: `effective_budgets` is stubbed, so this runs with no
+    slice on the machine.
+    """
+    from configs import task_cells as tc
+    fails = []
+    n = 100
+    monkeypatch.setattr(tc, "effective_budgets",
+                        lambda P_, ds, lp, gp: {2: (90, n), 7: (90, n)})
+    TW = {"windows": {"iwildcam": {"ViTB16": {
+        "class": {2: [0.70, 0.80], 7: [0.70, 0.80]},
+        "partial": {2: [], 7: [0.90, 0.90]}}}}}
+
+    # (a) the negative control FIRST: prove this input is the crashing shape.
+    try:
+        _lo, _hi = TW["windows"]["iwildcam"]["ViTB16"]["partial"].get(
+            2, (None, None))
+        fails.append("the pre-fix expression did NOT raise on `2: []`, so "
+                     "this test no longer exercises the defect")
+    except ValueError:
+        pass
+
+    try:
+        r = tc.classify({}, TW, "iwildcam", "ViTB16", "L90_G95")
+    except ValueError as exc:
+        report(["an empty partial band still crashes classify: %s" % exc],
+               "empty-partial-band defects")
+        return
+
+    per = r.get("classes") or {}
+    if per.get(2, {}).get("partial") is not False:
+        fails.append("class 2's EMPTY partial band read as partial")
+    if per.get(2, {}).get("band") != "outside":
+        fails.append("class 2 at K/n 0.90 with an empty partial band read "
+                     "'%s', expected 'outside'" % per.get(2, {}).get("band"))
+    # (b) the other direction: a real partial band must still be honoured.
+    if per.get(7, {}).get("band") != "partial":
+        fails.append("class 7's NON-empty partial band [0.90,0.90] read "
+                     "'%s' -- the fix switched `partial` off"
+                     % per.get(7, {}).get("band"))
+    if r.get("status") == "task":
+        fails.append("a cell outside both strict bands read as `task`")
+    report(fails, "empty-partial-band defects")

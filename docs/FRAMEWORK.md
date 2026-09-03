@@ -3808,7 +3808,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 540 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 541 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -3972,7 +3972,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 540 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 541 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -3980,7 +3980,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (540 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (541 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -8942,6 +8942,69 @@ is false for hounie under the corpus-era `clip` mode. Do not "modernise" the
 methods section to today's recipe; that would make it describe experiments the
 paper does not report.
 
+### 2(z38) 🛑🛑🛑 **A CAP LEVEL IS NOT A SEED: THE ViTB16 WINDOW
+WAS MEASURED OFF AN INFLATED COUNT, AND TWO OF `vitdual1`'S THREE CAPS POSE NO
+QUESTION** (2026-09-03)
+
+`vitdual1` held THREE completed `tralo_null` runs on ViTB16 and they are TWO
+models. A `_null` arm is `lambda = 0`, so it carries no constraint term and its
+RAW predictions cannot depend on the cap; only the ALLOCATION downstream can.
+Measured: `L60-90_G95/tralo_null/seed_1` and `L70-90_G95/tralo_null/seed_1` are
+byte-identical, md5 **3701265ff7c3e9f2**, one `base_model_id`
+`ViTB16_iwildcam_9ef746e8e9e5`. Reading the run count would have written a
+"3 seed" window from 2 observations, and `binds n/N` -- the quantity the
+one-seed entry it replaces was rejected for being unable to establish -- is
+computed directly from that count.
+
+🔑 **This is `dom1`/`loose1` (2(z26)) ONE LEVEL DEEPER.** There two
+campaigns shared a WARM-UP; here two cap levels share the ENTIRE 30-epoch
+model. The general rule: **md5 the reference arm before counting seeds**, and
+note this is md5 used in its VALID direction (identical proves identity; rule 3
+in CLAUDE.md).
+
+**THE WINDOW, from the 2 distinct models** (dsisco01/fp16, per-group prize,
+MIN_PRIZE 3.0), replacing the single vittask1 seed:
+
+| class | n | unconstrained | strict window | LOCerr 0.80 / 0.90 | binds |
+|---|---|---|---|---|---|
+| 2 | 370 | 362 | **[0.80, 0.90]** | 3.5 / 6.0 | 2/2 |
+| 7 | 456 | 472 | **[0.80, 0.90]** | 4.5 / 8.0 | 2/2 |
+
+⛔ **SO TWO OF THE THREE CAPS `vitdual1` WAS RUNNING MEASURE NOTHING.** The
+old provisional band was [0.70, 0.90] from ONE seed and it was too WIDE. At
+K/n 0.70 class 2 *binds* 2/2 (forced 85..120) but its prize is **2.5 items**
+against the 3.0 floor, and against a ~4-item RNG floor: the whole question
+there is smaller than the noise. At 0.60 it is 1.5. Both were dropped, their
+COMPLETED runs kept as receipts (22 at L60-90, 11 at L70-90; a completed run is
+never deleted), and the campaign now runs **`L80-80_G95` + `L90-90_G95`, both
+in-window on BOTH classes**, 88 pending, one `code_version` `6658ef8cbc59`, one
+recipe. `configs.task_cells.classify` confirms it independently: L60-90 and
+L70-90 `non_task`, L80-80 and L90-90 `task`.
+
+⚠️ **AND THE GENERATOR'S WINDOW GATE NEVER RAN ON THIS CAMPAIGN.** The
+worktree is pinned at `6658ef8cbc59`, which PREDATES `configs/task_windows.yml`
+and `--allow-nontask` -- the file does not exist there and the flag is not in
+its `--help`. A pinned campaign tree silently carries a pinned GATE, so
+"gen_campaign would have refused it" is not available as a defence for anything
+generated in a worktree. Check the gate exists before relying on it.
+
+✅ **THREE FIXES, EACH GATED.**
+* `scripts/task_window` now DEDUPES byte-identical references, prints
+  `N run(s) -> M distinct model(s)` naming the pair, and no longer heads its
+  output with the glob size as though it were the reference count. Self-tested
+  in both directions: two identical runs collapse to one, two differing runs
+  (in probabilities OR in hard count alone) stay two.
+* `configs.task_cells.classify` CRASHED on an empty `partial` band --
+  `partial_w.get(c, (None, None))` covers the ABSENT row, but a row written
+  `2: []` returns `[]` and unpacking it raised `ValueError`. The empty STRICT
+  band was already handled; this is the same measurement one field over, and
+  ViTB16 is the live case (at K/n 1.00 class 2 binds 0/2, class 7 1/2). Gated
+  in `tests/gates/test_g4_grid.py` with the pre-fix expression as the negative
+  control, and mutation-tested: reverting the fix fails the gate.
+* The 4-seed fixture in `task_window --self-test` shared ONE probability array
+  across its four "seeds", so the new dedupe correctly collapsed it to two.
+  Real seeds never coincide in float; the fixture now perturbs each by 1e-6.
+
 ### 2(z32) 🛑🛑 **THE ONE ROW THAT "RESOLVES" IS BELOW THE CHANCE
 EXPECTATION, AND THE `sd` GLOSS THE WHOLE REPO USES TO DISCOUNT ITS OWN POWER
 IS ALGEBRAICALLY IMPOSSIBLE**
@@ -10518,7 +10581,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             540 tests, ~200 s, no dataset required
+tests/             541 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

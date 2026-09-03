@@ -130,10 +130,16 @@ The correct forward move is to pre-register the remaining unit set -- `coin2`
 (MobileNetV2) is running, `dom1`/MobileNetV3 needs its md5 -- BEFORE reading
 them.
 
-⛔ **AND ViTB16, THE A-PRIORI HEADLINE BACKBONE, CONTRIBUTES NO UNIT AT ALL.**
-It has no strict task window for either capped class
-(`configs/task_windows.yml`), so under the current task definition the
-experiment cannot be run on it. That has to be said out loud in the paper.
+⚠️ **ViTB16, THE A-PRIORI HEADLINE BACKBONE, STILL CONTRIBUTES NO UNIT
+-- BUT IT IS RUNNABLE.** ✅ **CORRECTED 2026-09-03:** this said ViTB16 "has no
+strict task window for either capped class, so the experiment cannot be run on
+it", and that was read off a ONE-SEED placeholder that recorded empty bands
+precisely because one seed cannot establish `binds n/N`. Measured off two
+distinct `vitdual1` nulls the band is **[0.80, 0.90] on both classes**, binding
+2/2 with local prizes of 3.5-8.0 items (FRAMEWORK 2(z38)). So the headline
+backbone poses a question after all, and the paper must NOT say otherwise.
+What remains true is that ViTB16 has contributed **no completed unit yet**:
+`vitdual1` is the campaign that would supply one and it is still running.
 
 Per unit, mean over its cells, in items:
 
@@ -216,7 +222,14 @@ The windows MOVED rather than merely shrinking, and **one of them emptied**:
 | MobileNetV3 | dsisco02 (`dom1`) | 0.60-0.70 | 0.50-0.90 |
 | MobileNetV3 | dsisco01 (`equaldose1`) | **NONE** | 0.70-0.90 |
 | RegNetY400MF | dsisco01 (`dom1b`) | 0.70-0.80 | 0.60-0.90 |
-| ViTB16 | dsisco01 (`vittask1`) | *1 seed -- not measured* | *1 seed* |
+| ViTB16 | dsisco01 (`vitdual1`) | **0.80-0.90** | **0.80-0.90** |
+
+⚠️ **ViTB16's ROW IS TWO MODELS, NOT FOUR.** `vitdual1` holds three
+completed `tralo_null` runs and two of them are byte-identical: a `lambda = 0`
+arm has no constraint term, so its raw predictions cannot depend on the cap and
+a second cap level is not a second seed (FRAMEWORK 2(z38)). Re-measure when the
+`L80-80` / `L90-90` nulls land. It is also the second backbone whose two
+classes share one band, so the per-class cap form is not forced everywhere.
 
 🔑 **THIS IS THE WHOLE EXPLANATION FOR `taskwin2`.** `L70-90_G95` puts class 2
 at K/n = 0.70 on the dsisco01 MobileNetV3 model -- the one whose strict band is
@@ -244,7 +257,7 @@ INTERSECTION over measured models and keeps each reading in `per_model`.
 | `uniform1` | 252 | MNv2, MNv3, RegNet | `L20_G50` `L30_G50` `L50_G30` | `tralo` `tralo_uniform` + controls |
 | `taskwin2` | 48 | MobileNetV3 | `L70-90_G95` `L80-100_G95` | `tralo` `tralo_cut` + controls |
 | `vittask1` | 13/48 | **ViTB16** | `L60-90_G95` `L70-90_G95` | `tralo` `tralo_cut` + controls |
-| `vitdual1` | **RUNNING** 0/88 | **ViTB16** | `L60-90_G95` `L70-90_G95` | **4 duals** + per-family nulls + clippers |
+| `vitdual1` | **RUNNING** 0/88 | **ViTB16** | `L80-80_G95` `L90-90_G95` | **4 duals** + per-family nulls + clippers |
 
 ⚠️ `uniform1`'s caps are all measured NON-TASK, so it contributes no task
 cells. It stays because it is on the current recipe and is the `_uniform`
@@ -264,8 +277,13 @@ in section 7, and it is gated behind these:
    - **A cell with a bigger prize.** The corrected screen says where those are
      -- and says MobileNetV3/dsisco01 has none for class 2.
 2. **`vitdual1`** (running, 88 runs) -- the four duals on the **headline**
-   backbone, which has never been run. Its `tralo_null` arms also give ViTB16
-   its first real task window, replacing a 1-seed placeholder.
+   backbone, which has never been run. Its first two `tralo_null` arms have
+   ALREADY replaced the 1-seed placeholder window, and doing so **changed the
+   campaign**: the measured band is [0.80, 0.90] on both classes, so the
+   `L60-90_G95` and `L70-90_G95` it was running are `non_task` (class 2's prize
+   at K/n 0.70 is 2.5 items against a 3.0 floor and a ~4-item RNG floor). Their
+   pending runs were dropped and replaced by `L80-80_G95` + `L90-90_G95`;
+   completed runs kept as receipts. FRAMEWORK 2(z38).
 3. **The host term.** dsisco02/bf16 and dsisco01/fp16 do not overlap on
    `tralo - null` (+8/+9 vs +1/+2/+3), and no experiment separates host from
    backbone. One A/B -- `dom1`'s exact cells re-run on dsisco01 -- closes it.

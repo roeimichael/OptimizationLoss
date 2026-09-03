@@ -16,7 +16,7 @@ UNVERIFIED; confirm before assuming either finished.)
 
 ## 🛑 0-NOW. READ `docs/COVERAGE.md` BEFORE ANY NUMBER BELOW (2026-09-03)
 
-Ten findings supersede parts of every section that follows.
+Eleven findings supersede parts of every section that follows.
 
 **1. The head-to-head between the four duals is measuring the RNG.** Scored on
 the AS-DEPLOYED predictions in exact captured items over 19 cells
@@ -147,6 +147,46 @@ under the global null**. One observed. The honest sentence is "**0 of 158
 resolve beyond chance**". And over all 393 rows the two largest resolved
 effects are **`alm`** (+11.80 vs clip, +10.51 vs reseed), not `tralo`.
 FRAMEWORK 2(z32)a.
+
+**11. `vitdual1` WAS RUNNING TWO NON-TASK CAPS, AND THE WINDOW THAT SAID
+OTHERWISE WAS COUNTED WRONG.** (2026-09-03, FRAMEWORK 2(z38).) The campaign's
+ViTB16 window was one `vittask1` seed recorded as PARTIAL [0.70, 0.90]. Two
+`vitdual1` nulls have now measured it and the band is **[0.80, 0.90] on BOTH
+classes**: at K/n 0.70 class 2 binds 2/2 but its prize is **2.5 items** against
+the 3.0 floor and a ~4-item RNG floor, so the whole question there is smaller
+than the noise. 0.60 is 1.5.
+
+🛑 **AND THE SEED COUNT WAS INFLATED BY HALF.** `vitdual1` holds THREE
+completed `tralo_null` runs and they are **TWO models**: a `lambda = 0` arm has
+no constraint term, so its RAW predictions cannot depend on the cap, and
+`L60-90/seed_1` and `L70-90/seed_1` are byte-identical (md5 3701265ff7c3e9f2,
+one `base_model_id`). **A CAP LEVEL IS NOT A SEED.** This is `dom1`/`loose1`
+one level deeper: there the WARM-UP was shared, here the whole 30-epoch model
+is. md5 in its valid direction.
+
+✅ **THE CAMPAIGN IS CORRECTED AND RUNNING.** Pending `L60-90_G95` and
+`L70-90_G95` dropped to `~/vitdual1_dropped_*`, their COMPLETED runs kept as
+receipts (22 and 11; a completed run is never deleted). `L90-90_G95` generated
+IN the pinned worktree so the stamp matches, and installed beside the earlier
+`L80-80_G95`. Now **88 pending over two cap levels that are `task` on both
+classes**, one `code_version` `6658ef8cbc59`, recipes 99 x (fp32, normalize,
+29, 1) + 22 x (posthoc, 30, 0). `classify` confirms it independently: L60-90
+and L70-90 `non_task`, L80-80 and L90-90 `task`. Dispatcher relaunched on
+dsisco01 GPU 3 (`main.py` snapshots its queue ONCE, so new configs require a
+restart, not a rescan).
+
+⚠️ **A PINNED WORKTREE CARRIES A PINNED GATE.** `optloss-cutwin` sits at a
+commit that PREDATES `configs/task_windows.yml` and `--allow-nontask`: the file
+is absent there and the flag is not in its `--help`. The window gate never ran
+on this campaign and could not have. "The generator would have refused it" is
+not a defence for anything generated in a worktree.
+
+✅ **THREE INSTRUMENT FIXES, ALL GATED, ALL MUTATION-TESTED.**
+`task_window` now dedupes byte-identical references and reports
+`N run(s) -> M distinct model(s)`; `classify` no longer crashes on an empty
+`partial` band (`2: []` unpacked as a 2-tuple and raised); and the 4-seed
+self-test fixture, which shared one probability array across its four "seeds",
+now perturbs each. Suite 541 tests, 540 pass / 1 skip.
 
 **10. FIVE THINGS IN THE PAPER OF RECORD ARE FIXED, AND ONE 2(z30) CLAIM IS
 WITHDRAWN.** All in `main_edited_by_roei.tex`, blue, `pdflatex` clean at every
