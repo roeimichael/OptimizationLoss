@@ -176,6 +176,47 @@ def _train_constraints(model, inputs: TrainInputs, device):
         all_satisfied_pre = (total_excess_pre == 0)
         snapshot_state = ck.snapshot(model, all_satisfied_pre, total_excess_pre)
 
+        # \U0001f6d1 THE DUAL UPDATE RUNS BEFORE THE PRIMAL STEP, ON PURPOSE.
+        # It used to run after it. With the multipliers initialised at exactly
+        # zero, that made epoch 0's primal gate below False: no backward ran,
+        # and this arm took 28 of its 29 constraint steps while `alm` and
+        # `tralo` took 29. Measured on `vitdual1` 2026-09-03 -- every arm
+        # landed 100% of what it ATTEMPTED, so nothing looked wrong; the
+        # denominators differed. A 3.4% dose gap in the only phase the
+        # comparison is about is not apples-to-apples.
+        # Moving the block is an ORDERING change, not a hyperparameter: the
+        # violations are computed on the pre-step model either way, the step
+        # size is unchanged, lambda_0 = 0 is unchanged, and both orders of the
+        # alternating primal/dual scheme are conventional.
+        # ---- Step 3: dual ascent on lambda (paper Eq. 5 / Alg. 2) ----
+        # E[l_i] = (count_soft_i - K_i) / N_i  (per-constraint normalisation).
+        for c, K in K_global.items():
+            mean_l = (total_soft[c].item() - K) / n_test
+            lam_g[c] = max(0.0, lam_g[c] + eta_lambda * (mean_l - u_g[c]))
+        for (g, c), K in K_local.items():
+            N_g = max(1, group_sizes[g])
+            mean_l = (group_soft[g][c].item() - K) / N_g
+            lam_l[(g, c)] = max(0.0, lam_l[(g, c)] + eta_lambda * (mean_l - u_l[(g, c)]))
+
+        # ---- Step 4: perturbation update on u (h(u) = alpha * ||u||^2) ----
+        # u_i <- max(0, u_i + eta_u * (lam_i - 2 * alpha * u_i)).
+        #
+        # NOTE, deliberate: this reads the lambda just written in Step 3
+        # (Gauss-Seidel), while the archived derivation writes both updates
+        # from the previous iterate (Jacobi). Measured at the protocol values
+        # (eta_lambda=eta_u=0.01, alpha=10, 29 epochs) over four violation
+        # profiles, the worst relative lambda difference after the full run is
+        # 4.7e-04, and the two schemes share the SAME fixed point by
+        # construction (at a fixed point lam_t == lam_{t-1}, so they coincide).
+        # That is far below the FP16/BF16 cross-server spread this project
+        # already accepts. Left as-is on purpose: switching to Jacobi would
+        # change every hounie number by ~0.05% for no benefit and break
+        # bit-identity with the runs already in the corpus.
+        for c in K_global:
+            u_g[c] = max(0.0, u_g[c] + eta_u * (lam_g[c] - 2.0 * alpha * u_g[c]))
+        for key in K_local:
+            u_l[key] = max(0.0, u_l[key] + eta_u * (lam_l[key] - 2.0 * alpha * u_l[key]))
+
         # Second pass: weighted gradient if any lam > 0.
         constraint_loss_val = 0.0
         has_active = (any(v > 0 for v in lam_g.values())
@@ -218,35 +259,6 @@ def _train_constraints(model, inputs: TrainInputs, device):
                 # ran a 62%-length constraint phase while writing
                 # `status: completed`.
                 ck.record_step(applied)
-
-        # ---- Step 3: dual ascent on lambda (paper Eq. 5 / Alg. 2) ----
-        # E[l_i] = (count_soft_i - K_i) / N_i  (per-constraint normalisation).
-        for c, K in K_global.items():
-            mean_l = (total_soft[c].item() - K) / n_test
-            lam_g[c] = max(0.0, lam_g[c] + eta_lambda * (mean_l - u_g[c]))
-        for (g, c), K in K_local.items():
-            N_g = max(1, group_sizes[g])
-            mean_l = (group_soft[g][c].item() - K) / N_g
-            lam_l[(g, c)] = max(0.0, lam_l[(g, c)] + eta_lambda * (mean_l - u_l[(g, c)]))
-
-        # ---- Step 4: perturbation update on u (h(u) = alpha * ||u||^2) ----
-        # u_i <- max(0, u_i + eta_u * (lam_i - 2 * alpha * u_i)).
-        #
-        # NOTE, deliberate: this reads the lambda just written in Step 3
-        # (Gauss-Seidel), while the archived derivation writes both updates
-        # from the previous iterate (Jacobi). Measured at the protocol values
-        # (eta_lambda=eta_u=0.01, alpha=10, 29 epochs) over four violation
-        # profiles, the worst relative lambda difference after the full run is
-        # 4.7e-04, and the two schemes share the SAME fixed point by
-        # construction (at a fixed point lam_t == lam_{t-1}, so they coincide).
-        # That is far below the FP16/BF16 cross-server spread this project
-        # already accepts. Left as-is on purpose: switching to Jacobi would
-        # change every hounie number by ~0.05% for no benefit and break
-        # bit-identity with the runs already in the corpus.
-        for c in K_global:
-            u_g[c] = max(0.0, u_g[c] + eta_u * (lam_g[c] - 2.0 * alpha * u_g[c]))
-        for key in K_local:
-            u_l[key] = max(0.0, u_l[key] + eta_u * (lam_l[key] - 2.0 * alpha * u_l[key]))
 
         # ---- Bookkeeping ---- (uses the pre-step satisfaction state computed
         # earlier, which is what the snapshot reflects).

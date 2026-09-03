@@ -549,10 +549,37 @@ def test_the_ALM_augmentation_is_LIVE_so_alm_is_not_a_second_fioretto(P):
     `alm_mu_step` to 0) makes it bit-identical to `fioretto` again -- which is
     both the liveness control and the proof that the augmentation is the only
     difference.
+
+    \U0001f6d1 IT NEEDS 8 EPOCHS, NOT THE DEFAULT 3, AND THAT IS A RESULT.
+    Until 2026-09-03 this ran at 3 and passed -- but part of what it was
+    detecting was the DOSE BUG, not the augmentation: `fioretto` lost its epoch
+    0 entirely (lambda_0 = 0 with the dual update trailing the primal step), so
+    the two arms were one step apart before the augmentation did anything. With
+    that fixed (FRAMEWORK 2(z38)) the arms are bit-identical at 3 epochs and
+    separate at 8.
+
+    The reason is `constraint_grad_mode: normalize`, which delivers DIRECTION
+    only. Early on `lambda` (a sum of past residuals) and the augmentation
+    (`mu_t` times the CURRENT residual) are still near-parallel, so any
+    positive combination normalizes to the same step. They separate once
+    `lambda` has accumulated history the augmentation does not carry. The real
+    campaigns run 29 epochs, well past this. Do NOT "fix" a future failure here
+    by lowering the epoch count -- that would be reading the dose gap again.
     """
-    ldf, _s1, _n1 = _run_arm(P, "fioretto")
-    alm, _s2, _n2 = _run_arm(P, "alm")
-    off, _s3, _n3 = _run_arm(P, "alm", alm_mu0=0.0, alm_mu_step=0.0)
+    EPOCHS = 8
+    ldf, _s1, _n1 = _run_arm(P, "fioretto", epochs=EPOCHS)
+    alm, _s2, _n2 = _run_arm(P, "alm", epochs=EPOCHS)
+    off, _s3, _n3 = _run_arm(P, "alm", epochs=EPOCHS,
+                             alm_mu0=0.0, alm_mu_step=0.0)
+    # The control holds at EVERY epoch count, including the 3 at which the
+    # arms coincide: mu = 0 reduces alm to ldf exactly. So a failure of the
+    # assertion below is the augmentation going inert, never the harness.
+    off3, _s4, _n4 = _run_arm(P, "alm", epochs=3,
+                              alm_mu0=0.0, alm_mu_step=0.0)
+    ldf3, _s5, _n5 = _run_arm(P, "fioretto", epochs=3)
+    assert off3 == ldf3, (
+        "with mu=0 alm must reduce to fioretto at ANY epoch count; it does "
+        "not at 3, so something OTHER than the augmentation differs")
     assert alm != ldf, (
         "alm and fioretto emit identical predictions -- the augmentation is "
         "inert and the two are one arm")
@@ -657,16 +684,29 @@ def test_the_alpha_liveness_gate_can_tell_a_dead_dose_from_a_live_one(P):
         "liveness gate above is not discriminating between doses: %s" % dead)
 
 
-def test_the_duals_that_start_lambda_at_zero_lose_their_first_step(P):
-    """A real, small, arm-level dose asymmetry -- pinned so it cannot grow.
+def test_every_dual_arm_TAKES_EVERY_CONSTRAINT_STEP(P):
+    """The arm-level dose asymmetry that was pinned here is now FIXED.
 
-    `fioretto` and `hounie` gate the constraint backward on `lambda > 0` and
-    initialise lambda at 0, so epoch 0 forms no constraint gradient at all and
-    they take one step fewer than the phase has epochs.  `tralo` starts lambda
-    at 0.01 and `alm`'s augmentation is positive from `mu0`, so both step on
-    epoch 0.  It is faithful to lambda_0 = 0 in those papers and it is 1/29 of
-    the dose, but two arms at 29 and 28 steps are not at equal dose and nothing
-    said so until `constraint_steps_applied` reached the run summary.
+    This test used to assert the defect: `fioretto` and `hounie` gate the
+    constraint backward on `lambda > 0` and initialise lambda at 0, so with the
+    dual update trailing the primal step their epoch 0 formed no constraint
+    gradient and they took `epochs - 1`. It was pinned "so it cannot grow",
+    with its own docstring conceding that "two arms at 29 and 28 steps are not
+    at equal dose".
+
+    They are not, and 3.4% of the dose in the ONLY phase the comparison is
+    about is not something to pin -- it is something to fix. `vitdual1` was
+    running the four-dual head-to-head on exactly that gap; it was discarded
+    and relaunched. The dual update now runs BEFORE the primal gate in all
+    three Fioretto/Hounie-family arms, which is an ORDERING change and not a
+    hyperparameter: same violations, same step sizes, `lambda_0 = 0` untouched.
+    FRAMEWORK 2(z38).
+
+    `alm` is reordered WITH its family even though it never had the defect (its
+    augmentation is nonzero at lambda = 0, which is what identified the
+    multiplier as the cause). Leaving it behind would have made the update
+    ORDER a second difference between `alm` and `fioretto`, breaking
+    `test_the_ALM_augmentation_is_LIVE_so_alm_is_not_a_second_fioretto`.
     """
     epochs = 4
     steps = {}
@@ -677,10 +717,11 @@ def test_the_duals_that_start_lambda_at_zero_lose_their_first_step(P):
     for arm, (applied, attempted) in steps.items():
         assert applied == attempted, (
             "%s dropped a step to a non-finite gradient: %s" % (arm, steps[arm]))
-    assert steps["tralo"][0] == epochs, steps
-    assert steps["alm"][0] == epochs, steps
-    assert steps["fioretto"][0] == epochs - 1, steps
-    assert steps["hounie"][0] == epochs - 1, steps
+    for arm in DUAL_ARMS:
+        assert steps[arm][0] == epochs, (
+            "%s took %d of %d constraint steps -- the arms are not at equal "
+            "dose, which is the defect this test exists to prevent: %s"
+            % (arm, steps[arm][0], epochs, steps))
 
 
 # ==========================================================================

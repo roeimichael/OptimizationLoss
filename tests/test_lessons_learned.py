@@ -1590,69 +1590,88 @@ def test_no_test_in_this_file_states_a_lesson_without_a_DATE():
     assert not bad, "catalogue conventions:\n  " + "\n  ".join(bad)
 
 
-def test_the_dual_arms_take_ONE_FEWER_constraint_step_than_tralo_and_alm():
-    """2026-09-03, measured on the live `vitdual1` by `scripts.dose_landed`:
+def test_the_dual_arms_UPDATE_THEIR_MULTIPLIERS_BEFORE_THE_PRIMAL_STEP():
+    """2026-09-03, FIXED THE SAME DAY IT WAS FOUND. `dose_landed` on the live
+    `vitdual1` read
 
-        alm       116 / 116   100.0%     29.00 attempted/run
-        tralo      87 / 87    100.0%     29.00 attempted/run
-        fioretto   84 / 84    100.0%     28.00 attempted/run
-        hounie     84 / 84    100.0%     28.00 attempted/run
+        alm  29.00   tralo  29.00   fioretto  28.00   hounie  28.00
 
-    Every arm lands 100% of what it attempts, so no step is being LOST -- the
-    denominators differ. `steps_attempted` counts epochs that reached
-    `finish_constraint_step`, and `fioretto_ldf` / `hounie_rcl` only get there
-    when their weighted constraint loss is strictly positive. Both start their
-    multipliers at EXACTLY ZERO (`fioretto_lambda_init: 0.0`, hounie's
-    `u_g = 0.0`), so on epoch 1 that loss is identically 0, no backward runs,
-    and the count is 28 of 29.
+    attempted constraint steps per run, with every arm landing 100% of what it
+    ATTEMPTED -- so nothing looked wrong from any other angle and only the
+    denominators differed. `fioretto_ldf` and `hounie_rcl` ran the epoch as
+    `CE -> counts -> violations -> PRIMAL step -> dual update`, and both
+    initialise their multipliers at exactly zero, so epoch 0's primal gate
+    ("is any lambda > 0") was False and no backward ran.
 
-    THIS IS THE METHOD, NOT A DEFECT. A Lagrangian dual initialised at
-    lambda = 0 genuinely applies no constraint force before its first dual
-    update. `fioretto_alm` starts at lambda = 0 TOO and still attempts 29,
-    because its augmented term carries `mu * violation**2`, which is nonzero
-    at lambda = 0 -- that contrast is what proves the cause is the multiplier
-    and not the dual family. TraLO uses a fixed penalty coefficient and is
-    live from epoch 1.
+    A 3.4% dose gap in the only phase the comparison is about is not
+    apples-to-apples, and the four-dual head-to-head was that campaign's entire
+    purpose. The campaign was DISCARDED and relaunched rather than caveated.
 
-    SO THE HEAD-TO-HEAD IS NOT AT EXACTLY EQUAL DOSE: 29 / 29 / 28 / 28, a
-    3.4% gap. That is under `full_panel`'s 5-point refusal, so scoring
-    proceeds -- correctly, since the gap is intrinsic to the methods. But a
-    dominance claim over these four arms must SAY it, which is what this test
-    exists to keep true.
+    THE FIX IS AN ORDERING, NOT A HYPERPARAMETER. The dual block now runs
+    BEFORE the primal gate: same violations (computed on the pre-step model
+    either way), same step size, `lambda_0 = 0` untouched, no new knob. For
+    hounie Steps 3 and 4 moved together, so Step 4 still reads the lambda that
+    Step 3 just wrote (the deliberate Gauss-Seidel its own comment documents).
+    Both orders of the alternating primal/dual scheme are conventional.
+
+    THIS TEST GUARDS THE ORDERING, which is the thing a later tidy-up would
+    silently undo. The BEHAVIOUR -- every trained arm attempting every
+    constraint epoch -- is asserted end to end by
+    `tests/gates/test_g4_grid.py::test_every_trained_arm_ATTEMPTS_every_constraint_epoch`,
+    which was mutation-tested against the pre-fix code and reported
+    `fioretto attempted 1 ... expected 2`.
+
+    `alm` is deliberately NOT changed: it starts at `lambda = 0` too and always
+    attempted 29, because its augmented term carries `mu * violation**2`, which
+    is nonzero at `lambda = 0`. That contrast is what proved the cause was the
+    MULTIPLIER and not the dual family, so it is asserted here too.
     """
-    import yaml
     fails = []
+    ARMS = {
+        "fioretto_ldf": ("# ---- Step 3: subgradient dual update",
+                         "has_work = ("),
+        "hounie_rcl": ("# ---- Step 3: dual ascent on lambda",
+                       "has_active = ("),
+    }
+    for arm, (dual_marker, primal_gate) in ARMS.items():
+        src = io.open(rel("src", "methodologies", arm, "train.py"),
+                      encoding="utf-8").read()
+        if dual_marker not in src or primal_gate not in src:
+            fails.append("%s: cannot find the dual block or the primal gate, "
+                         "so the ordering this lesson guards is unverifiable "
+                         "-- re-derive it rather than deleting this test" % arm)
+            continue
+        if src.index(dual_marker) > src.index(primal_gate):
+            fails.append("%s updates its multipliers AFTER the primal gate "
+                         "again. With lambda_0 = 0 that makes epoch 0 take no "
+                         "constraint step, and this arm silently drops to 28 "
+                         "of 29 against alm and tralo" % arm)
+
+    # The premise: the init really is zero, which is WHY the ordering matters.
+    # If the init ever becomes nonzero the ordering stops being load-bearing
+    # and this lesson needs re-deriving rather than quietly passing.
+    import yaml
     proto = yaml.safe_load(io.open(rel("configs", "protocol.yml"),
                                    encoding="utf-8").read())
     inits = _all_values(proto, "fioretto_lambda_init")
-    if not inits:
-        fails.append("`fioretto_lambda_init` is gone from protocol.yml -- if "
-                     "the init moved, re-derive the 28-vs-29 count")
-    elif any(float(v) != 0.0 for v in inits):
-        fails.append("`fioretto_lambda_init` is no longer 0.0 (%s). A nonzero "
-                     "init makes epoch 1 form a gradient, so fioretto would "
-                     "attempt 29 and this lesson's numbers are stale" % inits)
-
+    if not inits or any(float(v) != 0.0 for v in inits):
+        fails.append("`fioretto_lambda_init` is no longer uniformly 0.0 (%s). "
+                     "The ordering fix was needed BECAUSE the init is zero; "
+                     "re-derive this lesson" % inits)
     hounie = io.open(rel("src", "methodologies", "hounie_rcl", "train.py"),
                      encoding="utf-8").read()
     if "u_g = {c: 0.0" not in hounie:
-        fails.append("hounie's multiplier no longer initialises at 0.0, so "
-                     "its 28-attempt count no longer follows")
+        fails.append("hounie's multiplier no longer initialises at 0.0 -- "
+                     "re-derive this lesson")
 
-    # The structural half: the two 28-arms gate their backward on a positive
-    # loss; tralo does not. NEGATIVE CONTROL for the whole test -- if tralo
-    # ever grew the same guard it would drop to 28 too and the asymmetry this
-    # documents would silently vanish.
-    tralo = io.open(rel("src", "methodologies", "tralo", "train.py"),
-                    encoding="utf-8").read()
-    if "did_backward = has_constraint" not in tralo:
-        fails.append("tralo no longer attempts unconditionally, so the "
-                     "29-vs-28 asymmetry documented here may have moved")
-    for arm in ("fioretto_ldf", "hounie_rcl"):
-        src = io.open(rel("src", "methodologies", arm, "train.py"),
-                      encoding="utf-8").read()
-        if "did_backward = True" not in src:
-            fails.append("%s no longer sets did_backward conditionally" % arm)
+    # alm is the control that identified the cause, and it must stay unchanged:
+    # nonzero force at lambda = 0 via the augmented term.
+    alm = io.open(rel("src", "methodologies", "fioretto_alm", "train.py"),
+                  encoding="utf-8").read()
+    if "mu" not in alm:
+        fails.append("fioretto_alm no longer carries its augmented term, so "
+                     "the control that isolated the multiplier as the cause "
+                     "is gone")
 
     assert not fails, "%d dual-dose defects:\n  - %s" % (
         len(fails), "\n  - ".join(fails))

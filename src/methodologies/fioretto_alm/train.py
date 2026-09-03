@@ -185,7 +185,10 @@ def _train_constraints(model, inputs, device):
         # -- the exact shape of this project's four inert flags.
         # THE AUGMENTATION IS A PROPERTY OF THE CURRENT ITERATE, so it must be
         # built from THIS epoch's residuals -- which are complete above -- and
-        # not left to Step 3, which runs AFTER the pass that uses it. Doing it
+        # never folded into the multiplier update. (Step 3 now runs just
+        # below, BEFORE the primal pass, for the equal-dose reason given
+        # there; it used to run after it. Either way the augmentation must
+        # be built here, from this epoch's residuals.) Deferring it
         # there weighted epoch e by `lambda_e + mu_{e-1} * r_{e-1}^+`: a current
         # multiplier plus a one-epoch-stale augmentation, on the term that
         # DOMINATES lambda early. Under `constraint_grad_mode: clip` the
@@ -196,6 +199,30 @@ def _train_constraints(model, inputs, device):
             aug_g[c] = mu_t * max(0.0, r)
         for key, r in residual_l.items():
             aug_l[key] = mu_t * max(0.0, r)
+
+        # 🛑 THE DUAL UPDATE RUNS BEFORE THE PRIMAL STEP, ON PURPOSE,
+        # AND ALM MOVED WITH ITS FAMILY. `fioretto_ldf` and `hounie_rcl` had
+        # to move: with lambda_0 = 0 and the update trailing the primal step,
+        # their epoch 0 formed no constraint gradient at all and they took 28
+        # of 29 while alm and tralo took 29 (FRAMEWORK 2(z38)). ALM did NOT
+        # have that defect -- its augmentation `mu_t * r^+` is nonzero at
+        # lambda = 0, which is exactly what identified the multiplier as the
+        # cause. It is reordered anyway, because `alm` differs from
+        # `fioretto_ldf` in EXACTLY ONE thing, the augmentation, and
+        # `test_the_ALM_augmentation_is_LIVE_so_alm_is_not_a_second_fioretto`
+        # proves it by setting mu to 0 and requiring alm to become
+        # bit-identical to ldf. Leaving alm on the old order would have made
+        # the update ORDER a second difference and broken that control.
+        # ---- Step 3: augmented-Lagrangian dual update ----
+        # Hestenes/Powell: the MULTIPLIER ascends, lam <- max(0, lam + eta*r).
+        # ONLY the multiplier is updated here. The augmentation mu_t*(r)^+ is
+        # built from the current iterate ABOVE and added to the primal weight
+        # at use time -- never stored back into lam, which would compound it
+        # every epoch, and never deferred to here, which would lag it by one.
+        for c, r in residual_g.items():
+            lambda_g[c] = max(0.0, lambda_g[c] + eta * r)
+        for key, r in residual_l.items():
+            lambda_l[key] = max(0.0, lambda_l[key] + eta * r)
 
         has_work = (
             any(lambda_g.get(c, 0) + aug_g.get(c, 0.0) > 0
@@ -237,17 +264,6 @@ def _train_constraints(model, inputs, device):
                 # ran a 62%-length constraint phase while writing
                 # `status: completed`.
                 ck.record_step(applied)
-
-        # ---- Step 3: augmented-Lagrangian dual update ----
-        # Hestenes/Powell: the MULTIPLIER ascends, lam <- max(0, lam + eta*r).
-        # ONLY the multiplier is updated here. The augmentation mu_t*(r)^+ is
-        # built from the current iterate ABOVE and added to the primal weight
-        # at use time -- never stored back into lam, which would compound it
-        # every epoch, and never deferred to here, which would lag it by one.
-        for c, r in residual_g.items():
-            lambda_g[c] = max(0.0, lambda_g[c] + eta * r)
-        for key, r in residual_l.items():
-            lambda_l[key] = max(0.0, lambda_l[key] + eta * r)
 
         ck.record(snapshot_state, all_satisfied, total_excess, epoch)
         # Apples-to-apples early stop: N consecutive satisfied epochs.

@@ -521,3 +521,59 @@ def test_an_empty_partial_band_classifies_rather_than_crashing(monkeypatch):
     if r.get("status") == "task":
         fails.append("a cell outside both strict bands read as `task`")
     report(fails, "empty-partial-band defects")
+
+
+def test_every_trained_arm_ATTEMPTS_every_constraint_epoch(tmp_path):
+    """2026-09-03. `dose_landed` on `vitdual1` read
+
+        alm  29.00   tralo  29.00   fioretto  28.00   hounie  28.00
+
+    attempted steps per run, with every arm landing 100% of what it attempted
+    -- so nothing looked wrong from any other angle and only the DENOMINATORS
+    differed. `fioretto_ldf` and `hounie_rcl` ran the epoch as
+    `CE -> counts -> PRIMAL step -> dual update` with their multipliers
+    initialised at exactly zero, so epoch 0's primal gate ("is any lambda > 0")
+    was False and no backward ran. A 3.4% dose gap in the only phase the
+    comparison is about is not apples-to-apples, and the four-dual head-to-head
+    is the whole point of that campaign.
+
+    The dual block now runs BEFORE the primal gate. That is an ORDERING change,
+    not a hyperparameter: same violations, same step size, `lambda_0 = 0`
+    untouched, and for hounie Steps 3 and 4 moved together so Step 4 still
+    reads the lambda Step 3 wrote.
+
+    This runs each arm end to end on the smoke harness and asserts
+    `constraint_steps_attempted == constraint_epochs`. It is stronger than
+    reading the source: it would also catch a NEW arm that silently skips an
+    epoch for some other reason.
+
+    NEGATIVE CONTROL: the lambda=0 twins must still attempt ZERO. A gate that
+    demanded a step from every arm would pass a null that had started taking
+    them, which is the opposite defect and would destroy the only baseline
+    that isolates the constraint.
+    """
+    import scripts.smoke_arms as sa
+    from src.experiments.runner import TRAIN_FNS
+
+    P_ = load_protocol()
+    fails = []
+    EPOCHS = 2                       # what make_inputs sets
+    TRAINED = ["tralo", "alm", "fioretto", "hounie"]
+    NULLS = ["tralo_null", "fioretto_null", "hounie_null", "alm_null"]
+
+    for arm in TRAINED + NULLS:
+        if arm not in P_["arms"]:
+            fails.append("%s is gone from protocol.yml" % arm)
+            continue
+        inputs, _g, _l = sa.make_inputs(P_, arm, str(tmp_path))
+        out = TRAIN_FNS[inputs.config["methodology"]](inputs)
+        got = (out.summary or {}).get("constraint_steps_attempted")
+        want = 0 if arm in NULLS else EPOCHS
+        if got != want:
+            fails.append("%s attempted %r constraint steps, expected %d"
+                         % (arm, got, want))
+        applied = (out.summary or {}).get("constraint_steps_applied")
+        if arm in TRAINED and applied != got:
+            fails.append("%s applied %r of %r attempted -- a non-finite "
+                         "constraint gradient dropped a step" % (arm, applied, got))
+    report(fails, "constraint-dose defects")

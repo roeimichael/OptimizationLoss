@@ -157,6 +157,24 @@ def _train_constraints(model, inputs, device):
 
         snapshot_state = ck.snapshot(model, all_satisfied, total_excess)
 
+        # \U0001f6d1 THE DUAL UPDATE RUNS BEFORE THE PRIMAL STEP, ON PURPOSE.
+        # It used to run after it. With the multipliers initialised at exactly
+        # zero, that made epoch 0's primal gate below False: no backward ran,
+        # and this arm took 28 of its 29 constraint steps while `alm` and
+        # `tralo` took 29. Measured on `vitdual1` 2026-09-03 -- every arm
+        # landed 100% of what it ATTEMPTED, so nothing looked wrong; the
+        # denominators differed. A 3.4% dose gap in the only phase the
+        # comparison is about is not apples-to-apples.
+        # Moving the block is an ORDERING change, not a hyperparameter: the
+        # violations are computed on the pre-step model either way, the step
+        # size is unchanged, lambda_0 = 0 is unchanged, and both orders of the
+        # alternating primal/dual scheme are conventional.
+        # ---- Step 3: subgradient dual update (Fioretto Eq. 5) ----
+        for c, viol in violations_g.items():
+            lambda_g[c] += step_size * viol
+        for key, viol in violations_l.items():
+            lambda_l[key] += step_size * viol
+
         has_work = (
             any(lambda_g.get(c, 0) > 0 for c in violated_global) or
             any(lambda_l.get(k, 0) > 0 for k in violated_local)
@@ -196,12 +214,6 @@ def _train_constraints(model, inputs, device):
                 # ran a 62%-length constraint phase while writing
                 # `status: completed`.
                 ck.record_step(applied)
-
-        # ---- Step 3: subgradient dual update (Fioretto Eq. 5) ----
-        for c, viol in violations_g.items():
-            lambda_g[c] += step_size * viol
-        for key, viol in violations_l.items():
-            lambda_l[key] += step_size * viol
 
         ck.record(snapshot_state, all_satisfied, total_excess, epoch)
         # Apples-to-apples early stop: N consecutive satisfied epochs.

@@ -3808,7 +3808,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 542 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 543 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -3972,7 +3972,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 542 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 543 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -3980,7 +3980,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (542 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (543 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -9020,8 +9020,9 @@ put on one scale before either moves. Ticketed; do not restate the comparison
 as a result. What can be said now: **the floor is backbone-dependent and 3.0 is
 a corpus-wide median**, so a per-backbone `MIN_PRIZE` is the thing to derive.
 
-🛑 **AND THE FOUR-DUAL HEAD-TO-HEAD IS NOT AT EXACTLY EQUAL DOSE.**
-`scripts.dose_landed` on the live `vitdual1`:
+🛑 **AND THE FOUR-DUAL HEAD-TO-HEAD WAS NOT AT EQUAL DOSE. FIXED, AND THE
+CAMPAIGN WAS DISCARDED AND RELAUNCHED RATHER THAN CAVEATED.**
+`scripts.dose_landed` on `vitdual1` read:
 
 | arm | landed / attempted | attempted per run |
 |---|---|---|
@@ -9045,14 +9046,37 @@ and still attempts 29, because its augmented term carries `mu * violation^2`,
 which is nonzero at `lambda = 0` -- so the cause is the MULTIPLIER, not the
 dual family. TraLO's penalty coefficient is fixed and live from epoch 1.
 
-⚠️ **SO SAY IT WHENEVER THE HEAD-TO-HEAD IS REPORTED: 29 / 29 / 28 / 28,
-a 3.4% gap.** It sits under `full_panel`'s 5-point refusal, so scoring proceeds
--- correctly, because the gap is intrinsic to the methods rather than an
-implementation artefact. It is still not equal compute in the constraint phase,
-and this project has been bitten four times by dose gaps nobody stated.
-Gated as lesson 29 in `tests/test_lessons_learned.py`, with the tralo
-unconditional-backward line as the negative control (if tralo ever grew the
-same guard it would drop to 28 and the asymmetry would vanish silently).
+⛔ **AND "IT IS THE METHOD" IS NOT A LICENCE TO SHIP IT.** 29 / 29 / 28 / 28
+is a 3.4% gap in the ONLY phase this comparison is about. It sits under
+`full_panel`'s 5-point refusal, so scoring would have proceeded and the number
+would have been quoted. That is precisely the failure mode: an arm-vs-arm claim
+resting on unequal compute, with every gate green. **The campaign was killed
+and relaunched, not annotated.**
+
+✅ **THE FIX IS AN ORDERING, NOT A HYPERPARAMETER.** Both arms ran
+`CE -> counts -> violations -> PRIMAL step -> dual update`; the dual block now
+runs BEFORE the primal gate:
+
+    CE -> counts -> violations -> DUAL update -> PRIMAL step
+
+Same violations (they are computed on the pre-step model either way), same step
+size, `lambda_0 = 0` untouched, no new knob, and no change to the lambda/u
+recursion -- for hounie Steps 3 and 4 moved together, so Step 4 still reads the
+lambda Step 3 wrote (the deliberate Gauss-Seidel its own comment documents).
+Both orders of the alternating primal/dual scheme are conventional, so neither
+baseline is made less faithful. `fioretto_alm` is deliberately UNCHANGED: it
+always attempted 29, and leaving it alone keeps the control that identified the
+multiplier as the cause.
+
+✅ **GATED TWICE, BOTH MUTATION-TESTED.**
+`tests/gates/test_g4_grid.py::test_every_trained_arm_ATTEMPTS_every_constraint_epoch`
+runs every arm end to end on the smoke harness and asserts
+`constraint_steps_attempted == constraint_epochs`; against the pre-fix code it
+reports `fioretto attempted 1 ... expected 2`. Its NEGATIVE CONTROL is that the
+`lambda=0` twins must still attempt **zero** -- a gate demanding a step from
+every arm would pass a null that had started taking them, destroying the only
+baseline that isolates the constraint. Lesson 29 guards the ORDERING in source,
+which is what a later tidy-up would silently undo.
 
 ✅ **FOUR FIXES, EACH GATED.**
 * `scripts/task_window` now DEDUPES byte-identical references, prints
@@ -10652,7 +10676,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             542 tests, ~200 s, no dataset required
+tests/             543 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
