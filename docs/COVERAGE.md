@@ -66,25 +66,53 @@ exact captured items, and it carries the RNG floor beside every ranking.
 
 ## 2. THE GATE: is TraLO good enough to build a grid on?
 
-**TWO OF THREE, YES. THE THIRD, NO.** Five independent units, as-deployed, in
-exact TP items. A unit is ONE warm-up model -- `(backbone, host)`.
+**NOT AT p<0.05, AND IT CANNOT BE.** **FOUR** independent units, as-deployed,
+in exact TP items. A unit is ONE warm-up model -- `(backbone, host)` -- and
+the roster is `scripts/paper_rows.MEASURED_UNITS`, which is the only place a
+unit is a fact.
 
 | contrast | units | sign p | |
 |---|---|---|---|
-| `tralo` vs **`clip`** | **5/5** | **0.031** | ✅ beats the quality bar in every unit |
-| `tralo` vs its own **`_null`** | **5/5** | **0.031** | ✅ attributable to the constraint |
-| `tralo` vs **`tralo_reseed`** | 4/5 | 0.19 | ⚠️ the 5th is exactly 0.00 |
+| `tralo` vs **`clip`** | **4/4** | 0.0625 | ✅ beats the quality bar in every unit |
+| `tralo` vs its own **`_null`** | **4/4** | 0.0625 | ✅ attributable to the constraint |
+| `tralo` vs **`tralo_reseed`** | **3/4** | 0.3125 | ⛔ fails on MobileNetV3 |
 | **`tralo` #1 of the four duals** | **2 of 6** namable cells | -- | ❌ **dominance refuted** |
 
-🔑 **THE FIRST TWO ROWS NOW CLEAR p < 0.05, AND THE OLD READING COULD NOT
-HAVE.** A sign test over n unanimous units floors at `0.5^n`, so the previous
-4-unit count could not go below 0.0625 **at any effect size**. Two corrections
-found the fifth unit:
+🛑 **NEITHER ROW CLEARS p<0.05, AND ON THIS CORPUS NEITHER CAN.** A
+one-sided sign test over `n` unanimous units floors at `0.5^n`, so **four units
+cannot go below 0.0625 at any effect size**. This table previously read 5/5 and
+p=0.031, i.e. it claimed significance the ledger does not license.
 
-* `dom1` carries **MobileNetV3 as well as MobileNetV2**, on dsisco02. It was
-  never counted. It is a separate warm-up model and a separate unit.
-* `taskwin2` and `equaldose1` MobileNetV3 are **md5-identical in 4/4 seeds** --
-  one model, therefore ONE unit. Counting them separately was double-counting.
+**THE CANDIDATE FIFTH IS `dom1`/MobileNetV3 (dsisco02), AND IT IS NOT IN THE
+LEDGER.** It is very likely a real unit -- `dom1` does carry MobileNetV3 as well
+as MobileNetV2, on a different host, and it was never counted. But
+`MEASURED_UNITS` holds four entries, and the ledger's own doctrine is that an
+absent entry is UNVERIFIED, not independent, with the default never the
+flattering one. Adding it requires the md5 evidence that its warm-up is distinct
+from all four already there. `tests/test_unit_ledger_matches_docs.py` now
+refuses any document that quotes more units than the ledger holds.
+
+⚠️ **AND THE INCLUSION RULE WAS NOT SIGN-BLIND, WHICH IS THE DEEPER PROBLEM.**
+The unit set has been revised twice and each revision moved the headline toward
+significance:
+
+* the old **B2**, `loose1`/RegNetY400MF, was REMOVED in commit `1a7723a0` for
+  running `constraint_grad_mode: clip`. The reason is sound and the campaign
+  really is off-recipe. But B2 was the DISSENTING unit, its sign was known at
+  removal, and the commit is titled *"the result gets BETTER"*.
+* `dom1`/MobileNetV3 was then ADDED as a positive, its sign likewise knowable.
+
+A sign test is valid only under an inclusion rule fixed BEFORE the signs are
+read. Quote this as **4/4, one-sided, uncorrected, on ONE dataset slice**, and
+say in the same breath that the unit set was revised after the signs were known.
+The correct forward move is to pre-register the remaining unit set -- `coin2`
+(MobileNetV2) is running, `dom1`/MobileNetV3 needs its md5 -- BEFORE reading
+them.
+
+⛔ **AND ViTB16, THE A-PRIORI HEADLINE BACKBONE, CONTRIBUTES NO UNIT AT ALL.**
+It has no strict task window for either capped class
+(`configs/task_windows.yml`), so under the current task definition the
+experiment cannot be run on it. That has to be said out loud in the paper.
 
 Per unit, mean over its cells, in items:
 

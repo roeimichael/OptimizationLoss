@@ -2037,7 +2037,7 @@ is manufactured by counting cap levels as independent replicates of one model.
 | **d uncapped F1 > 0** | **5/16, p = 0.2101, mean -0.0030** |
 
 ⇒ **`tralo` is not established as beating its own RNG floor at loose caps**,
-and macroF1 and uncapped F1 are NEGATIVE in 11 of 16 units. The relative
+and macroF1 and uncapped F1 are NEGATIVE in 11 of 16 cells. The relative
 statement (loose minus tight, paired on the warm-up) survives; the absolute one
 does not.
 
@@ -3808,7 +3808,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 529 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 534 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -3972,7 +3972,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 529 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 534 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -3980,7 +3980,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (529 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (534 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -8561,6 +8561,104 @@ cannot change the direction, and the direction is all `normalize` keeps.
 Fioretto-LDF has zero live hyperparameters on this corpus. It cannot be
 strawmanned by tuning, and it cannot be tuned.
 
+### 2(z31) 🛑🛑 **THE ITEMS SCALE INVENTS ITEMS THAT DO NOT EXIST, THE QUANTUM RULE IS FALSE ON THE HEADLINE METRIC, AND TWO LP RUNS PLAY A DIFFERENT GAME**
+
+Allocator and metric audit, 2026-09-03. Scan basis: all 12 live worktrees,
+1,223 runs with `final_predictions.csv`, 2,446 (run, capped-class) pairs.
+Arithmetic re-verified independently here.
+
+**(a) A NET-ZERO REALLOCATION REPORTS +1.06 ITEMS.** `full_panel` converts
+`d ccF1` to items with ONE scale, `sum_c (K_c + n_c)/2`. But ccF1 is
+MACRO-AVERAGED over two capped classes whose `(K+n)` differ, so the conversion
+is exact only if the delta splits proportionally to `(K_c+n_c)`, which it never
+does. Measured on `dom1`/`L90_G95` (class 2: K=333 n=370 -> 703; class 7:
+K=411 n=456 -> 867; panel scale 785):
+
+| what actually happened | reported by the formula |
+|---|---|
+| +1 true item on class 2 | **1.117** items (+11.7%) |
+| +1 true item on class 7 | **0.905** items (-9.5%) |
+| **5 items traded class 7 -> class 2, NET ZERO** | **+1.06 items** |
+
+So at the one-item scale this project works at, **the SIGN of a reported effect
+can be an artefact of which class moved.** Quote items PER CLASS.
+
+**(b) THE `2/(K+n)` DIVISIBILITY RULE IS FALSE FOR THE PRINTED ccF1.** It is
+correct for ONE class at exact fill. Macro-averaged, the lattice is
+TWO-DIMENSIONAL: `d ccF1 = a/703 + b/867` for integers a, b. One class-2 item
+moves ccF1 by `1/703`, which is **0.5583** of the `2/785` quantum the rule
+predicts -- a half-quantum move, routine and legitimate. `gcd(703,867)=1`, so
+the achievable spacing is as fine as `1/609501` and the test is near-vacuous.
+It has been used as an arithmetic-bug detector. It cannot be one here.
+✅ Corrected in CLAUDE.md rule 2.
+
+**(c) GREEDY IS NOT PROVABLY OPTIMAL, BUT IT MEASURES OPTIMAL HERE.** With two
+capped classes competing for items the problem is a matroid-intersection /
+transportation problem and greedy carries only the generic 1/2 guarantee.
+A counterexample was built and RUN through the repo's own
+`apply_allocation_heuristic`: 2 items, classes {0,1} capped at K=1,
+`P = [[.60,.39,.01],[.55,.01,.44]]`, truth `[1,0]`. Greedy takes `[0,1]` for
+capped sum-p 0.61 and **TP 0**; the feasible swap `[1,0]` gives 0.94 and
+**TP 2**. Same emitted counts, both feasible.
+✅ **AND IT DOES NOT HAPPEN ON THIS CORPUS.** Against an exact-fill
+transportation LP (scipy HiGHS, integral vertices asserted) over 13 real
+run-instances spanning 3 cells, 2 backbones and 3 cap shapes:
+**`d sum-p = 0.000` and `d TP = 0` in 13 of 13.**
+🔑 So `scripts/headroom.py`'s claim that the allocator "is already optimal given
+these probabilities" is TRUE AS A MEASUREMENT and FALSE AS A THEOREM (it is a
+theorem only for ONE capped class, where the constraint is a single laminar
+matroid; the protocol always caps two). Cite it as measured. The `2K/(K+n)`
+ceiling itself is unaffected: `F1 = 2TP/(M+n) <= 2M/(M+n) <= 2K/(K+n)` for any
+allocator emitting `M <= K`, so headroom numbers stand.
+
+**(d) THE LP ARMS BYPASS THE EXACT-FILL DOCTRINE, AND IT COSTS 12 TRUE ITEMS.**
+Of 2,446 (run, class) pairs, 2,444 emit exactly `K_eff`, 0 over-emit, and **2
+under-emit by 14** -- `lp` and `cb_lp` at `dom1`/MobileNetV2/`L90_G95`/seed_1,
+class 2, 319 against `K_eff = 333`. They are ONE event: the two runs' raw
+predictions share an md5 (`class_balanced` is bitwise-inert on iwildcam), and
+the LP is deterministic. The whole gap is camera 410 (130 emitted against local
+K=144); the other six groups sit exactly on budget.
+**It is not a bug and not an infeasibility** -- a feasible exact fill exists,
+and the LP, minimising expected 0-1 error under `<= K`, correctly declines the
+last 14 slots because assigning them strictly increases expected cost.
+⛔ **But every other arm is FORCED to exactly K** by
+`targeted_correction(force_exact=True)`, which exists precisely "so cross-method
+comparisons are apples-to-apples". `danits_lp` and the imbalanced arms opt out
+via `skip_targeted_correction=True`. The budget `K = round(0.9 * n_true)` is
+label-informed side information the problem grants; force-filling spends it and
+the LP leaves 14 slots of it unspent. Measured cost: clip's 15 extra picks in
+camera 410 average `p_2 = 0.036` yet **13 of 15 are true impalas**, so clip
+captures `TP_2 = 319` against lp's 307, and deployed ccF1 is clip 0.9151 vs lp
+0.9069 -- **from byte-identical probabilities**. Part of every published
+`lp`-vs-`clip` gap is unequal budget SPEND, not allocator quality.
+🛑 **AND NO GATE CHECKS UNDER-EMISSION.** `verify_allocation` and the eval-time
+raise both test `count > limit` only, so 319 < 352 logs as "OK". `full_panel`
+cannot see it (it re-derives an exact-K allocation); `deployed_h2h` silently
+sets `K := emitted`, which is right per arm and compares arms at unequal spend.
+**Either route the LP arms through the same exact-fill doctrine (an
+equality-constrained LP keeps the same TU structure and stays integral), or
+annotate every deployed lp comparison as unequal-spend.**
+
+**✅ WHAT IS CLEAN.** The LP's constraint matrix is TOTALLY UNIMODULAR: groups
+partition the samples, so the class-side row supports form a laminar family and
+Ghouila-Houri applies; every vertex is integral for free, and re-solving the
+real 2,943 x 8 instance through the repo's own `solve_lp_assignment` reproduces
+the stored predictions **2943/2943**. `cc-F1 = 2TP/(K+n)` is exact wherever its
+precondition holds, verified to the printed digit. `effective_budget`'s
+`min(global, local-sum)` matches what actually binds (global 352/433 inert
+against local sums 333/411). And the LEAKAGE audit is clean: the only
+label-derived input to any decision is `K` itself; checkpoint selection reads
+counts against budgets and never a label-derived metric, `model.eval()` holds
+through every transductive pass in all four trained arms, and warm-up touches no
+test data at all.
+
+**⛔ TASK CLOSED WITHOUT RUNNING: THE BUDGET-PERMUTED CONTROL.** It was queued as
+the decisive experiment to close the warm-up confound. It is pre-empted:
+permuting budgets across groups destroys strictly LESS information than
+`tralo_coin`, which replaces the entire constraint gradient with a random
+same-norm vector and lands at the RNG floor (2(z29)). Its outcome is forced.
+Do not spend a campaign on it.
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, updated 2026-08-30 -- read this before section 3's older text**
@@ -9880,7 +9978,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             529 tests, ~200 s, no dataset required
+tests/             534 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

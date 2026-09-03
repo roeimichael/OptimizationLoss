@@ -27,8 +27,29 @@ Ratio 1.00x. **10 of 19 cells change their #1 when one seed is dropped.**
 have been.** There are **FIVE** independent units, not four: `dom1` carries
 MobileNetV3 as well as MobileNetV2 and was never counted, and `taskwin2` +
 `equaldose1` MobileNetV3 are md5-identical in 4/4 seeds so they are ONE unit,
-not two. As deployed: `tralo` > `clip` in **5/5 units (p=0.031)** and
-`tralo` > its own `_null` in **5/5 (p=0.031)**. A sign test floors at `0.5^n`,
+not two. As deployed: `tralo` > `clip` and `tralo` > its own `_null` in **4/4 units (p=0.0625)**
+
+> ⚠️ **THE LEDGER LICENSES FOUR, NOT FIVE (2026-09-03).**
+> `scripts/paper_rows.MEASURED_UNITS` holds four entries: `dom1`/MobileNetV2,
+> `equaldose1`/MobileNetV2, `dom1b`/RegNetY400MF, `taskwin2`/MobileNetV3.
+> A one-sided sign test over four floors at `0.5^4 = 0.0625`, so **the
+> headline cannot reach p<0.05 on this corpus at any effect size.**
+> `dom1`/MobileNetV3 is a CANDIDATE fifth and is NOT in the ledger; adding
+> it requires the md5 evidence that its warm-up is distinct from every
+> entry already there. Until then the ledger's own doctrine applies: an
+> absent entry is UNVERIFIED, not independent, and the default must not be
+> the flattering one.
+>
+> 🛑 **AND THE INCLUSION RULE WAS NOT SIGN-BLIND.** The old "B2",
+> `loose1`/RegNetY400MF, was removed in commit `1a7723a0` for running
+> `constraint_grad_mode: clip` -- a sound reason -- but it was the
+> DISSENTING unit and the commit is titled "the result gets BETTER". A
+> sign test is valid only under an inclusion rule fixed BEFORE the signs
+> are read. Both revisions moved the headline toward significance. Quote
+> this as 4/4 one-sided, uncorrected, on ONE dataset slice, and say that
+> the unit set was revised after the signs were known.
+
+The old reading of this line said 5/5 twice. A sign test floors at `0.5^n`,
 so four unanimous units could not go below 0.0625 at any effect size.
 
 **3. `full_panel` was the wrong instrument for "which arm wins".** It scores
@@ -567,7 +588,7 @@ Testing it needs `gap` varied at FIXED `K/n`. FRAMEWORK 2(y).
 🛑 **And the absolute loose-cap win does not survive honest units.** At the
 cell level `tralo - null` reads 15/20 (p=0.041); at the **16 distinct warm-up
 models it is 11/16, p = 0.21**, and it beats the reseed floor 11/16, p = 0.21.
-**macroF1 and uncapped F1 are NEGATIVE in 11 of 16 units.** The relative
+**macroF1 and uncapped F1 are NEGATIVE in 11 of 16 cells.** The relative
 (loose-minus-tight) statement survives; the absolute one does not.
 
 ⚠️ **`dom1` is not independent of `loose1`.** Its L80_G95 and L90_G95 cells

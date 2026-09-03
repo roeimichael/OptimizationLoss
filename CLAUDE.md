@@ -86,7 +86,8 @@ one campaign running `grad_mode: clip`.
 docs/COVERAGE.md   🗺️ WHAT WE ACTUALLY HAVE vs WHAT THE PAPER NEEDS, built
                    from all 2,671 configs in all 14 worktrees. Read BEFORE
                    proposing a campaign. Carries THE GATE (does TraLO clear
-                   its own reseed floor? today 3/5 units -- NO) and the
+                   its own reseed floor? the tally was taken over FIVE units and the
+                   ledger licenses FOUR -- recount pending, see MISSION) and the
                    checklist of holes: ViTB16 has zero fioretto/hounie/alm,
                    every run caps the same 2 classes, no symmetric cap ever,
                    1 dataset of 3
@@ -133,7 +134,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 529 regression tests, ~250s, no dataset needed
+python -m pytest tests -q                   # 534 regression tests, ~250s, no dataset needed
 #   `tests/test_lessons_learned.py` is the CATALOGUE OF LESSONS ALREADY PAID FOR:
 #   rejected backbones and datasets with the measured reason each was dropped,
 #   the ten deleted config footguns, the BF16/compute-capability split between
@@ -605,13 +606,29 @@ which a cut-local method has something real to win.
    trained arm without it.
 2. **Read `d capF1` beside `d macroF1`.** Paired over seeds their precision differs by an
    order of magnitude, and macro-F1 is carried by the UNCAPPED classes, which swing with
-   the seed. `d capF1` is quantised -- with exactly K predictions emitted, `F1 = 2TP/(K+n)`
-   -- so it must be an integer multiple of `2/(K+n)` (**not** `1/(K+n)`: TP is an
-   integer, so half an item cannot occur) or there is an arithmetic bug.
-   **CONVERT IT TO ITEMS: `items = dF1 * (K+n)/2`.** `full_panel` prints the scale per
-   cell. The whole gap from `clip` to a PERFECT allocator is **1.9-9.9 items**, and the
-   paired seed sd is worth ~2.7 -- so 0.02 is not a small effect, it can be the entire
-   headroom, and a sub-item delta is a re-allocation, not a difference.
+   `d capF1` is quantised **PER CLASS**: with exactly K predictions emitted,
+   `F1 = 2TP/(K+n)`, so ONE class's `dF1` is an integer multiple of `2/(K+n)`
+   (**not** `1/(K+n)`: TP is an integer, so half an item cannot occur).
+   ⛔ **BUT THAT RULE IS FALSE FOR THE ccF1 `full_panel` PRINTS, AND USING IT
+   AS A BUG DETECTOR THERE IS WRONG.** The printed metric is MACRO-AVERAGED over
+   the two capped classes, whose `(K+n)` differ, so the lattice is
+   **two-dimensional**: `d ccF1 = a/(K2+n2) + b/(K7+n7)` for integers a, b.
+   Measured on `dom1`/`L90_G95` (class 2: K=333 n=370; class 7: K=411 n=456), one
+   class-2 item moves ccF1 by `1/703`, which is **0.5583** of the `2/785` quantum
+   the old rule predicts -- a HALF-quantum move, routine and legitimate. Since
+   `gcd(703,867)=1` the achievable spacing is as fine as `1/609501`, so the
+   divisibility test is near-vacuous on the headline metric. Apply it per class,
+   or not at all.
+   **CONVERT TO ITEMS PER CLASS: `items = dF1 * (K+n)/2`.** `full_panel` prints a
+   single scale `sum(K_c+n_c)/2`, and ⚠️ **that scale is exact only when the
+   delta splits proportionally to `(K_c+n_c)`, which it never does.** Measured on
+   the same cell: +1 real item on class 2 reads as **1.117** items (+11.7%), +1 on
+   class 7 as **0.905** (-9.5%), and a NET-ZERO trade of 5 items from class 7 into
+   class 2 reports **+1.06 PHANTOM items**. A sub-item delta is not a difference,
+   and near one item the SIGN can be an artefact of which class moved.
+   ⚠️ **The "1.9-9.9 items" gap from `clip` to a PERFECT allocator is a
+   `dermmnist` number**, measured on the REMOVED, 38.7%-leaking dataset. Do not
+   quote it for iwildcam, where `headroom` reads 0.0-1.0 on the tight cells.
 3. **Check reachability before choosing a cap.** The penalty's per-item gradient scales
    with `p(1-p)`. At the K-th RANKED item that is 0.026 at `L30_G20` (0/4 seeds respond)
    vs 0.055 at `L50_G30` (4/4), and converging the model drops it 60x -- which is what

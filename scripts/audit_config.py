@@ -416,6 +416,36 @@ def audit_identity(root):
     return bad
 
 
+def _nontask_flag():
+    """`["--allow-nontask"]` if this checkout's generator has it, else `[]`.
+
+    🛑 THE `scripts/` vs `configs/` SKEW, AND IT COST A LAUNCH (2026-09-02).
+    `scripts/` is deliberately deployable mid-campaign -- it is outside
+    `TRAINING_PATHS`, so updating it does not flip `code_version` to `-dirty`.
+    `configs/` is deliberately FROZEN, pinned at the commit a campaign's
+    configs were generated from. So the two drift APART by design, and this
+    audit spans both: it is a current script driving a pinned generator.
+
+    Passing a flag the pinned generator has never heard of makes argparse exit
+    2, which surfaced as `audit_config FAIL` and turned the `verify` step gate
+    RED on a campaign with nothing wrong with it. That is precisely the
+    UNRUNNABLE-vs-FAIL confusion `scripts/run_campaign.py` exists to prevent,
+    and it slipped in through an INSTRUMENT rather than a gate bucket.
+
+    The `--allow-nontask` flag only silences a cap-window refusal on a probe
+    campaign that is generated into a temp dir and never trained, so dropping
+    it on an older generator loses nothing: that generator predates the window
+    check and would not have refused anyway.
+    """
+    try:
+        out = subprocess.run(
+            [sys.executable, "-m", "configs.gen_campaign", "--help"],
+            capture_output=True, text=True, timeout=120).stdout
+    except Exception:
+        return []
+    return ["--allow-nontask"] if "--allow-nontask" in out else []
+
+
 def _protocol_datasets():
     """The datasets the protocol actually declares, in declaration order."""
     import yaml
@@ -473,7 +503,8 @@ def main():
              # nothing to run, and skipping the four newest and highest-stakes
              # arms is this project's own mistake pattern 1 -- a check that
              # reports green while not looking -- one layer up.
-             "--caps", "L30_G30", "L50_G50", "--allow-nontask", "--arms", "all+null"],
+             "--caps", "L30_G30", "L50_G50", *_nontask_flag(),
+             "--arms", "all+null"],
             stdout=subprocess.DEVNULL)
 
     emitted, per_arm, n = collect_emitted(root)
