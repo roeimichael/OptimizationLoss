@@ -1387,6 +1387,19 @@ def test_two_cap_levels_share_a_warm_up_so_a_CELL_is_not_an_independent_unit():
 
     # the paper of record must not re-assert the refuted sentence
     paper = read("docs", "paper", "main_edited_by_roei.tex")
+    # and it must still disclose the same-lesion leakage it was measured to
+    # have. FRAMEWORK 2(o): slice_1, the split every derm result uses, has
+    # 776/2003 test images (38.7%) sharing a lesion_id with a training image
+    # and 150/223 melanoma (67.3%) -- melanoma being the CAPPED class. A
+    # manuscript that reports DermMNIST without saying so is reporting
+    # inflated absolute numbers silently.
+    if "DermMNIST" in paper or "DermaMNIST" in paper:
+        assert "Same-lesion leakage" in paper, (
+            "the paper of record reports DermMNIST but no longer carries the "
+            "same-lesion leakage disclosure. Paired comparisons survive the "
+            "leak (both arms share the split); ABSOLUTE numbers do not, and "
+            "67.3% of the capped class is leaked. FRAMEWORK 2(o).")
+
     assert "cells are the independent units" not in paper, (
         "the paper of record again says 'cells are the independent units'. "
         "The warm-up cache key says otherwise (above); the unit is the "

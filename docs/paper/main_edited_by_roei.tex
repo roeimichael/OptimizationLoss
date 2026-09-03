@@ -1141,6 +1141,26 @@ does not settle the win region, which is the limitation proper: OctMNIST exists
 only at $28{\times}28$, so whether the tight-cap constrained-class advantage itself
 survives at full resolution remains open.}
 
+{\color{blue}
+\paragraph{Same-lesion leakage in the DermMNIST and TissueMNIST splits.}
+Our per-dataset slices are built by pooling the source train/validation/test
+partitions and re-splitting $80/20$ at the image level. For HAM10000, which
+photographs many lesions more than once ($10{,}015$ images, $7{,}470$ distinct
+lesions), that undoes the very protection the corrected DermaMNIST-C release
+provides: replaying our own split with its own seed, $776$ of $2003$ DermMNIST
+test images ($38.7\%$) share a \texttt{lesion\_id} with a training image, and
+for melanoma, the constrained class, the figure is $150$ of $223$
+($67.3\%$). TissueMNIST is built by the identical pooling pattern with the same
+base seed, and no per-instance identifier survives into our slices, so its
+splits cannot be audited from released artifacts and must be assumed to carry
+the same defect. This inflates \emph{absolute} quality on those two datasets by
+an unknown amount, and no DermMNIST or TissueMNIST number here should be read
+as achievable performance. It does not disturb the \emph{paired} comparisons,
+which are the claims we make: every method and baseline is trained and scored
+on the same split, seed by seed, so the leakage is common to both arms of every
+contrast. We note also that the headline result is unaffected in either sense:
+OctMNIST retains MedMNIST's official test split whole.}
+
 \paragraph{The advantage over trained baselines is regime-specific.}
 Only two regimes clear the win bar: OctMNIST tight symmetric caps (the
 backbone-general result) and the DermMNIST global-tighter asymmetric caps

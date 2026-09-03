@@ -8894,6 +8894,54 @@ per-group soft counts are not read here. What needs no data is the structural
 part: `scale = 1` at `K == 0`, the peak at a soft count of 0.5755, and the
 decay beyond it. Re-measure the shares on a real run before quoting 0.0162%.
 
+### 2(z37) 🛑🛑 **THE PAPER REPORTED A 67.3%-LEAKED CAPPED CLASS AND
+NEVER SAID SO. NOW IT DOES**
+
+Found 2026-09-03 while sweeping the manuscript for the unit defect. A grep of
+`main_edited_by_roei.tex` for `leak` / `duplicat` / `lesion_id` / `overlap`
+returned **nothing**, while the paper reports DermMNIST throughout.
+
+2(o) measured this on 2026-08-19 and it was never propagated: `slice_1`, "the
+one every derm result uses", has **776 of 2003 test images (38.7%)** sharing a
+`lesion_id` with a TRAIN image, and **150 of 223 melanoma (67.3%)**. Melanoma
+is the CONSTRAINED class, so the paper's central metric on that dataset is
+measured on a two-thirds-leaked class. The cause is `create_slices.py` pooling
+train+val+test and re-splitting 80/20 at the IMAGE level, which undoes exactly
+the protection `download_data.py` fetches DermaMNIST-C to get.
+
+**THE THREE DATASETS GET THREE DIFFERENT VERDICTS AND THE PAPER NOW STATES ALL
+THREE:**
+
+| dataset | status | consequence |
+|---|---|---|
+| DermMNIST | leaked, **measured** 38.7% / 67.3% melanoma | absolute numbers inflated by an unknown amount |
+| TissueMNIST | identical pooling, same base seed, **unauditable** (no per-instance id survives) | must be assumed the same |
+| **OctMNIST** | official MedMNIST test split kept whole | **unaffected, and the headline lives here** |
+
+✅ **WHAT SURVIVES, AND IT IS NOT NOTHING.** Every method and baseline is
+trained and scored on the SAME split, seed by seed, so the leak is common to
+both arms of every contrast. **The paired comparisons -- which are the claims
+the paper makes -- stand.** What cannot be quoted is any DermMNIST or
+TissueMNIST number as achievable performance. That is 2(o)'s own verdict,
+preserved verbatim rather than restated.
+
+✅ Disclosed in `main_edited_by_roei.tex` §Limitations as "Same-lesion
+leakage in the DermMNIST and TissueMNIST splits", in blue, pdflatex clean.
+Gated: `tests/test_lessons_learned` now fails if the paper mentions DermMNIST
+without carrying the disclosure. ⚠️ `main.tex` (the professor's file),
+`main_rev.tex` and `main_clean.tex` do NOT carry it.
+
+🔑 **AND ONE THING 2(z30) GOT WRONG, RECORDED SO IT IS NOT "FIXED" BY
+MISTAKE.** 2(z30) reads the methods section's warm-up 50, 300-epoch budget and
+`ratchet step 0.002` as "describing a pipeline that no longer exists". The
+paper reports **MedMNIST only** -- there is no iwildcam result in it -- so those
+settings are the CORRECT description of the runs it presents. The genuine
+fidelity defects in 2(z30) are the hounie rate misstatement and the mechanism
+paragraph's "every method takes a single norm-clipped constraint step", which
+is false for hounie under the corpus-era `clip` mode. Do not "modernise" the
+methods section to today's recipe; that would make it describe experiments the
+paper does not report.
+
 ### 2(z32) 🛑🛑 **THE ONE ROW THAT "RESOLVES" IS BELOW THE CHANCE
 EXPECTATION, AND THE `sd` GLOSS THE WHOLE REPO USES TO DISCOUNT ITS OWN POWER
 IS ALGEBRAICALLY IMPOSSIBLE**
