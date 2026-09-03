@@ -1339,6 +1339,60 @@ def test_the_resolved_bar_is_a_t_of_4_on_df_3_so_survivors_need_a_chance_rate():
         "n=4 design is not what makes this bar weak" % (exp3, exp6))
 
 
+def test_two_cap_levels_share_a_warm_up_so_a_CELL_is_not_an_independent_unit():
+    """The cache key that made the paper's headline p inadmissible (2026-09-03).
+
+    `configs/gen_campaign.compute_base_model_id` hashes the backbone, the
+    dataset identity and `protocol.yml: warmup_identity_keys`. The CAP appears
+    in none of them, so `L30_G30` and `L40_G40` at the same (backbone, seed)
+    load the SAME cached warm-up and differ only in the constraint epochs that
+    follow. Six tight-cap cells were therefore three warm-up models, and the
+    paper's six-cell sign test printed p=0.031 against a 0.5^3 = 0.125 floor.
+
+    NEGATIVE CONTROL in the same test: `seed` MUST be in the key. If it were
+    not, every seed would share one model too and the lesson would be about a
+    key that distinguishes nothing.
+    """
+    import re
+
+    proto = read("configs", "protocol.yml")
+    m = re.search(r"^warmup_identity_keys:\s*\n((?:\s*-\s*\S+\s*\n)+)",
+                  proto, re.M)
+    assert m, "warmup_identity_keys not found in configs/protocol.yml"
+    keys = [ln.strip().lstrip("-").strip() for ln in m.group(1).splitlines()
+            if ln.strip()]
+
+    cap_like = [k for k in keys
+                if any(t in k.lower() for t in
+                       ("cap", "constraint_tag", "local_pct", "global_pct",
+                        "budget", "constrained_class"))]
+    assert not cap_like, (
+        "a cap-identifying key %r is now in warmup_identity_keys. If that is "
+        "deliberate then cap levels NO LONGER share a warm-up, two cap levels "
+        "become two units, and FRAMEWORK 2(z33) plus the paper's unit counts "
+        "must be revisited -- do not simply delete this assertion." % cap_like)
+
+    # NEGATIVE CONTROL: the key must still separate seeds, or it separates
+    # nothing and this lesson is vacuous.
+    assert "seed" in keys, (
+        "`seed` is not in warmup_identity_keys, so every seed would load one "
+        "cached model. Then the cap check above proves nothing, because the "
+        "key would be failing to distinguish everything, not just the cap.")
+
+    # and the source really does build the key from that list, not from hp
+    gen = read("configs", "gen_campaign.py")
+    assert 'for k in P["warmup_identity_keys"]' in gen, (
+        "compute_base_model_id no longer reads warmup_identity_keys, so this "
+        "test is checking a list nothing consumes")
+
+    # the paper of record must not re-assert the refuted sentence
+    paper = read("docs", "paper", "main_edited_by_roei.tex")
+    assert "cells are the independent units" not in paper, (
+        "the paper of record again says 'cells are the independent units'. "
+        "The warm-up cache key says otherwise (above); the unit is the "
+        "(backbone, seed) warm-up. FRAMEWORK 2(z33).")
+
+
 def test_no_test_in_this_file_states_a_lesson_without_a_DATE():
     """The convention that makes this catalogue re-checkable (2026-09-02).
 

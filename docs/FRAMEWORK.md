@@ -3808,7 +3808,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 537 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 538 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -3972,7 +3972,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 537 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 538 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -3980,7 +3980,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (537 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (538 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -8346,15 +8346,46 @@ differ ONLY in the direction of their weight vector inside it, because
 `constraint_grad_clip` -- it scales UP when the raw norm is below the bound, not
 merely down -- so the magnitude is discarded outright.
 
-**AND FOR TWO OF THE ARMS THE WEIGHT VECTOR IS THE SAME ONE.** At a fixed model
-state `r_j` is fixed, so LDF accumulates `lambda_j = T * step * relu(r_j)` and
-ALM accumulates `lambda_j = T * eta * relu(r_j)` and then adds
-`mu_T * relu(r_j)`. Both are `(a scalar) * relu(r_j)`. Same direction, exactly.
+**AND AT A FIXED STATE TWO OF THE ARMS BUILD THE SAME WEIGHT VECTOR.** Hold the
+model still and `r_j` is fixed, so LDF accumulates
+`lambda_j = T * step * relu(r_j)`, ALM accumulates `lambda_j = T * eta * relu(r_j)`
+(its `max(0, .)` never binds where `relu(r_j) > 0`) and then adds
+`mu_T * relu(r_j)`. Both are `(a positive scalar) * relu(r_j)`. Same direction.
+The shipped constants make this exact rather than approximate:
+`alm_eta = fioretto_step_size = 0.005` and both `lambda_init = 0`.
 
-Measured, not argued: **cos = 1.0000 in 192 of 192 stored states.** The
-`--self-test` liveness control proves the instrument CAN separate arms (it
-reports a max weight-share difference of 0.951 on constructed inputs), so this
-is a null with a working detector behind it.
+⛔ **SO THE "cos = 1.0000 IN 192 OF 192 STATES" I ORIGINALLY REPORTED HERE IS
+NOT A MEASUREMENT. IT IS THE ALGEBRA ABOVE, RESTATED.** `dual_cone_probe`
+replays the 29 dual updates against ONE frozen residual vector, and under a
+constant `r` the identity is forced -- the probe could not have returned
+anything else, at any state, on any dataset. The `--self-test` liveness control
+does not rescue it either: it proves the instrument can separate SOME arms, not
+that it could ever have separated these two. **Retracted as evidence.**
+
+🛑 **AND THE TWO ARMS ARE NOT BOUNDED CLOSE IN GENERAL -- THEY CAN BE
+ORTHOGONAL.** Searching over residual TRAJECTORIES rather than fixed states
+(random + hill-climb, shipped constants, T = 29) reaches **90.000 degrees**,
+with the two weight vectors on DISJOINT supports. The construction is exactly
+the one the fixed-state replay cannot express: constraint A violated early then
+deeply slack, so LDF's positive-part accumulation HOLDS `lambda_A` while ALM's
+raw-residual projection DECAYS it to 0; constraint B violated only at the last
+epoch, so ALM's `mu_T * relu(r_B)` fires immediately while LDF's `lambda_B` is
+still 0. Milder histories give milder gaps: one violation then permanent slack
+is 2.0 degrees, a mid-phase switch to slack is 11 degrees, and "all violated
+throughout, magnitudes drifting" is exactly 0.
+
+🔑 **SO THE REAL DISCRIMINATOR IS HISTORY, AND IT NEEDS TWO CONSTRAINTS.**
+They can differ only when at least two constraints have DIFFERENT violation
+histories. With one constraint every weight vector is a positive multiple of
+one basis vector and `normalize` erases the difference outright.
+
+✅ **WHAT ACTUALLY CARRIES THE CLAIM IS THE AS-DEPLOYED COMPARISON**, which is
+independent of the probe: `|alm - fioretto|` is a median **2.5 items** over 24
+paired cell-seeds, **0.83x** the RNG floor. That says the realised trajectories
+stayed in the parallel regime on this corpus. It does NOT say the two are the
+same algorithm, and a campaign whose constraints go slack at different times
+could separate them. State it as "indistinguishable at this resolution on this
+corpus", never as an identity.
 
 | contrast (cos of the constraint-gradient direction, epoch 29) | min | median | max |
 |---|---|---|---|
@@ -8363,9 +8394,12 @@ is a null with a working detector behind it.
 | `fioretto_*` vs `tralo` | -0.8586 | **+0.1095** | +0.9533 |
 | `hounie_rcl` vs `tralo` | -0.8798 | +0.1295 | +0.9408 |
 
-**SO THE PAPER'S "FOUR DUALS" IS THREE.** `fioretto_alm` is not an independent
-baseline on this corpus; it is `fioretto_ldf` with a different step-size
-schedule, and the schedule is the one thing `normalize` deletes. Any sign test
+**SO THE PAPER'S "FOUR DUALS" IS EFFECTIVELY THREE ON THIS CORPUS.**
+`fioretto_alm` did not separate from `fioretto_ldf` in anything measured here:
+their deployed outputs sit at 0.83x the RNG floor, and the realised violation
+histories kept their weight vectors parallel. ⚠️ **That is a statement about
+these runs, not about the methods** -- the two differ by up to 90 degrees under
+histories this corpus did not produce (above). Any sign test
 or dominance claim counting them as two independent rivals is counting one
 comparison twice. Under `mode="clip"` they would genuinely differ -- but the
 recipe is `normalize`, and every campaign in `results/` is on it.
@@ -8576,6 +8610,127 @@ headline backbone was fixed a priori on 2026-08-20, and both harness fixes
 cannot change the direction, and the direction is all `normalize` keeps.
 Fioretto-LDF has zero live hyperparameters on this corpus. It cannot be
 strawmanned by tuning, and it cannot be tuned.
+
+### 2(z33) 🛑🛑🛑 **THE PAPER'S HEADLINE p IS BELOW ITS OWN FLOOR:
+SIX CELLS ARE THREE WARM-UP MODELS, AND THE CACHE KEY PROVES IT**
+
+Found and fixed 2026-09-03 in `docs/paper/main_edited_by_roei.tex`. The
+internal doctrine has said since 2026-09-01 that two cap levels in one campaign
+share a warm-up (`scripts/paper_rows.py`: "EIGHT cells are FOUR units"). It was
+never propagated to the text, and the text says the opposite in as many words:
+
+> "Claims spanning several cells are tested on cell means (**cells are the
+> independent units**; the four seeds recur across cells)"
+
+**THE MECHANISM, VERIFIED AT THE CACHE KEY.**
+`configs/gen_campaign.compute_base_model_id` hashes
+`{model_name, dataset_mode, data_dir, num_classes}` plus
+`protocol.yml: warmup_identity_keys`:
+
+```
+lr  dropout  batch_size  warmup_epochs  pretrained  class_weighted_ce
+seed  warmup_loss  focal_alpha  focal_gamma  cb_beta  logit_adjust_tau
+```
+
+🔑 **THE CAP IS NOT IN THAT LIST.** So `L30_G30` and `L40_G40` at the same
+(backbone, seed) resolve to the SAME `base_model_id`, load the SAME cached
+warm-up, and differ only in the 29 constraint epochs that follow. They are two
+constrained runs off one model, not two experiments.
+
+**AND THE CORPUS HAS EXACTLY THAT SHAPE.** From
+`docs/paper/data/corpus/corpus_final.csv`, the six tight-cap cells are
+`{RegNetY400MF, MobileNetV3, ViTB16} x {L30_G30, L40_G40} x seeds 1-4`.
+MobileNetV2 carries `L30_G30` but no `L40_G40`, which is precisely why the
+headline excludes it. **Six cells, three warm-up models per seed.**
+
+| statistic as printed | unit assumed | unit available | floor |
+|---|---|---|---|
+| six-cell sign test `p=0.031` | 6 | **3** | 0.125 one-sided |
+| `t`-test on six cell means `p=0.013` | 6 | **3** | n/a, inadmissible |
+| BH cross-check "per load-bearing component" | 6 | **3** | inherits both |
+
+A one-sided sign test over three unanimous units floors at `0.5^3 = 0.125`, so
+**`p=0.031` is not attainable from this design at any effect size** -- the same
+arithmetic the paper already applies correctly WITHIN a cell ("a four-pair
+Wilcoxon cannot fall below `p=0.125`"). The defect is that the floor doctrine
+was applied to seeds and not to cells.
+
+✅ **FIXED IN THE PAPER OF RECORD**, four sites, additions in blue: the
+methods sentence now defines the unit as the (backbone, seed) warm-up and says
+why; the two headline p-values are restated at `p=0.125` over three groups with
+the six per-cell gaps kept as descriptive; the `t`-test is explicitly demoted to
+a consistency summary rather than evidence. `pdflatex` clean, 0 errors.
+⚠️ `docs/paper/main.tex` is the professor's file and is NOT edited; it still
+carries the old numbers, as do `main_rev.tex` and `main_clean.tex`. Anyone
+quoting from those three is quoting the defect.
+
+🔑 **WHAT DOES NOT CHANGE.** The effect itself replicates: on fresh seeds
+5-10 the same six cells give a mean cc-F1 gap of +0.0369, all six positive,
+against +0.037 on the original four, and ten reruns are bit-identical. **The
+finding is stable; the p-value attached to it was not admissible.** Those are
+different criticisms and only the second is fixed here. The remaining ones are
+2(z30) (the rivals are mis-configured in the published rows) and the budget
+component of raw cc-F1.
+
+### 2(z34) 🛑🛑 **THE `vs_null` EFFECT IS THE NULL MOVING, NOT TraLO.
+TraLO'S ABSOLUTE LEVEL IS 10x MORE STABLE ACROSS CAMPAIGNS THAN ITS OWN
+λ=0 TWIN**
+
+Measured 2026-09-03 from `cells_5units.csv`, on-recipe campaigns only
+(`dom1` `dom1b` `equaldose1` `taskwin2`; `loose1` excluded, it runs
+`grad_mode: clip`). Hold `(backbone, cap)` fixed and ask how much each ARM's
+absolute cc-F1 moves between campaigns, converted to items with that cell's own
+scale:
+
+| arm | median cross-campaign spread |
+|---|---|
+| `tralo` | **0.63 items** |
+| `tralo_reseed` | 2.21 items |
+| `clip` | 3.36 items |
+| **`tralo_null`** | **6.60 items** |
+
+The individual cells make it plainer than the median does. MobileNetV2:
+
+| cell | `tralo` | `tralo_null` | `clip` |
+|---|---|---|---|
+| dom1 / L80_G95 | 0.8773 | **0.8595** | 0.8695 |
+| equaldose1 / L80_G95 | 0.8774 | **0.8751** | 0.8736 |
+| dom1 / L90_G95 | 0.9275 | **0.9132** | 0.9201 |
+| equaldose1 / L90_G95 | 0.9271 | **0.9279** | 0.9248 |
+
+🔑 **TraLO lands on the SAME NUMBER TO FOUR DECIMALS across two campaigns on
+two hosts; the null moves by up to 11.6 items.** So `dom1`'s "+12 items versus
+its own null" is the null being bad there, not TraLO being good; `equaldose1`'s
+"+1.6" is the null being fine. At `equaldose1`/MobileNetV2/`L90_G95` the null
+**beats** TraLO (0.9279 vs 0.9271).
+
+**AND THIS IS WHY THE HOST CLUSTERING IS ONLY IN ONE CONTRAST.** Per-campaign
+mean `tralo` effect, in items:
+
+| contrast | dsisco02 (`dom1`) | dsisco01 (`dom1b`, `equaldose1`, `taskwin2`) | clusters? |
+|---|---|---|---|
+| `vs_null` | +12.03, +9.41 | +4.38, +1.63, +4.98, +3.11 | ✅ **no overlap, 2-7x** |
+| `vs_clip` | +7.16, +5.02 | +8.44, +3.06, +8.51, +9.09 | ⛔ no -- dsisco01 holds 3 of the 4 largest |
+| `vs_reseed` | +4.76, +0.93 | +2.62, +6.04, +2.99, +1.50 | ⛔ no |
+
+So "the effect size clusters by host" is true of `vs_null` and **false of
+`vs_clip`, which is the headline contrast.** The clustering lives in the
+denominator arm, exactly as the stability table predicts.
+
+⚠️ **WHAT THIS DOES AND DOES NOT SAY.** It does NOT refute the sign: `tralo`
+still beats its null in 4/4 units, and a sign test does not read magnitudes.
+What it kills is any quotation of a `vs_null` MAGNITUDE as "the size of the
+constraint's effect" -- that number is set by how the untreated twin happened
+to land, and it varies 11.6 items across campaigns while TraLO varies 0.6.
+Beside 2(z29) (a same-norm coin flip is indistinguishable from the penalty)
+the reading is consistent and unflattering: **the constraint phase pins the
+model to a stable operating point, and neither the phase's DIRECTION nor its
+magnitude-versus-null is evidence that the count information did the work.**
+
+⚠️ **CONFOUNDED, AND SAY SO EVERY TIME.** "Campaign" here bundles host, dose
+and cap set; `equaldose1` exists precisely to equalise dose, so it differs from
+`dom1` by design as well as by machine. n = 6 `(backbone, cap)` combinations.
+The A/B that separates host from the rest is queued and unrun.
 
 ### 2(z32) 🛑🛑 **THE ONE ROW THAT "RESOLVES" IS BELOW THE CHANCE
 EXPECTATION, AND THE `sd` GLOSS THE WHOLE REPO USES TO DISCOUNT ITS OWN POWER
@@ -10097,7 +10252,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             537 tests, ~200 s, no dataset required
+tests/             538 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

@@ -659,10 +659,18 @@ because the seeds are matched, we summarize a method's advantage by its
 seed-winrate and a paired Wilcoxon test rather than by marginal $\pm$std
 bars, which would understate a paired effect when a baseline is
 seed-unstable but its per-seed gap to TraLO is consistent. Claims spanning
-several cells are tested on cell means (cells are the independent units;
-the four seeds recur across cells); within one cell, $n{=}4$ comparisons
+several cells are tested on cell means; within one cell, $n{=}4$ comparisons
 are reported as effect sizes and seed counts, since a four-pair Wilcoxon
 cannot fall below $p{=}0.125$.
+{\color{blue}A cell is not, however, an independent unit. Warm-up weights are
+cached under a key that omits the cap (\texttt{base\_model\_id} is built from
+the backbone, the dataset and the warm-up hyperparameters only), so the two cap
+levels of one backbone at one seed are two constrained runs \emph{from the same
+warm-up model}. The independent unit is therefore the (backbone, seed) warm-up,
+and the six tight-cap cells rest on three such models, not six. We report
+cross-cell sign tests over the three warm-up-independent groups, for which the
+one-sided floor is $0.5^{3}\!=\!0.125$, and give the six per-cell gaps
+descriptively beside them.}
 
 \paragraph{Family-wise multiple-comparisons control.}
 With many cells and multiple axes of comparison, some fraction of significant
@@ -672,7 +680,9 @@ would penalize the same four seeds recurring across cells --- we report all
 seed-winrates, effect sizes, and cell-level $p$-values, so that a
 Benjamini-Hochberg step-up procedure at any target FDR can be recomputed from
 the released per-run corpus. As a check, the OctMNIST tight-cap headline
-(six cells, cell-level sign test $p\!=\!0.031$ per load-bearing component)
+(six cells, {\color{blue}three warm-up-independent groups,} cell-level sign
+test $p\!=\!0.031$ per load-bearing component
+{\color{blue}; $p\!=\!0.125$ over the groups, see \S\ref{sec:setup}})
 still survives a Benjamini-Hochberg step-up at $q\!=\!0.05$ across the twelve
 cell-by-component comparisons behind Table~\ref{tab:ablation_complete}: the
 six-cell floor $p\!=\!0.031$ maps to a BH threshold of $q\!=\!0.05\times
@@ -700,7 +710,11 @@ sharpest result is where the count binds hard: at the OctMNIST tight caps
 ($L30$/$L40$, the shaded band of Figure~\ref{fig:octmnist}) the package
 leads \del{the best constraint-trained baseline}%
 {\color{blue}every constraint-trained baseline} on every backbone, by a mean
-cc-F1 gap of $+0.038$ across the six cells (sign test $p{=}0.031$) and
+cc-F1 gap of $+0.038$ across the six cells {\color{blue}(all six positive;
+over the three warm-up-independent backbone groups the one-sided sign test
+gives $p{=}0.125$, its floor at $n{=}3$. The $p{=}0.031$ previously reported
+here counted the two cap levels of each backbone as separate units, which the
+warm-up cache does not license)} and
 peaking at $+0.081$ on the ViT-B/16 (per-backbone paired deltas in
 Table~\ref{tab:oct_backbone}).
 {\color{blue}That margin is measured against the two dual-ascent baselines, and
@@ -742,7 +756,11 @@ at every backbone and every seed ($4/4$ per cell, $24$ of $24$ seed-level
 paired comparisons across the six cells), with the margin largest on the
 ViT-B/16; the six tight-cap deltas are in Table~\ref{tab:oct_backbone}.
 Treating cells as the independent unit, the six cell-mean gaps are all
-positive; the $t$-test on the same six cell means gives $p{=}0.013$, and
+positive {\color{blue}(three warm-up-independent groups, one-sided sign test
+$p{=}0.125$; the $t$-test on the six cell means, which treats the two cap
+levels of a backbone as independent draws, gives $p{=}0.013$ and is reported
+here only as a descriptive summary of the effect's consistency, not as
+evidence)}, and
 the same cells improve macro-F1 at five of the six (the sixth a $+0.001$
 wash; mean $+0.012$). The advantage is recall at the cap, not precision:
 TraLO matches the best trained baseline on constrained-class precision

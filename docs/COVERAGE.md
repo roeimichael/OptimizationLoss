@@ -74,8 +74,29 @@ unit is a fact.
 | contrast | units | sign p | |
 |---|---|---|---|
 | `tralo` vs **`clip`** | **4/4** | 0.0625 | ✅ beats the quality bar in every unit |
-| `tralo` vs its own **`_null`** | **4/4** | 0.0625 | ✅ attributable to the constraint |
+| `tralo` vs its own **`_null`** | **4/4** | 0.0625 | ⚠️ attributable to the constraint STEPS, not to their DIRECTION |
 | `tralo` vs **`tralo_reseed`** | **3/4** | 0.3125 | ⛔ fails on MobileNetV3 |
+
+⛔ **THE SECOND ROW USED TO READ "attributable to the constraint" AND THAT IS
+MORE THAN IT CAN CARRY.** `tralo_null` is `tralo` with `lambda = 0`, so the
+contrast isolates *29 constraint steps* against *no steps* -- it does not
+isolate the constraint's DIRECTION. `coin1` separates those two, and it was
+pre-registered from 2(z28)'s geometry before it ran: `tralo_coin` takes a
+random vector of the SAME delivered norm, drawn from a private generator, at
+equal dose (232/232). Result, in exact deployed items:
+
+```
+|tralo - tralo_coin|   2.0    1.00x the RNG floor
+|tralo - tralo_null|   2.0    1.00x
+|tralo - clip|         3.0    1.50x
+```
+
+So a same-norm coin flip is indistinguishable from the penalty on the one
+backbone tested. What the 4/4 supports is **"29 same-norm perturbation steps
+under a fresh Adam beat doing nothing"**, with the direction unattributed. The
+`clip` gap SURVIVES the randomisation, which is why 2(z29) assigns it to the
+REGIME rather than to the constraint. `coin2` (MobileNetV2) is the replication.
+FRAMEWORK 2(z29).
 | **`tralo` #1 of the four duals** | **2 of 6** namable cells | -- | ❌ **dominance refuted** |
 
 🛑 **NEITHER ROW CLEARS p<0.05, AND ON THIS CORPUS NEITHER CAN.** A

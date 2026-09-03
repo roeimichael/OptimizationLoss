@@ -195,6 +195,11 @@ def arm_weights(soft, hard, K, sizes, epochs, cfg):
     return out
 
 
+# The one arm pair whose cosine this instrument CANNOT measure: a fixed-state
+# replay forces it to 1.0. See the note printed by `report`. FRAMEWORK 2(z28).
+FORCED_PAIR = {"fioretto_alm", "fioretto_ldf"}
+
+
 def report(names, G, soft, hard, K, sizes, epochs, cfg, w=sys.stdout.write):
     """Print the cone bound and the ARM-vs-ARM angles, per epoch."""
     gamma, ang, (i, j) = cone_bound(G)
@@ -231,8 +236,21 @@ def report(names, G, soft, hard, K, sizes, epochs, cfg, w=sys.stdout.write):
         if not len(c):
             continue
         worst = min(worst, float(c.min()))
-        w("      %-14s %-14s %+8.4f %+8.4f %+8.4f\n"
-          % (a, b, c[0], c[-1], c.min()))
+        w("      %-14s %-14s %+8.4f %+8.4f %+8.4f%s\n"
+          % (a, b, c[0], c[-1], c.min(),
+             "   <- FORCED" if {a, b} == FORCED_PAIR else ""))
+    if FORCED_PAIR.issubset(set(arms)):
+        w("  THE `FORCED` ROW IS NOT A MEASUREMENT. This probe holds the model\n")
+        w("  still, so `r` is CONSTANT over the 29 replayed updates, and under a\n")
+        w("  constant `r` both fioretto arms build a positive multiple of relu(r):\n")
+        w("  LDF `T*step*relu(r)`, ALM `(T*eta + mu_T)*relu(r)`, with\n")
+        w("  `alm_eta == fioretto_step_size == 0.005` and both lambda_init 0. The\n")
+        w("  cosine is 1 by ALGEBRA; no state could return anything else. They\n")
+        w("  differ only under >= 2 constraints with DIFFERENT violation HISTORIES\n")
+        w("  -- ALM's raw-residual projection DECAYS a multiplier LDF's positive\n")
+        w("  part HOLDS -- and searched over trajectories they reach 90.0 deg on\n")
+        w("  disjoint supports. Use the AS-DEPLOYED comparison for this pair.\n")
+        w("  FRAMEWORK 2(z28).\n")
     return gamma, worst
 
 
@@ -357,6 +375,35 @@ def self_test(w=sys.stdout.write):
     check(spread > 0.05,
           "LIVENESS: the four dual rules produce DIFFERENT weight shares (max diff %.3f)"
           % spread)
+
+    # THE BLIND SPOT, gated in both directions. Under a CONSTANT residual --
+    # which is all a fixed-state replay can express -- the two fioretto arms
+    # are forced parallel by algebra, so a cosine of 1 here is not evidence.
+    fa, fl = ws["fioretto_alm"], ws["fioretto_ldf"]
+    cos_fixed = float(fa @ fl / (np.linalg.norm(fa) * np.linalg.norm(fl)))
+    check(abs(cos_fixed - 1.0) < 1e-9,
+          "FORCED: at a fixed state fioretto_alm and _ldf are parallel by "
+          "algebra (cos=%.9f), so this probe cannot measure that pair"
+          % cos_fixed)
+
+    # and the NEGATIVE CONTROL: a history where one constraint goes slack
+    # DOES separate them, so the identity above is a limitation of the replay
+    # and not a property of the two methods. FRAMEWORK 2(z28).
+    lam_l = np.zeros(2)
+    lam_a = np.zeros(2)
+    W_l = W_a = None
+    for t in range(29):
+        r = np.array([40.0, 12.0 if t < 15 else -20.0])
+        v = np.maximum(0.0, r)
+        W_l, W_a = lam_l.copy(), lam_a + (cfg["alm_mu0"]
+                                          + cfg["alm_mu_step"] * t) * v
+        lam_l = lam_l + cfg["fioretto_step_size"] * v
+        lam_a = np.maximum(0.0, lam_a + cfg["alm_eta"] * r)
+    cos_hist = float(W_a @ W_l / (np.linalg.norm(W_a) * np.linalg.norm(W_l)))
+    check(cos_hist < 0.999,
+          "NEGATIVE CONTROL: a constraint going SLACK mid-phase separates them "
+          "(cos=%.6f), so the forced 1.0 above is the replay, not the methods"
+          % cos_hist)
 
     w("\nSELF-TEST %s\n" % ("PASSED" if ok else "FAILED"))
     return 0 if ok else 1
