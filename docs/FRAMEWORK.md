@@ -9027,6 +9027,41 @@ accounting toward the repo, not away from it. Neither rescues a per-cell
 effect: 4 seeds at df = 3 is a t >= 4 bar, and nothing in the corpus clears it
 at a rate distinguishable from noise.
 
+#### 2(z30) RESOLUTION, 2026-09-03
+
+✅ **(a) THE RATE, FIXED.** `main_edited_by_roei.tex` now states the resilience
+weight (`alpha = 10`, previously absent from the paper entirely) beside the
+`0.01` rates, and carries a footnote saying plainly that both depart from
+\citet{hounie2023resilient} -- who take `eta_lambda = eta_u = 0.1` with
+`h(u) = ||u||^2`, i.e. `alpha = 1` -- that our rates are 10x smaller and our
+alpha 10x larger, that the two compound through the fixed point
+`u* = lambda/(2 alpha)`, and that the step-fairness sweep does not cover the
+alpha axis. Reporting the departure is the honest move; silently "correcting"
+the text to the source's values would misdescribe the runs.
+
+✅ **(c) THE MECHANISM CLAIM, NARROWED.** "every method takes a single
+norm-clipped constraint step per epoch" now reads "both arms shown here", and
+the `lambda`-independence sentence carries the measurement that breaks it:
+hounie's raw constraint-gradient norm ran 0.005-0.1105 against a clip of 1.0,
+so it was never rescaled and its magnitude, hence its multiplier, passed
+straight through. The invariance covers the figure's two arms, not the baseline
+set. `pdflatex` clean, 0 errors.
+⚠️ `\footnote` inside `\caption` is a LaTeX error -- the note had to be
+inlined into the caption body. Worth knowing before the next such edit.
+
+⛔ **AND THE "STALE METHODS SECTION" PART OF 2(z30) IS WITHDRAWN.** It read the
+warm-up 50, the "$300$-epoch budget" and `ratchet step 0.002 with hinge weight
+beta` as describing a pipeline that no longer exists. **The paper reports
+MedMNIST only** -- there is no iwildcam result anywhere in it -- so those are
+the CORRECT description of the runs it presents. Modernising them to today's
+warm-up 1 + 29 and `lambda_step 0.05` would make the methods section describe
+experiments the paper does not report. See 2(z37).
+
+⚠️ **STILL OPEN:** `focal_alpha` is a global scalar that Adam's scale
+invariance cancels (argmax agreement 1.0000 under a 10,000x change) and the
+paper presents it as Lin et al.'s class-dependent `alpha_t`. That one is
+unfixed, and it is a claim about a METHOD the paper reports.
+
 ### 2(z31) 🛑🛑 **THE ITEMS SCALE INVENTS ITEMS THAT DO NOT EXIST, THE QUANTUM RULE IS FALSE ON THE HEADLINE METRIC, AND TWO LP RUNS PLAY A DIFFERENT GAME**
 
 Allocator and metric audit, 2026-09-03. Scan basis: all 12 live worktrees,

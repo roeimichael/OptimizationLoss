@@ -626,8 +626,17 @@ a median $2$--$7$ minutes per run on one GPU for our package and the dual
 baselines alike, on top of a shared cached warmup (clipping itself costs
 seconds but pays the quality tax of Sec.~\ref{sec:deploy}). Per-method
 constraint steps were fixed a priori, not tuned per cell: dual step $0.005$
-(Fioretto-LDF), dual and relaxation steps $0.01$ (Hounie-RCL) on all three
-datasets,{\color{blue} dual step $0.005$ with augmentation $\mu_0{=}0.01$ growing
+(Fioretto-LDF), dual and relaxation steps $0.01$ with resilience weight
+$\alpha{=}10$ (Hounie-RCL) on all three
+datasets,{\color{blue}\footnote{Both Hounie-RCL settings depart from the
+values used by \citet{hounie2023resilient}, who take
+$\eta_\lambda{=}\eta_u{=}0.1$ with $h(u){=}\lVert u\rVert^2$, i.e.
+$\alpha{=}1$. We report the departure rather than the intent: our rates are
+$10\times$ smaller and our $\alpha$ is $10\times$ larger. Since the
+relaxation's fixed point is $u^\star{=}\lambda/(2\alpha)$, the two moves
+compound, and the resilient mechanism is correspondingly weaker here than in
+the source. A step-fairness sweep over a $10\times$ range
+(App.~\ref{app:mech}) does not cover the $\alpha$ axis.}}{\color{blue} dual step $0.005$ with augmentation $\mu_0{=}0.01$ growing
 by $0.01$ per epoch (ALM),} and ratchet step $0.002$ with hinge weight
 $\beta{=}0.5$ (TraLO).
 A step-fairness sweep (App.~\ref{app:mech}) varies the baseline steps
@@ -1532,13 +1541,20 @@ one-epoch-warmup probe} (DermMNIST $L50/G50$, RegNetY-400MF, seed~1).
 \emph{(a)}~Dual ascent integrates the standing violation into a
 multiplier that climbs to $\lambda{=}53$, while TraLO's ratchet freezes
 at $\lambda\!\le\!0.19$. \emph{(b)}~The effect on the classifier is
-none: every method takes a single norm-clipped constraint step per
-epoch, so the two cross-entropy traces are numerically indistinguishable.
+none: {\color{blue}both arms shown here take} a single norm-clipped
+constraint step per epoch, so the two cross-entropy traces are numerically
+indistinguishable.
 \emph{(c)}~The count does not fall until cross-entropy finishes
 (train-accuracy gate, dotted), then reaches the cap for both. A
 ${\sim}280\times$ gap in $\lambda$ thus leaves training nearly identical:
 with the constraint term dominant and the step norm-clipped, the update
-is independent of $\lambda$. Adam's invariance to a constant rescaling of
+is independent of $\lambda$. {\color{blue}This argument requires the clip to
+actually bind, and it does not for every baseline: on a diagnostic run under
+the same settings, Hounie-RCL's raw constraint-gradient norm stayed between
+$0.005$ and $0.1105$ against a clip of $1.0$, so it was never rescaled and its
+step magnitude, hence its multiplier, passed through to the update. The
+invariance shown here covers the two arms in this figure, not the whole
+baseline set.} Adam's invariance to a constant rescaling of
 the gradient \citep{kingma2014adam} points the same way, though we read
 \emph{that} as an empirical observation rather than a theorem, since
 $\lambda$ multiplies only the constraint term (so it shifts the
