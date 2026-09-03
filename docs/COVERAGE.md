@@ -257,7 +257,8 @@ INTERSECTION over measured models and keeps each reading in `per_model`.
 | `uniform1` | 252 | MNv2, MNv3, RegNet | `L20_G50` `L30_G50` `L50_G30` | `tralo` `tralo_uniform` + controls |
 | `taskwin2` | 48 | MobileNetV3 | `L70-90_G95` `L80-100_G95` | `tralo` `tralo_cut` + controls |
 | `vittask1` | 13/48 | **ViTB16** | `L60-90_G95` `L70-90_G95` | `tralo` `tralo_cut` + controls |
-| `vitdual1` | **RUNNING** 0/88 | **ViTB16** | `L80-80_G95` `L90-90_G95` | **4 duals** + per-family nulls + clippers |
+| `vitdual1` | ⛔ QUARANTINED 36 | **ViTB16** | `L60-90` `L70-90` `L80-80` | unequal dose 29/29/28/28; 2 caps non_task |
+| `vitdual2` | **RUNNING** 0/88 | **ViTB16** | `L80-80_G95` `L90-90_G95` | **4 duals** + per-family nulls + clippers, equal dose |
 
 ⚠️ `uniform1`'s caps are all measured NON-TASK, so it contributes no task
 cells. It stays because it is on the current recipe and is the `_uniform`
@@ -276,14 +277,19 @@ in section 7, and it is gated behind these:
      already showing a large gap.
    - **A cell with a bigger prize.** The corrected screen says where those are
      -- and says MobileNetV3/dsisco01 has none for class 2.
-2. **`vitdual1`** (running, 88 runs) -- the four duals on the **headline**
+2. **`vitdual2`** (running, 88 runs) -- the four duals on the **headline**
    backbone, which has never been run. Its first two `tralo_null` arms have
    ALREADY replaced the 1-seed placeholder window, and doing so **changed the
    campaign**: the measured band is [0.80, 0.90] on both classes, so the
    `L60-90_G95` and `L70-90_G95` it was running are `non_task` (class 2's prize
    at K/n 0.70 is 2.5 items against a 3.0 floor and a ~4-item RNG floor). Their
    pending runs were dropped and replaced by `L80-80_G95` + `L90-90_G95`;
-   completed runs kept as receipts. FRAMEWORK 2(z38).
+   completed runs kept as receipts. ⛔ **Then the whole campaign was
+   quarantined and relaunched as `vitdual2`**: `dose_landed` showed the four
+   duals at 29 / 29 / 28 / 28 attempted constraint steps, because `fioretto`
+   and `hounie` start their multipliers at 0 and updated them AFTER the primal
+   step, so epoch 0 formed no constraint gradient. Fixed by running the dual
+   update BEFORE the primal gate. FRAMEWORK 2(z38).
 3. **The host term.** dsisco02/bf16 and dsisco01/fp16 do not overlap on
    `tralo - null` (+8/+9 vs +1/+2/+3), and no experiment separates host from
    backbone. One A/B -- `dom1`'s exact cells re-run on dsisco01 -- closes it.

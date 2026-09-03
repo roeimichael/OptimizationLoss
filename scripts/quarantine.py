@@ -50,6 +50,26 @@ MARKER = "QUARANTINE.json"
 # still good for -- because "dead" and "worthless" are different, and every
 # entry below is still the receipt for something.
 REGISTRY = {
+    "vitdual1": dict(
+        reason="the four-dual head-to-head ran at UNEQUAL CONSTRAINT DOSE: "
+               "`alm` and `tralo` attempted 29.00 steps/run, `fioretto` and "
+               "`hounie` 28.00. Every arm landed 100% of what it ATTEMPTED, so "
+               "no gate was red and only the DENOMINATORS differed -- both "
+               "duals initialise their multipliers at exactly 0 and updated "
+               "them AFTER the primal step, so epoch 0 formed no constraint "
+               "gradient at all. 3.4% of the dose in the only phase the "
+               "comparison is about, and UNDER `full_panel`'s 5-point refusal, "
+               "so the number would have been quoted. Superseded by `vitdual2` "
+               "at 7ce4ee5ac41e, where the dual update precedes the primal "
+               "gate and all four arms take 29",
+        keep_for="the receipt for the dose gap itself -- `dose_landed` on this "
+                 "tree is the measurement that found it. ALSO the receipt for "
+                 "the ViTB16 TASK WINDOW [0.80, 0.90] on both classes, "
+                 "measured from its two distinct `tralo_null` models: those "
+                 "are lambda=0, take no constraint step either way, and are "
+                 "therefore UNAFFECTED by the dose fix. Its `L60-90` and "
+                 "`L70-90` cells are the receipt that those caps are non_task",
+        scorable=False),
     "taskwin1": dict(
         reason="staged WITHOUT --constraint-fp32 (`constraint_fp32: False` in "
                "all 8 tralo configs): `tralo` landed 20/29 constraint steps, "

@@ -184,7 +184,13 @@ python -m scripts.verify_caps               # what integer budget each cap tag r
 python -m scripts.check_parity <root>       # equal compute, same knobs, >=2 caps, sane warm-up sharing
 python -m scripts.reachability <early-run>  # CAN the penalty even reach this cell's cut?
 python -m scripts.quarantine --list         # 🛑 IS THIS CAMPAIGN ALREADY DEAD?
-#   FOURTEEN campaigns are marked (2026-09-01; this line said TEN, then
+#   FIFTEEN campaigns are marked (2026-09-03; the fifteenth is `vitdual1`,
+#   the four-dual head-to-head, which ran at UNEQUAL DOSE -- `alm`/`tralo` at
+#   29.00 attempted steps/run against `fioretto`/`hounie` at 28.00, with every
+#   arm landing 100% of what it ATTEMPTED so no gate was red. Superseded by
+#   `vitdual2`. It is still the receipt for the dose gap AND for the ViTB16
+#   task window, whose lambda=0 nulls the fix cannot touch. FRAMEWORK 2(z38).
+#   This line said TEN, then
 #   THIRTEEN -- the three were `dosefix`, `vit_ceskip`, `vit_diag`, and the
 #   fourteenth is `taskwin1`, staged WITHOUT --constraint-fp32 and landing
 #   20/29 = 69.0%. It is the CLEANEST A/B on that flag in the project:
