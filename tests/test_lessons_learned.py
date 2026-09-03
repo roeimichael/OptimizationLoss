@@ -1480,6 +1480,69 @@ def test_normalize_deletes_the_rival_duals_hyperparameters(tmp_path):
         % c)
 
 
+def test_a_K0_ceiling_sits_past_the_penalty_peak_and_carries_almost_no_pull():
+    """Half the iwildcam local constraints are inert in the OBJECTIVE (2026-09-03).
+
+    `pen(E) = E/(E+scale) + rho*e^2/(1+e^2)`, `e = E/scale`,
+    `scale = max(K, 1)`. Its derivative is NON-MONOTONE once rho >~ 1: it peaks
+    at ~57.5% over budget and decays beyond. At `K == 0` the scale is pinned to
+    1, so the peak lands at a SOFT COUNT of ~0.58 -- while a real iwildcam
+    camera group's soft count (`sum_i p_ic` over hundreds of items) is tens to
+    hundreds. Every K==0 ceiling is therefore permanently on the far decaying
+    tail, and since `normalize` keeps only the direction of the SUM, those
+    terms round out of the delivered update.
+
+    CLAUDE.md's "7 of 14 ceilings are K=0, so the LOCAL scope constrains the
+    output at every cap level" is true of the ALLOCATOR (it must emit nothing
+    there) and false of the TRAINED objective.
+
+    NEGATIVE CONTROL in the same test: a constraint at ~57% over budget must
+    get MUCH more pull, or the shape is not the non-monotone one and the whole
+    argument is void.
+    """
+    import torch
+
+    from src.losses.transductive_loss import MulticlassTransductiveLoss
+
+    def dpen(soft, K, rho):
+        """Autograd through the SHIPPED penalty -- no re-derivation."""
+        loss = MulticlassTransductiveLoss(
+            global_constraints=[1e10] * 8, local_constraints={},
+            num_classes=8, initial_rho=float(rho))
+        t = torch.tensor(float(soft), dtype=torch.float64, requires_grad=True)
+        loss._penalty(t, float(K)).backward()
+        return float(t.grad)
+
+    rho = 0.5 + 3.431 * 28          # end of the shipped ramp
+
+    # the peak for a K==0 ceiling is at a soft count near 0.58, not near 0
+    grid = [i * 0.01 for i in range(1, 500)]
+    vals = [dpen(x, 0.0, rho) for x in grid]
+    peak_at = grid[max(range(len(vals)), key=lambda i: vals[i])]
+    assert 0.4 < peak_at < 0.8, (
+        "the K==0 penalty peak moved to a soft count of %.3f; 2(z36) is "
+        "written around ~0.58 and would need redoing" % peak_at)
+
+    # a realistic group expects tens of items, and is then all but unconstrained
+    peak = max(vals)
+    for soft, bar in ((25.0, 1e-3), (100.0, 1e-4), (400.0, 1e-5)):
+        frac = dpen(soft, 0.0, rho) / peak
+        assert frac < bar, (
+            "a K==0 group with soft count %.0f carries %.3g of the peak pull, "
+            "above the %.0e this lesson records. If the shape changed, the "
+            "'half the local constraints are inert' claim must be re-measured."
+            % (soft, frac, bar))
+
+    # NEGATIVE CONTROL: a barely-violated ceiling must be pulled hard, or the
+    # shape is not non-monotone and nothing above means anything.
+    healthy = dpen(63.0, 40.0, rho)          # 1.57x over budget
+    starved = dpen(400.0, 0.0, rho)
+    assert healthy / starved > 1e4, (
+        "a constraint at 1.57x its budget gets only %.1fx the pull of one at "
+        "400x over. The penalty is then roughly monotone in the violation and "
+        "2(z36)'s starvation argument does not apply." % (healthy / starved))
+
+
 def test_no_test_in_this_file_states_a_lesson_without_a_DATE():
     """The convention that makes this catalogue re-checkable (2026-09-02).
 

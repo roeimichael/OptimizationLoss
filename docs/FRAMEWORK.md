@@ -3808,7 +3808,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 539 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 540 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -3972,7 +3972,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 539 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 540 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -3980,7 +3980,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (539 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (540 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -8816,6 +8816,84 @@ untouched and remain the serious ones.
 below the bound and every verdict above can change -- which is exactly why
 `clip` and `normalize` are different methods, not variants.
 
+### 2(z36) 🛑🛑🛑 **HALF THE LOCAL CONSTRAINTS ON iwildcam CARRY
+0.016% OF THE PULL. A `K == 0` CEILING IS PAST ITS GRADIENT PEAK ONCE THE GROUP
+EXPECTS ONE ITEM, AND REAL GROUPS EXPECT HUNDREDS**
+
+Derived 2026-09-03 from `src/losses/transductive_loss._penalty`, verified
+against `torch.autograd` to **7.3e-12** relative (the analytic derivative used
+by `scripts/dual_cone_probe` is exact once the shipped `EPSILON` is carried; the
+3e-8 seen without it IS the epsilon). No GPU, no artefacts.
+
+**THE SHAPE.** `pen(E) = E/(E+scale) + rho * e^2/(1+e^2)`, `e = E/scale`,
+`scale = max(K, 1)`. Its derivative is **non-monotone in the violation** once
+`rho >~ 1`: it peaks at **57.5% over budget** and decays for anything worse.
+The shipped ramp is `rho: 0.5 -> 100` over 29 epochs, so the peak sits at 1.0%
+over at epoch 0 and at 57.4-57.5% from epoch ~1 onward. Reproduced
+independently: `g(58% over) / g(8x over)` = **167.1x** at `rho = 100`, matching
+the figure in the source comment to one decimal.
+
+🔑 **NOW APPLY IT AT `K == 0`, WHICH IS HALF THE iwildcam LOCAL SET.** There
+`scale = 1`, so the peak pull lands at a **soft count of 0.5755**, and:
+
+| group's soft count | d pen / d soft | share of the peak |
+|---|---|---|
+| 0.575 | 63.13 | 100% |
+| 1 | 48.53 | 76.9% |
+| 5 | 1.456 | 2.31% |
+| 25 | 1.38e-02 | 0.022% |
+| 100 | 2.91e-04 | 0.00046% |
+| 400 | 9.24e-06 | **0.000015%** |
+
+A soft count is `sum_i p_ic` over every item in the group. iwildcam's test
+cameras hold hundreds of items each, so a `K == 0` group's soft count is tens
+to hundreds **at initialisation and forever**. It is never anywhere near 0.58.
+**Every `K == 0` ceiling is permanently on the far decaying tail, by
+construction, and no dose or schedule moves it.**
+
+**WHAT THAT DOES TO THE DELIVERED DIRECTION.** A representative 14-ceiling local
+set for one capped class, seven at `K == 0` (the measured iwildcam split) and
+seven binding at 1.05x-1.57x, at the end of the rho ramp:
+
+| ceilings | share of the total constraint pull |
+|---|---|
+| the **seven `K == 0`** | **0.0162%** |
+| the seven real budgets | 99.9838% |
+
+Largest-to-smallest weight across one set: **191,315x**. And since
+`mode="normalize"` rescales the SUM, the `K == 0` terms do not merely get less
+pull -- they round out of the delivered direction entirely.
+
+⛔ **SO THIS LINE IN `CLAUDE.md` AND 2(n) IS TRUE OF THE ALLOCATOR AND FALSE OF
+THE OBJECTIVE:** "7 of 14 per-group ceilings are K=0 ... so the LOCAL scope
+constrains the output at every cap level". The allocator *is* bound by a zero
+ceiling -- it must emit nothing there, and that is real. **The TRAINED model is
+not.** The constraint phase optimises against the seven non-zero ceilings and,
+to four decimal places, nothing else. Say which of the two you mean.
+
+⚠️ **AND `transductive_loss._penalty`'s OWN DOCSTRING OVERSTATES IT.** It says
+`K == 0` "contributes a permanent, non-vanishing gradient pushing `p_ic` down
+in that group". Non-vanishing is literally true and practically empty: 9.2e-06
+against a sibling constraint's 1.58, under a normaliser that only keeps the
+direction of the sum.
+
+🔑 **THIS IS THE SAME DEFECT 2a2 FOUND, AT A SCALE 20,000x LARGER.** 2a2
+measured the deepest violator being starved at ~30x spread on dermmnist and
+called the bounded shape backwards. On iwildcam the spread is 191,315x, because
+`K == 0` forces `scale = 1` and a count of hundreds is then a violation of
+hundreds-fold. `linear` and `squared` exist in the code precisely because of
+this, and the default stays `rational_bounded` -- it is the manuscript's Eq. 4,
+and changing it would silently reinterpret every stored result. **That decision
+should now be made deliberately rather than by inertia**, and the cheapest
+honest version is to report that the local scope is, in the objective, a
+seven-constraint problem and not a fourteen-constraint one.
+
+⚠️ **SCOPE.** The 14-ceiling set above uses realistic but ILLUSTRATIVE soft
+counts -- the server has been unreachable since this was derived, so the real
+per-group soft counts are not read here. What needs no data is the structural
+part: `scale = 1` at `K == 0`, the peak at a soft count of 0.5755, and the
+decay beyond it. Re-measure the shares on a real run before quoting 0.0162%.
+
 ### 2(z32) 🛑🛑 **THE ONE ROW THAT "RESOLVES" IS BELOW THE CHANCE
 EXPECTATION, AND THE `sd` GLOSS THE WHOLE REPO USES TO DISCOUNT ITS OWN POWER
 IS ALGEBRAICALLY IMPOSSIBLE**
@@ -10336,7 +10414,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             539 tests, ~200 s, no dataset required
+tests/             540 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
