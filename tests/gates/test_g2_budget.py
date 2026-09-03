@@ -338,9 +338,16 @@ def test_a_ccf1_delta_is_quantised_and_converts_to_items():
     if abs(illegal - round(illegal)) < 1e-6:
         fails.append("dF1=0.02 at K=111,n=370 reads as the whole %.4f items, "
                      "so quantisation can reject nothing" % illegal)
+    # A plausibility floor on the CONVERSION, not a claim about the effect
+    # space: 0.02 * (111+370)/2 = 4.81 items, so anything under ~2 means the
+    # scale factor collapsed. The number 1.9 originally came from a dermmnist
+    # headroom band (removed, 38.7%-leaking dataset -- FRAMEWORK 2(z32)d); it
+    # survives here only as an arithmetic sanity bar, and the message must not
+    # re-assert it as the effect space.
     if illegal < 1.9:
-        fails.append("dF1=0.02 converts to %.2f items, below the 1.9-9.9 item "
-                     "effect space -- the scale factor is wrong" % illegal)
+        fails.append("dF1=0.02 at K=111,n=370 converts to %.2f items; the "
+                     "arithmetic gives 4.81, so a value this small means the "
+                     "(K+n)/2 scale factor is wrong" % illegal)
     report(fails, "quantisation failures")
 
 

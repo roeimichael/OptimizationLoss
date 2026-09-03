@@ -214,10 +214,15 @@ def render(recs, out=sys.stdout):
     w = out.write
     w("PAPER ROWS -- one line per (cell, contrast). NOTHING is averaged over "
       "cells." + chr(10))
-    w("  `items` = d ccF1 * (K+n)/2. The WHOLE gap from `clip` to a PERFECT "
-      "allocator" + chr(10))
-    w("  is 1.9-9.9 items, so a sub-item delta is a re-allocation, not a "
-      "difference." + chr(10))
+    w("  `items` = d ccF1 * (K+n)/2. A sub-item delta is a re-allocation, "
+      "not a" + chr(10))
+    w("  difference. (The `1.9-9.9 items` band this line used to quote is a "
+      "dermmnist" + chr(10))
+    w("  number on a removed, leaking dataset -- see FRAMEWORK 2(z32)d -- and "
+      "the" + chr(10))
+    w("  iwildcam prize is regime-dependent, ~0.2-0.7 items/class at the "
+      "retired" + chr(10))
+    w("  tight caps against 7-31 at the live loose ones.)" + chr(10))
     w("  `items` IS APPROXIMATE: `full_panel` macro-averages ccF1 over BOTH "
       "capped" + chr(10))
     w("  classes, whose (K+n) differ, so the macro delta has no single "

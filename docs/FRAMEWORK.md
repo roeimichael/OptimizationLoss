@@ -3808,7 +3808,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 538 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 539 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -3972,7 +3972,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 538 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 539 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -3980,7 +3980,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (538 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (539 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -8732,6 +8732,90 @@ and cap set; `equaldose1` exists precisely to equalise dose, so it differs from
 `dom1` by design as well as by machine. n = 6 `(backbone, cap)` combinations.
 The A/B that separates host from the rest is queued and unrun.
 
+### 2(z35) 🛑🛑🛑 **`normalize` DELETES THE RIVALS' HYPERPARAMETERS.
+`fioretto_ldf` HAS NONE LEFT AT ALL, AND TraLO'S ONLY STRUCTURAL DIFFERENCE IS
+THAT IT IS NOT POSITIVELY HOMOGENEOUS**
+
+Measured 2026-09-03, pure algebra plus simulation against the shipped rules in
+`scripts/dual_cone_probe.arm_weights`. No GPU, no artefacts. This is the
+mathematical answer to "in what sense are these four different methods".
+
+**THE MECHANISM.** `finish_constraint_step` under `mode="normalize"` rescales
+the constraint gradient to exactly `constraint_grad_clip`, so **only the
+DIRECTION of the weight vector `c` is ever delivered**. And every dual's rule
+for `c` is built from linear maps and `max(0, .)`, both **positively
+homogeneous**: `max(0, a*x) = a*max(0, x)` for `a > 0`. Scale the residual and
+the whole weight trajectory scales with it, direction untouched. TraLO's
+`lambda * pen'(S)` is not homogeneous, because `pen'` saturates.
+
+Scale the residual by `c`, hold `K` and the group sizes, read the cosine
+against `c = 1`:
+
+| c | `fioretto_ldf` | `fioretto_alm` | `hounie_rcl` | `tralo` |
+|---|---|---|---|---|
+| 0.25 | 1.000000000 | 1.000000000 | 1.000000000 | 1.000000000 |
+| 1.00 | 1.000000000 | 1.000000000 | 1.000000000 | **0.7161** |
+| 4.00 | 1.000000000 | 1.000000000 | 1.000000000 | **0.4527** |
+| 16.0 | 1.000000000 | 1.000000000 | 1.000000000 | **0.0649** |
+
+🔑 **SO THE DUALS ARE SCALE-FREE AND TraLO IS NOT.** Every dual weights the
+constraints by the residual's DIRECTION alone; how badly a cap is violated in
+absolute items cannot reweight them. TraLO's saturation reads the depth. **That
+is the one structural difference between TraLO and the entire rival family**,
+and it is a clean thing to claim -- far cleaner than "a better dual".
+
+**AND IT MAKES THE RIVALS' KNOBS INERT.** At a fixed state, over 300 random
+constraint sets, every swept rival hyperparameter gives `cos = 1.000000000`:
+
+| arm | knob | swept over | min cos | verdict |
+|---|---|---|---|---|
+| `fioretto_ldf` | `fioretto_step_size` | 0.0005 - 5.0 | 1.000000000 | DIRECTION-INERT |
+| `fioretto_alm` | `alm_eta` | 0.0005 - 5.0 | 1.000000000 | DIRECTION-INERT |
+| `fioretto_alm` | `alm_mu_step` | 0.001 - 10.0 | 1.000000000 | DIRECTION-INERT |
+| `hounie_rcl` | `hounie_alpha` | 0.01 - 1000 | 1.000000000 | DIRECTION-INERT |
+| `hounie_rcl` | `hounie_eta_lambda` | 0.001 - 1.0 | 1.000000000 | DIRECTION-INERT |
+| `tralo` | `tralo_rho_target` | 1 - 10000 | **0.9658** | LIVE |
+| `tralo` | `tralo_lambda_step` | 0.005 - 0.5 | 0.99999956 | live, barely |
+
+⚠️ **BUT A REAL RUN HAS A VARYING RESIDUAL, AND THAT SPLITS THE RIVALS INTO
+TWO GROUPS.** Repeating over 400 random 29-step trajectories where the
+constraints move differently:
+
+| contrast | min cos | median | max |
+|---|---|---|---|
+| **`ldf`: step 0.0005 vs 5.0** | **1.000000** | **1.000000** | **1.000000** |
+| `alm`: eta 0.0005 vs 5.0 | 0.2478 | 0.9654 | 1.0 |
+| `alm`: mu_step 0.001 vs 10.0 | 0.3402 | 0.9812 | 1.0 |
+| `hounie`: alpha 0.01 vs 1000 | 0.0018 | 0.9833 | 1.0 |
+| `hounie`: eta_lambda 0.001 vs 1.0 | 0.0256 | 0.9925 | 1.0 |
+
+🔑🔑 **`fioretto_ldf` IS HYPERPARAMETER-FREE UNDER THIS RECIPE, FULL STOP.**
+Its only knob multiplies the entire accumulation, `lambda_T = step * sum_s
+relu(r_s)`, so it factors out of the direction at every state and along every
+trajectory -- min = median = max = 1.000000. **A 10,000x change delivers a
+bit-identical update.** Any criticism of the form "the LDF baseline was
+mis-tuned" is void: there is nothing to tune.
+
+`alm` and `hounie` keep live knobs only because each multiplies **two** terms
+whose RATIO survives normalisation (`eta` against `mu_t`; `eta_lambda` against
+the relaxation `u`). Their median effect is a ~10-degree rotation, occasionally
+much more.
+
+⛔ **WHAT THIS DOES TO 2(z30).** That section blames the published corpus's
+hounie on a 10x-wrong `alpha` and calls the resilience "provably inert". The
+inertness is right but the reason given is too narrow: **`alpha` is
+direction-inert at ANY value at a fixed state**, and along a trajectory a
+100,000x change moves the direction by a median of 10 degrees. So the corpus's
+mis-set `alpha` is a real fidelity defect and a SMALL one at the level the
+pipeline delivers. The larger 2(z30) findings (the ~20x delivered-dose gap
+under `clip`, and the methods section describing a deleted pipeline) are
+untouched and remain the serious ones.
+
+⚠️ **SCOPE.** Everything here is about the DIRECTION delivered by
+`mode="normalize"`, which is the recipe. Under `mode="clip"` magnitude survives
+below the bound and every verdict above can change -- which is exactly why
+`clip` and `normalize` are different methods, not variants.
+
 ### 2(z32) 🛑🛑 **THE ONE ROW THAT "RESOLVES" IS BELOW THE CHANCE
 EXPECTATION, AND THE `sd` GLOSS THE WHOLE REPO USES TO DISCOUNT ITS OWN POWER
 IS ALGEBRAICALLY IMPOSSIBLE**
@@ -10252,7 +10336,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             538 tests, ~200 s, no dataset required
+tests/             539 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

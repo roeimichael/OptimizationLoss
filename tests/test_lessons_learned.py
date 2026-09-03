@@ -1393,6 +1393,93 @@ def test_two_cap_levels_share_a_warm_up_so_a_CELL_is_not_an_independent_unit():
         "(backbone, seed) warm-up. FRAMEWORK 2(z33).")
 
 
+def test_normalize_deletes_the_rival_duals_hyperparameters(tmp_path):
+    """What actually separates TraLO from the rival family (2026-09-03).
+
+    `finish_constraint_step` under mode="normalize" rescales the constraint
+    gradient to exactly `constraint_grad_clip`, so only the DIRECTION of the
+    weight vector is delivered. Every dual rule is built from linear maps and
+    max(0, .), both POSITIVELY HOMOGENEOUS, so scaling the residual leaves
+    their direction untouched. TraLO's `lambda * pen'(S)` saturates and does
+    not.
+
+    Consequences the docs now rest on:
+      * `fioretto_ldf` is HYPERPARAMETER-FREE here -- its single knob
+        multiplies the whole accumulation and factors out of the direction, so
+        a 10,000x change delivers a bit-identical update. "The LDF baseline was
+        mis-tuned" is not a possible criticism.
+      * `hounie_alpha`, the parameter that IS Hounie-RCL, is direction-inert at
+        a fixed state at any value.
+
+    NEGATIVE CONTROL in the same test: TraLO's direction MUST move under the
+    same rescaling, or homogeneity is not what is being measured and the whole
+    argument is an artefact of the harness.
+    """
+    import numpy as np
+
+    from scripts.dual_cone_probe import DEFAULT_CFG, arm_weights
+
+    def cosang(a, b):
+        na, nb = np.linalg.norm(a), np.linalg.norm(b)
+        return float(a @ b / (na * nb)) if na > 1e-15 and nb > 1e-15 else 1.0
+
+    rng = np.random.default_rng(20260903)
+    n = 8
+    K = np.floor(rng.uniform(20, 400, n))
+    excess = rng.normal(40, 50, n)
+    sizes = rng.uniform(50, 3000, n)
+
+    def W(scale, cfg=None):
+        soft = K + scale * excess
+        hard = np.maximum(0.0, soft)
+        return {a: V[-1] for a, V in
+                arm_weights(soft, hard, K, sizes, 29, cfg or DEFAULT_CFG).items()}
+
+    ref = W(1.0)
+    homog = {}
+    for c in (0.25, 4.0, 16.0):
+        cur = W(c)
+        for arm in ref:
+            homog.setdefault(arm, []).append(cosang(cur[arm], ref[arm]))
+
+    for arm in ("fioretto_ldf", "fioretto_alm", "hounie_rcl"):
+        worst = min(homog[arm])
+        assert worst > 1.0 - 1e-9, (
+            "%s is no longer positively homogeneous (min cos %.9f under a "
+            "residual rescale). Its rule must be built only from linear maps "
+            "and max(0, .); if that changed, FRAMEWORK 2(z35) needs redoing."
+            % (arm, worst))
+
+    # NEGATIVE CONTROL: tralo MUST move, or the harness is rescaling nothing.
+    assert min(homog["tralo"]) < 0.99, (
+        "tralo's direction did NOT move under a 16x residual rescale (min cos "
+        "%.6f). pen' is supposed to saturate; if it no longer does, TraLO has "
+        "become scale-free like the duals and 2(z35)'s claimed structural "
+        "difference is gone." % min(homog["tralo"]))
+
+    # the LDF knob must be exactly inert, at a fixed state
+    lo = arm_weights(K + excess, np.maximum(0.0, K + excess), K, sizes, 29,
+                     dict(DEFAULT_CFG, fioretto_step_size=0.0005))
+    hi = arm_weights(K + excess, np.maximum(0.0, K + excess), K, sizes, 29,
+                     dict(DEFAULT_CFG, fioretto_step_size=5.0))
+    c = cosang(lo["fioretto_ldf"][-1], hi["fioretto_ldf"][-1])
+    assert c > 1.0 - 1e-9, (
+        "a 10,000x change in fioretto_step_size moved the delivered direction "
+        "(cos %.9f). It multiplies the whole accumulation and must factor out."
+        % c)
+
+    # and hounie_alpha, the parameter that IS the method
+    lo = arm_weights(K + excess, np.maximum(0.0, K + excess), K, sizes, 29,
+                     dict(DEFAULT_CFG, hounie_alpha=0.01))
+    hi = arm_weights(K + excess, np.maximum(0.0, K + excess), K, sizes, 29,
+                     dict(DEFAULT_CFG, hounie_alpha=1000.0))
+    c = cosang(lo["hounie_rcl"][-1], hi["hounie_rcl"][-1])
+    assert c > 1.0 - 1e-9, (
+        "hounie_alpha moved the direction at a fixed state (cos %.9f), which "
+        "contradicts 2(z35). Good news if real -- but check the rule first."
+        % c)
+
+
 def test_no_test_in_this_file_states_a_lesson_without_a_DATE():
     """The convention that makes this catalogue re-checkable (2026-09-02).
 

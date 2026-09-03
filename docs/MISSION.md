@@ -5,15 +5,18 @@
 every working session. If it is stale, that is a defect -- fix it before doing
 anything else.
 
-Last updated: **2026-09-02** (the SCREEN was the defect, the head-to-head is RNG,
-both GPUs are loaded -- see 0-RUNNING -- and the step gate now
-fronts the pipeline, see 0-CLEAN).
+Last updated: **2026-09-03** (the statistics audit landed: the paper's headline
+p is below its own floor, the `vs_null` magnitude is the NULL moving, my own
+cone result was algebraically forced, and `1 of 158 resolves` is BELOW chance.
+See 0-NOW items 6-9. The BIU jump host `dsihead` has been down since mid-session
+-- `coin2` and `vitdual1` were launched detached and are presumed alive but
+UNVERIFIED; confirm before assuming either finished.)
 
 ---
 
-## 🛑 0-NOW. READ `docs/COVERAGE.md` BEFORE ANY NUMBER BELOW (2026-09-02)
+## 🛑 0-NOW. READ `docs/COVERAGE.md` BEFORE ANY NUMBER BELOW (2026-09-03)
 
-Five findings supersede parts of every section that follows.
+Nine findings supersede parts of every section that follows.
 
 **1. The head-to-head between the four duals is measuring the RNG.** Scored on
 the AS-DEPLOYED predictions in exact captured items over 19 cells
@@ -114,6 +117,47 @@ SUPERSEDED, so both banners are withdrawn.
 the same day. `gen_campaign` WARNS on an empty band, it does not refuse.
 
 ---
+
+**6. THE PAPER OF RECORD PRINTS A p BELOW ITS OWN FLOOR.** It states that
+"cells are the independent units". `compute_base_model_id` hashes the backbone,
+the dataset and `warmup_identity_keys` -- **the cap is in none of them**, so two
+cap levels at one (backbone, seed) load the SAME cached warm-up. The six
+tight-cap cells are `{RegNet, MNv3, ViTB16} x {L30, L40} x seeds 1-4`, i.e.
+**THREE warm-up models**, and a one-sided sign test over three floors at 0.125.
+The printed `p=0.031` and the `t`-test `p=0.013` on six correlated cell means
+are both inadmissible. ✅ Fixed at four sites in `main_edited_by_roei.tex`
+(blue, pdflatex clean); `main.tex`, `main_rev.tex` and `main_clean.tex` still
+carry the old numbers. FRAMEWORK 2(z33), gated in `test_lessons_learned`.
+
+**7. THE `vs_null` MAGNITUDE IS THE NULL MOVING, NOT TraLO.** Cross-campaign
+spread at fixed (backbone, cap), in items: **`tralo` 0.63**, `tralo_reseed`
+2.21, `clip` 3.36, **`tralo_null` 6.60**. TraLO lands on the same cc-F1 to four
+decimals across two campaigns on two hosts while its own λ=0 twin moves up
+to 11.6 items -- and at `equaldose1`/MNv2/`L90_G95` the null BEATS it. So
+`dom1`'s "+12 items vs null" is the null being bad there. This is also why the
+host clustering shows up in `vs_null` and NOT in `vs_clip`, the headline
+contrast, where dsisco01 holds three of the four largest values. The SIGN is
+untouched; quoting a `vs_null` magnitude as "the size of the effect" is not.
+FRAMEWORK 2(z34).
+
+**8. "1 OF 158 STRICT ROWS RESOLVES" IS BELOW CHANCE.** `resolved` is
+`|d| >= 2*sd` with `d` a 4-seed MEAN and `sd` a PER-SEED sd, i.e. `t >= 4` on
+**df = 3**, where `P(|t_3| >= 4) = 0.0280` and 158 rows yield **4.43 expected
+under the global null**. One observed. The honest sentence is "**0 of 158
+resolve beyond chance**". And over all 393 rows the two largest resolved
+effects are **`alm`** (+11.80 vs clip, +10.51 vs reseed), not `tralo`.
+FRAMEWORK 2(z32)a.
+
+**9. THE REPO HAS BEEN UNDER-CLAIMING ITS OWN POWER, AND MY CONE RESULT WAS
+FORCED.** (a) `paper_rows`' "the sd is a LOWER bound, measured at 6-12x" is
+impossible: `sd(A-B) <= sa+sb <= sqrt(2)*sqrt(sa^2+sb^2)`, so the worst
+underestimate is 41% and positive correlation makes it an over-estimate;
+measured, `sd(treated)/sd(null)` over 73 cells is median 0.78 with ZERO above
+6x. (b) `fioretto_alm` vs `fioretto_ldf` "cos = 1.0000 in 192/192" is the
+probe's fixed-state replay restated as algebra, not a measurement -- over
+TRAJECTORIES the two reach **90 degrees** on disjoint supports. What carries
+that claim is the as-deployed 0.83x-the-floor number, which means
+"indistinguishable here", never "identical". FRAMEWORK 2(z32)b, 2(z28).
 
 ## 🟢 0-RUNNING. WHAT IS IN FLIGHT RIGHT NOW (2026-09-02, both GPUs)
 
