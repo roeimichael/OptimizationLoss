@@ -16,7 +16,7 @@ UNVERIFIED; confirm before assuming either finished.)
 
 ## 🛑 0-NOW. READ `docs/COVERAGE.md` BEFORE ANY NUMBER BELOW (2026-09-03)
 
-Nine findings supersede parts of every section that follows.
+Ten findings supersede parts of every section that follows.
 
 **1. The head-to-head between the four duals is measuring the RNG.** Scored on
 the AS-DEPLOYED predictions in exact captured items over 19 cells
@@ -147,6 +147,25 @@ under the global null**. One observed. The honest sentence is "**0 of 158
 resolve beyond chance**". And over all 393 rows the two largest resolved
 effects are **`alm`** (+11.80 vs clip, +10.51 vs reseed), not `tralo`.
 FRAMEWORK 2(z32)a.
+
+**10. FIVE THINGS IN THE PAPER OF RECORD ARE FIXED, AND ONE 2(z30) CLAIM IS
+WITHDRAWN.** All in `main_edited_by_roei.tex`, blue, `pdflatex` clean at every
+step: the four unit-inflation sites (2(z33)); a **same-lesion leakage
+disclosure** the paper never carried, though 2(o) measured 38.7% of the derm
+test set and **67.3% of melanoma, the capped class**, back on 2026-08-19
+(2(z37), gated); the Hounie-RCL rate departure, with `alpha = 10` now stated at
+all and the source's `0.1` / `alpha = 1` named; the mechanism figure's "every
+method takes a single norm-clipped step" narrowed to the two arms it shows,
+because hounie's raw norm ran 0.005-0.1105 against a clip of 1.0 and was never
+rescaled; and `focal_alpha`, which is bit-inert above ~1 (10,000x -> argmax
+agreement 1.0000) with the shipped 0.25 sitting inside Adam's `eps` regime.
+2(z30) has no open items left.
+⛔ **WITHDRAWN:** 2(z30)'s "the methods section describes a deleted pipeline".
+**The paper reports MedMNIST only** -- no iwildcam anywhere in it -- so warm-up
+50, the 300-epoch budget and `ratchet step 0.002` correctly describe the runs
+it presents. Do NOT modernise them.
+⚠️ `main.tex` is the professor's file and carries **none** of this;
+`main_rev.tex` and `main_clean.tex` likewise. That is Roei's call.
 
 **9. THE REPO HAS BEEN UNDER-CLAIMING ITS OWN POWER, AND MY CONE RESULT WAS
 FORCED.** (a) `paper_rows`' "the sd is a LOWER bound, measured at 6-12x" is
