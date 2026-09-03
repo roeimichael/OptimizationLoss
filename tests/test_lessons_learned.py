@@ -1588,3 +1588,85 @@ def test_no_test_in_this_file_states_a_lesson_without_a_DATE():
         bad.append("this file is not ASCII (%s); pytest prints these strings "
                    "and a cp1252 console will die mid-report" % exc)
     assert not bad, "catalogue conventions:\n  " + "\n  ".join(bad)
+
+
+def test_the_dual_arms_take_ONE_FEWER_constraint_step_than_tralo_and_alm():
+    """2026-09-03, measured on the live `vitdual1` by `scripts.dose_landed`:
+
+        alm       116 / 116   100.0%     29.00 attempted/run
+        tralo      87 / 87    100.0%     29.00 attempted/run
+        fioretto   84 / 84    100.0%     28.00 attempted/run
+        hounie     84 / 84    100.0%     28.00 attempted/run
+
+    Every arm lands 100% of what it attempts, so no step is being LOST -- the
+    denominators differ. `steps_attempted` counts epochs that reached
+    `finish_constraint_step`, and `fioretto_ldf` / `hounie_rcl` only get there
+    when their weighted constraint loss is strictly positive. Both start their
+    multipliers at EXACTLY ZERO (`fioretto_lambda_init: 0.0`, hounie's
+    `u_g = 0.0`), so on epoch 1 that loss is identically 0, no backward runs,
+    and the count is 28 of 29.
+
+    THIS IS THE METHOD, NOT A DEFECT. A Lagrangian dual initialised at
+    lambda = 0 genuinely applies no constraint force before its first dual
+    update. `fioretto_alm` starts at lambda = 0 TOO and still attempts 29,
+    because its augmented term carries `mu * violation**2`, which is nonzero
+    at lambda = 0 -- that contrast is what proves the cause is the multiplier
+    and not the dual family. TraLO uses a fixed penalty coefficient and is
+    live from epoch 1.
+
+    SO THE HEAD-TO-HEAD IS NOT AT EXACTLY EQUAL DOSE: 29 / 29 / 28 / 28, a
+    3.4% gap. That is under `full_panel`'s 5-point refusal, so scoring
+    proceeds -- correctly, since the gap is intrinsic to the methods. But a
+    dominance claim over these four arms must SAY it, which is what this test
+    exists to keep true.
+    """
+    import yaml
+    fails = []
+    proto = yaml.safe_load(io.open(rel("configs", "protocol.yml"),
+                                   encoding="utf-8").read())
+    inits = _all_values(proto, "fioretto_lambda_init")
+    if not inits:
+        fails.append("`fioretto_lambda_init` is gone from protocol.yml -- if "
+                     "the init moved, re-derive the 28-vs-29 count")
+    elif any(float(v) != 0.0 for v in inits):
+        fails.append("`fioretto_lambda_init` is no longer 0.0 (%s). A nonzero "
+                     "init makes epoch 1 form a gradient, so fioretto would "
+                     "attempt 29 and this lesson's numbers are stale" % inits)
+
+    hounie = io.open(rel("src", "methodologies", "hounie_rcl", "train.py"),
+                     encoding="utf-8").read()
+    if "u_g = {c: 0.0" not in hounie:
+        fails.append("hounie's multiplier no longer initialises at 0.0, so "
+                     "its 28-attempt count no longer follows")
+
+    # The structural half: the two 28-arms gate their backward on a positive
+    # loss; tralo does not. NEGATIVE CONTROL for the whole test -- if tralo
+    # ever grew the same guard it would drop to 28 too and the asymmetry this
+    # documents would silently vanish.
+    tralo = io.open(rel("src", "methodologies", "tralo", "train.py"),
+                    encoding="utf-8").read()
+    if "did_backward = has_constraint" not in tralo:
+        fails.append("tralo no longer attempts unconditionally, so the "
+                     "29-vs-28 asymmetry documented here may have moved")
+    for arm in ("fioretto_ldf", "hounie_rcl"):
+        src = io.open(rel("src", "methodologies", arm, "train.py"),
+                      encoding="utf-8").read()
+        if "did_backward = True" not in src:
+            fails.append("%s no longer sets did_backward conditionally" % arm)
+
+    assert not fails, "%d dual-dose defects:\n  - %s" % (
+        len(fails), "\n  - ".join(fails))
+
+
+def _all_values(node, key):
+    """Every value stored under `key` anywhere in a nested dict/list."""
+    out = []
+    if isinstance(node, dict):
+        for k, v in node.items():
+            if k == key:
+                out.append(v)
+            out.extend(_all_values(v, key))
+    elif isinstance(node, list):
+        for v in node:
+            out.extend(_all_values(v, key))
+    return out

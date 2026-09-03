@@ -186,7 +186,19 @@ not a defence for anything generated in a worktree.
 `N run(s) -> M distinct model(s)`; `classify` no longer crashes on an empty
 `partial` band (`2: []` unpacked as a 2-tuple and raised); and the 4-seed
 self-test fixture, which shared one probability array across its four "seeds",
-now perturbs each. Suite 541 tests, 540 pass / 1 skip.
+now perturbs each; and `paired_noise` prints `N (M distinct)` per arm.
+Suite 542 tests, 541 pass / 1 skip.
+
+⚠️ **AND THE FOUR-DUAL HEAD-TO-HEAD IS NOT AT EXACTLY EQUAL DOSE.**
+`dose_landed` on the live campaign: every arm lands **100%** of what it
+attempts, but `alm` and `tralo` attempt **29.00** steps/run against
+`fioretto` and `hounie` at **28.00**. Both start their multipliers at
+exactly 0, so their epoch-1 constraint loss is identically 0 and no
+backward runs. `alm` starts at 0 too and still attempts 29, because its
+`mu*violation^2` term is nonzero -- which is what proves the cause is the
+MULTIPLIER, not the dual family. **It is the method, not a defect**, it is
+under `full_panel`'s 5-point refusal, and it must be SAID whenever the
+head-to-head is reported. Gated as lesson 29.
 
 **10. FIVE THINGS IN THE PAPER OF RECORD ARE FIXED, AND ONE 2(z30) CLAIM IS
 WITHDRAWN.** All in `main_edited_by_roei.tex`, blue, `pdflatex` clean at every

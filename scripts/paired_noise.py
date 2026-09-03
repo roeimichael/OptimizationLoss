@@ -76,6 +76,62 @@ def load_arm(root, arm, classes, fracs):
     return pd.DataFrame(rows, columns=COLUMNS)
 
 
+
+def _model_fingerprints(frame):
+    """{(cell, seed): fingerprint of its whole TP curve}.
+
+    Two runs with the same TP at every (class, K/n) are the same model read
+    twice. That is not hypothetical here: a `_null` / `_reseed` arm has
+    lambda = 0, carries no constraint term, and therefore cannot depend on the
+    cap -- so running it at two cap levels produces two CELLS holding ONE
+    model.
+    """
+    fps = {}
+    if frame.empty:
+        return fps
+    for (cell, seed), g in frame.groupby(["cell", "seed"]):
+        key = tuple(g.sort_values(["cls", "frac"])["tp"].tolist())
+        fps[(cell, seed)] = key
+    return fps
+
+
+def _run_census(frame):
+    """'3' when every run is a distinct model, '3 (2 distinct)' when not."""
+    fps = _model_fingerprints(frame)
+    n, d = len(fps), len(set(fps.values()))
+    return "%d" % n if n == d else "%d (%d distinct)" % (n, d)
+
+
+def _warn_duplicate_models(frames):
+    """Name the collapsing runs, because the count alone reads as a typo.
+
+    \U0001f6d1 A RUN IS NOT A SEED. Pooling a sd over cells that hold the same
+    model double-counts it and biases the sd DOWNWARD, which makes every
+    prize/noise ratio in this table look better than it is.
+    """
+    said = False
+    for name, frame in frames.items():
+        fps = _model_fingerprints(frame)
+        byfp = {}
+        for k, v in fps.items():
+            byfp.setdefault(v, []).append(k)
+        dupes = [v for v in byfp.values() if len(v) > 1]
+        if not dupes:
+            continue
+        if not said:
+            print("")
+            said = True
+        print("  !! %s: %d run(s) are the SAME MODEL read more than once. A "
+              "lambda=0" % (name, sum(len(d) - 1 for d in dupes)))
+        print("     arm has no constraint term, so its predictions cannot "
+              "depend on the cap;")
+        print("     two cap levels are two CELLS holding ONE model. A sd "
+              "pooled over those")
+        print("     cells double-counts it and biases every ratio below "
+              "OPTIMISTIC.")
+        for group in dupes[:3]:
+            print("       %s" % "  ==  ".join("%s/%s" % g for g in group))
+
 def paired_sd(treated, control):
     """{(cls, frac): sd of (treated - control)}, pooled over cells.
 
@@ -233,6 +289,29 @@ def self_test(out=sys.stdout):
                   "%.6f\n" % (got, want))
         ok = False
 
+    # 3b. THE DUPLICATE-MODEL CENSUS. A `_null` / `_reseed` arm has lambda = 0
+    #     and a post-hoc clipper trains with no constraint at all, so NEITHER
+    #     can depend on the cap: run at two cap levels each produces two CELLS
+    #     holding ONE model, and a sd pooled over them double-counts it and
+    #     biases every ratio in the table OPTIMISTIC. Measured on
+    #     vitdual1/ViTB16 2026-09-03: `clip` 4 runs / 2 models (seed_1
+    #     identical across THREE cap levels), `tralo_null` and `tralo_reseed`
+    #     3 / 2 -- while `tralo`, which is trained, stayed 3 / 3.
+    dup = _synth(lambda ci, si: 100 + si)          # same curve in every cell
+    if _run_census(dup) != "12 (4 distinct)":
+        out.write("SELF-TEST FAIL: the census must collapse cells holding one "
+                  "model, got %s\n" % _run_census(dup))
+        ok = False
+    #     NEGATIVE CONTROL, and it is the one that matters: a census that
+    #     collapsed genuinely different runs would erase every real replicate
+    #     while looking right on the case above. A TRAINED arm differs per
+    #     cell and must stay uncollapsed.
+    distinct = _synth(lambda ci, si: 100 + 10 * ci + si)
+    if _run_census(distinct) != "12":
+        out.write("SELF-TEST FAIL: the census collapsed runs that DIFFER, got "
+                  "%s\n" % _run_census(distinct))
+        ok = False
+
     # 4. Pooling must be WITHIN cell. A pure cell-to-cell shift is not noise
     #    and must not appear as any.
     shifted = _synth(lambda ci, si: 100 + 50 * ci)
@@ -305,7 +384,8 @@ def main():
         frames[name] = load_arm(args.campaign, name, args.classes, args.fracs)
     per = len(args.classes) * len(args.fracs)
     print("runs: " + "  ".join(
-        "%s %d" % (n, len(f) // per if per else 0) for n, f in frames.items()))
+        "%s %s" % (n, _run_census(f)) for n, f in frames.items()))
+    _warn_duplicate_models(frames)
 
     missing = [n for n, f in frames.items() if f.empty]
     if missing:

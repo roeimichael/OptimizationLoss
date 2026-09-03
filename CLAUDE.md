@@ -134,7 +134,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 541 regression tests, ~250s, no dataset needed
+python -m pytest tests -q                   # 542 regression tests, ~250s, no dataset needed
 #   `tests/test_lessons_learned.py` is the CATALOGUE OF LESSONS ALREADY PAID FOR:
 #   rejected backbones and datasets with the measured reason each was dropped,
 #   the ten deleted config footguns, the BF16/compute-capability split between
@@ -226,6 +226,15 @@ python -m scripts.dose_landed <root>        # 🛑 RUN THIS FIRST, AND ON A RUNN
 #   low = the loss shape (`tralo_uniform` 1/29 beside `tralo` 29/29); EVERY arm
 #   low = the host (`iwc3` 716/1044, FP16 + GradScaler skips an overflowing
 #   step). Read the `amp` column to tell them apart. `--self-test` gates it.
+#   🛑 READ ITS `attempted/run` TABLE, NOT ONLY THE PERCENTAGE. Every arm
+#   can read 100% and still be at DIFFERENT dose, because that figure is
+#   applied/attempted WITHIN an arm. Measured on `vitdual1`: `alm` and `tralo`
+#   attempt **29.00** steps/run, `fioretto` and `hounie` **28.00** -- a 3.4%
+#   gap, and it is the METHOD, not a defect. Both start their multipliers at
+#   exactly 0, so their epoch-1 constraint loss is identically 0 and no
+#   backward runs; `alm` starts at 0 too but its `mu*violation^2` term is
+#   nonzero, which is what proves the cause is the multiplier. FRAMEWORK
+#   2(z38). Say it whenever the four-dual head-to-head is reported.
 python -m scripts.deployed_h2h --campaign <roots> --control clip  # 🛑 THE ARM-VS-ARM
 #   ONE, and NOT a duplicate of full_panel. full_panel scores its OWN re-derived
 #   equal-budget allocation, so it is allocator-blind by design and answers

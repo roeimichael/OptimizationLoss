@@ -3808,7 +3808,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 541 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 542 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -3972,7 +3972,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 541 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 542 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -3980,7 +3980,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (541 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (542 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -8988,7 +8988,73 @@ its `--help`. A pinned campaign tree silently carries a pinned GATE, so
 "gen_campaign would have refused it" is not available as a defence for anything
 generated in a worktree. Check the gate exists before relying on it.
 
-✅ **THREE FIXES, EACH GATED.**
+🛑 **AND IT IS WIDER THAN THE NULLS: THE POST-HOC CLIPPERS COLLAPSE
+TOO, AND HARDER.** `clip` and `focal_clip` are warm-up 30 / constraint 0, so
+they never see a constraint at ALL and the cap enters only their allocator.
+`scripts.paired_noise` on `vitdual1` reports, on real data:
+
+| arm | runs | distinct models |
+|---|---|---|
+| `clip` | 4 | **2** (seed_1 identical across **THREE** cap levels) |
+| `tralo_null` | 3 | **2** |
+| `tralo_reseed` | 3 | **2** |
+| `tralo` | 3 | **3** ← trained, and it does NOT collapse |
+
+🔑 **SO A SECOND CAP LEVEL BUYS ZERO EXTRA CONTROL MODELS.** It adds
+independent observations for the TRAINED arms only. Every clipper and every
+`_null` / `_reseed` at the new level is the same network re-allocated -- which
+is exactly why it is cheap (the warm-up is cached; `base_model_id` omits the
+cap, 2(z33)) and exactly why it must not be counted as a replicate. `tralo`
+staying 3/3 is the negative control on real data: the detector does not fire
+where it should not.
+
+⚠️ **THE OPEN QUESTION THIS RAISES, AND IT IS NOT CLOSED HERE.**
+`paired_noise` on ViTB16 puts the `reseed` floor for class 2 at **6.36 items
+at K/n 0.80 and 7.78 at 0.90**, while `task_window`'s LOCerr prize at the same
+points is 3.5 and 6.0 and `MIN_PRIZE` is a global 3.0. If those were the same
+scale the cap would fail its own floor. **THEY ARE NOT THE SAME SCALE** --
+LOCerr counts errors inside the per-group LOCAL budget, `paired_noise` sweeps
+its own K from labels -- and 2(v) records four different noise numbers here
+differing up to 12x. So this is a QUESTION, not a refutation: it needs the two
+put on one scale before either moves. Ticketed; do not restate the comparison
+as a result. What can be said now: **the floor is backbone-dependent and 3.0 is
+a corpus-wide median**, so a per-backbone `MIN_PRIZE` is the thing to derive.
+
+🛑 **AND THE FOUR-DUAL HEAD-TO-HEAD IS NOT AT EXACTLY EQUAL DOSE.**
+`scripts.dose_landed` on the live `vitdual1`:
+
+| arm | landed / attempted | attempted per run |
+|---|---|---|
+| `alm` | 116 / 116 = **100.0%** | **29.00** |
+| `tralo` | 87 / 87 = **100.0%** | **29.00** |
+| `fioretto` | 84 / 84 = **100.0%** | **28.00** |
+| `hounie` | 84 / 84 = **100.0%** | **28.00** |
+
+Every arm lands 100% of what it attempts, so **no step is being lost** and
+`--constraint-fp32` is doing its job (2(u)). The DENOMINATORS differ.
+`steps_attempted` counts epochs that reached `finish_constraint_step`, and
+`fioretto_ldf` / `hounie_rcl` reach it only when their weighted constraint loss
+is strictly positive. Both initialise their multipliers at **exactly zero**
+(`fioretto_lambda_init: 0.0`; hounie's `u_g = 0.0`), so on epoch 1 that loss is
+identically 0, no backward runs, and they take 28 of 29.
+
+✅ **THIS IS THE METHOD, NOT A DEFECT, AND `alm` IS THE CONTROL THAT PROVES
+IT.** A Lagrangian dual started at `lambda = 0` genuinely applies no constraint
+force before its first dual update. `fioretto_alm` starts at `lambda = 0` too
+and still attempts 29, because its augmented term carries `mu * violation^2`,
+which is nonzero at `lambda = 0` -- so the cause is the MULTIPLIER, not the
+dual family. TraLO's penalty coefficient is fixed and live from epoch 1.
+
+⚠️ **SO SAY IT WHENEVER THE HEAD-TO-HEAD IS REPORTED: 29 / 29 / 28 / 28,
+a 3.4% gap.** It sits under `full_panel`'s 5-point refusal, so scoring proceeds
+-- correctly, because the gap is intrinsic to the methods rather than an
+implementation artefact. It is still not equal compute in the constraint phase,
+and this project has been bitten four times by dose gaps nobody stated.
+Gated as lesson 29 in `tests/test_lessons_learned.py`, with the tralo
+unconditional-backward line as the negative control (if tralo ever grew the
+same guard it would drop to 28 and the asymmetry would vanish silently).
+
+✅ **FOUR FIXES, EACH GATED.**
 * `scripts/task_window` now DEDUPES byte-identical references, prints
   `N run(s) -> M distinct model(s)` naming the pair, and no longer heads its
   output with the glob size as though it were the reference count. Self-tested
@@ -9004,6 +9070,11 @@ generated in a worktree. Check the gate exists before relying on it.
 * The 4-seed fixture in `task_window --self-test` shared ONE probability array
   across its four "seeds", so the new dedupe correctly collapsed it to two.
   Real seeds never coincide in float; the fixture now perturbs each by 1e-6.
+* `scripts/paired_noise` now prints `N (M distinct)` per arm and NAMES the
+  collapsing runs, because a sd pooled over cells that hold one model
+  double-counts it and biases every prize/noise ratio in that table
+  OPTIMISTIC. Self-tested in both directions and mutation-tested: forcing the
+  census to report the raw count fails the gate.
 
 ### 2(z32) 🛑🛑 **THE ONE ROW THAT "RESOLVES" IS BELOW THE CHANCE
 EXPECTATION, AND THE `sd` GLOSS THE WHOLE REPO USES TO DISCOUNT ITS OWN POWER
@@ -10581,7 +10652,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             541 tests, ~200 s, no dataset required
+tests/             542 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
