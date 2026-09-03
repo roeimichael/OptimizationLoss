@@ -9057,10 +9057,31 @@ the CORRECT description of the runs it presents. Modernising them to today's
 warm-up 1 + 29 and `lambda_step 0.05` would make the methods section describe
 experiments the paper does not report. See 2(z37).
 
-⚠️ **STILL OPEN:** `focal_alpha` is a global scalar that Adam's scale
-invariance cancels (argmax agreement 1.0000 under a 10,000x change) and the
-paper presents it as Lin et al.'s class-dependent `alpha_t`. That one is
-unfixed, and it is a claim about a METHOD the paper reports.
+✅ **(d) `focal_alpha`, FIXED, AND MEASURED MORE PRECISELY THAN BEFORE.**
+`FocalLoss` computes `(alpha * (1-p_t)**gamma * ce).mean()`, so `alpha`
+multiplies the WHOLE objective; the imbalanced arms are LP-clipped, so this
+loss is their entire training budget and there is nothing else for it to be
+relative to. Lin et al.'s `alpha` is `alpha_t`, CLASS-dependent, and does not
+factor out. Re-measured on a real Adam run, 200 steps, everything else held:
+
+| alpha | argmax agreement vs alpha=1 | max abs weight delta |
+|---|---|---|
+| 0.25 (**the shipped value**) | 0.9961 | 3.24e-02 |
+| 1 | 1.0000 | 0 |
+| 25 | **1.0000** | 2.17e-03 |
+| 2500 | **1.0000** | 1.31e-03 |
+| 10000 | **1.0000** | 2.17e-03 |
+
+🔑 **Two regimes, and the earlier note flattened them.** Above ~1 the
+invariance is exact -- a 10,000x change is bit-equivalent, reproducing 2(z30)'s
+figure. The shipped 0.25 differs from that limit by 0.4% of predictions, and
+that gap is **Adam's `eps`**, not a mechanism: at small alpha the gradients are
+no longer large against `eps = 1e-8`. So `alpha = 0.25` is not a tuned setting,
+it is a value sitting just inside the epsilon regime.
+✅ CONTROL: `gamma` IS live, moving the weights 0.26-0.30, two orders more.
+So `focal` remains a legitimate baseline -- it reweights per EXAMPLE and never
+reads the prior -- but it is **gamma-only focal**, and the paper now says so in
+a footnote rather than restating `alpha=0.25` as if it were tuned.
 
 ### 2(z31) 🛑🛑 **THE ITEMS SCALE INVENTS ITEMS THAT DO NOT EXIST, THE QUANTUM RULE IS FALSE ON THE HEADLINE METRIC, AND TWO LP RUNS PLAY A DIFFERENT GAME**
 

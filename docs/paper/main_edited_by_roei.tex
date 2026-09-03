@@ -568,7 +568,15 @@ the training count of class $c$, and $\pi_c$ its prior. \textbf{Focal loss}
 \citep{lin2017focal} replaces cross-entropy with
 $-\alpha(1-p_y)^{\gamma}\log p_y$ ($\alpha{=}0.25$, $\gamma{=}2$); the modulating factor
 $(1-p_y)^{\gamma}$ down-weights easy, high-confidence examples so the gradient
-concentrates on hard and rare ones. \textbf{Class-balanced reweighting}
+concentrates on hard and rare ones.{\color{blue}\footnote{Our $\alpha$ is a
+single global scalar, not the class-dependent $\alpha_t$ of
+\citet{lin2017focal}. Because the imbalanced baselines are LP-clipped, this
+loss is their entire training objective, so $\alpha$ multiplies the whole
+objective and Adam's invariance to a constant rescaling cancels it: sweeping
+$\alpha$ over $10{,}000\times$ leaves argmax agreement at $1.0000$. The
+baseline is therefore effectively $\gamma$-only, and $\gamma$ is live (the same
+sweep moves the weights two orders of magnitude more). We report this rather
+than restate $\alpha{=}0.25$ as a tuned setting.}} \textbf{Class-balanced reweighting}
 \citep{cui2019class} scales class $c$'s loss by the inverse \emph{effective} sample
 count, $w_c = (1-\beta)/(1-\beta^{\,n_c})$ with $\beta{=}0.9999$, which discounts
 information overlap among many similar samples and so raises the weight on rare classes.
