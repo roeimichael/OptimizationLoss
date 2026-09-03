@@ -365,7 +365,9 @@ Broken to paper-level items with `scripts/paper_rows.py` -- one row per
 **The number that decides how this is written up:**
 
 > **1 of 158 strict-task rows separates from its own seed noise at 2 sd**, and
-> that sd is a LOWER bound. Everything else we quote is a SIGN, not a
+> that sd is within sqrt(2) of the truth in either direction, NOT the
+> "6-12x lower bound" this line used to claim (2(z32)). Everything else we
+> quote is a SIGN, not a
 > measurement.
 
 **The evidence is sign consistency over FOUR independent units, not 8 cells:**

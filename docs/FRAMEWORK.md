@@ -3808,7 +3808,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 534 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 537 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -3972,7 +3972,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 534 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 537 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -3980,7 +3980,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (534 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (537 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -5573,9 +5573,16 @@ nothing else. Against the twin it reads:
   to 0.0041 and ties; the constraint moves them 0.0094 to 0.2545 and sweeps
   0/9. That is **2x to 130x the floor**, in the one channel a top-K allocator
   can read.
-* **ccF1 is a tie worth 0.1 items**, against a paired seed sd of 2.11 items and
-  a headroom of 1.9-9.9. `full_panel` prices detecting an effect that size at
-  ~152 seeds per cell. The honest report is a stated MDE, not a null.
+* **ccF1 is a tie worth 0.1 items**, against a paired seed sd of 2.11 items.
+  At 80% power that prices detection at **~3495 seeds per cell**
+  (`7.85*(2.11/0.1)^2`), not the ~152 this line used to print -- 152 is the
+  price of a **0.48**-item effect, so the old figure understated the cost
+  **23x** and the conclusion only gets stronger. The honest report is a
+  stated MDE, not a null.
+  ⚠️ The "headroom of 1.9-9.9" formerly quoted here is a **dermmnist**
+  number on a removed, 38.7%-leaking dataset, and is superseded even for
+  dermmnist by section 4's corrected 2-18. It is not an iwildcam quantity;
+  see 2(z32).
 
 **So the finding is not "TraLO is noisy". It is that the constraint pays a
 measurable, repeatable price in the representation and buys nothing back in the
@@ -8213,7 +8220,16 @@ items figure does not. Found by the stage-6 gate agent 2026-09-01.
 **No other contrast in this corpus separates from its own seed noise in its own
 cell.** Every other number we quote is a SIGN, not a measurement, and the sd
 used here is a LOWER BOUND (it assumes the two arms are independent; they are
-two models sharing one warm-up, measured at 6-12x, FRAMEWORK 2(v)).
+two models sharing one warm-up).
+⛔ **THAT PARENTHETICAL USED TO SAY "measured at 6-12x, FRAMEWORK 2(v)" AND
+IT WAS ALGEBRAICALLY IMPOSSIBLE.** For ANY correlation
+`sd(A-B) <= sa + sb <= sqrt(2)*sqrt(sa^2 + sb^2)`, so a quadrature sd can
+understate the truth by at most **41%**, and positive correlation makes it an
+OVER-statement instead. 2(v)'s 0.80-vs-7.59 compares the paired difference sd
+to **ONE ARM's** sd, which the quadrature already contains. `paired_noise`'s
+own self-test has said `about sqrt(2)` all along. The printed seeds-needed
+figures are therefore accurate to within a factor of two, and the repo has
+been UNDER-claiming its own power. See 2(z32).
 
 **So the entire evidence base is sign consistency over the FOUR independent
 units**, not over the eight cells and certainly not over the 158 rows:
@@ -8561,6 +8577,91 @@ cannot change the direction, and the direction is all `normalize` keeps.
 Fioretto-LDF has zero live hyperparameters on this corpus. It cannot be
 strawmanned by tuning, and it cannot be tuned.
 
+### 2(z32) 🛑🛑 **THE ONE ROW THAT "RESOLVES" IS BELOW THE CHANCE
+EXPECTATION, AND THE `sd` GLOSS THE WHOLE REPO USES TO DISCOUNT ITS OWN POWER
+IS ALGEBRAICALLY IMPOSSIBLE**
+
+Statistics audit 2026-09-03. Every number below was recomputed here from the
+source or from `paper_rows.csv` / `cells_5units.csv` directly; nothing is
+relayed.
+
+**(a) "1 OF 158 STRICT-TASK ROWS CLEARS 2 sd" IS 4.4 ROWS SHORT OF CHANCE, NOT
+A SURVIVOR.** `paper_rows.py` marks a row `resolved` when `|d| >= 2*sd`, where
+`d` is a difference of 4-seed MEANS and `sd` is a **per-seed** sd. In t units
+that is `t = d/(sd/sqrt(4)) = 2d/sd >= 4` on **df = 3** (every strict row in
+the corpus has `n_seeds = 4`, checked). So under the global null:
+
+| df | P(abs(t) >= 4) | expected of 158 |
+|---|---|---|
+| 3 (**the actual design**) | 0.0280 | **4.43** |
+| 6 | 0.0071 | 1.12 |
+
+Reproduced from the dump: 393 rows, 158 strict-task, **exactly 1 resolved**
+(`dom1`/MobileNetV2/`L95_G80`, `tralo` vs `clip`, +9.85 items, sd 4.80).
+One observed against 4.43 expected. ⛔ **So the honest sentence is "0 of 158
+resolve beyond chance", and 2(z26)'s reading of that row as the power curve
+"showing up in the results" is selection narrated as confirmation.** The bar is
+being cleared LESS often than noise alone would clear it.
+🔑 **AND THE TWO LARGEST RESOLVED EFFECTS IN THE WHOLE CORPUS BELONG TO A
+RIVAL.** Over all 393 rows exactly 3 resolve; the other two are `alm` at
+`equaldose1`/MobileNetV3/`L95_G80` (**+11.80** vs `clip`, **+10.51** vs its
+reseed), both larger than TraLO's one. They sit in a `non_task` cell, which is
+why they are not headline -- but any sentence of the form "only TraLO resolves"
+is false, and it was never written the other way round.
+
+**(b) THE "sd IS A LOWER BOUND, MEASURED AT 6-12x" GLOSS CANNOT BE TRUE OF THE
+QUANTITY IT DESCRIBES.** `paper_rows` builds `sd = sqrt(sa^2 + sb^2)`, the
+rho = 0 quadrature, and its comment told every reader that the true noise runs
+6-12x higher so `seeds_needed` is a lower bound. For ANY correlation
+
+```
+sd(A - B) = sqrt(sa^2 + sb^2 - 2*rho*sa*sb) <= sa + sb <= sqrt(2)*sqrt(sa^2 + sb^2)
+```
+
+so the worst possible **UNDER**-statement is **41%**, and positive correlation
+-- which is what sharing a warm-up produces -- makes it an **OVER**-statement.
+Checked numerically over 200,000 random `(sa, sb, rho)`: max ratio
+**1.414000** against `sqrt(2) = 1.414214`.
+
+🔑 **WHERE THE 6-12x CAME FROM.** 2(v)'s "0.80 unpaired vs 7.59 treated"
+compares the paired-difference sd to **ONE ARM's** sd -- `paired_noise`'s own
+docstring defines `unpaired` as "sd of one arm's TP@K across seeds". The
+quadrature already contains the treated arm's inflated variance in `sa`, so the
+ratio does not transfer. `paired_noise`'s **own self-test has said "LARGER than
+either unpaired sd, by about sqrt(2)" all along**; the correct fact was in the
+repo, one file away, the whole time.
+
+✅ **AND IT DOES NOT HAPPEN IN THE DATA EITHER.** `sd(treated)/sd(null)` per
+cell over the clean corpus: **73 pairs, median 0.78, range 0.13-2.65, and ZERO
+above 6x.** The iwc3 variance injection that motivated the gloss is a property
+of that campaign's regime, not of the design.
+
+⛔ **NET DIRECTION: THIS REPO HAS BEEN UNDER-CLAIMING ITS OWN POWER.** The
+printed `seeds_needed` figures are right to within a factor of two. Corrected
+at the definition site and in the three documents that repeated it.
+
+**(c) ONE PRINTED POWER FIGURE WAS 23x OFF.** Section 2's iwc3 note priced a
+0.1-item effect against a 2.11-item seed sd at "~152 seeds per cell".
+`7.85*(2.11/0.1)^2 = 3495`. 152 is the price of a **0.48**-item effect. The
+conclusion is unchanged in direction and stronger in degree; the figure is
+corrected in place.
+
+**(d) THE "1.9-9.9 ITEMS" EFFECT SPACE IS A dermmnist NUMBER AND IT IS PRINTED
+ON EVERY iwildcam RUN.** Definition site is `full_panel._items_scale`, whose
+docstring said "Measured on dermmnist" and was quoted everywhere without the
+qualifier -- including in `CLAUDE.md`'s own resolution argument. dermmnist is
+removed and leaks 38.7% of its test set, the constant predates iwildcam
+entirely, and section 4 already supersedes it **even for dermmnist** with a
+corrected 2-18. Caveated at the definition site so the caveat travels with the
+print. The per-cell scale the function computes is the number to quote.
+
+🛑 **WHAT THIS DOES NOT CHANGE.** (a) is about per-CELL resolution, which
+was already reported as unresolved; the headline rests on SIGN consistency over
+units, and 2(z26) plus the unit-ledger gate govern that. (b) moves the power
+accounting toward the repo, not away from it. Neither rescues a per-cell
+effect: 4 seeds at df = 3 is a t >= 4 bar, and nothing in the corpus clears it
+at a rate distinguishable from noise.
+
 ### 2(z31) 🛑🛑 **THE ITEMS SCALE INVENTS ITEMS THAT DO NOT EXIST, THE QUANTUM RULE IS FALSE ON THE HEADLINE METRIC, AND TWO LP RUNS PLAY A DIFFERENT GAME**
 
 Allocator and metric audit, 2026-09-03. Scan basis: all 12 live worktrees,
@@ -8631,13 +8732,31 @@ camera 410 average `p_2 = 0.036` yet **13 of 15 are true impalas**, so clip
 captures `TP_2 = 319` against lp's 307, and deployed ccF1 is clip 0.9151 vs lp
 0.9069 -- **from byte-identical probabilities**. Part of every published
 `lp`-vs-`clip` gap is unequal budget SPEND, not allocator quality.
-🛑 **AND NO GATE CHECKS UNDER-EMISSION.** `verify_allocation` and the eval-time
-raise both test `count > limit` only, so 319 < 352 logs as "OK". `full_panel`
-cannot see it (it re-derives an exact-K allocation); `deployed_h2h` silently
-sets `K := emitted`, which is right per arm and compares arms at unequal spend.
-**Either route the LP arms through the same exact-fill doctrine (an
-equality-constrained LP keeps the same TU structure and stays integral), or
-annotate every deployed lp comparison as unequal-spend.**
+🛑 **NOTHING IN THE PIPELINE CHECKED UNDER-EMISSION, AND THE METRIC PAYS FOR
+IT.** `verify_allocation` and the eval-time raise both test `count > limit`
+only, so 319 against `K_eff = 333` logged as "OK". `full_panel` cannot see it
+(it re-derives an exact-K allocation) and `deployed_h2h` silently set
+`K := emitted`, which is right per arm and compares arms at unequal spend.
+⚠️ **The harm runs in the flattering direction**: at FIXED TP, spending less
+RAISES cc-F1, because `2TP/(K+n)` shrinks the denominator for the items
+forfeited. Measured on this cell, 2*307/(319+370) = **0.8911** against
+2*307/(333+370) = **0.8734**, so the arm is paid 0.0177 for declining 14 slots.
+
+✅ **CLOSED 2026-09-03, by ANNOTATION rather than by force-fill.**
+`scripts.deployed_h2h.spend_audit` compares emitted counts arm-vs-arm at a
+fixed seed and prints an `!! UNEQUAL SPEND` block naming the under-spending
+arms and the shortfall; the per-cell rows carry `unequal_spend` and the summary
+counts the cells. It needs **no labels and no budget re-derivation** -- every
+arm in a cell faces the same `K_eff`, so a difference in emitted counts IS the
+finding. Gated as stage-6 GATE 10 with three negative controls (equal spend,
+a single arm, and the over-emission direction) and mutation-tested: forcing
+`spread` to 0 turns it red.
+⛔ **The force_exact route was CONSIDERED AND DECLINED.** An
+equality-constrained LP keeps the same totally-unimodular structure and would
+stay integral, so it is buildable -- but it changes the METHOD, and every
+published `lp` number was produced by the current one. Changing the allocator
+to fix a reporting defect trades a known, now-annotated bias for a corpus-wide
+re-run. Revisit only if a deployed `lp` gap ever becomes load-bearing.
 
 **✅ WHAT IS CLEAN.** The LP's constraint matrix is TOTALLY UNIMODULAR: groups
 partition the samples, so the class-side row supports form a laminar family and
@@ -9978,7 +10097,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             534 tests, ~200 s, no dataset required
+tests/             537 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

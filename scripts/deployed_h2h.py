@@ -127,8 +127,14 @@ def read_run(run_dir):
 
 
 def ccf1(per, classes):
-    """Macro cc-F1 on the deployed predictions. F1 = 2TP/(K+n) exactly, because
-    the allocator emits exactly K per capped class."""
+    """Macro cc-F1 on the deployed predictions.
+
+    `K` here is what the arm actually EMITTED, not the budget it was given.
+    `F1 = 2TP/(K+n)` is then exact per class by construction -- but two arms
+    with different emitted counts are being scored on different denominators,
+    which is a comparison at unequal SPEND. `spend_audit` is what catches that;
+    this function cannot, and must not be read as if it did.
+    """
     vals = []
     for c in classes:
         d = per[c]
@@ -162,6 +168,43 @@ def paired(a_map, b_map, get):
     """Per-seed paired differences over the seeds BOTH arms have."""
     seeds = sorted(set(a_map) & set(b_map))
     return [get(a_map[s]) - get(b_map[s]) for s in seeds], seeds
+
+
+def spend_audit(cell, classes):
+    """Arms in this cell that did not emit the SAME number of predictions.
+
+    Every arm in a cell faces the same integer budget `K_eff`, so an emitted
+    count differing between arms at the SAME seed is unequal SPEND, not
+    allocator quality. The budget `K = round(f * n_true)` is label-informed
+    side information the problem grants every arm equally; an arm that leaves
+    slots unfilled has declined part of it, and `2TP/(K+n)` then rewards it
+    with a smaller denominator for the items it forfeited.
+
+    Measured cause, FRAMEWORK 2(z31)d: `danits_lp` and the imbalanced arms set
+    `skip_targeted_correction`, so they bypass `targeted_correction(
+    force_exact=True)` -- which exists precisely to make cross-method
+    comparisons apples-to-apples -- and the LP then correctly declines the last
+    slots, because filling them raises expected 0-1 cost.
+
+    This needs NO budget re-derivation and no labels: the comparison is
+    arm-vs-arm at a fixed seed, so it is exact wherever two arms are present.
+
+    Returns [(cls, seed, {arm: emitted}, spread)], worst spread first.
+    """
+    out = []
+    seeds = sorted({s for m in cell.values() for s in m},
+                   key=lambda x: (x is None, x))
+    for c in classes:
+        for s in seeds:
+            got = {a: m[s]["per"][c]["K"] for a, m in cell.items()
+                   if s in m and c in (m[s].get("per") or {})}
+            if len(got) < 2:
+                continue
+            spread = max(got.values()) - min(got.values())
+            if spread:
+                out.append((c, s, got, spread))
+    out.sort(key=lambda t: -t[3])
+    return out
 
 
 def seeds_needed(diffs):
@@ -239,7 +282,7 @@ def rank_cell(cell, control, get, arms=DUALS):
 def report(cells, control, w=sys.stdout.write):
     """Print one block per cell. Returns the machine-readable rows."""
     rows = []
-    n_named = n_refused = n_unstable = n_disagree = 0
+    n_named = n_refused = n_unstable = n_disagree = n_unequal = 0
     for key in sorted(cells):
         cell = cells[key]
         root, model, ds, cap, capped = key
@@ -261,6 +304,29 @@ def report(cells, control, w=sys.stdout.write):
         w("%s / %s / %s / %s   capped %s   %d seeds\n"
           % (root, model, ds, cap, capped, nseed))
         w("  control `%s` captures %.1f items\n" % (control, base))
+
+        unequal = spend_audit(cell, classes)
+        if unequal:
+            n_unequal += 1
+            short = {}
+            for c, sd, got, spr in unequal:
+                full = max(got.values())
+                for a, k in got.items():
+                    if k < full:
+                        short[a] = max(short.get(a, 0), full - k)
+            w("  !! UNEQUAL SPEND: %d (class, seed) pairs where the arms\n"
+              % len(unequal))
+            w("     emit DIFFERENT counts. Worst: class %d seed %s, "
+              "spread %d slots.\n"
+              % (unequal[0][0], unequal[0][1], unequal[0][3]))
+            w("     under-spending arms: %s\n"
+              % ", ".join("%s -%d" % (a, d)
+                          for a, d in sorted(short.items(),
+                                             key=lambda t: -t[1])))
+            w("     `2TP/(K+n)` rewards the smaller denominator, so part\n")
+            w("     of any gap involving these arms is BUDGET, not\n")
+            w("     allocator quality. FRAMEWORK 2(z31)d.\n")
+
         w("  %-10s %10s %10s %8s\n"
           % ("arm", "d items", "d ccF1", "seeds@80%"))
         f1_rank = [a for a, _, _, _ in order_f1]
@@ -300,6 +366,9 @@ def report(cells, control, w=sys.stdout.write):
               % ", ".join(sorted(first_tp)))
         rows.append(dict(campaign=root, model=model, dataset=ds, cap=cap,
                          capped=capped, seeds=nseed, control=control,
+                         unequal_spend=[dict(cls=c, seed=sd, emitted=got,
+                                             spread=spr)
+                                        for c, sd, got, spr in unequal],
                          base_items=base, rng_floor=floor, spread=spread,
                          refused=bool(verdict), jackknife=sorted(first_tp),
                          order=[dict(arm=a, d_items=m, seeds_needed=seeds_needed(d))
@@ -309,6 +378,8 @@ def report(cells, control, w=sys.stdout.write):
       % (len(rows), n_named, n_refused))
     w("%d cells are JACKKNIFE-UNSTABLE (one dropped seed changes #1)\n" % n_unstable)
     w("%d cells have items and ccF1 disagreeing on the order\n" % n_disagree)
+    w("%d cells compare arms at UNEQUAL SPEND -- see the !! blocks\n"
+      % n_unequal)
     if n_named:
         tally = {}
         for r in rows:
@@ -414,7 +485,32 @@ def self_test(w=sys.stdout.write):
     check(on_recipe({"hyperparams": {"constraint_epochs": 0}}),
           "a post-hoc arm is EXEMPT, not a violation")
 
-    # 7. reseed twins resolve per FAMILY.
+    # 7. UNEQUAL SPEND, both directions. The real shape: on
+    #    dom1/MobileNetV2/L90_G95/seed_1 the LP emitted 319 for class 2 while
+    #    every force_exact arm emitted 333, and no gate anywhere looked, because
+    #    `verify_allocation` and the eval-time raise both test `count > limit`.
+    equal = {"clip":  {1: dict(TP=300., per={2: dict(TP=300, K=333, n=370)})},
+             "tralo": {1: dict(TP=305., per={2: dict(TP=305, K=333, n=370)})}}
+    check(not spend_audit(equal, (2,)),
+          "arms emitting the SAME count are not flagged")
+
+    short = {"clip": {1: dict(TP=319., per={2: dict(TP=319, K=333, n=370)})},
+             "lp":   {1: dict(TP=307., per={2: dict(TP=307, K=319, n=370)})}}
+    flag = spend_audit(short, (2,))
+    check(len(flag) == 1 and flag[0][3] == 14,
+          "an arm emitting 14 fewer slots is flagged with the right spread")
+
+    # and the reason it matters: the under-spender's SMALLER denominator hands
+    # it credit it did not earn. 2*307/(319+370) = 0.8912 against
+    # 2*319/(333+370) = 0.9075 -- so the raw ccF1 gap UNDERSTATES the 12 items
+    # the LP actually forfeited, and on a closer cell the sign can flip.
+    f1_lp = ccf1({2: dict(TP=307, K=319, n=370)}, (2,))
+    f1_eq = ccf1({2: dict(TP=307, K=333, n=370)}, (2,))
+    check(f1_lp > f1_eq,
+          "under-spending RAISES ccF1 at fixed TP (%.4f > %.4f), which is why "
+          "the audit cannot be left to the metric" % (f1_lp, f1_eq))
+
+    # 8. reseed twins resolve per FAMILY.
     check(reseed_of("alm") == "alm_reseed" and reseed_of("tralo_cut") == "tralo_reseed"
           and reseed_of("tralo_reseed") is None,
           "reseed twin resolves per family, and a twin has no twin")

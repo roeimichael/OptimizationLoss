@@ -162,15 +162,24 @@ def build(rows, status_of=None, unit_of=None):
                 if not ref or ref not in arms:
                     continue
                 d = (float(r["ccF1"]) - float(arms[ref]["ccF1"])) * scale
-                # sqrt(sa^2 + sb^2) is the sd of the per-seed DIFFERENCE if the
-                # two arms were independent. They are not, and NOT in the
-                # direction that helps: `tralo` and its null share ONE warm-up
-                # epoch then train 29 apart, so they are two MODELS, and the
-                # measured treated sd runs 6-12x the unpaired one (FRAMEWORK
-                # 2(v): 0.80 unpaired vs 7.59 treated on iwc3).
-                # => this sd is a LOWER BOUND on the noise the contrast faces,
-                #    and `seeds_needed` is a LOWER BOUND on the seeds needed.
-                # Get the real one from `scripts.paired_noise` on the campaign.
+                # sqrt(sa^2 + sb^2) is the sd of the per-seed DIFFERENCE at
+                # rho = 0. The arms are correlated -- `tralo` and its null share
+                # ONE warm-up epoch then train 29 apart -- so the true sd is
+                # sqrt(sa^2 + sb^2 - 2*rho*sa*sb), which this may over- or
+                # under-state depending on the sign of rho.
+                # 🛑 IT IS BOUNDED EITHER WAY, AND THE OLD COMMENT HERE WAS NOT.
+                # It claimed a "6-12x LOWER BOUND" off FRAMEWORK 2(v). That is
+                # algebraically impossible: sd(A-B) <= sa + sb <= sqrt(2) *
+                # sqrt(sa^2 + sb^2), so the WORST underestimate is 41%, and
+                # positive correlation makes it an OVER-estimate instead.
+                # 2(v)'s "0.80 vs 7.59" compares the paired difference sd to
+                # ONE ARM's sd (`paired_noise`: unpaired = sd of one arm's TP@K
+                # across seeds) -- a different quantity, and the treated arm's
+                # own inflated variance is ALREADY inside sa here.
+                # => `seeds_needed` below is accurate to within a factor of two,
+                #    not an order of magnitude. Do not inflate it by hand.
+                #    `scripts.paired_noise` still gives the directly measured
+                #    per-class sd, which is the better number when available.
                 sa = float(r["ccF1_sd"] or 0.0) * scale
                 sb = float(arms[ref]["ccF1_sd"] or 0.0) * scale
                 sd = math.sqrt(sa * sa + sb * sb)

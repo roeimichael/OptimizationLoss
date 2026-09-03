@@ -1980,9 +1980,17 @@ def _items_scale(rows):
 
     `F1 = 2TP/(K+n)` is linear in TP, so a capped-class F1 delta converts
     exactly into items -- and the effect space here is small enough that the
-    conversion changes how a number reads. Measured on dermmnist, the gap from
-    `clip` to the ANALYTIC ceiling `2K/(K+n)` is 1.9 items at class 1 / 30% and
-    9.9 at class 2 / 50%, against a paired seed sd worth ~2.7 items.
+    conversion changes how a number reads.
+
+    🛑 THE "1.9-9.9 ITEMS" CONSTANT THIS DOCSTRING USED TO QUOTE IS A
+    **dermmnist** NUMBER AND MUST NOT BE READ AS THE EFFECT SPACE. It was
+    measured on the removed, 38.7%-leaking dataset, before iwildcam existed in
+    the project, and is superseded even there by FRAMEWORK section 4's
+    corrected 2-18. On iwildcam the prize is regime-dependent and neither
+    bound fits: roughly 0.2-0.7 items/class at the retired tight caps
+    (L20/L30/L50 -- which is why those cells posed no question) against
+    7-31 at the live loose caps. Quote the per-cell scale this function
+    prints, never a remembered band. FRAMEWORK 2(z32).
 
     Printed after every panel because a reader who does not convert will read
     0.02 as a small effect when it can be the entire headroom.

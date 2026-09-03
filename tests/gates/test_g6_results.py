@@ -366,6 +366,55 @@ def test_the_four_noise_numbers_are_not_interchangeable():
     report(fails, "noise-substitution gate failures")
 
 
+def test_arms_are_compared_at_EQUAL_SPEND_not_merely_under_the_cap():
+    """GATE 10 -- FRAMEWORK 2(z31)d. Every feasibility check in the pipeline
+    tests `count > limit`. NOTHING tested `count < K_eff`, so `lp` emitting 319
+    against a budget of 333 logged as OK -- and `2TP/(K+n)` then handed it a
+    SMALLER denominator for the 12 true items it forfeited.
+
+    The detector needs no labels and no budget re-derivation: arms in one cell
+    face the same K_eff, so a difference in emitted counts at a fixed seed IS
+    unequal spend.
+    """
+    from scripts.deployed_h2h import ccf1, spend_audit
+
+    fails = []
+
+    # the real shape, dom1/MobileNetV2/L90_G95/seed_1, class 2
+    short = {"clip": {1: dict(TP=319., per={2: dict(TP=319, K=333, n=370)})},
+             "lp":   {1: dict(TP=307., per={2: dict(TP=307, K=319, n=370)})}}
+    flag = spend_audit(short, (2,))
+    if len(flag) != 1 or flag[0][3] != 14:
+        fails.append("14 unspent slots not flagged: %r" % (flag,))
+
+    # NEGATIVE CONTROL 1: equal spend must NOT fire, or the gate is vacuous.
+    equal = {"clip":  {1: dict(TP=300., per={2: dict(TP=300, K=333, n=370)})},
+             "tralo": {1: dict(TP=305., per={2: dict(TP=305, K=333, n=370)})}}
+    if spend_audit(equal, (2,)):
+        fails.append("fired on arms that spent the same budget")
+
+    # NEGATIVE CONTROL 2: one arm alone cannot be unequal to anything.
+    if spend_audit({"lp": short["lp"]}, (2,)):
+        fails.append("fired on a single arm, which has nothing to differ from")
+
+    # the DIRECTION of the harm, which is why the metric cannot police itself:
+    # at FIXED TP, spending less RAISES cc-F1.
+    lo = ccf1({2: dict(TP=307, K=319, n=370)}, (2,))
+    hi = ccf1({2: dict(TP=307, K=333, n=370)}, (2,))
+    if not lo > hi:
+        fails.append("under-spend did not raise ccF1 at fixed TP (%.4f vs %.4f)"
+                     % (lo, hi))
+
+    # and the over-emission direction is still someone else's job, but must not
+    # be silently swallowed here either.
+    over = {"clip": {1: dict(TP=300., per={2: dict(TP=300, K=333, n=370)})},
+            "bad":  {1: dict(TP=310., per={2: dict(TP=310, K=352, n=370)})}}
+    if not spend_audit(over, (2,)):
+        fails.append("an arm emitting MORE than its peers was not flagged")
+
+    report(fails, "equal-spend gate failures")
+
+
 def test_capped_class_deltas_carry_macro_and_uncapped_beside_them():
     """GATE 9 -- PLAYBOOK 1.3 / FRAMEWORK 3(0c). `dom1` reads ccF1 +0.0141 (6/6)
     and macroF1 -0.0022 (2/6); macroF1 is carried by the 6 of 8 UNCAPPED

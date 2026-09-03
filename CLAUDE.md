@@ -134,7 +134,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 534 regression tests, ~250s, no dataset needed
+python -m pytest tests -q                   # 537 regression tests, ~250s, no dataset needed
 #   `tests/test_lessons_learned.py` is the CATALOGUE OF LESSONS ALREADY PAID FOR:
 #   rejected backbones and datasets with the measured reason each was dropped,
 #   the ten deleted config footguns, the BF16/compute-capability split between
@@ -275,8 +275,12 @@ python -m scripts.paper_rows --cells cells.csv --out paper_rows.csv  # 🛑 THE 
 #   `UNVERIFIED`, never a free replicate. Sign tests go over UNITS: 4/4 is p=0.0625,
 #   not p=0.0039.
 #   ⚠️ Run on the corpus 2026-09-01: **1 of 158 strict-task rows clears 2 sd**, and
-#   that sd is a LOWER bound (it assumes the arms are independent; they are two models
-#   sharing a warm-up, measured at 6-12x). Everything else is a SIGN, not a
+#   that sd is a rho=0 quadrature, so it is within **sqrt(2)** of the truth in
+#   EITHER direction -- `sd(A-B) <= sa+sb <= sqrt(2)*sqrt(sa^2+sb^2)` for any
+#   correlation, and positive correlation makes it an OVER-estimate. This line
+#   said "a LOWER bound, measured at 6-12x" until 2026-09-03; that figure
+#   compares the paired sd to ONE ARM's sd, a quantity the quadrature already
+#   contains, so it does not apply. FRAMEWORK 2(z32). Everything else is a SIGN, not a
 #   measurement. `items` is approximate -- `full_panel` macro-averages over both
 #   capped classes whose (K+n) differ, so no single scale is exact for both.
 #   FRAMEWORK 2(z26). `--self-test` gates it, including that the cautious default holds.

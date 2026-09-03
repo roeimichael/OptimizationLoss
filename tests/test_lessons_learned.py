@@ -1244,6 +1244,101 @@ def test_a_uniform_step_in_LOG_ODDS_is_not_a_bias_shift_and_can_reorder():
         "it a shift after all. Measured spread was 0.30 on 2026-09-02.")
 
 
+def test_a_quadrature_sd_is_within_sqrt2_of_the_truth_in_EITHER_direction():
+    """The gloss that discounted this repo's own power (2026-09-03).
+
+    `scripts/paper_rows.py` builds `sd = sqrt(sa^2 + sb^2)`, the rho = 0
+    quadrature, and its comment told every reader the true noise ran "6-12x"
+    higher so `seeds_needed` was a LOWER BOUND. That is impossible. For any
+    correlation
+
+        sd(A - B) = sqrt(sa^2 + sb^2 - 2 rho sa sb) <= sa + sb
+                  <= sqrt(2) sqrt(sa^2 + sb^2)
+
+    so the worst under-statement is 41%, and positive correlation -- which is
+    what sharing a warm-up produces -- makes it an OVER-statement instead. The
+    6-12x came from FRAMEWORK 2(v), which compares the paired difference sd to
+    ONE ARM's sd, a quantity the quadrature already contains in `sa`.
+
+    Empirically too: sd(treated)/sd(null) over 73 cells of the clean corpus is
+    median 0.78, range 0.13-2.65, ZERO above 6x.
+
+    NEGATIVE CONTROL in the same test: the bound must be TIGHT, i.e. actually
+    reached at rho = -1, or it is a vacuous inequality that proves nothing.
+    """
+    import math
+    import random
+
+    rng = random.Random(20260903)
+    worst = 0.0
+    for _ in range(20000):
+        sa = rng.uniform(0.01, 10.0)
+        sb = rng.uniform(0.01, 10.0)
+        rho = rng.uniform(-1.0, 1.0)
+        var = sa * sa + sb * sb - 2.0 * rho * sa * sb
+        true = math.sqrt(max(0.0, var))
+        quad = math.sqrt(sa * sa + sb * sb)
+        worst = max(worst, true / quad)
+    assert worst <= math.sqrt(2.0) + 1e-9, (
+        "found a (sa, sb, rho) where the true paired sd exceeds the quadrature "
+        "by %.4f > sqrt(2). If that were possible the '6-12x lower bound' "
+        "gloss could stand." % worst)
+
+    # NEGATIVE CONTROL: the bound is REACHED, so it is not vacuous. rho = -1
+    # with sa == sb gives exactly sqrt(2).
+    sa = sb = 3.0
+    tight = math.sqrt(sa * sa + sb * sb + 2.0 * sa * sb) / math.sqrt(
+        sa * sa + sb * sb)
+    assert abs(tight - math.sqrt(2.0)) < 1e-12, (
+        "the sqrt(2) bound is not attained (%.6f), so this test would pass "
+        "for a bound that is merely loose" % tight)
+
+    # and a claim of 6x must be REJECTED by the same arithmetic
+    assert worst < 6.0, "a 6x underestimate was reachable, which it must not be"
+
+
+def test_the_resolved_bar_is_a_t_of_4_on_df_3_so_survivors_need_a_chance_rate():
+    """Why "1 of 158 rows resolves" is not a finding (2026-09-03).
+
+    `paper_rows.py` writes `resolved = abs(d) >= 2.0 * sd`, where `d` is a
+    difference of n-seed MEANS and `sd` is a PER-SEED sd. Those are different
+    scales: in t units the bar is
+
+        t = d / (sd / sqrt(n)) = 2 * d / sd >= 2 * 2 = 4     at n = 4
+
+    on df = n - 1 = 3. P(abs(t_3) >= 4) = 0.0280, so over 158 strict-task rows
+    the GLOBAL NULL already delivers ~4.4 "resolved" rows. The corpus delivers
+    1. So the observed count is BELOW chance and the honest statement is that
+    nothing resolves beyond it -- not that one effect survived.
+
+    NEGATIVE CONTROL: reading the same bar on the wrong df (6) gives 1.12
+    expected, which would make 1 look like the expectation rather than a
+    shortfall. The two readings must differ, or the df does not matter and this
+    lesson is empty.
+    """
+    from scipy import stats
+
+    p3 = 2.0 * stats.t.sf(4.0, 3)
+    p6 = 2.0 * stats.t.sf(4.0, 6)
+    exp3 = 158 * p3
+    exp6 = 158 * p6
+
+    assert abs(p3 - 0.0280) < 5e-4, (
+        "P(|t_3| >= 4) = %.4f, not the 0.0280 this lesson was written from" % p3)
+    assert exp3 > 4.0, (
+        "the chance expectation over 158 rows at df=3 came out %.2f; the "
+        "lesson is that it EXCEEDS the 1 row observed" % exp3)
+    assert exp3 > 1.0, (
+        "chance expectation %.2f does not exceed the single observed survivor, "
+        "so 'below chance' would be the wrong reading" % exp3)
+
+    # NEGATIVE CONTROL: df is load-bearing. At df=6 the expectation drops to
+    # near 1 and the same count would read as ordinary rather than short.
+    assert exp6 < 2.0 < exp3, (
+        "df did not change the verdict (df=3 -> %.2f, df=6 -> %.2f), so the "
+        "n=4 design is not what makes this bar weak" % (exp3, exp6))
+
+
 def test_no_test_in_this_file_states_a_lesson_without_a_DATE():
     """The convention that makes this catalogue re-checkable (2026-09-02).
 
