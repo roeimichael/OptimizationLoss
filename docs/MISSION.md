@@ -13,7 +13,7 @@ fronts the pipeline, see 0-CLEAN).
 
 ## 🛑 0-NOW. READ `docs/COVERAGE.md` BEFORE ANY NUMBER BELOW (2026-09-02)
 
-Four findings from today supersede parts of every section that follows.
+Five findings supersede parts of every section that follows.
 
 **1. The head-to-head between the four duals is measuring the RNG.** Scored on
 the AS-DEPLOYED predictions in exact captured items over 19 cells
@@ -57,6 +57,27 @@ direction can be rotated most of a right angle with no measurable effect on what
 is emitted. That is the strongest form of the structural null this project has,
 and it is evidence FOR section 4's account, not against it. FRAMEWORK 2(z28),
 gated by two mutation-tested regression tests.
+
+**5. A COIN FLIP OF THE SAME NORM IS INDISTINGUISHABLE FROM THE CONSTRAINT
+(2026-09-03).** Campaign `coin1`, RegNetY400MF, 48 runs, 0 failed, EQUAL DOSE
+(`tralo` 232/232 and `tralo_coin` 232/232). `tralo_coin` replaces the constraint
+gradient with a random vector of the SAME delivered norm and draws nothing from
+the global RNG, so dropout masks and batch order are identical and only the
+information in the direction differs. As deployed, 16 paired points:
+
+```
+FLOOR |tralo_null - tralo_reseed|   2.0 items
+      |tralo - tralo_coin|          2.0     1.00x    <- a coin is as good as the penalty
+      |tralo - tralo_null|          2.0     1.00x
+      |tralo - clip|                3.0     1.50x    <- the only contrast above the floor
+```
+
+🔑 **PRE-REGISTERED.** Predicted from 2(z28)'s 83-degree geometry BEFORE the
+campaign was generated. The `clip` gap survives randomisation, so it belongs to
+the REGIME (29 extra CE epochs under a fresh Adam), not to the constraint: 3(0)'s
+"the win is compute, not method", now isolated by a control instead of inferred.
+`coin2` (MobileNetV2, the only other backbone whose two classes have overlapping
+strict windows) is running as the replication. FRAMEWORK 2(z29).
 
 ⚠️ **AND THE CAP SCREEN THAT CHOSE THESE CAMPAIGNS' CAPS WAS WRONG.**
 `task_window` counted the PRIZE over a GLOBAL top-K while every allocator here

@@ -8413,6 +8413,154 @@ weight trajectory is simulated with the model held FIXED, which is the
 CHARITABLE direction for separation -- no shared drift pulls the arms together.
 The real-run check (`arm_identity_check`) has no such approximation and agrees.
 
+### 2(z29) 🛑🛑🛑 **A COIN FLIP OF THE SAME NORM IS INDISTINGUISHABLE FROM THE CONSTRAINT. THE DIRECTION CARRIES NOTHING**
+
+Campaign `coin1`, run 2026-09-02/03 on dsisco01 GPU 1. RegNetY400MF x iwildcam,
+caps `L70_G95` and `L80_G95` (both strictly inside the measured task windows for
+BOTH capped classes: class 2 [0.70,0.80], class 7 [0.60,0.90]), 6 arms x 4
+seeds x 2 caps = 48 runs, 0 failed. Recipe: `constraint_fp32: True` +
+`constraint_grad_mode: normalize`.
+
+**EQUAL DOSE, AND IT IS THE POINT.** `tralo` landed 232/232 constraint steps and
+`tralo_coin` landed 232/232. `tralo_coin` is `tralo` with
+`constraint_random_direction: true`, which replaces the constraint gradient with
+a RANDOM vector rescaled to the SAME delivered norm
+(`src/training/constraint_step.py::_randomize_direction`, seeded from a private
+generator so it draws nothing from the global RNG and the two arms' dropout
+masks and batch order stay identical). Same dose, same schedule, same
+everything. **Only the information in the direction differs.**
+
+Captured true positives per capped class, AS DEPLOYED (`final_predictions.csv`,
+not the allocator-blind panel), paired within (model, cap, seed), 16 points:
+
+| contrast | median items | ratio to the RNG floor |
+|---|---|---|
+| FLOOR `\|tralo_null - tralo_reseed\|` | 2.0 | 1.00x by definition |
+| **`\|tralo - tralo_coin\|`** | **2.0** | **1.00x** |
+| `\|tralo - tralo_null\|` | 2.0 | 1.00x |
+| `\|tralo - clip\|` | 3.0 | 1.50x |
+
+**A COIN FLIP IS AS GOOD AS THE PENALTY.** The constraint gradient's DIRECTION
+is worth exactly nothing: perturb the model by the same amount in a direction
+chosen at random and the deployed prediction set moves as much as it does under
+the real penalty, which is as much as it moves under no penalty at all, which is
+as much as it moves under a pure reseed.
+
+🔑 **THIS WAS PRE-REGISTERED, WHICH IS WHY IT COUNTS.** It was predicted from
+2(z28)'s geometry BEFORE `coin1` was generated. 2(z28) measured that `tralo`
+sits a median 83 degrees away from every classical dual and that this changed
+nothing; the obvious next question was whether ANY direction changes anything,
+and the answer was written down as a prediction first. It is not a null found by
+looking.
+
+⚠️ **WHAT IT DOES NOT SAY.** It does not say the constraint phase is inert:
+`|tralo - clip|` is 1.50x the floor, so the trained arms DO differ from the
+post-hoc clipper. That difference survives when the direction is randomised, so
+it is attributable to the REGIME (an extra 29 CE epochs under a fresh Adam plus
+29 unit-norm perturbations), not to the constraint. That is 3(0) "the win is
+compute, not method", now with the mechanism isolated by a control rather than
+inferred.
+
+⚠️ **SCOPE.** One backbone, one dataset, 8 cells, 16 paired points, medians of
+small integers so the resolution is coarse. `coin2` (MobileNetV2, the only other
+backbone whose two classes have OVERLAPPING strict windows, [0.70,0.80]) is the
+replication and is running. **ViTB16 -- the a-priori headline backbone -- has
+NO strict task window for either capped class**, so this experiment cannot be
+run there at all as the protocol currently defines a task.
+
+⚠️ **AND THE COIN IS A CONTROL, NOT A METHOD.** Do not read this as "use a
+random direction". It bounds what the penalty could ever have delivered through
+this channel; it does not license anything.
+
+### 2(z30) 🛑🛑🛑 **THE PUBLISHED CORPUS'S HOUNIE BASELINE WAS CRIPPLED THREE WAYS AT ONCE, AND THE METHODS SECTION STILL DESCRIBES THAT ERA**
+
+Baseline-fidelity audit, 2026-09-03. The manuscript side is verified here
+directly; the paper side is corroborated by two independent sources
+(`configs/protocol.yml` citing arXiv:2306.02426 App. F, and a reviewer that
+downloaded and grepped the arXiv LaTeX source).
+
+**THIS IS ABOUT THE PUBLISHED CORPUS, NOT THE CURRENT CODE.** There are two
+regimes and they get opposite verdicts. `corpus_final.csv` (warm-up 50, three
+MedMNIST datasets, `constraint_grad_mode: clip`) is the one at issue. The
+current recipe fixed all three defects between 2026-08-20 and 2026-08-23.
+
+**(a) THE RATES.** `docs/paper/main_edited_by_roei.tex:629-630` states, in the
+paper of record, "dual and relaxation steps $0.01$ (Hounie-RCL) on all three
+datasets". The paper's own values are eta_lambda = eta_u = **0.1** with
+h(u) = ||u||^2, i.e. **alpha = 1**; the corpus ran `hounie_alpha: 10.0`.
+`configs/protocol.yml` now says outright that 0.01 "appears NOWHERE in the paper
+as a rate".
+
+**(b) THE MECHANISM WAS PROVABLY INERT.** The resilient relaxation's fixed point
+is `u* = lambda / (2 alpha)`. A 10x smaller lambda against a 10x larger alpha
+puts u* ~100x under the paper's, and the repo's own measurement closes it:
+sweeping `alpha` over 200x emitted **bit-identical predictions**
+(`configs/protocol.yml`). The thing that makes Hounie-RCL *resilient* did
+nothing in any published row.
+
+**(c) AND ITS STEP NEVER REACHED THE CLIP.** Under the corpus-era `clip` mode,
+hounie's raw constraint-gradient norm ran 0.005 to 0.1105 against a clip of 1.0
+that bound on 0 of 29 epochs, while tralo and fioretto each delivered a
+unit-norm step. A ~20x delivered-dose gap
+(`src/training/constraint_step.py`, measured on `results/vit_diag`).
+⛔ The manuscript's mechanism paragraph
+(`main_edited_by_roei.tex:1497-1505`) claims every method "takes a single
+norm-clipped constraint step per epoch" and that "the update is independent of
+lambda". **Both are false for hounie in the corpus that sentence describes.**
+The step-fairness sweep cited as insurance (`:1459-1466`) ran inside the same
+crippled regime, so it could not have found the faithful method.
+
+**AND THE METHODS SECTION DESCRIBES A PIPELINE THAT NO LONGER EXISTS.** Verified
+line by line in the paper of record: warm-up 50 with a "$300$-epoch budget"
+(`:584`) against today's warm-up 1 + 29; "ratchet step $0.002$ with hinge weight
+$\\beta$" (`:631`, `:1679-1694`) when `lambda_step` is 0.05, a 25x change, and
+**the undershoot hinge is DELETED from the pipeline entirely**. Nothing in the
+current headline campaigns matches the methods section as written.
+
+**ALSO: `focal_alpha` IS MATHEMATICALLY DEAD AND THE PAPER PRESENTS IT AS LIVE.**
+`src/losses/imbalanced_losses.py` multiplies the WHOLE per-sample loss by a
+scalar alpha. Lin et al.'s alpha is the CLASS-dependent balancing factor
+`alpha_t`. A global scalar is cancelled by Adam's scale invariance, and the repo
+measured it: a 10,000x alpha change gives argmax agreement 1.0000. The
+manuscript writes the loss as `-alpha (1-p_y)^gamma log p_y` citing
+lin2017focal. So `focal` is a GAMMA-ONLY focal baseline described as an
+(alpha, gamma) one, and the imbalanced-baselines table was measured on the three
+REMOVED datasets, which are exactly where a real `alpha_t` would have been live.
+✅ The plumbing is otherwise clean: the keys are read on the live warm-up path
+and are in `warmup_identity_keys`, so `focal_clip` is genuinely gamma-focal
+trained and the historical "focal_clip is a second clip" cache defect is NOT
+present.
+
+**ALSO: THE PAPER'S PRINTED ALM UPDATE IS NOT THE ONE THE CODE RUNS.**
+`:601-604` prints `lambda <- max(0, lambda + eta r) + mu_t max(0, r)` as the
+multiplier update. The code stores only `lambda <- max(0, lambda + eta r)` and
+rebuilds `mu_t r^+` from the CURRENT iterate at use time, precisely because
+storing it compounds it. The code is the more faithful ALM; the printed formula,
+read literally, is the compounding variant.
+
+🔑 **THE CONSEQUENCE, AND IT IS THE WHOLE POINT.** No claim of the form "TraLO
+beats X" should survive from `corpus_final.csv` into the revised manuscript. The
+recipe corpus (`dom1` / `dom1b` / `equaldose1` / `taskwin2` / `vittask1` /
+`coin1`) is the only defensible basis, and there the honest caveats are 2(z28)
+and 2(z29): under `normalize` the rivals' own dose mechanisms are cancelled, so
+what is being compared is each method's constraint-WEIGHT PROFILE at one imposed
+dose, and the direction has been measured to carry nothing.
+
+⚠️ **AND NO SCALAR KNOB HAS BEEN SWEPT ON THE CURRENT CORPUS, ON EITHER SIDE.**
+FRAMEWORK 1a already records `constraint_grad_clip` "that sweep has never run",
+`lambda_step` / `lambda_global` / `lambda_local` "one mention each, no sweep",
+`initial_rho` / `rho_target` "no sweep", `fioretto_step_size` "no sweep". So the
+comparison is not tuned-against-untuned. It is untuned-against-untuned, with
+TraLO's values the frozen residue of long iteration on this same dataset and the
+rivals' the frozen imports. Say exactly that. Two mitigations are real: the
+headline backbone was fixed a priori on 2026-08-20, and both harness fixes
+(`normalize`, `constraint_fp32`) run in the BASELINES' favour.
+✅ And `fioretto_step_size` is now known to be INERT under `normalize` anyway:
+`lambda_i = step * sum_t viol_i(t)` scales every multiplier uniformly, so it
+cannot change the direction, and the direction is all `normalize` keeps.
+Fioretto-LDF has zero live hyperparameters on this corpus. It cannot be
+strawmanned by tuning, and it cannot be tuned.
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, updated 2026-08-30 -- read this before section 3's older text**
