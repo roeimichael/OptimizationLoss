@@ -134,7 +134,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 543 regression tests, ~250s, no dataset needed
+python -m pytest tests -q                   # 545 regression tests, ~250s, no dataset needed
 #   `tests/test_lessons_learned.py` is the CATALOGUE OF LESSONS ALREADY PAID FOR:
 #   rejected backbones and datasets with the measured reason each was dropped,
 #   the ten deleted config footguns, the BF16/compute-capability split between
@@ -242,6 +242,41 @@ python -m scripts.dose_landed <root>        # 🛑 RUN THIS FIRST, AND ON A RUNN
 #   as `vitdual2` rather than caveated. Gated end to end in
 #   `tests/gates/test_g4_grid.py` (nulls must still attempt ZERO) and in source
 #   by lesson 29. FRAMEWORK 2(z38).
+python -m scripts.sensitivity_screen --campaign <roots>   # 🛑 COULD THIS CELL HAVE
+#   SEPARATED TWO METHODS AT ALL? Run it on the FIRST completed runs, beside
+#   `dose_landed`. Three axes, and a FOUR-WAY verdict because "nothing moved"
+#   and "we could not have seen it move" are opposite conclusions:
+#     GRADIENT  p(1-p) at the per-group cut. Bar 0.0099 = `task_window`'s
+#               WIGGLE_MAX pushed through p(1-p), so the two agree by
+#               construction. ⚠️ There are already TWO other bars for this
+#               quantity, 8x apart (`reachability` 0.040, `cut_gap` 0.005) --
+#               SAY WHICH ONE YOU MEAN. And it is read on the FINAL model, so
+#               it is a LOWER bound on what the constraint experienced.
+#     BAND      items at p in [0.05, 0.95]. Bar is `task_window.MIN_PRIZE`.
+#     SPREAD    the typical ARM-PAIR difference in deployed TP, against the
+#               RNG floor in the SAME cell.
+#   🛑 SPREAD IS PAIRWISE, NEVER `max - min`. A RANGE over k arms grows like
+#   `sd*sqrt(2 ln k)` (~3.1*sd at k=10) against a two-arm floor's 1.13*sd, so
+#   `range >= floor` certifies PURE NOISE as differentiated at ~2.7x. Measured
+#   on the corpus: raw range/floor reads a healthy median 2.51 over 50 cells
+#   and the SAME cells read **0.97** once the range is corrected; an sd-based
+#   estimator agrees at 0.94. `tests/gates/test_g5_trainlog.py` gates both the
+#   arithmetic and the four verdicts, mutation-tested 4/4.
+#   🔑 RUN 2026-09-04 OVER dom1 + dom1b + equaldose1 + taskwin2 + vittask1
+#   (38 cells): **SENSITIVE 0, UNDER-POWERED 36, SATURATED 2.** The typical
+#   arm-pair difference is 2-5 deployed TP items and the RNG floor in the same
+#   cell is 1.0-10.5. They are the same size.
+#   ⛔ AND THE FLOOR RESTS ON **FOUR** OBSERVATIONS. Every campaign carries
+#   exactly ONE `_null`/`_reseed` pair at 4 seeds, and the four `_null` arms are
+#   BYTE-IDENTICAL (FRAMEWORK 2944), so they add no replicates. Below
+#   `MIN_FLOOR_OBS` = 8 the screen refuses to decide rather than comparing a
+#   well-estimated median against a badly-estimated one. **Swapping
+#   `alm_null`/`fioretto_null`/`hounie_null` for `<fam>_reseed` twins costs
+#   ZERO extra runs and takes the floor from 4 observations to 16.**
+#   ⚠️ AND DE-SATURATING IS NOT THE INDICATED FIX: FRAMEWORK 2(j) says
+#   post-hoc allocation is optimal given the probabilities and that optimality
+#   is distribution-free, so a worse model raises the headroom for `clip` too.
+#   A bigger prize is not a bigger GAP. `--self-test` gates it, 18 checks.
 python -m scripts.deployed_h2h --campaign <roots> --control clip  # 🛑 THE ARM-VS-ARM
 #   ONE, and NOT a duplicate of full_panel. full_panel scores its OWN re-derived
 #   equal-budget allocation, so it is allocator-blind by design and answers

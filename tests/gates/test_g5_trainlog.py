@@ -475,3 +475,117 @@ def test_the_detectors_run_on_real_logs_when_any_are_present():
         except Exception as e:                                    # noqa: BLE001
             bad.append("%s: a detector raised on a real log (%s)" % (p, e))
     report(bad, "real-log compatibility failures")
+
+
+# ==========================================================================
+#   THE SENSITIVITY SCREEN -- can this cell separate two methods at all?
+#   Source: scripts/sensitivity_screen.py, measured over dom1 + taskwin2 +
+#   equaldose1 on 2026-09-04 (28 cells: SENSITIVE 0, UNDER-POWERED 27,
+#   SATURATED 1).
+# ==========================================================================
+def test_the_sensitivity_screen_separates_saturated_from_underpowered_from_live():
+    """Four verdicts, and collapsing any two of them is the defect.
+
+    "Nothing moved" and "we could not have seen it move" are opposite
+    conclusions from the same table. This project's standing rule is that a
+    tie must always be resolved into one or the other, and the screen is the
+    instrument that does it per cell.
+
+    NEGATIVE CONTROLS, all in this test:
+      * a live, well-separated cell MUST come back SENSITIVE -- a screen that
+        only ever says no has not been shown to work;
+      * saturation must OUTRANK the seed count, because no number of seeds
+        rescues a cell where nothing could have moved;
+      * the same spread must read UNDER-POWERED at 4 seeds and NOT
+        DIFFERENTIATED at 600, or the two are being collapsed;
+      * a floor resting on too few observations must refuse to decide, which
+        is the case on EVERY campaign in the corpus today (one `_null`/
+        `_reseed` pair at 4 seeds = 4 observations against the 8 bar).
+    """
+    from scripts.sensitivity_screen import (BAND_MIN, GRAD_MIN,  # noqa: E402
+                                            MIN_FLOOR_OBS, classify)
+    LIVE, DEAD = 0.20, GRAD_MIN / 10.0
+    BAND, N = 50, 16
+    cases = [
+        # label,                      grad, band,      spread, floor, seeds, expected
+        ("LIVENESS: live and separated", LIVE, BAND,    12.0,   4.0,  N, "SENSITIVE"),
+        ("cut in dead territory",        DEAD, BAND,    12.0,   4.0,  N, "SATURATED"),
+        ("no contestable items",         LIVE, 1,       12.0,   4.0,  N, "SATURATED"),
+        ("saturation beats 10k seeds",   DEAD, BAND,     0.5,   4.0, 10000, "SATURATED"),
+        ("small spread, few seeds",      LIVE, BAND,     0.5,   4.0,  N, "UNDER-POWERED"),
+        ("same spread, many seeds",      LIVE, BAND,     0.5,   4.0, 600, "NOT DIFFERENTIATED"),
+        ("no floor at all",              LIVE, BAND,    12.0,  None,  N, "NO DATA"),
+        ("no gradient reading",          None, BAND,    12.0,   4.0,  N, "NO DATA"),
+    ]
+    bad = []
+    for lbl, g, b, sp, fl, ns, want in cases:
+        got, why = classify(g, b, sp, fl, ns, n_floor=N)
+        if got != want:
+            bad.append("%s: got %r, expected %r (%s)" % (lbl, got, want, why))
+
+    # The thin-floor branch, which is what the whole corpus trips today.
+    got, why = classify(LIVE, BAND, 12.0, 4.0, 4, n_floor=MIN_FLOOR_OBS - 1)
+    if got != "UNDER-POWERED" or "RNG floor itself" not in why:
+        bad.append("a floor resting on %d observations must refuse to decide; "
+                   "got %r (%s)" % (MIN_FLOOR_OBS - 1, got, why))
+    # ...and it must NOT refuse once the floor is properly estimated, or the
+    # bar is simply a blanket refusal wearing a statistic.
+    got, _ = classify(LIVE, BAND, 12.0, 4.0, 4, n_floor=MIN_FLOOR_OBS)
+    if got != "SENSITIVE":
+        bad.append("at exactly MIN_FLOOR_OBS=%d the screen still refuses, so "
+                   "the bar is off by one or is a blanket refusal"
+                   % MIN_FLOOR_OBS)
+
+    # A SATURATED verdict must name WHICH point it means. FRAMEWORK section 4:
+    # rank K and the decision boundary are different items, and "the gradient
+    # cannot reach the cut" is wrong when stated without one of them.
+    _v, why = classify(DEAD, BAND, 12.0, 4.0, N, n_floor=N, grad_bd=0.248)
+    if "DECISION BOUNDARY" not in why or "CUT-PLACEMENT" not in why:
+        bad.append("a dead cut beside a live boundary must be reported as a "
+                   "cut-placement result, not as a saturated model: %s" % why)
+
+    if BAND_MIN <= 0 or GRAD_MIN <= 0:
+        bad.append("the bars must be positive; GRAD_MIN=%s BAND_MIN=%s"
+                   % (GRAD_MIN, BAND_MIN))
+    report(bad, "sensitivity-screen verdict failures")
+
+
+def test_the_cross_arm_spread_is_a_pairwise_statistic_not_a_range():
+    """A max-min RANGE over k arms is not comparable to a two-arm floor.
+
+    Under pure noise the range of k samples grows like `sd*sqrt(2 ln k)`
+    (~3.1*sd at k=10) while the two-arm floor it would be measured against is
+    `E|X-Y| = 1.13*sd`. So `range >= floor` certifies a cell of pure noise as
+    differentiated, at a ratio of ~2.7x, before any method does anything.
+
+    Measured independently on the real corpus the same day: raw
+    `range/floor` reads a healthy median 2.51 over 50 cells, and the SAME
+    cells read 0.97 once the range is divided by E[range of n]. An sd-based
+    estimator agrees at 0.94. The raw ratio was an artifact of arm count.
+
+    This test is arithmetic, not a fixture, so it cannot rot.
+    """
+    rng = np.random.RandomState(20260904)
+    N, TRIALS = 4, 4000
+    ranges, pairs = [], []
+    for _ in range(TRIALS):
+        arms = rng.normal(0.0, 1.0, (10, N))       # 10 arms, ONE noise law
+        means = arms.mean(axis=1)
+        ranges.append(means.max() - means.min())
+        a, b = rng.normal(0.0, 1.0, N), rng.normal(0.0, 1.0, N)
+        pairs.append(abs(a.mean() - b.mean()))
+    r, p = float(np.median(ranges)), float(np.median(pairs))
+    bad = []
+    if not r / p > 2.0:
+        bad.append("the range/pairwise inflation is %.2fx, under the 2.0x this "
+                   "gate exists to document -- re-derive it before trusting "
+                   "any spread-vs-floor ratio" % (r / p))
+    # And the pairwise statistic must NOT be inflated: two arms of pure noise
+    # compared to two other arms of pure noise is 1.0 by construction.
+    q = float(np.median([abs(rng.normal(0, 1, N).mean()
+                             - rng.normal(0, 1, N).mean())
+                         for _ in range(TRIALS)]))
+    if not 0.8 < p / q < 1.25:
+        bad.append("two pairwise draws of the SAME noise disagree by %.2fx; "
+                   "the pairwise statistic is not scale-free" % (p / q))
+    report(bad, "spread-statistic failures")

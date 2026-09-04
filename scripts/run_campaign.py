@@ -100,7 +100,15 @@ STEPS = [
      "on the FIRST completed runs -- kill a bad campaign here, not at hour 19",
      [("gate:trainlog", ["-m", "scripts.preflight", "--stage", "trainlog"], True, "gate"),
       ("dose_landed", ["-m", "scripts.dose_landed", "{root}"], True, "instrument"),
-      ("log_health", ["-m", "scripts.log_health", "{root}"], False, "instrument")]),
+      ("log_health", ["-m", "scripts.log_health", "{root}"], False, "instrument"),
+      # ADVISORY, and deliberately so. It exits 2 when no cell is SENSITIVE,
+      # which on the corpus of 2026-09-04 is EVERY cell in dom1, taskwin2 and
+      # equaldose1 -- so required=True would block every campaign this project
+      # currently knows how to run. Advisory puts the number in front of the
+      # person deciding whether hour 19 is worth buying, which is the job.
+      ("sensitivity_screen",
+       ["-m", "scripts.sensitivity_screen", "--campaign", "{root}"],
+       False, "instrument")]),
 
     ("score",
      "before any number is quoted",
