@@ -3808,7 +3808,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 549 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 550 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -3972,7 +3972,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 549 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 550 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -3980,7 +3980,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (549 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (550 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -8942,6 +8942,75 @@ is false for hounie under the corpus-era `clip` mode. Do not "modernise" the
 methods section to today's recipe; that would make it describe experiments the
 paper does not report.
 
+### 2(z41) 🔑 **THE RNG FLOOR RESTED ON FOUR NUMBERS, AND MORE `_reseed` ARMS COULD NEVER HAVE FIXED IT -- `rng_reseed` IS NOW A DRAW COUNT**
+
+Every arm-vs-arm claim this project has ever made was judged against a noise
+floor estimated from **four observations**: one `tralo_null` / `tralo_reseed`
+pair at four seeds. The order-statistic confidence interval of a 4-sample
+median is the **entire sample range**, so the floor is known to roughly a
+factor of two, and 2(z39)'s verdict -- 36 of 38 cells UNDER-POWERED rather than
+NOT DIFFERENTIATED -- is driven as much by the floor's imprecision as by the
+arms' similarity. `sensitivity_screen` refuses to decide below `MIN_FLOOR_OBS
+= 8` for exactly this reason.
+
+⛔ **THE OBVIOUS FIX IS ARITHMETICALLY EMPTY, AND I PUBLISHED IT BEFORE
+CHECKING.** Commit `d9f0844a` and a CLAUDE.md line claimed that swapping the
+three duplicate `<family>_null` arms for `<family>_reseed` twins would take the
+floor from 4 observations to 16 **at zero GPU cost**, since those runs are
+already being paid for. That is false. At `lambda = 0` every family's objective
+is **plain CE** -- the dual multiplier never leaves zero, no constraint gradient
+is ever formed, and the arm name is the only thing that differs. So
+`alm_reseed` would be **byte-identical** to `tralo_reseed`, and sixteen
+"observations" would be four observations printed four times. The corpus
+already demonstrates this: the `_null` arms of all four families are one model.
+
+✅ **WHAT ACTUALLY ADDS OBSERVATIONS IS A DISTINCT RNG *STREAM*.** `rng_reseed`
+was a boolean meaning "take one draw from the global generator before
+training", which perturbs dropout and shuffling and nothing else. It is now a
+**draw count**:
+
+```
+rng_reseed: false / absent  ->  0 draws   (tralo_null)
+rng_reseed: true            ->  1 draw    (tralo_reseed -- UNCHANGED, forever)
+rng_reseed: 2               ->  2 draws   (tralo_reseed2, new)
+```
+
+`true` is pinned at exactly one draw and must stay there: every `tralo_reseed`
+run in the corpus was produced that way, and redefining it would silently move
+the published floor and make those runs irreproducible. Anything that is
+neither a bool nor a non-negative int **RAISES** -- `bool("2")` is `True`, which
+is precisely how a reseed control stops reseeding while its name still promises
+otherwise (the same mechanism as the sixth inert flag, 2(z39)).
+
+Three lambda=0 variants give **C(3,2) = 3 pairs per seed** instead of one, so a
+4-seed campaign estimates its floor from **12 observations, not 4**, and clears
+`MIN_FLOOR_OBS` with margin. The cost is 4 runs per campaign, the cheapest arm
+there is (no constraint phase at all).
+
+🛑 **AND THE FLOOR IS NOT A DETAIL -- IT IS THE DENOMINATOR OF EVERY VERDICT.**
+`deployed_h2h` refuses to name a #1 in 13 of 19 cells because the arm-vs-arm
+spread sits at 1.00x the floor; `paired_noise` prices seeds-needed off it;
+`MIN_PRIZE = 3.0`, which sets every task window in `configs/task_windows.yml`
+and therefore which caps `gen_campaign` will even emit, was itself derived from
+it. A floor known to a factor of two propagates into all three.
+
+**5/5 MUTATIONS CAUGHT** (`tests/test_baseline_fidelity.py`): `true` silently
+stopping the reseed; `true` becoming two draws; a string being coerced rather
+than raising; the draw count being ignored so `reseed2` collapses onto
+`reseed`; and `reseed2` being given `reseed`'s stream. The gate asserts four
+things at once -- the three arms are pairwise different by md5, all three still
+attempt **zero** constraint steps (a reseed control that trains against the cap
+is a treated arm wearing a control's name, and the floor would absorb the very
+effect it exists to measure), `true` is still one draw, and a bad type raises
+-- plus a liveness check that the three arms resolve to three distinct draw
+counts, so the md5 assertion cannot be vacuous.
+
+⚠️ **THIS IS FOR THE NEXT CAMPAIGN, NOT THE RUNNING ONES.** `src/` and
+`configs/` are frozen while `vitdual2` and `vitcoin1` are live; `code_version`
+is a git hash and deploying this would split both campaigns. The existing
+corpus keeps its 4-observation floor and every claim built on it keeps the
+2(z39) caveat.
+
 ### 2(z40) 🛑🛑 **THE 29-vs-28 DOSE GAP IS IN `dom1`, `dom1b` AND `equaldose1` TOO -- 792 RUNS, AND FIVE OF SEVEN SCORERS IGNORED THE QUARANTINE**
 
 `vitdual1` was quarantined for running `fioretto` and `hounie` at 28.00
@@ -10818,7 +10887,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             549 tests, ~200 s, no dataset required
+tests/             550 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

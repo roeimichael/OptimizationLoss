@@ -43,6 +43,35 @@ from src.utils.constants import UNLIMITED
 
 log = logging.getLogger(__name__)
 
+
+def _reseed_draws(hp):
+    """How many draws to take from the global generator. 0 = no reseed.
+
+    Accepts the historical boolean AND an integer count, because every
+    `tralo_reseed` run in the corpus was written with `rng_reseed: true` and
+    must keep reproducing bit-for-bit: `True` is exactly one draw, forever.
+    An integer names a DISTINCT STREAM, which is what a second RNG replicate
+    needs -- see the long note at the call site.
+
+    RAISES on anything else. A silent `bool("2") -> True` here would give two
+    arms the same stream while their names promised otherwise, and the whole
+    point of the arm is to be a second, independent draw. This project has
+    shipped six inert flags; a reseed control that quietly stops reseeding
+    would be the worst of them, because it would make the noise floor read
+    ZERO and every arm look significant.
+    """
+    v = hp.get("rng_reseed", False)
+    if isinstance(v, bool):
+        return 1 if v else 0
+    if isinstance(v, int):
+        if v < 0:
+            raise ValueError("rng_reseed must be >= 0, got %r" % (v,))
+        return v
+    raise TypeError(
+        "rng_reseed must be a bool or a non-negative int naming how many "
+        "draws to take (each count is a distinct stream), got %r" % (v,))
+
+
 def train(inputs: TrainInputs) -> TrainOutputs:
     config = inputs.config
     hp = inputs.hyperparams
@@ -98,10 +127,39 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     # capped-class hard count by RMS 83-95 items while turning the constraint
     # ON moves it 75-95. The stream is either the same or it is not; a second
     # draw would not make it "more reseeded".
-    if bool(hp.get("rng_reseed", False)):
-        torch.rand(1)
-        log.info("rng_reseed: one draw taken from the global generator. This "
-                 "is the RESEED CONTROL -- zero dose, perturbed stream.")
+    # \U0001f6d1 A COUNT, NOT A BOOLEAN, AND THAT IS A MEASUREMENT PROBLEM
+    # BEING FIXED (2026-09-04, FRAMEWORK 2(z41)).
+    #
+    # The comment above is still right about DEGREE: a second draw does not
+    # make a run "more reseeded", because the stream is either the same or it
+    # is not. But it is about the wrong axis. What the floor needs is not a
+    # deeper perturbation, it is MORE INDEPENDENT DRAWS OF ONE.
+    #
+    # Every campaign here carries exactly one `_null`/`_reseed` pair at four
+    # seeds, so the RNG floor that every arm-vs-arm claim is judged against is
+    # a median of FOUR numbers, whose order-statistic confidence interval is
+    # the entire sample range. `sensitivity_screen` refuses to decide below
+    # eight, and that single fact is why 36 of 38 corpus cells read
+    # UNDER-POWERED rather than NOT DIFFERENTIATED.
+    #
+    # Adding more `<family>_reseed` arms does NOT help: lambda=0 makes them all
+    # plain CE, so `alm_reseed` would be byte-identical to `tralo_reseed`.
+    # Distinct STREAMS are what buys observations. With n draws we get n+1
+    # mutually distinct lambda=0 models, hence C(n+1, 2) pairs per seed instead
+    # of one -- 3 pairs x 4 seeds = 12 observations for 8 extra runs.
+    #
+    # ⚠️ `true` MUST REMAIN EXACTLY ONE DRAW. Every `tralo_reseed` run in
+    # the corpus was produced by a single draw, and changing that would make
+    # them irreproducible and silently move the published floor.
+    draws = _reseed_draws(hp)
+    if draws:
+        for _ in range(draws):
+            torch.rand(1)
+        log.info("rng_reseed: %d draw(s) taken from the global generator. "
+                 "This is a RESEED CONTROL -- zero dose, perturbed stream. "
+                 "Each distinct count is a distinct stream, so two controls "
+                 "with different counts are two independent RNG replicates.",
+                 draws)
     # Hoisted: the per-epoch snapshot clone is gated on this, and a
     # state_dict() copied to CPU each epoch for a checkpoint nothing
     # reads is ~344 MB per epoch on ViTB16.

@@ -201,7 +201,7 @@ not a defence for anything generated in a worktree.
 `partial` band (`2: []` unpacked as a 2-tuple and raised); and the 4-seed
 self-test fixture, which shared one probability array across its four "seeds",
 now perturbs each; and `paired_noise` prints `N (M distinct)` per arm.
-Suite 549 tests, 548 pass / 1 skip.
+Suite 550 tests, 549 pass / 1 skip.
 
 ✅ **AND THE FOUR-DUAL HEAD-TO-HEAD WAS NOT AT EQUAL DOSE. FIXED; THE
 CAMPAIGN WAS DISCARDED AND RELAUNCHED AS `vitdual2`.**

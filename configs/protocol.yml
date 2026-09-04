@@ -436,7 +436,28 @@ blocks:
   # gen_campaign REFUSES a campaign that holds a trained arm without this one.
   # FRAMEWORK section 13.
   tralo_reseed:
-    rng_reseed: true
+    rng_reseed: true            # exactly ONE draw. Every reseed run in the
+                                # corpus was produced this way and must keep
+                                # reproducing bit-for-bit, so this stays `true`
+                                # and never becomes `1` cosmetically.
+  # A SECOND, INDEPENDENT RNG REPLICATE (2026-09-04, FRAMEWORK 2(z41)).
+  # `rng_reseed` is a DRAW COUNT, and each count is a distinct stream, so this
+  # is a third lambda=0 model differing from `tralo_null` and `tralo_reseed`
+  # in the RNG and nothing else.
+  #
+  # WHY IT IS WORTH 8 RUNS. The RNG floor every arm-vs-arm claim is judged
+  # against comes from `_null` vs `_reseed` pairs, and a campaign carries
+  # exactly one such pair at 4 seeds -- a median of FOUR numbers, whose
+  # order-statistic CI is the whole sample range. `sensitivity_screen` refuses
+  # to decide below eight, which is why 36 of 38 corpus cells read
+  # UNDER-POWERED rather than NOT DIFFERENTIATED. Three lambda=0 variants give
+  # C(3,2) = 3 pairs x 4 seeds = 12 observations.
+  #
+  # ⛔ MORE `<family>_reseed` ARMS WOULD BUY NOTHING: lambda=0 makes them all
+  # plain CE, so an `alm_reseed` is byte-identical to `tralo_reseed`. Distinct
+  # STREAMS are the only thing that adds observations.
+  tralo_reseed2:
+    rng_reseed: 2
   fioretto:
     fioretto_step_size: 0.005     # REQUIRED: fioretto_ldf/train.py raises without it
     # Emitted here as well as on `alm`. Both packages READ this key, and ALM's
@@ -619,6 +640,14 @@ arms:
   tralo_reseed:
     {methodology: tralo, phase: trained,
      blocks: [constraint_phase, tralo_null, tralo_reseed],
+     null_sibling: tralo_null, count_control: true}
+  # The second RNG replicate. Same methodology, same warm-up, same lambda=0,
+  # different stream -- so it is a count control exactly as `tralo_reseed` is,
+  # and `|tralo_reseed - tralo_reseed2|` is as legitimate a floor observation
+  # as `|tralo_null - tralo_reseed|`.
+  tralo_reseed2:
+    {methodology: tralo, phase: trained,
+     blocks: [constraint_phase, tralo_null, tralo_reseed2],
      null_sibling: tralo_null, count_control: true}
   # 1c. Not a count penalty and not a score-pushing term -- it reweights the
   # CLASSIFICATION loss over the covered set. See src/methodologies/select/train.py.

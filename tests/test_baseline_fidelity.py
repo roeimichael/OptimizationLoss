@@ -1053,23 +1053,51 @@ def test_tralo_reseed_differs_from_tralo_null_in_the_RNG_STREAM_ONLY(P):
     assert diff == {"rng_reseed"}, {k: (a.get(k), b.get(k)) for k in sorted(diff)}
     assert a["rng_reseed"] is False and b["rng_reseed"] is True
 
+    # `tralo_reseed2` must vary the same ONE thing, or the third replicate is
+    # a second treatment rather than a second reading of the noise.
+    c = build_hyperparams(P, P["arms"]["tralo_reseed2"], 1)
+    diff2 = {k for k in set(a) | set(c) if a.get(k, "<->") != c.get(k, "<->")}
+    assert diff2 == {"rng_reseed"}, {k: (a.get(k), c.get(k))
+                                     for k in sorted(diff2)}
+    assert c["rng_reseed"] == 2
+
     src = open(os.path.join(REPO, "src/methodologies/tralo/train.py"),
                encoding="utf-8").read()
     tree = ast.parse(src)
-    guarded = []
-    for node in ast.walk(tree):
-        if (isinstance(node, ast.If)
-                and "rng_reseed" in ast.unparse(node.test)):
-            guarded.append(node)
-    assert len(guarded) == 1, "rng_reseed is read in more than one place"
+
+    # ONE read site. `rng_reseed` became a DRAW COUNT (FRAMEWORK 2(z41)), so
+    # the key is read inside `_reseed_draws` and the call site branches on the
+    # returned count. A SECOND read site is how the two spellings of one arm
+    # drift apart: `bool("2")` is True, so a stray `hp.get("rng_reseed")` in a
+    # boolean context reseeds `tralo_reseed2` once instead of twice and the
+    # two controls collapse onto one stream while their names promise
+    # otherwise.
+    reads = [n for n in ast.walk(tree)
+             if isinstance(n, ast.Constant) and n.value == "rng_reseed"]
+    assert len(reads) == 1, ("rng_reseed is read in %d places, not one"
+                             % len(reads))
+    owner = [f.name for f in ast.walk(tree)
+             if isinstance(f, ast.FunctionDef)
+             and any(n is reads[0] for n in ast.walk(f))]
+    assert owner == ["_reseed_draws"], owner
+
+    guarded = [n for n in ast.walk(tree)
+               if isinstance(n, ast.If) and ast.unparse(n.test) == "draws"]
+    assert len(guarded) == 1, ("the draw is guarded in %d places"
+                               % len(guarded))
     # every torch.* call inside the guarded block, ignoring logging
     torch_calls = [ast.unparse(n) for n in ast.walk(guarded[0])
                    if isinstance(n, ast.Call)
                    and ast.unparse(n).startswith("torch.")]
     assert torch_calls == ["torch.rand(1)"], torch_calls
     assert not guarded[0].orelse
-    # nothing but the draw and a log line: no extra parameter, no extra step
-    assert all(isinstance(s, ast.Expr) for s in guarded[0].body), (
+    # a LOOP over the count and a log line, nothing else: no extra parameter,
+    # no extra step, no change to the loss. Dropping the loop is how the draw
+    # COUNT stops mattering and `tralo_reseed2` becomes a duplicate run.
+    loops = [s for s in guarded[0].body if isinstance(s, ast.For)]
+    assert len(loops) == 1 and ast.unparse(loops[0].iter) == "range(draws)", (
+        [ast.unparse(s) for s in guarded[0].body])
+    assert all(isinstance(s, (ast.For, ast.Expr)) for s in guarded[0].body), (
         [ast.unparse(s) for s in guarded[0].body])
 
     # the two arms share a warm-up on purpose, so the draw must not reach it
@@ -4669,3 +4697,112 @@ def test_a_cap_above_100_percent_is_legal_and_still_binds():
     g = compute_global_constraints(_cap_df(), "label", [1.0, 1.2],
                                    constrained_class=[2, 7], num_classes=8)
     assert g[2] == 100 and g[7] == 240
+
+
+from src.methodologies.tralo.train import _reseed_draws  # noqa: E402
+
+
+def test_the_three_lambda_zero_arms_are_three_DISTINCT_RNG_REPLICATES(P):
+    """The RNG floor rested on FOUR observations. This is the fix.
+
+    Every campaign carries exactly one `_null`/`_reseed` pair at four seeds,
+    so the noise every arm-vs-arm claim is judged against is a median of four
+    numbers whose order-statistic confidence interval is the entire sample
+    range. `sensitivity_screen` refuses to decide below eight, and that single
+    fact is why 36 of 38 corpus cells read UNDER-POWERED rather than NOT
+    DIFFERENTIATED (FRAMEWORK 2(z39)).
+
+    Adding more `<family>_reseed` arms buys NOTHING: lambda=0 makes them all
+    plain CE, so an `alm_reseed` is byte-identical to `tralo_reseed`. Distinct
+    STREAMS are the only thing that adds observations, so `rng_reseed` became
+    a DRAW COUNT and `tralo_reseed2` takes two. Three lambda=0 variants give
+    C(3,2) = 3 pairs per seed instead of one.
+
+    FOUR THINGS MUST HOLD AT ONCE, and each is a separate way to get a floor
+    that silently reads zero:
+
+      1. all three arms are pairwise DIFFERENT -- else the extra runs are
+         duplicates and the floor has not grown at all;
+      2. all three still take ZERO constraint steps -- a reseed control that
+         started training against the cap would be a treated arm wearing a
+         control's name, and the floor would absorb the effect it exists to
+         measure;
+      3. `rng_reseed: true` is still EXACTLY ONE draw -- every reseed run in
+         the corpus was produced that way, and changing it would silently move
+         the published floor and make those runs irreproducible;
+      4. a non-bool, non-int value RAISES -- `bool("2")` is True, which would
+         give two arms the same stream while their names promised otherwise.
+    """
+    ARMS = ("tralo_null", "tralo_reseed", "tralo_reseed2")
+    fails = []
+
+    for a in ARMS:
+        if a not in P["arms"]:
+            fails.append("%s is not declared in protocol.yml arms" % a)
+    assert not fails, "; ".join(fails)
+
+    got = {}
+    for a in ARMS:
+        md5, summary, _norms = _run_arm(P, a, epochs=3)
+        got[a] = (md5, summary.get("constraint_steps_attempted", 0))
+
+    # 1. pairwise distinct
+    for i, a in enumerate(ARMS):
+        for b in ARMS[i + 1:]:
+            if got[a][0] == got[b][0]:
+                fails.append(
+                    "%s and %s are BYTE-IDENTICAL (%s); the extra runs are "
+                    "duplicates and the RNG floor has not grown"
+                    % (a, b, got[a][0]))
+
+    # 2. every one of them is still lambda = 0
+    for a in ARMS:
+        if got[a][1]:
+            fails.append(
+                "%s attempted %d constraint step(s); a reseed control that "
+                "trains against the cap is a treated arm wearing a control's "
+                "name, and the floor would absorb the very effect it measures"
+                % (a, got[a][1]))
+
+    # 3. the historical boolean is still exactly one draw
+    if _reseed_draws({"rng_reseed": True}) != 1:
+        fails.append("`rng_reseed: true` is no longer exactly ONE draw; every "
+                     "tralo_reseed run in the corpus becomes irreproducible "
+                     "and the published floor moves silently")
+    if _reseed_draws({"rng_reseed": False}) != 0 or _reseed_draws({}) != 0:
+        fails.append("an absent or false rng_reseed must take NO draw")
+    # ...and an explicit 1 must agree with the boolean, or the two spellings
+    # of the same arm would produce two different models.
+    if _reseed_draws({"rng_reseed": 1}) != _reseed_draws({"rng_reseed": True}):
+        fails.append("`rng_reseed: 1` and `rng_reseed: true` disagree")
+
+    # 4. anything else RAISES rather than being guessed at
+    for bad in ("2", 2.5, None, [2]):
+        try:
+            _reseed_draws({"rng_reseed": bad})
+        except (TypeError, ValueError):
+            pass
+        else:
+            fails.append("rng_reseed=%r was accepted silently; bool('2') is "
+                         "True and that is how a reseed control stops "
+                         "reseeding" % (bad,))
+    if _reseed_draws({"rng_reseed": 0}) != 0:
+        fails.append("rng_reseed: 0 must mean no draw")
+
+    # LIVENESS: the counts really do differ, so the arms cannot coincide by
+    # construction. If this ever reads equal, check 1 above is vacuous.
+    counts = {a: _reseed_draws(dict(_blocks_of(P, a))) for a in ARMS}
+    if len(set(counts.values())) != len(ARMS):
+        fails.append("the three arms do not resolve to three distinct draw "
+                     "counts: %s" % counts)
+
+    assert not fails, "%d reseed-replicate defect(s): %s" % (
+        len(fails), " | ".join(fails))
+
+
+def _blocks_of(P, arm):
+    """Flatten an arm's blocks the way build_hyperparams does."""
+    hp = {}
+    for name in P["arms"][arm].get("blocks") or []:
+        hp.update(P["blocks"].get(name) or {})
+    return hp

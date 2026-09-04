@@ -200,10 +200,31 @@ def test_every_trained_arm_has_a_null_twin_and_the_reseed_floor(
     242/227/324/233 -- and `tralo_reseed` is the RNG floor: the constraint moves
     that count RMS 75-95 items and a reseed moves it 83-95. `_null_of` resolves
     through `null_sibling`; matching on the name silently skipped `tralo_margin`,
-    the arm that most needed one. NEGATIVE CONTROL: no floor, no campaign."""
+    the arm that most needed one. NEGATIVE CONTROL: no floor, no campaign.
+
+    The floor is now measured from MORE THAN ONE PAIR (FRAMEWORK 2(z41)): a
+    single `_null`/`_reseed` pair at four seeds estimates it from four numbers,
+    whose order-statistic CI is the whole sample range. So the set of count
+    controls is open-ended -- but every member must be a genuine lambda=0 RNG
+    replicate on a DISTINCT stream, or the extra runs are duplicates and the
+    floor has not grown at all."""
     P, fails = protocol_yml, []
-    if count_control_arms(P) != {"tralo_reseed"}:
-        fails.append("count_control arms are %s" % sorted(count_control_arms(P)))
+    controls = count_control_arms(P)
+    if "tralo_reseed" not in controls:
+        fails.append("the corpus-era floor arm `tralo_reseed` is no longer a "
+                     "count control (%s); every published floor came from it"
+                     % sorted(controls))
+    draws = {}
+    for arm in sorted(controls):
+        hp = build_hyperparams(P, P["arms"][arm], 1)
+        if hp.get("lambda_local") or hp.get("lambda_global"):
+            fails.append("%s is a count control but is NOT lambda=0; a floor "
+                         "arm that trains against the cap absorbs the effect "
+                         "it exists to measure" % arm)
+        draws[arm] = hp.get("rng_reseed")
+    if len(set(map(repr, draws.values()))) != len(draws):
+        fails.append("two count controls share an RNG stream, so they are "
+                     "DUPLICATE runs and the floor has not grown: %s" % draws)
     for arm, spec in sorted(P["arms"].items()):
         if spec.get("phase") == "trained" and not arm.endswith("_null") \
                 and _null_of(P, arm) not in P["arms"]:
