@@ -18,6 +18,26 @@ UNVERIFIED; confirm before assuming either finished.)
 
 Twelve findings supersede parts of every section that follows.
 
+🛑🛑 **AND ONE MORE SUPERSEDES EVERY DUAL-vs-DUAL SENTENCE IN THIS FILE
+(2026-09-04, FRAMEWORK 2(z40) and 2(z43)).** `fioretto` and `hounie` are DEAD
+ARMS in `dom1`, `dom1b` and `equaldose1` -- 28.00 attempted constraint steps
+per run against 29.00 -- and `tralo_lam0` is one in `equaldose1` too. Those are
+the ONLY recipe campaigns carrying rival duals, so **the surviving field is
+`tralo` vs `alm` and nothing else**. Recounted as deployed with the dead arms
+dropped: **#1 named in 2 of 15 cells, both `alm`, TraLO 0** -- and all four of
+TraLO's former #1 calls were in verified `task` cells, every one of them
+produced by a dead arm stretching the spread past the RNG floor rather than by
+a lead over `alm`. **The dose objection is REOPENED** (item 3 below).
+
+🟢🟢 **WHAT IS UNTOUCHED, AND IT IS THE HEADLINE.**
+`scripts/paper_rows.CONTRASTS` is exactly `vs_clip`, `vs_null`
+(family-resolved) and `vs_reseed`; **none touches a dead arm.** So `tralo` vs
+`clip` **4/4 p=0.0625**, vs its own `_null` **4/4**, vs `tralo_reseed` **3/4**,
+and task-restricted **3/3 p=0.125** all stand. **0 of 15 cells are lost**
+(144 of 792 runs, 18.2%, are touched; `equaldose1` worst at 42.9% of its paper
+rows). **And the paper of record is entirely unaffected** -- disjoint MedMNIST
+corpus, zero iwildcam rows, grep count 0, verified 2026-09-04.
+
 **0. NOT ONE CELL IN THE CORPUS COULD HAVE SEPARATED TWO METHODS (2026-09-04,
 FRAMEWORK 2(z39)).** `scripts/sensitivity_screen` over `dom1` + `dom1b` +
 `equaldose1` + `taskwin2` + `vittask1` -- **38 cells, ~850 runs: SENSITIVE 0,
@@ -32,13 +52,34 @@ itself rests on FOUR observations. `<fam>_reseed` twins do NOT fix the second --
 they are byte-identical to `tralo_reseed`. Read finding 1 below in that light:
 it is the same conclusion, now automatic and per cell.
 
-**1. The head-to-head between the four duals is measuring the RNG.** Scored on
-the AS-DEPLOYED predictions in exact captured items over 19 cells
-(`scripts/deployed_h2h.py`): a #1 arm can be named in **6 cells and refused in
-13**, and of the 6 it is `alm` 2, `tralo` 2, `fioretto` 2. Paired per seed,
-`|tralo - a rival dual|` has median **4.0 items** and `|tralo - tralo_reseed|`
--- the SAME arm with only the RNG stream perturbed -- has median **4.0 items**.
-Ratio 1.00x. **10 of 19 cells change their #1 when one seed is dropped.**
+**1. The head-to-head between the duals is measuring the RNG -- and after
+2026-09-04 there is barely a head-to-head left.** Scored on the AS-DEPLOYED
+predictions in exact captured items (`scripts/deployed_h2h.py`). **Recounted
+over the 15 dual-carrying cells with the dead arms dropped: #1 named in 2,
+both `alm`, TraLO 0** (FRAMEWORK 2(z43)). All four of TraLO's #1 calls were in
+verified `task` cells and all four collapse to REFUSED, each having been named
+on a dead arm's distance rather than on a lead over `alm`. At k=2 survivors the
+range IS the pairwise difference, so finding 0's ~2.7x inflation factor is 1.0
+here and this is the fairest reading available, not the harshest.
+
+⛔ **THIS ITEM READ AS FOLLOWS UNTIL 2026-09-04, over 19 cells: "a #1 arm can
+be named in 6 cells and refused in 13, and of the 6 it is `alm` 2, `tralo` 2,
+`fioretto` 2".** `fioretto`'s two are void. ⚠️ **AND THAT TALLY DOES NOT
+REPRODUCE, WHICH IS A SEPARATE UNVERIFIED ITEM.** The 19-cell root set
+reproduces exactly (`dom1`+`dom1b`+`equaldose1`+`taskwin2`+`vittask1`, and both
+the jackknife 10 and the items/ccF1-disagree 5 match to the integer) but the
+count does not: measured 2026-09-04 it is **NAMED in 8, REFUSED in 11, of the 8
+named `tralo` 4, `alm` 2, `fioretto` 2**. Likely cause is scorer version -- the
+run used the SERVER's `deployed_h2h.py`, which differs by md5 from local.
+**What would settle it:** re-run the current local scorer on the same roots.
+
+⚠️ **`|tralo - a rival dual|` median 4.0 items, n=180, NEEDS RECOMPUTATION.**
+It pools `alm` + `fioretto` + `hounie`, two of which are dead. Recompute
+against `alm` alone; n falls to roughly 60. **The recomputed value is not
+stated here because it has not been measured.** The floor it was compared
+against, `|tralo - tralo_reseed|` median **4.0 items**, is unaffected and
+stands. **10 of 19 cells change their #1 when one seed is dropped** also
+stands, and is if anything understated now.
 
 **2. But `tralo` vs the clippers is now p<0.05, and the old reading could not
 have been.** There are **FIVE** independent units, not four: `dom1` carries
@@ -91,10 +132,18 @@ normalize` rescales the result to exactly `constraint_grad_clip` -- scaling UP
 below the bound, not only down -- so the magnitude is discarded. At a fixed
 model state `fioretto_alm` and `fioretto_ldf` both build weights proportional
 to `relu(S_j - K_j)`: **cos = 1.0000 in 192 of 192 stored states**
-(`scripts/dual_cone_probe.py`). On the deployed predictions
-`|alm - fioretto|` is **0.83x the RNG floor**. So the paper's "four duals" is
-THREE, and a dominance claim counting them separately counts one comparison
-twice.
+(`scripts/dual_cone_probe.py`) -- an algebraic identity read at a FIXED model
+state, so it does not depend on how many steps an arm took and it survives.
+
+⛔ **THE DEPLOYED HALF DOES NOT, 2026-09-04.** This read: "On the deployed
+predictions `|alm - fioretto|` is **0.83x the RNG floor**. So the paper's 'four
+duals' is THREE, and a dominance claim counting them separately counts one
+comparison twice." **`fioretto` is a dead arm at 28.00 steps**, so
+`|alm - fioretto|` compares 29 steps against 28 and cannot establish method
+identity. UNVERIFIED; `vitdual2` runs both at 29.00 and would settle it.
+🛑 **The conclusion is overtaken anyway, and by more:** on this corpus the
+paper's "four duals" is not three, it is **TWO** -- `tralo` and `alm` -- because
+`fioretto` and `hounie` are both dead in all 15 dual-carrying cells.
 
 🔑 The sharper half: `tralo` IS a different direction -- median cosine **+0.11
 against the duals, 83 degrees, and >60 degrees in 124 of 192 states**, sometimes
@@ -425,17 +474,42 @@ Counting cells gives 7/8 and p=0.035, which is anticonservative -- do not quote 
 ✅ **IT REPLICATES ACROSS CAMPAIGNS AND HARDWARE.** `loose1`'s MobileNet subset
 reads 12.74 items / 3-of-3 / 1.42x against `dom1`'s 12.46 / 4-of-4 / 1.53x --
 different campaign, different `code_version`, same answer. RegNet reads 2.49x
-(fp16, one commit) and 2.24x (bf16, another commit). The arm ORDERING
-`tralo > alm ~ fioretto > hounie` is identical in `dom1` and `dom1b`.
+(fp16, one commit) and 2.24x (bf16, another commit).
 
-✅ **`tralo` leads every rival dual on ccF1 in the task cells of both `dom1`
-and `equaldose1`, and is the only arm above its own floor in 4/4 of `dom1`'s.**
-`alm` leads on AP in `dom1` (+0.0426 vs +0.0403), so the ordering is
-metric-dependent -- say which metric every time.
+⛔ **THIS ALSO SAID "The arm ORDERING `tralo > alm ~ fioretto > hounie` is
+identical in `dom1` and `dom1b`" UNTIL 2026-09-04.** Two of the four positions
+are dead arms, so a four-place ordering is not readable. **The surviving
+two-place ordering does replicate:** `dom1` tralo 12.46 > alm 10.98; `dom1b`
+tralo 4.38 > alm 2.87.
 
-✅ **The dose objection is closed.** `equaldose1`: `tralo` +0.0275 AP against
-the dose-matched `tralo_lam0` +0.0287. The 3.4% step head start is not the
-source of the lead.
+⛔ **THIS READ "`tralo` leads every rival dual on ccF1 in the task cells of
+both `dom1` and `equaldose1`" UNTIL 2026-09-04.** Two of the three rivals it
+counted are dead. **Against the one survivor the claim holds and should be
+stated that way:** in `equaldose1`'s 4 task cells `tralo` is +2.32 items against
+`alm`'s -0.73. ✅ **Untouched:** `tralo` is still the only arm above its OWN
+floor in 4/4 of `dom1`'s task cells, and `alm` still leads on AP in `dom1`
+(+0.0426 vs +0.0403), so the ordering is metric-dependent -- say which metric
+every time.
+
+⛔⛔ **THE DOSE OBJECTION IS REOPENED, 2026-09-04. THIS READ: "The dose
+objection is closed. `equaldose1`: `tralo` +0.0275 AP against the dose-matched
+`tralo_lam0` +0.0287. The 3.4% step head start is not the source of the lead."**
+`tralo_lam0` attempts **28.00** steps and is itself a DEAD ARM in `equaldose1`.
+**The control built to close the objection is the one the defect landed on**,
+and every other arm at 28.00 there (`fioretto`, `hounie`) is dead too, so **no
+dose-matched control survives anywhere in the corpus.** Under the registry as
+written `drop_dead_runs` removes those runs before any scorer sees them, so the
+number is not recomputable at all. **`vitdual2` is the only campaign that can
+close it** (all four duals at 29.00, verified), at **32 of 88 complete**.
+
+⚠️ **A TENSION IS RECORDED HERE, NOT RESOLVED.** `scripts/quarantine.py` calls
+`tralo_lam0`'s 28.00 a defect; section 4's launch note for `equaldose1` below
+says the 28 was **DELIBERATE**, the arm existing precisely to match the duals'
+28 so TraLO's extra step could be priced, with its void check recorded as
+PASSING on exactly that basis. Both readings are on file and they disagree
+about whether an arm mismatched BY DESIGN counts as a dead arm. **UNVERIFIED --
+this needs a human decision, not a recount.** What would settle it: decide, and
+write the decision into the `equaldose1` registry entry.
 
 ⛔ **`tralo_uniform` never leads anywhere**, and clears its own floor in
 **3 of 12** measured task cells (`dom1` 0/4, `loose1` 1/5, `dom1b` 2/3), plus -3.50
@@ -481,7 +555,7 @@ three contrasts was `loose1`, which ran `grad_mode: clip`. With it gone:
 | `tralo` vs `clip` | **4/4** | 0.0625 | ✅ beats the bar everywhere |
 | `tralo` vs its own null | **4/4** | 0.0625 | ✅ attributable |
 | `tralo` vs `tralo_reseed` | **3/4** | 0.3125 | ⛔ fails on MobileNetV3 |
-| #1 of the four duals | **3/6 cells** | 0.66 | ⛔ dominance not shown |
+| ~~#1 of the four duals~~ | ~~**3/6 cells**~~ | ~~0.66~~ | ⛔ **SUPERSEDED 2026-09-04: 2 of 15 cells namable, both `alm`, TraLO 0 (FRAMEWORK 2(z43)). Two of the four rivals are dead arms, so this row counted a field that does not exist** |
 
 ⛔ **AND THE DENOMINATOR IS 3, NOT 4, ONCE A VERIFIED `task` CELL IS REQUIRED
 (2026-09-04).** `taskwin2`/MobileNetV3 -- unit `C1` -- classifies
@@ -496,9 +570,17 @@ beats `clip` by +7.32 items but beats its own `_null` by **+0.75** -- below the
 one-item quantum -- and **loses to a pure RNG reseed by 0.27**. So there the
 gain is the REGIME, not the constraint.
 
-🔑 **AND THE HEAD-TO-HEAD PATTERN IS THE CAP.** TraLO is #1 in **2 of 3** cells
-at the tighter `L80_G95` and **1 of 3** at the looser `L95_G80`. Where the cap
-binds hard TraLO leads; where it is slack `alm` and `fioretto` overtake.
+⛔ **"THE HEAD-TO-HEAD PATTERN IS THE CAP" IS WITHDRAWN 2026-09-04.** It read:
+"TraLO is #1 in **2 of 3** cells at the tighter `L80_G95` and **1 of 3** at the
+looser `L95_G80`. Where the cap binds hard TraLO leads; where it is slack `alm`
+and `fioretto` overtake." **Every one of TraLO's `L80_G95` #1 calls was named
+on a dead arm's distance** -- `dom1`/MNv2 on `fioretto`/`hounie` at -0.75 while
+`tralo` and `alm` tie exactly at +4.25, `dom1b` on `hounie` at -5.75,
+`equaldose1`/MNv2 on `hounie` at -10.25 -- and all three collapse to REFUSED
+once those arms drop. The pattern was the dead arms, not the cap.
+FRAMEWORK 2(z43). ⚠️ Note also that 2(z43)'s own premise, `L95_G80` being
+"looser", is separately refuted: it and `L80_G95` emit 660 vs 661 predictions,
+the same budget through a different SCOPE.
 
 ⛔ **DO NOT EXPAND THE GRID.** More datasets / backbones / class-counts is
 written down in COVERAGE section 5 and is explicitly NOT queued. The only
@@ -548,9 +630,13 @@ restriction from `scripts/paper_rows.py`, which prints it.
   live candidate.
 * ⛔ `B2` (`loose1`/RegNetY400MF/`L80_G95`) dissents on all three contrasts.
   It goes in the table.
-* ⛔ **Dominance over the rival duals is NOT shown**: `tralo` is #1 of four in
-  **3 of 6** strict cells. The `dom1` "leads all four" reading included
-  `L90_G95`, now PARTIAL.
+* ⛔ **Dominance over the rival duals is NOT MERELY UNSHOWN, IT IS
+  UNANSWERABLE (2026-09-04).** This read: "`tralo` is #1 of four in **3 of 6**
+  strict cells. The `dom1` 'leads all four' reading included `L90_G95`, now
+  PARTIAL." Two of the four rivals are DEAD ARMS at 28.00 steps, so there is no
+  field of four to be #1 of. Recounted as deployed: **2 of 15 cells namable,
+  both `alm`, TraLO 0** (FRAMEWORK 2(z43)). The only surviving rival dual is
+  `alm`, and `vitdual2` is the only campaign that can restore the other two.
 ### 🎯 THE COROLLARY: TWO STAGED CAMPAIGNS CROSS p<0.05, AND NOTHING ELSE DOES
 
 At `n` unanimous units the one-sided sign test is exactly `0.5^n`:
@@ -734,10 +820,20 @@ which is not the thesis.
 
 ### What is established
 
-- **`dom1` (384 runs, complete, LOOSE caps, MobileNetV2+V3).** TraLO is #1 of
-  five on ccF1 / AP / AUROC, 6/6 cells each.
-- **First campaign at equal dose.** All five trained arms 100.0%; `hounie`
-  672/672, which previously ran at **1%**. No earlier dual-vs-dual number is safe.
+- **`dom1` (384 runs, complete, LOOSE caps, MobileNetV2+V3).** ⛔ **This said
+  "TraLO is #1 of five on ccF1 / AP / AUROC, 6/6 cells each" until 2026-09-04.**
+  Two of the five are dead arms, so the field is THREE, and on ccF1 `tralo`
+  +0.0080 vs `alm` +0.0075 is a TIE at the top by this file's own one-item rule.
+  As deployed, TraLO is #1 in **0 of 15** cells (FRAMEWORK 2(z43)).
+- ⛔⛔ **"First campaign at equal dose. All five trained arms 100.0%; `hounie`
+  672/672" IS THE EXACT OPPOSITE OF THE TRUTH, AND IT IS THE WORST SENTENCE
+  THIS PROJECT WROTE.** **672 = 24 x 28 and 696 = 24 x 29.** The number quoted
+  as proof of parity IS the defect. The "100.0%" is applied/attempted computed
+  WITHIN each arm and is structurally blind to a gap BETWEEN arms. `dom1` is
+  not the first campaign at equal dose; it is the first campaign whose dose was
+  written down per arm, which is how the gap was eventually found. **The clause
+  that survives is the last one: no earlier dual-vs-dual number is safe -- and
+  now, neither is this one.** FRAMEWORK 2(x), 2(z40).
 - **The four lambda=0 nulls are byte-identical 24/24**, so the compute term is
   shared exactly and arm differences are the method.
 
@@ -745,12 +841,12 @@ which is not the thesis.
 
 | claim | reality |
 |---|---|
-| TraLO > fioretto | **AP 3/6 cells, p=1.00. A coin flip.** |
-| TraLO > alm | 4/6 on everything, p=0.69. Not shown. |
-| TraLO > hounie | 6/6 AP+AUROC on dom1, p=0.031, **fails BH** -- and on dom1b (RegNet) `tralo` is **4th of 5 on AP and 3rd on AUROC**, both **below its own reseed floor**. The ranking lead does not reproduce. FRAMEWORK 2(z5) |
+| ~~TraLO > fioretto~~ | ⛔ **UNANSWERABLE 2026-09-04.** ~~AP 3/6 cells, p=1.00. A coin flip.~~ `fioretto` is a DEAD ARM at 28.00 steps in every campaign that ran it on the recipe |
+| TraLO > alm **(the only surviving rival dual)** | 4/6 on everything, p=0.69. Not shown. As deployed, #1 in **0 of 15** cells (FRAMEWORK 2(z43)) |
+| ~~TraLO > hounie~~ | ⛔ **UNANSWERABLE 2026-09-04.** ~~6/6 AP+AUROC on dom1, p=0.031, fails BH~~ -- `hounie` is a DEAD ARM at 28.00 steps. **The dom1b half SURVIVES via `alm`**, which is live: on RegNet `tralo` is **2nd of 3 on both AP and AUROC, behind `alm`** (+0.0314 vs +0.0458; +0.0044 vs +0.0069) and **below its own reseed floor** on each. The ranking lead does not reproduce. FRAMEWORK 2(z5) |
 | Anything survives correction | **0 of 20 contrasts** -- and it is worse than that: the independent unit is **(model, seed) = 8**, not 6 cells, because a lambda=0 twin is byte-identical across cap tags. **8 of 9 dom1 sweeps evaporate at n=8**; only class 4's allocated damage survives (0/8, p=0.0078). FRAMEWORK 2(z) |
 | macroF1 | **-0.0022, 2/6 on MobileNet** -- but **+0.0196 (3/3) tight and +0.0021 loose on ViTB16**, against a reseed floor of -0.0366 loose. Backbone-dependent, and the damage is REPRESENTATION drift, not allocation (RAW -0.0107 is 44% LARGER than deployed -0.0074) |
-| TraLO enforces better | **REFUTED.** Pulls +6.2 items vs hounie +23.4. The WEAKEST of the four |
+| TraLO enforces better | **REFUTED.** ⛔ This said "Pulls +6.2 items vs hounie +23.4. The WEAKEST of the four" until 2026-09-04; `hounie` is a dead arm. **The finding survives on `alm`, which is live: +6.2 items against `alm`'s +17.8, a third of the enforcement, and still the weaker of the two comparable arms** |
 | Constraints ever satisfied in training | **0 of 696 epochs.** The post-hoc allocator does all of it |
 | dom1 is the headline | **No.** FRAMEWORK 1-pre fixed **ViTB16** a priori; dom1 has none |
 
@@ -872,14 +968,21 @@ and FRAMEWORK 3(0), then start the next.
 
 0. 🟢 **RUNNING (204/216): `equaldose1`** -- and it has ALREADY ANSWERED
    BOTH ITS OWN QUESTION AND `taskwin2`'s. FRAMEWORK 2(z19).
-   ✅ **Dose: closed, in TraLO's favour.** `tralo` +0.0275 AP against
-   `tralo_lam0` +0.0287 -- indistinguishable, so the 3.4% step head start is
-   NOT the source of the lead.
+   ⛔⛔ **DOSE: REOPENED 2026-09-04.** This read: "Dose: closed, in TraLO's
+   favour. `tralo` +0.0275 AP against `tralo_lam0` +0.0287 -- indistinguishable,
+   so the 3.4% step head start is NOT the source of the lead." **`tralo_lam0`
+   is itself at 28.00 steps and is a DEAD ARM in this campaign**, so the
+   control built to close the objection is the one the defect landed on, and no
+   dose-matched control survives anywhere. `vitdual2` (32/88) is the only
+   campaign that can close it. See item 3 in 0-NOW for the design-vs-defect
+   tension, which is recorded and NOT resolved.
    ✅ **4 of its 6 cells are inside the measured task window** (all three
    MobileNetV2 caps + `MobileNetV3/L90_G95`), and in those cells `tralo` leads
-   every rival on ccF1 (+2.32 items vs `fioretto` +1.62, `alm` -0.73, `hounie`
-   -2.30, both clippers below -2.7) and is the ONLY arm with near-zero macroF1
-   damage (-0.0011).
+   **`alm`, the one surviving rival**, on ccF1 (+2.32 items vs -0.73, both
+   clippers below -2.7) and is the ONLY arm with near-zero macroF1 damage
+   (-0.0011). ⛔ **This read "leads every rival on ccF1 (+2.32 items vs
+   `fioretto` +1.62, `alm` -0.73, `hounie` -2.30)" until 2026-09-04**; two of
+   those three rivals are dead arms.
    🔴 **But the RNG reseed floor in those cells is 3.39 items against
    `tralo`'s 2.32 -- 0.68x, BELOW the floor**, and restricting to task cells
    makes that ratio worse, not better (1.10x over all 6).

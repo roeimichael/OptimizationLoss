@@ -63,6 +63,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from scripts import quarantine
 from scripts.full_panel import effective_budget, equalize_multi
 from src.training.constraints import (compute_global_constraints,
                                       compute_local_constraints,
@@ -116,7 +117,33 @@ def main():
     a.add_argument("--control", default="clip",
                    help="arm whose achieved score sets the headroom. clip is "
                         "the stronger clipper and the honest bar.")
+    a.add_argument("--allow-quarantined", action="store_true",
+                   help="price a campaign `scripts.quarantine` marked dead")
     args = a.parse_args()
+
+    # 🛑 THE QUARANTINE GATE. Audited 2026-09-04: this tool had NONE, so a
+    # marker on a dead campaign prevented nothing here -- and this is the tool
+    # that prices every direction before a GPU is spent. No fallback import --
+    # if the gate cannot load, the tool must break.
+    #
+    # ⚠️ GATE ONLY, AND THERE IS NO DEAD-ARM FILTER TO ADD HERE. Unlike the
+    # six scorers beside it this prints NO arm-vs-arm contrast: `ceiling`,
+    # `achieved`, `headroom`, `excess` and `binds` are read from `--control`
+    # alone (`eq` is built only when `arm == args.control`), so a dead arm
+    # cannot reach any of those columns however many of its runs are on disk.
+    # The one line that does count every arm is the ALLOCATOR short-fall
+    # tally, and that is a pooled property of the allocator rather than a
+    # comparison -- the partial markers here are about constraint DOSE, which
+    # does not change whether an allocator emitted fewer than K. Filtering it
+    # would claim the marker says something it does not.
+    #
+    # So the dead-arm half of the verdict is deliberately discarded, and this
+    # comment is the reason rather than an oversight: if this tool ever grows
+    # a per-arm column, it needs the filter the other six got.
+    from scripts.quarantine import gate
+    blocked, _ = gate([args.root], args.allow_quarantined, "price")
+    if blocked:
+        return 1
 
     runs = sorted(f.parent
                   for f in Path(args.root).rglob("final_predictions_raw.csv"))
@@ -179,7 +206,11 @@ def main():
                 short_tot += 1
                 short_n += int((stored == c).sum()) < k
 
-    print("HEADROOM AND WHAT IT COSTS IN ITEMS   (control = %s)\n" % args.control)
+    # Name the CAMPAIGN, not the path given: pricing one backbone at a time
+    # (`headroom results/dom1/MobileNetV2`) is a normal thing to do here, and
+    # a table read out of scrollback has to say which campaign produced it.
+    print("HEADROOM AND WHAT IT COSTS IN ITEMS   (%s, control = %s)\n"
+          % (quarantine.campaign_name(args.root), args.control))
     print("%-10s %5s %6s %6s %8s %9s %9s %9s %8s %7s"
           % ("cap", "class", "n", "K", "ceiling", "achieved", "headroom",
              "= items", "excess", "binds"))

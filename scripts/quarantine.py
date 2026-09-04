@@ -296,6 +296,40 @@ def is_quarantined(root):
         p = parent
 
 
+def campaign_name(root):
+    """The CAMPAIGN this path belongs to, not its last path component.
+
+    🛑 `paper_rows` gates by NAME, because it reads a CSV and has no path to
+    walk. `cell_table` wrote `os.path.basename(root)` into that CSV, so
+    scoring one backbone at a time -- `--campaign results/dom1/MobileNetV2`,
+    a normal thing to do -- wrote `MobileNetV2`, and `by_name("MobileNetV2")`
+    returned None. The name-keyed gate was defeated by one path component,
+    exactly as the path-keyed one had been before `is_quarantined` learned to
+    walk ancestors.
+
+    So resolve the name the same way the marker is found: walk up to the
+    nearest directory that carries a marker or matches a registry key, and stop
+    at `results`. Falls back to the basename when nothing matches, which is the
+    right answer for an unregistered campaign.
+    """
+    p = os.path.abspath(root)
+    last = os.path.basename(p)
+    while True:
+        base = os.path.basename(p)
+        if base in REGISTRY or _marker_at(p):
+            return base
+        parent = os.path.dirname(p)
+        if parent == p:
+            return os.path.basename(os.path.abspath(root))
+        if os.path.basename(parent) == "results":
+            # The child of `results` IS the campaign root by convention, so an
+            # UNREGISTERED campaign scored one backbone at a time still reports
+            # the campaign rather than the backbone.
+            return base
+        last = base
+        p = parent
+
+
 def refuses_scoring(root):
     """The HARD refusal: the marker, but only when nothing may be scored.
 
@@ -464,7 +498,7 @@ def gate(campaigns, allow=False, verb="score", out=sys.stdout):
         print("Pass --allow-quarantined only if you know why the marker is "
               "there and are", file=out)
         print("reporting the campaign as quarantined anyway.", file=out)
-        return True, set()
+        return True, DeadArms()
     for c, q in hard:
         print("!! %sING A QUARANTINED CAMPAIGN: %s -- %s"
               % (verb.upper(), c, q.get("reason")), file=out)
@@ -472,12 +506,12 @@ def gate(campaigns, allow=False, verb="score", out=sys.stdout):
 
     _announce_cells(campaigns, out)
 
-    dead = set()
+    dead = DeadArms()
     for c in campaigns:
         d = dead_arms(c)
         if not d:
             continue
-        dead |= d
+        dead[campaign_name(c) or c] = frozenset(d)
         q = is_quarantined(c) or {}
         print("!! PARTIAL QUARANTINE: %s" % c, file=out)
         print("   %s" % q.get("reason"), file=out)
@@ -487,6 +521,118 @@ def gate(campaigns, allow=False, verb="score", out=sys.stdout):
               % q.get("keep_for"), file=out)
         print("", file=out)
     return False, dead
+
+
+def arm_of_run(path):
+    """The arm a run path belongs to. `<root>/<model>/<ds>/<cap>/<arm>/seed_N`.
+
+    Accepts the seed directory or any file inside it, so a caller holding
+    `.../seed_1/config.json` and one holding `.../seed_1` get the same answer.
+    """
+    q = os.path.normpath(path)
+    if os.path.basename(q).startswith("seed_"):
+        return os.path.basename(os.path.dirname(q))
+    parts = q.split(os.sep)
+    for i, seg in enumerate(parts):
+        if seg.startswith("seed_") and i:
+            return parts[i - 1]
+    return None
+
+
+class DeadArms(dict):
+    """{campaign name -> frozenset(dead arms)}. PER CAMPAIGN, never a union.
+
+    🛑 A UNION DELETES ARMS FROM A HEALTHY CAMPAIGN. `gate()` used to fold
+    every campaign's dead arms into one set and hand that to the filter, so
+    `full_panel --campaign results/dom1 results/taskwin2` dropped `fioretto`
+    and `hounie` from `taskwin2` -- which carries no marker at all -- while
+    printing "everything else in this campaign is unaffected". A disqualified
+    contrast and a missing one read identically in the output, and the second
+    is absence of evidence.
+
+    `paper_rows` already keyed by campaign; the six path-based scorers did
+    not. This is that shape, made shared, so the two cannot disagree again.
+    """
+
+    def for_path(self, path):
+        """The dead arms of the campaign `path` belongs to. Empty if none."""
+        if not self:
+            return frozenset()
+        name = campaign_name(path)
+        if name in self:
+            return self[name]
+        # A path under a campaign the caller named by a different string still
+        # has to resolve, so fall back to a prefix match on the raw roots.
+        q = os.path.normpath(path).replace(os.sep, "/")
+        for camp, arms in self.items():
+            if ("/%s/" % camp) in q + "/":
+                return arms
+        return frozenset()
+
+    def union(self):
+        out = set()
+        for v in self.values():
+            out |= set(v)
+        return out
+
+
+def drop_dead_runs(paths, dead, out=sys.stdout, label="run"):
+    """Remove runs belonging to a PARTIALLY quarantined campaign's dead arms.
+
+    🛑 ANNOUNCING A PARTIAL MARKER IS NOT ENFORCING IT. `gate()` returns the
+    dead arms so callers can drop the contrasts that touch them, and until
+    2026-09-04 SIX of the seven scorers bound that return value and never
+    looked at it again: `deployed_h2h` would print the PARTIAL banner and then
+    rank `fioretto` or `hounie` #1 in a `dom1` cell, which is precisely the
+    comparison the marker says is not comparable. Only `paper_rows` filtered.
+
+    So the filtering lives here, next to the marker, and every scorer calls it
+    at the point it enumerates runs. Returns the survivors, and PRINTS what it
+    removed -- a silent drop turns a disqualified contrast into a missing one,
+    which reads as absence of evidence rather than exclusion.
+    """
+    if not dead:
+        return list(paths)
+    per_campaign = isinstance(dead, DeadArms)
+    keep, dropped, unreadable = [], {}, []
+    for p in paths:
+        arms = dead.for_path(p) if per_campaign else dead
+        arm = arm_of_run(p)
+        if arm is None:
+            # 🛑 FAIL CLOSED. `arm_of_run` returns None for any layout it does
+            # not recognise, and KEEPING those silently made the filter a
+            # no-op on `score_scan`'s flat `seed1_<arm>` roots: the PARTIAL
+            # banner printed, 0 of N were dropped, and the dead arms scored.
+            # Every other fail-direction in this module is fail-closed.
+            unreadable.append(p)
+            continue
+        if arm in arms:
+            dropped[arm] = dropped.get(arm, 0) + 1
+        else:
+            keep.append(p)
+    if unreadable:
+        print("!! %d %s(s) are in a layout this filter cannot read, so their "
+              "ARM is unknown:" % (len(unreadable), label), file=out)
+        for u in unreadable[:5]:
+            print("     %s" % u, file=out)
+        if len(unreadable) > 5:
+            print("     ... and %d more" % (len(unreadable) - 5), file=out)
+        print("   A dead arm could be among them. They are EXCLUDED rather "
+              "than kept: this campaign", file=out)
+        print("   carries a partial quarantine, and keeping an unclassifiable "
+              "run fails the marker open.", file=out)
+        print("", file=out)
+    if dropped:
+        print("!! DROPPED %d %s(s) belonging to quarantined arms: %s"
+              % (sum(dropped.values()), label,
+                 ", ".join("%s x%d" % (a, n) for a, n in sorted(dropped.items()))),
+              file=out)
+        print("   Those arms ran at a different constraint dose, so any "
+              "contrast touching them", file=out)
+        print("   is not comparable. Everything else in this campaign is "
+              "unaffected.", file=out)
+        print("", file=out)
+    return keep
 
 
 def live_config_paths():

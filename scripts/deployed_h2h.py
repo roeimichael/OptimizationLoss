@@ -47,6 +47,7 @@ import math
 import os
 import statistics as st
 import sys
+from scripts import quarantine
 
 # The recipe boundary. A campaign outside it is a DIFFERENT METHOD and pooling
 # it silently is how the corpus got five TraLO configurations. Post-hoc arms
@@ -143,18 +144,20 @@ def ccf1(per, classes):
     return sum(vals) / len(vals) if vals else float("nan")
 
 
-def collect(roots):
+def collect(roots, dead=()):
     """cell key -> arm -> seed -> record."""
     cells = {}
     for root in roots:
-        for fin in sorted(glob.glob(os.path.join(
-                root, "*", "*", "*", "*", "seed_*", "final_predictions.csv"))):
+        for fin in quarantine.drop_dead_runs(sorted(glob.glob(os.path.join(
+                root, "*", "*", "*", "*", "seed_*", "final_predictions.csv"))),
+                dead, label="deployed run"):
             run = os.path.dirname(fin)
             rec = read_run(run)
             if rec is None:
                 continue
             cfg = rec["cfg"]
-            key = (os.path.basename(root.rstrip(os.sep)),
+            key = ((quarantine.campaign_name(root)
+                     or os.path.basename(root.rstrip(os.sep))),
                    cfg.get("model_name"), cfg.get("dataset_mode"),
                    cfg.get("constraint_tag"),
                    "-".join(str(c) for c in rec["classes"]))
@@ -542,7 +545,7 @@ def main():
     blocked, dead = gate(args.campaign, args.allow_quarantined, "compare")
     if blocked:
         return 1
-    cells = collect(args.campaign)
+    cells = collect(args.campaign, dead)
     if not cells:
         print("no runs on the current recipe under %s" % " ".join(args.campaign))
         return 1

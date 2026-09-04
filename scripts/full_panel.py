@@ -48,6 +48,7 @@ from sklearn.metrics import (average_precision_score, roc_auc_score, f1_score,
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scripts.score_arm import equalize                            # noqa: E402
+from scripts import quarantine                                    # noqa: E402
 from src.training.constraints import (compute_global_constraints,  # noqa: E402
                                       compute_local_constraints, normalize_constrained_classes)
 from src.utils.constants import UNLIMITED                          # noqa: E402
@@ -1579,7 +1580,9 @@ def main():
     prov_src = collections.defaultdict(set)
     unstamped = 0
     for camp in args.campaign:
-        for p in glob.glob(camp + "/**/config.json", recursive=True):
+        for p in quarantine.drop_dead_runs(
+                glob.glob(camp + "/**/config.json", recursive=True),
+                DEAD_ARMS, label="config"):
             try:
                 cfg = json.load(open(p))
             except Exception:

@@ -48,20 +48,53 @@ ROW = re.compile(r"^\s*\|.*?\b(\d+)\s*/\s*(\d+)\b.*?\|\s*\**(0?\.\d+)\**\s*\|")
 
 
 def ledger_size():
-    """len(MEASURED_UNITS), read by AST so importing scripts/ is not required."""
+    """The number of DISTINCT independent units, read by AST.
+
+    🛑 COUNT THE VALUES, NOT THE KEYS. `MEASURED_UNITS` maps
+    `(campaign, backbone) -> unit id`, and several campaigns deliberately map
+    to the SAME unit because they are the same model byte-identically --
+    `coin1` is `dom1b`, `coin2` is `equaldose1`, `taskwin2` and `equaldose1`
+    share MobileNetV3. Nine keys, FIVE units.
+
+    This function returned `len(keys)` until 2026-09-04, so the gate whose
+    entire job is stopping a document from claiming more units than the ledger
+    licenses was itself over-counting the ledger 9 to 5. The floor it enforced
+    was `0.5^9 = 0.00195` instead of `0.5^5 = 0.03125`, i.e. it would have
+    waved through a claim of `p=0.01` or of `8/8 units` -- exactly the
+    inflation it exists to catch. A campaign pair is not a free replicate, and
+    the reason the ledger is keyed this way in the first place is that
+    somebody already made that mistake once.
+    """
     src = io.open(os.path.join(ROOT, "scripts", "paper_rows.py"),
                   encoding="utf-8").read()
     for node in ast.walk(ast.parse(src)):
         if (isinstance(node, ast.Assign) and node.targets
                 and isinstance(node.targets[0], ast.Name)
                 and node.targets[0].id == "MEASURED_UNITS"):
-            return len(node.value.keys)
+            ids = set()
+            for v in node.value.values:
+                if isinstance(v, ast.Constant):
+                    ids.add(v.value)
+                else:                      # not a literal -> cannot be counted
+                    raise AssertionError(
+                        "MEASURED_UNITS holds a non-literal unit id; this "
+                        "gate reads it statically and must not guess")
+            return len(ids)
     raise AssertionError("MEASURED_UNITS not found in scripts/paper_rows.py")
 
 
 def _read(rel):
     p = os.path.join(ROOT, rel)
     return io.open(p, encoding="utf-8").read() if os.path.exists(p) else ""
+
+
+# A p-value in prose is ROUNDED. `0.5^5 = 0.03125` is legitimately written
+# `0.031`, and `0.5^9 = 0.001953125` as `0.0020` or `0.002`. An absolute
+# 1e-12 tolerance called all of those "below the floor" -- it flagged the
+# scanner's own correct-claim control. 5% relative covers rounding to two
+# significant figures and costs the gate nothing: the inflation it exists to
+# catch (p=0.001 against a 0.03125 floor) is a factor of THIRTY.
+FLOOR_TOL = 0.95
 
 
 def scan(text, n_units):
@@ -97,7 +130,7 @@ def scan(text, n_units):
                 pm = PVAL.search(line)
                 if pm:
                     p = float("0." + pm.group(1))
-                    if p < 0.5 ** got - 1e-12:
+                    if p < 0.5 ** got * FLOOR_TOL:
                         bad.append((i, "quotes p=%.4g below the 0.5^%d = %.4g "
                                     "floor for its own n" % (p, got, 0.5 ** got),
                                     stripped[:110]))
@@ -113,7 +146,7 @@ def scan(text, n_units):
                 if tot > n_units:
                     bad.append((i, "table row claims %d units; the ledger "
                                 "licenses %d" % (tot, n_units), stripped[:110]))
-                elif got == tot and p < 0.5 ** got - 1e-12:
+                elif got == tot and p < 0.5 ** got * FLOOR_TOL:
                     bad.append((i, "table row quotes p=%.4g below the 0.5^%d = "
                                 "%.4g floor" % (p, got, 0.5 ** got), stripped[:110]))
     return bad, floor
@@ -177,3 +210,50 @@ def test_NEGATIVE_CONTROL_the_scanner_catches_an_inflated_claim():
 def test_the_sign_test_floor_is_what_the_docs_say_it_is(n, expected):
     """0.5^n, quoted all over the repo. Cheap, and it has been got wrong."""
     assert math.isclose(0.5 ** n, expected, rel_tol=1e-12)
+
+
+def test_NEGATIVE_CONTROL_a_campaign_pair_is_not_a_free_replicate():
+    """`ledger_size` must count UNITS, never campaign keys.
+
+    Two campaigns that are the same model byte-identically map to one unit id
+    on purpose -- `coin1` is `dom1b`, `coin2` is `equaldose1`. Counting the
+    keys inflates the ledger (measured: 9 keys, 5 units) and drops the sign
+    floor from `0.5^5 = 0.03125` to `0.5^9 = 0.00195`, which would license a
+    claim thirty times stronger than the evidence. That is precisely the
+    inflation this whole file exists to prevent, so it is checked directly
+    rather than trusted.
+    """
+    import ast as _ast
+    import tempfile
+
+    def _size_of(literal):
+        d = tempfile.mkdtemp()
+        os.makedirs(os.path.join(d, "scripts"))
+        target = os.path.join(d, "scripts", "paper_rows.py")
+        io.open(target, "w", encoding="utf-8").write(
+            "MEASURED_UNITS = " + literal + chr(10))
+        tree = _ast.parse(io.open(target, encoding="utf-8").read())
+        node = [n for n in _ast.walk(tree)
+                if isinstance(n, _ast.Assign)][0]
+        return len({v.value for v in node.value.values})
+
+
+    four_keys_two_units = ('{("a", "M"): "U1", ("b", "M"): "U1", '
+                           '("c", "N"): "U2", ("d", "N"): "U2"}')
+    got = _size_of(four_keys_two_units)
+    assert got == 2, (
+        "four campaigns sharing two unit ids counted as %d; a campaign pair "
+        "is not a free replicate, and counting keys would put the sign floor "
+        "at 0.5^4 = %.4g instead of the honest 0.5^2 = %.4g"
+        % (got, 0.5 ** 4, 0.5 ** 2))
+
+    # POSITIVE direction: genuinely distinct units must still count.
+    assert _size_of('{("a", "M"): "U1", ("b", "N"): "U2"}') == 2, (
+        "two distinct units did not count as two, so the fix above has "
+        "collapsed everything to one and the gate is vacuous")
+
+    # And the REAL ledger must agree with the documented figure.
+    assert ledger_size() == 5, (
+        "the ledger holds %d distinct units, not the 5 the documents claim. "
+        "Either MEASURED_UNITS gained a unit or a document is stale -- both "
+        "move the sign floor and neither may pass silently." % ledger_size())

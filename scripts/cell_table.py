@@ -38,6 +38,7 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scripts.full_panel import panel  # noqa: E402
+from scripts import quarantine  # noqa: E402
 
 # The axis that may be collapsed. Everything else is part of the cell identity.
 SEED_AXIS = "seed"
@@ -47,13 +48,23 @@ METRICS = ["AP", "AUROC", "ccF1", "ccP", "ccR", "macroF1", "macroP", "macroR",
            "uncF1", "acc", "ECE", "Brier", "NLL", "ConfGap"]
 
 
-def collect(roots):
-    """One row per COMPLETED run, with the campaign name attached."""
+def collect(roots, dead=()):
+    """One row per COMPLETED run, with the campaign name attached.
+
+    `dead` is the arm set a PARTIAL quarantine marker disqualifies. It is
+    a PARAMETER rather than a global because the gate runs in `main` and
+    the enumeration runs here: reading it off the enclosing scope was a
+    NameError waiting for the first partially-quarantined campaign.
+    """
     rows = []
     skipped = collections.Counter()
+    first_error = {}
+    per_campaign = collections.Counter()
     for camp in roots:
-        name = os.path.basename(os.path.normpath(camp))
-        for p in glob.glob(camp + "/**/config.json", recursive=True):
+        name = quarantine.campaign_name(camp)
+        for p in quarantine.drop_dead_runs(
+                glob.glob(camp + "/**/config.json", recursive=True),
+                dead, label="config"):
             try:
                 cfg = json.load(open(p))
             except Exception:
@@ -64,7 +75,13 @@ def collect(roots):
             try:
                 r = panel(os.path.dirname(p), cfg)
             except Exception as exc:
-                skipped["panel raised: %s" % type(exc).__name__] += 1
+                # The TYPE alone is not diagnosable. `taskwin2` lost all 48 of
+                # its runs to a bare `panel raised: TypeError 48` line, which
+                # says nothing about which run or why, and reads like routine
+                # attrition next to `skipped pending 12`.
+                key = "panel raised: %s: %s" % (type(exc).__name__, exc)
+                skipped[key[:120]] += 1
+                first_error.setdefault(key[:120], p)
                 continue
             if not r:
                 skipped["unscorable"] += 1
@@ -74,6 +91,22 @@ def collect(roots):
             r["steps_applied"] = res.get("constraint_steps_applied")
             r["steps_attempted"] = res.get("constraint_steps_attempted")
             rows.append(r)
+            per_campaign[name] += 1
+
+    # 🛑 A CAMPAIGN THAT CONTRIBUTES NOTHING IS NOT "SOME RUNS SKIPPED". It is
+    # a campaign silently absent from every table built off this CSV, and it
+    # reads downstream as an absence of evidence rather than a failure to read.
+    for camp in roots:
+        nm = quarantine.campaign_name(camp)
+        if not per_campaign.get(nm):
+            print("!! %s CONTRIBUTED ZERO ROWS -- it is absent from this table "
+                  "entirely, which is" % nm)
+            print("   NOT the same as having nothing to say. Reasons counted "
+                  "below; first example path")
+            print("   for each is printed so it can be reproduced.")
+    for key, path in sorted(first_error.items()):
+        print("   %s" % key)
+        print("     first at: %s" % path)
     return pd.DataFrame(rows), skipped
 
 
@@ -228,7 +261,7 @@ def main(argv=None):
     if blocked:
         return 1
 
-    df, skipped = collect(args.campaign)
+    df, skipped = collect(args.campaign, DEAD_ARMS)
     if df.empty:
         print("no completed, scorable runs in %s" % " ".join(args.campaign))
         for k, v in skipped.most_common():
@@ -240,9 +273,26 @@ def main(argv=None):
           % (len(df), len(c)))
     counts = c.drop_duplicates(["dataset", "model", "cap"])["task"]
     tally = {k: int(v) for k, v in counts.value_counts().items()}
-    print("  cap poses a question in %d of %d (dataset, model, cap) "
-          "cell(s): %s"
-          % (tally.get("task", 0), int(counts.size), tally))
+    # 🛑 `unavailable` IS NOT ZERO. When `configs.task_cells` cannot be
+    # imported -- routine in a PINNED worktree, and true today of
+    # `~/OptimizationLoss`, whose `configs/` predates the instrument -- every
+    # cell lands in `unavailable` and this line printed `cap poses a question
+    # in 0 of 11`. A missing instrument was being reported as eleven measured
+    # non-tasks, which is the exact inversion 2(z25) is about, in the tool a
+    # reader trusts to tell them whether the campaign was worth running.
+    if tally.get("unavailable"):
+        print("  !! cap-poses-a-question is UNKNOWN for %d of %d cell(s): the "
+              "task-window" % (tally["unavailable"], int(counts.size)))
+        print("     instrument is not importable in this checkout. This is "
+              "NOT a count of zero,")
+        print("     and it is NOT a pass. Re-run from a checkout that has "
+              "`configs/task_cells.py`.")
+    known = int(counts.size) - tally.get("unavailable", 0)
+    if known:
+        print("  cap poses a question in %d of %d MEASURABLE (dataset, model, "
+              "cap) cell(s): %s"
+              % (tally.get("task", 0), known,
+                 {k: v for k, v in tally.items() if k != "unavailable"}))
     if tally.get("non_task"):
         print("  !! %d cell(s) pose NO question (FRAMEWORK 2(z17)). "
               "Their arms cannot be" % tally["non_task"])

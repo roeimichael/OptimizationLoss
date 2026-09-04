@@ -388,8 +388,24 @@ def main():
     if blocked:
         return 1
 
+    # Every arm here is NAMED on the command line, so the enforcement is a
+    # refusal rather than a filter: a noise floor built from a disqualified
+    # arm would price every later contrast off it.
+    named = (args.bar, args.control, args.floor, args.treated)
+    # PER CAMPAIGN. A union over several roots would disqualify an arm here
+    # because a DIFFERENT campaign marked it.
+    here = dead.for_path(args.campaign) if hasattr(dead, "for_path") else dead
+    hit = sorted(set(named) & set(here))
+    if hit:
+        print("REFUSING: %s is a DEAD arm of this campaign (partial "
+              "quarantine). Every number this tool prints would be priced "
+              "against it, so the refusal is unconditional -- "
+              "--allow-quarantined governs the campaign marker, not this. "
+              "Name a live arm instead." % ", ".join(hit))
+        return 1
+
     frames = {}
-    for name in (args.bar, args.control, args.floor, args.treated):
+    for name in named:
         frames[name] = load_arm(args.campaign, name, args.classes, args.fracs)
     per = len(args.classes) * len(args.fracs)
     print("runs: " + "  ".join(

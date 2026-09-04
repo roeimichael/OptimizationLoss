@@ -106,6 +106,22 @@ MEASURED_UNITS = {
     # unit. This does not change the unit COUNT -- it stops the same model
     # being counted twice.
     ("equaldose1", "MobileNetV3"): "C1",    # B / dsisco01, same model as above
+    # 🛑 AND FOUR MORE CAMPAIGNS ARE THE SAME UNITS AGAIN (2026-09-04). Every
+    # campaign missing from this table reads `UNVERIFIED`, which is the
+    # cautious label -- but a reader counting labels counted EIGHT units on the
+    # live corpus where there are FIVE, and `paper_rows` printed "6 of 8 carry
+    # a task cell" against a truth of 3 of 5. UNVERIFIED protects a SIGN test
+    # from a free replicate; it does not stop a COUNT being read off the line.
+    # Verified by md5 of `final_predictions_raw.csv`, not assumed:
+    #   coin1 / RegNetY400MF  == dom1b      8669c02f59  -> B1
+    #   coin2 / MobileNetV2   == equaldose1 e7be738bc8  -> A2
+    #   seed58a               is dom1b's backbone+host at SEEDS 5-8. New seeds
+    #                         are new models and NOT a new unit -- that is the
+    #                         whole point of the (backbone, host) key.
+    ("coin1", "RegNetY400MF"): "B1",        # B / dsisco01, == dom1b
+    ("coin2", "MobileNetV2"): "A2",         # B / dsisco01, == equaldose1
+    ("seed58a", "RegNetY400MF"): "B1",      # B / dsisco01, dom1b seeds 5-8
+    ("dom1", "MobileNetV3"): "C2",          # A / dsisco02, the other MNv3 host
 }
 
 # The contrasts a paper row may carry, and what each one licenses.
@@ -492,7 +508,14 @@ def main():
         print("Pass --allow-quarantined only to report them AS quarantined.")
         return 1
     dropped = 0
-    if partial and not args.allow_quarantined:
+    # 🛑 THE FLAG GOVERNS THE HARD MARKER, NOT THIS DROP. It used to
+    # read `if partial and not args.allow_quarantined`, so a user
+    # passing it to report a hard-quarantined campaign AS quarantined
+    # also, silently, re-admitted every PARTIAL campaign's dead-arm
+    # rows -- in the one tool whose job is saying what may be WRITTEN.
+    # The six path-based scorers cannot be overridden this way either:
+    # `gate()` returns the dead arms regardless of `allow`. One rule.
+    if partial:
         for camp, arms in sorted(partial.items()):
             print("!! PARTIAL QUARANTINE: %s -- dropping rows for %s"
                   % (camp, ", ".join(sorted(arms))))

@@ -115,6 +115,7 @@ import glob
 import json
 import os
 import sys
+from io import StringIO as _StringIO
 
 import numpy as np
 
@@ -128,6 +129,7 @@ from src.training.constraints import (cap_fraction_for,  # noqa: E402
 from scripts.task_window import (MIN_PRIZE, WIGGLE_MAX,  # noqa: E402
                                  load, select_local)
 from scripts.paired_noise import seeds_needed  # noqa: E402
+from scripts import quarantine  # noqa: E402
 
 # The gradient bar is WIGGLE_MAX expressed in the units that matter. p(1-p) is
 # what multiplies every per-item constraint gradient, so a cut at the existing
@@ -352,8 +354,10 @@ def classify(grad, band, spread, floor, n_seeds, reason=None, n_floor=None,
         return "UNDER-POWERED", (
             "the RNG floor itself rests on %d observation(s), under the %d "
             "bar; its median could be off by the width of the sample, so "
-            "spread %.1f vs floor %.1f decides nothing. Add a second family's "
-            "_null/_reseed pair, or seeds."
+            "spread %.1f vs floor %.1f decides nothing. Buy observations with "
+            "SEEDS, or with a distinct RNG STREAM (`tralo_reseed2`) -- NOT "
+            "with another family's `_reseed`, which is byte-identical because "
+            "lambda=0 makes every family plain CE (FRAMEWORK 2(z41))."
             % (n_floor, MIN_FLOOR_OBS, spread, floor))
     if spread >= floor:
         return "SENSITIVE", ("cross-arm spread %.1f items over an RNG floor of "
@@ -459,13 +463,23 @@ def screen_cell(runs, cls):
                 p_bd=g.get("p_bd"), grad_bd=g.get("grad_bd"))
 
 
-def screen(roots, classes=None):
-    """Every cell under every root, one row per (cell, capped class)."""
+def screen(roots, classes=None, dead=()):
+    """Every cell under every root, one row per (cell, capped class).
+
+    `dead` is the arm set a PARTIAL quarantine marker disqualifies. The
+    SPREAD axis is a typical ARM-PAIR difference, so leaving a dead arm in
+    silently prices every verdict off a contrast the marker calls not
+    comparable.
+    """
     rows = []
     for root in roots:
         cells = {}
-        for (camp, backbone, dataset, cap, arm, seed), run_dir, cfg in \
-                completed_runs(root):
+        here = completed_runs(root)
+        keep = set(quarantine.drop_dead_runs(
+            [d for _k, d, _c in here], dead, label="completed run"))
+        for (camp, backbone, dataset, cap, arm, seed), run_dir, cfg in here:
+            if run_dir not in keep:
+                continue
             cells.setdefault((camp, backbone, dataset, cap), {}) \
                  .setdefault(arm, {})[seed] = (run_dir, cfg)
         for key, runs in sorted(cells.items()):
@@ -532,10 +546,42 @@ def report(rows, out=sys.stdout):
     ok = tally.get("SENSITIVE", 0)
     if not ok:
         w()
-        w("NOT ONE CELL IS SENSITIVE. A full grid on this pair cannot "
-          "distinguish two methods,")
-        w("however well aimed either is. Change the pair before spending "
-          "another GPU-hour on it.")
+        w("NOT ONE CELL IS SENSITIVE.")
+        # 🛑 AND THE REASON DECIDES THE ACTION. This block used to say "change
+        # the pair" whatever the reason, which is the exact collapse this tool
+        # exists to prevent: SATURATED means the cell cannot show an effect and
+        # the pair is wrong; UNDER-POWERED means we could not SEE one and the
+        # pair may be perfectly good. On vitdual2 -- task cells, live gradient
+        # p(1-p) 0.019-0.114, full dose -- the honest advice is `add seeds`,
+        # and `change the pair` would have thrown away the best cells in the
+        # project.
+        sat = tally.get("SATURATED", 0)
+        und = tally.get("UNDER-POWERED", 0)
+        nod = tally.get("NOT DIFFERENTIATED", 0)
+        if sat and not und:
+            w("Every cell is SATURATED: the cut sits where p(1-p) is too small "
+              "for the penalty")
+            w("to move anything. CHANGE THE PAIR -- more seeds cannot buy a "
+              "gradient that")
+            w("is not there.")
+        elif und and not sat:
+            w("Every cell is UNDER-POWERED, which is NOT the same finding. The "
+              "cells may be")
+            w("fine; we could not have SEEN an effect at this many "
+              "observations. Buy seeds")
+            w("(`scripts.add_seeds`) and re-run this before changing anything "
+              "about the design.")
+        elif nod and not (sat or und):
+            w("Every cell is NOT DIFFERENTIATED: adequately powered and the "
+              "arms still agree.")
+            w("That is a real null about the METHODS, not about the cells.")
+        else:
+            w("A full grid on this pair cannot distinguish two methods as it "
+              "stands, but the")
+            w("cells do not agree on WHY (%d saturated, %d under-powered, %d "
+              "not differentiated)." % (sat, und, nod))
+            w("Read the per-cell reasons above -- they call for opposite "
+              "actions.")
     for r in rows:
         if r.get("trajectory"):
             camp, backbone, _ds, cap = r["cell"]
@@ -731,6 +777,34 @@ def self_test(out=sys.stdout):
               abs(GRAD_MIN - WIGGLE_MAX * (1 - WIGGLE_MAX)) < 1e-12)
         check("BAND_MIN is task_window's MIN_PRIZE (%.1f)" % BAND_MIN,
               BAND_MIN == MIN_PRIZE)
+
+        # -- THE SUMMARY MUST GIVE OPPOSITE ADVICE FOR OPPOSITE REASONS.
+        #    It said "change the pair" for every no-sensitive tally until
+        #    2026-09-04, which is this tool's own four-way distinction
+        #    collapsed in its own last line: on `vitdual2` -- verified task
+        #    cells, live gradient, full dose -- that advice would have thrown
+        #    away the best cells in the project for want of seeds.
+        def advice(verdicts):
+            rows = [dict(cell=("c", "b", "iwildcam", "L80_G95"), cls=2,
+                         verdict=v, why="w", n_seeds=4) for v in verdicts]
+            buf = _StringIO()
+            report(rows, out=buf)
+            return buf.getvalue()
+
+        sat_txt = advice(["SATURATED", "SATURATED"])
+        und_txt = advice(["UNDER-POWERED", "UNDER-POWERED"])
+        mix_txt = advice(["SATURATED", "UNDER-POWERED"])
+        check("all SATURATED -> CHANGE THE PAIR",
+              "CHANGE THE PAIR" in sat_txt and "Buy seeds" not in sat_txt)
+        check("all UNDER-POWERED -> buy seeds, and NOT change the pair",
+              "Buy seeds" in und_txt and "CHANGE THE PAIR" not in und_txt)
+        check("a MIXED tally says the cells disagree on why, rather than "
+              "picking one action",
+              "do not agree on WHY" in mix_txt
+              and "CHANGE THE PAIR" not in mix_txt)
+        check("and a SENSITIVE cell suppresses the whole block",
+              "NOT ONE CELL IS SENSITIVE"
+              not in advice(["SENSITIVE", "UNDER-POWERED"]))
     finally:
         shutil.rmtree(base, ignore_errors=True)
 
@@ -756,11 +830,12 @@ def main(argv=None):
     # 🛑 THE QUARANTINE GATE. Audited 2026-09-04: this tool had NONE,
     # so a marker on a dead campaign prevented nothing here. No fallback
     # import -- if the gate cannot load, the tool must break.
+    from scripts import quarantine
     from scripts.quarantine import gate
     blocked, dead = gate(a.campaign, a.allow_quarantined, "screen")
     if blocked:
         return 1
-    rows = screen(a.campaign, classes=a.classes)
+    rows = screen(a.campaign, classes=a.classes, dead=dead)
     if not rows:
         print("no completed runs under %s" % ", ".join(a.campaign))
         return 1

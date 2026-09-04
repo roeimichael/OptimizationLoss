@@ -1689,3 +1689,64 @@ def _all_values(node, key):
         for v in node:
             out.extend(_all_values(v, key))
     return out
+
+
+def test_no_shipped_module_references_an_UNDEFINED_NAME():
+    """LESSON, 2026-08 and again 2026-09-04: an undefined name ships silently.
+
+    The first time, three arms went out with an undefined name in `train()`.
+    They burned all 29 constraint epochs, died, were reset to `pending`, and
+    the campaign came back looking merely UNFINISHED -- with `audit_config`
+    and `check_parity` both green. `tests/gates/test_g4_grid.py` gates the
+    SYMPTOM (a crash log beside a pending config). This gates the CAUSE, which
+    is statically decidable and costs a second.
+
+    It recurred immediately on 2026-09-04 while wiring the dead-arm filter
+    into the scorers: `full_panel`, `cell_table` and `deployed_h2h` each
+    called `quarantine.drop_dead_runs` with no module-level import. Every one
+    of them PARSED, imported, and passed `--self-test`; the NameError fires
+    only on the branch that a partially-quarantined campaign reaches, which is
+    the branch that exists to prevent a wrong number. A gate that fires only
+    when the guard is needed is the worst possible failure mode.
+
+    NEGATIVE CONTROL: a module with a deliberate undefined name must be
+    reported, or this test cannot see the defect it is named for.
+    """
+    pyflakes = pytest.importorskip("pyflakes")
+    del pyflakes
+    NL = chr(10)
+
+    def undefined(path):
+        r = subprocess.run([sys.executable, "-m", "pyflakes", path],
+                           capture_output=True, text=True, cwd=REPO)
+        return [L for L in (r.stdout + r.stderr).split(NL)
+                if "undefined name" in L]
+
+    targets = []
+    for sub in ("scripts", "configs", "src"):
+        for dirpath, _d, files in os.walk(rel(sub)):
+            targets += [os.path.join(dirpath, f)
+                        for f in files if f.endswith(".py")]
+    targets.append(rel("main.py"))
+
+    bad = []
+    for path in sorted(targets):
+        bad += undefined(path)
+
+    # NEGATIVE CONTROL, in a temp file so nothing shipped is touched.
+    import tempfile
+    fd, ctrl = tempfile.mkstemp(suffix=".py", text=True)
+    os.close(fd)
+    try:
+        io.open(ctrl, "w", encoding="utf-8").write(
+            "def f():" + NL + "    return not_a_real_name" + NL)
+        if not undefined(ctrl):
+            bad.append("NEGATIVE CONTROL: pyflakes did not flag a deliberate "
+                       "undefined name, so this test detects nothing")
+    finally:
+        os.unlink(ctrl)
+
+    assert not bad, (
+        "%d undefined name(s) in shipped code. Each is a NameError that fires "
+        "only on the branch that reaches it:" + NL + "  %s"
+    ) % (len(bad), (NL + "  ").join(bad))

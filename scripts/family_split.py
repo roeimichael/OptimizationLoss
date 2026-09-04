@@ -33,9 +33,11 @@ import collections
 import io
 import json
 import os
+import sys
 
 import numpy as np
 
+from scripts import quarantine
 from scripts.full_panel import panel
 
 # Lower is better for these, so a raw delta flips sign before it is read.
@@ -149,7 +151,46 @@ def main():
                    default=["tralo", "fioretto", "hounie"])
     a.add_argument("--floor", default="tralo_reseed",
                    help="arm that differs from its null by RNG alone")
+    a.add_argument("--allow-quarantined", action="store_true",
+                   help="split a campaign `scripts.quarantine` marked dead")
     args = a.parse_args()
+
+    # 🛑 THE QUARANTINE GATE. Audited 2026-09-04: this tool had NONE, and it
+    # is the worst place for that -- `--families` DEFAULTS to
+    # `[tralo, fioretto, hounie]`, and TWO of those three are dead arms in
+    # `dom1`, `dom1b` and `equaldose1`. So the bare invocation printed a
+    # compute-vs-constraint split for arms that attempted 28.00 constraint
+    # steps against tralo's 29.00, with no banner whatsoever. No fallback
+    # import -- if the gate cannot load, the tool must break.
+    from scripts.quarantine import gate
+    blocked, dead = gate([args.campaign], args.allow_quarantined, "split")
+    if blocked:
+        return 1
+
+    # Every arm this tool reads is NAMED on the command line (`--control`,
+    # `--families`, `--floor`) or derived from those names by `null_of`, so
+    # the enforcement is a REFUSAL rather than a filter. Silently dropping a
+    # family would print a split over whichever families happened to survive
+    # and read as a complete table -- and on the DEFAULT invocation that is
+    # two thirds of the output. Same shape as `paired_noise`.
+    # PER CAMPAIGN, never a union: a union would disqualify an arm here
+    # because a DIFFERENT campaign marked it.
+    here = dead.for_path(args.campaign) if hasattr(dead, "for_path") else dead
+    named = [args.control, args.floor] + list(args.families)
+    hit = sorted(set(named) & set(here))
+    if hit:
+        # Name the CAMPAIGN, not the path given: scoring one backbone at a
+        # time (`--campaign results/dom1/MobileNetV2`) is normal here, and
+        # "results/dom1/MobileNetV2 marked fioretto dead" reads as a defect in
+        # the backbone.
+        print("REFUSING: %s is a DEAD arm of campaign `%s` (partial "
+              "quarantine). It ran at a different constraint dose, so its "
+              "compute/constraint split is not comparable with the rest of "
+              "the table -- and `--families` DEFAULTS to two of these. "
+              "--allow-quarantined governs the campaign marker, not this. "
+              "Name live arms instead."
+              % (", ".join(hit), quarantine.campaign_name(args.campaign)))
+        return 1
 
     rows = load(args.campaign)
     present = {arm for (_, arm, _) in rows}
@@ -250,7 +291,10 @@ def main():
     print("  while its constraint term is negative won on the 29 epochs, "
           "which every")
     print("  trained arm gets and which the clipper does not.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    # `main()` bare swallowed every return code, so the refusal above would
+    # have announced itself and still exited 0.
+    sys.exit(main())

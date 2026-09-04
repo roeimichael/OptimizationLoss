@@ -62,6 +62,7 @@ import torch
 
 from pathlib import Path
 
+from scripts import quarantine
 from scripts.reachability import budgets
 from src.losses.transductive_loss import uniform_grad_count
 
@@ -142,8 +143,17 @@ def report(z0, z1, capped):
     }
 
 
-def runs(root, arm):
-    for cfgp in glob.glob(os.path.join(root, "*/*/*/%s/*/config.json" % arm)):
+def runs(root, arm, dead=()):
+    """The stored states this probe steps FROM.
+
+    `dead` is the arm set a PARTIAL quarantine marker disqualifies. It is a
+    PARAMETER rather than a global because the gate runs in `main` while the
+    enumeration runs here; reading it off the enclosing scope is the exact
+    NameError three scorers shipped on 2026-09-04.
+    """
+    for cfgp in quarantine.drop_dead_runs(
+            glob.glob(os.path.join(root, "*/*/*/%s/*/config.json" % arm)),
+            dead, label="probed run"):
         d = os.path.dirname(cfgp)
         raw = os.path.join(d, "final_predictions_raw.csv")
         if os.path.exists(raw):
@@ -244,6 +254,8 @@ def main():
                         "remove this run's OWN excess (raw count - K), i.e. "
                         "reach feasibility through the output layer at all")
     a.add_argument("--no-self-test", action="store_true")
+    a.add_argument("--allow-quarantined", action="store_true",
+                   help="probe a campaign `scripts.quarantine` marked dead")
     args = a.parse_args()
 
     if args.self_test:
@@ -251,8 +263,23 @@ def main():
     if not args.campaign:
         a.error("--campaign is required (or use --self-test)")
 
+    # 🛑 THE QUARANTINE GATE. Audited 2026-09-04: this tool had NONE, so a
+    # marker on a dead campaign prevented nothing here. No fallback import --
+    # if the gate cannot load, the tool must break.
+    from scripts.quarantine import gate
+    blocked, dead = gate([args.campaign], args.allow_quarantined, "probe")
+    if blocked:
+        return 1
+    # A PARTIAL marker names arms whose contrasts are disqualified, and the
+    # stored state this probe steps FROM is one of those arms. Announcing is
+    # not enforcing, so the enumeration is FILTERED -- `--arm` selects a model
+    # state rather than a side of a contrast, so dropping its runs (loudly)
+    # is the right shape here where `family_split` needs a refusal. PER
+    # CAMPAIGN, never a union.
+    here = dead.for_path(args.campaign) if hasattr(dead, "for_path") else dead
+
     rows, unreachable, attempted = [], [], 0
-    for raw, cfg in runs(args.campaign, args.arm):
+    for raw, cfg in runs(args.campaign, args.arm, here):
         t = pd.read_csv(raw)
         cols = sorted((c for c in t.columns if c.startswith("Prob_Class_")),
                       key=lambda c: int(c.rsplit("_", 1)[1]))
@@ -331,7 +358,10 @@ def main():
     print("  what `d uncF1` is made of, and no cap can justify it.")
     print("  Effect is held equal across the rows, so the flips column is the")
     print("  PRICE each mode charges for the same amount of cap enforcement.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    # `main()` bare swallowed every return code, so both the refusal above and
+    # a FAILING `--self-test` exited 0.
+    sys.exit(main())

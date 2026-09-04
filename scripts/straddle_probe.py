@@ -117,9 +117,11 @@ import collections
 import glob
 import json
 import os
+import sys
 
 import numpy as np
 
+from scripts import quarantine
 from scripts.frozen_head_probe import (allocate, budgets, load_real,
                                        make_synthetic)
 
@@ -484,6 +486,8 @@ def main(argv=None):
                          "alphabetically-later cap level -- turning a "
                          "two-cap claim into a one-cap one with no message. "
                          "Same defect as step_direction_probe's old [:12].")
+    ap.add_argument("--allow-quarantined", action="store_true",
+                    help="probe a campaign `scripts.quarantine` marked dead")
     args = ap.parse_args(argv)
 
     if args.self_test:
@@ -496,6 +500,36 @@ def main(argv=None):
             recursive=True))]
     if not runs:
         raise SystemExit("no run directories given (or --self-test)")
+
+    # 🛑 THE QUARANTINE GATE. Audited 2026-09-04: this tool had NONE, so a
+    # marker on a dead campaign prevented nothing here -- and this probe is
+    # read as a PRICE for a direction, which is the number a campaign gets
+    # launched on. No fallback import -- if the gate cannot load, the tool
+    # must break.
+    #
+    # Gate the CAMPAIGNS, one representative path each, not every run: bare
+    # run directories are a supported input here (`straddle_probe <run> ...`)
+    # and each still has to be checked, but `gate` announces per root and
+    # would otherwise print the same banner once per seed.
+    from scripts.quarantine import gate
+    roots, seen = [], set()
+    for path in ([args.campaign] if args.campaign else []) + list(args.runs):
+        name = quarantine.campaign_name(path)
+        if name not in seen:
+            seen.add(name)
+            roots.append(path)
+    blocked, dead = gate(roots, args.allow_quarantined, "probe")
+    if blocked:
+        return 1
+    # A PARTIAL marker names arms whose contrasts are disqualified. Announcing
+    # is not enforcing: `pair_runs` below pairs each treated arm with its own
+    # `_null`, so a dead arm left in `runs` becomes a priced twin pair sitting
+    # in the same aggregate as the live ones. Resolved PER CAMPAIGN inside
+    # `drop_dead_runs`, never as a union over roots.
+    runs = quarantine.drop_dead_runs(runs, dead, label="probed run")
+    if not runs:
+        print("no probeable run survives the quarantine filter")
+        return 1
 
     print("STRADDLE PROBE -- how much headroom is REACHABLE by a bounded step?")
     print("Everything is in ITEMS. `oracle` is the unbounded gap to a perfect")
@@ -641,7 +675,10 @@ def main(argv=None):
     print("  A small `reachable` at the MEASURED delta says the constraint as")
     print("  configured cannot collect the oracle gap however it is tuned --")
     print("  a measurement, not a tie, and cheaper than the campaign it saves.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    # `main()` bare swallowed every return code, so both the refusal above and
+    # the existing `return 3` (nothing measured) exited 0.
+    sys.exit(main())

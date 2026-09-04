@@ -136,7 +136,13 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 551 regression tests, ~250s, no dataset needed
+python -m pytest tests -q                   # 572 regression tests, ~250s, no dataset needed
+#   `tests/test_scorers_run_end_to_end.py` EXECUTES every scorer as a subprocess
+#   against a campaign carrying a real PARTIAL marker. It exists because three
+#   scorers once used `quarantine.` with no module-level import: they PARSED,
+#   imported, passed every AST gate and were unrunnable on every input, and the
+#   NameError fired only on the branch that a quarantined campaign reaches --
+#   the branch that exists to prevent a wrong number. 6/6 mutations caught.
 #   `tests/test_lessons_learned.py` is the CATALOGUE OF LESSONS ALREADY PAID FOR:
 #   rejected backbones and datasets with the measured reason each was dropped,
 #   the ten deleted config footguns, the BF16/compute-capability split between
@@ -334,9 +340,20 @@ python -m scripts.deployed_h2h --campaign <roots> --control clip  # 🛑 THE ARM
 #   while both capture exactly 2602 items, an artefact of cc-F1 being
 #   macro-averaged over two classes whose (K+n) differ.
 #   🔑 IT REFUSES TO NAME A #1 when the spread is under the RNG floor,
-#   and on the clean corpus that is most cells: 19 cells, #1 namable in 6,
-#   refused in 13, and |tralo - rival| median 4.0 items against
-#   |tralo - tralo_reseed| median 4.0 -- ratio 1.00x. `--self-test` gates it.
+#   and on the clean corpus that is most cells. 🛑 **RECOUNTED 2026-09-04
+#   WITH THE DEAD ARMS DROPPED: over the 15 cells that carry rival duals,
+#   #1 is namable in 2 -- BOTH `alm`, and TraLO in ZERO.** All four of
+#   TraLO's former #1 calls were in verified `task` cells and every one was
+#   named because a DEAD ARM sat far enough below it to stretch the spread
+#   past the floor, not because it led `alm`. FRAMEWORK 2(z43).
+#   ⛔ This line said "19 cells, #1 namable in 6, refused in 13" until
+#   2026-09-04; `fioretto` held 2 of that 6. AND that tally does not
+#   reproduce -- the same roots now give 8 named, likely a scorer-version
+#   difference (server vs local md5). UNVERIFIED; re-run the local scorer.
+#   ⚠️ |tralo - rival| median 4.0 items POOLED `alm`+`fioretto`+`hounie`
+#   and must be recomputed against `alm` alone (n 180 -> ~60); the value is
+#   not restated because it is not measured. The floor it was compared to,
+#   |tralo - tralo_reseed| median 4.0, is unaffected. `--self-test` gates it.
 python -m scripts.dead_code --paths configs src   # what is DECLARED and never
 #   referenced. AST, never grep: a name in a docstring is not a call. A REPORT,
 #   not a gate -- a getattr-built call is invisible to it, so confirm by hand.

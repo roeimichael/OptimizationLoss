@@ -37,6 +37,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.utils.constants import UNLIMITED                     # noqa: E402
+from scripts import quarantine
 
 def capped_classes(run_dir):
     """The capped classes, from the run's own config.
@@ -115,6 +116,7 @@ def main():
     # 🛑 THE QUARANTINE GATE. Audited 2026-09-04: this tool had NONE,
     # so a marker on a dead campaign prevented nothing here. No fallback
     # import -- if the gate cannot load, the tool must break.
+    from scripts import quarantine
     from scripts.quarantine import gate
     blocked, dead = gate([args.root], args.allow_quarantined, "scan")
     if blocked:
@@ -127,6 +129,12 @@ def main():
     if not flat:
         # Nested campaign layout (<root>/<model>/<data>/<cap>/<arm>/<seed>/).
         dirs = sorted(f.parent for f in root.rglob("final_predictions.csv"))
+    # A PARTIAL marker names arms whose contrasts are disqualified. Binding
+    # `dead` and never using it announces the exclusion without performing it,
+    # which is how six of seven scorers still ranked dead arms after the
+    # banner printed.
+    dirs = [Path(p) for p in quarantine.drop_dead_runs(
+        [str(d) for d in dirs], dead, label="scored run")]
     if not dirs:
         print("no scored runs under %s" % args.root)
         return 1

@@ -445,7 +445,36 @@ def test_capped_class_deltas_carry_macro_and_uncapped_beside_them():
 #   the 2026-09-04 audit that found five of seven scorers checked nothing.
 # ==========================================================================
 SCORERS = ("full_panel", "cell_table", "deployed_h2h", "score_scan",
-           "paired_noise", "sensitivity_screen", "paper_rows")
+           "paired_noise", "sensitivity_screen", "paper_rows",
+           # Added 2026-09-04. A second audit found SIX more tools under
+           # `scripts/` that enumerate runs and produce a per-arm contrast
+           # while calling no quarantine symbol at all. Each is on this list
+           # because BOTH halves of the verdict are checkable in it: it takes
+           # campaign roots, so `gate(paths)` applies, and it names arms, so
+           # the dead-arm half has somewhere to go.
+           #
+           # `family_split` was the worst of them: `--families` DEFAULTS to
+           # `[tralo, fioretto, hounie]` and two of those three are dead arms
+           # in `dom1`, `dom1b` and `equaldose1`, so the BARE invocation
+           # printed a compute-vs-constraint split for disqualified arms with
+           # no banner whatsoever. `arm_identity_check --pairs` defaults to
+           # `alm:fioretto`, the same shape.
+           "family_split", "arm_identity_check", "straddle_probe",
+           "order_probe", "paired_seeds", "collateral_probe")
+
+# Tools that must REFUSE a wholly-quarantined campaign but have NO dead-arm
+# half to enforce, and are therefore held to the `blocked` check only.
+#
+# 🛑 THIS LIST IS NOT AN EXEMPTION HATCH, and it has exactly one member for a
+# reason. `headroom` prints no arm-vs-arm contrast at all: `ceiling`,
+# `achieved`, `headroom`, `excess` and `binds` are read from `--control`
+# alone, so a dead arm cannot reach a column of it. Requiring `dead_ok` there
+# would force a filter that filters nothing, and a gate that lists a tool it
+# cannot check is worse than not listing it -- but so is a tool with no gate
+# at all, which is what leaving `headroom` off both lists would mean.
+#
+# Anything that ranks, pairs or contrasts arms belongs in SCORERS instead.
+GATE_ONLY_SCORERS = ("headroom",)
 
 
 def _quarantine_symbols(src):
@@ -470,6 +499,157 @@ def _quarantine_symbols(src):
     return imported, called
 
 
+def _gate_verdict_used(src):
+    """(blocked_acted_on, dead_used) for a module that calls `gate`.
+
+    CALLING the gate is not OBEYING it, and this test used to check only the
+    call. Two separate defects hid behind that: a `blocked` that is bound and
+    never tested, and a `dead` that is bound and never used -- the second was
+    REAL in six of seven scorers on 2026-09-04, which is how `deployed_h2h`
+    printed a PARTIAL banner and then ranked a dead arm #1.
+
+    Both halves are traced to a use:
+      * `blocked` must appear in the test of an `If`;
+      * `dead` must be LOADED somewhere -- passed to `drop_dead_runs`, or
+        intersected with the arm names, or filtered against.
+    """
+    import ast
+    tree = ast.parse(src)
+
+    # 🛑 SCOPE THE SEARCH TO THE FUNCTION THAT OBTAINED THE VERDICT. Walking
+    # the whole module made this vacuous: `deployed_h2h`'s SELF-TEST has an
+    # unrelated local also called `dead`, so deleting the real enforcement
+    # left the module-wide load count unchanged and the mutation survived.
+    host = None
+    for fn in ast.walk(tree):
+        if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for n in ast.walk(fn):
+            if isinstance(n, ast.Assign) and isinstance(n.value, ast.Call):
+                f = n.value.func
+                nm = (f.id if isinstance(f, ast.Name)
+                      else f.attr if isinstance(f, ast.Attribute) else None)
+                if nm == "gate":
+                    host = fn
+                    break
+        if host is not None:
+            break
+    if host is None:
+        return False, False
+
+    blocked_names, dead_names = set(), set()
+    for n in ast.walk(host):
+        if not isinstance(n, ast.Assign) or not isinstance(n.value, ast.Call):
+            continue
+        f = n.value.func
+        nm = (f.id if isinstance(f, ast.Name)
+              else f.attr if isinstance(f, ast.Attribute) else None)
+        if nm != "gate":
+            continue
+        for tgt in n.targets:
+            if isinstance(tgt, ast.Tuple) and len(tgt.elts) == 2:
+                a, b = tgt.elts
+                if isinstance(a, ast.Name):
+                    blocked_names.add(a.id)
+                if isinstance(b, ast.Name):
+                    dead_names.add(b.id)
+    if not blocked_names and not dead_names:
+        return False, False
+
+    tested = set()
+    for n in ast.walk(host):
+        if isinstance(n, ast.If):
+            for sub in ast.walk(n.test):
+                if isinstance(sub, ast.Name) and sub.id in blocked_names:
+                    tested.add(sub.id)
+    blocked_ok = bool(blocked_names) and blocked_names <= tested
+
+    # The dead arms must reach a CALL or an operator -- passed to a filter,
+    # intersected with the arm names, compared. A load into a print is an
+    # announcement, and announcing is the defect, not the fix.
+    used = set()
+    for n in ast.walk(host):
+        if isinstance(n, ast.Call):
+            fname = (n.func.id if isinstance(n.func, ast.Name)
+                     else n.func.attr if isinstance(n.func, ast.Attribute)
+                     else None)
+            if fname in ("print", "format", "join", "write"):
+                continue
+            operands = list(n.args) + [k.value for k in n.keywords]
+        elif isinstance(n, (ast.Compare, ast.BinOp, ast.BoolOp)):
+            operands = [n]
+        else:
+            continue
+        for o in operands:
+            for sub in ast.walk(o):
+                if isinstance(sub, ast.Name) and sub.id in dead_names and                         isinstance(sub.ctx, ast.Load):
+                    used.add(sub.id)
+    dead_ok = bool(dead_names) and dead_names <= used
+    return blocked_ok, dead_ok
+
+
+def _explains_gate_only(src):
+    """Does this module say, in words, why it enforces no dead-arm filter?
+
+    The one thing a reader cannot recover from the code is INTENT: a scorer
+    that forgot its filter and a control-only tool that needs none look
+    identical at the call site. Requiring the sentence is what keeps
+    GATE_ONLY_SCORERS from becoming a place to park an oversight.
+    """
+    return "no dead-arm filter" in src.lower().replace("_", "-")
+
+
+def _namegate_verdict_used(src):
+    """(refuses, filters) for a scorer gated by campaign NAME, not by path.
+
+    `paper_rows` reads a `cell_table` CSV and has no directory to walk, so it
+    cannot call `gate(paths)`; it resolves each campaign with `by_name` and
+    DROPS rows. That is a different shape, not a weaker one -- it is the tool
+    that decides what may be WRITTEN -- so it gets its own recogniser rather
+    than an exemption, because an exemption by module name would silently
+    cover a future regression in the same file.
+
+    Four independent behaviours, all required:
+      * `by_name` is called;
+      * `dead_arms` is READ off the registry entry;
+      * an `If` refuses with a non-zero return;
+      * a comprehension FILTERS rows -- announcing is not dropping.
+    """
+    import ast
+    tree = ast.parse(src)
+    called = any(isinstance(n, ast.Call)
+                 and getattr(n.func, "id", getattr(n.func, "attr", None))
+                 == "by_name" for n in ast.walk(tree))
+    reads = any(isinstance(n, ast.Constant) and n.value == "dead_arms"
+                for n in ast.walk(tree))
+    refuses = any(
+        isinstance(n, ast.If) and any(
+            isinstance(s, ast.Return) and isinstance(s.value, ast.Constant)
+            and s.value.value not in (0, None)
+            for s in ast.walk(n))
+        for n in ast.walk(tree))
+    # `filters` must be the comprehension that references the DEAD-ARM
+    # mapping, not merely SOME comprehension: paper_rows has a dozen, so the
+    # loose version stayed True with the drop deleted and gated nothing.
+    carriers = set()
+    for n in ast.walk(tree):
+        if not isinstance(n, ast.Assign):
+            continue
+        if not any(isinstance(v, ast.Constant) and v.value == "dead_arms"
+                   for v in ast.walk(n.value)):
+            continue
+        for tgt in n.targets:
+            for sub in ast.walk(tgt):
+                if isinstance(sub, ast.Name):
+                    carriers.add(sub.id)
+    filters = any(
+        isinstance(n, (ast.ListComp, ast.GeneratorExp))
+        and any(isinstance(v, ast.Name) and v.id in carriers
+                for c in n.generators for f in c.ifs for v in ast.walk(f))
+        for n in ast.walk(tree))
+    return (called and reads and refuses), filters
+
+
 def test_every_scorer_actually_calls_the_quarantine_gate():
     """A marker only prevents a mistake in the tools that READ it.
 
@@ -477,12 +657,26 @@ def test_every_scorer_actually_calls_the_quarantine_gate():
     of the refusal each, and `deployed_h2h`, `paper_rows`, `score_scan`,
     `paired_noise` and `sensitivity_screen` checked NOTHING. Five of seven.
     `paper_rows` is the tool whose entire job is deciding what may be WRITTEN,
-    so it was the worst one to leave open, and it was open for a structural
-    reason: it reads a `cell_table` CSV and has no campaign path to walk.
+    so it was the worst one to leave open.
 
-    NEGATIVE CONTROL: a module whose gate call is removed must FAIL this test.
-    The control is built from the real source with the call site stripped, so
-    it cannot drift away from what is actually being checked.
+    AND CALLING THE GATE IS NOT OBEYING IT. Re-audited the same day: six of
+    the seven bound the dead-arm half of the verdict and never referenced it
+    again, so the PARTIAL banner printed and the dead arms were ranked anyway.
+    Both halves are traced to a use here.
+
+    AND THE LIST WAS TOO SHORT. Audited a third time the same day: SEVEN more
+    tools under `scripts/` enumerate runs and produce a per-arm contrast while
+    calling no quarantine symbol at all. `family_split` is the worst -- its
+    `--families` defaults to `[tralo, fioretto, hounie]`, two of which are
+    dead arms in `dom1`, `dom1b` and `equaldose1`, so the BARE invocation
+    printed a compute-vs-constraint split on disqualified arms with no banner.
+    Six of the seven joined SCORERS; `headroom` prints no arm-vs-arm contrast
+    and is held to the `blocked` half in GATE_ONLY_SCORERS instead.
+
+    NEGATIVE CONTROLS, all built from the REAL source so they cannot drift
+    from what is checked: the call site stripped; the verdict bound and
+    discarded; and the positive direction, so the checker is not one that
+    simply rejects everything.
     """
     bad = []
     for mod in SCORERS:
@@ -495,18 +689,144 @@ def test_every_scorer_actually_calls_the_quarantine_gate():
         if not imported:
             bad.append("%s imports NO quarantine symbol, so a marker on a "
                        "dead campaign prevents nothing here" % mod)
-        elif not called:
+            continue
+        if not called:
             bad.append("%s imports %s but never CALLS it; an import is not a "
                        "gate" % (mod, sorted(imported)))
+            continue
+        blocked_ok, dead_ok = _gate_verdict_used(src)
+        if not (blocked_ok or dead_ok):
+            # No `gate(paths)` call. The only legitimate reason is that the
+            # tool has no path to walk, which is `paper_rows` -- it must then
+            # enforce by NAME, to the same standard.
+            blocked_ok, dead_ok = _namegate_verdict_used(src)
+        if not blocked_ok:
+            bad.append("%s calls gate() but never TESTS the blocked half of "
+                       "the verdict; it announces a refusal and proceeds"
+                       % mod)
+        if not dead_ok:
+            bad.append("%s binds the DEAD-ARM half of the verdict and never "
+                       "uses it: the PARTIAL banner prints and the dead arms "
+                       "are scored anyway" % mod)
 
-    # NEGATIVE CONTROL, built from real source so it cannot go stale.
+    # The gate-only tools. They are held to the `blocked` half ONLY -- see
+    # GATE_ONLY_SCORERS for why that is not an exemption -- but they are held
+    # to it, because the alternative is a tool nothing checks at all.
+    for mod in GATE_ONLY_SCORERS:
+        path = rel("scripts", "%s.py" % mod)
+        if not os.path.exists(path):
+            bad.append("%s: missing entirely" % mod)
+            continue
+        src = io.open(path, encoding="utf-8").read()
+        imported, called = _quarantine_symbols(src)
+        if not imported:
+            bad.append("%s imports NO quarantine symbol, so a marker on a "
+                       "dead campaign prevents nothing here" % mod)
+            continue
+        if not called:
+            bad.append("%s imports %s but never CALLS it; an import is not a "
+                       "gate" % (mod, sorted(imported)))
+            continue
+        if not _gate_verdict_used(src)[0]:
+            bad.append("%s calls gate() but never TESTS the blocked half of "
+                       "the verdict; it announces a refusal and proceeds"
+                       % mod)
+        # A gate-only tool must say WHY it has no dead-arm filter, at the call
+        # site. Without that line the next reader cannot tell a deliberate
+        # control-only tool from a scorer whose filter was forgotten -- which
+        # is the whole distinction this second list encodes.
+        if not _explains_gate_only(src):
+            bad.append("%s is on the gate-only list and does not say at the "
+                       "call site why it has no dead-arm filter; that makes "
+                       "it indistinguishable from a forgotten one" % mod)
+
     real = io.open(rel("scripts", "full_panel.py"), encoding="utf-8").read()
+
+    # CONTROL 1: no call at all.
     stripped = real.replace("blocked, DEAD_ARMS = gate(",
                             "blocked, DEAD_ARMS = (lambda *a, **k: (0, 0))(")
     _imp, called = _quarantine_symbols(stripped)
     if called:
-        bad.append("the negative control still reads as gated, so this test "
-                   "cannot detect an ungated scorer")
+        bad.append("control 1: the ungated build still reads as gated, so "
+                   "this test cannot detect an ungated scorer")
+
+    # CONTROL 2: the verdict is bound and BOTH halves discarded -- the exact
+    # shape six scorers shipped in, and the shape this test used to PASS.
+    discard = real.replace("blocked, DEAD_ARMS = gate(",
+                           "_unused_b, _unused_d = gate(")
+    b_ok, d_ok = _gate_verdict_used(discard)
+    if b_ok:
+        bad.append("control 2: a scorer that never tests `blocked` still "
+                   "reads as obeying the gate")
+    if d_ok:
+        bad.append("control 2: a scorer that binds the dead arms and never "
+                   "uses them still reads as enforcing the partial marker")
+
+    # CONTROL 3: the positive direction. Without it, controls 1 and 2 would
+    # also pass for a checker that rejects every input.
+    b_ok, d_ok = _gate_verdict_used(real)
+    if not (b_ok and d_ok):
+        bad.append("control 3: the real full_panel does not satisfy the "
+                   "checker, so this test rejects everything and gates "
+                   "nothing (blocked=%s dead=%s)" % (b_ok, d_ok))
+
+    # CONTROL 4: the name-gated shape must fail when it ANNOUNCES the dead
+    # arms and does not DROP them -- the exact defect this whole audit found.
+    pr = io.open(rel("scripts", "paper_rows.py"), encoding="utf-8").read()
+    ok_ref, ok_filt = _namegate_verdict_used(pr)
+    if not (ok_ref and ok_filt):
+        bad.append("control 4: the real paper_rows fails its own recogniser "
+                   "(refuses=%s filters=%s), so that recogniser gates nothing"
+                   % (ok_ref, ok_filt))
+    # Build the announce-only variant LINE-WISE: an embedded multi-line
+    # literal here is what a heredoc mangles, and a control that does not
+    # parse is not a control.
+    pr_lines = pr.split(chr(10))
+    hit = [k for k, L in enumerate(pr_lines)
+           if L.strip().startswith('rows = [r for r in rows')]
+    if not hit:
+        bad.append('control 4: the row FILTER in paper_rows was not found, '
+                   'so the announce-only control proves nothing')
+    else:
+        k = hit[0]
+        announce_only = chr(10).join(
+            pr_lines[:k] + ['        pass  # announce only'] + pr_lines[k + 2:])
+        if _namegate_verdict_used(announce_only)[1]:
+            bad.append('control 4: a paper_rows that only ANNOUNCES the '
+                       'dead arms still reads as enforcing them')
+
+    # CONTROL 5: the GATE-ONLY branch, in both directions. It checks one half
+    # of the verdict instead of two, so it is the branch most likely to be
+    # silently vacuous -- a check that passes for a tool with no gate at all
+    # would make the second list strictly worse than no list.
+    hr = io.open(rel("scripts", "headroom.py"), encoding="utf-8").read()
+    hr_call = "blocked, _ = gate("
+    if hr_call not in hr:
+        bad.append("control 5: the gate call site in headroom was not found, "
+                   "so the gate-only controls prove nothing")
+    else:
+        # 5a: the call removed. It must read as CALLING nothing.
+        if _quarantine_symbols(
+                hr.replace(hr_call, "blocked, _ = (lambda *a, **k: (0, 0))("))[1]:
+            bad.append("control 5a: an ungated headroom still reads as "
+                       "calling the gate")
+        # 5b: the verdict bound and discarded -- announce and proceed.
+        if _gate_verdict_used(hr.replace(hr_call, "_unused_b, _d = gate("))[0]:
+            bad.append("control 5b: a headroom that never tests `blocked` "
+                       "still reads as obeying the gate")
+        # 5c: the positive direction, stated rather than inferred.
+        if not _gate_verdict_used(hr)[0]:
+            bad.append("control 5c: the real headroom fails the blocked-half "
+                       "recogniser, so the gate-only branch rejects "
+                       "everything and gates nothing")
+    # 5d: the "say why" requirement, both directions, through the SAME
+    # predicate the loop uses so the two cannot drift.
+    if not _explains_gate_only(hr):
+        bad.append("control 5d: the real headroom carries no explanation, so "
+                   "the requirement above rejects everything")
+    if _explains_gate_only(hr.replace("NO DEAD-ARM FILTER", "NO FILTER")):
+        bad.append("control 5d: a headroom with the explanation deleted still "
+                   "reads as explaining itself")
 
     report(bad, "ungated scorers")
 
@@ -557,9 +877,25 @@ def test_a_partial_quarantine_drops_arms_without_killing_the_campaign():
             bad.append("%s: dead_arms(root) did not resolve to %s"
                        % (camp, sorted(want)))
         blocked, dead = gate([root], out=io.StringIO())
-        if blocked or dead != want:
+        # 🛑 RESOLVE PER CAMPAIGN. `gate` returns a `DeadArms` mapping
+        # {campaign -> arms}, not a flat set, because a union over several
+        # roots deleted `fioretto` and `hounie` from `taskwin2` -- which
+        # carries no marker at all -- while printing "everything else in this
+        # campaign is unaffected". This assertion compared the MAPPING to a
+        # set of arm names and had been failing since that change landed;
+        # `.for_path` is the API the six path-based scorers call, so checking
+        # it here checks what they actually get.
+        if blocked or dead.for_path(root) != want:
             bad.append("%s: gate() returned blocked=%s dead=%s"
-                       % (camp, blocked, sorted(dead)))
+                       % (camp, blocked, sorted(dead.for_path(root))))
+        # And the per-campaign resolution must be a RESTRICTION, not a
+        # relabelling: a campaign with no marker must come back empty even
+        # when a marked one was gated in the same call.
+        _b, both = gate([root, os.path.join("results", "taskwin2")],
+                        out=io.StringIO())
+        if both.for_path(os.path.join("results", "taskwin2")):
+            bad.append("%s: gating it alongside an UNMARKED campaign killed "
+                       "arms in the unmarked one" % camp)
 
     # The REGISTRY is the source of truth and the marker is only its on-disk
     # copy. These paths do not exist on this machine at all, and must still be
@@ -714,13 +1050,25 @@ def test_the_gate_announces_cells_that_do_not_pose_the_cap_question(tmp_path):
         bad.append("the healthy cell was named too, so the banner does not "
                    "say WHICH cell is the problem:\n%s" % out)
 
-    # 3. every status that is not `task` must be caught, and stay distinct
+    # 3. every status that is not `task` must be caught, and stay distinct.
+    # 🛑 ASSERT ON THE PER-CELL ROW, NOT ON THE WHOLE OUTPUT. The banner ends
+    # with a static footer that NAMES all five statuses, so `st in out` was
+    # true for every status whatever the rows said -- a control that passes on
+    # its own legend. The row is `<model> <dataset> <cap> <status>`, so the
+    # status has to land on the line carrying the cap.
     for st in ("non_task", "no_strict_band", "unmeasured", "no_window",
                "no_data"):
         out = banner({CELLS[0]: st, CELLS[1]: st})
-        if st not in out:
-            bad.append("status %r was not reported; it is being collapsed "
-                       "into another verdict" % st)
+        rows = [L for L in out.split(chr(10))
+                if "L70-90_G95" in L or "L80-80_G95" in L]
+        if not rows:
+            bad.append("status %r produced no per-cell row at all, so the "
+                       "banner names no cell" % st)
+        elif not any(st in L for L in rows):
+            bad.append(
+                ("status %r is not on the CELL's own row -- it is being "
+                 "collapsed into another verdict, and only the static "
+                 "footer still names it:" + chr(10) + out) % st)
         if "ALL 2 OF 2" not in out:
             bad.append("a campaign with NO usable cell did not say so for "
                        "%r; `some cells` and `no cells` are different "

@@ -11,6 +11,24 @@ ONE version of TraLO.
 >
 > Anything else is a different method and is not in this document.
 
+> ## 🛑 AND THREE OF THESE CAMPAIGNS CARRY DEAD ARMS (2026-09-04)
+>
+> `fioretto` and `hounie` ran at **28.00** attempted constraint steps per run
+> against 29.00 in `dom1`, `dom1b` and `equaldose1`; `tralo_lam0` did too in
+> `equaldose1` (FRAMEWORK 2(z40)). Those are the only recipe campaigns with
+> rival duals, so **every dual-vs-dual number in this document is a
+> `tralo`-vs-`alm` number or it is nothing.** Recounted as deployed with the
+> dead arms dropped: **#1 named in 2 of 15 cells, both `alm`, TraLO 0**
+> (FRAMEWORK 2(z43)).
+>
+> 🟢 **The headline ledger in section 2 is UNTOUCHED.**
+> `paper_rows.CONTRASTS` is `vs_clip` / `vs_null` / `vs_reseed` and none of
+> them touches a dead arm, so 4/4 p=0.0625, 4/4, 3/4 and the task-restricted
+> 3/3 p=0.125 all stand. **0 of 15 cells are lost** (144 of 792 runs, 18.2%,
+> are touched; `equaldose1` worst at 42.9% of its paper rows). **The paper of
+> record is entirely unaffected** -- disjoint MedMNIST corpus, zero iwildcam
+> rows, grep count 0.
+
 ---
 
 ## 0. WHAT WAS CLEARED, AND WHY
@@ -119,7 +137,7 @@ under a fresh Adam beat doing nothing"**, with the direction unattributed. The
 `clip` gap SURVIVES the randomisation, which is why 2(z29) assigns it to the
 REGIME rather than to the constraint. `coin2` (MobileNetV2) is the replication.
 FRAMEWORK 2(z29).
-| **`tralo` #1 of the four duals** | **2 of 6** namable cells | -- | ❌ **dominance refuted** |
+| ~~**`tralo` #1 of the four duals**~~ | ~~**2 of 6** namable cells~~ | -- | ⛔ **SUPERSEDED 2026-09-04: 2 of 15 namable, both `alm`, TraLO 0. Two of the four rivals are DEAD ARMS, so there is no field of four -- see section 3** |
 
 🛑 **NEITHER ROW CLEARS p<0.05, AND ON THIS CORPUS NEITHER CAN.** A
 one-sided sign test over `n` unanimous units floors at `0.5^n`, so **four units
@@ -190,7 +208,29 @@ restricted one.
 
 ## 3. THE HEAD-TO-HEAD, AND WHY IT NAMES ALMOST NOTHING
 
-`scripts/deployed_h2h.py` over 19 cells, `clip` as control:
+`scripts/deployed_h2h.py`, `clip` as control. **RECOUNTED 2026-09-04 WITH THE
+DEAD ARMS DROPPED**, over the 15 cells that actually carry rival duals:
+
+```
+15 cells: #1 NAMED in 2, REFUSED in 13   -- of the 2 named: alm 2, TRALO 0
+before dropping fioretto+hounie it was:  #1 NAMED in 8, tralo 4  alm 2  fioretto 2
+```
+
+🛑 **ALL FOUR OF TraLO'S #1 CALLS WERE IN VERIFIED `task` CELLS AND ALL FOUR
+COLLAPSE TO REFUSED.** Not one was produced by a lead over `alm`: each was named
+because a DEAD ARM sat far enough below TraLO to stretch the max-minus-min
+spread past the RNG floor -- `dom1`/MNv2/L80_G95 on `fioretto`/`hounie` at -0.75
+while `tralo` and `alm` tie **exactly** at +4.25; `dom1b`/RegNet/L80_G95 on
+`hounie` at -5.75; `equaldose1`/MNv2/L80_G95 on `hounie` at -10.25;
+`equaldose1`/MNv2/L95_G80 on `fioretto` at -1.50. **The dead arms were TraLO's
+measuring stick, not its competition.** Full per-cell table in FRAMEWORK 2(z43).
+
+🔑 **THIS IS THE FAIREST READING, NOT THE HARSHEST.** Section 2's ~2.7x
+range-inflation correction has factor **1.0 at k=2 survivors**, because with two
+arms the range IS the pairwise difference. Dropping the dead arms removes the
+artefact that was inflating every #1 call here.
+
+⛔ **THIS BLOCK READ AS FOLLOWS UNTIL 2026-09-04:**
 
 ```
 19 cells: #1 NAMED in 6, REFUSED in 13 (spread under the RNG floor)
@@ -199,12 +239,24 @@ restricted one.
 of the 6 named: alm 2  tralo 2  fioretto 2
 ```
 
+⚠️ **AND THAT TALLY DOES NOT REPRODUCE -- UNVERIFIED, RECORDED HERE SO IT IS
+NOT RE-DISCOVERED.** The 19-cell root set reproduces exactly
+(`dom1`+`dom1b`+`equaldose1`+`taskwin2`+`vittask1`; the jackknife 10 and the
+items/ccF1-disagree 5 both match to the integer) but the count does not:
+measured 2026-09-04 the same roots give **NAMED in 8, REFUSED in 11, of the 8
+named `tralo` 4, `alm` 2, `fioretto` 2**. The run used the SERVER's
+`deployed_h2h.py`, which differs by md5 from the local one; the likely cause is
+this document's own pairwise-spread correction having landed locally only,
+which would name FEWER cells. **What would settle it:** re-run the current local
+scorer on the same roots. The recount above is unaffected either way (k=2), but
+the per-cell RNG floors it reuses are the server scorer's.
+
 🛑 **THE ARM-VS-ARM GAP IS EXACTLY THE RNG.** Paired per seed over the clean
 corpus:
 
 | | median | mean | n |
 |---|---|---|---|
-| \|`tralo` - a rival dual\| | **4.0 items** | 5.0 | 180 |
+| \|`tralo` - a rival dual\| ⚠️ **POOLS 3 ARMS, 2 DEAD -- NEEDS RECOMPUTATION** | ~~**4.0 items**~~ | ~~5.0~~ | ~~180~~ |
 | \|`tralo` - `tralo_reseed`\| | **4.0 items** | 6.0 | 70 |
 
 **Ratio 1.00x.** `tralo_reseed` is the same arm with the RNG stream perturbed
@@ -221,8 +273,17 @@ the same budget. The only genuinely looser cap in the corpus is `L90_G95`
 at 744. The two tags differ in SCOPE (local-bound vs global-bound at equal
 total), which is a real and unexploited axis, but not in tightness.
 
-**So: TraLO beats the post-hoc clippers, and it does not beat the other duals.
-The four duals are indistinguishable at four seeds.**
+**So: TraLO beats the post-hoc clippers, and it does not beat the one rival
+dual still comparable.** ⛔ This read "it does not beat the other duals. The
+four duals are indistinguishable at four seeds" until 2026-09-04. There is no
+field of four: `fioretto` and `hounie` are dead arms, so the statement is now
+about `alm` alone -- and against `alm`, TraLO is #1 in **0 of 15** cells.
+
+⚠️ **The `|tralo - a rival dual|` row above pools `alm` + `fioretto` +
+`hounie`, two of which are dead, and must be recomputed against `alm` alone
+(n falls from 180 to roughly 60). The recomputed value is NOT stated here
+because it has not been measured.** The floor it was compared against,
+`|tralo - tralo_reseed|` median 4.0 items over n=70, is unaffected and stands.
 
 ## 4. THE CAP SCREEN WAS WRONG, AND IT CHOSE THESE CAMPAIGNS' CAPS
 
@@ -315,9 +376,13 @@ not a refinement of it.**
 **Not** "cover more datasets/backbones/class-counts". That grid is real, it is
 in section 7, and it is gated behind these:
 
-1. **Does anything separate the four duals at all?** Today nothing does: the
-   arm-vs-arm gap IS the RNG floor. Two ways out, and they are different
-   experiments:
+1. **Does anything separate the duals at all?** ⛔ **This asked about "the four
+   duals" until 2026-09-04; on this corpus there are TWO** -- `fioretto` and
+   `hounie` are dead arms, leaving `tralo` and `alm`. Today nothing separates
+   them: the arm-vs-arm gap IS the RNG floor, and after the recount TraLO is #1
+   in 0 of 15 cells. **`vitdual2` is now the only campaign that can restore a
+   four-way question at all** (all four at 29.00 steps, 32 of 88 complete).
+   Two ways out, and they are different experiments:
    - **More seeds.** The per-cell price is in `deployed_h2h`'s `seeds@80%`
      column and ranges from 1 to 597. Cheap only in the handful of cells
      already showing a large gap.

@@ -28,6 +28,8 @@ import sys
 
 import pandas as pd
 
+from scripts import quarantine
+
 
 def captured(run_dir, classes):
     """{class: true positives among the emitted predictions}, as deployed."""
@@ -39,10 +41,20 @@ def captured(run_dir, classes):
     return {c: int(((yh == c) & (y == c)).sum()) for c in classes}
 
 
-def collect(root, classes):
-    """{(model, cap, seed): {arm: {class: tp}}}"""
+def collect(root, classes, dead=()):
+    """{(model, cap, seed): {arm: {class: tp}}}
+
+    `dead` is the arm set a PARTIAL quarantine marker disqualifies, and it is
+    a PARAMETER rather than a global because the gate runs in `main` while the
+    enumeration runs here. The FOR-SCALE block at the bottom of `main` walks
+    whatever arms this returns and prints every trained-arm contrast it finds,
+    so a dead arm reaching this dict is a disqualified contrast printed beside
+    the live ones with nothing to distinguish them.
+    """
     out = {}
-    for cfg in glob.glob(os.path.join(root, "*", "*", "*", "*", "seed_*")):
+    for cfg in quarantine.drop_dead_runs(
+            glob.glob(os.path.join(root, "*", "*", "*", "*", "seed_*")),
+            dead, label="run"):
         parts = cfg.replace("\\", "/").split("/")
         model, cap, arm, seed = parts[-5], parts[-3], parts[-2], parts[-1]
         tp = captured(cfg, classes)
@@ -107,6 +119,9 @@ def main():
                     help="armA:armB, the identity hypotheses to test")
     ap.add_argument("--floor", default="tralo_null:tralo_reseed",
                     help="the RNG-only reference contrast")
+    ap.add_argument("--allow-quarantined", action="store_true",
+                    help="compare arms in a campaign `scripts.quarantine` "
+                         "marked dead")
     ap.add_argument("--self-test", action="store_true")
     a = ap.parse_args()
 
@@ -115,7 +130,40 @@ def main():
     if not a.root:
         ap.error("--root is required (or use --self-test)")
 
-    cells = collect(a.root, a.classes)
+    # 🛑 THE QUARANTINE GATE. Audited 2026-09-04: this tool had NONE, and its
+    # `--pairs` DEFAULTS to `alm:fioretto` -- `fioretto` is a dead arm in
+    # `dom1`, `dom1b` and `equaldose1`, so the bare invocation tested an
+    # identity hypothesis on an arm that ran at a different constraint dose.
+    # No fallback import -- if the gate cannot load, the tool must break.
+    from scripts.quarantine import gate
+    blocked, dead = gate([a.root], a.allow_quarantined, "compare")
+    if blocked:
+        return 1
+
+    # TWO enforcement shapes, because this tool has two ways to name an arm.
+    #   * `--pairs` and `--floor` are NAMED on the command line, so the answer
+    #     is a REFUSAL: filtering them would leave the tool printing "no
+    #     paired cells" for a hypothesis it was explicitly asked to test, and
+    #     an absent line reads as absence of evidence.
+    #   * the FOR-SCALE block enumerates whatever arms are on disk, so that
+    #     half is FILTERED in `collect` -- otherwise a dead arm's contrast
+    #     prints there however live the pair on the command line was.
+    # PER CAMPAIGN, never a union: a union would disqualify an arm here
+    # because a DIFFERENT campaign marked it.
+    here = dead.for_path(a.root) if hasattr(dead, "for_path") else dead
+    named = [x for spec in list(a.pairs) + [a.floor] for x in spec.split(":")]
+    bad = sorted(set(named) & set(here))
+    if bad:
+        print("REFUSING: %s is a DEAD arm of campaign `%s` (partial "
+              "quarantine) -- it ran at a different constraint dose, so "
+              "|arm - arm| against it is not the identity test this tool "
+              "claims, and as a --floor it would misprice every ratio. "
+              "--allow-quarantined governs the campaign marker, not this. "
+              "Name live arms instead."
+              % (", ".join(bad), quarantine.campaign_name(a.root)))
+        return 1
+
+    cells = collect(a.root, a.classes, here)
     if not cells:
         raise SystemExit("no runs with final_predictions.csv under %s" % a.root)
     w = sys.stdout.write

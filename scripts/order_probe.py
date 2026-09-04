@@ -55,6 +55,7 @@ import sys
 import numpy as np
 import pandas as pd
 
+from scripts import quarantine
 from scripts.family_split import null_of
 
 RAW = "final_predictions_raw.csv"
@@ -221,11 +222,29 @@ def main():
     ap.add_argument("--reseed", default="tralo_reseed")
     ap.add_argument("--evictions", action="store_true",
                     help="which items did it move, and were they the right ones")
+    ap.add_argument("--allow-quarantined", action="store_true",
+                    help="probe a campaign `scripts.quarantine` marked dead")
     args = ap.parse_args()
     if args.self_test:
         sys.exit(self_test())
     if not args.campaign:
         ap.error("--campaign is required, or --self-test")
+
+    # 🛑 THE QUARANTINE GATE. Audited 2026-09-04: this tool had NONE, so a
+    # marker on a dead campaign prevented nothing here -- and this is the tool
+    # that produced "the constraint evicts the CORRECT items", a headline
+    # number. No fallback import -- if the gate cannot load, the tool must
+    # break.
+    from scripts.quarantine import gate
+    blocked, dead = gate([args.campaign], args.allow_quarantined, "probe")
+    if blocked:
+        return 1
+    # A PARTIAL marker names arms whose contrasts are disqualified. Every read
+    # below is `--arm` against `--null` and against `--reseed`, so the
+    # enforcement is a FILTER on the enumerated arm directories:
+    # `drop_dead_runs` resolves the arm off each path, which is exactly the
+    # granularity these globs work at. PER CAMPAIGN, never a union.
+    here = dead.for_path(args.campaign) if hasattr(dead, "for_path") else dead
     if args.null is None:
         present = {os.path.basename(os.path.dirname(d))
                    for d in glob.glob(os.path.join(args.campaign,
@@ -234,7 +253,7 @@ def main():
         print("  --null not given; resolved %s -> %s" % (args.arm, args.null))
 
     if args.evictions:
-        e = evictions(args.campaign, args.arm, args.null, args.reseed)
+        e = evictions(args.campaign, args.arm, args.null, args.reseed, here)
         # THE CONTROL, and without it the arm's number means nothing. EVICTED
         # items were in the twin's top-K by construction, so they necessarily
         # have higher p and are necessarily more often true positives than the
@@ -242,7 +261,7 @@ def main():
         # `tralo_reseed` is the twin with one extra RNG draw and no constraint,
         # so it is what a perturbation of no consequence costs. Read the
         # DIFFERENCE.
-        c = evictions(args.campaign, args.reseed, args.null, args.reseed)
+        c = evictions(args.campaign, args.reseed, args.null, args.reseed, here)
         if e.empty:
             print("no moved items -- the arm and its twin agree at every budget")
             return 0
@@ -341,7 +360,8 @@ def main():
 
     rows = []
     pat = os.path.join(args.campaign, "*", "*", "*", args.arm, "seed_*")
-    for arm_dir in sorted(glob.glob(pat)):
+    for arm_dir in quarantine.drop_dead_runs(sorted(glob.glob(pat)), here,
+                                             label="arm run"):
         parts = arm_dir.split(os.sep)
         model, dataset, cap, seed = parts[-5], parts[-4], parts[-3], parts[-1]
         base = os.sep.join(parts[:-2])
@@ -519,10 +539,17 @@ def verdict(dd, db, out=None, alpha=0.05):
 # those two sets is the whole story, and it is denominated in ITEMS, which is
 # the only unit this project trusts.
 # ---------------------------------------------------------------------------
-def evictions(campaign, arm_name, null_name, reseed_name):
+def evictions(campaign, arm_name, null_name, reseed_name, dead=()):
+    """`dead` is the arm set a PARTIAL quarantine marker disqualifies.
+
+    A PARAMETER rather than a global: the gate runs in `main` and the
+    enumeration runs here, and reading it off the enclosing scope is the exact
+    NameError three scorers shipped on 2026-09-04.
+    """
     rows = []
     pat = os.path.join(campaign, "*", "*", "*", arm_name, "seed_*")
-    for arm_dir in sorted(glob.glob(pat)):
+    for arm_dir in quarantine.drop_dead_runs(sorted(glob.glob(pat)), dead,
+                                             label="eviction run"):
         parts = arm_dir.split(os.sep)
         model, cap, seed = parts[-5], parts[-3], parts[-1]
         base = os.sep.join(parts[:-2])

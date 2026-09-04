@@ -278,6 +278,60 @@ def main(argv=None):
               "from the worktree that holds it." % (version, stamps.pop()))
         return 1
 
+    # 1b. THIS TOOL CREATES RUNS, so it must refuse what the scorers refuse.
+    # It is the only script in the repo that stages new GPU work, and it had
+    # neither check: it would happily extend a quarantined campaign, and it
+    # would faithfully reproduce an OFF-RECIPE campaign, staging GPU-days of
+    # runs that `rig_status` refuses and no scorer may pool.
+    from scripts import quarantine
+    from scripts.rig_status import recipe_of, recipe_verdict
+    blocked, dead = quarantine.gate([args.root], verb="extend")
+    if blocked:
+        return 1
+    here = dead.for_path(args.root) if hasattr(dead, "for_path") else dead
+    if here:
+        # ⚠️ REFUSE THE DEAD ARMS, NOT THE CAMPAIGN. A blanket refusal here was
+        # wrong and blocked the documented remedy: `dom1`, `dom1b` and
+        # `equaldose1` are all PARTIAL, and their `keep_for` says `tralo` vs
+        # `clip`/`tralo_null`/`tralo_reseed` is at EQUAL dose and unaffected --
+        # while `sensitivity_screen` prices "seeds 5-8 on the existing pair"
+        # as the fix for the 4-observation noise floor. The over-broad gate
+        # blocked exactly the campaigns that needed it.
+        want = set(args.arms or [])
+        clash = sorted(want & set(here)) if want else []
+        if clash:
+            print("REFUSED: %s is a DEAD arm of %s (partial quarantine), so "
+                  "more seeds of it buy nothing -- the contrast is "
+                  "disqualified at any n." % (", ".join(clash), args.root))
+            return 1
+        print("!! PARTIAL QUARANTINE on %s: dead arm(s) %s will NOT be "
+              "extended." % (args.root, ", ".join(sorted(here))))
+        print("   Every other arm here is at equal dose and is extended "
+              "normally.")
+        print("")
+    cfgs, unreadable = [], []
+    for _m, _d, _c, _a, _s, path in existing:
+        try:
+            cfgs.append(json.load(open(path)))
+        except (ValueError, OSError) as exc:
+            unreadable.append("%s (%s)" % (path, exc))
+    if unreadable:
+        # A config this tool cannot read is one whose recipe it cannot check,
+        # and staging seeds off a partially-read campaign is exactly how a
+        # mixed-recipe extension gets written. Refuse, naming every file.
+        print("REFUSED: %d config(s) under %s could not be read, so the "
+              "campaign's recipe cannot be established:"
+              % (len(unreadable), args.root))
+        for u in unreadable:
+            print("   %s" % u)
+        return 1
+    verdict, why = recipe_verdict(recipe_of(cfgs))
+    if verdict == "fail":
+        print("REFUSED: this campaign is OFF-RECIPE -- %s" % why)
+        print("  Reproducing it faithfully would stage more runs of a "
+              "DIFFERENT METHOD.")
+        return 1
+
     # 2. the recipe is a property of the CAMPAIGN, not of protocol.yml.
     overrides, fails = campaign_recipe(P, existing, version)
     if fails:
@@ -322,9 +376,19 @@ def main(argv=None):
     # silently drop every seed the two roots happen to share.
     blocked = have if args.out is None else {
         (m, d, c, a, s) for m, d, c, a, s, _p in cells(args.out)}
-    todo = [(m, d, c, a, s) for (m, d, c) in grid for a in arms
+    # 🛑 (cell, arm) PAIRS THAT EXIST, NOT `grid x arms`. The cross product
+    # RESURRECTS combinations the campaign never had: a ragged grid -- which is
+    # the normal state after `quarantine --execute` drops pending runs, 34 from
+    # `vittask1` and 84 from `vitdual1` -- would gain those cells back at ONE
+    # seed, and `cell_table` would then emit them with n_seeds=1 and an sd from
+    # a single observation. The arm-membership check above is campaign-global
+    # and does not catch it.
+    arms = [a for a in arms if a not in here]
+    have_pairs = sorted({(m, d, c, a)
+                         for m, d, c, a, _s, _p in existing if a in arms})
+    todo = [(m, d, c, a, s) for (m, d, c, a) in have_pairs
             for s in sorted(args.seeds) if (m, d, c, a, s) not in blocked]
-    dup = [(m, d, c, a, s) for (m, d, c) in grid for a in arms
+    dup = [(m, d, c, a, s) for (m, d, c, a) in have_pairs
            for s in sorted(args.seeds) if (m, d, c, a, s) in blocked]
 
     print("  arms   : %s" % " ".join(arms))
@@ -378,11 +442,16 @@ def self_test():
         dc = {"data_dir": "data/iwildcam/oodslice", "num_classes": 8,
               "group_column": "location", "constrained_class": [2, 7],
               "disjoint_groups": True}
+        # THE RECIPE. `gen_campaign` DEFAULTS these off, so a fixture built
+        # from protocol defaults alone is a DIFFERENT METHOD and the recipe
+        # gate refuses it -- correctly. Every fixture below is on-recipe, so
+        # the controls exercise the path they name rather than tripping this.
+        REC = {"constraint_fp32": True, "constraint_grad_mode": "normalize"}
         base = []
         for arm in ("clip", "tralo", "tralo_null", "tralo_reseed"):
             for seed in (1, 2):
                 cfg = emit(P, "ViTB16", "iwildcam", "L80-80_G95", arm, seed,
-                           dc, version)
+                           dc, version, REC)
                 d = os.path.join(root, "ViTB16", "iwildcam", "L80-80_G95",
                                  arm, "seed_%d" % seed)
                 os.makedirs(d)
@@ -419,7 +488,7 @@ def self_test():
         checks.append(("REFUSES a campaign it cannot reproduce (fidelity)",
                        rc == 1 and len(cells(root)) == 16))
         json.dump(emit(P, "ViTB16", "iwildcam", "L80-80_G95", "clip", 1, dc,
-                       version), open(base[0], "w"), indent=2)
+                       version, REC), open(base[0], "w"), indent=2)
 
         # NEGATIVE CONTROL 2: a foreign code version must be REFUSED, or the
         # added seeds silently split the campaign in two.
@@ -430,7 +499,7 @@ def self_test():
         checks.append(("REFUSES a campaign carrying a foreign code_version",
                        rc == 1 and len(cells(root)) == 16))
         json.dump(emit(P, "ViTB16", "iwildcam", "L80-80_G95", "clip", 2, dc,
-                       version), open(base[1], "w"), indent=2)
+                       version, REC), open(base[1], "w"), indent=2)
 
         # NEGATIVE CONTROL 3: adding an ARM is a different experiment.
         rc = main(["--root", root, "--seeds", "5", "--arms", "alm",
@@ -495,6 +564,102 @@ def self_test():
                        "does NOT skip seeds the template already has",
                        rc == 0 and len(cells(ext)) == 4
                        and len(cells(root)) == 16))
+
+        # NEGATIVE CONTROL 6: a RAGGED grid must not be filled in. The cross
+        # product would resurrect (cell, arm) pairs the campaign never had --
+        # at ONE seed, with an sd from a single observation.
+        rag = os.path.join(tmp, "ragged")
+        for arm, caps in (("clip", ("L80-80_G95", "L90-90_G95")),
+                          ("tralo", ("L80-80_G95",)),
+                          ("tralo_null", ("L80-80_G95",)),
+                          ("tralo_reseed", ("L80-80_G95",))):
+            for cap in caps:
+                for seed in (1, 2):
+                    cfg = emit(P, "ViTB16", "iwildcam", cap, arm, seed, dc,
+                               version, REC)
+                    d = os.path.join(rag, "ViTB16", "iwildcam", cap, arm,
+                                     "seed_%d" % seed)
+                    os.makedirs(d)
+                    json.dump(cfg, open(os.path.join(d, "config.json"), "w"),
+                              indent=2)
+        before = {(m, d_, c, a) for m, d_, c, a, _s, _p in cells(rag)}
+        rc = main(["--root", rag, "--seeds", "3", "--execute"])
+        after = {(m, d_, c, a) for m, d_, c, a, _s, _p in cells(rag)}
+        checks.append(("a RAGGED grid gains SEEDS but never a (cell, arm) it "
+                       "did not already have", rc == 0 and after == before))
+
+        # NEGATIVE CONTROLS 7-9: THE TWO GATES THIS TOOL GAINED MUST FIRE.
+        # It is the only script in the repo that CREATES runs, and it had
+        # neither check -- so it would extend a campaign no scorer may read,
+        # and reproduce an off-recipe one faithfully into more GPU-days of a
+        # different method. A gate never shown to fail has not been shown to
+        # work, so each is driven here from the real registry, not a stub.
+        def _clone(name, mutate=None):
+            dst = os.path.join(tmp, name)
+            shutil.copytree(root, dst)
+            if mutate:
+                for _m, _d, _c, _a, _s, path in cells(dst):
+                    cfg = json.load(open(path))
+                    if mutate(cfg):
+                        json.dump(cfg, open(path, "w"), indent=2)
+            return dst, len(cells(dst))
+
+        q, nq = _clone("uniform1")          # scorable=False in the registry
+        rc = main(["--root", q, "--seeds", "9", "--execute"])
+        checks.append(("REFUSES to extend a QUARANTINED campaign (registry, "
+                       "not a stub)", rc == 1 and len(cells(q)) == nq))
+
+        # PARTIAL marker: `dom1`'s dead arms are `fioretto` and `hounie`, and
+        # its `keep_for` says every OTHER contrast is at equal dose. So the
+        # right behaviour is not a refusal -- it is extending the live arms
+        # and leaving the dead ones alone. Both directions are checked.
+        d1, _nd = _clone("dom1")
+        for seed in (1, 2):
+            cfg = emit(P, "ViTB16", "iwildcam", "L80-80_G95", "fioretto",
+                       seed, dc, version, REC)
+            dd = os.path.join(d1, "ViTB16", "iwildcam", "L80-80_G95",
+                              "fioretto", "seed_%d" % seed)
+            os.makedirs(dd)
+            json.dump(cfg, open(os.path.join(dd, "config.json"), "w"),
+                      indent=2)
+        rc = main(["--root", d1, "--seeds", "9", "--execute"])
+        by_arm = {}
+        for _m, _d, _c, a, s, _p in cells(d1):
+            by_arm.setdefault(a, set()).add(s)
+        checks.append(("a PARTIAL campaign is extended on its LIVE arms and "
+                       "the DEAD ones gain nothing",
+                       rc == 0
+                       and 9 not in by_arm.get("fioretto", set())
+                       and all(9 in by_arm.get(a, set())
+                               for a in ("clip", "tralo", "tralo_null",
+                                         "tralo_reseed"))))
+        rc = main(["--root", d1, "--seeds", "10", "--arms", "fioretto",
+                   "--execute"])
+        after = {s for _m, _d, _c, a, s, _p in cells(d1) if a == "fioretto"}
+        checks.append(("...but ASKING for a dead arm by name is REFUSED",
+                       rc == 1 and 10 not in after))
+
+        def _offrecipe(cfg):
+            hp = cfg.get("hyperparams") or {}
+            if "constraint_grad_mode" not in hp:
+                return False
+            hp["constraint_grad_mode"] = "clip"
+            hp["constraint_fp32"] = False
+            return True
+
+        orc, no = _clone("offrecipe", _offrecipe)
+        rc = main(["--root", orc, "--seeds", "9", "--execute"])
+        checks.append(("REFUSES an OFF-RECIPE campaign rather than "
+                       "reproducing a DIFFERENT METHOD faithfully",
+                       rc == 1 and len(cells(orc)) == no))
+
+        # POSITIVE CONTROL for the three above: the SAME clone, unmutated and
+        # under a name the registry does not know, must still be extended --
+        # or the three refusals prove only that copytree broke something.
+        live, nl = _clone("livecamp")
+        rc = main(["--root", live, "--seeds", "9", "--execute"])
+        checks.append(("...and the same campaign under a live name, on "
+                       "recipe, IS extended", rc == 0 and len(cells(live)) > nl))
 
         # a dry run must change nothing
         before = len(cells(root))

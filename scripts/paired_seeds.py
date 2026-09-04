@@ -33,6 +33,8 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import f1_score, roc_auc_score
 
+from scripts import quarantine
+
 
 def metrics(d, capped):
     p = pd.read_csv(d / "final_predictions.csv")
@@ -58,12 +60,33 @@ def main():
     a.add_argument("root")
     a.add_argument("--capped", type=int, nargs="+", default=[2, 4])
     a.add_argument("--control", default="null")
+    a.add_argument("--allow-quarantined", action="store_true",
+                   help="read a campaign `scripts.quarantine` marked dead")
     args = a.parse_args()
+
+    # 🛑 THE QUARANTINE GATE. Audited 2026-09-04: this tool had NONE, so a
+    # marker on a dead campaign prevented nothing here. No fallback import --
+    # if the gate cannot load, the tool must break.
+    from scripts.quarantine import gate
+    blocked, dead = gate([args.root], args.allow_quarantined, "read")
+    if blocked:
+        return 1
 
     root = Path(args.root)
     runs = [d for d in root.iterdir()
             if d.is_dir() and d.name.startswith("seed")
             and (d / "final_predictions.csv").exists()]
+    # A PARTIAL marker names arms whose contrasts are disqualified, and every
+    # line this tool prints is `arm - control` at a fixed seed. Announcing is
+    # not enforcing, so the enumerated run directories go through the filter.
+    #
+    # ⚠️ THIS ROOT IS THE FLAT `seed<N>_<arm>` LAYOUT the ad-hoc drivers write,
+    # which `arm_of_run` cannot parse -- so on a partially quarantined root the
+    # filter EXCLUDES everything rather than guessing, and says so. That is the
+    # same fail-closed direction `score_scan` takes on the same layout, and it
+    # is deliberate: keeping an unclassifiable run fails the marker open.
+    runs = [Path(x) for x in quarantine.drop_dead_runs(
+        [str(d) for d in runs], dead, label="seed run")]
     if not runs:
         # This tool reads the FLAT `seed<N>_<arm>` layout the ad-hoc server
         # drivers write. A gen_campaign tree is
