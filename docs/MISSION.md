@@ -16,7 +16,21 @@ UNVERIFIED; confirm before assuming either finished.)
 
 ## 🛑 0-NOW. READ `docs/COVERAGE.md` BEFORE ANY NUMBER BELOW (2026-09-03)
 
-Eleven findings supersede parts of every section that follows.
+Twelve findings supersede parts of every section that follows.
+
+**0. NOT ONE CELL IN THE CORPUS COULD HAVE SEPARATED TWO METHODS (2026-09-04,
+FRAMEWORK 2(z39)).** `scripts/sensitivity_screen` over `dom1` + `dom1b` +
+`equaldose1` + `taskwin2` + `vittask1` -- **38 cells, ~850 runs: SENSITIVE 0,
+UNDER-POWERED 36, SATURATED 2.** The models DO saturate globally (93.6% of items
+at p > 0.99 or p < 0.01, train accuracy 0.9595 -> 0.9992 THROUGH the constraint
+phase) but at loose caps the CUT is fine (p@cut 0.41-0.65), so the blocker is
+arithmetic: the arm-PAIR difference is 2-5 deployed TP items against an RNG
+floor of 1.0-10.5 in the same cell. **Two measurement defects found:** a
+`max - min` RANGE over k arms inflates ~2.7x against a two-arm floor (raw
+range/floor median 2.51 over 50 cells, **0.97** once corrected), and the floor
+itself rests on FOUR observations. `<fam>_reseed` twins do NOT fix the second --
+they are byte-identical to `tralo_reseed`. Read finding 1 below in that light:
+it is the same conclusion, now automatic and per cell.
 
 **1. The head-to-head between the four duals is measuring the RNG.** Scored on
 the AS-DEPLOYED predictions in exact captured items over 19 cells
@@ -187,7 +201,7 @@ not a defence for anything generated in a worktree.
 `partial` band (`2: []` unpacked as a 2-tuple and raised); and the 4-seed
 self-test fixture, which shared one probability array across its four "seeds",
 now perturbs each; and `paired_noise` prints `N (M distinct)` per arm.
-Suite 545 tests, 544 pass / 1 skip.
+Suite 546 tests, 545 pass / 1 skip.
 
 ✅ **AND THE FOUR-DUAL HEAD-TO-HEAD WAS NOT AT EQUAL DOSE. FIXED; THE
 CAMPAIGN WAS DISCARDED AND RELAUNCHED AS `vitdual2`.**

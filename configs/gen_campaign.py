@@ -87,9 +87,37 @@ def resolve_block(P, name):
     raise KeyError("protocol.yml: unknown block %r" % name)
 
 
-def build_hyperparams(P, arm_spec, seed):
+def _pretrained(args):
+    """None, True or False from the `--pretrained` string. Never `bool(str)`.
+
+    `bool("false")` is True. Keeping the parse in one named function means
+    there is exactly one place this can be got wrong, and `test_g3_model`
+    asserts the string "false" reaches the emitted config as False.
+    """
+    v = getattr(args, "pretrained", None)
+    if v is None:
+        return None
+    if v not in ("true", "false"):
+        raise ValueError("--pretrained must be 'true' or 'false', got %r" % v)
+    return v == "true"
+
+
+def build_hyperparams(P, arm_spec, seed, pretrained=None):
     """Assemble exactly the keys this arm's methodology reads, plus the contract
-    keys that scripts/check_parity.py verifies on every arm."""
+    keys that scripts/check_parity.py verifies on every arm.
+
+    `pretrained` overrides `core.pretrained` for a DE-SATURATION pilot and is
+    None everywhere else, so the default output stays byte-identical. It is
+    safe to flip because `pretrained` is already in `warmup_identity_keys`:
+    the two regimes get different `base_model_id`s and cannot share a cached
+    warm-up. A knob that changed the warm-up WITHOUT being in that list is how
+    this project loaded the wrong model four times.
+
+    🛑 IT IS APPLIED TO EVERY ARM OR NONE. `clip` trains 30 warm-up
+    epochs against a trained arm's 1, so a flag reaching only one side would
+    make the post-hoc baseline the only arm with ImageNet features -- which is
+    the bias commit 05097fcb was written to remove, generalised.
+    """
     total = P["protocol"]["total_epochs"]
     trained_warmup = P["protocol"]["trained_warmup"]
     posthoc = arm_spec["phase"] == "posthoc"
@@ -97,6 +125,8 @@ def build_hyperparams(P, arm_spec, seed):
     hp = dict(P["core"])
     for name in arm_spec.get("blocks") or []:
         hp.update(resolve_block(P, name))
+    if pretrained is not None:
+        hp["pretrained"] = bool(pretrained)
     hp["seed"] = seed
     hp["warmup_epochs"] = total if posthoc else trained_warmup
     hp["constraint_epochs"] = 0 if posthoc else total - trained_warmup
@@ -920,6 +950,20 @@ def main():
                         "TRAINING set is balanced, where both are "
                         "mathematically plain CE and are not baselines at "
                         "all. FRAMEWORK 2(x1), 2(x2).")
+    # 🛑 NO `type=` CONVERTER HERE. The first version had
+    # `type=lambda v: v.lower()`, which made the value the STRING "false" --
+    # and `bool("false")` is True, so `--pretrained false` emitted 48 configs
+    # at `pretrained: True` while every gate passed. That is the SIXTH inert
+    # flag in this project and it was caught by a dry run, not by a test,
+    # because the test called the function with a real bool and never went
+    # through argparse. The conversion now happens once, at the call site,
+    # and `test_g3_model` drives the parser end to end.
+    a.add_argument("--pretrained", choices=["true", "false"], default=None,
+                   help="override core.pretrained for a DE-SATURATION pilot. "
+                        "Applied to EVERY arm; `pretrained` is already a "
+                        "warm-up identity key so the two regimes cannot share "
+                        "a cached model. Omit to keep protocol.yml's value and "
+                        "byte-identical output.")
     a.add_argument("--allow-nontask", action="store_true",
                    help="generate even where a cap sits OUTSIDE the "
                         "measured task window "
@@ -1145,7 +1189,7 @@ def main():
     for ds, mdl, tag, arm, seed in todo:
         dc = resolved[ds]
         spec = P["arms"][arm]
-        hp = build_hyperparams(P, spec, seed)
+        hp = build_hyperparams(P, spec, seed, pretrained=_pretrained(args))
         assert hp["warmup_epochs"] + hp["constraint_epochs"] == total, "equal compute"
 
         path = "%s/%s/%s/%s/%s/seed_%d" % (args.root, mdl, ds, tag, arm, seed)

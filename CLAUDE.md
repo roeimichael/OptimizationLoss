@@ -134,7 +134,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 545 regression tests, ~250s, no dataset needed
+python -m pytest tests -q                   # 546 regression tests, ~250s, no dataset needed
 #   `tests/test_lessons_learned.py` is the CATALOGUE OF LESSONS ALREADY PAID FOR:
 #   rejected backbones and datasets with the measured reason each was dropped,
 #   the ten deleted config footguns, the BF16/compute-capability split between
@@ -270,9 +270,19 @@ python -m scripts.sensitivity_screen --campaign <roots>   # 🛑 COULD THIS CELL
 #   exactly ONE `_null`/`_reseed` pair at 4 seeds, and the four `_null` arms are
 #   BYTE-IDENTICAL (FRAMEWORK 2944), so they add no replicates. Below
 #   `MIN_FLOOR_OBS` = 8 the screen refuses to decide rather than comparing a
-#   well-estimated median against a badly-estimated one. **Swapping
-#   `alm_null`/`fioretto_null`/`hounie_null` for `<fam>_reseed` twins costs
-#   ZERO extra runs and takes the floor from 4 observations to 16.**
+#   well-estimated median against a badly-estimated one.
+#   ⛔ **AND `<fam>_reseed` TWINS WOULD NOT HELP EITHER -- I claimed they
+#   would and that was WRONG.** `tralo_reseed` is `tralo_null` plus the single
+#   key `rng_reseed: True`; the `_null` arms are byte-identical because
+#   lambda=0 makes them all plain CE; so an `alm_reseed` is plain CE plus that
+#   same key and is byte-identical to `tralo_reseed`. Adding reseed FAMILIES
+#   buys nothing. What buys observations is more RNG STREAMS or more seeds:
+#     * a third lambda=0 variant (`tralo_reseed2`, a distinct reseed offset)
+#       gives 3 pairs x 4 seeds = **12 obs for 8 extra runs**, and needs
+#       `rng_reseed` to become an offset rather than a boolean;
+#     * seeds 5-8 on the existing pair give **8 obs for 16 extra runs**, and
+#       need no code at all.
+#   The per-observation price differs 4x, so say which one is being bought.
 #   ⚠️ AND DE-SATURATING IS NOT THE INDICATED FIX: FRAMEWORK 2(j) says
 #   post-hoc allocation is optimal given the probabilities and that optimality
 #   is distribution-free, so a worse model raises the headroom for `clip` too.

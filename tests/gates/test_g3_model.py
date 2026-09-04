@@ -470,3 +470,111 @@ def test_a_non_finite_constraint_gradient_is_detected_not_silently_dropped(proto
         bad.append("CONTROL: protocol.yml has no %s arm, that case was skipped"
                    % ("trained" if not trained else "post-hoc"))
     report(bad, "constraint-dose defects")
+
+
+# ==========================================================================
+#   THE DE-SATURATION KNOB. `--pretrained` overrides `core.pretrained` for a
+#   pilot that asks whether an unsaturated model can separate the arms at all.
+#   Source: configs/gen_campaign.build_hyperparams, 2026-09-04.
+# ==========================================================================
+def test_the_pretrained_override_splits_the_warm_up_cache_and_is_off_by_default():
+    """A knob that changes what the warm-up optimises MUST change
+    `base_model_id`, or the second regime silently loads the first one's
+    cached model. That has happened four times in this project, which is why
+    `warmup_identity_keys` exists.
+
+    `pretrained` was already in that list before this flag was added, so the
+    split is inherited rather than newly asserted -- but it is asserted here
+    anyway, because the flag is what makes the key reachable from the command
+    line and a later tidy-up of the list would now break a campaign design
+    rather than only a latent property.
+
+    NEGATIVE CONTROLS, both directions:
+      * omitting the flag must leave the hyperparameters BYTE-IDENTICAL, or
+        every future campaign silently changed the day this landed;
+      * flipping it must change nothing EXCEPT `pretrained` itself, or the
+        override is dragging an unrelated key along with it;
+      * and the two regimes must NOT collide in the cache, or the pilot's
+        two halves are one half measured twice.
+    """
+    try:
+        from configs.gen_campaign import (build_hyperparams,
+                                          compute_base_model_id)
+    except ImportError:                                       # pragma: no cover
+        pytest.skip("configs/ is frozen at a commit predating the flag")
+
+    P = load_yaml(rel("configs", "protocol.yml"))
+    dc = {"data_dir": "data/iwildcam/oodslice", "num_classes": N_CLASSES}
+    bad = []
+
+    for arm in ("tralo", "tralo_null", "clip", "alm", "fioretto"):
+        spec = P["arms"][arm]
+        base = build_hyperparams(P, spec, 1)
+        same = build_hyperparams(P, spec, 1, pretrained=None)
+        off = build_hyperparams(P, spec, 1, pretrained=False)
+
+        if base != same:
+            bad.append("%s: omitting --pretrained changed the hyperparameters, "
+                       "so every existing campaign design just moved" % arm)
+        diff = {k for k in set(base) | set(off) if base.get(k) != off.get(k)}
+        if diff != {"pretrained"}:
+            bad.append("%s: the override touched %s, expected only "
+                       "{'pretrained'}" % (arm, sorted(diff)))
+        if off.get("pretrained") is not False:
+            bad.append("%s: --pretrained false did not reach this arm (%r). "
+                       "A flag reaching only the trained arms would leave the "
+                       "post-hoc baseline as the only one with ImageNet "
+                       "features" % (arm, off.get("pretrained")))
+
+        for model in CLAIMED_BACKBONES:
+            a = compute_base_model_id(P, model, base, "iwildcam", dc)
+            b = compute_base_model_id(P, model, off, "iwildcam", dc)
+            if a == b:
+                bad.append(
+                    "%s/%s: the two pretraining regimes share base_model_id "
+                    "%s, so the second one loads the first one's cached "
+                    "warm-up and the pilot measures one model twice"
+                    % (model, arm, a))
+
+    # 🛑 THE ARGPARSE PATH, END TO END, AND THIS IS THE HALF THAT
+    # ACTUALLY FAILED. The first version of the flag carried
+    # `type=lambda v: v.lower()`, so `--pretrained false` arrived as the STRING
+    # "false" -- and `bool("false")` is True. It emitted 48 configs at
+    # `pretrained: True` while every assertion above passed, because they call
+    # `build_hyperparams` with a real Python bool and never touch the parser.
+    # A flag is only live once the value a USER types reaches the config.
+    import configs.gen_campaign as gc
+
+    class _A:                       # the shape argparse produces, nothing more
+        def __init__(self, v):
+            self.pretrained = v
+
+    for typed, want in (("false", False), ("true", True), (None, None)):
+        got = gc._pretrained(_A(typed))
+        if got is not want:
+            bad.append("--pretrained %r parsed to %r, expected %r; "
+                       "bool('false') is True and that is how flag six went "
+                       "inert" % (typed, got, want))
+    try:
+        gc._pretrained(_A("False"))
+    except ValueError:
+        pass
+    else:
+        bad.append("_pretrained accepted 'False' silently; anything argparse "
+                   "did not validate must RAISE, not be guessed at")
+
+    # And the whole way through to a hyperparameter dict, which is the thing
+    # that is actually written to disk.
+    hp_off = build_hyperparams(P, P["arms"]["tralo"], 1,
+                               pretrained=gc._pretrained(_A("false")))
+    if hp_off.get("pretrained") is not False:
+        bad.append("the typed string 'false' reached the config as %r"
+                   % hp_off.get("pretrained"))
+
+    # `pretrained` must still be a DECLARED warm-up identity key. If it is ever
+    # dropped from that list the split above vanishes silently.
+    if "pretrained" not in (P.get("warmup_identity_keys") or []):
+        bad.append("`pretrained` left warmup_identity_keys; the override no "
+                   "longer splits the cache and the pilot is unrunnable")
+
+    report(bad, "pretraining-override failures")

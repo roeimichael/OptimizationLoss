@@ -266,6 +266,20 @@ count-function evidence.
 
 ## 6. THE ONLY QUESTIONS ON THE TABLE
 
+🛑 **RUN `scripts.sensitivity_screen --campaign <root>` BEFORE PROPOSING
+ANY OF THESE.** Over the whole corpus on 2026-09-04 (38 cells, ~850 runs) it
+returned **SENSITIVE 0, UNDER-POWERED 36, SATURATED 2** -- so every question
+below is currently being asked in cells that cannot answer it. It is wired into
+`run_campaign --step firstrun` as advisory, and it now runs on the FIRST
+completed runs of any new campaign. FRAMEWORK 2(z39).
+
+⚠️ **AND THE FLOOR THOSE QUESTIONS ARE JUDGED AGAINST RESTS ON FOUR
+NUMBERS.** One `_null`/`_reseed` pair at 4 seeds per campaign. Adding
+`<fam>_reseed` twins does NOT help (byte-identical to `tralo_reseed`); a third
+lambda=0 variant with a distinct RNG offset gives 12 observations for 8 extra
+runs, seeds 5-8 give 8 for 16. **Fixing this is a precondition for question 1,
+not a refinement of it.**
+
 **Not** "cover more datasets/backbones/class-counts". That grid is real, it is
 in section 7, and it is gated behind these:
 

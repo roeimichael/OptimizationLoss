@@ -3808,7 +3808,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 545 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 546 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -3972,7 +3972,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 545 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 546 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -3980,7 +3980,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (545 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (546 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -8942,6 +8942,89 @@ is false for hounie under the corpus-era `clip` mode. Do not "modernise" the
 methods section to today's recipe; that would make it describe experiments the
 paper does not report.
 
+### 2(z39) 🛑🛑🛑 **NOT ONE CELL IN THE CORPUS COULD HAVE SEPARATED TWO METHODS -- AND THE SPREAD STATISTIC WAS INFLATED BY ARM COUNT**
+
+`scripts/sensitivity_screen` over `dom1` + `dom1b` + `equaldose1` + `taskwin2` +
+`vittask1` on 2026-09-04. **38 cells, ~850 runs: SENSITIVE 0, UNDER-POWERED 36,
+SATURATED 2.**
+
+🔑 **THE TIE IS NOT WHAT SATURATION ALONE PREDICTS, AND SAYING SO
+PRECISELY MATTERS.** The models DO saturate globally: `dom1`/MobileNetV2 train
+accuracy runs **0.9595** at warm-up exit to **0.9992** at the end, so CE keeps
+sharpening through all 29 constraint epochs, and the contestable band is a
+median **108 items of 2943 -- 93.6% sit at p > 0.99 or p < 0.01**. But at loose
+caps the CUT is not in saturated territory: **p@cut is 0.41-0.65 on most
+cells**, and the one cell where it is high (0.9943, `dom1`/MobileNetV3 class 7)
+has its DECISION BOUNDARY wide open at `p(1-p) = 0.248`. That cell is a
+CUT-PLACEMENT result, not a frozen model -- exactly the distinction section 4
+insists on, and the screen now prints both numbers so it cannot be collapsed.
+
+⛔ **WHAT ACTUALLY STOPS THEM IS ARITHMETIC.** The typical arm-PAIR
+difference is **2-5 deployed TP items**; the RNG floor in the same cell is
+**1.0-10.5**. Same size. This reproduces `deployed_h2h`'s "ratio 1.00x"
+automatically, per cell, with the verdict spelled out.
+
+🛑 **DEFECT 1: A `max - min` RANGE IS NOT COMPARABLE TO A TWO-ARM
+FLOOR.** A range over k arms grows like `sd*sqrt(2 ln k)` -- ~3.1*sd at k=10 --
+against `E|X-Y| = 1.13*sd` for the two-arm floor, so **`range >= floor`
+certifies PURE NOISE as differentiated at ~2.7x** before any method does
+anything. Measured two independent ways on the same 50 cells: raw `range/floor`
+reads a healthy median **2.51**, and the SAME cells read **0.97** once each
+range is divided by `E[range of n]`; an sd-based estimator agrees at **0.94**,
+with the ratio at or below 1.0 in 26/50 and 30/50 cells respectively. The raw
+ratio was an artefact of how many arms each campaign happened to carry.
+⚠️ **`deployed_h2h` still uses the range form** (`spread = order_tp[0] -
+order_tp[-1]`), and the direction of the error there is anti-conservative: an
+inflated spread makes it REFUSE less often, so it can name a #1 on noise. Not
+changed here, because it is a working tool and this is a separate fix.
+
+🛑 **DEFECT 2: THE FLOOR ITSELF RESTS ON FOUR OBSERVATIONS.** Every
+campaign carries exactly ONE `_null`/`_reseed` pair at 4 seeds, so the noise
+every comparison is judged against is a median of four numbers whose
+order-statistic CI is the whole sample range. Comparing a well-estimated median
+against a badly-estimated one is how a noise cell passes. `MIN_FLOOR_OBS = 8`;
+below it the screen returns UNDER-POWERED naming the floor, not the spread.
+
+⛔ **AND I FIRST GOT THE FIX WRONG.** I claimed swapping `alm_null` /
+`fioretto_null` / `hounie_null` for `<fam>_reseed` twins would take the floor
+from 4 observations to 16 at zero cost. **It would not.** `tralo_reseed` is
+`tralo_null` plus the single key `rng_reseed: True`; the `_null` arms are
+byte-identical because `lambda = 0` makes them all plain CE (2944); so an
+`alm_reseed` is plain CE plus that same key and is byte-identical to
+`tralo_reseed`. **Reseed FAMILIES buy nothing.** What buys observations:
+
+| route | observations | extra runs | needs |
+|---|---|---|---|
+| a third lambda=0 variant (`tralo_reseed2`, distinct offset) | 3 pairs x 4 = **12** | **8** | `rng_reseed` becomes an offset, not a boolean |
+| seeds 5-8 on the existing pair | 1 pair x 8 = **8** | **16** | nothing |
+
+The per-observation price differs 4x. Say which is being bought.
+
+⚠️ **DE-SATURATING IS NOT THE INDICATED FIX, AND 2(j) IS THE REASON.**
+Post-hoc allocation is optimal for expected TP GIVEN the probabilities, and that
+optimality is distribution-free, so a worse model raises the headroom for `clip`
+by the same amount it raises it for a trained arm. **A bigger prize is not a
+bigger GAP.** Any de-saturation experiment must pre-register why it moves the
+gap. `--pretrained {true,false}` now exists in `gen_campaign` to make that pilot
+expressible (it is in `warmup_identity_keys`, so the two regimes cannot share a
+cached warm-up), but it is a PILOT knob, not a protocol change.
+
+⛔ **THE SIXTH INERT FLAG WAS MINE, AND IT WAS THAT FLAG.** The first version
+carried `type=lambda v: v.lower()`, so `--pretrained false` arrived as the
+STRING `"false"` -- and `bool("false")` is True. It emitted **48 configs at
+`pretrained: True` while every gate passed**, because the gate called
+`build_hyperparams` with a real bool and never went through argparse. Caught by
+a dry run, not by a test. `test_g3_model` now drives the parser end to end and
+`_pretrained` RAISES on anything argparse did not validate. Mutation-tested 6/6
+across both gates.
+
+✅ **GATED.** `tests/gates/test_g5_trainlog.py` covers the four verdicts with
+a liveness case and the range-vs-pairwise arithmetic as a simulation that cannot
+rot; `tests/gates/test_g3_model.py` covers the pretraining override and the
+cache split. The screen runs in `run_campaign --step firstrun` as ADVISORY --
+required=True would block every campaign this project currently knows how to
+run, which is itself the finding.
+
 ### 2(z38) 🛑🛑🛑 **A CAP LEVEL IS NOT A SEED: THE ViTB16 WINDOW
 WAS MEASURED OFF AN INFLATED COUNT, AND TWO OF `vitdual1`'S THREE CAPS POSE NO
 QUESTION** (2026-09-03)
@@ -10676,7 +10759,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             545 tests, ~200 s, no dataset required
+tests/             546 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
