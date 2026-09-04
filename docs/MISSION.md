@@ -57,6 +57,15 @@ not two. As deployed: `tralo` > `clip` and `tralo` > its own `_null` in **4/4 un
 > absent entry is UNVERIFIED, not independent, and the default must not be
 > the flattering one.
 >
+> ⛔ **AND ONLY THREE OF THE FOUR CARRY A VERIFIED `task` CELL (2026-09-04).**
+> `configs.task_cells.classify`: `taskwin2`/MobileNetV3 -- ledger unit `C1` --
+> is `no_strict_band` at `L70-90_G95` (class 2's strict band re-measured EMPTY
+> 2026-09-02 under the per-group prize) and `unmeasured` at `L80-100_G95` (c7
+> at K/n 0.950). So state BOTH: **4/4 units, p=0.0625** licensed, and
+> **3/3 units, p=0.125** over units with a verified `task` cell. Every sign is
+> identical either way. `scripts/paper_rows.py` prints the restriction --
+> take it from there rather than re-deriving it.
+>
 > 🛑 **AND THE INCLUSION RULE WAS NOT SIGN-BLIND.** The old "B2",
 > `loose1`/RegNetY400MF, was removed in commit `1a7723a0` for running
 > `constraint_grad_mode: clip` -- a sound reason -- but it was the
@@ -201,7 +210,7 @@ not a defence for anything generated in a worktree.
 `partial` band (`2: []` unpacked as a 2-tuple and raised); and the 4-seed
 self-test fixture, which shared one probability array across its four "seeds",
 now perturbs each; and `paired_noise` prints `N (M distinct)` per arm.
-Suite 550 tests, 549 pass / 1 skip.
+Suite 551 tests, 550 pass / 1 skip.
 
 ✅ **AND THE FOUR-DUAL HEAD-TO-HEAD WAS NOT AT EQUAL DOSE. FIXED; THE
 CAMPAIGN WAS DISCARDED AND RELAUNCHED AS `vitdual2`.**
@@ -474,6 +483,14 @@ three contrasts was `loose1`, which ran `grad_mode: clip`. With it gone:
 | `tralo` vs `tralo_reseed` | **3/4** | 0.3125 | ⛔ fails on MobileNetV3 |
 | #1 of the four duals | **3/6 cells** | 0.66 | ⛔ dominance not shown |
 
+⛔ **AND THE DENOMINATOR IS 3, NOT 4, ONCE A VERIFIED `task` CELL IS REQUIRED
+(2026-09-04).** `taskwin2`/MobileNetV3 -- unit `C1` -- classifies
+`no_strict_band` at `L70-90_G95` and `unmeasured` at `L80-100_G95`, so it
+carries none. Over the three task-carrying units each of the three CONTRAST
+rows above reads **3/3 units, p=0.125**, because C1 was also the MobileNetV3
+dissent on the reseed row. Cleaner AND less significant. `scripts/paper_rows.py` computes and
+prints the restriction; take it from there.
+
 🛑 **THE ONE FAILURE IS SPECIFIC.** On MobileNetV3 (`taskwin2`, C1) `tralo`
 beats `clip` by +7.32 items but beats its own `_null` by **+0.75** -- below the
 one-item quantum -- and **loses to a pure RNG reseed by 0.27**. So there the
@@ -514,11 +531,21 @@ Broken to paper-level items with `scripts/paper_rows.py` -- one row per
 | `tralo` vs `clip` (the quality bar) | 3/4 | 0.3125 |
 | `tralo` vs `tralo_reseed` (RNG floor) | 3/4 | 0.3125 |
 
+⛔ **AND ONLY THREE OF THE FOUR CARRY A VERIFIED `task` CELL (2026-09-04).**
+Unit C1 (`taskwin2`/MobileNetV3) contributes `no_strict_band` + `unmeasured`
+and nothing else, so restricted to task-carrying units this is
+**3/3 units, p=0.125**, every sign unchanged. Quote both, and take the
+restriction from `scripts/paper_rows.py`, which prints it.
+
 * 🔑 **0.0625 is the FLOOR at four units.** No amount of agreement in this
   corpus reaches p<0.05. **The bar is crossed by adding a FIFTH INDEPENDENT
   UNIT, not by another knob.** That is exactly what `taskwin2` (MobileNetV3,
   which has ZERO task cells today) and `vittask1` (ViTB16, the headline
   backbone, also ZERO) are for. They are the highest-value runs available.
+  ⛔ **AND `taskwin2` DID NOT BUY IT (2026-09-04).** It completed, and both its
+  cells classify non-task -- `L70-90_G95` -> `no_strict_band`, `L80-100_G95` ->
+  `unmeasured` -- so unit C1 carries no verified `task` cell. `vittask1` is the
+  live candidate.
 * ⛔ `B2` (`loose1`/RegNetY400MF/`L80_G95`) dissents on all three contrasts.
   It goes in the table.
 * ⛔ **Dominance over the rival duals is NOT shown**: `tralo` is #1 of four in
@@ -530,18 +557,44 @@ At `n` unanimous units the one-sided sign test is exactly `0.5^n`:
 
 | units | p | |
 |---|---|---|
-| 4 (today) | 0.0625 | above the bar, and it CANNOT go lower |
+| **3** (today, restricted to units carrying a verified `task` cell) | **0.125** | the honest floor -- see the `taskwin2` correction below |
+| 4 (today, every unit the ledger licenses) | 0.0625 | above the bar, and it CANNOT go lower |
 | **5** | **0.03125** | **below** |
 | 6 | 0.01562 | below |
 
-Verified against `configs.task_cells.classify` on 2026-09-01:
+Verified against `configs.task_cells.classify` on 2026-09-01 -- and the
+`taskwin2` rows RE-VERIFIED 2026-09-04, where the first one FELL:
 
 | campaign | backbone | cap | status | buys |
 |---|---|---|---|---|
-| `taskwin2` | MobileNetV3 | `L70-90_G95` | **task** | **unit 5** |
+| `taskwin2` | MobileNetV3 | `L70-90_G95` | ⛔ **`no_strict_band`** (read **task** on 2026-09-01) | **NOTHING** -- unit 5 never arrived |
 | `taskwin2` | MobileNetV3 | `L80-100_G95` | `unmeasured` | nothing -- c7 sits at K/n 0.950 |
 | `vittask1` | ViTB16 | `L60-90_G95` | **task** | **unit 6**, and it is the HEADLINE backbone |
 | `vittask1` | ViTB16 | `L70-90_G95` | **task** | same unit (one campaign, one warm-up) |
+
+⛔ **THE FIRST ROW WAS TRUE ON 2026-09-01 AND FALSE ON 2026-09-02, AND IT IS
+THE ROW THE TALLY RESTED ON.** The cap screen behind the 09-01 reading counted
+the PRIZE over a GLOBAL top-K while every allocator here is per-group;
+re-measured with the per-group prize, MobileNetV3 class 2's strict band is
+**EMPTY** on the dsisco01 model `taskwin2` uses -- at every 0.1-grid fraction
+either the cap binds 4/4 and the local prize is under the 3.0-item floor, or
+the prize clears the floor and the cap has gone slack in some seed. So
+`taskwin2` / MobileNetV3 -- ledger unit **C1** -- contributes **ZERO** verified
+`task` cells, and the deciding experiment is `vittask1` alone.
+
+🔑 **`no_strict_band` IS A MEASUREMENT; `unmeasured` IS AN ABSENCE; NEITHER
+IS `non_task`.** C1's other cell, `L80-100_G95`, is the opposite failure: c7
+sits at K/n 0.950, a fraction nobody has looked at. Do not collapse the three.
+
+⚠️ **CONSEQUENCE FOR THE TALLY, AND BOTH NUMBERS BELONG IN ANY WRITE-UP:**
+**4/4 units, sign p=0.0625** over the units the ledger licenses;
+**3/3 units, sign p=0.125** once restricted to units carrying a verified
+`task` cell. The SIGNS do not change -- dropping C1 flips nothing, and it
+removes the one unit that was FAILING the `vs tralo_reseed` contrast, so the
+corpus gets CLEANER and LESS significant at once. `scripts/paper_rows.py`
+computes the restriction itself and prints "UNITS CARRYING AT LEAST ONE
+VERIFIED `task` CELL: N of M"; read it there rather than re-deriving a number
+that has now gone stale twice.
 
 Both are already staged, single `code_version`, `constraint_fp32: true`,
 warm-up 1 / constraint 29, six arms including `tralo_null` and
@@ -742,7 +795,7 @@ L95_G80. Only **20 distinct warm-up models** exist across all five campaigns.
 | `soft_count_mode: sum` (shipped) | 🟡 wins LOOSE, loses TIGHT -- **and the reason is now known**, 2(y) | AP +0.0253..+0.0064 loose / -0.0572..-0.0933 tight. The gradient sits at the boundary, 200-440 ranks from the cut when the cap is tight |
 | `soft_count_mode: uniform` | ⛔ **DO NOT RUN AGAIN 2026-09-01** (weaker than 'refuted': see the cross-campaign count). Was logged as "the tight-cap tool", but tight caps are now measured NON-TASKS (2(z17)) and in the cells that ARE tasks it clears its own reseed floor in **3 of 8** of the cells 2(z23) counts (`loose1` 1/5, `dom1b` 2/3) and in **0 of 4** `dom1` task cells (2(z21)) -- **3 of 12 overall** and is **-3.50 items against a 0.51 floor on ViTB16** (2(z20), 2(z21), 2(z23)). It never LEADS anywhere. Its founding order-preservation claim was also refuted (0-NOW (2)) | old row: ViTB16 AP +0.0087 tight / -0.0091 loose, `uniform1` -0.0754 -> +0.0030. Those tight-cap numbers stand as measurements and no longer support the verdict |
 | `soft_count_mode: margin` | ⛔ **NEVER RUN, AND NOW REPRICED DOWNWARD** (2026-09-01). **NOT staged** -- checked 2026-09-02, no `margin2` exists on disk anywhere; this line said it was. It windows the BOUNDARY, and the boundary is measured to carry **exactly 0.0000** of the gradient at the cut. 🛑 **Run `taskwin2` first** | cosine **0.989** to `tralo` on real features, so 432 runs would mostly reproduce `tralo`. FRAMEWORK 2(z12) |
-| `soft_count_mode: cut` (`tralo_cut`) | ⛔ **REJECTED on its first campaign, 2026-09-02.** `taskwin2` landed 48/48 at 232/232 dose and `tralo_cut` is WORSE than `tralo` in **both** cells on **all three** contrasts. In the strict task cell it is NEGATIVE against the clipper. Aiming the gradient at the cut was necessary and is now measured to be insufficient. 🟡 One confirmation outstanding: `vittask1` runs it on ViTB16 and will give a second backbone before this is final | strict cell `L70-90_G95`: `tralo_cut` **-0.46 / -7.02 / -8.05** items (vs clip / null / reseed) against `tralo` **+7.32 / +0.75 / -0.27** -- **7.8 items behind on every contrast**. Unmeasured cell `L80-100_G95`: **+6.64 / +1.24 / -0.95** against `tralo` **+10.86 / +5.47 / +3.28** -- 4.2 behind. The build was sound (mass at the cut 0.0001 -> 0.3486, chunked gradient == full-N exactly, md5-distinct on every binding seed); the HYPOTHESIS was wrong |
+| `soft_count_mode: cut` (`tralo_cut`) | ⛔ **REJECTED on its first campaign, 2026-09-02.** `taskwin2` landed 48/48 at 232/232 dose and `tralo_cut` is WORSE than `tralo` in **both** cells on **all three** contrasts. In the `L70-90_G95` cell -- called the STRICT task cell when this was written, re-measured `no_strict_band` 2026-09-02 -- it is NEGATIVE against the clipper. Aiming the gradient at the cut was necessary and is now measured to be insufficient. 🟡 One confirmation outstanding: `vittask1` runs it on ViTB16 and will give a second backbone before this is final | cell `L70-90_G95` (⛔ `no_strict_band`, NOT strict -- re-measured 2026-09-02): `tralo_cut` **-0.46 / -7.02 / -8.05** items (vs clip / null / reseed) against `tralo` **+7.32 / +0.75 / -0.27** -- **7.8 items behind on every contrast**. Unmeasured cell `L80-100_G95`: **+6.64 / +1.24 / -0.95** against `tralo` **+10.86 / +5.47 / +3.28** -- 4.2 behind. The build was sound (mass at the cut 0.0001 -> 0.3486, chunked gradient == full-N exactly, md5-distinct on every binding seed); the HYPOTHESIS was wrong |
 | `tralo_st` (hard-count value fix) | ❓ **NEVER RUN** -- same campaign | isolates VALUE from PLACEMENT |
 | `straight_through` | ✅ keeps count value exact | -- |
 | `constraint_grad_mode: normalize` | ✅ **required** -- `clip` gives a ~20x dose spread across duals | `check_parity` refuses `clip` |
@@ -883,16 +936,30 @@ and FRAMEWORK 3(0), then start the next.
 
    | cap tag | class 2 | class 7 | verdict |
    |---|---|---|---|
-   | `L70-90_G95` | 0.700 **strict 4/4** | 0.901 **strict 4/4** | ✅ **TASK CELL** |
+   | `L70-90_G95` | ⛔ **NO STRICT BAND** (read `0.700 strict 4/4` here on 2026-09-01) | 0.901 **strict 4/4** | ⛔ **NOT A TASK CELL** |
    | `L80-100_G95` | 0.800 **PARTIAL 3/4** | 0.950 **UNMEASURED** | ⚠️ label it |
 
    0.950 is halfway between the strict 0.90 and the partial 1.00, ten times the
    0.005 snapping tolerance from either, so nobody measured that fraction.
-   ⇒ **The arm-vs-arm claim rides on the `L70-90_G95` half.** The other half is
-   a second reading, conservative if positive (a slack seed dilutes toward
-   zero) and NOT evidence of no effect if null. Say PARTIAL / UNMEASURED
-   wherever it is quoted. `classify` now returns four statuses and
-   `gen_campaign` prints the label, so this cannot be staged unlabelled again.
+   ⛔ **AND ON 2026-09-02 THE OTHER HALF FELL TOO.** This read "⇒ **The
+   arm-vs-arm claim rides on the `L70-90_G95` half**", and that is WITHDRAWN.
+   The cap screen behind it counted the PRIZE over a GLOBAL top-K while every
+   allocator here is per-group; re-measured with the per-group prize,
+   MobileNetV3 class 2 has **NO strict band at any 0.1-grid fraction** on the
+   dsisco01 model `taskwin2` uses. `classify` returns `no_strict_band` for
+   `L70-90_G95` -- a measured EMPTY band, which is neither the `unmeasured`
+   absence of one nor `non_task`. **So `taskwin2` carries no verified `task`
+   cell, and ledger unit C1 buys none either:** the headline is
+   **4/4 units, p=0.0625** over the licensed set, and
+   **3/3 units, p=0.125** over units with a verified `task` cell.
+   `scripts/paper_rows.py` computes and prints that restriction -- do not
+   re-derive it here.
+
+   The `L80-100_G95` half is a second reading, conservative if positive (a
+   slack seed dilutes toward zero) and NOT evidence of no effect if null. Say
+   PARTIAL / UNMEASURED wherever it is quoted. `classify` now returns seven
+   statuses (four when this was written) and `gen_campaign` prints the label,
+   so this cannot be staged unlabelled again.
 
    🟢 **`vittask1` IS CLEAN ON BOTH CELLS** -- ViTB16 strict windows are
    class 2 0.60-0.70 and class 7 0.90, so `L60-90_G95` and `L70-90_G95` are

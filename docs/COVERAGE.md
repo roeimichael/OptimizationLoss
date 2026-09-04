@@ -69,13 +69,35 @@ exact captured items, and it carries the RNG floor beside every ranking.
 **NOT AT p<0.05, AND IT CANNOT BE.** **FOUR** independent units, as-deployed,
 in exact TP items. A unit is ONE warm-up model -- `(backbone, host)` -- and
 the roster is `scripts/paper_rows.MEASURED_UNITS`, which is the only place a
-unit is a fact.
+unit is a fact. ⛔ **AND ONLY THREE OF THE FOUR CARRY A VERIFIED `task` CELL
+(2026-09-04)** -- read the block under the table before quoting either number.
 
 | contrast | units | sign p | |
 |---|---|---|---|
 | `tralo` vs **`clip`** | **4/4** | 0.0625 | ✅ beats the quality bar in every unit |
 | `tralo` vs its own **`_null`** | **4/4** | 0.0625 | ⚠️ attributable to the constraint STEPS, not to their DIRECTION |
 | `tralo` vs **`tralo_reseed`** | **3/4** | 0.3125 | ⛔ fails on MobileNetV3 |
+
+⛔ **THE DENOMINATOR ABOVE IS THE LEDGER, NOT THE TASK WINDOW, AND THE TWO
+DISAGREE.** Verified with `configs.task_cells.classify` 2026-09-04: unit **C1**
+(`taskwin2` / MobileNetV3) contributes **ZERO** `task` cells. Its two cells are
+`L70-90_G95` -> `no_strict_band` and `L80-100_G95` -> `unmeasured`, and those
+are different failures. The first is a MEASUREMENT: MobileNetV3 class 2's
+strict band was re-measured EMPTY on 2026-09-02 with the per-group prize -- at
+every 0.1-grid fraction either the cap binds 4/4 and the local prize is under
+the 3.0-item floor, or the prize clears the floor and the cap has gone slack in
+some seed. The second is an ABSENCE: c7 sits at K/n 0.950, in the gap between
+the strict 0.90 and the partial 1.00 that nobody has looked at. Neither is
+`non_task`. A1, A2 and B1 each carry 2 `task` cells plus 1 `partial`.
+
+⇒ **BOTH TALLIES, ALWAYS.**
+**4/4 units, sign p=0.0625** over the units the ledger licenses;
+**3/3 units, sign p=0.125** over the units that carry a verified `task` cell.
+The SIGNS are unchanged -- dropping C1 flips nothing, and it removes the one
+unit FAILING the `vs tralo_reseed` row above, so the corpus becomes CLEANER and
+LESS significant at the same time. **Do not re-derive this by hand:**
+`scripts/paper_rows.py` computes it and prints "UNITS CARRYING AT LEAST ONE
+VERIFIED `task` CELL: N of M", which is the live source.
 
 ⛔ **THE SECOND ROW USED TO READ "attributable to the constraint" AND THAT IS
 MORE THAN IT CAN CARRY.** `tralo_null` is `tralo` with `lambda = 0`, so the
@@ -143,18 +165,28 @@ What remains true is that ViTB16 has contributed **no completed unit yet**:
 
 Per unit, mean over its cells, in items:
 
-| unit | backbone x host | cells | vs `clip` | vs `_null` | vs `reseed` |
-|---|---|---|---|---|---|
-| A1 | MobileNetV2 x dsisco02 (`dom1`) | 3 | +4.00 | +8.00 | +3.00 |
-| A2 | MobileNetV2 x dsisco01 (`equaldose1`) | 3 | +2.00 | +1.00 | +6.00 |
-| B1 | RegNetY400MF x dsisco01 (`dom1b`) | 3 | +4.00 | +2.00 | +1.00 |
-| C1 | MobileNetV3 x dsisco01 (`equaldose1`+`taskwin2`) | 5 | +7.00 | +3.00 | +3.00 |
-| C2 | MobileNetV3 x dsisco02 (`dom1`) | 3 | +2.00 | +9.00 | **+0.00** |
+| unit | backbone x host | cells | of those, `task` | vs `clip` | vs `_null` | vs `reseed` |
+|---|---|---|---|---|---|---|
+| A1 | MobileNetV2 x dsisco02 (`dom1`) | 3 | 2 | +4.00 | +8.00 | +3.00 |
+| A2 | MobileNetV2 x dsisco01 (`equaldose1`) | 3 | 2 | +2.00 | +1.00 | +6.00 |
+| B1 | RegNetY400MF x dsisco01 (`dom1b`) | 3 | 2 | +4.00 | +2.00 | +1.00 |
+| C1 | MobileNetV3 x dsisco01 (`equaldose1`+`taskwin2`) | 5 | **0** | +7.00 | +3.00 | +3.00 |
+| C2 | MobileNetV3 x dsisco02 (`dom1`) | 3 | **0** | +2.00 | +9.00 | **+0.00** |
 
 ⛔ **THE OLD "C1 IS THE FAILURE, AND IT IS THE BACKBONE" READING IS WITHDRAWN.**
 It was built on `taskwin2`'s +0.75 items against its null and blamed
 MobileNetV3. MobileNetV3 is fine: the same backbone delivers +5 to +13 items in
 `dom1`. **The failure was the CELL**, and section 4 says exactly why.
+
+🔑 **THE `task` COLUMN IS NEW (2026-09-04), AND IT IS WHY THE TALLY IS BOTH
+4 AND 3.** From `configs.task_cells.classify` on today's
+`configs/task_windows.yml`: A1, A2 and B1 are each 2 `task` + 1 `partial` over
+`L80_G95` / `L90_G95` / `L95_G80`; C1's two `taskwin2` cells are
+`no_strict_band` + `unmeasured` and its three `equaldose1` MobileNetV3 cells
+are all `partial`; C2's three `dom1` MobileNetV3 cells are all `partial`.
+⛔ **So the CANDIDATE FIFTH above would not add a task-carrying unit either** --
+promoting `dom1`/MobileNetV3 would move the licensed tally and not the
+restricted one.
 
 ## 3. THE HEAD-TO-HEAD, AND WHY IT NAMES ALMOST NOTHING
 

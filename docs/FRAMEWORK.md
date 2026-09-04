@@ -3808,7 +3808,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 550 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 551 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -3972,7 +3972,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 550 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 551 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -3980,7 +3980,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (550 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (551 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -7097,17 +7097,28 @@ fraction printed beside it.
 
 | campaign | cap | verdict |
 |---|---|---|
-| `taskwin2` (MobileNetV3) | `L70-90_G95` | ✅ **STRICT task cell**, 4/4 both classes |
+| `taskwin2` (MobileNetV3) | `L70-90_G95` | ⛔ **`no_strict_band`** -- read ✅ STRICT here on 2026-09-01, re-measured EMPTY 2026-09-02 (see the banner below) |
 | `taskwin2` (MobileNetV3) | `L80-100_G95` | ⚠️ class 2 **PARTIAL 3/4**, class 7 **UNMEASURED** at 0.950 |
 | `vittask1` (ViTB16) | `L60-90_G95` | ✅ **STRICT**, 4/4 both classes |
 | `vittask1` (ViTB16) | `L70-90_G95` | ✅ **STRICT**, 4/4 both classes |
 
 So **`vittask1` is clean on both cells** -- and it is the first ViTB16 campaign
 that is, which retires "ViTB16 has zero strict task cells at any cap ever run"
-(true of L20/L30/L50; `vittask1` is the campaign that fixes it). **`taskwin2`
-is clean on half.** Its `L70-90_G95` half carries the arm-vs-arm claim; the
+(true of L20/L30/L50; `vittask1` is the campaign that fixes it). ⛔ **`taskwin2`
+is clean on NEITHER half -- this read "clean on half" and that is WITHDRAWN,
+2026-09-02.** Its `L70-90_G95` half was re-measured `no_strict_band` under the
+per-group prize (the row above), so it does NOT carry the arm-vs-arm claim; the
 `L80-100_G95` half is a second reading whose cell was never characterised at
 its own K/n, and it must be labelled that way wherever it is quoted.
+
+⛔ **AND THAT COSTS A UNIT, NOT ONLY A CELL.** `taskwin2` / MobileNetV3 is
+ledger unit **C1** in `scripts/paper_rows.MEASURED_UNITS`, and with both cells
+non-task it contributes **ZERO** verified `task` cells. So the headline is
+**4/4 units, sign p=0.0625** over the licensed set, and
+**3/3 units, sign p=0.125** restricted to units that carry a verified `task`
+cell -- every sign unchanged, C1 being also the dissent on the reseed contrast.
+`scripts/paper_rows.py` computes and prints "UNITS CARRYING AT LEAST ONE
+VERIFIED `task` CELL: N of M"; read the restriction there. 2(z26-CORRECTED).
 
 🔑 **ONE MORE MEASURED CHANGE.** The two classes' windows no longer
 differ on EVERY backbone: **MobileNetV2's strict windows COINCIDE at
@@ -8172,12 +8183,25 @@ unit that dissented on all three contrasts. `loose1` is archived.
 
 **On the current recipe only (4 units, `docs/COVERAGE.md`):**
 
-| contrast | was (5 units, mixed recipe) | now (4 units, one recipe) |
-|---|---|---|
-| `tralo` vs `clip` | 4/5, p=0.188 | **4/4, p=0.0625** |
-| `tralo` vs its own null | 5/5, p=0.031 | 4/4, p=0.0625 |
-| `tralo` vs `tralo_reseed` | 3/5, p=0.500 | **3/4, p=0.3125** |
-| #1 of four duals | 3/6 cells | 3/6 cells |
+| contrast | was (5 units, mixed recipe) | now (4 units, one recipe) | restricted to units with a verified `task` cell |
+|---|---|---|---|
+| `tralo` vs `clip` | 4/5, p=0.188 | **4/4, p=0.0625** | **3/3, p=0.125** |
+| `tralo` vs its own null | 5/5, p=0.031 | 4/4, p=0.0625 | 3/3, p=0.125 |
+| `tralo` vs `tralo_reseed` | 3/5, p=0.500 | **3/4, p=0.3125** | **3/3, p=0.125** |
+| #1 of four duals | 3/6 cells | 3/6 cells | -- |
+
+⛔ **THE FOURTH COLUMN WAS ADDED 2026-09-04, AND THE THIRD WENT STALE THE DAY
+AFTER IT WAS WRITTEN.** Unit **C1** (`taskwin2` / MobileNetV3) contributes
+**ZERO** verified `task` cells: `configs.task_cells.classify` returns
+`no_strict_band` for its `L70-90_G95` -- MobileNetV3 class 2's strict band was
+re-measured EMPTY on 2026-09-02 under the per-group prize -- and `unmeasured`
+for its `L80-100_G95`, where c7 sits at K/n 0.950. A measured-empty band and an
+unlooked-at fraction are different things, and neither is `non_task`. Restricted
+to units that carry a verified `task` cell the tally is **3**, and a sign test
+over 3 floors at 0.125. Every SIGN is unchanged, and C1 was the unit DISSENTING
+on the reseed row, so the restricted corpus is CLEANER and LESS significant at
+once. `scripts/paper_rows.py` computes this and prints "UNITS CARRYING AT LEAST
+ONE VERIFIED `task` CELL: N of M" -- take it from there, not from this table.
 
 ⚠️ **Removing `loose1` costs no MobileNetV2 data**: its `tralo` there is
 byte-identical to `dom1`'s in 4/4 seeds despite a different `grad_mode` and a
@@ -8244,6 +8268,9 @@ units**, not over the eight cells and certainly not over the 158 rows:
 it, so no amount of agreement in this corpus reaches 0.05. **The bar is not
 crossed by finding a bigger effect, only by adding a fifth independent unit.**
 That, not another knob, is what `taskwin2` and `vittask1` buy.
+⛔ **`taskwin2` DID NOT BUY IT** -- both its cells are non-task
+(`no_strict_band` / `unmeasured`), so its unit C1 carries no verified `task`
+cell at all. 2(z26-CORRECTED).
 
 ⛔ **`B2` (`loose1` / RegNetY400MF / `L80_G95`) DISSENTS ON ALL THREE
 CONTRASTS**, -1.80 / +1.62 / -1.74. One unit in four is negative against both
@@ -8285,18 +8312,44 @@ At `n` unanimous units the one-sided sign test is exactly `0.5^n`:
 
 | units | p | |
 |---|---|---|
-| 4 (today) | 0.0625 | above the bar, and it CANNOT go lower |
+| **3** (today, restricted to units carrying a verified `task` cell) | **0.125** | the honest floor -- see the `taskwin2` correction below |
+| 4 (today, every unit the ledger licenses) | 0.0625 | above the bar, and it CANNOT go lower |
 | **5** | **0.03125** | **below** |
 | 6 | 0.01562 | below |
 
-Verified against `configs.task_cells.classify` on 2026-09-01:
+Verified against `configs.task_cells.classify` on 2026-09-01 -- and the
+`taskwin2` rows RE-VERIFIED 2026-09-04, where the first one FELL:
 
 | campaign | backbone | cap | status | buys |
 |---|---|---|---|---|
-| `taskwin2` | MobileNetV3 | `L70-90_G95` | **task** | **unit 5** |
+| `taskwin2` | MobileNetV3 | `L70-90_G95` | ⛔ **`no_strict_band`** (read **task** on 2026-09-01) | **NOTHING** -- unit 5 never arrived |
 | `taskwin2` | MobileNetV3 | `L80-100_G95` | `unmeasured` | nothing -- c7 sits at K/n 0.950 |
 | `vittask1` | ViTB16 | `L60-90_G95` | **task** | **unit 6**, and it is the HEADLINE backbone |
 | `vittask1` | ViTB16 | `L70-90_G95` | **task** | same unit (one campaign, one warm-up) |
+
+⛔ **THE FIRST ROW WAS TRUE ON 2026-09-01 AND FALSE ON 2026-09-02, AND IT IS
+THE ROW THE TALLY RESTED ON.** The cap screen behind the 09-01 reading counted
+the PRIZE over a GLOBAL top-K while every allocator here is per-group;
+re-measured with the per-group prize, MobileNetV3 class 2's strict band is
+**EMPTY** on the dsisco01 model `taskwin2` uses -- at every 0.1-grid fraction
+either the cap binds 4/4 and the local prize is under the 3.0-item floor, or
+the prize clears the floor and the cap has gone slack in some seed. So
+`taskwin2` / MobileNetV3 -- ledger unit **C1** -- contributes **ZERO** verified
+`task` cells, and the deciding experiment is `vittask1` alone.
+
+🔑 **`no_strict_band` IS A MEASUREMENT; `unmeasured` IS AN ABSENCE; NEITHER
+IS `non_task`.** C1's other cell, `L80-100_G95`, is the opposite failure: c7
+sits at K/n 0.950, a fraction nobody has looked at. Do not collapse the three.
+
+⚠️ **CONSEQUENCE FOR THE TALLY, AND BOTH NUMBERS BELONG IN ANY WRITE-UP:**
+**4/4 units, sign p=0.0625** over the units the ledger licenses;
+**3/3 units, sign p=0.125** once restricted to units carrying a verified
+`task` cell. The SIGNS do not change -- dropping C1 flips nothing, and it
+removes the one unit that was FAILING the `vs tralo_reseed` contrast, so the
+corpus gets CLEANER and LESS significant at once. `scripts/paper_rows.py`
+computes the restriction itself and prints "UNITS CARRYING AT LEAST ONE
+VERIFIED `task` CELL: N of M"; read it there rather than re-deriving a number
+that has now gone stale twice.
 
 Both are already staged, single `code_version`, `constraint_fp32: true`,
 warm-up 1 / constraint 29, six arms including `tralo_null` and
@@ -8315,6 +8368,11 @@ moves cc-F1 in TraLO's favour relative to its own lambda=0 twin (4/4 units,
 sign p=0.0625, +1.6 to +13.2 items)", stated beside the unit count, the
 dissenting unit on the other two contrasts, and the fact that one cell in 158
 separates from its own noise.
+⚠️ **AND THE RESTRICTED TALLY IN THE SAME BREATH (2026-09-04):** unit C1
+(`taskwin2` / MobileNetV3) carries no verified `task` cell, so over the units
+that do carry one it is
+**3/3 units, sign p=0.125**. Every sign is unchanged. Take the restriction from
+`scripts/paper_rows.py`, which prints it; do not re-derive it.
 ⛔ **WHAT MAY NOT.** Any per-cell effect size quoted as a measurement, any
 count of CELLS used as a count of replicates, and any dominance claim.
 
@@ -8941,6 +8999,81 @@ paragraph's "every method takes a single norm-clipped constraint step", which
 is false for hounie under the corpus-era `clip` mode. Do not "modernise" the
 methods section to today's recipe; that would make it describe experiments the
 paper does not report.
+
+### 2(z42) 🛑🛑 **TWO CAMPAIGNS WERE MECHANICALLY PERFECT AND MEASURED NOTHING -- 265 RUNS, AND NO HEALTH CHECK COULD EVER HAVE SEEN IT**
+
+`uniform1` (252 runs) and `vittask1` (13) pass every instrument this project
+owns. Parity green. Zero terminal collapse. Zero non-finite values. One code
+version each. On-recipe. `uniform1` landed **1044 / 1044** constraint steps and
+`vittask1` 29/29. Nothing went wrong.
+
+**And every one of their cells sits outside the measured task window**, so both
+campaigns measured the absence of a question:
+
+| campaign | cells | verdict |
+|---|---|---|
+| `uniform1` | **9 of 9** | 6 `non_task` (MNv2, RegNetY400MF: both classes outside every band) + 3 `no_strict_band` (MNv3). Caps are `L20_G50` / `L30_G50` / `L50_G30` -- exactly the regime 2(z16) closed |
+| `vittask1` | **2 of 2** | `non_task`. Class 2 at K/n 0.600 and 0.700 against ViTB16's measured strict band [0.80, 0.90] |
+
+🔑 **THIS IS A DIFFERENT DEFECT CLASS FROM EVERY OTHER ENTRY IN SECTION 2, AND
+IT IS THE ONE THE GATES ARE STRUCTURALLY BLIND TO.** Dose, parity, collapse,
+recipe, inert flags, quarantine -- every one of those asks *did the experiment
+run correctly*. This one asks *was there a question*, and a run that poses no
+question runs perfectly. `full_panel` printed a complete, plausible panel for
+both.
+
+✅ **FIXED WHERE IT CANNOT GO STALE.** `scripts.quarantine.gate()` -- the one
+refusal all seven scorers now call -- CLASSIFIES the cells it is about to
+score and announces every one that poses no question:
+
+```
+!! ALL 2 OF 2 CELLS DO NOT POSE THE CAP QUESTION: results/vittask1
+     ViTB16         iwildcam       L60-90_G95     non_task
+     ViTB16         iwildcam       L70-90_G95     non_task
+```
+
+Hand-listing the two campaigns we happen to know about catches those two and
+goes stale on the next one; classifying whatever is in front of the scorer
+cannot. `vittask1` was ALSO found **stalled** -- 34 pending, no dispatcher --
+and those 34 were dropped rather than resumed.
+
+⚠️ **AND THE FIVE NEGATIVES ARE STILL NOT ONE THING.** The banner prints the
+status verbatim and says so. `non_task` is a measured statement that the cap
+chosen sits outside a band that exists; `no_strict_band` is a measured
+statement that no cap could pose a question on that class at all;
+`unmeasured` is a K/n nobody has looked at; `no_window` is an unmeasured
+backbone; `no_data` is a missing slice. Collapsing any into `non_task` is
+2(z25)'s inversion. Three places had drifted apart and now share **one list**,
+`quarantine.NOT_A_TASK`:
+
+* `paper_rows` checked a hand-written `("non_task", "unmeasured")` and was
+  therefore **SILENT on `no_strict_band`** -- the status of
+  `taskwin2`/`L70-90_G95`, the only cell independent unit C1 contributes. The
+  tool whose entire job is saying what may be WRITTEN printed that row with no
+  warning;
+* `full_panel` had no branch for `partial` or `unmeasured`, so both printed as
+  **"slice not on this machine"** -- a missing-instrument message on a cell
+  that was measured. Three of the four licensed units carry a `partial` cell;
+* `configs/task_cells.classify`'s own docstring said **"SIX statuses, and the
+  FOUR negatives"**, having never been updated for the seventh it gained on
+  2026-09-02. There are seven and five.
+
+🛑 **A CHECKOUT WITH NO INSTRUMENT ANNOUNCES `UNVERIFIABLE`, NEVER SILENCE.**
+A campaign worktree is PINNED, and `configs/task_cells.py` and
+`configs/task_windows.yml` exist in exactly ONE of the five checkouts that hold
+campaigns. Reporting those campaigns as non-task would blame them for version
+skew; reporting them as fine would be worse. This is the same third outcome
+`run_campaign` already names.
+
+**7/7 MUTATIONS CAUGHT** (`tests/gates/test_g6_results.py`): the banner
+suppressed; the five negatives narrowed to `non_task` alone; a missing
+instrument returning `{}` instead of `None`; the path walk off by one so zero
+cells are read; the announcer never CALLED from `gate()`; `uniform1` losing its
+marker; and `some cells are dead` printing identically to `NO cell is usable`.
+The two controls that first read MISSED were the ones that only ever ran
+through a monkeypatch -- the UNVERIFIABLE path and the `gate()` wiring -- which
+is the recurring lesson that a control which never touches the real code is not
+a control.
 
 ### 2(z41) 🔑 **THE RNG FLOOR RESTED ON FOUR NUMBERS, AND MORE `_reseed` ARMS COULD NEVER HAVE FIXED IT -- `rng_reseed` IS NOW A DRAW COUNT**
 
@@ -10887,7 +11020,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             550 tests, ~200 s, no dataset required
+tests/             551 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

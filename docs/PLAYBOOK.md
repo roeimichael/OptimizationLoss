@@ -266,8 +266,29 @@ score them together, never separately.
 `clip focal_clip tralo tralo_cut tralo_null tralo_reseed` x 4 seeds,
 `normalize`, `--constraint-fp32`.
 
-*Primary:* `tralo_cut - tralo` in ITEMS on `d capF1`, per cell, against
-`tralo_reseed - tralo_null` measured IN THE SAME CAMPAIGN. 4 cells is 2
+⛔ **BOTH CAMPAIGNS ARE NOW DEAD FOR THIS PURPOSE, AND THE BRANCH TABLE BELOW
+IS KEPT AS THE RECORD OF A PLAN, NOT AN INSTRUCTION (2026-09-04).** Every one
+of the four cells was re-measured with `configs.task_cells.classify` and NOT
+ONE poses a question:
+
+    taskwin2 / MobileNetV3 / L70-90_G95    no_strict_band
+    taskwin2 / MobileNetV3 / L80-100_G95   unmeasured
+    vittask1 / ViTB16      / L60-90_G95    non_task
+    vittask1 / ViTB16      / L70-90_G95    non_task
+
+`vittask1` is quarantined outright and its 34 pending runs were dropped.
+`taskwin2` completed all 48, and its cells buy no unit: unit C1 carries ZERO
+verified `task` cells, which is why the headline reads 3/3 (p=0.125) restricted
+to task-carrying units beside 4/4 (p=0.0625) over every licensed unit.
+
+⚠️ **AND `binds 4/4` BELOW IS STILL LITERALLY TRUE, WHICH IS THE TRAP.** Class
+2 does bind in all four seeds at `L70-90_G95` -- with a local prize UNDER the
+3.0-item floor. Binding is necessary and not sufficient; the old cap screen
+counted the prize over a GLOBAL top-K while every allocator here is per-group,
+a 4.25x overstatement. Read the PRIZE beside `binds n/N`, never `binds` alone.
+
+*Primary (as planned):* `tralo_cut - tralo` in ITEMS on `d capF1`, per cell,
+against `tralo_reseed - tralo_null` measured IN THE SAME CAMPAIGN. 4 cells is 2
 independent (campaign, backbone) units, so the honest ceiling is 2/2, sign
 p = 0.25. These campaigns can report DIRECTION and per-cell consistency and
 nothing else; the generator says so in its own POWER block.

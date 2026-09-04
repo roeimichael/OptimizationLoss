@@ -86,8 +86,10 @@ one campaign running `grad_mode: clip`.
 docs/COVERAGE.md   🗺️ WHAT WE ACTUALLY HAVE vs WHAT THE PAPER NEEDS, built
                    from all 2,671 configs in all 14 worktrees. Read BEFORE
                    proposing a campaign. Carries THE GATE (does TraLO clear
-                   its own reseed floor? the tally was taken over FIVE units and the
-                   ledger licenses FOUR -- recount pending, see MISSION) and the
+                   its own reseed floor? RECOUNT DONE 2026-09-04: the ledger
+                   licenses FOUR units and only THREE carry a verified `task`
+                   cell, so quote BOTH -- 4/4 p=0.0625 licensed, 3/3 p=0.125
+                   task-restricted. `paper_rows` prints the restriction itself) and the
                    checklist of holes: ViTB16 has zero fioretto/hounie/alm,
                    every run caps the same 2 classes, no symmetric cap ever,
                    1 dataset of 3

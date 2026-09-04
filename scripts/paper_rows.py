@@ -96,6 +96,16 @@ MEASURED_UNITS = {
     # L20/L30/L50 or non_task), and MobileNetV3 is a backbone absent from
     # A1/A2/B1/B2 entirely, so this is genuinely the fifth.
     ("taskwin2", "MobileNetV3"): "C1",      # B / dsisco01
+    # 🛑 AND `equaldose1`'s MobileNetV3 IS THE SAME UNIT, ADDED 2026-09-04.
+    # It was absent, so its rows read `UNVERIFIED` while `docs/COVERAGE.md`'s
+    # per-unit table aggregated them into C1 -- the label `C1` meant two
+    # different things in two places, and the ledger's version was the one that
+    # could hand out a free replicate. Verified rather than assumed: the
+    # MobileNetV3 `tralo_null` of the two campaigns is BYTE-IDENTICAL in 4 of 4
+    # seeds (1aa30e5a25, c14fea0ac3, 212ef19b0e, f5e73dd7cd). One model, one
+    # unit. This does not change the unit COUNT -- it stops the same model
+    # being counted twice.
+    ("equaldose1", "MobileNetV3"): "C1",    # B / dsisco01, same model as above
 }
 
 # The contrasts a paper row may carry, and what each one licenses.
