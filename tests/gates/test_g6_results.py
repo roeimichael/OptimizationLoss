@@ -629,3 +629,161 @@ def test_the_cross_arm_dose_asymmetry_is_detectable_from_configs_alone():
                    "exactly one epoch per run")
 
     report(bad, "cross-arm dose failures")
+
+
+def test_the_gate_announces_cells_that_do_not_pose_the_cap_question(tmp_path):
+    """A campaign can be mechanically PERFECT and still measure nothing.
+
+    `uniform1` ran 252 runs at 1044/1044 constraint steps with zero collapse,
+    zero non-finite values, clean parity and one code version -- and all NINE
+    of its cells sit outside the measured task window (L20/L30/L50, the regime
+    2(z16) closed). `vittask1` is the same shape at 13 runs: both its ViTB16
+    cells are `non_task` because class 2 sits at K/n 0.600 and 0.700 against a
+    measured strict band of [0.80, 0.90]. Nothing went wrong mechanically in
+    either, so no health check could fire, and every scorer printed a full
+    plausible panel.
+
+    So the gate classifies the CELLS it is about to read. Hand-listing the two
+    campaigns we happen to know about catches those two and goes stale on the
+    next one.
+
+    FOUR NEGATIVE CONTROLS, because each failure mode is silent in a different
+    way:
+      * a campaign whose cells are all `task` must produce NO banner, or the
+        warning is noise and will be ignored;
+      * a campaign with a non-task cell MUST produce one naming that cell;
+      * the four not-a-task statuses must stay DISTINGUISHABLE in the output
+        -- `unmeasured` is an absence of measurement and `non_task` is a
+        measured verdict, and collapsing them is 2(z25)'s inversion;
+      * a checkout with no task-window instrument must announce UNVERIFIABLE,
+        never silence. A PINNED campaign worktree genuinely predates
+        `task_windows.yml`, and reading that as "no problems found" is how a
+        gate becomes decoration.
+    """
+    import json
+    from scripts import quarantine as Q
+
+    bad = []
+
+    def tree(root, cells):
+        """Build the standard <root>/<model>/<ds>/<cap>/<arm>/seed_N layout."""
+        for (ds, model, cap) in cells:
+            d = os.path.join(str(root), model, ds, cap, "tralo", "seed_1")
+            os.makedirs(d)
+            io.open(os.path.join(d, "config.json"), "w",
+                    encoding="utf-8").write(json.dumps({"arm": "tralo"}))
+        return str(root)
+
+    CELLS = [("iwildcam", "ViTB16", "L80-80_G95"),
+             ("iwildcam", "ViTB16", "L60-90_G95")]
+    root = tree(tmp_path / "camp", CELLS)
+
+    # the layout must actually be parsed -- if cell_status returns {} the whole
+    # gate is vacuous and every control below passes for the wrong reason.
+    got = Q.cell_status(root)
+    if got is None:
+        bad.append("cell_status returned None in a checkout that HAS the "
+                   "instrument; UNVERIFIABLE is being reported as the normal "
+                   "case and no cell will ever be checked")
+    elif set(got) != set(CELLS):
+        bad.append("cell_status parsed %s from the standard layout, not %s -- "
+                   "the path walk is broken, so the gate reads zero cells and "
+                   "silently passes everything" % (sorted(got), sorted(CELLS)))
+
+    def banner(cells_map):
+        """Run the announcer against a forced status map."""
+        real, Q.cell_status = Q.cell_status, lambda r: cells_map
+        buf = io.StringIO()
+        try:
+            Q._announce_cells([root], buf)
+        finally:
+            Q.cell_status = real
+        return buf.getvalue()
+
+    # 1. all task -> silence
+    out = banner({c: "task" for c in CELLS})
+    if out.strip():
+        bad.append("a campaign whose cells are ALL `task` still printed a "
+                   "warning, so the banner is noise:\n%s" % out)
+
+    # 2. one non-task -> named
+    out = banner({CELLS[0]: "task", CELLS[1]: "non_task"})
+    if "L60-90_G95" not in out or "non_task" not in out:
+        bad.append("a non_task cell was NOT named by the gate:\n%s" % out)
+    if "L80-80_G95" in out:
+        bad.append("the healthy cell was named too, so the banner does not "
+                   "say WHICH cell is the problem:\n%s" % out)
+
+    # 3. every status that is not `task` must be caught, and stay distinct
+    for st in ("non_task", "no_strict_band", "unmeasured", "no_window",
+               "no_data"):
+        out = banner({CELLS[0]: st, CELLS[1]: st})
+        if st not in out:
+            bad.append("status %r was not reported; it is being collapsed "
+                       "into another verdict" % st)
+        if "ALL 2 OF 2" not in out:
+            bad.append("a campaign with NO usable cell did not say so for "
+                       "%r; `some cells` and `no cells` are different "
+                       "conclusions:\n%s" % (st, out))
+    if "task" not in Q.NOT_A_TASK and "partial" in Q.NOT_A_TASK:
+        bad.append("`partial` is being treated as not-a-task; it means the "
+                   "cap binds in SOME seeds, which is conservative, not empty")
+    if "task" in Q.NOT_A_TASK:
+        bad.append("`task` is in NOT_A_TASK, so every cell reads as a defect")
+
+    # 4. no instrument -> UNVERIFIABLE, never silence. Break the REAL import
+    # rather than stubbing cell_status, or this control never runs the code it
+    # is about: a pinned worktree fails exactly here, inside the import.
+    import configs.task_cells as TC
+    realw, TC.load_windows = TC.load_windows, _raise
+    try:
+        if Q.cell_status(root) is not None:
+            bad.append("with the task-window instrument broken, cell_status "
+                       "returned a dict instead of None; the empty dict reads "
+                       "as `no problems found`, and a PINNED campaign worktree "
+                       "takes this path routinely")
+        buf = io.StringIO()
+        Q._announce_cells([root], buf)
+        if "UNVERIFIABLE" not in buf.getvalue():
+            bad.append("a checkout with no task-window instrument printed %r "
+                       "instead of announcing that nothing was verified"
+                       % buf.getvalue())
+    finally:
+        TC.load_windows = realw
+
+    # 4b. and the banner must reach the caller through gate(), not merely
+    # exist. Five scorers once imported a refusal nobody called.
+    real, Q.cell_status = Q.cell_status, lambda r: {CELLS[0]: "non_task"}
+    buf = io.StringIO()
+    try:
+        blocked, _dead = Q.gate([root], out=buf)
+    finally:
+        Q.cell_status = real
+    if "DO NOT POSE THE CAP QUESTION" not in buf.getvalue():
+        bad.append("gate() did not announce the non-task cell; the announcer "
+                   "exists but nothing calls it, so every scorer stays "
+                   "blind: %s" % buf.getvalue())
+    if blocked:
+        bad.append("a non-task cell HARD-BLOCKED the campaign; it is an "
+                   "announcement, not a refusal -- `dom1` has 2 task and 4 "
+                   "partial cells and must stay scorable")
+
+    # 5. and the two campaigns that motivated this are marked
+    for camp in ("uniform1", "vittask1"):
+        e = Q.REGISTRY.get(camp)
+        if not e:
+            bad.append("%s measured no cap question at all and is not in the "
+                       "registry" % camp)
+        elif e.get("scorable") is not False:
+            bad.append("%s is registered but still scorable" % camp)
+        elif not e.get("keep_for"):
+            bad.append("%s is marked without saying what it is still a "
+                       "receipt for; dead and worthless are different" % camp)
+
+    report(bad, "cell-status gate defects")
+
+
+def _raise(*a, **k):
+    """Stand-in for an instrument that is absent, not one that returns empty."""
+    raise ImportError("configs/task_windows.yml does not exist in this "
+                      "checkout (simulated pinned worktree)")

@@ -1504,10 +1504,23 @@ def print_task_cells(df):
             tag = "** NO QUESTION **"
         elif r["status"] == "no_strict_band":
             tag = "** NO QUESTION -- class has NO strict window at all **"
+        elif r["status"] == "partial":
+            tag = "PARTIAL -- the cap binds in SOME seeds only"
+        elif r["status"] == "unmeasured":
+            tag = "** K/n NEVER MEASURED -- absence of measurement, not a null **"
         elif r["status"] == "no_window":
             tag = "window never measured for this backbone"
-        else:
+        elif r["status"] == "no_data":
             tag = "slice not on this machine"
+        else:
+            # An UNKNOWN status must not borrow another one's label. Three of
+            # the four licensed units carry a `partial` cell, and until
+            # 2026-09-04 every one of them printed as "slice not on this
+            # machine" -- a missing-instrument message on a cell that was
+            # measured, sitting under a heading that asks whether the cap poses
+            # a question.
+            tag = "UNRECOGNISED STATUS %r -- this panel does not know what it means" % (
+                r["status"],)
         # `lo`/`hi` are None on an EMPTY strict band, and %.2f on None raises
         # TypeError -- which killed the whole panel, not just this line.
         detail = "  ".join(

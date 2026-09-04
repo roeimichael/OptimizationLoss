@@ -134,7 +134,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 550 regression tests, ~250s, no dataset needed
+python -m pytest tests -q                   # 551 regression tests, ~250s, no dataset needed
 #   `tests/test_lessons_learned.py` is the CATALOGUE OF LESSONS ALREADY PAID FOR:
 #   rejected backbones and datasets with the measured reason each was dropped,
 #   the ten deleted config footguns, the BF16/compute-capability split between
@@ -207,7 +207,20 @@ python -m scripts.quarantine --list         # 🛑 IS THIS CAMPAIGN ALREADY DEAD
 #   gates by campaign NAME and DROPS rows for dead arms. Verified on the
 #   server: all six path-based scorers exit 1 on `vitdual1`, including on a
 #   SUBDIRECTORY of it. Gated 7/7 in `tests/gates/test_g6_results.py`.
-#   FIFTEEN campaigns are marked (2026-09-03; the fifteenth is `vitdual1`,
+#   SEVENTEEN campaigns are marked outright, plus 3 PARTIAL (2026-09-04).
+#   🛑 THE TWO NEWEST ARE MARKED FOR A DEFECT NO HEALTH CHECK CAN SEE:
+#   `uniform1` (252 runs) and `vittask1` (13) are mechanically PERFECT --
+#   clean parity, zero collapse, zero non-finite, 1044/1044 and 29/29 dose --
+#   and every one of their cells sits OUTSIDE the measured task window, so
+#   they measured the absence of a question. `uniform1` is 9 of 9 cells at
+#   L20/L30/L50; `vittask1` is 2 of 2 with class 2 at K/n 0.60 and 0.70
+#   against ViTB16's measured [0.80, 0.90]. `vittask1` was ALSO found
+#   stalled (34 pending, no dispatcher), and those 34 were dropped rather
+#   than resumed. ✅ `quarantine.gate()` now CLASSIFIES the cells of
+#   whatever it is about to score and announces every one that poses no
+#   question, so this class does not depend on somebody remembering to add
+#   a marker. FRAMEWORK 2(z42).
+#   The fifteenth was `vitdual1`,
 #   the four-dual head-to-head, which ran at UNEQUAL DOSE -- `alm`/`tralo` at
 #   29.00 attempted steps/run against `fioretto`/`hounie` at 28.00, with every
 #   arm landing 100% of what it ATTEMPTED so no gate was red. Superseded by
@@ -740,6 +753,35 @@ Generate a campaign with:
 ```bash
 python -m configs.gen_campaign --root results/<name>     --datasets iwildcam --models MobileNetV3     --caps L80-100_G95 L70-90_G95 --arms all+null --constraint-fp32
 ```
+
+Add SEEDS to a campaign that already exists -- the thing that is actually
+scarce -- with:
+
+```bash
+python -m scripts.add_seeds --root results/<live> --seeds 5 6 7 8     --arms clip focal_clip tralo tralo_null tralo_reseed     --out results/<live>seed --execute
+```
+
+🛑 **`gen_campaign` CANNOT DO THIS WHILE A CAMPAIGN IS RUNNING, AND THAT IS
+WHY THIS EXISTS.** The seed list lives in `configs/protocol.yml`, `configs/` is
+frozen mid-campaign, and the seed is not even a config field -- it is baked
+into the `base_model_id` hash, so the configs cannot be produced by copying a
+sibling and editing a number either. `add_seeds` reads the campaign's own
+protocol and writes only into `results/`.
+
+* It **REGENERATES every config already on disk and demands a byte match**
+  before writing anything. If it and `gen_campaign` disagree by one default,
+  the new seeds are not replicates and the pooled "8 seeds" would be two
+  populations of four. It refuses rather than warns.
+* It **reads the RECIPE off the campaign**, because `--constraint-fp32` and
+  `--constraint-grad-mode` are CLI flags whose protocol defaults are `False`
+  and `clip`. A flag that must be typed correctly every time eventually is
+  not. It refuses a campaign that mixes two recipes internally.
+* `--out` writes the extension to its OWN root. Adding seeds to only some arms
+  of a live campaign makes its coverage ragged and turns `check_parity` red;
+  the two roots pool because they share a protocol and a `code_version`.
+* It refuses a foreign `code_version`, refuses to add an ARM (that is a new
+  experiment), and never overwrites or resets anything. `--self-test` gates it
+  in both directions, 11 checks, 6 of them negative controls.
 
 🔑 **`--constraint-fp32` IS NOT OPTIONAL, IT IS THE DOSE, AND `gen_campaign`
 DEFAULTS IT OFF.** Measured over every completed run in every worktree:

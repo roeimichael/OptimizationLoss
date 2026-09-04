@@ -146,14 +146,28 @@ def classify(P, TW, dataset, model, cap_tag):
                     snapping tolerance. Nobody has measured this K/n.
       "non_task"    at least one class is outside every band -- it measures
                     nothing
+      "no_strict_band"  a capped class has NO strict window at all: at every
+                    fraction on the grid, either the cap binds in every seed
+                    and the local prize is under MIN_PRIZE, or the prize
+                    clears it and the cap has gone slack somewhere. The band
+                    is measured and EMPTY. Added 2026-09-02 with the
+                    per-group prize.
       "no_window"   this (dataset, backbone) has never been measured
       "no_data"     the slice is not on this machine, so nothing can be said
 
-    SIX statuses, and the FOUR negatives are not the same. An unmeasured
-    backbone is an unknown; a missing slice is a missing instrument; a gap
-    ratio is a K/n nobody has looked at; only "non_task" is a statement about
-    the experiment. Collapsing any of them into "non_task" turns an absence of
-    measurement into a null, which is the inversion FRAMEWORK 2(z25) is about.
+    SEVEN statuses, and the FIVE negatives are not the same. This docstring
+    said SIX and FOUR until 2026-09-04, having missed the one it gained itself
+    -- and `paper_rows` was checking a hand-written two-element list that
+    omitted `no_strict_band`, so the single cell behind independent unit C1
+    printed with no warning at all. The list now lives once, in
+    `scripts.quarantine.NOT_A_TASK`.
+
+    An unmeasured backbone is an unknown; a missing slice is a missing
+    instrument; a gap ratio is a K/n nobody has looked at; an EMPTY strict band
+    is a measured statement that no cap can pose a question on that class; only
+    "non_task" says the cap chosen is outside a band that exists. Collapsing
+    any of them into "non_task" turns an absence of measurement into a null,
+    which is the inversion FRAMEWORK 2(z25) is about.
 
     🛑 THE RETURNED VERDICT CARRIES ITS `provenance`, AND CALLERS MUST PRINT
     IT. A window row is keyed by (dataset, backbone), but the thing it was

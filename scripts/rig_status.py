@@ -198,6 +198,76 @@ def read_gpu_apps():
     return apps
 
 
+def experiment_dir(pid):
+    """The EXPERIMENT_DIR one dispatcher was launched with, or None.
+
+    None means UNKNOWN, never "no root": off Linux, or when /proc is
+    unreadable, the caller must fail closed rather than assume two dispatchers
+    are on different campaigns.
+    """
+    try:
+        with open("/proc/%d/environ" % pid, "rb") as fh:
+            blob = fh.read().decode("utf-8", "replace")
+    except OSError:
+        return None
+    for item in blob.split("\0"):
+        if item.startswith("EXPERIMENT_DIR="):
+            return item.split("=", 1)[1]
+    return None
+
+
+def dispatcher_verdict(pairs):
+    """(status, detail) for a list of (pid, EXPERIMENT_DIR-or-None).
+
+    🛑 TWO DISPATCHERS ARE NOT A DEFECT. THEY ARE THE DOCUMENTED MULTI-GPU
+    PATTERN. This check used to FAIL on `len(disp) > 1` regardless of what
+    those dispatchers were pointed at, so the normal way of running two
+    campaigns on two GPUs -- one `EXPERIMENT_DIR` each, which is exactly how
+    the project's own dispatch note says to do it -- lit a red FAIL on a
+    healthy rig every time. A gate that fires on correct operation is a gate
+    that gets ignored, and this one sits directly above `orphaned runners`,
+    which is a real and silent failure.
+
+    The defect it exists to catch is two dispatchers CLAIMING THE SAME RUN
+    DIRECTORIES: both reset `pending`, both pick the same config, both write
+    into it. That is a collision of roots, not a count of processes.
+
+    Fails CLOSED on an unreadable root: if two dispatchers are up and we
+    cannot prove they are on different campaigns, that is not an OK.
+    """
+    if not pairs:
+        return WARN, "none running"
+    if len(pairs) == 1:
+        pid, root = pairs[0]
+        return OK, "1 running (pid %d%s)" % (
+            pid, "" if not root else " on %s" % root)
+
+    byroot, unknown = {}, []
+    for pid, root in pairs:
+        if root is None:
+            unknown.append(pid)
+        else:
+            byroot.setdefault(os.path.normpath(root), []).append(pid)
+    clash = {r: p for r, p in byroot.items() if len(p) > 1}
+    if clash:
+        return FAIL, "%d dispatcher(s) share a run root: %s -- they race on " \
+                     "the same run dirs, both resetting `pending` and both " \
+                     "claiming the same config" % (
+                         sum(len(p) for p in clash.values()),
+                         "; ".join("%s <- pids %s"
+                                   % (r, ", ".join(map(str, sorted(p))))
+                                   for r, p in sorted(clash.items())))
+    if unknown:
+        return FAIL, "%d dispatchers running and the EXPERIMENT_DIR of %d of " \
+                     "them could not be read (pids %s), so they cannot be " \
+                     "shown to be on different campaigns" % (
+                         len(pairs), len(unknown),
+                         ", ".join(map(str, sorted(unknown))))
+    return OK, "%d running, one per campaign root: %s" % (
+        len(pairs), "; ".join("%s (pid %d)" % (r, p[0])
+                              for r, p in sorted(byroot.items())))
+
+
 def dispatcher_roots(procs):
     """EXPERIMENT_DIR of every live dispatcher, read from /proc.
 
@@ -371,6 +441,30 @@ def self_test(out=sys.stdout):
           "detached" + chr(10) + "        launch no longer reports a race"
           + chr(10))
 
+    # TWO DISPATCHERS: a count is not a collision. Measured on dsisco01
+    # 2026-09-04, where the documented one-EXPERIMENT_DIR-per-GPU pattern was
+    # reported FAIL on a rig where nothing was wrong.
+    disp_cases = [
+        ([(1, "results/vitdual2")], OK, "one dispatcher is fine"),
+        ([], WARN, "no dispatcher is a WARN, not a FAIL"),
+        ([(1, "results/vitdual2"), (2, "results/vitcoin1")], OK,
+         "TWO dispatchers on DIFFERENT roots is the multi-GPU pattern, not a "
+         "race"),
+        ([(1, "results/vitdual2"), (2, "results/vitdual2")], FAIL,
+         "two dispatchers on the SAME root is the real defect"),
+        ([(1, "results/x"), (2, "results/x/")], FAIL,
+         "and a trailing slash does not hide it"),
+        ([(1, "results/a"), (2, None)], FAIL,
+         "an unreadable EXPERIMENT_DIR fails CLOSED, never OK"),
+        ([(1, "results/a"), (2, "results/b"), (3, "results/c")], OK,
+         "three dispatchers on three roots is still not a race"),
+    ]
+    for pairs, want, label in disp_cases:
+        got = dispatcher_verdict(pairs)[0]
+        good = got == want
+        w("  %-4s %s%s" % ("PASS" if good else "FAIL", label, chr(10)))
+        ok = ok and good
+
     # the RECIPE row, both directions
     def cfg(fp32, mode, trained=True):
         return {"hyperparams": {"constraint_fp32": fp32,
@@ -445,14 +539,9 @@ def main():
     # 4. processes ---------------------------------------------------------
     procs = read_procs()
     disp = [p for p in procs if is_dispatcher(p["args"])]
-    if len(disp) > 1:
-        _row(rows, FAIL, "dispatchers",
-             "%d running at once -- two dispatchers race on the same run dirs"
-             % len(disp))
-    elif disp:
-        _row(rows, OK, "dispatchers", "1 running (pid %d)" % disp[0]["pid"])
-    else:
-        _row(rows, WARN, "dispatchers", "none running")
+    status, detail = dispatcher_verdict(
+        [(p["pid"], experiment_dir(p["pid"])) for p in disp])
+    _row(rows, status, "dispatchers", detail)
 
     orphans = orphaned_runners(procs)
     if orphans:

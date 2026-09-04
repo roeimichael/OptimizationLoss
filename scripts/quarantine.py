@@ -38,11 +38,14 @@ or a test calls.
 
 import argparse
 import glob
+import io
 import json
 import os
 import subprocess
 import sys
 import time
+
+_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 MARKER = "QUARANTINE.json"
 
@@ -111,6 +114,44 @@ REGISTRY = {
                  "are lambda=0, take no constraint step either way, and are "
                  "therefore UNAFFECTED by the dose fix. Its `L60-90` and "
                  "`L70-90` cells are the receipt that those caps are non_task",
+        scorable=False),
+    "vittask1": dict(
+        reason="BOTH its cells are `non_task`. `configs.task_cells.classify` "
+               "on ViTB16 returns non_task for L60-90_G95 and L70-90_G95: "
+               "class 2 sits at K/n 0.600 and 0.700, outside the measured "
+               "ViTB16 strict band [0.80, 0.90]. The cap does not pose the "
+               "question the campaign was launched to answer, so no "
+               "arm-vs-arm number from it is about the constraint. It was ALSO "
+               "found stalled on 2026-09-04 -- 34 pending, 13 completed, 1 "
+               "crashed, and no dispatcher process -- so the pending runs were "
+               "dropped rather than resumed",
+        keep_for="its four lambda=0 runs, which are valid ViTB16 reference "
+                 "models (a null is cap-invariant, so a non-task cap cannot "
+                 "spoil it), and the cells themselves as a second, independent "
+                 "receipt that L60-90 and L70-90 are non-tasks on ViTB16 -- "
+                 "`vitdual1` is the first. The one `crashed` run "
+                 "(L60-90_G95/focal_clip/seed_2) is a stale `running` marker "
+                 "already reaped by a prior quarantine pass, not a live "
+                 "failure",
+        scorable=False),
+    "uniform1": dict(
+        reason="NINE of nine cells fail the task window. Its caps are "
+               "L20_G50 / L30_G50 / L50_G30 -- exactly the L20/L30/L50 regime "
+               "FRAMEWORK 2(z16) closed -- and `classify` returns non_task on "
+               "MobileNetV2 and RegNetY400MF (both classes outside every band) "
+               "and no_strict_band on MobileNetV3. Parity, health and dose are "
+               "all CLEAN (1044/1044 steps, zero collapse, zero non-finite): "
+               "nothing went wrong mechanically. 252 runs measured the absence "
+               "of a question, which is why this marker is here and not in the "
+               "health section",
+        keep_for="the `tralo_uniform` vs `tralo` count-function comparison at "
+                 "FULL dose, which is a claim about the LOSS SHAPE and not "
+                 "about whether the cap binds -- though note `tralo_uniform` "
+                 "was separately REJECTED 0/4 once task cells existed. ALSO "
+                 "the receipt that L20/L30/L50 are non-tasks on three "
+                 "backbones at once, and 32 of its distinct models are shared "
+                 "byte-for-byte with `dom1`, so the two are not independent "
+                 "units",
         scorable=False),
     "taskwin1": dict(
         reason="staged WITHOUT --constraint-fp32 (`constraint_fp32: False` in "
@@ -294,6 +335,101 @@ def by_name(name):
     return REGISTRY.get(name)
 
 
+# The four statuses that mean "this cell did not pose the question", and they
+# are NOT interchangeable -- `configs.task_cells.classify` is emphatic about
+# this and collapsing them turns an absence of measurement into a null.
+NOT_A_TASK = ("non_task", "no_strict_band", "unmeasured", "no_window",
+              "no_data")
+
+
+def cell_status(root):
+    """Task status of every (dataset, model, cap) cell under `root`.
+
+    Returns `{(dataset, model, cap): status}`, or **None** when the question
+    cannot be asked here at all.
+
+    None is not the empty dict, and the difference is the same fail-closed
+    distinction `live_config_paths` makes. A campaign worktree is PINNED at the
+    commit its configs were generated from, so `configs/task_cells.py` and
+    `configs/task_windows.yml` may postdate it and simply not exist there.
+    Reporting a campaign as non-task because the INSTRUMENT is missing would
+    blame a healthy campaign for version skew -- the third outcome
+    `run_campaign` already names UNRUNNABLE.
+
+    WHY THIS LIVES IN THE GATE. `uniform1` ran 252 runs and `vittask1` 13, both
+    with parity, health and dose entirely CLEAN, and both measured the absence
+    of a question: every cell sits outside the measured task window. Nothing
+    mechanical went wrong, so no health check could have caught it, and the
+    scorers printed full plausible panels. Hand-listing such campaigns in
+    REGISTRY catches the two we know about and goes stale on the next one;
+    classifying the cells the scorer is actually about to read cannot.
+    """
+    try:
+        import yaml
+        from configs.task_cells import classify, load_windows
+        P = yaml.safe_load(io.open(os.path.join(_REPO, "configs",
+                                                "protocol.yml"),
+                                   encoding="utf-8"))
+        TW = load_windows()
+    except Exception:
+        return None
+
+    cells = {}
+    for cfg in glob.glob(os.path.join(root, "**", "config.json"),
+                         recursive=True):
+        parts = os.path.normpath(cfg).split(os.sep)
+        if len(parts) < 6:
+            continue
+        model, dataset, cap = parts[-6], parts[-5], parts[-4]
+        key = (dataset, model, cap)
+        if key in cells:
+            continue
+        # classify() narrates every K=0 local budget it meets and iwildcam has
+        # 7 of 14. Swallow the narration, never the exception.
+        keep, sys.stdout = sys.stdout, io.StringIO()
+        try:
+            cells[key] = classify(P, TW, dataset, model, cap)["status"]
+        except Exception:
+            cells[key] = "no_data"
+        finally:
+            sys.stdout = keep
+    return cells
+
+
+def _announce_cells(campaigns, out):
+    """Print the task-window standing of what is about to be scored."""
+    for c in campaigns:
+        cells = cell_status(c)
+        if cells is None:
+            print("?? TASK STATUS UNVERIFIABLE in this checkout: %s" % c,
+                  file=out)
+            print("   `configs.task_cells` or `task_windows.yml` is absent "
+                  "here, which is normal in a PINNED campaign worktree. This "
+                  "has verified NOTHING -- it is not a pass.", file=out)
+            print("", file=out)
+            continue
+        if not cells:
+            continue
+        bad = {k: v for k, v in cells.items() if v in NOT_A_TASK}
+        if not bad:
+            continue
+        every = len(bad) == len(cells)
+        print("!! %s OF %d CELLS DO NOT POSE THE CAP QUESTION: %s"
+              % ("ALL %d" % len(bad) if every else "%d" % len(bad),
+                 len(cells), c), file=out)
+        for (ds, model, cap), st in sorted(bad.items()):
+            print("     %-14s %-14s %-14s %s" % (model, ds, cap, st),
+                  file=out)
+        print("   `non_task` is a measured statement about the experiment; "
+              "`unmeasured`,", file=out)
+        print("   `no_strict_band`, `no_window` and `no_data` are absences of "
+              "measurement.", file=out)
+        print("   They are NOT the same and neither is a null. A contrast on "
+              "these cells", file=out)
+        print("   is not evidence about the constraint.", file=out)
+        print("", file=out)
+
+
 def gate(campaigns, allow=False, verb="score", out=sys.stdout):
     """THE refusal every scorer calls. Returns (blocked, dead_arm_set).
 
@@ -333,6 +469,8 @@ def gate(campaigns, allow=False, verb="score", out=sys.stdout):
         print("!! %sING A QUARANTINED CAMPAIGN: %s -- %s"
               % (verb.upper(), c, q.get("reason")), file=out)
         print("", file=out)
+
+    _announce_cells(campaigns, out)
 
     dead = set()
     for c in campaigns:

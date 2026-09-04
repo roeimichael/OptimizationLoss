@@ -45,6 +45,11 @@ import math
 import os
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))))
+
+from scripts import quarantine  # noqa: E402  (path set above)
+
 # MEASURED INDEPENDENT UNITS, and THE UNIT IS (backbone, HOST).
 #
 # Measured 2026-09-01 by md5'ing `final_predictions_raw.csv` of every
@@ -246,10 +251,22 @@ def render(recs, out=sys.stdout):
              r["contrast"], r["cell_status"][:10], r["items"], r["sd_items"],
              (r["seeds_needed"] if r["seeds_needed"] is not None else "-"),
              r["resolved"], chr(10)))
-    non = [r for r in recs if r["cell_status"] in ("non_task", "unmeasured")]
+    # ONE list, imported, not restated. This read
+    # `("non_task", "unmeasured")` until 2026-09-04 and therefore stayed SILENT
+    # on `no_strict_band` -- the status of `taskwin2`/`L70-90_G95`, which is
+    # the only cell unit C1 contributes and the one that took the headline
+    # sign test from three units to four. The tool whose whole job is saying
+    # what may be WRITTEN printed that row with no warning at all.
+    non = [r for r in recs if r["cell_status"] in quarantine.NOT_A_TASK]
     if non:
+        by = {}
+        for r in non:
+            by[r["cell_status"]] = by.get(r["cell_status"], 0) + 1
         w(chr(10) + "  *** %d row(s) sit in a cell that poses NO measured "
-          "question." % len(non) + chr(10))
+          "question: %s." % (len(non),
+                             ", ".join("%d %s" % (n, s)
+                                       for s, n in sorted(by.items())))
+          + chr(10))
         w("      A contrast there is an ABSENCE of measurement, not a null. "
           "Do not" + chr(10) + "      quote it. FRAMEWORK 2(z16), 2(z24b)."
           + chr(10))
@@ -260,6 +277,35 @@ def render(recs, out=sys.stdout):
       "levels" + chr(10))
     w("  in one campaign share a warm-up. %d row(s) over %d unit(s): %s"
       % (len(recs), len(units), ", ".join(units)) + chr(10))
+
+    # 🛑 AND A UNIT WITH NO TASK CELL IS NOT A UNIT OF EVIDENCE ABOUT THE CAP.
+    # Counted here rather than stated in a doc, because it was stated in a doc
+    # and went stale: `MEASURED_UNITS` licensed FOUR units and the headline
+    # read 4/4, p=0.0625, while unit C1 (`taskwin2`/MobileNetV3) contributes
+    # only `no_strict_band` and `unmeasured` cells -- MobileNetV3 class 2's
+    # strict band was re-measured EMPTY on 2026-09-02 with the per-group prize.
+    # Restricted to units carrying at least one verified `task` cell the tally
+    # is 3, and a sign test over 3 floors at 0.125. The signs themselves do not
+    # change; a unit does.
+    task_units = sorted({r["unit"] for r in recs if r["cell_status"] == "task"})
+    empty = [u for u in units if u not in task_units]
+    w(chr(10) + "  UNITS CARRYING AT LEAST ONE VERIFIED `task` CELL: %d of %d"
+      % (len(task_units), len(units)) + chr(10))
+    if empty:
+        w("  *** %d unit(s) contribute NO task cell: %s"
+          % (len(empty), ", ".join(empty)) + chr(10))
+        w("      Their signs are real but they are not evidence that the CAP "
+          "did anything," + chr(10) + "      because at those cells the cap "
+          "poses no measured question. A sign test over" + chr(10))
+        if task_units:
+            w("      the remaining %d unit(s) floors at %.4f."
+              % (len(task_units), 0.5 ** len(task_units)) + chr(10))
+        else:
+            # 0.5**0 is 1.0, which would print as a p-value and read as a
+            # measured null. There is no sign test here at all.
+            w("      NO unit carries a task cell, so there is no sign test to "
+              "restrict -- not" + chr(10) + "      a p of 1.0. Nothing here "
+              "is evidence about the cap." + chr(10))
     unver = sorted({u for u in units if u.startswith("UNVERIFIED")})
     if unver:
         w(chr(10) + "  *** %d unit label(s) are UNVERIFIED: %s"
@@ -332,6 +378,32 @@ def self_test(out=sys.stdout):
         ok = False
     else:
         w("  PASS  a non_task cell is named and disqualified" + chr(10))
+
+    # A UNIT WITH NO TASK CELL, in both directions. This is the shape that
+    # went unnoticed: `taskwin2`/MobileNetV3 is licensed as unit C1 and every
+    # cell it contributes is `no_strict_band` or `unmeasured`, so the tally
+    # read 4 units when 3 carry a verified task cell.
+    for st, want_flag, label in (
+            ("task", False, "a unit whose cell IS a task cell is not flagged"),
+            ("no_strict_band", True,
+             "a unit whose ONLY cell has an empty strict band is flagged, and "
+             "the restricted sign-test floor is printed"),
+            ("unmeasured", True,
+             "and so is one whose only cell is an unmeasured K/n")):
+        b = io.StringIO()
+        render(build(rows, status_of={("iwildcam", "MobileNetV2", "L80_G95"):
+                                      st}), out=b)
+        txt = b.getvalue()
+        flagged = "contribute NO task cell" in txt
+        counted = "UNITS CARRYING AT LEAST ONE VERIFIED `task` CELL" in txt
+        good = flagged == want_flag and counted
+        if want_flag and good:
+            # zero units survive here, and 0.5**0 = 1.0 must NOT print as a
+            # p-value: "no sign test" and "p = 1.0" are opposite conclusions.
+            good = ("no sign test to restrict" in txt
+                    and "floors at 1.0000" not in txt)
+        w("  %-4s %s%s" % ("PASS" if good else "FAIL", label, chr(10)))
+        ok = ok and good
 
     # 4. NEGATIVE CONTROL on independence: two campaigns given the same unit
     #    must not be counted twice.
