@@ -27,7 +27,7 @@ import os
 
 import pytest
 
-from gates.conftest import items_from_f1, report
+from gates.conftest import items_from_f1, rel, report
 
 pytestmark = pytest.mark.stage6_results
 
@@ -438,3 +438,194 @@ def test_capped_class_deltas_carry_macro_and_uncapped_beside_them():
         if m not in EQ_RESOLUTION:
             fails.append("%s is printed with no power statement" % m)
     report(fails, "ccF1-beside-macroF1 gate failures")
+
+
+# ==========================================================================
+#   THE QUARANTINE REACHES EVERY SCORER. Source: scripts/quarantine.py, and
+#   the 2026-09-04 audit that found five of seven scorers checked nothing.
+# ==========================================================================
+SCORERS = ("full_panel", "cell_table", "deployed_h2h", "score_scan",
+           "paired_noise", "sensitivity_screen", "paper_rows")
+
+
+def _quarantine_symbols(src):
+    """(imported gate symbols, called ones). AST, never grep.
+
+    A name in a docstring is not a call, and an import is not a gate.
+    """
+    import ast
+    tree = ast.parse(src)
+    wanted = {"gate", "by_name", "is_quarantined", "refuses_scoring"}
+    imported, called = set(), set()
+    for n in ast.walk(tree):
+        if isinstance(n, ast.ImportFrom) and n.module and \
+                "quarantine" in n.module:
+            imported |= {a.name for a in n.names} & wanted
+        if isinstance(n, ast.Call):
+            f = n.func
+            name = (f.id if isinstance(f, ast.Name)
+                    else f.attr if isinstance(f, ast.Attribute) else None)
+            if name in wanted:
+                called.add(name)
+    return imported, called
+
+
+def test_every_scorer_actually_calls_the_quarantine_gate():
+    """A marker only prevents a mistake in the tools that READ it.
+
+    Audited 2026-09-04: `full_panel` and `cell_table` carried a private copy
+    of the refusal each, and `deployed_h2h`, `paper_rows`, `score_scan`,
+    `paired_noise` and `sensitivity_screen` checked NOTHING. Five of seven.
+    `paper_rows` is the tool whose entire job is deciding what may be WRITTEN,
+    so it was the worst one to leave open, and it was open for a structural
+    reason: it reads a `cell_table` CSV and has no campaign path to walk.
+
+    NEGATIVE CONTROL: a module whose gate call is removed must FAIL this test.
+    The control is built from the real source with the call site stripped, so
+    it cannot drift away from what is actually being checked.
+    """
+    bad = []
+    for mod in SCORERS:
+        path = rel("scripts", "%s.py" % mod)
+        if not os.path.exists(path):
+            bad.append("%s: missing entirely" % mod)
+            continue
+        src = io.open(path, encoding="utf-8").read()
+        imported, called = _quarantine_symbols(src)
+        if not imported:
+            bad.append("%s imports NO quarantine symbol, so a marker on a "
+                       "dead campaign prevents nothing here" % mod)
+        elif not called:
+            bad.append("%s imports %s but never CALLS it; an import is not a "
+                       "gate" % (mod, sorted(imported)))
+
+    # NEGATIVE CONTROL, built from real source so it cannot go stale.
+    real = io.open(rel("scripts", "full_panel.py"), encoding="utf-8").read()
+    stripped = real.replace("blocked, DEAD_ARMS = gate(",
+                            "blocked, DEAD_ARMS = (lambda *a, **k: (0, 0))(")
+    _imp, called = _quarantine_symbols(stripped)
+    if called:
+        bad.append("the negative control still reads as gated, so this test "
+                   "cannot detect an ungated scorer")
+
+    report(bad, "ungated scorers")
+
+
+def test_a_partial_quarantine_drops_arms_without_killing_the_campaign():
+    """`scorable=False` blocks everything; a PARTIAL marker blocks arms.
+
+    Three campaigns (`dom1`, `dom1b`, `equaldose1`, 792 runs) ran `fioretto`
+    and `hounie` at 28.00 attempted constraint steps against `tralo`'s 29.00,
+    which is the same defect that quarantined `vitdual1`. But they also carry
+    the independent units behind the headline `tralo` vs `clip` claim, which
+    is at equal dose and untouched. A blanket marker would delete the evidence
+    for a live claim in order to describe a defect touching two arms, so the
+    registry grew a third state.
+
+    NEGATIVE CONTROLS, in both directions:
+      * a partial marker must NOT hard-block, or the headline evidence dies;
+      * it must still RETURN the dead arms, or it is a marker that does
+        nothing while the table still looks complete;
+      * `scorable=False` must still hard-block, or the third state has
+        quietly disabled the second;
+      * an UNREGISTERED campaign must still read clean, or the registry
+        fallback is matching everything.
+    """
+    from scripts.quarantine import (REGISTRY, dead_arms, gate,
+                                    is_quarantined, refuses_scoring)
+
+    bad = []
+    PARTIAL = {"dom1": {"fioretto", "hounie"},
+               "dom1b": {"fioretto", "hounie"},
+               "equaldose1": {"fioretto", "hounie", "tralo_lam0"}}
+    for camp, want in sorted(PARTIAL.items()):
+        e = REGISTRY.get(camp)
+        if not e:
+            bad.append("%s is not in the registry; the 29-vs-28 dose gap "
+                       "measured there is unmarked and will be scored" % camp)
+            continue
+        if e.get("scorable") is not True:
+            bad.append("%s is marked wholly unscorable, which deletes the "
+                       "equal-dose evidence it also carries" % camp)
+        if set(e.get("dead_arms") or ()) != want:
+            bad.append("%s dead_arms %s, expected %s"
+                       % (camp, sorted(e.get("dead_arms") or ()), sorted(want)))
+        root = os.path.join("results", camp)
+        if refuses_scoring(root) is not None:
+            bad.append("%s hard-blocks; a partial marker must not" % camp)
+        if dead_arms(root) != want:
+            bad.append("%s: dead_arms(root) did not resolve to %s"
+                       % (camp, sorted(want)))
+        blocked, dead = gate([root], out=io.StringIO())
+        if blocked or dead != want:
+            bad.append("%s: gate() returned blocked=%s dead=%s"
+                       % (camp, blocked, sorted(dead)))
+
+    # The REGISTRY is the source of truth and the marker is only its on-disk
+    # copy. These paths do not exist on this machine at all, and must still be
+    # caught: markers are written on ONE host while scoring happens in
+    # fourteen worktrees and on a laptop.
+    if is_quarantined(os.path.join("results", "dom1")) is None:
+        bad.append("a registry entry with no marker on disk reads as clean")
+    if is_quarantined(os.path.join("results", "no_such_campaign_xyz")):
+        bad.append("an unregistered campaign reads as quarantined; the "
+                   "registry fallback is matching too eagerly")
+
+    hard = sorted(k for k, v in REGISTRY.items() if v.get("scorable") is False)
+    if not hard:
+        bad.append("no fully-unscorable entries remain, so the hard refusal "
+                   "is untested by any real registry row")
+    for k in hard[:3]:
+        blocked, _d = gate([os.path.join("results", k)], out=io.StringIO())
+        if not blocked:
+            bad.append("%s has scorable=False but gate() let it through" % k)
+
+    report(bad, "partial-quarantine failures")
+
+
+def test_the_cross_arm_dose_asymmetry_is_detectable_from_configs_alone():
+    """29/29/28/28 with every arm reading 100%. The shape that got through.
+
+    Each arm's percentage is applied/attempted WITHIN that arm, so an arm that
+    never ATTEMPTS a step it should have attempted reads a clean 100.0%. Only
+    the DENOMINATORS differ, and nothing but a cross-arm comparison sees it.
+    Four campaigns carried this shape before anyone looked.
+
+    NEGATIVE CONTROL: an equal-dose campaign must print NOTHING, or the
+    detector fires on everything and gets ignored. And a ONE-step gap must
+    still fire, because the real defect was exactly one epoch in 29.
+    """
+    from scripts.dose_landed import cross_arm_attempts
+
+    def render(per):
+        buf = io.StringIO()
+        cross_arm_attempts(per, buf)
+        return buf.getvalue()
+
+    bad = []
+    # (applied, attempted, runs) -- the shape dose_landed builds per arm.
+    GAP = {"tralo": (696, 696, 24), "alm": (696, 696, 24),
+           "fioretto": (672, 672, 24), "hounie": (672, 672, 24)}
+    out = render(GAP)
+    if "CROSS-ARM" not in out:
+        bad.append("the 29-vs-28 shape printed nothing; this is exactly what "
+                   "dom1, dom1b, equaldose1 and vitdual1 all carried")
+    for arm in ("fioretto", "hounie"):
+        if arm not in out:
+            bad.append("%s is not named in the asymmetry report" % arm)
+    if "3.4%" not in out:
+        bad.append("the gap SIZE is not quoted, and '28 against 29' is the "
+                   "whole finding: %r" % out)
+
+    EQUAL = {"tralo": (696, 696, 24), "alm": (696, 696, 24),
+             "fioretto": (696, 696, 24), "hounie": (696, 696, 24)}
+    if render(EQUAL).strip():
+        bad.append("an EQUAL-dose campaign printed an asymmetry, so the "
+                   "detector fires always and will be ignored")
+
+    NEAR = dict(EQUAL, hounie=(695, 695, 24))
+    if "CROSS-ARM" not in render(NEAR):
+        bad.append("a one-step gap is invisible, and the real defect was "
+                   "exactly one epoch per run")
+
+    report(bad, "cross-arm dose failures")

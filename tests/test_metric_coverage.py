@@ -234,8 +234,14 @@ def test_every_quarantine_entry_carries_a_reason_and_is_unscorable():
         assert e.get("keep_for"), (
             "%s says why it is dead but not what it is still evidence FOR. "
             "Without that the next session deletes a receipt." % name)
-        assert e.get("scorable") is False, (
-            "%s is in the quarantine registry and still marked scorable" % name)
+        # THREE STATES since 2026-09-04 (FRAMEWORK 2(z40)): `scorable=False`
+        # blocks the campaign, `scorable=True` WITH `dead_arms` blocks only
+        # contrasts touching those arms, and `scorable=True` with no dead arms
+        # is the contradiction this line originally existed to catch -- a
+        # registry row that blocks nothing at all.
+        assert e.get("scorable") is False or e.get("dead_arms"), (
+            "%s is in the quarantine registry, claims to be scorable, and "
+            "names no dead arms, so it blocks nothing" % name)
 
 
 def test_an_unreadable_quarantine_marker_fails_CLOSED(tmp_path):

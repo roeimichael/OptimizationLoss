@@ -108,7 +108,17 @@ def row(y, pred, CAPPED):
 def main():
     a = argparse.ArgumentParser(description=__doc__)
     a.add_argument("root")
+    a.add_argument("--allow-quarantined", action="store_true",
+                   help="scan a campaign `scripts.quarantine` marked dead")
     args = a.parse_args()
+
+    # 🛑 THE QUARANTINE GATE. Audited 2026-09-04: this tool had NONE,
+    # so a marker on a dead campaign prevented nothing here. No fallback
+    # import -- if the gate cannot load, the tool must break.
+    from scripts.quarantine import gate
+    blocked, dead = gate([args.root], args.allow_quarantined, "scan")
+    if blocked:
+        return 1
 
     root = Path(args.root)
     dirs = sorted(d for d in root.iterdir()

@@ -50,6 +50,48 @@ MARKER = "QUARANTINE.json"
 # still good for -- because "dead" and "worthless" are different, and every
 # entry below is still the receipt for something.
 REGISTRY = {
+    # ------------------------------------------------------------------
+    # PARTIAL quarantine: the campaign is SCORABLE, but not for every
+    # contrast. `scorable=True` with a non-empty `dead_arms` says exactly
+    # that, and it exists because a blanket marker here would delete the
+    # evidence behind the project's headline claim in order to describe a
+    # defect that touches two arms.
+    # ------------------------------------------------------------------
+    "dom1": dict(
+        reason="the SAME unequal constraint dose that quarantined `vitdual1`: "
+               "`alm`, `tralo` and `tralo_uniform` attempt 29.00 steps/run "
+               "while `fioretto` and `hounie` attempt 28.00, a 3.4% gap in "
+               "the only phase the comparison is about. Every arm landed "
+               "100% of what it ATTEMPTED, so no gate was red and only the "
+               "DENOMINATORS differ. FRAMEWORK 2(z38), 2(z40).",
+        keep_for="EVERYTHING NOT INVOLVING `fioretto` OR `hounie`. `tralo` vs "
+                 "`clip` / `focal_clip` / `lp` / `alm` / `tralo_uniform` / its "
+                 "own `_null` is at equal dose and is UNAFFECTED -- this "
+                 "campaign carries two of the independent units behind the "
+                 "headline. It is also the receipt for FRAMEWORK 2944 (the "
+                 "four `_null` arms are byte-identical).",
+        dead_arms=["fioretto", "hounie"],
+        scorable=True),
+    "dom1b": dict(
+        reason="same unequal constraint dose as `dom1`: `alm`/`tralo`/"
+               "`tralo_uniform` at 29.00 attempted steps/run against "
+               "`fioretto`/`hounie` at 28.00. FRAMEWORK 2(z40).",
+        keep_for="everything not involving `fioretto` or `hounie`; it is the "
+                 "RegNetY400MF independent unit and the receipt for 2(z5).",
+        dead_arms=["fioretto", "hounie"],
+        scorable=True),
+    "equaldose1": dict(
+        reason="the campaign NAMED for equal dose does not have it: `alm` and "
+               "`tralo` attempt 29.00 steps/run while `fioretto`, `hounie` "
+               "AND `tralo_lam0` attempt 28.00. `tralo_lam0` is the extra one "
+               "-- it is a lambda=0 arm that still gates its backward on a "
+               "multiplier, so it loses epoch 0 exactly as the duals do. "
+               "FRAMEWORK 2(z40).",
+        keep_for="everything not involving `fioretto`, `hounie` or "
+                 "`tralo_lam0`. `tralo` vs `clip` and vs `tralo_null` are at "
+                 "equal dose, and this is the MobileNetV2 independent unit.",
+        dead_arms=["fioretto", "hounie", "tralo_lam0"],
+        scorable=True),
     "vitdual1": dict(
         reason="the four-dual head-to-head ran at UNEQUAL CONSTRAINT DOSE: "
                "`alm` and `tralo` attempted 29.00 steps/run, `fioretto` and "
@@ -164,6 +206,20 @@ def campaign_roots(home=None):
 
 
 def _marker_at(root):
+    """The marker on disk, else THE REGISTRY, which is the source of truth.
+
+    🛑 THE REGISTRY FALLBACK IS LOAD-BEARING, NOT A CONVENIENCE. The
+    `QUARANTINE.json` file is only the on-disk copy, written by
+    `--apply --execute` on ONE host, while scoring happens in fourteen
+    worktrees and on a laptop that has no `results/` at all. Checking the file
+    alone would miss every entry whose marker has not been written there yet.
+    Erring toward refusing is the right direction: a false refusal costs
+    `--allow-quarantined`, a false pass costs a number in a paper.
+
+    (Added to `is_quarantined` a second time on 2026-09-04 by someone who did
+    not notice it was already here; the mutation test is what found the
+    duplicate, because removing one copy changed no behaviour.)
+    """
     p = os.path.join(root, MARKER)
     if not os.path.exists(p):
         name = os.path.basename(os.path.normpath(root))
@@ -197,6 +253,102 @@ def is_quarantined(root):
         if parent == p or os.path.basename(p) == "results":
             return None
         p = parent
+
+
+def refuses_scoring(root):
+    """The HARD refusal: the marker, but only when nothing may be scored.
+
+    🛑 `is_quarantined` is INFORMATIONAL and returns any marker.
+    A scorer must branch on this one instead, or a PARTIAL marker
+    (`scorable=True` with `dead_arms`) would block a campaign whose other
+    contrasts are perfectly good -- which would delete the evidence behind
+    the headline in order to describe a defect touching two arms.
+    """
+    q = is_quarantined(root)
+    if q and q.get("scorable") is False:
+        return q
+    return None
+
+
+def dead_arms(root):
+    """Arms whose CONTRASTS are invalid here, as a set. Empty when none.
+
+    A partial marker names the arms the defect touched. Any contrast with one
+    of these on either side is not comparable; every other contrast in the
+    same campaign is untouched. Measured case: `dom1` ran `fioretto` and
+    `hounie` at 28.00 attempted constraint steps against `tralo`'s 29.00, so
+    `tralo` vs `hounie` is invalid there while `tralo` vs `clip` is fine.
+    """
+    q = is_quarantined(root)
+    return set((q or {}).get("dead_arms") or ())
+
+
+def by_name(name):
+    """The registry entry for a campaign NAME, or None.
+
+    For tools whose input is a table rather than a directory -- `paper_rows`
+    reads a `cell_table` CSV and never touches the campaign tree, so it has no
+    path to walk and would otherwise be ungated. It is the tool that decides
+    what may be WRITTEN, which makes it the worst one to leave ungated.
+    """
+    return REGISTRY.get(name)
+
+
+def gate(campaigns, allow=False, verb="score", out=sys.stdout):
+    """THE refusal every scorer calls. Returns (blocked, dead_arm_set).
+
+    ONE implementation, because there were two and five tools had neither.
+    Audited 2026-09-04: `full_panel` and `cell_table` carried a copy each,
+    while `deployed_h2h`, `paper_rows`, `score_scan`, `paired_noise` and
+    `sensitivity_screen` checked nothing at all -- and `paper_rows` is the tool
+    whose whole job is saying what may be WRITTEN. A marker only prevents a
+    mistake in the tools that read it.
+
+    Two outcomes, and they are not the same:
+
+      * `scorable is False` -> BLOCKED. Nothing here may be scored.
+      * a PARTIAL marker (`scorable=True` with `dead_arms`) -> not blocked,
+        but the named arms are announced and returned, so the caller can drop
+        contrasts that touch them. Announcing is not optional: an unannounced
+        partial marker is worse than none, because the table looks complete.
+
+    🛑 IMPORT THIS WITHOUT A FALLBACK. Wrapping it in a bare handler
+    that degrades to `lambda: None` turns the refusal off with no message when
+    the file is hand-copied into a worktree whose `scripts/` predates it --
+    which CLAUDE.md explicitly sanctions mid-flight. A gate that cannot fail is
+    decoration. If this import breaks, the scorer must break.
+    """
+    hard = [(c, q) for c in campaigns for q in [refuses_scoring(c)] if q]
+    if hard and not allow:
+        for c, q in hard:
+            print("REFUSING to %s %s" % (verb, c), file=out)
+            print("  reason   : %s" % q.get("reason"), file=out)
+            print("  keep for : %s" % q.get("keep_for"), file=out)
+        print("", file=out)
+        print("Pass --allow-quarantined only if you know why the marker is "
+              "there and are", file=out)
+        print("reporting the campaign as quarantined anyway.", file=out)
+        return True, set()
+    for c, q in hard:
+        print("!! %sING A QUARANTINED CAMPAIGN: %s -- %s"
+              % (verb.upper(), c, q.get("reason")), file=out)
+        print("", file=out)
+
+    dead = set()
+    for c in campaigns:
+        d = dead_arms(c)
+        if not d:
+            continue
+        dead |= d
+        q = is_quarantined(c) or {}
+        print("!! PARTIAL QUARANTINE: %s" % c, file=out)
+        print("   %s" % q.get("reason"), file=out)
+        print("   DEAD ARMS (any contrast touching one is NOT comparable): %s"
+              % ", ".join(sorted(d)), file=out)
+        print("   everything else here is untouched: %s"
+              % q.get("keep_for"), file=out)
+        print("", file=out)
+    return False, dead
 
 
 def live_config_paths():
@@ -397,9 +549,32 @@ def self_test(out=sys.stdout):
         checks.append(("every registry entry states a reason and what it is kept for",
                        all(e.get("reason") and e.get("keep_for")
                            for e in REGISTRY.values())))
-        # and none may be marked scorable -- that would be a contradiction
-        checks.append(("no registry entry claims to be scorable",
-                       not any(e.get("scorable") for e in REGISTRY.values())))
+        # THREE STATES, and every entry must be exactly one of them.
+        #
+        # This check used to read "no registry entry claims to be scorable",
+        # because until 2026-09-04 `scorable=True` really was a contradiction:
+        # an entry that blocks nothing. The PARTIAL state gave it a meaning --
+        # `scorable=True` WITH `dead_arms` says the campaign may be scored for
+        # every contrast that does not touch the named arms. What is still a
+        # contradiction, and what this now catches, is `scorable=True` with NO
+        # dead arms: a registry row that does nothing at all.
+        bad_state = [k for k, e in REGISTRY.items()
+                     if e.get("scorable") is not False and not e.get("dead_arms")]
+        checks.append(("every entry either blocks the campaign or names the "
+                       "arms it blocks (offenders: %s)" % (bad_state or "none"),
+                       not bad_state))
+        # A partial entry must not ALSO claim to be unscorable, or the two
+        # states are being read off different fields and one of them loses.
+        contradictory = [k for k, e in REGISTRY.items()
+                         if e.get("dead_arms") and e.get("scorable") is False]
+        checks.append(("no entry is both partial and wholly unscorable "
+                       "(offenders: %s)" % (contradictory or "none"),
+                       not contradictory))
+        # LIVENESS on the partial state itself: at least one entry must use it,
+        # or the branch below has never executed against a real row.
+        checks.append(("at least one PARTIAL entry exists, so the branch is "
+                       "exercised",
+                       any(e.get("dead_arms") for e in REGISTRY.values())))
 
         # A `running` config inside a QUARANTINED root is exactly as
         # dispatchable as a `pending` one, because `main.py` resets it on

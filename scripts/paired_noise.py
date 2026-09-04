@@ -367,6 +367,8 @@ def main():
     ap.add_argument("--classes", type=int, nargs="+", default=[2, 7])
     ap.add_argument("--fracs", type=float, nargs="+", default=DEFAULT_FRACS,
                     help="K/n levels to sweep (default 0.2 .. 0.9)")
+    ap.add_argument("--allow-quarantined", action="store_true",
+                    help="measure a campaign `scripts.quarantine` marked dead")
     ap.add_argument("--self-test", action="store_true",
                     help="check the tool against known-answer inputs")
     args = ap.parse_args()
@@ -378,6 +380,13 @@ def main():
     if not os.path.isdir(args.campaign):
         print("no such campaign root: %s" % args.campaign)
         return 2
+    # 🛑 THE QUARANTINE GATE. Audited 2026-09-04: this tool had NONE,
+    # so a marker on a dead campaign prevented nothing here. No fallback
+    # import -- if the gate cannot load, the tool must break.
+    from scripts.quarantine import gate
+    blocked, dead = gate([args.campaign], args.allow_quarantined, "measure")
+    if blocked:
+        return 1
 
     frames = {}
     for name in (args.bar, args.control, args.floor, args.treated):

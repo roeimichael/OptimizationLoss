@@ -265,12 +265,26 @@ def cross_arm_attempts(per, out):
     lambda to 0.06, so it steps at epoch 1 with `Grad_Norm` 3.09; ALM does
     too, at 6426.97.
 
-    That is faithful to the published algorithms (lambda^0 = 0 for
-    subgradient dual ascent), so it is a property of the METHODS rather than
-    a handicap this harness imposes. But it is a 1-in-29 = 3.4% dose
-    advantage to TraLO in every head-to-head, it comes from a hyperparameter
-    WE chose, and it must be stated in any dominance claim. The clean test
-    is a TraLO arm with lambda_init = 0.
+    🛑 THIS DOCSTRING USED TO CALL THAT "a property of the METHODS
+    rather than a handicap this harness imposes", and conclude that the gap
+    only had to be STATED. That was wrong, and the campaign it was written
+    about was discarded because of it. A 3.4% dose gap in the only phase the
+    comparison is about is not apples-to-apples, whatever its provenance, and
+    it sits UNDER `full_panel`'s 5-point refusal so scoring proceeds and the
+    number gets quoted.
+
+    ✅ FIXED 2026-09-03, and it needed no hyperparameter: the dual update
+    now runs BEFORE the primal gate in all three Fioretto/Hounie-family arms.
+    Same violations, same step sizes, `lambda_0 = 0` untouched, both orders of
+    the alternating scheme conventional. `vitdual1` was quarantined and
+    relaunched as `vitdual2`, which lands 29/29 on every arm. FRAMEWORK
+    2(z38).
+
+    ⛔ CAMPAIGNS THAT RAN BEFORE THE FIX STILL CARRY THE GAP, and they are
+    marked: `dom1`, `dom1b` and `equaldose1` hold PARTIAL quarantine markers
+    naming `fioretto` and `hounie` (and `tralo_lam0` in `equaldose1`) as dead
+    arms, so contrasts touching them are dropped while every other contrast in
+    those campaigns stays live. FRAMEWORK 2(z40).
     """
     rate = {}
     for arm, v in per.items():

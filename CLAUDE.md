@@ -134,7 +134,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 546 regression tests, ~250s, no dataset needed
+python -m pytest tests -q                   # 549 regression tests, ~250s, no dataset needed
 #   `tests/test_lessons_learned.py` is the CATALOGUE OF LESSONS ALREADY PAID FOR:
 #   rejected backbones and datasets with the measured reason each was dropped,
 #   the ten deleted config footguns, the BF16/compute-capability split between
@@ -184,6 +184,29 @@ python -m scripts.verify_caps               # what integer budget each cap tag r
 python -m scripts.check_parity <root>       # equal compute, same knobs, >=2 caps, sane warm-up sharing
 python -m scripts.reachability <early-run>  # CAN the penalty even reach this cell's cut?
 python -m scripts.quarantine --list         # 🛑 IS THIS CAMPAIGN ALREADY DEAD?
+#   🔑 **THREE STATES, NOT TWO (2026-09-04, FRAMEWORK 2(z40)).**
+#     `scorable=False`              nothing here may be scored
+#     `scorable=True` + `dead_arms` PARTIAL: score everything EXCEPT contrasts
+#                                   touching the named arms
+#     no entry                      live
+#   `dom1`, `dom1b` and `equaldose1` (792 runs) are PARTIAL: they carry the
+#   SAME 29-vs-28 dose gap that quarantined `vitdual1` -- `fioretto` and
+#   `hounie` at 28.00 attempted steps/run, plus **`tralo_lam0` in
+#   `equaldose1`** -- but `tralo` vs `clip`/`focal_clip`/`lp`/`alm`/
+#   `tralo_uniform`/its own `_null` is at EQUAL dose and UNAFFECTED. A blanket
+#   marker would have deleted three of the independent units behind the
+#   headline to describe a defect touching two arms. `scorable=True` with NO
+#   dead arms is a self-test FAILURE: a registry row that does nothing.
+#   🛑 **THE REGISTRY IS THE SOURCE OF TRUTH, NOT `QUARANTINE.json`.**
+#   The file is only its on-disk copy, written on ONE host, while scoring
+#   happens in fourteen worktrees and on a laptop with no `results/` at all.
+#   ✅ **ALL SEVEN SCORERS NOW CALL `quarantine.gate()`.** Until 2026-09-04
+#   FIVE checked nothing -- `deployed_h2h`, `paper_rows`, `score_scan`,
+#   `paired_noise`, `sensitivity_screen` -- and `paper_rows` is the one that
+#   says what may be WRITTEN. It reads a CSV and has no path to walk, so it
+#   gates by campaign NAME and DROPS rows for dead arms. Verified on the
+#   server: all six path-based scorers exit 1 on `vitdual1`, including on a
+#   SUBDIRECTORY of it. Gated 7/7 in `tests/gates/test_g6_results.py`.
 #   FIFTEEN campaigns are marked (2026-09-03; the fifteenth is `vitdual1`,
 #   the four-dual head-to-head, which ran at UNEQUAL DOSE -- `alm`/`tralo` at
 #   29.00 attempted steps/run against `fioretto`/`hounie` at 28.00, with every

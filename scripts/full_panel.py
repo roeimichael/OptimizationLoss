@@ -1553,22 +1553,10 @@ def main():
     # CLAUDE.md explicitly sanctions mid-flight -- turned the refusal off with
     # no message. A gate that cannot fail is decoration. If this import breaks,
     # the scorer must break.
-    from scripts.quarantine import is_quarantined
-    blocked = [(c, q) for c in args.campaign
-               for q in [is_quarantined(c)] if q]
-    if blocked and not args.allow_quarantined:
-        for c, q in blocked:
-            print("REFUSING to score %s" % c)
-            print("  reason   : %s" % q.get("reason"))
-            print("  keep for : %s" % q.get("keep_for"))
-        print("")
-        print("Pass --allow-quarantined only if you know why the marker is")
-        print("there and are reporting the campaign as quarantined anyway.")
+    from scripts.quarantine import gate
+    blocked, DEAD_ARMS = gate(args.campaign, args.allow_quarantined, "score")
+    if blocked:
         return 1
-    for c, q in blocked:
-        print("!! SCORING A QUARANTINED CAMPAIGN: %s -- %s"
-              % (c, q.get("reason")))
-        print("")
 
     rows = []
     skipped = collections.Counter()

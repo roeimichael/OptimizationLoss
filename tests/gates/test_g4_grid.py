@@ -420,11 +420,27 @@ def test_dead_arms_and_quarantined_campaigns_are_not_merely_unfinished(
         # fail CLOSED: an unparseable word must not read as agreement
         fails.append("CLAUDE.md says %r campaigns are marked, which is not a "
                      "number word this gate knows" % _m.group(1))
-    elif len(quarantine.REGISTRY) != _WORDS[_m.group(1).lower()]:
-        fails.append("%d quarantined campaigns, CLAUDE.md says %s"
-                     % (len(quarantine.REGISTRY), _m.group(1).upper()))
-    if any(e.get("scorable") for e in quarantine.REGISTRY.values()):
-        fails.append("a quarantine entry claims to be scorable")
+    else:
+        # 🛑 COUNT THE FULLY-DEAD ONES. Since 2026-09-04 the registry
+        # also holds PARTIAL entries (`scorable=True` with `dead_arms`), which
+        # are not "quarantined campaigns" in the sense CLAUDE.md's number
+        # means -- `dom1` is scored every day, minus two arms. Counting them
+        # together would force that sentence to grow by one every time an arm
+        # is marked dead in a live campaign.
+        hard = [k for k, e in quarantine.REGISTRY.items()
+                if e.get("scorable") is False]
+        if len(hard) != _WORDS[_m.group(1).lower()]:
+            fails.append("%d FULLY quarantined campaigns, CLAUDE.md says %s "
+                         "(%d partial entries excluded)"
+                         % (len(hard), _m.group(1).upper(),
+                            len(quarantine.REGISTRY) - len(hard)))
+    # A `scorable=True` entry is legal ONLY as a partial marker. Without
+    # `dead_arms` it blocks nothing and is a registry row that does nothing.
+    hollow = [k for k, e in quarantine.REGISTRY.items()
+              if e.get("scorable") is not False and not e.get("dead_arms")]
+    if hollow:
+        fails.append("quarantine entries claim to be scorable but name no "
+                     "dead arms, so they block nothing: %s" % sorted(hollow))
     q = _campaign(tmp_path / "quar", P, MIXED)
     if quarantine.is_quarantined(q) is not None:
         fails.append("a clean campaign read as quarantined")

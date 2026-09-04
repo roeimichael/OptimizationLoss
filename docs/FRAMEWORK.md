@@ -3808,7 +3808,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 546 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 549 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -3972,7 +3972,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 546 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 549 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -3980,7 +3980,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (546 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (549 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -8942,6 +8942,65 @@ is false for hounie under the corpus-era `clip` mode. Do not "modernise" the
 methods section to today's recipe; that would make it describe experiments the
 paper does not report.
 
+### 2(z40) 🛑🛑 **THE 29-vs-28 DOSE GAP IS IN `dom1`, `dom1b` AND `equaldose1` TOO -- 792 RUNS, AND FIVE OF SEVEN SCORERS IGNORED THE QUARANTINE**
+
+`vitdual1` was quarantined for running `fioretto` and `hounie` at 28.00
+attempted constraint steps against `tralo`'s 29.00. `scripts.dose_landed` on
+the rest of the corpus, 2026-09-04:
+
+| campaign | alm | tralo | fioretto | hounie | other |
+|---|---|---|---|---|---|
+| `dom1` (384) | 29.00 | 29.00 | **28.00** | **28.00** | `tralo_uniform` 29.00 |
+| `dom1b` (192) | 29.00 | 29.00 | **28.00** | **28.00** | `tralo_uniform` 29.00 |
+| `equaldose1` (216) | 29.00 | 29.00 | **28.00** | **28.00** | **`tralo_lam0` 28.00** |
+
+**The campaign named for equal dose does not have it**, and it has an extra
+offender: `tralo_lam0` is a lambda=0 arm that still gates its backward on a
+multiplier, so it loses epoch 0 exactly as the duals do.
+
+✅ **MARKED PARTIALLY, NOT WHOLLY, AND THE DISTINCTION IS THE POINT.** A
+blanket marker would delete the evidence behind the headline in order to
+describe a defect touching two arms: `tralo` vs `clip` / `focal_clip` / `lp` /
+`alm` / `tralo_uniform` / its own `_null` is at EQUAL dose in all three, and
+these campaigns carry three of the independent units. So `scripts.quarantine`
+grew a third state -- `scorable=True` WITH `dead_arms` -- and the scorers drop
+contrasts touching a dead arm while scoring everything else. `scorable=True`
+with NO dead arms is now itself a self-test failure: it is a registry row that
+does nothing.
+
+🛑 **AND THE AUDIT FOUND THE MARKER REACHED ALMOST NOTHING.** Of seven
+scorers, `full_panel` and `cell_table` each carried a PRIVATE COPY of the
+refusal, and **`deployed_h2h`, `paper_rows`, `score_scan`, `paired_noise` and
+`sensitivity_screen` checked nothing at all**. `paper_rows` is the tool whose
+entire job is saying what may be WRITTEN, and it was ungated for a structural
+reason: it reads a `cell_table` CSV and has no campaign path to walk, so it now
+gates by campaign NAME and DROPS rows for dead arms. There is now ONE
+`quarantine.gate()` and all seven call it. Verified end to end on the server:
+all six path-based scorers exit 1 on `vitdual1`, including on a SUBDIRECTORY of
+it, while `dom1` proceeds with its dead arms announced.
+
+⚠️ **THE REGISTRY IS THE SOURCE OF TRUTH, NOT THE MARKER FILE.**
+`QUARANTINE.json` is only its on-disk copy, written by `--apply --execute` on
+ONE host, while scoring happens in fourteen worktrees and on a laptop with no
+`results/` at all. `_marker_at` already fell back to the registry; that
+fallback was undocumented, and someone (me) added a SECOND copy of it to
+`is_quarantined` on 2026-09-04 without noticing. **The mutation test is what
+found the duplicate** -- removing one copy changed no behaviour, so the
+mutation read as MISSED rather than CAUGHT. Now documented once and gated.
+
+✅ **GATED, 7/7 MUTATIONS CAUGHT** (`tests/gates/test_g6_results.py`):
+every scorer must CALL the gate and not merely import it (AST, never grep, with
+a negative control built by stripping the call from real source); a partial
+marker must not hard-block but must still return its dead arms; `scorable=False`
+must still be absolute; an UNREGISTERED campaign must still read clean; and the
+cross-arm asymmetry must print for a 29-vs-28 shape, print for a ONE-step gap,
+and print NOTHING at equal dose.
+
+⛔ `scripts/dose_landed.cross_arm_attempts` used to argue in its own
+docstring that the gap was "a property of the METHODS rather than a handicap
+this harness imposes" and only had to be STATED. That reasoning is what let
+four campaigns run on it. Corrected.
+
 ### 2(z39) 🛑🛑🛑 **NOT ONE CELL IN THE CORPUS COULD HAVE SEPARATED TWO METHODS -- AND THE SPREAD STATISTIC WAS INFLATED BY ARM COUNT**
 
 `scripts/sensitivity_screen` over `dom1` + `dom1b` + `equaldose1` + `taskwin2` +
@@ -10759,7 +10818,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             546 tests, ~200 s, no dataset required
+tests/             549 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

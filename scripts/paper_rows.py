@@ -374,6 +374,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split(chr(10))[0])
     ap.add_argument("--cells", help="a cell_table CSV")
     ap.add_argument("--out", help="write the paper rows here")
+    ap.add_argument("--allow-quarantined", action="store_true",
+                    help="emit rows for campaigns `scripts.quarantine` marked dead, or for arms a PARTIAL marker names")
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()
     if args.self_test:
@@ -382,6 +384,48 @@ def main():
         ap.error("give --cells <cell_table.csv>, or --self-test")
 
     rows = load_cells(args.cells)
+
+    # 🛑 THE QUARANTINE GATE, BY CAMPAIGN NAME. This tool reads a
+    # `cell_table` CSV and never touches a campaign tree, so it has no path to
+    # walk -- and until 2026-09-04 it was therefore ungated entirely, which
+    # made THE tool that says what may be WRITTEN the one place a marker did
+    # not reach. No fallback import: if the gate cannot load, this must break.
+    from scripts.quarantine import by_name
+    hard, partial = [], {}
+    for camp in sorted({r.get("campaign") for r in rows if r.get("campaign")}):
+        e = by_name(camp)
+        if not e:
+            continue
+        if e.get("scorable") is False:
+            hard.append((camp, e))
+        elif e.get("dead_arms"):
+            partial[camp] = set(e["dead_arms"])
+    if hard and not args.allow_quarantined:
+        for camp, e in hard:
+            print("REFUSING to emit paper rows for %s" % camp)
+            print("  reason   : %s" % e.get("reason"))
+            print("  keep for : %s" % e.get("keep_for"))
+        print("")
+        print("These rows are in the input CSV but must not reach a paper.")
+        print("Pass --allow-quarantined only to report them AS quarantined.")
+        return 1
+    dropped = 0
+    if partial and not args.allow_quarantined:
+        for camp, arms in sorted(partial.items()):
+            print("!! PARTIAL QUARANTINE: %s -- dropping rows for %s"
+                  % (camp, ", ".join(sorted(arms))))
+            print("   %s" % (by_name(camp) or {}).get("reason"))
+        before = len(rows)
+        rows = [r for r in rows
+                if r.get("arm") not in partial.get(r.get("campaign"), ())]
+        dropped = before - len(rows)
+        print("   dropped %d of %d row(s); every other contrast is untouched"
+              % (dropped, before))
+        print("")
+        if not rows:
+            print("nothing left to emit after dropping quarantined arms")
+            return 1
+
     status, unit = {}, dict(MEASURED_UNITS)
     try:
         import yaml

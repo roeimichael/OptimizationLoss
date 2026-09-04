@@ -745,12 +745,21 @@ def main(argv=None):
                     help="one or more campaign roots")
     ap.add_argument("--classes", nargs="+", type=int, default=None,
                     help="override the capped classes read from the configs")
+    ap.add_argument("--allow-quarantined", action="store_true",
+                    help="screen a campaign `scripts.quarantine` marked dead")
     ap.add_argument("--self-test", action="store_true")
     a = ap.parse_args(argv)
     if a.self_test:
         return self_test()
     if not a.campaign:
         ap.error("--campaign is required (or --self-test)")
+    # 🛑 THE QUARANTINE GATE. Audited 2026-09-04: this tool had NONE,
+    # so a marker on a dead campaign prevented nothing here. No fallback
+    # import -- if the gate cannot load, the tool must break.
+    from scripts.quarantine import gate
+    blocked, dead = gate(a.campaign, a.allow_quarantined, "screen")
+    if blocked:
+        return 1
     rows = screen(a.campaign, classes=a.classes)
     if not rows:
         print("no completed runs under %s" % ", ".join(a.campaign))

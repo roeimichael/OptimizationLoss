@@ -223,17 +223,10 @@ def main(argv=None):
     # CLAUDE.md explicitly sanctions mid-flight -- turned the refusal off with
     # no message. A gate that cannot fail is decoration. If this import breaks,
     # the survey must break.
-    from scripts.quarantine import is_quarantined
-    blocked = [(c, q) for c in args.campaign for q in [is_quarantined(c)] if q]
-    if blocked and not args.allow_quarantined:
-        for c, q in blocked:
-            print("REFUSING to tabulate %s" % c)
-            print("  reason   : %s" % q.get("reason"))
-            print("  keep for : %s" % q.get("keep_for"))
+    from scripts.quarantine import gate
+    blocked, DEAD_ARMS = gate(args.campaign, args.allow_quarantined, "tabulate")
+    if blocked:
         return 1
-    for c, q in blocked:
-        print("!! TABULATING A QUARANTINED CAMPAIGN: %s -- %s"
-              % (c, q.get("reason")))
 
     df, skipped = collect(args.campaign)
     if df.empty:

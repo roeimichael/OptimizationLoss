@@ -526,13 +526,22 @@ def main():
     ap.add_argument("--control", default="clip",
                     help="the quality bar every arm is measured against")
     ap.add_argument("--json", default=None, help="write the rows here")
+    ap.add_argument("--allow-quarantined", action="store_true",
+                    help="compare arms in a campaign `scripts.quarantine` marked dead")
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()
 
     if args.self_test:
         return self_test()
+    # 🛑 THE QUARANTINE GATE. Audited 2026-09-04: this tool had NONE,
+    # so a marker on a dead campaign prevented nothing here. No fallback
+    # import -- if the gate cannot load, the tool must break.
+    from scripts.quarantine import gate
     if not args.campaign:
         ap.error("--campaign is required (or --self-test)")
+    blocked, dead = gate(args.campaign, args.allow_quarantined, "compare")
+    if blocked:
+        return 1
     cells = collect(args.campaign)
     if not cells:
         print("no runs on the current recipe under %s" % " ".join(args.campaign))
