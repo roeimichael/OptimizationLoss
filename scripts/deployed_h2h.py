@@ -49,6 +49,9 @@ import statistics as st
 import sys
 from scripts import pred_integrity
 from scripts import quarantine
+# The floor-observation bar lives in ONE place. Restating the number here
+# would let the two tools drift into disagreeing about the same floor.
+from scripts.sensitivity_screen import MIN_FLOOR_OBS
 
 # The recipe boundary. A campaign outside it is a DIFFERENT METHOD and pooling
 # it silently is how the corpus got five TraLO configurations. Post-hoc arms
@@ -262,6 +265,43 @@ def rng_floor(cell, get):
     return (st.median(gaps), len(gaps)) if gaps else (None, 0)
 
 
+def floor_verdict(order, floor, nfloor):
+    """Why this cell may NOT name a #1, or None if it may.
+
+    THE OBSERVATION GUARD (added 2026-09-05). Until now the only bar was
+    `spread > floor`, and nothing asked how well `floor` had been ESTIMATED. On
+    the live `vitdual2` with ONE completed seed in the cell, the floor came
+    back **0.0** from a single observation and a 14-item spread cleared it, so
+    the tool named a #1 off one seed. Every spread beats a floor of zero.
+
+    `sensitivity_screen` already refuses below `MIN_FLOOR_OBS`, and that is the
+    same floor computed the same way from the same `_null`/`_reseed` pairs. Two
+    tools disagreeing about whether one number is usable is how a weak result
+    gets quoted from whichever tool was run. The constant is IMPORTED, not
+    restated: a second literal is free to drift from the first, which is the
+    defect `contract_keys` already demonstrates elsewhere in this repo.
+
+    This makes the tool refuse MORE, and that is the intended direction. It
+    cannot manufacture a win for any arm; it can only decline to award one.
+    """
+    if floor is None:
+        return ("NO FLOOR: no `_reseed` twin in this cell, so the spread is "
+                "unpriced")
+    if len(order) < 2:
+        return "ONE ARM: nothing to rank"
+    spread = order[0][1] - order[-1][1]
+    if spread <= floor:
+        return ("REFUSED: spread %.1f items <= RNG floor %.1f (n=%d). "
+                "Naming a #1 here names the RNG." % (spread, floor, nfloor))
+    if nfloor < MIN_FLOOR_OBS:
+        return ("REFUSED: spread %.1f items clears a floor of %.1f, but that "
+                "floor rests on %d observation(s), under the %d bar. A floor "
+                "estimated from too little is cleared by anything -- at n=1 it "
+                "comes back 0.0. The spread is UNPRICED, not proven."
+                % (spread, floor, nfloor, MIN_FLOOR_OBS))
+    return None
+
+
 def rank_cell(cell, control, get, arms=DUALS):
     """(ordered [(arm, mean delta vs control)], jackknife #1 set)."""
     if control not in cell:
@@ -355,14 +395,7 @@ def report(cells, control, w=sys.stdout.write):
             w("     so trading an item between them moves it with NO item won.\n")
 
         spread = order_tp[0][1] - order_tp[-1][1] if len(order_tp) > 1 else 0.0
-        verdict = None
-        if floor is None:
-            verdict = "NO FLOOR: no `_reseed` twin in this cell, so the spread is unpriced"
-        elif len(order_tp) < 2:
-            verdict = "ONE ARM: nothing to rank"
-        elif spread <= floor:
-            verdict = ("REFUSED: spread %.1f items <= RNG floor %.1f (n=%d). "
-                       "Naming a #1 here names the RNG." % (spread, floor, nfloor))
+        verdict = floor_verdict(order_tp, floor, nfloor)
         if verdict:
             n_refused += 1
             w("  #1: %s\n" % verdict)
@@ -524,6 +557,38 @@ def self_test(w=sys.stdout.write):
     check(reseed_of("alm") == "alm_reseed" and reseed_of("tralo_cut") == "tralo_reseed"
           and reseed_of("tralo_reseed") is None,
           "reseed twin resolves per family, and a twin has no twin")
+
+    # ---- the floor must be ESTIMATED before it is a bar (2026-09-05) ------
+    # A big lead priced against a floor built from ONE observation. Before the
+    # guard this was NAMED; it is the live vitdual2 situation exactly.
+    thin = _cell({"clip":         [600],
+                  "tralo":        [640],
+                  "alm":          [610],
+                  "tralo_null":   [600],
+                  "tralo_reseed": [600]})
+    order, _ = rank_cell(thin, "clip", g)
+    fl, nf = rng_floor(thin, g)
+    v = floor_verdict(order, fl, nf)
+    check(nf < MIN_FLOOR_OBS and v is not None and "UNPRICED" in v,
+          "a 30-item lead over a floor built from %d observation(s) is "
+          "REFUSED, not named" % nf)
+    # NEGATIVE CONTROL on that check: the SAME lead, same floor value, but now
+    # the floor has enough observations behind it. It must be NAMED again --
+    # otherwise the guard is refusing everything and proves nothing.
+    fat = _cell({"clip":         [600] * 8,
+                 "tralo":        [640] * 8,
+                 "alm":          [610] * 8,
+                 "tralo_null":   [600] * 8,
+                 "tralo_reseed": [600] * 8})
+    order, _ = rank_cell(fat, "clip", g)
+    fl, nf = rng_floor(fat, g)
+    check(nf >= MIN_FLOOR_OBS and floor_verdict(order, fl, nf) is None,
+          "  and the SAME lead over a floor with %d observations is NAMED" % nf)
+    # The two other refusal paths still work through the extracted function.
+    check("NO FLOOR" in (floor_verdict([("a", 5.0)], None, 0) or ""),
+          "  no `_reseed` twin still reads NO FLOOR, never a fallback #1")
+    check("ONE ARM" in (floor_verdict([("a", 5.0)], 3.0, 99) or ""),
+          "  a single arm still reads ONE ARM")
 
     w("\nSELF-TEST %s\n" % ("PASSED" if ok else "FAILED"))
     return 0 if ok else 1
