@@ -14,6 +14,64 @@ UNVERIFIED; confirm before assuming either finished.)
 
 ---
 
+## 🛑 0-HEAD. THE FOUR-DUAL HEAD-TO-HEAD RESTS ON **TWO CELLS** (2026-09-05)
+
+**The pre-registered goal -- TraLO beats `fioretto` / `hounie` / `alm` -- is
+currently being asked of a sample of TWO CELLS, and both are unfinished.**
+
+Measured by running the deployed `scripts.deployed_h2h` over every scorable
+campaign in every worktree (`dom1`, `dom1b`, `equaldose1`, `taskwin2`,
+`vitdual2`), with the dead-arm quarantine and the new floor-observation guard
+both live:
+
+| | cells | why |
+|---|---|---|
+| carry **all four** duals | **2** | `vitdual2` L80-80_G95 and L90-90_G95 only |
+| carry 2 arms | 15 | `fioretto`/`hounie` are DEAD arms in `dom1`/`dom1b`/`equaldose1` (the 28-vs-29 dose gap) and are dropped |
+| carry 1 arm | 2 | `taskwin2` staged `tralo` alone |
+| **#1 NAMED** | **0 of 19** | |
+| REFUSED: spread inside the RNG floor | 13 | a genuine null: the arms differ by less than the noise |
+| REFUSED: the floor itself unestimated | 4 | fewer than `MIN_FLOOR_OBS` = 8 observations behind it |
+| ONE ARM: nothing to rank | 2 | |
+
+**This supersedes "2 of 15 cells namable, both `alm`".** Those two `alm` calls
+were priced against a floor resting on four observations; under the guard they
+are UNPRICED, not won. Nothing moves in TraLO's favour -- TraLO was already 0
+-- but the rivals' two wins are withdrawn as well, so the honest statement is
+that **the head-to-head has not yet been measured anywhere**, rather than that
+TraLO lost it.
+
+### What that means for the queue
+
+1. **`vitdual2` finishing is the whole experiment.** At 33/88 it carries 2 and
+   1 seeds in its two cells. Every four-way number in this project comes from
+   it. Nothing else can substitute: no other campaign holds four live duals.
+2. **`vitseed1` is correctly targeted for the FLOOR.** Seeds 5-8 of
+   `tralo_null` + `tralo_reseed` take the floor from 4 observations to 8, which
+   is the bar `deployed_h2h` now enforces. Without it every cell refuses on
+   "floor unestimated" no matter how large the spread.
+3. **But `vitseed1` carries NO dual arms** (`clip`, `focal_clip`, `tralo`,
+   `tralo_null`, `tralo_reseed` only). So after it lands, `tralo` sits at 8
+   seeds against rivals at 4 -- which is an apples-to-apples violation in the
+   one comparison that matters. Seeds 5-8 of `alm`, `fioretto`, `hounie` are
+   the missing 24 runs.
+   ⚠️ **Their `_null` twins are NOT needed and must not be run.** Verified by
+   md5 on `vitdual2`: within a (cap, seed) all four families' `_null` arms are
+   byte-identical, 0 of 3 groups split, exactly as FRAMEWORK 2944 says. 24
+   runs that would produce a file already on disk.
+4. **Do NOT size that extension from today's numbers.** `seeds@80%` currently
+   reads `tralo` 16 / `alm` 44 / `fioretto` 3 / `hounie` 5 -- computed from TWO
+   seeds, so it is an estimate of an estimate. Re-read it when `vitdual2` has
+   its four, then buy the seeds.
+
+### The 13 "inside the floor" cells are the real result so far
+
+They are not a measurement failure. Those cells have four seeds and a floor
+built from four observations, and the arms still differ by less than the RNG
+spread. That is a null, and per the honest-null clause it gets reported in
+those words: **on MobileNetV2, MobileNetV3 and RegNetY400MF, at every cap
+tested, `tralo` and `alm` are not distinguishable at 4 seeds.**
+
 ## 🛑 0-NOW. READ `docs/COVERAGE.md` BEFORE ANY NUMBER BELOW (2026-09-03)
 
 Twelve findings supersede parts of every section that follows.

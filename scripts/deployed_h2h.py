@@ -417,7 +417,7 @@ def report(cells, control, w=sys.stdout.write):
                          order=[dict(arm=a, d_items=m, seeds_needed=seeds_needed(d))
                                 for a, m, d, _ in order_tp]))
     w("%s\n" % ("=" * 78))
-    w("%d cells: #1 NAMED in %d, REFUSED in %d (spread under the RNG floor)\n"
+    w("%d cells: #1 NAMED in %d, REFUSED in %d (inside the RNG floor, or the floor itself unestimated)\n"
       % (len(rows), n_named, n_refused))
     w("%d cells are JACKKNIFE-UNSTABLE (one dropped seed changes #1)\n" % n_unstable)
     w("%d cells have items and ccF1 disagreeing on the order\n" % n_disagree)
