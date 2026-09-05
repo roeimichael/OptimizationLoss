@@ -37,6 +37,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.utils.constants import UNLIMITED                     # noqa: E402
+from scripts import pred_integrity
 from scripts import quarantine
 
 def capped_classes(run_dir):
@@ -85,6 +86,18 @@ def budgets(run_dir):
 
 def read(path):
     d = pd.read_csv(path)
+    for col in ("True_Label", "Predicted_Label"):
+        if not np.issubdtype(d[col].dtype, np.integer):
+            # Say WHAT is wrong here, rather than letting sklearn raise
+            # "can't handle a mix of continuous and multiclass" five frames
+            # down. That message sent the first investigation to the metric
+            # code; the fault was a torn CSV.
+            raise ValueError(
+                "%s: column %s is %s, not an integer class index. A stray "
+                "value is in a label column, which means this predictions "
+                "file is TORN or double-written. Run "
+                "`python -m scripts.pred_integrity <campaign>`."
+                % (path, col, d[col].dtype))
     y = d["True_Label"].to_numpy()
     p = d["Predicted_Label"].to_numpy()
     prob = d[[c for c in d.columns if c.startswith("Prob_Class_")]].to_numpy()
@@ -135,6 +148,15 @@ def main():
     # banner printed.
     dirs = [Path(p) for p in quarantine.drop_dead_runs(
         [str(d) for d in dirs], dead, label="scored run")]
+    # 🛑 A TORN PREDICTIONS FILE PARSES. Two dispatchers over shared NFS wrote
+    # one run directory and produced a CSV with six extra rows, one of them a
+    # torn line fragment; pandas accepted it and sklearn raised five frames
+    # deep on a dtype. Audit BEFORE scoring, and refuse.
+    torn = pred_integrity.audit([args.root])
+    if torn:
+        print("REFUSING to score: %d prediction file(s) are not intact. "
+              "Re-run those runs." % len(torn))
+        return 1
     if not dirs:
         print("no scored runs under %s" % args.root)
         return 1

@@ -48,6 +48,7 @@ from sklearn.metrics import (average_precision_score, roc_auc_score, f1_score,
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scripts.score_arm import equalize                            # noqa: E402
+from scripts import pred_integrity                            # noqa: E402
 from scripts import quarantine                                    # noqa: E402
 from src.training.constraints import (compute_global_constraints,  # noqa: E402
                                       compute_local_constraints, normalize_constrained_classes)
@@ -1568,6 +1569,12 @@ def main():
     # no message. A gate that cannot fail is decoration. If this import breaks,
     # the scorer must break.
     from scripts.quarantine import gate
+    torn = pred_integrity.audit(args.campaign)
+    if torn:
+        print("REFUSING to score: %d prediction file(s) are not intact. A "
+              "torn CSV parses and puts phantom rows into a metric with no "
+              "error. Re-run those runs." % len(torn))
+        return 1
     blocked, DEAD_ARMS = gate(args.campaign, args.allow_quarantined, "score")
     if blocked:
         return 1
