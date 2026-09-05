@@ -303,19 +303,28 @@ EXTENDS = "EXTENDS.json"
 _EXT_CACHE = {}
 
 
-def _sample_config(root):
-    """One config from a campaign tree, with its path. (None, None) if empty."""
-    for pat, rec in ((os.path.join(root, "*", "*", "*", "*", "*",
-                                   "config.json"), False),
-                     (os.path.join(root, "**", "config.json"), True)):
-        hits = sorted(glob.glob(pat, recursive=rec))
-        if hits:
-            try:
-                with io.open(hits[0], encoding="utf-8") as fh:
-                    return json.load(fh), hits[0]
-            except Exception:
-                return None, hits[0]
-    return None, None
+def _configs_by_cell(root):
+    """One config per (model, dataset, cap, arm), with its seed.
+
+    PER CELL, not "the first config in the tree". Sampling one config per
+    ROOT compared `vitdual2/alm/seed_1` against `vitseed1/clip/seed_5` --
+    different ARMS -- and reported sixteen differing knobs for two campaigns
+    that are byte-identical where they overlap. The single-arm fixture in the
+    self-test could not see it; the live tree refused on the first try.
+    """
+    out = {}
+    for f in sorted(glob.glob(os.path.join(root, "*", "*", "*", "*",
+                                           "seed_*", "config.json"))):
+        parts = os.path.normpath(f).replace(os.sep, "/").split("/")
+        key = tuple(parts[-6:-2])          # model, dataset, cap, arm
+        if key in out:
+            continue
+        try:
+            with io.open(f, encoding="utf-8") as fh:
+                out[key] = json.load(fh)
+        except Exception:
+            continue
+    return out
 
 
 def _seeds_of(root):
@@ -333,24 +342,37 @@ def _seeds_of(root):
 
 
 def _extension_is_verified(root, parent_root):
-    """(ok, why). Do these two roots hold ONE experiment at disjoint seeds?"""
+    """(ok, why). Do these two roots hold ONE experiment at disjoint seeds?
+
+    Every (model, dataset, cap, arm) the two roots SHARE must carry configs
+    that differ in `seed` and nothing else. An extension usually holds fewer
+    arms than its parent, which is fine -- what may not differ is any arm they
+    both claim to run.
+    """
     if not os.path.isdir(parent_root):
         return False, "the named parent %s is not a directory" % parent_root
-    child, _cp = _sample_config(root)
-    par, _pp = _sample_config(parent_root)
-    if child is None or par is None:
+    child, par = _configs_by_cell(root), _configs_by_cell(parent_root)
+    if not child or not par:
         return False, ("no readable config under %s"
-                       % (root if child is None else parent_root))
-    if child.get("code_version") != par.get("code_version"):
-        return False, ("code_version differs, %s vs %s -- two different "
-                       "builds, not one experiment"
-                       % (child.get("code_version"), par.get("code_version")))
-    ch = child.get("hyperparams") or {}
-    ph = par.get("hyperparams") or {}
-    diff = sorted(k for k in set(ch) | set(ph) if ch.get(k) != ph.get(k))
-    if diff != ["seed"]:
-        return False, ("hyperparams differ in %s; an extension may differ in "
-                       "seed and in nothing else" % (diff or "nothing at all"))
+                       % (root if not child else parent_root))
+    shared = sorted(set(child) & set(par))
+    if not shared:
+        return False, ("the two roots share no (model, dataset, cap, arm); "
+                       "there is nothing to pool")
+    for key in shared:
+        c, p = child[key], par[key]
+        if c.get("code_version") != p.get("code_version"):
+            return False, ("code_version differs at %s, %s vs %s -- two "
+                           "different builds, not one experiment"
+                           % ("/".join(key), c.get("code_version"),
+                              p.get("code_version")))
+        ch = c.get("hyperparams") or {}
+        ph = p.get("hyperparams") or {}
+        diff = sorted(k for k in set(ch) | set(ph) if ch.get(k) != ph.get(k))
+        if diff != ["seed"]:
+            return False, ("hyperparams differ at %s in %s; an extension may "
+                           "differ in seed and in nothing else"
+                           % ("/".join(key), diff or "nothing at all"))
     cs, ps = _seeds_of(root), _seeds_of(parent_root)
     if not cs or not ps:
         return False, "one of the roots holds no seed_* directory"
@@ -358,7 +380,8 @@ def _extension_is_verified(root, parent_root):
         return False, ("seeds %s appear in BOTH roots. Pooling them would put "
                        "two runs under one (cell, seed, arm) key and average "
                        "a swept axis" % sorted(cs & ps))
-    return True, "seeds %s extend %s" % (sorted(cs), sorted(ps))
+    return True, ("seeds %s extend %s across %d shared cell(s)"
+                  % (sorted(cs), sorted(ps), len(shared)))
 
 
 def extension_parent(root):
@@ -1038,18 +1061,32 @@ def self_test(out=sys.stdout):
         # one backbone at a time still resolves to the campaign.
         ext_root = os.path.join(tmp, "results")
 
-        def _mk(camp, seeds, code="abc123", extra=None):
-            """A minimal campaign tree: one arm, the given seeds."""
-            for s in seeds:
-                d = os.path.join(ext_root, camp, "ViTB16", "iwildcam",
-                                 "L80_G95", "tralo", "seed_%d" % s)
-                os.makedirs(d, exist_ok=True)
-                hp = {"lr": 0.0001, "warmup_epochs": 1, "seed": s}
-                hp.update(extra or {})
-                with io.open(os.path.join(d, "config.json"), "w",
-                             encoding="utf-8") as fh:
-                    json.dump({"status": "completed", "code_version": code,
-                               "hyperparams": hp}, fh)
+        # MULTI-ARM on purpose. The first version of this fixture had ONE arm,
+        # and the verifier sampled one config per ROOT rather than per (cap,
+        # arm) -- so on the live tree it compared `vitdual2/alm` against
+        # `vitseed1/clip` and refused two campaigns that are identical where
+        # they overlap. A single-arm fixture cannot see that; the arms here
+        # carry DIFFERENT knobs from each other so that a cross-arm comparison
+        # is guaranteed to look wrong.
+        ARM_KNOB = {"tralo": {"lambda_step": 0.5},
+                    "alm": {"alm_eta": 0.1, "alm_mu0": 1.0},
+                    "clip": {"constraint_epochs": 0}}
+
+        def _mk(camp, seeds, code="abc123", extra=None, arms=("tralo",)):
+            """A campaign tree: the given arms, each with its OWN knobs."""
+            for arm in arms:
+                for s in seeds:
+                    d = os.path.join(ext_root, camp, "ViTB16", "iwildcam",
+                                     "L80_G95", arm, "seed_%d" % s)
+                    os.makedirs(d, exist_ok=True)
+                    hp = {"lr": 0.0001, "warmup_epochs": 1, "seed": s}
+                    hp.update(ARM_KNOB.get(arm, {}))
+                    hp.update(extra or {})
+                    with io.open(os.path.join(d, "config.json"), "w",
+                                 encoding="utf-8") as fh:
+                        json.dump({"status": "completed",
+                                   "code_version": code,
+                                   "hyperparams": hp}, fh)
             return os.path.join(ext_root, camp)
 
         def _mark(root, parent):
@@ -1065,8 +1102,8 @@ def self_test(out=sys.stdout):
             except ValueError:
                 return True
 
-        par = _mk("parent1", [1, 2, 3, 4])
-        good = _mk("parent1seed", [5, 6, 7, 8])
+        par = _mk("parent1", [1, 2, 3, 4], arms=("tralo", "alm", "clip"))
+        good = _mk("parent1seed", [5, 6, 7, 8], arms=("tralo", "clip"))
         _EXT_CACHE.clear()
         checks.append(("an ordinary campaign reports its OWN name",
                        campaign_name(par) == "parent1"))
@@ -1104,6 +1141,28 @@ def self_test(out=sys.stdout):
         _mark(missing, "no_such_campaign")
         checks.append(("a marker naming a parent that does not exist RAISES",
                        _raises(missing)))
+
+        # THE LIVE BUG, as a control: an extension holding a SUBSET of the
+        # parent arms must VERIFY. Comparing one config per root instead of per
+        # (cap, arm) refuses this, which is what happened on `vitseed1`.
+        checks.append(("an extension holding a SUBSET of the parent arms is "
+                       "verified, comparing per (cap, arm) not per root",
+                       campaign_name(good) == "parent1"))
+
+        # Seeds 11-12, DISJOINT from parent1seed's 5-8 on purpose: with
+        # overlapping seeds this would refuse for the overlap instead and the
+        # no-shared-arm branch would never run. A mutation test caught exactly
+        # that -- the control passed while checking nothing.
+        disjoint = _mk("disjointarms", [11, 12], arms=("alm",))
+        _mark(disjoint, "parent1seed")
+        checks.append(("two roots sharing NO arm RAISE -- there is nothing to "
+                       "pool", _raises(disjoint)))
+
+        skew = _mk("skewarm", [5, 6], arms=("tralo",),
+                   extra={"lambda_step": 0.9})
+        _mark(skew, "parent1")
+        checks.append(("a SHARED arm whose knobs differ RAISES, even though "
+                       "the other arms match", _raises(skew)))
 
         # `write_extends_marker` must refuse to CREATE a claim it cannot verify.
         refused = _mk("refused", [3, 4])

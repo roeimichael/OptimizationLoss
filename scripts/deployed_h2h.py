@@ -51,7 +51,10 @@ from scripts import pred_integrity
 from scripts import quarantine
 # The floor-observation bar lives in ONE place. Restating the number here
 # would let the two tools drift into disagreeing about the same floor.
-from scripts.sensitivity_screen import MIN_FLOOR_OBS
+# From `floors`, NOT from `sensitivity_screen`: that module reaches
+# `src/`, and a pinned campaign worktree can carry a `src/` older than the
+# names it needs. This scorer must run in every checkout.
+from scripts.floors import MIN_FLOOR_OBS
 
 # The recipe boundary. A campaign outside it is a DIFFERENT METHOD and pooling
 # it silently is how the corpus got five TraLO configurations. Post-hoc arms

@@ -1750,3 +1750,77 @@ def test_no_shipped_module_references_an_UNDEFINED_NAME():
         "%d undefined name(s) in shipped code. Each is a NameError that fires "
         "only on the branch that reaches it:" + NL + "  %s"
     ) % (len(bad), (NL + "  ").join(bad))
+
+
+# ---------------------------------------------------------------------------
+# A SCORER MUST RUN IN A PINNED WORKTREE (2026-09-05).
+#
+# Campaign worktrees are pinned at the commit their configs were generated
+# from, and `src/` is FROZEN there while the campaign runs. So a `src/` in a
+# campaign checkout can predate a name a scorer wants. That is not a bug to fix
+# by updating `src/` -- updating it splits `code_version` and voids the
+# campaign.
+#
+# It happened: `deployed_h2h` grew a shared floor bar and imported it from
+# `sensitivity_screen`, which imports `src.training.constraints`. On
+# `optloss-domb`, whose pinned `src/` has no `cap_fraction_for`, the arm-vs-arm
+# scorer stopped importing at all -- in three worktrees at once, on a tool
+# whose entire job is deciding whether a number may be quoted. The constant
+# moved to `scripts/floors.py`, which reaches nothing.
+#
+# These three are the pinned-worktree class: reached for when judging whether a
+# result is real, so they must import in EVERY checkout at EVERY commit.
+# `sensitivity_screen` is deliberately NOT in the list -- it genuinely needs
+# `src` to derive cap fractions, and it is run on the live tree.
+# ---------------------------------------------------------------------------
+
+MUST_IMPORT_WITHOUT_SRC = ("scripts.quarantine", "scripts.pred_integrity",
+                           "scripts.deployed_h2h", "scripts.floors")
+
+_BLOCK_SRC = (
+    "import sys\n"
+    "class Block:\n"
+    "    def find_module(self, name, path=None):\n"
+    "        if name == 'src' or name.startswith('src.'):\n"
+    "            return self\n"
+    "        return None\n"
+    "    def load_module(self, name):\n"
+    "        raise ImportError('src UNAVAILABLE: pinned worktree')\n"
+    "sys.meta_path.insert(0, Block())\n"
+    "import importlib\n"
+    "importlib.import_module(sys.argv[1])\n"
+)
+
+
+@pytest.mark.parametrize("mod", MUST_IMPORT_WITHOUT_SRC)
+def test_the_scorer_IMPORTS_in_a_worktree_whose_src_is_old(mod):
+    """2026-09-05: `deployed_h2h` imported a shared bar from
+    `sensitivity_screen`, which reaches `src.training.constraints`. A
+    campaign worktree is pinned and its `src/` is frozen, so on
+    `optloss-domb` the arm-vs-arm scorer stopped importing entirely -- in
+    three worktrees at once. Fixed by moving the constant to
+    `scripts/floors.py`, which reaches nothing.
+    """
+    r = subprocess.run([sys.executable, "-c", _BLOCK_SRC, mod],
+                       cwd=REPO, capture_output=True, text=True, timeout=180)
+    assert r.returncode == 0, (
+        "%s cannot import when `src` is unavailable, so it is unrunnable in a "
+        "pinned campaign worktree. Do NOT fix this by updating `src/` there -- "
+        "that splits code_version. Move the shared thing into a module that "
+        "reaches nothing, as scripts/floors.py does.%s%s"
+        % (mod, chr(10), r.stderr[-600:]))
+
+
+def test_NEGATIVE_CONTROL_the_src_block_really_blocks():
+    """2026-09-05: a module that DOES need `src` must fail under the probe.
+
+    Without this the test above passes whenever the blocker silently does
+    nothing, which is the shape of a gate that has never been shown to work.
+    """
+    r = subprocess.run([sys.executable, "-c", _BLOCK_SRC,
+                        "scripts.sensitivity_screen"],
+                       cwd=REPO, capture_output=True, text=True, timeout=180)
+    assert r.returncode != 0, (
+        "`sensitivity_screen` imports `src.training.constraints` and must fail "
+        "under the blocker. It did not, so the blocker is inert and the checks "
+        "above prove nothing.")

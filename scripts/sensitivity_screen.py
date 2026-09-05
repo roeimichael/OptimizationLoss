@@ -142,16 +142,8 @@ GRAD_MIN = WIGGLE_MAX * (1.0 - WIGGLE_MAX)      # 0.0099 at WIGGLE_MAX = 0.99
 BAND_LO, BAND_HI = 0.05, 0.95
 BAND_MIN = MIN_PRIZE                            # 3.0 items, same bar, same reason
 
-# \U0001f6d1 THE FLOOR NEEDS OBSERVATIONS BEFORE IT IS A FLOOR. The spread is
-# estimated from every arm PAIR in the cell (45 pairs x seeds at 10 arms); the
-# RNG floor comes from the `_null`/`_reseed` pairs only, and most campaigns
-# here carry exactly ONE such pair -- so at 4 seeds the floor is a median of
-# FOUR numbers whose order-statistic confidence interval is the entire sample
-# range. Comparing a well-estimated median against a badly-estimated one
-# certifies cells that are pure noise; the self-test builds exactly that case.
-# Below this many observations the honest verdict is that the floor is
-# unmeasured, not that the spread beat it.
-MIN_FLOOR_OBS = 8
+# One source of truth, shared with `deployed_h2h`; see scripts/floors.py.
+from scripts.floors import MIN_FLOOR_OBS  # noqa: E402
 
 # Arms that carry NO constraint term, in the order we prefer them as the
 # unconstrained reference. A trained arm must never be used: its probabilities
