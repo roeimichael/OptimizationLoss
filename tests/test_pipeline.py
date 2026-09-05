@@ -50,6 +50,30 @@ import yaml
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+LAUNCHER_DIR = os.path.join("docs", "archive", "launchers")
+
+
+def launch_scripts():
+    """The campaign launch scripts, wherever they currently live.
+
+    Nine gates keyed on `os.listdir("docs")`. The launchers were archived to
+    `docs/archive/launchers/` on 2026-09-04 -- every campaign they stage is
+    quarantined or partially quarantined, so they are history, not
+    instructions -- and all nine went red at once, each refusing loudly
+    rather than passing on an empty list. That is the behaviour we want, and
+    it is also why the path belongs in ONE place instead of nine.
+
+    Returns (directory, sorted script names).
+    """
+    for d in (LAUNCHER_DIR, "docs"):
+        if os.path.isdir(d):
+            names = sorted(f for f in os.listdir(d) if f.endswith(".sh"))
+            if names:
+                return d, names
+    return LAUNCHER_DIR, []
+
+
+
 
 # ---------------------------------------------------------------- the loss --
 
@@ -1799,8 +1823,8 @@ def test_the_inert_flag_gate_can_actually_detect_an_inert_flag():
 
     P = load_protocol()
     staged = set()
-    for name in sorted(f for f in os.listdir("docs") if f.endswith(".sh")):
-        text = io.open(os.path.join("docs", name), encoding="utf-8").read()
+    for name in launch_scripts()[1]:
+        text = io.open(os.path.join(launch_scripts()[0], name), encoding="utf-8").read()
         text = "\n".join(l for l in text.splitlines()
                          if not l.lstrip().startswith("#"))
         text = text.replace(chr(92) + "\n", " ")
@@ -8178,7 +8202,8 @@ def test_every_launch_script_either_runs_task_caps_or_says_it_is_superseded():
         return out
 
     checked = banded = clean = 0
-    for path in sorted(_glob.glob(os.path.join(REPO, "docs", "launch_*.sh"))):
+    for path in sorted(_glob.glob(os.path.join(
+            REPO, "docs", "archive", "launchers", "launch_*.sh"))):
         src = io.open(path, encoding="utf-8").read()
         if "gen_campaign" not in src:
             continue

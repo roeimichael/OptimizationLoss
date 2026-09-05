@@ -34,6 +34,30 @@ import torch
 import yaml
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+LAUNCHER_DIR = os.path.join("docs", "archive", "launchers")
+
+
+def launch_scripts():
+    """The campaign launch scripts, wherever they currently live.
+
+    Nine gates keyed on `os.listdir("docs")`. The launchers were archived to
+    `docs/archive/launchers/` on 2026-09-04 -- every campaign they stage is
+    quarantined or partially quarantined, so they are history, not
+    instructions -- and all nine went red at once, each refusing loudly
+    rather than passing on an empty list. That is the behaviour we want, and
+    it is also why the path belongs in ONE place instead of nine.
+
+    Returns (directory, sorted script names).
+    """
+    for d in (LAUNCHER_DIR, "docs"):
+        if os.path.isdir(d):
+            names = sorted(f for f in os.listdir(d) if f.endswith(".sh"))
+            if names:
+                return d, names
+    return LAUNCHER_DIR, []
+
+
 sys.path.insert(0, REPO)
 
 from configs.gen_campaign import (build_hyperparams, cap_pair,  # noqa: E402
@@ -2918,7 +2942,7 @@ def test_a_staged_launch_script_NAMES_ONLY_ARMS_THAT_EXIST():
     import shlex
 
     BS = chr(92)
-    scripts = sorted(f for f in os.listdir("docs") if f.endswith(".sh"))
+    scripts = launch_scripts()[1]
     assert scripts, "docs/ carries no launch script, which cannot be right"
 
     P = load_protocol()
@@ -2926,7 +2950,7 @@ def test_a_staged_launch_script_NAMES_ONLY_ARMS_THAT_EXIST():
     checked = 0
 
     for name in scripts:
-        path = os.path.join("docs", name)
+        path = os.path.join(launch_scripts()[0], name)
         text = io.open(path, encoding="utf-8").read()
         # Comment lines first: the prose above these invocations discusses arms
         # by name, including removed ones, and that is exactly what it is for.
@@ -3035,7 +3059,7 @@ def test_a_documented_command_passes_FLAGS_THAT_EXIST():
     # The launch scripts are in scope for exactly the reason the arm gate
     # above exists: they run once, on a server, by hand.
     sources = ["CLAUDE.md", "docs/FRAMEWORK.md"]
-    sources += [os.path.join("docs", f) for f in sorted(os.listdir("docs"))
+    sources += [os.path.join(launch_scripts()[0], f) for f in sorted(os.listdir(launch_scripts()[0]))
                 if f.endswith(".sh")]
     bad, seen = [], 0
     for doc in sources:
@@ -3114,8 +3138,8 @@ def test_a_launch_script_CANNOT_SEE_A_LIVE_RUN_by_looking_for_main_py():
         "cannot learn what a run process is called")
 
     checked = 0
-    for name in sorted(f for f in os.listdir("docs") if f.endswith(".sh")):
-        path = os.path.join("docs", name)
+    for name in launch_scripts()[1]:
+        path = os.path.join(launch_scripts()[0], name)
         text = io.open(path, encoding="utf-8").read()
         code = "\n".join(l for l in text.splitlines()
                          if not l.lstrip().startswith("#"))
@@ -3384,8 +3408,8 @@ def test_a_launch_script_VERIFIES_THE_DATA_ARRAY_not_just_the_directory():
     import re
 
     checked = 0
-    for name in sorted(f for f in os.listdir("docs") if f.endswith(".sh")):
-        path = os.path.join("docs", name)
+    for name in launch_scripts()[1]:
+        path = os.path.join(launch_scripts()[0], name)
         text = io.open(path, encoding="utf-8").read()
         code = "\n".join(l for l in text.splitlines()
                          if not l.lstrip().startswith("#"))
@@ -3493,8 +3517,8 @@ def test_a_documented_campaign_SIZE_matches_what_the_script_GENERATES():
 
     # ---- what each launch script actually generates -------------------------
     true_size = {}
-    for name in sorted(f for f in os.listdir("docs") if f.endswith(".sh")):
-        path = os.path.join("docs", name)
+    for name in launch_scripts()[1]:
+        path = os.path.join(launch_scripts()[0], name)
         raw = io.open(path, encoding="utf-8").read()
         code = "\n".join(l for l in raw.splitlines()
                          if not l.lstrip().startswith("#"))
@@ -3524,7 +3548,7 @@ def test_a_documented_campaign_SIZE_matches_what_the_script_GENERATES():
     assert true_size, "no launch script parsed, so this gate checked nothing"
 
     # ---- check 1: the arithmetic is self-consistent everywhere ---------------
-    docs = [os.path.join("docs", f) for f in sorted(os.listdir("docs"))
+    docs = [os.path.join(launch_scripts()[0], f) for f in sorted(os.listdir(launch_scripts()[0]))
             if f.endswith(".sh") or f == "FRAMEWORK.md"] + ["CLAUDE.md"]
     checked = 0
     for path in docs:
@@ -3542,7 +3566,7 @@ def test_a_documented_campaign_SIZE_matches_what_the_script_GENERATES():
 
     # ---- check 2: a script's own comment block states its REAL size ----------
     for name, size in sorted(true_size.items()):
-        path = os.path.join("docs", name)
+        path = os.path.join(launch_scripts()[0], name)
         stated = [t[:4] for t in triples(io.open(path, encoding="utf-8").read())]
         assert size in stated, (
             "%s generates %d cells x %d arms x %d seeds = %d runs, and its own "
@@ -3750,8 +3774,8 @@ def test_a_launch_scripts_PIN_carries_the_same_gen_campaign_invocation():
         return None
 
     checked = 0
-    for name in sorted(f for f in os.listdir("docs") if f.endswith(".sh")):
-        path = os.path.join("docs", name)
+    for name in launch_scripts()[1]:
+        path = os.path.join(launch_scripts()[0], name)
         here = io.open(path, encoding="utf-8").read()
         pin = None
         for line in here.splitlines():
@@ -3771,12 +3795,24 @@ def test_a_launch_scripts_PIN_carries_the_same_gen_campaign_invocation():
                 "offset, so the checkout rewrites it mid-execution."
                 % path)
 
-        rel = path.replace(os.sep, "/")
-        try:
-            there = subprocess.check_output(
-                ["git", "show", "%s:%s" % (pin, rel)],
-                stderr=subprocess.STDOUT).decode("utf-8", "replace")
-        except (subprocess.CalledProcessError, OSError):
+        # 🛑 LOOK THE FILE UP UNDER THE PATH IT HAD AT THE PIN. The
+        # launchers were archived to docs/archive/launchers/ on
+        # 2026-09-04, and at every pinned commit they were still in
+        # docs/. Using only the CURRENT path made `git show` fail for
+        # all four, every one hit the `continue` below, and the gate
+        # reported "checked nothing" -- which is the right refusal, and
+        # this is the fix it was asking for.
+        rels = [path.replace(os.sep, "/"), "docs/" + name]
+        there = None
+        for rel in rels:
+            try:
+                there = subprocess.check_output(
+                    ["git", "show", "%s:%s" % (pin, rel)],
+                    stderr=subprocess.STDOUT).decode("utf-8", "replace")
+                break
+            except (subprocess.CalledProcessError, OSError):
+                continue
+        if there is None:
             # A script newer than its own pin. Allowed, because a commit
             # cannot name its own hash and the out-of-tree guard above already
             # makes the rewrite impossible -- but only in that order.
@@ -3826,10 +3862,10 @@ def test_the_out_of_tree_guard_REFUSES_ONLY_WHEN_IT_SHOULD():
         pytest.skip("no bash on this host; the guard is shell code")
 
     NL = "\n"
-    scripts = sorted(f for f in os.listdir("docs") if f.endswith(".sh"))
+    scripts = launch_scripts()[1]
     checked = 0
     for name in scripts:
-        text = io.open(os.path.join("docs", name), encoding="utf-8").read()
+        text = io.open(os.path.join(launch_scripts()[0], name), encoding="utf-8").read()
         if 'REFUSING: this script lives inside' not in text:
             continue
         start = text.index('SELF=$(cd "$(dirname "$0")"')
@@ -4528,7 +4564,13 @@ def test_a_launch_scripts_stated_SIZE_and_SIGN_TEST_are_arithmetic_not_prose():
     import math
     import re
 
-    scripts = sorted(glob.glob(os.path.join(REPO, "docs", "launch_*.sh")))
+    # The launchers were archived 2026-09-04 -- every campaign they
+    # stage is quarantined or partially quarantined, so they are
+    # history, not instructions. The gate follows them rather than
+    # going quiet: it still checks that the SIZE this repo documents
+    # matches what the generator produces.
+    scripts = sorted(glob.glob(os.path.join(
+        REPO, "docs", "archive", "launchers", "launch_*.sh")))
     assert scripts, (
         "no launch scripts remain, so this gate is checking nothing. If the "
         "pattern was retired on purpose, delete this test with it -- do not "

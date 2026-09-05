@@ -1035,6 +1035,15 @@ pipeline -- there is no setting to get wrong. Same for the CE-saturation skip
 `docs/paper/main.tex` is the professor's file -- **never edit it**. Edit `docs/paper/main_edited_by_roei.tex`.
 Appendix tables stay in the appendix.
 
+🛑 **EVERY MANUSCRIPT IN `docs/paper/` IS ON A CORPUS THAT NO LONGER EXISTS.**
+All five `.tex` files are `dermmnist` / `octmnist` / `tissuemnist`; **not one names
+`iwildcam`**, and `docs/paper/data/` holds zero iwildcam rows. The paper and the
+current experiments are **disjoint generations** -- a finding on one says nothing
+about the other, either way. `docs/paper/WHICH_CORPUS.md` is the full statement,
+including the manuscripts' OWN separate problems (warm-up 50, the dermmnist leak,
+no lambda=0 control in the corpus). Read it before quoting a paper number, and
+before saying "MedMNIST" in a sentence about current results.
+
 **Four manuscripts sit in `docs/paper/`. `main_edited_by_roei.tex` is the paper of
 record** -- it is the one to edit and the one to read a claim out of.
 
