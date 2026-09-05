@@ -296,6 +296,140 @@ def is_quarantined(root):
         p = parent
 
 
+EXTENDS = "EXTENDS.json"
+
+# Verification is expensive (it globs and parses configs in two trees) and
+# `campaign_name` is called once per run path, so the verdict is memoised.
+_EXT_CACHE = {}
+
+
+def _sample_config(root):
+    """One config from a campaign tree, with its path. (None, None) if empty."""
+    for pat, rec in ((os.path.join(root, "*", "*", "*", "*", "*",
+                                   "config.json"), False),
+                     (os.path.join(root, "**", "config.json"), True)):
+        hits = sorted(glob.glob(pat, recursive=rec))
+        if hits:
+            try:
+                with io.open(hits[0], encoding="utf-8") as fh:
+                    return json.load(fh), hits[0]
+            except Exception:
+                return None, hits[0]
+    return None, None
+
+
+def _seeds_of(root):
+    """Every seed present in a campaign tree, read from the PATH.
+
+    From the path rather than the config, because a pending run has nothing
+    but its config and this has to work before anything has executed.
+    """
+    out = set()
+    for d in glob.glob(os.path.join(root, "*", "*", "*", "*", "seed_*")):
+        tail = os.path.basename(d)
+        if tail.startswith("seed_") and tail[5:].isdigit():
+            out.add(int(tail[5:]))
+    return out
+
+
+def _extension_is_verified(root, parent_root):
+    """(ok, why). Do these two roots hold ONE experiment at disjoint seeds?"""
+    if not os.path.isdir(parent_root):
+        return False, "the named parent %s is not a directory" % parent_root
+    child, _cp = _sample_config(root)
+    par, _pp = _sample_config(parent_root)
+    if child is None or par is None:
+        return False, ("no readable config under %s"
+                       % (root if child is None else parent_root))
+    if child.get("code_version") != par.get("code_version"):
+        return False, ("code_version differs, %s vs %s -- two different "
+                       "builds, not one experiment"
+                       % (child.get("code_version"), par.get("code_version")))
+    ch = child.get("hyperparams") or {}
+    ph = par.get("hyperparams") or {}
+    diff = sorted(k for k in set(ch) | set(ph) if ch.get(k) != ph.get(k))
+    if diff != ["seed"]:
+        return False, ("hyperparams differ in %s; an extension may differ in "
+                       "seed and in nothing else" % (diff or "nothing at all"))
+    cs, ps = _seeds_of(root), _seeds_of(parent_root)
+    if not cs or not ps:
+        return False, "one of the roots holds no seed_* directory"
+    if cs & ps:
+        return False, ("seeds %s appear in BOTH roots. Pooling them would put "
+                       "two runs under one (cell, seed, arm) key and average "
+                       "a swept axis" % sorted(cs & ps))
+    return True, "seeds %s extend %s" % (sorted(cs), sorted(ps))
+
+
+def extension_parent(root):
+    """The campaign `root` EXTENDS, VERIFIED, or None if it extends nothing.
+
+    THE DEFECT THIS EXISTS FOR (2026-09-05). `add_seeds` writes seeds 5-8 to
+    their OWN root, deliberately, so the parent keeps a green `check_parity`
+    while its coverage is ragged. Its docstring then says the two roots pool
+    because they share a protocol and a `code_version`. Nothing pooled them.
+    `deployed_h2h` and `cell_table` key a cell by campaign NAME, so seeds 5-8
+    formed a SEPARATE four-seed cell rather than extending the parent to eight.
+
+    Not cosmetic. `vitseed1` exists to lift `vitdual2`'s RNG floor past
+    `MIN_FLOOR_OBS`, the bar `deployed_h2h` refuses under, and as its own cell
+    it could never do that: 40 runs, about 30 GPU-hours, aimed at a capability
+    that did not exist. `seed58a` has sat beside `dom1b` the same way since it
+    landed, and `dom1b` still scores at four seeds.
+
+    DECLARATION IS NOT ENOUGH. A marker naming the wrong parent would pool two
+    different experiments silently, which is worse than never pooling. So the
+    claim is re-verified on every read: same `code_version`, hyperparams equal
+    except `seed`, and seed sets DISJOINT. A marker that fails verification
+    RAISES instead of degrading to "no pooling" -- a campaign that claims to
+    extend something and does not is a staging error, and quietly scoring it
+    as its own cell is exactly how it would go unnoticed.
+    """
+    key = os.path.abspath(root)
+    if key in _EXT_CACHE:
+        return _EXT_CACHE[key]
+    path = os.path.join(key, EXTENDS)
+    if not os.path.exists(path):
+        _EXT_CACHE[key] = None
+        return None
+    try:
+        with io.open(path, encoding="utf-8") as fh:
+            parent = json.load(fh).get("parent")
+    except Exception as exc:
+        raise ValueError("%s is unreadable (%s). It claims this campaign "
+                         "extends another; a claim that cannot be read cannot "
+                         "be verified, and pooling on an unverified claim is "
+                         "the failure this guard exists to prevent."
+                         % (path, exc))
+    if not parent:
+        raise ValueError("%s names no parent." % path)
+    ok, why = _extension_is_verified(key, os.path.join(os.path.dirname(key),
+                                                       parent))
+    if not ok:
+        raise ValueError(
+            "%s claims to extend %s, but it does not: %s. REFUSING to pool. "
+            "Either the marker is wrong, or the two campaigns really are "
+            "different and must be scored apart." % (path, parent, why))
+    _EXT_CACHE[key] = parent
+    return parent
+
+
+def write_extends_marker(root, parent, out=sys.stdout):
+    """Declare `root` an extension of `parent`, after verifying it is one."""
+    key = os.path.abspath(root)
+    ok, why = _extension_is_verified(
+        key, os.path.join(os.path.dirname(key), parent))
+    if not ok:
+        print("REFUSED to mark %s as extending %s: %s" % (root, parent, why),
+              file=out)
+        return 1
+    with io.open(os.path.join(key, EXTENDS), "w", encoding="utf-8") as fh:
+        fh.write(json.dumps({"parent": parent, "verified": why}, indent=2))
+    _EXT_CACHE.pop(key, None)
+    print("%s now pools into %s (%s)" % (root, parent, why), file=out)
+    return 0
+
+
 def campaign_name(root):
     """The CAMPAIGN this path belongs to, not its last path component.
 
@@ -312,21 +446,29 @@ def campaign_name(root):
     at `results`. Falls back to the basename when nothing matches, which is the
     right answer for an unregistered campaign.
     """
+    root_path = _campaign_root(root)
+    # An `add_seeds` extension reports its PARENT name, so its seeds land in
+    # the parent cell instead of forming a separate, under-powered one. The
+    # claim is verified inside `extension_parent`, which RAISES rather than
+    # pool two campaigns that are not one experiment.
+    return extension_parent(root_path) or os.path.basename(root_path)
+
+
+def _campaign_root(root):
+    """The directory that IS the campaign for `root`."""
     p = os.path.abspath(root)
-    last = os.path.basename(p)
     while True:
         base = os.path.basename(p)
         if base in REGISTRY or _marker_at(p):
-            return base
+            return p
         parent = os.path.dirname(p)
         if parent == p:
-            return os.path.basename(os.path.abspath(root))
+            return os.path.abspath(root)
         if os.path.basename(parent) == "results":
             # The child of `results` IS the campaign root by convention, so an
             # UNREGISTERED campaign scored one backbone at a time still reports
             # the campaign rather than the backbone.
-            return base
-        last = base
+            return p
         p = parent
 
 
@@ -890,6 +1032,94 @@ def self_test(out=sys.stdout):
         checks.append(("...and a LIVE campaign loses nothing to that branch",
                        not un3 and not hd3))
 
+        # ---- verified extensions: pooling must be EARNED (2026-09-05) -----
+        # Under a `results` dir on purpose: `_campaign_root` stops at the
+        # child of `results` by convention, which is how a campaign scored
+        # one backbone at a time still resolves to the campaign.
+        ext_root = os.path.join(tmp, "results")
+
+        def _mk(camp, seeds, code="abc123", extra=None):
+            """A minimal campaign tree: one arm, the given seeds."""
+            for s in seeds:
+                d = os.path.join(ext_root, camp, "ViTB16", "iwildcam",
+                                 "L80_G95", "tralo", "seed_%d" % s)
+                os.makedirs(d, exist_ok=True)
+                hp = {"lr": 0.0001, "warmup_epochs": 1, "seed": s}
+                hp.update(extra or {})
+                with io.open(os.path.join(d, "config.json"), "w",
+                             encoding="utf-8") as fh:
+                    json.dump({"status": "completed", "code_version": code,
+                               "hyperparams": hp}, fh)
+            return os.path.join(ext_root, camp)
+
+        def _mark(root, parent):
+            with io.open(os.path.join(root, EXTENDS), "w",
+                         encoding="utf-8") as fh:
+                json.dump({"parent": parent}, fh)
+
+        def _raises(root):
+            _EXT_CACHE.clear()
+            try:
+                extension_parent(root)
+                return False
+            except ValueError:
+                return True
+
+        par = _mk("parent1", [1, 2, 3, 4])
+        good = _mk("parent1seed", [5, 6, 7, 8])
+        _EXT_CACHE.clear()
+        checks.append(("an ordinary campaign reports its OWN name",
+                       campaign_name(par) == "parent1"))
+        checks.append(("...and an UNMARKED sibling does too, so nothing pools "
+                       "by accident", campaign_name(good) == "parent1seed"))
+
+        _mark(good, "parent1")
+        _EXT_CACHE.clear()
+        checks.append(("a VERIFIED extension reports its PARENT, so its seeds "
+                       "land in the parent cell",
+                       campaign_name(good) == "parent1"))
+        checks.append(("  and it resolves from a path INSIDE the extension too",
+                       campaign_name(os.path.join(good, "ViTB16", "iwildcam"))
+                       == "parent1"))
+
+        # NEGATIVE CONTROLS. Each is a marker that CLAIMS an extension it is
+        # not; every one must raise rather than pool.
+        bad_hp = _mk("badhp", [5, 6], extra={"lr": 0.5})
+        _mark(bad_hp, "parent1")
+        checks.append(("a marker whose hyperparams differ in more than `seed` "
+                       "RAISES", _raises(bad_hp)))
+
+        bad_code = _mk("badcode", [5, 6], code="deadbeef")
+        _mark(bad_code, "parent1")
+        checks.append(("a marker across a different code_version RAISES",
+                       _raises(bad_code)))
+
+        overlap = _mk("overlap", [3, 4, 5])
+        _mark(overlap, "parent1")
+        checks.append(("OVERLAPPING seeds RAISE -- pooling them would put two "
+                       "runs under one (cell, seed, arm) key",
+                       _raises(overlap)))
+
+        missing = _mk("missing", [5, 6])
+        _mark(missing, "no_such_campaign")
+        checks.append(("a marker naming a parent that does not exist RAISES",
+                       _raises(missing)))
+
+        # `write_extends_marker` must refuse to CREATE a claim it cannot verify.
+        refused = _mk("refused", [3, 4])
+        buf = io.StringIO()
+        rc = write_extends_marker(refused, "parent1", out=buf)
+        checks.append(("write_extends_marker REFUSES an unverifiable claim and "
+                       "writes no marker",
+                       rc == 1
+                       and not os.path.exists(os.path.join(refused, EXTENDS))))
+
+        accepted = _mk("accepted", [9, 10])
+        rc = write_extends_marker(accepted, "parent1", out=io.StringIO())
+        _EXT_CACHE.clear()
+        checks.append(("  and ACCEPTS a real one, which then pools",
+                       rc == 0 and campaign_name(accepted) == "parent1"))
+
         print("SELF-TEST\n", file=out)
         for label, good in checks:
             print("  %-4s %s" % ("OK" if good else "FAIL", label), file=out)
@@ -909,7 +1139,14 @@ def main(argv=None):
     ap.add_argument("--check", metavar="ROOT")
     ap.add_argument("--home", help="scan under this home instead of ~")
     ap.add_argument("--self-test", action="store_true")
+    ap.add_argument("--extends", nargs=2, metavar=("ROOT", "PARENT"),
+                    help="declare ROOT an add_seeds extension of the "
+                         "sibling campaign PARENT, so its seeds pool "
+                         "into PARENT cells. Verified before writing.")
     a = ap.parse_args(argv)
+
+    if a.extends:
+        return write_extends_marker(a.extends[0], a.extends[1])
 
     if a.self_test:
         return self_test()

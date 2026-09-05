@@ -418,6 +418,16 @@ def main(argv=None):
 
     if args.execute:
         print("WROTE %d config(s) -> %s" % (written, dest_root))
+        if args.out:
+            # Without this marker the extension scores as its OWN cell and
+            # the seeds it was bought for never reach the parent. The
+            # docstring above promised the two roots pool; until
+            # 2026-09-05 nothing implemented it, and `vitseed1` plus
+            # `seed58a` both sat unpooled. `write_extends_marker` verifies
+            # before it writes, so a mis-staged extension refuses here
+            # rather than at scoring time.
+            quarantine.write_extends_marker(
+                args.out, os.path.basename(os.path.normpath(args.root)))
         print("  run `python -m scripts.check_parity %s` before launching."
               % dest_root)
     else:
