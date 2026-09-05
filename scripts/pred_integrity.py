@@ -33,6 +33,7 @@ import argparse
 import collections
 import glob
 import io
+import json
 import os
 import sys
 
@@ -128,6 +129,63 @@ def audit(roots, out=sys.stdout, deep=True):
     return problems
 
 
+def _run_dir_of(path):
+    """The run directory holding `path`, whether it is the dir or a file in it."""
+    return path if os.path.isdir(path) else os.path.dirname(path)
+
+
+def completed_only(paths, out=sys.stdout, label="run"):
+    """Drop every path whose run is not `status: completed`.
+
+    THE DEFECT THIS EXISTS FOR (2026-09-05). Resetting a run to `pending`
+    does NOT remove its old `final_predictions.csv`. The file stays on disk,
+    intact and parseable, describing a model that has since been discarded --
+    the wrong-host recovery left four of them. `full_panel` and
+    `sensitivity_screen` already refused them; `deployed_h2h`, `score_scan` and
+    `paired_noise` globbed for the CSV and never looked at the status, so a
+    superseded model sat in the arm-vs-arm table beside live ones.
+
+    It is the `pred_integrity` question in another costume: the file parses, and
+    parsing was never the test. Here the test is whether the run that wrote it
+    still exists.
+
+    Fails CLOSED. A run whose `config.json` is missing or unreadable is DROPPED
+    and named, because that is exactly what a half-written run looks like from
+    the outside. Every drop is printed -- a filter that removes data silently is
+    the failure mode this module was written against.
+    """
+    keep, dropped, unreadable = [], collections.defaultdict(list), []
+    for p in paths:
+        cfg = os.path.join(_run_dir_of(p), "config.json")
+        try:
+            with io.open(cfg, "r", encoding="utf-8") as fh:
+                status = json.load(fh).get("status")
+        except Exception:
+            unreadable.append(p)
+            continue
+        if status == "completed":
+            keep.append(p)
+        else:
+            dropped[str(status)].append(p)
+
+    if dropped or unreadable:
+        n = sum(len(v) for v in dropped.values()) + len(unreadable)
+        print("   dropping %d %s(s) that are not `status: completed` "
+              "(a reset run keeps its old predictions file)"
+              % (n, label), file=out)
+        for status, ps in sorted(dropped.items()):
+            print("     status=%-10s %d" % (status, len(ps)), file=out)
+            for p in ps[:4]:
+                print("        %s" % _run_dir_of(p), file=out)
+        if unreadable:
+            print("     config.json UNREADABLE %d -- dropped, because an "
+                  "unreadable config is what a half-written run looks like"
+                  % len(unreadable), file=out)
+            for p in unreadable[:4]:
+                print("        %s" % _run_dir_of(p), file=out)
+    return keep
+
+
 def _campaign_of(path, root):
     q = os.path.normpath(path).replace(os.sep, "/")
     r = os.path.normpath(root).replace(os.sep, "/").rstrip("/")
@@ -199,6 +257,44 @@ def self_test():
                       out=io.StringIO(), deep=False)
         checks.append(("a DIFFERENT campaign with its own row count is NOT "
                        "flagged", not any("other" in p for p, _w in probs)))
+        # ---- completed_only: a reset run keeps its predictions file --------
+        def run_with_status(camp, arm, seed, status, lines=None):
+            d = write(camp, arm, seed, lines or good)
+            io.open(os.path.join(d, "config.json"), "w",
+                    encoding="utf-8").write('{"status": "%s"}' % status)
+            return os.path.join(d, PRED_FILES[0])
+
+        done = run_with_status("st", "clip", 1, "completed")
+        pend = run_with_status("st", "tralo", 1, "pending")
+        runn = run_with_status("st", "tralo", 2, "running")
+        naked = write("st", "focal_clip", 1, good)      # no config.json at all
+        naked = os.path.join(naked, PRED_FILES[0])
+
+        kept = completed_only([done, pend, runn, naked], out=io.StringIO())
+        checks.append(("a COMPLETED run is kept", done in kept))
+        # NEGATIVE CONTROLS: each of these survives if the filter is removed.
+        checks.append(("a run reset to PENDING is dropped even though its "
+                       "predictions file is intact", pend not in kept))
+        checks.append(("a RUNNING run is dropped", runn not in kept))
+        checks.append(("a run with NO config.json is dropped -- fails CLOSED",
+                       naked not in kept))
+        checks.append(("nothing but the completed run survives",
+                       kept == [done]))
+        # The drops must be ANNOUNCED. A filter that removes data silently is
+        # the exact failure this module was written against.
+        buf = io.StringIO()
+        completed_only([done, pend, runn, naked], out=buf, label="widget")
+        said = buf.getvalue()
+        checks.append(("every drop is REPORTED, with the label and the status",
+                       "widget" in said and "pending" in said
+                       and "running" in said and "UNREADABLE" in said))
+        # POSITIVE CONTROL: an all-completed list must print NOTHING and keep
+        # everything, or the filter is just refusing at random.
+        quiet = io.StringIO()
+        allc = completed_only([done], out=quiet)
+        checks.append(("an all-completed list is kept in full and prints "
+                       "nothing", allc == [done] and quiet.getvalue() == ""))
+
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

@@ -47,6 +47,7 @@ import math
 import os
 import statistics as st
 import sys
+from scripts import pred_integrity
 from scripts import quarantine
 
 # The recipe boundary. A campaign outside it is a DIFFERENT METHOD and pooling
@@ -148,9 +149,15 @@ def collect(roots, dead=()):
     """cell key -> arm -> seed -> record."""
     cells = {}
     for root in roots:
-        for fin in quarantine.drop_dead_runs(sorted(glob.glob(os.path.join(
-                root, "*", "*", "*", "*", "seed_*", "final_predictions.csv"))),
-                dead, label="deployed run"):
+        # TWO independent reasons to refuse a file that parses: the arm is
+        # dead (quarantine), or the run that wrote it no longer exists
+        # (a reset run keeps its predictions on disk). Neither implies the
+        # other, so both filters run.
+        live = pred_integrity.completed_only(sorted(glob.glob(os.path.join(
+            root, "*", "*", "*", "*", "seed_*", "final_predictions.csv"))),
+            label="deployed run")
+        for fin in quarantine.drop_dead_runs(live, dead,
+                                             label="deployed run"):
             run = os.path.dirname(fin)
             rec = read_run(run)
             if rec is None:

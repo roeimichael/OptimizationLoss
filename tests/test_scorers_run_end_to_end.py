@@ -287,3 +287,72 @@ def test_paired_noise_REFUSES_a_dead_arm_by_name(partial_campaign):
     assert not refused_live, (
         "paired_noise refused a LIVE arm, so the refusal above proves nothing "
         "-- it refuses everything." + NL + out2[-2000:])
+
+
+# ---------------------------------------------------------------------------
+# A RESET RUN KEEPS ITS PREDICTIONS FILE (2026-09-05).
+#
+# Resetting a run to `pending` rewrites `config.json` and leaves
+# `final_predictions.csv` exactly where it was. The file is intact, parseable
+# and describes a model that has since been discarded. `full_panel` and
+# `sensitivity_screen` had always refused such a run; `deployed_h2h`,
+# `score_scan` and `paired_noise` globbed for the CSV and never read the
+# status, so on the live tree four superseded models were eligible for the
+# arm-vs-arm table -- and `deployed_h2h` is the scorer that decides whether
+# TraLO beats the rival duals.
+#
+# The stale run is put on a LIVE arm on purpose. On a dead arm the quarantine
+# filter would remove it for an unrelated reason and this test would pass
+# while checking nothing.
+# ---------------------------------------------------------------------------
+
+STALE_ARM, STALE_SEED = "tralo", 3
+STATUS_FILTERED = ("deployed_h2h", "score_scan", "paired_noise")
+STALE_PHRASE = "not `status: completed`"
+
+
+@pytest.fixture(scope="module")
+def campaign_with_a_stale_run(tmp_path_factory):
+    """The partial campaign, plus one live-arm run reset to `pending`."""
+    root = str(tmp_path_factory.mktemp("results") / CAMPAIGN)
+    for cap in CAPS:
+        for arm in LIVE + DEAD:
+            for seed in SEEDS:
+                _write_run(root, cap, arm, seed)
+    d = _run_dir(root, CAPS[0], STALE_ARM, STALE_SEED)
+    cfg_path = os.path.join(d, "config.json")
+    with io.open(cfg_path, encoding="utf-8") as f:
+        cfg = json.load(f)
+    cfg["status"] = "pending"          # reset; predictions deliberately kept
+    with io.open(cfg_path, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2)
+    assert os.path.exists(os.path.join(d, "final_predictions.csv")), (
+        "the fixture must keep the predictions file -- that IS the defect")
+    return root, d
+
+
+@pytest.mark.parametrize("mod", STATUS_FILTERED)
+def test_the_scorer_DROPS_a_run_that_was_reset_to_pending(
+        mod, campaign_with_a_stale_run, tmp_path):
+    root, stale = campaign_with_a_stale_run
+    code, out = _invoke(_argv(mod, root, str(tmp_path)))
+    assert not any(c in out for c in CRASH), out[-2000:]
+    assert STALE_PHRASE in out, (
+        "%s never reported a status drop; it scored the reset run" % mod)
+    # Anchored to the ACTUAL run, not to a static banner. A footer that always
+    # prints the phrase would pass the line above while checking nothing --
+    # this one can only appear if that specific path was enumerated and cut.
+    tail = "/".join(stale.replace(os.sep, "/").split("/")[-2:])
+    assert tail in out.replace(os.sep, "/"), (
+        "%s printed the phrase but never named %s" % (mod, tail))
+
+
+@pytest.mark.parametrize("mod", STATUS_FILTERED)
+def test_NEGATIVE_CONTROL_no_status_drop_is_reported_when_none_is_due(
+        mod, partial_campaign, tmp_path):
+    """The all-completed campaign must stay silent. Without this, a scorer
+    that printed the phrase unconditionally would pass the test above."""
+    code, out = _invoke(_argv(mod, partial_campaign, str(tmp_path)))
+    assert STALE_PHRASE not in out, (
+        "%s reported dropping a non-completed run on a campaign that has "
+        "none -- the message is unconditional and proves nothing" % mod)

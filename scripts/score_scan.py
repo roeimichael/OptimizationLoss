@@ -146,6 +146,10 @@ def main():
     # `dead` and never using it announces the exclusion without performing it,
     # which is how six of seven scorers still ranked dead arms after the
     # banner printed.
+    # A reset run keeps its old `final_predictions.csv`, so the glob above
+    # finds models that have since been discarded. Status first, then arms.
+    dirs = [Path(p) for p in pred_integrity.completed_only(
+        [str(d) for d in dirs], label="scored run")]
     dirs = [Path(p) for p in quarantine.drop_dead_runs(
         [str(d) for d in dirs], dead, label="scored run")]
     # 🛑 A TORN PREDICTIONS FILE PARSES. Two dispatchers over shared NFS wrote

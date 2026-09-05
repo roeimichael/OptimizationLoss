@@ -42,6 +42,8 @@ import sys
 import numpy as np
 import pandas as pd
 
+from scripts import pred_integrity
+
 COLUMNS = ["cell", "seed", "cls", "frac", "n", "k", "tp"]
 DEFAULT_FRACS = [0.2, 0.3, 0.5, 0.7, 0.8, 0.9]
 
@@ -56,7 +58,8 @@ def load_arm(root, arm, classes, fracs):
     rows = []
     pattern = os.path.join(root, "**", arm, "seed_*",
                            "final_predictions_raw.csv")
-    for path in sorted(glob.glob(pattern, recursive=True)):
+    for path in pred_integrity.completed_only(
+            sorted(glob.glob(pattern, recursive=True)), label="noise run"):
         parts = path.replace(os.sep, "/").split("/")
         cell, seed = "/".join(parts[-6:-3]), parts[-2]
         df = pd.read_csv(path)

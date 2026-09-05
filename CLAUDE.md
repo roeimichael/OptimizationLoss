@@ -136,7 +136,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 572 regression tests, ~250s, no dataset needed
+python -m pytest tests -q                   # 578 regression tests, ~250s, no dataset needed
 #   `tests/test_scorers_run_end_to_end.py` EXECUTES every scorer as a subprocess
 #   against a campaign carrying a real PARTIAL marker. It exists because three
 #   scorers once used `quarantine.` with no module-level import: they PARSED,
@@ -270,6 +270,22 @@ python -m scripts.cut_gap <roots>           # where is the CUT, and can anything
 ## Reading a result
 
 ```bash
+python -m scripts.pred_integrity <roots>    # 🛑 IS THE PREDICTIONS FILE INTACT?
+#   A TORN CSV PARSES. Two dispatchers over shared NFS wrote one run
+#   directory and produced a `final_predictions.csv` with SIX EXTRA ROWS, one
+#   of them the torn tail of another line (`0.00016164035,218` -- a
+#   probability and a group id with no label in front). pandas accepted it;
+#   the only tell was that the stray float forced `True_Label` to float64 and
+#   sklearn raised FIVE FRAMES DEEP on a dtype, sending the investigation to
+#   the metric code when the fault was in the file. An integer fragment would
+#   have scored silently with six phantom rows.
+#   Two checks, both cheap enough to run every pass: ROW COUNT within a
+#   campaign (the test set is fixed, so every run emits the same count --
+#   2944 in 111 clean runs, 2950 and 2958 in the torn), and LABEL DTYPE
+#   checked LEXICALLY, because pandas is what accepted the file. `full_panel`
+#   and `score_scan` now REFUSE rather than score. `--self-test` gates it, 5
+#   checks including a POSITIVE control (a different campaign with its own row
+#   count must NOT be flagged).
 python -m scripts.dose_landed <root>        # 🛑 RUN THIS FIRST, AND ON A RUNNING
 #   CAMPAIGN. Per-arm `steps landed / attempted` straight out of config.json --
 #   no predictions, no pairing, seconds on a campaign that is 1% done. ONE arm
