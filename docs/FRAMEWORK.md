@@ -10469,6 +10469,66 @@ mechanism. It is NOT predicted to win outright -- `headroom` still bounds the
 prize at 12.8-20.7 items per cell.
 
 
+---
+
+## 2(z50). THE FOUR-DUAL RANKING WAS COMPARING DIFFERENT SEED SETS (2026-09-06)
+
+**Found because a 12.8-item swing in `hounie` between two adjacent cap levels
+was not a plausible method effect. It was not one.**
+
+`deployed_h2h.rank_cell` paired each arm against the control on the seeds THOSE
+TWO share -- correct -- and then ranked the resulting means against each other.
+The moment a campaign is unfinished those means are taken over DIFFERENT seed
+sets, and the ordering becomes partly a statement about which arm happened to
+finish which seed.
+
+`vitdual2` is **the only cell in the project carrying all four duals at equal
+dose**, and it is unfinished (58 completed, 29 pending). At `L90-90_G95`:
+
+| arm | seeds run | d vs clip per seed | mean AS PUBLISHED |
+|---|---|---|---|
+| `tralo` | {1, 2} | -8, +9 | +0.50 |
+| `alm` | **{1, 3}** | +3, **+11** | **+7.00** |
+| `hounie` | {1, 2} | +6, +5 | +5.50 |
+| `fioretto` | {1, 2, 3} | +6, +1, -2 | +1.67 |
+
+`alm`'s 6.5-item lead over `tralo` came from **seed 3, which `tralo` and
+`hounie` had not run**. The table also printed `3 seeds` for that cell -- the
+maximum over arms, not the number behind any comparison in it.
+
+✅ **FIXED**: the ranking now restricts to the seeds EVERY ranked arm shares
+with the control. On this cell that is seed 1 alone, and the honest row is
+
+| arm | d vs clip, common seed |
+|---|---|
+| `fioretto` | +6.00 |
+| `hounie` | +6.00 |
+| `alm` | +3.00 |
+| **`tralo`** | **-8.00** |
+
+so **TraLO is LAST of the four by 11 items**, where the old table read it as
++0.50 and mid-pack. The cell now reports `1 seeds`, and both `vitdual2` cells
+are REFUSED as unpriced -- which they always should have been.
+
+🟢 **AND THE HEADLINE DID NOT MOVE: still 6 of 19 = 32%, bar 50%, FAIL.** Both
+`vitdual2` cells were already scored as losses, so the count is unchanged; what
+changed is that the numbers behind them are now real. Every COMPLETE campaign is
+byte-unchanged -- restricting to the common seeds is a no-op when every arm has
+every seed, and that is gated as a negative control.
+
+⚠️ **THE DIRECTION OF THIS ERROR IS NOT SYSTEMATIC, SO DO NOT ASSUME IT
+FLATTERED ANYONE.** Here it flattered `alm` and `tralo` alike -- `tralo`'s own
++0.50 was equally an artefact, and the correction made TraLO look WORSE, not
+better. It is a variance leak, not a bias.
+
+🔑 **THE GENERAL RULE, AND IT IS THE THIRD TIME THIS CLASS HAS BITTEN.** A
+per-arm-vs-control delta may use every seed that arm shares with the control.
+An ARM-VS-ARM ordering may not: it must be computed on one seed set or it is
+comparing populations. The earlier form was `dropna` over ALL arms deleting
+pairs from every comparison (2026-08-17); this is its mirror image, keeping
+pairs that do not belong together.
+
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, updated 2026-08-30 -- read this before section 3's older text**

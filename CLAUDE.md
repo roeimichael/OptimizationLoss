@@ -386,6 +386,18 @@ python -m scripts.deployed_h2h --campaign <roots> --control clip  # 🛑 THE ARM
 #   2026-09-04; `fioretto` held 2 of that 6. AND that tally does not
 #   reproduce -- the same roots now give 8 named, likely a scorer-version
 #   difference (server vs local md5). UNVERIFIED; re-run the local scorer.
+#   🛑 IT RANKS ON THE SEEDS EVERY ARM SHARES (fixed 2026-09-06). Each arm's
+#   delta-vs-control may use every seed that arm shares with the control; an
+#   ARM-VS-ARM ORDERING may not, or it compares populations. On the unfinished
+#   `vitdual2`/L90-90 -- the ONLY cell with all four duals at equal dose --
+#   `alm` ran seeds {1,3} while `tralo` and `hounie` ran {1,2}, and alm's
+#   6.5-item lead came from a seed the others had not run. The row also said
+#   "3 seeds", the max over arms, not the number behind any comparison.
+#   Corrected, on the one common seed: fioretto +6.0, hounie +6.0, alm +3.0,
+#   **tralo -8.0 = LAST**, where the old table read tralo +0.50 mid-pack.
+#   ⚠️ NOT a bias -- it flattered `tralo` too, and fixing it made TraLO look
+#   WORSE. A COMPLETE cell is unchanged, gated as a negative control.
+#   FRAMEWORK 2(z50).
 #   ✅ THE FLOOR NOW READS **EVERY** lambda=0 STREAM (2026-09-06), not just
 #   the `_null`/`_reseed` pair. A campaign carrying a THIRD stream
 #   (`<fam>_reseed2`, a distinct `rng_reseed` offset) got NO credit for it:

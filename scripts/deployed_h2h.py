@@ -383,13 +383,40 @@ def rank_cell(cell, control, get, arms=None):
     if control not in cell:
         return [], set()
     ctrl = cell[control]
+
+    # 🛑 RANK ON THE SEEDS EVERY ARM SHARES, NOT ON EACH ARM'S OWN.
+    #
+    # Each arm's delta-vs-control is correctly paired against the control on the
+    # seeds those two share -- that part was never wrong. But RANKING those
+    # deltas against each other compares means taken over DIFFERENT seed sets
+    # the moment a campaign is unfinished, and then the ordering is partly a
+    # statement about which arm happened to finish which seed.
+    #
+    # Measured on `vitdual2` / ViTB16 / L90-90_G95 on 2026-09-06, the ONLY cell
+    # in the project carrying all four duals at equal dose:
+    #     tralo  seeds {1,2}    d = -8, +9    -> +0.50
+    #     alm    seeds {1,3}    d = +3, +11   -> +7.00
+    #     hounie seeds {1,2}    d = +6, +5    -> +5.50
+    # `alm` led by 6.5 items on a seed the other two had not run. On the seeds
+    # tralo/hounie/fioretto actually share it is hounie +5.5 > fioretto +3.5 >
+    # tralo +0.5, and `alm` cannot be placed at all. The published table also
+    # printed "3 seeds" for that cell, which is the maximum over arms, not the
+    # number behind any comparison in it.
+    #
+    # The intersection can be small or empty; that is the honest answer and the
+    # floor and jackknife guards below already refuse on it. Restricting is the
+    # conservative direction -- it can only remove a ranking, never invent one.
+    usable = [a for a in arms
+              if a in cell and (set(cell[a]) & set(ctrl))]
+    if not usable:
+        return [], set()
+    common = sorted(set.intersection(*[set(cell[a]) & set(ctrl)
+                                       for a in usable]))
     out = []
-    for a in arms:
-        if a not in cell:
-            continue
-        d, seeds = paired(cell[a], ctrl, get)
+    for a in usable:
+        d = [get(cell[a][s]) - get(ctrl[s]) for s in common]
         if d:
-            out.append((a, st.mean(d), d, seeds))
+            out.append((a, st.mean(d), d, list(common)))
     out.sort(key=lambda t: -t[1])
     # jackknife: drop one seed at a time and see whether #1 survives
     firsts = set()
@@ -521,6 +548,14 @@ def _cell(spec, K=300, n=370):
                                 per={2: dict(TP=t, K=K, n=n)})
                     for i, t in enumerate(tps)}
     return out
+
+
+def _ragged(spec, K=300, n=370):
+    """spec: arm -> {seed: TP}. Like `_cell` but with explicit, RAGGED seeds."""
+    return {arm: {s: dict(TP=float(t), classes=(2,),
+                          per={2: dict(TP=t, K=K, n=n)})
+                  for s, t in per.items()}
+            for arm, per in spec.items()}
 
 
 def self_test(w=sys.stdout.write):
@@ -679,6 +714,43 @@ def self_test(w=sys.stdout.write):
     # NEGATIVE CONTROL on that check: the SAME lead, same floor value, but now
     # the floor has enough observations behind it. It must be NAMED again --
     # otherwise the guard is refusing everything and proves nothing.
+    # ---- ranking must use the seeds every arm SHARES ----------------------
+    # The real `vitdual2` / L90-90_G95 numbers, the only cell in the project
+    # carrying all four duals at equal dose. `alm` ran seeds {1,3} while tralo
+    # and hounie ran {1,2}, and its 6.5-item lead came from a seed the others
+    # had not finished.
+    vd = _ragged({"clip":   {1: 723, 2: 723, 3: 724},
+                  "tralo":  {1: 715, 2: 732},
+                  "alm":    {1: 726, 3: 735},
+                  "hounie": {1: 729, 2: 728}})
+    order, _ = rank_cell(vd, "clip", g)
+    got = {a: m for a, m, _d, _s in order}
+    nseed = {a: len(s) for a, _m, _d, s in order}
+    check(set(nseed.values()) == {1},
+          "every ranked arm uses the SAME seeds -- here only seed 1 is common "
+          "to all four, got %s" % nseed)
+    check(abs(got["alm"] - 3.0) < 1e-9,
+          "`alm` scores +3 on the common seed, NOT the +7.00 its private "
+          "seed 3 bought it (got %+.2f)" % got["alm"])
+    # NEGATIVE CONTROL: the OLD behaviour, each arm on its own seeds, gives
+    # alm +7.00 and tralo +0.50. If this check ever passes on the live code the
+    # fix has been reverted.
+    old_alm = st.mean([726 - 723, 735 - 724])
+    check(abs(old_alm - 7.0) < 1e-9 and abs(got["alm"] - old_alm) > 3.0,
+          "the per-arm-seeds ranking really did differ (%.2f vs %.2f)"
+          % (old_alm, got["alm"]))
+    # NEGATIVE CONTROL: a COMPLETE cell must be untouched -- restricting to the
+    # common seeds is a no-op when every arm has every seed, or this fix would
+    # silently rewrite every finished campaign.
+    full = _cell({"clip": [600, 601, 602, 603],
+                  "tralo": [610, 612, 611, 613],
+                  "alm":   [605, 606, 607, 608]})
+    ofull, _ = rank_cell(full, "clip", g)
+    mfull = {a: m for a, m, _d, _s in ofull}
+    check(abs(mfull["tralo"] - 10.0) < 1e-9 and abs(mfull["alm"] - 5.0) < 1e-9
+          and all(len(s) == 4 for _a, _m, _d, s in ofull),
+          "a COMPLETE cell is unchanged: tralo +10, alm +5, 4 seeds each")
+
     # ---- EVERY lambda=0 stream feeds the floor, not just one pair ---------
     # `shape1` carried tralo_null + tralo_reseed + tralo_reseed2 over 3 seeds
     # and the floor reported TWO observations, because only the null/reseed
