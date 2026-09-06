@@ -305,8 +305,41 @@ def floor_verdict(order, floor, nfloor):
     return None
 
 
-def rank_cell(cell, control, get, arms=DUALS):
-    """(ordered [(arm, mean delta vs control)], jackknife #1 set)."""
+# The `_null` / `_reseed` twins are FLOOR INSTRUMENTS, not competitors. Ranking
+# them would let a cell's own noise estimate win the cell.
+FLOOR_SUFFIXES = ("_null", "_reseed")
+
+
+def rankable_arms(cell, control):
+    """Every COMPETITOR arm present in the cell, in a stable column order.
+
+    WHY THIS IS NOT A WHITELIST ANY MORE (2026-09-06). It was `arms=DUALS`, a
+    four-name tuple, and every arm outside it was structurally invisible to the
+    arm-vs-arm scorer. Measured: `tralo_cut` completed 8/8 in `taskwin2` and
+    8/8 more in `vittask1` and has never once appeared in a head-to-head table;
+    neither has `focal_clip`, which CLAUDE.md rule 2 requires in EVERY campaign
+    as the stronger quality bar. `tralo_wins` delegates its acceptance verdict
+    here, so the headline "TraLO is #1 in 0 of 15 cells" was computed over a
+    table that could not contain the TraLO variants built to fix TraLO.
+
+    A scorer that omits a completed arm does not look broken -- it prints a
+    clean ranking of a subset and calls it the campaign.
+    """
+    seen = [a for a in cell
+            if a != control and not a.endswith(FLOOR_SUFFIXES)]
+    head = [a for a in DUALS if a in seen]
+    tail = sorted(a for a in seen if a not in head)
+    return head + tail
+
+
+def rank_cell(cell, control, get, arms=None):
+    """(ordered [(arm, mean delta vs control)], jackknife #1 set).
+
+    `arms=None` means EVERY competitor present -- see `rankable_arms`. Pass an
+    explicit tuple only to restrict deliberately, never to save typing.
+    """
+    if arms is None:
+        arms = rankable_arms(cell, control)
     if control not in cell:
         return [], set()
     ctrl = cell[control]
@@ -459,6 +492,34 @@ def self_test(w=sys.stdout.write):
         ok = ok and good
 
     g = lambda r: float(r["TP"])
+
+    # 0. THE WHITELIST GATE (2026-09-06). `rank_cell` took `arms=DUALS`, a
+    # four-name tuple, so every other completed arm was invisible: `tralo_cut`
+    # ran 8/8 in `taskwin2` and 8/8 in `vittask1` and had never once appeared in
+    # a head-to-head table, nor had `focal_clip`, which CLAUDE.md rule 2
+    # requires in every campaign as the stronger quality bar. The table looked
+    # clean the whole time -- it was a ranking of a subset presented as a
+    # ranking of the campaign.
+    hidden = _cell({"clip":           [600, 601, 599, 600],
+                    "tralo":          [640, 641, 639, 640],
+                    "alm":            [610, 611, 609, 610],
+                    "tralo_cut":      [620, 621, 619, 620],
+                    "focal_clip":     [605, 606, 604, 605],
+                    "tralo_null":     [600, 601, 599, 600],
+                    "tralo_reseed":   [600, 601, 599, 600]})
+    got = set(a for a, _m, _d, _s in rank_cell(hidden, "clip", g)[0])
+    check(got == {"tralo", "alm", "tralo_cut", "focal_clip"},
+          "every COMPETITOR arm is ranked, not a four-name whitelist")
+    # The floor twins are instruments, not competitors: ranking `tralo_reseed`
+    # would let a cell's own noise estimate win the cell.
+    check(not (got & {"tralo_null", "tralo_reseed"}),
+          "  and the _null / _reseed floor twins are NOT ranked as arms")
+    # NEGATIVE CONTROL: an explicit `arms=` must still restrict, or the check
+    # above would pass on a function that simply ignores its argument.
+    got2 = set(a for a, _m, _d, _s in
+               rank_cell(hidden, "clip", g, arms=("tralo", "alm"))[0])
+    check(got2 == {"tralo", "alm"},
+          "  NEGATIVE CONTROL: an explicit arms= still restricts")
 
     # 1. a REAL separation, with a tight RNG floor, must be NAMED.
     # The floor is now |null - reseed|, both lambda=0. A TIGHT floor means

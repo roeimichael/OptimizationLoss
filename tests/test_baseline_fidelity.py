@@ -870,10 +870,28 @@ def test_check_parity_checks_every_constraint_step_knob(P):
     `tralo_coin` IS the arm whose constraint step is a random vector of the same
     norm, so demanding agreement on it would refuse every campaign carrying the
     coin control -- the arm that answers "did the direction matter at all".  The
-    rule that separates them is mechanical: a knob may be required to agree
+    rule that separates them was mechanical: a knob may be required to agree
     across arms exactly when no arm block overrides it.
+
+    2026-09-06: THAT RULE WAS TOO BLUNT AND IS NOW STRONGER.  `tralo_sgd` needs
+    a block that overrides `constraint_step_rule`, and the blunt rule left only
+    two moves, both bad -- drop the key from SHARED_KEYS and an ACCIDENTAL
+    step-rule split anywhere goes silent forever, or keep it and the campaign is
+    refused by its own gate.  So the exemption became per-campaign and DECLARED:
+    `gen_campaign.declared_contrasts` names which arms deviate on which shared
+    knob, writes it to CONTRAST.json, and `check_parity` exempts exactly those
+    (arm, key) pairs while still requiring every other arm to agree.
+
+    What this test now holds:
+      * the four constraint-step knobs stay in SHARED_KEYS;
+      * an overridden one must be DECLARED, and declared MINIMALLY -- only the
+        arms that deviate.  A declaration naming every carrier exempts everybody
+        and checks nothing, which is a gate wearing a declaration;
+      * a knob nobody overrides must NOT be declared, or the mechanism would be
+        free to exempt anything it liked.
     """
     from scripts.check_parity import SHARED_KEYS
+    from configs.gen_campaign import declared_contrasts
     for k in ("constraint_grad_clip", "constraint_grad_mode",
               "constraint_step_rule", "constraint_fp32"):
         assert k in SHARED_KEYS, k
@@ -881,12 +899,36 @@ def test_check_parity_checks_every_constraint_step_knob(P):
 
     overridden = {k for spec in P["blocks"].values() if isinstance(spec, dict)
                   for k in spec}
-    for k in SHARED_KEYS:
-        if k.startswith("constraint_"):
-            assert k not in overridden, (
-                "%s is overridden by an arm block, so requiring it to agree "
-                "across arms would refuse a legitimate campaign" % k)
     assert "constraint_random_direction" in overridden
+
+    every_arm = sorted(P["arms"])
+    dec = declared_contrasts(P, every_arm)
+
+    for k in SHARED_KEYS:
+        if not k.startswith("constraint_") or k not in overridden:
+            continue
+        assert k in dec, (
+            "%s is overridden by an arm block but the generator does not "
+            "declare it, so check_parity would refuse a legitimate campaign "
+            "-- or, worse, the arm would be dropped to keep the gate green" % k)
+        # MINIMAL: only arms whose own block sets the key may be exempt.
+        setters = {a for a in every_arm
+                   for b in (P["arms"][a].get("blocks") or [])
+                   if isinstance(P["blocks"].get(b), dict)
+                   and k in P["blocks"][b]}
+        assert set(dec[k]) <= setters, (
+            "%s declares arms that do not override it: %s. Exempting a "
+            "non-deviating arm removes it from the check for free."
+            % (k, sorted(set(dec[k]) - setters)))
+        assert set(dec[k]), "%s declared with no arms" % k
+
+    # NEGATIVE CONTROL: a shared knob NO block overrides must never be declared.
+    # Without this the mechanism passes while exempting arbitrary keys.
+    for k in SHARED_KEYS:
+        if k.startswith("constraint_") and k not in overridden:
+            assert k not in dec, (
+                "%s is overridden by nothing yet is declared a contrast, so "
+                "the declaration mechanism is not reading the blocks" % k)
 
 
 # ==========================================================================

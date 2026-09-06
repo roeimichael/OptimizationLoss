@@ -5,12 +5,139 @@
 every working session. If it is stale, that is a defect -- fix it before doing
 anything else.
 
-Last updated: **2026-09-03** (the statistics audit landed: the paper's headline
-p is below its own floor, the `vs_null` magnitude is the NULL moving, my own
-cone result was algebraically forced, and `1 of 158 resolves` is BELOW chance.
-See 0-NOW items 6-9. The BIU jump host `dsihead` has been down since mid-session
--- `coin2` and `vitdual1` were launched detached and are presumed alive but
-UNVERIFIED; confirm before assuming either finished.)
+Last updated: **2026-09-06** (the arm-vs-arm scorer was ranking a four-name whitelist, so half of every campaign was invisible; the acceptance table priced cells on a RANGE; and with both fixed, EVERY verdict in EVERY campaign reads REFUSED because the RNG floor rests on 4 observations against a bar of 8. `tralo_reseed2` -- the fix, 12 observations for 8 runs -- exists and had never been put in a campaign. See 0-HEAD.)
+
+---
+
+## 🛑 0-HEAD. THE SCORER COULD NOT SEE HALF THE ARMS, AND EVERY VERDICT IS UNPRICED (2026-09-06)
+
+**Two separate defects, both in the instruments, both found with zero GPU.**
+
+### 1. `deployed_h2h` ranked a four-name WHITELIST
+
+`rank_cell(cell, control, get, arms=DUALS)` with
+`DUALS = ("tralo", "alm", "fioretto", "hounie")`. Every other completed arm was
+structurally invisible, and `tralo_wins` -- the acceptance table that answers
+"does TraLO beat the clipper and the duals in >=50% of cells" -- delegates to
+it. So the 35% headline was computed over a table that **could not contain the
+TraLO variants built to fix TraLO**, nor `focal_clip`, which CLAUDE.md rule 2
+requires in every campaign as the stronger quality bar.
+
+It never looked broken. It printed a clean ranking of a subset and called it the
+campaign.
+
+FIXED: `rankable_arms(cell, control)` ranks every competitor present and
+excludes only the `_null` / `_reseed` twins, which are floor INSTRUMENTS (ranking
+them would let a cell's own noise estimate win the cell). Gated in
+`deployed_h2h --self-test` with a negative control that an explicit `arms=`
+still restricts.
+
+**What the fix immediately made readable, from runs finished weeks ago:**
+
+| | | |
+|---|---|---|
+| `tralo_cut` vs `tralo`, taskwin2 L70-90 | +0.00 vs **+6.00** | LOSES |
+| `tralo_cut` vs `tralo`, taskwin2 L80-100 | +5.25 vs **+10.75** | LOSES |
+
+That independently re-derives `protocol.yml`'s own `rejected_arms` entry for
+`tralo_cut`. The ledger was right and nobody could see the evidence.
+
+⚠️ AND THE LEDGER HAD A STALE ENTRY IN THE OTHER DIRECTION: it says
+`tralo_coin` has "0 completed runs". It has **24**, in `vitcoin1` (ViTB16),
+`coin1` (RegNetY400MF) and `coin2` (MobileNetV2).
+
+### 2. `tralo_wins` priced cells on a RANGE, not a pairwise margin
+
+`spread = max(d.values()) - min(d.values())`. A range over k arms grows like
+`sd*sqrt(2 ln k)` against a floor that is a TWO-arm quantity at `1.13*sd`, so a
+trailing arm inflates it for free -- and de-whitelisting `deployed_h2h` made it
+worse by adding arms. Gated with a cell where the two visibly disagree:
+**pairwise 2.0 against a range of 80.0**, a 40x inflation.
+
+FIXED: the margin is now the NARROWER of (tralo vs control) and (tralo vs best
+rival present), because a win needs both.
+
+### 3. 🛑 THE REAL BOTTLENECK IS THE FLOOR, NOT THE MECHANISM
+
+With the whitelist gone, the same sentence appears under every cell in every
+campaign: **REFUSED, the floor rests on 4 observations, under the bar of 8.**
+
+* acceptance table: 0 of 17 cells priced
+* `coin1` + `coin2`: 4 of 4 REFUSED
+* `taskwin2`: 2 of 2 REFUSED -- including `tralo` **+10.75 items over `clip`**
+* `sensitivity_screen`: 36 of 38 UNDER-POWERED
+
+Every campaign carries exactly ONE `_null`/`_reseed` pair at 4 seeds, so the
+floor is a median of four numbers whose order-statistic CI is the whole sample
+range. `MIN_FLOOR_OBS = 8` then refuses everything, correctly.
+
+**`tralo_reseed2` already exists** (`protocol.yml`, `rng_reseed: 2`, a distinct
+RNG stream), is documented as worth 8 runs, and **has never been put in a single
+campaign**. Three lambda=0 streams give `C(3,2) x 4 = 12` observations for 8
+extra runs; seeds 5-8 would give 8 for 16. Four times cheaper per observation.
+
+### 4. THE COIN IS NOT A KILL, AND THAT MATTERS
+
+`tralo` vs `tralo_coin` (a RANDOM constraint step of the same norm):
+
+| cell | tralo | coin | gap |
+|---|---|---|---|
+| coin1 / RegNetY400MF / L70 | +3.00 | -1.25 | **+4.25** |
+| coin1 / RegNetY400MF / L80 | +3.00 | +0.75 | +2.25 |
+| coin2 / MobileNetV2 / L70 | -2.25 | +1.75 | **-4.00** |
+| coin2 / MobileNetV2 / L80 | +2.25 | +0.50 | +1.75 |
+
+3 of 4 in TraLO's favour, sign p=0.31, every cell inside its own floor. So the
+direction is **neither proven live nor proven dead** -- it is unmeasured. Do not
+quote "TraLO ties a random vector" as settled; it rests on 4 unpriced cells.
+
+### 5. WHAT IS NOW STAGED
+
+`tralo_sgd` and `tralo_coin_sgd` are new arms. `constraint_step_rule: sgd`
+exists, is guarded against silent fallback (`dual_common.py:228`) and has
+**never run on iwildcam**. It attacks the one measured defect nothing has
+addressed: under `shared`, 92.6% of each delivered constraint update is stale CE
+momentum, so a count function rotated 180 degrees arrives at the weights as 9.1
+degrees. That is the standing explanation for why a random step ties TraLO.
+
+🔑 **PRE-REGISTERED, and it is a difference-in-differences, not a headline.**
+The claim is NOT `tralo_sgd > tralo`. Plain SGD at `lr_constraint` is a smaller
+effective step than Adam's normalised one, so a null there is DOSE, not
+mechanism. The claim is that
+`(tralo_sgd - tralo_coin_sgd) > (tralo - tralo_coin)`: that direction matters
+MORE once it is actually delivered. All four arms are in the campaign so the
+contrast is within-campaign.
+
+### 6. A GATE WOULD HAVE REFUSED THE CAMPAIGN, AND THE FIX MADE IT STRONGER
+
+`check_parity.SHARED_KEYS` requires `constraint_step_rule` to be IDENTICAL
+across arms. `tralo_sgd` deliberately differs, so `price1` would have been
+refused by its own gate. The two obvious moves were both bad: drop the key and
+an ACCIDENTAL step-rule split goes silent forever, or keep it and lose the arm.
+
+FIXED by making the exemption **declared and per-campaign** instead of global:
+`gen_campaign.declared_contrasts` computes which arms deviate from the shared
+block's own value, writes `CONTRAST.json` at the campaign root, and
+`check_parity` exempts exactly those (arm, key) pairs while still requiring
+every other arm to agree. An undeclared split is still a failure; a declaration
+naming an absent arm is a failure; an unreadable marker is a failure, never an
+empty exemption. `gen_campaign` does NOT import `scripts.check_parity` to do
+this -- `configs/` is on the runner's import path and `scripts/` is not, which is
+the only reason `scripts/` is safe to update mid-campaign.
+
+Mutation-tested 3/3: declare every carrier (exempts everybody, checks nothing),
+declare nothing, and make `check_parity` ignore the file.
+
+### 7. GPU STATE
+
+`vitdual2` (57/88) and `vitseed1` (22/40) were STOPPED by explicit PID on
+2026-09-06. Both ran the shipped TraLO, which is already measured below the
+50% bar, and finishing them sharpens an estimate that is on the wrong side of
+it. All completed runs preserved. A 20-day-old `watchdog.sh` on dsisco02,
+naming arms rejected weeks ago, was killed with it.
+
+**dsisco02 GPU 0 belongs to `nirgal`, not us.** Do not touch it and do not
+share it.
 
 ---
 

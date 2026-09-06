@@ -260,6 +260,59 @@ def _report_passes(runs, arms):
         print("     and the gap scales with n_test/n_train so it differs per dataset.")
 
 
+def _declared_contrasts(root, arms, fails):
+    """`CONTRAST.json` -- (key -> {arm: value}) the campaign DELIBERATELY splits.
+
+    WHY AN EXEMPTION EXISTS AT ALL (2026-09-06). `SHARED_KEYS` asks "do the arms
+    agree", because a knob that differs makes the delta measure the knob. But
+    some arms exist PRECISELY to differ on one: `tralo_coin` on
+    `constraint_random_direction`, `tralo_sgd` on `constraint_step_rule`. The
+    old handling was to drop such a key from `SHARED_KEYS` outright, which buys
+    the arm at the price of never noticing an ACCIDENTAL split of that key
+    again, anywhere, forever.
+
+    A declaration is better than a deletion: `gen_campaign` writes which arms it
+    split and on what, this exempts exactly those, and every other arm must
+    still agree. An undeclared split stays a failure.
+
+    Fails CLOSED in both directions. An unreadable marker is a failure, not an
+    empty exemption -- a corrupt file must not silently disable the gate. A
+    declaration naming an arm the campaign does not contain, or a key outside
+    `SHARED_KEYS`, is also a failure: it is either stale or aimed at nothing,
+    and both mean the exemption in force is not the one anybody wrote.
+    """
+    dest = os.path.join(root, "CONTRAST.json")
+    if not os.path.exists(dest):
+        return {}
+    try:
+        doc = json.load(open(dest))
+        dec = doc["declared"]
+        assert isinstance(dec, dict)
+    except (ValueError, OSError, KeyError, AssertionError) as e:
+        fails.append("CONTRAST.json is present but unreadable (%s). A corrupt "
+                     "declaration must not silently disable the shared-knob "
+                     "check." % e)
+        return {}
+    known = set(arms)
+    for k, per_arm in sorted(dec.items()):
+        if k not in SHARED_KEYS:
+            # NOT a failure. `constraint_random_direction` is deliberately
+            # outside SHARED_KEYS -- `tralo_coin` is the arm that differs on it
+            # by design -- so the generator declaring it is correct and useful
+            # documentation of the campaign's contrasts. It simply exempts
+            # nothing here, and saying so is more honest than refusing.
+            print("   note %-24s declared but not a SHARED_KEY: %s"
+                  % (k, ", ".join("%s=%s" % (a, per_arm[a])
+                                  for a in sorted(per_arm))))
+            continue
+        for a in sorted(per_arm):
+            if a not in known:
+                fails.append("CONTRAST.json exempts arm %r on %r, but this "
+                             "campaign has no such arm -- the declaration is "
+                             "stale" % (a, k))
+    return dec
+
+
 def main():
     if len(sys.argv) < 2:
         sys.exit(__doc__)
@@ -299,11 +352,22 @@ def main():
     print("   Absence is not a mismatch: a post-hoc arm has no constraint phase,")
     print("   so it carries no lr_constraint. WHICH arms carry a key is checked by")
     print("   scripts.audit_config; here we check they AGREE on the value.")
+    declared = _declared_contrasts(root, arms, fails)
     for k in SHARED_KEYS:
+        exempt = set(declared.get(k, {}))
         carriers = sorted({r["arm"] for r in runs if k in r["hyperparams"]})
-        vals = {json.dumps(r["hyperparams"][k]) for r in runs if k in r["hyperparams"]}
+        vals = {json.dumps(r["hyperparams"][k]) for r in runs
+                if k in r["hyperparams"] and r["arm"] not in exempt}
         if not carriers:
             print("   --   %-24s carried by no arm" % k)
+            continue
+        if not vals:
+            # Every carrier is exempt. That is not agreement, it is an
+            # undeclared-free-for-all wearing a declaration, so say so.
+            fails.append("%s: EVERY arm carrying it is declared exempt, so "
+                         "nothing is held fixed and the key is unchecked" % k)
+            print("   FAIL %-24s all %d carrier(s) exempt -- nothing checked"
+                  % (k, len(carriers)))
             continue
         status = "OK  " if len(vals) == 1 else "FAIL"
         if len(vals) != 1:
@@ -312,6 +376,10 @@ def main():
         missing = sorted(set(arms) - set(carriers))
         note = "" if not missing else "   (absent on: %s)" % " ".join(missing)
         print("   %s %-24s %s%s" % (status, k, sorted(vals), note))
+        if exempt:
+            print("        DECLARED CONTRAST, exempt: %s"
+                  % ", ".join("%s=%s" % (a, declared[k][a])
+                              for a in sorted(exempt)))
     print()
 
     # ---- 2b/2c. the two knobs whose EQUALITY ACROSS ARMS is not the point ----

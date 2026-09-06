@@ -458,6 +458,33 @@ blocks:
   # STREAMS are the only thing that adds observations.
   tralo_reseed2:
     rng_reseed: 2
+  # THE DELIVERY FIX (2026-09-06). `constraint_step_rule` decides whether the
+  # constraint step goes through the SAME Adam that CE is using (`shared`, the
+  # protocol default) or as a plain SGD step on its own (`sgd`).
+  #
+  # WHY IT IS WORTH AN ARM. Measured by scripts/ortho_survival: under `shared`
+  # 92.6% of each delivered update is stale CE momentum the constraint never
+  # touched, and `sqrt(v)` rescales the rest per-coordinate -- so a count
+  # function rotated a full 180 degrees arrives at the weights as 9.1 degrees.
+  # That is the standing explanation for the project's most uncomfortable
+  # result: `tralo_coin`, a RANDOM step of the same norm, is within the RNG
+  # floor of `tralo` in 4 of 4 cells. If the direction never arrives, every
+  # arm that differs only in direction must tie, and eleven of them have.
+  #
+  # PRE-REGISTERED, so it cannot be rewritten after the fact:
+  #   -> `tralo_sgd` vs `tralo` is the DELIVERY contrast. It may go either
+  #      way; plain SGD at `lr_constraint` is a smaller effective step than
+  #      Adam's normalised one, so a null here is `dose`, not `mechanism`.
+  #   -> The claim this arm exists to test is NOT `tralo_sgd > tralo`. It is
+  #      that `tralo_sgd` - `tralo_coin_sgd` EXCEEDS `tralo` - `tralo_coin`:
+  #      i.e. that direction matters MORE once it is delivered. Read that
+  #      difference-in-differences, never the headline.
+  #
+  # NOT in `warmup_identity_keys`, correctly: it touches the constraint phase
+  # only, so this arm SHARES `tralo`'s cached warm-up and differs from it in
+  # exactly one key. That is what makes the contrast clean and cheap.
+  sgd_step:
+    constraint_step_rule: sgd
   fioretto:
     fioretto_step_size: 0.005     # REQUIRED: fioretto_ldf/train.py raises without it
     # Emitted here as well as on `alm`. Both packages READ this key, and ALM's
@@ -607,6 +634,20 @@ arms:
   tralo_cut:
     {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, tralo_cut],
      null_sibling: tralo_null}
+  # THE DELIVERY ARMS. See the `sgd_step` block for the pre-registration.
+  # Both share `tralo_null`: at lambda 0 there is no constraint step at all,
+  # so the step RULE is inert and a separate null would be a bit-identical
+  # run costing a GPU slot.
+  tralo_sgd:
+    {methodology: tralo, phase: trained,
+     blocks: [constraint_phase, tralo, sgd_step],
+     null_sibling: tralo_null}
+  # The coin AT SGD DELIVERY -- the other half of the difference-in-differences.
+  # Without it `tralo_sgd` measures a dose change and nothing else.
+  tralo_coin_sgd:
+    {methodology: tralo, phase: trained,
+     blocks: [constraint_phase, tralo, sgd_step, tralo_coin],
+     null_sibling: tralo_null}
   # Shares `tralo_null` for the usual reason: at lambda 0 with lambda_step 0
   # there is no constraint gradient, so a dedicated null would be a
   # bit-identical run costing a GPU slot.
@@ -729,8 +770,20 @@ unproven_arms:
   tralo_margin: "0 completed runs. `scripts/step_direction_probe` measures its
     head-gradient direction at cosine 0.989 from `tralo` on REAL features, so
     it would mostly reproduce `tralo` at full campaign cost."
-  tralo_coin: "0 completed runs and no recorded rationale anywhere in docs/.
-    Declared and never exercised."
+  tralo_coin: "EXERCISED, and the result is UNMEASURED rather than null.
+    This entry said `0 completed runs and no recorded rationale` until
+    2026-09-06; there are 24, in `vitcoin1` (ViTB16), `coin1`
+    (RegNetY400MF) and `coin2` (MobileNetV2). Nobody had read them because
+    `scripts/deployed_h2h` ranked a four-name whitelist and this arm was
+    not in it.
+    Scored 2026-09-06 over coin1+coin2 (4 cells, 4 seeds): `tralo` leads
+    the coin by +4.25 / +2.25 / -4.00 / +1.75 deployed TP items, i.e. 3 of
+    4 in TraLO's favour at sign p=0.31, and EVERY cell is inside its own
+    RNG floor (2.0-6.0 items, n=4, under MIN_FLOOR_OBS).
+    So do NOT quote `TraLO ties a random step of the same norm` as
+    settled -- it rests on four unpriced cells. The arm stays UNPROVEN,
+    and it is the pre-registered kill condition, so it belongs in any
+    campaign making a claim about the constraint DIRECTION."
   tralo_st: "0 completed runs. Named in FRAMEWORK's inert-flag discussion as
     one of eleven trained arms, but no run of it survives in results/."
 

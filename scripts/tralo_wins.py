@@ -65,7 +65,24 @@ def rows_for(cells, control):
             continue
         floor, nfloor = deployed_h2h.rng_floor(cell, _tp)
         present = [r for r in RIVALS if r in d]
-        spread = (max(d.values()) - min(d.values())) if len(d) > 1 else 0.0
+        # 🛑 THE MARGIN IS PAIRWISE, NEVER `max - min` (fixed 2026-09-06).
+        # A RANGE over k arms grows like `sd*sqrt(2 ln k)` -- ~3.1*sd at k=10 --
+        # while the RNG floor it is compared against is a TWO-arm quantity at
+        # 1.13*sd, so `range >= floor` certifies pure noise as differentiated at
+        # ~2.7x. Measured on the corpus: raw range/floor reads a healthy median
+        # 2.51 over 50 cells and the SAME cells read 0.97 once corrected.
+        #
+        # This was live here and `deployed_h2h`'s de-whitelisting made it WORSE
+        # by putting more arms in `d`. The claim being priced is a claim about
+        # TWO margins, so price exactly those two:
+        #   vs the control  -- `d["tralo"]`, already a delta against it
+        #   vs the best rival present
+        # and require the NARROWER of them to clear the floor, since a win needs
+        # both. `abs` so a priced LOSS is reported as one, not dropped.
+        margins = [abs(d["tralo"])]
+        if present:
+            margins.append(abs(d["tralo"] - max(d[r] for r in present)))
+        spread = min(margins)
         priced = (floor is not None and nfloor >= MIN_FLOOR_OBS
                   and spread > floor)
         beats_control = d["tralo"] > 0
@@ -192,6 +209,38 @@ def self_test(out=sys.stdout):
     testable = [r for r in rows if r["testable"]]
     checks.append(("a cell with NO rival is excluded from the denominator",
                    len(rows) == 2 and len(testable) == 1))
+
+    # THE PAIRWISE-MARGIN GATE (2026-09-06). A far-behind arm must not be able
+    # to price a cell. `fioretto` sits 80 items back, so the RANGE is wide while
+    # tralo's real margin over its best rival is 2 items. A range-based
+    # `spread` -- what this scorer used until today -- prices it; the pairwise
+    # one must not. The check asserts BOTH that the value is the pairwise one
+    # and that the two genuinely differ here, so it cannot pass vacuously.
+    wide = {"clip": [600, 600, 600, 600], "tralo": [641, 640, 639, 640],
+            "alm": [639, 638, 637, 638], "fioretto": [560, 561, 559, 560],
+            "tralo_null": [600, 600, 600, 600],
+            "tralo_reseed": [608, 592, 604, 596]}
+    k5, c5 = mk(wide, "campC", "L70_G95")
+    r5 = rows_for({k5: c5}, "clip")[0]
+    rng = max(r5["d"].values()) - min(r5["d"].values())
+    pair = min(abs(r5["d"]["tralo"]),
+               abs(r5["d"]["tralo"] - max(r5["d"][x] for x in r5["rivals"])))
+    checks.append(("the margin is the PAIRWISE %.1f, not the range %.1f"
+                   % (pair, rng),
+                   abs(r5["spread"] - pair) < 1e-9 and rng > pair + 1.0))
+
+    # NEGATIVE CONTROL: with tralo and ONE rival and nothing trailing, the range
+    # and the pairwise margin coincide, so a passing check above must not be an
+    # artefact of always returning the smaller of two numbers.
+    tight = {"clip": [600, 600, 600, 600], "tralo": [641, 640, 639, 640],
+             "alm": [639, 638, 637, 638],
+             "tralo_null": [600, 600, 600, 600],
+             "tralo_reseed": [608, 592, 604, 596]}
+    k6, c6 = mk(tight, "campC", "L80_G95")
+    r6 = rows_for({k6: c6}, "clip")[0]
+    rng6 = max(r6["d"].values()) - min(r6["d"].values())
+    checks.append(("NEGATIVE CONTROL: with no trailing arm the two agree",
+                   abs(r6["spread"] - rng6) < 1e-9))
 
     import io as _io
     buf = _io.StringIO()
