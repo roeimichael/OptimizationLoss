@@ -9,6 +9,38 @@ Last updated: **2026-09-06** (the arm-vs-arm scorer was ranking a four-name whit
 
 ---
 
+## 0-PRICE. `vitdual2` CAN NEVER BE PRICED, AND `dualprop1` IS THE FIRST THAT CAN (2026-09-06)
+
+**The only campaign carrying all four duals at equal dose is structurally
+incapable of producing a priced verdict, however many seeds it finishes.**
+
+`vitdual2`'s arms are `alm alm_null clip fioretto fioretto_null focal_clip
+hounie hounie_null tralo tralo_null tralo_reseed`. The RNG floor is built from
+PAIRS of lambda=0 streams WITHIN a family, and only `tralo` has two
+(`tralo_null`, `tralo_reseed`). One pair x 4 seeds = **4 observations**, against
+`MIN_FLOOR_OBS = 8`. The `*_null` arms of the other three families each stand
+alone and contribute no pair. So even finished, every `vitdual2` cell reads
+REFUSED -- UNPRICED.
+
+⛔ It is ALSO STALLED: no dispatcher, one run stuck in `running` with no process
+behind it, 29 pending. Same shape as `vittask1`.
+
+🟢 **`dualprop1` IS THE FIRST CAMPAIGN THAT CAN GIVE A PRICED FOUR-DUAL
+VERDICT.** It carries `clip focal_clip lp alm fioretto hounie tralo
+tralo_dualprop tralo_null tralo_reseed tralo_reseed2` -- all four duals, both
+clippers, and THREE lambda=0 streams, so C(3,2) x 4 = **12 observations**, which
+clears the bar. That was the design intent and it only became true on 2026-09-06
+when `rng_floor` was fixed to read every stream rather than the null/reseed pair
+alone (2(z50) sibling commit).
+
+**So resuming `vitdual2` buys more seeds on a DIRECTION and can never buy a
+RESULT.** Adding `tralo_reseed2` to it is not possible either: `add_seeds`
+refuses to add an ARM, correctly, because that is a new experiment. If the
+ViTB16 four-dual cell is wanted as a priced result it needs a NEW campaign on
+the `dualprop1` design.
+
+---
+
 ## 🔑 0-NEXT. THE PENALTY PULLS HARDEST WHERE THE VIOLATION IS MILDEST (2026-09-06)
 
 **The strongest mechanistic lead in the project, measured from
