@@ -416,6 +416,21 @@ python -m scripts.paper_rows --cells cells.csv --out paper_rows.csv  # 🛑 THE 
 #   measurement. `items` is approximate -- `full_panel` macro-averages over both
 #   capped classes whose (K+n) differ, so no single scale is exact for both.
 #   FRAMEWORK 2(z26). `--self-test` gates it, including that the cautious default holds.
+python -m scripts.tralo_wins --campaign <roots> --control clip   # 🛑 THE ACCEPTANCE
+#   TABLE, and the bar as a command so it is never re-litigated per result.
+#   A cell is a TRALO WIN only if `tralo` beats the control AND beats EVERY
+#   rival dual present in that SAME cell; TraLO passes at >= 50% of the cells
+#   that can test it. Cells holding no rival are EXCLUDED from the denominator
+#   and printed separately -- `taskwin2` staged `tralo` alone and cannot test
+#   the claim either way.
+#   🔑 READ THE `priced` COLUMN, NOT ONLY THE VERDICT. A win is a SIGN;
+#   `priced` says the spread cleared the RNG floor AND that floor rests on
+#   >= MIN_FLOOR_OBS observations. RUN 2026-09-06 over the whole live corpus:
+#   **6 of 17 = 35%, bar 50%, VERDICT FAIL -- and 0 of 17 cells are priced**,
+#   so every win is a direction and none is reportable. Per unit it is 2 of 6.
+#   `--self-test` gates it in both directions, 7 checks, including that
+#   beating the CONTROL but not the RIVAL is NOT a win (the old framing scored
+#   that green) and that exactly 50% passes.
 python -m scripts.cell_table --campaign <roots> --out cells.csv   # the SURVEY, not the
 #   verdict. `full_panel` prints CONTRASTS, so the absolute level an arm reached
 #   is nowhere in its output. This emits one row per (campaign, dataset, model,
