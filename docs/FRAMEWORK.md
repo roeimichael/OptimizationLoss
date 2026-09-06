@@ -10023,6 +10023,139 @@ permuting budgets across groups destroys strictly LESS information than
 same-norm vector and lands at the RNG floor (2(z29)). Its outcome is forced.
 Do not spend a campaign on it.
 
+---
+
+## 2(z44). THE REJECTION AUDIT -- WHICH CLOSURES REST ON EVIDENCE WE NOW KNOW IS BAD (2026-09-06)
+
+**Section 2 was read end to end against the defects found on 2026-09-06. Many
+closures still stand. Some do not, and the pattern is not random.**
+
+A rejection is only as good as the regime it was measured in. Six contaminants
+invalidate one:
+
+| | contaminant | why it voids a closure |
+|---|---|---|
+| 1 | **DEAD-DATA** | measured on `dermmnist` / `octmnist` / `tissuemnist`. All removed; derm leaks 38.7% of its test set; the other two have `synth_group = index % 3`, i.i.d. by construction, so a per-group count constraint is EMPTY there |
+| 2 | **NON-TASK-CAP** | measured at L20 / L30 / L50, where 24 of 24 cells fail at least one of {evicts >= 10, errors inside K, p@K < 0.99}. A null there is the absence of a question |
+| 3 | **UNPRICED-NULL** | a tie judged against an RNG floor from ONE `_null`/`_reseed` pair at 4 seeds, under `MIN_FLOOR_OBS = 8`. "No difference" and "not enough measurement" are opposite conclusions from the same table |
+| 4 | **INVISIBLE-ARM** | the conclusion came from `deployed_h2h` / `tralo_wins`, which ranked only `(tralo, alm, fioretto, hounie)` until 2026-09-06. Any other arm was structurally absent from every head-to-head |
+| 5 | **DEAD-ARM** | `fioretto`/`hounie` at 28.00 vs 29.00 attempted steps in `dom1`/`dom1b`/`equaldose1` |
+| 6 | **ALGEBRA** | a proof or an identity, not a measurement. These STAND regardless |
+
+🔑 **THE DOMINANT CONTAMINANT IS NON-TASK-CAP, AND IT IS SYSTEMATIC.** Nearly
+every "aggression hurts" closure was measured in the tight regime, and 2(z10)
+later established WHY anything aggressive must lose there: the clipper's tight
+selected set is 99.6% correct, so every swap trades a true positive away. That
+is not a fact about the method under test. It is a fact about the cap.
+
+### The closures that DO NOT stand as measured
+
+| tag | idea | contaminant | what it would take |
+|---|---|---|---|
+| 2(b) | more constraint steps / dose axis | DEAD-DATA + NON-TASK-CAP | the whole dose sweep ran in the regime 2(z10) proves aggression must lose; at loose caps the arms already order by how hard they reach (`alm` +129 > `tralo` +95 > `tralo_uniform` +22) |
+| 2(a)/2(a2) | penalty shape | DEAD-DATA + NON-TASK | ⇒ **ACTED ON, see 2(z45)** |
+| 2(q)/2(v) | top-K / ranking surrogates | DEAD-DATA + NON-TASK | closed on a `frozen_head_probe` resolution of 35 items read at **L30_G50**, where p@K is 0.999 and the cut is uncontested BY CONSTRUCTION |
+| 2(c) | `budget_margin`, `rankpair` | DEAD-DATA + NON-TASK | killed for "ccP does not move" in cells 2(z15) later showed have prec@K = 1.0000, i.e. ccP was PINNED |
+| 2(r)/2(u)/2(w) | `tralo_uniform` | NON-TASK + UNPRICED + INVISIBLE-ARM | `uniform1` is 9 of 9 cells outside the window and quarantined |
+| 2(z29) | the coin: direction carries nothing | UNPRICED-NULL | median 2.0 items against a floor of 2.0 from ONE pair at 4 seeds, one backbone. ⇒ being re-priced by `price1` |
+| 2(w2) | `fmow` has no prize | borrowed calibration | priced off **iwildcam's** p@K, which the tool itself says does not transfer |
+
+⛔ **AND ONE CORRECTION IN THE OTHER DIRECTION.** `protocol.yml`'s
+`unproven_arms` said `tralo_coin` had "0 completed runs and no recorded
+rationale". It has **24**, in `vitcoin1`, `coin1` and `coin2`. Nobody had read
+them because the scorer could not display the arm. Corrected 2026-09-06.
+
+### What still stands, and why it is worth saying
+
+Every ALGEBRA closure survives untouched: `class_balanced` and `logit_adjust`
+inert on a balanced train prior; `focal_alpha` and `fioretto_step_size`
+cancelled by normalisation; `ortho_project` delivering 0.0% of its promised
+CE-neutrality; the panel being allocator-blind by construction; top-K
+invariance to a per-class prior shift; `<fam>_reseed` twins being
+byte-identical at lambda 0. A proof does not care which dataset it was written
+on.
+
+---
+
+## 2(z45). THE PENALTY SHAPE STARVES ITS WORST VIOLATOR, MEASURED ON iwildcam (2026-09-06)
+
+The shipped `rational_bounded` penalty is BOUNDED in the excess, so
+`d(pen)/dE` is NON-MONOTONE: near `1/s` at the boundary, peaking ~53-58% over,
+decaying toward zero for anything deeper. With ONE term that divides out under
+the single normalisation. With SEVERAL it sets their RELATIVE weights.
+
+`scripts/penalty_starvation`, 232 epochs over 8 `dom1` runs, from
+`training_log.csv` alone -- no GPU, no model, no re-run:
+
+| | |
+|---|---|
+| live constraint scopes per epoch | **11** |
+| deepest scope violated by | **29.8x** its budget |
+| median scope violated by | 0.19x |
+| **spread** | **147x** |
+
+| shape | pull(deepest) / pull(median) |
+|---|---|
+| `rational_bounded` (shipped) | **0.075x** (rho=0.5) -> **0.014x** (rho=100) |
+| `linear` | 92x |
+| `squared` | 3926x |
+
+**TraLO pulls its worst-violated constraint 13-71x LESS hard than one that is
+19% over.**
+
+⚠️ **WHY THIS WAS NOT KNOWN, and it is 2(z44)'s pattern exactly.** The algebra
+is 2(a2) and was always correct. It was demonstrated on **dermmnist**, whose
+LOCAL scope was EMPTY -- `lp_fallback_used` False with 0 candidates on all 52
+runs. The one dataset where the effect was shown is the one where the many-term
+case barely existed. iwildcam's spread is 147x against dermmnist's ~30x.
+
+🔑 **CANDIDATE MECHANISM FOR THE `alm` GAP.** An augmented Lagrangian grows its
+pull with violation depth without bound; this shape shrinks it. `alm` leads
+TraLO in 12 of 17 testable cells. That is a STRUCTURAL difference, not tuning.
+
+`tralo_linear` / `tralo_squared` are staged as `shape1` (RegNetY400MF,
+L70-70_G95 + L80-80_G95, both cells in-window, with three lambda=0 RNG streams
+so the cells can be PRICED).
+
+---
+
+## 2(z46). `constraint_step_rule: sgd` IS UNDER-DOSED ~89x, AND THE 0.013 COSINE DOES NOT REPRODUCE (2026-09-06)
+
+`scripts/step_dose`, real MobileNetV2 config, real data, one shared Adam state
+and one constraint gradient, optimizer restored between rules. Constraint-ALIGNED
+weight displacement, `||dw|| * cos(dw, descent direction)`:
+
+| CE steps of Adam state | `shared` \|\|dw\|\| | `shared` cos | `sgd` aligned / `shared` aligned |
+|---|---|---|---|
+| 60 | 0.0444 | 0.187 | 0.0121 (**83x under**) |
+| 126 (a full epoch) | 0.0346 | **0.258** | 0.0112 (**89x under**) |
+
+**`sgd` has a perfect direction and a tiny dose.** So a null from `tralo_sgd`
+must be reported as the DOSE GAP, never as "delivering the direction does not
+help". Pre-registered in `protocol.yml` before `price1` launched.
+
+🛑 **AND A DISAGREEMENT TO RESOLVE, NOT TO SMOOTH OVER.**
+`src/training/constraint_step.py` states that sharing CE's Adam leaves
+`cos(parameter update, constraint gradient)` at **0.009-0.017**, i.e. the
+constraint step is ~98% a 127th CE step. That figure is the entire motivation
+for `tralo_sgd`. Measured here on MobileNetV2 it is **0.187 at 60 CE steps and
+0.258 at 126** -- 15-20x higher, and moving in the WRONG direction as Adam's
+state matures.
+
+Three readings, and they are not equivalent:
+* different DEFINITION -- the 0.013 may be cos of the update against the
+  gradient including the CE step, not the constraint step in isolation;
+* different STATE -- 0.013 may be measured deep in the constraint phase, on a
+  warm-up-trained model 29 epochs in, not on 126 fresh CE steps;
+* different BACKBONE -- this is MobileNetV2; the original may be ViTB16.
+
+Until one of those is confirmed, **do not quote "92.6% of the update is stale CE
+momentum" as settled**. The dose conclusion is unaffected -- `sgd` is
+under-dosed at either cosine -- but the MECHANISM claim behind the whole
+delivery program rests on the smaller number, and the smaller number did not
+reproduce here.
+
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, updated 2026-08-30 -- read this before section 3's older text**
