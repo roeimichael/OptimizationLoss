@@ -113,6 +113,25 @@ A `scripts/*.py` file is dead ONLY if ALL of the following hold, each verified:
 
 If any one is unmet: **KEEP**. Log it as kept, and why.
 
+### 2e. The failure record — two files, and neither is named `rejected.md`
+
+There is no `rejected.md` in this repository. The record of what has already been
+tried and refuted lives in:
+
+```
+docs/FRAMEWORK.md  section 2   the live list: every rejected idea and why
+docs/archive/REJECTED_full_2026-08-18.md   the long-form history
+```
+
+Both are PROTECTED. A negative result that cost a campaign is worth more than the
+code that produced it: an idea deleted from that record gets re-run.
+
+`archive/legacy/` already holds the old AAAI2027 / dermmnist / EAAI work. It is
+**untracked and gitignored**, so it is outside your universe entirely (§1). The
+"old medical paper archive" is therefore already quarantined; there is nothing
+left to move there, and deleting from it is unrecoverable. The most you may do is
+write `archive/MANIFEST.md` — a purely additive inventory of what is in there.
+
 ---
 
 ## 3. WHAT YOU ARE ACTUALLY ALLOWED TO CHANGE
