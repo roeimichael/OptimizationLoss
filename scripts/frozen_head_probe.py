@@ -153,7 +153,27 @@ class ProbeData:
         self.y = np.asarray(y, dtype=int)
         self.groups = np.asarray(groups, dtype=int)
         self.classes = list(classes)
-        self.local_pct = float(local_pct)
+        # A CAP FRACTION MAY BE PER CLASS (2026-09-06). `L90-90_G95` caps class
+        # 2 at 90% and class 7 at 90% and arrives here as a LIST, and
+        # `float(list)` raises -- so this probe could never run on any
+        # per-class-capped campaign, which is every campaign staged inside a
+        # measured task window since the per-class tag was introduced. It is
+        # passed straight through to `compute_local_constraints`, which already
+        # resolves either form via `cap_fraction_for`, so carrying it unchanged
+        # is the whole fix.
+        #
+        # Validated rather than merely accepted: a list of the wrong length
+        # would silently cap the wrong class.
+        if isinstance(local_pct, (list, tuple)):
+            if len(local_pct) != len(list(classes)):
+                raise ValueError(
+                    "local_pct has %d entries for %d capped class(es); a "
+                    "per-class cap is read POSITIONALLY against "
+                    "constrained_class, so a length mismatch caps the wrong "
+                    "class." % (len(local_pct), len(list(classes))))
+            self.local_pct = [float(v) for v in local_pct]
+        else:
+            self.local_pct = float(local_pct)
         self.global_pct = float(global_pct)
         self.ref_probs = None if ref_probs is None else np.asarray(ref_probs, float)
         self.ref_name = ref_name

@@ -485,6 +485,54 @@ blocks:
   # exactly one key. That is what makes the contrast clean and cheap.
   sgd_step:
     constraint_step_rule: sgd
+  # THE PENALTY SHAPES, AND WHY THEY ARE FINALLY WORTH AN ARM (2026-09-06).
+  #
+  # The shipped `rational_bounded` is BOUNDED in the excess, so its slope
+  # d(pen)/dE is NON-MONOTONE: near 1/s at the boundary, peaking ~53-58%
+  # over, and decaying toward zero for anything deeper. With a SINGLE term
+  # that is harmless -- the constraint gradient is normalised as a whole, so
+  # the shape is a scalar times a fixed direction and divides out. With
+  # SEVERAL terms it sets their RELATIVE weights, and it sets them backwards:
+  # the deepest violator is the one it starves.
+  #
+  # THAT WAS ALGEBRA UNTIL NOW, AND IT WAS DEMONSTRATED ON THE WRONG DATASET.
+  # FRAMEWORK 2(a2) established the shape on dermmnist, which is removed, leaks
+  # 38.7% of its test set, and whose LOCAL scope was EMPTY (`lp_fallback_used`
+  # False with 0 candidates on all 52 runs). So the many-term case barely
+  # existed where the effect was shown.
+  #
+  # MEASURED ON iwildcam 2026-09-06 by `scripts/penalty_starvation`, from
+  # training_log.csv alone, 232 epochs over 8 `dom1` runs:
+  #   ELEVEN live scopes per epoch
+  #   deepest violated 29.8x its budget, median 0.19x -- a SPREAD of 147x
+  #   the deepest scope is pulled 0.075x (rho=0.5) to 0.014x (rho=100) as
+  #   hard as the median one, i.e. 13-71x BACKWARDS
+  # `linear` reads 92x and `squared` 3926x on the same epochs.
+  #
+  # WHY IT MIGHT BE THE alm GAP. An augmented Lagrangian grows its pull with
+  # violation depth without bound; this shape shrinks it. `alm` leads TraLO on
+  # the deployed head-to-head, and this is a structural difference between
+  # them rather than a tuning one.
+  #
+  # PRE-REGISTERED, so it cannot be rewritten afterwards:
+  #   -> the prediction is about the DEEPLY-VIOLATED scopes specifically, so
+  #      read `Group*_Hard_Class*` against `Group*_Limit_Class*` per scope,
+  #      not the campaign headline. A shape that fixes the weighting and does
+  #      not move deployed TP is still informative and must be reported.
+  #   -> `squared` is UNBOUNDED and iwildcam has 7 zero-K ceilings where the
+  #      scaled excess `e` can be large, so it is the more likely of the two
+  #      to destabilise. If it collapses and `linear` does not, that is the
+  #      expected ordering, not a surprise.
+  #   -> NOT predicted to win outright. Aiming the weights correctly is
+  #      necessary, not sufficient: `headroom` still bounds the whole prize.
+  #
+  # Neither is in `warmup_identity_keys` -- both touch the constraint phase
+  # only -- so both SHARE `tralo`'s cached warm-up and differ from it in
+  # exactly one key.
+  penalty_linear:
+    penalty_shape: linear
+  penalty_squared:
+    penalty_shape: squared
   fioretto:
     fioretto_step_size: 0.005     # REQUIRED: fioretto_ldf/train.py raises without it
     # Emitted here as well as on `alm`. Both packages READ this key, and ALM's
@@ -647,6 +695,18 @@ arms:
   tralo_coin_sgd:
     {methodology: tralo, phase: trained,
      blocks: [constraint_phase, tralo, sgd_step, tralo_coin],
+     null_sibling: tralo_null}
+  # THE PENALTY-SHAPE ARMS. See the `penalty_linear` block for the
+  # measurement and the pre-registration. Both share `tralo_null`: at
+  # lambda 0 there is no penalty term at all, so its shape is inert and a
+  # separate null would be a bit-identical run costing a GPU slot.
+  tralo_linear:
+    {methodology: tralo, phase: trained,
+     blocks: [constraint_phase, tralo, penalty_linear],
+     null_sibling: tralo_null}
+  tralo_squared:
+    {methodology: tralo, phase: trained,
+     blocks: [constraint_phase, tralo, penalty_squared],
      null_sibling: tralo_null}
   # Shares `tralo_null` for the usual reason: at lambda 0 with lambda_step 0
   # there is no constraint gradient, so a dedicated null would be a

@@ -9,6 +9,92 @@ Last updated: **2026-09-06** (the arm-vs-arm scorer was ranking a four-name whit
 
 ---
 
+## 🔑 0-NEXT. THE PENALTY PULLS HARDEST WHERE THE VIOLATION IS MILDEST (2026-09-06)
+
+**The strongest mechanistic lead in the project, measured from
+`training_log.csv` alone at zero GPU cost.**
+
+TraLO's shipped penalty is `rational_bounded`, the manuscript's Eq. 4. It is
+BOUNDED in the excess, so its slope `d(pen)/dE` is NON-MONOTONE: near `1/s` at
+the boundary, peaking around 53-58% over, and decaying toward zero for anything
+deeper. With ONE term that divides out -- the constraint gradient is normalised
+as a whole, so the shape is a scalar times a fixed direction. With SEVERAL terms
+it sets their RELATIVE weights, and it sets them backwards.
+
+`scripts/penalty_starvation`, 232 epochs over 8 `dom1` runs on iwildcam:
+
+| | |
+|---|---|
+| live constraint scopes per epoch | **11** |
+| deepest scope violated by | **29.8x** its budget |
+| median scope violated by | 0.19x |
+| **spread across scopes** | **147x** |
+
+and the pull each receives, deepest / median:
+
+| shape | ratio | |
+|---|---|---|
+| `rational_bounded` (shipped) | **0.075x (rho=0.5) -> 0.014x (rho=100)** | starves the worst violator |
+| `linear` | 92x | |
+| `squared` | 3926x | |
+
+**TraLO pulls its worst-violated constraint 13x to 71x LESS hard than one that
+is 19% over.**
+
+⚠️ **WHY THIS WAS NOT KNOWN.** The algebra is FRAMEWORK 2(a2) and was correct;
+it was demonstrated on **dermmnist**, which is removed, leaks 38.7% of its test
+set, and whose LOCAL scope was EMPTY (`lp_fallback_used` False with 0 candidates
+on all 52 runs). The one dataset where the effect was shown is the one where the
+many-term case barely existed. iwildcam's spread is 147x against dermmnist's
+~30x, and nobody had measured it.
+
+🔑 **AND IT IS A CANDIDATE MECHANISM FOR THE `alm` GAP.** An augmented
+Lagrangian grows its pull with violation depth without bound; this shape shrinks
+it. `alm` leads TraLO on the deployed head-to-head. That is a STRUCTURAL
+difference between the two methods, not a tuning one -- which is exactly the
+kind of asymmetry TraLO needs and has never had.
+
+`penalty_shape: linear` and `squared` are ALREADY IMPLEMENTED in the same
+function. **Neither has ever run on iwildcam.** The default stayed
+`rational_bounded` only because it is the manuscript's Eq. 4 and changing it
+would reinterpret every stored result.
+
+**PRE-REGISTERED, so it cannot be rewritten afterwards:**
+* the prediction is about the DEEPLY-VIOLATED scopes specifically. Read
+  `Group*_Hard_Class*` against `Group*_Limit_Class*` per scope, not the campaign
+  headline. A shape that fixes the weighting and moves no deployed TP is still
+  informative and must be reported as such.
+* `squared` is UNBOUNDED and iwildcam has 7 zero-K ceilings where the scaled
+  excess can be large, so it is the likelier of the two to destabilise. If it
+  collapses and `linear` does not, that is the expected ordering.
+* NOT predicted to win outright. Aiming the weights correctly is NECESSARY, not
+  sufficient -- `headroom` still bounds the whole prize.
+
+---
+
+## ⚠️ 0-DOSE. `tralo_sgd` IS UNDER-DOSED, AND THAT IS MEASURED (2026-09-06)
+
+`scripts/step_dose` on the real MobileNetV2 config. Constraint-aligned weight
+displacement, `||dw|| * cos(dw, descent direction)`:
+
+| rule | `\|\|dw\|\|` | cos | aligned |
+|---|---|---|---|
+| `shared` | 0.0444 | 0.187 | 0.00828 |
+| `sgd` | 0.000100 | 0.9997 | 0.000100 |
+
+**`sgd` delivers 83x LESS movement along the direction the constraint asked
+for.** Its direction is perfect and its dose is tiny.
+
+⚠️ **State the caveat with the number.** That reading used 60 CE steps, so
+`cos = 0.187` is higher than the 0.009-0.017 the framework measures after a full
+epoch; at that cos the gap narrows to ~6x. Either way `sgd` is UNDER-dosed, not
+over-dosed, so **a null from `tralo_sgd` is about DOSE and must be reported as
+the dose gap, never as "delivering the direction does not help"**. That was
+pre-registered in `protocol.yml` before the campaign launched and is now
+quantified.
+
+---
+
 ## 🛑 0-HEAD. THE SCORER COULD NOT SEE HALF THE ARMS, AND EVERY VERDICT IS UNPRICED (2026-09-06)
 
 **Two separate defects, both in the instruments, both found with zero GPU.**

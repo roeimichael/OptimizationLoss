@@ -454,6 +454,39 @@ its own liveness control, so a null from them is a measurement rather than silen
 closed a direction this project would otherwise have spent a campaign on.
 
 ```bash
+python -m scripts.penalty_starvation --glob '<runs>/tralo/seed_*'
+#   🛑 IS THE PENALTY SHAPE STARVING THE WORST-VIOLATED SCOPE? The shipped
+#   `rational_bounded` is BOUNDED in the excess, so its slope is NON-MONOTONE:
+#   peaks ~53-58% over and DECAYS toward zero for anything deeper. With one
+#   term that divides out under the single clip; with several it sets their
+#   RELATIVE weights and sets them BACKWARDS.
+#   🔑 MEASURED ON iwildcam 2026-09-06, from `training_log.csv` alone, no GPU:
+#   232 epochs over 8 `dom1` runs give **11 live scopes per epoch**, the
+#   deepest violated **29.8x** its budget against a median of 0.19x -- a
+#   **147x spread** -- and the shipped shape pulls the DEEPEST scope
+#   **0.075x (rho=0.5) to 0.014x (rho=100)** as hard as the median one.
+#   `linear` reads 92x and `squared` 3926x on the same epochs.
+#   ⚠️ The starvation algebra was established on **dermmnist**, which is removed
+#   AND whose local scope was empty (0 LP candidates / 52 runs), so the
+#   many-term case barely existed where it was shown. iwildcam is 5x worse.
+#   ⚠️ READ `spread` FIRST: if the scopes are violated to the same depth the
+#   shape has no relative weight to set and the direction closes for free.
+#   ⚠️ AND QUOTE A RHO. `rho` ratchets `initial_rho` 0.5 -> `rho_target` 100
+#   within a run and the ratio moves 51x -> 167x with it, so a single number is
+#   a choice dressed as a measurement -- it prints both ends. `--self-test` is a
+#   POSITIVE control against FRAMEWORK 2(a2)'s autograd table at BOTH rho rows.
+python -m scripts.step_dose --config <config.json> --ce-steps 60
+#   🛑 HOW BIG IS THE CONSTRAINT STEP IN WEIGHTS, per delivery rule? The project
+#   has measured what `shared` does to the DIRECTION -- cos(update, constraint
+#   gradient) 0.009-0.017, i.e. ~98% a 127th CE step -- and never the MAGNITUDE.
+#   Without it a null from `tralo_sgd` cannot be told from underdosing: `sgd`
+#   steps a flat `lr*clip` while Adam steps ~`lr*sqrt(N)` (sqrt(N) alone is
+#   ~1871 at MobileNetV2 scale), yet only the component ALONG the constraint
+#   direction enforces anything and `shared` keeps ~1.3% of its larger step
+#   there. Reports the product -- CONSTRAINT-ALIGNED DISPLACEMENT -- for both
+#   rules from ONE shared Adam state and ONE gradient, on a REAL backbone.
+#   ⚠️ Real state, not a toy: `hp_liveness_real` exists because the smoke net
+#   inverts verdicts, and Adam's `v` is the whole question here.
 python -m scripts.frozen_head_probe --run-dir <run> --seeds 1 2 3 4 5 6 7 8  # refit ONLY a
                                             #   linear head on the frozen features under
                                             #   a different loss; verdicts in ITEMS, and
