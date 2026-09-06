@@ -253,6 +253,32 @@ so the one edit is provably inert with respect to every gate the project owns.
 
 ---
 
+## 8. INDEPENDENT PRESERVATION AUDIT
+
+A fresh agent that performed none of the editing re-derived the outcome from git
+alone, instructed to look adversarially for a violation. Verdict: **CLEAN.**
+
+| Check | Result |
+|---|---|
+| Files deleted | **none** -- `git diff --diff-filter=D` empty |
+| Files renamed | **none** -- `git diff --diff-filter=R` empty |
+| Training path (`src/ configs/ main.py tests/`) | **untouched**, diff and status both empty |
+| 17 protected paths still tracked | **all present** |
+| Protected directory counts vs `2af31614` | **all identical** (tables 11, tables_rev 11, tables_clean 11, figures 6, paper data 22, paper scripts 11, launchers 4, scripts 62) |
+| `docs/FRAMEWORK.md` diff | **exactly 4 hunks**, each a pure path substitution; no prose, number or claim altered |
+| Removed lines anywhere in the session | **4**, all the same substitution -- no measurement, p-value or rejected-idea entry lost |
+| Tracked file count | 266 -> 267, the +1 being this file |
+| `scripts/` dead-list spot-check (`verify_caps`, `scope_probe`, `reset_crashed`) | all fail tests 1 and 3 independently -- "dead list empty" corroborated |
+
+It also caught one real process violation: `CLEANUP_STATE.md` was still at its
+pristine seed value while Phases 1-4 had demonstrably run. That was deliberate --
+the state file was held until this audit returned, so that `STATUS: COMPLETE`
+would never be written on an unverified tree -- but the auditor is right that the
+window existed, and rulebook 0.4 names an un-updated state file as the one way
+the outer loop can spin forever. Closed in the final commit.
+
+---
+
 ## PRE-EXISTING
 
 None. The clean-tree baseline was captured BEFORE any change:
