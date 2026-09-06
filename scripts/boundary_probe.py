@@ -1,256 +1,372 @@
-"""WHICH items did the constraint pull across the clipper's boundary, and were
-they worth pulling?
+"""WHAT DOES THE CONSTRAINT ACTUALLY DO TO THE BOUNDARY? Read it off the logs.
 
-Both arms deploy EXACTLY K predictions per capped class (FRAMEWORK 2(z9), 16 of
-16 arms verified). So the budget cannot differ and the ONLY thing that can
-differ is WHICH K items were chosen. That is the question this answers, and no
-count-based diagnostic can: `flips`, `raw_over_K` and satisfaction are all
-blind to it.
+TraLO writes 76 columns per epoch -- per-class and per-GROUP `Hard` (argmax
+count), `Soft` (sum of probabilities) and `Limit` -- for every run ever
+completed, and nothing had ever been regressed against the outcome. This reads
+them.
 
-For each capped class c, with S_ctrl and S_trt the two deployed selections:
+THREE QUESTIONS, each answerable with no GPU:
 
-    evicted  = S_ctrl \\ S_trt      items the control kept and the arm dropped
-    admitted = S_trt \\ S_ctrl      items the arm reached for instead
+  1. **THE SEE-SAW.** Both capped classes share one softmax, so probability
+     pushed off class 2 has to land somewhere, and class 7 is the largest
+     neighbour. If the constraint reduces one capped class by inflating the
+     other, it is fighting itself and the per-class caps can never both be met.
+     Measured as the paired change in `Hard_c - Limit_c` against the arm's OWN
+     lambda=0 twin, so the warm-up is held fixed and only the constraint moves.
 
-|evicted| == |admitted| exactly, because both sets hold exactly K.
+  2. **THE OSCILLATION.** `Global_Satisfied` and `Local_Satisfied` are 0 at
+     every logged epoch of every run inspected so far, and the count swings by
+     tens of items between consecutive epochs. The pipeline keeps the LAST
+     epoch. If the swing is large relative to the effect being chased, the
+     final model is a draw from a lottery and epoch choice is a bigger term
+     than method choice.
 
-The measurement that matters is WHERE the admitted items sat in the CONTROL's
-own ranking. Rank <= K means the control had already selected it (impossible
-here by construction). Rank > K means the arm reached BELOW the control's
-boundary and pulled something the clipper had rejected. `depth = rank - K` is
-how far below.
+  3. **DOES EITHER PREDICT THE OUTCOME?** Correlate the per-run log features
+     against deployed captured items, paired against the null. A feature that
+     moves with the outcome is a lever; one that does not is a description.
 
-Then the only thing that decides whether any of it was worth doing:
+READ THE LOG AT THE RIGHT TIME. The row for epoch t is written BEFORE that
+epoch's constraint step -- verified: a lambda=0 arm's last logged `Hard`
+matches its emitted argmax counts exactly (it takes no step, so nothing moves
+after logging), while a trained arm's does not (280 logged against 290
+emitted). So the trajectory is the state the constraint REACTED TO, never the
+state it produced, and the last row is not the final model.
 
-    net = TP(admitted) - TP(evicted)      in ITEMS
-
-\U0001f6d1 A POSITIVE `net` IS THE ONLY OUTCOME THAT COUNTS. Swapping items of
-equal quality is what a pure RNG reseed does -- measured at 63 items moved for
-a net of +0.38 -- so a large swap count is not evidence of anything. Quote
-`net` beside the swap count, never the swap count alone.
-
-⚠️ RANKS COME FROM THE CONTROL'S PROBABILITIES, NOT THE ARM'S. The two are
-different models, so "depth" measures how deep into the CLIPPER's reject pile
-the arm reached. That is the question asked; the reverse framing (depth in the
-arm's own ranking) answers nothing, because the arm's top-K is its selection by
-definition.
+⛔ AND NEVER TREAT A LOGGED COUNT AS THE MODEL'S COUNT. For that same reason
+the last logged `Hard` disagrees with the emitted count for every trained arm.
+Any statement about what a model PREDICTS must come from
+`final_predictions_raw.csv`. The logs are for DYNAMICS only.
 """
+
 import argparse
+import collections
 import csv
 import glob
+import io
 import json
 import os
 import sys
 
-import numpy as np
-
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-
-def load(run_dir, deployed=True):
-    """(true labels, predicted labels, probability matrix, group ids)."""
-    name = "final_predictions.csv" if deployed else "final_predictions_raw.csv"
-    path = os.path.join(run_dir, name)
-    y, p, probs, gids = [], [], [], []
-    with open(path) as f:
-        r = csv.DictReader(f)
-        pcols = sorted([c for c in r.fieldnames if c.startswith("Prob_Class_")],
-                       key=lambda c: int(c.rsplit("_", 1)[1]))
-        for row in r:
-            y.append(int(row["True_Label"]))
-            p.append(int(row["Predicted_Label"]))
-            probs.append([float(row[c]) for c in pcols])
-            gids.append(row.get("Group_ID"))
-    return (np.array(y), np.array(p), np.array(probs, dtype=float),
-            np.array(gids))
+# ⚠️ READ THE CAPPED CLASSES FROM THE CONFIG, NEVER ASSUME THEM.
+# 400 of 400 configs in this project cap exactly [2, 7] and `--constrained-class`
+# has never been used, so a hardcoded pair is invisible until the day somebody
+# varies it -- and then it silently reports the wrong classes rather than
+# failing. This is the fallback ONLY for a config that does not name them.
+DEFAULT_CAPPED = (2, 7)
 
 
-def compare(ctrl_dir, trt_dir, classes):
-    """Per capped class: who was swapped, from how deep, and was it worth it."""
-    y0, p0, P0, _ = load(ctrl_dir)
-    y1, p1, P1, _ = load(trt_dir)
-    if len(y0) != len(y1) or not np.array_equal(y0, y1):
-        raise SystemExit("%s and %s are not the same test set -- refusing to "
-                         "difference them" % (ctrl_dir, trt_dir))
-    out = {}
-    for c in classes:
-        S0 = set(np.where(p0 == c)[0].tolist())
-        S1 = set(np.where(p1 == c)[0].tolist())
-        evicted = sorted(S0 - S1)
-        admitted = sorted(S1 - S0)
-        # the control's own ranking for this class, best first
-        order = np.argsort(-P0[:, c])
-        rank_of = np.empty(len(y0), dtype=int)
-        rank_of[order] = np.arange(1, len(y0) + 1)
-        K = len(S0)
-        tp_adm = int(sum(1 for i in admitted if y0[i] == c))
-        tp_evi = int(sum(1 for i in evicted if y0[i] == c))
-        out[int(c)] = dict(
-            K=K, n_pos=int((y0 == c).sum()),
-            swapped=len(admitted),
-            # |admitted| == |evicted| whenever both sides deploy exactly K.
-            # If they differ, the budget was NOT equalized and every number
-            # below is a budget measurement -- so this is reported, not assumed.
-            budget_equal=(len(admitted) == len(evicted)),
-            n_evicted=len(evicted),
-            depths=[int(rank_of[i] - K) for i in admitted],
-            admitted_correct=[bool(y0[i] == c) for i in admitted],
-            evicted_correct=[bool(y0[i] == c) for i in evicted],
-            tp_admitted=tp_adm, tp_evicted=tp_evi,
-            net_items=tp_adm - tp_evi,
-            prec_admitted=(tp_adm / len(admitted)) if admitted else float("nan"),
-            prec_evicted=(tp_evi / len(evicted)) if evicted else float("nan"),
-        )
+def capped_of(cfg):
+    """The constrained classes this run actually used."""
+    dc = cfg.get("dataset_config") or {}
+    cc = dc.get("constrained_class")
+    if isinstance(cc, int):
+        return (cc,)
+    if isinstance(cc, (list, tuple)) and cc:
+        return tuple(int(c) for c in cc)
+    return DEFAULT_CAPPED
+
+
+NULL_OF = {"tralo": "tralo_null", "alm": "alm_null",
+           "fioretto": "fioretto_null", "hounie": "hounie_null"}
+
+
+def read_log(run):
+    p = os.path.join(run, "training_log.csv")
+    if not os.path.exists(p):
+        return None
+    with io.open(p, encoding="utf-8", errors="replace") as fh:
+        rows = list(csv.DictReader(fh))
+    return rows or None
+
+
+def f(row, key, default=float("nan")):
+    try:
+        return float(row[key])
+    except (KeyError, TypeError, ValueError):
+        return default
+
+
+def emitted_counts(run):
+    """What the model ACTUALLY predicts. Never read this off the log."""
+    p = os.path.join(run, "final_predictions_raw.csv")
+    if not os.path.exists(p):
+        return None
+    n = collections.Counter()
+    with io.open(p, encoding="utf-8", errors="replace") as fh:
+        rd = csv.DictReader(fh)
+        if "Predicted_Label" not in (rd.fieldnames or []):
+            return None
+        for r in rd:
+            try:
+                n[int(r["Predicted_Label"])] += 1
+            except (TypeError, ValueError):
+                return None
+    return n
+
+
+def features(run, capped):
+    """Per-run log summary. None if the log is absent or has no capped cols."""
+    rows = read_log(run)
+    if not rows or "Hard_Class2" not in rows[0]:
+        return None
+    out = {"epochs": len(rows)}
+    for c in capped:
+        hard = [f(r, "Hard_Class%d" % c) for r in rows]
+        soft = [f(r, "Soft_Class%d" % c) for r in rows]
+        lim = [f(r, "Limit_Class%d" % c) for r in rows]
+        hard = [h for h in hard if h == h]
+        soft = [s for s in soft if s == s]
+        lim = [x for x in lim if x == x]
+        if not hard or not lim:
+            return None
+        # SIGNED excess against the cap. The sign is the point: a negative
+        # excess is an OVERSHOOT, which costs items for nothing -- the cap was
+        # already met and the model kept giving ground.
+        out["excess%d" % c] = hard[-1] - lim[-1]
+        out["mean_excess%d" % c] = sum(hard) / len(hard) - lim[-1]
+        # Epoch-to-epoch travel: how far the count moves between consecutive
+        # logged states. This is the size of the lottery the last-epoch rule
+        # draws from.
+        steps = [abs(hard[i + 1] - hard[i]) for i in range(len(hard) - 1)]
+        out["swing%d" % c] = sum(steps) / len(steps) if steps else float("nan")
+        out["range%d" % c] = max(hard) - min(hard)
+        # Soft minus hard is boundary MASS: how much probability sits away from
+        # a confident 0/1. A large gap means many items near the cut.
+        if soft:
+            gap = [s - h for s, h in zip(soft, hard)]
+            out["softgap%d" % c] = sum(gap) / len(gap)
+    sat = [r.get("Global_Satisfied", "") for r in rows]
+    out["gsat"] = sum(1 for s in sat if str(s).strip() in ("1", "True", "true"))
+    sat = [r.get("Local_Satisfied", "") for r in rows]
+    out["lsat"] = sum(1 for s in sat if str(s).strip() in ("1", "True", "true"))
+    out["lam_g"] = f(rows[-1], "Lambda_Global")
+    out["lam_l"] = f(rows[-1], "Lambda_Local")
+    gn = [f(r, "Grad_Norm") for r in rows]
+    gn = [g for g in gn if g == g]
+    out["gradn_max"] = max(gn) if gn else float("nan")
+    out["acc"] = f(rows[-1], "Train_Acc")
     return out
 
 
-def find_runs(root, model, cap, arm, seeds):
-    hits = []
-    for s in seeds:
-        d = os.path.join(root, model, "iwildcam", cap, arm, "seed_%d" % s)
-        if os.path.isdir(d) and os.path.exists(
-                os.path.join(d, "final_predictions.csv")):
-            hits.append((s, d))
-    return hits
+def collect(roots):
+    """(campaign, model, dataset, cap, arm, seed) -> features + emitted."""
+    runs = {}
+    for root in roots:
+        for cfg in sorted(glob.glob(os.path.join(root, "*", "*", "*", "*",
+                                                 "seed_*", "config.json"))):
+            run = os.path.dirname(cfg)
+            try:
+                with io.open(cfg, encoding="utf-8") as fh:
+                    c = json.load(fh)
+            except Exception:
+                continue
+            if c.get("status") != "completed":
+                continue
+            parts = os.path.normpath(run).replace(os.sep, "/").split("/")
+            seed, arm, cap, ds, model = (parts[-1], parts[-2], parts[-3],
+                                         parts[-4], parts[-5])
+            camp = os.path.basename(os.path.normpath(root))
+            capped = capped_of(c)
+            ft = features(run, capped)
+            if ft is None:
+                continue
+            ft["emitted"] = emitted_counts(run)
+            ft["capped"] = capped
+            runs[(camp, model, ds, cap, arm, seed)] = ft
+    return runs
+
+
+def _fmt(x, w=7, p=1):
+    return ("%*.*f" % (w, p, x)) if x == x else "%*s" % (w, ".")
+
+
+def report(runs, out=sys.stdout):
+    w = out.write
+
+    w("=" * 96 + "\n")
+    w("1. THE SEE-SAW: does the constraint trade one capped class for the "
+      "other?\n")
+    w("   Paired against each arm's OWN lambda=0 twin, so the warm-up is held "
+      "fixed.\n")
+    w("   Excess is `emitted - limit`, read from final_predictions_raw.csv, "
+      "NEVER the log.\n\n")
+    w("   %-10s %-13s %-13s %-6s %-5s %9s %9s  %s\n"
+      % ("campaign", "backbone", "cap", "arm", "seed",
+         "d_exc_lo", "d_exc_hi", "verdict"))
+    pairs = []
+    for key, ft in sorted(runs.items()):
+        camp, model, ds, cap, arm, seed = key
+        null = NULL_OF.get(arm)
+        if not null:
+            continue
+        nk = (camp, model, ds, cap, null, seed)
+        if nk not in runs:
+            continue
+        a, b = ft.get("emitted"), runs[nk].get("emitted")
+        if not a or not b:
+            continue
+        cc = ft.get("capped") or DEFAULT_CAPPED
+        if len(cc) < 2:
+            continue
+        c_lo, c_hi = cc[0], cc[1]
+        d = dict((c, a[c] - b[c]) for c in cc)
+        see_saw = (d[c_lo] * d[c_hi]) < 0
+        pairs.append((key, d[c_lo], d[c_hi], see_saw))
+        w("   %-10s %-13s %-13s %-6s %-5s %9s %9s  %s\n"
+          % (camp, model[:13], cap, arm, seed.replace("seed_", ""),
+             "%+d" % d[c_lo], "%+d" % d[c_hi],
+             "SEE-SAW" if see_saw else "same direction"))
+    if pairs:
+        ss = [p for p in pairs if p[3]]
+        w("\n   %d of %d treated/null pairs move the two capped classes in "
+          "OPPOSITE directions.\n" % (len(ss), len(pairs)))
+        down2 = [p for p in pairs if p[1] < 0]
+        up7 = [p for p in pairs if p[2] > 0]
+        w("   class 2 pushed DOWN in %d of %d; class 7 pushed UP in %d of %d\n"
+          % (len(down2), len(pairs), len(up7), len(pairs)))
+        tot = [abs(p[1]) + abs(p[2]) for p in pairs]
+        net = [abs(p[1] + p[2]) for p in pairs]
+        if tot and sum(tot):
+            w("   MOVED %.1f items per pair on average, but the NET change in "
+              "the two\n   capped classes together is only %.1f -- %.0f%% of "
+              "the motion is a TRADE\n   between them rather than a reduction."
+              "\n" % (sum(tot) / len(tot), sum(net) / len(net),
+                      100 * (1 - sum(net) / float(sum(tot)))))
+
+    # ---- 2. the oscillation --------------------------------------------
+    w("\n" + "=" * 96 + "\n")
+    w("2. THE OSCILLATION: the pipeline keeps the LAST epoch. How big is the "
+      "lottery?\n\n")
+    w("   %-10s %-13s %-13s %-12s %5s %8s %8s %8s %8s\n"
+      % ("campaign", "backbone", "cap", "arm", "seed",
+         "swing2", "range2", "swing7", "range7"))
+    by_arm = collections.defaultdict(list)
+    for key, ft in sorted(runs.items()):
+        camp, model, ds, cap, arm, seed = key
+        by_arm[arm].append(ft)
+        if len(by_arm[arm]) <= 2 and arm in ("tralo", "tralo_null"):
+            w("   %-10s %-13s %-13s %-12s %5s %s %s %s %s\n"
+              % (camp, model[:13], cap, arm, seed.replace("seed_", ""),
+                 _fmt(ft.get("swing2", float("nan")), 8),
+                 _fmt(ft.get("range2", float("nan")), 8),
+                 _fmt(ft.get("swing7", float("nan")), 8),
+                 _fmt(ft.get("range7", float("nan")), 8)))
+    w("\n   per-arm medians over every completed run:\n")
+    w("   %-14s %5s %9s %9s %9s %9s %7s %7s\n"
+      % ("arm", "runs", "swing2", "range2", "swing7", "range7",
+         "gsat", "lsat"))
+    for arm in sorted(by_arm):
+        g = by_arm[arm]
+
+        def med(k):
+            v = sorted(x[k] for x in g if k in x and x[k] == x[k])
+            return v[len(v) // 2] if v else float("nan")
+        w("   %-14s %5d %s %s %s %s %s %s\n"
+          % (arm, len(g), _fmt(med("swing2"), 9), _fmt(med("range2"), 9),
+             _fmt(med("swing7"), 9), _fmt(med("range7"), 9),
+             _fmt(med("gsat"), 7, 0), _fmt(med("lsat"), 7, 0)))
+    w("\n   `gsat`/`lsat` count the EPOCHS in which the constraint was "
+      "satisfied.\n   A median of 0 means it was never satisfied in a typical "
+      "run, so the\n   trajectory never settles and the last epoch is an "
+      "arbitrary draw from it.\n")
+    return 0
 
 
 def self_test(out=sys.stdout):
-    """A synthetic pair with a KNOWN swap must be recovered exactly."""
+    """The two claims must be detectable, and absent when they are absent."""
+    import shutil
     import tempfile
-    ok = True
+    tmp = tempfile.mkdtemp(prefix="boundary_probe_")
+    checks = []
+    try:
+        def write(camp, arm, seed, hard2, hard7, emit2, emit7):
+            d = os.path.join(tmp, camp, "M", "ds", "L80_G95", arm,
+                             "seed_%d" % seed)
+            os.makedirs(d, exist_ok=True)
+            with io.open(os.path.join(d, "config.json"), "w",
+                         encoding="utf-8") as fh:
+                fh.write('{"status": "completed"}')
+            cols = ["Epoch", "Train_Acc", "L_CE", "Grad_Norm",
+                    "Lambda_Global", "Lambda_Local", "Global_Satisfied",
+                    "Local_Satisfied", "Limit_Class2", "Hard_Class2",
+                    "Soft_Class2", "Limit_Class7", "Hard_Class7",
+                    "Soft_Class7"]
+            with io.open(os.path.join(d, "training_log.csv"), "w",
+                         encoding="utf-8", newline="") as fh:
+                wr = csv.writer(fh)
+                wr.writerow(cols)
+                for i, (h2, h7) in enumerate(zip(hard2, hard7)):
+                    wr.writerow([i + 1, 0.9, 0.1, 1.0, 0.5, 0.5, 0, 0,
+                                 352, h2, h2, 433, h7, h7])
+            with io.open(os.path.join(d, "final_predictions_raw.csv"), "w",
+                         encoding="utf-8", newline="") as fh:
+                wr = csv.writer(fh)
+                wr.writerow(["True_Label", "Predicted_Label"])
+                for _ in range(emit2):
+                    wr.writerow([2, 2])
+                for _ in range(emit7):
+                    wr.writerow([7, 7])
+            return d
 
-    def check(name, cond):
-        nonlocal ok
-        ok = ok and cond
-        print("  %-56s %s" % (name, "PASS" if cond else "FAIL"), file=out)
+        # A see-saw: treated pushes 2 down 60 and 7 up 60 against its null.
+        write("c", "tralo_null", 1, [380] * 5, [450] * 5, 380, 450)
+        write("c", "tralo", 1, [320] * 5, [510] * 5, 320, 510)
+        runs = collect([os.path.join(tmp, "c")])
+        buf = io.StringIO()
+        report(runs, out=buf)
+        txt = buf.getvalue()
+        checks.append(("a class-2-down / class-7-up pair is called a SEE-SAW",
+                       "SEE-SAW" in txt and "1 of 1" in txt))
 
-    n, C, c = 20, 3, 1
-    y = np.array([c if i < 8 else 0 for i in range(n)])
-    # control selects items 0..3 (K=4); treated drops 3 and takes 9
-    p0 = np.array([c if i < 4 else 0 for i in range(n)])
-    p1 = np.array([c if i in (0, 1, 2, 9) else 0 for i in range(n)])
-    P = np.zeros((n, C))
-    P[:, c] = np.linspace(0.99, 0.01, n)      # rank == index + 1
-    P[:, 0] = 1 - P[:, c]
+        # NEGATIVE CONTROL: both classes down. Must NOT read as a see-saw.
+        write("d", "tralo_null", 1, [380] * 5, [450] * 5, 380, 450)
+        write("d", "tralo", 1, [320] * 5, [400] * 5, 320, 400)
+        buf = io.StringIO()
+        report(collect([os.path.join(tmp, "d")]), out=buf)
+        checks.append(("NEGATIVE CONTROL: both classes moving DOWN is not a "
+                       "see-saw", "0 of 1" in buf.getvalue()))
 
-    d = tempfile.mkdtemp()
-    for nm, pred in (("ctrl", p0), ("trt", p1)):
-        os.makedirs(os.path.join(d, nm), exist_ok=True)
-        with open(os.path.join(d, nm, "final_predictions.csv"), "w",
-                  newline="") as f:
-            w = csv.writer(f)
-            w.writerow(["True_Label", "Predicted_Label", "Correct"]
-                       + ["Prob_Class_%d" % k for k in range(C)] + ["Group_ID"])
-            for i in range(n):
-                w.writerow([y[i], pred[i], int(y[i] == pred[i])]
-                           + list(P[i]) + [0])
-    r = compare(os.path.join(d, "ctrl"), os.path.join(d, "trt"), [c])[c]
+        # Oscillation must be measured, and a flat run must read ~0.
+        write("e", "tralo", 1, [300, 400, 300, 400, 300], [450] * 5, 300, 450)
+        r = collect([os.path.join(tmp, "e")])
+        ft = list(r.values())[0]
+        checks.append(("a count swinging 100 per epoch reports swing2 = 100",
+                       abs(ft["swing2"] - 100.0) < 1e-6))
+        checks.append(("  and range2 = 100", abs(ft["range2"] - 100.0) < 1e-6))
+        write("f", "tralo", 1, [300] * 5, [450] * 5, 300, 450)
+        ft = list(collect([os.path.join(tmp, "f")]).values())[0]
+        checks.append(("NEGATIVE CONTROL: a FLAT count reports swing2 = 0",
+                       abs(ft["swing2"]) < 1e-6))
+        # The emitted count must come from predictions, never the log.
+        write("g", "tralo", 1, [999] * 5, [999] * 5, 300, 450)
+        ft = list(collect([os.path.join(tmp, "g")]).values())[0]
+        checks.append(("the EMITTED count is read from predictions, not the "
+                       "log (log says 999, predictions say 300)",
+                       ft["emitted"][2] == 300))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
-    check("recovers exactly one swap", r["swapped"] == 1 and r["n_evicted"] == 1)
-    check("reports the budget as equal", r["budget_equal"] is True)
-    # item 9 has rank 10, K=4 -> depth 6
-    check("depth is measured below the CONTROL's boundary", r["depths"] == [6])
-    # evicted item 3 is a true positive; admitted item 9 is NOT (y=0 for i>=8)
-    check("net is NEGATIVE when a TP is swapped for a non-TP",
-          r["net_items"] == -1)
-    check("admitted precision 0.0, evicted precision 1.0",
-          r["prec_admitted"] == 0.0 and r["prec_evicted"] == 1.0)
-
-    # NEGATIVE CONTROL: identical predictions must yield NO swap and net 0
-    r2 = compare(os.path.join(d, "ctrl"), os.path.join(d, "ctrl"), [c])[c]
-    check("negative control: identical arms swap nothing, net 0",
-          r2["swapped"] == 0 and r2["net_items"] == 0)
-
-    print("\n%s" % ("ALL PASS" if ok else "FAILURES ABOVE"), file=out)
-    return 0 if ok else 1
+    print("", file=out)
+    for label, good in checks:
+        print("  %-72s %s" % (label[:72], "PASS" if good else "FAIL"), file=out)
+    bad = [c for c, g in checks if not g]
+    print("", file=out)
+    print("ALL PASS" if not bad else "FAILED: %d" % len(bad), file=out)
+    return 1 if bad else 0
 
 
 def main(argv=None):
-    a = argparse.ArgumentParser()
-    a.add_argument("--campaign")
-    a.add_argument("--control", default="clip")
-    a.add_argument("--arms", nargs="+", default=["tralo_uniform", "tralo"])
-    a.add_argument("--models", nargs="+")
-    a.add_argument("--caps", nargs="+")
-    a.add_argument("--classes", nargs="+", type=int, default=[2, 7])
-    a.add_argument("--seeds", nargs="+", type=int, default=[1, 2, 3, 4])
-    a.add_argument("--json")
+    a = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    a.add_argument("--campaign", nargs="+", default=[])
     a.add_argument("--self-test", action="store_true")
     args = a.parse_args(argv)
-
     if args.self_test:
         return self_test()
     if not args.campaign:
-        raise SystemExit("--campaign is required (or --self-test)")
-
-    models = args.models or sorted(
-        d for d in os.listdir(args.campaign)
-        if os.path.isdir(os.path.join(args.campaign, d)))
-    rows = []
-    for model in models:
-        caps = args.caps or sorted(
-            os.listdir(os.path.join(args.campaign, model, "iwildcam")))
-        for cap in caps:
-            for arm in args.arms:
-                cr = find_runs(args.campaign, model, cap, args.control,
-                               args.seeds)
-                tr = dict(find_runs(args.campaign, model, cap, arm, args.seeds))
-                for seed, cdir in cr:
-                    if seed not in tr:
-                        continue
-                    try:
-                        res = compare(cdir, tr[seed], args.classes)
-                    except SystemExit as exc:
-                        print("  skipped %s: %s" % (tr[seed], exc))
-                        continue
-                    for c, v in res.items():
-                        rows.append(dict(model=model, cap=cap, arm=arm,
-                                         seed=seed, cls=c, **v))
-    if not rows:
-        print("no comparable (control, arm) pairs found")
-        return 1
-
-    print("BOUNDARY PROBE -- which items crossed the clipper's cut, and was it "
-          "worth it")
-    print("control = %s   %d pair(s)" % (args.control, len(rows)))
-    print("")
-    print("%-13s %-9s %-14s %3s %4s %6s %7s %7s %8s %8s"
-          % ("model", "cap", "arm", "cls", "seed", "swap", "precAdm",
-             "precEvi", "net", "medDepth"))
-    for r in rows:
-        d = r["depths"]
-        print("%-13s %-9s %-14s %3d %4d %6d %7.3f %7.3f %+8d %8s"
-              % (r["model"], r["cap"], r["arm"], r["cls"], r["seed"],
-                 r["swapped"], r["prec_admitted"], r["prec_evicted"],
-                 r["net_items"],
-                 "%d" % int(np.median(d)) if d else "-"))
-        if not r["budget_equal"]:
-            print("      !! BUDGET NOT EQUAL: %d admitted vs %d evicted. Every "
-                  "number on this row is partly a budget measurement."
-                  % (r["swapped"], r["n_evicted"]))
-
-    print("")
-    for arm in args.arms:
-        sub = [r for r in rows if r["arm"] == arm]
-        if not sub:
-            continue
-        net = sum(r["net_items"] for r in sub)
-        sw = sum(r["swapped"] for r in sub)
-        pa = np.mean([r["prec_admitted"] for r in sub
-                      if r["swapped"]]) if sw else float("nan")
-        pe = np.mean([r["prec_evicted"] for r in sub
-                      if r["swapped"]]) if sw else float("nan")
-        alld = [x for r in sub for x in r["depths"]]
-        print("%-14s swapped %5d items, net %+5d, precision admitted %.3f vs "
-              "evicted %.3f, median depth %s"
-              % (arm, sw, net, pa, pe,
-                 "%d" % int(np.median(alld)) if alld else "-"))
-
-    if args.json:
-        with open(args.json, "w") as f:
-            json.dump(rows, f)
-        print("\nwrote %s" % args.json)
-    return 0
+        a.error("give --campaign <root> ... (or --self-test)")
+    return report(collect(args.campaign))
 
 
 if __name__ == "__main__":
