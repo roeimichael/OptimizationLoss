@@ -138,6 +138,16 @@ blocks:
     # touched. Single-class spread across scopes has median 1.5x; this is ~30x,
     # which is why multi-class is where the shape stops being inert.
     penalty_shape: rational_bounded
+    # HOW FAR lambda MOVES PER VIOLATED EPOCH. "constant" is the shipped
+    # ratchet and stays the DEFAULT, so every stored result is unchanged. It is
+    # declared HERE rather than left to an inline `hp.get(..., "constant")`
+    # because a default that lives only in code is invisible to `audit_config`
+    # and to anyone reading a run's config.json. See the
+    # `ratchet_proportional` block for what the alternative buys and why.
+    lambda_ratchet_mode: constant
+    # ^ TraLO-SPECIFIC, like penalty_shape: the duals ratchet nothing -- they
+    # do dual ascent -- so a shared-block key would be emitted to them and read
+    # by none of them, which is exactly what audit_config flags.
     # ^ TraLO-SPECIFIC on purpose: the duals do not have this penalty at all
     # (fioretto sums probabilities, hounie uses a mean violation), so a
     # shared-block key would be emitted to them and read by none of them --
@@ -558,6 +568,48 @@ blocks:
     penalty_shape: linear
   penalty_squared:
     penalty_shape: squared
+  # THE MULTIPLIER'S DYNAMIC RANGE. Measured 2026-09-06 by
+  # `scripts/latch_probe` over 24 `dom1` tralo runs, and this is the sharpest
+  # structural gap between TraLO and the three rival duals found so far.
+  #
+  # The shipped ratchet adds a CONSTANT per violated epoch, so
+  #     lam_c = lambda_local + lambda_step * (epochs scope c was violated)
+  # which is a FREQUENCY COUNTER whose range is capped by the epoch count. At
+  # the shipped 0.01 / 0.05 over 29 epochs it can span at most 24.3x -- and at
+  # the MANUSCRIPT's constants (lam_0 0.05, step 0.002) at most 2.1x. Measured
+  # range on dom1: 13.3x. The raw violations it is responding to span 634x.
+  #
+  # LDF, ALM and Hounie all integrate the violation MAGNITUDE instead, so their
+  # ratios track the 634x. Under `constraint_grad_mode: normalize` the summed
+  # gradient takes ONE norm over model.parameters(), so the overall size of the
+  # multiplier divides out and ONLY THE RATIOS ACROSS SCOPES STEER. TraLO is
+  # therefore spreading its fixed-norm step nearly evenly over scopes that ALM
+  # concentrates on.
+  #
+  # ⚠️ The rank ORDERING is largely the same -- Spearman(lam, magnitude) is
+  # +0.905. It is the RANGE that differs, and a rank correlation is invariant
+  # to monotone rescaling, so the rho actively hides this. Quote both.
+  #
+  # PRE-REGISTERED, before a single run:
+  #   -> the prediction is about the MIDDLE-depth scopes (0.19-1.00 over
+  #      budget), where 2(z48) put the entire alm-vs-tralo gap. Read
+  #      `deep_scope`'s middle bucket, not the campaign headline.
+  #   -> NOT predicted to be a depth story. `tralo_squared` already up-weights
+  #      deep scopes and 2(z48) demoted it, because the DEEP bucket is already
+  #      tied (+12.3 vs +12.7). If `dualprop` only moves the deep bucket it has
+  #      reproduced `squared` and is not the mechanism.
+  #   -> the absolute lambda will grow ~30x larger than the constant ratchet's.
+  #      That is NOT an overdose and must not be reported as one: `normalize`
+  #      rescales the summed gradient to exactly `constraint_grad_clip`, so
+  #      only ratios survive. If the DOSE gate goes red, that is a real
+  #      finding about fp16 or about the clip, not about the mechanism.
+  #   -> NOT predicted to win outright. `headroom` still bounds the prize at
+  #      12.8-20.7 items per cell at task caps.
+  #
+  # Not in `warmup_identity_keys`: it touches the constraint phase only, so it
+  # shares `tralo`'s cached warm-up and differs from it in exactly one key.
+  ratchet_proportional:
+    lambda_ratchet_mode: proportional
   fioretto:
     fioretto_step_size: 0.005     # REQUIRED: fioretto_ldf/train.py raises without it
     # Emitted here as well as on `alm`. Both packages READ this key, and ALM's
@@ -732,6 +784,14 @@ arms:
   tralo_squared:
     {methodology: tralo, phase: trained,
      blocks: [constraint_phase, tralo, penalty_squared],
+     null_sibling: tralo_null}
+  # THE MULTIPLIER-RANGE ARM. See the `ratchet_proportional` block for the
+  # measurement and the pre-registration. Shares `tralo_null` for the usual
+  # reason: at lambda 0 with lambda_step 0 nothing is ratcheted, so the mode is
+  # inert there and a dedicated null would be a bit-identical run.
+  tralo_dualprop:
+    {methodology: tralo, phase: trained,
+     blocks: [constraint_phase, tralo, ratchet_proportional],
      null_sibling: tralo_null}
   # Shares `tralo_null` for the usual reason: at lambda 0 with lambda_step 0
   # there is no constraint gradient, so a dedicated null would be a

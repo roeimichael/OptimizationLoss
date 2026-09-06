@@ -43,6 +43,37 @@ from src.utils.constants import UNLIMITED
 
 log = logging.getLogger(__name__)
 
+RATCHET_MODES = ("constant", "proportional")
+
+
+def validate_ratchet_mode(mode):
+    """Refuse an unrecognised mode rather than falling back to the default.
+
+    A silent fallback here is the exact failure this project has paid for five
+    times: the arm would run as a second `tralo`, produce a plausible panel,
+    and be reported as a null for a mechanism that never executed.
+    """
+    if mode not in RATCHET_MODES:
+        raise ValueError(
+            "lambda_ratchet_mode must be one of %s, got %r. Rename the arm "
+            "rather than adding a value here." % (", ".join(RATCHET_MODES), mode))
+    return mode
+
+
+def ratchet_increment(mode, lambda_step, hard_c, limit_c):
+    """How far lambda moves for one violated scope in one epoch.
+
+    `constant` is the shipped TraLO ratchet -- a fixed step on a binary
+    over/under test -- so lambda ends up counting HOW OFTEN a scope was
+    violated. `proportional` integrates HOW MUCH instead, which is what LDF,
+    ALM and Hounie all do. Callers check `hard_c > limit_c` first, so the
+    excess is strictly positive and both modes return a positive increment.
+    """
+    validate_ratchet_mode(mode)
+    if mode == "proportional":
+        return lambda_step * (hard_c - limit_c)
+    return lambda_step
+
 
 def _reseed_draws(hp):
     """How many draws to take from the global generator. 0 = no reseed.
@@ -175,6 +206,32 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     constraint_epochs = _required(hp, "constraint_epochs", int)
     total_epochs = warmup_epochs + constraint_epochs
     lambda_step = hp["lambda_step"]
+    # ---- how much lambda moves per violated epoch -----------------------
+    # `constant` is the shipped TraLO ratchet: a FIXED increment on a binary
+    # over/under test, so after T epochs lam_c = lam_0 + step * (number of
+    # epochs scope c was violated). That is a FREQUENCY counter, and its range
+    # is capped by the epoch count -- at lambda_local 0.01 / lambda_step 0.05
+    # over 29 epochs it can span at most 24.3x no matter how differently the
+    # scopes are violated. Measured on dom1 it spans 13.3x while the raw
+    # violations it is responding to span 634x (`scripts/latch_probe`).
+    #
+    # `proportional` integrates the violation MAGNITUDE instead, which is what
+    # all three rival duals do -- LDF `lam += step * viol`, ALM
+    # `lam = max(0, lam + eta * r)`, Hounie `lam += eta * (mean - u)`. The raw
+    # excess is used rather than a K-normalised one because ALM's residual is
+    # raw (`fioretto_alm/train.py:149`), and the point of the arm is to be that
+    # difference and nothing else.
+    #
+    # The absolute size is irrelevant under `constraint_grad_mode: normalize`:
+    # the summed gradient is rescaled to exactly `constraint_grad_clip` by one
+    # norm over model.parameters(), so only the RATIOS across scopes steer.
+    # That is also why a larger lambda cannot "overdose" this arm.
+    lambda_ratchet_mode = str(hp.get("lambda_ratchet_mode", "constant"))
+    validate_ratchet_mode(lambda_ratchet_mode)
+
+    def _ratchet_increment(hard_c, limit_c):
+        return ratchet_increment(lambda_ratchet_mode, lambda_step,
+                                 hard_c, limit_c)
     stable_count_threshold = _required(hp, "stable_count_threshold", int)
 
 
@@ -544,7 +601,8 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             if hard_c > limit_c and ratchet_gate:
                 old = criterion_constraint.get_lambda_per_class(c, scope="global")
                 criterion_constraint.set_lambda_per_class(
-                    c, old + lambda_step, scope="global")
+                    c, old + _ratchet_increment(hard_c, limit_c),
+                    scope="global")
         for gid, buffer_name in criterion_constraint.local_groups.items():
             lc = getattr(criterion_constraint, buffer_name)
             for c in constrained_classes:
@@ -554,7 +612,8 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                         old = criterion_constraint.get_lambda_per_class(
                             c, scope="local", group_id=gid)
                         criterion_constraint.set_lambda_per_class(
-                            c, old + lambda_step, scope="local", group_id=gid)
+                            c, old + _ratchet_increment(hard_c, lc[c].item()),
+                            scope="local", group_id=gid)
 
         if is_satisfied and satisfaction_epoch is None:
             satisfaction_epoch = epoch + 1

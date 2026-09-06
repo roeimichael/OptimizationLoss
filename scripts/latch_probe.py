@@ -61,40 +61,29 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _SOFT = re.compile(r"^Group(\d+)_(Hard|Limit)_Class(\d+)$")
 
 
-def latch_of(run_dir):
-    """`satisfaction_epoch` for this run, or (None, False) if not recorded.
-
-    Returns (epoch_or_None, found). `found` distinguishes "this run never
-    latched" from "this run does not record the field at all" -- opposite
-    conclusions that a bare None would merge.
-    """
-    for name in sorted(os.listdir(run_dir)):
-        if not name.endswith(".json"):
-            continue
-        try:
-            blob = json.load(open(os.path.join(run_dir, name)))
-        except (ValueError, OSError):
-            continue
-        for d in (blob, blob.get("best_metrics") or {},
-                  blob.get("metrics") or {}, blob.get("summary") or {}):
-            if isinstance(d, dict) and "satisfaction_epoch" in d:
-                return d["satisfaction_epoch"], True
-    return None, False
+def _truthy(v):
+    """The log writes these booleans as True/False/1/0 depending on writer."""
+    s = str(v).strip().lower()
+    return s in ("true", "1", "1.0", "yes")
 
 
-def violation_trace(run_dir, classes):
-    """Per epoch, how many (group, class) scopes were violated on HARD counts.
+def read_log(run_dir, classes):
+    """Per epoch: (all-satisfied flag, {scope: excess}) from `training_log.csv`.
 
-    Read straight from `training_log.csv`, which is the same quantity the latch
-    itself tests -- so this measures the latch on its own terms rather than on
-    the final predictions (FRAMEWORK 3(0c): the two disagree for trained arms).
+    `satisfaction_epoch` is NOT persisted to disk -- `runner.py` puts it in
+    `best_metrics` and only a subset of that reaches `config.json`. But the log
+    writes `Global_Satisfied` and `Local_Satisfied`, which are the exact two
+    booleans the latch ANDs, so the latch epoch is reconstructible rather than
+    approximated.
     """
     path = os.path.join(run_dir, "training_log.csv")
     if not os.path.exists(path):
-        return []
+        return None
     out = []
     with open(path, newline="") as fh:
         for row in csv.DictReader(fh):
+            if "Global_Satisfied" not in row or "Local_Satisfied" not in row:
+                return None
             hard, lim = {}, {}
             for k, v in row.items():
                 m = _SOFT.match(k or "")
@@ -104,18 +93,86 @@ def violation_trace(run_dir, classes):
                 if c not in classes:
                     continue
                 (hard if m.group(2) == "Hard" else lim)[(m.group(1), c)] = float(v)
-            if not lim:
-                out.append(None)
-                continue
-            out.append(sum(1 for key, K in lim.items()
-                           if hard.get(key, 0.0) > K))
-    return out
+            excess = {key: max(hard.get(key, 0.0) - K, 0.0)
+                      for key, K in lim.items()}
+            sat = _truthy(row["Global_Satisfied"]) and _truthy(row["Local_Satisfied"])
+            out.append((sat, excess, lim))
+    return out or None
 
 
-def analyse(roots, classes, arms, out=sys.stdout):
+def latch_epoch(log):
+    """First epoch index (0-based) at which every scope was satisfied, or None.
+
+    Mirrors `tralo/train.py`: the latch is set on the FIRST such epoch and is
+    never cleared, so everything after it runs with lambda and rho frozen.
+    """
+    for i, (sat, _e, _l) in enumerate(log):
+        if sat:
+            return i
+    return None
+
+
+def _spearman(x, y):
+    """Rank correlation. None when either side is constant (no ranking)."""
+    n = len(x)
+    if n < 3:
+        return None
+
+    def rank(v):
+        order = sorted(range(n), key=lambda i: v[i])
+        r = [0.0] * n
+        i = 0
+        while i < n:
+            j = i
+            while j + 1 < n and v[order[j + 1]] == v[order[i]]:
+                j += 1
+            for k in range(i, j + 1):
+                r[order[k]] = (i + j) / 2.0
+            i = j + 1
+        return r
+
+    rx, ry = rank(x), rank(y)
+    mx, my = sum(rx) / n, sum(ry) / n
+    num = sum((a - mx) * (b - my) for a, b in zip(rx, ry))
+    dx = sum((a - mx) ** 2 for a in rx)
+    dy = sum((b - my) ** 2 for b in ry)
+    if dx <= 0 or dy <= 0:
+        return None
+    return num / (dx * dy) ** 0.5
+
+
+def weight_rankings(log, latch, lam0, step):
+    """TraLO's per-scope multiplier against the one ALM/LDF would have built.
+
+    TraLO ratchets a CONSTANT while a scope is violated, and the gate closes at
+    the latch, so its multiplier is exactly
+
+        lam_c = lam0 + step * (epochs scope c was violated, before the latch)
+
+    -- a FREQUENCY counter. LDF/ALM accumulate `eta * violation`, i.e. the
+    cumulative violation MAGNITUDE. Under `constraint_grad_mode: normalize` the
+    whole summed gradient is scaled by ONE norm over `model.parameters()`, so
+    the overall size of either multiplier divides out and only the RATIOS
+    ACROSS SCOPES survive. These two rankings ARE the two search directions.
+
+    Returns (lam_by_scope, mag_by_scope). If they rank scopes the same way, the
+    frequency-vs-magnitude distinction is cosmetic and the direction closes.
+    """
+    end = len(log) if latch is None else latch
+    freq, mag = collections.Counter(), collections.Counter()
+    for sat, excess, _lim in log[:end]:
+        for key, e in excess.items():
+            if e > 0:
+                freq[key] += 1
+                mag[key] += e
+    lam = {k: lam0 + step * n for k, n in freq.items()}
+    return lam, dict(mag)
+
+
+def analyse(roots, classes, arms, lam0=0.01, step=0.05, out=sys.stdout):
     w = out.write
     rows = []
-    unrecorded = 0
+    unreadable = 0
     for root in roots:
         for cfg in sorted(glob.glob(os.path.join(root, "*/*/*/*/*/config.json"))):
             try:
@@ -128,13 +185,20 @@ def analyse(roots, classes, arms, out=sys.stdout):
             arm = os.path.normpath(d).replace("\\", "/").split("/")[-2]
             if arms and arm not in arms:
                 continue
-            ep, found = latch_of(d)
-            if not found:
-                unrecorded += 1
+            log = read_log(d, classes)
+            if log is None:
+                unreadable += 1
                 continue
-            trace = violation_trace(d, classes)
-            rows.append({"arm": arm, "dir": d, "latch": ep,
-                         "trace": [t for t in trace if t is not None]})
+            hp = c.get("hyperparams") or {}
+            lat = latch_epoch(log)
+            lam, mag = weight_rankings(
+                log, lat, float(hp.get("lambda_local", lam0)),
+                float(hp.get("lambda_step", step)))
+            rows.append({"arm": arm, "dir": d, "latch": lat, "log": log,
+                         "lam": lam, "mag": mag,
+                         "trace": [sum(1 for e in ex.values() if e > 0)
+                                   for _s, ex, _l in log]})
+    unrecorded = unreadable
 
     if not rows:
         w("no completed runs recorded `satisfaction_epoch` under these roots.\n")
@@ -178,18 +242,121 @@ def analyse(roots, classes, arms, out=sys.stdout):
       "  happened in that frozen tail. Near zero in either column means the\n"
       "  latch costs nothing and this direction is CLOSED. A late latch is\n"
       "  as good as no latch.\n")
+
+    # THE KILL-SWITCH. Everything above is about WHEN TraLO stops adapting.
+    # This is about WHAT it was aiming at while it did. Under `normalize` the
+    # summed constraint gradient takes ONE norm over model.parameters(), so the
+    # overall size of the multiplier divides out and only the ratios across
+    # scopes steer. TraLO's ratios come from a FREQUENCY counter; LDF's and
+    # ALM's from cumulative violation MAGNITUDE. If those two rank the scopes
+    # the same way, the distinction is cosmetic and `tralo_dualprop` is not
+    # worth a GPU.
+    w("\n%s\n" % ("=" * 74))
+    w("FREQUENCY vs MAGNITUDE: are they even different search directions?\n")
+    w("  Spearman(TraLO's lambda_c, the cumulative violation ALM/LDF would\n")
+    w("  have integrated) ACROSS the scopes of one run. rho = 1.000 means\n")
+    w("  TraLO's constant ratchet already orders scopes exactly as a\n")
+    w("  magnitude integrator would, and the direction is CLOSED.\n")
+    w("%s\n" % ("=" * 74))
+    for arm in sorted(by_arm):
+        rs, out_r = by_arm[arm], []
+        for r in rs:
+            keys = [k for k in r["lam"] if k in r["mag"]]
+            if len(keys) >= 3:
+                rr = _spearman([r["lam"][k] for k in keys],
+                               [r["mag"][k] for k in keys])
+                if rr is not None:
+                    out_r.append(rr)
+        if not out_r:
+            w("  %-16s fewer than 3 co-violated scopes per run -- no ranking\n"
+              % arm)
+            continue
+        out_r.sort()
+        med = out_r[len(out_r) // 2]
+        # SPEARMAN IS NOT ENOUGH, AND ON ITS OWN IT MISLEADS HERE. Under
+        # `normalize` the search direction is the RATIO between scope weights,
+        # and a rank correlation is invariant to any monotone rescaling -- so
+        # two weightings can order scopes almost identically while one is
+        # nearly uniform and the other is enormously selective. The dynamic
+        # range is what actually steers, so it is reported beside the rho.
+        spreads = []
+        for r in rs:
+            keys = [k for k in r["lam"] if k in r["mag"]]
+            if len(keys) < 3:
+                continue
+            lv = [r["lam"][k] for k in keys]
+            mv = [r["mag"][k] for k in keys if r["mag"][k] > 0]
+            if lv and mv and min(lv) > 0 and min(mv) > 0:
+                spreads.append((max(lv) / min(lv), max(mv) / min(mv)))
+        if spreads:
+            spreads.sort(key=lambda t: t[0])
+            lo = spreads[len(spreads) // 2]
+            w("  %-16s median rho %+.3f over %3d runs | RANGE tralo %5.1fx vs "
+              "magnitude %7.1fx\n" % (arm, med, len(out_r), lo[0], lo[1]))
+        else:
+            w("  %-16s median rho %+.3f over %3d runs\n" % (arm, med, len(out_r)))
+    w("\n  READ THE RANGE, NOT ONLY THE RHO. Spearman is invariant to any\n"
+      "  monotone rescaling, so two weightings can ORDER the scopes almost\n"
+      "  identically while one is nearly uniform and the other is sharply\n"
+      "  selective. Under `normalize` it is the RATIOS that steer, so a small\n"
+      "  tralo range beside a large magnitude range means TraLO is spreading\n"
+      "  its fixed-norm step almost evenly over scopes that ALM concentrates.\n"
+      "  That is a difference a high rho actively hides.\n")
     if unrecorded:
         w("\n  %d completed runs recorded no `satisfaction_epoch` (non-tralo\n"
           "  families do not have one) and were skipped.\n" % unrecorded)
     return 0
 
 
+def _log(rows):
+    """Fixture: rows of (satisfied, {scope: excess}). Limits are unused here."""
+    return [(sat, ex, {k: 0.0 for k in ex}) for sat, ex in rows]
+
+
 def self_test(out=sys.stdout):
     checks = []
 
-    # The two conclusions a bare None would merge must stay separate.
-    checks.append(("a run that never latched and a run with no field are "
-                   "different", (None, True) != (None, False)))
+    # ---- the latch ------------------------------------------------------
+    lg = _log([(False, {("1", 2): 5.0}), (False, {("1", 2): 3.0}),
+               (True, {("1", 2): 0.0}), (False, {("1", 2): 9.0})])
+    checks.append(("latch fires on the FIRST all-satisfied epoch",
+                   latch_epoch(lg) == 2))
+    checks.append(("  and a later violation does NOT clear it, as in train.py",
+                   latch_epoch(lg) == 2))
+    checks.append(("NEGATIVE CONTROL: a run that never satisfies has no latch",
+                   latch_epoch(_log([(False, {("1", 2): 5.0})] * 5)) is None))
+
+    # ---- frequency vs magnitude: the kill-switch ------------------------
+    # Scope A is violated in EVERY epoch by 1 item; scope B in ONE epoch by 100.
+    # TraLO's constant ratchet must rank A above B; a magnitude integrator must
+    # rank B above A. If this fixture does not invert, the tool cannot detect
+    # the difference it exists to detect.
+    rows = [(False, {("A", 2): 1.0, ("B", 2): 0.0}) for _ in range(9)]
+    rows.append((False, {("A", 2): 1.0, ("B", 2): 100.0}))
+    lam, mag = weight_rankings(_log(rows), None, 0.01, 0.05)
+    checks.append(("frequency ranks the OFTEN-violated scope first (%.2f > %.2f)"
+                   % (lam[("A", 2)], lam[("B", 2)]),
+                   lam[("A", 2)] > lam[("B", 2)]))
+    checks.append(("  and magnitude ranks the DEEPLY-violated one first "
+                   "(%.0f > %.0f)" % (mag[("B", 2)], mag[("A", 2)]),
+                   mag[("B", 2)] > mag[("A", 2)]))
+
+    # The latch must truncate the accumulation. A scope violated only AFTER the
+    # latch earns no multiplier, because the gate is shut -- if this counted it,
+    # every run would look adaptive to the end.
+    rows = [(False, {("A", 2): 1.0, ("B", 2): 0.0}),
+            (True, {("A", 2): 0.0, ("B", 2): 0.0}),
+            (False, {("A", 2): 0.0, ("B", 2): 50.0})]
+    lam2, mag2 = weight_rankings(_log(rows), latch_epoch(_log(rows)), 0.01, 0.05)
+    checks.append(("NEGATIVE CONTROL: violation AFTER the latch earns no "
+                   "multiplier", ("B", 2) not in lam2 and ("B", 2) not in mag2))
+
+    checks.append(("spearman: increasing reads +1",
+                   _spearman([1, 2, 3, 4], [10, 20, 30, 40]) == 1.0))
+    checks.append(("NEGATIVE CONTROL: decreasing reads -1",
+                   _spearman([1, 2, 3, 4], [40, 30, 20, 10]) == -1.0))
+    checks.append(("NEGATIVE CONTROL: a constant side has no ranking",
+                   _spearman([1, 2, 3, 4], [7, 7, 7, 7]) is None))
 
     # A latch at the last epoch must show an EMPTY frozen tail -- that is the
     # "costs nothing" case the tool has to be able to report.

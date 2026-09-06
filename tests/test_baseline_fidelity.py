@@ -4890,3 +4890,91 @@ def _blocks_of(P, arm):
     for name in P["arms"][arm].get("blocks") or []:
         hp.update(P["blocks"].get(name) or {})
     return hp
+
+
+def test_the_proportional_ratchet_is_LIVE_and_widens_the_multiplier_range():
+    """`tralo_dualprop` must differ from `tralo` in the ONE thing it claims.
+
+    Measured 2026-09-06 (`scripts/latch_probe`, 24 dom1 runs): TraLO's shipped
+    ratchet adds a CONSTANT per violated epoch, so lambda ends up counting HOW
+    OFTEN a scope was violated and its range is capped by the epoch count --
+    13.3x measured, 24.3x possible at the shipped constants. The raw violations
+    it responds to span 634x. LDF/ALM/Hounie all integrate HOW MUCH instead.
+
+    Under `constraint_grad_mode: normalize` the summed constraint gradient is
+    rescaled by ONE norm over model.parameters(), so the absolute size of the
+    multiplier divides out and only the ratios across scopes steer. This gates
+    that the new mode actually changes those ratios.
+    """
+    from src.methodologies.tralo.train import (RATCHET_MODES,
+                                               ratchet_increment,
+                                               validate_ratchet_mode)
+
+    step = 0.05
+
+    # 1. NEGATIVE CONTROL: `constant` must be exactly the shipped behaviour --
+    #    the increment cannot depend on the excess at all. If this ever starts
+    #    varying, every stored `tralo` result becomes a different method.
+    for hard, lim in ((11.0, 10.0), (300.0, 10.0), (1.0, 0.0)):
+        assert ratchet_increment("constant", step, hard, lim) == step
+
+    # 2. `proportional` must scale with the excess, and the RANGE it produces
+    #    across scopes must beat what the constant ratchet can reach at all.
+    #    Two scopes: one 1 item over in every one of 29 epochs, one 100 over in
+    #    a single epoch -- the case the constant ratchet gets backwards.
+    const_a = sum(ratchet_increment("constant", step, 11.0, 10.0)
+                  for _ in range(29))
+    const_b = ratchet_increment("constant", step, 110.0, 10.0)
+    prop_a = sum(ratchet_increment("proportional", step, 11.0, 10.0)
+                 for _ in range(29))
+    prop_b = ratchet_increment("proportional", step, 110.0, 10.0)
+    assert const_a > const_b, "constant ranks the OFTEN-violated scope first"
+    assert prop_b > prop_a, "proportional ranks the DEEPLY-violated one first"
+
+    # 2b. THE MECHANISM, stated exactly. The two modes do not differ by one
+    #     being uniformly "wider" -- on the fixture above the CONSTANT spread is
+    #     29x against proportional's 3.45x, because frequency and depth
+    #     disagree there and each mode follows its own axis. What is always
+    #     true is the degenerate case: at EQUAL violation frequency the constant
+    #     ratchet cannot distinguish depth AT ALL, however far apart the scopes
+    #     are. That is what caps its measured range at 13.3x while the raw
+    #     violations span 634x.
+    same_freq_const = [sum(ratchet_increment("constant", step, h, 10.0)
+                           for _ in range(29)) for h in (11.0, 110.0)]
+    same_freq_prop = [sum(ratchet_increment("proportional", step, h, 10.0)
+                          for _ in range(29)) for h in (11.0, 110.0)]
+    assert same_freq_const[0] == same_freq_const[1], (
+        "at equal frequency the constant ratchet must be blind to depth -- "
+        "that blindness IS the defect under test")
+    assert same_freq_prop[1] / same_freq_prop[0] == pytest.approx(100.0), (
+        "proportional must separate them by exactly their excess ratio, got "
+        "%.2f" % (same_freq_prop[1] / same_freq_prop[0]))
+
+    # 3. An unrecognised mode must RAISE, never fall back. A silent fallback is
+    #    this project's most frequent failure mode -- the arm would run as a
+    #    second `tralo` and be reported as a null for a mechanism that never
+    #    executed.
+    for bad in ("Proportional", "prop", "depth", "", None, 1):
+        with pytest.raises(ValueError):
+            validate_ratchet_mode(bad)
+        with pytest.raises(ValueError):
+            ratchet_increment(bad, step, 11.0, 10.0)
+
+    # 4. The arm must be WIRED: declared in protocol.yml, carrying the block,
+    #    sharing tralo's null, and NOT in warmup_identity_keys (it touches the
+    #    constraint phase only, so it must share tralo's cached warm-up).
+    import yaml
+    P = yaml.safe_load(io.open("configs/protocol.yml", encoding="utf-8"))
+    arm = P["arms"]["tralo_dualprop"]
+    assert "ratchet_proportional" in arm["blocks"], arm
+    assert arm["null_sibling"] == "tralo_null", arm
+    assert (P["blocks"]["ratchet_proportional"]["lambda_ratchet_mode"]
+            == "proportional")
+    assert "lambda_ratchet_mode" not in (P.get("warmup_identity_keys") or []), (
+        "lambda_ratchet_mode touches the constraint phase only; putting it in "
+        "warmup_identity_keys would force a redundant warm-up per arm")
+
+    # 5. NEGATIVE CONTROL on the wiring: plain `tralo` must NOT carry the block,
+    #    or the two arms would be one arm.
+    assert "ratchet_proportional" not in P["arms"]["tralo"]["blocks"]
+    assert set(RATCHET_MODES) == {"constant", "proportional"}

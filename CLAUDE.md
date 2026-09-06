@@ -136,7 +136,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 583 regression tests, ~250s, no dataset needed
+python -m pytest tests -q                   # 584 regression tests, ~250s, no dataset needed
 #   `tests/test_scorers_run_end_to_end.py` EXECUTES every scorer as a subprocess
 #   against a campaign carrying a real PARTIAL marker. It exists because three
 #   scorers once used `quarantine.` with no module-level import: they PARSED,
@@ -475,6 +475,28 @@ python -m scripts.penalty_starvation --glob '<runs>/tralo/seed_*'
 #   within a run and the ratio moves 51x -> 167x with it, so a single number is
 #   a choice dressed as a measurement -- it prints both ends. `--self-test` is a
 #   POSITIVE control against FRAMEWORK 2(a2)'s autograd table at BOTH rho rows.
+python -m scripts.latch_probe --campaign <root> --arms tralo tralo_uniform
+#   🛑 IS TraLO STILL ADAPTING, AND WHAT IS IT AIMING AT? Two questions from
+#   `training_log.csv` alone, no GPU.
+#   (1) THE LATCH. `ratchet_gate = satisfaction_epoch is None`, set on the
+#   first all-satisfied epoch and NEVER cleared, freezing the lambda ratchet
+#   AND the rho ramp for every scope. ⛔ MEASURED: it fires in **0 of 72**
+#   dom1 runs -- satisfaction is a global AND and 7 of 14 iwildcam ceilings
+#   are K=0, so the conjunction never holds. Closed for free. (`satisfaction_epoch`
+#   is NOT persisted; it is reconstructed from `Global_Satisfied` /
+#   `Local_Satisfied`, the exact booleans the latch ANDs.)
+#   (2) 🔑 FREQUENCY vs MAGNITUDE, and this one is live. TraLO ratchets a
+#   CONSTANT per violated epoch, so `lam_c = lam_0 + step * (epochs violated)`
+#   -- a FREQUENCY counter whose range is CAPPED BY THE EPOCH COUNT (24.3x at
+#   the shipped constants, **2.1x** at the manuscript's). LDF/ALM/Hounie all
+#   integrate the violation MAGNITUDE. Measured on dom1: tralo's lambda spans
+#   **13.3x** while the violations span **634x**.
+#   🛑 READ THE RANGE, NOT THE RHO. Spearman(lam, magnitude) is +0.905, so the
+#   ORDERING is about right -- but a rank correlation is invariant to monotone
+#   rescaling and hides the 48x range gap. Under `normalize` the summed
+#   gradient takes ONE norm over `model.parameters()`, so only the RATIOS
+#   across scopes steer. FRAMEWORK 2(z49). `--self-test` gates it, 12 checks,
+#   6 negative controls, including a fixture that must INVERT.
 python -m scripts.deep_scope --campaign <root> --arms tralo alm lp clip
 #   WHICH ARM ACTUALLY CLOSES THE DEEPLY-VIOLATED SCOPES? The OUTCOME test for
 #   `penalty_starvation`'s algebra, from `final_predictions_raw.csv` -- the

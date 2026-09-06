@@ -3927,7 +3927,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 583 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 584 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -4091,7 +4091,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 583 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 584 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -4099,7 +4099,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (583 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (584 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -10297,6 +10297,114 @@ reported as exactly that. `flips` and proximity to feasibility are still not
 metrics.
 
 
+---
+
+## 2(z49). THE LATCH NEVER FIRES, AND THE REAL GAP IS THE MULTIPLIER'S DYNAMIC RANGE (2026-09-06)
+
+**Two results from `scripts/latch_probe` over 72 completed `dom1` runs, at zero
+GPU cost. The first refutes a hypothesis raised the same day; the second is the
+sharpest structural difference between TraLO and the three rival duals found so
+far.**
+
+### 1. ⛔ THE SATISFACTION LATCH IS DEAD ON iwildcam -- 0 of 72 runs
+
+`tralo/train.py` gates BOTH adaptive channels on one latch: `ratchet_gate =
+satisfaction_epoch is None`, and `satisfaction_epoch` is set on the first epoch
+where `global_satisfied and local_satisfied` and is NEVER cleared. On paper that
+permanently freezes the lambda ratchet and the rho ramp for every scope.
+
+**It never happens.** `tralo`, `tralo_null` and `tralo_uniform` all latch in
+**0 of 24 runs each**. Satisfaction is a global AND over every scope and SEVEN of
+iwildcam's fourteen per-group ceilings are `K = 0`, so the conjunction is never
+true. The ratchet gate is open for all 29 epochs and rho always completes its
+0.5 -> 100 ramp.
+
+Consequences, and they cut in several directions:
+* The latch is **not** the mechanism behind the `alm` gap. Closed for free.
+* FRAMEWORK's `no_freeze` ablation (+0.13 pp) is **moot on this dataset** rather
+  than confirmed -- there is nothing to un-freeze. It remains uninterpretable
+  for the reason already given (measured where the local scope was empty), but
+  it is no longer even the right question here.
+* `satisfaction_epoch` is **not persisted**: `runner.py` puts it in
+  `best_metrics` and only a subset reaches `config.json`. It was reconstructed
+  from `training_log.csv`'s `Global_Satisfied` / `Local_Satisfied` columns,
+  which are the exact two booleans the latch ANDs.
+
+### 2. 🔑 TraLO's MULTIPLIER IS A FREQUENCY COUNTER, AND ITS RANGE IS CAPPED BY THE EPOCH COUNT
+
+The shipped ratchet adds a CONSTANT per violated epoch, so after T epochs
+
+    lam_c = lambda_local + lambda_step * (epochs scope c was violated)
+
+which counts **how often** a scope was violated, never **how much**. Its
+achievable range is therefore bounded by the number of epochs:
+
+| constants | max lam / min lam over 29 epochs |
+|---|---|
+| shipped (`lambda_local` 0.01, `lambda_step` 0.05) | **24.3x** |
+| the MANUSCRIPT's (lam_0 0.05, ratchet step 0.002) | **2.1x** |
+
+Measured on `dom1`: TraLO's lambda spans **13.3x** across the scopes of a run.
+The raw violations it is responding to span **634x**.
+
+| | `tralo` | `tralo_uniform` |
+|---|---|---|
+| Spearman(lam, cumulative violation) | +0.905 | +0.844 |
+| lambda range across scopes | 13.3x | 13.3x |
+| violation-magnitude range | **634x** | 254x |
+
+🛑 **QUOTE THE RANGE, NOT THE RHO, AND SAY WHY.** A rank correlation is
+invariant to any monotone rescaling, so +0.905 says TraLO orders the scopes
+about right while saying nothing about how sharply it weights them. Under
+`constraint_grad_mode: normalize` the summed gradient takes ONE norm over
+`model.parameters()` (`constraint_step.py:263`) AFTER every scope has been
+accumulated into `.grad`, so the overall size of the multiplier divides out and
+**only the ratios across scopes steer**. TraLO is spreading its fixed-norm step
+nearly evenly over scopes that ALM concentrates on. The rho hides exactly that.
+
+### 3. WHY THIS WAS NOT KNOWN, AND IT IS 2(z44)'s PATTERN A FOURTH TIME
+
+The manuscript defends the constant ratchet explicitly
+(`main_edited_by_roei.tex:1490`): *"the count comes down no faster at
+`lambda=53` than at TraLO's ratcheted `lambda <= 0.19` ... with the constraint
+term dominant and the step norm-clipped, the update is independent of lambda."*
+
+That argument is **correct for the global scale and silent on the per-scope
+ratios**, which is the whole question once there is more than one live scope.
+And its evidence, Fig. `fig_mechanism`, is **DermMNIST `L50/G50`,
+RegNetY-400MF, seed 1** -- the dataset that ran `lp_fallback_used=False` with
+**0 LP candidates on all 52 runs**, i.e. effectively a SINGLE-scope problem,
+which is precisely the case where lambda genuinely does divide out. The claim
+was verified where it cannot fail. iwildcam runs 11 live scopes per epoch.
+
+### 4. `tralo_dualprop`, IMPLEMENTED AND GATED
+
+`lambda_ratchet_mode: constant | proportional`, read at
+`tralo/train.py`, defaulting to `constant` so every stored result is unchanged.
+`proportional` integrates the RAW excess, matching ALM's residual
+(`fioretto_alm/train.py:149`) rather than a K-normalised one, so the arm is that
+difference and nothing else.
+
+⚠️ **AND ONE CLAIM CORRECTED BY ITS OWN GATE.** "Proportional widens the
+spread" is FALSE in general -- it REORDERS. On a fixture where frequency and
+depth disagree (one scope 1 item over in 29 epochs, one 100 over in a single
+epoch) the CONSTANT ratchet spreads them 29x and proportional only 3.45x. What
+is always true is the degenerate case, and it is the defect under test: **at
+equal violation frequency the constant ratchet is blind to depth entirely**,
+however far apart the scopes are. That is what caps its range at 13.3x. The test
+asserts the degenerate case and the reordering, not the false general claim.
+
+Gate: `test_the_proportional_ratchet_is_LIVE_and_widens_the_multiplier_range`,
+mutation-tested -- making `proportional` fall through to the constant increment
+turns it red, and the restore was verified by EXECUTION, not by grep.
+
+⛔ **PRE-REGISTERED**: the prediction is about the MIDDLE-depth scopes, where
+2(z48) put the entire gap. If `dualprop` only moves the DEEP bucket it has
+reproduced `tralo_squared`, which 2(z48) already demoted, and is not the
+mechanism. It is NOT predicted to win outright -- `headroom` still bounds the
+prize at 12.8-20.7 items per cell.
+
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, updated 2026-08-30 -- read this before section 3's older text**
@@ -11644,7 +11752,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             583 tests, ~200 s, no dataset required
+tests/             584 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
