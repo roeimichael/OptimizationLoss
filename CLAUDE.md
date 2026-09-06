@@ -366,6 +366,19 @@ python -m scripts.deployed_h2h --campaign <roots> --control clip  # 🛑 THE ARM
 #   2026-09-04; `fioretto` held 2 of that 6. AND that tally does not
 #   reproduce -- the same roots now give 8 named, likely a scorer-version
 #   difference (server vs local md5). UNVERIFIED; re-run the local scorer.
+#   ✅ THE FLOOR NOW READS **EVERY** lambda=0 STREAM (2026-09-06), not just
+#   the `_null`/`_reseed` pair. A campaign carrying a THIRD stream
+#   (`<fam>_reseed2`, a distinct `rng_reseed` offset) got NO credit for it:
+#   `shape1` reported a floor resting on **2** observations while carrying
+#   three streams -- the runs were bought, executed and then not read, the
+#   same defect as the `add_seeds` pooling bug. All C(k,2) pairs now count:
+#   3 streams x 4 seeds = **12**, which clears `MIN_FLOOR_OBS` = 8.
+#   ⚠️ THE VERDICT PRINTS observations AND STREAMS, because they differ: k
+#   streams give C(k,2) gaps but only k-1 INDEPENDENT contrasts, so 12 from 3
+#   streams is a better median than 4 from 2 and is NOT 12 independent draws.
+#   ⛔ `<fam>_lam0` is NOT a stream -- it keeps `lambda_step` and takes real
+#   constraint steps, so counting it puts the treatment back in the floor.
+#   Gated in both directions plus that negative control.
 #   ⚠️ |tralo - rival| median 4.0 items POOLED `alm`+`fioretto`+`hounie`
 #   and must be recomputed against `alm` alone (n 180 -> ~60); the value is
 #   not restated because it is not measured. The floor it was compared to,

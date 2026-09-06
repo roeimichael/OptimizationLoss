@@ -45,6 +45,7 @@ import glob
 import json
 import math
 import os
+import re
 import statistics as st
 import sys
 from scripts import pred_integrity
@@ -258,17 +259,51 @@ def rng_floor(cell, get):
     covered the spread. Correcting it makes this tool MORE conservative and
     makes "the head-to-head is inside the noise" a stronger statement, not a
     weaker one.
+
+    EXTENDED 2026-09-06 TO EVERY lambda=0 STREAM, NOT JUST ONE PAIR. This
+    used `fam_null` vs `fam_reseed` and nothing else, so a campaign carrying a
+    THIRD stream (`fam_reseed2`, a distinct `rng_reseed` offset) got no credit
+    for it: `shape1` reported a floor resting on 2 observations while carrying
+    three streams over three seeds. That is the same defect as the `add_seeds`
+    pooling bug -- the extra runs were bought, executed, and then not read.
+    Every unordered PAIR of lambda=0 streams in a family is a valid observation
+    of "two runs differing in RNG and nothing else", so all C(k,2) are used.
+
+    ⚠️ AND THE COUNT IS REPORTED WITH ITS STREAM COUNT, because the two are not
+    the same thing. Three streams give three pairwise gaps but only TWO
+    independent contrasts -- every pair shares a draw with another pair. 12
+    observations from 3 streams is a better median than 4 from 2, and it is NOT
+    12 independent draws. Callers print both so the distinction survives.
     """
-    gaps = []
+    gaps, streams = [], 0
     for fam in FAMILIES:
-        a, b = fam + "_null", fam + "_reseed"
-        if a in cell and b in cell:
-            d, _ = paired(cell[a], cell[b], get)
-            gaps += [abs(x) for x in d]
-    return (st.median(gaps), len(gaps)) if gaps else (None, 0)
+        present = [a for a in sorted(cell) if _is_lambda0_stream(a, fam)]
+        streams += len(present)
+        for i, a in enumerate(present):
+            for b in present[i + 1:]:
+                d, _ = paired(cell[a], cell[b], get)
+                gaps += [abs(x) for x in d]
+    return (st.median(gaps), len(gaps), streams) if gaps else (None, 0, 0)
 
 
-def floor_verdict(order, floor, nfloor):
+_STREAM = re.compile(r"^(?P<fam>.+?)_(null|reseed\d*)$")
+
+
+def _is_lambda0_stream(arm, fam):
+    """Is `arm` one of `fam`'s lambda=0 RNG streams?
+
+    `fam_null`, `fam_reseed`, `fam_reseed2`, ... all carry `lambda_step: 0.0`
+    via the `<fam>_null` block and differ only in the RNG draw, so any two of
+    them bracket RNG-only noise. `fam_lam0` is NOT one of these: it keeps
+    lambda_step and only zeroes the initial lambda, so it takes real constraint
+    steps and would contaminate the floor with the treatment -- which is the
+    exact error corrected on 2026-09-02 above.
+    """
+    m = _STREAM.match(arm)
+    return bool(m) and m.group("fam") == fam
+
+
+def floor_verdict(order, floor, nfloor, nstream=0):
     """Why this cell may NOT name a #1, or None if it may.
 
     THE OBSERVATION GUARD (added 2026-09-05). Until now the only bar was
@@ -298,10 +333,15 @@ def floor_verdict(order, floor, nfloor):
                 "Naming a #1 here names the RNG." % (spread, floor, nfloor))
     if nfloor < MIN_FLOOR_OBS:
         return ("REFUSED: spread %.1f items clears a floor of %.1f, but that "
-                "floor rests on %d observation(s), under the %d bar. A floor "
-                "estimated from too little is cleared by anything -- at n=1 it "
-                "comes back 0.0. The spread is UNPRICED, not proven."
-                % (spread, floor, nfloor, MIN_FLOOR_OBS))
+                "floor rests on %d observation(s) from %d lambda=0 stream(s), "
+                "under the %d bar. A floor estimated from too little is "
+                "cleared by anything -- at n=1 it comes back 0.0. The spread "
+                "is UNPRICED, not proven. Add a stream (`<fam>_reseed2`, 8 "
+                "runs) or seeds (16 runs) -- the streams are 4x cheaper."
+                % (spread, floor, nfloor, nstream, MIN_FLOOR_OBS))
+    # The bar is met. Say how DEPENDENT the observations are: k streams give
+    # C(k,2) pairwise gaps but only k-1 independent contrasts, so 12 from 3
+    # streams is a better median than 4 from 2 and is NOT 12 independent draws.
     return None
 
 
@@ -382,7 +422,7 @@ def report(cells, control, w=sys.stdout.write):
         order_f1, first_f1 = rank_cell(cell, control, g_f1)
         if not order_tp:
             continue
-        floor, nfloor = rng_floor(cell, g_tp)
+        floor, nfloor, nstream = rng_floor(cell, g_tp)
         base = st.mean(g_tp(r) for r in cell[control].values())
         nseed = len(order_tp[0][3])
 
@@ -431,7 +471,7 @@ def report(cells, control, w=sys.stdout.write):
             w("     so trading an item between them moves it with NO item won.\n")
 
         spread = order_tp[0][1] - order_tp[-1][1] if len(order_tp) > 1 else 0.0
-        verdict = floor_verdict(order_tp, floor, nfloor)
+        verdict = floor_verdict(order_tp, floor, nfloor, nstream)
         if verdict:
             n_refused += 1
             w("  #1: %s\n" % verdict)
@@ -530,7 +570,7 @@ def self_test(w=sys.stdout.write):
                   "tralo_null":   [600, 601, 599, 600],
                   "tralo_reseed": [600, 601, 599, 600]})
     order, first = rank_cell(live, "clip", g)
-    floor, _ = rng_floor(live, g)
+    floor, _, _ = rng_floor(live, g)
     spread = order[0][1] - order[-1][1]
     check(order[0][0] == "tralo" and spread > floor,
           "a 30-item lead over a 0-item RNG floor is NAMED (tralo)")
@@ -543,7 +583,7 @@ def self_test(w=sys.stdout.write):
                   "tralo_null":   [600, 601, 599, 600],
                   "tralo_reseed": [604, 597, 603, 596]})
     order, first = rank_cell(dead, "clip", g)
-    floor, nf = rng_floor(dead, g)
+    floor, nf, _ = rng_floor(dead, g)
     spread = order[0][1] - order[-1][1]
     check(spread <= floor,
           "a lead the size of the RNG floor is REFUSED (%.1f vs %.1f, n=%d)"
@@ -552,7 +592,7 @@ def self_test(w=sys.stdout.write):
     # 3. NEGATIVE CONTROL on the floor itself: remove the reseed twin and the
     #    tool must say the spread is UNPRICED, never fall back to naming one.
     noflow = {k: v for k, v in dead.items() if k != "tralo_reseed"}
-    fl, _ = rng_floor(noflow, g)
+    fl, _, _ = rng_floor(noflow, g)
     check(fl is None, "with no `_reseed` twin the floor is None, not 0")
 
     # 4. the jackknife must FIRE on a cell decided by one seed.
@@ -631,7 +671,7 @@ def self_test(w=sys.stdout.write):
                   "tralo_null":   [600],
                   "tralo_reseed": [600]})
     order, _ = rank_cell(thin, "clip", g)
-    fl, nf = rng_floor(thin, g)
+    fl, nf, _ = rng_floor(thin, g)
     v = floor_verdict(order, fl, nf)
     check(nf < MIN_FLOOR_OBS and v is not None and "UNPRICED" in v,
           "a 30-item lead over a floor built from %d observation(s) is "
@@ -639,13 +679,52 @@ def self_test(w=sys.stdout.write):
     # NEGATIVE CONTROL on that check: the SAME lead, same floor value, but now
     # the floor has enough observations behind it. It must be NAMED again --
     # otherwise the guard is refusing everything and proves nothing.
+    # ---- EVERY lambda=0 stream feeds the floor, not just one pair ---------
+    # `shape1` carried tralo_null + tralo_reseed + tralo_reseed2 over 3 seeds
+    # and the floor reported TWO observations, because only the null/reseed
+    # pair was read. The extra runs were bought, executed and then ignored --
+    # the same defect as the `add_seeds` pooling bug.
+    three = _cell({"clip":          [600] * 4,
+                   "tralo":         [640] * 4,
+                   "tralo_null":    [600, 601, 599, 600],
+                   "tralo_reseed":  [604, 603, 605, 604],
+                   "tralo_reseed2": [597, 596, 598, 597]})
+    _fl3, nf3, ns3 = rng_floor(three, g)
+    check(nf3 == 12 and ns3 == 3,
+          "3 lambda=0 streams x 4 seeds give C(3,2)x4 = 12 floor observations, "
+          "got %d from %d streams" % (nf3, ns3))
+    # NEGATIVE CONTROL: drop the third stream and the count must FALL to 4.
+    # Without this, a rng_floor that ignored `reseed2` and simply counted
+    # something else would still pass the check above.
+    two = _cell({k: v for k, v in
+                 {"clip":         [600] * 4,
+                  "tralo":        [640] * 4,
+                  "tralo_null":   [600, 601, 599, 600],
+                  "tralo_reseed": [604, 603, 605, 604]}.items()})
+    _fl2, nf2, ns2 = rng_floor(two, g)
+    check(nf2 == 4 and ns2 == 2,
+          "dropping the third stream must drop the count to 4 from 2 streams, "
+          "got %d from %d" % (nf2, ns2))
+    # NEGATIVE CONTROL: `_lam0` is NOT a lambda=0 RNG stream -- it keeps
+    # lambda_step and takes real constraint steps, so counting it would put the
+    # treatment back into the floor, the exact error corrected on 2026-09-02.
+    withlam0 = _cell({"clip":        [600] * 4,
+                      "tralo":       [640] * 4,
+                      "tralo_null":  [600, 601, 599, 600],
+                      "tralo_reseed": [604, 603, 605, 604],
+                      "tralo_lam0":  [630, 631, 629, 630]})
+    _fl4, nf4, ns4 = rng_floor(withlam0, g)
+    check(nf4 == 4 and ns4 == 2,
+          "`_lam0` must NOT be counted as an RNG stream, got %d from %d"
+          % (nf4, ns4))
+
     fat = _cell({"clip":         [600] * 8,
                  "tralo":        [640] * 8,
                  "alm":          [610] * 8,
                  "tralo_null":   [600] * 8,
                  "tralo_reseed": [600] * 8})
     order, _ = rank_cell(fat, "clip", g)
-    fl, nf = rng_floor(fat, g)
+    fl, nf, _ = rng_floor(fat, g)
     check(nf >= MIN_FLOOR_OBS and floor_verdict(order, fl, nf) is None,
           "  and the SAME lead over a floor with %d observations is NAMED" % nf)
     # The two other refusal paths still work through the extracted function.

@@ -63,7 +63,7 @@ def rows_for(cells, control):
         d = dict((arm, mean) for arm, mean, _dl, _sd in order)
         if "tralo" not in d:
             continue
-        floor, nfloor = deployed_h2h.rng_floor(cell, _tp)
+        floor, nfloor, _nstream = deployed_h2h.rng_floor(cell, _tp)
         present = [r for r in RIVALS if r in d]
         # 🛑 THE MARGIN IS PAIRWISE, NEVER `max - min` (fixed 2026-09-06).
         # A RANGE over k arms grows like `sd*sqrt(2 ln k)` -- ~3.1*sd at k=10 --
