@@ -813,6 +813,26 @@ which a cut-local method has something real to win.
    ⚠️ **The "1.9-9.9 items" gap from `clip` to a PERFECT allocator is a
    `dermmnist` number**, measured on the REMOVED, 38.7%-leaking dataset. Do not
    quote it for iwildcam, where `headroom` reads 0.0-1.0 on the tight cells.
+   🔑 **AND THE CAP CHOICE MOVES IT ~15x. MEASURED 2026-09-06 ON TWO BACKBONES:**
+   at LOOSE / task caps the prize is **12.8-20.7 ITEMS PER CELL**, not 0-1.
+
+   | cap | c2 | c7 | cell |
+   |---|---|---|---|
+   | `dom1` MNv2/MNv3 L80_G95 | 7.8 | 5.0 | **12.8** |
+   | `dom1` L90_G95 | 11.9 | 8.1 | **20.0** |
+   | `dom1` L95_G80 | 6.5 | 7.2 | **13.7** |
+   | `vitdual2` ViTB16 L80-80_G95 | 7.3 | 5.7 | **13.0** |
+   | `vitdual2` ViTB16 L90-90_G95 | 12.0 | 8.7 | **20.7** |
+
+   So "there is nothing to win" was a statement about the TIGHT cells and was
+   generalised past its evidence. Observed `tralo` - `clip` deltas are +2 to
+   +10 items, i.e. **10-50% of a real prize**, against RNG floors of 3-10. The
+   effect and the floor are the same size; the PRIZE is 2-4x both. That is
+   under-powered, which is a different conclusion from empty.
+   ⛔ **BUT READ `binds n/N` BEFORE QUOTING A CELL.** `vitdual2` L90-90 class 2
+   binds in **1 of 3 seeds** and `dom1` L90_G95 in 5 of 8: a seed already under
+   budget gets an identically ZERO constraint gradient and is its own null, so
+   the cell's mean is diluted by seeds that pose no question.
 3. **Check reachability before choosing a cap.** The penalty's per-item gradient scales
    with `p(1-p)`. At the K-th RANKED item that is 0.026 at `L30_G20` (0/4 seeds respond)
    vs 0.055 at `L50_G30` (4/4), and converging the model drops it 60x -- which is what

@@ -10156,6 +10156,56 @@ delivery program rests on the smaller number, and the smaller number did not
 reproduce here.
 
 
+---
+
+## 2(z47). THE PRIZE IS 13-21 ITEMS AT TASK CAPS, NOT 0-1 (2026-09-06)
+
+**"There is nothing to win" was measured on the TIGHT cells and generalised past
+its evidence.** `scripts/headroom`, run on two backbones on 2026-09-06 -- the
+entire gap from `clip` to a PERFECT RANKING, per capped class and summed to the
+cell:
+
+| campaign | backbone | cap | class 2 | class 7 | **cell** |
+|---|---|---|---|---|---|
+| `dom1` | MNv2 / MNv3 | L80_G95 | 7.8 | 5.0 | **12.8** |
+| `dom1` | | L90_G95 | 11.9 | 8.1 | **20.0** |
+| `dom1` | | L95_G80 | 6.5 | 7.2 | **13.7** |
+| `vitdual2` | ViTB16 | L80-80_G95 | 7.3 | 5.7 | **13.0** |
+| `vitdual2` | ViTB16 | L90-90_G95 | 12.0 | 8.7 | **20.7** |
+
+Against `headroom` reading **0.0-1.0 items** on the iwildcam TIGHT cells. The
+cap choice moves the available prize by roughly **15x**, and most of this
+project's campaigns were run where there was nothing to win.
+
+🔑 **WHAT THIS CHANGES, AND WHAT IT DOES NOT.**
+* It does NOT make any past tight-cap null wrong. It makes those nulls
+  UNINFORMATIVE about the method, which is 2(z44)'s NON-TASK-CAP contaminant
+  restated in items.
+* It does NOT mean TraLO wins. Observed `tralo` - `clip` deltas are +2 to +10
+  items -- 10-50% of the prize -- against RNG floors of 3-10 items. The effect
+  and the noise are the same size and both sit well under the prize. The honest
+  reading is UNDER-POWERED, which is a different conclusion from EMPTY.
+* It DOES mean the ceiling arguments that closed several directions
+  ("the clipper's selected set is already 99.6% correct, so nothing can be
+  won") are statements about the tight regime specifically.
+
+⛔ **READ `binds n/N` BEFORE QUOTING ANY OF THESE CELLS.** `vitdual2` L90-90
+class 2 binds in **1 of 3 seeds**; `dom1` L90_G95 binds in 5 of 8. The penalty
+is `relu(hard - K)`, so a seed already under budget receives an identically ZERO
+constraint gradient and IS its own null. Averaging over it dilutes the cell with
+seeds that pose no question. `vitdual2` is the only campaign carrying all four
+duals, and one of its two cells is half non-binding.
+
+⚠️ **AND THE `frozen_head_probe` RE-PRICING OF THE RANKING SURROGATES IS
+INCONCLUSIVE, NOT A NULL.** Run on `vitdual2`/ViTB16/L90-90_G95 with 8 seeds,
+its own NULL CHECK FAILED: refitting a linear head on the frozen features moved
+ccF1 by **+8.84 items** against a 2.7-item tolerance, i.e. the harness moves the
+endpoint further than any treatment could. `topk` -0.11, `pauc` +0.00, `ptopk`
+-0.51 are therefore unreadable on this input. Separately worth keeping: that
++8.84 says a BETTER HEAD ON THE SAME FROZEN FEATURES is worth ~8.8 items, which
+is comparable to the whole prize.
+
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, updated 2026-08-30 -- read this before section 3's older text**
