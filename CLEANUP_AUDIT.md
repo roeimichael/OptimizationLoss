@@ -226,6 +226,33 @@ Not touched: the same string inside `tests/` (read-only, 2a) and inside
 
 ---
 
+## 7. VERIFICATION (Phase 4) -- ALL FOUR GATES GREEN
+
+Run on the tree AFTER the change, in the order the rulebook prescribes:
+
+```
+$ python -m compileall -q src scripts configs tests main.py
+(silent -- success)
+
+$ python -m scripts.audit_config
+  OK -- every unresolvable read is in audit/scoring code
+  that iterates a declared key list, not in src/.
+==============================================================================
+No hallucinated keys: every emitted value has a reader.
+
+$ python -m pytest tests -q
+583 passed, 1 skipped, 7 warnings in 233.78s (0:03:53)
+
+$ python -m scripts.preflight --before-launch
+39 passed, 24 deselected, 3 warnings in 11.51s
+PRE-FLIGHT -- 4 stage(s): data, budget, model, grid
+```
+
+The suite is **identical to the pre-change baseline** (583 passed, 1 skipped),
+so the one edit is provably inert with respect to every gate the project owns.
+
+---
+
 ## PRE-EXISTING
 
 None. The clean-tree baseline was captured BEFORE any change:
