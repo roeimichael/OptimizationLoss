@@ -529,6 +529,31 @@ blocks:
   # Neither is in `warmup_identity_keys` -- both touch the constraint phase
   # only -- so both SHARE `tralo`'s cached warm-up and differ from it in
   # exactly one key.
+  #
+  # ---------------------------------------------------------------------
+  # SUPERSEDED 2026-09-06, BEFORE shape1's RESULTS WERE READ. The text above
+  # is kept verbatim as the record of what was originally predicted; this is
+  # the correction. `scripts/deep_scope` measured the OUTCOME of the
+  # starvation on `dom1` -- 178 violated scopes over 24 cell(seed)s, with the
+  # post-hoc `clip`/`lp` carried as zero-constraint REFERENCE arms -- and the
+  # prediction above is refuted in its stated form:
+  #
+  #   net of the reference, DEEP scopes are `alm` +12.7 vs `tralo` +12.3,
+  #   i.e. TIED, and the ENTIRE `alm` advantage sits at MIDDLE depth
+  #   (0.19-1.00 over budget): +11.3 vs +6.6, a 4.7-item gap.
+  #
+  # TraLO already closes its deepest scopes as well as ALM does, and 83% of
+  # that deep bucket is the K=0 ceilings anyway. So:
+  #   -> `squared` up-weights the DEEP bucket, which is already closed. It is
+  #      now predicted to be UNINFORMATIVE OR HARMFUL and is retained as the
+  #      CONTROL that discriminates the two stories, not as a candidate.
+  #   -> `linear` up-weights middle and deep relative to shallow at
+  #      `initial_rho`, and the middle bucket is where the gap actually is,
+  #      so `linear` is the arm carrying the live prediction.
+  #   -> if NEITHER moves the middle bucket, the penalty shape closes as a
+  #      direction and the `alm` gap is somewhere else entirely.
+  # FRAMEWORK 2(z48).
+  # ---------------------------------------------------------------------
   penalty_linear:
     penalty_shape: linear
   penalty_squared:

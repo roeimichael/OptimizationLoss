@@ -10206,6 +10206,97 @@ endpoint further than any treatment could. `topk` -0.11, `pauc` +0.00, `ptopk`
 is comparable to the whole prize.
 
 
+---
+
+## 2(z48). THE STARVATION IS REAL IN THE GRADIENT AND ABSENT IN THE OUTCOME (2026-09-06)
+
+**2(z45) measured that the shipped penalty pulls its deepest-violated scope
+13-71x less hard than one 19% over. `scripts/deep_scope` asked whether that has
+an OUTCOME. It does not, and the pre-registered prediction is REFUTED.**
+
+The test: for every (cell, seed) in `dom1` -- where `tralo` vs `alm` is at EQUAL
+dose and explicitly unaffected by the PARTIAL quarantine -- take each group's
+RAW argmax count per capped class from `final_predictions_raw.csv`, subtract the
+group's budget, and bucket the scopes by how deeply the **lambda=0 null**
+violates them. Bucketing on the null and never on the arm under test is what
+keeps it from being endogenous: an arm that closed a scope would otherwise move
+it out of the deep bucket by construction.
+
+178 violated scope-instances over 24 cell(seed)s. Excess REMOVED vs the null, in
+raw items:
+
+| depth (E/K) | scopes | null E | K=0 | `alm` | `tralo` | `clip` REF | `lp` REF |
+|---|---|---|---|---|---|---|---|
+| shallow 0.00-0.19 | 59 | 11.3 | 0% | +0.5 | -0.9 | -0.5 | -0.5 |
+| middle 0.19-1.00 | 59 | 25.5 | 22% | **+13.6** | **+8.9** | +2.3 | +2.3 |
+| **DEEP 1.00-80.0** | 60 | 19.1 | **83%** | **+10.2** | **+9.8** | -2.5 | -2.5 |
+
+🔑 **`clip` and `lp` ARE THE BAR AND THEY COST NOTHING.** Both are post-hoc
+methodologies -- protocol rule 1 runs them at warm-up 30 / constraint 0, so they
+take ZERO constraint steps and their raw predictions are plain CE. They read
+-0.5 / +2.3 / -2.5, so the items table has essentially no artefact floor. Net of
+them:
+
+* **DEEP: `alm` +12.7 vs `tralo` +12.3 -- TIED.**
+* **MIDDLE: `alm` +11.3 vs `tralo` +6.6 -- a 4.7-item gap.**
+
+**The entire `alm` advantage in constraint satisfaction sits at MIDDLE depth.
+TraLO closes its deepest scopes as well as `alm` does.** The prediction written
+into 2(z45) and `protocol.yml` -- that `alm` leads because the bounded shape
+leaves TraLO weak where violations are deepest -- is wrong as an outcome claim.
+
+⚠️ **AND THE DEEP BUCKET IS 83% K=0 SCOPES**, the "predict none of this species
+at this camera" ceilings. There `s = max(K,1) = 1`, so `E/K` is just the raw
+count and "80x over" means 80 items. Read that row as the zero-ceiling regime,
+not as a continuation of the depth axis.
+
+⛔ **THE AIMING STATISTIC IS ALMOST ALL ARTEFACT, AND THE TOOL NOW SAYS SO.**
+Correlating a scope's share of the penalty slope against the fraction of its
+excess removed reads `tralo` +0.447 -- which looks like the shape aiming. **The
+zero-constraint `clip` and `lp` read +0.400 on the same sets.** A shallow scope
+has a tiny excess, so a few items of ordinary run-to-run movement remove a large
+FRACTION of it; slope share is itself largest at shallow depth; so the two
+correlate positively for any arm, including one that never took a constraint
+step. `deep_scope` prints the post-hoc arms as REFERENCE rows and labels every
+other arm as clearing the bar or not. Net of it: `tralo` +0.047, `tralo_uniform`
+**-0.100**, `alm` **-0.400**. Only `alm`'s large negative is a real signal, and
+it is the expected one -- an unbounded augmented Lagrangian should weight scopes
+opposite to a bounded penalty.
+
+🟢 **ONE ENCOURAGING RESULT, STATED WITH ITS CAVEAT.** Across runs, total raw
+excess removed correlates with deployed capped-class TP moved: **rho +0.504 over
+6 cells, 360 runs, 4 of 6 cells positive**. So the proxy the constraint
+optimises is not orthogonal to the metric that is scored -- which is the
+premise the whole program rests on and had never been checked. ⚠️ But 4 of 6 is
+sign p=0.34, and the correlation POOLS ARMS within a cell, so it may be reading
+"trained arms both close more and score better" rather than a causal link.
+Suggestive, not established.
+
+### What this changes for `shape1`, written BEFORE its results are read
+
+`shape1` (RegNetY400MF, L70-70_G95 + L80-80_G95) is running `tralo_linear` and
+`tralo_squared`. The prediction is REWRITTEN here, on the record, because the
+old one is refuted and rewriting it afterwards would be worthless:
+
+* **`squared`** (slope `2e/s`, weight growing without bound in depth) aims at the
+  DEEP bucket. That bucket is already closed to `alm`'s level. **It is now
+  predicted to be uninformative or harmful**, and it is retained as the CONTROL
+  that discriminates the two stories rather than as a candidate.
+* **`linear`** (slope `1/s`, so weight `∝ 1/K`) up-weights middle and deep
+  scopes relative to shallow ones under `rational_bounded` at `initial_rho`.
+  The middle bucket is where the measured gap actually is, so **`linear` keeps a
+  live prediction** and is the arm to read.
+* If `linear` moves the middle bucket toward `alm` and `squared` does not, the
+  weighting story survives in its corrected form. If NEITHER moves it, the
+  penalty shape is closed as a direction and the `alm` gap is somewhere else.
+
+⛔ **AND NEITHER OUTCOME IS A WIN BY ITSELF.** Closing the middle bucket is
+constraint satisfaction, not quality. The allocator emits exactly K per scope
+regardless, so a shape that fixes the counts and moves no deployed TP must be
+reported as exactly that. `flips` and proximity to feasibility are still not
+metrics.
+
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, updated 2026-08-30 -- read this before section 3's older text**

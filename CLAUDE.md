@@ -475,6 +475,28 @@ python -m scripts.penalty_starvation --glob '<runs>/tralo/seed_*'
 #   within a run and the ratio moves 51x -> 167x with it, so a single number is
 #   a choice dressed as a measurement -- it prints both ends. `--self-test` is a
 #   POSITIVE control against FRAMEWORK 2(a2)'s autograd table at BOTH rho rows.
+python -m scripts.deep_scope --campaign <root> --arms tralo alm lp clip
+#   WHICH ARM ACTUALLY CLOSES THE DEEPLY-VIOLATED SCOPES? The OUTCOME test for
+#   `penalty_starvation`'s algebra, from `final_predictions_raw.csv` -- the
+#   argmax BEFORE the allocator, because the deployed file is forced to exactly
+#   K and every scope's excess there is zero by construction.
+#   Scopes are bucketed by how deeply the **lambda=0 NULL** violates them, never
+#   by the arm under test: bucketing on the arm's own excess sorts scopes by the
+#   outcome and guarantees the answer.
+#   🔑 ALWAYS PASS A POST-HOC ARM (`clip` / `lp`). They run warm-up 30 /
+#   constraint 0, so they take ZERO constraint steps and whatever they score IS
+#   the artefact floor. The tool labels them REFERENCE and marks every other arm
+#   as clearing the bar or not. It is not decoration: the aiming statistic reads
+#   `tralo` +0.447 and the zero-constraint `lp` **+0.400** on the same sets.
+#   🛑 MEASURED ON dom1 2026-09-06, 178 violated scopes / 24 cell(seed)s, and it
+#   REFUTES the starvation story's outcome form: net of the reference, DEEP is
+#   `alm` +12.7 vs `tralo` +12.3 (**TIED**) and the whole gap is at MIDDLE depth
+#   (+11.3 vs +6.6). The DEEP bucket is **83% K=0** ceilings, where `s=max(K,1)`
+#   makes E/K just the raw count. FRAMEWORK 2(z48).
+#   🟢 It also prints the premise nobody had checked: excess removed vs deployed
+#   capped-class TP is rho **+0.504** (6 cells, 360 runs, 4/6) -- the proxy is
+#   not orthogonal to the metric. ⚠️ 4/6 is p=0.34 and it POOLS ARMS.
+#   `--self-test` gates it, 10 checks, 5 of them negative controls.
 python -m scripts.step_dose --config <config.json> --ce-steps 60
 #   🛑 HOW BIG IS THE CONSTRAINT STEP IN WEIGHTS, per delivery rule? The project
 #   has measured what `shared` does to the DIRECTION -- cos(update, constraint
