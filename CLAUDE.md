@@ -182,6 +182,26 @@ python -m scripts.run_campaign --root <root> --step <step>   # 🛑 THE STEP GAT
 #   beside `tralo` at 29/29 in the SAME campaign and still wrote
 #   `status: completed`; `iwc3` lost 328 of 1044 steps; `taskwin1` landed 20/29.
 #   All three were visible in the first finished run.
+python -m scripts.data_present <root>        # 🛑 CAN THESE CONFIGS ACTUALLY
+#   READ THEIR DATASET, FROM THIS TREE? Runs inside `--step launch` now, and
+#   it exists because on 2026-09-06 a FRESH WORKTREE passed `--step verify`
+#   AND `--step launch` with every gate GREEN and then failed 24 runs in 120
+#   seconds on `FileNotFoundError: data/iwildcam/oodslice/train_images.npy`.
+#   🔑 THE ARRAYS ARE GITIGNORED -- 3.0 GB + 443 MB -- so `git worktree add`
+#   gives a tree carrying only the tracked `*_meta.csv`. All fourteen older
+#   worktrees had them copied or symlinked in by hand at creation, so nobody
+#   had ever made a NEW one and this had never happened.
+#   ⚠️ `gate:data` would have caught it and lives in `--step stage`, which
+#   runs "before a config exists" -- a campaign generated in one sitting and
+#   launched in the next skips straight to `verify`. A gate that only fires
+#   in a step people skip is not a gate, so it is duplicated at `launch`,
+#   the last thing between a config and a GPU-hour. Costs ~1 second.
+#   Follows symlinks (`os.stat`, not `lexists`), so a DANGLING link reads as
+#   missing, and a ZERO-BYTE array reads as empty rather than present.
+#   Prints the symlink command that fixes it, pointing at the REAL file --
+#   the worktree arrays are themselves symlinks into `optloss-audit`, so
+#   linking to a sibling makes a chain. `--self-test` gates it, 6 checks, 4
+#   negative controls including the exact meta-present/npy-absent shape.
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
@@ -1141,6 +1161,22 @@ pipeline -- there is no setting to get wrong. Same for the CE-saturation skip
   or, better, leave the tree alone once staged. A `scripts/` update can still be
   copied in by hand: `scripts/` is outside `TRAINING_PATHS`, so it does not flip
   `-dirty` and does not move HEAD.
+- 🛑 **A FRESH WORKTREE HAS NO DATA, AND EVERY LAUNCH GATE STILL READS GREEN.**
+  The `.npy` arrays are gitignored (3.0 GB + 443 MB), so `git worktree add`
+  produces a tree with only the tracked `*_meta.csv`. Measured 2026-09-06 on
+  `optloss-dualprop`: `--step verify` and `--step launch` both GREEN, then 24
+  runs failed in 120 seconds. Every one of the fourteen older worktrees had the
+  arrays put in by hand at creation, so the failure mode had never occurred.
+  ✅ `scripts.data_present` now runs inside `--step launch`. After
+  `git worktree add`, link the arrays **at their real location** -- the ones in
+  the sibling worktrees are themselves symlinks into `~/optloss-audit`, so
+  linking worktree-to-worktree builds a chain that breaks when the middle one
+  is removed:
+  ```bash
+  SRC=~/optloss-audit/data/iwildcam/oodslice
+  DST=~/<new-worktree>/data/iwildcam/oodslice
+  for f in $SRC/*.npy; do ln -s "$f" "$DST/$(basename $f)"; done
+  ```
 - 🛑 **THE CAMPAIGN CHECKOUT IS A WORKTREE, SO THE FREEZE COVERS GIT PLUMBING TOO.**
   `~/optloss-audit/.git` is a FILE, not a directory:
   `gitdir: /home/dsi/michaer8/OptimizationLoss/.git/worktrees/optloss-audit`.

@@ -94,7 +94,18 @@ STEPS = [
 
     ("launch",
      "immediately before dispatch -- is the RIG healthy?",
-     [("rig_status", ["-m", "scripts.rig_status"], True, "instrument")]),
+     # `data_present` DUPLICATES what `gate:data` covers in `stage`, and that
+     # duplication is the point. On 2026-09-06 a fresh worktree passed `verify`
+     # AND `launch` with every gate green and then failed 24 runs in 120s on a
+     # missing `train_images.npy`: the arrays are gitignored, so
+     # `git worktree add` yields a tree with only the tracked *_meta.csv. The
+     # campaign had been generated in one sitting and launched in the next, so
+     # `stage` -- which runs "before a config exists" -- was never run. A gate
+     # that only fires in a step people skip is not a gate, and `launch` is the
+     # last thing between a config and a GPU-hour. It costs about a second.
+     [("data_present", ["-m", "scripts.data_present", "{root}"], True,
+       "instrument"),
+      ("rig_status", ["-m", "scripts.rig_status"], True, "instrument")]),
 
     ("firstrun",
      "on the FIRST completed runs -- kill a bad campaign here, not at hour 19",
@@ -322,10 +333,14 @@ def self_test(w=sys.stdout.write):
 
     # the LOUD-SKIP contract: a skipped check must be reported, not swallowed
     lines = []
-    p, f, sk, u, _, _ = run_step("launch", "results", {"rig_status"}, False,
+    # BOTH of `launch`'s checks are skipped here. `data_present` joined it on
+    # 2026-09-06 and would otherwise fail against this placeholder root, which
+    # would mask the skip contract this case exists to test.
+    p, f, sk, u, _, _ = run_step("launch", "results",
+                                 {"rig_status", "data_present"}, False,
                                  out=lines.append)
     text = "\n".join(lines)
-    check(sk == 1 and f == 0 and "DISABLED" in text and "nothing was verified"
+    check(sk == 2 and f == 0 and "DISABLED" in text and "nothing was verified"
           in text,
           "a skipped check ANNOUNCES itself instead of reading as a pass")
 
@@ -358,9 +373,15 @@ def self_test(w=sys.stdout.write):
     finally:
         g["run_check"] = real
 
-    # NEEDS_ROOT must be derived, not hand-listed, or it goes stale
-    check("launch" not in NEEDS_ROOT and "verify" in NEEDS_ROOT,
+    # NEEDS_ROOT must be derived, not hand-listed, or it goes stale. Asserted
+    # in BOTH directions: `stage` runs before a config exists and takes no
+    # root, `launch` gained one on 2026-09-06 when `data_present` was added.
+    # A hardcoded list would have kept `launch` out and silently passed the
+    # root-requiring check an empty root.
+    check("stage" not in NEEDS_ROOT and "verify" in NEEDS_ROOT,
           "NEEDS_ROOT is derived from the check table, not hardcoded")
+    check("launch" in NEEDS_ROOT,
+          "adding a {root} check to `launch` puts it in NEEDS_ROOT by itself")
 
     w("\nSELF-TEST %s\n" % ("PASSED" if ok else "FAILED"))
     return 0 if ok else 1
