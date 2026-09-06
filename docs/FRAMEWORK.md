@@ -10400,6 +10400,32 @@ not a contrast between arms, so no cell needs to pose a question for the
 multiplier range to be readable. Do NOT promote any of these rows to a
 head-to-head claim.
 
+### 2c. A FALSIFIABLE PREDICTION FOR `tralo_dualprop`, REGISTERED BEFORE IT REPORTS
+
+`latch_probe`'s "violation range" column is not just a contrast -- it IS the
+lambda range the proportional ratchet will produce, because `proportional` adds
+`lambda_step * excess` per violated epoch and therefore ends at
+`lambda_0 + step * (cumulative excess)`, which is exactly the quantity that
+column measures. So the table above already predicts the arm's behaviour from
+logs that exist:
+
+| | shipped `constant` | predicted `proportional` |
+|---|---|---|
+| lambda range across scopes | 13.3x - 24.3x, CEILING 24.3x | **282x - 1934x** |
+| set by | the smallest violation COUNT | the cumulative violation MAGNITUDE |
+
+**CHECK THIS ON THE FIRST COMPLETED `dualprop1` RUN.** If `tralo_dualprop`'s
+lambda range comes back near 24.3x, the key is not reaching the ratchet and the
+arm is a sixth inert flag -- md5 against `tralo` will NOT settle that (2(x2):
+different predictions prove nothing), but the lambda range will, because it is
+a direct readout of the mechanism.
+
+⚠️ AND A LARGER lambda IS NOT A LARGER DOSE HERE. Under
+`constraint_grad_mode: normalize` the summed gradient is rescaled to exactly
+`constraint_grad_clip` by one norm over `model.parameters()`, so the absolute
+size divides out and only the ratios steer. If the DOSE gate goes red on this
+arm that is a finding about fp16 or about the clip, NOT about the mechanism.
+
 ### 3. WHY THIS WAS NOT KNOWN, AND IT IS 2(z44)'s PATTERN A FOURTH TIME
 
 The manuscript defends the constant ratchet explicitly
