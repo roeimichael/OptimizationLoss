@@ -10362,6 +10362,44 @@ accumulated into `.grad`, so the overall size of the multiplier divides out and
 **only the ratios across scopes steer**. TraLO is spreading its fixed-norm step
 nearly evenly over scopes that ALM concentrates on. The rho hides exactly that.
 
+### 2b. REPLICATED ACROSS SIX CAMPAIGNS AND FOUR BACKBONES (2026-09-06)
+
+Both results above were measured on `dom1` first and then re-run on every live
+campaign carrying `tralo`. 109 runs:
+
+| campaign | backbone | runs | latched | rho | lambda range | violation range | ratio |
+|---|---|---|---|---|---|---|---|
+| `dom1` | MNv2/MNv3 | 24 | **0** | +0.905 | 13.3x | 634x | 48x |
+| `dom1b` | MNv2/MNv3 | 12 | **0** | +0.900 | **24.3x** | 1934x | 80x |
+| `equaldose1` | MNv2/MNv3 | 24 | **0** | +0.896 | 13.3x | 598x | 45x |
+| `vitdual2` | **ViTB16** | 5 | **0** | +0.855 | **24.3x** | 716x | 29x |
+| `taskwin2` | MNv3 | 5 | **0** | +0.930 | 13.3x | 282x | 21x |
+| `uniform1` | MNv2/MNv3 | 24 | **0** | +0.899 | 13.3x | 1590x | 120x |
+
+⛔ **THE LATCH FIRES IN 0 OF 109 RUNS**, on every backbone including ViTB16.
+The closure in section 1 is not a `dom1` artefact.
+
+🔑 **AND THE lambda RANGE IS QUANTISED, WHICH IS THE CLEANEST FORM OF THE
+CLAIM.** It takes only two values across all six campaigns, and both are exact:
+
+    24.3x = (0.01 + 29*0.05) / (0.01 + 1*0.05)     some scope violated in ALL
+                                                    29 epochs, another in 1
+    13.3x = (0.01 + 29*0.05) / (0.01 + 2*0.05)     ... another in 2
+
+So the range is set ENTIRELY by the smallest violation COUNT, a small integer,
+and **24.3x is the structural ceiling** -- `dom1b` and `vitdual2` are already
+saturated at it. No violation profile, however extreme, can make the shipped
+ratchet express more than 24.3x, while the violations themselves span 282x to
+1934x. That is the defect in one line: **the multiplier's expressiveness is
+bounded by the epoch count, and the problem's dynamic range is not.**
+
+⚠️ `uniform1` and `taskwin2` are quarantined / partial for SCORING (their cells
+sit outside the task window). That does not affect their use here: this is a
+measurement of `tralo`'s OWN multiplier trajectory against its OWN violations,
+not a contrast between arms, so no cell needs to pose a question for the
+multiplier range to be readable. Do NOT promote any of these rows to a
+head-to-head claim.
+
 ### 3. WHY THIS WAS NOT KNOWN, AND IT IS 2(z44)'s PATTERN A FOURTH TIME
 
 The manuscript defends the constant ratchet explicitly

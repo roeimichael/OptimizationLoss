@@ -522,8 +522,13 @@ python -m scripts.latch_probe --campaign <root> --arms tralo tralo_uniform
 #   CONSTANT per violated epoch, so `lam_c = lam_0 + step * (epochs violated)`
 #   -- a FREQUENCY counter whose range is CAPPED BY THE EPOCH COUNT (24.3x at
 #   the shipped constants, **2.1x** at the manuscript's). LDF/ALM/Hounie all
-#   integrate the violation MAGNITUDE. Measured on dom1: tralo's lambda spans
-#   **13.3x** while the violations span **634x**.
+#   integrate the violation MAGNITUDE. REPLICATED over SIX campaigns / FOUR
+#   backbones / 109 runs (dom1 dom1b equaldose1 vitdual2 taskwin2 uniform1):
+#   the latch fires in **0 of 109**, and tralo's lambda range takes only TWO
+#   values, both exact -- **24.3x** = (0.01+29*0.05)/(0.01+1*0.05) and
+#   **13.3x** with a minimum count of 2. So the range is set entirely by the
+#   smallest violation COUNT and **24.3x is the structural CEILING**, already
+#   saturated in dom1b and vitdual2. The violations span **282x-1934x**.
 #   🛑 READ THE RANGE, NOT THE RHO. Spearman(lam, magnitude) is +0.905, so the
 #   ORDERING is about right -- but a rank correlation is invariant to monotone
 #   rescaling and hides the 48x range gap. Under `normalize` the summed
