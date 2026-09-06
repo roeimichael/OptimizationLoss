@@ -3912,7 +3912,7 @@ tools that read it have not. **Audit the reader, not the writer.**
 
 #### 🆕 A FIFTH CLASS, found 2026-08-25: **THE STAGED ARTEFACT NOBODY PARSES**
 
-`docs/launch_uniform.sh` had carried, since it was written, an arm list that
+`docs/archive/launchers/launch_uniform.sh` had carried, since it was written, an arm list that
 bash resolves to something other than what it reads as:
 
 ```text
@@ -5836,7 +5836,7 @@ free". **FALSIFIED IF** net items vs the twin stays materially negative, which
 would put the damage in the SHARED BACKBONE rather than the per-item output
 term, and move the next lever to which parameters the constraint may touch.
 
-Launch: `docs/launch_uniform.sh` (9 cells, 7 arms, 4 seeds = 252 runs; 9 cells
+Launch: `docs/archive/launchers/launch_uniform.sh` (9 cells, 7 arms, 4 seeds = 252 runs; 9 cells
 is deliberate -- sign-test floor 0.00391 against BH 0.00455, so unlike iwc1/iwc2
 it can return a CALLABLE verdict). Read with `order_probe --evictions` FIRST.
 
@@ -6145,7 +6145,7 @@ class it targets lets a sibling capped class take the vacated items.)
 🔑 **THEREFORE THE uncF1 DAMAGE DOES NOT COME THROUGH THE OUTPUT LAYER.** It
 comes through the **shared backbone** -- 29 epochs of constraint gradient
 flowing into the features, which moves every class because every class reads
-the same representation. That is the lever `docs/launch_uniform.sh` named in
+the same representation. That is the lever `docs/archive/launchers/launch_uniform.sh` named in
 advance as the fallback if the output-space fix failed: **the parameter set the
 constraint is allowed to touch, not the count it is computed from.**
 
@@ -6435,7 +6435,7 @@ fraction of it, so an underpowered result there should be attributed to the
 channel before it is attributed to the idea.
 
 🛑 **CONSEQUENCE FOR THE STAGED CAMPAIGN.** `tralo_ortho` is one of the eight
-arms in `docs/launch_uniform.sh` (36 of its 288 runs). Its stated purpose is
+arms in `docs/archive/launchers/launch_uniform.sh` (36 of its 288 runs). Its stated purpose is
 now void, so those runs should be **reallocated to seeds on the arms that do
 have a live rationale** -- `tralo_uniform`, which is gauge-invariant and whose
 mechanism 2(s) measured, and `tralo_head`, which confines the constraint by
