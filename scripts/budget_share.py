@@ -1,8 +1,16 @@
 """WHERE DOES TraLO'S FIXED-NORM CONSTRAINT STEP ACTUALLY GO?
 
-Under `constraint_grad_mode: normalize` the delivered weight step has norm
-exactly lr*clip whatever the loss is worth, so the constraint's whole degree of
-freedom is the DIRECTION -- i.e. the RATIOS between scopes. This asks which
+Under `constraint_grad_mode: normalize` the constraint GRADIENT is rescaled to
+norm exactly `constraint_grad_clip` before the optimizer sees it, so a global
+scalar on the constraint loss divides out and the whole degree of freedom is
+the DIRECTION -- i.e. the RATIOS between scopes.
+
+WARNING: `p.grad`, NOT the weight step. The delivered WEIGHT step is lr*clip
+only under `constraint_step_rule: sgd`; the protocol runs `shared`, which hands
+the pinned gradient to the CE Adam. The ratio argument is unaffected (the
+rescale is upstream of the optimizer) but `lr_constraint` and
+`constraint_grad_clip` are NOT magnitude-inert -- they are held EQUAL ACROSS
+ARMS by `check_parity`, which is a different guarantee. This asks which
 scopes those ratios favour, and in particular how much goes to scopes with no
 prize left.
 

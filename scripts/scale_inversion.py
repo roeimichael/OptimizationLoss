@@ -89,6 +89,8 @@ def main(roots):
     # (K-class) -> summed weight under each rule
     tralo_w = collections.Counter()
     fixed_w = collections.Counter()
+    st_w = collections.Counter()
+    both_w = collections.Counter()
     alm_w = collections.Counter()
     n_ep = collections.Counter()
     examples = {}
@@ -154,12 +156,21 @@ def main(roots):
                     lam = lam0 + lam_step * viol[scope]
                     at = lam * tralo_slope(soft, K, rho)
                     ft = lam * tralo_slope(soft, K, rho, item_scale=True)
+                    # `straight_through` swaps the penalty's ARGUMENT to the
+                    # hard count (tralo/train.py:443-459), so relu(hard-K) is
+                    # exactly 0 for a K=0 scope at hard 0 -- and also for every
+                    # hard-feasible K>=1 scope, which is why it deletes 71% of
+                    # the pull rather than re-aiming it. FRAMEWORK 2(z54) 5b.
+                    st = lam * tralo_slope(hard, K, rho)
+                    bt = lam * tralo_slope(hard, K, rho, item_scale=True)
                     alm_lam[scope] = max(0.0, alm_lam[scope] + eta * r)
                     aa = alm_lam[scope] + mu * max(0.0, r) if r > 0 else 0.0
                     key = "K=0" if K < 1 else ("K=1..9" if K < 10 else
                                                ("K=10..99" if K < 100 else "K>=100"))
                     tralo_w[key] += at
                     fixed_w[key] += ft
+                    st_w[key] += st
+                    both_w[key] += bt
                     alm_w[key] += aa
                     n_ep[key] += 1
                     if key not in examples and r > 0:
@@ -178,19 +189,27 @@ def main(roots):
     tt = sum(tralo_w[k] for k in order) or 1.0
     ta = sum(alm_w[k] for k in order) or 1.0
     tf = sum(fixed_w[k] for k in order) or 1.0
+    ts = sum(st_w[k] for k in order) or 1.0
+    tb = sum(both_w[k] for k in order) or 1.0
     print("=" * 92)
     print("WHERE EACH RULE SENDS THE FIXED-NORM STEP  (%d tralo runs, same scope-states)"
           % runs)
     print("=" * 92)
-    print("%-10s %10s %10s %11s %10s" %
-          ("budget K", "scope-ep", "TraLO now", "ITEM-SCALED", "ALM"))
+    print("%-10s %9s %8s %9s %8s %8s %8s" %
+          ("budget K", "scope-ep", "shipped", "ITEMSCALE", "st", "both", "ALM"))
     print("-" * 92)
     for k in order:
         if not n_ep[k]:
             continue
-        print("%-10s %10d %9.1f%% %10.1f%% %9.1f%%" %
-              (k, n_ep[k], 100.0 * tralo_w[k] / tt,
-               100.0 * fixed_w[k] / tf, 100.0 * alm_w[k] / ta))
+        print("%-10s %9d %7.1f%% %8.1f%% %7.1f%% %7.1f%% %7.1f%%" %
+              (k, n_ep[k], 100.0 * tralo_w[k] / tt, 100.0 * fixed_w[k] / tf,
+               100.0 * st_w[k] / ts, 100.0 * both_w[k] / tb,
+               100.0 * alm_w[k] / ta))
+    print("")
+    print("  TOTAL PULL RETAINED -- read this before the shares. A knob that")
+    print("  DELETES work rather than re-aiming it shows up here and nowhere else:")
+    for lab, v in (("shipped", tt), ("itemscale", tf), ("st", ts), ("both", tb)):
+        print("    %-10s %12.1f  (%.2fx shipped)" % (lab, v, v / tt))
     print("")
     print("A SINGLE SCOPE-EPOCH FROM EACH BUCKET, to show the inversion concretely:")
     print("%-10s %8s %10s %8s %14s %14s" %

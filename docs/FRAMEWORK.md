@@ -9149,6 +9149,43 @@ per-group soft counts are not read here. What needs no data is the structural
 part: `scale = 1` at `K == 0`, the peak at a soft count of 0.5755, and the
 decay beyond it. Re-measure the shares on a real run before quoting 0.0162%.
 
+🛑 **SUPERSEDED 2026-09-07 BY 2(z54). THE 0.0162% IS WITHDRAWN; THE REAL FIGURE
+IS 93.5%, AND THIS ENTRY ASKED FOR EXACTLY THE MEASUREMENT THAT OVERTURNED IT.**
+
+The share above was computed from an ASSUMED soft count -- that a `K == 0`
+group's is "tens to hundreds at initialisation and forever" -- which puts those
+scopes far out on the bounded shape's decaying tail where their slope is
+negligible. Measured instead over **4,872 real `K = 0` scope-epochs** in 24
+`dom1` `tralo` runs (`scripts/budget_share`, `scripts/scale_inversion`):
+
+| | value |
+|---|---|
+| soft count, p10 / **median** / p90 | 0.000 / **0.320** / 16.440 |
+| in [0.1, 3.0], i.e. near the peak | 45.5% |
+| >= 10, i.e. the regime assumed here | **11.3%** |
+| hard count already 0 | **72.2%** |
+
+The peak of `d(pen)/dE` at `scale = 1` is `E = 0.5755`. The median is **0.320**
+-- these scopes sit ON the peak, not on the tail. And the per-scope
+trajectories show WHY, which is the part worth keeping:
+
+```
+g218_c2   epoch 0: 4.001  ->  epoch 29: 0.519
+g320_c2   epoch 0: 1.364  ->  epoch 29: 0.242
+g516_c7   epoch 0: 0.028  ->  epoch 29: 0.000
+```
+
+They start small and CONVERGE DOWN THROUGH THE PEAK. So the constraint drives a
+`K = 0` scope toward compliance and, as it succeeds, that scope's pull
+**increases** -- TraLO rewards its own success with more weight on a scope that
+has nothing left to win. The error here was evaluating a converged model's
+shape at an initialisation-era argument; the conclusion inverted.
+
+⚠️ **What this entry is still the receipt for**: the ALGEBRA of the shape and
+the observation that `s = max(K,1)` is what stops a `K = 0` scope pinning at its
+bound with zero gradient. Only the 0.0162% and the "seven-constraint problem"
+reading are withdrawn.
+
 ### 2(z37) 🛑🛑 **THE PAPER REPORTED A 67.3%-LEAKED CAPPED CLASS AND
 NEVER SAID SO. NOW IT DOES**
 
@@ -10843,10 +10880,25 @@ alm-vs-tralo gap that names a line and reproduces the measured pattern.**
 
 ### 1. The algebra
 
-Under `constraint_grad_mode: normalize` the delivered weight step has norm
-exactly `lr*clip` whatever the loss is worth (`constraint_step.py:263,279-285`),
-so the constraint's entire degree of freedom is the DIRECTION -- the RATIOS of
-the per-scope scalar `A_S` that multiplies `p_ic(1-p_ic)` at every logit.
+Under `constraint_grad_mode: normalize` the constraint GRADIENT is rescaled to
+norm exactly `constraint_grad_clip` before the optimizer sees it -- one
+`clip_grad_norm_(model.parameters(), ...)` at `constraint_step.py:263` plus the
+scale-UP branch at `:279-285`. So a global scalar on the constraint loss divides
+out exactly, and the constraint's entire degree of freedom is the DIRECTION --
+the RATIOS of the per-scope scalar `A_S` that multiplies `p_ic(1-p_ic)` at
+every logit.
+
+⚠️ **SAY `p.grad`, NOT "the weight step". This entry said the delivered WEIGHT
+step has norm `lr*clip`, and that is only true under
+`constraint_step_rule: sgd`** (`constraint_step.py:288`, `p.add_(p.grad,
+alpha=-lr)`). The protocol runs **`shared`** (`configs/protocol.yml:82`), which
+falls through to `optimizer.step()` at `:308` on the CE Adam, so the weight
+delta is Adam's function of a pinned gradient and is NOT a fixed norm. The
+ratio argument above is unaffected -- the rescale happens upstream of the
+optimizer -- but `lr_constraint` and `constraint_grad_clip` are **NOT** inert
+for magnitude. They are merely held EQUAL ACROSS ARMS by `check_parity`, which
+is a different guarantee. Anyone reasoning "the dose is fixed by construction,
+so magnitude cannot matter" is reasoning from a false premise.
 
 | | rule | `A_S` | units |
 |---|---|---|---|
@@ -10914,6 +10966,43 @@ aggregate lands on ALM's split because that peak is rare in the real
 distribution. Removing the residual needs a denominator that is not `max(K,1)`
 at all -- the scope's ITEM COUNT is the principled one -- and that is a SECOND
 arm, deliberately not folded in.
+
+### 5b. `straight_through` IS THE OTHER HALF -- AND IT IS NOT AN ARM ON ITS OWN
+
+An adversarial code review (16 agents, 2026-09-07) proposed `straight_through:
+true` as the complement: it seeds the detach construction with the HARD count
+(`tralo/train.py:443-459`), making the penalty's argument `relu(hard - K)`,
+which is EXACTLY zero for a `K = 0` scope at hard 0. On the measurement above
+that is 72.2% of `K = 0` scope-epochs, so it should delete precisely what
+`penalty_item_scale` cannot reach. **It predicted the `K = 0` share would fall
+93.5% -> ~19%.**
+
+⛔ **MEASURED OFFLINE FIRST, AND THE PREDICTION IS WRONG.** All four knob
+settings on the SAME 11,136 logged `dom1` scope-epochs
+(`scripts/scale_inversion`):
+
+| budget | shipped | **`itemscale`** | `st` alone | both | *ALM* |
+|---|---|---|---|---|---|
+| `K = 0` | 93.5% | **15.3%** | **78.9%** | 4.3% | *18.8%* |
+| `K = 10..99` | 4.9% | 32.0% | 15.2% | 34.9% | *12.0%* |
+| `K >= 100` | 1.7% | **52.7%** | 5.8% | 60.8% | *69.2%* |
+| total pull retained | 453.7 | 2767.9 | **130.0** | 2401.5 | -- |
+
+🔑 **WHY IT FAILS ALONE, AND THE REASON IS THE LAST ROW.** `relu(hard - K)`
+zeroes the `K >= 1` scopes TOO -- they are mostly hard-feasible while still
+soft-violated -- so it deletes **71% of the total pull**, most of it from the
+very bucket the gap lives in. The `K = 0` scopes that survive (hard > 0, so
+genuinely violated) still carry `scale = 1` and still dominate, at 78.9%.
+Removing work is not the same as re-aiming it.
+
+🟢 **AND `penalty_item_scale` ALONE IS THE CLOSEST MATCH TO ALM ON BOTH ENDS**
+-- 15.3% vs 18.8% at `K = 0`, 52.7% vs 69.2% at `K >= 100` -- while `both`
+overshoots past ALM to 4.3%. So the shipped `itemscale1` / `itemscale2` design
+stands, and `tralo_st` as a SOLO arm is closed for free: 16 runs not spent.
+
+⚠️ `both` is NOT thereby rejected, it is UNTESTED. It removes more of the
+provably-unspendable pull than `itemscale` does. It is a candidate only if
+`itemscale` moves MIDDLE and the residual `K = 0` share still reads high.
 
 ### 5. Pre-registered, before a single run
 
