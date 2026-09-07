@@ -3927,7 +3927,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 590 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 591 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -4091,7 +4091,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 590 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 591 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -4099,7 +4099,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (590 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (591 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -10618,7 +10618,7 @@ compares populations rather than methods.
 | 4 | `headroom` | cell key was `(cap tag, class)` -- **backbone and dataset absent**, so it pooled backbones while explicitly refusing to pool cap levels | the prize table -- ✅ FIXED |
 | 5 | `full_panel` | metric tables are SAFE (each pair intersects independently before `dropna`, and no arm is ever ranked). But the DOSE check compared `applied/attempted`, a ratio internal to each arm -- so **the 29-vs-28 gap that quarantined four campaigns read 100% vs 100% and passed** | the dose gate -- ✅ FIXED |
 | 6 | `graph_probe` + `scope_probe` | `_cell_of` returned `(backbone, dataset, cap)` -- **the arm dropped** -- then printed "ONE CELL, so the pooled block is a legal aggregate" over a mixture of six methods | the -1.08 figure -- ✅ FIXED |
-| 7 | `score_scan` | every delta in a cell is taken against a **single run**, including runs at other seeds | prints raw, hides nothing |
+| 7 | `score_scan` | every delta in a cell was taken against a **single run**, including runs at other seeds | prints raw, hides nothing -- ✅ FIXED |
 
 SAFE and verified so: `cell_table` (key complete, seed the only collapsed axis,
 never compares arms), `paired_seeds` (pairs at the same seed, reports the real
@@ -10669,10 +10669,19 @@ headroom describing neither. **Every `headroom` number quoted per cap level
 alone must be re-read per backbone.** The derivation is now `run_axes`, which
 refuses a path too shallow to say, and is gated in both directions.
 
-⚠️ **STILL OPEN, and named so it is not mistaken for clean:** `score_scan`
-takes every delta in a cell against a **single run** -- the first `null`, else
-the first `clip` -- so deltas are cross-seed. It prints raw per-run values and
-hides nothing, which is why it is last, but it has no self-test.
+**`score_scan` pairs on the seed.** Its baseline was the first `null` in the
+cell (else the first `clip`) and every AUROC/AP delta and top-K Jaccard was
+taken against that one run, so a `tralo/seed_3` row was differenced against a
+`null/seed_1` run. It now prefers the baseline at the row's OWN seed -- `null`
+over `clip` there, because the lambda=0 twin is the CE-only counterfactual --
+and where a seed has none it falls back and prints `*` beside the number rather
+than mixing the two silently.
+
+✅ **ALL EIGHT ARE NOW CLOSED.** What remains is not a fix but a re-read: two
+published numbers were computed by the defective code and must be recomputed
+before either is quoted again -- `deep_scope`'s premise correlation
+(`rho +0.504`, which pooled 15 arms) and the `headroom` prize table (which
+pooled two backbones). Both are in MISSION's queue.
 
 ### 🔑 THE SYSTEMIC CAUSE, WHICH IS WORTH MORE THAN ANY ONE FIX
 
@@ -12075,7 +12084,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             590 tests, ~200 s, no dataset required
+tests/             591 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

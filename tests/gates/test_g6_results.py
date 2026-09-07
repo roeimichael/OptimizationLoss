@@ -1225,3 +1225,54 @@ def test_headroom_keys_the_cell_by_BACKBONE_and_refuses_when_it_cannot():
         run_axes(("seed_1",))
     with pytest.raises(SystemExit):
         run_axes(("iwildcam", "L80_G95", "tralo", "seed_1"))
+
+
+def test_score_scan_takes_its_baseline_from_the_SAME_SEED():
+    """Every delta in a cell was taken against ONE run, whatever its seed.
+
+    `base` was the first `null` in the cell (else the first `clip`), and the
+    AUROC/AP deltas and the top-K Jaccard were all computed against it -- so a
+    `tralo/seed_3` row was differenced against a `null/seed_1` run. On this
+    project the RNG floor and the effect are the same size, so a cross-seed
+    delta is indistinguishable from the quantity being measured.
+
+    It prints raw per-run values and hides nothing, which is why this was the
+    mildest of the eight in 2(z52) and the last fixed. It is still a number a
+    reader would take for a paired one.
+    """
+    from scripts.score_scan import baseline_for
+
+    rows = [
+        {"arm": "null", "seed": "seed_1", "tag": "n1"},
+        {"arm": "null", "seed": "seed_2", "tag": "n2"},
+        {"arm": "tralo", "seed": "seed_2", "tag": "t2"},
+        {"arm": "tralo", "seed": "seed_9", "tag": "t9"},
+        {"arm": "clip", "seed": "seed_9", "tag": "c9"},
+    ]
+    fallback = rows[0]
+
+    # THE DEFECT: seed 2's row must pair with seed 2's null, not seed 1's.
+    b, same = baseline_for(rows, rows[2], fallback)
+    assert same and b["tag"] == "n2", b
+
+    # `null` is preferred over `clip` at the same seed -- it is the CE-only
+    # counterfactual and the only row that isolates the constraint.
+    rows2 = rows + [{"arm": "clip", "seed": "seed_2", "tag": "c2"}]
+    b2, _ = baseline_for(rows2, rows2[2], fallback)
+    assert b2["tag"] == "n2", b2
+
+    # NEGATIVE CONTROL: with no `null` at that seed, `clip` at that seed is
+    # still a SAME-SEED pairing and must not be marked as crossed.
+    b9, same9 = baseline_for(rows, rows[3], fallback)
+    assert same9 and b9["tag"] == "c9", (b9, same9)
+
+    # NEGATIVE CONTROL: when the seed has NO baseline at all, it falls back and
+    # says so -- the `*` in the table depends on this being False.
+    lonely = {"arm": "tralo", "seed": "seed_7", "tag": "t7"}
+    bf, samef = baseline_for(rows, lonely, fallback)
+    assert bf is fallback and not samef, (bf, samef)
+
+    # And a cell with no baseline arm at all yields None, not a wrong pairing.
+    none_b, none_same = baseline_for(
+        [{"arm": "tralo", "seed": "seed_1", "tag": "t"}], lonely, None)
+    assert none_b is None and not none_same

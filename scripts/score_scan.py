@@ -119,6 +119,30 @@ def row(y, pred, CAPPED):
     }
 
 
+def baseline_for(rows, o, fallback):
+    """(baseline, same_seed) for one run within a cell.
+
+    THE BASELINE USED TO BE ONE RUN FOR THE WHOLE CELL -- the first `null`,
+    else the first `clip` -- and every AUROC/AP delta and top-K Jaccard was
+    taken against it regardless of seed, so a `tralo/seed_3` row was
+    differenced against a `null/seed_1` run. On this project the RNG floor and
+    the effect are the same size, so a cross-seed delta is indistinguishable
+    from the quantity being measured. FRAMEWORK 2(z52).
+
+    Prefers the baseline at the row's OWN seed, and `null` over `clip` there
+    because the lambda=0 twin is the CE-only counterfactual and the only row
+    that isolates the constraint. When the cell has no baseline at that seed it
+    falls back to the cell-level one and returns same_seed=False, which the
+    caller marks with `*` rather than silently mixing the two.
+    """
+    for arm in ("null", "clip"):
+        b = next((x for x in rows
+                  if x["arm"] == arm and x.get("seed") == o.get("seed")), None)
+        if b is not None:
+            return b, True
+    return fallback, False
+
+
 def main():
     a = argparse.ArgumentParser(description=__doc__)
     a.add_argument("root")
@@ -193,6 +217,7 @@ def main():
         out.append({
             "cell": cell,
             "arm": parts[-2] if len(parts) > 1 else parts[-1],
+            "seed": parts[-1] if len(parts) > 1 else "",
             "run": "/".join(parts[-2:]) if len(parts) > 1 else parts[-1],
             "auroc": float(roc_auc_score(oh, prob[:, present], average="macro")),
             "ap": float(average_precision_score(oh, prob[:, present],
@@ -223,10 +248,21 @@ def main():
         print("\nALLOCATION-FREE -- probabilities only, no allocator moves these")
         print("%-30s %9s %19s" % ("run", "AUROC", "AP"))
         print("-" * 62)
+        crossed = False
         for o in rows:
-            print("%-30s %9.4f%-11s %8.4f%s" % (
-                o["run"], o["auroc"], delta(o["auroc"], base and base["auroc"]),
-                o["ap"], delta(o["ap"], base and base["ap"])))
+            b, same = baseline_for(rows, o, base)
+            crossed = crossed or (b is not None and o is not b and not same)
+            mark = "" if same or b is None or o is b else " *"
+            print("%-30s %9.4f%-11s %8.4f%s%s" % (
+                o["run"], o["auroc"], delta(o["auroc"], b and b["auroc"]),
+                o["ap"], delta(o["ap"], b and b["ap"]), mark))
+        if crossed:
+            print("    * delta taken against a baseline at a DIFFERENT SEED. "
+                  "This cell has no")
+            print("      baseline at that seed, so the RNG draw is inside the "
+                  "number -- and on")
+            print("      this project the RNG floor and the effect are the "
+                  "same size.")
 
         if any(o["prec"] for o in rows):
             print("\nAT THE OPERATING POINT -- top K_c by p_c, which is all a cap uses")
@@ -236,9 +272,11 @@ def main():
             for o in rows:
                 for c in sorted(o["prec"]):
                     j = ""
-                    if base is not None and c in base["topk"] and o is not base:
-                        a, b = base["topk"][c], o["topk"][c]
-                        j = "%.3f" % (len(a & b) / max(1, len(a | b)))
+                    bo, same = baseline_for(rows, o, base)
+                    if bo is not None and c in bo["topk"] and o is not bo:
+                        a, b = bo["topk"][c], o["topk"][c]
+                        j = "%.3f%s" % (len(a & b) / max(1, len(a | b)),
+                                        "" if same else " *")
                     print("%-30s %6d %9.4f %9d %s" % (
                         o["run"], c, o["prec"][c], len(o["topk"][c]), j))
             print("\nA low Jaccard with an unchanged prec@K is CHURN: the run"
