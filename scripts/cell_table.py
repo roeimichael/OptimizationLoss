@@ -121,6 +121,14 @@ def cells(df):
         row = dict(zip(CELL_KEY, key))
         n = len(g)
         row["n_seeds"] = n
+        # 🛑 THE SEED IDENTITIES, NOT ONLY THE COUNT (2026-09-07). Downstream,
+        # `paper_rows` differences two arms' means; that equals the mean of the
+        # per-seed differences ONLY when both rest on the SAME seeds. It had no
+        # way to check, because this row carried a count and nothing else -- so
+        # the intersection was destroyed here and the defect surfaced there.
+        # Emitting the set costs one column and makes the check possible.
+        row["seeds"] = "|".join(str(v) for v in sorted(g[SEED_AXIS])) \
+            if SEED_AXIS in g else ""
         row["n_md5"] = g["raw_md5"].nunique() if "raw_md5" in g else np.nan
         app, att = g.get("steps_applied"), g.get("steps_attempted")
         if app is not None and att is not None and att.notna().any():

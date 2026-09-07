@@ -3927,7 +3927,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 587 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 590 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -4091,7 +4091,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 587 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 590 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -4099,7 +4099,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (587 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (590 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -10612,12 +10612,12 @@ compares populations rather than methods.
 
 | # | scorer | defect | stakes |
 |---|---|---|---|
-| 1 | `paper_rows` | differences two per-arm MEANS with **no seed pairing at all** -- weaker than 2(z50), which at least paired before ranking. `n_seeds` is the TREATED arm's own count. | **says what may be WRITTEN** |
+| 1 | `paper_rows` + `cell_table` | differenced two per-arm MEANS with **no seed pairing at all** -- weaker than 2(z50), which at least paired before ranking. `n_seeds` was the TREATED arm's own count. | **says what may be WRITTEN** -- ✅ FIXED |
 | 2 | `sensitivity_screen` | `n_seeds = max(...)` feeds `classify`, which uses it to separate UNDER-POWERED from NOT DIFFERENTIATED -- **opposite conclusions**. Plus the `_reseed2` blindness below. | ✅ FIXED |
-| 3 | `deep_scope` | each arm's column is built from **its own row subset** while `scopes` and `null E` print once as the union; `bar = max(...)` compares medians over different scope populations | prices directions |
-| 4 | `headroom` | cell key is `(cap tag, class)` -- **backbone and dataset absent**, so it pools backbones while explicitly refusing to pool cap levels | the prize table |
-| 5 | `full_panel` | metric tables are SAFE (each pair intersects independently before `dropna`, and no arm is ever ranked). But the DOSE check keys on **arm alone** and compares `applied/attempted`, a ratio internal to each arm -- so **the 29-vs-28 gap that quarantined four campaigns reads 100% vs 100% and passes** | the dose gate |
-| 6 | `graph_probe` + `scope_probe` | `_cell_of` returns `(backbone, dataset, cap)` -- **the arm is dropped** -- then prints "ONE CELL, so the pooled block is a legal aggregate" over a ragged multi-arm mixture. The two functions are byte-identical | the -1.08 figure |
+| 3 | `deep_scope` | each arm's column was built from **its own row subset** while `scopes` and `null E` printed once as the union; and the premise block **ignored `--arms` entirely** | prices directions -- ✅ FIXED |
+| 4 | `headroom` | cell key was `(cap tag, class)` -- **backbone and dataset absent**, so it pooled backbones while explicitly refusing to pool cap levels | the prize table -- ✅ FIXED |
+| 5 | `full_panel` | metric tables are SAFE (each pair intersects independently before `dropna`, and no arm is ever ranked). But the DOSE check compared `applied/attempted`, a ratio internal to each arm -- so **the 29-vs-28 gap that quarantined four campaigns read 100% vs 100% and passed** | the dose gate -- ✅ FIXED |
+| 6 | `graph_probe` + `scope_probe` | `_cell_of` returned `(backbone, dataset, cap)` -- **the arm dropped** -- then printed "ONE CELL, so the pooled block is a legal aggregate" over a mixture of six methods | the -1.08 figure -- ✅ FIXED |
 | 7 | `score_scan` | every delta in a cell is taken against a **single run**, including runs at other seeds | prints raw, hides nothing |
 
 SAFE and verified so: `cell_table` (key complete, seed the only collapsed axis,
@@ -10629,6 +10629,51 @@ per-arm n), `straddle_probe` (**the model the others should copy**),
 more than 5 percentage points apart"; the dose function is print statements and
 its return value is discarded. The sentence describes an intention.
 
+### The three closed on 2026-09-07, and what each one changes
+
+**`full_panel`'s dose block now prints TWO statistics.** `applied/attempted` is
+internal to each arm, so 29/29 and 28/28 both read 100% and the comparison saw
+nothing -- the gate meant to catch a dose gap was structurally blind to the only
+dose gap that has ever occurred here. The second statistic is **attempted steps
+per run**, which reads 29.00 against 28.00. Gated with `vitdual1`'s real shape,
+and the gate ALSO asserts the old check stays silent on it: if the percentage
+check ever starts firing there, the two statistics have been conflated.
+
+⛔ **AND `full_panel` DOES NOT REFUSE**, which CLAUDE.md claimed for months. The
+dose function is print statements and its return value is discarded. Making it
+refuse would ALSO be wrong: `dom1`/`dom1b`/`equaldose1` are PARTIAL and scorable
+for every contrast not touching the named arms, so a blanket refusal would
+delete three independent units to describe a defect in two arms.
+`quarantine.gate()` is what gates, at ARM granularity. The doc now says so.
+
+**`deep_scope` honours `--arms`.** Its premise block iterated every arm on disk
+while the excess table 150 lines above filters correctly -- the same file
+selecting in one place and not the other. This is why the published premise
+correlation reads "6 cells, 360 runs" = 60 runs/cell = 15 arms x 4 seeds and not
+the four the documented invocation names. **rho +0.504 must be RECOMPUTED**
+before it is quoted; it is the premise the whole program rests on.
+
+**`graph_probe` / `scope_probe` carry the ARM in the cell key.** And writing that
+gate surfaced a second, older defect in the same function: it called
+`os.path.abspath`, which expands a relative path against the CWD, so the
+documented "returns None when the path is too shallow" branch was unreachable --
+`_cell_of("seed_1")` returned a cell built from whatever directories sat above
+the working directory. It abstains now.
+
+**`headroom` keys the cell by BACKBONE.** It already REFUSED a run whose cap tag
+it could not read -- pooling cap levels has retracted a claim three times -- and
+never guarded the backbone, which rule 4 names in the same breath. `n` and `K`
+come from labels and survived; `ctrl` and `hard` are model outputs, so the
+prize table's "`dom1` MNv2/MNv3 L80_G95 | 12.8" row averaged two models into a
+headroom describing neither. **Every `headroom` number quoted per cap level
+alone must be re-read per backbone.** The derivation is now `run_axes`, which
+refuses a path too shallow to say, and is gated in both directions.
+
+⚠️ **STILL OPEN, and named so it is not mistaken for clean:** `score_scan`
+takes every delta in a cell against a **single run** -- the first `null`, else
+the first `clip` -- so deltas are cross-seed. It prints raw per-run values and
+hides nothing, which is why it is last, but it has no self-test.
+
 ### 🔑 THE SYSTEMIC CAUSE, WHICH IS WORTH MORE THAN ANY ONE FIX
 
 **Not one self-test in the set carries a RAGGED-COVERAGE fixture.** Every one
@@ -10639,6 +10684,25 @@ hit it. The fixtures encode the campaign we wish we had.
 A shared ragged fixture -- one cell where arm A ran seeds {1,2}, arm B ran
 {1,3}, arm C ran {1,2,3} -- belongs in every scorer's self-test, and is a bigger
 win than fixing the seven individually.
+
+### `paper_rows` + `cell_table`, the coupled pair
+
+`mean(a) - mean(b)` equals `mean(a - b)` **only when the two arms ran the same
+seeds**, so on a COMPLETE cell the old arithmetic was exactly right and this
+whole defect is about ragged ones. It could not be fixed in `paper_rows` alone:
+`cell_table` emitted `n_seeds` and never the seed IDENTITIES, so the
+intersection was destroyed one step upstream of where it was needed.
+
+✅ `cell_table` now emits a `seeds` column. `paper_rows` compares the two sets
+and marks a contrast over different seeds `RAGGED` rather than printing a number
+that looks like every other number in the table, and `n_seeds` is now the SHARED
+count. A corpus CSV written before the column existed **abstains** -- it cannot
+be proven ragged, and "assume they match" is the failure this note is about.
+
+Three gates, and the negative controls are the point: a COMPLETE cell must be
+byte-unchanged (a fix that silently restated the corpus would be worse than the
+defect), and a pre-`seeds` CSV must not be marked either way. Mutation-tested:
+`ragged = False` restores the old behaviour and is caught.
 
 ### The one fixed today, because it was about to be load-bearing
 
@@ -12011,7 +12075,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             587 tests, ~200 s, no dataset required
+tests/             590 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

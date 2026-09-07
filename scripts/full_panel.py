@@ -974,6 +974,10 @@ def _provenance_gaps(prov):
 
 
 DOSE_FRACTION_TOLERANCE = 0.05
+# Steps ATTEMPTED per run may differ by less than this before the arms are
+# called unequal. Half a step is well under the 1.00 gap that has actually
+# occurred (29.00 vs 28.00) and well above float noise in the sum.
+DOSE_ATTEMPTED_TOLERANCE = 0.5
 
 
 def _completeness_warning(n_scored, skipped, out=None):
@@ -1062,10 +1066,24 @@ def _constraint_dose_check(rows):
     print("")
     print("CONSTRAINT DOSE -- steps that LANDED, against steps attempted")
     fracs = {}
+    per_run = {}
     partial = []
     for arm, (app, att, n, nb) in sorted(trained.items()):
         frac = app / float(att)
         fracs[arm] = frac
+        # 🛑 THE SECOND STATISTIC, AND THE ONE THAT CATCHES THE GAP THAT
+        # ACTUALLY HAPPENED. `frac` is applied/attempted, a ratio INTERNAL to
+        # each arm, so two arms attempting DIFFERENT amounts both read 100%
+        # and the comparison below sees no gap at all. That is exactly the
+        # 29-vs-28 defect that quarantined `vitdual1` and left `dom1`, `dom1b`
+        # and `equaldose1` PARTIAL: both duals start their multipliers at 0 and
+        # updated them AFTER the primal step, so epoch 0 took none -- every arm
+        # landed 100% of what it attempted and no gate was red.
+        # `dose_landed` already says to read its `attempted/run` TABLE and not
+        # the percentage; this is that table's statistic, here, where the
+        # contrasts are actually printed.
+        if n - nb > 0:
+            per_run[arm] = att / float(n - nb)
         flag = "" if app == att else "   *** %d STEP(S) LOST" % (att - app)
         # The percentage is over the MEASURED runs only. Printing it beside the
         # full run count reads as 100% of four runs when it is 100% of one.
@@ -1099,6 +1117,21 @@ def _constraint_dose_check(rows):
               "is over" % (", ".join("`%s`" % a for a in partial),
                            "y" if len(partial) > 1 else "ies"))
         print("    the measured subset only. The real dose can be lower.")
+    if len(per_run) > 1 and (max(per_run.values()) - min(per_run.values())
+                             > DOSE_ATTEMPTED_TOLERANCE):
+        lo = min(per_run, key=per_run.get)
+        hi = max(per_run, key=per_run.get)
+        print("    *** THESE ARMS ATTEMPTED DIFFERENT AMOUNTS OF CONSTRAINT: "
+              "`%s` at %.2f" % (hi, per_run[hi]))
+        print("        steps/run against `%s` at %.2f. BOTH may read 100%% "
+              "above -- that" % (lo, per_run[lo]))
+        print("        percentage is applied/attempted WITHIN an arm and "
+              "cannot see this.")
+        print("        An arm-vs-arm delta across this gap is confounded with "
+              "dose. This is")
+        print("        the shape that quarantined `vitdual1` and left `dom1` / "
+              "`dom1b` /")
+        print("        `equaldose1` PARTIAL. FRAMEWORK 2(z38).")
     if len(fracs) > 1 and (max(fracs.values()) - min(fracs.values())
                            > DOSE_FRACTION_TOLERANCE):
         lo = min(fracs, key=fracs.get)

@@ -614,3 +614,75 @@ def test_every_trained_arm_ATTEMPTS_every_constraint_epoch(tmp_path):
             fails.append("%s applied %r of %r attempted -- a non-finite "
                          "constraint gradient dropped a step" % (arm, applied, got))
     report(fails, "constraint-dose defects")
+
+
+def test_the_dose_check_sees_UNEQUAL_ATTEMPTED_steps_not_only_lost_ones():
+    """The 29-vs-28 gap, in the tool that prints the contrasts.
+
+    `full_panel`'s dose block compared `applied / attempted` across arms. That
+    ratio is INTERNAL to each arm, so an arm attempting 29 steps per run and one
+    attempting 28 BOTH read 100% and the comparison saw nothing. It is exactly
+    the shape that quarantined `vitdual1` and left `dom1`, `dom1b` and
+    `equaldose1` PARTIAL: both duals started their multipliers at 0 and updated
+    them AFTER the primal step, so epoch 0 took none, every arm landed 100% of
+    what it attempted, and no gate was red.
+
+    `dose_landed` already tells the reader to use its `attempted/run` table
+    rather than the percentage. This asserts the same statistic exists where the
+    deltas are actually printed. FRAMEWORK 2(z38), 2(z52).
+    """
+    import contextlib
+    import io as _io
+
+    from scripts.full_panel import _constraint_dose_check
+
+    def render(spec):
+        rows = []
+        for arm, att, n in spec:
+            for _ in range(n):
+                rows.append({"arm": arm, "steps_applied": att,
+                             "steps_attempted": att})
+        buf = _io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            _constraint_dose_check(rows)
+        return buf.getvalue()
+
+    # vitdual1's real shape: every arm at 100%, two attempting one step fewer.
+    got = render([("alm", 29, 4), ("tralo", 29, 4),
+                  ("fioretto", 28, 4), ("hounie", 28, 4)])
+    assert "ATTEMPTED DIFFERENT AMOUNTS" in got, (
+        "a 29-vs-28 attempted gap must be reported\n" + got)
+    assert "29.00" in got and "28.00" in got, got
+
+    # AND THE POINT: the OLD check is silent on it, which is why this is a
+    # second statistic rather than a tightened threshold. If this ever starts
+    # firing, the percentage check has changed meaning and this test is stale.
+    assert "DID NOT RUN AT THE SAME DOSE" not in got, (
+        "the applied/attempted check cannot see this gap -- if it now does, "
+        "the two statistics have been conflated\n" + got)
+
+    # NEGATIVE CONTROL: equal attempted dose must stay quiet, or every healthy
+    # campaign would carry the warning and it would stop being read.
+    quiet = render([("alm", 29, 4), ("tralo", 29, 4), ("hounie", 29, 4)])
+    assert "ATTEMPTED DIFFERENT AMOUNTS" not in quiet, quiet
+
+    # NEGATIVE CONTROL: the ORIGINAL defect still fires. Lost steps are a
+    # different failure -- the epoch ran and no update landed -- and adding the
+    # new statistic must not have displaced it.
+    lost = []
+    for _ in range(4):
+        lost.append({"arm": "tralo", "steps_applied": 29, "steps_attempted": 29})
+        lost.append({"arm": "tralo_uniform", "steps_applied": 1,
+                     "steps_attempted": 29})
+    buf = _io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        _constraint_dose_check(lost)
+    out = buf.getvalue()
+    assert "DID NOT RUN AT THE SAME DOSE" in out, (
+        "tralo_uniform at 1/29 beside tralo at 29/29 is the original defect\n"
+        + out)
+    assert "STEP(S) LOST" in out, out
+
+    # A single arm cannot be compared to anything, and must not pretend it was.
+    solo = render([("tralo", 29, 4)])
+    assert "ATTEMPTED DIFFERENT AMOUNTS" not in solo, solo

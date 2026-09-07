@@ -192,6 +192,22 @@ def build(rows, status_of=None, unit_of=None):
                 ref = fixed if fixed is not None else null_of(arm)
                 if not ref or ref not in arms:
                     continue
+                # 🛑 THE TWO MEANS MUST REST ON THE SAME SEEDS.
+                # `mean(a) - mean(b) == mean(a - b)` only when the seed sets
+                # are equal; on a ragged cell the difference is between two
+                # POPULATIONS and is not a paired delta at all. This row is
+                # what says what may be WRITTEN, so it refuses rather than
+                # emits a number that looks like every other number in the
+                # table. 2(z52). A COMPLETE cell is unaffected -- and that is
+                # gated as a negative control, because a fix that silently
+                # restated the corpus would be worse than the defect.
+                sa_seeds = _seedset(r)
+                sb_seeds = _seedset(arms[ref])
+                ragged = (sa_seeds is not None and sb_seeds is not None
+                          and sa_seeds != sb_seeds)
+                shared = (len(sa_seeds & sb_seeds)
+                          if sa_seeds is not None and sb_seeds is not None
+                          else int(r["n_seeds"]))
                 d = (float(r["ccF1"]) - float(arms[ref]["ccF1"])) * scale
                 # sqrt(sa^2 + sb^2) is the sd of the per-seed DIFFERENCE at
                 # rho = 0. The arms are correlated -- `tralo` and its null share
@@ -217,15 +233,31 @@ def build(rows, status_of=None, unit_of=None):
                 out.append(dict(
                     campaign=camp, dataset=ds, model=model, cap=cap, arm=arm,
                     contrast=name, ref=ref,
-                    n_seeds=int(r["n_seeds"]),
+                    # the seeds behind THIS contrast, not the treated arm's own
+                    n_seeds=shared,
                     items=d, sd_items=sd,
                     seeds_needed=seeds_needed(d, sd),
-                    resolved=("yes" if (sd and abs(d) >= 2.0 * sd) else "no"),
+                    resolved=("RAGGED" if ragged else
+                              "yes" if (sd and abs(d) >= 2.0 * sd) else "no"),
                     cell_status=(status_of or {}).get((ds, model, cap), "?"),
                     unit=(unit_of or {}).get(
                         (camp, model), "UNVERIFIED:" + camp + "/" + model),
                 ))
     return out
+
+
+def _seedset(row):
+    """The seeds behind a `cell_table` row, or None if it did not say.
+
+    `cell_table` grew the `seeds` column on 2026-09-07. A corpus CSV written
+    before that has only `n_seeds`, and the honest answer there is "unknown",
+    never "assume they match" -- an older file must not silently read as a
+    clean paired contrast.
+    """
+    raw = row.get("seeds")
+    if raw is None or (isinstance(raw, float)) or str(raw).strip() == "":
+        return None
+    return set(str(raw).split("|"))
 
 
 def write(recs, path, out=sys.stdout):
@@ -384,6 +416,78 @@ def self_test(out=sys.stdout):
                          cap="L80_G95", arm=arm, n_seeds="4",
                          items_per_001="0.50", ccF1="%.3f" % f1,
                          ccF1_sd="%.3f" % sd))
+    # 3b. THE RAGGED CELL. This is the fixture 2(z52) found missing from every
+    #     self-test in the project: they all give every arm all four seeds, so
+    #     a whole defect class was unreachable. `mean(a) - mean(b)` equals
+    #     `mean(a - b)` ONLY on a shared seed set; when it does not, this row
+    #     is a difference between two POPULATIONS and must not be written.
+    ragged_rows = []
+    for arm, f1, seeds in (("clip", 0.500, "1|2|3|4"),
+                           ("tralo", 0.520, "1|2"),
+                           ("tralo_null", 0.505, "1|3")):
+        ragged_rows.append(dict(
+            campaign="c1", dataset="iwildcam", model="MobileNetV2",
+            cap="L80_G95", arm=arm, n_seeds=str(len(seeds.split("|"))),
+            seeds=seeds, items_per_001="0.50", ccF1="%.3f" % f1,
+            ccF1_sd="0.004"))
+    rr = {r["contrast"]: r for r in build(
+        ragged_rows,
+        status_of={("iwildcam", "MobileNetV2", "L80_G95"): "task"})}
+    if rr.get("vs_clip", {}).get("resolved") != "RAGGED":
+        w("  FAIL  a contrast over DIFFERENT seed sets must read RAGGED, got "
+          "%r%s" % (rr.get("vs_clip", {}).get("resolved"), chr(10)))
+        ok = False
+    elif rr["vs_clip"]["n_seeds"] != 2:
+        w("  FAIL  n_seeds must be the SHARED count (2), got %r%s"
+          % (rr["vs_clip"]["n_seeds"], chr(10)))
+        ok = False
+    elif rr.get("vs_null", {}).get("n_seeds") != 1:
+        w("  FAIL  tralo{1,2} vs tralo_null{1,3} share ONE seed, got %r%s"
+          % (rr.get("vs_null", {}).get("n_seeds"), chr(10)))
+        ok = False
+    else:
+        w("  PASS  a contrast whose two arms ran DIFFERENT seeds reads RAGGED "
+          "and" + chr(10) + "        reports the SHARED seed count, not the "
+          "treated arm's own" + chr(10))
+
+    # 3c. NEGATIVE CONTROL, and it is the one that matters most: the fix must
+    #     be a NO-OP on every complete cell. A change that silently restated
+    #     the corpus would be worse than the defect it repairs.
+    square = []
+    for arm, f1 in (("clip", 0.500), ("tralo", 0.520), ("tralo_null", 0.505)):
+        square.append(dict(campaign="c1", dataset="iwildcam",
+                           model="MobileNetV2", cap="L80_G95", arm=arm,
+                           n_seeds="4", seeds="1|2|3|4", items_per_001="0.50",
+                           ccF1="%.3f" % f1, ccF1_sd="0.004"))
+    sq = {r["contrast"]: r for r in build(
+        square, status_of={("iwildcam", "MobileNetV2", "L80_G95"): "task"})}
+    if any(v["resolved"] == "RAGGED" for v in sq.values()):
+        w("  FAIL  a COMPLETE cell must never read RAGGED" + chr(10))
+        ok = False
+    elif sq["vs_clip"]["n_seeds"] != 4 or round(sq["vs_clip"]["items"], 3) != 1.0:
+        w("  FAIL  a complete cell must be byte-unchanged, got n=%r items=%r%s"
+          % (sq["vs_clip"]["n_seeds"], sq["vs_clip"]["items"], chr(10)))
+        ok = False
+    else:
+        w("  PASS  NEGATIVE CONTROL: a COMPLETE cell is unchanged -- same "
+          "items, same" + chr(10) + "        seed count, never RAGGED"
+          + chr(10))
+
+    # 3d. And a corpus CSV written BEFORE the `seeds` column existed must not
+    #     silently read as a clean paired contrast just because it cannot say.
+    legacy = [dict(campaign="c1", dataset="iwildcam", model="MobileNetV2",
+                   cap="L80_G95", arm=a, n_seeds="4", items_per_001="0.50",
+                   ccF1="%.3f" % f, ccF1_sd="0.004")
+              for a, f in (("clip", 0.500), ("tralo", 0.520))]
+    lg = {r["contrast"]: r for r in build(legacy)}
+    if lg["vs_clip"]["resolved"] == "RAGGED":
+        w("  FAIL  a pre-`seeds` CSV cannot be PROVEN ragged and must not be "
+          "marked so" + chr(10))
+        ok = False
+    else:
+        w("  PASS  a CSV predating the `seeds` column abstains rather than "
+          "asserting" + chr(10) + "        either way" + chr(10))
+
     recs = build(rows, status_of={("iwildcam", "MobileNetV2", "L80_G95"): "task"})
     got = {r["contrast"]: round(r["items"], 3) for r in recs}
     want = {"vs_clip": 1.0, "vs_null": 0.75, "vs_reseed": -0.1}

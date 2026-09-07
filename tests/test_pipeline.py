@@ -8609,8 +8609,16 @@ def test_the_pooling_probes_say_when_they_pooled_across_cells():
                        ("diffused", "C1_shuffled_graph",
                         "C2_shuffled_features"))):
         M = importlib.import_module(mod)
-        assert M._cell_of(names[0]) == ("MobileNetV3", "iwildcam", "L90_G95"), (
+        # The ARM is part of the cell key (rule 4: the atomic cell is
+        # dataset x backbone x cap x METHOD). It was dropped until 2026-09-07,
+        # so every arm's runs at one cap collapsed to one key and the guard
+        # below certified a six-method mixture as "ONE CELL". FRAMEWORK 2(z52).
+        assert M._cell_of(names[0]) == ("MobileNetV3", "iwildcam", "L90_G95",
+                                        "tralo"), (
             "%s cannot derive a cell from a run path" % mod)
+        # and two ARMS at one cap are two cells, not one
+        assert M._cell_of(names[0]) != M._cell_of(
+            "r/MobileNetV3/iwildcam/L90_G95/alm/seed_1")
 
         # The three runs average to -2.00 pooled, while the two cells are
         # +1.50 and -9.00. A pooled mean that no cell resembles is exactly the

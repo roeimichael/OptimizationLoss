@@ -248,14 +248,33 @@ def group_calibrate(P, g, classes, targets, factor_map=None, group_key=None):
 
 
 def _cell_of(run_dir):
-    """(backbone, dataset, cap) for a run, from its path.
+    """(backbone, dataset, cap, ARM) for a run, from its path.
 
     <root>/<Backbone>/<dataset>/<cap>/<arm>/<seed>. Returns None when the path
     is too shallow to say, which is honest: an unknown cell must not silently
     join a known one.
+
+    🛑 THE ARM IS PART OF THE CELL, AND IT USED TO BE DROPPED (2026-09-07).
+    This returned `parts[-5:-2]`, i.e. (backbone, dataset, cap), so every arm's
+    runs at one cap collapsed into ONE key -- and the rule-4 guard below then
+    printed "ONE CELL, so the pooled block above is a legal aggregate" over a
+    mixture of six methods. It certified precisely the thing it exists to
+    catch. Rule 4 is explicit: the atomic cell is (dataset, backbone, cap,
+    METHOD) over seeds. FRAMEWORK 2(z52).
+
+    ⚠️ This function is duplicated in `graph_probe` and `scope_probe` and the
+    two must stay byte-identical; `tests/gates/test_g6_results.py` asserts it,
+    because a predicate copied into two files is how the lambda=0 stream test
+    drifted.
     """
-    parts = os.path.normpath(os.path.abspath(run_dir)).split(os.sep)
-    return tuple(parts[-5:-2]) if len(parts) >= 5 else None
+    # NOT `abspath`. It expands a relative path against the CWD, so the
+    # "too shallow to say" branch below was unreachable for any relative
+    # input: `_cell_of("seed_1")` returned a cell built out of whatever
+    # directories happened to be above the working directory. The docstring
+    # promised abstention and the code could not deliver it. Found 2026-09-07
+    # by the gate written for the arm-in-the-key fix.
+    parts = os.path.normpath(run_dir).split(os.sep)
+    return tuple(parts[-5:-1]) if len(parts) >= 5 else None
 
 
 def _per_cell_report(names, rows, keys):
@@ -270,10 +289,11 @@ def _per_cell_report(names, rows, keys):
     """
     cells = {}
     for i, nm in enumerate(names):
-        cells.setdefault(_cell_of(nm) or ("?", "?", "?"), []).append(i)
+        cells.setdefault(_cell_of(nm) or ("?", "?", "?", "?"), []).append(i)
     if len(cells) <= 1:
         print("")
-        print("  ONE CELL (%s), so the pooled block above is a legal aggregate."
+        print("  ONE CELL (%s) -- backbone, dataset, cap AND arm -- so the "
+              "pooled block above is a legal aggregate."
               % ("/".join(sorted(cells)[0]) if cells else "none"))
         return cells
     print("")
@@ -286,7 +306,7 @@ def _per_cell_report(names, rows, keys):
         from scripts.frozen_head_probe import seeds_needed
     except Exception:
         seeds_needed = None
-    print("  %-30s %4s %s %8s %6s %7s"
+    print("  %-46s %4s %s %8s %6s %7s"
           % ("cell", "n", "  ".join("%12s" % k[:12] for k in keys),
              "sd", "sign", "seeds"))
     for c in sorted(cells):
@@ -299,8 +319,8 @@ def _per_cell_report(names, rows, keys):
                          if seeds_needed and m0 > 0 and sd0 > 0 else "-"))
         vals = ["%+12.2f" % (sum(rows[k][i] for i in idx) / float(len(idx)))
                 for k in keys]
-        print("  %-30s %4d %s %8.2f %3d/%-2d %s"
-              % ("/".join(c)[-30:], len(idx), "  ".join(vals), sd0, pos,
+        print("  %-46s %4d %s %8.2f %3d/%-2d %s"
+              % ("/".join(c)[-46:], len(idx), "  ".join(vals), sd0, pos,
                  len(idx), need))
     n_pos = sum(1 for c in cells
                 if sum(rows[keys[0]][i] for i in cells[c]) > 0)

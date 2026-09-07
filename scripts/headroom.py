@@ -71,6 +71,27 @@ from src.training.constraints import (compute_global_constraints,
 from src.utils.constants import UNLIMITED
 
 
+def run_axes(parts):
+    """(backbone, dataset) for a run, from its path parts.
+
+    <root>/<Backbone>/<dataset>/<cap>/<arm>/<seed>, so the backbone is 5 from
+    the end and the dataset 4.
+
+    🛑 REFUSES rather than bucketing under "?", exactly as the cap tag above
+    does. Pooling cap levels is the axis this project has retracted a claim
+    over three times and it is guarded; the BACKBONE was not, and rule 4 names
+    it just as explicitly. A run too shallow to say which backbone it is cannot
+    be silently averaged into one that does. FRAMEWORK 2(z52).
+    """
+    if len(parts) < 5:
+        raise SystemExit(
+            "REFUSED: %r is too shallow to say which backbone and dataset it "
+            "is. Pooling two backbones averages two models' achieved cc-F1 "
+            "into a headroom that describes neither."
+            % ("/".join(parts),))
+    return parts[-5], parts[-4]
+
+
 def load(d):
     """(y, group ids, probabilities, classes, global caps, local caps) or None.
 
@@ -170,6 +191,17 @@ def main():
                 "so this refuses rather than bucketing the run under '?'."
                 % d)
         arm = d.parts[-2]
+        # 🛑 THE BACKBONE AND DATASET ARE PART OF THE CELL (added 2026-09-07).
+        # The key was `(tag, class)` alone, so two backbones at one cap pooled
+        # into ONE entry. `n` and `K` come from labels and the cap policy and
+        # are backbone-independent, but `ctrl` and `hard` are MODEL OUTPUTS --
+        # averaging MobileNetV2's achieved cc-F1 with MobileNetV3's produces a
+        # headroom that describes neither. This is the same shape as the
+        # cap-level pooling refused eight lines above, on an axis rule 4 names
+        # just as explicitly. The `dom1 MNv2/MNv3 L80_G95 | 12.8` row in the
+        # prize table is literally two backbones in one number. FRAMEWORK
+        # 2(z52).
+        backbone, dataset = run_axes(d.parts)
         pred = P.argmax(1)
         eq = equalize_multi(P, g, G, L, classes) if arm == args.control else None
 
@@ -185,7 +217,7 @@ def main():
             k = effective_budget(G, L, c)
             if not n or k >= UNLIMITED:
                 continue
-            e = cells.setdefault((tag, c),
+            e = cells.setdefault((backbone, dataset, tag, c),
                                  {"n": n, "K": k, "hard": [], "ctrl": []})
             if eq is not None:
                 # CONTROL ONLY, both columns. Averaging the raw count over
@@ -211,29 +243,30 @@ def main():
     # a table read out of scrollback has to say which campaign produced it.
     print("HEADROOM AND WHAT IT COSTS IN ITEMS   (%s, control = %s)\n"
           % (quarantine.campaign_name(args.root), args.control))
-    print("%-10s %5s %6s %6s %8s %9s %9s %9s %8s %7s"
-          % ("cap", "class", "n", "K", "ceiling", "achieved", "headroom",
-             "= items", "excess", "binds"))
-    print("-" * 90)
+    print("%-13s %-10s %5s %6s %6s %8s %9s %9s %9s %8s %7s"
+          % ("backbone", "cap", "class", "n", "K", "ceiling", "achieved",
+             "headroom", "= items", "excess", "binds"))
+    print("-" * 104)
     per_cap, dead = {}, []
-    for (tag, c), e in sorted(cells.items()):
+    for (backbone, _dataset, tag, c), e in sorted(cells.items()):
         n, k = e["n"], e["K"]
         ceil = 2.0 * k / (k + n)
         ach = float(np.mean(e["ctrl"])) if e["ctrl"] else float("nan")
         head = ceil - ach
-        per_cap.setdefault(tag, []).append((ceil, ach))
+        per_cap.setdefault((backbone, tag), []).append((ceil, ach))
         nb = sum(1 for h in e["hard"] if h > k)
         if nb < len(e["hard"]):
             dead.append((tag, c, nb, len(e["hard"])))
-        print("%-10s %5d %6d %6d %8.4f %9.4f %9.4f %9.1f %8.1f %4d/%-2d"
-              % (tag, c, n, k, ceil, ach, head, head * (k + n) / 2,
+        print("%-13s %-10s %5d %6d %6d %8.4f %9.4f %9.4f %9.1f %8.1f %4d/%-2d"
+              % (backbone[:13], tag, c, n, k, ceil, ach, head,
+                 head * (k + n) / 2,
                  float(np.mean(e["hard"])) - k, nb, len(e["hard"])))
     print()
-    for tag, v in sorted(per_cap.items()):
+    for (backbone, tag), v in sorted(per_cap.items()):
         ceil = float(np.mean([x for x, _ in v]))
         ach = float(np.mean([x for _, x in v]))
-        print("  %-10s macro ceiling %.4f  achieved %.4f  HEADROOM %.4f"
-              % (tag, ceil, ach, ceil - ach))
+        print("  %-13s %-10s macro ceiling %.4f  achieved %.4f  HEADROOM %.4f"
+              % (backbone[:13], tag, ceil, ach, ceil - ach))
     if dead:
         print()
         print("!! THE CAP DOES NOT BIND IN EVERY SEED:")

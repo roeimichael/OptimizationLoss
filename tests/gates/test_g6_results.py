@@ -1135,3 +1135,93 @@ def _raise(*a, **k):
     """Stand-in for an instrument that is absent, not one that returns empty."""
     raise ImportError("configs/task_windows.yml does not exist in this "
                       "checkout (simulated pinned worktree)")
+
+
+def test_the_probe_cell_key_carries_the_ARM_and_both_copies_agree():
+    """Rule 4: the atomic cell is (dataset, backbone, cap, METHOD).
+
+    `graph_probe._cell_of` and `scope_probe._cell_of` returned
+    (backbone, dataset, cap) and dropped the arm, so every arm's runs at one cap
+    collapsed to ONE key -- and the rule-4 guard then printed "ONE CELL, so the
+    pooled block above is a legal aggregate" over a mixture of six methods. The
+    guard certified exactly the thing it exists to catch. FRAMEWORK 2(z52).
+
+    The two functions are duplicated across the files and must stay identical.
+    A predicate copied into two places is how the lambda=0 stream test drifted:
+    `deployed_h2h` was fixed and `sensitivity_screen`'s copy was not, and the
+    difference decided whether a floor cleared MIN_FLOOR_OBS.
+    """
+    import inspect
+
+    from scripts import graph_probe, scope_probe
+
+    base = "/root/MobileNetV2/iwildcam/L80_G95"
+    tralo = graph_probe._cell_of(base + "/tralo/seed_1")
+    assert tralo is not None and len(tralo) == 4, tralo
+    assert tralo[-1] == "tralo", "the ARM must be in the cell key: %r" % (tralo,)
+
+    # THE DEFECT, as a control: two ARMS at the same cap are two cells, not one.
+    alm = graph_probe._cell_of(base + "/alm/seed_1")
+    assert alm != tralo, (
+        "two methods at one cap collapsed to a single cell -- this is the "
+        "pooling the rule-4 guard used to certify as legal")
+
+    # NEGATIVE CONTROL: seed is the ONE axis that may collapse.
+    assert graph_probe._cell_of(base + "/tralo/seed_4") == tralo
+
+    # NEGATIVE CONTROL: the other axes still separate.
+    assert graph_probe._cell_of(
+        "/root/ViTB16/iwildcam/L80_G95/tralo/seed_1") != tralo
+    assert graph_probe._cell_of(
+        "/root/MobileNetV2/iwildcam/L90_G95/tralo/seed_1") != tralo
+
+    # A path too shallow to say must abstain, never guess.
+    assert graph_probe._cell_of("seed_1") is None
+
+    # The two copies must not drift.
+    a = inspect.getsource(graph_probe._cell_of)
+    b = inspect.getsource(scope_probe._cell_of)
+    assert a == b, (
+        "graph_probe._cell_of and scope_probe._cell_of have diverged; they are "
+        "the same function and a fix to one must reach the other")
+    assert scope_probe._cell_of(base + "/tralo/seed_1") == tralo
+
+
+def test_headroom_keys_the_cell_by_BACKBONE_and_refuses_when_it_cannot():
+    """`headroom` pooled two backbones into one prize number.
+
+    Its cell key was `(cap tag, class)`. `n` and `K` come from labels and the
+    cap policy and are backbone-independent, so they survived -- but `ctrl` and
+    `hard` are MODEL OUTPUTS, and averaging MobileNetV2's achieved cc-F1 with
+    MobileNetV3's yields a headroom describing neither. CLAUDE.md's prize table
+    row `dom1 MNv2/MNv3 L80_G95 | 12.8` is literally two backbones in one
+    figure, and that table is what makes the current campaigns worth running.
+
+    The same file already REFUSES a run whose cap tag it cannot read, because
+    pooling cap levels has retracted a claim three times. Rule 4 names the
+    backbone in the same breath. FRAMEWORK 2(z52).
+    """
+    import pytest
+
+    from scripts.headroom import run_axes
+
+    parts = ("results", "dom1", "MobileNetV2", "iwildcam", "L80_G95",
+             "tralo", "seed_1")
+    assert run_axes(parts) == ("MobileNetV2", "iwildcam")
+
+    # THE DEFECT, as a control: two backbones at one cap are two cells.
+    other = ("results", "dom1", "MobileNetV3", "iwildcam", "L80_G95",
+             "tralo", "seed_1")
+    assert run_axes(other) != run_axes(parts)
+
+    # NEGATIVE CONTROL: seed and arm do not change the axes -- they are a
+    # different part of the key, and this function must not over-reach.
+    assert run_axes(parts[:-1] + ("seed_4",)) == run_axes(parts)
+    assert run_axes(parts[:-2] + ("alm", "seed_1")) == run_axes(parts)
+
+    # It REFUSES rather than bucketing an unreadable path under "?", which is
+    # the whole point: a silent "?" is how two models became one number.
+    with pytest.raises(SystemExit):
+        run_axes(("seed_1",))
+    with pytest.raises(SystemExit):
+        run_axes(("iwildcam", "L80_G95", "tralo", "seed_1"))

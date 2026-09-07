@@ -136,7 +136,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 587 regression tests, ~250s, no dataset needed
+python -m pytest tests -q                   # 590 regression tests, ~250s, no dataset needed
 #   `tests/test_scorers_run_end_to_end.py` EXECUTES every scorer as a subprocess
 #   against a campaign carrying a real PARTIAL marker. It exists because three
 #   scorers once used `quarantine.` with no module-level import: they PARSED,
@@ -441,8 +441,18 @@ python -m scripts.full_panel --campaign <root> --control clip   # THE scorer, se
 #     `status: completed`, so an arm can run at 3.4% of its dose and look
 #     healthy from every other angle. Measured: `tralo_uniform` 1/29 steps
 #     against `tralo` 29/29 in the SAME campaign (FRAMEWORK 2(u)); `iwc3`
-#     lost 328 of 1044. full_panel refuses to compare arms more than 5
-#     percentage points apart -- but only once you look.
+#     lost 328 of 1044.
+#     ⚠️ **IT WARNS, IT DOES NOT REFUSE.** This line said "full_panel
+#     refuses to compare arms more than 5 percentage points apart"; the dose
+#     function is print statements and its return value is discarded. Refusing
+#     would ALSO be wrong -- `dom1`/`dom1b`/`equaldose1` are PARTIAL, scorable
+#     for every contrast not touching the named arms, and a blanket refusal
+#     would delete three independent units to describe a defect in two arms.
+#     `quarantine.gate()` is what actually gates, at ARM granularity.
+#     🔑 AND IT NOW PRINTS **TWO** DOSE STATISTICS, because the percentage
+#     alone is blind to the gap that actually happened: applied/attempted is
+#     INTERNAL to each arm, so 29/29 and 28/28 both read 100%. The second is
+#     ATTEMPTED STEPS PER RUN, which reads 29.00 vs 28.00 and is loud.
 python -m scripts.log_health <root>        # what the OPTIMISATION did, per run, from
 #   🛑 ITS CROSS-ARM COUNT TABLE IS NOT COMPARABLE. The arms write different
 #   log SCHEMAS (tralo* 76 cols, hounie 16, alm 15, fioretto 14), and for every
@@ -934,7 +944,14 @@ which a cut-local method has something real to win.
 
    | cap | c2 | c7 | cell |
    |---|---|---|---|
-   | `dom1` MNv2/MNv3 L80_G95 | 7.8 | 5.0 | **12.8** |
+   | `dom1` MNv2/MNv3 L80_G95 | 7.8 | 5.0 | **12.8** |   ⚠️ TWO BACKBONES
+   <!-- The two `dom1` rows POOL MobileNetV2 and MobileNetV3: `headroom`
+        keyed its cells on (cap tag, class) with the backbone ABSENT until
+        2026-09-07, while explicitly refusing to pool cap levels. `n` and
+        `K` come from labels and are unaffected; `achieved` is a MODEL
+        output, so these two rows average two models into a headroom that
+        describes neither. Fixed, and they must be RE-READ per backbone
+        before either is quoted alone. FRAMEWORK 2(z52). -->
    | `dom1` L90_G95 | 11.9 | 8.1 | **20.0** |
    | `dom1` L95_G80 | 6.5 | 7.2 | **13.7** |
    | `vitdual2` ViTB16 L80-80_G95 | 7.3 | 5.7 | **13.0** |
