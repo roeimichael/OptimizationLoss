@@ -49,6 +49,18 @@ def select_gpu():
         print("  [%d]  %s  (%.1f GB)"
               % (i, torch.cuda.get_device_name(i), mem / 1024 ** 3))
     print("=" * 60)
+    # ONE visible GPU is not a choice, and PROMPTING for it cost a launch on
+    # 2026-09-07: both dispatchers were started detached with
+    # `CUDA_VISIBLE_DEVICES=<n> setsid nohup ... < /dev/null`, torch reported
+    # exactly one device, and `input()` hit EOF and killed them before either
+    # claimed a run. A campaign is partitioned by EXPERIMENT_DIR and launched
+    # once per card, so the detached launch is the NORMAL path, not a corner.
+    # The multi-GPU prompt stays: picking one of several IS a choice, and
+    # auto-picking there would silently share a card with another user.
+    if n == 1:
+        print("  -> Using GPU 0: %s (only visible device, not prompting)"
+              % torch.cuda.get_device_name(0))
+        return 0
     while True:
         choice = input("\nSelect GPU (0-%d): " % (n - 1)).strip()
         try:

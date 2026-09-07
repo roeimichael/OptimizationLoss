@@ -708,39 +708,79 @@ that claim is the as-deployed 0.83x-the-floor number, which means
 
 ## 🟢 0-RUNNING. WHAT IS IN FLIGHT (2026-09-07)
 
-⚠️ **THIS IS AS OF LAST CONTACT, NOT AS OF NOW.** The VPN dropped on
-2026-09-06 and has not come back: both hosts time out during the SSH banner
-exchange, which is the VPN and not a host (checked both, per the standing rule).
-Both campaigns were launched detached under `setsid`/`nohup`, so a dropped VPN
-does not touch them -- but **nothing below has been verified since the drop.**
-Re-establish contact before believing any of it.
-
-| root | GPU | backbone | caps | runs | what it decides |
-|---|---|---|---|---|---|
-| `dualprop1` | dsisco01 GPU 0 | MobileNetV2 | `L70-70_G95` + `L80-80_G95` | 88 | **the first campaign that can give a PRICED four-dual verdict** (three lambda=0 streams -> 12 floor observations), and the first test of `tralo_dualprop` |
-| `shape1` | dsisco01 GPU 1 | RegNetY400MF | `L70-70_G95` + `L80-80_G95` | 72 | the penalty-shape arms. **Already answered: CLOSED.** `linear` and `squared` both go BACKWARDS in the middle bucket and dump effort into the already-tied deep one |
-
-**The first thing to run on contact**, in this order:
+**`itemscale1` + `itemscale2`, 192 runs, dsisco01 GPU 0 and GPU 1, launched
+14:16.** Worktree `~/optloss-itemscale`, PINNED at `5b31f53a71ac`. Do not move
+it, do not deploy `src/`, `configs/` or `main.py` into it.
 
 ```bash
-for h in dsisco01 dsisco02; do ssh $h 'nvidia-smi --query-compute-apps=pid --format=csv,noheader | while read p; do ps -o user= -p ${p// /}; done | sort | uniq -c'; done
-ssh dsisco01 'cd ~/optloss-dualprop && ~/anaconda3/envs/optloss/bin/python -m scripts.rig_status'
-python -m scripts.dose_landed results/dualprop1        # on the FIRST completed runs
+# resume protocol -- run these first, always
+ssh dsisco01 'ps -u michaer8 -o pid,etime,cmd | grep main.py | grep -v grep'
+ssh dsisco01 'cd ~/optloss-itemscale && tail -5 itemscale1.log itemscale2.log'
+# relaunch (the dispatcher needs stdin; fixed in main.py AFTER this pin, so
+# this tree still prompts and still needs the `echo 0`)
+cd ~/optloss-itemscale
+PY=~/anaconda3/envs/optloss/bin/python
+EXPERIMENT_DIR=results/itemscale1 CUDA_VISIBLE_DEVICES=0 setsid nohup \
+    bash -c "echo 0 | $PY -u main.py" > itemscale1.log 2>&1 < /dev/null &
+EXPERIMENT_DIR=results/itemscale2 CUDA_VISIBLE_DEVICES=1 setsid nohup \
+    bash -c "echo 0 | $PY -u main.py" > itemscale2.log 2>&1 < /dev/null &
 ```
 
-🛑 **AND THE PRE-REGISTERED INERT-FLAG CHECK, BEFORE ANY SCORING.**
-`tralo_dualprop` differs from `tralo` by ONE config key, and an unread key is
-this project's most frequent failure mode -- five occurrences. md5 CANNOT clear
-it (2(x2): `logit_adjust` diverged in 24/24 while being mathematically plain
-CE). Read the lambda TRAJECTORY:
+| | `itemscale1` | `itemscale2` |
+|---|---|---|
+| backbone | MobileNetV2 | RegNetY400MF |
+| caps | `L70-70_G95` `L80-80_G95` | same |
+| cells | 2 | 2 |
+| runs | 96 | 96 |
+| arms | 12, identical | 12, identical |
 
-```bash
-python -m scripts.latch_probe --campaign results/dualprop1 --arms tralo tralo_dualprop
-```
+**WHAT IT TESTS.** `tralo_itemscale` = `penalty_item_scale: true`, ONE key off
+`tralo`. FRAMEWORK 2(z54): `_penalty` divides the excess by `max(K,1)`, so
+`d(pen)/d(soft)` is in units of 1/budget and a scope's pull PER ITEM is
+INVERSELY proportional to its ceiling, while ALM's `lambda + mu*r` is in raw
+items. On iwildcam, where 7 of 14 local ceilings are K = 0, that inverts the
+scope priority: TraLO sends **93.5%** of its fixed-norm step to K = 0 scopes
+and **1.7%** to K >= 100, against ALM's 18.8% / 69.2%.
 
-`tralo` must still read **13.3x or 24.3x**; `tralo_dualprop` must read far
-above it. A `tralo_dualprop` at ~24.3x means the key never reached the ratchet
-and the arm is a SIXTH inert flag. FRAMEWORK 2(z51).
+🔑 **AND IT IS THE FIRST CAMPAIGN THAT CAN PRICE ITS OWN RESULT.** Three
+lambda = 0 streams (`tralo_null`, `tralo_reseed`, `tralo_reseed2`) give
+C(3,2) x 4 = **12 floor observations**, clearing `MIN_FLOOR_OBS` = 8. Every
+prior head-to-head verdict read REFUSED for want of exactly this.
+
+⚠️ **2 cells per campaign, 4 across both -- `gen_campaign` says UNDERPOWERED
+for significance and it is right.** 9 cells is the minimum for a starred
+verdict. This campaign reports DIRECTION and per-cell consistency, never a p.
+If the mechanism reads live, the follow-up is a third and fourth backbone, not
+more seeds here.
+
+### The reads, in order, and what each one refuses
+
+1. **`budget_share results/itemscale1`** -- 🛑 THE PRE-REGISTERED FALSIFIER,
+   and it needs NO metric. The K = 0 share must fall from 93.5% toward ALM's
+   18.8%. Predicted **15.3%** from the offline replay. If it does not move,
+   the flag is INERT -- the sixth -- and md5 CANNOT clear it (rule 3 is
+   one-sided).
+2. **`dose_landed results/itemscale1`** -- read the `attempted/run` TABLE, not
+   the percentage. Every trained arm must be at 29.00. Both campaigns carry
+   `--constraint-fp32`, which lands 15284/15284 on record.
+3. **`deep_scope --arms tralo tralo_itemscale alm lp`** -- 🛑 THE MECHANISM
+   TEST. Read the **MIDDLE** bucket. Prediction: `tralo_itemscale` closes from
+   tralo's +6.6 toward alm's +11.3. ⛔ **The DEEP bucket must NOT move much**:
+   it is 83% K = 0 and already TIED (+12.7 vs +12.3), so a DEEP-only move means
+   the arm reproduced `tralo_squared` and the mechanism is NOT confirmed.
+4. **`deployed_h2h` / `tralo_wins` / `full_panel`** -- only after 1-3.
+
+⛔ **NOT PREDICTED TO WIN OUTRIGHT.** `headroom` bounds the prize at 12.8-20.7
+items per cell at task caps, and `tralo_coin` is in-campaign as the
+pre-registered direction kill-condition.
+
+⛔ **THE FIX IS PARTIAL BY CONSTRUCTION AND THAT IS STATED, NOT DISCOVERED
+LATER.** `scale == 1` at K = 0, so multiplying by it is the identity there: the
+K = 0 pull is UNCHANGED and only the K >= 1 scopes are lifted. At the worst
+point the ratio goes 6156x -> 14.9x and the K = 0 scope still leads. The
+principled denominator is the scope's ITEM COUNT, which `_penalty` does not
+currently receive -- that is `tralo_sizescale`, task #89, and it is gated on
+this campaign showing the mechanism is real.
 
 ## 🧹 0-CLEAN. THE STEP GATE AND THE SYNC (2026-09-02)
 
