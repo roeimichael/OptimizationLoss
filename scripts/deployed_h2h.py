@@ -275,14 +275,26 @@ def rng_floor(cell, get):
     observations from 3 streams is a better median than 4 from 2, and it is NOT
     12 independent draws. Callers print both so the distinction survives.
     """
-    gaps, streams = [], 0
+    gaps, streams, lonely = [], 0, []
     for fam in FAMILIES:
         present = [a for a in sorted(cell) if _is_lambda0_stream(a, fam)]
+        # 🛑 COUNT ONLY STREAMS THAT CONTRIBUTE A PAIR. A family holding ONE
+        # lambda=0 arm produces zero pairs, so including it in the reported
+        # count says "5 streams" for a floor built from one family's single
+        # pair -- which reads as ample and is the opposite of the truth.
+        # Measured on `vitdual2`, which carries tralo_null, tralo_reseed,
+        # alm_null, fioretto_null and hounie_null: FIVE streams, but only
+        # `tralo` has two of them, so the ceiling is C(2,2) x 4 seeds = 4
+        # observations and that cell can NEVER reach MIN_FLOOR_OBS = 8.
+        if len(present) < 2:
+            lonely += present
+            continue
         streams += len(present)
         for i, a in enumerate(present):
             for b in present[i + 1:]:
                 d, _ = paired(cell[a], cell[b], get)
                 gaps += [abs(x) for x in d]
+    _ = lonely
     return (st.median(gaps), len(gaps), streams) if gaps else (None, 0, 0)
 
 
@@ -789,6 +801,22 @@ def self_test(w=sys.stdout.write):
     check(nf4 == 4 and ns4 == 2,
           "`_lam0` must NOT be counted as an RNG stream, got %d from %d"
           % (nf4, ns4))
+    # NEGATIVE CONTROL: the real `vitdual2` arm set. FIVE lambda=0 arms, but
+    # four are the only one in their family and produce no pair, so the count
+    # must read 2 -- not 5, which would say "ample" about a floor that can
+    # never reach the bar.
+    vd = _cell({"clip":          [600] * 4,
+                "tralo":         [640] * 4,
+                "tralo_null":    [600, 601, 599, 600],
+                "tralo_reseed":  [604, 603, 605, 604],
+                "alm_null":      [602] * 4,
+                "fioretto_null": [603] * 4,
+                "hounie_null":   [601] * 4})
+    _f5, nf5, ns5 = rng_floor(vd, g)
+    check(nf5 == 4 and ns5 == 2,
+          "4 SINGLETON streams contribute no pair and are not counted: "
+          "got %d observation(s) from %d stream(s), want 4 from 2"
+          % (nf5, ns5))
 
     fat = _cell({"clip":         [600] * 8,
                  "tralo":        [640] * 8,

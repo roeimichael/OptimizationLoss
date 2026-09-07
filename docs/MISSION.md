@@ -9,6 +9,100 @@ Last updated: **2026-09-06** (the arm-vs-arm scorer was ranking a four-name whit
 
 ---
 
+## 0-UNIT. WHICH (BACKBONE, CAP) PAIRS CAN CARRY A UNIT AT ALL (2026-09-06)
+
+**Measured by `gen_campaign`'s own task-window check, which is the authority.
+Read this BEFORE choosing a second unit -- three of the four backbones are
+constrained in ways that are not obvious.**
+
+Caps where BOTH capped classes are strictly in-window, so the cell poses the
+question to both:
+
+| backbone | usable caps | notes |
+|---|---|---|
+| **MobileNetV2** | `L70-70_G95`, `L80-80_G95` | `L90-90` is PARTIAL for class 2. This is `dualprop1`. |
+| **RegNetY400MF** | `L70-70_G95`, `L80-80_G95` | `L90-90` is PARTIAL for class 2. Same caps as `shape1`, so its `tralo`/`alm`/`clip` data is directly comparable. |
+| **ViTB16** (headline) | `L80-80_G95`, `L90-90_G95` | `L70-70` is OUTSIDE the window entirely. |
+| **MobileNetV3** | ⛔ **NONE** | **class 2 has NO STRICT BAND on this backbone at any cap.** Only class 7 poses a question, so a MNv3 cell asks half the question and cannot be a full unit. |
+
+⛔ **MobileNetV3 IS NOT A CANDIDATE FOR A NEW UNIT**, and that is easy to miss:
+it appears throughout the existing corpus (`dom1`, `equaldose1`, `taskwin2`)
+because those predate the strict-window measurement. Its cells are not wrong,
+they are HALF-STRENGTH, and a new campaign should not spend GPU hours there.
+
+🔑 **THE SEQUENCING, and it follows the standing rule that only a POSITIVE
+signal earns hours.** ViTB16 is the headline backbone, fixed a priori, and it is
+also the slowest. So:
+
+1. `dualprop1` (MobileNetV2) reports its first cell.
+2. **Positive** -> commit ViTB16 at `L80-80_G95` + `L90-90_G95` on the same
+   11-arm design. That supersedes `vitdual2` entirely and, unlike it, CAN be
+   priced (three lambda=0 streams -> 12 observations).
+3. **Negative** -> do not burn ViT hours on it.
+
+`RegNetY400MF` at `L70-70_G95` + `L80-80_G95` is the cheap second unit and is
+what goes on GPU 1 the moment `shape1` frees it, regardless of branch -- two
+priceable units is the sign-test floor this project has never had.
+
+---
+
+## 0-LAUNCH. THE EXACT COMMANDS, BECAUSE A LAUNCH THAT LIVES ONLY IN SCROLLBACK IS LOST
+
+**`dualprop1` ran for a day before its own generating command was written down
+anywhere. Any campaign that is running must have its command HERE.**
+
+`dualprop1` -- LIVE on dsisco01 GPU 0, MobileNetV2, 88 runs:
+
+```bash
+python -m configs.gen_campaign --root results/dualprop1 --datasets iwildcam \
+  --models MobileNetV2 --caps L70-70_G95 L80-80_G95 \
+  --arms clip focal_clip lp alm fioretto hounie tralo tralo_dualprop \
+         tralo_null tralo_reseed tralo_reseed2 \
+  --constraint-fp32 --constraint-grad-mode normalize
+```
+
+`dualprop2` -- STAGED, goes on GPU 1 the moment `shape1` frees it. Identical
+design, RegNetY400MF, the cheap second unit. **Validated locally 2026-09-07 by
+generating it into a scratch root: 88 configs, and all four (cap x class) rows
+read `in`** -- c2 K/n 0.700 and 0.800 against window 0.70-0.80, c7 0.700 and
+0.798 against 0.60-0.90.
+
+```bash
+python -m configs.gen_campaign --root results/dualprop2 --datasets iwildcam \
+  --models RegNetY400MF --caps L70-70_G95 L80-80_G95 \
+  --arms clip focal_clip lp alm fioretto hounie tralo tralo_dualprop \
+         tralo_null tralo_reseed tralo_reseed2 \
+  --constraint-fp32 --constraint-grad-mode normalize
+```
+
+⚠️ **`--constraint-fp32` AND `--constraint-grad-mode normalize` ARE BOTH
+NON-DEFAULT AND BOTH LOAD-BEARING.** The protocol defaults are `False` and
+`clip`. Omitting the first cost `taskwin1` 9 of its 29 steps per run; omitting
+the second puts the campaign off the recipe and `rig_status` refuses it.
+
+🛑 **A FRESH WORKTREE HAS NO `.npy` ARRAYS.** They are gitignored (3.0 GB +
+443 MB), so `git worktree add` yields only the tracked meta CSVs and every run
+dies in ~5 s on `FileNotFoundError: train_images.npy`. That is how `dualprop1`
+lost its first 24 runs. Link them from the REAL location -- and note the
+sibling worktrees are themselves symlinks, so link to `optloss-audit`, never
+worktree-to-worktree, or you build a chain:
+
+```bash
+ln -s ~/optloss-audit/data/iwildcam/oodslice/*.npy <new-worktree>/data/iwildcam/oodslice/
+python -m scripts.data_present --root results/dualprop2     # gates exactly this
+```
+
+Then the step gates, in order, and none of them is optional:
+
+```bash
+python -m scripts.run_campaign --root results/dualprop2 --step verify
+python -m scripts.run_campaign --root results/dualprop2 --step launch   # includes data_present
+# ... launch, then on the FIRST completed run:
+python -m scripts.run_campaign --root results/dualprop2 --step firstrun
+```
+
+---
+
 ## 0-PRICE. `vitdual2` CAN NEVER BE PRICED, AND `dualprop1` IS THE FIRST THAT CAN (2026-09-06)
 
 **The only campaign carrying all four duals at equal dose is structurally
@@ -1522,7 +1616,7 @@ for k,v in sorted(seen.items(), key=lambda kv:-sum(kv[1].values())):
 PY'
 
 # 4. gates, before ANY launch
-python -m pytest tests -q          # must be 501 (bump when you add one)
+python -m pytest tests -q          # must be 583 passed + 1 skipped (bump when you add one)
 python -m scripts.audit_config
 python -m scripts.smoke_arms
 ```
