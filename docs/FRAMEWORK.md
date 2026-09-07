@@ -11018,6 +11018,77 @@ provably-unspendable pull than `itemscale` does. It is a candidate only if
   items per cell at task caps.
 
 
+---
+
+## 2(z55). THE LOCAL SCOPE COLLAPSES ONTO THE GLOBAL ONE FOR 6 OF 8 CLASSES (2026-09-07)
+
+**`dataset_screen` gates per-group LABEL SHIFT. It never asked whether a class
+is SPREAD across groups, and those are different questions. Only the second one
+licenses a local cap.**
+
+### 1. The property
+
+A per-group count cap is a real allocation decision only when the class could
+plausibly appear in more than one group. If a class occurs at exactly ONE group,
+
+    "at most K of class c in each group"  ==  "at most K of class c overall"
+
+and the LOCAL scope has silently become the GLOBAL one. The campaign still runs,
+still reports numbers, and measures a global cap twice.
+
+### 2. The measurement (`scripts/tier_viability`, metadata only, no GPU)
+
+iwildcam/oodslice, 8 classes, 7 cameras, 2943 test items:
+
+| class | test items | cameras | max-camera share |
+|---|---|---|---|
+| 0 | 720 | **1** | 100% |
+| 1 | 480 | 2 | 92% |
+| **2** | 370 | **3** | **43%** |
+| 3 | 180 | **1** | 100% |
+| 4 | 210 | **1** | 100% |
+| 5 | 367 | **1** | 100% |
+| 6 | 160 | 2 | 81% |
+| **7** | 456 | **4** | **50%** |
+
+🔑 **Classes 2 and 7 are the ONLY pair on which the question can be posed.** The
+protocol caps exactly those two, and that is not a tuning choice -- it is forced.
+Swapping classes does not give a different result, it gives a degenerate design.
+
+Over all 21 staged candidates plus the incumbent, **iwildcam ranks 20th of 22**:
+
+| | density | usable | K=0 ceilings | dead items |
+|---|---|---|---|---|
+| `fitz_atlasfst` | 0.94 | 8/8 | 6% | 0% |
+| `bcn_s1` | 0.89 | 8/8 | 11% | 0% |
+| `fmow_country_wide` | 0.82 | 8/8 | 18% | 0% |
+| **`iwildcam`** | **0.27** | **2/8** | **50%** | **72%** |
+
+⚠️ **72% of test items sit in groups holding NONE of the usable classes.** Camera
+218 alone is **1657 items = 56% of the test set** with zero of both capped
+classes, contributing two ceilings that are satisfied before training starts and
+can never change an emitted item.
+
+### 3. Why this explains 2(z54)
+
+The K=0 dominance is not a quirk of the penalty -- it is what this table
+predicts. A K=0 ceiling on a 1657-item group has soft count `sum p_ic` over 1657
+images; at a confident `p ~ 2e-4` that is **~0.33**, and the measured median K=0
+soft count across 24 runs is **0.320**. Two independent derivations, same number.
+2(z54)'s units defect and this slice's sparsity are the same finding seen from
+two ends.
+
+### 4. What it does and does not license
+
+⛔ **It does NOT retract any measured result.** Every iwildcam number stands as a
+measurement on iwildcam.
+🛑 **It DOES bound the generality claim.** The headline rests on a slice where
+the local scope is non-degenerate for 2 of 8 classes and 72% of items are outside
+it. A second dataset is no longer a nice-to-have.
+⚠️ **And no candidate is runnable yet**: all 21 are metadata-only, 1-8 MB each.
+iwildcam is the only slice with images on the server.
+
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, updated 2026-08-30 -- read this before section 3's older text**

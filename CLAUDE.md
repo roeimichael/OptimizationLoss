@@ -670,6 +670,29 @@ python -m scripts.prep_iwildcam --annotations <cct.json>     --out data/<name>/o
                                             #   images and no GPU: any
                                             #   COCO-CameraTraps annotation file
                                             #   (iWildCam, Terra Incognita/CCT)
+python -m scripts.tier_viability <slice-dir> ...  # 🛑 IS THE LOCAL SCOPE A TIER
+#   STRUCTURE, OR JUST A SPARSITY PATTERN? `dataset_screen` asks whether
+#   per-group LABEL SHIFT exists; that is NECESSARY AND NOT SUFFICIENT, and
+#   iwildcam is the proof -- it scores z=96.3, the BEST of 21 candidates, and
+#   6 of its 8 classes still cannot carry a local cap at all.
+#   🔑 THE PROPERTY: a per-group cap is a real allocation decision only if the
+#   class could appear in more than one group -- the way a hospital's
+#   gold/silver/bronze tiers are, because any patient could land in any tier.
+#   If a class occurs at exactly ONE group then "at most K per group" IS "at
+#   most K overall" and the LOCAL scope has silently collapsed onto the GLOBAL
+#   one. The campaign still runs and measures a global cap twice.
+#   🛑 MEASURED 2026-09-07 over all 21 staged candidates + the incumbent.
+#   **iwildcam ranks 20th of 22**: density 0.27, 2 of 8 classes usable, 50% of
+#   ceilings K=0 at a 70% cap, and **72% of test items sit in groups holding
+#   NONE of the usable classes**. Camera 218 alone is 1657 items = 56% of the
+#   test set with zero of BOTH capped classes. Twelve slices read TIER-LIKE
+#   with all 8 classes usable (`fitz_atlasfst` 0.94, `bcn_s1` 0.89,
+#   `fmow_country_wide` 0.82). ⛔ NONE of the 21 has images on disk.
+#   ⚠️ READ `dead` AND `median cell items`, NOT ONLY `usable`. A class spread
+#   over 9 groups with 3 items per cell cannot carry a count cap either.
+#   `--cap` sets the fraction used to count zero ceilings; `--self-test` gates
+#   it, 11 checks, 4 of them negative controls including the DIAGONAL case
+#   (each class at exactly one group) which must read DEAD.
 python -m scripts.dataset_screen <slice-dir> ...  # CAN a count constraint carry
                                             #   information here? Labels + metadata only,
                                             #   no images/model/GPU. Read the NET column:
