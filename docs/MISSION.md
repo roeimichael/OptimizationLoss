@@ -706,51 +706,41 @@ TRAJECTORIES the two reach **90 degrees** on disjoint supports. What carries
 that claim is the as-deployed 0.83x-the-floor number, which means
 "indistinguishable here", never "identical". FRAMEWORK 2(z32)b, 2(z28).
 
-## 🟢 0-RUNNING. WHAT IS IN FLIGHT RIGHT NOW (2026-09-02, both GPUs)
+## 🟢 0-RUNNING. WHAT IS IN FLIGHT (2026-09-07)
 
-We hold **2 of 4 GPUs on dsisco01, which is the cap.** GPU 0 is `nirgal` and
-GPU 2 is `zehavid`; never share. The next free slot is one of OURS finishing,
-not another user leaving.
+⚠️ **THIS IS AS OF LAST CONTACT, NOT AS OF NOW.** The VPN dropped on
+2026-09-06 and has not come back: both hosts time out during the SSH banner
+exchange, which is the VPN and not a host (checked both, per the standing rule).
+Both campaigns were launched detached under `setsid`/`nohup`, so a dropped VPN
+does not touch them -- but **nothing below has been verified since the drop.**
+Re-establish contact before believing any of it.
 
-| root | worktree | GPU | commit | runs | what it decides |
+| root | GPU | backbone | caps | runs | what it decides |
 |---|---|---|---|---|---|
-| `vitdual1` | `optloss-cutwin` | 3 | `6658ef8c` | 88 | the four duals on **ViTB16**, the headline backbone, which has zero fioretto/hounie/alm. Also carries 8 `tralo_null` seeds at two caps -- the ONLY way to replace the 1-seed ViTB16 task window |
-| `seed58a` | `optloss-domb` | 1 | `1d921173` | 40 | **seeds 5-8** of `dom1b`/RegNetY400MF at `L80_G95` + `L90_G95` |
+| `dualprop1` | dsisco01 GPU 0 | MobileNetV2 | `L70-70_G95` + `L80-80_G95` | 88 | **the first campaign that can give a PRICED four-dual verdict** (three lambda=0 streams -> 12 floor observations), and the first test of `tralo_dualprop` |
+| `shape1` | dsisco01 GPU 1 | RegNetY400MF | `L70-70_G95` + `L80-80_G95` | 72 | the penalty-shape arms. **Already answered: CLOSED.** `linear` and `squared` both go BACKWARDS in the middle bucket and dump effort into the already-tied deep one |
 
-### Why `seed58a` is seeds and not a new campaign
+**The first thing to run on contact**, in this order:
 
-A new campaign on an already-measured (backbone, host) buys NOTHING -- the
-warm-up is cached under the same `base_model_id`, so it is the same model. All
-four backbones on dsisco01 are spent or in flight. What is NOT spent is SEEDS.
+```bash
+for h in dsisco01 dsisco02; do ssh $h 'nvidia-smi --query-compute-apps=pid --format=csv,noheader | while read p; do ps -o user= -p ${p// /}; done | sort | uniq -c'; done
+ssh dsisco01 'cd ~/optloss-dualprop && ~/anaconda3/envs/optloss/bin/python -m scripts.rig_status'
+python -m scripts.dose_landed results/dualprop1        # on the FIRST completed runs
+```
 
-`paired_noise` prices the powered corner exactly: at K/n = 0.9 a cell needs
-**7-8 seeds at 80% power**, against 546 at K/n = 0.5 and 2607 at 0.2. The
-protocol runs 4. So `L90_G95` is the one cap where doubling the seeds crosses
-the power threshold instead of chasing it -- and this is the direct answer to
-"1 of 158 strict-task rows resolves". It is generated at `dom1b`'s EXACT commit
-`1d92117363d2` and lands on the same fp16 + GradScaler regime, so seeds 5-8
-merge into dom1b's existing cells rather than forming new ones.
+🛑 **AND THE PRE-REGISTERED INERT-FLAG CHECK, BEFORE ANY SCORING.**
+`tralo_dualprop` differs from `tralo` by ONE config key, and an unread key is
+this project's most frequent failure mode -- five occurrences. md5 CANNOT clear
+it (2(x2): `logit_adjust` diverged in 24/24 while being mathematically plain
+CE). Read the lambda TRAJECTORY:
 
-⚠️ **The catch, and state it every time the result is quoted:** at
-K/n = 0.9 the cap barely binds. Where the constraint BINDS nothing is
-measurable, and where something is measurable the constraint hardly
-constrains. `L80_G95` is strict on BOTH classes for RegNetY400MF and
-`L90_G95` is strict on class 7 only (class 2 is PARTIAL there), so the two
-caps are not interchangeable and must not be pooled.
+```bash
+python -m scripts.latch_probe --campaign results/dualprop1 --arms tralo tralo_dualprop
+```
 
-### When a GPU frees
-
-Refill it. Queued in order:
-1. **Re-measure the ViTB16 task window** the moment `vitdual1`'s `tralo_null`
-   arms land -- `configs/task_windows.yml` currently records ViTB16 from ONE
-   seed and both strict bands are empty for that reason alone.
-2. **Seeds 5-8 for MobileNetV2** (`equaldose1`, commit `10d37518`) at the same
-   two caps -- the second unit to cross 8 seeds.
-3. **Units 7-8 are free on dsisco02**: RegNetY400MF and ViTB16 there have never
-   been run. Those are NEW units, worth more than seeds, but dsisco02 is fully
-   occupied by other users.
-
----
+`tralo` must still read **13.3x or 24.3x**; `tralo_dualprop` must read far
+above it. A `tralo_dualprop` at ~24.3x means the key never reached the ratchet
+and the arm is a SIXTH inert flag. FRAMEWORK 2(z51).
 
 ## 🧹 0-CLEAN. THE STEP GATE AND THE SYNC (2026-09-02)
 
@@ -1362,6 +1352,46 @@ distribution", not "local vs global".
 
 Work top-down. When one finishes, score it, update sections 1-2 of this file
 and FRAMEWORK 3(0), then start the next.
+
+⚠️ **ITEMS 0-5 ARE THE LIVE QUEUE (2026-09-07). Everything numbered
+below them is the older queue, kept because it carries the reasoning, and much
+of it is superseded -- read 0-RUNNING first.**
+
+0. 🔴 **RE-ESTABLISH CONTACT.** The VPN has been down since 2026-09-06.
+   Nothing about either campaign has been verified since. Both hosts time out
+   in the SSH banner exchange, so it is the VPN, not a host.
+
+1. 🛑 **THE INERT-FLAG CHECK ON `tralo_dualprop`**, on the first
+   completed run, before any scoring. `latch_probe --campaign results/dualprop1
+   --arms tralo tralo_dualprop`. Predicted far above 24.3x; a reading AT 24.3x
+   means the key is unread and the arm is the sixth inert flag. 2(z51).
+
+2. 🟢 **LAUNCH `dualprop2` (RegNetY400MF) the moment `shape1` frees
+   GPU 1.** The command is in 0-LAUNCH and was validated locally on 2026-09-07:
+   88 configs, all four (cap x class) rows in-window. **Two priced units is the
+   sign-test floor this project has never had.** Symlink the `.npy` arrays from
+   `~/optloss-audit` FIRST -- a fresh worktree has none and every launch gate
+   still reads green without them.
+
+3. **Score `dualprop1` with the standing sequence**, and read 2(z51)'s three
+   predictions before the headline: MIDDLE depth must move, DEEP must not, and
+   the lambda range must be wide. A win with prediction 2 falsified is a win
+   with the mechanism unexplained, and must be reported as one.
+
+4. **Recompute `deep_scope`'s premise correlation.** The published
+   `rho +0.504, 6 cells, 360 runs` pooled ALL 15 dom1 arms because the premise
+   block ignored `--arms` (fixed 2026-09-07). It is the premise the whole
+   program rests on -- that the proxy the constraint optimises is not orthogonal
+   to the metric that is scored -- so it must not be quoted until re-run.
+
+5. **Re-read the `headroom` prize table per BACKBONE.** Its cell key had no
+   backbone until 2026-09-07, so `dom1 MNv2/MNv3 L80_G95 | 12.8` and
+   `L90_G95 | 20.0` average two models into a headroom describing neither.
+   That table is what makes the current campaigns worth running.
+
+---
+
+### The older queue, kept for its reasoning
 
 0. 🟢 **RUNNING (204/216): `equaldose1`** -- and it has ALREADY ANSWERED
    BOTH ITS OWN QUESTION AND `taskwin2`'s. FRAMEWORK 2(z19).
