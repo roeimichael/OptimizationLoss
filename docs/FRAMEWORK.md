@@ -3927,7 +3927,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 592 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 601 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -4091,7 +4091,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 592 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 601 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -4099,7 +4099,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (592 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (601 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -10832,6 +10832,103 @@ LOSING mean is still a loss. Variance reduction is only worth buying when the
 point estimate is favourable and unresolved. It is not.
 
 
+---
+
+## 2(z54). THE CONSTRAINT GRADIENT IS IN THE WRONG UNITS, AND THAT INVERTS THE SCOPE PRIORITY (2026-09-07)
+
+**TraLO and ALM both reduce to one scalar per scope. They compute it in
+different units, and on iwildcam that sends TraLO's step to the opposite end of
+the scope distribution from ALM's. This is the first mechanical account of the
+alm-vs-tralo gap that names a line and reproduces the measured pattern.**
+
+### 1. The algebra
+
+Under `constraint_grad_mode: normalize` the delivered weight step has norm
+exactly `lr*clip` whatever the loss is worth (`constraint_step.py:263,279-285`),
+so the constraint's entire degree of freedom is the DIRECTION -- the RATIOS of
+the per-scope scalar `A_S` that multiplies `p_ic(1-p_ic)` at every logit.
+
+| | rule | `A_S` | units |
+|---|---|---|---|
+| **ALM** | `fioretto_alm/train.py:244,253` | `lambda_S + mu_t * r_S`, `r_S = soft-K` | **raw items** |
+| **TraLO** | `transductive_loss.py:420-428` | `lambda_S * [s/(E+s)^2 + rho*2e/(s(1+e^2)^2)]` | **1/budget** |
+
+`e = E / s` with `s = max(K, 1)`. Making the excess dimensionless gives
+`d(pen)/d(soft)` units of 1/budget, so **a scope's pull PER ITEM is inversely
+proportional to its own ceiling**. ALM divides by nothing at all.
+
+🔑 `s = max(K, 1)` is the identity for every `K >= 1`, so this is INVISIBLE on a
+dataset with no zero ceilings. On iwildcam **7 of the 14 per-group ceilings are
+K = 0**, and for those the excess is suddenly in ABSOLUTE items while every
+other scope is in PERCENT.
+
+### 2. The measurement
+
+Both formulas evaluated on the SAME 11,136 logged scope-epochs, 24 `dom1`
+`tralo` runs, from `training_log.csv` + `config.json`. No GPU, no predictions.
+
+| budget | scope-ep | **TraLO shipped** | **item-scaled** | **ALM** |
+|---|---|---|---|---|
+| `K = 0` | 4872 | **93.5%** | 15.3% | 18.8% |
+| `K = 10..99` | 2552 | 4.9% | 32.0% | 12.0% |
+| `K >= 100` | 3712 | **1.7%** | 52.7% | **69.2%** |
+
+Per scope-epoch TraLO weights a `K = 0` scope **43x more** than a `K >= 100`
+one; ALM weights the `K >= 100` scope **4.8x more**. The priority is inverted.
+
+⚠️ **AND 74.1% OF THE STEP GOES TO SCOPES WITH NOTHING AT STAKE.** A `K = 0`
+group whose HARD count is already 0 is fully compliant -- the allocator emits
+nothing there whatever the probabilities are -- yet `relu(soft - 0) > 0` for any
+softmax, so the term never switches off. Worse, with `s == 1` the bounded shape
+peaks at `e ~ 0.55`, so a camera group holding HALF A UNIT of probability mass
+for a species it already predicts none of draws the **maximum possible weight**.
+
+### 3. Why this is the gap, and not another story
+
+2(z48) measured, net of a zero-constraint reference: **DEEP `alm` +12.7 vs
+`tralo` +12.3 (TIED), MIDDLE `alm` +11.3 vs `tralo` +6.6.** Both halves follow:
+
+* `deep_scope`'s DEEP bucket is **83% K = 0** -- exactly the scopes TraLO
+  over-weights -- so both arms push there and it TIES.
+* MIDDLE is the `K >= 1` scopes, which TraLO gives **6.6%** of its step and ALM
+  gives **81.2%**. That is where the deficit is, and it is where the units differ.
+
+🛑 **THE SHAPE ABLATION COULD NOT HAVE CAUGHT THIS.** `linear` returns `e` and
+`squared` returns `e**2`, and **both are `E/scale`** -- all three shipped shapes
+carry the SAME denominator. 2(z48)'s shape work varied the numerator and never
+the denominator, so "penalty-shape variants are rejected" does not cover it.
+
+### 4. The arm
+
+`tralo_itemscale` = `penalty_item_scale: true`, one key off `tralo`, sharing its
+cached warm-up and `tralo_null`. It multiplies the penalty by `scale`, cancelling
+the 1/budget and leaving the slope dimensionless -- the units ALM already uses.
+DEFAULT OFF, so every stored result is bit-identical (gated).
+
+⛔ **IT IS A PARTIAL FIX AND THE RESIDUAL IS STATED HERE, NOT LEFT TO BE FOUND.**
+`scale == 1` at `K = 0`, so multiplying by it is the identity there: the K = 0
+pull is UNCHANGED and only the `K >= 1` scopes are lifted. At the worst point
+(a K=0 scope at the 0.55 peak against a K=411 scope 7 items over) the ratio goes
+**6156x -> 14.9x**, a 413x improvement, and the K = 0 scope still leads. The
+aggregate lands on ALM's split because that peak is rare in the real
+distribution. Removing the residual needs a denominator that is not `max(K,1)`
+at all -- the scope's ITEM COUNT is the principled one -- and that is a SECOND
+arm, deliberately not folded in.
+
+### 5. Pre-registered, before a single run
+
+* the prediction is about **MIDDLE depth**. Read `deep_scope`'s middle bucket.
+* the **DEEP bucket must not move much**. It is 83% K = 0 and already tied. If
+  only DEEP moves, the mechanism is NOT confirmed and the arm has reproduced
+  `tralo_squared`.
+* `scripts/budget_share` must show the K = 0 share falling from 93.5% toward
+  ALM's 18.8%. **That is the direct falsifier and it needs no metric at all**:
+  if the share does not move, the flag is INERT -- the sixth -- and md5 cannot
+  clear it (rule 3 is one-sided).
+* **NOT predicted to win outright.** `headroom` bounds the prize at 12.8-20.7
+  items per cell at task caps.
+
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, updated 2026-08-30 -- read this before section 3's older text**
@@ -12179,7 +12276,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             592 tests, ~200 s, no dataset required
+tests/             601 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

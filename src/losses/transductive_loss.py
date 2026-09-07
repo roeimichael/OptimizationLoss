@@ -343,7 +343,8 @@ class MulticlassTransductiveLoss(nn.Module):
 
     def __init__(self, global_constraints, local_constraints,
                  num_classes, initial_rho=0.5,
-                 penalty_shape="rational_bounded"):
+                 penalty_shape="rational_bounded",
+                 penalty_item_scale=False):
         super().__init__()
         # An unrecognised shape fell through the dispatch below to
         # `rational_bounded`, so a `penalty_shape: quadratic` arm would have
@@ -356,8 +357,19 @@ class MulticlassTransductiveLoss(nn.Module):
                 "penalty_shape must be one of rational_bounded / linear / "
                 "squared, got %r. An unrecognised shape silently ran "
                 "rational_bounded under a different arm name." % penalty_shape)
+        # A truthy STRING would silently switch the arm on, and YAML writes
+        # `false` as a bool but a CLI passes "False" as a string -- which is
+        # truthy. Refuse anything that is not already a bool rather than let an
+        # arm run the treatment while its config says it did not.
+        if not isinstance(penalty_item_scale, bool):
+            raise TypeError(
+                "penalty_item_scale must be a bool, got %r (%s). A string "
+                "\"False\" is TRUTHY and would run the treatment under the "
+                "control's name." % (penalty_item_scale,
+                                     type(penalty_item_scale).__name__))
         self.num_classes = num_classes
         self.penalty_shape = penalty_shape
+        self.penalty_item_scale = penalty_item_scale
         self.register_buffer('rho', torch.tensor(float(initial_rho)))
         # NO soft-count satisfaction flag lives here, deliberately. Two used
         # to (`global_constraints_satisfied` / `local_constraints_satisfied`),
@@ -416,16 +428,63 @@ class MulticlassTransductiveLoss(nn.Module):
         want on a dataset where K == 0 ceilings carry real information.
         ⚠️ On iwildcam SEVEN of the fourteen per-group ceilings are K == 0, so
         this is the common case there, not a corner.
+
+        🛑 **AND `scale` SETS THE UNITS OF THE GRADIENT, WHICH IS THE LARGER
+        CONSEQUENCE.** `e = E / scale` makes the excess DIMENSIONLESS, so
+        `d(pen)/d(soft)` carries units of 1/budget and a scope's pull PER ITEM
+        is INVERSELY PROPORTIONAL to its own ceiling. A `K == 0` group measures
+        its excess in absolute items while a `K == 333` group measures it in
+        percent, and under `constraint_grad_mode: normalize` -- where the step
+        norm is fixed and only the RATIOS across scopes steer -- the small-K
+        scope wins by orders of magnitude.
+
+        MEASURED on `dom1`, 11,136 logged scope-epochs over 24 tralo runs
+        (FRAMEWORK 2(z54)):
+
+            budget      scope-ep    TraLO share    ALM share
+            K = 0           4872        93.5%        18.8%
+            K = 10..99      2552         4.9%        12.0%
+            K >= 100        3712         1.7%        69.2%
+
+        ALM's weight is `lambda + mu * r` with `r = soft - K` in RAW ITEMS and
+        no division at all (`fioretto_alm/train.py:244,253`), so the two rules
+        order the same scopes OPPOSITELY. Per scope-epoch TraLO weights a K = 0
+        scope 43x more than a K >= 100 one; ALM weights the K >= 100 scope 4.8x
+        more.
+
+        ⚠️ Worse, the pull is largest where the prize is smallest: with
+        `scale == 1` the bounded shape peaks at `e ~ 0.55`, i.e. at HALF A UNIT
+        of probability mass, so a camera group already predicting NONE of the
+        capped species draws the maximum possible weight while contributing
+        nothing the allocator can act on (it emits K = 0 items there whatever
+        the probabilities are).
+
+        ✅ `penalty_item_scale` multiplies the penalty by `scale`, cancelling
+        the 1/budget and leaving `d(pen)/d(soft)` dimensionless -- the units ALM
+        already uses. It is OFF by default, so every stored result is bit-identical.
+        ⚠️ It is exact for `rational_bounded` (slope -> 1 as E -> 0) and for
+        `linear` (slope exactly 1, the raw excess in items). For `squared` the
+        slope becomes `2E/scale`, less budget-dependent but not dimensionless;
+        that shape is already demoted (2(z48)) and is not the arm being run.
+        ⛔ THIS IS NOT A PENALTY-SHAPE VARIANT. All three shipped shapes divide
+        by the SAME `scale` -- `linear` returns `e` and `squared` returns `e**2`,
+        both of which are `E/scale` -- so the shape ablation in the rejected
+        ledger varied the numerator and never the denominator, and could not
+        have caught this.
         """
         E = F.relu(soft - K)
         scale = K if K >= 1 else 1.0
         e = E / (scale + EPSILON)
         if self.penalty_shape == "linear":
-            return e
-        if self.penalty_shape == "squared":
-            return e ** 2
-        return (E / (E + scale + EPSILON)
-                + self.rho * (e ** 2) / (1 + e ** 2 + EPSILON))
+            pen = e
+        elif self.penalty_shape == "squared":
+            pen = e ** 2
+        else:
+            pen = (E / (E + scale + EPSILON)
+                   + self.rho * (e ** 2) / (1 + e ** 2 + EPSILON))
+        if self.penalty_item_scale:
+            pen = pen * scale
+        return pen
 
     # ---- why `linear` and `squared` exist -------------------------------
     # The shipped shape is bounded, so its gradient d(pen)/d(soft) is

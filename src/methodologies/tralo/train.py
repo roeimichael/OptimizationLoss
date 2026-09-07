@@ -250,6 +250,11 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         num_classes=num_classes,
         initial_rho=hp.get("initial_rho", 0.5),
         penalty_shape=str(hp.get("penalty_shape", "rational_bounded")),
+        # Declared in protocol.yml with an explicit `false`, so a run's
+        # config.json always says which side of this it was on. `bool()` of a
+        # YAML bool is the identity; the loss REFUSES a string outright rather
+        # than letting "False" run the treatment.
+        penalty_item_scale=hp.get("penalty_item_scale", False),
     ).to(device)
 
     # Union of both scopes. Deriving this from global_con alone silently drops a

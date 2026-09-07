@@ -138,6 +138,18 @@ blocks:
     # touched. Single-class spread across scopes has median 1.5x; this is ~30x,
     # which is why multi-class is where the shape stops being inert.
     penalty_shape: rational_bounded
+    # THE UNITS OF THE CONSTRAINT GRADIENT. `_penalty` divides the excess by
+    # max(K, 1), so d(pen)/d(soft) carries units of 1/budget and a scope's pull
+    # PER ITEM is inversely proportional to its own ceiling. Under `normalize`
+    # only the ratios across scopes steer, so that inverts the priority:
+    # measured on dom1 over 11,136 scope-epochs, TraLO sends 93.5% of its
+    # fixed-norm step to the K=0 ceilings and 1.7% to the K>=100 ones, while
+    # ALM's `lambda + mu*r` -- raw items, no division -- sends 18.8% and 69.2%.
+    # `true` multiplies the penalty by that same scale and cancels it.
+    # DEFAULT false, so every stored result is bit-identical. See the
+    # `penalty_item_scale` arm block and FRAMEWORK 2(z54).
+    # ^ TraLO-SPECIFIC like penalty_shape: the duals never build this penalty.
+    penalty_item_scale: false
     # HOW FAR lambda MOVES PER VIOLATED EPOCH. "constant" is the shipped
     # ratchet and stays the DEFAULT, so every stored result is unchanged. It is
     # declared HERE rather than left to an inline `hp.get(..., "constant")`
@@ -610,6 +622,44 @@ blocks:
   # shares `tralo`'s cached warm-up and differs from it in exactly one key.
   ratchet_proportional:
     lambda_ratchet_mode: proportional
+  # THE SCOPE-PRIORITY ARM, and the first one aimed at a MEASURED asymmetry
+  # between TraLO and the arm that beats it rather than at a plausible one.
+  #
+  # Both methods reduce to one scalar per scope, A_S, multiplying p(1-p) at
+  # every logit; under `normalize` the step norm is fixed so the RATIOS of A_S
+  # are the entire degree of freedom. ALM computes A_S = lambda + mu*r with
+  # r = soft - K in RAW ITEMS. TraLO computes it from E/max(K,1), a PERCENTAGE.
+  # On iwildcam, where 7 of 14 local ceilings are K = 0, max(K,1) silently puts
+  # those scopes in absolute units and everything else in relative ones.
+  #
+  # MEASURED on dom1, 11,136 scope-epochs / 24 tralo runs, both formulas on the
+  # SAME logged states:
+  #     budget      scope-ep   TraLO share   ALM share
+  #     K = 0           4872       93.5%       18.8%
+  #     K = 10..99      2552        4.9%       12.0%
+  #     K >= 100        3712        1.7%       69.2%
+  # 74.1% of TraLO's step lands on K=0 scopes whose HARD count is already 0 --
+  # fully compliant, allocator emits nothing there, no item can change.
+  #
+  # PRE-REGISTERED, before a single run:
+  #   -> the prediction is about MIDDLE depth (the K >= 1 scopes), where 2(z48)
+  #      put the whole alm-vs-tralo gap: alm +11.3 vs tralo +6.6 items of
+  #      excess removed. `deep_scope`'s middle bucket is the read, not the
+  #      campaign headline.
+  #   -> the DEEP bucket must NOT move much. It is 83% K = 0 ceilings and is
+  #      already TIED (+12.7 vs +12.3). If this arm only moves DEEP it has done
+  #      something else and the mechanism is not confirmed.
+  #   -> `scripts/budget_share` must show the K=0 share falling from 93.5%
+  #      toward ALM's 18.8%. That is the DIRECT falsifier and it needs no
+  #      metric at all: if the share does not move, the flag is inert -- which
+  #      would be the SIXTH, and md5 cannot clear it (rule 3, one-sided).
+  #   -> NOT predicted to win outright. `headroom` bounds the prize at
+  #      12.8-20.7 items per cell at task caps.
+  #
+  # Not in `warmup_identity_keys`: constraint phase only, so it shares tralo's
+  # cached warm-up and differs from it in exactly ONE key.
+  penalty_item_scale:
+    penalty_item_scale: true
   fioretto:
     fioretto_step_size: 0.005     # REQUIRED: fioretto_ldf/train.py raises without it
     # Emitted here as well as on `alm`. Both packages READ this key, and ALM's
@@ -792,6 +842,14 @@ arms:
   tralo_dualprop:
     {methodology: tralo, phase: trained,
      blocks: [constraint_phase, tralo, ratchet_proportional],
+     null_sibling: tralo_null}
+  # THE SCOPE-PRIORITY ARM. See the `penalty_item_scale` block for the
+  # measurement and the pre-registration. Shares `tralo_null` for the usual
+  # reason: at lambda 0 the penalty is multiplied by zero, so the scale is
+  # inert there and a dedicated null would be a bit-identical run.
+  tralo_itemscale:
+    {methodology: tralo, phase: trained,
+     blocks: [constraint_phase, tralo, penalty_item_scale],
      null_sibling: tralo_null}
   # Shares `tralo_null` for the usual reason: at lambda 0 with lambda_step 0
   # there is no constraint gradient, so a dedicated null would be a
