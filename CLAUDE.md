@@ -525,6 +525,43 @@ its own liveness control, so a null from them is a measurement rather than silen
 closed a direction this project would otherwise have spent a campaign on.
 
 ```bash
+python -m scripts.budget_share <campaign-root>
+#   🛑 WHERE DOES THE FIXED-NORM CONSTRAINT STEP ACTUALLY GO? Under
+#   `normalize` the delivered step has norm exactly `lr*clip` whatever the loss
+#   is worth, so the RATIOS of the per-scope pull weight
+#   `A_S = lambda_S * d(pen)/d(soft)` are the constraint's ENTIRE degree of
+#   freedom. This reconstructs both factors from `training_log.csv` +
+#   `config.json` -- no GPU, no predictions, no model -- and splits them by
+#   what the scope has at stake.
+#   🔑 MEASURED ON dom1 2026-09-07: **74.1% of TraLO's step is aimed at K=0
+#   scopes whose HARD count is already 0** -- fully compliant, the allocator
+#   emits nothing there, no item can change -- because `relu(soft - 0) > 0` for
+#   any softmax so the term never switches off. FRAMEWORK 2(z54).
+#   ⚠️ READ THE CAVEAT IT PRINTS: `A_S` weights each scope's OWN item set and
+#   group sizes differ, so this is the split of the PER-ITEM pull, not of the
+#   summed gradient norm. The log carries no per-group item counts.
+#   ⚠️ It SKIPS a non-constant ratchet and says so: lambda is reconstructed
+#   with the constant formula and applying it to `tralo_dualprop` would report
+#   what a constant ratchet WOULD have built. Same trap as 2(z53).
+python -m scripts.scale_inversion <campaign-root>
+#   🛑 THE COMPANION, AND THE ONE THAT NAMES THE DEFECT. Evaluates TraLO's
+#   rule, TraLO's rule WITH `penalty_item_scale`, and ALM's rule on the SAME
+#   logged scope-states, so the three are directly comparable.
+#   🔑 TraLO divides the excess by `max(K,1)`, making `d(pen)/d(soft)` carry
+#   units of 1/budget; ALM's `lambda + mu*r` is in RAW ITEMS with no division.
+#   On iwildcam, where 7 of 14 local ceilings are K=0, that INVERTS the scope
+#   priority. Measured over 11,136 dom1 scope-epochs:
+#     budget      TraLO   item-scaled   ALM
+#     K=0         93.5%       15.3%   18.8%
+#     K=10..99     4.9%       32.0%   12.0%
+#     K>=100       1.7%       52.7%   69.2%
+#   ⛔ ALL THREE SHIPPED SHAPES CARRY THE SAME DENOMINATOR (`linear` returns e,
+#   `squared` returns e**2, both E/scale), so the penalty-shape ablation in the
+#   rejected ledger varied the numerator and could NOT have caught this.
+#   ⚠️ IT IS A COUNTERFACTUAL WEIGHTING, NOT A REPLAY. ALM's lambda is
+#   path-dependent and ALM trained a different model; this weights ONE fixed
+#   set of states by three rules, which is what the `normalize` algebra makes
+#   decisive. FRAMEWORK 2(z54).
 python -m scripts.penalty_starvation --glob '<runs>/tralo/seed_*'
 #   🛑 IS THE PENALTY SHAPE STARVING THE WORST-VIOLATED SCOPE? The shipped
 #   `rational_bounded` is BOUNDED in the excess, so its slope is NON-MONOTONE:

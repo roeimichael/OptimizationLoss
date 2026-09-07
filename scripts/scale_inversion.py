@@ -48,7 +48,11 @@ import sys
 
 GLOBAL_RE = re.compile(r"^(Limit|Hard|Soft)_Class(\d+)$")
 LOCAL_RE = re.compile(r"^Group(\d+)_(Hard|Soft|Limit)_Class(\d+)$")
-UNLIMITED = 1e9
+# NOT re-derived here. `metrics.py` once declared a local 1e9 against the
+# rest of the codebase's 1e10, so a constraint set to UNLIMITED was skipped
+# by the loss and counted as ACTIVE by the metric layer. Four analysis
+# scripts then reintroduced the same literal. gated in test_pipeline.py.
+from src.utils.constants import UNLIMITED
 
 
 def scopes_of(header):
