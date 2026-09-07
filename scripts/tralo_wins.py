@@ -87,7 +87,18 @@ def rows_for(cells, control):
                   and spread > floor)
         beats_control = d["tralo"] > 0
         beats_all = all(d["tralo"] > d[r] for r in present)
-        seeds = max((len(sd) for _a, _m, _dl, sd in order), default=0)
+        # `rank_cell` hands every arm the SAME common seed list (2(z50)), so a
+        # max over arms is correct here only BY INHERITANCE. Assert the contract
+        # instead of trusting it: if that return shape ever changes, this must
+        # fail loudly rather than revert in silence to the max-over-arms form
+        # that reported "3 seeds" for a vitdual2 cell whose comparisons rested
+        # on one. This is the acceptance table -- it is the last place a ragged
+        # seed set should be allowed to pass unnoticed.
+        seedsets = {tuple(sd) for _a, _m, _dl, sd in order}
+        assert len(seedsets) <= 1, (
+            "rank_cell returned ragged seed sets %s for cell %s: the arm-vs-arm "
+            "margins in it are not comparable" % (sorted(seedsets), key))
+        seeds = len(next(iter(seedsets))) if seedsets else 0
         rows.append(dict(
             campaign=key[0], model=key[1], dataset=key[2], cap=key[3],
             seeds=seeds, d=d, rivals=present, floor=floor, nfloor=nfloor,

@@ -55,7 +55,7 @@ from scripts import quarantine
 # From `floors`, NOT from `sensitivity_screen`: that module reaches
 # `src/`, and a pinned campaign worktree can carry a `src/` older than the
 # names it needs. This scorer must run in every checkout.
-from scripts.floors import MIN_FLOOR_OBS
+from scripts.floors import MIN_FLOOR_OBS, stream_family
 
 # The recipe boundary. A campaign outside it is a DIFFERENT METHOD and pooling
 # it silently is how the corpus got five TraLO configurations. Post-hoc arms
@@ -298,7 +298,8 @@ def rng_floor(cell, get):
     return (st.median(gaps), len(gaps), streams) if gaps else (None, 0, 0)
 
 
-_STREAM = re.compile(r"^(?P<fam>.+?)_(null|reseed\d*)$")
+# The pattern itself now lives in `floors`, so this file and
+# `sensitivity_screen` cannot disagree about what a stream is.
 
 
 def _is_lambda0_stream(arm, fam):
@@ -311,8 +312,7 @@ def _is_lambda0_stream(arm, fam):
     steps and would contaminate the floor with the treatment -- which is the
     exact error corrected on 2026-09-02 above.
     """
-    m = _STREAM.match(arm)
-    return bool(m) and m.group("fam") == fam
+    return stream_family(arm) == fam
 
 
 def floor_verdict(order, floor, nfloor, nstream=0):

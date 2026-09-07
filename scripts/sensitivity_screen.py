@@ -143,7 +143,8 @@ BAND_LO, BAND_HI = 0.05, 0.95
 BAND_MIN = MIN_PRIZE                            # 3.0 items, same bar, same reason
 
 # One source of truth, shared with `deployed_h2h`; see scripts/floors.py.
-from scripts.floors import MIN_FLOOR_OBS  # noqa: E402
+from scripts.floors import (MIN_FLOOR_OBS, is_lambda0_stream,  # noqa: E402
+                            stream_pairs)
 
 # Arms that carry NO constraint term, in the order we prefer them as the
 # unconstrained reference. A trained arm must never be used: its probabilities
@@ -164,8 +165,12 @@ FLOOR_FAMILIES = ("tralo", "alm", "fioretto", "hounie")
 # Arms excluded from the cross-arm comparison: a `_reseed` arm DEFINES the
 # floor, so letting it widen the spread it is compared against would make
 # every cell look differentiated.
+# 🛑 THIS WAS `arm.endswith("_reseed")` UNTIL 2026-09-07, WHICH IS FALSE FOR
+# `tralo_reseed2` -- so the third RNG stream, the one `classify` tells you to
+# buy, was counted as a rival arm. Delegated to `floors` so it cannot drift
+# from `deployed_h2h` again.
 def _is_floor_control(arm):
-    return arm.endswith("_reseed")
+    return is_lambda0_stream(arm) and not arm.endswith("_null")
 
 VERDICTS = ("SENSITIVE", "SATURATED", "UNDER-POWERED", "NOT DIFFERENTIATED",
             "NO DATA")
@@ -368,6 +373,25 @@ def classify(grad, band, spread, floor, n_seeds, reason=None, n_floor=None,
         "enough to have seen it" % (spread, floor, n_seeds))
 
 
+def shared_seed_count(tp, arms):
+    """How many seeds EVERY compared arm actually ran.
+
+    `classify` uses this to separate UNDER-POWERED from NOT DIFFERENTIATED, and
+    those are opposite conclusions -- "we could not have seen it move" against
+    "it did not move". A max over arms credits the verdict with seeds no pair
+    shares, which is the 2(z50) defect in the one place where it decides
+    something rather than decorating it.
+
+    Extracted from `screen_cell` so a RAGGED cell can be tested at all: that
+    function needs real run directories, which is why the arithmetic below was
+    never exercised on anything but a square fixture. 2(z52).
+    """
+    present = [a for a in arms if tp.get(a)]
+    if not present:
+        return 0
+    return len(set.intersection(*[set(tp[a]) for a in present]))
+
+
 def screen_cell(runs, cls):
     """Measure one (campaign, backbone, dataset, cap) cell for one class.
 
@@ -425,9 +449,11 @@ def screen_cell(runs, cls):
         shared = sorted(set(tp.get(a, {})) & set(tp.get(b, {})))
         return [abs(tp[a][s] - tp[b][s]) for s in shared]
 
-    # --- the RNG floor, measured in THIS cell and no other, per FAMILY
-    floor_vals = [v for fam in FLOOR_FAMILIES
-                  for v in pair_gaps(fam + "_null", fam + "_reseed")]
+    # --- the RNG floor, measured in THIS cell and no other, per FAMILY.
+    #     EVERY within-family pair of lambda=0 streams, not the null/reseed pair
+    #     alone: three streams give C(3,2) = 3 pairs and 12 observations at 4
+    #     seeds, which is what clears MIN_FLOOR_OBS. See `floors.stream_pairs`.
+    floor_vals = [v for a, b in stream_pairs(tp) for v in pair_gaps(a, b)]
     floor = float(np.median(floor_vals)) if floor_vals else None
 
     # --- the typical ARM-PAIR difference. Same statistic as the floor: the
@@ -438,7 +464,9 @@ def screen_cell(runs, cls):
                  for v in pair_gaps(a, b_)]
     spread = float(np.median(pair_vals)) if pair_vals else None
     means = {a: float(np.mean(list(tp[a].values()))) for a in arms}
-    n_seeds = max((len(tp[a]) for a in arms), default=0)
+    # THE SEEDS BEHIND THE COMPARISON, NOT THE MAX OVER ARMS. See
+    # `shared_seed_count` for why this one is load-bearing.
+    n_seeds = shared_seed_count(tp, arms)
     rng_range = (max(means.values()) - min(means.values())) if len(means) > 1 \
         else None
 

@@ -589,3 +589,115 @@ def test_the_cross_arm_spread_is_a_pairwise_statistic_not_a_range():
         bad.append("two pairwise draws of the SAME noise disagree by %.2fx; "
                    "the pairwise statistic is not scale-free" % (p / q))
     report(bad, "spread-statistic failures")
+
+
+def test_a_THIRD_rng_stream_is_read_by_the_floor_and_kept_OUT_of_the_spread():
+    """`tralo_reseed2` was invisible to `sensitivity_screen`, in both directions.
+
+    The test was `arm.endswith("_reseed")`, which is False for `tralo_reseed2`.
+    So the third lambda=0 stream -- the one `classify`'s own UNDER-POWERED
+    message tells the reader to buy -- was treated as a rival ARM, widening the
+    cross-arm spread it exists to define the floor for, while the floor itself
+    paired only `<fam>_null` with `<fam>_reseed` and saw 4 of the 12
+    observations three streams yield at 4 seeds. Both errors push the same way:
+    a larger spread against a smaller, under-powered floor.
+
+    `deployed_h2h` was fixed on 2026-09-06 and `sensitivity_screen` kept its own
+    copy of the rule, which is exactly the drift `scripts/floors.py` was created
+    to stop. The predicate now lives there and both import it.
+
+    `dualprop1` is the first campaign carrying three streams, so this was about
+    to be load-bearing rather than hypothetical.
+    """
+    from scripts.floors import is_lambda0_stream, stream_family, stream_pairs
+    from scripts.sensitivity_screen import _is_floor_control
+
+    # The exact string the old rule got wrong. This assertion FAILS on
+    # `arm.endswith("_reseed")`, which is what makes it a control and not a
+    # restatement of the code.
+    assert is_lambda0_stream("tralo_reseed2")
+    assert _is_floor_control("tralo_reseed2"), (
+        "the third RNG stream must not be scored as a rival arm")
+    assert _is_floor_control("tralo_reseed")
+
+    # A `_null` is a lambda=0 stream for FLOOR purposes and still a legitimate
+    # comparison arm, so it must NOT be excluded from the spread.
+    assert is_lambda0_stream("tralo_null")
+    assert not _is_floor_control("tralo_null")
+
+    # NEGATIVE CONTROL: `<fam>_lam0` keeps `lambda_step` and takes real
+    # constraint steps. Treating it as an RNG stream would put a TREATED arm
+    # into the noise floor and make every cell look quiet.
+    assert not is_lambda0_stream("tralo_lam0"), (
+        "`_lam0` is not a lambda=0 stream -- it takes real constraint steps")
+    assert not is_lambda0_stream("tralo")
+    assert not is_lambda0_stream("alm")
+
+    assert stream_family("alm_reseed2") == "alm"
+    assert stream_family("tralo") is None
+
+    # THREE streams give C(3,2) = 3 pairs; ONE gives none, which is why a count
+    # of streams is not a count of observations.
+    three = stream_pairs(["tralo", "tralo_null", "tralo_reseed", "tralo_reseed2"])
+    assert len(three) == 3, three
+    assert ("tralo_null", "tralo_reseed") in three
+    assert ("tralo_null", "tralo_reseed2") in three
+    assert ("tralo_reseed", "tralo_reseed2") in three
+
+    # vitdual2's real arm set: four singleton families plus one pair.
+    v2 = stream_pairs(["alm", "alm_null", "clip", "fioretto", "fioretto_null",
+                       "focal_clip", "hounie", "hounie_null", "tralo",
+                       "tralo_null", "tralo_reseed"])
+    assert v2 == [("tralo_null", "tralo_reseed")], v2
+
+    # Families never cross: an `alm` stream cannot bound `tralo`'s RNG noise,
+    # even though at lambda=0 both are plain CE.
+    mixed = stream_pairs(["tralo_null", "tralo_reseed", "alm_null", "alm_reseed"])
+    assert len(mixed) == 2 and all(a.split("_")[0] == b.split("_")[0]
+                                   for a, b in mixed), mixed
+
+
+def test_a_RAGGED_cell_is_counted_by_its_SHARED_seeds_not_the_max():
+    """The fixture every self-test in this project was missing.
+
+    2(z52): not one scorer's self-test carried a ragged-coverage fixture --
+    every one gave every arm all four seeds. That is why a whole class of defect
+    survived in eight of thirteen scorers until a real unfinished campaign hit
+    it. The campaign in the fixtures was the campaign we wished we had.
+
+    `vitdual2` is the shape that matters and it is not hypothetical: `alm` ran
+    seeds {1, 3} while `tralo` and `hounie` ran {1, 2}, so the cell has three
+    distinct seeds, a max-over-arms of 2, and exactly ONE seed behind any
+    arm-vs-arm statement.
+    """
+    from scripts.sensitivity_screen import shared_seed_count
+
+    ragged = {
+        "tralo": {1: 600.0, 2: 604.0},
+        "alm":   {1: 603.0, 3: 611.0},
+        "hounie": {1: 606.0, 2: 605.0},
+    }
+    arms = sorted(ragged)
+
+    # The defect: max is 2 and the union is 3, but only seed 1 is shared.
+    assert max(len(v) for v in ragged.values()) == 2
+    assert len({s for v in ragged.values() for s in v}) == 3
+    assert shared_seed_count(ragged, arms) == 1, (
+        "a ragged cell must be counted by the seeds EVERY compared arm ran")
+
+    # NEGATIVE CONTROL: a square cell is unchanged. The fix must be a no-op on
+    # every complete campaign, or it would silently restate the whole corpus.
+    square = {a: {1: 1.0, 2: 2.0, 3: 3.0, 4: 4.0}
+              for a in ("tralo", "alm", "hounie", "clip")}
+    assert shared_seed_count(square, sorted(square)) == 4
+
+    # NEGATIVE CONTROL: disjoint arms share nothing, and that is 0, not 2.
+    disjoint = {"tralo": {1: 1.0, 2: 2.0}, "alm": {3: 3.0, 4: 4.0}}
+    assert shared_seed_count(disjoint, sorted(disjoint)) == 0
+
+    # An arm present in the roster but with no usable runs must not drag the
+    # intersection to zero -- it is absent, not disagreeing.
+    with_empty = dict(square)
+    with_empty["fioretto"] = {}
+    assert shared_seed_count(with_empty, sorted(with_empty)) == 4
+    assert shared_seed_count({}, []) == 0

@@ -4978,3 +4978,26 @@ def test_the_proportional_ratchet_is_LIVE_and_widens_the_multiplier_range():
     #    or the two arms would be one arm.
     assert "ratchet_proportional" not in P["arms"]["tralo"]["blocks"]
     assert set(RATCHET_MODES) == {"constant", "proportional"}
+
+
+def test_every_command_in_the_docs_is_one_argparse_would_ACCEPT():
+    """A documented command is copy-pasted at the worst possible moment.
+
+    The operational docs carry ~110 checkable `python -m scripts.X` invocations,
+    and they are reached for when a campaign has just landed and a number is
+    wanted. A flag argparse rejects costs a debugging cycle right there.
+
+    This is the sibling of the naming test above, and of `audit_config`'s rule.
+    `audit_config` gates config KEYS against their readers; nothing gated the
+    FLAGS in the docs against the argparse that has to accept them. Two were
+    broken when this was written, both recent, both mine: `latch_probe --glob`
+    (never existed) and `data_present --root` (the root is positional).
+
+    Static, by AST -- the modules are never executed.
+    """
+    from scripts import doc_commands
+
+    bad = doc_commands.run(list(doc_commands.DOCS), False)
+    assert not bad, (
+        "these documented commands would fail on first use: %s"
+        % ["%s:%d %s -- %s" % b for b in bad])

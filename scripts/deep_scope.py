@@ -260,15 +260,29 @@ def analyse(roots, classes, arms, null_arm, n_buckets=3, rho=0.5, out=sys.stdout
         lo, hi = b[0]["depth"], b[-1]["depth"]
         label = "%s %.2f - %.2f" % (("shallow", "middle", "DEEP")[
             min(i, 2)] if n_buckets == 3 else "b%d" % i, lo, hi)
+        # 🛑 EVERY COLUMN OVER THE SAME SCOPES. Each arm used to average over
+        # its OWN subset (`if a in r["excess"]`) while `scopes`, `null E` and
+        # `K=0` printed once over the union -- so a row invited a comparison
+        # between numbers taken on different populations, which is 2(z52)'s
+        # class in the table this tool exists to produce. Restrict to the
+        # scopes EVERY compared arm reached, and say how many that dropped.
+        shared = [r for r in b if all(a in r["excess"] for a in all_arms)]
+        if not shared:
+            w("  %-22s %7d  -- no scope carries every arm, nothing comparable\n"
+              % (label, len(b)))
+            continue
+        dropped = len(b) - len(shared)
         cells = []
         for a in all_arms:
-            vals = [r["e0"] - r["excess"][a] for r in b if a in r["excess"]]
+            vals = [r["e0"] - r["excess"][a] for r in shared]
             cells.append("%-10s" % ("%+.1f" % (sum(vals) / len(vals))
                                     if vals else "."))
-        w("  %-22s %7d %8.1f %6.0f%% %s\n"
-          % (label, len(b), sum(r["e0"] for r in b) / len(b),
-             100.0 * sum(1 for r in b if r["K"] < 1) / len(b),
-             "  ".join(cells)))
+        w("  %-22s %7d %8.1f %6.0f%% %s%s\n"
+          % (label, len(shared), sum(r["e0"] for r in shared) / len(shared),
+             100.0 * sum(1 for r in shared if r["K"] < 1) / len(shared),
+             "  ".join(cells),
+             "" if not dropped else "  (%d scope(s) dropped: not every arm "
+                                    "reached them)" % dropped))
 
     w("\n  READ THE DEEP ROW. The claim under test is that `alm` removes more\n"
       "  excess there than `tralo` while they agree on the shallow row. If the\n"
@@ -297,10 +311,14 @@ def analyse(roots, classes, arms, null_arm, n_buckets=3, rho=0.5, out=sys.stdout
     for a in all_arms:
         rs = []
         for g in usable:
+            g = [r for r in g if a in r["excess"]]
             tot = sum(r["slope"] for r in g)
             if tot <= 0:
                 continue
             share = [r["slope"] / tot for r in g]
+            # Same restriction as the bucket table, and it is also what stops a
+            # KeyError here on a ragged campaign -- which would have fired
+            # AFTER the wrong table had already printed.
             frac = [(r["e0"] - r["excess"][a]) / r["e0"] for r in g]
             rr = _spearman(share, frac)
             if rr is not None:
@@ -353,8 +371,14 @@ def analyse(roots, classes, arms, null_arm, n_buckets=3, rho=0.5, out=sys.stdout
         tp0 = deployed_tp(armdirs[null_arm], classes)
         if not lim or base is None or tp0 is None:
             continue
-        for a, d in armdirs.items():
-            if a == null_arm:
+        # 🛑 HONOUR `--arms`. This loop took every arm on disk while the excess
+        # table 150 lines up filters with `[a for a in arms if a in armdirs]`
+        # -- the same file selecting in one place and not the other. On `dom1`
+        # that silently pooled all 16 arms, which is why the published premise
+        # correlation reads "6 cells, 360 runs" = 60 runs/cell = 15 arms x 4
+        # seeds, and not the four arms the documented invocation names.
+        for a, d in sorted(armdirs.items()):
+            if a == null_arm or a not in arms:
                 continue
             c, tp = raw_counts(d, classes), deployed_tp(d, classes)
             if c is None or tp is None:

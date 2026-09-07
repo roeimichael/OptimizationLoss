@@ -136,7 +136,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 584 regression tests, ~250s, no dataset needed
+python -m pytest tests -q                   # 587 regression tests, ~250s, no dataset needed
 #   `tests/test_scorers_run_end_to_end.py` EXECUTES every scorer as a subprocess
 #   against a campaign carrying a real PARTIAL marker. It exists because three
 #   scorers once used `quarantine.` with no module-level import: they PARSED,
@@ -203,6 +203,22 @@ python -m scripts.data_present <root>        # 🛑 CAN THESE CONFIGS ACTUALLY
 #   linking to a sibling makes a chain. `--self-test` gates it, 6 checks, 4
 #   negative controls including the exact meta-present/npy-absent shape.
 python -m scripts.audit_config              # no config key without a reader, no reader without a key
+python -m scripts.doc_commands              # 🛑 AND THE SIBLING RULE FOR THE DOCS:
+#   no documented FLAG without an argparse to accept it. The docs carry 110
+#   checkable `python -m scripts.<name>` invocations and they are copy-pasted at the
+#   worst moment -- a campaign has just landed and a number is wanted. Found by
+#   hand 2026-09-07: FRAMEWORK 2(z51) pre-registered
+#   `latch_probe --glob <pattern>` and `latch_probe` has never had a `--glob`;
+#   the gate then immediately caught a SECOND, `data_present --root <r>`, whose
+#   root is POSITIONAL. Both were written, reviewed and committed.
+#   STATIC, by AST -- it never executes the modules, so it is safe to run on a
+#   host with a live campaign. ⚠️ It ABSTAINS on a module that builds flags
+#   dynamically (`audit_config`, `check_parity`) and says which, rather than
+#   passing them silently. It does NOT check that a flag DOES anything --
+#   that is `flag_live`, and md5 is one-sided (2(x2)).
+#   `--self-test` gates it, 8 checks, 5 of them negative controls: a flag in a
+#   trailing COMMENT, a flag after a PIPE, and a dynamic module must all NOT
+#   fire, while a bad flag on a backslash-CONTINUED line must.
 python -m scripts.smoke_arms                # every arm actually RUNS and respects its caps
 python -m scripts.smoke_arms --matrix       # + {1,2} capped classes x {L30_G30, L50_G30},
                                             #   caps verified for the TRAINED arms too
@@ -567,7 +583,13 @@ python -m scripts.deep_scope --campaign <root> --arms tralo alm lp clip
 #   makes E/K just the raw count. FRAMEWORK 2(z48).
 #   🟢 It also prints the premise nobody had checked: excess removed vs deployed
 #   capped-class TP is rho **+0.504** (6 cells, 360 runs, 4/6) -- the proxy is
-#   not orthogonal to the metric. ⚠️ 4/6 is p=0.34 and it POOLS ARMS.
+#   not orthogonal to the metric. ⚠️ 4/6 is p=0.34, and it POOLED ARMS
+#   because of a BUG, not a design choice: that block iterated every arm on
+#   disk while the excess table 150 lines above filters on `--arms`, the same
+#   file selecting in one place and not the other. Fixed 2026-09-07; the
+#   published "6 cells, 360 runs" is 60 runs/cell = 15 arms x 4 seeds, not the
+#   four the documented invocation names, so **rho +0.504 must be RECOMPUTED**
+#   before it is quoted again. FRAMEWORK 2(z52).
 #   `--self-test` gates it, 10 checks, 5 of them negative controls.
 python -m scripts.step_dose --config <config.json> --ce-steps 60
 #   🛑 HOW BIG IS THE CONSTRAINT STEP IN WEIGHTS, per delivery rule? The project

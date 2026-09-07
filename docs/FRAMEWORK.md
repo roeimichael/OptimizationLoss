@@ -3927,7 +3927,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 584 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 587 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -4091,7 +4091,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 584 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 587 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -4099,7 +4099,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (584 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (587 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -10529,6 +10529,141 @@ pairs from every comparison (2026-08-17); this is its mirror image, keeping
 pairs that do not belong together.
 
 
+---
+
+## 2(z51). PRE-REGISTERED: WHERE `tralo_dualprop`'s GAIN MUST APPEAR, IF THE STORY IS RIGHT (2026-09-07)
+
+**Written before a single `dualprop1` run was scored. The point is to make the
+arm falsifiable at the level of MECHANISM, not only of outcome -- an arm that
+wins for the wrong reason is a result that will not replicate.**
+
+The chain the arm rests on, each link already measured:
+
+1. `alm`'s multiplier update is `lam <- lam + rho*E`, proportional to the
+   violation MAGNITUDE and unbounded. TraLO's is `lam <- lam + step`, a
+   FREQUENCY counter -- it adds the same increment whether the scope is 1 item
+   over or 1934x over. (Read from source, both files.)
+2. That frequency counter's expressible range is structurally capped at
+   **24.3x** = `(0.01 + 29*0.05)/(0.01 + 1*0.05)`, set entirely by the smallest
+   violation COUNT, against violations spanning **282x-1934x**. Replicated on
+   109 runs, 6 campaigns, 4 backbones -- 2(z49).
+3. The measured `alm` - `tralo` gap is **NOT where the penalty-shape story put
+   it**. 2(z48): net of the zero-constraint reference, DEEP is `alm` +12.7 vs
+   `tralo` +12.3 (**TIED**) and the whole 4.7-item gap sits at **MIDDLE** depth
+   (`alm` +11.3, `tralo` +6.6).
+
+Middle depth (`E/K` in 0.19-1.00) is exactly where a frequency counter is
+blindest: those scopes are violated in most epochs, so they all accumulate
+nearly the same `lam`, while their actual excess spans the full middle decade.
+Deep scopes are 83% `K=0` ceilings, a different regime, and TraLO already
+matches `alm` there.
+
+🔑 **THE PREDICTION, and all three parts must hold:**
+
+| | prediction | falsified if |
+|---|---|---|
+| **MIDDLE depth** | `tralo_dualprop` lands materially above `tralo`'s +6.6, toward `alm`'s +11.3 | it sits at `tralo`'s value |
+| **DEEP depth** | `tralo_dualprop` ~= `tralo` ~= `alm`, no change -- there is no gap to close | dualprop's gain is concentrated HERE |
+| **lambda range** | far above 24.3x, in the violation range's own territory | it reads ~24.3x -> the key never reaches the ratchet, a SIXTH inert flag |
+
+```bash
+python -m scripts.deep_scope --campaign results/dualprop1 \
+    --arms tralo tralo_dualprop alm lp clip
+python -m scripts.latch_probe --campaign results/dualprop1 --arms tralo tralo_dualprop
+```
+
+⛔ **THE THIRD ROW IS THE ONE TO RUN FIRST, AND md5 CANNOT SETTLE IT.** A new
+config key that no reader consumes is this project's most frequent failure mode
+-- five occurrences -- and `logit_adjust` proved that DIFFERENT predictions are
+no evidence of a live mechanism (2(x2)): a constant added to every logit moved
+float rounding by 1e-9 and diverged in 24/24 while being mathematically plain
+CE. `tralo_dualprop` differs from `tralo` by one key. Clear it by reading the
+lambda TRAJECTORY, which is logged, never by diffing predictions.
+
+⚠️ **AND IF THE ARM WINS WITH THE SECOND ROW FALSIFIED, SAY SO.** A gain
+concentrated at deep depth would mean the arm helps for a reason this note did
+not anticipate, and the honest report is a win with the mechanism unexplained --
+not a retrofitted story. Two pre-registrations have already been refuted here
+(the latch, 0/109; the penalty shape, 2(z48)), and both refutations were worth
+more than the campaigns that would have been run on the unrefuted versions.
+
+⚠️ **`deep_scope` MUST BE PASSED A POST-HOC ARM.** Its aiming statistic reads
+`tralo` +0.447 and the zero-constraint `lp` **+0.400** on the same sets, so
+without `clip`/`lp` as REFERENCE rows nearly the whole number is artefact.
+
+
+---
+
+## 2(z52). THE RAGGED-SEED CLASS IS IN 8 OF 13 SCORERS, AND NO SELF-TEST COULD EVER HAVE CAUGHT IT (2026-09-07)
+
+**2(z50) fixed one scorer. Auditing the other twelve for the same class found it
+in seven more, plus a second ragged axis nobody had named.** Findings below were
+re-verified against the source; the two highest-stakes were confirmed by reading
+and by execution.
+
+### The rule, restated because it is what the audit tested against
+
+A per-arm-vs-CONTROL delta may use every seed that arm shares with the control.
+An ARM-VS-ARM ordering, a "best arm", a win tally, or any pooling of arms into
+one statistic may NOT: it must be computed on ONE common seed set, or it
+compares populations rather than methods.
+
+### Confirmed, ranked by what they could change
+
+| # | scorer | defect | stakes |
+|---|---|---|---|
+| 1 | `paper_rows` | differences two per-arm MEANS with **no seed pairing at all** -- weaker than 2(z50), which at least paired before ranking. `n_seeds` is the TREATED arm's own count. | **says what may be WRITTEN** |
+| 2 | `sensitivity_screen` | `n_seeds = max(...)` feeds `classify`, which uses it to separate UNDER-POWERED from NOT DIFFERENTIATED -- **opposite conclusions**. Plus the `_reseed2` blindness below. | ✅ FIXED |
+| 3 | `deep_scope` | each arm's column is built from **its own row subset** while `scopes` and `null E` print once as the union; `bar = max(...)` compares medians over different scope populations | prices directions |
+| 4 | `headroom` | cell key is `(cap tag, class)` -- **backbone and dataset absent**, so it pools backbones while explicitly refusing to pool cap levels | the prize table |
+| 5 | `full_panel` | metric tables are SAFE (each pair intersects independently before `dropna`, and no arm is ever ranked). But the DOSE check keys on **arm alone** and compares `applied/attempted`, a ratio internal to each arm -- so **the 29-vs-28 gap that quarantined four campaigns reads 100% vs 100% and passes** | the dose gate |
+| 6 | `graph_probe` + `scope_probe` | `_cell_of` returns `(backbone, dataset, cap)` -- **the arm is dropped** -- then prints "ONE CELL, so the pooled block is a legal aggregate" over a ragged multi-arm mixture. The two functions are byte-identical | the -1.08 figure |
+| 7 | `score_scan` | every delta in a cell is taken against a **single run**, including runs at other seeds | prints raw, hides nothing |
+
+SAFE and verified so: `cell_table` (key complete, seed the only collapsed axis,
+never compares arms), `paired_seeds` (pairs at the same seed, reports the real
+per-arm n), `straddle_probe` (**the model the others should copy**),
+`paired_noise` per statistic, `tralo_wins` by inheritance.
+
+⛔ **`full_panel` DOES NOT REFUSE.** CLAUDE.md says it "refuses to compare arms
+more than 5 percentage points apart"; the dose function is print statements and
+its return value is discarded. The sentence describes an intention.
+
+### 🔑 THE SYSTEMIC CAUSE, WHICH IS WORTH MORE THAN ANY ONE FIX
+
+**Not one self-test in the set carries a RAGGED-COVERAGE fixture.** Every one
+gives every arm all four seeds. That is why none of these ever fired, and it is
+the same reason the `deployed_h2h` bug survived until a real unfinished campaign
+hit it. The fixtures encode the campaign we wish we had.
+
+A shared ragged fixture -- one cell where arm A ran seeds {1,2}, arm B ran
+{1,3}, arm C ran {1,2,3} -- belongs in every scorer's self-test, and is a bigger
+win than fixing the seven individually.
+
+### The one fixed today, because it was about to be load-bearing
+
+`sensitivity_screen._is_floor_control` was `arm.endswith("_reseed")`, which is
+**False for `tralo_reseed2`**. Two silent consequences, both pushing the same
+way -- toward calling noise a result:
+
+* the third stream was NOT excluded from the cross-arm SPREAD, so a pure-RNG arm
+  widened the spread it exists to define the floor for;
+* the floor paired only `<fam>_null` with `<fam>_reseed`, seeing **4 of the 12**
+  observations three streams yield at 4 seeds -- and 4 is under `MIN_FLOOR_OBS`.
+
+`classify`'s own UNDER-POWERED message tells the reader to buy observations with
+`tralo_reseed2`. The floor could not read the arm it was recommending.
+**`dualprop1` is the first campaign carrying three streams**, so this was one
+campaign away from deciding a verdict.
+
+✅ The predicate now lives in `scripts/floors.py` -- which exists precisely
+because "a second literal is free to drift from the first" -- and both
+`deployed_h2h` and `sensitivity_screen` import it. Gated in
+`tests/gates/test_g5_trainlog.py` with the old rule as a mutant (caught), a
+`<fam>_lam0` negative control (it takes real constraint steps and must never
+count as a stream), and vitdual2's real arm set.
+
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, updated 2026-08-30 -- read this before section 3's older text**
@@ -11876,7 +12011,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             584 tests, ~200 s, no dataset required
+tests/             587 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

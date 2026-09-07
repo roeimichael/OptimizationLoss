@@ -89,7 +89,7 @@ worktree-to-worktree, or you build a chain:
 
 ```bash
 ln -s ~/optloss-audit/data/iwildcam/oodslice/*.npy <new-worktree>/data/iwildcam/oodslice/
-python -m scripts.data_present --root results/dualprop2     # gates exactly this
+python -m scripts.data_present results/dualprop2     # gates exactly this
 ```
 
 Then the step gates, in order, and none of them is optional:
@@ -1616,7 +1616,7 @@ for k,v in sorted(seen.items(), key=lambda kv:-sum(kv[1].values())):
 PY'
 
 # 4. gates, before ANY launch
-python -m pytest tests -q          # must be 583 passed + 1 skipped (bump when you add one)
+python -m pytest tests -q          # must be 586 passed + 1 skipped (bump when you add one)
 python -m scripts.audit_config
 python -m scripts.smoke_arms
 ```
