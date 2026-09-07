@@ -3927,7 +3927,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 591 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 592 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -4091,7 +4091,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 591 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 592 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -4099,7 +4099,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (591 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (592 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -10737,6 +10737,101 @@ because "a second literal is free to drift from the first" -- and both
 count as a stream), and vitdual2's real arm set.
 
 
+---
+
+## 2(z53). `tralo_dualprop` IS REJECTED, AND THE CONSTRAINT DAMAGES THE RANKING (2026-09-07)
+
+**The pre-registration in 2(z51) is answered. The arm is LIVE and it does not
+work. And the campaign delivered a second, larger result nobody was looking
+for.**
+
+⚠️ PROVISIONAL: `dualprop1` was 72 of 88 runs when this was read, so the cells
+below carry 3 seeds, not 4. Every number here must be re-read at completion. The
+DIRECTION is not provisional -- the sign is 6 of 6.
+
+### 1. The arm is live, and `latch_probe` could not have told you
+
+2(z51) registered `latch_probe` as the liveness test. **That was the wrong
+instrument and it is my own.** `weight_rankings` RECONSTRUCTS the multiplier as
+`lam0 + step * (epochs violated)` -- the CONSTANT-ratchet formula -- and never
+reads the logged value, so it reports what a constant ratchet would give for
+ANY arm. It printed `24.3x` for `tralo_dualprop`, which 2(z51) named as the
+falsifier, and that reading means nothing.
+
+✅ From the LOGGED multiplier (`Lambda_Global` / `Lambda_Local` in
+`training_log.csv`), the arm is unambiguously live:
+
+| arm | Lambda_Global | Lambda_Local | **Lg/Ll** |
+|---|---|---|---|
+| `tralo` | 0.035 -> 0.885 | 0.035 -> 0.871 | **1.016** |
+| `tralo_dualprop` | 1.010 -> 41.49 | 1.039 -> 26.07 | **1.59** |
+| `tralo_null` | 0.0 -> 0.0 | 0.0 -> 0.0 | -- |
+
+The 47x larger multiplier is NOT the result -- under `normalize` the global
+scale divides out. The result is the last column: **TraLO weights the global and
+local scopes 1.016 : 1, i.e. essentially uniformly, and `dualprop` weights them
+1.59 : 1.** The mechanism did exactly what it was built to do. Also note
+`tralo_dualprop`'s starting lambda DIFFERS BY SEED (1.010, 2.010), which a
+constant ratchet cannot produce -- a second, independent liveness signal.
+
+### 2. It bought nothing, and was worse than plain `tralo`
+
+`dualprop1` / MobileNetV2, deployed items vs `clip`, dose CLEAN (every arm
+29.00 steps/run, 100% landed, so 2(z38)'s gap is absent):
+
+| cap | `alm` | `tralo` | `tralo_dualprop` | #1 |
+|---|---|---|---|---|
+| `L70-70_G95` | +0.67 | **-3.00** | **-3.67** | 🛑 `tralo_reseed2` **+1.00** |
+| `L80-80_G95` | +1.33 | +1.00 | +1.33 | REFUSED, spread 5.7 <= floor 6.0 |
+
+🛑 **AT `L70-70_G95` THE CELL WAS WON BY A lambda=0 ARM.** `tralo_reseed2` is
+TraLO with the constraint switched off and a different RNG stream. It beat every
+method including `alm`, and both TraLO variants lost to the clipper. Both cells
+are JACKKNIFE-UNSTABLE -- dropping one seed changes the winner.
+
+⛔ **`tralo_dualprop` IS REJECTED.** Do not revive the multiplier-magnitude
+direction. The frequency-vs-magnitude gap in 2(z49) is real, the fix delivered
+the intended change to the weighting, and the weighting was not what was wrong.
+
+### 3. 🛑 THE LARGER RESULT: THE CONSTRAINT MAKES THE RANKING WORSE
+
+Seed-paired, each arm against its OWN lambda=0 twin -- same warm-up, same
+allocator, `lambda_step: 0.0` -- which is the cleanest control the design has:
+
+| seed | `tralo` AP | `tralo_null` AP | d AP | d AUROC |
+|---|---|---|---|---|
+| 1 | 0.8555 | 0.8693 | **-0.0138** | -0.0082 |
+| 2 | 0.8719 | 0.8879 | **-0.0160** | -0.0118 |
+| 3 | 0.8586 | 0.8637 | **-0.0051** | -0.0027 |
+
+**6 of 6 negative.** `tralo_dualprop` is worse again, mean d AP **-0.022**.
+
+🔑 **AND THIS CLOSES THE LOOP ON THE WHOLE PROGRAM.** Post-hoc clipping is
+optimal GIVEN the probabilities and that optimality is distribution-free
+(2(j)), so a worse ranking mechanically means fewer captured items. The -3.00
+deployed items needs no appeal to noise: **the constraint degraded the material
+the allocator works from.** `clip` and `lp` carry BYTE-IDENTICAL AUROC/AP here,
+both post-hoc on the same warm-up, so they are exactly what an untouched
+ranking looks like -- and TraLO sits below it.
+
+This is consistent with, and now much sharper than, four things already in this
+file: all 24 constraint terms negative; more steps worse ("the starvation was
+PROTECTING us"); the representation channel negative at AP -0.0306; and the
+constraint evicting CORRECT items.
+
+⚠️ **AND IT CONTRADICTS 2026-08-28's "THE CONSTRAINT HELPS AT LOOSE CAPS"**
+(`loose1`, L80/L90). Both cannot be right as stated. That reconciliation is
+under way and MUST be resolved before either is quoted; do not cite either in
+isolation.
+
+### 4. What this does NOT license
+
+⛔ **"Reduce the RNG floor" is NOT the indicated fix, and proposing it was an
+error.** The floor is 5-6 items and the effect is -3.00; a tighter estimate of a
+LOSING mean is still a loss. Variance reduction is only worth buying when the
+point estimate is favourable and unresolved. It is not.
+
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, updated 2026-08-30 -- read this before section 3's older text**
@@ -12084,7 +12179,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             591 tests, ~200 s, no dataset required
+tests/             592 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

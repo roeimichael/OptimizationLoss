@@ -141,7 +141,7 @@ def _spearman(x, y):
     return num / (dx * dy) ** 0.5
 
 
-def weight_rankings(log, latch, lam0, step):
+def weight_rankings(log, latch, lam0, step, mode="constant"):
     """TraLO's per-scope multiplier against the one ALM/LDF would have built.
 
     TraLO ratchets a CONSTANT while a scope is violated, and the gate closes at
@@ -157,7 +157,24 @@ def weight_rankings(log, latch, lam0, step):
 
     Returns (lam_by_scope, mag_by_scope). If they rank scopes the same way, the
     frequency-vs-magnitude distinction is cosmetic and the direction closes.
+
+    🛑 IT RECONSTRUCTS, IT DOES NOT READ. The formula above IS the constant
+    ratchet, so this function reports what a CONSTANT ratchet would have built --
+    for any arm handed to it. On 2026-09-07 it was pointed at `tralo_dualprop`,
+    whose ratchet is PROPORTIONAL, and printed a range of exactly 24.3x =
+    (0.01+29*0.05)/(0.01+1*0.05), the constant ratchet's own algebraic ceiling.
+    That was registered in 2(z51) as the arm's INERTNESS FALSIFIER, so the
+    instrument was about to condemn a live arm. It now REFUSES any mode it
+    cannot model; the caller falls back to the LOGGED `Lambda_Global` /
+    `Lambda_Local`, which are real. FRAMEWORK 2(z53).
     """
+    if mode != "constant":
+        raise ValueError(
+            "weight_rankings reconstructs the multiplier as "
+            "`lam0 + step * (epochs violated)`, which is the CONSTANT ratchet. "
+            "It cannot model lambda_ratchet_mode=%r, and applying it anyway "
+            "reports what a constant ratchet WOULD have produced -- a number "
+            "that says nothing about the arm. FRAMEWORK 2(z53)." % (mode,))
     end = len(log) if latch is None else latch
     freq, mag = collections.Counter(), collections.Counter()
     for sat, excess, _lim in log[:end]:
@@ -173,6 +190,7 @@ def analyse(roots, classes, arms, lam0=0.01, step=0.05, out=sys.stdout):
     w = out.write
     rows = []
     unreadable = 0
+    unmodelled = set()
     for root in roots:
         for cfg in sorted(glob.glob(os.path.join(root, "*/*/*/*/*/config.json"))):
             try:
@@ -191,14 +209,32 @@ def analyse(roots, classes, arms, lam0=0.01, step=0.05, out=sys.stdout):
                 continue
             hp = c.get("hyperparams") or {}
             lat = latch_epoch(log)
-            lam, mag = weight_rankings(
-                log, lat, float(hp.get("lambda_local", lam0)),
-                float(hp.get("lambda_step", step)))
+            mode = str(hp.get("lambda_ratchet_mode", "constant"))
+            try:
+                lam, mag = weight_rankings(
+                    log, lat, float(hp.get("lambda_local", lam0)),
+                    float(hp.get("lambda_step", step)), mode)
+            except ValueError:
+                # Not a constant ratchet: the reconstruction does not apply and
+                # a number here would be worse than none. The latch columns are
+                # still valid -- they come from the logged satisfaction flags,
+                # not from the formula.
+                unmodelled.add((arm, mode))
+                lam, mag = None, None
             rows.append({"arm": arm, "dir": d, "latch": lat, "log": log,
-                         "lam": lam, "mag": mag,
+                         "mode": mode, "lam": lam, "mag": mag,
                          "trace": [sum(1 for e in ex.values() if e > 0)
                                    for _s, ex, _l in log]})
     unrecorded = unreadable
+    if unmodelled:
+        w("\n  !! MULTIPLIER RANGE NOT REPORTED for %s.\n"
+          % ", ".join("`%s` (lambda_ratchet_mode=%s)" % (a, m)
+                      for a, m in sorted(unmodelled)))
+        w("     This tool RECONSTRUCTS the multiplier with the CONSTANT-ratchet\n")
+        w("     formula, so for any other mode it would report what a constant\n")
+        w("     ratchet WOULD have built -- which is not this arm. Read the\n")
+        w("     LOGGED `Lambda_Global` / `Lambda_Local` from training_log.csv\n")
+        w("     instead. FRAMEWORK 2(z53).\n")
 
     if not rows:
         w("no completed runs recorded `satisfaction_epoch` under these roots.\n")

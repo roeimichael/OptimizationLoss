@@ -701,3 +701,50 @@ def test_a_RAGGED_cell_is_counted_by_its_SHARED_seeds_not_the_max():
     with_empty["fioretto"] = {}
     assert shared_seed_count(with_empty, sorted(with_empty)) == 4
     assert shared_seed_count({}, []) == 0
+
+
+def test_latch_probe_REFUSES_a_ratchet_mode_it_cannot_reconstruct():
+    """The instrument was about to condemn a live arm.
+
+    `weight_rankings` RECONSTRUCTS the multiplier as `lam0 + step * (epochs
+    violated)`. That formula IS the constant ratchet, so handed any other arm it
+    reports what a constant ratchet WOULD have built. On 2026-09-07 it was
+    pointed at `tralo_dualprop`, whose ratchet is PROPORTIONAL, and returned a
+    range of exactly 24.3x = (0.01 + 29*0.05)/(0.01 + 1*0.05) -- the constant
+    ratchet's own algebraic ceiling, and the precise value FRAMEWORK 2(z51) had
+    pre-registered as the arm's INERTNESS FALSIFIER.
+
+    The arm was live: its LOGGED Lambda_Global reached 41.5 against `tralo`'s
+    0.885, and its per-seed starting lambda differed, which a constant ratchet
+    cannot produce. FRAMEWORK 2(z53).
+
+    A probe that silently answers the wrong question is worse than one that
+    refuses, because its output is indistinguishable from a real measurement.
+    """
+    import pytest
+
+    from scripts.latch_probe import weight_rankings
+
+    # (satisfied, {scope: excess}, {scope: limit}) per epoch
+    log = [(False, {"a": 10.0, "b": 1.0}, {"a": 5, "b": 5}),
+           (False, {"a": 8.0, "b": 0.0}, {"a": 5, "b": 5})]
+
+    # The constant ratchet is what it models, and it still works.
+    lam, mag = weight_rankings(log, None, 0.01, 0.05, "constant")
+    assert lam["a"] == pytest.approx(0.01 + 2 * 0.05)
+    assert lam["b"] == pytest.approx(0.01 + 1 * 0.05)
+    assert mag["a"] == pytest.approx(18.0)
+
+    # Default stays "constant", so every existing caller is unaffected.
+    lam2, _ = weight_rankings(log, None, 0.01, 0.05)
+    assert lam2 == lam
+
+    # THE FIX: anything else must RAISE, not silently reconstruct.
+    with pytest.raises(ValueError) as e:
+        weight_rankings(log, None, 0.01, 0.05, "proportional")
+    assert "constant" in str(e.value).lower()
+
+    # NEGATIVE CONTROL: an unrecognised mode must also refuse rather than be
+    # treated as constant by default -- that is the failure mode being fixed.
+    with pytest.raises(ValueError):
+        weight_rankings(log, None, 0.01, 0.05, "something_new")
