@@ -1119,7 +1119,26 @@ datasets:
     data_dir: data/fmow/oodslice
     num_classes: 8
     group_column: location      # country; test countries DISJOINT from train
-    constrained_class: [3, 6]   # military_facility 12.0% / single-unit_res 9.8%
+    constrained_class: [3, 5]   # military_facility 12.0% / educational_inst 15.0%
+    # (3, 6) WAS THE FIRST PICK AND IT CANNOT BE RUN. The heterogeneity rule
+    # ranked c6 second, and c6 holds a SINGLETON cell: Chile has exactly ONE
+    # single-unit_residential. `_round_to_K` computes np.round(count * cap) and
+    # RAISES when a NONZERO count lands on K=0, because that is
+    # indistinguishable from a genuine "predict none of this class here" and a
+    # silently disabled constraint is a phantom-satisfied experiment. At any
+    # cap below 0.50 that one cell kills the whole campaign at generation time.
+    # fmow's measured task window is K/n 0.20-0.40, so NO legal cap can express
+    # c6 at all.
+    # 🔑 THE RULE THEREFORE HAS A THIRD CLAUSE, and it is not a special case:
+    #   a capped class must have every NONZERO (group, class) cell clear K=0 at
+    #   the cap, i.e. np.round(count * cap) >= 1.
+    # Applied at fmow's window, c1/c6/c7 are blocked and c0/c2/c3/c4/c5 are
+    # expressible; among those the top two by heterogeneity are c3 (0.0662) and
+    # c5 (0.0530). `bcn` is unaffected -- its smallest nonzero cells are 10 and
+    # 5 items -- so this changes nothing already run.
+    # WINDOWS, measured on the fmowpilot1 `clip` runs (ViTB16, 4 seeds):
+    #   class 3  K/n 0.20-0.40      class 5  K/n 0.20-0.30
+    # so the legal caps are L20 and L30, NOT the L70/L80 the first pilot used.
     disjoint_groups: true       # RAISES on overlap, does not warn
 
   bcn:

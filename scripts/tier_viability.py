@@ -123,6 +123,23 @@ def analyse(df, gcol, cap):
                 off += abs(obs - exp)
         off = off / 2.0 / n_tot
 
+    # EXPRESSIBLE: can every NONZERO (group, class) cell of this class clear
+    # K=0 at the cap? `_round_to_K` is np.round(count * cap) and RAISES when a
+    # nonzero count rounds to zero -- correctly, since that is not
+    # distinguishable from a real "predict none here". A class holding a
+    # SINGLETON cell is therefore uncappable at any cap under 0.50, however
+    # well spread it is, and `usable` above cannot see that: it counts groups
+    # and concentration, not cell arithmetic.
+    # Found 2026-09-08, after `fmow` passed this screen, was registered, and
+    # then refused to generate a campaign -- Chile holds exactly ONE
+    # single-unit_residential.
+    expressible = []
+    for c in labels:
+        _n, vc = counts[c]
+        nz = [int(vc.get(g, 0)) for g in groups if int(vc.get(g, 0)) > 0]
+        if nz and all(int(round(v * cap)) >= 1 for v in nz):
+            expressible.append(c)
+
     dead_items = 0
     for g in groups:
         sub = df[df[gcol] == g]
@@ -136,6 +153,7 @@ def analyse(df, gcol, cap):
         "zero_ceil": (zero / float(total)) if total else float("nan"),
         "dead_share": dead_items / float(len(df)) if len(df) else 0.0,
         "off_prop": off,
+        "expressible": expressible,
     }
 
 
@@ -149,6 +167,10 @@ MIN_OFF_PROPORTIONAL = 0.05
 def verdict(r):
     if len(r["usable"]) < 2:
         return "DEAD      fewer than 2 classes can carry a local cap"
+    ok = [c for c in r["usable"] if c in r.get("expressible", r["usable"])]
+    if len(ok) < 2:
+        return ("DEAD      only %d class(es) have every nonzero cell clearing "
+                "K=0 at this cap" % len(ok))
     if r.get("off_prop", 1.0) < MIN_OFF_PROPORTIONAL:
         return ("DEAD      groups are proportional copies of the global mix "
                 "(off_prop %.1f%%)" % (100 * r["off_prop"]))
@@ -255,6 +277,26 @@ def self_test():
     check("shifted: off_prop large", r["off_prop"] > 0.20)
     check("shifted: density 1.0", abs(r["density"] - 1.0) < 1e-9)
     check("shifted: NOT dead", not verdict(r).startswith("DEAD"))
+
+    # NEGATIVE CONTROL for EXPRESSIBILITY: a class that is well spread and
+    # well concentrated can still be uncappable, because ONE singleton cell
+    # rounds to K=0 and `_round_to_K` raises rather than silently disabling the
+    # constraint. `usable` cannot see this -- it counts groups and share, not
+    # cell arithmetic -- which is exactly how `fmow` passed this screen, got
+    # registered, and then refused to generate a campaign.
+    singleton = pd.DataFrame({
+        "label": ([0] * 30 + [1] * 30 + [0] * 30 + [1] * 30 + [1]),
+        "location": (["a"] * 60 + ["b"] * 60 + ["c"])})
+    r = analyse(singleton, "location", 0.20)
+    check("singleton cell: the class is USABLE by spread", 1 in r["usable"])
+    check("singleton cell: but NOT expressible at cap 0.20",
+          1 not in r["expressible"])
+    check("singleton cell: verdict is DEAD, not TIER-LIKE",
+          verdict(r).startswith("DEAD"))
+    # POSITIVE control: the SAME shape at a cap where 1 * cap rounds to 1
+    r = analyse(singleton, "location", 0.60)
+    check("...and the same slice IS expressible at cap 0.60",
+          1 in r["expressible"])
 
     # a cap so small every ceiling rounds to zero
     r = analyse(tier, "location", 0.01)
