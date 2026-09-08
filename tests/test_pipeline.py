@@ -5096,8 +5096,19 @@ def test_removed_datasets_cannot_be_selected_anywhere():
 
     with io.open(PROTOCOL_PATH, encoding="utf-8") as fh:
         declared = set(yaml.safe_load(fh)["datasets"])
-    assert declared == {"iwildcam", "cct"}, declared
-    assert IMAGERY_DATASETS == {"iwildcam", "cct"}, IMAGERY_DATASETS
+    # 🛑 THIS SET IS AN ALLOW-LIST, NOT A DESCRIPTION. Adding a name
+    # here is the moment a dataset becomes runnable, so it must be a
+    # deliberate edit with a screen number behind it, never a fix to make
+    # a red test green. `bcn` was added 2026-09-08 on three measurements:
+    # tier_viability TIER-LIKE (density 0.89, 8/8 classes usable, 11%
+    # K=0 ceilings, 0% dead items, against iwildcam 0.27 / 2 / 50% / 72%);
+    # factorial_control raked 8 of 8 -- the first candidate on which that
+    # control was not vacuous -- keeping +1025 items at z=27.3 under the
+    # additive baseline; and dataset_screen NET +2031 items. FRAMEWORK
+    # 2(z55), 2(z57).
+    LIVE = {"iwildcam", "cct", "bcn"}
+    assert declared == LIVE, declared
+    assert IMAGERY_DATASETS == LIVE, IMAGERY_DATASETS
     for name in REMOVED_DATASETS:
         assert name not in declared
         assert name not in IMAGERY_DATASETS

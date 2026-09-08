@@ -11113,6 +11113,87 @@ never was. Its problem is entirely that 6 of 8 classes cannot carry a local cap.
 Those are independent axes and a gate needs both.
 
 
+---
+
+## 2(z56). THE UNITS FIX WORKED AND THE SCORE DID NOT MOVE -- THE PER-SCOPE WEIGHTING FAMILY IS CLOSED (2026-09-08)
+
+**`penalty_item_scale` did exactly what 2(z54) pre-registered, on two backbones,
+and the deployed metric did not follow. That is not a failed fix. It is a
+measurement of the link between the proxy and the objective, and the link is
+weak.**
+
+### 1. What ran
+
+`itemscale1` (MobileNetV2) and `itemscale2` (RegNetY400MF), 96 runs each, 4
+seeds, dose **232/232 = 100%** on both, every gate green: `check_parity`,
+`pred_integrity`, `dose_landed`, `data_present`, `quarantine.gate()`.
+
+### 2. The mechanism -- CONFIRMED, replicated
+
+`deep_scope` MIDDLE-depth bucket, excess removed NET OF the zero-constraint `lp`
+reference (a post-hoc arm takes zero constraint steps, so whatever it scores is
+the artefact floor):
+
+| campaign | `tralo` | **`tralo_itemscale`** | *`alm`* |
+|---|---|---|---|
+| `itemscale1` MNv2 | -3.9 | **+2.5** | *+4.3* |
+| `itemscale2` RegNetY400MF | +8.3 | **+10.5** | *+10.0* |
+
+It swung MIDDLE by **+6.4 items** on one backbone and **edged ALM** on the
+other. The offline replay over 11,136 scope-epochs predicted the budget split
+would go 93.5%/1.7% to 15.3%/52.7%, onto ALM's 18.8%/69.2%. It did.
+
+### 3. The metric -- NO
+
+Deployed capped-class items vs `clip`:
+
+| campaign | `tralo` | **`tralo_itemscale`** |
+|---|---|---|
+| `itemscale1` | 0.00 | **-1.75** |
+| `itemscale2` | +3.00 | **+1.88** |
+
+`tralo_wins`: **25% of testable cells against a 50% bar -- VERDICT FAIL**, and
+**0 of 4 cells priced** (no spread cleared its own RNG floor). `deployed_h2h`
+names a #1 in 3 of 4 cells and hands one of them to **`tralo_coin`** -- a RANDOM
+constraint direction of the same norm, carried in the campaign as the
+pre-registered kill condition. 3 of 4 cells are jackknife-unstable.
+
+### 4. 🔑 THE FINDING, WHICH IS THE PREMISE AND NOT THE ARM
+
+`deep_scope` prints the premise nobody had checked: does excess removed buy
+deployed quality? On these campaigns
+
+    median rho +0.383 over 2 cells (32 runs), 1 of 2 positive = 50%
+
+**A coin flip.** Closing a scope`s excess and winning a deployed item are only
+weakly coupled. Every knob in the per-scope weighting layer -- penalty SHAPE,
+multiplier MAGNITUDE, frequency-vs-magnitude, UNITS, granularity, scope
+SELECTION -- steers the same proxy. A mechanically correct, replicated,
+pre-registered fix to that proxy moved the proxy and left the score where it
+was.
+
+### 5. What is therefore CLOSED
+
+⛔ **The whole per-scope weighting family.** Do not propose another re-weighting
+of scopes. `tralo_sizescale` (a scope-SIZE denominator, previously queued) is
+closed by this too -- it is the same layer with a different divisor.
+⛔ `tralo_st` as a solo arm was already closed offline in 2(z54) 5b.
+
+### 6. What is NOT closed, and where to look
+
+The per-logit constraint gradient is `A_S * p(1-p)`. ALM, TraLO, LDF and Hounie
+all differ only in `A_S` -- the SCOPE scalar. **Not one of them differs in where
+the gradient lands WITHIN a scope**, and `p(1-p)` peaks at p = 0.5 while the cut
+sits at rank K where measured p@K is 0.9948-0.9972 and `p(1-p)` is about 0.003.
+Every method aims its within-scope gradient at the items least able to change
+the emitted set. ALM gets WHICH SCOPE right; nothing gets WHICH ITEM right.
+That asymmetry is untouched.
+
+⚠️ **AND SAY THE SIZE PROBLEM OUT LOUD.** The gap to ALM is **1.42 items** and
+the RNG floor at 4 seeds is **~3 items**. Any mechanism proposed here must
+either be much larger than 1.42 items or come with more seeds, or it cannot be
+told from noise on this design.
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, updated 2026-08-30 -- read this before section 3's older text**

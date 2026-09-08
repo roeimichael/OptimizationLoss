@@ -1062,6 +1062,79 @@ datasets:
   # because its test groups ARE its training groups. The full record
   # stays in docs/FRAMEWORK.md 2(n) and in the archive; what is gone is
   # the ability to RUN them. Restoring one needs a screen number first.
+  bcn:
+    # THE SECOND DATASET, and the FIRST whose local scope is not degenerate.
+    # ISIC-2019, BCN20000 source only, seed 2. Built by
+    #   python -m scripts.prep_isic --out data/bcn/oodslice --cache ~/isic_cache
+    #                               --sources BCN --seed 2
+    # verified 2026-09-08 to reproduce the audited `bcn_s2` candidate EXACTLY
+    # (3900/3900 test filenames, jaccard 1.0000; only CRLF and a cosmetic
+    # `class_name` column differ). train 8270 / test 3900, and prep_isic drops
+    # 13 lesion-leak images from TRAIN -- the dermmnist lesson, applied.
+    #
+    # GROUP = anatomical site crossed with age band, e.g. "anterior torso|40s".
+    # All 8 test groups are ABSENT from training, so the model holds no
+    # per-cohort prior and the local cap is the only source of one.
+    #
+    # WHY THIS ONE, AND THE THREE GATES IT CLEARS THAT iwildcam DOES NOT:
+    #
+    # 1. `tier_viability` -- can a LOCAL cap say anything a GLOBAL cap cannot?
+    #        bcn       density 0.89  usable 8/8  K=0 ceilings 11%  dead  0%  TIER-LIKE
+    #        iwildcam  density 0.27  usable 2/8  K=0 ceilings 50%  dead 72%  WEAK
+    #    On iwildcam 6 of 8 classes sit at ONE camera, so "at most K per group"
+    #    IS "at most K overall" for them, and 72% of test items sit in groups
+    #    holding neither capped class. Here every class appears at 6-8 of the 8
+    #    groups and no group is dead. FRAMEWORK 2(z55).
+    #
+    # 2. `factorial_control --sep "|"` -- the group is a PRODUCT of two factors
+    #    that BOTH appear in training, so the model can interpolate and the
+    #    unseen-group novelty must be discounted for that. THIS IS THE FIRST
+    #    CANDIDATE ON WHICH THAT CONTROL ACTUALLY RAN: `raked = 8 of 8`.
+    #    iwildcam and every fmow slice read `raked = 0` -- their groups are
+    #    atomic, the two arms collapse to one arm, and the ~100% they scored
+    #    was arithmetic. FRAMEWORK 2(w2c).
+    #        NET(global)   +2033 items  z = 62.9
+    #        NET(additive) +1025 items  z = 27.3   <- the honest one
+    #    Half the apparent novelty is site-plus-age interpolation. The other
+    #    half survives a baseline built to delete it.
+    #
+    # 3. NO K=0 CEILING ON THE CAPPED PAIR. Every (group, capped class) cell is
+    #    non-empty, so at a 70% cap the smallest local budget is K=7 (class 0)
+    #    and K=3 (class 2). On iwildcam 7 of 14 ceilings are K=0, which is what
+    #    inverted TraLO`s scope priority in the first place: `s = max(K,1)`
+    #    reverts those scopes to absolute units and they took 93.5% of the
+    #    step. FRAMEWORK 2(z54). This slice does not have that failure mode at
+    #    all, so the units question is answered by the data rather than by a
+    #    knob.
+    #
+    # CAPPED CLASSES 0 (NV) and 2 (BCC), CHOSEN BY A RULE STATED BEFORE ANY
+    # OUTCOME WAS READ, because unlike iwildcam the pair is NOT forced here --
+    # all 8 classes are usable, so picking by eye would be over-fitting:
+    #    (a) drop any class whose MEDIAN non-empty cell is under 15 items -- a
+    #        70% cap on a 6-item cell is a cap of 4 and carries no information.
+    #        That drops c6 (DF, median 8) and c7 (VASC, median 7).
+    #    (b) among survivors rank by HETEROGENEITY, the class`s own
+    #        contribution to off-proportionality: how far its per-group rate
+    #        departs from its global rate. That is exactly what a LOCAL cap can
+    #        exploit and a GLOBAL one cannot.
+    #    (c) take the top two.
+    #        c0 0.1193 | c2 0.0626 | c1 0.0375 | c4 0.0353 | c3 0.0221
+    #    Class 0 is 64% of "anterior torso|40s" and 6% of "upper extremity|80+".
+    #    NOTE the clinically natural alternative is c1 (MEL); the rule did not
+    #    pick it (heterogeneity 0.0375, third). It is recorded here so that a
+    #    later switch to MEL is visibly a CHANGE OF RULE and not a free choice.
+    #
+    # NO TASK WINDOW IS MEASURED YET -- `configs/task_windows.yml` has no `bcn`
+    # entry, so `classify` returns `no_window` and gen_campaign warns rather
+    # than refusing. Measure it with `scripts.task_window` off the pilot`s
+    # `clip` runs BEFORE generating a real campaign. A cap chosen without it is
+    # the mistake that made 24 of 24 iwildcam cells non-tasks.
+    data_dir: data/bcn/oodslice
+    num_classes: 8
+    group_column: location      # site|age; test cohorts DISJOINT from train
+    constrained_class: [0, 2]   # NV 32.7% / BCC 22.3% of test
+    disjoint_groups: true       # RAISES on overlap, does not warn
+
   iwildcam:
     # THE FIRST DATASET THAT CLEARS THE FRAMEWORK 2(n) CRITERION.
     # Held-out camera traps: the 7 test cameras are DISJOINT from the 150
