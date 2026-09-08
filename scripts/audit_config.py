@@ -482,30 +482,69 @@ def main():
     else:
         tmp = tempfile.mkdtemp(prefix="cfgaudit_")
         root = tmp
-        subprocess.check_call(
-            # `--constraint-fp32` because the generator now REFUSES trained
-            # arms without it (fp16 + GradScaler silently drops ~13% of the
-            # dose). This probe campaign is never trained, so the flag only
-            # gets it past the gate.
-            [sys.executable, "-m", "configs.gen_campaign",
-             "--constraint-fp32", "--root", root,
-             # EVERY dataset the protocol declares, read from the protocol
-             # rather than hardcoded. The old literal list outlived the
-             # datasets themselves: when dermmnist/octmnist/tissuemnist were
-             # removed on 2026-08-22 this audit crashed with a bare argparse
-             # exit 2, and an audit that dies when the config changes is an
-             # audit nobody can use to VERIFY the change.
-             "--datasets", *_protocol_datasets(),
-             "--models", "MobileNetV3", "MobileNetV2", "RegNetY400MF", "ViTB16",
-             # all+null, NOT all. `all` is deliberately compute-neutral and
-             # excludes the zero-dose siblings, which is right for a CAMPAIGN
-             # and wrong here: auditing is static analysis of configs, it costs
-             # nothing to run, and skipping the four newest and highest-stakes
-             # arms is this project's own mistake pattern 1 -- a check that
-             # reports green while not looking -- one layer up.
-             "--caps", "L30_G30", "L50_G50", *_nontask_flag(),
-             "--arms", "all+null"],
-            stdout=subprocess.DEVNULL)
+        # 🛑 ONE PROBE PER DATASET, ON A CAP LADDER, because a single hardcoded
+        # cap is not expressible on every slice. `fmow` has exactly ONE
+        # single-unit_residential in Chile, so `L30_G30` rounds that ceiling to
+        # K=0 and `compute_local_constraints` RAISES rather than silently
+        # disabling the constraint -- correct behaviour at a cap nobody would
+        # use (fmow's window is far looser). Before this, that refusal took the
+        # WHOLE audit down with a CalledProcessError, so adding a legitimate
+        # dataset made every other dataset's key audit unrunnable.
+        #
+        # ⚠️ THE LADDER DOES NOT WEAKEN THE CHECK. This audit is static
+        # analysis of emitted config KEYS; which cap produced them is
+        # irrelevant to that, and every dataset still gets audited. What would
+        # weaken it is skipping a dataset, so a slice that cannot express ANY
+        # rung is a hard failure, named.
+        LADDER = [("L30_G30", "L50_G50"), ("L50_G50", "L70_G70"),
+                  ("L70_G70", "L90_G90")]
+        used, failed = {}, {}
+        for ds in _protocol_datasets():
+            sub = os.path.join(tmp, ds)
+            for caps in LADDER:
+                r = subprocess.run(
+                    # `--constraint-fp32` because the generator now REFUSES
+                    # trained arms without it (fp16 + GradScaler silently drops
+                    # ~13% of the dose). This probe campaign is never trained,
+                    # so the flag only gets it past the gate.
+                    [sys.executable, "-m", "configs.gen_campaign",
+                     "--constraint-fp32", "--root", sub,
+                     # EVERY dataset the protocol declares, read from the
+                     # protocol rather than hardcoded. The old literal list
+                     # outlived the datasets themselves: when dermmnist /
+                     # octmnist / tissuemnist were removed on 2026-08-22 this
+                     # audit crashed with a bare argparse exit 2, and an audit
+                     # that dies when the config changes is an audit nobody can
+                     # use to VERIFY the change.
+                     "--datasets", ds,
+                     "--models", "MobileNetV3", "MobileNetV2",
+                     "RegNetY400MF", "ViTB16",
+                     # all+null, NOT all. `all` is deliberately compute-neutral
+                     # and excludes the zero-dose siblings, which is right for a
+                     # CAMPAIGN and wrong here: auditing is static analysis of
+                     # configs, it costs nothing to run, and skipping the four
+                     # newest and highest-stakes arms is this project's own
+                     # mistake pattern 1 -- a check that reports green while not
+                     # looking -- one layer up.
+                     "--caps", caps[0], caps[1], *_nontask_flag(),
+                     "--arms", "all+null"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                if r.returncode == 0:
+                    used[ds] = caps
+                    break
+                failed.setdefault(ds, []).append(
+                    (caps, (r.stderr or b"").decode("utf-8", "replace")[-300:]))
+            else:
+                print("audit_config: REFUSING -- %s cannot express ANY "
+                      "probe cap on the ladder %s, so its config keys "
+                      "would go unaudited."
+                      % (ds, [c[0] for c in LADDER]))
+                print("  last error: %s" % failed[ds][-1][1])
+                return 1
+        for ds, caps in sorted(used.items()):
+            if caps != LADDER[0]:
+                print("  note: %s audited at %s (its smallest per-group "
+                      "ceiling rounds to 0 at %s)" % (ds, caps[0], LADDER[0][0]))
 
     emitted, per_arm, n = collect_emitted(root)
     reads = collect_reads()
