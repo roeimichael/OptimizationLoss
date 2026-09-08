@@ -11088,6 +11088,30 @@ it. A second dataset is no longer a nice-to-have.
 ⚠️ **And no candidate is runnable yet**: all 21 are metadata-only, 1-8 MB each.
 iwildcam is the only slice with images on the server.
 
+### 5. DENSITY IS NOT SUFFICIENT EITHER -- `off_proportional` (2026-09-08)
+
+The first version of this gate passed `domainnet` at density **1.00**, 8/8
+usable, 0% zero ceilings. A dataset audit caught it: every group there is a
+scaled copy of the GLOBAL label mix, so a per-group cap IS the global cap
+divided by group size and the local scope adds nothing at all. Its per-group
+label shift is z = **1.2**, below dermmnist's 2.9, which already nulled.
+
+`off_prop` is the total-variation distance between the observed (group x class)
+matrix and the product of its marginals. Measured:
+
+| slice | density | off_prop | verdict |
+|---|---|---|---|
+| `domainnet` | **1.00** | **2.4%** | DEAD -- proportional |
+| `fitz_skintype` | **1.00** | **2.8%** | DEAD -- proportional |
+| `bcn_s2` | 0.89 | 29.9% | TIER-LIKE |
+| `fmow_s2` | 0.86 | 38.6% | TIER-LIKE |
+| `iwildcam` | 0.27 | **57.6%** | WEAK |
+
+🔑 **iwildcam has the HIGHEST off-proportional of all 22.** Its per-group label
+shift is genuinely the best available -- criterion 5 is not its problem and
+never was. Its problem is entirely that 6 of 8 classes cannot carry a local cap.
+Those are independent axes and a gate needs both.
+
 
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 

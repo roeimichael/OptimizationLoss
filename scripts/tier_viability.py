@@ -35,6 +35,15 @@ WHAT THIS REPORTS, per slice:
               initialisation and forever.
   dead_share  fraction of TEST ITEMS sitting in groups that hold none of the
               usable classes -- items the local scope can never act on.
+  off_prop    total-variation distance between the observed (group x class)
+              matrix and the product of its marginals. ZERO means every group
+              is a scaled copy of the global label mix, so a per-group cap IS
+              the global cap divided by group size and the local scope adds
+              nothing at all. 🛑 DENSITY CANNOT SEE THIS: `domainnet` reads
+              density 1.00, 8/8 usable, 0% zero ceilings -- and 2.4%
+              off-proportional with per-group label shift at z = 1.2, i.e.
+              dead. Found by the dataset audit 2026-09-08, after this tool
+              had already passed it.
 
     python -m scripts.tier_viability <slice-dir> [more ...] [--cap 0.7]
     python -m scripts.tier_viability --self-test
@@ -95,6 +104,25 @@ def analyse(df, gcol, cap):
             if int(round(cap * int(vc.get(g, 0)))) == 0:
                 zero += 1
 
+    # OFF-PROPORTIONAL: total-variation distance between the observed
+    # (group x class) matrix and the product of its marginals, as a share of
+    # items. Zero means each group is a scaled copy of the global label
+    # distribution -- so a per-group cap IS the global cap divided by group
+    # size and the local scope adds nothing. Density cannot see this:
+    # `domainnet` reads density 1.00 and off_proportional 2.4%.
+    n_tot = float(len(df))
+    off = 0.0
+    if n_tot:
+        gsz = {g: float((df[gcol] == g).sum()) for g in groups}
+        csz = {c: float((df["label"] == c).sum()) for c in labels}
+        for g in groups:
+            sub = df[df[gcol] == g]
+            for c in labels:
+                obs = float((sub["label"] == c).sum())
+                exp = gsz[g] * csz[c] / n_tot
+                off += abs(obs - exp)
+        off = off / 2.0 / n_tot
+
     dead_items = 0
     for g in groups:
         sub = df[df[gcol] == g]
@@ -107,12 +135,23 @@ def analyse(df, gcol, cap):
         "usable": usable,
         "zero_ceil": (zero / float(total)) if total else float("nan"),
         "dead_share": dead_items / float(len(df)) if len(df) else 0.0,
+        "off_prop": off,
     }
+
+
+# Below this, each group is close enough to a scaled copy of the global label
+# distribution that a per-group cap is the global cap divided by group size.
+# `domainnet` sits at 0.024 with density 1.00, which is why density alone is
+# not a sufficient gate.
+MIN_OFF_PROPORTIONAL = 0.05
 
 
 def verdict(r):
     if len(r["usable"]) < 2:
         return "DEAD      fewer than 2 classes can carry a local cap"
+    if r.get("off_prop", 1.0) < MIN_OFF_PROPORTIONAL:
+        return ("DEAD      groups are proportional copies of the global mix "
+                "(off_prop %.1f%%)" % (100 * r["off_prop"]))
     if r["zero_ceil"] >= 0.50:
         return "WEAK      half the ceilings are K=0 before training"
     if r["zero_ceil"] >= 0.25 or r["density"] < 0.50:
@@ -148,16 +187,16 @@ def run(paths, cap, out=sys.stdout):
     out.write("  usable = class at >=%d groups and <%d%% at its biggest one\n"
               % (MIN_GROUPS, int(100 * MAX_CONCENTRATION)))
     out.write("=" * 100 + "\n")
-    out.write("%-22s %-11s %4s %4s %8s %7s %10s %9s  %s\n"
+    out.write("%-22s %-11s %4s %4s %8s %7s %9s %6s %6s  %s\n"
               % ("slice", "group by", "cls", "grp", "density", "usable",
-                 "zero_ceil", "dead", "verdict"))
+                 "zero_ceil", "dead", "offprp", "verdict"))
     out.write("-" * 100 + "\n")
     for r in rows:
-        out.write("%-22s %-11s %4d %4d %7.2f %7d %9.0f%% %8.0f%%  %s\n"
+        out.write("%-22s %-11s %4d %4d %7.2f %7d %8.0f%% %5.0f%% %5.1f%%  %s\n"
                   % (r["name"][:22], str(r["gcol"])[:11], r["classes"], r["groups"],
                      r["density"], len(r["usable"]),
                      100 * r["zero_ceil"] if r["zero_ceil"] == r["zero_ceil"] else 0,
-                     100 * r["dead_share"], verdict(r)))
+                     100 * r["dead_share"], 100 * r["off_prop"], verdict(r)))
     return rows
 
 
@@ -176,7 +215,8 @@ def self_test():
     check("tier: density 1.0", abs(r["density"] - 1.0) < 1e-9)
     check("tier: all 4 usable", len(r["usable"]) == 4)
     check("tier: no zero ceilings", r["zero_ceil"] == 0.0)
-    check("tier: verdict TIER-LIKE", verdict(r).startswith("TIER-LIKE"))
+    # NB: `tier` is dense AND proportional, so its verdict is DEAD on the
+    # off_prop gate -- asserted below. Density and usability still read right.
 
     # NEGATIVE CONTROL: the iwildcam shape -- each class at exactly one group
     diag = pd.DataFrame({"label": [c for c in range(4) for _ in range(40)],
@@ -200,6 +240,21 @@ def self_test():
     r = analyse(dead, "location", 0.7)
     check("dead group detected", r["dead_share"] > 0.7)
     check("dead group makes ceilings zero", r["zero_ceil"] > 0.3)
+
+    # NEGATIVE CONTROL: dense AND proportional -> the local scope is the global
+    # one divided by group size. `tier` above is exactly this shape.
+    r = analyse(tier, "location", 0.7)
+    check("proportional: off_prop ~ 0", r["off_prop"] < 0.01)
+    check("proportional: verdict DEAD", verdict(r).startswith("DEAD"))
+
+    # POSITIVE: same density, but the groups carry DIFFERENT label mixes
+    shifted = pd.DataFrame({
+        "label": ([0] * 30 + [1] * 10) + ([0] * 10 + [1] * 30),
+        "location": ["a"] * 40 + ["b"] * 40})
+    r = analyse(shifted, "location", 0.7)
+    check("shifted: off_prop large", r["off_prop"] > 0.20)
+    check("shifted: density 1.0", abs(r["density"] - 1.0) < 1e-9)
+    check("shifted: NOT dead", not verdict(r).startswith("DEAD"))
 
     # a cap so small every ceiling rounds to zero
     r = analyse(tier, "location", 0.01)
