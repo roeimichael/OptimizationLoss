@@ -2325,6 +2325,20 @@ seeds. This is the question 2(z12)-2(z14) never asked, and it governs them.
 | LOOSE L90_G95 | 2 | 333 | **0.38433** | 0.9144 | **28.5** | 17.5 |
 | LOOSE L90_G95 | 7 | 411 | 0.99253 | 0.9264 | **30.2** | 11.0 |
 
+🛑 **THE `p@K` COLUMN IS A GLOBAL TOP-K AND MUST NOT BE QUOTED AS A CUT
+(flagged 2026-09-08).** It ranks the whole test set once and cuts at the SUM of
+the local budgets. Every allocator here is PER-GROUP -- it emits the top `K_gc`
+inside each group -- and a global top-K fills from the groups the model is most
+confident about, so its marginal item is far more confident than a typical
+group's. Measured with `scripts.aim_table` on the same runs, class 7 at
+L80_G95 reads `p@K` 0.876 per-group against **0.99929** here, i.e. `p(1-p)`
+0.0244 against 0.00071 -- **34x**. This is the same defect as "THE CAP SCREEN
+COUNTED A GLOBAL TOP-K", a 4.25x prize overstatement.
+✅ **The CAP-LEVEL conclusion below is UNAFFECTED**: "zero errors inside K at
+the tight caps" is a statement about which items are wrong, not about ranking
+scope, and it holds under either reading. Only the `p@K` / saturation column is
+withdrawn. FRAMEWORK 2(z56) 6.
+
 ⛔ **AT EVERY TIGHT CELL THE CLIPPER'S SELECTION IS 100% CORRECT.** Zero
 errors inside K. There is no swap that improves it, only swaps that damage it.
 No loss, count function, dual, allocator or optimizer can beat a perfect
@@ -11182,12 +11196,64 @@ closed by this too -- it is the same layer with a different divisor.
 ### 6. What is NOT closed, and where to look
 
 The per-logit constraint gradient is `A_S * p(1-p)`. ALM, TraLO, LDF and Hounie
-all differ only in `A_S` -- the SCOPE scalar. **Not one of them differs in where
-the gradient lands WITHIN a scope**, and `p(1-p)` peaks at p = 0.5 while the cut
-sits at rank K where measured p@K is 0.9948-0.9972 and `p(1-p)` is about 0.003.
-Every method aims its within-scope gradient at the items least able to change
-the emitted set. ALM gets WHICH SCOPE right; nothing gets WHICH ITEM right.
-That asymmetry is untouched.
+all differ only in `A_S` -- the SCOPE scalar. **Not one of them differs in the
+per-item factor `p(1-p)`**, which peaks at p = 0.5 and vanishes at both extremes.
+So the obvious remaining direction is to re-aim the gradient WITHIN a scope.
+
+⛔ **THAT DIRECTION IS CLOSED, MEASURED 2026-09-08 ON `dom1` (48 reference runs,
+2 backbones, 3 caps) WITH `scripts.aim_table`. THERE IS NOT ONE STARVED CELL.**
+A cell rewards re-aiming only if it has a PRIZE (errors inside K) *and* a bad
+AIM (`p(1-p)` at the cut). Measured at the cut the allocator actually makes:
+
+| backbone | cap | cls | `p@K` | `p(1-p)` | % of max | errors inside K |
+|---|---|---|---|---|---|---|
+| MNv3 | L90_G95 | 2 | 0.498 | 0.0667 | 27% | 12.0 |
+| MNv3 | L90_G95 | 7 | 0.786 | 0.0513 | 21% | 7.0 |
+| MNv3 | L95_G80 | 2 | 0.299 | 0.0803 | 32% | 14.0 |
+| MNv3 | L95_G80 | 7 | 0.707 | 0.0853 | 34% | 10.0 |
+| MNv2 | L95_G80 | 7 | 0.612 | 0.0210 | 8% | 11.2 |
+
+The per-item gradient ratio between the two capped classes runs **1.1x to 5.1x**
+while their prizes differ 1.0x-2.4x. The aim is already on the money everywhere
+there is money.
+
+🛑 **AND THE REASON THIS ENTRY SAID THE OPPOSITE TWICE IS ONE DEFECT, IN
+2(z15)'s TABLE, WHICH IS A GLOBAL TOP-K.** Every allocator here is PER-GROUP:
+it emits the top `K_gc` inside each group. 2(z15) ranks the whole test set once
+and cuts at the SUM of the local budgets. That is the same confusion the cap
+screen made -- **"THE CAP SCREEN COUNTED A GLOBAL TOP-K", a 4.25x prize
+overstatement** -- and it inflates saturation badly, because a global top-K is
+filled from the groups where the model is most confident, so its marginal item
+is far more confident than the marginal item of a typical group:
+
+| reading | class 7, L80_G95 | `p(1-p)` |
+|---|---|---|
+| 2(z15), GLOBAL top-K | `p@K` 0.99929 | **0.00071** |
+| per-group, the real cut | `p@K` 0.876 | **0.0244** |
+
+**34x.** Every per-class `p@K` in 2(z15) is subject to this and must not be
+quoted as a cut. Its CAP-level conclusion is unaffected -- prize zero at
+L20/L30/L50 is a statement about errors, not about ranking scope.
+
+⚠️ **THE SEQUENCE IS THE LESSON, so it is recorded rather than tidied.** This
+section first asserted a universal aim defect from a tight-cap figure; a
+16-agent review (2026-09-08) refuted all ten of its own proposals and concluded
+the family was closed; reading its pre-registered falsifier against its own
+cited table showed the falsifier FIRING on two cells it claimed were empty, so
+the section was rewritten to say the defect was CLASS-asymmetric at 32-233x;
+and building the instrument to check that on real artefacts showed all three
+readings rested on 2(z15)'s global top-K, with the true ratio 1.1-5.1x and no
+starved cell at all. **The memo's verdict was right and every stated reason for
+it, mine included, was wrong.** Three prose claims in a row, none of them
+measured at the point the allocator cuts. Build the instrument first.
+
+🔑 **SO: THE PER-ITEM AIM LAYER JOINS THE PER-SCOPE WEIGHTING LAYER. CLOSED.**
+`A_S` is closed by section 5 above; `p(1-p)` is closed by this. Between them
+that is the entire constraint-gradient expression, and TraLO's remaining
+distance to ALM is not in it. Do not propose a count function, a cut window, a
+margin, or a class re-weighting of the constraint. Check `scripts.aim_table`
+before proposing anything that re-aims a gradient -- on iwildcam it says no,
+and on a new slice it is one CPU minute to ask again.
 
 ⚠️ **AND SAY THE SIZE PROBLEM OUT LOUD.** The gap to ALM is **1.42 items** and
 the RNG floor at 4 seeds is **~3 items**. Any mechanism proposed here must
