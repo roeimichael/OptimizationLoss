@@ -29,7 +29,7 @@ log = logging.getLogger(__name__)
 # `factorial_control` with raked > 0 (8 of 8 groups factorised,
 # +1025 items z=27.3 surviving the additive baseline) AND to read
 # TIER-LIKE on `tier_viability`. FRAMEWORK 2(z55), 2(z57).
-IMAGERY_DATASETS = {'iwildcam', 'cct', 'bcn'}
+IMAGERY_DATASETS = {'iwildcam', 'cct', 'bcn', 'fmow'}
 
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(1, 3, 1, 1)
 IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 3, 1, 1)

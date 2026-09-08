@@ -5106,7 +5106,13 @@ def test_removed_datasets_cannot_be_selected_anywhere():
     # control was not vacuous -- keeping +1025 items at z=27.3 under the
     # additive baseline; and dataset_screen NET +2031 items. FRAMEWORK
     # 2(z55), 2(z57).
-    LIVE = {"iwildcam", "cct", "bcn"}
+    # `fmow` added 2026-09-08: satellite imagery, group = COUNTRY, 13 test
+    # countries held out entire. tier_viability TIER-LIKE (13 groups,
+    # density 0.82, 8/8 usable, 18% K=0, 0% dead, off_prop 39.2%);
+    # dataset_screen NET +2793 items at 1034x seed noise. Its group is
+    # ATOMIC so factorial_control does not apply and prints NOT A CONTROL
+    # -- that is the gate being SILENT, not passing. FRAMEWORK 2(w2c).
+    LIVE = {"iwildcam", "cct", "bcn", "fmow"}
     assert declared == LIVE, declared
     assert IMAGERY_DATASETS == LIVE, IMAGERY_DATASETS
     for name in REMOVED_DATASETS:

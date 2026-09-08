@@ -1062,6 +1062,66 @@ datasets:
   # because its test groups ARE its training groups. The full record
   # stays in docs/FRAMEWORK.md 2(n) and in the archive; what is gone is
   # the ability to RUN them. Restoring one needs a screen number first.
+  fmow:
+    # THE THIRD DATASET, AND THE ONE THAT MAKES "GENERALITY" A REAL AXIS.
+    # Functional Map of the World, val split, re-split by COUNTRY. Built by
+    #   python -m scripts.prep_fmow --out data/fmow/oodslice --cache <cache>
+    #                               --min-per-group 180 --test-target 3900
+    # train 15386 / test 4168 after fetch attrition; 13 test countries, ALL
+    # absent from training, so the model holds no per-country class prior.
+    #
+    # WHY A THIRD DATASET AT ALL. iwildcam and every other slice that had
+    # cleared the screen were camera-trap corpora read through one COCO
+    # schema, and `bcn` is dermoscopy -- adjacent to the REMOVED `dermmnist`
+    # in modality even though it shares zero images with it. Two of those is a
+    # thin generalization axis. fMoW is SATELLITE imagery and shares nothing
+    # with either: not the sensor, not the task, not the label semantics.
+    #
+    # THE GROUP IS ATOMIC, AND THAT IS A PROPERTY, NOT A CONVENIENCE. A
+    # country is not built from factors that separately appear in training, so
+    # `factorial_control` DOES NOT APPLY here and prints `raked=0 / NOT A
+    # CONTROL`. ⚠️ READ THAT AS "the gate is silent", NEVER as "the gate
+    # passed": an atomic slice and a WRONG --sep are indistinguishable to it,
+    # and quoting its ~100% as a pass is the exact error FRAMEWORK 2(w2c)
+    # records. `bcn` is the slice that NEEDED the control (site|age is a
+    # product) and cleared it at raked 8 of 8; fmow is the slice that does not
+    # need it. The two are complementary evidence, not two of the same.
+    #
+    # MEASURED ON THE BUILT SLICE, not on a neighbouring one:
+    #   dataset_screen    NET +2793 items, 1034x seed noise, 13 unseen groups
+    #   tier_viability    13 groups, density 0.82, 8/8 classes usable,
+    #                     18% K=0 ceilings, 0% dead items, off_prop 39.2%
+    #                     -> TIER-LIKE
+    # against `bcn` 8 groups / 0.89 / 8 / 11% / 0% / 29.9% and `iwildcam`
+    # 7 / 0.27 / 2 / 50% / 72% / 57.6%. fmow carries MORE local information
+    # (off_prop 39.2% vs 29.9%) over MORE scopes (13 vs 8) at slightly lower
+    # density. The slice parameters were chosen by sweeping `--min-per-group`
+    # and `--test-target` META-ONLY and applying a rule fixed in advance:
+    # among TIER-LIKE slices with density >= 0.80 and all 8 classes usable,
+    # take the MOST GROUPS -- the local scope`s resolution is the number of
+    # distinct ceilings it can impose. No model output was read.
+    #
+    # CAPPED CLASSES 3 (military_facility) and 6 (single-unit_residential),
+    # by the same heterogeneity rule used for `bcn`: drop classes whose median
+    # non-empty cell is under 15 items (none here -- the range is 18 to 58),
+    # then take the top two by contribution to off-proportionality.
+    #   c3 0.0662 | c6 0.0613 | c5 0.0530 | c0 0.0524 | c4 0.0455
+    # 🔑 The rule was applied twice, to the 4653-row pre-fetch meta and again
+    # to the 4168-row BUILT meta, and returns the same pair both times -- so
+    # the choice is not an artefact of which images happened to download.
+    # The tier structure is visible in the raw counts: IRQ holds 253 military
+    # facilities and 0 recreational; JPN holds 253 recreational and 0
+    # military. That is the per-group label shift the local cap exists to use.
+    #
+    # NO TASK WINDOW YET. `configs/task_windows.yml` has no `fmow` entry, so
+    # `classify` returns `no_window` and gen_campaign warns instead of
+    # refusing. Measure it from a `clip` pilot before generating a campaign.
+    data_dir: data/fmow/oodslice
+    num_classes: 8
+    group_column: location      # country; test countries DISJOINT from train
+    constrained_class: [3, 6]   # military_facility 12.0% / single-unit_res 9.8%
+    disjoint_groups: true       # RAISES on overlap, does not warn
+
   bcn:
     # THE SECOND DATASET, and the FIRST whose local scope is not degenerate.
     # ISIC-2019, BCN20000 source only, seed 2. Built by
