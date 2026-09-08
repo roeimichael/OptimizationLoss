@@ -22,13 +22,14 @@ spending GPU time, and every one of them was visible in the metadata.
             slice and a wrong `--sep` are indistinguishable, both read ~100%.
     2(w2)   stage 1 is NECESSARY ONLY -- dermmnist passed at z=2.9 and nulled.
 """
+import io
 import os
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from .conftest import CAPPED_CLASSES, report
+from .conftest import CAPPED_CLASSES, rel, report
 
 pytestmark = pytest.mark.stage1_data
 
@@ -443,3 +444,101 @@ def test_the_factorial_gate_is_not_a_pass_on_an_atomic_group(slice_dir,
             fails.append("%s: reported a percentage it never measured:\n%s"
                          % (name, text))
     report(fails, "factorial-gate failures")
+
+
+def test_every_registered_dataset_can_actually_encode_its_group_column():
+    """A dataset is registered when it is RUNNABLE, and this is what that means.
+
+    Found the hard way 2026-09-08. `bcn` was added to `protocol.yml` and to
+    `IMAGERY_DATASETS`; `gen_campaign` emitted 16 configs; `--step verify` was
+    GREEN on six checks and `--step launch` GREEN on two, `data_present`
+    included. The first run then died in 4 seconds on
+
+        ValueError: invalid literal for int() with base 10: 'anterior torso|40s'
+
+    Every scope downstream is keyed by an INTEGER group id -- `dual_common`
+    builds `{int(g): ...}`, `hounie_rcl` keys `K_local[(int(g), c)]` -- and
+    `data_loader` reached that with a bare `.astype(np.int64)`. iwildcam`s
+    `location` is a camera NUMBER, so no dataset had ever exercised the other
+    branch. Nothing in the gate suite loaded a group column at all: the checks
+    above read metadata with pandas, and `data_present` only stats the arrays.
+
+    NEGATIVE CONTROLS, because a gate that has never failed has never been
+    shown to work -- all four run with no slice on disk:
+      * a genuinely non-integer column must be ENCODED, not raise;
+      * the encoding must be ORDER-INDEPENDENT, or two runs of one slice
+        disagree and `data_fingerprint` means nothing;
+      * an ALREADY-INTEGER column must pass through UNRENUMBERED -- factorising
+        iwildcam would turn camera 218 into group 0 and silently invalidate
+        every cached artefact and every published local budget;
+      * nulls must still RAISE, since the whole reason that check exists is
+        that `.astype(int64)` turns NaN into a huge negative id.
+    """
+    import yaml
+    from src.utils.data_loader import _encode_groups, IMAGERY_DATASETS
+    from configs.gen_campaign import PROTOCOL_PATH
+
+    fails = []
+
+    # -- negative control 1: a string column is encoded, not fatal
+    got = _encode_groups(pd.Series(["b|2", "a|1", "b|2"]), "location")
+    if got.dtype != np.int64 or len(set(got.tolist())) != 2:
+        fails.append("a string group column did not encode: %r" % (got,))
+
+    # -- negative control 2: order-independent
+    col = pd.Series(["z", "a", "m", "a"])
+    fwd = _encode_groups(col, "g")
+    rev = _encode_groups(col.iloc[::-1], "g")[::-1]
+    if not (fwd == rev).all():
+        fails.append("encoding depends on ROW ORDER: %r vs %r" % (fwd, rev))
+
+    # -- negative control 3: integers are NOT renumbered
+    ids = _encode_groups(pd.Series([218, 320, 218, 516]), "location")
+    if ids.tolist() != [218, 320, 218, 516]:
+        fails.append("an integer group column was RENUMBERED to %r -- this "
+                     "would silently change every iwildcam group id"
+                     % (ids.tolist(),))
+
+    # -- negative control 4: nulls still raise
+    try:
+        _encode_groups(pd.Series(["a", None]), "location")
+        fails.append("a null group value did not raise")
+    except Exception:
+        pass
+
+    # -- the gate itself: every DECLARED dataset whose slice is here must load
+    with io.open(PROTOCOL_PATH, encoding="utf-8") as fh:
+        datasets = yaml.safe_load(fh)["datasets"]
+    checked = 0
+    for name, dc in sorted(datasets.items()):
+        if name not in IMAGERY_DATASETS:
+            fails.append("%s is declared in protocol.yml but absent from "
+                         "IMAGERY_DATASETS, so the loader would refuse it"
+                         % name)
+            continue
+        meta = rel(dc["data_dir"], "test_meta.csv")
+        if not os.path.exists(meta):
+            continue
+        tm = pd.read_csv(meta)
+        gcol = dc["group_column"]
+        if gcol not in tm.columns:
+            fails.append("%s: group_column %r is not in test_meta.csv (%s)"
+                         % (name, gcol, list(tm.columns)))
+            continue
+        try:
+            g = _encode_groups(tm[gcol], gcol)
+        except Exception as exc:
+            fails.append("%s: group column %r does not encode: %s: %s"
+                         % (name, gcol, type(exc).__name__, exc))
+            continue
+        checked += 1
+        if g.dtype != np.int64:
+            fails.append("%s: group ids are %s, not int64" % (name, g.dtype))
+        if len(g) != len(tm):
+            fails.append("%s: encoded %d ids for %d rows" % (name, len(g), len(tm)))
+        # the scopes are keyed by int(g), so that must not collide
+        if len(set(g.tolist())) != tm[gcol].nunique():
+            fails.append("%s: %d distinct group labels collapsed to %d ids"
+                         % (name, tm[gcol].nunique(), len(set(g.tolist()))))
+
+    report(fails, "group-encoding failures (%d slice(s) present)" % checked)

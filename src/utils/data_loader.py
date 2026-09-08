@@ -35,6 +35,44 @@ IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(1, 3, 
 IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 3, 1, 1)
 
 
+def _encode_groups(col, group_col):
+    """Group ids as int64, for a column that may not BE integers.
+
+    Every scope keyed on a group id is an int downstream -- `dual_common`
+    builds `{int(g): ...}`, `hounie_rcl` keys `K_local[(int(g), c)]`, the
+    allocators index by it. iwildcam`s `location` is a camera id, so that was
+    free. `bcn`'s is "anterior torso|40s" and the bare `.astype(np.int64)`
+    raised `invalid literal for int()` on the first run of the first campaign.
+
+    NON-INTEGER COLUMNS ARE FACTORISED BY SORTED UNIQUE VALUE, which is
+    deterministic and independent of row order, so two runs of the same slice
+    agree and `data_fingerprint` stays meaningful.
+
+    🛑 AN ALREADY-INTEGER COLUMN TAKES THE ORIGINAL PATH UNCHANGED, and that
+    is the point rather than an optimisation: factorising iwildcam would
+    RENUMBER its cameras (218 -> 0), silently changing every group id in every
+    cached artefact and every published local budget. The two branches are
+    gated apart in `tests/gates/test_g1_data.py` with iwildcam as the negative
+    control -- its ids must come back as the camera numbers themselves.
+    """
+    if col.isna().any():
+        raise ValueError("group column %r contains nulls; .astype(int64) would "
+                         "turn them into a huge negative group id, and the "
+                         "factorise branch below would code `None` as an "
+                         "ordinary level and never raise at all" % group_col)
+    try:
+        return col.values.astype(np.int64)
+    except (ValueError, TypeError):
+        pass
+    levels = sorted(set(str(v) for v in col.values))
+    code = dict((v, i) for i, v in enumerate(levels))
+    log.info("group column %r is not integer; factorised %d levels by sorted "
+             "unique value: %s", group_col, len(levels),
+             ", ".join("%d=%s" % (code[v], v) for v in levels[:8])
+             + (" ..." if len(levels) > 8 else ""))
+    return np.array([code[str(v)] for v in col.values], dtype=np.int64)
+
+
 def _ensure_3channel(images):
     """Grayscale (N,1,H,W) -> (N,3,H,W). Assumes NCHW, and runs BEFORE the
     NHWC->NCHW coercion, so it has to recognise NHWC grayscale (N,H,W,1) and
@@ -253,10 +291,7 @@ def _load_imagery_data(config):
                     "train_images.npy against train_labels.npy cannot be "
                     "detected here. Every current prep script writes one.",
                     data_dir)
-    if test_meta[group_col].isna().any():
-        raise ValueError("group column %r contains nulls; .astype(int64) would "
-                         "turn them into a huge negative group id" % group_col)
-    groups_test = test_meta[group_col].values.astype(np.int64)
+    groups_test = _encode_groups(test_meta[group_col], group_col)
     local_percent, global_percent = config['constraint']
     test_df = pd.DataFrame({'label': y_test, group_col: groups_test})
     global_con = compute_global_constraints(
