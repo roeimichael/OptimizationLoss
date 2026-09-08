@@ -11260,6 +11260,106 @@ the RNG floor at 4 seeds is **~3 items**. Any mechanism proposed here must
 either be much larger than 1.42 items or come with more seeds, or it cannot be
 told from noise on this design.
 
+---
+
+## 2(z57). ON A RESOLVABLE DATASET, TraLO BEATS EVERY DUAL -- AND A COIN BEATS TraLO (2026-09-08)
+
+**First campaign in this project where the measurement is not the limiting
+factor. Both results below are therefore real, and they point opposite ways.**
+
+`bcn1mn3`: MobileNetV3 on `bcn`, 3 caps x 19 arms x 3-4 seeds, 173 of 228 runs
+at the time of reading. All four duals at **29.00 attempted steps/run, 100%
+landed** -- the dose gap that quarantined `vitdual1`, `dom1`, `dom1b` and
+`equaldose1` does not exist here.
+
+### 1. THE MEASUREMENT IS NO LONGER THE LIMIT, and this is the headline
+
+`paired_noise`, capped classes 0 and 2, prize = items to a perfect ranking,
+`treated` = the sd of the contrast actually run:
+
+| class | K/n | prize | treated sd | prize/treated | seeds at 80% power |
+|---|---|---|---|---|---|
+| 0 | 0.70 | 181.2 | 12.49 | **14.5x** | **0** |
+| 0 | 0.80 | 224.7 | 14.10 | **15.9x** | **0** |
+| 0 | 0.90 | 280.2 | 13.88 | **20.2x** | **0** |
+| 2 | 0.70 | 144.9 | 11.02 | **13.2x** | **0** |
+| 2 | 0.80 | 180.4 | 11.22 | **16.1x** | **0** |
+| 2 | 0.90 | 217.0 | 13.94 | **15.6x** | **0** |
+
+iwildcam reads **0.05x** at L20 and never passes 0.90x, needing 546-2607 seeds
+per cell. **The signal-to-noise is 260-320x better and the seeds needed drop
+below one.** Every "no difference" on iwildcam was an absence of measurement;
+here a null is a null.
+
+### 2. 🟢 TraLO CLEARS ITS OWN BAR FOR THE FIRST TIME
+
+`tralo_wins`, tralo vs `clip` AND every rival dual present in the same cell:
+
+| cap | tralo | alm | fioretto | hounie | floor | verdict |
+|---|---|---|---|---|---|---|
+| L70_G95 | **+18.00** | +7.67 | +16.67 | +7.33 | 15.0 | WIN |
+| L80_G95 | **+26.67** | +1.33 | +12.67 | -7.33 | 11.0 | WIN, priced |
+| L90_G95 | +8.67 | +15.33 | +8.33 | **+22.67** | 8.0 | loss |
+
+**2 of 3 = 67%, bar 50%, VERDICT PASS.** At L80 TraLO leads `alm` by 25 items
+and `hounie` by 34.
+
+### 3. 🔴 AND THE PRE-REGISTERED KILL CONDITION FIRED
+
+`tralo_coin_sgd` -- a step of the SAME NORM in a RANDOM direction, dose-matched
+exactly (`normalize` rescales both to `constraint_grad_clip`) -- ranks **#1 in
+every cell**, ahead of TraLO and all three duals.
+
+⚠️ **BUT IT IS ONE MODEL, NOT THREE CELLS.** md5 over
+`final_predictions_raw.csv`: `tralo_coin_sgd` is BYTE-IDENTICAL at L70/L80/L90
+in all 3 seeds, while `tralo` differs in all 9 runs. A random direction cannot
+read the cap, so it is cap-invariant by construction. Its "#1 in 3 of 3" is one
+observation reported three times, and its lead over TraLO clears the RNG floor
+in **1 of 3** readings (17.33 over floor 8.0 at L90; 6.67/15.0 and 1.66/11.0
+elsewhere). Every cell is jackknife-unstable at 3 seeds, with `tralo` itself a
+possible #1 in two of them.
+
+### 4. 🔑 THE LOGS SAY WHY, AND IT IS THE PREMISE AGAIN
+
+From `training_log.csv` alone -- does the coin do constraint WORK?
+
+| arm | capped class 0, first -> last | Global_Satisfied | cap-responsive? |
+|---|---|---|---|
+| `tralo_null` (CE only) | 1605 -> 1415 | 0.000 | n/a |
+| `tralo_coin_sgd` | 1605 -> **1446** | 0.011 | **NO** (identical at 3 caps) |
+| `tralo` | 1605 -> 1245 / 1253 / 1382 | **0.107** | **YES**, monotone in the cap |
+
+**TraLO does real, cap-responsive constraint work: it satisfies the global scope
+10x more often than the coin and drives the capped count further than CE alone.
+The coin does none -- it moves the count LESS than the CE-only null and reads
+1.1% satisfaction. And they score the same on deployed items.**
+
+So this is 2(z56) section 4's premise failure again -- excess removed does not
+buy items won -- but now measured where the contrast has 13-20x headroom over
+its own noise. On iwildcam that finding could be dismissed as under-power. Here
+it cannot.
+
+### 5. What it licenses
+
+🟢 TraLO vs the published duals is a real 2-of-3 win at equal dose on a
+resolvable dataset. That claim stands and is the first of its kind here.
+🛑 TraLO vs a dose-matched coin is UNRESOLVED at 3 seeds and must not be
+reported either way until seed 4 lands and a second backbone replicates.
+⛔ Do NOT read "the constraint is useless". The constraint demonstrably works
+ON THE CONSTRAINT. What is unproven is that constraint work buys deployed
+quality -- and that is now the ONLY open question in the mechanism.
+
+### 6. The instrument defect this exposed
+
+`deployed_h2h` detected cap-invariant arms by NAME (`_null`, `_reseed`,
+`_lam0`). `tralo_coin_sgd` matches none, so its three cells were counted as
+three independent observations. Fixed 2026-09-08: detection is now md5 over the
+raw predictions -- the project's own rule 3, applied to an axis it had never
+been applied to -- and the warning separates arms that are cap-invariant BY
+DESIGN (post-hoc, zero constraint steps) from a TRAINED arm that is
+cap-invariant, which is the newsworthy case. Keying on the name rather than the
+artefact is the same defect class as the stale corpus.
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, updated 2026-08-30 -- read this before section 3's older text**

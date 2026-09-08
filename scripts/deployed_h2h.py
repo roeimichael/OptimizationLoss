@@ -41,6 +41,7 @@ Usage:
 """
 
 import argparse
+import collections
 import glob
 import json
 import math
@@ -442,6 +443,60 @@ def rank_cell(cell, control, get, arms=None):
                    for a, _, _, _ in out}
             firsts.add(max(sub, key=lambda a: sub[a]))
     return out, firsts
+
+
+def cap_invariant_arms(roots):
+    """Which arms produce BYTE-IDENTICAL predictions across cap levels?
+
+    🛑 SUCH AN ARM'S CELLS ARE NOT INDEPENDENT. Three cap levels holding one
+    model are ONE observation read three times, and a table saying "#1 in 3 of
+    3 cells" is then reporting a single result three times over.
+
+    `paired_noise` already fingerprints its floor arms this way. THIS tool did
+    not -- it detected the case by NAME (`_null`, `_reseed`, `_lam0`), which is
+    the same "keyed on the name rather than the artefact" defect that produced
+    the stale corpus. Found 2026-09-08 on `bcn1mn3`, where `tralo_coin_sgd`
+    matched no suffix and was byte-identical at L70/L80/L90: a RANDOM
+    constraint direction cannot read the cap, so it is cap-invariant by
+    construction, and it was ranked #1 in "3 of 3 cells" on ONE model.
+
+    md5 over `final_predictions_raw.csv` per (model, arm, seed) -- the
+    project's own rule 3, applied to the axis it had never been applied to.
+    """
+    import hashlib
+    per = collections.defaultdict(lambda: collections.defaultdict(dict))
+    # a POST-HOC arm takes zero constraint steps, so its model is cap-invariant
+    # BY DESIGN and only its allocator reads the cap; a lambda=0 twin the same.
+    # Neither is news. A TRAINED arm that is cap-invariant IS news, and
+    # separating the two is the whole value of this warning -- an
+    # undifferentiated list reads as noise and gets skimmed, which is how
+    # `tralo_coin_sgd` sat at #1 in "3 of 3 cells" unremarked.
+    trained = {}
+    for root in roots:
+        for d in glob.glob(os.path.join(root, "*", "*", "*", "*", "seed_*")):
+            f = os.path.join(d, "final_predictions_raw.csv")
+            if not os.path.exists(f):
+                continue
+            parts = os.path.normpath(d).split(os.sep)
+            model, cap, arm, seed = parts[-5], parts[-3], parts[-2], parts[-1]
+            with open(f, "rb") as fh:
+                h = hashlib.md5(fh.read()).hexdigest()
+            per[(model, arm)][seed][cap] = h
+            try:
+                hp = json.load(open(os.path.join(d, "config.json"))).get(
+                    "hyperparams") or {}
+                trained[(model, arm)] = int(hp.get("constraint_epochs", 0)) > 0
+            except Exception:
+                trained.setdefault((model, arm), None)
+    flagged = {}
+    for key, seeds in per.items():
+        multi = [b for b in seeds.values() if len(b) >= 2]
+        if not multi:
+            continue
+        if all(len(set(b.values())) == 1 for b in multi):
+            flagged[key] = (len(multi), max(len(b) for b in multi),
+                            trained.get(key))
+    return flagged
 
 
 def report(cells, control, w=sys.stdout.write):
@@ -864,6 +919,26 @@ def main():
     if not cells:
         print("no runs on the current recipe under %s" % " ".join(args.campaign))
         return 1
+    flagged = cap_invariant_arms(args.campaign)
+    if flagged:
+        print("")
+        print("  !! CAP-INVARIANT ARMS -- their cells are NOT independent:")
+        hard = [(m, a, c, n) for (m, a), (n, c, tr) in sorted(flagged.items()) if tr]
+        soft = [(m, a) for (m, a), (n, c, tr) in sorted(flagged.items()) if not tr]
+        for model, arm, ncaps, nseeds in hard:
+            print("     %s/%s: TRAINED yet byte-identical across %d cap "
+                  "level(s) in %d seed(s)" % (model, arm, ncaps, nseeds))
+        if soft:
+            print("     (expected, zero constraint steps: %s)"
+                  % ", ".join("%s/%s" % x for x in soft))
+        if hard:
+            print("     A TRAINED arm that does not vary with the cap took its")
+            print("     step WITHOUT READING THE CAP, so its cap levels hold ONE")
+            print("     model and a '#1 in N cells' line for it is ONE")
+            print("     observation reported N times. Detected by md5, NOT by")
+            print("     name -- `tralo_coin_sgd` matches no _null/_reseed suffix")
+            print("     and is cap-invariant by construction: a RANDOM direction")
+            print("     cannot read the cap.")
     rows = report(cells, args.control)
     if args.json:
         json.dump(rows, open(args.json, "w"), indent=1, default=str)
