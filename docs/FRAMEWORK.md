@@ -12515,16 +12515,46 @@ spread under a WELL-ESTIMATED floor must still read `UNDER-POWERED` -- without
 it, the split is a rename. Mutation-tested: collapsing the branches back turns
 it red.
 
-⚠️ **THIS IS THE SECOND OCCURRENCE OF THE SAME CLASS TODAY.** 2(z69) is
-`tralo_wins` reporting `0 of 17 priced` when the pricing comparison was never
-reached, for the same underlying reason -- `nfloor = 4 < 8`. Both tools guard
-on floor observations, both then report a verdict that reads as a measurement,
-and in both the guard is what fired. **Wherever `MIN_FLOOR_OBS` is consulted,
-check that a reader can tell "the bar was not met" from "the test came out
-negative".** The two live users are `sensitivity_screen` (fixed here) and
-`tralo_wins`/`deployed_h2h` (2(z69) documents it; `priced: no` is still one
-label for both states, and that is task #104's problem to state, not to
-rename -- `priced` is a boolean by design).
+⚠️ **THIS IS THE SECOND OCCURRENCE OF THE SAME CLASS TODAY**, and
+auditing for it found a THIRD. 2(z69) is `tralo_wins` reporting
+`0 of 17 priced` when the pricing comparison was never reached, for the same
+underlying reason -- `nfloor = 4 < 8`. **Wherever `MIN_FLOOR_OBS` is
+consulted, check that a reader can tell "the bar was not met" from "the test
+came out negative".**
+
+I then swept every consumer rather than assuming I had them all, which is what
+turned up the third:
+
+| consumer | state |
+|---|---|
+| `sensitivity_screen.classify` | two branches, one label -- **fixed here** (`FLOOR UNMEASURED`) |
+| `tralo_wins.rows_for` | `priced` is a BOOLEAN by design and cannot carry the distinction; 2(z69) states it in prose. Not renamed |
+| `deployed_h2h.floor_verdict` | messages were already distinct, but the **ORDER was wrong** -- see below |
+| `quarantine`, `add_seeds` | prose only, no verdict |
+
+🛑 **THE THIRD ONE: `floor_verdict` USED THE FLOOR BEFORE VALIDATING
+IT.** It tested `spread <= floor` FIRST and `nfloor < MIN_FLOOR_OBS` second.
+Both return `REFUSED`, so no ranking ever changed -- but the REASON is what
+gets read, and the first branch says *"Naming a #1 here names the RNG"*, a
+claim that the effect sits inside a noise level the very next branch would
+have called unpriced. On the live corpus `nfloor` is 4 in every cell, so that
+was the message for every cell whose margin happened to fall under a
+badly-estimated floor. It is the same sentence 2(z69) had to withdraw from the
+verdict artifact.
+
+Fixed by validating the floor first, which also required rewording -- the old
+`nfloor` message asserted the spread *"clears a floor of X"*, which is untrue
+once it runs before the comparison. Gated with the case that exposes it (a
+margin UNDER the floor AND `nfloor < 8`, where both branches match and only
+one is honest) plus the negative control that a properly estimated floor still
+yields the noise verdict, or the reorder would have deleted a real conclusion
+rather than ordering two. Mutation-tested: restoring the old order turns both
+red.
+
+🔑 **WHY NO EXISTING CHECK CAUGHT IT: every floor test in the file used
+a margin that CLEARS the floor**, so the two branches never both matched and
+their order was unobservable. A branch order is only testable at the input
+where both branches apply.
 
 
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time

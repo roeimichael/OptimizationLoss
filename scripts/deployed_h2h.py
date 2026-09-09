@@ -355,6 +355,25 @@ def floor_verdict(order, floor, nfloor, nstream=0):
         return "ONE ARM: nothing to rank"
     rng = order[0][1] - order[-1][1]
     spread = order[0][1] - order[1][1]
+    # 🛑 THE FLOOR IS VALIDATED BEFORE IT IS USED, AND THE ORDER WAS THE OTHER
+    # WAY UNTIL 2026-09-10. Both branches return REFUSED, so no ranking changed
+    # -- but the REASON is what gets read and quoted, and testing
+    # `spread <= floor` first attributed the refusal to "the effect is inside
+    # the noise" while resting on a floor this same function rejects two lines
+    # later as unpriced. On the live corpus every cell has nfloor=4, so that
+    # was the message for every cell whose spread happened to fall under a
+    # badly-estimated floor -- the exact claim 2(z69) had to withdraw
+    # elsewhere. An unvalidated floor now says so first. FRAMEWORK 2(z70).
+    if nfloor < MIN_FLOOR_OBS:
+        return ("REFUSED: the RNG floor rests on %d observation(s) from %d "
+                "lambda=0 stream(s), under the %d bar, so the #1-vs-#2 margin "
+                "of %.1f items cannot be judged against it either way (the "
+                "floor reads %.1f, but a floor estimated from too little is "
+                "cleared by anything -- at n=1 it comes back 0.0). The margin "
+                "is UNPRICED: neither proven nor refuted. Add a stream "
+                "(`<fam>_reseed2`, 8 runs) or seeds (16 runs) -- the streams "
+                "are 4x cheaper."
+                % (nfloor, nstream, MIN_FLOOR_OBS, spread, floor))
     if spread <= floor:
         return ("REFUSED: #1-vs-#2 margin %.1f items <= RNG floor %.1f "
                 "(n=%d). Naming a #1 here names the RNG. (The RANGE over all "
@@ -362,14 +381,6 @@ def floor_verdict(order, floor, nfloor, nstream=0):
                 "with a two-arm floor -- it grows like sqrt(2 ln k) and would "
                 "certify pure noise as differentiated.)"
                 % (spread, floor, nfloor, len(order), rng))
-    if nfloor < MIN_FLOOR_OBS:
-        return ("REFUSED: spread %.1f items clears a floor of %.1f, but that "
-                "floor rests on %d observation(s) from %d lambda=0 stream(s), "
-                "under the %d bar. A floor estimated from too little is "
-                "cleared by anything -- at n=1 it comes back 0.0. The spread "
-                "is UNPRICED, not proven. Add a stream (`<fam>_reseed2`, 8 "
-                "runs) or seeds (16 runs) -- the streams are 4x cheaper."
-                % (spread, floor, nfloor, nstream, MIN_FLOOR_OBS))
     # The bar is met. Say how DEPENDENT the observations are: k streams give
     # C(k,2) pairwise gaps but only k-1 independent contrasts, so 12 from 3
     # streams is a better median than 4 from 2 and is NOT 12 independent draws.
@@ -905,6 +916,25 @@ def self_test(w=sys.stdout.write):
     fl, nf, _ = rng_floor(fat, g)
     check(nf >= MIN_FLOOR_OBS and floor_verdict(order, fl, nf) is None,
           "  and the SAME lead over a floor with %d observations is NAMED" % nf)
+    # 🛑 THE ORDER OF THE TWO REFUSALS, which is invisible to every check
+    # above because they all use a margin that CLEARS the floor. This cell has
+    # a margin UNDER the floor AND a floor resting on too few observations --
+    # both branches match, and only one of them is honest. Saying "naming a #1
+    # here names the RNG" asserts the effect is inside a noise level this same
+    # function is about to call unpriced. FRAMEWORK 2(z70).
+    v_both = floor_verdict([("tralo", 610.0), ("alm", 609.0)], 5.0, 4)
+    check(v_both is not None and "cannot be judged against it either way"
+          in v_both and "names the RNG" not in v_both,
+          "a small margin under a floor of only 4 observations is refused as "
+          "UNPRICED, not as 'inside the noise'")
+    # NEGATIVE CONTROL: with the floor properly estimated, the SAME small
+    # margin must get the noise verdict -- or the reorder silently deleted a
+    # real conclusion instead of ordering two.
+    v_noise = floor_verdict([("tralo", 610.0), ("alm", 609.0)], 5.0,
+                            MIN_FLOOR_OBS)
+    check(v_noise is not None and "names the RNG" in v_noise,
+          "  and with the floor properly estimated it IS 'inside the noise'")
+
     # The two other refusal paths still work through the extracted function.
     check("NO FLOOR" in (floor_verdict([("a", 5.0)], None, 0) or ""),
           "  no `_reseed` twin still reads NO FLOOR, never a fallback #1")
