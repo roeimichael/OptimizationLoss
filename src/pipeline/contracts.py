@@ -34,6 +34,12 @@ class TrainOutputs:
     summary: Dict[str, Any]
     skip_targeted_correction: bool = False
     precomputed_predictions: Optional[np.ndarray] = None
+    # PROBABILITIES to score instead of a final forward pass on `model`.
+    # Distinct from `precomputed_predictions`, which is final HARD labels and
+    # BYPASSES the allocator (heuristic / danits_lp already allocated). These
+    # FEED the allocator, so targeted_correction still runs exactly as it does
+    # for every other trained arm and the comparison stays apples to apples.
+    snapshot_proba: Optional[np.ndarray] = None
 
 
 def _required(hp, key, cast=float):
