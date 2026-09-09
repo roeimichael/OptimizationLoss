@@ -584,6 +584,14 @@ python -m scripts.tralo_wins --campaign <roots> --control clip   # 🛑 THE ACCE
 #   >= MIN_FLOOR_OBS observations. RUN 2026-09-06 over the whole live corpus:
 #   **6 of 17 = 35%, bar 50%, VERDICT FAIL -- and 0 of 17 cells are priced**,
 #   so every win is a direction and none is reportable. Per unit it is 2 of 6.
+#   🛑 **BUT `0 of 17 priced` IS NOT A RESULT ABOUT TraLO -- THE TEST WAS
+#   NEVER RUN (2(z69)).** `priced` requires `nfloor >= MIN_FLOOR_OBS` (=8)
+#   BEFORE it compares the spread to the floor. Two lambda=0 streams over 4
+#   seeds give `1 pair x 4` = **4**, so the third clause is never reached and
+#   `priced` is False **by construction, at any effect size**. Every corpus
+#   campaign predates `tralo_reseed2` (protocol 2026-09-04, `7f455cb4`).
+#   So the corpus is SILENT on the noise question, not negative on it. The
+#   WIN count is a separate computation and FAIL still stands.
 #   ⛔ **THAT RUN IS 09:09; `rank_cell` GOT THE COMMON-SEEDS FIX AT 22:48
 #   THE SAME DAY, so 35% is NOT reproducible from today's code.** Both halves
 #   of the verdict read `rank_cell`'s deltas. Of the three same-day fixes only

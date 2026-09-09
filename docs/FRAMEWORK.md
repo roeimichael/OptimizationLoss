@@ -12413,6 +12413,74 @@ against the scorer's -- and it costs one command.
 run here. Task #104.
 
 
+## 2(z69). "0 OF 17 CELLS ARE PRICED" IS NOT A RESULT ABOUT TraLO. THE TEST WAS NEVER RUN. (2026-09-10)
+
+The acceptance table's second figure -- **0 of 17 cells priced** -- has been
+quoted, including by me in the published verdict, as though the effects had
+been held against the RNG floor and had failed to clear it. **They were never
+held against it.**
+
+`scripts/tralo_wins.py` computes, verbatim:
+
+```python
+priced = (floor is not None and nfloor >= MIN_FLOOR_OBS and spread > floor)
+```
+
+`MIN_FLOOR_OBS` is **8** (`scripts/floors.py:41`). `deployed_h2h.rng_floor`
+counts every unordered PAIR of lambda=0 streams in a family, so a campaign
+with k streams over s seeds yields `k(k-1)/2 * s` observations:
+
+| streams | pairs | at 4 seeds | clears 8? |
+|---|---|---|---|
+| 2 (`_null` + `_reseed`) | 1 | **4** | **NO** |
+| 3 (+ `_reseed2`) | 3 | **12** | yes |
+
+**Every campaign in the live corpus carries exactly two.** `tralo_reseed2`
+entered `configs/protocol.yml` on **2026-09-04** (`7f455cb4`, "rng_reseed
+becomes a DRAW COUNT"), and `dom1`, `dom1b`, `equaldose1`, `taskwin2` and
+`vitdual2` were all generated before that date. An arm that did not exist
+cannot be in them.
+
+So `nfloor = 4 < 8` in all 17 cells, the third clause is never evaluated, and
+**`priced` is False by construction -- for any effect size whatsoever.** A
+cell with a 500-item gap would have read `priced: no` in exactly the same way.
+
+🛑 **WHAT THIS DOES AND DOES NOT CHANGE.**
+
+* It does NOT say TraLO's effects clear the floor. Nobody knows.
+* It does NOT rescue the acceptance verdict: the WIN count (6 of 17 vs a 50%
+  bar) is a separate computation and does not read `nfloor`. FAIL stands.
+* It DOES mean the corpus is silent on the noise question rather than
+  negative on it, which are opposite conclusions -- the exact distinction
+  `full_panel`'s RESOLUTION block exists to force, applied one level up.
+* It DOES make "under-powered" precise. The problem is not that the effects
+  are small against a well-estimated floor; it is that **the floor itself is
+  not estimated well enough for the question to be asked.**
+
+🔑 **AND THE REMEDY FOR DATA ALREADY ON DISK IS DIFFERENT FROM THE ONE
+FOR NEW CAMPAIGNS, WHICH IS WHY BOTH BELONG IN THE LEDGER.** 2(z49)'s table
+already prices the two routes; what it does not say is which applies where:
+
+* **New campaign** -> `tralo_reseed2`, 12 observations for 8 extra runs. Four
+  times cheaper per observation. Staged in MISSION `0-PERM`.
+* **The EXISTING corpus** -> `tralo_reseed2` is NOT available: `add_seeds`
+  refuses to add an ARM, by design, because that is a new experiment. The
+  only route is **seeds 5-8 on the existing `_null`/`_reseed` pair**, giving
+  `1 * 8 = 8` observations for **16 extra runs per campaign**, and needing no
+  code at all. That is the price of making the corpus already collected able
+  to answer its own noise question.
+
+⚠️ Adding seeds to only the two lambda=0 arms leaves the campaign's
+coverage ragged and turns `check_parity` red; `add_seeds --out` writes the
+extension to its own root, which pools because it shares a protocol and a
+`code_version`. That is the documented path, not a workaround.
+
+⚠️ **AND A BETTER FLOOR CAN MAKE THINGS LOOK WORSE, NOT BETTER.** 2(z39)
+measured that correcting the floor RAISED it from 4.0 to 6.5 items, so
+estimating it properly is expected to make the tool refuse MORE often. Do not
+pre-register this as a rescue.
+
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, updated 2026-08-30 -- read this before section 3's older text**
