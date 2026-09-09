@@ -54,6 +54,8 @@ import sys
 
 import numpy as np
 import pandas as pd
+from scripts import capped_classes                  # noqa: E402
+
 
 from scripts import quarantine
 from scripts.family_split import null_of
@@ -239,6 +241,13 @@ def main():
     blocked, dead = gate([args.campaign], args.allow_quarantined, "probe")
     if blocked:
         return 1
+
+    # THIS TOOL KEYS ITS CELLS (model, cap, class) WITH NO `dataset`,
+    # so it is correct only on a single-dataset root -- and nothing
+    # checked. `gen_campaign --datasets` is `nargs="+"`. Harmless while
+    # iwildcam was the only runnable dataset; bcn and fmow ended that.
+    # FRAMEWORK 2(z65).
+    capped_classes.assert_single_dataset(args.campaign, "order_probe")
     # A PARTIAL marker names arms whose contrasts are disqualified. Every read
     # below is `--arm` against `--null` and against `--reseed`, so the
     # enforcement is a FILTER on the enumerated arm directories:

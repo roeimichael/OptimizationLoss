@@ -3941,7 +3941,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 609 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 610 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -4105,7 +4105,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 609 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 610 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -4113,7 +4113,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (609 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (610 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -11758,7 +11758,8 @@ the closure a bounded, defensible claim instead of an unbounded one.
   proportion constraints.
   ✅ **DONE 2026-09-09.** All three are in `docs/paper/references.bib`
   (57 entries -> 60), cited in Related Work under "Transductive and set-level
-  constraints", and the SCOPE STATEMENT is a new `ev{}` paragraph in
+  constraints", and the SCOPE STATEMENT is a new `
+ev{}` paragraph in
   Limitations, "Method scope: aggregate count penalties, not per-item
   assignment". Clean-room compile: 0 undefined citations, 0 undefined
   references, 0 errors.
@@ -12086,6 +12087,43 @@ fixture's schema match what `src/training/logging.py` and
 `configs/gen_campaign.py` actually WRITE, field by field? Both are short and
 both are the authority. A field the fixture spells differently is a branch
 the test cannot reach.
+
+### 5. RUNNING THAT CHECK IMMEDIATELY FOUND A THIRD FIELD, AND TWO MORE DEFECTS
+
+**`dataset_name` is read by NOTHING.** The same fixture wrote it, while
+`gen_campaign.py:1376` writes `dataset_mode` and
+`src/utils/data_loader.py:342` RAISES without it. `full_panel.panel` reads
+`cfg.get("dataset_mode")`, so every row in that test carried
+`dataset: None`. Three fields in one fixture, all spelled unlike the
+pipeline, all invisible while the tools guessed. Fixed and gated the same
+way, mutation-tested 1/1.
+
+**AND THE `groupby` AUDIT IS THE `argsort` AUDIT'S SIBLING.** Same question,
+different verb: what is the key, and is it the whole cell? Over 21 `groupby`
+call sites, one is now wrong and was not before. `order_probe` groups on
+`("model", "cap", "cls")` with no `dataset`, which was complete while
+iwildcam was the only runnable dataset. `gen_campaign --datasets` is
+`nargs="+"`, so a single root CAN carry two, and bcn and fmow are now
+runnable. New `capped_classes.assert_single_dataset` refuses that root and
+names both datasets; `order_probe` calls it right after the quarantine gate.
+Gated in both directions, mutation-tested 1/1. `cut_gap.summarise` had the
+identical defect across BACKBONES and was fixed 2026-08-30; that is two
+instances, so the audit is not speculative.
+
+**⛔ AND `capped_classes` CARRIED THE EXACT ERROR IT EXISTS TO REFUSE.** Its
+docstring said *"bcn and fmow both cap classes 3 and 5"* and its self-test
+labelled a `bcn` tree with `[3, 5]`. **bcn caps 0 and 2**; `[3, 5]` is
+fmow's. `configs/task_windows.yml` has said so since the block was written,
+measured on the complete 228-run `bcn1mn3`. So the module written 2026-09-09
+to stop tools guessing iwildcam's pair on a bcn campaign was itself asserting
+fmow's pair for bcn, in prose and in a fixture, and its checks passed because
+the fixture and the assertion agreed with each other. Corrected; the self-test
+now uses the measured pairs.
+
+🔑 **THAT IS 2(z64)'S LESSON A THIRD TIME.** A fixture that agrees with the
+claim it is testing proves only that they agree. Every one of these was found
+by comparing against an AUTHORITY outside the test -- `logging.py`,
+`gen_campaign.py`, `task_windows.yml` -- never by re-reading the test.
 
 
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
@@ -13435,7 +13473,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             609 tests, ~200 s, no dataset required
+tests/             610 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

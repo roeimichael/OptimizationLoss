@@ -3,7 +3,7 @@
 🛑 THE DEFECT THIS EXISTS FOR (found 2026-09-09). Seven tools defaulted
 `--classes` to `[2, 7]` and `paired_seeds` defaulted `--capped` to `[2, 4]`.
 `[2, 7]` is iwildcam's pair; `[2, 4]` is dermmnist's, and dermmnist is REMOVED.
-**bcn and fmow both cap classes 3 and 5.** Every one of those tools genuinely
+**bcn caps 0 and 2; fmow caps 3 and 5.** (This line said "bcn and fmow both cap 3 and 5" until 2026-09-09 -- the very error this module exists to refuse, inside its own docstring. Read off `configs/task_windows.yml`, whose bcn block is measured on the complete 228-run `bcn1mn3`.) Every one of those tools genuinely
 consumes its default, so running one on a bcn or fmow campaign without the flag
 scores two classes the experiment never constrained -- and prints a plausible
 number rather than raising. Two of the three campaigns live when this was found
@@ -86,6 +86,38 @@ def _from_config(path):
     return tuple(sorted(int(x) for x in raw))
 
 
+def assert_single_dataset(target, who):
+    """REFUSE if `target` holds more than one dataset. Returns the one it holds.
+
+    For a scorer whose cell key omits `dataset` -- `order_probe` groups on
+    `("model", "cap", "cls")` -- correctness rests entirely on the root being
+    single-dataset, and nothing checked it. `gen_campaign --datasets` takes
+    `nargs="+"`, so one root CAN carry two, and until 2026-09-09 there was
+    only one runnable dataset so it never had. bcn and fmow changed that.
+
+    Reads `dataset_mode`, which is the authority: `gen_campaign.py:1376`
+    writes it and `src/utils/data_loader.py:342` RAISES without it. It is NOT
+    `dataset_name` (read by nothing) nor `dataset_config.name`.
+    """
+    seen = set()
+    for p in find_configs(target):
+        try:
+            with open(p, encoding="utf-8") as fh:
+                ds = json.load(fh).get("dataset_mode")
+        except Exception:
+            continue
+        if ds:
+            seen.add(ds)
+    if len(seen) > 1:
+        raise SystemExit(
+            "REFUSED: %s keys its cells without `dataset`, and %s holds %d of "
+            "them (%s). Grouping on (model, cap, class) would pool two "
+            "datasets into one cell, which is the project's most-repeated "
+            "analysis error. Score them separately."
+            % (who, target, len(seen), ", ".join(sorted(seen))))
+    return next(iter(seen)) if seen else None
+
+
 def resolve(target, override=None, out=sys.stdout, what="--classes"):
     """The capped classes for `target`. Raises SystemExit rather than guess."""
     found = {}
@@ -108,8 +140,8 @@ def resolve(target, override=None, out=sys.stdout, what="--classes"):
                 "REFUSED: no config.json under %s carries "
                 "`dataset_config.constrained_class`, and no %s was given. This "
                 "tool used to default to iwildcam's (2, 7), which is WRONG on "
-                "bcn and fmow (both cap 3 and 5) and prints a plausible number "
-                "rather than raising. Pass %s explicitly."
+                "bcn (caps 0 and 2) and on fmow (caps 3 and 5), and prints "
+                "a plausible number rather than raising. Pass %s explicitly."
                 % (target, what, what))
         out.write("NOTE: no config.json reachable under %s, so %s %s is taken "
                   "on trust and was not verified against any run.\n"
@@ -138,21 +170,26 @@ def self_test(out=sys.stdout):
         d = os.path.join(tmp, sub)
         os.makedirs(d, exist_ok=True)
         with open(os.path.join(d, "config.json"), "w", encoding="utf-8") as fh:
-            json.dump({"dataset_config": {"constrained_class": list(classes),
-                                          "name": dataset}}, fh)
+            # `dataset_mode` is the field `assert_single_dataset` reads,
+            # because it is the one gen_campaign WRITES; the `name`
+            # under dataset_config is read by nothing and is kept only
+            # so the fixture is not silently narrowed.
+            json.dump({"dataset_mode": dataset,
+                       "dataset_config": {"constrained_class": list(classes),
+                                         "name": dataset}}, fh)
         return d
 
     try:
-        bcn = mk("bcn/MNv3/bcn/L70_G95/tralo/seed_1", [3, 5])
+        bcn = mk("bcn/MNv3/bcn/L70_G95/tralo/seed_1", [0, 2])
         checks.append(("reads the capped classes off the campaign",
-                       resolve(os.path.join(tmp, "bcn")) == [3, 5]))
+                       resolve(os.path.join(tmp, "bcn")) == [0, 2]))
         checks.append(("a run DIRECTORY resolves too",
-                       resolve(bcn) == [3, 5]))
+                       resolve(bcn) == [0, 2]))
         checks.append(("a GLOB of run dirs resolves too",
                        resolve(os.path.join(tmp, "bcn/*/*/*/tralo/seed_*"))
-                       == [3, 5]))
+                       == [0, 2]))
         checks.append(("an override that AGREES is accepted",
-                       resolve(os.path.join(tmp, "bcn"), [5, 3]) == [3, 5]))
+                       resolve(os.path.join(tmp, "bcn"), [2, 0]) == [0, 2]))
 
         # ---- the defect itself, as a negative control -------------------
         try:
@@ -164,7 +201,7 @@ def self_test(out=sys.stdout):
                        "campaign is REFUSED, not silently scored", ok))
 
         mk("mixed/A/iwildcam/L70_G95/tralo/seed_1", [2, 7], "iwildcam")
-        mk("mixed/B/bcn/L70_G95/tralo/seed_1", [3, 5], "bcn")
+        mk("mixed/B/bcn/L70_G95/tralo/seed_1", [0, 2], "bcn")
         try:
             resolve(os.path.join(tmp, "mixed"))
             ok = False
@@ -172,6 +209,18 @@ def self_test(out=sys.stdout):
             ok = "MORE THAN ONE capped-class set" in str(e)
         checks.append(("NEGATIVE CONTROL: two datasets under one root are "
                        "REFUSED", ok))
+
+        # ---- assert_single_dataset, both directions --------------------
+        try:
+            assert_single_dataset(os.path.join(tmp, "mixed"), "order_probe")
+            ok = False
+        except SystemExit as e:
+            ok = "keys its cells without `dataset`" in str(e)
+        checks.append(("NEGATIVE CONTROL: a two-dataset root is REFUSED for a "
+                       "tool whose cell key omits `dataset`", ok))
+        checks.append(("a ONE-dataset root passes and names the dataset",
+                       assert_single_dataset(os.path.join(tmp, "bcn"),
+                                             "order_probe") == "bcn"))
 
         empty = os.path.join(tmp, "empty")
         os.makedirs(empty, exist_ok=True)

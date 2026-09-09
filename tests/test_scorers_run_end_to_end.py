@@ -63,7 +63,13 @@ def _write_run(root, cap, arm, seed):
     cfg = {
         "status": "completed",
         "model_name": "ViTB16",
-        "dataset_name": "iwildcam",
+        # `dataset_mode`, NOT `dataset_name`: gen_campaign.py:1376 writes
+        # `dataset_mode` and data_loader.py:342 RAISES without it, while
+        # NOTHING anywhere reads `dataset_name`. `full_panel.panel` reads
+        # `cfg.get("dataset_mode")`, so every row here carried
+        # `dataset: None`. Third field in this fixture spelled unlike the
+        # pipeline; see FRAMEWORK 2(z65).
+        "dataset_mode": "iwildcam",
         "methodology": arm,
         "code_version": "0" * 12,
         "cap_tag": cap,
@@ -432,3 +438,22 @@ def test_the_fixture_puts_the_seed_where_gen_campaign_puts_it(tmp_path):
     assert "seed" not in cfg, (
         "a real config has NO top-level `seed` -- gen_campaign writes only "
         "`hyperparams.seed`. Carrying both hides which one is load-bearing.")
+
+
+def test_the_fixture_names_the_dataset_field_the_way_gen_campaign_does(tmp_path):
+    assert '"dataset_mode": ds' in _authority("configs/gen_campaign.py"), (
+        "gen_campaign no longer writes `dataset_mode`; this test is reading a "
+        "stale authority and must be updated, not deleted.")
+    assert 'cfg.get("dataset_mode")' in _authority("scripts/full_panel.py"), (
+        "full_panel.panel no longer reads `dataset_mode`; same.")
+    _write_run(str(tmp_path), "L80-80_G95", "clip", 1)
+    d = _run_dir(str(tmp_path), "L80-80_G95", "clip", 1)
+    with io.open(os.path.join(d, "config.json"), encoding="utf-8") as f:
+        cfg = json.load(f)
+    assert cfg.get("dataset_mode") == "iwildcam", (
+        "the dataset must be under `dataset_mode`, where panel reads it; got %r"
+        % (cfg.get("dataset_mode"),))
+    assert "dataset_name" not in cfg, (
+        "`dataset_name` is read by nothing in scripts/, src/ or configs/. "
+        "Carrying it makes the fixture look populated while `panel` returns "
+        "`dataset: None` for every row.")

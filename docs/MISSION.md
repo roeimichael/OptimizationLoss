@@ -5,7 +5,124 @@
 every working session. If it is stale, that is a defect -- fix it before doing
 anything else.
 
-Last updated: **2026-09-06** (the arm-vs-arm scorer was ranking a four-name whitelist, so half of every campaign was invisible; the acceptance table priced cells on a RANGE; and with both fixed, EVERY verdict in EVERY campaign reads REFUSED because the RNG floor rests on 4 observations against a bar of 8. `tralo_reseed2` -- the fix, 12 observations for 8 runs -- exists and had never been put in a campaign. See 0-HEAD.)
+Last updated: **2026-09-09** (INSTRUMENT INTEGRITY. Two audits, five defects, no published number moved -- see 0-INSTR below. SSH to both hosts has been down all day, so nothing was re-measured and nothing was deployed.)
+
+---
+
+## 🔧 0-INSTR. THE TWO AUDITS, AND WHAT IS STILL UNMEASURED (2026-09-09)
+
+**Nothing here changes a published number.** Real configs and real prediction
+files always carried the fields involved. What was wrong is that the tools and
+the TESTS did not agree with the pipeline, so several code paths had never
+been exercised and two claims were wrong.
+
+### The `argsort` audit -- what does a tool sort probabilities WITHIN?
+
+Six files sort probabilities. Four are clean (three group-blind by design, one
+a self-test fixture). Two were not:
+
+  * `paired_noise` counted a GLOBAL top-K -- the fourth instance of this class
+    (2(z63)). It now takes the per-group top-K and REFUSES a predictions file
+    with no `Group_ID`.
+  * `cut_gap` read `p_K` at GLOBAL rank K -- the fifth (2(z64)). It now reports
+    `p_K` (per-group, budget-weighted), `p_K_global`, and **`p_K_min` /
+    `slope_max`, the deepest group's cut**.
+
+⚠️ **AND THE DIRECTIONAL CLAIM I ATTACHED TO THE `cut_gap` FIX WAS WRONG.**
+I asserted the global reading understates the gradient at the cut, built a
+fixture showing it, mutation-tested 2/2 green -- and the end-to-end run
+refuted it (mean per-group cut 0.690 vs global 0.681). Only the MINIMUM is
+ordered against the global value; the MEAN sits above it whenever budgets
+track group difficulty, which is the normal case. **Do not read `p_K` vs
+`p_K_glob` as a direction.**
+
+🔑 **THE FIRST THING TO RUN WHEN SSH RETURNS** is `cut_gap` over the live
+corpus, for the `slope_max` column: whether ANY group's cut carries live
+gradient, not whether the average one does. With 7 of 14 iwildcam ceilings at
+K=0 that is the live-vs-dead reachability question, and the global reading
+could not produce the column at all. Task #100.
+
+### The `groupby` audit -- is the key the WHOLE cell?
+
+Sibling question, same shape. 21 call sites; `paired_noise`'s cell is
+`(model, dataset, cap)` and is complete, `full_panel`'s keys are complete.
+`order_probe` groups on `(model, cap, cls)` and `cut_gap.summarise` on
+`(campaign, model, cap, cls)`, both with NO `dataset` -- complete while
+iwildcam was the only runnable dataset, and `gen_campaign --datasets` is
+`nargs="+"`. bcn and fmow ended that. Both now call
+`capped_classes.assert_single_dataset`, which reads `dataset_mode` (the field
+`gen_campaign` writes and `data_loader` raises without).
+
+### What the audits found in the TESTS, which is the part worth remembering
+
+`tests/test_scorers_run_end_to_end.py` exists because three scorers were
+unrunnable on every input. Its fixture spelled **three** fields unlike the
+pipeline (`Group` vs `Group_ID`, `seed` at top level vs `hyperparams.seed`,
+`dataset_name` vs `dataset_mode`), so nine group-aware scorers ran only their
+FALLBACK branches and every row carried `dataset: None, seed: None`. Fixing
+the group column exposed a live crash in `cell_table` -- `sorted()` on Nones,
+five frames deep, in a paper-facing scorer. All three are now EXECUTABLE
+gates that read the authorities rather than restating them.
+
+⛔ And `capped_classes` -- written this week to stop tools guessing
+iwildcam's class pair on a bcn campaign -- said in its own docstring and
+fixture that **bcn caps 3 and 5**. bcn caps **0 and 2**;
+`configs/task_windows.yml` has said so since the block was measured on the
+complete 228-run `bcn1mn3`. Its checks passed because the fixture and the
+assertion agreed with each other.
+
+🔑 **THE RULE ALL OF THIS PRODUCES:** a fixture that agrees with the claim it
+tests proves only that they agree. Every defect above was found by comparing
+against an AUTHORITY outside the test (`src/training/logging.py`,
+`configs/gen_campaign.py`, `configs/task_windows.yml`) or by making a tool
+REFUSE ambiguous input and seeing what went red. None was findable by reading
+the code.
+
+### Also done, and blocked
+
+* ✅ **#98 closed.** The per-item OT family is cited (Sinkhorn Label
+  Allocation, Confident Sinkhorn Allocation, OTAMatch; bib 57 -> 60) and
+  Limitations carries the SCOPE STATEMENT that bounds the null: it closes
+  aggregate count penalties with a scalar dual and says nothing about
+  per-item assignment. Clean-room compile, 0 undefined citations.
+  ⚠️ Verify a LaTeX edit in a COPY: a stale `main_edited_by_roei.aux`
+  in `docs/paper/` beats `-output-directory` and reported all three new
+  citations undefined after they resolved.
+* ⛔ **BLOCKED ON SSH:** #100 (re-measure `cut_gap`), #101 (deploy the
+  corrected scorers by hand into each worktree's `scripts/` -- it is outside
+  `TRAINING_PATHS`, so it does not flip `-dirty` and does not move HEAD),
+  #96, #97, #99. `fmow1`, `bcn1vit` and `snap2` are on detached dispatchers
+  and were not reachable to check.
+
+### The exact commands, so the handoff is instant
+
+```bash
+# 1. WHAT IS ALIVE. Both hosts -- one NFS /home, so `results/` is identical
+#    from either and only `ps` differs. Never declare a dispatcher dead off
+#    one host.
+for h in dsisco01 dsisco02; do echo "== $h"; ssh $h   'ps -u michaer8 -o pid,etime,cmd | grep -E "main.py|dispatch" | grep -v grep'; done
+
+# 2. DEPLOY THE CORRECTED SCORERS. `scripts/` is outside TRAINING_PATHS, so
+#    this does NOT flip `-dirty` and does NOT move HEAD. Never `git pull` a
+#    pinned campaign tree.
+cd ~/OptimizationLoss && git fetch origin headroom/small-cnn
+for f in paired_noise cut_gap cell_table deployed_h2h capped_classes          deep_scope latch_probe step_direction_probe task_window          arm_identity_check order_probe headroom; do
+  git show origin/headroom/small-cnn:scripts/$f.py > /tmp/$f.py
+  for wt in $(git worktree list --porcelain | awk '/^worktree /{print $2}'); do
+    [ -d "$wt/scripts" ] && cp /tmp/$f.py "$wt/scripts/$f.py"
+  done
+done
+# then, in ONE worktree, prove they still run there:
+python -m scripts.cut_gap --self-test && python -m scripts.capped_classes --self-test   && python -m scripts.paired_noise --self-test && python -m scripts.order_probe --self-test
+
+# 3. THE MEASUREMENT THAT IS ACTUALLY OWED (#100). Read `slope_max`.
+python -m scripts.cut_gap results/dom1 results/dom1b results/equaldose1                           results/loose1 results/taskwin2
+```
+
+⚠️ `git worktree list` is safe. `git gc` / `prune` / `repack` /
+`reflog expire` / `worktree prune` are NOT -- 14 worktrees share one object
+store and `code_version` resolves against it.
+
 
 ---
 

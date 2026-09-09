@@ -88,6 +88,8 @@ import sys
 import numpy as np
 import pandas as pd
 
+from scripts import capped_classes  # noqa: E402
+
 # Below this the cut sits where p(1-p) has effectively vanished and no count
 # function differentiating `sum_i p_ic` can move it. Calibrated on the tight
 # campaigns above, so treat it as a flag rather than a law.
@@ -392,6 +394,13 @@ def main(argv=None):
     if not args.roots:
         ap.error("give one or more campaign roots, or --self-test")
 
+    # `summarise` keys on (campaign, model, cap, class) with NO `dataset`,
+    # so two datasets under ONE root would pool into one row. Complete
+    # while iwildcam was the only runnable dataset; `gen_campaign
+    # --datasets` is nargs="+" and bcn and fmow are now runnable.
+    # FRAMEWORK 2(z65).
+    for r in args.roots:
+        capped_classes.assert_single_dataset(r, "cut_gap")
     frames = [measure(r, args.arm) for r in args.roots]
     frames = [f for f in frames if len(f)]
     if not frames:
