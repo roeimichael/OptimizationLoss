@@ -5,9 +5,56 @@
 every working session. If it is stale, that is a defect -- fix it before doing
 anything else.
 
-Last updated: **2026-09-09** (🔑 THE FIFTH AND SIXTH UNITS ALREADY EXIST AND NEITHER HAS BEEN READ -- see 0-UNREAD, the top of the queue and it costs zero GPU-hours. Plus two instrument audits, five defects, no published number moved -- 0-INSTR. SSH to both hosts down all day.)
+Last updated: **2026-09-10** (🛑 THE ACCEPTANCE FIGURE IS STALE -- `6/17 = 35%` predates the scorer it delegates to by 14 hours; the VERDICT stands, the FIGURE does not. See 0-STALE. Previously: 🔑 THE FIFTH AND SIXTH UNITS ALREADY EXIST AND NEITHER HAS BEEN READ -- see 0-UNREAD, the top of the queue and it costs zero GPU-hours. Plus two instrument audits, five defects, no published number moved -- 0-INSTR. SSH to both hosts down all day.)
 
 ---
+
+## 🛑 0-STALE. THE NUMBER ANSWERING OUR OWN BAR IS NOT REPRODUCIBLE (2026-09-10)
+
+`tralo_wins` is the command that answers the acceptance bar. Its figure --
+**6 of 17 = 35%, FAIL, 0 of 17 priced** -- was written at **09:09 on
+2026-09-06**. `deployed_h2h.rank_cell`, which produces the deltas BOTH halves
+of that verdict read, was fixed at **22:48 the same day**. Nothing was red:
+the figure lives in a doc, the fix lives in git.
+
+**Only ONE of the three same-day fixes bears on it**, and sorting that out is
+the point -- my first reading was that all three pushed the same way:
+
+* range -> pairwise margin: strictly stricter, so `0 of 17 priced` is already
+  at the floor and cannot have improved. **That half is SAFE.**
+* de-whitelisting: PRICING only. `present = [r for r in RIVALS if r in d]`
+  reads a FIXED list, so more arms in `d` never changes which are rivals.
+  **Zero effect.**
+* common-seeds (22:48): changes `d` itself. **This is the live one.**
+  Direction unknown -- 2(z50) says it is not a bias, but the one cell ever
+  examined under it moved `tralo` +0.50 mid-pack -> **-8.0 LAST**.
+
+⛔ **QUOTE THE VERDICT, NOT THE FIGURE.** FAIL needs 6/17 -> 9/17 to flip,
+from a fix with no demonstrated positive direction in any cell. Say
+"FAIL, figure pending recompute".
+
+**THE COMMAND, blocked on SSH (`results/` is not local):**
+
+```bash
+python -m scripts.tralo_wins --campaign results/dom1 results/dom1b     results/equaldose1 results/taskwin2 results/vitdual2 --control clip
+```
+
+🔑 **AND THE CLASS IS NOW INSTRUMENTED.** `scripts/stale_figures.py`
+holds every date-stamped figure in the docs against the last commit to the
+scorer that produced it. First real run: **16 stale, 5 fresh**, and SEVEN of
+the sixteen were `paper_rows` -- which found the LICENSED-vs-SIGN-READ
+collapse still live in three places the 2(z66) recount never reached. Run it
+before quoting any number:
+
+```bash
+python -m scripts.stale_figures
+```
+
+It is a REPORT, not a gate: a docstring commit moves the date and changes no
+number, so it prints the commit SUBJECT and a hit means UNVERIFIED, never
+WRONG. It also prints the 55 figures it could NOT attribute, because a tool
+that silently examines a quarter of its input reads like one that found
+nothing. FRAMEWORK 2(z68), task #104.
 
 ## 🔑 0-UNREAD. THE FIFTH AND SIXTH UNITS EXIST. READ THEM FIRST. (2026-09-09)
 
