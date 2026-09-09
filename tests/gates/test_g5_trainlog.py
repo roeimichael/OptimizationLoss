@@ -500,7 +500,12 @@ def test_the_sensitivity_screen_separates_saturated_from_underpowered_from_live(
         DIFFERENTIATED at 600, or the two are being collapsed;
       * a floor resting on too few observations must refuse to decide, which
         is the case on EVERY campaign in the corpus today (one `_null`/
-        `_reseed` pair at 4 seeds = 4 observations against the 8 bar).
+        `_reseed` pair at 4 seeds = 4 observations against the 8 bar);
+      * and it must refuse under its OWN name, `FLOOR UNMEASURED`, never as
+        `UNDER-POWERED`. The two were one label until 2026-09-10 and call for
+        opposite remedies -- seeds on the TREATED arms vs seeds or a third
+        STREAM on the lambda=0 arms -- so a tally that merges them points the
+        reader at the wrong fix. FRAMEWORK 2(z70).
     """
     from scripts.sensitivity_screen import (BAND_MIN, GRAD_MIN,  # noqa: E402
                                             MIN_FLOOR_OBS, classify)
@@ -525,9 +530,20 @@ def test_the_sensitivity_screen_separates_saturated_from_underpowered_from_live(
 
     # The thin-floor branch, which is what the whole corpus trips today.
     got, why = classify(LIVE, BAND, 12.0, 4.0, 4, n_floor=MIN_FLOOR_OBS - 1)
-    if got != "UNDER-POWERED" or "RNG floor itself" not in why:
-        bad.append("a floor resting on %d observations must refuse to decide; "
-                   "got %r (%s)" % (MIN_FLOOR_OBS - 1, got, why))
+    if got != "FLOOR UNMEASURED" or "RNG floor itself" not in why:
+        bad.append("a floor resting on %d observations must refuse to decide "
+                   "AS `FLOOR UNMEASURED`, not as `UNDER-POWERED`; got %r (%s)"
+                   % (MIN_FLOOR_OBS - 1, got, why))
+    # NEGATIVE CONTROL: the two verdicts must not be interchangeable. A SPREAD
+    # that is genuinely under a WELL-ESTIMATED floor is UNDER-POWERED, and the
+    # remedy differs -- seeds on the TREATED arms there, seeds or a third
+    # STREAM on the lambda=0 arms above. They were one label until 2026-09-10,
+    # which sent the reader to the wrong fix and made the TALLY unreadable.
+    got, why = classify(LIVE, BAND, 0.5, 4.0, 4, n_floor=MIN_FLOOR_OBS)
+    if got != "UNDER-POWERED" or "RNG floor itself" in why:
+        bad.append("a small spread under a WELL-ESTIMATED floor must stay "
+                   "UNDER-POWERED, or the split is a rename; got %r (%s)"
+                   % (got, why))
     # ...and it must NOT refuse once the floor is properly estimated, or the
     # bar is simply a blanket refusal wearing a statistic.
     got, _ = classify(LIVE, BAND, 12.0, 4.0, 4, n_floor=MIN_FLOOR_OBS)

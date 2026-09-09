@@ -4793,8 +4793,11 @@ def test_the_three_lambda_zero_arms_are_three_DISTINCT_RNG_REPLICATES(P):
     so the noise every arm-vs-arm claim is judged against is a median of four
     numbers whose order-statistic confidence interval is the entire sample
     range. `sensitivity_screen` refuses to decide below eight, and that single
-    fact is why 36 of 38 corpus cells read UNDER-POWERED rather than NOT
-    DIFFERENTIATED (FRAMEWORK 2(z39)).
+    fact is why 36 of 38 corpus cells read FLOOR UNMEASURED rather than NOT
+    DIFFERENTIATED (FRAMEWORK 2(z39)). That verdict was itself called
+    UNDER-POWERED until 2026-09-10, which merged it with the case where the
+    floor IS well estimated and the spread is simply smaller -- opposite
+    remedies, one label. FRAMEWORK 2(z70).
 
     Adding more `<family>_reseed` arms buys NOTHING: lambda=0 makes them all
     plain CE, so an `alm_reseed` is byte-identical to `tralo_reseed`. Distinct

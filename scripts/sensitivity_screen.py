@@ -11,7 +11,12 @@ ties, and a grid that cannot separate its arms is a week spent measuring
 nothing. Run over dom1 + taskwin2 + equaldose1 on 2026-09-04 -- 28 cells,
 792 runs, the whole clean four-dual corpus -- it returned:
 
-    SENSITIVE 0    UNDER-POWERED 27    SATURATED 1
+    SENSITIVE 0    FLOOR UNMEASURED 27    SATURATED 1
+
+⚠️ That line read `UNDER-POWERED 27` until 2026-09-10, which was the
+right verdict under the wrong name: all 27 tripped the FLOOR branch, not the
+spread branch. Nothing about the corpus changed -- the label did, so that the
+tally now says which of the two it means.
 
 \U0001f511 AND THE REASON IS NOT THE ONE EVERYONE REACHES FOR. The model IS
 saturating globally: dom1/MobileNetV2 train accuracy runs 0.9595 at warm-up
@@ -91,8 +96,16 @@ project's standing rule is that they must never be collapsed:
     SENSITIVE          gradient live, band non-empty, spread over the floor
     SATURATED          gradient dead or band empty -- a MEASUREMENT that
                        nothing could have moved, independent of seed count
-    UNDER-POWERED      gradient live, but the spread is under the floor and
-                       there are too few seeds to call it. Says how many.
+    UNDER-POWERED      gradient live, floor well estimated, but the spread is
+                       under it and there are too few seeds to call it. Says
+                       how many. Fix: more seeds on the TREATED arms.
+    FLOOR UNMEASURED   gradient live, but the RNG FLOOR itself rests on fewer
+                       than MIN_FLOOR_OBS observations, so the comparison is
+                       never made and NO spread would have changed the answer.
+                       Fix: more seeds or a third STREAM on the lambda=0 arms.
+                       This is the whole live corpus (2 streams x 4 seeds = 4
+                       against the bar of 8), and it is why the tally below
+                       reads as it does.
     NOT DIFFERENTIATED gradient live, seeds sufficient, spread still under the
                        floor. This is a real null about the CELL.
 
@@ -173,7 +186,7 @@ def _is_floor_control(arm):
     return is_lambda0_stream(arm) and not arm.endswith("_null")
 
 VERDICTS = ("SENSITIVE", "SATURATED", "UNDER-POWERED", "NOT DIFFERENTIATED",
-            "NO DATA")
+            "FLOOR UNMEASURED", "NO DATA")
 
 
 # ---------------------------------------------------------------- discovery
@@ -348,7 +361,13 @@ def classify(grad, band, spread, floor, n_seeds, reason=None, n_floor=None,
                            "pair, so the RNG floor is unmeasured and the "
                            "spread cannot be judged")
     if n_floor is not None and n_floor < MIN_FLOOR_OBS:
-        return "UNDER-POWERED", (
+        # NOT "UNDER-POWERED", and the two were one label until 2026-09-10.
+        # They call for OPPOSITE fixes: UNDER-POWERED is answered by more
+        # seeds on the TREATED arms, this is answered by more seeds or a
+        # third STREAM on the lambda=0 arms. Collapsing them sent the reader
+        # to the wrong remedy, and the tally -- which is what gets quoted --
+        # could not tell them apart at all. FRAMEWORK 2(z70).
+        return "FLOOR UNMEASURED", (
             "the RNG floor itself rests on %d observation(s), under the %d "
             "bar; its median could be off by the width of the sample, so "
             "spread %.1f vs floor %.1f decides nothing. Buy observations with "

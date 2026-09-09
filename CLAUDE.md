@@ -404,9 +404,17 @@ python -m scripts.sensitivity_screen --campaign <roots>   # 🛑 COULD THIS CELL
 #   estimator agrees at 0.94. `tests/gates/test_g5_trainlog.py` gates both the
 #   arithmetic and the four verdicts, mutation-tested 4/4.
 #   🔑 RUN 2026-09-04 OVER dom1 + dom1b + equaldose1 + taskwin2 + vittask1
-#   (38 cells): **SENSITIVE 0, UNDER-POWERED 36, SATURATED 2.** The typical
+#   (38 cells): **SENSITIVE 0, FLOOR UNMEASURED 36, SATURATED 2.** The typical
 #   arm-pair difference is 2-5 deployed TP items and the RNG floor in the same
 #   cell is 1.0-10.5. They are the same size.
+#   🛑 **THAT 36 READ `UNDER-POWERED` UNTIL 2026-09-10 AND IT WAS THE
+#   WRONG NAME.** All 36 trip the FLOOR branch -- the floor itself rests on too
+#   few observations, so the spread is NEVER compared to it and no effect size
+#   would have changed the verdict. `UNDER-POWERED` is the DIFFERENT case where
+#   the floor IS well estimated and the spread is genuinely smaller. The
+#   remedies are opposite: more seeds on the TREATED arms for the second, more
+#   seeds or a third STREAM on the lambda=0 arms for the first. Same shape as
+#   2(z69). FRAMEWORK 2(z70).
 #   ⛔ AND THE FLOOR RESTS ON **FOUR** OBSERVATIONS. Every campaign carries
 #   exactly ONE `_null`/`_reseed` pair at 4 seeds, and the four `_null` arms are
 #   BYTE-IDENTICAL (FRAMEWORK 2944), so they add no replicates. Below

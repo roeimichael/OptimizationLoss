@@ -12481,6 +12481,52 @@ estimating it properly is expected to make the tool refuse MORE often. Do not
 pre-register this as a rescue.
 
 
+## 2(z70). THE SCREEN BROKE ITS OWN STANDING RULE: TWO OPPOSITE CONCLUSIONS UNDER ONE VERDICT (2026-09-10)
+
+`sensitivity_screen`'s docstring opens by stating the rule it exists to
+enforce: **"nothing moved" and "we could not have seen it move" are opposite
+conclusions from the same table, and this project's standing rule is that they
+must never be collapsed.** It then returned `UNDER-POWERED` from two
+structurally different branches:
+
+| branch | what it means | the fix |
+|---|---|---|
+| `n_floor < MIN_FLOOR_OBS` | the RNG FLOOR is unestimated. The spread is **never compared to it** -- no effect size changes the verdict | more seeds **or a third STREAM** on the **lambda=0** arms |
+| `spread < floor` and `seeds_needed > n_seeds` | the floor IS well estimated and the effect is genuinely smaller | more seeds on the **TREATED** arms |
+
+**The remedies are opposite, and the label sent the reader to the wrong one.**
+Worse, the TALLY -- which is the part that gets quoted -- could not tell them
+apart at all. The corpus figure **`SENSITIVE 0, UNDER-POWERED 36, SATURATED 2`**
+reads as 36 measured nulls; all 36 are the FIRST branch, where nothing was
+measured.
+
+✅ **FIXED**: `FLOOR UNMEASURED` is now a fifth verdict. The corpus line
+reads `SENSITIVE 0, FLOOR UNMEASURED 36, SATURATED 2`. **Nothing about the
+corpus changed** -- the label did, so the tally now says which of the two it
+means.
+
+🔑 **THE GATE ALREADY KNEW AND COULD NOT SAY SO.**
+`tests/gates/test_g5_trainlog.py` asserted the thin-floor branch by matching
+the REASON STRING (`"RNG floor itself" in why`) because the verdict alone was
+not discriminating enough. A gate reaching past the return value into prose is
+a sign the return value is under-specified; it was, for six days. The gate now
+asserts the verdict directly and carries the negative control that a small
+spread under a WELL-ESTIMATED floor must still read `UNDER-POWERED` -- without
+it, the split is a rename. Mutation-tested: collapsing the branches back turns
+it red.
+
+⚠️ **THIS IS THE SECOND OCCURRENCE OF THE SAME CLASS TODAY.** 2(z69) is
+`tralo_wins` reporting `0 of 17 priced` when the pricing comparison was never
+reached, for the same underlying reason -- `nfloor = 4 < 8`. Both tools guard
+on floor observations, both then report a verdict that reads as a measurement,
+and in both the guard is what fired. **Wherever `MIN_FLOOR_OBS` is consulted,
+check that a reader can tell "the bar was not met" from "the test came out
+negative".** The two live users are `sensitivity_screen` (fixed here) and
+`tralo_wins`/`deployed_h2h` (2(z69) documents it; `priced: no` is still one
+label for both states, and that is task #104's problem to state, not to
+rename -- `priced` is a boolean by design).
+
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, updated 2026-08-30 -- read this before section 3's older text**
