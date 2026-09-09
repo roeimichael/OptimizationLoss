@@ -1,0 +1,3901 @@
+label,class_name,filename,location
+0,c0,ISIC_0053466.jpg,anterior torso|40s
+3,c3,ISIC_0053467.jpg,head/neck|70s
+1,c1,ISIC_0053470.jpg,upper extremity|80+
+2,c2,ISIC_0053474.jpg,upper extremity|50s
+5,c5,ISIC_0053475.jpg,upper extremity|80+
+4,c4,ISIC_0053478.jpg,upper extremity|70s
+0,c0,ISIC_0053482.jpg,lower extremity|30s
+2,c2,ISIC_0053483.jpg,anterior torso|70s
+1,c1,ISIC_0053485.jpg,anterior torso|70s
+0,c0,ISIC_0053493.jpg,anterior torso|40s
+1,c1,ISIC_0053503.jpg,lower extremity|50s
+2,c2,ISIC_0053511.jpg,anterior torso|70s
+1,c1,ISIC_0053513.jpg,anterior torso|70s
+2,c2,ISIC_0053524.jpg,anterior torso|70s
+1,c1,ISIC_0053533.jpg,anterior torso|40s
+2,c2,ISIC_0053534.jpg,upper extremity|70s
+4,c4,ISIC_0053538.jpg,upper extremity|50s
+1,c1,ISIC_0053542.jpg,lower extremity|50s
+2,c2,ISIC_0053546.jpg,upper extremity|80+
+0,c0,ISIC_0053556.jpg,anterior torso|70s
+0,c0,ISIC_0053557.jpg,anterior torso|40s
+4,c4,ISIC_0053563.jpg,head/neck|70s
+0,c0,ISIC_0053564.jpg,anterior torso|40s
+2,c2,ISIC_0053568.jpg,anterior torso|40s
+0,c0,ISIC_0053572.jpg,anterior torso|70s
+0,c0,ISIC_0053574.jpg,anterior torso|40s
+1,c1,ISIC_0053582.jpg,upper extremity|50s
+0,c0,ISIC_0053584.jpg,lower extremity|30s
+2,c2,ISIC_0053591.jpg,head/neck|70s
+4,c4,ISIC_0053595.jpg,head/neck|70s
+0,c0,ISIC_0053596.jpg,anterior torso|40s
+5,c5,ISIC_0053602.jpg,anterior torso|70s
+0,c0,ISIC_0053630.jpg,upper extremity|70s
+2,c2,ISIC_0053631.jpg,upper extremity|80+
+0,c0,ISIC_0053634.jpg,anterior torso|40s
+0,c0,ISIC_0053636.jpg,anterior torso|40s
+0,c0,ISIC_0053642.jpg,anterior torso|40s
+2,c2,ISIC_0053649.jpg,head/neck|70s
+5,c5,ISIC_0053653.jpg,head/neck|70s
+0,c0,ISIC_0053655.jpg,lower extremity|50s
+4,c4,ISIC_0053657.jpg,head/neck|70s
+4,c4,ISIC_0053664.jpg,head/neck|70s
+0,c0,ISIC_0053673.jpg,anterior torso|40s
+1,c1,ISIC_0053674.jpg,upper extremity|70s
+0,c0,ISIC_0053675.jpg,anterior torso|40s
+4,c4,ISIC_0053679.jpg,head/neck|70s
+0,c0,ISIC_0053681.jpg,anterior torso|40s
+5,c5,ISIC_0053684.jpg,anterior torso|70s
+4,c4,ISIC_0053688.jpg,head/neck|70s
+1,c1,ISIC_0053691.jpg,anterior torso|40s
+2,c2,ISIC_0053692.jpg,anterior torso|70s
+6,c6,ISIC_0053697.jpg,anterior torso|70s
+1,c1,ISIC_0053699.jpg,upper extremity|70s
+1,c1,ISIC_0053700.jpg,anterior torso|40s
+1,c1,ISIC_0053702.jpg,upper extremity|70s
+0,c0,ISIC_0053711.jpg,anterior torso|40s
+0,c0,ISIC_0053713.jpg,anterior torso|40s
+0,c0,ISIC_0053718.jpg,anterior torso|40s
+0,c0,ISIC_0053720.jpg,anterior torso|40s
+0,c0,ISIC_0053729.jpg,anterior torso|40s
+2,c2,ISIC_0053733.jpg,upper extremity|50s
+1,c1,ISIC_0053734.jpg,lower extremity|50s
+1,c1,ISIC_0053742.jpg,anterior torso|40s
+1,c1,ISIC_0053751.jpg,lower extremity|50s
+0,c0,ISIC_0053754.jpg,lower extremity|30s
+0,c0,ISIC_0053755.jpg,anterior torso|40s
+3,c3,ISIC_0053756.jpg,lower extremity|50s
+2,c2,ISIC_0053757.jpg,anterior torso|40s
+1,c1,ISIC_0053761.jpg,head/neck|70s
+1,c1,ISIC_0053765.jpg,anterior torso|40s
+1,c1,ISIC_0053766.jpg,anterior torso|70s
+2,c2,ISIC_0053771.jpg,anterior torso|40s
+0,c0,ISIC_0053773.jpg,anterior torso|70s
+1,c1,ISIC_0053790.jpg,head/neck|70s
+0,c0,ISIC_0053811.jpg,lower extremity|30s
+1,c1,ISIC_0053827.jpg,anterior torso|70s
+1,c1,ISIC_0053828.jpg,anterior torso|70s
+2,c2,ISIC_0053830.jpg,head/neck|70s
+0,c0,ISIC_0053833.jpg,anterior torso|70s
+3,c3,ISIC_0053836.jpg,anterior torso|70s
+0,c0,ISIC_0053838.jpg,anterior torso|70s
+2,c2,ISIC_0053840.jpg,anterior torso|70s
+1,c1,ISIC_0053843.jpg,anterior torso|40s
+3,c3,ISIC_0053849.jpg,head/neck|70s
+0,c0,ISIC_0053851.jpg,anterior torso|40s
+1,c1,ISIC_0053854.jpg,anterior torso|70s
+6,c6,ISIC_0053857.jpg,anterior torso|70s
+2,c2,ISIC_0053863.jpg,lower extremity|50s
+3,c3,ISIC_0053865.jpg,head/neck|70s
+2,c2,ISIC_0053876.jpg,upper extremity|50s
+0,c0,ISIC_0053883.jpg,anterior torso|40s
+1,c1,ISIC_0053884.jpg,anterior torso|70s
+2,c2,ISIC_0053885.jpg,head/neck|70s
+3,c3,ISIC_0053889.jpg,head/neck|70s
+1,c1,ISIC_0053909.jpg,head/neck|70s
+0,c0,ISIC_0053915.jpg,lower extremity|50s
+1,c1,ISIC_0053916.jpg,lower extremity|50s
+3,c3,ISIC_0053921.jpg,anterior torso|70s
+2,c2,ISIC_0053928.jpg,lower extremity|50s
+0,c0,ISIC_0053929.jpg,lower extremity|30s
+1,c1,ISIC_0053933.jpg,head/neck|70s
+0,c0,ISIC_0053937.jpg,anterior torso|40s
+0,c0,ISIC_0053940.jpg,anterior torso|40s
+0,c0,ISIC_0053948.jpg,anterior torso|70s
+4,c4,ISIC_0053950.jpg,head/neck|70s
+1,c1,ISIC_0053960.jpg,anterior torso|40s
+0,c0,ISIC_0053982.jpg,anterior torso|40s
+0,c0,ISIC_0053998.jpg,lower extremity|30s
+0,c0,ISIC_0054008.jpg,lower extremity|50s
+0,c0,ISIC_0054012.jpg,upper extremity|50s
+1,c1,ISIC_0054021.jpg,upper extremity|50s
+1,c1,ISIC_0054025.jpg,anterior torso|40s
+0,c0,ISIC_0054027.jpg,anterior torso|40s
+2,c2,ISIC_0054031.jpg,upper extremity|80+
+0,c0,ISIC_0054039.jpg,upper extremity|50s
+0,c0,ISIC_0054044.jpg,anterior torso|70s
+0,c0,ISIC_0054050.jpg,anterior torso|40s
+5,c5,ISIC_0054052.jpg,upper extremity|70s
+0,c0,ISIC_0054056.jpg,lower extremity|50s
+2,c2,ISIC_0054060.jpg,upper extremity|70s
+1,c1,ISIC_0054062.jpg,upper extremity|70s
+2,c2,ISIC_0054065.jpg,lower extremity|50s
+1,c1,ISIC_0054073.jpg,lower extremity|50s
+1,c1,ISIC_0054079.jpg,anterior torso|70s
+0,c0,ISIC_0054083.jpg,anterior torso|40s
+1,c1,ISIC_0054085.jpg,head/neck|70s
+1,c1,ISIC_0054087.jpg,anterior torso|40s
+1,c1,ISIC_0054089.jpg,anterior torso|40s
+0,c0,ISIC_0054107.jpg,anterior torso|40s
+0,c0,ISIC_0054108.jpg,anterior torso|40s
+1,c1,ISIC_0054112.jpg,lower extremity|50s
+2,c2,ISIC_0054121.jpg,anterior torso|70s
+2,c2,ISIC_0054122.jpg,upper extremity|50s
+3,c3,ISIC_0054128.jpg,anterior torso|70s
+1,c1,ISIC_0054138.jpg,anterior torso|70s
+0,c0,ISIC_0054145.jpg,anterior torso|40s
+0,c0,ISIC_0054148.jpg,anterior torso|40s
+2,c2,ISIC_0054158.jpg,anterior torso|70s
+0,c0,ISIC_0054166.jpg,lower extremity|50s
+1,c1,ISIC_0054167.jpg,anterior torso|70s
+0,c0,ISIC_0054168.jpg,anterior torso|70s
+2,c2,ISIC_0054170.jpg,anterior torso|40s
+2,c2,ISIC_0054171.jpg,anterior torso|40s
+0,c0,ISIC_0054176.jpg,anterior torso|70s
+1,c1,ISIC_0054179.jpg,upper extremity|70s
+2,c2,ISIC_0054189.jpg,upper extremity|70s
+2,c2,ISIC_0054191.jpg,anterior torso|70s
+1,c1,ISIC_0054194.jpg,upper extremity|70s
+0,c0,ISIC_0054197.jpg,anterior torso|40s
+2,c2,ISIC_0054202.jpg,anterior torso|40s
+0,c0,ISIC_0054221.jpg,lower extremity|50s
+4,c4,ISIC_0054223.jpg,head/neck|70s
+2,c2,ISIC_0054227.jpg,anterior torso|70s
+0,c0,ISIC_0054238.jpg,lower extremity|30s
+0,c0,ISIC_0054258.jpg,anterior torso|40s
+4,c4,ISIC_0054259.jpg,head/neck|70s
+0,c0,ISIC_0054268.jpg,anterior torso|40s
+4,c4,ISIC_0054271.jpg,lower extremity|50s
+1,c1,ISIC_0054274.jpg,head/neck|70s
+0,c0,ISIC_0054278.jpg,anterior torso|40s
+1,c1,ISIC_0054289.jpg,anterior torso|40s
+1,c1,ISIC_0054290.jpg,upper extremity|70s
+2,c2,ISIC_0054295.jpg,anterior torso|70s
+0,c0,ISIC_0054307.jpg,anterior torso|40s
+0,c0,ISIC_0054308.jpg,anterior torso|40s
+2,c2,ISIC_0054322.jpg,upper extremity|70s
+0,c0,ISIC_0054326.jpg,anterior torso|40s
+0,c0,ISIC_0054327.jpg,anterior torso|40s
+3,c3,ISIC_0054336.jpg,anterior torso|70s
+2,c2,ISIC_0054338.jpg,head/neck|70s
+1,c1,ISIC_0054341.jpg,upper extremity|50s
+2,c2,ISIC_0054343.jpg,upper extremity|80+
+2,c2,ISIC_0054346.jpg,anterior torso|70s
+0,c0,ISIC_0054348.jpg,anterior torso|40s
+0,c0,ISIC_0054356.jpg,lower extremity|50s
+2,c2,ISIC_0054362.jpg,head/neck|70s
+2,c2,ISIC_0054365.jpg,head/neck|70s
+3,c3,ISIC_0054368.jpg,lower extremity|50s
+0,c0,ISIC_0054373.jpg,lower extremity|50s
+0,c0,ISIC_0054381.jpg,anterior torso|70s
+0,c0,ISIC_0054382.jpg,anterior torso|40s
+0,c0,ISIC_0054387.jpg,lower extremity|30s
+2,c2,ISIC_0054390.jpg,head/neck|70s
+3,c3,ISIC_0054392.jpg,anterior torso|40s
+0,c0,ISIC_0054393.jpg,anterior torso|40s
+0,c0,ISIC_0054400.jpg,anterior torso|40s
+2,c2,ISIC_0054402.jpg,upper extremity|50s
+0,c0,ISIC_0054406.jpg,anterior torso|40s
+1,c1,ISIC_0054409.jpg,lower extremity|50s
+0,c0,ISIC_0054417.jpg,anterior torso|40s
+3,c3,ISIC_0054423.jpg,anterior torso|40s
+6,c6,ISIC_0054425.jpg,upper extremity|50s
+2,c2,ISIC_0054435.jpg,upper extremity|80+
+2,c2,ISIC_0054439.jpg,head/neck|70s
+0,c0,ISIC_0054442.jpg,lower extremity|30s
+0,c0,ISIC_0054446.jpg,anterior torso|40s
+2,c2,ISIC_0054448.jpg,anterior torso|70s
+2,c2,ISIC_0054450.jpg,upper extremity|70s
+2,c2,ISIC_0054451.jpg,anterior torso|40s
+0,c0,ISIC_0054456.jpg,anterior torso|40s
+1,c1,ISIC_0054459.jpg,upper extremity|70s
+7,c7,ISIC_0054463.jpg,upper extremity|70s
+0,c0,ISIC_0054475.jpg,lower extremity|30s
+0,c0,ISIC_0054476.jpg,anterior torso|40s
+1,c1,ISIC_0054492.jpg,anterior torso|70s
+2,c2,ISIC_0054504.jpg,anterior torso|40s
+1,c1,ISIC_0054506.jpg,anterior torso|40s
+2,c2,ISIC_0054524.jpg,head/neck|70s
+0,c0,ISIC_0054525.jpg,lower extremity|30s
+4,c4,ISIC_0054533.jpg,head/neck|70s
+2,c2,ISIC_0054535.jpg,upper extremity|70s
+0,c0,ISIC_0054545.jpg,anterior torso|40s
+7,c7,ISIC_0054546.jpg,upper extremity|70s
+0,c0,ISIC_0054558.jpg,anterior torso|40s
+2,c2,ISIC_0054569.jpg,upper extremity|80+
+0,c0,ISIC_0054581.jpg,anterior torso|40s
+4,c4,ISIC_0054583.jpg,lower extremity|50s
+4,c4,ISIC_0054592.jpg,upper extremity|70s
+2,c2,ISIC_0054593.jpg,anterior torso|70s
+4,c4,ISIC_0054594.jpg,upper extremity|70s
+0,c0,ISIC_0054596.jpg,anterior torso|40s
+4,c4,ISIC_0054598.jpg,head/neck|70s
+5,c5,ISIC_0054606.jpg,anterior torso|70s
+2,c2,ISIC_0054607.jpg,upper extremity|70s
+0,c0,ISIC_0054608.jpg,lower extremity|30s
+2,c2,ISIC_0054615.jpg,head/neck|70s
+2,c2,ISIC_0054623.jpg,head/neck|70s
+1,c1,ISIC_0054624.jpg,lower extremity|30s
+1,c1,ISIC_0054629.jpg,anterior torso|70s
+3,c3,ISIC_0054632.jpg,anterior torso|40s
+2,c2,ISIC_0054633.jpg,upper extremity|80+
+4,c4,ISIC_0054634.jpg,head/neck|70s
+5,c5,ISIC_0054641.jpg,upper extremity|80+
+5,c5,ISIC_0054644.jpg,upper extremity|80+
+1,c1,ISIC_0054651.jpg,anterior torso|70s
+2,c2,ISIC_0054658.jpg,head/neck|70s
+0,c0,ISIC_0054659.jpg,anterior torso|40s
+5,c5,ISIC_0054660.jpg,upper extremity|80+
+2,c2,ISIC_0054662.jpg,anterior torso|70s
+1,c1,ISIC_0054664.jpg,upper extremity|80+
+2,c2,ISIC_0054665.jpg,upper extremity|70s
+1,c1,ISIC_0054670.jpg,lower extremity|50s
+1,c1,ISIC_0054671.jpg,upper extremity|70s
+0,c0,ISIC_0054672.jpg,anterior torso|40s
+1,c1,ISIC_0054677.jpg,anterior torso|40s
+4,c4,ISIC_0054687.jpg,anterior torso|70s
+3,c3,ISIC_0054690.jpg,upper extremity|70s
+1,c1,ISIC_0054691.jpg,anterior torso|70s
+3,c3,ISIC_0054693.jpg,anterior torso|70s
+0,c0,ISIC_0054695.jpg,anterior torso|40s
+0,c0,ISIC_0054696.jpg,lower extremity|30s
+0,c0,ISIC_0054700.jpg,anterior torso|40s
+6,c6,ISIC_0054702.jpg,lower extremity|50s
+1,c1,ISIC_0054710.jpg,lower extremity|50s
+3,c3,ISIC_0054724.jpg,anterior torso|70s
+0,c0,ISIC_0054727.jpg,lower extremity|50s
+0,c0,ISIC_0054730.jpg,anterior torso|40s
+3,c3,ISIC_0054731.jpg,anterior torso|40s
+1,c1,ISIC_0054743.jpg,anterior torso|40s
+1,c1,ISIC_0054744.jpg,upper extremity|50s
+1,c1,ISIC_0054748.jpg,anterior torso|70s
+0,c0,ISIC_0054751.jpg,upper extremity|50s
+3,c3,ISIC_0054761.jpg,lower extremity|50s
+2,c2,ISIC_0054764.jpg,head/neck|70s
+0,c0,ISIC_0054766.jpg,anterior torso|70s
+2,c2,ISIC_0054772.jpg,upper extremity|80+
+2,c2,ISIC_0054773.jpg,head/neck|70s
+0,c0,ISIC_0054775.jpg,anterior torso|40s
+2,c2,ISIC_0054776.jpg,anterior torso|40s
+1,c1,ISIC_0054777.jpg,anterior torso|40s
+3,c3,ISIC_0054779.jpg,lower extremity|30s
+3,c3,ISIC_0054780.jpg,lower extremity|30s
+2,c2,ISIC_0054789.jpg,anterior torso|70s
+3,c3,ISIC_0054811.jpg,lower extremity|50s
+1,c1,ISIC_0054819.jpg,upper extremity|70s
+2,c2,ISIC_0054820.jpg,head/neck|70s
+0,c0,ISIC_0054826.jpg,anterior torso|40s
+2,c2,ISIC_0054834.jpg,anterior torso|40s
+2,c2,ISIC_0054843.jpg,head/neck|70s
+1,c1,ISIC_0054846.jpg,upper extremity|70s
+1,c1,ISIC_0054851.jpg,head/neck|70s
+2,c2,ISIC_0054861.jpg,head/neck|70s
+0,c0,ISIC_0054871.jpg,anterior torso|70s
+3,c3,ISIC_0054882.jpg,head/neck|70s
+1,c1,ISIC_0054886.jpg,anterior torso|70s
+1,c1,ISIC_0054892.jpg,anterior torso|70s
+5,c5,ISIC_0054893.jpg,upper extremity|80+
+3,c3,ISIC_0054897.jpg,head/neck|70s
+0,c0,ISIC_0054898.jpg,anterior torso|70s
+2,c2,ISIC_0054905.jpg,upper extremity|70s
+3,c3,ISIC_0054911.jpg,head/neck|70s
+1,c1,ISIC_0054912.jpg,head/neck|70s
+0,c0,ISIC_0054925.jpg,lower extremity|30s
+3,c3,ISIC_0054931.jpg,anterior torso|70s
+1,c1,ISIC_0054932.jpg,anterior torso|70s
+5,c5,ISIC_0054935.jpg,upper extremity|80+
+0,c0,ISIC_0054937.jpg,upper extremity|50s
+1,c1,ISIC_0054941.jpg,anterior torso|70s
+5,c5,ISIC_0054949.jpg,anterior torso|70s
+0,c0,ISIC_0054959.jpg,lower extremity|50s
+1,c1,ISIC_0054963.jpg,anterior torso|40s
+0,c0,ISIC_0054964.jpg,anterior torso|40s
+3,c3,ISIC_0054965.jpg,anterior torso|40s
+2,c2,ISIC_0054968.jpg,anterior torso|70s
+2,c2,ISIC_0054972.jpg,upper extremity|70s
+2,c2,ISIC_0054977.jpg,head/neck|70s
+6,c6,ISIC_0054978.jpg,upper extremity|50s
+3,c3,ISIC_0054981.jpg,anterior torso|70s
+2,c2,ISIC_0054993.jpg,anterior torso|40s
+2,c2,ISIC_0054994.jpg,anterior torso|70s
+0,c0,ISIC_0054998.jpg,anterior torso|70s
+2,c2,ISIC_0055010.jpg,upper extremity|70s
+0,c0,ISIC_0055013.jpg,lower extremity|30s
+0,c0,ISIC_0055035.jpg,anterior torso|70s
+3,c3,ISIC_0055036.jpg,head/neck|70s
+0,c0,ISIC_0055044.jpg,anterior torso|40s
+2,c2,ISIC_0055050.jpg,anterior torso|70s
+0,c0,ISIC_0055061.jpg,lower extremity|30s
+5,c5,ISIC_0055064.jpg,upper extremity|80+
+1,c1,ISIC_0055079.jpg,lower extremity|30s
+0,c0,ISIC_0055083.jpg,anterior torso|40s
+0,c0,ISIC_0055090.jpg,anterior torso|40s
+2,c2,ISIC_0055119.jpg,anterior torso|40s
+6,c6,ISIC_0055121.jpg,upper extremity|70s
+0,c0,ISIC_0055129.jpg,anterior torso|40s
+5,c5,ISIC_0055131.jpg,head/neck|70s
+1,c1,ISIC_0055136.jpg,anterior torso|70s
+0,c0,ISIC_0055139.jpg,lower extremity|30s
+1,c1,ISIC_0055140.jpg,upper extremity|70s
+1,c1,ISIC_0055147.jpg,anterior torso|40s
+3,c3,ISIC_0055151.jpg,anterior torso|70s
+0,c0,ISIC_0055155.jpg,anterior torso|40s
+1,c1,ISIC_0055156.jpg,upper extremity|80+
+4,c4,ISIC_0055159.jpg,upper extremity|80+
+3,c3,ISIC_0055166.jpg,anterior torso|70s
+2,c2,ISIC_0055178.jpg,head/neck|70s
+3,c3,ISIC_0055182.jpg,lower extremity|50s
+3,c3,ISIC_0055185.jpg,anterior torso|70s
+0,c0,ISIC_0055186.jpg,lower extremity|50s
+0,c0,ISIC_0055189.jpg,anterior torso|70s
+1,c1,ISIC_0055193.jpg,anterior torso|40s
+2,c2,ISIC_0055194.jpg,anterior torso|70s
+0,c0,ISIC_0055199.jpg,anterior torso|40s
+1,c1,ISIC_0055208.jpg,lower extremity|50s
+5,c5,ISIC_0055218.jpg,upper extremity|70s
+3,c3,ISIC_0055219.jpg,head/neck|70s
+0,c0,ISIC_0055239.jpg,anterior torso|40s
+2,c2,ISIC_0055243.jpg,head/neck|70s
+1,c1,ISIC_0055246.jpg,anterior torso|70s
+1,c1,ISIC_0055249.jpg,lower extremity|30s
+1,c1,ISIC_0055253.jpg,upper extremity|70s
+3,c3,ISIC_0055256.jpg,head/neck|70s
+6,c6,ISIC_0055258.jpg,upper extremity|70s
+0,c0,ISIC_0055263.jpg,lower extremity|50s
+2,c2,ISIC_0055266.jpg,upper extremity|50s
+0,c0,ISIC_0055277.jpg,lower extremity|50s
+0,c0,ISIC_0055278.jpg,anterior torso|70s
+1,c1,ISIC_0055279.jpg,lower extremity|50s
+7,c7,ISIC_0055280.jpg,head/neck|70s
+1,c1,ISIC_0055289.jpg,lower extremity|50s
+1,c1,ISIC_0055293.jpg,upper extremity|70s
+0,c0,ISIC_0055294.jpg,anterior torso|70s
+0,c0,ISIC_0055299.jpg,anterior torso|40s
+5,c5,ISIC_0055302.jpg,head/neck|70s
+6,c6,ISIC_0055308.jpg,lower extremity|30s
+1,c1,ISIC_0055311.jpg,anterior torso|40s
+7,c7,ISIC_0055316.jpg,anterior torso|40s
+1,c1,ISIC_0055317.jpg,upper extremity|70s
+1,c1,ISIC_0055318.jpg,upper extremity|50s
+0,c0,ISIC_0055324.jpg,anterior torso|40s
+4,c4,ISIC_0055331.jpg,anterior torso|70s
+0,c0,ISIC_0055332.jpg,lower extremity|50s
+3,c3,ISIC_0055348.jpg,head/neck|70s
+2,c2,ISIC_0055351.jpg,anterior torso|70s
+1,c1,ISIC_0055362.jpg,anterior torso|40s
+0,c0,ISIC_0055370.jpg,anterior torso|40s
+2,c2,ISIC_0055379.jpg,head/neck|70s
+3,c3,ISIC_0055382.jpg,anterior torso|70s
+2,c2,ISIC_0055392.jpg,head/neck|70s
+1,c1,ISIC_0055393.jpg,upper extremity|70s
+2,c2,ISIC_0055396.jpg,anterior torso|40s
+4,c4,ISIC_0055400.jpg,head/neck|70s
+1,c1,ISIC_0055404.jpg,upper extremity|70s
+0,c0,ISIC_0055410.jpg,anterior torso|40s
+2,c2,ISIC_0055418.jpg,lower extremity|50s
+0,c0,ISIC_0055426.jpg,anterior torso|40s
+1,c1,ISIC_0055440.jpg,anterior torso|40s
+7,c7,ISIC_0055446.jpg,anterior torso|40s
+4,c4,ISIC_0055452.jpg,head/neck|70s
+1,c1,ISIC_0055453.jpg,anterior torso|40s
+1,c1,ISIC_0055459.jpg,lower extremity|50s
+1,c1,ISIC_0055460.jpg,anterior torso|70s
+1,c1,ISIC_0055462.jpg,anterior torso|70s
+0,c0,ISIC_0055463.jpg,anterior torso|70s
+1,c1,ISIC_0055464.jpg,head/neck|70s
+1,c1,ISIC_0055467.jpg,lower extremity|50s
+0,c0,ISIC_0055470.jpg,anterior torso|40s
+2,c2,ISIC_0055471.jpg,upper extremity|80+
+4,c4,ISIC_0055475.jpg,head/neck|70s
+0,c0,ISIC_0055477.jpg,upper extremity|80+
+0,c0,ISIC_0055484.jpg,anterior torso|40s
+0,c0,ISIC_0055486.jpg,anterior torso|40s
+0,c0,ISIC_0055488.jpg,lower extremity|30s
+1,c1,ISIC_0055492.jpg,head/neck|70s
+2,c2,ISIC_0055493.jpg,head/neck|70s
+1,c1,ISIC_0055496.jpg,upper extremity|50s
+1,c1,ISIC_0055498.jpg,upper extremity|70s
+0,c0,ISIC_0055507.jpg,anterior torso|40s
+0,c0,ISIC_0055524.jpg,anterior torso|40s
+1,c1,ISIC_0055526.jpg,head/neck|70s
+0,c0,ISIC_0055534.jpg,anterior torso|40s
+0,c0,ISIC_0055535.jpg,lower extremity|50s
+1,c1,ISIC_0055549.jpg,anterior torso|40s
+1,c1,ISIC_0055550.jpg,lower extremity|50s
+0,c0,ISIC_0055552.jpg,anterior torso|40s
+0,c0,ISIC_0055553.jpg,anterior torso|40s
+1,c1,ISIC_0055556.jpg,anterior torso|70s
+3,c3,ISIC_0055557.jpg,anterior torso|70s
+1,c1,ISIC_0055563.jpg,anterior torso|40s
+0,c0,ISIC_0055564.jpg,lower extremity|50s
+0,c0,ISIC_0055566.jpg,anterior torso|40s
+2,c2,ISIC_0055567.jpg,anterior torso|70s
+3,c3,ISIC_0055569.jpg,head/neck|70s
+6,c6,ISIC_0055571.jpg,lower extremity|30s
+0,c0,ISIC_0055592.jpg,anterior torso|40s
+2,c2,ISIC_0055600.jpg,head/neck|70s
+2,c2,ISIC_0055604.jpg,anterior torso|70s
+2,c2,ISIC_0055606.jpg,anterior torso|40s
+0,c0,ISIC_0055608.jpg,anterior torso|40s
+0,c0,ISIC_0055634.jpg,anterior torso|40s
+0,c0,ISIC_0055657.jpg,lower extremity|50s
+0,c0,ISIC_0055664.jpg,lower extremity|30s
+1,c1,ISIC_0055665.jpg,anterior torso|40s
+2,c2,ISIC_0055671.jpg,upper extremity|70s
+2,c2,ISIC_0055681.jpg,anterior torso|40s
+4,c4,ISIC_0055689.jpg,head/neck|70s
+0,c0,ISIC_0055697.jpg,lower extremity|50s
+1,c1,ISIC_0055701.jpg,anterior torso|70s
+2,c2,ISIC_0055703.jpg,upper extremity|70s
+0,c0,ISIC_0055711.jpg,lower extremity|30s
+0,c0,ISIC_0055715.jpg,lower extremity|30s
+2,c2,ISIC_0055716.jpg,anterior torso|70s
+2,c2,ISIC_0055721.jpg,upper extremity|80+
+0,c0,ISIC_0055723.jpg,anterior torso|40s
+4,c4,ISIC_0055724.jpg,upper extremity|80+
+2,c2,ISIC_0055735.jpg,head/neck|70s
+0,c0,ISIC_0055737.jpg,anterior torso|40s
+1,c1,ISIC_0055742.jpg,anterior torso|70s
+2,c2,ISIC_0055744.jpg,anterior torso|70s
+2,c2,ISIC_0055748.jpg,anterior torso|70s
+0,c0,ISIC_0055751.jpg,lower extremity|30s
+2,c2,ISIC_0055753.jpg,anterior torso|70s
+2,c2,ISIC_0055762.jpg,upper extremity|70s
+2,c2,ISIC_0055768.jpg,anterior torso|70s
+1,c1,ISIC_0055771.jpg,upper extremity|70s
+1,c1,ISIC_0055776.jpg,anterior torso|70s
+1,c1,ISIC_0055781.jpg,anterior torso|40s
+1,c1,ISIC_0055797.jpg,upper extremity|70s
+1,c1,ISIC_0055803.jpg,head/neck|70s
+5,c5,ISIC_0055815.jpg,head/neck|70s
+4,c4,ISIC_0055838.jpg,head/neck|70s
+1,c1,ISIC_0055841.jpg,upper extremity|80+
+4,c4,ISIC_0055844.jpg,upper extremity|50s
+2,c2,ISIC_0055850.jpg,anterior torso|70s
+0,c0,ISIC_0055860.jpg,lower extremity|30s
+1,c1,ISIC_0055862.jpg,anterior torso|40s
+0,c0,ISIC_0055868.jpg,lower extremity|50s
+1,c1,ISIC_0055887.jpg,anterior torso|40s
+2,c2,ISIC_0055891.jpg,head/neck|70s
+2,c2,ISIC_0055893.jpg,anterior torso|40s
+2,c2,ISIC_0055898.jpg,anterior torso|70s
+1,c1,ISIC_0055905.jpg,upper extremity|50s
+4,c4,ISIC_0055908.jpg,lower extremity|50s
+1,c1,ISIC_0055911.jpg,anterior torso|40s
+0,c0,ISIC_0055919.jpg,anterior torso|70s
+5,c5,ISIC_0055920.jpg,anterior torso|70s
+1,c1,ISIC_0055924.jpg,lower extremity|50s
+5,c5,ISIC_0055925.jpg,anterior torso|70s
+0,c0,ISIC_0055927.jpg,anterior torso|70s
+1,c1,ISIC_0055931.jpg,upper extremity|50s
+1,c1,ISIC_0055937.jpg,upper extremity|50s
+1,c1,ISIC_0055938.jpg,lower extremity|50s
+3,c3,ISIC_0055942.jpg,anterior torso|70s
+0,c0,ISIC_0055949.jpg,lower extremity|50s
+2,c2,ISIC_0055951.jpg,head/neck|70s
+1,c1,ISIC_0055954.jpg,head/neck|70s
+2,c2,ISIC_0055958.jpg,head/neck|70s
+2,c2,ISIC_0055968.jpg,anterior torso|70s
+0,c0,ISIC_0055970.jpg,upper extremity|50s
+3,c3,ISIC_0055973.jpg,anterior torso|70s
+4,c4,ISIC_0055977.jpg,head/neck|70s
+0,c0,ISIC_0055983.jpg,anterior torso|40s
+1,c1,ISIC_0055984.jpg,anterior torso|70s
+3,c3,ISIC_0055986.jpg,anterior torso|40s
+0,c0,ISIC_0055987.jpg,anterior torso|40s
+4,c4,ISIC_0055989.jpg,head/neck|70s
+0,c0,ISIC_0055994.jpg,lower extremity|30s
+4,c4,ISIC_0056004.jpg,head/neck|70s
+0,c0,ISIC_0056009.jpg,anterior torso|40s
+1,c1,ISIC_0056019.jpg,upper extremity|70s
+2,c2,ISIC_0056020.jpg,head/neck|70s
+0,c0,ISIC_0056022.jpg,anterior torso|40s
+2,c2,ISIC_0056027.jpg,head/neck|70s
+2,c2,ISIC_0056030.jpg,upper extremity|70s
+0,c0,ISIC_0056035.jpg,lower extremity|30s
+4,c4,ISIC_0056037.jpg,head/neck|70s
+2,c2,ISIC_0056042.jpg,anterior torso|70s
+1,c1,ISIC_0056047.jpg,upper extremity|50s
+1,c1,ISIC_0056063.jpg,anterior torso|40s
+0,c0,ISIC_0056064.jpg,anterior torso|40s
+4,c4,ISIC_0056071.jpg,anterior torso|70s
+2,c2,ISIC_0056088.jpg,anterior torso|70s
+1,c1,ISIC_0056092.jpg,lower extremity|50s
+2,c2,ISIC_0056095.jpg,anterior torso|40s
+2,c2,ISIC_0056099.jpg,anterior torso|70s
+4,c4,ISIC_0056101.jpg,head/neck|70s
+1,c1,ISIC_0056118.jpg,anterior torso|70s
+1,c1,ISIC_0056119.jpg,lower extremity|50s
+1,c1,ISIC_0056127.jpg,upper extremity|50s
+2,c2,ISIC_0056144.jpg,anterior torso|70s
+3,c3,ISIC_0056149.jpg,anterior torso|70s
+2,c2,ISIC_0056151.jpg,upper extremity|70s
+1,c1,ISIC_0056152.jpg,anterior torso|40s
+2,c2,ISIC_0056153.jpg,head/neck|70s
+1,c1,ISIC_0056156.jpg,anterior torso|70s
+1,c1,ISIC_0056164.jpg,upper extremity|70s
+2,c2,ISIC_0056172.jpg,head/neck|70s
+3,c3,ISIC_0056179.jpg,head/neck|70s
+1,c1,ISIC_0056185.jpg,head/neck|70s
+1,c1,ISIC_0056190.jpg,upper extremity|80+
+1,c1,ISIC_0056192.jpg,head/neck|70s
+0,c0,ISIC_0056196.jpg,anterior torso|70s
+1,c1,ISIC_0056202.jpg,anterior torso|70s
+0,c0,ISIC_0056207.jpg,lower extremity|50s
+5,c5,ISIC_0056212.jpg,upper extremity|70s
+2,c2,ISIC_0056220.jpg,anterior torso|70s
+0,c0,ISIC_0056222.jpg,anterior torso|40s
+3,c3,ISIC_0056231.jpg,head/neck|70s
+1,c1,ISIC_0056232.jpg,lower extremity|30s
+2,c2,ISIC_0056235.jpg,upper extremity|80+
+2,c2,ISIC_0056236.jpg,head/neck|70s
+3,c3,ISIC_0056241.jpg,anterior torso|70s
+0,c0,ISIC_0056250.jpg,anterior torso|70s
+0,c0,ISIC_0056257.jpg,lower extremity|30s
+4,c4,ISIC_0056273.jpg,upper extremity|80+
+0,c0,ISIC_0056276.jpg,anterior torso|40s
+6,c6,ISIC_0056280.jpg,lower extremity|50s
+2,c2,ISIC_0056291.jpg,lower extremity|50s
+1,c1,ISIC_0056292.jpg,upper extremity|70s
+1,c1,ISIC_0056298.jpg,anterior torso|40s
+6,c6,ISIC_0056307.jpg,anterior torso|40s
+0,c0,ISIC_0056313.jpg,lower extremity|50s
+2,c2,ISIC_0056317.jpg,upper extremity|70s
+1,c1,ISIC_0056319.jpg,lower extremity|50s
+2,c2,ISIC_0056321.jpg,anterior torso|40s
+0,c0,ISIC_0056340.jpg,lower extremity|30s
+0,c0,ISIC_0056342.jpg,anterior torso|40s
+0,c0,ISIC_0056351.jpg,lower extremity|50s
+0,c0,ISIC_0056356.jpg,anterior torso|40s
+2,c2,ISIC_0056374.jpg,anterior torso|70s
+1,c1,ISIC_0056403.jpg,upper extremity|70s
+1,c1,ISIC_0056409.jpg,upper extremity|50s
+0,c0,ISIC_0056418.jpg,anterior torso|40s
+4,c4,ISIC_0056421.jpg,head/neck|70s
+0,c0,ISIC_0056424.jpg,anterior torso|70s
+1,c1,ISIC_0056425.jpg,anterior torso|40s
+1,c1,ISIC_0056428.jpg,anterior torso|70s
+0,c0,ISIC_0056430.jpg,lower extremity|50s
+3,c3,ISIC_0056432.jpg,head/neck|70s
+4,c4,ISIC_0056437.jpg,head/neck|70s
+1,c1,ISIC_0056440.jpg,anterior torso|70s
+0,c0,ISIC_0056441.jpg,anterior torso|40s
+0,c0,ISIC_0056442.jpg,lower extremity|30s
+1,c1,ISIC_0056448.jpg,lower extremity|50s
+0,c0,ISIC_0056451.jpg,anterior torso|70s
+0,c0,ISIC_0056455.jpg,lower extremity|50s
+2,c2,ISIC_0056463.jpg,head/neck|70s
+0,c0,ISIC_0056468.jpg,upper extremity|50s
+0,c0,ISIC_0056470.jpg,lower extremity|50s
+0,c0,ISIC_0056480.jpg,lower extremity|50s
+1,c1,ISIC_0056483.jpg,anterior torso|40s
+0,c0,ISIC_0056490.jpg,anterior torso|40s
+5,c5,ISIC_0056493.jpg,lower extremity|50s
+1,c1,ISIC_0056501.jpg,anterior torso|40s
+2,c2,ISIC_0056503.jpg,upper extremity|70s
+0,c0,ISIC_0056506.jpg,anterior torso|40s
+1,c1,ISIC_0056511.jpg,lower extremity|50s
+0,c0,ISIC_0056512.jpg,lower extremity|50s
+4,c4,ISIC_0056520.jpg,head/neck|70s
+3,c3,ISIC_0056523.jpg,head/neck|70s
+4,c4,ISIC_0056529.jpg,upper extremity|70s
+3,c3,ISIC_0056530.jpg,anterior torso|70s
+0,c0,ISIC_0056534.jpg,anterior torso|40s
+0,c0,ISIC_0056541.jpg,lower extremity|30s
+0,c0,ISIC_0056544.jpg,head/neck|70s
+2,c2,ISIC_0056547.jpg,anterior torso|40s
+2,c2,ISIC_0056563.jpg,anterior torso|40s
+3,c3,ISIC_0056564.jpg,lower extremity|50s
+0,c0,ISIC_0056565.jpg,lower extremity|30s
+2,c2,ISIC_0056571.jpg,lower extremity|50s
+0,c0,ISIC_0056577.jpg,anterior torso|40s
+0,c0,ISIC_0056578.jpg,anterior torso|40s
+1,c1,ISIC_0056600.jpg,anterior torso|40s
+1,c1,ISIC_0056601.jpg,anterior torso|70s
+2,c2,ISIC_0056605.jpg,anterior torso|70s
+2,c2,ISIC_0056607.jpg,upper extremity|50s
+1,c1,ISIC_0056614.jpg,anterior torso|70s
+3,c3,ISIC_0056650.jpg,head/neck|70s
+0,c0,ISIC_0056651.jpg,lower extremity|30s
+1,c1,ISIC_0056677.jpg,anterior torso|70s
+0,c0,ISIC_0056682.jpg,anterior torso|40s
+0,c0,ISIC_0056690.jpg,anterior torso|40s
+1,c1,ISIC_0056692.jpg,anterior torso|40s
+2,c2,ISIC_0056696.jpg,head/neck|70s
+0,c0,ISIC_0056706.jpg,anterior torso|40s
+0,c0,ISIC_0056708.jpg,anterior torso|40s
+2,c2,ISIC_0056714.jpg,head/neck|70s
+1,c1,ISIC_0056721.jpg,head/neck|70s
+4,c4,ISIC_0056724.jpg,upper extremity|70s
+1,c1,ISIC_0056726.jpg,lower extremity|50s
+2,c2,ISIC_0056730.jpg,head/neck|70s
+0,c0,ISIC_0056733.jpg,lower extremity|50s
+0,c0,ISIC_0056743.jpg,anterior torso|40s
+4,c4,ISIC_0056745.jpg,head/neck|70s
+1,c1,ISIC_0056751.jpg,head/neck|70s
+3,c3,ISIC_0056759.jpg,anterior torso|40s
+0,c0,ISIC_0056761.jpg,anterior torso|40s
+0,c0,ISIC_0056765.jpg,anterior torso|40s
+2,c2,ISIC_0056766.jpg,head/neck|70s
+3,c3,ISIC_0056769.jpg,lower extremity|50s
+2,c2,ISIC_0056780.jpg,head/neck|70s
+0,c0,ISIC_0056784.jpg,anterior torso|40s
+1,c1,ISIC_0056788.jpg,upper extremity|50s
+1,c1,ISIC_0056799.jpg,anterior torso|40s
+0,c0,ISIC_0056809.jpg,anterior torso|40s
+0,c0,ISIC_0056811.jpg,lower extremity|30s
+0,c0,ISIC_0056812.jpg,lower extremity|30s
+3,c3,ISIC_0056818.jpg,anterior torso|70s
+1,c1,ISIC_0056819.jpg,lower extremity|50s
+5,c5,ISIC_0056821.jpg,anterior torso|70s
+2,c2,ISIC_0056824.jpg,upper extremity|70s
+0,c0,ISIC_0056827.jpg,anterior torso|40s
+0,c0,ISIC_0056828.jpg,lower extremity|50s
+0,c0,ISIC_0056836.jpg,lower extremity|30s
+1,c1,ISIC_0056839.jpg,head/neck|70s
+2,c2,ISIC_0056843.jpg,head/neck|70s
+0,c0,ISIC_0056846.jpg,anterior torso|40s
+0,c0,ISIC_0056861.jpg,lower extremity|30s
+1,c1,ISIC_0056863.jpg,anterior torso|40s
+2,c2,ISIC_0056866.jpg,head/neck|70s
+0,c0,ISIC_0056869.jpg,lower extremity|50s
+2,c2,ISIC_0056870.jpg,head/neck|70s
+2,c2,ISIC_0056875.jpg,head/neck|70s
+0,c0,ISIC_0056880.jpg,anterior torso|40s
+2,c2,ISIC_0056887.jpg,head/neck|70s
+2,c2,ISIC_0056889.jpg,head/neck|70s
+2,c2,ISIC_0056899.jpg,upper extremity|70s
+3,c3,ISIC_0056903.jpg,anterior torso|70s
+4,c4,ISIC_0056905.jpg,head/neck|70s
+0,c0,ISIC_0056907.jpg,anterior torso|40s
+2,c2,ISIC_0056917.jpg,lower extremity|50s
+2,c2,ISIC_0056918.jpg,head/neck|70s
+1,c1,ISIC_0056922.jpg,upper extremity|70s
+0,c0,ISIC_0056923.jpg,anterior torso|40s
+5,c5,ISIC_0056927.jpg,lower extremity|50s
+7,c7,ISIC_0056928.jpg,head/neck|70s
+2,c2,ISIC_0056933.jpg,head/neck|70s
+3,c3,ISIC_0056934.jpg,upper extremity|70s
+1,c1,ISIC_0056937.jpg,anterior torso|70s
+1,c1,ISIC_0056938.jpg,head/neck|70s
+2,c2,ISIC_0056942.jpg,anterior torso|70s
+0,c0,ISIC_0056945.jpg,anterior torso|40s
+2,c2,ISIC_0056963.jpg,head/neck|70s
+1,c1,ISIC_0056967.jpg,anterior torso|40s
+1,c1,ISIC_0056969.jpg,anterior torso|70s
+1,c1,ISIC_0056979.jpg,upper extremity|50s
+0,c0,ISIC_0056980.jpg,anterior torso|40s
+1,c1,ISIC_0056984.jpg,anterior torso|40s
+2,c2,ISIC_0056995.jpg,upper extremity|70s
+1,c1,ISIC_0057019.jpg,anterior torso|70s
+1,c1,ISIC_0057025.jpg,head/neck|70s
+0,c0,ISIC_0057039.jpg,anterior torso|40s
+4,c4,ISIC_0057040.jpg,upper extremity|50s
+5,c5,ISIC_0057041.jpg,anterior torso|70s
+4,c4,ISIC_0057042.jpg,head/neck|70s
+5,c5,ISIC_0057043.jpg,upper extremity|80+
+1,c1,ISIC_0057044.jpg,anterior torso|40s
+0,c0,ISIC_0057047.jpg,lower extremity|50s
+4,c4,ISIC_0057052.jpg,head/neck|70s
+2,c2,ISIC_0057054.jpg,upper extremity|70s
+2,c2,ISIC_0057056.jpg,head/neck|70s
+2,c2,ISIC_0057057.jpg,anterior torso|70s
+2,c2,ISIC_0057058.jpg,anterior torso|70s
+1,c1,ISIC_0057061.jpg,head/neck|70s
+3,c3,ISIC_0057063.jpg,head/neck|70s
+1,c1,ISIC_0057089.jpg,anterior torso|40s
+2,c2,ISIC_0057090.jpg,anterior torso|70s
+0,c0,ISIC_0057100.jpg,anterior torso|40s
+2,c2,ISIC_0057101.jpg,upper extremity|80+
+0,c0,ISIC_0057102.jpg,anterior torso|40s
+2,c2,ISIC_0057104.jpg,anterior torso|70s
+0,c0,ISIC_0057106.jpg,anterior torso|40s
+4,c4,ISIC_0057110.jpg,head/neck|70s
+2,c2,ISIC_0057112.jpg,anterior torso|40s
+2,c2,ISIC_0057117.jpg,upper extremity|80+
+4,c4,ISIC_0057126.jpg,head/neck|70s
+0,c0,ISIC_0057140.jpg,upper extremity|50s
+4,c4,ISIC_0057145.jpg,head/neck|70s
+0,c0,ISIC_0057150.jpg,anterior torso|40s
+1,c1,ISIC_0057164.jpg,lower extremity|50s
+2,c2,ISIC_0057168.jpg,head/neck|70s
+2,c2,ISIC_0057170.jpg,anterior torso|70s
+1,c1,ISIC_0057172.jpg,anterior torso|70s
+2,c2,ISIC_0057175.jpg,anterior torso|70s
+0,c0,ISIC_0057178.jpg,anterior torso|40s
+0,c0,ISIC_0057183.jpg,upper extremity|50s
+1,c1,ISIC_0057196.jpg,upper extremity|70s
+5,c5,ISIC_0057198.jpg,anterior torso|70s
+1,c1,ISIC_0057199.jpg,upper extremity|70s
+0,c0,ISIC_0057215.jpg,anterior torso|40s
+1,c1,ISIC_0057218.jpg,anterior torso|40s
+4,c4,ISIC_0057225.jpg,head/neck|70s
+6,c6,ISIC_0057236.jpg,anterior torso|40s
+2,c2,ISIC_0057242.jpg,lower extremity|50s
+1,c1,ISIC_0057251.jpg,lower extremity|50s
+0,c0,ISIC_0057254.jpg,anterior torso|40s
+0,c0,ISIC_0057256.jpg,lower extremity|30s
+2,c2,ISIC_0057263.jpg,lower extremity|50s
+2,c2,ISIC_0057273.jpg,head/neck|70s
+0,c0,ISIC_0057277.jpg,anterior torso|40s
+0,c0,ISIC_0057283.jpg,anterior torso|40s
+1,c1,ISIC_0057286.jpg,upper extremity|50s
+0,c0,ISIC_0057287.jpg,anterior torso|40s
+3,c3,ISIC_0057289.jpg,upper extremity|50s
+3,c3,ISIC_0057293.jpg,anterior torso|70s
+7,c7,ISIC_0057295.jpg,anterior torso|40s
+0,c0,ISIC_0057296.jpg,anterior torso|40s
+2,c2,ISIC_0057308.jpg,head/neck|70s
+1,c1,ISIC_0057313.jpg,upper extremity|50s
+2,c2,ISIC_0057318.jpg,upper extremity|80+
+3,c3,ISIC_0057329.jpg,upper extremity|70s
+0,c0,ISIC_0057340.jpg,upper extremity|50s
+1,c1,ISIC_0057344.jpg,anterior torso|40s
+5,c5,ISIC_0057353.jpg,anterior torso|70s
+4,c4,ISIC_0057357.jpg,head/neck|70s
+0,c0,ISIC_0057364.jpg,lower extremity|30s
+1,c1,ISIC_0057370.jpg,anterior torso|40s
+1,c1,ISIC_0057371.jpg,anterior torso|40s
+2,c2,ISIC_0057373.jpg,upper extremity|70s
+0,c0,ISIC_0057375.jpg,anterior torso|40s
+0,c0,ISIC_0057377.jpg,anterior torso|40s
+2,c2,ISIC_0057380.jpg,upper extremity|70s
+2,c2,ISIC_0057384.jpg,upper extremity|80+
+0,c0,ISIC_0057386.jpg,anterior torso|70s
+4,c4,ISIC_0057387.jpg,head/neck|70s
+2,c2,ISIC_0057393.jpg,upper extremity|70s
+2,c2,ISIC_0057399.jpg,upper extremity|80+
+0,c0,ISIC_0057405.jpg,anterior torso|40s
+1,c1,ISIC_0057406.jpg,upper extremity|50s
+1,c1,ISIC_0057408.jpg,anterior torso|70s
+5,c5,ISIC_0057415.jpg,lower extremity|30s
+0,c0,ISIC_0057420.jpg,lower extremity|50s
+5,c5,ISIC_0057421.jpg,head/neck|70s
+2,c2,ISIC_0057427.jpg,anterior torso|70s
+4,c4,ISIC_0057431.jpg,upper extremity|80+
+1,c1,ISIC_0057436.jpg,anterior torso|70s
+4,c4,ISIC_0057437.jpg,head/neck|70s
+2,c2,ISIC_0057439.jpg,anterior torso|70s
+2,c2,ISIC_0057442.jpg,head/neck|70s
+0,c0,ISIC_0057443.jpg,anterior torso|40s
+2,c2,ISIC_0057445.jpg,anterior torso|70s
+4,c4,ISIC_0057449.jpg,head/neck|70s
+1,c1,ISIC_0057450.jpg,lower extremity|50s
+0,c0,ISIC_0057451.jpg,anterior torso|70s
+0,c0,ISIC_0057454.jpg,lower extremity|30s
+4,c4,ISIC_0057455.jpg,upper extremity|50s
+3,c3,ISIC_0057463.jpg,head/neck|70s
+0,c0,ISIC_0057464.jpg,anterior torso|40s
+0,c0,ISIC_0057480.jpg,anterior torso|40s
+0,c0,ISIC_0057481.jpg,upper extremity|50s
+0,c0,ISIC_0057484.jpg,anterior torso|40s
+0,c0,ISIC_0057489.jpg,anterior torso|40s
+0,c0,ISIC_0057506.jpg,upper extremity|50s
+2,c2,ISIC_0057511.jpg,head/neck|70s
+0,c0,ISIC_0057516.jpg,anterior torso|40s
+0,c0,ISIC_0057529.jpg,lower extremity|30s
+1,c1,ISIC_0057531.jpg,lower extremity|50s
+1,c1,ISIC_0057534.jpg,lower extremity|30s
+1,c1,ISIC_0057558.jpg,upper extremity|70s
+0,c0,ISIC_0057562.jpg,anterior torso|40s
+0,c0,ISIC_0057567.jpg,anterior torso|40s
+2,c2,ISIC_0057569.jpg,lower extremity|50s
+2,c2,ISIC_0057574.jpg,head/neck|70s
+3,c3,ISIC_0057580.jpg,anterior torso|70s
+0,c0,ISIC_0057589.jpg,anterior torso|40s
+2,c2,ISIC_0057592.jpg,anterior torso|70s
+1,c1,ISIC_0057593.jpg,anterior torso|70s
+2,c2,ISIC_0057596.jpg,anterior torso|40s
+2,c2,ISIC_0057604.jpg,anterior torso|70s
+5,c5,ISIC_0057610.jpg,anterior torso|70s
+2,c2,ISIC_0057627.jpg,head/neck|70s
+1,c1,ISIC_0057631.jpg,lower extremity|30s
+1,c1,ISIC_0057634.jpg,head/neck|70s
+3,c3,ISIC_0057636.jpg,anterior torso|70s
+0,c0,ISIC_0057639.jpg,upper extremity|50s
+0,c0,ISIC_0057651.jpg,lower extremity|50s
+0,c0,ISIC_0057652.jpg,anterior torso|40s
+2,c2,ISIC_0057654.jpg,head/neck|70s
+1,c1,ISIC_0057655.jpg,upper extremity|80+
+1,c1,ISIC_0057656.jpg,anterior torso|70s
+2,c2,ISIC_0057657.jpg,anterior torso|40s
+2,c2,ISIC_0057658.jpg,anterior torso|70s
+4,c4,ISIC_0057679.jpg,head/neck|70s
+0,c0,ISIC_0057690.jpg,anterior torso|40s
+0,c0,ISIC_0057694.jpg,lower extremity|30s
+0,c0,ISIC_0057701.jpg,anterior torso|40s
+0,c0,ISIC_0057710.jpg,head/neck|70s
+0,c0,ISIC_0057713.jpg,lower extremity|50s
+1,c1,ISIC_0057716.jpg,anterior torso|40s
+0,c0,ISIC_0057718.jpg,anterior torso|40s
+1,c1,ISIC_0057725.jpg,lower extremity|50s
+1,c1,ISIC_0057729.jpg,lower extremity|50s
+5,c5,ISIC_0057730.jpg,head/neck|70s
+6,c6,ISIC_0057745.jpg,upper extremity|50s
+1,c1,ISIC_0057747.jpg,upper extremity|80+
+2,c2,ISIC_0057748.jpg,head/neck|70s
+2,c2,ISIC_0057751.jpg,head/neck|70s
+0,c0,ISIC_0057754.jpg,anterior torso|40s
+4,c4,ISIC_0057778.jpg,head/neck|70s
+0,c0,ISIC_0057785.jpg,upper extremity|70s
+0,c0,ISIC_0057793.jpg,anterior torso|40s
+3,c3,ISIC_0057794.jpg,head/neck|70s
+3,c3,ISIC_0057798.jpg,upper extremity|70s
+0,c0,ISIC_0057810.jpg,upper extremity|50s
+0,c0,ISIC_0057812.jpg,lower extremity|30s
+0,c0,ISIC_0057814.jpg,lower extremity|50s
+0,c0,ISIC_0057816.jpg,anterior torso|40s
+0,c0,ISIC_0057818.jpg,anterior torso|70s
+2,c2,ISIC_0057820.jpg,upper extremity|80+
+1,c1,ISIC_0057821.jpg,head/neck|70s
+2,c2,ISIC_0057827.jpg,anterior torso|70s
+0,c0,ISIC_0057829.jpg,lower extremity|30s
+0,c0,ISIC_0057854.jpg,anterior torso|40s
+0,c0,ISIC_0057857.jpg,upper extremity|50s
+6,c6,ISIC_0057868.jpg,lower extremity|30s
+1,c1,ISIC_0057870.jpg,head/neck|70s
+3,c3,ISIC_0057880.jpg,lower extremity|50s
+0,c0,ISIC_0057886.jpg,lower extremity|30s
+0,c0,ISIC_0057887.jpg,anterior torso|40s
+1,c1,ISIC_0057889.jpg,head/neck|70s
+0,c0,ISIC_0057892.jpg,lower extremity|30s
+2,c2,ISIC_0057893.jpg,upper extremity|70s
+0,c0,ISIC_0057897.jpg,upper extremity|70s
+2,c2,ISIC_0057905.jpg,head/neck|70s
+2,c2,ISIC_0057910.jpg,anterior torso|70s
+1,c1,ISIC_0057913.jpg,lower extremity|30s
+2,c2,ISIC_0057915.jpg,anterior torso|70s
+2,c2,ISIC_0057916.jpg,head/neck|70s
+0,c0,ISIC_0057923.jpg,anterior torso|40s
+5,c5,ISIC_0057930.jpg,head/neck|70s
+2,c2,ISIC_0057937.jpg,anterior torso|70s
+0,c0,ISIC_0057940.jpg,anterior torso|40s
+0,c0,ISIC_0057950.jpg,lower extremity|30s
+1,c1,ISIC_0057960.jpg,lower extremity|50s
+0,c0,ISIC_0057969.jpg,anterior torso|70s
+1,c1,ISIC_0057974.jpg,anterior torso|40s
+2,c2,ISIC_0057979.jpg,lower extremity|50s
+1,c1,ISIC_0057980.jpg,head/neck|70s
+0,c0,ISIC_0057985.jpg,anterior torso|40s
+3,c3,ISIC_0057990.jpg,head/neck|70s
+1,c1,ISIC_0057997.jpg,anterior torso|40s
+1,c1,ISIC_0058022.jpg,head/neck|70s
+1,c1,ISIC_0058024.jpg,upper extremity|70s
+6,c6,ISIC_0058032.jpg,upper extremity|50s
+3,c3,ISIC_0058041.jpg,upper extremity|50s
+2,c2,ISIC_0058043.jpg,head/neck|70s
+1,c1,ISIC_0058046.jpg,anterior torso|40s
+0,c0,ISIC_0058049.jpg,anterior torso|40s
+5,c5,ISIC_0058051.jpg,head/neck|70s
+0,c0,ISIC_0058054.jpg,lower extremity|30s
+0,c0,ISIC_0058057.jpg,anterior torso|40s
+1,c1,ISIC_0058063.jpg,upper extremity|70s
+5,c5,ISIC_0058074.jpg,anterior torso|70s
+0,c0,ISIC_0058078.jpg,anterior torso|40s
+0,c0,ISIC_0058110.jpg,anterior torso|40s
+3,c3,ISIC_0058111.jpg,upper extremity|70s
+1,c1,ISIC_0058118.jpg,anterior torso|70s
+2,c2,ISIC_0058130.jpg,anterior torso|40s
+1,c1,ISIC_0058135.jpg,lower extremity|50s
+0,c0,ISIC_0058141.jpg,anterior torso|40s
+0,c0,ISIC_0058146.jpg,anterior torso|40s
+2,c2,ISIC_0058150.jpg,anterior torso|40s
+1,c1,ISIC_0058151.jpg,anterior torso|40s
+0,c0,ISIC_0058157.jpg,lower extremity|30s
+3,c3,ISIC_0058160.jpg,anterior torso|70s
+4,c4,ISIC_0058163.jpg,upper extremity|70s
+1,c1,ISIC_0058164.jpg,anterior torso|70s
+1,c1,ISIC_0058168.jpg,upper extremity|50s
+1,c1,ISIC_0058177.jpg,lower extremity|50s
+0,c0,ISIC_0058183.jpg,anterior torso|40s
+0,c0,ISIC_0058184.jpg,anterior torso|40s
+5,c5,ISIC_0058185.jpg,lower extremity|50s
+2,c2,ISIC_0058188.jpg,head/neck|70s
+0,c0,ISIC_0058191.jpg,anterior torso|40s
+2,c2,ISIC_0058193.jpg,anterior torso|40s
+2,c2,ISIC_0058202.jpg,head/neck|70s
+0,c0,ISIC_0058215.jpg,lower extremity|50s
+1,c1,ISIC_0058224.jpg,anterior torso|70s
+0,c0,ISIC_0058231.jpg,lower extremity|30s
+2,c2,ISIC_0058240.jpg,head/neck|70s
+1,c1,ISIC_0058249.jpg,upper extremity|50s
+1,c1,ISIC_0058256.jpg,head/neck|70s
+2,c2,ISIC_0058257.jpg,upper extremity|80+
+3,c3,ISIC_0058261.jpg,upper extremity|70s
+2,c2,ISIC_0058264.jpg,lower extremity|50s
+0,c0,ISIC_0058272.jpg,anterior torso|40s
+4,c4,ISIC_0058273.jpg,head/neck|70s
+3,c3,ISIC_0058293.jpg,head/neck|70s
+3,c3,ISIC_0058299.jpg,anterior torso|70s
+7,c7,ISIC_0058302.jpg,anterior torso|40s
+5,c5,ISIC_0058305.jpg,head/neck|70s
+2,c2,ISIC_0058309.jpg,lower extremity|30s
+2,c2,ISIC_0058310.jpg,head/neck|70s
+3,c3,ISIC_0058317.jpg,upper extremity|50s
+4,c4,ISIC_0058320.jpg,upper extremity|80+
+1,c1,ISIC_0058321.jpg,anterior torso|40s
+4,c4,ISIC_0058324.jpg,anterior torso|70s
+1,c1,ISIC_0058331.jpg,anterior torso|40s
+2,c2,ISIC_0058339.jpg,upper extremity|70s
+1,c1,ISIC_0058341.jpg,upper extremity|80+
+2,c2,ISIC_0058342.jpg,anterior torso|70s
+1,c1,ISIC_0058344.jpg,upper extremity|70s
+1,c1,ISIC_0058346.jpg,lower extremity|50s
+2,c2,ISIC_0058348.jpg,head/neck|70s
+2,c2,ISIC_0058349.jpg,head/neck|70s
+0,c0,ISIC_0058353.jpg,anterior torso|40s
+0,c0,ISIC_0058360.jpg,lower extremity|30s
+1,c1,ISIC_0058362.jpg,lower extremity|50s
+1,c1,ISIC_0058368.jpg,lower extremity|50s
+0,c0,ISIC_0058381.jpg,anterior torso|40s
+1,c1,ISIC_0058383.jpg,anterior torso|70s
+1,c1,ISIC_0058391.jpg,upper extremity|70s
+2,c2,ISIC_0058393.jpg,upper extremity|70s
+3,c3,ISIC_0058400.jpg,head/neck|70s
+1,c1,ISIC_0058408.jpg,lower extremity|30s
+2,c2,ISIC_0058410.jpg,anterior torso|40s
+2,c2,ISIC_0058420.jpg,anterior torso|70s
+4,c4,ISIC_0058427.jpg,upper extremity|70s
+1,c1,ISIC_0058428.jpg,anterior torso|40s
+1,c1,ISIC_0058432.jpg,anterior torso|40s
+2,c2,ISIC_0058434.jpg,head/neck|70s
+1,c1,ISIC_0058439.jpg,anterior torso|40s
+0,c0,ISIC_0058446.jpg,anterior torso|40s
+1,c1,ISIC_0058458.jpg,upper extremity|70s
+4,c4,ISIC_0058459.jpg,head/neck|70s
+0,c0,ISIC_0058464.jpg,anterior torso|40s
+2,c2,ISIC_0058466.jpg,anterior torso|40s
+2,c2,ISIC_0058468.jpg,lower extremity|50s
+2,c2,ISIC_0058476.jpg,upper extremity|70s
+3,c3,ISIC_0058478.jpg,lower extremity|50s
+2,c2,ISIC_0058483.jpg,head/neck|70s
+0,c0,ISIC_0058486.jpg,anterior torso|40s
+1,c1,ISIC_0058508.jpg,head/neck|70s
+2,c2,ISIC_0058514.jpg,head/neck|70s
+0,c0,ISIC_0058517.jpg,anterior torso|40s
+0,c0,ISIC_0058530.jpg,lower extremity|30s
+0,c0,ISIC_0058531.jpg,anterior torso|40s
+3,c3,ISIC_0058532.jpg,anterior torso|40s
+0,c0,ISIC_0058533.jpg,anterior torso|40s
+0,c0,ISIC_0058534.jpg,anterior torso|40s
+2,c2,ISIC_0058539.jpg,upper extremity|70s
+1,c1,ISIC_0058544.jpg,anterior torso|70s
+2,c2,ISIC_0058549.jpg,upper extremity|70s
+2,c2,ISIC_0058553.jpg,upper extremity|70s
+0,c0,ISIC_0058561.jpg,anterior torso|40s
+6,c6,ISIC_0058565.jpg,upper extremity|50s
+2,c2,ISIC_0058573.jpg,head/neck|70s
+2,c2,ISIC_0058576.jpg,anterior torso|70s
+0,c0,ISIC_0058586.jpg,lower extremity|50s
+3,c3,ISIC_0058589.jpg,anterior torso|40s
+4,c4,ISIC_0058593.jpg,head/neck|70s
+1,c1,ISIC_0058599.jpg,anterior torso|40s
+2,c2,ISIC_0058602.jpg,head/neck|70s
+1,c1,ISIC_0058607.jpg,anterior torso|70s
+1,c1,ISIC_0058608.jpg,lower extremity|50s
+1,c1,ISIC_0058625.jpg,anterior torso|40s
+0,c0,ISIC_0058627.jpg,anterior torso|40s
+5,c5,ISIC_0058636.jpg,anterior torso|70s
+4,c4,ISIC_0058639.jpg,head/neck|70s
+4,c4,ISIC_0058640.jpg,upper extremity|80+
+0,c0,ISIC_0058642.jpg,anterior torso|40s
+1,c1,ISIC_0058645.jpg,anterior torso|40s
+1,c1,ISIC_0058647.jpg,anterior torso|70s
+1,c1,ISIC_0058658.jpg,upper extremity|70s
+1,c1,ISIC_0058660.jpg,lower extremity|50s
+2,c2,ISIC_0058662.jpg,head/neck|70s
+6,c6,ISIC_0058673.jpg,anterior torso|40s
+0,c0,ISIC_0058674.jpg,lower extremity|30s
+0,c0,ISIC_0058686.jpg,anterior torso|40s
+2,c2,ISIC_0058698.jpg,head/neck|70s
+2,c2,ISIC_0058703.jpg,head/neck|70s
+2,c2,ISIC_0058711.jpg,anterior torso|70s
+0,c0,ISIC_0058715.jpg,anterior torso|40s
+3,c3,ISIC_0058717.jpg,anterior torso|40s
+0,c0,ISIC_0058719.jpg,anterior torso|40s
+1,c1,ISIC_0058724.jpg,lower extremity|50s
+0,c0,ISIC_0058731.jpg,lower extremity|50s
+2,c2,ISIC_0058735.jpg,head/neck|70s
+0,c0,ISIC_0058736.jpg,anterior torso|40s
+5,c5,ISIC_0058741.jpg,head/neck|70s
+2,c2,ISIC_0058744.jpg,upper extremity|50s
+0,c0,ISIC_0058746.jpg,lower extremity|30s
+2,c2,ISIC_0058751.jpg,anterior torso|70s
+4,c4,ISIC_0058762.jpg,anterior torso|70s
+1,c1,ISIC_0058763.jpg,upper extremity|70s
+0,c0,ISIC_0058764.jpg,anterior torso|40s
+2,c2,ISIC_0058766.jpg,anterior torso|40s
+4,c4,ISIC_0058769.jpg,upper extremity|80+
+0,c0,ISIC_0058772.jpg,lower extremity|30s
+3,c3,ISIC_0058785.jpg,anterior torso|70s
+1,c1,ISIC_0058791.jpg,anterior torso|70s
+1,c1,ISIC_0058792.jpg,anterior torso|40s
+0,c0,ISIC_0058799.jpg,lower extremity|50s
+0,c0,ISIC_0058802.jpg,anterior torso|40s
+0,c0,ISIC_0058803.jpg,upper extremity|50s
+2,c2,ISIC_0058806.jpg,upper extremity|80+
+0,c0,ISIC_0058812.jpg,lower extremity|30s
+0,c0,ISIC_0058814.jpg,anterior torso|40s
+3,c3,ISIC_0058815.jpg,anterior torso|40s
+0,c0,ISIC_0058824.jpg,anterior torso|40s
+0,c0,ISIC_0058828.jpg,anterior torso|40s
+0,c0,ISIC_0058835.jpg,anterior torso|40s
+1,c1,ISIC_0058858.jpg,anterior torso|70s
+4,c4,ISIC_0058864.jpg,head/neck|70s
+2,c2,ISIC_0058868.jpg,head/neck|70s
+0,c0,ISIC_0058871.jpg,anterior torso|40s
+1,c1,ISIC_0058877.jpg,anterior torso|70s
+1,c1,ISIC_0058880.jpg,lower extremity|50s
+2,c2,ISIC_0058883.jpg,upper extremity|70s
+3,c3,ISIC_0058888.jpg,anterior torso|70s
+0,c0,ISIC_0058889.jpg,anterior torso|70s
+4,c4,ISIC_0058890.jpg,head/neck|70s
+0,c0,ISIC_0058891.jpg,anterior torso|70s
+1,c1,ISIC_0058910.jpg,lower extremity|50s
+1,c1,ISIC_0058926.jpg,anterior torso|40s
+0,c0,ISIC_0058930.jpg,anterior torso|40s
+5,c5,ISIC_0058949.jpg,head/neck|70s
+4,c4,ISIC_0058951.jpg,lower extremity|50s
+0,c0,ISIC_0058952.jpg,anterior torso|70s
+2,c2,ISIC_0058964.jpg,upper extremity|70s
+2,c2,ISIC_0058966.jpg,head/neck|70s
+4,c4,ISIC_0058971.jpg,head/neck|70s
+5,c5,ISIC_0058972.jpg,anterior torso|70s
+2,c2,ISIC_0058978.jpg,upper extremity|50s
+0,c0,ISIC_0058979.jpg,anterior torso|40s
+2,c2,ISIC_0058991.jpg,lower extremity|50s
+2,c2,ISIC_0058996.jpg,upper extremity|70s
+2,c2,ISIC_0058997.jpg,upper extremity|80+
+1,c1,ISIC_0058999.jpg,upper extremity|70s
+2,c2,ISIC_0059006.jpg,anterior torso|40s
+2,c2,ISIC_0059009.jpg,upper extremity|70s
+3,c3,ISIC_0059011.jpg,head/neck|70s
+2,c2,ISIC_0059012.jpg,upper extremity|50s
+4,c4,ISIC_0059014.jpg,head/neck|70s
+2,c2,ISIC_0059017.jpg,anterior torso|40s
+1,c1,ISIC_0059029.jpg,lower extremity|30s
+4,c4,ISIC_0059032.jpg,head/neck|70s
+1,c1,ISIC_0059037.jpg,anterior torso|70s
+0,c0,ISIC_0059044.jpg,anterior torso|40s
+0,c0,ISIC_0059045.jpg,anterior torso|40s
+0,c0,ISIC_0059047.jpg,upper extremity|50s
+3,c3,ISIC_0059049.jpg,head/neck|70s
+1,c1,ISIC_0059052.jpg,anterior torso|70s
+3,c3,ISIC_0059053.jpg,head/neck|70s
+4,c4,ISIC_0059058.jpg,lower extremity|50s
+2,c2,ISIC_0059063.jpg,anterior torso|70s
+0,c0,ISIC_0059068.jpg,upper extremity|70s
+0,c0,ISIC_0059072.jpg,anterior torso|40s
+1,c1,ISIC_0059076.jpg,upper extremity|50s
+4,c4,ISIC_0059087.jpg,upper extremity|50s
+5,c5,ISIC_0059091.jpg,upper extremity|70s
+1,c1,ISIC_0059092.jpg,lower extremity|50s
+1,c1,ISIC_0059093.jpg,anterior torso|70s
+2,c2,ISIC_0059094.jpg,anterior torso|70s
+0,c0,ISIC_0059095.jpg,upper extremity|50s
+1,c1,ISIC_0059104.jpg,head/neck|70s
+2,c2,ISIC_0059106.jpg,head/neck|70s
+4,c4,ISIC_0059108.jpg,anterior torso|70s
+3,c3,ISIC_0059109.jpg,lower extremity|50s
+2,c2,ISIC_0059111.jpg,anterior torso|40s
+2,c2,ISIC_0059113.jpg,head/neck|70s
+3,c3,ISIC_0059118.jpg,anterior torso|70s
+0,c0,ISIC_0059122.jpg,upper extremity|70s
+2,c2,ISIC_0059135.jpg,anterior torso|70s
+0,c0,ISIC_0059136.jpg,anterior torso|40s
+4,c4,ISIC_0059139.jpg,head/neck|70s
+1,c1,ISIC_0059140.jpg,anterior torso|70s
+1,c1,ISIC_0059141.jpg,anterior torso|40s
+4,c4,ISIC_0059146.jpg,head/neck|70s
+2,c2,ISIC_0059149.jpg,upper extremity|80+
+5,c5,ISIC_0059152.jpg,head/neck|70s
+3,c3,ISIC_0059155.jpg,lower extremity|30s
+2,c2,ISIC_0059159.jpg,upper extremity|80+
+1,c1,ISIC_0059165.jpg,lower extremity|30s
+1,c1,ISIC_0059170.jpg,anterior torso|70s
+2,c2,ISIC_0059180.jpg,upper extremity|80+
+0,c0,ISIC_0059183.jpg,lower extremity|30s
+3,c3,ISIC_0059192.jpg,lower extremity|50s
+2,c2,ISIC_0059200.jpg,head/neck|70s
+0,c0,ISIC_0059207.jpg,lower extremity|50s
+2,c2,ISIC_0059213.jpg,upper extremity|80+
+1,c1,ISIC_0059218.jpg,upper extremity|70s
+0,c0,ISIC_0059239.jpg,anterior torso|40s
+3,c3,ISIC_0059242.jpg,anterior torso|70s
+2,c2,ISIC_0059243.jpg,anterior torso|70s
+0,c0,ISIC_0059245.jpg,anterior torso|40s
+0,c0,ISIC_0059252.jpg,anterior torso|40s
+2,c2,ISIC_0059254.jpg,anterior torso|70s
+1,c1,ISIC_0059264.jpg,head/neck|70s
+6,c6,ISIC_0059265.jpg,upper extremity|80+
+0,c0,ISIC_0059266.jpg,anterior torso|40s
+2,c2,ISIC_0059275.jpg,upper extremity|50s
+5,c5,ISIC_0059277.jpg,lower extremity|50s
+0,c0,ISIC_0059308.jpg,anterior torso|40s
+1,c1,ISIC_0059314.jpg,anterior torso|70s
+1,c1,ISIC_0059318.jpg,lower extremity|30s
+2,c2,ISIC_0059320.jpg,anterior torso|70s
+0,c0,ISIC_0059326.jpg,anterior torso|40s
+2,c2,ISIC_0059329.jpg,head/neck|70s
+1,c1,ISIC_0059330.jpg,upper extremity|50s
+1,c1,ISIC_0059343.jpg,anterior torso|70s
+1,c1,ISIC_0059349.jpg,anterior torso|70s
+0,c0,ISIC_0059352.jpg,anterior torso|40s
+1,c1,ISIC_0059361.jpg,anterior torso|70s
+1,c1,ISIC_0059362.jpg,lower extremity|30s
+0,c0,ISIC_0059367.jpg,anterior torso|40s
+0,c0,ISIC_0059368.jpg,upper extremity|50s
+0,c0,ISIC_0059379.jpg,anterior torso|40s
+3,c3,ISIC_0059381.jpg,head/neck|70s
+1,c1,ISIC_0059387.jpg,head/neck|70s
+2,c2,ISIC_0059388.jpg,upper extremity|80+
+0,c0,ISIC_0059390.jpg,lower extremity|30s
+2,c2,ISIC_0059393.jpg,head/neck|70s
+0,c0,ISIC_0059399.jpg,anterior torso|40s
+5,c5,ISIC_0059403.jpg,lower extremity|50s
+0,c0,ISIC_0059419.jpg,lower extremity|50s
+1,c1,ISIC_0059420.jpg,head/neck|70s
+1,c1,ISIC_0059421.jpg,anterior torso|40s
+1,c1,ISIC_0059424.jpg,lower extremity|50s
+0,c0,ISIC_0059429.jpg,anterior torso|40s
+1,c1,ISIC_0059435.jpg,lower extremity|30s
+0,c0,ISIC_0059438.jpg,anterior torso|40s
+0,c0,ISIC_0059439.jpg,anterior torso|40s
+1,c1,ISIC_0059440.jpg,anterior torso|40s
+0,c0,ISIC_0059441.jpg,anterior torso|40s
+7,c7,ISIC_0059442.jpg,head/neck|70s
+1,c1,ISIC_0059443.jpg,upper extremity|50s
+1,c1,ISIC_0059444.jpg,upper extremity|50s
+2,c2,ISIC_0059447.jpg,head/neck|70s
+2,c2,ISIC_0059453.jpg,head/neck|70s
+0,c0,ISIC_0059457.jpg,anterior torso|40s
+3,c3,ISIC_0059460.jpg,anterior torso|40s
+0,c0,ISIC_0059477.jpg,lower extremity|30s
+7,c7,ISIC_0059484.jpg,lower extremity|30s
+0,c0,ISIC_0059485.jpg,anterior torso|40s
+1,c1,ISIC_0059495.jpg,head/neck|70s
+6,c6,ISIC_0059504.jpg,lower extremity|30s
+0,c0,ISIC_0059522.jpg,anterior torso|40s
+2,c2,ISIC_0059524.jpg,anterior torso|40s
+1,c1,ISIC_0059525.jpg,upper extremity|50s
+0,c0,ISIC_0059526.jpg,lower extremity|30s
+0,c0,ISIC_0059531.jpg,anterior torso|70s
+3,c3,ISIC_0059535.jpg,anterior torso|40s
+3,c3,ISIC_0059544.jpg,anterior torso|40s
+2,c2,ISIC_0059548.jpg,upper extremity|70s
+0,c0,ISIC_0059552.jpg,lower extremity|50s
+3,c3,ISIC_0059553.jpg,head/neck|70s
+1,c1,ISIC_0059554.jpg,head/neck|70s
+0,c0,ISIC_0059571.jpg,anterior torso|40s
+4,c4,ISIC_0059572.jpg,head/neck|70s
+2,c2,ISIC_0059577.jpg,anterior torso|70s
+0,c0,ISIC_0059583.jpg,lower extremity|30s
+1,c1,ISIC_0059597.jpg,anterior torso|70s
+2,c2,ISIC_0059599.jpg,upper extremity|70s
+0,c0,ISIC_0059604.jpg,anterior torso|70s
+0,c0,ISIC_0059606.jpg,anterior torso|40s
+1,c1,ISIC_0059611.jpg,upper extremity|70s
+3,c3,ISIC_0059620.jpg,upper extremity|70s
+0,c0,ISIC_0059625.jpg,lower extremity|30s
+2,c2,ISIC_0059627.jpg,upper extremity|70s
+1,c1,ISIC_0059628.jpg,anterior torso|70s
+0,c0,ISIC_0059635.jpg,anterior torso|40s
+3,c3,ISIC_0059638.jpg,head/neck|70s
+3,c3,ISIC_0059640.jpg,anterior torso|70s
+0,c0,ISIC_0059643.jpg,lower extremity|30s
+0,c0,ISIC_0059654.jpg,lower extremity|50s
+2,c2,ISIC_0059657.jpg,anterior torso|70s
+1,c1,ISIC_0059668.jpg,anterior torso|40s
+2,c2,ISIC_0059670.jpg,anterior torso|70s
+1,c1,ISIC_0059671.jpg,upper extremity|70s
+3,c3,ISIC_0059678.jpg,head/neck|70s
+2,c2,ISIC_0059680.jpg,head/neck|70s
+1,c1,ISIC_0059686.jpg,anterior torso|40s
+2,c2,ISIC_0059687.jpg,head/neck|70s
+0,c0,ISIC_0059691.jpg,anterior torso|40s
+2,c2,ISIC_0059692.jpg,anterior torso|70s
+3,c3,ISIC_0059693.jpg,lower extremity|30s
+1,c1,ISIC_0059697.jpg,anterior torso|70s
+0,c0,ISIC_0059699.jpg,lower extremity|50s
+5,c5,ISIC_0059700.jpg,lower extremity|50s
+0,c0,ISIC_0059701.jpg,anterior torso|40s
+1,c1,ISIC_0059707.jpg,anterior torso|70s
+0,c0,ISIC_0059722.jpg,anterior torso|40s
+2,c2,ISIC_0059725.jpg,anterior torso|70s
+0,c0,ISIC_0059726.jpg,anterior torso|40s
+2,c2,ISIC_0059727.jpg,upper extremity|80+
+0,c0,ISIC_0059731.jpg,anterior torso|40s
+2,c2,ISIC_0059741.jpg,head/neck|70s
+0,c0,ISIC_0059745.jpg,anterior torso|70s
+2,c2,ISIC_0059746.jpg,upper extremity|80+
+0,c0,ISIC_0059756.jpg,lower extremity|30s
+3,c3,ISIC_0059760.jpg,head/neck|70s
+1,c1,ISIC_0059766.jpg,upper extremity|70s
+2,c2,ISIC_0059771.jpg,anterior torso|70s
+0,c0,ISIC_0059772.jpg,upper extremity|50s
+1,c1,ISIC_0059773.jpg,lower extremity|50s
+2,c2,ISIC_0059776.jpg,head/neck|70s
+2,c2,ISIC_0059802.jpg,anterior torso|70s
+0,c0,ISIC_0059803.jpg,anterior torso|40s
+0,c0,ISIC_0059805.jpg,anterior torso|40s
+1,c1,ISIC_0059810.jpg,anterior torso|40s
+0,c0,ISIC_0059812.jpg,anterior torso|40s
+0,c0,ISIC_0059813.jpg,anterior torso|40s
+0,c0,ISIC_0059818.jpg,anterior torso|40s
+2,c2,ISIC_0059821.jpg,anterior torso|70s
+0,c0,ISIC_0059824.jpg,lower extremity|30s
+1,c1,ISIC_0059836.jpg,upper extremity|70s
+1,c1,ISIC_0059840.jpg,upper extremity|70s
+4,c4,ISIC_0059843.jpg,head/neck|70s
+2,c2,ISIC_0059847.jpg,head/neck|70s
+0,c0,ISIC_0059862.jpg,anterior torso|40s
+3,c3,ISIC_0059863.jpg,head/neck|70s
+1,c1,ISIC_0059866.jpg,anterior torso|40s
+4,c4,ISIC_0059872.jpg,upper extremity|70s
+4,c4,ISIC_0059874.jpg,upper extremity|70s
+1,c1,ISIC_0059879.jpg,anterior torso|40s
+0,c0,ISIC_0059913.jpg,anterior torso|70s
+2,c2,ISIC_0059914.jpg,anterior torso|70s
+2,c2,ISIC_0059920.jpg,lower extremity|50s
+0,c0,ISIC_0059921.jpg,anterior torso|40s
+0,c0,ISIC_0059925.jpg,head/neck|70s
+1,c1,ISIC_0059929.jpg,upper extremity|70s
+3,c3,ISIC_0059932.jpg,anterior torso|70s
+0,c0,ISIC_0059937.jpg,anterior torso|40s
+0,c0,ISIC_0059939.jpg,lower extremity|50s
+1,c1,ISIC_0059943.jpg,anterior torso|70s
+1,c1,ISIC_0059948.jpg,lower extremity|50s
+2,c2,ISIC_0059961.jpg,head/neck|70s
+3,c3,ISIC_0059972.jpg,head/neck|70s
+2,c2,ISIC_0059973.jpg,upper extremity|70s
+2,c2,ISIC_0059984.jpg,head/neck|70s
+4,c4,ISIC_0059985.jpg,lower extremity|50s
+2,c2,ISIC_0059988.jpg,head/neck|70s
+2,c2,ISIC_0059994.jpg,anterior torso|40s
+3,c3,ISIC_0060004.jpg,head/neck|70s
+2,c2,ISIC_0060007.jpg,upper extremity|80+
+0,c0,ISIC_0060012.jpg,anterior torso|70s
+2,c2,ISIC_0060020.jpg,head/neck|70s
+2,c2,ISIC_0060021.jpg,head/neck|70s
+1,c1,ISIC_0060022.jpg,head/neck|70s
+0,c0,ISIC_0060023.jpg,upper extremity|50s
+2,c2,ISIC_0060031.jpg,anterior torso|70s
+0,c0,ISIC_0060034.jpg,anterior torso|40s
+0,c0,ISIC_0060036.jpg,anterior torso|40s
+0,c0,ISIC_0060042.jpg,anterior torso|40s
+5,c5,ISIC_0060059.jpg,lower extremity|30s
+2,c2,ISIC_0060063.jpg,anterior torso|40s
+0,c0,ISIC_0060064.jpg,anterior torso|40s
+0,c0,ISIC_0060065.jpg,upper extremity|70s
+2,c2,ISIC_0060073.jpg,upper extremity|50s
+5,c5,ISIC_0060077.jpg,lower extremity|50s
+4,c4,ISIC_0060078.jpg,head/neck|70s
+1,c1,ISIC_0060099.jpg,anterior torso|70s
+2,c2,ISIC_0060101.jpg,head/neck|70s
+1,c1,ISIC_0060104.jpg,anterior torso|70s
+0,c0,ISIC_0060106.jpg,anterior torso|70s
+2,c2,ISIC_0060107.jpg,anterior torso|40s
+1,c1,ISIC_0060114.jpg,anterior torso|40s
+1,c1,ISIC_0060118.jpg,anterior torso|70s
+2,c2,ISIC_0060127.jpg,anterior torso|70s
+0,c0,ISIC_0060130.jpg,anterior torso|70s
+0,c0,ISIC_0060134.jpg,lower extremity|30s
+2,c2,ISIC_0060137.jpg,anterior torso|70s
+0,c0,ISIC_0060138.jpg,anterior torso|70s
+1,c1,ISIC_0060147.jpg,anterior torso|40s
+1,c1,ISIC_0060148.jpg,lower extremity|50s
+2,c2,ISIC_0060149.jpg,anterior torso|70s
+2,c2,ISIC_0060151.jpg,anterior torso|70s
+1,c1,ISIC_0060153.jpg,anterior torso|40s
+1,c1,ISIC_0060154.jpg,anterior torso|40s
+2,c2,ISIC_0060162.jpg,upper extremity|50s
+0,c0,ISIC_0060170.jpg,lower extremity|30s
+2,c2,ISIC_0060189.jpg,head/neck|70s
+1,c1,ISIC_0060194.jpg,lower extremity|50s
+2,c2,ISIC_0060195.jpg,head/neck|70s
+2,c2,ISIC_0060198.jpg,anterior torso|70s
+2,c2,ISIC_0060202.jpg,anterior torso|40s
+3,c3,ISIC_0060204.jpg,head/neck|70s
+3,c3,ISIC_0060217.jpg,upper extremity|70s
+1,c1,ISIC_0060222.jpg,upper extremity|70s
+2,c2,ISIC_0060223.jpg,anterior torso|70s
+3,c3,ISIC_0060226.jpg,anterior torso|70s
+1,c1,ISIC_0060228.jpg,lower extremity|50s
+4,c4,ISIC_0060230.jpg,head/neck|70s
+2,c2,ISIC_0060236.jpg,head/neck|70s
+0,c0,ISIC_0060243.jpg,anterior torso|40s
+0,c0,ISIC_0060245.jpg,anterior torso|40s
+0,c0,ISIC_0060246.jpg,lower extremity|50s
+2,c2,ISIC_0060254.jpg,anterior torso|40s
+0,c0,ISIC_0060261.jpg,anterior torso|40s
+2,c2,ISIC_0060267.jpg,anterior torso|70s
+4,c4,ISIC_0060269.jpg,head/neck|70s
+3,c3,ISIC_0060271.jpg,lower extremity|50s
+0,c0,ISIC_0060279.jpg,anterior torso|40s
+2,c2,ISIC_0060283.jpg,upper extremity|70s
+0,c0,ISIC_0060304.jpg,anterior torso|70s
+1,c1,ISIC_0060307.jpg,head/neck|70s
+1,c1,ISIC_0060313.jpg,head/neck|70s
+0,c0,ISIC_0060317.jpg,anterior torso|70s
+0,c0,ISIC_0060321.jpg,lower extremity|50s
+0,c0,ISIC_0060325.jpg,anterior torso|40s
+6,c6,ISIC_0060327.jpg,upper extremity|70s
+0,c0,ISIC_0060329.jpg,lower extremity|50s
+0,c0,ISIC_0060330.jpg,lower extremity|50s
+2,c2,ISIC_0060332.jpg,head/neck|70s
+1,c1,ISIC_0060341.jpg,upper extremity|70s
+1,c1,ISIC_0060355.jpg,lower extremity|50s
+4,c4,ISIC_0060357.jpg,head/neck|70s
+2,c2,ISIC_0060372.jpg,anterior torso|70s
+0,c0,ISIC_0060388.jpg,lower extremity|30s
+1,c1,ISIC_0060393.jpg,anterior torso|70s
+2,c2,ISIC_0060401.jpg,upper extremity|80+
+0,c0,ISIC_0060402.jpg,anterior torso|40s
+2,c2,ISIC_0060409.jpg,anterior torso|70s
+2,c2,ISIC_0060414.jpg,anterior torso|70s
+0,c0,ISIC_0060419.jpg,anterior torso|40s
+2,c2,ISIC_0060421.jpg,head/neck|70s
+6,c6,ISIC_0060422.jpg,lower extremity|30s
+2,c2,ISIC_0060439.jpg,upper extremity|70s
+0,c0,ISIC_0060443.jpg,lower extremity|50s
+4,c4,ISIC_0060467.jpg,head/neck|70s
+3,c3,ISIC_0060470.jpg,upper extremity|70s
+0,c0,ISIC_0060471.jpg,anterior torso|40s
+0,c0,ISIC_0060475.jpg,anterior torso|40s
+0,c0,ISIC_0060477.jpg,anterior torso|40s
+3,c3,ISIC_0060479.jpg,anterior torso|40s
+4,c4,ISIC_0060480.jpg,head/neck|70s
+3,c3,ISIC_0060482.jpg,head/neck|70s
+3,c3,ISIC_0060493.jpg,upper extremity|50s
+1,c1,ISIC_0060495.jpg,anterior torso|70s
+1,c1,ISIC_0060502.jpg,upper extremity|70s
+1,c1,ISIC_0060508.jpg,anterior torso|40s
+4,c4,ISIC_0060509.jpg,head/neck|70s
+1,c1,ISIC_0060511.jpg,anterior torso|70s
+2,c2,ISIC_0060512.jpg,head/neck|70s
+0,c0,ISIC_0060518.jpg,anterior torso|40s
+1,c1,ISIC_0060525.jpg,anterior torso|40s
+1,c1,ISIC_0060526.jpg,upper extremity|70s
+2,c2,ISIC_0060533.jpg,anterior torso|70s
+0,c0,ISIC_0060535.jpg,anterior torso|40s
+0,c0,ISIC_0060536.jpg,upper extremity|80+
+0,c0,ISIC_0060539.jpg,lower extremity|50s
+2,c2,ISIC_0060542.jpg,anterior torso|70s
+0,c0,ISIC_0060543.jpg,anterior torso|40s
+1,c1,ISIC_0060555.jpg,anterior torso|40s
+1,c1,ISIC_0060556.jpg,anterior torso|70s
+1,c1,ISIC_0060559.jpg,anterior torso|70s
+3,c3,ISIC_0060560.jpg,head/neck|70s
+3,c3,ISIC_0060567.jpg,head/neck|70s
+1,c1,ISIC_0060586.jpg,upper extremity|50s
+4,c4,ISIC_0060593.jpg,upper extremity|50s
+3,c3,ISIC_0060594.jpg,lower extremity|50s
+0,c0,ISIC_0060595.jpg,anterior torso|40s
+2,c2,ISIC_0060596.jpg,upper extremity|70s
+2,c2,ISIC_0060599.jpg,upper extremity|70s
+0,c0,ISIC_0060601.jpg,anterior torso|40s
+2,c2,ISIC_0060602.jpg,anterior torso|70s
+3,c3,ISIC_0060606.jpg,head/neck|70s
+0,c0,ISIC_0060612.jpg,lower extremity|50s
+6,c6,ISIC_0060615.jpg,lower extremity|50s
+2,c2,ISIC_0060622.jpg,anterior torso|70s
+2,c2,ISIC_0060627.jpg,anterior torso|40s
+1,c1,ISIC_0060629.jpg,upper extremity|50s
+0,c0,ISIC_0060632.jpg,anterior torso|40s
+0,c0,ISIC_0060635.jpg,anterior torso|40s
+2,c2,ISIC_0060640.jpg,head/neck|70s
+1,c1,ISIC_0060648.jpg,upper extremity|70s
+1,c1,ISIC_0060653.jpg,anterior torso|40s
+2,c2,ISIC_0060657.jpg,anterior torso|40s
+5,c5,ISIC_0060663.jpg,anterior torso|70s
+0,c0,ISIC_0060667.jpg,anterior torso|40s
+0,c0,ISIC_0060668.jpg,upper extremity|50s
+4,c4,ISIC_0060670.jpg,head/neck|70s
+1,c1,ISIC_0060671.jpg,anterior torso|70s
+1,c1,ISIC_0060672.jpg,head/neck|70s
+3,c3,ISIC_0060674.jpg,lower extremity|30s
+3,c3,ISIC_0060678.jpg,anterior torso|40s
+2,c2,ISIC_0060682.jpg,head/neck|70s
+2,c2,ISIC_0060683.jpg,head/neck|70s
+2,c2,ISIC_0060687.jpg,lower extremity|50s
+0,c0,ISIC_0060694.jpg,anterior torso|40s
+1,c1,ISIC_0060696.jpg,anterior torso|40s
+7,c7,ISIC_0060699.jpg,anterior torso|70s
+0,c0,ISIC_0060705.jpg,anterior torso|40s
+4,c4,ISIC_0060706.jpg,head/neck|70s
+1,c1,ISIC_0060713.jpg,anterior torso|40s
+0,c0,ISIC_0060716.jpg,lower extremity|30s
+1,c1,ISIC_0060717.jpg,anterior torso|40s
+3,c3,ISIC_0060720.jpg,lower extremity|50s
+0,c0,ISIC_0060724.jpg,anterior torso|40s
+2,c2,ISIC_0060738.jpg,anterior torso|70s
+1,c1,ISIC_0060741.jpg,anterior torso|40s
+1,c1,ISIC_0060744.jpg,anterior torso|70s
+4,c4,ISIC_0060755.jpg,head/neck|70s
+1,c1,ISIC_0060760.jpg,lower extremity|30s
+3,c3,ISIC_0060761.jpg,upper extremity|70s
+4,c4,ISIC_0060775.jpg,head/neck|70s
+4,c4,ISIC_0060807.jpg,upper extremity|80+
+2,c2,ISIC_0060818.jpg,upper extremity|50s
+7,c7,ISIC_0060821.jpg,anterior torso|40s
+2,c2,ISIC_0060823.jpg,anterior torso|70s
+1,c1,ISIC_0060829.jpg,head/neck|70s
+5,c5,ISIC_0060830.jpg,upper extremity|80+
+1,c1,ISIC_0060832.jpg,anterior torso|70s
+1,c1,ISIC_0060834.jpg,upper extremity|50s
+3,c3,ISIC_0060857.jpg,head/neck|70s
+2,c2,ISIC_0060868.jpg,head/neck|70s
+1,c1,ISIC_0060873.jpg,lower extremity|50s
+0,c0,ISIC_0060878.jpg,upper extremity|50s
+1,c1,ISIC_0060886.jpg,anterior torso|40s
+6,c6,ISIC_0060890.jpg,upper extremity|50s
+2,c2,ISIC_0060896.jpg,lower extremity|50s
+3,c3,ISIC_0060902.jpg,anterior torso|70s
+0,c0,ISIC_0060904.jpg,anterior torso|70s
+2,c2,ISIC_0060906.jpg,anterior torso|40s
+0,c0,ISIC_0060910.jpg,anterior torso|40s
+2,c2,ISIC_0060922.jpg,head/neck|70s
+0,c0,ISIC_0060924.jpg,anterior torso|40s
+4,c4,ISIC_0060926.jpg,head/neck|70s
+2,c2,ISIC_0060927.jpg,upper extremity|70s
+0,c0,ISIC_0060930.jpg,anterior torso|40s
+2,c2,ISIC_0060931.jpg,head/neck|70s
+5,c5,ISIC_0060935.jpg,head/neck|70s
+1,c1,ISIC_0060936.jpg,anterior torso|70s
+0,c0,ISIC_0060938.jpg,upper extremity|70s
+5,c5,ISIC_0060944.jpg,anterior torso|70s
+2,c2,ISIC_0060950.jpg,anterior torso|70s
+0,c0,ISIC_0060951.jpg,anterior torso|40s
+1,c1,ISIC_0060955.jpg,anterior torso|40s
+0,c0,ISIC_0060961.jpg,upper extremity|50s
+1,c1,ISIC_0060962.jpg,lower extremity|50s
+1,c1,ISIC_0060972.jpg,anterior torso|70s
+3,c3,ISIC_0060995.jpg,anterior torso|70s
+1,c1,ISIC_0060999.jpg,anterior torso|70s
+1,c1,ISIC_0061000.jpg,anterior torso|70s
+1,c1,ISIC_0061003.jpg,anterior torso|40s
+0,c0,ISIC_0061005.jpg,anterior torso|40s
+1,c1,ISIC_0061011.jpg,lower extremity|50s
+5,c5,ISIC_0061016.jpg,head/neck|70s
+1,c1,ISIC_0061021.jpg,upper extremity|50s
+2,c2,ISIC_0061022.jpg,head/neck|70s
+1,c1,ISIC_0061025.jpg,anterior torso|70s
+1,c1,ISIC_0061029.jpg,lower extremity|50s
+3,c3,ISIC_0061030.jpg,anterior torso|40s
+1,c1,ISIC_0061057.jpg,anterior torso|40s
+4,c4,ISIC_0061068.jpg,anterior torso|70s
+0,c0,ISIC_0061072.jpg,anterior torso|40s
+0,c0,ISIC_0061087.jpg,anterior torso|40s
+3,c3,ISIC_0061089.jpg,head/neck|70s
+2,c2,ISIC_0061095.jpg,anterior torso|70s
+5,c5,ISIC_0061099.jpg,head/neck|70s
+1,c1,ISIC_0061104.jpg,head/neck|70s
+2,c2,ISIC_0061105.jpg,anterior torso|70s
+1,c1,ISIC_0061125.jpg,anterior torso|70s
+1,c1,ISIC_0061131.jpg,anterior torso|70s
+2,c2,ISIC_0061135.jpg,anterior torso|70s
+1,c1,ISIC_0061139.jpg,lower extremity|50s
+2,c2,ISIC_0061143.jpg,upper extremity|50s
+3,c3,ISIC_0061149.jpg,head/neck|70s
+2,c2,ISIC_0061157.jpg,upper extremity|70s
+3,c3,ISIC_0061171.jpg,lower extremity|30s
+2,c2,ISIC_0061174.jpg,anterior torso|40s
+0,c0,ISIC_0061179.jpg,anterior torso|40s
+1,c1,ISIC_0061188.jpg,lower extremity|50s
+5,c5,ISIC_0061192.jpg,upper extremity|80+
+5,c5,ISIC_0061197.jpg,head/neck|70s
+0,c0,ISIC_0061212.jpg,anterior torso|70s
+0,c0,ISIC_0061219.jpg,lower extremity|30s
+2,c2,ISIC_0061220.jpg,anterior torso|70s
+0,c0,ISIC_0061223.jpg,anterior torso|40s
+1,c1,ISIC_0061231.jpg,lower extremity|50s
+6,c6,ISIC_0061232.jpg,lower extremity|30s
+2,c2,ISIC_0061234.jpg,lower extremity|50s
+3,c3,ISIC_0061235.jpg,head/neck|70s
+5,c5,ISIC_0061238.jpg,upper extremity|80+
+0,c0,ISIC_0061241.jpg,anterior torso|40s
+5,c5,ISIC_0061243.jpg,upper extremity|80+
+1,c1,ISIC_0061244.jpg,anterior torso|70s
+1,c1,ISIC_0061252.jpg,anterior torso|70s
+0,c0,ISIC_0061269.jpg,lower extremity|30s
+2,c2,ISIC_0061270.jpg,anterior torso|70s
+0,c0,ISIC_0061273.jpg,anterior torso|70s
+0,c0,ISIC_0061274.jpg,lower extremity|30s
+7,c7,ISIC_0061280.jpg,head/neck|70s
+1,c1,ISIC_0061281.jpg,anterior torso|70s
+4,c4,ISIC_0061285.jpg,head/neck|70s
+3,c3,ISIC_0061287.jpg,upper extremity|70s
+2,c2,ISIC_0061290.jpg,upper extremity|70s
+0,c0,ISIC_0061292.jpg,lower extremity|30s
+4,c4,ISIC_0061294.jpg,head/neck|70s
+4,c4,ISIC_0061298.jpg,upper extremity|50s
+2,c2,ISIC_0061301.jpg,upper extremity|70s
+0,c0,ISIC_0061302.jpg,anterior torso|40s
+0,c0,ISIC_0061304.jpg,upper extremity|50s
+2,c2,ISIC_0061311.jpg,anterior torso|70s
+1,c1,ISIC_0061320.jpg,upper extremity|70s
+0,c0,ISIC_0061325.jpg,anterior torso|40s
+2,c2,ISIC_0061328.jpg,anterior torso|40s
+1,c1,ISIC_0061336.jpg,anterior torso|70s
+2,c2,ISIC_0061337.jpg,anterior torso|70s
+2,c2,ISIC_0061363.jpg,head/neck|70s
+4,c4,ISIC_0061365.jpg,head/neck|70s
+3,c3,ISIC_0061370.jpg,head/neck|70s
+0,c0,ISIC_0061372.jpg,lower extremity|50s
+5,c5,ISIC_0061388.jpg,head/neck|70s
+3,c3,ISIC_0061391.jpg,head/neck|70s
+0,c0,ISIC_0061395.jpg,lower extremity|50s
+0,c0,ISIC_0061398.jpg,anterior torso|70s
+0,c0,ISIC_0061403.jpg,lower extremity|30s
+3,c3,ISIC_0061405.jpg,head/neck|70s
+1,c1,ISIC_0061407.jpg,upper extremity|50s
+4,c4,ISIC_0061410.jpg,upper extremity|70s
+3,c3,ISIC_0061416.jpg,anterior torso|70s
+1,c1,ISIC_0061418.jpg,anterior torso|70s
+3,c3,ISIC_0061426.jpg,anterior torso|40s
+0,c0,ISIC_0061429.jpg,anterior torso|70s
+2,c2,ISIC_0061430.jpg,anterior torso|70s
+1,c1,ISIC_0061446.jpg,anterior torso|70s
+5,c5,ISIC_0061451.jpg,head/neck|70s
+0,c0,ISIC_0061460.jpg,anterior torso|40s
+2,c2,ISIC_0061471.jpg,head/neck|70s
+2,c2,ISIC_0061473.jpg,head/neck|70s
+3,c3,ISIC_0061476.jpg,head/neck|70s
+1,c1,ISIC_0061479.jpg,lower extremity|50s
+2,c2,ISIC_0061490.jpg,head/neck|70s
+6,c6,ISIC_0061493.jpg,anterior torso|70s
+1,c1,ISIC_0061496.jpg,upper extremity|70s
+3,c3,ISIC_0061503.jpg,head/neck|70s
+1,c1,ISIC_0061508.jpg,upper extremity|80+
+2,c2,ISIC_0061515.jpg,lower extremity|50s
+0,c0,ISIC_0061530.jpg,anterior torso|40s
+1,c1,ISIC_0061532.jpg,head/neck|70s
+1,c1,ISIC_0061533.jpg,upper extremity|70s
+3,c3,ISIC_0061536.jpg,anterior torso|70s
+2,c2,ISIC_0061541.jpg,upper extremity|70s
+2,c2,ISIC_0061543.jpg,anterior torso|70s
+2,c2,ISIC_0061548.jpg,anterior torso|70s
+3,c3,ISIC_0061550.jpg,lower extremity|50s
+0,c0,ISIC_0061551.jpg,anterior torso|40s
+1,c1,ISIC_0061554.jpg,anterior torso|70s
+1,c1,ISIC_0061556.jpg,upper extremity|70s
+7,c7,ISIC_0061557.jpg,head/neck|70s
+0,c0,ISIC_0061564.jpg,lower extremity|50s
+2,c2,ISIC_0061571.jpg,upper extremity|80+
+0,c0,ISIC_0061574.jpg,anterior torso|40s
+4,c4,ISIC_0061582.jpg,upper extremity|50s
+4,c4,ISIC_0061588.jpg,head/neck|70s
+0,c0,ISIC_0061594.jpg,upper extremity|50s
+1,c1,ISIC_0061595.jpg,anterior torso|40s
+2,c2,ISIC_0061600.jpg,anterior torso|70s
+0,c0,ISIC_0061601.jpg,anterior torso|40s
+7,c7,ISIC_0061611.jpg,anterior torso|40s
+2,c2,ISIC_0061613.jpg,anterior torso|70s
+2,c2,ISIC_0061617.jpg,anterior torso|70s
+1,c1,ISIC_0061623.jpg,anterior torso|70s
+0,c0,ISIC_0061627.jpg,anterior torso|40s
+0,c0,ISIC_0061632.jpg,upper extremity|50s
+3,c3,ISIC_0061640.jpg,head/neck|70s
+0,c0,ISIC_0061641.jpg,upper extremity|50s
+1,c1,ISIC_0061643.jpg,lower extremity|50s
+3,c3,ISIC_0061646.jpg,head/neck|70s
+1,c1,ISIC_0061647.jpg,lower extremity|50s
+0,c0,ISIC_0061648.jpg,lower extremity|30s
+0,c0,ISIC_0061649.jpg,head/neck|70s
+0,c0,ISIC_0061650.jpg,lower extremity|50s
+3,c3,ISIC_0061658.jpg,anterior torso|40s
+1,c1,ISIC_0061670.jpg,anterior torso|70s
+2,c2,ISIC_0061671.jpg,anterior torso|40s
+0,c0,ISIC_0061673.jpg,anterior torso|40s
+7,c7,ISIC_0061674.jpg,lower extremity|30s
+2,c2,ISIC_0061676.jpg,anterior torso|40s
+1,c1,ISIC_0061680.jpg,anterior torso|70s
+1,c1,ISIC_0061685.jpg,anterior torso|40s
+1,c1,ISIC_0061686.jpg,anterior torso|70s
+4,c4,ISIC_0061687.jpg,head/neck|70s
+3,c3,ISIC_0061689.jpg,head/neck|70s
+5,c5,ISIC_0061690.jpg,head/neck|70s
+2,c2,ISIC_0061697.jpg,head/neck|70s
+2,c2,ISIC_0061700.jpg,upper extremity|80+
+2,c2,ISIC_0061704.jpg,lower extremity|50s
+1,c1,ISIC_0061705.jpg,anterior torso|40s
+2,c2,ISIC_0061719.jpg,anterior torso|70s
+0,c0,ISIC_0061724.jpg,anterior torso|40s
+4,c4,ISIC_0061730.jpg,anterior torso|70s
+1,c1,ISIC_0061735.jpg,lower extremity|50s
+1,c1,ISIC_0061741.jpg,anterior torso|70s
+0,c0,ISIC_0061742.jpg,lower extremity|50s
+0,c0,ISIC_0061749.jpg,lower extremity|30s
+1,c1,ISIC_0061751.jpg,anterior torso|70s
+3,c3,ISIC_0061752.jpg,anterior torso|70s
+0,c0,ISIC_0061766.jpg,anterior torso|40s
+4,c4,ISIC_0061774.jpg,head/neck|70s
+4,c4,ISIC_0061787.jpg,anterior torso|70s
+0,c0,ISIC_0061797.jpg,anterior torso|40s
+1,c1,ISIC_0061799.jpg,anterior torso|40s
+0,c0,ISIC_0061800.jpg,anterior torso|40s
+3,c3,ISIC_0061802.jpg,head/neck|70s
+0,c0,ISIC_0061803.jpg,lower extremity|50s
+0,c0,ISIC_0061818.jpg,anterior torso|40s
+3,c3,ISIC_0061821.jpg,upper extremity|70s
+1,c1,ISIC_0061829.jpg,anterior torso|70s
+0,c0,ISIC_0061837.jpg,anterior torso|40s
+0,c0,ISIC_0061838.jpg,anterior torso|40s
+0,c0,ISIC_0061841.jpg,anterior torso|70s
+0,c0,ISIC_0061843.jpg,anterior torso|40s
+3,c3,ISIC_0061844.jpg,anterior torso|70s
+0,c0,ISIC_0061846.jpg,anterior torso|40s
+1,c1,ISIC_0061848.jpg,anterior torso|70s
+0,c0,ISIC_0061859.jpg,lower extremity|30s
+2,c2,ISIC_0061864.jpg,upper extremity|70s
+0,c0,ISIC_0061872.jpg,anterior torso|40s
+0,c0,ISIC_0061875.jpg,anterior torso|40s
+3,c3,ISIC_0061879.jpg,anterior torso|40s
+1,c1,ISIC_0061880.jpg,anterior torso|40s
+1,c1,ISIC_0061885.jpg,anterior torso|40s
+2,c2,ISIC_0061889.jpg,upper extremity|50s
+2,c2,ISIC_0061891.jpg,head/neck|70s
+5,c5,ISIC_0061896.jpg,lower extremity|50s
+3,c3,ISIC_0061902.jpg,head/neck|70s
+0,c0,ISIC_0061903.jpg,lower extremity|30s
+6,c6,ISIC_0061904.jpg,lower extremity|50s
+1,c1,ISIC_0061911.jpg,upper extremity|70s
+0,c0,ISIC_0061913.jpg,lower extremity|30s
+3,c3,ISIC_0061917.jpg,head/neck|70s
+2,c2,ISIC_0061923.jpg,upper extremity|80+
+5,c5,ISIC_0061937.jpg,upper extremity|70s
+0,c0,ISIC_0061943.jpg,lower extremity|30s
+1,c1,ISIC_0061944.jpg,anterior torso|70s
+4,c4,ISIC_0061947.jpg,head/neck|70s
+1,c1,ISIC_0061960.jpg,anterior torso|40s
+0,c0,ISIC_0061963.jpg,anterior torso|40s
+0,c0,ISIC_0061970.jpg,lower extremity|30s
+1,c1,ISIC_0061971.jpg,head/neck|70s
+0,c0,ISIC_0061981.jpg,lower extremity|50s
+3,c3,ISIC_0061985.jpg,head/neck|70s
+3,c3,ISIC_0061993.jpg,anterior torso|70s
+0,c0,ISIC_0061996.jpg,upper extremity|50s
+3,c3,ISIC_0062009.jpg,anterior torso|70s
+1,c1,ISIC_0062026.jpg,anterior torso|40s
+0,c0,ISIC_0062034.jpg,anterior torso|40s
+1,c1,ISIC_0062042.jpg,anterior torso|70s
+0,c0,ISIC_0062046.jpg,lower extremity|30s
+2,c2,ISIC_0062052.jpg,anterior torso|70s
+3,c3,ISIC_0062055.jpg,anterior torso|70s
+0,c0,ISIC_0062057.jpg,lower extremity|30s
+1,c1,ISIC_0062063.jpg,anterior torso|70s
+1,c1,ISIC_0062077.jpg,upper extremity|50s
+3,c3,ISIC_0062094.jpg,head/neck|70s
+5,c5,ISIC_0062095.jpg,anterior torso|70s
+1,c1,ISIC_0062099.jpg,anterior torso|40s
+2,c2,ISIC_0062105.jpg,anterior torso|40s
+0,c0,ISIC_0062107.jpg,anterior torso|70s
+1,c1,ISIC_0062111.jpg,upper extremity|80+
+1,c1,ISIC_0062112.jpg,anterior torso|70s
+1,c1,ISIC_0062114.jpg,anterior torso|40s
+0,c0,ISIC_0062120.jpg,lower extremity|50s
+0,c0,ISIC_0062132.jpg,anterior torso|40s
+1,c1,ISIC_0062141.jpg,lower extremity|30s
+1,c1,ISIC_0062155.jpg,anterior torso|40s
+5,c5,ISIC_0062156.jpg,anterior torso|70s
+1,c1,ISIC_0062161.jpg,anterior torso|40s
+2,c2,ISIC_0062167.jpg,anterior torso|70s
+2,c2,ISIC_0062172.jpg,anterior torso|70s
+0,c0,ISIC_0062175.jpg,anterior torso|70s
+2,c2,ISIC_0062180.jpg,anterior torso|70s
+2,c2,ISIC_0062191.jpg,anterior torso|70s
+0,c0,ISIC_0062197.jpg,anterior torso|40s
+0,c0,ISIC_0062200.jpg,anterior torso|40s
+0,c0,ISIC_0062201.jpg,lower extremity|30s
+0,c0,ISIC_0062202.jpg,lower extremity|30s
+3,c3,ISIC_0062209.jpg,lower extremity|50s
+2,c2,ISIC_0062217.jpg,anterior torso|70s
+5,c5,ISIC_0062233.jpg,upper extremity|70s
+1,c1,ISIC_0062234.jpg,anterior torso|40s
+2,c2,ISIC_0062240.jpg,head/neck|70s
+2,c2,ISIC_0062244.jpg,anterior torso|70s
+0,c0,ISIC_0062249.jpg,anterior torso|40s
+1,c1,ISIC_0062251.jpg,upper extremity|50s
+3,c3,ISIC_0062257.jpg,head/neck|70s
+3,c3,ISIC_0062258.jpg,upper extremity|80+
+0,c0,ISIC_0062268.jpg,anterior torso|70s
+2,c2,ISIC_0062270.jpg,upper extremity|80+
+2,c2,ISIC_0062288.jpg,upper extremity|70s
+1,c1,ISIC_0062296.jpg,upper extremity|70s
+0,c0,ISIC_0062297.jpg,lower extremity|50s
+2,c2,ISIC_0062303.jpg,anterior torso|70s
+0,c0,ISIC_0062304.jpg,anterior torso|40s
+0,c0,ISIC_0062306.jpg,anterior torso|40s
+1,c1,ISIC_0062313.jpg,lower extremity|50s
+1,c1,ISIC_0062323.jpg,head/neck|70s
+0,c0,ISIC_0062335.jpg,anterior torso|70s
+1,c1,ISIC_0062339.jpg,anterior torso|70s
+2,c2,ISIC_0062342.jpg,lower extremity|50s
+4,c4,ISIC_0062345.jpg,head/neck|70s
+4,c4,ISIC_0062346.jpg,head/neck|70s
+1,c1,ISIC_0062350.jpg,lower extremity|50s
+4,c4,ISIC_0062351.jpg,head/neck|70s
+0,c0,ISIC_0062353.jpg,anterior torso|40s
+2,c2,ISIC_0062356.jpg,anterior torso|70s
+0,c0,ISIC_0062357.jpg,anterior torso|40s
+0,c0,ISIC_0062360.jpg,anterior torso|40s
+3,c3,ISIC_0062361.jpg,head/neck|70s
+3,c3,ISIC_0062368.jpg,head/neck|70s
+3,c3,ISIC_0062371.jpg,head/neck|70s
+3,c3,ISIC_0062374.jpg,upper extremity|50s
+0,c0,ISIC_0062375.jpg,lower extremity|30s
+1,c1,ISIC_0062389.jpg,anterior torso|40s
+2,c2,ISIC_0062395.jpg,head/neck|70s
+0,c0,ISIC_0062400.jpg,anterior torso|70s
+0,c0,ISIC_0062402.jpg,anterior torso|40s
+0,c0,ISIC_0062404.jpg,anterior torso|40s
+1,c1,ISIC_0062407.jpg,lower extremity|30s
+5,c5,ISIC_0062409.jpg,head/neck|70s
+0,c0,ISIC_0062414.jpg,anterior torso|40s
+1,c1,ISIC_0062423.jpg,head/neck|70s
+0,c0,ISIC_0062430.jpg,anterior torso|40s
+0,c0,ISIC_0062431.jpg,lower extremity|30s
+0,c0,ISIC_0062440.jpg,lower extremity|50s
+0,c0,ISIC_0062444.jpg,upper extremity|80+
+0,c0,ISIC_0062446.jpg,lower extremity|50s
+6,c6,ISIC_0062455.jpg,lower extremity|50s
+0,c0,ISIC_0062459.jpg,anterior torso|40s
+0,c0,ISIC_0062461.jpg,anterior torso|40s
+0,c0,ISIC_0062465.jpg,anterior torso|40s
+2,c2,ISIC_0062473.jpg,anterior torso|70s
+1,c1,ISIC_0062474.jpg,anterior torso|70s
+0,c0,ISIC_0062483.jpg,anterior torso|40s
+2,c2,ISIC_0062488.jpg,lower extremity|50s
+5,c5,ISIC_0062493.jpg,head/neck|70s
+2,c2,ISIC_0062496.jpg,head/neck|70s
+1,c1,ISIC_0062497.jpg,anterior torso|70s
+2,c2,ISIC_0062504.jpg,upper extremity|80+
+0,c0,ISIC_0062507.jpg,anterior torso|70s
+4,c4,ISIC_0062508.jpg,head/neck|70s
+0,c0,ISIC_0062513.jpg,anterior torso|40s
+1,c1,ISIC_0062523.jpg,anterior torso|40s
+0,c0,ISIC_0062526.jpg,lower extremity|30s
+2,c2,ISIC_0062527.jpg,head/neck|70s
+1,c1,ISIC_0062531.jpg,anterior torso|70s
+0,c0,ISIC_0062534.jpg,anterior torso|40s
+2,c2,ISIC_0062544.jpg,anterior torso|40s
+7,c7,ISIC_0062550.jpg,anterior torso|40s
+0,c0,ISIC_0062557.jpg,lower extremity|50s
+3,c3,ISIC_0062561.jpg,head/neck|70s
+2,c2,ISIC_0062569.jpg,lower extremity|50s
+1,c1,ISIC_0062575.jpg,upper extremity|70s
+0,c0,ISIC_0062576.jpg,anterior torso|40s
+0,c0,ISIC_0062577.jpg,anterior torso|40s
+3,c3,ISIC_0062581.jpg,head/neck|70s
+4,c4,ISIC_0062586.jpg,head/neck|70s
+2,c2,ISIC_0062588.jpg,head/neck|70s
+3,c3,ISIC_0062590.jpg,head/neck|70s
+4,c4,ISIC_0062593.jpg,head/neck|70s
+0,c0,ISIC_0062597.jpg,anterior torso|40s
+2,c2,ISIC_0062601.jpg,head/neck|70s
+1,c1,ISIC_0062602.jpg,head/neck|70s
+4,c4,ISIC_0062611.jpg,upper extremity|80+
+0,c0,ISIC_0062616.jpg,upper extremity|80+
+1,c1,ISIC_0062632.jpg,lower extremity|50s
+1,c1,ISIC_0062636.jpg,anterior torso|70s
+2,c2,ISIC_0062645.jpg,head/neck|70s
+0,c0,ISIC_0062647.jpg,anterior torso|40s
+5,c5,ISIC_0062661.jpg,head/neck|70s
+3,c3,ISIC_0062672.jpg,lower extremity|50s
+0,c0,ISIC_0062679.jpg,upper extremity|50s
+2,c2,ISIC_0062683.jpg,anterior torso|70s
+2,c2,ISIC_0062685.jpg,anterior torso|40s
+1,c1,ISIC_0062686.jpg,lower extremity|50s
+0,c0,ISIC_0062693.jpg,anterior torso|40s
+0,c0,ISIC_0062698.jpg,lower extremity|30s
+0,c0,ISIC_0062704.jpg,lower extremity|30s
+1,c1,ISIC_0062709.jpg,anterior torso|40s
+1,c1,ISIC_0062713.jpg,upper extremity|70s
+0,c0,ISIC_0062715.jpg,upper extremity|50s
+0,c0,ISIC_0062731.jpg,anterior torso|40s
+2,c2,ISIC_0062733.jpg,head/neck|70s
+1,c1,ISIC_0062734.jpg,anterior torso|40s
+4,c4,ISIC_0062738.jpg,head/neck|70s
+4,c4,ISIC_0062741.jpg,head/neck|70s
+0,c0,ISIC_0062744.jpg,lower extremity|30s
+2,c2,ISIC_0062747.jpg,upper extremity|80+
+0,c0,ISIC_0062750.jpg,lower extremity|50s
+1,c1,ISIC_0062762.jpg,lower extremity|50s
+4,c4,ISIC_0062766.jpg,head/neck|70s
+0,c0,ISIC_0062778.jpg,anterior torso|40s
+2,c2,ISIC_0062789.jpg,upper extremity|80+
+2,c2,ISIC_0062799.jpg,anterior torso|70s
+0,c0,ISIC_0062801.jpg,anterior torso|40s
+0,c0,ISIC_0062803.jpg,lower extremity|50s
+0,c0,ISIC_0062804.jpg,anterior torso|40s
+0,c0,ISIC_0062812.jpg,anterior torso|40s
+0,c0,ISIC_0062824.jpg,anterior torso|40s
+3,c3,ISIC_0062835.jpg,anterior torso|70s
+2,c2,ISIC_0062845.jpg,anterior torso|70s
+0,c0,ISIC_0062849.jpg,anterior torso|70s
+4,c4,ISIC_0062877.jpg,head/neck|70s
+0,c0,ISIC_0062880.jpg,anterior torso|40s
+0,c0,ISIC_0062892.jpg,anterior torso|40s
+0,c0,ISIC_0062894.jpg,anterior torso|40s
+0,c0,ISIC_0062909.jpg,lower extremity|50s
+1,c1,ISIC_0062914.jpg,lower extremity|50s
+2,c2,ISIC_0062915.jpg,anterior torso|40s
+0,c0,ISIC_0062921.jpg,anterior torso|40s
+2,c2,ISIC_0062927.jpg,anterior torso|70s
+4,c4,ISIC_0062940.jpg,upper extremity|80+
+2,c2,ISIC_0062946.jpg,anterior torso|40s
+3,c3,ISIC_0062949.jpg,anterior torso|40s
+0,c0,ISIC_0062950.jpg,anterior torso|40s
+5,c5,ISIC_0062951.jpg,head/neck|70s
+2,c2,ISIC_0062956.jpg,lower extremity|50s
+2,c2,ISIC_0062965.jpg,anterior torso|70s
+1,c1,ISIC_0062970.jpg,lower extremity|30s
+4,c4,ISIC_0062971.jpg,head/neck|70s
+0,c0,ISIC_0062972.jpg,anterior torso|40s
+1,c1,ISIC_0062978.jpg,anterior torso|70s
+0,c0,ISIC_0062979.jpg,lower extremity|30s
+0,c0,ISIC_0062989.jpg,lower extremity|30s
+1,c1,ISIC_0062991.jpg,anterior torso|40s
+1,c1,ISIC_0062992.jpg,anterior torso|70s
+3,c3,ISIC_0062999.jpg,upper extremity|50s
+0,c0,ISIC_0063005.jpg,upper extremity|50s
+3,c3,ISIC_0063006.jpg,anterior torso|70s
+2,c2,ISIC_0063007.jpg,anterior torso|70s
+3,c3,ISIC_0063014.jpg,head/neck|70s
+0,c0,ISIC_0063015.jpg,lower extremity|30s
+4,c4,ISIC_0063019.jpg,head/neck|70s
+0,c0,ISIC_0063020.jpg,anterior torso|70s
+0,c0,ISIC_0063021.jpg,anterior torso|40s
+6,c6,ISIC_0063039.jpg,anterior torso|40s
+2,c2,ISIC_0063044.jpg,upper extremity|70s
+4,c4,ISIC_0063045.jpg,head/neck|70s
+5,c5,ISIC_0063047.jpg,lower extremity|50s
+0,c0,ISIC_0063051.jpg,anterior torso|40s
+2,c2,ISIC_0063074.jpg,head/neck|70s
+1,c1,ISIC_0063081.jpg,lower extremity|30s
+0,c0,ISIC_0063099.jpg,anterior torso|40s
+4,c4,ISIC_0063100.jpg,head/neck|70s
+2,c2,ISIC_0063101.jpg,head/neck|70s
+4,c4,ISIC_0063107.jpg,head/neck|70s
+2,c2,ISIC_0063111.jpg,lower extremity|30s
+0,c0,ISIC_0063116.jpg,anterior torso|40s
+2,c2,ISIC_0063129.jpg,anterior torso|70s
+1,c1,ISIC_0063135.jpg,anterior torso|40s
+1,c1,ISIC_0063151.jpg,anterior torso|70s
+3,c3,ISIC_0063156.jpg,upper extremity|70s
+2,c2,ISIC_0063158.jpg,anterior torso|70s
+2,c2,ISIC_0063160.jpg,anterior torso|40s
+1,c1,ISIC_0063164.jpg,head/neck|70s
+2,c2,ISIC_0063167.jpg,anterior torso|70s
+1,c1,ISIC_0063168.jpg,anterior torso|40s
+4,c4,ISIC_0063175.jpg,head/neck|70s
+4,c4,ISIC_0063178.jpg,head/neck|70s
+1,c1,ISIC_0063180.jpg,anterior torso|40s
+1,c1,ISIC_0063181.jpg,lower extremity|30s
+1,c1,ISIC_0063182.jpg,anterior torso|40s
+0,c0,ISIC_0063184.jpg,anterior torso|40s
+1,c1,ISIC_0063190.jpg,lower extremity|50s
+2,c2,ISIC_0063192.jpg,upper extremity|80+
+0,c0,ISIC_0063204.jpg,anterior torso|40s
+1,c1,ISIC_0063207.jpg,lower extremity|30s
+0,c0,ISIC_0063211.jpg,anterior torso|70s
+1,c1,ISIC_0063223.jpg,upper extremity|70s
+1,c1,ISIC_0063225.jpg,upper extremity|70s
+2,c2,ISIC_0063227.jpg,anterior torso|40s
+1,c1,ISIC_0063233.jpg,anterior torso|70s
+3,c3,ISIC_0063237.jpg,anterior torso|70s
+0,c0,ISIC_0063244.jpg,lower extremity|30s
+0,c0,ISIC_0063262.jpg,anterior torso|40s
+2,c2,ISIC_0063263.jpg,head/neck|70s
+5,c5,ISIC_0063278.jpg,head/neck|70s
+4,c4,ISIC_0063293.jpg,upper extremity|80+
+1,c1,ISIC_0063295.jpg,upper extremity|70s
+2,c2,ISIC_0063298.jpg,upper extremity|50s
+0,c0,ISIC_0063313.jpg,anterior torso|40s
+4,c4,ISIC_0063320.jpg,head/neck|70s
+4,c4,ISIC_0063331.jpg,lower extremity|50s
+2,c2,ISIC_0063338.jpg,anterior torso|70s
+1,c1,ISIC_0063349.jpg,upper extremity|50s
+2,c2,ISIC_0063352.jpg,upper extremity|70s
+2,c2,ISIC_0063379.jpg,head/neck|70s
+0,c0,ISIC_0063381.jpg,anterior torso|40s
+3,c3,ISIC_0063383.jpg,anterior torso|70s
+0,c0,ISIC_0063386.jpg,lower extremity|50s
+0,c0,ISIC_0063388.jpg,anterior torso|40s
+0,c0,ISIC_0063389.jpg,anterior torso|40s
+3,c3,ISIC_0063408.jpg,anterior torso|70s
+1,c1,ISIC_0063428.jpg,lower extremity|50s
+2,c2,ISIC_0063433.jpg,anterior torso|70s
+0,c0,ISIC_0063441.jpg,lower extremity|30s
+1,c1,ISIC_0063443.jpg,anterior torso|70s
+2,c2,ISIC_0063452.jpg,anterior torso|40s
+2,c2,ISIC_0063453.jpg,anterior torso|40s
+0,c0,ISIC_0063455.jpg,anterior torso|40s
+2,c2,ISIC_0063458.jpg,upper extremity|80+
+0,c0,ISIC_0063465.jpg,anterior torso|70s
+1,c1,ISIC_0063467.jpg,upper extremity|70s
+0,c0,ISIC_0063473.jpg,anterior torso|40s
+5,c5,ISIC_0063474.jpg,head/neck|70s
+0,c0,ISIC_0063476.jpg,anterior torso|40s
+2,c2,ISIC_0063479.jpg,upper extremity|70s
+0,c0,ISIC_0063486.jpg,anterior torso|40s
+0,c0,ISIC_0063488.jpg,anterior torso|40s
+0,c0,ISIC_0063495.jpg,lower extremity|30s
+1,c1,ISIC_0063496.jpg,anterior torso|70s
+2,c2,ISIC_0063503.jpg,head/neck|70s
+0,c0,ISIC_0063507.jpg,lower extremity|50s
+3,c3,ISIC_0063510.jpg,head/neck|70s
+2,c2,ISIC_0063512.jpg,upper extremity|70s
+3,c3,ISIC_0063542.jpg,head/neck|70s
+2,c2,ISIC_0063546.jpg,head/neck|70s
+0,c0,ISIC_0063557.jpg,anterior torso|40s
+2,c2,ISIC_0063563.jpg,anterior torso|70s
+0,c0,ISIC_0063565.jpg,lower extremity|30s
+1,c1,ISIC_0063568.jpg,lower extremity|50s
+2,c2,ISIC_0063572.jpg,upper extremity|70s
+0,c0,ISIC_0063582.jpg,anterior torso|70s
+0,c0,ISIC_0063585.jpg,anterior torso|40s
+2,c2,ISIC_0063599.jpg,upper extremity|80+
+6,c6,ISIC_0063605.jpg,anterior torso|40s
+0,c0,ISIC_0063609.jpg,anterior torso|40s
+0,c0,ISIC_0063611.jpg,anterior torso|40s
+0,c0,ISIC_0063619.jpg,anterior torso|40s
+2,c2,ISIC_0063633.jpg,head/neck|70s
+1,c1,ISIC_0063636.jpg,anterior torso|70s
+2,c2,ISIC_0063640.jpg,anterior torso|70s
+2,c2,ISIC_0063651.jpg,anterior torso|70s
+2,c2,ISIC_0063662.jpg,upper extremity|70s
+0,c0,ISIC_0063663.jpg,anterior torso|40s
+2,c2,ISIC_0063668.jpg,anterior torso|40s
+2,c2,ISIC_0063673.jpg,head/neck|70s
+4,c4,ISIC_0063674.jpg,head/neck|70s
+0,c0,ISIC_0063676.jpg,lower extremity|50s
+0,c0,ISIC_0063682.jpg,anterior torso|40s
+1,c1,ISIC_0063687.jpg,anterior torso|70s
+0,c0,ISIC_0063688.jpg,lower extremity|50s
+2,c2,ISIC_0063689.jpg,head/neck|70s
+1,c1,ISIC_0063692.jpg,anterior torso|70s
+2,c2,ISIC_0063697.jpg,anterior torso|70s
+1,c1,ISIC_0063704.jpg,lower extremity|50s
+2,c2,ISIC_0063714.jpg,anterior torso|70s
+1,c1,ISIC_0063715.jpg,anterior torso|40s
+0,c0,ISIC_0063717.jpg,lower extremity|30s
+1,c1,ISIC_0063725.jpg,lower extremity|30s
+2,c2,ISIC_0063726.jpg,upper extremity|70s
+1,c1,ISIC_0063727.jpg,anterior torso|40s
+3,c3,ISIC_0063729.jpg,head/neck|70s
+5,c5,ISIC_0063730.jpg,upper extremity|80+
+3,c3,ISIC_0063734.jpg,anterior torso|70s
+2,c2,ISIC_0063736.jpg,anterior torso|70s
+2,c2,ISIC_0063747.jpg,anterior torso|70s
+1,c1,ISIC_0063748.jpg,anterior torso|70s
+1,c1,ISIC_0063753.jpg,upper extremity|70s
+3,c3,ISIC_0063758.jpg,anterior torso|70s
+3,c3,ISIC_0063760.jpg,lower extremity|50s
+0,c0,ISIC_0063761.jpg,anterior torso|40s
+3,c3,ISIC_0063763.jpg,head/neck|70s
+0,c0,ISIC_0063765.jpg,anterior torso|40s
+0,c0,ISIC_0063768.jpg,anterior torso|40s
+0,c0,ISIC_0063777.jpg,anterior torso|70s
+2,c2,ISIC_0063779.jpg,head/neck|70s
+0,c0,ISIC_0063784.jpg,anterior torso|40s
+0,c0,ISIC_0063786.jpg,lower extremity|30s
+0,c0,ISIC_0063801.jpg,anterior torso|40s
+0,c0,ISIC_0063804.jpg,anterior torso|40s
+6,c6,ISIC_0063817.jpg,lower extremity|30s
+0,c0,ISIC_0063821.jpg,lower extremity|30s
+3,c3,ISIC_0063828.jpg,anterior torso|70s
+6,c6,ISIC_0063831.jpg,upper extremity|50s
+0,c0,ISIC_0063834.jpg,lower extremity|50s
+0,c0,ISIC_0063843.jpg,anterior torso|40s
+0,c0,ISIC_0063848.jpg,anterior torso|40s
+3,c3,ISIC_0063849.jpg,head/neck|70s
+5,c5,ISIC_0063851.jpg,upper extremity|80+
+5,c5,ISIC_0063855.jpg,upper extremity|80+
+2,c2,ISIC_0063860.jpg,anterior torso|70s
+0,c0,ISIC_0063861.jpg,anterior torso|40s
+3,c3,ISIC_0063868.jpg,anterior torso|70s
+1,c1,ISIC_0063871.jpg,anterior torso|70s
+0,c0,ISIC_0063875.jpg,upper extremity|50s
+0,c0,ISIC_0063876.jpg,anterior torso|40s
+2,c2,ISIC_0063877.jpg,anterior torso|70s
+1,c1,ISIC_0063885.jpg,head/neck|70s
+2,c2,ISIC_0063892.jpg,anterior torso|40s
+0,c0,ISIC_0063895.jpg,lower extremity|50s
+0,c0,ISIC_0063896.jpg,upper extremity|50s
+0,c0,ISIC_0063921.jpg,anterior torso|70s
+0,c0,ISIC_0063924.jpg,anterior torso|40s
+1,c1,ISIC_0063926.jpg,upper extremity|80+
+2,c2,ISIC_0063928.jpg,head/neck|70s
+2,c2,ISIC_0063931.jpg,upper extremity|70s
+0,c0,ISIC_0063935.jpg,lower extremity|50s
+2,c2,ISIC_0063947.jpg,lower extremity|50s
+1,c1,ISIC_0063952.jpg,lower extremity|30s
+4,c4,ISIC_0063956.jpg,head/neck|70s
+1,c1,ISIC_0063960.jpg,anterior torso|40s
+2,c2,ISIC_0063979.jpg,lower extremity|50s
+2,c2,ISIC_0063984.jpg,head/neck|70s
+0,c0,ISIC_0063986.jpg,head/neck|70s
+1,c1,ISIC_0063988.jpg,anterior torso|70s
+3,c3,ISIC_0063993.jpg,anterior torso|70s
+2,c2,ISIC_0063999.jpg,upper extremity|50s
+0,c0,ISIC_0064008.jpg,anterior torso|40s
+0,c0,ISIC_0064009.jpg,anterior torso|40s
+0,c0,ISIC_0064012.jpg,anterior torso|40s
+5,c5,ISIC_0064016.jpg,anterior torso|70s
+0,c0,ISIC_0064020.jpg,head/neck|70s
+4,c4,ISIC_0064022.jpg,upper extremity|70s
+1,c1,ISIC_0064023.jpg,lower extremity|30s
+2,c2,ISIC_0064024.jpg,lower extremity|30s
+1,c1,ISIC_0064026.jpg,anterior torso|70s
+2,c2,ISIC_0064030.jpg,anterior torso|70s
+0,c0,ISIC_0064031.jpg,anterior torso|40s
+0,c0,ISIC_0064036.jpg,lower extremity|50s
+0,c0,ISIC_0064044.jpg,lower extremity|50s
+0,c0,ISIC_0064050.jpg,anterior torso|40s
+2,c2,ISIC_0064055.jpg,upper extremity|50s
+2,c2,ISIC_0064057.jpg,head/neck|70s
+2,c2,ISIC_0064064.jpg,head/neck|70s
+1,c1,ISIC_0064066.jpg,lower extremity|50s
+0,c0,ISIC_0064071.jpg,anterior torso|40s
+1,c1,ISIC_0064079.jpg,anterior torso|40s
+3,c3,ISIC_0064083.jpg,anterior torso|40s
+0,c0,ISIC_0064085.jpg,anterior torso|40s
+0,c0,ISIC_0064095.jpg,lower extremity|50s
+1,c1,ISIC_0064102.jpg,anterior torso|40s
+3,c3,ISIC_0064106.jpg,upper extremity|50s
+1,c1,ISIC_0064107.jpg,upper extremity|80+
+1,c1,ISIC_0064110.jpg,lower extremity|30s
+1,c1,ISIC_0064114.jpg,head/neck|70s
+6,c6,ISIC_0064115.jpg,lower extremity|50s
+1,c1,ISIC_0064116.jpg,anterior torso|40s
+1,c1,ISIC_0064120.jpg,anterior torso|70s
+0,c0,ISIC_0064125.jpg,lower extremity|30s
+0,c0,ISIC_0064139.jpg,lower extremity|50s
+5,c5,ISIC_0064143.jpg,upper extremity|80+
+1,c1,ISIC_0064152.jpg,anterior torso|70s
+1,c1,ISIC_0064161.jpg,anterior torso|40s
+0,c0,ISIC_0064166.jpg,upper extremity|70s
+5,c5,ISIC_0064169.jpg,upper extremity|80+
+0,c0,ISIC_0064173.jpg,lower extremity|30s
+1,c1,ISIC_0064180.jpg,anterior torso|40s
+3,c3,ISIC_0064188.jpg,upper extremity|70s
+2,c2,ISIC_0064210.jpg,head/neck|70s
+4,c4,ISIC_0064211.jpg,head/neck|70s
+0,c0,ISIC_0064216.jpg,anterior torso|70s
+0,c0,ISIC_0064219.jpg,lower extremity|50s
+0,c0,ISIC_0064220.jpg,anterior torso|70s
+4,c4,ISIC_0064222.jpg,anterior torso|70s
+2,c2,ISIC_0064223.jpg,upper extremity|80+
+0,c0,ISIC_0064239.jpg,anterior torso|40s
+1,c1,ISIC_0064240.jpg,lower extremity|50s
+1,c1,ISIC_0064247.jpg,anterior torso|70s
+2,c2,ISIC_0064258.jpg,upper extremity|70s
+0,c0,ISIC_0064274.jpg,upper extremity|70s
+0,c0,ISIC_0064275.jpg,anterior torso|40s
+1,c1,ISIC_0064279.jpg,lower extremity|30s
+2,c2,ISIC_0064280.jpg,head/neck|70s
+7,c7,ISIC_0064283.jpg,head/neck|70s
+0,c0,ISIC_0064284.jpg,anterior torso|40s
+5,c5,ISIC_0064287.jpg,anterior torso|70s
+1,c1,ISIC_0064298.jpg,lower extremity|50s
+0,c0,ISIC_0064304.jpg,lower extremity|30s
+0,c0,ISIC_0064306.jpg,lower extremity|50s
+0,c0,ISIC_0064308.jpg,anterior torso|40s
+7,c7,ISIC_0064315.jpg,anterior torso|70s
+0,c0,ISIC_0064316.jpg,anterior torso|40s
+1,c1,ISIC_0064320.jpg,lower extremity|50s
+1,c1,ISIC_0064321.jpg,anterior torso|40s
+2,c2,ISIC_0064325.jpg,anterior torso|70s
+4,c4,ISIC_0064330.jpg,upper extremity|80+
+1,c1,ISIC_0064337.jpg,anterior torso|40s
+5,c5,ISIC_0064338.jpg,head/neck|70s
+2,c2,ISIC_0064340.jpg,upper extremity|70s
+0,c0,ISIC_0064343.jpg,lower extremity|50s
+1,c1,ISIC_0064344.jpg,anterior torso|40s
+2,c2,ISIC_0064354.jpg,upper extremity|80+
+2,c2,ISIC_0064357.jpg,upper extremity|70s
+5,c5,ISIC_0064358.jpg,upper extremity|80+
+0,c0,ISIC_0064365.jpg,anterior torso|40s
+0,c0,ISIC_0064368.jpg,anterior torso|40s
+1,c1,ISIC_0064376.jpg,head/neck|70s
+2,c2,ISIC_0064399.jpg,anterior torso|40s
+0,c0,ISIC_0064401.jpg,anterior torso|40s
+3,c3,ISIC_0064405.jpg,anterior torso|70s
+0,c0,ISIC_0064414.jpg,lower extremity|50s
+0,c0,ISIC_0064418.jpg,anterior torso|40s
+2,c2,ISIC_0064422.jpg,head/neck|70s
+1,c1,ISIC_0064423.jpg,head/neck|70s
+0,c0,ISIC_0064435.jpg,anterior torso|40s
+0,c0,ISIC_0064446.jpg,anterior torso|70s
+0,c0,ISIC_0064449.jpg,lower extremity|50s
+1,c1,ISIC_0064455.jpg,anterior torso|40s
+2,c2,ISIC_0064456.jpg,anterior torso|70s
+2,c2,ISIC_0064459.jpg,head/neck|70s
+0,c0,ISIC_0064461.jpg,anterior torso|40s
+1,c1,ISIC_0064462.jpg,lower extremity|50s
+0,c0,ISIC_0064466.jpg,anterior torso|40s
+0,c0,ISIC_0064467.jpg,lower extremity|30s
+1,c1,ISIC_0064481.jpg,anterior torso|40s
+0,c0,ISIC_0064487.jpg,anterior torso|40s
+0,c0,ISIC_0064494.jpg,anterior torso|70s
+3,c3,ISIC_0064518.jpg,head/neck|70s
+1,c1,ISIC_0064521.jpg,lower extremity|50s
+4,c4,ISIC_0064524.jpg,upper extremity|50s
+1,c1,ISIC_0064534.jpg,upper extremity|80+
+0,c0,ISIC_0064536.jpg,anterior torso|40s
+0,c0,ISIC_0064541.jpg,lower extremity|50s
+5,c5,ISIC_0064546.jpg,anterior torso|70s
+1,c1,ISIC_0064549.jpg,anterior torso|40s
+4,c4,ISIC_0064553.jpg,head/neck|70s
+0,c0,ISIC_0064576.jpg,anterior torso|40s
+5,c5,ISIC_0064579.jpg,anterior torso|70s
+4,c4,ISIC_0064583.jpg,head/neck|70s
+1,c1,ISIC_0064589.jpg,upper extremity|70s
+5,c5,ISIC_0064593.jpg,anterior torso|70s
+1,c1,ISIC_0064606.jpg,anterior torso|40s
+2,c2,ISIC_0064612.jpg,upper extremity|70s
+4,c4,ISIC_0064617.jpg,head/neck|70s
+1,c1,ISIC_0064619.jpg,anterior torso|40s
+1,c1,ISIC_0064623.jpg,anterior torso|40s
+0,c0,ISIC_0064627.jpg,anterior torso|40s
+1,c1,ISIC_0064632.jpg,anterior torso|40s
+1,c1,ISIC_0064633.jpg,anterior torso|70s
+0,c0,ISIC_0064637.jpg,anterior torso|40s
+0,c0,ISIC_0064643.jpg,anterior torso|40s
+0,c0,ISIC_0064648.jpg,anterior torso|40s
+2,c2,ISIC_0064652.jpg,head/neck|70s
+3,c3,ISIC_0064654.jpg,anterior torso|70s
+2,c2,ISIC_0064655.jpg,upper extremity|80+
+1,c1,ISIC_0064656.jpg,anterior torso|40s
+2,c2,ISIC_0064657.jpg,anterior torso|70s
+1,c1,ISIC_0064660.jpg,head/neck|70s
+0,c0,ISIC_0064666.jpg,anterior torso|40s
+3,c3,ISIC_0064670.jpg,head/neck|70s
+0,c0,ISIC_0064675.jpg,anterior torso|40s
+2,c2,ISIC_0064679.jpg,anterior torso|70s
+7,c7,ISIC_0064682.jpg,anterior torso|40s
+1,c1,ISIC_0064686.jpg,lower extremity|50s
+0,c0,ISIC_0064688.jpg,anterior torso|40s
+4,c4,ISIC_0064690.jpg,head/neck|70s
+1,c1,ISIC_0064692.jpg,lower extremity|50s
+2,c2,ISIC_0064699.jpg,upper extremity|80+
+0,c0,ISIC_0064705.jpg,anterior torso|40s
+0,c0,ISIC_0064709.jpg,anterior torso|70s
+2,c2,ISIC_0064711.jpg,upper extremity|80+
+2,c2,ISIC_0064714.jpg,anterior torso|40s
+0,c0,ISIC_0064718.jpg,lower extremity|30s
+2,c2,ISIC_0064725.jpg,upper extremity|70s
+3,c3,ISIC_0064740.jpg,lower extremity|50s
+3,c3,ISIC_0064748.jpg,upper extremity|80+
+1,c1,ISIC_0064759.jpg,upper extremity|70s
+1,c1,ISIC_0064761.jpg,anterior torso|40s
+0,c0,ISIC_0064763.jpg,anterior torso|40s
+0,c0,ISIC_0064767.jpg,anterior torso|40s
+0,c0,ISIC_0064768.jpg,anterior torso|40s
+0,c0,ISIC_0064781.jpg,anterior torso|70s
+0,c0,ISIC_0064782.jpg,anterior torso|40s
+1,c1,ISIC_0064785.jpg,lower extremity|50s
+2,c2,ISIC_0064788.jpg,upper extremity|50s
+2,c2,ISIC_0064805.jpg,anterior torso|70s
+3,c3,ISIC_0064810.jpg,head/neck|70s
+4,c4,ISIC_0064811.jpg,head/neck|70s
+3,c3,ISIC_0064817.jpg,anterior torso|40s
+0,c0,ISIC_0064819.jpg,upper extremity|80+
+0,c0,ISIC_0064820.jpg,lower extremity|30s
+1,c1,ISIC_0064821.jpg,upper extremity|50s
+2,c2,ISIC_0064824.jpg,upper extremity|50s
+2,c2,ISIC_0064830.jpg,anterior torso|70s
+1,c1,ISIC_0064836.jpg,anterior torso|70s
+2,c2,ISIC_0064843.jpg,anterior torso|40s
+0,c0,ISIC_0064848.jpg,anterior torso|40s
+0,c0,ISIC_0064853.jpg,anterior torso|40s
+1,c1,ISIC_0064860.jpg,anterior torso|70s
+7,c7,ISIC_0064861.jpg,anterior torso|40s
+1,c1,ISIC_0064863.jpg,anterior torso|40s
+2,c2,ISIC_0064864.jpg,head/neck|70s
+1,c1,ISIC_0064877.jpg,anterior torso|40s
+3,c3,ISIC_0064883.jpg,anterior torso|40s
+2,c2,ISIC_0064884.jpg,head/neck|70s
+1,c1,ISIC_0064887.jpg,upper extremity|70s
+0,c0,ISIC_0064889.jpg,upper extremity|50s
+3,c3,ISIC_0064896.jpg,head/neck|70s
+3,c3,ISIC_0064915.jpg,lower extremity|30s
+1,c1,ISIC_0064919.jpg,anterior torso|40s
+1,c1,ISIC_0064925.jpg,upper extremity|50s
+1,c1,ISIC_0064926.jpg,anterior torso|40s
+1,c1,ISIC_0064927.jpg,lower extremity|50s
+1,c1,ISIC_0064936.jpg,upper extremity|80+
+1,c1,ISIC_0064941.jpg,upper extremity|50s
+0,c0,ISIC_0064952.jpg,anterior torso|40s
+0,c0,ISIC_0064954.jpg,lower extremity|30s
+0,c0,ISIC_0064955.jpg,anterior torso|40s
+0,c0,ISIC_0064967.jpg,anterior torso|40s
+4,c4,ISIC_0064969.jpg,head/neck|70s
+1,c1,ISIC_0064980.jpg,lower extremity|50s
+0,c0,ISIC_0064988.jpg,lower extremity|50s
+1,c1,ISIC_0064993.jpg,head/neck|70s
+1,c1,ISIC_0064997.jpg,upper extremity|70s
+2,c2,ISIC_0065004.jpg,head/neck|70s
+5,c5,ISIC_0065018.jpg,head/neck|70s
+0,c0,ISIC_0065019.jpg,anterior torso|40s
+2,c2,ISIC_0065021.jpg,upper extremity|70s
+1,c1,ISIC_0065022.jpg,anterior torso|40s
+1,c1,ISIC_0065023.jpg,lower extremity|50s
+2,c2,ISIC_0065028.jpg,head/neck|70s
+0,c0,ISIC_0065033.jpg,anterior torso|40s
+0,c0,ISIC_0065034.jpg,anterior torso|40s
+1,c1,ISIC_0065039.jpg,anterior torso|40s
+2,c2,ISIC_0065049.jpg,head/neck|70s
+2,c2,ISIC_0065051.jpg,head/neck|70s
+4,c4,ISIC_0065052.jpg,lower extremity|50s
+2,c2,ISIC_0065056.jpg,anterior torso|70s
+1,c1,ISIC_0065057.jpg,head/neck|70s
+0,c0,ISIC_0065058.jpg,anterior torso|40s
+2,c2,ISIC_0065063.jpg,head/neck|70s
+1,c1,ISIC_0065066.jpg,anterior torso|40s
+4,c4,ISIC_0065078.jpg,upper extremity|70s
+2,c2,ISIC_0065082.jpg,anterior torso|70s
+5,c5,ISIC_0065103.jpg,upper extremity|80+
+2,c2,ISIC_0065108.jpg,head/neck|70s
+3,c3,ISIC_0065115.jpg,lower extremity|50s
+4,c4,ISIC_0065125.jpg,head/neck|70s
+1,c1,ISIC_0065128.jpg,upper extremity|50s
+2,c2,ISIC_0065129.jpg,anterior torso|40s
+1,c1,ISIC_0065133.jpg,head/neck|70s
+0,c0,ISIC_0065134.jpg,upper extremity|70s
+0,c0,ISIC_0065137.jpg,head/neck|70s
+0,c0,ISIC_0065145.jpg,anterior torso|70s
+2,c2,ISIC_0065146.jpg,head/neck|70s
+0,c0,ISIC_0065148.jpg,lower extremity|50s
+7,c7,ISIC_0065149.jpg,anterior torso|70s
+3,c3,ISIC_0065153.jpg,anterior torso|70s
+2,c2,ISIC_0065157.jpg,anterior torso|70s
+0,c0,ISIC_0065158.jpg,anterior torso|40s
+0,c0,ISIC_0065163.jpg,lower extremity|30s
+2,c2,ISIC_0065170.jpg,anterior torso|70s
+0,c0,ISIC_0065184.jpg,lower extremity|30s
+0,c0,ISIC_0065200.jpg,anterior torso|40s
+4,c4,ISIC_0065203.jpg,head/neck|70s
+1,c1,ISIC_0065206.jpg,upper extremity|70s
+0,c0,ISIC_0065208.jpg,anterior torso|40s
+1,c1,ISIC_0065215.jpg,anterior torso|70s
+0,c0,ISIC_0065219.jpg,anterior torso|40s
+0,c0,ISIC_0065222.jpg,head/neck|70s
+1,c1,ISIC_0065229.jpg,upper extremity|80+
+1,c1,ISIC_0065235.jpg,lower extremity|50s
+1,c1,ISIC_0065236.jpg,anterior torso|70s
+1,c1,ISIC_0065248.jpg,upper extremity|70s
+2,c2,ISIC_0065249.jpg,anterior torso|70s
+0,c0,ISIC_0065255.jpg,anterior torso|40s
+2,c2,ISIC_0065256.jpg,anterior torso|70s
+0,c0,ISIC_0065258.jpg,anterior torso|40s
+3,c3,ISIC_0065259.jpg,upper extremity|70s
+0,c0,ISIC_0065261.jpg,upper extremity|50s
+0,c0,ISIC_0065272.jpg,anterior torso|70s
+0,c0,ISIC_0065274.jpg,lower extremity|50s
+4,c4,ISIC_0065276.jpg,head/neck|70s
+0,c0,ISIC_0065277.jpg,anterior torso|40s
+1,c1,ISIC_0065278.jpg,head/neck|70s
+0,c0,ISIC_0065287.jpg,anterior torso|40s
+0,c0,ISIC_0065290.jpg,anterior torso|40s
+3,c3,ISIC_0065291.jpg,head/neck|70s
+0,c0,ISIC_0065295.jpg,anterior torso|40s
+3,c3,ISIC_0065302.jpg,lower extremity|50s
+4,c4,ISIC_0065304.jpg,head/neck|70s
+4,c4,ISIC_0065306.jpg,head/neck|70s
+2,c2,ISIC_0065310.jpg,anterior torso|70s
+4,c4,ISIC_0065312.jpg,upper extremity|50s
+2,c2,ISIC_0065314.jpg,anterior torso|70s
+0,c0,ISIC_0065319.jpg,lower extremity|30s
+0,c0,ISIC_0065320.jpg,anterior torso|40s
+5,c5,ISIC_0065326.jpg,lower extremity|50s
+2,c2,ISIC_0065328.jpg,anterior torso|40s
+2,c2,ISIC_0065330.jpg,anterior torso|70s
+0,c0,ISIC_0065332.jpg,head/neck|70s
+0,c0,ISIC_0065333.jpg,lower extremity|30s
+0,c0,ISIC_0065337.jpg,anterior torso|40s
+0,c0,ISIC_0065339.jpg,anterior torso|40s
+0,c0,ISIC_0065348.jpg,anterior torso|40s
+1,c1,ISIC_0065351.jpg,anterior torso|40s
+0,c0,ISIC_0065358.jpg,anterior torso|40s
+3,c3,ISIC_0065359.jpg,lower extremity|50s
+1,c1,ISIC_0065360.jpg,anterior torso|40s
+3,c3,ISIC_0065366.jpg,lower extremity|30s
+2,c2,ISIC_0065368.jpg,anterior torso|40s
+0,c0,ISIC_0065370.jpg,anterior torso|40s
+0,c0,ISIC_0065377.jpg,anterior torso|40s
+1,c1,ISIC_0065379.jpg,lower extremity|50s
+0,c0,ISIC_0065394.jpg,anterior torso|40s
+3,c3,ISIC_0065399.jpg,anterior torso|70s
+0,c0,ISIC_0065403.jpg,anterior torso|40s
+0,c0,ISIC_0065406.jpg,anterior torso|40s
+2,c2,ISIC_0065407.jpg,anterior torso|70s
+1,c1,ISIC_0065421.jpg,lower extremity|50s
+2,c2,ISIC_0065429.jpg,anterior torso|70s
+1,c1,ISIC_0065433.jpg,upper extremity|70s
+2,c2,ISIC_0065440.jpg,upper extremity|70s
+1,c1,ISIC_0065469.jpg,upper extremity|50s
+0,c0,ISIC_0065471.jpg,anterior torso|40s
+5,c5,ISIC_0065472.jpg,upper extremity|70s
+0,c0,ISIC_0065473.jpg,lower extremity|50s
+5,c5,ISIC_0065484.jpg,upper extremity|80+
+2,c2,ISIC_0065490.jpg,anterior torso|40s
+5,c5,ISIC_0065491.jpg,head/neck|70s
+0,c0,ISIC_0065506.jpg,lower extremity|50s
+0,c0,ISIC_0065510.jpg,lower extremity|30s
+3,c3,ISIC_0065514.jpg,head/neck|70s
+1,c1,ISIC_0065516.jpg,anterior torso|40s
+0,c0,ISIC_0065517.jpg,anterior torso|40s
+1,c1,ISIC_0065518.jpg,anterior torso|70s
+1,c1,ISIC_0065523.jpg,upper extremity|70s
+1,c1,ISIC_0065525.jpg,anterior torso|70s
+0,c0,ISIC_0065528.jpg,anterior torso|40s
+0,c0,ISIC_0065529.jpg,anterior torso|40s
+1,c1,ISIC_0065535.jpg,anterior torso|40s
+0,c0,ISIC_0065541.jpg,anterior torso|40s
+0,c0,ISIC_0065542.jpg,lower extremity|50s
+2,c2,ISIC_0065546.jpg,upper extremity|50s
+4,c4,ISIC_0065547.jpg,head/neck|70s
+4,c4,ISIC_0065552.jpg,head/neck|70s
+3,c3,ISIC_0065554.jpg,anterior torso|70s
+0,c0,ISIC_0065555.jpg,anterior torso|40s
+2,c2,ISIC_0065556.jpg,upper extremity|70s
+2,c2,ISIC_0065567.jpg,head/neck|70s
+0,c0,ISIC_0065578.jpg,upper extremity|50s
+2,c2,ISIC_0065579.jpg,upper extremity|70s
+0,c0,ISIC_0065591.jpg,anterior torso|40s
+0,c0,ISIC_0065592.jpg,lower extremity|30s
+0,c0,ISIC_0065593.jpg,lower extremity|50s
+5,c5,ISIC_0065604.jpg,upper extremity|80+
+0,c0,ISIC_0065623.jpg,anterior torso|40s
+2,c2,ISIC_0065626.jpg,head/neck|70s
+3,c3,ISIC_0065631.jpg,lower extremity|30s
+3,c3,ISIC_0065647.jpg,anterior torso|70s
+2,c2,ISIC_0065648.jpg,anterior torso|70s
+2,c2,ISIC_0065664.jpg,anterior torso|70s
+2,c2,ISIC_0065666.jpg,upper extremity|50s
+0,c0,ISIC_0065672.jpg,anterior torso|40s
+1,c1,ISIC_0065694.jpg,anterior torso|70s
+1,c1,ISIC_0065709.jpg,upper extremity|80+
+1,c1,ISIC_0065727.jpg,lower extremity|30s
+0,c0,ISIC_0065732.jpg,anterior torso|40s
+2,c2,ISIC_0065739.jpg,lower extremity|50s
+1,c1,ISIC_0065740.jpg,head/neck|70s
+1,c1,ISIC_0065746.jpg,head/neck|70s
+3,c3,ISIC_0065764.jpg,head/neck|70s
+2,c2,ISIC_0065771.jpg,upper extremity|80+
+1,c1,ISIC_0065774.jpg,lower extremity|50s
+2,c2,ISIC_0065780.jpg,anterior torso|70s
+7,c7,ISIC_0065784.jpg,anterior torso|40s
+2,c2,ISIC_0065790.jpg,head/neck|70s
+0,c0,ISIC_0065791.jpg,lower extremity|50s
+2,c2,ISIC_0065805.jpg,anterior torso|70s
+1,c1,ISIC_0065807.jpg,head/neck|70s
+0,c0,ISIC_0065808.jpg,anterior torso|40s
+0,c0,ISIC_0065812.jpg,anterior torso|40s
+0,c0,ISIC_0065820.jpg,anterior torso|40s
+1,c1,ISIC_0065823.jpg,anterior torso|70s
+2,c2,ISIC_0065826.jpg,anterior torso|40s
+2,c2,ISIC_0065833.jpg,anterior torso|70s
+0,c0,ISIC_0065841.jpg,upper extremity|50s
+0,c0,ISIC_0065842.jpg,lower extremity|30s
+1,c1,ISIC_0065853.jpg,lower extremity|50s
+1,c1,ISIC_0065858.jpg,upper extremity|70s
+3,c3,ISIC_0065859.jpg,anterior torso|40s
+1,c1,ISIC_0065864.jpg,anterior torso|40s
+0,c0,ISIC_0065873.jpg,anterior torso|40s
+4,c4,ISIC_0065880.jpg,head/neck|70s
+0,c0,ISIC_0065881.jpg,lower extremity|30s
+5,c5,ISIC_0065888.jpg,upper extremity|70s
+1,c1,ISIC_0065889.jpg,anterior torso|70s
+2,c2,ISIC_0065893.jpg,upper extremity|70s
+0,c0,ISIC_0065917.jpg,anterior torso|70s
+0,c0,ISIC_0065920.jpg,anterior torso|40s
+0,c0,ISIC_0065924.jpg,anterior torso|40s
+1,c1,ISIC_0065928.jpg,anterior torso|70s
+0,c0,ISIC_0065931.jpg,upper extremity|50s
+3,c3,ISIC_0065935.jpg,lower extremity|50s
+4,c4,ISIC_0065952.jpg,head/neck|70s
+1,c1,ISIC_0065954.jpg,anterior torso|70s
+2,c2,ISIC_0065963.jpg,upper extremity|80+
+0,c0,ISIC_0065968.jpg,anterior torso|40s
+4,c4,ISIC_0065992.jpg,head/neck|70s
+3,c3,ISIC_0065993.jpg,head/neck|70s
+0,c0,ISIC_0065996.jpg,anterior torso|40s
+2,c2,ISIC_0065999.jpg,anterior torso|70s
+0,c0,ISIC_0066000.jpg,anterior torso|40s
+0,c0,ISIC_0066004.jpg,lower extremity|30s
+3,c3,ISIC_0066013.jpg,head/neck|70s
+0,c0,ISIC_0066017.jpg,anterior torso|40s
+2,c2,ISIC_0066020.jpg,head/neck|70s
+0,c0,ISIC_0066025.jpg,anterior torso|40s
+6,c6,ISIC_0066028.jpg,lower extremity|50s
+0,c0,ISIC_0066033.jpg,anterior torso|40s
+1,c1,ISIC_0066041.jpg,anterior torso|70s
+2,c2,ISIC_0066044.jpg,upper extremity|50s
+0,c0,ISIC_0066053.jpg,anterior torso|40s
+2,c2,ISIC_0066054.jpg,anterior torso|70s
+0,c0,ISIC_0066078.jpg,anterior torso|40s
+4,c4,ISIC_0066082.jpg,head/neck|70s
+1,c1,ISIC_0066086.jpg,head/neck|70s
+2,c2,ISIC_0066092.jpg,anterior torso|70s
+0,c0,ISIC_0066099.jpg,anterior torso|40s
+2,c2,ISIC_0066103.jpg,anterior torso|70s
+1,c1,ISIC_0066105.jpg,upper extremity|50s
+3,c3,ISIC_0066108.jpg,anterior torso|70s
+1,c1,ISIC_0066109.jpg,lower extremity|30s
+0,c0,ISIC_0066111.jpg,lower extremity|30s
+1,c1,ISIC_0066122.jpg,upper extremity|70s
+1,c1,ISIC_0066127.jpg,upper extremity|70s
+2,c2,ISIC_0066131.jpg,head/neck|70s
+3,c3,ISIC_0066132.jpg,head/neck|70s
+0,c0,ISIC_0066139.jpg,anterior torso|40s
+1,c1,ISIC_0066143.jpg,anterior torso|40s
+2,c2,ISIC_0066144.jpg,head/neck|70s
+0,c0,ISIC_0066149.jpg,anterior torso|40s
+1,c1,ISIC_0066150.jpg,lower extremity|50s
+0,c0,ISIC_0066153.jpg,anterior torso|40s
+2,c2,ISIC_0066155.jpg,anterior torso|70s
+2,c2,ISIC_0066157.jpg,anterior torso|70s
+0,c0,ISIC_0066174.jpg,lower extremity|50s
+0,c0,ISIC_0066177.jpg,lower extremity|30s
+1,c1,ISIC_0066181.jpg,head/neck|70s
+1,c1,ISIC_0066182.jpg,lower extremity|50s
+0,c0,ISIC_0066193.jpg,upper extremity|80+
+2,c2,ISIC_0066197.jpg,head/neck|70s
+1,c1,ISIC_0066203.jpg,lower extremity|50s
+0,c0,ISIC_0066211.jpg,anterior torso|40s
+0,c0,ISIC_0066215.jpg,anterior torso|70s
+1,c1,ISIC_0066217.jpg,lower extremity|50s
+0,c0,ISIC_0066223.jpg,anterior torso|40s
+2,c2,ISIC_0066224.jpg,upper extremity|70s
+1,c1,ISIC_0066225.jpg,head/neck|70s
+2,c2,ISIC_0066238.jpg,anterior torso|40s
+1,c1,ISIC_0066240.jpg,lower extremity|30s
+0,c0,ISIC_0066247.jpg,upper extremity|70s
+2,c2,ISIC_0066250.jpg,anterior torso|40s
+0,c0,ISIC_0066251.jpg,anterior torso|40s
+0,c0,ISIC_0066252.jpg,anterior torso|40s
+3,c3,ISIC_0066256.jpg,head/neck|70s
+2,c2,ISIC_0066257.jpg,upper extremity|70s
+3,c3,ISIC_0066258.jpg,upper extremity|70s
+0,c0,ISIC_0066261.jpg,anterior torso|40s
+1,c1,ISIC_0066262.jpg,lower extremity|30s
+0,c0,ISIC_0066279.jpg,upper extremity|50s
+2,c2,ISIC_0066282.jpg,upper extremity|70s
+0,c0,ISIC_0066283.jpg,upper extremity|80+
+0,c0,ISIC_0066294.jpg,anterior torso|40s
+0,c0,ISIC_0066295.jpg,anterior torso|40s
+0,c0,ISIC_0066299.jpg,lower extremity|30s
+2,c2,ISIC_0066301.jpg,head/neck|70s
+4,c4,ISIC_0066306.jpg,head/neck|70s
+1,c1,ISIC_0066308.jpg,upper extremity|50s
+0,c0,ISIC_0066314.jpg,anterior torso|40s
+1,c1,ISIC_0066319.jpg,lower extremity|50s
+1,c1,ISIC_0066320.jpg,anterior torso|70s
+2,c2,ISIC_0066322.jpg,anterior torso|70s
+0,c0,ISIC_0066327.jpg,anterior torso|40s
+0,c0,ISIC_0066330.jpg,head/neck|70s
+1,c1,ISIC_0066336.jpg,anterior torso|70s
+2,c2,ISIC_0066344.jpg,anterior torso|70s
+1,c1,ISIC_0066347.jpg,anterior torso|70s
+0,c0,ISIC_0066349.jpg,lower extremity|50s
+1,c1,ISIC_0066354.jpg,lower extremity|30s
+0,c0,ISIC_0066356.jpg,lower extremity|30s
+1,c1,ISIC_0066359.jpg,head/neck|70s
+4,c4,ISIC_0066360.jpg,head/neck|70s
+0,c0,ISIC_0066362.jpg,lower extremity|30s
+0,c0,ISIC_0066364.jpg,anterior torso|40s
+4,c4,ISIC_0066374.jpg,lower extremity|50s
+1,c1,ISIC_0066379.jpg,anterior torso|40s
+2,c2,ISIC_0066381.jpg,upper extremity|80+
+1,c1,ISIC_0066382.jpg,upper extremity|70s
+0,c0,ISIC_0066383.jpg,anterior torso|40s
+1,c1,ISIC_0066384.jpg,anterior torso|70s
+1,c1,ISIC_0066386.jpg,lower extremity|50s
+1,c1,ISIC_0066390.jpg,lower extremity|50s
+2,c2,ISIC_0066392.jpg,anterior torso|70s
+0,c0,ISIC_0066393.jpg,lower extremity|30s
+0,c0,ISIC_0066396.jpg,anterior torso|40s
+1,c1,ISIC_0066399.jpg,anterior torso|70s
+1,c1,ISIC_0066404.jpg,lower extremity|50s
+1,c1,ISIC_0066407.jpg,anterior torso|40s
+0,c0,ISIC_0066411.jpg,lower extremity|50s
+1,c1,ISIC_0066412.jpg,anterior torso|40s
+2,c2,ISIC_0066414.jpg,head/neck|70s
+1,c1,ISIC_0066429.jpg,head/neck|70s
+2,c2,ISIC_0066436.jpg,anterior torso|40s
+7,c7,ISIC_0066446.jpg,lower extremity|30s
+4,c4,ISIC_0066452.jpg,head/neck|70s
+2,c2,ISIC_0066453.jpg,upper extremity|70s
+0,c0,ISIC_0066456.jpg,lower extremity|30s
+2,c2,ISIC_0066467.jpg,anterior torso|70s
+2,c2,ISIC_0066469.jpg,anterior torso|40s
+1,c1,ISIC_0066470.jpg,anterior torso|40s
+3,c3,ISIC_0066472.jpg,anterior torso|70s
+2,c2,ISIC_0066473.jpg,anterior torso|40s
+3,c3,ISIC_0066474.jpg,upper extremity|50s
+1,c1,ISIC_0066476.jpg,anterior torso|70s
+0,c0,ISIC_0066479.jpg,anterior torso|40s
+6,c6,ISIC_0066484.jpg,upper extremity|50s
+0,c0,ISIC_0066488.jpg,lower extremity|50s
+1,c1,ISIC_0066492.jpg,lower extremity|50s
+1,c1,ISIC_0066497.jpg,anterior torso|70s
+7,c7,ISIC_0066504.jpg,head/neck|70s
+1,c1,ISIC_0066505.jpg,upper extremity|70s
+0,c0,ISIC_0066508.jpg,lower extremity|30s
+4,c4,ISIC_0066509.jpg,upper extremity|80+
+2,c2,ISIC_0066511.jpg,anterior torso|70s
+1,c1,ISIC_0066533.jpg,head/neck|70s
+0,c0,ISIC_0066539.jpg,lower extremity|50s
+2,c2,ISIC_0066544.jpg,anterior torso|40s
+3,c3,ISIC_0066547.jpg,anterior torso|70s
+0,c0,ISIC_0066557.jpg,anterior torso|40s
+2,c2,ISIC_0066558.jpg,anterior torso|70s
+4,c4,ISIC_0066563.jpg,upper extremity|80+
+2,c2,ISIC_0066569.jpg,head/neck|70s
+0,c0,ISIC_0066574.jpg,upper extremity|50s
+2,c2,ISIC_0066575.jpg,anterior torso|40s
+0,c0,ISIC_0066584.jpg,head/neck|70s
+0,c0,ISIC_0066585.jpg,upper extremity|50s
+4,c4,ISIC_0066586.jpg,head/neck|70s
+0,c0,ISIC_0066597.jpg,lower extremity|50s
+2,c2,ISIC_0066598.jpg,upper extremity|70s
+0,c0,ISIC_0066621.jpg,lower extremity|50s
+5,c5,ISIC_0066625.jpg,upper extremity|80+
+1,c1,ISIC_0066626.jpg,upper extremity|80+
+3,c3,ISIC_0066634.jpg,head/neck|70s
+0,c0,ISIC_0066636.jpg,anterior torso|70s
+1,c1,ISIC_0066637.jpg,lower extremity|50s
+6,c6,ISIC_0066648.jpg,upper extremity|50s
+0,c0,ISIC_0066651.jpg,anterior torso|40s
+0,c0,ISIC_0066653.jpg,lower extremity|30s
+0,c0,ISIC_0066660.jpg,anterior torso|40s
+0,c0,ISIC_0066661.jpg,anterior torso|70s
+1,c1,ISIC_0066666.jpg,upper extremity|70s
+2,c2,ISIC_0066676.jpg,anterior torso|40s
+1,c1,ISIC_0066678.jpg,anterior torso|40s
+3,c3,ISIC_0066679.jpg,head/neck|70s
+7,c7,ISIC_0066692.jpg,anterior torso|40s
+0,c0,ISIC_0066704.jpg,anterior torso|40s
+0,c0,ISIC_0066718.jpg,anterior torso|40s
+0,c0,ISIC_0066719.jpg,anterior torso|40s
+0,c0,ISIC_0066729.jpg,anterior torso|40s
+1,c1,ISIC_0066733.jpg,anterior torso|70s
+3,c3,ISIC_0066737.jpg,upper extremity|70s
+0,c0,ISIC_0066742.jpg,anterior torso|40s
+2,c2,ISIC_0066743.jpg,anterior torso|40s
+2,c2,ISIC_0066747.jpg,anterior torso|70s
+1,c1,ISIC_0066750.jpg,upper extremity|80+
+0,c0,ISIC_0066755.jpg,lower extremity|50s
+2,c2,ISIC_0066760.jpg,head/neck|70s
+1,c1,ISIC_0066769.jpg,head/neck|70s
+3,c3,ISIC_0066773.jpg,upper extremity|80+
+3,c3,ISIC_0066777.jpg,lower extremity|50s
+0,c0,ISIC_0066778.jpg,anterior torso|70s
+0,c0,ISIC_0066780.jpg,anterior torso|70s
+5,c5,ISIC_0066781.jpg,anterior torso|70s
+0,c0,ISIC_0066784.jpg,anterior torso|70s
+5,c5,ISIC_0066787.jpg,lower extremity|50s
+0,c0,ISIC_0066796.jpg,anterior torso|40s
+2,c2,ISIC_0066816.jpg,head/neck|70s
+4,c4,ISIC_0066819.jpg,upper extremity|80+
+2,c2,ISIC_0066820.jpg,upper extremity|70s
+2,c2,ISIC_0066824.jpg,head/neck|70s
+4,c4,ISIC_0066825.jpg,head/neck|70s
+2,c2,ISIC_0066834.jpg,head/neck|70s
+2,c2,ISIC_0066837.jpg,upper extremity|80+
+2,c2,ISIC_0066841.jpg,head/neck|70s
+1,c1,ISIC_0066848.jpg,anterior torso|40s
+2,c2,ISIC_0066850.jpg,lower extremity|50s
+1,c1,ISIC_0066855.jpg,anterior torso|70s
+3,c3,ISIC_0066857.jpg,head/neck|70s
+4,c4,ISIC_0066858.jpg,head/neck|70s
+0,c0,ISIC_0066862.jpg,anterior torso|40s
+0,c0,ISIC_0066868.jpg,upper extremity|70s
+1,c1,ISIC_0066888.jpg,upper extremity|70s
+0,c0,ISIC_0066889.jpg,anterior torso|40s
+4,c4,ISIC_0066895.jpg,upper extremity|70s
+3,c3,ISIC_0066896.jpg,anterior torso|40s
+2,c2,ISIC_0066901.jpg,head/neck|70s
+5,c5,ISIC_0066908.jpg,lower extremity|50s
+3,c3,ISIC_0066911.jpg,head/neck|70s
+3,c3,ISIC_0066914.jpg,anterior torso|70s
+0,c0,ISIC_0066915.jpg,upper extremity|50s
+0,c0,ISIC_0066919.jpg,anterior torso|70s
+3,c3,ISIC_0066925.jpg,lower extremity|30s
+0,c0,ISIC_0066934.jpg,lower extremity|50s
+1,c1,ISIC_0066935.jpg,head/neck|70s
+3,c3,ISIC_0066945.jpg,head/neck|70s
+0,c0,ISIC_0066949.jpg,anterior torso|40s
+0,c0,ISIC_0066963.jpg,anterior torso|40s
+2,c2,ISIC_0066965.jpg,anterior torso|40s
+0,c0,ISIC_0066968.jpg,anterior torso|40s
+1,c1,ISIC_0066969.jpg,anterior torso|40s
+0,c0,ISIC_0066970.jpg,anterior torso|40s
+4,c4,ISIC_0066973.jpg,upper extremity|70s
+0,c0,ISIC_0066975.jpg,lower extremity|50s
+2,c2,ISIC_0066979.jpg,anterior torso|70s
+4,c4,ISIC_0066988.jpg,head/neck|70s
+3,c3,ISIC_0066989.jpg,head/neck|70s
+1,c1,ISIC_0066992.jpg,upper extremity|50s
+2,c2,ISIC_0067000.jpg,head/neck|70s
+0,c0,ISIC_0067002.jpg,lower extremity|30s
+1,c1,ISIC_0067006.jpg,upper extremity|70s
+0,c0,ISIC_0067007.jpg,anterior torso|70s
+1,c1,ISIC_0067008.jpg,lower extremity|30s
+1,c1,ISIC_0067009.jpg,upper extremity|50s
+0,c0,ISIC_0067012.jpg,lower extremity|50s
+0,c0,ISIC_0067017.jpg,anterior torso|40s
+0,c0,ISIC_0067030.jpg,upper extremity|70s
+3,c3,ISIC_0067034.jpg,head/neck|70s
+3,c3,ISIC_0067039.jpg,head/neck|70s
+0,c0,ISIC_0067041.jpg,anterior torso|40s
+2,c2,ISIC_0067042.jpg,anterior torso|70s
+5,c5,ISIC_0067044.jpg,upper extremity|80+
+2,c2,ISIC_0067049.jpg,anterior torso|70s
+2,c2,ISIC_0067055.jpg,upper extremity|80+
+2,c2,ISIC_0067057.jpg,upper extremity|50s
+6,c6,ISIC_0067060.jpg,lower extremity|50s
+4,c4,ISIC_0067061.jpg,upper extremity|70s
+2,c2,ISIC_0067070.jpg,upper extremity|70s
+5,c5,ISIC_0067075.jpg,anterior torso|70s
+2,c2,ISIC_0067076.jpg,anterior torso|70s
+5,c5,ISIC_0067081.jpg,head/neck|70s
+2,c2,ISIC_0067087.jpg,anterior torso|70s
+2,c2,ISIC_0067088.jpg,upper extremity|80+
+2,c2,ISIC_0067089.jpg,head/neck|70s
+0,c0,ISIC_0067094.jpg,anterior torso|40s
+1,c1,ISIC_0067097.jpg,upper extremity|50s
+2,c2,ISIC_0067103.jpg,upper extremity|70s
+2,c2,ISIC_0067106.jpg,head/neck|70s
+0,c0,ISIC_0067108.jpg,anterior torso|40s
+3,c3,ISIC_0067117.jpg,lower extremity|50s
+0,c0,ISIC_0067119.jpg,anterior torso|40s
+0,c0,ISIC_0067124.jpg,lower extremity|30s
+1,c1,ISIC_0067128.jpg,anterior torso|40s
+2,c2,ISIC_0067130.jpg,anterior torso|70s
+2,c2,ISIC_0067131.jpg,head/neck|70s
+2,c2,ISIC_0067137.jpg,head/neck|70s
+0,c0,ISIC_0067141.jpg,anterior torso|40s
+2,c2,ISIC_0067146.jpg,upper extremity|70s
+2,c2,ISIC_0067147.jpg,anterior torso|70s
+4,c4,ISIC_0067153.jpg,head/neck|70s
+0,c0,ISIC_0067165.jpg,lower extremity|30s
+7,c7,ISIC_0067166.jpg,head/neck|70s
+1,c1,ISIC_0067167.jpg,anterior torso|40s
+0,c0,ISIC_0067168.jpg,anterior torso|40s
+1,c1,ISIC_0067171.jpg,upper extremity|70s
+5,c5,ISIC_0067174.jpg,upper extremity|80+
+2,c2,ISIC_0067175.jpg,anterior torso|40s
+0,c0,ISIC_0067176.jpg,anterior torso|40s
+4,c4,ISIC_0067180.jpg,head/neck|70s
+2,c2,ISIC_0067182.jpg,anterior torso|40s
+1,c1,ISIC_0067183.jpg,anterior torso|40s
+0,c0,ISIC_0067196.jpg,anterior torso|40s
+1,c1,ISIC_0067205.jpg,head/neck|70s
+1,c1,ISIC_0067210.jpg,anterior torso|70s
+0,c0,ISIC_0067214.jpg,anterior torso|40s
+0,c0,ISIC_0067220.jpg,anterior torso|70s
+1,c1,ISIC_0067235.jpg,lower extremity|50s
+1,c1,ISIC_0067240.jpg,anterior torso|70s
+4,c4,ISIC_0067246.jpg,head/neck|70s
+1,c1,ISIC_0067248.jpg,anterior torso|40s
+0,c0,ISIC_0067252.jpg,anterior torso|40s
+1,c1,ISIC_0067253.jpg,head/neck|70s
+0,c0,ISIC_0067254.jpg,anterior torso|40s
+2,c2,ISIC_0067256.jpg,upper extremity|50s
+0,c0,ISIC_0067257.jpg,anterior torso|40s
+3,c3,ISIC_0067258.jpg,upper extremity|80+
+2,c2,ISIC_0067264.jpg,head/neck|70s
+2,c2,ISIC_0067272.jpg,head/neck|70s
+1,c1,ISIC_0067276.jpg,lower extremity|50s
+2,c2,ISIC_0067279.jpg,upper extremity|70s
+5,c5,ISIC_0067280.jpg,upper extremity|80+
+7,c7,ISIC_0067285.jpg,anterior torso|40s
+0,c0,ISIC_0067288.jpg,anterior torso|40s
+0,c0,ISIC_0067292.jpg,anterior torso|40s
+2,c2,ISIC_0067301.jpg,anterior torso|70s
+0,c0,ISIC_0067306.jpg,anterior torso|40s
+2,c2,ISIC_0067312.jpg,anterior torso|40s
+1,c1,ISIC_0067317.jpg,anterior torso|40s
+0,c0,ISIC_0067321.jpg,anterior torso|40s
+1,c1,ISIC_0067335.jpg,head/neck|70s
+7,c7,ISIC_0067336.jpg,anterior torso|40s
+0,c0,ISIC_0067338.jpg,anterior torso|40s
+0,c0,ISIC_0067344.jpg,upper extremity|70s
+1,c1,ISIC_0067350.jpg,anterior torso|40s
+2,c2,ISIC_0067354.jpg,head/neck|70s
+7,c7,ISIC_0067355.jpg,anterior torso|70s
+0,c0,ISIC_0067356.jpg,upper extremity|50s
+6,c6,ISIC_0067362.jpg,upper extremity|70s
+4,c4,ISIC_0067364.jpg,head/neck|70s
+0,c0,ISIC_0067371.jpg,upper extremity|50s
+0,c0,ISIC_0067373.jpg,anterior torso|40s
+4,c4,ISIC_0067377.jpg,head/neck|70s
+7,c7,ISIC_0067382.jpg,head/neck|70s
+2,c2,ISIC_0067386.jpg,anterior torso|40s
+0,c0,ISIC_0067389.jpg,anterior torso|40s
+0,c0,ISIC_0067390.jpg,anterior torso|40s
+0,c0,ISIC_0067391.jpg,anterior torso|40s
+4,c4,ISIC_0067394.jpg,head/neck|70s
+0,c0,ISIC_0067397.jpg,lower extremity|50s
+2,c2,ISIC_0067400.jpg,anterior torso|70s
+0,c0,ISIC_0067412.jpg,anterior torso|40s
+1,c1,ISIC_0067418.jpg,lower extremity|30s
+4,c4,ISIC_0067425.jpg,head/neck|70s
+0,c0,ISIC_0067430.jpg,anterior torso|70s
+0,c0,ISIC_0067431.jpg,anterior torso|40s
+4,c4,ISIC_0067432.jpg,head/neck|70s
+6,c6,ISIC_0067434.jpg,lower extremity|50s
+0,c0,ISIC_0067436.jpg,lower extremity|30s
+1,c1,ISIC_0067438.jpg,upper extremity|80+
+2,c2,ISIC_0067439.jpg,lower extremity|50s
+4,c4,ISIC_0067450.jpg,head/neck|70s
+1,c1,ISIC_0067452.jpg,head/neck|70s
+2,c2,ISIC_0067454.jpg,upper extremity|50s
+2,c2,ISIC_0067456.jpg,upper extremity|70s
+1,c1,ISIC_0067461.jpg,upper extremity|70s
+4,c4,ISIC_0067468.jpg,head/neck|70s
+0,c0,ISIC_0067474.jpg,lower extremity|30s
+0,c0,ISIC_0067476.jpg,anterior torso|40s
+0,c0,ISIC_0067478.jpg,lower extremity|50s
+0,c0,ISIC_0067479.jpg,anterior torso|70s
+2,c2,ISIC_0067486.jpg,head/neck|70s
+1,c1,ISIC_0067488.jpg,upper extremity|70s
+4,c4,ISIC_0067490.jpg,upper extremity|80+
+4,c4,ISIC_0067500.jpg,head/neck|70s
+0,c0,ISIC_0067507.jpg,anterior torso|40s
+1,c1,ISIC_0067513.jpg,upper extremity|50s
+0,c0,ISIC_0067517.jpg,anterior torso|40s
+1,c1,ISIC_0067521.jpg,lower extremity|50s
+2,c2,ISIC_0067524.jpg,anterior torso|40s
+5,c5,ISIC_0067527.jpg,anterior torso|70s
+2,c2,ISIC_0067532.jpg,anterior torso|70s
+3,c3,ISIC_0067559.jpg,head/neck|70s
+0,c0,ISIC_0067562.jpg,anterior torso|40s
+1,c1,ISIC_0067564.jpg,upper extremity|70s
+1,c1,ISIC_0067565.jpg,lower extremity|50s
+1,c1,ISIC_0067567.jpg,lower extremity|50s
+0,c0,ISIC_0067573.jpg,anterior torso|40s
+2,c2,ISIC_0067580.jpg,anterior torso|70s
+3,c3,ISIC_0067582.jpg,lower extremity|30s
+6,c6,ISIC_0067589.jpg,anterior torso|40s
+0,c0,ISIC_0067603.jpg,lower extremity|50s
+3,c3,ISIC_0067608.jpg,head/neck|70s
+0,c0,ISIC_0067609.jpg,anterior torso|40s
+3,c3,ISIC_0067611.jpg,lower extremity|50s
+0,c0,ISIC_0067612.jpg,lower extremity|30s
+4,c4,ISIC_0067632.jpg,head/neck|70s
+5,c5,ISIC_0067643.jpg,head/neck|70s
+0,c0,ISIC_0067648.jpg,lower extremity|50s
+2,c2,ISIC_0067659.jpg,upper extremity|70s
+0,c0,ISIC_0067662.jpg,lower extremity|30s
+0,c0,ISIC_0067669.jpg,lower extremity|30s
+0,c0,ISIC_0067672.jpg,anterior torso|40s
+2,c2,ISIC_0067681.jpg,anterior torso|40s
+1,c1,ISIC_0067695.jpg,anterior torso|70s
+1,c1,ISIC_0067697.jpg,upper extremity|50s
+4,c4,ISIC_0067698.jpg,upper extremity|80+
+1,c1,ISIC_0067699.jpg,lower extremity|30s
+2,c2,ISIC_0067707.jpg,head/neck|70s
+0,c0,ISIC_0067715.jpg,upper extremity|50s
+2,c2,ISIC_0067721.jpg,upper extremity|70s
+3,c3,ISIC_0067734.jpg,upper extremity|70s
+2,c2,ISIC_0067736.jpg,lower extremity|50s
+3,c3,ISIC_0067740.jpg,upper extremity|80+
+1,c1,ISIC_0067743.jpg,anterior torso|70s
+1,c1,ISIC_0067747.jpg,anterior torso|40s
+0,c0,ISIC_0067752.jpg,anterior torso|40s
+2,c2,ISIC_0067753.jpg,anterior torso|40s
+1,c1,ISIC_0067758.jpg,anterior torso|70s
+0,c0,ISIC_0067775.jpg,lower extremity|30s
+1,c1,ISIC_0067789.jpg,lower extremity|50s
+0,c0,ISIC_0067790.jpg,lower extremity|30s
+7,c7,ISIC_0067807.jpg,head/neck|70s
+1,c1,ISIC_0067808.jpg,upper extremity|70s
+0,c0,ISIC_0067809.jpg,anterior torso|40s
+1,c1,ISIC_0067836.jpg,upper extremity|70s
+0,c0,ISIC_0067841.jpg,anterior torso|40s
+1,c1,ISIC_0067843.jpg,anterior torso|70s
+1,c1,ISIC_0067857.jpg,anterior torso|40s
+0,c0,ISIC_0067858.jpg,anterior torso|70s
+0,c0,ISIC_0067864.jpg,anterior torso|70s
+0,c0,ISIC_0067866.jpg,anterior torso|40s
+3,c3,ISIC_0067882.jpg,lower extremity|50s
+0,c0,ISIC_0067886.jpg,anterior torso|40s
+4,c4,ISIC_0067887.jpg,head/neck|70s
+1,c1,ISIC_0067889.jpg,anterior torso|40s
+1,c1,ISIC_0067890.jpg,anterior torso|40s
+1,c1,ISIC_0067891.jpg,anterior torso|40s
+1,c1,ISIC_0067893.jpg,anterior torso|70s
+1,c1,ISIC_0067903.jpg,head/neck|70s
+1,c1,ISIC_0067914.jpg,lower extremity|30s
+0,c0,ISIC_0067916.jpg,anterior torso|40s
+0,c0,ISIC_0067922.jpg,anterior torso|40s
+0,c0,ISIC_0067925.jpg,anterior torso|40s
+1,c1,ISIC_0067933.jpg,anterior torso|70s
+1,c1,ISIC_0067934.jpg,anterior torso|70s
+2,c2,ISIC_0067940.jpg,anterior torso|40s
+5,c5,ISIC_0067944.jpg,upper extremity|70s
+0,c0,ISIC_0067946.jpg,anterior torso|40s
+2,c2,ISIC_0067956.jpg,anterior torso|70s
+1,c1,ISIC_0067960.jpg,anterior torso|70s
+0,c0,ISIC_0067965.jpg,anterior torso|70s
+1,c1,ISIC_0067979.jpg,anterior torso|70s
+0,c0,ISIC_0067980.jpg,anterior torso|40s
+0,c0,ISIC_0067983.jpg,anterior torso|40s
+1,c1,ISIC_0067985.jpg,lower extremity|50s
+2,c2,ISIC_0067988.jpg,lower extremity|50s
+2,c2,ISIC_0067990.jpg,head/neck|70s
+2,c2,ISIC_0067991.jpg,anterior torso|40s
+3,c3,ISIC_0067992.jpg,head/neck|70s
+0,c0,ISIC_0067995.jpg,anterior torso|40s
+2,c2,ISIC_0067997.jpg,head/neck|70s
+2,c2,ISIC_0067999.jpg,anterior torso|40s
+0,c0,ISIC_0068001.jpg,anterior torso|40s
+1,c1,ISIC_0068003.jpg,upper extremity|50s
+2,c2,ISIC_0068005.jpg,upper extremity|70s
+0,c0,ISIC_0068009.jpg,anterior torso|70s
+0,c0,ISIC_0068010.jpg,anterior torso|40s
+1,c1,ISIC_0068011.jpg,anterior torso|40s
+1,c1,ISIC_0068012.jpg,upper extremity|80+
+1,c1,ISIC_0068015.jpg,anterior torso|70s
+0,c0,ISIC_0068035.jpg,anterior torso|70s
+2,c2,ISIC_0068036.jpg,anterior torso|70s
+0,c0,ISIC_0068046.jpg,anterior torso|40s
+0,c0,ISIC_0068056.jpg,anterior torso|40s
+3,c3,ISIC_0068057.jpg,lower extremity|50s
+3,c3,ISIC_0068063.jpg,lower extremity|50s
+1,c1,ISIC_0068074.jpg,lower extremity|50s
+6,c6,ISIC_0068078.jpg,lower extremity|30s
+3,c3,ISIC_0068079.jpg,head/neck|70s
+0,c0,ISIC_0068082.jpg,anterior torso|40s
+4,c4,ISIC_0068086.jpg,head/neck|70s
+0,c0,ISIC_0068090.jpg,anterior torso|40s
+3,c3,ISIC_0068103.jpg,upper extremity|50s
+1,c1,ISIC_0068106.jpg,upper extremity|70s
+1,c1,ISIC_0068107.jpg,anterior torso|70s
+0,c0,ISIC_0068111.jpg,lower extremity|30s
+2,c2,ISIC_0068112.jpg,upper extremity|70s
+1,c1,ISIC_0068119.jpg,upper extremity|80+
+2,c2,ISIC_0068124.jpg,upper extremity|80+
+0,c0,ISIC_0068130.jpg,lower extremity|30s
+0,c0,ISIC_0068131.jpg,anterior torso|40s
+2,c2,ISIC_0068133.jpg,anterior torso|70s
+0,c0,ISIC_0068134.jpg,lower extremity|50s
+1,c1,ISIC_0068145.jpg,anterior torso|40s
+0,c0,ISIC_0068151.jpg,lower extremity|50s
+1,c1,ISIC_0068152.jpg,anterior torso|40s
+1,c1,ISIC_0068153.jpg,anterior torso|70s
+0,c0,ISIC_0068156.jpg,upper extremity|50s
+0,c0,ISIC_0068158.jpg,anterior torso|40s
+2,c2,ISIC_0068159.jpg,anterior torso|70s
+2,c2,ISIC_0068161.jpg,head/neck|70s
+2,c2,ISIC_0068169.jpg,upper extremity|50s
+0,c0,ISIC_0068173.jpg,anterior torso|40s
+4,c4,ISIC_0068175.jpg,head/neck|70s
+1,c1,ISIC_0068176.jpg,anterior torso|40s
+1,c1,ISIC_0068178.jpg,anterior torso|70s
+0,c0,ISIC_0068187.jpg,upper extremity|50s
+1,c1,ISIC_0068188.jpg,upper extremity|70s
+0,c0,ISIC_0068193.jpg,lower extremity|50s
+0,c0,ISIC_0068201.jpg,anterior torso|40s
+5,c5,ISIC_0068203.jpg,upper extremity|80+
+0,c0,ISIC_0068205.jpg,anterior torso|40s
+0,c0,ISIC_0068215.jpg,anterior torso|40s
+3,c3,ISIC_0068219.jpg,anterior torso|70s
+1,c1,ISIC_0068221.jpg,upper extremity|70s
+5,c5,ISIC_0068229.jpg,upper extremity|80+
+0,c0,ISIC_0068248.jpg,lower extremity|30s
+3,c3,ISIC_0068249.jpg,head/neck|70s
+0,c0,ISIC_0068251.jpg,anterior torso|70s
+1,c1,ISIC_0068252.jpg,anterior torso|40s
+0,c0,ISIC_0068256.jpg,lower extremity|30s
+0,c0,ISIC_0068259.jpg,anterior torso|40s
+2,c2,ISIC_0068265.jpg,anterior torso|70s
+0,c0,ISIC_0068268.jpg,anterior torso|40s
+2,c2,ISIC_0068270.jpg,anterior torso|70s
+0,c0,ISIC_0068272.jpg,anterior torso|40s
+1,c1,ISIC_0068280.jpg,anterior torso|70s
+7,c7,ISIC_0068281.jpg,upper extremity|70s
+1,c1,ISIC_0068291.jpg,upper extremity|50s
+1,c1,ISIC_0068295.jpg,anterior torso|40s
+1,c1,ISIC_0068303.jpg,upper extremity|70s
+0,c0,ISIC_0068314.jpg,anterior torso|40s
+1,c1,ISIC_0068318.jpg,anterior torso|70s
+0,c0,ISIC_0068327.jpg,lower extremity|50s
+0,c0,ISIC_0068329.jpg,upper extremity|50s
+2,c2,ISIC_0068338.jpg,anterior torso|70s
+2,c2,ISIC_0068339.jpg,upper extremity|80+
+0,c0,ISIC_0068341.jpg,anterior torso|40s
+2,c2,ISIC_0068345.jpg,anterior torso|70s
+2,c2,ISIC_0068352.jpg,lower extremity|50s
+2,c2,ISIC_0068355.jpg,anterior torso|40s
+3,c3,ISIC_0068361.jpg,anterior torso|70s
+3,c3,ISIC_0068366.jpg,head/neck|70s
+1,c1,ISIC_0068381.jpg,upper extremity|50s
+1,c1,ISIC_0068383.jpg,anterior torso|70s
+2,c2,ISIC_0068388.jpg,upper extremity|70s
+0,c0,ISIC_0068391.jpg,anterior torso|40s
+1,c1,ISIC_0068394.jpg,upper extremity|70s
+4,c4,ISIC_0068395.jpg,head/neck|70s
+1,c1,ISIC_0068396.jpg,anterior torso|40s
+2,c2,ISIC_0068399.jpg,anterior torso|70s
+2,c2,ISIC_0068400.jpg,lower extremity|50s
+1,c1,ISIC_0068403.jpg,anterior torso|40s
+0,c0,ISIC_0068414.jpg,anterior torso|40s
+2,c2,ISIC_0068415.jpg,anterior torso|70s
+0,c0,ISIC_0068416.jpg,anterior torso|40s
+1,c1,ISIC_0068420.jpg,anterior torso|70s
+3,c3,ISIC_0068422.jpg,upper extremity|50s
+0,c0,ISIC_0068423.jpg,head/neck|70s
+0,c0,ISIC_0068439.jpg,anterior torso|70s
+0,c0,ISIC_0068447.jpg,lower extremity|30s
+0,c0,ISIC_0068448.jpg,anterior torso|40s
+2,c2,ISIC_0068450.jpg,anterior torso|70s
+0,c0,ISIC_0068454.jpg,anterior torso|70s
+1,c1,ISIC_0068460.jpg,anterior torso|70s
+2,c2,ISIC_0068461.jpg,head/neck|70s
+3,c3,ISIC_0068467.jpg,head/neck|70s
+3,c3,ISIC_0068479.jpg,anterior torso|70s
+7,c7,ISIC_0068484.jpg,anterior torso|40s
+2,c2,ISIC_0068486.jpg,anterior torso|70s
+1,c1,ISIC_0068488.jpg,head/neck|70s
+0,c0,ISIC_0068491.jpg,anterior torso|40s
+5,c5,ISIC_0068496.jpg,head/neck|70s
+1,c1,ISIC_0068515.jpg,anterior torso|40s
+0,c0,ISIC_0068516.jpg,lower extremity|50s
+3,c3,ISIC_0068521.jpg,head/neck|70s
+0,c0,ISIC_0068532.jpg,anterior torso|40s
+0,c0,ISIC_0068540.jpg,anterior torso|40s
+4,c4,ISIC_0068546.jpg,head/neck|70s
+1,c1,ISIC_0068554.jpg,head/neck|70s
+1,c1,ISIC_0068555.jpg,anterior torso|70s
+0,c0,ISIC_0068566.jpg,anterior torso|40s
+0,c0,ISIC_0068569.jpg,upper extremity|80+
+0,c0,ISIC_0068574.jpg,anterior torso|40s
+1,c1,ISIC_0068586.jpg,anterior torso|40s
+0,c0,ISIC_0068594.jpg,anterior torso|40s
+0,c0,ISIC_0068595.jpg,anterior torso|40s
+2,c2,ISIC_0068597.jpg,anterior torso|70s
+4,c4,ISIC_0068607.jpg,anterior torso|70s
+1,c1,ISIC_0068617.jpg,lower extremity|50s
+0,c0,ISIC_0068619.jpg,upper extremity|80+
+0,c0,ISIC_0068623.jpg,anterior torso|40s
+3,c3,ISIC_0068624.jpg,head/neck|70s
+0,c0,ISIC_0068625.jpg,lower extremity|50s
+0,c0,ISIC_0068630.jpg,lower extremity|50s
+2,c2,ISIC_0068639.jpg,anterior torso|70s
+1,c1,ISIC_0068646.jpg,lower extremity|30s
+0,c0,ISIC_0068651.jpg,lower extremity|50s
+0,c0,ISIC_0068654.jpg,lower extremity|30s
+5,c5,ISIC_0068666.jpg,anterior torso|70s
+0,c0,ISIC_0068668.jpg,anterior torso|40s
+0,c0,ISIC_0068671.jpg,anterior torso|40s
+1,c1,ISIC_0068673.jpg,anterior torso|70s
+3,c3,ISIC_0068687.jpg,anterior torso|40s
+1,c1,ISIC_0068692.jpg,anterior torso|70s
+2,c2,ISIC_0068701.jpg,head/neck|70s
+2,c2,ISIC_0068708.jpg,anterior torso|70s
+0,c0,ISIC_0068718.jpg,lower extremity|30s
+4,c4,ISIC_0068722.jpg,head/neck|70s
+2,c2,ISIC_0068723.jpg,anterior torso|40s
+0,c0,ISIC_0068724.jpg,anterior torso|40s
+1,c1,ISIC_0068727.jpg,anterior torso|70s
+0,c0,ISIC_0068728.jpg,anterior torso|40s
+3,c3,ISIC_0068733.jpg,lower extremity|50s
+0,c0,ISIC_0068736.jpg,lower extremity|30s
+0,c0,ISIC_0068740.jpg,anterior torso|70s
+2,c2,ISIC_0068742.jpg,upper extremity|70s
+0,c0,ISIC_0068748.jpg,lower extremity|30s
+5,c5,ISIC_0068756.jpg,lower extremity|50s
+2,c2,ISIC_0068758.jpg,anterior torso|70s
+1,c1,ISIC_0068761.jpg,anterior torso|40s
+2,c2,ISIC_0068764.jpg,anterior torso|40s
+1,c1,ISIC_0068769.jpg,lower extremity|50s
+2,c2,ISIC_0068777.jpg,head/neck|70s
+2,c2,ISIC_0068783.jpg,anterior torso|70s
+2,c2,ISIC_0068792.jpg,upper extremity|80+
+4,c4,ISIC_0068797.jpg,head/neck|70s
+1,c1,ISIC_0068798.jpg,upper extremity|50s
+6,c6,ISIC_0068803.jpg,upper extremity|70s
+4,c4,ISIC_0068805.jpg,upper extremity|50s
+0,c0,ISIC_0068806.jpg,upper extremity|50s
+0,c0,ISIC_0068807.jpg,lower extremity|30s
+2,c2,ISIC_0068813.jpg,head/neck|70s
+0,c0,ISIC_0068814.jpg,anterior torso|40s
+1,c1,ISIC_0068817.jpg,anterior torso|40s
+0,c0,ISIC_0068820.jpg,upper extremity|50s
+1,c1,ISIC_0068840.jpg,lower extremity|50s
+4,c4,ISIC_0068845.jpg,head/neck|70s
+1,c1,ISIC_0068847.jpg,anterior torso|70s
+1,c1,ISIC_0068850.jpg,anterior torso|70s
+1,c1,ISIC_0068851.jpg,head/neck|70s
+2,c2,ISIC_0068856.jpg,anterior torso|70s
+2,c2,ISIC_0068862.jpg,upper extremity|70s
+0,c0,ISIC_0068868.jpg,anterior torso|40s
+7,c7,ISIC_0068870.jpg,lower extremity|30s
+0,c0,ISIC_0068871.jpg,anterior torso|40s
+7,c7,ISIC_0068877.jpg,anterior torso|70s
+4,c4,ISIC_0068879.jpg,head/neck|70s
+1,c1,ISIC_0068882.jpg,anterior torso|40s
+1,c1,ISIC_0068886.jpg,head/neck|70s
+1,c1,ISIC_0068895.jpg,upper extremity|50s
+0,c0,ISIC_0068896.jpg,anterior torso|70s
+0,c0,ISIC_0068901.jpg,anterior torso|40s
+2,c2,ISIC_0068906.jpg,anterior torso|70s
+0,c0,ISIC_0068919.jpg,anterior torso|40s
+1,c1,ISIC_0068924.jpg,upper extremity|70s
+2,c2,ISIC_0068933.jpg,lower extremity|50s
+2,c2,ISIC_0068949.jpg,head/neck|70s
+2,c2,ISIC_0068954.jpg,head/neck|70s
+0,c0,ISIC_0068968.jpg,anterior torso|40s
+2,c2,ISIC_0068969.jpg,anterior torso|70s
+1,c1,ISIC_0068979.jpg,upper extremity|70s
+2,c2,ISIC_0068980.jpg,head/neck|70s
+0,c0,ISIC_0068983.jpg,lower extremity|50s
+2,c2,ISIC_0068987.jpg,anterior torso|40s
+1,c1,ISIC_0068993.jpg,lower extremity|50s
+0,c0,ISIC_0068994.jpg,anterior torso|40s
+4,c4,ISIC_0068995.jpg,head/neck|70s
+5,c5,ISIC_0068997.jpg,head/neck|70s
+0,c0,ISIC_0069013.jpg,anterior torso|40s
+2,c2,ISIC_0069036.jpg,head/neck|70s
+4,c4,ISIC_0069043.jpg,head/neck|70s
+0,c0,ISIC_0069051.jpg,anterior torso|40s
+2,c2,ISIC_0069052.jpg,head/neck|70s
+1,c1,ISIC_0069063.jpg,upper extremity|50s
+0,c0,ISIC_0069073.jpg,anterior torso|40s
+1,c1,ISIC_0069076.jpg,lower extremity|50s
+1,c1,ISIC_0069077.jpg,anterior torso|40s
+0,c0,ISIC_0069078.jpg,anterior torso|40s
+0,c0,ISIC_0069080.jpg,anterior torso|40s
+2,c2,ISIC_0069088.jpg,upper extremity|70s
+1,c1,ISIC_0069091.jpg,lower extremity|50s
+2,c2,ISIC_0069092.jpg,anterior torso|40s
+2,c2,ISIC_0069094.jpg,anterior torso|40s
+3,c3,ISIC_0069099.jpg,anterior torso|70s
+1,c1,ISIC_0069105.jpg,upper extremity|70s
+2,c2,ISIC_0069109.jpg,upper extremity|50s
+0,c0,ISIC_0069115.jpg,anterior torso|40s
+3,c3,ISIC_0069118.jpg,head/neck|70s
+0,c0,ISIC_0069124.jpg,lower extremity|30s
+0,c0,ISIC_0069126.jpg,anterior torso|40s
+2,c2,ISIC_0069133.jpg,anterior torso|70s
+0,c0,ISIC_0069136.jpg,lower extremity|30s
+0,c0,ISIC_0069137.jpg,anterior torso|40s
+0,c0,ISIC_0069143.jpg,anterior torso|40s
+0,c0,ISIC_0069150.jpg,anterior torso|40s
+1,c1,ISIC_0069167.jpg,lower extremity|50s
+1,c1,ISIC_0069179.jpg,head/neck|70s
+5,c5,ISIC_0069181.jpg,anterior torso|70s
+2,c2,ISIC_0069185.jpg,anterior torso|40s
+2,c2,ISIC_0069188.jpg,anterior torso|70s
+2,c2,ISIC_0069191.jpg,upper extremity|70s
+1,c1,ISIC_0069192.jpg,lower extremity|50s
+4,c4,ISIC_0069194.jpg,head/neck|70s
+2,c2,ISIC_0069206.jpg,upper extremity|80+
+0,c0,ISIC_0069213.jpg,lower extremity|50s
+2,c2,ISIC_0069219.jpg,head/neck|70s
+5,c5,ISIC_0069220.jpg,upper extremity|70s
+3,c3,ISIC_0069221.jpg,lower extremity|30s
+7,c7,ISIC_0069242.jpg,anterior torso|40s
+1,c1,ISIC_0069250.jpg,lower extremity|50s
+3,c3,ISIC_0069251.jpg,head/neck|70s
+3,c3,ISIC_0069252.jpg,head/neck|70s
+1,c1,ISIC_0069257.jpg,anterior torso|70s
+2,c2,ISIC_0069261.jpg,anterior torso|70s
+5,c5,ISIC_0069266.jpg,head/neck|70s
+0,c0,ISIC_0069274.jpg,anterior torso|70s
+1,c1,ISIC_0069277.jpg,upper extremity|70s
+4,c4,ISIC_0069282.jpg,lower extremity|50s
+3,c3,ISIC_0069284.jpg,head/neck|70s
+0,c0,ISIC_0069296.jpg,lower extremity|50s
+2,c2,ISIC_0069299.jpg,head/neck|70s
+2,c2,ISIC_0069306.jpg,head/neck|70s
+2,c2,ISIC_0069311.jpg,head/neck|70s
+3,c3,ISIC_0069316.jpg,anterior torso|40s
+0,c0,ISIC_0069317.jpg,upper extremity|50s
+0,c0,ISIC_0069321.jpg,anterior torso|40s
+0,c0,ISIC_0069323.jpg,lower extremity|50s
+2,c2,ISIC_0069329.jpg,anterior torso|70s
+2,c2,ISIC_0069332.jpg,lower extremity|50s
+0,c0,ISIC_0069334.jpg,anterior torso|40s
+0,c0,ISIC_0069343.jpg,anterior torso|40s
+0,c0,ISIC_0069344.jpg,anterior torso|40s
+2,c2,ISIC_0069345.jpg,head/neck|70s
+0,c0,ISIC_0069347.jpg,anterior torso|40s
+1,c1,ISIC_0069370.jpg,head/neck|70s
+0,c0,ISIC_0069371.jpg,anterior torso|40s
+1,c1,ISIC_0069373.jpg,head/neck|70s
+2,c2,ISIC_0069378.jpg,upper extremity|70s
+0,c0,ISIC_0069379.jpg,lower extremity|50s
+2,c2,ISIC_0069382.jpg,head/neck|70s
+0,c0,ISIC_0069383.jpg,anterior torso|40s
+4,c4,ISIC_0069384.jpg,head/neck|70s
+1,c1,ISIC_0069395.jpg,lower extremity|50s
+0,c0,ISIC_0069396.jpg,lower extremity|30s
+0,c0,ISIC_0069400.jpg,lower extremity|50s
+3,c3,ISIC_0069401.jpg,head/neck|70s
+5,c5,ISIC_0069428.jpg,lower extremity|50s
+3,c3,ISIC_0069435.jpg,anterior torso|40s
+5,c5,ISIC_0069446.jpg,anterior torso|70s
+0,c0,ISIC_0069447.jpg,anterior torso|40s
+0,c0,ISIC_0069449.jpg,lower extremity|50s
+1,c1,ISIC_0069457.jpg,head/neck|70s
+1,c1,ISIC_0069459.jpg,anterior torso|40s
+4,c4,ISIC_0069460.jpg,head/neck|70s
+0,c0,ISIC_0069471.jpg,lower extremity|30s
+2,c2,ISIC_0069474.jpg,head/neck|70s
+1,c1,ISIC_0069481.jpg,anterior torso|70s
+2,c2,ISIC_0069484.jpg,anterior torso|40s
+2,c2,ISIC_0069485.jpg,lower extremity|50s
+1,c1,ISIC_0069488.jpg,head/neck|70s
+2,c2,ISIC_0069493.jpg,upper extremity|70s
+0,c0,ISIC_0069494.jpg,anterior torso|40s
+1,c1,ISIC_0069515.jpg,anterior torso|70s
+4,c4,ISIC_0069518.jpg,head/neck|70s
+2,c2,ISIC_0069525.jpg,anterior torso|40s
+0,c0,ISIC_0069530.jpg,anterior torso|40s
+4,c4,ISIC_0069532.jpg,head/neck|70s
+1,c1,ISIC_0069536.jpg,upper extremity|50s
+4,c4,ISIC_0069544.jpg,anterior torso|70s
+5,c5,ISIC_0069551.jpg,head/neck|70s
+0,c0,ISIC_0069554.jpg,lower extremity|50s
+2,c2,ISIC_0069555.jpg,anterior torso|70s
+1,c1,ISIC_0069558.jpg,lower extremity|30s
+0,c0,ISIC_0069560.jpg,anterior torso|40s
+0,c0,ISIC_0069565.jpg,anterior torso|40s
+0,c0,ISIC_0069566.jpg,anterior torso|40s
+0,c0,ISIC_0069569.jpg,anterior torso|40s
+2,c2,ISIC_0069577.jpg,anterior torso|40s
+3,c3,ISIC_0069585.jpg,anterior torso|70s
+3,c3,ISIC_0069588.jpg,head/neck|70s
+1,c1,ISIC_0069591.jpg,anterior torso|40s
+1,c1,ISIC_0069592.jpg,upper extremity|50s
+2,c2,ISIC_0069601.jpg,upper extremity|70s
+0,c0,ISIC_0069603.jpg,lower extremity|50s
+2,c2,ISIC_0069604.jpg,head/neck|70s
+3,c3,ISIC_0069605.jpg,head/neck|70s
+3,c3,ISIC_0069606.jpg,anterior torso|70s
+0,c0,ISIC_0069608.jpg,anterior torso|40s
+0,c0,ISIC_0069610.jpg,lower extremity|50s
+0,c0,ISIC_0069619.jpg,lower extremity|30s
+1,c1,ISIC_0069620.jpg,anterior torso|70s
+1,c1,ISIC_0069622.jpg,head/neck|70s
+1,c1,ISIC_0069624.jpg,lower extremity|50s
+2,c2,ISIC_0069628.jpg,lower extremity|50s
+3,c3,ISIC_0069642.jpg,anterior torso|40s
+0,c0,ISIC_0069648.jpg,lower extremity|30s
+2,c2,ISIC_0069650.jpg,anterior torso|40s
+2,c2,ISIC_0069652.jpg,head/neck|70s
+3,c3,ISIC_0069655.jpg,head/neck|70s
+3,c3,ISIC_0069658.jpg,head/neck|70s
+3,c3,ISIC_0069663.jpg,anterior torso|70s
+1,c1,ISIC_0069669.jpg,lower extremity|50s
+1,c1,ISIC_0069671.jpg,anterior torso|40s
+3,c3,ISIC_0069673.jpg,anterior torso|70s
+3,c3,ISIC_0069675.jpg,head/neck|70s
+0,c0,ISIC_0069690.jpg,anterior torso|70s
+0,c0,ISIC_0069700.jpg,lower extremity|30s
+2,c2,ISIC_0069701.jpg,anterior torso|70s
+1,c1,ISIC_0069727.jpg,anterior torso|40s
+0,c0,ISIC_0069728.jpg,lower extremity|50s
+0,c0,ISIC_0069738.jpg,anterior torso|40s
+0,c0,ISIC_0069740.jpg,upper extremity|80+
+5,c5,ISIC_0069746.jpg,anterior torso|70s
+1,c1,ISIC_0069747.jpg,anterior torso|40s
+0,c0,ISIC_0069756.jpg,anterior torso|70s
+0,c0,ISIC_0069761.jpg,anterior torso|40s
+0,c0,ISIC_0069770.jpg,lower extremity|50s
+2,c2,ISIC_0069773.jpg,anterior torso|40s
+0,c0,ISIC_0069774.jpg,anterior torso|40s
+2,c2,ISIC_0069796.jpg,anterior torso|40s
+0,c0,ISIC_0069798.jpg,anterior torso|40s
+0,c0,ISIC_0069800.jpg,lower extremity|30s
+4,c4,ISIC_0069802.jpg,head/neck|70s
+2,c2,ISIC_0069813.jpg,upper extremity|50s
+0,c0,ISIC_0069817.jpg,anterior torso|40s
+0,c0,ISIC_0069824.jpg,lower extremity|30s
+2,c2,ISIC_0069828.jpg,anterior torso|70s
+0,c0,ISIC_0069837.jpg,anterior torso|40s
+0,c0,ISIC_0069838.jpg,upper extremity|50s
+2,c2,ISIC_0069840.jpg,lower extremity|50s
+0,c0,ISIC_0069847.jpg,lower extremity|30s
+3,c3,ISIC_0069848.jpg,head/neck|70s
+3,c3,ISIC_0069849.jpg,head/neck|70s
+0,c0,ISIC_0069854.jpg,anterior torso|40s
+0,c0,ISIC_0069857.jpg,anterior torso|70s
+4,c4,ISIC_0069863.jpg,head/neck|70s
+0,c0,ISIC_0069867.jpg,upper extremity|70s
+2,c2,ISIC_0069868.jpg,head/neck|70s
+3,c3,ISIC_0069875.jpg,head/neck|70s
+3,c3,ISIC_0069885.jpg,anterior torso|40s
+2,c2,ISIC_0069886.jpg,anterior torso|70s
+0,c0,ISIC_0069896.jpg,lower extremity|50s
+4,c4,ISIC_0069898.jpg,head/neck|70s
+0,c0,ISIC_0069905.jpg,lower extremity|50s
+4,c4,ISIC_0069906.jpg,head/neck|70s
+1,c1,ISIC_0069908.jpg,anterior torso|40s
+2,c2,ISIC_0069909.jpg,head/neck|70s
+5,c5,ISIC_0069914.jpg,upper extremity|70s
+4,c4,ISIC_0069916.jpg,anterior torso|70s
+1,c1,ISIC_0069918.jpg,anterior torso|70s
+0,c0,ISIC_0069919.jpg,anterior torso|40s
+1,c1,ISIC_0069922.jpg,head/neck|70s
+2,c2,ISIC_0069934.jpg,upper extremity|80+
+0,c0,ISIC_0069935.jpg,lower extremity|50s
+0,c0,ISIC_0069937.jpg,anterior torso|40s
+1,c1,ISIC_0069938.jpg,lower extremity|50s
+4,c4,ISIC_0069942.jpg,upper extremity|70s
+0,c0,ISIC_0069947.jpg,anterior torso|40s
+5,c5,ISIC_0069948.jpg,anterior torso|70s
+1,c1,ISIC_0069951.jpg,anterior torso|70s
+0,c0,ISIC_0069952.jpg,anterior torso|70s
+1,c1,ISIC_0069970.jpg,upper extremity|50s
+3,c3,ISIC_0069981.jpg,head/neck|70s
+0,c0,ISIC_0069985.jpg,anterior torso|40s
+0,c0,ISIC_0070005.jpg,anterior torso|40s
+2,c2,ISIC_0070015.jpg,upper extremity|80+
+1,c1,ISIC_0070018.jpg,upper extremity|50s
+1,c1,ISIC_0070020.jpg,lower extremity|50s
+0,c0,ISIC_0070029.jpg,anterior torso|40s
+1,c1,ISIC_0070032.jpg,upper extremity|70s
+0,c0,ISIC_0070038.jpg,lower extremity|30s
+0,c0,ISIC_0070043.jpg,anterior torso|40s
+1,c1,ISIC_0070050.jpg,upper extremity|70s
+2,c2,ISIC_0070053.jpg,head/neck|70s
+0,c0,ISIC_0070069.jpg,anterior torso|40s
+1,c1,ISIC_0070070.jpg,upper extremity|70s
+3,c3,ISIC_0070073.jpg,anterior torso|40s
+0,c0,ISIC_0070075.jpg,anterior torso|40s
+0,c0,ISIC_0070079.jpg,anterior torso|40s
+2,c2,ISIC_0070081.jpg,head/neck|70s
+3,c3,ISIC_0070082.jpg,upper extremity|70s
+0,c0,ISIC_0070090.jpg,anterior torso|70s
+2,c2,ISIC_0070101.jpg,head/neck|70s
+0,c0,ISIC_0070104.jpg,anterior torso|40s
+1,c1,ISIC_0070111.jpg,lower extremity|50s
+4,c4,ISIC_0070116.jpg,head/neck|70s
+1,c1,ISIC_0070118.jpg,head/neck|70s
+1,c1,ISIC_0070120.jpg,anterior torso|40s
+1,c1,ISIC_0070123.jpg,upper extremity|50s
+1,c1,ISIC_0070129.jpg,anterior torso|40s
+2,c2,ISIC_0070131.jpg,head/neck|70s
+0,c0,ISIC_0070136.jpg,upper extremity|70s
+1,c1,ISIC_0070137.jpg,upper extremity|50s
+2,c2,ISIC_0070146.jpg,upper extremity|80+
+1,c1,ISIC_0070149.jpg,anterior torso|40s
+2,c2,ISIC_0070154.jpg,lower extremity|50s
+2,c2,ISIC_0070156.jpg,anterior torso|70s
+5,c5,ISIC_0070157.jpg,head/neck|70s
+1,c1,ISIC_0070160.jpg,anterior torso|40s
+1,c1,ISIC_0070163.jpg,head/neck|70s
+2,c2,ISIC_0070165.jpg,anterior torso|40s
+0,c0,ISIC_0070180.jpg,anterior torso|40s
+0,c0,ISIC_0070181.jpg,anterior torso|40s
+0,c0,ISIC_0070182.jpg,anterior torso|40s
+2,c2,ISIC_0070197.jpg,upper extremity|80+
+2,c2,ISIC_0070201.jpg,anterior torso|40s
+2,c2,ISIC_0070209.jpg,anterior torso|40s
+1,c1,ISIC_0070220.jpg,anterior torso|70s
+2,c2,ISIC_0070223.jpg,upper extremity|70s
+0,c0,ISIC_0070229.jpg,lower extremity|50s
+3,c3,ISIC_0070230.jpg,head/neck|70s
+2,c2,ISIC_0070231.jpg,anterior torso|40s
+1,c1,ISIC_0070235.jpg,anterior torso|70s
+2,c2,ISIC_0070236.jpg,anterior torso|70s
+3,c3,ISIC_0070241.jpg,lower extremity|50s
+3,c3,ISIC_0070245.jpg,lower extremity|50s
+0,c0,ISIC_0070247.jpg,anterior torso|40s
+1,c1,ISIC_0070248.jpg,lower extremity|50s
+0,c0,ISIC_0070251.jpg,anterior torso|40s
+1,c1,ISIC_0070253.jpg,head/neck|70s
+4,c4,ISIC_0070256.jpg,head/neck|70s
+4,c4,ISIC_0070260.jpg,upper extremity|70s
+2,c2,ISIC_0070266.jpg,lower extremity|30s
+0,c0,ISIC_0070280.jpg,lower extremity|50s
+0,c0,ISIC_0070281.jpg,anterior torso|40s
+5,c5,ISIC_0070286.jpg,lower extremity|30s
+0,c0,ISIC_0070299.jpg,anterior torso|40s
+4,c4,ISIC_0070302.jpg,head/neck|70s
+0,c0,ISIC_0070304.jpg,anterior torso|40s
+2,c2,ISIC_0070309.jpg,anterior torso|40s
+4,c4,ISIC_0070311.jpg,head/neck|70s
+1,c1,ISIC_0070313.jpg,upper extremity|80+
+0,c0,ISIC_0070317.jpg,anterior torso|40s
+2,c2,ISIC_0070319.jpg,upper extremity|80+
+5,c5,ISIC_0070338.jpg,head/neck|70s
+1,c1,ISIC_0070342.jpg,anterior torso|70s
+1,c1,ISIC_0070351.jpg,anterior torso|70s
+7,c7,ISIC_0070356.jpg,upper extremity|70s
+0,c0,ISIC_0070361.jpg,lower extremity|30s
+2,c2,ISIC_0070367.jpg,upper extremity|50s
+1,c1,ISIC_0070372.jpg,anterior torso|70s
+1,c1,ISIC_0070380.jpg,lower extremity|50s
+2,c2,ISIC_0070386.jpg,head/neck|70s
+1,c1,ISIC_0070387.jpg,upper extremity|70s
+0,c0,ISIC_0070395.jpg,anterior torso|40s
+0,c0,ISIC_0070399.jpg,anterior torso|40s
+1,c1,ISIC_0070403.jpg,anterior torso|70s
+5,c5,ISIC_0070411.jpg,upper extremity|80+
+0,c0,ISIC_0070413.jpg,anterior torso|40s
+1,c1,ISIC_0070422.jpg,anterior torso|40s
+6,c6,ISIC_0070460.jpg,lower extremity|50s
+2,c2,ISIC_0070461.jpg,lower extremity|50s
+1,c1,ISIC_0070463.jpg,upper extremity|70s
+2,c2,ISIC_0070466.jpg,anterior torso|70s
+2,c2,ISIC_0070472.jpg,head/neck|70s
+4,c4,ISIC_0070484.jpg,head/neck|70s
+1,c1,ISIC_0070489.jpg,lower extremity|50s
+0,c0,ISIC_0070496.jpg,upper extremity|50s
+3,c3,ISIC_0070498.jpg,lower extremity|50s
+1,c1,ISIC_0070501.jpg,upper extremity|50s
+4,c4,ISIC_0070505.jpg,anterior torso|70s
+4,c4,ISIC_0070507.jpg,upper extremity|70s
+0,c0,ISIC_0070509.jpg,lower extremity|30s
+1,c1,ISIC_0070516.jpg,head/neck|70s
+0,c0,ISIC_0070519.jpg,lower extremity|50s
+2,c2,ISIC_0070523.jpg,anterior torso|70s
+0,c0,ISIC_0070533.jpg,anterior torso|40s
+2,c2,ISIC_0070534.jpg,head/neck|70s
+2,c2,ISIC_0070537.jpg,lower extremity|50s
+0,c0,ISIC_0070538.jpg,anterior torso|40s
+2,c2,ISIC_0070539.jpg,upper extremity|80+
+2,c2,ISIC_0070541.jpg,anterior torso|70s
+0,c0,ISIC_0070544.jpg,anterior torso|40s
+1,c1,ISIC_0070549.jpg,upper extremity|70s
+1,c1,ISIC_0070551.jpg,anterior torso|70s
+2,c2,ISIC_0070552.jpg,upper extremity|80+
+0,c0,ISIC_0070564.jpg,anterior torso|40s
+3,c3,ISIC_0070565.jpg,lower extremity|50s
+0,c0,ISIC_0070571.jpg,anterior torso|40s
+2,c2,ISIC_0070573.jpg,anterior torso|70s
+3,c3,ISIC_0070575.jpg,lower extremity|50s
+1,c1,ISIC_0070585.jpg,anterior torso|40s
+3,c3,ISIC_0070592.jpg,anterior torso|70s
+1,c1,ISIC_0070593.jpg,anterior torso|40s
+1,c1,ISIC_0070596.jpg,anterior torso|40s
+0,c0,ISIC_0070597.jpg,anterior torso|40s
+1,c1,ISIC_0070611.jpg,lower extremity|50s
+2,c2,ISIC_0070612.jpg,upper extremity|50s
+3,c3,ISIC_0070619.jpg,head/neck|70s
+1,c1,ISIC_0070629.jpg,anterior torso|70s
+0,c0,ISIC_0070633.jpg,anterior torso|40s
+0,c0,ISIC_0070640.jpg,lower extremity|50s
+2,c2,ISIC_0070642.jpg,upper extremity|50s
+4,c4,ISIC_0070643.jpg,head/neck|70s
+4,c4,ISIC_0070650.jpg,head/neck|70s
+1,c1,ISIC_0070657.jpg,anterior torso|70s
+0,c0,ISIC_0070659.jpg,anterior torso|40s
+2,c2,ISIC_0070672.jpg,head/neck|70s
+2,c2,ISIC_0070687.jpg,anterior torso|70s
+3,c3,ISIC_0070688.jpg,anterior torso|40s
+3,c3,ISIC_0070693.jpg,lower extremity|50s
+0,c0,ISIC_0070694.jpg,anterior torso|40s
+0,c0,ISIC_0070696.jpg,lower extremity|50s
+0,c0,ISIC_0070699.jpg,anterior torso|40s
+7,c7,ISIC_0070703.jpg,anterior torso|40s
+5,c5,ISIC_0070704.jpg,head/neck|70s
+2,c2,ISIC_0070706.jpg,anterior torso|40s
+7,c7,ISIC_0070716.jpg,upper extremity|70s
+2,c2,ISIC_0070717.jpg,lower extremity|50s
+2,c2,ISIC_0070718.jpg,head/neck|70s
+0,c0,ISIC_0070720.jpg,anterior torso|70s
+7,c7,ISIC_0070723.jpg,head/neck|70s
+2,c2,ISIC_0070728.jpg,upper extremity|70s
+1,c1,ISIC_0070731.jpg,upper extremity|70s
+0,c0,ISIC_0070736.jpg,anterior torso|70s
+4,c4,ISIC_0070737.jpg,head/neck|70s
+1,c1,ISIC_0070738.jpg,anterior torso|70s
+0,c0,ISIC_0070741.jpg,lower extremity|30s
+3,c3,ISIC_0070742.jpg,anterior torso|40s
+2,c2,ISIC_0070744.jpg,upper extremity|50s
+2,c2,ISIC_0070751.jpg,head/neck|70s
+0,c0,ISIC_0070765.jpg,lower extremity|50s
+0,c0,ISIC_0070766.jpg,anterior torso|40s
+0,c0,ISIC_0070770.jpg,anterior torso|40s
+5,c5,ISIC_0070772.jpg,head/neck|70s
+3,c3,ISIC_0070775.jpg,anterior torso|40s
+1,c1,ISIC_0070784.jpg,anterior torso|40s
+0,c0,ISIC_0070787.jpg,anterior torso|40s
+1,c1,ISIC_0070794.jpg,upper extremity|50s
+2,c2,ISIC_0070798.jpg,anterior torso|70s
+2,c2,ISIC_0070802.jpg,anterior torso|70s
+0,c0,ISIC_0070803.jpg,anterior torso|40s
+3,c3,ISIC_0070804.jpg,anterior torso|70s
+1,c1,ISIC_0070805.jpg,anterior torso|40s
+0,c0,ISIC_0070806.jpg,lower extremity|50s
+1,c1,ISIC_0070814.jpg,anterior torso|40s
+1,c1,ISIC_0070815.jpg,upper extremity|50s
+2,c2,ISIC_0070827.jpg,anterior torso|70s
+1,c1,ISIC_0070830.jpg,lower extremity|50s
+2,c2,ISIC_0070831.jpg,anterior torso|70s
+0,c0,ISIC_0070834.jpg,upper extremity|50s
+0,c0,ISIC_0070835.jpg,anterior torso|40s
+0,c0,ISIC_0070840.jpg,lower extremity|30s
+1,c1,ISIC_0070846.jpg,lower extremity|50s
+0,c0,ISIC_0070850.jpg,anterior torso|40s
+1,c1,ISIC_0070852.jpg,anterior torso|40s
+5,c5,ISIC_0070858.jpg,anterior torso|70s
+3,c3,ISIC_0070859.jpg,anterior torso|70s
+0,c0,ISIC_0070862.jpg,lower extremity|50s
+0,c0,ISIC_0070864.jpg,anterior torso|40s
+4,c4,ISIC_0070877.jpg,head/neck|70s
+2,c2,ISIC_0070880.jpg,anterior torso|70s
+0,c0,ISIC_0070882.jpg,anterior torso|40s
+0,c0,ISIC_0070889.jpg,anterior torso|40s
+2,c2,ISIC_0070891.jpg,anterior torso|70s
+4,c4,ISIC_0070895.jpg,head/neck|70s
+0,c0,ISIC_0070897.jpg,anterior torso|70s
+2,c2,ISIC_0070901.jpg,head/neck|70s
+7,c7,ISIC_0070904.jpg,anterior torso|70s
+3,c3,ISIC_0070907.jpg,anterior torso|40s
+1,c1,ISIC_0070913.jpg,upper extremity|70s
+1,c1,ISIC_0070931.jpg,lower extremity|50s
+0,c0,ISIC_0070937.jpg,anterior torso|70s
+0,c0,ISIC_0070939.jpg,anterior torso|40s
+1,c1,ISIC_0070940.jpg,anterior torso|70s
+2,c2,ISIC_0070945.jpg,anterior torso|70s
+0,c0,ISIC_0070948.jpg,anterior torso|40s
+1,c1,ISIC_0070959.jpg,anterior torso|70s
+0,c0,ISIC_0070962.jpg,anterior torso|40s
+3,c3,ISIC_0070967.jpg,head/neck|70s
+1,c1,ISIC_0070974.jpg,upper extremity|70s
+2,c2,ISIC_0070975.jpg,head/neck|70s
+1,c1,ISIC_0070976.jpg,anterior torso|70s
+0,c0,ISIC_0070978.jpg,lower extremity|30s
+4,c4,ISIC_0070981.jpg,anterior torso|70s
+1,c1,ISIC_0070992.jpg,anterior torso|40s
+6,c6,ISIC_0071002.jpg,lower extremity|50s
+2,c2,ISIC_0071008.jpg,anterior torso|40s
+3,c3,ISIC_0071013.jpg,anterior torso|40s
+4,c4,ISIC_0071020.jpg,upper extremity|80+
+7,c7,ISIC_0071024.jpg,upper extremity|70s
+0,c0,ISIC_0071026.jpg,anterior torso|40s
+0,c0,ISIC_0071032.jpg,lower extremity|50s
+0,c0,ISIC_0071039.jpg,anterior torso|40s
+1,c1,ISIC_0071040.jpg,lower extremity|50s
+1,c1,ISIC_0071043.jpg,upper extremity|70s
+7,c7,ISIC_0071044.jpg,anterior torso|40s
+1,c1,ISIC_0071045.jpg,anterior torso|40s
+1,c1,ISIC_0071048.jpg,anterior torso|70s
+2,c2,ISIC_0071053.jpg,upper extremity|70s
+3,c3,ISIC_0071054.jpg,head/neck|70s
+2,c2,ISIC_0071056.jpg,anterior torso|40s
+3,c3,ISIC_0071076.jpg,anterior torso|70s
+0,c0,ISIC_0071078.jpg,anterior torso|40s
+2,c2,ISIC_0071085.jpg,head/neck|70s
+1,c1,ISIC_0071089.jpg,lower extremity|50s
+4,c4,ISIC_0071093.jpg,head/neck|70s
+2,c2,ISIC_0071099.jpg,anterior torso|70s
+2,c2,ISIC_0071102.jpg,anterior torso|40s
+1,c1,ISIC_0071111.jpg,anterior torso|40s
+2,c2,ISIC_0071114.jpg,head/neck|70s
+0,c0,ISIC_0071117.jpg,anterior torso|70s
+0,c0,ISIC_0071118.jpg,lower extremity|50s
+1,c1,ISIC_0071119.jpg,anterior torso|40s
+0,c0,ISIC_0071126.jpg,anterior torso|40s
+0,c0,ISIC_0071127.jpg,anterior torso|40s
+1,c1,ISIC_0071133.jpg,anterior torso|40s
+1,c1,ISIC_0071134.jpg,anterior torso|40s
+0,c0,ISIC_0071135.jpg,anterior torso|40s
+2,c2,ISIC_0071147.jpg,anterior torso|70s
+2,c2,ISIC_0071150.jpg,anterior torso|70s
+0,c0,ISIC_0071153.jpg,anterior torso|40s
+0,c0,ISIC_0071162.jpg,lower extremity|30s
+0,c0,ISIC_0071168.jpg,lower extremity|30s
+1,c1,ISIC_0071169.jpg,upper extremity|50s
+0,c0,ISIC_0071181.jpg,lower extremity|30s
+1,c1,ISIC_0071197.jpg,upper extremity|70s
+2,c2,ISIC_0071199.jpg,head/neck|70s
+4,c4,ISIC_0071213.jpg,head/neck|70s
+2,c2,ISIC_0071214.jpg,anterior torso|40s
+0,c0,ISIC_0071216.jpg,lower extremity|30s
+3,c3,ISIC_0071225.jpg,anterior torso|70s
+0,c0,ISIC_0071232.jpg,anterior torso|40s
+2,c2,ISIC_0071235.jpg,anterior torso|70s
+2,c2,ISIC_0071251.jpg,anterior torso|70s
+7,c7,ISIC_0071267.jpg,upper extremity|70s
+3,c3,ISIC_0071268.jpg,anterior torso|70s
+0,c0,ISIC_0071284.jpg,anterior torso|40s
+0,c0,ISIC_0071285.jpg,upper extremity|50s
+0,c0,ISIC_0071300.jpg,anterior torso|40s
+0,c0,ISIC_0071302.jpg,anterior torso|40s
+0,c0,ISIC_0071307.jpg,anterior torso|40s
+1,c1,ISIC_0071316.jpg,lower extremity|50s
+5,c5,ISIC_0071318.jpg,upper extremity|80+
+4,c4,ISIC_0071320.jpg,anterior torso|70s
+5,c5,ISIC_0071322.jpg,lower extremity|50s
+3,c3,ISIC_0071326.jpg,lower extremity|50s
+7,c7,ISIC_0071337.jpg,lower extremity|50s
+0,c0,ISIC_0071338.jpg,anterior torso|40s
+0,c0,ISIC_0071341.jpg,anterior torso|40s
+0,c0,ISIC_0071354.jpg,lower extremity|50s
+0,c0,ISIC_0071359.jpg,anterior torso|40s
+1,c1,ISIC_0071367.jpg,lower extremity|30s
+0,c0,ISIC_0071374.jpg,anterior torso|40s
+0,c0,ISIC_0071375.jpg,anterior torso|40s
+2,c2,ISIC_0071381.jpg,head/neck|70s
+0,c0,ISIC_0071386.jpg,anterior torso|40s
+1,c1,ISIC_0071388.jpg,head/neck|70s
+0,c0,ISIC_0071389.jpg,anterior torso|40s
+5,c5,ISIC_0071393.jpg,head/neck|70s
+3,c3,ISIC_0071399.jpg,head/neck|70s
+1,c1,ISIC_0071408.jpg,anterior torso|40s
+2,c2,ISIC_0071414.jpg,anterior torso|70s
+4,c4,ISIC_0071417.jpg,anterior torso|70s
+3,c3,ISIC_0071421.jpg,anterior torso|70s
+2,c2,ISIC_0071422.jpg,head/neck|70s
+3,c3,ISIC_0071426.jpg,upper extremity|70s
+0,c0,ISIC_0071432.jpg,lower extremity|30s
+0,c0,ISIC_0071437.jpg,upper extremity|70s
+4,c4,ISIC_0071440.jpg,upper extremity|50s
+2,c2,ISIC_0071446.jpg,head/neck|70s
+4,c4,ISIC_0071449.jpg,head/neck|70s
+2,c2,ISIC_0071459.jpg,lower extremity|30s
+0,c0,ISIC_0071460.jpg,lower extremity|50s
+0,c0,ISIC_0071464.jpg,anterior torso|40s
+0,c0,ISIC_0071468.jpg,anterior torso|40s
+0,c0,ISIC_0071474.jpg,anterior torso|40s
+0,c0,ISIC_0071479.jpg,lower extremity|50s
+2,c2,ISIC_0071480.jpg,head/neck|70s
+0,c0,ISIC_0071481.jpg,upper extremity|50s
+0,c0,ISIC_0071497.jpg,anterior torso|40s
+0,c0,ISIC_0071498.jpg,anterior torso|40s
+0,c0,ISIC_0071505.jpg,anterior torso|40s
+0,c0,ISIC_0071516.jpg,anterior torso|40s
+2,c2,ISIC_0071517.jpg,anterior torso|40s
+0,c0,ISIC_0071519.jpg,upper extremity|50s
+1,c1,ISIC_0071528.jpg,upper extremity|50s
+4,c4,ISIC_0071535.jpg,head/neck|70s
+1,c1,ISIC_0071536.jpg,anterior torso|40s
+1,c1,ISIC_0071537.jpg,lower extremity|30s
+7,c7,ISIC_0071543.jpg,anterior torso|40s
+3,c3,ISIC_0071545.jpg,head/neck|70s
+1,c1,ISIC_0071550.jpg,upper extremity|80+
+2,c2,ISIC_0071555.jpg,anterior torso|70s
+7,c7,ISIC_0071557.jpg,anterior torso|70s
+1,c1,ISIC_0071559.jpg,anterior torso|40s
+1,c1,ISIC_0071586.jpg,anterior torso|70s
+2,c2,ISIC_0071597.jpg,upper extremity|80+
+0,c0,ISIC_0071602.jpg,anterior torso|40s
+4,c4,ISIC_0071605.jpg,head/neck|70s
+3,c3,ISIC_0071615.jpg,head/neck|70s
+0,c0,ISIC_0071618.jpg,lower extremity|50s
+4,c4,ISIC_0071619.jpg,head/neck|70s
+0,c0,ISIC_0071625.jpg,anterior torso|40s
+3,c3,ISIC_0071629.jpg,lower extremity|30s
+1,c1,ISIC_0071632.jpg,upper extremity|80+
+2,c2,ISIC_0071637.jpg,anterior torso|70s
+0,c0,ISIC_0071641.jpg,lower extremity|50s
+6,c6,ISIC_0071645.jpg,anterior torso|40s
+1,c1,ISIC_0071648.jpg,head/neck|70s
+0,c0,ISIC_0071654.jpg,anterior torso|40s
+3,c3,ISIC_0071662.jpg,anterior torso|40s
+1,c1,ISIC_0071668.jpg,anterior torso|40s
+2,c2,ISIC_0071672.jpg,upper extremity|80+
+1,c1,ISIC_0071678.jpg,upper extremity|70s
+1,c1,ISIC_0071681.jpg,upper extremity|50s
+3,c3,ISIC_0071683.jpg,head/neck|70s
+0,c0,ISIC_0071687.jpg,anterior torso|40s
+2,c2,ISIC_0071692.jpg,anterior torso|70s
+3,c3,ISIC_0071694.jpg,anterior torso|70s
+1,c1,ISIC_0071700.jpg,lower extremity|50s
+1,c1,ISIC_0071706.jpg,anterior torso|40s
+1,c1,ISIC_0071707.jpg,head/neck|70s
+1,c1,ISIC_0071712.jpg,anterior torso|70s
+1,c1,ISIC_0071720.jpg,upper extremity|70s
+2,c2,ISIC_0071724.jpg,anterior torso|40s
+2,c2,ISIC_0071730.jpg,head/neck|70s
+0,c0,ISIC_0071735.jpg,anterior torso|40s
+0,c0,ISIC_0071739.jpg,anterior torso|40s
+0,c0,ISIC_0071752.jpg,anterior torso|40s
+0,c0,ISIC_0071754.jpg,anterior torso|40s
+0,c0,ISIC_0071755.jpg,anterior torso|40s
+5,c5,ISIC_0071756.jpg,upper extremity|70s
+2,c2,ISIC_0071757.jpg,anterior torso|70s
+0,c0,ISIC_0071759.jpg,anterior torso|70s
+2,c2,ISIC_0071763.jpg,anterior torso|70s
+4,c4,ISIC_0071772.jpg,head/neck|70s
+7,c7,ISIC_0071787.jpg,anterior torso|40s
+5,c5,ISIC_0071795.jpg,head/neck|70s
+1,c1,ISIC_0071806.jpg,upper extremity|50s
+1,c1,ISIC_0071808.jpg,anterior torso|70s
+0,c0,ISIC_0071816.jpg,anterior torso|70s
+5,c5,ISIC_0071817.jpg,lower extremity|50s
+0,c0,ISIC_0071819.jpg,lower extremity|30s
+0,c0,ISIC_0071824.jpg,anterior torso|40s
+1,c1,ISIC_0071827.jpg,lower extremity|50s
+3,c3,ISIC_0071831.jpg,anterior torso|40s
+0,c0,ISIC_0071861.jpg,lower extremity|30s
+0,c0,ISIC_0071863.jpg,anterior torso|40s
+1,c1,ISIC_0071865.jpg,anterior torso|40s
+2,c2,ISIC_0071867.jpg,head/neck|70s
+1,c1,ISIC_0071869.jpg,anterior torso|70s
+0,c0,ISIC_0071877.jpg,upper extremity|50s
+2,c2,ISIC_0071878.jpg,upper extremity|80+
+0,c0,ISIC_0071880.jpg,lower extremity|50s
+0,c0,ISIC_0071883.jpg,anterior torso|40s
+0,c0,ISIC_0071884.jpg,lower extremity|50s
+0,c0,ISIC_0071886.jpg,lower extremity|50s
+5,c5,ISIC_0071887.jpg,lower extremity|50s
+4,c4,ISIC_0071889.jpg,head/neck|70s
+2,c2,ISIC_0071890.jpg,anterior torso|70s
+2,c2,ISIC_0071893.jpg,upper extremity|70s
+0,c0,ISIC_0071895.jpg,anterior torso|40s
+1,c1,ISIC_0071901.jpg,upper extremity|70s
+1,c1,ISIC_0071904.jpg,anterior torso|40s
+5,c5,ISIC_0071905.jpg,head/neck|70s
+0,c0,ISIC_0071909.jpg,anterior torso|40s
+7,c7,ISIC_0071912.jpg,head/neck|70s
+1,c1,ISIC_0071931.jpg,upper extremity|70s
+1,c1,ISIC_0071944.jpg,lower extremity|50s
+1,c1,ISIC_0071950.jpg,anterior torso|40s
+4,c4,ISIC_0071953.jpg,upper extremity|80+
+2,c2,ISIC_0071960.jpg,upper extremity|70s
+5,c5,ISIC_0071969.jpg,upper extremity|80+
+1,c1,ISIC_0071972.jpg,anterior torso|40s
+6,c6,ISIC_0071998.jpg,anterior torso|40s
+5,c5,ISIC_0071999.jpg,upper extremity|80+
+1,c1,ISIC_0072001.jpg,anterior torso|70s
+7,c7,ISIC_0072012.jpg,lower extremity|30s
+0,c0,ISIC_0072015.jpg,anterior torso|40s
+0,c0,ISIC_0072016.jpg,anterior torso|40s
+0,c0,ISIC_0072019.jpg,anterior torso|40s
+1,c1,ISIC_0072021.jpg,upper extremity|80+
+2,c2,ISIC_0072028.jpg,upper extremity|70s
+2,c2,ISIC_0072029.jpg,head/neck|70s
+0,c0,ISIC_0072036.jpg,anterior torso|40s
+6,c6,ISIC_0072045.jpg,upper extremity|80+
+0,c0,ISIC_0072046.jpg,lower extremity|30s
+3,c3,ISIC_0072050.jpg,anterior torso|70s
+0,c0,ISIC_0072056.jpg,anterior torso|40s
+3,c3,ISIC_0072058.jpg,anterior torso|70s
+1,c1,ISIC_0072061.jpg,upper extremity|70s
+0,c0,ISIC_0072062.jpg,anterior torso|40s
+1,c1,ISIC_0072063.jpg,lower extremity|50s
+2,c2,ISIC_0072066.jpg,head/neck|70s
+3,c3,ISIC_0072070.jpg,anterior torso|70s
+0,c0,ISIC_0072074.jpg,anterior torso|40s
+1,c1,ISIC_0072077.jpg,anterior torso|40s
+1,c1,ISIC_0072078.jpg,lower extremity|30s
+0,c0,ISIC_0072081.jpg,anterior torso|40s
+0,c0,ISIC_0072083.jpg,anterior torso|40s
+2,c2,ISIC_0072086.jpg,upper extremity|80+
+2,c2,ISIC_0072092.jpg,anterior torso|70s
+0,c0,ISIC_0072102.jpg,upper extremity|50s
+0,c0,ISIC_0072106.jpg,lower extremity|30s
+4,c4,ISIC_0072107.jpg,head/neck|70s
+5,c5,ISIC_0072114.jpg,upper extremity|80+
+2,c2,ISIC_0072127.jpg,anterior torso|70s
+2,c2,ISIC_0072131.jpg,head/neck|70s
+6,c6,ISIC_0072137.jpg,anterior torso|70s
+3,c3,ISIC_0072161.jpg,head/neck|70s
+0,c0,ISIC_0072165.jpg,anterior torso|40s
+0,c0,ISIC_0072167.jpg,anterior torso|40s
+1,c1,ISIC_0072173.jpg,anterior torso|70s
+1,c1,ISIC_0072174.jpg,anterior torso|70s
+3,c3,ISIC_0072184.jpg,upper extremity|50s
+1,c1,ISIC_0072195.jpg,head/neck|70s
+0,c0,ISIC_0072202.jpg,anterior torso|40s
+0,c0,ISIC_0072203.jpg,upper extremity|50s
+0,c0,ISIC_0072207.jpg,anterior torso|40s
+2,c2,ISIC_0072211.jpg,anterior torso|40s
+1,c1,ISIC_0072215.jpg,anterior torso|70s
+1,c1,ISIC_0072218.jpg,upper extremity|70s
+2,c2,ISIC_0072219.jpg,anterior torso|70s
+1,c1,ISIC_0072223.jpg,upper extremity|50s
+0,c0,ISIC_0072244.jpg,lower extremity|30s
+2,c2,ISIC_0072245.jpg,anterior torso|70s
+2,c2,ISIC_0072247.jpg,anterior torso|70s
+2,c2,ISIC_0072251.jpg,anterior torso|40s
+2,c2,ISIC_0072260.jpg,anterior torso|70s
+4,c4,ISIC_0072265.jpg,lower extremity|50s
+0,c0,ISIC_0072284.jpg,upper extremity|50s
+0,c0,ISIC_0072290.jpg,anterior torso|40s
+1,c1,ISIC_0072292.jpg,lower extremity|50s
+1,c1,ISIC_0072294.jpg,anterior torso|40s
+0,c0,ISIC_0072295.jpg,upper extremity|50s
+0,c0,ISIC_0072298.jpg,lower extremity|30s
+1,c1,ISIC_0072299.jpg,anterior torso|40s
+2,c2,ISIC_0072306.jpg,head/neck|70s
+4,c4,ISIC_0072307.jpg,head/neck|70s
+0,c0,ISIC_0072313.jpg,lower extremity|30s
+0,c0,ISIC_0072324.jpg,anterior torso|40s
+0,c0,ISIC_0072327.jpg,upper extremity|50s
+3,c3,ISIC_0072343.jpg,lower extremity|50s
+2,c2,ISIC_0072345.jpg,head/neck|70s
+1,c1,ISIC_0072353.jpg,lower extremity|50s
+2,c2,ISIC_0072356.jpg,anterior torso|40s
+3,c3,ISIC_0072357.jpg,lower extremity|50s
+2,c2,ISIC_0072359.jpg,head/neck|70s
+1,c1,ISIC_0072373.jpg,anterior torso|40s
+1,c1,ISIC_0072374.jpg,anterior torso|40s
+2,c2,ISIC_0072376.jpg,head/neck|70s
+1,c1,ISIC_0072380.jpg,anterior torso|70s
+1,c1,ISIC_0072382.jpg,lower extremity|30s
+1,c1,ISIC_0072383.jpg,lower extremity|30s
+0,c0,ISIC_0072385.jpg,upper extremity|70s
+1,c1,ISIC_0072393.jpg,anterior torso|70s
+0,c0,ISIC_0072403.jpg,anterior torso|40s
+3,c3,ISIC_0072410.jpg,head/neck|70s
+0,c0,ISIC_0072412.jpg,anterior torso|40s
+1,c1,ISIC_0072418.jpg,lower extremity|30s
+0,c0,ISIC_0072420.jpg,anterior torso|40s
+0,c0,ISIC_0072428.jpg,anterior torso|40s
+1,c1,ISIC_0072440.jpg,lower extremity|50s
+0,c0,ISIC_0072443.jpg,lower extremity|30s
+0,c0,ISIC_0072446.jpg,anterior torso|40s
+0,c0,ISIC_0072467.jpg,anterior torso|40s
+2,c2,ISIC_0072471.jpg,upper extremity|80+
+2,c2,ISIC_0072477.jpg,anterior torso|70s
+1,c1,ISIC_0072495.jpg,anterior torso|40s
+5,c5,ISIC_0072499.jpg,lower extremity|50s
+0,c0,ISIC_0072500.jpg,lower extremity|30s
+0,c0,ISIC_0072503.jpg,anterior torso|40s
+2,c2,ISIC_0072511.jpg,head/neck|70s
+4,c4,ISIC_0072514.jpg,upper extremity|50s
+0,c0,ISIC_0072524.jpg,upper extremity|50s
+0,c0,ISIC_0072528.jpg,lower extremity|50s
+1,c1,ISIC_0072535.jpg,lower extremity|50s
+2,c2,ISIC_0072540.jpg,anterior torso|70s
+1,c1,ISIC_0072542.jpg,anterior torso|70s
+0,c0,ISIC_0072552.jpg,anterior torso|70s
+2,c2,ISIC_0072567.jpg,anterior torso|70s
+1,c1,ISIC_0072568.jpg,lower extremity|50s
+2,c2,ISIC_0072573.jpg,lower extremity|50s
+0,c0,ISIC_0072575.jpg,anterior torso|40s
+0,c0,ISIC_0072576.jpg,anterior torso|40s
+0,c0,ISIC_0072578.jpg,anterior torso|40s
+4,c4,ISIC_0072584.jpg,head/neck|70s
+0,c0,ISIC_0072587.jpg,anterior torso|40s
+1,c1,ISIC_0072594.jpg,anterior torso|70s
+0,c0,ISIC_0072600.jpg,lower extremity|30s
+2,c2,ISIC_0072602.jpg,upper extremity|80+
+2,c2,ISIC_0072603.jpg,head/neck|70s
+0,c0,ISIC_0072604.jpg,anterior torso|40s
+0,c0,ISIC_0072608.jpg,anterior torso|40s
+0,c0,ISIC_0072609.jpg,head/neck|70s
+2,c2,ISIC_0072610.jpg,head/neck|70s
+3,c3,ISIC_0072613.jpg,lower extremity|50s
+3,c3,ISIC_0072614.jpg,anterior torso|40s
+1,c1,ISIC_0072626.jpg,anterior torso|70s
+0,c0,ISIC_0072627.jpg,anterior torso|70s
+5,c5,ISIC_0072628.jpg,upper extremity|80+
+1,c1,ISIC_0072631.jpg,anterior torso|40s
+0,c0,ISIC_0072633.jpg,lower extremity|50s
+2,c2,ISIC_0072640.jpg,anterior torso|70s
+1,c1,ISIC_0072642.jpg,upper extremity|80+
+0,c0,ISIC_0072647.jpg,anterior torso|40s
+2,c2,ISIC_0072656.jpg,upper extremity|70s
+0,c0,ISIC_0072661.jpg,anterior torso|40s
+0,c0,ISIC_0072690.jpg,anterior torso|40s
+2,c2,ISIC_0072697.jpg,lower extremity|50s
+0,c0,ISIC_0072699.jpg,upper extremity|70s
+1,c1,ISIC_0072713.jpg,upper extremity|70s
+1,c1,ISIC_0072714.jpg,head/neck|70s
+4,c4,ISIC_0072716.jpg,head/neck|70s
+0,c0,ISIC_0072717.jpg,anterior torso|40s
+0,c0,ISIC_0072727.jpg,anterior torso|40s
+2,c2,ISIC_0072731.jpg,anterior torso|40s
+3,c3,ISIC_0072737.jpg,anterior torso|40s
+3,c3,ISIC_0072740.jpg,anterior torso|40s
+0,c0,ISIC_0072745.jpg,anterior torso|40s
+1,c1,ISIC_0072748.jpg,anterior torso|70s
+2,c2,ISIC_0072750.jpg,upper extremity|70s
+4,c4,ISIC_0072754.jpg,head/neck|70s
+1,c1,ISIC_0072755.jpg,anterior torso|70s
+0,c0,ISIC_0072767.jpg,anterior torso|40s
+2,c2,ISIC_0072772.jpg,anterior torso|70s
+1,c1,ISIC_0072773.jpg,lower extremity|50s
+0,c0,ISIC_0072777.jpg,anterior torso|40s
+0,c0,ISIC_0072778.jpg,lower extremity|30s
+1,c1,ISIC_0072785.jpg,upper extremity|70s
+5,c5,ISIC_0072795.jpg,head/neck|70s
+2,c2,ISIC_0072807.jpg,anterior torso|70s
+3,c3,ISIC_0072815.jpg,head/neck|70s
+2,c2,ISIC_0072818.jpg,upper extremity|80+
+1,c1,ISIC_0072820.jpg,upper extremity|80+
+1,c1,ISIC_0072824.jpg,head/neck|70s
+1,c1,ISIC_0072826.jpg,upper extremity|70s
+5,c5,ISIC_0072829.jpg,anterior torso|70s
+0,c0,ISIC_0072836.jpg,anterior torso|40s
+0,c0,ISIC_0072837.jpg,anterior torso|40s
+2,c2,ISIC_0072839.jpg,upper extremity|80+
+0,c0,ISIC_0072841.jpg,anterior torso|40s
+1,c1,ISIC_0072844.jpg,anterior torso|40s
+0,c0,ISIC_0072846.jpg,anterior torso|40s
+0,c0,ISIC_0072848.jpg,anterior torso|40s
+0,c0,ISIC_0072850.jpg,upper extremity|50s
+2,c2,ISIC_0072851.jpg,lower extremity|50s
+0,c0,ISIC_0072855.jpg,anterior torso|40s
+0,c0,ISIC_0072870.jpg,anterior torso|40s
+2,c2,ISIC_0072877.jpg,lower extremity|50s
+0,c0,ISIC_0072878.jpg,lower extremity|30s
+3,c3,ISIC_0072888.jpg,anterior torso|70s
+1,c1,ISIC_0072889.jpg,upper extremity|80+
+2,c2,ISIC_0072891.jpg,anterior torso|40s
+3,c3,ISIC_0072901.jpg,head/neck|70s
+0,c0,ISIC_0072918.jpg,anterior torso|40s
+1,c1,ISIC_0072923.jpg,head/neck|70s
+2,c2,ISIC_0072931.jpg,lower extremity|50s
+5,c5,ISIC_0072933.jpg,anterior torso|70s
+0,c0,ISIC_0072957.jpg,lower extremity|30s
+0,c0,ISIC_0072960.jpg,lower extremity|30s
+0,c0,ISIC_0072962.jpg,anterior torso|40s
+5,c5,ISIC_0072969.jpg,upper extremity|80+
+1,c1,ISIC_0072983.jpg,anterior torso|70s
+2,c2,ISIC_0072988.jpg,head/neck|70s
+1,c1,ISIC_0072989.jpg,anterior torso|40s
+0,c0,ISIC_0072998.jpg,anterior torso|40s
+2,c2,ISIC_0073002.jpg,upper extremity|70s
+0,c0,ISIC_0073004.jpg,anterior torso|70s
+0,c0,ISIC_0073008.jpg,anterior torso|40s
+2,c2,ISIC_0073010.jpg,anterior torso|70s
+1,c1,ISIC_0073016.jpg,anterior torso|40s
+2,c2,ISIC_0073019.jpg,head/neck|70s
+2,c2,ISIC_0073028.jpg,upper extremity|80+
+1,c1,ISIC_0073032.jpg,lower extremity|50s
+3,c3,ISIC_0073048.jpg,lower extremity|50s
+1,c1,ISIC_0073054.jpg,head/neck|70s
+2,c2,ISIC_0073059.jpg,anterior torso|70s
+2,c2,ISIC_0073063.jpg,anterior torso|70s
+1,c1,ISIC_0073065.jpg,lower extremity|50s
+4,c4,ISIC_0073068.jpg,head/neck|70s
+3,c3,ISIC_0073070.jpg,head/neck|70s
+2,c2,ISIC_0073079.jpg,anterior torso|40s
+0,c0,ISIC_0073080.jpg,anterior torso|40s
+0,c0,ISIC_0073086.jpg,anterior torso|40s
+0,c0,ISIC_0073092.jpg,anterior torso|40s
+3,c3,ISIC_0073099.jpg,upper extremity|50s
+3,c3,ISIC_0073100.jpg,head/neck|70s
+3,c3,ISIC_0073104.jpg,lower extremity|30s
+7,c7,ISIC_0073110.jpg,lower extremity|30s
+2,c2,ISIC_0073111.jpg,anterior torso|40s
+2,c2,ISIC_0073116.jpg,upper extremity|80+
+1,c1,ISIC_0073119.jpg,anterior torso|40s
+1,c1,ISIC_0073127.jpg,anterior torso|70s
+2,c2,ISIC_0073128.jpg,anterior torso|70s
+4,c4,ISIC_0073130.jpg,head/neck|70s
+0,c0,ISIC_0073133.jpg,anterior torso|40s
+6,c6,ISIC_0073141.jpg,anterior torso|40s
+0,c0,ISIC_0073144.jpg,anterior torso|70s
+0,c0,ISIC_0073146.jpg,lower extremity|50s
+1,c1,ISIC_0073147.jpg,anterior torso|40s
+2,c2,ISIC_0073149.jpg,anterior torso|70s
+4,c4,ISIC_0073153.jpg,head/neck|70s
+2,c2,ISIC_0073161.jpg,anterior torso|40s
+0,c0,ISIC_0073169.jpg,upper extremity|50s
+2,c2,ISIC_0073170.jpg,anterior torso|40s
+2,c2,ISIC_0073172.jpg,head/neck|70s
+3,c3,ISIC_0073181.jpg,anterior torso|70s
+0,c0,ISIC_0073182.jpg,lower extremity|30s
+0,c0,ISIC_0073184.jpg,lower extremity|30s
+0,c0,ISIC_0073187.jpg,upper extremity|50s
+6,c6,ISIC_0073189.jpg,upper extremity|70s
+1,c1,ISIC_0073194.jpg,lower extremity|50s
+0,c0,ISIC_0073202.jpg,upper extremity|50s
+0,c0,ISIC_0073209.jpg,anterior torso|40s
+1,c1,ISIC_0073210.jpg,head/neck|70s
+4,c4,ISIC_0073214.jpg,head/neck|70s
+2,c2,ISIC_0073215.jpg,head/neck|70s
+2,c2,ISIC_0073221.jpg,head/neck|70s
+5,c5,ISIC_0073223.jpg,upper extremity|80+
+2,c2,ISIC_0073225.jpg,lower extremity|50s
+3,c3,ISIC_0073228.jpg,anterior torso|70s
+3,c3,ISIC_0073235.jpg,anterior torso|40s
+3,c3,ISIC_0073254.jpg,upper extremity|50s
