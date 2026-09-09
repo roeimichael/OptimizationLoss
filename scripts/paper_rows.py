@@ -122,6 +122,30 @@ MEASURED_UNITS = {
     ("coin2", "MobileNetV2"): "A2",         # B / dsisco01, == equaldose1
     ("seed58a", "RegNetY400MF"): "B1",      # B / dsisco01, dom1b seeds 5-8
     ("dom1", "MobileNetV3"): "C2",          # A / dsisco02, the other MNv3 host
+    # 🛑 UNIT D1: THE FIRST NON-iwildcam UNIT, AND IT WAS SITTING UNREAD
+    # (2026-09-09). `bcn1mn3` is COMPLETE -- 228 runs, 4 seeds, and L80 and
+    # L90 are verified task cells -- and it was absent from this table, so
+    # every one of its rows read `UNVERIFIED` and it contributed nothing to
+    # any sign test. Same defect class as the `add_seeds` pooling bug and
+    # `shape1`'s third stream: the runs were bought, executed, and then not
+    # read.
+    #
+    # 🔑 ITS INDEPENDENCE IS PROVED FROM CODE, NOT SAMPLED BY md5. Every other
+    # entry here needed a hash comparison because two iwildcam campaigns CAN
+    # share a warm-up. This one cannot, by construction:
+    # `gen_campaign.compute_base_model_id` returns
+    # `"%s_%s_%s" % (model_name, dataset_mode, h)` and additionally puts
+    # `dataset_mode`, `data_dir` and `num_classes` INSIDE `h`. A bcn model's
+    # id begins `MobileNetV3_bcn_` and an iwildcam model's `MobileNetV3_
+    # iwildcam_`, so the caches are disjoint and the warm-ups were trained
+    # separately on different data. md5 could only ever have sampled that;
+    # the prefix settles it. Gated in `tests/test_lessons_learned.py`.
+    #
+    # ⚠️ THE UNIT IS LICENSED; ITS SIGN IS NOT YET READ. What this entry
+    # asserts is independence. Whether TraLO clears its own lambda=0 floor
+    # here is a separate question that needs `paper_rows` run against the
+    # campaign, and SSH was down the day this was added.
+    ("bcn1mn3", "MobileNetV3"): "D1",        # bcn / dsisco02 bf16, COMPLETE
 }
 
 # The contrasts a paper row may carry, and what each one licenses.

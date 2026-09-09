@@ -86,13 +86,27 @@ one campaign running `grad_mode: clip`.
 docs/COVERAGE.md   🗺️ WHAT WE ACTUALLY HAVE vs WHAT THE PAPER NEEDS, built
                    from all 2,671 configs in all 14 worktrees. Read BEFORE
                    proposing a campaign. Carries THE GATE (does TraLO clear
-                   its own reseed floor? RECOUNT DONE 2026-09-04: the ledger
-                   licenses FOUR units and only THREE carry a verified `task`
-                   cell, so quote BOTH -- 4/4 p=0.0625 licensed, 3/3 p=0.125
-                   task-restricted. `paper_rows` prints the restriction itself) and the
-                   checklist of holes: ViTB16 has zero fioretto/hounie/alm,
+                   its own reseed floor? RECOUNT DONE 2026-09-04: FOUR units
+                   had their signs read and only THREE carry a verified `task`
+                   cell, so quote BOTH -- 4/4 p=0.0625, 3/3 p=0.125
+                   task-restricted. `paper_rows` prints the restriction itself)
+   🔑 **BUT THE LEDGER NOW LICENSES SIX, AND TWO SIGNS ARE UNREAD
+   (2026-09-09).** This line said "the ledger licenses FOUR"; that was true
+   when it was written at 17:45 on 2026-09-04 and false by 19:43, when
+   `("dom1","MobileNetV3")` was added as C2. `("bcn1mn3","MobileNetV3")` was
+   added as D1 today -- a COMPLETE 228-run campaign that was reading
+   `UNVERIFIED` and contributing nothing. **`LICENSED` and `SIGN READ` are
+   different, and this line collapsed them.** Reading C2 and D1 costs ZERO
+   GPU-hours (both are on disk) and is the top of the queue: 6/6 would be
+   p=0.0156, the first sub-0.05 headline this design can produce, and a
+   negative is worth more. ⛔ DO NOT QUOTE 6/6 BEFORE IT IS READ.
+   FRAMEWORK 2(z66), MISSION 0-UNREAD.
+                   COVERAGE also carries the checklist of holes: ViTB16 has zero fioretto/hounie/alm,
                    every run caps the same 2 classes, no symmetric cap ever,
-                   1 dataset of 3
+                   1 dataset of 3 -- ✅ THAT LAST HOLE IS CLOSING:
+                   `bcn1mn3` is COMPLETE (228 runs) and `bcn1vit` +
+                   `fmow1` are running, so three datasets now carry
+                   campaigns. Re-read COVERAGE before quoting it.
 docs/PLAYBOOK.md   WHAT TO DO WHEN A CAMPAIGN LANDS -- the integrity gates in
                    order, how to read the logs and their three traps, and a
                    branch per outcome (win / null / loss / gates red) decided
@@ -136,7 +150,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 610 regression tests, ~250s, no dataset needed
+python -m pytest tests -q                   # 612 regression tests, ~250s, no dataset needed
 #   `tests/test_scorers_run_end_to_end.py` EXECUTES every scorer as a subprocess
 #   against a campaign carrying a real PARTIAL marker. It exists because three
 #   scorers once used `quarantine.` with no module-level import: they PARSED,

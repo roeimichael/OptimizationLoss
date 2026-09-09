@@ -54,7 +54,7 @@ def ledger_size():
     `(campaign, backbone) -> unit id`, and several campaigns deliberately map
     to the SAME unit because they are the same model byte-identically --
     `coin1` is `dom1b`, `coin2` is `equaldose1`, `taskwin2` and `equaldose1`
-    share MobileNetV3. Nine keys, FIVE units.
+    share MobileNetV3. TEN keys, SIX units (D1, `bcn1mn3`, added 2026-09-09).
 
     This function returned `len(keys)` until 2026-09-04, so the gate whose
     entire job is stopping a document from claiming more units than the ledger
@@ -217,9 +217,9 @@ def test_NEGATIVE_CONTROL_a_campaign_pair_is_not_a_free_replicate():
 
     Two campaigns that are the same model byte-identically map to one unit id
     on purpose -- `coin1` is `dom1b`, `coin2` is `equaldose1`. Counting the
-    keys inflates the ledger (measured: 9 keys, 5 units) and drops the sign
-    floor from `0.5^5 = 0.03125` to `0.5^9 = 0.00195`, which would license a
-    claim thirty times stronger than the evidence. That is precisely the
+    keys inflates the ledger (measured: 10 keys, 6 units) and drops the sign
+    floor from `0.5^6 = 0.01563` to `0.5^10 = 0.00098`, which would license a
+    claim sixteen times stronger than the evidence. That is precisely the
     inflation this whole file exists to prevent, so it is checked directly
     rather than trusted.
     """
@@ -253,7 +253,16 @@ def test_NEGATIVE_CONTROL_a_campaign_pair_is_not_a_free_replicate():
         "collapsed everything to one and the gate is vacuous")
 
     # And the REAL ledger must agree with the documented figure.
-    assert ledger_size() == 5, (
-        "the ledger holds %d distinct units, not the 5 the documents claim. "
+    # 🛑 THIS NUMBER IS A CLAIM AND MOVING IT IS A DECISION. 5 -> 6 on
+    # 2026-09-09, when `bcn1mn3` was licensed as unit D1: a COMPLETE 228-run
+    # campaign on a different dataset that was absent from the ledger and so
+    # read UNVERIFIED, contributing nothing. It moves the attainable sign
+    # floor from 0.5^5 = 0.03125 to 0.5^6 = 0.01563.
+    # ⚠️ LICENSED IS NOT READ. D1's independence is proved from
+    # `compute_base_model_id` (the dataset is in the id PREFIX, so a bcn
+    # warm-up cannot collide with an iwildcam one); whether TraLO clears its
+    # own lambda=0 floor there is unread and needs the server.
+    assert ledger_size() == 6, (
+        "the ledger holds %d distinct units, not the 6 the documents claim. "
         "Either MEASURED_UNITS gained a unit or a document is stale -- both "
         "move the sign floor and neither may pass silently." % ledger_size())

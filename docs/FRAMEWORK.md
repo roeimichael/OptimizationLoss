@@ -3941,7 +3941,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 610 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 612 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -4105,7 +4105,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 610 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 612 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -4113,7 +4113,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (610 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (612 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -11981,6 +11981,47 @@ this is not a refinement; it is the difference between a live question and a
 dead one. The measurement is NOT YET MADE -- it needs the server, and SSH has
 been down all session. It is the first thing to run when access returns.
 
+### PRE-REGISTERED, BEFORE THE MEASUREMENT EXISTS
+
+`slope_max` makes the geometry account TESTABLE in a way the averaged reading
+was not, so the prediction goes on record now, while SSH is down and no number
+can be seen. Written 2026-09-09; to be scored by
+`python -m scripts.cut_gap <live roots>` (task #100).
+
+THE ACCOUNT SAYS: the tight regime fails because the cut sits at p = 0.9999,
+where `p(1-p)` = 0.0001, three orders below `DEAD_SLOPE` = 0.005, so no count
+function differentiating `sum_i p_ic` can move it. Under a GLOBAL reading that
+is one number per cell and unfalsifiable-by-averaging: a single scalar cannot
+distinguish "every group's cut is dead" from "the average is dead while some
+groups are live". `slope_max` separates them.
+
+  * **PASS (the account survives).** In the TIGHT cells (K/n = 0.20, 0.30),
+    `slope_max` is below `DEAD_SLOPE` in essentially every row -- not even the
+    DEEPEST group's cut carries gradient -- while the LOOSE cells (K/n = 0.80,
+    0.90), where `tralo` gains its +6.24 items, sit comfortably above it.
+  * **FAIL (the account is refuted, or is not the whole story).** A substantial
+    fraction of TIGHT rows read `slope_max >= DEAD_SLOPE`. Then live,
+    reachable cuts existed in the tight regime and "nothing could reach the
+    cut" is not why it failed. `slope_K` said otherwise only because it
+    averaged them away.
+  * **A THIRD OUTCOME THAT IS NOT A TIE.** If `slope_max >> slope_K`
+    throughout -- both regimes -- the ranking of cells by reachability changes
+    and every claim in the MEASURED GEOMETRY table above was resting on a mean
+    over groups of very different depth. That is neither pass nor fail; it says
+    the instrument was reading the wrong statistic and the table needs
+    rebuilding, not reinterpreting.
+
+⚠️ **The K=0 ceilings cut BOTH ways and must be stated with the result.**
+7 of 14 iwildcam local ceilings are K=0, and a K=0 scope has no cut at all --
+`per_group_cut` skips it. So `slope_max` is a maximum over the SURVIVING half,
+and `cut_grp` (printed beside it) says how many that was. A `slope_max` read
+off two groups is a different claim from one read off seven.
+
+🛑 **DO NOT SCORE THIS AGAINST THE OUTCOME.** The account already made one
+sharp prediction and it FAILED (`tralo_uniform` should have ordered oppositely
+in `gap`; it did not). A second failure closes the geometry story rather than
+weakening it, and that is a result worth having.
+
 **THE STATUS BLOCK IS UNCHANGED AND STAYS UNCHANGED.** The geometry account
 was already labelled AN UNREFUTED ACCOUNT THAT THIS DESIGN CANNOT
 DISCRIMINATE, with the sharp `tralo_uniform` prediction FAILED and `gap`,
@@ -12120,10 +12161,112 @@ fmow's pair for bcn, in prose and in a fixture, and its checks passed because
 the fixture and the assertion agreed with each other. Corrected; the self-test
 now uses the measured pairs.
 
+### 6. THE AUDIT CONVERGED, WHICH IS ITSELF THE RESULT
+
+Three sibling questions, all asking "over what domain does this aggregate?":
+
+| audit | question | sites | defects |
+|---|---|---|---|
+| `argsort` | what does it sort probabilities WITHIN? | 6 | **2** |
+| `groupby` | is the key the WHOLE cell? | 21 | **2** |
+| `merge` | is the join key the whole cell? | 3 | **0** |
+
+The `merge` pass found nothing NEW: `order_probe` joins on
+`(model, cap, seed, cls)` and is covered by the same `assert_single_dataset`
+guard its groupby needed; `paired_noise` joins on `cell` = `parts[-6:-3]` =
+`(model, dataset, cap)` and is complete; `prep_isic` joins metadata on
+`image`, which is a data-prep join and not a cell key at all.
+
+🔑 **A dry third pass is what licenses stopping.** Two passes finding two
+defects each says the class is real; a third finding zero says it is bounded.
+Had the merge pass also found two, the right move would have been a fourth
+question, not a commit.
+
 🔑 **THAT IS 2(z64)'S LESSON A THIRD TIME.** A fixture that agrees with the
 claim it is testing proves only that they agree. Every one of these was found
 by comparing against an AUTHORITY outside the test -- `logging.py`,
 `gen_campaign.py`, `task_windows.yml` -- never by re-reading the test.
+
+
+## 2(z66). THE FIFTH AND SIXTH UNITS ALREADY EXIST, AND NEITHER HAS BEEN READ (2026-09-09)
+
+The headline is a SIGN TEST over independent units, and a sign test on `n`
+units bottoms out at `0.5^n`. At four units the smallest attainable p is
+**0.0625**, so **four units cannot reach p<0.05 at any effect size**. That has
+been quoted for a week as the reason a new campaign is needed.
+
+**IT IS NOT. `scripts.paper_rows.MEASURED_UNITS` LICENSES SIX.**
+
+    A1  dom1        / MobileNetV2     signs READ  (part of the 4/4)
+    A2  equaldose1  / MobileNetV2     signs READ
+    B1  dom1b       / RegNetY400MF    signs READ
+    C1  taskwin2    / MobileNetV3     signs READ
+    C2  dom1        / MobileNetV3     ⚠️ LICENSED, SIGN UNREAD
+    D1  bcn1mn3     / MobileNetV3     ⚠️ LICENSED 2026-09-09, SIGN UNREAD
+
+The `4/4, p=0.0625` figure in `docs/COVERAGE.md` and `CLAUDE.md` is the
+2026-09-04 recount, when the ledger held FOUR. Two units have been added
+since. **The signs behind 4/4 were measured; C2's and D1's were not.** Those
+are different statements and the documents currently collapse them.
+
+🧾 **THE STALENESS IS DATED, NOT INFERRED.** `git log -S` on both strings:
+
+    10c15508  2026-09-04 17:45  the "4/4 p=0.0625" line is written
+    a91c9901  2026-09-04 19:43  ("dom1", "MobileNetV3") enters the ledger as C2
+
+The figure predates its own fifth unit by **two hours** and was never revised.
+D1 was licensed today. So "4/4" is not a tally that C2 and D1 failed to join
+-- it is a tally taken before either existed.
+
+### D1 WAS SITTING UNREAD, AND THE LEDGER IS WHY
+
+`bcn1mn3` is COMPLETE -- 228 runs, four seeds, and `L80` and `L90` are
+verified task cells (`L70` is not; see 2(z60)). It was absent from
+`MEASURED_UNITS`, and an absent entry reads `UNVERIFIED`, which is the
+CAUTIOUS default and is correct as a default. The cost of the cautious default
+is that a finished 228-run campaign contributed nothing to any tally, silently.
+Same defect class as the `add_seeds` pooling bug and `shape1`'s third
+lambda=0 stream: **the runs were bought, executed, and then not read.**
+
+### ITS INDEPENDENCE IS PROVED, NOT SAMPLED
+
+Every other ledger entry needed an md5 of `final_predictions_raw.csv`, because
+two iwildcam campaigns genuinely can share a warm-up and hand out a free
+replicate. A cross-dataset pair cannot, and md5 was never the right instrument
+for it:
+
+    compute_base_model_id -> "%s_%s_%s" % (model_name, dataset_mode, h)
+
+The dataset is in the **PREFIX**, and `dataset_mode`, `data_dir` and
+`num_classes` are all inside `h` as well. A bcn model's id begins
+`MobileNetV3_bcn_`; an iwildcam model's begins `MobileNetV3_iwildcam_`. The
+caches are disjoint, so the warm-ups were trained separately on different
+data. md5 could only have SAMPLED that; the id scheme settles it.
+
+Gated in `tests/test_lessons_learned.py` in both directions, including the
+negative control that the SAME dataset and identity keys must still collide --
+otherwise arms that should share a cached warm-up would each retrain one, and
+the ledger would have nothing to catch. Mutation-tested 2/2.
+
+### WHAT THIS CHANGES ABOUT THE PRIORITY QUEUE
+
+🔑 **The cheapest path to p<0.05 costs ZERO GPU-hours.** C2 is `dom1`
+data already on disk; D1 is a completed campaign. Reading their signs is a
+scorer run, not an experiment. If both are positive the tally is 6/6,
+**p=0.0156**; if either is negative the headline is refuted at a cost of
+minutes. Both outcomes are worth more than another campaign, and the second
+one is worth more than the first.
+
+⛔ **DO NOT QUOTE 6/6 BEFORE IT IS READ.** The ledger licenses a unit; it
+does not supply its sign. Until `paper_rows` runs against C2 and D1 the
+honest line is **4/4 read, p=0.0625, with two licensed units unread** --
+and `tests/test_unit_ledger_matches_docs.py` now enforces that no document
+claims more units than the ledger holds, in the direction that matters.
+
+⚠️ AND THE UNIT COUNT IS A CLAIM. Moving it 5 -> 6 moves the attainable
+floor 0.03125 -> 0.01563. The test asserting the count is hardcoded on
+purpose, so growing the ledger is a decision somebody makes and records,
+never a side effect.
 
 
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
@@ -13473,7 +13616,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             610 tests, ~200 s, no dataset required
+tests/             612 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

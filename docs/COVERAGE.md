@@ -109,8 +109,24 @@ the strict 0.90 and the partial 1.00 that nobody has looked at. Neither is
 `non_task`. A1, A2 and B1 each carry 2 `task` cells plus 1 `partial`.
 
 ⇒ **BOTH TALLIES, ALWAYS.**
-**4/4 units, sign p=0.0625** over the units the ledger licenses;
+**4/4 units, sign p=0.0625** over the units whose signs have been READ;
 **3/3 units, sign p=0.125** over the units that carry a verified `task` cell.
+
+🛑 **THAT FIRST LINE SAID "over the units the ledger licenses" AND IT IS NO
+LONGER TRUE (corrected 2026-09-09).** The ledger licenses **SIX**. It held
+four when this was written -- `git log -S` dates the sentence to
+**2026-09-04 17:45** and `("dom1","MobileNetV3")` joining as C2 to **19:43**,
+two hours later, and the sentence was never revised.
+`("bcn1mn3","MobileNetV3")` joined as D1 on 2026-09-09.
+
+**LICENSED and SIGN-READ are different things and this line collapsed them.**
+C2 and D1 are licensed and their signs have never been read, so 4/4 is a tally
+over four units, not over the ledger.
+
+🔑 Reading them costs **zero GPU-hours** -- `dom1` is on disk and `bcn1mn3`
+is a completed 228-run campaign. 6/6 would be **p=0.0156**, the first sub-0.05
+headline this design can produce; a negative is worth more. ⛔ Do not quote
+6/6 before it is read. FRAMEWORK 2(z66), MISSION 0-UNREAD.
 The SIGNS are unchanged -- dropping C1 flips nothing, and it removes the one
 unit FAILING the `vs tralo_reseed` row above, so the corpus becomes CLEANER and
 LESS significant at the same time. **Do not re-derive this by hand:**

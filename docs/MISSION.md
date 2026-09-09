@@ -5,7 +5,67 @@
 every working session. If it is stale, that is a defect -- fix it before doing
 anything else.
 
-Last updated: **2026-09-09** (INSTRUMENT INTEGRITY. Two audits, five defects, no published number moved -- see 0-INSTR below. SSH to both hosts has been down all day, so nothing was re-measured and nothing was deployed.)
+Last updated: **2026-09-09** (🔑 THE FIFTH AND SIXTH UNITS ALREADY EXIST AND NEITHER HAS BEEN READ -- see 0-UNREAD, the top of the queue and it costs zero GPU-hours. Plus two instrument audits, five defects, no published number moved -- 0-INSTR. SSH to both hosts down all day.)
+
+---
+
+## 🔑 0-UNREAD. THE FIFTH AND SIXTH UNITS EXIST. READ THEM FIRST. (2026-09-09)
+
+**This is the top of the queue and it needs no GPU.**
+
+The headline is a sign test over independent units, and `0.5^4 = 0.0625` means
+four units cannot reach p<0.05 at any effect size. That has been read for a
+week as "we need a fifth campaign". **`scripts.paper_rows.MEASURED_UNITS`
+licenses SIX.**
+
+| unit | campaign / backbone | sign |
+|---|---|---|
+| A1 | `dom1` / MobileNetV2 | READ |
+| A2 | `equaldose1` / MobileNetV2 | READ |
+| B1 | `dom1b` / RegNetY400MF | READ |
+| C1 | `taskwin2` / MobileNetV3 | READ |
+| **C2** | **`dom1` / MobileNetV3** | ⚠️ **LICENSED, UNREAD** |
+| **D1** | **`bcn1mn3` / MobileNetV3** | ⚠️ **LICENSED 2026-09-09, UNREAD** |
+
+The `4/4, p=0.0625` line in `CLAUDE.md` and `docs/COVERAGE.md` is the
+2026-09-04 recount, taken when the ledger held FOUR. Two units have been added
+since and **the documents collapse "licensed" and "sign read" into one
+number.**
+
+```bash
+python -m scripts.cell_table --campaign results/dom1 results/bcn1mn3 --out cells.csv
+python -m scripts.paper_rows --cells cells.csv --out paper_rows.csv
+```
+
+* both signs positive -> **6/6, p=0.0156**, the first sub-0.05 headline this
+  design can produce
+* either negative -> **the headline is refuted for minutes of compute**, which
+  is worth MORE than the first outcome
+
+⛔ **DO NOT QUOTE 6/6 BEFORE IT IS READ.** The ledger licenses a unit; it
+does not supply its sign. Until then the honest line is *4/4 read, p=0.0625,
+two licensed units unread*.
+
+### D1 was found by asking why a COMPLETE campaign contributed nothing
+
+`bcn1mn3` is finished -- 228 runs, 4 seeds, `L80` and `L90` are verified task
+cells -- and was simply absent from the ledger. An absent entry reads
+`UNVERIFIED`, which is the correct cautious default; the cost of that default
+is that a finished campaign vanishes from every tally, silently. Third
+instance of the class (`add_seeds` pooling, `shape1`'s third stream).
+
+🔑 Its independence is **proved, not sampled**. Every other entry needed an
+md5 because two iwildcam campaigns really can share a warm-up.
+`compute_base_model_id` returns `model_dataset_hash`, so a bcn id begins
+`MobileNetV3_bcn_` and cannot collide with `MobileNetV3_iwildcam_`. Gated in
+`tests/test_lessons_learned.py`, mutations 2/2, with the negative control that
+the SAME dataset must still collide.
+
+⚠️ **The unit count is a claim.** 5 -> 6 moves the attainable floor
+0.03125 -> 0.01563, so `tests/test_unit_ledger_matches_docs.py` hardcodes it:
+growing the ledger is a decision somebody records, never a side effect.
+FRAMEWORK 2(z66).
+
 
 ---
 

@@ -1824,3 +1824,85 @@ def test_NEGATIVE_CONTROL_the_src_block_really_blocks():
         "`sensitivity_screen` imports `src.training.constraints` and must fail "
         "under the blocker. It did not, so the blocker is inert and the checks "
         "above prove nothing.")
+
+
+# ---------------------------------------------------------------------------
+# LESSON (2026-09-09): a campaign on a DIFFERENT DATASET is an independent
+# unit BY CONSTRUCTION, and `bcn1mn3` sat unread because nothing said so.
+#
+# `MEASURED_UNITS` exists because two iwildcam campaigns can share a warm-up
+# and hand out a free replicate to a sign test; every entry there was verified
+# by md5 of `final_predictions_raw.csv`. That test is a SAMPLE. For a
+# cross-dataset pair it is also unnecessary: `compute_base_model_id` puts the
+# dataset in the id's PREFIX, so the caches cannot collide and the warm-ups
+# were trained on different data.
+#
+# This gate pins that, so the D1 entry is a checked claim rather than a
+# comment. If the id scheme ever drops the dataset, the entry becomes unsafe
+# and this goes red.
+# ---------------------------------------------------------------------------
+
+def test_a_cross_dataset_campaign_cannot_share_a_warm_up_by_construction():
+    """2026-09-09: a different DATASET is an independent unit by construction.
+
+    `MEASURED_UNITS` verified every entry by md5 because two iwildcam
+    campaigns really can share a warm-up. For a cross-dataset pair md5 is
+    a sample of something the id scheme already settles:
+    `compute_base_model_id` returns `model_dataset_hash`, so a bcn model
+    id begins `MobileNetV3_bcn_` and can never collide with
+    `MobileNetV3_iwildcam_`. Pinned here so the D1 ledger entry is a
+    checked claim, and so dropping the dataset from the id goes red.
+    """
+    from configs.gen_campaign import compute_base_model_id
+
+    P = {"warmup_identity_keys": ["warmup_epochs", "seed"]}
+    hp = {"warmup_epochs": 1, "seed": 1}
+    dc_i = {"data_dir": "data/iwildcam/oodslice", "num_classes": 8}
+    dc_b = {"data_dir": "data/bcn/oodslice", "num_classes": 8}
+
+    iw = compute_base_model_id(P, "MobileNetV3", hp, "iwildcam", dc_i)
+    bc = compute_base_model_id(P, "MobileNetV3", hp, "bcn", dc_b)
+
+    assert iw != bc, "two datasets produced the SAME base_model_id: %s" % iw
+    assert iw.startswith("MobileNetV3_iwildcam_"), iw
+    assert bc.startswith("MobileNetV3_bcn_"), bc
+    # the dataset is in the PREFIX, so no hash collision can ever join them
+    assert iw.split("_")[1] != bc.split("_")[1]
+
+    # NEGATIVE CONTROL: same dataset AND same identity keys MUST collide, or
+    # the warm-up cache would never be shared and the whole unit ledger --
+    # which exists to catch exactly that sharing -- would be pointless.
+    again = compute_base_model_id(P, "MobileNetV3", dict(hp), "iwildcam", dict(dc_i))
+    assert again == iw, (
+        "the same warm-up produced two ids (%s vs %s); arms that should share "
+        "a cached model would each retrain one" % (iw, again))
+
+    # NEGATIVE CONTROL: a different data_dir under the SAME dataset name must
+    # still separate them -- that is what stops a re-sliced dataset silently
+    # loading the old slice's model.
+    other_slice = compute_base_model_id(
+        P, "MobileNetV3", hp, "iwildcam",
+        {"data_dir": "data/iwildcam/othersplit", "num_classes": 8})
+    assert other_slice != iw, "data_dir is not in the warm-up identity"
+
+
+def test_the_unit_ledger_licenses_the_completed_bcn_campaign():
+    """2026-09-09: `bcn1mn3` is COMPLETE and was contributing nothing.
+
+    228 runs, 4 seeds, and L80/L90 are verified task cells -- yet it was
+    absent from `MEASURED_UNITS`, so every row read `UNVERIFIED`. Same
+    defect class as the `add_seeds` pooling bug and `shape1`'s third
+    stream: runs bought, executed, then not read. FRAMEWORK 2(z66).
+    """
+    from scripts.paper_rows import MEASURED_UNITS
+
+    assert ("bcn1mn3", "MobileNetV3") in MEASURED_UNITS, (
+        "bcn1mn3 is complete and independent by construction; leaving it out "
+        "silently discards 228 runs from the unit count.")
+    label = MEASURED_UNITS[("bcn1mn3", "MobileNetV3")]
+    clash = [k for k, v in MEASURED_UNITS.items()
+             if v == label and k != ("bcn1mn3", "MobileNetV3")]
+    assert not clash, (
+        "bcn1mn3 shares unit label %r with %s. A cross-dataset campaign cannot "
+        "share a warm-up, so sharing a label would UNDER-count units."
+        % (label, clash))
