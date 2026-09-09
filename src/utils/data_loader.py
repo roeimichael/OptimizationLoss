@@ -10,6 +10,7 @@ import pandas as pd
 
 from src.training.constraints import (compute_global_constraints,
                                       compute_local_constraints,
+                                      permute_local_budgets,
                                       normalize_constrained_classes)
 
 log = logging.getLogger(__name__)
@@ -309,6 +310,23 @@ def _load_imagery_data(config):
     local_con = compute_local_constraints(
         test_df, 'label', local_percent, group_col,
         constrained_class=constrained_class, num_classes=num_classes)
+    # THE BUDGET-CONTENT CONTROL. Absent from every config but
+    # `tralo_permbudget`, where it shuffles K across groups keeping each
+    # class's TOTAL, its multiset and its K=0 count exactly fixed -- so the
+    # only thing wrong is which group gets which budget. Nothing else in this
+    # project controls that: the coin controls step norm, `tralo_null`
+    # controls compute, `tralo_reseed` controls the RNG. FRAMEWORK 2(z62).
+    #
+    # THE RUN SEED IS MIXED IN, so a cell's four seeds draw FOUR different
+    # permutations and the claim is about permuted budgets in general rather
+    # than one unlucky draw. It is NOT in `warmup_identity_keys`, so this arm
+    # shares `tralo`'s cached warm-up and the contrast stays paired.
+    _hp = config.get('hyperparams') or {}
+    _pb = _hp.get('permute_budgets_seed')
+    if _pb is not None:
+        local_con = permute_local_budgets(
+            local_con, constrained_class,
+            int(_pb) * 1000 + int(_hp.get('seed') or 0), log=log)
     log.info("mode=%s classes=%d constrained=%s global=%s local_groups=%d test=%d train=%d",
              dataset_mode, num_classes, constrained_class, global_con,
              len(local_con), len(y_test), len(y_train))

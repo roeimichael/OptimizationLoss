@@ -410,6 +410,19 @@ blocks:
     lambda_step: 0.05
     lambda_global: 0.0
     lambda_local: 0.0
+  # THE BUDGET-CONTENT CONTROL, and the only arm that isolates it.
+  # `tralo` with the per-(group, class) budgets PERMUTED across groups: same
+  # multiset, same per-class total, same number of K=0 ceilings, same
+  # machinery byte for byte. Only which group gets which budget is wrong.
+  # The coin controls the step's NORM, `tralo_null` controls COMPUTE,
+  # `tralo_reseed` controls the RNG -- none of them asks whether the
+  # constraint reads the budget at all. Both outcomes are decisive; see
+  # `permute_local_budgets.__doc__` and FRAMEWORK 2(z62).
+  # NOT in `warmup_identity_keys`, so it shares `tralo`'s cached warm-up and
+  # the contrast is paired. Mixed with the run seed, so a cell's four seeds
+  # draw four DIFFERENT permutations.
+  tralo_permbudget:
+    permute_budgets_seed: 1
   # THE NULL-TREATMENT CONTROL. Identical to `tralo` in warm-up length, optimizer
   # restart, epoch count, transductive passes and allocator -- with the treatment
   # removed. total_constraint == 0 makes has_constraint False, so pass 2 is
@@ -857,6 +870,9 @@ arms:
   tralo_lam0:
     {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, tralo_lam0],
      null_sibling: tralo_null}
+  tralo_permbudget:
+    {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, tralo_permbudget],
+     null_sibling: tralo_null}
   # DIRECTION, not placement: the count is untouched and the STEP is projected.
   # Shares `tralo_null` for the same reason the others do -- at lambda 0 there
   # is no constraint gradient, so there is nothing to project and a dedicated
@@ -965,6 +981,11 @@ arms:
 # `--arms all` skips them. Naming one explicitly still works, so building the
 # evidence is one flag away; when it exists, move the arm out of this list.
 unproven_arms:
+  tralo_permbudget: "ZERO completed runs anywhere -- never measured, NOT
+    refuted. It is a CONTROL, not a variant: `tralo` with the per-group budgets
+    permuted, total held fixed. Name it explicitly in the campaign that is
+    meant to run it, at a cap INSIDE the measured window, beside `tralo` and
+    `tralo_null` on the same seeds."
   tralo_ortho: "0 completed runs. And `scripts/ortho_survival` already prices
     it as unpromising WITHOUT a campaign: `ortho_project` delivers 0.0% of its
     promised CE-neutrality in 16/16 conditions, because 92.6% of the momentum

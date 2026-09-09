@@ -433,3 +433,51 @@ def test_rank_K_is_not_the_decision_boundary():
         fails.append("LIVENESS: a VARYING hard count still gives rho=-1, so "
                      "the degeneracy check detects nothing")
     report(fails, "cut-vs-boundary failures")
+
+
+def test_the_budget_permutation_control_holds_the_TOTAL_and_refuses_to_be_INERT():
+    """`tralo_permbudget` is the only arm that controls budget CONTENT.
+
+    The coin controls the step's NORM, `tralo_null` controls COMPUTE, and
+    `tralo_reseed` controls the RNG. None of them asks whether the constraint
+    reads the budget at all -- which is the question that bounds the whole
+    aggregate-penalty family in one campaign. FRAMEWORK 2(z62).
+
+    The control is only a control if the permutation preserves everything
+    except the assignment, so this pins all four invariants, and then pins the
+    refusal that stops it becoming `tralo` under another name.
+    """
+    from src.training.constraints import permute_local_budgets
+    from src.utils.constants import UNLIMITED
+
+    lc = {"a": [3, UNLIMITED, 10], "b": [7, UNLIMITED, 0],
+          "c": [0, UNLIMITED, 4], "d": [5, UNLIMITED, 9]}
+    out = permute_local_budgets(lc, [0, 2], seed=7)
+
+    for c in (0, 2):
+        assert sum(v[c] for v in out.values()) == sum(v[c] for v in lc.values()), (
+            "the per-class TOTAL moved, so this is not a permutation and the "
+            "arm is no longer a control for content alone")
+        assert (sorted(v[c] for v in out.values())
+                == sorted(v[c] for v in lc.values())), "the multiset moved"
+        assert (sum(1 for v in out.values() if v[c] == 0)
+                == sum(1 for v in lc.values() if v[c] == 0)), (
+            "the number of K=0 ceilings moved. Those drive 74.1% of the step "
+            "(2(z54)), so changing their count changes the experiment")
+    assert all(v[1] == UNLIMITED for v in out.values()), (
+        "an UNCAPPED class was touched")
+    assert any(out[g][0] != lc[g][0] for g in lc), (
+        "nothing moved: the arm would be `tralo` under another name")
+
+    # --- NEGATIVE CONTROL: it must REFUSE the inert cases, not run them ---
+    flat = {"a": [4, UNLIMITED], "b": [4, UNLIMITED], "c": [4, UNLIMITED]}
+    with pytest.raises(ValueError, match="INERT"):
+        permute_local_budgets(flat, [0], seed=1)
+
+    with pytest.raises(ValueError, match=">= 2 groups"):
+        permute_local_budgets({"only": [3, UNLIMITED]}, [0], seed=1)
+
+    # --- NEGATIVE CONTROL: no seed means no treatment, byte for byte ---
+    assert permute_local_budgets(lc, [0, 2], seed=None) is lc, (
+        "an arm without the key must get the ORIGINAL object back, or every "
+        "other arm silently acquires this treatment")

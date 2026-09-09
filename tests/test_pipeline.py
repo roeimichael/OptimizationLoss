@@ -1013,8 +1013,16 @@ def test_the_documented_test_count_is_the_real_one(request):
     # `-k` is an OPTION, not a positional arg, so scanning config.args never
     # saw it: a targeted `-k` run collected 1 test and failed this guard on
     # `n > 1` instead of skipping. Read the option itself.
+    # A FILE PATH IS ALSO A SUBSET, and it was not detected. `-k` was the
+    # first miss (an option, not a positional); `::` was the second; a bare
+    # `pytest tests/test_pipeline.py` is the third -- it collects 329 of 606
+    # and failed this guard on `n != documented` while testing nothing about
+    # the docs. Same defect, one step further out. A whole-suite run names
+    # only DIRECTORIES, so that is the discriminator.
     if (request.config.option.keyword
-            or any("::" in a for a in request.config.args)):
+            or any("::" in a for a in request.config.args)
+            or any(not os.path.isdir(a.split("::")[0])
+                   for a in request.config.args)):
         pytest.skip("subset run: the collected count is not the suite count")
     n = request.session.testscollected or len(request.session.items)
     assert n > 1

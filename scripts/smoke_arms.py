@@ -35,7 +35,8 @@ from configs.gen_campaign import (build_hyperparams, cap_pair,      # noqa: E402
 from src.experiments.runner import TRAIN_FNS                         # noqa: E402
 from src.pipeline.contracts import TrainInputs                       # noqa: E402
 from src.training.constraints import (compute_global_constraints,    # noqa: E402
-                                      compute_local_constraints)
+                                      compute_local_constraints,
+                                      permute_local_budgets)
 from src.utils.constants import UNLIMITED                            # noqa: E402
 
 N_TEST, N_TRAIN, N_CLASSES, N_GROUPS, SIDE = 120, 96, 4, 3, 8
@@ -75,6 +76,19 @@ def make_inputs(P, arm, tmp, seed=1):
 
     spec = P["arms"][arm]
     hp = build_hyperparams(P, spec, seed)
+    # 🛑 APPLY WHATEVER THE REAL LOADER APPLIES TO THE BUDGETS. This fixture
+    # calls `compute_local_constraints` DIRECTLY and never goes through
+    # `_load_imagery_data`, so an arm whose treatment lives in the DATA PATH
+    # rather than in the loss was invisible here: `tralo_permbudget` came back
+    # `INERT -- bit-identical predictions ... do not launch a campaign on it`,
+    # which is the harness vetoing a healthy arm. Same blind spot as
+    # `flag_live` hashing `res.model(X_test)` and missing treatments carried on
+    # `TrainOutputs`. Both callers now go through ONE function, so the two
+    # cannot drift into disagreeing about what the budgets are.
+    if hp.get("permute_budgets_seed") is not None:
+        lcon = permute_local_budgets(
+            lcon, [1],
+            int(hp["permute_budgets_seed"]) * 1000 + int(hp.get("seed") or seed))
     hp["warmup_epochs"], hp["constraint_epochs"] = 1, 2
     hp["batch_size"] = 32
 

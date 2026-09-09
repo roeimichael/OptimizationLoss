@@ -130,3 +130,85 @@ def compute_local_constraints(data, target_col, percentage, group_col,
                 count, pct, f"local K (group {group}, class {c})")
         local[group] = constraints
     return local
+
+
+def permute_local_budgets(local_con, constrained_class, seed, log=None):
+    """THE CONTROL FOR BUDGET *CONTENT*. Shuffle K across groups, keep the sum.
+
+    🛑 WHAT NO EXISTING CONTROL COVERS. `tralo_coin*` controls the step's
+    DIRECTION at matched norm; `tralo_null` controls the COMPUTE (same warm-up,
+    same 29 epochs, lambda=0); `tralo_reseed` controls the RNG. Not one of them
+    controls whether the constraint reads the budget it is given. This arm
+    hands TraLO a budget vector that is a PERMUTATION of the true one across
+    groups -- same multiset, same total, same number of K=0 ceilings, same
+    machinery byte for byte -- and only the assignment of budgets to groups is
+    wrong.
+
+    So the two outcomes are both decisive, which is why it is worth a campaign:
+
+      permuted == true   the machinery is a PERTURBATION, not an enforcement
+                         mechanism. It bounds the whole aggregate-penalty
+                         family at once and no better dual design can help,
+                         because none of them reads anything either.
+      permuted <  true   TraLO reads real budget information, the null is only
+                         about the DOSE or the delivery, and the conclusion
+                         changes.
+
+    ⚠️ PER CLASS, INDEPENDENTLY. Permuting the (group, class) pairs jointly
+    would also move budget BETWEEN classes, which changes the per-class totals
+    and stops being the same experiment.
+
+    🛑 IT REFUSES TO BE INERT, and that is not decoration. If every group's K
+    is identical for a class, a permutation is the IDENTITY and this arm is
+    `tralo` under another name -- the exact shape of the six inert flags in
+    this project's catalogue. It raises rather than running.
+
+    `seed` is combined with the run seed by the caller, so the four seeds of a
+    cell draw FOUR different permutations. The claim is about permuted budgets
+    in general, not about one unlucky draw.
+    """
+    if seed is None:
+        return local_con
+    import numpy as _np
+    classes = normalize_constrained_classes(constrained_class)
+    groups = sorted(local_con)
+    if len(groups) < 2:
+        raise ValueError(
+            "permute_local_budgets needs >= 2 groups to permute across; got "
+            "%d. With one group the permutation is the identity and the arm "
+            "would be `tralo` under another name." % len(groups))
+    rng = _np.random.RandomState(int(seed) % (2 ** 31 - 1))
+    out = {g: list(local_con[g]) for g in groups}
+    moved_any = False
+    for c in classes:
+        ks = [local_con[g][c] for g in groups]
+        if len(set(ks)) == 1:
+            raise ValueError(
+                "permute_local_budgets is INERT for class %d: all %d groups "
+                "have K=%s, so every permutation is the identity and this arm "
+                "is `tralo` under another name. Choose a cap or a dataset "
+                "whose per-group budgets differ." % (c, len(groups), ks[0]))
+        # Re-draw until the permutation actually moves something. With
+        # distinct values present this terminates immediately in practice; the
+        # bound exists so a pathological case raises instead of spinning.
+        for _attempt in range(64):
+            perm = rng.permutation(len(groups))
+            shuffled = [ks[i] for i in perm]
+            if shuffled != ks:
+                break
+        else:
+            raise ValueError(
+                "permute_local_budgets drew the identity 64 times for class "
+                "%d; refusing to run an arm that is `tralo` under another "
+                "name." % c)
+        n_moved = sum(1 for a, b in zip(ks, shuffled) if a != b)
+        moved_any = moved_any or n_moved > 0
+        for g, k in zip(groups, shuffled):
+            out[g][c] = k
+        if log is not None:
+            log.info("permuted local budgets for class %d across %d groups: "
+                     "%d group(s) changed, total held at %s (was %s, now %s)",
+                     c, len(groups), n_moved, sum(ks), ks, shuffled)
+    if not moved_any:
+        raise ValueError("permute_local_budgets changed nothing; refusing.")
+    return out

@@ -3941,7 +3941,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 605 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 606 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -4105,7 +4105,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 605 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 606 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -4113,7 +4113,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (605 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (606 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -11735,6 +11735,80 @@ the closure a bounded, defensible claim instead of an unbounded one.
   surrogates -- is **NOT verified here**. One rate-limited search is not a
   literature review. Only the SLA entry above was checked against the record.
 
+## 2(z62). THE CONTROL NOBODY BUILT: DOES THE CONSTRAINT READ THE BUDGET AT ALL? (2026-09-09)
+
+**`tralo_permbudget` is staged, gated and unrun.** It is `tralo` with the
+per-(group, class) LOCAL budgets PERMUTED across groups -- same multiset, same
+per-class total, same number of K=0 ceilings, same machinery byte for byte.
+Only which group gets which budget is wrong.
+
+### 1. WHY IT IS NOT A VARIANT, AND SO IS NOT IN THE REJECTED LEDGER'S SCOPE
+
+The ledger bans TraLO VARIANTS: penalty shapes, ratchets, delivery rules, count
+functions, granularity. This is a CONTROL, and it is the one axis nothing here
+covers:
+
+| control | holds fixed | varies |
+|---|---|---|
+| `tralo_null` | warm-up, epochs, allocator, seed | lambda = 0 -- COMPUTE |
+| `tralo_reseed` / `_reseed2` | everything | the RNG stream -- NOISE |
+| `tralo_coin` / `_coin_sgd` | step norm and dose | the DIRECTION |
+| **`tralo_permbudget`** | **everything, including dose and direction** | **the BUDGET CONTENT** |
+
+### 2. BOTH OUTCOMES ARE DECISIVE, WHICH IS WHY IT IS WORTH A CAMPAIGN
+
+* **permuted == true** -- the machinery is a PERTURBATION, not an enforcement
+  mechanism. That bounds the whole aggregate-penalty family in one experiment,
+  because no better dual design can help if none of them reads anything. It is
+  the cleanest possible closure of the negative result.
+* **permuted < true** -- TraLO reads real budget information, the null is about
+  the DOSE or the delivery rather than the mechanism, and the conclusion
+  changes.
+
+Almost nothing else in this project has that property; most arms can only
+return "no difference", which is the outcome that has to be distinguished from
+"not enough measurement" every time.
+
+### 3. WHAT IS ALREADY GATED
+
+* Per class INDEPENDENTLY -- a joint permutation would move budget BETWEEN
+  classes and change the per-class totals, which is a different experiment.
+* NOT in `warmup_identity_keys`, so it shares `tralo`'s cached warm-up and the
+  contrast is paired.
+* The run seed is mixed in, so a cell's four seeds draw FOUR permutations. The
+  claim is about permuted budgets in general, not one unlucky draw.
+* 🛑 **IT REFUSES TO BE INERT.** If every group's K is equal for a class, every
+  permutation is the identity and the arm is `tralo` under another name -- the
+  exact shape of the six inert flags in this project's catalogue. It raises.
+  Gated in `tests/gates/test_g2_budget.py` with four invariants (total,
+  multiset, K=0 count, uncapped classes untouched) and three negative controls
+  (flat budgets REFUSE, one group REFUSES, no seed returns the original object
+  identically). Mutation-tested: disabling the refusal fails the gate.
+
+### 4. THE INSTRUMENT DEFECT IT EXPOSED, AND IT IS A CLASS
+
+⛔ **`flag_live` FIRST CALLED IT `INERT -- do not launch a campaign on it`, AND
+THAT VERDICT WAS THE HARNESS'S FAULT.** `scripts/smoke_arms.make_inputs` builds
+its fixture by calling `compute_local_constraints` DIRECTLY and never goes
+through `_load_imagery_data`, where the permutation is applied. So **any arm
+whose treatment lives in the DATA PATH rather than in the loss reads INERT on
+the smoke harness**, and the harness's own instruction is not to launch it.
+
+This is the second instance of the same class this session: `flag_live` also
+hashed `res.model(X_test)` and was blind to treatments carried on
+`TrainOutputs` (2(z58) 6). **A liveness harness is only as wide as the code
+path it reproduces**, and this one reproduced the loss and neither of the two
+sides around it. Fixed by routing both callers through the one function, so the
+fixture and the loader cannot drift into disagreeing about what the budgets
+are. `flag_live` now reads LIVE on every binding seed.
+
+### 5. HOW TO RUN IT
+
+Name it explicitly -- it is in `unproven_arms`, so `all` will not schedule it --
+beside `tralo` and `tralo_null` on the same seeds, at a cap INSIDE the measured
+window (bcn/MobileNetV3 is [0.80, 1.00], 2(z60)). It shares the warm-up, so it
+costs one arm's constraint phase per cell and nothing else.
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, updated 2026-08-30 -- read this before section 3's older text**
@@ -13082,7 +13156,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             605 tests, ~200 s, no dataset required
+tests/             606 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
