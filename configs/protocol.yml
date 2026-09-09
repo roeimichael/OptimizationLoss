@@ -991,6 +991,22 @@ unproven_arms:
     one of eleven trained arms, but no run of it survives in results/."
 
 rejected_arms:
+  tralo_lam0: "STRUCTURALLY OFF-DOSE, not out-scored. It attempts 28.00
+    constraint steps/run against every other trained arm's 29.00, in every
+    campaign it has ever run in (fmow1, bcn1vit, and before them), because it
+    starts at lambda 0: the ratchet fires AFTER `finish_constraint_step`, so
+    epoch 0 has an identically zero constraint gradient and no step to apply.
+    That is the same ordering as the pre-2(z38) duals -- and the fix is NOT
+    available here, because the ratchet is shared with `tralo`: moving it
+    before the primal gate would change tralo's epoch-0 lambda from 0.01 to
+    0.06 in every run ever done and split the corpus. So the arm cannot be at
+    equal dose with the thing it is a control for, and a `tralo` vs
+    `tralo_lam0` contrast is confounded by 3.4% of the dose. Its question --
+    does the STARTING lambda matter -- is a dose question, and dose is
+    bracketed over six orders of magnitude in the rejected ledger. It also
+    made `dose_landed` print a real-looking asymmetry line in every campaign,
+    which is how a warning stops being read. Still runnable by name; the runs
+    on disk are untouched and were never in a scored contrast."
   tralo_cut: "REJECTED on its first campaign, 2026-09-02. `taskwin2` landed
     48/48 at 232/232 dose and it did not beat `tralo`. Held one confirmation
     short of final only because `vittask1` was stopped at 13/48; do not re-run

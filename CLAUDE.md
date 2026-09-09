@@ -629,14 +629,17 @@ python -m scripts.deep_scope --campaign <root> --arms tralo alm lp clip
 #   (+11.3 vs +6.6). The DEEP bucket is **83% K=0** ceilings, where `s=max(K,1)`
 #   makes E/K just the raw count. FRAMEWORK 2(z48).
 #   🟢 It also prints the premise nobody had checked: excess removed vs deployed
-#   capped-class TP is rho **+0.504** (6 cells, 360 runs, 4/6) -- the proxy is
-#   not orthogonal to the metric. ⚠️ 4/6 is p=0.34, and it POOLED ARMS
-#   because of a BUG, not a design choice: that block iterated every arm on
-#   disk while the excess table 150 lines above filters on `--arms`, the same
-#   file selecting in one place and not the other. Fixed 2026-09-07; the
-#   published "6 cells, 360 runs" is 60 runs/cell = 15 arms x 4 seeds, not the
-#   four the documented invocation names, so **rho +0.504 must be RECOMPUTED**
-#   before it is quoted again. FRAMEWORK 2(z52).
+#   capped-class TP. ✅ **RECOMPUTED 2026-09-09 with `--arms` honoured:
+#   rho +0.442 over 6 cells (96 runs), 4 positive (67%)** -- the proxy is not
+#   orthogonal to the metric, and the direction survives de-pooling.
+#   ⛔ The published figure was **+0.504 over "360 runs"**, and that run count
+#   was a BUG, not a design choice: the block iterated every arm on disk while
+#   the excess table 150 lines above filters on `--arms`, the same file
+#   selecting in one place and not the other. 360 = 60 runs/cell = 15 arms x 4
+#   seeds; the documented invocation names FOUR arms, which is the 96 above.
+#   ⚠️ **4 of 6 is p=0.34 either way.** De-pooling moved the estimate 12% and
+#   changed nothing about its weight: this is a DIRECTION, never a measurement.
+#   FRAMEWORK 2(z52).
 #   `--self-test` gates it, 10 checks, 5 of them negative controls.
 python -m scripts.step_dose --config <config.json> --ce-steps 60
 #   🛑 HOW BIG IS THE CONSTRAINT STEP IN WEIGHTS, per delivery rule? The project
@@ -1002,20 +1005,33 @@ which a cut-local method has something real to win.
    🔑 **AND THE CAP CHOICE MOVES IT ~15x. MEASURED 2026-09-06 ON TWO BACKBONES:**
    at LOOSE / task caps the prize is **12.8-20.7 ITEMS PER CELL**, not 0-1.
 
-   | cap | c2 | c7 | cell |
-   |---|---|---|---|
-   | `dom1` MNv2/MNv3 L80_G95 | 7.8 | 5.0 | **12.8** |   ⚠️ TWO BACKBONES
-   <!-- The two `dom1` rows POOL MobileNetV2 and MobileNetV3: `headroom`
-        keyed its cells on (cap tag, class) with the backbone ABSENT until
-        2026-09-07, while explicitly refusing to pool cap levels. `n` and
-        `K` come from labels and are unaffected; `achieved` is a MODEL
-        output, so these two rows average two models into a headroom that
-        describes neither. Fixed, and they must be RE-READ per backbone
-        before either is quoted alone. FRAMEWORK 2(z52). -->
-   | `dom1` L90_G95 | 11.9 | 8.1 | **20.0** |
-   | `dom1` L95_G80 | 6.5 | 7.2 | **13.7** |
-   | `vitdual2` ViTB16 L80-80_G95 | 7.3 | 5.7 | **13.0** |
-   | `vitdual2` ViTB16 L90-90_G95 | 12.0 | 8.7 | **20.7** |
+   ✅ **RE-READ PER BACKBONE 2026-09-09.** The three `dom1` rows used to pool
+   MobileNetV2 and MobileNetV3, because `headroom` keyed its cells on
+   `(cap tag, class)` with the backbone ABSENT while explicitly refusing to
+   pool cap levels. Split:
+
+   | campaign | backbone | cap | c2 | c7 | cell | binds |
+   |---|---|---|---|---|---|---|
+   | `dom1` | MNv2 | L80_G95 | 7.2 | 6.5 | **13.7** | 4/4, 4/4 |
+   | `dom1` | MNv2 | L90_G95 | 11.7 | 9.5 | **21.2** | 4/4, **1/4** |
+   | `dom1` | MNv2 | L95_G80 | 6.8 | 8.0 | **14.8** | 4/4, 4/4 |
+   | `dom1` | MNv3 | L80_G95 | 8.2 | 3.5 | **11.7** | **3/4**, 4/4 |
+   | `dom1` | MNv3 | L90_G95 | 12.0 | 6.8 | **18.8** | **1/4**, 4/4 |
+   | `dom1` | MNv3 | L95_G80 | 6.2 | 6.5 | **12.7** | **3/4**, 4/4 |
+   | `vitdual2` | ViTB16 | L80-80_G95 | 7.3 | 5.7 | **13.0** | |
+   | `vitdual2` | ViTB16 | L90-90_G95 | 12.0 | 8.7 | **20.7** | |
+
+   🔑 **THE POOLED ROW DESCRIBED NEITHER BACKBONE, AND CLASS 7 IS WHERE IT
+   SHOWS.** At `L80_G95` the pooled c7 read **5.0**; per backbone it is **6.5**
+   (MNv2) and **3.5** (MNv3) -- +30% and -30%, nearly 2x apart. The cell totals
+   move less (13.7 vs 11.7) because the two classes' errors partly cancel, so
+   reading only the `cell` column would have hidden it.
+   ⛔ **AND THE BIGGEST PRIZE IS THE LEAST-BINDING CELL, ON BOTH BACKBONES AT
+   ONCE.** `L90_G95` is the 19-21 item row and on each backbone one capped
+   class binds in **1 of 4 seeds** -- c7 on MNv2, c2 on MNv3. Different
+   classes, same cap. A seed already under budget gets an identically ZERO
+   constraint gradient, so most of that prize is quoted from seeds that pose
+   no question.
 
    So "there is nothing to win" was a statement about the TIGHT cells and was
    generalised past its evidence. Observed `tralo` - `clip` deltas are +2 to
@@ -1203,21 +1219,27 @@ DIFFERENTIAL per-group novelty net of sampling noise and the global shift:
 
 | dataset | group | NET items | z | unseen groups | status |
 |---|---|---|---|---|---|
-| **iwildcam/oodslice** | camera | **+3133** | **96.3** | **7** | 🟢 RUNNABLE, images on the server |
-| **fmow/oodslice** | **country** | **+2969** | **79.7** | **10** | 🟡 screened 2026-08-28, META ONLY |
+| **bcn/oodslice** | body site x age | -- | -- | -- | 🟢🟢 **RUNNABLE. `bcn1mn3` COMPLETE (228 runs), `bcn1vit` LIVE** |
+| **fmow/oodslice** | **country** | **+2969** | **79.7** | **10** | 🟢🟢 **RUNNABLE. `fmow1` LIVE, 3 of 4 cells are TASK cells** |
+| **iwildcam/oodslice** | camera | **+3133** | **96.3** | **7** | 🟡 runnable, but a task in **0 of 24** cells at L20/L30/L50 |
 | **terra/oodslice** | camera | **+2546** | **75.8** | **5** | 🟡 screened 2026-08-28, META ONLY |
 | dermmnist/slice_1 | synth | +65 | 2.9 | 0 | ⛔ leaked + removed |
 | octmnist/slice_1 | `index % 3` | -7 | -0.4 | 0 | ⛔ dead by construction |
 | tissuemnist | `index % 3` | -56 | -1.9 | 0 | ⛔ dead by construction |
 
-🟡 **`fmow` and `terra` PASS stage 1 but have NO IMAGES yet.** Rebuild their
-meta in minutes on CPU with `prep_fmow --meta-only` / `prep_iwildcam
---annotations <cct.json> --meta-only`, then `dataset_screen`. ⚠️ Stage 1 is
-NECESSARY ONLY -- dermmnist passed it at z=2.9 and still nulled. And their
-PRIZE is unmeasured: `ceiling_screen` prices them off **iwildcam's** p@K curve,
-which it says does not transfer. The number to go and get is fmow's real p@K:
-**it needs only `<= 0.92` at L30 to clear twice the noise, where iwildcam
-measures 0.9948-0.9972.** See `docs/FRAMEWORK.md` 2(w2).
+✅ **THE fmow p@K NUMBER WAS GONE AND GOT, 2026-09-09 (FRAMEWORK 2(z59)).**
+That question -- "fmow needs local p@K `<= 0.92` at L30, where iwildcam measures
+0.9948-0.9972" -- is answered from `fmow1`'s own nulls: **0.842 / 0.882 / 0.952 /
+0.973** over the four (backbone, class) pairs, so 2 of 4 clear the bar outright
+and all four sit under the 0.99 WIGGLE ceiling. `configs/task_windows.yml` now
+carries the measured windows and `gen_campaign` enforces them.
+⛔ **AND THE GLOBAL COLUMN WOULD HAVE REJECTED THIS DATASET.** fmow's GLOBAL
+p@K at L30 is 0.996-0.999, no better than iwildcam. The allocator is per-group,
+so the LOCAL cut is the one that decides -- the fourth time that distinction has
+changed an answer here.
+🟡 **`terra` still has NO IMAGES.** Rebuild its meta in minutes on CPU with
+`prep_iwildcam --annotations <cct.json> --meta-only`, then `dataset_screen`.
+⚠️ Stage 1 is NECESSARY ONLY -- dermmnist passed it at z=2.9 and still nulled.
 
 ⚠️ **octmnist and tissuemnist are structurally dead** -- `synth_group` is
 `np.arange(len(y)) % 3`, so their groups are i.i.d. draws from one distribution

@@ -1206,8 +1206,15 @@ def main():
         skipped = sorted((rejected - unproven) & set(P["arms"])) if allsel else []
         skipped_u = sorted(unproven & set(P["arms"])) if allsel else []
         if skipped:
-            print("NOTE: 'all' skips the REJECTED arm(s) (measured, and they "
-                  "lost) ->", " ".join(skipped))
+            # NOT ALL OF THEM LOST A COMPARISON. `tralo_lam0` was never
+            # out-scored: it attempts 28.00 constraint steps/run by
+            # CONSTRUCTION, so it cannot be at equal dose with the arm it is a
+            # control for. Saying "measured, and they lost" of it would be a
+            # false claim printed by the generator, so the note names both
+            # grounds and points at the per-arm reason, which is exact.
+            print("NOTE: 'all' skips the REJECTED arm(s) (measured and lost, "
+                  "or structurally not comparable -- reason per arm in "
+                  "configs/protocol.yml `rejected_arms`) ->", " ".join(skipped))
         if skipped_u:
             print("NOTE: 'all' skips the UNPROVEN arm(s) (zero completed runs "
                   "-- never measured, NOT refuted) ->", " ".join(skipped_u))

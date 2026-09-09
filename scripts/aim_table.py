@@ -301,7 +301,7 @@ def main(argv=None):
             print("    %-14s %-12s %-8s class %d: %.1f errors inside K at "
                   "p(1-p)=%.5f" % (model, cap, arm, c, err, aim))
         print("")
-        print("  ⚠️  This says re-aiming is NOT RULED OUT by geometry in these")
+        print("  !! This says re-aiming is NOT RULED OUT by geometry in these")
         print("      cells. It does NOT say a mechanism exists, that it survives")
         print("      `normalize`, or that it is absent from the rejected ledger.")
         print("      `tralo_cut` moved the aim 361x and LOST. FRAMEWORK 2(z56) 6.")

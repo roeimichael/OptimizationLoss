@@ -130,17 +130,93 @@ def f1(y, pred, c):
     return 2 * p * r / (p + r) if (p + r) else 0.0
 
 
+def format_dead(dead):
+    """The non-binding warning, one line per (BACKBONE, cap, class).
+
+    🛑 THE BACKBONE BELONGS IN THIS KEY TOO. The 2026-09-07 fix put it into
+    the CELL key and into `per_cap` and left this list on `(tag, class)`
+    alone. The counts were right; the LABEL was not. `dom1` printed
+    `L90_G95 class 7 -- binds in 1 of 4` for MobileNetV2 while MobileNetV3
+    at the SAME cap and class binds 4 of 4, and nothing in the line said
+    which -- so the reader attributes a partial bind to a cell that has
+    none. Two backbones that BOTH bind partially print two lines differing
+    only in a number nobody can assign. Same defect as FRAMEWORK 2(z52),
+    one block further down than where it was fixed.
+
+    Returns a LIST OF LINES rather than printing, so the self-test can
+    read what a user would read.
+    """
+    if not dead:
+        return []
+    out = ["!! THE CAP DOES NOT BIND IN EVERY SEED:"]
+    for backbone, tag, c, nb, tot in dead:
+        out.append("     %-13s %-10s class %d -- binds in %d of %d seeds"
+                   % (backbone[:13], tag, c, nb, tot))
+    out.append("   The penalty is relu(hard - K), so a seed already under budget")
+    out.append("   gets an identically ZERO constraint gradient. In those seeds")
+    out.append("   the arm is its own null and the difference is noise. Either")
+    out.append("   tighten the cap or drop the cell -- do not average over it.")
+    return out
+
+
+def self_test(out=sys.stdout):
+    """Gate the one thing this tool has already got wrong: pooling backbones.
+
+    `headroom` had NO self-test until 2026-09-09, and it is the tool whose
+    `= items` column is quoted directly in the prize table in CLAUDE.md.
+    """
+    import re as _re
+    checks = []
+
+    dead = [("MobileNetV2", "L90_G95", 7, 1, 4),
+            ("MobileNetV3", "L90_G95", 7, 4, 4)]
+    lines = [l for l in format_dead(dead) if "binds in" in l]
+    checks.append((
+        "both backbones are NAMED at one (cap, class)",
+        len(lines) == 2
+        and any("MobileNetV2" in l and "1 of 4" in l for l in lines)
+        and any("MobileNetV3" in l and "4 of 4" in l for l in lines)))
+
+    # NEGATIVE CONTROL. The pre-fix format keyed on (tag, class) alone. Strip
+    # the counts and the two backbones' lines collapse to ONE string -- which
+    # is exactly what made the defect invisible. A gate that has never been
+    # shown to fail has never been shown to work.
+    pre_fix = ["     %-10s class %d -- binds in %d of %d seeds"
+               % (t, c, nb, tot) for _, t, c, nb, tot in dead]
+    checks.append((
+        "NEGATIVE CONTROL: pre-fix, the two backbones' lines are "
+        "indistinguishable once the counts are removed",
+        len({_re.sub(r"\d+ of \d+", "N of N", l) for l in pre_fix}) == 1))
+
+    checks.append((
+        "NEGATIVE CONTROL: a campaign that binds everywhere prints NO warning",
+        format_dead([]) == []))
+
+    bad = [c for c, ok in checks if not ok]
+    for c, ok in checks:
+        out.write("  %s %s\n" % ("PASS" if ok else "FAIL", c))
+    out.write("%s: %d/%d\n" % ("OK" if not bad else "FAILED",
+                               len(checks) - len(bad), len(checks)))
+    return 1 if bad else 0
+
+
 def main():
     a = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    a.add_argument("root")
+    a.add_argument("root", nargs="?")
+    a.add_argument("--self-test", action="store_true",
+                   help="gate the backbone key in the non-binding warning")
     a.add_argument("--control", default="clip",
                    help="arm whose achieved score sets the headroom. clip is "
                         "the stronger clipper and the honest bar.")
     a.add_argument("--allow-quarantined", action="store_true",
                    help="price a campaign `scripts.quarantine` marked dead")
     args = a.parse_args()
+    if args.self_test:
+        return self_test()
+    if not args.root:
+        a.error("root is required (or pass --self-test)")
 
     # 🛑 THE QUARANTINE GATE. Audited 2026-09-04: this tool had NONE, so a
     # marker on a dead campaign prevented nothing here -- and this is the tool
@@ -256,7 +332,7 @@ def main():
         per_cap.setdefault((backbone, tag), []).append((ceil, ach))
         nb = sum(1 for h in e["hard"] if h > k)
         if nb < len(e["hard"]):
-            dead.append((tag, c, nb, len(e["hard"])))
+            dead.append((backbone, tag, c, nb, len(e["hard"])))
         print("%-13s %-10s %5d %6d %6d %8.4f %9.4f %9.4f %9.1f %8.1f %4d/%-2d"
               % (backbone[:13], tag, c, n, k, ceil, ach, head,
                  head * (k + n) / 2,
@@ -269,14 +345,8 @@ def main():
               % (backbone[:13], tag, ceil, ach, ceil - ach))
     if dead:
         print()
-        print("!! THE CAP DOES NOT BIND IN EVERY SEED:")
-        for tag, c, nb, tot in dead:
-            print("     %-10s class %d -- binds in %d of %d seeds"
-                  % (tag, c, nb, tot))
-        print("   The penalty is relu(hard - K), so a seed already under budget")
-        print("   gets an identically ZERO constraint gradient. In those seeds")
-        print("   the arm is its own null and the difference is noise. Either")
-        print("   tighten the cap or drop the cell -- do not average over it.")
+        for line in format_dead(dead):
+            print(line)
     print()
     print("`= items` is the ENTIRE gap to a PERFECT RANKING, not to a better")
     print("method -- and NOT to a better allocator, which is already optimal")

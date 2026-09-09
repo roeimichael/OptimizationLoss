@@ -198,3 +198,76 @@ windows:
       partial:
         2: []                    #   1.00 binds 0/2 -- slack, not partial
         7: [1.00, 1.00]          #   1.00 binds 1/2
+
+  # ===================================================================
+  # fmow -- THE SECOND DATASET, PROVISIONAL AT 1-2 SEEDS (2026-09-09)
+  #
+  # 🟢 THE POINT OF THIS BLOCK: fmow at L30 is a TASK on 4 of 4
+  # (backbone x class), and at L20 on 3 of 4. iwildcam is a task on
+  # 0 of 24 (backbone x class x cap) at L20/L30/L50. That is the
+  # difference the second dataset was chosen to buy, and it is the first
+  # time a live campaign's caps have landed inside a measured window.
+  #
+  # 🔑 AND THE K=0 CONFOUND IS MUCH SMALLER HERE. A zero ceiling is
+  # already satisfied, the allocator emits nothing into it, and no item can
+  # change -- yet `relu(soft - 0) > 0` for any softmax, so the term never
+  # switches off. That is the confound behind 74.1% of TraLO's step landing
+  # on already-compliant scopes (2(z54)) and behind the DEEP bucket being
+  # 83% K=0 (2(z48)). Counted from the test labels alone, cap-invariant:
+  #
+  #   dataset    K=0 ceilings   groups with NO capped class   unreachable items
+  #   iwildcam    7 of 14  50%          3 of 7                    71.9%
+  #   fmow        6 of 26  23%          1 of 13                    5.6%
+  #   bcn         2 of 16  12%          0 of 8                     0.0%
+  #
+  # ⛔ NOT ZERO -- an earlier draft of this block said fmow had none, and
+  # that was wrong. It is 23%, against iwildcam's 50%. The figure that
+  # actually moves is the LAST column: on iwildcam 72% of the test set
+  # sits in groups holding neither capped class (camera 218 alone is 1657
+  # items), so no method can reach it; on fmow that is 5.6% and on bcn 0%.
+  #
+  # ⚠️ PROVISIONAL, AND SAY SO WHEN QUOTING IT. Written from the runs
+  # that had finished while `fmow1` was 114/304: MobileNetV3 from TWO
+  # distinct nulls, ViTB16 from ONE. This project has already published a
+  # ViTB16 window counted off 3 runs / 2 models and had to correct it
+  # (project_a_cap_level_is_not_a_seed). A one-seed window is a direction.
+  # RE-MEASURE when fmow1 completes and all four seeds are on disk.
+  #
+  # ⚠️ READ THE **LOCAL** p@K, NOT THE GLOBAL ONE. fmow's GLOBAL p@K at
+  # L30 is 0.996-0.999, i.e. no better than iwildcam's 0.9948-0.9972; the
+  # local, per-group cut is 0.84-0.97. The allocator is per-group, so the
+  # local column is the one the window is written from. Quoting the global
+  # column would have rejected this dataset.
+  # ===================================================================
+  fmow:
+    MobileNetV3:
+      provenance: "fmow1/MobileNetV3 (dsisco02/bf16), TWO distinct tralo_null
+        models (seeds 1-2), measured 2026-09-09 while the campaign was 114/304.
+        Per-group prize, MIN_PRIZE 3.0. PROVISIONAL -- re-measure at 4 seeds."
+      unconstrained_count: {3: 430, 5: 432}
+      per_model:
+        fmow1_dsisco02_bf16: {hard: {3: 430, 5: 432}, seeds: 2, strict: {3: [0.30, 0.70], 5: [0.20, 0.60]}}
+      class:
+        3: [0.30, 0.70]          #   0.20 is SATURATED: LOCp@K 0.99141, 7.5 global errors inside K
+        5: [0.20, 0.60]          #   LOCerr 33.5 at 0.20 rising to 133.0 at 0.60
+      partial:
+        3: [0.80, 0.80]          #   0.80 binds 1/2; 0.90 binds 0/2
+        5: [0.70, 0.70]          #   0.70 binds 1/2; 0.80 binds 0/2
+      # OVERLAP of the two classes: [0.30, 0.60]. `fmow1` runs L20 and L30;
+      # L30 is inside it, L20 is outside on class 3 ONLY.
+
+    ViTB16:
+      provenance: "fmow1/ViTB16 (dsisco02/bf16), ONE tralo_null model (seed 1),
+        measured 2026-09-09 while the campaign was 114/304. Per-group prize,
+        MIN_PRIZE 3.0. ONE SEED -- this is a direction, not a window.
+        RE-MEASURE at 4 seeds before any cap is chosen from it."
+      unconstrained_count: {3: 271, 5: 461}
+      per_model:
+        fmow1_dsisco02_bf16: {hard: {3: 271, 5: 461}, seeds: 1, strict_1seed: {3: [0.20, 0.50], 5: [0.20, 0.70]}}
+      class:
+        3: [0.20, 0.50]          #   narrowest window here: the model predicts only 271 of 501
+        5: [0.20, 0.70]
+      partial:
+        3: []                    #   0.60 binds 0/1 -- slack, not partial
+        5: []                    #   0.80 binds 0/1
+      # OVERLAP: [0.20, 0.50]. BOTH `fmow1` caps are inside it on BOTH classes.

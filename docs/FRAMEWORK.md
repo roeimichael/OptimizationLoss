@@ -11486,6 +11486,80 @@ the same false verdict as the six real inert flags it exists to catch, in the
 opposite direction, and a gate that fails on a healthy arm teaches people to
 discount it. Fixed: it now prefers the scored probabilities.
 
+## 2(z59). THE SECOND DATASET POSES THE QUESTION THE FIRST ONE COULD NOT -- fmow IS A TASK IN 3 OF 4 LIVE CELLS (2026-09-09)
+
+**Measured on `fmow1` while it was 114 of 304 runs**, from the `tralo_null`
+runs already on disk, no GPU. This is the first time in this project's history
+that a live campaign's caps have landed inside a MEASURED task window.
+
+### 1. THE WINDOW
+
+`scripts.task_window --glob 'results/fmow1/<Backbone>/fmow/*/tralo_null/seed_*'
+--classes 3 5`, per-group prize, MIN_PRIZE 3.0:
+
+| backbone | class 3 | class 5 | overlap | L20_G95 | L30_G95 |
+|---|---|---|---|---|---|
+| MobileNetV3 | [0.30, 0.70] | [0.20, 0.60] | **[0.30, 0.60]** | non_task | **task** |
+| ViTB16 | [0.20, 0.50] | [0.20, 0.70] | **[0.20, 0.50]** | **task** | **task** |
+
+`configs.task_cells.classify` agrees with the tool cell by cell. **3 of 4 live
+cells are TASK cells; iwildcam is a task in 0 of 24 (backbone x class x cap) at
+L20/L30/L50.** The one failure is MobileNetV3/L20 on class 3, which reads
+SATURATED: 7.5 errors inside K at p@K 0.99997.
+
+### 2. WHY IT PASSES WHERE iwildcam FAILED, AND IT IS NOT THE COLUMN ANYONE WAS WATCHING
+
+⛔ **fmow's GLOBAL p@K at L30 is 0.996-0.999 -- no better than iwildcam's
+0.9948-0.9972.** On the global column this dataset would have been rejected
+exactly like the last one. The window is written from the LOCAL, per-group cut,
+because the allocator is per-group:
+
+| | MNv3 c3 | MNv3 c5 | ViT c3 | ViT c5 |
+|---|---|---|---|---|
+| global p@K at L30 | 0.99927 | 0.99602 | 0.95729 | 0.98937 |
+| **local p@K at L30** | **0.97292** | **0.84181** | **0.88154** | **0.95186** |
+
+The pre-registered bar was local p@K <= 0.92 at L30 (2(w2)); **2 of 4 clear it**
+(MNv3 c5 0.842, ViT c3 0.882) and all four sit below the 0.99 WIGGLE ceiling.
+This is the fourth time global-vs-per-group has decided an answer in this repo,
+and the third time the global reading was the wrong one.
+
+### 3. THE K=0 CONFOUND IS 2x SMALLER, AND THE UNREACHABLE-ITEM SHARE IS 13x SMALLER
+
+A zero ceiling is already satisfied and the allocator emits nothing into it, yet
+`relu(soft - 0) > 0` for any softmax so the term never switches off -- the
+confound behind 74.1% of TraLO's step landing on compliant scopes (2(z54)) and
+behind the DEEP bucket being 83% K=0 (2(z48)). Counted from test labels alone,
+cap-invariant:
+
+| dataset | K=0 ceilings | groups with NO capped class | unreachable items |
+|---|---|---|---|
+| iwildcam | 7 of 14 (50%) | 3 of 7 | **71.9%** |
+| fmow | 6 of 26 (23%) | 1 of 13 | **5.6%** |
+| bcn | 2 of 16 (12%) | 0 of 8 | **0.0%** |
+
+🛑 **NOT ZERO. An earlier draft of the `task_windows.yml` block said fmow had no
+K=0 ceilings and that was wrong** -- it has 23%. The column that actually moves
+is the last one: on iwildcam 72% of the test set sits in groups holding neither
+capped class, so no method can reach it at all (camera 218 alone is 1657 items
+= 56% of the test set). The 71.9% here reproduces the figure in CLAUDE.md
+exactly, which is the positive control on the count.
+
+### 4. WHAT IT LICENSES, AND WHAT IT DOES NOT
+
+* 🟢 `fmow1` is NOT another `uniform1`. Its cells pose a question, so a null
+  there is evidence about a method rather than about a cap choice. Keep it
+  running.
+* ⚠️ **THE WINDOWS ARE PROVISIONAL AT 1-2 SEEDS.** MobileNetV3 is written from
+  two distinct nulls, ViTB16 from ONE. This project has already published a
+  ViTB16 window counted off 3 runs / 2 models and had to correct it. Re-measure
+  when `fmow1` completes.
+* ⛔ It says NOTHING about whether TraLO wins here. A resolvable cell is a
+  precondition, and `bcn` was resolvable too and returned a coin flip at k=1
+  (2(z58)).
+* ⚠️ MobileNetV3/L20 measures the absence of a question on class 3 and should
+  be excluded from any MNv3 claim, not averaged into one.
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, updated 2026-08-30 -- read this before section 3's older text**
