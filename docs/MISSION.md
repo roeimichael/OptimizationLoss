@@ -5,9 +5,35 @@
 every working session. If it is stale, that is a defect -- fix it before doing
 anything else.
 
-Last updated: **2026-09-10** (🛑 THE ACCEPTANCE FIGURE IS STALE -- `6/17 = 35%` predates the scorer it delegates to by 14 hours; the VERDICT stands, the FIGURE does not. See 0-STALE. Previously: 🔑 THE FIFTH AND SIXTH UNITS ALREADY EXIST AND NEITHER HAS BEEN READ -- see 0-UNREAD, the top of the queue and it costs zero GPU-hours. Plus two instrument audits, five defects, no published number moved -- 0-INSTR. SSH to both hosts down all day.)
+Last updated: **2026-09-10** (🛑 THREE SCORERS REPORTED A GUARD AS A MEASUREMENT -- see 0-FLOOR; the corpus is SILENT on the noise question, not negative on it. Also: THE ACCEPTANCE FIGURE IS STALE -- `6/17 = 35%` predates the scorer it delegates to by 14 hours; the VERDICT stands, the FIGURE does not. See 0-STALE. Previously: 🔑 THE FIFTH AND SIXTH UNITS ALREADY EXIST AND NEITHER HAS BEEN READ -- see 0-UNREAD, the top of the queue and it costs zero GPU-hours. Plus two instrument audits, five defects, no published number moved -- 0-INSTR. SSH to both hosts down all day.)
 
 ---
+
+## 🛑 0-FLOOR. THREE SCORERS REPORTED A GUARD AS IF IT WERE A MEASUREMENT (2026-09-10)
+
+The floor bar `MIN_FLOOR_OBS = 8` is consulted by several tools. In three of
+them the guard firing was reported in language that reads as a result. All
+three are fixed or documented; the RULE is the point.
+
+| tool | what it said | what it meant |
+|---|---|---|
+| `tralo_wins` | `0 of 17 priced` | `nfloor = 4 < 8`, so the spread was **never compared** to the floor. False by construction at any effect size. 2(z69) |
+| `sensitivity_screen` | `UNDER-POWERED 36` | all 36 tripped the FLOOR branch, not the spread branch. Now `FLOOR UNMEASURED`. 2(z70) |
+| `deployed_h2h` | "Naming a #1 here names the RNG" | tested `spread <= floor` BEFORE validating the floor, so it asserted the effect was inside a noise level it was about to call unpriced. Order fixed. 2(z70) |
+
+🛑 **THE STANDING CHECK: wherever `MIN_FLOOR_OBS` is consulted, a reader
+must be able to tell "the bar was not met" from "the test came out negative".**
+The sweep table of every consumer is in 2(z70) -- start the next audit from it
+rather than from a guess. `quarantine` and `add_seeds` mention the constant in
+prose only and emit no verdict.
+
+⚠️ **NONE OF THIS MAKES TraLO LOOK BETTER.** No ranking changed, and the
+acceptance verdict (FAIL) is untouched -- the win count never reads `nfloor`.
+What changed is that the corpus is now known to be **SILENT** on the noise
+question rather than negative on it, which is what tasks #104 and #105 exist
+to fix. 2(z39) further measured that a properly estimated floor comes out
+HIGHER (4.0 -> 6.5 items), so expect these tools to refuse MORE often, not
+less.
 
 ## 🛑 0-STALE. THE NUMBER ANSWERING OUR OWN BAR IS NOT REPRODUCIBLE (2026-09-10)
 
@@ -297,6 +323,14 @@ result is above the noise, and no campaign so far could.
 ⚠️ Quote observations AND streams: 12 from 3 streams is a better median
 than 4 from 2, and is NOT 12 independent draws (k streams give k-1
 independent contrasts).
+
+✅ **VERIFIED IN CODE 2026-09-10, not argued from the docs.**
+`floors.is_lambda0_stream` returns True for `tralo_null`, `tralo_reseed` AND
+`tralo_reseed2`, and False for `tralo` and `tralo_lam0` (which keeps
+`lambda_step` and would put the treatment back in the floor).
+`floors.stream_pairs` returns **3 pairs** for the three streams and **1** for
+two, so 3 x 4 seeds = 12 >= 8 and 1 x 4 = 4 < 8. The priceability claim is
+mechanical, not hopeful.
 
 **BACKBONE: MobileNetV2, and that is forced, not preferred.** Its strict
 windows are measured and non-empty -- class 2 `[0.70, 0.80]`, class 7
