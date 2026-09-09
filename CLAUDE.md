@@ -136,7 +136,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 604 regression tests, ~250s, no dataset needed
+python -m pytest tests -q                   # 605 regression tests, ~250s, no dataset needed
 #   `tests/test_scorers_run_end_to_end.py` EXECUTES every scorer as a subprocess
 #   against a campaign carrying a real PARTIAL marker. It exists because three
 #   scorers once used `quarantine.` with no module-level import: they PARSED,
@@ -431,6 +431,30 @@ python -m scripts.deployed_h2h --campaign <roots> --control clip  # 🛑 THE ARM
 #   and must be recomputed against `alm` alone (n 180 -> ~60); the value is
 #   not restated because it is not measured. The floor it was compared to,
 #   |tralo - tralo_reseed| median 4.0, is unaffected. `--self-test` gates it.
+python -m scripts.ens_panel <root> --base tralo --k 1   # 🛑 FOUR METRIC
+#   FAMILIES SIDE BY SIDE, AND TWO OPERATING POINTS. `deployed_h2h` reports
+#   allocation, `full_panel` reports its own re-derived allocation; neither
+#   answers whether a win is MECHANISTICALLY possible.
+#   🔑 RANKING IS THE ONLY FAMILY THAT CAN CHANGE A TOP-K SET -- post-hoc
+#   allocation is optimal GIVEN the probabilities, distribution-free, so the
+#   only way an arm moves a deployed item is by re-ranking. An allocation win
+#   with no ranking win is an allocator artefact. CALIBRATION (negBrier,
+#   negNLL) is allocation-FREE and can only price a COST, never win.
+#   COLLATERAL (uncapF1) is the damage channel every capped-class metric is
+#   blind to. Signs are forced so higher is better in every column.
+#   🛑 `gAP` IS PER-GROUP AND `capAP` IS GLOBAL, AND THE ALLOCATOR IS
+#   PER-GROUP. A global AP measures an ordering the system never uses. Both
+#   print because they disagree; the self-test gates that gAP is INVARIANT to
+#   a between-group shift preserving within-group order while capAP MOVES.
+#   ⚠️ `--k` IS AN OPERATING POINT, NOT A DETAIL. k=1 scores each seed alone
+#   (the protocol). k>1 builds C(n,n-1) leave-one-out ensembles, each arm
+#   ensembling its OWN seeds, so it stays equal compute ACROSS ARMS.
+#   MEASURED ON bcn1mn3: at k=1 EVERY arm-vs-arm contrast reads 2/4 -- a coin
+#   flip -- and at k=3 stable orderings appear. A finding at k=3 and not at
+#   k=1 is about VARIANCE, not method. SAY WHICH.
+#   ⚠️ AND n/n IS STABILITY, NOT SIGNIFICANCE: at k>1 the replicates share
+#   members, so 4/4 means no single seed carries the sign. NOT p=0.0625.
+#   `--self-test` gates it, 11 checks, 3 of them negative controls.
 python -m scripts.dead_code --paths configs src   # what is DECLARED and never
 #   referenced. AST, never grep: a name in a docstring is not a call. A REPORT,
 #   not a gate -- a getattr-built call is invisible to it, so confirm by hand.
