@@ -324,6 +324,18 @@ proportions toward a prior \citep{mann2007simple}, and posterior
 regularization constrains posterior expectations \citep{ganchev2009posterior}.
 Our constraint is transductive in this sense but \emph{hard}: an explicit
 argmax count budget, with per-group caps, enforced during training.
+ev{A distinct line enforces class-proportion budgets by assigning each
+item rather than by penalizing an aggregate: Sinkhorn Label Allocation
+\citep{tai2021sinkhorn} casts label assignment as optimal transport
+between examples and classes, taking per-class upper bounds as
+constraints of the transportation polytope and solving them by Sinkhorn
+iteration within the training loop, with Confident Sinkhorn Allocation
+\citep{nguyen2022confident} and OTAMatch \citep{zhang2024otamatch} as
+recent variants. That work constrains pseudo-labels on unlabeled
+\emph{training} data in service of supervision, whereas our budget
+applies to the deployed predictions themselves; we do not evaluate
+per-item assignment here, and Section~ef{sec:limits} states the scope
+that leaves.}
 
 \paragraph{Few methods target both scopes at once.}
 The families surveyed above address either a single global constraint
@@ -1131,6 +1143,44 @@ the gap.
 
 We foreground the limitations because several of them are load-bearing for
 how the reader should generalize.
+
+\rev{\paragraph{Method scope: aggregate count penalties, not per-item
+assignment.}
+Every method compared here, ours and the dual baselines alike, enforces the
+budget the same way: a differentiable aggregate count is formed over the
+unlabelled pool, its violation is passed through a penalty, and the result
+enters the objective through a single non-negative scalar gain. The methods
+differ only in how that gain is scheduled. This matters for what a null
+result between them can mean. Under a fixed-norm constraint step the summed
+gradient is renormalized as a whole, so only the \emph{ratios} of the
+per-scope gains steer the update, and two schedules that induce the same
+ratios deliver the same step. A comparison inside this family is therefore a
+comparison of gain schedules, and our finding that the methods separate at
+the level of seed noise should be read with that scope attached.
+%
+The family this paper does \emph{not} evaluate is per-item assignment.
+Sinkhorn Label Allocation \citep{tai2021sinkhorn} formulates label assignment
+as an optimal transport problem between examples and classes and admits
+per-class upper bounds directly as constraints of the transportation
+polytope, solved by Sinkhorn iteration inside the training loop; Confident
+Sinkhorn Allocation \citep{nguyen2022confident} and OTAMatch
+\citep{zhang2024otamatch} are recent variants. These assign each item under
+the budget rather than penalizing an aggregate, which is a materially
+different mechanism: it can change \emph{which} item receives which label,
+and changing the identity of the selected items is the only channel that can
+alter a top-$K$ set at a fixed budget.
+%
+Two honest qualifications. First, the target differs: that line of work
+constrains the class proportions of pseudo-labels on unlabelled
+\emph{training} data in service of better supervision, whereas the
+constraint here applies to the deployed predictions themselves. That is a
+difference in what is being constrained, not evidence that the aggregate
+formulation is preferable. Second, our per-group scope is not a distinction
+in our favor, since group capacities are exactly what a transportation
+polytope expresses natively. We therefore state the negative result as
+bounded: it closes aggregate count penalties with a scalar dual, and it says
+nothing about per-item assignment under the same budgets, which remains open
+and which we regard as the more promising direction.}
 
 \paragraph{Dataset scope.}
 All three datasets are drawn from MedMNIST v2 and are $28{\times}28$
