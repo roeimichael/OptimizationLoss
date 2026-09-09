@@ -22,11 +22,17 @@ the judgement to a person. A hit means UNVERIFIED, never WRONG.
 
 ⚠️ AND IT UNDER-REPORTS BY CONSTRUCTION. A figure is only checkable if it
 carries a date AND a script can be attributed to it. Measured on this repo:
-51 date-stamped figures, 16 attributable within 1500 characters, 35 not.
-The
-35 are printed as a count so the coverage is never mistaken for completeness
--- a tool that silently examines a third of its input reads exactly like one
-that found nothing wrong.
+78 date-stamped figures, 72 attributable, 5 not, and 1 citing a script that
+no longer exists. The 5 are printed as a count so the coverage is never
+mistaken for completeness -- a tool that silently examines part of its input
+reads exactly like one that found nothing wrong.
+
+⚠️ AND IT OVER-REPORTS IN THE OTHER DIRECTION. 56 of the 72 are flagged,
+which is a SCREENING result, not 56 wrong numbers: the wider the attribution
+window, the more figures get tied to a script that did not produce them, and
+the scorers here were heavily edited through September for unrelated reasons.
+Read it as a QUEUE ordered by how much a number matters -- `paper_rows` heads
+it with 12 -- never as a count of defects.
 """
 import io
 import os
@@ -75,14 +81,60 @@ def last_commit(mod):
     return out
 
 
+def _sections(text):
+    """(start, end) of every markdown section, so attribution cannot cross one.
+
+    ⚠️ FENCE-AWARE, and it has to be. A naive `^#{1,2} ` split reads every
+    `#   RUN 2026-09-06 ...` COMMENT LINE inside CLAUDE.md's fenced command
+    blocks as a heading, chopping the file into hundreds of one-line sections
+    and taking its attribution from 10 figures to 4. The whole value of the
+    tool is on the other side of that bug.
+
+    ⚠️ h1 AND h2 ONLY, AND THE DEPTH IS MEASURED RATHER THAN CHOSEN BY TASTE.
+    `docs/FRAMEWORK.md` carries 1 h1, 37 h2 and 218 h3, and the h2s ARE the
+    numbered entries (`## 2(z68). ...`) while the h3s sit INSIDE one. Over the
+    five docs: splitting at h3 attributes 46 of 78 (it breaks an entry apart),
+    at h2 it is 73 of 78, and h1-only reaches 77 by letting a figure
+    claim any script in the same chapter -- higher coverage bought with
+    misattribution, which is worse than a blind figure because it names the
+    wrong scorer with a straight face.
+    """
+    starts, fenced, pos = [], False, 0
+    for raw in text.split("\n"):
+        if raw.lstrip().startswith("```"):
+            fenced = not fenced
+        elif not fenced and re.match(r"#{1,2} \S", raw):
+            starts.append(pos)
+        pos += len(raw) + 1
+    if not starts or starts[0] != 0:
+        starts = [0] + starts
+    return list(zip(starts, starts[1:] + [len(text)]))
+
+
 def figures(text, near=NEAR):
-    """Every (line, figure_date, module) this doc stamps. module may be None."""
+    """Every (line, figure_date, module) this doc stamps. module may be None.
+
+    Attribution is SECTION-SCOPED, and that is what makes it useful rather than
+    merely present. A plain "nearest script within `near` characters, looking
+    backwards" rule attributed only 10 of FRAMEWORK's 55 figures -- an entry
+    states its measurement and names its tool a long way apart, and often names
+    it AFTER. Bounding the search by the enclosing `##` heading and falling
+    FORWARD inside that same section takes it to 53 of 55, and the five docs
+    together from 21 of 78 to 73 of 78. Measured at each step, not assumed.
+
+    The section bound is the part that keeps it honest -- without it, looking
+    forward would let a figure in one entry grab a script named in the next.
+    """
     found = []
+    secs = _sections(text)
     for m in FIGURE.finditer(text):
         line = text.count("\n", 0, m.start()) + 1
-        window = text[max(0, m.start() - near):m.start()]
-        names = SCRIPT.findall(window)
-        found.append((line, m.group(1), names[-1] if names else None))
+        lo, hi = next(((a, b) for a, b in secs if a <= m.start() < b),
+                      (0, len(text)))
+        back = SCRIPT.findall(text[max(lo, m.start() - near):m.start()])
+        fwd = SCRIPT.findall(text[m.end():hi]) if not back else []
+        mod = back[-1] if back else (fwd[0] if fwd else None)
+        found.append((line, m.group(1), mod))
     return found
 
 
@@ -153,6 +205,27 @@ def self_test(out=sys.stdout):
     check("NEGATIVE CONTROL: a script under ANOTHER dir is not read as ours",
           figures("see docs/paper/scripts/make_main_table.py\n"
                   "MEASURED 2026-08-25: the table.\n")[0][2] is None)
+
+    # NEGATIVE CONTROL for the forward fallback: it must stop at the section
+    # boundary. Without the bound, a figure at the end of one entry would
+    # claim the first script named in the NEXT one -- which is exactly the
+    # misattribution that makes a report worse than useless.
+    across = ("## 2(z1). an entry\nRUN 2026-09-06: a figure.\n"
+              "## 2(z2). the next entry\npython -m scripts.tralo_wins --x\n")
+    check("NEGATIVE CONTROL: the forward fallback stops at the section bound",
+          figures(across)[0][2] is None)
+
+    # ...and the POSITIVE half, or the control above passes by doing nothing.
+    within = ("## 2(z1). an entry\nRUN 2026-09-06: a figure.\n"
+              "python -m scripts.tralo_wins --x\n")
+    check("a script named LATER in the SAME section is attributed",
+          figures(within)[0][2] == "tralo_wins")
+
+    # A `#   RUN ...` comment inside a fence must not read as a heading.
+    fenced = ("## an entry\n```bash\npython -m scripts.tralo_wins --x\n"
+              "#   RUN 2026-09-06: a figure.\n```\n")
+    check("a fenced `#` COMMENT is not read as a section heading",
+          figures(fenced)[0][2] == "tralo_wins")
 
     check("a bare date in prose is NOT a figure",
           figures("the dataset was removed 2026-09-02 and is unrunnable\n") == [])

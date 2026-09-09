@@ -483,18 +483,28 @@ python -m scripts.stale_figures              # 🛑 WHICH QUOTED FIGURES CAN TOD
 #   `deployed_h2h.rank_cell` -- which makes the deltas BOTH halves of that
 #   verdict read -- was fixed at 22:48 the SAME DAY. Nothing was red: the
 #   figure lives in a doc, the fix lives in git.
-#   🔑 RUN 2026-09-10: **16 stale, 5 fresh**, and SEVEN of the sixteen are
-#   `paper_rows`, the scorer that says what may be WRITTEN.
+#   🔑 RUN 2026-09-10: **56 stale, 16 fresh** over 72 attributable, and
+#   **`paper_rows` heads the list with 12** -- three times the next scorer, and
+#   it is the one that says what may be WRITTEN. Reading its hits found the
+#   LICENSED-vs-SIGN-READ collapse still live in three places.
+#   ⚠️ **56 IS A SCREENING RESULT, NOT 56 WRONG NUMBERS.** A wider
+#   attribution window ties more figures to a script that did not produce them,
+#   and these scorers were heavily edited through September for unrelated
+#   reasons. Read it as a QUEUE ordered by how much a number matters.
 #   ⚠️ A HIT IS `UNVERIFIED`, NEVER `WRONG`, and it is a REPORT not a gate --
 #   a docstring commit moves the date and changes no number, so it prints the
 #   commit SUBJECT and leaves the judgement to a person.
-#   ⚠️ AND IT UNDER-REPORTS: only 21 of 76 stamped figures can be tied to a
-#   scorer at all. It prints the 55 it could not as a COUNT, because a tool
-#   that silently examines a quarter of its input reads like one that found
-#   nothing. `--self-test` gates it, 11 checks, 4 negative controls -- incl.
-#   that a SAME-DAY figure must not fire and that
-#   `docs/paper/scripts/make_main_table.py` is not read as ours (it fired on
-#   the first real run). FRAMEWORK 2(z68).
+#   ⚠️ ATTRIBUTION IS SECTION-SCOPED, AND THE DEPTH IS MEASURED. FRAMEWORK
+#   carries 1 h1, 37 h2 and 218 h3; the **h2s ARE the entries** and the h3s sit
+#   inside one. Splitting at h3 ties only 46 of 78; at h2, 72; h1-only reaches
+#   77 by letting a figure claim any script in the same chapter, which buys
+#   coverage with misattribution. It is also FENCE-AWARE -- a naive split reads
+#   every `#   RUN ...` comment in CLAUDE.md's command blocks as a heading and
+#   drops this file from 13 figures to 4.
+#   `--self-test` gates it, 14 checks, 6 negative controls -- incl. that a
+#   SAME-DAY figure must not fire, that the forward fallback STOPS at the
+#   section bound, and that `docs/paper/scripts/make_main_table.py` is not read
+#   as ours (it fired on the first real run). FRAMEWORK 2(z68).
 python -m scripts.dead_code --paths configs src   # what is DECLARED and never
 #   referenced. AST, never grep: a name in a docstring is not a call. A REPORT,
 #   not a gate -- a getattr-built call is invisible to it, so confirm by hand.
