@@ -11756,6 +11756,18 @@ the closure a bounded, defensible claim instead of an unbounded one.
 * Cite it, and cite the neighbours the same search surfaced: Confident Sinkhorn
   Allocation (2022) and OTAMatch (TIP 2024), both per-item OT assignment under
   proportion constraints.
+  ✅ **DONE 2026-09-09.** All three are in `docs/paper/references.bib`
+  (57 entries -> 60), cited in Related Work under "Transductive and set-level
+  constraints", and the SCOPE STATEMENT is a new `ev{}` paragraph in
+  Limitations, "Method scope: aggregate count penalties, not per-item
+  assignment". Clean-room compile: 0 undefined citations, 0 undefined
+  references, 0 errors.
+  ⚠️ **CSA IS AN arXiv PREPRINT, NOT A CONFERENCE PAPER**, and the line
+  above records it with a bare "(2022)". Verified on Semantic Scholar:
+  venue `arXiv.org`, Nguyen / Farfade / van den Hengel, code at
+  `amzn/confident-sinkhorn-allocation`. Cited as `@article` with the arXiv id.
+  A venue this ledger did not record would have entered the bibliography as a
+  wrong claim.
 * ⚠️ **DO NOT BUILD IT AS A TraLO ARM.** It is a different mechanism, not a
   variant, and the rejected ledger's rule against variants does not license
   spending a campaign on someone else's method to lose to it. If it is run at
