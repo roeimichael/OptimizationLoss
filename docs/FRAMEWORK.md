@@ -11337,9 +11337,37 @@ after the outcome was known and the cell it removes is one TraLO loses.
 
 ### 3. 🔴 AND THE PRE-REGISTERED KILL CONDITION FIRED
 
-`tralo_coin_sgd` -- a step of the SAME NORM in a RANDOM direction, dose-matched
-exactly (`normalize` rescales both to `constraint_grad_clip`) -- ranks **#1 in
-every cell**, ahead of TraLO and all three duals.
+`tralo_coin_sgd` -- a step in a RANDOM direction -- ranks **#1 in every cell**,
+ahead of TraLO and all three duals.
+
+⛔ **"DOSE-MATCHED EXACTLY" WAS WRONG, AND THIS ENTRY SAID IT. CORRECTED
+2026-09-09.** It read "dose-matched exactly (`normalize` rescales both to
+`constraint_grad_clip`)". `normalize` matches the GRADIENT norm; the DELIVERY
+RULE decides the weight step, and these two arms do not share one.
+`tralo_coin_sgd` = `tralo` + `sgd_step` + `tralo_coin`, i.e. **TWO keys
+different, not one** (read the blocks in `protocol.yml`). And 2(z46) measured
+what the second key costs: `sgd` delivers **0.0121 (83x under) to 0.0112 (89x
+under)** of `shared`'s constraint-ALIGNED weight displacement, on a real
+MobileNetV2 config with one shared Adam state -- pre-registered before `price1`
+launched, with the explicit instruction that a null from `sgd` "must be
+reported as the DOSE GAP, never as 'delivering the direction does not help'".
+Two entries of this ledger contradicted each other and the weaker one was the
+one being quoted.
+
+🔑 **SO THE ARM THAT BEAT TraLO IS A NEAR-NO-OP, AND THAT IS THE ACTUAL
+FINDING.** A random direction at ~1/85th the dose is barely an intervention --
+which is exactly what section 4 below measures independently, from the logs:
+it moves the capped count LESS than the CE-only null and satisfies the global
+scope 1.1% of the time against TraLO's 10.7%. So the honest statement is **"a
+near-no-op is indistinguishable from TraLO on deployed items"**, which is the
+main null measured more cleanly. It is NOT "a random direction works as well as
+the method", and it must never be written that way.
+
+⚠️ **`tralo_coin` IS THE DOSE-MATCHED COIN** -- one key from `tralo`,
+`constraint_random_direction: True`, same `shared` delivery. It is the arm that
+can answer the question, and the difference-in-differences
+`(coin_sgd - sgd) vs (coin - tralo)` is what separates direction from delivery.
+No campaign in this project currently carries all four at >= 4 seeds.
 
 ⚠️ **BUT IT IS ONE MODEL, NOT THREE CELLS.** md5 over
 `final_predictions_raw.csv`: `tralo_coin_sgd` is BYTE-IDENTICAL at L70/L80/L90
@@ -11376,7 +11404,9 @@ it cannot.
 At 4 seeds it is 1 of 3. TraLO beats `clip` in 3 of 3 (see 2(z58)); it does
 not clear the rival duals.
 🛑 TraLO vs a dose-matched coin is UNRESOLVED and must not be reported either
-way until a second backbone replicates.
+way until a second backbone replicates -- **and `tralo_coin_sgd` was never the
+dose-matched coin**, see the correction in section 3. What it showed is that a
+NEAR-NO-OP ties TraLO, not that a random direction does.
 ⛔ Do NOT read "the constraint is useless". The constraint demonstrably works
 ON THE CONSTRAINT. What is unproven is that constraint work buys deployed
 quality -- and that is now the ONLY open question in the mechanism.
