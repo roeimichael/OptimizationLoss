@@ -11673,6 +11673,68 @@ when the cap is being guessed.
   windows -- K/n 0.80-0.90 -- where the two agree, so the verdict cannot turn
   on the choice.
 
+## 2(z61). THE OBVIOUS METHOD WE NEVER BUILT ALREADY EXISTS, AND IT IS NOT IN THE BIBLIOGRAPHY (2026-09-09)
+
+**Sinkhorn Label Allocation: Semi-Supervised Classification via Annealed
+Self-Training.** Tai, Bailis, Valiant, **ICML 2021**. Verified on Semantic
+Scholar 2026-09-09; code at `stanford-futuredata/sinkhorn-label-allocation`.
+It is absent from all 57 bibliography entries in `docs/paper/`.
+
+From its abstract, verbatim on the two clauses that matter: it reinterprets
+label assignment "as an optimal transportation problem between examples and
+classes", it "allows for the inclusion of prior knowledge on class proportions
+via **flexible upper bound constraints**", and the assignments are approximated
+by Sinkhorn iteration "in the inner loop of standard stochastic optimization
+algorithms".
+
+**That is this project's premise -- per-class UPPER BOUNDS on unlabelled data,
+enforced during training -- implemented as a per-ITEM assignment instead of an
+aggregate count penalty with a scalar dual.**
+
+### 1. THE DIFFERENCE, STATED HONESTLY IN BOTH DIRECTIONS
+
+* SLA constrains the class proportions of **pseudo-labels** assigned to
+  unlabelled TRAINING data, in service of better supervision. TraLO constrains
+  the counts of the **deployed predictions** on the test set, which is the
+  deliverable itself. Those are different objects and the paper may say so.
+* ⛔ **BUT THAT IS NOT A NOVELTY DEFENCE, IT IS A CHANGE OF TARGET.** SLA's
+  machinery enforces exactly TraLO's constraint, per item and EXACTLY, by
+  construction. A reviewer will ask why the obvious per-item method was never
+  built, and "we built the aggregate-penalty one instead" is the answer only if
+  the paper says what that buys.
+* ⛔ **AND THE PER-GROUP SCOPE DOES NOT RESCUE IT EITHER.** "Ours is per
+  (group, class), theirs is global per class" is a straightforward extension of
+  their own formulation -- group capacities are exactly what a transportation
+  polytope expresses natively. Do not lead with it.
+
+### 2. WHY THIS MATTERS TO THE NEGATIVE RESULT RATHER THAN WOUNDING IT
+
+It is the SCOPE STATEMENT the null needs, and without it the null overclaims.
+What the corpus can close is **aggregate count penalties with a scalar dual**:
+the budget enters only through a non-negative scalar gain on a soft count, so
+the four "different" duals are one family differing in gain schedule (2(z49),
+2(z54), 2(z56)), and their deployed differences sit at the RNG floor (2(z57),
+2(z58)). What it CANNOT close is per-item assignment, which changes WHICH item
+gets which label directly and therefore can move the top-K set -- the one
+channel FRAMEWORK says is the only one that can (2(z58) 4).
+
+So SLA is not a competitor that beat us. It is the named open family that makes
+the closure a bounded, defensible claim instead of an unbounded one.
+
+### 3. WHAT TO DO
+
+* Cite it, and cite the neighbours the same search surfaced: Confident Sinkhorn
+  Allocation (2022) and OTAMatch (TIP 2024), both per-item OT assignment under
+  proportion constraints.
+* ⚠️ **DO NOT BUILD IT AS A TraLO ARM.** It is a different mechanism, not a
+  variant, and the rejected ledger's rule against variants does not license
+  spending a campaign on someone else's method to lose to it. If it is run at
+  all it is a BASELINE, and it needs its own dose/schedule parity argument.
+* ⚠️ The rest of the missing-citation list from the same review -- SeLa/SwAV,
+  Woodworth (COLT 2017), TIM, TENT, SHOT, SLD/quantification, LLP, top-K
+  surrogates -- is **NOT verified here**. One rate-limited search is not a
+  literature review. Only the SLA entry above was checked against the record.
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, updated 2026-08-30 -- read this before section 3's older text**
