@@ -12269,6 +12269,141 @@ purpose, so growing the ledger is a decision somebody makes and records,
 never a side effect.
 
 
+## 2(z67). WORK THAT EXISTS ONLY ON THE SERVER IS INVISIBLE HERE, AND THE DOC GATE COULD NOT SEE IT (2026-09-09)
+
+`scripts/ens_panel` is documented **four times** in this file -- what it
+prints, what it gates, and a measurement quoted from it. **It does not exist
+in this repository.** Neither does `tralo_snap`, the arm that FRAMEWORK
+2(z59) describes and that task #91 records as implemented: `configs/protocol.yml`
+has no `snap` arm, `src/` has no averaging, and `git log --all -S"tralo_snap"`
+returns exactly one commit -- a docs commit.
+
+They live on a server branch, `snap/slice-provenance`, which is **not among
+the 40 remote-tracking branches** in this checkout. The last fetch of the
+server remote was 2026-09-08.
+
+### WHY THAT IS MORE THAN AN INCONVENIENCE
+
+**`snap2` IS RUNNING FROM IT.** So when those runs land:
+
+  * their `code_version` resolves to a commit no other checkout has, which is
+    exactly the condition `check_parity` exists to make impossible;
+  * the 612-test suite has never executed against that code;
+  * none of the scorer corrections made 2026-09-09 apply to it unless
+    hand-deployed;
+  * and if that tree were lost the arm is unreproducible -- the runs would
+    survive as numbers whose generating code does not exist anywhere.
+
+This is the same shape as `loosevit1`, the only iwildcam ViTB16 loose-cap
+campaign, which sat unscored in a worktree no document listed. **Distributed
+state that no index covers is state nobody reads.**
+
+### THE GATE HAD A HOLE THE EXACT SHAPE OF THIS DEFECT
+
+`scripts.doc_commands` already has a `NO SUCH MODULE` verdict, and it has been
+green throughout. Its `INVOKE` regex matches only `python -m scripts.<name>`.
+Every one of the four `ens_panel` mentions is written the OTHER way --
+``scripts/ens_panel --k 1`` -- so **zero of them were ever scanned.** The
+verdict existed; nothing reached it.
+
+🔧 Fixed: `INVOKE_PATH` matches the path form. ⚠️ It requires a following
+`--flag`, deliberately. The obvious looser rule -- any `scripts/<name>` not
+ending in `.py` -- fires on `configs/task_windows.yml`, on
+`configs/protocol.yml` and on glob prose like `scripts/prep_*`: **16 false
+positives on the real docs, measured.** A gate that cries wolf is switched
+off, so this trades recall for precision.
+
+Gated with three positive checks and three negative controls (a YAML path, a
+glob, and a `.py` file reference must all NOT fire). Mutation-tested 2/2:
+disabling the path form fails two checks, and emptying `ABSENT_OK` breaks the
+real docs on `ens_panel`, which proves the allowlist is load-bearing rather
+than decorative.
+
+### `ABSENT_OK` IS A TICKET LIST, NOT A PERMISSION LIST
+
+The entry does not silence anything: the tool prints the absence, loudly, on
+every run, with the reason and the words *"This is a DEFECT with a ticket, not
+a permission."* What it buys is that a defect nobody can fix today -- the host
+is unreachable -- does not block a launch that has nothing to do with it.
+**A STALE ENTRY IS ITSELF A FAILURE:** if the module returns, the gate says so,
+because an allowlist nobody prunes becomes a list of things nobody checks.
+
+⚠️ **A SECOND ABSENT MODULE IS `scripts/snapjit`**, and the docs label it
+`(scratch)`. That is the honest form and the gate does not flag it -- but the
+per-epoch drift measurement quoted from it in section 1 below **cannot be
+re-run by anyone**. A number whose tool was never committed is a number that
+must be re-derived before it is published, not quoted.
+
+### WHAT TO DO
+
+`git fetch dsisco02` the moment the host is reachable, review
+`snap/slice-provenance`, and either merge it or delete the claims it supports.
+Until then, treat every `snap` result as provisional: it is not that the
+numbers are wrong, it is that nothing here can check them.
+
+
+## 2(z68). THE ACCEPTANCE FIGURE PREDATES THE SCORER IT DELEGATES TO, BY FOURTEEN HOURS (2026-09-10)
+
+`tralo_wins` is the command that answers the project's acceptance bar: does
+TraLO beat the clipper AND every rival dual in at least 50% of the cells that
+can test it. The figure on record is **6 of 17 = 35%, VERDICT FAIL, 0 of 17
+priced**. It is quoted in `CLAUDE.md`, in the published verdict artifact, and
+in every summary of where TraLO stands.
+
+**It was computed before two of the three fixes to the scorers it delegates
+to, both of which landed the same day.** Dated with `git log -S`, not from
+memory:
+
+| when | what |
+|---|---|
+| `2026-09-06 09:09` | the 6/17 figure is written into `CLAUDE.md` |
+| `2026-09-06 12:02` | `tralo_wins` replaces the RANGE spread with the PAIRWISE margin, and `deployed_h2h` stops whitelisting four arm names |
+| `2026-09-06 22:48` | `deployed_h2h.rank_cell` starts ranking on the seeds every arm SHARES |
+
+Everything in `tralo_wins` comes from `deployed_h2h`: `rank_cell` produces the
+per-arm deltas `d`, and BOTH halves of the verdict read it --
+`beats_control = d["tralo"] > 0` and `beats_all = all(d["tralo"] > d[r] ...)`.
+
+🔑 **THE THREE FIXES DO NOT ALL BEAR ON IT, AND SORTING THAT OUT IS THE
+ENTRY.** My first reading was that all three pushed the same way, which was
+wrong:
+
+* **Pricing (range -> pairwise margin)** is strictly stricter, since
+  `margin <= range` always. `priced` can only go yes -> no. The reported
+  **0 of 17 is already the floor and cannot have improved.** That half of the
+  figure is safe.
+* **De-whitelisting** does NOT touch the win test. `present = [r for r in
+  RIVALS if r in d]` reads a FIXED rival list, so adding arms to `d` changes
+  which arms are *ranked*, never which are *rivals*. It moved pricing only --
+  which is what the comment in `tralo_wins` says, and I asserted a win-count
+  effect anyway before reading it. **Zero effect on 6/17.**
+* **The common-seeds fix is the live one.** It changes `d` itself, which is
+  exactly what both halves of the verdict read, and it landed **~14 hours
+  after** the figure was quoted.
+
+⚠️ **DIRECTION UNKNOWN, AND DO NOT GUESS IT.** 2(z50) is explicit that the
+common-seeds fix is NOT a bias -- it flattered `tralo` too. But the one cell
+ever examined under it moved `tralo` from **+0.50 mid-pack to -8.0 = LAST**.
+So the honest statement is: **6/17 is not reproducible from today's code, and
+the single observation of what the fix does to a cell points against TraLO.**
+
+⛔ **THE VERDICT IS NOT IN DANGER; THE NUMBER IS.** Flipping FAIL to PASS
+needs 6/17 -> 9/17, three cells gained, from a fix with no demonstrated
+positive direction in any cell. Quote the verdict freely. **Do not quote 35%
+until it is recomputed** -- say "FAIL, figure pending recompute".
+
+🛑 **AND THIS IS A CLASS, NOT AN INCIDENT.** A number is quoted, its scorer is
+then fixed, and nothing connects the two: the figure lives in a doc, the fix
+lives in git, and no gate holds a doc figure against the mtime of the code
+that produced it. It is the same shape as the `add_seeds` extensions that were
+bought and never pooled, and as `deep_scope`'s +0.504 over "360 runs". The
+cheap defense is the one used here -- `git log -S` the figure's own text
+against the scorer's -- and it costs one command.
+
+**Blocked on the server**: `results/` is not local, so the recompute cannot
+run here. Task #104.
+
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, updated 2026-08-30 -- read this before section 3's older text**

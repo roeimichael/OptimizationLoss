@@ -522,6 +522,13 @@ python -m scripts.paper_rows --cells cells.csv --out paper_rows.csv  # 🛑 THE 
 #   EIGHT cells are FOUR units. A campaign pair absent from `MEASURED_UNITS` reads
 #   `UNVERIFIED`, never a free replicate. Sign tests go over UNITS: 4/4 is p=0.0625,
 #   not p=0.0039.
+#   ⚠️ **THAT `4/4` IS THE ARITHMETIC EXAMPLE, NOT THE LEDGER SIZE, AND THE
+#   TWO GOT CONFUSED ONCE ALREADY.** The 8-cells-to-4-units collapse above is a
+#   true statement about `dom1`/`loose1`. The LEDGER licenses **SIX** units, of
+#   which **four have had their signs read** -- see THE GATE at the top of this
+#   file. A unit is LICENSED when it is in `MEASURED_UNITS` and SIGN READ when
+#   somebody has scored it; this block quotes the second number and the GATE
+#   block quotes the first. FRAMEWORK 2(z66), 2(z68).
 #   ⚠️ Run on the corpus 2026-09-01: **1 of 158 strict-task rows clears 2 sd**, and
 #   that sd is a rho=0 quadrature, so it is within **sqrt(2)** of the truth in
 #   EITHER direction -- `sd(A-B) <= sa+sb <= sqrt(2)*sqrt(sa^2+sb^2)` for any
@@ -544,6 +551,17 @@ python -m scripts.tralo_wins --campaign <roots> --control clip   # 🛑 THE ACCE
 #   >= MIN_FLOOR_OBS observations. RUN 2026-09-06 over the whole live corpus:
 #   **6 of 17 = 35%, bar 50%, VERDICT FAIL -- and 0 of 17 cells are priced**,
 #   so every win is a direction and none is reportable. Per unit it is 2 of 6.
+#   ⛔ **THAT RUN IS 09:09; `rank_cell` GOT THE COMMON-SEEDS FIX AT 22:48
+#   THE SAME DAY, so 35% is NOT reproducible from today's code.** Both halves
+#   of the verdict read `rank_cell`'s deltas. Of the three same-day fixes only
+#   that one bears on the win count: the range->margin change is strictly
+#   stricter so `0 of 17 priced` is already at the floor, and de-whitelisting
+#   touches PRICING only (`present` reads a FIXED rival list). Direction
+#   unknown -- 2(z50) says the fix is not a bias, and the one cell ever
+#   examined under it moved tralo +0.50 mid-pack -> **-8.0 LAST**.
+#   🔑 QUOTE THE VERDICT, NOT THE FIGURE: FAIL needs 6->9 of 17 to flip
+#   and nothing suggests the fix is worth three cells, so say "FAIL, figure
+#   pending recompute". FRAMEWORK 2(z68), task #104.
 #   `--self-test` gates it in both directions, 7 checks, including that
 #   beating the CONTROL but not the RIVAL is NOT a win (the old framing scored
 #   that green) and that exactly 50% passes.
