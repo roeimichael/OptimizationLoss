@@ -270,6 +270,93 @@ priceable units is the sign-test floor this project has never had.
 
 ---
 
+## 🛑 0-PERM. THE ONE CAMPAIGN THAT ANSWERS A MECHANISM QUESTION **AND** CAN PRICE ITS OWN VERDICT (staged 2026-09-10)
+
+`tralo_permbudget` is `tralo` with the per-group budgets PERMUTED across
+groups and the TOTAL held fixed. It is a CONTROL, not a variant, and it asks
+the one question nothing here has ever asked:
+
+> Does the constraint read the budget **CONTENT**, or is it only responding to
+> the fact that a constraint EXISTS?
+
+It is fully implemented (`permute_local_budgets` in `src/utils/data_loader.py`,
+on the DATA path, not in the loss), gated in
+`tests/gates/test_g2_budget.py::test_the_budget_permutation_control_holds_the_TOTAL_and_refuses_to_be_INERT`,
+and has **ZERO completed runs anywhere**. It already survived one FALSE
+`INERT` verdict: `smoke_arms` called `compute_local_constraints` directly and
+never went through the loader, so an arm whose treatment lives in the data
+path was invisible to it. Both callers now go through one function.
+
+🔑 **AND IT WOULD BE THE FIRST PRICEABLE CAMPAIGN, WHICH IS A SEPARATE
+WIN.** `deployed_h2h` reads EVERY lambda=0 stream and needs
+`MIN_FLOOR_OBS = 8`. Two streams (`_null` + `_reseed`) give C(2,2)x4 = **4**
+observations, which is why **0 of 17 cells in the live corpus are priced**.
+Adding `tralo_reseed2` -- a third, distinct RNG offset -- gives
+C(3,2)x4 = **12**, clearing the bar. So this campaign can say whether its own
+result is above the noise, and no campaign so far could.
+⚠️ Quote observations AND streams: 12 from 3 streams is a better median
+than 4 from 2, and is NOT 12 independent draws (k streams give k-1
+independent contrasts).
+
+**BACKBONE: MobileNetV2, and that is forced, not preferred.** Its strict
+windows are measured and non-empty -- class 2 `[0.70, 0.80]`, class 7
+`[0.60, 0.80]` -- while MobileNetV3's class-2 intersection is **EMPTY**, so
+MNv3 cannot carry a strict-task cell at all. Both caps below put BOTH classes
+inside the window, and there are two cap levels, as the protocol requires.
+
+```bash
+python -m configs.gen_campaign --root results/perm1 --datasets iwildcam --models MobileNetV2 --caps L70-70_G95 L80-80_G95 --arms tralo tralo_permbudget tralo_null tralo_reseed tralo_reseed2 clip focal_clip --constraint-fp32 --constraint-grad-mode normalize
+```
+
+⚠️ `--constraint-grad-mode normalize` is typed EXPLICITLY because
+`gen_campaign` DEFAULTS it to `clip`, and `--constraint-fp32` because it
+defaults OFF and IS the dose (15284/15284 steps with it, 86.9% without).
+
+✅ **BOTH CAPS VERIFIED `task` 2026-09-10** by asking the authority rather
+than reading the yml: `configs.task_cells.classify(P, TW, "iwildcam",
+"MobileNetV2", cap)` returns **`task`** for `L70-70_G95` and `L80-80_G95`.
+Checked against two controls in the same call -- `L60-60_G95` and `L30_G50`
+both return **`non_task`** -- because a classifier that says yes to everything
+verifies nothing.
+
+🔑 **AND THE PERMUTATION HAS REAL TEETH HERE, WHICH IS NOT TRUE OF
+EVERY DATASET.** On iwildcam **7 of 14 per-group ceilings are K=0**, and
+`task_cells` says of each that "the budget is real and binding, not a disabled
+constraint". So permuting budgets across groups does not merely jitter
+numbers -- it moves WHICH cameras are told to predict none of a species.
+That is the largest possible change in budget CONTENT at a fixed total, which
+is exactly what makes a null here informative rather than weak.
+
+**THEN, IN ORDER:**
+
+```bash
+python -m scripts.run_campaign --root results/perm1 --step verify
+python -m scripts.run_campaign --root results/perm1 --step launch
+python -m scripts.dose_landed results/perm1
+python -m scripts.run_campaign --root results/perm1 --step firstrun
+```
+
+🛑 **PRE-REGISTERED, BEFORE THE FIRST RUN LANDS.** Write the outcome
+against this, not after reading it:
+
+* **PASS (the constraint reads content):** `tralo_permbudget` is WORSE than
+  `tralo` on deployed capped-class TP by more than the reseed floor. The
+  per-group budgets carry information the mechanism uses.
+* **NULL (the constraint reads only that a constraint exists):**
+  `permbudget` is within the floor of `tralo`. **This is what I expect**, and
+  the reasons are already measured: 74.1% of TraLO's step is aimed at K=0
+  scopes that are ALREADY compliant (2(z54)); the constraint is blind to
+  violation depth under `normalize`; and the delivered step is a fixed
+  `lr*clip` whatever the violation is worth. A null here would say the
+  per-group structure -- the thing that makes this a TRANSDUCTIVE constraint
+  rather than a global one -- is not being read.
+* **THIRD OUTCOME:** `permbudget` BEATS `tralo`. That is not noise being
+  charitable, it is evidence the true budgets are actively mis-aimed, and it
+  would point straight at the scope-priority inversion in 2(z54).
+
+⛔ **A NULL IS A REAL RESULT HERE AND MUST NOT BE READ AS "no effect of
+TraLO".** It bounds the MECHANISM, not the method. Task #99.
+
 ## 0-LAUNCH. THE EXACT COMMANDS, BECAUSE A LAUNCH THAT LIVES ONLY IN SCROLLBACK IS LOST
 
 **`dualprop1` ran for a day before its own generating command was written down
