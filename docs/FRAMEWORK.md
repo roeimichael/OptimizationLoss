@@ -11262,7 +11262,20 @@ told from noise on this design.
 
 ---
 
-## 2(z57). ON A RESOLVABLE DATASET, TraLO BEATS EVERY DUAL -- AND A COIN BEATS TraLO (2026-09-08)
+## 2(z57). ON A RESOLVABLE DATASET, THE ARMS ARE STILL A COIN FLIP AT ONE MODEL (2026-09-08, CORRECTED 2026-09-09 AT 4 SEEDS)
+
+🛑 **THIS ENTRY WAS WRITTEN AT 3 SEEDS AND ITS HEADLINE WAS WRONG.**
+The 4th seed reversed two of three cells: `tralo_wins` goes from
+**2 of 3 = 67% PASS** to **1 of 3 = 33% FAIL**. Section 2 below is
+corrected in place. The old title claimed TraLO beats every dual; it
+does not. Every cell was already reported as jackknife-unstable at 3
+seeds, and that warning was the finding -- it was written down and
+then not weighted.
+
+⚠️ **AND THE 3-SEED TABLE WAS NOT MERELY IMPRECISE, IT WAS THE WRONG
+SIGN IN 2 OF 3 CELLS.** A tie broken by one seed is not a small error
+bar around the right answer. Do not quote a `tralo_wins` verdict from
+a campaign whose cells the tool itself calls unstable.
 
 **First campaign in this project where the measurement is not the limiting
 factor. Both results below are therefore real, and they point opposite ways.**
@@ -11295,14 +11308,25 @@ here a null is a null.
 
 `tralo_wins`, tralo vs `clip` AND every rival dual present in the same cell:
 
+⛔ **THE 3-SEED TABLE, KEPT ONLY AS THE RECEIPT FOR THE REVERSAL:**
+
 | cap | tralo | alm | fioretto | hounie | floor | verdict |
 |---|---|---|---|---|---|---|
-| L70_G95 | **+18.00** | +7.67 | +16.67 | +7.33 | 15.0 | WIN |
-| L80_G95 | **+26.67** | +1.33 | +12.67 | -7.33 | 11.0 | WIN, priced |
-| L90_G95 | +8.67 | +15.33 | +8.33 | **+22.67** | 8.0 | loss |
+| L70_G95 | +18.00 | +7.67 | +16.67 | +7.33 | 15.0 | ~~WIN~~ |
+| L80_G95 | +26.67 | +1.33 | +12.67 | -7.33 | 11.0 | ~~WIN~~ |
+| L90_G95 | +8.67 | +15.33 | +8.33 | +22.67 | 8.0 | loss |
 
-**2 of 3 = 67%, bar 50%, VERDICT PASS.** At L80 TraLO leads `alm` by 25 items
-and `hounie` by 34.
+✅ **AT 4 SEEDS, THE COMPLETE CAMPAIGN (228/228):**
+
+| cap | tralo | alm | fioretto | hounie | floor(obs) | priced | verdict |
+|---|---|---|---|---|---|---|---|
+| L70_G95 | +11.25 | +2.25 | **+16.75** | +4.75 | 16.0 (12) | no | **loss** |
+| L80_G95 | **+24.25** | +8.50 | +4.75 | -2.75 | 12.5 (12) | yes | **WIN** |
+| L90_G95 | +1.25 | +7.00 | -6.00 | **+18.00** | 10.0 (12) | no | **loss** |
+
+**1 of 3 = 33%, bar 50%, VERDICT FAIL.** `fioretto` takes L70 and `hounie`
+takes L90; both were behind TraLO at 3 seeds. Only L80 survives, and it is the
+one cell the tool prices.
 
 ### 3. 🔴 AND THE PRE-REGISTERED KILL CONDITION FIRED
 
@@ -11341,10 +11365,11 @@ it cannot.
 
 ### 5. What it licenses
 
-🟢 TraLO vs the published duals is a real 2-of-3 win at equal dose on a
-resolvable dataset. That claim stands and is the first of its kind here.
-🛑 TraLO vs a dose-matched coin is UNRESOLVED at 3 seeds and must not be
-reported either way until seed 4 lands and a second backbone replicates.
+⛔ **WITHDRAWN**: "TraLO vs the published duals is a real 2-of-3 win."
+At 4 seeds it is 1 of 3. TraLO beats `clip` in 3 of 3 (see 2(z58)); it does
+not clear the rival duals.
+🛑 TraLO vs a dose-matched coin is UNRESOLVED and must not be reported either
+way until a second backbone replicates.
 ⛔ Do NOT read "the constraint is useless". The constraint demonstrably works
 ON THE CONSTRAINT. What is unproven is that constraint work buys deployed
 quality -- and that is now the ONLY open question in the mechanism.
@@ -11359,6 +11384,107 @@ been applied to -- and the warning separates arms that are cap-invariant BY
 DESIGN (post-hoc, zero constraint steps) from a TRAINED arm that is
 cap-invariant, which is the newsworthy case. Keying on the name rather than the
 artefact is the same defect class as the stale corpus.
+
+## 2(z58). THE ARMS ARE A COIN FLIP AT ONE MODEL, AND THE CONSTRAINT PHASE IS 107 ITEMS OF JITTER (2026-09-09)
+
+**The single most useful number in this entry: at the protocol operating point
+EVERY arm-vs-arm contrast on the complete `bcn1mn3` reads 2/4 positive.** Not
+small -- a coin flip, on the dataset chosen precisely because its
+signal-to-noise is 260-320x iwildcam's. Read `scripts/ens_panel --k 1`.
+
+### 1. WHY: the constraint phase does not converge, it wanders
+
+`scripts/snapjit` (scratch) fits a line to the per-epoch test hard count over
+epochs 10+, per run, pooled over 3 caps x 2 capped classes x 4 seeds:
+
+| arm | total sd | resid sd | median r^2 | reading |
+|---|---|---|---|---|
+| tralo | 107.3 | 108.0 | **0.03** | JITTER |
+| tralo_null | 104.9 | 102.0 | 0.10 | JITTER |
+| alm | 124.5 | 124.7 | 0.05 | JITTER |
+| hounie | 112.4 | 113.2 | 0.02 | JITTER |
+| fioretto | 134.2 | 134.5 | 0.03 | JITTER |
+
+**Residual sd == total sd for all fifteen arms.** There is no drift to speak
+of. The count the whole method optimises oscillates by ~107 items epoch to
+epoch while the effects being chased are 2-30 items. The final epoch is one
+arbitrary draw from a ~100-item-wide distribution, and the other nineteen
+models are computed and thrown away.
+
+⚠️ **THIS IS NOT A TraLO PROPERTY.** Every arm jitters the same amount,
+including the lambda=0 null. It is a property of the regime.
+
+### 2. WHAT IT COSTS: ensembling is worth more than any method effect
+
+3 seeds averaged (`ens_panel --k 3`), deployed capped-class TP vs the best
+single seed: **+9 to +38 items**, for every arm including `clip`. That is
+larger than the entire measured spread between methods, and larger than the
+RNG floor. At k=3 stable orderings appear where k=1 has none.
+
+🛑 **SO ALWAYS SAY WHICH k.** A finding present at k=3 and absent at k=1 is a
+statement about VARIANCE, not about the method. Two of this session's claims
+died on exactly that test.
+
+### 3. WHAT SURVIVES BOTH OPERATING POINTS
+
+Contrasts against the shared lambda=0 null (valid for every family: the `_null`
+arms are byte-identical, lambda=0 makes them all plain CE):
+
+* 🟢 **TraLO beats `clip` in 3 of 3 cells**, +12.5 to +34.8 at k=3, 4/4 stable.
+  ⚠️ But `tralo_null` also beats `clip` by **+18.2 gAP, identical in all three
+  cells** (both arms are cap-invariant, which is a clean sanity check). So the
+  whole margin over the clipper is the TRAINING SCHEDULE -- warm-up 1 + 29 CE
+  epochs against warm-up 30 + 0 -- not the constraint. This replicates "the win
+  is compute, not method."
+* 🟡 On BCN the three rival duals rank BELOW the null (`fioretto` and `hounie`
+  3/3 at 4/4; `alm` 2/3) and TraLO does not. TraLO is NEUTRAL, not better:
+  tralo - null on gAP is +5.9/+4.8/+1.6 at k=3 but +0.6/+1.8/-2.0 at 2/4 at
+  k=1.
+* ⛔ **AND THAT DOES NOT GENERALISE.** Replicated on iwildcam `dom1` with the
+  backbone held fixed at MobileNetV3: the constraint moves capAP by **25-42
+  points** and `alm` helps as much as TraLO. "TraLO is the only dual that does
+  not damage the ranking" is a BCN statement, not a general one.
+
+### 4. THE FAMILY DISTINCTION THAT WAS MISSING, AND IS NOW A TOOL
+
+Every arm-vs-arm number quoted here recently came from ONE metric family.
+`scripts/ens_panel` prints four:
+
+**RANKING IS THE ONLY FAMILY THAT CAN CHANGE A TOP-K SET.** Post-hoc allocation
+is optimal given the probabilities and that optimality is distribution-free, so
+the only way an arm moves a deployed item is by re-ranking. An allocation win
+with no ranking win is an allocator artefact. CALIBRATION is allocation-free --
+a monotone recalibration cannot reorder -- so it can price a COST and never win
+one. COLLATERAL (uncapped-class F1) is the damage channel every capped-class
+metric is blind to, and TraLO loses it to `alm` in 3 of 3 BCN cells
+(-11.3/-7.5/-17.3).
+
+🛑 **`gAP` IS PER-GROUP AND `capAP` IS GLOBAL, AND THE ALLOCATOR IS PER-GROUP.**
+A global AP measures an ordering the system never uses. Gated in `ens_panel
+--self-test`: gAP must be INVARIANT to a between-group shift preserving
+within-group order while capAP MOVES. Third time this repo has had to separate
+those two.
+
+### 5. WHAT IT LICENSES
+
+* Report `--k 1` as the result and `--k 3` as the variance statement. Never one
+  without the other.
+* n/n at k>1 is STABILITY, not significance: the leave-one-out replicates share
+  members, so 4/4 means no single seed carries the sign. It is NOT p=0.0625.
+* `tralo_snap` (2(z59), pending) tests whether harvesting the discarded
+  snapshots makes the ordering visible at k=1. Pre-registered: the jitter is
+  equal across arms, so it should lift EVERY arm and be a protocol fix rather
+  than a TraLO advantage. `tralo_snap_null` is the arm that decides which.
+
+### 6. THE INSTRUMENT DEFECT THIS EXPOSED
+
+`scripts/flag_live` hashed `res.model(X_test)` only, so any treatment carried
+on `TrainOutputs` rather than in the WEIGHTS was invisible. It called
+`tralo_snap` -- which trains a bit-identical model BY DESIGN and changes only
+what is scored -- INERT, and printed "do not launch a campaign on it". That is
+the same false verdict as the six real inert flags it exists to catch, in the
+opposite direction, and a gate that fails on a healthy arm teaches people to
+discount it. Fixed: it now prefers the scored probabilities.
 
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
