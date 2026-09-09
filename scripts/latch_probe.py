@@ -95,6 +95,26 @@ def read_log(run_dir, classes):
                 (hard if m.group(2) == "Hard" else lim)[(m.group(1), c)] = float(v)
             excess = {key: max(hard.get(key, 0.0) - K, 0.0)
                       for key, K in lim.items()}
+            # 🛑 SKIP THE WARM-UP ROW. `src/pipeline/warmup.py` writes a row
+            # per warm-up epoch through the SAME logger, with no counts and no
+            # limits -- `Limit_Class0` comes out `inf`, every Group column is
+            # the empty string, and `Global_Satisfied` / `Local_Satisfied`
+            # DEFAULT TO 1. Read as a constraint epoch it is a fully-satisfied
+            # epoch with a zero gradient, so `latch_epoch` returns 0 and the
+            # tool reports that lambda and rho froze before the first step --
+            # a catastrophic-looking finding that is pure artefact.
+            # 🔑 AND IT IS CACHE-DEPENDENT, WHICH IS WHY IT WAS NEVER SEEN.
+            # The row exists only when the warm-up ran FRESH. All 12 bcn1mn3
+            # tralo runs loaded a cached warm-up (29 rows, no warm-up row) and
+            # this tool correctly read 0 latches; the first snap1 run trained
+            # warm-up 1 itself (30 rows) and the same code returns latch
+            # epoch 0. Two campaigns, same commit, opposite verdicts.
+            # Detected STRUCTURALLY, not by row index: a row that evaluated no
+            # limits is not a constraint epoch, whatever its position. That
+            # also stays correct if warm-up length changes or if the logger
+            # ever writes more than one such row.
+            if not lim:
+                continue
             sat = _truthy(row["Global_Satisfied"]) and _truthy(row["Local_Satisfied"])
             out.append((sat, excess, lim))
     return out or None
@@ -349,8 +369,60 @@ def _log(rows):
     return [(sat, ex, {k: 0.0 for k in ex}) for sat, ex in rows]
 
 
+def _warmup_fixture(tmp, with_warmup_row):
+    """A real training_log.csv, with or without the warm-up row.
+
+    Mirrors what `src/pipeline/warmup.py` actually writes through the SAME
+    logger: identical header, no counts, `Limit_Class0` = inf, every Group
+    column the EMPTY STRING, and both satisfaction flags defaulting to 1.
+    """
+    import os
+    hdr = ("Epoch,Train_Acc,L_CE,L_Global,L_Local,Grad_Norm,Lambda_Global,"
+           "Lambda_Local,Global_Satisfied,Local_Satisfied,"
+           "Limit_Class0,Hard_Class0,Soft_Class0,"
+           "Group1_Hard_Class0,Group1_Soft_Class0,Group1_Limit_Class0")
+    warm = "1,0.64,1.21,0,0,0.000000,0.0000,0.0000,1,1,inf,0,0.00,,,"
+    ep2 = "2,0.71,0.78,1,1,2.009,0.0600,0.0600,0,0,100,150,148.0,80,79.0,50"
+    ep3 = "3,0.82,0.50,1,1,71.18,0.1100,0.1100,0,0,100,140,138.0,70,69.0,50"
+    d = os.path.join(tmp, "warm" if with_warmup_row else "nowarm")
+    os.makedirs(d)
+    body = [hdr] + ([warm] if with_warmup_row else []) + [ep2, ep3]
+    with open(os.path.join(d, "training_log.csv"), "w") as fh:
+        fh.write("\n".join(body) + "\n")
+    return d
+
+
 def self_test(out=sys.stdout):
     checks = []
+
+    # ---- THE WARM-UP ROW, THROUGH THE REAL PARSER ------------------------
+    # `_log` below builds fixtures directly and never exercises `read_log`,
+    # which is precisely where this defect lived. The warm-up row reports
+    # satisfied=1 having evaluated NO limits, so `latch_epoch` returned 0 and
+    # the tool claimed lambda and rho froze before the first constraint step.
+    # 🔑 CACHE-DEPENDENT, AND THEREFORE INVISIBLE FOR MONTHS: the row exists
+    # only when the warm-up ran FRESH. All 12 bcn1mn3 tralo runs loaded a
+    # cached warm-up (29 rows, no such row) and the tool correctly read 0
+    # latches; the first snap1 run trained warm-up 1 itself (30 rows) and the
+    # same code on the same commit returned latch epoch 0.
+    import shutil
+    import tempfile
+    _tmp = tempfile.mkdtemp(prefix="latchprobe_")
+    try:
+        lw = read_log(_warmup_fixture(_tmp, True), [0])
+        ln = read_log(_warmup_fixture(_tmp, False), [0])
+        checks.append(("the warm-up row is SKIPPED (it evaluated no limits)",
+                       lw is not None and len(lw) == 2))
+        checks.append(("NEGATIVE CONTROL: it does not latch on the warm-up row",
+                       latch_epoch(lw) is None))
+        checks.append(("a log with and without the warm-up row parses "
+                       "IDENTICALLY", lw == ln))
+        checks.append(("POSITIVE CONTROL: a genuinely satisfied constraint "
+                       "epoch still latches",
+                       latch_epoch(_log([(False, {("1", 0): 2.0}),
+                                         (True, {("1", 0): 0.0})])) == 1))
+    finally:
+        shutil.rmtree(_tmp, ignore_errors=True)
 
     # ---- the latch ------------------------------------------------------
     lg = _log([(False, {("1", 2): 5.0}), (False, {("1", 2): 3.0}),

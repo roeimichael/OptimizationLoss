@@ -378,6 +378,14 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         take_snap = SNAP_BURN_IN >= 0 and epoch >= SNAP_BURN_IN
         if take_snap and snap_sum is None:
             snap_sum = torch.zeros(n_test, num_classes, device=device)
+        if take_snap:
+            # COUNTED HERE, beside the accumulation it pairs with. It was
+            # previously incremented only by the final pass below, so
+            # `snap_sum / snap_n` divided a SUM of 21 softmax vectors by 1 and
+            # the emitted rows summed to 21.0 instead of 1.0. Incrementing at
+            # the same site as the guard that enables the accumulation is what
+            # makes the two impossible to separate again.
+            snap_n += 1
 
         with torch.no_grad():
             total_global_soft = torch.zeros(num_classes, device=device)
@@ -763,6 +771,24 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         snapshot_proba = (snap_sum / float(snap_n)).float().cpu().numpy()
         log.info("snapshot average over %d model(s), burn-in %d",
                  snap_n, SNAP_BURN_IN)
+        # A burn-in INSIDE the phase must average more than the final model.
+        # This is the exact defect above, made loud: it would have raised on
+        # the first run rather than emitting 96 runs of unnormalised
+        # probabilities that every ranking metric reads correctly and every
+        # calibration metric reads as garbage.
+        if SNAP_BURN_IN < constraint_epochs and snap_n <= 1:
+            raise RuntimeError(
+                "snapshot_burn_in=%d is inside a %d-epoch constraint phase but "
+                "only %d model(s) were averaged. The per-epoch accumulator did "
+                "not run, so the emitted probabilities are a SUM, not a mean."
+                % (SNAP_BURN_IN, constraint_epochs, snap_n))
+        # And the mean of probability vectors is a probability vector. If it
+        # is not, the divisor disagrees with the number of terms.
+        _rs = float(snapshot_proba.sum(axis=1).max())
+        if not (0.99 <= _rs <= 1.01):
+            raise RuntimeError(
+                "snapshot rows sum to %.4f, not 1.0 -- snap_sum and snap_n "
+                "disagree (%d models)." % (_rs, snap_n))
 
     final_soft_hard_gap = {c: abs(g_soft.get(c, 0) - g_counts.get(c, 0))
                            for c in constrained_classes}
