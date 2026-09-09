@@ -481,3 +481,60 @@ def test_the_budget_permutation_control_holds_the_TOTAL_and_refuses_to_be_INERT(
     assert permute_local_budgets(lc, [0, 2], seed=None) is lc, (
         "an arm without the key must get the ORIGINAL object back, or every "
         "other arm silently acquires this treatment")
+
+
+def test_paired_noise_counts_a_PER_GROUP_top_K_not_a_global_one(tmp_path):
+    """The allocator is per-group; a global top-K counts unemittable items.
+
+    `paired_noise` DECIDES `ceiling_screen`'s verdict and prints the
+    seeds-at-80%-power column, and until 2026-09-09 it took ONE `argsort` over
+    every test item with `Group_ID` read nowhere. That is the identical
+    substitution `configs/task_windows.yml`'s header records as a 4.25x prize
+    overstatement on iwildcam and that `scripts.task_window` was rewritten for
+    on 2026-09-02. FRAMEWORK 2(z63).
+
+    The fixture is built so the two answers MUST differ: group A holds the
+    highest probabilities but only one positive, group B holds two positives
+    at lower probabilities. A global top-2 takes both items from A and scores
+    1; a per-group top-1-each scores 2.
+    """
+    import json
+    import numpy as np
+    import pandas as pd
+    from scripts import paired_noise
+
+    run = tmp_path / "camp" / "MNv3" / "ds" / "L50_G50" / "tralo" / "seed_1"
+    run.mkdir(parents=True)
+    (run / "config.json").write_text(json.dumps({
+        "status": "completed",
+        "dataset_config": {"constrained_class": [1], "num_classes": 2}}))
+
+    #   group A: p = 0.99, 0.98  labels 1, 0   -> one positive, both highest
+    #   group B: p = 0.40, 0.30  labels 1, 1   -> two positives, both lowest
+    pd.DataFrame({
+        "True_Label":    [1,    0,    1,    1],
+        "Group_ID":      [0,    0,    1,    1],
+        "Prob_Class_0":  [0.01, 0.02, 0.60, 0.70],
+        "Prob_Class_1":  [0.99, 0.98, 0.40, 0.30],
+    }).to_csv(run / "final_predictions_raw.csv", index=False)
+
+    got = paired_noise.load_arm(str(tmp_path / "camp"), "tralo", [1], [0.5])
+    assert len(got) == 1, got
+    tp = int(got.iloc[0]["tp"])
+
+    # n=3 positives. Per group: k=round(0.5*1)=1 in A (max(1,..)), k=round(0.5*2)=1
+    # in B -> A's top-1 is the p=0.99 positive, B's top-1 is the p=0.40
+    # positive => 2. A GLOBAL top-round(0.5*3)=2 takes p=0.99 and p=0.98 => 1.
+    assert tp == 2, (
+        "counted %d, which is the GLOBAL top-K answer. The allocator emits "
+        "within each group, so this must be 2." % tp)
+
+    # NEGATIVE CONTROL: the global count on the same data really is different,
+    # so the assertion above is discriminating and not trivially satisfied.
+    y = np.array([1, 0, 1, 1])
+    p = np.array([0.99, 0.98, 0.40, 0.30])
+    k_global = int(round(0.5 * int((y == 1).sum())))
+    global_tp = int((y[np.argsort(-p)][:k_global] == 1).sum())
+    assert global_tp != tp, (
+        "the fixture does not separate the two rules, so this test would pass "
+        "against the defect it exists to catch")

@@ -11839,6 +11839,73 @@ beside `tralo` and `tralo_null` on the same seeds, at a cap INSIDE the measured
 window (bcn/MobileNetV3 is [0.80, 1.00], 2(z60)). It shares the warm-up, so it
 costs one arm's constraint phase per cell and nothing else.
 
+## 2(z63). `paired_noise` PRICED EVERY CAP ON AN ALLOCATION THE SYSTEM NEVER PERFORMS (2026-09-09)
+
+**It counted a GLOBAL top-K.** One `argsort` over every test item,
+`K = round(f * n)` from the global class count, and `Group_ID` read NOWHERE:
+
+```python
+cum = np.cumsum((y[np.argsort(-p)] == c).astype(int))   # <- global sort
+k   = max(1, min(int(round(f * n)), len(cum)))          # <- global n
+```
+
+Every allocator in this project emits at most `K_gc` predictions **within each
+group**, so a global top-K counts high-scoring items the allocator can never
+emit. This is the identical substitution that `configs/task_windows.yml`'s own
+header records as a **4.25x prize overstatement** on iwildcam, and that
+`scripts.task_window` was rewritten for on 2026-09-02. It was left standing in
+`paired_noise` -- **the tool that DECIDES `ceiling_screen`'s verdict** and that
+prints the seeds-at-80%-power column a cap choice is made from.
+
+**Fourth time global-vs-per-group has decided an answer here** (the cap screen
+2(z28), the task window 2(z16), the fmow window 2(z59), and now this).
+
+### 1. WHAT IT INVALIDATES
+
+Every number `paired_noise` has produced, which is every number in CLAUDE.md's
+`paired_noise` and `ceiling_screen` blocks:
+
+* `iwc3` class 2 at K/n=0.2: prize 0.42 items, unpaired sd 0.80 (0.52x),
+  treated sd 7.59 (0.05x)
+* `iwc3` class 2: 2607 seeds at L20, 546 at L30/L50, 7-8 at K/n=0.9
+* the "prize/sd is 0.04-0.09x at L20/L30/L50 and never reaches 1.0" line
+
+⚠️ **AND THEY ARE NOT RESCALABLE.** The substitution moves the NOISE as well as
+the prize, and not necessarily by the same factor, so a ratio computed the old
+way cannot be converted -- it has to be re-measured. Do not apply 4.25x to
+anything here.
+
+🔑 **THE DIRECTION IS PREDICTABLE, THE MAGNITUDE IS NOT.** A global top-K
+overstates the PRIZE (it counts unemittable items), which makes the old
+prize/noise ratios OPTIMISTIC about how measurable a cap is -- and those ratios
+were already reading 0.04-0.09x, i.e. hopeless. So the qualitative conclusion
+("the tight caps are not measurable at 4 seeds") is very unlikely to reverse.
+The `seeds` column is what needs the re-measurement, because that is the number
+a cap choice is actually made from.
+
+### 2. THE FIX AND ITS GATE
+
+Per-group top-K: within each group, `k_g = round(f * n_gc)` of that group's own
+class count, top-k_g by probability, summed over groups -- the same allocation
+`ens_panel.panel()` and `task_window`'s LOCerr already use. It REFUSES a
+predictions file with no `Group_ID` rather than falling back to the global
+count, because the fallback IS the defect.
+
+Gated in `tests/gates/test_g2_budget.py` with a fixture built so the two rules
+MUST disagree -- group A holds the two highest probabilities and one positive,
+group B holds two positives at the lowest probabilities, so global top-2 scores
+1 and per-group top-1-each scores 2 -- plus a negative control asserting the
+fixture really does separate them, so the test cannot pass against the defect
+it exists to catch. Mutation-tested: restoring the global count fails it.
+
+### 3. THE PATTERN, SINCE THIS IS THE FOURTH
+
+Each time, the global reading was the one that made the dataset or the cap look
+BETTER: 4.25x more prize on iwildcam, a task window where there was none, and
+here a measurable cap where there was none. **When a tool sorts probabilities,
+check what it sorts them WITHIN.** `grep -n "argsort" scripts/*.py` is a
+one-second audit and it should be run whenever a scorer is touched.
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, updated 2026-08-30 -- read this before section 3's older text**

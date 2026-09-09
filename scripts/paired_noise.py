@@ -55,6 +55,21 @@ def load_arm(root, arm, classes, fracs):
     K comes from the LABELS and the requested fraction, not from the cap
     policy: the point here is to sweep K/n past the caps the protocol actually
     uses, so the noise curve can be read where a looser budget would put it.
+
+    🛑 PER GROUP, BECAUSE THE ALLOCATOR IS PER GROUP (fixed 2026-09-09).
+    This used to take a GLOBAL top-K -- one `argsort` over every test item and
+    `K = round(f * n)` from the global class count -- with `Group_ID` read
+    nowhere. Every allocator in this project emits at most K_gc predictions
+    WITHIN each group, so a global top-K counts high-scoring items the
+    allocator can never emit. It is the identical substitution that
+    `task_windows.yml`'s own header records as a **4.25x prize overstatement**
+    on iwildcam and that `scripts.task_window` was rewritten for on
+    2026-09-02, left standing in the tool that DECIDES `ceiling_screen`'s
+    verdict and prints the seeds-at-80%-power column.
+
+    ⚠️ IT MOVES THE NOISE AS WELL AS THE PRIZE, and not necessarily
+    by the same factor, so a ratio computed the old way is not simply
+    rescalable. Re-measure; do not convert.
     """
     rows = []
     pattern = os.path.join(root, "**", arm, "seed_*",
@@ -65,6 +80,7 @@ def load_arm(root, arm, classes, fracs):
         cell, seed = "/".join(parts[-6:-3]), parts[-2]
         df = pd.read_csv(path)
         y = df["True_Label"].values
+        g = df["Group_ID"].values if "Group_ID" in df.columns else None
         for c in classes:
             col = "Prob_Class_%d" % c
             if col not in df.columns:
@@ -73,10 +89,28 @@ def load_arm(root, arm, classes, fracs):
             n = int((y == c).sum())
             if n == 0:
                 continue
-            cum = np.cumsum((y[np.argsort(-p)] == c).astype(int))
+            if g is None:
+                raise SystemExit(
+                    "REFUSED: %s has no Group_ID column, so only a GLOBAL "
+                    "top-K could be counted -- and every allocator here is "
+                    "per-group. That substitution is a measured 4.25x prize "
+                    "overstatement on iwildcam. Re-score from a predictions "
+                    "file that carries the group." % path)
             for f in fracs:
-                k = max(1, min(int(round(f * n)), len(cum)))
-                rows.append((cell, seed, c, f, n, k, int(cum[k - 1])))
+                tp, k_tot = 0, 0
+                for gg in np.unique(g):
+                    idx = np.where(g == gg)[0]
+                    n_g = int((y[idx] == c).sum())
+                    if n_g == 0:
+                        continue
+                    # Same rule as the global one, applied WITHIN the group:
+                    # the fraction is of the group's own class count, which is
+                    # what a per-group budget means.
+                    k_g = max(1, min(int(round(f * n_g)), len(idx)))
+                    top = idx[np.argsort(-p[idx])[:k_g]]
+                    tp += int((y[top] == c).sum())
+                    k_tot += k_g
+                rows.append((cell, seed, c, f, n, k_tot, tp))
     return pd.DataFrame(rows, columns=COLUMNS)
 
 
