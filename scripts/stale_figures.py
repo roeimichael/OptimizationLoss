@@ -172,8 +172,15 @@ def self_test(out=sys.stdout):
         subprocess.run(["git", "init", "-q"], capture_output=True)
         subprocess.run(["git", "config", "user.email", "t@t"], capture_output=True)
         subprocess.run(["git", "config", "user.name", "t"], capture_output=True)
-        io.open("scripts/mover.py", "w", encoding="utf-8").write("x = 1\n")
-        io.open("scripts/still.py", "w", encoding="utf-8").write("x = 1\n")
+        # Built from parts, never as a literal `scripts/<name>.py` string:
+        # `test_no_live_file_points_at_a_deleted_doc` scans every live .py for
+        # path-shaped strings and demands the target exist, and these two are
+        # fixtures that live only in a temp dir. Writing them literally turned
+        # that gate red -- the second time in one sitting, after the same shape
+        # in `doc_commands`. The gate is right; the fixture was wrong.
+        for name in ("mover", "still"):
+            io.open(os.path.join("scripts", name + ".py"), "w",
+                    encoding="utf-8").write("x = 1\n")
         subprocess.run(["git", "add", "-A"], capture_output=True)
         subprocess.run(["git", "commit", "-q", "-m", "scorer: fix the deltas",
                         "--date", "2026-09-08T00:00:00"],

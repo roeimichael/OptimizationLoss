@@ -9340,6 +9340,14 @@ arm**. So all of the following stand unchanged:
 * `tralo` vs `tralo_reseed`: **3/4 units**
 * restricted to units carrying a verified `task` cell: **3/3, p = 0.125**
 
+⚠️ **THOSE ARE SIGN-READ COUNTS, AND THE LEDGER NOW LICENSES SIX
+(2026-09-09).** Units C2 (`dom1`/MobileNetV3) and D1 (`bcn1mn3`/MobileNetV3)
+are licensed and UNREAD, so every `n/4` above is a numerator AND a
+denominator that can still move. Reading both costs zero GPU-hours -- both
+are on disk. 6/6 would be p=0.0156, the first sub-0.05 this design can
+reach; a single dissent takes it the other way. ⛔ DO NOT QUOTE 6/6
+BEFORE IT IS READ. FRAMEWORK 2(z66), 2(z68), task #102.
+
 🟢 **AND THE PAPER OF RECORD IS ENTIRELY UNAFFECTED.**
 `docs/paper/main_edited_by_roei.tex` and its whole `data/` tree are built on a
 DISJOINT generation of experiments. Verified 2026-09-04:

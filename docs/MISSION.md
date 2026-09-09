@@ -676,10 +676,18 @@ not two. As deployed: `tralo` > `clip` and `tralo` > its own `_null` in **4/4 un
 > `configs.task_cells.classify`: `taskwin2`/MobileNetV3 -- ledger unit `C1` --
 > is `no_strict_band` at `L70-90_G95` (class 2's strict band re-measured EMPTY
 > 2026-09-02 under the per-group prize) and `unmeasured` at `L80-100_G95` (c7
-> at K/n 0.950). So state BOTH: **4/4 units, p=0.0625** licensed, and
+> at K/n 0.950). So state BOTH: **4/4 units, p=0.0625** SIGN READ, and
 > **3/3 units, p=0.125** over units with a verified `task` cell. Every sign is
 > identical either way. `scripts/paper_rows.py` prints the restriction --
 > take it from there rather than re-deriving it.
+>
+> ⚠️ **THAT `4/4` READ `licensed` UNTIL 2026-09-10, AND IT IS NOT.**
+> LICENSED means present in `MEASURED_UNITS`; SIGN READ means somebody
+> scored it. The ledger licenses **SIX** and only these four are read --
+> C2 (`dom1`/MobileNetV3) and D1 (`bcn1mn3`/MobileNetV3) are on disk and
+> unread. So this is 4 of 4 READ, not 4 of 4 that exist, and the
+> denominator can still move in either direction. ⛔ DO NOT QUOTE 6/6
+> BEFORE IT IS READ. FRAMEWORK 2(z66), 2(z68), task #102.
 >
 > 🛑 **AND THE INCLUSION RULE WAS NOT SIGN-BLIND.** The old "B2",
 > `loose1`/RegNetY400MF, was removed in commit `1a7723a0` for running
@@ -1222,6 +1230,14 @@ Unit C1 (`taskwin2`/MobileNetV3) contributes `no_strict_band` + `unmeasured`
 and nothing else, so restricted to task-carrying units this is
 **3/3 units, p=0.125**, every sign unchanged. Quote both, and take the
 restriction from `scripts/paper_rows.py`, which prints it.
+
+> ⚠️ **THOSE ARE SIGN-READ COUNTS, AND THE LEDGER NOW LICENSES SIX
+> (2026-09-09).** Units C2 (`dom1`/MobileNetV3) and D1 (`bcn1mn3`/MobileNetV3)
+> are licensed and UNREAD, so every `n/4` above is a numerator AND a
+> denominator that can still move. Reading both costs zero GPU-hours -- both
+> are on disk. 6/6 would be p=0.0156, the first sub-0.05 this design can
+> reach; a single dissent takes it the other way. ⛔ DO NOT QUOTE 6/6
+> BEFORE IT IS READ. FRAMEWORK 2(z66), 2(z68), task #102.
 
 * 🔑 **0.0625 is the FLOOR at four units.** No amount of agreement in this
   corpus reaches p<0.05. **The bar is crossed by adding a FIFTH INDEPENDENT
