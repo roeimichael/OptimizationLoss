@@ -218,7 +218,7 @@ windows:
   #   dataset    K=0 ceilings   groups with NO capped class   unreachable items
   #   iwildcam    7 of 14  50%          3 of 7                    71.9%
   #   fmow        6 of 26  23%          1 of 13                    5.6%
-  #   bcn         2 of 16  12%          0 of 8                     0.0%
+  #   bcn         0 of 16   0%          0 of 8                     0.0%
   #
   # ⛔ NOT ZERO -- an earlier draft of this block said fmow had none, and
   # that was wrong. It is 23%, against iwildcam's 50%. The figure that
@@ -271,3 +271,63 @@ windows:
         3: []                    #   0.60 binds 0/1 -- slack, not partial
         5: []                    #   0.80 binds 0/1
       # OVERLAP: [0.20, 0.50]. BOTH `fmow1` caps are inside it on BOTH classes.
+
+  # ===================================================================
+  # bcn -- MEASURED 2026-09-09, AFTER BOTH CAMPAIGNS HAD ALREADY RUN
+  #
+  # 🛑 THIS ROW DID NOT EXIST WHILE `bcn1mn3` AND `bcn1vit` WERE
+  # GENERATED AND LAUNCHED, so neither was gated. `gen_campaign` only
+  # refused caps outside a window it HAD; a dataset with no row was
+  # waved through with a warning. That hole is now closed (an unmeasured
+  # window REFUSES unless `--allow-nontask`), and this is the row it
+  # would have needed. FRAMEWORK 2(z60).
+  #
+  # 🔑 SCREENED OFF `tralo_null`, THE ARM `meta.reference_arm` DECLARES,
+  # AND THE CHOICE IS LOAD-BEARING HERE. `clip` runs warm-up 30 + 0 and
+  # `tralo_null` warm-up 1 + 29 CE, so they are different models and 29
+  # extra CE epochs sharpen the probabilities. At K/n = 0.70 on
+  # MobileNetV3 the local p@K is 0.9967 / 0.9947 off `tralo_null` and
+  # 0.9840 / 0.9583 off `clip` -- saturated under one, a task under the
+  # other. `tralo_null` is right because it shares the TRAINED arms'
+  # schedule and is the model the constraint actually starts from.
+  # ⛔ CONSEQUENCE, AND IT MUST BE QUOTED WITH THE NUMBER: `bcn1mn3`'s
+  # L70 is a NON-TASK under this row, which moves `tralo_wins` from
+  # 1 of 3 = 33% to 1 of 2 = 50% -- across the bar, on a screen run
+  # after the outcome was known, removing a cell TraLO loses. Report
+  # BOTH denominators, never the 50% alone.
+  # ===================================================================
+  bcn:
+    MobileNetV3:
+      provenance: "bcn1mn3/MobileNetV3 (dsisco02/bf16), FOUR tralo_null seeds,
+        measured 2026-09-09 on the COMPLETE 228-run campaign. Per-group prize,
+        MIN_PRIZE 3.0. Screened off `tralo_null`; `clip` gives class 0
+        [0.70, 0.90] and class 2 [0.60, 0.90] on the same runs."
+      unconstrained_count: {0: 1432, 2: 1013}
+      per_model:
+        bcn1mn3_dsisco02_bf16: {hard: {0: 1432, 2: 1013}, seeds: 4, strict: {0: [0.80, 1.00], 2: [0.80, 1.10]}}
+      class:
+        0: [0.80, 1.00]          #   0.70 SATURATED: local p@K 0.99674
+        2: [0.80, 1.10]          #   0.70 SATURATED: local p@K 0.99473
+      partial:
+        0: [1.10, 1.10]          #   1.10 binds 2/4; 1.20 is cap slack
+        2: []                    #   1.10 is strict 4/4; 1.20 binds 0/4
+      # OVERLAP [0.80, 1.00]. `bcn1mn3` ran L70 / L80 / L90:
+      #   L70 NON-TASK, L80 task, L90 task.
+
+    ViTB16:
+      provenance: "bcn1vit/ViTB16 (dsisco02/bf16), TWO tralo_null seeds,
+        measured 2026-09-09 while the campaign was ~103/228. PROVISIONAL --
+        re-measure at 4 seeds. `clip` agrees that L70 is saturated on both
+        classes, so the L70 verdict does NOT depend on the reference arm."
+      unconstrained_count: {0: 1522, 2: 1117}
+      per_model:
+        bcn1vit_dsisco02_bf16: {hard: {0: 1522, 2: 1117}, seeds: 2, strict_2seed: {0: [0.90, 1.10], 2: [0.90, 1.10]}}
+      class:
+        0: [0.90, 1.10]          #   0.70 AND 0.80 both saturated
+        2: [0.90, 1.10]          #   0.70 AND 0.80 both saturated
+      partial:
+        0: [1.20, 1.20]          #   1.20 binds 1/2
+        2: [1.20, 1.20]          #   1.20 binds 1/2
+      # OVERLAP [0.90, 1.10]. `bcn1vit` ran L70 / L80 / L90: only L90 is a
+      # task. The 38 pending L70 runs were archived 2026-09-09; the 38
+      # completed ones stay as the receipt.

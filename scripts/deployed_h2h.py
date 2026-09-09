@@ -332,18 +332,36 @@ def floor_verdict(order, floor, nfloor, nstream=0):
     restated: a second literal is free to drift from the first, which is the
     defect `contract_keys` already demonstrates elsewhere in this repo.
 
-    This makes the tool refuse MORE, and that is the intended direction. It
-    cannot manufacture a win for any arm; it can only decline to award one.
+    THE RANGE GUARD (added 2026-09-09). The spread was `order[0] - order[-1]`
+    -- a RANGE over every arm in the cell -- compared against a PAIRWISE floor
+    (`|tralo - tralo_reseed|`, two arms). A range over k arms grows like
+    `sd*sqrt(2 ln k)`, ~3.1*sd at k=10, against a two-arm floor's 1.13*sd, so
+    `range >= floor` certifies PURE NOISE as differentiated at ~2.7x. This is
+    the SAME defect that was found and fixed in `sensitivity_screen`, where
+    the correction took a healthy-looking median 2.51 to **0.97** over 50
+    cells, and it was left standing here -- in the tool `tralo_wins` delegates
+    to, i.e. the one that decides the acceptance verdict.
+
+    The question this tool asks is "may I name a #1", and that question is
+    about #1 vs #2. So the statistic is the #1-minus-#2 MARGIN, which is
+    pairwise and therefore commensurate with a pairwise floor. The range is
+    still printed, because it is what a reader sees in the table and the gap
+    between the two is itself the finding.
     """
     if floor is None:
         return ("NO FLOOR: no `_reseed` twin in this cell, so the spread is "
                 "unpriced")
     if len(order) < 2:
         return "ONE ARM: nothing to rank"
-    spread = order[0][1] - order[-1][1]
+    rng = order[0][1] - order[-1][1]
+    spread = order[0][1] - order[1][1]
     if spread <= floor:
-        return ("REFUSED: spread %.1f items <= RNG floor %.1f (n=%d). "
-                "Naming a #1 here names the RNG." % (spread, floor, nfloor))
+        return ("REFUSED: #1-vs-#2 margin %.1f items <= RNG floor %.1f "
+                "(n=%d). Naming a #1 here names the RNG. (The RANGE over all "
+                "%d arms is %.1f, but a range over k arms is not commensurate "
+                "with a two-arm floor -- it grows like sqrt(2 ln k) and would "
+                "certify pure noise as differentiated.)"
+                % (spread, floor, nfloor, len(order), rng))
     if nfloor < MIN_FLOOR_OBS:
         return ("REFUSED: spread %.1f items clears a floor of %.1f, but that "
                 "floor rests on %d observation(s) from %d lambda=0 stream(s), "
@@ -564,15 +582,20 @@ def report(cells, control, w=sys.stdout.write):
             w("     cc-F1 is MACRO-averaged over classes with different (K+n),\n")
             w("     so trading an item between them moves it with NO item won.\n")
 
+        # `spread` is the RANGE and is DESCRIPTIVE only. The VERDICT is
+        # priced on the #1-vs-#2 MARGIN, which is pairwise and so is
+        # commensurate with the pairwise RNG floor. See `floor_verdict`.
         spread = order_tp[0][1] - order_tp[-1][1] if len(order_tp) > 1 else 0.0
+        margin = order_tp[0][1] - order_tp[1][1] if len(order_tp) > 1 else 0.0
         verdict = floor_verdict(order_tp, floor, nfloor, nstream)
         if verdict:
             n_refused += 1
             w("  #1: %s\n" % verdict)
         else:
             n_named += 1
-            w("  #1: %s   (spread %.1f items > RNG floor %.1f)\n"
-              % (order_tp[0][0], spread, floor))
+            w("  #1: %s   (#1-vs-#2 margin %.1f items > RNG floor %.1f; "
+              "range over all %d arms %.1f -- NOT the bar)\n"
+              % (order_tp[0][0], margin, floor, len(order_tp), spread))
         if len(first_tp) > 1:
             n_unstable += 1
             w("  !! JACKKNIFE UNSTABLE: dropping ONE seed makes #1 any of {%s}\n"
@@ -888,6 +911,23 @@ def self_test(w=sys.stdout.write):
     check("ONE ARM" in (floor_verdict([("a", 5.0)], 3.0, 99) or ""),
           "  a single arm still reads ONE ARM")
 
+    # --- THE RANGE GUARD, and the control the old fixtures could not give ---
+    # Every fixture above is effectively two-armed at the top, so RANGE and
+    # #1-vs-#2 MARGIN coincide and the defect was invisible to them. Here the
+    # range is 20.0 and clears a floor of 5.0 four times over, while the
+    # actual #1-vs-#2 margin is 1.0 and does not clear it at all -- a leader
+    # separated from the pack only by how far the WORST arm has fallen.
+    packed = [("tralo", 620.0), ("alm", 619.0), ("fioretto", 618.0),
+              ("hounie", 600.0)]
+    v = floor_verdict(packed, 5.0, 99)
+    check(v is not None and "margin 1.0" in v
+          and "RANGE over all 4 arms is 20.0" in v,
+          "NEGATIVE CONTROL: a 20.0 RANGE over 4 arms with a 1.0 #1-vs-#2 "
+          "margin is REFUSED against a 5.0 floor")
+    check(floor_verdict([("tralo", 620.0), ("alm", 610.0),
+                         ("hounie", 600.0)], 5.0, 99) is None,
+          "  LIVENESS: a genuine 10.0 margin over the runner-up is still NAMED")
+
     w("\nSELF-TEST %s\n" % ("PASSED" if ok else "FAILED"))
     return 0 if ok else 1
 
@@ -926,8 +966,21 @@ def main():
         hard = [(m, a, c, n) for (m, a), (n, c, tr) in sorted(flagged.items()) if tr]
         soft = [(m, a) for (m, a), (n, c, tr) in sorted(flagged.items()) if not tr]
         for model, arm, ncaps, nseeds in hard:
-            print("     %s/%s: TRAINED yet byte-identical across %d cap "
-                  "level(s) in %d seed(s)" % (model, arm, ncaps, nseeds))
+            # 🛑 SAY WHEN THE ARM IS ALSO QUARANTINED, ON THE SAME LINE. This
+            # block is a DIAGNOSTIC about md5 cap-invariance -- true and worth
+            # printing whatever an arm's dose was, and it is how
+            # `tralo_coin_sgd` was caught -- but a bare `ViTB16/fioretto: ...`
+            # row reads exactly like a scored result, which is the shape
+            # `tests/test_scorers_run_end_to_end` exists to refuse. Deleting
+            # the row would hide a real defect; labelling it keeps both facts
+            # and makes the line unmistakable.
+            print("     %s/%s%s: TRAINED yet byte-identical across %d cap "
+                  "level(s) in %d seed(s)"
+                  % (model, arm,
+                     " [DEAD ARM in at least one campaign here -- "
+                     "quarantined, diagnostic only, not a result]"
+                     if arm in dead.union() else "",
+                     ncaps, nseeds))
         if soft:
             print("     (expected, zero constraint steps: %s)"
                   % ", ".join("%s/%s" % x for x in soft))

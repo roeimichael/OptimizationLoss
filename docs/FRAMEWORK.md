@@ -3941,7 +3941,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 604 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 605 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -4105,7 +4105,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 604 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 605 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -4113,7 +4113,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (604 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (605 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -11328,6 +11328,13 @@ here a null is a null.
 takes L90; both were behind TraLO at 3 seeds. Only L80 survives, and it is the
 one cell the tool prices.
 
+🛑 **AND THIS CAMPAIGN WAS NEVER TASK-WINDOW SCREENED. SCREENED AFTER THE
+FACT (2(z60)), L70 IS A NON-TASK OFF THE DECLARED REFERENCE ARM AND A TASK OFF
+`clip`, SO THE VERDICT IS 33% OR 50% DEPENDING ON A CHOICE NOBODY HAD MADE.**
+Quote BOTH, never one: **33% over all three cells, 50% over the two the
+declared reference calls tasks.** The 50% is not a pass -- the screen was run
+after the outcome was known and the cell it removes is one TraLO loses.
+
 ### 3. 🔴 AND THE PRE-REGISTERED KILL CONDITION FIRED
 
 `tralo_coin_sgd` -- a step of the SAME NORM in a RANDOM direction, dose-matched
@@ -11536,7 +11543,12 @@ cap-invariant:
 |---|---|---|---|
 | iwildcam | 7 of 14 (50%) | 3 of 7 | **71.9%** |
 | fmow | 6 of 26 (23%) | 1 of 13 | **5.6%** |
-| bcn | 2 of 16 (12%) | 0 of 8 | **0.0%** |
+| bcn | **0 of 16 (0%)** | 0 of 8 | **0.0%** |
+
+🛑 **THE bcn ROW WAS FIRST COMPUTED ON CLASSES 3 AND 5. bcn CAPS 0 AND 2.**
+It read 2 of 16; on the real pair it is 0 of 16. Caught by
+`scripts/capped_classes`, written the same hour for exactly this -- see 2(z60).
+The fmow and iwildcam rows were on the right classes and are unchanged.
 
 🛑 **NOT ZERO. An earlier draft of the `task_windows.yml` block said fmow had no
 K=0 ceilings and that was wrong** -- it has 23%. The column that actually moves
@@ -11559,6 +11571,107 @@ exactly, which is the positive control on the count.
   (2(z58)).
 * ⚠️ MobileNetV3/L20 measures the absence of a question on class 3 and should
   be excluded from any MNv3 claim, not averaged into one.
+
+## 2(z60). THE HEADLINE CAMPAIGN WAS NEVER SCREENED, AND ITS VERDICT DEPENDS ON WHICH UNCONSTRAINED ARM YOU SCREEN WITH (2026-09-09)
+
+**`bcn1mn3` and `bcn1vit` were both generated and run against NO measured task
+window** -- `configs/task_windows.yml` had no `bcn` entry at all, and
+`gen_campaign` only refuses caps that fall outside a window it HAS. A dataset
+with no row is waved through. So the protection that exists precisely to stop
+another `uniform1` has never applied to the campaign carrying the headline.
+
+Screened after the fact, from each campaign's own finished reference runs:
+
+### 1. `bcn1mn3` / MobileNetV3, 4 seeds -- L70 IS A NON-TASK
+
+| reference arm | class 0 window | class 2 window | L70 | L80 | L90 |
+|---|---|---|---|---|---|
+| `tralo_null` (the arm `task_windows.yml` DECLARES) | [0.80, 1.00] | [0.80, 1.10] | **saturated** | task | task |
+| `clip` | [0.70, 0.90] | [0.60, 0.90] | **task** | task | task |
+
+🛑 **AND THAT MOVES THE ACCEPTANCE VERDICT ACROSS THE BAR.** 2(z57) reports
+`tralo_wins` at **1 of 3 = 33%, FAIL**. Drop L70 as a non-task and it is
+**1 of 2 = 50%, which meets the bar exactly.**
+
+⛔ **DO NOT QUOTE THE 50%.** Three reasons, and each alone is enough:
+* The screen was run **after the outcome was known**, and the cell it removes
+  is one TraLO LOSES (`fioretto` +16.75 against `tralo` +11.25). An exclusion
+  rule applied post hoc that deletes a loss is not a rule, it is a choice.
+* It rests entirely on the reference arm, and the repo has never argued for
+  one. `tralo_null` is the defensible pick -- it shares the trained arms'
+  schedule (warm-up 1 + 29 CE) and IS the model the constraint starts from,
+  where `clip` is warm-up 30 + 0 and is a different model -- but that argument
+  is being made here for the first time, after seeing what it does.
+* 50% is the bar EXACTLY, on a denominator of two correlated cells sharing one
+  warm-up. It is one cell from either verdict.
+* 🛑 **AND `tralo_wins` DOES NOT PRINT IT.** Verified with the bcn row
+  in place: the tool's denominator is "cells that hold a rival", which is 3,
+  so it still reports **1 of 3 = 33%, FAIL** and prints the task-window
+  status as a separate warning. The 50% is a CONDITIONAL someone would have
+  to construct by hand. Do not attribute it to the tool.
+
+✅ **THE INSTRUMENT FIX THAT DID NOT CHANGE IT, WHICH IS ALSO WORTH SAYING.**
+`deployed_h2h.floor_verdict` priced its verdict on `order[0] - order[-1]` -- a
+RANGE over every arm in the cell -- against a PAIRWISE floor. A range over k
+arms grows like `sd*sqrt(2 ln k)` against a two-arm floor's `1.13*sd`, so it
+certifies pure noise as differentiated at ~2.7x; the identical defect was found
+and fixed in `sensitivity_screen` (median 2.51 -> 0.97 over 50 cells) and left
+standing here, in the tool `tralo_wins` delegates to. Corrected to the
+#1-vs-#2 MARGIN, which is pairwise and therefore commensurate. **The bcn1mn3
+verdict is unchanged**: L80's margin is 15.75 items against a 12.5 floor and is
+still priced. Gated with a negative control the old fixtures could not give --
+a 4-arm cell whose RANGE is 20.0 over a 5.0 floor while its margin is 1.0 --
+mutation-tested 1/1.
+
+**Report both, always: `33% over all three cells, 50% over the two that the
+declared reference arm calls tasks`.**
+
+🔑 **WHY THE TWO REFERENCES DISAGREE, AND IT IS NOT NOISE.** `tralo_null` runs
+29 more CE epochs than `clip`, which sharpens the probabilities: at K/n = 0.70
+its local p@K is **0.9967 / 0.9947** against `clip`'s **0.9840 / 0.9583**. That
+is "CE saturates" (section 1) showing up in the SCREEN rather than in a result.
+So the window is a property of (dataset, backbone, **and schedule**), and the
+yml's `reference_arm: tralo_null` line was carrying a decision nobody had
+noticed they were making.
+
+### 2. `bcn1vit` / ViTB16 -- TWO OF THREE CAPS MEASURE NOTHING
+
+Measured on the live campaign at 2 seeds, and here the two references AGREE:
+
+| reference | class 0 | class 2 | L70 | L80 | L90 |
+|---|---|---|---|---|---|
+| `tralo_null` | [0.90, 1.10] | [0.90, 1.10] | **saturated** | **saturated** | task |
+| `clip` | [0.90, 1.20] | [0.80, 1.10] | **saturated** | saturated / task | task |
+
+**L70 is saturated on BOTH classes under BOTH references.** The window is per
+(dataset, backbone) and MobileNetV3's does not transfer: the same three cap tags
+that give MNv3 two task cells give ViTB16 one.
+
+✅ **ACTED ON, 2026-09-09**: the 38 PENDING L70 runs (seeds 3-4, uniformly 2 per
+arm across all 19 arms) were **archived** to
+`~/optloss-archive-bcn1vit-L70-nontask-2026-09-09`, not deleted. L70 is left at
+a clean 2 seeds for every arm -- uniform, so no ragged coverage -- and the GPU
+moved to L90, the one in-window cell and the one furthest from complete. The 38
+COMPLETED L70 runs are untouched and are the receipt for this entry.
+
+### 3. WHAT THIS CHANGES IN THE GENERATOR
+
+⛔ `gen_campaign` `continue`s silently past a dataset with no window row. That
+is the hole both bcn campaigns went through, and `fmow1` went through it too
+(2(z59)) -- it happened to land well. A gate that only fires when a row already
+exists cannot protect the FIRST campaign on any new dataset, which is exactly
+when the cap is being guessed.
+
+### 4. WHAT IT LICENSES
+
+* 🟢 `bcn1mn3` L80 and L90 are task cells under BOTH references. Those two are
+  the campaign's real evidence and they are unaffected.
+* 🟢 `bcn1vit` L90 is a task cell under both. Finish it.
+* ⛔ Nothing at `bcn1vit` L70/L80 is evidence about any method.
+* ⛔ The 33%-vs-50% ambiguity is not resolvable from this campaign. It is
+  resolvable by running MobileNetV3/bcn at a cap INSIDE both references'
+  windows -- K/n 0.80-0.90 -- where the two agree, so the verdict cannot turn
+  on the choice.
 
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
@@ -12907,7 +13020,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             604 tests, ~200 s, no dataset required
+tests/             605 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

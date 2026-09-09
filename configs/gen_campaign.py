@@ -347,7 +347,7 @@ def prior_arm_gate(P, args, arms, explicit=None):
     return set(named)
 
 
-def task_window_gate(P, args, resolved):
+def task_window_gate(P, args, resolved, TW=None):
     """REFUSE a campaign whose caps pose no question. FRAMEWORK 2(z16), 2(z17).
 
     A cap outside the measured window cannot distinguish any two methods: the
@@ -356,11 +356,17 @@ def task_window_gate(P, args, resolved):
     are outside it, on every backbone the paper claims -- which is the best
     single explanation on record for why so many arms tied.
 
-    Silent when the slice is absent (nothing to measure) and a WARNING, not a
-    refusal, for a (dataset, backbone) with no measured row: an unmeasured
-    backbone is an unknown, not a known non-task.
+    Silent when the slice is absent (nothing to measure). 🛑 An unmeasured
+    row now REFUSES rather than warning -- `bcn1mn3`, `bcn1vit` and `fmow1`
+    were all generated through that hole, and screening `bcn1mn3` afterwards
+    moved its acceptance verdict across the bar. FRAMEWORK 2(z60).
+
+    `TW` is injectable so the self-test can present the exact state those
+    three campaigns saw -- a windows file with no row for their dataset --
+    without editing the file on disk.
     """
-    TW = load_windows()
+    if TW is None:
+        TW = load_windows()
     if not TW:
         # 🛑 THE MUTE BRANCH. Every other exit from this function says what
         # it could not check; this one skipped the ENTIRE gate and printed
@@ -408,13 +414,70 @@ def task_window_gate(P, args, resolved):
                         nostrict.append((model, tag, c, v["ratio"]))
                     elif not v["ok"]:
                         bad.append((model, tag, c, v["ratio"], v["lo"], v["hi"]))
+    # 🛑 AN UNMEASURED WINDOW NOW REFUSES. It used to print the warning below
+    # and generate anyway, and THREE campaigns in a row went through that hole:
+    # `bcn1mn3` (the headline), `bcn1vit` and `fmow1` were all generated with
+    # no `bcn`/`fmow` row in `task_windows.yml` at all. Screened afterwards
+    # (FRAMEWORK 2(z60)), `bcn1mn3`'s L70 is a NON-TASK off the declared
+    # reference arm -- which moves `tralo_wins` from 33% to 50%, i.e. across
+    # the acceptance bar, on a screen run after the outcome was known -- and
+    # TWO of `bcn1vit`'s three caps are saturated on both capped classes.
+    #
+    # ⚠️ THE CHICKEN-AND-EGG IS REAL AND IS WHY THIS WAS A WARNING: measuring a
+    # window needs a FINISHED unconstrained run, which needs a campaign. So
+    # this refuses with the two legal ways forward rather than closing the
+    # door -- and `--allow-nontask`, which already exists for the strictly
+    # WEAKER case of a measured non-task, is the override. An unmeasured
+    # window cannot be gated more loosely than a measured failure.
+    if unknown and not getattr(args, "allow_nontask", False):
+        lines = ["REFUSED: no measured task window for %s."
+                 % ", ".join(sorted(unknown))]
+        lines += [
+            "",
+            "  `task_windows.yml` has no row for it, so NOT ONE cap in this "
+            "campaign was",
+            "  checked against FRAMEWORK 2(z17) -- and an unmeasured window "
+            "is an unknown,",
+            "  not a known task. Measured on all four iwildcam backbones, 24 "
+            "of 24 cells at",
+            "  L20/L30/L50 pose no question and every one of them would "
+            "generate here",
+            "  without complaint.",
+            "",
+            "  TWO LEGAL WAYS FORWARD:",
+            "   1. MEASURE IT, if any unconstrained run for this "
+            "(dataset, backbone) exists:",
+            "        python -m scripts.task_window --glob "
+            "'<root>/<Backbone>/<ds>/*/tralo_null/seed_*'",
+            "      and paste the reported window into "
+            "configs/task_windows.yml.",
+            "   2. GENERATE A DELIBERATELY UNSCREENED PILOT with "
+            "--allow-nontask, which",
+            "      says in the output what it let through. Screen it from its "
+            "OWN nulls",
+            "      before scoring ANYTHING -- that is what did not happen for "
+            "bcn or fmow.",
+            "",
+            "  ⚠️ AND THE REFERENCE ARM IS PART OF THE ANSWER, NOT A "
+            "DETAIL. `tralo_null`",
+            "  and `clip` are different models -- 29 extra CE epochs sharpen "
+            "the probabilities",
+            "  -- and on bcn they disagree about whether L70 is a task at "
+            "all. Screen with",
+            "  `tralo_null`, the arm `task_windows.yml` declares and the one "
+            "the constraint",
+            "  actually starts from, and say so.",
+        ]
+        raise SystemExit("\n".join(lines))
     for u in sorted(unknown):
-        print("  !! NO MEASURED TASK WINDOW for %s, so it is NOT gated. "
-              "Measure it with" % u)
-        print("     python -m scripts.task_window --glob <unconstrained runs>")
-        print("     before trusting any null from it. An unmeasured backbone "
-              "is an unknown,")
-        print("     not a known task.")
+        print("  !! NO MEASURED TASK WINDOW for %s and --allow-nontask was "
+              "passed, so it is" % u)
+        print("     NOT gated. This campaign is an UNSCREENED PILOT. Measure "
+              "the window from")
+        print("     its own nulls with `scripts.task_window` BEFORE scoring "
+              "anything, and")
+        print("     screen with `tralo_null`: it and `clip` disagree about "
+              "L70 on bcn.")
     # 🛑 SAY SO WHEN THE GATE DID NOT RUN. Campaigns are generated on
     # laptops, where the slice is absent, every cell returns `no_data` and
     # this function would otherwise return having printed NOTHING and
@@ -611,6 +674,33 @@ def _gate_self_test():
             print("  %-64s %s" % ("LIVENESS end to end: taskwin1 caps ALLOWED",
                                   "FAIL"))
             ok = False
+
+        # --- AN UNMEASURED WINDOW REFUSES, AND THE OVERRIDE LETS IT PAST ---
+        # The hole that `bcn1mn3`, `bcn1vit` and `fmow1` all went through:
+        # a dataset with no row in `task_windows.yml` used to WARN and then
+        # generate. Simulated by emptying the window map, which is exactly
+        # the state those three campaigns saw. FRAMEWORK 2(z60).
+        import copy as _copy
+        TW_none = _copy.deepcopy(load_windows())
+        TW_none["windows"] = {}
+        try:
+            task_window_gate(P, A, None, TW=TW_none)
+            print("  %-64s %s" % ("an UNMEASURED window is REFUSED", "FAIL"))
+            ok = False
+        except SystemExit:
+            print("  %-64s %s" % ("an UNMEASURED window is REFUSED", "PASS"))
+        A.allow_nontask = True
+        try:
+            task_window_gate(P, A, None, TW=TW_none)
+            print("  %-64s %s"
+                  % ("NEGATIVE CONTROL: --allow-nontask lets the pilot "
+                     "through", "PASS"))
+        except SystemExit:
+            print("  %-64s %s"
+                  % ("NEGATIVE CONTROL: --allow-nontask lets the pilot "
+                     "through", "FAIL"))
+            ok = False
+        A.allow_nontask = False
     print("")
     if not ok:
         print("FAILURES ABOVE")

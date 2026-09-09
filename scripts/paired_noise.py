@@ -43,6 +43,7 @@ import numpy as np
 import pandas as pd
 
 from scripts import pred_integrity
+from scripts import capped_classes                  # noqa: E402
 
 COLUMNS = ["cell", "seed", "cls", "frac", "n", "k", "tp"]
 DEFAULT_FRACS = [0.2, 0.3, 0.5, 0.7, 0.8, 0.9]
@@ -367,7 +368,8 @@ def main():
                     help="RNG-only arm giving the noise floor")
     ap.add_argument("--treated", default="tralo",
                     help="the arm whose contrast is actually run")
-    ap.add_argument("--classes", type=int, nargs="+", default=[2, 7])
+    ap.add_argument("--classes", nargs="+", type=int,
+                   default=None, help="capped classes. DEFAULT: read from the campaign's own config.json. A pair that CONTRADICTS the config is REFUSED -- the old default was iwildcam's [2, 7], wrong on bcn (0, 2) and fmow (3, 5), and it printed a plausible number rather than raising.")
     ap.add_argument("--fracs", type=float, nargs="+", default=DEFAULT_FRACS,
                     help="K/n levels to sweep (default 0.2 .. 0.9)")
     ap.add_argument("--allow-quarantined", action="store_true",
@@ -378,6 +380,12 @@ def main():
 
     if args.self_test:
         return self_test()
+    # THE CAPPED CLASSES COME FROM THE CAMPAIGN, NOT FROM A DEFAULT.
+    # This defaulted to iwildcam's [2, 7] and every caller consumed
+    # it, so on a bcn or fmow campaign it scored two classes the
+    # experiment never constrained -- silently, with a plausible
+    # number attached. FRAMEWORK 2(z60).
+    args.classes = capped_classes.resolve(args.campaign, args.classes)
     if not args.campaign:
         ap.error("give --campaign, or --self-test")
     if not os.path.isdir(args.campaign):

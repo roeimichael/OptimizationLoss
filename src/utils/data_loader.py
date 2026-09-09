@@ -62,8 +62,17 @@ def _encode_groups(col, group_col):
                          "ordinary level and never raise at all" % group_col)
     try:
         return col.values.astype(np.int64)
-    except (ValueError, TypeError):
-        pass
+    except (ValueError, TypeError) as exc:
+        # REPORTED, not swallowed. The fall-through IS deliberate -- a
+        # non-integer group column is factorised below and that is announced
+        # -- but `except: pass` in a data path is indistinguishable from a
+        # drop until someone reads the next twelve lines, and this function
+        # decides what every per-group budget is computed over. Naming the
+        # exception says WHICH column shape was rejected, which is the part
+        # the factorise message cannot carry.
+        log.info("group column %r is not an integer column (%s: %s); "
+                 "factorising by sorted unique value",
+                 group_col, type(exc).__name__, exc)
     levels = sorted(set(str(v) for v in col.values))
     code = dict((v, i) for i, v in enumerate(levels))
     log.info("group column %r is not integer; factorised %d levels by sorted "

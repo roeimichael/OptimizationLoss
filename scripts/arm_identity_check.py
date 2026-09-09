@@ -29,6 +29,7 @@ import sys
 import pandas as pd
 
 from scripts import quarantine
+from scripts import capped_classes                  # noqa: E402
 
 
 def captured(run_dir, classes):
@@ -114,7 +115,8 @@ def self_test(w=sys.stdout.write):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--root")
-    ap.add_argument("--classes", type=int, nargs="+", default=[2, 7])
+    ap.add_argument("--classes", nargs="+", type=int,
+                   default=None, help="capped classes. DEFAULT: read from the campaign's own config.json. A pair that CONTRADICTS the config is REFUSED -- the old default was iwildcam's [2, 7], wrong on bcn (0, 2) and fmow (3, 5), and it printed a plausible number rather than raising.")
     ap.add_argument("--pairs", nargs="+", default=["alm:fioretto"],
                     help="armA:armB, the identity hypotheses to test")
     ap.add_argument("--floor", default="tralo_null:tralo_reseed",
@@ -127,6 +129,12 @@ def main():
 
     if a.self_test:
         return self_test()
+    # THE CAPPED CLASSES COME FROM THE CAMPAIGN, NOT FROM A DEFAULT.
+    # This defaulted to iwildcam's [2, 7] and every caller consumed
+    # it, so on a bcn or fmow campaign it scored two classes the
+    # experiment never constrained -- silently, with a plausible
+    # number attached. FRAMEWORK 2(z60).
+    a.classes = capped_classes.resolve(a.root, a.classes)
     if not a.root:
         ap.error("--root is required (or use --self-test)")
 

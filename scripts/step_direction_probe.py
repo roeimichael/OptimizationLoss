@@ -27,6 +27,7 @@ import csv
 import glob
 import os
 import sys
+from scripts import capped_classes                  # noqa: E402
 
 import numpy as np
 
@@ -156,7 +157,8 @@ def main(argv=None):
     a = argparse.ArgumentParser()
     a.add_argument("--runs", nargs="+")
     a.add_argument("--glob")
-    a.add_argument("--classes", nargs="+", type=int, default=[2, 7])
+    a.add_argument("--classes", nargs="+", type=int,
+                   default=None, help="capped classes. DEFAULT: read from the campaign's own config.json. A pair that CONTRADICTS the config is REFUSED -- the old default was iwildcam's [2, 7], wrong on bcn (0, 2) and fmow (3, 5), and it printed a plausible number rather than raising.")
     a.add_argument("--n-items", type=int, default=40,
                    help="items inside the cut window (T is derived from this)")
     a.add_argument("--limit", type=int, default=0,
@@ -166,6 +168,12 @@ def main(argv=None):
     args = a.parse_args(argv)
     if args.self_test:
         return self_test()
+    # THE CAPPED CLASSES COME FROM THE CAMPAIGN, NOT FROM A DEFAULT.
+    # This defaulted to iwildcam's [2, 7] and every caller consumed
+    # it, so on a bcn or fmow campaign it scored two classes the
+    # experiment never constrained -- silently, with a plausible
+    # number attached. FRAMEWORK 2(z60).
+    args.classes = capped_classes.resolve(args.glob, args.classes)
 
     # 🛑 THIS WAS `[:12]`, AND IT WAS A SILENT CAP. `sorted()` is alphabetical,
     # so on a 24-run cell it kept the first two or three ARMS and dropped the

@@ -55,6 +55,7 @@ import numpy as np
 # reimplemented: a screen that rounds differently from the trainer
 # selects a cap the campaign does not actually run.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from scripts import capped_classes                  # noqa: E402
 from src.training.constraints import _round_to_K  # noqa: E402
 
 WIGGLE_MAX = 0.99          # p@K at or above this is saturated territory
@@ -647,11 +648,18 @@ def main(argv=None):
     a.add_argument("--runs", nargs="+",
                    help="run dirs of an UNCONSTRAINED arm (tralo_null / clip)")
     a.add_argument("--glob", help="glob for the same")
-    a.add_argument("--classes", nargs="+", type=int, default=[2, 7])
+    a.add_argument("--classes", nargs="+", type=int,
+                   default=None, help="capped classes. DEFAULT: read from the campaign's own config.json. A pair that CONTRADICTS the config is REFUSED -- the old default was iwildcam's [2, 7], wrong on bcn (0, 2) and fmow (3, 5), and it printed a plausible number rather than raising.")
     a.add_argument("--self-test", action="store_true")
     args = a.parse_args(argv)
     if args.self_test:
         return self_test()
+    # THE CAPPED CLASSES COME FROM THE CAMPAIGN, NOT FROM A DEFAULT.
+    # This defaulted to iwildcam's [2, 7] and every caller consumed
+    # it, so on a bcn or fmow campaign it scored two classes the
+    # experiment never constrained -- silently, with a plausible
+    # number attached. FRAMEWORK 2(z60).
+    args.classes = capped_classes.resolve(args.glob, args.classes)
 
     runs = args.runs or sorted(glob.glob(args.glob or ""))
     if not runs:

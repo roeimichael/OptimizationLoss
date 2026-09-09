@@ -43,6 +43,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from scripts import capped_classes                  # noqa: E402
+
 _LIM = re.compile(r"^Group(\d+)_Limit_Class(\d+)$")
 
 
@@ -490,7 +492,8 @@ def main(argv=None):
     a.add_argument("--campaign", nargs="+", default=[])
     a.add_argument("--arms", nargs="+", default=["tralo", "alm"])
     a.add_argument("--null-arm", default="tralo_null")
-    a.add_argument("--classes", nargs="+", type=int, default=[2, 7])
+    a.add_argument("--classes", nargs="+", type=int,
+                   default=None, help="capped classes. DEFAULT: read from the campaign's own config.json. A pair that CONTRADICTS the config is REFUSED -- the old default was iwildcam's [2, 7], wrong on bcn (0, 2) and fmow (3, 5), and it printed a plausible number rather than raising.")
     a.add_argument("--buckets", type=int, default=3)
     a.add_argument("--rho", type=float, default=0.5,
                    help="rho at which to score the penalty slope. It RATCHETS "
@@ -500,6 +503,12 @@ def main(argv=None):
     args = a.parse_args(argv)
     if args.self_test:
         return self_test()
+    # THE CAPPED CLASSES COME FROM THE CAMPAIGN, NOT FROM A DEFAULT.
+    # This defaulted to iwildcam's [2, 7] and every caller consumed
+    # it, so on a bcn or fmow campaign it scored two classes the
+    # experiment never constrained -- silently, with a plausible
+    # number attached. FRAMEWORK 2(z60).
+    args.classes = capped_classes.resolve(args.campaign, args.classes)
     if not args.campaign:
         a.error("give --campaign <root> ... (or --self-test)")
     return analyse(args.campaign, set(args.classes), args.arms,
