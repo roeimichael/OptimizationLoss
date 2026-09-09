@@ -62,8 +62,18 @@ def _encode_groups(col, group_col):
                          "ordinary level and never raise at all" % group_col)
     try:
         return col.values.astype(np.int64)
-    except (ValueError, TypeError):
-        pass
+    except (ValueError, TypeError) as exc:
+        # REPORTED, not swallowed. A bare `except: pass` here is a silent
+        # swallow even though the fall-through is deliberate -- and it is
+        # exactly what `test_no_scorer_or_gate_DROPS_DATA_WITHOUT_SAYING_SO`
+        # exists to catch, because the next person cannot tell an intentional
+        # fast-path miss from a bug that eats every row. Naming the exception
+        # also distinguishes the two real cases: a genuinely non-numeric
+        # column, and a numeric one with a stray token in it, which SHOULD be
+        # investigated rather than quietly factorised into 4000 levels.
+        log.info("group column %r is not an integer column (%s: %s); "
+                 "factorising by sorted unique value",
+                 group_col, type(exc).__name__, exc)
     levels = sorted(set(str(v) for v in col.values))
     code = dict((v, i) for i, v in enumerate(levels))
     log.info("group column %r is not integer; factorised %d levels by sorted "
