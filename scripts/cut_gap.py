@@ -94,6 +94,56 @@ import pandas as pd
 DEAD_SLOPE = 0.005
 
 
+def per_group_cut(p, alloc_pred, groups, cls):
+    """The cut the ALLOCATOR actually makes, which is PER GROUP.
+
+    `np.argsort(-p)[K-1]` is the globally K-th ranked item. The allocator never
+    emits that set: it takes top-k_g WITHIN each group, so the real cut is one
+    probability PER GROUP and the global one is an upper bound on every one of
+    them -- the global top-K is by construction the selection that maximises
+    the minimum selected probability.
+
+    ⚠️ ONLY THE MINIMUM IS ORDERABLE AGAINST THE GLOBAL READING, and I got
+    this wrong first. The global top-K maximises the MINIMUM selected
+    probability, so `min_g(cut_g) <= p_K_global` always. The budget-weighted
+    MEAN has no such relation -- it is a mean against a minimum, and where the
+    budgets roughly track group difficulty it comes out ABOVE the global value.
+    Measured on a synthetic tree with per-group budgets at 60% of each group's
+    own argmax count: mean 0.690 vs global 0.681, i.e. the opposite direction
+    from the one asserted. Both are returned; the min is the one with a proof
+    attached. FRAMEWORK 2(z64).
+
+    Returns (budget-weighted mean cut, mean slope, groups cut, min cut,
+    max slope over groups). `max slope` is the reachability answer the global
+    reading structurally could not give: whether ANY group's cut sits where
+    `p(1-p)` is large, rather than whether the average one does.
+
+    THE SLOPE IS AVERAGED, NOT RECOMPUTED FROM THE AVERAGED p. `p(1-p)` is
+    concave, so by Jensen `pbar(1-pbar) >= mean(p_g(1-p_g))`: taking the slope
+    of the mean cut would overstate the per-item gradient and replace one bias
+    with another one pointing the other way.
+    """
+    if groups is None:
+        return None, None, None, None, None
+    num = den = slope = 0.0
+    ncut, lo, hi = 0, 1.0, 0.0
+    for gg in np.unique(groups):
+        idx = np.where(groups == gg)[0]
+        k_g = int((alloc_pred[idx] == cls).sum())
+        if k_g == 0:                      # K=0 ceiling: no cut exists here
+            continue
+        cut = float(np.sort(p[idx])[-k_g])
+        num += cut * k_g
+        slope += cut * (1.0 - cut) * k_g
+        den += k_g
+        ncut += 1
+        lo = min(lo, cut)
+        hi = max(hi, cut * (1.0 - cut))
+    if den == 0:
+        return None, None, None, None, None
+    return num / den, slope / den, ncut, lo, hi
+
+
 def measure(root, arm="tralo_null"):
     """Per (cap, class, seed) geometry for one campaign root. Returns a frame."""
     rows = []
@@ -114,6 +164,8 @@ def measure(root, arm="tralo_null"):
 
         raw, alloc = pd.read_csv(raw_p), pd.read_csv(alloc_p)
         y = raw["True_Label"].to_numpy()
+        groups = (raw["Group_ID"].to_numpy() if "Group_ID" in raw.columns
+                  else None)
         pcols = sorted((int(c[len("Prob_Class_"):]), c) for c in raw.columns
                        if c.startswith("Prob_Class_"))
         if not pcols:
@@ -131,13 +183,22 @@ def measure(root, arm="tralo_null"):
             if not (0 < K <= len(P) and 0 < hard <= len(P)):
                 continue
             order = np.argsort(-P[:, cls])
-            pk = float(P[order[K - 1], cls])
+            # THE GLOBAL READING, KEPT ONLY SO THE PUBLISHED TABLE IN THIS
+            # DOCSTRING STAYS REPRODUCIBLE. It is not the cut the allocator
+            # makes; `p_K` below is. FRAMEWORK 2(z64).
+            pk_g = float(P[order[K - 1], cls])
             pb = float(P[order[hard - 1], cls])
+            pk, sl, ncut, pk_lo, sl_hi = per_group_cut(
+                P[:, cls], alloc_pred, groups, cls)
+            if pk is None:      # no Group_ID column: no per-group cut exists
+                pk, sl, ncut = pk_g, pk_g * (1 - pk_g), 0
+                pk_lo, sl_hi = pk_g, pk_g * (1 - pk_g)
             rows.append(dict(campaign=camp, model=model, cap=cap, seed=seed,
                              cls=cls, K=K, hard=hard,
                              n_pos=int((y == cls).sum()), gap=hard - K,
-                             p_K=pk, p_bd=pb,
-                             slope_K=pk * (1 - pk), slope_bd=pb * (1 - pb)))
+                             p_K=pk, p_K_global=pk_g, cut_groups=ncut,
+                             p_K_min=pk_lo, slope_max=sl_hi, p_bd=pb,
+                             slope_K=sl, slope_bd=pb * (1 - pb)))
     return pd.DataFrame(rows)
 
 
@@ -156,6 +217,8 @@ def summarise(df, by_model=True):
     g = (df.groupby(keys)
            .agg(seeds=("seed", "nunique"), K=("K", "mean"), hard=("hard", "mean"),
                 n_pos=("n_pos", "mean"), gap=("gap", "mean"), p_K=("p_K", "mean"),
+                p_K_glob=("p_K_global", "mean"), cut_grp=("cut_groups", "mean"),
+                p_Kmin=("p_K_min", "mean"), slope_max=("slope_max", "mean"),
                 slope_K=("slope_K", "mean"), slope_bd=("slope_bd", "mean"))
            .reset_index())
     g["K_over_n"] = g.K / g.n_pos
@@ -175,6 +238,28 @@ def report(g, out=sys.stdout):
     print("ratio = p(1-p) at the boundary / at the cut. How many times more pull",
           file=out)
     print("        the penalty has where the metric does NOT look.\n", file=out)
+    print("p_K   = the PER-GROUP cut, budget-weighted over the `cut_grp` groups",
+          file=out)
+    print("        that hold a nonzero ceiling. p_K_glob is the old GLOBAL rank-K",
+          file=out)
+    print("        reading, kept only so the docstring's table reproduces.",
+          file=out)
+    print("p_Kmin/slope_max = the DEEPEST group's cut. Only this one is ordered",
+          file=out)
+    print("        against p_K_glob (the global top-K maximises the minimum",
+          file=out)
+    print("        selected probability); the MEAN can fall either side, so do",
+          file=out)
+    print("        NOT read a p_K vs p_K_glob comparison as a direction.\n",
+          file=out)
+    if "slope_max" in g.columns:
+        n_live = int((g.slope_max >= DEAD_SLOPE).sum())
+        print("    %d of %d rows have at least ONE group whose cut carries live"
+              % (n_live, len(g)), file=out)
+        print("    gradient (slope_max >= %.3f), against %d by the averaged cut."
+              % (DEAD_SLOPE, int((g.slope_K >= DEAD_SLOPE).sum())), file=out)
+        print("    The global reading could not report this column at all.\n",
+              file=out)
 
     dead = g[g.slope_K < DEAD_SLOPE]
     if len(dead):
@@ -224,7 +309,57 @@ def self_test(out=sys.stdout):
         print("  %-10s %6d %6d %10.4f %10.6f"
               % (name, K, hard - K, pk, pk * (1 - pk)), file=out)
 
+    # ---- THE CUT IS PER GROUP, NOT GLOBAL (FRAMEWORK 2(z64)) ----------------
+    # A fixture where the two rules give DIFFERENT answers, which is the only
+    # kind that gates anything: group 0 is confident and gets a budget of 1,
+    # group 1 is not and gets 2, so the allocator is forced down to p=0.30
+    # while a global top-3 never goes below 0.97.
+    pg = np.array([0.99, 0.98, 0.97, 0.60, 0.30, 0.05])
+    grp = np.array([0, 0, 0, 1, 1, 1])
+    sel = np.array([1, 0, 0, 1, 1, 0])          # k_0 = 1, k_1 = 2, K = 3
+    gcut = float(np.sort(pg)[::-1][int(sel.sum()) - 1])
+    pk_pg, sl_pg, ncut_pg, lo_pg, hi_pg = per_group_cut(pg, sel, grp, 1)
+    # the same items under ONE group: the two rules must then COINCIDE
+    pk_one, sl_one, _, lo_one, _ = per_group_cut(pg, sel, np.zeros(6, int), 1)
+    # a fully-satisfied K=0 group must be SKIPPED, not averaged in
+    pg3 = np.concatenate([pg, [0.999, 0.999, 0.999]])
+    pk_k0, sl_k0, ncut_k0, _, _ = per_group_cut(
+        pg3, np.concatenate([sel, [0, 0, 0]]),
+        np.concatenate([grp, [2, 2, 2]]), 1)
+    jensen = pk_pg * (1 - pk_pg)                # slope OF the mean cut
+    # THE ONE ORDERING WITH A PROOF: the global top-K is the selection that
+    # maximises the minimum selected probability, so no per-group cut set can
+    # have a higher minimum. A SECOND fixture, budgets tracking difficulty,
+    # where the MEAN goes the other way -- the case the e2e run caught.
+    pg2 = np.array([0.99, 0.97, 0.40, 0.95, 0.93, 0.35])
+    sel2 = np.array([1, 1, 0, 1, 1, 0])         # k_0 = 2, k_1 = 2, K = 4
+    g2cut = float(np.sort(pg2)[::-1][3])
+    pk2, _, _, lo2, _ = per_group_cut(pg2, sel2, grp, 1)
+
+    print("\n  per-group cut %.4f (slope %.6f, %d groups, min %.4f) vs GLOBAL "
+          "rank-K %.4f (slope %.6f)" % (pk_pg, sl_pg, ncut_pg, lo_pg, gcut,
+                                        gcut * (1 - gcut)), file=out)
+
     checks = [
+        ("the per-group MINIMUM cut never exceeds the global rank-K one",
+         lo_pg <= gcut + 1e-12 and lo2 <= g2cut + 1e-12),
+        ("...and the MEAN has no such ordering: fixture 2 puts it ABOVE",
+         pk2 > g2cut + 1e-9),
+        ("the two rules disagree at all -- fixture 1 separates them",
+         abs(pk_pg - gcut) > 1e-9),
+        ("a deeper cut carries MORE per-item gradient, not less",
+         sl_pg > gcut * (1 - gcut) + 1e-9),
+        ("the slope is the MEAN OF SLOPES, not the slope of the mean (Jensen)",
+         abs(sl_pg - jensen) > 1e-6 and sl_pg < jensen),
+        ("slope_max reports the DEEPEST group's cut, not the average one",
+         hi_pg >= sl_pg - 1e-12 and abs(hi_pg - 0.30 * 0.70) < 1e-9),
+        ("NEGATIVE CONTROL: with ONE group the two rules coincide exactly",
+         abs(pk_one - gcut) < 1e-12 and abs(lo_one - gcut) < 1e-12
+         and abs(sl_one - gcut * (1 - gcut)) < 1e-12),
+        ("NEGATIVE CONTROL: a K=0 group is skipped, not averaged in",
+         abs(pk_k0 - pk_pg) < 1e-12 and ncut_k0 == ncut_pg),
+        ("NEGATIVE CONTROL: no Group_ID yields no per-group cut, not a guess",
+         per_group_cut(pg, sel, None, 1) == (None, None, None, None, None)),
         ("a tighter cap gives a strictly larger gap",
          seen["tight"][0] > seen["loose"][0]),
         ("a tighter cap puts the cut nearer p=1",

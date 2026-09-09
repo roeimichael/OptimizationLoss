@@ -65,7 +65,6 @@ def _write_run(root, cap, arm, seed):
         "model_name": "ViTB16",
         "dataset_name": "iwildcam",
         "methodology": arm,
-        "seed": seed,
         "code_version": "0" * 12,
         "cap_tag": cap,
         # `constraint` is [local, global] and a real config always carries it;
@@ -81,6 +80,14 @@ def _write_run(root, cap, arm, seed):
             "disjoint_groups": True,
         },
         "hyperparams": {
+            # THE SEED LIVES IN `hyperparams`, and ONLY there:
+            # `gen_campaign.py:130` writes `hp["seed"] = seed` and
+            # nothing writes a top-level one, while `full_panel.panel`
+            # reads `cfg["hyperparams"]["seed"]`. This fixture put it at
+            # top level, so every scorer here saw `seed: None` -- and
+            # `cell_table` crashed on `sorted()` over Nones the moment
+            # the group column was also corrected and it got that far.
+            "seed": seed,
             "warmup_epochs": 1,
             "constraint_epochs": 0 if arm in ("clip", "focal_clip") else 29,
             "constraint_fp32": True,
@@ -92,7 +99,13 @@ def _write_run(root, cap, arm, seed):
 
     # Two prediction files, so the enumeration finds something to open. The
     # numbers are arbitrary; nothing here asserts on a metric.
-    head = ("True_Label,Predicted_Label,Group,"
+    # Group_ID, NOT `Group`: `src/training/logging.py` writes `Group_ID` and
+    # every production reader looks for that name. This fixture said `Group`,
+    # so every group-aware scorer took its no-group FALLBACK branch here --
+    # in the one test that exists because three scorers were unrunnable on
+    # every real input. Found 2026-09-09 when `paired_noise` began REFUSING a
+    # file with no group column instead of silently sorting globally.
+    head = ("True_Label,Predicted_Label,Group_ID,"
             + ",".join("Prob_Class_%d" % c for c in range(8)))
     rows = [head]
     for i in range(24):
@@ -356,3 +369,66 @@ def test_NEGATIVE_CONTROL_no_status_drop_is_reported_when_none_is_due(
     assert STALE_PHRASE not in out, (
         "%s reported dropping a non-completed run on a campaign that has "
         "none -- the message is unconditional and proves nothing" % mod)
+
+
+# ---------------------------------------------------------------------------
+# THE FIXTURE MUST MATCH WHAT THE PIPELINE ACTUALLY WRITES (2026-09-09)
+#
+# FRAMEWORK 2(z65). The fixture above carries the comment "the fixture has to
+# look like a real run, not like the minimum each tool tolerates" -- and for
+# weeks it wrote the group column as `Group` while `src/training/logging.py`
+# writes `Group_ID`, and put `seed` at top level while `configs/gen_campaign.py`
+# writes it only into `hyperparams`. Consequences:
+#
+#   * every group-aware scorer here took its NO-GROUP FALLBACK branch, so
+#     "25 scorers ran without crashing" meant they ran on a file no run has
+#     ever produced;
+#   * `full_panel.panel` read `seed: None` for every run, which crashed
+#     `cell_table` on `sorted()` five frames deep the moment the group column
+#     was corrected and it got that far.
+#
+# An assertion in a comment is not an assertion. These two are executable, and
+# they read the AUTHORITIES rather than restating them, so renaming a field in
+# the pipeline turns this red instead of silently re-opening the gap.
+# ---------------------------------------------------------------------------
+
+def _authority(rel):
+    with io.open(os.path.join(REPO, rel), encoding="utf-8") as f:
+        return f.read()
+
+
+def test_the_fixture_names_its_group_column_the_way_the_pipeline_does(tmp_path):
+    assert "'Group_ID'] = group_ids" in _authority("src/training/logging.py"), (
+        "src/training/logging.py no longer writes `Group_ID`; this test is "
+        "reading a stale authority and must be updated, not deleted.")
+    _write_run(str(tmp_path), "L80-80_G95", "tralo", 1)
+    d = _run_dir(str(tmp_path), "L80-80_G95", "tralo", 1)
+    for name in ("final_predictions.csv", "final_predictions_raw.csv"):
+        with io.open(os.path.join(d, name), encoding="utf-8") as f:
+            head = f.readline().strip().split(",")
+        assert "Group_ID" in head, (
+            "%s has no `Group_ID`; every group-aware scorer will take its "
+            "fallback branch and this file will test nothing. Header: %s"
+            % (name, head))
+        assert "Group" not in head, (
+            "`Group` is not a column any run writes; %s must use `Group_ID`"
+            % name)
+
+
+def test_the_fixture_puts_the_seed_where_gen_campaign_puts_it(tmp_path):
+    assert 'hp["seed"] = seed' in _authority("configs/gen_campaign.py"), (
+        "gen_campaign no longer writes the seed into `hyperparams`; this test "
+        "is reading a stale authority and must be updated, not deleted.")
+    assert '(cfg.get("hyperparams") or {}).get("seed")' in _authority(
+        "scripts/full_panel.py"), (
+        "full_panel.panel no longer reads the seed from `hyperparams`; same.")
+    _write_run(str(tmp_path), "L80-80_G95", "tralo", 3)
+    d = _run_dir(str(tmp_path), "L80-80_G95", "tralo", 3)
+    with io.open(os.path.join(d, "config.json"), encoding="utf-8") as f:
+        cfg = json.load(f)
+    assert cfg["hyperparams"].get("seed") == 3, (
+        "the seed must live in `hyperparams`, where `panel` reads it; got %r"
+        % (cfg["hyperparams"].get("seed"),))
+    assert "seed" not in cfg, (
+        "a real config has NO top-level `seed` -- gen_campaign writes only "
+        "`hyperparams.seed`. Carrying both hides which one is load-bearing.")

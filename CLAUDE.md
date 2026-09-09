@@ -136,13 +136,28 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 606 regression tests, ~250s, no dataset needed
+python -m pytest tests -q                   # 609 regression tests, ~250s, no dataset needed
 #   `tests/test_scorers_run_end_to_end.py` EXECUTES every scorer as a subprocess
 #   against a campaign carrying a real PARTIAL marker. It exists because three
 #   scorers once used `quarantine.` with no module-level import: they PARSED,
 #   imported, passed every AST gate and were unrunnable on every input, and the
 #   NameError fired only on the branch that a quarantined campaign reaches --
 #   the branch that exists to prevent a wrong number. 6/6 mutations caught.
+#   🛑 **AND ITS FIXTURE DID NOT LOOK LIKE A RUN, FOR WEEKS, WITH A COMMENT
+#   ABOVE IT SAYING IT MUST (2026-09-09).** It wrote the group column as
+#   `Group` while `src/training/logging.py` writes `Group_ID`, so all nine
+#   group-aware scorers took their NO-GROUP FALLBACK branch and "25 scorers
+#   ran clean" meant they ran on a file no run has ever produced; and it put
+#   `seed` at top level while `gen_campaign.py:130` writes only
+#   `hyperparams.seed`, so `panel` read `seed: None` throughout -- which
+#   crashed `cell_table` on `sorted()` five frames deep the moment the group
+#   column was fixed and it got that far. Both are now EXECUTABLE gates that
+#   read the authorities (`logging.py`, `gen_campaign.py`, `full_panel.py`)
+#   rather than restating them, so renaming a pipeline field turns them red.
+#   Mutation-tested 2/2. FRAMEWORK 2(z65).
+#   🔑 IT WAS FOUND BY A REFUSAL, NOT BY READING: `paired_noise` began
+#   REFUSING a predictions file with no `Group_ID` (2(z63)) and the green
+#   test went red the same minute. A tool that guesses cannot find this.
 #   `tests/test_lessons_learned.py` is the CATALOGUE OF LESSONS ALREADY PAID FOR:
 #   rejected backbones and datasets with the measured reason each was dropped,
 #   the ten deleted config footguns, the BF16/compute-capability split between
@@ -295,6 +310,22 @@ python -m scripts.cut_gap <roots>           # where is the CUT, and can anything
 #   the metric reads (rank K, because the allocator emits exactly K). At
 #   K/n=0.20 the cut sits at p=0.9999 where `p(1-p)`=0.0001; at K/n=0.90 it is
 #   0.59-0.99.
+#   🔧 ⚠️ **THOSE TWO FIGURES ARE GLOBAL-SORT NUMBERS AND ARE NOT RE-MEASURED.**
+#   `p_K` read `argsort(-P[:,cls])[K-1]` -- the globally K-th item -- while the
+#   allocator cuts top-`k_g` WITHIN each group. Fixed 2026-09-09, the FIFTH
+#   such site (2(z63) is the fourth). The tool now prints `p_K` (per-group,
+#   budget-weighted), `p_K_glob` (the old reading, retained so the docstring
+#   table reproduces) and `p_Kmin`/`slope_max`, the DEEPEST group's cut.
+#   🛑 DO NOT READ `p_K` vs `p_K_glob` AS A DIRECTION. Only the MINIMUM is
+#   ordered against the global value (the global top-K maximises the minimum
+#   selected probability); the MEAN sits ABOVE it whenever budgets track group
+#   difficulty, which is the normal case. I asserted the opposite, gated it,
+#   mutation-tested it 2/2 green, and the end-to-end run refuted it -- the
+#   fixture and the claim had come out of the same reasoning. FRAMEWORK 2(z64).
+#   🔑 `slope_max` IS THE COLUMN THE GLOBAL READING COULD NOT PRODUCE: whether
+#   ANY group's cut carries gradient, not whether the average one does. On
+#   iwildcam, with 7 of 14 ceilings at K=0, that is the live-vs-dead question.
+#   **NOT YET MEASURED on the corpus** -- needs the server.
 #   ⚠️ READ ITS STATUS BLOCK: the geometry is measured, the CAUSAL reading is
 #   NOT. Within a warm-up the hard count is constant, so `gap`, `slope_K` and
 #   `K/n` are one variable in three costumes (`rho(gap,K) = -1.0000`), both
@@ -503,6 +534,13 @@ python -m scripts.tralo_wins --campaign <roots> --control clip   # 🛑 THE ACCE
 #   beating the CONTROL but not the RIVAL is NOT a win (the old framing scored
 #   that green) and that exactly 50% passes.
 python -m scripts.cell_table --campaign <roots> --out cells.csv   # the SURVEY, not the
+#   🛑 IT REFUSES A CELL WHOSE RUNS CARRY NO `hyperparams.seed` (2026-09-09).
+#   `full_panel.panel` reads the seed from there and NOWHERE else, so a config
+#   carrying it at top level made `sorted()` die on
+#   `'<' not supported between NoneType and NoneType` -- five frames down, in
+#   a paper-facing scorer, reading like an aggregation bug. Same shape as the
+#   torn-CSV dtype trap `pred_integrity` exists for. Now named, with a
+#   negative control (a cell WITH seeds must not be refused). FRAMEWORK 2(z65).
 #   verdict. `full_panel` prints CONTRASTS, so the absolute level an arm reached
 #   is nowhere in its output. This emits one row per (campaign, dataset, model,
 #   cap, arm) with mean, within-cell seed sd and n_seeds for every metric, plus

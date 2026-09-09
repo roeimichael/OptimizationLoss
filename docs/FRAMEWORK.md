@@ -3941,7 +3941,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 606 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 609 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -4105,7 +4105,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 606 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 609 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -4113,7 +4113,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (606 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (609 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -11906,6 +11906,176 @@ here a measurable cap where there was none. **When a tool sorts probabilities,
 check what it sorts them WITHIN.** `grep -n "argsort" scripts/*.py` is a
 one-second audit and it should be run whenever a scorer is touched.
 
+## 2(z64). THE `argsort` AUDIT: A FIFTH SITE, AND THE DIRECTIONAL CLAIM I MADE ABOUT IT WAS WRONG (2026-09-09)
+
+2(z63) ended with a instruction to myself: *"when a tool sorts probabilities,
+check what it sorts them WITHIN. `grep -n argsort scripts/*.py` is a
+one-second audit and it should be run whenever a scorer is touched."* Run
+immediately. It costs a second and it found a fifth site.
+
+**SIX FILES SORT PROBABILITIES. FIVE ARE FINE, ONE WAS NOT.**
+
+| file | verdict |
+|---|---|
+| `bias_shift_probe.py:35,80,81` | algebra on a synthetic head; no allocation, no groups |
+| `frozen_head_probe.py:331` | ranks a refit head against its own twin; the comparison is within one ranking |
+| `order_probe.py:333,383-388` | reordering statistics, group-blind BY DESIGN and says so |
+| `graph_probe.py:293` | inside the SELF-TEST fixture (`n, dim, k = 400, 8, 20`, `rng` features). Synthetic, groupless, not the production path |
+| `paired_noise.py` | 🔧 fixed, 2(z63) |
+| **`cut_gap.py:133`** | 🔧 **THE FIFTH.** `order = np.argsort(-P[:, cls])`, then `p_K = P[order[K-1], cls]` |
+
+**WHAT `cut_gap` WAS READING.** `K` is right -- it is counted off the
+DEPLOYED `final_predictions.csv`, so it is the true total the allocator
+emitted. But the probability AT that budget was taken at global rank K, and
+the allocator never cuts globally: it takes top-`k_g` WITHIN each group, so
+the cut is one probability per group and there are as many as there are
+groups with a nonzero ceiling. `p_K`, `slope_K` and the `ratio` column all
+inherited it, and `slope_K` is what `DEAD_SLOPE` flags.
+
+**⛔ AND HERE IS THE PART THAT MATTERS MORE THAN THE FIX.** I wrote the
+correction with a directional claim attached -- that the global reading
+*understates* the gradient at the cut, since the global top-K maximises the
+minimum selected probability and above p=0.5 a higher p means a smaller
+`p(1-p)`. I built a fixture that showed exactly that, mutation-tested it 2/2,
+and it passed. Then I ran the tool end-to-end on a synthetic RUN TREE with
+per-group budgets at 60% of each group's own argmax count, and the assertion
+**failed**: mean per-group cut 0.690 against global 0.681, the opposite
+direction.
+
+The claim was wrong because it compares a MEAN against a MINIMUM. What the
+maximin property actually gives is
+
+    min_g (cut_g)  <=  p_K_global      always
+
+and nothing at all about the budget-weighted mean, which sits above the
+global value whenever the budgets roughly track group difficulty -- i.e. in
+the normal case, since a per-group ceiling derived from that group's own rate
+does track it. The fixture that "proved" the direction was one I had
+constructed to have budgets ANTI-correlated with difficulty.
+
+**So the tool now reports both, and only one of them carries a proof.**
+`p_K` (budget-weighted mean) and `p_K_min` / `slope_max` (the deepest group).
+The report prints, in the output itself, that a `p_K` vs `p_K_glob`
+comparison must NOT be read as a direction.
+
+**AND `slope_max` IS A COLUMN THE GLOBAL READING COULD NOT HAVE PRODUCED AT
+ALL.** The reachability question this file exists to ask is not "does the
+average cut carry gradient" but "does ANY cut carry gradient" -- one group
+sitting at `p=0.6` is a place a count penalty can act, however saturated the
+other thirteen are. A single global scalar cannot express that. On iwildcam,
+where 7 of 14 ceilings are K=0 and the surviving groups differ enormously,
+this is not a refinement; it is the difference between a live question and a
+dead one. The measurement is NOT YET MADE -- it needs the server, and SSH has
+been down all session. It is the first thing to run when access returns.
+
+**THE STATUS BLOCK IS UNCHANGED AND STAYS UNCHANGED.** The geometry account
+was already labelled AN UNREFUTED ACCOUNT THAT THIS DESIGN CANNOT
+DISCRIMINATE, with the sharp `tralo_uniform` prediction FAILED and `gap`,
+`slope_K` and `K/n` shown to be one variable in three costumes. Nothing here
+rescues it -- and the correction removes the tidy story I was about to attach
+to it, which is the useful outcome. The published table in the docstring is
+reproducible via the retained `p_K_global` column, so no past number silently
+changes meaning.
+
+**GATED:** `--self-test` now runs 14 checks, 3 of them negative controls
+(one group => the two rules coincide exactly; a K=0 group is skipped rather
+than averaged in; no `Group_ID` yields no per-group cut rather than a guess),
+plus TWO fixtures deliberately pointing opposite ways so that neither
+direction can be asserted in general. Mutation-tested 2/2: cutting globally
+inside `per_group_cut` fails 3 checks, and returning the slope OF the mean
+instead of the mean OF the slopes fails the Jensen check.
+
+**THE LESSON, AND IT IS NOT THE ONE 2(z63) TAUGHT.** 2(z63) said to audit
+the sort. This says: *a fixture you designed to demonstrate a claim cannot
+test the claim.* Both mutations were caught, all checks were green, and the
+direction was still backwards -- because the fixture and the claim came out
+of the same reasoning. What caught it was running the real code path on a
+tree built to plausible parameters, which took ten minutes and had no
+hypothesis in it. **Build the end-to-end run before believing the unit
+fixture**, especially when the unit fixture is one you chose.
+
+
+## 2(z65). THE END-TO-END SCORER FIXTURE DID NOT LOOK LIKE A RUN, AND IT SAID IN ITS OWN COMMENT THAT IT MUST (2026-09-09)
+
+`tests/test_scorers_run_end_to_end.py` is the test that EXECUTES every scorer
+as a subprocess. It exists because three scorers once used `quarantine.` with
+no module-level import: they parsed, imported, passed every AST gate and were
+unrunnable on every input. Its fixture carries this comment, written when it
+was built:
+
+> *the fixture has to look like a real run, not like the minimum each tool
+> tolerates.*
+
+**It failed that standard in two places, and both were invisible until a
+scorer started REFUSING instead of guessing.**
+
+### 1. THE GROUP COLUMN WAS NAMED `Group`
+
+`src/training/logging.py:137` writes **`Group_ID`**. Every production reader
+looks for `Group_ID` -- `full_panel:289`, `headroom:111`, `deep_scope:120`,
+`task_window:92`, `frozen_head_probe:244`, `sensitivity_screen:640`,
+`dual_cone_probe:278`, `aim_table:74`, and now `cut_gap` and `paired_noise`.
+The fixture wrote `Group`.
+
+⛔ **So every group-aware scorer in this test took its NO-GROUP FALLBACK
+branch, every run, since the test was written.** Several carry an explicit
+`if "Group_ID" not in t.columns:` path; that path -- not the real one -- is
+what was being exercised. The test proved the scorers do not crash on a file
+no run has ever produced.
+
+It surfaced only because `paired_noise`, corrected in 2(z63), now REFUSES a
+predictions file with no `Group_ID` rather than sorting globally. The refusal
+is correct and it immediately turned a green test red. **A tool that refuses
+finds fixtures that a tool that guesses cannot.**
+
+### 2. THE SEED WAS AT THE WRONG LEVEL, AND THAT ONE HID A REAL CRASH
+
+`configs/gen_campaign.py:130` writes `hp["seed"] = seed` and nothing writes a
+top-level `seed`. `full_panel.panel` reads `cfg["hyperparams"]["seed"]`. The
+fixture wrote `"seed": seed` at TOP LEVEL, so `panel` returned `seed: None`
+for every run in the test.
+
+Correcting the group column let `cell_table` get further than it ever had,
+and it died:
+
+    TypeError: '<' not supported between instances of 'NoneType' and 'NoneType'
+      scripts/cell_table.py:130   sorted(g[SEED_AXIS])
+
+**That is a live defect in a paper-facing scorer, not a fixture artefact.**
+Any real config carrying its seed anywhere but `hyperparams` crashes
+`cell_table` five frames deep on a comparison operator -- the same shape as
+the torn-CSV trap `pred_integrity` exists for, where sklearn raised on a
+dtype and sent the investigation to the metric code when the fault was in the
+file. `cell_table` now REFUSES and names the cell and the count.
+
+### 3. WHAT IS AND IS NOT AFFECTED
+
+* 🟢 **No published number changes.** Real configs have always carried
+  `Group_ID` and `hyperparams.seed`; the defect was that the TEST did not, so
+  the scorers' real paths were untested, not miscomputed.
+* ⛔ **But the test's warrant was much narrower than it claimed.** "25 scorer
+  invocations, no crashes" meant "no crashes on the fallback branch". The
+  group-aware code in nine scorers had no end-to-end coverage at all.
+* 🔧 Fixed: fixture writes `Group_ID` and puts `seed` inside `hyperparams`;
+  `cell_table` refuses a seedless cell, gated with a negative control (a cell
+  WITH seeds must not be refused) and mutation-tested 1/1.
+
+### 4. THE LESSON, AND IT IS THE SECOND HALF OF 2(z64)'S
+
+2(z64) said: a fixture you designed to demonstrate a claim cannot test the
+claim. This says the same thing from the other side. **A fixture built to the
+minimum each tool tolerates measures the tolerance, not the tool.** The way
+to find that out is not to read the fixture -- the comment asserting it was
+faithful sat directly above the unfaithful line for weeks -- but to make the
+tools REFUSE ambiguous input, and then see what goes red.
+
+**CHECK, WHENEVER A FIXTURE IS WRITTEN OR A SCORER IS ADDED:** does the
+fixture's schema match what `src/training/logging.py` and
+`configs/gen_campaign.py` actually WRITE, field by field? Both are short and
+both are the authority. A field the fixture spells differently is a branch
+the test cannot reach.
+
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, updated 2026-08-30 -- read this before section 3's older text**
@@ -13253,7 +13423,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             606 tests, ~200 s, no dataset required
+tests/             609 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

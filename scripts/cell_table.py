@@ -127,8 +127,29 @@ def cells(df):
         # way to check, because this row carried a count and nothing else -- so
         # the intersection was destroyed here and the defect surfaced there.
         # Emitting the set costs one column and makes the check possible.
-        row["seeds"] = "|".join(str(v) for v in sorted(g[SEED_AXIS])) \
-            if SEED_AXIS in g else ""
+        # 🛑 A MISSING SEED CRASHED `sorted()` FIVE FRAMES DEEP, on
+        # `'<' not supported between instances of NoneType and NoneType`.
+        # That reads as a bug in the aggregation and sends the investigation
+        # to the wrong file -- the same shape as the torn-CSV dtype trap
+        # `pred_integrity` exists for. `full_panel.panel` reads the seed from
+        # `cfg["hyperparams"]["seed"]` and NOWHERE else (`gen_campaign.py`
+        # writes it only there), so a config carrying it at top level lands
+        # here as None. Refuse, and name the cell. Found 2026-09-09 when the
+        # end-to-end scorer fixture was corrected to look like a real run.
+        if SEED_AXIS in g:
+            vals = list(g[SEED_AXIS])
+            bad = [v for v in vals
+                   if v is None or (isinstance(v, float) and np.isnan(v))]
+            if bad:
+                raise SystemExit(
+                    "REFUSED: %d of %d runs in cell %s carry no "
+                    "`hyperparams.seed`. They cannot be seed-paired, so "
+                    "`n_seeds` would be a count of unknowns and every "
+                    "downstream contrast would rest on it. Fix the configs."
+                    % (len(bad), len(vals), dict(zip(CELL_KEY, key))))
+            row["seeds"] = "|".join(str(v) for v in sorted(vals))
+        else:
+            row["seeds"] = ""
         row["n_md5"] = g["raw_md5"].nunique() if "raw_md5" in g else np.nan
         app, att = g.get("steps_applied"), g.get("steps_attempted")
         if app is not None and att is not None and att.notna().any():
@@ -229,6 +250,27 @@ def self_test(out=sys.stdout):
         check("aggregating without the full cell key RAISES", False)
     except SystemExit:
         check("aggregating without the full cell key RAISES", True)
+
+    # A MISSING SEED IS A REFUSAL, NOT A TypeError FIVE FRAMES DOWN.
+    noseed = pd.DataFrame([
+        dict(base, model="ViTB16", seed=None, AP=0.10),
+        dict(base, model="ViTB16", seed=None, AP=0.20),
+    ])
+    try:
+        cells(noseed)
+        check("a cell whose runs carry NO seed is REFUSED", False)
+    except SystemExit as exc:
+        check("a cell whose runs carry NO seed is REFUSED",
+              "hyperparams.seed" in str(exc))
+    except TypeError:
+        check("a cell whose runs carry NO seed is REFUSED", False)
+    # NEGATIVE CONTROL: the refusal must not fire on a cell that HAS seeds,
+    # or it deletes every healthy campaign rather than the broken one.
+    try:
+        check("NEGATIVE CONTROL: a cell WITH seeds is not refused",
+              len(cells(df)) == 2)
+    except SystemExit:
+        check("NEGATIVE CONTROL: a cell WITH seeds is not refused", False)
 
     # NEGATIVE CONTROL: pooling really would have changed the answer, so the
     # test above is not vacuous
