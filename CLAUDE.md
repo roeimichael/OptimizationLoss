@@ -476,6 +476,25 @@ python -m scripts.deployed_h2h --campaign <roots> --control clip  # 🛑 THE ARM
 #   and must be recomputed against `alm` alone (n 180 -> ~60); the value is
 #   not restated because it is not measured. The floor it was compared to,
 #   |tralo - tralo_reseed| median 4.0, is unaffected. `--self-test` gates it.
+python -m scripts.stale_figures              # 🛑 WHICH QUOTED FIGURES CAN TODAY'S
+#   CODE NO LONGER REPRODUCE? Holds every date-stamped figure in the docs
+#   against the last commit to the scorer that produced it. It exists because
+#   `tralo_wins` reported **6 of 17 = 35%** at 09:09 on 2026-09-06 and
+#   `deployed_h2h.rank_cell` -- which makes the deltas BOTH halves of that
+#   verdict read -- was fixed at 22:48 the SAME DAY. Nothing was red: the
+#   figure lives in a doc, the fix lives in git.
+#   🔑 RUN 2026-09-10: **16 stale, 5 fresh**, and SEVEN of the sixteen are
+#   `paper_rows`, the scorer that says what may be WRITTEN.
+#   ⚠️ A HIT IS `UNVERIFIED`, NEVER `WRONG`, and it is a REPORT not a gate --
+#   a docstring commit moves the date and changes no number, so it prints the
+#   commit SUBJECT and leaves the judgement to a person.
+#   ⚠️ AND IT UNDER-REPORTS: only 21 of 76 stamped figures can be tied to a
+#   scorer at all. It prints the 55 it could not as a COUNT, because a tool
+#   that silently examines a quarter of its input reads like one that found
+#   nothing. `--self-test` gates it, 11 checks, 4 negative controls -- incl.
+#   that a SAME-DAY figure must not fire and that
+#   `docs/paper/scripts/make_main_table.py` is not read as ours (it fired on
+#   the first real run). FRAMEWORK 2(z68).
 python -m scripts.dead_code --paths configs src   # what is DECLARED and never
 #   referenced. AST, never grep: a name in a docstring is not a call. A REPORT,
 #   not a gate -- a getattr-built call is invisible to it, so confirm by hand.

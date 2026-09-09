@@ -1051,6 +1051,13 @@ a figure for a slice nobody trained on. These numbers were prose-only until
 **Measured 2026-08-19 on `dsisco01`, from `dermmnist_c_metadata.csv`, by replaying
 `create_slices.py`'s own split with its own seeds.**
 
+⚠️ **`scripts/check_lesion_leakage.py` NO LONGER EXISTS** -- it went with the
+dataset in `61e34c0a` ("purge: remove dermmnist, octmnist and tissuemnist from the
+runnable path"), so this table CANNOT be reproduced from this tree. It is kept
+because it is the receipt for WHY dermmnist is removed, and that is a claim about
+history, not an instruction. Found by `scripts.stale_figures`; same class as
+2(z67).
+
 | slice | seed | test n | test images sharing a `lesion_id` with a TRAIN image | of the capped class (melanoma) |
 |---|---|---|---|---|
 | `slice_1` (the one every derm result uses) | 43 | 2003 | **776 = 38.7%** | **150 of 223 = 67.3%** |
