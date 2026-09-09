@@ -27,12 +27,20 @@ no longer exists. The 5 are printed as a count so the coverage is never
 mistaken for completeness -- a tool that silently examines part of its input
 reads exactly like one that found nothing wrong.
 
-⚠️ AND IT OVER-REPORTS IN THE OTHER DIRECTION. 56 of the 72 are flagged,
-which is a SCREENING result, not 56 wrong numbers: the wider the attribution
-window, the more figures get tied to a script that did not produce them, and
-the scorers here were heavily edited through September for unrelated reasons.
-Read it as a QUEUE ordered by how much a number matters -- `paper_rows` heads
-it with 12 -- never as a count of defects.
+🛑 AND THE PER-SCORER TALLY IS INFLATED BY MISATTRIBUTION -- MEASURED, NOT
+GUESSED, AND DO NOT QUOTE IT AS A COUNT. 56 of the 73 attributable figures are
+flagged, which is a SCREENING result, not 56 wrong numbers. `paper_rows`
+appeared to head the list with 12; reading all twelve by hand on 2026-09-10
+gave roughly **5 genuine, 5 misattributed, 2 ambiguous** -- about half. The
+misattributed ones are figures about an md5 audit, a `grep -ciE`, a dose
+percentage and `dual_cone_probe`, which merely sit in a FRAMEWORK entry that
+names `paper_rows` somewhere above.
+
+Attribution by proximity is irreducibly noisy and no cheap rule fixes it:
+preferring a script named on the figure's OWN line (which is now done, and is
+strictly better) moved that 12 only to 11. So the output is a QUEUE OF FIGURES
+TO READ, ordered by how much the number matters. It is not a per-scorer
+defect count, and the counts in it should never be quoted as one.
 """
 import io
 import os
@@ -127,14 +135,21 @@ def figures(text, near=NEAR):
     """
     found = []
     secs = _sections(text)
+    lines = text.split("\n")
     for m in FIGURE.finditer(text):
-        line = text.count("\n", 0, m.start()) + 1
+        idx = text.count("\n", 0, m.start())
         lo, hi = next(((a, b) for a, b in secs if a <= m.start() < b),
                       (0, len(text)))
+        # The figure's OWN line wins: `Measured 2026-09-02,
+        # scripts/dual_cone_probe.py (192 stored model states...)` names its
+        # tool in the same sentence, and a backward search over a long entry
+        # grabbed an unrelated one named earlier.
+        same = SCRIPT.findall(lines[idx])
         back = SCRIPT.findall(text[max(lo, m.start() - near):m.start()])
-        fwd = SCRIPT.findall(text[m.end():hi]) if not back else []
-        mod = back[-1] if back else (fwd[0] if fwd else None)
-        found.append((line, m.group(1), mod))
+        fwd = SCRIPT.findall(text[m.end():hi])
+        mod = same[0] if same else (back[-1] if back else
+                                    (fwd[0] if fwd else None))
+        found.append((idx + 1, m.group(1), mod))
     return found
 
 

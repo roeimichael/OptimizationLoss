@@ -483,14 +483,18 @@ python -m scripts.stale_figures              # 🛑 WHICH QUOTED FIGURES CAN TOD
 #   `deployed_h2h.rank_cell` -- which makes the deltas BOTH halves of that
 #   verdict read -- was fixed at 22:48 the SAME DAY. Nothing was red: the
 #   figure lives in a doc, the fix lives in git.
-#   🔑 RUN 2026-09-10: **56 stale, 16 fresh** over 72 attributable, and
-#   **`paper_rows` heads the list with 12** -- three times the next scorer, and
-#   it is the one that says what may be WRITTEN. Reading its hits found the
-#   LICENSED-vs-SIGN-READ collapse still live in three places.
-#   ⚠️ **56 IS A SCREENING RESULT, NOT 56 WRONG NUMBERS.** A wider
-#   attribution window ties more figures to a script that did not produce them,
-#   and these scorers were heavily edited through September for unrelated
-#   reasons. Read it as a QUEUE ordered by how much a number matters.
+#   🔑 RUN 2026-09-10: **56 stale, 16 fresh** over 73 attributable.
+#   Reading the `paper_rows` hits found the LICENSED-vs-SIGN-READ collapse
+#   still live in three places the 2(z66) recount never reached.
+#   🛑 **BUT DO NOT QUOTE THE PER-SCORER TALLY, IT IS INFLATED, AND
+#   THAT IS MEASURED.** `paper_rows` appeared to head the list with 12; all
+#   twelve were read by hand and came out roughly **5 genuine, 5
+#   misattributed, 2 ambiguous**. The bad ones are figures about an md5 audit,
+#   a `grep -ciE`, a dose percentage and `dual_cone_probe` that merely sit in
+#   an entry naming `paper_rows` above. Attribution by proximity is
+#   irreducibly noisy: preferring a script on the figure's OWN line helps and
+#   moved that 12 only to 11. So this is a **QUEUE OF FIGURES TO READ**,
+#   ordered by how much the number matters -- never a defect count.
 #   ⚠️ A HIT IS `UNVERIFIED`, NEVER `WRONG`, and it is a REPORT not a gate --
 #   a docstring commit moves the date and changes no number, so it prints the
 #   commit SUBJECT and leaves the judgement to a person.
