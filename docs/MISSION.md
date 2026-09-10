@@ -648,7 +648,9 @@ extra runs; seeds 5-8 would give 8 for 16. Four times cheaper per observation.
 direction is **neither proven live nor proven dead** -- it is unmeasured. Do not
 quote "TraLO ties a random vector" as settled; it rests on 4 unpriced cells.
 
-### 5. WHAT IS NOW STAGED
+### 5. WHAT WAS STAGED AS OF 2026-09-06
+
+⚠️ **RUN STATE IS A SNAPSHOT, NOT A FACT.** This section was written 2026-09-06 and nothing re-dates it when the rig moves. Verify with `python -m scripts.rig_status` and `python -m scripts.quarantine --list` before believing any of it. A present-tense heading with no date is how a reader ends up relaunching a campaign that was quarantined and had its pending runs dropped (2026-09-10).
 
 `tralo_sgd` and `tralo_coin_sgd` are new arms. `constraint_step_rule: sgd`
 exists, is guarded against silent fallback (`dual_common.py:228`) and has
@@ -2031,7 +2033,9 @@ A fresh session with no context should do exactly this:
 cat docs/MISSION.md                      # this file: goal, ledger, queue
 sed -n '/^### 3(0)/,/^### 3(1)/p' docs/FRAMEWORK.md   # the live status board
 
-# 2. what is running RIGHT NOW
+# 2. WHAT WAS RUNNING AS OF 2026-08-30
+
+⚠️ **RUN STATE IS A SNAPSHOT, NOT A FACT.** This section was written 2026-08-30 and nothing re-dates it when the rig moves. Verify with `python -m scripts.rig_status` and `python -m scripts.quarantine --list` before believing any of it. A present-tense heading with no date is how a reader ends up relaunching a campaign that was quarantined and had its pending runs dropped (2026-09-10).
 for h in dsisco01 dsisco02; do ssh $h 'nvidia-smi --query-compute-apps=gpu_uuid,pid --format=csv,noheader | while IFS=, read -r u p; do echo "$(ps -o user= -p ${p// /} 2>/dev/null)"; done | sort | uniq -c'; done
 ssh dsisco01 'cd ~/optloss-domb && ~/anaconda3/envs/optloss/bin/python -m scripts.rig_status'
 

@@ -254,7 +254,14 @@ numbers get quoted from campaigns nobody re-checked.
 
 ## 6. SPECIFIC CONTINGENCIES FOR WHAT IS QUEUED NOW
 
-### `taskwin2` -- 48 runs, RUNNING NOW, and `vittask1` -- 48 runs, STAGED
+### `taskwin2` and `vittask1` -- 48 runs each, BOTH DEAD FOR THIS PURPOSE
+
+⚠️ This heading said `RUNNING NOW` and `STAGED` until 2026-09-10. The
+correction was already in the text below and had been since 2026-09-04, but a
+reader skimming HEADINGS -- which is how a playbook is used when a campaign
+lands -- got the opposite picture. `vittask1` was quarantined and its 34
+pending runs were dropped, so "STAGED" pointed at a campaign nobody should
+launch. Status belongs in the heading, not only in the paragraph.
 
 The first two campaigns in this project whose caps were chosen by MEASURING
 that the cap poses a question, and the first carrying `tralo_cut`. Together
@@ -335,7 +342,9 @@ units.
 | **gains NEITHER** | placement is not the lever | ledger `margin`; check `tralo_coin` -- if a random direction moves the metric as much, the whole placement family is dead |
 | **`tralo_coin` matches `tralo_margin`** | direction does not matter, only norm | this kills the placement family regardless of sign. Report it prominently |
 
-### `dom1b` -- landing now
+### `dom1b` -- WAS LANDING AS OF 2026-08-30
+
+⚠️ **RUN STATE IS A SNAPSHOT, NOT A FACT.** This section was written 2026-08-30 and nothing re-dates it when the rig moves. Verify with `python -m scripts.rig_status` and `python -m scripts.quarantine --list` before believing any of it. A present-tense heading with no date is how a reader ends up relaunching a campaign that was quarantined and had its pending runs dropped (2026-09-10).
 
 Score `dom1` + `dom1b` together **at the (model, seed) unit**, not 9 cells.
 If RegNetY400MF reverses the `dom1` ordering, the ordering is backbone-specific

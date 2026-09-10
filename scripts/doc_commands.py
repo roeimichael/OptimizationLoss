@@ -112,29 +112,53 @@ def command_text(text):
     return text
 
 
+def _all_invocations(text):
+    """Every invocation in `text` as (start, end, module), left to right.
+
+    Both spellings, merged and de-overlapped: the `scripts/X` path form is
+    invisible to `INVOKE`, and where both match the same span the module form
+    wins because it is the longer, more specific read.
+    """
+    out = [(m.start(), m.end(), m.group(1)) for m in INVOKE.finditer(text)]
+    out += [(m.start(), m.end(), "%s.%s" % (m.group(1), m.group(2)))
+            for m in INVOKE_PATH.finditer(text)]
+    out.sort()
+    keep = []
+    for tup in out:
+        if keep and tup[0] < keep[-1][1]:
+            continue
+        keep.append(tup)
+    return keep
+
+
 def invocations(path):
-    """(line_no, module, [flags]) for every documented invocation in `path`."""
+    """(line_no, module, [flags]) for every documented invocation in `path`.
+
+    🛑 EACH COMMAND'S FLAGS STOP AT THE NEXT COMMAND, and they did not until
+    2026-09-10. The scan took the FIRST match on a line and then read flags
+    from everything after it, so a line carrying two commands gave the second
+    one's flags to the first -- and never checked the second at all, because
+    `search` stops at one match. Found by the gate firing on my own sentence
+    "verify with `python -m scripts.rig_status` and `python -m
+    scripts.quarantine --list`": it reported `rig_status` rejecting `--list`,
+    a flag that belongs to `quarantine` and is perfectly valid there. A false
+    positive on a true statement is worse than silence, because the fix a
+    reader reaches for is to delete the correct text.
+    """
     lines = io.open(path, encoding="utf-8", errors="replace").readlines()
     found = []
     for i, line in enumerate(lines):
-        m = INVOKE.search(line)
-        if m:
-            whole = join_continuations(lines, i)
-            # Re-find in the joined text so flags on continuations count.
-            k = whole.find(m.group(1))
-            tail = command_text(whole[k + len(m.group(1)):])
-            found.append((i + 1, m.group(1),
-                          sorted(set(FLAG.findall(tail)))))
+        if not (INVOKE.search(line) or INVOKE_PATH.search(line)):
             continue
-        # The `scripts/X` path form. Same module, written the other way, and
-        # invisible to `INVOKE` -- which is how a module absent from the whole
-        # checkout stayed undetected through four documented mentions.
-        mp = INVOKE_PATH.search(line)
-        if mp:
-            mod = "%s.%s" % (mp.group(1), mp.group(2))
-            whole = join_continuations(lines, i)
-            k = whole.find(mp.group(0))
-            tail = command_text(whole[k + len(mp.group(0)):])
+        whole = join_continuations(lines, i)
+        ms = _all_invocations(whole)
+        for j, (start, end, mod) in enumerate(ms):
+            # Only commands beginning on THIS physical line; a continuation's
+            # text belongs to the invocation that opened it.
+            if start >= len(line):
+                continue
+            stop = ms[j + 1][0] if j + 1 < len(ms) else len(whole)
+            tail = command_text(whole[end:stop])
             found.append((i + 1, mod, sorted(set(FLAG.findall(tail)))))
     return found
 
@@ -258,6 +282,13 @@ def self_test():
             "p = argparse.ArgumentParser()\n"
             "p.add_argument('--campaign')\n"
             "p.add_argument('--arms', nargs='+')\n")
+        # A SECOND module, so a two-commands-on-one-line test can tell WHICH
+        # one a flag was blamed on. With a single fixture both commands carry
+        # the same name and the attribution is untestable.
+        io.open(os.path.join(pkg, "gadget.py"), "w", encoding="utf-8").write(
+            "import argparse\n"
+            "p = argparse.ArgumentParser()\n"
+            "p.add_argument('--list', action='store_true')\n")
         io.open(os.path.join(pkg, "dyn.py"), "w", encoding="utf-8").write(
             "import argparse\n"
             "p = argparse.ArgumentParser()\n"
@@ -334,6 +365,30 @@ def self_test():
                 + chr(10))
             check(run(['glob.md'], False) == [],
                   'NEGATIVE CONTROL: a glob is not read as a module')
+
+            # 🛑 TWO COMMANDS ON ONE LINE. The regression that produced the
+            # parser fix: `--list` belongs to `quarantine` and is valid there,
+            # but the scan gave it to `rig_status` and reported a bad flag on
+            # a correct sentence.
+            io.open('twocmd.md', 'w', encoding='utf-8').write(
+                'verify with `python -m scripts.widget` and '
+                '`python -m scripts.gadget --list`' + chr(10))
+            check(run(['twocmd.md'], False) == [],
+                  'NEGATIVE CONTROL: two commands on one line each keep their '
+                  'OWN flags')
+
+            # ...and the POSITIVE half, or the control above passes by simply
+            # never looking at the second command -- which is the OTHER half
+            # of the same bug, since `search` stopped at one match.
+            io.open('twobad.md', 'w', encoding='utf-8').write(
+                'run `python -m scripts.widget` then '
+                '`python -m scripts.gadget --no-such-flag`' + chr(10))
+            bad2 = run(['twobad.md'], False)
+            # `run` yields TUPLES (doc, line, module, why) -- `in` on a
+            # tuple is membership, not substring, so compare the module field.
+            check(len(bad2) == 1 and bad2[0][2] == 'scripts.gadget',
+                  'a bad flag on the SECOND command is caught, and blamed on '
+                  'the SECOND')
 
             io.open('pyfile.md', 'w', encoding='utf-8').write(
                 # A REAL filename, because `test_no_live_file_points_at_a_deleted_doc`
