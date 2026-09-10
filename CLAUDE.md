@@ -896,7 +896,31 @@ python -m scripts.paired_noise --campaign <root>  # 🛑 THE COMPANION TO
                                             #   iwc3 class 2: **2607 seeds at L20, 546 at
                                             #   L30/L50 -- but only 7-8 at K/n=0.9**, and the
                                             #   protocol already runs 4. So this is closed
-                                            #   by the CAP CHOICE, not by physics. ⚠️ The
+                                            #   by the CAP CHOICE, not by physics.
+                                            #   ⛔ **THOSE THREE NUMBERS COME FROM A
+                                            #   QUARANTINED CAMPAIGN AND ARE UNVERIFIED
+                                            #   (2026-09-10).** `iwc3` is `scorable=False`
+                                            #   -- fp16 without `--constraint-fp32`, 716 of
+                                            #   1044 steps -- and its `keep_for` covers ONLY
+                                            #   the fp16-dose receipt, not noise. Worse, the
+                                            #   `seeds` column is `seeds_needed(prize,
+                                            #   treated_sd)` and the TREATED sd is exactly
+                                            #   what a 68.6% dose touches. `paired_noise`
+                                            #   now calls `quarantine.gate()`, so it
+                                            #   REFUSES `iwc3` and the figures cannot be
+                                            #   reproduced without `--allow-quarantined`.
+                                            #   ⚠️ Direction UNKNOWN -- an underdosed
+                                            #   treated arm could be tighter or looser; it
+                                            #   is simply not the design now run. The
+                                            #   qualitative shape (tight caps absurd, loose
+                                            #   caps cheap) also follows from the prize
+                                            #   being ~15x larger at loose caps, so the
+                                            #   CONCLUSION is likely safe and the NUMBERS
+                                            #   are not. Re-run on `dom1`. FRAMEWORK 2(z71).
+                                            #   🔑 AND `stale_figures` CANNOT SEE THIS:
+                                            #   the line carries no measurement DATE, and
+                                            #   staleness is not the defect anyway. The
+                                            #   data was condemned, not the code. ⚠️ The
                                             #   catch, and say it every time: at K/n=0.9
                                             #   the cap barely binds, so where the
                                             #   constraint BINDS nothing is measurable, and

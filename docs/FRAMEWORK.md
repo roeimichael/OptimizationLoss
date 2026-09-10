@@ -12557,6 +12557,60 @@ their order was unobservable. A branch order is only testable at the input
 where both branches apply.
 
 
+## 2(z71). THE SEED-BUDGET NUMBERS COME FROM A QUARANTINED CAMPAIGN, USED OUTSIDE ITS OWN `keep_for` (2026-09-10)
+
+`CLAUDE.md` prices the whole design's viability off one line: **iwc3 class 2,
+2607 seeds at L20, 546 at L30/L50, but only 7-8 at K/n=0.9** -- and then draws
+the conclusion **"this is closed by the CAP CHOICE, not by physics"**. That is
+one of the more consequential sentences in the project: it says the design is
+salvageable by moving the cap rather than abandoned.
+
+**`iwc3` is `scorable=False`.** Its marker reads: fp16 with
+`constraint_fp32: False`, **716 of 1044 constraint steps, 68.6%**, superseded
+by `iwc4`. Its `keep_for` is *"the receipt that fp16 without
+`--constraint-fp32` silently drops a third of the dose on a CNN"* -- and
+nothing else. Noise is not in it.
+
+🛑 **AND THE DEFECT LANDS EXACTLY ON THE STATISTIC USED.**
+`paired_noise` computes `need = seeds_needed(prize, b)` where `b` is the
+**TREATED** sd -- `tralo` vs `tralo_null`. The treated arm is the one that ran
+at 68.6% dose. Had the seeds column been built on the `reseed` floor it would
+have been dose-immune, because lambda=0 arms take ZERO constraint steps; it is
+not.
+
+⚠️ **DIRECTION UNKNOWN, AND DO NOT GUESS IT.** An underdosed treated arm
+sits closer to its null, which could tighten the paired sd, and unstable fp16
+steps could widen it. The honest statement is that it is **not the design now
+run**, not that the figure is too high or too low.
+
+✅ **THE CONCLUSION IS PROBABLY SAFE; THE NUMBERS ARE NOT.** The qualitative
+shape -- tight caps hopeless, loose caps cheap -- follows independently from
+2(z47): the prize is 0-1 items at tight caps and 12.8-20.7 at task caps, a
+~15x swing, and `seeds_needed` goes as `(sd/effect)^2`. So "closed by the cap
+choice" survives; **2607 / 546 / 7-8 do not.** Re-run on `dom1`, which is
+`scorable=True` at full dose.
+
+⛔ `paired_noise` now calls `quarantine.gate()`, so it **REFUSES `iwc3`**.
+The figure cannot be reproduced today without `--allow-quarantined`. A number
+that only its own override flag can regenerate is not a measurement.
+
+🔑 **AND THIS CLASS IS NOT MECHANICALLY DETECTABLE -- MEASURED, SO THAT
+NOBODY BUILDS THE TOOL TWICE.** `stale_figures` cannot see it twice over: the
+line carries no measurement DATE, and staleness is not the defect anyway --
+the DATA was condemned, not the code. The obvious detector ("a quarantined
+campaign named on a line carrying a number") returns **242 lines across the
+five docs**, and nearly all are legitimate: they discuss the quarantine, state
+what the campaign is still a receipt for, or name it as dead. Precision is far
+too low to gate or even to report.
+
+**The signal is not "a dead campaign is cited". It is "a figure is used for a
+purpose the marker's `keep_for` does not cover"** -- which needs someone to
+read what the figure claims. So the rule is human, and it is short:
+
+> Before quoting a number from a quarantined campaign, read its `keep_for`.
+> If the number is not what the campaign is kept FOR, it is not evidence.
+
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, updated 2026-08-30 -- read this before section 3's older text**
