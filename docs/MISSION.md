@@ -396,7 +396,16 @@ TraLO".** It bounds the MECHANISM, not the method. Task #99.
 **`dualprop1` ran for a day before its own generating command was written down
 anywhere. Any campaign that is running must have its command HERE.**
 
-`dualprop1` -- LIVE on dsisco01 GPU 0, MobileNetV2, 88 runs:
+🛑 **THIS SECTION OWNS COMMANDS, NEVER RUN-STATE. `0-RUNNING` owns run-state,
+and it is the only section that may say what is alive.** Every entry below is a
+HISTORICAL launch record kept so the command is reproducible; an entry being
+here says nothing about whether that campaign is running now. Two sections
+claiming run-state is how both of them went stale -- this one still said
+`dualprop1 -- LIVE` after it had landed and been scored, while `0-RUNNING`
+announced `itemscale` as in-flight two days after it closed a design family.
+FRAMEWORK 2(z72).
+
+`dualprop1` -- LANDED and scored, MobileNetV2, 88 runs (read at 72/88). `tralo_dualprop` was REJECTED -- FRAMEWORK 2(z53):
 
 ```bash
 python -m configs.gen_campaign --root results/dualprop1 --datasets iwildcam \
@@ -1061,81 +1070,82 @@ TRAJECTORIES the two reach **90 degrees** on disjoint supports. What carries
 that claim is the as-deployed 0.83x-the-floor number, which means
 "indistinguishable here", never "identical". FRAMEWORK 2(z32)b, 2(z28).
 
-## 🟢 0-RUNNING. WHAT IS IN FLIGHT (2026-09-07)
+## 🟢 0-RUNNING. WHAT IS IN FLIGHT
 
-**`itemscale1` + `itemscale2`, 192 runs, dsisco01 GPU 0 and GPU 1, launched
-14:16.** Worktree `~/optloss-itemscale`, PINNED at `5b31f53a71ac`. Do not move
-it, do not deploy `src/`, `configs/` or `main.py` into it.
+🛑 **LAST VERIFIED 2026-09-09. NOT VERIFIED SINCE.** SSH to `dsisco01` /
+`dsisco02` has been unreachable for an entire working session (jump host
+`dsihead.lnx.biu.ac.il`, 132.70.60.180, at 100% packet loss), so every line
+below is a LAST-KNOWN state and not a current one.
+
+🔑 **THE FIRST ACTION ON RECONNECT IS TO VERIFY, NEVER TO RELAUNCH, AND THIS
+BLOCK IS DATED WHEN IT WAS LAST *CHECKED* RATHER THAN WHEN IT WAS WRITTEN.**
+Until 2026-09-10 it read `WHAT IS IN FLIGHT (2026-09-07)` and announced
+`itemscale1` + `itemscale2` running on dsisco01 GPU 0 and GPU 1 -- a campaign
+that had LANDED on 2026-09-08 and closed an entire design family. It never
+said so anywhere in its 76 lines, and it carried a copy-pasteable **relaunch**
+command. A resuming session that ran the resume protocol, saw no `main.py` and
+followed the block would have re-run 192 runs of a closed direction; a session
+that believed it would have left two GPUs reserved for it. A run-state block
+dated at writing reads as current forever. FRAMEWORK 2(z72).
+
+### Last known LIVE
+
+| campaign | state as of | what it still owes |
+|---|---|---|
+| `bcn1vit` | 2026-09-09 | **L90 only.** L70 and L80 were archived as non-task to `~/optloss-archive-bcn1vit-L70-nontask-2026-09-09` (moved, not deleted). L90 is a task cell under both readings -- finish it. ⛔ Nothing at L70/L80 is evidence about any method. FRAMEWORK 2(z58) |
+| `snap2` | 2026-09-08 | 🛑 **THE ONE WITH NO RESOLVABLE PROVENANCE.** It runs from the server branch `snap/slice-provenance`, which was never merged and is not among the 40 remote-tracking branches here. Its `code_version` will resolve in NO other checkout -- exactly the condition `check_parity` exists to make impossible -- the 612-test suite has never executed against that code, and no 2026-09-09 scorer correction applies to it unless hand-deployed. Fetch and review the branch BEFORE scoring a single run. Tasks #103, #97. FRAMEWORK 2(z67) |
+| `fmow1` | 2026-09-09 | 304 runs, 114 done when the task windows were read off its own `tralo_null` arms. 3 of 4 cells are TASK cells and its local p@K clears the bar (0.842 / 0.882 / 0.952 / 0.973). Re-measure the windows at 4 seeds on completion -- task #96 |
+
+### LANDED. ⛔ DO NOT RELAUNCH
+
+| campaign | landed | outcome |
+|---|---|---|
+| `itemscale1` + `itemscale2` | 2026-09-08 | 192 runs, dose 232/232, every gate green. Mechanism CONFIRMED and replicated on two backbones; the deployed score did NOT follow, 25% against the 50% bar, 0 of 4 cells priced, and `tralo_coin` -- a RANDOM constraint direction of the same norm -- took one cell. **Closed the whole per-scope weighting family**, and with it task #89. FRAMEWORK 2(z56) |
+| `bcn1mn3` | 2026-09-09 | COMPLETE, 228 runs. ⛔ Its sign is **UNREAD** -- this is unit D1, it is on disk, it costs ZERO GPU-hours, and it is the top of the queue. Task #102, MISSION 0-UNREAD |
+
+### The resume protocol for a tree you have just reconnected to
 
 ```bash
-# resume protocol -- run these first, always
+# 1. WHAT IS ALIVE -- on BOTH hosts. One NFS /home means `results/` is
+#    identical from either, and only `ps` differs, so a dispatcher on the
+#    other host reads as dead from this one.
 ssh dsisco01 'ps -u michaer8 -o pid,etime,cmd | grep main.py | grep -v grep'
-ssh dsisco01 'cd ~/optloss-itemscale && tail -5 itemscale1.log itemscale2.log'
-# relaunch (the dispatcher needs stdin; fixed in main.py AFTER this pin, so
-# this tree still prompts and still needs the `echo 0`)
-cd ~/optloss-itemscale
-PY=~/anaconda3/envs/optloss/bin/python
-EXPERIMENT_DIR=results/itemscale1 CUDA_VISIBLE_DEVICES=0 setsid nohup \
-    bash -c "echo 0 | $PY -u main.py" > itemscale1.log 2>&1 < /dev/null &
-EXPERIMENT_DIR=results/itemscale2 CUDA_VISIBLE_DEVICES=1 setsid nohup \
-    bash -c "echo 0 | $PY -u main.py" > itemscale2.log 2>&1 < /dev/null &
+ssh dsisco02 'ps -u michaer8 -o pid,etime,cmd | grep main.py | grep -v grep'
+# 2. WHAT IS DONE -- from the results tree, which is the authority. Never
+#    conclude a campaign is unfinished because no process is running.
+python -m scripts.dose_landed results/<root>
+python -m scripts.rig_status
 ```
 
-| | `itemscale1` | `itemscale2` |
+⛔ **A campaign with no process is not automatically a campaign to relaunch.**
+Check `dose_landed` and this section's LANDED table first. Both of those are
+cheap; a wrong relaunch costs a week of GPU and, worse, produces runs that look
+like corpus.
+
+## 📌 0-OPEN. NUMBERS THAT ARE NOT FINISHED YET (swept 2026-09-10)
+
+**Eight FRAMEWORK entries state a result and then say, in their own text, that
+the number is not final.** An obligation is not a state claim -- it does not go
+stale, it only gets discharged -- so this is a checklist and every line names
+the task that owns it. ⛔ **Do not quote a number from these entries without
+its caveat.** The failure mode is not that the number is wrong; it is that the
+caveat is one line above it and gets left behind on the way to a table.
+
+| entry | what is unfinished | owner |
 |---|---|---|
-| backbone | MobileNetV2 | RegNetY400MF |
-| caps | `L70-70_G95` `L80-80_G95` | same |
-| cells | 2 | 2 |
-| runs | 96 | 96 |
-| arms | 12, identical | 12, identical |
+| 2(z53) | `dualprop1` was **72 of 88** runs, so every cell is **3 seeds, not 4**. The DIRECTION is safe (sign 6 of 6, `tralo_dualprop` stays rejected); every NUMBER, and the ranking-damage claim, is not | **#106** |
+| 2(z59) | the `fmow` task windows are written from **1-2 seeds** | #96 |
+| 2(z67) | every `snap` result, because its branch is unfetched and its `code_version` resolves nowhere here | #103, #97 |
+| 2(z68) | the acceptance figure `6 of 17 = 35%` predates the scorer both halves of its verdict read. Say **"FAIL, figure pending recompute"**, never the figure | #104 |
+| 1b-pre | the two `coin` rows, measured on the instrument that was broken until 2026-08-20 | -- |
+| 2(z52) | the per-backbone derivation must be re-read per backbone -- ✅ **discharged** by #86 for `headroom` | ✅ #86 |
+| 2 | the feature-space claim must be re-read on every new dataset | #90, #96 |
+| 3 | the regime-beats-method table is recorded as provisional against a named misreading | -- |
 
-**WHAT IT TESTS.** `tralo_itemscale` = `penalty_item_scale: true`, ONE key off
-`tralo`. FRAMEWORK 2(z54): `_penalty` divides the excess by `max(K,1)`, so
-`d(pen)/d(soft)` is in units of 1/budget and a scope's pull PER ITEM is
-INVERSELY proportional to its ceiling, while ALM's `lambda + mu*r` is in raw
-items. On iwildcam, where 7 of 14 local ceilings are K = 0, that inverts the
-scope priority: TraLO sends **93.5%** of its fixed-norm step to K = 0 scopes
-and **1.7%** to K >= 100, against ALM's 18.8% / 69.2%.
-
-🔑 **AND IT IS THE FIRST CAMPAIGN THAT CAN PRICE ITS OWN RESULT.** Three
-lambda = 0 streams (`tralo_null`, `tralo_reseed`, `tralo_reseed2`) give
-C(3,2) x 4 = **12 floor observations**, clearing `MIN_FLOOR_OBS` = 8. Every
-prior head-to-head verdict read REFUSED for want of exactly this.
-
-⚠️ **2 cells per campaign, 4 across both -- `gen_campaign` says UNDERPOWERED
-for significance and it is right.** 9 cells is the minimum for a starred
-verdict. This campaign reports DIRECTION and per-cell consistency, never a p.
-If the mechanism reads live, the follow-up is a third and fourth backbone, not
-more seeds here.
-
-### The reads, in order, and what each one refuses
-
-1. **`budget_share results/itemscale1`** -- 🛑 THE PRE-REGISTERED FALSIFIER,
-   and it needs NO metric. The K = 0 share must fall from 93.5% toward ALM's
-   18.8%. Predicted **15.3%** from the offline replay. If it does not move,
-   the flag is INERT -- the sixth -- and md5 CANNOT clear it (rule 3 is
-   one-sided).
-2. **`dose_landed results/itemscale1`** -- read the `attempted/run` TABLE, not
-   the percentage. Every trained arm must be at 29.00. Both campaigns carry
-   `--constraint-fp32`, which lands 15284/15284 on record.
-3. **`deep_scope --arms tralo tralo_itemscale alm lp`** -- 🛑 THE MECHANISM
-   TEST. Read the **MIDDLE** bucket. Prediction: `tralo_itemscale` closes from
-   tralo's +6.6 toward alm's +11.3. ⛔ **The DEEP bucket must NOT move much**:
-   it is 83% K = 0 and already TIED (+12.7 vs +12.3), so a DEEP-only move means
-   the arm reproduced `tralo_squared` and the mechanism is NOT confirmed.
-4. **`deployed_h2h` / `tralo_wins` / `full_panel`** -- only after 1-3.
-
-⛔ **NOT PREDICTED TO WIN OUTRIGHT.** `headroom` bounds the prize at 12.8-20.7
-items per cell at task caps, and `tralo_coin` is in-campaign as the
-pre-registered direction kill-condition.
-
-⛔ **THE FIX IS PARTIAL BY CONSTRUCTION AND THAT IS STATED, NOT DISCOVERED
-LATER.** `scale == 1` at K = 0, so multiplying by it is the identity there: the
-K = 0 pull is UNCHANGED and only the K >= 1 scopes are lifted. At the worst
-point the ratio goes 6156x -> 14.9x and the K = 0 scope still leads. The
-principled denominator is the scope's ITEM COUNT, which `_penalty` does not
-currently receive -- that is `tralo_sizescale`, task #89, and it is gated on
-this campaign showing the mechanism is real.
+🔑 **THE TWO WITH NO OWNER ARE THE TWO THAT CANNOT BE DISCHARGED BY RUNNING
+ANYTHING.** 1b-pre's instrument no longer exists to re-measure on, and entry 3
+is provisional by construction rather than by seed count. They are listed so
+that "no task" is visibly a judgement and not an oversight.
 
 ## 🧹 0-CLEAN. THE STEP GATE AND THE SYNC (2026-09-02)
 

@@ -13986,3 +13986,84 @@ directories finds ten, and this is the line that says why.
 
 The full run-by-run record, with numbers, p-values and cell counts, is preserved at
 `docs/archive/REJECTED_full_2026-08-18.md`. It is history, not instructions.
+
+## 2(z72). THE RESUME POINT SAID A CLOSED CAMPAIGN WAS STILL RUNNING, AND HANDED THE NEXT SESSION ITS RELAUNCH COMMAND (2026-09-10)
+
+**`docs/MISSION.md`'s `0-RUNNING` section -- the single block a resuming
+session reads to learn what is alive -- announced `itemscale1` + `itemscale2`
+in flight on dsisco01 GPU 0 and GPU 1. They had LANDED two days earlier and
+closed an entire design family. Nothing in the block's 76 lines said so, and
+the block contained a copy-pasteable relaunch command.**
+
+### 1. The two ways it fails, and the second is expensive
+
+A session that believed the block left two GPUs reserved for a campaign that
+finished on 2026-09-08. That is the cheap failure.
+
+The expensive one is the resume protocol the block itself prescribes:
+
+```
+ssh dsisco01 'ps -u michaer8 -o pid,etime,cmd | grep main.py | grep -v grep'
+```
+
+A landed campaign has no `main.py`. The block's next lines were the relaunch,
+under a comment explaining the `echo 0` its pin still needs. **The prescribed
+reading of a healthy, finished campaign was therefore "it died -- relaunch
+it"**, and doing so would have re-run 192 runs of a direction that FRAMEWORK
+2(z56) closed, producing output that looks exactly like corpus.
+
+### 2. THE DEFECT IS THE DATE, AND IT IS STRUCTURAL
+
+The heading read `WHAT IS IN FLIGHT (2026-09-07)`. That date is when the block
+was **written**. A run-state block dated at writing is indistinguishable from a
+current one forever after: it never contradicts itself, it just quietly ages.
+
+✅ The block is now dated **LAST VERIFIED**, which is when somebody last
+*checked* -- a date that goes visibly stale, because the gap between it and
+today is the whole point. It also now carries a LANDED table whose entries are
+marked ⛔ DO NOT RELAUNCH, so a finished campaign is stated as finished rather
+than merely absent from the live list.
+
+### 3. TWO SECTIONS CLAIMED RUN-STATE, WHICH IS WHY BOTH WERE STALE
+
+`0-LAUNCH` exists so a launch command is never lost to scrollback -- a good
+rule, written after `dualprop1` ran a day without its command recorded. But it
+annotated its entries with state, and still said `dualprop1 -- LIVE on dsisco01
+GPU 0` after that campaign had landed AND been scored AND produced 2(z53)'s
+rejection of `tralo_dualprop`.
+
+✅ `0-LAUNCH` now declares that it owns COMMANDS and never run-state, and that
+`0-RUNNING` is the only section permitted to say what is alive. One authority,
+so there is one place to update and one place to distrust.
+
+### 4. WHAT IT ALSO SURFACED: `snap2` WAS RUNNING AND NAMED NOWHERE
+
+Rebuilding the live list from the evidence rather than from the old block found
+`snap2` -- live, and the campaign with the worst provenance in the project: it
+runs from the unmerged server branch `snap/slice-provenance`, so its
+`code_version` will resolve in no other checkout, the 612-test suite has never
+executed against that code, and no 2026-09-09 scorer correction reaches it.
+It is now in the table with that caveat attached. 2(z67), tasks #103 / #97.
+
+### 5. AND THE SIBLING CLASS: NUMBERS THAT SAY THEY ARE NOT FINISHED
+
+Sweeping this file for entries that caveat their own numbers returns **8**.
+Seven had an owning task; 2(z53) did not -- `dualprop1` was 72 of 88 runs when
+it was read, so its cells carry 3 seeds against the protocol's 4, and its own
+text says every number must be re-read at completion. Now task **#106**, and
+all eight are indexed in `MISSION` `0-OPEN`.
+
+⚠️ **THAT SWEEP IS A REPORT, NOT A GATE, AND IT IS DELIBERATELY NOT A TOOL.**
+This project already carries three doc auditors (`doc_commands`,
+`stale_figures`, `dead_code`). An obligation differs from a state claim exactly
+in that it does not go stale -- it can only be discharged -- so a checklist is
+the correct instrument and a fourth scanner would be sprawl.
+
+### 6. The rule
+
+🔑 **A DOCUMENT MAY ASSERT RUN-STATE IN EXACTLY ONE PLACE, AND MUST DATE IT
+WHEN IT WAS LAST CHECKED RATHER THAN WHEN IT WAS WRITTEN.** Everything else
+that mentions a campaign is history and must read as history. This is the same
+shape as 2(z68) -- a figure dated when it was produced, against a scorer that
+moved underneath it -- and the same as the `keep_for` rule in 2(z71): a claim
+that was true in one context, read in another.
