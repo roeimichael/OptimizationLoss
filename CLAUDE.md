@@ -1174,7 +1174,14 @@ python -m scripts.step_direction_probe --glob "<root>/*/iwildcam/*/tralo*/seed_*
                                             #   real post-ReLU features are non-negative and
                                             #   anisotropic and give uniform-vs-sum 0.7479.
                                             #   ⛔ **BUT ITS CUT WAS GLOBAL IN TWO PLACES
-                                            #   UNTIL 2026-09-10 -- THE SIXTH SUCH SITE.**
+                                            #   UNTIL 2026-09-10 -- THE SEVENTH SUCH
+                                            #   SITE. ⚠️ It read SIXTH for one day:
+                                            #   2(z80) recounted to EIGHT after finding
+                                            #   that `order_probe` holds TWO of them and
+                                            #   the 2(z64) `argsort` audit had cleared
+                                            #   the file while listing only one. The
+                                            #   audit is per-FILE; the defect is per-CALL
+                                            #   SITE.**
                                             #   The mass-at-the-cut band was
                                             #   `argsort(-z)[K-20:K+20]` over the whole test
                                             #   set, and `cut_window`'s centre `tau` was the

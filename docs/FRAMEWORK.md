@@ -215,6 +215,25 @@ much noise measures the kernels, not the hyperparameter.
 
 ## 1b-pre. THE INSTRUMENT WAS BROKEN UNTIL 2026-08-20. Four findings that gate everything.
 
+⛔ **ALL FOUR ARE MEASURED ON `dermmnist`, WHICH IS LEAKED AND REMOVED, AND
+NONE OF THEM SAID SO (disclosed 2026-09-10).** Finding (3) is the worst of the
+four because it reads as a live mechanism result: `vit_diag` is a **dermmnist**
+campaign, `scorable=False`, and its `keep_for` is "8 completed diagnostic runs"
+-- it licenses no quality claim at all. So the AUROC / macroF1 table there, the
+Precision@67 50-vs-57, the +0.0094 and the +0.0011 tie are all on a test set
+that leaks **38.7% of itself** (67.3% of melanoma). Finding (4) names its 428
+archived dermmnist runs; findings (1) and (2) do not name a dataset anywhere.
+
+✅ **WHAT SURVIVES, AND IT IS MOST OF THE VALUE.** These are INSTRUMENT
+findings, and an instrument defect is a property of the code and the protocol,
+not of the labels: a noise floor larger than the effect, two arms at ~20x
+different dose, a lambda that is a clock (`0.01 + 0.05k`, carrying only "still
+violated"), and a penalty shape that is inert where the runs live. Every one of
+those has since been re-established on iwildcam. ⚠️ **The NUMBERS have not**, and
+they are quoted downstream as if they had -- 0.0358, 21x, 0.0017, the 137-count
+split. Re-measure before quoting any of them; the qualitative claim needs no
+re-measurement.
+
 ### (1) The noise floor was 0.0358 macro-F1 -- 21x the effect being measured
 
 Three runs of the SAME arm (`clip`), same seed, same config, same GPU, back to back
@@ -2812,15 +2831,48 @@ overlap only at K/n=0.90, so more cells require the per-class cap form
 both classes. This supersedes MISSION queue item 2's "more loose cap tags",
 which would have added cells that are not tasks.
 
-### (z21) 🟢🟢 `dom1` READ ON ITS TASK CELLS: `tralo` CLEARS ITS OWN RNG FLOOR
-IN **4 OF 4**, LEADS EVERY RIVAL DUAL ON ccF1, AND `tralo_uniform` IS BELOW THE
-FLOOR IN 4 OF 4.
+### (z21) 🟢⛔ `dom1` READ ON ITS TASK CELLS: `tralo` CLEARS ITS OWN RNG FLOOR
+IN **4 OF 4** ✅, and `tralo_uniform` IS BELOW THE FLOOR IN 4 OF 4.
+⛔ **"LEADS EVERY RIVAL DUAL ON ccF1" IS WITHDRAWN: TWO OF THE FOUR RIVALS
+ARE DEAD ARMS AND THE THIRD IS `alm`, 0.12x THE FLOOR AWAY.**
 
 🛑 **CORRECTED BY 2(z24) 2026-09-01, READ IT FIRST.** The task cells below
 were classified from a window that is a MEAN over seeds spreading 105 items,
 and imported from another campaign's model. On the strict per-seed rule `dom1` has 3 task cells, not 4, all MobileNetV2, so
 its 2 independent units are **1**. The SIGNS below are unchanged;
 the unit count and the p-value are not.
+
+⛔ **AND CORRECTED AGAIN 2026-09-10: TWO OF THE FOUR RIVAL COLUMNS BELOW ARE
+DEAD ARMS.** `dom1` is PARTIAL in the quarantine registry -- `fioretto` and
+`hounie` ran at **28.00** attempted constraint steps per run against `tralo` /
+`alm` / `tralo_uniform`'s **29.00**, because both duals start their multipliers
+at exactly 0 and updated them AFTER the primal step, so epoch 0 took none
+(2(z40)). Every contrast touching those two is not comparable, and this entry's
+headline is built on all four. It is the same defect 2(x) was retracted for, in
+the same campaign, and this entry kept the claim.
+
+**WHAT THE TABLE SAYS WITH THE DEAD COLUMNS DROPPED.** One rival survives,
+`alm`, and the comparison is much smaller than "leads every rival dual":
+
+* Over the **3 STRICT task cells** 2(z24) leaves (all MobileNetV2), mean ccF1
+  vs own null is `tralo` **12.03** against `alm` **11.15** -- a gap of
+  **0.88 items**. The RNG floors in those same three cells are 9.34, 6.84 and
+  5.63, mean **7.27**. So the surviving arm-vs-arm gap is **0.12x the floor**.
+* Per cell `tralo` leads `alm` in **2 of 3** strict cells (`alm` takes
+  MobileNetV2/`L95_G80`, 12.64 to 11.61) and in 3 of the 4 cells the old
+  window called tasks.
+* ✅ **`tralo` clearing its OWN null by more than the floor is untouched** --
+  that contrast reads `tralo` against `tralo_null` and `tralo_reseed`, all at
+  29.00, and no dead arm enters it. The 4-of-4 and the 🟢🟢 stand for THAT
+  claim.
+
+⇒ **The headline conflates two different results.** "Clears its own RNG floor"
+is a within-family statement and survives intact. "Leads every rival dual" is
+an arm-vs-arm ordering, it is a MEAN over cells rather than a per-cell sweep,
+two of its four terms are not comparable, and against the one that is the gap
+sits an order of magnitude below the noise the same table prints. That is
+2(z43)'s finding reached from the other direction: over the 15 cells carrying
+rival duals, a #1 is namable in 2, both `alm`, and TraLO in none.
 
 `dom1` (384 runs, **16 arms**, MobileNetV2 + MobileNetV3, `L80_G95` `L90_G95`
 `L95_G80`) is complete, 4 seeds in every cell, `n_md5 == n_seeds` in all 96
@@ -7989,6 +8041,36 @@ significance claim.
 ### 2(w4) 🔬🔬 **`order_probe` HAD NO SIGNIFICANCE GATE -- and the band/global**
 ### **DISSOCIATION it was hiding**
 
+⛔ **EVERY ROW OF THE DISSOCIATION TABLE BELOW IS CONDEMNED DATA, ALL FOUR
+CAMPAIGNS, AND THE ENTRY NEVER SAID SO (disclosed 2026-09-10).** This is the
+worst provenance in the document, because the defect the entry is ABOUT (a
+probe with no significance gate) is orthogonal to it and reads as thorough:
+
+* `vitu1` and `iwc4` are **off-recipe** -- COVERAGE section 0 recipe row 2,
+  `constraint_grad_mode: clip`, archived 2026-09-02 (2(z76)).
+* `loose1` is off-recipe too, but its MobileNetV2 / MobileNetV3 cells are
+  BYTE-IDENTICAL to `dom1`'s in 96/96, so `clip` and `normalize` provably
+  coincide there. Its RegNetY400MF cells are `loose1`'s alone and are the unit
+  2(z26-CORRECTED) removed from the corpus by name.
+* `uniform1` is **`scorable=False`** -- nine of nine cells outside the task
+  window.
+
+⛔ **AND EVERY TIGHT-CAP ROW IS IN THE REGIME 2(z16) CLOSED.** `vitu1`,
+`iwc4` and both `uniform1` rows are L20/L30/L50, where 24 of 24 (backbone x
+class x cap) cells fail the task test. So the reordering was measured almost
+entirely where the cap poses no question -- and the one row at LOOSE caps,
+`loose1`, is the row that reads **ns on all four tests**.
+
+⚠️ **WHAT SURVIVES, AND IT IS NOT NOTHING.** The GATE defect is a fact about
+the code and stands: the probe branched on a pooled mean with no test, and
+`tralo_uniform` at 26/48 p=0.66 got the same verdict as `tralo` at 27/48. The
+global-vs-band DISSOCIATION is a real distinction and the right one to draw.
+What is NOT established is the direction quoted from it -- "`tralo_uniform`
+reorders the easy mass and PROTECTS the cut" is one campaign, off-recipe, at a
+cap that poses no question, and it is offered below as "the mechanism for
+2(w)", whose arm was later rejected. Re-run on `dom1` before quoting any row.
+
+
 🛑 **The probe was calling coin flips.** Its verdict branched on the bare
 pooled mean of `rho_arm - rho_reseed` with **no test at all**, so a mean of
 `-0.0076` at a **27/48** split printed *"the constraint reordered MORE than a
@@ -8045,13 +8127,14 @@ helps by moving the **cut**, not the ranking.
 #### `--evictions` overstates by 6.5x -- it is not the allocator that ran
 
 It reported *"+16.50 items per cell attributable; the constraint's swaps are
-BETTER than a reseed's"*. Two independent defects, both now fixed:
+BETTER than a reseed's"*. Two independent defects, one FIXED and one only DISCLOSED (2(z80)):
 
 1. **NO POWER.** It branched on `d_net` against a bare `+/-1.0` items and
    printed no noise at all. The within-cell paired seed sd is **18.11 items**,
    larger than the effect. It now prints a RESOLUTION block: **~10 seeds per
    cell needed, UNDERPOWERED** at the 4 the protocol runs.
-2. **WRONG ALLOCATOR.** Its sets are `argsort(-p)[:K]` on the raw class column
+2. ⚠️ **WRONG ALLOCATOR -- DISCLOSED, NOT FIXED (see 2(z80)).** Its sets
+   are `argsort(-p)[:K]` on the raw class column
    -- a **GLOBAL top-K**. The allocator that actually ran is LP/greedy under
    per-group ceilings, and **7 of 14 iwildcam local ceilings are K=0**, so it
    cannot take the global top-K and does not. `full_panel --control
@@ -8103,8 +8186,59 @@ withdrawn dataset is history, and scoring it would only manufacture numbers
 that cannot be quoted.
 
 
-### 2(w) 🟢 **THE FIRST ARM THAT TAKES A FULL DOSE AND DOES NOT DAMAGE THE
-RANKING** -- `results/uniform1`, 252 runs, complete 2026-08-26
+### 2(w) 🟢⛔ **THE FIRST ARM THAT TAKES A FULL DOSE AND DOES NOT DAMAGE THE
+RANKING** -- `results/uniform1`, 252 runs, complete 2026-08-26.
+⛔ **THE CAMPAIGN IS `scorable=False` AND THE ARM WAS LATER REJECTED**
+
+⛔ **`uniform1` IS `scorable=False`, AND THE ARM THIS SECTION CELEBRATES WAS
+LATER REJECTED. READ THIS BLOCK BEFORE ANY FIGURE BELOW (disclosed
+2026-09-10).** Four things the 300 lines that follow say nowhere:
+
+1. ⛔ **The campaign is quarantined.** All NINE cells fail the task window --
+   the caps are `L20_G50` / `L30_G50` / `L50_G30`, exactly the regime 2(z16)
+   closed. Nothing went wrong mechanically (1044/1044 steps, zero collapse,
+   zero non-finite): 252 runs measured the absence of a question.
+2. ✅ **The central claim survives that, which is why the marker carries a
+   `keep_for` and not a deletion.** "Does the flat count damage the ranking?"
+   is a question about the LOSS SHAPE, not about whether the cap binds, so a
+   non-task cap does not invalidate it. The AP / AUROC / tau / bias-shift
+   figures below stand as measured.
+3. ⛔ **But `tralo_uniform` was REJECTED once task cells existed, and THIS
+   section is why it ever looked like the fix.** On `dom1`'s four task cells
+   it sits below its own RNG floor **0 of 4** (0.77x); across all EIGHT
+   measured task cells it clears the floor in **3 of 8**; it never LEADS; and
+   it is the worst arm in the campaign with the most cells (2(z21), 2(z23),
+   and 2(z11) at tight caps). ⚠️ The verdict that survives is the weaker one
+   -- "never leads", NOT "refuted everywhere". So 2(w)'s one-line claim, that
+   the constraint can be applied at full dose for FREE, is a claim about
+   DAMAGE and is still true. The follow-on it invites -- that the free arm is
+   therefore the arm to run -- is refuted.
+4. ⛔ **`uniform1` and `dom1` are NOT independent units.** 32 of `uniform1`'s
+   distinct models are shared byte-for-byte with `dom1`. They are never two
+   replicates of anything (2(z27)).
+5. ⛔ **AND EVERY ViTB16 ROW BELOW IS `vitu1`, WHICH IS OFF-RECIPE AND
+   ARCHIVED.** COVERAGE section 0 puts it in recipe row 2 --
+   `constraint_grad_mode: clip`, not the current `normalize` -- beside `iwc4`
+   `loose1` `loosevit1`. ⚠️ That does not make it WRONG: `clip` scales by
+   `min(raw_norm, 1.0)`, so the two coincide EXACTLY wherever the raw norm is
+   >= 1, which is how `loose1`'s four CNN cells came out byte-identical to
+   `dom1`'s. It makes it **UNVERIFIABLE** -- no per-step norm was logged, and
+   `vitu1` has no byte-identical twin to check against. So "12 of 12 cells
+   across four backbones" is 9 cells on the current recipe plus 3 that may or
+   may not be the same method, and the ViTB16 half of every table below (the
+   tau 0.4371 reading, the 26.4x bias shift, the -0.1484 L50_G30 row) rests
+   entirely on it.
+
+⛔ **AND THE `iwc3` TABLES IN THIS SECTION'S LAST TWO SUBSECTIONS CARRY THE
+2(z71) DEFECT.** `iwc3` is `scorable=False` at 716/1044 = 68.6% dose and its
+`keep_for` is the fp16-dose receipt ONLY, so the `treated sd` and `seeds`
+columns below are UNVERIFIED -- the treated sd is exactly what a 68.6% dose
+touches. The `unpaired` and `reseed` columns are dose-IMMUNE (lambda=0 arms
+take zero constraint steps), so half of that comparison is sound. The
+MECHANISM sentence -- `tralo` and `tralo_null` share ONE warm-up epoch and
+then train 29 apart, so they are two MODELS -- is a design fact and stands.
+Direction UNKNOWN. Re-run on `dom1`; task #109.
+
 
 Every previous section here reports a cost. This one reports a fix, and it is
 the direct answer to 2(t): the constraint evicts the CORRECT items because the
@@ -13469,7 +13603,8 @@ that the count alone could not have:
 
 * The FIRST hit was a symptom, not the disease. Reading (z12) found that
   `step_direction_probe` took the cut at a GLOBAL rank-K window in two
-  places -- the sixth site of that substitution here, in the tool behind that
+  places -- the SEVENTH site of that substitution here (2(z80) recounts;
+  it read "sixth" when written), in the tool behind that
   entry's own headline. **2(z79).** A provenance flag surfaced a mechanism
   defect.
 * The THIRD hit showed the matcher was too narrow, and in a way that hid the
@@ -13506,7 +13641,7 @@ from 13 figures to 4 in `stale_figures`. It also asserts that `loose1` reads
 as `clip` **from COVERAGE's table** and that the current recipe is DERIVED,
 so the tool cannot drift from the authority it exists to enforce.
 
-## 2(z79). THE SIXTH GLOBAL-TOP-K SITE, AND IT IS THE TOOL BEHIND (z12) -- THE DIAGNOSIS *AND* ITS PRESCRIPTION WERE BOTH AIMED AT A CUT THE ALLOCATOR NEVER MAKES (2026-09-10)
+## 2(z79). THE SEVENTH GLOBAL-TOP-K SITE (called SIXTH when written; 2(z80) recounts to EIGHT), AND IT IS THE TOOL BEHIND (z12) -- THE DIAGNOSIS *AND* ITS PRESCRIPTION WERE BOTH AIMED AT A CUT THE ALLOCATOR NEVER MAKES (2026-09-10)
 
 Found by reading the top hit of `scripts/stale_provenance` (2(z78)), which
 flagged (z12) for quoting 53 figures from `iwc1` -- a `scorable=False`
@@ -13610,6 +13745,120 @@ python -m scripts.step_direction_probe --glob 'results/dom1/*/iwildcam/*/tralo/s
 
 `dom1` is on the current recipe and PARTIAL only for `fioretto`/`hounie`,
 neither of which this reads. Task #112.
+
+## 2(z80). THE `argsort` AUDIT CLEARED A FILE IT HAD NOT FINISHED READING -- `order_probe`'s CONTESTED BAND IS A GLOBAL SORT, AND IT IS THE SEVENTH SITE, NOT THE SIXTH (2026-09-10)
+
+2(z79) called `step_direction_probe` "the SIXTH global-top-K site". The count
+was wrong in both directions at once, and finding out cost one grep.
+
+### 1. The audit's own table cleared the file
+
+2(z64) enumerated every `argsort` in `scripts/` and printed a verdict per
+file. Its row for this one reads, verbatim:
+
+| `order_probe.py:333,383-388` | reordering statistics, group-blind BY DESIGN and says so |
+
+That verdict is CORRECT for `rho_arm` -- a Spearman over the whole capped-class
+column is a global statistic on purpose, and nothing about the allocator bears
+on it. It is **wrong for the two columns beside it**, which the same lines
+compute:
+
+```python
+order_n = np.argsort(-pn)                       # scripts/order_probe.py:392
+lo, hi  = max(1, K // 2), min(len(pn), 2 * K)
+band    = order_n[lo:hi]                        # "where the cut actually falls"
+top_a   = set(np.argsort(-pa)[:K].tolist())     # jac_arm, a global top-K set
+```
+
+`rho_arm_band`, `rho_reseed_band`, `jac_arm` and `jac_reseed` are **cut-local
+quantities**, and the cut they are local to is one the allocator never makes.
+The deployed allocator takes top-`k_g` WITHIN each group; on iwildcam 7 of 14
+local ceilings are K=0 and 72% of test items sit in groups holding none of the
+capped classes, so a globally-ranked item at position K/2..2K may be safely
+inside a large-`k_g` group or in a group that can never select it.
+
+⛔ **AND THE FILE DOES NOT "SAY SO" FOR THIS PATH.** The disclosure the audit
+credited is printed only inside the `--evictions` branch. The band path asserts
+the opposite in three places: the comment at :391 (`# the contested band: where
+the cut actually falls`), the printed note at :524, and the closing summary at
+:540 (`The band result says the constraint DOES reorder where the cut falls`).
+
+### 2. And it never listed the `evictions` lines at all
+
+`order_probe.py` holds **six** `argsort` calls: 392, 396, 397, 407 (the band
+and Jaccard) and **578, 579** (`evictions`). The audit cited 383-388 -- the
+first group, at the line numbers of the day -- and 333, which is a `print`.
+Lines 578-579 appear in no row of that table.
+
+They are the ones 2(w4) already knew about: `--evictions` reported *"+16.50
+items per cell attributable"* where `full_panel --control tralo_null` said
++2.53, a **6.5x** overstatement, diagnosed 2026-08-28 as a global top-K. So the
+class was found in this very file, in this very repo, **before the numbering
+started**, and the audit built to catch it a fortnight later read past it.
+
+### 3. The count is EIGHT, two of them in this file, and two are not fixed
+
+| # | site | found | state |
+|---|---|---|---|
+| 1 | `order_probe --evictions` | 2026-08-28 | ⚠️ **DISCLOSED, NOT FIXED** -- still `argsort(-p)[:K]` |
+| 2 | task window 2(z16) | 2026-09-01 | fixed |
+| 3 | cap screen 2(z28) | 2026-09-02 | fixed |
+| 4 | fmow window 2(z59) | 2026-09-09 | fixed |
+| 5 | `paired_noise` 2(z63) | 2026-09-09 | fixed |
+| 6 | `cut_gap` 2(z64) | 2026-09-09 | fixed |
+| 7 | `step_direction_probe` 2(z79) | 2026-09-10 | fixed |
+| 8 | **`order_probe` band + Jaccard** | **2026-09-10, here** | ⚠️ open |
+
+⚠️ **SITE 1 AND SITE 8 ARE THE SAME FILE AND ARE STILL DIFFERENT SITES**: one
+is the eviction sets, the other the contested band, they were written at
+different times, and fixing the first did not touch the second. Counting the
+file once is what produced "six".
+
+⚠️ **TWO OF THE EIGHT ARE NOT FIXED**: site 1 was disclosed rather than
+corrected, and site 8 is open as of this entry. Every other row is corrected in
+code with a gate and a negative control.
+
+### 4. What it does to 2(w4)
+
+2(w4) is the entry that reads the band, and its whole point is the
+**dissociation** between global rho and band rho -- *"`tralo_uniform` reorders
+the EASY MASS and PROTECTS THE CUT"*, offered there as the mechanism for 2(w).
+The global half of that dissociation is sound. **The band half is measured at
+the wrong point**, so the dissociation is between a global statistic and a
+different global statistic.
+
+⛔ **DIRECTION UNKNOWN, AND DO NOT GUESS IT.** 2(z64) is the standing warning:
+that exact kind of directional claim was written up, fixtured, mutation-tested
+2/2 green, and then refuted by the end-to-end run, because the fixture and the
+claim came out of the same reasoning. The band is neither a subset nor a
+superset of the union of per-group cut neighbourhoods.
+
+2(w4) also says the two `--evictions` defects are *"both now fixed"*. One was:
+the missing power test. The other was **disclosed**, not fixed -- the tool
+still takes a global top-K and now prints a paragraph saying it does. Corrected
+at that line.
+
+### 5. The rule this replaces
+
+2(z63) left the instruction *"when a tool sorts probabilities, check what it
+sorts them WITHIN"*, and 2(z64) ran it. Both are right and both were too weak,
+because the audit they describe is per-FILE and the defect is per-CALL SITE.
+The version that would have caught this:
+
+> Enumerate every `argsort` call, not every file. For each one name the
+> QUANTITY it feeds. If that quantity is described anywhere -- in a comment, a
+> print, or a FRAMEWORK entry -- as being *at the cut*, *contested*, *near the
+> boundary* or *top-K*, then a global sort is wrong however group-blind the
+> surrounding statistic is. A file can hold both kinds, and this one does.
+
+### 6. The fix and its receipt
+
+Per-group band and per-group top-K sets, the same two helpers
+`step_direction_probe` got in 2(z79) (`group_tau`, `cut_band`), and BOTH
+readings printed side by side so no figure silently changes meaning. The tool
+must REFUSE a predictions file with no `Group_ID` rather than fall back to the
+global sort -- that refusal is what found 2(z65). Task #113.
+
 
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
