@@ -9,6 +9,45 @@ Last updated: **2026-09-10** (🔴🔴🔴🔴 **`fmow1` LANDED AT 304/304 AND I
 
 ---
 
+## 🟢 0-CAPS. THE FOUR NEW UNITS' CAPS ARE SETTLED, OFFLINE, AND THEY ARE STRICT TASK CELLS ON BOTH LEVELS (2026-09-10)
+
+Task #124's measurement half is done and so is its cap choice. All twelve
+(dataset x backbone) windows are now measured, and `configs.task_cells.classify`
+runs on bcn and fmow **on a laptop with no GPU** -- the `*_meta.csv` splits are
+tracked as of 2(z96), and K comes from labels and the cap policy alone.
+
+| unit | caps | verdict at BOTH levels |
+|---|---|---|
+| `bcn` / MobileNetV2 | `L90_G95` `L100_G95` | task, both classes STRICT |
+| `bcn` / RegNetY400MF | `L90_G95` `L100_G95` | task, both classes STRICT |
+| `fmow` / MobileNetV2 | `L40_G95` `L50_G95` | task, both classes STRICT |
+| `fmow` / RegNetY400MF | `L40-30_G95` `L50-40_G95` | task, both classes STRICT |
+
+* ⚠️ **fmow/RegNetY400MF NEEDS THE PER-CLASS FORM.** Its corrected class-5 band
+  is `[0.30, 0.40]` against class 3's `[0.40, 0.60]`, so the single-fraction
+  overlap is ONE grid point and a two-level campaign is impossible without it.
+  `L50_G95` reads `partial` there (class 5 slack) and `L60_G95` reads
+  `non_task`. bcn and fmow/MNv2 do NOT need it.
+* ⚠️ **`L110_G95` IS `L100_G95` ON bcn.** Both give K=1210 / 826, because
+  `G95` binds globally at 0.95 before the local cap does. Two cap levels means
+  L90 + L100; adding L110 buys a duplicate campaign.
+* 🔑 **THE CORRECTION IS VISIBLY LOAD-BEARING AT THESE EDGES.** `bcn` `L80_G95`
+  and `fmow` `L30_G95` both read `ref_shifted -> unmeasured`: inside the
+  measured band, outside the one corrected for the `clip` reference arm
+  (2(z95)). Before the correction had a reader they would have generated and
+  classified `task`. The chosen caps sit one grid step clear of that edge.
+* ⛔ **`L20`-`L60` ON bcn ARE NON-TASKS AND `L80`-`L110` ON fmow ARE**, so the
+  two datasets' task regions do not overlap at all. Never carry a cap tag
+  across datasets.
+
+NEXT: generate on the server (the `.npy` arrays are gitignored, so `classify`
+runs here but training cannot). Fresh worktree pinned at the commit, arrays
+symlinked at their REAL location, `run_campaign --step stage/verify/launch`,
+then dsisco01 GPU 2 -- CLEAR as of 23:40, with `price1`/`price2` on GPU 0/1 and
+GPU 3 owned by `nirgal`.
+
+---
+
 ## 🛑 0-FLOOR. THREE SCORERS REPORTED A GUARD AS IF IT WERE A MEASUREMENT (2026-09-10)
 
 The floor bar `MIN_FLOOR_OBS = 8` is consulted by several tools. In three of

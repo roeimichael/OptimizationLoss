@@ -17188,3 +17188,69 @@ pinned iwildcam end-to-end cases (`task`, `partial`, `no_strict_band`) go on
 asserting. The four corrected rows have no campaign generated against them yet.
 That is the whole point of catching it now.
 
+
+---
+
+## 2(z96). THE COMMIT THAT FIXED "EXISTED NOWHERE BUT ONE WORKTREE" EXISTED NOWHERE BUT ONE MACHINE -- AND THE SPLIT EVERY bcn AND fmow NUMBER WAS MEASURED ON WAS UNTRACKED ON THE BRANCH OF RECORD (2026-09-10)
+
+**THE ONE-LINE VERSION.** `git ls-files data/ | grep -cE 'bcn|fmow'` returned
+**0** on `cleanup/consolidate-pipeline`. The `*_meta.csv` files ARE the
+experiment -- they define the train/test partition, the group column and the
+held-out cohorts that `bcn1mn3` (228 runs), `bcn1vit` and `fmow1` (304 runs)
+were every one of them measured on. They were fixed on the server branch
+`snap/slice-provenance` on 2026-09-09, and **that branch had never been pushed
+anywhere**: `git branch -r --contains 37e364c7` was empty. So the fix for
+"existed nowhere but one worktree" existed nowhere but one machine.
+
+### 1. Why a split is not like an array
+
+The `.npy` arrays are 3.0 GB, reproducible from the source images, and are
+correctly gitignored. A SPLIT is not reproducible in the same sense: rebuild it
+with a different seed and every completed result describes a partition that no
+longer exists. 1.3 MB, and it is the definition of the experiment rather than a
+cache of it.
+
+⛔ **AND `data_present` COULD NOT HAVE CAUGHT IT.** That tool exists because a
+fresh worktree passed every launch gate and then failed 24 runs in 120 seconds
+on a missing array -- so it checks ARRAYS. A worktree missing the meta CSVs
+fails the same way for a different reason, and the gate written for the first
+was blind to the second. Its `--all-registered` mode closes that, and both
+commits are now on this branch.
+
+### 2. 🔑 THE PATTERN, AND IT IS THE FOURTH SIGHTING IN ONE WEEK
+
+2(z81): an exemption whose reason is a ticket. 2(z94): a DEFERRED list. 2(z95):
+a correction recorded in a data file with no reader. This one is the same object
+at REPOSITORY scale -- work that is done, correct, and reachable from exactly
+one place. In every case the artefact looks like diligence and nothing fails
+when it is violated.
+
+⚠️ **THE TELL HERE WAS AVAILABLE AND CHEAP**: a `git worktree list` on the
+server shows `optloss-snap [snap/slice-provenance]`, a NAMED branch among
+nineteen detached heads. Task #103 had been open for days recorded as "exists
+only on the server branch ... not among the 40 remote-tracking branches here",
+which is a correct description of a hazard, filed as a note.
+
+### 3. What was taken, and what deliberately was not
+
+**Taken** -- two commits, cherry-picked with `-x`:
+
+* `37e364c7` the four slice definitions. `data/` only, no `TRAINING_PATHS`.
+* `f2a2e96e` `data_present --all-registered`, the gate its own message names as
+  the follow-up. Taking a fix without its gate is the exact shape of the three
+  entries above. `--self-test` 11/11 here, including the negative control that
+  a COMPLETE dataset is not flagged.
+
+**Not taken, and this is a schedule decision rather than a judgement**:
+`tralo_snap` (`8c4da9c2`, `0399ea60`), `ens_panel` (`b6924141`), and the
+`data_loader` change (`29c664f7`) all touch `src/`, which is FROZEN while
+`price1` and `price2` are running -- `code_version` is a git hash and any edit
+splits a live campaign into two non-comparable halves. They are tasks #93, #94,
+#97 and #103 and they merge after the last run lands, not during.
+
+✅ **THE BRANCH IS NOW ON `origin`.** That is the part that had to happen
+immediately and costs nothing: `snap/slice-provenance` carries `snap2` at 96/96
+COMPLETE, whose runs stamp a `code_version` that no other checkout could
+resolve. A campaign whose commit exists on one disk is a campaign that cannot be
+scored if that disk goes.
+
