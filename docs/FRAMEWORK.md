@@ -16748,3 +16748,180 @@ wrapper was killed before the dispatcher, per the standing order. Five stray
 `src.experiments` children survived the dispatcher and had to be taken by
 explicit PID -- `PPID=1` orphans are the documented residue and they appeared
 here exactly as described.
+
+---
+
+## 2(z91). ALL FOUR PILOTS WERE STAGED WITHOUT THE ARM THAT SCREENS THEM, AND THE SUBSTITUTE IS BIASED ONE WAY: THE `clip` BAND IS NEVER HIGHER THAN THE `tralo_null` BAND, IN 6 OF 6 (2026-09-10)
+
+**THE ONE-LINE VERSION.** `gen_campaign`'s own refusal message licenses an
+unscreened pilot with the words *"Screen it from its OWN nulls"* -- and nothing
+ever made a pilot CONTAIN one. `fmowpilot3`, `fmowpilot4`, `bcnpilot3` and
+`bcnpilot4` -- **64 runs across two datasets and two backbones** -- are every
+one of them `clip` + `focal_clip` only. They were generated to discharge an
+obligation they cannot discharge, and the defect is invisible until the
+campaign lands and the screen finds no arm to read.
+
+### 1. Why the substitution is not cosmetic
+
+A window is a property of the REFERENCE MODEL, which is why
+`task_windows.yml` declares one (`meta.reference_arm: tralo_null`). `clip`
+runs **warm-up 30 + constraint 0**; `tralo_null` runs **warm-up 1 + 29 CE
+epochs at lambda=0**. Those 29 extra CE epochs SHARPEN the probabilities, so
+saturation reaches further up the K/n axis and the whole window moves UP with
+it. That is a mechanism, stated before the numbers were looked at.
+
+### 2. The measurement: six comparisons, one campaign carrying both arms
+
+Read off the SAME seeds and the SAME host in each row, so nothing but the arm
+differs:
+
+```
+dataset/backbone   class   tralo_null      clip          shift lo / hi
+fmow  MobileNetV3    3    [0.30, 0.70]  [0.20, 0.60]        +1 / +1
+fmow  MobileNetV3    5    [0.20, 0.40]  [0.20, 0.40]         0 /  0
+fmow  ViTB16         3    [0.20, 0.40]  [0.20, 0.40]         0 /  0
+fmow  ViTB16         5    [0.20, 0.50]  [0.20, 0.30]         0 / +2
+bcn   MobileNetV3    0    [0.80, 1.00]  [0.70, 0.90]        +1 / +1
+bcn   MobileNetV3    2    [0.80, 1.10]  [0.60, 0.90]        +2 / +2
+```
+
+🔑 **THE CLIP BAND IS NEVER HIGHER THAN THE NULL BAND AT EITHER END, IN
+6 OF 6.** So the direction is safe to rely on even though the magnitude is
+not: **a cap the clip band REJECTS is safely rejected, and a cap the clip band
+ACCEPTS may still be saturated under the null.** The error is one-sided and it
+points at the TIGHT end -- exactly the end a pilot is used to choose.
+
+⚠️ **THE MAGNITUDE IS 0 TO +2 GRID STEPS, MEDIAN +1, n = 6.** It is not a
+constant and must not be quoted as one. The correction a `clip`-referenced row
+carries is the intersection of the raw band with the band shifted up by +1,
+and the residual uncertainty is +/- 1 step. Recorded as
+`meta.reference_arm_offset` in `configs/task_windows.yml`, with the campaigns
+it came from named.
+
+### 3. The first pilot landed, and the correction changes its answer
+
+`fmowpilot3` (fmow x MobileNetV2, dsisco02/bf16) completed 16/16. Measured off
+`clip`, 8 runs de-duplicated by the tool to **4 DISTINCT MODELS** -- L20 and
+L30 `clip` are byte-identical, because a post-hoc arm takes zero constraint
+steps and its raw predictions cannot depend on the cap:
+
+```
+class 3  n_true 501, predicts 422   TASK [0.30, 0.60]   0.20 SATURATED
+class 5  n_true 625, predicts 415   TASK [0.20, 0.50]
+```
+
+RAW overlap **[0.30, 0.50]**. CORRECTED overlap **[0.40, 0.50]**.
+
+⛔ **SO THE RAW READING WOULD HAVE ACCEPTED L30 AND THE CORRECTED ONE DOES
+NOT.** The pilot itself ran L20 and L30; L20 is already excluded by class 3's
+own clip reading, and L30 survives only if the offset happens to be 0 in this
+cell, which it is in 3 of the 6 measured comparisons and is not in the other 3.
+
+✅ **AND THE STRUCTURAL REASON TO RUN THIS CELL SURVIVES INTACT.** `K=0grp`
+reads **0.0 at every fraction on both classes**: fmow x MobileNetV2 has no zero
+per-group ceiling, so 2(z54)'s confound -- 74.1% of TraLO's step landing on
+already-compliant K=0 scopes, where the allocator emits nothing and no item can
+change -- cannot occur here at all. On iwildcam 7 of 14 ceilings are K=0.
+
+### 4. The fix
+
+`gen_campaign` now REFUSES `--allow-nontask` when the campaign does not carry
+`task_windows.yml`'s declared reference arm, naming the arms it does carry and
+the reason `clip` is not a substitute. **Fail-closed**: a caller that does not
+say what it is generating cannot be granted the override either. Two new
+self-test checks plus the pre-existing negative control (a pilot WITH the ref
+arm must still pass); mutation-tested 2/2, and the restore was verified by
+EXECUTING the self-test rather than by reading the file back.
+
+⚠️ The four pilots already on disk are NOT regenerated. They are cheap,
+already queued, and the correction above is measured rather than assumed --
+buying the missing `tralo_null` arm costs 8 full trainings per pilot, against a
+queue that is already 181 runs deep. Their rows in `task_windows.yml` carry
+`reference_arm: clip` and both the raw and corrected bands, so nothing reads
+them as if they were the declared quantity.
+
+---
+
+## 2(z92). `price1` IS THE FIRST CAMPAIGN IN THE CORPUS THAT CAN RETURN `priced = True`, AND ALL FOUR OF ITS CELLS ARE STRICT TASK CELLS AT EQUAL DOSE (2026-09-10)
+
+**THE ONE-LINE VERSION.** 2(z69) established that `0 of 17 priced` was **false
+by construction** -- `priced` requires `nfloor >= MIN_FLOOR_OBS` (= 8) BEFORE it
+compares the spread to the floor, two lambda=0 streams over 4 seeds give
+`1 pair x 4` = **4**, and every corpus campaign predates `tralo_reseed2`.
+`price1` carries **three** streams. At 4 seeds that is `C(3,2) x 4` = **12**,
+which clears the bar. The test 2(z69) said had never been run becomes runnable
+when this campaign finishes.
+
+### 1. State at 47 of 80 (read 2026-09-10, dsisco01/fp16)
+
+```
+MobileNetV2 x iwildcam x {L70-70_G95, L80-80_G95} x 10 arms x 4 seeds
+```
+
+**DOSE IS EQUAL AND COMPLETE.** All five trained arms attempt exactly **29.00
+steps/run** and land 100% of them:
+
+```
+alm 145/145   tralo 145/145   tralo_coin 145/145
+tralo_coin_sgd 145/145        tralo_sgd 116/116     (29.00 per run, all five)
+```
+
+That is the first campaign carrying `tralo_sgd` / `tralo_coin` /
+`tralo_coin_sgd` at the same dose as `tralo` and `alm`. The 29-vs-28 gap that
+quarantined `vitdual1` and made `dom1` / `dom1b` / `equaldose1` PARTIAL is
+absent -- and note it lands 100% on **fp16**, which is the `--constraint-fp32`
+signature (2(u): `false` lands 86.9%).
+
+`pred_integrity`: **all prediction files intact.**
+
+### 2. All four cells are STRICT TASK cells
+
+`configs.task_cells.classify` against the measured iwildcam/MobileNetV2 window
+(class 2 [0.70, 0.80], class 7 [0.60, 0.80]):
+
+```
+L70-70_G95   class 2  K=259 n=370  K/n 0.700  strict
+             class 7  K=319 n=456  K/n 0.700  strict
+L80-80_G95   class 2  K=296 n=370  K/n 0.800  strict
+             class 7  K=364 n=456  K/n 0.798  strict
+```
+
+4 of 4. Against `uniform1` (9 of 9 cells OUTSIDE the window) and `vittask1`
+(2 of 2 outside), both of which were mechanically perfect and measured the
+absence of a question (2(z42)).
+
+### 3. What the screen says at 2 seeds, and why the reasons matter more than the tally
+
+```
+cap          cls   p@cut   p(1-p)   band  spread  floor  seeds  verdict
+L70-70_G95     2  0.9964  0.00355     68     3.0    3.0      2  SATURATED
+L70-70_G95     7  0.7459  0.18952     69     2.0    3.0      2  UNDER-POWERED
+L80-80_G95     2  0.9862  0.01366     68     4.0    1.5      2  FLOOR UNMEASURED
+L80-80_G95     7  0.4854  0.24979     69     2.5    4.0      2  FLOOR UNMEASURED
+```
+
+* 🔑 **THE FIRST GENUINE `UNDER-POWERED` IN THE PROJECT.** 2(z70) records
+  that all 36 cells previously reported that way were actually FLOOR
+  UNMEASURED -- the floor rested on too few observations, so the spread was
+  never compared to it and no effect size would have changed the verdict.
+  L70/class 7 is the other case: the floor IS estimated, the spread (2.0) is
+  genuinely smaller than it (3.0), and the price is **18 seeds/cell at 80%
+  power** against 2 present. The remedies are opposite and this cell calls for
+  the other one.
+* ⚠️ **`SATURATED` HERE IS CUT PLACEMENT, NOT A SATURATED MODEL**, and the
+  tool says so itself: L70/class 2 reads `p(1-p) = 0.00355` at the cut, under
+  the 0.00990 bar, while at the DECISION BOUNDARY it is **0.24980** -- live.
+  That is CLAUDE.md rule 3's rank-K-vs-boundary distinction, read correctly by
+  an instrument for once instead of by a person afterwards.
+* The two FLOOR UNMEASURED cells rest on **6** observations, which is
+  `C(3,2) x 2 seeds`. At the full 4 seeds the same arithmetic gives **12**.
+  So this verdict is a statement about the campaign being half-finished, not
+  about the design.
+* `train acc 0.9581 -> 0.9997` over the constraint phase on `tralo_null`: CE is
+  still sharpening, so warm-up 1 is doing what it is for and this is not the
+  warm-up-50 regime.
+
+⛔ **NOTHING HERE IS AN ARM-VS-ARM RESULT AND NONE MAY BE QUOTED YET.** This
+is a structural read at 59% completion: dose, integrity, cell classification
+and floor arithmetic. The contrasts wait for 80/80.
+

@@ -66,6 +66,53 @@ meta:
   measured_on: "2026-09-02"
   reference_arm: tralo_null
 
+  # ===================================================================
+  # 🛑 WHEN A ROW SAYS `reference_arm: clip`, CORRECT IT WITH THIS.
+  #
+  # A window is a property of the REFERENCE MODEL. `clip` runs warm-up
+  # 30 + constraint 0; `tralo_null` runs warm-up 1 + 29 CE epochs at
+  # lambda=0. Those 29 extra CE epochs SHARPEN the probabilities, so
+  # saturation reaches further up the K/n axis and the whole window
+  # moves UP with it. That is a mechanism, and the measurement agrees.
+  #
+  # SIX comparisons exist where ONE campaign carries BOTH arms, so the
+  # two windows are read off the same seeds and the same host:
+  #
+  #   dataset/backbone  class   tralo_null      clip        shift lo/hi
+  #   fmow  MobileNetV3   3    [0.30, 0.70]  [0.20, 0.60]     +1 / +1
+  #   fmow  MobileNetV3   5    [0.20, 0.40]  [0.20, 0.40]      0 /  0
+  #   fmow  ViTB16        3    [0.20, 0.40]  [0.20, 0.40]      0 /  0
+  #   fmow  ViTB16        5    [0.20, 0.50]  [0.20, 0.30]      0 / +2
+  #   bcn   MobileNetV3   0    [0.80, 1.00]  [0.70, 0.90]     +1 / +1
+  #   bcn   MobileNetV3   2    [0.80, 1.10]  [0.60, 0.90]     +2 / +2
+  #
+  # 🔑 THE CLIP BAND IS NEVER HIGHER THAN THE NULL BAND AT EITHER END,
+  # IN 6 OF 6. So the direction is safe to rely on even though the
+  # magnitude is not: a cap the CLIP band REJECTS is safely rejected,
+  # and a cap the clip band ACCEPTS may still be saturated under the
+  # null. The error is one-sided and it points at the TIGHT end.
+  #
+  # ⚠️ THE MAGNITUDE IS 0 TO +2 GRID STEPS, MEDIAN +1, n=6. Do not
+  # quote it as a constant. The correction a `clip` row must apply is
+  # the intersection of the raw band with the band shifted up by +1 --
+  # which drops the bottom step and keeps the rest -- and the residual
+  # uncertainty is +/- 1 step.
+  #
+  # ⛔ AND IT IS NOT A SUBSTITUTE FOR MEASURING. It exists because four
+  # pilots were staged with `clip` + `focal_clip` and no `tralo_null`,
+  # so the arm the screen needs is absent from the campaign the screen
+  # runs on. `gen_campaign` now REFUSES that shape (an `--allow-nontask`
+  # pilot must carry the reference arm), so this correction applies to
+  # the four pilots already on disk and should never be needed again.
+  # ===================================================================
+  reference_arm_offset:
+    measured_on: "2026-09-10"
+    n_comparisons: 6
+    campaigns: [fmow1, bcn1mn3]
+    direction: "clip band <= null band at BOTH ends in 6 of 6 -- one-sided"
+    shift_grid_steps: {min: 0, median: 1, max: 2}
+    rule: "intersect the clip band with itself shifted up by +1 grid step"
+
 # =====================================================================
 # STRICT vs PARTIAL, per seed.
 #
@@ -292,6 +339,74 @@ windows:
       partial:
         5: [0.60, 1.20]          #   0.60/0.70 bind 3/4, 0.80/0.90 2/4, 1.00-1.20 1/4
       # OVERLAP [0.20, 0.40]. `fmow1` ran L20 / L30: BOTH are TASK cells.
+
+    # ==================================================================
+    # 🛑 MEASURED OFF `clip`, NOT OFF `tralo_null`, AND THAT IS A
+    # DIFFERENT QUANTITY. `meta.reference_arm` declares `tralo_null` and
+    # this row cannot honour it: `fmowpilot3` stages ONLY `clip` and
+    # `focal_clip`, so the arm the file asks for does not exist in the
+    # campaign the row is measured from. Read `reference_arm_offset`
+    # under `meta` before using this band.
+    #
+    # ⚠️ 8 runs de-duplicated to 4 DISTINCT MODELS -- L20 and L30 `clip`
+    # are byte-identical, because a post-hoc arm takes zero constraint
+    # steps and its raw predictions cannot depend on the cap. The tool
+    # said so itself; counting the runs would have claimed 8 seeds.
+    #
+    # 🟢 `K=0grp` READS 0.0 AT EVERY FRACTION ON BOTH CLASSES. fmow has
+    # no zero per-group ceiling here, so 2(z54)'s confound -- 74.1% of
+    # TraLO's step landing on already-compliant K=0 scopes -- cannot
+    # occur in this cell. That is the structural reason to run it.
+    # ==================================================================
+    MobileNetV2:
+      reference_arm: clip           # NOT meta.reference_arm -- see above
+      provenance: "fmowpilot3/MobileNetV2 (dsisco02/bf16), FOUR distinct `clip`
+        models (8 runs de-duplicated), measured 2026-09-10 on the COMPLETE
+        16-run pilot. Per-group prize, MIN_PRIZE 3.0. The pilot carries no
+        `tralo_null`, so the declared reference arm was unavailable."
+      unconstrained_count: {3: 422, 5: 415}
+      per_model:
+        fmowpilot3_dsisco02_bf16: {hard: {3: 422, 5: 415}, seeds: 4, ref: clip, strict: {3: [0.30, 0.60], 5: [0.20, 0.50]}}
+      class:
+        3: [0.30, 0.60]          #   n_true 501, predicts 422; 0.20 SATURATED
+        5: [0.20, 0.50]          #   n_true 625, predicts 415
+      partial:
+        3: [0.70, 0.80]          #   both bind 3/4
+        5: [0.60, 0.70]          #   0.60 binds 2/4, 0.70 binds 1/4
+      # RAW OVERLAP [0.30, 0.50] under `clip`.
+      # CORRECTED OVERLAP [0.40, 0.50] -- the raw band intersected with
+      # itself shifted up by the median +1 grid step of
+      # `meta.reference_arm_offset`. THIS is the band to generate from,
+      # and it excludes L30, which the raw reading would have accepted.
+
+    # ==================================================================
+    # ALSO MEASURED OFF `clip` -- same defect as MobileNetV2 above, same
+    # pilot design. Read `meta.reference_arm_offset` before using it.
+    # 8 runs de-duplicated to 4 DISTINCT MODELS.
+    # ==================================================================
+    RegNetY400MF:
+      reference_arm: clip           # NOT meta.reference_arm
+      provenance: "fmowpilot4/RegNetY400MF (dsisco02/bf16), FOUR distinct `clip`
+        models (8 runs de-duplicated), measured 2026-09-10 on the COMPLETE
+        16-run pilot. Per-group prize, MIN_PRIZE 3.0. The pilot carries no
+        `tralo_null`, so the declared reference arm was unavailable."
+      unconstrained_count: {3: 412, 5: 335}
+      per_model:
+        fmowpilot4_dsisco02_bf16: {hard: {3: 412, 5: 335}, seeds: 4, ref: clip, strict: {3: [0.30, 0.60], 5: [0.20, 0.40]}}
+      class:
+        3: [0.30, 0.60]          #   n_true 501, predicts 412; 0.20 SATURATED
+        5: [0.20, 0.40]          #   n_true 625, predicts only 335 -- the narrow one
+      partial:
+        3: [0.70, 0.80]          #   both bind 3/4
+        5: [0.50, 0.50]          #   binds 3/4; 0.60 is cap slack
+      # RAW overlap [0.30, 0.40]; CORRECTED per class, 3: [0.40, 0.60],
+      # 5: [0.30, 0.40].
+      # !! THE CORRECTED SINGLE-FRACTION OVERLAP IS ONE GRID POINT, 0.40,
+      # and `gen_campaign` refuses a single-cap campaign. Use the PER-CLASS
+      # tag form, which exists for exactly this: `L40-30_G95` and
+      # `L50-40_G95` both put each class inside its OWN corrected band and
+      # are two distinct cap LEVELS. Do NOT fall back to a single fraction
+      # and do NOT widen the band to make one fit.
 
   # bcn -- MEASURED 2026-09-09, AFTER BOTH CAMPAIGNS HAD ALREADY RUN
   #

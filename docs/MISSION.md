@@ -1347,17 +1347,18 @@ COMPLETE
   coin2        48/48     seed58a      40/40     taskwin2     48/48
   vitdual1     37/37     bcnpilot1    16/16     bcnpilot2    16/16
   fmowpilot1   16/16     fmowpilot2   32/32
-RUNNING   (counts re-checked 2026-09-10 ~19:10)
-  price1       41/80     dsisco01 GPU 0, RELAUNCHED 15:11
-  price2       18/80     dsisco01 GPU 1, RELAUNCHED 15:11
-  fmowpilot3    0/16     dsisco02 GPU 2, LAUNCHED 19:08 by queue q02_newunits
-QUEUED    (armed 19:07, each waiting for its gpu -- holding nothing)
-  fmowpilot4    0/16     dsisco02 GPU 2, after fmowpilot3
-  bcnpilot3     0/16     dsisco02 GPU 2, after fmowpilot4
+RUNNING   (counts re-checked 2026-09-10 20:26, on the hosts)
+  price1       50/80     dsisco01 GPU 0
+  price2       29/80     dsisco01 GPU 1
+  bcnpilot3     1/16     dsisco02 GPU 2, claimed 20:24 by queue q02_newunits
+QUEUED    (each waiting for its gpu -- holding nothing)
   bcnpilot4     0/16     dsisco02 GPU 2, after bcnpilot3
   vitdual2     58/88     dsisco01 GPU 0, 30 pending, after price1
   vitcoin1     16/17     dsisco01 GPU 0, 1 pending, after vitdual2
   vitseed1     22/40     dsisco01 GPU 1, 18 pending, after price2
+COMPLETE SINCE THE 19:10 CENSUS
+  fmowpilot3   16/16     dsisco02 GPU 2. WINDOW MEASURED, off `clip`. 2(z91)
+  fmowpilot4   16/16     dsisco02 GPU 2. WINDOW MEASURED, off `clip`. 2(z91)
 COMPLETE SINCE THE 15:04 CENSUS
   fmow1       304/304    dsisco02 GPU 2 -- SCORED, 0 of 4. FRAMEWORK 2(z88)
 WAS STALLED, NOW QUEUED (see QUEUED above; their stale `running` rows were
@@ -1385,15 +1386,27 @@ the next widening**, and it is the same per-SPELLING/per-QUESTION lesson as
 
 ### 🟢 THE QUEUE, ARMED 2026-09-10 19:07 -- 111 RUNS ACROSS 3 DATASETS AND 4 BACKBONES
 
-`~/queue_runner.sh` (on BOTH hosts) runs a LIST of campaigns back to back on
-ONE gpu, waiting for that gpu to free before each. Three runners are armed and
-every one of them is currently WAITING rather than holding anything:
+🛑 **LAUNCH FROM `~/queue_runner_v2.sh`, NOT `~/queue_runner.sh`.** bash reads
+a script LAZILY, by byte offset, so overwriting the file a runner is executing
+makes that instance resume mid-token in the new bytes. Deploy to a VERSIONED
+path and launch the new queue from it. The `_v2` copy carries three fixes the
+original did not have and all three had already cost a queue (commit
+`35fa4929`): the whole script was **CRLF** and died on `set: -: invalid option`
+before defining its own logger, so it wrote NOTHING and simply was not there
+when looked for -- and `bash -n` PASSES a CRLF script under Git Bash, so the
+check that finds it is byte-level and now runs on the DEPLOYED copy; `yes 0 |`
+feeds the gpu prompt that every tree pinned before 2026-09-07 still calls; and
+`dispatcher_on_gpu` reads ownership off `/proc/<pid>/environ` rather than off
+`nvidia-smi`, because a dispatcher RELEASES its cuda context between runs and
+an idle card is not a free card.
+
+Three runners are armed:
 
 | runner | host / gpu | frees when | campaigns |
 |---|---|---|---|
-| `q01a_iwildcam_vit` | dsisco01 GPU 0 | `price1` ends | `vitdual2` (30) -> `vitcoin1` (1) |
-| `q01b_iwildcam_seed` | dsisco01 GPU 1 | `price2` ends | `vitseed1` (18) |
-| `q02_newunits` | dsisco02 GPU 2 | **RUNNING NOW** | `fmowpilot3` -> `fmowpilot4` -> `bcnpilot3` -> `bcnpilot4` (16 each) |
+| `q01a_iwildcam_vit` | dsisco01 GPU 0 | `price1` ends (50/80) | `vitdual2` (30) -> `vitcoin1` (1) |
+| `q01b_iwildcam_seed` | dsisco01 GPU 1 | `price2` ends (29/80) | `vitseed1` (18) |
+| `q02_newunits` | dsisco02 GPU 2 | **RUNNING `bcnpilot3`** | `fmowpilot3` ✅ -> `fmowpilot4` ✅ -> `bcnpilot3` -> `bcnpilot4` |
 
 🔑 **THE FOUR PILOTS BUY FOUR NEW UNITS, WHICH IS THE ONLY AXIS A p-VALUE MAY
 GO OVER.** Measured task windows exist for iwildcam x4 backbones, fmow x2 and

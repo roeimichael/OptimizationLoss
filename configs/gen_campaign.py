@@ -347,7 +347,7 @@ def prior_arm_gate(P, args, arms, explicit=None):
     return set(named)
 
 
-def task_window_gate(P, args, resolved, TW=None):
+def task_window_gate(P, args, resolved, TW=None, arms=None):
     """REFUSE a campaign whose caps pose no question. FRAMEWORK 2(z16), 2(z17).
 
     A cap outside the measured window cannot distinguish any two methods: the
@@ -469,6 +469,62 @@ def task_window_gate(P, args, resolved, TW=None):
             "  actually starts from, and say so.",
         ]
         raise SystemExit("\n".join(lines))
+    # AN UNSCREENED PILOT MUST CARRY THE ARM IT WILL BE SCREENED WITH.
+    # The refusal above tells the user to "screen it from its OWN nulls" --
+    # and nothing made the pilot CONTAIN one. Measured 2026-09-10:
+    # `fmowpilot3/4` and `bcnpilot3/4`, 64 runs over two datasets and two
+    # backbones, were every one of them staged as `clip` + `focal_clip`
+    # only. They discharge an obligation they cannot discharge, and the
+    # defect stays invisible until the campaign lands and the screen finds
+    # no arm to read.
+    #
+    # It is not a cosmetic substitution. A window is a property of the
+    # REFERENCE MODEL: `clip` runs warm-up 30 + constraint 0 while the
+    # declared arm runs warm-up 1 + 29 CE epochs, and those 29 epochs
+    # sharpen the probabilities, so saturation reaches further up the K/n
+    # axis and the whole window moves UP with it. Over the six comparisons
+    # where ONE campaign carries BOTH arms (`meta.reference_arm_offset` in
+    # task_windows.yml) the clip band is never HIGHER than the null band at
+    # either end, 6 of 6. The error is one-sided and it points at the TIGHT
+    # end, so a clip-screened pilot accepts caps the real screen rejects.
+    #
+    # Fail-closed on a missing `arms`: a caller that does not say what it is
+    # generating cannot be granted the override.
+    if unknown:
+        ref = (TW.get("meta") or {}).get("reference_arm", "tralo_null")
+        have = set(arms or ())
+        if ref not in have:
+            raise SystemExit("\n".join([
+                "REFUSED: --allow-nontask was passed for %s, but this "
+                "campaign" % ", ".join(sorted(unknown)),
+                "  does not carry `%s` -- the arm `task_windows.yml` "
+                "declares as its reference." % ref,
+                "",
+                "  An unscreened pilot exists to MEASURE a window. "
+                "Screening it needs a finished",
+                "  run of the reference arm, so a pilot without one cannot "
+                "be screened at all --",
+                "  and the refusal that licensed it said in its own text to "
+                "screen it from its",
+                "  OWN nulls.",
+                "",
+                "  arms present: %s" % (", ".join(sorted(have)) or "(none)"),
+                "",
+                "  !! `clip` IS NOT A SUBSTITUTE. It runs warm-up 30 + "
+                "constraint 0; `%s`" % ref,
+                "  runs warm-up 1 + 29 CE epochs, which sharpen the "
+                "probabilities and move the",
+                "  window UP. Over the 6 comparisons where one campaign "
+                "carries both arms the",
+                "  clip band is never higher than the null band at either "
+                "end, so screening with",
+                "  `clip` accepts caps the real screen rejects, at the "
+                "TIGHT end, every time.",
+                "  See `meta.reference_arm_offset` in "
+                "configs/task_windows.yml.",
+                "",
+                "  FIX: add `%s` to --arms." % ref,
+            ]))
     for u in sorted(unknown):
         print("  !! NO MEASURED TASK WINDOW for %s and --allow-nontask was "
               "passed, so it is" % u)
@@ -690,15 +746,40 @@ def _gate_self_test():
         except SystemExit:
             print("  %-64s %s" % ("an UNMEASURED window is REFUSED", "PASS"))
         A.allow_nontask = True
+        # --- AN UNSCREENED PILOT MUST CARRY THE REFERENCE ARM ---
+        # The shape all four of `fmowpilot3/4` + `bcnpilot3/4` were staged
+        # in: --allow-nontask, and no `tralo_null` to screen them with.
         try:
-            task_window_gate(P, A, None, TW=TW_none)
+            task_window_gate(P, A, None, TW=TW_none,
+                             arms=["clip", "focal_clip"])
             print("  %-64s %s"
-                  % ("NEGATIVE CONTROL: --allow-nontask lets the pilot "
-                     "through", "PASS"))
+                  % ("a pilot with NO reference arm is REFUSED", "FAIL"))
+            ok = False
         except SystemExit:
             print("  %-64s %s"
-                  % ("NEGATIVE CONTROL: --allow-nontask lets the pilot "
-                     "through", "FAIL"))
+                  % ("a pilot with NO reference arm is REFUSED", "PASS"))
+        # Fail-closed: a caller that does not say what it is generating
+        # cannot be granted the override either.
+        try:
+            task_window_gate(P, A, None, TW=TW_none, arms=None)
+            print("  %-64s %s"
+                  % ("a pilot with arms=None is REFUSED (fail-closed)",
+                     "FAIL"))
+            ok = False
+        except SystemExit:
+            print("  %-64s %s"
+                  % ("a pilot with arms=None is REFUSED (fail-closed)",
+                     "PASS"))
+        try:
+            task_window_gate(P, A, None, TW=TW_none,
+                             arms=["clip", "focal_clip", "tralo_null"])
+            print("  %-64s %s"
+                  % ("NEGATIVE CONTROL: --allow-nontask lets a pilot "
+                     "WITH the ref arm through", "PASS"))
+        except SystemExit:
+            print("  %-64s %s"
+                  % ("NEGATIVE CONTROL: --allow-nontask lets a pilot "
+                     "WITH the ref arm through", "FAIL"))
             ok = False
         A.allow_nontask = False
     print("")
@@ -828,7 +909,7 @@ def validate(P, args, resolved, arms):
     # A SPEC refusal, so it comes before the hygiene ones below: a campaign
     # whose caps pose no question is not a campaign with a missing control,
     # it is a campaign with nothing to measure.
-    task_window_gate(P, args, resolved)
+    task_window_gate(P, args, resolved, arms=arms)
 
     lr = P["core"]["lr"]
     lr_c = P["constraint_phase"]["lr_constraint"]
