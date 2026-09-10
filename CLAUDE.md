@@ -42,6 +42,28 @@ Anything already in `docs/FRAMEWORK.md` section 2. In particular: penalty-shape 
 more constraint steps, a dedicated constraint optimizer, the joint objective, the undershoot
 hinge, finer constraint granularity. **All of them are measured, and all made things worse.**
 
+🛑 **AND THE WHOLE CONSTRAINT-GRADIENT EXPRESSION IS CLOSED.** The per-logit
+gradient is `A_S * p(1-p)`: 2(z56) §5 closed the scope scalar `A_S` (shape, magnitude,
+frequency-vs-magnitude, units, granularity, scope SELECTION) and §6 closed the per-item
+factor `p(1-p)` (`aim_table`: not one starved cell on `dom1`). Between them that is the
+entire expression. Do not propose a count function, a cut window, a margin, a class
+re-weighting, or another scope re-weighting.
+
+🔑 **AND PRICE THE MECHANISM BEFORE BUILDING IT -- 2(z77).** At the protocol's
+4 seeds the MINIMUM DETECTABLE EFFECT is **6.2-13.5 deployed items**, against a per-cell
+prize of **11.7-21.2**. The instrument's resolution and the total prize are the same size,
+so a null here is consistent with capturing a third of everything there is to win.
+
+* ⛔ **Stop pricing against the 1.42-item gap to ALM.** Certifying 1.42 items needs
+  **78-362 seeds per cell**; the protocol runs 4. Nothing that small is provable here.
+* 🟢 **A mechanism worth ~6+ items per cell -- about HALF the smallest cell prize --
+  is certifiable at 5-22 seeds**, i.e. one `add_seeds` extension. That is the bar: build
+  for half the headroom, not for the gap to ALM. Anything smaller is structurally
+  invisible and should not be built.
+* ⚠️ The sd behind those figures is ESTIMATED from two recorded medians under a
+  normality assumption. `paired_noise --campaign results/dom1` replaces it with a
+  measured one; task #109.
+
 ## Where things are
 
 ```

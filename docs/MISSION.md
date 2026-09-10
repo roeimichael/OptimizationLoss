@@ -1892,6 +1892,41 @@ work is the same defect as a run-state block dated at writing. FRAMEWORK
    observations against `MIN_FLOOR_OBS` = 8, and every `priced` column reads
    false because the comparison is never reached -- not because the spread lost
    to the floor. 16 runs per campaign fixes it. 2(z69).
+   ⚠️ **AND SAY WHAT IT DOES NOT BUY (2026-09-10).** It buys
+   `MIN_FLOOR_OBS`, which is the whole point, and it does NOT buy the ALM
+   comparison: at 8 seeds the minimum detectable effect is still **4.4-9.6
+   deployed items** against a 1.42-item gap, which needs **78-362 seeds per
+   cell**. Selling seeds 5-8 as "now we can resolve TraLO vs ALM" would be the
+   2(z69) defect again in the other direction. 2(z77), task #109.
+
+7. 🟢 **#109 -- MEASURE THE sd INSTEAD OF ESTIMATING IT.** 2(z77)'s whole
+   ladder rests on `median|d| = 0.6745*sd`, a normality assumption over two
+   medians from different campaigns. `paired_noise --campaign results/dom1`
+   and `ceiling_screen` already compute it directly and both currently quote
+   the quarantined `iwc3` (2(z71)), so ONE re-run on `dom1` replaces every
+   figure in 2(z77) §1 with a measured one AND closes 2(z71). Zero GPU,
+   minutes of CPU, blocked only on host access.
+
+---
+
+🔑 **THE BAR A NEW MECHANISM MUST CLEAR, AND IT IS NOT THE GAP TO ALM
+(2(z77), 2026-09-10).** At the protocol's 4 seeds the minimum detectable effect
+is **6.2-13.5 deployed items** against a per-cell prize of **11.7-21.2** -- the
+instrument's resolution and the entire prize are the same size, so every null
+in this corpus is equally consistent with capturing a third of everything there
+is to win. Therefore:
+
+* ⛔ do not build for the **1.42-item** gap to ALM. It needs 78-362 seeds
+  per cell and the protocol runs 4, so no mechanism of that size is provable
+  on this design at any dose.
+* 🟢 do build for **~6+ items per cell**, about HALF the smallest cell
+  prize. That is certifiable at **5-22 seeds** -- one `add_seeds` extension,
+  no new design.
+
+The constraint-gradient expression itself is closed on both factors (2(z56)
+§5 for `A_S`, §6 for `p(1-p)`), so a mechanism that clears this bar has
+to act somewhere else: DELIVERY (task #107), the SNAPSHOT (`tralo_snap`, #97),
+or the dataset.
 
 ---
 

@@ -13154,6 +13154,104 @@ geometry, dose or windows, where `grad_mode` cannot change the number; silence
 is only a defect where the claim is a METHOD contrast. 2(w3) is the one that
 matters because it is the only positive one.
 
+## 2(z77). THE DESIGN'S RESOLUTION AND ITS PRIZE ARE THE SAME SIZE -- SO PRICE THE MECHANISM BEFORE BUILDING IT (2026-09-10)
+
+2(z56) closed the constraint-gradient expression -- `A_S` by its section 5,
+`p(1-p)` by its section 6 -- and ended with the size problem stated but never
+priced: *"Any mechanism proposed here must either be much larger than 1.42
+items or come with more seeds."* **How many more seeds** was never computed,
+and it decides whether the remaining queue is worth running.
+
+### 1. The arithmetic, from numbers already in this file
+
+Two floors are on record, both median `|difference|` in deployed capped-class
+TP items, both from `<fam>_null` vs `<fam>_reseed` -- the RNG-only pair, which
+`paired_noise` calls the floor under ANY paired contrast on this design:
+
+| floor | median | sd (est) |
+|---|---|---|
+| 2(z56), `itemscale`, "the RNG floor at 4 seeds" | 3.0 | 4.45 |
+| `deployed_h2h.rng_floor`, `dom1`, 24 paired cell-seeds | 6.5 | 9.64 |
+
+⚠️ **`sd` IS AN ESTIMATE, NOT A MEASUREMENT.** `median|d| = 0.6745*sd` holds
+for a zero-mean normal; the differences are zero-mean by symmetry (both arms
+are lambda=0) but normality is assumed. The two floors are also from different
+campaigns and backbones, so they BRACKET rather than measure. Everything below
+inherits both caveats.
+
+With `paper_rows.seeds_needed`, n = 7.85 * sd^2 / d^2:
+
+| effect | seeds/cell, sd=4.45 | seeds/cell, sd=9.64 |
+|---|---|---|
+| **TraLO -> ALM gap, 1.42 items (2(z56))** | **78** | **362** |
+| observed `tralo` - `clip`, low end, 2 items | 39 | 183 |
+| observed `tralo` - `clip`, high end, 10 items | 2 | 8 |
+| HALF the smallest cell prize, 5.85 items | **5** | **22** |
+| the whole smallest cell prize, 11.7 items | 2 | 6 |
+| the whole largest cell prize, 21.2 items | 1 | 2 |
+
+And read the other way -- the minimum detectable effect at n seeds, against
+the per-cell prize of **11.7-21.2 items** (the headroom table, per backbone):
+
+| seeds | MDE, sd=4.45 | MDE, sd=9.64 |
+|---|---|---|
+| **4 (the protocol)** | **6.23 items = 29-53% of the prize** | **13.50 items = 64-115%** |
+| 8 (task #105) | 4.41 = 21-38% | 9.55 = 45-82% |
+| 16 | 3.12 = 15-27% | 6.75 = 32-58% |
+| 32 | 2.20 = 10-19% | 4.77 = 23-41% |
+| 64 | 1.56 = 7-13% | 3.38 = 16-29% |
+
+### 2. \U0001f511 THE FINDING
+
+**At 4 seeds the smallest detectable effect is 29-115% of the entire
+headroom from `clip` to a PERFECT allocator.** The instrument's resolution and
+the total available prize are the same size. So on this design "TraLO does
+nothing" and "TraLO captures a third of everything there is to win" produce the
+same table, and every null in the corpus is consistent with both.
+
+That is not a new claim -- `sensitivity_screen` reads SENSITIVE 0 / FLOOR
+UNMEASURED 36, `tralo_wins` reads 0 of 17 priced, and 2(z70) already separated
+"under-powered" from "floor unmeasured". It is those verdicts converted into
+the unit that decides what to build.
+
+### 3. \u26d4 WHAT THIS CLOSES
+
+**Stop pricing mechanisms against the 1.42-item gap to ALM.** Certifying a
+1.42-item effect needs **78-362 seeds per cell** against a protocol that runs
+4. No mechanism in the closed families would have been visible at any dose, so
+their nulls are weaker evidence than they read -- and equally, no future
+mechanism of that size can be certified without a ~20-90x seed budget.
+
+### 4. \U0001f7e2 WHAT THIS OPENS, AND IT IS THE USEFUL HALF
+
+**A mechanism worth HALF the smallest cell prize -- 5.85 items -- is
+certifiable at 5-22 seeds per cell.** That is one `add_seeds` extension, not a
+new design. So the bar for a publishable mechanism on this design is not
+"beat ALM by 1.42 items"; it is:
+
+> capture ~6+ deployed items per cell, i.e. roughly half the headroom,
+> and certify it at 8-24 seeds.
+
+Anything smaller is structurally invisible here and should not be built.
+Anything that big is affordable to prove. That is a sharper acceptance
+criterion than "50% of cells" alone, and it is checkable before a GPU is
+touched.
+
+### 5. What replaces this estimate
+
+The direct computation needs the paired differences themselves, so it needs
+`results/`:
+
+```bash
+python -m scripts.paired_noise --campaign results/dom1
+python -m scripts.ceiling_screen data/iwildcam/oodslice --caps L80_G95 L90_G95 --classes 2 7
+```
+
+Both already print prize/sd and seeds-per-cell; both currently quote `iwc3`,
+which is `scorable=False` and outside its own `keep_for` (2(z71)). Re-running
+them on `dom1` replaces every number in section 1 with a measured one. Until
+then, quote the RANGE and the assumption, never a single figure.
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, LAST UPDATED 2026-09-10 -- read this before section 3's older text**
