@@ -17081,3 +17081,110 @@ quarter of its cases is worse than none: it is tried once and believed.
   every deferred item's outcome, so the two that remain open have owners
   instead of a section heading.
 
+
+---
+
+## 2(z95). THE REFERENCE-ARM CORRECTION WAS MEASURED, WRITTEN INTO THE AUTHORITY FILE, AND READ BY NOBODY -- `classify` TOOK THE RAW BAND AND THE GATE READ THE *GLOBAL* ARM (2026-09-10)
+
+**THE ONE-LINE VERSION.** 2(z91) measured that a `clip`-screened window is
+biased one way, wrote the rule into `configs/task_windows.yml` as
+`meta.reference_arm_offset`, and stamped the four affected rows
+`reference_arm: clip`. **Nothing applied any of it.** `configs.task_cells.classify`
+read `w["class"]` -- the raw band -- and `gen_campaign` read the GLOBAL
+`meta.reference_arm`, never the row's own. Grep for `reference_arm_offset`
+across every `.py` in the repository returned **two hits, both inside comment
+and message strings.** The correction existed as prose in a data file.
+
+### 1. What it would have licensed
+
+`bcn`/`MobileNetV2` class 0 carries a measured strict band of `[0.80, 1.00]`
+and a corrected one of `[0.90, 1.00]`. A campaign generated at `L80_G95` would
+have passed the gate, been classified `task`, entered `MEASURED_UNITS`, and
+contributed a cell to the acceptance tally -- **screened by the arm the file
+itself says is biased at exactly that end.** The bias is not a rounding
+question: 2(z60) records `bcn1mn3`'s L70 moving `tralo_wins` from 33% to 50%,
+across the acceptance bar, on a re-screen.
+
+⛔ **AND THE CHECK THAT WOULD HAVE CAUGHT IT WAS SITTING IN THE SAME FILE.**
+`gen_campaign` already refuses an `--allow-nontask` pilot that lacks the
+declared reference arm, and its refusal text explains the one-sided bias in
+full. It fires only on the `unknown` path -- a row that does not exist yet. The
+moment the row EXISTED the reasoning stopped applying, and a measured row with
+a substitute arm walked straight through the gate written about it.
+
+### 2. What the correction is, and why a SHIFT is legitimate at all
+
+`clip` runs warm-up 30 / constraint 0; `tralo_null` runs warm-up 1 + 29 CE
+epochs. Those 29 epochs sharpen the probabilities, saturation reaches further up
+the K/n axis, and the window moves UP. Measured over `fmow1` + `bcn1mn3`: the
+`clip` band is never HIGHER than the `tralo_null` band at either end, **6 of 6
+comparisons**, min 0 / median 1 / max 2 grid steps.
+
+Because the error has a KNOWN SIGN, the measured band can be intersected with
+itself shifted up by the median offset -- keeping only the part that survives
+either way. That is `[lo + 1 step, hi]`.
+
+* ⚠️ **IT NARROWS AND NEVER WIDENS.** Widening on a one-sided bias would invent
+  task cells. A cap that clears the corrected band clears the measured band too,
+  whichever arm turns out to be right, so the narrowing is free of the
+  chicken-and-egg the pilot gate is stuck in.
+* ⚠️ **ONLY THE STRICT BAND.** The PARTIAL band was not part of the six
+  comparisons, so it is untouched, and a narrowed-out cell degrades to
+  `partial` -- the weaker claim -- rather than to a verdict.
+* 🔑 **A SUBSTITUTE ARM WITH NO MEASURED OFFSET IS NOT SHIFTED BY A GUESS.**
+  Refusing would be wrong (the row is real) and guessing is worse. It reports
+  the arm in the verdict and leaves the band alone. Gated as a negative control.
+
+### 3. 🛑 A NARROWED CELL IS `unmeasured`, NOT `non_task`
+
+The ratio sits inside a band somebody measured. Calling it `non_task` -- "it
+measures nothing" -- would claim a measurement nobody took, which is 2(z25)'s
+inversion. The per-class band label is `ref_shifted` and it routes to
+`unmeasured`: **nobody has measured this K/n with the DECLARED arm.** It is a
+second cause for that status, and the label is what tells the two apart.
+
+At the generator it REFUSES rather than warns, unlike a gap ratio, because the
+direction is known and points at the tight end. `--allow-nontask` overrides it,
+exactly as it does for a measured non-task -- a correction cannot be stricter
+than the refusal it is derived from.
+
+⚠️ It also needed its own bucket rather than falling through to the generic
+one. The `bad` bucket prints *"outside the measured task window"* beside the
+CORRECTED `lo`, so a reader who opens the yml finds a floor that is not in it
+and concludes the tool is broken. The refusal now prints both bands and the arm.
+
+### 4. The gate that ties the code to the arithmetic
+
+The four rows were corrected ON PAPER when they were measured. The self-test
+now asserts that the CODED rule reproduces those four hand-derived bands
+exactly -- `bcn`/MNv2 `{0: 0.9-1.0, 2: 0.8-1.0}`, `bcn`/RegNet
+`{0: 0.9-1.1, 2: 0.8-1.0}`, `fmow`/MNv2 `{3: 0.4-0.6, 5: 0.3-0.5}`,
+`fmow`/RegNet `{3: 0.4-0.6, 5: 0.3-0.4}`. If the implementation and the
+analysis ever disagree, one of them is wrong and a campaign gets generated off
+it.
+
+End to end, ONE FIELD changes: iwildcam/MobileNetV2 at `L80_G95` is a real task
+cell and is the existing LIVENESS case; mark its row as `clip`-measured and the
+same cap, same data, same arms must be REFUSED. The negative control drops that
+one key and the identical cap passes again -- otherwise the gate is refusing for
+some other reason and the correction is unproven.
+
+Mutation-tested **7 of 7**: never shift, shift the wrong end, route to
+`non_task`, assume the grid step instead of reading it from the file, drop the
+bucket, warn instead of refuse, make it un-overridable. Every restore verified
+by EXECUTING the self-test, never by grepping.
+
+🔑 **THE CLASS, AND IT IS THE THIRD SIGHTING THIS WEEK.** 2(z81): an exemption
+whose reason is a ticket is a defect with a comment attached. 2(z94): a DEFERRED
+list is the same object at document scale. This one is the same object in a DATA
+file -- a measurement recorded in the authority that the readers of that
+authority do not consult. All three look like diligence and all three are
+unenforced. The test is not whether it is written down; it is whether something
+FAILS when it is violated.
+
+⚠️ **NOTHING IN THE CORPUS MOVES.** All twelve iwildcam rows use the declared
+arm, so the shift is 0.0 and every existing verdict is unchanged -- which the
+pinned iwildcam end-to-end cases (`task`, `partial`, `no_strict_band`) go on
+asserting. The four corrected rows have no campaign generated against them yet.
+That is the whole point of catching it now.
+

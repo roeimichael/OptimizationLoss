@@ -26,6 +26,7 @@ can be deployed mid-campaign: nothing on the runner's import path reads it.
 may import it from. The dependency runs `scripts` -> `configs` and must never
 run the other way, or a scorer deploy starts splitting `code_version`.
 """
+import copy
 import os
 import sys
 
@@ -81,6 +82,61 @@ def in_window(ratio, lo, hi, tol=0.0):
     """Is this K/n inside a measured task window? Pure, so it is testable with
     no dataset on disk."""
     return (lo - tol) <= ratio <= (hi + tol)
+
+
+def grid_step(TW):
+    """The measurement grid's step, READ from the file rather than assumed."""
+    g = sorted((TW or {}).get("meta", {}).get("fraction_grid") or [])
+    d = [b - a for a, b in zip(g, g[1:]) if b > a]
+    return min(d) if d else 0.0
+
+
+def reference_shift(TW, row):
+    """How far UP a strict band must be NARROWED because this row was measured
+    off a SUBSTITUTE reference arm. Returns 0.0 when the row used the declared
+    one, which is the only case the eight iwildcam/MobileNetV3/ViTB16 rows are
+    in.
+
+    🛑 IT EXISTS BECAUSE THE CORRECTION WAS RECORDED AND HAD NO READER. Four
+    rows were measured off `clip` because their pilots were staged without
+    `tralo_null` (FRAMEWORK 2(z91)), `meta.reference_arm_offset` was written to
+    say what that costs, and NOTHING APPLIED IT: `classify` read the raw band
+    and `gen_campaign` read the GLOBAL `meta.reference_arm`, never the row's
+    own. A `clip`-measured row would then have licensed `L80_G95` on bcn as a
+    strict task cell, which is precisely the class of error the offset was
+    measured to prevent. This project's own rule -- a defect with a comment
+    attached is still a defect -- applies to a data file as much as to code.
+
+    THE DIRECTION IS MEASURED AND ONE-SIDED, WHICH IS WHY A SHIFT IS SOUND AT
+    ALL. `clip` runs warm-up 30 / constraint 0 while `tralo_null` runs warm-up
+    1 + 29 CE epochs, so the extra CE sharpens the probabilities, saturation
+    reaches further up the K/n axis, and the window moves UP. Measured over
+    fmow1 + bcn1mn3: the `clip` band is never HIGHER than the `tralo_null`
+    band at either end, in 6 of 6 comparisons. So the true band is at or above
+    the measured one, and intersecting the measured band with itself shifted
+    up by the MEDIAN offset keeps only the part that survives either way.
+
+    ⚠️ IT NARROWS, NEVER WIDENS, AND ONLY THE STRICT BAND. Widening on a
+    one-sided bias would invent task cells; the PARTIAL band was not part of
+    the 6 comparisons, so it is left alone and a narrowed-out cell degrades to
+    `partial` -- the weaker claim -- rather than to a verdict.
+    """
+    if not TW or not row:
+        return 0.0
+    meta = (TW.get("meta") or {})
+    declared = meta.get("reference_arm", "tralo_null")
+    used = row.get("reference_arm")
+    if not used or used == declared:
+        return 0.0
+    off = meta.get("reference_arm_offset") or {}
+    steps = (off.get("shift_grid_steps") or {}).get("median")
+    if steps is None:
+        # A substitute arm with NO measured offset is an unpriced substitution.
+        # Refusing is wrong (the row is real) and shifting by a guess is worse,
+        # so say so and leave the band alone -- the caller sees `reference_arm`
+        # in the verdict and can price it.
+        return 0.0
+    return float(steps) * grid_step(TW)
 
 
 def effective_budgets(P, dataset, lp, gp):
@@ -144,6 +200,13 @@ def classify(P, TW, dataset, model, cap_tag):
       "unmeasured"  the ratio falls in the GAP between the strict and partial
                     bands, off the 0.1 measurement grid by more than the
                     snapping tolerance. Nobody has measured this K/n.
+                    ⚠️ IT HAS A SECOND CAUSE SINCE 2026-09-10, and the
+                    per-class `band` tells them apart: `ref_shifted` means the
+                    ratio IS inside the measured band and outside the band
+                    corrected for a SUBSTITUTE reference arm. Nobody has
+                    measured this K/n with the DECLARED arm. See
+                    `reference_shift`. It stays out of `task` and out of
+                    `non_task` for the same reason a gap ratio does.
       "non_task"    at least one class is outside every band -- it measures
                     nothing
       "no_strict_band"  a capped class has NO strict window at all: at every
@@ -199,6 +262,9 @@ def classify(P, TW, dataset, model, cap_tag):
         return dict(status="no_data", classes={})
     tol = tolerance(TW)
     partial_w = w.get("partial") or {}
+    # The row may have been measured off a SUBSTITUTE reference arm. The
+    # correction narrows the strict band and is documented on `reference_shift`.
+    shift = reference_shift(TW, w)
     per, ok_all, any_all = {}, True, True
     for c, (K, n) in sorted(eff.items()):
         ratio = (K / float(n)) if n else 0.0
@@ -210,8 +276,18 @@ def classify(P, TW, dataset, model, cap_tag):
         # It must never read as "inside the window", and it must never crash.
         band = w["class"].get(c) if hasattr(w["class"], "get") else w["class"][c]
         no_strict = not band
-        lo, hi = (None, None) if no_strict else band
+        lo_raw, hi = (None, None) if no_strict else band
+        # NARROW the strict band when the row used a substitute reference arm.
+        # `lo` is what the verdict is taken on; `lo_raw` is what was measured,
+        # and both are reported so the correction is never invisible.
+        lo = lo_raw if (no_strict or not shift) else lo_raw + shift
         ok = False if no_strict else in_window(ratio, lo, hi, tol)
+        # A ratio inside the MEASURED band but outside the CORRECTED one is
+        # not a null -- it is a K/n nobody has measured with the declared arm.
+        # Calling it `non_task` would claim a measurement nobody took, which is
+        # the inversion FRAMEWORK 2(z25) is about.
+        ref_shifted = bool(not no_strict and not ok and shift
+                           and in_window(ratio, lo_raw, hi, tol))
         # STRICT vs PARTIAL. The strict band is where the cap binds in EVERY
         # seed; the partial band is where it binds in some. A partial cell is
         # not invalid -- a slack seed dilutes toward zero, so a positive there
@@ -237,6 +313,11 @@ def classify(P, TW, dataset, model, cap_tag):
         # `non_task` claims a measurement nobody took. FRAMEWORK 2(z24).
         gap = bool(plo is not None and not ok and not part and not no_strict
                    and ((hi < ratio < plo) or (phi < ratio < lo)))
+        # A cell narrowed out by the reference-arm correction is unmeasured for
+        # the same reason a gap ratio is: nobody looked at this K/n with the
+        # declared arm. It does NOT depend on a partial band existing, which is
+        # why it is OR-ed in rather than folded into the clause above.
+        gap = gap or (ref_shifted and not part)
         ok_all = ok_all and ok
         any_all = any_all and (ok or part)
         # `margin` is how far OUTSIDE the window this ratio sits (0 when
@@ -248,8 +329,10 @@ def classify(P, TW, dataset, model, cap_tag):
         per[c] = dict(K=K, n=n, ratio=ratio, lo=lo, hi=hi, ok=ok,
                       margin=margin, snapped=bool(ok and margin > 0),
                       partial=part, gap=gap, no_strict=no_strict,
+                      lo_raw=lo_raw, ref_shifted=ref_shifted,
                       band=("strict" if ok else "partial" if part else
                             "no_strict" if no_strict else
+                            "ref_shifted" if ref_shifted else
                             "unmeasured" if gap else "outside"))
     unmeasured = any(v["gap"] for v in per.values())
     empty = any(v["no_strict"] and not v["partial"] for v in per.values())
@@ -258,6 +341,10 @@ def classify(P, TW, dataset, model, cap_tag):
                         "no_strict_band" if empty else
                         "unmeasured" if unmeasured else "non_task"),
                 classes=per,
+                reference_arm=w.get("reference_arm",
+                                    (TW.get("meta") or {}).get(
+                                        "reference_arm", "tralo_null")),
+                reference_shift=shift,
                 provenance=" ".join((w.get("provenance") or
                                      "UNRECORDED").split()))
 
@@ -447,6 +534,77 @@ def self_test(out=sys.stdout):
         check("a strictly-inside ratio is not flagged as grid-snapped",
               not any(v["snapped"] for v in rok["classes"].values())
               or all(v["margin"] <= tol for v in rok["classes"].values()))
+
+        # 🛑 THE REFERENCE-ARM CORRECTION, END TO END, ON ONE CHANGED FIELD.
+        # `rok` above is the NEGATIVE CONTROL: the same cell, same data, real
+        # windows, and it must stay `task`. Here the row is marked as having
+        # been measured off `clip` and the offset is set to 2 grid steps, which
+        # collapses MobileNetV2 class 2's [0.70, 0.80] to an EMPTY band -- so
+        # the verdict must leave `task` WITHOUT becoming `non_task`, and the
+        # class must name `ref_shifted` rather than `outside`.
+        TW2 = copy.deepcopy(TW)
+        TW2["meta"]["reference_arm_offset"]["shift_grid_steps"]["median"] = 2
+        TW2["windows"]["iwildcam"]["MobileNetV2"]["reference_arm"] = "clip"
+        rshift = classify(P, TW2, "iwildcam", "MobileNetV2", "L80_G95")
+        check("a substitute-reference row leaves `task` (%s -> %s)"
+              % (rok["status"], rshift["status"]),
+              rok["status"] == "task" and rshift["status"] != "task")
+        check("...and does NOT become `non_task` -- nobody measured this K/n "
+              "with the declared arm",
+              rshift["status"] == "unmeasured")
+        check("...and the class names `ref_shifted`, not `outside`",
+              any(v["band"] == "ref_shifted"
+                  for v in rshift["classes"].values()))
+        check("...and the verdict carries the arm and the shift it used",
+              rshift["reference_arm"] == "clip"
+              and abs(rshift["reference_shift"] - 0.2) < 1e-9
+              and rok["reference_shift"] == 0.0)
+        check("...and both bands are reported, so the correction is visible",
+              all(v["lo_raw"] is not None and v["lo"] >= v["lo_raw"]
+                  for v in rshift["classes"].values()))
+
+    # PURE gates on the correction itself -- no dataset, so they run anywhere.
+    check("the grid step is READ from the file, not assumed",
+          abs(grid_step(TW) - 0.1) < 1e-9)
+    declared = TW["meta"].get("reference_arm")
+    check("the declared reference arm is recorded (%s)" % declared,
+          bool(declared))
+    # NEGATIVE CONTROLS: three ways a row must get NO shift.
+    check("NEGATIVE CONTROL: a row with no `reference_arm` is not shifted",
+          reference_shift(TW, {"class": {}}) == 0.0)
+    check("NEGATIVE CONTROL: a row using the DECLARED arm is not shifted",
+          reference_shift(TW, {"reference_arm": declared}) == 0.0)
+    TW3 = copy.deepcopy(TW)
+    TW3["meta"].pop("reference_arm_offset", None)
+    check("NEGATIVE CONTROL: a substitute arm with NO measured offset is not "
+          "shifted by a guess",
+          reference_shift(TW3, {"reference_arm": "clip"}) == 0.0)
+    check("POSITIVE: a substitute-arm row IS shifted, by median steps x grid",
+          abs(reference_shift(TW, {"reference_arm": "clip"}) - 0.1) < 1e-9)
+
+    # 🛑 THE CODED RULE MUST REPRODUCE THE BANDS DERIVED BY HAND. These four
+    # rows were corrected on paper when they were measured (FRAMEWORK 2(z91));
+    # if the implementation disagrees with that arithmetic, one of the two is
+    # wrong and a campaign would be generated off it. It also pins the
+    # DIRECTION: the correction narrows from below and never touches `hi`.
+    HAND_DERIVED = {
+        ("bcn", "MobileNetV2"): {0: (0.9, 1.0), 2: (0.8, 1.0)},
+        ("bcn", "RegNetY400MF"): {0: (0.9, 1.1), 2: (0.8, 1.0)},
+        ("fmow", "MobileNetV2"): {3: (0.4, 0.6), 5: (0.3, 0.5)},
+        ("fmow", "RegNetY400MF"): {3: (0.4, 0.6), 5: (0.3, 0.4)},
+    }
+    for (ds, bb), want in sorted(HAND_DERIVED.items()):
+        row = ((TW["windows"].get(ds) or {}).get(bb)) or {}
+        sh = reference_shift(TW, row)
+        got = {c: (round(lo + sh, 10), hi)
+               for c, (lo, hi) in sorted((row.get("class") or {}).items())
+               if row.get("class", {}).get(c)}
+        want = {c: (round(lo, 10), hi) for c, (lo, hi) in want.items()}
+        check("%s/%s corrected band reproduces the hand-derived one %s"
+              % (ds, bb, got), got == want)
+    check("the correction NARROWS every substitute row and never widens it",
+          all(reference_shift(TW, r) >= 0.0
+              for d in TW["windows"].values() for r in d.values()))
 
     print("", file=out)
     # 🛑 NEVER PRINT AN UNQUALIFIED PASS OVER A SKIP. A self-test that

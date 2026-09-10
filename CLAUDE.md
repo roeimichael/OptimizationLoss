@@ -1255,6 +1255,48 @@ python -m scripts.task_window --glob "<root>/<Backbone>/iwildcam/*/tralo_null/se
                                             #   grid-snap margin, the row's PROVENANCE
                                             #   and one of task / non_task / no_window /
                                             #   no_data. FRAMEWORK 2(z16), 2(z24).
+                                            #   🛑 AND IT NOW CORRECTS FOR THE ARM THE
+                                            #   ROW WAS MEASURED WITH (2026-09-10). Four
+                                            #   rows -- bcn/fmow x MNv2/RegNet -- carry
+                                            #   `reference_arm: clip` because their
+                                            #   pilots were staged without `tralo_null`
+                                            #   (2(z91)). `clip` runs warm-up 30 /
+                                            #   constraint 0 against the declared arm's
+                                            #   warm-up 1 + 29 CE epochs, which sharpen
+                                            #   the probabilities and move the window UP:
+                                            #   the clip band is never HIGHER than the
+                                            #   null band at either end, 6 of 6. So the
+                                            #   STRICT band is narrowed from below by the
+                                            #   median offset (+1 grid step) and a cap
+                                            #   that falls out reads **`ref_shifted` ->
+                                            #   `unmeasured`**, never `non_task` -- the
+                                            #   ratio IS inside a band somebody measured.
+                                            #   ⛔ **THE CORRECTION HAD NO READER UNTIL
+                                            #   NOW.** It was measured, written into
+                                            #   `meta.reference_arm_offset`, and grep
+                                            #   found it in TWO places, both comment
+                                            #   strings: `classify` took the raw band and
+                                            #   `gen_campaign` read the GLOBAL
+                                            #   `meta.reference_arm`, never the row's own.
+                                            #   `bcn`/MNv2 `L80_G95` would have generated,
+                                            #   classified `task`, and entered the unit
+                                            #   ledger. `gen_campaign` now REFUSES it
+                                            #   (--allow-nontask overrides and says so),
+                                            #   printing the arm and BOTH bands -- the
+                                            #   generic bucket printed "outside the
+                                            #   measured window" beside the CORRECTED
+                                            #   floor, which is not in the yml.
+                                            #   ⚠️ It NARROWS, never widens, and only the
+                                            #   STRICT band: the partial band was not in
+                                            #   the six comparisons, so a narrowed cell
+                                            #   degrades to `partial`, the weaker claim.
+                                            #   ✅ Nothing in the corpus moves -- all 12
+                                            #   iwildcam rows use the declared arm, so the
+                                            #   shift is 0.0. Gated in both directions on
+                                            #   ONE changed field, plus a check that the
+                                            #   coded rule reproduces the four bands
+                                            #   derived by hand. Mutation-tested 7/7.
+                                            #   FRAMEWORK 2(z95).
                                             #   ⚠️ AND IT IS PER CAMPAIGN, NOT JUST
                                             #   PER BACKBONE. The lambda=0 count is 336
                                             #   in dom1/loose1 and 355 in

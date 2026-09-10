@@ -381,7 +381,7 @@ def task_window_gate(P, args, resolved, TW=None, arms=None):
         print("     and would generate without complaint. Restore the file "
               "before launching.")
         return
-    rows, bad, soft, gaps, nostrict = [], [], [], [], []
+    rows, bad, soft, gaps, nostrict, shifted = [], [], [], [], [], []
     unknown, absent, measured = set(), set(), False
     for ds in args.datasets:
         for model in args.models:
@@ -401,6 +401,16 @@ def task_window_gate(P, args, resolved, TW=None, arms=None):
                         soft.append((model, tag, c, v["ratio"]))
                     elif v["band"] == "unmeasured":
                         gaps.append((model, tag, c, v["ratio"], v["hi"]))
+                    elif v["band"] == "ref_shifted":
+                        # 🛑 INSIDE THE MEASURED BAND, OUTSIDE THE CORRECTED
+                        # ONE. It must not fall through to `bad`: that bucket
+                        # prints "outside the measured task window" beside the
+                        # CORRECTED `lo`, so a reader who checks the yml sees a
+                        # floor that is not in it and concludes the tool is
+                        # wrong. Both numbers are carried here instead.
+                        shifted.append((model, tag, c, v["ratio"],
+                                        v["lo_raw"], v["lo"], v["hi"],
+                                        r.get("reference_arm", "?")))
                     elif v["band"] == "no_strict":
                         # \U0001f6d1 A WARNING, NOT A REFUSAL, ON PURPOSE.
                         # An empty strict band comes from ONE re-measurement
@@ -647,6 +657,64 @@ def task_window_gate(P, args, resolved, TW=None, arms=None):
               "generated anyway." % len(bad))
         print("     Their nulls are the absence of a measurement, not a "
               "result. Say so.")
+    # 🛑 THE REFERENCE-ARM CORRECTION, AT THE POINT A CAP IS CHOSEN. These
+    # cells are inside the band that WAS measured and outside the band
+    # corrected for the arm it was measured with, so they are unmeasured
+    # rather than refuted -- but the direction of the error is KNOWN and it
+    # points at the tight end, which is why this refuses rather than warns.
+    # `--allow-nontask` overrides it, exactly as it does for a measured
+    # non-task, and says what it let through.
+    if shifted and not getattr(args, "allow_nontask", False):
+        lines = ["REFUSED: %d of %d (model, cap, class) cell(s) are inside "
+                 "the MEASURED window but" % (len(shifted), len(rows)),
+                 "         outside the window CORRECTED for the reference arm "
+                 "it was measured with."]
+        for model, tag, c, ratio, lo_raw, lo, hi, arm in shifted:
+            lines.append(
+                "  %s %s class %d: K/n=%.3f -- measured off `%s` %.2f-%.2f, "
+                "corrected %.2f-%.2f"
+                % (model, tag, c, ratio, arm, lo_raw, hi, lo, hi))
+        lines += [
+            "",
+            "  The window row was measured off a SUBSTITUTE reference arm. "
+            "`clip` runs warm-up",
+            "  30 + constraint 0 while `tralo_null` runs warm-up 1 + 29 CE "
+            "epochs, and those 29",
+            "  epochs sharpen the probabilities, so saturation reaches "
+            "further up the K/n axis",
+            "  and the window moves UP with it. Measured over fmow1 + "
+            "bcn1mn3: the clip band is",
+            "  never HIGHER than the null band at either end, 6 of 6. The "
+            "error is ONE-SIDED and",
+            "  it points at the TIGHT end, so these caps are exactly the ones "
+            "a clip-screened",
+            "  pilot accepts and the real screen rejects.",
+            "",
+            "  TWO LEGAL WAYS FORWARD:",
+            "   1. MOVE THE CAP into the corrected band above -- it is a "
+            "narrowing, so a cap",
+            "      that clears it clears the measured band too, whichever arm "
+            "was right.",
+            "   2. RE-MEASURE the row from a run of `%s`:"
+            % (TW.get("meta") or {}).get("reference_arm", "tralo_null"),
+            "        python -m scripts.task_window --glob "
+            "'<root>/<Backbone>/<ds>/*/tralo_null/seed_*'",
+            "      then drop `reference_arm` from the row and the correction "
+            "stops applying.",
+            "",
+            "  See `meta.reference_arm_offset` in configs/task_windows.yml "
+            "and FRAMEWORK 2(z91).",
+        ]
+        sys.exit("\n".join(lines))
+    if shifted:
+        print("  !! --allow-nontask: %d cell(s) are inside the MEASURED "
+              "window and outside the" % len(shifted))
+        print("     one corrected for a substitute reference arm, and are "
+              "generated anyway.")
+        print("     The bias is one-sided toward the TIGHT end. Re-screen "
+              "from this campaign's")
+        print("     own `%s` before scoring anything."
+              % (TW.get("meta") or {}).get("reference_arm", "tralo_null"))
 
 
 def _gate_self_test():
@@ -782,6 +850,66 @@ def _gate_self_test():
                      "WITH the ref arm through", "FAIL"))
             ok = False
         A.allow_nontask = False
+
+        # --- THE REFERENCE-ARM CORRECTION, AT THE GENERATOR ---
+        # `L80_G95` on iwildcam/MobileNetV2 is a real task cell against the
+        # real windows -- it is the LIVENESS case above. Mark the row as
+        # measured off `clip` with a 2-step offset and its class 2 band
+        # [0.70, 0.80] collapses, so the same cap must now be REFUSED. One
+        # field changes; the data, the caps and the arms do not.
+        TW_shift = _copy.deepcopy(load_windows())
+        TW_shift["meta"]["reference_arm_offset"]["shift_grid_steps"][
+            "median"] = 2
+        TW_shift["windows"]["iwildcam"]["MobileNetV2"][
+            "reference_arm"] = "clip"
+        class B(object):
+            datasets = ["iwildcam"]
+            models = ["MobileNetV2"]
+            allow_nontask = False
+            caps = ["L80_G95"]
+        try:
+            task_window_gate(P, B, None, TW=TW_shift,
+                             arms=["clip", "tralo", "tralo_null"])
+            print("  %-64s %s" % ("a cap outside the REFERENCE-CORRECTED "
+                                  "window is REFUSED", "FAIL"))
+            ok = False
+        except SystemExit as exc:
+            named = "corrected" in str(exc) and "clip" in str(exc)
+            print("  %-64s %s" % ("a cap outside the REFERENCE-CORRECTED "
+                                  "window is REFUSED", "PASS"))
+            print("  %-64s %s"
+                  % ("...and the refusal names the arm and BOTH bands",
+                     "PASS" if named else "FAIL"))
+            ok = ok and named
+        # NEGATIVE CONTROL: the correction must fire ONLY because the row
+        # declares a substitute arm. Drop that one key and the identical cap
+        # is allowed again -- otherwise the gate is refusing for some other
+        # reason and the whole correction is unproven.
+        TW_same = _copy.deepcopy(TW_shift)
+        TW_same["windows"]["iwildcam"]["MobileNetV2"].pop("reference_arm")
+        try:
+            task_window_gate(P, B, None, TW=TW_same,
+                             arms=["clip", "tralo", "tralo_null"])
+            print("  %-64s %s" % ("NEGATIVE CONTROL: without the substitute "
+                                  "arm the SAME cap passes", "PASS"))
+        except SystemExit:
+            print("  %-64s %s" % ("NEGATIVE CONTROL: without the substitute "
+                                  "arm the SAME cap passes", "FAIL"))
+            ok = False
+        # NEGATIVE CONTROL: --allow-nontask overrides it, as it does for a
+        # measured non-task. A correction that cannot be overridden would be
+        # stricter than the refusal it is derived from.
+        B.allow_nontask = True
+        try:
+            task_window_gate(P, B, None, TW=TW_shift,
+                             arms=["clip", "tralo", "tralo_null"])
+            print("  %-64s %s" % ("NEGATIVE CONTROL: --allow-nontask lets the "
+                                  "corrected cap through", "PASS"))
+        except SystemExit:
+            print("  %-64s %s" % ("NEGATIVE CONTROL: --allow-nontask lets the "
+                                  "corrected cap through", "FAIL"))
+            ok = False
+
     print("")
     if not ok:
         print("FAILURES ABOVE")
