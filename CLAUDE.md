@@ -1173,7 +1173,36 @@ python -m scripts.step_direction_probe --glob "<root>/*/iwildcam/*/tralo*/seed_*
                                             #   toy says 1.0000 for all six and is WRONG;
                                             #   real post-ReLU features are non-negative and
                                             #   anisotropic and give uniform-vs-sum 0.7479.
-                                            #   `--self-test` gates it in BOTH directions.
+                                            #   ⛔ **BUT ITS CUT WAS GLOBAL IN TWO PLACES
+                                            #   UNTIL 2026-09-10 -- THE SIXTH SUCH SITE.**
+                                            #   The mass-at-the-cut band was
+                                            #   `argsort(-z)[K-20:K+20]` over the whole test
+                                            #   set, and `cut_window`'s centre `tau` was the
+                                            #   global K-th logit. The allocator emits
+                                            #   top-`k_g` WITHIN each group. So (z12)'s
+                                            #   headline "the shipped count puts 0.00% of its
+                                            #   gradient at the cut" is UNVERIFIED: `sum` is
+                                            #   `p(1-p)`, vanishing as p -> 1, and that
+                                            #   table's own `p at the cut` reads
+                                            #   0.99984-1.00000. **The FIX had the same flaw**
+                                            #   -- on a two-group fixture the globally-aimed
+                                            #   `cut_window` puts 0.0000 of its mass on the
+                                            #   hard group, the per-group one 0.702.
+                                            #   ✅ The THREE-CLUSTER cosine table above is
+                                            #   UNAFFECTED (only `cut_window` reads a cut), so
+                                            #   the `tralo_margin` prediction stands.
+                                            #   ⛔ DIRECTION UNKNOWN -- 2(z64) records that
+                                            #   exact claim being fixtured, mutation-tested
+                                            #   green and then REFUTED. Both readings now
+                                            #   print, with band sizes and a per-ITEM column.
+                                            #   It REFUSES a predictions file with no
+                                            #   `Group_ID` rather than falling back.
+                                            #   Re-run on `dom1`, never `iwc1` (which is
+                                            #   `scorable=False` and these figures are outside
+                                            #   its `keep_for`). FRAMEWORK 2(z79), task #112.
+                                            #   `--self-test` gates it in BOTH directions,
+                                            #   now 3 negative controls on the cut, mutation-
+                                            #   tested 4/4.
 python -m scripts.ortho_survival             # does an intervention installed in
                                             #   `prm.grad` SURVIVE Adam? It mostly does
                                             #   not, and this is the cheapest probe here

@@ -36,25 +36,31 @@ is a judgement a person makes. So the output is ordered by how much the number
 matters, and the tool never prints a total it wants believed.
 
 CALIBRATED BY HAND, 2026-09-10, BECAUSE AN UNCALIBRATED REPORT IS A RUMOUR.
-First run: 74 entries DISCLOSE and were cleared, 32 do not. The top SIX were
-read one by one:
+The top SIX of the first run were read one by one and came out **3 genuine,
+2 spurious, 1 ambiguous** -- the same ratio 2(z68) measured for
+`stale_figures`. Quote that ratio beside any count taken from here.
 
-  FRAMEWORK :2083  53 fig  iwc1     GENUINE  -- outside iwc1's `keep_for`,
-                                      which names the representation channel
-                                      and the fp16 dose spread, not this
-  FRAMEWORK :3339  29 fig  loose1   GENUINE  -- the count-function reversal,
-                                      on the `clip` recipe, unstated (2(z76))
-  FRAMEWORK :6833  27 fig  iwc3     GENUINE  -- an attribution analysis on a
-                                      68.6%-dose campaign (2(z71) exactly)
-  FRAMEWORK :9121  23 fig  derm     SPURIOUS -- an iwildcam entry that names
-                                      dermmnist only for contrast
-  FRAMEWORK :13940 19 fig  octmnist SPURIOUS -- a meta entry ABOUT how wrong
-                                      results got believed
-  FRAMEWORK :290   18 fig  vit_diag AMBIG    -- a dermmnist-era entry, so the
-                                      figure may be in context
+The three genuine ones were the count-function gradient entry (its 53 figures
+are `iwc1`'s and sit outside `iwc1`'s `keep_for`), the count-function reversal
+(on `loose1`, the `clip` recipe, unstated), and the attribution table (on a
+68.6%-dose campaign). The two spurious ones name a removed dataset only for
+CONTRAST -- an iwildcam entry, and a meta entry about how wrong results got
+believed. The ambiguous one is a dermmnist-era entry where the figure may be
+in context.
 
-3 genuine / 2 spurious / 1 ambiguous, which is the same ratio 2(z68) measured
-for `stale_figures`. Quote THAT ratio beside any count taken from here.
+!! AND READING THEM CHANGED THE TOOL, WHICH IS THE POINT OF CALIBRATING.
+
+  * The FIRST genuine hit turned out to be a symptom: reading it found that
+    `step_direction_probe` located the cut GLOBALLY in two places, the sixth
+    such site in this repo and the tool behind that entry's headline. See
+    FRAMEWORK 2(z79). A provenance flag found a mechanism defect.
+  * The THIRD one showed the matcher was too narrow. It required backticks,
+    and the entry it flagged names `iwc3` only in passing -- its actual table
+    header reads "| iwc4 final, ... |", unbackticked, so the OFF-RECIPE
+    campaign the whole table comes from was invisible. Matching moved to a
+    word boundary; a campaign name is distinctive enough, and a backtick is a
+    formatting habit rather than a signal. That took the run from 74/32 to
+    **85 cleared / 38 flagged**, so the earlier counts are superseded.
 
     python -m scripts.stale_provenance
     python -m scripts.stale_provenance --docs docs/FRAMEWORK.md
@@ -209,8 +215,15 @@ def scan(docs=DOCS, cond=None):
                 continue
             named = []
             for n, (why, need_arms) in sorted(cond.items()):
-                if not (("`%s`" % n) in body
-                        or (n in REMOVED_DATASETS and n in body)):
+                # !! MATCH ON A WORD BOUNDARY, NOT ON BACKTICKS (2026-09-10).
+                # The first version required `name`, and this repo does not
+                # backtick consistently: FRAMEWORK:6878's table header reads
+                # "| iwc4 final, vs `tralo_null` |", so the OFF-RECIPE campaign
+                # its whole table comes from was invisible while a passing
+                # mention of `iwc3` further down was what flagged the entry.
+                # A campaign name is distinctive enough that a word boundary
+                # is safe; a backtick is a formatting habit, not a signal.
+                if not re.search(r"(?<![A-Za-z0-9_])%s(?![A-Za-z0-9_])" % re.escape(n), body):
                     continue
                 # PARTIAL: fire only if a DEAD ARM is named too. See
                 # `condemned`.

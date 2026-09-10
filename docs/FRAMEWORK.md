@@ -2084,7 +2084,11 @@ does not.
 GRADIENT AT THE CUT -- the mechanism behind z11, and the fix it forces
 
 Measured 2026-08-31 on REAL stored `test_embeddings.npz`, `iwc1`, 24 (run,
-class) pairs. `scripts/step_direction_probe.py`, `--self-test` gated in BOTH
+class) pairs. ⚠️ **`iwc1` IS `scorable=False` AND THESE FIGURES ARE
+OUTSIDE ITS `keep_for`**, which names the representation channel and the fp16
+dose spread and not this -- flagged by `stale_provenance` (2(z78)), which is
+what led to the defect in §(b). The dose spread does not touch the
+arithmetic below, but the model it reads is an underdosed one. `scripts/step_direction_probe.py`, `--self-test` gated in BOTH
 directions (it reports 0.701 on a steerable geometry, so a collinearity here is
 a measurement).
 
@@ -2108,6 +2112,20 @@ features.
 from `tralo`, so running it will mostly REPRODUCE `tralo`. It is the arm held
 in reserve and it is now predicted to be a near-duplicate. Do not spend a
 campaign on it before the cut window below.
+
+⛔ **(b) BELOW IS A GLOBAL-SORT READING AND IS UNVERIFIED (2026-09-10,
+2(z79)).** `step_direction_probe` took the band at `argsort(-z)[K-20:K+20]`
+over the whole test set, and the allocator emits top-`k_g` WITHIN each group.
+`sum` is `p(1-p)`, which vanishes as p -> 1, and the `p at the cut` column
+below reads **0.99984-1.00000** -- so the headline `0.0000` is precisely the
+number that substitution manufactures. **AND THE FIX HAD THE SAME FLAW**:
+`cut_window`, proposed here as the answer, was centred on the same global
+K-th logit. On a two-group fixture the globally-aimed `cut_window` puts
+**0.0000** of its mass on the hard group and the per-group one puts **0.702**.
+Both are fixed and both readings now print; direction of the change is
+UNKNOWN (2(z64)). Re-run on `dom1`, not `iwc1` -- task #112.
+✅ **(a) ABOVE IS UNAFFECTED** except for `cut_window`'s cluster
+membership: the other six weightings never read a cut.
 
 **(b) AND NONE OF THE THREE AIMS AT THE CUT.** Fraction of total gradient mass
 on the 40 items straddling rank K -- the only items whose movement can change
@@ -3341,6 +3359,33 @@ comparison must use `final_predictions.csv`, never the panel.
 Measured 2026-08-31 from the 372-cell table, then RE-DERIVED after running the
 integrity gates, which changed the numbers. Both versions are kept here because
 the first was quoted before the gates were run and that is the error to learn.
+
+⚠️ **PROVENANCE, ADDED 2026-09-10 (2(z78) flagged this entry second).**
+Three separate things, and only the third changes anything:
+
+* **The TIGHT rows are `L20_G50` / `L30_G50` / `L50_G30`, which 2(z16) and
+  2(z17) later measured as NON-TASK in 24 of 24 cells.** ✅ **That does NOT
+  invalidate them**, and the ruling already exists: `uniform1`'s quarantine
+  marker keeps that campaign expressly for "the `tralo_uniform` vs `tralo`
+  count-function comparison at FULL dose, which is a claim about the LOSS
+  SHAPE and not about whether the cap binds". This entry is that comparison,
+  and it reads AP/AUROC -- RANKING metrics that do not depend on K at all. So
+  the +0.0844 stands as a statement about the ranking. What it does NOT
+  support is that the ranking change reaches the deployed metric, because at
+  those caps there is nothing at the cut to win.
+* **`loose1` is the `clip` recipe** (2(z76)). Its L80/L90 cells are
+  byte-identical to `dom1`'s, which is why the dedup below is possible at all
+  -- so the recipe cannot touch them. ⚠️ But this entry never says WHICH copy
+  it kept, and it never names its six source campaigns, so the provenance is
+  not auditable from the entry. Name them on the next re-derivation.
+* ⛔ **THE CLOSING ARGUMENT IS THE PART THAT MOVED.** The entry ends by calling
+  this "the argument for the cut-windowed count". 2(z79) then measured that
+  `cut_window` -- the candidate that argument points at -- was centred on a
+  GLOBAL K-th logit, a cut the allocator never makes: on a two-group fixture
+  the globally-aimed version puts **0.0000** of its mass on the hard group
+  against **0.702** for the per-group one. The argument is not refuted, it is
+  UNPRICED: nobody has evaluated the correctly-aimed candidate. And the layer
+  it lives in is closed by 2(z56) §6 on independent evidence.
 
 **THE GATES, run on all six source campaigns.**
 
@@ -6831,6 +6876,20 @@ three caps on the BF16 host, so it is an independent replicate of iwc4 and it
 agrees in sign, in size and in cell count.
 
 #### 🔑 WHAT IS ATTRIBUTABLE AND WHAT IS THE SEED -- FINAL, 180/180, 4 seeds
+
+⚠️ **PROVENANCE, ADDED 2026-09-10 (2(z78) flagged this entry third).**
+The table below is **`iwc4`**, which is on the `clip` recipe (COVERAGE row 2),
+not the current `normalize` -- and the paragraphs after it quote **`iwc3`**,
+which is `scorable=False` at 68.6% dose with a `keep_for` covering the fp16
+dose receipt only. Neither was stated.
+✅ **The attribution RATIOS survive both**, and for a reason that is
+specific rather than convenient: every number here is a treated arm against
+its OWN lambda=0 twin from the SAME campaign, so recipe and dose are held
+fixed inside each comparison. What does NOT survive is any cross-campaign
+reading of the absolute levels, and `iwc3`'s `2.11 items` paired sd below
+inherits 2(z71) in full.
+⚠️ AND `iwc4` WAS INVISIBLE TO THE TOOL because the header writes it
+unbackticked. The matcher now uses a word boundary; see 2(z78) §2.
 
 ⚠️ **CORRECTION, 2026-08-27.** Read at 106/180 with 3 seeds, `tralo` and
 `tralo_reseed` both showed macroF1 -0.0156 and this section said the macro-F1
@@ -13386,8 +13445,9 @@ arms (2(z40)).
 
 ### 2. \u26a0\ufe0f IT IS A QUEUE, AND HERE IS ITS MEASURED NOISE
 
-74 entries DISCLOSE and were cleared; 32 do not. **Do not quote 32 as a defect
-count.** The top six were read by hand:
+85 entries DISCLOSE and were cleared; 38 do not. **Do not quote 38 as a defect
+count.** The top six of the first run were read by hand (line numbers as they
+stood then):
 
 | entry | figs | name | verdict |
 |---|---|---|---|
@@ -13402,6 +13462,23 @@ count.** The top six were read by hand:
 `stale_figures` when its twelve `paper_rows` hits were read (5/5/2). Attribution
 by proximity is irreducibly noisy in both tools and the honest use is
 identical: an ordered list of entries to READ, never a number to report.
+
+🔑 **AND READING THEM CHANGED THE TOOL AND THE REPO, WHICH IS WHY A
+REPORT GETS CALIBRATED RATHER THAN QUOTED.** Two things came out of the read
+that the count alone could not have:
+
+* The FIRST hit was a symptom, not the disease. Reading (z12) found that
+  `step_direction_probe` took the cut at a GLOBAL rank-K window in two
+  places -- the sixth site of that substitution here, in the tool behind that
+  entry's own headline. **2(z79).** A provenance flag surfaced a mechanism
+  defect.
+* The THIRD hit showed the matcher was too narrow, and in a way that hid the
+  bigger problem. It required backticks; the entry it flagged names `iwc3`
+  only in passing while its actual table header reads `| iwc4 final, ... |`
+  unbackticked -- so the OFF-RECIPE campaign the whole table comes from was
+  invisible and a passing mention was what fired. Matching moved to a word
+  boundary, taking the run from **74 cleared / 32 flagged** to **85 / 38**.
+  The counts in this entry are the post-fix ones.
 
 ### 3. The three at the top of that queue
 
@@ -13428,6 +13505,111 @@ fenced block must not split an entry -- the defect that once dropped CLAUDE.md
 from 13 figures to 4 in `stale_figures`. It also asserts that `loose1` reads
 as `clip` **from COVERAGE's table** and that the current recipe is DERIVED,
 so the tool cannot drift from the authority it exists to enforce.
+
+## 2(z79). THE SIXTH GLOBAL-TOP-K SITE, AND IT IS THE TOOL BEHIND (z12) -- THE DIAGNOSIS *AND* ITS PRESCRIPTION WERE BOTH AIMED AT A CUT THE ALLOCATOR NEVER MAKES (2026-09-10)
+
+Found by reading the top hit of `scripts/stale_provenance` (2(z78)), which
+flagged (z12) for quoting 53 figures from `iwc1` -- a `scorable=False`
+campaign, and outside its own `keep_for`. The provenance problem is real. The
+larger one is in the instrument.
+
+### 1. The substitution, twice in one file
+
+`scripts/step_direction_probe.py` located the cut two ways and both were
+GLOBAL:
+
+```python
+band = np.argsort(-zc)[max(0, K - BAND):K + BAND]   # the (b) table's band
+tau  = np.sort(z)[::-1][K - 1]                      # `cut_window`'s centre
+```
+
+Every allocator here emits the top `k_g` **inside each group**. A global rank-K
+window sits almost entirely in the groups the model is confident about -- items
+that can never flip -- and misses the items sitting at the cut in the hard
+ones. This is the **sixth** site of that exact substitution: the cap screen
+(2(z28)), the task window (2(z16)), the fmow window (2(z59)), `paired_noise`
+(2(z63)), `cut_gap` (2(z64)), and now this. Every previous one changed an
+answer.
+
+\U0001f6d1 **AND THE SECOND OCCURRENCE IS THE WORSE ONE.** `cut_window` is the
+weighting (z12) proposes as **its own fix** -- the entry's title is "the
+mechanism behind z11, and the fix it forces". It was centred on the global
+K-th logit, i.e. the prescription was aimed at the same non-existent point as
+the diagnosis. Demonstrated in the self-test on a two-group fixture (one
+confident group, one at the boundary): the globally-aimed `cut_window` puts
+**0.0000** of its mass on the hard group; aimed per group it puts **0.702**.
+
+### 2. What is affected, and what is not
+
+* **(z12)(b), the whole table** -- "the shipped count function puts
+  **0.00%** of its gradient at the cut", and the pooled `cut_window` 0.3486 /
+  `p` 0.1039 / `linear_z` 0.0816 receipt. All of it is a global-window
+  reading. ⚠️ The `sum` weighting is `p(1-p)`, which vanishes as p -> 1, and
+  the table's own `p at the cut` column reads **0.99984-1.00000** -- so the
+  headline `0.0000` is precisely the number this substitution manufactures.
+* **`cut_window`'s membership of the (a) cosine clusters** -- it is the one
+  weighting that needs a cut, so its direction moves with the fix. The other
+  six weightings do not use `K` at all and their cosines stand.
+* ✅ **(z12)(a)'s three clusters and the `tralo_margin` prediction are
+  UNAFFECTED.** `uniform`/`1-p` at 0.986, `sum`/`margin` at 0.989, `p`/`linear`
+  at 0.989, between-cluster 0.58-0.87, and the Gaussian-toy warning. None of
+  those reads a cut.
+
+⛔ **DIRECTION UNKNOWN, AND SAY SO.** 2(z64) records this author asserting
+that the global reading understates the gradient at the cut, building a
+fixture that showed it, mutation-testing it 2/2 green, and being refuted by
+the end-to-end run -- the maximin property orders the global value against the
+**minimum** group cut, never against the mean. The tool now prints BOTH
+readings side by side for that reason, with their band sizes, plus a per-ITEM
+column because the two bands are not the same size.
+
+### 3. A second, smaller defect in the same block
+
+The `mass` accumulator was appended to **twice per (run, class)** -- once with
+a literal `20` and once with `BAND`, which is 20, so the two bands were
+identical. Mean, min and max are unchanged by exact duplication, so **(z12)'s
+published figures are not affected**; but the sample list was twice its true
+length, so any `n` or sd taken from it would have been wrong, and the entry's
+"24 (run, class) pairs" did not match the list it summarised. Removed.
+
+### 4. The fix, and its gates
+
+`probs()` now returns `Group_ID` and the per-group `k_g` **counted off the
+deployed labels**, and it **REFUSES a predictions file with no `Group_ID`**
+rather than falling back to the global reading -- the same refusal that made
+`paired_noise` catch a broken fixture in 2(z65). `cut_band()` and
+`group_tau()` take the cut where the allocator takes it; both keep the global
+path so (z12)'s published table regenerates.
+
+`--self-test` gains 9 checks on a two-group fixture, **3 of them negative
+controls**: the GLOBAL band must miss the hard group entirely (or the fixture
+does not separate the two rules), the two bands must differ as index sets, and
+the globally-aimed `cut_window` must nearly ignore the hard group. Mutation-
+tested 4/4: a silent global fallback, a per-group band centred on rank K, a
+`group_tau` returning the global scalar, and a `weightings` that ignores the
+tau it was passed all turn it red.
+
+### 5. What this does NOT reopen
+
+⛔ **The per-item aim layer stays CLOSED.** 2(z56) §6 closed it on
+`aim_table` measured on `dom1` at the cut the allocator actually makes -- 48
+reference runs, 2 backbones, 3 caps, not one starved cell -- so the closure
+never rested on (z12). What changes is that (z12)'s stated REASONS were
+measured at the wrong point, which is the same pattern 2(z56) recorded about
+itself: *"the memo's verdict was right and every stated reason for it, mine
+included, was wrong."* Third time in this file.
+
+### 6. The re-run
+
+Needs `test_embeddings.npz`, so it needs the server, and it must not go back
+to `iwc1`:
+
+```bash
+python -m scripts.step_direction_probe --glob 'results/dom1/*/iwildcam/*/tralo/seed_*'
+```
+
+`dom1` is on the current recipe and PARTIAL only for `fioretto`/`hounie`,
+neither of which this reads. Task #112.
 
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
