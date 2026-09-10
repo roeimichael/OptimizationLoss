@@ -1899,7 +1899,27 @@ work is the same defect as a run-state block dated at writing. FRAMEWORK
    cell**. Selling seeds 5-8 as "now we can resolve TraLO vs ALM" would be the
    2(z69) defect again in the other direction. 2(z77), task #109.
 
-7. 🟢 **#109 -- MEASURE THE sd INSTEAD OF ESTIMATING IT.** 2(z77)'s whole
+7. 🟢 **#111 -- READ THE THREE GENUINE STALE-PROVENANCE HITS. ZERO GPU,
+   DOCUMENT READS.** `python -m scripts.stale_provenance` (new, 2(z78)) asks
+   the staleness question `stale_figures` cannot: not "has the SCORER moved"
+   but "was the DATA condemned". 74 entries disclose, 32 do not; the top six
+   were hand-read at **3 genuine / 2 spurious / 1 ambiguous**, so it is a
+   QUEUE and never a count. The three:
+   `(z12)`'s 53 figures are `iwc1`'s and sit outside its `keep_for`;
+   `(z8)`'s count-function reversal is on `loose1`, the `clip` recipe
+   (apply 2(z76)'s cell-by-cell reading); FRAMEWORK:6833's attribution
+   analysis is on `iwc3` at 68.6% dose (2(z71) already gives the split --
+   the lambda=0 columns are dose-immune, the treated ones are not).
+
+8. 🟢 **#110 -- RUN `straddle_probe` ON `dom1`. IT SETS THE DENOMINATOR
+   OF THE BAR ABOVE AND HAS NEVER BEEN RUN.** 2(o) still calls it "an
+   INSTRUMENT not yet a result". The `11.7-21.2` prize is `headroom`'s ORACLE
+   quantity; 2(a3) measured that the delivered displacement is exactly
+   `lr*clip` per step, so part of it was never reachable. A smaller reachable
+   prize makes the bar HARDER, so this decides whether "half the prize" is
+   achievable at all. Zero GPU.
+
+9. 🟢 **#109 -- MEASURE THE sd INSTEAD OF ESTIMATING IT.** 2(z77)'s whole
    ladder rests on `median|d| = 0.6745*sd`, a normality assumption over two
    medians from different campaigns. `paired_noise --campaign results/dom1`
    and `ceiling_screen` already compute it directly and both currently quote

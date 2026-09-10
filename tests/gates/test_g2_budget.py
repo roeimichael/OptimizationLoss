@@ -318,7 +318,9 @@ def test_a_ccf1_delta_is_quantised_and_converts_to_items():
     predictions emitted `F1 = 2TP/(K+n)`, so the only cc-F1 deltas that can
     occur are integer multiples of `2/(K+n)`; anything else is an arithmetic
     bug -- a budget mismatch, or arms emitting different counts. The whole gap
-    from `clip` to a PERFECT allocator is 1.9-9.9 items, so 0.02 is not a small
+    from `clip` to a PERFECT allocator is 0.0-1.0 items at iwildcam's tight
+    caps and 11.7-21.2 per cell at its task ones (`1.9-9.9` here until
+    2026-09-10 was a dermmnist figure), so 0.02 is not a small
     effect. NEGATIVE CONTROL: 0.02 is not legal at K=111, n=370."""
     fails = []
     for K, n in ((74, 370), (111, 370), (137, 456), (259, 370), (411, 456)):

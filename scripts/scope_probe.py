@@ -159,7 +159,9 @@ def oracle_split(d, classes, totals, rounds=3):
 
     A HEADROOM measure, not a method: it reads `y` to score, so no allocator
     could achieve it without labels. Its purpose is to decompose the known
-    1.9-9.9 item gap between `clip` and a perfect allocator into the part
+    per-cell gap between `clip` and a perfect allocator -- 0.0-1.0 items at
+    iwildcam's tight caps, 11.7-21.2 at its task ones (the `1.9-9.9` here
+    until 2026-09-10 was a dermmnist figure) -- into the part
     reachable by choosing the SPLIT and the part that needs re-ranking WITHIN
     groups. If the oracle split is worth ~0, then no local-cap method can win
     however it is trained, and the whole scope direction closes rather than

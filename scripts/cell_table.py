@@ -13,7 +13,10 @@ frame whose cells differ ONLY by backbone and requires that they stay separate.
 
 Columns per metric: mean over seeds, the within-cell sd, and n_seeds. The sd is
 not decoration. The whole gap from `clip` to a PERFECT allocator on iwildcam is
-1.9-9.9 items and the paired seed sd is worth ~2.7, so a mean without its sd is
+0.0-1.0 items at the tight caps and 11.7-21.2 per cell at the task caps, read
+per backbone (the `1.9-9.9` that stood here until 2026-09-10 was a dermmnist
+figure, attributed to iwildcam by name), and the paired seed sd is worth ~2.7,
+so a mean without its sd is
 unreadable -- and a cell with n_seeds < 2 has no sd at all and must be shown as
 blank rather than 0.
 

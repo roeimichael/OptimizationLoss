@@ -570,7 +570,7 @@ def test_every_script_that_offers_a_self_test_actually_PASSES_it():
     """2026-08-25 "the out-of-tree guard refused unconditionally on a first
     launch" -- a guard that can never pass is not a guard.
 
-    Twenty-two modules under `scripts/` and `configs/` carry `--self-test`.
+    SUBJECTS = 42 modules under `scripts/` and `configs/` carry `--self-test`.
     Each is the only thing standing between that tool and a silently wrong
     number, and NOTHING runs them together: they are invoked by hand, one at a
     time, when someone remembers. On 2026-09-02 a broken self-test fixture in
@@ -578,6 +578,14 @@ def test_every_script_that_offers_a_self_test_actually_PASSES_it():
 
     This is the sweep. It also enforces the discovery half: a module that
     advertises `--self-test` in its argparse must actually implement it.
+
+    !! THE COUNT IN THIS DOCSTRING IS NOW ASSERTED, BECAUSE IT ROTTED.
+    It read "Twenty-two" until 2026-09-10 while the real number was 42, and
+    CLAUDE.md repeated it. A stale subject count tells a reader the sweep is
+    narrower than it is, which is the same failure as a stale test count
+    telling them their checkout is incomplete. Bump SUBJECTS deliberately when
+    a module gains or loses `--self-test`; do not silently widen the >= 20
+    floor below, which only catches the sweep losing its subjects wholesale.
     """
     mods = []
     for r in ("scripts", "configs"):
@@ -589,6 +597,15 @@ def test_every_script_that_offers_a_self_test_actually_PASSES_it():
     assert len(mods) >= 20, (
         "only %d module(s) advertise --self-test; the sweep has lost its "
         "subjects" % len(mods))
+    import re as _re
+    claimed = int(_re.search(
+        r"SUBJECTS = (\d+) modules",
+        test_every_script_that_offers_a_self_test_actually_PASSES_it.__doc__
+    ).group(1))
+    assert claimed == len(mods), (
+        "this docstring claims %d self-test modules and there are %d. It read "
+        "'Twenty-two' for weeks against a real 42 (2026-09-10). Update the "
+        "docstring AND CLAUDE.md's sweep line together." % (claimed, len(mods)))
     failed = []
     for m in mods:
         p = subprocess.run([sys.executable, "-m", m, "--self-test"],
@@ -1906,3 +1923,104 @@ def test_the_unit_ledger_licenses_the_completed_bcn_campaign():
         "bcn1mn3 shares unit label %r with %s. A cross-dataset campaign cannot "
         "share a warm-up, so sharing a label would UNDER-count units."
         % (label, clash))
+
+
+# `docs/paper/` is the disjoint dermmnist generation (WHICH_CORPUS.md), where
+# the figure is in context and must stay.
+_DERM_PRIZE_SKIP = ("docs/paper", "docs/archive", ".git")
+_DERM_QUALIFIER = ("dermmnist", "derm ")
+
+
+def test_the_dermmnist_prize_figure_never_travels_unqualified():
+    """`1.9-9.9 items` is a dermmnist number and it was live in EIGHT places.
+
+    2026-09-10. dermmnist is removed and leaks 38.7% of its test set; the
+    only runnable dataset's prize is 0.0-1.0 items at the tight caps and
+    11.7-21.2 per cell (3.5-12.0 per class) at the task caps. FRAMEWORK 2(z30)
+    already recorded the defect and claimed the fix was to caveat the
+    DEFINITION SITE "so the caveat travels with the print" -- it does not
+    travel, and the sweep found the figure still bare in `cell_table`'s
+    docstring (attributed to iwildcam BY NAME), `dataset_screen`,
+    `family_split`'s printed line, PLAYBOOK's scoring rule, two FRAMEWORK
+    entries, CLAUDE.md's probe block, and -- the one that changes a verdict --
+    `frozen_head_probe --headroom-items`, whose DEFAULT was 9.9.
+
+    The rule is not "never write it": it is in context wherever the entry is
+    about dermmnist. The rule is that the qualifier travels with it. So a
+    line carrying the figure must name dermmnist within the same paragraph.
+
+    NEGATIVE CONTROL below: a synthetic bare occurrence must fail, or this
+    test would pass on a repo that had regressed.
+    """
+    import re
+
+    def bare(text, path):
+        """Occurrences of the figure with no dermmnist qualifier nearby."""
+        hits = []
+        for m in re.finditer(r"1\.9-9\.9|1\.9 to 9\.9", text):
+            near = text[max(0, m.start() - 400):m.end() + 400].lower()
+            if not any(q in near for q in _DERM_QUALIFIER):
+                hits.append("%s:%d" % (path, text[:m.start()].count("\n") + 1))
+        return hits
+
+    bad = []
+    for base, dirs, files in os.walk(REPO):
+        rel = os.path.relpath(base, REPO).replace("\\", "/")
+        if any(rel == s or rel.startswith(s + "/") for s in _DERM_PRIZE_SKIP):
+            dirs[:] = []
+            continue
+        dirs[:] = [d for d in dirs if d not in (".git", "results", "evidence")]
+        for f in files:
+            if not f.endswith((".md", ".py")):
+                continue
+            p = os.path.join(base, f)
+            try:
+                txt = io.open(p, encoding="utf-8").read()
+            except (OSError, UnicodeDecodeError):
+                continue
+            bad += bare(txt, os.path.relpath(p, REPO).replace("\\", "/"))
+
+    assert not bad, (
+        "the dermmnist prize figure appears with no dermmnist qualifier "
+        "within 400 chars at: %s. On iwildcam the prize is 0.0-1.0 (tight) / "
+        "11.7-21.2 per cell (task). FRAMEWORK 2(z30), (o)." % bad)
+
+    # NEGATIVE CONTROL: the detector must fire on a bare occurrence.
+    assert bare("the whole prize is 1.9-9.9 items", "synthetic.md"), (
+        "the detector does not fire on a bare figure, so the sweep above "
+        "proves nothing")
+    # ...and must NOT fire when the qualifier is present.
+    assert not bare("1.9-9.9 items, a dermmnist figure", "synthetic.md"), (
+        "the detector fires even when dermmnist is named, so it would force "
+        "the figure out of the entries where it is correct")
+
+
+def test_the_probe_headroom_default_is_the_runnable_datasets_prize():
+    """`frozen_head_probe --headroom-items` GATES a verdict, and its default
+    was the removed dataset's number (2026-09-10).
+
+    `if res > args.headroom_items` is what prints "AND THAT IS COARSER THAN
+    THE ENTIRE QUESTION". A default of 9.9 understated the question on
+    iwildcam, whose per-class task-cap top is 12.0. A stale docstring is a
+    reading error; a stale DEFAULT is a wrong verdict.
+    """
+    import argparse
+    import scripts.frozen_head_probe as fhp
+
+    src = io.open(os.path.join(REPO, "scripts", "frozen_head_probe.py"),
+                  encoding="utf-8").read()
+    tree = ast.parse(src)
+    got = None
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if not (node.args and isinstance(node.args[0], ast.Constant)
+                and node.args[0].value == "--headroom-items"):
+            continue
+        for kw in node.keywords:
+            if kw.arg == "default":
+                got = ast.literal_eval(kw.value)
+    assert got == 12.0, (
+        "--headroom-items defaults to %r. 9.9 is dermmnist's top; iwildcam's "
+        "per-class task-cap top is 12.0, and this value decides whether the "
+        "probe warns that it cannot see the question at all." % (got,))

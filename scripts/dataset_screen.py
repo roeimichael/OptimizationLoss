@@ -27,7 +27,9 @@ GPU.
 
 THE UNIT IS ITEMS, because that is the unit every effect in this project is
 quoted in, and the scale is unforgiving: the paired seed sd is ~2.7 items and
-the whole `clip`-to-perfect headroom is 1.9-9.9 items. A cap whose novelty is
+the whole `clip`-to-perfect headroom is 0.0-1.0 items at iwildcam's tight caps
+and 11.7-21.2 per cell at its task caps (the `1.9-9.9` that stood here until
+2026-09-10 is a dermmnist figure). A cap whose novelty is
 "about one item" cannot be beaten out of, whatever the method.
 
     python -m scripts.dataset_screen data/dermmnist/slice_1 data/octmnist/slice_1

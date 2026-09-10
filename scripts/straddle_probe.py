@@ -1,7 +1,10 @@
 """How much of the headroom is REACHABLE by a step the size ours actually is?
 
 WHY THIS EXISTS. `scripts/headroom.py` reports the gap from `clip` to a PERFECT
-allocator: 1.9-9.9 items. That is an ORACLE quantity -- it assumes the ranking
+allocator: on iwildcam 0.0-1.0 items at the tight caps and 11.7-21.2 per cell
+at the task ones. (The `1.9-9.9` printed here until 2026-09-10 is a dermmnist
+figure, and dermmnist is removed.) That is an ORACLE quantity -- it assumes the
+ranking
 can be rewritten arbitrarily. Ours cannot. FRAMEWORK 2(a3) measured that under
 `constraint_grad_mode: normalize` the delivered displacement is exactly
 `lr * clip` per step, so the constraint moves scores by a BOUNDED amount. An

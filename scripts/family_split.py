@@ -283,8 +283,10 @@ def main():
         if metric == "ccF1":
             print("     ^ items = d(ccF1) * %.1f per 0.01. The whole gap from "
                   "`clip` to a" % scale)
-            print("       PERFECT allocator is 1.9-9.9 items PER CLASS, so read "
-                  "this line in items.")
+            print("       PERFECT allocator is 3.5-12.0 items PER CLASS at "
+                  "iwildcam's task caps")
+            print("       (0.0-1.0 at its tight ones), so read this line in "
+                  "items.")
     print()
     print("  total = compute + constraint exactly, per seed. A family that "
           "'wins' on total")

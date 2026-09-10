@@ -671,7 +671,10 @@ def corrupt_head(W, classes, alpha, seed):
     norm, so the head keeps its scale and loses only ordering information. The
     strength is SWEPT rather than set to something catastrophic: a control that
     only proves the probe can see a disaster says nothing about whether it can
-    see the 1.9-9.9 items that are the entire effect space here. The sweep
+    see the 3.5-12.0 items per class that are the entire effect space at
+    iwildcam's task caps -- 0.0-1.0 at its tight ones. (The `1.9-9.9` that
+    stood here until 2026-09-10 is a dermmnist figure, and dermmnist is
+    removed and leaks 38.7% of its test set.) The sweep
     reports the smallest alpha the probe separates, which IS the probe's
     resolution in items.
     """
@@ -955,11 +958,16 @@ def main(argv=None):
     a.add_argument("--max-sign-p", type=float, default=0.01,
                    help="pre-registered bar (b), a significance level rather "
                         "than a sign fraction -- see verdict()")
-    a.add_argument("--headroom-items", type=float, default=9.9,
+    a.add_argument("--headroom-items", type=float, default=12.0,
                    help="the top of the measured gap from `clip` to a PERFECT "
-                        "allocator (docs/FRAMEWORK.md: 1.9-9.9 items). A probe "
-                        "whose resolution is coarser than this cannot read a "
-                        "null on this project's question at all.")
+                        "allocator, PER CLASS. Default is iwildcam's task-cap "
+                        "top, 12.0 (class 2, MobileNetV3, L90_G95); its tight "
+                        "caps are 0.0-1.0. !! The default was 9.9 until "
+                        "2026-09-10 and that is a dermmnist number -- the "
+                        "removed, 38.7%-leaking dataset -- so it understated "
+                        "the question on the only runnable one. A probe whose "
+                        "resolution is coarser than this cannot read a null on "
+                        "this project's question at all.")
     a.add_argument("--json-out", default=None,
                    help="write raw per-seed ccF1 for post-hoc analysis")
     args = a.parse_args(argv)
@@ -1095,8 +1103,8 @@ def main(argv=None):
         if res > args.headroom_items:
             print()
             print("  *** AND THAT IS COARSER THAN THE ENTIRE QUESTION. The gap from")
-            print("     `clip` to a PERFECT allocator is 1.9-%.1f items, so a probe"
-                  % args.headroom_items)
+            print("     `clip` to a PERFECT allocator is at most %.1f items per "
+                  "class, so a probe" % args.headroom_items)
             print("     that only resolves %.2f cannot tell a real effect from" % res)
             print("     nothing HERE. Every `NO DIFFERENCE` above is UNREADABLE on")
             print("     this input -- not a null, an absence of measurement. The")

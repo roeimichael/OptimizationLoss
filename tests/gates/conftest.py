@@ -98,7 +98,9 @@ def report(failures, what):
 def items_from_f1(d_f1, K, n):
     """cc-F1 delta -> ITEMS. With exactly K predictions emitted,
     `F1 = 2*TP/(K+n)`, so `items = dF1 * (K+n)/2`. Quoting a raw F1 delta
-    hides that the whole gap from `clip` to a PERFECT allocator is 1.9-9.9
-    items -- 0.02 is not a small effect there, it can be the entire headroom.
+    hides that the whole gap from `clip` to a PERFECT allocator is 0.0-1.0
+    items at iwildcam's tight caps and 11.7-21.2 per cell at its task ones
+    (`1.9-9.9` here until 2026-09-10 was a dermmnist figure) -- 0.02 is not a
+    small effect there, it can be the entire headroom.
     """
     return d_f1 * (K + n) / 2.0

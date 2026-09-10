@@ -14,7 +14,7 @@ index.
   5  `flips`, raw count over K and proximity to feasibility are not metrics;
      post-hoc filling is free.                     PLAYBOOK 1.6, CLAUDE.md 5
   6  items and quantisation -- per class F1 = 2TP/(K+n) with TP an integer,
-     and clip -> a PERFECT allocator is the whole 1.9-9.9 items.        2(v)
+     and clip -> PERFECT is 11.7-21.2 items per cell on iwildcam.      2(v)
   7  a tie is "no effect" OR "too few seeds" -- `dualbar2` reads +0.36 items
      at ~174 seeds per cell.                    full_panel's RESOLUTION block
   8  four noise numbers differing up to 12x, and pairing GROWS this one. 2(v)
@@ -281,7 +281,9 @@ def test_flips_and_feasibility_are_never_a_headline():
 def test_deltas_convert_to_items_and_are_quantised_per_class():
     """GATE 6 -- CLAUDE.md rule 2 / FRAMEWORK 2(v). Per class F1 = 2TP/(K+n)
     with TP an integer, so `items` is an integer or the arithmetic is wrong,
-    and the whole clip -> PERFECT gap is 1.9-9.9 items."""
+    and the whole clip -> PERFECT gap is 11.7-21.2 items per cell on
+    iwildcam's task caps -- the `1.9-9.9` quoted here until 2026-09-10 is a
+    dermmnist figure."""
     K, n = 333, 418                              # iwildcam class 2 at K/n = 0.90
     cases = [  # label, dF1, K, n, quantised?, items, within the 9.9 headroom?
         ("4 TP items (negative control)", 2.0 * 4 / (K + n), K, n, 1, 4.0, 1),

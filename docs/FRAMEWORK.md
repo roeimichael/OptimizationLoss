@@ -835,7 +835,9 @@ collapsed run is the CONTROL.
 | `tralo_null` - `clip` | -0.0383 | -0.0087 | **-0.0404** | **-0.0188** | -0.0198 | -0.0078 | **0 of 2** on 12 of 13 metrics |
 
 At this campaign's scale of **2.78 items per 0.01 ccF1**, that is **-5.2 items**. The whole
-gap from `clip` to a PERFECT allocator is 1.9-9.9 items. ⇒ **the untreated arm gives away
+gap from `clip` to a PERFECT allocator is 1.9-9.9 items -- a **dermmnist** figure, which
+is the dataset this entry is on, so it is in context here and must not be carried to
+iwildcam (on iwildcam it is **0.0-1.0** at the tight/non-task caps and **11.7-21.2 items per cell** (3.5-12.0 per class) at the task caps, read per backbone). ⇒ **the untreated arm gives away
 more than half the available headroom before the constraint does anything**, and every
 tralo-vs-clip number this project has produced sits on top of that handicap.
 
@@ -2170,8 +2172,8 @@ measures distance from ZERO (the boundary), not from `tau` (the cut).
 `cut_window_count` therefore inlines its own sort. Corrected 2026-09-01.
 
 ⚠️ **WHAT IS NOT YET SHOWN.** That aiming at the cut HELPS. It is necessary,
-not sufficient: `ceiling_screen` bounds the whole prize at 1.9-9.9 items and
-`headroom` reads 0.0-1.0 on iwildcam's tight cells, so a correctly-aimed
+not sufficient: `headroom` reads **0.0-1.0 on iwildcam's tight cells** and
+**11.7-21.2 items per cell at the task caps**, so a correctly-aimed
 gradient can still find nothing to win there. This closes the question "why has
 nothing worked", and opens "does aiming fix it" -- do not report the second as
 answered by the first.
@@ -3942,7 +3944,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 613 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 615 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -4106,7 +4108,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 613 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 615 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -4114,7 +4116,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (613 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (615 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -5125,8 +5127,15 @@ every null in this document. **Split BY GROUP, holding groups out.**
 ### (o) 🔧 THE REACHABILITY CEILING -- `straddle_probe`, an INSTRUMENT not yet a result
 
 **The gap this closes in our own accounting.** `scripts/headroom.py` reports the
-distance from `clip` to a PERFECT allocator, 1.9-9.9 items, and that number has
-been quoted throughout this document as "the prize". It is an ORACLE quantity:
+distance from `clip` to a PERFECT allocator, and that number has
+been quoted throughout this document as "the prize". ⛔ **THE FIGURE THAT USED
+TO STAND HERE, `1.9-9.9 items`, IS A `dermmnist` NUMBER** -- the removed,
+38.7%-leaking dataset -- and CLAUDE.md forbids quoting it for iwildcam.
+Corrected 2026-09-10: on iwildcam at the TASK caps it is **11.7-21.2 items per
+cell**, read per backbone (the per-backbone headroom table; the pooled row
+described neither backbone, 2026-09-09). The argument below is unchanged and
+the numbers it must be weighed against are ~2x larger. It is an ORACLE
+quantity:
 it assumes the ranking can be rewritten arbitrarily. **Ours cannot.** 2(a3)
 measured that under `constraint_grad_mode: normalize` the delivered displacement
 is exactly `lr * clip` per step, so the constraint moves scores by a BOUNDED
@@ -5500,7 +5509,10 @@ representation), 8 seeds, corruption ladder 0.1 / 0.5 / 1 / 2:
     alpha 2       -72.04 items   8/8 negative   resolved
 
 🛑 **The probe RESOLVES 35.09 items on this feature space, and the entire
-question is 1.9-9.9 items.** So every `NO DIFFERENCE` it prints here --
+question is 0.0-1.0 items at iwildcam's tight cells and 11.7-21.2 per cell at
+its task caps** (corrected 2026-09-10; the `1.9-9.9` that stood here is a
+dermmnist figure). Either way the resolution is 3-19x the question, so every
+`NO DIFFERENCE` it prints here --
 `topk` -0.28, `pauc` +0.00, `ptopk` -0.70 -- is **not a null, it is an absence
 of measurement**, and none of them may be quoted. The resolution is a property
 of the FEATURE SPACE, not of the harness, so it must be re-read on every
@@ -9924,6 +9936,46 @@ entirely, and section 4 already supersedes it **even for dermmnist** with a
 corrected 2-18. Caveated at the definition site so the caveat travels with the
 print. The per-cell scale the function computes is the number to quote.
 
+⛔ **AND THAT FIX DID NOT HOLD -- SWEPT 2026-09-10: 17 BARE OCCURRENCES IN
+13 FILES, PLUS 1 THE REGEX CANNOT SEE.** "Caveated at the definition site so
+the caveat travels with the print" is false: a caveat travels with the
+FUNCTION, and the figure had been copied into prose that never calls it.
+Counted exactly, against commit `a4ef6919`, over the whole repo's `.md` and
+`.py` excluding `docs/paper/` and `docs/archive/` -- which ARE the dermmnist
+generation and where the figure belongs:
+
+`scripts/cell_table.py:16` (attributed to **iwildcam by name**),
+`family_split.py:286`, `frozen_head_probe.py:674` and `:960`,
+`scope_probe.py:162`, `straddle_probe.py:4`,
+`src/losses/transductive_loss.py:235`, `tests/test_pipeline.py:5916`,
+`tests/gates/conftest.py:101`, `test_g2_budget.py:321`,
+`test_g6_results.py:17` and `:284`, `docs/PLAYBOOK.md:56`, `CLAUDE.md:844`,
+and `docs/FRAMEWORK.md:838`, `:2173`, `:5128`. The 18th is
+`frozen_head_probe.py:1098`, which builds the string as `"1.9-%.1f"` and is
+invisible to any grep for the figure -- it was found by reading.
+
+⚠️ **AND ONE HIT WAS LEGITIMATE, WHICH IS THE POINT OF THE RULE.**
+`FRAMEWORK:838` IS a dermmnist entry (it measures `results/dosefix`); its
+nearest `derm` sat outside the 400-character window. The correct response to a
+hit is therefore to ADD the qualifier, never to change the number -- the rule
+is that the qualifier travels, not that the figure is forbidden.
+
+🛑 **ONE OF THEM CHANGED A VERDICT, NOT A READING.**
+`frozen_head_probe --headroom-items` DEFAULTED TO **9.9** and gates
+`if res > args.headroom_items` -- the branch that prints "AND THAT IS COARSER
+THAN THE ENTIRE QUESTION". A stale docstring misleads a reader; a stale
+DEFAULT decides. Corrected to **12.0**, iwildcam's per-class task-cap top.
+
+✅ All sixteen fixed, and the class is now gated rather than re-swept:
+`tests/test_lessons_learned.py::test_the_dermmnist_prize_figure_never_travels_unqualified`
+requires the word `dermmnist` within 400 characters of every occurrence, so
+the figure stays legal where it is in context and cannot travel again;
+`::test_the_probe_headroom_default_is_the_runnable_datasets_prize` pins the
+default by AST. Both mutation-tested, and the first carries two negative
+controls (it must fire on a bare figure and must NOT fire on a qualified one).
+The iwildcam replacement is **0.0-1.0 items at the tight caps, 11.7-21.2 per
+cell (3.5-12.0 per class) at the task caps**, read per backbone. 2(z77).
+
 🛑 **WHAT THIS DOES NOT CHANGE.** (a) is about per-CELL resolution, which
 was already reported as unresolved; the headline rests on SIGN consistency over
 units, and 2(z26) plus the unit-ledger gate govern that. (b) moves the power
@@ -13237,7 +13289,51 @@ Anything that big is affordable to prove. That is a sharper acceptance
 criterion than "50% of cells" alone, and it is checkable before a GPU is
 touched.
 
-### 5. What replaces this estimate
+### 5. ⚠️ THE DENOMINATOR IS THE **ORACLE** PRIZE, AND THE REACHABLE ONE IS SMALLER AND UNMEASURED
+
+`11.7-21.2 items` is `headroom`'s distance from `clip` to a PERFECT allocator.
+2(o) is explicit that this is an ORACLE quantity -- it assumes the ranking can
+be rewritten arbitrarily, while 2(a3) measured that under `normalize` the
+delivered displacement is exactly `lr*clip` per step, so an item misranked by a
+wide margin is unreachable at any dose. **`straddle_probe` exists to measure the
+reachable fraction and 2(o) still calls itself "an INSTRUMENT not yet a
+result": it has never been run on the current corpus.**
+
+Direction of the error, stated so it is not mis-read: a smaller reachable prize
+makes the bar in section 4 HARDER, not easier. "Half the prize" is half of
+whatever is actually reachable, and if that is a third of the oracle figure
+then a 6-item mechanism is asking for more than the whole reachable headroom.
+So this is the measurement that decides whether section 4's bar is achievable
+at all, and it costs no GPU:
+
+```bash
+python -m scripts.straddle_probe --campaign results/dom1 --match-contested
+```
+
+Task #110.
+
+### 6. 🛑 AND IF SEEDS ARE ADDED TO A CELL **CHOSEN** FOR ITS DELTA, READ THE NEW SEEDS ALONE
+
+The ladder says a +10-item cell is certifiable at 2-8 seeds, which is within
+`add_seeds`' reach and makes targeting attractive. It also sets a trap: a cell
+picked BECAUSE seeds 1-4 showed a large delta has been selected on the same
+data that would then be pooled into the test, and the winner's curse inflates
+the pooled estimate.
+
+Two honest procedures, and they cost differently:
+
+* **targeted** -- pick the cell on seeds 1-4, add 5-8, and read **seeds 5-8
+  alone**. That is a genuine out-of-sample test, and its n is 4, so its MDE is
+  the 4-seed row (6.2-13.5 items), not the 8-seed row.
+* **pre-registered** -- add seeds 5-8 to EVERY cell with no selection, and the
+  pooled 8 is clean at the 8-seed row (4.4-9.6 items). Costs more runs and
+  answers more cells.
+
+⛔ What is NOT available is picking the cell on its delta and then quoting
+the pooled 8. Task #105 as written is the pre-registered form; keep it that way
+or say which one is being bought.
+
+### 7. What replaces this estimate
 
 The direct computation needs the paired differences themselves, so it needs
 `results/`:
@@ -13251,6 +13347,87 @@ Both already print prize/sd and seeds-per-cell; both currently quote `iwc3`,
 which is `scorable=False` and outside its own `keep_for` (2(z71)). Re-running
 them on `dom1` replaces every number in section 1 with a measured one. Until
 then, quote the RANGE and the assumption, never a single figure.
+
+## 2(z78). THE SECOND STALENESS AXIS: A FIGURE TODAY'S CODE REPRODUCES PERFECTLY CAN STILL BE A NUMBER ABOUT DATA THAT NO LONGER COUNTS (2026-09-10)
+
+`stale_figures` asks whether the SCORER has moved since a figure was written.
+Three findings in one day were invisible to it, because none of them is about
+code:
+
+* **2(z71)** -- the seed-budget figures come from `iwc3`, `scorable=False` at
+  68.6% dose, and outside its own `keep_for`.
+* **2(z76)** -- 2(w3), the only positive result, is `loose1`, the `clip`
+  recipe, which 2(z26-CORRECTED) had already removed from the unit corpus by
+  name as "a different method".
+* **2(z30)(d)** -- `1.9-9.9 items` is a dermmnist figure and was bare in 17
+  places across 13 files, one of them a CLI DEFAULT that gates a verdict.
+
+Same shape, three times, found by hand each time. `scripts/stale_provenance.py`
+asks it as a command.
+
+### 1. What it does
+
+Reads the authorities rather than restating them: dead and PARTIAL campaigns
+from `scripts.quarantine.REGISTRY`, the recipe census parsed out of
+`docs/COVERAGE.md` section 0's own table, removed datasets from a three-name
+list. Then flags every doc entry that quotes a figure and names condemned data
+without disclosing it.
+
+\U0001f511 **IT REFUSES AT ARM GRANULARITY, AND WITHOUT THAT IT IS UNUSABLE.**
+A `scorable=False` campaign condemns everything in it; a PARTIAL one does not.
+`dom1` is scorable for every contrast that does not touch `fioretto` or
+`hounie`, so it fires only when the entry ALSO names a dead arm. Measured: the
+blanket rule gave 41 hits, arm granularity gives **32**, and the nine it
+dropped were entries about the count function, the scope split and the unit
+ledger -- none of which reads a dual. A campaign-level rule would have told a
+reader to re-check all of them, which is the same error as a blanket
+quarantine marker deleting three independent units to describe a defect in two
+arms (2(z40)).
+
+### 2. \u26a0\ufe0f IT IS A QUEUE, AND HERE IS ITS MEASURED NOISE
+
+74 entries DISCLOSE and were cleared; 32 do not. **Do not quote 32 as a defect
+count.** The top six were read by hand:
+
+| entry | figs | name | verdict |
+|---|---|---|---|
+| FRAMEWORK 2083, (z12) | 53 | `iwc1` | **GENUINE** -- outside `iwc1`'s `keep_for`, which names the representation channel and the fp16 dose spread, not the count function |
+| FRAMEWORK 3339, (z8) | 29 | `loose1` | **GENUINE** -- the count-function reversal, on the `clip` recipe, unstated |
+| FRAMEWORK 6833 | 27 | `iwc3` | **GENUINE** -- an attribution analysis on a 68.6%-dose campaign, 2(z71) exactly |
+| FRAMEWORK 9121, 2(z36) | 23 | dermmnist | SPURIOUS -- an iwildcam entry naming dermmnist for contrast |
+| FRAMEWORK 13940, 3b | 19 | octmnist | SPURIOUS -- a meta entry ABOUT how wrong results got believed |
+| FRAMEWORK 290, (3) | 18 | `vit_diag` | AMBIGUOUS -- a dermmnist-era entry, so the figure may be in context |
+
+**3 genuine / 2 spurious / 1 ambiguous** -- the same ratio 2(z68) measured for
+`stale_figures` when its twelve `paper_rows` hits were read (5/5/2). Attribution
+by proximity is irreducibly noisy in both tools and the honest use is
+identical: an ordered list of entries to READ, never a number to report.
+
+### 3. The three at the top of that queue
+
+They are the work this creates, and all three are zero-GPU document reads:
+
+1. `(z12)`'s 53 figures are `iwc1`'s, and `iwc1`'s `keep_for` does not cover
+   them. Either widen the `keep_for` with a reason or caveat the entry.
+2. `(z8)`'s count-function reversal is on `loose1`. Apply 2(z76)'s reading:
+   which of its cells are byte-identical to a `normalize` campaign, and which
+   are the excluded RegNetY400MF unit?
+3. FRAMEWORK 6833 is an attribution analysis at 68.6% dose. 2(z71) already
+   says the dose-IMMUNE columns survive and the treated ones do not; the same
+   split applies here.
+
+Task #111.
+
+### 4. The gate on the tool
+
+`--self-test`, 14 checks, **4 negative controls**: a disclosed entry must be
+CLEARED (or the tool forces caveats onto entries that already carry one),
+naming dead data with NO figure must not fire (half this repo's prose names
+`iwc3`), a figure with no condemned name must not fire, and a `#` inside a
+fenced block must not split an entry -- the defect that once dropped CLAUDE.md
+from 13 figures to 4 in `stale_figures`. It also asserts that `loose1` reads
+as `clip` **from COVERAGE's table** and that the current recipe is DERIVED,
+so the tool cannot drift from the authority it exists to enforce.
 
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
@@ -14613,7 +14790,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             613 tests, ~200 s, no dataset required
+tests/             615 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

@@ -180,7 +180,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 613 regression tests, ~250s, no dataset needed
+python -m pytest tests -q                   # 615 regression tests, ~250s, no dataset needed
 #   `tests/test_scorers_run_end_to_end.py` EXECUTES every scorer as a subprocess
 #   against a campaign carrying a real PARTIAL marker. It exists because three
 #   scorers once used `quarantine.` with no module-level import: they PARSED,
@@ -206,7 +206,7 @@ python -m pytest tests -q                   # 613 regression tests, ~250s, no da
 #   rejected backbones and datasets with the measured reason each was dropped,
 #   the ten deleted config footguns, the BF16/compute-capability split between
 #   the two hosts, the oldest allocator bug (an argmax fallback that ignored the
-#   cap), the local-scope mirror of it, and a sweep that RUNS all 22 `--self-test`
+#   cap), the local-scope mirror of it, and a sweep that RUNS all 42 `--self-test`
 #   entry points -- nothing else ever ran them together. Every entry is dated and
 #   was mutation-tested: 13 mutations, 13 caught, including a false-positive
 #   control that a COMMENT naming a deleted key must NOT fire.
@@ -559,6 +559,29 @@ python -m scripts.stale_figures              # 🛑 WHICH QUOTED FIGURES CAN TOD
 #   not read as ours (it fired on the first real run). Mutation-tested:
 #   relaxing the comparison to `>=` turns the same-day control red and nothing
 #   else. FRAMEWORK 2(z68).
+python -m scripts.stale_provenance          # 🛑 THE OTHER STALENESS AXIS: WHICH QUOTED
+#   FIGURES COME FROM DATA THAT NO LONGER COUNTS? `stale_figures` asks whether the
+#   SCORER moved; this asks whether the DATA was condemned. Three findings in one day
+#   were invisible to the first because none is about code: the seed-budget figures
+#   come from `iwc3` (`scorable=False`, outside its own `keep_for`); 2(w3), the only
+#   POSITIVE result, is `loose1`, the `clip` recipe that 2(z26-CORRECTED) removed from
+#   the corpus BY NAME as "a different method"; and `1.9-9.9 items` is a dermmnist
+#   figure that was bare in 17 places across 13 files, one of them a CLI DEFAULT that
+#   gates a verdict.
+#   It READS the authorities -- `quarantine.REGISTRY` for dead/PARTIAL campaigns,
+#   COVERAGE section 0's own table for the recipe census -- so it cannot drift from
+#   what it enforces.
+#   🔑 IT REFUSES AT ARM GRANULARITY. `scorable=False` condemns everything; PARTIAL
+#   does not, so `dom1` fires only when a DEAD ARM is named too. Measured: blanket 41
+#   hits, arm-granular **32**, and the nine dropped were about the count function, the
+#   scope split and the unit ledger -- none of which reads a dual.
+#   ⚠️ **A QUEUE, NEVER A DEFECT COUNT, AND THE NOISE IS MEASURED.** 74 entries
+#   DISCLOSE and were cleared. The top SIX of the 32 were read by hand: **3 genuine,
+#   2 spurious, 1 ambiguous** -- the same ratio 2(z68) measured for `stale_figures`.
+#   Read the entry; the tool orders the reading, it does not judge.
+#   `--self-test` gates it, 14 checks, 4 negative controls (a DISCLOSED entry must be
+#   cleared, a dead name with NO figure must not fire, a figure with no dead name must
+#   not fire, and a `#` inside a fence must not split an entry). FRAMEWORK 2(z78).
 python -m scripts.dead_code --paths configs src   # what is DECLARED and never
 #   referenced. AST, never grep: a name in a docstring is not a call. A REPORT,
 #   not a gate -- a getattr-built call is invisible to it, so confirm by hand.
@@ -841,7 +864,10 @@ python -m scripts.frozen_head_probe --run-dir <run> --seeds 1 2 3 4 5 6 7 8  # r
                                             #   corruption `NOTHING DETECTED`.
                                             #   ⛔ AND IT DOES NOT TRANSFER TO iwildcam:
                                             #   resolution there is 35.09 items against a
-                                            #   1.9-9.9 item question, so every
+                                            #   0.0-1.0 (tight) / 11.7-21.2 per
+                                            #   cell (task) item question -- the
+                                            #   `1.9-9.9` here until 2026-09-10 was
+                                            #   a dermmnist figure -- so every
                                             #   `NO DIFFERENCE` is an absence of
                                             #   measurement, not a null. FRAMEWORK 2(q)
 python -m scripts.prep_iwildcam --annotations <cct.json>     --out data/<name>/oodslice --meta-only  # screen a CANDIDATE dataset with NO

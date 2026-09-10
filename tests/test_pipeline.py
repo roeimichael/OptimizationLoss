@@ -5913,7 +5913,9 @@ def test_the_probe_says_how_many_seeds_its_own_liveness_gate_needs():
     p = 2^(1-n). At the default --max-sign-p 0.01 it cannot pass below EIGHT
     non-zero seeds, at any effect size -- and the invocation in CLAUDE.md uses
     four. Run that way on iwc1 the probe measured a 72-item corruption, ten
-    times the entire 1.9-9.9 item headroom, and still printed NOTHING
+    times iwildcam's per-cell headroom of 11.7-21.2 items at the task caps
+    (the `1.9-9.9` here until 2026-09-10 was dermmnist's), and still printed
+    NOTHING
     DETECTED. A reader would take that as "the probe saw nothing" when what it
     could not do was clear its own floor.
 

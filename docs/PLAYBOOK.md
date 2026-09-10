@@ -53,8 +53,10 @@ campaign lands
 3. **macroF1 and uncF1 go beside ccF1 in every table.** ccF1 alone hides
    uncapped damage: `dom1` reads ccF1 +0.0141 (6/6) and macroF1 -0.0022 (2/6).
 4. **Convert to ITEMS.** `items = dF1 * (K + n_pos) / 2`. The whole prize from
-   `clip` to a PERFECT allocator is 1.9-9.9 items, so a sub-item delta is a
-   re-allocation, not a difference.
+   `clip` to a PERFECT allocator is **0.0-1.0 items at iwildcam's tight caps and
+   11.7-21.2 per cell at its task caps**, read per backbone, so a sub-item delta
+   is a re-allocation, not a difference. ⛔ The `1.9-9.9` that stood here until
+   2026-09-10 is a **dermmnist** figure -- the removed, 38.7%-leaking dataset.
 5. **Pre-register ONE primary before scoring.** Twenty contrasts cannot survive
    correction at any n this project can afford.
 6. **`flips`, raw count over K, and proximity to feasibility are not metrics.**

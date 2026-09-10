@@ -232,8 +232,9 @@ def cut_window_count(proba, tau, temp):
     The regression suite gates both halves.
 
     ⚠️ WHAT IS NOT CLAIMED. That aiming at the cut WINS. It is necessary,
-    not sufficient: `ceiling_screen` bounds the whole prize at 1.9-9.9 items
-    and `headroom` reads 0.0-1.0 on iwildcam's tight cells, so a
+    not sufficient: `headroom` reads 0.0-1.0 on iwildcam's tight cells and
+    11.7-21.2 per cell at its task caps (the `1.9-9.9` bound quoted here
+    until 2026-09-10 was a dermmnist figure), so a
     correctly-aimed gradient can still find nothing to take. This fixes a
     gradient that provably could not reach the cut; whether the cut is worth
     reaching is the experiment.
