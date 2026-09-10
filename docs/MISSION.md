@@ -5,7 +5,7 @@
 every working session. If it is stale, that is a defect -- fix it before doing
 anything else.
 
-Last updated: **2026-09-10** (🛑 RUN-STATE WAS STALE IN **SIX** PLACES ACROSS **FOUR** DOCUMENTS. This file carried three: `0-RUNNING` announced a campaign that had LANDED and closed a design family, and handed the next session its RELAUNCH command; `0-LAUNCH` still said `dualprop1 -- LIVE`; and all five items of the "live" priority QUEUE were finished work. The other three were FRAMEWORK's **3(0) status board** (eleven days stale, its `Second dataset` row reading `none` while a COMPLETE 228-run campaign sat on disk), COVERAGE (`vitdual2 RUNNING 0/88`, already scored twice) and PLAYBOOK's header. All six rebuilt; `0-RUNNING` is now dated LAST VERIFIED rather than at writing, and one authority owns run-state -- FRAMEWORK 2(z72). 🔑 AND THE ONLY UNCLOSED MECHANISM LAYER RESTS ON AN UNCITED NUMBER: 2(z56) closed the per-scope weighting family and 2(z53) rejected `tralo_dualprop`, both UPSTREAM of `normalize`, which is why `tralo_coin` -- a random direction of the same norm -- took a cell. What is left is DELIVERY, motivated by a cosine of 0.009-0.017 that exists in two places, both quoting each other, against a real-backbone reading of 0.187-0.258 -- see 2(z73), task #107. Previously: three scorers reported a guard as a measurement, 0-FLOOR; the acceptance figure is stale, 0-STALE; two units unread at zero GPU, 0-UNREAD. SSH to both hosts down all day.)
+Last updated: **2026-09-10** (🔴🔴 **THE ONLY POSITIVE RESULT AND THE SHARPEST NEGATIVE ONE MEASURE THE SAME QUANTITY WITH OPPOSITE SIGNS, AND NOBODY HAS RECONCILED THEM.** `loose1` gives `tralo` vs its own lambda=0 twin AP **+0.0253, 5/1**, and what survives its control is specifically the RANKING; `dualprop1` gives **-0.0138/-0.0160/-0.0051, 6 of 6 negative** on the same contrast, and post-hoc allocation is optimal GIVEN the probabilities, so a worse ranking mechanically means fewer items. They overlap at MobileNetV2/L80. 2(z53) flagged this on 2026-09-07 saying neither may be cited in isolation -- and the STATUS BOARD was doing exactly that. TWO unchecked things decide it, both zero-GPU: WHICH cell was the 1 of that 5/1 (identified nowhere), and whether they still disagree once `+0.0253` is split per backbone -- it POOLS THREE, which rule 4 forbids. 2(z74), task #108. Also: 🛑 RUN-STATE WAS STALE IN **SIX** PLACES ACROSS **FOUR** DOCUMENTS. This file carried three: `0-RUNNING` announced a campaign that had LANDED and closed a design family, and handed the next session its RELAUNCH command; `0-LAUNCH` still said `dualprop1 -- LIVE`; and all five items of the "live" priority QUEUE were finished work. The other three were FRAMEWORK's **3(0) status board** (eleven days stale, its `Second dataset` row reading `none` while a COMPLETE 228-run campaign sat on disk), COVERAGE (`vitdual2 RUNNING 0/88`, already scored twice) and PLAYBOOK's header. All six rebuilt; `0-RUNNING` is now dated LAST VERIFIED rather than at writing, and one authority owns run-state -- FRAMEWORK 2(z72). 🔑 AND THE ONLY UNCLOSED MECHANISM LAYER RESTS ON AN UNCITED NUMBER: 2(z56) closed the per-scope weighting family and 2(z53) rejected `tralo_dualprop`, both UPSTREAM of `normalize`, which is why `tralo_coin` -- a random direction of the same norm -- took a cell. What is left is DELIVERY, motivated by a cosine of 0.009-0.017 that exists in two places, both quoting each other, against a real-backbone reading of 0.187-0.258 -- see 2(z73), task #107. Previously: three scorers reported a guard as a measurement, 0-FLOOR; the acceptance figure is stale, 0-STALE; two units unread at zero GPU, 0-UNREAD. SSH to both hosts down all day.)
 
 ---
 
@@ -1169,6 +1169,7 @@ caveat is one line above it and gets left behind on the way to a table.
 | 2(z59) | the `fmow` task windows are written from **1-2 seeds** | #96 |
 | 2(z67) | every `snap` result, because its branch is unfetched and its `code_version` resolves nowhere here | #103, #97 |
 | 2(z68) | the acceptance figure `6 of 17 = 35%` predates the scorer both halves of its verdict read. Say **"FAIL, figure pending recompute"**, never the figure | #104 |
+| 2(w3) / 2(z53) | the two results measure the SAME contrast with OPPOSITE signs and were never reconciled; `+0.0253` is additionally POOLED over 3 backbones x 2 caps, which rule 4 forbids | **#108** |
 | 1b-pre | the two `coin` rows, measured on the instrument that was broken until 2026-08-20 | -- |
 | 2(z52) | the per-backbone derivation must be re-read per backbone -- ✅ **discharged** by #86 for `headroom` | ✅ #86 |
 | 2 | the feature-space claim must be re-read on every new dataset | #90, #96 |
@@ -1798,7 +1799,7 @@ distribution", not "local vs global".
 Work top-down. When one finishes, score it, update sections 1-2 of this file
 and FRAMEWORK 3(0), then start the next.
 
-⚠️ **THE LIVE QUEUE IS ITEMS 0-5 BELOW, REBUILT 2026-09-10. EVERY ITEM NAMES
+⚠️ **THE LIVE QUEUE IS ITEMS 0-6 BELOW, REBUILT 2026-09-10. EVERY ITEM NAMES
 ITS TASK ID, AND THE TASK LIST -- NOT THIS FILE -- IS THE AUTHORITY ON WHETHER
 IT IS DONE.** The previous live queue was dated 2026-09-07 and all five of its
 items had completed: items 1 and 3 were `dualprop1` reads that produced 2(z53),
@@ -1821,13 +1822,15 @@ work is the same defect as a run-state block dated at writing. FRAMEWORK
    this design can produce -- and a negative is worth more.
    ⛔ **DO NOT QUOTE 6/6 BEFORE IT IS READ.** 2(z66), 0-UNREAD.
 
-2. 🛑 **#104 -- RECOMPUTE THE ACCEPTANCE TABLE.** `6 of 17 = 35%` was produced
+2. 🔴 **#108 -- RESOLVE 2(w3) vs 2(z53). THE ONLY POSITIVE RESULT AND THE SHARPEST NEGATIVE ONE MEASURE THE SAME QUANTITY WITH OPPOSITE SIGNS.** `loose1` gives `tralo` vs its own null AP **+0.0253, 5/1**, and what survives its control is specifically the RANKING; `dualprop1` gives **-0.0138 / -0.0160 / -0.0051, 6 of 6 negative** on the same contrast. They overlap at MobileNetV2/L80. TWO unchecked things decide it: WHICH cell was the 1 of that 5/1 (never identified anywhere), and whether they still disagree once the `+0.0253` is split per backbone -- it pools THREE, which rule 4 forbids. Zero GPU, `loose1` is complete and on disk. 2(z74).
+
+3. 🛑 **#104 -- RECOMPUTE THE ACCEPTANCE TABLE.** `6 of 17 = 35%` was produced
    at 09:09 on 2026-09-06; `deployed_h2h.rank_cell`, which makes the deltas
    BOTH halves of that verdict read, was fixed at 22:48 the same day. Until it
    is re-run, say **"FAIL, figure pending recompute"** and never the figure.
    2(z68).
 
-3. 🔑 **#107 -- RESOLVE THE 0.013-vs-0.258 COSINE. THIS GATES THE ONLY
+4. 🔑 **#107 -- RESOLVE THE 0.013-vs-0.258 COSINE. THIS GATES THE ONLY
    UNCLOSED MECHANISM LAYER.** 2(z56) closed the per-scope weighting family and
    2(z53) rejected `tralo_dualprop`; both act UPSTREAM of `normalize`, which
    discards magnitude -- which is why `tralo_coin`, a random direction of the
@@ -1836,12 +1839,12 @@ work is the same defect as a run-state block dated at writing. FRAMEWORK
    contradicts 15-20x. `step_dose` now reports `r` and `cos(m_ce, ghat)`,
    the one measurement that decides it. 2(z73).
 
-4. **#106 -- RE-READ 2(z53) AT COMPLETION.** `dualprop1` was 72 of 88 runs when
+5. **#106 -- RE-READ 2(z53) AT COMPLETION.** `dualprop1` was 72 of 88 runs when
    it was scored, so every cell carries 3 seeds against the protocol's 4. The
    DIRECTION is safe (sign 6 of 6, the rejection stands); every NUMBER is not.
    Zero GPU if the campaign has since finished.
 
-5. **#105 -- MAKE THE EXISTING CORPUS PRICEABLE.** Every corpus campaign
+6. **#105 -- MAKE THE EXISTING CORPUS PRICEABLE.** Every corpus campaign
    predates `tralo_reseed2`, so its RNG floor rests on 2 streams x 4 seeds = 4
    observations against `MIN_FLOOR_OBS` = 8, and every `priced` column reads
    false because the comparison is never reached -- not because the spread lost

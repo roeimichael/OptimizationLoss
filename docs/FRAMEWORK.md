@@ -12828,6 +12828,98 @@ it was written) in a fourth costume: a claim that was true in some context, read
 in another, with the context lost. The cheapest defence is a citation, and the
 training path is the last place that should go without one.
 
+## 2(z74). THE PROJECT'S ONLY POSITIVE RESULT AND ITS SHARPEST NEGATIVE ONE STILL CONTRADICT EACH OTHER, AND THE POSITIVE ONE IS POOLED ACROSS BACKBONES (2026-09-10)
+
+**2(z53) flagged this on 2026-09-07: "Both cannot be right as stated... do not
+cite either in isolation." Three days later the reconciliation had not been
+attempted, and the STATUS BOARD was citing one of them in isolation.**
+
+### 1. The two results, side by side
+
+| | `loose1` / 2(w3) | `dualprop1` / 2(z53) |
+|---|---|---|
+| dated | 2026-08-28, 144 runs, COMPLETE | 2026-09-07, 72 of 88 runs |
+| scope | **3 backbones** x {`L80_G95`, `L90_G95`} | **MobileNetV2 only**, {`L70-70_G95`, `L80-80_G95`} |
+| seeds | 4 | 3 |
+| `tralo` vs its OWN lambda=0 twin, AP | **+0.0253, 5/1** | **-0.0138 / -0.0160 / -0.0051** |
+| reseed floor on AP | ties (-0.0016) | -- |
+
+Same dataset, same contrast, same metric, and they overlap in exactly one
+place: **MobileNetV2 at L80.**
+
+### 2. 🔑 THE 5/1 HAS ONE NEGATIVE CELL AND NOBODY HAS EVER SAID WHICH
+
+`loose1` reports 5 of 6 cells positive. The sixth is not identified anywhere in
+2(w3) or in any entry citing it. **If that cell is MobileNetV2, the two results
+may not disagree at all** -- one would be a statement about RegNetY400MF and
+MobileNetV3, the other about MobileNetV2, and the "contradiction" would be an
+artefact of reading a pooled mean as if it described every cell under it.
+
+That is a one-command check on data already on disk, and it is the whole
+question. It has never been run.
+
+### 3. ⛔ AND `+0.0253` VIOLATES THIS PROJECT'S RULE 4
+
+Rule 4: *"Atomic cell = (dataset, backbone, cap, method) over 4 seeds. Count
+cells. **Never pool across cap levels, backbones or datasets.**"*
+
+`+0.0253` is a single mean over **6 cells spanning 3 backbones and 2 cap
+levels**. The SIGN COUNT `5/1` is the licensed statistic and is unaffected --
+cell-level sign consistency is exactly the design 2(w3) itself argues for four
+paragraphs later. The MAGNITUDE is not licensed, and it is the magnitude that
+gets quoted.
+
+This is the same defect as the pooled `headroom` row that described neither
+backbone (class 7 read 5.0 pooled against 6.5 and 3.5 per backbone, nearly 2x
+apart). A pooled mean is not a small error on each cell; it can describe none
+of them.
+
+⚠️ 2(w3) DOES caveat its magnitudes -- "the signs are right; the magnitudes are
+not resolvable inside a cell" -- but on POWER grounds, not pooling grounds, and
+the caveat sits four paragraphs below the number. Everything downstream quoted
+the number.
+
+### 4. What was actually wrong here, and it was mine
+
+The rebuilt 3(0) status board carried `Constraint HELPS at loose caps | holds |
+loose1 AP +0.0253 5/1` and did NOT carry 2(z53)'s ranking result at all. That
+is precisely the isolated citation 2(z53) forbids, committed by the same pass
+that was fixing stale run-state. **Rebuilding a board from the docs reproduces
+the docs' unresolved disputes unless you go looking for them.**
+
+✅ Both rows now sit on the board, each pointing at the other, and the
+`+0.0253` is marked as pooled.
+
+### 5. Why it matters more than a bookkeeping fix
+
+2(w3) is the project's ONLY attributable positive effect, and what survives its
+control is specifically the RANKING (AP +0.0253 and AUROC +0.0075 against a
+reseed floor that ties on both). 2(z53) measures the ranking going the other
+way, 6 of 6, and observes that post-hoc allocation is optimal given the
+probabilities (2(j)) -- so a worse ranking mechanically means fewer captured
+items. **These are the same claim with opposite signs.** One of them is the
+reason to keep going and the other is the reason to stop.
+
+### 6. The check, and it needs no GPU
+
+```bash
+python -m scripts.cell_table --campaign results/loose1 --out loose1_cells.csv
+python -m scripts.full_panel --campaign results/loose1 --control tralo_null
+python -m scripts.full_panel --campaign results/dualprop1 --control tralo_null
+```
+
+Read AP **per (backbone, cap)**, never pooled. Three outcomes, all informative:
+
+* `loose1`'s MobileNetV2 cells are the negative one -> **no contradiction**,
+  and the positive result narrows to two backbones.
+* they are positive -> the contradiction is real and sits on one backbone at
+  one cap, where the difference is `L90` (present in `loose1`, absent in
+  `dualprop1`) and the 4th seed.
+* they are mixed -> the effect is inside the noise on this backbone, which is
+  what `paired_noise` already predicts at these sds.
+
+Blocked on host access. Task #108.
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, LAST UPDATED 2026-09-10 -- read this before section 3's older text**
@@ -12845,7 +12937,8 @@ distrust every row.
 
 | claim | status | evidence | what would kill it |
 |---|---|---|---|
-| Constraint HELPS at loose caps | 🟢 holds | `loose1` AP +0.0253 5/1 vs a tying reseed | a loose-cap null that also moves |
+| Constraint HELPS at loose caps | 🟡 **DISPUTED -- do not cite in isolation** | `loose1` AP +0.0253 **5/1**, vs a reseed floor that TIES. ⛔ The `+0.0253` is a mean POOLED over 3 backbones x 2 cap levels, which rule 4 forbids; the SIGN COUNT is the licensed statistic. And its ONE negative cell is never identified. 2(w3), 2(z74) | the row below, which measures the same quantity with the opposite sign |
+| **Constraint HARMS the RANKING** | 🟡 **DISPUTED -- the same quantity, opposite sign** | `dualprop1` `tralo` vs its own lambda=0 twin: AP -0.0138 / -0.0160 / -0.0051, **6 of 6 negative** incl. AUROC. Post-hoc allocation is optimal GIVEN the probabilities (2(j)), so a worse ranking mechanically means fewer captured items. ⚠️ 3 seeds, MobileNetV2 only. 2(z53) | the row above |
 | Constraint HARMS at tight caps | 🔴 holds | `iwc4` AP -0.0572 9/9; `vitu1` **-0.0933 0/3** | -- |
 | TraLO > `clip` at loose caps | 🟢 holds | `dom1` 6/6 cells ccF1/AP/AUROC | dom1b reversing it |
 | ~~TraLO > **hounie**~~ | ⛔ **UNANSWERABLE** | ~~`dom1` AP+AUROC 6/6, p=0.031, fails BH~~ -- **`hounie` is a DEAD ARM at 28.00 steps (2(z40))** | `vitdual2` |
