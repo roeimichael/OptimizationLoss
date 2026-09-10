@@ -12658,7 +12658,7 @@ numbers are wrong, it is that nothing here can check them.
 
 `tralo_wins` is the command that answers the project's acceptance bar: does
 TraLO beat the clipper AND every rival dual in at least 50% of the cells that
-can test it. The figure on record is **6 of 17 = 35%, VERDICT FAIL, 0 of 17
+can test it. The figure on record is ⛔ **RECOMPUTED 2026-09-10 WITH D1 ADDED: 6 of 18 = 33%, VERDICT FAIL UNCHANGED, and 1 of 18 is now PRICED -- the first ever. 2(z86), task #104 discharged. Superseded:** **6 of 17 = 35%, VERDICT FAIL, 0 of 17
 priced**. It is quoted in `CLAUDE.md`, in the published verdict artifact, and
 in every summary of where TraLO stands.
 
@@ -13267,7 +13267,7 @@ Blocked on host access. Task #108.
 ## 2(z75). THE TOP QUEUE ITEM CANNOT PRODUCE THE HEADLINE IT IS ADVERTISED FOR: UNIT C2 HAS NO STRICT TASK CELL, AT ANY CAP (2026-09-10)
 
 Six places across four documents say that reading the two unread units, C2
-(`dom1`/MobileNetV3) and D1 (`bcn1mn3`/MobileNetV3), gives **6/6, p=0.0156,
+(`dom1`/MobileNetV3) and D1 (`bcn1mn3`/MobileNetV3), gives ⛔ **REFUTED BY MEASUREMENT 2026-09-10 -- 2(z86). D1 WAS READ AND IS NEGATIVE.** The tally is **5/6 p=0.109** (unrestricted, mean rule) at best and **3/4 p=0.3125** task-restricted; the `worst-cell` rule gives 3/6 p=0.656. C1 and C2 are SPLIT too. Nothing clears 0.05.** **6/6, p=0.0156,
 the first sub-0.05 headline this design can produce**. Measured offline today,
 in seconds, with no GPU and no `results/`: **C2 cannot contribute to the tally
 that number belongs to.**
@@ -13312,7 +13312,7 @@ So the ledger has **two** tallies and they move differently:
 
 | tally | now | + C2 | + D1 | after both |
 |---|---|---|---|---|
-| LICENSED units, sign read | 4/4, p=0.0625 | 5 | 6 | **6/6, p=0.0156** |
+| LICENSED units, sign read | 4/4, p=0.0625 | 5 | 6 | ⛔ **REFUTED BY MEASUREMENT 2026-09-10 -- 2(z86). D1 WAS READ AND IS NEGATIVE.** The tally is **5/6 p=0.109** (unrestricted, mean rule) at best and **3/4 p=0.3125** task-restricted; the `worst-cell` rule gives 3/6 p=0.656. C1 and C2 are SPLIT too. Nothing clears 0.05.** **6/6, p=0.0156** |
 | of those, carrying a `task` cell | 3/3, p=0.125 | 3 (unchanged) | 4 | **4/4, p=0.0625** |
 
 `p=0.0156` is real and belongs to the unrestricted tally. **The tally
@@ -14706,6 +14706,141 @@ what decides whether a new mechanism is worth building.
 
 ---
 
+## 2(z86). D1 WAS READ, AND IT IS THE FIRST LICENSED UNIT WHOSE TraLO DOES NOT CLEAR ITS OWN RNG FLOOR -- THE `6/6 p=0.0156` HEADLINE DOES NOT REPRODUCE UNDER ANY AGGREGATION RULE (2026-09-10)
+
+**THE ONE-LINE VERSION.** The queue said reading units C2 and D1 would give
+*"6/6 p=0.0156 unrestricted and 4/4 p=0.0625 task-restricted"*. Both were read
+today, at zero GPU cost, on the corrected scorers. **The measurement is 5/6
+p=0.109 at best and 3/4 p=0.3125 task-restricted, and D1 is NEGATIVE under
+every rule.** Nothing here clears 0.05.
+
+### 1. What was actually run
+
+`bcn1mn3`, COMPLETE at 228/228, is unit D1 -- the second dataset. It had never
+been scored. Scored 2026-09-10 from a fresh `~/optloss-score` worktree at
+`93d42a8c` (the campaign worktree is pinned at `4b980ca0` and its
+`configs/task_windows.yml` predates the bcn row, so `classify` returned
+`no_window` there and `no_data` until the slices were linked in).
+
+`cell_table` over all six licensed units: **1,060 completed runs -> 255 cells**,
+96 configs dropped for quarantined arms (`fioretto`, `hounie`, `tralo_lam0` on
+the PARTIAL campaigns). D1's three caps classify **L70 non_task, L80 task, L90
+task** -- exactly what `task_windows.yml` predicted.
+
+### 2. THE GATE, per task cell, in items of `tralo` minus `tralo_reseed`
+
+| unit | campaign | backbone | cap | vs clip | vs null | **vs reseed** |
+|---|---|---|---|---|---|---|
+| A1 | `dom1` | MobileNetV2 | L80_G95 | +5.77 | +13.23 | **+3.89** |
+| A1 | `dom1` | MobileNetV2 | L95_G80 | +9.85 | +11.61 | **+5.98** |
+| A2 | `coin2` | MobileNetV2 | L70_G95 | -1.50 | -2.07 | **+0.02** |
+| A2 | `coin2` | MobileNetV2 | L80_G95 | +2.84 | +1.71 | **+6.54** |
+| A2 | `equaldose1` | MobileNetV2 | L80_G95 | +2.84 | +1.71 | **+6.54** |
+| A2 | `equaldose1` | MobileNetV2 | L95_G80 | +4.48 | +3.80 | **+7.32** |
+| B1 | `coin1` | RegNetY400MF | L70_G95 | +3.95 | +5.40 | **+0.80** |
+| B1 | `coin1` | RegNetY400MF | L80_G95 | +6.40 | +4.60 | **+1.62** |
+| B1 | `dom1b` | RegNetY400MF | L80_G95 | +3.90 | +1.72 | **+2.39** |
+| B1 | `dom1b` | RegNetY400MF | L95_G80 | +7.98 | +4.38 | **+2.42** |
+| **D1** | `bcn1mn3` | MobileNetV3 | L80_G95 | +27.94 | +4.12 | **+5.16** |
+| **D1** | `bcn1mn3` | MobileNetV3 | L90_G95 | +6.75 | **-2.71** | **-11.61** |
+
+✅ **THE LEDGER IS CONFIRMED BY THE NUMBERS**: `coin2`/L80 and `equaldose1`/L80
+print IDENTICAL rows (+2.84 / +1.71 / +6.54), which is what "A2 is one model"
+means. They are de-duplicated below rather than counted twice.
+
+### 3. ⛔ THE TALLY, UNDER ALL FOUR RULES. NONE CLEARS 0.05
+
+A unit holds several cells and they are not independent, so a unit-level sign
+needs an aggregation rule. Both defensible rules are reported, because choosing
+one after seeing the data is what 2d holds five retractions of:
+
+| restriction | rule | tally | p | per unit |
+|---|---|---|---|---|
+| unrestricted | mean | **5/6** | **0.109** | A1 +4.76, A2 +4.53, B1 +2.49, C1 +2.40, C2 +0.93, **D1 -0.83** |
+| unrestricted | worst cell | **3/6** | 0.656 | A1 +3.89, A2 +0.02, B1 +0.80, **C1 -2.06**, **C2 -1.67**, **D1 -11.61** |
+| task cells only | mean | **3/4** | 0.3125 | A1 +4.93, A2 +4.62, B1 +1.81, **D1 -3.22** |
+| task cells only | worst cell | **3/4** | 0.3125 | A1 +3.89, A2 +0.02, B1 +0.80, **D1 -11.61** |
+
+🛑 **D1 IS NEGATIVE IN ALL FOUR.** The `6/6` and `4/4` figures were computed
+from an ASSUMPTION about the two unread units, and the assumption was wrong in
+the one that mattered. C1 and C2 are also SPLIT once every cell is read, not
+uniformly positive, so `6/6` fails on three units rather than one.
+
+⚠️ **AND A2's WORST CELL IS `+0.02` ITEMS.** Two hundredths of an item against
+an RNG floor is a tie wearing a plus sign. It survives only the `worst` rule's
+sign, and it should never be described as clearing anything.
+
+### 4. THE ACCEPTANCE TABLE, RECOMPUTED ON TODAY'S CODE -- task #104 discharged
+
+`tralo_wins` over the same eight roots:
+
+```
+CELLS THAT CAN TEST THE CLAIM: 18  (6 more hold no rival and are excluded)
+  tralo beats the control AND every rival present: 6 of 18 = 33%
+  ...of which PRICED: 1 cell, tralo wins 1
+  per UNIT: A1 0/3 rival, A2 2/3 TRALO, B1 1/3 rival,
+            C1 0/3 rival, C2 2/3 TRALO, D1 1/3 rival
+  units where tralo takes the majority: 2 of 6
+VERDICT: FAIL -- tralo wins 33% of testable cells, bar is 50%
+```
+
+✅ **2(z68)'s WITHDRAWN FIGURE IS REPLACED.** `6 of 17 = 35%` was measured at
+09:09 on 2026-09-06 and `rank_cell` was fixed at 22:48 the same day, so it was
+not reproducible from the code that computes it. Recomputed with D1 added it is
+**6 of 18 = 33%**, and the VERDICT is unchanged. The fix was worth zero cells,
+which 2(z68) said could not be assumed and now does not have to be.
+
+🟢 **AND ONE CELL IS PRICED, THE FIRST EVER.** Every previous run read `0 of 17
+priced` -- false by construction, because two lambda=0 streams over 4 seeds give
+4 observations against `MIN_FLOOR_OBS` = 8 (2(z69)). One cell now clears it and
+TraLO wins that cell. ⛔ **One priced cell is a data point, not a result**, and
+`price1`/`price2` -- three streams, 12 observations -- are what turn the other
+seventeen from unpriceable into decided.
+
+### 5. 🔴 THE SHARPEST NUMBER IS NOT ABOUT THE CAP AT ALL
+
+Ranking all 17 arms in D1's two TASK cells by items vs `clip`:
+
+| rank | L80_G95 | | L90_G95 | |
+|---|---|---|---|---|
+| 1 | `tralo_sgd` | +31.52 | **`tralo_coin_sgd`** | **+26.74** |
+| 2 | **`tralo_coin_sgd`** | **+28.91** | `tralo_linear` | +23.19 |
+| 3 | **`tralo`** | **+27.94** | `hounie` | +21.15 |
+| 4 | `tralo_head` | +24.24 | `alm` | +15.16 |
+| ... | | | | |
+| 10 | | | **`tralo`** | **+6.75** |
+
+⛔ **`tralo_coin_sgd` IS A RANDOM CONSTRAINT DIRECTION OF THE SAME NORM**, and
+it outranks stock TraLO in BOTH task cells -- 2nd and 1st against 3rd and 10th.
+2(z29) measured `|tralo - tralo_coin|` at 1.00x the RNG floor on iwildcam and
+2(z56) had `tralo_coin` take a cell in `itemscale`; this is the same result on
+a **second dataset**, with a second backbone, at loose task caps.
+
+⛔ **AND `tralo_lam0` READS `+14.74` vs `clip` AT L80** -- an arm that takes
+its constraint steps with lambda = 0. That is **53% of TraLO's own +27.94**,
+recovered with the penalty switched off, which is the compute-not-method
+finding restated on the second dataset.
+
+### 6. What this does to the mandate
+
+The standing bar is *"tralo wins both clipper and dual methods in at least
+50%"*, and `tralo_wins` prints the consequence itself: **FAIL, 33%, and the
+trigger is to change the METHOD, not to run more seeds of it.** More seeds
+sharpen an estimate; they do not move a median already on the wrong side.
+
+⚠️ **THE ONE THING MORE SEEDS DO BUY IS PRICING**, which is a different
+question and is already bought: `price1` + `price2` carry three lambda=0
+streams and are running. They decide whether the 33% is a measurement or a
+coin-flip, and 2(z77) says the instrument's resolution and the whole per-cell
+prize are the same size.
+
+⇒ Every place quoting `6/6`, `p=0.0156`, `4/4` or `35%` is now wrong. The
+numbers of record are **5/6 p=0.109 (best case), 3/4 p=0.3125 task-restricted,
+and 6 of 18 = 33% FAIL.**
+
+
+---
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, LAST UPDATED 2026-09-10 -- read this before section 3's older text**
@@ -14732,7 +14867,7 @@ distrust every row.
 | TraLO > **alm** (the ONLY surviving rival dual) | 🔴 **NOT shown** | 4/6 on every metric, p=0.69; as-deployed #1 in **0 of 15** cells, 2(z43) | -- |
 | TraLO #1 of the duals, as deployed | 🔴 **REFUTED** | **2 of 15 cells namable, both `alm`, TraLO 0** once the dead arms drop (2(z43)) | -- |
 | TraLO is a better ENFORCER | 🔴 **REFUTED** | pulls **+6.2 items** vs `alm` **+17.8** -- the weaker of the two surviving arms | -- |
-| **The ACCEPTANCE BAR (>=50% of testable cells)** | 🔴 **FAIL** | `tralo_wins` **6 of 17 = 35%**. ⛔ **QUOTE THE VERDICT, NOT THE FIGURE** -- it predates `rank_cell`'s common-seeds fix by 14 hours (2(z68), task #104) | a recompute reaching 9 of 17 |
+| **The ACCEPTANCE BAR (>=50% of testable cells)** | 🔴 **FAIL** | `tralo_wins` **6 of 18 = 33%**, RECOMPUTED 2026-09-10 on today's code over the six licensed units with D1 added. Per unit **2 of 6**. The stale `6 of 17 = 35%` is superseded and the fix was worth ZERO cells. 🟢 **1 of 18 is PRICED, the first ever, and `tralo` wins it.** 2(z86) | `price1`+`price2` pricing the other 17 |
 | **The per-scope WEIGHTING family** | ⛔ **CLOSED** | `itemscale1`+`2`: mechanism CONFIRMED and replicated (MIDDLE +6.4 items, K=0 budget share 93.5%->15.3% as predicted) and the deployed score did NOT follow -- 25% vs the 50% bar, **0 of 4 priced**, and **`tralo_coin`, a RANDOM direction of the same norm, took a cell** (2(z56)) | -- |
 | **`tralo_dualprop` (magnitude, not frequency)** | 🔴 **REJECTED** | `dualprop1`, sign 6 of 6; the constraint also makes the RANKING worse (2(z53)). ⚠️ read at 72/88 runs = 3 seeds; DIRECTION safe, NUMBERS provisional (task #106) | -- |
 | **Excess removed buys deployed quality** (the premise the whole program rests on) | 🟡 **WEAK, and it is a premise not a result** | rho **+0.383** over 2 cells, 1 of 2 positive (2(z56)); **+0.442** over 6 cells (96 runs), 4 of 6 -- the `--arms`-honoured recompute of 2026-09-09, task #85. ⚠️ **THAT SECOND FIGURE HAS NO ENTRY IN THIS FILE**; it is recorded only in CLAUDE.md's `deep_scope` block, which is a tool docstring and not the ledger. 4 of 6 is p=0.34 either way -- a DIRECTION, never a measurement | a cell where the proxy moves and the metric does not follow -- already seen twice |
@@ -14740,7 +14875,7 @@ distrust every row.
 | `tralo_uniform` fixes tight caps | 🟡 holds, tight only | `uniform1` AP -0.0754 -> +0.0030 | -- |
 | macroF1 (the paper's headline) | 🔴 negative | `dom1` -0.0023, loses to `clip` | -- |
 | Any result on ViTB16, the HEADLINE backbone | 🔴 **absent at loose caps** | `loosevit1` is 2 cells, p-floor 0.50 | running it properly |
-| Second dataset | 🟢 **THREE datasets now carry campaigns** | ⛔ this row read `none` until 2026-09-10 and was false: **`bcn1mn3` is COMPLETE (228 runs)**, `bcn1vit` (L90 only -- L70/L80 archived as non-task) and `fmow1` are live. fmow's LOCAL p@K clears the bar at 0.842/0.882/0.952/0.973 where iwildcam reads 0.9948-0.9972 (2(z59)) | -- |
+| Second dataset | 🔴 **SCORED, AND IT IS THE UNIT THAT BREAKS THE HEADLINE** | **`bcn1mn3` is COMPLETE (228 runs) and was SCORED 2026-09-10 -- unit D1. `tralo` vs its own RNG floor is +5.16 at L80 and -11.61 at L90, the first licensed unit that does not clear it, and `tralo_coin_sgd` -- a RANDOM direction of the same norm -- outranks `tralo` in BOTH task cells (2nd vs 3rd at L80, 1st vs 10th at L90). 2(z86).** `bcn1vit` is also COMPLETE (190/190, score L90 ONLY -- L70/L80 archived as non-task) and `fmow1` is at 300/304. fmow's LOCAL p@K clears the bar at 0.842/0.882/0.952/0.973 where iwildcam reads 0.9948-0.9972 (2(z59)) | -- |
 | **Is the corpus even priceable?** | 🔴 **NO, and that is not a result about TraLO** | every corpus campaign predates `tralo_reseed2`, so the RNG floor rests on 2 streams x 4 seeds = **4 obs** against `MIN_FLOOR_OBS` = 8. `priced` is False **by construction, at any effect size** -- the comparison is never reached (2(z69), task #105) | 16 runs per campaign |
 
 ### 3(0d) 🔑 **WHY EVERY dom1 CAP IS L80+ -- and the matched pair hiding in it**

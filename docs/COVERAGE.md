@@ -134,8 +134,8 @@ units. Reading both units therefore gives:
 
 | tally | now | after C2 + D1 |
 |---|---|---|
-| LICENSED units, sign read | 4/4, p=0.0625 | **6/6, p=0.0156** |
-| of those, carrying a `task` cell | 3/3, p=0.125 | **4/4, p=0.0625** |
+| LICENSED units, sign read | 4/4, p=0.0625 | ⛔ **REFUTED BY MEASUREMENT 2026-09-10 -- 2(z86). D1 WAS READ AND IS NEGATIVE.** The tally is **5/6 p=0.109** (unrestricted, mean rule) at best and **3/4 p=0.3125** task-restricted; the `worst-cell` rule gives 3/6 p=0.656. C1 and C2 are SPLIT too. Nothing clears 0.05.** **6/6, p=0.0156** |
+| of those, carrying a `task` cell | 3/3, p=0.125 | ⛔ **SUPERSEDED 2026-09-10, 2(z86): D1 IS NEGATIVE, so task-restricted is 3/4 p=0.3125, not** **4/4, p=0.0625** |
 
 So `p=0.0156` belongs to the tally `paper_rows` does not print, and the
 restricted one tops out at 0.0625. **Read D1 first** -- `bcn1mn3` L80/L90 are

@@ -110,7 +110,7 @@ docs/COVERAGE.md   🗺️ WHAT WE ACTUALLY HAVE vs WHAT THE PAPER NEEDS, built
                    proposing a campaign. Carries THE GATE (does TraLO clear
                    its own reseed floor? RECOUNT DONE 2026-09-04: FOUR units
                    had their signs read and only THREE carry a verified `task`
-                   cell, so quote BOTH -- 4/4 p=0.0625, 3/3 p=0.125
+                   cell, so quote BOTH -- ⛔ **SUPERSEDED 2026-09-10, 2(z86): D1 IS NEGATIVE, so task-restricted is 3/4 p=0.3125, not** 4/4 p=0.0625, 3/3 p=0.125
                    task-restricted. `paper_rows` prints the restriction itself)
    🔑 **BUT THE LEDGER NOW LICENSES SIX, AND TWO SIGNS ARE UNREAD
    (2026-09-09).** This line said "the ledger licenses FOUR"; that was true
@@ -125,7 +125,7 @@ docs/COVERAGE.md   🗺️ WHAT WE ACTUALLY HAVE vs WHAT THE PAPER NEEDS, built
    band measured EMPTY -- and `classify` checks strict before partial, so
    **C2 reads `partial` at every cap on the grid and can never carry a strict
    `task` cell.** `paper_rows` restricts its printed sign test to `task`
-   units, so reading BOTH gives **6/6 p=0.0156 unrestricted and 4/4 p=0.0625
+   units, so reading BOTH gives ⛔ **REFUTED BY MEASUREMENT 2026-09-10 -- 2(z86). D1 WAS READ AND IS NEGATIVE.** The tally is **5/6 p=0.109** (unrestricted, mean rule) at best and **3/4 p=0.3125** task-restricted; the `worst-cell` rule gives 3/6 p=0.656. C1 and C2 are SPLIT too. Nothing clears 0.05.** **6/6 p=0.0156 unrestricted and 4/4 p=0.0625
    task-restricted** -- the sub-0.05 number is the one the paper-facing scorer
    does NOT print. D1 moves both rows (`bcn1mn3` L80/L90 are verified task
    cells, 2(z58)); C2 moves only the first. A negative is still worth more
@@ -754,6 +754,10 @@ python -m scripts.tralo_wins --campaign <roots> --control clip   # 🛑 THE ACCE
 #   🔑 READ THE `priced` COLUMN, NOT ONLY THE VERDICT. A win is a SIGN;
 #   `priced` says the spread cleared the RNG floor AND that floor rests on
 #   >= MIN_FLOOR_OBS observations. RUN 2026-09-06 over the whole live corpus:
+#   ⛔ **RECOMPUTED 2026-09-10 OVER THE SIX LICENSED UNITS WITH D1
+#   ADDED: 6 of 18 = 33%, bar 50%, VERDICT FAIL, per unit 2 of 6 -- and
+#   1 of 18 IS PRICED, the first ever, and tralo wins it. FRAMEWORK
+#   2(z86). The superseded 2026-09-06 reading was:**
 #   **6 of 17 = 35%, bar 50%, VERDICT FAIL -- and 0 of 17 cells are priced**,
 #   so every win is a direction and none is reportable. Per unit it is 2 of 6.
 #   🛑 **BUT `0 of 17 priced` IS NOT A RESULT ABOUT TraLO -- THE TEST WAS

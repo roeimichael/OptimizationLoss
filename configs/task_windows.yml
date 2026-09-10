@@ -240,39 +240,59 @@ windows:
   # column would have rejected this dataset.
   # ===================================================================
   fmow:
+    # ==================================================================
+    # RE-MEASURED 2026-09-10 AT FOUR SEEDS, ON THE COMPLETE 304-RUN
+    # CAMPAIGN. Both rows below were PROVISIONAL -- MobileNetV3 off two
+    # models and ViTB16 off ONE -- and both said so and asked for this.
+    #
+    # BOTH OVERLAPS NARROWED, AND NEITHER VERDICT CHANGED.
+    #   MobileNetV3  overlap [0.30, 0.60] -> [0.30, 0.40]
+    #   ViTB16       overlap [0.20, 0.50] -> [0.20, 0.40]
+    # `fmow1` ran L20 and L30: on MobileNetV3 L30 is a TASK and L20 is
+    # OUTSIDE on class 3; on ViTB16 BOTH are tasks. 3 of 4 cells, which
+    # is what the 1-2 seed reading predicted -- so this confirms a
+    # verdict rather than replacing one, and it is worth saying which,
+    # because a re-measure that agrees is evidence and a re-measure that
+    # is never done is a promise.
+    #
+    # !! THE GLOB SPANS TWO CAP LEVELS AND `task_window` DE-DUPLICATES
+    # IT: 8 runs -> 4 DISTINCT MODELS per backbone. A lambda=0 reference
+    # takes no constraint step, so its raw predictions cannot depend on
+    # the cap, and counting the runs would have claimed 8 seeds from 4.
+    # ==================================================================
     MobileNetV3:
-      provenance: "fmow1/MobileNetV3 (dsisco02/bf16), TWO distinct tralo_null
-        models (seeds 1-2), measured 2026-09-09 while the campaign was 114/304.
-        Per-group prize, MIN_PRIZE 3.0. PROVISIONAL -- re-measure at 4 seeds."
-      unconstrained_count: {3: 430, 5: 432}
+      provenance: "fmow1/MobileNetV3 (dsisco02/bf16), FOUR distinct tralo_null
+        models, measured 2026-09-10 on the COMPLETE 304-run campaign (8 runs
+        de-duplicated to 4 models). Per-group prize, MIN_PRIZE 3.0. Supersedes
+        the 2-seed reading taken at 114/304."
+      unconstrained_count: {3: 518, 5: 364}
       per_model:
-        fmow1_dsisco02_bf16: {hard: {3: 430, 5: 432}, seeds: 2, strict: {3: [0.30, 0.70], 5: [0.20, 0.60]}}
+        fmow1_dsisco02_bf16: {hard: {3: 518, 5: 364}, seeds: 4, strict: {3: [0.30, 0.70], 5: [0.20, 0.40]}}
       class:
-        3: [0.30, 0.70]          #   0.20 is SATURATED: LOCp@K 0.99141, 7.5 global errors inside K
-        5: [0.20, 0.60]          #   LOCerr 33.5 at 0.20 rising to 133.0 at 0.60
+        3: [0.30, 0.70]          #   n_true 501, predicts 518; 0.20 SATURATED
+        5: [0.20, 0.40]          #   n_true 625, predicts 364; 0.50 binds 2/4
       partial:
-        3: [0.80, 0.80]          #   0.80 binds 1/2; 0.90 binds 0/2
-        5: [0.70, 0.70]          #   0.70 binds 1/2; 0.80 binds 0/2
-      # OVERLAP of the two classes: [0.30, 0.60]. `fmow1` runs L20 and L30;
-      # L30 is inside it, L20 is outside on class 3 ONLY.
+        5: [0.50, 0.70]          #   0.50 and 0.60 bind 2/4, 0.70 binds 1/4
+        3: [1.10, 1.20]          #   both bind 1/4
+      # OVERLAP [0.30, 0.40]. `fmow1` ran L20 / L30: L30 is a TASK,
+      # L20 is OUTSIDE on class 3 only.
 
     ViTB16:
-      provenance: "fmow1/ViTB16 (dsisco02/bf16), ONE tralo_null model (seed 1),
-        measured 2026-09-09 while the campaign was 114/304. Per-group prize,
-        MIN_PRIZE 3.0. ONE SEED -- this is a direction, not a window.
-        RE-MEASURE at 4 seeds before any cap is chosen from it."
-      unconstrained_count: {3: 271, 5: 461}
+      provenance: "fmow1/ViTB16 (dsisco02/bf16), FOUR distinct tralo_null models,
+        measured 2026-09-10 on the COMPLETE 304-run campaign (8 runs
+        de-duplicated to 4 models). Supersedes the ONE-seed reading taken at
+        114/304, which said in its own text that it was a direction and not a
+        window."
+      unconstrained_count: {3: 276, 5: 577}
       per_model:
-        fmow1_dsisco02_bf16: {hard: {3: 271, 5: 461}, seeds: 1, strict_1seed: {3: [0.20, 0.50], 5: [0.20, 0.70]}}
+        fmow1_dsisco02_bf16: {hard: {3: 276, 5: 577}, seeds: 4, strict: {3: [0.20, 0.40], 5: [0.20, 0.50]}}
       class:
-        3: [0.20, 0.50]          #   narrowest window here: the model predicts only 271 of 501
-        5: [0.20, 0.70]
+        3: [0.20, 0.40]          #   n_true 501, predicts only 276 -- the narrow one
+        5: [0.20, 0.50]          #   n_true 625, predicts 577
       partial:
-        3: []                    #   0.60 binds 0/1 -- slack, not partial
-        5: []                    #   0.80 binds 0/1
-      # OVERLAP: [0.20, 0.50]. BOTH `fmow1` caps are inside it on BOTH classes.
+        5: [0.60, 1.20]          #   0.60/0.70 bind 3/4, 0.80/0.90 2/4, 1.00-1.20 1/4
+      # OVERLAP [0.20, 0.40]. `fmow1` ran L20 / L30: BOTH are TASK cells.
 
-  # ===================================================================
   # bcn -- MEASURED 2026-09-09, AFTER BOTH CAMPAIGNS HAD ALREADY RUN
   #
   # 🛑 THIS ROW DID NOT EXIST WHILE `bcn1mn3` AND `bcn1vit` WERE

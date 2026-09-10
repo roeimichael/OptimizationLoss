@@ -87,8 +87,12 @@ NOT_A_CAMPAIGN = {
     "reseed2": "part of the arm name tralo_reseed2",
     "steps5": "a step count",
     "seed1_bounded": "a run directory",
-    "seed58a": "a run directory",
     "g5_hinge_oct": "a gate-bucket test name",
+    # !! `seed58a` WAS ON THIS LIST AS "a run directory" AND IT IS A REAL
+    # CAMPAIGN (2026-09-10): 40 completed runs in optloss-domb/results, and
+    # `paper_rows.MEASURED_UNITS` maps it to unit B1. An exclusion list is a
+    # place a real campaign can hide, which is why every entry carries its
+    # reason -- and this one's reason was checkable and wrong. Removed.
     "ena24": "a candidate DATASET slice",
     "ganchev2009posterior": "a bibtex key",
 }
@@ -142,22 +146,47 @@ def harvest(docs=DOCS, root=None):
 
 
 def mission_states(path=None):
-    """{name: 'MISSION 0-RUNNING'} from the run-state TABLES, not the prose.
+    """{name: 'MISSION 0-RUNNING'} from the run-state TABLES AND THE CENSUS BLOCK.
 
-    Scoped to the 0-RUNNING section and to table rows, so a campaign merely
-    discussed elsewhere in MISSION does not read as having a state.
+    Scoped to the 0-RUNNING section, so a campaign merely discussed elsewhere in
+    MISSION does not read as having a state.
+
+    🛑 IT READS THE FENCED CENSUS TOO, AND THAT WAS FOUND BY THIS TOOL'S OWN
+    SELF-TEST (2026-09-10). 0-RUNNING was rebuilt from a verified 26-campaign
+    census, and a census of that size is a code block rather than a table --
+    at which point `fmow1` and `price2` had a checked state written down in
+    plain sight and STILL read as orphans, because the parser only knew about
+    `|` rows. A run-state authority that a formatting choice can switch off is
+    not an authority. The liveness check went red the same minute, which is the
+    whole reason the tool ships one. Same shape as 2(z85): the gate answers
+    only for the form it was given.
+
+    The census block is `NAME  n/m` pairs, so a bare campaign-shaped token
+    followed by a slash-count is what counts -- the same shape the block is
+    written in, so a name without a run count does not silently acquire a
+    state.
     """
     path = path or os.path.join(REPO, "docs", "MISSION.md")
     try:
         lines = io.open(path, encoding="utf-8", errors="replace").read().splitlines()
     except OSError:
         return {}
-    out, inside = {}, False
+    out, inside, fenced = {}, False, False
     for line in lines:
         if line.startswith("## "):
-            inside = "0-RUNNING" in line
+            inside, fenced = "0-RUNNING" in line, False
             continue
-        if not inside or not line.lstrip().startswith("|"):
+        if not inside:
+            continue
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+            continue
+        if fenced:
+            for name in re.findall(r"\b([a-z][a-z0-9_]*[0-9][a-z0-9_]*)\s+\d+/\d+",
+                                   line):
+                out[name] = "MISSION 0-RUNNING census"
+            continue
+        if not line.lstrip().startswith("|"):
             continue
         cells = line.split("|")
         if len(cells) < 3:
@@ -353,6 +382,12 @@ def self_test(out=sys.stdout):
     # `price1`. All 18 were given a row in MISSION 0-RUNNING's campaign-state
     # ledger on 2026-09-10, so the live tree must now be clean -- and this is
     # the check that keeps it clean rather than a note saying it once was.
+    # !! IT HAS ALREADY EARNED ITS KEEP. Rebuilding 0-RUNNING from a verified
+    # 26-campaign census put that census in a FENCED BLOCK, and `fmow1` and
+    # `price2` -- both with a checked state written in plain sight -- went
+    # straight back to reading as orphans, because `mission_states` only knew
+    # about `|` table rows. This check went red the same minute. A run-state
+    # authority a formatting choice can switch off is not an authority.
     rec_live, live = scan()
     with_verb = [r[0] for r in live if r[2]]
     ck(not with_verb,
