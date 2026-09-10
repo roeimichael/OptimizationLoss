@@ -4052,7 +4052,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 633 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 634 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -4226,7 +4226,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 633 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 634 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -4234,7 +4234,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (633 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (634 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -16215,7 +16215,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             633 tests, ~200 s, no dataset required
+tests/             634 tests, ~297 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
@@ -16924,4 +16924,160 @@ L80-80_G95     7  0.4854  0.24979     69     2.5    4.0      2  FLOOR UNMEASURED
 ⛔ **NOTHING HERE IS AN ARM-VS-ARM RESULT AND NONE MAY BE QUOTED YET.** This
 is a structural read at 59% completion: dose, integrity, cell classification
 and floor arithmetic. The contrasts wait for 80/80.
+
+
+---
+
+## 2(z93). `paper_rows` SILENTLY OMITTED THE OWN-TWIN CONTRAST FOR EVERY RIVAL DUAL, ON EVERY CAMPAIGN IN THE CORPUS -- NOT A WRONG NUMBER, A MISSING ROW, IN THE TOOL THAT SAYS WHAT MAY BE WRITTEN (2026-09-10)
+
+**THE ONE-LINE VERSION.** `null_of` resolved an arm's lambda=0 twin by STRING
+CONCATENATION -- `alm` -> `alm_null`. `build()` skips any contrast whose
+reference arm is absent from the cell (`if not ref or ref not in arms:
+continue`). **No campaign in the corpus runs `alm_null`, `fioretto_null` or
+`hounie_null`** -- `fmow1` carries nineteen arms and not one of the three. So
+`vs_null` was emitted for `tralo` and every `tralo_*` variant and **silently
+dropped for `alm`, `fioretto` and `hounie`, everywhere.**
+
+### 1. Why it is the contrast that matters
+
+`CONTRASTS` describes `vs_null` in its own words as *"the arm minus its OWN
+lambda=0 twin: the only contrast that attributes an effect to the CONSTRAINT
+rather than to the regime"*. So the one row that separates method from regime
+existed for TraLO and for no rival. ⛔ **That is an ASYMMETRY IN A TABLE, not an
+error in a number**, which is why nothing caught it: every printed figure was
+correct, and the reader completes the gap themselves.
+
+### 2. The authority already said otherwise, and a sibling tool already fixed it
+
+* `configs/protocol.yml` declares `alm.null_sibling: tralo_null`,
+  `fioretto.null_sibling: tralo_null`, `hounie.null_sibling: tralo_null`. The
+  resolver contradicted the protocol and read neither.
+* `scripts/family_split.py` names the trap in its own docstring:
+  *"Concatenation alone invented `tralo_uniform_null`, which exists nowhere, so
+  this tool refused to read a single-family campaign whose twin was sitting
+  right there."* It had been solved, in this repository, and not carried across.
+* FRAMEWORK's own result makes the fallback exactly right rather than merely
+  acceptable: the lambda=0 arms are BYTE-IDENTICAL, because lambda=0 makes every
+  family plain CE. `tralo_null` IS alm's twin when `alm_null` was not run.
+
+### 3. 🛑 THE SELF-TEST PINNED THE DEFECT AND PASSED GREEN
+
+The case table asserted `("alm", "alm_null")`, `("fioretto",
+"fioretto_null")`, `("hounie", "hounie_null")` -- with no `present` argument at
+all, so it encoded precisely the behaviour that dropped the rows. **A green
+self-test asserting a defect is worse than no self-test**, because it converts
+"unchecked" into "checked and fine". Same shape as 2(z81)'s `--self-test` that
+never entered `main`.
+
+### 4. The fix, and the check the resolver test could not make
+
+Two rules, `family_split`'s, in its order: a DEDICATED `<fam>_null` if the cell
+ran one (xfam1's design, where the byte-identity is a MEASUREMENT and a positive
+control), otherwise `protocol.yml`'s `null_sibling`. Family ROOTS are derived
+from the protocol rather than restated -- the literal was
+`("tralo", "alm", "fioretto", "hounie")`, four of the FIVE roots declared, with
+`select` missing.
+
+🔑 **AND THE RESOLVER TEST CANNOT SEE THE DROP.** A resolver returning a
+plausible-but-absent name looks correct in isolation; the row disappears one
+frame later, in `build()`. So the gate is END TO END, on the arm shape every
+corpus campaign actually has -- shared twin only -- and it asserts the `alm`
+`vs_null` row EXISTS. Mutation-tested 4/4: reverting to concatenation, removing
+the dedicated-twin preference, re-hardcoding the roots, and making the protocol
+unreadable each turn it red. The first mutation of the root list SURVIVED until
+a check was added that tests the derivation directly -- the protocol fallback
+rescues most arms, so testing only through `null_of` lets a wrong root list
+pass.
+
+⚠️ **NOTHING PUBLISHED MOVES.** The rows were absent, not wrong; adding them
+adds rows. `docs/paper/scripts/make_task_cell_table.py` is unaffected -- it
+computes contrasts only FOR `tralo` and never resolves a rival's twin, so
+2(z87)'s "4 of 50 contrasts resolve" stands.
+
+### 5. The same audit, second finding: `seeds_needed` exists FOUR times
+
+`paper_rows`, `paired_noise`, `deployed_h2h`, `frozen_head_probe`, with three
+signatures. Audited on identical inputs:
+
+* the CONSTANT agrees -- `7.85` against the exact `(z_{a/2} + z_b)^2` =
+  **7.848880**, 0.0143% apart, which is nothing next to answers spanning four
+  orders of magnitude;
+* the FORMULA agrees;
+* ⛔ the ROUNDING did not. `paired_noise` returned a RAW FLOAT where the other
+  three ceil. **You cannot run 7.3 seeds.**
+
+🔑 **AND IT LANDS ON THE ONE FIGURE THAT DECIDES SOMETHING.** At 2607 and 546
+seeds per cell the rounding is noise; at *"only 7-8 at K/n = 0.9"* -- the
+reading CLAUDE.md quotes to separate "hopeless" from "merely expensive" -- it is
+the whole answer. Now ceils, with a gate that requires a WHOLE number for every
+input and a negative control that the square law survives the rounding. ✅ Those
+particular figures were already withdrawn as UNVERIFIED (`iwc3`,
+`scorable=False`), so nothing published moves here either.
+
+---
+
+## 2(z94). "ARCHIVE, DON'T DELETE" HAD BEEN SILENTLY DELETING: `.gitignore`'s BARE `archive/` SWALLOWED `docs/archive/`, AND 22 FILES / 1.7 MB SAT ON ONE DISK WITH NO HISTORY (2026-09-10)
+
+**THE ONE-LINE VERSION.** `.gitignore:123` is a bare `archive/`, which matches
+at ANY DEPTH -- `docs/archive/` included. The house procedure for retiring a
+document is `git rm` from the old path and `mv` into `docs/archive/`. The first
+half removed it from git and the second half put it somewhere git refuses to
+look. **22 files, 1.7 MB, existed in exactly one place in the world.**
+
+```
+main.tex                     150 KB      review/round1 + round2      66 KB
+PAPER_REVISION_TRACKER.md     41 KB      track_b/ (six files)       759 KB
+BLUE_REVISION_BRIEFING.md     36 KB      MEETING_BRIEF.tex + .pdf   366 KB
+THESIS_CONTEXT.md  PAPER_PLAN.md  MISSING_EXPERIMENTS.md  PAPER_INDEX.md
+NATIVE_RES_CAMPAIGN.md  README.md  all_cells_raw.csv  table_a_summary.csv
+```
+
+⛔ **AND `BLUE_REVISION_BRIEFING.md` WAS INVISIBLE WHILE ITS OWN `.tex` AND
+`.pdf` WERE TRACKED**, which is the tell that should have been noticed: a
+directory listing in git that is missing exactly one extension.
+
+### 1. The two negations written to prevent this could never have worked
+
+`.gitignore` carries `!docs/**/*.tex` and `!docs/**/*.pdf` under a comment
+saying they exist so the handoff documents "must not be hidden". They do not
+reach `docs/archive/`: **git never descends into an EXCLUDED DIRECTORY, so a
+file-level negation underneath one is dead.** `docs/archive/MEETING_BRIEF.tex`
+and `.pdf` -- the exact files that comment names -- were untracked the whole
+time. The fix has to name the DIRECTORY: `!docs/archive/`. Verified in both
+directions afterwards: 22 files became visible, `archive/` and `.agents/`
+stayed ignored, and no build artifact came back with them.
+
+### 2. 🛑 IT WAS FOUND, WRITTEN DOWN, AND LEFT FOR FOUR DAYS
+
+`CLEANUP_AUDIT.md`'s `## DEFERRED` section, 2026-09-06, item 5, states the
+defect exactly and even counts it: *"22 more ... are silently invisible to
+git"*. It concluded *"Nothing is broken today"* and deferred. Nothing was
+broken; everything was one `rm -rf` from being lost.
+
+🔑 **THE RULE THIS PAYS FOR, AND IT IS ALREADY IN THIS FILE IN ANOTHER FORM.**
+CLAUDE.md says an exemption whose reason is a ticket is a defect with a comment
+attached (2(z81)). **A DEFERRED list is the same object at document scale.**
+When the list was finally read, **five of its seven items closed the same day**
+-- and item 2 was only fixable BECAUSE item 5 was fixed first, which is what a
+list nobody reads costs: not just the delay, the ordering.
+
+⚠️ **THE LIST WAS ALSO WRONG IN A WAY ONLY READING IT REVEALS.** It offered one
+blanket recovery command, `git show e7d9e893^:<path>`, for four deleted
+launchers. It is right for three and **wrong for `launch_margin1.sh`**, deleted
+earlier and elsewhere at `2c5f292a`. A recovery instruction that fails on a
+quarter of its cases is worse than none: it is tried once and believed.
+
+### 3. What is now enforced rather than remembered
+
+* `!docs/archive/` -- archiving is a `git mv` that shows as a RENAME. Check
+  `git status` says `R`, not `D`.
+* `.hypothesis/` untracked and ignored -- a regenerable library cache blob had
+  been committed.
+* MISSION `0-LAUNCH` carries a DELETED LAUNCHERS registry with a per-file
+  recovery command, and `tests/test_lessons_learned.py` fails on any
+  `docs/launch_*.sh` named in a doc that neither exists nor appears there.
+  Mutation-tested: a NEW dead path and a deleted registry row both turn it red.
+* The three `CLEANUP_*.md` files are archived with a DISPOSITION table naming
+  every deferred item's outcome, so the two that remain open have owners
+  instead of a section heading.
 

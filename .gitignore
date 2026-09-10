@@ -116,11 +116,39 @@ comparison_results.csv
 
 # Track B / handoff documents and the working manuscript revision live in docs/
 # and must not be hidden by the blanket *.tex / *.pdf rules above.
+#
+# 🛑 THESE TWO LINES DO NOT REACH `docs/archive/`, AND FOR WEEKS NOBODY KNEW.
+# git never descends into an EXCLUDED DIRECTORY, so a file-level negation can
+# not re-include anything underneath one. `archive/` below is a bare pattern
+# and therefore matches at ANY DEPTH, `docs/archive/` included -- so
+# `docs/archive/MEETING_BRIEF.tex` and `.pdf`, the very files the comment above
+# says are protected, were silently untracked. See the negation under it.
 !docs/**/*.tex
 !docs/**/*.pdf
 
+# Hypothesis's library cache. `charmap.json.gz` (21 KB) was swept into the
+# tracked set by 7f9181b3 and is a textbook committed build artifact:
+# regenerable, machine-local, and never read by a human. Untracked
+# 2026-09-10; the file stays on disk.
+.hypothesis/
+
 # Legacy / scratch trees: keep on disk, keep OUT of git
 archive/
+# 🛑 ...EXCEPT `docs/archive/`, WHICH IS THE PROJECT'S RECEIPT DRAWER AND MUST
+# BE IN GIT. The house rule is "archive, don't delete", and until 2026-09-10
+# archiving a file DID delete it: `git rm` from the old path, `mv` into
+# `docs/archive/`, and the bare `archive/` above swallowed it. Thirteen files
+# were sitting on one disk with no version history -- `main.tex` (150 KB),
+# `PAPER_REVISION_TRACKER.md` (41 KB), `BLUE_REVISION_BRIEFING.md` (36 KB, while
+# its OWN .tex and .pdf were tracked), `THESIS_CONTEXT.md`, `PAPER_PLAN.md`,
+# `MISSING_EXPERIMENTS.md`, `NATIVE_RES_CAMPAIGN.md`, `PAPER_INDEX.md` and two
+# result CSVs. Losing the tree would have lost them.
+#
+# This negation must name the DIRECTORY, not the files: re-including
+# `docs/archive/**` alone still fails, because the parent is what is excluded.
+# Build artifacts underneath are re-excluded by the *.aux / *.log rules below,
+# which DO apply once the directory itself is visible again.
+!docs/archive/
 extra_experiments/
 .agents/
 skills-lock.json

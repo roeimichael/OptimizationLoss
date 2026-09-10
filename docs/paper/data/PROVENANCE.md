@@ -2,8 +2,17 @@
 
 **Read this before changing any experimental result.** It maps every number in
 the paper back to the runs that produced it, and forward to every place a change
-must land. Companion to `docs/PAPER_REVISION_TRACKER.md`, which tracks the open
-work; this file is the wiring diagram.
+must land. Companion to `docs/archive/PAPER_REVISION_TRACKER.md`, which tracked
+the open work; this file is the wiring diagram.
+
+> ⚠️ **THAT COMPANION IS ARCHIVED, NOT LIVE (corrected 2026-09-10).** The path
+> used to read `docs/PAPER_REVISION_TRACKER.md` and called it a file that
+> "tracks the open work", present tense. It was moved to `docs/archive/` and --
+> until the `archive/` gitignore hole was closed the same day -- was not in git
+> at all, so repointing this line would have handed a fresh clone a link to a
+> file it did not have. Both halves are fixed: the file is tracked and the path
+> is correct. The OPEN WORK now lives in `docs/MISSION.md`; this companion is
+> history and must not be read as a queue.
 
 ---
 

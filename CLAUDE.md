@@ -147,7 +147,20 @@ docs/PLAYBOOK.md   WHAT TO DO WHEN A CAMPAIGN LANDS -- the integrity gates in
                    order, how to read the logs and their three traps, and a
                    branch per outcome (win / null / loss / gates red) decided
                    in advance. Read it BEFORE scoring, not after.
-docs/archive/      history, not instructions
+docs/THEORY.md     the derivations behind the loss. BACKGROUND, not protocol --
+                   where it disagrees with FRAMEWORK, FRAMEWORK wins.
+docs/archive/      history, not instructions. 🛑 **AND IT IS IN GIT AGAIN AS OF
+                   2026-09-10.** `.gitignore`'s bare `archive/` matches at ANY
+                   depth, so `git rm` + `mv docs/archive/` had been silently
+                   DELETING for weeks -- 22 files / 1.7 MB were on one disk with
+                   no history, including `main.tex` (150 KB) and
+                   `BLUE_REVISION_BRIEFING.md` (while its own `.tex` and `.pdf`
+                   were tracked). The two `!docs/**/*.tex` / `*.pdf` negations
+                   written to protect exactly those could not work: git never
+                   descends into an excluded DIRECTORY, so a file-level negation
+                   underneath one is dead. Fixed with `!docs/archive/`, which
+                   names the directory. Archive by `git mv` and CHECK
+                   `git status` shows a rename, not a delete.
 docs/paper/        the TMLR manuscript
 results/           experiment outputs
 scripts/           full_panel.py + score_arm.py = THE scorer; plus dataset prep
@@ -186,7 +199,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 633 regression tests, ~250s, no dataset needed
+python -m pytest tests -q                   # 634 regression tests, ~300s, no dataset needed
 #   `tests/test_scorers_run_end_to_end.py` EXECUTES every scorer as a subprocess
 #   against a campaign carrying a real PARTIAL marker. It exists because three
 #   scorers once used `quarantine.` with no module-level import: they PARSED,

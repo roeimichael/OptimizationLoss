@@ -2979,3 +2979,74 @@ def test_reachability_reads_the_cut_PER_GROUP_and_the_two_readings_differ():
                         "Group_ID": np.array(["A"] * 40)})
     s3, p3, n3 = slope_per_group(p_col, one, 2, "sum")
     assert n3 == 1 and abs(s3 - slope) < 1e-12, (s3, slope)
+
+
+def test_a_documented_launcher_path_either_EXISTS_or_is_in_the_DELETED_registry():
+    """A doc line naming `docs/launch_*.sh` must resolve to something.
+
+    LESSON, 2026-09-10. NOT ONE `docs/launch_*.sh` exists: the survivors were
+    archived to `docs/archive/launchers/` and the rest were deleted outright.
+    Seven lines across MISSION and FRAMEWORK still point a reader at the old
+    paths -- a link followed once, not found, and silently distrusted. The
+    2026-09-06 cleanup found them, could not decide whether annotating the law
+    was a janitorial call, and DEFERRED them; four days later nothing had
+    changed, because a DEFERRED list is a defect with a comment attached.
+
+    The fix is a registry in MISSION 0-LAUNCH carrying the recovery command per
+    file, and this gate, which requires every named launcher to either exist on
+    disk or appear there. The registry earns its place by being a TABLE: the
+    deferred note offered one blanket recovery command and it is wrong for
+    `launch_margin1.sh`, deleted at `2c5f292a` rather than `e7d9e893`.
+
+    Deliberately NOT a check that the file exists -- these are correctly gone.
+    It checks that a reader who follows a dead path finds the correction.
+    """
+    import re
+
+    docs = [os.path.join(REPO, "CLAUDE.md")]
+    ddir = os.path.join(REPO, "docs")
+    for name in sorted(os.listdir(ddir)):
+        if name.endswith(".md"):
+            docs.append(os.path.join(ddir, name))
+
+    mission = io.open(os.path.join(REPO, "docs", "MISSION.md"),
+                      encoding="utf-8").read()
+    assert "DELETED LAUNCHERS -- the registry" in mission, (
+        "MISSION 0-LAUNCH lost its deleted-launcher registry; the seven stale "
+        "doc lines it corrects are still there")
+    registry = mission.split("DELETED LAUNCHERS -- the registry", 1)[1]
+    registry = registry.split("\n### ", 1)[0]
+
+    named, unresolved = set(), []
+    pat = re.compile(r"docs/launch_[A-Za-z0-9_]+\.sh")
+    for path in docs:
+        for hit in pat.findall(io.open(path, encoding="utf-8").read()):
+            named.add(hit)
+    for hit in sorted(named):
+        if os.path.exists(os.path.join(REPO, hit)):
+            continue
+        if os.path.basename(hit) in registry:
+            continue
+        unresolved.append(hit)
+
+    assert named, "no launcher paths found at all -- the pattern stopped matching"
+    assert not unresolved, (
+        "documented launcher path(s) that neither exist nor appear in "
+        "MISSION's DELETED LAUNCHERS registry: %s" % unresolved)
+
+    # NEGATIVE CONTROL: the gate must FIRE on a launcher that is absent from
+    # both disk and registry. A gate that has never failed has never been shown
+    # to work.
+    fake = "docs/launch_this_never_existed.sh"
+    assert not os.path.exists(os.path.join(REPO, fake))
+    assert os.path.basename(fake) not in registry
+    # ...and the same two conditions the loop applies would mark it unresolved.
+    assert not (os.path.exists(os.path.join(REPO, fake))
+                or os.path.basename(fake) in registry)
+
+    # POSITIVE CONTROL: the archived launchers DO exist and must never be
+    # flagged, so the gate cannot be satisfied by deleting every launcher.
+    arch = os.path.join(REPO, "docs", "archive", "launchers")
+    assert os.path.isdir(arch), arch
+    assert [f for f in os.listdir(arch) if f.endswith(".sh")], (
+        "docs/archive/launchers/ holds no .sh -- the survivors are gone too")

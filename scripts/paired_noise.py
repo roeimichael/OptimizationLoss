@@ -227,7 +227,23 @@ def seeds_needed(effect, sd, power_const=7.85):
     """
     if not effect or effect != effect or not sd or sd != sd:
         return float("nan")
-    return power_const * (sd / effect) ** 2
+    # 🛑 CEIL. YOU CANNOT RUN 7.3 SEEDS, AND THIS WAS THE ONE PLACE THAT
+    # PRINTED A FRACTION (fixed 2026-09-10). Four scorers implement this
+    # quantity -- `paper_rows`, `paired_noise`, `deployed_h2h`,
+    # `frozen_head_probe` -- and they were audited against each other on the
+    # same inputs: the CONSTANT agrees (7.85 against the exact
+    # `(z_{a/2} + z_b)^2` = 7.848880, 0.0143% apart) and the FORMULA agrees.
+    # The only divergence was rounding, and the other three all ceil to an int.
+    #
+    # ⚠️ IT LANDS ON THE ONE FIGURE THAT CHANGES A DECISION. At 2607 and 546
+    # seeds the rounding is noise; at the low end it is the whole answer, and
+    # the low end is what this column exists to find -- CLAUDE.md quotes
+    # "only 7-8 at K/n = 0.9" as the reading that separates "hopeless" from
+    # "merely expensive". A raw 7.3 reads as 7 and means 8.
+    # ✅ Those particular numbers are already WITHDRAWN as UNVERIFIED (they
+    # come from `iwc3`, `scorable=False`, and this tool now refuses it), so
+    # nothing published moves; the re-run on `dom1` gets the corrected form.
+    return float(np.ceil(power_const * (sd / effect) ** 2))
 
 
 def report(bar, floor_sd, treated_sd, classes, fracs, out=sys.stdout):
@@ -363,10 +379,30 @@ def self_test(out=sys.stdout):
     # 5. The seed count must be right, and must scale as the SQUARE of the
     #    effect -- the whole point of the column is that halving the effect
     #    quadruples the cost, which is the part people get wrong by eye.
+    # ⛔ THE EXPECTATION WAS 7.85 UNTIL 2026-09-10 AND THAT IS NOT A SEED
+    # COUNT. It pinned the RAW value, which is exactly what let this scorer
+    # print fractions while `paper_rows`, `deployed_h2h` and
+    # `frozen_head_probe` all ceil. A self-test that asserts the un-rounded
+    # number cannot notice that the number is un-rounded.
     got = seeds_needed(10.0, 10.0)
-    if abs(got - 7.85) > 1e-9:
-        out.write("SELF-TEST FAIL: effect == sd must need ~8 seeds, got "
-                  "%.3f\n" % got)
+    if got != 8.0:
+        out.write("SELF-TEST FAIL: effect == sd must need 8 whole seeds "
+                  "(ceil of 7.85), got %.3f\n" % got)
+        ok = False
+    # ...and it must be a WHOLE number for every input, not only this one.
+    frac = [(e, s, seeds_needed(e, s))
+            for e, s in ((2.0, 3.0), (1.0, 2.0), (0.42, 0.80), (0.9, 1.0))
+            if seeds_needed(e, s) != int(seeds_needed(e, s))]
+    if frac:
+        out.write("SELF-TEST FAIL: fractional seed count(s) %s\n" % frac)
+        ok = False
+    # NEGATIVE CONTROL: the square-law must survive the rounding -- halving
+    # the effect must still roughly quadruple the cost, or the ceil has eaten
+    # the property the column exists to show.
+    if not (3.9 < seeds_needed(1.0, 10.0) / seeds_needed(2.0, 10.0) < 4.1):
+        out.write("SELF-TEST FAIL: halving the effect must ~4x the seeds, "
+                  "got %.3f\n" % (seeds_needed(1.0, 10.0)
+                                  / seeds_needed(2.0, 10.0)))
         ok = False
     if abs(seeds_needed(5.0, 10.0) / seeds_needed(10.0, 10.0) - 4.0) > 1e-9:
         out.write("SELF-TEST FAIL: halving the effect must QUADRUPLE the "

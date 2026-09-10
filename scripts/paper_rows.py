@@ -196,21 +196,98 @@ def seeds_needed(mean, sd, power_const=7.85):
     return int(math.ceil(power_const * (sd / abs(mean)) ** 2))
 
 
-def null_of(arm):
+_PROTO_CACHE = None
+
+
+def _protocol_arms():
+    """`arms:` from configs/protocol.yml, or {} if it cannot be read.
+
+    Read, not restated: the family list used to be a literal
+    `("tralo", "alm", "fioretto", "hounie")` here, which is FOUR of the FIVE
+    roots the protocol declares -- `select` has its own `select_null` and was
+    missing. A hardcoded copy of an authority drifts from it the day the
+    authority changes, and nothing goes red.
+    """
+    global _PROTO_CACHE
+    if _PROTO_CACHE is None:
+        try:
+            import yaml
+            P = yaml.safe_load(io.open(os.path.join("configs", "protocol.yml"),
+                                       encoding="utf-8"))
+            _PROTO_CACHE = (P or {}).get("arms") or {}
+        except Exception as exc:
+            # SAY SO. An unreadable protocol means every twin resolves by
+            # concatenation, which is the defect this function exists to
+            # remove -- and it would degrade silently, on the tool that says
+            # what may be WRITTEN. `--self-test` fails on this too.
+            sys.stderr.write(
+                "!! paper_rows: configs/protocol.yml unreadable (%s: %s). "
+                "The lambda=0 twin cannot be resolved from the authority; "
+                "rival-dual `vs_null` rows will be DROPPED.%s"
+                % (type(exc).__name__, exc, chr(10)))
+            _PROTO_CACHE = {}
+    return _PROTO_CACHE
+
+
+def _family_root(arm, arms):
+    """The longest declared root `f` with `f + "_null"` an arm, or None."""
+    best = None
+    for f in {a[:-len("_null")] for a in arms if a.endswith("_null")}:
+        if (arm == f or arm.startswith(f + "_")) and (
+                best is None or len(f) > len(best)):
+            best = f
+    return best
+
+
+def null_of(arm, present=None):
     """The lambda=0 twin an arm must be attributed against.
 
     NOT a fixed `tralo_null`: that is right for `tralo`, `tralo_cut`,
     `tralo_uniform` and `tralo_head`, which share one twin, and quietly WRONG
-    for `alm`/`fioretto`/`hounie` on a cross-family campaign, where the twin
-    actually run is `<family>_null`. Returning the wrong twin silently
-    attributes one arm's effect to another's model.
+    for `alm`/`fioretto`/`hounie` on a campaign that really ran
+    `<family>_null`. Returning the wrong twin attributes one arm's effect to
+    another's model.
+
+    🛑 BUT CONCATENATION ALONE DROPPED THE CONTRAST ENTIRELY FOR EVERY RIVAL
+    DUAL, ON EVERY CAMPAIGN IN THE CORPUS (found 2026-09-10). This returned
+    `alm_null` unconditionally; `build()` skips a contrast whose reference arm
+    is not in the cell (`if not ref or ref not in arms: continue`); and NO
+    current campaign runs `alm_null` / `fioretto_null` / `hounie_null` --
+    `fmow1` carries 19 arms and none of the three. So `vs_null`, the contrast
+    CONTRASTS itself calls "the only contrast that attributes an effect to the
+    CONSTRAINT rather than to the regime", was emitted for `tralo` and every
+    `tralo_*` variant and silently omitted for `alm`, `fioretto` and `hounie`.
+    Not a wrong number -- a MISSING ROW, in the tool that says what may be
+    written, which is why no gate saw it. The self-test PINNED the broken
+    expectation (`("alm", "alm_null")`) and passed green.
+
+    `scripts/family_split.py` had already solved this and its docstring names
+    the trap in as many words: "Concatenation alone invented
+    `tralo_uniform_null`, which exists nowhere". This is the same two rules,
+    in the same order, reading the same authority:
+
+      1. a DEDICATED `<family>_null` IF THE CELL RAN ONE -- xfam1's design,
+         where the byte-identity of `fioretto_null` with `tralo_null` is a
+         MEASUREMENT and resolving it away would discard a positive control;
+      2. otherwise `null_sibling` from protocol.yml, which points the dual
+         families and every `tralo_*` variant at the SHARED `tralo_null`,
+         because at lambda = 0 they are all the same run -- FRAMEWORK's four
+         byte-identical `_null` arms.
+
+    `present` is the cell's arm set. Passing None means "not known", and then
+    the protocol answers alone; it is never a licence to concatenate.
     """
     if arm.endswith(("_null", "_reseed", "_lam0")):
         return None
-    for fam in ("tralo", "alm", "fioretto", "hounie"):
-        if arm == fam or arm.startswith(fam + "_"):
-            return fam + "_null"
-    return None
+    arms = _protocol_arms()
+    fam = _family_root(arm, arms)
+    dedicated = (fam + "_null") if fam else None
+    if dedicated and present is not None and dedicated in present:
+        return dedicated
+    sib = (arms.get(arm) or {}).get("null_sibling")
+    if sib:
+        return sib
+    return dedicated
 
 
 def load_cells(path):
@@ -240,7 +317,8 @@ def build(rows, status_of=None, unit_of=None):
                 continue
             scale = float(r["items_per_001"]) * 100.0   # ccF1 delta -> items
             for name, fixed, _why in CONTRASTS:
-                ref = fixed if fixed is not None else null_of(arm)
+                ref = (fixed if fixed is not None
+                       else null_of(arm, present=arms))
                 if not ref or ref not in arms:
                     continue
                 # 🛑 THE TWO MEANS MUST REST ON THE SAME SEEDS.
@@ -432,18 +510,104 @@ def self_test(out=sys.stdout):
     w = out.write
     w("SELF-TEST -- does a paper row say what it claims?" + chr(10) + chr(10))
 
-    # 1. the twin resolver must be per FAMILY, not a fixed tralo_null
-    cases = [("tralo", "tralo_null"), ("tralo_cut", "tralo_null"),
-             ("alm", "alm_null"), ("fioretto", "fioretto_null"),
-             ("hounie", "hounie_null"), ("clip", None), ("tralo_null", None)]
-    bad = [(a, null_of(a), e) for a, e in cases if null_of(a) != e]
+    # 1. the twin resolver must be per FAMILY, not a fixed tralo_null --
+    #    AND it must fall back to the protocol when the campaign ran no
+    #    dedicated twin, or the contrast is silently DROPPED.
+    #
+    # ⛔ THE EXPECTATIONS BELOW WERE MOVED DELIBERATELY ON 2026-09-10 AND THE
+    # OLD ONES WERE WRONG. This list used to read ("alm", "alm_null"),
+    # ("fioretto", "fioretto_null"), ("hounie", "hounie_null") with no
+    # `present` argument at all, so it asserted exactly the behaviour that
+    # dropped `vs_null` for all three rival duals on every campaign in the
+    # corpus. A green self-test pinning a defect is worse than no self-test.
+    #
+    # `cell` is a campaign that ran the SHARED twin only, which is every
+    # current campaign (`fmow1`: 19 arms, no `alm_null`).
+    cell = {"clip", "tralo", "tralo_null", "tralo_reseed", "alm",
+            "fioretto", "hounie"}
+    # `xfam` is xfam1's design, where the dedicated twins were run on purpose
+    # so that their byte-identity with `tralo_null` is a MEASUREMENT.
+    xfam = cell | {"alm_null", "fioretto_null", "hounie_null"}
+    cases = [
+        # (arm, present, expected)
+        ("tralo", cell, "tralo_null"),
+        ("tralo_cut", cell, "tralo_null"),
+        ("tralo_uniform", cell, "tralo_null"),
+        # THE FIX: the shared twin, because no dedicated one was run.
+        ("alm", cell, "tralo_null"),
+        ("fioretto", cell, "tralo_null"),
+        ("hounie", cell, "tralo_null"),
+        # NEGATIVE CONTROL: a dedicated twin that WAS run must still win, or
+        # the fix would silently delete xfam1's positive control.
+        ("alm", xfam, "alm_null"),
+        ("fioretto", xfam, "fioretto_null"),
+        ("hounie", xfam, "hounie_null"),
+        # `select` is the fifth root the old hardcoded 4-list did not know
+        # about; the protocol gives it its OWN twin, not `tralo_null`.
+        ("select", cell, "select_null"),
+        # present=None means "not known" -- the protocol answers alone, and
+        # it must never fall back to bare concatenation for a dual.
+        ("alm", None, "tralo_null"),
+        # arms that have no twin at all
+        ("clip", cell, None),
+        ("tralo_null", cell, None),
+        ("tralo_reseed", cell, None),
+    ]
+    bad = [(a, null_of(a, present=p), e)
+           for a, p, e in cases if null_of(a, present=p) != e]
+
+    # 1a. THE ROOT LIST MUST BE DERIVED FROM protocol.yml, NOT RESTATED.
+    # `null_of`'s protocol fallback rescues most arms even when the roots are
+    # wrong, so testing only through `null_of` lets a hardcoded 4-list pass:
+    # measured 2026-09-10, that exact mutation survived the case table above.
+    # This asserts the derivation itself. `select` is the fifth root and the
+    # one the old literal omitted.
+    _pa = _protocol_arms()
+    _roots = {a[:-len("_null")] for a in _pa if a.endswith("_null")}
+    _rootbad = [r for r in _roots if _family_root(r, _pa) != r]
+    if not _pa:
+        w("  FAIL  protocol.yml unreadable -- the root list cannot be derived"
+          + chr(10))
+        ok = False
+    elif "select" not in _roots or _rootbad:
+        w("  FAIL  _family_root is not reading protocol.yml: roots=%s bad=%s%s"
+          % (sorted(_roots), _rootbad, chr(10)))
+        ok = False
     if bad:
         w("  FAIL  null_of: %s%s" % (bad, chr(10)))
         ok = False
     else:
-        w("  PASS  the lambda=0 twin resolves per FAMILY -- a fixed "
-          "`tralo_null` would" + chr(10) + "        attribute alm's effect to "
-          "tralo's model" + chr(10))
+        w("  PASS  the lambda=0 twin prefers a DEDICATED `<fam>_null` the "
+          "cell actually ran," + chr(10) + "        and otherwise takes "
+          "protocol.yml's `null_sibling` -- concatenation" + chr(10)
+          + "        alone named an arm no campaign runs and DROPPED the "
+            "contrast" + chr(10))
+
+    # 1b. END TO END, because the resolver test above cannot see the drop.
+    # `build()` skips any contrast whose reference arm is missing from the
+    # cell, so a resolver returning a plausible-but-absent name loses the row
+    # silently. This is the shape every corpus campaign has: the shared twin
+    # only. Before the fix `alm` produced NO `vs_null` row here.
+    _cellrows = []
+    for _arm, _f1 in (("clip", 0.500), ("tralo", 0.520), ("alm", 0.530),
+                      ("tralo_null", 0.510), ("tralo_reseed", 0.511)):
+        _cellrows.append({"campaign": "zz", "dataset": "iwildcam",
+                          "model": "MobileNetV2", "cap": "L80-80_G95",
+                          "arm": _arm, "n_seeds": "4", "seeds": "1|2|3|4",
+                          "items_per_001": "1.0", "ccF1": "%.3f" % _f1,
+                          "ccF1_sd": "0.010"})
+    _got = {(r["arm"], r["contrast"]) for r in build(_cellrows)}
+    if ("alm", "vs_null") not in _got:
+        w("  FAIL  build() drops ('alm', 'vs_null') -- the rival dual has no "
+          "own-twin row" + chr(10))
+        ok = False
+    elif ("tralo", "vs_null") not in _got:
+        w("  FAIL  build() lost tralo's own-twin row (regression)" + chr(10))
+        ok = False
+    else:
+        w("  PASS  END TO END: a cell carrying the SHARED twin only still "
+          "emits `vs_null`" + chr(10) + "        for a RIVAL DUAL -- the row "
+          "that was silently missing corpus-wide" + chr(10))
 
     # 2. items conversion and the power formula, both directions
     if seeds_needed(1.0, 0.0) is not None or seeds_needed(0.0, 1.0) is not None:

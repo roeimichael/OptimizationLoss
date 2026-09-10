@@ -287,3 +287,60 @@ None. The clean-tree baseline was captured BEFORE any change:
 $ python -m pytest tests -q          # on the untouched tree
 583 passed, 1 skipped, 7 warnings in 241.17s (0:04:01)
 ```
+
+---
+
+## DISPOSITION OF THE DEFERRED LIST -- 2026-09-10
+
+🛑 **A DEFERRED LIST IS A DEFECT WITH A COMMENT ATTACHED, AND THIS ONE PROVED
+IT.** Written 2026-09-06, read by nobody for four days, and item 5 was a live
+data-loss hazard the whole time. The list was correct; the mechanism that was
+supposed to bring it back to a human did not exist. That is the same shape as
+the exemption-whose-reason-is-a-ticket rule already in CLAUDE.md.
+
+Every item is now discharged or has a named owner. **Five of the seven were
+closed the day the list was finally read**, which is the argument for reading
+one rather than growing one.
+
+| # | item | disposition |
+|---|---|---|
+| 1 | five stale `docs/launch_*.sh` refs | ✅ **DISCHARGED.** Registry in MISSION `0-LAUNCH`, plus a gate in `tests/test_lessons_learned.py` that fails on any doc-named launcher which neither exists nor appears there. Mutation-tested: a NEW dead path and a deleted registry row both turn it red. |
+| 2 | `PROVENANCE.md:5` companion path | ✅ **DISCHARGED.** Repointed to `docs/archive/PAPER_REVISION_TRACKER.md` with a note that it is history, not a queue. This was only possible BECAUSE item 5 was fixed first -- the note itself said repointing would hand a clone a link to a file it did not have. |
+| 3 | `tab_granular_asym.tex` twin pair | ⬜ **STILL OPEN.** Unreferenced by any build, inside a wholesale-preserved directory. Unchanged: still a judgement about whether the preserve list licenses deleting dead files within it. |
+| 4 | tracked Hypothesis cache blob | ✅ **DISCHARGED.** `git rm --cached` and `.hypothesis/` added to `.gitignore`. The file stays on disk. The rule that blocked this was the 2026-09-06 run's OWN rulebook, not a standing one. |
+| 5 | bare `archive/` matches at any depth | ✅ **DISCHARGED, and it was the serious one.** `!docs/archive/` added -- naming the DIRECTORY, because a file-level negation cannot re-include anything under an excluded directory, which is why the pre-existing `!docs/**/*.tex` and `!docs/**/*.pdf` never worked. **22 files, 1.7 MB, recovered into git**, the note's own count exactly: `main.tex` (150 KB), `PAPER_REVISION_TRACKER.md` (41 KB), `BLUE_REVISION_BRIEFING.md` (36 KB while its own `.tex` and `.pdf` were tracked), both `review/` rounds, all six `track_b/` files, `MEETING_BRIEF.tex`/`.pdf`. "Archive, don't delete" had been silently deleting. |
+| 6 | duplicated helpers in `scripts/` | 🟡 **PARTLY, and one bullet was a LIVE DEFECT, not a tidiness item.** See below. |
+| 7 | duplicated dual math in `src/` | ⬜ **STILL OPEN, correctly.** `src/` is frozen while campaigns run; `code_version` is a git hash. Not actionable today. |
+
+### Item 6, expanded -- the bullet that was not cosmetic
+
+* **`null_of`'s hardcoded family list (was: "`paper_rows` has a hardcoded
+  4-family list ... if a fifth family is added, one of them silently goes
+  wrong").** The fifth family already existed: `select`, with its own
+  `select_null`. But the real defect was worse and the note did not reach it.
+  `null_of` returned `<fam>_null` **by string construction**, `build()` skips a
+  contrast whose reference arm is absent from the cell, and **no campaign in
+  the corpus runs `alm_null` / `fioretto_null` / `hounie_null`** -- `fmow1`
+  carries 19 arms and none of the three. So `vs_null`, which `CONTRASTS` itself
+  calls "the only contrast that attributes an effect to the CONSTRAINT rather
+  than to the regime", was emitted for `tralo` and every `tralo_*` variant and
+  **silently omitted for all three rival duals, on every campaign.** Not a wrong
+  number -- a missing row, in the tool that says what may be written. The
+  self-test PINNED the broken expectation and passed green.
+  ✅ Fixed to `family_split`'s two rules (dedicated twin if the cell ran one,
+  else `protocol.yml`'s `null_sibling`), roots derived from the protocol rather
+  than restated, mutation-tested 4/4 with an end-to-end check the resolver test
+  could not make.
+* **`seeds_needed`.** The note said two implementations; there are **FOUR** --
+  `paper_rows`, `paired_noise`, `deployed_h2h`, `frozen_head_probe` -- with
+  three different signatures. Audited on identical inputs: the CONSTANT agrees
+  (7.85 against the exact `(z_{a/2}+z_b)^2` = 7.848880, 0.0143% apart) and the
+  FORMULA agrees. ✅ The one divergence was ROUNDING -- `paired_noise` returned a
+  raw float where the other three ceil -- and it lands precisely on the figures
+  that decide something: at 2607 and 546 seeds rounding is noise, at "7-8 at
+  K/n = 0.9" it is the whole answer. Now ceils, gated, and the affected figures
+  were already withdrawn as UNVERIFIED (`iwc3`, `scorable=False`).
+* **`_cell_of` / `_per_cell_report`** remain byte-identical between
+  `graph_probe.py` and `scope_probe.py` (28 and 52 lines, verified 2026-09-10).
+  ⬜ **STILL OPEN** -- a merge here is a behaviour risk against two live probes
+  and buys nothing but line count.

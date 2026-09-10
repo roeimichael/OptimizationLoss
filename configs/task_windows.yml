@@ -449,6 +449,58 @@ windows:
       # OVERLAP [0.80, 1.00]. `bcn1mn3` ran L70 / L80 / L90:
       #   L70 NON-TASK, L80 task, L90 task.
 
+    # ==================================================================
+    # THE OTHER TWO bcn BACKBONES, MEASURED 2026-09-10 OFF `clip` FROM THE
+    # PILOTS. Same reference-arm caveat as the fmow MobileNetV2 /
+    # RegNetY400MF rows -- read `meta.reference_arm_offset` first. 8 runs
+    # de-duplicated to 4 DISTINCT MODELS each.
+    #
+    # 🔑 THE CORRECTION CROSS-CHECKS, WHICH IS WHY IT IS WORTH TRUSTING
+    # HERE. Both raw overlaps are [0.80, 1.00]; corrected by the measured
+    # +1 step both land on [0.90, 1.00] -- against `bcn1mn3`'s independently
+    # `tralo_null`-measured [0.80, 1.00] and `bcn1vit`'s [0.90, 1.10]. Four
+    # backbones, two reference arms, one band. That is agreement, not
+    # assumption.
+    #
+    # 🟢 `K=0grp` READS 0.0 AT EVERY FRACTION ON BOTH CLASSES ON BOTH
+    # BACKBONES -- bcn has NO zero per-group ceiling at all (0 of 16, against
+    # iwildcam's 7 of 14), so 2(z54)'s already-compliant-scope confound
+    # cannot occur here.
+    # ==================================================================
+    MobileNetV2:
+      reference_arm: clip           # NOT meta.reference_arm
+      provenance: "bcnpilot3/MobileNetV2 (dsisco02/bf16), FOUR distinct `clip`
+        models (8 runs de-duplicated), measured 2026-09-10 on the COMPLETE
+        16-run pilot. Per-group prize, MIN_PRIZE 3.0. The pilot carries no
+        `tralo_null`, so the declared reference arm was unavailable."
+      unconstrained_count: {0: 1450, 2: 978}
+      per_model:
+        bcnpilot3_dsisco02_bf16: {hard: {0: 1450, 2: 978}, seeds: 4, ref: clip, strict: {0: [0.80, 1.00], 2: [0.70, 1.00]}}
+      class:
+        0: [0.80, 1.00]          #   n_true 1274, predicts 1450; 0.20-0.70 SATURATED
+        2: [0.70, 1.00]          #   n_true 869, predicts 978
+      partial:
+        0: [1.10, 1.10]          #   1.10 binds 3/4; 1.20 barely binds
+        2: [1.10, 1.10]          #   1.10 binds 2/4; 1.20 is cap slack
+      # RAW overlap [0.80, 1.00]; CORRECTED overlap [0.90, 1.00].
+
+    RegNetY400MF:
+      reference_arm: clip           # NOT meta.reference_arm
+      provenance: "bcnpilot4/RegNetY400MF (dsisco02/bf16), FOUR distinct `clip`
+        models (8 runs de-duplicated), measured 2026-09-10 on the COMPLETE
+        16-run pilot. Per-group prize, MIN_PRIZE 3.0. The pilot carries no
+        `tralo_null`, so the declared reference arm was unavailable."
+      unconstrained_count: {0: 1547, 2: 973}
+      per_model:
+        bcnpilot4_dsisco02_bf16: {hard: {0: 1547, 2: 973}, seeds: 4, ref: clip, strict: {0: [0.80, 1.10], 2: [0.70, 1.00]}}
+      class:
+        0: [0.80, 1.10]          #   n_true 1274, predicts 1547 -- the widest band on bcn
+        2: [0.70, 1.00]          #   n_true 869, predicts 973
+      partial:
+        0: [1.20, 1.20]          #   binds 3/4
+        2: [1.10, 1.10]          #   binds 2/4; 1.20 is cap slack
+      # RAW overlap [0.80, 1.00]; CORRECTED overlap [0.90, 1.00].
+
     ViTB16:
       provenance: "bcn1vit/ViTB16 (dsisco02/bf16), TWO tralo_null seeds,
         measured 2026-09-09 while the campaign was ~103/228. PROVISIONAL --

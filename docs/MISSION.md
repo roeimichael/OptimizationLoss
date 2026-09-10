@@ -616,6 +616,39 @@ claiming run-state is how both of them went stale -- this one still said
 announced `itemscale` as in-flight two days after it closed a design family.
 FRAMEWORK 2(z72).
 
+### DELETED LAUNCHERS -- the registry, because seven doc lines still name them
+
+🛑 **`docs/launch_*.sh` DOES NOT EXIST. NOT ONE OF THEM.** The launchers that
+survived were archived to `docs/archive/launchers/` (four files); the rest were
+deleted outright, and **seven lines across `docs/MISSION.md` and
+`docs/FRAMEWORK.md` still point a reader at the old paths.** Those lines are
+left as written -- this project's style is to keep the old claim and correct it
+beside, not to rewrite the record -- and this table is the correction. Found by
+the 2026-09-06 cleanup, deferred, and discharged 2026-09-10.
+
+| named at | file | recover with |
+|---|---|---|
+| MISSION 2179, 2561 | `docs/launch_margin2.sh` | `git show e7d9e893^:docs/launch_margin2.sh` (419 lines) |
+| MISSION 2554 | `docs/launch_vitdom1.sh` | `git show e7d9e893^:docs/launch_vitdom1.sh` (334 lines) |
+| FRAMEWORK 6903 | `docs/launch_iwc4.sh` | `git show e7d9e893^:docs/launch_iwc4.sh` (227 lines) |
+| FRAMEWORK 4135, 5956, 6890 | `docs/launch_margin1.sh` | `git show 2c5f292a^:docs/launch_margin1.sh` |
+
+⛔ **THE FOURTH ROW IS WHY THIS IS A TABLE AND NOT A SENTENCE.** The deferred
+note said "all recoverable via `git show e7d9e893^:<path>`". That is true for
+three of the four and **FALSE for `launch_margin1.sh`**, which was deleted
+earlier and elsewhere -- at `2c5f292a`, "margin2 supersedes the never-fired
+margin1" -- so the blanket recovery command returns nothing for it. A recovery
+instruction that fails on a quarter of its cases is worse than none, because it
+is tried once and believed.
+
+⚠️ **AND `margin1` WAS NEVER FIRED**, so its launcher is a PLAN, not a receipt;
+`margin2` superseded it and MISSION already records that no `margin2` exists on
+disk either. Recovering either buys a design, not data.
+
+✅ Gated by `tests/test_lessons_learned.py`: any `docs/launch_*.sh` named in a
+doc must either exist on disk or appear in this table. A new dead launcher path
+turns the suite red instead of waiting for the next cleanup sweep.
+
 `dualprop1` -- LANDED and scored, MobileNetV2, 88 runs (read at 72/88). `tralo_dualprop` was REJECTED -- FRAMEWORK 2(z53):
 
 ```bash
