@@ -197,15 +197,31 @@ def main():
         al, rw = row(y, pa, cap), row(y, pr, cap)
         present = sorted(set(y.tolist()))
         oh = np.eye(prob.shape[1])[y][:, present]
-        # What the cap actually consumes: rank by p_c, take the top K_c.
-        # AUROC is a GLOBAL ranking measure and hides this completely -- a run
-        # can replace two thirds of the selected items and leave AUROC, and
-        # prec@K, exactly where they were.
+        # What the cap actually consumes. AUROC is a GLOBAL ranking measure and
+        # hides this completely -- a run can replace two thirds of the selected
+        # items and leave AUROC, and prec@K, exactly where they were.
+        #
+        # !! THIS BLOCK REBUILT A GLOBAL TOP-K UNTIL 2026-09-10, AND IT IS THE
+        # NINTH SUCH SITE (2(z84)). `argsort(-prob[:, c])[:K]` is the globally
+        # K-th ranked item; the allocator emits top-`k_g` WITHIN each group, so
+        # the two sets differ and BOTH `prec@K` and the Jaccard printed below
+        # were computed on a set no run has ever deployed -- including the
+        # dated "Jaccard 0.29-0.42" this tool prints in its own footer.
+        #
+        # The fix needs no reconstruction at all: `final_predictions.csv` IS
+        # the allocator's output, so the deployed set is `pa == c` exactly.
+        # The global reading is retained beside it so the old figure
+        # reproduces, and NEVER as a direction -- 2(z64) records that exact
+        # claim being fixtured, mutation-tested green and then refuted.
         topk, prec = {}, {}
+        topk_glob, prec_glob = {}, {}
         for c, K in sorted(budgets(d).items()):
-            order = np.argsort(-prob[:, c])[:K]
-            topk[c] = set(order.tolist())
-            prec[c] = float((y[order] == c).mean())
+            sel = np.where(pa == c)[0]                 # as DEPLOYED, exact
+            topk[c] = set(sel.tolist())
+            prec[c] = float((y[sel] == c).mean()) if len(sel) else 0.0
+            order = np.argsort(-prob[:, c])[:K]        # the old global reading
+            topk_glob[c] = set(order.tolist())
+            prec_glob[c] = float((y[order] == c).mean()) if K else 0.0
         parts = d.relative_to(root).parts
         # THE CELL IS THE KEY. Two runs that differ in cap level are two
         # different cells and must never share a baseline row -- this scorer
@@ -224,6 +240,7 @@ def main():
                                                 average="macro")),
             "alloc": al, "raw": rw, "cap": cap,
             "topk": topk, "prec": prec,
+            "topk_glob": topk_glob, "prec_glob": prec_glob,
             "n_c2": int((pa == 2).sum()), "n_c4": int((pa == 4).sum()),
             "n_c2_raw": int((pr == 2).sum()), "n_c4_raw": int((pr == 4).sum()),
         })
@@ -265,24 +282,44 @@ def main():
                   "same size.")
 
         if any(o["prec"] for o in rows):
-            print("\nAT THE OPERATING POINT -- top K_c by p_c, which is all a cap uses")
-            print("%-30s %6s %9s %9s %s" % (
-                "run", "class", "prec@K", "K", "Jaccard vs baseline"))
-            print("-" * 82)
+            print("\nAT THE OPERATING POINT -- what the cap actually consumed")
+            print("  LEFT  = AS DEPLOYED: the allocator's own selection, exact.")
+            print("  RIGHT = the GLOBAL top-K reading this tool used until "
+                  "2026-09-10,\n          retained so the old figures "
+                  "reproduce. The allocator emits\n          top-k_g WITHIN "
+                  "each group, so a gap between the halves is\n          "
+                  "expected -- its DIRECTION is NOT established and must not "
+                  "be\n          read as one (2(z64), 2(z84)).")
+            print("%-30s %6s %9s %9s %-8s | %9s %9s %s" % (
+                "run", "class", "prec@K", "K", "Jaccard",
+                "prec@Kg", "Kglob", "Jaccard_g"))
+            print("-" * 104)
             for o in rows:
                 for c in sorted(o["prec"]):
-                    j = ""
                     bo, same = baseline_for(rows, o, base)
-                    if bo is not None and c in bo["topk"] and o is not bo:
-                        a, b = bo["topk"][c], o["topk"][c]
-                        j = "%.3f%s" % (len(a & b) / max(1, len(a | b)),
-                                        "" if same else " *")
-                    print("%-30s %6d %9.4f %9d %s" % (
-                        o["run"], c, o["prec"][c], len(o["topk"][c]), j))
+
+                    def jac(key):
+                        if bo is None or c not in bo[key] or o is bo:
+                            return ""
+                        a, b = bo[key][c], o[key][c]
+                        return "%.3f%s" % (len(a & b) / max(1, len(a | b)),
+                                           "" if same else " *")
+
+                    print("%-30s %6d %9.4f %9d %-8s | %9.4f %9d %s" % (
+                        o["run"], c, o["prec"][c], len(o["topk"][c]),
+                        jac("topk"), o["prec_glob"][c],
+                        len(o["topk_glob"][c]), jac("topk_glob")))
             print("\nA low Jaccard with an unchanged prec@K is CHURN: the run"
                   "\nreplaced the selected items and gained nothing where the"
-                  "\ncap binds. Measured 2026-08-20: Jaccard 0.29-0.42 with"
-                  "\nprec@K identical to the control on both capped classes.")
+                  "\ncap binds."
+                  "\n"
+                  "\n!! THE DATED FIGURE THAT USED TO SIT HERE -- 'Jaccard"
+                  "\n0.29-0.42 with prec@K identical, measured 2026-08-20' --"
+                  "\nIS WITHDRAWN. It was computed from the GLOBAL top-K, i.e."
+                  "\nfrom a set no run has ever deployed: the ninth site of"
+                  "\nthat defect (2(z84)). Re-read it from the LEFT columns."
+                  "\nThe CHURN mechanism is unaffected -- that is a statement"
+                  "\nabout what the metric can hide, not a number.")
 
         for view in ("raw", "alloc"):
             tag = ("RAW argmax -- did the constraint leave a better classifier?"

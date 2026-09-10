@@ -180,7 +180,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 622 regression tests, ~250s, no dataset needed
+python -m pytest tests -q                   # 624 regression tests, ~250s, no dataset needed
 #   `tests/test_scorers_run_end_to_end.py` EXECUTES every scorer as a subprocess
 #   against a campaign carrying a real PARTIAL marker. It exists because three
 #   scorers once used `quarantine.` with no module-level import: they PARSED,
@@ -666,6 +666,22 @@ python -m scripts.log_health <root>        # what the OPTIMISATION did, per run,
                                             #   satisfaction, count trajectory vs K
 python -m scripts.paired_seeds <scan-root>  # each arm minus its OWN lambda=0 twin, per seed
 python -m scripts.score_scan <root>         # AUROC / prec@K / Jaccard, grouped by CELL
+#   ⛔ **ITS prec@K AND JACCARD WERE A GLOBAL TOP-K UNTIL 2026-09-10 -- THE
+#   NINTH SUCH SITE, AND THE FIRST FOUND MECHANICALLY RATHER THAN BY READING
+#   (2(z84)).** The comment above the line said "what the cap actually
+#   consumes"; the cap consumes top-`k_g` WITHIN each group, and `read()`
+#   never loaded `Group_ID` at all.
+#   ⛔ **THE DATED FIGURE IS WITHDRAWN: `Jaccard 0.29-0.42 with prec@K
+#   identical, 2026-08-20`.** It is a Jaccard between two sets no run ever
+#   deployed. The tool now prints the withdrawal in its own footer so it
+#   cannot be re-quoted from stale output. ✅ The CHURN MECHANISM stands --
+#   that is a claim about what the metric hides, not a number.
+#   🔑 THE FIX NEEDED NO RECONSTRUCTION, unlike the other eight:
+#   `final_predictions.csv` IS the allocator's output, so the deployed set is
+#   `Predicted_Label == c` exactly -- no sort, no budget arithmetic, nothing
+#   left to get wrong. The global reading is retained in the RIGHT-HAND
+#   columns so old figures reproduce.
+#   ⛔ DO NOT READ THE GAP BETWEEN THE TWO HALVES AS A DIRECTION (2(z64)).
 python -m scripts.headroom <root>           # items from `clip` to a PERFECT allocator,
                                             #   per cell -- the ceiling any arm is chasing
 python -m scripts.paper_rows --cells cells.csv --out paper_rows.csv  # 🛑 THE PAPER ROW,

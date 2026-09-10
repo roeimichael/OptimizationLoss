@@ -4052,7 +4052,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 622 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 624 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -4137,7 +4137,17 @@ resolve to": `launch_margin1.sh` told the operator to run
 grounds that it publishes -- but that branch is not the publish target
 (`headroom/small-cnn` is), so the push would advance a branch nothing reads and
 the `git pull --ff-only` after it would still fetch nothing. Everything the
-script claimed was unpushed is in fact already on the remote. And its
+script claimed was unpushed is in fact already on the remote.
+
+⚠️ **THE BRACKETED HALF OF THAT SENTENCE IS NO LONGER TRUE, AND THE FINDING
+STILL IS (2026-09-10).** The publish target has since moved: verified with
+`git merge-base --is-ancestor`, `origin/cleanup/consolidate-pipeline` carries
+every recent commit and `origin/headroom/small-cnn` is **7 behind**. So today
+the script's push would be right and reading THIS LINE would be the mistake --
+which is the entry's own lesson landing on the entry. The defect being
+described is the launch script's, and it stands; the branch names in it are a
+2026-09-06 snapshot. `docs/MISSION.md` 0-INSTR carries the live one, and it
+prints the command that checks rather than a name to trust. And its
 "if it moves, extend with octmnist" escape route points at a dataset 2(n)
 removed, so the independence it promises cannot be bought.
 
@@ -4216,7 +4226,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 622 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 624 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -4224,7 +4234,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (622 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (624 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -14393,6 +14403,78 @@ It does not verify a single state against `results/`. SSH has been down since 20
 
 ---
 
+## 2(z84). THE NINTH GLOBAL-TOP-K SITE, AND IT IS THE FIRST ONE NOT FOUND BY READING -- `score_scan`'s prec@K AND JACCARD WERE COMPUTED ON A SET NO RUN HAS EVER DEPLOYED (2026-09-10)
+
+Eight sites of this defect had been found, one at a time, by somebody reading code with the question in mind. 2(z80) named the lesson -- *"the audit is per-FILE; the defect is per-CALL SITE"* -- and left the fix as task #114. **The first time the call sites were enumerated mechanically instead of read, a ninth appeared.**
+
+```
+scripts/score_scan.py:206
+    order = np.argsort(-prob[:, c])[:K]
+    topk[c] = set(order.tolist())
+    prec[c] = float((y[order] == c).mean())
+```
+
+The comment directly above it read *"What the cap actually consumes: rank by p_c, take the top K_c."* **The cap does not consume that.** The allocator emits top-`k_g` WITHIN each group, so this is the globally K-th ranked item and the two sets differ. `read()` never loaded `Group_ID` at all, so the tool was structurally blind to groups -- the same shape as `paired_noise` before 2(z63) and `order_probe` before 2(z80).
+
+### 1. ⛔ IT REACHES TWO REPORTED QUANTITIES, AND ONE OF THEM IS A DATED FIGURE THE TOOL PRINTS ITSELF
+
+`topk[c]` is not a diagnostic. It is consumed twice:
+
+* **`prec@K`**, printed per run per class.
+* **`Jaccard vs baseline`**, `|a & b| / |a | b|` between two runs' `topk[c]` sets.
+
+and the tool's own footer carried:
+
+> *"Measured 2026-08-20: Jaccard 0.29-0.42 with prec@K identical to the control on both capped classes."*
+
+⇒ **That figure is WITHDRAWN.** It is a Jaccard between two GLOBAL top-K sets, neither of which any run deployed. The withdrawal is printed at the line, in the tool, so it cannot be quoted again from a stale copy of the output.
+
+✅ **THE CHURN MECHANISM SURVIVES INTACT.** "A low Jaccard with an unchanged prec@K means the run replaced the selected items and gained nothing" is a statement about what the metric can hide. It is not a number, and nothing here touches it.
+
+### 2. THE FIX NEEDED NO RECONSTRUCTION, WHICH IS WORTH NOTING
+
+The other eight fixes rebuilt the cut per group from budgets. This one does not have to: **`final_predictions.csv` IS the allocator's output**, so the deployed set for class `c` is `Predicted_Label == c`, exactly, with no sort and no budget arithmetic. That is stronger than a per-group reconstruction -- there is nothing left to get wrong.
+
+The global reading is retained beside it and printed in the right-hand columns so the old figures reproduce. ⛔ **NEVER read the gap between the halves as a DIRECTION.** 2(z64) is the record of exactly that claim being fixtured, mutation-tested green, and then refuted by the end-to-end run, because the fixture and the claim came out of the same reasoning.
+
+### 3. 🔑 THE REGISTRY, AND WHY IT IS A CLASSIFICATION AND NOT A DETECTOR
+
+`tests/test_lessons_learned.py::test_every_sort_on_scores_is_classified_per_CALL_SITE`. It AST-walks `scripts/ src/ configs/` for `argsort` / `argpartition` / `topk` / `nlargest` and requires **every one of the 40 call sites** to carry a verdict and a reason.
+
+⚠️ **IT DOES NOT TRY TO DECIDE WHETHER A SITE IS CORRECT.** It cannot, and guessing is precisely how 2(z64) produced a green mutation-tested wrong answer. It requires that somebody has LOOKED. Not noticing is what it prevents; judging is still a person's job.
+
+The key is `module::function::<the sorted expression>`, not a line number -- so the registry survives edits above it, and **changing what is sorted turns the gate red**, which is the case that matters.
+
+Six verdicts, and the two middle ones are the ones a naive audit would have got wrong:
+
+| verdict | count | meaning |
+|---|---|---|
+| `DEPLOYED` | 13 | cuts per group, or uses the allocator's own selection |
+| `NOT-A-CUT` | 9 | no budget involved -- rank correlation, kNN, a surrogate loss |
+| `GLOBAL-KEPT` | 8 | a global reading retained ON PURPOSE beside a correct one |
+| `SELF-TEST` | 6 | inside a `--self-test` fixture |
+| `GREEDY-ROOM` | 2 | global ORDER, but every take gated on that group's room |
+| `GLOBAL-OPEN` | 2 | known-wrong, disclosed, not yet fixed (`order_probe --evictions`) |
+
+(40 total. Counted from the registry, not from memory -- the first draft of
+this table said 16/9/8/5 and summed to 42, which is two sites that do not
+exist. The registry is machine-readable precisely so a count never has to be
+recalled.)
+
+🔑 **`GREEDY-ROOM` IS THE CATEGORY THAT DID NOT EXIST BEFORE THIS ENUMERATION, AND IT IS NOT A DEFECT.** `score_arm.equalize` and `heuristic.apply_allocation_heuristic` both sort GLOBALLY and then skip any item whose group has no room -- filling to exactly K in global order under per-group ceilings. That is a third rule, distinct from both "global top-K" and "per-group top-k", and it is the post-hoc clipper's own rule. A pattern-matching audit that flagged every unindexed `argsort` would have called the ALLOCATOR ITSELF a bug.
+
+⚠️ **AND `_fallback_lp::argsort(-y_proba[not_c, c])` IS GLOBAL AND RIGHT.** It serves the GLOBAL scope, which is one budget over all items, so a global sort is the correct rule there. "Indexed by a subset" is a heuristic for per-group-ness, not a definition.
+
+Mutation-tested **3/3**: a new unclassified cut, a changed sorted expression under an existing key, and a registry entry naming a site that no longer exists all turn it red. The ROT branch matters as much as the new-site branch -- an exemption list that can hold dead entries is a place things hide.
+
+### 4. WHAT THIS DOES NOT CLOSE
+
+* `order_probe --evictions` is still `GLOBAL-OPEN`. It is now named in a registry rather than in a paragraph, which is the only change.
+* The gate covers `scripts/ src/ configs/`. A sort in a notebook, in `docs/paper/scripts/`, or on the unmerged server branch `snap/slice-provenance` is outside it -- and that branch is exactly where `ens_panel` and `tralo_snap` live (2(z67), task #103). **Run this gate against that branch before scoring anything from `snap2`.**
+* Nine sites in one repo is not a run of bad luck. The rule that would have prevented all nine is one line: **a tool that locates a cut must read `Group_ID`, or refuse.** Three tools now refuse; the registry is how the rest get asked.
+
+---
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, LAST UPDATED 2026-09-10 -- read this before section 3's older text**
@@ -15754,7 +15836,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             622 tests, ~200 s, no dataset required
+tests/             624 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

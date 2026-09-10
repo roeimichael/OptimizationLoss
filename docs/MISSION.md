@@ -262,7 +262,7 @@ been exercised and two claims were wrong.
 
 ### The `argsort` audit -- what does a tool sort probabilities WITHIN?
 
-🛑 **RECOUNTED 2026-09-10: EIGHT SITES, NOT SIX, AND THE AUDIT ITSELF WAS THE
+🛑 **RECOUNTED 2026-09-10: NINE SITES, NOT SIX, AND THE AUDIT ITSELF WAS THE
 REASON (2(z80)).** The version below reads "six files sort probabilities" and
 that is the wrong unit -- **the audit is per-FILE and the defect is per-CALL
 SITE**. `order_probe.py` holds SIX `argsort` calls and carries TWO separate
@@ -274,6 +274,23 @@ instances; the audit listed four of the six and cleared them in one verdict.
 | 2-6 | task window, cap screen, fmow window, `paired_noise`, `cut_gap` | 09-01 .. 09-09 | ✅ fixed |
 | 7 | `step_direction_probe` | 2026-09-10 | ✅ fixed |
 | 8 | `order_probe` band + Jaccard | 2026-09-10 | ✅ fixed |
+| 9 | **`score_scan` prec@K + Jaccard** | 2026-09-10 | ✅ fixed, **figure WITHDRAWN** |
+
+✅ **AND #114 IS DONE, WHICH IS HOW #9 WAS FOUND.**
+`tests/test_lessons_learned.py::test_every_sort_on_scores_is_classified_per_CALL_SITE`
+AST-walks `scripts/ src/ configs/` and requires all **40** sort-on-scores call
+sites to carry a verdict and a reason, keyed by the sorted EXPRESSION so that
+changing what is sorted turns it red. **Site 9 appeared the first time the
+sites were enumerated mechanically rather than read** -- and its `prec@K` and
+`Jaccard` had been computed on a globally-ranked set no run ever deployed,
+including the dated `Jaccard 0.29-0.42` the tool printed in its own footer.
+Mutation-tested 3/3. FRAMEWORK 2(z84).
+
+🔑 **THE ENUMERATION ALSO FOUND A CATEGORY NOBODY HAD NAMED: `GREEDY-ROOM`.**
+`score_arm.equalize` and the allocator itself sort GLOBALLY and then skip any
+item whose group is full -- a third rule, neither global top-K nor per-group
+top-k, and the post-hoc clipper's own. A pattern-match that flagged every
+unindexed `argsort` would have called the allocator a bug.
 
 Site 8 had a THIRD defect in the same expression, larger than the group one:
 `K` came from `budget_for` on `final_predictions_raw.csv`, which holds the
@@ -378,15 +395,26 @@ for h in dsisco01 dsisco02; do echo "== $h"; ssh $h   'ps -u michaer8 -o pid,eti
 # 2. DEPLOY THE CORRECTED SCORERS. `scripts/` is outside TRAINING_PATHS, so
 #    this does NOT flip `-dirty` and does NOT move HEAD. Never `git pull` a
 #    pinned campaign tree.
-cd ~/OptimizationLoss && git fetch origin headroom/small-cnn
-for f in paired_noise cut_gap cell_table deployed_h2h capped_classes          deep_scope latch_probe step_direction_probe task_window          arm_identity_check order_probe headroom; do
-  git show origin/headroom/small-cnn:scripts/$f.py > /tmp/$f.py
+#
+# !! THE BRANCH IN THIS BLOCK WAS `headroom/small-cnn` UNTIL 2026-09-10 AND
+#    THAT IS 7 COMMITS STALE. Verified with `git merge-base --is-ancestor`:
+#    every 2026-09-09/10 scorer fix -- order_probe's per-group band,
+#    step_direction_probe's cut, score_scan's prec@K -- is on
+#    `cleanup/consolidate-pipeline` and NOT on headroom. Running the old block
+#    would have copied superseded scorers into all fourteen worktrees and left
+#    every self-test green. CONFIRM THE TARGET BEFORE DEPLOYING, do not trust
+#    this line either:
+#      git rev-list --count origin/headroom/small-cnn..origin/cleanup/consolidate-pipeline
+BR=origin/cleanup/consolidate-pipeline
+cd ~/OptimizationLoss && git fetch origin cleanup/consolidate-pipeline
+for f in paired_noise cut_gap cell_table deployed_h2h capped_classes          deep_scope latch_probe step_direction_probe task_window          arm_identity_check order_probe headroom score_scan campaign_state          stale_provenance; do
+  git show $BR:scripts/$f.py > /tmp/$f.py
   for wt in $(git worktree list --porcelain | awk '/^worktree /{print $2}'); do
     [ -d "$wt/scripts" ] && cp /tmp/$f.py "$wt/scripts/$f.py"
   done
 done
 # then, in ONE worktree, prove they still run there:
-python -m scripts.cut_gap --self-test && python -m scripts.capped_classes --self-test   && python -m scripts.paired_noise --self-test && python -m scripts.order_probe --self-test
+python -m scripts.cut_gap --self-test && python -m scripts.capped_classes --self-test   && python -m scripts.paired_noise --self-test && python -m scripts.order_probe --self-test   && python -m scripts.campaign_state --self-test
 
 # 3. THE MEASUREMENT THAT IS ACTUALLY OWED (#100). Read `slope_max`.
 python -m scripts.cut_gap results/dom1 results/dom1b results/equaldose1                           results/loose1 results/taskwin2

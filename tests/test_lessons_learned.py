@@ -2416,3 +2416,254 @@ def test_the_campaign_state_audit_actually_detects_an_orphan():
         assert "qqq9" not in flagged
     finally:
         shutil.rmtree(root, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
+# LESSON 33 (2026-09-10): THE argsort AUDIT IS PER-FILE AND THE DEFECT IS PER
+# CALL SITE.
+#
+# The allocator emits top-`k_g` WITHIN each group. A tool that rebuilds the
+# cut with `argsort(-p)[:K]` reads the GLOBALLY K-th item instead, and the two
+# sets differ. NINE sites have now been found, one at a time, by hand:
+#
+#   1 order_probe --evictions (2026-08-28, DISCLOSED not fixed)
+#   2 the task window        2(z16)
+#   3 the cap screen         2(z28)
+#   4 the fmow window        2(z59)
+#   5 paired_noise           2(z63)
+#   6 cut_gap                2(z64)
+#   7 step_direction_probe   2(z79)
+#   8 order_probe band+Jaccard 2(z80)
+#   9 score_scan prec@K+Jaccard 2(z84)  <- found BY THIS GATE'S ENUMERATION
+#
+# 2(z80) is the lesson: the audit walked FILES and cleared `order_probe` while
+# listing only one of its two sites. #9 was found the first time the sites
+# were enumerated mechanically instead of read.
+#
+# So this gate does not try to judge whether a site is correct -- it cannot,
+# and guessing is how 2(z64) got a fixtured, mutation-tested, WRONG direction.
+# It requires every site to be CLASSIFIED, and turns red on any site that is
+# new or whose sorted expression changed. Classifying is the human's job; not
+# noticing is what this prevents.
+# ---------------------------------------------------------------------------
+
+SORTS = ("argsort", "argpartition", "topk", "nlargest")
+
+# Verdicts, and each is a claim somebody checked:
+#   DEPLOYED    cuts per group, or uses the allocator's own selection
+#   GREEDY-ROOM global ORDER, but every take is gated on that group's room --
+#               a different rule from per-group top-k and NOT a naive global K
+#   GLOBAL-KEPT a global reading retained ON PURPOSE beside a correct one, so
+#               an old figure reproduces. Never to be read as a direction
+#   GLOBAL-OPEN a known-wrong global reading that is disclosed, not yet fixed
+#   NOT-A-CUT   no budget is involved -- rank correlation, kNN, a surrogate
+#               loss, fixture construction
+#   SELF-TEST   inside a --self-test fixture
+ARGSORT_SITES = {
+    "scripts/bias_shift_probe.py::kendall_tau::argsort(-a)":
+        "NOT-A-CUT rank correlation, pure algebra, no budget",
+    "scripts/bias_shift_probe.py::run::argsort(-z0)":
+        "NOT-A-CUT compares two orderings; no K anywhere",
+    "scripts/bias_shift_probe.py::run::argsort(-z1)":
+        "NOT-A-CUT the other half of the same comparison",
+    "scripts/cut_gap.py::measure::argsort(-P[:, cls])":
+        "GLOBAL-KEPT p_K_glob, retained so the docstring table reproduces; "
+        "p_K itself is per-group and budget-weighted (2(z64))",
+    "scripts/frozen_head_probe.py::_cut::topk(K)":
+        "NOT-A-CUT surrogate loss on a frozen head; no allocator",
+    "scripts/frozen_head_probe.py::_matroid_topk::topk(K)":
+        "DEPLOYED the global stage runs AFTER the per-group mask, and the "
+        "-inf survivors are trimmed; gated by the polytope-vs-greedy test",
+    "scripts/frozen_head_probe.py::_matroid_topk::topk(cap)":
+        "DEPLOYED explicitly `for idx, cap in zip(group_idx_list, group_caps)`",
+    "scripts/frozen_head_probe.py::make_synthetic::argsort(capped_mass[pool])":
+        "NOT-A-CUT builds the synthetic fixture",
+    "scripts/frozen_head_probe.py::pauc_loss::topk(m)":
+        "NOT-A-CUT pAUC surrogate",
+    "scripts/graph_probe.py::knn_affinity::argpartition(-S)":
+        "NOT-A-CUT picks kNN neighbours, not a budget",
+    "scripts/graph_probe.py::prec_at_K::argsort(-col)":
+        "SELF-TEST synthetic two-class fixture with no groups at all",
+    "scripts/order_probe.py::band_per_group::argsort(-p[where])":
+        "DEPLOYED the 2(z80) fix -- sorts within one group's members",
+    "scripts/order_probe.py::evictions::argsort(-a[col].to_numpy())":
+        "GLOBAL-OPEN site 1, DISCLOSED 2026-08-28 and still not fixed",
+    "scripts/order_probe.py::evictions::argsort(-pn)":
+        "GLOBAL-OPEN the null half of the same disclosed site",
+    "scripts/order_probe.py::main::argsort(-pa)":
+        "GLOBAL-KEPT the retained band_glob reading, printed beside the "
+        "per-group one with its band size (2(z80))",
+    "scripts/order_probe.py::main::argsort(-pn)":
+        "GLOBAL-KEPT as above, the null arm",
+    "scripts/order_probe.py::main::argsort(-pn)#2":
+        "GLOBAL-KEPT as above, second use in the same function",
+    "scripts/order_probe.py::main::argsort(-pr)":
+        "GLOBAL-KEPT as above, the reseed arm",
+    "scripts/order_probe.py::self_test::argsort(-pg)":
+        "SELF-TEST two-group fixture",
+    "scripts/order_probe.py::self_test::argsort(-pg)#2":
+        "SELF-TEST the negative control on the same fixture",
+    "scripts/paired_noise.py::load_arm::argsort(-p[idx])":
+        "DEPLOYED the 2(z63) fix -- `idx` is one group's members",
+    "scripts/reachability.py::concentration::argsort(np.abs(m))":
+        "NOT-A-CUT sorts gradient magnitudes, no budget",
+    "scripts/score_arm.py::equalize::argsort(-y_proba[:, cls])":
+        "GREEDY-ROOM fills to exactly K in global order but SKIPS any item "
+        "whose group has no room left, which is the post-hoc clipper's own "
+        "rule. Not the per-group top-k rule, and deliberately so -- this is "
+        "what makes full_panel allocator-blind",
+    "scripts/score_scan.py::main::argsort(-prob[:, c])":
+        "GLOBAL-KEPT site 9 (2(z84)): this WAS the primary reading and its "
+        "prec@K and Jaccard were computed on a set no run deployed. The "
+        "deployed reading is now `pa == c`, exact, and this is retained "
+        "beside it so the old figures reproduce",
+    "scripts/step_direction_probe.py::cut_band::argsort(-z)":
+        "GLOBAL-KEPT the retained reading from the 2(z79) fix",
+    "scripts/step_direction_probe.py::cut_band::argsort(-z[where])":
+        "DEPLOYED the 2(z79) fix -- one group's members",
+    "scripts/step_direction_probe.py::self_test::argsort(-z3)":
+        "SELF-TEST fixture",
+    "scripts/step_direction_probe.py::self_test::argsort(-zA)":
+        "SELF-TEST fixture",
+    "scripts/step_direction_probe.py::self_test::argsort(-zz)":
+        "SELF-TEST fixture",
+    "scripts/task_window.py::select_local::argsort(-pr[m])":
+        "DEPLOYED the 2(z16) fix -- `m` masks one group",
+    "scripts/task_window.py::sweep::argsort(-pr)":
+        "GLOBAL-KEPT labelled `GLOBAL top-K (diagnostic only)` in the source, "
+        "printed beside the per-group `select_local` result",
+    "src/losses/transductive_loss.py::margins::topk(proba)":
+        "NOT-A-CUT the differentiable soft count; the loss has no allocator",
+    "src/methodologies/heuristic/train.py::apply_allocation_heuristic::argsort(flat)":
+        "GREEDY-ROOM THE ALLOCATOR ITSELF. Global order over (item, class) "
+        "pairs, every take gated on `_has_room(groups[idx], ci)`",
+    "src/methodologies/heuristic/train.py::apply_allocation_heuristic::"
+    "argsort(probs[candidates, class_idx])":
+        "DEPLOYED sorts within the unassigned candidates, room-gated",
+    "src/utils/posthoc_adjustment.py::_fallback_lp::argsort(-y_proba[g_not_c, c])":
+        "DEPLOYED `g_not_c` is one group's non-c items",
+    "src/utils/posthoc_adjustment.py::_fallback_lp::argsort(-y_proba[not_c, c])":
+        "DEPLOYED the GLOBAL scope's own fallback, which is global by "
+        "definition -- the global cap is a single budget over all items",
+    "src/utils/posthoc_adjustment.py::targeted_correction::argsort(-y_proba[candidates, c])":
+        "DEPLOYED sorts within the candidate subset",
+    "src/utils/posthoc_adjustment.py::targeted_correction::argsort(-y_proba[local_not_c, c])":
+        "DEPLOYED `local_not_c` is one group's non-c items",
+    "src/utils/posthoc_adjustment.py::targeted_correction::argsort(y_proba[indices, c])":
+        "DEPLOYED sorts within the passed index subset",
+    "src/utils/posthoc_adjustment.py::targeted_correction::argsort(y_proba[local_c, c])":
+        "DEPLOYED `local_c` is one group's c-labelled items",
+}
+
+
+def _sort_call_sites(root):
+    """Every sort-on-scores CALL SITE, keyed by module + function + expression.
+
+    Keyed by the sorted EXPRESSION rather than the line number, so the registry
+    survives edits above it -- and so changing what is sorted turns the gate
+    red, which is the case that matters.
+    """
+    out = []
+    for base in ("scripts", "src", "configs"):
+        for dirpath, _dirs, files in os.walk(os.path.join(root, base)):
+            if "__pycache__" in dirpath:
+                continue
+            for f in sorted(files):
+                if not f.endswith(".py"):
+                    continue
+                p = os.path.join(dirpath, f)
+                rel = os.path.relpath(p, root).replace("\\", "/")
+                try:
+                    tree = ast.parse(io.open(p, encoding="utf-8").read())
+                except SyntaxError:
+                    continue
+                stack, found = [], []
+
+                class V(ast.NodeVisitor):
+                    def visit_FunctionDef(self, n):
+                        stack.append(n.name)
+                        self.generic_visit(n)
+                        stack.pop()
+                    visit_AsyncFunctionDef = visit_FunctionDef
+
+                    def visit_Call(self, n):
+                        nm = (getattr(n.func, "attr", None)
+                              or getattr(n.func, "id", None))
+                        if nm in SORTS:
+                            try:
+                                a = ast.unparse(n.args[0]) if n.args else "-"
+                            except Exception:
+                                a = "-"
+                            found.append((stack[-1] if stack else "<module>",
+                                          nm, a[:44]))
+                        self.generic_visit(n)
+
+                V().visit(tree)
+                seen = {}
+                for fn, nm, a in found:
+                    k = "%s::%s::%s(%s)" % (rel, fn, nm, a)
+                    seen[k] = seen.get(k, 0) + 1
+                    out.append(k if seen[k] == 1 else "%s#%d" % (k, seen[k]))
+    return sorted(out)
+
+
+def test_every_sort_on_scores_is_classified_per_CALL_SITE():
+    """2026-09-10: the audit was per-FILE and cleared a file half-read (2(z80))."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    found = set(_sort_call_sites(root))
+    known = set(ARGSORT_SITES)
+
+    new = sorted(found - known)
+    assert not new, (
+        "%d sort-on-scores call site(s) are not classified:\n  %s\n\n"
+        "The allocator emits top-k_g WITHIN each group, so `argsort(-p)[:K]` "
+        "reads a different set. NINE sites have carried that defect. Add each "
+        "to ARGSORT_SITES with one of DEPLOYED / GREEDY-ROOM / GLOBAL-KEPT / "
+        "GLOBAL-OPEN / NOT-A-CUT / SELF-TEST and a reason somebody checked."
+        % (len(new), "\n  ".join(new)))
+
+    # ROT: a registry entry for a site that no longer exists is a stale claim,
+    # and it is how an exemption list becomes a place things hide.
+    gone = sorted(known - found)
+    assert not gone, (
+        "ARGSORT_SITES names %d call site(s) that no longer exist:\n  %s\n"
+        "Delete them, or the registry is describing code that is gone."
+        % (len(gone), "\n  ".join(gone)))
+
+
+def test_the_call_site_registry_would_have_caught_the_2026_09_10_defect():
+    """2026-09-10: the negative control -- a new global cut must turn it red."""
+    import shutil
+
+    root = tempfile.mkdtemp()
+    try:
+        os.makedirs(os.path.join(root, "scripts"))
+        io.open(os.path.join(root, "scripts", "newtool.py"), "w",
+                encoding="utf-8").write(
+            "import numpy as np\n\n\n"
+            "def measure(prob, c, K):\n"
+            "    return np.argsort(-prob[:, c])[:K]\n")
+        found = _sort_call_sites(root)
+        assert found == ["scripts/newtool.py::measure::argsort(-prob[:, c])"], found
+        assert set(found) - set(ARGSORT_SITES) == set(found), (
+            "a brand-new tool's cut must be UNCLASSIFIED, i.e. must turn the "
+            "gate red until somebody writes down what it does")
+
+        # NEGATIVE CONTROL: renaming the sorted expression must change the key,
+        # because that is exactly the edit that silently changes what is cut.
+        io.open(os.path.join(root, "scripts", "newtool.py"), "w",
+                encoding="utf-8").write(
+            "import numpy as np\n\n\n"
+            "def measure(prob, c, K, where):\n"
+            "    return np.argsort(-prob[where, c])[:K]\n")
+        assert _sort_call_sites(root) == [
+            "scripts/newtool.py::measure::argsort(-prob[where, c])"], (
+            "the key must follow the EXPRESSION, not the line")
+
+        # NEGATIVE CONTROL: a file with no sort at all yields nothing, so the
+        # gate cannot pass by finding zero sites everywhere.
+        io.open(os.path.join(root, "scripts", "newtool.py"), "w",
+                encoding="utf-8").write("def measure():\n    return 1\n")
+        assert _sort_call_sites(root) == []
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
