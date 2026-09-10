@@ -1651,10 +1651,33 @@ python -m scripts.hp_liveness_real           # `hp_liveness` answers "which knob
                                              #   never engages. So the magnitude
                                              #   knobs SHOULD read INERT, which
                                              #   is what the per-knob table
-                                             #   decides. ⚠️ The per-knob
-                                             #   verdicts are still RUNNING;
-                                             #   `CLIP BINDS: YES` is the only
-                                             #   part quotable today.
+                                             #   decides. ⛔ **AND ALL NINE
+                                             #   CAME BACK `LIVE`, WHICH IS THE
+                                             #   SIDE md5 CANNOT SPEAK ON.**
+                                             #   The tool's own footer gives
+                                             #   the valid direction --
+                                             #   identical hash = no effect --
+                                             #   and the converse is 2(x2)'s
+                                             #   trap exactly: `logit_adjust`
+                                             #   is algebraically plain CE and
+                                             #   still differs in 24/24. So the
+                                             #   run closed ZERO directions and
+                                             #   the knob sweep is still
+                                             #   unjustified; clear a magnitude
+                                             #   knob at the GRADIENT level,
+                                             #   not the prediction level.
+                                             #   🔑 The two columns that ARE
+                                             #   measurements: `rho_target`
+                                             #   100->10 drops max|g| 2157 ->
+                                             #   143.1 and `lambda_step` raises
+                                             #   it to 8724, yet the clip binds
+                                             #   5/5 in EIGHT of nine, so all
+                                             #   of them deliver the identical
+                                             #   step size and only the
+                                             #   DIRECTION can differ.
+                                             #   `lr_constraint x10` is the
+                                             #   lone exception at 4/5.
+                                             #   FRAMEWORK 2(z89).
                                              #   So the liveness of the ONE scalar
                                              #   `normalize` does not cancel is itself
                                              #   unmeasured. Since the determinism fix

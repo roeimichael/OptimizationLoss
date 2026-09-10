@@ -1347,15 +1347,21 @@ COMPLETE
   coin2        48/48     seed58a      40/40     taskwin2     48/48
   vitdual1     37/37     bcnpilot1    16/16     bcnpilot2    16/16
   fmowpilot1   16/16     fmowpilot2   32/32
-RUNNING   (counts re-checked 2026-09-10 ~17:50)
-  price1       39/80     dsisco01 GPU 0, RELAUNCHED 15:11
-  price2       16/80     dsisco01 GPU 1, RELAUNCHED 15:11
+RUNNING   (counts re-checked 2026-09-10 ~19:10)
+  price1       41/80     dsisco01 GPU 0, RELAUNCHED 15:11
+  price2       18/80     dsisco01 GPU 1, RELAUNCHED 15:11
+  fmowpilot3    0/16     dsisco02 GPU 2, LAUNCHED 19:08 by queue q02_newunits
+QUEUED    (armed 19:07, each waiting for its gpu -- holding nothing)
+  fmowpilot4    0/16     dsisco02 GPU 2, after fmowpilot3
+  bcnpilot3     0/16     dsisco02 GPU 2, after fmowpilot4
+  bcnpilot4     0/16     dsisco02 GPU 2, after bcnpilot3
+  vitdual2     58/88     dsisco01 GPU 0, 30 pending, after price1
+  vitcoin1     16/17     dsisco01 GPU 0, 1 pending, after vitdual2
+  vitseed1     22/40     dsisco01 GPU 1, 18 pending, after price2
 COMPLETE SINCE THE 15:04 CENSUS
   fmow1       304/304    dsisco02 GPU 2 -- SCORED, 0 of 4. FRAMEWORK 2(z88)
-STALLED, no process behind the `running` status
-  vitdual2     58/88     29 pending. THE FOUR-DUAL HEAD-TO-HEAD, headline backbone
-  vitseed1     22/40     17 pending. Floor-only, no dual arms
-  vitcoin1     16/17     1 pending
+WAS STALLED, NOW QUEUED (see QUEUED above; their stale `running` rows were
+corrected 19:05, so the pending counts each rose by one)
 QUARANTINED
   vittask1     13/14     1 crashed; scorable=False anyway
 ```
@@ -1376,6 +1382,72 @@ runs between them. `campaign_state` audits doc-names against recorded states; it
 cannot audit the other direction, because it never reads `results/`. **That is
 the next widening**, and it is the same per-SPELLING/per-QUESTION lesson as
 2(z85): a gate answers only for the direction it was pointed in.
+
+### 🟢 THE QUEUE, ARMED 2026-09-10 19:07 -- 111 RUNS ACROSS 3 DATASETS AND 4 BACKBONES
+
+`~/queue_runner.sh` (on BOTH hosts) runs a LIST of campaigns back to back on
+ONE gpu, waiting for that gpu to free before each. Three runners are armed and
+every one of them is currently WAITING rather than holding anything:
+
+| runner | host / gpu | frees when | campaigns |
+|---|---|---|---|
+| `q01a_iwildcam_vit` | dsisco01 GPU 0 | `price1` ends | `vitdual2` (30) -> `vitcoin1` (1) |
+| `q01b_iwildcam_seed` | dsisco01 GPU 1 | `price2` ends | `vitseed1` (18) |
+| `q02_newunits` | dsisco02 GPU 2 | **RUNNING NOW** | `fmowpilot3` -> `fmowpilot4` -> `bcnpilot3` -> `bcnpilot4` (16 each) |
+
+🔑 **THE FOUR PILOTS BUY FOUR NEW UNITS, WHICH IS THE ONLY AXIS A p-VALUE MAY
+GO OVER.** Measured task windows exist for iwildcam x4 backbones, fmow x2 and
+bcn x2; the four missing pairs -- **fmow x MobileNetV2, fmow x RegNetY400MF,
+bcn x MobileNetV2, bcn x RegNetY400MF** -- have no window, and `gen_campaign`
+refuses a cap outside one. Each pilot is `clip` + `focal_clip` at two caps over
+4 seeds, whose ONLY job is to give `task_window` a finished unconstrained
+model. Same shape as `bcnpilot1/2` and `fmowpilot1/2`. Ledger 8 -> 12 moves the
+attainable sign floor from 0.5^8 to 0.5^12. Task #124.
+
+⛔ **THEY ARE ON dsisco02/bf16 DELIBERATELY**, matching `bcn1mn3` and `fmow1`.
+The host is part of the unit and nothing in `config.json` records it, so
+putting bcn x MNv2 on fp16 beside bcn x MNv3 on bf16 would have made the two
+non-comparable for free.
+
+⚠️ **THE PILOTS ARE `--allow-nontask` BY NECESSITY, AND THAT IS THE ONE
+LEGITIMATE USE OF THAT FLAG**: you cannot place a cap inside a window you have
+not measured yet. Nothing about method comparison may be read off a pilot --
+they carry no trained arm at all.
+
+🛑 **ITS FIRST LAUNCH TRAINED ON THE CPU AND NOTHING RAISED (2(z90)).**
+`conda activate` did not survive into the detached shell, the child came up as
+base python whose torch is CPU-only, and fmow x MobileNetV2 ran at 120 cores
+with GPU 2 at 0% / 3 MiB. The campaign wrote `status: running` throughout. It
+is a REPEAT of a row already in `rig_status`'s docstring -- a check that lives
+in a tool somebody has to remember to run is not a gate. The runner now
+activates the env itself by absolute path and calls `assert_gpu_ready` before
+every claim; that CPU run's log was deleted and its config reset to `pending`.
+
+**The runner's own gates, each a failure this project already paid for**, and
+every one shown to FAIL on a fixture before it was trusted:
+python outside the env -> ABORT (exit 4); torch with no visible cuda device ->
+ABORT (exit 4);
+foreign user on the gpu -> ABORT the whole queue (never share, never queue
+behind); missing root -> SKIP; 0 pending -> SKIP; more than one
+`code_version` in a campaign -> SKIP (the tree moved under a staged campaign);
+`data_present` RED -> SKIP (a fresh worktree passes every launch gate and then
+fails 24 runs in 120 seconds on a gitignored `.npy`). A sixth control confirms
+a single-stamp campaign is NOT skipped, so the stamp check is not vacuous.
+
+🔑 **`~/optloss-queue` IS A NEW WORKTREE PINNED DETACHED AT `5a9e2d7f`** with
+all three datasets symlinked at their REAL locations in `~/optloss-audit`
+(never worktree-to-worktree, which builds a chain). All four pilots are a
+single stamp `5a9e2d7f337e` and all four passed `--step verify` GREEN.
+
+⚠️ **TWO STALE `running` STATUSES WERE CORRECTED FIRST.** `vitdual2` and
+`vitseed1` each carried a run marked `running` with no process behind it --
+verified by checking `/proc/<pid>/cwd` of every live `main.py`, both of which
+are `price1`/`price2` in `~/optloss-price`. `quarantine --apply --execute`
+moved them `running -> crashed` (2 corrections, 0 markers, 0 removals), and
+`reset_crashed` then reset **0** -- correctly, because it requires an
+`error_log*.json` and a killed dispatcher leaves none. They were set to
+`pending` directly after confirming each directory held only a partial
+`training_log.csv`: no predictions, no model.
 
 ### 🔴 WHAT THE STALLED ONES OWE, AND WHY `vitdual2` IS THE ONE THAT MATTERS
 

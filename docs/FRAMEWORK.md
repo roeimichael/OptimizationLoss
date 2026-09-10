@@ -16553,3 +16553,198 @@ the record is 1-1.
 are what the free dsisco02 GPU should be earning, not another grid of the arm
 that just lost its cleanest test.
 
+
+---
+
+## 2(z89). `hp_liveness_real` RAN FOR THE FIRST TIME. ITS PREMISE IS CONFIRMED (THE CLIP BINDS 5/5, max|g| = 2157) AND ITS CONCLUSION IS NOT REACHABLE: ALL NINE KNOBS READ `LIVE`, AND `LIVE` IS THE SIDE THIS INSTRUMENT CANNOT SPEAK ON (2026-09-10)
+
+**THE ONE-LINE VERSION.** The tool had existed unrun -- CLAUDE.md said so in as
+many words. Run on a real ViTB16
+(`fmow1`/L30_G95/`tralo`/seed_1, dsisco02 GPU 2, 5 constraint epochs per
+variant): **the clip binds in 5 of 5 epochs against a raw gradient norm of
+2157**, three orders above the smoke net where it never engages. That half of
+the prediction is now MEASURED and it holds. **The other half is refuted in
+form and unreachable in substance: all nine knobs came back `LIVE`, and a
+`LIVE` verdict from an md5 comparison means "not proven inert", never "proven
+to matter" (2(x2)).**
+
+### 1. The table
+
+```
+baseline md5=227483a58cb5  max|g|=2157  clip bound 5/5 epochs  sat_ever=1  hard=354
+CLIP BINDS: YES
+
+knob moved                   md5            max |g|     clip bnd  sat  verdict
+lambda_g+l x10 (uniform)     959fbe9e868a   2809        5/5       1    LIVE
+lambda_local x10 (mix)       80e580199532   2809        5/5       1    LIVE
+lambda_global x10 (mix)      907dc13b7b30   2758        5/5       1    LIVE
+lambda_step 0.05->0.5        eb33f53ee3ba   8724        5/5       1    LIVE
+initial_rho 0.5->3.0         d2084641d93d   1489        5/5       1    LIVE
+rho_target 100->10           242324a8206a    143.1      5/5       1    LIVE
+grad_clip 1.0->3.0           069d36c431f5   1622        5/5       1    LIVE
+grad_clip 1.0->0.3           e7afa087a7a3   1990        5/5       1    LIVE
+lr_constraint x10            b0684a9cbe17    151.6      4/5       1    LIVE
+```
+
+### 2. ⛔ WHAT `LIVE` DOES NOT MEAN, AND THE TOOL'S OWN FOOTER SAYS SO
+
+The footer states the valid direction: *"an identical hash is not 'a small
+effect'. It is no effect."* That is the ONE side md5 can decide. **The converse
+is exactly the trap 2(x2) is written about:** `logit_adjust` on iwildcam is
+mathematically plain CE -- a constant added to every logit, and `log_softmax` is
+shift-invariant -- yet its predictions differ from `clip` in **24 of 24**,
+because the constant moves float rounding by ~1e-9 and 30 epochs compound it.
+
+Every variant here perturbs a scalar that enters the same arithmetic. So
+`9 of 9 LIVE` is **consistent with all nine being algebraically cancelled**, and
+this run therefore closed **zero** directions. That is a real outcome for a
+screening tool -- it can only close -- but it must never be written up as
+"the knobs matter".
+
+⇒ **The knob sweep it was built to justify is still unjustified.** To clear a
+magnitude knob the comparison has to be at the GRADIENT level against the same
+state, the way 2(x2) cleared `cb_lp`/`la_lp` (`max|g_v - g_ce|` = 9.3e-10), not
+at the prediction level.
+
+### 3. 🔑 THE TWO COLUMNS THAT ARE REAL MEASUREMENTS
+
+`max|g|` and `clip bnd` are read off the run, not inferred from a hash, and
+they do not depend on the md5 question at all:
+
+* **`rho_target` 100 -> 10 drops the raw norm 2157 -> 143.1, a 15x fall**, and
+  `lambda_step` 0.05 -> 0.5 raises it to **8724**. The knobs really do move the
+  gradient the constraint produces.
+* ⛔ **AND UNDER `normalize` THAT BUYS NOTHING, WHICH IS THE POINT.** The
+  delivered step has norm exactly `lr*clip` wherever the raw norm is >= the
+  clip, and the clip binds **5/5 in eight of the nine variants**. So a 15x and a
+  4x change in the raw norm both deliver *the identical step size*. Only the
+  DIRECTION can differ -- which is 2(z49) and 2(z54) restated, now with the
+  raw norms measured on the headline backbone rather than argued.
+* 🔑 **ONE ROW BREAKS THAT AND IT IS THE INFORMATIVE ONE.** `lr_constraint x10`
+  binds **4 of 5** epochs at max|g| = 151.6. In the fifth epoch the raw norm
+  fell below the clip, so the delivered step was genuinely SMALLER than
+  `lr*clip`. That is the only variant in the table whose delivered magnitude
+  demonstrably differs from the baseline's, and it is a knob nobody proposed
+  sweeping.
+
+### 4. ⚠️ Scope
+
+n = 1 per setting, 5 constraint epochs, ONE cell
+(`fmow1`/ViTB16/L30_G95/seed_1). The determinism fix is what makes n=1 legal --
+three identical runs give one md5 -- but it makes n=1 legal only for the
+INERT verdict. Nothing here is a statement about a campaign at 29 epochs.
+
+⚠️ The base run is on **fmow**, not iwildcam, because it had to be a COMPLETE
+unquarantined campaign on the headline backbone and `vitdual2` is unfinished.
+`CLIP BINDS: YES` is a statement about ViTB16 on fmow; iwildcam is unmeasured
+and the smoke net is known not to transfer.
+
+
+---
+
+## 2(z90). THE QUEUE'S FIRST LAUNCH TRAINED ON THE CPU, AND THE FAILURE WAS ALREADY WRITTEN DOWN -- IN THE DOCSTRING OF A TOOL NOBODY RUNS AT LAUNCH TIME (2026-09-10)
+
+**THE ONE-LINE VERSION.** A detached queue runner was launched after
+`conda activate optloss` in the ssh shell. The activation did not survive into
+the detached shell: the child came up as `~/anaconda3/bin/python` -- **base,
+whose torch is CPU-only** -- and trained fmow x MobileNetV2 **on the CPU at 120
+cores while GPU 2 sat at 0% / 3 MiB with zero nvidia fds on the process**.
+Nothing raised. The campaign wrote `status: running` and would have produced a
+full, plausible set of numbers.
+
+### 1. It is a REPEAT, and that is the actual finding
+
+`rig_status`'s docstring already carries this exact row:
+
+> *a launch that ran 40 runs on CPU because `bash -c` re-sourced .bashrc and
+> flipped conda to base*
+
+So the knowledge existed, in the tool built for it, in the file that says to
+run it **BEFORE AND AFTER EVERY LAUNCH** -- and the launch still happened.
+🔑 **A CHECK THAT LIVES IN A TOOL A HUMAN HAS TO REMEMBER TO RUN IS NOT A
+GATE.** The same shape as 2(z81)'s "an exemption whose reason is a ticket is a
+defect with a comment attached", and as `gate:data` being duplicated into
+`--step launch` because it only fired in a step people skip.
+
+### 2. How it was caught, and how it nearly was not
+
+Every campaign-level signal was GREEN or absent: `config.json` said `running`,
+the training log advanced through warm-up epochs, the dispatcher was alive, and
+`--step verify` had passed all six checks an hour earlier. The tells were all
+OUTSIDE the campaign:
+
+| signal | reading |
+|---|---|
+| `nvidia-smi --query-compute-apps` on the target gpu | **empty** |
+| `nvidia-smi --query-gpu=utilization,memory` | **0 %, 3 MiB** |
+| `ls /proc/<pid>/fd \| grep -c nvidia` | **0** |
+| `ps -o args=` of the child | `~/anaconda3/bin/python` -- **not** `envs/optloss/bin/python` |
+| `%cpu` of the child | **12065** (120 cores) |
+
+⚠️ It was noticed only because the queue log said `claiming gpu 2` while
+`nvidia-smi` showed nothing on gpu 2, and that pair was checked. **A campaign
+cannot detect this about itself** -- there is no field in `config.json` for the
+device, which is the same blind spot as 2(z72)'s missing host field.
+
+🔑 **BUT THERE IS ONE TELL INSIDE THE CAMPAIGN'S OWN LOG, AND IT WAS SEEN AND
+DISMISSED.** The CPU run printed
+
+```
+src.pipeline.warmup INFO AMP: enabled=False dtype=torch.float32 scaler=False
+```
+
+and the same campaign after the fix prints
+
+```
+src.pipeline.warmup INFO AMP: enabled=True dtype=torch.bfloat16 scaler=False
+```
+
+On dsisco02 every run is BF16 AMP and on dsisco01 every run is FP16 +
+GradScaler, so **`AMP: enabled=False` on either host is a CPU-fallback
+signature**, readable from `training_log`'s own stderr with no `nvidia-smi` and
+no `/proc`. At the time it was read as a backbone-or-host quirk and waved
+through -- the compute-capability split between the two hosts is a real thing
+this project documents, which is exactly what made the wrong reading
+available. Check it on the FIRST completed run of any queued campaign.
+
+### 3. The gate, and it fails in both directions on demand
+
+`scripts/queue_runner.sh` now activates the env ITSELF by absolute path
+(`$HOME/anaconda3/etc/profile.d/conda.sh`, never inherited) and calls
+`assert_gpu_ready` twice -- once at startup and once immediately before each
+claim -- which refuses unless BOTH hold:
+
+* `command -v python` resolves inside `/envs/optloss/bin/`;
+* `torch.cuda.is_available()` and `device_count() >= 1` are true **under the
+  very `CUDA_VISIBLE_DEVICES` the run will use**, not under the ambient one.
+
+Shown to FAIL, not assumed:
+
+```
+NEG A  python resolves outside the env      ABORT exit 4
+       "python is '~/anaconda3/bin/python', not the ... env -- base torch is CPU-only"
+NEG B  right env, no visible cuda device    ABORT exit 4
+       "torch.cuda unavailable ... -- this would train on CPU"
+POS    real env + real gpu                  "gpu ready: ... sees 'NVIDIA RTX PRO 6000
+                                             Blackwell Server Edition' as cuda:0 (host gpu 2)"
+```
+
+After the fix the same campaign came up at **99 % utilisation and 6.6 GB with a
+real compute app on gpu 2**.
+
+### 4. Clean-up, and what was NOT kept
+
+The CPU run's `training_log.csv` was **deleted** and its `config.json` reset to
+`pending`. It is the one artefact in this project produced on a different
+device by a different torch build, and there is no scorer that would have
+flagged it -- keeping it as "history" would have left a run in the tree that
+looks exactly like every other run and is not comparable to any of them.
+Everything else about that campaign is untouched, and no other campaign was
+running in that worktree.
+
+⚠️ The two live dispatchers were verified to be `price1`/`price2` by reading
+`/proc/<pid>/cwd` and `/proc/<pid>/environ` before anything was killed, and the
+wrapper was killed before the dispatcher, per the standing order. Five stray
+`src.experiments` children survived the dispatcher and had to be taken by
+explicit PID -- `PPID=1` orphans are the documented residue and they appeared
+here exactly as described.
