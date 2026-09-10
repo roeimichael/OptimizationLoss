@@ -4041,7 +4041,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 615 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 620 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -4205,7 +4205,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 615 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 620 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -4213,7 +4213,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (615 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (620 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -13807,16 +13807,17 @@ started**, and the audit built to catch it a fortnight later read past it.
 | 5 | `paired_noise` 2(z63) | 2026-09-09 | fixed |
 | 6 | `cut_gap` 2(z64) | 2026-09-09 | fixed |
 | 7 | `step_direction_probe` 2(z79) | 2026-09-10 | fixed |
-| 8 | **`order_probe` band + Jaccard** | **2026-09-10, here** | ⚠️ open |
+| 8 | **`order_probe` band + Jaccard** | **2026-09-10, here** | ✅ fixed same day |
 
 ⚠️ **SITE 1 AND SITE 8 ARE THE SAME FILE AND ARE STILL DIFFERENT SITES**: one
 is the eviction sets, the other the contested band, they were written at
 different times, and fixing the first did not touch the second. Counting the
 file once is what produced "six".
 
-⚠️ **TWO OF THE EIGHT ARE NOT FIXED**: site 1 was disclosed rather than
-corrected, and site 8 is open as of this entry. Every other row is corrected in
-code with a gate and a negative control.
+⚠️ **ONE OF THE EIGHT IS STILL NOT FIXED**: site 1 was DISCLOSED rather than
+corrected -- `--evictions` still takes `argsort(-p)[:K]` and prints a paragraph
+saying so. Sites 2-8 are corrected in code, each with a gate and a negative
+control. Site 8 was fixed the same day it was found; see section 6.
 
 ### 4. What it does to 2(w4)
 
@@ -13853,12 +13854,117 @@ The version that would have caught this:
 
 ### 6. The fix and its receipt
 
-Per-group band and per-group top-K sets, the same two helpers
-`step_direction_probe` got in 2(z79) (`group_tau`, `cut_band`), and BOTH
-readings printed side by side so no figure silently changes meaning. The tool
-must REFUSE a predictions file with no `Group_ID` rather than fall back to the
-global sort -- that refusal is what found 2(z65). Task #113.
+✅ **DONE 2026-09-10.** `band_per_group` replaces the global window;
+`group_budgets` reads the per-group budgets off `final_predictions.csv`; and
+`deployed_set` replaces the rebuilt top-K sets with the allocator's OWN
+selection, so `jac_*` no longer contains an `argsort` at all. Both readings
+print (`rho_arm_band` vs `rho_arm_band_glob`, `jac_arm` vs `jac_arm_glob`) with
+their band sizes, and the tool REFUSES a file with no `Group_ID` rather than
+falling back -- that refusal is what found 2(z65), and here it found 2(z81).
 
+🔑 **AND THERE WAS A THIRD DEFECT IN THE SAME EXPRESSION, LARGER THAN THE
+GROUP ONE.** `K = budget_for(a, cls)` was called on `final_predictions_raw.csv`,
+which carries the model's ARGMAX (`src/pipeline/eval.py:106`), so `K` was the
+HARD COUNT and not the deployed budget -- while `budget_for`'s own docstring
+says *"the real K the allocator used"*. The function was right and the call site
+handed it the wrong frame. On iwildcam at L20 the lambda=0 hard count is ~336
+against a deployed K of ~74, so the band `K//2 .. 2K` spanned ranks 168-672 and
+**did not contain the cut at all**, in either sense.
+
+12 self-test checks (5 negative controls) plus
+`test_order_probe_takes_its_CONTESTED_BAND_PER_GROUP_end_to_end`, which builds a
+two-group campaign on disk and asserts the two readings DISAGREE and that
+`K < K_raw`. Never a DIRECTION: 2(z64) is the record of that claim being
+fixtured, mutation-tested green and then refuted. Mutation-tested 4/4.
+
+
+## 2(z81). `order_probe` HAS BEEN UNRUNNABLE ON EVERY REAL INPUT FOR A DAY, AND EVERY GATE WAS GREEN -- AN IMPORT SHADOWED BY A FUNCTION OF THE SAME NAME (2026-09-10)
+
+Found while building the end-to-end test 2(z80) section 6 asked for. The test
+had not yet reached its first assertion:
+
+```
+scripts/order_probe.py:384, in main
+    capped_classes.assert_single_dataset(args.campaign, "order_probe")
+AttributeError: 'function' object has no attribute 'assert_single_dataset'
+```
+
+`scripts/order_probe.py:57` imports the MODULE `scripts.capped_classes`.
+`scripts/order_probe.py:143` then defines a FUNCTION `capped_classes(run_dir)`.
+The `def` runs after the import, so from that line on the name is the function
+and the module is gone. Every `--campaign` invocation died on line 384.
+
+**Introduced `2dd84549`, 2026-09-09** -- whose subject reads *"the groupby audit
+is the argsort audit's sibling -- and capped_classes carried the exact error it
+exists to refuse"*. The guard added by that commit is the line that broke the
+tool it was added to.
+
+### Why nothing caught it
+
+* It is an **AttributeError, not a NameError**. The name RESOLVES; it resolves
+  to the wrong object. Every static check passes -- `audit_config`,
+  `doc_commands`, `dead_code`, the AST sweeps, `python -m py_compile`, and the
+  whole 614-test suite.
+* `--self-test` passes, because it drives `verdict` and `sign_test` and never
+  enters `main`'s campaign path. **A self-test that exercises the helpers and
+  not the entry point cannot see a broken entry point.**
+* `tests/test_scorers_run_end_to_end.py` exists for exactly this class -- three
+  scorers once shipped `quarantine.` with no module-level import and were
+  unrunnable on every input. It drives the SEVEN SCORERS. `order_probe` is a
+  PROBE, so it is outside that list, and no other test ever ran its main path.
+* The one order_probe test that touches disk builds an empty directory tree and
+  checks the glob and `null_of`. It never writes a CSV, so it never calls
+  `main`.
+
+### The gate
+
+`test_no_module_import_is_shadowed_by_a_local_definition` walks `scripts/`,
+`configs/` and `src/`, collects module-level imports and module-level bindings
+(`def`, `class`, and plain assignment), and fails on any intersection. It is
+AST, module-level only: a function-local `json = 1` is routine and must not
+fire. Run over the tree it finds **exactly one** occurrence, the one above.
+
+Four controls, all in `test_the_shadowed_import_detector_actually_detects`: the
+2026-09-09 shape must fire, a function-local rebinding must NOT, an ALIASED
+import shadowed by the original spelling must NOT, and a module-level
+assignment over an import must fire. Mutation-tested by restoring the original
+import line -- the gate goes red and the alias control stays green.
+
+### The rule, and it is now a gate
+
+> A `--self-test` that never enters `main` is a test of the helpers, not of the
+> tool. Every command this project documents should have ONE execution that
+> starts where a person starts -- at the command line, on files -- even if it
+> asserts almost nothing. `order_probe` had twelve self-test checks and zero
+> such executions.
+
+**41 modules carry a `--self-test`. Before 2026-09-10, SEVEN had ever been
+executed with real arguments in any test** -- the six scorers in
+`tests/test_scorers_run_end_to_end.py`, plus `order_probe` once it had a
+fixture. `test_every_gated_tool_fails_CLEANLY_on_an_EMPTY_campaign_root` closes
+the cheap half: it points all 33 root-shaped tools at an EMPTY campaign root and
+requires each to fail like a tool -- a refusal, a "no runs found" -- rather than
+like a bug. It asserts nothing about numbers; it asserts the entry point is
+reachable. **6.2 seconds at 4-way parallelism for 33 tools.**
+
+It would have caught 2026-09-09 the day it landed, because
+`assert_single_dataset` is called BEFORE the glob and an empty root still
+reaches it. Mutation-tested by restoring the shadowed import: the gate goes red
+and names the tool and its argv.
+
+⚠️ **EIGHT tools are exempt and each carries a written reason** -- five
+operational ones that touch the live hosts or mutate `results/`, and three that
+take no path at all. The list is checked for ROT in the same test: a name in it
+that no longer carries a `--self-test` fails, so it cannot become a place a tool
+hides. ⛔ The two exemptions that matter are `paper_rows` (takes `--cells
+<csv>`, and it decides what may be WRITTEN) and `step_dose` (takes `--config
+<json>`, and it gates 2(z73)'s unclosed layer). Both need a file fixture; task
+#115.
+
+⚠️ This does NOT retract anything 2(w4) reports: those figures were produced on
+2026-08-28, eleven days before the shadow was introduced. It means the probe
+could not have been re-run to check them, which is what 2(z80) section 6 asks
+for and what task #113 now unblocks.
 
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
@@ -15221,7 +15327,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             615 tests, ~200 s, no dataset required
+tests/             620 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

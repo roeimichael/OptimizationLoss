@@ -54,13 +54,21 @@ import sys
 
 import numpy as np
 import pandas as pd
-from scripts import capped_classes                  # noqa: E402
+# !! IMPORT THE SYMBOL, NOT THE MODULE. This file defines its own
+# `capped_classes(run_dir)` at module level, which REBINDS the name and
+# made `capped_classes.assert_single_dataset` an AttributeError on every
+# `--campaign` invocation from 2026-09-09 (`2dd84549`) until 2026-09-10.
+# It parsed, imported and passed every AST gate -- the same shape as the
+# three scorers that shipped `quarantine.` with no import. Gated by
+# `test_no_module_import_is_shadowed_by_a_local_definition`.
+from scripts.capped_classes import assert_single_dataset  # noqa: E402
 
 
 from scripts import quarantine
 from scripts.family_split import null_of
 
 RAW = "final_predictions_raw.csv"
+DEPLOYED = "final_predictions.csv"
 
 
 def spearman(a, b):
@@ -160,6 +168,75 @@ def budget_for(df, cls):
     return int((df["Predicted_Label"] == cls).sum())
 
 
+def load_deployed(run_dir):
+    """The AS-DEPLOYED predictions -- what the allocator actually emitted.
+
+    `load` reads `final_predictions_raw.csv`, which carries the model's
+    argmax (`raw_pred` in `src/pipeline/eval.py:106`). That is the right
+    source for PROBABILITIES -- both files carry the same `y_proba` -- and the
+    WRONG source for a BUDGET: `budget_for` on the raw frame returns the HARD
+    COUNT, not K. On iwildcam at L20 the lambda=0 hard count is ~336 against a
+    deployed K of ~74, so a band of `K//2 .. 2K` taken off the raw frame spans
+    ranks 168-672 and does not even CONTAIN the cut. FRAMEWORK 2(z80).
+    """
+    f = os.path.join(run_dir, DEPLOYED)
+    if not os.path.exists(f):
+        return None
+    return pd.read_csv(f)
+
+
+def group_budgets(dep, cls):
+    """(K, {group: k_g}) for one class, read off the DEPLOYED file.
+
+    The allocator emits top-`k_g` WITHIN each group, so `k_g` is the only cut
+    that exists. `K` is their sum and is kept for the global reading only.
+    """
+    sel = dep["Predicted_Label"] == cls
+    if "Group_ID" not in dep.columns:
+        raise SystemExit(
+            "order_probe: `%s` has no Group_ID column, so the per-group cut "
+            "cannot be found. REFUSING rather than falling back to a global "
+            "sort -- that fallback is FRAMEWORK 2(z80), the eighth site of "
+            "the same substitution. Re-run the campaign, or score a campaign "
+            "whose runs wrote groups." % DEPLOYED)
+    by = dep.loc[sel, "Group_ID"].value_counts()
+    return int(sel.sum()), {g: int(n) for g, n in by.items()}
+
+
+def band_per_group(p, groups, k_by_group, lo=0.5, hi=2.0):
+    """Ranks `lo*k_g .. hi*k_g` WITHIN each group, unioned.
+
+    The global form -- `argsort(-p)[K//2:2K]` over the whole test set -- is
+    what this replaces. A globally-ranked item in that window may sit safely
+    inside a large-`k_g` group or in one of the 7 of 14 iwildcam groups whose
+    ceiling is K=0 and which can never select it.
+    """
+    idx = []
+    for g in np.unique(groups):
+        where = np.flatnonzero(groups == g)
+        kg = int(k_by_group.get(g, k_by_group.get(str(g), 0)))
+        if kg < 1:
+            continue                      # a K=0 ceiling has no cut to be near
+        order = where[np.argsort(-p[where])]
+        a, b = max(1, int(lo * kg)), min(len(order), int(hi * kg))
+        if b > a:
+            idx.extend(order[a:b].tolist())
+    return np.array(sorted(set(idx)), dtype=int)
+
+
+def deployed_set(dep, cls):
+    """The exact item set the allocator emitted for this class.
+
+    No `argsort` and no re-derivation: `jac` used to compare two GLOBAL top-K
+    sets rebuilt from the probabilities, which is neither arm's selection.
+    Both arms emit exactly K items -- K comes from the labels and the cap
+    policy, not from the model -- so the two sets are equal-size by
+    construction and the Jaccard is still the right statistic.
+    """
+    return set(np.flatnonzero((dep["Predicted_Label"] == cls).to_numpy())
+               .tolist())
+
+
 def self_test(out=sys.stdout):
     """The gate. This probe produced the sharpest NEGATIVE in the project --
     "the constraint re-ranks exactly as much as a coin flip" -- so every rung
@@ -196,6 +273,65 @@ def self_test(out=sys.stdout):
         else:
             w("  PASS  %-14s -> %s" % (name, want) + chr(10))
 
+    # --- THE CUT IS PER GROUP (FRAMEWORK 2(z80)) ---------------------------
+    def chk(cond, msg):
+        w(("  PASS  " if cond else "  FAIL  ") + msg + chr(10))
+        return cond
+
+    # Two groups of 100. Group A is EASY (high scores), group B is hard. The
+    # deployed budget is 10 in each, so the two cuts sit at within-group rank
+    # 10 -- global rank 10 and global rank ~110. A global band centred on
+    # K=20 can only ever see the first of them.
+    pg = np.concatenate([np.linspace(0.99, 0.60, 100),
+                         np.linspace(0.40, 0.01, 100)])
+    gg = np.array(["A"] * 100 + ["B"] * 100)
+    kg = {"A": 10, "B": 10}
+    b_pg = band_per_group(pg, gg, kg)
+    b_gl = np.argsort(-pg)[max(1, 20 // 2):min(len(pg), 2 * 20)]
+    ok &= chk(len(set(b_pg.tolist()) & set(range(100, 200))) > 0,
+              "the per-group band reaches the HARD group's cut")
+    ok &= chk(len(set(b_gl.tolist()) & set(range(100, 200))) == 0,
+              "NEGATIVE CONTROL: the global band NEVER reaches it "
+              "(%d of its %d items are in group B)"
+              % (len(set(b_gl.tolist()) & set(range(100, 200))), len(b_gl)))
+
+    # NEGATIVE CONTROL: a K=0 ceiling has no cut, so it contributes nothing.
+    b_zero = band_per_group(pg, gg, {"A": 10, "B": 0})
+    ok &= chk(not (set(b_zero.tolist()) & set(range(100, 200))),
+              "NEGATIVE CONTROL: a group with k_g=0 contributes NO band items")
+
+    # NEGATIVE CONTROL: with ONE group holding the whole budget the fix is a
+    # NO-OP. If it changed the answer there it would be a different statistic,
+    # not a corrected one.
+    one = np.array(["A"] * 200)
+    ok &= chk(sorted(band_per_group(pg, one, {"A": 20}).tolist())
+              == sorted(np.argsort(-pg)[10:40].tolist()),
+              "NEGATIVE CONTROL: one group, k_g=K -> per-group band EQUALS "
+              "the global band")
+
+    dep = pd.DataFrame({"Predicted_Label": [2] * 20 + [0] * 180,
+                        "Group_ID": gg})
+    K_d, kg_d = group_budgets(dep, 2)
+    ok &= chk(K_d == 20 and sum(kg_d.values()) == K_d,
+              "group_budgets: the per-group budgets sum to K (%d)" % K_d)
+    ok &= chk(deployed_set(dep, 2) == set(range(20)),
+              "deployed_set is the allocator's OWN selection, not a re-sort")
+
+    # NEGATIVE CONTROL: no Group_ID must REFUSE, never fall back -- and it
+    # must refuse ON PURPOSE. A KeyError five frames down reads as a bug in
+    # the caller, which is the trap `pred_integrity` exists for, so the check
+    # pins the EXCEPTION TYPE and not merely that something went wrong.
+    try:
+        group_budgets(dep.drop(columns=["Group_ID"]), 2)
+        got = "returned a value"
+    except SystemExit:
+        got = "SystemExit"
+    except Exception as exc:
+        got = type(exc).__name__
+    ok &= chk(got == "SystemExit",
+              "NEGATIVE CONTROL: no Group_ID REFUSES deliberately (got %s)"
+              % got)
+
     # `sign_test` is what separates rung 2 from rungs 3-4, so pin its two ends.
     if not (sign_test(24, 48) > 0.9 and sign_test(40, 48) < 0.001):
         w("  FAIL  sign_test: 24/48 must be a coin (%.3f) and 40/48 must clear "
@@ -222,6 +358,11 @@ def main():
     ap.add_argument("--null", default=None,
                     help="lambda=0 twin; default resolves from --arm")
     ap.add_argument("--reseed", default="tralo_reseed")
+    ap.add_argument("--out", default=None,
+                    help="write the per-(run, class) rows to a CSV. "
+                         "Both the per-group and the global band "
+                         "columns are dumped, so a published figure "
+                         "can be traced to the reading it came from.")
     ap.add_argument("--evictions", action="store_true",
                     help="which items did it move, and were they the right ones")
     ap.add_argument("--allow-quarantined", action="store_true",
@@ -247,7 +388,7 @@ def main():
     # checked. `gen_campaign --datasets` is `nargs="+"`. Harmless while
     # iwildcam was the only runnable dataset; bcn and fmow ended that.
     # FRAMEWORK 2(z65).
-    capped_classes.assert_single_dataset(args.campaign, "order_probe")
+    assert_single_dataset(args.campaign, "order_probe")
     # A PARTIAL marker names arms whose contrasts are disqualified. Every read
     # below is `--arm` against `--null` and against `--reseed`, so the
     # enforcement is a FILTER on the enumerated arm directories:
@@ -367,7 +508,7 @@ def main():
             print("      lever is the SIZE of the perturbation, not its direction.")
         return 0
 
-    rows = []
+    rows, skipped_nodep = [], 0
     pat = os.path.join(args.campaign, "*", "*", "*", args.arm, "seed_*")
     for arm_dir in quarantine.drop_dead_runs(sorted(glob.glob(pat)), here,
                                              label="arm run"):
@@ -377,37 +518,60 @@ def main():
         a = load(arm_dir)
         n = load(os.path.join(base, args.null, seed))
         r = load(os.path.join(base, args.reseed, seed))
+        # The BUDGET comes from the deployed file, the PROBABILITIES from the
+        # raw one. Reading both off the raw frame is what centred the band on
+        # the hard count -- FRAMEWORK 2(z80).
+        a_dep = load_deployed(arm_dir)
+        n_dep = load_deployed(os.path.join(base, args.null, seed))
+        r_dep = load_deployed(os.path.join(base, args.reseed, seed))
         if a is None or n is None:
             continue
         for cls in capped_classes(arm_dir):
             col = "Prob_Class_%d" % cls
             if col not in a.columns or col not in n.columns:
                 continue
+            if a_dep is None or n_dep is None:
+                skipped_nodep += 1
+                continue
             pa, pn = a[col].to_numpy(), n[col].to_numpy()
-            K = budget_for(a, cls)
+            K_raw = budget_for(a, cls)      # the HARD count -- the old centre
+            K, kg = group_budgets(n_dep, cls)   # the DEPLOYED budget, per group
             if K < 3:
                 continue
+            groups = n["Group_ID"].to_numpy()
 
-            # the contested band: where the cut actually falls
+            # THE CUT IS PER GROUP. `band` is that; `band_glob` is the reading
+            # every figure before 2026-09-10 was taken at, kept beside it so no
+            # published number silently changes meaning. FRAMEWORK 2(z80).
+            band = band_per_group(pn, groups, kg)
             order_n = np.argsort(-pn)
-            lo, hi = max(1, K // 2), min(len(pn), 2 * K)
-            band = order_n[lo:hi]
+            band_glob = order_n[max(1, K_raw // 2):min(len(pn), 2 * K_raw)]
 
-            top_a = set(np.argsort(-pa)[:K].tolist())
-            top_n = set(np.argsort(-pn)[:K].tolist())
-            jac = len(top_a & top_n) / max(1, len(top_a | top_n))
+            # The Jaccard is now the two AS-DEPLOYED sets -- no re-derivation.
+            sel_a, sel_n = deployed_set(a_dep, cls), deployed_set(n_dep, cls)
+            ta_g = set(np.argsort(-pa)[:K_raw].tolist())
+            tn_g = set(np.argsort(-pn)[:K_raw].tolist())
 
             row = {"model": model, "cap": cap, "seed": seed, "cls": cls,
-                   "K": K,
+                   "K": K, "K_raw": K_raw,
+                   "n_band": len(band), "n_band_glob": len(band_glob),
                    "rho_arm": spearman(pa, pn),
                    "rho_arm_band": spearman(pa[band], pn[band]),
-                   "jac_arm": jac}
-            if r is not None and col in r.columns:
+                   "rho_arm_band_glob": spearman(pa[band_glob], pn[band_glob]),
+                   "jac_arm": len(sel_a & sel_n) / max(1, len(sel_a | sel_n)),
+                   "jac_arm_glob": len(ta_g & tn_g) / max(1, len(ta_g | tn_g))}
+            if r is not None and col in r.columns and r_dep is not None:
                 pr = r[col].to_numpy()
-                top_r = set(np.argsort(-pr)[:K].tolist())
+                sel_r = deployed_set(r_dep, cls)
+                tr_g = set(np.argsort(-pr)[:K_raw].tolist())
                 row["rho_reseed"] = spearman(pr, pn)
                 row["rho_reseed_band"] = spearman(pr[band], pn[band])
-                row["jac_reseed"] = len(top_r & top_n) / max(1, len(top_r | top_n))
+                row["rho_reseed_band_glob"] = spearman(pr[band_glob],
+                                                       pn[band_glob])
+                row["jac_reseed"] = (len(sel_r & sel_n)
+                                     / max(1, len(sel_r | sel_n)))
+                row["jac_reseed_glob"] = (len(tr_g & tn_g)
+                                          / max(1, len(tr_g | tn_g)))
             rows.append(row)
 
     if not rows:
@@ -415,6 +579,9 @@ def main():
         return 1
 
     d = pd.DataFrame(rows)
+    if args.out:
+        d.to_csv(args.out, index=False)
+        print("wrote %d rows to %s" % (len(d), args.out))
     print("=" * 88)
     print("DID THE CONSTRAINT REORDER THE CAPPED CLASS?   %s" % args.campaign)
     print("  arm=%s   null=%s   control=%s" % (args.arm, args.null, args.reseed))
@@ -425,9 +592,25 @@ def main():
     print("  draw, so it is how much the order moves for free.")
     print()
     have_ctrl = "rho_reseed" in d.columns
-    cols = ["rho_arm", "rho_arm_band", "jac_arm"]
+    cols = ["rho_arm", "rho_arm_band", "rho_arm_band_glob", "jac_arm",
+            "jac_arm_glob"]
     if have_ctrl:
-        cols += ["rho_reseed", "rho_reseed_band", "jac_reseed"]
+        cols += ["rho_reseed", "rho_reseed_band", "rho_reseed_band_glob",
+                 "jac_reseed", "jac_reseed_glob"]
+    if skipped_nodep:
+        print("   !! %d (run, class) points had no `%s` and were SKIPPED."
+              % (skipped_nodep, DEPLOYED))
+    print("   !! THE `_band` COLUMNS ARE THE PER-GROUP CUT (fixed 2026-09-10).")
+    print("      `_band_glob` is the old global reading, kept beside them so a")
+    print("      published figure can be traced. The allocator emits top-k_g")
+    print("      WITHIN each group; on iwildcam 7 of 14 local ceilings are")
+    print("      K=0. The old band was also centred on the HARD count from")
+    print("      `%s`, not on K: at L20 that is ~336 against a" % RAW)
+    print("      deployed K of ~74, so it did not contain the cut at all.")
+    print("      DIRECTION UNKNOWN -- do not read the pair as one. 2(z80).")
+    print("      band items: per-group %.0f, global %.0f (mean)"
+          % (d["n_band"].mean(), d["n_band_glob"].mean()))
+    print()
     g = d.groupby(["model", "cap", "cls"])[cols].mean()
     with pd.option_context("display.width", 200, "display.max_columns", 20):
         print(g.round(4).to_string())

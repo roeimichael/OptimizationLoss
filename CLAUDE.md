@@ -180,7 +180,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 615 regression tests, ~250s, no dataset needed
+python -m pytest tests -q                   # 620 regression tests, ~250s, no dataset needed
 #   `tests/test_scorers_run_end_to_end.py` EXECUTES every scorer as a subprocess
 #   against a campaign carrying a real PARTIAL marker. It exists because three
 #   scorers once used `quarantine.` with no module-level import: they PARSED,
@@ -202,6 +202,25 @@ python -m pytest tests -q                   # 615 regression tests, ~250s, no da
 #   🔑 IT WAS FOUND BY A REFUSAL, NOT BY READING: `paired_noise` began
 #   REFUSING a predictions file with no `Group_ID` (2(z63)) and the green
 #   test went red the same minute. A tool that guesses cannot find this.
+#   🛑 **AND A `--self-test` THAT NEVER ENTERS `main` TESTS THE HELPERS, NOT
+#   THE TOOL (2026-09-10).** `order_probe` imported the MODULE
+#   `capped_classes` and then defined a FUNCTION of the same name, so
+#   `capped_classes.assert_single_dataset` was an **AttributeError on every
+#   `--campaign` run** for a day. It parsed, imported, and passed
+#   `audit_config`, `doc_commands`, `dead_code`, every AST sweep and the whole
+#   suite -- an AttributeError, not a NameError, because the name RESOLVES, to
+#   the wrong object. Its own `--self-test` was green: twelve checks, none of
+#   them entering `main`.
+#   🔑 41 modules carry a `--self-test`; **SEVEN had ever been executed with
+#   real arguments.** Two gates now close it:
+#     `test_no_module_import_is_shadowed_by_a_local_definition` -- AST, module
+#       level only, over `scripts/ configs/ src/`. A function-local `json = 1`
+#       is routine and must not fire. 4 controls, mutation-tested.
+#     `test_every_gated_tool_fails_CLEANLY_on_an_EMPTY_campaign_root` -- points
+#       all 33 root-shaped tools at an empty root and requires a refusal rather
+#       than a traceback. **6.2 s at 4-way parallelism.** Eight exemptions,
+#       each with a written reason, and the list is checked for ROT so it
+#       cannot become a place a tool hides. FRAMEWORK 2(z81).
 #   `tests/test_lessons_learned.py` is the CATALOGUE OF LESSONS ALREADY PAID FOR:
 #   rejected backbones and datasets with the measured reason each was dropped,
 #   the ten deleted config footguns, the BF16/compute-capability split between

@@ -30,6 +30,7 @@ import io
 import os
 import subprocess
 import sys
+import tempfile
 
 import pytest
 
@@ -2024,3 +2025,331 @@ def test_the_probe_headroom_default_is_the_runnable_datasets_prize():
         "--headroom-items defaults to %r. 9.9 is dermmnist's top; iwildcam's "
         "per-class task-cap top is 12.0, and this value decides whether the "
         "probe warns that it cannot see the question at all." % (got,))
+
+
+def _shadowed_imports(src):
+    """{name: (import_line, rebind_line)} for module-level imports rebound later.
+
+    MODULE LEVEL ONLY. A function that names a local `json` is fine and
+    routine; a module that imports `capped_classes` and then defines
+    `def capped_classes(...)` has silently replaced the module for the whole
+    file, and every attribute access on it is an AttributeError at run time.
+    """
+    tree = ast.parse(src)
+    imported = {}
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            for a in node.names:
+                imported.setdefault(a.asname or a.name.split(".")[0],
+                                    node.lineno)
+    out = {}
+    for node in tree.body:                       # module level only
+        names = []
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
+                             ast.ClassDef)):
+            names = [node.name]
+        elif isinstance(node, ast.Assign):
+            names = [t.id for t in node.targets if isinstance(t, ast.Name)]
+        for n in names:
+            if n in imported:
+                out[n] = (imported[n], node.lineno)
+    return out
+
+
+def test_no_module_import_is_shadowed_by_a_local_definition():
+    """`scripts/order_probe.py` imported `capped_classes` and then defined a
+    function of the same name 86 lines later.
+
+    From `2dd84549` (2026-09-09) to 2026-09-10 that made
+    `capped_classes.assert_single_dataset(...)` an **AttributeError on every
+    `--campaign` invocation**: the probe parsed, imported, passed `audit_config`,
+    `doc_commands`, `dead_code` and the whole suite, and was unrunnable on every
+    real input. It is the same shape as the three scorers that shipped
+    `quarantine.` with no module-level import, which is why
+    `tests/test_scorers_run_end_to_end.py` exists -- but that file drives the
+    SCORERS, and `order_probe` is a probe, so nothing executed this path.
+
+    An AttributeError rather than a NameError is what made it invisible: the
+    name resolves, to the wrong object. Only running it, or this, finds it.
+    """
+    fails = []
+    for sub in ("scripts", "configs", "src"):
+        for dirpath, _dirs, files in os.walk(os.path.join(REPO, sub)):
+            if "__pycache__" in dirpath:
+                continue
+            for f in sorted(files):
+                if not f.endswith(".py"):
+                    continue
+                p = os.path.join(dirpath, f)
+                try:
+                    hits = _shadowed_imports(io.open(p, encoding="utf-8").read())
+                except SyntaxError:
+                    continue
+                for name, (imp, reb) in sorted(hits.items()):
+                    fails.append(
+                        "%s: `%s` imported at line %d and REBOUND at line %d "
+                        "-- every attribute access on it is an AttributeError"
+                        % (os.path.relpath(p, REPO).replace("\\", "/"),
+                           name, imp, reb))
+    assert not fails, "shadowed module imports:\n  " + "\n  ".join(fails)
+
+
+def test_the_shadowed_import_detector_actually_detects():
+    """NEGATIVE CONTROLS for the 2026-09-10 gate above.
+
+    A gate that has never failed has never been shown to work, and that one is
+    a whole-tree scan -- the shape that reads green when it is broken, because
+    "no shadowed imports found" and "the detector found nothing" print the
+    same. Mutation-tested 2026-09-10 by restoring `order_probe`'s original
+    `from scripts import capped_classes`: the scan goes red and the alias
+    control stays green.
+    """
+    bad = ("from scripts import capped_classes\n"
+           "\n"
+           "def capped_classes(run_dir):\n"
+           "    return []\n")
+    assert "capped_classes" in _shadowed_imports(bad), (
+        "the exact 2026-09-09 defect is not detected")
+
+    # NEGATIVE CONTROL 1: a LOCAL name of the same spelling is routine and
+    # must not fire -- the module object is untouched outside that frame.
+    local = ("import json\n"
+             "\n"
+             "def f():\n"
+             "    json = 1\n"
+             "    return json\n")
+    assert not _shadowed_imports(local), (
+        "a function-local rebinding must NOT fire")
+
+    # NEGATIVE CONTROL 2: an aliased import is not shadowed by a function of
+    # the ORIGINAL name.
+    alias = ("from scripts import capped_classes as cc\n"
+             "\n"
+             "def capped_classes(run_dir):\n"
+             "    return []\n")
+    assert not _shadowed_imports(alias), (
+        "an aliased import is not shadowed by the original spelling")
+
+    # NEGATIVE CONTROL 3: a module-level ASSIGNMENT over an import counts too,
+    # and is the same defect with a different statement type.
+    assign = "import math\n\nmath = 3\n"
+    assert "math" in _shadowed_imports(assign), (
+        "a module-level assignment over an import must fire")
+
+
+# Tools whose main path an EMPTY CAMPAIGN ROOT cannot exercise. Each needs a
+# reason, because the default is coverage: a name added here is a decision to
+# leave a tool unexecuted, which is what 2026-09-09 cost.
+EMPTY_ROOT_EXEMPT = {
+    "rig_status": "shells out to nvidia-smi/ps and reads the live hosts",
+    "run_campaign": "the step gate; it launches and resets real runs",
+    "add_seeds": "writes configs into results/",
+    "quarantine": "--apply --execute mutates the registry on disk",
+    "bias_shift_probe": "pure algebra, no path argument at all",
+    "capped_classes": "a library; its CLI is --self-test only",
+    "ortho_survival": "pure algebra, no path argument at all",
+    "dead_code": "walks the repo, not a campaign",
+    "doc_commands": "walks the docs, not a campaign",
+    "stale_figures": "walks the docs, not a campaign",
+    "stale_provenance": "walks the docs, not a campaign",
+    # TASK #116: these two take a FILE, not a root, so an empty directory says
+    # nothing about them. They are paper-facing and mechanism-facing and both
+    # deserve a fixture.
+    "paper_rows": "takes --cells <csv>; needs a file fixture, task #116",
+    "step_dose": "takes --config <json>; needs a file fixture, task #116",
+}
+
+FATAL_ON_AN_EMPTY_ROOT = ("AttributeError", "NameError", "UnboundLocalError",
+                          "ImportError", "IndentationError", "TypeError")
+
+
+def _root_argv(src, root):
+    """The one flag that points a tool at a campaign, or None."""
+    tree = ast.parse(src)
+    flags, positional = [], []
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "add_argument" and node.args):
+            a0 = node.args[0]
+            if isinstance(a0, ast.Constant) and isinstance(a0.value, str):
+                (flags if a0.value.startswith("-")
+                 else positional).append(a0.value)
+    for f in ("--campaign", "--root"):
+        if f in flags:
+            return [f, root]
+    if "--glob" in flags:
+        return ["--glob", os.path.join(root, "*")]
+    return [root] if positional else None
+
+
+def _gated_tools():
+    """{module: source} for every `scripts/*.py` carrying a `--self-test`."""
+    out = {}
+    for f in sorted(os.listdir(os.path.join(REPO, "scripts"))):
+        if not f.endswith(".py") or f == "__init__.py":
+            continue
+        src = io.open(os.path.join(REPO, "scripts", f),
+                      encoding="utf-8").read()
+        if '"--self-test"' in src or "'--self-test'" in src:
+            out[f[:-3]] = src
+    return out
+
+
+def test_every_gated_tool_fails_CLEANLY_on_an_EMPTY_campaign_root():
+    """2026-09-10: `order_probe` was unrunnable on every real input for a day.
+
+    `scripts/order_probe.py` imported the module `capped_classes` and then
+    defined a function of the same name, so `capped_classes.assert_single_dataset`
+    -- called BEFORE the glob, on line 384 -- raised `AttributeError` on every
+    `--campaign` invocation. Every static gate was green, and `--self-test` was
+    green because it drives `verdict` and `sign_test` and never enters `main`.
+    FRAMEWORK 2(z81).
+
+    **A `--self-test` that never enters `main` tests the helpers, not the tool.**
+    41 modules carry one and, before this, SEVEN had ever been executed the way
+    a person executes them -- the six scorers in
+    `tests/test_scorers_run_end_to_end.py` plus `order_probe` once it had a
+    fixture.
+
+    This is the cheap half of the coverage: point every tool at an EMPTY
+    campaign root and require it to fail like a tool, not like a bug. It
+    asserts nothing about the numbers -- `tests/test_scorers_run_end_to_end.py`
+    does that on a real fixture -- only that the entry point is reachable and
+    the refusal is deliberate. It would have caught the 2026-09-09 defect on
+    the day it landed, because that call sits before any file is read.
+    """
+    import shutil
+    from concurrent.futures import ThreadPoolExecutor
+
+    tools = _gated_tools()
+    unknown = sorted(set(EMPTY_ROOT_EXEMPT) - set(tools))
+    assert not unknown, (
+        "EMPTY_ROOT_EXEMPT names modules that no longer carry a --self-test: "
+        "%s. Remove them, or the exemption list rots into a place where a "
+        "tool can hide." % unknown)
+
+    root = tempfile.mkdtemp(prefix="smoke_empty_root_")
+    jobs = []
+    unclassified = []
+    for name, src in sorted(tools.items()):
+        if name in EMPTY_ROOT_EXEMPT:
+            continue
+        argv = _root_argv(src, root)
+        if argv is None:
+            unclassified.append(name)
+            continue
+        jobs.append((name, argv))
+    assert not unclassified, (
+        "these tools take no campaign root and are not in EMPTY_ROOT_EXEMPT: "
+        "%s. Classify each -- either give it a root-shaped flag or write down "
+        "why it cannot have one." % unclassified)
+
+    def run(job):
+        name, argv = job
+        try:
+            r = subprocess.run(
+                [sys.executable, "-m", "scripts." + name] + argv,
+                capture_output=True, text=True, encoding="utf-8",
+                errors="replace", timeout=120, cwd=REPO,
+                env=dict(os.environ, PYTHONIOENCODING="utf-8"))
+        except subprocess.TimeoutExpired:
+            return "%s: hung for 120s on an EMPTY root" % name
+        out = (r.stdout or "") + (r.stderr or "")
+        bad = [f for f in FATAL_ON_AN_EMPTY_ROOT if f + ":" in out]
+        if bad:
+            return ("%s %s: %s -- the entry point is broken, not the input\n"
+                    "        %s" % (name, argv, ", ".join(bad),
+                                    out.strip()[-400:]))
+        return None
+
+    try:
+        with ThreadPoolExecutor(max_workers=4) as ex:
+            fails = [f for f in ex.map(run, jobs) if f]
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+    assert not fails, ("tools that do not survive an empty root:\n  "
+                       + "\n  ".join(fails))
+
+
+def test_the_empty_root_smoke_would_have_caught_the_2026_09_10_defect():
+    """NEGATIVE CONTROL for the 2026-09-10 gate above.
+
+    That gate is a whole-tree sweep, the shape that reads green when it is
+    broken -- "every tool passed" and "no tool ran" print the same.
+
+    So reproduce the defect in a throwaway module and require the same
+    subprocess check to see it. It must fire on a shadowed import and stay
+    quiet on a tool that merely refuses an empty root, which is the normal and
+    correct behaviour of all 33.
+    """
+    import shutil
+    import textwrap
+
+    pkg = tempfile.mkdtemp(prefix="smoke_control_")
+    try:
+        d = os.path.join(pkg, "faketools")
+        os.makedirs(d)
+        io.open(os.path.join(d, "__init__.py"), "w", encoding="utf-8").write("")
+        io.open(os.path.join(d, "broken.py"), "w", encoding="utf-8").write(
+            textwrap.dedent("""
+                import argparse
+                import json
+
+
+                def json(x):            # shadows the import, exactly as 2(z81)
+                    return x
+
+
+                def main():
+                    ap = argparse.ArgumentParser()
+                    ap.add_argument("--campaign")
+                    a = ap.parse_args()
+                    json.dumps({"root": a.campaign})
+                    return 0
+
+
+                if __name__ == "__main__":
+                    raise SystemExit(main())
+            """))
+        io.open(os.path.join(d, "healthy.py"), "w", encoding="utf-8").write(
+            textwrap.dedent("""
+                import argparse
+                import os
+
+
+                def main():
+                    ap = argparse.ArgumentParser()
+                    ap.add_argument("--campaign")
+                    a = ap.parse_args()
+                    if not os.listdir(a.campaign):
+                        print("no runs under %s" % a.campaign)
+                        return 1
+                    return 0
+
+
+                if __name__ == "__main__":
+                    raise SystemExit(main())
+            """))
+        empty = os.path.join(pkg, "empty")
+        os.makedirs(empty)
+
+        def out_of(mod):
+            r = subprocess.run(
+                [sys.executable, "-m", "faketools." + mod,
+                 "--campaign", empty],
+                capture_output=True, text=True, encoding="utf-8",
+                errors="replace", timeout=60, cwd=pkg,
+                env=dict(os.environ, PYTHONIOENCODING="utf-8"))
+            return (r.stdout or "") + (r.stderr or "")
+
+        broken = out_of("broken")
+        assert any(f + ":" in broken for f in FATAL_ON_AN_EMPTY_ROOT), (
+            "the 2(z81) shape is not detected by the empty-root check:\n%s"
+            % broken)
+        healthy = out_of("healthy")
+        assert not any(f + ":" in healthy for f in FATAL_ON_AN_EMPTY_ROOT), (
+            "NEGATIVE CONTROL: a clean refusal must NOT read as a defect:\n%s"
+            % healthy)
+    finally:
+        shutil.rmtree(pkg, ignore_errors=True)

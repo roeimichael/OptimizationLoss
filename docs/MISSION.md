@@ -167,6 +167,35 @@ been exercised and two claims were wrong.
 
 ### The `argsort` audit -- what does a tool sort probabilities WITHIN?
 
+🛑 **RECOUNTED 2026-09-10: EIGHT SITES, NOT SIX, AND THE AUDIT ITSELF WAS THE
+REASON (2(z80)).** The version below reads "six files sort probabilities" and
+that is the wrong unit -- **the audit is per-FILE and the defect is per-CALL
+SITE**. `order_probe.py` holds SIX `argsort` calls and carries TWO separate
+instances; the audit listed four of the six and cleared them in one verdict.
+
+| # | site | found | state |
+|---|---|---|---|
+| 1 | `order_probe --evictions` | 2026-08-28 | ⚠️ **DISCLOSED, NOT FIXED** |
+| 2-6 | task window, cap screen, fmow window, `paired_noise`, `cut_gap` | 09-01 .. 09-09 | ✅ fixed |
+| 7 | `step_direction_probe` | 2026-09-10 | ✅ fixed |
+| 8 | `order_probe` band + Jaccard | 2026-09-10 | ✅ fixed |
+
+Site 8 had a THIRD defect in the same expression, larger than the group one:
+`K` came from `budget_for` on `final_predictions_raw.csv`, which holds the
+model's ARGMAX -- so it was the HARD COUNT. At L20 that is ~336 against a
+deployed K of ~74, and the band `K//2 .. 2K` did not contain the cut in
+EITHER sense. Fixed; both readings now print side by side.
+
+⛔ **AND `order_probe` WAS UNRUNNABLE ON EVERY REAL INPUT WHILE THAT WAS TRUE
+(2(z81)).** `scripts/order_probe.py` imported the module `capped_classes` and
+then defined a function of the same name, so `capped_classes.assert_single_dataset`
+was an AttributeError on every `--campaign` run from `2dd84549` (2026-09-09).
+Every static gate was green; `--self-test` was green because it never enters
+`main`. Fixed, and gated by
+`test_no_module_import_is_shadowed_by_a_local_definition` (4 controls,
+mutation-tested). **The rule: every documented command needs ONE execution
+that starts where a person starts.**
+
 Six files sort probabilities. Four are clean (three group-blind by design, one
 a self-test fixture). Two were not:
 

@@ -3308,6 +3308,135 @@ def test_order_probe_resolves_its_TWIN_from_the_campaign_on_disk():
         shutil.rmtree(root, ignore_errors=True)
 
 
+def test_order_probe_takes_its_CONTESTED_BAND_PER_GROUP_end_to_end():
+    """FRAMEWORK 2(z80): the EIGHTH global-top-K site, and the second in this file.
+
+    `order_probe` built its contested band as `argsort(-pn)[K//2 : 2K]` over the
+    whole test set while the comment, the printed note and 2(w4) all called it
+    "where the cut actually falls". Two things were wrong at once:
+
+      * the sort was GLOBAL and the allocator cuts top-`k_g` WITHIN each group;
+      * `K` came from `budget_for` on `final_predictions_raw.csv`, which holds
+        the model's ARGMAX -- so it was the HARD COUNT, not the deployed K.
+
+    The 2(z64) `argsort` audit had cleared this file. It listed 4 of its 6 call
+    sites and cleared those 4 as "group-blind BY DESIGN", which is right for
+    `rho_arm` and wrong for `rho_arm_band` and `jac_arm` beside it.
+
+    This is an END-TO-END gate, on files, because the unit checks in
+    `order_probe --self-test` drive the helpers directly and cannot see a
+    caller that hands them the wrong frame -- which is the entire defect. It
+    asserts the two readings DISAGREE, never a direction: 2(z64) is the standing
+    record of a directional claim here being fixtured, mutation-tested green and
+    then refuted.
+    """
+    import shutil
+    import subprocess
+    import sys
+
+    import numpy as np
+    import pandas as pd
+
+    root = tempfile.mkdtemp(prefix="order_probe_e2e_")
+
+    def write(arm, seed, shift):
+        d = os.path.join(root, "camp", "MobileNetV3", "iwildcam", "L80_G95",
+                         arm, "seed_%d" % seed)
+        os.makedirs(d, exist_ok=True)
+        rng = np.random.default_rng(seed * 17 + shift)
+        n = 240
+        # TWO groups. Group A is easy, group B is hard, and each carries its
+        # own budget of 12 -- so the two cuts sit at within-group rank 12,
+        # i.e. global ranks ~12 and ~132. A global band centred on the hard
+        # count cannot see the second one.
+        grp = np.array(["A"] * 120 + ["B"] * 120)
+        p = np.concatenate([np.linspace(0.98, 0.55, 120),
+                            np.linspace(0.45, 0.02, 120)])
+        p = np.clip(p + rng.normal(scale=0.01 + 0.01 * shift, size=n), 0.001,
+                    0.999)
+        y = (rng.random(n) < p).astype(int) * 2
+        proba = np.column_stack([1.0 - p, np.zeros(n), p])
+        raw = np.where(p > 0.5, 2, 0)          # the ARGMAX: ~120 items
+        dep = np.zeros(n, dtype=int)           # the ALLOCATOR: 12 per group
+        for g in ("A", "B"):
+            w = np.flatnonzero(grp == g)
+            dep[w[np.argsort(-p[w])[:12]]] = 2
+        for name, pred in (("final_predictions_raw.csv", raw),
+                           ("final_predictions.csv", dep)):
+            pd.DataFrame({"True_Label": y, "Predicted_Label": pred,
+                          "Correct": (y == pred).astype(int),
+                          "Prob_Class_0": proba[:, 0],
+                          "Prob_Class_1": proba[:, 1],
+                          "Prob_Class_2": proba[:, 2],
+                          "Group_ID": grp}).to_csv(os.path.join(d, name),
+                                                   index=False)
+        json.dump({"dataset_config": {"constrained_class": 2},
+                   "hyperparams": {"seed": seed}},
+                  io.open(os.path.join(d, "config.json"), "w",
+                          encoding="utf-8"))
+        return d
+
+    try:
+        for seed in (1, 2, 3, 4):
+            write("tralo", seed, 1)
+            write("tralo_null", seed, 0)
+            write("tralo_reseed", seed, 2)
+
+        out = os.path.join(root, "rows.csv")
+        r = subprocess.run(
+            [sys.executable, "-m", "scripts.order_probe",
+             "--campaign", os.path.join(root, "camp"),
+             "--arm", "tralo", "--null", "tralo_null",
+             "--reseed", "tralo_reseed", "--out", out],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            cwd=REPO, env=dict(os.environ, PYTHONIOENCODING="utf-8"))
+        assert r.returncode == 0, (
+            "order_probe failed on a well-formed campaign:\n%s\n%s"
+            % (r.stdout[-3000:], r.stderr[-3000:]))
+        assert os.path.exists(out), (
+            "no rows written; stdout was:\n%s" % r.stdout[-3000:])
+        d = pd.read_csv(out)
+
+        for c in ("rho_arm_band", "rho_arm_band_glob", "jac_arm",
+                  "jac_arm_glob", "n_band", "n_band_glob", "K", "K_raw"):
+            assert c in d.columns, (
+                "%s is missing -- BOTH readings must print, or a published "
+                "figure silently changes meaning (2(z79))" % c)
+
+        # The two are DIFFERENT quantities. If they agreed on this fixture the
+        # gate would be measuring nothing.
+        assert (d["rho_arm_band"] - d["rho_arm_band_glob"]).abs().max() > 1e-9, (
+            "the per-group band reproduces the global one exactly -- the fix "
+            "is not wired into the run path")
+        assert d["K"].max() < d["K_raw"].max(), (
+            "K (deployed, %d) is not below K_raw (the argmax hard count, %d); "
+            "the fixture no longer poses the question the band was centred on "
+            "the wrong one of" % (d["K"].max(), d["K_raw"].max()))
+
+        # NEGATIVE CONTROL: strip Group_ID and it must REFUSE, not fall back
+        # to the global sort. That refusal is what found 2(z65).
+        for arm in ("tralo", "tralo_null", "tralo_reseed"):
+            for seed in (1, 2, 3, 4):
+                f = os.path.join(root, "camp", "MobileNetV3", "iwildcam",
+                                 "L80_G95", arm, "seed_%d" % seed,
+                                 "final_predictions.csv")
+                t = pd.read_csv(f).drop(columns=["Group_ID"])
+                t.to_csv(f, index=False)
+        r2 = subprocess.run(
+            [sys.executable, "-m", "scripts.order_probe",
+             "--campaign", os.path.join(root, "camp"),
+             "--arm", "tralo", "--null", "tralo_null",
+             "--reseed", "tralo_reseed"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            cwd=REPO, env=dict(os.environ, PYTHONIOENCODING="utf-8"))
+        assert r2.returncode != 0 and "Group_ID" in (r2.stdout + r2.stderr), (
+            "NEGATIVE CONTROL: with no Group_ID the probe must REFUSE and say "
+            "so, got rc=%d:\n%s\n%s"
+            % (r2.returncode, r2.stdout[-2000:], r2.stderr[-2000:]))
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
 def test_the_constraint_step_is_NOT_inside_the_CE_batch_loop():
     """The premise a whole analysis rested on, and that nobody had checked.
 
