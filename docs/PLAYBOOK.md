@@ -8,7 +8,7 @@ written before the data, which is the only time such a rule is worth anything.
 Companion documents: `docs/FRAMEWORK.md` is the law and the rejected ledger;
 `docs/MISSION.md` is the state and the queue.
 
-Last updated: **2026-08-30**.
+Last updated: **2026-09-10**.
 
 ---
 

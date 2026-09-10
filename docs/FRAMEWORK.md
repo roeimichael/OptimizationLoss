@@ -12611,13 +12611,205 @@ read what the figure claims. So the rule is human, and it is short:
 > If the number is not what the campaign is kept FOR, it is not evidence.
 
 
+## 2(z72). THE RESUME POINT SAID A CLOSED CAMPAIGN WAS STILL RUNNING, AND HANDED THE NEXT SESSION ITS RELAUNCH COMMAND (2026-09-10)
+
+**`docs/MISSION.md`'s `0-RUNNING` section -- the single block a resuming
+session reads to learn what is alive -- announced `itemscale1` + `itemscale2`
+in flight on dsisco01 GPU 0 and GPU 1. They had LANDED two days earlier and
+closed an entire design family. Nothing in the block's 76 lines said so, and
+the block contained a copy-pasteable relaunch command.**
+
+### 1. The two ways it fails, and the second is expensive
+
+A session that believed the block left two GPUs reserved for a campaign that
+finished on 2026-09-08. That is the cheap failure.
+
+The expensive one is the resume protocol the block itself prescribes:
+
+```
+ssh dsisco01 'ps -u michaer8 -o pid,etime,cmd | grep main.py | grep -v grep'
+```
+
+A landed campaign has no `main.py`. The block's next lines were the relaunch,
+under a comment explaining the `echo 0` its pin still needs. **The prescribed
+reading of a healthy, finished campaign was therefore "it died -- relaunch
+it"**, and doing so would have re-run 192 runs of a direction that FRAMEWORK
+2(z56) closed, producing output that looks exactly like corpus.
+
+### 2. THE DEFECT IS THE DATE, AND IT IS STRUCTURAL
+
+The heading read `WHAT IS IN FLIGHT (2026-09-07)`. That date is when the block
+was **written**. A run-state block dated at writing is indistinguishable from a
+current one forever after: it never contradicts itself, it just quietly ages.
+
+✅ The block is now dated **LAST VERIFIED**, which is when somebody last
+*checked* -- a date that goes visibly stale, because the gap between it and
+today is the whole point. It also now carries a LANDED table whose entries are
+marked ⛔ DO NOT RELAUNCH, so a finished campaign is stated as finished rather
+than merely absent from the live list.
+
+### 3. TWO SECTIONS CLAIMED RUN-STATE, WHICH IS WHY BOTH WERE STALE
+
+`0-LAUNCH` exists so a launch command is never lost to scrollback -- a good
+rule, written after `dualprop1` ran a day without its command recorded. But it
+annotated its entries with state, and still said `dualprop1 -- LIVE on dsisco01
+GPU 0` after that campaign had landed AND been scored AND produced 2(z53)'s
+rejection of `tralo_dualprop`.
+
+✅ `0-LAUNCH` now declares that it owns COMMANDS and never run-state, and that
+`0-RUNNING` is the only section permitted to say what is alive. One authority,
+so there is one place to update and one place to distrust.
+
+### 4. WHAT IT ALSO SURFACED: `snap2` WAS RUNNING AND NAMED NOWHERE
+
+Rebuilding the live list from the evidence rather than from the old block found
+`snap2` -- live, and the campaign with the worst provenance in the project: it
+runs from the unmerged server branch `snap/slice-provenance`, so its
+`code_version` will resolve in no other checkout, the 612-test suite has never
+executed against that code, and no 2026-09-09 scorer correction reaches it.
+It is now in the table with that caveat attached. 2(z67), tasks #103 / #97.
+
+### 5. AND THE SIBLING CLASS: NUMBERS THAT SAY THEY ARE NOT FINISHED
+
+Sweeping this file for entries that caveat their own numbers returns **8**.
+Seven had an owning task; 2(z53) did not -- `dualprop1` was 72 of 88 runs when
+it was read, so its cells carry 3 seeds against the protocol's 4, and its own
+text says every number must be re-read at completion. Now task **#106**, and
+all eight are indexed in `MISSION` `0-OPEN`.
+
+⚠️ **THAT SWEEP IS A REPORT, NOT A GATE, AND IT IS DELIBERATELY NOT A TOOL.**
+This project already carries three doc auditors (`doc_commands`,
+`stale_figures`, `dead_code`). An obligation differs from a state claim exactly
+in that it does not go stale -- it can only be discharged -- so a checklist is
+the correct instrument and a fourth scanner would be sprawl.
+
+### 6. 🛑 IT IS SIX PLACES ACROSS FOUR DOCUMENTS, NOT THREE IN ONE
+
+Sweeping the rest of the operational docs for the same class found three more,
+which is why this is a rule and not an anecdote:
+
+| where | what it claimed | what was true |
+|---|---|---|
+| `MISSION` `0-RUNNING` | `itemscale1`/`2` in flight on 2 GPUs | landed 2026-09-08, closed a family, **and the block carried its relaunch command** |
+| `MISSION` `0-LAUNCH` | `dualprop1 -- LIVE` | landed, scored, produced 2(z53)'s rejection |
+| `MISSION` queue | 5 live items, "work top-down" | all 5 completed |
+| **`FRAMEWORK` 3(0) status board** | `updated 2026-08-30` | **eleven days stale**, and its `Second dataset` row read `none` while `bcn1mn3` was a COMPLETE 228-run campaign and two more were live |
+| **`COVERAGE`** | `vitdual2` **RUNNING 0/88** | false in both halves -- it has produced the ViTB16 `headroom` rows and `deployed_h2h` has read its L90-90 cell |
+| **`PLAYBOOK`** | `Last updated 2026-08-30` | edited the same day it still claimed |
+
+🔑 **THE STATUS BOARD IS THE WORST OF THE SIX**, because `MISSION` explicitly
+sends a fresh session to it second -- so the two documents a resuming session
+reads were BOTH stale, and the board's own text says "if it is stale, that is a
+defect". A self-describing rule does not enforce itself.
+
+✅ All six corrected. `COVERAGE`'s campaign column now carries the date it was
+last checked and says outright that run-state lives in `0-RUNNING` and not
+there.
+
+### 7. The rule
+
+🔑 **A DOCUMENT MAY ASSERT RUN-STATE IN EXACTLY ONE PLACE, AND MUST DATE IT
+WHEN IT WAS LAST CHECKED RATHER THAN WHEN IT WAS WRITTEN.** Everything else
+that mentions a campaign is history and must read as history. This is the same
+shape as 2(z68) -- a figure dated when it was produced, against a scorer that
+moved underneath it -- and the same as the `keep_for` rule in 2(z71): a claim
+that was true in one context, read in another.
+
+## 2(z73). THE ONE UNCLOSED LAYER RESTS ON A NUMBER WITH NO MEASUREMENT, AND THE EXPLANATION FOR THE DISAGREEMENT IS REFUTED ON ITS OWN AXIS (2026-09-10)
+
+**Every mechanism family this project has closed sits UPSTREAM of `normalize`,
+which discards magnitude. The delivery layer -- how the constraint gradient
+actually reaches the weights -- is the one that has not been closed. Its entire
+motivation is a cosine of 0.009-0.017 that is cited nowhere, and the reason
+given for why a fresh measurement reads 15-20x higher is contradicted by that
+same measurement.**
+
+### 1. Why this layer is what is left
+
+2(z56) closed the per-scope weighting family -- shape, magnitude,
+frequency-vs-magnitude, units, granularity, scope selection -- on the finding
+that a mechanically correct, replicated, pre-registered fix moved the proxy and
+left the score alone. 2(z53) rejected `tralo_dualprop` on the same kind of
+evidence. Both act on what goes INTO the constraint gradient.
+
+`normalize` then takes ONE norm over `model.parameters()`, so the delivered step
+has norm exactly `lr*clip` whatever the loss was worth. That is why
+`tralo_coin` -- a RANDOM direction of the same norm -- took one of four cells in
+`itemscale`. The information that the closed families spent themselves adjusting
+is destroyed after they adjust it.
+
+### 2. The number that motivates the fix has no receipt
+
+`src/training/constraint_step.py` justified `constraint_step_rule: sgd` with
+"Measured in this project: `cos(parameter update, constraint gradient)` at
+**0.009-0.017**, i.e. the constraint step is ~98% a 127th CE step."
+
+`0.009-0.017` occurs in exactly TWO places in this repo: that comment, and
+2(z46) quoting that comment. There is no run, script, entry or dated
+measurement behind it.
+
+Nor is it the `92.6% stale CE momentum` figure, though the two are read as one
+claim. **92.6% is `ortho_survival`'s momentum algebra and does have a receipt.**
+A momentum fraction and a cosine are different quantities.
+
+### 3. 🛑 THE STEP-COUNT EXPLANATION IS REFUTED BY ITS OWN AXIS
+
+`MISSION` carried the reconciliation: the fresh reading "used 60 CE steps, so
+`cos = 0.187` is higher than the 0.009-0.017 the framework measures after a full
+epoch". That attributes the gap to STEP COUNT. `step_dose` measured that axis:
+
+| cos | where it comes from | `shared` aligned | `sgd` under-dosed |
+|---|---|---|---|
+| 0.013 | the docstring, uncited | 0.000577 | 5.8x |
+| 0.187 | measured, 60 CE steps | 0.00830 | 83x |
+| **0.258** | **measured, 126 CE steps = a full epoch** | **0.01146** | **115x** |
+
+~126 CE steps IS the full epoch between constraint steps. **The cosine RISES as
+Adam's state matures**, so going to a full epoch widens the disagreement from
+15x to 20x rather than closing it, and takes the under-dose from 83x to 115x.
+The explanation predicted movement toward 0.013 and the measurement moves away
+from it.
+
+Three readings survive, and they are not equivalent: a different DEFINITION (cos
+against the update INCLUDING the CE step), a different STATE (deep in the
+constraint phase on a warm-up-trained model rather than 126 fresh CE steps), or
+a different BACKBONE (this is MobileNetV2).
+
+### 4. What is and is not affected
+
+🟢 **The dose conclusion is UNAFFECTED, and it is why the arm exists.** `sgd` is
+under-dosed at every cosine on the table. A null from `tralo_sgd` reports the
+DOSE GAP and never "delivering the direction does not help" -- pre-registered in
+`protocol.yml` before `price1` launched.
+
+⛔ **The MECHANISM claim is not settled**, and it is the whole motivation for the
+delivery program. `constraint_step.py` now states the dispute at the point of
+use instead of asserting the smaller number; `MISSION` no longer offers the
+step-count reconciliation.
+
+### 5. The rule, which is this week's rule again
+
+🔑 **A NUMBER THAT SAYS "MEASURED IN THIS PROJECT" MUST NAME WHERE.** This is
+2(z68) (a figure dated against a scorer that moved underneath it), 2(z71) (a
+figure read outside its own `keep_for`) and 2(z72) (a run-state block dated when
+it was written) in a fourth costume: a claim that was true in some context, read
+in another, with the context lost. The cheapest defence is a citation, and the
+training path is the last place that should go without one.
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
-### 3(0) 🛑 **STATUS BOARD, updated 2026-08-30 -- read this before section 3's older text**
+### 3(0) 🛑 **STATUS BOARD, LAST UPDATED 2026-09-10 -- read this before section 3's older text**
 
 Section 3 below was written against the warm-up-50 corpus and is HISTORY. This
 board is the live state. It is updated every time a campaign lands; if it is
 stale, that is a defect.
+
+🛑 **DATED WHEN LAST UPDATED, AND THAT DATE IS PART OF THE CLAIM.** This board
+read `updated 2026-08-30` for ELEVEN DAYS while four campaigns landed and two
+design families closed, and one of its rows -- `Second dataset: none` -- had
+become simply false. Same defect as 2(z72): a block dated at writing reads as
+current forever. If the top date is not today's and campaigns have landed since,
+distrust every row.
 
 | claim | status | evidence | what would kill it |
 |---|---|---|---|
@@ -12629,10 +12821,16 @@ stale, that is a defect.
 | TraLO > **alm** (the ONLY surviving rival dual) | 🔴 **NOT shown** | 4/6 on every metric, p=0.69; as-deployed #1 in **0 of 15** cells, 2(z43) | -- |
 | TraLO #1 of the duals, as deployed | 🔴 **REFUTED** | **2 of 15 cells namable, both `alm`, TraLO 0** once the dead arms drop (2(z43)) | -- |
 | TraLO is a better ENFORCER | 🔴 **REFUTED** | pulls **+6.2 items** vs `alm` **+17.8** -- the weaker of the two surviving arms | -- |
+| **The ACCEPTANCE BAR (>=50% of testable cells)** | 🔴 **FAIL** | `tralo_wins` **6 of 17 = 35%**. ⛔ **QUOTE THE VERDICT, NOT THE FIGURE** -- it predates `rank_cell`'s common-seeds fix by 14 hours (2(z68), task #104) | a recompute reaching 9 of 17 |
+| **The per-scope WEIGHTING family** | ⛔ **CLOSED** | `itemscale1`+`2`: mechanism CONFIRMED and replicated (MIDDLE +6.4 items, K=0 budget share 93.5%->15.3% as predicted) and the deployed score did NOT follow -- 25% vs the 50% bar, **0 of 4 priced**, and **`tralo_coin`, a RANDOM direction of the same norm, took a cell** (2(z56)) | -- |
+| **`tralo_dualprop` (magnitude, not frequency)** | 🔴 **REJECTED** | `dualprop1`, sign 6 of 6; the constraint also makes the RANKING worse (2(z53)). ⚠️ read at 72/88 runs = 3 seeds; DIRECTION safe, NUMBERS provisional (task #106) | -- |
+| **Excess removed buys deployed quality** (the premise the whole program rests on) | 🟡 **WEAK, and it is a premise not a result** | rho **+0.383** over 2 cells, 1 of 2 positive (2(z56)); **+0.442** over 6 cells (96 runs), 4 of 6 -- the `--arms`-honoured recompute of 2026-09-09, task #85. ⚠️ **THAT SECOND FIGURE HAS NO ENTRY IN THIS FILE**; it is recorded only in CLAUDE.md's `deep_scope` block, which is a tool docstring and not the ledger. 4 of 6 is p=0.34 either way -- a DIRECTION, never a measurement | a cell where the proxy moves and the metric does not follow -- already seen twice |
+| **The DELIVERY layer** (`constraint_step_rule`) | 🟡 **THE ONLY ONE NOT CLOSED, AND ITS MOTIVATION IS UNCITED** | every closed family acts UPSTREAM of `normalize`, which discards magnitude. The motivating cosine 0.009-0.017 exists in two places, both quoting each other, against a real-backbone 0.187-0.258 (2(z73), task #107) | `step_dose`'s new `cos(m_ce, ghat)` on a real config |
 | `tralo_uniform` fixes tight caps | 🟡 holds, tight only | `uniform1` AP -0.0754 -> +0.0030 | -- |
 | macroF1 (the paper's headline) | 🔴 negative | `dom1` -0.0023, loses to `clip` | -- |
 | Any result on ViTB16, the HEADLINE backbone | 🔴 **absent at loose caps** | `loosevit1` is 2 cells, p-floor 0.50 | running it properly |
-| Second dataset | ⛔ none | `fmow` screened, needs ~21k images | -- |
+| Second dataset | 🟢 **THREE datasets now carry campaigns** | ⛔ this row read `none` until 2026-09-10 and was false: **`bcn1mn3` is COMPLETE (228 runs)**, `bcn1vit` (L90 only -- L70/L80 archived as non-task) and `fmow1` are live. fmow's LOCAL p@K clears the bar at 0.842/0.882/0.952/0.973 where iwildcam reads 0.9948-0.9972 (2(z59)) | -- |
+| **Is the corpus even priceable?** | 🔴 **NO, and that is not a result about TraLO** | every corpus campaign predates `tralo_reseed2`, so the RNG floor rests on 2 streams x 4 seeds = **4 obs** against `MIN_FLOOR_OBS` = 8. `priced` is False **by construction, at any effect size** -- the comparison is never reached (2(z69), task #105) | 16 runs per campaign |
 
 ### 3(0d) 🔑 **WHY EVERY dom1 CAP IS L80+ -- and the matched pair hiding in it**
 
@@ -13986,165 +14184,3 @@ directories finds ten, and this is the line that says why.
 
 The full run-by-run record, with numbers, p-values and cell counts, is preserved at
 `docs/archive/REJECTED_full_2026-08-18.md`. It is history, not instructions.
-
-## 2(z72). THE RESUME POINT SAID A CLOSED CAMPAIGN WAS STILL RUNNING, AND HANDED THE NEXT SESSION ITS RELAUNCH COMMAND (2026-09-10)
-
-**`docs/MISSION.md`'s `0-RUNNING` section -- the single block a resuming
-session reads to learn what is alive -- announced `itemscale1` + `itemscale2`
-in flight on dsisco01 GPU 0 and GPU 1. They had LANDED two days earlier and
-closed an entire design family. Nothing in the block's 76 lines said so, and
-the block contained a copy-pasteable relaunch command.**
-
-### 1. The two ways it fails, and the second is expensive
-
-A session that believed the block left two GPUs reserved for a campaign that
-finished on 2026-09-08. That is the cheap failure.
-
-The expensive one is the resume protocol the block itself prescribes:
-
-```
-ssh dsisco01 'ps -u michaer8 -o pid,etime,cmd | grep main.py | grep -v grep'
-```
-
-A landed campaign has no `main.py`. The block's next lines were the relaunch,
-under a comment explaining the `echo 0` its pin still needs. **The prescribed
-reading of a healthy, finished campaign was therefore "it died -- relaunch
-it"**, and doing so would have re-run 192 runs of a direction that FRAMEWORK
-2(z56) closed, producing output that looks exactly like corpus.
-
-### 2. THE DEFECT IS THE DATE, AND IT IS STRUCTURAL
-
-The heading read `WHAT IS IN FLIGHT (2026-09-07)`. That date is when the block
-was **written**. A run-state block dated at writing is indistinguishable from a
-current one forever after: it never contradicts itself, it just quietly ages.
-
-✅ The block is now dated **LAST VERIFIED**, which is when somebody last
-*checked* -- a date that goes visibly stale, because the gap between it and
-today is the whole point. It also now carries a LANDED table whose entries are
-marked ⛔ DO NOT RELAUNCH, so a finished campaign is stated as finished rather
-than merely absent from the live list.
-
-### 3. TWO SECTIONS CLAIMED RUN-STATE, WHICH IS WHY BOTH WERE STALE
-
-`0-LAUNCH` exists so a launch command is never lost to scrollback -- a good
-rule, written after `dualprop1` ran a day without its command recorded. But it
-annotated its entries with state, and still said `dualprop1 -- LIVE on dsisco01
-GPU 0` after that campaign had landed AND been scored AND produced 2(z53)'s
-rejection of `tralo_dualprop`.
-
-✅ `0-LAUNCH` now declares that it owns COMMANDS and never run-state, and that
-`0-RUNNING` is the only section permitted to say what is alive. One authority,
-so there is one place to update and one place to distrust.
-
-### 4. WHAT IT ALSO SURFACED: `snap2` WAS RUNNING AND NAMED NOWHERE
-
-Rebuilding the live list from the evidence rather than from the old block found
-`snap2` -- live, and the campaign with the worst provenance in the project: it
-runs from the unmerged server branch `snap/slice-provenance`, so its
-`code_version` will resolve in no other checkout, the 612-test suite has never
-executed against that code, and no 2026-09-09 scorer correction reaches it.
-It is now in the table with that caveat attached. 2(z67), tasks #103 / #97.
-
-### 5. AND THE SIBLING CLASS: NUMBERS THAT SAY THEY ARE NOT FINISHED
-
-Sweeping this file for entries that caveat their own numbers returns **8**.
-Seven had an owning task; 2(z53) did not -- `dualprop1` was 72 of 88 runs when
-it was read, so its cells carry 3 seeds against the protocol's 4, and its own
-text says every number must be re-read at completion. Now task **#106**, and
-all eight are indexed in `MISSION` `0-OPEN`.
-
-⚠️ **THAT SWEEP IS A REPORT, NOT A GATE, AND IT IS DELIBERATELY NOT A TOOL.**
-This project already carries three doc auditors (`doc_commands`,
-`stale_figures`, `dead_code`). An obligation differs from a state claim exactly
-in that it does not go stale -- it can only be discharged -- so a checklist is
-the correct instrument and a fourth scanner would be sprawl.
-
-### 6. The rule
-
-🔑 **A DOCUMENT MAY ASSERT RUN-STATE IN EXACTLY ONE PLACE, AND MUST DATE IT
-WHEN IT WAS LAST CHECKED RATHER THAN WHEN IT WAS WRITTEN.** Everything else
-that mentions a campaign is history and must read as history. This is the same
-shape as 2(z68) -- a figure dated when it was produced, against a scorer that
-moved underneath it -- and the same as the `keep_for` rule in 2(z71): a claim
-that was true in one context, read in another.
-
-## 2(z73). THE ONE UNCLOSED LAYER RESTS ON A NUMBER WITH NO MEASUREMENT, AND THE EXPLANATION FOR THE DISAGREEMENT IS REFUTED ON ITS OWN AXIS (2026-09-10)
-
-**Every mechanism family this project has closed sits UPSTREAM of `normalize`,
-which discards magnitude. The delivery layer -- how the constraint gradient
-actually reaches the weights -- is the one that has not been closed. Its entire
-motivation is a cosine of 0.009-0.017 that is cited nowhere, and the reason
-given for why a fresh measurement reads 15-20x higher is contradicted by that
-same measurement.**
-
-### 1. Why this layer is what is left
-
-2(z56) closed the per-scope weighting family -- shape, magnitude,
-frequency-vs-magnitude, units, granularity, scope selection -- on the finding
-that a mechanically correct, replicated, pre-registered fix moved the proxy and
-left the score alone. 2(z53) rejected `tralo_dualprop` on the same kind of
-evidence. Both act on what goes INTO the constraint gradient.
-
-`normalize` then takes ONE norm over `model.parameters()`, so the delivered step
-has norm exactly `lr*clip` whatever the loss was worth. That is why
-`tralo_coin` -- a RANDOM direction of the same norm -- took one of four cells in
-`itemscale`. The information that the closed families spent themselves adjusting
-is destroyed after they adjust it.
-
-### 2. The number that motivates the fix has no receipt
-
-`src/training/constraint_step.py` justified `constraint_step_rule: sgd` with
-"Measured in this project: `cos(parameter update, constraint gradient)` at
-**0.009-0.017**, i.e. the constraint step is ~98% a 127th CE step."
-
-`0.009-0.017` occurs in exactly TWO places in this repo: that comment, and
-2(z46) quoting that comment. There is no run, script, entry or dated
-measurement behind it.
-
-Nor is it the `92.6% stale CE momentum` figure, though the two are read as one
-claim. **92.6% is `ortho_survival`'s momentum algebra and does have a receipt.**
-A momentum fraction and a cosine are different quantities.
-
-### 3. 🛑 THE STEP-COUNT EXPLANATION IS REFUTED BY ITS OWN AXIS
-
-`MISSION` carried the reconciliation: the fresh reading "used 60 CE steps, so
-`cos = 0.187` is higher than the 0.009-0.017 the framework measures after a full
-epoch". That attributes the gap to STEP COUNT. `step_dose` measured that axis:
-
-| cos | where it comes from | `shared` aligned | `sgd` under-dosed |
-|---|---|---|---|
-| 0.013 | the docstring, uncited | 0.000577 | 5.8x |
-| 0.187 | measured, 60 CE steps | 0.00830 | 83x |
-| **0.258** | **measured, 126 CE steps = a full epoch** | **0.01146** | **115x** |
-
-~126 CE steps IS the full epoch between constraint steps. **The cosine RISES as
-Adam's state matures**, so going to a full epoch widens the disagreement from
-15x to 20x rather than closing it, and takes the under-dose from 83x to 115x.
-The explanation predicted movement toward 0.013 and the measurement moves away
-from it.
-
-Three readings survive, and they are not equivalent: a different DEFINITION (cos
-against the update INCLUDING the CE step), a different STATE (deep in the
-constraint phase on a warm-up-trained model rather than 126 fresh CE steps), or
-a different BACKBONE (this is MobileNetV2).
-
-### 4. What is and is not affected
-
-🟢 **The dose conclusion is UNAFFECTED, and it is why the arm exists.** `sgd` is
-under-dosed at every cosine on the table. A null from `tralo_sgd` reports the
-DOSE GAP and never "delivering the direction does not help" -- pre-registered in
-`protocol.yml` before `price1` launched.
-
-⛔ **The MECHANISM claim is not settled**, and it is the whole motivation for the
-delivery program. `constraint_step.py` now states the dispute at the point of
-use instead of asserting the smaller number; `MISSION` no longer offers the
-step-count reconciliation.
-
-### 5. The rule, which is this week's rule again
-
-🔑 **A NUMBER THAT SAYS "MEASURED IN THIS PROJECT" MUST NAME WHERE.** This is
-2(z68) (a figure dated against a scorer that moved underneath it), 2(z71) (a
-figure read outside its own `keep_for`) and 2(z72) (a run-state block dated when
-it was written) in a fourth costume: a claim that was true in some context, read
-in another, with the context lost. The cheapest defence is a citation, and the
-training path is the last place that should go without one.

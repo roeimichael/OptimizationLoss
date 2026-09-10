@@ -5,7 +5,7 @@
 every working session. If it is stale, that is a defect -- fix it before doing
 anything else.
 
-Last updated: **2026-09-10** (🛑 THIS FILE'S OWN RUN-STATE WAS THREE DAYS STALE IN THREE PLACES: `0-RUNNING` announced a campaign that had LANDED and closed a design family, and handed the next session its RELAUNCH command; `0-LAUNCH` still said `dualprop1 -- LIVE`; and all five items of the "live" priority QUEUE were finished work. All three rebuilt, `0-RUNNING` now dated LAST VERIFIED rather than at writing, and one authority owns run-state -- FRAMEWORK 2(z72). 🔑 AND THE ONLY UNCLOSED MECHANISM LAYER RESTS ON AN UNCITED NUMBER: 2(z56) closed the per-scope weighting family and 2(z53) rejected `tralo_dualprop`, both UPSTREAM of `normalize`, which is why `tralo_coin` -- a random direction of the same norm -- took a cell. What is left is DELIVERY, motivated by a cosine of 0.009-0.017 that exists in two places, both quoting each other, against a real-backbone reading of 0.187-0.258 -- see 2(z73), task #107. Previously: three scorers reported a guard as a measurement, 0-FLOOR; the acceptance figure is stale, 0-STALE; two units unread at zero GPU, 0-UNREAD. SSH to both hosts down all day.)
+Last updated: **2026-09-10** (🛑 RUN-STATE WAS STALE IN **SIX** PLACES ACROSS **FOUR** DOCUMENTS. This file carried three: `0-RUNNING` announced a campaign that had LANDED and closed a design family, and handed the next session its RELAUNCH command; `0-LAUNCH` still said `dualprop1 -- LIVE`; and all five items of the "live" priority QUEUE were finished work. The other three were FRAMEWORK's **3(0) status board** (eleven days stale, its `Second dataset` row reading `none` while a COMPLETE 228-run campaign sat on disk), COVERAGE (`vitdual2 RUNNING 0/88`, already scored twice) and PLAYBOOK's header. All six rebuilt; `0-RUNNING` is now dated LAST VERIFIED rather than at writing, and one authority owns run-state -- FRAMEWORK 2(z72). 🔑 AND THE ONLY UNCLOSED MECHANISM LAYER RESTS ON AN UNCITED NUMBER: 2(z56) closed the per-scope weighting family and 2(z53) rejected `tralo_dualprop`, both UPSTREAM of `normalize`, which is why `tralo_coin` -- a random direction of the same norm -- took a cell. What is left is DELIVERY, motivated by a cosine of 0.009-0.017 that exists in two places, both quoting each other, against a real-backbone reading of 0.187-0.258 -- see 2(z73), task #107. Previously: three scorers reported a guard as a measurement, 0-FLOOR; the acceptance figure is stale, 0-STALE; two units unread at zero GPU, 0-UNREAD. SSH to both hosts down all day.)
 
 ---
 
@@ -106,6 +106,15 @@ since and **the documents collapse "licensed" and "sign read" into one
 number.**
 
 ```bash
+# 0. THE GATES FIRST. A copy-paste sequence that skips them is how a wrong
+#    number gets quoted, and both scorers below are quarantine-gated anyway --
+#    better to see the refusal here than five frames deep in `sorted()`.
+python -m scripts.pred_integrity results/dom1 results/bcn1mn3   # a TORN CSV PARSES
+python -m scripts.dose_landed results/bcn1mn3                   # read attempted/run
+python -m scripts.run_campaign --root results/bcn1mn3 --step score
+
+# 1. THE READ. `cell_table` REFUSES a cell whose runs carry no
+#    `hyperparams.seed`; `paper_rows` prints the task-window restriction itself.
 python -m scripts.cell_table --campaign results/dom1 results/bcn1mn3 --out cells.csv
 python -m scripts.paper_rows --cells cells.csv --out paper_rows.csv
 ```
