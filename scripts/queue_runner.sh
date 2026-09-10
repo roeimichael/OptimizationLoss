@@ -36,6 +36,14 @@
 # class ("a launch that ran 40 runs on CPU"); this is the same check moved to
 # the point where it can actually stop the launch.
 #
+# 🛑 NEVER OVERWRITE THIS FILE AT A PATH A RUNNER IS EXECUTING.
+# bash reads a script LAZILY, by byte offset, so replacing it under a running
+# instance makes that instance resume mid-token in the new bytes. Deploy to a
+# VERSIONED path (`queue_runner_v2.sh`, `_v3`, ...) and launch the new queue
+# from the new path. Measured 2026-09-10: an in-place scp landed while a runner
+# sat blocked inside its `( ... ) >> log` subshell, which is the only reason it
+# survived -- bash had not needed the next byte yet.
+#
 # It does NOT resume, retry or reset anything. A campaign that ends with
 # pending runs is left exactly as it is for a person to read.
 
@@ -84,6 +92,32 @@ assert_gpu_ready() {
     say "gpu ready: $py sees '$name' as cuda:0 (host gpu $GPU)"
 }
 
+# 🛑 IS ONE OF *OUR* DISPATCHERS ALREADY ASSIGNED TO THIS GPU, EVEN THOUGH IT
+# HOLDS NO CUDA CONTEXT THIS SECOND?
+#
+# `main.py` releases the cuda context between the runs of a campaign, so
+# `nvidia-smi` reads EMPTY on that card for a few seconds every time one run
+# ends and the next starts. Measured 2026-09-10: a queue waiting on gpu 1
+# claimed it at 19:36:36, in the gap between two `price2` runs, while `price2`
+# still owned the card and had 55 runs to go. An idle card is NOT a free card.
+#
+# A dispatcher owns its gpu for the whole campaign, so ownership is read off
+# the PROCESS -- `CUDA_VISIBLE_DEVICES` in its own environ -- and never off the
+# device.
+dispatcher_on_gpu() {
+    local p cvd cmd
+    for p in $(pgrep -u "$me" -f 'main\.py' 2>/dev/null); do
+        cmd="$(tr '\0' ' ' < "/proc/$p/cmdline" 2>/dev/null)"
+        case "$cmd" in
+            *python*main.py*) : ;;
+            *) continue ;;
+        esac
+        cvd="$(tr '\0' '\n' < "/proc/$p/environ" 2>/dev/null | sed -n 's/^CUDA_VISIBLE_DEVICES=//p')"
+        if [ "$cvd" = "$GPU" ]; then echo "$p"; return 0; fi
+    done
+    return 1
+}
+
 # Every distinct user with a compute process on our gpu, us included.
 gpu_users() {
     local pids u out=""
@@ -98,16 +132,24 @@ gpu_users() {
 # Block until the gpu has no compute process at all. Abort the queue the moment
 # somebody else appears on it -- we do not queue behind another user.
 wait_for_gpu() {
-    local users
+    local users other announced=""
     while true; do
         users="$(gpu_users)"
-        if [ -z "$users" ]; then return 0; fi
-        for u in $users; do
-            if [ "$u" != "$me" ]; then
-                say "ABORT: gpu $GPU has a foreign user ($u). Never sharing a gpu."
-                exit 3
+        if [ -z "$users" ]; then
+            other="$(dispatcher_on_gpu || true)"
+            if [ -z "$other" ]; then return 0; fi
+            if [ -z "$announced" ]; then
+                say "gpu $GPU is idle but dispatcher pid $other still owns it (between runs) -- waiting"
+                announced=1
             fi
-        done
+        else
+            for u in $users; do
+                if [ "$u" != "$me" ]; then
+                    say "ABORT: gpu $GPU has a foreign user ($u). Never sharing a gpu."
+                    exit 3
+                fi
+            done
+        fi
         sleep 120
     done
 }
@@ -156,11 +198,24 @@ print(len(v)); print(sorted(v)[0] if v else 'none')
     assert_gpu_ready
     say "claiming gpu $GPU for $NAME  (worktree $WT)"
 
+    # 🛑 `yes 0` IS NOT DECORATION. A campaign worktree is PINNED at the commit
+    # its configs were generated from, and `main.py` only learned to auto-select
+    # when exactly one gpu is visible on 2026-09-07. Every tree pinned before
+    # that -- `optloss-cutwin` among them -- still calls `input()`, so a detached
+    # launch there dies on `EOFError` before claiming a single run. Measured
+    # 2026-09-10: `q01b` claimed gpu 1, crashed in 2 seconds with rc=1, and
+    # reported "DONE -- no campaigns left" over an 18-run campaign.
+    # Editing the pinned tree to fix it is forbidden -- `code_version` is a git
+    # hash and the edit would split the campaign -- so the FEED belongs here.
+    # `yes` rather than a fixed string because the old prompt loops on invalid
+    # input, and an exhausted stdin is the very EOF being avoided. With one
+    # visible gpu the only valid answer is `0`; the auto-selecting version never
+    # reads stdin and ignores it.
     (
         cd "$WT" || exit 1
         export EXPERIMENT_DIR="$ROOT"
         export CUDA_VISIBLE_DEVICES="$GPU"
-        exec python -u main.py
+        yes 0 | python -u main.py
     ) >>"$RUN_LOG" 2>&1
 
     rc=$?
