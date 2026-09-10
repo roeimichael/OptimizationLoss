@@ -180,7 +180,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 628 regression tests, ~250s, no dataset needed
+python -m pytest tests -q                   # 633 regression tests, ~250s, no dataset needed
 #   `tests/test_scorers_run_end_to_end.py` EXECUTES every scorer as a subprocess
 #   against a campaign carrying a real PARTIAL marker. It exists because three
 #   scorers once used `quarantine.` with no module-level import: they PARSED,
@@ -1336,11 +1336,41 @@ python -m scripts.straddle_probe --campaign <root>  # how much of the ORACLE hea
                                             #   reachable at any dose. delta is MEASURED
                                             #   from each arm's own `_null` twin, not
                                             #   assumed. `--self-test` gates it.
+                                            #   🛑 **IT CUT GLOBALLY UNTIL 2026-09-10 --
+                                            #   THE ELEVENTH SUCH SITE, AND THE ONE THE
+                                            #   CALL-SITE GATE COULD NOT SEE.** The cut
+                                            #   was `np.partition(s, -K)[-K]` and neither
+                                            #   `partition` nor `quantile` was in the
+                                            #   registry's target list, so the gate that
+                                            #   had just produced sites 9 and 10 reported
+                                            #   this file CLEAN and held ZERO entries for
+                                            #   it. Disclosed in its own docstring from
+                                            #   the day it was written ("it ignores the
+                                            #   per-group ceilings") and never acted on.
+                                            #   Now sums FP-out/TP-in inside each group
+                                            #   against that group's own cut; the global
+                                            #   reading is retained in a `glob` column.
+                                            #   ⛔ NO DIRECTION -- on its own fixture the
+                                            #   per-group oracle is LARGER on class 1
+                                            #   (2.40 vs 2.20) and SMALLER on class 2
+                                            #   (4.40 vs 5.20), in the same run: a
+                                            #   per-group selection captures fewer TPs
+                                            #   (raises the gap) while
+                                            #   `sum_g min(k_g,n_pos_g) <= min(K,n_pos)`
+                                            #   (lowers it). FRAMEWORK 2(z85).
                                             #   ⚠️ `--match-contested` is the ONLY
                                             #   ladder comparable ACROSS cap levels:
                                             #   the fraction-of-range one reversed a
                                             #   24/33 trend once density was held
                                             #   fixed. Aggregates key on the ARM too.
+                                            #   ⛔ AND IT HAD NO END-TO-END COVERAGE AT
+                                            #   ALL until 2026-09-10 -- `--self-test`
+                                            #   runs the `--sweep` ladder -- so a
+                                            #   mutation reverting it to the global mass
+                                            #   left every straddle test green. Two of
+                                            #   the three mutations that found gaps hit
+                                            #   the CONTROL and the LADDER, not the
+                                            #   statistic.
                                             #   `contested` is LABEL-free but NOT
                                             #   model-free -- no model, no ranking, no
                                             #   cut. `dataset_screen` is the pre-GPU one
@@ -1355,12 +1385,19 @@ slice before a single image is ever loaded.
 
 ⚠️ **Read `straddle_probe`'s shuffled control in the right DIRECTION.** Shuffling the
 scores does not send `reachable` to zero, it RAISES it -- a random top-K scatters
-positives on both sides of the cut. It is a *reference* (it depends on n, K and prevalence
-only, measured at 10.8 vs 11.6 items across two regimes whose error structures differ 5x),
+positives on both sides of the cut. It is a *reference* (it depends on n_g, k_g and
+prevalence, with the same per-group budgets re-taken on the permuted scores),
 and the SIGN of the deviation is the result: `reachable << ctrl` means the ranking already
 took the easy swaps, `~= ctrl` means the statistic is reading the score distribution and
 means nothing, and `>> ctrl` means positives are parked BELOW the cut -- the one case in
 which a cut-local method has something real to win.
+
+⛔ **AND `10.8 vs 11.6` WAS WITHDRAWN 2026-09-10 (2(z85)).** That 1.07x spread does
+not reproduce at any seed count under EITHER reading. Re-measured at the widest band:
+the reference moves **1.37-1.46x** between the two self-test regimes while the oracle
+moves 5.2-6.1x and the real arm 2.5-2.9x. **The licence is that it moves LEAST, not
+that it is fixed** -- and the global reading moves the same 1.39x, so this is not
+something the per-group fix did.
 
 **Three rules that cost a night each to learn:**
 

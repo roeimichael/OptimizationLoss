@@ -262,11 +262,18 @@ been exercised and two claims were wrong.
 
 ### The `argsort` audit -- what does a tool sort probabilities WITHIN?
 
-🛑 **RECOUNTED 2026-09-10: NINE SITES, NOT SIX, AND THE AUDIT ITSELF WAS THE
-REASON (2(z80)).** The version below reads "six files sort probabilities" and
-that is the wrong unit -- **the audit is per-FILE and the defect is per-CALL
-SITE**. `order_probe.py` holds SIX `argsort` calls and carries TWO separate
-instances; the audit listed four of the six and cleared them in one verdict.
+🛑 **RECOUNTED 2026-09-10, AND THEN AGAIN THE SAME DAY: ELEVEN SITES, NOT SIX
+(2(z80), 2(z84), 2(z85)).** The version below reads "six files sort
+probabilities" and that is the wrong unit -- **the audit is per-FILE and the
+defect is per-CALL SITE**. `order_probe.py` holds SIX `argsort` calls and
+carries TWO separate instances; the audit listed four of the six and cleared
+them in one verdict.
+
+🛑 **AND THE PER-CALL-SITE GATE HAS ITS OWN BLIND SPOT, ONE LEVEL UP: the
+enumeration is per-SPELLING and the defect is per-QUESTION.** Site 11 is
+`straddle_probe.cut_score`, which located its cut with `np.partition` --
+not in the target list, so the gate that had just produced sites 9 and 10
+reported that file CLEAN and held ZERO entries for it.
 
 | # | site | found | state |
 |---|---|---|---|
@@ -276,19 +283,28 @@ instances; the audit listed four of the six and cleared them in one verdict.
 | 8 | `order_probe` band + Jaccard | 2026-09-10 | ✅ fixed |
 | 9 | **`score_scan` prec@K + Jaccard** | 2026-09-10 | ✅ fixed, **figure WITHDRAWN** |
 | 10 | **`reachability.slope_at`** -- its `live at K` / `flat at K` VERDICT read the globally k-th item of the whole column, off the RAW frame | 2026-09-10 | ✅ fixed |
+| 11 | **`straddle_probe.cut_score`** -- `np.partition(s, -K)[-K]`, and it sets the DENOMINATOR of the 2(z77) mechanism bar. Disclosed in its own docstring from the day it was written | 2026-09-10 | ✅ fixed, shuffled-control figure RE-MEASURED |
 
 🔑 **SITE 10 WAS FOUND BY THE GATE THAT SITE 9 PRODUCED, WITHIN THE HOUR.**
 Fixing site 1 (`order_probe --evictions`, disclosed 2026-08-28 and unfixed
 since) introduced an `np.sort(pn)[::-1][K - 1]` the registry could not see,
 because it tracked `argsort` and not `sort`. Widening the target list took it
 from 40 call sites to **56**, and the first new entry anyone had to classify
-was site 10. `GLOBAL-OPEN` is now **0**: nothing is knowingly wrong and
-unfixed. ⚠️ Both fixes print BOTH readings and claim NO direction (2(z64)).
+was site 10. Widening it AGAIN -- `partition` and `quantile`, chosen by counting
+every cut-locating spelling in the repo rather than guessing -- took it to
+**59** and produced site 11. `searchsorted` is a genuine cut spelling and occurs
+ZERO times, checked; `max`/`min`/`median`/`argmax` are deliberately excluded and
+the reason is written at the list, because a target list that grows without a
+stated boundary reaches 495 entries and stops being read. `GLOBAL-OPEN` is now
+**0**: nothing is knowingly wrong and unfixed. ⚠️ All three fixes print BOTH
+readings and claim NO direction (2(z64)) -- and on `straddle_probe`'s own
+fixture the per-group oracle is LARGER on one class and SMALLER on another in
+the same run, so there is no direction to claim.
 
 ✅ **AND #114 IS DONE, WHICH IS HOW #9 AND #10 WERE FOUND.**
 `tests/test_lessons_learned.py::test_every_sort_on_scores_is_classified_per_CALL_SITE`
 AST-walks `scripts/ src/ configs/` and requires all sort-on-scores call
-sites -- **56** once `sort` joined `argsort` in the target list -- to carry a
+sites -- **59** once `sort`, `partition` and `quantile` joined `argsort` in the target list -- to carry a
 verdict and a reason, keyed by the sorted EXPRESSION so that
 changing what is sorted turns it red. **Site 9 appeared the first time the
 sites were enumerated mechanically rather than read** -- and its `prec@K` and
@@ -1289,10 +1305,10 @@ that claim is the as-deployed 0.83x-the-floor number, which means
 
 ## 🟢 0-RUNNING. WHAT IS IN FLIGHT
 
-🛑 **LAST VERIFIED 2026-09-09. NOT VERIFIED SINCE.** SSH to `dsisco01` /
-`dsisco02` has been unreachable for an entire working session (jump host
-`dsihead.lnx.biu.ac.il`, 132.70.60.180, at 100% packet loss), so every line
-below is a LAST-KNOWN state and not a current one.
+✅ **LAST VERIFIED 2026-09-10 15:04, ON BOTH HOSTS, AGAINST `results/` AND
+`ps`.** SSH returned after a full session down. Everything below is a CHECKED
+state, not a last-known one, and the check was a CENSUS -- every campaign
+directory in every worktree, not the ones the docs happen to name.
 
 🔑 **THE FIRST ACTION ON RECONNECT IS TO VERIFY, NEVER TO RELAUNCH, AND THIS
 BLOCK IS DATED WHEN IT WAS LAST *CHECKED* RATHER THAN WHEN IT WAS WRITTEN.**
@@ -1305,13 +1321,72 @@ followed the block would have re-run 192 runs of a closed direction; a session
 that believed it would have left two GPUs reserved for it. A run-state block
 dated at writing reads as current forever. FRAMEWORK 2(z72).
 
-### Last known LIVE
+### 🖥️ THE RIG, 2026-09-10 15:04
 
-| campaign | state as of | what it still owes |
-|---|---|---|
-| `bcn1vit` | 2026-09-09 | **L90 only.** L70 and L80 were archived as non-task to `~/optloss-archive-bcn1vit-L70-nontask-2026-09-09` (moved, not deleted). L90 is a task cell under both readings -- finish it. ⛔ Nothing at L70/L80 is evidence about any method. FRAMEWORK 2(z58) |
-| `snap2` | 2026-09-08 | 🛑 **THE ONE WITH NO RESOLVABLE PROVENANCE.** It runs from the server branch `snap/slice-provenance`, which was never merged and is not among the 40 remote-tracking branches here. Its `code_version` will resolve in NO other checkout -- exactly the condition `check_parity` exists to make impossible -- the 612-test suite has never executed against that code, and no 2026-09-09 scorer correction applies to it unless hand-deployed. Fetch and review the branch BEFORE scoring a single run. Tasks #103, #97. FRAMEWORK 2(z67) |
-| `fmow1` | 2026-09-09 | 304 runs, 114 done when the task windows were read off its own `tralo_null` arms. 3 of 4 cells are TASK cells and its local p@K clears the bar (0.842 / 0.882 / 0.952 / 0.973). Re-measure the windows at 4 seeds on completion -- task #96 |
+| host | GPUs | ours | theirs |
+|---|---|---|---|
+| **dsisco01** Quadro RTX 6000, fp16 + GradScaler | 4 | **GPU 0 `price1`, GPU 1 `price2`** (launched 15:11) | none, and no other user at all |
+| **dsisco02** RTX PRO 6000 Blackwell, BF16 | 4 | GPU 2 `fmow1` | ⛔ **GPU 0 = `nirgal`, two procs, 83 GB. DO NOT TOUCH** |
+
+⛔ **THE HOST IS PART OF THE UNIT AND NOTHING RECORDS IT.** `config.json` has no
+host, amp or device field -- the only receipt is the dispatcher log line
+`GPU: Quadro RTX 6000 | CUDA: 12.8 | AMP: float16 + GradScaler`. `vitdual2` was
+read off `~/vitdual2.log` this way and is **dsisco01/fp16**; `price1`/`price2`
+are pinned to dsisco01 by a comment in their own wrapper. Finish a campaign on
+the host it started on, and read the log to find out which that is.
+
+### 📋 THE CENSUS. 21 worktrees, 26 campaigns, 2,715 configs
+
+```
+COMPLETE
+  dom1        384/384    equaldose1  216/216    uniform1    252/252
+  dom1b       192/192    bcn1mn3     228/228    bcn1vit     190/190  <- LANDED
+  snap2        96/96     shape1       72/72     dualprop1    88/88
+  itemscale1   96/96     itemscale2   96/96     coin1        48/48
+  coin2        48/48     seed58a      40/40     taskwin2     48/48
+  vitdual1     37/37     bcnpilot1    16/16     bcnpilot2    16/16
+  fmowpilot1   16/16     fmowpilot2   32/32
+RUNNING
+  fmow1       300/304    dsisco02 GPU 2, 3 pending + 1 live
+  price1       27/80     dsisco01 GPU 0, RELAUNCHED 15:11
+  price2        2/80     dsisco01 GPU 1, RELAUNCHED 15:11
+STALLED, no process behind the `running` status
+  vitdual2     58/88     29 pending. THE FOUR-DUAL HEAD-TO-HEAD, headline backbone
+  vitseed1     22/40     17 pending. Floor-only, no dual arms
+  vitcoin1     16/17     1 pending
+QUARANTINED
+  vittask1     13/14     1 crashed; scorable=False anyway
+```
+
+🛑 **`bcn1vit` AND `snap2` ARE COMPLETE AND BOTH DOCS STILL CALLED THEM LIVE.**
+`bcn1vit` is 190/190 -- the second-dataset ViTB16 campaign, and CLAUDE.md's
+dataset table says `bcn1vit LIVE`. `snap2` is 96/96. Two more instances of
+2(z72), found by the census rather than by re-reading the block.
+
+🔑 **AND `price2` EXISTS, WHICH NO DOCUMENT MENTIONED.** The same ten-arm
+design as `price1` on **RegNetY400MF** -- a second INDEPENDENT UNIT rather than
+more seeds, which is the axis a sign test runs over. Its wrapper says so. That
+is exactly 2(z83)'s defect: a campaign with no row at all is visible to nobody.
+
+⚠️ **SEVEN CAMPAIGNS ON DISK ARE NAMED IN NO DOC**: `price2`, `coin2`,
+`seed58a`, `bcnpilot1`, `bcnpilot2`, `fmowpilot1`, `fmowpilot2` -- 200 completed
+runs between them. `campaign_state` audits doc-names against recorded states; it
+cannot audit the other direction, because it never reads `results/`. **That is
+the next widening**, and it is the same per-SPELLING/per-QUESTION lesson as
+2(z85): a gate answers only for the direction it was pointed in.
+
+### 🔴 WHAT THE STALLED ONES OWE, AND WHY `vitdual2` IS THE ONE THAT MATTERS
+
+`vitdual2` is the ONLY campaign that puts `tralo` against `alm`, `fioretto` AND
+`hounie` at EQUAL DOSE on the **headline** backbone -- i.e. it is the acceptance
+table. It is 66% done and its 29 pending runs span every arm including both
+clippers. ⛔ Do NOT restart it on dsisco02: its 58 completed runs are dsisco01
+/fp16, and 2(u) measures `--constraint-fp32` on fp16 landing 69% of its dose
+when it is absent. Queue it on dsisco01 when `price1` or `price2` frees a GPU.
+
+`vitseed1` carries no dual arms and feeds the FLOOR only, so it ranks below
+`price1`/`price2`, which carry three lambda=0 streams and buy the same thing at
+3 obs per 8 runs instead of 1 per 4.
 
 ### LANDED. ⛔ DO NOT RELAUNCH
 
@@ -1319,6 +1394,8 @@ dated at writing reads as current forever. FRAMEWORK 2(z72).
 |---|---|---|
 | `itemscale1` + `itemscale2` | 2026-09-08 | 192 runs, dose 232/232, every gate green. Mechanism CONFIRMED and replicated on two backbones; the deployed score did NOT follow, 25% against the 50% bar, 0 of 4 cells priced, and `tralo_coin` -- a RANDOM constraint direction of the same norm -- took one cell. **Closed the whole per-scope weighting family**, and with it task #89. FRAMEWORK 2(z56) |
 | `bcn1mn3` | 2026-09-09 | COMPLETE, 228 runs. ⛔ Its sign is **UNREAD** -- this is unit D1, it is on disk, it costs ZERO GPU-hours, and it is the top of the queue. Task #102, MISSION 0-UNREAD |
+| `bcn1vit` | **verified 2026-09-10** | COMPLETE, 190/190. ⛔ **UNSCORED.** ⚠️ Score **L90 ONLY** -- L70 and L80 were archived as non-task to `~/optloss-archive-bcn1vit-L70-nontask-2026-09-09` and nothing there is evidence about any method. FRAMEWORK 2(z58) |
+| `snap2` | **verified 2026-09-10** | COMPLETE, 96/96. 🛑 **THE ONE WITH NO RESOLVABLE PROVENANCE** -- it runs from the server branch `snap/slice-provenance`, never merged, absent from the remote-tracking branches here. Its `code_version` resolves in NO other checkout, the 633-test suite has never executed against that code, and no scorer correction since 2026-09-08 applies unless hand-deployed. Fetch and review the branch BEFORE scoring a run. Tasks #103, #97. FRAMEWORK 2(z67) |
 
 ### 🛑 EVERY OTHER CAMPAIGN THE DOCS NAME. THE TWO TABLES ABOVE ARE A SAMPLE, NOT A CENSUS (2026-09-10)
 
@@ -1362,11 +1439,22 @@ ratio beside any count taken from here.
 | `rankpair` | **does not exist on either host**, searched 2026-08-22 (FRAMEWORK 2(c)) | 08-22 |
 | `ortho` | not ours: `newdirections/arm_ortho/results/ortho`, a different tree | -- |
 
-⚠️ **EVERY ROW IS A LAST-KNOWN CLAIM COPIED FROM THE DOC THAT MADE IT, NOT A
-CHECK.** SSH has been down since 2026-09-09; nothing here was verified against
-`results/`. The `dated?` column is the date the claim was made, and a blank
-means the claim carries no date at all -- which is 2(z72)'s defect and the
-reason three of these are unreadable.
+✅ **CHECKED AGAINST `results/` ON 2026-09-10 15:04, AND FOUR ROWS WERE
+WRONG.** The table above is the ledger as it stood while SSH was down; the
+census in this section's header is the measurement. What the check changed:
+
+| row | the claim | the measurement |
+|---|---|---|
+| `price1` | "NOTHING, ANYWHERE. VERIFY FIRST ON RECONNECT" | **EXISTS**, 27/80, MobileNetV2 x 2 caps x 10 arms, recipe confirmed on disk, dsisco01/fp16. Task #119 closed |
+| `vitdual2` | three incompatible figures, `0/88` / `32/88` / `57/88` | **58/88**, 29 pending, stalled with a dead `running` status. None of the three was right |
+| `vitseed1` | "22/40, STOPPED by explicit PID" | **22/40 confirmed**, and still carrying a dead `running` status |
+| `shape1` | "is running ... No landing recorded" | **LANDED**, 72/72 complete |
+
+⚠️ **AND THE LEDGER WAS INCOMPLETE IN THE OTHER DIRECTION**: `price2`, `coin2`
+is here but `seed58a`, `bcnpilot1`, `bcnpilot2`, `fmowpilot1`, `fmowpilot2` are
+not, and they hold 200 completed runs. The `dated?` column is the date the
+claim was made, and a blank means the claim carries no date at all -- which is
+2(z72)'s defect and the reason three of these were unreadable.
 
 🟢 **THE GATE THAT KEEPS THIS TRUE.**
 `tests/test_lessons_learned.py::test_no_campaign_is_discussed_without_a_recorded_state`

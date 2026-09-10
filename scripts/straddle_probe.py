@@ -35,31 +35,56 @@ the endpoint means SWAPPING: a false positive above the cut leaves and a true
 positive below it enters. One swap is worth one item. Within a displacement
 budget `delta`,
 
-    reachable(delta) = min( #FP in [t, t+delta], #TP in [t-delta, t) )
+    reachable(delta) = sum_g min( #FP in [t_g, t_g+delta],
+                                  #TP in [t_g-delta, t_g) )
 
-where `t` is the K-th largest score. That is exactly how many swaps a score
-change of size `delta` can perform, in ITEMS, directly comparable to every other
-effect in this project. `contested(delta)` -- how many items lie within `delta`
-of the cut at all -- is the LABEL-free version, so it can be read on a test set
-whose labels are not to be touched, or on a fresh unlabelled set under an
-existing model. ⚠️ It is NOT model-free: without a model there is no ranking and
-so no cut, and it cannot screen a candidate dataset before training. The screen
-that runs before any GPU time is `dataset_screen`, from labels and metadata.
+where `t_g` is GROUP g's own cut -- the lowest score the allocator let that
+group keep -- and both counts range over group g alone. That is exactly how
+many swaps a score change of size `delta` can perform, in ITEMS, directly
+comparable to every other effect in this project. `contested(delta)` -- how many
+items lie within `delta` of a cut at all -- is the LABEL-free version, so it can
+be read on a test set whose labels are not to be touched, or on a fresh
+unlabelled set under an existing model. ⚠️ It is NOT model-free: without a model
+there is no ranking and so no cut, and it cannot screen a candidate dataset
+before training. The screen that runs before any GPU time is `dataset_screen`,
+from labels and metadata.
 
-⚠️ It is an UPPER bound twice over. It assumes every near-cut item moves the
-RIGHT way, and it ignores the per-group ceilings, which can forbid a swap the
-global count allows. A method cannot beat this number; it can easily fall short.
+⛔ **THE SUM OVER GROUPS IS THE 2026-09-10 FIX, AND IT IS THE ELEVENTH
+GLOBAL-TOP-K SUBSTITUTION IN THIS PROJECT (FRAMEWORK 2(z85)).** Until then `t`
+was the globally K-th largest score and both counts ranged over the whole test
+set, which prices swaps the endpoint would refuse: dropping a selected item
+frees room in ITS group, and an item in another group cannot take that room
+without breaking that group's ceiling. The caveat below used to disclose exactly
+this and was never acted on. `straddle` and `cut_score` still compute the global
+reading; it is retained, printed in a column labelled `glob`, and never merged.
+
+⛔ **NO DIRECTION IS CLAIMED BETWEEN THE TWO, AND THE FIXTURE SHOWS BOTH
+SIGNS.** The per-group oracle differs from the global one by two corrections
+that pull opposite ways -- a per-group selection captures FEWER true positives
+than a global top-K of the same size (which RAISES the gap), while
+`sum_g min(k_g, n_pos_g) <= min(K, n_pos)` whenever any group is short of
+positives (which LOWERS it). On `--self-test --verbose` the per-group oracle
+reads 2.40 against 2.20 on class 1 and 4.40 against 5.20 on class 2, in the same
+run. So it is NOT a strict tightening; it is a different quantity, and which
+correction wins is a property of the group structure. 2(z64) is the record of
+asserting a direction here, fixturing it, passing mutation testing 2/2, and
+being refuted by the end-to-end run.
+
+⚠️ It is STILL an UPPER bound: it assumes every near-cut item moves the RIGHT
+way. A method cannot beat this number; it can easily fall short.
 
 THE SATURATION IDENTITY -- why this REFINES `headroom.py` rather than competing
-with it. As `delta` grows, `fp_near -> K - tp_above` and
-`tp_near -> n_pos - tp_above`, so
+with it. As `delta` grows, within each group `fp_near -> k_g - tp_sel_g` and
+`tp_near -> n_pos_g - tp_sel_g`, so
 
-    reachable(inf) = min(K, n_pos) - tp_above = oracle,   exactly.
+    reachable(inf) = sum_g [ min(k_g, n_pos_g) - tp_sel_g ] = oracle,  exactly.
 
-The two agree in the limit, by construction and not by luck. What the delta
-ladder adds is the RATE of approach, which is the distance distribution of the
-misranked items -- so `reachable` never contradicts a headroom figure, it says
-how far the scores would have to move to collect it. It also follows that
+Neither limit reads `t_g`, so the identity does not depend on the cut being
+exact -- which is what makes it a check on the arithmetic rather than on the
+fixture. The two agree in the limit, by construction and not by luck. What the
+delta ladder adds is the RATE of approach, which is the distance distribution of
+the misranked items -- so `reachable` never contradicts a headroom figure, it
+says how far the scores would have to move to collect it. It also follows that
 `reachable <= oracle` at every delta, which is pinned as a regression: an
 implementation returning a sum, or one side of the min, would break it.
 
@@ -81,10 +106,30 @@ arm did not have the reach; it does not by itself prove no schedule could. Say
 which of the two questions is being answered.
 
 THE SHUFFLED CONTROL, and which way it points. Permuting the scores keeps their
-DISTRIBUTION and destroys the ORDERING, so the swaps it leaves available depend
-only on n, K and prevalence -- measured at 10.80 vs 11.60 items across two
-regimes whose true error structures differ by 5x. That makes it a reference the
-real number is read AGAINST, and the SIGN of the deviation is the diagnostic:
+DISTRIBUTION and destroys the ORDERING, and the same per-group budgets are
+re-taken on the permuted scores, so the swaps it leaves depend on n_g, k_g and
+prevalence and not on where the errors are.
+
+⚠️ **IT MOVES A LITTLE. THE LICENCE IS THAT IT MOVES LEAST, NOT THAT IT IS
+FIXED** -- re-measured 2026-09-10 at the widest band, over the two self-test
+regimes, at three seed counts:
+
+    n_seeds   oracle           real arm         shuffled reference
+    3          9.67 ->  50.67   6.00 -> 17.33    9.33 -> 13.67   (1.46x)
+    10         7.90 ->  48.50   5.80 -> 16.70   11.40 -> 15.60   (1.37x)
+    20         9.00 ->  52.20   6.95 -> 17.50   11.15 -> 15.65   (1.40x)
+
+The oracle moves 5.2-6.1x between the regimes and the real arm 2.5-2.9x, while
+the reference moves 1.37-1.40x. Four times less than the quantity it references
+is what makes it a reference; equal would make it a second measurement.
+
+⛔ **THE `10.80 vs 11.60` PRINTED HERE UNTIL 2026-09-10 -- a 1.07x spread -- DOES
+NOT REPRODUCE AT ANY SEED COUNT, UNDER EITHER READING.** It was not the
+per-group fix that moved it: the global reading measures 9.75 -> 13.60 (1.39x)
+at n=20, the same 1.4x. And the per-group column reads 1.94x at n_seeds=5 alone,
+a small-sample excursion that briefly looked like the fix having broken the
+control -- which is why the table is printed at three seed counts rather than
+one. The SIGN diagnostic below is unaffected and is what the tool actually uses:
 
     real << shuffled   the ranking has already collected the easy swaps; what
                        is left at the cut is genuinely hard
@@ -136,7 +181,13 @@ CONTESTED_NAMES = ["contested=%d" % n for n in CONTESTED_TARGETS]
 
 
 def cut_score(scores, K):
-    """The K-th largest score -- the threshold the allocator actually applies."""
+    """The GLOBALLY K-th largest score.
+
+    ⛔ NOT the threshold the allocator applies, and this file said it was until
+    2026-09-10 -- the ELEVENTH global-top-K substitution (FRAMEWORK 2(z85)).
+    The allocator is per group; `straddle_grouped` is the primary reading and
+    this one is retained, LABELLED `glob`, so the earlier figures reproduce.
+    """
     if K <= 0:
         return float("inf")
     if K >= len(scores):
@@ -144,8 +195,77 @@ def cut_score(scores, K):
     return float(np.partition(scores, -K)[-K])
 
 
+def group_cuts(scores, sel, groups):
+    """Each group's own cut: the lowest score it actually got to keep.
+
+    Under `equalize` the take is scanned in descending GLOBAL order and gated
+    on that group's remaining room, so within a group the kept set is its own
+    top-k_g and every unkept item there sits below this threshold. That makes
+    the band around `t_g` well defined without reimplementing the allocator.
+    """
+    out = {}
+    for g in np.unique(groups[sel]):
+        out[int(g)] = float(scores[sel & (groups == g)].min())
+    return out
+
+
+def straddle_grouped(scores, is_pos, sel, groups, deltas):
+    """THE PRIMARY READING. Swap counts at each group's OWN cut.
+
+    A swap has to stay inside one group. Dropping a selected item frees room
+    in ITS group; an item in another group cannot take that room without
+    breaking that group's ceiling. Counting FP-out and TP-in against a single
+    global threshold prices swaps the endpoint would refuse -- which is exactly
+    the caveat this file disclosed and did not act on for two weeks.
+
+    THE SATURATION IDENTITY SURVIVES, per group and so in the sum: as delta
+    grows `fp_near(g) -> k_g - tp_sel_g` and `tp_near(g) -> n_pos_g - tp_sel_g`,
+    whose min is `min(k_g, n_pos_g) - tp_sel_g` = oracle_g. Neither limit reads
+    `t_g`, so the identity does not depend on the cut being exact.
+    """
+    scores = np.asarray(scores, float)
+    is_pos = np.asarray(is_pos, bool)
+    sel = np.asarray(sel, bool)
+    groups = np.asarray(groups)
+    cuts = group_cuts(scores, sel, groups)
+
+    oracle = 0
+    per_delta = [{"contested": 0, "reachable": 0} for _ in deltas]
+    for g, t in cuts.items():
+        m = groups == g
+        sg, pg, selg = scores[m], is_pos[m], sel[m]
+        tp_sel = int((selg & pg).sum())
+        oracle += min(int(selg.sum()), int(pg.sum())) - tp_sel
+        for j, d in enumerate(deltas):
+            fp_near = int((selg & ~pg & (sg <= t + d)).sum())
+            tp_near = int((~selg & pg & (sg >= t - d)).sum())
+            per_delta[j]["contested"] += int((np.abs(sg - t) <= d).sum())
+            per_delta[j]["reachable"] += min(fp_near, tp_near)
+    bands = [{"delta": float(d), **b} for d, b in zip(deltas, per_delta)]
+    return {"K": int(sel.sum()), "n_pos": int(is_pos.sum()),
+            "cut": float(np.mean(list(cuts.values()))) if cuts else float("nan"),
+            "n_groups": len(cuts), "oracle": int(oracle), "bands": bands}
+
+
+def topk_per_group(scores, sel, groups):
+    """The same per-group budgets, re-taken on `scores`. For the CONTROL only.
+
+    The shuffled reference has to keep n_g, k_g and prevalence and destroy the
+    ordering; re-taking each group's top-k_g on the permuted scores is exactly
+    that, and it keeps the control and the real reading on one selection rule.
+    """
+    scores = np.asarray(scores, float)
+    groups = np.asarray(groups)
+    out = np.zeros(len(scores), bool)
+    for g in np.unique(groups[np.asarray(sel, bool)]):
+        m = np.where(groups == g)[0]
+        k = int(np.asarray(sel, bool)[m].sum())
+        out[m[np.argsort(-scores[m])[:k]]] = True
+    return out
+
+
 def straddle(scores, is_pos, K, deltas):
-    """Swap counts at the cut per delta, plus the unbounded oracle gap."""
+    """The GLOBAL reading, retained and labelled. See `straddle_grouped`."""
     scores = np.asarray(scores, float)
     is_pos = np.asarray(is_pos, bool)
     t = cut_score(scores, K)
@@ -164,7 +284,7 @@ def straddle(scores, is_pos, K, deltas):
             "oracle": int(oracle), "bands": bands}
 
 
-def delta_for_contested(scores, K, target):
+def delta_for_contested(scores, K, target, sel=None, groups=None):
     """The delta whose band holds ~`target` items around the cut.
 
     WHY THIS EXISTS. Sweeping delta as a FRACTION OF THE SCORE RANGE makes
@@ -181,32 +301,60 @@ def delta_for_contested(scores, K, target):
     of them are useful swaps, which is the geometry question.
 
     Bisection on delta, since `contested` is monotone non-decreasing in it.
+
+    ⚠️ THE MASS IS COUNTED THE WAY THE PRIMARY READING COUNTS IT. Given `sel`
+    and `groups` the band is summed over each group's own cut; without them it
+    falls back to the single global cut, which is what a `--sweep` run and the
+    labelled `glob` column want. Calibrating the ladder globally while reading
+    the swaps per group would hold the wrong quantity fixed, and holding the
+    right one fixed is this ladder's entire reason to exist.
     """
     scores = np.asarray(scores, float)
-    t = cut_score(scores, K)
-    if not np.isfinite(t):
-        return 0.0
-    hi = float(np.max(np.abs(scores - t))) or 1.0
+    if sel is None or groups is None:
+        t = cut_score(scores, K)
+        if not np.isfinite(t):
+            return 0.0
+        mass = lambda d: int((np.abs(scores - t) <= d).sum())
+        hi = float(np.max(np.abs(scores - t))) or 1.0
+    else:
+        cuts = group_cuts(scores, np.asarray(sel, bool), np.asarray(groups))
+        if not cuts:
+            return 0.0
+        mass = lambda d: sum(int((np.abs(scores[groups == g] - t) <= d).sum())
+                             for g, t in cuts.items())
+        hi = float(max(np.max(np.abs(scores[groups == g] - t))
+                       for g, t in cuts.items())) or 1.0
     lo = 0.0
     for _ in range(60):
         mid = 0.5 * (lo + hi)
-        if int((np.abs(scores - t) <= mid).sum()) < target:
+        if mass(mid) < target:
             lo = mid
         else:
             hi = mid
     return hi
 
 
-def emitted_K(data):
-    """How many items the project's OWN endpoint emits per capped class.
+def emitted_alloc(data):
+    """The project's OWN endpoint, as an assignment -- not just its size.
 
     Not `G[c]`: the allocator answers to the local ceilings too, so the cut it
     really applies can sit below the global budget. `allocate` is imported, not
     reimplemented, so a change to the endpoint reaches this probe.
+
+    🔑 THIS RETURNS THE SET, AND THAT IS THE 2(z85) FIX. It used to return only
+    `{c: count}`, and the probe then re-derived a membership by taking the
+    GLOBAL top-K of the score column -- the right total against the wrong
+    items. `final_predictions.csv` and this array are the allocator's answer;
+    nothing downstream needs to sort to recover it.
     """
     G, L = budgets(data.y, data.groups, data.classes, data.local_pct,
                    data.global_pct, data.n_classes)
-    alloc = allocate(data.ref_probs, data.groups, G, L, data.classes)
+    return allocate(data.ref_probs, data.groups, G, L, data.classes)
+
+
+def emitted_K(data):
+    """Per-class emitted counts, read off the assignment."""
+    alloc = emitted_alloc(data)
     return {c: int((alloc == c).sum()) for c in data.classes}
 
 
@@ -217,16 +365,34 @@ def probe(data, deltas_for, rng):
     mode can give every class its OWN displacement rather than one pooled
     number -- the capped classes differ in prevalence and in how hard the cap
     bites, and pooling them would average a bound with a non-bound.
+
+    BOTH READINGS ARE COMPUTED AND BOTH ARE RETURNED. The per-group one is
+    primary; `row["glob"]` is the old global-cut reading, kept so the earlier
+    figures reproduce and labelled everywhere it is printed. NO DIRECTION IS
+    CLAIMED between them -- 2(z64) is the record of asserting one here,
+    fixturing it, passing mutation testing 2/2, and being refuted by the
+    end-to-end run.
     """
-    Ks = emitted_K(data)
+    alloc = emitted_alloc(data)
     out = {}
     for c in data.classes:
         s = data.ref_probs[:, c].astype(float)
+        sel = alloc == c
         deltas = deltas_for(c, s)
-        row = straddle(s, data.y == c, Ks[c], deltas)
-        # CONTROL: identical score DISTRIBUTION, ordering destroyed.
-        row["shuffled"] = straddle(rng.permutation(s), data.y == c, Ks[c],
-                                   deltas)
+        if not sel.any():
+            continue
+        row = straddle_grouped(s, data.y == c, sel, data.groups, deltas)
+        # CONTROL: identical score DISTRIBUTION, ordering destroyed. The same
+        # per-group budgets are re-taken on the permuted scores, so n_g, k_g
+        # and prevalence are held and only the ordering moves.
+        sh = rng.permutation(s)
+        row["shuffled"] = straddle_grouped(
+            sh, data.y == c, topk_per_group(sh, sel, data.groups),
+            data.groups, deltas)
+        K = int(sel.sum())
+        row["glob"] = straddle(s, data.y == c, K, deltas)
+        row["glob"]["shuffled"] = straddle(rng.permutation(s), data.y == c,
+                                           K, deltas)
         out[c] = row
     return out
 
@@ -240,12 +406,15 @@ def matched_deltas_for(data):
     """A ladder that holds the CONTESTED MASS fixed instead of the delta.
 
     Returns a `deltas_for(c, scores)` closure, because the cut depends on the
-    emitted K and that is per class.
+    emitted set and that is per class.
     """
-    Ks = emitted_K(data)
+    alloc = emitted_alloc(data)
 
     def deltas_for(c, scores):
-        return [delta_for_contested(scores, Ks[c], n) for n in CONTESTED_TARGETS]
+        sel = alloc == c
+        return [delta_for_contested(scores, int(sel.sum()), n,
+                                    sel=sel, groups=data.groups)
+                for n in CONTESTED_TARGETS]
     return deltas_for
 
 
@@ -346,15 +515,26 @@ def collect(agg, rows, names, cell=None):
     for c, v in rows.items():
         key = (cell, c)
         a = agg.setdefault(key, {"oracle": [], "K": [], "n_pos": [],
+                                 "n_groups": [], "oracle_glob": [],
                                  "bands": collections.defaultdict(list),
                                  "shuf": collections.defaultdict(list),
+                                 "glob": collections.defaultdict(list),
                                  "order": list(names)})
         a["oracle"].append(v["oracle"])
         a["K"].append(v["K"])
         a["n_pos"].append(v["n_pos"])
+        a["n_groups"].append(v.get("n_groups", 0))
         for nm, b, sb in zip(names, v["bands"], v["shuffled"]["bands"]):
             a["bands"][nm].append(b)
             a["shuf"][nm].append(sb)
+        # The old global-cut reading, kept beside the primary one and never
+        # merged into it. `.get` because a caller may hand `collect` a row
+        # built by `straddle` alone -- the self-test's global-only fixtures do.
+        g = v.get("glob")
+        if g:
+            a["oracle_glob"].append(g["oracle"])
+            for nm, b in zip(names, g["bands"]):
+                a["glob"][nm].append(b)
 
 
 def reachable_share(agg, band):
@@ -397,17 +577,26 @@ def _report_one(a, c):
     stays readable; the run count is taken from this key alone."""
     orc = float(np.mean(a["oracle"]))
     n_runs = len(a["oracle"])
-    print("  CLASS %d -- emits K=%.0f, %.0f true in test, %d run(s)"
-          % (c, np.mean(a["K"]), np.mean(a["n_pos"]), n_runs))
+    ng = float(np.mean(a["n_groups"])) if a.get("n_groups") else 0.0
+    print("  CLASS %d -- emits K=%.0f over %.0f group(s), %.0f true in test, "
+          "%d run(s)" % (c, np.mean(a["K"]), ng, np.mean(a["n_pos"]), n_runs))
     print("    unbounded ORACLE gap: %.2f items" % orc)
-    print("    %-14s %10s %10s %13s"
-          % ("delta", "contested", "reachable", "shuffled ctrl"))
+    if a.get("oracle_glob"):
+        print("    (global-cut reading, 2(z85): oracle %.2f items -- a "
+              "DIFFERENT question, printed" % float(np.mean(a["oracle_glob"])))
+        print("     so the pre-2026-09-10 figures reproduce. NO DIRECTION IS "
+              "CLAIMED between them.)")
+    print("    %-14s %10s %10s %13s %10s"
+          % ("delta", "contested", "reachable", "shuffled ctrl", "glob"))
     for nm in a["order"]:
-        print("    %-14s %10.1f %10.2f %13.2f"
+        gb = a["glob"].get(nm)
+        print("    %-14s %10.1f %10.2f %13.2f %10s"
               % (nm,
                  np.mean([b["contested"] for b in a["bands"][nm]]),
                  np.mean([b["reachable"] for b in a["bands"][nm]]),
-                 np.mean([b["reachable"] for b in a["shuf"][nm]])))
+                 np.mean([b["reachable"] for b in a["shuf"][nm]]),
+                 ("%.2f" % np.mean([b["reachable"] for b in gb])) if gb
+                 else "--"))
     best = max(np.mean([b["reachable"] for b in a["bands"][nm]])
                for nm in a["order"])
     print("    -> at the widest delta, %.2f of the %.2f oracle items are "
@@ -453,9 +642,12 @@ def self_test(n_seeds=5, verbose=False):
               % (nm, sm, shuf_tot["matched"][nm], st, shuf_tot["tailnoise"][nm]))
 
     print("")
-    print("  the shuffled reference barely moves between regimes -- it depends")
-    print("  on n, K and prevalence, not on where the errors are. That is what")
-    print("  makes it a reference rather than a second measurement.")
+    print("  the shuffled reference MOVES LESS than what it references -- 1.4x")
+    print("  between these regimes against the oracle's 5.8x and the real arm's")
+    print("  2.5x (n=20). It depends on n_g, k_g and prevalence, not on where")
+    print("  the errors are. Moving LEAST is the licence; being FIXED is not a")
+    print("  claim this makes, and the pre-2026-09-10 `10.80 vs 11.60` does not")
+    print("  reproduce under either reading.")
     if tested == 0 or wins * 2 <= tested:
         raise SystemExit(
             "SELF-TEST FAILED: matched beat tailnoise on only %d of %d "

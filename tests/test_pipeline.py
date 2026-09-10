@@ -5238,25 +5238,39 @@ def test_the_straddle_gate_fails_when_the_statistic_ignores_position():
     becomes the oracle gap in BOTH regimes, so the separation vanishes. The
     gate must reject that, or it would have signed off on a statistic that
     reads the error rate.
+
+    🛑 IT MUTATES `straddle_grouped`, AND THAT IS THE POINT (2026-09-10). This
+    control patched `SP.straddle` and went GREEN-when-it-should-be-RED the
+    moment 2(z85) made the per-group reading primary: the gate stopped calling
+    the mutated function, so a position-blind statistic would have sailed
+    through. A negative control that names the implementation by hand is
+    itself a thing that can go stale, and this one announced its own
+    obsolescence only because it was run. Both names are patched, so whichever
+    reading `self_test` consumes, the mutation reaches it.
     """
     from scripts import straddle_probe as SP
 
     original = SP.straddle
+    original_grouped = SP.straddle_grouped
 
-    def position_blind(scores, is_pos, K, deltas):
-        # `original`, not `SP.straddle` -- the name is about to be rebound and
+    def blind(fn):
+        # `fn`, not the module attribute -- the name is about to be rebound and
         # calling through it would recurse instead of mutating.
-        real = original(scores, is_pos, K, deltas)
-        for b in real["bands"]:
-            b["reachable"] = real["oracle"]      # reachable regardless of delta
-        return real
+        def wrapped(*a, **kw):
+            real = fn(*a, **kw)
+            for b in real["bands"]:
+                b["reachable"] = real["oracle"]  # reachable regardless of delta
+            return real
+        return wrapped
 
     try:
-        SP.straddle = position_blind
+        SP.straddle = blind(original)
+        SP.straddle_grouped = blind(original_grouped)
         with pytest.raises(SystemExit) as exc:
             SP.self_test(n_seeds=3)
     finally:
         SP.straddle = original
+        SP.straddle_grouped = original_grouped
     assert "SELF-TEST FAILED" in str(exc.value), (
         "the gate exited for some other reason than the mutation")
 
@@ -5287,15 +5301,186 @@ def test_the_straddle_swap_count_is_bounded_by_both_sides_and_by_the_oracle():
     assert wide["reachable"] == 3 <= r["oracle"], wide
 
 
+def test_the_straddle_cut_is_PER_GROUP_and_the_two_readings_disagree():
+    """FRAMEWORK 2(z85), the ELEVENTH global-top-K substitution.
+
+    `cut_score` takes the globally K-th largest score; the allocator emits
+    top-k_g inside each group. The fixture is two groups whose score ranges do
+    not overlap, so the global top-4 is entirely the EASY group while the
+    endpoint splits 2/2 -- and the two readings then answer different questions
+    about the same array.
+
+    Built so they cannot coincide, and so that the BAND is what separates them
+    rather than a count that never reads a threshold: the one winnable swap
+    sits just under the easy group's own cut at 0.90, which the global cut at
+    0.80 puts on the wrong side. Asserting only the oracle would pass a
+    mutation that gives every group the global cut -- that quantity does not
+    read a threshold at all, and the first version of this test did exactly
+    that and let the mutation through.
+    """
+    from scripts.straddle_probe import straddle, straddle_grouped
+
+    #            ---------- group 0 (easy) ----------  ---- group 1 (hard) ----
+    scores = np.array([0.95, 0.90, 0.88, 0.80, 0.40, 0.35, 0.30, 0.25])
+    is_pos = np.array([False, False, True, False, False, False, False, True])
+    groups = np.array([0, 0, 0, 0, 1, 1, 1, 1])
+    sel = np.array([True, True, False, False, True, True, False, False])
+    deltas = [0.05]
+
+    g = straddle_grouped(scores, is_pos, sel, groups, deltas)
+    assert g["n_groups"] == 2
+    assert g["cut"] == pytest.approx((0.90 + 0.35) / 2)   # each group's own
+    assert g["oracle"] == 2, g                            # 1 per group
+    # group 0: the TP at 0.88 is 0.02 under its cut, so one swap is reachable.
+    # group 1: its TP at 0.25 is 0.10 under, outside the band -- so 1, not 2.
+    assert g["bands"][0]["reachable"] == 1, g
+
+    w = straddle(scores, is_pos, int(sel.sum()), deltas)
+    assert w["cut"] == pytest.approx(0.80)      # the whole easy group is "in"
+    assert w["oracle"] == 1, w
+    assert w["bands"][0]["reachable"] == 0, w
+
+
+def test_the_per_group_and_global_straddle_AGREE_on_a_one_group_campaign():
+    """NEGATIVE CONTROL. The per-group reading is a refinement, not a rewrite.
+
+    With every item in one group the two are the SAME computation, so any
+    difference here would be an arithmetic bug in the new path rather than the
+    grouping doing its job. This is the control that stops the test above from
+    passing on a `straddle_grouped` that simply returns different numbers.
+    """
+    from scripts.straddle_probe import straddle, straddle_grouped
+
+    scores = np.array([0.95, 0.80, 0.70, 0.60, 0.55, 0.50, 0.10, 0.05])
+    is_pos = np.array([True, False, False, False, True, True, True, False])
+    groups = np.zeros(8, int)
+    sel = scores >= 0.60                        # the global top-4
+    deltas = [0.06, 0.5]
+
+    g = straddle_grouped(scores, is_pos, sel, groups, deltas)
+    w = straddle(scores, is_pos, 4, deltas)
+    assert g["n_groups"] == 1
+    assert g["oracle"] == w["oracle"]
+    assert g["cut"] == pytest.approx(w["cut"])
+    for a, b in zip(g["bands"], w["bands"]):
+        assert (a["reachable"], a["contested"]) == (b["reachable"],
+                                                    b["contested"])
+
+
+def test_the_straddle_shuffled_control_keeps_the_PER_GROUP_budgets():
+    """The reference has to be comparable to the thing it is a reference FOR.
+
+    🛑 FOUND BY MUTATION, NOT BY READING (2026-09-10). Replacing
+    `topk_per_group` with a global top-K left all fifteen straddle tests GREEN:
+    the real number would have been read per group and its control globally,
+    which is the 2(z85) defect reintroduced on the side that decides what
+    counts as a signal. The control's whole licence is that it holds n_g, k_g
+    and prevalence and moves only the ordering, so k_g is what this pins.
+
+    The fixture puts every high score in one group, so a global top-K collapses
+    onto that group alone and the per-group budgets cannot be recovered from
+    the count.
+    """
+    from scripts.straddle_probe import topk_per_group
+
+    scores = np.array([0.95, 0.90, 0.88, 0.80, 0.40, 0.35, 0.30, 0.25])
+    groups = np.array([0, 0, 0, 0, 1, 1, 1, 1])
+    sel = np.array([True, True, False, False, True, True, False, False])
+
+    # SAME scores: the control's rule must reproduce the real selection.
+    assert np.array_equal(topk_per_group(scores, sel, groups), sel)
+
+    # PERMUTED scores: the membership moves, the per-group budgets do not.
+    shuffled = scores[::-1].copy()
+    out = topk_per_group(shuffled, sel, groups)
+    assert out.sum() == sel.sum()
+    for g in (0, 1):
+        m = groups == g
+        assert out[m].sum() == sel[m].sum() == 2, (g, out)
+    assert not np.array_equal(out, sel), (
+        "the permutation moved nothing -- the fixture is not exercising it")
+
+
+def test_the_matched_contested_ladder_is_CALIBRATED_PER_GROUP():
+    """`--match-contested` holds the contested MASS fixed, so it must hold the
+    same mass the primary reading counts.
+
+    🛑 ALSO FOUND BY MUTATION (2026-09-10). Forcing `delta_for_contested` back
+    onto the single global cut left every straddle test green -- the module's
+    own `--self-test` runs the `--sweep` ladder, so the matched one had no
+    end-to-end coverage at all, and it is the ladder the docstring calls the
+    only one comparable across cap levels.
+
+    Two groups with non-overlapping ranges: the same target mass needs a wide
+    band around one global cut and a narrow one around each group's own, so the
+    two calibrations cannot land on the same delta.
+    """
+    from scripts.straddle_probe import delta_for_contested
+
+    scores = np.array([0.95, 0.90, 0.88, 0.80, 0.40, 0.35, 0.30, 0.25])
+    groups = np.array([0, 0, 0, 0, 1, 1, 1, 1])
+    sel = np.array([True, True, False, False, True, True, False, False])
+    target = 4
+
+    d_grp = delta_for_contested(scores, 4, target, sel=sel, groups=groups)
+    d_glob = delta_for_contested(scores, 4, target)
+
+    # the band it returns really does hold the target mass, counted per group
+    cuts = {0: 0.90, 1: 0.35}
+    mass = sum(int((np.abs(scores[groups == g] - t) <= d_grp).sum())
+               for g, t in cuts.items())
+    assert mass >= target, (d_grp, mass)
+    # ... and one hair narrower does not, so it is the SMALLEST such band
+    tight = sum(int((np.abs(scores[groups == g] - t) <= d_grp * 0.9).sum())
+                for g, t in cuts.items())
+    assert tight < target, (d_grp, tight)
+
+    # the global calibration has to reach past the whole easy group instead
+    assert d_glob > 3 * d_grp, (d_grp, d_glob)
+
+
+def test_the_straddle_saturation_identity_survives_the_grouping():
+    """NEGATIVE CONTROL on the docstring's own claim.
+
+    `reachable(inf) == oracle` is asserted for the global reading and the
+    grouped one has to inherit it, or the ladder and the gap it is read against
+    would be two different quantities. Neither limit reads the cut, so this
+    holds however the groups are split -- which is what makes it a check on the
+    arithmetic rather than on the fixture.
+    """
+    from scripts.straddle_probe import straddle_grouped
+
+    rng = np.random.default_rng(11)
+    scores = rng.random(200)
+    is_pos = rng.random(200) < 0.3
+    groups = rng.integers(0, 5, 200)
+    sel = np.zeros(200, bool)
+    for gi in range(5):
+        m = np.where(groups == gi)[0]
+        sel[m[np.argsort(-scores[m])[:7]]] = True
+
+    r = straddle_grouped(scores, is_pos, sel, groups, [1e-9, 1.0])
+    assert r["bands"][1]["reachable"] == r["oracle"] > 0, r
+    assert r["bands"][0]["reachable"] <= r["oracle"]
+
+
 def test_the_straddle_shuffled_reference_does_not_track_the_error_geometry():
     """The shuffled arm is a REFERENCE, not a second measurement.
 
-    Permuting the scores destroys the ordering, so what is left depends on n,
-    K and prevalence only. It must therefore be near-EQUAL across two regimes
-    whose true error structures differ several-fold -- that insensitivity is
-    exactly what licenses reading the real number against it. (It also rises
-    rather than collapsing, which is why the docstring warns against reading it
-    as a must-collapse control.)
+    Permuting the scores destroys the ordering, so what is left depends on n_g,
+    k_g and prevalence only. It must therefore move MUCH LESS than the real arm
+    across two regimes whose true error structures differ several-fold -- that
+    is what licenses reading the real number against it. (It also rises rather
+    than collapsing, which is why the docstring warns against reading it as a
+    must-collapse control.)
+
+    ⚠️ THE BOUND IS A RATIO OF MOVEMENTS, NOT A CONSTANT, AND IT IS SEEDED TO
+    BE STABLE (2026-09-10). It asserted `hi < 1.6 * lo` on THREE seeds, where
+    the reference's own sampling noise runs to 1.94x at n=5 -- so it passed on
+    the seed it happened to use and would have gone red on a neighbouring one,
+    for no reason connected to the code. Measured at n=20 the reference moves
+    1.40x, the real arm 2.52x and the oracle 5.80x; the claim is the ORDERING
+    of those three, which no magic constant can express.
     """
     from scripts import straddle_probe as SP
     from scripts.frozen_head_probe import make_synthetic
@@ -5304,7 +5489,7 @@ def test_the_straddle_shuffled_reference_does_not_track_the_error_geometry():
     shuf, real, oracle = {}, {}, {}
     for regime in ("matched", "tailnoise"):
         agg = {}
-        for seed in range(3):
+        for seed in range(10):
             SP.collect(agg, SP.probe(make_synthetic(regime, seed),
                                      SP.sweep_deltas, rng), SP.SWEEP_NAMES)
         widest = SP.SWEEP_NAMES[-1]
@@ -5314,13 +5499,17 @@ def test_the_straddle_shuffled_reference_does_not_track_the_error_geometry():
                            for c in agg)
         oracle[regime] = sum(float(np.mean(agg[c]["oracle"])) for c in agg)
 
+    def swing(d):
+        lo, hi = sorted(d.values())
+        return hi / lo
+
     # the thing the reference is supposed to be blind to really does differ
     assert oracle["tailnoise"] > 3 * oracle["matched"], oracle
-    # ...and the reference stays put anyway
-    lo, hi = sorted(shuf.values())
-    assert hi < 1.6 * lo, (
-        "the shuffled reference moved with the error geometry (%s), so it is "
-        "measuring the same thing as the real arm" % shuf)
+    # ...and the reference tracks it far more weakly than the real arm does
+    assert swing(shuf) < 0.7 * swing(real) < swing(oracle), (
+        "the shuffled reference moved with the error geometry (ref %.2fx, real "
+        "%.2fx, oracle %.2fx), so it is measuring the same thing as the real "
+        "arm" % (swing(shuf), swing(real), swing(oracle)))
     # the real arm, by contrast, must move -- and cross the reference
     assert real["matched"] < shuf["matched"], (
         "clean labels should leave FEWER swaps than chance", real, shuf)

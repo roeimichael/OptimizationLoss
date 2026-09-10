@@ -4052,7 +4052,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 628 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 633 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -4226,7 +4226,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 628 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 633 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -4234,7 +4234,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (628 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (633 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -13834,7 +13834,7 @@ items per cell attributable"* where `full_panel --control tralo_null` said
 class was found in this very file, in this very repo, **before the numbering
 started**, and the audit built to catch it a fortnight later read past it.
 
-### 3. The count is EIGHT, two of them in this file, and two are not fixed
+### 3. The count is ELEVEN, two of them in this file, and NONE is unfixed
 
 | # | site | found | state |
 |---|---|---|---|
@@ -13848,16 +13848,27 @@ started**, and the audit built to catch it a fortnight later read past it.
 | 8 | **`order_probe` band + Jaccard** | **2026-09-10, here** | ✅ fixed same day |
 | 9 | `score_scan` prec@K + Jaccard, 2(z84) | 2026-09-10 | ✅ fixed, figure WITHDRAWN |
 | 10 | `reachability.slope_at`, 2(z84) | 2026-09-10 | ✅ fixed |
+| 11 | **`straddle_probe.cut_score`**, 2(z85) | **2026-09-10** | ✅ fixed, shuffled-control figure RE-MEASURED |
 
 ⚠️ **SITE 1 AND SITE 8 ARE THE SAME FILE AND ARE STILL DIFFERENT SITES**: one
 is the eviction sets, the other the contested band, they were written at
 different times, and fixing the first did not touch the second. Counting the
 file once is what produced "six".
 
-⚠️ **ONE OF THE EIGHT IS STILL NOT FIXED**: site 1 was DISCLOSED rather than
-corrected -- `--evictions` still takes `argsort(-p)[:K]` and prints a paragraph
-saying so. Sites 2-8 are corrected in code, each with a gate and a negative
-control. Site 8 was fixed the same day it was found; see section 6.
+✅ **ALL ELEVEN ARE NOW FIXED IN CODE, each with a gate and a negative
+control.** Site 1 spent 13 days DISCLOSED rather than corrected -- `--evictions`
+took `argsort(-p)[:K]` and printed a paragraph saying so -- and site 11 spent
+its whole life the same way, its docstring conceding that it *"ignores the
+per-group ceilings, which can forbid a swap the global count allows"*. TWO of
+eleven were disclosed-and-left, which is the argument for the house rule that a
+note describing a defect is a defect with a comment attached.
+
+🛑 **AND THE COUNT MOVED 8 -> 9 -> 10 -> 11 IN ONE DAY.** Sites 9 and 10 came
+from the call-site registry the moment it existed; site 11 came from asking what
+the registry itself could not see, and the answer was `np.partition` and
+`np.quantile` -- neither in the target list, so the freshly-built gate walked
+past `straddle_probe` and reported it clean. The registry held ZERO entries for
+that file. See 2(z85).
 
 ### 4. What it does to 2(w4)
 
@@ -14514,6 +14525,184 @@ Mutation-tested **3/3**: a new unclassified cut, a changed sorted expression und
 That is precisely D1's defect -- *"a COMPLETE 228-run campaign that was reading `UNVERIFIED` and contributing nothing"* -- and it is not history, it is **queued nine more times**. The campaigns closing the one-dataset hole are among them, which means the coverage win they are being run to buy cannot enter a sign test on arrival.
 
 ⇒ `docs/PLAYBOOK.md` rule **2a** now makes resolving the unit a step at LANDING, with `arm_identity_check` as the measurement: does this campaign's warm-up already exist under another name? Shared warm-up ⇒ it JOINS that unit as a correlated replicate. Genuinely new ⇒ add the pair with its evidence. **A unit assigned after the numbers are seen is a choice dressed as a measurement**, and 2d holds five retractions of that exact shape.
+
+---
+
+## 2(z85). THE ELEVENTH GLOBAL-TOP-K SITE, AND THE GATE THAT FOUND SITES 9 AND 10 WALKED PAST IT -- `straddle_probe`, WHICH SETS THE DENOMINATOR OF THE MECHANISM BAR, LOCATED ITS CUT WITH `np.partition` (2026-09-10)
+
+**THE ONE-LINE VERSION.** `scripts/straddle_probe.py` asks how much of the
+oracle headroom a bounded step can actually collect -- the number task #110
+exists to put under 2(z77)'s *"a mechanism worth ~6+ items per cell"* bar. It
+found its cut with `np.partition(scores, -K)[-K]`, the **globally** K-th largest
+score, and counted the reachable-swap bands against that single threshold, while
+the allocator emits top-`k_g` inside each group. Fixed the same hour it was
+found. The site table in 2(z80) now runs to **eleven**.
+
+### 1. It was disclosed from the day it was written, and left
+
+The docstring said, in its own words:
+
+> ⚠️ It is an UPPER bound twice over. It assumes every near-cut item moves the
+> RIGHT way, and **it ignores the per-group ceilings, which can forbid a swap
+> the global count allows.**
+
+That is the defect, written down, above the code that has it. Site 1 spent 13
+days in the same state. **Two of eleven were disclosed-and-left**, which is the
+whole case for the house rule that a note describing a defect is a defect with a
+comment attached: the note is what stops anybody looking again.
+
+### 2. THE GATE COULD NOT SEE IT, AND THAT IS THE FINDING
+
+Sites 9 and 10 were found hours earlier by the call-site registry
+(`ARGSORT_SITES`, lesson 33), which enumerates every sort-like call on a score
+column and demands a written verdict per call site. Its target list was
+`argsort, argpartition, topk, nlargest` -- and `sort`, added that morning
+because the fix to site 1 introduced an `np.sort(pn)[::-1][K - 1]` the
+argsort-only list could not see.
+
+`np.partition` and `np.quantile` were **not** in it. So the registry passed
+`straddle_probe` CLEAN and held **ZERO** entries for that file.
+
+The lesson is one level up from 2(z80)'s. That entry said: the audit is per-FILE
+and the defect is per-CALL-SITE. This one says: **the enumeration is per-SPELLING
+and the defect is per-QUESTION.** A registry answers only for the vocabulary it
+was given, and a clean report is a statement about that vocabulary, never about
+the code.
+
+The list was widened by asking what ELSE can locate a rank or a threshold, then
+counting each in the repo rather than guessing:
+
+| spelling | occurrences | in the list? |
+|---|---|---|
+| `argsort` / `argpartition` / `topk` / `nlargest` / `sort` | -- | yes, already |
+| **`partition`** | **1** | **added -- it was site 11** |
+| **`quantile`** | **1** | **added -- classified NOT-A-CUT** |
+| `searchsorted` | **0** | a real cut spelling, absent, so nothing to add |
+| `argmax` | 50 | no: it ranges over the CLASS axis, not an item budget |
+| `median` | 29 | no: report statistics |
+| `max` / `min` | 416 | no: bounds and clamps; adding them makes a registry nobody maintains |
+
+⚠️ **THE EXCLUSIONS ARE PART OF THE GATE AND ARE WRITTEN AT THE LIST.** A
+target list that grows without a stated boundary becomes 495 entries and stops
+being read, which is a slower way of not having a gate.
+
+### 3. What the fix is
+
+`emitted_alloc` now returns the **assignment**, not just its size -- it always
+called `allocate()` and threw the membership away, keeping the right total
+against the wrong items. Everything downstream reads that array:
+
+* `straddle_grouped` counts FP-out and TP-in **inside each group**, against that
+  group's own cut (the lowest score it was allowed to keep), and sums. A swap
+  has to stay inside one group: dropping a selected item frees room in ITS
+  group, and an item elsewhere cannot take that room without breaking its own
+  ceiling.
+* `topk_per_group` keeps the **shuffled control** on the same per-group budgets,
+  re-taken on the permuted scores.
+* `delta_for_contested` -- the `--match-contested` ladder -- calibrates on the
+  per-group contested mass, because holding the wrong quantity fixed is a ladder
+  with no reason to exist.
+* `cut_score` and `straddle` survive as the GLOBAL reading, printed in a column
+  labelled `glob` and never merged.
+
+The saturation identity survives per group and therefore in the sum:
+`fp_near(g) -> k_g - tp_sel_g`, `tp_near(g) -> n_pos_g - tp_sel_g`, whose min is
+`min(k_g, n_pos_g) - tp_sel_g` = `oracle_g`. **Neither limit reads `t_g`**, so
+the identity is a check on the arithmetic rather than on the cut.
+
+### 4. ⛔ NO DIRECTION, AND THE FIXTURE SHOWS BOTH SIGNS IN ONE RUN
+
+The per-group oracle is **not** a strict tightening of the global one. Two
+corrections pull against each other:
+
+* a per-group selection captures FEWER true positives than a global top-K of the
+  same size, which RAISES the gap;
+* `sum_g min(k_g, n_pos_g) <= min(K, n_pos)` whenever any group is short of
+  positives, which LOWERS it.
+
+Measured on `--self-test --verbose`, same run, same seeds:
+
+| class | per-group oracle | global oracle |
+|---|---|---|
+| 1 | **2.40** | 2.20 |
+| 2 | **4.40** | 5.20 |
+| 4 | 1.20 | 1.20 |
+
+Opposite signs on classes 1 and 2. So which correction wins is a property of the
+group structure, and 2(z64) -- fixtured, mutation-tested 2/2 green, then refuted
+by the end-to-end run -- is the standing reason not to guess it.
+
+### 5. 🔑 THE SHUFFLED REFERENCE WAS RE-MEASURED, AND THE OLD FIGURE DOES NOT REPRODUCE UNDER **EITHER** READING
+
+The control's licence is that it depends on `n_g`, `k_g` and prevalence and not
+on where the errors sit. The docstring quoted *"10.80 vs 11.60 items"* across
+the two self-test regimes -- a **1.07x** spread. At the widest band:
+
+| n_seeds | oracle | real arm | shuffled reference |
+|---|---|---|---|
+| 3 | 9.67 -> 50.67 (5.24x) | 6.00 -> 17.33 (2.89x) | 9.33 -> 13.67 (**1.46x**) |
+| 10 | 7.90 -> 48.50 (6.14x) | 5.80 -> 16.70 (2.88x) | 11.40 -> 15.60 (**1.37x**) |
+| 20 | 9.00 -> 52.20 (5.80x) | 6.95 -> 17.50 (2.52x) | 11.15 -> 15.65 (**1.40x**) |
+
+**The reference moves ~1.4x, and the global reading moves the same 1.39x
+(9.75 -> 13.60 at n=20).** So this is not something the fix did; `10.80 vs
+11.60` was never reproducible. The honest claim is the ORDERING -- the reference
+moves four times less than the oracle it references and about half as much as
+the real arm -- not that it is fixed.
+
+⚠️ **AND THE PER-GROUP COLUMN READS 1.94x AT n_seeds=5 ALONE.** That single
+excursion briefly looked like the fix having broken the control. It is sampling
+noise, visible only because the table was computed at three seed counts instead
+of one. The regression test asserted `hi < 1.6 * lo` on **three** seeds, where
+the reference's own noise reaches 1.94x -- it passed on the seed it happened to
+use and would have gone red on a neighbour, for no reason connected to the code.
+It now runs at 10 seeds and asserts the ordering of the three swings, which is
+the claim and needs no magic constant.
+
+### 6. Three mutations, and TWO of them found gaps the new tests did not have
+
+| # | mutation | caught? |
+|---|---|---|
+| M1 | every group gets the GLOBAL cut -- the exact defect | ✅ by the module gate AND, after strengthening, by the two-group test |
+| M2 | the shuffled control takes a GLOBAL top-K | ⛔ **missed** -> new control |
+| M3 | `--match-contested` reverts to the global mass | ⛔ **missed** -> new control |
+
+* **M1** first ran against a two-group test whose every assertion was
+  **cut-independent** -- the oracle does not read a threshold, so a wrong cut
+  moved nothing. The fixture was rebuilt so the one winnable swap sits just
+  under the easy group's own cut, which the global cut puts on the wrong side.
+* **M2** left all fifteen straddle tests green. The real number would then be
+  read per group and its control globally: the 2(z85) defect reintroduced on the
+  side that decides what counts as a signal.
+* **M3** left them green too, because the module's `--self-test` runs the
+  `--sweep` ladder and `--match-contested` -- *"the ONLY ladder comparable
+  ACROSS cap levels"* -- had **no end-to-end coverage at all**.
+
+⇒ Two of the three gaps were in the CONTROL and the LADDER, not in the
+statistic. A mutation aimed at the headline number would have found neither.
+
+### 7. A negative control announced its own obsolescence
+
+`test_the_straddle_gate_fails_when_the_statistic_ignores_position` monkeypatched
+`SP.straddle`. Making the per-group reading primary meant the gate stopped
+calling the mutated function, so the control went **green when it should be
+red** -- a position-blind statistic would have sailed through. It failed loudly
+on the first run after the fix and now patches both names.
+
+⚠️ **A NEGATIVE CONTROL THAT NAMES AN IMPLEMENTATION BY HAND IS ITSELF A THING
+THAT GOES STALE**, and this one was only visible because it was executed. Same
+shape as 2(z65), where a fixture had not looked like a run for weeks under a
+comment saying it must.
+
+### 8. What is still owed
+
+**#110 is unchanged and is now the point.** `straddle_probe` has never been run
+on the live corpus; every figure in its docstring is from the self-test or from
+`iwc1`. It sets the denominator for 2(z77)'s bar, so until it runs on `dom1`
+there is no measured answer to *"how much of the 11.7-21.2 item prize is
+reachable by a step of the size we deliver"* -- and that, not the sign tests, is
+what decides whether a new mechanism is worth building.
+
 
 ---
 
@@ -15878,7 +16067,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             628 tests, ~200 s, no dataset required
+tests/             633 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

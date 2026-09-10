@@ -2465,7 +2465,22 @@ def test_the_campaign_state_audit_actually_detects_an_orphan():
 # could not see. A registry that tracks one spelling of "take the K-th
 # ranked item" and not another is the per-FILE mistake again, one level
 # down. (2026-09-10)
-SORTS = ("argsort", "argpartition", "topk", "nlargest", "sort")
+SORTS = ("argsort", "argpartition", "topk", "nlargest", "sort",
+         "partition", "quantile")
+# !! THE TARGET LIST IS THE GATE'S BLIND SPOT, AND IT HAS BEEN WIDENED
+# TWICE IN ONE DAY (2026-09-10). `sort` joined it because the fix to site 1
+# introduced an `np.sort(pn)[::-1][K - 1]` an argsort-only registry could
+# not see; `partition` and `quantile` joined it hours later because
+# `straddle_probe.cut_score` located its cut with `np.partition(s, -K)[-K]`
+# and the freshly-built gate passed that file CLEAN. That site was the
+# ELEVENTH (FRAMEWORK 2(z85)).
+# !! WHAT IS DELIBERATELY EXCLUDED, AND WHY -- a list nobody maintains is
+# not a gate. `max`/`min` occur 416 times and are overwhelmingly bounds and
+# clamps; `median` 29 times as a report statistic; `argmax` 50 times over
+# the CLASS axis, which is the model's decision and not an item budget at
+# all. `searchsorted` is a genuine cut spelling and occurs ZERO times --
+# checked, so it need not be listed. Add a spelling here the moment one
+# appears; do not add one that would flood the registry with non-cuts.
 
 # Verdicts, and each is a claim somebody checked:
 #   DEPLOYED    cuts per group, or uses the allocator's own selection
@@ -2616,6 +2631,19 @@ ARGSORT_SITES = {
         "allocator's groups",
     "src/losses/transductive_loss.py::window_temp::sort(m.abs())":
         "NOT-A-CUT margin-window temperature, same rejected family",
+    # --- straddle_probe. The registry held ZERO entries for this file until
+    # 2026-09-10: `np.partition` and `np.quantile` were not in SORTS, so the
+    # gate that had just found sites 9 and 10 walked past site 11 (2(z85)).
+    "scripts/straddle_probe.py::cut_score::partition(scores)":
+        "GLOBAL-KEPT the pre-2026-09-10 reading, retained and printed in a "
+        "column labelled `glob`. `straddle_grouped` is primary",
+    "scripts/straddle_probe.py::topk_per_group::argsort(-scores[m])":
+        "DEPLOYED `m` is one group's members and `k` its own budget -- the "
+        "shuffled CONTROL's selection rule, held on the same per-group "
+        "budgets as the real reading (2(z85))",
+    "scripts/straddle_probe.py::measured_delta::quantile(d)":
+        "NOT-A-CUT a quantile of the per-item |treated - null| DISPLACEMENT. "
+        "It sets the delta LADDER, never a selection; no budget is involved",
 }
 
 
@@ -2687,7 +2715,7 @@ def test_every_sort_on_scores_is_classified_per_CALL_SITE():
     assert not new, (
         "%d sort-on-scores call site(s) are not classified:\n  %s\n\n"
         "The allocator emits top-k_g WITHIN each group, so `argsort(-p)[:K]` "
-        "reads a different set. NINE sites have carried that defect. Add each "
+        "reads a different set. ELEVEN sites have carried that defect. Add each "
         "to ARGSORT_SITES with one of DEPLOYED / GREEDY-ROOM / GLOBAL-KEPT / "
         "GLOBAL-OPEN / NOT-A-CUT / SELF-TEST and a reason somebody checked."
         % (len(new), "\n  ".join(new)))
