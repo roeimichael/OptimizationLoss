@@ -14067,3 +14067,84 @@ that mentions a campaign is history and must read as history. This is the same
 shape as 2(z68) -- a figure dated when it was produced, against a scorer that
 moved underneath it -- and the same as the `keep_for` rule in 2(z71): a claim
 that was true in one context, read in another.
+
+## 2(z73). THE ONE UNCLOSED LAYER RESTS ON A NUMBER WITH NO MEASUREMENT, AND THE EXPLANATION FOR THE DISAGREEMENT IS REFUTED ON ITS OWN AXIS (2026-09-10)
+
+**Every mechanism family this project has closed sits UPSTREAM of `normalize`,
+which discards magnitude. The delivery layer -- how the constraint gradient
+actually reaches the weights -- is the one that has not been closed. Its entire
+motivation is a cosine of 0.009-0.017 that is cited nowhere, and the reason
+given for why a fresh measurement reads 15-20x higher is contradicted by that
+same measurement.**
+
+### 1. Why this layer is what is left
+
+2(z56) closed the per-scope weighting family -- shape, magnitude,
+frequency-vs-magnitude, units, granularity, scope selection -- on the finding
+that a mechanically correct, replicated, pre-registered fix moved the proxy and
+left the score alone. 2(z53) rejected `tralo_dualprop` on the same kind of
+evidence. Both act on what goes INTO the constraint gradient.
+
+`normalize` then takes ONE norm over `model.parameters()`, so the delivered step
+has norm exactly `lr*clip` whatever the loss was worth. That is why
+`tralo_coin` -- a RANDOM direction of the same norm -- took one of four cells in
+`itemscale`. The information that the closed families spent themselves adjusting
+is destroyed after they adjust it.
+
+### 2. The number that motivates the fix has no receipt
+
+`src/training/constraint_step.py` justified `constraint_step_rule: sgd` with
+"Measured in this project: `cos(parameter update, constraint gradient)` at
+**0.009-0.017**, i.e. the constraint step is ~98% a 127th CE step."
+
+`0.009-0.017` occurs in exactly TWO places in this repo: that comment, and
+2(z46) quoting that comment. There is no run, script, entry or dated
+measurement behind it.
+
+Nor is it the `92.6% stale CE momentum` figure, though the two are read as one
+claim. **92.6% is `ortho_survival`'s momentum algebra and does have a receipt.**
+A momentum fraction and a cosine are different quantities.
+
+### 3. 🛑 THE STEP-COUNT EXPLANATION IS REFUTED BY ITS OWN AXIS
+
+`MISSION` carried the reconciliation: the fresh reading "used 60 CE steps, so
+`cos = 0.187` is higher than the 0.009-0.017 the framework measures after a full
+epoch". That attributes the gap to STEP COUNT. `step_dose` measured that axis:
+
+| cos | where it comes from | `shared` aligned | `sgd` under-dosed |
+|---|---|---|---|
+| 0.013 | the docstring, uncited | 0.000577 | 5.8x |
+| 0.187 | measured, 60 CE steps | 0.00830 | 83x |
+| **0.258** | **measured, 126 CE steps = a full epoch** | **0.01146** | **115x** |
+
+~126 CE steps IS the full epoch between constraint steps. **The cosine RISES as
+Adam's state matures**, so going to a full epoch widens the disagreement from
+15x to 20x rather than closing it, and takes the under-dose from 83x to 115x.
+The explanation predicted movement toward 0.013 and the measurement moves away
+from it.
+
+Three readings survive, and they are not equivalent: a different DEFINITION (cos
+against the update INCLUDING the CE step), a different STATE (deep in the
+constraint phase on a warm-up-trained model rather than 126 fresh CE steps), or
+a different BACKBONE (this is MobileNetV2).
+
+### 4. What is and is not affected
+
+🟢 **The dose conclusion is UNAFFECTED, and it is why the arm exists.** `sgd` is
+under-dosed at every cosine on the table. A null from `tralo_sgd` reports the
+DOSE GAP and never "delivering the direction does not help" -- pre-registered in
+`protocol.yml` before `price1` launched.
+
+⛔ **The MECHANISM claim is not settled**, and it is the whole motivation for the
+delivery program. `constraint_step.py` now states the dispute at the point of
+use instead of asserting the smaller number; `MISSION` no longer offers the
+step-count reconciliation.
+
+### 5. The rule, which is this week's rule again
+
+🔑 **A NUMBER THAT SAYS "MEASURED IN THIS PROJECT" MUST NAME WHERE.** This is
+2(z68) (a figure dated against a scorer that moved underneath it), 2(z71) (a
+figure read outside its own `keep_for`) and 2(z72) (a run-state block dated when
+it was written) in a fourth costume: a claim that was true in some context, read
+in another, with the context lost. The cheapest defence is a citation, and the
+training path is the last place that should go without one.

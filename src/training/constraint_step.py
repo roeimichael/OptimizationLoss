@@ -287,9 +287,36 @@ def finish_constraint_step(model, optimizer, scaler, clip, mode="clip",
     if applied:
         if step_rule == "sgd":
             # Plain SGD, deliberately NOT the Adam the CE pass just took 126
-            # steps with. Measured in this project: sharing that Adam leaves
-            # cos(parameter update, constraint gradient) at 0.009-0.017, i.e.
-            # the "constraint step" is ~98% a 127th CE step.
+            # steps with. The motivation is that sharing that Adam leaves the
+            # constraint step pointing mostly along CE.
+            #
+            # !! THE SIZE OF THAT EFFECT IS DISPUTED. THIS COMMENT USED TO
+            # ASSERT cos(parameter update, constraint gradient) = 0.009-0.017
+            # ("~98% a 127th CE step") AS MEASURED, AND CITED NOTHING. That
+            # figure appears in exactly two places in this repo: here, and
+            # FRAMEWORK 2(z46) quoting here. `scripts/step_dose` re-measured it
+            # on a REAL MobileNetV2 from one shared Adam state:
+            #
+            #     60 CE steps   cos = 0.187
+            #    126 CE steps   cos = 0.258      <- 126 IS the full epoch
+            #
+            # 15-20x higher, and RISING as Adam's state matures -- so "it is
+            # lower after a full epoch" is refuted on its own axis, not merely
+            # unconfirmed. Three unexcluded readings remain: a different
+            # DEFINITION (cos taken against the update including the CE step),
+            # a different STATE (deep in the constraint phase on a warm-up
+            # trained model, not 126 fresh CE steps), or a different BACKBONE.
+            #
+            # !! Do NOT quote 0.009-0.017, and do NOT conflate it with the
+            # `92.6% stale CE momentum` figure -- that one is `ortho_survival`'s
+            # momentum algebra and does have a receipt. Two different
+            # quantities, read as one claim.
+            #
+            # THE DOSE CONCLUSION IS UNAFFECTED and is why this rule exists:
+            # sgd is UNDER-dosed at every cosine on the table (5.8x at 0.013,
+            # 83x at 0.187, 115x at 0.258), so a null from `tralo_sgd` reports
+            # the DOSE GAP and never "delivering the direction does not help".
+            # FRAMEWORK 2(z46), 2(z73).
             #
             # This is NOT the rejected `separate_constraint_optimizer` arm. That
             # one used a dedicated ADAM, whose 1/sqrt(v) gives a step of norm

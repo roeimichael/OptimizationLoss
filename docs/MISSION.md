@@ -5,7 +5,7 @@
 every working session. If it is stale, that is a defect -- fix it before doing
 anything else.
 
-Last updated: **2026-09-10** (🛑 THREE SCORERS REPORTED A GUARD AS A MEASUREMENT -- see 0-FLOOR; the corpus is SILENT on the noise question, not negative on it. Also: THE ACCEPTANCE FIGURE IS STALE -- `6/17 = 35%` predates the scorer it delegates to by 14 hours; the VERDICT stands, the FIGURE does not. See 0-STALE. Previously: 🔑 THE FIFTH AND SIXTH UNITS ALREADY EXIST AND NEITHER HAS BEEN READ -- see 0-UNREAD, the top of the queue and it costs zero GPU-hours. Plus two instrument audits, five defects, no published number moved -- 0-INSTR. SSH to both hosts down all day.)
+Last updated: **2026-09-10** (🛑 THIS FILE'S OWN RUN-STATE WAS THREE DAYS STALE IN THREE PLACES: `0-RUNNING` announced a campaign that had LANDED and closed a design family, and handed the next session its RELAUNCH command; `0-LAUNCH` still said `dualprop1 -- LIVE`; and all five items of the "live" priority QUEUE were finished work. All three rebuilt, `0-RUNNING` now dated LAST VERIFIED rather than at writing, and one authority owns run-state -- FRAMEWORK 2(z72). 🔑 AND THE ONLY UNCLOSED MECHANISM LAYER RESTS ON AN UNCITED NUMBER: 2(z56) closed the per-scope weighting family and 2(z53) rejected `tralo_dualprop`, both UPSTREAM of `normalize`, which is why `tralo_coin` -- a random direction of the same norm -- took a cell. What is left is DELIVERY, motivated by a cosine of 0.009-0.017 that exists in two places, both quoting each other, against a real-backbone reading of 0.187-0.258 -- see 2(z73), task #107. Previously: three scorers reported a guard as a measurement, 0-FLOOR; the acceptance figure is stale, 0-STALE; two units unread at zero GPU, 0-UNREAD. SSH to both hosts down all day.)
 
 ---
 
@@ -565,13 +565,33 @@ displacement, `||dw|| * cos(dw, descent direction)`:
 **`sgd` delivers 83x LESS movement along the direction the constraint asked
 for.** Its direction is perfect and its dose is tiny.
 
-⚠️ **State the caveat with the number.** That reading used 60 CE steps, so
-`cos = 0.187` is higher than the 0.009-0.017 the framework measures after a full
-epoch; at that cos the gap narrows to ~6x. Either way `sgd` is UNDER-dosed, not
-over-dosed, so **a null from `tralo_sgd` is about DOSE and must be reported as
-the dose gap, never as "delivering the direction does not help"**. That was
-pre-registered in `protocol.yml` before the campaign launched and is now
-quantified.
+⚠️ **State the caveat with the number -- and it is NOT the one this line
+carried until 2026-09-10.** It used to say that `cos = 0.187` is higher than the
+0.009-0.017 the framework measures "after a full epoch", and that at the
+framework's cosine the gap narrows to ~6x: it attributed the disagreement to
+STEP COUNT. 🛑 **That axis was measured, and it moves the other way.**
+2(z46) reads **0.187 at 60 CE steps and 0.258 at 126** -- and ~126 CE steps IS
+the full epoch between constraint steps -- so going to a full epoch takes the
+under-dose from 83x to **115x** and WIDENS the disagreement with the docstring
+instead of closing it.
+
+| cos | where it comes from | shared aligned | `sgd` under-dosed |
+|---|---|---|---|
+| 0.013 | `constraint_step.py` docstring, "measured in this project", uncited | 0.000577 | 5.8x |
+| 0.187 | measured, 60 CE steps | 0.00830 | 83x |
+| **0.258** | **measured, 126 CE steps = a full epoch** | **0.01146** | **115x** |
+
+⛔ **AND THE DOCSTRING FIGURE HAS NO TRACEABLE MEASUREMENT.** `0.009-0.017`
+occurs in exactly two places in this repo: that docstring, and 2(z46) quoting
+it. It is also NOT the same quantity as the `92.6%` stale-momentum figure, which
+is `ortho_survival`'s momentum algebra -- the two have been read as one claim,
+and only the algebraic one has a receipt.
+
+Either way `sgd` is UNDER-dosed, never over-dosed, so **a null from `tralo_sgd`
+is about DOSE and must be reported as the dose gap, never as "delivering the
+direction does not help"**. That was pre-registered in `protocol.yml` before the
+campaign launched and is now quantified. What is NOT settled is the 15-20x
+motivation behind the whole delivery program. FRAMEWORK 2(z73).
 
 ---
 
@@ -1766,41 +1786,54 @@ distribution", not "local vs global".
 Work top-down. When one finishes, score it, update sections 1-2 of this file
 and FRAMEWORK 3(0), then start the next.
 
-⚠️ **ITEMS 0-5 ARE THE LIVE QUEUE (2026-09-07). Everything numbered
-below them is the older queue, kept because it carries the reasoning, and much
-of it is superseded -- read 0-RUNNING first.**
+⚠️ **THE LIVE QUEUE IS ITEMS 0-5 BELOW, REBUILT 2026-09-10. EVERY ITEM NAMES
+ITS TASK ID, AND THE TASK LIST -- NOT THIS FILE -- IS THE AUTHORITY ON WHETHER
+IT IS DONE.** The previous live queue was dated 2026-09-07 and all five of its
+items had completed: items 1 and 3 were `dualprop1` reads that produced 2(z53),
+item 2 was the `dualprop2` launch, items 4 and 5 were the `deep_scope` and
+`headroom` recomputes. A queue that says "work top-down" whose top is finished
+work is the same defect as a run-state block dated at writing. FRAMEWORK
+2(z72).
 
-0. 🔴 **RE-ESTABLISH CONTACT.** The VPN has been down since 2026-09-06.
-   Nothing about either campaign has been verified since. Both hosts time out
-   in the SSH banner exchange, so it is the VPN, not a host.
+0. 🔴 **RE-ESTABLISH CONTACT.** SSH to both hosts has been down since
+   2026-09-06; the jump host `dsihead.lnx.biu.ac.il` (132.70.60.180) shows 100%
+   packet loss, so it is the VPN and not a host. **Nothing in `0-RUNNING` has
+   been verified since 2026-09-09.** On reconnect: VERIFY before relaunching
+   anything -- `0-RUNNING` carries the LANDED table for exactly this reason.
 
-1. 🛑 **THE INERT-FLAG CHECK ON `tralo_dualprop`**, on the first
-   completed run, before any scoring. `latch_probe --campaign results/dualprop1
-   --arms tralo tralo_dualprop`. Predicted far above 24.3x; a reading AT 24.3x
-   means the key is unread and the arm is the sixth inert flag. 2(z51).
+1. 🟢 **#102 -- READ THE SIGNS FOR UNITS C2 AND D1. ZERO GPU-HOURS, TOP OF
+   QUEUE.** Both are on disk. `("dom1","MobileNetV3")` and
+   `("bcn1mn3","MobileNetV3")` are LICENSED in `MEASURED_UNITS` and have never
+   had their signs read; `bcn1mn3` is a COMPLETE 228-run campaign currently
+   contributing nothing. 6/6 would be **p=0.0156**, the first sub-0.05 headline
+   this design can produce -- and a negative is worth more.
+   ⛔ **DO NOT QUOTE 6/6 BEFORE IT IS READ.** 2(z66), 0-UNREAD.
 
-2. 🟢 **LAUNCH `dualprop2` (RegNetY400MF) the moment `shape1` frees
-   GPU 1.** The command is in 0-LAUNCH and was validated locally on 2026-09-07:
-   88 configs, all four (cap x class) rows in-window. **Two priced units is the
-   sign-test floor this project has never had.** Symlink the `.npy` arrays from
-   `~/optloss-audit` FIRST -- a fresh worktree has none and every launch gate
-   still reads green without them.
+2. 🛑 **#104 -- RECOMPUTE THE ACCEPTANCE TABLE.** `6 of 17 = 35%` was produced
+   at 09:09 on 2026-09-06; `deployed_h2h.rank_cell`, which makes the deltas
+   BOTH halves of that verdict read, was fixed at 22:48 the same day. Until it
+   is re-run, say **"FAIL, figure pending recompute"** and never the figure.
+   2(z68).
 
-3. **Score `dualprop1` with the standing sequence**, and read 2(z51)'s three
-   predictions before the headline: MIDDLE depth must move, DEEP must not, and
-   the lambda range must be wide. A win with prediction 2 falsified is a win
-   with the mechanism unexplained, and must be reported as one.
+3. 🔑 **#107 -- RESOLVE THE 0.013-vs-0.258 COSINE. THIS GATES THE ONLY
+   UNCLOSED MECHANISM LAYER.** 2(z56) closed the per-scope weighting family and
+   2(z53) rejected `tralo_dualprop`; both act UPSTREAM of `normalize`, which
+   discards magnitude -- which is why `tralo_coin`, a random direction of the
+   same norm, took a cell. The delivery layer is what is left, and its entire
+   motivation is a cosine with no citation that a real-backbone measurement
+   contradicts 15-20x. `step_dose` now reports `r` and `cos(m_ce, ghat)`,
+   the one measurement that decides it. 2(z73).
 
-4. **Recompute `deep_scope`'s premise correlation.** The published
-   `rho +0.504, 6 cells, 360 runs` pooled ALL 15 dom1 arms because the premise
-   block ignored `--arms` (fixed 2026-09-07). It is the premise the whole
-   program rests on -- that the proxy the constraint optimises is not orthogonal
-   to the metric that is scored -- so it must not be quoted until re-run.
+4. **#106 -- RE-READ 2(z53) AT COMPLETION.** `dualprop1` was 72 of 88 runs when
+   it was scored, so every cell carries 3 seeds against the protocol's 4. The
+   DIRECTION is safe (sign 6 of 6, the rejection stands); every NUMBER is not.
+   Zero GPU if the campaign has since finished.
 
-5. **Re-read the `headroom` prize table per BACKBONE.** Its cell key had no
-   backbone until 2026-09-07, so `dom1 MNv2/MNv3 L80_G95 | 12.8` and
-   `L90_G95 | 20.0` average two models into a headroom describing neither.
-   That table is what makes the current campaigns worth running.
+5. **#105 -- MAKE THE EXISTING CORPUS PRICEABLE.** Every corpus campaign
+   predates `tralo_reseed2`, so its RNG floor rests on 2 streams x 4 seeds = 4
+   observations against `MIN_FLOOR_OBS` = 8, and every `priced` column reads
+   false because the comparison is never reached -- not because the spread lost
+   to the floor. 16 runs per campaign fixes it. 2(z69).
 
 ---
 

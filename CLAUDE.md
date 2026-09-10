@@ -761,17 +761,31 @@ python -m scripts.deep_scope --campaign <root> --arms tralo alm lp clip
 #   FRAMEWORK 2(z52).
 #   `--self-test` gates it, 10 checks, 5 of them negative controls.
 python -m scripts.step_dose --config <config.json> --ce-steps 60
-#   🛑 HOW BIG IS THE CONSTRAINT STEP IN WEIGHTS, per delivery rule? The project
-#   has measured what `shared` does to the DIRECTION -- cos(update, constraint
-#   gradient) 0.009-0.017, i.e. ~98% a 127th CE step -- and never the MAGNITUDE.
-#   Without it a null from `tralo_sgd` cannot be told from underdosing: `sgd`
-#   steps a flat `lr*clip` while Adam steps ~`lr*sqrt(N)` (sqrt(N) alone is
-#   ~1871 at MobileNetV2 scale), yet only the component ALONG the constraint
-#   direction enforces anything and `shared` keeps ~1.3% of its larger step
-#   there. Reports the product -- CONSTRAINT-ALIGNED DISPLACEMENT -- for both
-#   rules from ONE shared Adam state and ONE gradient, on a REAL backbone.
+#   🛑 HOW BIG IS THE CONSTRAINT STEP IN WEIGHTS, per delivery rule? Without it
+#   a null from `tralo_sgd` cannot be told from underdosing: `sgd` steps a flat
+#   `lr*clip` while Adam steps ~`lr*sqrt(N)` (sqrt(N) alone is ~1871 at
+#   MobileNetV2 scale), yet only the component ALONG the constraint direction
+#   enforces anything. Reports the product -- CONSTRAINT-ALIGNED DISPLACEMENT --
+#   for both rules from ONE shared Adam state and ONE gradient, on a REAL
+#   backbone.
+#   ⛔ **THE DIRECTION FIGURE IS DISPUTED, DO NOT QUOTE 0.009-0.017.** This line
+#   used to state it as measured. `constraint_step.py` asserted it uncited, and
+#   the string occurs in exactly TWO places in the repo -- there, and FRAMEWORK
+#   2(z46) quoting there. Measured here on a real MobileNetV2 it is **0.187 at
+#   60 CE steps and 0.258 at 126** -- 15-20x higher and RISING, so "lower after
+#   a full epoch" is refuted on its own axis (126 IS the full epoch). It is also
+#   NOT the `92.6% stale CE momentum` figure, which is `ortho_survival`'s
+#   momentum algebra and does have a receipt.
+#   🔑 IT NOW REPORTS THE STATE, NOT ONLY THE COSINE: `|m_ce|`, `r=|m_ce|/clip`
+#   and `cos(m_ce, ghat)`. That pair is what sets `shared`'s cos, and the
+#   inversion is UNSTABLE in the angle -- cos(dw,ghat)=0.013 needs r=8.5 at
+#   angle 0, r=1.8 at -0.05, and is UNREACHABLE at +0.05. So algebra cannot
+#   close the dispute; that one measurement can. FRAMEWORK 2(z73), task #107.
 #   ⚠️ Real state, not a toy: `hp_liveness_real` exists because the smoke net
 #   inverts verdicts, and Adam's `v` is the whole question here.
+#   `--self-test` gates it, 10 checks, 2 of them labelled negative controls
+#   (empty-state Adam, and no-CE-steps => |m_ce| must read 0). Mutation-tested:
+#   zeroing the momentum read turns 2 checks red.
 python -m scripts.frozen_head_probe --run-dir <run> --seeds 1 2 3 4 5 6 7 8  # refit ONLY a
                                             #   linear head on the frozen features under
                                             #   a different loss; verdicts in ITEMS, and

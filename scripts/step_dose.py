@@ -8,9 +8,18 @@
   sgd     `p.add_(p.grad, alpha=-lr)`, so the update is exactly `lr * ||g||`,
           which under `constraint_grad_mode: normalize` is exactly `lr * clip`.
 
-This project has already measured what `shared` does to the DIRECTION:
-`cos(parameter update, constraint gradient)` is 0.009-0.017, i.e. the
-"constraint step" is ~98% a 127th CE step (`src/training/constraint_step.py`).
+WHAT `shared` DOES TO THE DIRECTION IS DISPUTED, AND THIS SCRIPT IS WHY.
+`src/training/constraint_step.py` long asserted `cos(parameter update,
+constraint gradient)` = 0.009-0.017 ("~98% a 127th CE step") as measured, and
+cited nothing; that string occurs in exactly two places in the repo, there and
+FRAMEWORK 2(z46) quoting there. Run here on a REAL MobileNetV2 it reads 0.187
+at 60 CE steps and 0.258 at 126 -- 15-20x higher, and RISING as Adam's state
+matures, so "it is lower after a full epoch" is refuted on its own axis (126 IS
+the full epoch between constraint steps).
+
+Do not conflate it with the `92.6% stale CE momentum` figure. That one is
+`ortho_survival`'s momentum algebra and does have a receipt; a momentum
+fraction and a cosine are different quantities. FRAMEWORK 2(z73).
 
 IT HAS NEVER MEASURED THE MAGNITUDE, and without it a null from `tralo_sgd` is
 uninterpretable. Two failure modes point opposite ways and both are plausible
@@ -92,7 +101,34 @@ def measure(model, optimizer, g_c, lr, clip, device):
     before = _weights(model)
     opt_state = copy.deepcopy(optimizer.state_dict())
 
-    out = {}
+    # THE STALE CE MOMENTUM -- the state the whole `shared`-vs-`sgd` argument
+    # turns on, and which nobody had reported. Under shared Adam the momentum
+    # at a constraint step is `b1*m_ce + (1-b1)*ghat`, so cos(dw, ghat) is set
+    # by TWO numbers: the norm ratio r = |m_ce|/clip, and the ANGLE between
+    # m_ce and ghat.
+    #
+    # !! AND THE INVERSION IS UNSTABLE IN THE ANGLE, WHICH IS EXACTLY WHY IT
+    # IS MEASURED HERE RATHER THAN ASSUMED. Solving cos(dw, ghat) = 0.013 --
+    # the figure `constraint_step.py` asserted uncited for months -- gives
+    # r = 8.5 if m_ce is exactly perpendicular to ghat, r = 1.8 at
+    # cos(m_ce, ghat) = -0.05, and NO SOLUTION AT ALL at +0.05. A +/-0.05
+    # perturbation in a quantity nobody logged moves the answer 5x one way and
+    # to unreachable the other, so the dispute cannot be closed by algebra.
+    # FRAMEWORK 2(z73).
+    m_ce = []
+    for prm in model.parameters():
+        ea = optimizer.state.get(prm, {}).get("exp_avg")
+        m_ce.append(ea.detach().clone() if ea is not None
+                    else torch.zeros_like(prm))
+    m_flat = _flat(m_ce)
+    m_norm = float(m_flat.norm())
+    momentum = {
+        "m_norm": m_norm,
+        "r": m_norm / (clip + 1e-30),
+        "cos_m_ghat": float(torch.dot(m_flat, unit) / (m_norm + 1e-30)),
+    }
+
+    out = {"_momentum": momentum}
     for rule in ("shared", "sgd"):
         # restore
         with torch.no_grad():
@@ -200,6 +236,19 @@ def report(res, lr, clip, n_params, steps, out=sys.stdout):
     w("\n  Note `shared`'s cos is the fraction of a LARGE step that points\n"
       "  where the constraint asked; `sgd`'s is 1.0 by construction. Neither\n"
       "  column decides anything alone -- the product does.\n")
+
+    m = res.get("_momentum")
+    if m:
+        w("\n  STALE CE MOMENTUM -- the state that sets `shared`'s cos\n")
+        w("    |m_ce|            %14.6g\n" % m["m_norm"])
+        w("    r = |m_ce|/clip   %14.6g\n" % m["r"])
+        w("    cos(m_ce, ghat)   %14.4f\n" % m["cos_m_ghat"])
+        w("\n  Report BOTH, never the cos alone. `shared`'s cos is a function\n"
+          "  of the pair, and the inversion is UNSTABLE in the angle:\n"
+          "  cos(dw,ghat)=0.013 needs r=8.5 at angle 0, r=1.8 at -0.05, and\n"
+          "  is UNREACHABLE at +0.05. Quoting a cosine without the state it\n"
+          "  was taken in is how the 0.009-0.017 figure became uncheckable.\n"
+          "  FRAMEWORK 2(z73).\n")
     return ratio
 
 
@@ -244,6 +293,43 @@ def self_test(out=sys.stdout):
     measure(lin, opt, g, lr, clip, "cpu")
     checks.append(("measuring twice leaves the weights untouched",
                    float((_flat(_weights(lin)) - w0).abs().max()) < 1e-12))
+
+    # 4. THE STALE-CE-MOMENTUM STATE, gated in BOTH directions, because the
+    #    whole point of reporting it is that a cosine quoted without it is
+    #    uncheckable (FRAMEWORK 2(z73)). `lin`'s Adam state is still EMPTY --
+    #    `measure` restores it -- so this is the negative control: no CE has
+    #    run, so there IS no stale momentum and the probe must say so rather
+    #    than reporting a plausible-looking number.
+    checks.append(("NEGATIVE CONTROL: no CE steps taken, so |m_ce| is 0",
+                   abs(r["_momentum"]["m_norm"]) < 1e-12))
+
+    #    ... and the POSITIVE half, or the control passes by doing nothing.
+    #    Take real CE steps so Adam accumulates, then the momentum must be
+    #    non-zero AND `shared`'s cos must fall away from the sgd branch's 1.0.
+    torch.manual_seed(1)
+    lin2 = torch.nn.Linear(50, 3, bias=False)
+    opt2 = torch.optim.Adam(lin2.parameters(), lr=1e-3)
+    x, y = torch.randn(64, 50), torch.randint(0, 3, (64,))
+    for _ in range(20):
+        opt2.zero_grad()
+        torch.nn.functional.cross_entropy(lin2(x), y).backward()
+        opt2.step()
+    r2 = measure(lin2, opt2, [torch.randn_like(p) for p in lin2.parameters()],
+                 lr, clip, "cpu")
+    m2 = r2["_momentum"]
+    checks.append(("after 20 CE steps |m_ce| is non-zero (%.3g)" % m2["m_norm"],
+                   m2["m_norm"] > 0))
+    checks.append(("  r = |m_ce|/clip is reported and finite (%.3g)" % m2["r"],
+                   math.isfinite(m2["r"]) and m2["r"] > 0))
+    checks.append(("  cos(m_ce, ghat) is a real angle, not pinned (%.3f)"
+                   % m2["cos_m_ghat"],
+                   -1.0 <= m2["cos_m_ghat"] <= 1.0
+                   and abs(m2["cos_m_ghat"]) < 0.999))
+    #    the identity the inversion rests on: a LARGER stale momentum must
+    #    push `shared`'s cos DOWN. If this ever inverts, 2(z73)'s arithmetic
+    #    is wrong and the r-column means nothing.
+    checks.append(("  and stale momentum costs alignment: shared cos < sgd cos",
+                   r2["shared"]["cos"] < r2["sgd"]["cos"]))
 
     print("", file=out)
     for label, good in checks:
