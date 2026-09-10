@@ -124,9 +124,25 @@ C2 and D1 are licensed and their signs have never been read, so 4/4 is a tally
 over four units, not over the ledger.
 
 🔑 Reading them costs **zero GPU-hours** -- `dom1` is on disk and `bcn1mn3`
-is a completed 228-run campaign. 6/6 would be **p=0.0156**, the first sub-0.05
-headline this design can produce; a negative is worth more. ⛔ Do not quote
-6/6 before it is read. FRAMEWORK 2(z66), MISSION 0-UNREAD.
+is a completed 228-run campaign.
+
+🛑 **THE TWO TALLIES MOVE DIFFERENTLY, AND THIS LINE COLLAPSED THEM TOO
+(2026-09-10).** iwildcam/MobileNetV3's strict band for class 2 is measured
+EMPTY, so **C2 reads `partial` at every cap on the grid and can never carry a
+strict `task` cell** -- while `paper_rows` restricts its sign test to `task`
+units. Reading both units therefore gives:
+
+| tally | now | after C2 + D1 |
+|---|---|---|
+| LICENSED units, sign read | 4/4, p=0.0625 | **6/6, p=0.0156** |
+| of those, carrying a `task` cell | 3/3, p=0.125 | **4/4, p=0.0625** |
+
+So `p=0.0156` belongs to the tally `paper_rows` does not print, and the
+restricted one tops out at 0.0625. **Read D1 first** -- `bcn1mn3` L80/L90 are
+verified task cells (2(z58)), so it is the one unit that moves both rows.
+A negative is worth more than either. ⛔ Do not quote 6/6 before it is
+read, and never without its restriction. FRAMEWORK 2(z66), **2(z75)**,
+MISSION 0-UNREAD.
 The SIGNS are unchanged -- dropping C1 flips nothing, and it removes the one
 unit FAILING the `vs tralo_reseed` row above, so the corpus becomes CLEANER and
 LESS significant at the same time. **Do not re-derive this by hand:**

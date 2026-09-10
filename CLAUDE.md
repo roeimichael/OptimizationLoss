@@ -97,10 +97,18 @@ docs/COVERAGE.md   🗺️ WHAT WE ACTUALLY HAVE vs WHAT THE PAPER NEEDS, built
    added as D1 today -- a COMPLETE 228-run campaign that was reading
    `UNVERIFIED` and contributing nothing. **`LICENSED` and `SIGN READ` are
    different, and this line collapsed them.** Reading C2 and D1 costs ZERO
-   GPU-hours (both are on disk) and is the top of the queue: 6/6 would be
-   p=0.0156, the first sub-0.05 headline this design can produce, and a
-   negative is worth more. ⛔ DO NOT QUOTE 6/6 BEFORE IT IS READ.
-   FRAMEWORK 2(z66), MISSION 0-UNREAD.
+   GPU-hours (both are on disk) and is the top of the queue.
+   🛑 **BUT READ D1 FIRST, AND KNOW WHICH TALLY 6/6 BELONGS TO
+   (2026-09-10).** iwildcam/MobileNetV3 carries `strict class 2: []` -- a
+   band measured EMPTY -- and `classify` checks strict before partial, so
+   **C2 reads `partial` at every cap on the grid and can never carry a strict
+   `task` cell.** `paper_rows` restricts its printed sign test to `task`
+   units, so reading BOTH gives **6/6 p=0.0156 unrestricted and 4/4 p=0.0625
+   task-restricted** -- the sub-0.05 number is the one the paper-facing scorer
+   does NOT print. D1 moves both rows (`bcn1mn3` L80/L90 are verified task
+   cells, 2(z58)); C2 moves only the first. A negative is still worth more
+   than either. ⛔ DO NOT QUOTE 6/6 BEFORE IT IS READ, AND NEVER WITHOUT
+   ITS RESTRICTION. FRAMEWORK 2(z66), **2(z75)**, MISSION 0-UNREAD.
                    COVERAGE also carries the checklist of holes: ViTB16 has zero fioretto/hounie/alm,
                    every run caps the same 2 classes, no symmetric cap ever,
                    1 dataset of 3 -- ✅ THAT LAST HOLE IS CLOSING:
@@ -150,7 +158,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 612 regression tests, ~250s, no dataset needed
+python -m pytest tests -q                   # 613 regression tests, ~250s, no dataset needed
 #   `tests/test_scorers_run_end_to_end.py` EXECUTES every scorer as a subprocess
 #   against a campaign carrying a real PARTIAL marker. It exists because three
 #   scorers once used `quarantine.` with no module-level import: they PARSED,

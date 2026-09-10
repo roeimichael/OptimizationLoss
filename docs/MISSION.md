@@ -5,7 +5,7 @@
 every working session. If it is stale, that is a defect -- fix it before doing
 anything else.
 
-Last updated: **2026-09-10** (🔴🔴 **THE ONLY POSITIVE RESULT AND THE SHARPEST NEGATIVE ONE MEASURE THE SAME QUANTITY WITH OPPOSITE SIGNS, AND NOBODY HAS RECONCILED THEM.** `loose1` gives `tralo` vs its own lambda=0 twin AP **+0.0253, 5/1**, and what survives its control is specifically the RANKING; `dualprop1` gives **-0.0138/-0.0160/-0.0051, 6 of 6 negative** on the same contrast, and post-hoc allocation is optimal GIVEN the probabilities, so a worse ranking mechanically means fewer items. They overlap at MobileNetV2/L80. 2(z53) flagged this on 2026-09-07 saying neither may be cited in isolation -- and the STATUS BOARD was doing exactly that. TWO unchecked things decide it, both zero-GPU: WHICH cell was the 1 of that 5/1 (identified nowhere), and whether they still disagree once `+0.0253` is split per backbone -- it POOLS THREE, which rule 4 forbids. 2(z74), task #108. Also: 🛑 RUN-STATE WAS STALE IN **SIX** PLACES ACROSS **FOUR** DOCUMENTS. This file carried three: `0-RUNNING` announced a campaign that had LANDED and closed a design family, and handed the next session its RELAUNCH command; `0-LAUNCH` still said `dualprop1 -- LIVE`; and all five items of the "live" priority QUEUE were finished work. The other three were FRAMEWORK's **3(0) status board** (eleven days stale, its `Second dataset` row reading `none` while a COMPLETE 228-run campaign sat on disk), COVERAGE (`vitdual2 RUNNING 0/88`, already scored twice) and PLAYBOOK's header. All six rebuilt; `0-RUNNING` is now dated LAST VERIFIED rather than at writing, and one authority owns run-state -- FRAMEWORK 2(z72). 🔑 AND THE ONLY UNCLOSED MECHANISM LAYER RESTS ON AN UNCITED NUMBER: 2(z56) closed the per-scope weighting family and 2(z53) rejected `tralo_dualprop`, both UPSTREAM of `normalize`, which is why `tralo_coin` -- a random direction of the same norm -- took a cell. What is left is DELIVERY, motivated by a cosine of 0.009-0.017 that exists in two places, both quoting each other, against a real-backbone reading of 0.187-0.258 -- see 2(z73), task #107. Previously: three scorers reported a guard as a measurement, 0-FLOOR; the acceptance figure is stale, 0-STALE; two units unread at zero GPU, 0-UNREAD. SSH to both hosts down all day.)
+Last updated: **2026-09-10** (🔴🔴 **THE ONLY POSITIVE RESULT AND THE SHARPEST NEGATIVE ONE MEASURE THE SAME QUANTITY WITH OPPOSITE SIGNS, AND NOBODY HAS RECONCILED THEM.** `loose1` gives `tralo` vs its own lambda=0 twin AP **+0.0253, 5/1**, and what survives its control is specifically the RANKING; `dualprop1` gives **-0.0138/-0.0160/-0.0051, 6 of 6 negative** on the same contrast, and post-hoc allocation is optimal GIVEN the probabilities, so a worse ranking mechanically means fewer items. They overlap at MobileNetV2/L80. 2(z53) flagged this on 2026-09-07 saying neither may be cited in isolation -- and the STATUS BOARD was doing exactly that. TWO unchecked things decide it, both zero-GPU: WHICH cell was the 1 of that 5/1 (identified nowhere), and whether they still disagree once `+0.0253` is split per backbone -- it POOLS THREE, which rule 4 forbids. 2(z74), task #108. ⛔⛔ **AND `loose1` IS THE `clip` RECIPE -- 2(w3) NEVER SAID SO, AND 2(z26-CORRECTED) HAD ALREADY REMOVED `loose1`/RegNetY400MF FROM THE UNIT CORPUS BY NAME AS *A DIFFERENT METHOD*.** The correction was applied where the campaign hurt and never propagated to where it helped. Its 4 CNN cells are byte-identical to `dom1`'s so the recipe cannot touch them -- which also means they ARE `dom1`, not independent evidence -- and the 2 RegNet cells are the excluded unit. **On the current recipe the only positive result is a TWO-UNIT result and both units are `dom1`.** The SIGN is untouched; the INDEPENDENCE and the SIZE are not. 2(z76). 🛑 AND THE TOP QUEUE ITEM CANNOT PRODUCE THE HEADLINE IT WAS ADVERTISED FOR: iwildcam/MobileNetV3's strict band on class 2 is measured EMPTY, so unit C2 reads `partial` at EVERY cap and can never carry a strict `task` cell, while `paper_rows` restricts its sign test to `task` units. Reading C2 + D1 gives **6/6 p=0.0156 unrestricted but 4/4 p=0.0625 task-restricted** -- the sub-0.05 number is the one the paper-facing scorer does not print, and SIX places across FOUR documents quoted only the first. Read D1 first; it is the one unit that moves both rows. 2(z75), task #102. Also: 🛑 RUN-STATE WAS STALE IN **SIX** PLACES ACROSS **FOUR** DOCUMENTS. This file carried three: `0-RUNNING` announced a campaign that had LANDED and closed a design family, and handed the next session its RELAUNCH command; `0-LAUNCH` still said `dualprop1 -- LIVE`; and all five items of the "live" priority QUEUE were finished work. The other three were FRAMEWORK's **3(0) status board** (eleven days stale, its `Second dataset` row reading `none` while a COMPLETE 228-run campaign sat on disk), COVERAGE (`vitdual2 RUNNING 0/88`, already scored twice) and PLAYBOOK's header. All six rebuilt; `0-RUNNING` is now dated LAST VERIFIED rather than at writing, and one authority owns run-state -- FRAMEWORK 2(z72). 🔑 AND THE ONLY UNCLOSED MECHANISM LAYER RESTS ON AN UNCITED NUMBER: 2(z56) closed the per-scope weighting family and 2(z53) rejected `tralo_dualprop`, both UPSTREAM of `normalize`, which is why `tralo_coin` -- a random direction of the same norm -- took a cell. What is left is DELIVERY, motivated by a cosine of 0.009-0.017 that exists in two places, both quoting each other, against a real-backbone reading of 0.187-0.258 -- see 2(z73), task #107. Previously: three scorers reported a guard as a measurement, 0-FLOOR; the acceptance figure is stale, 0-STALE; two units unread at zero GPU, 0-UNREAD. SSH to both hosts down all day.)
 
 ---
 
@@ -119,8 +119,15 @@ python -m scripts.cell_table --campaign results/dom1 results/bcn1mn3 --out cells
 python -m scripts.paper_rows --cells cells.csv --out paper_rows.csv
 ```
 
-* both signs positive -> **6/6, p=0.0156**, the first sub-0.05 headline this
-  design can produce
+* both signs positive -> **6/6 p=0.0156 unrestricted, 4/4 p=0.0625
+  task-restricted**. 🛑 **THOSE ARE DIFFERENT TALLIES AND THIS LINE USED TO
+  QUOTE ONLY THE FIRST (2026-09-10).** iwildcam/MobileNetV3's strict band for
+  class 2 is measured EMPTY, so **C2 reads `partial` at every cap on the grid
+  and can never carry a strict `task` cell** -- and `paper_rows` restricts its
+  printed sign test to `task` units. The sub-0.05 number is the one the
+  paper-facing scorer does NOT print. Read **D1 first**: `bcn1mn3` L80/L90 are
+  verified task cells (2(z58)), so it is the one unit that moves both rows.
+  FRAMEWORK 2(z75)
 * either negative -> **the headline is refuted for minutes of compute**, which
   is worth MORE than the first outcome
 
@@ -1448,9 +1455,12 @@ restriction from `scripts/paper_rows.py`, which prints it.
 > (2026-09-09).** Units C2 (`dom1`/MobileNetV3) and D1 (`bcn1mn3`/MobileNetV3)
 > are licensed and UNREAD, so every `n/4` above is a numerator AND a
 > denominator that can still move. Reading both costs zero GPU-hours -- both
-> are on disk. 6/6 would be p=0.0156, the first sub-0.05 this design can
-> reach; a single dissent takes it the other way. ⛔ DO NOT QUOTE 6/6
-> BEFORE IT IS READ. FRAMEWORK 2(z66), 2(z68), task #102.
+> are on disk. Reading both gives **6/6 p=0.0156 unrestricted, 4/4 p=0.0625
+> task-restricted** -- C2's strict band on class 2 is measured EMPTY so it can
+> never carry a `task` cell, and the `n/4` counts above ARE the restricted
+> ones (2(z75)). A single dissent takes either the other way. ⛔ DO NOT
+> QUOTE 6/6 BEFORE IT IS READ, AND NEVER WITHOUT ITS RESTRICTION.
+> FRAMEWORK 2(z66), 2(z68), **2(z75)**, task #102.
 
 * 🔑 **0.0625 is the FLOOR at four units.** No amount of agreement in this
   corpus reaches p<0.05. **The bar is crossed by adding a FIFTH INDEPENDENT
@@ -1533,6 +1543,11 @@ WORSE than today. The two campaigns are the test, not a formality.
 dsisco01/float16. So `taskwin2` and `vittask1` re-run on **dsisco02** are units
 7 and 8 at no design cost -- 6/6 is p=0.0156, 8/8 is p=0.0039. Blocked today
 only because all four dsisco02 GPUs are held by other users.
+⚠️ **AND THOSE ARE UNRESTRICTED COUNTS.** A unit only enters the
+TASK-RESTRICTED tally if it carries a strict `task` cell, and `taskwin2`'s
+MobileNetV3 has ZERO of them for the same reason C2 does -- the class-2 strict
+band on that backbone is measured EMPTY (2(z75)). A ViTB16 unit does carry
+them. Say which tally before quoting either p.
 ⛔ **And the converse: another MobileNetV2 or RegNetY400MF campaign on either
 host buys NO unit.** It adds cells and moves no p-value.
 
@@ -1818,9 +1833,16 @@ work is the same defect as a run-state block dated at writing. FRAMEWORK
    QUEUE.** Both are on disk. `("dom1","MobileNetV3")` and
    `("bcn1mn3","MobileNetV3")` are LICENSED in `MEASURED_UNITS` and have never
    had their signs read; `bcn1mn3` is a COMPLETE 228-run campaign currently
-   contributing nothing. 6/6 would be **p=0.0156**, the first sub-0.05 headline
-   this design can produce -- and a negative is worth more.
-   ⛔ **DO NOT QUOTE 6/6 BEFORE IT IS READ.** 2(z66), 0-UNREAD.
+   contributing nothing.
+   🛑 **READ D1 FIRST, AND SAY WHICH TALLY (2026-09-10).** C2's strict
+   band on class 2 is measured EMPTY, so it reads `partial` at every cap and
+   can never carry a strict `task` cell -- and `paper_rows` restricts its sign
+   test to `task` units. Reading both gives **6/6 p=0.0156 unrestricted, 4/4
+   p=0.0625 task-restricted**; the sub-0.05 number is the one the paper-facing
+   scorer does not print. `bcn1mn3` L80/L90 ARE verified task cells (2(z58)),
+   so D1 is the one unit that moves both rows. A negative is worth more than
+   either. ⛔ **DO NOT QUOTE 6/6 BEFORE IT IS READ, AND NEVER WITHOUT ITS
+   RESTRICTION.** 2(z66), **2(z75)**, 0-UNREAD.
 
 2. 🔴 **#108 -- RESOLVE 2(w3) vs 2(z53). THE ONLY POSITIVE RESULT AND THE SHARPEST NEGATIVE ONE MEASURE THE SAME QUANTITY WITH OPPOSITE SIGNS.** `loose1` gives `tralo` vs its own null AP **+0.0253, 5/1**, and what survives its control is specifically the RANKING; `dualprop1` gives **-0.0138 / -0.0160 / -0.0051, 6 of 6 negative** on the same contrast. They overlap at MobileNetV2/L80. TWO unchecked things decide it: WHICH cell was the 1 of that 5/1 (never identified anywhere), and whether they still disagree once the `+0.0253` is split per backbone -- it pools THREE, which rule 4 forbids.
    🔑 **AND THE CHECK IS A LOOKUP, NOT A CAMPAIGN.** `loose1`'s six cells rest
@@ -1831,6 +1853,19 @@ work is the same defect as a run-state block dated at writing. FRAMEWORK
    0/12). So the candidate set for the negative cell is SIX, four of which can
    be read off `dom1` instead. Zero GPU, both campaigns complete and on disk.
    2(z74).
+   ⛔ **AND `loose1` IS THE `clip` RECIPE, WHICH 2(w3) NEVER SAID
+   (2026-09-10).** COVERAGE section 0 puts it in recipe row 2 with `iwc4`
+   `loosevit1` `vitu1`, and 2(z26-CORRECTED) removed `loose1`/RegNetY400MF
+   from the unit corpus BY NAME as *a different method* -- while the same
+   campaign stayed the headline positive. The correction was applied where the
+   campaign hurt and never propagated to where it helped. Reading:
+   the 4 CNN cells are byte-identical to `dom1`'s so `clip` and `normalize`
+   provably coincide there and the recipe cannot touch them -- **which is also
+   why they are not independent of `dom1`**; the 2 RegNet cells ARE the
+   excluded unit. So drop the RegNet row when splitting, and read the other two
+   as `dom1`'s. On the current recipe 2(w3) is a **two-unit** result and both
+   units are `dom1`. The SIGN is untouched; the INDEPENDENCE and the SIZE are
+   not. **2(z76)**.
 
 3. 🛑 **#104 -- RECOMPUTE THE ACCEPTANCE TABLE.** `6 of 17 = 35%` was produced
    at 09:09 on 2026-09-06; `deployed_h2h.rank_cell`, which makes the deltas

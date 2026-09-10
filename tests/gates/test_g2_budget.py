@@ -538,3 +538,62 @@ def test_paired_noise_counts_a_PER_GROUP_top_K_not_a_global_one(tmp_path):
     assert global_tp != tp, (
         "the fixture does not separate the two rules, so this test would pass "
         "against the defect it exists to catch")
+
+
+# ---------------------------------------------------------------------------
+# 2(z75). A LICENSED UNIT AND A UNIT THAT CAN CARRY A `task` CELL ARE
+# DIFFERENT THINGS, AND SIX PLACES SAID OTHERWISE.
+# ---------------------------------------------------------------------------
+def test_a_backbone_with_an_empty_strict_band_can_never_read_task(protocol,
+                                                                  windows):
+    """iwildcam/MobileNetV3 carries `strict class 2 == []` -- a band that is
+    MEASURED and EMPTY (2(z16) status `no_strict_band`). `classify` checks
+    strict before partial, so NO cap tag at any fraction can make an
+    iwildcam/MobileNetV3 cell read `task`, and `paper_rows` restricts its
+    sign test to `cell_status == "task"`.
+
+    That is the whole content of 2(z75): unit C2 (`dom1`/MobileNetV3) is
+    LICENSED in `MEASURED_UNITS` and can never join the TASK-RESTRICTED
+    tally, so reading its sign moves the unrestricted count 4->5 and the
+    restricted count not at all. Six places across four documents advertised
+    reading C2 and D1 as `6/6, p=0.0156, the first sub-0.05 headline this
+    design can produce` without saying which of the two tallies that is.
+
+    This gate goes RED the day somebody re-measures MobileNetV3's window and
+    gives class 2 a strict band -- which is exactly the day the documents
+    must be revisited. NEGATIVE CONTROLS: the two backbones whose strict
+    bands are non-empty must still reach `task` on the same grid, and the
+    emptiness must be read off the window file rather than asserted here.
+    """
+    fails = []
+    grid = ["L%d_G95" % p for p in range(10, 101, 10)]
+
+    empty = {}          # backbone -> [classes whose strict band is measured []]
+    for model in BACKBONES:
+        w = ((windows.get("windows") or {}).get("iwildcam") or {}).get(model)
+        if not w:
+            continue
+        empty[model] = sorted(c for c, b in (w.get("class") or {}).items()
+                              if not b)
+
+    if empty.get("MobileNetV3") != [2]:
+        fails.append(
+            "iwildcam/MobileNetV3's empty strict bands read %r, not [2]. The "
+            "window was re-measured: re-read 2(z75) and every document that "
+            "quotes the task-restricted tally" % (empty.get("MobileNetV3"),))
+
+    for model, classes in sorted(empty.items()):
+        reached = [t for t in grid
+                   if classify(protocol, windows, "iwildcam", model,
+                               t)["status"] == "task"]
+        if classes and reached:
+            fails.append("%s has an EMPTY strict band on class %r yet reads "
+                         "`task` at %r -- classify no longer checks strict "
+                         "before partial" % (model, classes, reached))
+        # NEGATIVE CONTROL: a backbone with no empty band must still reach
+        # `task` somewhere, or this test passes by classifying nothing.
+        if not classes and not reached:
+            fails.append("NEGATIVE CONTROL: %s has no empty strict band and "
+                         "still never reads `task` on the 0.1 grid, so the "
+                         "assertion above is vacuous" % model)
+    report(fails, "empty-strict-band failures")

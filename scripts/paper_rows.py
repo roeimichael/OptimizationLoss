@@ -121,6 +121,17 @@ MEASURED_UNITS = {
     ("coin1", "RegNetY400MF"): "B1",        # B / dsisco01, == dom1b
     ("coin2", "MobileNetV2"): "A2",         # B / dsisco01, == equaldose1
     ("seed58a", "RegNetY400MF"): "B1",      # B / dsisco01, dom1b seeds 5-8
+    # !! C2 IS LICENSED AND CAN NEVER CARRY A `task` CELL (2026-09-10).
+    # `configs/task_windows.yml` gives iwildcam/MobileNetV3 `strict class 2:
+    # []` -- a band measured EMPTY, because the row is the INTERSECTION of
+    # dom1's [0.60, 0.70] with equaldose1's, and they do not overlap.
+    # `task_cells.classify` checks strict before partial, so every cap
+    # fraction on the grid reads `partial` here and the restricted sign test
+    # below (`cell_status == "task"`) can never see this unit. Reading C2
+    # moves the LICENSED tally 4->5 and the TASK-RESTRICTED tally not at all:
+    # C2 + D1 together give 6/6 p=0.0156 unrestricted but 4/4 p=0.0625
+    # restricted, and six documents advertised only the first number.
+    # Gated in tests/gates/test_g2_budget.py. FRAMEWORK 2(z75).
     ("dom1", "MobileNetV3"): "C2",          # A / dsisco02, the other MNv3 host
     # 🛑 UNIT D1: THE FIRST NON-iwildcam UNIT, AND IT WAS SITTING UNREAD
     # (2026-09-09). `bcn1mn3` is COMPLETE -- 228 runs, 4 seeds, and L80 and

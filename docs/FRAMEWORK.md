@@ -3942,7 +3942,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 612 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 613 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -4106,7 +4106,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 612 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 613 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -4114,7 +4114,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (612 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (613 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -7483,6 +7483,26 @@ assay design is dead by construction.
 
 6 cells (3 backbones x L80_G95, L90_G95), 4 seeds, both trained arms at
 **696/696 steps = 100.0%**. Paired against each arm's own lambda=0 twin:
+
+🛑 **READ THE RECIPE LINE BEFORE THE TABLE (added 2026-09-10, 2(z76)).**
+`loose1` runs `constraint_grad_mode: clip`, NOT the current `normalize`:
+COVERAGE section 0 puts it in recipe row 2 with `iwc4` `loosevit1` `vitu1`,
+and 2(z26-CORRECTED) removed `B2 = loose1 / RegNetY400MF` from the unit corpus
+by name, as **"a different method"**. This entry is the same campaign and never
+said so. What survives:
+
+* the **4 CNN cells on MobileNetV2 and MobileNetV3 are BYTE-IDENTICAL to
+  `dom1`'s** (96/96 md5, both caps, embeddings too), so `clip` and `normalize`
+  provably coincide there and the recipe objection does not touch them --
+  **but that also means those four cells are `dom1`, not independent
+  evidence.** Units A1 and C2.
+* the **2 RegNetY400MF cells are `loose1`'s alone** (`dom1b` vs `loose1` is
+  0/12) and are exactly the excluded unit.
+
+⛔ So `5/1` is a sign test over **CELLS**, and rule 4 forbids pooling cap
+levels: the unit-level statement is at most `?/3`, one of the three is
+corpus-excluded, and **both survivors are `dom1`**. The SIGN is untouched;
+the INDEPENDENCE and the SIZE are not. Task #108, 2(z76), 2(z74) §4b.
 
 | vs `tralo_null` | AP | AUROC | ccF1 |
 |---|---|---|---|
@@ -12961,6 +12981,179 @@ Read AP **per (backbone, cap)**, never pooled. Three outcomes, all informative:
 
 Blocked on host access. Task #108.
 
+## 2(z75). THE TOP QUEUE ITEM CANNOT PRODUCE THE HEADLINE IT IS ADVERTISED FOR: UNIT C2 HAS NO STRICT TASK CELL, AT ANY CAP (2026-09-10)
+
+Six places across four documents say that reading the two unread units, C2
+(`dom1`/MobileNetV3) and D1 (`bcn1mn3`/MobileNetV3), gives **6/6, p=0.0156,
+the first sub-0.05 headline this design can produce**. Measured offline today,
+in seconds, with no GPU and no `results/`: **C2 cannot contribute to the tally
+that number belongs to.**
+
+### 1. The measurement
+
+`configs/task_windows.yml` carries, for iwildcam/MobileNetV3:
+
+```
+strict class: {2: [], 7: [0.7, 0.9]}
+partial     : {2: [0.8, 1.0], 7: [1.0, 1.1]}
+```
+
+Class 2's **strict band is measured and EMPTY** -- the `no_strict_band` status
+2(z16) added on 2026-09-02 with the per-group prize. It is empty because the
+row is an INTERSECTION of two models: `dom1` alone gives class 2 [0.60, 0.70],
+`equaldose1` gives a band that does not overlap it, and the intersection is
+nothing.
+
+`classify` checks strict before partial, so **no cap fraction on the grid can
+make an iwildcam/MobileNetV3 cell read `task`.** Run over `dom1`'s three tags:
+
+| unit | campaign | backbone | L80_G95 | L90_G95 | L95_G80 |
+|---|---|---|---|---|---|
+| A1 | `dom1` | MobileNetV2 | **task** | partial | **task** |
+| **C2** | `dom1` | **MobileNetV3** | partial | partial | partial |
+| B1 | `dom1b` | RegNetY400MF | **task** | partial | **task** |
+
+C2 is `partial` in all three, and would be `partial` at L10 through L100.
+
+### 2. Why that decides the headline
+
+`scripts/paper_rows.py:372` restricts the printed sign test to units carrying a
+strict task cell:
+
+```python
+task_units = sorted({r["unit"] for r in recs if r["cell_status"] == "task"})
+...  0.5 ** len(task_units)
+```
+
+So the ledger has **two** tallies and they move differently:
+
+| tally | now | + C2 | + D1 | after both |
+|---|---|---|---|---|
+| LICENSED units, sign read | 4/4, p=0.0625 | 5 | 6 | **6/6, p=0.0156** |
+| of those, carrying a `task` cell | 3/3, p=0.125 | 3 (unchanged) | 4 | **4/4, p=0.0625** |
+
+`p=0.0156` is real and belongs to the unrestricted tally. **The tally
+`paper_rows` prints tops out at p=0.0625.** "The first sub-0.05 headline this
+design can produce" is therefore true only of the number the paper-facing
+scorer does not print, and every one of the six sites said it without saying
+which.
+
+D1 is unaffected and remains worth reading first: `bcn1mn3`'s L80 and L90 are
+verified task cells (2(z58)), so it is the one unit that moves BOTH rows. It
+classifies `no_data` on a Windows checkout only because `data/bcn/` is not
+there -- `no_data` means "the slice is not on this machine", never "no task
+cell", and the two must not be confused.
+
+### 3. The defect class, again
+
+This is 2(z74) exactly: a claim that is true in one context, read in another,
+with the context lost. `LICENSED` vs `SIGN READ` was itself the collapse
+2(z66) fixed on 2026-09-09 -- and the corrected sentence introduced a SECOND
+collapse in the same breath, between the licensed tally and the task-restricted
+one. CLAUDE.md's GATE block has carried both numbers side by side since
+2026-09-04 (`4/4 p=0.0625, 3/3 p=0.125 task-restricted`); the projection of
+them did not.
+
+### 4. The gate
+
+`tests/gates/test_g2_budget.py::test_a_backbone_with_an_empty_strict_band_can_never_read_task`
+reads the emptiness off the window file rather than restating it, and asserts
+that a backbone with an empty strict band never reads `task` on the 0.1 grid.
+It goes RED the day MobileNetV3's window is re-measured and class 2 gains a
+band -- which is exactly the day these documents must be revisited. Two
+negative controls: a backbone with no empty band must still reach `task`
+somewhere (or the assertion is vacuous), and the emptiness is pinned to class 2
+so an emptied class 7 also fires. Mutation-tested 3/3.
+
+### 5. What to do
+
+Read D1 first, not C2. Then quote both rows or neither.
+Task #102, MISSION 0-UNREAD, COVERAGE THE GATE.
+
+## 2(z76). THE ONLY POSITIVE RESULT IS ON THE ARCHIVED RECIPE, AND ONE OF ITS THREE UNITS IS THE ONE THE CORPUS THREW OUT FOR BEING A DIFFERENT METHOD (2026-09-10)
+
+2(w3) is the project's headline positive: `tralo` vs its own lambda=0 twin,
+**AP +0.0253, 5/1**, `results/loose1`, 144 runs, 6 cells. Read its 54-line
+block for the words `grad_mode`, `normalize`, `archived`, `different method`:
+**it contains none of them.** It never says which recipe it is on.
+
+### 1. It is on the recipe the corpus excludes
+
+`docs/COVERAGE.md` section 0 is the recipe census over all 277 completed
+`tralo` runs. `loose1` is in row **2**, not row 1:
+
+| cfg | runs | `fp32` | `grad_mode` | campaigns |
+|---|---|---|---|---|
+| **1** | 106 | True | **normalize** | `dom1` `dom1b` `equaldose1` `taskwin2` `uniform1` `vittask1` |
+| 2 | 80 | True | **clip** | `iwc4` **`loose1`** `loosevit1` `vitu1` |
+
+And 2(z26-CORRECTED) already acted on exactly this, in the other direction:
+
+> Corrected 2026-09-02. The reading below was computed over five units, one of
+> which -- `B2 = loose1 / RegNetY400MF` -- ran `constraint_grad_mode: clip`,
+> not the current `normalize`. It is a **different method**, and it was the
+> single unit that dissented on all three contrasts. `loose1` is archived.
+
+So `loose1`/RegNetY400MF was removed from the unit corpus, by name, as a
+different method -- **while the same campaign remained the sole citation for
+the headline positive.** 2(w3) is dated 2026-08-28 and the correction
+2026-09-02, so this is not a choice anybody made; it is a correction that was
+applied where the campaign hurt and never propagated to where it helped. The
+DIRECTION is what makes it worth an entry: an exclusion rule applied
+one-directionally stops being a rule.
+
+### 2. What survives, cell by cell
+
+2(w3)'s 6 cells are 3 backbones x {L80_G95, L90_G95}, and 2(z74) §4b already
+measured what they rest on: **three warm-up models**, because two cap levels
+in one campaign share one. Combined with the md5 audit:
+
+| cells | backbone | vs `dom1` | recipe status |
+|---|---|---|---|
+| 2 | MobileNetV2 | **byte-identical**, 96/96 md5 | recipe-equivalent BY IDENTITY -- `clip` scales by `min(raw_norm, 1)` and IS `normalize` wherever the norm is >= 1 |
+| 2 | MobileNetV3 | **byte-identical**, 96/96 md5 | same |
+| 2 | RegNetY400MF | `dom1b` vs `loose1` is **0/12** | `clip` only. This is `B2`, the unit 2(z26-CORRECTED) removed |
+
+Two consequences, and the second is the larger one:
+
+* **The `5/1` is over CELLS.** Rule 4 forbids pooling cap levels, so the
+  unit-level statement is at most `?/3`, and one of those three is excluded.
+  On the current recipe 2(w3) is a **two-unit** result.
+* ⛔ **AND BOTH SURVIVING UNITS ARE `dom1`** -- A1 and C2. 2(w3) is therefore
+  **not independent evidence from the corpus**; it is `dom1`'s two CNN models
+  read on AP/AUROC instead of items. "The only positive result" and "the
+  corpus that reads null" are largely the same two models.
+
+### 3. What this does NOT say
+
+It does not refute +0.0253. Four of the six cells are byte-identical to a
+current-recipe campaign, so the recipe objection touches **two** cells, not
+six -- and those two are the ones the corpus already dropped. The claim
+weakened here is the claim of INDEPENDENCE and of SIZE, not the sign.
+
+### 4. The check, unchanged in method and sharpened in reading -- task #108
+
+Split `+0.0253` per backbone (rule 4). Then:
+
+* **drop the RegNetY400MF row** -- it is corpus-excluded, and if it is one of
+  the 5 positives the headline shrinks further;
+* read the remaining two rows as `dom1`'s, because that is what they are;
+* the `1` of the `5/1` is still unidentified anywhere, and if it is a
+  MobileNetV2 cell then 2(w3) and 2(z53) stop contradicting each other
+  (2(z74) §2).
+
+Zero GPU. Both campaigns are complete and on disk.
+
+### 5. The sweep that found it, and its honest size
+
+Splitting FRAMEWORK at entry granularity (h2/h3/h4) and asking which entries
+cite an off-recipe campaign inside a numeric claim without naming the recipe
+gives **31 of 39**. ⚠️ **That is a QUEUE, not a defect count** -- the same
+caveat 2(z68) forced on `stale_figures`. Most of those entries measure
+geometry, dose or windows, where `grad_mode` cannot change the number; silence
+is only a defect where the claim is a METHOD contrast. 2(w3) is the one that
+matters because it is the only positive one.
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, LAST UPDATED 2026-09-10 -- read this before section 3's older text**
@@ -12978,7 +13171,7 @@ distrust every row.
 
 | claim | status | evidence | what would kill it |
 |---|---|---|---|
-| Constraint HELPS at loose caps | 🟡 **DISPUTED -- do not cite in isolation** | `loose1` AP +0.0253 **5/1**, vs a reseed floor that TIES. ⛔ The `+0.0253` is a mean POOLED over 3 backbones x 2 cap levels, which rule 4 forbids; the SIGN COUNT is the licensed statistic. And its ONE negative cell is never identified. 2(w3), 2(z74) | the row below, which measures the same quantity with the opposite sign |
+| Constraint HELPS at loose caps | 🟡 **DISPUTED -- do not cite in isolation** | `loose1` AP +0.0253 **5/1**, vs a reseed floor that TIES. ⛔ The `+0.0253` is a mean POOLED over 3 backbones x 2 cap levels, which rule 4 forbids; the SIGN COUNT is the licensed statistic. And its ONE negative cell is never identified. ⛔ **AND `loose1` IS THE `clip` RECIPE (2026-09-10).** COVERAGE row 2, and 2(z26-CORRECTED) removed `loose1`/RegNetY400MF from the unit corpus by name as *a different method* -- while this stayed the headline positive. The 4 CNN cells are byte-identical to `dom1`'s so the recipe cannot touch them, **which also makes them `dom1` rather than independent evidence**; the 2 RegNet cells are the excluded unit. On the current recipe this is a TWO-UNIT result and both units are `dom1`. 2(w3), 2(z74), **2(z76)** | the row below, which measures the same quantity with the opposite sign |
 | **Constraint HARMS the RANKING** | 🟡 **DISPUTED -- the same quantity, opposite sign** | `dualprop1` `tralo` vs its own lambda=0 twin: AP -0.0138 / -0.0160 / -0.0051, **6 of 6 negative** incl. AUROC. Post-hoc allocation is optimal GIVEN the probabilities (2(j)), so a worse ranking mechanically means fewer captured items. ⚠️ 3 seeds, MobileNetV2 only. 2(z53) | the row above |
 | Constraint HARMS at tight caps | 🔴 holds | `iwc4` AP -0.0572 9/9; `vitu1` **-0.0933 0/3** | -- |
 | TraLO > `clip` at loose caps | 🟢 holds | `dom1` 6/6 cells ccF1/AP/AUROC | dom1b reversing it |
@@ -14322,7 +14515,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             612 tests, ~200 s, no dataset required
+tests/             613 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
