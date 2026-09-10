@@ -4052,7 +4052,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 624 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 627 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -4226,7 +4226,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 624 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 627 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -4234,7 +4234,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (624 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (627 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -14473,6 +14473,16 @@ Mutation-tested **3/3**: a new unclassified cut, a changed sorted expression und
 * The gate covers `scripts/ src/ configs/`. A sort in a notebook, in `docs/paper/scripts/`, or on the unmerged server branch `snap/slice-provenance` is outside it -- and that branch is exactly where `ens_panel` and `tralo_snap` live (2(z67), task #103). **Run this gate against that branch before scoring anything from `snap2`.**
 * Nine sites in one repo is not a run of bad luck. The rule that would have prevented all nine is one line: **a tool that locates a cut must read `Group_ID`, or refuse.** Three tools now refuse; the registry is how the rest get asked.
 
+### 5. 🔑 AND THE SAME ENUMERATION, RUN ON THE UNIT LEDGER, SAYS D1 IS QUEUED NINE MORE TIMES
+
+`MEASURED_UNITS` was read the same way -- asked, not recalled. It holds **10 `(campaign, backbone)` pairs mapping to SIX distinct units** (A1, A2, B1, C1, C2, D1), which confirms MISSION's "the ledger licenses SIX". The sign-test arithmetic checks too: `0.5**6 = 0.0156`, `0.5**4 = 0.0625`, `0.5**3 = 0.125`, exactly the numbers 0-UNREAD quotes.
+
+⛔ **BUT TEN CAMPAIGNS THAT ARE LIVE, STAGED OR LANDED ARE ABSENT FROM IT**, so every one of them will emit `UNVERIFIED` the moment it is scored: `vitdual2` (the four-dual head-to-head), `fmow1` and `bcn1vit` (BOTH second-dataset campaigns), `snap2`, `shape1`, `dualprop1`, `dualprop2`, `perm1`, `vitcoin1`, `price1`.
+
+That is precisely D1's defect -- *"a COMPLETE 228-run campaign that was reading `UNVERIFIED` and contributing nothing"* -- and it is not history, it is **queued nine more times**. The campaigns closing the one-dataset hole are among them, which means the coverage win they are being run to buy cannot enter a sign test on arrival.
+
+⇒ `docs/PLAYBOOK.md` rule **2a** now makes resolving the unit a step at LANDING, with `arm_identity_check` as the measurement: does this campaign's warm-up already exist under another name? Shared warm-up ⇒ it JOINS that unit as a correlated replicate. Genuinely new ⇒ add the pair with its evidence. **A unit assigned after the numbers are seen is a choice dressed as a measurement**, and 2d holds five retractions of that exact shape.
+
 ---
 
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
@@ -15836,7 +15846,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             624 tests, ~200 s, no dataset required
+tests/             627 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

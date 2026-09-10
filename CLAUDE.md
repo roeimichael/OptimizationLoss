@@ -180,13 +180,30 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 624 regression tests, ~250s, no dataset needed
+python -m pytest tests -q                   # 627 regression tests, ~250s, no dataset needed
 #   `tests/test_scorers_run_end_to_end.py` EXECUTES every scorer as a subprocess
 #   against a campaign carrying a real PARTIAL marker. It exists because three
 #   scorers once used `quarantine.` with no module-level import: they PARSED,
 #   imported, passed every AST gate and were unrunnable on every input, and the
 #   NameError fired only on the branch that a quarantined campaign reaches --
 #   the branch that exists to prevent a wrong number. 6/6 mutations caught.
+#   🛑 **AND `paper_rows` -- THE TOOL THAT SAYS WHAT MAY BE WRITTEN -- WAS
+#   EXEMPT FROM IT UNTIL 2026-09-10, ON A TICKET.** Its exemption reason read
+#   "needs a file fixture, task #116" and the ticket sat there, so the one
+#   scorer whose output reaches a manuscript had NO end-to-end test: its
+#   `--self-test` exercises `build()` in process and never enters `main`,
+#   which is exactly the gap that left `order_probe` unrunnable for a day with
+#   every gate green (2(z81)). It now has three, running the real CLI as a
+#   subprocess: a clean run, the hard-quarantine refusal (with
+#   `--allow-quarantined` as its negative control), the PARTIAL drop (dead
+#   arms go, LIVE arms stay), and a not-a-cell_table CSV that must be NAMED
+#   rather than raise. The campaign names come from `quarantine.REGISTRY`, so
+#   the test cannot drift from the registry it checks.
+#   🔑 **THE RULE THAT CAME OUT OF IT: AN EXEMPTION WHOSE REASON IS A TICKET
+#   IS A DEFECT WITH A COMMENT ATTACHED.** `step_dose` stays exempt and its
+#   reason is now a MEASURED one -- `main()` needs `load_data` (the gitignored
+#   3.0 GB arrays) and pretrained weights, so no fixture makes it runnable
+#   here. Both entries state a fact; neither states an intention.
 #   🛑 **AND ITS FIXTURE DID NOT LOOK LIKE A RUN, FOR WEEKS, WITH A COMMENT
 #   ABOVE IT SAYING IT MUST (2026-09-09).** It wrote the group column as
 #   `Group` while `src/training/logging.py` writes `Group_ID`, so all nine

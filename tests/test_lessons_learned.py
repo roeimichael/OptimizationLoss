@@ -2153,11 +2153,24 @@ EMPTY_ROOT_EXEMPT = {
     "stale_figures": "walks the docs, not a campaign",
     "stale_provenance": "walks the docs, not a campaign",
     "campaign_state": "walks the docs, not a campaign (2(z83))",
-    # TASK #116: these two take a FILE, not a root, so an empty directory says
-    # nothing about them. They are paper-facing and mechanism-facing and both
-    # deserve a fixture.
-    "paper_rows": "takes --cells <csv>; needs a file fixture, task #116",
-    "step_dose": "takes --config <json>; needs a file fixture, task #116",
+    # OK: `paper_rows`: its reason WAS a ticket ("needs a file fixture") and the
+    # ticket sat there, so the one scorer whose output decides what reaches a
+    # manuscript had no end-to-end test at all. It is still exempt from the
+    # ROOT smoke -- it takes `--cells <csv>` and an empty directory says
+    # nothing about it -- but the exemption is now a COVERAGE CLAIM instead of
+    # a promise: see `test_paper_rows_runs_END_TO_END_against_a_real_cell_table_csv`
+    # and the two refusal tests beside it (2026-09-10).
+    "paper_rows": "takes --cells <csv>, not a root; covered end-to-end by "
+                  "test_paper_rows_runs_END_TO_END_against_a_real_cell_table_csv",
+    #
+    # `step_dose` stays, and its reason is now a MEASURED one rather than a
+    # ticket: `main()` calls `src.pipeline.data.load_data`, which needs the
+    # gitignored 3.0 GB + 443 MB `.npy` arrays, and `get_model`, which pulls
+    # pretrained weights. No fixture makes that runnable on a laptop. Its
+    # `--self-test` measures the real quantity on a small linear model in
+    # process, which is the stronger check available here.
+    "step_dose": "main() needs load_data (3.0 GB gitignored arrays) and "
+                 "pretrained weights; --self-test covers the measurement",
 }
 
 FATAL_ON_AN_EMPTY_ROOT = ("AttributeError", "NameError", "UnboundLocalError",
@@ -2667,3 +2680,176 @@ def test_the_call_site_registry_would_have_caught_the_2026_09_10_defect():
         assert _sort_call_sites(root) == []
     finally:
         shutil.rmtree(root, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
+# LESSON 34 (2026-09-10): THE TOOL THAT SAYS WHAT MAY BE WRITTEN HAD NEVER
+# BEEN EXECUTED AGAINST A FILE.
+#
+# `test_every_gated_tool_fails_CLEANLY_on_an_EMPTY_campaign_root` points 33
+# root-shaped tools at an empty directory. `paper_rows` was EXEMPT from it,
+# with the reason "takes --cells <csv>; needs a file fixture" -- i.e. the
+# exemption was a ticket, and the ticket sat there. So the one scorer whose
+# output decides what reaches a manuscript had no end-to-end test at all: its
+# `--self-test` exercises `build()` in-process and never enters `main`, which
+# is exactly the gap 2(z81) exploited to leave `order_probe` unrunnable for a
+# day with every gate green.
+#
+# This runs the real CLI as a subprocess against a real CSV, and pins the
+# three refusals that are the whole point of the tool: a hard-quarantined
+# campaign must be REFUSED, a PARTIAL campaign's dead arms must be DROPPED
+# while its live arms survive, and a CSV that is not a cell_table must be
+# named rather than raising.
+# ---------------------------------------------------------------------------
+
+CELL_COLS = ("campaign", "dataset", "model", "cap", "arm", "n_seeds", "seeds",
+             "items_per_001", "ccF1", "ccF1_sd")
+
+
+def _cell_csv(path, rows):
+    with io.open(path, "w", encoding="utf-8", newline="") as fh:
+        fh.write(",".join(CELL_COLS) + "\n")
+        for r in rows:
+            fh.write(",".join(str(r.get(c, "")) for c in CELL_COLS) + "\n")
+
+
+def _cell(campaign, arm, ccF1, seeds="1|2|3|4", model="MobileNetV2",
+          cap="L80_G95"):
+    return {"campaign": campaign, "dataset": "iwildcam", "model": model,
+            "cap": cap, "arm": arm, "n_seeds": len(seeds.split("|")),
+            "seeds": seeds, "items_per_001": 0.15, "ccF1": ccF1,
+            "ccF1_sd": 0.004}
+
+
+def _run_paper_rows(*argv):
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    r = subprocess.run(
+        [sys.executable, "-m", "scripts.paper_rows"] + list(argv),
+        cwd=root, capture_output=True, text=True, encoding="utf-8",
+        errors="replace", timeout=120,
+        env=dict(os.environ, PYTHONIOENCODING="utf-8"))
+    return r.returncode, (r.stdout or "") + (r.stderr or "")
+
+
+def test_paper_rows_runs_END_TO_END_against_a_real_cell_table_csv():
+    """2026-09-10: it was EXEMPT from the smoke and its self-test never entered main."""
+    import shutil
+
+    d = tempfile.mkdtemp()
+    try:
+        csv_path = os.path.join(d, "cells.csv")
+        out_path = os.path.join(d, "rows.csv")
+        # `taskwin2` is live: not in quarantine.REGISTRY at all.
+        _cell_csv(csv_path, [
+            _cell("taskwin2", "tralo", 0.5120),
+            _cell("taskwin2", "tralo_null", 0.5060),
+            _cell("taskwin2", "tralo_reseed", 0.5058),
+            _cell("taskwin2", "clip", 0.5090),
+        ])
+        code, body = _run_paper_rows("--cells", csv_path, "--out", out_path)
+        assert code == 0, body
+        assert os.path.exists(out_path), "no --out file was written:\n%s" % body
+        written = io.open(out_path, encoding="utf-8").read().strip().splitlines()
+        assert len(written) > 1, "header only, no rows:\n%s" % body
+        # It emits per (cell, CONTRAST). A lambda=0 twin is a REFERENCE and
+        # never a subject, so read the `arm` column -- a substring test on the
+        # whole line matches the reference column too and asserts nothing.
+        head = written[0].split(",")
+        i_arm, i_ref = head.index("arm"), head.index("ref")
+        subjects = {ln.split(",")[i_arm] for ln in written[1:]}
+        refs = {ln.split(",")[i_ref] for ln in written[1:]}
+        assert "tralo" in subjects, subjects
+        assert not {a for a in subjects if a.endswith(("_null", "_reseed"))}, (
+            "a lambda=0 twin was emitted as a SUBJECT row: %s" % subjects)
+        assert {"tralo_null", "tralo_reseed", "clip"} <= refs, (
+            "the three contrasts vs clip / own null / reseed floor did not all "
+            "resolve, so this fixture is not exercising the tool: %s" % refs)
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def test_paper_rows_REFUSES_a_hard_quarantined_campaign_and_DROPS_partial_arms():
+    """2026-09-10: the refusals are the tool's purpose and were never executed."""
+    import shutil
+
+    from scripts import quarantine
+
+    # Read the authorities rather than hardcoding names, so this test cannot
+    # drift from the registry it is checking.
+    hard = [n for n, e in quarantine.REGISTRY.items()
+            if e.get("scorable") is False]
+    partial = [(n, sorted(e["dead_arms"])) for n, e in quarantine.REGISTRY.items()
+               if e.get("scorable") is not False and e.get("dead_arms")]
+    assert hard and partial, (
+        "the registry has no hard and/or no PARTIAL entry, so this test would "
+        "assert nothing: hard=%s partial=%s" % (hard[:3], partial[:3]))
+    dead_camp = sorted(hard)[0]
+    part_camp, dead_arms = sorted(partial)[0]
+
+    d = tempfile.mkdtemp()
+    try:
+        # (a) a hard-quarantined campaign must be REFUSED, exit 1.
+        p1 = os.path.join(d, "dead.csv")
+        _cell_csv(p1, [_cell(dead_camp, "tralo", 0.51),
+                       _cell(dead_camp, "tralo_null", 0.50),
+                       _cell(dead_camp, "clip", 0.505)])
+        code, body = _run_paper_rows("--cells", p1)
+        assert code == 1, "a quarantined campaign was scored:\n%s" % body
+        assert "REFUSING" in body and dead_camp in body, body
+
+        # NEGATIVE CONTROL: --allow-quarantined must let it through, or the
+        # refusal is a wall rather than a gate.
+        code, body = _run_paper_rows("--cells", p1, "--allow-quarantined")
+        assert code == 0, (
+            "--allow-quarantined did not re-admit the campaign:\n%s" % body)
+
+        # (b) a PARTIAL campaign: the DEAD arm's rows go, the live ones stay.
+        p2 = os.path.join(d, "partial.csv")
+        out2 = os.path.join(d, "partial_out.csv")
+        rows = [_cell(part_camp, "tralo", 0.5120),
+                _cell(part_camp, "tralo_null", 0.5060),
+                _cell(part_camp, "clip", 0.5090)]
+        for a in dead_arms:
+            rows.append(_cell(part_camp, a, 0.5100))
+        _cell_csv(p2, rows)
+        code, body = _run_paper_rows("--cells", p2, "--out", out2)
+        assert code == 0, body
+        assert "PARTIAL QUARANTINE" in body, body
+        written = io.open(out2, encoding="utf-8").read()
+        for a in dead_arms:
+            assert ",%s," % a not in written, (
+                "a dead arm (%s) reached the paper rows:\n%s" % (a, written))
+        assert ",tralo," in written, (
+            "the PARTIAL drop took the LIVE arms with it -- that would delete "
+            "an independent unit to describe a defect in two arms:\n%s"
+            % written)
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def test_paper_rows_NAMES_a_csv_that_is_not_a_cell_table():
+    """2026-09-10: the negative control -- a wrong file must not raise."""
+    import shutil
+
+    d = tempfile.mkdtemp()
+    try:
+        p = os.path.join(d, "wrong.csv")
+        io.open(p, "w", encoding="utf-8").write("a,b,c\n1,2,3\n")
+        code, body = _run_paper_rows("--cells", p)
+        assert code != 0, "a non-cell_table CSV was accepted:\n%s" % body
+        assert "not a cell_table" in body, (
+            "it failed, but did not SAY what was wrong -- which is the whole "
+            "difference between a refusal and a traceback:\n%s" % body)
+        for bad in FATAL_ON_AN_EMPTY_ROOT:
+            assert bad + ":" not in body, (
+                "refused with a %s traceback rather than a message:\n%s"
+                % (bad, body))
+
+        # NEGATIVE CONTROL: an EMPTY file is a different failure and must also
+        # be named, not raise IndexError on rows[0].
+        p2 = os.path.join(d, "empty.csv")
+        io.open(p2, "w", encoding="utf-8").write("")
+        code, body = _run_paper_rows("--cells", p2)
+        assert code != 0 and "empty" in body.lower(), body
+    finally:
+        shutil.rmtree(d, ignore_errors=True)

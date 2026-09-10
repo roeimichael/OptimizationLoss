@@ -370,6 +370,22 @@ the code.
 
 ### Also done, and blocked
 
+* ✅ **#114 closed, and it paid for itself immediately.** The per-call-site
+  registry found a NINTH global-top-K site the moment the sites were
+  enumerated instead of read -- `score_scan`'s prec@K and Jaccard, and the
+  dated `Jaccard 0.29-0.42` the tool printed from them, now withdrawn at the
+  line. FRAMEWORK 2(z84).
+* ✅ **#115 closed, SPLIT, and only half of it was a fixture.** `paper_rows`
+  now runs end to end as a subprocess against a real `cell_table` CSV, with
+  the hard-quarantine refusal, the PARTIAL drop and a not-a-cell_table
+  refusal each pinned -- the campaign names read out of
+  `quarantine.REGISTRY`, so the test cannot drift from the registry it
+  checks. `step_dose` is NOT fixturable and now says why: `main()` needs
+  `load_data` (the gitignored 3.0 GB arrays) and pretrained weights.
+  🔑 **THE RULE: AN EXEMPTION WHOSE REASON IS A TICKET IS A DEFECT WITH A
+  COMMENT ATTACHED.** `paper_rows` sat exempt on "needs a file fixture, task
+  #116" while being the one tool that says what may be WRITTEN. Both entries
+  now state a fact rather than an intention.
 * ✅ **#98 closed.** The per-item OT family is cited (Sinkhorn Label
   Allocation, Confident Sinkhorn Allocation, OTAMatch; bib 57 -> 60) and
   Limitations carries the SCOPE STATEMENT that bounds the null: it closes

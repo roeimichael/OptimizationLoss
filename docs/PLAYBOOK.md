@@ -50,6 +50,35 @@ campaign lands
    15/20 (p=0.041) to **11/16 (p=0.21)**. **State which unit you are quoting,
    every time**, and check for cross-campaign duplication before pooling two
    campaigns.
+
+   🛑 **2a. RESOLVE THE CAMPAIGN'S UNIT BEFORE YOU SCORE IT, NOT AFTER. A
+   CAMPAIGN WITH NO UNIT CONTRIBUTES NOTHING, SILENTLY.** `paper_rows` reads
+   `MEASURED_UNITS`, and a `(campaign, backbone)` pair absent from it emits
+   `UNVERIFIED` -- never a free replicate, which is correct, and never a
+   number either. That is exactly how unit D1 happened: `bcn1mn3` was a
+   COMPLETE 228-run campaign reading `UNVERIFIED` and contributing nothing to
+   any tally until somebody asked why.
+
+   ⛔ **CHECKED 2026-09-10: TEN campaigns that are live, staged or landed are
+   absent from the ledger** -- `vitdual2` (the four-dual head-to-head),
+   `fmow1` and `bcn1vit` (both second-dataset campaigns), `snap2`, `shape1`,
+   `dualprop1`, `dualprop2`, `perm1`, `vitcoin1`, `price1`. Every one of them
+   will land and read `UNVERIFIED`. So D1's defect is not history; it is
+   queued nine more times.
+
+   The resolution is a measurement, not a judgement -- does this campaign's
+   warm-up model already exist under another name?
+
+   ```bash
+   python -m scripts.arm_identity_check <root>     # byte-identical warm-ups?
+   python -m scripts.paper_rows --cells cells.csv  # then read the `unit` column
+   ```
+
+   If the warm-up is shared, the campaign JOINS that unit and is a correlated
+   replicate, not a new one. If it is genuinely new, add the pair to
+   `MEASURED_UNITS` with the evidence. **Do this when the campaign lands. A
+   unit assigned after the numbers are seen is a choice dressed as a
+   measurement**, and 2d holds five retractions of exactly that shape.
 3. **macroF1 and uncF1 go beside ccF1 in every table.** ccF1 alone hides
    uncapped damage: `dom1` reads ccF1 +0.0141 (6/6) and macroF1 -0.0022 (2/6).
 4. **Convert to ITEMS.** `items = dF1 * (K + n_pos) / 2`. The whole prize from
