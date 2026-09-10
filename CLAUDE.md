@@ -180,7 +180,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 620 regression tests, ~250s, no dataset needed
+python -m pytest tests -q                   # 622 regression tests, ~250s, no dataset needed
 #   `tests/test_scorers_run_end_to_end.py` EXECUTES every scorer as a subprocess
 #   against a campaign carrying a real PARTIAL marker. It exists because three
 #   scorers once used `quarantine.` with no module-level import: they PARSED,
@@ -225,7 +225,7 @@ python -m pytest tests -q                   # 620 regression tests, ~250s, no da
 #   rejected backbones and datasets with the measured reason each was dropped,
 #   the ten deleted config footguns, the BF16/compute-capability split between
 #   the two hosts, the oldest allocator bug (an argmax fallback that ignored the
-#   cap), the local-scope mirror of it, and a sweep that RUNS all 42 `--self-test`
+#   cap), the local-scope mirror of it, and a sweep that RUNS all 43 `--self-test`
 #   entry points -- nothing else ever ran them together. Every entry is dated and
 #   was mutation-tested: 13 mutations, 13 caught, including a false-positive
 #   control that a COMMENT naming a deleted key must NOT fire.
@@ -601,6 +601,38 @@ python -m scripts.stale_provenance          # 🛑 THE OTHER STALENESS AXIS: WHI
 #   `--self-test` gates it, 14 checks, 4 negative controls (a DISCLOSED entry must be
 #   cleared, a dead name with NO figure must not fire, a figure with no dead name must
 #   not fire, and a `#` inside a fence must not split an entry). FRAMEWORK 2(z78).
+python -m scripts.campaign_state            # 🛑 THE THIRD STALENESS AXIS, AND THE ONE A
+#   RUN-STATE TABLE CANNOT ASK OF ITSELF: DOES THE CAMPAIGN HAVE A STATE AT ALL?
+#   `stale_figures` asks whether the SCORER moved; `stale_provenance` whether the
+#   DATA was condemned; this asks whether anybody ever wrote down that the campaign
+#   exists. It harvests every campaign-shaped name from CLAUDE.md + the four `docs/`
+#   files and holds it against the FOUR authorities, all READ not restated:
+#   `quarantine.REGISTRY`, COVERAGE section 0's census, MISSION 0-RUNNING's tables,
+#   and CLAUDE.md's own archive list.
+#   🔑 IT EXISTS BECAUSE OF `price1`: launched (task #78 COMPLETED), named four
+#   times in FRAMEWORK -- twice as "before `price1` launched" -- and load-bearing
+#   for 2(z29), with **no run count, dose, host or outcome in any file**. That is
+#   2(z72)'s defect INVERTED: a stale row is visible to anyone who re-reads the
+#   block, an ABSENT row is visible to nobody, because a table can only be audited
+#   for the rows it contains.
+#   🔑 TWO HARVEST CHANNELS, AND ONE OF THEM IS THE WHOLE FINDING. A campaign is a
+#   PATH when somebody pastes a command and a BACKTICK when somebody writes about
+#   it; `price1` is only ever the second, so a path-only harvest returns 24 names
+#   and misses it. Both channels: 48.
+#   ⚠️ A QUEUE, NEVER A DEFECT COUNT. A campaign named only in a `gen_campaign`
+#   command has no state because it has not run, and that is CORRECT. The tool
+#   flags mentions carrying a PAST-EXECUTION verb and prints the lines; the verb
+#   list is a HEURISTIC and excludes `seeds` and `completed` on purpose (a
+#   pre-registration names its seed count; 0-PERM's honest "ZERO completed runs"
+#   would otherwise read as a run). FIRST RUN: 48 names, 30 recorded, 18 without a
+#   state, 10 with a verb -- read by hand as **3 genuine / 1 near / 6 prose-only**.
+#   The three were `price1` (nothing anywhere), `vitdual2` (THREE incompatible
+#   progress figures, none dated at its line) and `margin2` (FRAMEWORK said 432
+#   runs staged, MISSION had CHECKED that no such campaign exists).
+#   ✅ All 18 now carry a row in MISSION 0-RUNNING's campaign-state ledger, and
+#   `tests/test_lessons_learned.py` FAILS on any new orphan.
+#   `--self-test` gates it, 23 checks, 5 negative controls; mutation-tested 5/5.
+#   ⚠️ Its `--all` flag prints the full list. FRAMEWORK 2(z83).
 python -m scripts.dead_code --paths configs src   # what is DECLARED and never
 #   referenced. AST, never grep: a name in a docstring is not a call. A REPORT,
 #   not a gate -- a getattr-built call is invisible to it, so confirm by hand.
@@ -1496,9 +1528,25 @@ python -m scripts.hp_liveness_real           # `hp_liveness` answers "which knob
                                              #   where the clip never engages -- so
                                              #   lambda/rho read LIVE and
                                              #   `constraint_grad_clip` reads INERT,
-                                             #   and on ViTB16 both verdicts INVERT.
-                                             #   A knob sweep justified by the smoke
-                                             #   net sweeps cancelled quantities.
+                                             #   and on ViTB16 both verdicts SHOULD
+                                             #   invert. A knob sweep justified by the
+                                             #   smoke net sweeps cancelled quantities.
+                                             #   ⛔ **THAT INVERSION IS A PREDICTION,
+                                             #   NOT A MEASUREMENT, AND THIS LINE SAID
+                                             #   "INVERT" UNTIL 2026-09-10.** The tool's
+                                             #   own docstring says "should inverT" --
+                                             #   it is the motivation for building it.
+                                             #   ⛔ AND IT HAS NEVER BEEN RUN: no
+                                             #   result, date or output for
+                                             #   `hp_liveness_real` exists in any doc.
+                                             #   So the liveness of the ONE scalar
+                                             #   `normalize` does not cancel is itself
+                                             #   unmeasured. Since the determinism fix
+                                             #   its verdict is a HASH COMPARISON at
+                                             #   n=1 per setting, five epochs per knob,
+                                             #   so this is hours and it GATES the
+                                             #   dose-response campaign.
+                                             #   FRAMEWORK 2(z82) section 5, task #118.
 python -m scripts.derive_dual_weights        # the receipt for FRAMEWORK 2's
                                              #   dual-weight table
 python -m scripts.diagnose_run <run-dir>     # stage-by-stage read of ONE run's log

@@ -2176,10 +2176,21 @@ is the reproducible receipt, and it is sharper still:
 | `one_minus_p` | 0.0000 | 0.0000 | 0.0000 |
 
 🛑 **`margin_sech2` IS EXACTLY 0.0000.** The boundary window -- the count
-`tralo_margin` would run -- puts LITERALLY NONE of its gradient at the cut, and
-`margin2` is 432 runs staged against it. That is the conflation in CLAUDE.md
-rule 3 costing a campaign, and it is the strongest single argument for running
-the cut window first.
+`tralo_margin` would run -- puts LITERALLY NONE of its gradient at the cut.
+
+⛔ **CORRECTED 2026-09-10: THIS PARAGRAPH SAID "`margin2` IS 432 RUNS STAGED
+AGAINST IT", AND NO SUCH CAMPAIGN EXISTS.** MISSION's knob ledger records the
+check that settles it -- *"NOT staged -- checked 2026-09-02, no `margin2`
+exists on disk anywhere; this line said it was"* -- so the two governing docs
+had disagreed for eight days about whether a 432-run campaign was staged, with
+FRAMEWORK, which wins every disagreement by rule, holding the false half. The
+algebra above is unaffected; what is withdrawn is "this cost a campaign".
+Found by `scripts.campaign_state`, which flags a campaign the docs discuss and
+no authority records. 2(z83).
+
+The live claim is narrower and still decides the same thing: the boundary
+window is the count `tralo_margin` would use, its cut mass is 0.0000, and that
+is the strongest single argument for running the cut window first.
 
 🔴 **`p(1-p)` IS MAXIMAL AT p=0.5 AND VANISHING AT p=1, AND THE TIGHT-CAP
 CUT SITS AT p=0.99984-1.00000.** So the shipped penalty spends its entire
@@ -4041,7 +4052,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 620 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 622 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -4205,7 +4216,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 620 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 622 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -4213,7 +4224,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (620 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (622 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -13966,6 +13977,422 @@ hides. ⛔ The two exemptions that matter are `paper_rows` (takes `--cells
 could not have been re-run to check them, which is what 2(z80) section 6 asks
 for and what task #113 now unblocks.
 
+## 2(z82). PRE-REGISTERED: THE ONE SCALAR `normalize` DOES NOT CANCEL HAS NEVER BEEN MOVED, AND THE LEDGER ENTRY THAT LOOKS LIKE IT CLOSES IT DOES NOT (2026-09-10)
+
+**Written before any run, while SSH is down and no number can be seen.** The
+whole point is that the refutation criteria are fixed first: 2d holds five
+retractions that all came from choosing the metric after seeing the numbers.
+
+⛔ **PROVENANCE OF EVERY FIGURE BELOW, SINCE THIS ENTRY ARGUES AGAINST AN
+OLD ONE.** The closure it disputes, 2(b) and 2(b-post), is measured on
+`dermmnist` -- removed, and leaking 38.7% of its test set -- and its read-out
+campaign `dosefix` is `scorable=False`. **Those numbers are quoted here as the
+thing being questioned, never as support.** Everything offered as support is
+iwildcam on the current recipe: the prizes from `headroom` per backbone, the
+task-cell classification from `configs/task_windows.yml`, the violation span
+from `latch_probe` on `dom1`, `MIN_FLOOR_OBS` from `deployed_h2h`.
+
+### 1. The knob
+
+Under `constraint_grad_mode: normalize` the delivered constraint step has norm
+exactly `lr_constraint * constraint_grad_clip`, whatever the loss was worth.
+That is why `lambda_step`, `initial_rho`, `rho_target` and
+`fioretto_step_size` are all inert here (2(z28), 2(z29), 2(z49)) and why
+`tralo_coin` -- a RANDOM direction of the same norm -- took a cell in
+`itemscale`. **`constraint_grad_clip` is the single scalar that survives the
+normaliser, and it is the multiplier on the delivered step.**
+
+FRAMEWORK 1a records its state exactly: *"the clip is load-bearing (measured);
+the VALUE is not. `protocol.yml` itself says 'Sweep 0.3 / 1.0 / 3.0 to get a
+dose-response curve' -- that sweep has never run."* 2(z32) repeats it: **no
+scalar knob has been swept on the current corpus, on either side.**
+
+### 2. 🛑 WHY 2(b) DOES NOT ALREADY CLOSE THIS, stated against myself
+
+2(b) is titled *"Anything that delivered MORE constraint gradient -- all
+significantly worse"* and 2(b-post) concludes *"THIS DOES NOT REOPEN THE DOSE
+AXIS. That axis is CLOSED."* Read its four bullets:
+
+| 2(b) bullet | what it changed |
+|---|---|
+| more constraint STEPS per epoch (n=1/4/16) | the step COUNT -- and it breaks equal compute, which rule 2 forbids |
+| a dedicated constraint optimizer | the DELIVERY RULE, and with it the Adam state and the direction |
+| `joint_objective` | the OBJECTIVE |
+| the undershoot hinge (`beta`) | the PENALTY TERM |
+
+**Not one of the four moves `constraint_grad_clip`.** Every one substitutes a
+different mechanism and then attributes the damage to "more dose"; the scalar
+on the existing mechanism was never touched. And 2(w)'s separate refusal --
+*"THIS DOES NOT LICENSE A DOSE SWEEP"* -- gives two reasons, `lambda` (inert
+under `normalize`) and step COUNT (breaks equal compute). **Neither reason
+applies to this knob:** it is not inert, and changing it costs zero extra
+compute.
+
+⚠️ **THE STRONGEST COUNTER-ARGUMENT, AND IT IS REAL.** The dedicated optimizer
+recovered ~10x more constraint gradient by measurement and cost **AP -0.0938,
+p=0.0006**. That is prima facie evidence that more delivered constraint hurts,
+and it is the reason this is a pre-registration and not a proposal to skip
+straight to a grid.
+
+⛔ **BUT ALL OF 2(b) IS `dermmnist` AND THE `p(1-p)` COUNT.** dermmnist is
+removed and leaks 38.7% of its test set, its cap levels are now known
+non-tasks, and 2(r) established that the damage mechanism is the count itself:
+`p(1-p)` is largest where the model is most confident, so the constraint
+**evicts the CORRECT items**. So 2(b) measures `dose x the damaging count on a
+leaked dataset`. The cell that has never been measured is `dose` on the current
+recipe, at caps that pose a question.
+
+### 2b. 🛑🛑🛑 THE OBJECTION THAT ACTUALLY BITES IS 2(z29), NOT 2(b) -- AND IT RESHAPED THIS DESIGN BEFORE A SINGLE RUN
+
+**This entry's first draft proposed a bare dose-response of `tralo` against
+`clip`. That was the wrong experiment, and `coin1` says why.** I had searched
+the ledger for "dose" and for "clip sweep" and not for "what does the DIRECTION
+contribute in a task cell", which is a different question one step away.
+
+2(z29) / `coin1`: RegNetY400MF x iwildcam, caps `L70_G95` and `L80_G95` -- both
+strictly inside the measured task windows for BOTH capped classes -- 48 runs, 0
+failed, recipe `constraint_fp32: True` + `normalize`, and **equal dose:
+`tralo` 232/232 constraint steps, `tralo_coin` 232/232.** `tralo_coin` is
+`tralo` with `constraint_random_direction: true`: the constraint gradient is
+replaced by a RANDOM vector rescaled to the SAME delivered norm, from a private
+generator, so dropout masks and batch order stay identical. Only the
+information in the direction differs.
+
+| contrast, deployed capped-class TP | median items | ratio to the RNG floor |
+|---|---|---|
+| FLOOR `\|tralo_null - tralo_reseed\|` | 2.0 | 1.00x by definition |
+| **`\|tralo - tralo_coin\|`** | **2.0** | **1.00x** |
+| `\|tralo - tralo_null\|` | 2.0 | 1.00x |
+| `\|tralo - clip\|` | 3.0 | 1.50x |
+
+⇒ **At clip 1.0, in task cells, on the current recipe, a coin flip of the same
+norm is indistinguishable from the penalty.** So "will a bigger step capture
+more items" is not the question. **The question is whether the DIRECTION
+acquires information as the step grows** -- and 2(z29) tested exactly one
+point on that axis.
+
+🔑 **SO THE DECISIVE CONTRAST IS `|tralo - tralo_coin|` AS A FUNCTION OF THE
+CLIP, NOT `tralo - clip`.** It holds the norm, the schedule, the dose, the RNG
+and the model fixed and varies only what the direction knows. A dose-response
+on that quantity is the cleanest test the design admits, it reuses an arm that
+already exists, and its two outcomes are both terminal:
+
+* **FLAT AT 1.00x ACROSS A 10x DOSE RANGE.** Then the constraint gradient's
+  direction is worth nothing at any dose this design can deliver, and **the
+  entire loss-design program closes** -- count function, penalty shape, scope
+  weighting, dual rule, all of it, because every one of them only changes the
+  direction and `normalize` keeps only the direction. That is a strong,
+  pre-registered, publishable negative, and it is a far better statement than
+  the current one, which rests on a single dose point.
+* **GROWS WITH THE DOSE.** Then there IS information in the direction, it sat
+  below the noise at 1x, and the dose is the lever nobody pulled. Every closed
+  mechanism family becomes worth re-reading at the working dose.
+
+⚠️ **A THIRD OUTCOME THAT IS NOT A TIE.** `|tralo - tralo_coin|` may grow with
+the clip while deployed TP does NOT improve -- a bigger perturbation churns the
+selection more without capturing more. That is not evidence for the direction;
+it is the churn the norm buys, and `tralo_coin` itself supplies the control for
+it. Read the two together: the direction only wins if `tralo` pulls AHEAD of
+`tralo_coin` on captured items, not merely away from it.
+
+### 2c. 🔑 AND THE SAME DIFFERENCE-IN-DIFFERENCES IS ALREADY PRE-REGISTERED ON THE ADJACENT AXIS -- READ `price1` BEFORE GENERATING ANYTHING
+
+Found 2026-09-10, after §2b was written. `configs/protocol.yml:511-516` states it in as many words:
+
+> *"The claim this arm exists to test is NOT `tralo_sgd > tralo`. It is that `tralo_sgd` - `tralo_coin_sgd` EXCEEDS `tralo` - `tralo_coin`: i.e. that direction matters MORE once it is delivered. Read that difference-in-differences, never the headline."*
+
+That is the identical estimator to §2b's -- `|tralo - tralo_coin|` measured at two settings and differenced -- and all four arms exist (`tralo_coin` at `protocol.yml:260`, `tralo_coin_sgd` at `:835`). **`price1` is the campaign that was staged to run it.**
+
+🔑 **THE TWO AXES ARE COMPLEMENTARY, NOT DUPLICATES, AND 2(z46) IS WHY.**
+
+| | what it varies | at what dose |
+|---|---|---|
+| `price1` | the DELIVERY RULE (`shared` Adam vs plain `sgd`) | `sgd` delivers **1/89th** the constraint-aligned displacement (2(z46)) |
+| `clipsweep1` | the SCALAR (`constraint_grad_clip` 0.3 / 1.0 / 3.0) | a clean 10x range at a fixed delivery rule |
+
+So `price1` buys a **pure direction** at a tiny dose and `clipsweep1` buys a **10x dose** at a fixed direction. Reading them together separates the two things a single null cannot:
+
+* `price1`'s DiD **positive** => direction carries information even at 1/89th dose. `clipsweep1` becomes urgent, and its FLAT outcome would then be the surprise.
+* `price1`'s DiD **null** => confounded with the 89x dose gap by construction (2(z46) says to report exactly that), and `clipsweep1` is the instrument that separates them. **This is the expected case, and it does not weaken the plan -- it is why the plan has two campaigns in it.**
+
+⛔ **BUT `price1`'S STATE IS UNKNOWN AND THAT IS THE FIRST THING TO FIX.** Task #78 "Launch price1" is COMPLETED and **no file anywhere records a run count, a dose, a host or an outcome for it** -- see 2(z83), which exists because of this. It may be 0 runs, it may be a finished campaign nobody scored. So the ordering is:
+
+```
+#118 hp_liveness_real (is the clip live at all)  ->  read price1  ->  #116  ->  #117 clipsweep1
+```
+
+and "read `price1`" is **zero GPU-hours if it ran** -- the same shape as unit D1, which was a COMPLETE 228-run campaign contributing nothing because nobody had read its sign.
+
+### 3. What it decides, and why it is worth a campaign
+
+2(z77) is the standing bar: at 4 seeds the minimum detectable effect is
+**6.2-13.5 deployed items** against a per-cell prize of **11.7-21.2**, so a
+mechanism must be worth **~6+ items per cell** to be certifiable at all. This
+is not a mechanism proposal -- it is the measurement that says whether every
+null so far is a **DOSE null or a MECHANISM null**, which is the ambiguity
+2(z77) exists to name and which nothing in the ledger resolves.
+
+Both outcomes are worth the GPU-hours, which is the test of a good experiment:
+
+* **FLAT.** Deployed capped-class TP is unchanged across a 10x range of the
+  clip. Then TraLO is **direction-limited, not dose-limited** -- which is what
+  2(b-post) already asserts, but would then rest on the scalar itself over a
+  10x range on live data rather than on four mechanism substitutions on a
+  removed dataset. **That is a much stronger closure than the one now on
+  record**, and it retires the dose axis permanently.
+* **MONOTONE.** Item capture rises with the clip up to some knee. Then TraLO
+  has a live knob **no rival has under `normalize`** -- Fioretto-LDF has zero
+  live hyperparameters here (2(z32)), and ALM's `mu` enters through the same
+  cancelled channel -- and the head-to-head has been untuned-against-untuned
+  in a way that understates TraLO specifically.
+* **NON-MONOTONE / DAMAGE.** Capture rises then falls as the ranking damage of
+  2(r) reasserts. Then the knee is the operating point and the damage is
+  priced in items rather than in AP for the first time.
+
+### 4. THE PRE-REGISTERED CRITERIA
+
+**Primary metric -- and it is the 2b contrast, not the obvious one.**
+`|tralo - tralo_coin|` in deployed capped-class TP ITEMS, from
+`final_predictions.csv`, per cell, **as a ratio to that cell's own RNG floor**,
+read at each clip value. NOT `full_panel`'s ccF1, which is macro-averaged over
+two classes whose `(K+n)` differ and has no exact item scale (2(z26)).
+`deployed_h2h` is the scorer.
+
+**Secondary, and it must be read beside the primary or the primary lies.**
+`tralo` minus `clip`, and `tralo` minus `tralo_coin` SIGNED (not absolute), in
+the same items. A direction that carries information makes `tralo` pull AHEAD
+on captured items; a direction that carries nothing makes the two diverge
+symmetrically as the norm grows, which is churn.
+
+**Cells -- ASKED OF THE AUTHORITY, NOT ASSUMED.** `configs.task_cells.classify`
+over the three `dom1`-family caps on all four backbones, run 2026-09-10:
+
+| backbone | `L80_G95` | `L90_G95` | `L95_G80` |
+|---|---|---|---|
+| MobileNetV2 | **task** | partial | **task** |
+| MobileNetV3 | partial | partial | partial |
+| RegNetY400MF | **task** | partial | **task** |
+| **ViTB16** | **task** | **task** | **task** |
+
+⛔ **THIS KILLED THE FIRST DESIGN.** It named MobileNetV2 + MobileNetV3 at
+`L80_G95` and `L90_G95` -- four cells of which exactly **ONE** is a strict task
+cell. MobileNetV3 is `partial` at every cap, which is 2(z75): its
+`strict class 2` band is measured EMPTY, so `classify` checks strict, finds
+nothing, and can never return `task` there. And `L90_G95` is `partial` on every
+backbone except the headline one.
+
+✅ **THE DESIGN THAT SURVIVES: ViTB16 and MobileNetV2, at `L80_G95` and
+`L95_G80`.** Four cells, **four strict task cells**, and one of the two
+backbones is the headline fixed a priori on 2026-08-20 -- so a win cannot be
+promoted after the fact. 🔑 `L95_G80` is also the `G < L` cell, the only
+shape in which the GLOBAL scope binds at all, so the two caps differ in SCOPE
+and not only in tightness.
+
+🔑 **AND `partial` IS WORSE HERE THAN IN A NORMAL CONTRAST, WHICH IS THE
+REAL REASON THE FIRST DESIGN HAD TO GO.** `classify`'s own definition:
+*"the cap binds in SOME seeds only, so a slack seed contributes zero
+constraint gradient and dilutes the contrast toward nothing."* A slack seed is
+its own null -- and **it is its own null at EVERY clip value**, because zero
+times three is still zero. So in a `partial` cell a dose sweep cannot move
+those seeds by construction, at any effect size. That is not dilution, it is
+the same `priced`-is-False-by-construction shape as 2(z69).
+
+⚠️ **AND A `task` VERDICT IS NOT ENOUGH ON ITS OWN.** `classify` reads the
+POOLED window, and the window is a MEAN over seeds whose spread is 105 items:
+the same four seeds predict 278, 329, 354 and 383, so at K=333 the cap evicts
+50 items in one seed and is slack in two while the mean says 3. Before
+launching, run `scripts.task_window` on THIS campaign's own reference arm and
+read `binds n/N` -- the window row is keyed by (dataset, backbone) but was
+measured from one campaign's unconstrained model, and that model does not
+transfer (2(z24)).
+
+⚠️ Prizes on record: MNv2 `L80_G95` **13.7**, `L95_G80` **14.8**; ViTB16
+`L80-80_G95` **13.0** (from `vitdual2`). **No ViTB16 `L95_G80` prize has ever
+been measured** -- run `headroom` on it before quoting one, and do not
+interpolate.
+
+**Grid.** `constraint_grad_clip` in {0.3, 1.0, 3.0}, the values `protocol.yml`
+pre-registered. 1.0 is the incumbent and is the control; the arm is `tralo` and
+nothing else changes. Equal compute at every point by construction: same 29
+constraint steps, same 30 optimizer epochs.
+
+**The floor must be measurable.** The campaign carries THREE lambda=0 streams
+-- `tralo_null`, `tralo_reseed`, `tralo_reseed2` -- so the RNG floor rests on
+C(3,2) x 4 = **12 observations** and clears `MIN_FLOOR_OBS` = 8. Without the
+third stream `priced` is False **by construction at any effect size** (2(z69)),
+which is exactly how `0 of 17 priced` happened. The lambda=0 arms take no
+constraint step, so they are shared across all three clip values and cost
+nothing per point.
+
+**Arms.** `tralo` AND `tralo_coin` at each clip -- `tralo_coin` is not
+optional here, it IS the measurement -- plus `clip`, `focal_clip`, `alm`, and
+the three lambda=0 streams. `constraint_random_direction: true` draws from a
+private generator, so the two arms' dropout masks and batch order stay
+identical and the pairing is exact.
+
+**The campaign is task #117.**
+
+**PASS -- the direction carries something.** `|tralo - tralo_coin|` / floor
+rises monotonically with the clip AND `tralo` leads `tralo_coin` on SIGNED
+captured items at the top of the range by **>= 6 items per cell** in at least
+half the task cells (2(z77)'s bar). Then dose is the lever and every closed
+mechanism family is worth re-reading at the working dose.
+
+**FAIL -- the direction carries nothing at any deliverable dose.**
+`|tralo - tralo_coin|` / floor stays at ~1.00x across the 10x range, or grows
+while the SIGNED lead does not. Then 2(z29) generalises from one dose point to
+the whole axis, and the count function, the penalty shape, the scope weighting
+and the dual rule are all closed together -- because `normalize` keeps only the
+direction and the direction is worth nothing. **That is the stronger result of
+the two and it is the one this project has been circling for a month.**
+
+**KILL EARLY.** If the first completed `clip=3.0` runs show AP damage vs
+`tralo_null` worse than **half** of 2(w)'s measured `tralo` damage
+(-0.0754/2 = -0.0377), stop the 3.0 arm: that is 2(r)'s eviction mechanism
+scaling with dose, the answer is NON-MONOTONE, and the remaining GPU-hours
+belong at 0.3.
+
+⛔ **WHAT WOULD MAKE THIS NOT WORTH RUNNING**, and it must be checked first:
+`penalty_starvation --glob` reports the per-epoch spread of scope violation
+depth. If the delivered step at clip 1.0 is already large enough that the
+count is SATISFIED in most epochs, a larger clip buys nothing and the
+campaign is a non-task in the dose dimension. 2(u)'s `dosefix` read is the
+opposite -- **0 of 29 epochs satisfied, hard count at 2.5-3.5x budget
+throughout** -- but that is dermmnist. **Re-read it on `dom1` first**
+(`latch_probe` already reports the violation span at 282x-1934x there, which
+says the constraint is nowhere near satisfying anything). Task #116.
+
+### 5. 🔑 AND THERE IS A CHEAPER PRECURSOR THAT HAS NEVER BEEN RUN
+
+`scripts/hp_liveness_real` copies a completed TraLO run's config, moves ONE
+knob, and runs the real pipeline through the same entry point a campaign uses.
+Since the determinism fix its verdict is a **HASH COMPARISON, not a test**:
+three identical runs gave bit-identical predictions and bit-identical weights,
+so identical md5 means the knob provably cannot affect a result -- zero, at
+n=1 per setting. Five epochs per knob, one warm-up shared across variants
+because none of the probed keys is in `warmup_identity_keys`.
+
+⛔ **IT HAS NEVER BEEN RUN. `hp_liveness_real` appears in CLAUDE.md and in one
+archived launcher and NOWHERE ELSE -- no result, no date, no output, in any
+doc.** By this project's own rule that is the definition of a tool nobody ran.
+
+⛔ **AND CLAUDE.md STATES ITS PREDICTION AS A MEASUREMENT.** That file said:
+
+> `hp_liveness` answers "which knob can change a result" on the SMOKE NET,
+> where the clip never engages -- so lambda/rho read LIVE and
+> `constraint_grad_clip` reads INERT, **and on ViTB16 both verdicts INVERT.**
+
+The tool's own docstring says *"both verdicts **should** inverT"*. It is a
+PREDICTION, written to motivate the tool, and it was read forward as a result.
+Fifth costume of 2(z73)'s rule: a claim true in one context, read in another,
+with the context lost. Corrected at the line.
+
+⇒ **So the liveness of `constraint_grad_clip` on a real backbone is itself
+unmeasured**, and the correct ordering is hours before days:
+
+```bash
+python -m scripts.hp_liveness_real <a completed dom1 tralo run dir> --epochs 5
+```
+
+* If the clip reads **INERT** on a real backbone, section 4's grid is three
+  bit-identical arms and must not run. That would also be a finding: the
+  delivered step would be set by something other than the documented product.
+* If it reads **LIVE**, the grid is worth its GPU-hours and the hash comparison
+  has already proved the flag is not a sixth inert one -- a stronger check than
+  md5-across-arms, which is one-sided (2(x2)).
+
+Task #118, and it gates #117.
+
+✅ **AND THE INSTRUMENT ALREADY SAYS THIS AT GENERATION TIME.**
+`gen_campaign` prints `** PARTIAL -- binds in SOME seeds only **` per (model,
+cap, class) and a paragraph saying a null there is not evidence of no effect.
+It ALLOWS partial cells deliberately -- refusing would leave MobileNetV2 with
+exactly one legal cap -- so nothing here is a defect in the tool. The design
+was corrected by ASKING the authority before generating rather than after, and
+that is the whole cost difference: one `classify` call against a campaign.
+
+### 6. It needs no new code
+
+The arm system is block-composed: `protocol.yml:819` defines `tralo_uniform`
+as `blocks: [constraint_phase, tralo, tralo_uniform]`, where the last block is
+a key override. A `clip03` / `clip30` block carrying one key,
+`constraint_grad_clip`, composes the same way. **No trainer change, no new
+methodology, nothing in `src/`.**
+
+⚠️ **AND THE FLAG MUST BE PROVED LIVE BEFORE THE GRID RUNS.** This project has
+five inert flags on record and `constraint_grad_clip` was hardcoded in four
+trainers before it was a config key. Run `scripts.flag_live tralo tralo_clip30`
+on the first completed pair -- and remember md5 divergence is ONE-SIDED
+(2(x2)): identical predictions prove inertness, different ones prove nothing.
+Here the check is stronger than md5 because the quantity is a NORM: log the
+delivered step norm and require the ratio to be 3.0.
+
+## 2(z83). A CAMPAIGN WAS LAUNCHED, A LEDGER ENTRY WAS MADE TO DEPEND ON IT, AND NO FILE ANYWHERE RECORDS THAT IT EXISTS (2026-09-10)
+
+`price1` is named four times in this file. Twice in the past tense -- *"Pre-registered in `protocol.yml` before `price1` launched"* (2(z46), 2(z73)). Once as the thing that is resolving the coin question: 2(z29) reads `UNPRICED-NULL` and its ledger row ends *"being re-priced by `price1`"*. Task **#78, "Launch price1: the first campaign that can price its own result", is marked COMPLETED.**
+
+There is no run count for it. No dose. No host. No outcome. No quarantine marker. It is absent from `quarantine.REGISTRY`, from `docs/COVERAGE.md` section 0's census, from MISSION 0-RUNNING's LIVE table, from its LANDED table, and from CLAUDE.md's archive list. **Every place a campaign's state is supposed to live is silent about it**, and the only reason anybody noticed is that I went looking for whether it already carried `tralo_coin_sgd` -- the arm that answers 2(z82)'s question on the adjacent axis.
+
+### 1. 🛑 IT IS 2(z72)'S DEFECT INVERTED, AND THE INVERSION IS THE HARD PART
+
+2(z72) was a run-state block dated at WRITING rather than at CHECKING: `itemscale1` had landed and was still announced as running, with a copy-pasteable relaunch command under it. The fix was to date the block when checked.
+
+**That fix cannot reach this.** A stale row is visible to anyone who re-reads the block; an ABSENT row is visible to nobody, because there is no block to re-read. **A run-state table can only be audited for the rows it contains.** Dating it, re-verifying it, adding a "LAST VERIFIED" banner -- all of that strengthens the rows that are there and says nothing about the ones that are not.
+
+So the two defects need opposite instruments: 2(z72) needs a DATE, this needs a CENSUS.
+
+### 2. THE CENSUS, AND IT IS A THIRD STALENESS AXIS
+
+`scripts/campaign_state.py`. It harvests every campaign-shaped name from `CLAUDE.md` and the four `docs/` files and holds each against the four places a state can live. The three axes are now:
+
+| tool | asks |
+|---|---|
+| `stale_figures` | has the SCORER moved since the figure was written? |
+| `stale_provenance` | has the DATA been condemned since? |
+| **`campaign_state`** | **does the campaign have a STATE at all?** |
+
+**THE AUTHORITIES ARE READ, NOT RESTATED** -- `quarantine.REGISTRY`, COVERAGE section 0's table (via `stale_provenance.recipe_census`), MISSION 0-RUNNING's tables, and CLAUDE.md's archive paragraph. A tool that hardcoded any of them would drift from the thing it audits.
+
+🔑 **THE HARVEST NEEDS TWO CHANNELS, AND ONE OF THEM IS THE WHOLE FINDING.** A campaign is written as a PATH when somebody pastes a command (`results/dom1`) and in BACKTICKS when somebody writes about it. `price1` is **only ever the second** -- it appears in no command line in any doc -- so a path-only harvest returns 24 names and misses it completely. Measured: path channel 24, both channels 48.
+
+**FIRST RUN: 48 campaign-shaped names, 30 recorded, 18 with NO recorded state, 10 of those carrying a past-execution verb.**
+
+### 3. CALIBRATED BY HAND, BECAUSE AN UNCALIBRATED REPORT IS A RUMOUR
+
+The same discipline 2(z68) and 2(z78) forced on the other two tools. All ten were read: **3 genuine, 1 near-genuine, 6 stated-in-prose-only.**
+
+| campaign | what reading it found |
+|---|---|
+| **`price1`** | 🛑 GENUINE. Nothing anywhere, as above |
+| **`vitdual2`** | 🛑 GENUINE, and worse than absent -- **THREE incompatible progress figures**: `RUNNING 0/88` (2(z67)'s table, quoted there as false), `32/88` (MISSION's older queue), `57/88` **STOPPED by explicit PID** (MISSION 0-HEAD §7). None in an authority, none dated at its line. 49 mentions -- it is the four-dual head-to-head |
+| **`margin2`** | 🛑 GENUINE, and it is a straight CONTRADICTION BETWEEN THE TWO GOVERNING DOCS. This file said *"`margin2` is 432 runs staged against it"*; MISSION's knob ledger says *"NOT staged -- checked 2026-09-02, no `margin2` exists on disk anywhere; this line said it was"*. **FRAMEWORK wins every disagreement by rule, and FRAMEWORK held the false half for eight days.** ✅ Corrected at 2(z12) |
+| `shape1` | ⚠️ NEAR-GENUINE. *"is running `tralo_linear` and `tralo_squared`"*, undated, and MISSION schedules `dualprop2` for "the moment `shape1` frees it". No landing recorded anywhere |
+| `dualprop1` `coin1` `coin2` `vitcoin1` `vitseed1` `perm1` | stated in prose, correctly, just not in a table. `perm1`'s *"ZERO completed runs anywhere"* is the model of how to write one |
+
+⇒ Quote **3 genuine / 1 near / 6 prose** beside any count taken from this tool, exactly as 2(z68) requires for `stale_figures`.
+
+### 4. 🔑 WHAT THE PROSE-ONLY CLASS ACTUALLY COSTS, STATED PRECISELY
+
+It is tempting to read "stated in prose" as "fine". It is not, and the reason is mechanical rather than aesthetic: **prose state cannot be enumerated.** You can grep for a campaign you already suspect; you cannot ask "which campaigns have I got?" and get an answer. Everything downstream of that question -- what is on the GPUs, what is scorable, what the corpus contains, what a resuming session may relaunch -- is then answered from memory.
+
+`vitdual2` is the proof. Its state IS in prose, three times, in three different numbers, and no reader can tell which is current because none carries a date at its line.
+
+### 5. THE FIX, AND IT IS A LEDGER PLUS A GATE
+
+* **MISSION 0-RUNNING now carries a campaign-state ledger** with a row for all 18, each naming the last-known state, the doc the claim comes from, and the date of that claim -- with a blank `dated?` column where the claim carries no date at all, which is 2(z72)'s defect made visible per row. `price1`'s row reads UNKNOWN and says VERIFY FIRST ON RECONNECT.
+* **`tests/test_lessons_learned.py::test_no_campaign_is_discussed_without_a_recorded_state`** fails on any campaign carrying a past-execution verb and no state. Adding one to a doc without a row now turns the suite red.
+* Its negative control (`..._actually_detects_an_orphan`) builds a two-campaign doc and requires the executed one to be flagged and the merely-proposed one NOT to be.
+
+⚠️ **IT IS A QUEUE, NOT A DEFECT COUNT.** A campaign named only in a `gen_campaign` command has no state because it has never run, and that is correct, not a defect. The tool cannot separate that from an orphan without guessing, so it does not guess: it flags mentions carrying a PAST-EXECUTION verb and prints the lines. The verb list is a heuristic and is named as one -- `seeds` and `completed` are deliberately excluded from it, because a pre-registration names its seed count and 0-PERM's honest *"has ZERO completed runs anywhere"* would otherwise read as evidence of a run.
+
+Mutation-tested **5/5**, and the fifth is worth recording: `M3 drop the iwc1-4 range expansion` MISSED at first, because the check asked the MERGED authority set and `iwc4` is also in the COVERAGE census -- **the check passed for the wrong reason.** Asking `claude_names()` directly is the only form that goes red. Same shape as 2(z64): a green check is not evidence until something has made it red.
+
+### 6. ⚠️ WHAT THIS DOES **NOT** DO
+
+It does not verify a single state against `results/`. SSH has been down since 2026-09-09, so every ledger row is a claim copied from the doc that made it. The ledger records **what the docs believe**, and the first action on reconnect is to check the three genuine rows against `dose_landed` -- starting with `price1`, which may be 0 runs, may be a completed campaign nobody scored, and is currently load-bearing for 2(z29) either way.
+
+---
+
 ## 3. WHAT WE KNOW WORKS -- regime beats method, every time
 
 ### 3(0) 🛑 **STATUS BOARD, LAST UPDATED 2026-09-10 -- read this before section 3's older text**
@@ -15327,7 +15754,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             620 tests, ~200 s, no dataset required
+tests/             622 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

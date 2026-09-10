@@ -320,7 +320,13 @@ def scan(docs=DOCS, cond=None):
 def report(docs=DOCS, out=sys.stdout, limit=40):
     cond = condemned()
     hits, clear, inherited = scan(docs, cond)
-    w = out.write
+
+    def w(s):
+        # !! ECHOED HEADINGS CARRY EMOJI AND THE WINDOWS CONSOLE IS cp1252
+        # (2026-09-10). This crashed with UnicodeEncodeError after printing
+        # the FIRST hit, so the tool was unrunnable off the server and the
+        # traceback read as a parsing bug five frames from the encode call.
+        out.write(s.encode("ascii", "replace").decode("ascii"))
     w("STALE PROVENANCE -- entries quoting a figure beside condemned data\n")
     w("%d condemned names in play (%d dead/partial campaigns + %d off-recipe "
       "+ %d removed datasets)\n"
