@@ -12890,6 +12890,47 @@ the docs' unresolved disputes unless you go looking for them.**
 ✅ Both rows now sit on the board, each pointing at the other, and the
 `+0.0253` is marked as pooled.
 
+### 4b. 🔑 AND `loose1`'s SIX CELLS REST ON THREE WARM-UP MODELS, TWO OF WHICH ARE `dom1`'s
+
+The independent unit in this project is the WARM-UP MODEL, and two cap levels
+inside one campaign SHARE one. `loose1` is 3 backbones x 2 caps, so its six
+cells are **three models**, not six draws. A `5/1` read as five-of-six sounds
+stronger than the design supports.
+
+✅ **CHECKED AGAINST THIS FILE'S OWN MODEL COUNT rather than asserted.** The
+structural-facts block records 16 distinct warm-up models in the LOOSE regime
+across all campaigns; `loosevit1` supplies 4 of them (ViTB16 x 4 seeds),
+leaving **12 for the CNN loose campaigns -- exactly `loose1`'s 3 backbones x 4
+seeds**, with `dom1`'s 8 sitting inside them. The two cap levels therefore
+share a warm-up, which they must: the constraint is off during warm-up, and
+`warmup_identity_keys` in `configs/protocol.yml` is twelve keys -- `lr`,
+`dropout`, `batch_size`, `warmup_epochs`, `pretrained`, `class_weighted_ce`,
+`seed`, `warmup_loss`, `focal_alpha`, `focal_gamma`, `cb_beta`,
+`logit_adjust_tau` -- **not one of which is a cap or a budget**. Two
+independent confirmations, the model count and the key list, and they agree.
+
+Worse, two of those three are not `loose1`'s alone. Measured by md5 of
+`final_predictions.csv`, **96/96 match on MobileNetV3 + MobileNetV2 at
+`L80_G95` and `L90_G95`, embeddings included**, while `dom1b`/RegNetY400MF vs
+`loose1` is **0/12** and genuinely independent. So:
+
+| `loose1` cells | model | status |
+|---|---|---|
+| MobileNetV2 x {L80, L90} | byte-identical to `dom1`'s | unit **A1** |
+| MobileNetV3 x {L80, L90} | byte-identical to `dom1`'s | unit **C2**, sign UNREAD (#102) |
+| RegNetY400MF x {L80, L90} | independent of `dom1b` (0/12) | not in `MEASURED_UNITS` |
+
+⛔ **CONSEQUENCE FOR #108: the negative cell is in a candidate set of six, and
+four of them are runs that already exist under another campaign's name.** So
+the check is a lookup, not a campaign -- and it can be done from `dom1` if
+`loose1` is inconvenient, because on those four cells they are the same bytes.
+
+⚠️ **AND IT MEANS `loose1` AND `dom1` MUST NEVER BE COUNTED AS SEPARATE
+EVIDENCE**, which this file already says in its structural-facts block -- "any count that
+treats `dom1` and `loose1` as separate evidence double-counts 8 cells" -- but
+which the status board's two adjacent rows (`loose1` AP, `dom1` 6/6) invite a
+reader to do anyway.
+
 ### 5. Why it matters more than a bookkeeping fix
 
 2(w3) is the project's ONLY attributable positive effect, and what survives its

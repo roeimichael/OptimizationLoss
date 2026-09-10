@@ -1822,7 +1822,15 @@ work is the same defect as a run-state block dated at writing. FRAMEWORK
    this design can produce -- and a negative is worth more.
    ⛔ **DO NOT QUOTE 6/6 BEFORE IT IS READ.** 2(z66), 0-UNREAD.
 
-2. 🔴 **#108 -- RESOLVE 2(w3) vs 2(z53). THE ONLY POSITIVE RESULT AND THE SHARPEST NEGATIVE ONE MEASURE THE SAME QUANTITY WITH OPPOSITE SIGNS.** `loose1` gives `tralo` vs its own null AP **+0.0253, 5/1**, and what survives its control is specifically the RANKING; `dualprop1` gives **-0.0138 / -0.0160 / -0.0051, 6 of 6 negative** on the same contrast. They overlap at MobileNetV2/L80. TWO unchecked things decide it: WHICH cell was the 1 of that 5/1 (never identified anywhere), and whether they still disagree once the `+0.0253` is split per backbone -- it pools THREE, which rule 4 forbids. Zero GPU, `loose1` is complete and on disk. 2(z74).
+2. 🔴 **#108 -- RESOLVE 2(w3) vs 2(z53). THE ONLY POSITIVE RESULT AND THE SHARPEST NEGATIVE ONE MEASURE THE SAME QUANTITY WITH OPPOSITE SIGNS.** `loose1` gives `tralo` vs its own null AP **+0.0253, 5/1**, and what survives its control is specifically the RANKING; `dualprop1` gives **-0.0138 / -0.0160 / -0.0051, 6 of 6 negative** on the same contrast. They overlap at MobileNetV2/L80. TWO unchecked things decide it: WHICH cell was the 1 of that 5/1 (never identified anywhere), and whether they still disagree once the `+0.0253` is split per backbone -- it pools THREE, which rule 4 forbids.
+   🔑 **AND THE CHECK IS A LOOKUP, NOT A CAMPAIGN.** `loose1`'s six cells rest
+   on THREE warm-up models (two cap levels in one campaign share one), and FOUR
+   of the six are BYTE-IDENTICAL to `dom1`'s -- 96/96 md5 on MobileNetV3 +
+   MobileNetV2 at both caps, embeddings too -- i.e. units **A1** and **C2**.
+   Only the two RegNetY400MF cells are `loose1`'s alone (`dom1b` vs `loose1` is
+   0/12). So the candidate set for the negative cell is SIX, four of which can
+   be read off `dom1` instead. Zero GPU, both campaigns complete and on disk.
+   2(z74).
 
 3. 🛑 **#104 -- RECOMPUTE THE ACCEPTANCE TABLE.** `6 of 17 = 35%` was produced
    at 09:09 on 2026-09-06; `deployed_h2h.rank_cell`, which makes the deltas
