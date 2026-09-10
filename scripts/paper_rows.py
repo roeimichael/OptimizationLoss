@@ -157,6 +157,22 @@ MEASURED_UNITS = {
     # here is a separate question that needs `paper_rows` run against the
     # campaign, and SSH was down the day this was added.
     ("bcn1mn3", "MobileNetV3"): "D1",        # bcn / dsisco02 bf16, COMPLETE
+    # UNITS 7 AND 8, added 2026-09-10 when `fmow1` completed at 304/304.
+    # fmow is a THIRD dataset, so neither backbone can share a warm-up with
+    # anything already in this table -- `base_model_id` hashes the dataset, and
+    # no other campaign has ever run on fmow. No md5 comparison is needed to
+    # establish independence here, which is the ONE case in this ledger where
+    # that is true; every other entry required one.
+    # `fmow1` staged BOTH backbones in one campaign, so the campaign spans two
+    # units and the (campaign, backbone) key is what separates them -- the same
+    # shape as `dom1` carrying A1 and C2.
+    # ViTB16 is THE HEADLINE BACKBONE (FRAMEWORK 1-pre), and E2 is the first
+    # unit that puts `tralo` against all three rival duals at EQUAL DOSE on it:
+    # `dose_landed` reads 29.00 attempted steps/run for alm, fioretto, hounie
+    # and every tralo variant, with only the retired `tralo_lam0` at 28.00.
+    # That is what `vitdual2` was staged to provide and has not finished.
+    ("fmow1", "MobileNetV3"): "E1",          # fmow / dsisco02 bf16, COMPLETE
+    ("fmow1", "ViTB16"): "E2",               # fmow / dsisco02 bf16, COMPLETE
 }
 
 # The contrasts a paper row may carry, and what each one licenses.

@@ -112,7 +112,13 @@ docs/COVERAGE.md   🗺️ WHAT WE ACTUALLY HAVE vs WHAT THE PAPER NEEDS, built
                    had their signs read and only THREE carry a verified `task`
                    cell, so quote BOTH -- ⛔ **SUPERSEDED 2026-09-10, 2(z86): D1 IS NEGATIVE, so task-restricted is 3/4 p=0.3125, not** 4/4 p=0.0625, 3/3 p=0.125
                    task-restricted. `paper_rows` prints the restriction itself)
-   🔑 **BUT THE LEDGER NOW LICENSES SIX, AND TWO SIGNS ARE UNREAD
+   🔑 **THE LEDGER NOW LICENSES EIGHT AND EVERY SIGN IS READ (2026-09-10).**
+   `fmow1` completed at 304/304 and licenses TWO -- E1 (MobileNetV3) and E2
+   (ViTB16, the HEADLINE backbone) -- so the attainable sign floor moves from
+   0.5^6 = 0.0156 to 0.5^8 = 0.0039. ⛔ **AND BOTH CAME BACK 0 OF 2 CELLS**,
+   so the ledger grew and the tally did not: the bar is **6 of 22 = 27%,
+   per unit 2 of 8**. FRAMEWORK 2(z88). The superseded line read:
+   **BUT THE LEDGER NOW LICENSES SIX, AND TWO SIGNS ARE UNREAD
    (2026-09-09).** This line said "the ledger licenses FOUR"; that was true
    when it was written at 17:45 on 2026-09-04 and false by 19:43, when
    `("dom1","MobileNetV3")` was added as C2. `("bcn1mn3","MobileNetV3")` was
@@ -755,9 +761,16 @@ python -m scripts.tralo_wins --campaign <roots> --control clip   # 🛑 THE ACCE
 #   `priced` says the spread cleared the RNG floor AND that floor rests on
 #   >= MIN_FLOOR_OBS observations. RUN 2026-09-06 over the whole live corpus:
 #   ⛔ **RECOMPUTED 2026-09-10 OVER THE SIX LICENSED UNITS WITH D1
-#   ADDED: 6 of 18 = 33%, bar 50%, VERDICT FAIL, per unit 2 of 6 -- and
-#   1 of 18 IS PRICED, the first ever, and tralo wins it. FRAMEWORK
-#   2(z86). The superseded 2026-09-06 reading was:**
+#   ADDED: 6 of 18 = 33%, bar 50%, per unit 2 of 6. ⛔ **SUPERSEDED
+#   THE SAME DAY BY `fmow1`: 6 of 22 = 27%, VERDICT FAIL, per unit
+#   2 of 8.** fmow is the THIRD dataset and carries the HEADLINE
+#   backbone with all four duals at EQUAL 29.00 dose and THREE
+#   lambda=0 streams -- the cleanest cells in the corpus. `fmow1`
+#   alone is **0 of 4**, tralo NEGATIVE vs clip in 3 of them and LAST
+#   of the four duals in all 4. TWO cells are now PRICED and the
+#   record is **1 WIN 1 LOSS** -- the loss is fmow1/ViTB16/L20 at
+#   -10.00 items against a 6.5-item floor. FRAMEWORK 2(z88), 2(z86).
+#   The superseded 2026-09-06 reading was:**
 #   **6 of 17 = 35%, bar 50%, VERDICT FAIL -- and 0 of 17 cells are priced**,
 #   so every win is a direction and none is reportable. Per unit it is 2 of 6.
 #   🛑 **BUT `0 of 17 priced` IS NOT A RESULT ABOUT TraLO -- THE TEST WAS
@@ -1625,9 +1638,23 @@ python -m scripts.hp_liveness_real           # `hp_liveness` answers "which knob
                                              #   "INVERT" UNTIL 2026-09-10.** The tool's
                                              #   own docstring says "should inverT" --
                                              #   it is the motivation for building it.
-                                             #   ⛔ AND IT HAS NEVER BEEN RUN: no
-                                             #   result, date or output for
-                                             #   `hp_liveness_real` exists in any doc.
+                                             #   ✅ **RUN FOR THE FIRST TIME
+                                             #   2026-09-10** on a real ViTB16
+                                             #   (`fmow1`/L30/tralo/seed_1),
+                                             #   dsisco02 GPU 2. The FIRST HALF
+                                             #   of the prediction is now
+                                             #   MEASURED and it holds:
+                                             #   **max|g| = 2157 against a clip
+                                             #   of 1.0, and the clip BINDS in
+                                             #   5 of 5 epochs** -- three orders
+                                             #   above the smoke net, where it
+                                             #   never engages. So the magnitude
+                                             #   knobs SHOULD read INERT, which
+                                             #   is what the per-knob table
+                                             #   decides. ⚠️ The per-knob
+                                             #   verdicts are still RUNNING;
+                                             #   `CLIP BINDS: YES` is the only
+                                             #   part quotable today.
                                              #   So the liveness of the ONE scalar
                                              #   `normalize` does not cancel is itself
                                              #   unmeasured. Since the determinism fix
@@ -1672,7 +1699,7 @@ DIFFERENTIAL per-group novelty net of sampling noise and the global shift:
 | dataset | group | NET items | z | unseen groups | status |
 |---|---|---|---|---|---|
 | **bcn/oodslice** | body site x age | -- | -- | -- | 🟢🟢 **RUNNABLE. `bcn1mn3` COMPLETE (228 runs), `bcn1vit` LIVE** |
-| **fmow/oodslice** | **country** | **+2969** | **79.7** | **10** | 🟢🟢 **RUNNABLE. `fmow1` LIVE, 3 of 4 cells are TASK cells** |
+| **fmow/oodslice** | **country** | **+2969** | **79.7** | **10** | 🟢🟢 **RUNNABLE. `fmow1` COMPLETE 304/304 (2026-09-10), 3 of 4 cells are TASK -- and TraLO wins 0 of 4. FRAMEWORK 2(z88)** |
 | **iwildcam/oodslice** | camera | **+3133** | **96.3** | **7** | 🟡 runnable, but a task in **0 of 24** cells at L20/L30/L50 |
 | **terra/oodslice** | camera | **+2546** | **75.8** | **5** | 🟡 screened 2026-08-28, META ONLY |
 | dermmnist/slice_1 | synth | +65 | 2.9 | 0 | ⛔ leaked + removed |

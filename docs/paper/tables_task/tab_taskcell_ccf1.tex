@@ -1,0 +1,32 @@
+\begin{table*}[t]
+\centering
+\small
+\setlength{\tabcolsep}{3.0pt}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{cllc ccccccccc}
+\toprule
+Unit & Backbone & Campaign & Cap & Clip$^{\dagger}$ & Focal+Clip$^{\dagger}$ & $\lambda{=}0^{\ddagger}$ & RNG floor$^{\ddagger}$ & RNG floor 2$^{\ddagger}$ & \textsc{TraLO} & ALM & LDF & RCL \\
+\midrule
+A1 & MNv2 & \texttt{dom1} & \texttt{L80\_G95} & .870{\tiny $\pm$.009} & .869{\tiny $\pm$.007} & .862{\tiny $\pm$.008} & .871{\tiny $\pm$.004} & -- & \underline{.875{\tiny $\pm$.009}} & \underline{.876{\tiny $\pm$.005}} & .869{\tiny $\pm$.012}$^{\S}$ & .868{\tiny $\pm$.010}$^{\S}$ \\
+A1 & MNv2 & \texttt{dom1} & \texttt{L95\_G80} & .869{\tiny $\pm$.006} & .865{\tiny $\pm$.006} & .866{\tiny $\pm$.012} & .870{\tiny $\pm$.008} & -- & \underline{.880{\tiny $\pm$.003}} & \underline{.883{\tiny $\pm$.005}} & .872{\tiny $\pm$.006}$^{\S}$ & .881{\tiny $\pm$.007}$^{\S}$ \\
+\midrule
+A2 & MNv2 & \texttt{coin2} & \texttt{L70\_G95} & .812{\tiny $\pm$.008} & .812{\tiny $\pm$.008} & .813{\tiny $\pm$.007} & .809{\tiny $\pm$.009} & -- & .808{\tiny $\pm$.008} & -- & -- & -- \\
+A2 & MNv2 & \texttt{equaldose1} & \texttt{L80\_G95} & .874{\tiny $\pm$.007} & .872{\tiny $\pm$.011} & .875{\tiny $\pm$.006} & .869{\tiny $\pm$.012} & -- & \underline{.877{\tiny $\pm$.003}} & \underline{.876{\tiny $\pm$.003}} & .876{\tiny $\pm$.005}$^{\S}$ & .859{\tiny $\pm$.007}$^{\S}$ \\
+A2 & MNv2 & \texttt{equaldose1} & \texttt{L95\_G80} & .875{\tiny $\pm$.009} & .872{\tiny $\pm$.013} & .873{\tiny $\pm$.004} & .866{\tiny $\pm$.012} & -- & \underline{.881{\tiny $\pm$.006}} & \underline{.876{\tiny $\pm$.006}} & .873{\tiny $\pm$.009}$^{\S}$ & .881{\tiny $\pm$.008}$^{\S}$ \\
+\midrule
+B1 & RegNetY & \texttt{coin1} & \texttt{L70\_G95} & .813{\tiny $\pm$.004} & .810{\tiny $\pm$.008} & .811{\tiny $\pm$.009} & .816{\tiny $\pm$.002} & -- & .817{\tiny $\pm$.003} & -- & -- & -- \\
+B1 & RegNetY & \texttt{dom1b} & \texttt{L80\_G95} & .871{\tiny $\pm$.009} & .871{\tiny $\pm$.008} & .873{\tiny $\pm$.010} & .874{\tiny $\pm$.003} & -- & \underline{.875{\tiny $\pm$.004}} & \underline{.873{\tiny $\pm$.004}} & .875{\tiny $\pm$.003}$^{\S}$ & .863{\tiny $\pm$.007}$^{\S}$ \\
+B1 & RegNetY & \texttt{dom1b} & \texttt{L95\_G80} & .869{\tiny $\pm$.013} & .872{\tiny $\pm$.006} & .870{\tiny $\pm$.008} & .872{\tiny $\pm$.008} & -- & \underline{.874{\tiny $\pm$.009}} & \textbf{.881{\tiny $\pm$.003}} & .882{\tiny $\pm$.005}$^{\S}$ & .880{\tiny $\pm$.005}$^{\S}$ \\
+\midrule
+D1 & MNv3 & \texttt{bcn1mn3} & \texttt{L80\_G95} & .681{\tiny $\pm$.005} & .686{\tiny $\pm$.005} & .693{\tiny $\pm$.006} & .692{\tiny $\pm$.008} & -- & \underline{.695{\tiny $\pm$.005}} & \underline{.687{\tiny $\pm$.014}} & .686{\tiny $\pm$.005} & .681{\tiny $\pm$.011} \\
+D1 & MNv3 & \texttt{bcn1mn3} & \texttt{L90\_G95} & .711{\tiny $\pm$.011} & .714{\tiny $\pm$.005} & .715{\tiny $\pm$.005} & .720{\tiny $\pm$.009} & -- & \underline{.714{\tiny $\pm$.011}} & \underline{.717{\tiny $\pm$.010}} & .709{\tiny $\pm$.007} & \underline{.721{\tiny $\pm$.010}} \\
+\midrule
+E1 & MNv3 & \texttt{fmow1} & \texttt{L30\_G95} & .356{\tiny $\pm$.005} & .358{\tiny $\pm$.010} & .354{\tiny $\pm$.008} & .360{\tiny $\pm$.011} & .370{\tiny $\pm$.011} & .346{\tiny $\pm$.014} & .350{\tiny $\pm$.006} & \underline{.365{\tiny $\pm$.009}} & \underline{.372{\tiny $\pm$.009}} \\
+\midrule
+E2 & ViT-B/16 & \texttt{fmow1} & \texttt{L20\_G95} & .259{\tiny $\pm$.012} & .257{\tiny $\pm$.010} & .243{\tiny $\pm$.011} & .255{\tiny $\pm$.009} & .260{\tiny $\pm$.009} & .246{\tiny $\pm$.008} & \underline{.257{\tiny $\pm$.006}} & .248{\tiny $\pm$.008} & \underline{.260{\tiny $\pm$.012}} \\
+E2 & ViT-B/16 & \texttt{fmow1} & \texttt{L30\_G95} & .344{\tiny $\pm$.015} & .354{\tiny $\pm$.016} & .331{\tiny $\pm$.012} & .343{\tiny $\pm$.009} & .348{\tiny $\pm$.012} & .337{\tiny $\pm$.021} & .342{\tiny $\pm$.016} & \underline{.345{\tiny $\pm$.009}} & \underline{.357{\tiny $\pm$.009}} \\
+\bottomrule
+\end{tabular}}
+\caption{\textbf{Capped-class F1 (cc-F1) on the task cells.} Mean over 4 seeds, $\pm$ across-seed sample standard deviation. Ten cells, but only \textbf{four independent units}: two cap levels within one campaign share a warm-up, so a sign test runs over the \emph{Unit} column and not over rows. $^{\dagger}$post-hoc clippers (30 warm-up epochs, 0 constraint epochs). $^{\ddagger}$$\lambda{=}0$ controls at identical compute: the twin isolates the constraint, the RNG floor is that twin with only its random stream perturbed. $^{\S}$28.00 attempted constraint steps per run against 29.00 for every other arm -- not at equal compute, and excluded from the comparison. \textbf{Bold} marks a constrained arm leading the other constrained arms by more than the cell's own median across-seed standard deviation; where no arm clears that band the tied leaders are underlined instead. 2 of these cells stage \textsc{TraLO} with no rival constrained method and cannot test the comparison in either direction; they are never marked. Among the remaining 11 an unambiguous leader exists in \textbf{1} (ALM in 1); the other 10 are ties inside the seed noise.}
+\label{tab:taskcell-ccf1}
+\end{table*}

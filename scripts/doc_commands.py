@@ -82,7 +82,8 @@ ABSENT_OK = {
     "scripts.ens_panel":
         "exists only on the server branch `snap/slice-provenance`, which was "
         "never merged and is not among the 40 remote-tracking branches here "
-        "(last server fetch 2026-09-08). `snap2` is RUNNING from it, so its "
+        "(last server fetch 2026-09-08). `snap2` is COMPLETE at 96/96 (census "
+        "2026-09-10) and ran from it, so its "
         "results will carry a `code_version` no other checkout can resolve. "
         "FRAMEWORK 2(z67). Blocked on host access.",
 }

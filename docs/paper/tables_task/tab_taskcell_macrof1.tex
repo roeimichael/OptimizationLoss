@@ -1,0 +1,32 @@
+\begin{table*}[t]
+\centering
+\small
+\setlength{\tabcolsep}{3.0pt}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{cllc ccccccccc}
+\toprule
+Unit & Backbone & Campaign & Cap & Clip$^{\dagger}$ & Focal+Clip$^{\dagger}$ & $\lambda{=}0^{\ddagger}$ & RNG floor$^{\ddagger}$ & RNG floor 2$^{\ddagger}$ & \textsc{TraLO} & ALM & LDF & RCL \\
+\midrule
+A1 & MNv2 & \texttt{dom1} & \texttt{L80\_G95} & .775{\tiny $\pm$.004} & .767{\tiny $\pm$.025} & .764{\tiny $\pm$.023} & .774{\tiny $\pm$.015} & -- & \underline{.765{\tiny $\pm$.013}} & \underline{.771{\tiny $\pm$.006}} & .772{\tiny $\pm$.011}$^{\S}$ & .777{\tiny $\pm$.009}$^{\S}$ \\
+A1 & MNv2 & \texttt{dom1} & \texttt{L95\_G80} & .777{\tiny $\pm$.005} & .767{\tiny $\pm$.026} & .767{\tiny $\pm$.023} & .777{\tiny $\pm$.014} & -- & \underline{.765{\tiny $\pm$.016}} & \underline{.769{\tiny $\pm$.015}} & .777{\tiny $\pm$.020}$^{\S}$ & .770{\tiny $\pm$.018}$^{\S}$ \\
+\midrule
+A2 & MNv2 & \texttt{coin2} & \texttt{L70\_G95} & .736{\tiny $\pm$.032} & .733{\tiny $\pm$.014} & .744{\tiny $\pm$.007} & .741{\tiny $\pm$.018} & -- & .744{\tiny $\pm$.007} & -- & -- & -- \\
+A2 & MNv2 & \texttt{equaldose1} & \texttt{L80\_G95} & .765{\tiny $\pm$.033} & .763{\tiny $\pm$.014} & .775{\tiny $\pm$.007} & .770{\tiny $\pm$.019} & -- & \underline{.772{\tiny $\pm$.024}} & \underline{.783{\tiny $\pm$.020}} & .771{\tiny $\pm$.017}$^{\S}$ & .762{\tiny $\pm$.019}$^{\S}$ \\
+A2 & MNv2 & \texttt{equaldose1} & \texttt{L95\_G80} & .768{\tiny $\pm$.032} & .765{\tiny $\pm$.014} & .777{\tiny $\pm$.008} & .771{\tiny $\pm$.019} & -- & \underline{.778{\tiny $\pm$.016}} & \underline{.778{\tiny $\pm$.017}} & .782{\tiny $\pm$.010}$^{\S}$ & .782{\tiny $\pm$.015}$^{\S}$ \\
+\midrule
+B1 & RegNetY & \texttt{coin1} & \texttt{L70\_G95} & .747{\tiny $\pm$.014} & .740{\tiny $\pm$.014} & .761{\tiny $\pm$.015} & .751{\tiny $\pm$.003} & -- & .747{\tiny $\pm$.035} & -- & -- & -- \\
+B1 & RegNetY & \texttt{dom1b} & \texttt{L80\_G95} & .774{\tiny $\pm$.014} & .769{\tiny $\pm$.014} & .789{\tiny $\pm$.016} & .778{\tiny $\pm$.003} & -- & \underline{.787{\tiny $\pm$.010}} & \underline{.776{\tiny $\pm$.020}} & .772{\tiny $\pm$.025}$^{\S}$ & .771{\tiny $\pm$.013}$^{\S}$ \\
+B1 & RegNetY & \texttt{dom1b} & \texttt{L95\_G80} & .775{\tiny $\pm$.013} & .771{\tiny $\pm$.015} & .789{\tiny $\pm$.019} & .781{\tiny $\pm$.006} & -- & \underline{.779{\tiny $\pm$.024}} & \underline{.781{\tiny $\pm$.015}} & .767{\tiny $\pm$.023}$^{\S}$ & .770{\tiny $\pm$.026}$^{\S}$ \\
+\midrule
+D1 & MNv3 & \texttt{bcn1mn3} & \texttt{L80\_G95} & .418{\tiny $\pm$.010} & .426{\tiny $\pm$.006} & .434{\tiny $\pm$.004} & .421{\tiny $\pm$.007} & -- & .428{\tiny $\pm$.005} & \underline{.434{\tiny $\pm$.013}} & \underline{.431{\tiny $\pm$.006}} & .419{\tiny $\pm$.006} \\
+D1 & MNv3 & \texttt{bcn1mn3} & \texttt{L90\_G95} & .430{\tiny $\pm$.010} & .432{\tiny $\pm$.006} & .445{\tiny $\pm$.005} & .432{\tiny $\pm$.005} & -- & .426{\tiny $\pm$.011} & \underline{.441{\tiny $\pm$.004}} & \underline{.437{\tiny $\pm$.007}} & \underline{.439{\tiny $\pm$.010}} \\
+\midrule
+E1 & MNv3 & \texttt{fmow1} & \texttt{L30\_G95} & .556{\tiny $\pm$.019} & .557{\tiny $\pm$.009} & .562{\tiny $\pm$.009} & .553{\tiny $\pm$.018} & .556{\tiny $\pm$.011} & \underline{.569{\tiny $\pm$.011}} & .555{\tiny $\pm$.008} & \underline{.566{\tiny $\pm$.003}} & \underline{.564{\tiny $\pm$.009}} \\
+\midrule
+E2 & ViT-B/16 & \texttt{fmow1} & \texttt{L20\_G95} & .497{\tiny $\pm$.011} & .503{\tiny $\pm$.016} & .488{\tiny $\pm$.014} & .494{\tiny $\pm$.010} & .503{\tiny $\pm$.009} & \underline{.495{\tiny $\pm$.005}} & \underline{.496{\tiny $\pm$.006}} & \underline{.489{\tiny $\pm$.017}} & \underline{.496{\tiny $\pm$.008}} \\
+E2 & ViT-B/16 & \texttt{fmow1} & \texttt{L30\_G95} & .523{\tiny $\pm$.011} & .532{\tiny $\pm$.017} & .514{\tiny $\pm$.014} & .521{\tiny $\pm$.010} & .530{\tiny $\pm$.011} & .527{\tiny $\pm$.007} & \underline{.534{\tiny $\pm$.010}} & .505{\tiny $\pm$.024} & \underline{.537{\tiny $\pm$.008}} \\
+\bottomrule
+\end{tabular}}
+\caption{\textbf{Macro-F1 on the same cells}, over all classes. Conventions as in Table~\ref{tab:taskcell-ccf1}. The capped classes are 2 of 8 (iWildCam) and 2 of 7 (BCN), so this metric is carried by the classes the constraint never touches; it is reported because cc-F1 alone cannot show collateral damage. 2 of these cells stage \textsc{TraLO} with no rival constrained method and cannot test the comparison in either direction; they are never marked. Among the remaining 11, \textbf{no cell has an unambiguous leader} -- the constrained arms sit inside one another's seed noise throughout.}
+\label{tab:taskcell-macrof1}
+\end{table*}

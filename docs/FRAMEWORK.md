@@ -14801,6 +14801,17 @@ seventeen from unpriceable into decided.
 
 Ranking all 17 arms in D1's two TASK cells by items vs `clip`:
 
+⚠️ **THESE ARE `full_panel` ITEMS -- AN ccF1-DERIVED ESTIMATE, NOT A COUNT,
+AND THE TWO DIFFER BY 15%.** `full_panel` converts its macro-averaged ccF1
+delta through a SINGLE scale `sum(K_c+n_c)/2`, which is exact only when the
+delta splits proportionally to `(K_c+n_c)` across the capped classes -- and it
+never does. `deployed_h2h` COUNTS the same contrast in `final_predictions.csv`
+and reads **+24.25** where this table reads **+27.94** (the counted figure is
+the one in the acceptance table above, 2(z60)). Quote the counted number when
+the sentence is about items; quote this one only for the ORDERING, which is
+what this table is for. Nothing about the ranking changes: `tralo_coin_sgd`
+outranks `tralo` under either scale.
+
 | rank | L80_G95 | | L90_G95 | |
 |---|---|---|---|---|
 | 1 | `tralo_sgd` | +31.52 | **`tralo_coin_sgd`** | **+26.74** |
@@ -14817,7 +14828,9 @@ it outranks stock TraLO in BOTH task cells -- 2nd and 1st against 3rd and 10th.
 a **second dataset**, with a second backbone, at loose task caps.
 
 ⛔ **AND `tralo_lam0` READS `+14.74` vs `clip` AT L80** -- an arm that takes
-its constraint steps with lambda = 0. That is **53% of TraLO's own +27.94**,
+its constraint steps with lambda = 0. That is **53% of TraLO's own +27.94**
+(both on the same ccF1-derived scale, so the RATIO is unaffected by the caveat
+above),
 recovered with the penalty switched off, which is the compute-not-method
 finding restated on the second dataset.
 
@@ -14867,7 +14880,7 @@ distrust every row.
 | TraLO > **alm** (the ONLY surviving rival dual) | 🔴 **NOT shown** | 4/6 on every metric, p=0.69; as-deployed #1 in **0 of 15** cells, 2(z43) | -- |
 | TraLO #1 of the duals, as deployed | 🔴 **REFUTED** | **2 of 15 cells namable, both `alm`, TraLO 0** once the dead arms drop (2(z43)) | -- |
 | TraLO is a better ENFORCER | 🔴 **REFUTED** | pulls **+6.2 items** vs `alm` **+17.8** -- the weaker of the two surviving arms | -- |
-| **The ACCEPTANCE BAR (>=50% of testable cells)** | 🔴 **FAIL** | `tralo_wins` **6 of 18 = 33%**, RECOMPUTED 2026-09-10 on today's code over the six licensed units with D1 added. Per unit **2 of 6**. The stale `6 of 17 = 35%` is superseded and the fix was worth ZERO cells. 🟢 **1 of 18 is PRICED, the first ever, and `tralo` wins it.** 2(z86) | `price1`+`price2` pricing the other 17 |
+| **The ACCEPTANCE BAR (>=50% of testable cells)** | 🔴 **FAIL** | `tralo_wins` **6 of 22 = 27%**, recomputed 2026-09-10 over the EIGHT licensed units once `fmow1` landed. Per unit **2 of 8**. `fmow1` is the third dataset, the headline backbone, all four duals at EQUAL 29.00 dose and THREE lambda=0 streams -- the cleanest cells in the corpus -- and `tralo` takes **0 of its 4**, is negative vs `clip` in all three task cells and LAST of the four duals in all four. 🟡 **TWO cells are now PRICED and the record is 1 WIN 1 LOSS**; the loss is fmow1/ViTB16/L20 at -10.00 items against a 6.5 floor. The intermediate `6 of 18 = 33% / 2 of 6` (2(z86)) and the stale `6 of 17 = 35%` are both superseded. **2(z88)** | change the METHOD; `price1`+`price2` still price the iwildcam cells |
 | **The per-scope WEIGHTING family** | ⛔ **CLOSED** | `itemscale1`+`2`: mechanism CONFIRMED and replicated (MIDDLE +6.4 items, K=0 budget share 93.5%->15.3% as predicted) and the deployed score did NOT follow -- 25% vs the 50% bar, **0 of 4 priced**, and **`tralo_coin`, a RANDOM direction of the same norm, took a cell** (2(z56)) | -- |
 | **`tralo_dualprop` (magnitude, not frequency)** | 🔴 **REJECTED** | `dualprop1`, sign 6 of 6; the constraint also makes the RANKING worse (2(z53)). ⚠️ read at 72/88 runs = 3 seeds; DIRECTION safe, NUMBERS provisional (task #106) | -- |
 | **Excess removed buys deployed quality** (the premise the whole program rests on) | 🟡 **WEAK, and it is a premise not a result** | rho **+0.383** over 2 cells, 1 of 2 positive (2(z56)); **+0.442** over 6 cells (96 runs), 4 of 6 -- the `--arms`-honoured recompute of 2026-09-09, task #85. ⚠️ **THAT SECOND FIGURE HAS NO ENTRY IN THIS FILE**; it is recorded only in CLAUDE.md's `deep_scope` block, which is a tool docstring and not the ledger. 4 of 6 is p=0.34 either way -- a DIRECTION, never a measurement | a cell where the proxy moves and the metric does not follow -- already seen twice |
@@ -16230,3 +16243,313 @@ directories finds ten, and this is the line that says why.
 
 The full run-by-run record, with numbers, p-values and cell counts, is preserved at
 `docs/archive/REJECTED_full_2026-08-18.md`. It is history, not instructions.
+
+---
+
+## 2(z87). THE SAME RESULT IN THE OFFICIAL METRIC: 1 OF 8 TESTABLE CELLS HAS AN UNAMBIGUOUS LEADER AND IT IS `alm`; IN MACRO-F1 IT IS ZERO. AND A PAPER TABLE BOLDS A RIVAL-FREE CELL UNLESS IT IS STOPPED (2026-09-10)
+
+⛔ **SCOPE, ADDED THE SAME DAY: EVERY COUNT IN THIS ENTRY IS OVER THE TEN
+iwildcam + bcn CELLS, AND `fmow1` LANDED WHILE IT WAS BEING WRITTEN.** The
+generated tables now carry **13 cells over 6 units** and the counts move to
+`4 of 50` resolved and `1 of 11` testable cells with an unambiguous leader.
+The entry is left at its ten-cell reading because that is what it measured;
+**2(z88) carries the 13-cell numbers and the fmow result**, which is a
+CONCLUSION change and not a restatement -- the first `vs clip` contrast in the
+corpus that resolves appears there, and it is negative.
+
+**THE ONE-LINE VERSION.** 2(z86) reads the corpus in ITEMS, which is the unit
+the mechanism arguments use and is not the unit the paper reports. Rebuilt in
+**cc-F1 and macro-F1**, over the same ten de-duplicated task cells and the same
+four units: **1 of 8 testable cells has a constrained arm that leads the other
+constrained arms by more than that cell's own seed noise, and the arm is
+`alm`.** In macro-F1 no cell does. **3 of 38 paired contrasts resolve, and all
+three are against a lambda=0 control rather than a rival method.**
+
+### 1. The instrument
+
+`docs/paper/scripts/make_task_cell_table.py` -> `docs/paper/tables_task/`
+(`tab_taskcell_ccf1.tex`, `tab_taskcell_macrof1.tex`,
+`tab_taskcell_contrast.tex`). It reads one artefact,
+`docs/paper/data/task_cells_iwildcam_bcn_2026-09-10.json`, which carries the
+**per-seed** cc-F1 and macro-F1 of every arm in every cell, so every number in
+the tables and in their captions is derived rather than transcribed.
+
+🛑 **IT IS NOT `make_main_table.py` AND MUST NEVER BE CONFUSED WITH IT.** That
+generator reads `corpus_final.csv` -- the dermmnist / octmnist / tissuemnist
+generation, a corpus that no longer exists. The two share no row.
+
+Three deliberate departures from the shipped table's conventions, each one a
+lesson this project already paid for:
+
+* **The tie band is MEASURED, not fixed at 0.005.** `tab_ccf1.tex` hardcodes
+  0.005; here the band is the cell's own median across-seed sd. 2(z77): at 4
+  seeds the minimum detectable effect and the whole per-cell prize are the same
+  size, so a fixed band promotes noise to a bold mark. The per-arm across-seed sd here
+  runs **0.0023-0.0141** (median 0.0073) and the resulting per-cell BAND runs
+  **0.003-0.010**. The shipped 0.005 constant sits BELOW the band in 6 of these
+  10 cells and above it in 4, so it does not err in one direction -- it is
+  simply unrelated to the noise of the cell it is applied to.
+* **A UNIT column.** Ten cells, **four** units. The sign test runs over the
+  column, never over rows.
+* **`fioretto`/`hounie` carry a section mark on `dom1`, `dom1b`, `equaldose1`**
+  -- 28.00 attempted constraint steps per run against 29.00 -- and are excluded
+  from the comparison rather than silently included. `DOSE_DEAD` mirrors
+  `quarantine.REGISTRY`.
+
+### 2. 🔴 THE READING, cc-F1
+
+| unit | campaign | cap | clip | lam0 | RNG floor | `tralo` | `alm` |
+|---|---|---|---|---|---|---|---|
+| A1 | `dom1` | L80_G95 | .870 | .862 | .871 | .875 | .876 |
+| A1 | `dom1` | L95_G80 | .869 | .866 | .870 | .880 | **.883** |
+| A2 | `coin2` | L70_G95 | .812 | .813 | .809 | **.808** | -- |
+| A2 | `equaldose1` | L80_G95 | .874 | .875 | .869 | .877 | .876 |
+| A2 | `equaldose1` | L95_G80 | .875 | .873 | .866 | .881 | .876 |
+| B1 | `coin1` | L70_G95 | .813 | .811 | .816 | .817 | -- |
+| B1 | `dom1b` | L80_G95 | .871 | .873 | .874 | .875 | .873 |
+| B1 | `dom1b` | L95_G80 | .869 | .870 | .872 | .874 | **.881** |
+| D1 | `bcn1mn3` | L80_G95 | .681 | .693 | .692 | .695 | .687 |
+| D1 | `bcn1mn3` | L90_G95 | .711 | .715 | **.720** | .714 | .717 |
+
+Across-seed sd runs **0.0023-0.0141** and the whole `tralo` - `clip` spread is
+**-0.0034 to +0.0138**. The effect and the instrument are the same size, which is
+2(z77) restated in the paper's own metric.
+
+⛔ **THE RNG FLOOR OUTSCORES `tralo` IN TWO OF TEN CELLS** -- `bcn1mn3`/L90
+(.720 vs .714) and `coin2`/L70 (.809 vs .808). An arm that is the lambda=0 twin
+with its random stream perturbed and nothing else. In a third, `coin1`/L70, the
+two sit at .816 vs .817.
+
+### 3. 🔴 WHAT RESOLVES: 3 OF 38, AND NONE AGAINST A RIVAL
+
+`|mean paired delta| > 2 x its own paired sd`, over the seeds each pair shares:
+
+| unit | campaign | cap | vs `clip` | vs its own lam0 | vs RNG floor | vs `alm` |
+|---|---|---|---|---|---|---|
+| A1 | `dom1` | L80_G95 | +0.006 | **+0.013** | +0.004 | -0.000 |
+| A1 | `dom1` | L95_G80 | +0.011 | +0.014 | +0.010 | -0.003 |
+| A2 | `coin2` | L70_G95 | -0.003 | -0.005 | -0.001 | -- |
+| A2 | `equaldose1` | L80_G95 | +0.003 | +0.002 | +0.008 | +0.000 |
+| A2 | `equaldose1` | L95_G80 | +0.006 | **+0.008** | **+0.016** | +0.005 |
+| B1 | `coin1` | L70_G95 | +0.004 | +0.006 | +0.002 | -- |
+| B1 | `dom1b` | L80_G95 | +0.004 | +0.002 | +0.002 | +0.003 |
+| B1 | `dom1b` | L95_G80 | +0.005 | +0.004 | +0.002 | -0.007 |
+| D1 | `bcn1mn3` | L80_G95 | +0.014 | +0.001 | +0.002 | +0.007 |
+| D1 | `bcn1mn3` | L90_G95 | +0.003 | -0.000 | -0.005 | -0.003 |
+
+🛑 **NOT ONE `vs clip` AND NOT ONE `vs alm` CONTRAST RESOLVES**, in ten cells.
+Every resolved entry is against a lambda=0 control -- i.e. the design can see
+that the constraint does SOMETHING, and cannot see that it does something
+BETTER than the alternatives. That is the same shape as 2(z70)'s
+`FLOOR UNMEASURED`, now stated in the metric the paper reports.
+
+⚠️ `vs alm` is **8 cells, 4 positive -- an exact split, sign p=1.0** -- and
+the largest entry either way is 0.0072, against per-arm sds of 0.0023-0.0141.
+
+### 4. 🔴 MACRO-F1 IS WORSE, AND IT IS THE `lambda=0` ARM THAT LEADS
+
+**Zero of eight** testable cells has an unambiguous leader. And on the
+lambda=0-vs-treated axis the sign is against the constraint: `tralo_null` beats
+`tralo` in macro-F1 in **8 of 10** cells, by up to **+0.0197**
+(`bcn1mn3`/L90: .4453 vs .4256). In cc-F1 that same comparison runs the other
+way, 2 of 10, so this is a metric-specific finding and not a restatement.
+The capped classes are 2 of 8 on iWildCam and 2 of 7 on BCN, so macro-F1
+is carried by the classes the constraint never touches -- which is exactly why
+it is the metric that can show collateral damage, and it does.
+
+### 5. 🔑 THE DEFECT THE TABLE ITSELF HAD: A RIVAL-FREE CELL WINS UNCONTESTED
+
+The first run of the generator bolded `tralo` in **3 of 10** cells. Two of the
+three were `coin1`/L70 and `coin2`/L70, which stage `tralo` with **no rival
+dual at all** -- so `max()` over one entrant returned it, every time, at any
+value. In `coin2` it was bolded at **.808 while `clip` reads .812, `focal_clip`
+.812 and its own lambda=0 twin .813**: marked as the leader of the cell it
+loses.
+
+`tralo_wins` has excluded rival-free cells from its denominator since it was
+written, and prints them separately. A NEW table that re-derives the same
+verdict must re-derive the exclusion too, and the first version did not.
+
+🔑 **THE GENERAL RULE, AND IT IS THE THIRD TIME THIS WEEK:** 2(z80) is "the
+audit is per-FILE, the defect is per-CALL-SITE"; 2(z85) is "the enumeration is
+per-SPELLING, the defect is per-QUESTION"; this one is **A GUARD LIVES IN THE
+TOOL THAT HAS IT, NOT IN THE PROJECT.** Every reader of the corpus has to
+re-implement `tralo_wins`' exclusion, because it is a property of the CORPUS
+(some cells stage no rival) and not of any one scorer.
+
+⚠️ **AND ITS CAPTIONS HARDCODED TWO COUNTS THAT WERE BOTH WRONG.** The first
+draft said `no cell qualifies` (three did) and `both are against a lambda=0
+control` (there were three). Both are now COMPUTED from the same data the body
+is built from, and `--self-test` check 5 asserts the caption's number equals
+the body's bold count -- a caption stating a figure its generator does not
+compute is a doc figure with no scorer behind it, which is what
+`stale_figures` exists for.
+
+### 6. The gate
+
+`make_task_cell_table.py --self-test`: **10 checks, 4 of them explicit negative
+controls** (a rival-free cell must NOT be marked / the same lead WITH a rival
+must be; a lead inside the seed band must NOT be marked / the same gap on tight
+seeds must be; a 28-step arm must NOT win a PARTIAL campaign / the same arm in
+a live campaign must). Mutation-tested **5 of 5 caught**:
+
+    M1  rival-free cells marked again (the found defect)  caught, 2 checks
+    M2  tie band fixed at 0.005 instead of measured       caught
+    M3  dose-disqualified arms compete again              caught
+    M4  `paired` uses the UNION of seeds                  caught
+    M5  contrast table bolds every entry                  caught
+
+⚠️ **AND THE MUTATION HARNESS ITSELF LEFT THE FILE MUTATED.** It restored in
+straight-line code, an unrelated assertion fired first, and because the file was
+still UNTRACKED `git checkout` restored nothing -- M4's mutation sat in the tree
+until it was noticed. Restore in a `finally`, and prefer mutating a file git can
+give back.
+
+⚠️ Three of the self-test's own assertions were written `"\textbf{...}"` in a
+NON-raw string, so `\t` became a tab and they compared against nonsense. They
+failed loudly, which is the only reason it was caught -- an assertion that
+merely never fires is invisible.
+
+### 7. What this does to the paper
+
+The honest table is ready and it is the one above. What it can support:
+
+* `tralo` is at or above `clip` in **9 of 10** cells -- a consistent SIGN.
+* Not one `vs clip` or `vs alm` contrast is resolved by 4 seeds.
+* In cc-F1 the only unambiguous leader in any cell is `alm`; in macro-F1
+  there is none, and the lambda=0 arm leads in 8 of 10.
+
+⇒ The metric change does not rescue the acceptance bar and does not soften
+2(z86). It sharpens the same conclusion: **the trigger is to change the METHOD,
+and the second thing to buy is resolution** (`price1`/`price2`, three lambda=0
+streams, running).
+
+
+---
+
+## 2(z88). `fmow1` IS THE CLEANEST CAMPAIGN THE PROJECT HAS EVER RUN AND TraLO LOSES IT 0 OF 4 -- THIRD DATASET, HEADLINE BACKBONE, EQUAL DOSE, AND THE FIRST PRICED LOSS (2026-09-10)
+
+**THE ONE-LINE VERSION.** `fmow1` completed at **304/304** while 2(z87) was
+being written. It is the first campaign that satisfies EVERY methodological
+requirement this project has accumulated at once, and **`tralo` wins 0 of its 4
+cells**, is BELOW `clip` in all three task cells, and **loses the one PRICED
+cell by -10.00 items**. With it the acceptance bar is **6 of 22 = 27%,
+2 of 8 units, VERDICT FAIL** (was 6 of 18 = 33% over 6 units, 2(z86)).
+
+### 1. Why this campaign is different from every previous one
+
+Each of these was a separate objection raised against an earlier result. This is
+the first campaign against which none of them can be raised:
+
+| requirement | `fmow1` | how it was checked |
+|---|---|---|
+| a **third** dataset | fmow, held-out COUNTRY | -- |
+| the **HEADLINE** backbone | ViTB16, plus MobileNetV3 | FRAMEWORK 1-pre |
+| all four duals at **EQUAL DOSE** | **29.00** attempted steps/run for `alm`, `fioretto`, `hounie`, `tralo` and every tralo variant | `dose_landed` |
+| a **priceable** noise floor | **THREE** lambda=0 streams -> **12 observations**, clears `MIN_FLOOR_OBS`=8 | `tralo_null` + `tralo_reseed` + `tralo_reseed2` |
+| caps inside the **task window** | **3 of 4** cells `task`; MNv3/L20 is `non_task` and is excluded | `cell_table` |
+| intact predictions | all files intact | `pred_integrity` |
+| a **registered unit** | E1 (MNv3), E2 (ViTB16) | `MEASURED_UNITS`, added today |
+
+🔑 **THE WINDOWS WERE PRE-REGISTERED AND THEY HELD.** #96 re-measured fmow's
+task windows at 4 seeds this morning, BEFORE any arm was scored, and predicted
+L30 a task on both backbones and L20 a task only on ViT. `cell_table` then
+classified the campaign exactly that way: **3 task, 1 non_task**. A prediction
+made before the reading and confirmed by it is worth more than the reading.
+
+🔑 **AND E2 NEEDED NO md5.** Every other entry in `MEASURED_UNITS` required a
+hash comparison to prove it was not a duplicate. fmow is a third dataset and
+`base_model_id` hashes the dataset, so no campaign in the ledger can share a
+warm-up with it. It is the one independence claim here that is structural.
+
+### 2. 🔴 THE VERDICT, in deployed items vs `clip`
+
+```
+campaign  backbone     cap        tralo      alm  fioretto   hounie   floor priced verdict
+fmow1     MobileNetV3  L20_G95    +1.50    +6.25    +8.75    +3.25  6.5(12)    no   loss   (non_task)
+fmow1     MobileNetV3  L30_G95    -6.75    -4.00    +7.50   +13.25  7.0(12)    no   loss
+fmow1     ViTB16       L20_G95   -10.00    -2.00    -8.75    -0.75  6.5(12)   YES   loss
+fmow1     ViTB16       L30_G95    -6.00    -2.00    -0.75    +9.75 11.0(12)    no   loss
+```
+
+**0 of 4 = 0%.** `tralo` is NEGATIVE against the post-hoc clipper in three of
+four cells, and **LAST of the four duals in all four cells** -- not
+second-to-last in any of them.
+
+⛔ **AND THE PRICED CELL IS A LOSS.** 2(z69) established that `0 of N priced`
+was false by construction -- two lambda=0 streams over 4 seeds give 4
+observations against a bar of 8, so the test was never run. `fmow1` carries
+three streams and runs it. ViTB16/L20 clears the bar and **`tralo` loses it by
+-10.00 items against a 6.5-item floor.** The corpus-wide priced record is now
+**1 win, 1 loss** (`bcn1mn3`/L80 is the win, 2(z86)).
+
+### 3. 🔴 THE SAME THING IN cc-F1, AND AN RNG ARM BEATS THE METHOD
+
+| unit | backbone | cap | `clip` | lam0 | floor | **floor 2** | `tralo` |
+|---|---|---|---|---|---|---|---|
+| E1 | MNv3 | L30_G95 | .356 | .354 | .360 | **.370** | .346 |
+| E2 | ViTB16 | L20_G95 | .259 | .243 | .255 | **.260** | .246 |
+| E2 | ViTB16 | L30_G95 | .344 | .331 | .343 | **.348** | .337 |
+
+⛔ **`tralo_reseed2` BEATS `tralo` IN ALL THREE TASK CELLS.** That arm is
+`tralo_null` -- lambda = 0, zero constraint steps -- with a DIFFERENT RNG
+OFFSET and nothing else. It is not a method; it is the same method's random
+seed moved. It is also at or above `clip` in all three (**+0.0147, +0.0004,
++0.0045**), so this is not "the constraint hurts" -- it is that the spread
+between an arm and its own reseed is larger than the spread between the arm and
+the method it is meant to beat. ⚠️ The middle margin is four ten-thousandths
+and should never be quoted as a win on its own.
+
+⛔ **AND THE FIRST `vs clip` CONTRAST IN THE CORPUS THAT RESOLVES IS A LOSS.**
+2(z87) reported `3 of 38 contrasts resolve, none against a rival and none
+against clip`. With `fmow1` added it is **4 of 50**, and the new one is
+E2/ViTB16/L20: **-0.0132 cc-F1 against a paired sd of 0.0061, 0 of 4 seeds.**
+The full resolved list over 13 cells is now:
+
+| unit | campaign | cap | contrast | delta | sign |
+|---|---|---|---|---|---|
+| A1 | `dom1` | L80_G95 | vs its own lam0 | +0.0129 | 4/4 |
+| A2 | `equaldose1` | L95_G80 | vs its own lam0 | +0.0079 | 4/4 |
+| A2 | `equaldose1` | L95_G80 | vs the RNG floor | +0.0156 | 4/4 |
+| **E2** | **`fmow1`** | **L20_G95** | **vs `clip`** | **-0.0132** | **0/4** |
+
+Three of the four say the constraint changes the model. The fourth is the only
+one that compares it to an ALTERNATIVE, and it is negative. Not one `vs alm`,
+`vs fioretto` or `vs hounie` contrast resolves anywhere in the corpus.
+
+### 4. What it does NOT show
+
+⚠️ **fmow's absolute cc-F1 is 0.25-0.37 against iwildcam's 0.81-0.88.** It is a
+much harder slice and the arms sit closer to the floor of the metric, so the
+per-cell prize and the noise are both on a different scale. That is a reason to
+read the SIGN and the priced verdict, not to compare a delta here against a
+delta on `dom1`.
+
+⚠️ **`hounie` (RCL) is the strongest arm on this dataset** -- +13.25 and +9.75
+items at L30 on the two backbones -- and it has never had a clean comparison
+before, because it was dose-disqualified on `dom1`/`dom1b`/`equaldose1`
+(2(z38)). One campaign is not a ranking of the duals. It is, however, the first
+one entitled to try.
+
+⚠️ **The MNv3/L20 row is a `non_task` cell** and `tralo` is +1.50 there. Its
+inclusion in the 0-of-4 denominator is `tralo_wins`' own rule (it counts every
+cell holding a rival) and the cell would not change the verdict either way.
+
+### 5. What it does to the mandate
+
+The standing bar is *"tralo wins both clipper and dual methods in at least
+50%"*. It now reads **27% over 22 cells and 2 of 8 units**, on three datasets
+and four backbones, with the two objections that could previously be raised --
+unequal dose and an unpriceable floor -- both closed by this campaign rather
+than argued about.
+
+⇒ **The trigger is unchanged and now much better evidenced: change the METHOD.**
+More seeds sharpen an estimate; the estimate is not the problem. And the one
+thing more seeds WERE going to buy -- pricing -- has now been bought twice, and
+the record is 1-1.
+
+⇒ The offline probes that price a mechanism before it costs a GPU-hour
+(`straddle_probe` #110, `step_direction_probe` #112, `hp_liveness_real` #118)
+are what the free dsisco02 GPU should be earning, not another grid of the arm
+that just lost its cleanest test.
+

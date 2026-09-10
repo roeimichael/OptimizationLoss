@@ -262,7 +262,17 @@ def test_NEGATIVE_CONTROL_a_campaign_pair_is_not_a_free_replicate():
     # `compute_base_model_id` (the dataset is in the id PREFIX, so a bcn
     # warm-up cannot collide with an iwildcam one); whether TraLO clears its
     # own lambda=0 floor there is unread and needs the server.
-    assert ledger_size() == 6, (
-        "the ledger holds %d distinct units, not the 6 the documents claim. "
+    # 6 -> 8 on 2026-09-10, when `fmow1` completed at 304/304 and was scored.
+    # It staged BOTH MobileNetV3 and ViTB16 in one campaign, so it licenses TWO
+    # units, E1 and E2, and the (campaign, backbone) key is what separates them.
+    # fmow is a THIRD dataset, so the independence is structural rather than
+    # md5-verified -- the dataset sits in the `base_model_id` PREFIX and no
+    # other campaign has ever run on fmow. The attainable sign floor moves from
+    # 0.5^6 = 0.01563 to 0.5^8 = 0.00391.
+    # ⚠️ AND BOTH WERE READ THE SAME DAY, WHICH IS THE OPPOSITE OF D1's
+    # history: E1 and E2 are 0 of 2 cells each, so the ledger grew and the
+    # tally did not. FRAMEWORK 2(z88).
+    assert ledger_size() == 8, (
+        "the ledger holds %d distinct units, not the 8 the documents claim. "
         "Either MEASURED_UNITS gained a unit or a document is stale -- both "
         "move the sign floor and neither may pass silently." % ledger_size())

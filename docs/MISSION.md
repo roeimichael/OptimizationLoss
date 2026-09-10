@@ -5,7 +5,7 @@
 every working session. If it is stale, that is a defect -- fix it before doing
 anything else.
 
-Last updated: **2026-09-10** (🔴🔴🔴 **D1 WAS READ AND IT REFUTES THE HEADLINE. THE SIGN TEST CLEARS 0.05 UNDER NO AGGREGATION RULE.** The queue promised that reading units C2 and D1 would give `6/6 p=0.0156` unrestricted and `4/4 p=0.0625` task-restricted. Both were read at zero GPU cost on 2026-09-10 and the measurement is **5/6 p=0.109** at best (unrestricted, mean rule), **3/4 p=0.3125** task-restricted, and **3/6 p=0.656** under the worst-cell rule. `bcn1mn3`/MobileNetV3 is unit **D1** and it is the FIRST licensed unit whose `tralo` does not clear its own RNG floor: **+5.16 items at L80 and -11.61 at L90**, and -2.71 against its own null. C1 and C2 are SPLIT too once every cell is read, so `6/6` failed on THREE units rather than one, and A2's worst cell is **+0.02 items** -- a tie wearing a plus sign. FRAMEWORK **2(z86)**, task #102. 🔴 **AND THE ACCEPTANCE BAR IS RECOMPUTED AND STILL FAILS: 6 of 18 = 33%**, per unit 2 of 6, bar 50%. The stale `6 of 17 = 35%` predated `rank_cell`'s common-seeds fix by 14 hours and 2(z68) said its direction could not be assumed -- measured, the fix was worth ZERO cells. Task #104 discharged. 🟢 **1 of 18 cells is PRICED, the first ever, and `tralo` wins it** -- every previous run read `0 of N`, false by construction because two lambda=0 streams over 4 seeds give 4 observations against `MIN_FLOOR_OBS`=8 (2(z69)). ⛔ **THE SHARPEST NUMBER IS NOT ABOUT THE CAP: `tralo_coin_sgd`, a RANDOM constraint direction of the same norm, OUTRANKS stock TraLO in BOTH of D1's task cells** (2nd vs 3rd at L80, 1st vs 10th at L90), and `tralo_lam0` -- lambda switched off -- recovers +14.74 of TraLO's +27.94 vs `clip`. 2(z29) and 2(z56) replicated on a SECOND dataset and backbone. ⇒ Per the standing bar this is the trigger to change the METHOD, not to run more seeds of it. 🟢 **SSH IS BACK AND THE RIG IS FULL**: `price1` and `price2` relaunched on dsisco01 GPU 0/1 at 15:11 (both were stalled with dead `running` statuses), `fmow1` at 300/304 on dsisco02 GPU 2, `vitdual2` queued for the next free slot. `price1`'s dose is EQUAL at 29.00 attempted steps/run across every trained arm. **`bcn1vit` and `snap2` are COMPLETE and both docs still called them LIVE**; `price2`, `seed58a`, `bcnpilot1/2` and `fmowpilot1/2` exist on disk and NO doc named them. See 0-RUNNING, now a verified CENSUS. Also: an ELEVENTH global-top-K site, `straddle_probe`, found by asking what the call-site gate could not see -- `np.partition` was not in its target list, 2(z85).)
+Last updated: **2026-09-10** (🔴🔴🔴🔴 **`fmow1` LANDED AT 304/304 AND IS THE CLEANEST TEST THE PROJECT HAS EVER RUN -- TraLO WINS 0 OF ITS 4 CELLS.** Third dataset (fmow, held-out COUNTRY), the HEADLINE backbone (ViTB16) plus MobileNetV3, all four duals at **EQUAL 29.00 attempted steps/run**, **THREE lambda=0 streams** so the floor rests on **12 observations** and clears `MIN_FLOOR_OBS`=8, predictions intact, and **3 of 4 cells are TASK cells exactly as the windows re-measured this morning predicted**. Every objection ever raised against an earlier result is closed by this campaign at once. Result: `tralo` is **NEGATIVE vs `clip` in all three task cells** and **LAST of the four duals in all four**, and it **LOSES THE ONE PRICED CELL by -10.00 items against a 6.5-item floor**. The corpus-wide priced record is now **1 win, 1 loss**. ⇒ **THE ACCEPTANCE BAR IS 6 of 22 = 27%, per unit 2 of 8, VERDICT FAIL** (was 6 of 18 = 33% over 6 units). FRAMEWORK **2(z88)**. 🔴 **AND IN cc-F1 -- THE OFFICIAL METRIC -- `tralo_reseed2` BEATS `tralo` IN ALL THREE fmow TASK CELLS**: that arm is the lambda=0 twin with a different RNG offset and nothing else. **The first `vs clip` contrast in the whole corpus that RESOLVES appeared today and it is a LOSS** (-0.0132 cc-F1, paired sd 0.0061, 0/4 seeds). Over all 13 task cells only **4 of 50** contrasts resolve; three say the constraint changes the model and the fourth is the only one comparing it to an ALTERNATIVE. FRAMEWORK **2(z87)** carries the paper tables -- `docs/paper/scripts/make_task_cell_table.py` -> `docs/paper/tables_task/`, 13 cells / 6 units in cc-F1 and macro-F1, gated by 10 checks and mutation-tested 5/5. In cc-F1 **1 of 11 testable cells has an unambiguous leader and it is `alm`**; in macro-F1 **zero**, and the lambda=0 arm leads 8 of 10 on iwildcam+bcn. 🟢 dsisco02 GPU 2 is FREE (fmow1 finished); `price1` 39/80 and `price2` 16/80 still running on dsisco01 GPU 0/1. ⛔ All three stalled ViT campaigns -- `vitdual2`, `vitseed1`, `vitcoin1` -- are **dsisco01/fp16** by their dispatcher logs and may NOT be finished on dsisco02. | PREVIOUS: 🔴🔴🔴 **D1 WAS READ AND IT REFUTES THE HEADLINE. THE SIGN TEST CLEARS 0.05 UNDER NO AGGREGATION RULE.** The queue promised that reading units C2 and D1 would give `6/6 p=0.0156` unrestricted and `4/4 p=0.0625` task-restricted. Both were read at zero GPU cost on 2026-09-10 and the measurement is **5/6 p=0.109** at best (unrestricted, mean rule), **3/4 p=0.3125** task-restricted, and **3/6 p=0.656** under the worst-cell rule. `bcn1mn3`/MobileNetV3 is unit **D1** and it is the FIRST licensed unit whose `tralo` does not clear its own RNG floor: **+5.16 items at L80 and -11.61 at L90**, and -2.71 against its own null. C1 and C2 are SPLIT too once every cell is read, so `6/6` failed on THREE units rather than one, and A2's worst cell is **+0.02 items** -- a tie wearing a plus sign. FRAMEWORK **2(z86)**, task #102. 🔴 **AND THE ACCEPTANCE BAR IS RECOMPUTED AND STILL FAILS: 6 of 18 = 33%**, per unit 2 of 6, bar 50%. The stale `6 of 17 = 35%` predated `rank_cell`'s common-seeds fix by 14 hours and 2(z68) said its direction could not be assumed -- measured, the fix was worth ZERO cells. Task #104 discharged. 🟢 **1 of 18 cells is PRICED, the first ever, and `tralo` wins it** -- every previous run read `0 of N`, false by construction because two lambda=0 streams over 4 seeds give 4 observations against `MIN_FLOOR_OBS`=8 (2(z69)). ⛔ **THE SHARPEST NUMBER IS NOT ABOUT THE CAP: `tralo_coin_sgd`, a RANDOM constraint direction of the same norm, OUTRANKS stock TraLO in BOTH of D1's task cells** (2nd vs 3rd at L80, 1st vs 10th at L90), and `tralo_lam0` -- lambda switched off -- recovers +14.74 of TraLO's +27.94 vs `clip`. 2(z29) and 2(z56) replicated on a SECOND dataset and backbone. ⇒ Per the standing bar this is the trigger to change the METHOD, not to run more seeds of it. 🟢 **SSH IS BACK AND THE RIG IS FULL**: `price1` and `price2` relaunched on dsisco01 GPU 0/1 at 15:11 (both were stalled with dead `running` statuses), `fmow1` at 300/304 on dsisco02 GPU 2, `vitdual2` queued for the next free slot. `price1`'s dose is EQUAL at 29.00 attempted steps/run across every trained arm. **`bcn1vit` and `snap2` are COMPLETE and both docs still called them LIVE**; `price2`, `seed58a`, `bcnpilot1/2` and `fmowpilot1/2` exist on disk and NO doc named them. See 0-RUNNING, now a verified CENSUS. Also: an ELEVENTH global-top-K site, `straddle_probe`, found by asking what the call-site gate could not see -- `np.partition` was not in its target list, 2(z85).)
 
 ---
 
@@ -89,7 +89,8 @@ nothing. FRAMEWORK 2(z68), task #104.
 The headline is a sign test over independent units, and `0.5^4 = 0.0625` means
 four units cannot reach p<0.05 at any effect size. That has been read for a
 week as "we need a fifth campaign". **`scripts.paper_rows.MEASURED_UNITS`
-licenses SIX.**
+licenses SIX.** ⛔ **EIGHT since 2026-09-10 -- `fmow1` licenses E1 and E2,
+and both read 0 of 2. FRAMEWORK 2(z88).**
 
 | unit | campaign / backbone | sign |
 |---|---|---|
@@ -1326,7 +1327,7 @@ dated at writing reads as current forever. FRAMEWORK 2(z72).
 | host | GPUs | ours | theirs |
 |---|---|---|---|
 | **dsisco01** Quadro RTX 6000, fp16 + GradScaler | 4 | **GPU 0 `price1`, GPU 1 `price2`** (launched 15:11) | none, and no other user at all |
-| **dsisco02** RTX PRO 6000 Blackwell, BF16 | 4 | GPU 2 `fmow1` | ⛔ **GPU 0 = `nirgal`, two procs, 83 GB. DO NOT TOUCH** |
+| **dsisco02** RTX PRO 6000 Blackwell, BF16 | 4 | 🟢 **GPU 2 FREE at 17:5x -- `fmow1` COMPLETED 304/304 and was SCORED** | ⛔ **GPU 0 = `nirgal`, two procs, 83 GB. DO NOT TOUCH** |
 
 ⛔ **THE HOST IS PART OF THE UNIT AND NOTHING RECORDS IT.** `config.json` has no
 host, amp or device field -- the only receipt is the dispatcher log line
@@ -1346,10 +1347,11 @@ COMPLETE
   coin2        48/48     seed58a      40/40     taskwin2     48/48
   vitdual1     37/37     bcnpilot1    16/16     bcnpilot2    16/16
   fmowpilot1   16/16     fmowpilot2   32/32
-RUNNING
-  fmow1       300/304    dsisco02 GPU 2, 3 pending + 1 live
-  price1       27/80     dsisco01 GPU 0, RELAUNCHED 15:11
-  price2        2/80     dsisco01 GPU 1, RELAUNCHED 15:11
+RUNNING   (counts re-checked 2026-09-10 ~17:50)
+  price1       39/80     dsisco01 GPU 0, RELAUNCHED 15:11
+  price2       16/80     dsisco01 GPU 1, RELAUNCHED 15:11
+COMPLETE SINCE THE 15:04 CENSUS
+  fmow1       304/304    dsisco02 GPU 2 -- SCORED, 0 of 4. FRAMEWORK 2(z88)
 STALLED, no process behind the `running` status
   vitdual2     58/88     29 pending. THE FOUR-DUAL HEAD-TO-HEAD, headline backbone
   vitseed1     22/40     17 pending. Floor-only, no dual arms
@@ -1387,6 +1389,16 @@ when it is absent. Queue it on dsisco01 when `price1` or `price2` frees a GPU.
 `vitseed1` carries no dual arms and feeds the FLOOR only, so it ranks below
 `price1`/`price2`, which carry three lambda=0 streams and buy the same thing at
 3 obs per 8 runs instead of 1 per 4.
+
+🛑 **ALL THREE STALLED CAMPAIGNS ARE dsisco01/fp16, VERIFIED FROM THEIR OWN
+DISPATCHER LOGS 2026-09-10** -- `vitdual2` (read earlier from `~/vitdual2.log`),
+and now `vitseed1` and `vitcoin1`, both of which print
+`GPU: Quadro RTX 6000 | CUDA: 12.8 | AMP: float16 + GradScaler`. **So NONE of
+them may be finished on the dsisco02 GPU that just freed.** The host is part of
+the unit and there is no field in `config.json` that records it; the log line is
+the only receipt. Anything that runs on dsisco02 GPU 2 must therefore be a NEW
+campaign or an offline probe -- and 2(z88) says what it should not be, which is
+another grid of the arm that just lost its cleanest test.
 
 ### LANDED. ⛔ DO NOT RELAUNCH
 
