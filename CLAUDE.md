@@ -849,7 +849,16 @@ python -m scripts.ceiling_screen <slice-dir> --caps L20_G50 L30_G50 --classes 2 
                                             #   contrast actually run faces -- prize/sd is
                                             #   **0.04-0.09x at L20/L30/L50 and NEVER
                                             #   reaches 1.0, topping out at 0.90x at
-                                            #   K/n=90%**. 🛑 Pairing GROWS the noise here
+                                            #   K/n=90%**.
+                                            #   ⛔ **EVERY prize/sd FIGURE HERE IS
+                                            #   AGAINST `iwc3`'s TREATED sd AND IS
+                                            #   THEREFORE UNVERIFIED** -- `scorable=False`,
+                                            #   68.6% dose, `keep_for` = the fp16 receipt
+                                            #   only. Same defect as the `paired_noise`
+                                            #   block below; the reasoning is spelled out
+                                            #   once there. The MECHANISM sentence that
+                                            #   follows is a design fact and stands.
+                                            #   Re-run on `dom1`. FRAMEWORK 2(z71). 🛑 Pairing GROWS the noise here
                                             #   (7.6-29.1 items vs 0.8-13.5 unpaired):
                                             #   `tralo` and `tralo_null` share one warm-up
                                             #   epoch then train 29 apart, so they are two
@@ -885,7 +894,33 @@ python -m scripts.paired_noise --campaign <root>  # 🛑 THE COMPANION TO
                                             #   one. Measured on iwc3, class 2 at
                                             #   K/n=0.2: prize 0.42 items against an
                                             #   unpaired sd of 0.80 (0.52x) but a treated
-                                            #   sd of 7.59 (**0.05x**). The 4th number is
+                                            #   sd of 7.59 (**0.05x**).
+                                            #   ⛔ **THE `treated` NUMBER AND THE
+                                            #   6-12x RATIO ARE FROM `iwc3`, WHICH IS
+                                            #   `scorable=False` (2026-09-10).** Its
+                                            #   treated arm ran 716/1044 = 68.6% dose
+                                            #   and its `keep_for` is the fp16-dose
+                                            #   receipt only. The `unpaired` and
+                                            #   `reseed` columns are dose-IMMUNE
+                                            #   (lambda=0 arms take zero constraint
+                                            #   steps), so HALF this comparison is
+                                            #   sound and the half carrying the ratio
+                                            #   is not.
+                                            #   ⚠️ Direction NOT established: an
+                                            #   underdosed `tralo` sits nearer its
+                                            #   null, which plausibly SHRINKS the
+                                            #   treated sd and would make the true
+                                            #   penalty larger -- but that is an
+                                            #   argument, not a measurement, and this
+                                            #   project has been wrong about exactly
+                                            #   this kind of sign before.
+                                            #   ✅ THE MECHANISM STANDS REGARDLESS:
+                                            #   `tralo` and `tralo_null` share ONE
+                                            #   warm-up epoch and then train 29 apart,
+                                            #   so they are two MODELS. That is a
+                                            #   design fact, not a number. Re-run on
+                                            #   `dom1`. FRAMEWORK 2(z71).
+                                            #   The 4th number is
                                             #   `full_panel`'s `paired seed sd`, which is
                                             #   macro-averaged `d ccF1` in different
                                             #   units -- NEVER substitute it. `--self-test`
