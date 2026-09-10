@@ -270,16 +270,26 @@ instances; the audit listed four of the six and cleared them in one verdict.
 
 | # | site | found | state |
 |---|---|---|---|
-| 1 | `order_probe --evictions` | 2026-08-28 | ⚠️ **DISCLOSED, NOT FIXED** |
+| 1 | `order_probe --evictions` | 2026-08-28 | ✅ **FIXED 2026-09-10**, 13 days after disclosure -- and it held a THIRD defect: `K` came from `budget_for` on the RAW frame, i.e. the HARD count |
 | 2-6 | task window, cap screen, fmow window, `paired_noise`, `cut_gap` | 09-01 .. 09-09 | ✅ fixed |
 | 7 | `step_direction_probe` | 2026-09-10 | ✅ fixed |
 | 8 | `order_probe` band + Jaccard | 2026-09-10 | ✅ fixed |
 | 9 | **`score_scan` prec@K + Jaccard** | 2026-09-10 | ✅ fixed, **figure WITHDRAWN** |
+| 10 | **`reachability.slope_at`** -- its `live at K` / `flat at K` VERDICT read the globally k-th item of the whole column, off the RAW frame | 2026-09-10 | ✅ fixed |
 
-✅ **AND #114 IS DONE, WHICH IS HOW #9 WAS FOUND.**
+🔑 **SITE 10 WAS FOUND BY THE GATE THAT SITE 9 PRODUCED, WITHIN THE HOUR.**
+Fixing site 1 (`order_probe --evictions`, disclosed 2026-08-28 and unfixed
+since) introduced an `np.sort(pn)[::-1][K - 1]` the registry could not see,
+because it tracked `argsort` and not `sort`. Widening the target list took it
+from 40 call sites to **56**, and the first new entry anyone had to classify
+was site 10. `GLOBAL-OPEN` is now **0**: nothing is knowingly wrong and
+unfixed. ⚠️ Both fixes print BOTH readings and claim NO direction (2(z64)).
+
+✅ **AND #114 IS DONE, WHICH IS HOW #9 AND #10 WERE FOUND.**
 `tests/test_lessons_learned.py::test_every_sort_on_scores_is_classified_per_CALL_SITE`
-AST-walks `scripts/ src/ configs/` and requires all **40** sort-on-scores call
-sites to carry a verdict and a reason, keyed by the sorted EXPRESSION so that
+AST-walks `scripts/ src/ configs/` and requires all sort-on-scores call
+sites -- **56** once `sort` joined `argsort` in the target list -- to carry a
+verdict and a reason, keyed by the sorted EXPRESSION so that
 changing what is sorted turns it red. **Site 9 appeared the first time the
 sites were enumerated mechanically rather than read** -- and its `prec@K` and
 `Jaccard` had been computed on a globally-ranked set no run ever deployed,
@@ -1384,7 +1394,7 @@ like corpus.
 
 ## 📌 0-OPEN. NUMBERS THAT ARE NOT FINISHED YET (swept 2026-09-10)
 
-**Eight FRAMEWORK entries state a result and then say, in their own text, that
+**TEN FRAMEWORK entries state a result and then say, in their own text, that
 the number is not final.** An obligation is not a state claim -- it does not go
 stale, it only gets discharged -- so this is a checklist and every line names
 the task that owns it. ⛔ **Do not quote a number from these entries without
@@ -1395,6 +1405,8 @@ caveat is one line above it and gets left behind on the way to a table.
 |---|---|---|
 | 2(z53) | `dualprop1` was **72 of 88** runs, so every cell is **3 seeds, not 4**. The DIRECTION is safe (sign 6 of 6, `tralo_dualprop` stays rejected); every NUMBER, and the ranking-damage claim, is not | **#106** |
 | 2(z59) | the `fmow` task windows are written from **1-2 seeds** | #96 |
+| 2(w4) / 2(z84) | **`order_probe --evictions` HAS NO CURRENT ITEM FIGURE.** Both of its published numbers are superseded by the 2026-09-10 fix and neither has been re-measured: `+16.50 items per cell`, and `overstates by 6.5x`, which was `16.50 / 2.53` -- a wrong reading over a right one, so it sizes a defect that no longer exists rather than any property of the tool | **#121** |
+| 2(z84) | `reachability`'s `live at K` / `flat at K` verdicts were all GLOBAL readings (site 10). Every verdict it has ever printed is UNVERIFIED until it is re-run per group | **#121** |
 | 2(z67) | every `snap` result, because its branch is unfetched and its `code_version` resolves nowhere here | #103, #97 |
 | 2(z68) | the acceptance figure `6 of 17 = 35%` predates the scorer both halves of its verdict read. Say **"FAIL, figure pending recompute"**, never the figure | #104 |
 | 2(w3) / 2(z53) | the two results measure the SAME contrast with OPPOSITE signs and were never reconciled; `+0.0253` is additionally POOLED over 3 backbones x 2 caps, which rule 4 forbids | **#108** |

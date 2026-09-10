@@ -456,8 +456,19 @@ def main():
         print("   %-26s %+10.2f %+10.2f" % ("NET items per cell", e["net_items"].mean(), c["net_items"].mean()))
         print()
         print("   WHERE THE CUT SITS (from the twin's own scores)")
-        print("     p at the K-th item        %.4f   below 0.5 in %d/%d cells"
+        print("     p at each group's cut     %.4f   below 0.5 in %d/%d cells"
               % (e["p_cut"].mean(), int(e["cut_below_half"].sum()), len(e)))
+        print("     deepest group's cut       %.4f" % e["p_cut_min"].mean())
+        print("     p at the GLOBAL K-th      %.4f   <- the pre-2026-09-10"
+              % e["p_cut_glob"].mean())
+        print("                                          reading, retained so")
+        print("                                          old figures reproduce.")
+        print("                                          The gap is NOT a")
+        print("                                          direction (2(z64)).")
+        print("     deployed K vs HARD count  %.1f vs %.1f  <- the old K was the"
+              % (e["K"].mean(), e["K_raw"].mean()))
+        print("                                          HARD one, off the RAW")
+        print("                                          frame (2(z84)).")
         print("     mean p of EVICTED items   %.4f" % e["p_evicted"].mean())
         print("     mean p of ADMITTED items  %.4f" % e["p_admitted"].mean())
         print()
@@ -747,19 +758,32 @@ def evictions(campaign, arm_name, null_name, reseed_name, dead=()):
         base = os.sep.join(parts[:-2])
         a = load(arm_dir)
         n = load(os.path.join(base, null_name, seed))
-        if a is None or n is None:
+        # !! SITE 1 OF THE GLOBAL-TOP-K DEFECT, DISCLOSED 2026-08-28 AND FIXED
+        # 2026-09-10 (2(z84)). It carried BOTH halves of what site 8 carried:
+        #   (a) `budget_for(a, cls)` on the RAW frame, which holds the model's
+        #       ARGMAX, so K was the HARD COUNT and not the allocator's budget;
+        #   (b) `argsort(-p)[:K]` over the whole test set, while the allocator
+        #       emits top-`k_g` WITHIN each group.
+        # The fix needs no reconstruction: `final_predictions.csv` IS the
+        # allocator's output, so each arm's emitted set is `Predicted_Label ==
+        # cls`, exactly. The RAW frame is still what supplies the
+        # probabilities, because this probe is about WHERE the moved items sat
+        # in the model's own ranking.
+        a_dep = load_deployed(arm_dir)
+        n_dep = load_deployed(os.path.join(base, null_name, seed))
+        if a is None or n is None or a_dep is None or n_dep is None:
             continue
         for cls in capped_classes(arm_dir):
             col = "Prob_Class_%d" % cls
             if col not in a.columns:
                 continue
             y = a["True_Label"].to_numpy()
-            K = budget_for(a, cls)
+            K_raw = budget_for(a, cls)          # the HARD count -- the old K
+            K, kg = group_budgets(n_dep, cls)   # the DEPLOYED budget, per group
             if K < 3:
                 continue
             pn = n[col].to_numpy()
-            ta = set(np.argsort(-a[col].to_numpy())[:K].tolist())
-            tn = set(np.argsort(-pn)[:K].tolist())
+            ta, tn = deployed_set(a_dep, cls), deployed_set(n_dep, cls)
             ev, ad = sorted(tn - ta), sorted(ta - tn)
             if not ev and not ad:
                 continue
@@ -770,10 +794,29 @@ def evictions(campaign, arm_name, null_name, reseed_name, dead=()):
             # and the order inverts exactly at the cut. Measured, not assumed.
             pn_ev = float(np.mean(pn[ev])) if ev else np.nan
             pn_ad = float(np.mean(pn[ad])) if ad else np.nan
-            p_cut = float(np.sort(pn)[::-1][K - 1])
+            # THE CUT IS PER GROUP. `p_cut` is the budget-weighted mean of each
+            # group's own lowest SELECTED probability; `p_cut_glob` is the old
+            # global-K-th reading, retained so the 2026-08-28 figures
+            # reproduce. NEVER read the gap between them as a direction --
+            # only the MINIMUM is ordered against the global value, and 2(z64)
+            # is the record of asserting otherwise, fixturing it, passing
+            # mutation testing and then being refuted.
+            gn = n_dep["Group_ID"].to_numpy()
+            cuts = []
+            for g, k in kg.items():
+                pg = np.sort(pn[gn == g])[::-1]
+                if k >= 1 and len(pg) >= k:
+                    cuts.append((k, float(pg[k - 1])))
+            p_cut = (float(sum(k * v for k, v in cuts) / sum(k for k, _ in cuts))
+                     if cuts else np.nan)
+            p_cut_min = min((v for _k, v in cuts), default=np.nan)
+            p_cut_glob = float(np.sort(pn)[::-1][K - 1])
             rows.append({
                 "model": model, "cap": cap, "seed": seed, "cls": cls, "K": K,
-                "p_cut": p_cut, "p_evicted": pn_ev, "p_admitted": pn_ad,
+                "K_raw": K_raw, "n_groups": len(kg),
+                "p_cut": p_cut, "p_cut_min": p_cut_min,
+                "p_cut_glob": p_cut_glob,
+                "p_evicted": pn_ev, "p_admitted": pn_ad,
                 "cut_below_half": p_cut < 0.5,
                 "moved": len(ev),
                 "evicted_tp": float(np.mean(y[ev] == cls)) if ev else np.nan,

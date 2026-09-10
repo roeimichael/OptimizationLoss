@@ -4052,7 +4052,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 627 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 628 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -4226,7 +4226,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 627 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 628 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -4234,7 +4234,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (627 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (628 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -8148,22 +8148,39 @@ helps by moving the **cut**, not the ranking.
 #### `--evictions` overstates by 6.5x -- it is not the allocator that ran
 
 It reported *"+16.50 items per cell attributable; the constraint's swaps are
-BETTER than a reseed's"*. Two independent defects, one FIXED and one only DISCLOSED (2(z80)):
+BETTER than a reseed's"*. THREE independent defects, all now FIXED -- the last two on 2026-09-10, 13 days after being disclosed (2(z80), 2(z84)):
 
 1. **NO POWER.** It branched on `d_net` against a bare `+/-1.0` items and
    printed no noise at all. The within-cell paired seed sd is **18.11 items**,
    larger than the effect. It now prints a RESOLUTION block: **~10 seeds per
    cell needed, UNDERPOWERED** at the 4 the protocol runs.
-2. ⚠️ **WRONG ALLOCATOR -- DISCLOSED, NOT FIXED (see 2(z80)).** Its sets
-   are `argsort(-p)[:K]` on the raw class column
+2. ✅ **WRONG ALLOCATOR -- FIXED 2026-09-10 (2(z84) §4b), AFTER 13 DAYS
+   DISCLOSED.** Its sets were `argsort(-p)[:K]` on the raw class column
    -- a **GLOBAL top-K**. The allocator that actually ran is LP/greedy under
    per-group ceilings, and **7 of 14 iwildcam local ceilings are K=0**, so it
    cannot take the global top-K and does not. `full_panel --control
    tralo_null` scored the same campaign at `tralo` **+9.24** items against
    `tralo_reseed` **+6.71**, i.e. **+2.53 attributable**.
 
+   🔑 **AND THERE WAS A THIRD DEFECT IN THE SAME EXPRESSION, LARGER THAN THE
+   GROUP ONE:** `K` came from `budget_for` on `final_predictions_raw.csv`,
+   which holds the model's ARGMAX -- so it was the **HARD COUNT**, not the
+   allocator's budget. At L20 the lambda=0 hard count is ~336 against a
+   deployed K of ~74. Both are gone: the deployed file IS the allocator's
+   output, so each arm's set is now `Predicted_Label == cls`, exactly, with
+   no sort and no budget arithmetic at all.
+
+⛔ **SO THE `+16.50` FIGURE AND THE `6.5x` OVERSTATEMENT ARE BOTH SUPERSEDED,
+AND NEITHER HAS BEEN RE-MEASURED.** The `6.5x` was `16.50 / 2.53` -- a ratio
+between a wrong number and a right one, so it describes the size of a defect
+that no longer exists rather than a property of anything. Re-run
+`order_probe --evictions` on `dom1` and read the new figure; until then this
+tool has NO current item figure. FRAMEWORK 2(z84).
+
 ⇒ **Read `order_probe` for WHICH items moved and WHY. Quote `full_panel` for
-HOW MANY.** Both fixes are gated in `tests/test_baseline_fidelity.py`.
+HOW MANY.** That division of labour stands regardless -- `full_panel` is
+seed-paired and this is not. All three fixes are gated in
+`tests/test_baseline_fidelity.py` and `tests/test_lessons_learned.py`.
 
 
 ### 2(w0) ⛔ **THE WHOLE UNREAD-CAMPAIGN BACKLOG IS DEAD, AND IT IS ONE REASON**
@@ -13821,7 +13838,7 @@ started**, and the audit built to catch it a fortnight later read past it.
 
 | # | site | found | state |
 |---|---|---|---|
-| 1 | `order_probe --evictions` | 2026-08-28 | ⚠️ **DISCLOSED, NOT FIXED** -- still `argsort(-p)[:K]` |
+| 1 | `order_probe --evictions` | 2026-08-28 | ✅ **FIXED 2026-09-10** (2(z84) §4b), 13 days after disclosure |
 | 2 | task window 2(z16) | 2026-09-01 | fixed |
 | 3 | cap screen 2(z28) | 2026-09-02 | fixed |
 | 4 | fmow window 2(z59) | 2026-09-09 | fixed |
@@ -13829,6 +13846,8 @@ started**, and the audit built to catch it a fortnight later read past it.
 | 6 | `cut_gap` 2(z64) | 2026-09-09 | fixed |
 | 7 | `step_direction_probe` 2(z79) | 2026-09-10 | fixed |
 | 8 | **`order_probe` band + Jaccard** | **2026-09-10, here** | ✅ fixed same day |
+| 9 | `score_scan` prec@K + Jaccard, 2(z84) | 2026-09-10 | ✅ fixed, figure WITHDRAWN |
+| 10 | `reachability.slope_at`, 2(z84) | 2026-09-10 | ✅ fixed |
 
 ⚠️ **SITE 1 AND SITE 8 ARE THE SAME FILE AND ARE STILL DIFFERENT SITES**: one
 is the eviction sets, the other the contested band, they were written at
@@ -14403,9 +14422,9 @@ It does not verify a single state against `results/`. SSH has been down since 20
 
 ---
 
-## 2(z84). THE NINTH GLOBAL-TOP-K SITE, AND IT IS THE FIRST ONE NOT FOUND BY READING -- `score_scan`'s prec@K AND JACCARD WERE COMPUTED ON A SET NO RUN HAS EVER DEPLOYED (2026-09-10)
+## 2(z84). THE NINTH AND TENTH GLOBAL-TOP-K SITES, AND BOTH WERE FOUND BY MACHINE ENUMERATION RATHER THAN BY READING -- `score_scan`'s prec@K AND JACCARD WERE COMPUTED ON A SET NO RUN HAS EVER DEPLOYED (2026-09-10)
 
-Eight sites of this defect had been found, one at a time, by somebody reading code with the question in mind. 2(z80) named the lesson -- *"the audit is per-FILE; the defect is per-CALL SITE"* -- and left the fix as task #114. **The first time the call sites were enumerated mechanically instead of read, a ninth appeared.**
+Eight sites of this defect had been found, one at a time, over five weeks, by somebody reading code with the question in mind. 2(z80) named the lesson -- *"the audit is per-FILE; the defect is per-CALL SITE"* -- and left the fix as task #114. **The first time the call sites were enumerated mechanically instead of read, a ninth appeared.**
 
 ```
 scripts/score_scan.py:206
@@ -14449,17 +14468,30 @@ Six verdicts, and the two middle ones are the ones a naive audit would have got 
 
 | verdict | count | meaning |
 |---|---|---|
-| `DEPLOYED` | 13 | cuts per group, or uses the allocator's own selection |
-| `NOT-A-CUT` | 9 | no budget involved -- rank correlation, kNN, a surrogate loss |
-| `GLOBAL-KEPT` | 8 | a global reading retained ON PURPOSE beside a correct one |
-| `SELF-TEST` | 6 | inside a `--self-test` fixture |
+| `DEPLOYED` | 17 | cuts per group, or uses the allocator's own selection |
+| `NOT-A-CUT` | 16 | no budget involved -- rank correlation, kNN, a surrogate loss |
+| `GLOBAL-KEPT` | 11 | a global reading retained ON PURPOSE beside a correct one |
+| `SELF-TEST` | 10 | inside a `--self-test` fixture |
 | `GREEDY-ROOM` | 2 | global ORDER, but every take gated on that group's room |
-| `GLOBAL-OPEN` | 2 | known-wrong, disclosed, not yet fixed (`order_probe --evictions`) |
+| `GLOBAL-OPEN` | **0** | nothing is knowingly wrong and unfixed any more |
 
-(40 total. Counted from the registry, not from memory -- the first draft of
+(56 total. Counted from the registry, not from memory -- the first draft of
 this table said 16/9/8/5 and summed to 42, which is two sites that do not
 exist. The registry is machine-readable precisely so a count never has to be
 recalled.)
+
+### 4b. 🔑 AND THE GATE FOUND A TENTH SITE THE SAME AFTERNOON -- ITS OWN FIX WAS THE FIRST HIT
+
+Two more things happened within an hour of the registry existing, and they are the argument for it:
+
+* **`GLOBAL-OPEN` went to ZERO.** Site 1, `order_probe --evictions`, had been disclosed-not-fixed since 2026-08-28. It carried BOTH of site 8's defects -- `budget_for` on the RAW (argmax) frame, so `K` was the HARD count, and a global `argsort(-p)[:K]` for each arm's set. Fixed the same way `score_scan` was: the deployed file IS the allocator's output, so each arm's set is `Predicted_Label == cls` exactly, and `p_cut` is now each group's own lowest selected probability, budget-weighted, with `p_cut_glob` and `K_raw` printed beside it.
+* ⛔ **THAT FIX INTRODUCED AN `np.sort(pn)[::-1][K - 1]` THE REGISTRY COULD NOT SEE**, because it tracked `argsort` and not `sort`. **A registry that tracks one spelling of "take the K-th ranked item" and not another is the per-FILE mistake again, one level down.** Widening the target list (and filtering `list.sort()`, which takes no positional argument and is never a cut) took it from 40 sites to **56** -- and the very first new entry it forced anyone to classify was **`reachability.slope_at`, THE TENTH SITE.**
+
+`reachability` prints a `live at K` / `flat at K` verdict -- whether the penalty's per-item gradient at the cut is above `REACHABLE` -- and it was reading the GLOBALLY k-th item of the whole column, off the RAW frame. On iwildcam, where 7 of 14 ceilings are K=0 and the groups differ enormously in difficulty, a global top-K is dominated by the confident groups, so the tool could report `flat` about a cell in which one group's cut is fully live. It now reads `slope_per_group`, budget-weighted, and prints the global reading beside it labelled `glob`.
+
+⚠️ **NO DIRECTION IS CLAIMED FOR EITHER FIX.** Both print both readings. 2(z64) is the record of asserting a direction here, fixturing it, passing mutation testing 2/2, and being refuted by the end-to-end run -- because the fixture and the claim came out of the same reasoning.
+
+⇒ The honest summary of the day: **the count went 8 -> 9 -> 10, and the last two were found by MACHINE ENUMERATION within hours of each other, after five weeks in which every one was found by a person reading code.** That is the whole case for the registry, and it also means **10 is not a ceiling** -- it is the number found so far by a gate that has been running for one afternoon.
 
 🔑 **`GREEDY-ROOM` IS THE CATEGORY THAT DID NOT EXIST BEFORE THIS ENUMERATION, AND IT IS NOT A DEFECT.** `score_arm.equalize` and `heuristic.apply_allocation_heuristic` both sort GLOBALLY and then skip any item whose group has no room -- filling to exactly K in global order under per-group ceilings. That is a third rule, distinct from both "global top-K" and "per-group top-k", and it is the post-hoc clipper's own rule. A pattern-matching audit that flagged every unindexed `argsort` would have called the ALLOCATOR ITSELF a bug.
 
@@ -14469,7 +14501,7 @@ Mutation-tested **3/3**: a new unclassified cut, a changed sorted expression und
 
 ### 4. WHAT THIS DOES NOT CLOSE
 
-* `order_probe --evictions` is still `GLOBAL-OPEN`. It is now named in a registry rather than in a paragraph, which is the only change.
+* ~~`order_probe --evictions` is still `GLOBAL-OPEN`.~~ **FIXED the same afternoon, see §4b** -- and fixing it is what produced site 10. Naming it in a registry rather than in a paragraph turned out to be more than a bookkeeping change.
 * The gate covers `scripts/ src/ configs/`. A sort in a notebook, in `docs/paper/scripts/`, or on the unmerged server branch `snap/slice-provenance` is outside it -- and that branch is exactly where `ens_panel` and `tralo_snap` live (2(z67), task #103). **Run this gate against that branch before scoring anything from `snap2`.**
 * Nine sites in one repo is not a run of bad luck. The rule that would have prevented all nine is one line: **a tool that locates a cut must read `Group_ID`, or refuse.** Three tools now refuse; the registry is how the rest get asked.
 
@@ -15846,7 +15878,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             627 tests, ~200 s, no dataset required
+tests/             628 tests, ~200 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.

@@ -2460,7 +2460,12 @@ def test_the_campaign_state_audit_actually_detects_an_orphan():
 # noticing is what this prevents.
 # ---------------------------------------------------------------------------
 
-SORTS = ("argsort", "argpartition", "topk", "nlargest")
+# `sort` is in the list because the fix to site 1 introduced an
+# `np.sort(pn)[::-1][K - 1]` -- a global cut the argsort-only registry
+# could not see. A registry that tracks one spelling of "take the K-th
+# ranked item" and not another is the per-FILE mistake again, one level
+# down. (2026-09-10)
+SORTS = ("argsort", "argpartition", "topk", "nlargest", "sort")
 
 # Verdicts, and each is a claim somebody checked:
 #   DEPLOYED    cuts per group, or uses the allocator's own selection
@@ -2499,10 +2504,6 @@ ARGSORT_SITES = {
         "SELF-TEST synthetic two-class fixture with no groups at all",
     "scripts/order_probe.py::band_per_group::argsort(-p[where])":
         "DEPLOYED the 2(z80) fix -- sorts within one group's members",
-    "scripts/order_probe.py::evictions::argsort(-a[col].to_numpy())":
-        "GLOBAL-OPEN site 1, DISCLOSED 2026-08-28 and still not fixed",
-    "scripts/order_probe.py::evictions::argsort(-pn)":
-        "GLOBAL-OPEN the null half of the same disclosed site",
     "scripts/order_probe.py::main::argsort(-pa)":
         "GLOBAL-KEPT the retained band_glob reading, printed beside the "
         "per-group one with its band size (2(z80))",
@@ -2566,6 +2567,55 @@ ARGSORT_SITES = {
         "DEPLOYED sorts within the passed index subset",
     "src/utils/posthoc_adjustment.py::targeted_correction::argsort(y_proba[local_c, c])":
         "DEPLOYED `local_c` is one group's c-labelled items",
+    # --- np.sort sites. `sort` joined the target list on 2026-09-10 because
+    # the fix to site 1 introduced an `np.sort(pn)[::-1][K - 1]` the
+    # argsort-only registry could not see. `list.sort()` (no positional arg) is
+    # filtered out -- 14 of them sort report rows and are never a cut.
+    "scripts/cut_gap.py::per_group_cut::sort(p[idx])":
+        "DEPLOYED the 2(z64) fix -- `idx` is one group's members",
+    "scripts/cut_gap.py::self_test::sort(p)":
+        "SELF-TEST fixture",
+    "scripts/cut_gap.py::self_test::sort(pg)":
+        "SELF-TEST fixture",
+    "scripts/cut_gap.py::self_test::sort(pg2)":
+        "SELF-TEST fixture",
+    "scripts/frozen_head_probe.py::stratified_halves::sort(fit_idx)":
+        "NOT-A-CUT sorts INDICES to make a reproducible split",
+    "scripts/frozen_head_probe.py::stratified_halves::sort(held_idx)":
+        "NOT-A-CUT the other half of the same split",
+    "scripts/order_probe.py::evictions::sort(pn)":
+        "GLOBAL-KEPT `p_cut_glob`, retained beside the per-group cut so the "
+        "2026-08-28 figures reproduce (2(z84))",
+    "scripts/order_probe.py::evictions::sort(pn[gn == g])":
+        "DEPLOYED the 2(z84) fix -- one group's members, budget-weighted",
+    "scripts/reachability.py::concentration::sort(np.abs(m))":
+        "NOT-A-CUT sorts gradient magnitudes",
+    "scripts/reachability.py::slope_at::sort(p_col)":
+        "DEPLOYED the caller decides the scope, and `slope_per_group` is now "
+        "the primary caller (2(z84), the TENTH site). The global call is "
+        "retained and LABELLED `glob` in the output",
+    "scripts/sensitivity_screen.py::gradient_at_cut::sort(pr)":
+        "GLOBAL-KEPT and CORRECT: this is `p_bd`, the argmax DECISION "
+        "BOUNDARY, which is a property of the model over the whole test set "
+        "and not a per-group budget. `p_cut` beside it IS per-group, via "
+        "`select_local`, budget-weighted. The source says so at the line",
+    "scripts/step_direction_probe.py::group_tau::sort(z[where])":
+        "DEPLOYED the 2(z79) fix -- one group's members",
+    "scripts/step_direction_probe.py::self_test::sort(zz)":
+        "SELF-TEST fixture",
+    "scripts/step_direction_probe.py::weightings::sort(d)":
+        "NOT-A-CUT picks the window TEMPERATURE by item count, not a budget",
+    "scripts/step_direction_probe.py::weightings::sort(z)":
+        "GLOBAL-KEPT the fallback tau when the caller passes none; the "
+        "per-group caller supplies `group_tau` (2(z79))",
+    "src/losses/transductive_loss.py::cut_params::sort((col - t).abs())":
+        "NOT-A-CUT the LOSS's own window temperature. `soft_count_mode: cut` "
+        "is REJECTED (MISSION knob ledger) so this is not in the shipped path",
+    "src/losses/transductive_loss.py::cut_params::sort(col)":
+        "NOT-A-CUT as above -- the loss sees a training batch, not the "
+        "allocator's groups",
+    "src/losses/transductive_loss.py::window_temp::sort(m.abs())":
+        "NOT-A-CUT margin-window temperature, same rejected family",
 }
 
 
@@ -2603,6 +2653,13 @@ def _sort_call_sites(root):
                         nm = (getattr(n.func, "attr", None)
                               or getattr(n.func, "id", None))
                         if nm in SORTS:
+                            # `list.sort()` takes no positional argument and
+                            # is never a cut -- 14 of them (sorting rows for a
+                            # report) would otherwise flood the registry and
+                            # make it the kind of list nobody reads.
+                            if nm == "sort" and not n.args:
+                                self.generic_visit(n)
+                                return
                             try:
                                 a = ast.unparse(n.args[0]) if n.args else "-"
                             except Exception:
@@ -2853,3 +2910,44 @@ def test_paper_rows_NAMES_a_csv_that_is_not_a_cell_table():
         assert code != 0 and "empty" in body.lower(), body
     finally:
         shutil.rmtree(d, ignore_errors=True)
+
+
+def test_reachability_reads_the_cut_PER_GROUP_and_the_two_readings_differ():
+    """2026-09-10: site 10 -- slope_at got the whole column, so K was global."""
+    import numpy as np
+    import pandas as pd
+
+    from scripts.reachability import slope_at, slope_per_group
+
+    # Two groups. A: 20 items, the allocator took 2, and they sit at p ~ 0.99
+    # where p(1-p) is ~0.01 -- unreachable. B: 20 items, the allocator took 10,
+    # cutting at p ~ 0.5 where the slope is at its maximum. Globally the top-12
+    # is dominated by A's confident items, so the global reading says "flat"
+    # about a cell in which one whole group's cut is live.
+    pa = np.linspace(0.999, 0.980, 20)
+    pb = np.linspace(0.600, 0.100, 20)
+    p_col = np.concatenate([pa, pb])
+    groups = np.array(["A"] * 20 + ["B"] * 20)
+    pred = np.array([2] * 2 + [0] * 18 + [2] * 10 + [0] * 10)
+    dep = pd.DataFrame({"Predicted_Label": pred, "Group_ID": groups})
+
+    g_slope, g_p, n_g = slope_per_group(p_col, dep, 2, "sum")
+    slope, p = slope_at(p_col, 12, "sum")
+    assert n_g == 2, n_g
+    assert g_slope != slope, (
+        "the per-group and global readings coincide on a fixture built so "
+        "they cannot: %.6f vs %.6f" % (g_slope, slope))
+    assert g_slope > slope, (
+        "on THIS fixture the deep group's live cut must lift the weighted "
+        "slope above the global one: %.6f vs %.6f" % (g_slope, slope))
+    # NEGATIVE CONTROL: no Group_ID must yield NaN so the caller falls back to
+    # the global reading LABELLED as global, never silently.
+    bad = pd.DataFrame({"Predicted_Label": pred})
+    s2, p2, n2 = slope_per_group(p_col, bad, 2, "sum")
+    assert n2 == 0 and s2 != s2 and p2 != p2, (s2, p2, n2)
+    # NEGATIVE CONTROL: one group only -- the two readings must then AGREE,
+    # because a single group's cut IS the global cut.
+    one = pd.DataFrame({"Predicted_Label": pred,
+                        "Group_ID": np.array(["A"] * 40)})
+    s3, p3, n3 = slope_per_group(p_col, one, 2, "sum")
+    assert n3 == 1 and abs(s3 - slope) < 1e-12, (s3, slope)

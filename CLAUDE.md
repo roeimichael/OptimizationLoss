@@ -180,7 +180,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 627 regression tests, ~250s, no dataset needed
+python -m pytest tests -q                   # 628 regression tests, ~250s, no dataset needed
 #   `tests/test_scorers_run_end_to_end.py` EXECUTES every scorer as a subprocess
 #   against a campaign carrying a real PARTIAL marker. It exists because three
 #   scorers once used `quarantine.` with no module-level import: they PARSED,
@@ -322,6 +322,21 @@ python -m scripts.flag_live <armA> <armB>    # md5 across arms: is the new flag 
 python -m scripts.verify_caps               # what integer budget each cap tag really produces
 python -m scripts.check_parity <root>       # equal compute, same knobs, >=2 caps, sane warm-up sharing
 python -m scripts.reachability <early-run>  # CAN the penalty even reach this cell's cut?
+#   ⛔ **ITS `live at K` / `flat at K` VERDICT WAS A GLOBAL READING UNTIL
+#   2026-09-10 -- THE TENTH SITE, AND THE FIRST ONE THE PER-CALL-SITE GATE
+#   FOUND ON ITS OWN (2(z84)).** `slope_at(r[col].to_numpy(), k, ...)` took the
+#   globally k-th item of the whole column, off `final_predictions_raw.csv`
+#   (the ARGMAX frame). The allocator cuts top-`k_g` WITHIN each group, and on
+#   iwildcam -- 7 of 14 ceilings at K=0, groups of wildly different difficulty
+#   -- a global top-K is dominated by the confident groups, so it could report
+#   `flat` about a cell in which one group's cut is fully live.
+#   ✅ It now reads `slope_per_group`, budget-weighted off the DEPLOYED file,
+#   and prints the old reading beside it labelled `glob` with the group count.
+#   ⛔ DO NOT READ THE GAP AS A DIRECTION (2(z64)). Gated by
+#   `test_reachability_reads_the_cut_PER_GROUP_and_the_two_readings_differ`,
+#   which also pins the two negative controls: no `Group_ID` yields NaN so the
+#   caller falls back to a LABELLED global reading and never a silent one, and
+#   a single-group campaign must make the two readings AGREE exactly.
 python -m scripts.quarantine --list         # 🛑 IS THIS CAMPAIGN ALREADY DEAD?
 #   🔑 **THREE STATES, NOT TWO (2026-09-04, FRAMEWORK 2(z40)).**
 #     `scorable=False`              nothing here may be scored

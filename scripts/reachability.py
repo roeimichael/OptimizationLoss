@@ -82,6 +82,43 @@ from src.losses.transductive_loss import uniform_grad_count   # noqa: E402
 REACHABLE = 0.040
 
 
+def deployed(run_dir):
+    """`final_predictions.csv`, the allocator's own output, or None."""
+    f = Path(run_dir) / "final_predictions.csv"
+    return pd.read_csv(f) if f.exists() else None
+
+
+def slope_per_group(p_col, dep, cls, mode):
+    """(budget-weighted slope, budget-weighted p at the cut, n groups).
+
+    The cut is `k_g` WITHIN each group, and `k_g` is read off the DEPLOYED
+    file rather than re-derived -- the allocator already made that decision.
+    Returns NaNs when the deployed file is absent (an unfinished run) or
+    carries no `Group_ID`, and the caller then falls back to the global
+    reading, which is LABELLED as global in the output rather than presented
+    as the cut.
+    """
+    if dep is None or "Group_ID" not in dep.columns:
+        return float("nan"), float("nan"), 0
+    sel = (dep["Predicted_Label"] == cls).to_numpy()
+    groups = dep["Group_ID"].to_numpy()
+    tot_w, acc_s, acc_p = 0.0, 0.0, 0.0
+    n_g = 0
+    for g in np.unique(groups[sel]):
+        k_g = int(np.count_nonzero(sel & (groups == g)))
+        pg = p_col[groups == g]
+        if k_g < 1 or len(pg) < k_g:
+            continue
+        s, p = slope_at(pg, k_g, mode)
+        acc_s += k_g * s
+        acc_p += k_g * p
+        tot_w += k_g
+        n_g += 1
+    if not tot_w:
+        return float("nan"), float("nan"), 0
+    return acc_s / tot_w, acc_p / tot_w, n_g
+
+
 def slope_at(p_col, k, mode):
     """Per-item gradient of the configured count at the K-th ranked item.
 
@@ -97,6 +134,11 @@ def slope_at(p_col, k, mode):
     `du_c/dz_c = 1`, so the slope in the class logit is `w` for EVERY item.
     """
     import torch
+    # !! THE CALLER DECIDES THE SCOPE. Passed a whole column this is the
+    # GLOBALLY k-th item; passed one group's members it is that group's cut.
+    # Until 2026-09-10 only the first call existed -- the tenth site of the
+    # global-top-K substitution (2(z84)). `slope_per_group` below is the
+    # per-group caller and the global one is retained beside it.
     srt = np.sort(p_col)[::-1]
     p = float(srt[k - 1])
     if mode == "sum":
@@ -250,15 +292,25 @@ def main():
         if not K:
             continue
         r = pd.read_csv(d / "final_predictions_raw.csv")
+        dep = deployed(d)
         for c, k in sorted(K.items()):
             col = "Prob_Class_%d" % c
             if col not in r.columns or k > len(r):
                 continue
-            slope, p = slope_at(r[col].to_numpy(), k, count_mode(d))
-            verdict = "live at K" if slope >= REACHABLE else "flat at K"
+            mode = count_mode(d)
+            p_col = r[col].to_numpy()
+            g_slope, g_p, kg_n = slope_per_group(p_col, dep, c, mode)
+            slope, p = slope_at(p_col, k, mode)
+            # THE PER-GROUP READING DECIDES. The allocator emits top-`k_g`
+            # within each group, so whether the penalty can reach ANY cut is a
+            # per-group question; the global one is retained beside it because
+            # every figure this tool has ever produced is that reading.
+            # Never read the gap as a direction (2(z64), 2(z84)).
+            use = g_slope if g_slope == g_slope else slope
+            verdict = "live at K" if use >= REACHABLE else "flat at K"
             name = "/".join(d.relative_to(root).parts[-3:]) or d.name
-            print("%-44s %6d %5d %8.4f %9.4f %s"
-                  % (name[-44:], c, k, p, slope, verdict))
+            print("%-44s %6d %5d %8.4f %9.4f %s   | glob %8.4f %9.4f  (%d grp)"
+                  % (name[-44:], c, k, g_p, g_slope, verdict, p, slope, kg_n))
             seen.setdefault(verdict, 0)
             seen[verdict] += 1
             margin_rows.append(concentration(r, c, args.widths))
