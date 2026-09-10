@@ -513,10 +513,22 @@ python -m scripts.stale_figures              # 🛑 WHICH QUOTED FIGURES CAN TOD
 #   coverage with misattribution. It is also FENCE-AWARE -- a naive split reads
 #   every `#   RUN ...` comment in CLAUDE.md's command blocks as a heading and
 #   drops this file from 13 figures to 4.
-#   `--self-test` gates it, 14 checks, 6 negative controls -- incl. that a
-#   SAME-DAY figure must not fire, that the forward fallback STOPS at the
-#   section bound, and that `docs/paper/scripts/make_main_table.py` is not read
-#   as ours (it fired on the first real run). FRAMEWORK 2(z68).
+#   🔑 TICK ITEMS OFF WITH `[verified YYYY-MM-DD]` ON THE FIGURE'S OWN
+#   LINE. A queue you cannot tick off is a list you re-read forever: a figure
+#   somebody had read and confirmed came back identically every run, so the
+#   report could only grow. The marker clears a figure ONLY when the
+#   verification is STRICTLY AFTER the scorer's last commit, so it
+#   SELF-INVALIDATES -- move the scorer again and the marker goes stale with
+#   the figure, and it can never become a permanent exemption. Same-day
+#   resolves AGAINST the marker (a date carries no hour, and 2(z68) is exactly
+#   that case: figure 09:09, scorer 22:48).
+#   `--self-test` gates it, 18 checks, 8 negative controls -- incl. that a
+#   SAME-DAY figure must not fire, that a marker PREDATING the scorer or
+#   sitting on a DIFFERENT line must not clear, that the forward fallback STOPS
+#   at the section bound, and that `docs/paper/scripts/make_main_table.py` is
+#   not read as ours (it fired on the first real run). Mutation-tested:
+#   relaxing the comparison to `>=` turns the same-day control red and nothing
+#   else. FRAMEWORK 2(z68).
 python -m scripts.dead_code --paths configs src   # what is DECLARED and never
 #   referenced. AST, never grep: a name in a docstring is not a call. A REPORT,
 #   not a gate -- a getattr-built call is invisible to it, so confirm by hand.

@@ -12412,6 +12412,38 @@ against the scorer's -- and it costs one command.
 **Blocked on the server**: `results/` is not local, so the recompute cannot
 run here. Task #104.
 
+### ✅ THE QUEUE CAN NOW BE TICKED OFF, AND THE MARKER SELF-INVALIDATES (2026-09-10)
+
+`scripts/stale_figures` reported the same figures on every run. There was
+nowhere to record that a person had read one and confirmed it, so the report
+could only grow and its signal decayed as it did -- the exact way a linter with
+no suppression becomes noise that is scrolled past.
+
+`[verified YYYY-MM-DD]` on the figure's OWN line now clears it, and the design
+is entirely in the conditions:
+
+* **STRICTLY AFTER the scorer's last commit.** Same-day resolves AGAINST the
+  marker, because a date carries no hour and THIS ENTRY is that case -- figure
+  09:09, scorer 22:48. Erring cautious costs a day and never a wrong number.
+* **It SELF-INVALIDATES.** Move the scorer again and the marker goes stale with
+  the figure. It cannot become a permanent exemption, which is the failure mode
+  of every ignore-list.
+* **On the figure's OWN line**, so the reader who meets the number meets its
+  provenance in the same sentence. A marker one line away would let somebody
+  clear a number they never looked at, and a negative control gates exactly
+  that.
+
+⚠️ **ZERO figures are marked as of this writing, deliberately.** The only one
+verifiable without the server is `MISSION` `0-DOSE`, whose `step_dose` figures
+were confirmed by diff -- every line touching `dw`, `cos`, `norm` or `aligned`
+in `measure()` is an ADDITION, so the numbers still reproduce -- and even that
+one is NOT cleared, because the scorer moved the same day. Marking a figure
+nobody has checked is precisely the abuse these conditions exist to prevent.
+
+Gated by four checks, three of them negative controls (predating, same-day,
+wrong-line), and mutation-tested: relaxing the comparison to `>=` turns the
+same-day control red and nothing else.
+
 
 ## 2(z69). "0 OF 17 CELLS ARE PRICED" IS NOT A RESULT ABOUT TraLO. THE TEST WAS NEVER RUN. (2026-09-10)
 

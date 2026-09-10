@@ -21,11 +21,16 @@ than once. So the tool prints the commit SUBJECT beside every hit and leaves
 the judgement to a person. A hit means UNVERIFIED, never WRONG.
 
 ⚠️ AND IT UNDER-REPORTS BY CONSTRUCTION. A figure is only checkable if it
-carries a date AND a script can be attributed to it. Measured on this repo:
-78 date-stamped figures, 72 attributable, 5 not, and 1 citing a script that
-no longer exists. The 5 are printed as a count so the coverage is never
-mistaken for completeness -- a tool that silently examines part of its input
-reads exactly like one that found nothing wrong.
+carries a date AND a script can be attributed to it. On this repo at the time
+of writing: 87 date-stamped figures, 78 attributable, 8 not, and 1 citing a
+script that no longer exists. The 8 are printed as a count so the coverage is
+never mistaken for completeness -- a tool that silently examines part of its
+input reads exactly like one that found nothing wrong.
+
+⚠️ THOSE COUNTS MOVE EVERY TIME THE DOCS DO, AND QUOTING THEM FROM HERE WOULD
+MAKE THIS DOCSTRING AN INSTANCE OF THE DEFECT IT DETECTS. They were 78/72/5/1
+when the tool shipped and are already wrong at the numbers above by the time
+you read this. RUN IT; do not cite it.
 
 🛑 AND THE PER-SCORER TALLY IS INFLATED BY MISATTRIBUTION -- MEASURED, NOT
 GUESSED, AND DO NOT QUOTE IT AS A COUNT. 56 of the 73 attributable figures are
@@ -41,6 +46,20 @@ preferring a script named on the figure's OWN line (which is now done, and is
 strictly better) moved that 12 only to 11. So the output is a QUEUE OF FIGURES
 TO READ, ordered by how much the number matters. It is not a per-scorer
 defect count, and the counts in it should never be quoted as one.
+
+TICKING ITEMS OFF: `[verified YYYY-MM-DD]` on the figure's OWN line. A queue
+you cannot tick off is a list you re-read forever -- before this, a figure a
+person had read and confirmed came back identically on every run, so the
+report could only grow and its signal decayed with it.
+
+The marker clears a figure only when the verification is STRICTLY AFTER the
+scorer's last commit, so it SELF-INVALIDATES: move the scorer again and the
+marker goes stale with the figure. It can never become a permanent exemption,
+which is the failure mode of every ignore-list. Same-day resolves AGAINST the
+marker, because a date carries no hour and 2(z68) is exactly that case (figure
+09:09, scorer 22:48). Gated by four checks, three of them negative controls --
+predating, same-day, and wrong-line -- and mutation-tested: relaxing the
+comparison to `>=` turns the same-day control red and nothing else.
 """
 import io
 import os
@@ -62,6 +81,27 @@ FIGURE = re.compile(
 # `scripts/make_main_table` and reported absent. That fired on the very
 # first real run, which is the cheapest possible way to find it.
 SCRIPT = re.compile(r"(?<![\w/])scripts[./]([a-z_][a-z_0-9]*)")
+
+# A QUEUE YOU CANNOT TICK OFF IS A LIST YOU RE-READ FOREVER. A hit here is
+# UNVERIFIED, not WRONG, and most are cleared by a person reading the commit
+# subject and confirming the number still reproduces -- but before this marker
+# there was nowhere to record that, so every run re-reported the same figures
+# and the queue could only grow.
+#
+# `[verified YYYY-MM-DD]` on the figure's OWN line clears it, and ONLY if the
+# verification is STRICTLY AFTER the scorer's last commit. That is the whole
+# design: it SELF-INVALIDATES. Move the scorer again and the marker goes stale
+# with the figure, so this can never become a permanent exemption -- which is
+# the failure mode of every ignore-list.
+#
+# Strictly after, because a same-day marker is ambiguous and 2(z68) is exactly
+# that case: the figure was read at 09:09 and the scorer fixed at 22:48 the
+# SAME DAY. Dates cannot order those, so the tie resolves AGAINST the marker.
+#
+# On the figure's own line, deliberately: the reader who meets the number meets
+# its provenance in the same sentence. A marker in a nearby paragraph is a
+# footnote nobody reads.
+VERIFIED = re.compile(r"\[verified (20\d\d-\d\d-\d\d)\]")
 
 # How far back to look for the script a figure belongs to. Wide enough to
 # span a CLAUDE.md command block, narrow enough that a figure in one
@@ -120,7 +160,10 @@ def _sections(text):
 
 
 def figures(text, near=NEAR):
-    """Every (line, figure_date, module) this doc stamps. module may be None.
+    """Every (line, figure_date, module, verified_date) this doc stamps.
+
+    `module` is None when nothing is attributable; `verified_date` is None
+    unless the figure's OWN line carries a `[verified YYYY-MM-DD]` marker.
 
     Attribution is SECTION-SCOPED, and that is what makes it useful rather than
     merely present. A plain "nearest script within `near` characters, looking
@@ -149,18 +192,19 @@ def figures(text, near=NEAR):
         fwd = SCRIPT.findall(text[m.end():hi])
         mod = same[0] if same else (back[-1] if back else
                                     (fwd[0] if fwd else None))
-        found.append((idx + 1, m.group(1), mod))
+        ver = VERIFIED.search(lines[idx])
+        found.append((idx + 1, m.group(1), mod, ver.group(1) if ver else None))
     return found
 
 
 def scan(docs=DOCS, near=NEAR):
-    """(stale, fresh, unattributable, absent) over `docs`."""
-    stale, fresh, unattr, absent = [], 0, 0, []
+    """(stale, fresh, unattributable, absent, verified) over `docs`."""
+    stale, fresh, unattr, absent, verified = [], 0, 0, [], 0
     for doc in docs:
         if not os.path.isfile(doc):
             continue
         text = io.open(doc, encoding="utf-8").read()
-        for line, fig, mod in figures(text, near):
+        for line, fig, mod, ver in figures(text, near):
             if mod is None:
                 unattr += 1
                 continue
@@ -170,14 +214,24 @@ def scan(docs=DOCS, near=NEAR):
                 continue
             date, subj = lc
             if date > fig:
-                stale.append((doc, line, mod, fig, date, subj))
+                # STRICTLY after, and the strictness is the 2(z68) lesson:
+                # `tralo_wins` was read at 09:09 and the scorer both halves of
+                # its verdict depend on was fixed at 22:48 the SAME DAY. Dates
+                # alone cannot order those, so a same-day marker is ambiguous
+                # and must NOT clear the figure. Ties resolve against the
+                # marker -- re-verify tomorrow, which costs a day and never a
+                # wrong number.
+                if ver is not None and ver > date:
+                    verified += 1
+                else:
+                    stale.append((doc, line, mod, fig, date, subj))
             else:
                 fresh += 1
-    return stale, fresh, unattr, absent
+    return stale, fresh, unattr, absent, verified
 
 
 def report(docs=DOCS, near=NEAR, out=sys.stdout):
-    stale, fresh, unattr, absent = scan(docs, near)
+    stale, fresh, unattr, absent, verified = scan(docs, near)
     out.write("FIGURES WHOSE SCORER HAS CHANGED SINCE (UNVERIFIED, not wrong)\n")
     out.write("=" * 74 + "\n")
     if not stale:
@@ -191,8 +245,15 @@ def report(docs=DOCS, near=NEAR, out=sys.stdout):
     for doc, line, mod, fig in absent:
         out.write("  %s:%d  figure %s cites scripts/%s.py, WHICH DOES NOT "
                   "EXIST\n" % (doc, line, fig, mod))
-    out.write("\n%d stale, %d fresh, %d not attributable to a script within "
-              "%d chars\n" % (len(stale), fresh, unattr, near))
+    out.write("\n%d stale, %d fresh, %d hand-verified, %d not attributable to "
+              "a script within %d chars\n"
+              % (len(stale), fresh, verified, unattr, near))
+    if verified:
+        out.write("  ^ hand-verified = a person read the number against the "
+                  "changed scorer\n    and marked the line `[verified "
+                  "<date>]`. It SELF-INVALIDATES: move the\n    scorer again "
+                  "and the marker goes stale with the figure, so it can\n"
+                  "    never become a permanent exemption.\n")
     if unattr:
         out.write("  ^ the %d unattributable are NOT a clean bill of health. "
                   "This tool\n    examines only figures it can tie to a "
@@ -215,7 +276,7 @@ def self_test(out=sys.stdout):
            "#   RUN 2026-09-06 over the whole live corpus: 6 of 17.\n")
     got = figures(txt)
     check("a stamped figure is found and attributed to the script above it",
-          got == [(2, "2026-09-06", "tralo_wins")])
+          got == [(2, "2026-09-06", "tralo_wins", None)])
 
     check("NEGATIVE CONTROL: a script under ANOTHER dir is not read as ours",
           figures("see docs/paper/scripts/make_main_table.py\n"
@@ -279,7 +340,7 @@ def self_test(out=sys.stdout):
 
         io.open("D.md", "w", encoding="utf-8").write(
             "python -m scripts.mover --x\nRUN 2026-09-01: the figure.\n")
-        stale, fresh, unattr, absent = scan(["D.md"])
+        stale, fresh, unattr, absent, _v = scan(["D.md"])
         check("a figure OLDER than its scorer's last commit is STALE",
               len(stale) == 1 and stale[0][2] == "mover"
               and stale[0][5] == "scorer: fix the deltas")
@@ -287,7 +348,7 @@ def self_test(out=sys.stdout):
         # NEGATIVE CONTROL: the whole point is that this must NOT fire.
         io.open("F.md", "w", encoding="utf-8").write(
             "python -m scripts.still --x\nRUN 2026-09-09: the figure.\n")
-        stale2, fresh2, _u, _a = scan(["F.md"])
+        stale2, fresh2, _u, _a, _v = scan(["F.md"])
         check("NEGATIVE CONTROL: a figure NEWER than its scorer is NOT stale",
               stale2 == [] and fresh2 == 1)
 
@@ -296,19 +357,59 @@ def self_test(out=sys.stdout):
         # figure written the day its scorer was last touched.
         io.open("S.md", "w", encoding="utf-8").write(
             "python -m scripts.mover --x\nRUN 2026-09-08: the figure.\n")
-        stale3, _f, _u, _a = scan(["S.md"])
+        stale3, _f, _u, _a, _v = scan(["S.md"])
         check("NEGATIVE CONTROL: a SAME-DAY figure is not flagged", stale3 == [])
+
+        # THE VERIFICATION MARKER, gated in BOTH directions. `mover` was last
+        # committed 2026-09-08 in this fixture.
+        io.open("V.md", "w", encoding="utf-8").write(
+            "python -m scripts.mover --x\n"
+            "RUN 2026-09-01: the figure. [verified 2026-09-09]\n")
+        staleV, _f, _u, _a, verV = scan(["V.md"])
+        check("a stale figure VERIFIED after its scorer moved is cleared",
+              staleV == [] and verV == 1)
+
+        # NEGATIVE CONTROL 1: a marker BEFORE the scorer moved proves nothing --
+        # it records a reading of the OLD scorer, which is the defect itself.
+        io.open("V2.md", "w", encoding="utf-8").write(
+            "python -m scripts.mover --x\n"
+            "RUN 2026-09-01: the figure. [verified 2026-09-02]\n")
+        staleV2, _f, _u, _a, verV2 = scan(["V2.md"])
+        check("NEGATIVE CONTROL: a marker PREDATING the scorer does not clear",
+              len(staleV2) == 1 and verV2 == 0)
+
+        # NEGATIVE CONTROL 2: SAME-DAY is ambiguous and must not clear either.
+        # This is 2(z68) exactly -- read at 09:09, scorer fixed 22:48 the same
+        # day -- and a date carries no hour, so the tie resolves against the
+        # marker. Without this the marker would silently license the very
+        # figure the tool was built for.
+        io.open("V3.md", "w", encoding="utf-8").write(
+            "python -m scripts.mover --x\n"
+            "RUN 2026-09-01: the figure. [verified 2026-09-08]\n")
+        staleV3, _f, _u, _a, verV3 = scan(["V3.md"])
+        check("NEGATIVE CONTROL: a SAME-DAY marker does not clear (2(z68))",
+              len(staleV3) == 1 and verV3 == 0)
+
+        # NEGATIVE CONTROL 3: the marker must be on the figure's OWN line. A
+        # marker one line away would let a reader clear a number they never
+        # looked at.
+        io.open("V4.md", "w", encoding="utf-8").write(
+            "python -m scripts.mover --x\n[verified 2026-09-09]\n"
+            "RUN 2026-09-01: the figure.\n")
+        staleV4, _f, _u, _a, verV4 = scan(["V4.md"])
+        check("NEGATIVE CONTROL: a marker on a DIFFERENT line does not clear",
+              len(staleV4) == 1 and verV4 == 0)
 
         # An absent module is NAMED, not crashed on and not silently dropped.
         io.open("A.md", "w", encoding="utf-8").write(
             "python -m scripts.ghost --x\nRUN 2026-09-01: the figure.\n")
-        _s, _f, _u, absent4 = scan(["A.md"])
+        _s, _f, _u, absent4, _v = scan(["A.md"])
         check("a figure citing an ABSENT script is named, not dropped",
               len(absent4) == 1 and absent4[0][2] == "ghost")
 
         # An unattributable figure is COUNTED, never silently dropped.
         io.open("U.md", "w", encoding="utf-8").write("RUN 2026-09-01: a figure.\n")
-        _s, _f, unattr5, _a = scan(["U.md"])
+        _s, _f, unattr5, _a, _v = scan(["U.md"])
         check("an unattributable figure is COUNTED, not dropped", unattr5 == 1)
 
         buf = _Buf()

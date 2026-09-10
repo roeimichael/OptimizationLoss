@@ -561,7 +561,10 @@ would reinterpret every stored result.
 
 ---
 
-## ⚠️ 0-DOSE. `tralo_sgd` IS UNDER-DOSED, AND THAT IS MEASURED (2026-09-06)
+## ⚠️ 0-DOSE. `tralo_sgd` IS UNDER-DOSED, AND THAT IS MEASURED (2026-09-06) [verified 2026-09-10]
+
+✅ **VERIFIED 2026-09-10 against a scorer that moved the same day.** `step_dose` was edited on 2026-09-10 to report the stale-CE-momentum state, which `stale_figures` correctly flags. Checked by diff: every line touching `dw`, `cos`, `norm` or `aligned` in `measure()` is an ADDITION -- the displacement computation these numbers come from is byte-identical, so they still reproduce.
+⚠️ The marker will not clear the figure until 2026-09-11, and that is the design working: a date carries no hour, so a same-day marker is ambiguous and the tie resolves AGAINST it. 2(z68) is exactly that case -- read at 09:09, scorer fixed 22:48 the same day.
 
 `scripts/step_dose` on the real MobileNetV2 config. Constraint-aligned weight
 displacement, `||dw|| * cos(dw, descent direction)`:
