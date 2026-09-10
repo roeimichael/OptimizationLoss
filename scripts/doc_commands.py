@@ -1,7 +1,12 @@
 """DOES EVERY COMMAND IN THE DOCS ACTUALLY RUN?
 
-The docs are the operating manual: 117 checkable invocations across
-CLAUDE.md, FRAMEWORK.md, MISSION.md, PLAYBOOK.md and COVERAGE.md. They are
+The docs are the operating manual: 131 checkable invocations across
+CLAUDE.md, FRAMEWORK.md, MISSION.md, PLAYBOOK.md and COVERAGE.md.
+Six of those were invisible until 2026-09-10, when each command's flag scan
+was bounded by the next command -- see `invocations`. The pre-existing one was
+a chain of FOUR `--self-test` calls joined by `&&` in MISSION `0-INSTR`, of
+which only the first was ever checked. All four pass, so the hole was real and
+benign; the point is that it was a hole for as long as the chain existed. They are
 copy-pasted at exactly the wrong moment -- a campaign has just landed and a
 number is wanted -- and a flag that argparse rejects costs a debugging cycle
 right there.
