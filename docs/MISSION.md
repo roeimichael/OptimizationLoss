@@ -1685,8 +1685,65 @@ the host it started on, and read the log to find out which that is.
 ### 📋 THE CENSUS. 21 worktrees, 26 campaigns, 2,715 configs
 
 ```
-VERIFIED 2026-09-11 18:00-18:35, ON BOTH HOSTS. THIS IS THE FRESHEST BLOCK --
-anything below it is OLDER and superseded where they disagree.
+VERIFIED 2026-09-11 23:2x, ON BOTH HOSTS, FROM `ps` + `/proc/<pid>/environ`
+(so the GPU and root of every dispatcher are READ, not inferred) AND from a
+completed-run count. THIS IS THE FRESHEST BLOCK -- anything below it is OLDER
+and superseded where they disagree.
+
+  🖥️ THE RIG IS FULL. 4 dispatchers, 4 GPUs, nothing free.
+  ⛔ dsisco02 GPU 0 = `nirgal`; GPUs 2 and 3 = `liverty` (NOT nirgal, this
+     changed). dsisco01 GPU 3 = `nirgal`. Never share a GPU.
+
+  clipsweep1    0/88    🆕 dsisco02 GPU 1, worktree `optloss-score` PINNED at
+                        37f842c9. bcn/ViTB16, L90_G95 + L100_G95, BOTH strict
+                        `task`. 11 arms: clip focal_clip + THREE lambda=0
+                        streams + tralo/tralo_coin at clip 0.3 / 1.0 / 3.0.
+                        verify GREEN 6/6, launch GREEN 2/2, one code_version.
+                        🔑 READ IT AS `|tralo_clipXX - tralo_coin_clipXX|`
+                        ACROSS THE THREE LEVELS, never `tralo` vs `clip`. The
+                        coin twin is norm-matched to its partner exactly
+                        (gated in tests/test_pipeline.py), so the pair holds
+                        norm, schedule, dose, RNG stream and warm-up fixed and
+                        varies only what the DIRECTION knows. FLAT across the
+                        10x range closes the loss-design program; GROWS
+                        reopens every closed family at the working dose; gap
+                        grows while deployed TP does not = churn.
+                        ⛔ NOT A SIGN TEST -- `gen_campaign` warns that 2 cells
+                        can never reach significance. MAGNITUDES ONLY.
+                        Baseline for the clip=1.0 midpoint already exists:
+                        over `coin1`+`coin2`, tralo leads the coin by
+                        +4.25 / +2.25 / -4.00 / +1.75 items, 3 of 4, p=0.31,
+                        EVERY cell inside its own RNG floor. Task #117,
+                        FRAMEWORK 2(z82) section 2b.
+  clipsweep2    0/88    🆕 STAGED, NOT LAUNCHED -- no GPU is free. Same
+                        worktree and commit, separate root. iwildcam/
+                        MobileNetV2, L70_G95 + L80_G95, both strict `task`
+                        (L95_G80 was rejected: it produces the SAME budgets as
+                        L80_G95; L90/L100 are only `partial`). verify GREEN
+                        6/6. 🔑 It is the CONTRASTING REGIME, not merely a
+                        second unit: 2(z110) measured the ratchet range
+                        clustering by dataset with no overlap, and iwildcam is
+                        13.3-24.3x against bcn's SATURATED 1.3-1.6x. Launch it
+                        on the first free GPU. Task #140.
+                        LAUNCH: cd ~/optloss-score && conda activate optloss &&
+                        ( CUDA_VISIBLE_DEVICES=<n> EXPERIMENT_DIR=results/clipsweep2                           setsid nohup python -u main.py > logs/clipsweep2.log 2>&1 </dev/null & )
+  vitdual2     83/88    dsisco01 GPU 0, running (PID 2323416, optloss-cutwin)
+  fmow2mn2     68/96    dsisco01 GPU 2, running (PID 2935255, optloss-newunits)
+  fmow2rgn      5/96    dsisco01 GPU 1, running (PID 3849977, optloss-newunits)
+
+  🛑 `optloss-score` MUST NOT MOVE AGAIN. Both clipsweeps are generated at
+     37f842c9 and the tree is DETACHED there, so later commits on
+     `cleanup/consolidate-pipeline` cannot follow it. Fast-forwarding it "for
+     the latest docs" would desynchronise both campaigns at once.
+  🛑 AND ITS `model_cache` IS PRIVATE ON PURPOSE. It was briefly a symlink into
+     `~/optloss-bcn/model_cache` to reuse `bcn1vit`'s warm-ups; the
+     `run_code_version` gate correctly REFUSED them (trained at 4b980ca0, run
+     at 37f842c9) and the retrained model would then have OVERWRITTEN
+     bcn1vit's file at the same content-addressed name. The cache is
+     commit-scoped by design -- never symlink one worktree's into another's.
+
+VERIFIED 2026-09-11 18:00-18:35, ON BOTH HOSTS. This block is OLDER than the
+one above and superseded where they disagree.
   bcn2rgn       8/96     dsisco02 GPU 1. LAUNCHED BY HAND 18:20, not by the
                          q01c queue (whose QUEUED rows below put it third on
                          dsisco01 GPU 2 -- those rows are STALE). --step launch
