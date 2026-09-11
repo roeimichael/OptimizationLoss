@@ -70,8 +70,24 @@ so a null here is consistent with capturing a third of everything there is to wi
 main.py            dispatcher (kill -INT to stop; interrupted runs reset to pending)
 configs/           gen_campaign.py = THE generator (asserts the protocol, refuses to
                    emit a single-cap campaign, always adds both clippers)
-data/              iwildcam -- THE ONLY dataset. The original three are removed and
-                   unrunnable, not merely discouraged; see `docs/FRAMEWORK.md` 2(n)
+data/              ⛔ **THREE RUNNABLE DATASETS, NOT ONE -- THIS LINE SAID
+                   "iwildcam -- THE ONLY dataset" UNTIL 2026-09-11 AND HAD BEEN
+                   FALSE FOR OVER A WEEK.** `bcn1mn3` is COMPLETE at 228 runs,
+                   `fmow1` at 304/304, and `bcn1vit` is live -- so all three
+                   have images on the server, and bcn + fmow supply **3 of the
+                   8 licensed units** (D1, E1, E2) including the HEADLINE
+                   ViTB16. 🔑 It is not a bookkeeping slip: 2(z105)'s
+                   one actionable recommendation is to buy NON-iwildcam units,
+                   and a top-of-file line calling iwildcam the only dataset
+                   argues the opposite to every reader who gets that far.
+                   Only the three `*_meta.csv` pairs are tracked; the `.npy`
+                   arrays are gitignored and server-side.
+                   The ORIGINAL three are removed and unrunnable, not merely
+                   discouraged; see `docs/FRAMEWORK.md` 2(n) -- and they are
+                   NOT named here on purpose, because this block is FENCED and
+                   `test_no_runnable_command_in_the_docs_names_a_removed_dataset`
+                   reads every fenced line as executable. It caught this exact
+                   edit on 2026-09-11.
 docs/FRAMEWORK.md  THE framework -- protocol, rejected ideas, code purge, open question
 docs/MISSION.md    THE RESUME POINT -- goal, knob ledger, priority queue
 🛑 **THE RECIPE, AND IT IS THE ONLY CORPUS THAT COUNTS (2026-09-02).**
@@ -1810,7 +1826,22 @@ python -m scripts.prep_fmow ...              # candidate slice: held-out COUNTRY
 
 ## Datasets
 
-**`iwildcam` is the only RUNNABLE one** (the only one with images on the server; two more pass the screen -- see the table). 8 species, classes 2 (impala) and 7 (cattle) capped,
+⛔ **THREE ARE RUNNABLE AND ALL THREE HAVE RUN. THIS LINE SAID
+"`iwildcam` is the only RUNNABLE one ... two more pass the screen" UNTIL
+2026-09-11**, which framed bcn and fmow as CANDIDATES when `bcn1mn3` (228 runs)
+and `fmow1` (304/304) were long complete, `bcn1vit` was live, and the two of them
+supply **3 of the 8 licensed units** -- D1, E1 and E2, the last of which is the
+HEADLINE ViTB16. `fmow1` is also the cleanest campaign the project has ever run
+(2(z88)).
+
+⚠️ **AND iwildcam IS THE WEAKEST OF THE THREE, MEASURED.**
+`tier_viability` 2026-09-11: density **0.27**, **2 of 8** classes usable, **50%**
+of ceilings K=0, **72%** of test items in groups holding neither capped class --
+verdict **WEAK**, against TIER-LIKE for bcn (0.89) and fmow (0.82). Every
+surviving TraLO unit is on it; see 2(z105), and read that entry's p=0.357 before
+drawing anything from the coincidence.
+
+`iwildcam` itself: 8 species, classes 2 (impala) and 7 (cattle) capped,
 `location` = camera trap, and the test cameras are held out ENTIRE. **No AIDER, no
 EuroSAT, no others.**
 
