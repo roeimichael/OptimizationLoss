@@ -1556,6 +1556,111 @@ def test_the_random_direction_control_keeps_the_dose_and_drops_the_information()
     assert abs(cos) < 0.3, "random direction is not independent of the real one"
 
 
+def test_the_coin_twin_is_norm_matched_to_its_partner_AT_EVERY_CLIP_LEVEL():
+    """The clip sweep's load-bearing property, and the test above does not cover it.
+
+    `test_the_random_direction_control_keeps_the_dose_and_drops_the_information`
+    proves the coin arm matches its partner's dose at `clip=1.0`. The sweep
+    (`tralo_clip03` / `tralo_clip30` and their coin twins, FRAMEWORK 2(z82)
+    section 2b) varies the clip over a 10x range, and the estimator it exists
+    to compute is `|tralo_clipXX - tralo_coin_clipXX|` as a FUNCTION of the
+    clip. That difference is only readable as "what the direction knows" if
+    the two arms are at the same dose AT EACH LEVEL.
+
+    The call site is `constraint_step.py:277`:
+
+        _randomize_direction(model, clip if mode == "normalize"
+                             else min(raw_norm, clip), raw)
+
+    Hardcoding `1.0` there -- the obvious simplification, since every shipped
+    arm used 1.0 until this sweep -- keeps the clip=1.0 test green, keeps
+    every config gate green, keeps `smoke_arms` green, and makes the sweep
+    measure dose-times-direction with no way to separate them. That is the
+    same confound that made the dedicated-Adam arm uninterpretable.
+
+    So this asserts the RATIO, not the value: the coin norm must scale with
+    the clip exactly as the real norm does.
+    """
+    LEVELS = (0.3, 1.0, 3.0)          # the shipped sweep, protocol.yml
+
+    def delivered(clip, coin):
+        torch.manual_seed(0)
+        m = torch.nn.Linear(64, 8)
+        for p in m.parameters():
+            p.grad = torch.randn_like(p) * 0.01   # small: normalize scales UP
+        before = [p.detach().clone() for p in m.parameters()]
+        finish_constraint_step(m, None, None, clip=clip, mode="normalize",
+                               step_rule="sgd", lr=1.0, random_direction=coin)
+        return float(torch.cat([(p.detach() - b).flatten()
+                                for p, b in zip(m.parameters(), before)]).norm())
+
+    real = {c: delivered(c, False) for c in LEVELS}
+    coin = {c: delivered(c, True) for c in LEVELS}
+
+    for c in LEVELS:
+        assert real[c] == pytest.approx(c, rel=1e-4), (c, real[c])
+        assert coin[c] == pytest.approx(c, rel=1e-4), (
+            "the coin twin is at dose %g while its partner is at %g; "
+            "|tralo - tralo_coin| then confounds direction with dose"
+            % (coin[c], real[c]))
+        assert coin[c] == pytest.approx(real[c], rel=1e-4)
+
+    # THE MUTATION THIS CATCHES AND THE clip=1.0 TEST DOES NOT: a hardcoded
+    # 1.0 in the coin branch pins every coin norm to 1.0, so the ratio over
+    # the sweep's own range collapses from 10x to 1x.
+    assert coin[3.0] / coin[0.3] == pytest.approx(10.0, rel=1e-3), (
+        "the coin arm's dose does not track the clip: ratio %.4f over a 10x "
+        "sweep. The sweep cannot separate direction from dose."
+        % (coin[3.0] / coin[0.3]))
+
+
+def test_every_clip_sweep_arm_has_a_coin_twin_at_the_SAME_clip():
+    """The config half of the property above, read off protocol.yml itself.
+
+    Norm-matching in `constraint_step` is necessary and not sufficient: the
+    pair must also be DECLARED at the same clip. `tralo_clip03` against a
+    `tralo_coin` left at 1.0 is a 3.3x dose gap wearing the word `coin`, and
+    nothing downstream would say so -- `check_parity` compares compute, not
+    treatment scalars.
+
+    Reads the arms from the protocol rather than restating them, so adding a
+    clip level without its twin turns this red.
+    """
+    from configs.gen_campaign import build_hyperparams, load_protocol
+    P = load_protocol()
+
+    sweep = [a for a in P["arms"]
+             if a.startswith("tralo_clip") or a.startswith("tralo_coin_clip")]
+    assert sweep, "the clip-sweep arms are gone from protocol.yml"
+
+    clip_of, coin_of = {}, {}
+    for a in sweep:
+        hp = build_hyperparams(P, P["arms"][a], seed=1)
+        clip_of[a] = float(hp["constraint_grad_clip"])
+        coin_of[a] = bool(hp["constraint_random_direction"])
+
+    treated = sorted(a for a in sweep if not coin_of[a])
+    assert treated, "the sweep declares no treated arm"
+    for a in treated:
+        twin = a.replace("tralo_clip", "tralo_coin_clip")
+        assert twin in clip_of, (
+            "%s has no coin twin. A dose level with no direction control "
+            "measures nothing -- FRAMEWORK 2(z82) section 2b" % a)
+        assert coin_of[twin], "%s is not actually a coin arm" % twin
+        assert clip_of[twin] == clip_of[a], (
+            "%s is at clip %g but its twin %s is at %g"
+            % (a, clip_of[a], twin, clip_of[twin]))
+
+    # and the sweep must actually span a range, or it is not a sweep. The
+    # baseline `tralo`/`tralo_coin` pair supplies the middle level.
+    base = float(build_hyperparams(P, P["arms"]["tralo"], seed=1)
+                 ["constraint_grad_clip"])
+    span = sorted({clip_of[a] for a in treated} | {base})
+    assert len(span) >= 3 and span[-1] / span[0] >= 9.0, (
+        "the clip sweep spans %r -- 2(z82) section 2b prices its FLAT outcome "
+        "against a 10x dose range" % (span,))
+
+
 def test_a_non_finite_constraint_gradient_never_moves_the_weights():
     """fioretto lost 10 of 29 epochs to NaN/inf. It must lose them SAFELY."""
 

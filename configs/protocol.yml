@@ -259,6 +259,25 @@ blocks:
   # not a result until the bar is in the same campaign.
   tralo_coin:
     constraint_random_direction: true
+  # THE DOSE BLOCKS, 2026-09-11. `constraint_grad_clip` is the ONE scalar that
+  # survives `normalize`: the delivered step has norm exactly
+  # `lr_constraint * constraint_grad_clip` whatever the loss was worth, which
+  # is why lambda_step, initial_rho, rho_target and fioretto_step_size all read
+  # inert here. `protocol.yml` has asked for this sweep since the beginning
+  # ("Sweep 0.3 / 1.0 / 3.0 to get a dose-response curve") and it has never run.
+  #
+  # 🔑 THEY ARE BLOCKS, APPLIED AFTER `constraint_phase`, SO THEY OVERRIDE ITS
+  # 1.0. `build_hyperparams` merges blocks in list order, so the arm must list
+  # `[constraint_phase, tralo, clip03]` and not the reverse.
+  #
+  # 🔑 AND THE SWEEP IS CHEAP BECAUSE `constraint_grad_clip` IS NOT IN
+  # `warmup_identity_keys`. Every clip level shares the cached warm-up of
+  # `tralo` itself, so the arms differ ONLY in the constraint phase and the
+  # comparison is within one model rather than across three campaigns.
+  clip03:
+    constraint_grad_clip: 0.3
+  clip30:
+    constraint_grad_clip: 3.0
   tralo_st:
     straight_through: true
   tralo_margin:
@@ -809,6 +828,42 @@ arms:
   # joint arm's failure mode, so it is not an arm.
   tralo_coin:
     {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, tralo_coin],
+     null_sibling: tralo_null}
+  # THE DOSE-RESPONSE ARMS, 2026-09-11. FRAMEWORK 2(z82) §2b sets the
+  # estimator and it is NOT `tralo` vs `clip`: 2(z29) measured
+  # `|tralo - tralo_coin|` at clip 1.0 in task cells and got 2.0 items against
+  # an RNG floor of 2.0 -- a coin flip of the same norm is indistinguishable
+  # from the penalty. So the question is not "does a bigger step capture more
+  # items", it is **does the DIRECTION acquire information as the step grows**.
+  #
+  # ⇒ READ `|tralo_clipXX - tralo_coin_clipXX|` ACROSS THE THREE CLIP LEVELS.
+  # That holds the norm, the schedule, the dose, the RNG stream and the
+  # warm-up model fixed and varies only what the direction knows. Both
+  # outcomes are terminal and both are worth having:
+  #   FLAT at ~1x the floor across the 10x range -> the direction is worth
+  #     nothing at any deliverable dose, and the whole loss-design program
+  #     closes, because `normalize` keeps only the direction.
+  #   GROWS with the clip -> there IS information in the direction, it sat
+  #     under the noise at 1x, and every closed family is worth re-reading at
+  #     the working dose.
+  # ⚠️ A THIRD OUTCOME IS NOT A TIE: the gap may grow while deployed TP does
+  # not, which is churn bought by the norm, not information. `tralo` must pull
+  # AHEAD of `tralo_coin` on captured items, not merely away from it.
+  #
+  # 🛑 THE COIN ARM AT EACH CLIP IS MANDATORY, NOT OPTIONAL. Without it the
+  # sweep measures a dose change and nothing else -- the same defect
+  # `tralo_coin_sgd` exists to prevent on the delivery axis.
+  tralo_clip03:
+    {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, clip03],
+     null_sibling: tralo_null}
+  tralo_clip30:
+    {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, clip30],
+     null_sibling: tralo_null}
+  tralo_coin_clip03:
+    {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, tralo_coin, clip03],
+     null_sibling: tralo_null}
+  tralo_coin_clip30:
+    {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, tralo_coin, clip30],
      null_sibling: tralo_null}
   tralo_st:
     {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, tralo_st],

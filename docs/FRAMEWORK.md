@@ -4052,7 +4052,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 637 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 639 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -4226,7 +4226,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 637 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 639 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -4234,7 +4234,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (637 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (639 tests, ~295 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -16222,7 +16222,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             637 tests, ~297 s, no dataset required
+tests/             639 tests, ~295 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
@@ -18656,3 +18656,84 @@ scale, and it is worth more than the 25-cell sign tally above it.
   It is the one cell that could turn an unpriced pass into a priced one, and
   the corpus record would go 2-2 rather than 1-2. A priced LOSS there would
   retire D2 outright, which is exactly why it is worth buying.
+
+## 2(z110). I PRE-REGISTERED "TraLO WINS WHERE ITS SCOPE WEIGHTING IS FLAT" AND THE CONTROL I NAMED UP FRONT KILLED IT IN ONE READ. THE SURVIVING FINDING IS THAT THE RATCHET'S RANGE IS A PROPERTY OF THE **DATASET**, AND IT IS SATURATED ON TWO OF THREE (2026-09-11)
+
+Run while gating the clip sweep, from `training_log.csv` alone across NINE
+campaigns / 122 runs / 4 backbones / 3 datasets. Zero GPU.
+
+### 1. THE PRE-REGISTRATION, AND THE CONFOUND NAMED WITH IT
+
+`latch_probe` on `bcn1vit` (unit D2, TraLO's one non-iwildcam PASS) reported
+TraLO's per-scope lambda spanning **1.3x** against a violation magnitude
+spanning **26.8x**. On iwildcam 2(z49) had measured 24.3x. So the hypothesis:
+**TraLO wins where its frequency ratchet has collapsed to a near-uniform scope
+weighting.**
+
+It was written down before the sweep ran, together with its own control: C2
+(`dom1`/MobileNetV3, the OTHER passing unit) and A1 (`dom1`/MobileNetV2, a
+loss) are the SAME CAMPAIGN, so if the range is campaign-level they cannot
+differ and the hypothesis cannot be true.
+
+### 2. REFUTED, AND BY EXACTLY THAT CONTROL
+
+| campaign | unit(s) | TraLO result | tralo range | magnitude range |
+|---|---|---|---|---|
+| `bcn1vit` | **D2** | **WIN** | **1.3x** | 26.8x |
+| `bcn1mn3` | D1 | loss | **1.3x** | 21.2x |
+| `bcn2mn2` | F1 | **LOSS, priced** | 1.6x | 15.5x |
+| `bcn2rgn` | G1 | split 1 of 2 | 1.6x | 12.6x |
+| `fmow1` | E1, E2 | loss 0 of 4 | 2.9x | 56.0x |
+| `dom1` | A1 loss, **C2 WIN** | mixed | **13.3x** | 634.0x |
+| `dom1b` | B1 | loss | 24.3x | 1934.0x |
+| `equaldose1` | A2, C1 | loss | 13.3x | 598.0x |
+| `taskwin2` | C1 | no rival staged | 13.3x | 281.7x |
+
+⛔ **D2 (win) and D1 (loss) are BOTH 1.3x** -- identical, same dataset. And the
+other winner, C2, sits at **13.3x**, an order of magnitude the other way, in a
+campaign whose other backbone LOSES at the same 13.3x. The two winners occupy
+opposite ends of the range and each is tied to a loser at its own value. The
+range does not separate outcomes in either direction.
+
+### 3. 🔑 WHAT IS REAL: THE RANGE CLUSTERS BY DATASET, ACROSS FOUR BACKBONES EACH
+
+* **bcn**: 1.3, 1.3, 1.6, 1.6 -- four campaigns, four backbones
+* **fmow**: 2.9
+* **iwildcam**: 13.3, 24.3, 13.3, 13.3
+
+That is a 10-19x separation with zero overlap, and the magnitude range tracks
+it (bcn 12.6-26.8, fmow 56, iwildcam 282-1934). The backbone moves it barely;
+the dataset moves it by an order of magnitude.
+
+🔑 **AND ON bcn THE RATCHET IS SATURATED, WHICH IS A STATEMENT WITH ARITHMETIC
+BEHIND IT.** 2(z49) established `lam_c = lam_0 + step * (epochs violated)`, so
+the range is `(0.01 + 0.05*max) / (0.01 + 0.05*min)`. At max = 29 epochs, a
+range of 1.3 forces **min ~ 22**: nearly every scope is violated in nearly
+every epoch, the counter has almost nothing left to discriminate with, and the
+delivered scope weighting is effectively UNIFORM. On iwildcam the same
+arithmetic gives min = 1 or 2.
+
+So TraLO's one adaptive channel is close to degenerate on two of the three
+datasets, and that is invisible from iwildcam, where every prior measurement of
+it was taken.
+
+### 4. ⛔ THIS DOES NOT REOPEN FREQUENCY-vs-MAGNITUDE, AND THE LEDGER IS WHY
+
+The obvious next sentence -- "so integrate the magnitude instead, and do it on
+bcn where the counter is saturated" -- is `tralo_dualprop`, and **2(z56) §5
+CLOSED the scope scalar `A_S` including frequency-vs-magnitude by name.** The
+measurement above is a better DESCRIPTION of the closed mechanism; it is not new
+evidence that the closed arm works. Rejected stays rejected.
+
+What it legitimately changes is the reading of any FUTURE bcn result: a
+TraLO-vs-uniform-scope-weighting contrast measured on bcn is measuring almost
+nothing, because TraLO is already nearly uniform there.
+
+### 5. ✅ AND THE LATCH REPLICATES AT 0 OF 122
+
+`satisfaction_epoch` fires in **0 of 122 runs** across all nine campaigns, 3
+datasets and 4 backbones -- extending 2(z49)'s 0 of 109, which was iwildcam
+only. The latch direction is closed on every dataset the project runs, not just
+the one it was measured on. It also means the constraint is violating somewhere
+for the whole 29-epoch phase everywhere, which is the precondition the clip
+sweep needed (task #116): raising the clip acts on real violation, not a no-op.
