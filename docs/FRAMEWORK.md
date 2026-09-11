@@ -17993,9 +17993,16 @@ before somebody does. D1 came back **NEGATIVE**, not null. A weaker dataset make
 a NULL less informative -- it cannot turn a loss into a win. The acceptance
 verdict is untouched: **6 of 22 = 27%, per unit 2 of 8, FAIL** (2(z88)).
 
-Where it DOES bear is forward: `bcn1vit` is live, and bcn's effective novelty is
-half what the table implied, so a null there is weaker evidence than the row
-suggested. That is a statement about how much a FUTURE bcn cell can prove.
+Where it DOES bear is forward: bcn's effective novelty is half what the table
+implied, so a null on bcn is weaker evidence than the row suggested. That is a
+statement about how much a bcn cell can prove.
+
+⛔ **AND `bcn1vit` IS NOT "FUTURE" -- IT IS FINISHED. 190/190, AND
+UNLICENSED.** This paragraph said "`bcn1vit` is live" when first written, hours
+after 2(z72) had already been recorded TWICE against this exact campaign. It is
+the second-dataset ViTB16 campaign, `L90` is a task cell, and it is absent from
+`MEASURED_UNITS` -- so it reads UNVERIFIED and contributes nothing to a tally it
+could move today. See **2(z106)**.
 
 ### 5. ⚠️ AND IT NARROWS THE CONSTRAINT'S OWN INFORMATION BUDGET, NOT JUST THE DATASET CHOICE
 
@@ -18095,14 +18102,15 @@ If every future non-iwildcam unit also returns zero and the two passes stay put:
 | non-iwildcam units k | total units | p |
 |---|---|---|
 | **3 (today)** | 8 | **0.357** |
-| 4 (`bcn1vit` lands) | 9 | 0.278 |
+| 4 (`bcn1vit`, ALREADY COMPLETE -- 2(z106)) | 9 | 0.278 |
 | 8 | 13 | 0.128 |
 | 12 | 17 | 0.074 |
 | **16** | 21 | **0.048** -- first below 0.05 |
 
 **A unit is a whole campaign.** Certifying this concentration on sign counts
 needs **13 more non-iwildcam campaigns than the project has ever run**, and
-`bcn1vit` -- already live -- moves p only 0.357 -> 0.278. This is the same shape
+`bcn1vit` -- which is **already COMPLETE at 190/190 and merely unlicensed**,
+2(z106) -- moves p only 0.357 -> 0.278. This is the same shape
 as 2(z77) (the instrument's resolution and the whole prize are the same size)
 and 2(z66) (the attainable sign floor): **the cheap version of the question is
 structurally dead before anyone runs it.**
@@ -18136,7 +18144,88 @@ nulls. The correct use is the opposite one -- it argues against spending more
 GPU on iwildcam units to raise the tally, because a pass there is the cheapest
 kind of pass to get.
 
-🔑 **THE ONE ACTIONABLE CONSEQUENCE**: when `bcn1vit` lands it is a
-non-iwildcam unit, and its sign should be read against this entry rather than
-folded silently into the 8. It cannot certify anything (p 0.357 -> 0.278) and
-that should be said at the moment it is read, not after.
+🔑 **THE ONE ACTIONABLE CONSEQUENCE, AND IT COSTS NO GPU**:
+`bcn1vit` is a non-iwildcam unit that is **already finished** -- 190/190, the
+second-dataset ViTB16 campaign, with `L90` a task cell under both readings
+(11(z)-era analysis, FRAMEWORK section on bcn caps). It is simply **not in
+`MEASURED_UNITS`**, so it reads UNVERIFIED and contributes nothing. Licensing
+and reading it is the single most informative act available to this entry, and
+it needs only the server. See **2(z106)**.
+
+⛔ Read its sign AGAINST this entry, not folded silently into the 8, and say
+at the moment of reading that it cannot certify anything: zero takes p to 0.278,
+and a PASS breaks the concentration outright.
+
+
+## 2(z106). `bcn1vit` IS FINISHED, NOT LIVE -- FOUR DOCS SAID OTHERWISE AND I WROTE THREE OF THEM TODAY. IT IS ALSO THE HIGHEST-VALUE UNLICENSED UNIT IN THE PROJECT (2026-09-11)
+
+### 1. ⛔ WHAT IS *NOT* NEW HERE, SAID FIRST
+
+**That `bcn1vit` is absent from `MEASURED_UNITS` was already recorded.**
+2(z84) §5 enumerates ten campaigns "LIVE, STAGED OR LANDED" that are absent from
+the ledger and will emit `UNVERIFIED` on sight, names `bcn1vit` among them, and
+calls the situation *"D1's defect ... queued nine more times"*. `docs/PLAYBOOK.md`
+rule **2a** already makes resolving the unit a step AT LANDING. Since then
+`fmow1` (E1, E2) and `price1` (A2) were licensed, so the queue shrank from ten to
+about eight. **None of that is a discovery, and this entry does not claim it as
+one.** (Twice today an entry claimed novelty the repo's own record contradicted
+-- 2(z104) §2 and §3. This section exists so it does not happen a third time.)
+
+### 2. WHAT IS NEW, PART ONE: ITS RUN STATE, IN FOUR DOCUMENTS
+
+`bcn1vit` is **COMPLETE at 190/190**. MISSION 0-RUNNING's census says so, and it
+already carried a 🛑 entry reading *"`bcn1vit` AND `snap2` ARE COMPLETE AND BOTH
+DOCS STILL CALLED THEM LIVE"*. Despite that, on 2026-09-11 it still read live or
+running in **four** places:
+
+| site | what it said |
+|---|---|
+| `CLAUDE.md` dataset table | `bcn1vit LIVE` |
+| `CLAUDE.md` `data/` block | "`bcn1vit` is live" |
+| `CLAUDE.md` COVERAGE summary | "`bcn1vit` + `fmow1` are running" -- **`fmow1` is 304/304** |
+| `docs/COVERAGE.md` line 387 | "live, **L90 only**" |
+
+⛔ **AND THREE OF THOSE SENTENCES WERE WRITTEN THAT SAME DAY, BY ME, WHILE
+FIXING AN ADJACENT DEFECT.** Correcting the dataset table (2(z104)) meant
+describing bcn's campaigns, and the description was taken from **CLAUDE.md** --
+the document being corrected -- rather than from the run-state ledger. So a
+stale claim was copied forward into three new places by the very edit that was
+auditing that table.
+
+🔑 **THE RULE, AND IT IS NARROW ENOUGH TO FOLLOW: RUN STATE HAS ONE
+AUTHORITY, AND IT IS `MISSION` 0-RUNNING.** Not CLAUDE.md, not COVERAGE, not the
+entry you are editing. This is the operational half of the memory rule *"date
+run-state when CHECKED, not when written"*: the reason a run-state claim goes
+stale is that it is copied from a sibling document instead of read from the
+census. `scripts.campaign_state` (2(z83)) exists precisely to keep that census
+honest -- and it cannot help a writer who never consults it.
+
+### 3. WHAT IS NEW, PART TWO: IT IS NOW THE MOST VALUABLE ITEM IN THAT QUEUE
+
+2(z84) §5 listed the unlicensed campaigns without an ordering. 2(z105) supplies
+one, and it puts `bcn1vit` first by a wide margin:
+
+* every surviving TraLO unit is on **iwildcam**, and the two datasets where the
+  cap actually poses a question return **0 of 3**;
+* certifying that concentration on sign counts needs **16** non-iwildcam units
+  against the **3** that exist, so a non-iwildcam unit is the scarcest thing in
+  the corpus;
+* `bcn1vit` is a non-iwildcam unit, on the **HEADLINE ViTB16**, with **`L90` a
+  task cell under both readings**, and it is **already finished**. Its `L70` and
+  `L80` were archived as non-tasks (moved, not deleted), so what remains is the
+  cell that poses the question.
+
+⇒ It is the only item on the reconnect queue that adds a unit for **zero GPU**.
+Reading it takes p from 0.357 to 0.278 if it returns zero -- and **breaks the
+concentration outright if it passes**, which is the outcome most worth knowing.
+
+### 4. ⚠️ LICENSE IT BY MEASUREMENT, NOT BY ASSUMPTION
+
+It is NOT added to `MEASURED_UNITS` here, and must not be added from a laptop.
+PLAYBOOK 2a names the measurement: `arm_identity_check` -- does this campaign's
+warm-up already exist under another name? Shared warm-up means it JOINS an
+existing unit as a correlated replicate; genuinely new means it enters as its own
+(call it **D2**, bcn/ViTB16, distinct from D1's bcn/MobileNetV3 by backbone).
+The backbone difference makes a new unit *likely*, not certain, and **a unit
+assigned after the numbers are seen is a choice dressed as a measurement** --
+2d holds five retractions of exactly that shape. Assign it BEFORE scoring.

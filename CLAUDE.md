@@ -73,8 +73,8 @@ configs/           gen_campaign.py = THE generator (asserts the protocol, refuse
 data/              ⛔ **THREE RUNNABLE DATASETS, NOT ONE -- THIS LINE SAID
                    "iwildcam -- THE ONLY dataset" UNTIL 2026-09-11 AND HAD BEEN
                    FALSE FOR OVER A WEEK.** `bcn1mn3` is COMPLETE at 228 runs,
-                   `fmow1` at 304/304, and `bcn1vit` is live -- so all three
-                   have images on the server, and bcn + fmow supply **3 of the
+                   `fmow1` at 304/304, and `bcn1vit` at 190/190 -- so all
+                   three have images on the server, and bcn + fmow supply **3 of the
                    8 licensed units** (D1, E1, E2) including the HEADLINE
                    ViTB16. 🔑 It is not a bookkeeping slip: 2(z105)'s
                    one actionable recommendation is to buy NON-iwildcam units,
@@ -155,10 +155,13 @@ docs/COVERAGE.md   🗺️ WHAT WE ACTUALLY HAVE vs WHAT THE PAPER NEEDS, built
    ITS RESTRICTION. FRAMEWORK 2(z66), **2(z75)**, MISSION 0-UNREAD.
                    COVERAGE also carries the checklist of holes: ViTB16 has zero fioretto/hounie/alm,
                    every run caps the same 2 classes, no symmetric cap ever,
-                   1 dataset of 3 -- ✅ THAT LAST HOLE IS CLOSING:
-                   `bcn1mn3` is COMPLETE (228 runs) and `bcn1vit` +
-                   `fmow1` are running, so three datasets now carry
-                   campaigns. Re-read COVERAGE before quoting it.
+                   1 dataset of 3 -- ✅ THAT HOLE IS CLOSED, NOT
+                   CLOSING: `bcn1mn3` 228/228, `bcn1vit` 190/190 and
+                   `fmow1` 304/304 are ALL COMPLETE. ⛔ This line said
+                   "`bcn1vit` + `fmow1` are running" until 2026-09-11 -- the
+                   third instance of 2(z72) on these same two campaigns, and
+                   MISSION 0-RUNNING had ALREADY recorded the other two.
+                   Re-read COVERAGE before quoting it.
 docs/PLAYBOOK.md   WHAT TO DO WHEN A CAMPAIGN LANDS -- the integrity gates in
                    order, how to read the logs and their three traps, and a
                    branch per outcome (win / null / loss / gates red) decided
@@ -1829,7 +1832,8 @@ python -m scripts.prep_fmow ...              # candidate slice: held-out COUNTRY
 ⛔ **THREE ARE RUNNABLE AND ALL THREE HAVE RUN. THIS LINE SAID
 "`iwildcam` is the only RUNNABLE one ... two more pass the screen" UNTIL
 2026-09-11**, which framed bcn and fmow as CANDIDATES when `bcn1mn3` (228 runs)
-and `fmow1` (304/304) were long complete, `bcn1vit` was live, and the two of them
+and `fmow1` (304/304) were long complete, `bcn1vit` was COMPLETE TOO at
+190/190, and the two of them
 supply **3 of the 8 licensed units** -- D1, E1 and E2, the last of which is the
 HEADLINE ViTB16. `fmow1` is also the cleanest campaign the project has ever run
 (2(z88)).
@@ -1861,7 +1865,7 @@ DIFFERENTIAL per-group novelty net of sampling noise and the global shift:
 
 | dataset | group | NET items | z | unseen groups | status |
 |---|---|---|---|---|---|
-| **bcn/oodslice** | body site x age | **+2031** | **61.6** | **8** | 🟢🟢 **RUNNABLE. `bcn1mn3` COMPLETE (228 runs), `bcn1vit` LIVE.** ⚠️ **HALF ITS NOVELTY IS INTERPOLABLE -- 2(z104)** |
+| **bcn/oodslice** | body site x age | **+2031** | **61.6** | **8** | 🟢🟢 **RUNNABLE. `bcn1mn3` COMPLETE (228 runs), `bcn1vit` COMPLETE (190/190) and UNLICENSED -- 2(z106).** ⚠️ **HALF ITS NOVELTY IS INTERPOLABLE -- 2(z104)** |
 | **fmow/oodslice** | **country** | **+2793** | **76.2** | **13** | 🟢🟢 **RUNNABLE. `fmow1` COMPLETE 304/304 (2026-09-10), 3 of 4 cells are TASK -- and TraLO wins 0 of 4. FRAMEWORK 2(z88)** |
 | **iwildcam/oodslice** | camera | **+3133** | **96.3** | **7** | 🟡 runnable, but a task in **0 of 24** cells at L20/L30/L50 |
 | **terra/oodslice** | camera | **+2546** | **75.8** | **5** | 🟡 screened 2026-08-28, META ONLY |

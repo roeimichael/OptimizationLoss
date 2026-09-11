@@ -117,8 +117,9 @@ slices where the cap actually poses a question.
 one-sided Fisher on (2/5 vs 0/3) is the same. One time in three under a null.
 
 ⛔ **AND IT IS UNREACHABLE.** If every future non-iwildcam unit also returns
-zero, p goes 0.357 (k=3, today) -> 0.278 (k=4, when `bcn1vit` lands) -> 0.128
-(k=8) -> **0.048 at k=16**. A unit is a WHOLE CAMPAIGN, so certifying this on
+zero, p goes 0.357 (k=3, today) -> 0.278 (k=4, `bcn1vit`, which is ALREADY
+COMPLETE at 190/190 and merely unlicensed -- 2(z106)) -> 0.128 (k=8) ->
+**0.048 at k=16**. A unit is a WHOLE CAMPAIGN, so certifying this on
 signs needs **13 more non-iwildcam campaigns than the project has ever run**.
 Same shape as 2(z77) and 2(z66): the cheap version of the question is
 structurally dead before anyone runs it.
@@ -135,9 +136,14 @@ logic, since a weak dataset weakens a NULL and A1/A2 are positives. The correct
 use is the opposite: it argues against buying more iwildcam units to raise the
 tally, because a pass there is the cheapest kind to get.
 
-🔑 **ACTIONABLE**: `bcn1vit` is a NON-iwildcam unit. Read its sign
-against this entry at the moment it is read, and say out loud that it cannot
-certify anything. FRAMEWORK **2(z105)**.
+🔑 **ACTIONABLE, AND IT COSTS NO GPU**: `bcn1vit` is a NON-iwildcam
+unit that is **already finished at 190/190** and simply absent from
+`MEASURED_UNITS`, so it reads UNVERIFIED and contributes nothing (**2(z106)**).
+Licensing and reading it is the most informative act available to this entry.
+Read its sign AGAINST this entry, not folded silently into the 8, and say at
+the moment of reading that it cannot certify the concentration: zero moves p
+only 0.357 -> 0.278, and a PASS breaks the pattern outright.
+FRAMEWORK **2(z105)**.
 
 ## 🛑 0-DATA. THE DATASET TABLE IS NOW MEASURED, AND HALF OF bcn's NOVELTY IS INTERPOLABLE (2026-09-11)
 
@@ -1694,6 +1700,15 @@ QUARANTINED
 `bcn1vit` is 190/190 -- the second-dataset ViTB16 campaign, and CLAUDE.md's
 dataset table says `bcn1vit LIVE`. `snap2` is 96/96. Two more instances of
 2(z72), found by the census rather than by re-reading the block.
+
+✅ **FIXED 2026-09-11, IN FOUR DOCS, AND IT HAD SPREAD FURTHER THAN THIS
+ENTRY KNEW.** `bcn1vit` still read live in CLAUDE.md's dataset table AND its
+`data/` block AND its COVERAGE summary AND `docs/COVERAGE.md` line 387 -- and
+the COVERAGE summary also had `fmow1` "running" at 304/304. ⛔ Worse, the
+first pass at this on 2026-09-11 RE-INTRODUCED "`bcn1vit` is live" into three
+NEW places while correcting the dataset table, because the writer read the
+campaign's state off CLAUDE.md rather than off THIS ledger. **0-RUNNING is the
+authority for run state; CLAUDE.md is not.** See **2(z106)**.
 
 🔑 **AND `price2` EXISTS, WHICH NO DOCUMENT MENTIONED.** The same ten-arm
 design as `price1` on **RegNetY400MF** -- a second INDEPENDENT UNIT rather than
