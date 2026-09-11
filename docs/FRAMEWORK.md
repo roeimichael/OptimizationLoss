@@ -17350,3 +17350,156 @@ campaigns launched the same night -- `bcn2mn2`, `fmow2mn2`, `bcn2rgn`,
 `fmow2rgn` -- are the ones that add units, and they carry three streams each
 for exactly this reason.
 
+
+---
+
+## 2(z98). THE "DEAD TWIN" IN `tables_rev/` IS NOT DEAD AND NOT A TWIN -- IT IS THE SAME TABLE UNDER THE CAPTION'S OWN RULE, AND THE LIVE ONE IN `main.tex` BOLDS A WIN THAT RULE CALLS A TIE (2026-09-11)
+
+**THE ONE-LINE VERSION.** `tab_granular_asym.tex` exists three times --
+`tables/`, `tables_rev/`, `tables_clean/` -- and the cleanup audit filed it as a
+dead-file question. It is not. `tables_rev/` and `tables_clean/` are identical
+to each other and differ from `tables/` in SIX rows, all in the same column,
+always in the same direction. **The metric values are byte-identical in every
+one; only the seed count and therefore the verdict move.** They are two
+renderings of two different rules, and the caption states both.
+
+```
+                          live tables/     tables_rev/
+DermMNIST    70/50        4/4  win         2/4  tie      delta +11.3, both
+DermMNIST    80/50        4/4  win         3/4  win      delta  +9.6, both
+TissueMNIST  70/50        2/4  tie         1/4  tie      delta  +0.3, both
+TissueMNIST  80/30        3/4  win         2/4  tie      delta  +7.4, both
+TissueMNIST  80/50        2/4  tie         1/4  loss     delta  -5.8, both
+TissueMNIST  80/70        2/4  tie         1/4  tie      delta  +4.9, both
+```
+
+### 1. Both columns are correct, for different definitions -- recomputed 6 of 6
+
+From `corpus_final.csv`, on the same cells:
+
+* `delta > 0` per seed reproduces the **live** column in **6 of 6**.
+* `delta >= +5e-3` per seed reproduces the **revised** column in **6 of 6**.
+
+Neither is a stale artefact and neither is arithmetic drift. `make_granular_tables.py`
+regenerates the LIVE version byte-for-byte today (`git status` clean after a
+run), so the higher counts are what current code produces.
+
+### 2. 🛑 THE CAPTION USES THE WORD `win` FOR TWO DIFFERENT THINGS
+
+Its own text, via `tab_granular_derm`'s rule which it defers to:
+
+> "`win` is the seed-winrate." ... "Each cell is scored **win**
+> (`Δ ≥ +5` on `≥ 3/4` seeds), **loss** (the mirror image), or **tie**"
+
+The first sentence defines the COLUMN -- a plain winrate, `Δ > 0` -- and the
+live table matches it. The second defines the CELL VERDICT and requires
+`Δ ≥ +5` **on at least 3 of 4 seeds individually**.
+
+`outcome(delta, win, n)` implements NEITHER of those as written. It takes
+`strong = (win / n) >= 0.75` where `win` is the `Δ > 0` count, and pairs it with
+the **MEAN** delta clearing `+5`. So the verdict is *"the average helps by 5 and
+three quarters of seeds helped at all"*, where the caption says *"three quarters
+of seeds each helped by 5"*.
+
+### 3. The measured consequence, on the row the table bolds
+
+DermMNIST / MobileNetV3 / L70-G50, per-seed `Δ` in `1e-3` units:
+
+```
+   +4.2   +7.1   +4.4   +29.3      mean +11.3   <- the printed number
+```
+
+* generator rule: mean `+11.3 ≥ +5` and `4/4 > 0` -> **win**, and it is
+  **bolded**.
+* caption-literal: seeds clearing `+5` are `2 of 4`, against a bar of `3/4` ->
+  **tie**.
+
+🔑 **THE MEAN CLEARS THE BAR BECAUSE ONE SEED OF FOUR CARRIES IT** -- `+29.3`
+against `+4.2`, `+4.4`, `+7.1`. Three of the four seeds are under half the bar.
+That is the precise failure mode the `≥3/4 seeds` clause exists to exclude, and
+the implementation routes around it by applying the threshold to the average
+instead of to the seeds.
+
+⚠️ **THE DIRECTION IS ONE-SIDED, 6 OF 6.** The live rule never reports FEWER
+winning seeds than the caption's, and it converts two ties into wins and one
+loss into a tie. A rule that can only move the verdict one way is a rule worth
+stating exactly.
+
+### 4. What is and is not affected
+
+⛔ **`docs/paper/main.tex` -- the professor's file -- STILL INPUTS THE LIVE
+VERSION** (`\input{tables/tab_granular_asym}`, line 1548). Every other
+manuscript has that line commented out with a Track-B note giving a DIFFERENT
+reason ("it packed two cap regimes into one"), so the paper of record prints
+neither table and is unaffected. `main.tex` must not be edited (house rule), so
+this is reported, not patched.
+
+✅ **NO CURRENT RESULT MOVES.** This is `dermmnist` + `tissuemnist` -- the
+removed, leaking corpus -- and `docs/paper/WHICH_CORPUS.md` already records that
+the manuscripts and the current experiments are disjoint generations.
+
+### 5. 🔑 AND THE DISPOSITION: KEEP ALL THREE
+
+The audit's framing -- "dead files inside a wholesale-preserved directory" --
+was wrong twice. `tables/` is LIVE. And the other two are not dead duplicates:
+they are **the only surviving record that the two rules disagree and by how
+much**. Deleting them would erase the evidence while leaving the bolded win in
+place. Nothing is removed; what was missing was the reading.
+
+
+---
+
+## 2(z99). A FIGURE IN THE PAPER OF RECORD BECAME UNREPRODUCIBLE, BECAUSE ITS SOURCE DATA WAS DELETED IN A CLEANUP THAT CALLED IT UNREFERENCED (2026-09-11)
+
+**THE ONE-LINE VERSION.** `docs/paper/scripts/make_figs.py` has been dying on
+`FileNotFoundError` for `docs/paper/data/dynamics/.../training_log.csv`. That
+tree -- **84 files, 4,332 lines** -- was deleted in `e7d9e893`, the cleanup
+CLAUDE.md describes as *"98 files, 10,228 lines, none of them referenced by
+anything."* It was referenced. `make_figs.py` emits **`fig_mechanism`**, which
+is included by **both live manuscripts**: `main.tex` and
+`main_edited_by_roei.tex`, **the paper of record**.
+
+### 1. Why nothing looked broken
+
+The committed `fig_mechanism.pdf` is still in `docs/paper/figures/`, so the
+manuscript still compiles and the figure still appears. What was lost is the
+ability to REGENERATE it -- to change a colour, fix a label, or check that the
+figure still says what the caption claims. **The artefact survived and its
+provenance did not**, which is 2(z94) one level up: there the file was outside
+git, here the file is in git and the thing that produces it is not runnable.
+
+⚠️ No gate could see it. `dead_code` is AST over `configs src` and would never
+follow a `.csv` path assembled by `os.path.join` inside a figure generator, and
+nothing runs `docs/paper/scripts/` at all.
+
+### 2. 🔑 THE RULE: "UNREFERENCED" IS A MEASUREMENT, NOT AN ASSERTION
+
+A data tree needs a different search than a script. The cheap one is to RUN
+every `docs/paper/scripts/make_*.py` before deleting anything under
+`docs/paper/data/` -- all eleven finish in under a minute, and a generator that
+cannot find its input says so immediately.
+
+Run 2026-09-11, after restoring the tree with
+`git checkout e7d9e893^ -- docs/paper/data/dynamics`:
+
+* **all eleven generators run**, `make_figs.py` included -- it reports
+  `gates fio@58 tra@63; max lambda fio=53.40 tralo=0.180`, the 297x ratio the
+  figure exists to show;
+* **every table regenerates byte-for-byte** across `tables/`, `tables_rev/`,
+  `tables_clean/` AND `tables_task/` -- `git status` clean over all four. That
+  extends the standing claim, which covered eight of eleven tables in one
+  directory.
+
+⛔ **AND THE CHECK HAS A TRAP: DO NOT COMMIT WHAT IT REGENERATES.** Five of the
+six figure PDFs come back byte-different from the committed ones -- the known
+non-reproducibility in `PROVENANCE.md`, not a new defect -- so a verification
+pass silently rewrites the artefacts it was meant to verify.
+`git checkout -- docs/paper/figures` afterwards, every time. It happened here.
+
+### 3. What this does not touch
+
+✅ No current result moves, and no number changes. `fig_mechanism` is
+dermmnist -- the removed, leaking corpus -- and the manuscripts are a disjoint
+generation from the current experiments. The restored tree is 4,332 lines of
+`training_log.csv`, which is provenance, not corpus: it may not be scored and
+adds no runs.

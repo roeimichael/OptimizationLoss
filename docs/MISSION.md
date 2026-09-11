@@ -1459,12 +1459,27 @@ COMPLETE
   coin2        48/48     seed58a      40/40     taskwin2     48/48
   vitdual1     37/37     bcnpilot1    16/16     bcnpilot2    16/16
   fmowpilot1   16/16     fmowpilot2   32/32
-RUNNING   (counts re-checked 2026-09-10 20:26, on the hosts)
-  price1       50/80     dsisco01 GPU 0
-  price2       29/80     dsisco01 GPU 1
-  bcnpilot3     1/16     dsisco02 GPU 2, claimed 20:24 by queue q02_newunits
+COMPLETE, ADDED 2026-09-11 (checked 02:5x, on dsisco01)
+  price1       80/80     SCORED. 0 of 2 cells, TraLO loses both, alm ahead in
+                         both. Equal dose 232/232 = 29.00 attempted/run. Unit
+                         A2 by md5, NOT a ninth unit. MISSION 0-PRICE,
+                         FRAMEWORK 2(z97).
+  bcnpilot3    16/16     bcnpilot4  16/16   fmowpilot3  16/16   fmowpilot4  16/16
+                         All four windows measured into configs/task_windows.yml.
+RUNNING   (counts checked 2026-09-11 02:5x, on dsisco01; the jump host went
+           down at ~03:10 so anything after that is LAST-KNOWN, not checked)
+  price2       64/80     dsisco01 GPU 1
+  bcn2mn2      23/96     dsisco01 GPU 2, claimed 00:02 by queue q01c_newunits.
+                         --step firstrun GREEN; dose 58/58 = 29.00 attempted/run
+                         on all five trained arms.
+  vitdual2     58/88     dsisco01 GPU 0, claimed 02:54 by q01a when price1 ended
 QUEUED    (each waiting for its gpu -- holding nothing)
-  bcnpilot4     0/16     dsisco02 GPU 2, after bcnpilot3
+  fmow2mn2      0/96     dsisco01 GPU 2, after bcn2mn2
+  bcn2rgn       0/96     dsisco01 GPU 2, after fmow2mn2
+  fmow2rgn      0/96     dsisco01 GPU 2, after bcn2rgn
+                         All four: worktree ~/optloss-newunits pinned at
+                         be37eb2a, 12 arms incl. THREE lambda=0 streams, both
+                         cap levels strict task cells. MISSION 0-CAPS.
   vitdual2     58/88     dsisco01 GPU 0, 30 pending, after price1
   vitcoin1     16/17     dsisco01 GPU 0, 1 pending, after vitdual2
   vitseed1     22/40     dsisco01 GPU 1, 18 pending, after price2

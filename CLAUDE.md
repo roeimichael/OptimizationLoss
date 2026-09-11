@@ -684,6 +684,27 @@ python -m scripts.campaign_state            # 🛑 THE THIRD STALENESS AXIS, AND
 #   `tests/test_lessons_learned.py` FAILS on any new orphan.
 #   `--self-test` gates it, 23 checks, 5 negative controls; mutation-tested 5/5.
 #   ⚠️ Its `--all` flag prints the full list. FRAMEWORK 2(z83).
+# scripts/cellreport.py                     🛑 NOT A CLI, and not runnable -- the rule-4 per-cell
+#   report, in ONE place. `cell_of` returns (backbone, dataset, cap, ARM) or
+#   None when the path is too shallow to say; `per_cell_report` prints the
+#   table and refuses to call a pooled block legal.
+#   ⛔ IT EXISTS BECAUSE THE DUPLICATION WAS MANAGED RATHER THAN REMOVED.
+#   Both functions were copied BYTE-IDENTICALLY -- 84 lines -- into
+#   `graph_probe` and `scope_probe`; `cell_of`'s own docstring said the two
+#   "must stay byte-identical" and `tests/gates/test_g6_results.py` asserted it
+#   with `inspect.getsource`. **A test that enforces a duplication is a comment
+#   with an assert attached**: it makes drift loud, it cannot make drift
+#   impossible. The gate now asserts ONE definition, by object identity rather
+#   than by source text -- two `getsource` strings can match while the names
+#   point at different functions, which is 2(z81) exactly.
+#   ⚠️ `deep_scope.run_parts` is NOT this function and must never be folded in.
+#   It returns SIX parts, keeping the campaign and the SEED, because that
+#   tool's unit is a cell(seed). It was called `cell_of` until 2026-09-11 --
+#   two functions of that name with different arity in one package. Pinned as
+#   a negative control. Mutation-tested 3/3.
+#   ⚠️ Follows `floors.py`'s rule: it must not import anything reaching `src/`,
+#   because its callers run in worktrees PINNED at older commits. Module-level
+#   imports: `os`, and nothing else.
 python -m scripts.dead_code --paths configs src   # what is DECLARED and never
 #   referenced. AST, never grep: a name in a docstring is not a call. A REPORT,
 #   not a gate -- a getattr-built call is invisible to it, so confirm by hand.
@@ -1930,7 +1951,31 @@ Only the first two are live. A fix applied to either of the other two has no
 effect on anything anyone reads. `main_old.tex` (pre-TMLR) was deleted
 2026-09-02 along with 11 one-off `docs/launch_*.sh` wrappers, the dermmnist
 `data/dynamics/` tree and two orphaned scouting notes -- 98 files, 10,228
-lines, none of them referenced by anything. Git history is the archive.
+lines. Git history is the archive.
+⛔ **THAT LINE ENDED "none of them referenced by anything" AND IT WAS FALSE
+(2026-09-11).** `docs/paper/data/dynamics/` -- 84 files, 4,332 lines, deleted in
+`e7d9e893` -- is the input to `docs/paper/scripts/make_figs.py`, which emits
+**`fig_mechanism`**, and `fig_mechanism` is `\includegraphics`'d by BOTH live
+manuscripts, `main.tex` **and `main_edited_by_roei.tex`, the paper of record**.
+The generator has been dying on `FileNotFoundError` ever since. Nothing looked
+broken because the committed PDF is still there and the paper still builds: a
+figure in the paper of record had silently become **unreproducible**, which is
+the same shape as 2(z94) one level up -- the artefact survives, its provenance
+does not.
+✅ RESTORED with `git checkout e7d9e893^ -- docs/paper/data/dynamics`, and
+`make_figs.py` runs again (`gates fio@58 tra@63; max lambda fio=53.40
+tralo=0.180`, the 297x ratio the figure is about).
+🔑 **THE RULE: "UNREFERENCED" MUST BE MEASURED, NOT ASSERTED, AND A DATA TREE
+NEEDS A DIFFERENT SEARCH THAN A SCRIPT.** `dead_code` is AST over `configs src`
+and would never see a `.csv` path built by `os.path.join` inside a figure
+generator. The cheap check is to RUN every `docs/paper/scripts/make_*.py`
+before deleting anything under `docs/paper/data/`: all eleven run in under a
+minute and every table then regenerates byte-for-byte across `tables/`,
+`tables_rev/`, `tables_clean/` and `tables_task/` -- verified 2026-09-11.
+⚠️ **AND DO NOT COMMIT WHAT THAT CHECK REGENERATES.** Five of the six figure
+PDFs come back byte-different from the committed ones (the known
+non-reproducibility above); `git checkout -- docs/paper/figures` after running
+them, or the check quietly rewrites the artefacts it was meant to verify.
 
 **EIGHT of the eleven tables in `docs/paper/tables/` regenerate from
 `docs/paper/data/corpus/corpus_final.csv` byte-for-byte** via

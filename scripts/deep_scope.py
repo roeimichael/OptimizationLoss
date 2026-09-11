@@ -163,8 +163,18 @@ def deployed_tp(run_dir, classes):
     return tp
 
 
-def cell_of(run_dir):
-    """(campaign, model, dataset, cap, arm, seed) from the path layout."""
+def run_parts(run_dir):
+    """(campaign, model, dataset, cap, arm, seed) from the path layout.
+
+    NOT a cell, and it was called `cell_of` until 2026-09-11. Rule 4's cell is
+    (dataset, backbone, cap, METHOD) with SEED as the only collapsed axis; this
+    keeps the seed and the campaign, so it is a path decomposition and this
+    tool's unit is a cell(seed) -- which is what its own output says. Two
+    functions of that name with different arity in one package is the shadowing
+    trap of FRAMEWORK 2(z81), where a name RESOLVED to the wrong object and
+    every gate stayed green. `scripts.cellreport.cell_of` is the one that
+    returns a cell.
+    """
     p = os.path.normpath(run_dir).replace("\\", "/").split("/")
     return tuple(p[-6:])
 
@@ -181,7 +191,7 @@ def collect(roots, classes):
             if c.get("status") != "completed":
                 continue
             d = os.path.dirname(cfg)
-            camp, model, ds, cap, arm, seed = cell_of(d)
+            camp, model, ds, cap, arm, seed = run_parts(d)
             out[d] = ((camp, model, ds, cap), arm, seed)
     return out
 

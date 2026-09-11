@@ -80,12 +80,18 @@ FLAG = re.compile(r"(--[A-Za-z][A-Za-z0-9-]*)")
 # checks.
 ABSENT_OK = {
     "scripts.ens_panel":
-        "exists only on the server branch `snap/slice-provenance`, which was "
-        "never merged and is not among the 40 remote-tracking branches here "
-        "(last server fetch 2026-09-08). `snap2` is COMPLETE at 96/96 (census "
-        "2026-09-10) and ran from it, so its "
-        "results will carry a `code_version` no other checkout can resolve. "
-        "FRAMEWORK 2(z67). Blocked on host access.",
+        "lives on `snap/slice-provenance`, which is NO LONGER stranded: "
+        "fetched from dsisco02 and pushed to origin 2026-09-11, so it is now "
+        "on two disks plus GitHub rather than one. It had never been pushed "
+        "anywhere -- `git branch -r --contains 37e364c7` was empty -- while "
+        "`snap2` (COMPLETE, 96/96) ran from it and stamps a `code_version` no "
+        "other checkout could resolve. FRAMEWORK 2(z67), 2(z96). "
+        "NOT YET MERGED, and that is a schedule decision: `ens_panel` sits "
+        "beside `tralo_snap` and a `data_loader` change that touch `src/`, "
+        "frozen while `price2` and `bcn2mn2` run, because `code_version` is a "
+        "git hash and any edit splits a live campaign. The two commits that "
+        "do NOT touch a training path were cherry-picked on the day they were "
+        "found. Merge the rest after the last run lands -- task #103.",
 }
 
 # argparse supplies these itself.

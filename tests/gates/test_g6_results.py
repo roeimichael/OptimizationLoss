@@ -1139,7 +1139,7 @@ def _raise(*a, **k):
                       "checkout (simulated pinned worktree)")
 
 
-def test_the_probe_cell_key_carries_the_ARM_and_both_copies_agree():
+def test_the_probe_cell_key_carries_the_ARM_and_there_is_ONE_definition():
     """Rule 4: the atomic cell is (dataset, backbone, cap, METHOD).
 
     `graph_probe._cell_of` and `scope_probe._cell_of` returned
@@ -1180,13 +1180,39 @@ def test_the_probe_cell_key_carries_the_ARM_and_both_copies_agree():
     # A path too shallow to say must abstain, never guess.
     assert graph_probe._cell_of("seed_1") is None
 
-    # The two copies must not drift.
-    a = inspect.getsource(graph_probe._cell_of)
-    b = inspect.getsource(scope_probe._cell_of)
-    assert a == b, (
-        "graph_probe._cell_of and scope_probe._cell_of have diverged; they are "
-        "the same function and a fix to one must reach the other")
+    # 🛑 THERE IS NOW EXACTLY ONE DEFINITION, AND THAT IS WHAT IS ASSERTED.
+    # This check used to compare `inspect.getsource` of the two copies and
+    # require them byte-identical -- a test that ENFORCED a duplication rather
+    # than removing it. It made drift loud; it could not make drift
+    # impossible, and the docstring it guarded said in its own words that the
+    # two "must stay byte-identical". Both now import from
+    # `scripts.cellreport`, so the failure mode is unreachable instead of
+    # detectable. Same class as an exemption whose reason is a ticket
+    # (FRAMEWORK 2(z81)) and a correction recorded with no reader (2(z95)).
+    #
+    # Identity of the OBJECT, not of its source: two `getsource` strings can
+    # match while the names point at different functions, which is exactly the
+    # shadowing that left `order_probe` unrunnable for a day with every gate
+    # green.
+    from scripts import cellreport
+    assert graph_probe._cell_of is cellreport.cell_of
+    assert scope_probe._cell_of is cellreport.cell_of
+    assert graph_probe._per_cell_report is cellreport.per_cell_report
+    assert scope_probe._per_cell_report is cellreport.per_cell_report
     assert scope_probe._cell_of(base + "/tralo/seed_1") == tralo
+
+    # NEGATIVE CONTROL: `deep_scope` has a same-shaped path splitter that is
+    # NOT this one and must never be folded in. It keeps the campaign and the
+    # SEED -- six parts, not four -- because that tool's unit is a cell(seed).
+    # It was called `cell_of` until 2026-09-11, which is how a reader (or a
+    # future dedup) could have unified two functions that disagree about what
+    # a cell is. Rule 4: seed is the only collapsed axis.
+    from scripts import deep_scope
+    assert not hasattr(deep_scope, "cell_of"), (
+        "deep_scope.cell_of is back; it returns a cell(seed), not a cell, and "
+        "the name collides with scripts.cellreport.cell_of")
+    assert len(deep_scope.run_parts(base + "/tralo/seed_1")) == 6
+    assert len(cellreport.cell_of(base + "/tralo/seed_1")) == 4
 
 
 def test_headroom_keys_the_cell_by_BACKBONE_and_refuses_when_it_cannot():
