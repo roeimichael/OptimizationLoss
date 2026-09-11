@@ -20,7 +20,7 @@ from configs.task_cells import (cap_pair, classify, in_window, load_windows,
                                 tolerance)
 from scripts.ceiling_screen import IWILDCAM_CURVE
 from scripts.full_panel import effective_budget
-from scripts.task_window import MIN_FORCED, WIGGLE_MAX, verdict
+from scripts.task_window import MIN_FORCED, MIN_PRIZE, WIGGLE_MAX, verdict
 from scripts.verify_caps import duplicate_budget_tags
 
 from .conftest import CAPPED_CLASSES, items_from_f1, report
@@ -93,12 +93,29 @@ def test_a_cap_is_a_task_only_when_all_three_conditions_hold():
     if WIGGLE_MAX != crit["wiggle_max"]:
         fails.append("WIGGLE_MAX=%s but the yml gate says %s"
                      % (WIGGLE_MAX, crit["wiggle_max"]))
+    # MIN_PRIZE was the ONE criterion of the three this gate did not mirror,
+    # and it is the one the yml documents as "the measured RNG floor". It is
+    # also `sensitivity_screen`'s BAND bar, so a silent divergence here moves
+    # a verdict in two tools at once. Found 2026-09-11 by holding every
+    # `task_windows.yml` key against the strings code actually names.
+    if MIN_PRIZE != crit["min_prize"]:
+        fails.append("MIN_PRIZE=%s but the yml gate says %s"
+                     % (MIN_PRIZE, crit["min_prize"]))
     if verdict(15.0, 0.5, [MIN_FORCED - 1] * 4) == "** TASK **":
         fails.append("a cap evicting %d items reads TASK; BINDS is a boolean "
                      "again" % (MIN_FORCED - 1))
     if verdict(15.0, 0.5, [MIN_FORCED] * 4) != "** TASK **":
         fails.append("exactly MIN_FORCED=%d is refused; threshold off by one"
                      % MIN_FORCED)
+    # The mirror of the MIN_FORCED pair above, guarding the defect the yml
+    # header records as #3: PRIZE once passed on `errors > 0`, so a cell whose
+    # whole available gain was 0.8 items counted as a task.
+    if verdict(MIN_PRIZE - 0.1, 0.5, [40] * 4) == "** TASK **":
+        fails.append("a prize of %.1f items reads TASK; PRIZE is `errors > 0` "
+                     "again" % (MIN_PRIZE - 0.1))
+    if verdict(MIN_PRIZE, 0.5, [40] * 4) != "** TASK **":
+        fails.append("exactly MIN_PRIZE=%.1f is refused; threshold off by one"
+                     % MIN_PRIZE)
     report(fails, "task-condition failures")
 
 

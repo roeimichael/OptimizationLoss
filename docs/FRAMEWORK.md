@@ -17503,3 +17503,97 @@ dermmnist -- the removed, leaking corpus -- and the manuscripts are a disjoint
 generation from the current experiments. The restored tree is 4,332 lines of
 `training_log.csv`, which is provenance, not corpus: it may not be scored and
 adds no runs.
+
+---
+
+## 2(z100). THE SECOND CONFIG FILE HAS NO KEY-READER AUDIT -- AND THE AUDIT IS NOT WORTH BUILDING, EXCEPT FOR THE ONE NARROW PART THAT IS (2026-09-11)
+
+**THE ONE-LINE VERSION.** `audit_config` enforces "no config key without a
+reader" against `configs/protocol.yml` and **only** that file. `reference_arm_offset`
+-- measured, written into `configs/task_windows.yml`, and consumed by nothing
+for weeks (2(z95)) -- sat in the file the audit does not read. Running the same
+rule there by hand found **1 real orphan in 21**, all 20 others being receipts
+the yml itself documents as receipts. So the general gate is NOT buildable at
+acceptable noise; one narrow part of it is, and that part found a live gap.
+
+### 1. The measurement
+
+AST over 152 `.py` files in `configs/ scripts/ src/ tests/`, against 54 keys.
+**AST, never grep, and here that is the whole method**: comments are absent
+from the AST by construction, and a docstring is an `Expr` whose value is a
+`Constant` str, so both are excluded. That is exactly the trap 2(z95) fell
+into -- `reference_arm_offset`'s only two mentions anywhere were comment text,
+so grep reported it as read.
+
+21 keys have no reader. Read by hand:
+
+* **20 are RECEIPTS, correctly unread** -- `per_model`, `unconstrained_count`,
+  `strict_1seed`, `strict_2seed`, `measured_on`, `n_comparisons`, `direction`,
+  `campaigns`, and the per-campaign provenance labels
+  (`dom1_dsisco02_bf16`, `vittask1_dsisco01_fp16`, ...). The yml's own header
+  says so: *"`per_model` keeps the individual readings"*.
+* **1 was real**, and it is `reference_arm_offset`, already fixed in 2(z95).
+
+### 2. ⛔ DO NOT BUILD THE GENERAL GATE
+
+1 real in 21 is the "queue, never a defect count" failure mode with the ratio
+pushed past usefulness, and **the tool cannot tell a receipt from a schema
+key** -- that distinction is nowhere in the file. Scoping it to `meta:` does
+not rescue it either: 4 of the 5 meta-level orphans (`measured_on`,
+`n_comparisons`, `direction`, `campaigns`) are receipts too, so a meta-scoped
+gate still reads 1 real in 5 and would be silenced within a week.
+
+⚠️ And the defect was never really "a key with no reader". It was **a MEASURED
+CORRECTION with no reader** -- a key added by a commit that documented it as
+changing a verdict. That is not mechanizable, and saying so is the result.
+
+### 3. 🔑 THE NARROW PART THAT IS BUILDABLE, AND IT WAS HALF-BUILT
+
+`meta.criteria` mirrors THREE Python constants in `scripts/task_window.py`.
+`tests/gates/test_g2_budget.py` mirrored **two**:
+
+```
+  min_forced   10     <-> MIN_FORCED     mirrored
+  wiggle_max   0.99   <-> WIGGLE_MAX     mirrored
+  min_prize    3.0    <-> MIN_PRIZE      NOT MIRRORED
+```
+
+`MIN_PRIZE` is the one that matters most of the three. The yml documents it as
+*"the measured RNG floor"*, and it is **also `sensitivity_screen`'s BAND bar**,
+so a silent divergence between the file and the constant moves a verdict in two
+tools at once -- and `configs/task_windows.yml` is the file the docs send you
+to in order to learn what a task window means.
+
+✅ Now mirrored, together with the boundary pair that guards the yml header's
+**own recorded defect #3** -- PRIZE once passed on `errors > 0`, so a cell whose
+entire available gain was 0.8 items counted as a task. Mutation-tested **3 of 3**:
+moving the code constant, moving the yml criterion, and reverting `verdict()` to
+`errors > 0` each turn the gate RED. Restore verified by EXECUTING, not grepping.
+
+### 4. THE SIBLING CLASS, ALSO MEASURED, ALSO EMPTY
+
+The same sweep asks the mirror-image question: **does code point at a doc path
+that no longer exists?** `docs/archive/README.md` invites it -- it claims
+`REJECTED.md` is *"Referenced by `CLAUDE.md` and `src/models/imagery/vit.py`"*
+and `NATIVE_RES_CAMPAIGN.md` by three modules, and every one of those files has
+since moved into `archive/`.
+
+AST over the same 152 files, splitting CODE string constants (a path a module
+would actually open) from PROSE (docstrings and `#` comments). **9 dead paths,
+0 defects:**
+
+* 3 are deliberate NEGATIVE-CONTROL fixtures -- `docs/GONE.md`,
+  `configs/real.yml`, `docs/launch_this_never_existed.sh`. They must not exist.
+* 6 are correct HISTORICAL statements about deleted files, e.g.
+  `scripts/feasibility_check.py` saying its ancestor *"was lost with the rest
+  of that tree"*.
+
+⚠️ That second group is the same false-positive shape `stale_figures` produces
+for `scripts/check_lesion_leakage.py` (a deleted script cited **together with**
+its `git show` recovery command). A tool for this class would have to tell
+*"this path is missing"* from *"this path is missing, and that is the point"*,
+and nothing in the text distinguishes them. **Do not build this one either.**
+
+🔑 So the archived index's "Referenced by" claims are stale, and it does not
+matter: the file carries an ARCHIVED banner and the live code it names has no
+such reference left. The classification is doing its job.
