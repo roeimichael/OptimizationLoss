@@ -4773,7 +4773,7 @@ def test_a_launch_scripts_stated_SIZE_and_SIGN_TEST_are_arithmetic_not_prose():
         # before tokenising -- a regex that stops at the newline reads 5 of the
         # 7 arms and silently under-counts the campaign by 192 runs.
         body = src[src.index("gen_campaign"):]
-        toks = re.sub("\\\s*\n\s*", " ", body).split()
+        toks = re.sub(r"\\\s*\n\s*", " ", body).split()
 
         def flag(fname, _toks=toks, _name=name):
             assert "--" + fname in _toks, "%s passes no --%s" % (_name, fname)

@@ -3115,3 +3115,111 @@ def test_every_archived_doc_SAYS_it_is_archived():
     assert _opens_with_an_archived_banner(
         "> ARCHIVED -- HISTORY, NOT INSTRUCTIONS.\n# Title\n"), \
         "a correctly bannered document must pass"
+
+
+# A call that can FAIL the test it sits in. `self_test` is here because
+# `straddle_probe.self_test` RAISES SystemExit rather than returning a code --
+# that assumption is pinned by an assertion inside the test below, so changing
+# it to `return 1` turns this gate red instead of silently blessing a test that
+# can no longer fail.
+_VERIFIERS = ("raises", "report", "fail", "approx", "xfail", "self_test",
+              "assert_")
+
+
+def _can_this_test_fail(node):
+    """Does this test function contain anything capable of failing it?"""
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Assert):
+            return True
+        if isinstance(sub, ast.With):          # `with pytest.raises(...)`
+            return True
+        if isinstance(sub, ast.Call):
+            f = sub.func
+            nm = getattr(f, "id", None) or getattr(f, "attr", None) or ""
+            if nm in _VERIFIERS or nm.startswith("_assert") or nm.startswith("check"):
+                return True
+    return False
+
+
+def test_no_test_in_this_suite_is_incapable_of_FAILING():
+    """LESSON, 2026-09-11. A gate that cannot fail is this project's most
+    expensive recurring defect, and it has appeared in four distinct shapes:
+
+      order_probe        a `--self-test` of twelve checks, none entering main,
+                         green while the tool was unrunnable for a day
+      cellreport         a gate asserting two copies stayed byte-IDENTICAL --
+                         a comment with an assert attached, which made the
+                         duplication permanent instead of removing it
+      straddle_probe     no end-to-end coverage at all, so a mutation
+                         reverting the per-group cut left every test green
+      g5 fixture         a fixture that did not look like a run, for weeks,
+                         under a comment saying it must
+
+    Those were each found by hand, one at a time. This is the mechanical floor
+    under all of them: every `test_*` function must contain SOMETHING that can
+    fail it. Swept 2026-09-11 over 518 test functions -- zero violations, so
+    this starts green and stays a regression guard rather than a cleanup list.
+    """
+    files = []
+    for dp, _dns, fns in os.walk("tests"):
+        if "__pycache__" in dp:
+            continue
+        files += [os.path.join(dp, f) for f in fns
+                  if f.startswith("test_") and f.endswith(".py")]
+    assert len(files) >= 5, "only %d test files found -- did the tree move?" % len(files)
+
+    bare, total = [], 0
+    for f in sorted(files):
+        for node in ast.walk(ast.parse(io.open(f, encoding="utf-8").read())):
+            if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
+                total += 1
+                if not _can_this_test_fail(node):
+                    bare.append("%s::%s" % (f, node.name))
+    assert total >= 400, "only %d test functions collected" % total
+    assert not bare, (
+        "these tests contain nothing that can fail them, so they assert that "
+        "the code RUNS and nothing more:\n  " + "\n  ".join(bare))
+
+    # THE ASSUMPTION THIS GATE MAKES, PINNED. `self_test` counts as a verifier
+    # only because the one bare call in the suite --
+    # `straddle_probe.self_test(n_seeds=3)` -- RAISES. If it ever returns a
+    # code instead, that test becomes vacuous and this gate must say so.
+    # AST, NEVER string-splitting. The first version of this check did
+    # `sp.split("def self_test", 1)[1]`, which is the rest of the FILE, not the
+    # function -- so it matched a `raise SystemExit` down in `main()` and went
+    # GREEN when self_test was mutated to `return 1`. A check that cannot fail
+    # for the reason it states is the exact defect this test exists to catch,
+    # and it was in the test itself. Caught by mutation, 2026-09-11.
+    sp = ast.parse(io.open(os.path.join("scripts", "straddle_probe.py"),
+                           encoding="utf-8").read())
+    fn = [n for n in sp.body
+          if isinstance(n, ast.FunctionDef) and n.name == "self_test"]
+    assert len(fn) == 1, "straddle_probe has %d self_test definitions" % len(fn)
+    raises_exit = any(
+        isinstance(sub, ast.Raise)
+        and "SystemExit" in ast.dump(sub)
+        for sub in ast.walk(fn[0]))
+    assert raises_exit, (
+        "straddle_probe.self_test no longer raises SystemExit, so the bare "
+        "call to it in test_the_straddle_gate_separates_errors_at_the_cut_"
+        "from_buried_ones cannot fail that test -- drop `self_test` from "
+        "_VERIFIERS, or restore the raise")
+
+    # NEGATIVE CONTROLS. The predicate must be able to say NO.
+    def _fn(src):
+        return ast.parse(src).body[0]
+
+    assert not _can_this_test_fail(_fn(
+        "def test_x():\n    print('ran')\n")), \
+        "a test that only prints must NOT pass"
+    assert not _can_this_test_fail(_fn(
+        "def test_x():\n    y = compute()\n    return y\n")), \
+        "a test that only computes must NOT pass"
+    assert _can_this_test_fail(_fn(
+        "def test_x():\n    assert 1 == 1\n")), "a bare assert must pass"
+    assert _can_this_test_fail(_fn(
+        "def test_x():\n    with pytest.raises(ValueError):\n        f()\n")), \
+        "pytest.raises must pass"
+    assert _can_this_test_fail(_fn(
+        "def test_x():\n    SP.self_test(n_seeds=3)\n")), \
+        "a raising self_test must pass"
