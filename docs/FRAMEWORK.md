@@ -17840,3 +17840,43 @@ every `tralo_snap` vs dual comparison as PENDING #94.
 worth more than any method effect, and the jitter *"is NOT a TraLO property --
 every arm jitters the same amount, including the lambda=0 null."* This entry is
 that sentence carried one step further, into a direction.
+
+### 4. 🔑 THE CHEAPEST TEST OF THIS, AND IT NEEDS NO NEW RUNS
+
+2(z58) section 2 already measured the closest available analogue -- SEED
+ensembling rather than EPOCH ensembling, but the same variance-reduction
+mechanism:
+
+> 3 seeds averaged (`ens_panel --k 3`), deployed capped-class TP vs the best
+> single seed: **+9 to +38 items**, for every arm including `clip`.
+
+⛔ **THE PER-ARM BREAKDOWN IS NOT RECORDED -- ONLY THE RANGE.** That is the
+gap. A **4.2x spread** across arms is not what "averaging helps everyone
+equally" looks like; it is what an arm-dependent gain looks like. But the
+range as written may span arms AND cells, so it does not decide anything
+on its own.
+
+**THE TEST:** re-run `ens_panel --k 3` on `bcn1mn3` and record the gain PER
+ARM, then correlate it against 2(z58) section 1's jitter column (the two tables
+are the same campaign, the same 3 caps x 2 classes x 4 seeds). Rank
+correlation over five arms is all that is needed.
+
+```
+  strong positive  ->  this entry gains a MEASURED leg before `snap2` is read,
+                       and #94 becomes load-bearing rather than tidy
+  weak or negative ->  this entry is WEAKENED and must say so immediately;
+                       the ordering claim was the robust part and it failed
+```
+
+⚠️ **Costs ZERO GPU-hours** -- `bcn1mn3` is COMPLETE (228 runs) and on disk. It
+is pure scoring, so it runs the moment a host answers.
+⚠️ **`ens_panel` lives on `snap/slice-provenance`**, which is pushed but NOT
+merged (task #103, blocked on the `src/` freeze). Either run it from that
+branch's worktree or cherry-pick the one file -- `scripts/` is outside
+`TRAINING_PATHS`, so copying it in cannot split a live campaign.
+
+🛑 **AND SAY WHICH k, ALWAYS.** 2(z58)'s own rule: *"A finding present
+at k=3 and absent at k=1 is a statement about VARIANCE, not about the method.
+Two of this session's claims died on exactly that test."* This entry is a
+claim ABOUT variance, so k=3 is the right operating point for it -- and that is
+precisely why it cannot be quoted as a method result.
