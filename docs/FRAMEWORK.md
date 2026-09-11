@@ -18144,6 +18144,60 @@ nulls. The correct use is the opposite one -- it argues against spending more
 GPU on iwildcam units to raise the tally, because a pass there is the cheapest
 kind of pass to get.
 
+### 6. 🔑 PRICED AGAINST THE **REAL** PIPELINE, NOT A HYPOTHETICAL -- AND THE WHOLE QUEUE ONLY REACHES p=0.128
+
+Section 3 priced this against an abstract "k more units". The actual pipeline is
+known, so price it against that instead. Every non-iwildcam unit that exists or
+is queued, counted 2026-09-11 from MISSION 0-RUNNING:
+
+| source | units | which |
+|---|---|---|
+| licensed today | 3 | D1 `bcn`/MNv3, E1 `fmow`/MNv3, E2 `fmow`/ViTB16 |
+| COMPLETE, unlicensed | 1 | `bcn1vit` `bcn`/ViTB16 -- 190/190, 2(z106) |
+| queued on `q01c_newunits` | 4 | `bcn2mn2` (23/96, running), `fmow2mn2`, `bcn2rgn`, `fmow2rgn` (0/96) |
+
+🟢 **THE QUEUE IS CORRECTLY AIMED.** `q01c_newunits` is buying exactly
+the scarce commodity this entry identifies -- four non-iwildcam units across
+MobileNetV2 and RegNetY400MF. Nothing about the direction of the work needs
+changing.
+
+⛔ **BUT IT STILL DOES NOT GET THERE, AND THAT IS THE POINT:**
+
+| state | k | total units | p |
+|---|---|---|---|
+| today | 3 | 8 | **0.357** |
+| `bcn1vit` read (zero GPU) | 4 | 9 | 0.278 |
+| **the ENTIRE queue lands and is licensed** | **8** | **13** | **0.128** |
+| p < 0.05 | 16 | 21 | 0.048 |
+
+**Eight more campaigns BEYOND everything currently queued.** Section 3's "13
+more than exist" was the abstract version; this is the concrete one, and it is
+worse, because it says the pipeline that is already running cannot answer the
+question it is best placed to ask.
+
+### 7. ⇒ PRE-REGISTERED: HOW `q01c_newunits` MUST BE READ, DECIDED BEFORE IT LANDS
+
+Because the sign tally provably cannot reach significance even at full queue
+completion, deciding the reading AFTER the numbers arrive would be choosing a
+statistic to fit them. So, in advance:
+
+1. ⛔ **DO NOT report the concentration as a sign test**, at any k the queue can
+   deliver. If all four land negative, the honest line is *"0 of 8 non-iwildcam
+   units, p=0.128 -- consistent, uncertified"*, never *"TraLO fails off
+   iwildcam"*.
+2. ✅ **READ MAGNITUDES AND RANKS**, which is where the existing non-iwildcam
+   evidence already lives and which needs no sign test: is `tralo` NEGATIVE vs
+   `clip`, and is it LAST among the duals, as it was in all 4 `fmow1` cells and
+   in D1? Four more campaigns give four more chances to replicate *that*, and a
+   replicated rank ordering is a far stronger claim than a 0.128 sign count.
+3. ✅ **READ THE PRICED CELLS.** The corpus-wide priced record is 1 win, 1 loss.
+   Each new campaign that carries three lambda=0 streams can add priced cells,
+   and a priced cell is worth more than any number of unpriced signs (2(z69)).
+4. ⛔ **AND IF ONE OF THE FOUR PASSES**, say so immediately and loudly: it
+   breaks the concentration outright and this entry is then simply wrong. That
+   is the outcome most worth knowing and the one a confirmation-seeking reading
+   would bury.
+
 🔑 **THE ONE ACTIONABLE CONSEQUENCE, AND IT COSTS NO GPU**:
 `bcn1vit` is a non-iwildcam unit that is **already finished** -- 190/190, the
 second-dataset ViTB16 campaign, with `L90` a task cell under both readings

@@ -116,10 +116,25 @@ slices where the cap actually poses a question.
 ⛔ **IT IS NOT A RESULT. p = 0.357.** `C(5,2)/C(8,2) = 10/28`, and the
 one-sided Fisher on (2/5 vs 0/3) is the same. One time in three under a null.
 
-⛔ **AND IT IS UNREACHABLE.** If every future non-iwildcam unit also returns
-zero, p goes 0.357 (k=3, today) -> 0.278 (k=4, `bcn1vit`, which is ALREADY
-COMPLETE at 190/190 and merely unlicensed -- 2(z106)) -> 0.128 (k=8) ->
-**0.048 at k=16**. A unit is a WHOLE CAMPAIGN, so certifying this on
+⛔ **AND IT IS UNREACHABLE -- PRICED AGAINST THE REAL PIPELINE, NOT A
+HYPOTHETICAL.** Counting every non-iwildcam unit that exists or is queued:
+3 licensed (D1 E1 E2), 1 COMPLETE-but-unlicensed (`bcn1vit`, 2(z106)), and 4 on
+`q01c_newunits` (`bcn2mn2` 23/96 running, then `fmow2mn2`, `bcn2rgn`,
+`fmow2rgn`). 🟢 The queue is CORRECTLY AIMED -- it buys exactly the
+scarce commodity. ⛔ And it still does not get there:
+
+| state | k | total | p |
+|---|---|---|---|
+| today | 3 | 8 | **0.357** |
+| `bcn1vit` read (zero GPU) | 4 | 9 | 0.278 |
+| **entire queue lands** | **8** | **13** | **0.128** |
+| p < 0.05 | 16 | 21 | 0.048 |
+
+**Eight more campaigns BEYOND everything queued.** ⇒ 2(z105) §7
+PRE-REGISTERS how `q01c_newunits` must be read, decided before it lands: never
+as a sign test; on MAGNITUDES and RANKS (is `tralo` negative vs `clip` and LAST
+among the duals, as in all 4 `fmow1` cells and in D1); on PRICED cells; and if
+any of the four PASSES, say so loudly -- it breaks the concentration outright. A unit is a WHOLE CAMPAIGN, so certifying this on
 signs needs **13 more non-iwildcam campaigns than the project has ever run**.
 Same shape as 2(z77) and 2(z66): the cheap version of the question is
 structurally dead before anyone runs it.
@@ -1855,6 +1870,7 @@ ratio beside any count taken from here.
 
 | campaign | LAST-KNOWN state, and where the claim is | dated? |
 |---|---|---|
+| `q01c_newunits` | ✅ **A QUEUE, NOT A CAMPAIGN, AND IT HAD NO ROW UNTIL 2026-09-11.** The dispatcher queue on **dsisco01 GPU 2** driving the four NON-iwildcam unit campaigns: `bcn2mn2` (23/96, claimed 00:02, `--step firstrun` GREEN, dose 58/58 = 29.00 attempted/run), then `fmow2mn2`, `bcn2rgn`, `fmow2rgn` at 0/96 each. It was named only INSIDE `bcn2mn2`'s census row, so `campaign_state` saw the name with no state of its own and went RED -- the same shape as `price1`, caught by the detector this time instead of by hand. 🔑 It is buying exactly the scarce commodity 2(z105) identifies, and 2(z105) §7 PRE-REGISTERS how it must be read: on MAGNITUDES and RANKS, never as a sign test, because even the FULL queue landing reaches only p=0.128. Task #136 | 09-11 |
 | `price1` | 🛑 **NOTHING, ANYWHERE.** Named 4x in FRAMEWORK, twice as `before \`price1\` launched`, and task #78 "Launch price1" is COMPLETED. No run count, no dose, no host, no outcome exists in any file. **VERIFY FIRST ON RECONNECT** | no |
 | `vitdual2` | 🛑 **THREE INCOMPATIBLE FIGURES.** `RUNNING 0/88` (FRAMEWORK 2(z67)'s table, quoted there as false), `32/88` (MISSION older queue), `57/88` **STOPPED by explicit PID** (MISSION 0-HEAD §7). None is in an authority and none is dated at its line | no |
 | `margin2` | 🛑 **THE TWO DOCS CONTRADICT EACH OTHER.** FRAMEWORK 2(z12) says "`margin2` is 432 runs staged against it"; MISSION's knob ledger says "**NOT staged** -- checked 2026-09-02, no `margin2` exists on disk anywhere; this line said it was". The MISSION reading is the CHECKED one. ✅ FRAMEWORK corrected 2026-09-10 | 09-02 |
