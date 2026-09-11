@@ -18737,3 +18737,66 @@ only. The latch direction is closed on every dataset the project runs, not just
 the one it was measured on. It also means the constraint is violating somewhere
 for the whole 29-epoch phase everywhere, which is the precondition the clip
 sweep needed (task #116): raising the clip acts on real violation, not a no-op.
+
+## 2(z111). THE WARM-UP CACHE IS COMMIT-SCOPED AND THE WARM-UP IS COMMIT-INVARIANT. BOTH ARE TRUE, AND THE FIRST COSTS ~34 MINUTES TO RE-DERIVE WHAT THE SECOND GUARANTEES (2026-09-11)
+
+Found while launching `clipsweep1`, which was deliberately pointed at
+`bcn1vit`'s warm-up cache so its clip=1.0 arm would be an exact replication of
+unit D2.
+
+### 1. THE GATE REFUSED, CORRECTLY
+
+`model_cache.load_from_cache` has three validation gates, and the third fired:
+
+```
+Cache ViTB16_bcn_7104358f45fd was TRAINED by run_code_version 4b980ca08cff
+but this run is 37f842c97be8 -- retraining rather than reusing it.
+```
+
+`base_model_id` hashes the HYPERPARAMETERS, not the code, so a cache written
+before a change to what the warm-up OPTIMIZES is silently wrong. The commit
+being rejected here added arms to `configs/protocol.yml` and nothing else, but
+the gate cannot know that, and a gate that tried to would be guessing.
+
+### 2. 🔑 AND THE WEIGHTS CAME BACK IDENTICAL ANYWAY
+
+Retrained at `37f842c9`, compared against `bcn1vit`'s models at `4b980ca0` --
+same host, same BF16 regime, same seed, same `data_fingerprint`
+`a01d89efaf4778b8`:
+
+| model | tensors differing | max abs delta |
+|---|---|---|
+| `ViTB16_bcn_0cd964ff403e` | **0 / 152** | **0** |
+| `ViTB16_bcn_7104358f45fd` | **0 / 152** | **0** |
+| `ViTB16_bcn_7243fe14f416` | **0 / 152** | **0** |
+
+So `determinism: full` holds ACROSS COMMITS on this rig, which nothing here had
+ever measured. ⇒ **`clipsweep1` sits inside unit D2** rather than being a fresh
+unit: its warm-up models are the same weights `bcn1vit` trained, so its
+clip=1.0 arm is directly comparable to D2's published numbers and doubles as a
+replication check.
+
+### 3. ⛔ A CACHE FILE'S md5 IS NOT A COMPARISON OF MODELS, AND I USED IT AS ONE
+
+The first reading was `*** DIFFERS ***` on all three files, and it was wrong.
+The checkpoint dict carries `code_version`, `run_code_version` and **`saved_at`**
+beside `model_state_dict`, so two byte-identical models on two different days
+can never hash the same. Compare `model_state_dict` tensor by tensor.
+
+🔑 This is also why unit licensing goes by the md5 of **predictions**, not of
+cached models -- a procedure that would have been quietly broken by the
+timestamp.
+
+### 4. ⚠️ THE OPERATIONAL RULE, WHICH IS THE PART THAT BITES
+
+**Never symlink one worktree's `model_cache` into another's.** The link was
+created to share D2's warm-ups; the gate then refused them, and the retrained
+model would have been saved back through the symlink to the SAME
+content-addressed filename, overwriting `bcn1vit`'s. It was caught with about
+25 seconds to spare and `bcn1vit`'s twelve entries are intact at their original
+mtime. A completed campaign's cache is a receipt, and the write path is
+`os.replace` -- silent, atomic, and irreversible.
+
+The cost of the correct behaviour is ~34 minutes of ViTB16 warm-up per
+campaign. That is the price of the gate being conservative, and it is worth
+paying.
