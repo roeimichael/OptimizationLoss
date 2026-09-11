@@ -17769,3 +17769,74 @@ frames it as history -- *"It is history, not instructions"*, *"do not read
 [its] 'aider already' claim"*, and the `launch_uniform.sh` citations are run
 RECEIPTS for `uniform1`, not invitations. Nothing live points at the archive
 as operational, so the banners close the last way in.
+
+---
+
+## 2(z103). PRE-REGISTERED, BEFORE `snap2` IS READ: SNAPSHOT AVERAGING SHOULD HELP THE DUALS **MORE** THAN TraLO, BECAUSE TraLO JITTERS LEAST (2026-09-11)
+
+**THE CLAIM, AND IT IS FALSIFIABLE.** `tralo_snap` averages the softmax
+probabilities over the constraint phase (`snap_sum += chunk_proba` from
+`snapshot_burn_in`, ~20 models). Variance reduction from averaging scales with
+the sd being averaged. 2(z58) measured that sd per arm, and **TraLO has the
+LOWEST of every treated arm**:
+
+```
+  tralo_null   104.9      <- the lambda=0 twin
+  tralo        107.3      <- LOWEST of the treated arms
+  hounie       112.4
+  alm          124.5
+  fioretto     134.2      <- 1.25x TraLO
+```
+
+So when task #94 gives the duals a real snapshot reader, **the expected effect
+is to move the head-to-head AGAINST TraLO**, and by an amount ordered like the
+column above: `fioretto` gains most, then `alm`, then `hounie`, TraLO least.
+
+### 1. Why this is worth writing down NOW
+
+The branch comment on `tralo_snap_null` already reasons correctly that if
+averaging lifts the null as much as the treated arm, *"snapshot averaging is a
+protocol fix, not a TraLO advantage"*. It quotes **three** arms -- tralo,
+tralo_null, alm -- and concludes a protocol fix. The table has **five**, and
+the two it omits are the extremes: `hounie` and `fioretto`, the latter the
+noisiest arm in the corpus. Read with all five, the conclusion is stronger than
+"no advantage": it is a **predicted direction**, and the direction is down.
+
+⛔ **A PREDICTION WRITTEN AFTER `snap2` IS READ IS WORTH NOTHING.** Both hosts
+have refused SSH all day, `snap2` is COMPLETE at 96/96 and UNREAD (task #97),
+and this entry is therefore written blind. That is the point.
+
+### 2. The assumptions, stated so the prediction can fail honestly
+
+* 🟢 **NEAR-INDEPENDENCE ACROSS EPOCHS IS MEASURED, NOT ASSUMED.**
+  2(z58) reports residual sd == total sd for all fifteen arms and median r^2
+  of 0.03-0.10 -- the constraint phase wanders rather than converging. That is
+  what makes averaging worth anything at all, and it is the strongest leg here.
+* 🔴 **THE JITTER IS ON THE HARD COUNT; THE AVERAGING IS ON
+  PROBABILITIES.** Allocation after averaging is a nonlinear map, so
+  "sd shrinks like 1/sqrt(n)" is a HEURISTIC, not an identity. The ORDERING is
+  the robust part of this prediction; any per-arm magnitude is not.
+* 🟡 **UNIT.** The jitter table is `bcn1mn3` = MobileNetV3 on bcn.
+  `snap2` may be a different unit, and this project does not pool across
+  backbones or datasets. Check the unit before scoring the prediction.
+
+### 3. What it means for the acceptance bar
+
+`tralo_snap_null` settles whether averaging is a TraLO property or a regime
+property. It does **NOT** license a head-to-head claim: comparing a 20-model
+ensemble against single-model `alm` / `fioretto` / `hounie` is not apples to
+apples, which is exactly what #94 exists to fix and what
+`configs/protocol.yml` already says (*"only tralo-family arms can be
+snapshotted"*).
+
+🔑 **SO THE ORDER MATTERS, AND IT IS THE OPPOSITE OF THE TEMPTING ONE.**
+If `snap2` shows `tralo_snap` beating the duals, that is **not** a result --
+it is the confound this entry predicts, and #94 must land before the number is
+quoted anywhere. The honest sequence is: read `tralo_snap` vs
+`tralo_snap_null` first (a within-TraLO contrast, legitimate today), and treat
+every `tralo_snap` vs dual comparison as PENDING #94.
+
+⚠️ And note what 2(z58) already concluded about this regime: ensembling is
+worth more than any method effect, and the jitter *"is NOT a TraLO property --
+every arm jitters the same amount, including the lambda=0 null."* This entry is
+that sentence carried one step further, into a direction.
