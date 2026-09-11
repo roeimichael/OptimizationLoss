@@ -731,9 +731,25 @@ def verdict(dd, db, out=None, alpha=0.05):
 # ---------------------------------------------------------------------------
 # WHICH items did it move? -- run with --evictions
 #
-# The band result says the constraint DOES reorder where the cut falls, and
-# more than a reseed does (16/16 on iwc2). So "it cannot reorder" is refuted.
-# The remaining question is whether the items it moves are the right ones.
+# WITHDRAWN 2026-09-11: THE FIGURE BACKING THIS BLOCK IS QUOTED OUTSIDE ITS
+# CAMPAIGN'S `keep_for`. The header used to read "the constraint DOES reorder
+# where the cut falls, and more than a reseed does (16/16 on iwc2). So 'it
+# cannot reorder' is refuted." `iwc2` is `scorable=False` -- ViTB16 under fp16
+# WITHOUT --constraint-fp32, 173 of 232 constraint steps = 74.6% -- and its
+# `keep_for` is that fp32-dose receipt ALONE. A reordering count is not in it,
+# so 16/16 is not a current number and must not be re-quoted from here.
+#
+# DIRECTION NOT ESTABLISHED, AND DO NOT ARGUE IT EITHER WAY. An underdosed
+# treated arm plausibly sits nearer its null and reorders LESS, which would
+# make the true count larger and the withdrawn claim safer -- but that is an
+# argument, not a measurement, and FRAMEWORK 2(z71) records this project
+# making exactly that kind of sign argument and being refuted by the data.
+# Re-run on `dom1`, which is the live-recipe source; task #121.
+#
+# WHAT STANDS NEEDS NO NUMBER, and it is what this block actually computes:
+# GIVEN that the constraint moved items in the run in front of you, are they
+# the right ones? That question is answered per run, from that run's own
+# files, and no corpus figure enters it.
 #
 # At the arm's own budget K, against its lambda=0 twin's top-K:
 #   EVICTED  = in the twin's top-K, not in the arm's   (the constraint pushed out)
