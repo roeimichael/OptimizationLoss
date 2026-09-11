@@ -5550,6 +5550,13 @@ that way.
 arbitrary control and validates it against the arms present, so the twin
 contrast needs no new scorer:
 
+⛔ **`iwc1` WAS QUARANTINED AFTER THIS BLOCK WAS WRITTEN, so all four
+commands below now EXIT 1 on `quarantine.gate()` (disclosed 2026-09-11).** It
+is `scorable=False`; its `keep_for` is what it is still a receipt for, and
+nothing else. The block is kept because the ORDER is the reusable part -- run
+it against a live root (`dom1`, `dom1b`, `equaldose1`, `taskwin2`, `price1`,
+`vitdual2`), not against `iwc1`.
+
 ```bash
 python -m scripts.log_health results/iwc1                          # 0. did it RUN
 python -m scripts.reachability <one-completed-run>                 # 0b. IS CE SATURATED HERE
@@ -17598,6 +17605,48 @@ and nothing in the text distinguishes them. **Do not build this one either.**
 🔑 So the archived index's "Referenced by" claims are stale, and it does not
 matter: the file carries an ARCHIVED banner and the live code it names has no
 such reference left. The classification is doing its job.
+
+### 5. A THIRD ONE, FOUND BY WRITING THE DEFECT MYSELF -- ALSO NOT BUILDABLE
+
+While writing `MISSION` 0-DOC I put a copy-pasteable recount command into the
+resume point naming `uniform1`, `vittask1` and `vitdual1`. All three are
+`scorable=False`, `tralo_wins` calls `quarantine.gate()`, and the command would
+have **exited 1 before scoring anything**. Caught by checking my own line
+against `quarantine.REGISTRY` by execution.
+
+`doc_commands` cannot see this: it is STATIC and asks whether a documented FLAG
+exists, never what the flag NAMES. So the obvious gate is "no documented
+`--campaign results/<x>` where `x` is `scorable=False`". Measured over
+`CLAUDE.md` + the four `docs/` files: **7 hits, and they are two different
+things.**
+
+```
+FENCED, a procedure somebody would paste     4   log_health / full_panel x2 /
+                                                 straddle_probe on `iwc1`
+INLINE, a dated receipt or a prose pointer   3   headroom on `iwc3` 2026-08-25;
+                                                 family_split on `uniform1`,
+                                                 on `xfam1`
+```
+
+Fenced-vs-inline nearly separates them and is mechanical -- but `xfam1`'s is
+the instruction *"Read with `python -m scripts.family_split --campaign
+results/xfam1`"*, an imperative in inline form, so the rule misses it, and a
+dated receipt inside a fence would fire falsely. **Same verdict as sections 2
+and 4: the distinction is judgement, and a gate that cannot make it gets
+silenced.**
+
+✅ WHAT WAS DONE INSTEAD: the four-command `iwc1` block -- the only one that
+reads as a live procedure, headed *"THE EXACT READ, in order"* -- now carries a
+disclosure saying the campaign was quarantined after it was written and naming
+the live roots to run it against. The three receipts are correct as they stand.
+
+🔑 **THREE GATE PROPOSALS MEASURED IN ONE PASS AND ALL THREE REJECTED,
+which is itself the finding.** The docs' dead references are overwhelmingly
+DELIBERATE history -- receipts, negative-control fixtures, pre-registrations
+that were later condemned -- and in every case the signal is 1 real in 5 to 1
+in 21. This project's own rule for such a tool is that it is *"a QUEUE OF
+FIGURES TO READ, never a defect count"*; at these ratios it is not even a good
+queue. Read the docs; do not mechanize this class.
 
 ---
 

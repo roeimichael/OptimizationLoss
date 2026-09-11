@@ -9,6 +9,69 @@ Last updated: **2026-09-10** (🔴🔴🔴🔴 **`fmow1` LANDED AT 304/304 AND I
 
 ---
 
+## 🔧 0-DOC. THE DOCUMENTATION REVIEW, AND THE ONE THING IN IT THAT CHANGES A NUMBER (2026-09-11)
+
+**READ THIS BEFORE RUNNING `tralo_wins` AGAIN -- ITS OUTPUT HAS A NEW SECTION
+AND THE DENOMINATOR MAY MOVE.** FRAMEWORK 2(z101).
+
+Three conditions dropped a cell before the acceptance table could score it --
+no `tralo`, no control, or `rank_cell` finding the two share no common seed --
+and all three were a bare `continue`. The summary printed `CELLS THAT CAN TEST
+THE CLAIM` and `hold no rival`, so a reader took those two counts for the whole
+input. Each drop is now printed with its reason, before the verdict.
+
+⛔ **WHETHER ANY LIVE CELL IS ACTUALLY DROPPED IS UNMEASURED.** Both hosts
+have refused SSH all of 2026-09-11 (`Connection timed out during banner
+exchange`), so the tool has not run against `results/` since the fix. The
+standing acceptance figure is **6 of 22 = 27%, per unit 2 of 8, VERDICT FAIL**.
+The derived-with-`price1` figure of 6 of 24 = 25% is **DERIVED, NOT RUN** --
+task #128 -- and must not be quoted as measured.
+
+🔑 **WHAT TO DO FIRST ON RECONNECT.** Run the recount and READ THE NEW
+BLOCK before the verdict:
+
+```bash
+# The SCORABLE roots only. `uniform1`, `vittask1` and `vitdual1` are
+# `scorable=False` in `quarantine.REGISTRY`, and `tralo_wins` gates on it --
+# naming any of them makes the whole command exit 1 before it scores anything.
+# `dom1` / `dom1b` / `equaldose1` are PARTIAL (fioretto + hounie dead, and
+# `tralo_lam0` in equaldose1); the gate drops those arms and keeps the rest.
+python -m scripts.tralo_wins --control clip --campaign \
+    results/dom1 results/dom1b results/equaldose1 results/taskwin2 \
+    results/price1 results/vitdual2
+```
+
+⚠️ **AND THE ROOTS ARE SCATTERED ACROSS WORKTREES**, so a bare
+`results/<name>` resolves only inside the worktree that holds that campaign.
+Inventory first -- `git worktree list`, then `ls */results/` -- and pass the
+real paths. `loosevit1` sat unscored for weeks because no doc listed the
+worktree it was in.
+
+If it names dropped cells, the 22 in "6 of 22" was never the whole input and
+the acceptance bar has been computed on a denominator nobody could check. If it
+names none, that is a result worth having rather than an assumption worth
+keeping -- record which it was.
+
+### The rest of the review, none of which moves a number
+
+* **MIN_PRIZE was the one criterion of three that `test_g2_budget` did not
+  mirror** against `configs/task_windows.yml`, and it is `sensitivity_screen`'s
+  BAND bar as well as the task-window PRIZE bar. Mirrored, mutation-tested 3/3.
+  FRAMEWORK 2(z100).
+* **14 of 24 archived docs read as live instructions**, the SUPERSEDED rejected
+  ledger and four EXECUTABLE campaign launchers among them. All 24 bannered,
+  gated in the first five lines, mutation-tested 2/2. FRAMEWORK 2(z102).
+* **Two measured NULLS, recorded so nobody builds them**: a key-reader audit
+  for `task_windows.yml` is 1 real in 21 (the rest are receipts the yml itself
+  documents as receipts), and a dead-doc-path audit is 9 hits and 0 defects.
+  Neither gate is buildable at acceptable noise. FRAMEWORK 2(z100) sections 2
+  and 4.
+* **Verified clean, by EXECUTION not grep**: `stream_family` excludes `_lam0`
+  and the treated arm from the RNG floor; `MIN_FLOOR_OBS` is 8; `MEASURED_UNITS`
+  is 13 entries over 8 units; `full_panel`'s RESOLUTION block refuses when no
+  cell has two seeds and takes `min(ns)` not the median; both dose statistics
+  print, with the "BOTH may read 100%" warning.
+
 ## 🔴 0-PRICE. `price1` LANDED AND THE NOISE TEST FINALLY RAN. TraLO LOSES BOTH CELLS (2026-09-11)
 
 `price1` completed 80/80 at 02:53. MobileNetV2, `L70-70_G95` + `L80-80_G95`,
