@@ -5,7 +5,7 @@
 every working session. If it is stale, that is a defect -- fix it before doing
 anything else.
 
-Last updated: **2026-09-11** (🛑 **THE DATASET TABLE HAD AN EMPTY ROW AND A WRONG ONE, AND BOTH WERE MEASURABLE OFFLINE IN SECONDS.** `bcn` was THREE DASHES -- no NET, no z, no group count -- on the slice carrying a COMPLETE 228-run campaign and licensing unit **D1**, whose NEGATIVE sign is load-bearing. It now reads **+2031 / 61.6 / 8, STAGE 1 PASS**. `fmow` read `10` unseen groups and the slice on disk has **13**: `configs/task_windows.yml` line 267 says `1 of 13`, `tier_viability` counts `grp 13`, and the test meta holds 13 countries over 4168 items with ZERO overlap against 136 train countries. Row corrected to **+2793 / 76.2 / 13**. ⛔ **ALL THREE READ THE SAME FILE** -- the yml's header says "Counted from the test labels alone" -- so they are CONSISTENT, not independent; what defeats `10` is that the yml is a CONTEMPORANEOUS RECORD, written while `fmow1` ran and revised at its completion. The SERVER slice is unverified, task #134. ✅ The TOOL is not the variable -- iwildcam re-reads **+3133 / 96.3 / 7** byte-identically. ⛔ **AND HALF OF bcn's NOVELTY IS INTERPOLABLE -- 50.4% SURVIVES, A FIGURE MEASURED 2026-09-01 THAT NEVER REACHED A DECISION.** Its group is `anterior torso|40s`, a PRODUCT of two factors both in training, so the screen's baseline is too generous; raked **8 of 8**, NET **+2033 global vs +1025 additive** (z 62.9 vs 27.3). ⛔ 2(w2c) ALREADY LISTS `bcn_s2` AT **50.4** among the factorial rows that reproduce exactly -- so "the tool never produced a measurement" was my error, generalised from iwildcam's `raked=0`. The real defect is worse: the figure existed while bcn's row stayed three dashes, `bcn1mn3` ran 228 runs and D1 entered the ledger. **A measurement with no path to the decision it bears on.** Now re-read on the DEPLOYED slice. ⛔ **IT DOES NOT RESCUE TraLO** -- D1 came back NEGATIVE, not null, and a weaker dataset cannot turn a loss into a win; acceptance stays **6 of 22 = 27%, per unit 2 of 8, FAIL**. It bites FORWARD, on `bcn1vit`. FRAMEWORK **2(z104)**, gated 5/5, tasks #134 #135. | 🔧 **THE REST OF TODAY WAS DOCS AND INSTRUMENTS ONLY -- NO RESULT MOVED, AND BOTH HOSTS REFUSED SSH ALL DAY.** The acceptance table now names the cells it DROPS, so its denominator is auditable for the first time (2(z101)); `MIN_PRIZE` is mirrored against its constant (2(z100)); all 24 archived docs are bannered and gated (2(z102)); and 2(z103) PRE-REGISTERS, blind, that snapshot averaging should help the DUALS more than TraLO because TraLO jitters least -- with a ZERO-GPU test named to decide it BEFORE `snap2` is read. See **0-DOC** for the reconnect order; step 3 must precede step 4. | THE STANDING RESULT IS UNCHANGED: 🔴🔴🔴🔴 **`fmow1` LANDED AT 304/304 AND IS THE CLEANEST TEST THE PROJECT HAS EVER RUN -- TraLO WINS 0 OF ITS 4 CELLS.** Third dataset (fmow, held-out COUNTRY), the HEADLINE backbone (ViTB16) plus MobileNetV3, all four duals at **EQUAL 29.00 attempted steps/run**, **THREE lambda=0 streams** so the floor rests on **12 observations** and clears `MIN_FLOOR_OBS`=8, predictions intact, and **3 of 4 cells are TASK cells exactly as the windows re-measured this morning predicted**. Every objection ever raised against an earlier result is closed by this campaign at once. Result: `tralo` is **NEGATIVE vs `clip` in all three task cells** and **LAST of the four duals in all four**, and it **LOSES THE ONE PRICED CELL by -10.00 items against a 6.5-item floor**. The corpus-wide priced record is now **1 win, 1 loss**. ⇒ **THE ACCEPTANCE BAR IS 6 of 22 = 27%, per unit 2 of 8, VERDICT FAIL** (was 6 of 18 = 33% over 6 units). FRAMEWORK **2(z88)**. 🔴 **AND IN cc-F1 -- THE OFFICIAL METRIC -- `tralo_reseed2` BEATS `tralo` IN ALL THREE fmow TASK CELLS**: that arm is the lambda=0 twin with a different RNG offset and nothing else. **The first `vs clip` contrast in the whole corpus that RESOLVES appeared today and it is a LOSS** (-0.0132 cc-F1, paired sd 0.0061, 0/4 seeds). Over all 13 task cells only **4 of 50** contrasts resolve; three say the constraint changes the model and the fourth is the only one comparing it to an ALTERNATIVE. FRAMEWORK **2(z87)** carries the paper tables -- `docs/paper/scripts/make_task_cell_table.py` -> `docs/paper/tables_task/`, 13 cells / 6 units in cc-F1 and macro-F1, gated by 10 checks and mutation-tested 5/5. In cc-F1 **1 of 11 testable cells has an unambiguous leader and it is `alm`**; in macro-F1 **zero**, and the lambda=0 arm leads 8 of 10 on iwildcam+bcn. 🟢 dsisco02 GPU 2 is FREE (fmow1 finished); `price1` 39/80 and `price2` 16/80 still running on dsisco01 GPU 0/1. ⛔ All three stalled ViT campaigns -- `vitdual2`, `vitseed1`, `vitcoin1` -- are **dsisco01/fp16** by their dispatcher logs and may NOT be finished on dsisco02. | PREVIOUS: 🔴🔴🔴 **D1 WAS READ AND IT REFUTES THE HEADLINE. THE SIGN TEST CLEARS 0.05 UNDER NO AGGREGATION RULE.** The queue promised that reading units C2 and D1 would give `6/6 p=0.0156` unrestricted and `4/4 p=0.0625` task-restricted. Both were read at zero GPU cost on 2026-09-10 and the measurement is **5/6 p=0.109** at best (unrestricted, mean rule), **3/4 p=0.3125** task-restricted, and **3/6 p=0.656** under the worst-cell rule. `bcn1mn3`/MobileNetV3 is unit **D1** and it is the FIRST licensed unit whose `tralo` does not clear its own RNG floor: **+5.16 items at L80 and -11.61 at L90**, and -2.71 against its own null. C1 and C2 are SPLIT too once every cell is read, so `6/6` failed on THREE units rather than one, and A2's worst cell is **+0.02 items** -- a tie wearing a plus sign. FRAMEWORK **2(z86)**, task #102. 🔴 **AND THE ACCEPTANCE BAR IS RECOMPUTED AND STILL FAILS: 6 of 18 = 33%**, per unit 2 of 6, bar 50%. The stale `6 of 17 = 35%` predated `rank_cell`'s common-seeds fix by 14 hours and 2(z68) said its direction could not be assumed -- measured, the fix was worth ZERO cells. Task #104 discharged. 🟢 **1 of 18 cells is PRICED, the first ever, and `tralo` wins it** -- every previous run read `0 of N`, false by construction because two lambda=0 streams over 4 seeds give 4 observations against `MIN_FLOOR_OBS`=8 (2(z69)). ⛔ **THE SHARPEST NUMBER IS NOT ABOUT THE CAP: `tralo_coin_sgd`, a RANDOM constraint direction of the same norm, OUTRANKS stock TraLO in BOTH of D1's task cells** (2nd vs 3rd at L80, 1st vs 10th at L90), and `tralo_lam0` -- lambda switched off -- recovers +14.74 of TraLO's +27.94 vs `clip`. 2(z29) and 2(z56) replicated on a SECOND dataset and backbone. ⇒ Per the standing bar this is the trigger to change the METHOD, not to run more seeds of it. 🟢 **SSH IS BACK AND THE RIG IS FULL**: `price1` and `price2` relaunched on dsisco01 GPU 0/1 at 15:11 (both were stalled with dead `running` statuses), `fmow1` at 300/304 on dsisco02 GPU 2, `vitdual2` queued for the next free slot. `price1`'s dose is EQUAL at 29.00 attempted steps/run across every trained arm. **`bcn1vit` and `snap2` are COMPLETE and both docs still called them LIVE**; `price2`, `seed58a`, `bcnpilot1/2` and `fmowpilot1/2` exist on disk and NO doc named them. See 0-RUNNING, now a verified CENSUS. Also: an ELEVENTH global-top-K site, `straddle_probe`, found by asking what the call-site gate could not see -- `np.partition` was not in its target list, 2(z85).)
+Last updated: **2026-09-11** (🛑 **THE DATASET TABLE HAD AN EMPTY ROW AND A WRONG ONE, AND BOTH WERE MEASURABLE OFFLINE IN SECONDS.** `bcn` was THREE DASHES -- no NET, no z, no group count -- on the slice carrying a COMPLETE 228-run campaign and licensing unit **D1**, whose NEGATIVE sign is load-bearing. It now reads **+2031 / 61.6 / 8, STAGE 1 PASS**. `fmow` read `10` unseen groups and the slice on disk has **13**: `configs/task_windows.yml` line 267 says `1 of 13`, `tier_viability` counts `grp 13`, and the test meta holds 13 countries over 4168 items with ZERO overlap against 136 train countries. Row corrected to **+2793 / 76.2 / 13**. ⛔ **ALL THREE READ THE SAME FILE** -- the yml's header says "Counted from the test labels alone" -- so they are CONSISTENT, not independent; what defeats `10` is that the yml is a CONTEMPORANEOUS RECORD, written while `fmow1` ran and revised at its completion. The SERVER slice is unverified, task #134. ✅ The TOOL is not the variable -- iwildcam re-reads **+3133 / 96.3 / 7** byte-identically. ⛔ **AND HALF OF bcn's NOVELTY IS INTERPOLABLE -- 50.4% SURVIVES, A FIGURE MEASURED 2026-09-01 THAT NEVER REACHED A DECISION.** Its group is `anterior torso|40s`, a PRODUCT of two factors both in training, so the screen's baseline is too generous; raked **8 of 8**, NET **+2033 global vs +1025 additive** (z 62.9 vs 27.3). ⛔ 2(w2c) ALREADY LISTS `bcn_s2` AT **50.4** among the factorial rows that reproduce exactly -- so "the tool never produced a measurement" was my error, generalised from iwildcam's `raked=0`. The real defect is worse: the figure existed while bcn's row stayed three dashes, `bcn1mn3` ran 228 runs and D1 entered the ledger. **A measurement with no path to the decision it bears on.** Now re-read on the DEPLOYED slice. ⛔ **IT DOES NOT RESCUE TraLO** -- D1 came back NEGATIVE, not null, and a weaker dataset cannot turn a loss into a win; acceptance was then **6 of 22 = 27%, per unit 2 of 8, FAIL** -- ⛔ **SUPERSEDED THE SAME DAY: the recount RAN and the figure is 7 of 23 = 30%, strict-`task` 5 of 14 = 36%, per unit 2 of 9, still FAIL (2(z108) §4).** It bit FORWARD, on `bcn1vit`, exactly as predicted -- and 🟢 **`bcn1vit` IS UNIT D2 AND TraLO PASSES IT**, the first non-iwildcam unit to pass, refuting 2(z105) which pre-registered that outcome as its own refutation (2(z107)). FRAMEWORK **2(z104)**, gated 5/5, tasks #134 #135. | 🔧 **THE REST OF TODAY WAS DOCS AND INSTRUMENTS ONLY -- NO RESULT MOVED, AND BOTH HOSTS REFUSED SSH ALL DAY.** The acceptance table now names the cells it DROPS, so its denominator is auditable for the first time (2(z101)); `MIN_PRIZE` is mirrored against its constant (2(z100)); all 24 archived docs are bannered and gated (2(z102)); and 2(z103) PRE-REGISTERS, blind, that snapshot averaging should help the DUALS more than TraLO because TraLO jitters least -- with a ZERO-GPU test named to decide it BEFORE `snap2` is read. See **0-DOC** for the reconnect order; step 3 must precede step 4. | THE STANDING RESULT IS UNCHANGED: 🔴🔴🔴🔴 **`fmow1` LANDED AT 304/304 AND IS THE CLEANEST TEST THE PROJECT HAS EVER RUN -- TraLO WINS 0 OF ITS 4 CELLS.** Third dataset (fmow, held-out COUNTRY), the HEADLINE backbone (ViTB16) plus MobileNetV3, all four duals at **EQUAL 29.00 attempted steps/run**, **THREE lambda=0 streams** so the floor rests on **12 observations** and clears `MIN_FLOOR_OBS`=8, predictions intact, and **3 of 4 cells are TASK cells exactly as the windows re-measured this morning predicted**. Every objection ever raised against an earlier result is closed by this campaign at once. Result: `tralo` is **NEGATIVE vs `clip` in all three task cells** and **LAST of the four duals in all four**, and it **LOSES THE ONE PRICED CELL by -10.00 items against a 6.5-item floor**. The corpus-wide priced record is now **1 win, 1 loss**. ⇒ **THE ACCEPTANCE BAR IS 6 of 22 = 27%, per unit 2 of 8, VERDICT FAIL** (was 6 of 18 = 33% over 6 units). FRAMEWORK **2(z88)**. 🔴 **AND IN cc-F1 -- THE OFFICIAL METRIC -- `tralo_reseed2` BEATS `tralo` IN ALL THREE fmow TASK CELLS**: that arm is the lambda=0 twin with a different RNG offset and nothing else. **The first `vs clip` contrast in the whole corpus that RESOLVES appeared today and it is a LOSS** (-0.0132 cc-F1, paired sd 0.0061, 0/4 seeds). Over all 13 task cells only **4 of 50** contrasts resolve; three say the constraint changes the model and the fourth is the only one comparing it to an ALTERNATIVE. FRAMEWORK **2(z87)** carries the paper tables -- `docs/paper/scripts/make_task_cell_table.py` -> `docs/paper/tables_task/`, 13 cells / 6 units in cc-F1 and macro-F1, gated by 10 checks and mutation-tested 5/5. In cc-F1 **1 of 11 testable cells has an unambiguous leader and it is `alm`**; in macro-F1 **zero**, and the lambda=0 arm leads 8 of 10 on iwildcam+bcn. 🟢 dsisco02 GPU 2 is FREE (fmow1 finished); `price1` 39/80 and `price2` 16/80 still running on dsisco01 GPU 0/1. ⛔ All three stalled ViT campaigns -- `vitdual2`, `vitseed1`, `vitcoin1` -- are **dsisco01/fp16** by their dispatcher logs and may NOT be finished on dsisco02. | PREVIOUS: 🔴🔴🔴 **D1 WAS READ AND IT REFUTES THE HEADLINE. THE SIGN TEST CLEARS 0.05 UNDER NO AGGREGATION RULE.** The queue promised that reading units C2 and D1 would give `6/6 p=0.0156` unrestricted and `4/4 p=0.0625` task-restricted. Both were read at zero GPU cost on 2026-09-10 and the measurement is **5/6 p=0.109** at best (unrestricted, mean rule), **3/4 p=0.3125** task-restricted, and **3/6 p=0.656** under the worst-cell rule. `bcn1mn3`/MobileNetV3 is unit **D1** and it is the FIRST licensed unit whose `tralo` does not clear its own RNG floor: **+5.16 items at L80 and -11.61 at L90**, and -2.71 against its own null. C1 and C2 are SPLIT too once every cell is read, so `6/6` failed on THREE units rather than one, and A2's worst cell is **+0.02 items** -- a tie wearing a plus sign. FRAMEWORK **2(z86)**, task #102. 🔴 **AND THE ACCEPTANCE BAR IS RECOMPUTED AND STILL FAILS: 6 of 18 = 33%**, per unit 2 of 6, bar 50%. The stale `6 of 17 = 35%` predated `rank_cell`'s common-seeds fix by 14 hours and 2(z68) said its direction could not be assumed -- measured, the fix was worth ZERO cells. Task #104 discharged. 🟢 **1 of 18 cells is PRICED, the first ever, and `tralo` wins it** -- every previous run read `0 of N`, false by construction because two lambda=0 streams over 4 seeds give 4 observations against `MIN_FLOOR_OBS`=8 (2(z69)). ⛔ **THE SHARPEST NUMBER IS NOT ABOUT THE CAP: `tralo_coin_sgd`, a RANDOM constraint direction of the same norm, OUTRANKS stock TraLO in BOTH of D1's task cells** (2nd vs 3rd at L80, 1st vs 10th at L90), and `tralo_lam0` -- lambda switched off -- recovers +14.74 of TraLO's +27.94 vs `clip`. 2(z29) and 2(z56) replicated on a SECOND dataset and backbone. ⇒ Per the standing bar this is the trigger to change the METHOD, not to run more seeds of it. 🟢 **SSH IS BACK AND THE RIG IS FULL**: `price1` and `price2` relaunched on dsisco01 GPU 0/1 at 15:11 (both were stalled with dead `running` statuses), `fmow1` at 300/304 on dsisco02 GPU 2, `vitdual2` queued for the next free slot. `price1`'s dose is EQUAL at 29.00 attempted steps/run across every trained arm. **`bcn1vit` and `snap2` are COMPLETE and both docs still called them LIVE**; `price2`, `seed58a`, `bcnpilot1/2` and `fmowpilot1/2` exist on disk and NO doc named them. See 0-RUNNING, now a verified CENSUS. Also: an ELEVENTH global-top-K site, `straddle_probe`, found by asking what the call-site gate could not see -- `np.partition` was not in its target list, 2(z85).)
 
 ---
 
@@ -21,11 +21,15 @@ THE CLAIM` and `hold no rival`, so a reader took those two counts for the whole
 input. Each drop is now printed with its reason, before the verdict.
 
 ⛔ **WHETHER ANY LIVE CELL IS ACTUALLY DROPPED IS UNMEASURED.** Both hosts
-have refused SSH all of 2026-09-11 (`Connection timed out during banner
-exchange`), so the tool has not run against `results/` since the fix. The
-standing acceptance figure is **6 of 22 = 27%, per unit 2 of 8, VERDICT FAIL**.
-The derived-with-`price1` figure of 6 of 24 = 25% is **DERIVED, NOT RUN** --
-task #128 -- and must not be quoted as measured.
+refused SSH for most of 2026-09-11, but SSH RETURNED and the recount RAN.
+✅ **THE STANDING ACCEPTANCE FIGURE IS MEASURED, ON THE FIXED TOOL, WITH D2
+IN THE LEDGER (2026-09-11): 7 of 23 = 30%, bar 50%, VERDICT FAIL.** Restricted
+to STRICT `task` cells it is **5 of 14 = 36%**; **per UNIT it is 2 of 9** (only
+C2 and D2), and 2 cells are PRICED with tralo winning 1 -- record 1 win 1 loss.
+Superseded: `6 of 22 = 27%, per unit 2 of 8`, and the never-run
+`6 of 24 = 25%`. ⚠️ QUOTE THE RESTRICTION WITH THE FIGURE: the three
+legitimate denominators give 30% / 36% / 22%. All three say FAIL. Task #128
+DISCHARGED. FRAMEWORK 2(z108) §4.
 
 🔑 **WHAT TO DO FIRST ON RECONNECT.** Run the recount and READ THE NEW
 BLOCK before the verdict:
@@ -76,8 +80,10 @@ nothing and can strengthen or break 2(z103)'s prediction while `snap2` is still
 unread. Once `snap2` is read, no prediction about it can be registered again --
 and a prediction written after the fact is worth nothing. FRAMEWORK 2(z103).
 
-⛔ **AND STEP 5 IS NOT A NEW NUMBER YET.** The standing figure is 6 of 22 =
-27%, per unit 2 of 8, VERDICT FAIL. `6 of 24 = 25%` is DERIVED, not run.
+✅ **AND STEP 5 HAS RUN.** The standing figure is **7 of 23 = 30%**
+(strict-task **5 of 14 = 36%**, per unit **2 of 9**), bar 50%, VERDICT FAIL,
+measured 2026-09-11 on the fixed tool over the eleven licensed-unit campaigns.
+`6 of 22 = 27%` and the never-run `6 of 24 = 25%` are both superseded.
 
 ### The rest of the review, none of which moves a number
 
@@ -210,7 +216,8 @@ table it bears on.
 ⛔ **IT STILL PASSES, AND IT DOES NOT RESCUE TraLO.** z=27.3 is not a null.
 And D1 came back **NEGATIVE**, not null -- a weaker dataset makes a NULL less
 informative, it cannot turn a loss into a win. The acceptance verdict is
-untouched: **6 of 22 = 27%, per unit 2 of 8, FAIL**.
+untouched in DIRECTION: **7 of 23 = 30%, strict-task 5 of 14 = 36%, per unit
+2 of 9, FAIL** (recomputed 2026-09-11; was `6 of 22 = 27%, per unit 2 of 8`).
 
 ⚠️ **READ THE ITEM COUNTS, NOT THE RATIO**, which the tool says itself:
 100% of bcn's test set is unseen, so the global shift is computed largely FROM
@@ -258,11 +265,15 @@ L80-80_G95       4   +2.25  +3.00   6.0(12)    no     loss
   `MEASURED_UNITS`, which **costs TraLO a unit**: A2 was `2 of 3 cells TRALO`
   and folding these in makes it `2 of 5` -> `rival`. A ledger that only admits
   a replicate when it agrees is not a ledger. FRAMEWORK 2(z97).
-* ⚠️ **DERIVED, NOT YET RUN**: corpus-wide this takes **6 of 22 = 27%, per unit
-  2 of 8** to **6 of 24 = 25%, per unit 1 of 8**. Both halves are arithmetic on
-  cells `tralo_wins` printed, but the recount itself did NOT execute -- the jump
-  host went down mid-session. **Quote it as a derivation until the tool prints
-  it.** Task #128.
+* ✅ **RUN 2026-09-11, AND THE DERIVATION WAS WRONG IN BOTH HALVES.** The
+  predicted `6 of 24 = 25%, per unit 1 of 8` never happened. Measured, over the
+  eleven licensed-unit campaigns on the FIXED tool with D2 added:
+  **7 of 23 = 30%**, strict-`task` **5 of 14 = 36%**, **per unit 2 of 9**, bar
+  50%, VERDICT FAIL. The derivation missed two things it could not have known:
+  a NINTH unit (D2, `bcn1vit`) and a denominator that had been counting
+  non-task cells. **This is why a derivation is not a measurement** -- the
+  arithmetic was sound and the inputs were not. Task #128 DISCHARGED.
+  FRAMEWORK 2(z108) §4.
 
 ---
 
@@ -1668,6 +1679,38 @@ the host it started on, and read the log to find out which that is.
 ### 📋 THE CENSUS. 21 worktrees, 26 campaigns, 2,715 configs
 
 ```
+VERIFIED 2026-09-11 18:00-18:35, ON BOTH HOSTS. THIS IS THE FRESHEST BLOCK --
+anything below it is OLDER and superseded where they disagree.
+  bcn2rgn       8/96     dsisco02 GPU 1. LAUNCHED BY HAND 18:20, not by the
+                         q01c queue (whose QUEUED rows below put it third on
+                         dsisco01 GPU 2 -- those rows are STALE). --step launch
+                         GREEN; firstrun dose 29/29 = 100% on alm, fioretto,
+                         hounie and tralo, amp=bfloat16, ~2 min/run. ETA ~3h.
+                         Both caps classify `task`. Stages tralo_reseed2, so
+                         its floor will rest on 12 obs and it CAN be priced.
+  fmow2mn2     36/96     dsisco01 GPU 2, running
+  vitdual2     76/88     dsisco01 GPU 0, 11 pending + 1 running
+  vitseed1     40/40     COMPLETE, dispatcher exited cleanly. UNSCORED.
+                         ⚠️ Carries NO dual arms, so it can add FLOOR
+                         observations (seeds 5-8 of ViTB16/iwildcam, pooling
+                         with vitdual2) but can never test the acceptance
+                         claim. Task #138.
+  bcn2mn2      96/96     COMPLETE. UNSCORED **and UNLICENSED** -- a potential
+                         unit F1 (bcn/MobileNetV2). Third campaign in a row to
+                         sit complete-and-unlicensed after D1 and D2. #137.
+  bcn1vit     190/190    COMPLETE, LICENSED as unit **D2** by md5 and READ.
+                         TraLO PASSES its one task cell (+33.00 items over
+                         clip, ahead of all three duals) -- the first
+                         non-iwildcam unit to pass, refuting 2(z105) which
+                         pre-registered that outcome as its own refutation.
+                         Unpriced: floor 25.5 on 12 obs. FRAMEWORK 2(z107).
+  fmow2rgn      0/96     still pending, unstarted, holding nothing.
+  GPUs at 18:35 -- dsisco01: 0 vitdual2, 2 fmow2mn2, 1 and 3 clear (3 is
+  nirgal's). dsisco02: 1 bcn2rgn (ours), 0 nirgal, 2 and 3 **liverty**.
+  ⚠️ dsisco02 GPUs 2 and 3 belong to LIVERTY now, not nirgal, so the standing
+  note calling GPU 2 "the only one we may use" is out of date. GPU 1 is the
+  free one today, and it is the one bcn2rgn is on.
+
 COMPLETE
   dom1        384/384    equaldose1  216/216    uniform1    252/252
   dom1b       192/192    bcn1mn3     228/228    bcn1vit     190/190  <- LANDED

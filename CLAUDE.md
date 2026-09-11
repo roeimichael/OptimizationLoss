@@ -141,13 +141,27 @@ docs/COVERAGE.md   🗺️ WHAT WE ACTUALLY HAVE vs WHAT THE PAPER NEEDS, built
    `tralo_reseed` -- the same null with only the RNG offset changed -- reaches
    **85% of TraLO's advantage over the clipper**. The seed-paired constraint
    contrast is **+4.06 items needing 203 seeds per cell**. FRAMEWORK 2(z107).
-   ⛔ **AND THE ACCEPTANCE FIGURE IS WITHDRAWN PENDING RECOMPUTE, BECAUSE THE
-   TOOL WAS COUNTING CELLS IT HAD ITSELF DECLARED UNTESTABLE.** `tralo_wins`
-   printed "N OF M CELLS DO NOT POSE THE CAP QUESTION" and then put all M in
-   the denominator headed "CELLS THAT CAN TEST THE CLAIM" -- the banner is
-   `quarantine.gate()`'s and the arithmetic was `tralo_wins`'s, and they never
-   spoke. Fixed and mutation-tested 4/4; **say "FAIL, figure pending
-   recompute"** until #128 re-runs on the fixed tool. FRAMEWORK 2(z108).
+   ⛔ **AND THE ACCEPTANCE FIGURE WAS COMPUTED OVER CELLS THE TOOL HAD ITSELF
+   DECLARED UNTESTABLE.** `tralo_wins` printed "N OF M CELLS DO NOT POSE THE
+   CAP QUESTION" and then put all M in the denominator headed "CELLS THAT CAN
+   TEST THE CLAIM" -- the banner is `quarantine.gate()`'s and the arithmetic
+   was `tralo_wins`'s, and they never spoke. Fixed, mutation-tested 4/4, and
+   **RECOMPUTED the same hour over the eleven licensed-unit campaigns with D2
+   in the ledger. THE STANDING FIGURE IS NOW:**
+
+   | denominator | figure |
+   |---|---|
+   | testable cells | **7 of 23 = 30%**, bar 50%, **VERDICT FAIL** |
+   | STRICT `task` cells only | **5 of 14 = 36%** |
+   | **per UNIT** (the only axis a p may be computed over) | **2 of 9** (C2, D2) |
+   | PRICED cells | 2, tralo wins 1 -- record **1 win 1 loss** |
+
+   Superseded: `6 of 22 = 27%, per unit 2 of 8`. ⚠️ **QUOTE THE RESTRICTION
+   WITH THE FIGURE** -- three legitimate denominators give 30% / 36% / 22%, and
+   2(z66) is the entry about exactly that confusion. All three say FAIL.
+   🔑 The fix dropped ONE win and THREE losses, so the ratio ROSE. A fix that
+   only ever moves a number against the method would be the suspicious kind.
+   FRAMEWORK 2(z108).
    The superseded line read: **THE LEDGER NOW LICENSES EIGHT AND EVERY SIGN IS
    READ (2026-09-10).**
    `fmow1` completed at 304/304 and licenses TWO -- E1 (MobileNetV3) and E2
@@ -851,10 +865,20 @@ python -m scripts.tralo_wins --campaign <roots> --control clip   # 🛑 THE ACCE
 #   🔑 READ THE `priced` COLUMN, NOT ONLY THE VERDICT. A win is a SIGN;
 #   `priced` says the spread cleared the RNG floor AND that floor rests on
 #   >= MIN_FLOOR_OBS observations. RUN 2026-09-06 over the whole live corpus:
-#   ⛔ **RECOMPUTED 2026-09-10 OVER THE SIX LICENSED UNITS WITH D1
-#   ADDED: 6 of 18 = 33%, bar 50%, per unit 2 of 6. ⛔ **SUPERSEDED
-#   THE SAME DAY BY `fmow1`: 6 of 22 = 27%, VERDICT FAIL, per unit
-#   2 of 8.** fmow is the THIRD dataset and carries the HEADLINE
+#   ✅ **RECOMPUTED 2026-09-11 ON THE FIXED TOOL, OVER THE ELEVEN
+#   LICENSED-UNIT CAMPAIGNS WITH D2 ADDED: 7 of 23 = 30%, bar 50%,
+#   VERDICT FAIL. Strict-`task` only: 5 of 14 = 36%. PER UNIT: 2 of
+#   9 -- C2 and D2 alone. 2 cells PRICED, tralo wins 1.**
+#   ⚠️ QUOTE THE RESTRICTION WITH THE FIGURE -- the three legitimate
+#   denominators give 30% / 36% / 22% and all three say FAIL (2(z66)).
+#   🔑 The same run FIXED the denominator: 4 cells that pose no cap
+#   question were being counted as "cells that can test the claim",
+#   and dropping them removed ONE win and THREE losses, so the ratio
+#   ROSE 27% -> 30%. FRAMEWORK 2(z108).
+#   ⛔ The superseded readings were: **RECOMPUTED 2026-09-10 OVER THE
+#   SIX LICENSED UNITS WITH D1 ADDED: 6 of 18 = 33%, bar 50%, per unit
+#   2 of 6. ⛔ SUPERSEDED THE SAME DAY BY `fmow1`: 6 of 22 = 27%,
+#   VERDICT FAIL, per unit 2 of 8.** fmow is the THIRD dataset and carries the HEADLINE
 #   backbone with all four duals at EQUAL 29.00 dose and THREE
 #   lambda=0 streams -- the cleanest cells in the corpus. `fmow1`
 #   alone is **0 of 4**, tralo NEGATIVE vs clip in 3 of them and LAST

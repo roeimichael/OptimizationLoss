@@ -18538,6 +18538,38 @@ cells outside the window, `vittask1` 2 of 2, and every L20/L30/L50 iwildcam
 campaign is non-task in 24 of 24 (2(z16)). The direction of the correction is
 **not** predictable: removing non-task cells removes wins and losses alike.
 
-Say "FAIL, figure pending recompute" until the recount lands -- the same
-formula 2(z68) forced on the 35% figure, for the same reason. Task #128, now
-blocking, and it must run on the FIXED tool.
+### 4. ✅ RECOMPUTED THE SAME HOUR, ON THE FIXED TOOL. THE VERDICT DOES NOT MOVE
+
+Run over the eleven campaigns carrying a LICENSED unit -- `dom1`, `equaldose1`,
+`dom1b`, `seed58a`, `coin1`, `coin2`, `taskwin2`, `price1`, `bcn1mn3`, `fmow1`,
+`bcn1vit` -- with D2 in the ledger and the denominator fixed:
+
+| reading | value |
+|---|---|
+| testable cells | **7 of 23 = 30%**, bar 50%, **VERDICT FAIL** |
+| restricted to STRICT `task` cells | **5 of 14 = 36%** |
+| per UNIT | **2 of 9** -- only C2 (2 of 3) and D2 (1 of 1) |
+| PRICED cells | **2**, and tralo wins **1**. Record stands at 1 win 1 loss |
+| excluded | 6 hold no rival, **4 pose no cap question** |
+
+Superseded: `6 of 22 = 27%, per unit 2 of 8`.
+
+🔑 **THE CORRECTION HELPED TraLO SLIGHTLY, AND THE MECHANISM IS WORTH KNOWING
+BECAUSE IT IS THE OPPOSITE OF WHAT "EXCLUDING CELLS" SOUNDS LIKE.** The four
+non-task cells dropped were `bcn1mn3`/L70, `bcn1vit`/L70, `bcn1vit`/L80 and
+`fmow1`/MNv3/L20 -- **one win and three losses**. Removing a win cuts the
+numerator by 1 and removing three losses cuts the denominator by 4, so the
+ratio rose 27% -> 30%. Section 3 said the direction was not predictable; it was
+not, and it went the way that flatters the method. A fix that only ever moved
+the number against TraLO would be the suspicious kind.
+
+⛔ **AND NOTHING ABOUT THE CONCLUSION MOVES.** 30% against a 50% bar, 36%
+strict, and **2 of 9 units** -- worse per-unit than the 2 of 8 it replaces,
+because D2 added a unit AND a win while the other seven stayed put. Per the
+standing instruction this remains the trigger to change the METHOD.
+
+⚠️ **QUOTE THE RESTRICTION WITH THE FIGURE, ALWAYS.** There are now THREE
+legitimate denominators -- 23 testable, 14 strict-task, 9 units -- and they
+give 30%, 36% and 22%. 2(z66) is the entry about exactly this failure: a tally
+quoted without its restriction. All three say FAIL, which is the only reason
+the ambiguity is currently harmless.
