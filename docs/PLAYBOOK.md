@@ -344,7 +344,20 @@ the reference model, while `L70-90_G95` binds in 4 of 4. Run
 `scripts.task_window` on THIS campaign's own `tralo_null` runs rather than on
 the yml row, and quote `binds n/N` beside every cell.
 
-### `vitdom1` -- 240 runs, ViTB16, 6 loose caps, the rival duals
+### `vitdom1` -- ⛔ HELD, NEVER LAUNCHED, AND ITS LAUNCHER IS DELETED
+
+⛔ **DO NOT TREAT THIS AS QUEUED WORK (checked 2026-09-11).** MISSION's
+ledger reads *"HELD, never launched, pending the 0-PRE decision. 240 ViTB16 runs
+staged"* (dated 08-30), and `docs/launch_vitdom1.sh` is in MISSION's DELETED
+LAUNCHERS registry -- recoverable only as
+`git show e7d9e893^:docs/launch_vitdom1.sh`. The contingency table below is
+retained because its BRANCHES are still the right ones for any ViTB16 dominance
+test; it is not an instruction to launch this campaign.
+
+✅ **AND ITS "next move" IS DISCHARGED.** The winning branch says *"Go to
+dataset #2 (`fmow`)"*. `fmow1` RAN, landed 304/304, and TraLO won **0 of 4**
+cells (2(z88)). That question is answered.
+
 
 *Primary:* `tralo` ranks first of the five trained arms in >= 5 of 6 cap tags,
 with its margin over the runner-up exceeding the reseed floor.
@@ -361,7 +374,23 @@ with its margin over the runner-up exceeding the reseed floor.
 sharp `uniform` prediction already failed once (both arms' slopes have the same
 sign). So treat a `uniform` result here as a fresh test, not a confirmation.
 
-### `margin2` -- 432 runs, 12 cells, tight + loose
+### `margin2` -- ⛔ THIS CAMPAIGN DOES NOT EXIST. THIRD SITE.
+
+🛑 **THERE IS NO `margin2`, AND THIS IS THE THIRD DOCUMENT TO SAY
+OTHERWISE.** MISSION's knob ledger: *"NOT staged -- checked 2026-09-02, no
+`margin2` exists on disk anywhere; this line said it was."* FRAMEWORK 2(z12)
+carried the same "432 runs staged" claim and was corrected 2026-09-10. This
+section kept it a day longer, with a run count and a cell count, in the document
+a reader opens WHEN A CAMPAIGN LANDS.
+
+🔑 **AND IT WAS THE SECOND ITEM IN A LAUNCH ORDER** (see "If a GPU
+frees", below, now rewritten). A dead name in prose is a nuisance; a dead name in
+a copy-pasteable launch sequence is a wasted session. The branches below are kept
+as the pre-registered reading for ANY `tralo_margin` test -- and note
+`step_direction_probe` has since priced that arm at **cosine 0.989 from `tralo`**,
+so it is expected to mostly REPRODUCE stock TraLO (2(z12)-era table, unaffected
+by the per-group cut fix).
+
 
 *Primary:* `tralo_margin - tralo` on AP, >= 10 of 12 independent (model, seed)
 units.
@@ -373,7 +402,7 @@ units.
 | **gains NEITHER** | placement is not the lever | ledger `margin`; check `tralo_coin` -- if a random direction moves the metric as much, the whole placement family is dead |
 | **`tralo_coin` matches `tralo_margin`** | direction does not matter, only norm | this kills the placement family regardless of sign. Report it prominently |
 
-### `dom1b` -- WAS LANDING AS OF 2026-08-30
+### `dom1b` -- ✅ COMPLETE 192/192, AND IT IS UNIT **B1**
 
 ⚠️ **RUN STATE IS A SNAPSHOT, NOT A FACT.** This section was written 2026-08-30 and nothing re-dates it when the rig moves. Verify with `python -m scripts.rig_status` and `python -m scripts.quarantine --list` before believing any of it. A present-tense heading with no date is how a reader ends up relaunching a campaign that was quarantined and had its pending runs dropped (2026-09-10).
 
@@ -383,10 +412,32 @@ and every dominance sentence needs that qualifier.
 
 ### If a GPU frees and nothing is ready
 
-Order: `vitdom1` -> `margin2` -> extend `loosevit1`'s cap tags. Never launch to
-look busy; the cheap offline probes (`cut_gap`, `ceiling_screen`,
-`paired_noise`, `headroom`, `straddle_probe`) all price a direction for free and
-each has closed one this project would otherwise have spent a campaign on.
+🛑 **THIS BLOCK USED TO READ `vitdom1` -> `margin2` -> extend
+`loosevit1`. ONE OF THOSE DOES NOT EXIST AND ONE HAS NO LAUNCHER** -- see the
+two sections above. It is exactly the failure the run-state rule names: *never
+leave a relaunch command next to a state claim you have not verified.*
+
+✅ **THE ORDER NOW, and every item is checked (2026-09-11):**
+
+1. 🔑 **Nothing, if the zero-GPU work is undone.** `bcn1vit` is COMPLETE
+   at 190/190 and absent from `MEASURED_UNITS`, so it reads UNVERIFIED and
+   contributes nothing -- and it is a NON-iwildcam unit on the HEADLINE ViTB16,
+   the scarcest thing in the corpus (2(z105), 2(z106)). Licensing and reading it
+   costs no GPU at all. Same for `snap2` (96/96).
+2. **Seeds 5-8 on the lambda=0 pair of an EXISTING campaign** (`add_seeds`,
+   task #105). This is what makes the corpus PRICEABLE -- two streams over 4
+   seeds give 4 observations against `MIN_FLOOR_OBS`=8, so `priced` is False by
+   construction at any effect size (2(z69)).
+3. **A NON-iwildcam unit**, if a campaign is to be launched at all. 2(z105):
+   every surviving TraLO unit is on iwildcam, and buying another iwildcam unit
+   is the cheapest kind of pass to get.
+
+⛔ **NEVER LAUNCH TO LOOK BUSY.** The cheap offline probes -- `cut_gap`,
+`ceiling_screen`, `paired_noise`, `headroom`, `straddle_probe` -- each price a
+direction for free, and each has closed one this project would otherwise have
+spent a campaign on. And re-read MISSION's priority queue before choosing: it is
+the authority for what is next, as MISSION 0-RUNNING is the authority for what is
+running. **This section is neither.**
 
 ---
 
