@@ -151,14 +151,21 @@ docs/COVERAGE.md   🗺️ WHAT WE ACTUALLY HAVE vs WHAT THE PAPER NEEDS, built
 
    | denominator | figure |
    |---|---|
-   | testable cells | **7 of 23 = 30%**, bar 50%, **VERDICT FAIL** |
-   | STRICT `task` cells only | **5 of 14 = 36%** |
-   | **per UNIT** (the only axis a p may be computed over) | **2 of 9** (C2, D2) |
-   | PRICED cells | 2, tralo wins 1 -- record **1 win 1 loss** |
+   | testable cells | **7 of 25 = 28%**, bar 50%, **VERDICT FAIL** |
+   | STRICT `task` cells only | **5 of 16 = 31%** |
+   | **per UNIT** (the only axis a p may be computed over) | **2 of 10** (C2, D2) |
+   | PRICED cells | **3, tralo wins 1** -- record **1 win 2 losses** |
 
-   Superseded: `6 of 22 = 27%, per unit 2 of 8`. ⚠️ **QUOTE THE RESTRICTION
-   WITH THE FIGURE** -- three legitimate denominators give 30% / 36% / 22%, and
-   2(z66) is the entry about exactly that confusion. All three say FAIL.
+   Superseded the same day: `7 of 23 = 30%, per unit 2 of 9` (before F1) and
+   `6 of 22 = 27%, per unit 2 of 8`. ⚠️ **QUOTE THE RESTRICTION WITH THE
+   FIGURE** -- three legitimate denominators give 28% / 31% / 20%, and 2(z66)
+   is the entry about exactly that confusion. All three say FAIL.
+   🛑 **AND DO NOT QUOTE D2 WITHOUT F1.** `bcn2mn2` is unit **F1**, bcn /
+   MobileNetV2 -- **the SAME DATASET as D2** -- and TraLO loses it 0 of 2 with
+   one cell **PRICED** (-22.75 items at L90 against an 18.5 floor on 12 obs),
+   at equal 29.00 dose with both cells `task`. So D2's pass is NOT a property
+   of bcn, and a single unit cannot establish what makes TraLO work in either
+   direction. The pair is the finding. FRAMEWORK 2(z109).
    🔑 The fix dropped ONE win and THREE losses, so the ratio ROSE. A fix that
    only ever moves a number against the method would be the suspicious kind.
    FRAMEWORK 2(z108).

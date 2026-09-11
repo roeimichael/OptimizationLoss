@@ -181,11 +181,24 @@ def test_NEGATIVE_CONTROL_the_scanner_catches_an_inflated_claim():
     assert bad, ("the scanner did not flag a claim of %d units against a "
                  "ledger of %d" % (n + 1, n))
 
-    unreachable = "tralo beats clip in %d/%d units, p=0.001" % (n, n)
+    # 🛑 THE PROBE p IS DERIVED FROM `n`, NOT HARDCODED, AND THAT IS THE WHOLE
+    # POINT (fixed 2026-09-11). It read a literal `p=0.001`, which sat below
+    # the floor while the ledger held <= 9 units (0.5^9 = 0.00195) and stopped
+    # doing so the moment F1 made it 10 (0.5^10 = 0.00098 < 0.001). The
+    # scanner was right and the FIXTURE had rotted: the control was asserting
+    # that an ATTAINABLE p gets flagged, which is the opposite of its job.
+    # 🔑 THE CLASS: a negative control whose probe value is a literal stops
+    # probing the moment the quantity it probes moves past it -- and it fails
+    # LOUDLY here only by luck of direction. Half a step the other way and it
+    # would have kept passing while testing nothing. Same family as an
+    # exemption whose reason is a ticket (2(z81)).
+    unreachable_p = 0.5 ** n / 2.0          # strictly below the floor, always
+    unreachable = "tralo beats clip in %d/%d units, p=%.6g" % (n, n,
+                                                              unreachable_p)
     bad2, _ = scan(unreachable, n)
-    assert bad2, ("the scanner did not flag p=0.001, which is below the "
+    assert bad2, ("the scanner did not flag p=%.6g, which is below the "
                   "0.5^%d = %.4g floor for a %d-unit sign test"
-                  % (n, 0.5 ** n, n))
+                  % (unreachable_p, n, 0.5 ** n, n))
 
     ok = "tralo beats clip in %d/%d units (p=%.4g)" % (n, n, 0.5 ** n)
     bad3, _ = scan(ok, n)

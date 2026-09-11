@@ -18573,3 +18573,86 @@ legitimate denominators -- 23 testable, 14 strict-task, 9 units -- and they
 give 30%, 36% and 22%. 2(z66) is the entry about exactly this failure: a tally
 quoted without its restriction. All three say FAIL, which is the only reason
 the ambiguity is currently harmless.
+
+## 2(z109). F1 IS D2's CONTROL AND IT ARRIVED THE SAME HOUR: SAME DATASET, DIFFERENT BACKBONE, TraLO LOSES 0 OF 2 WITH ONE CELL **PRICED**. THE SECOND PRICED LOSS IN THE CORPUS (2026-09-11)
+
+`bcn2mn2` -- bcn / MobileNetV2, COMPLETE at 96 runs, dsisco01 **fp16** -- was
+licensed as unit **F1** and read within the hour of D2. It is the most useful
+campaign of the day, and not because of its own sign.
+
+### 1. THE GATES, AND THEY ARE CLEAN
+
+`quarantine`: live. `pred_integrity`: all files intact. `dose_landed`: **all
+five trained arms at 232/232 = 100%, 29.00 attempted steps/run** -- equal dose,
+so the arm-vs-arm comparison is legal. Three lambda=0 streams, floor on 12
+observations. **Both cells are `task`; nothing was excluded for posing no
+question.** There is no defect to hide behind.
+
+### 2. THE RESULT
+
+| cell | `tralo` | `alm` | `fioretto` | `hounie` | floor (obs) | priced |
+|---|---|---|---|---|---|---|
+| `L90_G95` | **-22.75** | -5.00 | -2.50 | -8.50 | 18.5 (12) | **YES** |
+| `L100_G95` | -11.50 | -3.75 | -18.50 | -12.50 | 22.0 (12) | no |
+
+TraLO is **negative against `clip` in both cells** and **last of the four duals
+at L90**. The -22.75 clears the 18.5-item floor, so this is a **PRICED LOSS**:
+the corpus record goes **1 win, 1 loss -> 1 win, 2 losses**.
+
+### 3. 🔑 WHY IT MATTERS MORE THAN ITS OWN SIGN: IT IS D2's CONTROL
+
+2(z107) reported D2 (`bcn1vit`, bcn / ViTB16) as the first non-iwildcam unit
+where TraLO passes, refuting 2(z105)'s concentration. The obvious next
+inference -- and the one 2(z105) was itself reaching for -- is that the DATASET
+explains it: iwildcam is `tier_viability` WEAK, bcn is TIER-LIKE at 0.89, so
+perhaps TraLO needs a tier-like slice.
+
+**F1 kills that reading, on the same slice.**
+
+| unit | dataset | backbone | host | result |
+|---|---|---|---|---|
+| **D2** | bcn | ViTB16 | dsisco02 bf16 | passes 1 of 1, UNPRICED |
+| **F1** | bcn | MobileNetV2 | dsisco01 fp16 | loses 0 of 2, one **PRICED** |
+
+Same data, same groups, same capped classes, opposite outcomes -- and the one
+carrying statistical weight is the loss. Whatever D2 is, **it is not a property
+of bcn.** ⚠️ It is also not cleanly "a property of ViTB16": D2 and F1 differ in
+backbone AND host, and (backbone, host) is the unit key precisely because those
+two have been confounded here before. Two units cannot separate three factors.
+
+⛔ **THE GENERAL RULE, AND THIS PROJECT KEEPS RE-LEARNING IT: A SINGLE UNIT
+CANNOT ESTABLISH WHAT MAKES TraLO WORK, IN EITHER DIRECTION.** 2(z105) built a
+dataset-level story out of three units and pre-registered its own refutation;
+one unit refuted it; and the very next unit shows the refutation does not
+generalise either. The honest state is that the wins and losses are not yet
+explained by any factor we have measured.
+
+### 4. THE CORPUS FIGURE, RECOMPUTED WITH F1
+
+| denominator | figure |
+|---|---|
+| testable cells | **7 of 25 = 28%**, bar 50%, **VERDICT FAIL** |
+| STRICT `task` cells only | **5 of 16 = 31%** |
+| **per UNIT** | **2 of 10** -- C2 and D2 alone |
+| PRICED | **3 cells, tralo wins 1** |
+
+Supersedes the 7 of 23 = 30% / 2 of 9 recorded in 2(z108) §4 three hours
+earlier, and the 6 of 22 = 27% / 2 of 8 before that.
+
+🟢 **THE PRICED COLUMN IS THE ONE THAT IS FINALLY MOVING.** It read `0 of N` for
+the entire life of the project -- false by construction, because two lambda=0
+streams over 4 seeds give 4 observations against `MIN_FLOOR_OBS` = 8 (2(z69)).
+The three-stream protocol landed 2026-09-04 and there are now **three priced
+cells**, of which TraLO wins one and loses two. That is a real record on a real
+scale, and it is worth more than the 25-cell sign tally above it.
+
+### 5. WHAT TO DO WITH IT
+
+* ✅ **Every new campaign must carry `tralo_reseed2`.** Priced cells are the
+  only currency that has appreciated; `bcn2rgn`, launched today, carries it.
+* ⛔ **Do NOT quote D2 without F1.** They landed an hour apart on the same
+  dataset and the pair is the finding. Quoting the pass alone is selection.
+* ⚠️ **The D2 seed extension (task #139) is now more interesting, not less.**
+  It is the one cell that could turn an unpriced pass into a priced one, and
+  the corpus record would go 2-2 rather than 1-2. A priced LOSS there would
+  retire D2 outright, which is exactly why it is worth buying.
