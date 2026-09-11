@@ -99,6 +99,46 @@ and a prediction written after the fact is worth nothing. FRAMEWORK 2(z103).
   cell has two seeds and takes `min(ns)` not the median; both dose statistics
   print, with the "BOTH may read 100%" warning.
 
+## ⚠️ 0-CONC. EVERY SURVIVING TraLO UNIT IS ON iwildcam -- AND THE SIGN COUNT CANNOT CARRY IT (2026-09-11)
+
+Read off `paper_rows.MEASURED_UNITS` by EXECUTION, mapped to datasets:
+
+| dataset | units | outcome | `tier_viability` |
+|---|---|---|---|
+| **iwildcam** | 5 (A1 A2 B1 C1 C2) | **both passing units are here** | **WEAK** -- density 0.27, 2 of 8 usable, 50% K=0, 72% unreachable |
+| **bcn** | 1 (D1) | NEGATIVE, 2(z86) | TIER-LIKE 0.89 |
+| **fmow** | 2 (E1 E2) | 0 of 2 cells each, 2(z88) | TIER-LIKE 0.82 |
+
+The tally is 2 of 8 and D1/E1/E2 contribute zero, so **both survivors are among
+the five iwildcam units** and TraLO returns **0 of 3** outside it -- on the two
+slices where the cap actually poses a question.
+
+⛔ **IT IS NOT A RESULT. p = 0.357.** `C(5,2)/C(8,2) = 10/28`, and the
+one-sided Fisher on (2/5 vs 0/3) is the same. One time in three under a null.
+
+⛔ **AND IT IS UNREACHABLE.** If every future non-iwildcam unit also returns
+zero, p goes 0.357 (k=3, today) -> 0.278 (k=4, when `bcn1vit` lands) -> 0.128
+(k=8) -> **0.048 at k=16**. A unit is a WHOLE CAMPAIGN, so certifying this on
+signs needs **13 more non-iwildcam campaigns than the project has ever run**.
+Same shape as 2(z77) and 2(z66): the cheap version of the question is
+structurally dead before anyone runs it.
+
+🔑 **WHAT CARRIES WEIGHT IS ALREADY RECORDED AND IS NOT A SIGN COUNT.**
+Outside iwildcam TraLO is not merely non-passing, it is NEGATIVE AND LAST:
+`fmow1` last of four duals in all 4 cells, negative vs `clip` in all 3 task
+cells, **-10.00 items in the one priced cell against a 6.5 floor**; D1 **-11.61
+at L90**, -2.71 vs its own null, and beaten in BOTH cells by `tralo_coin_sgd`,
+a RANDOM direction of the same norm.
+
+⛔ **DO NOT USE THIS TO DISCOUNT THE iwildcam UNITS** -- that inverts the
+logic, since a weak dataset weakens a NULL and A1/A2 are positives. The correct
+use is the opposite: it argues against buying more iwildcam units to raise the
+tally, because a pass there is the cheapest kind to get.
+
+🔑 **ACTIONABLE**: `bcn1vit` is a NON-iwildcam unit. Read its sign
+against this entry at the moment it is read, and say out loud that it cannot
+certify anything. FRAMEWORK **2(z105)**.
+
 ## 🛑 0-DATA. THE DATASET TABLE IS NOW MEASURED, AND HALF OF bcn's NOVELTY IS INTERPOLABLE (2026-09-11)
 
 CLAUDE.md's dataset table decides which dataset gets run next. Two of its seven

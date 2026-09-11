@@ -18043,3 +18043,100 @@ form -- a campaign with no row at all -- and the remedy was the same: harvest th
 subjects from the authorities rather than reading the table's own contents. Here
 the subjects are the three slice directories on disk, and the screens that fill
 the row cost seconds on CPU against files that are TRACKED IN GIT.
+
+
+## 2(z105). EVERY SURVIVING TraLO UNIT IS ON iwildcam -- THE ONE SLICE `tier_viability` RATES **WEAK**. AND THE SIGN COUNT CANNOT CARRY IT: p=0.357, AND CERTIFYING IT NEEDS 13 MORE CAMPAIGNS THAN EXIST (2026-09-11)
+
+### 1. THE OBSERVATION
+
+Read off `paper_rows.MEASURED_UNITS` BY EXECUTION (13 entries, 8 distinct units)
+and mapped to datasets:
+
+| dataset | units | which | outcome |
+|---|---|---|---|
+| **iwildcam** | 5 | A1 `dom1`/MNv2, A2 `equaldose1`+`coin2`+`price1`/MNv2, B1 `dom1b`+`coin1`+`seed58a`/RegNet, C1 `taskwin2`+`equaldose1`/MNv3, C2 `dom1`/MNv3 | **both passing units are here** |
+| **bcn** | 1 | D1 `bcn1mn3`/MNv3 | **NEGATIVE** (2(z86)) |
+| **fmow** | 2 | E1 `fmow1`/MNv3, E2 `fmow1`/ViTB16 | **0 of 2 cells each** (2(z88)) |
+
+The standing tally is **2 of 8** units. D1, E1 and E2 contribute zero. Therefore
+**both surviving units are among the five iwildcam ones**, and TraLO returns
+**0 of 3** on the two datasets outside it.
+
+🔑 **AND TODAY'S TIER MEASUREMENT MAKES THAT AN ORDERING, NOT A LIST**
+(2(z104), re-run on the slices that actually ran):
+
+| slice | density | usable classes | K=0 ceilings | test items unreachable | verdict | TraLO |
+|---|---|---|---|---|---|---|
+| iwildcam | 0.27 | **2 of 8** | **50%** | **72%** | **WEAK** | 2 of 5 pass |
+| bcn | 0.89 | 8 of 8 | 11% | 0% | TIER-LIKE | 0 of 1 |
+| fmow | 0.82 | 8 of 8 | 18% | 5.6% | TIER-LIKE | 0 of 2 |
+
+So every surviving unit sits on the single slice rated WEAK on every axis -- the
+one where the local cap poses the least question -- and nothing survives on
+either slice where it poses a real one.
+
+### 2. ⛔ AND THE SIGN COUNT CANNOT CARRY IT. p = 0.357.
+
+With 8 units, 2 passing and 5 of them iwildcam, the probability that **both**
+passes land on iwildcam **by chance alone** is
+
+```
+C(5,2) / C(8,2) = 10 / 28 = 0.3571
+```
+
+and the one-sided Fisher exact on the 2x2 (iwildcam 2/5 vs other 0/3) is the
+same **0.3571**. This happens one time in three under a null of no dataset
+effect. **It is not a result and must never be quoted as one.**
+
+### 3. ⛔ NOR IS IT REACHABLE. IT NEEDS 16 NON-iwildcam UNITS, AND 3 EXIST.
+
+If every future non-iwildcam unit also returns zero and the two passes stay put:
+
+| non-iwildcam units k | total units | p |
+|---|---|---|
+| **3 (today)** | 8 | **0.357** |
+| 4 (`bcn1vit` lands) | 9 | 0.278 |
+| 8 | 13 | 0.128 |
+| 12 | 17 | 0.074 |
+| **16** | 21 | **0.048** -- first below 0.05 |
+
+**A unit is a whole campaign.** Certifying this concentration on sign counts
+needs **13 more non-iwildcam campaigns than the project has ever run**, and
+`bcn1vit` -- already live -- moves p only 0.357 -> 0.278. This is the same shape
+as 2(z77) (the instrument's resolution and the whole prize are the same size)
+and 2(z66) (the attainable sign floor): **the cheap version of the question is
+structurally dead before anyone runs it.**
+
+### 4. 🔑 WHAT DOES CARRY WEIGHT IS ALREADY RECORDED, AND IT IS NOT A SIGN COUNT
+
+On the two non-iwildcam datasets TraLO is not merely *failing to pass*. It is
+**negative and last**, which a coin flip does not do:
+
+* `fmow1`: **LAST of the four duals in all 4 cells**, NEGATIVE vs `clip` in all
+  3 task cells, and the one PRICED cell is a **-10.00 item loss against a
+  6.5-item floor** (2(z88)).
+* `bcn1mn3` (D1): **-11.61 items at L90**, **-2.71 against its own null**, and
+  `tralo_coin_sgd` -- a RANDOM constraint direction of the same norm --
+  **OUTRANKS stock TraLO in BOTH cells** (2(z86)).
+
+Magnitudes and ranks are where this lives. The sign test is the weakest possible
+reading of the corpus and it is the one that cannot be afforded.
+
+### 5. ⚠️ WHAT THIS IS, EXACTLY
+
+A **CONSISTENT, UNCERTIFIED** reading: "TraLO's surviving evidence concentrates
+where the cap poses the least question." Today it has a measured mechanism to be
+about (the tier ordering) where before it had none, and it explains why the
+project's cleanest campaign was also its worst result. It has **p=0.357** and no
+affordable path to less.
+
+⛔ **DO NOT USE IT TO DISCOUNT THE iwildcam UNITS.** That inverts the logic: a
+weak dataset makes a NULL less informative, and A1/A2's passes are positives, not
+nulls. The correct use is the opposite one -- it argues against spending more
+GPU on iwildcam units to raise the tally, because a pass there is the cheapest
+kind of pass to get.
+
+🔑 **THE ONE ACTIONABLE CONSEQUENCE**: when `bcn1vit` lands it is a
+non-iwildcam unit, and its sign should be read against this entry rather than
+folded silently into the 8. It cannot certify anything (p 0.357 -> 0.278) and
+that should be said at the moment it is read, not after.
