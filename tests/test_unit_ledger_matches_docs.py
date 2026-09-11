@@ -307,7 +307,16 @@ def test_NEGATIVE_CONTROL_a_campaign_pair_is_not_a_free_replicate():
     # an 18.5 floor on 12 obs). A single unit cannot establish that a dataset
     # suits TraLO, and its sibling on that dataset now says the opposite.
     # FRAMEWORK 2(z109).
-    assert ledger_size() == 10, (
-        "the ledger holds %d distinct units, not the 10 the documents claim. "
+    # 10 -> 11 the SAME DAY, when `bcn2rgn` was licensed as G1 (bcn /
+    # RegNetY400MF, dsisco02 bf16) and read. Floor 0.5^10 -> 0.5^11 = 0.00049.
+    # 🔑 WITH G1, bcn CARRIES ALL FOUR BACKBONES AND THEY DISAGREE FOUR WAYS:
+    # D2 passes, G1 splits 1 of 2, D1 and F1 lose (F1 with a PRICED cell). So
+    # the dataset-level story 2(z105) reached for is dead in both directions
+    # on the one slice where it can be tested against every backbone at once.
+    # Licence re-derived on the server, not quoted: its four `tralo_null`
+    # hashes each appear exactly twice (once per cap level, so 2 cells and 1
+    # unit) and none collides with dom1b / coin1 / seed58a / uniform1.
+    assert ledger_size() == 11, (
+        "the ledger holds %d distinct units, not the 11 the documents claim. "
         "Either MEASURED_UNITS gained a unit or a document is stale -- both "
         "move the sign floor and neither may pass silently." % ledger_size())

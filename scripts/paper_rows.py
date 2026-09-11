@@ -256,6 +256,23 @@ MEASURED_UNITS = {
     # exactly the inference 2(z105) was reaching for and exactly the inference
     # a single unit cannot support in either direction. FRAMEWORK 2(z109).
     ("bcn2mn2", "MobileNetV2"): "F1",        # bcn / dsisco01 fp16, COMPLETE
+    # 🛑 UNIT G1, ADDED 2026-09-11. `bcn2rgn` is bcn / RegNetY400MF, COMPLETE
+    # at 96 runs, dsisco02 **bf16** -- so bcn now carries ALL FOUR backbones,
+    # and they do not agree: D2 passes, G1 splits, D1 and F1 lose.
+    #
+    # 🔑 THE md5 LICENCE, re-derived on the server 2026-09-11 rather than
+    # quoted. Its four `tralo_null` prediction hashes are
+    # `2e6b8accce` `ee80593b28` `9277d6f48e` `d9e69e0f92`, and EACH APPEARS
+    # EXACTLY TWICE -- once at `L90_G95` and once at `L100_G95`. That is the
+    # signature of two cap levels sharing ONE warm-up model, so this campaign
+    # is 2 cells and 1 unit, exactly as `dom1`/`loose1` are.
+    #
+    # ⚠️ AND IT IS DISTINCT FROM EVERY OTHER RegNetY400MF CAMPAIGN. The same
+    # sweep shows `dom1b` seed_1 == `coin1` seed_1 == `8669c02f59`, which is
+    # why those two are ONE unit (B1); `seed58a` and `uniform1` hash
+    # differently again. None collides with bcn2rgn. A campaign that shared a
+    # hash would be a free replicate that is not free.
+    ("bcn2rgn", "RegNetY400MF"): "G1",       # bcn / dsisco02 bf16, COMPLETE
 }
 
 # The contrasts a paper row may carry, and what each one licenses.
