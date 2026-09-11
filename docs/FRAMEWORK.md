@@ -17254,3 +17254,99 @@ COMPLETE, whose runs stamp a `code_version` that no other checkout could
 resolve. A campaign whose commit exists on one disk is a campaign that cannot be
 scored if that disk goes.
 
+
+---
+
+## 2(z97). `price1` LANDED AT 80/80 AND IT IS THE FIRST CAMPAIGN WHOSE `priced = no` IS A MEASUREMENT. TraLO LOSES BOTH CELLS, AND THE CAMPAIGN BUYS NO UNIT (2026-09-11)
+
+**THE ONE-LINE VERSION.** `price1` completed at 80/80 at 02:53 on 2026-09-11:
+MobileNetV2, caps `L70-70_G95` and `L80-80_G95`, ten arms, **equal dose at
+232/232 = 29.00 attempted steps per run on every trained arm**, predictions
+intact, all three step gates GREEN. It carries **THREE lambda=0 streams**, so
+its RNG floor rests on **12 observations** and clears `MIN_FLOOR_OBS` = 8 --
+the thing 2(z92) built it for. **TraLO wins 0 of its 2 cells and `alm` is ahead
+in both.**
+
+```
+campaign  backbone     cap            sds   tralo    alm    floor  priced verdict
+price1    MobileNetV2  L70-70_G95       4   -2.25  -0.75   6.0(12)     no    loss
+price1    MobileNetV2  L80-80_G95       4   +2.25  +3.00   6.0(12)     no    loss
+```
+
+### 1. 🔑 `priced = no` FINALLY MEANS SOMETHING, AND WHAT IT MEANS IS BAD
+
+2(z69) established that every previous `0 of N priced` was **False by
+construction**: `priced` requires `nfloor >= 8` BEFORE it compares the spread to
+the floor, and two lambda=0 streams over 4 seeds give 4. The third clause was
+never reached, at any effect size. The corpus was SILENT on the noise question,
+not negative on it.
+
+`price1` reaches the third clause. `nfloor` = 12. And the answer is that the
+arm-vs-arm spread -- **2.25 and 3.00 items** -- is well under the floor of
+**6.0**. The test ran and TraLO did not clear it.
+
+⚠️ **SAY IT AT THE RIGHT STRENGTH.** This is ONE unit, TWO cells. It does not
+make the whole corpus's `priced` column retroactively meaningful; those
+campaigns still have two streams and are still silent. What it removes is the
+excuse: it is no longer true that nobody has run the test.
+
+### 2. `sensitivity_screen` SAYS THE SAME THING FROM THE OTHER SIDE
+
+**NOT ONE CELL IS SENSITIVE.** 1 SATURATED, 3 UNDER-POWERED -- and
+`UNDER-POWERED` here is the *real* one, not 2(z70)'s misnamed FLOOR-UNMEASURED
+branch, because the floor IS well estimated on 12 observations.
+
+```
+cap            cls  p@cut   p(1-p)  band  spread  floor  seeds needed (4 present)
+L70-70_G95       2  0.9964  0.00355   68     3.0    3.5   SATURATED
+L70-70_G95       7  0.7459  0.18952   69     2.0    3.0   18
+L80-80_G95       2  0.9862  0.01366   68     3.0    5.5   27
+L80-80_G95       7  0.4854  0.24979   69     2.0    3.5   25
+```
+
+🔑 **AND THE SATURATED CELL IS A CUT-PLACEMENT RESULT, NOT A SATURATED MODEL.**
+`p(1-p)` at the cut is 0.00355, under the 0.00990 bar -- but **at the DECISION
+BOUNDARY it is 0.24980**, essentially maximal. The gradient is alive; it is
+alive somewhere the metric does not read. That is rule 3's rank-K-vs-boundary
+distinction appearing as a measurement rather than an argument. The model is
+not converged either: `tralo_null` train accuracy runs 0.9581 -> 0.9997 across
+the constraint phase, so warm-up 1 is doing what it is supposed to.
+
+⚠️ 18-27 seeds per cell against the 4 the protocol runs. That is consistent
+with 2(z77)'s pricing rule read in the unflattering direction: the observed
+arm-pair difference is 2-3 items where **~6+ is the certifiable bar**, so these
+arms differ by less than half of what this instrument can see.
+
+### 3. 🛑 AND IT BUYS NO UNIT -- IT IS A2, BYTE-IDENTICALLY
+
+It was tempting to read the first three-stream campaign as a NINTH unit. It is
+not one. `price1`'s MobileNetV2 `tralo_null` is **byte-identical to
+`equaldose1`'s and `coin2`'s in 4 of 4 seeds** (`e7be738bc8`, `7758aef831`,
+`d77a1c47be`, `0cf8acc779`), while `dom1`'s MobileNetV2 differs at every seed
+(`7f1ff13ebc`, ...) -- the A1-vs-A2 host split doing exactly what the
+(backbone, host) key says it does.
+
+🔑 **THE ENTRY COSTS TraLO A UNIT, WHICH IS WHY IT MATTERS THAT IT WENT IN.**
+Left `UNVERIFIED`, price1's two cells sit in their own bucket and A2 reads
+`2 of 3 cells TRALO`. Folded in where the md5 says they belong, A2 is
+**2 of 5** and flips to `rival`. **A ledger that only ever admits a replicate
+when it agrees is not a ledger.** 13 entries, 8 distinct units -- unchanged,
+because this stops one model being counted twice rather than growing anything.
+
+⚠️ **THE ARITHMETIC IS DERIVED FROM MEASURED CELLS; THE RE-RUN IS PENDING.**
+`2 of 3` and `0 of 2` are both printed by `tralo_wins`, so `2 of 5` follows --
+but the corpus-wide recount (previously **6 of 22 = 27%, per unit 2 of 8**;
+derived, **6 of 24 = 25%, per unit 1 of 8**) has NOT been executed, because the
+jump host went down mid-session. Quote the derivation as a derivation until the
+tool prints it. This project has been wrong before about a number it reasoned
+its way to rather than ran.
+
+### 4. What price1 does NOT say
+
+⛔ It is iwildcam, MobileNetV2, one host. It replicates the direction already
+seen on `fmow1` (tralo LAST of four duals in 4 of 4) and on D1, on a unit that
+was already in the ledger. **It adds cells, not independence.** The four
+campaigns launched the same night -- `bcn2mn2`, `fmow2mn2`, `bcn2rgn`,
+`fmow2rgn` -- are the ones that add units, and they carry three streams each
+for exactly this reason.
+

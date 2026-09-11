@@ -9,6 +9,46 @@ Last updated: **2026-09-10** (🔴🔴🔴🔴 **`fmow1` LANDED AT 304/304 AND I
 
 ---
 
+## 🔴 0-PRICE. `price1` LANDED AND THE NOISE TEST FINALLY RAN. TraLO LOSES BOTH CELLS (2026-09-11)
+
+`price1` completed 80/80 at 02:53. MobileNetV2, `L70-70_G95` + `L80-80_G95`,
+**equal dose at 232/232 = 29.00 attempted steps/run on every trained arm**,
+predictions intact, all three step gates GREEN. THREE lambda=0 streams, so the
+floor rests on **12 observations** and clears `MIN_FLOOR_OBS`=8.
+
+```
+cap            sds   tralo    alm    floor  priced  verdict
+L70-70_G95       4   -2.25  -0.75   6.0(12)    no     loss
+L80-80_G95       4   +2.25  +3.00   6.0(12)    no     loss
+```
+
+* 🔑 **`priced = no` IS A MEASUREMENT HERE, FOR THE FIRST TIME.** 2(z69): every
+  earlier `0 of N priced` was False BY CONSTRUCTION, because `nfloor >= 8` gates
+  the comparison and two streams over 4 seeds give 4. This one reaches the third
+  clause, and the spread (2.25, 3.00 items) is well under the floor (6.0).
+  ⚠️ ONE unit, TWO cells -- it does not make the rest of the corpus's `priced`
+  column retroactively meaningful. It removes the excuse that nobody ran it.
+* `sensitivity_screen`: **NOT ONE CELL IS SENSITIVE** -- 1 SATURATED, 3
+  genuinely UNDER-POWERED (the floor IS well estimated, so this is not 2(z70)'s
+  misnamed branch). 18-27 seeds/cell needed against 4 present.
+* 🔑 The SATURATED cell is a **CUT-PLACEMENT** result, not a saturated model:
+  `p(1-p)` is 0.00355 at the cut and **0.24980 at the decision boundary**. And
+  `tralo_null` train acc runs 0.9581 -> 0.9997 over the constraint phase, so
+  warm-up 1 is doing its job.
+* 🛑 **IT BUYS NO UNIT. IT IS A2, BYTE-IDENTICALLY** -- `tralo_null` matches
+  `equaldose1` and `coin2` in 4 of 4 seeds (e7be738bc8, 7758aef831, d77a1c47be,
+  0cf8acc779) while `dom1`'s MobileNetV2 differs at every seed. Entered in
+  `MEASURED_UNITS`, which **costs TraLO a unit**: A2 was `2 of 3 cells TRALO`
+  and folding these in makes it `2 of 5` -> `rival`. A ledger that only admits
+  a replicate when it agrees is not a ledger. FRAMEWORK 2(z97).
+* ⚠️ **DERIVED, NOT YET RUN**: corpus-wide this takes **6 of 22 = 27%, per unit
+  2 of 8** to **6 of 24 = 25%, per unit 1 of 8**. Both halves are arithmetic on
+  cells `tralo_wins` printed, but the recount itself did NOT execute -- the jump
+  host went down mid-session. **Quote it as a derivation until the tool prints
+  it.** Task #128.
+
+---
+
 ## 🟢 0-CAPS. THE FOUR NEW UNITS' CAPS ARE SETTLED, OFFLINE, AND THEY ARE STRICT TASK CELLS ON BOTH LEVELS (2026-09-10)
 
 Task #124's measurement half is done and so is its cap choice. All twelve
