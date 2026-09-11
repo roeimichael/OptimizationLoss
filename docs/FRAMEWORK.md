@@ -18800,3 +18800,95 @@ mtime. A completed campaign's cache is a receipt, and the write path is
 The cost of the correct behaviour is ~34 minutes of ViTB16 warm-up per
 campaign. That is the price of the gate being conservative, and it is worth
 paying.
+
+## 2(z112). UNIT G1 COMPLETES bcn's FOUR BACKBONES -- AND READING IT EXPOSED THAT THE ACCEPTANCE TABLE NEVER COMPARED TraLO TO THE SECOND POST-HOC CLIPPER, WHICH BEATS IT IN 12 OF 33 CELLS (2026-09-11)
+
+`bcn2rgn` -- bcn / RegNetY400MF, dsisco02 bf16, COMPLETE at 96 runs -- was the
+last complete-and-unlicensed campaign. Licensing and reading it took zero GPU
+and produced two findings, the second much larger than the first.
+
+### 1. THE LICENCE, RE-DERIVED RATHER THAN QUOTED
+
+Its four `tralo_null` prediction hashes are `2e6b8accce` `ee80593b28`
+`9277d6f48e` `d9e69e0f92`, and **each appears exactly twice** -- once at
+`L90_G95`, once at `L100_G95`. That is the signature of two cap levels sharing
+ONE warm-up model, so this campaign is 2 cells and **1 unit**, exactly as
+`dom1`/`loose1` are. None collides with any other RegNetY400MF campaign, and
+the same sweep independently reconfirms the existing B1 pairing:
+`dom1b` seed_1 == `coin1` seed_1 == `8669c02f59`.
+
+MEASURED_UNITS: 10 -> **11** distinct units. Attainable sign floor
+0.5^10 -> 0.5^11 = 0.00049.
+
+### 2. 🔑 bcn NOW CARRIES ALL FOUR BACKBONES AND THEY DISAGREE FOUR WAYS
+
+| unit | backbone | host | result |
+|---|---|---|---|
+| **D2** | ViTB16 | dsisco02 bf16 | passes 1 of 1, UNPRICED |
+| **G1** | RegNetY400MF | dsisco02 bf16 | splits 1 of 2 |
+| **D1** | MobileNetV3 | dsisco02 bf16 | loses |
+| **F1** | MobileNetV2 | dsisco01 fp16 | loses, one cell **PRICED** |
+
+2(z105) reached for a dataset-level account of TraLO's wins; 2(z107) and
+2(z109) dented it. bcn is the one slice where the question can be put to every
+backbone at once, and the answer is that **the dataset explains nothing in
+either direction.**
+
+### 3. 🛑 AND THE LARGER FINDING: THE BAR WAS MISSING ONE OF ITS TWO HALVES
+
+G1's counted win is `L100_G95`, where `tralo` is +2.25 items against `clip` and
+ahead of all three rival duals (alm -2.75, hounie -3.75, fioretto -5.00). But
+`focal_clip` is **+13.75** in that same cell, and `focal_lp` +12.00. Both take
+**zero constraint steps**.
+
+`tralo_wins` scored `tralo` against `--control clip` and
+`RIVALS = (alm, fioretto, hounie)`. **`focal_clip` was in every campaign and
+was never compared to anything.**
+
+⛔ **THE JUSTIFICATION WAS A CLAIM IN CLAUDE.md RULE 2 -- "`clip` is the
+stronger quality bar" -- AND IT IS FALSE BY MEASUREMENT.** Over all 33 scored
+cells in the eleven licensed-unit campaigns:
+
+* `focal_clip` beats `clip` in roughly **20 of 33**
+* `focal_clip` beats **`tralo` in 12 of 33**
+
+And it is at EQUAL compute, verified from the configs rather than assumed:
+`focal_clip` is `warmup_epochs: 30, constraint_epochs: 0`, total 30, against
+`tralo`'s 1 + 29, with `methodology: heuristic` -- the greedy clip allocator.
+It is a **post-hoc clipping baseline**, which is the thing CLAUDE.md's own
+first line says the project exists to beat.
+
+### 4. THE RECOUNT, BOTH FIGURES, NEITHER HIDDEN
+
+| bar | figure |
+|---|---|
+| vs `clip` + the three rival duals (the old rule) | **8 of 27 = 30%** |
+| ...restricted to STRICT `task` cells | **6 of 18 = 33%** |
+| **...AND ALSO beating `focal_clip`** | **7 of 27 = 26%** |
+| per UNIT | **2 of 11** (C2, D2) |
+| PRICED | 3 cells, tralo wins 1 -- record **1 win 2 losses** |
+
+Exactly ONE cell is demoted, and it is G1's win. Every figure says **FAIL**.
+
+⚠️ **THE STRICTER FIGURE IS PRINTED BESIDE THE OLD ONE, NEVER INSTEAD OF IT.**
+Changing an acceptance rule so that it moves against the method is still
+changing the rule, and 2(z108) is the entry about a number that only ever moved
+one way. Both denominators print, the demoted cell is named with both deltas,
+and cells staging no second clipper are ABSENT from the strict denominator
+rather than counted as passes -- absence of the arm is not evidence TraLO beat
+it, the same one-sidedness rule as md5 in 2(x2).
+
+Seven self-test checks, mutation-tested 3/3 after two of my first four
+mutations turned out malformed rather than the gate blind. One of those
+malformed mutations did real work anyway: it showed a check asserting words
+that appear elsewhere in the output, so it now asserts the demoted LINE carries
+both deltas with the clipper ahead.
+
+### 5. ⚠️ WHAT THIS IS NOT
+
+It is not a finding that `focal_clip` is the best method. `deployed_h2h`
+REFUSES a #1 in both G1 cells -- margins 1.8 and 1.2 items against RNG floors
+of 21.5 and 16.5 on 12 observations -- and both cells are JACKKNIFE UNSTABLE.
+The point estimates put a zero-constraint arm first; nothing here is priced.
+What IS established is that the acceptance instrument was not asking the
+question the project's goal sentence asks.

@@ -167,6 +167,7 @@ docs/COVERAGE.md   🗺️ WHAT WE ACTUALLY HAVE vs WHAT THE PAPER NEEDS, built
    |---|---|
    | testable cells | **8 of 27 = 30%**, bar 50%, **VERDICT FAIL** |
    | STRICT `task` cells only | **6 of 18 = 33%** |
+   | **...AND ALSO beating `focal_clip`**, the OTHER post-hoc clipper at equal compute | **7 of 27 = 26%** |
    | **per UNIT** (the only axis a p may be computed over) | **2 of 11** (C2, D2) |
    | PRICED cells | **3, tralo wins 1** -- record **1 win 2 losses** |
 
@@ -180,6 +181,12 @@ docs/COVERAGE.md   🗺️ WHAT WE ACTUALLY HAVE vs WHAT THE PAPER NEEDS, built
    **bcn carries ALL FOUR BACKBONES and they disagree four ways**: D2 passes,
    G1 splits, D1 and F1 lose. The dataset explains nothing in either
    direction. FRAMEWORK 2(z112).
+   🛑 **AND THE BAR WAS MISSING ONE OF ITS TWO HALVES UNTIL 2026-09-11.**
+   `tralo_wins` scored against `clip` and the three rival DUALS; `focal_clip`
+   sat in every campaign at equal compute and was compared to nothing. It beats
+   `tralo` in **12 of 33** cells. Adding it demotes exactly one counted win --
+   `bcn2rgn`/`L100_G95`, tralo +2.25 against focal_clip **+13.75** -- for
+   **7 of 27 = 26%**. Printed BESIDE the old figure, never instead. 2(z112) §3.
    🛑 **AND DO NOT QUOTE D2 WITHOUT F1.** `bcn2mn2` is unit **F1**, bcn /
    MobileNetV2 -- **the SAME DATASET as D2** -- and TraLO loses it 0 of 2 with
    one cell **PRICED** (-22.75 items at L90 against an 18.5 floor on 12 obs),
