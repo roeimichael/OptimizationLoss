@@ -1,3 +1,11 @@
+> 🛑 **ARCHIVED -- HISTORY, NOT INSTRUCTIONS.** (banner added 2026-09-11)
+> The BRIEF that drove that one cleanup pass. It is written in the
+> imperative and is NOT a standing instruction -- it was executed once, on
+> 2026-09-06, and its outcome is the audit beside it.
+> `docs/FRAMEWORK.md` is the ONLY operational document. Where this file
+> disagrees with it, FRAMEWORK wins and this file is wrong. Do not run
+> anything, and do not quote any figure, on the strength of this page.
+
 # MISSION: Autonomous Repository Decontamination (OptimizationLoss)
 
 You are running headless in a loop. There is no human to ask. Make deterministic

@@ -2752,7 +2752,12 @@ for k,v in sorted(seen.items(), key=lambda kv:-sum(kv[1].values())):
 PY'
 
 # 4. gates, before ANY launch
-python -m pytest tests -q          # must be 591 passed + 1 skipped (bump when you add one)
+python -m pytest tests -q          # must be 634 passed + 1 skipped (635 collected)
+#   NOTE 2026-09-11: this read 591 for weeks, a drift of 43, while
+#   CLAUDE.md and FRAMEWORK.md stayed current -- because
+#   `test_the_documented_test_count_is_the_real_one` reads those TWO
+#   files and not this one. Its own comment said 'bump when you add
+#   one'. An instruction to a human is not a gate.
 python -m scripts.audit_config
 python -m scripts.smoke_arms
 ```

@@ -1,3 +1,10 @@
+> 🛑 **ARCHIVED -- HISTORY, NOT INSTRUCTIONS.** (banner added 2026-09-11)
+> An index of the paper files as they were laid out in July 2026.
+> `CLAUDE.md` carries the current manuscript table.
+> `docs/FRAMEWORK.md` is the ONLY operational document. Where this file
+> disagrees with it, FRAMEWORK wins and this file is wrong. Do not run
+> anything, and do not quote any figure, on the strength of this page.
+
 # PAPER_INDEX
 
 **Current paper: `paper/` = the TMLR submission** (conversion of the AAAI manuscript, started by the professor).

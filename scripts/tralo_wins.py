@@ -13,6 +13,14 @@ before:
     `tralo` alone cannot test the claim, and counting it as neither a win nor a
     loss is the only honest treatment. They are printed separately so the
     coverage hole stays visible instead of being averaged away.
+  * **A CELL THAT NEVER REACHED THE TABLE IS NAMED, NOT SWALLOWED.** Three
+    conditions drop a cell before it can be scored -- no `tralo`, no control,
+    or `rank_cell` finding the two share no common seed -- and until
+    2026-09-11 all three were a bare `continue`. The reader then sees
+    "testable + no rival" and takes it for the whole input, which is the
+    silent-truncation failure the house rule forbids: it reads as "covered
+    everything" when it did not. Each dropped cell is now printed with its
+    reason, before the verdict and before the early return.
   * **A WIN IS A SIGN, NOT A MEASUREMENT.** The `priced` column says whether
     the cell could support the claim at all: the spread must clear the RNG
     floor AND that floor must rest on at least `MIN_FLOOR_OBS` observations.
@@ -52,16 +60,30 @@ def _tp(rec):
     return float(rec["TP"])
 
 
-def rows_for(cells, control):
-    """One row per cell: the deltas vs control, the floor, and the verdict."""
+def rows_for(cells, control, dropped=None):
+    """One row per cell: the deltas vs control, the floor, and the verdict.
+
+    `dropped` is an optional out-list. Pass one and every cell that cannot
+    reach the table is appended as `(key, reason)` instead of vanishing. It is
+    optional rather than returned so no existing caller changes shape, but
+    `main` always passes one -- a denominator nobody can audit is the defect.
+    """
     rows = []
     for key in sorted(cells):
         cell = cells[key]
         if "tralo" not in cell or control not in cell:
+            if dropped is not None:
+                dropped.append((key, "no tralo" if "tralo" not in cell
+                                else "no %s" % control))
             continue
         order, _first = deployed_h2h.rank_cell(cell, control, _tp)
         d = dict((arm, mean) for arm, mean, _dl, _sd in order)
         if "tralo" not in d:
+            # NOT the same case as "no tralo": the arm RAN, and `rank_cell`
+            # dropped it for sharing no seed with the control (2(z50)). From
+            # outside the two look identical, and the remedies are opposite.
+            if dropped is not None:
+                dropped.append((key, "tralo shares no seed with %s" % control))
             continue
         floor, nfloor, _nstream = deployed_h2h.rng_floor(cell, _tp)
         present = [r for r in RIVALS if r in d]
@@ -109,7 +131,7 @@ def rows_for(cells, control):
     return rows
 
 
-def report(rows, out=sys.stdout, bar=BAR):
+def report(rows, out=sys.stdout, bar=BAR, dropped=None):
     w = out.write
     testable = [r for r in rows if r["testable"]]
     lonely = [r for r in rows if not r["testable"]]
@@ -136,6 +158,12 @@ def report(rows, out=sys.stdout, bar=BAR):
     wins = [r for r in testable if r["win"]]
     w("CELLS THAT CAN TEST THE CLAIM: %d  (%d more hold no rival and are "
       "excluded)\n" % (n, len(lonely)))
+    if dropped:
+        w("  !! %d cell(s) never reached the table and are in NEITHER count "
+          "above:\n" % len(dropped))
+        for key, why in dropped:
+            w("       %-11s %-13s %-13s  %s\n"
+              % (key[0], str(key[1])[:13], key[3], why))
     if not n:
         w("VERDICT: NOT TESTABLE -- no cell holds tralo beside a rival dual.\n")
         return 1
@@ -267,6 +295,44 @@ def self_test(out=sys.stdout):
     checks.append(("exactly 50% PASSES -- the bar is 'at least'",
                    rc == 0 and "VERDICT: PASS" in buf.getvalue()))
 
+    # THE DENOMINATOR IS AUDITABLE. Until 2026-09-11 all three drop paths
+    # were a bare `continue`, so a cell that could not be scored appeared in
+    # NEITHER printed count and the reader took `testable + lonely` for the
+    # whole input. These three gate the fix and its negative control.
+    nocontrol = dict(lead)
+    del nocontrol["clip"]
+    k4, c4 = mk(nocontrol, "campB", "L80_G95")
+    drops = []
+    rows = rows_for({k4: c4}, "clip", drops)
+    checks.append(("a cell with no control is DROPPED and the reason names it",
+                   not rows and len(drops) == 1 and "no clip" in drops[0][1]))
+
+    # THE SECOND DROP PATH, and it is deliberately a different reason: the arm
+    # RAN, and `rank_cell` dropped it for sharing no seed with the control
+    # (2(z50)). From outside the two look identical and the remedies are
+    # opposite -- stage the arm, versus re-run it on the control's seeds.
+    ragged = deployed_h2h._ragged({"clip": {3: 600, 4: 601},
+                                   "tralo": {1: 640, 2: 641},
+                                   "alm": {3: 610, 4: 611}})
+    k5 = ("campC", "ViTB16", "iwildcam", "L80_G95", "2-7")
+    drops2 = []
+    rows = rows_for({k5: ragged}, "clip", drops2)
+    checks.append(("a cell whose tralo shares NO seed with the control is "
+                   "dropped, for a DIFFERENT reason",
+                   not rows and len(drops2) == 1
+                   and "shares no seed" in drops2[0][1]))
+
+    ok_drops = []
+    rows_for({k1: c1}, "clip", ok_drops)
+    checks.append(("NEGATIVE CONTROL: a complete cell is NOT dropped",
+                   ok_drops == []))
+
+    buf = _io.StringIO()
+    report(rows_for({k1: c1}, "clip"), out=buf, dropped=drops)
+    checks.append(("the report NAMES the dropped cell, above the verdict",
+                   "never reached the table" in buf.getvalue()
+                   and "campB" in buf.getvalue()))
+
     print("", file=out)
     for label, good in checks:
         print("  %-70s %s" % (label[:70], "PASS" if good else "FAIL"), file=out)
@@ -293,7 +359,9 @@ def main(argv=None):
     if blocked:
         return 1
     cells = deployed_h2h.collect(args.campaign, dead)
-    return report(rows_for(cells, args.control), bar=args.bar)
+    dropped = []
+    rows = rows_for(cells, args.control, dropped)
+    return report(rows, bar=args.bar, dropped=dropped)
 
 
 if __name__ == "__main__":

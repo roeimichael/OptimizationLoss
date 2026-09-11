@@ -1,3 +1,9 @@
+> 🛑 **ARCHIVED -- HISTORY, NOT INSTRUCTIONS.** (banner added 2026-09-11)
+> Scratch state from that one cleanup pass.
+> `docs/FRAMEWORK.md` is the ONLY operational document. Where this file
+> disagrees with it, FRAMEWORK wins and this file is wrong. Do not run
+> anything, and do not quote any figure, on the strength of this page.
+
 STATUS: COMPLETE
 CURRENT_PHASE: 5_TERMINATE
 LAST_UPDATED: 2026-09-06

@@ -1,3 +1,9 @@
+> 🛑 **ARCHIVED -- HISTORY, NOT INSTRUCTIONS.** (banner added 2026-09-11)
+> A results summary on the MedMNIST corpus, which is removed.
+> `docs/FRAMEWORK.md` is the ONLY operational document. Where this file
+> disagrees with it, FRAMEWORK wins and this file is wrong. Do not run
+> anything, and do not quote any figure, on the strength of this page.
+
 # Results summary (professor review)
 
 MobileNetV3, five symmetric tightness regimes, 4 seeds. Mean +/- std over tightness x seeds. **Bold** = best per (dataset, metric).

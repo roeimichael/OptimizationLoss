@@ -1,3 +1,11 @@
+> 🛑 **ARCHIVED -- HISTORY, NOT INSTRUCTIONS.** (banner added 2026-09-11)
+> The Track-B results record. Track B ran at WARM-UP 50, the regime in which
+> CE saturates and every method becomes identical, on the removed MedMNIST
+> corpus. Both facts have to be carried with any number taken from it.
+> `docs/FRAMEWORK.md` is the ONLY operational document. Where this file
+> disagrees with it, FRAMEWORK wins and this file is wrong. Do not run
+> anything, and do not quote any figure, on the strength of this page.
+
 # Track B — Results Handoff (FINAL)
 
 **Date:** 2026-07-29 · **Runs:** 568 completed, 0 failures · **Server:** dsisco01 `results/track_b/`

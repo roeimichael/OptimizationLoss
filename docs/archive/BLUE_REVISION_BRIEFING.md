@@ -1,3 +1,11 @@
+> 🛑 **ARCHIVED -- HISTORY, NOT INSTRUCTIONS.** (banner added 2026-09-11)
+> A briefing on the blue insertions in the archived copy of `main.tex`
+> beside it. The live manuscripts, and which one is the paper of record, are
+> the table in `CLAUDE.md`.
+> `docs/FRAMEWORK.md` is the ONLY operational document. Where this file
+> disagrees with it, FRAMEWORK wins and this file is wrong. Do not run
+> anything, and do not quote any figure, on the strength of this page.
+
 # Blue-Revision Briefing — `docs/main.tex`
 
 **Purpose:** everything that changed in the professor's TMLR manuscript, item by item, with the

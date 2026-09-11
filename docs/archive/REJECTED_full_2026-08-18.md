@@ -1,3 +1,12 @@
+> 🛑 **ARCHIVED -- HISTORY, NOT INSTRUCTIONS.** (banner added 2026-09-11)
+> THE SUPERSEDED REJECTED LEDGER, and its title reads as an order. The live
+> ledger is `docs/FRAMEWORK.md` SECTION 2 -- read that one before proposing
+> anything. This file is kept because it carries the measured reason each
+> early direction was dropped, not because it is still the list.
+> `docs/FRAMEWORK.md` is the ONLY operational document. Where this file
+> disagrees with it, FRAMEWORK wins and this file is wrong. Do not run
+> anything, and do not quote any figure, on the strength of this page.
+
 # Rejected experiments — do not re-introduce without reading this
 
 This file documents backbones and datasets that were tried for the TraLO thesis (transductive prediction-count constraints vs Fioretto LDF / Hounie RCL baselines) and **failed or did not produce a clean win**. Their wrappers/entries have been removed from the active pipeline (`src/models/imagery/`, `src/models/model_factory.py`, `src/utils/data_loader.py`, and the now-retired `gen_model_search.py`) on 2026-05-28.

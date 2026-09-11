@@ -1,3 +1,10 @@
+> 🛑 **ARCHIVED -- HISTORY, NOT INSTRUCTIONS.** (banner added 2026-09-11)
+> The record of ONE cleanup pass, 2026-09-06. A finding here was true of the
+> tree on that date and says nothing about today's.
+> `docs/FRAMEWORK.md` is the ONLY operational document. Where this file
+> disagrees with it, FRAMEWORK wins and this file is wrong. Do not run
+> anything, and do not quote any figure, on the strength of this page.
+
 # CLEANUP_AUDIT.md
 
 Autonomous repository decontamination, run under `CLEANUP_PROMPT.md`.

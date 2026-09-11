@@ -1,3 +1,12 @@
+> 🛑 **ARCHIVED -- HISTORY, NOT INSTRUCTIONS.** (banner added 2026-09-11)
+> These four `.sh` files are EXECUTABLE and each one starts a real
+> campaign on a real GPU. Every campaign they launch is quarantined or
+> PARTIALLY quarantined, they pin hosts and roots that have since
+> moved, and they predate the current recipe. Do not run them. To
+> launch anything, generate it with `configs.gen_campaign` and walk it
+> through `scripts.run_campaign --step`.
+> `docs/FRAMEWORK.md` is the ONLY operational document.
+
 # Archived campaign launchers
 
 One-off launch wrappers for `dom1`, `dom1b`, `equaldose1` and `uniform1`,

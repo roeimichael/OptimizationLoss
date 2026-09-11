@@ -1,3 +1,10 @@
+> 🛑 **ARCHIVED -- HISTORY, NOT INSTRUCTIONS.** (banner added 2026-09-11)
+> A results review written against the MedMNIST corpus, which is removed.
+> See `docs/paper/WHICH_CORPUS.md` before quoting any number from it.
+> `docs/FRAMEWORK.md` is the ONLY operational document. Where this file
+> disagrees with it, FRAMEWORK wins and this file is wrong. Do not run
+> anything, and do not quote any figure, on the strength of this page.
+
 # TraLO — Results Review
 
 **Date:** 2026-05-26 · **Backbone:** MobileNetV3 (headline) + ResNet18 / EfficientNetB0 (robustness) · **Data:** 1,848 completed cells across Phases 1–6, 4 seeds each.

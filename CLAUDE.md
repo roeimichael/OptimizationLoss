@@ -161,6 +161,23 @@ docs/archive/      history, not instructions. 🛑 **AND IT IS IN GIT AGAIN AS O
                    underneath one is dead. Fixed with `!docs/archive/`, which
                    names the directory. Archive by `git mv` and CHECK
                    `git status` shows a rename, not a delete.
+                   🛑 **AND BANNER IT -- THE FOLDER DOES NOT TRAVEL WITH THE
+                   FILE (2026-09-11).** 14 of the 24 markdown files here had
+                   no banner and several read as live instructions: the
+                   SUPERSEDED rejected ledger is titled "do not re-introduce
+                   without reading this" (the live one is FRAMEWORK section
+                   2); `CLEANUP_PROMPT.md` is an imperative MISSION brief
+                   executed once; two warm-up-50 tables announce a "Headline
+                   F1 win" on TissueMNIST, whose groups are `index % 3`, in
+                   the regime where CE saturates and every method ties. A
+                   reader arriving by search or grep meets the TITLE.
+                   ⚠️ The `launchers/` README was the sharpest: four
+                   EXECUTABLE `.sh` wrappers that each start a real campaign,
+                   all of them quarantined, under a heading that merely began
+                   with the word "Archived". `test_every_archived_doc_SAYS_
+                   it_is_archived` now requires the banner in the FIRST FIVE
+                   LINES -- below the fold does not count, which is the whole
+                   bug. Mutation-tested 2/2, with three negative controls.
 docs/paper/        the TMLR manuscript
 results/           experiment outputs
 scripts/           full_panel.py + score_arm.py = THE scorer; plus dataset prep
@@ -199,7 +216,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 634 regression tests, ~300s, no dataset needed
+python -m pytest tests -q                   # 635 regression tests, ~300s, no dataset needed
 #   `tests/test_scorers_run_end_to_end.py` EXECUTES every scorer as a subprocess
 #   against a campaign carrying a real PARTIAL marker. It exists because three
 #   scorers once used `quarantine.` with no module-level import: they PARSED,
@@ -826,9 +843,25 @@ python -m scripts.tralo_wins --campaign <roots> --control clip   # 🛑 THE ACCE
 #   🔑 QUOTE THE VERDICT, NOT THE FIGURE: FAIL needs 6->9 of 17 to flip
 #   and nothing suggests the fix is worth three cells, so say "FAIL, figure
 #   pending recompute". FRAMEWORK 2(z68), task #104.
-#   `--self-test` gates it in both directions, 7 checks, including that
+#   `--self-test` gates it in both directions, 13 checks, including that
 #   beating the CONTROL but not the RIVAL is NOT a win (the old framing scored
 #   that green) and that exactly 50% passes.
+#   🛑 **AND IT NOW NAMES THE CELLS THAT NEVER REACHED THE TABLE
+#   (2026-09-11).** THREE conditions dropped a cell before it could be
+#   scored -- no `tralo`, no control, or `rank_cell` finding the two share
+#   NO COMMON SEED -- and all three were a bare `continue`. The summary
+#   printed `testable` and `no rival`, so a reader took those two counts
+#   for the whole input and a coverage hole in the DENOMINATOR of the
+#   acceptance bar was invisible. Each drop is now printed with its reason
+#   before the verdict, and before the early return, so it shows even when
+#   NOTHING is testable.
+#   🔑 THE TWO REASONS ARE KEPT DISTINCT ON PURPOSE: "no tralo" means the
+#   arm was never staged, "tralo shares no seed with clip" means it RAN and
+#   2(z50)'s common-seed rule dropped it. They look identical from outside
+#   and the remedies are opposite -- stage the arm, versus re-run it on the
+#   control's seeds. Mutation-tested 4/4: reverting either path to a bare
+#   `continue`, collapsing the two reasons into one, and silencing the
+#   report block each turn the self-test RED.
 python -m scripts.cell_table --campaign <roots> --out cells.csv   # the SURVEY, not the
 #   🛑 IT REFUSES A CELL WHOSE RUNS CARRY NO `hyperparams.seed` (2026-09-09).
 #   `full_panel.panel` reads the seed from there and NOWHERE else, so a config

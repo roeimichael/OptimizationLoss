@@ -4052,7 +4052,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 634 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 635 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -4226,7 +4226,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 634 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 635 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -4234,7 +4234,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (634 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (635 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -16215,7 +16215,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             634 tests, ~297 s, no dataset required
+tests/             635 tests, ~297 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
@@ -17582,18 +17582,141 @@ AST over the same 152 files, splitting CODE string constants (a path a module
 would actually open) from PROSE (docstrings and `#` comments). **9 dead paths,
 0 defects:**
 
-* 3 are deliberate NEGATIVE-CONTROL fixtures -- `docs/GONE.md`,
-  `configs/real.yml`, `docs/launch_this_never_existed.sh`. They must not exist.
+* 3 are deliberate NEGATIVE-CONTROL fixtures -- a missing markdown file, a
+  missing config, and a missing launcher script, each named inside a test so a
+  gate can be shown to FAIL. They must not exist.
 * 6 are correct HISTORICAL statements about deleted files, e.g.
   `scripts/feasibility_check.py` saying its ancestor *"was lost with the rest
   of that tree"*.
 
 ⚠️ That second group is the same false-positive shape `stale_figures` produces
-for `scripts/check_lesion_leakage.py` (a deleted script cited **together with**
-its `git show` recovery command). A tool for this class would have to tell
+for the deleted lesion-leakage checker (cited at line 1064 **together with**
+`git show 61e34c0a^:scripts/check_lesion_leakage.py`, its recovery command). A tool for this class would have to tell
 *"this path is missing"* from *"this path is missing, and that is the point"*,
 and nothing in the text distinguishes them. **Do not build this one either.**
 
 🔑 So the archived index's "Referenced by" claims are stale, and it does not
 matter: the file carries an ARCHIVED banner and the live code it names has no
 such reference left. The classification is doing its job.
+
+---
+
+## 2(z101). THE ACCEPTANCE TABLE'S DENOMINATOR WAS NOT AUDITABLE -- THREE WAYS TO DROP A CELL, ALL THREE A BARE `continue` (2026-09-11)
+
+**THE ONE-LINE VERSION.** `tralo_wins` is the tool that decides the 50% bar,
+and the bar is a FRACTION. Three conditions dropped a cell before it could be
+scored -- **no `tralo`**, **no control**, or **`rank_cell` finding the two share
+no common seed** -- and every one of them was a bare `continue`. The summary
+then printed two numbers, `CELLS THAT CAN TEST THE CLAIM` and `hold no rival`,
+and a reader takes those for the whole input. They are not.
+
+### 1. Why this is the house rule's own failure mode
+
+> *"No silent caps: if a workflow bounds coverage, log what was dropped --
+> silent truncation reads as 'covered everything' when it didn't."*
+
+The tool already honours that rule for ONE of its exclusions: cells holding no
+rival dual are printed separately, with the reasoning written into the
+docstring, *"so the coverage hole stays visible instead of being averaged
+away"*. The three drops above are the same hole, one step earlier, and got
+none of that treatment. A tool can be scrupulous about the exclusion somebody
+thought of and silent about the ones nobody did.
+
+### 2. 🔑 THE TWO REASONS ARE KEPT DISTINCT, AND THAT IS THE POINT
+
+```
+  "no tralo"                        the arm was never staged
+  "tralo shares no seed with clip"  the arm RAN; 2(z50)'s common-seed rule
+                                    dropped it
+```
+
+From outside these are indistinguishable -- both are a cell that is simply not
+in the table -- and **the remedies are opposite**: stage the arm, versus re-run
+it on the control's seeds. Collapsing them into one message is itself a
+mutation the gate now catches.
+
+### 3. Why it matters at exactly this moment
+
+The pending recount (task #128) runs over a corpus whose arm coverage is NOT
+uniform: `taskwin2` staged `tralo` alone, `price1` carries three lambda=0
+streams where older campaigns carry two, and the four new-unit campaigns differ
+again. The standing figure is **6 of 22 = 27%**. A denominator that can lose
+cells without saying so is the one quantity in that fraction nobody could check.
+
+⛔ **THIS CHANGES NO PUBLISHED FIGURE, AND I CANNOT YET SAY IT CHANGES ANY.**
+Both hosts have been unreachable all day, so the tool has not been run against
+the live corpus since the fix. **Whether any cell is actually being dropped
+today is UNMEASURED.** What changed is what the NEXT run reports, not what the
+last one measured -- and if the answer turns out to be "zero cells dropped",
+that is a result worth having rather than an assumption worth keeping.
+
+### 4. Gated
+
+Four checks, mutation-tested **4 of 4**: reverting either drop path to a bare
+`continue`, collapsing the two reasons into one, and silencing the report block
+each turn the self-test RED. The path-2 fixture uses `deployed_h2h._ragged`
+to give `tralo` seeds {1,2} against the control's {3,4}. The negative control
+is that a complete cell must drop NOTHING. `--self-test` is 7 checks -> 13.
+
+---
+
+## 2(z102). "ARCHIVED" WAS A PROPERTY OF THE FOLDER, NOT OF THE FILE -- AND 14 OF 24 ARCHIVED DOCS READ AS LIVE INSTRUCTIONS (2026-09-11)
+
+**THE ONE-LINE VERSION.** `docs/archive/` is history by two conventions -- the
+directory name, and one line in `CLAUDE.md` -- and **neither travels with the
+file**. A reader arriving by search, by grep, or by a link meets the TITLE.
+10 of the 24 markdown files there opened with the project's ARCHIVED banner.
+The other 14 did not, and several of them read as orders.
+
+### 1. The three that actually bite
+
+```
+REJECTED_full_2026-08-18.md   132 KB, titled "Rejected experiments -- do not
+                              re-introduce without reading this". It is the
+                              SUPERSEDED ledger; the live one is section 2 of
+                              this file.
+launchers/README.md           FOUR EXECUTABLE .sh WRAPPERS, each of which
+                              starts a real campaign on a real GPU, and every
+                              campaign they launch is quarantined or PARTIAL.
+                              Its heading merely began with the word
+                              "Archived", and "they are history, not
+                              instructions" sat on line 4, under it.
+stats_headline_f1.md          announces a "Headline F1 win" -- on TissueMNIST,
+                              whose groups are `index % 3` so the local scope
+                              is empty BY CONSTRUCTION, at WARM-UP 50, where
+                              CE saturates and every method is identical. Its
+                              directory README has carried both caveats since
+                              2026-08-19. The file did not, and the file is
+                              what gets quoted.
+```
+
+`CLEANUP_PROMPT.md` is the same shape one step milder: an imperative MISSION
+brief, executed once on 2026-09-06, sitting in the tree in the present tense.
+
+### 2. 🔑 THE GENERAL RULE, AND IT IS THE SAME ONE AS 2(z101)
+
+A document's status has to be written **in the document**. A convention that
+lives in the container -- a folder name, a line in an index, a banner on the
+README one level up -- is invisible to every access path except browsing down
+from the top, and browsing down from the top is the one path nobody uses.
+
+⚠️ This is 2(z94)'s lesson from the other side. That entry found `git mv` into
+`docs/archive/` silently DELETING files because `.gitignore`'s bare `archive/`
+matched at any depth; the fix made the files exist. This one is about whether
+the files that now exist say what they are.
+
+### 3. Gated
+
+All 24 are bannered, each with one line naming what supersedes it.
+`test_every_archived_doc_SAYS_it_is_archived` requires the banner in the
+**FIRST FIVE LINES** -- below the fold does not count, which is precisely the
+`launchers/README.md` bug. Mutation-tested **2 of 2** (banner stripped, banner
+pushed below the fold), with three negative controls including that a bare
+title must NOT satisfy it. The suite goes 634 -> 635.
+
+✅ **AND THE LIVE DOCS WERE CHECKED IN THE OTHER DIRECTION TOO.** Every
+reference from `CLAUDE.md` and the five `docs/` files into `docs/archive/`
+frames it as history -- *"It is history, not instructions"*, *"do not read
+[its] 'aider already' claim"*, and the `launch_uniform.sh` citations are run
+RECEIPTS for `uniform1`, not invitations. Nothing live points at the archive
+as operational, so the banners close the last way in.

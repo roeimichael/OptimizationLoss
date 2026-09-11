@@ -1,3 +1,10 @@
+> 🛑 **ARCHIVED -- HISTORY, NOT INSTRUCTIONS.** (banner added 2026-09-11)
+> The blind second referee round on the same manuscript, same date, same
+> status.
+> `docs/FRAMEWORK.md` is the ONLY operational document. Where this file
+> disagrees with it, FRAMEWORK wins and this file is wrong. Do not run
+> anything, and do not quote any figure, on the strength of this page.
+
 <task-notification>
 <task-id>adcdee5cac2ffb008</task-id>
 <tool-use-id>toolu_01Wy96QoL5rJ2kU3m5s1Xy4W</tool-use-id>

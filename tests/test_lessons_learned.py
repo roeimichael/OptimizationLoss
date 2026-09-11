@@ -3050,3 +3050,68 @@ def test_a_documented_launcher_path_either_EXISTS_or_is_in_the_DELETED_registry(
     assert os.path.isdir(arch), arch
     assert [f for f in os.listdir(arch) if f.endswith(".sh")], (
         "docs/archive/launchers/ holds no .sh -- the survivors are gone too")
+
+
+def _opens_with_an_archived_banner(text):
+    """Does this document SAY, in its first five lines, that it is history?
+
+    Five lines, not "anywhere in the file": the point is what a reader meets
+    before the title, and `REJECTED_full_2026-08-18.md` mentions archiving
+    dozens of times further down while opening with what reads as an order.
+    """
+    head = "\n".join(text.splitlines()[:5])
+    return "ARCHIVED" in head or "HISTORY, NOT" in head
+
+
+def test_every_archived_doc_SAYS_it_is_archived():
+    """LESSON, 2026-09-11. `docs/archive/` is history by two conventions --
+    the directory name, and one line in CLAUDE.md -- and NEITHER travels with
+    the file. A reader arriving by search, by grep, or by a link meets the
+    TITLE, and the title is what gets quoted.
+
+    14 of the 24 markdown files there carried no banner, and several read as
+    live instructions:
+
+      REJECTED_full_2026-08-18.md   titled "do not re-introduce without
+                                    reading this", while the live ledger is
+                                    docs/FRAMEWORK.md section 2
+      CLEANUP_PROMPT.md             an imperative MISSION brief, executed once
+                                    on 2026-09-06, not a standing instruction
+      stats_headline_f1.md          announces a "Headline F1 win" on
+                                    TissueMNIST (groups are `index % 3`, so
+                                    the local scope is empty by construction)
+                                    at warm-up 50 (CE saturated, all methods
+                                    identical). Its directory README has said
+                                    so since 2026-08-19; the file did not.
+
+    The banner IS the classification. This test keeps it attached to the file
+    rather than to the folder around it.
+    """
+    root = os.path.join("docs", "archive")
+    assert os.path.isdir(root), "docs/archive is missing"
+    docs = []
+    for dp, _dns, fns in os.walk(root):
+        docs += [os.path.join(dp, f) for f in fns if f.endswith(".md")]
+    assert len(docs) >= 20, "only %d archived docs found -- did the tree move?" % len(docs)
+
+    missing = [d for d in sorted(docs)
+               if not _opens_with_an_archived_banner(
+                   io.open(d, encoding="utf-8").read())]
+    assert not missing, (
+        "these archived docs do not say so in their first five lines, so a "
+        "reader who lands on one has nothing telling them it is history:\n  "
+        + "\n  ".join(missing)
+        + "\nPrepend the banner the other files use, with one line naming "
+          "what supersedes this one.")
+
+    # NEGATIVE CONTROLS. A predicate that cannot say NO has not been shown to
+    # work, and the five-line bound is the part most likely to be loosened.
+    assert not _opens_with_an_archived_banner(
+        "# Results summary\n\nsome prose\n"), \
+        "an unbannered document must NOT pass"
+    assert not _opens_with_an_archived_banner(
+        "\n".join(["filler"] * 9 + ["ARCHIVED, far below the fold"])), \
+        "a banner below the fold must NOT count -- that is the whole bug"
+    assert _opens_with_an_archived_banner(
+        "> ARCHIVED -- HISTORY, NOT INSTRUCTIONS.\n# Title\n"), \
+        "a correctly bannered document must pass"
