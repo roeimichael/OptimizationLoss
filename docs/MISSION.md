@@ -23,10 +23,11 @@ input. Each drop is now printed with its reason, before the verdict.
 ⛔ **WHETHER ANY LIVE CELL IS ACTUALLY DROPPED IS UNMEASURED.** Both hosts
 refused SSH for most of 2026-09-11, but SSH RETURNED and the recount RAN TWICE.
 ✅ **THE STANDING ACCEPTANCE FIGURE IS MEASURED, ON THE FIXED TOOL, WITH D2
-**AND F1** IN THE LEDGER (2026-09-11): 7 of 25 = 28%, bar 50%, VERDICT FAIL.**
-Restricted to STRICT `task` cells it is **5 of 16 = 31%**; **per UNIT it is
-2 of 10** (only C2 and D2), and **3 cells are PRICED** with tralo winning 1 --
-record **1 win 2 losses**. Superseded: `7 of 23 = 30%, per unit 2 of 9` (before
+**F1 AND G1** IN THE LEDGER (2026-09-11): 8 of 27 = 30%, bar 50%, VERDICT FAIL.**
+Restricted to STRICT `task` cells it is **6 of 18 = 33%**; **per UNIT it is
+2 of 11** (only C2 and D2), and **3 cells are PRICED** with tralo winning 1 --
+record **1 win 2 losses**. Superseded: `7 of 25 = 28%, per unit 2 of 10` (before
+G1), `7 of 23 = 30%, per unit 2 of 9` (before
 F1 landed), `6 of 22 = 27%, per unit 2 of 8`, and the never-run
 `6 of 24 = 25%`. 🛑 **D2 AND F1 ARE THE SAME DATASET AND MUST BE QUOTED
 TOGETHER** -- D2 (bcn/ViTB16) passes unpriced, F1 (bcn/MobileNetV2) loses 0 of
@@ -83,11 +84,11 @@ nothing and can strengthen or break 2(z103)'s prediction while `snap2` is still
 unread. Once `snap2` is read, no prediction about it can be registered again --
 and a prediction written after the fact is worth nothing. FRAMEWORK 2(z103).
 
-✅ **AND STEP 5 HAS RUN.** The standing figure is **7 of 25 = 28%**
-(strict-task **5 of 16 = 31%**, per unit **2 of 10**), bar 50%, VERDICT FAIL,
+✅ **AND STEP 5 HAS RUN.** The standing figure is **8 of 27 = 30%**
+(strict-task **6 of 18 = 33%**, per unit **2 of 11**), bar 50%, VERDICT FAIL,
 measured 2026-09-11 on the fixed tool over the twelve licensed-unit campaigns.
-`7 of 23 = 30%` (pre-F1), `6 of 22 = 27%` and the never-run `6 of 24 = 25%`
-are all superseded. **3 cells PRICED, tralo wins 1.**
+`7 of 25 = 28%` (pre-G1), `7 of 23 = 30%` (pre-F1), `6 of 22 = 27%` and the
+never-run `6 of 24 = 25%` are all superseded. **3 cells PRICED, tralo wins 1.**
 
 ### The rest of the review, none of which moves a number
 
@@ -220,9 +221,9 @@ table it bears on.
 ⛔ **IT STILL PASSES, AND IT DOES NOT RESCUE TraLO.** z=27.3 is not a null.
 And D1 came back **NEGATIVE**, not null -- a weaker dataset makes a NULL less
 informative, it cannot turn a loss into a win. The acceptance verdict is
-untouched in DIRECTION: **7 of 25 = 28%, strict-task 5 of 16 = 31%, per unit
-2 of 10, FAIL** (recomputed twice on 2026-09-11 as D2 then F1 were licensed;
-was `6 of 22 = 27%, per unit 2 of 8`).
+untouched in DIRECTION: **8 of 27 = 30%, strict-task 6 of 18 = 33%, per unit
+2 of 11, FAIL** (recomputed three times on 2026-09-11 as D2, F1 then G1 were
+licensed; was `6 of 22 = 27%, per unit 2 of 8`).
 
 ⚠️ **READ THE ITEM COUNTS, NOT THE RATIO**, which the tool says itself:
 100% of bcn's test set is unseen, so the global shift is computed largely FROM
@@ -273,9 +274,9 @@ L80-80_G95       4   +2.25  +3.00   6.0(12)    no     loss
 * ✅ **RUN 2026-09-11, AND THE DERIVATION WAS WRONG IN BOTH HALVES.** The
   predicted `6 of 24 = 25%, per unit 1 of 8` never happened. Measured, over the
   eleven licensed-unit campaigns on the FIXED tool with D2 added:
-  **7 of 25 = 28%**, strict-`task` **5 of 16 = 31%**, **per unit 2 of 10**, bar
-  50%, VERDICT FAIL (that is with F1 added hours later; the first run of the
-  day, before F1, read 7 of 23 = 30% / 2 of 9). The derivation missed two things it could not have known:
+  **8 of 27 = 30%**, strict-`task` **6 of 18 = 33%**, **per unit 2 of 11**, bar
+  50%, VERDICT FAIL (that is with F1 and G1 added hours later; the first run of
+  the day read 7 of 23 = 30% / 2 of 9, then 7 of 25 = 28% / 2 of 10). The derivation missed two things it could not have known:
   a NINTH unit (D2, `bcn1vit`) and a denominator that had been counting
   non-task cells. **This is why a derivation is not a measurement** -- the
   arithmetic was sound and the inputs were not. Task #128 DISCHARGED.

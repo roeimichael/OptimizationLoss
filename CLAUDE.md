@@ -18,9 +18,20 @@ it, `docs/FRAMEWORK.md` wins.
 1. **Warm-up 1 / constraint 29 for trained arms; warm-up 30 / constraint 0 for post-hoc arms.**
    30 optimizer epochs on both sides. **Never run warm-up 50** -- CE saturates and every method
    becomes identical. Never run warm-up 5 -- it is a dead zone; never interpolate between them.
-2. **Score at equal compute, with BOTH clippers (`clip` and `focal_clip`) inside the campaign.**
-   `clip` is the stronger quality bar. An arm-vs-arm delta is not a result until the bar is in
-   the same campaign.
+2. **Score at equal compute, with BOTH clippers (`clip` and `focal_clip`) inside the campaign,
+   AND COMPARE AGAINST BOTH.** An arm-vs-arm delta is not a result until the bar is in the
+   same campaign. ⛔ **THIS LINE SAID "`clip` IS THE STRONGER QUALITY BAR" UNTIL 2026-09-11
+   AND IT IS FALSE BY MEASUREMENT.** Over all 33 scored cells in the eleven licensed-unit
+   campaigns, `focal_clip` beats `clip` in roughly **20 of 33** and beats **`tralo` in 12 of
+   33** -- at EQUAL compute, verified from the configs (`focal_clip` is warm-up 30 /
+   constraint 0 = 30 epochs against tralo's 1 + 29, `methodology: heuristic`, the greedy
+   clip allocator). So it is a post-hoc clipping baseline, which is the thing CLAUDE.md's
+   own first line says to beat, and the sentence above was the reason nothing compared TraLO
+   to it. `tralo_wins` scored against `--control clip` and the three rival DUALS only;
+   `bcn2rgn`/`L100_G95` is counted a TraLO WIN while `focal_clip` leads it by **11.5 items**.
+   ✅ `tralo_wins` now prints the stricter figure BESIDE the old one and names every demoted
+   cell -- beside, never instead, because a rule change that only moves a number against the
+   method is still a rule change (2(z108)). FRAMEWORK 2(z112).
 3. **md5 the raw predictions across arms before reading any metric.** Inert flags are this
    project's most frequent failure mode -- **five** occurrences and counting (the fifth
    is `graph_probe --dump`, an argparse DESTINATION, which `audit_config` cannot see).
@@ -128,8 +139,11 @@ docs/COVERAGE.md   🗺️ WHAT WE ACTUALLY HAVE vs WHAT THE PAPER NEEDS, built
                    had their signs read and only THREE carry a verified `task`
                    cell, so quote BOTH -- ⛔ **SUPERSEDED 2026-09-10, 2(z86): D1 IS NEGATIVE, so task-restricted is 3/4 p=0.3125, not** 4/4 p=0.0625, 3/3 p=0.125
                    task-restricted. `paper_rows` prints the restriction itself)
-   🟢 **THE LEDGER LICENSES NINE, AND THE NINTH IS THE FIRST NON-iwildcam
-   UNIT WHERE TraLO **PASSES** (2026-09-11).** `bcn1vit` -- bcn / ViTB16,
+   🟢 **THE LEDGER LICENSES ELEVEN AS OF 2026-09-11 -- D2, F1 AND G1 WERE
+   LICENSED AND READ THE SAME DAY, AND bcn NOW CARRIES ALL FOUR BACKBONES.
+   READ THE FOUR TOGETHER OR NOT AT ALL: D2 passes, G1 splits 1 of 2, D1 and
+   F1 lose (F1 with a PRICED cell). THE NINTH WAS THE FIRST NON-iwildcam
+   UNIT WHERE TraLO **PASSES**.** `bcn1vit` -- bcn / ViTB16,
    COMPLETE at 190 runs -- was licensed as **D2** and read the same hour. At
    its one task cell `L90_G95`, `tralo` beats `clip` AND all three rival duals:
    **+33.00 deployed items against fioretto +17.25, hounie +8.50, alm +3.25**.
@@ -151,15 +165,21 @@ docs/COVERAGE.md   🗺️ WHAT WE ACTUALLY HAVE vs WHAT THE PAPER NEEDS, built
 
    | denominator | figure |
    |---|---|
-   | testable cells | **7 of 25 = 28%**, bar 50%, **VERDICT FAIL** |
-   | STRICT `task` cells only | **5 of 16 = 31%** |
-   | **per UNIT** (the only axis a p may be computed over) | **2 of 10** (C2, D2) |
+   | testable cells | **8 of 27 = 30%**, bar 50%, **VERDICT FAIL** |
+   | STRICT `task` cells only | **6 of 18 = 33%** |
+   | **per UNIT** (the only axis a p may be computed over) | **2 of 11** (C2, D2) |
    | PRICED cells | **3, tralo wins 1** -- record **1 win 2 losses** |
 
-   Superseded the same day: `7 of 23 = 30%, per unit 2 of 9` (before F1) and
-   `6 of 22 = 27%, per unit 2 of 8`. ⚠️ **QUOTE THE RESTRICTION WITH THE
-   FIGURE** -- three legitimate denominators give 28% / 31% / 20%, and 2(z66)
-   is the entry about exactly that confusion. All three say FAIL.
+   Superseded the same day, in order as D2, F1 and G1 were licensed:
+   `7 of 23 = 30% / 2 of 9`, `7 of 25 = 28% / 2 of 10`, and before all of them
+   `6 of 22 = 27% / 2 of 8`. ⚠️ **QUOTE THE RESTRICTION WITH THE FIGURE** --
+   three legitimate denominators give 30% / 33% / 18%, and 2(z66) is the entry
+   about exactly that confusion. All three say FAIL.
+   🔑 **G1 ADDED TWO CELLS AND ONE WIN, SO THE CELL RATIO ROSE AND THE UNIT
+   COUNT DID NOT** -- `bcn2rgn` splits 1 of 2, which is not a majority. With it
+   **bcn carries ALL FOUR BACKBONES and they disagree four ways**: D2 passes,
+   G1 splits, D1 and F1 lose. The dataset explains nothing in either
+   direction. FRAMEWORK 2(z112).
    🛑 **AND DO NOT QUOTE D2 WITHOUT F1.** `bcn2mn2` is unit **F1**, bcn /
    MobileNetV2 -- **the SAME DATASET as D2** -- and TraLO loses it 0 of 2 with
    one cell **PRICED** (-22.75 items at L90 against an 18.5 floor on 12 obs),
@@ -872,10 +892,17 @@ python -m scripts.tralo_wins --campaign <roots> --control clip   # 🛑 THE ACCE
 #   🔑 READ THE `priced` COLUMN, NOT ONLY THE VERDICT. A win is a SIGN;
 #   `priced` says the spread cleared the RNG floor AND that floor rests on
 #   >= MIN_FLOOR_OBS observations. RUN 2026-09-06 over the whole live corpus:
-#   ✅ **RECOMPUTED 2026-09-11 ON THE FIXED TOOL, OVER THE ELEVEN
-#   LICENSED-UNIT CAMPAIGNS WITH D2 ADDED: 7 of 23 = 30%, bar 50%,
-#   VERDICT FAIL. Strict-`task` only: 5 of 14 = 36%. PER UNIT: 2 of
-#   9 -- C2 and D2 alone. 2 cells PRICED, tralo wins 1.**
+#   ✅ **RECOMPUTED 2026-09-11 ON THE FIXED TOOL, OVER THE TWELVE
+#   LICENSED-UNIT CAMPAIGNS WITH D2, F1 AND G1 ADDED: 8 of 27 = 30%,
+#   bar 50%, VERDICT FAIL. Strict-`task` only: 6 of 18 = 33%. PER
+#   UNIT: 2 of 11 -- C2 and D2 alone. 3 cells PRICED, tralo wins 1,
+#   so the priced record is 1 WIN 2 LOSSES.**
+#   ⛔ Superseded the same day, in licensing order: `7 of 23 = 30%
+#   / 2 of 9` (D2 only) and `7 of 25 = 28% / 2 of 10` (with F1).
+#   🔑 G1 ADDED TWO CELLS AND ONE WIN, so the cell ratio ROSE while
+#   the unit count did NOT -- a 1-of-2 split is not a majority. A
+#   fix or an addition that only ever moves a number one way would
+#   be the suspicious kind; this one moves two numbers apart.
 #   ⚠️ QUOTE THE RESTRICTION WITH THE FIGURE -- the three legitimate
 #   denominators give 30% / 36% / 22% and all three say FAIL (2(z66)).
 #   🔑 The same run FIXED the denominator: 4 cells that pose no cap

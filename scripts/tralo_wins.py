@@ -67,6 +67,27 @@ from scripts.paper_rows import MEASURED_UNITS          # noqa: E402
 RIVALS = ("alm", "fioretto", "hounie")
 BAR = 0.50
 
+# 🛑 THE SECOND BAR, AND IT IS THE PROJECT'S OWN GOAL SENTENCE (2026-09-11).
+# CLAUDE.md line 1: "beat a post-hoc clipping baseline". There are TWO in every
+# campaign -- `gen_campaign` always adds both -- and this table scored against
+# exactly one of them, `--control clip`, while `focal_clip` sat in the same cell
+# at EQUAL compute (warm-up 30 / constraint 0, the same 30 optimizer epochs)
+# and was never compared to anything.
+#
+# ⛔ THE JUSTIFICATION FOR IGNORING IT WAS A CLAIM, AND THE CLAIM IS FALSE.
+# CLAUDE.md rule 2 says "`clip` is the stronger quality bar", which would make
+# beating `clip` sufficient. Measured over all 33 scored cells in the eleven
+# licensed-unit campaigns: `focal_clip` beats `clip` in ~20 of 33, and it beats
+# `tralo` in **12 of 33**. One of those twelve is `bcn2rgn`/L100_G95, a cell
+# this table counts as a TraLO WIN while `focal_clip` leads it by 11.5 items.
+#
+# ⚠️ THIS IS REPORTED BESIDE THE OLD FIGURE, NEVER INSTEAD OF IT. Changing an
+# acceptance rule so that it moves against the method is still changing the
+# rule, and 2(z108) is the entry about a number that only ever moved one way.
+# Both denominators are printed; the reader picks, and the restriction travels
+# with the figure exactly as 2(z66) requires.
+CLIPPERS = ("focal_clip",)
+
 # 🛑 THE CELL STATUSES THAT POSE THE CAP QUESTION, AND THE ONLY ONES THAT MAY
 # ENTER THE ACCEPTANCE DENOMINATOR (2026-09-11).
 #   `task`     the cap binds in EVERY seed
@@ -165,6 +186,12 @@ def rows_for(cells, control, dropped=None, statuses=None):
                   and spread > floor)
         beats_control = d["tralo"] > 0
         beats_all = all(d["tralo"] > d[r] for r in present)
+        # The second post-hoc baseline, present in the same cell at equal
+        # compute. Absent from `d` means the arm was not staged, which is not
+        # evidence that TraLO beat it -- so the strict verdict is only defined
+        # where it actually ran.
+        clippers = [c for c in CLIPPERS if c in d]
+        beats_clippers = all(d["tralo"] > d[c] for c in clippers)
         # `rank_cell` hands every arm the SAME common seed list (2(z50)), so a
         # max over arms is correct here only BY INHERITANCE. Assert the contract
         # instead of trusting it: if that return shape ever changes, this must
@@ -195,6 +222,9 @@ def rows_for(cells, control, dropped=None, statuses=None):
             seeds=seeds, d=d, rivals=present, floor=floor, nfloor=nfloor,
             spread=spread, priced=priced, status=status, poses=poses,
             win=bool(present) and beats_control and beats_all,
+            clippers=clippers,
+            win_strict=(bool(present) and beats_control and beats_all
+                        and beats_clippers),
             testable=bool(present) and poses,
             unit=MEASURED_UNITS.get((key[0], key[1])) or "UNVERIFIED"))
     return rows
@@ -271,6 +301,31 @@ def report(rows, out=sys.stdout, bar=BAR, dropped=None):
         w("    ...restricted to STRICT `task` cells: %d of %d = %.0f%%\n"
           % (sw, len(strict), 100 * sw / float(len(strict))))
 
+    # THE SECOND BAR, PRINTED BESIDE THE FIRST AND NEVER INSTEAD OF IT.
+    # `focal_clip` is the other post-hoc clipping baseline, sitting in the same
+    # cell at equal compute, and until 2026-09-11 nothing compared TraLO to it.
+    # See CLIPPERS above for the measurement that removed the excuse.
+    withclip = [r for r in testable if r["clippers"]]
+    if withclip:
+        sc = [r for r in withclip if r["win_strict"]]
+        w("    ...AND ALSO beating `%s`, the other post-hoc baseline at "
+          "equal compute: %d of %d = %.0f%%\n"
+          % ("`, `".join(CLIPPERS), len(sc), len(withclip),
+             100 * len(sc) / float(len(withclip))))
+        lost = [r for r in withclip if r["win"] and not r["win_strict"]]
+        if lost:
+            w("       %d cell(s) counted as a WIN above are led by an arm "
+              "taking ZERO constraint steps:\n" % len(lost))
+            for r in sorted(lost, key=lambda x: (x["campaign"], x["cap"])):
+                best = max(r["clippers"], key=lambda c: r["d"][c])
+                w("         %-11s %-13s %-13s tralo %+.2f vs %s %+.2f\n"
+                  % (r["campaign"], r["model"], r["cap"], r["d"]["tralo"],
+                     best, r["d"][best]))
+    if len(withclip) < len(testable):
+        w("       (%d testable cell(s) staged no second clipper and are "
+          "absent\n        from that denominator -- not evidence either "
+          "way)\n" % (len(testable) - len(withclip)))
+
     priced = [r for r in testable if r["priced"]]
     pw = [r for r in priced if r["win"]]
     w("  ...of which PRICED (spread over a floor with >= %d observations): "
@@ -309,6 +364,7 @@ def report(rows, out=sys.stdout, bar=BAR, dropped=None):
 
 def self_test(out=sys.stdout):
     """Gate the verdict in BOTH directions, and the denominator rule too."""
+    import io as _io
     checks = []
 
     def mk(spec, camp, cap):
@@ -338,6 +394,59 @@ def self_test(out=sys.stdout):
     checks.append(("beating the CONTROL but not the RIVAL is NOT a win",
                    len(rows) == 1 and not rows[0]["win"]
                    and rows[0]["d"]["tralo"] > 0))
+
+    # THE SECOND POST-HOC BASELINE. `focal_clip` sits in every campaign at
+    # equal compute and nothing compared TraLO to it until 2026-09-11. The
+    # middle case is the whole point: a cell that IS a win under the old rule
+    # while an arm taking ZERO constraint steps leads it (measured on
+    # bcn2rgn/L100_G95, tralo +2.25 against focal_clip +13.75).
+    fc_below = dict(lead, focal_clip=[615, 616, 614, 615])   # tralo still 1st
+    k5, c5 = mk(fc_below, "campC", "L80_G95")
+    rows = rows_for({k5: c5}, "clip")
+    checks.append(("tralo ahead of the second clipper too: win AND win_strict",
+                   len(rows) == 1 and rows[0]["win"] and rows[0]["win_strict"]))
+
+    fc_above = dict(lead, focal_clip=[660, 661, 659, 660])   # focal_clip 1st
+    k6, c6 = mk(fc_above, "campC", "L90_G95")
+    rows = rows_for({k6: c6}, "clip")
+    checks.append(("NEGATIVE CONTROL: a cell led by `focal_clip` is still a "
+                   "win under the OLD rule",
+                   len(rows) == 1 and rows[0]["win"]))
+    checks.append(("...and is NOT a win_strict -- the bar that reads the "
+                   "project's own goal sentence",
+                   len(rows) == 1 and not rows[0]["win_strict"]))
+
+    buf = _io.StringIO()
+    report(rows_for({k5: c5, k6: c6}, "clip"), out=buf)
+    txt = buf.getvalue()
+    checks.append(("the strict-clipper tally is PRINTED beside the headline",
+                   "the other post-hoc baseline" in txt and "1 of 2" in txt))
+    # Assert the DEMOTED LINE itself, not just that the words occur somewhere:
+    # `campC` also appears in the main table and "ZERO constraint steps" is a
+    # header, so a check for either is satisfied while the naming is gone.
+    demoted = [l for l in txt.splitlines()
+               if "campC" in l and "tralo +" in l and "focal_clip +" in l]
+    checks.append(("the demoted cell is NAMED on one line with BOTH deltas",
+                   len(demoted) == 1 and "ZERO constraint steps" in txt))
+    # ...and the two numbers must DIFFER with the clipper AHEAD, which is the
+    # whole reason the cell was demoted. Printing tralo's delta in both slots
+    # renders the line self-consistent and meaningless, and reads as a tie.
+    nums = ([float(t) for t in demoted[0].replace("+", " +").split()
+             if t.lstrip("+-").replace(".", "", 1).isdigit()] if demoted else [])
+    checks.append(("...with the CLIPPER's delta ahead of tralo's on that line",
+                   len(nums) == 2 and nums[1] > nums[0]))
+
+    # A cell staging NO second clipper must be ABSENT from that denominator
+    # rather than counted as a pass -- absence of the arm is not evidence that
+    # TraLO beat it. Same one-sidedness rule as md5 (2(x2)).
+    rows = rows_for({k1: c1, k5: c5}, "clip")
+    checks.append(("a cell with no second clipper is absent from the strict "
+                   "denominator, not counted as a pass",
+                   [r["clippers"] for r in rows] == [[], ["focal_clip"]]))
+    buf = _io.StringIO()
+    report(rows, out=buf)
+    checks.append(("...and the report SAYS how many were absent",
+                   "staged no second clipper" in buf.getvalue()))
 
     # A cell with no rival must leave the denominator untouched.
     solo = {"clip": [600, 601, 599, 600], "tralo": [640, 641, 639, 640],
