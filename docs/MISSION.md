@@ -1840,6 +1840,44 @@ it drifts from `main` the moment anything lands. Re-sync `scripts/` and
 `tests/` by hand before scoring anything on the server, and NEVER by moving its
 HEAD.
 
+🔑 **AND HERE IS THE COMMAND, BECAUSE THE RULE WITHOUT ONE IS WHY THE
+GAP OPENED (written 2026-09-11, task #101).** `git checkout <ref> -- <paths>`
+updates the index and working tree for those paths ONLY and leaves HEAD where
+it is, which is exactly the operation the rule describes -- and it is safer
+than `rsync`, which cannot tell you what it changed.
+
+```bash
+# ONCE, in the main checkout: fetch is branch-level work on a sibling tree and
+# is explicitly allowed during a campaign. `gc` / `prune` / `repack` /
+# `reflog expire` / `worktree prune` are NOT -- 20+ worktrees share ONE object
+# store at ~/OptimizationLoss/.git.
+cd ~/OptimizationLoss && git fetch origin
+
+# THEN per worktree. `scripts/` and `tests/` are outside TRAINING_PATHS, so
+# this cannot flip `code_version`'s `-dirty` suffix and cannot split a live
+# campaign.
+for W in ~/optloss-*; do
+  cd "$W" || continue
+  git checkout origin/cleanup/consolidate-pipeline -- scripts tests
+  printf '%-24s training paths: ' "$(basename $W)"
+  git status --porcelain src/ configs/ main.py | grep . || echo CLEAN
+done
+```
+
+🛑 **THEN VERIFY, AND THE SECOND LINE IS THE ONE THAT MATTERS.** A
+clean `src/ configs/ main.py` says the freeze held; an unchanged `code_version`
+in the configs says the campaign is still one experiment:
+
+```bash
+cd ~/<worktree> && git rev-parse HEAD          # must be the PINNED commit, unmoved
+python -c "import glob,json;print({json.load(open(f))['code_version'] for f in glob.glob('results/*/*/*/*/*/seed_*/config.json')})"
+```
+
+⚠️ **UNTESTED AS WRITTEN.** Both hosts have refused SSH since
+2026-09-11 (`Connection timed out during banner exchange`), so this was derived
+from the rules in `CLAUDE.md` and never executed. Run it on ONE worktree and
+check both verifications before looping over all of them.
+
 Running all 23 self-tests on the server at each pinned commit found
 `collateral_probe` uninvokable -- inverted flag behind a required `--campaign`.
 Fixed with a standalone `--self-test` and a no-op injection as its negative
