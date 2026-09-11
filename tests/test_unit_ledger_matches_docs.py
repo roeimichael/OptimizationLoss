@@ -287,7 +287,14 @@ def test_NEGATIVE_CONTROL_a_campaign_pair_is_not_a_free_replicate():
     # what 2(z105) §7.4 pre-registered as the outcome that refutes it. The
     # ledger grew AND the tally moved, for the first time since D1.
     # FRAMEWORK 2(z107).
-    assert ledger_size() == 9, (
-        "the ledger holds %d distinct units, not the 9 the documents claim. "
+    # 9 -> 10 the SAME DAY, when `bcn2mn2` was licensed as F1 (bcn /
+    # MobileNetV2, dsisco01 fp16) and read. Floor 0.5^9 -> 0.5^10 = 0.00098.
+    # 🔑 F1 IS D2's CONTROL AND THAT IS ITS VALUE. Same dataset as D2, and
+    # TraLO loses it 0 of 2 with one cell PRICED (-22.75 items at L90 against
+    # an 18.5 floor on 12 obs). A single unit cannot establish that a dataset
+    # suits TraLO, and its sibling on that dataset now says the opposite.
+    # FRAMEWORK 2(z109).
+    assert ledger_size() == 10, (
+        "the ledger holds %d distinct units, not the 10 the documents claim. "
         "Either MEASURED_UNITS gained a unit or a document is stale -- both "
         "move the sign floor and neither may pass silently." % ledger_size())

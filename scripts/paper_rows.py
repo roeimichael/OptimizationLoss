@@ -228,6 +228,34 @@ MEASURED_UNITS = {
     # `deployed_h2h` REFUSES to name a #1 and the jackknife is unstable:
     # dropping one seed makes #1 any of {tralo, tralo_linear, tralo_squared}.
     ("bcn1vit", "ViTB16"): "D2",             # bcn / dsisco02 bf16, COMPLETE
+    # 🛑 UNIT F1, ADDED 2026-09-11 THE SAME HOUR AS D2 -- AND IT IS D2's
+    # CONTROL, WHICH IS WHY IT MATTERS MORE THAN ITS OWN SIGN.
+    # `bcn2mn2` is bcn / MobileNetV2, COMPLETE at 96 runs, dsisco01 **fp16**
+    # (`amp=float16`, so a different host from D2's dsisco02 bf16 -- the unit
+    # key is (backbone, HOST) and these differ in both).
+    #
+    # 🔑 md5 of every MobileNetV2 `tralo_null` in all 24 worktrees: its four
+    # seeds are 32dd295c72, 873ee3fef5, cb0a5206f0, 65c189f5f1, each appearing
+    # exactly TWICE -- once per cap level, so its two caps share one warm-up
+    # and are one unit. None collides with A1 (`dom1`: 7f1ff13ebc, 1df6ab42f8,
+    # b51c30725d, 7ab05f80c4), with A2 (`coin2`/`equaldose1`/`price1`:
+    # e7be738bc8, 7758aef831, d77a1c47be, 0cf8acc779), or with the still-
+    # running `fmow2mn2`. The sweep ran BEFORE the campaign was scored.
+    #
+    # ⛔ AND TraLO LOSES IT 0 OF 2, WITH ONE CELL **PRICED**. At L90_G95
+    # `tralo` is -22.75 items against `clip` -- worse than alm (-5.00),
+    # fioretto (-2.50) and hounie (-8.50) -- and that clears the 18.5-item
+    # floor resting on 12 observations. At L100_G95 it is -11.50. Both cells
+    # are `task`; dose is EQUAL at 232/232 = 29.00 attempted/run on all five
+    # trained arms. The corpus priced record goes 1 win 1 loss -> 1 win 2
+    # losses.
+    #
+    # 🔑 **THIS IS WHY D2 MUST NOT BE READ AS "bcn IS FRIENDLY TO TraLO".**
+    # D2 and F1 are the SAME DATASET. One passes, one loses decisively and
+    # priced. Whatever D2 is, it is not a property of the slice -- which is
+    # exactly the inference 2(z105) was reaching for and exactly the inference
+    # a single unit cannot support in either direction. FRAMEWORK 2(z109).
+    ("bcn2mn2", "MobileNetV2"): "F1",        # bcn / dsisco01 fp16, COMPLETE
 }
 
 # The contrasts a paper row may carry, and what each one licenses.
