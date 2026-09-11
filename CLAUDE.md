@@ -216,7 +216,7 @@ Compare allocators on `final_predictions.csv` (as-deployed), never on the panel.
 **Before launching anything, run all three** -- each refuses a different way to waste a week:
 
 ```bash
-python -m pytest tests -q                   # 636 regression tests, ~300s, no dataset needed
+python -m pytest tests -q                   # 637 regression tests, ~300s, no dataset needed
 #   `tests/test_scorers_run_end_to_end.py` EXECUTES every scorer as a subprocess
 #   against a campaign carrying a real PARTIAL marker. It exists because three
 #   scorers once used `quarantine.` with no module-level import: they PARSED,
@@ -1830,13 +1830,54 @@ DIFFERENTIAL per-group novelty net of sampling noise and the global shift:
 
 | dataset | group | NET items | z | unseen groups | status |
 |---|---|---|---|---|---|
-| **bcn/oodslice** | body site x age | -- | -- | -- | 🟢🟢 **RUNNABLE. `bcn1mn3` COMPLETE (228 runs), `bcn1vit` LIVE** |
-| **fmow/oodslice** | **country** | **+2969** | **79.7** | **10** | 🟢🟢 **RUNNABLE. `fmow1` COMPLETE 304/304 (2026-09-10), 3 of 4 cells are TASK -- and TraLO wins 0 of 4. FRAMEWORK 2(z88)** |
+| **bcn/oodslice** | body site x age | **+2031** | **61.6** | **8** | 🟢🟢 **RUNNABLE. `bcn1mn3` COMPLETE (228 runs), `bcn1vit` LIVE.** ⚠️ **HALF ITS NOVELTY IS INTERPOLABLE -- 2(z104)** |
+| **fmow/oodslice** | **country** | **+2793** | **76.2** | **13** | 🟢🟢 **RUNNABLE. `fmow1` COMPLETE 304/304 (2026-09-10), 3 of 4 cells are TASK -- and TraLO wins 0 of 4. FRAMEWORK 2(z88)** |
 | **iwildcam/oodslice** | camera | **+3133** | **96.3** | **7** | 🟡 runnable, but a task in **0 of 24** cells at L20/L30/L50 |
 | **terra/oodslice** | camera | **+2546** | **75.8** | **5** | 🟡 screened 2026-08-28, META ONLY |
 | dermmnist/slice_1 | synth | +65 | 2.9 | 0 | ⛔ leaked + removed |
 | octmnist/slice_1 | `index % 3` | -7 | -0.4 | 0 | ⛔ dead by construction |
 | tissuemnist | `index % 3` | -56 | -1.9 | 0 | ⛔ dead by construction |
+
+🛑 **THE bcn AND fmow ROWS WERE MEASURED 2026-09-11, AND THE fmow ROW
+REPLACES ONE THAT DOES NOT REPRODUCE.** bcn had never been screened at all --
+three dashes, on the slice carrying a COMPLETE 228-run campaign and licensing
+unit D1, whose NEGATIVE sign is load-bearing for the acceptance tally. fmow read
+`+2969 / 79.7 / 10 unseen`; the slice on disk gives **`+2793 / 76.2 / 13`**.
+🔑 **THE GROUP COUNT IS THE DECISIVE FIELD -- BY CONTEMPORANEOUS
+RECORD, NOT BY INDEPENDENT MEASUREMENT.** `configs/task_windows.yml` line 267
+says `1 of 13`, `tier_viability` counts `grp 13`, and the test meta holds 13
+countries over 4168 items with ZERO overlap against 136 train countries.
+⛔ **ALL THREE READ THE SAME FILE** -- the yml's own header says "Counted
+from the test labels alone" -- so they are CONSISTENT, not independent, and an
+earlier draft of this note called them three authorities. ⚠️ The yml
+block carries TWO provenances: its WINDOW rows come from `fmow1`'s own nulls,
+its GROUP-COUNT table from labels. What defeats `10` is that the yml was written
+while `fmow1` was in flight and revised at its completion, so it records which
+slice was in play. ⛔ Whether the SERVER worktree holds the same slice is
+task **#134**, one md5 per file.
+✅ **THE TOOL IS NOT THE VARIABLE**: iwildcam re-reads **+3133 / 96.3 / 7**,
+byte-identical to the row above it, and `tier_viability` reproduces `bcn_s1`
+0.89 / `fmow_country_wide` 0.82 / iwildcam 0.27 exactly -- so the candidate-slice
+names in section 0 and these `oodslice`s are the same data.
+
+⚠️ **AND HALF OF bcn's NOVELTY IS INTERPOLABLE -- 50.4% SURVIVES,
+A FIGURE MEASURED 2026-09-01 THAT NEVER REACHED THIS TABLE.** 2(w2c) lists
+`bcn_s2` at 50.4 among the factorial rows that reproduce exactly; bcn's row here
+stayed three dashes, `bcn1mn3` ran 228 runs, and unit D1 entered the ledger
+anyway. Re-read here on the DEPLOYED slice. Its group is
+`anterior torso|40s`, a PRODUCT of two factors that both appear in training, so
+`dataset_screen`'s baseline (give an unseen group the global training
+prevalence) is TOO GENEROUS: the model can interpolate site x age. Raked **8 of
+8** unseen groups, against `raked=0` for iwildcam and every fmow -- which is why
+this correction has never applied before and why the tool's `NOT A CONTROL`
+banner exists. Measured: NET **+2033 global** vs **+1025 additive**, z 62.9 vs
+27.3.
+⛔ **IT STILL PASSES -- z=27.3 is not a null -- BUT READ THE ITEM COUNTS,
+NOT THE RATIO**, which the tool says itself: 100% of bcn's test set is unseen, so
+the global shift is computed largely from these very groups and corrects the
+raked baseline twice. The defensible statement is that bcn carries roughly HALF
+the per-group novelty its unadjusted row implies, and that no other slice in the
+corpus has ever been asked this question.
 
 ✅ **THE fmow p@K NUMBER WAS GONE AND GOT, 2026-09-09 (FRAMEWORK 2(z59)).**
 That question -- "fmow needs local p@K `<= 0.92` at L30, where iwildcam measures

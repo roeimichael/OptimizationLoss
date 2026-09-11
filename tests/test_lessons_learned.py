@@ -28,6 +28,7 @@ CONVENTIONS, and both are load-bearing:
 import ast
 import io
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -3223,3 +3224,149 @@ def test_no_test_in_this_suite_is_incapable_of_FAILING():
     assert _can_this_test_fail(_fn(
         "def test_x():\n    SP.self_test(n_seeds=3)\n")), \
         "a raising self_test must pass"
+
+
+# The dataset table's columns, by position after splitting a row on "|".
+# name is index 1; the unseen-group count is index 5.
+_SLICE_NAME_COL = 1
+_UNSEEN_COL = 5
+
+
+def _unseen_groups_on_disk(slice_dir):
+    """Test groups ABSENT from train -- the table's own definition."""
+    import csv
+
+    def col(path, name):
+        if not os.path.exists(path):
+            return None
+        with io.open(path, encoding="utf-8", newline="") as fh:
+            r = csv.DictReader(fh)
+            if name not in (r.fieldnames or []):
+                return None
+            return [row[name] for row in r]
+
+    tr = col(os.path.join(slice_dir, "train_meta.csv"), "location")
+    te = col(os.path.join(slice_dir, "test_meta.csv"), "location")
+    if tr is None or te is None:
+        return None
+    return len(set(te) - set(tr))
+
+
+def _dataset_table_rows(txt):
+    """(slice name -> declared unseen-group count) from a markdown table."""
+    rows = {}
+    for line in txt.splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip().strip("*").strip() for c in line.split("|")]
+        if len(cells) <= _UNSEEN_COL:
+            continue
+        name = cells[_SLICE_NAME_COL]
+        if "/" not in name or name.startswith("-"):
+            continue
+        want = cells[_UNSEEN_COL]
+        if not re.match(r"^[-+]?\d+$", want):
+            continue
+        rows[name] = int(want)
+    return rows
+
+
+def test_the_dataset_table_unseen_group_counts_match_the_TRACKED_meta():
+    """LESSON, 2026-09-11 (FRAMEWORK 2(z104)). CLAUDE.md's dataset table decides
+    which dataset gets run next, and two of its seven rows were not
+    measurements: `bcn` was three dashes -- on the slice carrying a COMPLETE
+    228-run campaign and licensing unit D1, whose NEGATIVE sign is load-bearing
+    -- and `fmow` claimed 10 unseen groups where the slice on disk has 13.
+
+    THE GROUP COUNT IS THE FIELD WORTH GATING. A NET or a z can drift for
+    benign reasons (a tool fix, a re-screen); the number of test groups absent
+    from train is a property of two CSVs, both TRACKED IN GIT.
+
+    THE yml IS A CONSISTENCY CHECK, NOT A SECOND MEASUREMENT, and the first
+    draft of this docstring said otherwise. `configs/task_windows.yml`'s group
+    table reads the SAME test labels -- its own header says "Counted from the
+    test labels alone, cap-invariant" -- so it cannot corroborate the meta, only
+    agree with it. Its WINDOW rows do come from `fmow1`'s nulls; its group
+    counts do not, and collapsing those two provenances is what produced the
+    wrong claim. What the yml genuinely provides is a CONTEMPORANEOUS RECORD,
+    written while `fmow1` was in flight at 114/304 and revised at 304/304, of
+    the slice that campaign was using. Gating the two against each other stops
+    them drifting apart, which is a real failure mode; it is not independent
+    corroboration of either.
+
+    Only slices whose meta is ON DISK are checked. `dermmnist`, `octmnist`,
+    `tissuemnist` and `terra` have rows and no files; they are counted and
+    named, never silently skipped, because a gate that quietly checks nothing
+    is this suite's most expensive recurring defect.
+    """
+    txt = io.open("CLAUDE.md", encoding="utf-8").read()
+    rows = _dataset_table_rows(txt)
+
+    assert len(rows) >= 5, (
+        "parsed only %d dataset rows from CLAUDE.md; the table moved or its "
+        "column order changed -- fix the parse, do not relax the gate"
+        % len(rows))
+
+    checked, absent, bad = [], [], []
+    for name, want in sorted(rows.items()):
+        d = os.path.join("data", *name.split("/"))
+        got = _unseen_groups_on_disk(d)
+        if got is None:
+            absent.append(name)
+            continue
+        checked.append(name)
+        if got != want:
+            bad.append("%s: the table says %d unseen groups, the tracked meta "
+                       "has %d" % (name, want, got))
+
+    assert checked, (
+        "no dataset row could be checked against a slice on disk, so this gate "
+        "verified NOTHING. Rows with no readable meta: %s" % absent)
+    assert not bad, (
+        "the dataset table disagrees with the tracked meta:\n  "
+        + "\n  ".join(bad)
+        + "\n(rows with no files on disk, not checked: %s)" % absent)
+
+    # CONSISTENCY, NOT CORROBORATION. `configs/task_windows.yml` quotes the same
+    # group counts and reads the same labels to get them, so agreement here
+    # proves only that the two documents have not drifted -- which is worth
+    # gating, and is not a second measurement. See the docstring.
+    yml = io.open(os.path.join("configs", "task_windows.yml"),
+                  encoding="utf-8").read()
+    seen_in_yml = []
+    for name in checked:
+        short = name.split("/")[0]
+        m = re.search(r"^\s*#\s*" + re.escape(short)
+                      + r"\s+\d+\s+of\s+\d+\s+\d+%\s+\d+\s+of\s+(\d+)",
+                      yml, re.M)
+        if not m:
+            continue
+        seen_in_yml.append(short)
+        assert int(m.group(1)) == rows[name], (
+            "%s: task_windows.yml says %s groups, CLAUDE.md says %d. Both read "
+            "the same test labels, so one of them was transcribed wrong -- "
+            "recount from the meta and fix whichever disagrees with it"
+            % (short, m.group(1), rows[name]))
+    assert seen_in_yml, (
+        "the task_windows.yml group table did not parse for ANY checked slice, "
+        "so the consistency half of this gate verified nothing -- fix the parse")
+
+    # NEGATIVE CONTROLS. Each must show the comparison can say NO.
+    probe = os.path.join("data", *checked[0].split("/"))
+    real = _unseen_groups_on_disk(probe)
+    assert real, ("CONTROL: %s reports %r unseen groups, so no mismatch could "
+                  "be detected there" % (checked[0], real))
+
+    fake = dict(rows)
+    fake[checked[0]] = real + 1
+    assert fake[checked[0]] != real, "CONTROL: a wrong count must differ"
+
+    bogus = "| **nope/slice** | g | +1 | 2.0 | 4 | x |"
+    assert _dataset_table_rows(bogus) == {"nope/slice": 4}, (
+        "CONTROL: the row parser does not read the unseen column at index %d"
+        % _UNSEEN_COL)
+    assert _dataset_table_rows("| not a table row") == {}, (
+        "CONTROL: a short line must parse to nothing, not raise")
+    assert _unseen_groups_on_disk(os.path.join("data", "no_such_slice")) is None, (
+        "CONTROL: a missing slice must read None so it lands in `absent`, "
+        "never 0, which would silently match a `0` row")

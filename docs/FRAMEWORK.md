@@ -4052,7 +4052,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 636 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 637 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -4226,7 +4226,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 636 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 637 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -4234,7 +4234,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (636 tests, ~200 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (637 tests, ~200 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -16222,7 +16222,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             636 tests, ~297 s, no dataset required
+tests/             637 tests, ~297 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
@@ -17880,3 +17880,166 @@ at k=3 and absent at k=1 is a statement about VARIANCE, not about the method.
 Two of this session's claims died on exactly that test."* This entry is a
 claim ABOUT variance, so k=3 is the right operating point for it -- and that is
 precisely why it cannot be quoted as a method result.
+
+
+## 2(z104). THE DATASET TABLE HAD AN EMPTY ROW AND A WRONG ONE, AND `factorial_control` HAD NEVER HAD A LIVE SUBJECT (2026-09-11)
+
+### 1. WHAT WAS WRONG
+
+CLAUDE.md's dataset table is the input to "which dataset do we run next". Two of
+its seven rows were not measurements:
+
+* **`bcn` was three dashes.** No NET, no z, no unseen-group count -- on the slice
+  carrying `bcn1mn3`, a COMPLETE 228-run campaign, and licensing unit **D1**,
+  whose NEGATIVE sign is load-bearing for the acceptance tally (2(z86) moved
+  task-restricted from 4/4 p=0.0625 to 3/4 p=0.3125 on it). The dataset that
+  contributed a load-bearing sign had never passed the stage-1 screen every
+  candidate is supposed to pass.
+* **`fmow` read `+2969 / 79.7 / 10 unseen` and does not reproduce.** The slice on
+  disk gives **`+2793 / 76.2 / 13`**.
+
+Measured offline, on CPU, from the TRACKED `*_meta.csv` alone -- no images, no
+GPU, no server. `bcn` now reads **+2031 / 61.6 / 8, STAGE 1 PASS**.
+
+### 2. 🔑 THE GROUP COUNT SETTLED IT -- BY CONTEMPORANEOUS RECORD, **NOT** BY INDEPENDENT MEASUREMENT
+
+Three readings say 13. ⛔ **THEY ARE CONSISTENT, NOT INDEPENDENT, AND THE
+FIRST DRAFT OF THIS ENTRY CALLED THEM "THREE AUTHORITIES" -- WHICH IS THIS
+PROJECT'S OWN RECURRING ERROR, COMMITTED WHILE DOCUMENTING IT.** All three read
+the same test meta:
+
+| reading | what it says | what it actually is |
+|---|---|---|
+| `configs/task_windows.yml` line 267 | `fmow 6 of 26 ceilings, 1 of 13 groups` | its own header: **"Counted from the test labels alone, cap-invariant"** |
+| `tier_viability` | `grp 13` | recomputed here, from that same meta |
+| the test meta itself | 13 countries, 4168 items, **0** overlap vs 136 train countries | the file |
+
+⚠️ **AND THE yml BLOCK HAS TWO PROVENANCES, WHICH THE FIRST DRAFT
+COLLAPSED.** Its *window* rows ARE written from `fmow1`'s own nulls (provisional
+at 114/304, re-measured at 304/304 on 2026-09-10). Its *group-count* table is
+not -- it is counted from labels. Only the first is a campaign measurement.
+
+🔑 **WHAT ACTUALLY DEFEATS `10` IS THAT THE yml IS A CONTEMPORANEOUS
+RECORD**, written while `fmow1` was in flight and revised when it finished. That
+is evidence about WHICH SLICE WAS IN PLAY, which is the question -- and for that
+purpose a contemporaneous record beats an independent re-measurement, because an
+independent method would only re-describe the file sitting here today. No size
+filter explains 13 -> 10 either: the smallest of the 13 groups holds **136** items.
+
+⛔ **WHAT NO LOCAL FILE CAN SETTLE** is whether the slice in the `fmow1`
+WORKTREE ON THE SERVER matches this one. That is one md5 per file and it is
+task **#134**. Until it is run, "the slice on disk is the one `fmow1` trained on"
+is the best-supported reading, not a verified fact.
+
+✅ **AND THE TOOL IS NOT THE VARIABLE.** `iwildcam` re-reads **+3133 / 96.3 / 7**,
+byte-identical to its row, and `tier_viability` reproduces `bcn_s1` 0.89,
+`fmow_country_wide` 0.82 and iwildcam 0.27 / 2-of-8 usable / 50% zero ceilings /
+72% off-purpose EXACTLY -- which also establishes that section 0's
+candidate-slice names and these `oodslice`s are the same data, a thing the two
+different naming schemes made look uncertain.
+
+### 3. ⛔ HALF OF bcn's NOVELTY IS INTERPOLABLE -- AND THAT WAS ALREADY MEASURED ON 2026-09-01 AND NEVER REACHED A DECISION
+
+⛔ **THE FIRST DRAFT OF THIS SECTION SAID "`factorial_control` FINALLY HAD A
+SUBJECT" AND "the tool has never produced a measurement in this project". BOTH
+ARE FALSE, AND THE PROJECT'S OWN RECORD SAYS SO.** 2(w2c)'s write-up lists
+factorial rows that reproduce exactly -- `isicarch_instsite` 86.3, **`bcn_s2`
+50.4**, `isic_siteage` 17.6, `bcn_s3` 128.2 -- so the tool raked non-zero on
+five candidate slices that same day. What was true of iwildcam (`raked=0`,
+atomic `130`, additive baseline identical to global, so the two arms are one
+arm) was generalised to the tool.
+
+🔑 **WHAT IS ACTUALLY NEW IS WORSE THAN THE CLAIM I REPLACED.** The
+figure was not missing. It was **measured on 2026-09-01, recorded, and then
+never reached the dataset table** -- bcn's row stayed three dashes, `bcn1mn3`
+ran to 228 runs, and unit **D1** entered the ledger, all after a half-strength
+reading existed for that slice. The defect is not an unmeasured dataset; it is a
+measurement with **no path to the decision it bears on**.
+
+✅ **AND IT IS NOW MEASURED ON THE DEPLOYED SLICE, WHICH IS A DIFFERENT
+STATEMENT.** `bcn_s2` is a `~/_cand` candidate; `data/bcn/oodslice` is what
+`bcn1mn3` trained on. Run here, it returns **50.4%** -- the same value, which is
+strong evidence they are the same slice, and independently of that question the
+deployed slice's survival is now a direct reading rather than an inherited one.
+⚠️ Which `~/_cand` slice `bcn/oodslice` was cut from is NOT resolved: the tier
+density matches `bcn_s1` (0.89) while the survival matches `bcn_s2` (50.4). Both
+live on the server; folded into task #134.
+
+`bcn`'s group is `anterior torso|40s`: a PRODUCT of two factors that BOTH appear
+in training. That is precisely the case the control exists for, because
+`dataset_screen`'s baseline hands an unseen group the global training prevalence
+and the model can instead interpolate site x age. Raked **8 of 8**:
+
+```
+bcn   unseen=8 (100.0% of test)  raked=8
+      NET(global)   +2033  z=62.9
+      NET(additive) +1025  z=27.3        survives 50.4%
+```
+
+⛔ **IT STILL PASSES. z=27.3 IS NOT A NULL.** The claim is not that bcn is dead;
+it is that bcn carries roughly **HALF** the per-group novelty its unadjusted row
+implies, and that this is the only slice in the corpus that has ever been asked.
+
+⚠️ **READ THE ITEM COUNTS, NOT THE RATIO, AND THE TOOL SAYS SO ITSELF.** 100% of
+bcn's test set is unseen, so the global shift is computed largely FROM these very
+groups and corrects the raked baseline twice. `50.4%` is therefore a bound with a
+known bias, not a coefficient. The defensible sentence is "about half", and it
+should not be quoted to three figures.
+
+### 4. ⛔ WHAT THIS DOES **NOT** DO
+
+It does not rescue TraLO, and the temptation to read it that way should be named
+before somebody does. D1 came back **NEGATIVE**, not null. A weaker dataset makes
+a NULL less informative -- it cannot turn a loss into a win. The acceptance
+verdict is untouched: **6 of 22 = 27%, per unit 2 of 8, FAIL** (2(z88)).
+
+Where it DOES bear is forward: `bcn1vit` is live, and bcn's effective novelty is
+half what the table implied, so a null there is weaker evidence than the row
+suggested. That is a statement about how much a FUTURE bcn cell can prove.
+
+### 5. ⚠️ AND IT NARROWS THE CONSTRAINT'S OWN INFORMATION BUDGET, NOT JUST THE DATASET CHOICE
+
+This is the part that is about the method rather than the bookkeeping, and it
+follows from `dataset_screen`'s own framing. The tool says **"READ `NET` FIRST --
+it is the DIFFERENTIAL per-group shift, the only part that can reorder"**,
+because 2(j) established that top-K is invariant to a GLOBAL prior shift: one
+multiplier per class is monotone and cannot reorder. So `NET` is this project's
+chosen proxy for *how much a per-group cap could teach a model that the model
+does not already have*.
+
+On `bcn` that proxy **halves**: +2033 -> +1025. The cap's ceiling is not what the
+row implied.
+
+⛔ **AND THE BOUND RUNS THE OTHER WAY FROM THE OBVIOUS READING, SO STATE IT
+CAREFULLY.** `factorial_control` credits the model with the ADDITIVE combination
+of the two factor marginals. Whether a trained MobileNetV3 actually attains that
+baseline is **unmeasured** -- it is a counterfactual weighting, the same species
+as `scale_inversion`'s three-rule comparison, not a replay. So:
+
+* `+2033` (global baseline) is an **over-estimate** of the teachable information,
+  because it credits the model with nothing beyond the global prior.
+* `+1025` (additive baseline) is an **under-estimate**, because it credits the
+  model with a factorisation it may not have learned.
+* The truth is between them, and nothing here says where.
+
+✅ **WHAT IS SOLID IS THE WIDTH OF THAT INTERVAL, AND IT IS A FACTOR OF 2.**
+On every other slice in the corpus the interval is a POINT -- iwildcam and every
+fmow rake 0, so the two baselines coincide exactly and there is no ambiguity to
+report. bcn is the only place the question even has two answers, and it is also
+the slice whose group was chosen as a product precisely because atomic groups
+were scarce. The lesson is that **a composite group buys coverage and pays for it
+in interpretability of the screen**, and the payment was never priced until now.
+
+⚠️ This does NOT re-open 2(j) or the closed gradient expression. It is a
+statement about the DATASET's headroom, in the same units as `headroom.py`'s
+prize -- not about the loss, the count function, the scope scalar or the
+delivery rule, all of which remain closed.
+
+### 6. 🔑 THE GENERAL RULE
+
+**An empty cell in a decision table is invisible to every audit that reads the
+table, because there is nothing there to be wrong.** 2(z83) found the inverted
+form -- a campaign with no row at all -- and the remedy was the same: harvest the
+subjects from the authorities rather than reading the table's own contents. Here
+the subjects are the three slice directories on disk, and the screens that fill
+the row cost seconds on CPU against files that are TRACKED IN GIT.
