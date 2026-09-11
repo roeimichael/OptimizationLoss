@@ -52,6 +52,33 @@ the acceptance bar has been computed on a denominator nobody could check. If it
 names none, that is a result worth having rather than an assumption worth
 keeping -- record which it was.
 
+### 🔑 THE ORDER ON RECONNECT, AND IT IS NOT THE OBVIOUS ONE
+
+Both hosts refused SSH for the whole of 2026-09-11, so everything below is
+queued rather than done. Run it in THIS order -- each step makes the next one
+readable, and two of them are free:
+
+```
+1. SYNC        0-CLEAN now carries the exact command. `scripts/` + `tests/`
+               only, HEAD unmoved, then CHECK the two verifications.  #101
+2. STATE       rig_status + quarantine --list + dose_landed. Never assume a
+               campaign from a previous session is alive OR dead.
+3. ens_panel   --k 3 on bcn1mn3, per ARM, correlate with 2(z58)'s jitter
+               column. ZERO GPU, decides 2(z103) BEFORE snap2 is read.  #133
+4. snap2       tralo_snap vs tralo_snap_null ONLY. Every tralo_snap-vs-DUAL
+               comparison is PENDING #94 and is not a result.          #97
+5. RECOUNT     tralo_wins on the six scorable roots. READ THE DROPPED-CELL
+               BLOCK before the verdict -- it is new.                  #128
+```
+
+🛑 **STEP 3 BEFORE STEP 4 IS THE WHOLE POINT.** `ens_panel` costs
+nothing and can strengthen or break 2(z103)'s prediction while `snap2` is still
+unread. Once `snap2` is read, no prediction about it can be registered again --
+and a prediction written after the fact is worth nothing. FRAMEWORK 2(z103).
+
+⛔ **AND STEP 5 IS NOT A NEW NUMBER YET.** The standing figure is 6 of 22 =
+27%, per unit 2 of 8, VERDICT FAIL. `6 of 24 = 25%` is DERIVED, not run.
+
 ### The rest of the review, none of which moves a number
 
 * **MIN_PRIZE was the one criterion of three that `test_g2_budget` did not
