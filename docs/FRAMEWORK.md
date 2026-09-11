@@ -18283,3 +18283,261 @@ existing unit as a correlated replicate; genuinely new means it enters as its ow
 The backbone difference makes a new unit *likely*, not certain, and **a unit
 assigned after the numbers are seen is a choice dressed as a measurement** --
 2d holds five retractions of exactly that shape. Assign it BEFORE scoring.
+
+## 2(z107). D2 IS LICENSED AND READ, AND IT REFUTES 2(z105) ONE DAY OLD: TraLO **PASSES** A NON-iwildcam UNIT. THE SIGN IS REAL; THE EFFECT IS INSIDE THE RNG FLOOR, AND AN ARM TAKING **ZERO** CONSTRAINT STEPS REPRODUCES MOST OF IT (2026-09-11)
+
+`bcn1vit` -- bcn / ViTB16, COMPLETE at 190 runs -- was read today. 2(z106)
+called it the highest-value unlicensed unit in the project and that was right,
+though not for the reason given there: it does not merely add a unit, it
+**breaks the entry written the day before it**.
+
+### 1. THE INTEGRITY GATES, IN ORDER, BEFORE ANY NUMBER
+
+| gate | reading |
+|---|---|
+| `quarantine --list` | **live** -- no marker, no dead arms |
+| `pred_integrity` | all prediction files intact |
+| `dose_landed` | `alm` `fioretto` `hounie` `tralo` all at **29.00 attempted/run** |
+| lambda=0 streams | **THREE** (`tralo_null`, `tralo_reseed`, `tralo_reseed2`) |
+
+The dual dose gap that quarantined `vitdual1` and made `dom1`/`dom1b`/
+`equaldose1` PARTIAL is **absent here**: all four duals are at equal dose, and
+only the retired `tralo_lam0` sits at 28.00. Three lambda=0 streams over 4
+seeds give C(3,2) x 4 = **12 floor observations**, clearing `MIN_FLOOR_OBS`= 8.
+So this campaign *can* return `priced = True`. It does not -- see section 4 --
+and that is now a measurement rather than a structural impossibility (2(z69)).
+
+### 2. THE CAMPAIGN IS THREE CAPS AND **ONE** OF THEM ASKS ANYTHING
+
+`classify` on the live root:
+
+| cap | K/n (class 0 / class 2) | status | seeds live |
+|---|---|---|---|
+| `L70_G95` | 0.700 / 0.703 | **non_task** | 2 |
+| `L80_G95` | 0.799 / 0.799 | **non_task** | 4 |
+| `L90_G95` | 0.900 / 0.900 | **task**, strict, both classes | 4 |
+
+L70's seeds 3-4 were archived on 2026-09-09 as non-task and its seeds 1-2 were
+**left in the live root**, where every scorer still picks them up; L80 is a
+full 4-seed non-task cell that was never archived at all. A half-completed
+archival is worse than none, because the cap looks covered.
+
+The window row carried `PROVISIONAL -- re-measure at 4 seeds`, written from
+TWO `tralo_null` seeds while the campaign was ~103/228. Re-measured at 4:
+
+* class 0 -> `[0.90, 1.10]`, **unchanged**
+* class 2 -> **`[0.80, 1.00]`**, where the provisional row said `[0.90, 1.10]`
+
+This MATTERS in the direction nobody would have checked. Under the provisional
+row, class 2 at 0.8999 cleared `lo = 0.90` only by SNAPPING, margin 0.000115 --
+one grid-tolerance away from `unmeasured`. Under the 4-seed row it sits
+mid-band. **The task verdict got stronger, not weaker**, and the ratio itself
+never moved: K/n comes from labels and the cap policy, so four seeds can only
+move the WINDOW. Quoting a cell's status without saying how many seeds its
+window rests on is quoting half the measurement.
+
+### 3. THE LICENCE, AND WHY THE ORDERING IS THE WHOLE DEFENCE
+
+md5 of `final_predictions_raw.csv` for every ViTB16 `tralo_null` in all 24
+worktrees. bcn1vit's four seeds -- `2e5e29d52f` `f890f1ddaf` `d04accb37b`
+`55e4ec726a` -- collide with **nothing**: not the iwildcam cluster
+(`3701265ff7`, shared by `vitdual1`/`vitdual2`/`vittask1`/`vitcoin1`), not
+`eaafdc5c0c`, not `093979e679`, not `vitseed1`'s seeds 5-8, and not `fmow1`'s
+(`fa6ba7d4ca` `72448ae48b` `8a19eded5d` `b2224634ae`). It enters as **D2**, the
+ninth licensed unit.
+
+The same sweep shows bcn1vit's OWN L70/L80/L90 nulls are byte-identical per
+seed: **three caps, one warm-up, one unit** -- not three replicates.
+
+⚠️ **THE SWEEP RAN BEFORE `tralo_wins` DID.** 2(d) holds five retractions whose
+shape is a unit assigned after the numbers were seen. The defence against that
+is not care, it is SEQUENCE, and the sequence is recorded in
+`MEASURED_UNITS`'s own comment so a reader can check it rather than trust it.
+
+### 4. THE RESULT: A WIN IN SIGN, AND ONLY IN SIGN
+
+At `L90_G95`, the one cell that poses the question, in **exact deployed items**
+(`deployed_h2h`, off `final_predictions.csv`):
+
+| arm | d items vs `clip` |
+|---|---|
+| **`tralo`** | **+33.00** |
+| `fioretto` | +17.25 |
+| `hounie` | +8.50 |
+| `alm` | +3.25 |
+
+TraLO beats the control and **all three** rival duals. That is a WIN under the
+standing bar, and it is the first one on a non-iwildcam unit.
+
+⛔ **AND IT IS NOT PRICED, BY MEASUREMENT THIS TIME.** The RNG floor is **25.5
+items on 12 observations** and TraLO's margin over its best rival is 15.75, so
+`priced = no`. `deployed_h2h` REFUSES to name a #1 (margin over #2 is 6.8
+against that 25.5) and the **jackknife is unstable**: dropping one seed makes
+#1 any of {`tralo`, `tralo_linear`, `tralo_squared`}.
+
+### 5. 🔑 THE DECOMPOSITION, AND IT IS THE REAL FINDING
+
+`paper_rows`' three contrasts for `tralo` at this cell. ⚠️ These are on
+`paper_rows`' APPROXIMATE item scale (macro-averaged over two classes whose
+`(K+n)` differ -- 2(z26)), NOT the exact deployed scale of section 4. The two
+rulers disagree by design; what is informative here is the RATIO within one:
+
+| contrast | items | sd | seeds needed at 80% |
+|---|---|---|---|
+| vs `clip` | +39.04 | 25.74 | 4 |
+| vs its OWN lambda=0 twin `tralo_null` | +21.06 | 24.69 | 11 |
+| vs `tralo_reseed` -- the same null, RNG offset only | **+4.06** | 20.67 | **203** |
+
+And the row that says it plainest: **`tralo_reseed` scores +33.17 vs `clip` on
+that same scale** -- an arm that takes **zero constraint steps** captures
+**85%** of TraLO's advantage over the clipper. On the exact deployed scale the
+third stream `tralo_reseed2` reads +20.00 against TraLO's +33.00, i.e. 61%.
+The two figures are different arms on different rulers and must not be
+averaged; they agree on the only thing that matters, which is that **most of
+the headline is the warm-up regime, not the constraint.**
+
+Certifying what remains -- the seed-paired `vs_reseed` contrast, +4.06 items --
+needs **203 seeds per cell**. The protocol runs 4. Against 2(z77)'s bar
+("build for half the headroom, ~6+ items, certifiable at 5-22 seeds"), this
+effect is a third of the way below the floor of what is buildable-for.
+
+🛑 And `tralo_squared` reads **+39.35 vs clip**, fractionally ABOVE `tralo`'s
++39.04, with `tralo_linear` at +35.54. The penalty-shape ablation is in the
+rejected ledger because shape variants made things worse; here they tie. Both
+readings are consistent with the shape term carrying no information, which is
+what 2(z54)'s shared-denominator algebra already said.
+
+### 6. ⇒ AGAINST 2(z105): THE CONCENTRATION IS REFUTED, AND I SAID IN ADVANCE THAT IT WOULD BE
+
+2(z105) observed that every surviving TraLO unit sat on iwildcam -- the slice
+`tier_viability` rates WEAK -- with the three non-iwildcam units (D1, E1, E2)
+all returning zero. Its §7.4 pre-registered the reading:
+
+> **AND IF ONE OF THE FOUR PASSES**, say so immediately and loudly: it breaks
+> the concentration outright and this entry is then simply wrong.
+
+**D2 is the fourth non-iwildcam unit and it passes.** The concentration is
+broken. 2(z105) §1-§5 is superseded as a claim about TraLO; what survives it is
+§6's arithmetic -- that the sign count could never have certified the thing
+either way -- and that part is now doubly true, because the refuting
+observation is itself an unpriced sign.
+
+🔑 **THE PRE-REGISTRATION IS THE ONLY REASON THIS READS AS EVIDENCE RATHER
+THAN AS A SEARCH.** Written after the numbers, "TraLO wins on bcn/ViTB16" is
+one cell chosen from nine units; written before them, it is a stated condition
+that was met. The mechanism cost nothing and it is the second time it has paid
+(2(z103) is the other). Keep pre-registering.
+
+### 7. WHAT THIS DOES **NOT** LICENSE
+
+* ⛔ Not a corpus recount by itself. The acceptance tally moves, but it moves
+  through an instrument that was counting non-task cells until today -- 2(z108)
+  -- so the standing `6 of 22 = 27%` must be RECOMPUTED, not adjusted.
+* ⛔ Not "TraLO works on bcn". One unit, one cap, unpriced, jackknife-unstable,
+  and 85% of the delta reproduced by a lambda=0 arm.
+* ⛔ Not a reason to stop the `q01c_newunits` queue. It makes that queue MORE
+  valuable, not less: the concentration question is now open in both
+  directions, and 2(z105) §7's magnitude-and-rank reading is still the right
+  one for the four campaigns landing into it.
+* 🟢 It IS a reason to buy seeds here. `vs_clip` needs 4 seeds and has 4;
+  the arm-vs-rival margin is what fails. This is the first cell in the corpus
+  where an `add_seeds` extension has a defined target rather than a hope.
+
+## 2(z108). THE ACCEPTANCE TABLE PRINTED "THESE CELLS POSE NO QUESTION" AND THEN COUNTED THEM AS CELLS THAT CAN TEST THE CLAIM. THE WARNING AND THE ARITHMETIC WERE IN DIFFERENT MODULES (2026-09-11)
+
+Found while reading D2 (2(z107)). `tralo_wins` on `bcn1vit` printed this, in
+this order, eight lines apart:
+
+```
+!! 2 OF 3 CELLS DO NOT POSE THE CAP QUESTION
+     ViTB16  bcn  L70_G95  non_task
+     ViTB16  bcn  L80_G95  non_task
+   ... A contrast on these cells is not evidence about the constraint.
+...
+CELLS THAT CAN TEST THE CLAIM: 3
+VERDICT: PASS -- tralo wins 67% of testable cells, bar is 50%
+```
+
+Two of the three cells in the denominator of a line headed **"CELLS THAT CAN
+TEST THE CLAIM"** had just been named, by the tool itself, as cells that
+cannot. The 67% is `2/3` where the honest reading is `1/1`.
+
+### 1. WHY IT SURVIVED EVERY GATE
+
+The banner comes from `quarantine.gate()`. The denominator comes from
+`tralo_wins.rows_for`, where `testable` was:
+
+```python
+testable=bool(present),        # "is a rival dual staged here"
+```
+
+`tralo_wins.py` contained **no reference to `classify`, task status, or the
+word `pose` anywhere in the file** -- verified by grep over the whole module.
+The two facts never met. Nothing was inconsistent *within* either module, so
+no test, no audit and no self-test could see it: `quarantine`'s self-test
+proves it announces correctly, `tralo_wins`' self-test proved the verdict
+arithmetic, and the defect lived in the space between them.
+
+🔑 **THE CLASS: A WARNING PRINTED BY ONE MODULE DOES NOT CONSTRAIN A NUMBER
+COMPUTED BY ANOTHER.** This is the fourth instance here. `full_panel`'s dose
+block prints and discards its return value; `log_health`'s cross-arm count
+table is printed beside numbers it is not comparable with; `stale_figures`
+reports and gates nothing. In every case a reader assumes the printed caveat
+reached the arithmetic below it. It never does unless somebody wires it.
+
+⚠️ It is also the SAME DAY as 2(z101), which fixed three bare `continue`s in
+this identical function so the denominator could be audited. That fix made
+every dropped cell visible; this one was never dropped -- it was **counted**.
+Auditing what leaves a denominator does not audit what belongs in it.
+
+### 2. THE FIX
+
+`testable = bool(present) and poses`, with the status read from
+`quarantine.cell_status` -- the existing helper, not a second copy of the
+`protocol.yml` + `task_windows.yml` loading (the `cellreport.py` lesson).
+
+* **`task` and `partial` pose the question.** `partial` binds in some seeds
+  only, so its slack seeds take an identically zero constraint gradient and
+  dilute the contrast: a positive there is CONSERVATIVE, a null is WEAK. It
+  counts, and a **strict `task`-only sub-tally** now prints beside the
+  headline whenever the two differ. Neither is the other's caveat.
+* **`non_task` is excluded, and so are `unmeasured` / `no_window` /
+  `no_strict_band` / `no_data` -- but they are NOT the same exclusion.** The
+  first is a MEASURED statement about the experiment; the rest are absences of
+  measurement. Every excluded cell is now printed with its status.
+* **An UNCLASSIFIABLE cell stays IN.** `cell_status` returns None -- not an
+  empty dict -- when the worktree predates `configs/task_cells.py`, which is
+  version skew, not a non-task verdict. Excluding those would shrink the
+  denominator on a tooling failure, and shrinking the denominator is the
+  direction that MANUFACTURES a PASS. Fail open here, loudly.
+* **`win` is still computed for excluded cells.** The row is printed with its
+  status in the verdict column; it is simply not counted. Conflating "not
+  scored" with "not computed" is what made the old behaviour invisible.
+* **An empty table now says WHICH emptied it.** "No rival was staged" and
+  "every cell sits outside the measured window" are opposite findings with
+  opposite remedies -- `uniform1` (252 runs) and `vittask1` were mechanically
+  perfect and measured the absence of a question (2(z42)).
+
+22 checks, **9 of them negative controls**, mutation-tested **4/4**: reverting
+`testable`, flipping the unclassifiable case to fail-closed, silencing the
+excluded-cell listing, and silencing the strict sub-tally each turn it red.
+
+⚠️ **AND THE FIRST VERSION OF ONE CHECK WAS VACUOUS, WHICH THE MUTATION FOUND
+AND READING WOULD NOT HAVE.** "the excluded cell is NAMED" was
+`"non_task" in txt` over the whole output -- satisfied by the per-row verdict
+column, so silencing the summary block left it GREEN (0 of 4 caught). It now
+slices the text to the excluded block before looking. A check that passes for
+the wrong reason is worse than an absent one, because it is counted.
+
+### 3. ⛔ WHAT IS NOW UNVERIFIED
+
+**`6 of 22 = 27%, per unit 2 of 8` is WITHDRAWN pending recompute.** Every
+figure that tool has ever produced was computed over a denominator that
+admitted non-task cells, and the corpus is full of them -- `uniform1` is 9 of 9
+cells outside the window, `vittask1` 2 of 2, and every L20/L30/L50 iwildcam
+campaign is non-task in 24 of 24 (2(z16)). The direction of the correction is
+**not** predictable: removing non-task cells removes wins and losses alike.
+
+Say "FAIL, figure pending recompute" until the recount lands -- the same
+formula 2(z68) forced on the 35% figure, for the same reason. Task #128, now
+blocking, and it must run on the FIXED tool.

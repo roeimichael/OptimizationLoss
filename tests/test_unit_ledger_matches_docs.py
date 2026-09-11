@@ -272,7 +272,22 @@ def test_NEGATIVE_CONTROL_a_campaign_pair_is_not_a_free_replicate():
     # ⚠️ AND BOTH WERE READ THE SAME DAY, WHICH IS THE OPPOSITE OF D1's
     # history: E1 and E2 are 0 of 2 cells each, so the ledger grew and the
     # tally did not. FRAMEWORK 2(z88).
-    assert ledger_size() == 8, (
-        "the ledger holds %d distinct units, not the 8 the documents claim. "
+    # 8 -> 9 on 2026-09-11, when `bcn1vit` was licensed as unit D2 (bcn /
+    # ViTB16) and read the same hour. It had been COMPLETE at 190 runs and
+    # absent from the ledger, so all 138 of its rows read UNVERIFIED -- the D1
+    # defect one campaign later. The attainable sign floor moves from
+    # 0.5^8 = 0.00391 to 0.5^9 = 0.00195.
+    # 🛑 UNLIKE D1 AND E1/E2, THIS ONE'S INDEPENDENCE IS md5-VERIFIED AS WELL
+    # AS STRUCTURAL, because ViTB16 is the backbone where three datasets meet
+    # and the structural argument alone leaves the most room. All four of its
+    # `tralo_null` seeds are distinct from every other ViTB16 null in all 24
+    # worktrees. The sweep ran BEFORE the campaign was scored; 2(d) holds five
+    # retractions whose shape is a unit labelled after its numbers were seen.
+    # 🟢 AND D2 IS THE FIRST NON-iwildcam UNIT WHERE TraLO PASSES, which is
+    # what 2(z105) §7.4 pre-registered as the outcome that refutes it. The
+    # ledger grew AND the tally moved, for the first time since D1.
+    # FRAMEWORK 2(z107).
+    assert ledger_size() == 9, (
+        "the ledger holds %d distinct units, not the 9 the documents claim. "
         "Either MEASURED_UNITS gained a unit or a document is stale -- both "
         "move the sign floor and neither may pass silently." % ledger_size())

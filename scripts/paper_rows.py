@@ -189,6 +189,45 @@ MEASURED_UNITS = {
     # That is what `vitdual2` was staged to provide and has not finished.
     ("fmow1", "MobileNetV3"): "E1",          # fmow / dsisco02 bf16, COMPLETE
     ("fmow1", "ViTB16"): "E2",               # fmow / dsisco02 bf16, COMPLETE
+    # 🛑 UNIT D2, ADDED 2026-09-11 -- AND IT IS THE ONE THAT BREAKS 2(z105).
+    # `bcn1vit` is bcn/ViTB16, COMPLETE at 190 runs (228 staged, 38 archived as
+    # the non-task L70 seeds 3-4). It had been sitting COMPLETE and unlicensed,
+    # so every one of its 138 rows read `UNVERIFIED` -- the D1 defect again,
+    # one campaign later.
+    #
+    # 🔑 INDEPENDENCE IS ESTABLISHED TWICE, BY CONSTRUCTION **AND** BY md5,
+    # because ViTB16 is the one backbone where the construction argument alone
+    # would leave a real question open. By construction: `base_model_id` is
+    # `ViTB16_bcn_<h>` with dataset_mode/data_dir/num_classes hashed into `h`,
+    # disjoint from `ViTB16_iwildcam_` and `ViTB16_fmow_`. By md5 of
+    # `final_predictions_raw.csv`, all four seeds distinct from every other
+    # ViTB16 null in all 24 worktrees: 2e5e29d52f, f890f1ddaf, d04accb37b,
+    # 55e4ec726a, against the iwildcam cluster (3701265ff7 shared by vitdual1 /
+    # vitdual2 / vittask1 / vitcoin1, eaafdc5c0c, 093979e679, and vitseed1's
+    # 5-8) and fmow1's (fa6ba7d4ca, 72448ae48b, 8a19eded5d, b2224634ae).
+    # The same sweep shows bcn1vit's OWN L70/L80/L90 nulls are byte-identical
+    # per seed, so its three caps are ONE unit and not three replicates.
+    #
+    # ⚠️ THE ORDERING IS THE POINT, NOT A DETAIL. The md5 sweep was run and
+    # this label fixed BEFORE `tralo_wins`, `deployed_h2h` or `paper_rows` was
+    # pointed at the campaign. 2(d) holds five retractions whose shape is a
+    # unit assigned after the numbers were seen; the defence is not care, it is
+    # sequence, and the sequence is recorded here so it can be checked.
+    #
+    # 🟢 AND ITS SIGN IS POSITIVE, WHICH REFUTES 2(z105)'s CONCENTRATION.
+    # That entry observed that every surviving TraLO unit sat on iwildcam --
+    # the slice `tier_viability` rates WEAK -- and pre-registered (§7.4) that a
+    # PASS on any non-iwildcam unit must be reported loudly because it breaks
+    # the claim outright. D2 is the fourth non-iwildcam unit and the first to
+    # pass: at the L90_G95 task cell `tralo` beats `clip` and ALL THREE rival
+    # duals (+33.00 items against fioretto +17.25, hounie +8.50, alm +3.25).
+    # ⛔ THE SIGN IS ALL IT IS. Zero cells are priced; `tralo` sits +4.06 items
+    # over `tralo_reseed` -- its own null with nothing changed but the RNG
+    # offset -- needing 203 seeds per cell at 80% power against the 4 that ran,
+    # and the two lambda=0 streams differ from EACH OTHER by 15.19 items.
+    # `deployed_h2h` REFUSES to name a #1 and the jackknife is unstable:
+    # dropping one seed makes #1 any of {tralo, tralo_linear, tralo_squared}.
+    ("bcn1vit", "ViTB16"): "D2",             # bcn / dsisco02 bf16, COMPLETE
 }
 
 # The contrasts a paper row may carry, and what each one licenses.

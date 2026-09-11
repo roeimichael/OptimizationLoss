@@ -21,6 +21,18 @@ before:
     silent-truncation failure the house rule forbids: it reads as "covered
     everything" when it did not. Each dropped cell is now printed with its
     reason, before the verdict and before the early return.
+  * **A CELL THAT POSES NO CAP QUESTION IS NOT IN THE DENOMINATOR EITHER**
+    (2026-09-11). `quarantine.gate()` prints "N OF M CELLS DO NOT POSE THE CAP
+    QUESTION" directly above this table, and until today `testable` was
+    `bool(present)` -- rival staged, full stop -- so the cells it had just
+    named went into a count headed "CELLS THAT CAN TEST THE CLAIM". The
+    announcement and the arithmetic were in different modules and never spoke.
+    Caught on `bcn1vit`, whose L70 and L80 are both measured `non_task`: the
+    verdict read "PASS -- 67% of testable cells" over a denominator of 3 in
+    which only ONE cell asked anything. `non_task` is a MEASURED absence and
+    `unmeasured`/`no_window`/`no_data` are absences of MEASUREMENT; both are
+    excluded, both are named, and neither is a null.
+
   * **A WIN IS A SIGN, NOT A MEASUREMENT.** The `priced` column says whether
     the cell could support the claim at all: the spread must clear the RNG
     floor AND that floor must rest on at least `MIN_FLOOR_OBS` observations.
@@ -55,18 +67,62 @@ from scripts.paper_rows import MEASURED_UNITS          # noqa: E402
 RIVALS = ("alm", "fioretto", "hounie")
 BAR = 0.50
 
+# 🛑 THE CELL STATUSES THAT POSE THE CAP QUESTION, AND THE ONLY ONES THAT MAY
+# ENTER THE ACCEPTANCE DENOMINATOR (2026-09-11).
+#   `task`     the cap binds in EVERY seed
+#   `partial`  it binds in SOME seeds, so slack seeds dilute the contrast
+#              toward nothing. A positive here is CONSERVATIVE and a null is
+#              weak, which is why it counts but is also sub-tallied separately.
+# Everything else is excluded, and the two reasons are NOT the same thing:
+#   `non_task`                         a MEASURED statement -- the cap evicts
+#                                      too little, or there are no errors
+#                                      inside K, or p@K is at the ceiling
+#   `unmeasured` / `no_window` /       an ABSENCE of measurement
+#   `no_strict_band` / `no_data`
+# Neither is a null, and a contrast on either is not evidence about the
+# constraint -- `quarantine.gate()` has printed exactly that sentence above
+# this table since 2026-09-04.
+POSES = ("task", "partial")
+
+
+def statuses_for(roots):
+    """`{(dataset, model, cap): status}` merged over `roots`.
+
+    Delegates to `quarantine.cell_status`, which already loads `protocol.yml`
+    and `task_windows.yml` and already makes the fail-closed distinction this
+    needs. Re-deriving it here would be the `cellreport.py` defect again -- a
+    second copy free to drift from the first.
+
+    A root whose worktree PREDATES `configs/task_cells.py` returns None, not an
+    empty dict, and those cells stay ABSENT from the map. Absent is read as
+    "poses the question" by the caller, on purpose: excluding a cell the
+    instrument could not read would shrink the acceptance denominator on a
+    version-skew failure, which is the direction that manufactures a PASS.
+    """
+    out = {}
+    for root in roots:
+        got = quarantine.cell_status(root)
+        if got:
+            out.update(got)
+    return out
+
 
 def _tp(rec):
     return float(rec["TP"])
 
 
-def rows_for(cells, control, dropped=None):
+def rows_for(cells, control, dropped=None, statuses=None):
     """One row per cell: the deltas vs control, the floor, and the verdict.
 
     `dropped` is an optional out-list. Pass one and every cell that cannot
     reach the table is appended as `(key, reason)` instead of vanishing. It is
     optional rather than returned so no existing caller changes shape, but
     `main` always passes one -- a denominator nobody can audit is the defect.
+
+    `statuses` is `statuses_for(roots)`. Pass it and a cell measured NOT to
+    pose the cap question is kept in the table but taken OUT of the acceptance
+    denominator. Omit it and every cell counts, which is the pre-2026-09-11
+    behaviour and is retained only so existing callers do not change shape.
     """
     rows = []
     for key in sorted(cells):
@@ -121,12 +177,25 @@ def rows_for(cells, control, dropped=None):
             "rank_cell returned ragged seed sets %s for cell %s: the arm-vs-arm "
             "margins in it are not comparable" % (sorted(seedsets), key))
         seeds = len(next(iter(seedsets))) if seedsets else 0
+        # 🛑 A CELL THAT POSES NO QUESTION IS NOT A TESTABLE CELL, AND UNTIL
+        # 2026-09-11 THIS TABLE COUNTED IT AS ONE. `quarantine.gate()` prints
+        # "N OF M CELLS DO NOT POSE THE CAP QUESTION" immediately above this
+        # output and then `testable` was `bool(present)` -- rival present, full
+        # stop -- so the very cells the gate had just named went straight into
+        # the denominator of a line headed "CELLS THAT CAN TEST THE CLAIM".
+        # The announcement and the arithmetic lived in different modules and
+        # never spoke. Found on `bcn1vit`, where 2 of 3 cells are measured
+        # `non_task` and the verdict read "PASS -- 67% of testable cells".
+        # `status is None` means the instrument could not classify this cell --
+        # see `statuses_for` -- and is deliberately read as POSING.
+        status = (statuses or {}).get((key[2], key[1], key[3]))
+        poses = status is None or status in POSES
         rows.append(dict(
             campaign=key[0], model=key[1], dataset=key[2], cap=key[3],
             seeds=seeds, d=d, rivals=present, floor=floor, nfloor=nfloor,
-            spread=spread, priced=priced,
+            spread=spread, priced=priced, status=status, poses=poses,
             win=bool(present) and beats_control and beats_all,
-            testable=bool(present),
+            testable=bool(present) and poses,
             unit=MEASURED_UNITS.get((key[0], key[1])) or "UNVERIFIED"))
     return rows
 
@@ -134,7 +203,11 @@ def rows_for(cells, control, dropped=None):
 def report(rows, out=sys.stdout, bar=BAR, dropped=None):
     w = out.write
     testable = [r for r in rows if r["testable"]]
-    lonely = [r for r in rows if not r["testable"]]
+    # TWO exclusion reasons, kept apart because the remedies are opposite:
+    # `lonely` needs a rival STAGED, `noq` needs a different CAP. Collapsing
+    # them into one "excluded" count is how the second stayed invisible.
+    lonely = [r for r in rows if not r["testable"] and not r["rivals"]]
+    noq = [r for r in rows if not r["testable"] and r["rivals"]]
 
     w("%-11s %-13s %-13s %4s %8s %8s %8s %8s %7s %6s %s\n"
       % ("campaign", "backbone", "cap", "sds", "tralo", "alm", "fioretto",
@@ -143,8 +216,10 @@ def report(rows, out=sys.stdout, bar=BAR, dropped=None):
     for r in sorted(rows, key=lambda r: (r["campaign"], r["model"], r["cap"])):
         def col(a):
             return ("%+8.2f" % r["d"][a]) if a in r["d"] else "       ."
-        if not r["testable"]:
+        if not r["rivals"]:
             verdict = "no rival -- cannot test"
+        elif not r["poses"]:
+            verdict = "%s -- poses no question" % (r["status"] or "?")
         else:
             verdict = "WIN " if r["win"] else "loss"
         w("%-11s %-13s %-13s %4d %s %s %s %s %4s(%s) %6s %s\n"
@@ -156,8 +231,12 @@ def report(rows, out=sys.stdout, bar=BAR, dropped=None):
     w("\n%s\n" % ("=" * 104))
     n = len(testable)
     wins = [r for r in testable if r["win"]]
-    w("CELLS THAT CAN TEST THE CLAIM: %d  (%d more hold no rival and are "
-      "excluded)\n" % (n, len(lonely)))
+    w("CELLS THAT CAN TEST THE CLAIM: %d\n" % n)
+    w("  excluded: %d hold no rival, %d pose no cap question\n"
+      % (len(lonely), len(noq)))
+    for r in sorted(noq, key=lambda r: (r["campaign"], r["model"], r["cap"])):
+        w("       %-11s %-13s %-13s  %s\n"
+          % (r["campaign"], r["model"][:13], r["cap"], r["status"]))
     if dropped:
         w("  !! %d cell(s) never reached the table and are in NEITHER count "
           "above:\n" % len(dropped))
@@ -165,11 +244,32 @@ def report(rows, out=sys.stdout, bar=BAR, dropped=None):
             w("       %-11s %-13s %-13s  %s\n"
               % (key[0], str(key[1])[:13], key[3], why))
     if not n:
-        w("VERDICT: NOT TESTABLE -- no cell holds tralo beside a rival dual.\n")
+        # Say WHICH of the two emptied it. "No rival was staged" and "every
+        # cell sits outside the measured cap window" are opposite findings:
+        # the first is a coverage hole, the second is `uniform1`/`vittask1`,
+        # mechanically perfect campaigns that measured the absence of a
+        # question (FRAMEWORK 2(z42)).
+        if noq and not lonely:
+            w("VERDICT: NOT TESTABLE -- every cell holding a rival poses NO\n"
+              "  cap question. The campaign is not silent about TraLO; it\n"
+              "  never asked. Re-stage inside the measured window.\n")
+        else:
+            w("VERDICT: NOT TESTABLE -- no cell holds tralo beside a rival "
+              "dual.\n")
         return 1
     frac = len(wins) / float(n)
     w("  tralo beats the control AND every rival present: %d of %d = %.0f%%\n"
       % (len(wins), n, 100 * frac))
+    # The STRICT sub-tally. `partial` cells bind in some seeds only, so their
+    # slack seeds take an identically zero constraint gradient and dilute the
+    # contrast -- a positive there is conservative, a null is weak. Printed
+    # beside the headline rather than replacing it, because which one to quote
+    # depends on the claim and neither is the other's caveat.
+    strict = [r for r in testable if r["status"] == "task"]
+    if strict and len(strict) != n:
+        sw = sum(1 for r in strict if r["win"])
+        w("    ...restricted to STRICT `task` cells: %d of %d = %.0f%%\n"
+          % (sw, len(strict), 100 * sw / float(len(strict))))
 
     priced = [r for r in testable if r["priced"]]
     pw = [r for r in priced if r["win"]]
@@ -281,7 +381,73 @@ def self_test(out=sys.stdout):
     checks.append(("NEGATIVE CONTROL: with no trailing arm the two agree",
                    abs(r6["spread"] - rng6) < 1e-9))
 
+    # 🛑 THE CAP-QUESTION GATE (2026-09-11). A cell holding a rival but
+    # MEASURED not to pose the cap question must leave the denominator. The
+    # three controls pin that it is the STATUS doing the work and not the
+    # fixture: the SAME cell is testable at `task` and at `partial`, and an
+    # UNCLASSIFIABLE cell stays testable -- the fail-OPEN direction, because
+    # dropping a cell the instrument could not read would shrink the
+    # denominator on version skew, which is the direction that manufactures a
+    # PASS. `win` stays True throughout: the row is still computed, it is
+    # merely not counted, and conflating those two is the original defect.
+    sk = (k1[2], k1[1], k1[3])
+    rnt = rows_for({k1: c1}, "clip", statuses={sk: "non_task"})
+    checks.append(("a `non_task` cell is OUT of the denominator",
+                   len(rnt) == 1 and not rnt[0]["testable"] and rnt[0]["win"]))
+    checks.append(("NEGATIVE CONTROL: the SAME cell at `task` is IN",
+                   rows_for({k1: c1}, "clip",
+                            statuses={sk: "task"})[0]["testable"]))
+    checks.append(("NEGATIVE CONTROL: `partial` poses the question, so it "
+                   "counts toward the headline",
+                   rows_for({k1: c1}, "clip",
+                            statuses={sk: "partial"})[0]["testable"]))
+    checks.append(("NEGATIVE CONTROL: an UNCLASSIFIABLE cell stays IN, so "
+                   "version skew cannot manufacture a PASS",
+                   rows_for({k1: c1}, "clip", statuses={})[0]["testable"]))
+    # And the absence of `statuses` must reproduce the old shape exactly, or
+    # every existing caller silently changes meaning.
+    checks.append(("NEGATIVE CONTROL: with no statuses at all, nothing is "
+                   "excluded", rows_for({k1: c1}, "clip")[0]["testable"]))
+
     import io as _io
+    # The exclusion must be VISIBLE, not merely correct: a denominator that
+    # quietly shrinks reads as "covered everything" exactly like the bare
+    # `continue` this table was fixed for on the same day.
+    buf = _io.StringIO()
+    report(rows_for({k1: c1, k2: c2}, "clip",
+                    statuses={sk: "non_task"}), out=buf)
+    txt = buf.getvalue()
+    # SCOPED to the excluded block, not the whole output. The per-row verdict
+    # column also prints the status, so a bare `"non_task" in txt` is
+    # satisfied by the table above and stays green even with this block
+    # silenced -- measured, it was 0 of 4 mutations caught until this slice
+    # was added.
+    seg = txt.split("pose no cap question", 1)[-1].split("tralo beats", 1)[0]
+    checks.append(("the excluded cell is NAMED with its status IN the "
+                   "excluded block, not silently dropped",
+                   "pose no cap question" in txt and "non_task" in seg))
+    # The STRICT sub-tally appears only when the testable set MIXES `task` and
+    # `partial`; with one status it would restate the headline.
+    buf = _io.StringIO()
+    report(rows_for({k1: c1, k2: c2}, "clip",
+                    statuses={sk: "task", (k2[2], k2[1], k2[3]): "partial"}),
+           out=buf)
+    checks.append(("a MIXED task/partial table prints the strict sub-tally",
+                   "restricted to STRICT" in buf.getvalue()))
+    buf = _io.StringIO()
+    report(rows_for({k1: c1, k2: c2}, "clip",
+                    statuses={sk: "task", (k2[2], k2[1], k2[3]): "task"}),
+           out=buf)
+    checks.append(("NEGATIVE CONTROL: an all-`task` table does NOT print it",
+                   "restricted to STRICT" not in buf.getvalue()))
+    # And a campaign whose every rival-bearing cell poses no question must say
+    # which of the two emptied the table -- `uniform1` and `vittask1` were
+    # mechanically perfect and measured the absence of a question (2(z42)).
+    buf = _io.StringIO()
+    rc = report(rows_for({k1: c1}, "clip", statuses={sk: "non_task"}), out=buf)
+    checks.append(("NOT TESTABLE names the cap window, not a missing rival",
+                   rc == 1 and "never asked" in buf.getvalue()))
+
     buf = _io.StringIO()
     rc = report(rows_for({k1: c1}, "clip"), out=buf)
     checks.append(("an all-win table reports PASS",
@@ -360,7 +526,8 @@ def main(argv=None):
         return 1
     cells = deployed_h2h.collect(args.campaign, dead)
     dropped = []
-    rows = rows_for(cells, args.control, dropped)
+    rows = rows_for(cells, args.control, dropped,
+                    statuses=statuses_for(args.campaign))
     return report(rows, bar=args.bar, dropped=dropped)
 
 

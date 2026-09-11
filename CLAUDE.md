@@ -128,7 +128,28 @@ docs/COVERAGE.md   🗺️ WHAT WE ACTUALLY HAVE vs WHAT THE PAPER NEEDS, built
                    had their signs read and only THREE carry a verified `task`
                    cell, so quote BOTH -- ⛔ **SUPERSEDED 2026-09-10, 2(z86): D1 IS NEGATIVE, so task-restricted is 3/4 p=0.3125, not** 4/4 p=0.0625, 3/3 p=0.125
                    task-restricted. `paper_rows` prints the restriction itself)
-   🔑 **THE LEDGER NOW LICENSES EIGHT AND EVERY SIGN IS READ (2026-09-10).**
+   🟢 **THE LEDGER LICENSES NINE, AND THE NINTH IS THE FIRST NON-iwildcam
+   UNIT WHERE TraLO **PASSES** (2026-09-11).** `bcn1vit` -- bcn / ViTB16,
+   COMPLETE at 190 runs -- was licensed as **D2** and read the same hour. At
+   its one task cell `L90_G95`, `tralo` beats `clip` AND all three rival duals:
+   **+33.00 deployed items against fioretto +17.25, hounie +8.50, alm +3.25**.
+   2(z105) had observed that every surviving TraLO unit sat on iwildcam and
+   PRE-REGISTERED that a pass off iwildcam refutes it; this is that pass.
+   ⛔ **AND IT IS A SIGN, NOTHING MORE.** Zero cells priced (floor 25.5 on 12
+   obs, tralo's margin over the best rival 15.75), `deployed_h2h` REFUSES a #1,
+   the jackknife flips #1 among {tralo, tralo_linear, tralo_squared}, and
+   `tralo_reseed` -- the same null with only the RNG offset changed -- reaches
+   **85% of TraLO's advantage over the clipper**. The seed-paired constraint
+   contrast is **+4.06 items needing 203 seeds per cell**. FRAMEWORK 2(z107).
+   ⛔ **AND THE ACCEPTANCE FIGURE IS WITHDRAWN PENDING RECOMPUTE, BECAUSE THE
+   TOOL WAS COUNTING CELLS IT HAD ITSELF DECLARED UNTESTABLE.** `tralo_wins`
+   printed "N OF M CELLS DO NOT POSE THE CAP QUESTION" and then put all M in
+   the denominator headed "CELLS THAT CAN TEST THE CLAIM" -- the banner is
+   `quarantine.gate()`'s and the arithmetic was `tralo_wins`'s, and they never
+   spoke. Fixed and mutation-tested 4/4; **say "FAIL, figure pending
+   recompute"** until #128 re-runs on the fixed tool. FRAMEWORK 2(z108).
+   The superseded line read: **THE LEDGER NOW LICENSES EIGHT AND EVERY SIGN IS
+   READ (2026-09-10).**
    `fmow1` completed at 304/304 and licenses TWO -- E1 (MobileNetV3) and E2
    (ViTB16, the HEADLINE backbone) -- so the attainable sign floor moves from
    0.5^6 = 0.0156 to 0.5^8 = 0.0039. ⛔ **AND BOTH CAME BACK 0 OF 2 CELLS**,

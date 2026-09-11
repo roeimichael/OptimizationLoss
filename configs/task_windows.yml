@@ -502,19 +502,49 @@ windows:
       # RAW overlap [0.80, 1.00]; CORRECTED overlap [0.90, 1.00].
 
     ViTB16:
-      provenance: "bcn1vit/ViTB16 (dsisco02/bf16), TWO tralo_null seeds,
-        measured 2026-09-09 while the campaign was ~103/228. PROVISIONAL --
-        re-measure at 4 seeds. `clip` agrees that L70 is saturated on both
+      # ✅ RE-MEASURED AT FOUR SEEDS 2026-09-11, ON THE COMPLETED CAMPAIGN.
+      # The row below it asked for exactly this and the ticket was honoured the
+      # day `bcn1vit` was licensed as unit D2 (FRAMEWORK 2(z107)).
+      #
+      # 🔑 CLASS 2 MOVED AND CLASS 0 DID NOT, AND THE DIRECTION MATTERS.
+      # Class 2's strict band widened DOWNWARD, [0.90, 1.10] -> [0.80, 1.00].
+      # Under the 2-seed row, L90's class-2 ratio 0.89988 cleared `lo = 0.90`
+      # only by grid SNAPPING, at a margin of 0.000115 -- one tolerance away
+      # from reading `unmeasured`. It now sits mid-band. The `task` verdict at
+      # L90 got STRONGER, and nothing in the corpus had to move.
+      #
+      # ⚠️ THE RATIO NEVER MOVED; ONLY THE WINDOW COULD. K comes from labels
+      # and the cap policy alone, so more seeds can only re-measure the BAND.
+      # Quoting a cell's status without saying how many seeds its window rests
+      # on is quoting half of the measurement.
+      #
+      # ⚠️ AND THE HARD COUNTS MOVED BY +44 / -29 BETWEEN 2 SEEDS AND 4
+      # (0: 1522 -> 1566, 2: 1117 -> 1088), which is the per-seed spread the
+      # `task_window` docs warn about, visible here as a number.
+      #
+      # SUPERSEDED, KEPT AS THE RECEIPT -- provenance read:
+      #   "bcn1vit/ViTB16 (dsisco02/bf16), TWO tralo_null seeds, measured
+      #    2026-09-09 while the campaign was ~103/228. PROVISIONAL --
+      #    re-measure at 4 seeds."
+      # with class {0: [0.90, 1.10], 2: [0.90, 1.10]} and partial
+      # {0: [1.20, 1.20] 1/2, 2: [1.20, 1.20] 1/2}.
+      provenance: "bcn1vit/ViTB16 (dsisco02/bf16), FOUR tralo_null seeds,
+        re-measured 2026-09-11 on the COMPLETE campaign (190 runs), superseding
+        the 2-seed provisional row. `clip` agrees that L70 is saturated on both
         classes, so the L70 verdict does NOT depend on the reference arm."
-      unconstrained_count: {0: 1522, 2: 1117}
+      unconstrained_count: {0: 1566, 2: 1088}
       per_model:
-        bcn1vit_dsisco02_bf16: {hard: {0: 1522, 2: 1117}, seeds: 2, strict_2seed: {0: [0.90, 1.10], 2: [0.90, 1.10]}}
+        bcn1vit_dsisco02_bf16: {hard: {0: 1566, 2: 1088}, seeds: 4, strict: {0: [0.90, 1.10], 2: [0.80, 1.00]}, strict_2seed: {0: [0.90, 1.10], 2: [0.90, 1.10]}}
       class:
-        0: [0.90, 1.10]          #   0.70 AND 0.80 both saturated
-        2: [0.90, 1.10]          #   0.70 AND 0.80 both saturated
+        0: [0.90, 1.10]          #   0.70 AND 0.80 saturated; 1.20 binds 2/4
+        2: [0.80, 1.00]          #   0.70 saturated; 0.80 binds 4/4
       partial:
-        0: [1.20, 1.20]          #   1.20 binds 1/2
-        2: [1.20, 1.20]          #   1.20 binds 1/2
-      # OVERLAP [0.90, 1.10]. `bcn1vit` ran L70 / L80 / L90: only L90 is a
-      # task. The 38 pending L70 runs were archived 2026-09-09; the 38
-      # completed ones stay as the receipt.
+        0: [1.20, 1.20]          #   1.20 binds 2/4
+        2: [1.10, 1.20]          #   1.10 binds 3/4, 1.20 binds 2/4
+      # OVERLAP [0.90, 1.00] -- narrower than the 2-seed row's [0.90, 1.10],
+      # and L90 sits at its lower edge. `bcn1vit` ran L70 / L80 / L90 and only
+      # L90 is a task: L80 fails on CLASS 0 (0.799 outside [0.90, 1.10]) even
+      # though class 2's widened band now contains 0.80, which is why
+      # `classify` requires EVERY capped class and not the overlap alone.
+      # The 38 pending L70 runs were archived 2026-09-09; the 38 completed
+      # ones stay as the receipt.

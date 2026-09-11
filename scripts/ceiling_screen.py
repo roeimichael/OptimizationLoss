@@ -102,6 +102,52 @@ IWILDCAM_CURVE = [
     (0.90, 0.9252, 27.83),
 ]
 
+# The n behind that curve, per capped class, read from iwildcam's own test
+# labels: class 2 -> 370, class 7 -> 456. The curve pools the two, so the K it
+# was measured at is `ratio * IWILDCAM_N_MEAN`.
+IWILDCAM_N_MEAN = (370 + 456) / 2.0
+
+# Fire the transfer note when this dataset's K is more than this factor away
+# from the K the sd was measured at. 1.5x is about the point where the two
+# bracket ends stop overlapping anything useful.
+K_TRANSFER_TOL = 1.5
+
+
+def sd_k_transfer(k, ratio, n_cal=IWILDCAM_N_MEAN, tol=K_TRANSFER_TOL):
+    """How wrong is a BORROWED item-scale sd at this K? (k_cal, lo, hi) or None.
+
+    THE DEFECT THIS EXISTS FOR. `calibrated()` keys on K/n ALONE and returns an
+    sd in ITEMS. Two datasets at the same K/n therefore receive the SAME sd even
+    when their K differs several-fold -- measured 2026-09-11: `bcn` at L90 has
+    K=1147 against iwildcam's K=333 and both were handed sd=27.83, IDENTICALLY.
+    A noise denominated in items cannot be invariant to the number of items.
+
+    THE DIRECTION IS KNOWABLE EVEN THOUGH THE MAGNITUDE IS NOT, which is why
+    this returns a BRACKET rather than a correction. More items in play means
+    more absolute variance, so a borrowed sd at a larger K is an UNDER-estimate
+    and `prize/sd` is an OVER-estimate. The two ends:
+
+      lo = sqrt(k/k_cal)   if seeds perturb each emitted slot independently
+      hi = k/k_cal         if a seed change flips whole blocks together
+
+    ⚠️ THE EVIDENCE POINTS AT THE CORRELATED END. On iwildcam's own cells the
+    measured sd is **5.8-7.0x** the independent-Bernoulli value sqrt(K p(1-p))
+    -- 24.95 against 3.59 at L80, 27.83 against 4.80 at L90 -- so the variation
+    is dominated by model-to-model shifts, not per-slot noise. Read `hi` as the
+    likelier end.
+
+    ⛔ It is NOT applied automatically. Correcting by an unmeasured exponent
+    would be a second borrowed calibration on top of the first; the honest act
+    is to print the bracket and send the reader to measure the real sd.
+    """
+    k_cal = ratio * n_cal
+    if k_cal <= 0 or k <= 0:
+        return None
+    f = k / k_cal
+    if 1.0 / tol <= f <= tol:
+        return None
+    return k_cal, f ** 0.5, f
+
 
 def calibrated(ratio, curve=IWILDCAM_CURVE):
     """(p, sd_items, extrapolated) at this K/n, linearly interpolated.
@@ -180,6 +226,19 @@ def report(rows, ccp=None, noise=None, out=sys.stdout, native=True):
                   "  !! THEY DO NOT TRANSFER. On a new dataset use them to see "
                   "WHERE the ratio\n"
                   "     could become measurable, then measure p and sd there.\n")
+        out.write("  !! AND THE sd IS IN ITEMS WHILE THE CURVE IS KEYED ON K/n "
+                  "ALONE, so a\n"
+                  "     dataset with a different K gets the SAME sd -- bcn at "
+                  "L90 (K=1147) and\n"
+                  "     iwildcam at L90 (K=333) were both handed 27.83, "
+                  "IDENTICALLY. Where that\n"
+                  "     matters an `sd transfer` line is printed per row: ABOVE "
+                  "the calibration\n"
+                  "     K the borrowed sd UNDER-states and prize/sd is "
+                  "FLATTERED; BELOW it the\n"
+                  "     reverse. The DIRECTION is knowable, the exponent is "
+                  "not, so a BRACKET\n"
+                  "     is printed and nothing is corrected automatically.\n")
     if borrowed:
         out.write("  *** BORROWED CALIBRATION: this is not iwildcam and its own "
                   "p@K and sd\n"
@@ -223,6 +282,30 @@ def report(rows, ccp=None, noise=None, out=sys.stdout, native=True):
                       "and sd are the ENDPOINT, not an interpolation"
                       % ratio)
         out.write("\n")
+        if noise is None:
+            xf = sd_k_transfer(k, ratio)
+            if xf:
+                k_cal, lo, hi = xf
+                # hi > 1 means K here EXCEEDS the K the sd was measured at, so
+                # the borrowed item-scale sd is too small and prize/sd is
+                # flattered. Below the calibration K it inverts, and saying
+                # "UNDER-states" unconditionally would be wrong in exactly the
+                # case a small candidate dataset hits.
+                bigger = hi > 1.0
+                corrected = sorted((rel / lo, rel / hi))
+                out.write("             ^ sd transfer: this sd was measured at "
+                          "K~%.0f, here K=%d. A borrowed ITEM-scale sd "
+                          "%s-states here,\n"
+                          "               so prize/sd %.2fx is %s by "
+                          "%.2fx..%.2fx -> true %.2fx..%.2fx; the correlated "
+                          "end (%.2fx) is likelier. MEASURE IT.\n"
+                          % (k_cal, k,
+                             "UNDER" if bigger else "OVER",
+                             rel,
+                             "FLATTERED" if bigger else "UNDERSOLD",
+                             min(lo, hi), max(lo, hi),
+                             corrected[0], corrected[1],
+                             rel / hi))
     if borrowed:
         out.write("\n  *** NOTHING WAS DECIDED. Every verdict above is "
                   "iwildcam's, applied to a\n"
