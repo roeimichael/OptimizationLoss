@@ -121,6 +121,22 @@ MEASURED_UNITS = {
     ("coin1", "RegNetY400MF"): "B1",        # B / dsisco01, == dom1b
     ("coin2", "MobileNetV2"): "A2",         # B / dsisco01, == equaldose1
     ("seed58a", "RegNetY400MF"): "B1",      # B / dsisco01, dom1b seeds 5-8
+    # 🛑 AND `price1` IS A2 AS WELL, ADDED 2026-09-11 THE DAY IT COMPLETED.
+    # It is the campaign built to answer the noise question -- the first in the
+    # corpus with THREE lambda=0 streams, so its floor rests on 12 observations
+    # and clears MIN_FLOOR_OBS. That made it tempting to read as a NINTH unit
+    # and it is not one: its MobileNetV2 `tralo_null` is BYTE-IDENTICAL to
+    # `equaldose1`'s and `coin2`'s in 4 of 4 seeds (e7be738bc8, 7758aef831,
+    # d77a1c47be, 0cf8acc779), while `dom1`'s MobileNetV2 differs at every seed
+    # (7f1ff13ebc, ...) -- which is the A1-vs-A2 host split doing exactly what
+    # the (backbone, host) key says it does.
+    #
+    # ⚠️ THIS ENTRY COSTS TraLO A UNIT, WHICH IS WHY IT IS HERE. Left
+    # UNVERIFIED, price1's two cells sit in their own bucket and A2 reads
+    # `2 of 3 cells TRALO`. Folded in where the md5 says they belong, A2 is
+    # `2 of 5` and flips to `rival`. A ledger that only ever ADDS replicates
+    # when they agree is not a ledger. FRAMEWORK 2(z97).
+    ("price1", "MobileNetV2"): "A2",        # B / dsisco01, == equaldose1
     # !! C2 IS LICENSED AND CAN NEVER CARRY A `task` CELL (2026-09-10).
     # `configs/task_windows.yml` gives iwildcam/MobileNetV3 `strict class 2:
     # []` -- a band measured EMPTY, because the row is the INTERSECTION of
