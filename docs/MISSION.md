@@ -26,7 +26,14 @@ refused SSH for most of 2026-09-11, but SSH RETURNED and the recount RAN TWICE.
 **F1 AND G1** IN THE LEDGER (2026-09-11): 8 of 27 = 30%, bar 50%, VERDICT FAIL.**
 Restricted to STRICT `task` cells it is **6 of 18 = 33%**; **per UNIT it is
 2 of 11** (only C2 and D2), and **3 cells are PRICED** with tralo winning 1 --
-record **1 win 2 losses**. Superseded: `7 of 25 = 28%, per unit 2 of 10` (before
+record **1 win 2 losses**. 🛑 **AND A FOURTH DENOMINATOR APPEARED THE SAME DAY,
+BECAUSE THE BAR WAS MISSING A HALF: adding `focal_clip` -- the OTHER post-hoc
+clipper, in every campaign at equal compute, never compared to anything --
+gives 7 of 27 = 26%.** It beats `tralo` in **12 of 33** cells and beats `clip`
+in ~20 of 33, so CLAUDE.md rule 2's "clip is the stronger quality bar" is false
+by measurement. Exactly one counted win is demoted: `bcn2rgn`/`L100_G95`, tralo
++2.25 against focal_clip +13.75. Printed BESIDE the old figure, never instead
+(2(z108)'s rule about numbers that only move one way). FRAMEWORK 2(z112). Superseded: `7 of 25 = 28%, per unit 2 of 10` (before
 G1), `7 of 23 = 30%, per unit 2 of 9` (before
 F1 landed), `6 of 22 = 27%, per unit 2 of 8`, and the never-run
 `6 of 24 = 25%`. 🛑 **D2 AND F1 ARE THE SAME DATASET AND MUST BE QUOTED
