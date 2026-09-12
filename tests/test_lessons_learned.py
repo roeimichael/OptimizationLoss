@@ -572,7 +572,7 @@ def test_every_script_that_offers_a_self_test_actually_PASSES_it():
     """2026-08-25 "the out-of-tree guard refused unconditionally on a first
     launch" -- a guard that can never pass is not a guard.
 
-    SUBJECTS = 43 modules under `scripts/` and `configs/` carry `--self-test`.
+    SUBJECTS = 44 modules under `scripts/` and `configs/` carry `--self-test`.
     Each is the only thing standing between that tool and a silently wrong
     number, and NOTHING runs them together: they are invoked by hand, one at a
     time, when someone remembers. On 2026-09-02 a broken self-test fixture in
@@ -2494,6 +2494,13 @@ SORTS = ("argsort", "argpartition", "topk", "nlargest", "sort",
 #               loss, fixture construction
 #   SELF-TEST   inside a --self-test fixture
 ARGSORT_SITES = {
+    "scripts/ens_panel.py::panel::argsort(-P[idx, c])":
+        "DEPLOYED it sits INSIDE `for gg in np.unique(g)`, sorting that "
+        "group's own `idx` and taking that group's own "
+        "K = round(n_g * lpct), which is what the allocator does. Read "
+        "and confirmed by hand when `snap/slice-provenance` merged "
+        "2026-09-12 -- the merge brought in a file the mainline gate "
+        "had never scanned, and this gate is what surfaced it.",
     "scripts/bias_shift_probe.py::kendall_tau::argsort(-a)":
         "NOT-A-CUT rank correlation, pure algebra, no budget",
     "scripts/bias_shift_probe.py::run::argsort(-z0)":

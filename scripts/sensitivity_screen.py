@@ -174,7 +174,6 @@ REFERENCE_ARMS = ("tralo_null", "alm_null", "fioretto_null", "hounie_null",
 # being measured inside the floor it is measured against. The error runs the
 # unintuitive way -- the contaminated floor is too LOW (median 4.0 vs 6.5 on
 # dom1), so it refuses too seldom. Do not "fix" it back.
-FLOOR_FAMILIES = ("tralo", "alm", "fioretto", "hounie")
 # Arms excluded from the cross-arm comparison: a `_reseed` arm DEFINES the
 # floor, so letting it widen the spread it is compared against would make
 # every cell look differentiated.

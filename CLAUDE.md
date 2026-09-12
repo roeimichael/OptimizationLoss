@@ -366,7 +366,7 @@ python -m pytest tests -q                   # 639 regression tests, ~295s, no da
 #   rejected backbones and datasets with the measured reason each was dropped,
 #   the ten deleted config footguns, the BF16/compute-capability split between
 #   the two hosts, the oldest allocator bug (an argmax fallback that ignored the
-#   cap), the local-scope mirror of it, and a sweep that RUNS all 43 `--self-test`
+#   cap), the local-scope mirror of it, and a sweep that RUNS all 44 `--self-test`
 #   entry points -- nothing else ever ran them together. Every entry is dated and
 #   was mutation-tested: 13 mutations, 13 caught, including a false-positive
 #   control that a COMMENT naming a deleted key must NOT fire.
@@ -810,9 +810,40 @@ python -m scripts.campaign_state            # 🛑 THE THIRD STALENESS AXIS, AND
 #   ⚠️ Follows `floors.py`'s rule: it must not import anything reaching `src/`,
 #   because its callers run in worktrees PINNED at older commits. Module-level
 #   imports: `os`, and nothing else.
-python -m scripts.dead_code --paths configs src   # what is DECLARED and never
+python -m scripts.ens_panel <root> --base tralo --k 1   # 🛑 FOUR METRIC
+#   FAMILIES SIDE BY SIDE, AND TWO OPERATING POINTS. `deployed_h2h` reports
+#   allocation, `full_panel` reports its own re-derived allocation; neither
+#   answers whether a win is MECHANISTICALLY possible.
+#   🔑 RANKING IS THE ONLY FAMILY THAT CAN CHANGE A TOP-K SET -- post-hoc
+#   allocation is optimal GIVEN the probabilities, distribution-free, so the
+#   only way an arm moves a deployed item is by re-ranking. An allocation win
+#   with no ranking win is an allocator artefact. CALIBRATION (negBrier,
+#   negNLL) is allocation-FREE and can only price a COST, never win.
+#   COLLATERAL (uncapF1) is the damage channel every capped-class metric is
+#   blind to. Signs are forced so higher is better in every column.
+#   🛑 `gAP` IS PER-GROUP AND `capAP` IS GLOBAL, AND THE ALLOCATOR IS
+#   PER-GROUP. A global AP measures an ordering the system never uses. Both
+#   print because they disagree; the self-test gates that gAP is INVARIANT to
+#   a between-group shift preserving within-group order while capAP MOVES.
+#   ⚠️ `--k` IS AN OPERATING POINT, NOT A DETAIL. k=1 scores each seed alone
+#   (the protocol). k>1 builds C(n,n-1) leave-one-out ensembles, each arm
+#   ensembling its OWN seeds, so it stays equal compute ACROSS ARMS.
+#   MEASURED ON bcn1mn3: at k=1 EVERY arm-vs-arm contrast reads 2/4 -- a coin
+#   flip -- and at k=3 stable orderings appear. A finding at k=3 and not at
+#   k=1 is about VARIANCE, not method. SAY WHICH.
+#   ⚠️ AND n/n IS STABILITY, NOT SIGNIFICANCE: at k>1 the replicates share
+#   members, so 4/4 means no single seed carries the sign. NOT p=0.0625.
+#   `--self-test` gates it, 11 checks, 3 of them negative controls.
+python -m scripts.dead_code --paths configs src scripts main.py   # what is DECLARED and never
 #   referenced. AST, never grep: a name in a docstring is not a call. A REPORT,
 #   not a gate -- a getattr-built call is invisible to it, so confirm by hand.
+#   ⚠️ **NAME ALL FOUR PATHS.** The invocation here read `--paths configs src`
+#   until 2026-09-12, so `main.py` and `scripts/` were never scanned --
+#   `print_status_summary` reported UNREFERENCED on every run while `main.py`
+#   imports it at line 22 and calls it twice. A permanent false positive
+#   teaches readers to skim the output, which is how the four REAL dead
+#   symbols beside it survived. With all four paths: 984 definitions, none
+#   unreferenced.
 python -m scripts.full_panel --campaign <root> --control clip   # THE scorer, seed-paired
 #   ^ 🛑 READ ITS `CONSTRAINT DOSE` BLOCK ON THE FIRST COMPLETED RUNS,
 #     NOT AT THE END. A non-finite constraint gradient makes

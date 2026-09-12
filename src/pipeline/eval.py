@@ -26,7 +26,8 @@ log = logging.getLogger(__name__)
 def evaluate_with_posthoc(model, X_test, y_test, group_ids, global_con, local_con,
                           constrained_classes, *,
                           skip_targeted_correction=False,
-                          precomputed_predictions=None):
+                          precomputed_predictions=None,
+                          precomputed_proba=None):
     """Inference + targeted_correction + metrics (incl. Track1).
 
     skip_targeted_correction=True with precomputed_predictions: caller already
@@ -35,7 +36,15 @@ def evaluate_with_posthoc(model, X_test, y_test, group_ids, global_con, local_co
     Returns dict: y_pred, y_proba, raw_pred, metrics, adj, posthoc_meta.
     """
     model.eval()
-    raw_pred, y_proba = get_predictions_with_probabilities(model, X_test)
+    if precomputed_proba is not None:
+        # Snapshot-averaged probabilities from the constraint phase. The argmax
+        # is re-derived here rather than passed in, so `raw_pred` and `y_proba`
+        # cannot disagree -- an inconsistent pair would make `compute_flips`
+        # and the raw-satisfaction block describe two different models.
+        y_proba = precomputed_proba
+        raw_pred = y_proba.argmax(axis=1)
+    else:
+        raw_pred, y_proba = get_predictions_with_probabilities(model, X_test)
     # Check the PROBABILITIES, not the metrics derived from them. All-NaN
     # logits argmax to class 0, which scores like a degenerate but healthy
     # classifier -- every summary number comes out finite and the run is

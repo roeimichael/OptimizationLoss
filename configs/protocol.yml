@@ -121,6 +121,17 @@ chunked:
 
 blocks:
   tralo:
+    # Snapshot averaging, OFF. Declared so the inline
+    # `hp.get("snapshot_burn_in", -1)` cannot disagree with the
+    # protocol -- the `hounie_eta_lambda` defect, where the fallback
+    # was 0.1 and the protocol said 0.01 and every config omitting the
+    # key ran a different method invisibly.
+    # Scoped to THIS block, not constraint_phase: only tralo/train.py
+    # has a reader, and audit_config checks per ARM, so emitting it on
+    # fioretto/hounie/alm is a hallucinated key. Giving the duals a
+    # real reader is what a fair head-to-head needs and is separate
+    # work -- until then, only tralo-family arms can be snapshotted.
+    snapshot_burn_in: -1
     lambda_step: 0.05
     lambda_global: 0.01       # initial lambda, global scope
     lambda_local: 0.01        # initial lambda, local (per-group) scope
@@ -400,6 +411,45 @@ blocks:
   # discovered in it.
   tralo_head:
     head_only: true
+  # SNAPSHOT AVERAGING -- score the MEAN of the constraint phase, not its last
+  # epoch. Measured on bcn1mn3 over 15 arms: fitting a line to the per-epoch
+  # test count over epochs 10+ gives median r^2 = 0.01-0.10 and a residual sd
+  # equal to the total sd, i.e. ~107 items of PURE JITTER with no drift. The
+  # final epoch is one draw from a ~100-item-wide distribution and the other
+  # nineteen are discarded. Ensembles of 3 SEEDS of the same runs gain +9 to
+  # +38 deployed items, which is larger than any method effect this project
+  # has measured.
+  #
+  # FREE: tralo/train.py already softmaxes the whole test set every constraint
+  # epoch, under no_grad in eval mode, to build the soft counts. Those
+  # probabilities were computed and thrown away. This adds an accumulator and
+  # ONE extra forward pass per run.
+  #
+  # 🛑 NOT A TraLO ADVANTAGE. Every arm jitters the same (tralo_null 104.9,
+  # alm 124.5, hounie 112.4), so this is a PROTOCOL defect, not a method. It
+  # is free for trained arms and costs 30 test passes for clip/focal_clip/lp,
+  # whose warm-up never evaluates. A campaign that gives it to TraLO alone is
+  # not comparing like with like.
+  #
+  # PRE-REGISTERED PREDICTION, written before a single run: at the
+  # single-model operating point every arm-vs-arm contrast on bcn1mn3 reads
+  # 2/4 -- a coin flip -- and only 3-seed ensembles produce stable orderings.
+  # If the jitter story is right, `tralo_snap` must make the ordering visible
+  # at k=1. If it gains items but the contrasts stay 2/4, the gain is a level
+  # shift shared with every arm and buys nothing.
+  #
+  # Burn-in 10 of 29: `snapdiv` measured the jitter on epochs 10+, so this is
+  # the window the falsifier actually cleared. It is not tuned.
+  tralo_snap:
+    snapshot_burn_in: 10
+  # THE IDENTITY CONTROL, and it is meant to be RUN, not just described. A
+  # burn-in past the end of the constraint phase captures the final model
+  # ALONE, so snap_n == 1 and the emitted probabilities must be BYTE-IDENTICAL
+  # to plain `tralo` at the same seed. If they are not, the accumulator is not
+  # reading what the scorer reads and every `tralo_snap` number is void.
+  # Cheap: 4 runs, once, beside `tralo`.
+  tralo_snapid:
+    snapshot_burn_in: 999
   # THE EQUAL-DOSE CONTROL FOR EVERY HEAD-TO-HEAD. Measured 2026-08-30 on dom1
   # and dom1b: `tralo` and `alm` attempt 29 constraint steps per run while
   # `fioretto` and `hounie` attempt 28, at an identical `constraint_epochs: 29`
@@ -938,6 +988,27 @@ arms:
   tralo_head:
     {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, tralo_head],
      null_sibling: tralo_null}
+  # Snapshot averaging. See the tralo_snap block above for the jitter
+  # measurement that motivates it and for the pre-registered prediction.
+  tralo_snap:
+    {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, tralo_snap],
+     null_sibling: tralo_null}
+  # Its identity control: burn-in past the end of the phase averages ONE model,
+  # so this must emit predictions byte-identical to `tralo` at the same seed.
+  tralo_snapid:
+    {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo, tralo_snapid],
+     null_sibling: tralo_null}
+  # THE ARM THAT DECIDES WHAT SNAPSHOT AVERAGING IS. `tralo_null` with the
+  # same accumulator: same warm-up, same allocator, same seeds, lambda = 0. If
+  # averaging lifts this as much as it lifts `tralo`, the gain is variance
+  # reduction available to EVERY arm and snapshot averaging is a protocol fix,
+  # not a TraLO advantage -- and the honest next step is to give it to the
+  # duals and the clippers too. If it lifts `tralo` MORE, the constraint phase
+  # is generating usefully diverse models and that IS a TraLO property.
+  # Measured input: the per-epoch jitter is the same size for every arm
+  # (tralo 107.3, tralo_null 104.9, alm 124.5), which predicts the FORMER.
+  tralo_snap_null:
+    {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo_null, tralo_snap]}
   # Same code path as tralo, treatment zeroed. See the tralo_null block above.
   tralo_null: {methodology: tralo,          phase: trained, blocks: [constraint_phase, tralo_null]}
   # THE RESEED CONTROL. `tralo_null` plus one draw from the global generator --

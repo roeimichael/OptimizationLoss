@@ -66,11 +66,16 @@ def _encode_groups(col, group_col):
     except (ValueError, TypeError) as exc:
         # REPORTED, not swallowed. The fall-through IS deliberate -- a
         # non-integer group column is factorised below and that is announced
-        # -- but `except: pass` in a data path is indistinguishable from a
-        # drop until someone reads the next twelve lines, and this function
-        # decides what every per-group budget is computed over. Naming the
-        # exception says WHICH column shape was rejected, which is the part
-        # the factorise message cannot carry.
+        # -- but a bare `except: pass` in a data path is indistinguishable
+        # from a drop until someone reads the next twelve lines, and this
+        # function decides what every per-group budget is computed over. It is
+        # exactly what `test_no_scorer_or_gate_DROPS_DATA_WITHOUT_SAYING_SO`
+        # exists to catch.
+        # Naming the exception says WHICH column shape was rejected -- the
+        # part the factorise message cannot carry -- and it separates the two
+        # real cases: a genuinely non-numeric column, and a numeric one with a
+        # stray token in it, which SHOULD be investigated rather than quietly
+        # factorised into 4000 levels.
         log.info("group column %r is not an integer column (%s: %s); "
                  "factorising by sorted unique value",
                  group_col, type(exc).__name__, exc)

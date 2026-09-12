@@ -352,12 +352,6 @@ def emitted_alloc(data):
     return allocate(data.ref_probs, data.groups, G, L, data.classes)
 
 
-def emitted_K(data):
-    """Per-class emitted counts, read off the assignment."""
-    alloc = emitted_alloc(data)
-    return {c: int((alloc == c).sum()) for c in data.classes}
-
-
 def probe(data, deltas_for, rng):
     """One ProbeData -> per-class straddle, each beside its shuffled control.
 

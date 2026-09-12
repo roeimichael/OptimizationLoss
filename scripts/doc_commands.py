@@ -78,20 +78,15 @@ FLAG = re.compile(r"(--[A-Za-z][A-Za-z0-9-]*)")
 # 🛑 AND A STALE ENTRY IS ITSELF A FAILURE: if the module comes back, the gate
 # says so, because an allowlist nobody prunes becomes a list of things nobody
 # checks.
+# Modules the docs may name that are not importable HERE, each with a reason
+# that states a FACT rather than an intention. An exemption whose reason is a
+# ticket is a defect with a comment attached (2(z81)), which is why the entry
+# for `scripts.ens_panel` is gone: it read "NOT YET MERGED ... task #103" for
+# days, and `snap/slice-provenance` merged 2026-09-12 once its two named
+# blockers (`price2` 80/80, `bcn2mn2` 96/96) had both completed. The ROT check
+# below is what surfaced it -- the entry outlived its reason by exactly as long
+# as it took to run the tool again.
 ABSENT_OK = {
-    "scripts.ens_panel":
-        "lives on `snap/slice-provenance`, which is NO LONGER stranded: "
-        "fetched from dsisco02 and pushed to origin 2026-09-11, so it is now "
-        "on two disks plus GitHub rather than one. It had never been pushed "
-        "anywhere -- `git branch -r --contains 37e364c7` was empty -- while "
-        "`snap2` (COMPLETE, 96/96) ran from it and stamps a `code_version` no "
-        "other checkout could resolve. FRAMEWORK 2(z67), 2(z96). "
-        "NOT YET MERGED, and that is a schedule decision: `ens_panel` sits "
-        "beside `tralo_snap` and a `data_loader` change that touch `src/`, "
-        "frozen while `price2` and `bcn2mn2` run, because `code_version` is a "
-        "git hash and any edit splits a live campaign. The two commits that "
-        "do NOT touch a training path were cherry-picked on the day they were "
-        "found. Merge the rest after the last run lands -- task #103.",
 }
 
 # argparse supplies these itself.

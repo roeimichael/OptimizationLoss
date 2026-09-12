@@ -106,8 +106,21 @@ def main():
             K = int(gcon[1])
             res = TRAIN_FNS[P["arms"][arm]["methodology"]](inp)
             res.model.eval()
-            with torch.no_grad():
-                p = torch.softmax(res.model(inp.X_test), dim=1).numpy().astype(np.float64)
+            # 🛑 HASH WHAT THE SCORER READS, NOT WHAT THE MODEL EMITS.
+            # Until 2026-09-09 this hashed `res.model(X_test)` only, so any
+            # treatment carried on TrainOutputs rather than in the WEIGHTS was
+            # invisible: `tralo_snap` averages the constraint phase and trains
+            # a bit-identical model BY DESIGN, and this tool called it INERT
+            # and said "do not launch a campaign on it". That is the same
+            # false verdict, in the opposite direction, as the six real inert
+            # flags this gate exists to catch -- and a gate that cannot fail
+            # correctly is worse than none.
+            if getattr(res, "snapshot_proba", None) is not None:
+                p = np.asarray(res.snapshot_proba, dtype=np.float64)
+            else:
+                with torch.no_grad():
+                    p = torch.softmax(
+                        res.model(inp.X_test), dim=1).numpy().astype(np.float64)
             rows.append((arm,
                          hashlib.md5(np.round(p, 8).tobytes()).hexdigest()[:12],
                          float(p[:, 1].sum()), int((p.argmax(1) == 1).sum()),

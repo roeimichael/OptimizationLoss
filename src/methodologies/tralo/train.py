@@ -118,6 +118,15 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     ORTHO_PROJECT = bool(hp.get("ortho_project", False))
     ortho_skipped = 0
     HEAD_ONLY = bool(hp.get("head_only", False))
+    # SNAPSHOT AVERAGING. -1 disables it and is the default, so every existing
+    # config keeps its behaviour bit for bit. >= 0 is the first constraint
+    # epoch (0-indexed) whose transductive probabilities enter the average;
+    # the final model is always included. A value >= constraint_epochs
+    # therefore captures the final model ALONE, which must reproduce plain
+    # `tralo` byte for byte -- that is the negative control.
+    SNAP_BURN_IN = int(hp.get("snapshot_burn_in", -1))
+    snap_sum = None
+    snap_n = 0
     step_cfg = read_step_config(hp)
     CUT_WINDOW_ITEMS = int(hp.get("cut_window_items", 5))
     STRAIGHT_THROUGH = bool(hp.get("straight_through", False))
@@ -364,6 +373,19 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         optimizer.zero_grad(set_to_none=True)
         n_test = len(X_test)
         n_chunks = (n_test + chunk_size - 1) // chunk_size
+        # Pass 1 runs BEFORE this epoch's constraint step, so this snapshot is
+        # the model after `epoch` steps, not `epoch + 1`.
+        take_snap = SNAP_BURN_IN >= 0 and epoch >= SNAP_BURN_IN
+        if take_snap and snap_sum is None:
+            snap_sum = torch.zeros(n_test, num_classes, device=device)
+        if take_snap:
+            # COUNTED HERE, beside the accumulation it pairs with. It was
+            # previously incremented only by the final pass below, so
+            # `snap_sum / snap_n` divided a SUM of 21 softmax vectors by 1 and
+            # the emitted rows summed to 21.0 instead of 1.0. Incrementing at
+            # the same site as the guard that enables the accumulation is what
+            # makes the two impossible to separate again.
+            snap_n += 1
 
         with torch.no_grad():
             total_global_soft = torch.zeros(num_classes, device=device)
@@ -388,6 +410,8 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                     kept_margins.append(margins(chunk_proba))
                 if kept_proba is not None:
                     kept_proba.append(chunk_proba)
+                if take_snap:
+                    snap_sum[start:end] += chunk_proba
                 total_global_soft += chunk_proba.sum(dim=0)
                 total_global_hard += torch.bincount(
                     chunk_preds, minlength=num_classes).float()
@@ -727,11 +751,51 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     reorder = reordering_report(model, X_test, warmup_scores, constrained_classes,
                                 chunk_size)
 
+    # The FINAL model, which pass 1 never sees because it runs before each
+    # epoch's step. One extra forward pass per RUN, against the 29 the loop
+    # already does. Accumulated unconditionally when the key is on, so that
+    # `snapshot_burn_in >= constraint_epochs` yields snap_n == 1 and the
+    # negative control is exact rather than approximate.
+    snapshot_proba = None
+    if SNAP_BURN_IN >= 0:
+        model.eval()
+        if snap_sum is None:
+            snap_sum = torch.zeros(len(X_test), num_classes, device=device)
+        with torch.no_grad():
+            nt = len(X_test)
+            for start in range(0, nt, chunk_size):
+                end = min(start + chunk_size, nt)
+                snap_sum[start:end] += F.softmax(
+                    model(X_test[start:end]), dim=1)
+        snap_n += 1
+        snapshot_proba = (snap_sum / float(snap_n)).float().cpu().numpy()
+        log.info("snapshot average over %d model(s), burn-in %d",
+                 snap_n, SNAP_BURN_IN)
+        # A burn-in INSIDE the phase must average more than the final model.
+        # This is the exact defect above, made loud: it would have raised on
+        # the first run rather than emitting 96 runs of unnormalised
+        # probabilities that every ranking metric reads correctly and every
+        # calibration metric reads as garbage.
+        if SNAP_BURN_IN < constraint_epochs and snap_n <= 1:
+            raise RuntimeError(
+                "snapshot_burn_in=%d is inside a %d-epoch constraint phase but "
+                "only %d model(s) were averaged. The per-epoch accumulator did "
+                "not run, so the emitted probabilities are a SUM, not a mean."
+                % (SNAP_BURN_IN, constraint_epochs, snap_n))
+        # And the mean of probability vectors is a probability vector. If it
+        # is not, the divisor disagrees with the number of terms.
+        _rs = float(snapshot_proba.sum(axis=1).max())
+        if not (0.99 <= _rs <= 1.01):
+            raise RuntimeError(
+                "snapshot rows sum to %.4f, not 1.0 -- snap_sum and snap_n "
+                "disagree (%d models)." % (_rs, snap_n))
+
     final_soft_hard_gap = {c: abs(g_soft.get(c, 0) - g_counts.get(c, 0))
                            for c in constrained_classes}
 
     return TrainOutputs(
         model=model,
+        snapshot_proba=snapshot_proba,
         summary={
             "satisfaction_epoch": satisfaction_epoch,
             "best_sat_epoch": best_sat_epoch,
@@ -747,5 +811,10 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             # tau near 1.0 with a large bias_shift = the count moved and the
             # RANKING did not, which 9 of the scorer's 13 metrics cannot see.
             "reordering": reorder,
+            # How many models the scored probabilities actually average. 0
+            # means the key was off; 1 with the key on is the negative
+            # control; anything else is the live arm. Recorded so a scorer can
+            # tell a snapshot run from a plain one without re-reading configs.
+            "snapshot_models": int(snap_n),
         },
     )

@@ -149,7 +149,6 @@ def run_check(name, argv, root, verbose):
 # pytest's exit codes. 1 is the only one that means "it ran and something
 # failed"; the rest mean the bucket never executed. Treating 2 as a failure
 # reports RED on a healthy campaign, and a gate that cries wolf gets ignored.
-PYTEST_RAN_AND_FAILED = 1
 PYTEST_COULD_NOT_RUN = (2, 3, 4, 5)
 
 

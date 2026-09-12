@@ -167,6 +167,7 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         global_con, local_con, constrained_classes,
         skip_targeted_correction=train_outputs.skip_targeted_correction,
         precomputed_predictions=train_outputs.precomputed_predictions,
+        precomputed_proba=train_outputs.snapshot_proba,
     )
     best_metrics = result['metrics']
     best_adj = result['adj']

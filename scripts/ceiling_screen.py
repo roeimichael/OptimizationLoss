@@ -69,7 +69,6 @@ import os
 import sys
 
 SEED_NOISE_ITEMS = 2.11          # iwc3, paired within-cell sd. FRAMEWORK 2(p-post)
-MEASURED_CCP = 0.9954            # iwc3, `tralo_null` against `clip`
 
 # 🛑 A FIXED p IS WRONG, AND IT WAS WRONG HERE FIRST. `p` is precision at the
 # cut, and it FALLS as the budget grows -- a bigger K reaches further down the
