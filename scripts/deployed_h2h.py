@@ -316,6 +316,62 @@ def _is_lambda0_stream(arm, fam):
     return stream_family(arm) == fam
 
 
+def floor_averaged(floor, nseed):
+    """The floor a difference of arm MEANS is commensurate with.
+
+    🛑 THE TWO SIDES OF `spread <= floor` ARE NOT THE SAME KIND OF NUMBER, AND
+    NOTHING SAID SO UNTIL 2026-09-12. `spread` is a #1-vs-#2 margin built from
+    arm means over `nseed` seeds. `floor` is `rng_floor`'s median over seeds of
+    |null(s) - reseed(s)| -- the width of a SINGLE-RUN difference. Comparing a
+    mean against a single-draw width over-prices by sqrt(nseed): 2.0x at the
+    protocol's 4 seeds, 3.46x at 12.
+
+    MEASURED 2026-09-12, and the law is not assumed. Over 4 cells on 2
+    backbones at 8 pooled seeds (`vitdual2`+`vitseed1`, `dom1b`+`seed58a`), the
+    median |mean of n paired lambda=0 differences| tracks `floor/sqrt(n)` at
+    ratios 0.21-1.26, median 0.94 -- and the paired differences are zero-mean
+    (-2.75, -0.38, +1.12, +3.38 against sds of 6.6-9.8), which is what makes
+    the averaging legitimate.
+
+    ⚠️ THE LAW IS SPECIFIC TO A ZERO-MEAN PAIR, AND THE NEGATIVE CONTROL IS
+    WHAT ESTABLISHES THAT. `clip` vs `focal_clip` carries a REAL offset on both
+    ViT cells (mean -7.00, -7.25) and PLATEAUS at exactly that offset instead
+    of shrinking -- 13.00 at n=1 to 7.25 at n=8, the ratio CLIMBING to 2.20. So
+    averaging does not shrink a difference that is there; it shrinks the part
+    that is noise. A lambda=0 pair differs in the RNG stream and nothing else,
+    which is precisely why it is the thing called a floor.
+
+    ⛔ THIS IS NOT THE DECISION, AND MUST NOT BECOME IT SILENTLY. A correction
+    that only ever moves a number toward the method is the suspicious kind
+    (2(z108)), and this one moves every margin toward being nameable. It is
+    printed BESIDE the conservative reading with every disagreeing cell named,
+    the same way `focal_clip` was added to the acceptance bar in 2(z112) -- and
+    it promotes RIVAL-led cells on exactly the same terms.
+    """
+    if floor is None or nseed is None or nseed < 1:
+        return None
+    return floor / (nseed ** 0.5)
+
+
+def averaged_reading_applies(margin, floor, nfloor, nseed):
+    """Does the second reading have anything to SAY about this cell?
+
+    The window is half-open at both ends and each end fails differently. BELOW
+    it the margin loses on either reading, so there is nothing to report and a
+    line would just be noise. ABOVE it the margin already cleared the
+    conservative floor and the table has NAMED a #1 -- printing a second
+    endorsement would double-count the cell.
+
+    ⚠️ THE WINDOW LIVES HERE AND THE GATE CALLS IT. Restating the condition in
+    the test would make the test a comment with an assert attached: it would go
+    green on a fixture while the call site drifted, which is the defect
+    `cellreport` was extracted to remove.
+    """
+    if floor is None or margin is None or nfloor < MIN_FLOOR_OBS:
+        return False
+    return margin <= floor < margin * (nseed ** 0.5)
+
+
 def floor_verdict(order, floor, nfloor, nstream=0):
     """Why this cell may NOT name a #1, or None if it may.
 
@@ -532,6 +588,7 @@ def report(cells, control, w=sys.stdout.write):
     """Print one block per cell. Returns the machine-readable rows."""
     rows = []
     n_named = n_refused = n_unstable = n_disagree = n_unequal = 0
+    n_avg_only, avg_only = 0, []
     for key in sorted(cells):
         cell = cells[key]
         root, model, ds, cap, capped = key
@@ -607,6 +664,28 @@ def report(cells, control, w=sys.stdout.write):
             w("  #1: %s   (#1-vs-#2 margin %.1f items > RNG floor %.1f; "
               "range over all %d arms %.1f -- NOT the bar)\n"
               % (order_tp[0][0], margin, floor, len(order_tp), spread))
+
+        # THE SECOND READING, BESIDE THE DECISION AND NEVER INSTEAD OF IT.
+        # `floor` is a single-run width; `margin` is a difference of means over
+        # `nseed` seeds. `floor_averaged` is what the margin is commensurate
+        # with. Printed only where the two READINGS DISAGREE, because a line on
+        # every cell is a line nobody reads -- and the disagreement is the
+        # finding. See `floor_averaged` for the measurement and its control.
+        f_avg = floor_averaged(floor, nseed)
+        if (f_avg is not None and len(order_tp) > 1
+                and averaged_reading_applies(margin, floor, nfloor, nseed)):
+            n_avg_only += 1
+            avg_only.append((root, model, ds, cap, order_tp[0][0],
+                             order_tp[1][0], margin, floor, f_avg, nseed))
+            w("  ** SEED-AVERAGED FLOOR DISAGREES: the margin %.1f is under the\n"
+              "     single-run floor %.1f but over the %d-seed floor %.1f "
+              "(= %.1f/sqrt(%d)).\n"
+              "     A margin of MEANS is commensurate with the second, not the\n"
+              "     first. `%s` over `%s` is nameable on that reading and is\n"
+              "     NOT named here. Measured law, negative control in\n"
+              "     `floor_averaged`. This is a READING, not the verdict.\n"
+              % (margin, floor, nseed, f_avg, floor, nseed,
+                 order_tp[0][0], order_tp[1][0]))
         if len(first_tp) > 1:
             n_unstable += 1
             w("  !! JACKKNIFE UNSTABLE: dropping ONE seed makes #1 any of {%s}\n"
@@ -623,6 +702,18 @@ def report(cells, control, w=sys.stdout.write):
     w("%s\n" % ("=" * 78))
     w("%d cells: #1 NAMED in %d, REFUSED in %d (inside the RNG floor, or the floor itself unestimated)\n"
       % (len(rows), n_named, n_refused))
+    if n_avg_only:
+        w("%d cell(s) are nameable on the SEED-AVERAGED floor and are NOT\n"
+          "  named above. `floor` is a single-run width; the margin is a\n"
+          "  difference of arm MEANS over n seeds, and the commensurate\n"
+          "  comparator is floor/sqrt(n) -- 2.0x at 4 seeds. Measured law,\n"
+          "  negative control in `floor_averaged`. A READING, not the\n"
+          "  verdict; it promotes rival-led cells on the same terms.\n"
+          % n_avg_only)
+        for rt, md, ds_, cp, a1, a2, mg, fl, fa, ns in avg_only:
+            w("    %-11s %-13s %-13s %-5s %s > %s  margin %.1f  "
+              "floor %.1f -> %.1f (%d seeds)\n"
+              % (rt, md, ds_, cp, a1, a2, mg, fl, fa, ns))
     w("%d cells are JACKKNIFE-UNSTABLE (one dropped seed changes #1)\n" % n_unstable)
     w("%d cells have items and ccF1 disagreeing on the order\n" % n_disagree)
     w("%d cells compare arms at UNEQUAL SPEND -- see the !! blocks\n"
@@ -957,6 +1048,46 @@ def self_test(w=sys.stdout.write):
     check(floor_verdict([("tralo", 620.0), ("alm", 610.0),
                          ("hounie", 600.0)], 5.0, 99) is None,
           "  LIVENESS: a genuine 10.0 margin over the runner-up is still NAMED")
+
+    # ---- the SEED-AVERAGED floor (2026-09-12) -------------------------------
+    # `floor` is a single-run width; the margin it is compared against is a
+    # difference of arm MEANS over n seeds. These pin the arithmetic AND the
+    # three ways the second reading must stay silent, because a reading that
+    # fires on every cell is one nobody checks.
+    check(abs(floor_averaged(25.5, 4) - 12.75) < 1e-9,
+          "  seed-averaged floor is floor/sqrt(n): 25.5 at 4 seeds -> 12.75")
+    check(abs(floor_averaged(10.0, 1) - 10.0) < 1e-9,
+          "NEGATIVE CONTROL: at ONE seed the correction is a NO-OP -- the two "
+          "readings must coincide exactly, or it is not a seed correction")
+    check(floor_averaged(None, 4) is None and floor_averaged(5.0, 0) is None,
+          "NEGATIVE CONTROL: no floor, or no seeds, yields no second reading")
+    # The disagreement window is half-open on BOTH ends, and each end has its
+    # own way of being wrong. Below it the margin loses on either reading, so
+    # there is nothing to report; above it the margin already WON on the
+    # conservative reading and announcing a second one would double-count a
+    # cell the table has already named.
+    fires = lambda margin, floor, n: averaged_reading_applies(margin, floor, 99, n)
+    check(fires(15.75, 25.5, 4),
+          "  the window fires on bcn1vit/L90: margin 15.75, floor 25.5 -> 12.75")
+    check(not fires(15.75, 12.5, 4),
+          "NEGATIVE CONTROL: a margin already OVER the single-run floor does "
+          "NOT fire -- it is named by the verdict and must not be counted twice")
+    check(not fires(2.25, 21.5, 4),
+          "NEGATIVE CONTROL: a margin under BOTH readings (2.25 vs 21.5 -> "
+          "10.75) does NOT fire -- the correction must not rescue it")
+    check(not fires(15.75, 25.5, 1),
+          "NEGATIVE CONTROL: at ONE seed the window is EMPTY for every margin, "
+          "so the second reading can never fire without averaging")
+    # THE OBSERVATION GUARD, exercised rather than assumed. Every check above
+    # passes nfloor=99, so a mutation deleting this guard SURVIVED the first
+    # mutation round -- the gate could not see the branch it was guarding.
+    # Dividing a badly-estimated floor by sqrt(n) yields a smaller badly-
+    # estimated floor, which is the 2(z69) trap with extra arithmetic.
+    check(not averaged_reading_applies(15.75, 25.5, MIN_FLOOR_OBS - 1, 4),
+          "NEGATIVE CONTROL: a floor under MIN_FLOOR_OBS yields NO second "
+          "reading -- sqrt(n) does not rescue a floor that is unestimated")
+    check(averaged_reading_applies(15.75, 25.5, MIN_FLOOR_OBS, 4),
+          "  LIVENESS: exactly MIN_FLOOR_OBS observations DOES fire")
 
     w("\nSELF-TEST %s\n" % ("PASSED" if ok else "FAILED"))
     return 0 if ok else 1
