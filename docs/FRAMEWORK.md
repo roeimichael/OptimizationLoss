@@ -18998,3 +18998,71 @@ better; they do not shrink it. Buying seeds raises `nfloor` past its gate and
 sharpens the margin, and that is all. The earlier claim that `bcn1vit`/L90's
 floor of 25.5 would fall to 14.7 at 12 seeds was wrong: 25.5 is what it is, and
 only the seed-AVERAGED reading above moves with n.
+
+### 2(z115) SNAPSHOT AVERAGING CUTS THE NOISE ~3x -- AND THE lambda=0 TWIN TAKES THE WHOLE GAIN
+
+`snap2` (bcn / MobileNetV3 / dsisco01 float16, 96/96, 348/348 constraint steps
+on every trained arm, predictions intact) sat COMPLETE and UNREAD. It is the
+experiment 2(z114) asks for, and it was already paid for.
+
+THE KNOB IS `snapshot_burn_in`, and the control is EXACT rather than
+approximate. `tralo_snap` = 10, so it averages constraint epochs 10..29 = **20
+models** -- precisely what task #97 pre-registered. `tralo_snapid` = 999, past
+the end, so it averages ONE model, and it comes back **bitwise identical to
+`tralo` in 4/4 seeds x 3/3 caps** (`snapid - tralo = [0,0,0,0]` everywhere).
+`tralo` = -1, no snapshotting. An identity control that reproduces to the byte
+is the strongest form this gate can take.
+
+**THE NOISE, which is the whole point.** Seed-to-seed sd in deployed items:
+
+    cell        tralo  tralo_snap  |  tralo_null  tralo_snap_null
+    L70_G95      7.79        6.08  |      17.10             7.14
+    L80_G95     18.43       12.37  |      12.63             4.36
+    L90_G95     10.87        3.40  |      15.20             4.86
+
+The lambda=0 sd -- the noise floor itself -- falls **~3x** (17.1/12.6/15.2 ->
+7.1/4.4/4.9). `deployed_h2h`'s own power column moves with it: seeds needed at
+80% for the vs-`clip` contrast goes **30-160 for `tralo` to 1-5 for
+`tralo_snap`**, and snap2 is the ONLY campaign in the corpus with **0 of 3**
+cells jackknife-unstable, against 22 of 35 elsewhere.
+
+**AND THE MEAN MOVES TOO.** `tralo_snap` - `tralo` is +8.75 / +14.50 / +39.00
+items. At L90 plain `tralo` is **-11.00 against `clip`** and `tralo_snap` is
+**+28.00**, with `focal_clip` at +5.25 -- a 22.8-item margin over #2 that
+EXCEEDS its floor of 17.5 and is refused only because `nfloor` = 4 < 8.
+
+⛔ **BUT THE CONSTRAINT IS NOT WHAT WON. `tralo_snap_null` READS +29.00,**
+i.e. at or above `tralo_snap` in every cell. Averaging 20 checkpoints of plain
+CE and then clipping post-hoc beats the clipper by ~+20 to +29 items, which is
+an order of magnitude more than TraLO has ever produced, and the constraint
+adds nothing on top of it. Same shape as 2(g): a gain every arm shares raises
+the BASELINE and moves no contrast.
+
+🔑 **AND SAY IT AS `NOTHING DETECTABLE`, NOT `AVERAGING HURTS TraLO`, FOR TWO
+MEASURED REASONS.** (1) The gap is 1.00 item, deep inside any floor here.
+(2) `tralo_snap_null` is **CAP-INVARIANT -- byte-identical across all three cap
+levels in 4 seeds** (a lambda=0 arm takes zero constraint steps, so it cannot
+read the cap). Its three cells are ONE model reported three times, so
+"snap_null beats snap in 3 of 3" is **one observation**, not three. The tool
+flagged this; reading the table without it gives a three-fold overcount.
+
+🛑 **THE MISSING ARM, AND IT IS THE NEXT EXPERIMENT.** There is no
+`tralo_snap_reseed`, so `tralo_snap` is being priced against the NON-snap RNG
+floor -- a floor ~3x too large for it, built from arms whose sd is 3x higher.
+The snap family's OWN floor is unmeasured, and on these sds it would be ~5-6
+items rather than 17.5-26.5, which the 22.8-item margin clears outright. Add
+`tralo_snap_reseed` (the RNG twin of `tralo_snap_null`) and re-run on >= 2
+units before quoting any of this as a result.
+
+⚠️ ONE UNIT, 4 SEEDS, AND L70_G95 IS `non_task`. Rule 4 applies: this is a
+direction, not a measurement. What makes it worth acting on is not the size of
+the win but that it is the first low-noise cell the project has produced.
+
+🔑 **THE STRATEGIC READING. Averaging is FREE -- no extra training, no extra
+data, a different checkpoint to deploy -- and it cuts the floor ~3x.** 2(z114)
+measured that the corpus is unrankable because margins of 0.00-8.50 items sit
+against floors of 2.50-25.50. A 3x floor cut moves a large part of that
+distribution across. So the honest way to give TraLO a fair test is to deploy
+the average for EVERY arm and re-run the head-to-head -- accepting that on this
+unit, the moment the noise drops, what becomes visible is that TraLO is level
+with its own null.
