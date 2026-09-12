@@ -18892,3 +18892,109 @@ of 21.5 and 16.5 on 12 observations -- and both cells are JACKKNIFE UNSTABLE.
 The point estimates put a zero-constraint arm first; nothing here is priced.
 What IS established is that the acceptance instrument was not asking the
 question the project's goal sentence asks.
+
+### 2(z113) THE CLIP SWEEP CAME BACK FLAT -- THE LOSS-DESIGN PROGRAM CLOSES
+
+`clipsweep1` (bcn / ViTB16, L100_G95 + L90_G95, 88/88, 232/232 steps every arm,
+bfloat16, predictions intact) was built to answer ONE pre-registered question
+from 2(z82) section 2b: read `|tralo_clipXX - tralo_coin_clipXX|` across a 10x
+range in the only scalar `normalize` does not cancel. FLAT closes the
+loss-design program; GROWS reopens every closed family at the working dose.
+
+    clip    L100_G95   L90_G95     mean
+    0.3       23.50     20.50     22.00
+    1.0       14.25     25.50     19.88
+    3.0       25.50     16.25     20.88
+
+**FLAT. 1.11x across a 10x dose range**, and the two cells rank the three
+levels in OPPOSITE orders (L100: 3.0 > 0.3 > 1.0; L90: 1.0 > 0.3 > 3.0), which
+is the signature of noise rather than dose. So the working dose was never
+suppressing direction differences, and a new direction tested at a bigger step
+would not reveal anything the shipped step hid. Every family closed in section
+2 stays closed.
+
+KEY -- THE DIRECTION IS NOT NOISE, AND THAT IS THE OTHER HALF. `tralo_coin`
+is a RANDOM direction at the same delivered norm and scores +4.75 / +7.50
+against `clip`, while the ZERO-constraint `tralo_reseed2` scores +22.75 /
++20.00. A misdirected step of this size DESTROYS 15-18 items relative to doing
+nothing. The real direction is worth 20-25 items over the random one at every
+dose. So the information lives entirely in the DIRECTION and none of it in the
+MAGNITUDE -- which is why every magnitude knob has nulled, and it is a
+measurement, not an inference.
+
+STOP -- THE COIN GAP IS UNIT-DEPENDENT AND THAT IS NEW. `coin1`/`coin2` measured
+the same gap at clip=1.0 on iwildcam and got +4.25 / +2.25 / -4.00 / +1.75,
+every cell inside its own RNG floor. Here it is 14.25 and 25.50. The constraint
+direction carries 4-6x more information on bcn/ViTB16 than on iwildcam.
+`clipsweep2` (iwildcam / MNv2, running) adds 6 more gap measurements, and the
+PRE-REGISTERED expectation is that they are all small -- which makes it a
+WEAKER test of flatness, because a trend cannot be seen in a quantity that is
+zero everywhere. Say so when it lands; do not read a second flat result as
+independent confirmation.
+
+WARNING -- L90_G95 IS NOT A REPLICATION OF `bcn1vit`. All four `tralo` seeds are
+BYTE-IDENTICAL to `bcn1vit`'s (`bd88b8e8ba` `2d0696121c` `48c9c7c201`
+`065c4d7147`), because the warm-up cache hit and the pipeline is deterministic
+across commits (2(z111)). The +33.00 appears twice and is ONE measurement.
+L100_G95 is genuinely new, and TraLO LOSES it to both free references:
+`focal_clip` +28.25 and `tralo_reseed2` +22.75 against `tralo` +19.00.
+
+
+### 2(z114) THE FLOOR AND THE MARGIN WERE NOT THE SAME KIND OF NUMBER -- AND FIXING IT CHANGES NOTHING
+
+`deployed_h2h.floor_verdict` refuses a #1 when `margin <= floor`. Those two
+sides are not commensurate: `margin` is a #1-vs-#2 difference of arm MEANS over
+n seeds; `floor` is `rng_floor`'s median over seeds of |null(s) - reseed(s)|,
+the width of a SINGLE-RUN difference. Comparing a mean against a single-draw
+width over-prices by sqrt(n) -- 2.0x at the protocol's 4 seeds.
+
+MEASURED, NOT ARGUED. Over 4 cells on 2 backbones at 8 pooled seeds
+(`vitdual2`+`vitseed1`, `dom1b`+`seed58a`) the median |mean of n paired lambda=0
+differences| tracks `floor/sqrt(n)` at ratios 0.21-1.26, median 0.94, and the
+paired differences are ZERO-MEAN (-2.75, -0.38, +1.12, +3.38 against sds of
+6.6-9.8) -- which is what makes the averaging legitimate.
+
+NEGATIVE CONTROL, and it is what bounds the claim. `clip` vs `focal_clip`
+carries a REAL offset on both ViT cells (mean -7.00, -7.25) and PLATEAUS at
+exactly that offset instead of shrinking: 13.00 at n=1 to 7.25 at n=8, the
+ratio CLIMBING to 2.20. Averaging does not shrink a difference that is there;
+it shrinks the part that is noise. A lambda=0 pair differs in the RNG stream
+and nothing else, which is precisely why it is the thing called a floor.
+
+BESIDE, NEVER INSTEAD (2(z108)). This moves every margin toward being nameable,
+i.e. toward the method, which is the suspicious direction. The VERDICT still
+runs on the conservative single-run floor; the second reading prints only where
+the two disagree, names the cell, and promotes rival-led cells identically.
+Gated by 7 self-test checks, 5 of them negative controls (including that the
+correction is a NO-OP at one seed). Mutation-tested 5/5. The `nfloor` guard
+SURVIVED the first mutation round -- every check passed `nfloor=99`, so the gate
+could not see the branch it guarded; now exercised in both directions.
+
+KEY -- IT FIRES IN **0 OF 35 CELLS**, AND THAT IS THE RESULT. Audited over the
+eleven licensed-unit campaigns: 15 cells carry a floor above `MIN_FLOOR_OBS`,
+and in none of them does halving the floor change the answer. A correction in
+the method's favour that demonstrably rescues nothing is the strongest form a
+correction of this kind can take.
+
+STOP -- THE REASON IT RESCUES NOTHING IS THE REAL FINDING, AND IT IS ABOUT THE
+BENCHMARK, NOT ABOUT TraLO. Across all 35 cells the #1-vs-#2 margin is **0.00 to
+8.50 items** against floors of **2.50 to 25.50**. **Not one cell names a #1 on
+either reading.** And #1 is a different arm almost every time -- thirteen
+distinct arms take it, including `tralo_coin_sgd` (a RANDOM direction, #1 in 2
+of `bcn1mn3`'s 3 cells), `tralo_coin`, `tralo_reseed2` and `tralo_lam0` (ZERO
+constraint steps), and `tralo_uniform`. `bcn1mn3` is the unit carrying the
+project's ONLY priced TraLO win and its margins are 1.50-2.75 against floors of
+10.0-16.0.
+
+So TraLO's 28% acceptance is not evidence that TraLO is weak. It is evidence
+that this design cannot rank ANY of these methods: the run-to-run training
+noise (2.5-25.5 items) is the same size as the entire prize from `clip` to a
+PERFECT allocator (11.7-21.2 items, 2(z77)). That was ESTIMATED from two
+medians under a normality assumption; it is now measured corpus-wide.
+
+WARNING -- SEEDS DO NOT FIX THIS, AND I CLAIMED THEY WOULD. `rng_floor` returns
+a median over seeds of a per-seed |difference|. More seeds ESTIMATE that median
+better; they do not shrink it. Buying seeds raises `nfloor` past its gate and
+sharpens the margin, and that is all. The earlier claim that `bcn1vit`/L90's
+floor of 25.5 would fall to 14.7 at 12 seeds was wrong: 25.5 is what it is, and
+only the seed-AVERAGED reading above moves with n.
