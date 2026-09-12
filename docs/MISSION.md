@@ -1664,7 +1664,7 @@ that claim is the as-deployed 0.83x-the-floor number, which means
 
 | host | GPU | campaign | state |
 |---|---|---|---|
-| dsisco01 | 0 | `clipsweep2` (optloss-score) | **DRAINING then AUTO-RELAUNCHING.** 2/88 done. I INT'd it BY ACCIDENT (see below); `main.py` drains the current run first, so nothing is lost. Watcher PID 805446 (`/tmp/relaunch_clipsweep2.sh`) waits for PID 695397 to exit and restarts it on GPU 0. **VERIFY THE RELAUNCH LANDED ON A GPU** -- grep the log for `Device: GPU`. |
+| dsisco01 | 0 | `clipsweep2` (optloss-score) | **RUNNING, NEVER ACTUALLY INTERRUPTED.** I INT'd PID 695397 by accident at 12:35; `main.py` ABSORBED the signal and kept going -- verified at 15:15, same PID, etime 3:25, 14/88 done, Quadro RTX 6000 float16. A relaunch watcher was armed on the false premise that it would exit; it never fired and was removed at 15:16. Exactly one dispatcher per root, `pred_integrity` clean. |
 | dsisco01 | 1 | `taskwinfloor` (optloss-taskwin) | **RUNNING**, 16 runs, launched 12:39. Quadro RTX 6000, float16 + GradScaler. |
 | dsisco02 | 1 | `bcn1vitseed` (optloss-bcn) | **RUNNING**, 4/144 done. RTX PRO 6000 Blackwell, bfloat16 -- the correct host for unit D2. |
 | dsisco02 | 3 | -- | `liverty`, NOT ours. Never share a GPU on dsisco02. |
