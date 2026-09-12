@@ -153,6 +153,37 @@ def ccf1(per, classes):
     return sum(vals) / len(vals) if vals else float("nan")
 
 
+def _campaign_key(root):
+    """The campaign a root's cells belong to -- its PARENT when it is a seed
+    extension.
+
+    THE WRITE SIDE EXISTED AND THE READ SIDE DID NOT (2026-09-12).
+    `add_seeds` writes an `EXTENDS.json` naming the parent, and its own comment
+    says "without this marker the extension scores as its OWN cell and the
+    seeds it was bought for never reach the parent". `quarantine` carries a
+    fully verified reader for it -- `extension_parent` re-checks code_version,
+    hyperparams-equal-except-seed, and DISJOINT seed sets on every read, and
+    RAISES rather than degrading to "no pooling".
+
+    Nothing called it. Grep for a caller returned `add_seeds` (the writer) and
+    quarantine's own self-test, and nothing else. So every seed extension the
+    project has ever bought scored as a separate four-seed cell: `vitseed1`
+    (40 runs, ~30 GPU-hours, bought to lift `vitdual2`'s floor past
+    MIN_FLOOR_OBS -- a thing it could not do as its own cell), `seed58a` beside
+    `dom1b`, `taskwinfloor` beside `taskwin2`, and `bcn1vitseed`, whose 144
+    runs were ON A GPU when this was found.
+
+    ⚠️ IT RAISES ON A BAD MARKER AND THAT IS DELIBERATE. A marker naming the
+    wrong parent would pool two different experiments silently, which is worse
+    than never pooling. Do not soften this to a `try/except: return name`.
+    """
+    parent = quarantine.extension_parent(root)
+    if parent:
+        return parent
+    return (quarantine.campaign_name(root)
+            or os.path.basename(root.rstrip(os.sep)))
+
+
 def collect(roots, dead=()):
     """cell key -> arm -> seed -> record."""
     cells = {}
@@ -171,8 +202,7 @@ def collect(roots, dead=()):
             if rec is None:
                 continue
             cfg = rec["cfg"]
-            key = ((quarantine.campaign_name(root)
-                     or os.path.basename(root.rstrip(os.sep))),
+            key = (_campaign_key(root),
                    cfg.get("model_name"), cfg.get("dataset_mode"),
                    cfg.get("constraint_tag"),
                    "-".join(str(c) for c in rec["classes"]))
