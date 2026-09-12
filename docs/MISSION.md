@@ -1660,6 +1660,51 @@ that claim is the as-deployed 0.83x-the-floor number, which means
 
 ## 🟢 0-RUNNING. WHAT IS IN FLIGHT
 
+### CHECKED 2026-09-12 12:42 (read from `nvidia-smi` + `/proc/<pid>/environ`, not from memory)
+
+| host | GPU | campaign | state |
+|---|---|---|---|
+| dsisco01 | 0 | `clipsweep2` (optloss-score) | **DRAINING then AUTO-RELAUNCHING.** 2/88 done. I INT'd it BY ACCIDENT (see below); `main.py` drains the current run first, so nothing is lost. Watcher PID 805446 (`/tmp/relaunch_clipsweep2.sh`) waits for PID 695397 to exit and restarts it on GPU 0. **VERIFY THE RELAUNCH LANDED ON A GPU** -- grep the log for `Device: GPU`. |
+| dsisco01 | 1 | `taskwinfloor` (optloss-taskwin) | **RUNNING**, 16 runs, launched 12:39. Quadro RTX 6000, float16 + GradScaler. |
+| dsisco02 | 1 | `bcn1vitseed` (optloss-bcn) | **RUNNING**, 4/144 done. RTX PRO 6000 Blackwell, bfloat16 -- the correct host for unit D2. |
+| dsisco02 | 3 | -- | `liverty`, NOT ours. Never share a GPU on dsisco02. |
+
+**COMPLETE AND UNREAD: `fmow2rgn` 96/96** (optloss-newunits), finished by 12:30.
+`fmow2mn2` is in the same worktree -- check its count too. Neither is in
+`MEASURED_UNITS`, so both read `UNVERIFIED` until licensed.
+
+`clipsweep1` is **COMPLETE at 88/88 and READ** -- FRAMEWORK 2(z113), task #117.
+
+🛑 **A NEW WORKTREE EXISTS: `~/optloss-taskwin`, DETACHED AT 6658ef8c**, created
+to host `taskwinfloor` because `add_seeds` (correctly) refuses to write seeds
+from a tree whose HEAD differs from the campaign's `code_version`, and
+`optloss-cutwin` is at 7ce4ee5a. It carries symlinked `.npy` arrays resolved to
+their REAL location in `~/optloss-audit` (never worktree-to-worktree -- that
+builds a chain), and hand-copied `scripts/` from 797e4fb3 because `add_seeds`,
+`data_present`, `floors`, `quarantine` and `rig_status`'s `recipe_of` all
+postdate 6658ef8c. `results/taskwin2` there is a SYMLINK to the real campaign in
+`optloss-cutwin`. That makes **25 worktrees on one object store** -- still never
+run `git gc`/`prune`/`repack`/`worktree prune` anywhere in the family.
+
+⚠️ **`add_seeds` DID NOT WRITE THE PROVENANCE MARKER** for `taskwinfloor` (it
+exits before marking once there is nothing left to write). The parent is
+`taskwin2`; record it by hand when pooling.
+
+🛑 **TWO OPERATIONAL DEFECTS, BOTH MINE, BOTH 12:35 TODAY -- READ BEFORE ANY LAUNCH.**
+1. A launch wrapped in `bash -c "echo 0 | python -u main.py"` ran on **CPU**:
+   `EXPERIMENT_DIR` propagated but CUDA did not, so the log looked healthy and
+   said `Running 16 pending experiments on CPU` five lines in. Second instance
+   of the trap `rig_status` exists for. Redirect stdin from a FILE, never nest a
+   shell; export env INSIDE any wrapper script. Caught before any
+   `final_predictions.csv` was written -- 0 files, nothing contaminated.
+   (The stdin is needed at all because `main.py` at older commits still PROMPTS
+   for a GPU, which is an instant `EOFError` under `nohup`.)
+2. Cleaning it up, I killed by `ps | grep "[m]ain.py"`, which matched **every**
+   dispatcher on the host and INT'd healthy `clipsweep2` on another GPU. Scope
+   kills by reading `/proc/<pid>/environ` for `EXPERIMENT_DIR`.
+   `reset_crashed`'s flag is `--apply`, NOT `--execute`.
+
+
 ✅ **LAST VERIFIED 2026-09-10 15:04, ON BOTH HOSTS, AGAINST `results/` AND
 `ps`.** SSH returned after a full session down. Everything below is a CHECKED
 state, not a last-known one, and the check was a CENSUS -- every campaign
