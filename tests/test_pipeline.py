@@ -4691,10 +4691,51 @@ def test_all_plus_null_schedules_one_null_per_shared_zero_dose_model():
                         if gc._null_of(P, a) in P["arms"]}
 
     nulls = sorted(a for a in scheduled if a.endswith("_null"))
-    assert nulls == ["tralo_null"], (
-        "`all+null` schedules %s. Every family that shares a zero-dose model "
-        "must resolve to ONE null run; a second is bit-identical and costs a "
-        "full GPU slot." % nulls)
+
+    # WHAT MAKES TWO ZERO-DOSE ARMS THE SAME RUN (2026-09-12). This asserted
+    # `nulls == ["tralo_null"]`, a hardcoded answer, and it was right only
+    # while every null was plain CE. At lambda=0 every dual knob is 0
+    # (`alm_mu_step`, `fioretto_step_size`, `hounie_eta_lambda`, ...), so
+    # those arms ARE bit-identical -- which is the duplication this gate
+    # exists to stop. They are NOT identical in HYPERPARAMS, each carrying
+    # its own zeroed keys, so comparing hyperparams wholesale is also wrong.
+    #
+    # `tralo_snap_null` is the first null that is a DIFFERENT MODEL:
+    # `snapshot_burn_in: 10` averages the last 20 constraint epochs and
+    # 2(z115) measures its seed sd at ~1/3 of `tralo_null`'s. It is the snap
+    # family's RNG floor, not a duplicate of anything -- and the hardcoded
+    # list would have deleted it, taking the only low-noise design in the
+    # project with it. So the test is now the IDENTITY of the zero-dose run.
+    def _zero_dose_identity(arm):
+        hp = gc.build_hyperparams(P, P["arms"][arm], 1)
+        # `rng_reseed` is a DRAW COUNT: absent and False both mean zero draws,
+        # True means one. Comparing the raw values makes `tralo_null`
+        # (explicit False) differ from `alm_null` (key absent) and splits four
+        # byte-identical runs into two identities.
+        draws = hp.get("rng_reseed")
+        draws = 0 if draws in (None, False) else (1 if draws is True else draws)
+        return (hp.get("snapshot_burn_in"), draws)
+
+    by_id = {}
+    for a in nulls:
+        by_id.setdefault(_zero_dose_identity(a), []).append(a)
+    dupes = {k: v for k, v in by_id.items() if len(v) > 1}
+    assert not dupes, (
+        "`all+null` schedules bit-identical zero-dose runs %s. Every family "
+        "that shares a zero-dose model must resolve to ONE null run; a "
+        "second costs a full GPU slot and adds no observation."
+        % sorted(v for v in dupes.values()))
+
+    # ...and the converse: a null that is a DIFFERENT model must not be
+    # dropped. Without this the dedup is free to collapse the snap floor.
+    all_nulls = sorted(a for a in P["arms"] if a.endswith("_null"))
+    unscheduled = [a for a in all_nulls if a not in nulls]
+    orphan_ids = [a for a in unscheduled
+                  if _zero_dose_identity(a) not in by_id]
+    assert not orphan_ids, (
+        "%s is a zero-dose arm whose model matches NO scheduled null, so "
+        "`all+null` drops a distinct control entirely. Its identity is %s."
+        % (orphan_ids, [_zero_dose_identity(a) for a in orphan_ids]))
 
     # every trained arm must still RESOLVE to a null that is actually there,
     # or the dedup has silently orphaned an arm from its control

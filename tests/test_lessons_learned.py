@@ -3377,3 +3377,109 @@ def test_the_dataset_table_unseen_group_counts_match_the_TRACKED_meta():
     assert _unseen_groups_on_disk(os.path.join("data", "no_such_slice")) is None, (
         "CONTROL: a missing slice must read None so it lands in `absent`, "
         "never 0, which would silently match a `0` row")
+
+
+# --------------------------------------------------------------------------
+# LESSON (2026-09-12): A FAMILY LIST THAT DOES NOT READ THE AUTHORITY WILL
+# SILENTLY DISCARD RUNS.
+#
+# `deployed_h2h.rng_floor` looped a hardcoded tuple
+# `FAMILIES = ("tralo", "alm", "fioretto", "hounie")` and tested
+# `stream_family(arm) == fam`. `configs/protocol.yml` declares SIX stream
+# families, and the two it did not name were `select` (1 stream, harmless)
+# and **`tralo_snap`, which carries THREE** -- C(3,2) x 4 seeds = 12
+# observations, the only design in the project that clears MIN_FLOOR_OBS on
+# its own. Every one of them was invisible: bought, executed, not read, the
+# same defect as the `add_seeds` pooling bug and the EXTENDS marker nobody
+# read.
+#
+# `rng_floor` now discovers its families from the cell, so it cannot drift.
+# `reseed_of` still needs a LIST (it resolves a TREATED arm such as
+# `tralo_cut` to its family, which no regex over the name alone can do), so
+# that list is held against the authority here rather than restated.
+
+def test_every_declared_stream_family_is_reachable_by_the_floor():
+    """2026-09-12: a hardcoded family tuple discarded 12 bought observations.
+
+    `deployed_h2h.rng_floor` looped
+    `FAMILIES = ("tralo", "alm", "fioretto", "hounie")`. protocol.yml declares
+    SIX stream families; `tralo_snap` carries THREE streams = 12 observations,
+    the only design that clears MIN_FLOOR_OBS on its own, and every one was
+    invisible. `rng_floor` now discovers families from the cell; `reseed_of`
+    still needs a list and is held against the authority here.
+    """
+    from scripts import deployed_h2h as dh
+    from scripts.floors import stream_family
+
+    arms = yml("configs", "protocol.yml").get("arms", {}) or {}
+    fams = {}
+    for a in sorted(arms):
+        f = stream_family(a)
+        if f:
+            fams.setdefault(f, []).append(a)
+    assert fams, "protocol.yml declares no lambda=0 streams at all"
+
+    g = lambda r: float(r["TP"])
+    bad = []
+    for fam, streams in sorted(fams.items()):
+        if len(streams) < 2:
+            continue                      # zero pairs by construction
+        cell = dh._cell({a: [600 + i, 601 + i, 599 + i, 600 + i]
+                         for i, a in enumerate(streams)})
+        _f, nobs, nstream = dh.rng_floor(cell, g)
+        want = len(streams) * (len(streams) - 1) // 2 * 4
+        if nobs != want or nstream != len(streams):
+            bad.append("%s: %d streams in protocol.yml but rng_floor read "
+                       "%d observation(s) from %d stream(s), want %d from %d"
+                       % (fam, len(streams), nobs, nstream, want,
+                          len(streams)))
+    assert not bad, (
+        "a lambda=0 stream family declared in configs/protocol.yml is not "
+        "readable by deployed_h2h.rng_floor, so its runs are bought and "
+        "never read:\n  " + "\n  ".join(bad))
+
+    # and `reseed_of`'s LIST must cover every declared family. It names the
+    # family's CANDIDATE twin; whether that arm was staged is the caller's
+    # business, which is why `alm` -> `alm_reseed` is correct even though no
+    # campaign has ever run one ("when one exists", per its docstring). What
+    # must never happen is a family resolving to None, or to a SHORTER
+    # family's twin -- `tralo_snap` -> `tralo_reseed` was the live bug.
+    missing = [f for f in sorted(fams)
+               if dh.reseed_of(f) != f + "_reseed"]
+    assert not missing, (
+        "deployed_h2h.FAMILIES is missing %s, so reseed_of resolves those "
+        "arms to a DIFFERENT family's RNG floor (or to None). Add them to "
+        "FAMILIES -- matching is longest-prefix-first, so order does not "
+        "matter." % missing)
+
+
+def test_the_floor_family_gate_has_a_negative_control():
+    """2026-09-12: the negative control for the family-discovery gate.
+
+    A gate that has never failed has never been shown to work, and this one
+    guards a silent discard -- the failure mode it exists for produces a
+    perfectly plausible floor from the WRONG population.
+    """
+    from scripts import deployed_h2h as dh
+    from scripts.floors import stream_family
+
+    g = lambda r: float(r["TP"])
+    # a family the hardcoded tuple never named
+    streams = ["tralo_snap_null", "tralo_snap_reseed", "tralo_snap_reseed2"]
+    assert all(stream_family(a) == "tralo_snap" for a in streams)
+    cell = dh._cell({a: [600 + i, 601 + i, 599 + i, 600 + i]
+                     for i, a in enumerate(streams)})
+    _f, nobs, nstream = dh.rng_floor(cell, g)
+    assert (nobs, nstream) == (12, 3), (
+        "three streams must give C(3,2) x 4 = 12 observations from 3 "
+        "streams, got %d from %d" % (nobs, nstream))
+
+    # NEGATIVE CONTROL: the OLD behaviour -- restricting to a fixed tuple that
+    # omits the family -- must read ZERO, which is what the gate detects.
+    old = [(a, b) for (a, b) in
+           __import__("scripts.floors", fromlist=["x"]).stream_pairs(
+               sorted(cell))
+           if stream_family(a) in ("tralo", "alm", "fioretto", "hounie")]
+    assert old == [], (
+        "the negative control is vacuous: the pre-fix family tuple would "
+        "still have seen these pairs, so the gate proves nothing")

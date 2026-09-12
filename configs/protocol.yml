@@ -1009,6 +1009,27 @@ arms:
   # (tralo 107.3, tralo_null 104.9, alm 124.5), which predicts the FORMER.
   tralo_snap_null:
     {methodology: tralo, phase: trained, blocks: [constraint_phase, tralo_null, tralo_snap]}
+  # THE SNAP FAMILY'S OWN RNG FLOOR, AND snap2 HAD NONE (2026-09-12).
+  # `snap2` measured `tralo_snap`'s seed sd at 3.40-12.37 against `tralo`'s
+  # 10.87-18.43 -- roughly 3x tighter -- and was then judged against the
+  # NON-snap floor, built from `tralo_null` / `tralo_reseed`, whose sd is the
+  # larger one. At bcn/MNv3/L90 that refused a 22.8-item margin against a
+  # 17.5-item floor that does not belong to it. A floor must be measured on
+  # arms of the same variance as the thing it prices.
+  # TWO streams, not one: `deployed_h2h.rng_floor` counts C(k,2) pairs x seeds,
+  # so two streams over 4 seeds give nfloor=4 and never reach MIN_FLOOR_OBS=8.
+  # Three give 12. 2(z69) already priced streams at 4x cheaper than seeds.
+  # `null_sibling` is the SNAP null, never `tralo_null`: these are lambda=0
+  # models of the snap family and must be read against their own. `gate:grid`
+  # demands the field on any trained arm that is not `<x>_null`.
+  tralo_snap_reseed:
+    {methodology: tralo, phase: trained,
+     blocks: [constraint_phase, tralo_null, tralo_reseed, tralo_snap],
+     null_sibling: tralo_snap_null, count_control: true}
+  tralo_snap_reseed2:
+    {methodology: tralo, phase: trained,
+     blocks: [constraint_phase, tralo_null, tralo_reseed2, tralo_snap],
+     null_sibling: tralo_snap_null, count_control: true}
   # Same code path as tralo, treatment zeroed. See the tralo_null block above.
   tralo_null: {methodology: tralo,          phase: trained, blocks: [constraint_phase, tralo_null]}
   # THE RESEED CONTROL. `tralo_null` plus one draw from the global generator --

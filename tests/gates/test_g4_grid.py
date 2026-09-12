@@ -222,9 +222,21 @@ def test_every_trained_arm_has_a_null_twin_and_the_reseed_floor(
                          "arm that trains against the cap absorbs the effect "
                          "it exists to measure" % arm)
         draws[arm] = hp.get("rng_reseed")
-    if len(set(map(repr, draws.values()))) != len(draws):
-        fails.append("two count controls share an RNG stream, so they are "
-                     "DUPLICATE runs and the floor has not grown: %s" % draws)
+    # ⚠️ DISTINCT **WITHIN A FAMILY** (2026-09-12). A shared draw makes two
+    # controls duplicate runs only if everything else about them matches.
+    # `tralo_snap_reseed` and `tralo_reseed` share `rng_reseed: true` and are
+    # not duplicates at all -- one averages the constraint epochs and the
+    # other does not, and `rng_floor` pairs streams WITHIN a family anyway.
+    # Flat-set checking here would have blocked the snap floor outright.
+    from scripts.floors import stream_family
+    byfam = {}
+    for arm, draw in draws.items():
+        byfam.setdefault(stream_family(arm) or arm, {})[arm] = draw
+    for fam, got in sorted(byfam.items()):
+        if len(set(map(repr, got.values()))) != len(got):
+            fails.append("two count controls in family %s share an RNG "
+                         "stream, so they are DUPLICATE runs and the floor "
+                         "has not grown: %s" % (fam, got))
     for arm, spec in sorted(P["arms"].items()):
         if spec.get("phase") == "trained" and not arm.endswith("_null") \
                 and _null_of(P, arm) not in P["arms"]:

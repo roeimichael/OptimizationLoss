@@ -4052,7 +4052,7 @@ the pin checked out -- for a defect that was in the file the whole time.
 
 🔑 **The class is not "a typo". It is that a launch script is the only executable
 artefact in this repository that nothing ever parsed.** `src/`, `configs/` and
-`scripts/` are all imported by 639 tests. `main.py` runs every campaign.
+`scripts/` are all imported by 641 tests. `main.py` runs every campaign.
 `docs/*.sh` were prose to every tool in the repo and code to exactly one reader:
 the server, once, under time pressure. Two of them existed; one was broken.
 
@@ -4226,7 +4226,7 @@ claim is the gate, not the number**: `python -m scripts.audit_config` exits 1 on
 with no reader, and it runs before every launch.
 
 **Result: 23,180 lines of Python -> 4,680 on 2026-08-15, and it has gone back UP since**, on purpose: the
-six restored baselines, six new gate scripts, and 639 tests. **Do not quote a line count as a
+six restored baselines, six new gate scripts, and 641 tests. **Do not quote a line count as a
 quality measure** -- it has only gone UP since the purge while the repository got
 strictly more correct, and every per-component figure written here has gone stale
 within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
@@ -4234,7 +4234,7 @@ within days. Measure it if you need it: `git ls-files '*.py' | xargs wc -l`.
 What is actually load-bearing is that every one of those lines is reachable and every knob is
 read: `audit_config` (no orphan hyperparameters), `smoke_arms` (every arm runs end to end; caps verified for the arms that emit predictions directly, and for the trained arms under `--matrix`),
 `verify_caps` (the caps bind on the real slices), `check_parity` (equal compute, shared knobs,
-no cross-objective warm-up sharing), and `pytest tests` (639 tests, ~295 s, no dataset needed).
+no cross-objective warm-up sharing), and `pytest tests` (641 tests, ~295 s, no dataset needed).
 
 **`rho_step` is still a DEAD KEY** and remains so by design: the ramp is derived from
 `rho_target`. It is documented in `hp_defaults.py` rather than silently ignored.
@@ -16222,7 +16222,7 @@ scripts/graph_probe.py        diffuse scores over a kNN graph of the stored embe
 scripts/scope_probe.py        local-vs-global SCOPE at a fixed total budget
 scripts/straddle_probe.py     how much oracle headroom a step OUR size can reach; --self-test
 src/               the pipeline: losses, methodologies, models, pipeline, training, utils
-tests/             639 tests, ~295 s, no dataset required
+tests/             641 tests, ~295 s, no dataset required
 evidence/          TWO tarballs that must be extracted into ONE tree to be scorable:
                    provenance_*.tar.gz  = config.json + evaluation_metrics.csv +
                      training_log.csv for 14,524 runs. NO predictions.
@@ -18893,7 +18893,7 @@ The point estimates put a zero-constraint arm first; nothing here is priced.
 What IS established is that the acceptance instrument was not asking the
 question the project's goal sentence asks.
 
-### 2(z113) THE CLIP SWEEP CAME BACK FLAT -- THE LOSS-DESIGN PROGRAM CLOSES
+## 2(z113). THE CLIP SWEEP CAME BACK FLAT -- THE LOSS-DESIGN PROGRAM CLOSES
 
 `clipsweep1` (bcn / ViTB16, L100_G95 + L90_G95, 88/88, 232/232 steps every arm,
 bfloat16, predictions intact) was built to answer ONE pre-registered question
@@ -18940,7 +18940,7 @@ L100_G95 is genuinely new, and TraLO LOSES it to both free references:
 `focal_clip` +28.25 and `tralo_reseed2` +22.75 against `tralo` +19.00.
 
 
-### 2(z114) THE FLOOR AND THE MARGIN WERE NOT THE SAME KIND OF NUMBER -- AND FIXING IT CHANGES NOTHING
+## 2(z114). THE FLOOR AND THE MARGIN WERE NOT THE SAME KIND OF NUMBER -- AND FIXING IT CHANGES NOTHING
 
 `deployed_h2h.floor_verdict` refuses a #1 when `margin <= floor`. Those two
 sides are not commensurate: `margin` is a #1-vs-#2 difference of arm MEANS over
@@ -18999,7 +18999,7 @@ sharpens the margin, and that is all. The earlier claim that `bcn1vit`/L90's
 floor of 25.5 would fall to 14.7 at 12 seeds was wrong: 25.5 is what it is, and
 only the seed-AVERAGED reading above moves with n.
 
-### 2(z115) SNAPSHOT AVERAGING CUTS THE NOISE ~3x -- AND THE lambda=0 TWIN TAKES THE WHOLE GAIN
+## 2(z115). SNAPSHOT AVERAGING CUTS THE NOISE ~3x -- AND THE lambda=0 TWIN TAKES THE WHOLE GAIN
 
 `snap2` (bcn / MobileNetV3 / dsisco01 float16, 96/96, 348/348 constraint steps
 on every trained arm, predictions intact) sat COMPLETE and UNREAD. It is the
@@ -19066,3 +19066,98 @@ distribution across. So the honest way to give TraLO a fair test is to deploy
 the average for EVERY arm and re-run the head-to-head -- accepting that on this
 unit, the moment the noise drops, what becomes visible is that TraLO is level
 with its own null.
+
+## 2(z116). THE RNG FLOOR COULD NOT SEE `tralo_snap` AT ALL -- A HARDCODED FAMILY TUPLE DISCARDED THE 12 OBSERVATIONS THAT ARE THE WHOLE POINT OF THE DESIGN, AND FOUR MORE SITES CARRIED THE SAME NAMING DRIFT (2026-09-12)
+
+Found while ADDING `tralo_snap_reseed` / `tralo_snap_reseed2` -- the two arms
+2(z115) says the snap family needs -- and before launching the campaign that
+would have paid for them.
+
+**1. THE DEFECT.** `deployed_h2h.rng_floor` looped a module constant
+`FAMILIES = ("tralo", "alm", "fioretto", "hounie")` and kept an arm when
+`stream_family(arm) == fam`. `configs/protocol.yml` declares **six** stream
+families. The two it did not name:
+
+| family | streams | pairs x 4 seeds | seen by `rng_floor` |
+|---|---|---|---|
+| `select` | 1 | 0 | 0 -- harmless, a lone stream makes no pair |
+| **`tralo_snap`** | **3** | **12** | **0 -- ALL OF THEM** |
+
+Twelve observations is not an incremental gain: `MIN_FLOOR_OBS` is 8, two
+streams over four seeds give 4, and **three streams are the only
+configuration in this project that clears the bar at the protocol's seed
+count** (2(z69) priced streams at 4x cheaper than seeds; that is what was
+being bought). The pre-fix code reads `0 obs / 0 streams` on a three-stream
+cell -- verified, it is mutation 1 of 5 below, not an inference.
+
+This is the `add_seeds` pooling bug and the EXTENDS-marker bug a third time:
+**runs bought, executed, and then not read.** The distinguishing feature of
+the class is that nothing goes red -- a floor still prints, from the wrong
+population, and is plausible.
+
+**2. FOUR MORE SITES, ALL THE SAME DRIFT, ALL FOUND IN THE SAME SWEEP.**
+Every one is a naming rule written out by hand instead of asked of
+`floors.py`, and every one would have damaged the snap campaign:
+
+* `reseed_of("tralo_snap")` returned **`tralo_reseed`** -- `"tralo_snap"`
+  starts with `"tralo_"` and the loop took the first match, so the snap arm
+  was handed the NON-snap family's floor, the one 2(z115) measures at ~3x
+  wider. Its own docstring says attributing one family's RNG spread to
+  another "is the same class of error as `paper_rows.null_of` was written to
+  prevent". LATENT, not live: the function's only reader is its own
+  self-test, which asserted `reseed_of("tralo_cut") == "tralo_reseed"` and
+  never asked about a two-word family. Fixed by matching longest-prefix-first.
+* the same function's guard was `endswith(("_null", "_reseed", "_lam0"))`,
+  which is **False for `tralo_reseed2`** -- the THIRD sighting of the exact
+  drift `floors.py` was created to end. Now `is_lambda0_stream`.
+* `gate:grid`'s count-control check required **globally distinct**
+  `rng_reseed` draws, on the reasoning that a shared draw means DUPLICATE
+  runs. True within a family, false across two: `tralo_snap_reseed` and
+  `tralo_reseed` share `rng_reseed: true` and differ by snapshot averaging.
+  Flat-set checking would have refused the snap floor outright. Now per family.
+* `test_all_plus_null` asserted `nulls == ["tralo_null"]`. The dedup is right
+  -- at lambda=0 every dual knob is 0, so those arms are plain CE and
+  genuinely bit-identical -- but the ANSWER was hardcoded, and
+  `tralo_snap_null` is the first null that is a **different model**
+  (`snapshot_burn_in: 10` averages 20 epochs). The gate would have deleted
+  the snap floor. Now it tests the zero-dose IDENTITY, and it caught its own
+  first attempt: comparing hyperparams wholesale splits the four
+  byte-identical dual nulls into two identities, because `tralo_null` sets
+  `rng_reseed: False` explicitly and the others leave the key absent.
+
+**3. THE FIX, AND WHY IT MOVES NO NUMBER.** `rng_floor` now calls
+`floors.stream_pairs`, which groups by the regex that DEFINES a stream, so a
+family is readable the day it is declared and there is no second list to
+drift. **Nothing in the corpus moves**: `snap2` carries exactly one snap
+stream, so it contributed zero pairs before and after. That is asserted as a
+negative control, not assumed -- the dual families must read exactly 4 obs /
+2 streams / floor 3.5, computed by hand off the same pairs.
+
+**4. AND THE POOLED FLOOR NOW SAYS WHEN IT IS A BLEND.** `rng_floor` takes
+ONE median over every family's pairs. That is free for the four duals and
+**not** free once `tralo_snap` is present, because its lambda=0 sd is ~1/3 of
+the non-snap one -- a pooled median would describe neither population, which
+is the `headroom` two-backbone defect exactly. `rng_floor_by_family` returns
+the split and `report` prints `** FLOOR MIXES FAMILIES` past 2.0x. It is a
+READING, never the verdict.
+
+**5. GATED, AND ONE GATE WAS VACUOUS.** 12 self-test checks, 7 of them
+negative controls, plus `test_every_declared_stream_family_is_reachable_by_
+the_floor`, which reads `configs/protocol.yml` rather than restating it.
+Mutation-tested 5/5 and 2/2 -- **after** two failures worth recording:
+
+* the first version checked the ARITHMETIC (`max/min >= ratio`) and a
+  mutation making the bar fire unconditionally **survived**, because nothing
+  in the self-test entered `report`, the function that prints it. That is
+  2(z81) again: a `--self-test` that never enters the tool tests the helpers.
+* the fix for that was **itself vacuous**. The silent-control fixture held
+  only lambda=0 arms, so `rank_cell` returned an empty order, `report`
+  skipped the cell before the banner block, and "banner not printed" meant
+  "cell never reached". The mutation survived a second time. The fixture now
+  carries treated arms and the test asserts the cell was actually reported
+  (`"#1:" in out`) before asserting the banner is absent.
+
+🔑 **THE RULE: A NEGATIVE CONTROL MUST PROVE THE CODE RAN.** "X is not in the
+output" is evidence only once "the output exists" is separately checked.
+Both vacuous greens here were of that shape, and both were invisible until a
+mutation was pointed at them.

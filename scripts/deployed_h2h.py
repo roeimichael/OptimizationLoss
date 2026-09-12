@@ -56,7 +56,8 @@ from scripts import quarantine
 # From `floors`, NOT from `sensitivity_screen`: that module reaches
 # `src/`, and a pinned campaign worktree can carry a `src/` older than the
 # names it needs. This scorer must run in every checkout.
-from scripts.floors import MIN_FLOOR_OBS, stream_family
+from scripts.floors import (MIN_FLOOR_OBS, is_lambda0_stream,
+                            stream_family, stream_pairs)
 
 # The recipe boundary. A campaign outside it is a DIFFERENT METHOD and pooling
 # it silently is how the corpus got five TraLO configurations. Post-hoc arms
@@ -64,12 +65,25 @@ from scripts.floors import MIN_FLOOR_OBS, stream_family
 CURRENT_RECIPE = {"constraint_fp32": True, "constraint_grad_mode": "normalize"}
 
 DUALS = ("tralo", "alm", "fioretto", "hounie")
-FAMILIES = ("tralo", "alm", "fioretto", "hounie")
+# ⚠️ READ BY `reseed_of` ONLY -- `rng_floor` DISCOVERS its families from the
+# cell. Kept as a list because `reseed_of` resolves a TREATED arm
+# (`tralo_cut`, `tralo_snap`) to its family, which no regex over the arm
+# name alone can do. `tests/test_lessons_learned.py` holds it against
+# `configs/protocol.yml` so a newly declared family cannot be missed here.
+FAMILIES = ("tralo", "tralo_snap", "alm", "fioretto", "hounie", "select")
 
 # 7.85 = (z_{0.975} + z_{0.80})^2, the paired-t sample-size constant at 80%
 # power / alpha 0.05. Same constant as `paper_rows.seeds_needed`; kept local so
 # the two tools cannot drift apart silently.
 POWER_CONST = 7.85
+
+# WHEN A POOLED FLOOR STOPS DESCRIBING ITS OWN POPULATIONS. The four dual
+# families pool for free -- their `_null` arms are BYTE-IDENTICAL
+# (FRAMEWORK 2944), so they are the same runs under four names.
+# `tralo_snap` is not: snapshot averaging cuts the lambda=0 seed sd ~3x
+# (2(z115)). 2.0x is the point at which the pooled median is nearer one
+# family's width than the other's, so it has stopped being either.
+FLOOR_MIX_RATIO = 2.0
 
 
 def reseed_of(arm):
@@ -79,9 +93,22 @@ def reseed_of(arm):
     attributing one family's RNG spread to another is the same class of error
     as `paper_rows.null_of` was written to prevent.
     """
-    if arm.endswith(("_null", "_reseed", "_lam0")):
+    # 🛑 LONGEST PREFIX WINS, AND THE GUARD READS THE AUTHORITY (2026-09-12).
+    # Two defects here, both the hardcoded-list class and both latent because
+    # this function's only reader was its own self-test:
+    #   * `"tralo_snap".startswith("tralo_")` is True, so a FIXED-ORDER loop
+    #     returned `tralo_reseed` -- the non-snap family's RNG spread, which
+    #     2(z115) measures at ~3x the snap one. The docstring above warns
+    #     against exactly that and the code did it.
+    #   * `"tralo_reseed2".endswith("_reseed")` is **False**, so the guard let a
+    #     third stream through and handed it a twin. That is the THIRD sighting
+    #     of the `_reseed2` drift `floors.py` was created to end, so the test is
+    #     now `is_lambda0_stream`, the regex that DEFINES a stream.
+    # `<fam>_lam0` still resolves to None: it keeps `lambda_step` and is not a
+    # stream, and nothing has ever asked for its twin.
+    if is_lambda0_stream(arm) or arm.endswith("_lam0"):
         return None
-    for fam in FAMILIES:
+    for fam in sorted(FAMILIES, key=len, reverse=True):
         if arm == fam or arm.startswith(fam + "_"):
             return fam + "_reseed"
     return None
@@ -306,44 +333,69 @@ def rng_floor(cell, get):
     observations from 3 streams is a better median than 4 from 2, and it is NOT
     12 independent draws. Callers print both so the distinction survives.
     """
-    gaps, streams, lonely = [], 0, []
-    for fam in FAMILIES:
-        present = [a for a in sorted(cell) if _is_lambda0_stream(a, fam)]
-        # 🛑 COUNT ONLY STREAMS THAT CONTRIBUTE A PAIR. A family holding ONE
-        # lambda=0 arm produces zero pairs, so including it in the reported
-        # count says "5 streams" for a floor built from one family's single
-        # pair -- which reads as ample and is the opposite of the truth.
-        # Measured on `vitdual2`, which carries tralo_null, tralo_reseed,
-        # alm_null, fioretto_null and hounie_null: FIVE streams, but only
-        # `tralo` has two of them, so the ceiling is C(2,2) x 4 seeds = 4
-        # observations and that cell can NEVER reach MIN_FLOOR_OBS = 8.
-        if len(present) < 2:
-            lonely += present
-            continue
-        streams += len(present)
-        for i, a in enumerate(present):
-            for b in present[i + 1:]:
-                d, _ = paired(cell[a], cell[b], get)
-                gaps += [abs(x) for x in d]
-    _ = lonely
+    per = rng_floor_by_family(cell, get)
+    gaps, streams = [], 0
+    for fam in sorted(per):
+        gaps += per[fam]["gaps"]
+        streams += per[fam]["streams"]
     return (st.median(gaps), len(gaps), streams) if gaps else (None, 0, 0)
 
 
-# The pattern itself now lives in `floors`, so this file and
-# `sensitivity_screen` cannot disagree about what a stream is.
+def rng_floor_by_family(cell, get):
+    """`rng_floor`'s observations SPLIT BY FAMILY -- {fam: {gaps, streams}}.
 
+    🛑 THE FAMILY LIST IS DISCOVERED FROM THE CELL, NEVER HARDCODED
+    (2026-09-12). `rng_floor` looped a fixed `FAMILIES` tuple and tested
+    `stream_family(arm) == fam`, so a family ABSENT from that tuple
+    contributed ZERO observations and said nothing about it. Checked against
+    the authority (`configs/protocol.yml`), two families were missing:
+    `select` (1 stream, so 0 pairs either way) and **`tralo_snap`, which
+    carries THREE** -- C(3,2) x 4 seeds = **12 observations**, the only
+    design in the project that clears `MIN_FLOOR_OBS` = 8 on its own, and
+    every one of them invisible. That is the `add_seeds` pooling defect
+    exactly: runs bought, executed, and then not read.
 
-def _is_lambda0_stream(arm, fam):
-    """Is `arm` one of `fam`'s lambda=0 RNG streams?
+    `floors.stream_pairs` groups by the regex that DEFINES a stream, so a
+    family becomes readable the day it is declared and no second list can
+    drift from the first.
 
-    `fam_null`, `fam_reseed`, `fam_reseed2`, ... all carry `lambda_step: 0.0`
-    via the `<fam>_null` block and differ only in the RNG draw, so any two of
-    them bracket RNG-only noise. `fam_lam0` is NOT one of these: it keeps
-    lambda_step and only zeroes the initial lambda, so it takes real constraint
-    steps and would contaminate the floor with the treatment -- which is the
-    exact error corrected on 2026-09-02 above.
+    ⚠️ AND THE SPLIT IS RETURNED BECAUSE POOLING IT IS NOT FREE. The four
+    dual families pool safely -- their `_null` arms are BYTE-IDENTICAL
+    (FRAMEWORK 2944), so they are the same runs under four names. `tralo_snap`
+    is NOT: snapshot averaging cuts the lambda=0 seed sd ~3x (2(z115)), so a
+    pooled median over both would describe NEITHER population -- the same
+    shape as the `headroom` row that pooled two backbones. The caller prints
+    the families whenever their medians disagree, so the blend is never
+    silent.
+
+    🛑 COUNT ONLY STREAMS THAT CONTRIBUTE A PAIR. A family holding ONE
+    lambda=0 arm produces zero pairs, so including it in the reported count
+    says "5 streams" for a floor built from one family's single pair -- which
+    reads as ample and is the opposite of the truth. Measured on `vitdual2`,
+    which carries tralo_null, tralo_reseed, alm_null, fioretto_null and
+    hounie_null: FIVE streams, but only `tralo` has two of them, so the
+    ceiling is C(2,2) x 4 seeds = 4 observations and that cell can NEVER
+    reach MIN_FLOOR_OBS = 8.
     """
-    return stream_family(arm) == fam
+    per = {}
+    for a, b in stream_pairs(sorted(cell)):
+        fam = stream_family(a)
+        d, _ = paired(cell[a], cell[b], get)
+        rec = per.setdefault(fam, {"gaps": [], "arms": set()})
+        rec["gaps"] += [abs(x) for x in d]
+        rec["arms"].update((a, b))
+    for fam in list(per):
+        if not per[fam]["gaps"]:
+            del per[fam]
+            continue
+        per[fam]["streams"] = len(per[fam]["arms"])
+        per[fam]["median"] = st.median(per[fam]["gaps"])
+    return per
+
+
+# The pattern itself now lives in `floors`, so this file,
+# `sensitivity_screen` and `rng_floor_by_family` cannot disagree about
+# what a stream is -- and no list of families exists to drift.
 
 
 def floor_averaged(floor, nseed):
@@ -619,6 +671,7 @@ def report(cells, control, w=sys.stdout.write):
     rows = []
     n_named = n_refused = n_unstable = n_disagree = n_unequal = 0
     n_avg_only, avg_only = 0, []
+    n_mixed, mixed = 0, []
     for key in sorted(cells):
         cell = cells[key]
         root, model, ds, cap, capped = key
@@ -695,6 +748,29 @@ def report(cells, control, w=sys.stdout.write):
               "range over all %d arms %.1f -- NOT the bar)\n"
               % (order_tp[0][0], margin, floor, len(order_tp), spread))
 
+        # 🛑 AND SAY SO WHEN THE FLOOR IS A BLEND OF TWO POPULATIONS.
+        # `rng_floor` pools every family's pairs into one median. That is free
+        # for the four duals and NOT free once `tralo_snap` is in the cell, so
+        # the split is printed whenever the families disagree by
+        # FLOOR_MIX_RATIO. Never silent: a pooled median that describes
+        # neither population is the `headroom` two-backbone defect exactly.
+        per_fam = rng_floor_by_family(cell, g_tp)
+        if len(per_fam) > 1:
+            meds = {f: per_fam[f]["median"] for f in per_fam}
+            lo, hi = min(meds.values()), max(meds.values())
+            if lo > 0 and hi / lo >= FLOOR_MIX_RATIO:
+                n_mixed += 1
+                mixed.append((root, model, ds, cap, dict(meds)))
+                w("  ** FLOOR MIXES FAMILIES (%.1fx): %s\n"
+                  "     The printed floor %.1f is a median over ALL of them and\n"
+                  "     describes none of them. Price an arm against ITS OWN\n"
+                  "     family. This is a READING, not the verdict.\n"
+                  % (hi / lo,
+                     ", ".join("%s %.1f (%d obs)"
+                               % (f, meds[f], len(per_fam[f]["gaps"]))
+                               for f in sorted(meds)),
+                     floor))
+
         # THE SECOND READING, BESIDE THE DECISION AND NEVER INSTEAD OF IT.
         # `floor` is a single-run width; `margin` is a difference of means over
         # `nseed` seeds. `floor_averaged` is what the margin is commensurate
@@ -744,6 +820,17 @@ def report(cells, control, w=sys.stdout.write):
             w("    %-11s %-13s %-13s %-5s %s > %s  margin %.1f  "
               "floor %.1f -> %.1f (%d seeds)\n"
               % (rt, md, ds_, cp, a1, a2, mg, fl, fa, ns))
+    if n_mixed:
+        w("%d cell(s) carry a floor POOLED OVER FAMILIES whose own medians\n"
+          "  differ by >= %.1fx. The duals pool for free (their `_null` arms\n"
+          "  are byte-identical); `tralo_snap` does not -- snapshot averaging\n"
+          "  cuts the lambda=0 sd ~3x, so the pooled median describes neither.\n"
+          "  Price an arm against ITS OWN family.\n"
+          % (n_mixed, FLOOR_MIX_RATIO))
+        for rt, md, ds_, cp, meds in mixed:
+            w("    %-11s %-13s %-13s %-5s  %s\n"
+              % (rt, md, ds_, cp,
+                 "  ".join("%s %.1f" % (f, meds[f]) for f in sorted(meds))))
     w("%d cells are JACKKNIFE-UNSTABLE (one dropped seed changes #1)\n" % n_unstable)
     w("%d cells have items and ccF1 disagreeing on the order\n" % n_disagree)
     w("%d cells compare arms at UNEQUAL SPEND -- see the !! blocks\n"
@@ -918,6 +1005,136 @@ def self_test(w=sys.stdout.write):
     check(reseed_of("alm") == "alm_reseed" and reseed_of("tralo_cut") == "tralo_reseed"
           and reseed_of("tralo_reseed") is None,
           "reseed twin resolves per family, and a twin has no twin")
+    # LONGEST PREFIX WINS. `tralo_snap` starts with `tralo_`, so a
+    # fixed-order loop handed it `tralo_reseed` -- the family whose RNG
+    # spread 2(z115) measures at ~3x its own. The check above PASSED
+    # throughout, because it never asked about a two-word family.
+    check(reseed_of("tralo_snap") == "tralo_snap_reseed",
+          "LIVENESS: a longer family beats the shorter prefix it starts "
+          "with (`tralo_snap` -> %s, never tralo_reseed)"
+          % reseed_of("tralo_snap"))
+    # NEGATIVE CONTROL for the same change: an arm that is NOT its own
+    # family must still resolve to the family it belongs to.
+    check(reseed_of("tralo_snapfoo") == "tralo_reseed",
+          "NEGATIVE CONTROL: longest-prefix matching needs the SEPARATOR "
+          "-- `tralo_snapfoo` is not in the `tralo_snap` family")
+    # `_reseed2` is a stream and has no twin. `endswith((_null,_reseed))`
+    # is FALSE for it -- the third sighting of that drift.
+    check(reseed_of("tralo_reseed2") is None
+          and reseed_of("tralo_snap_reseed2") is None,
+          "NEGATIVE CONTROL: a `_reseed2` stream has no twin either -- "
+          "the guard reads `is_lambda0_stream`, not an endswith tuple")
+
+    # ---- the family list is DISCOVERED, never hardcoded (2026-09-12) -----
+    # `rng_floor` looped a fixed FAMILIES tuple, so `tralo_snap` -- the only
+    # design in the project carrying THREE lambda=0 streams -- contributed
+    # ZERO observations and said nothing about it.
+    g = lambda r: float(r["TP"])
+    snap3 = _cell({"clip":                 [600, 600, 600, 600],
+                   "tralo_snap":           [640, 641, 639, 640],
+                   "tralo_snap_null":      [600, 601, 599, 600],
+                   "tralo_snap_reseed":    [601, 600, 600, 601],
+                   "tralo_snap_reseed2":   [599, 601, 601, 599]})
+    _fs, nfs, nss = rng_floor(snap3, g)
+    check(nfs == 12 and nss == 3,
+          "LIVENESS: three `tralo_snap` streams give C(3,2) x 4 = 12 "
+          "observations from 3 streams (read %d obs / %d streams), which is "
+          "the ONLY way a cell clears MIN_FLOOR_OBS = %d on its own"
+          % (nfs, nss, MIN_FLOOR_OBS))
+    check(nfs >= MIN_FLOOR_OBS,
+          "LIVENESS: and that floor is ESTIMATED, so `tralo_snap` can be "
+          "priced at all (%d >= %d)" % (nfs, MIN_FLOOR_OBS))
+
+    # NEGATIVE CONTROL: one stream is still zero pairs. The fix must widen
+    # WHICH families are read, never what counts as an observation.
+    snap1 = _cell({"clip":            [600, 600, 600, 600],
+                   "tralo_snap":      [640, 641, 639, 640],
+                   "tralo_snap_null": [600, 601, 599, 600]})
+    _f1, nf1, ns1 = rng_floor(snap1, g)
+    check(nf1 == 0 and ns1 == 0,
+          "NEGATIVE CONTROL: a family holding ONE stream yields zero pairs "
+          "and zero streams (read %d/%d) -- discovering the family must not "
+          "invent an observation" % (nf1, ns1))
+
+    # NEGATIVE CONTROL: the four dual families are UNCHANGED. This fix must
+    # move no number already in the corpus, and that is checkable rather than
+    # assertable -- the old loop and the new discovery must agree exactly
+    # wherever the old loop could see the family at all.
+    duals = _cell({"clip":         [600, 600, 600, 600],
+                   "tralo":        [640, 641, 639, 640],
+                   "alm":          [630, 631, 629, 630],
+                   "tralo_null":   [600, 604, 599, 600],
+                   "tralo_reseed": [603, 600, 600, 607]})
+    fd, nfd, nsd = rng_floor(duals, g)
+    hand = sorted([abs(600 - 603), abs(604 - 600), abs(599 - 600),
+                   abs(600 - 607)])
+    check(nfd == 4 and nsd == 2 and fd == st.median(hand),
+          "NEGATIVE CONTROL: the dual families read EXACTLY as before -- "
+          "4 obs / 2 streams / floor %.1f, computed by hand off the same "
+          "pairs (read %d/%d/%.1f)" % (st.median(hand), nfd, nsd, fd))
+
+    # ---- and the POOLED floor must say when it is a blend ----------------
+    # The duals pool for free (byte-identical `_null` arms); `tralo_snap` does
+    # not -- 2(z115) measures its lambda=0 sd at ~1/3 of the non-snap one.
+    mixc = _cell({"clip":               [600, 600, 600, 600],
+                  "tralo":              [640, 641, 639, 640],
+                  "tralo_null":         [600, 630, 600, 630],
+                  "tralo_reseed":       [630, 600, 630, 600],
+                  "tralo_snap_null":    [600, 601, 600, 601],
+                  "tralo_snap_reseed":  [601, 600, 601, 600]})
+    permix = rng_floor_by_family(mixc, g)
+    check(set(permix) == {"tralo", "tralo_snap"},
+          "LIVENESS: the split names BOTH families present (%s)"
+          % ", ".join(sorted(permix)))
+    ratio = permix["tralo"]["median"] / permix["tralo_snap"]["median"]
+    check(ratio >= FLOOR_MIX_RATIO,
+          "LIVENESS: the two families' medians differ %.1fx (%.1f vs %.1f), "
+          "over the %.1fx bar, so the pooled floor describes neither"
+          % (ratio, permix["tralo"]["median"], permix["tralo_snap"]["median"],
+             FLOOR_MIX_RATIO))
+
+    # NEGATIVE CONTROL: families that AGREE must not be flagged, or the
+    # warning fires on every cell and nobody reads it.
+    # ⚠️ THE TREATED ARMS ARE LOAD-BEARING IN THIS FIXTURE. Without them
+    # `rank_cell` returns an EMPTY order, `report` skips the cell before the
+    # banner block, and the negative control passes because NOTHING was
+    # printed -- a vacuous green that let a mutation through twice.
+    same = _cell({"clip":              [600, 600, 600, 600],
+                  "tralo":             [612, 613, 611, 612],
+                  "tralo_snap":        [610, 611, 609, 610],
+                  "tralo_null":        [600, 601, 600, 601],
+                  "tralo_reseed":      [601, 600, 601, 600],
+                  "tralo_snap_null":   [600, 601, 600, 601],
+                  "tralo_snap_reseed": [601, 600, 601, 600]})
+    persame = rng_floor_by_family(same, g)
+    meds = [persame[f]["median"] for f in persame]
+    check(len(persame) == 2 and max(meds) / min(meds) < FLOOR_MIX_RATIO,
+          "NEGATIVE CONTROL: two families with the SAME width are NOT "
+          "flagged as a blend (%.1fx < %.1fx)"
+          % (max(meds) / min(meds), FLOOR_MIX_RATIO))
+
+    # AND THE BANNER ITSELF, THROUGH `report`. The two checks above test the
+    # ARITHMETIC; a mutation making the bar always fire survived them both,
+    # because nothing entered the function that prints it. Same shape as
+    # 2(z81): a `--self-test` that never enters the tool tests the helpers.
+    def _emit(c):
+        buf = []
+        report({("r", "MobileNetV3", "iwildcam", "L90_G95", "2"): c},
+               "clip", w=buf.append)
+        return "".join(buf)
+
+    check("FLOOR MIXES FAMILIES" in _emit(mixc),
+          "LIVENESS: `report` PRINTS the blend banner on a 3x family split")
+    out_same = _emit(same)
+    check("#1:" in out_same,
+          "the SILENT control is NON-VACUOUS: the cell must actually reach "
+          "the banner block, or 'not printed' means 'cell skipped'")
+    check("FLOOR MIXES FAMILIES" not in out_same,
+          "NEGATIVE CONTROL: `report` is SILENT when the families agree -- a "
+          "banner on every cell is a banner nobody reads")
+    check("FLOOR MIXES FAMILIES" not in _emit(duals),
+          "NEGATIVE CONTROL: `report` is SILENT on a one-family cell, which "
+          "is every campaign in the corpus")
 
     # ---- the floor must be ESTIMATED before it is a bar (2026-09-05) ------
     # A big lead priced against a floor built from ONE observation. Before the
