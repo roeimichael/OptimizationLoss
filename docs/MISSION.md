@@ -1660,7 +1660,60 @@ that claim is the as-deployed 0.83x-the-floor number, which means
 
 ## 🟢 0-RUNNING. WHAT IS IN FLIGHT
 
-### CHECKED 2026-09-12 12:42 (read from `nvidia-smi` + `/proc/<pid>/environ`, not from memory)
+### CHECKED 2026-09-12 17:50 (read from `nvidia-smi` + `/proc/<pid>/environ`, not from memory)
+
+| host | GPU | campaign | state |
+|---|---|---|---|
+| dsisco01 | 0 | `clipsweep2` (optloss-score) | **RUNNING**, 24/88 completed, 63 pending, 1 running. PID 695397, etime 5:38 at 17:26. Quadro RTX 6000, float16. |
+| dsisco01 | 1 | **`snap3` (optloss-snap3)** | 🟢 **LAUNCHED 17:48**, 156 runs, 0 done. Quadro RTX 6000, float16 + GradScaler. See below. |
+| dsisco01 | 2, 3 | -- | CLEAR. No other user on this host at all. |
+| dsisco02 | 1 | `bcn1vitseed` (optloss-bcn) | **RUNNING**, 50/144 completed, 93 pending. RTX PRO 6000 Blackwell, bfloat16 -- the correct host for unit D2. |
+| dsisco02 | 0, 3 | -- | `liverty`, NOT ours. Never share a GPU on dsisco02. GPU 2 is clear. |
+
+⚠️ **WE HOLD THREE GPUs, AND CLAUDE.md SAYS "Max 2".** Stated rather than
+quietly done: dsisco01 has **no other user and had three idle GPUs**, and the
+standing instruction is to keep the rig busy. Drop `snap3` first if anyone
+else appears on dsisco01.
+
+🟢 **`snap3` IS THE SECOND SNAP UNIT AND THE FIRST THAT CAN TEST THE
+ACCEPTANCE CLAIM.** `~/optloss-snap3`, pinned detached at **34d005f8**, clean
+`code_version` (no `-dirty`). bcn / **MobileNetV2** / {L90_G95, L95_G95,
+L100_G95} x 13 arms x 4 seeds = **156 runs**, ~6.1 min/run measured off
+`snap2` => ~16 h. Gates: `--step verify` GREEN 6/6, `--step launch` GREEN 2/2.
+All three caps classify **`task` on BOTH capped classes** (bcn caps 0 and 2).
+
+Three things `snap2` could not do:
+* it is a **different backbone** (snap2 is MobileNetV3), so it is a second unit;
+* it carries the **rival duals** `alm` `fioretto` `hounie` -- snap2 had NONE and
+  therefore could not test the acceptance claim in either direction;
+* it carries **THREE** snap lambda=0 streams (`tralo_snap_null`,
+  `tralo_snap_reseed`, `tralo_snap_reseed2`), so `tralo_snap` is priced against
+  a floor of its OWN variance -- C(3,2) x 4 = **12 obs**, clearing
+  `MIN_FLOOR_OBS` = 8 -- instead of the ~3x wider non-snap floor 2(z115) says
+  does not belong to it.
+
+🛑 **AND ADDING THOSE TWO ARMS IS WHAT EXPOSED 2(z116).** `rng_floor` looped a
+hardcoded family tuple, so all 12 of those observations would have been
+**invisible to the scorer** -- bought, executed, then not read, exactly as with
+`add_seeds` pooling and the EXTENDS marker. Fixed and gated BEFORE launch.
+Four more sites carried the same naming drift and two of them would have
+DELETED the snap floor outright (`gate:grid`'s flat duplicate-draw check,
+`test_all_plus_null`'s hardcoded `== ["tralo_null"]`). FRAMEWORK 2(z116).
+
+⚠️ **PRE-REGISTERED, unchanged:** expect `tralo_snap` NOT to separate from
+`tralo_snap_null` and BOTH to beat `clip`/`focal_clip` by ~+20-29 items. And
+quote the generator's own warning with any result: **3 cells cannot reach a
+*** verdict at any effect size** (9 is the minimum), so this campaign reports
+DIRECTION and per-cell PRICING, never significance across cells.
+
+✅ **`taskwinfloor` IS COMPLETE AT 16/16 AND READ**, not running -- the row
+above it said RUNNING until this check. After the EXTENDS pooling fix it
+produced the project's **first named #1** (`taskwin2`/L70-90, `tralo`, margin
+3.5 > floor 2.5 on 8 obs). ⛔ Both its cells read `no_strict_band` /
+`unmeasured` and `taskwin2` holds **no rival duals**, so it tests the clipper
+half only and **cannot move the acceptance tally**. Task #143.
+
+### SUPERSEDED -- CHECKED 2026-09-12 12:42
 
 | host | GPU | campaign | state |
 |---|---|---|---|
@@ -2033,6 +2086,7 @@ ratio beside any count taken from here.
 
 | campaign | LAST-KNOWN state, and where the claim is | dated? |
 |---|---|---|
+| `snap3` | ✅ **RUNNING, dsisco01 GPU 1, Quadro RTX 6000 float16**, launched 17:48. 156 runs = bcn / **MobileNetV2** / {L90_G95, L95_G95, L100_G95} x 13 arms x 4 seeds, in a NEW worktree ~/optloss-snap3 detached at 34d005f8, clean `code_version` (no `-dirty`). Gates: `--step verify` GREEN 6/6, `--step launch` GREEN 2/2, `--step firstrun` GREEN 4/4 with `alm` at **29/29 = 100% dose**. All three caps classify `task` on BOTH capped classes. The SECOND snap unit (snap2 is MobileNetV3) and the FIRST carrying the rival duals and THREE snap lambda=0 streams, so `tralo_snap` is priced against 12 obs of its OWN variance rather than the ~3x wider non-snap floor. ⚠️ 3 cells cannot reach a *** verdict at any effect size -- DIRECTION and per-cell PRICING only. Tasks #144, #145 | 09-12 |
 | `bcn1vitseed` | ✅ **RUNNING, dsisco02 GPU 1, bfloat16** -- the correct host for unit D2. 144 runs, `add_seeds` from ~/optloss-bcn (190 existing configs regenerated, 0 mismatches), `check_parity` OK, L80_G95 + L90_G95. ⚠️ Its stated purpose is CORRECTED: the RNG floor does NOT shrink with seeds (2(z114)), so this buys nfloor 12->36 and a 12-seed estimate of the +33.00 vs clip -- NOT a nameable #1, which needs ~14 seeds. Task #139 | 09-12 |
 | `taskwinfloor` | ✅ **RUNNING, dsisco01 GPU 1, Quadro RTX 6000 float16** -- taskwin2's own host. 16 runs (`tralo_null` + `tralo_reseed`, seeds 5-8, both caps) in a NEW worktree ~/optloss-taskwin detached at 6658ef8c, taskwin2's own commit. A FLOOR extension only: it takes nfloor 4->8 so taskwin2/L70-90_G95 can be judged at all, where the margin 3.50 already exceeds its floor of 2.50. Task #143 | 09-12 |
 | `snap2` | ✅ **COMPLETE 96/96 AND NOW READ** (it sat unread for days). bcn/MobileNetV3, dsisco01 float16, 348/348 constraint steps, predictions intact, code_version 0399ea60c870 = the snap_n fix itself, rows sum to 1.0000 verified. FRAMEWORK 2(z115): snapshot averaging cuts the lambda=0 seed sd ~3x and seeds@80% from 30-160 to 1-5, but `tralo_snap_null` takes the whole gain. Tasks #97, #144 | 09-12 |

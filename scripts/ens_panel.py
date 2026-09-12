@@ -73,13 +73,18 @@ def load(d):
     return y, P, g
 
 
-def panel(y, P, g, classes, lpct):
-    """Every metric from one (y, P, g). Higher is better throughout."""
-    from sklearn.metrics import average_precision_score, roc_auc_score, f1_score
-    out = {}
-    uncapped = [c for c in range(P.shape[1]) if c not in classes]
+def allocate(y, P, g, classes, lpct):
+    """Per-group top-K, the allocation. Returns (total TP, per-class ccF1).
 
-    # ---- ALLOCATION: per-group top-K, exactly what is deployed
+    ONE definition, called by `panel` AND by `fidelity`. Two copies would let
+    the number being reported drift from the number being verified, which is
+    the only thing the verification is for.
+
+    The budget is `int(round(n * lpct))` per (group, class) -- the same
+    banker's rounding `src/training/constraints._round_to_K` applies, stated
+    here rather than imported because this tool must run in a worktree pinned
+    at an older commit.
+    """
     tp_tot, f1s = 0.0, []
     for c in classes:
         tp_c, denom = 0, 0
@@ -95,6 +100,62 @@ def panel(y, P, g, classes, lpct):
         tp_tot += tp_c
         if denom:
             f1s.append(2.0 * tp_c / denom)
+    return tp_tot, f1s
+
+
+def fidelity(d, classes, lpct):
+    """Does `allocate` reproduce what this run ACTUALLY deployed?
+
+    🛑 THE TOOL ALLOCATES, SO IT MUST PROVE IT ALLOCATES CORRECTLY
+    (2026-09-12). Every other scorer here reads `final_predictions.csv`, which
+    IS the allocator's output -- nothing to get wrong. This one cannot: the
+    ENSEMBLE's averaged probabilities were never deployed, so there is no file
+    to read and the allocation has to be recomputed. A recomputation nobody
+    checks is a second implementation of the allocator wearing a scorer's name.
+
+    So it is checked on the one case where an answer exists: each SINGLE run,
+    where `allocate` on that run's own probabilities must return exactly the
+    TP its `final_predictions.csv` recorded. Measured on `snap2`, 1 of 12 runs
+    disagrees by **-3 items** -- small, real, and in the direction that says
+    the true allocator finds MORE than this reconstruction does.
+
+    ⚠️ THE CAUSE IS NOT ESTABLISHED and two candidates are open: tie-breaking
+    in `argsort` against the allocator's own order, and the fact that an item
+    carries ONE predicted label while this counts each capped class
+    independently. Both are cheap to test and neither is tested, so the honest
+    move is to REFUSE the affected cell rather than to publish a number whose
+    error is unexplained.
+
+    ⛔ AND A HYPOTHESIS DIED HERE ALREADY: the first explanation was that the
+    GLOBAL cap binds below the sum of the local budgets. Measured on the same
+    campaign, deployed == sum(local K) EXACTLY for both capped classes and the
+    global cap does not bind at all. Do not re-propose it.
+
+    Returns (deployed_tp, reconstructed_tp), or None when the deployed file is
+    absent -- which is itself not a pass.
+    """
+    fp = os.path.join(d, "final_predictions.csv")
+    if not os.path.exists(fp):
+        return None
+    rows = list(csv.DictReader(io.open(fp, encoding="utf-8", newline="")))
+    if not rows or "Predicted_Label" not in rows[0]:
+        return None
+    yd = np.array([int(float(r["True_Label"])) for r in rows])
+    pd_ = np.array([int(float(r["Predicted_Label"])) for r in rows])
+    dep = sum(int(((pd_ == c) & (yd == c)).sum()) for c in classes)
+    y, P, g = load(d)
+    rec, _ = allocate(y, P, g, classes, lpct)
+    return dep, int(rec)
+
+
+def panel(y, P, g, classes, lpct):
+    """Every metric from one (y, P, g). Higher is better throughout."""
+    from sklearn.metrics import average_precision_score, roc_auc_score, f1_score
+    out = {}
+    uncapped = [c for c in range(P.shape[1]) if c not in classes]
+
+    # ---- ALLOCATION: per-group top-K, exactly what is deployed
+    tp_tot, f1s = allocate(y, P, g, classes, lpct)
     out["capTP"] = tp_tot
     out["ccF1"] = float(np.mean(f1s)) if f1s else float("nan")
 
@@ -196,6 +257,33 @@ def report(root, arms, base, k, out=sys.stdout):
         seeds = sorted(set.intersection(*[set(cells[key][a]) for a in present]))
         if len(seeds) < max(2, k):
             continue
+
+        # 🛑 REFUSE A CELL WHOSE ALLOCATION THIS TOOL CANNOT REPRODUCE.
+        # `allocate` is a SECOND implementation of the allocator -- unavoidable,
+        # because an ensemble's probabilities were never deployed and so have
+        # no `final_predictions.csv` to read. Checked on every single run in
+        # the cell, where an answer does exist. See `fidelity`.
+        drift = []
+        for a in present:
+            for sd in seeds:
+                f = fidelity(cells[key][a][sd], classes, lpct)
+                if f is None:
+                    drift.append((a, sd, "no deployed file"))
+                elif f[0] != f[1]:
+                    drift.append((a, sd, "deployed %d, reconstructed %d (%+d)"
+                                  % (f[0], f[1], f[1] - f[0])))
+        if drift:
+            w("%s / %s  ** REFUSED: the allocation does not reproduce on %d "
+              "of %d run(s)" % (key[0], key[1], len(drift),
+                                len(present) * len(seeds)) + "\n")
+            for a, sd, why in drift[:6]:
+                w("     %-20s seed %-3s %s" % (a, sd, why) + "\n")
+            w("     Every ensemble number in this cell would come from the "
+              "same code path," + "\n")
+            w("     so it is not reported. Cause NOT established -- see "
+              "`fidelity`." + "\n")
+            continue
+
         units = units_for(seeds, k)
         vals = collections.defaultdict(dict)
         for arm in present:
@@ -304,6 +392,110 @@ def self_test(out=sys.stdout):
     rt = panel(ytiny, np.stack([np.full(4, 0.5)] * 2, axis=1), gtiny, [1], 0.2)
     checks.append(("a cap rounding K to 0 contributes no TP",
                    rt["capTP"] == 0))
+
+    # ---- the FIDELITY gate, on real files (2026-09-12) -------------------
+    # `allocate` is a second implementation of the allocator, so it has to be
+    # held against a deployed file. Fixtures, because a unit test that never
+    # touches a `final_predictions.csv` tests nothing about fidelity.
+    import shutil, tempfile
+    tmp = tempfile.mkdtemp(prefix="ens_fid_")
+    try:
+        yy = np.array([1, 1, 1, 1, 0, 0, 0, 0])
+        gg = np.array(["A"] * 4 + ["B"] * 4)
+        pp = np.array([0.9, 0.8, 0.2, 0.1, 0.9, 0.8, 0.2, 0.1])
+
+        def write(dd, predicted):
+            os.makedirs(dd)
+            with io.open(os.path.join(dd, "final_predictions_raw.csv"), "w",
+                         encoding="utf-8", newline="") as fh:
+                fh.write("True_Label,Group_ID,Prob_Class_0,Prob_Class_1" + "\n")
+                for i in range(len(yy)):
+                    fh.write("%d,%s,%.4f,%.4f" % (yy[i], gg[i], 1 - pp[i],
+                                                  pp[i]) + "\n")
+            with io.open(os.path.join(dd, "final_predictions.csv"), "w",
+                         encoding="utf-8", newline="") as fh:
+                fh.write("True_Label,Group_ID,Predicted_Label" + "\n")
+                for i in range(len(yy)):
+                    fh.write("%d,%s,%d" % (yy[i], gg[i], predicted[i]) + "\n")
+
+        # lpct 0.5: group A holds n=4 true 1s -> K=2; group B holds n=0 -> K=0.
+        # `allocate` takes the two highest Prob_Class_1 in A, indices 0 and 1,
+        # both true 1s -> reconstructed TP = 2. (The first draft of this
+        # fixture said n=2 and the check went red -- which is the fixture
+        # being wrong, not the tool, and is why it is spelled out.)
+        agree = os.path.join(tmp, "agree")
+        write(agree, [1, 1, 0, 0, 0, 0, 0, 0])
+        f_ok = fidelity(agree, [1], 0.5)
+        checks.append(("NEGATIVE CONTROL: a run whose deployed file MATCHES "
+                       "is not flagged (%s)" % (f_ok,),
+                       f_ok is not None and f_ok[0] == f_ok[1]))
+
+        # the same probabilities, but the deployed file records a DIFFERENT
+        # pick -- index 2, a true 1 as well? no: index 2 is label 1 too, so
+        # deploy index 4 (group B, label 0) to force TP disagreement.
+        drift = os.path.join(tmp, "drift")
+        write(drift, [0, 0, 0, 0, 1, 0, 0, 0])
+        f_bad = fidelity(drift, [1], 0.5)
+        checks.append(("LIVENESS: a run whose deployed TP DIFFERS is detected "
+                       "(%s)" % (f_bad,),
+                       f_bad is not None and f_bad[0] != f_bad[1]))
+
+        # NEGATIVE CONTROL: a missing deployed file is NOT silently a pass.
+        gone = os.path.join(tmp, "gone")
+        write(gone, [1, 0, 0, 0, 0, 0, 0, 0])
+        os.remove(os.path.join(gone, "final_predictions.csv"))
+        checks.append(("NEGATIVE CONTROL: a MISSING deployed file returns "
+                       "None, never a pass",
+                       fidelity(gone, [1], 0.5) is None))
+
+        # and the reconstruction must be the one `panel` reports, or the
+        # check verifies a number nobody prints.
+        y2, P2, g2 = load(agree)
+        checks.append(("the verified number IS the reported one (`allocate` "
+                       "has ONE definition)",
+                       panel(y2, P2, g2, [1], 0.5)["capTP"]
+                       == allocate(y2, P2, g2, [1], 0.5)[0]))
+        # ...AND THE REFUSAL BRANCH ITSELF, THROUGH `report`. The checks above
+        # gate `fidelity`; the branch that ACTS on it lives in `report`, which
+        # nothing here entered. That is the exact shape 2(z116) records twice
+        # -- a helper test standing in for a tool test, and a "not printed"
+        # assertion that passed because the code never ran. So the clean case
+        # must PRINT NUMBERS and the drifting case must PRINT THE REFUSAL.
+        def campaign(tag, predicted):
+            rt = os.path.join(tmp, tag)
+            for arm in ("tralo", "clip"):
+                for sd in (1, 2):
+                    dd = os.path.join(rt, "MobileNetV2", "bcn", "L50_G95",
+                                      arm, "seed_%d" % sd)
+                    write(dd, predicted)
+                    json.dump({"status": "completed", "constraint": [0.5, 0.95],
+                               "dataset_config": {"constrained_class": [1]}},
+                              io.open(os.path.join(dd, "config.json"), "w",
+                                      encoding="utf-8"))
+            return rt
+
+        import io as _io
+        buf = _io.StringIO()
+        report(campaign("clean", [1, 1, 0, 0, 0, 0, 0, 0]),
+               ["tralo", "clip"], "tralo", 1, out=buf)
+        clean_out = buf.getvalue()
+        checks.append(("NEGATIVE CONTROL: `report` SCORES a cell whose "
+                       "allocation reproduces",
+                       "REFUSED" not in clean_out and "capTP" in clean_out))
+
+        buf = _io.StringIO()
+        report(campaign("drifting", [0, 0, 0, 0, 1, 0, 0, 0]),
+               ["tralo", "clip"], "tralo", 1, out=buf)
+        drift_out = buf.getvalue()
+        checks.append(("LIVENESS: `report` REFUSES the cell and names the "
+                       "drifting runs",
+                       "REFUSED" in drift_out
+                       and "reconstructed" in drift_out))
+        checks.append(("...and reports NO number for it, so a refused cell "
+                       "cannot be read as a result",
+                       "capTP" not in drift_out.split("REFUSED")[-1]))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
     print("", file=out)
     for label, ok in checks:

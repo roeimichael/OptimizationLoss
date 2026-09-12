@@ -2494,13 +2494,17 @@ SORTS = ("argsort", "argpartition", "topk", "nlargest", "sort",
 #               loss, fixture construction
 #   SELF-TEST   inside a --self-test fixture
 ARGSORT_SITES = {
-    "scripts/ens_panel.py::panel::argsort(-P[idx, c])":
+    "scripts/ens_panel.py::allocate::argsort(-P[idx, c])":
         "DEPLOYED it sits INSIDE `for gg in np.unique(g)`, sorting that "
         "group's own `idx` and taking that group's own "
         "K = round(n_g * lpct), which is what the allocator does. Read "
         "and confirmed by hand when `snap/slice-provenance` merged "
         "2026-09-12 -- the merge brought in a file the mainline gate "
-        "had never scanned, and this gate is what surfaced it.",
+        "had never scanned, and this gate is what surfaced it. "
+        "Moved from `panel` to `allocate` the same day when the "
+        "allocation was factored into ONE definition shared with "
+        "`fidelity`; this gate caught the rename, which is the point of "
+        "keying on the CALL SITE rather than the file.",
     "scripts/bias_shift_probe.py::kendall_tau::argsort(-a)":
         "NOT-A-CUT rank correlation, pure algebra, no budget",
     "scripts/bias_shift_probe.py::run::argsort(-z0)":

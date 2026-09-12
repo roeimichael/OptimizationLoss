@@ -631,6 +631,14 @@ python -m scripts.sensitivity_screen --campaign <roots>   # 🛑 COULD THIS CELL
 #   lambda=0 makes them all plain CE; so an `alm_reseed` is plain CE plus that
 #   same key and is byte-identical to `tralo_reseed`. Adding reseed FAMILIES
 #   buys nothing. What buys observations is more RNG STREAMS or more seeds:
+#   ⚠️ **QUALIFIED 2026-09-12: that holds for families differing ONLY in
+#   lambda, which is every DUAL. It is FALSE for `tralo_snap`.** Snapshot
+#   averaging is not switched off by lambda=0, so `tralo_snap_null` is a
+#   different MODEL from `tralo_null` -- 2(z115) measures its seed sd at
+#   ~1/3 -- and `tralo_snap_reseed`/`_reseed2` are a genuinely new family
+#   whose 12 observations describe the variance `tralo_snap` actually has.
+#   Test the claim, never the name: two lambda=0 arms are duplicates iff
+#   every key that survives lambda=0 agrees. FRAMEWORK 2(z116).
 #     * a third lambda=0 variant (`tralo_reseed2`, a distinct reseed offset)
 #       gives 3 pairs x 4 seeds = **12 obs for 8 extra runs**, and needs
 #       `rng_reseed` to become an offset rather than a boolean;
