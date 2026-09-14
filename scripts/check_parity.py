@@ -67,6 +67,24 @@ def check(runs):
     data = collections.defaultdict(set)
     warmups = collections.defaultdict(set)
     versions, regimes = set(), set()
+    # The epoch budget is a property of the CAMPAIGN, not a constant. This
+    # compared against a hardcoded (30, 0) / (1, 29), so it could only ever pass
+    # a 30-epoch campaign -- it was comparing to a number, not checking parity.
+    # The real invariant is campaign-relative: one total for every arm, zero
+    # constraint epochs for post-hoc, and one warm-up shared by trained arms.
+    totals = {hp["warmup_epochs"] + hp["constraint_epochs"]
+              for hp in (c["hyperparams"] for c in runs)}
+    if len(totals) > 1:
+        fails.append("UNEQUAL COMPUTE: the campaign mixes total epoch budgets %s"
+                     % sorted(totals))
+    total = sorted(totals)[0] if totals else 0
+    trained_warmups = {c["hyperparams"]["warmup_epochs"] for c in runs
+                       if c["arm"] in P["arms"]
+                       and P["arms"][c["arm"]]["phase"] == "trained"}
+    if len(trained_warmups) > 1:
+        fails.append("UNEQUAL COMPUTE: trained arms use different warm-ups %s"
+                     % sorted(trained_warmups))
+    trained_warmup = sorted(trained_warmups)[0] if trained_warmups else 0
     for c in runs:
         arm, hp = c["arm"], c["hyperparams"]
         if arm not in P["arms"]:
@@ -76,9 +94,14 @@ def check(runs):
         if c["methodology"] != spec["methodology"]:
             fails.append("methodology mismatch on " + arm)
         validate_hyperparams(c["methodology"], hp)
-        expected = (30, 0) if spec["phase"] == "posthoc" else (1, 29)
+        expected = ((total, 0) if spec["phase"] == "posthoc"
+                    else (trained_warmup, total - trained_warmup))
         if (hp["warmup_epochs"], hp["constraint_epochs"]) != expected:
-            fails.append("UNEQUAL COMPUTE: wrong warm-up/constraint epochs on " + arm)
+            fails.append(
+                "UNEQUAL COMPUTE: %s has warm-up/constraint %s, but this "
+                "campaign's budget is %d epochs so it must be %s"
+                % (arm, (hp["warmup_epochs"], hp["constraint_epochs"]),
+                   total, expected))
         if c["constraint"] != cap_pair(c["constraint_tag"]):
             fails.append("constraint does not match cap tag on " + arm)
         dc = c["dataset_config"]

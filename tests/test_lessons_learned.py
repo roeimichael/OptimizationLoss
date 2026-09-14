@@ -1247,3 +1247,48 @@ def test_verify_caps_checks_the_CAMPAIGN_S_caps_and_not_the_DEFAULTS(tmp_path, m
     assert "--campaign" in argv[i:i + 4], (
         "run_campaign invokes verify_caps without --campaign, so it falls back "
         "to the default caps again: %s" % argv[i:i + 4])
+
+
+def test_check_parity_measures_the_CAMPAIGN_S_budget_not_a_hardcoded_30():
+    """Parity was a comparison against a constant, not a check.
+
+    `expected = (30, 0) if posthoc else (1, 29)` is hardcoded, so the gate could
+    only ever pass a 30-epoch campaign and rejected a 6-epoch one where every
+    arm was, in fact, at perfect parity. The invariant it should enforce is
+    campaign-relative: one total budget shared by every arm, post-hoc arms
+    spending it all on warm-up, trained arms sharing one warm-up length.
+
+    Both directions are pinned -- a short campaign at parity must PASS, and a
+    campaign that genuinely mixes budgets must FAIL -- because a gate that only
+    ever says yes is the failure mode being fixed here.
+    """
+    from scripts.check_parity import check
+
+    def run(arm, phase, warm, con):
+        return {"arm": arm, "methodology": "heuristic" if phase == "posthoc" else "tralo",
+                "hyperparams": {"warmup_epochs": warm, "constraint_epochs": con,
+                                "seed": 1, "lr": 1e-4, "dropout": 0.2,
+                                "batch_size": 64, "pretrained": True},
+                "model_name": "mn3", "dataset_mode": "fmow2",
+                "constraint_tag": "L80_G95", "code_version": "x",
+                "constraint": [0.8, 0.95],
+                "dataset_config": {"data_dir": "d", "constrained_class": [1],
+                                   "num_classes": 8, "group_column": "location"},
+                "base_model_id": "b_" + phase}
+
+    short = [run("clip", "posthoc", 6, 0), run("focal_clip", "posthoc", 6, 0),
+             run("tralo", "trained", 1, 5), run("tralo_null", "trained", 1, 5)]
+    fails = [f for f in check(short) if "UNEQUAL COMPUTE" in f]
+    assert not fails, (
+        "a 6-epoch campaign at perfect parity was rejected -- the budget is "
+        "still being compared against a constant: %s" % fails)
+
+    # Note on mutation testing: deleting the dedicated mixed-budget check does
+    # NOT flip this, and that is correct rather than a weakness -- the per-arm
+    # comparison catches a mixed campaign independently. The two checks differ
+    # in the message they produce, not in whether the campaign is rejected.
+    mixed = short + [run("fioretto", "trained", 1, 29)]
+    fails = [f for f in check(mixed) if "UNEQUAL COMPUTE" in f]
+    assert fails, (
+        "a campaign mixing a 6-epoch and a 30-epoch budget passed the parity "
+        "check -- it is no longer detecting unequal compute at all")
