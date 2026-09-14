@@ -836,9 +836,15 @@ def test_a_cc_f1_TIE_is_not_a_WIN_and_domination_is_checked_against_EVERY_arm():
     assert "DOMINATED" not in v, v
 
 
-def _fake_log(root, dataset, cap, arm, seed, accs):
-    """A training_log.csv with just the columns the saturation gate reads."""
-    import os
+def _fake_log(root, dataset, cap, arm, seed, accs, constraint_epochs=29):
+    """A training_log.csv plus the config.json the gate reads its budget from.
+
+    The config matters: the gate used to assume 29 constraint epochs for every
+    run, so a 6-epoch campaign was judged against a 30-epoch budget. Pass
+    constraint_epochs=0 to make this a POST-HOC arm, which the gate must skip
+    entirely -- a clipper has no constraint phase to protect.
+    """
+    import os, json
     d = os.path.join(root, "MobileNetV3", dataset, cap, arm, "seed_%d" % seed)
     os.makedirs(d, exist_ok=True)
     lines = ["Epoch,Train_Acc,L_CE"]
@@ -846,6 +852,10 @@ def _fake_log(root, dataset, cap, arm, seed, accs):
         lines.append("%d,%.4f,%.4f" % (i, a, max(0.001, 1.0 - a)))
     with open(os.path.join(d, "training_log.csv"), "w", encoding="utf-8") as fh:
         fh.write(chr(10).join(lines) + chr(10))
+    warm = 1 if constraint_epochs else len(accs)
+    with open(os.path.join(d, "config.json"), "w", encoding="utf-8") as fh:
+        json.dump({"arm": arm, "hyperparams": {
+            "warmup_epochs": warm, "constraint_epochs": constraint_epochs}}, fh)
     return d
 
 
@@ -886,6 +896,42 @@ def test_the_saturation_gate_fails_a_FROZEN_boundary_and_passes_a_LIVE_one(tmp_p
                      "--constraint-epochs", "6"]) == 0
     out = capsys.readouterr().out
     assert "SATURATED" not in out, "a boundary that never froze was called saturated:" + chr(10) + out
+
+    # A SHORT campaign judged on its OWN budget. Live for 3 of 5 constraint
+    # epochs is a pass; against the old hardcoded 29 it was reported SATURATED,
+    # which would have thrown away a valid campaign.
+    short = str(tmp_path / "short")
+    for seed in (1, 2):
+        _fake_log(short, "fmow2", "L80_G95", "tralo", seed,
+                  [0.80, 0.88, 0.93, 0.96, 0.98, 0.99], constraint_epochs=5)
+    assert mod.main(["--glob", short + "/*/*/*/tralo/seed_*", "--strict"]) == 0, (
+        "a campaign live for 3 of its own 5 constraint epochs was failed -- the "
+        "gate is still judging against a hardcoded budget")
+    out = capsys.readouterr().out
+    assert "of 5 constraint epochs" in out, out
+
+    # A POST-HOC arm has no constraint phase. Its (short) live window must not
+    # drag a cell down, or clippers decide whether trained arms pass.
+    mixed = str(tmp_path / "mixed")
+    for seed in (1, 2):
+        _fake_log(mixed, "fmow2", "L80_G95", "tralo", seed,
+                  [0.80, 0.88, 0.93, 0.96, 0.98, 0.99], constraint_epochs=5)
+        _fake_log(mixed, "fmow2", "L80_G95", "clip", seed,
+                  [0.97, 0.99, 0.99, 0.99, 0.99, 0.99], constraint_epochs=0)
+    rc = mod.main(["--glob", mixed + "/*/*/*/*/seed_*", "--strict"])
+    out = capsys.readouterr().out
+    # Assert on the COUNT, not just the verdict: including post-hoc arms also
+    # drags the derived budget toward 0, which lowers the bar and can mask the
+    # inclusion. n is unambiguous -- 2 trained runs, and the 2 clippers skipped.
+    cell = [ln for ln in out.splitlines() if "MobileNetV3/fmow2" in ln]
+    assert cell, out
+    assert cell[0].split()[1] == "2", (
+        "the gate counted %s runs in the cell; the 2 post-hoc clippers should "
+        "have been skipped entirely, since a clipper has no constraint phase "
+        "whose boundary could freeze:" % cell[0].split()[1] + chr(10) + out)
+    assert rc == 0, (
+        "a post-hoc clipper pulled the cell below the bar and failed the "
+        "trained arms with it:" + chr(10) + out)
 
 
 def test_augment_is_OFF_by_default_and_actually_CHANGES_the_data_when_on():

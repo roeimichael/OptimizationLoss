@@ -21,7 +21,7 @@ label smoothing, or running the constraint phase inside the live window.
 
 The gate: the live window must cover at least HALF the constraint epochs.
 """
-import argparse, csv, glob, os, sys, collections, statistics as st
+import argparse, csv, glob, json, os, sys, collections, statistics as st
 
 SATURATED_ACC = 0.95
 
@@ -50,7 +50,13 @@ def main(argv=None):
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--glob", nargs="+", required=True,
                     help="run-dir globs holding training_log.csv")
-    ap.add_argument("--constraint-epochs", type=int, default=29)
+    ap.add_argument("--constraint-epochs", type=int, default=None,
+                    help="override; by default each run's OWN constraint_epochs "
+                         "is read from its config.json. The default used to be a "
+                         "hardcoded 29, so a 6-epoch campaign was judged against "
+                         "a 30-epoch budget and reported SATURATED while its "
+                         "trained arms were live for 94%% of their constraint "
+                         "phase.")
     ap.add_argument("--saturated-acc", type=float, default=SATURATED_ACC)
     ap.add_argument("--strict", action="store_true",
                     help="exit 1 when the live window is too short to gate a launch")
@@ -59,8 +65,23 @@ def main(argv=None):
     per = collections.defaultdict(list)
     for g in args.glob:
         for f in glob.glob(os.path.join(g, "training_log.csv")):
+            # A post-hoc arm has NO constraint phase, so its live window says
+            # nothing about whether a constraint was pushing a frozen boundary.
+            # Pooling clippers into the cell dragged the mean down and reported
+            # campaigns as saturated on the strength of runs the gate does not
+            # apply to.
+            con = args.constraint_epochs
+            if con is None:
+                cj = os.path.join(os.path.dirname(f), "config.json")
+                try:
+                    con = int(json.load(open(cj))["hyperparams"]["constraint_epochs"])
+                except (OSError, KeyError, ValueError):
+                    continue
+            if con <= 0:
+                continue
             got = live_window(f, args.saturated_acc)
             if got:
+                got = (got[0], got[1], con)
                 p = f.replace(os.sep, "/").split("/")
                 # Key on (BACKBONE, dataset). Keying on (dataset, cap) merged
                 # MobileNetV2, MobileNetV3 and ViTB16 into one row and hid
@@ -70,15 +91,20 @@ def main(argv=None):
     if not per:
         print("no training_log.csv matched")
         return 1
-    need = max(1, args.constraint_epochs // 2)
+    budgets = sorted({c for v in per.values() for _w, _r, c in v})
+    con_epochs = budgets[0] if len(budgets) == 1 else min(budgets)
+    need = max(1, con_epochs // 2)
     bad = 0
     print("live window = epochs before train accuracy reaches %.2f" % args.saturated_acc)
-    print("required    = >= %d of %d constraint epochs" % (need, args.constraint_epochs))
+    print("required    = >= %d of %d constraint epochs%s" % (
+        need, con_epochs,
+        "  (campaign mixes budgets %s -- judged on the shortest)" % budgets
+        if len(budgets) > 1 else ""))
     print("")
     print("  %-22s %4s %8s %10s %s" % ("cell", "n", "live", "verdict", "acc curve"))
     for k in sorted(per):
         v = per[k]
-        live = st.mean([w for w, _ in v])
+        live = st.mean([w for w, _r, _c in v])
         ok = live >= need
         bad += 0 if ok else 1
         curve = v[0][1][:6]
