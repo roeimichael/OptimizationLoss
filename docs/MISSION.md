@@ -19,6 +19,41 @@ passes all 8 conditions of `scripts/candidate_gate.py`.
 
 ## Current stage
 
+### 🔧 WHY bcn AND fmow2 DISAGREE: bcn FAILS THE BALANCE CONDITION
+
+`scripts/candidate_gate.py` on both live datasets, capped classes [0, 2]:
+
+| condition | bcn | fmow2 |
+|---|---|---|
+| C1 classes >= 8 | 8 | 10 |
+| C4 density >= .50 | **0.89** | 0.75 |
+| C5 dead items <= 10% | 0% | 0% |
+| C6 zero ceilings <= 25% | 0/16 | 3/20 |
+| C7 binding ceilings | 11/16 | 6/20 |
+| **C8 balance >= .25** | ⛔ **0.04** | ✅ 0.59 |
+| verdict | **7 of 8** | **PASS ALL** |
+
+bcn class supports: 32.7 / 23.5 / 22.3 / 8.8 / 6.5 / 3.7 / 1.3 / 1.3 percent --
+five tail classes holding 21% of the data between them, and the rarest class at
+**1/26th** of the commonest. fmow2 spans 9.3 to 15.9 percent.
+
+🔑 **This is the most likely reason every intervention beats plain
+`clip` on bcn and none does on fmow2.** `focal_clip` (+0.0136 / +0.0197) and the
+optimizer reset (+0.0132 / +0.0185) are both IMBALANCE remedies, and they buy
+about the same amount, and they do not stack. The constraint is not an imbalance
+remedy and buys nothing on either dataset. On a dataset this skewed the plain
+clipper is a weak baseline, so **no bcn claim may be reported without
+`focal_clip` beside it.**
+
+⚠️ **Standing decision, taken 2026-09-14 under the user's mandate to drive
+this.** bcn STAYS as the second dataset -- 7 of 8 against iwildcam's 2 of 8, best
+density in the corpus, no dead groups, no zero ceilings -- and the C8 failure is
+recorded as a property to report rather than a defect to hide. A dermatology
+slice legitimately has rare conditions; that is the "hospital story" the dataset
+brief asked for. But bcn's image arrays are NOT in the lean tree (only
+`train_meta.csv` / `test_meta.csv`), so a bcn campaign needs them restored from
+the archive first.
+
 ### 🟢🔴 THE RANKING CHANNEL: THE RECIPE BEATS `clip`, AND `focal_clip` MATCHES IT
 
 "gAP" is per-group average precision on the raw pre-allocator probabilities.

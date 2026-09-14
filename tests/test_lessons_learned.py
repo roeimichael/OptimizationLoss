@@ -562,7 +562,7 @@ def test_a_candidate_dataset_is_screened_on_EVERY_condition_at_once(tmp_path):
 
 
 def _fake_run(root, arm, seed, cap="L80_G95", n=240, shift=0.0, rng_key=None,
-              group_boost=0.0):
+              group_boost=0.0, other_shift=0.0):
     """One run directory with the two files the scorers actually read."""
     import os, json, random
     d = os.path.join(root, "MobileNetV3", "fmow2", cap, arm, "seed_%d" % seed)
@@ -579,9 +579,21 @@ def _fake_run(root, arm, seed, cap="L80_G95", n=240, shift=0.0, rng_key=None,
         # `shift` degrades the ordering for the capped classes only, so a tool
         # reading the ORDER sees it and a tool reading only counts does not.
         p = [0.02] * 8
-        good = rng.random() > (0.25 + shift if y in (1, 2, 7) else 0.25)
-        pred = y if good else (y + 1) % 8
-        p[pred] = 0.86 - (shift if y in (1, 2, 7) else 0.0)
+        # `other_shift` degrades the UNCAPPED classes only, so a fixture can
+        # move macroF1/accuracy while leaving cc-F1 tied -- which is what a
+        # domination test needs and `shift` alone cannot express.
+        s_y = shift if y in (1, 2, 7) else other_shift
+        good = rng.random() > (0.25 + s_y)
+        if other_shift and y not in (1, 2, 7):
+            # Route an UNCAPPED error to another uncapped class. Sending it to
+            # (y+1)%8 puts class 0's mistakes into class 1, a CAPPED class, so
+            # degrading the uncapped classes moved cc-F1 as well and the two
+            # could not be varied independently.
+            unc = [0, 3, 4, 5, 6]
+            pred = y if good else unc[(unc.index(y) + 1) % len(unc)]
+        else:
+            pred = y if good else (y + 1) % 8
+        p[pred] = 0.86 - s_y
         if group_boost and g == 0:
             # A constant added to one GROUP preserves that group's internal
             # order exactly, so a PER-GROUP AP must not move. A GLOBAL AP must.
@@ -781,3 +793,44 @@ def test_rank_paired_collapses_a_CAP_that_never_reached_the_MODEL(tmp_path, caps
     assert not any("L70_G95" in l or "L90_G95" in l for l in body), out
     # one row per constrained class, not one per (class, cap)
     assert len(body) == 3, "expected 3 classes collapsed over caps, got %d:\n%s" % (len(body), out)
+
+
+def test_a_cc_f1_TIE_is_not_a_WIN_and_domination_is_checked_against_EVERY_arm():
+    """Two ways the verdict line overstated, both seen on real fmow2 output.
+
+    (a) It printed "WIN -- leads/ties alm on cc-F1 (-0.0093)". A NEGATIVE delta
+        inside the noise is the leading GROUP, which is the user's bar, but it
+        is not a lead. Calling a tie a win is how four #1 claims were made here.
+    (b) "not dominated elsewhere" was tested against `clip` ALONE, so an arm
+        ahead of TraLO on the whole quality profile passed unnoticed unless it
+        happened to be `clip`.
+
+    `classify` is called directly: routed through the fixture generator, any arm
+    strong enough to dominate also leads cc-F1 beyond noise and trips the LOSS
+    branch first, so the branch under test is unreachable end-to-end.
+    """
+    from scripts.profile_report import classify
+
+    tie = {"cc_f1": (-0.0010, 0.0100)}
+    # (a) a deficit inside the noise, nothing else measured
+    v = classify("alm", -0.0010, 0.0100, {"alm": dict(tie)}, False)
+    assert "WIN" not in v, v
+    assert v.startswith("LEADING GROUP"), v
+
+    # liveness: a real lead beyond the noise still reads WIN
+    v = classify("alm", +0.0400, 0.0100, {"alm": {"cc_f1": (0.0400, 0.0100)}}, False)
+    assert v.startswith("WIN"), v
+
+    # (b) cc-F1 ties, but hounie is ahead on the rest and TraLO never is
+    dom = {"hounie": {"cc_f1": (-0.0010, 0.0100),
+                      "macro_f1": (-0.0400, 0.0050),
+                      "accuracy": (-0.0300, 0.0050)},
+           "alm": dict(tie)}
+    v = classify("alm", -0.0010, 0.0100, dom, False)
+    assert v.startswith("DOMINATED") and "hounie" in v, v
+    assert "alm" not in v.split("by:")[-1], "alm ties everywhere and does not dominate: " + v
+
+    # negative control: TraLO ahead on ONE metric beyond noise is not domination
+    dom["hounie"]["collateral_f1"] = (+0.0400, 0.0050)
+    v = classify("alm", -0.0010, 0.0100, dom, False)
+    assert "DOMINATED" not in v, v

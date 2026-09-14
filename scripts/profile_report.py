@@ -62,6 +62,44 @@ def paired(a, b, key):
     return m, sd, len(seeds)
 
 
+
+def classify(bestarm, cc_delta, cc_sd, deltas, have_clip):
+    """The verdict line, as a pure function so it can be gated directly.
+
+    Two overstatements this replaces, both seen on real fmow2 output:
+    a NEGATIVE cc-F1 delta inside the noise printed as "WIN -- leads/ties", and
+    "not dominated elsewhere" tested against `clip` ALONE, so an arm ahead of
+    TraLO across the whole quality profile passed unnoticed unless it was clip.
+
+    `deltas` is {arm: {metric: (mean_delta, sd)}}, TraLO minus that arm.
+    """
+    if cc_delta < -cc_sd:
+        return "LOSS -- trails %s on cc-F1 by %.4f (sd %.4f)" % (bestarm, -cc_delta, cc_sd)
+    dominators = []
+    for a, per_metric in deltas.items():
+        beats_tralo = any(dm < -sd for dm, sd in per_metric.values())
+        tralo_ahead = any(dm > sd for dm, sd in per_metric.values())
+        if beats_tralo and not tralo_ahead:
+            dominators.append(a)
+    if dominators:
+        return ("DOMINATED -- cc-F1 holds vs %s (%+.4f), but dominated on the full "
+                "profile by: %s" % (bestarm, cc_delta, ", ".join(sorted(dominators))))
+    damage = ["%s %+0.4f" % (k, dm)
+              for k, (dm, sd) in sorted(deltas.get("clip", {}).items())
+              if k in ("accuracy", "macro_f1", "collateral_f1") and dm < -sd]
+    if have_clip and damage:
+        return "TRADE -- cc-F1 holds vs %s (%+.4f), but below clip on: %s" % (
+            bestarm, cc_delta, ", ".join(damage))
+    if cc_delta > cc_sd:
+        return "WIN -- LEADS %s on cc-F1 by %+.4f beyond its sd %.4f, and is not dominated" % (
+            bestarm, cc_delta, cc_sd)
+    # The bar is "leading GROUP", so a deficit inside the noise is not a loss --
+    # but it is not a win either, and calling it one is how a tie became a
+    # headline four times in this project.
+    return "LEADING GROUP -- within noise of %s on cc-F1 (%+.4f, sd %.4f), not dominated" % (
+        bestarm, cc_delta, cc_sd)
+
+
 def main(roots):
     rows = []
     for root in roots:
@@ -120,19 +158,14 @@ def main(roots):
         bestarm = max(others, key=lambda a: mean[a]["cc_f1"])
         m, sd, n = paired(arms["tralo"], arms[bestarm], "cc_f1")
         noise = sd if sd else 0.0
-        cc_ok = m >= -noise
-        damage = []
-        if "clip" in arms:
-            for k in ("accuracy", "macro_f1", "collateral_f1"):
-                dm, dsd, _ = paired(arms["tralo"], arms["clip"], k)
-                if dm is not None and dm < -(dsd or 0.0):
-                    damage.append("%s %+0.4f" % (k, dm))
-        if not cc_ok:
-            v = "LOSS -- trails %s on cc-F1 by %.4f (sd %.4f)" % (bestarm, -m, noise)
-        elif damage:
-            v = "TRADE -- cc-F1 holds vs %s (%+.4f), but below clip on: %s" % (bestarm, m, ", ".join(damage))
-        else:
-            v = "WIN -- leads/ties %s on cc-F1 (%+.4f) and is not dominated on damage" % (bestarm, m)
+        deltas = {}
+        for a in others:
+            deltas[a] = {}
+            for k in QUALITY:
+                dm, dsd, _ = paired(arms["tralo"], arms[a], k)
+                if dm is not None:
+                    deltas[a][k] = (dm, dsd or 0.0)
+        v = classify(bestarm, m, noise, deltas, "clip" in arms)
         print("  VERDICT: %s" % v)
         if n < 4:
             print("  (only %d common seeds -- this is a direction, not a measurement)" % n)
