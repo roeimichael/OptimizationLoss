@@ -17,6 +17,78 @@ see the retirement note in `configs/protocol.yml`) and the original `fmow`
 oodslice is withdrawn (basename join collapsed distinct AOIs). Rebuilt fmow2
 passes all 8 conditions of `scripts/candidate_gate.py`.
 
+## THE COURSE -- read this first, every session
+
+*This section is the contract. Everything below it is evidence. If a new result
+changes the course, edit THIS section -- do not leave it stale and correct it
+further down.*
+
+### The one question
+
+**Can a training-time constraint beat a post-hoc clipper on a capped-class
+task?** The acceptance bar, set by the user: **leading group on cc-F1 AND not
+dominated on the rest of the metric profile.** A win on accuracy or macroF1
+while losing cc-F1 is a TRADE, not a win, and must be reported as one.
+
+### What is settled -- do not re-open without new evidence
+
+| # | Settled | Consequence |
+|---|---|---|
+| 1 | **Every cell saturates in 2-4 epochs of 30.** 5/5 cells, 3 backbones, 2 datasets. | 24+ of 29 constraint epochs push a frozen boundary. `gate:saturation` is a HARD DROP. |
+| 2 | **The four duals share ONE per-item gradient.** tralo/fioretto/alm/hounie all reduce to `sum_scopes w_scope * sum_i dp_i(c)/dz`, differing only in the scalar. Local scopes are disjoint. | Their only freedom is the per-group eviction COUNT, which the caps fix. **No better dual rule exists to find.** |
+| 3 | **Eviction given the probabilities is already ~optimal.** A gradient push lands on 87% of the provably optimal set; closing the rest is worth 0.0002. | The prize is NOT in the loss shape. A margin-aware soft count is CLOSED. |
+| 4 | **The exact allocator makes real results WORSE** (-0.01 to -0.04 acc, -0.02 to -0.08 cc-F1, 14/14 cells) because models run at 0.92 confidence against 0.60 accuracy. | The allocator "fix" is CANCELLED. Greedy's suboptimality is protective. |
+| 5 | **The constraint DOES work -- it just does not convert.** Every dual beats both clippers on native obedience (excess 279-326 vs 381-413). | Obedience is not the missing piece. The metric does not reward it. |
+
+**Therefore the ONLY channel left is the RANKING** -- the model's own margins,
+measured by gAP. And the constraint can only change margins while the boundary
+is still moving. **That is the whole remaining question.**
+
+### The live experiment: `gx2`
+
+56 runs, MobileNetV3 x fmow2 x {L80_G95, L90_G95} x 4 seeds, staged and frozen,
+gates green. Crosses the constraint with two interventions:
+
+| | post-hoc | trained |
+|---|---|---|
+| plain | `clip` | `tralo` |
+| focal (bigger gradient) | `focal_clip` | `focal_tralo` |
+| augment (live boundary) | `aug_clip` | `aug_tralo` |
+
+**Pre-registered outcomes, fixed BEFORE the seeds land:**
+
+| Result | Reading | What we do |
+|---|---|---|
+| augment interaction **> 0**, focal **~ 0** | The account holds: a live boundary is what the constraint needs. | Push it -- more backbones, the second dataset, then the bar. |
+| **both > 0** | Any regulariser does it; nothing about the constraint. | The gradient-health account is wrong. Ledger it. |
+| **neither > 0** | The ranking channel is SHUT. | Write the negative result. It is publishable and it is where the ledger already points. |
+
+"Interaction" means `gAP(X_tralo) - gAP(X_clip)` against `gAP(tralo) -
+gAP(clip)`, seed-paired, per cell. A main effect of the intervention alone
+confirms nothing -- the matched clipper already has one.
+
+### Standing decision rules
+
+- **`gate:saturation` first.** An arm that memorises in 3 epochs has not run the
+  experiment; its numbers are not read at all.
+- **Average over SEED only.** Never pool across cap levels, backbones or
+  datasets. A cap level is not a seed.
+- **A gate is not done until a mutation shows it FAIL**, and the restore is
+  verified by EXECUTING -- stale bytecode has faked a pass before.
+- **Never touch `src/`, `configs/`, `scripts/`, `main.py` on the server while a
+  campaign is live** -- it splits `code_version`. Use `~/optloss-probe`.
+- **Claims about what code reads come from AST or reading, never grep.**
+- **Report a trade as a trade.** Retract in the same document, in place.
+
+### Where we actually stand, 2026-09-14
+
+`fm2_mn3` is complete (56/56) and is the **frozen-boundary REFERENCE**, not a
+verdict: at L90_G95 TraLO trails all six rivals on cc-F1 (-0.0193 +- 0.0058
+against its own null) while buying +0.013 accuracy and +0.015 macroF1; at
+L80_G95 it is in the leading group. `fm2_mn2` and `fm2_vit` fail the same gate
+and are failed experiments. **`gx2` is the next thing that can change the
+answer.**
+
 ## Current stage
 
 ### 🔬 PRE-REGISTERED 2026-09-14 (2) -- THE 2x2 GRADIENT-HEALTH TEST
