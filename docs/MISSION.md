@@ -4,28 +4,92 @@ Updated 2026-09-14 (Asia/Jerusalem). User approved recoverable large cleanup, fr
 validated logging/data/code, then a within-TraLO modification and monitored SSH
 experiments. No historical acceptance tally is carried forward.
 
-**Latest user direction: close development and hand off testing.** Freeze the
-current seven-arm loss/config recipe; do not add a new loss variant or wait for
-dataset expansion. Finish input/report fixes, truthful logs, safe single-owner
-dispatch, target-host verification and a short tool-independent command workflow.
-The first eligible dataset is iwildcam. fMoW repair and BCN curation are deferred
-while both datasets remain blocked. An algorithm proposal is not a prerequisite
-for testing the validated reference.
+**Latest user direction (2026-09-14): take charge and drive it.** Manage the
+classes and the data, get them to fit the requirements, then run on the GPU
+servers; if results look decent, improve them by (1) hyperparameters, (2) extra
+seeds for replication, (3) other modalities -- and validate that what comes back
+is true. The acceptance bar, chosen by the user: **leading group on cc-F1 and
+not dominated elsewhere**, judged on the full metric profile rather than a single
+hard-capped condition.
+
+**The dataset is `fmow2`.** iwildcam is RETIRED (2 of 8 candidate conditions;
+see the retirement note in `configs/protocol.yml`) and the original `fmow`
+oodslice is withdrawn (basename join collapsed distinct AOIs). Rebuilt fmow2
+passes all 8 conditions of `scripts/candidate_gate.py`.
 
 ## Current stage
+
+### 🔬 PRE-REGISTERED 2026-09-14, BEFORE THE SEEDS LANDED
+
+**CLAIM: TraLO's ranking damage is caused by UNDERSHOOT, not by the constraint.**
+
+TraLO decides a scope is violating from a SINGLE epoch's count. That count has a
+measured epoch-to-epoch sd of **27-113 items** and oscillates just as much with
+the constraint switched off -- `tralo_null` takes zero constraint steps and its
+class-2 count still swings 468 -> 869. So the ratchet fires on noise:
+`Local_Satisfied` was 0 in EVERY epoch of every run inspected, multipliers
+climbed monotonically for all 29, and class 7 ended at **111-122 predictions
+against a permitted 304 on BOTH backbones** -- a class whose global excess in
+the null was +8 (MNv3, 0.17 sd) and -83 (MNv2, already compliant).
+
+Evidence at pre-registration: 12 paired `tralo` vs `tralo_null` contrasts over
+2 backbones x 2 caps x 3 classes.
+
+| group | mean d gAP | n |
+|---|---|---|
+| ended UNDER budget | **-0.0273** | 5 |
+| ended AT/OVER budget | **+0.0001** | 7 |
+
+`pearson(excess/sd, d gAP) = +0.524`. The two largest GAINS in the table
+(+0.0482, +0.0247) are both cases where TraLO corrected and stopped.
+
+**PREDICTION.** At 4 seeds across `fm2_mn3`, `fm2_mn2` and `fm2_vit`, the split
+holds: contrasts ending under budget stay negative, contrasts ending at/over
+budget stay >= 0 within seed noise.
+
+⛔ **FALSIFIED IF** the two groups are equally negative at 4 seeds, or if
+`pearson` falls to ~0. Then the damage is not overshoot and this account is
+wrong -- record it in the rejected ledger rather than rescuing it.
+
+⚠️ At pre-registration n=12 and the contrasts are NOT independent: L80 and L90
+share a warm-up and some share seeds. r=+0.524 at n=12 is suggestive, not
+conclusive. What makes it worth testing is the mechanism, not the p-value:
+undershoot forces the allocator to backfill to K from lower-ranked items, which
+is mechanically guaranteed to cost quality.
+
+🔑 **THE FIX THIS IMPLIES IS NOT IN THE REJECTED LEDGER.** Everything closed
+there is the gradient EXPRESSION -- penalty shape, count function, cut window,
+margin, scope re-weighting. This is the MEASUREMENT that triggers it: require a
+scope's excess to clear its own measured epoch noise before ratcheting, or
+average the count over recent epochs before declaring a violation. No gradient
+changes and no extra compute. Test as a `tralo_hyst` arm against unmodified
+`tralo` at equal compute, pre-registered above.
+
+⚠️ With `L80`/`L90` local against `G95` global, `sum(local K) < global K` for
+every capped class, so the GLOBAL cap is inert and these campaigns are a pure
+LOCAL-cap experiment. Do not read them as evidence about the global scope.
 
 **Core and tool thinning committed and independently reviewed. Fresh identity,
 common deployment, metrics and logging gates remain.**
 Current source checkpoint `de760d40`: seven public arms; 52 historical scripts and the
-task-window config machinery retired. No new experiment has launched. Local
-`results/` is empty. All 17 formerly populated server result trees remain in the
-external history archive, not the active results roots.
+task-window config machinery retired. All 17 formerly populated server result
+trees remain in the external history archive, not the active results roots.
 
-At 2026-09-14 13:50 Asia/Jerusalem, both SSH hosts were reachable. Each had four
-GPUs at 0% utilization / 0 MiB used, no reported GPU compute process, and no
-Python/torchrun process owned by this account. This is a snapshot, not a GPU
-reservation. An old idle hp_liveness_real shell watcher remains on dsisco02;
-it is not training and was not stopped. Recheck both hosts before any dispatch.
+**RUN STATE, CHECKED 2026-09-14 19:42 Asia/Jerusalem.** Three campaigns live on
+dsisco02, tree pinned at `1072a229`, at the 3-GPU ceiling and zero failures:
+
+| campaign | backbone | GPU | done / planned | launcher PID |
+|---|---|---|---|---|
+| `fm2_mn3` | MobileNetV3 | 1 | 27 / 56 | 3290265 |
+| `fm2_mn2` | MobileNetV2 | 0 | 15 / 56 | 3320254 |
+| `fm2_vit` | ViTB16 | 2 | 7 / 56 | 3306622 |
+
+`sat_fmow2` completed 16/16 earlier as the clipper saturation baseline. GPU 3 is
+free and deliberately unused -- the standing ceiling is three GPUs total, not
+three per host. This is a snapshot, not a reservation; recheck BOTH hosts before
+any dispatch. **The source tree is FROZEN while these run** -- `src/`, `configs/`,
+`scripts/` and `main.py` are all inside `source_inventory()`, so a deploy of any
+of them splits the campaign identity.
 
 ## Ordered work
 
