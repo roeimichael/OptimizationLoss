@@ -69,7 +69,7 @@ def test_a_group_column_that_is_a_function_of_the_row_index_is_dead(
         {"location": int(g), "label": int(c)} for (g, c) in zip(shuffled, te_lab)
     ]
     cases = [
-        ("iwildcam/oodslice, the shipped slice", slice_dir, None, True),
+        ("fmow2/oodslice, the shipped slice", slice_dir, None, True),
         (
             "synth_group = arange(n) % 3 (octmnist, tissuemnist)",
             _write_slice(str(tmp_path / "idx"), idx_tr, idx_te),
@@ -111,7 +111,7 @@ def test_unseen_test_groups_alone_do_not_make_a_slice_live(slice_dir, tmp_path):
 
     (tr, te) = _one_distribution(np.random.default_rng(7), 6, 4)
     cases = [
-        ("iwildcam/oodslice", slice_dir, True),
+        ("fmow2/oodslice", slice_dir, True),
         (
             "rxrx1-shaped: unseen groups, one label distribution",
             _write_slice(str(tmp_path / "rxrx"), tr, te),
@@ -164,7 +164,7 @@ def test_the_local_scope_binds_because_half_its_ceilings_are_zero(slice_dir, tmp
         shared += _rows(g, list(CAPPED_CLASSES) * 40 if g < 2 else [0, 1, 3] * 40)
     cases = [
         (
-            "iwildcam/oodslice",
+            "fmow2/oodslice",
             pd.read_csv(os.path.join(slice_dir, "test_meta.csv")),
             7,
             False,
@@ -206,7 +206,7 @@ def test_the_test_cameras_are_held_out_entire(slice_dir, tmp_path, protocol):
         fails.append(
             "%d camera(s) in BOTH splits: %s" % (len(shared), sorted(shared)[:5])
         )
-    if not protocol["datasets"]["iwildcam"].get("disjoint_groups"):
+    if not protocol["datasets"]["fmow2"].get("disjoint_groups"):
         fails.append(
             "protocol.yml does not declare `disjoint_groups: true`, so the loader would WARN on overlap instead of raising"
         )
@@ -280,7 +280,7 @@ def test_the_split_was_cut_by_group_not_stratified_on_the_label(slice_dir, tmp_p
         )
     )
     cases = [
-        ("iwildcam/oodslice, cut BY CAMERA", slice_dir, True),
+        ("fmow2/oodslice, cut BY CAMERA", slice_dir, True),
         (
             "the same rows, StratifiedShuffleSplit on the label",
             _write_slice(
@@ -312,7 +312,7 @@ def test_the_factorial_gate_is_not_a_pass_on_an_atomic_group(slice_dir, tmp_path
 
     fact = _synthetic(str(tmp_path / "fact"), sep="|", seed=0)
     cases = [
-        ("iwildcam/oodslice, camera = ATOMIC", slice_dir, "|", False),
+        ("fmow2/oodslice, camera = ATOMIC", slice_dir, "|", False),
         ("site|age, raking is exactly right", fact, "|", True),
         ("the same slice, WRONG separator", fact, "@", False),
     ]
@@ -368,7 +368,7 @@ def test_every_registered_dataset_can_actually_encode_its_group_column():
     ids = _encode_groups(pd.Series([218, 320, 218, 516]), "location")
     if ids.tolist() != [218, 320, 218, 516]:
         fails.append(
-            "an integer group column was RENUMBERED to %r -- this would silently change every iwildcam group id"
+            "an integer group column was RENUMBERED to %r -- this would silently change every fmow2 group id"
             % (ids.tolist(),)
         )
     try:

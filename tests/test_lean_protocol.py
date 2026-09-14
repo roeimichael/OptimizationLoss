@@ -20,7 +20,7 @@ def generate(tmp_path, *options):
             "--root",
             str(tmp_path),
             "--datasets",
-            "iwildcam",
+            "fmow2",
             "--caps",
             "L30_G50",
             "L50_G30",
@@ -145,7 +145,7 @@ def test_dataset_runtime_rejects_cct_before_array_loading(tmp_path, monkeypatch)
         data_loader.load_experiment_data(config)
 
 
-@pytest.mark.parametrize("dataset", ["iwildcam", "fmow", "bcn"])
+@pytest.mark.parametrize("dataset", ["fmow2", "bcn"])
 def test_dataset_runtime_loads_supported_tiny_slices(tmp_path, dataset):
     import numpy as np
     from src.utils.data_loader import load_experiment_data

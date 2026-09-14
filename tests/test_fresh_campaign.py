@@ -32,9 +32,9 @@ def config_for(data_dir, arm='clip'):
     dc = dict(data_dir=str(data_dir), num_classes=2, group_column='location',
               constrained_class=[1], disjoint_groups=True)
     return dict(methodology=p['arms'][arm]['methodology'], model_name='MobileNetV2',
-                constraint=[.5, .5], constraint_tag='L50_G50', dataset_mode='iwildcam',
+                constraint=[.5, .5], constraint_tag='L50_G50', dataset_mode='fmow2',
                 dataset_config=dc, hyperparams=hp,
-                base_model_id=compute_base_model_id(p, 'MobileNetV2', hp, 'iwildcam', dc),
+                base_model_id=compute_base_model_id(p, 'MobileNetV2', hp, 'fmow2', dc),
                 arm=arm, exp_name='fixture', status='pending', code_version='fixture')
 
 
@@ -43,7 +43,7 @@ def staged(tmp_path):
     data = tmp_path / 'data'
     tiny_data(data)
     root = tmp_path / 'fresh'
-    rel = 'MobileNetV2/iwildcam/L50_G50/clip/seed_1/config.json'
+    rel = 'MobileNetV2/fmow2/L50_G50/clip/seed_1/config.json'
     stage_campaign(root, {rel: config_for(data)}, load_protocol())
     return root, rel
 
@@ -227,7 +227,7 @@ def test_real_imagery_cli_generates_freezes_trains_receipts_and_reports(tmp_path
     protocol = load_protocol()
     protocol['protocol'].update(total_epochs=2, trained_warmup=1, seeds=[1])
     protocol['core'].update(batch_size=4, pretrained=False)
-    protocol['datasets']['iwildcam'] = config_for(data)['dataset_config']
+    protocol['datasets']['fmow2'] = config_for(data)['dataset_config']
     protocol_path = tmp_path/'protocol.yml'
     protocol_path.write_text(yaml.safe_dump(protocol))
     root = tmp_path/'fresh_cli'
@@ -241,7 +241,7 @@ def test_real_imagery_cli_generates_freezes_trains_receipts_and_reports(tmp_path
         return proc
 
     run('configs.gen_campaign', '--protocol', protocol_path, '--root', root,
-        '--datasets', 'iwildcam', '--models', 'MobileNetV2', '--arms', 'all',
+        '--datasets', 'fmow2', '--models', 'MobileNetV2', '--arms', 'all',
         '--caps', 'L50_G50', 'L100_G100', '--pretrained', 'false')
     run('src.pipeline.campaign', 'freeze', '--root', root)
     configs = sorted(root.rglob('config.json'))

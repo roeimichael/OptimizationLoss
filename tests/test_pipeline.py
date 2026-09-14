@@ -238,7 +238,7 @@ def _gen(tmp, *extra):
         "--root",
         str(tmp),
         "--datasets",
-        "iwildcam",
+        "fmow2",
         "--arms",
         "tralo",
     ] + list(extra)
@@ -278,10 +278,10 @@ def test_mandatory_clippers_are_always_added(tmp_path):
 
 
 def _bid(P, arm, seed=1, **over):
-    dc = dict(P["datasets"]["iwildcam"])
+    dc = dict(P["datasets"]["fmow2"])
     hp = build_hyperparams(P, P["arms"][arm], seed)
     hp.update(over)
-    return compute_base_model_id(P, "MobileNetV3", hp, "iwildcam", dc)
+    return compute_base_model_id(P, "MobileNetV3", hp, "fmow2", dc)
 
 
 def test_arms_differing_only_in_the_allocator_share_a_warm_up():
@@ -453,7 +453,7 @@ def test_parity_catches_two_arms_sharing_one_warm_up_with_different_objectives(
             "--root",
             str(tmp_path),
             "--datasets",
-            "iwildcam",
+            "fmow2",
             "--models",
             "MobileNetV3",
             "--caps",
@@ -492,7 +492,7 @@ def test_parity_catches_two_arms_sharing_one_warm_up_with_different_objectives(
 
 def test_verify_caps_fails_when_it_cannot_read_a_slice(tmp_path):
     r = subprocess.run(
-        [sys.executable, "-m", "scripts.verify_caps", "--datasets", "iwildcam"],
+        [sys.executable, "-m", "scripts.verify_caps", "--datasets", "fmow2"],
         cwd=str(tmp_path),
         capture_output=True,
         text=True,
@@ -578,7 +578,7 @@ def _write_slice(
 
 def _cfg(d, n_classes=4, capped=2):
     return {
-        "dataset_mode": "iwildcam",
+        "dataset_mode": "fmow2",
         "dataset_config": {
             "data_dir": d,
             "num_classes": n_classes,
@@ -1809,7 +1809,7 @@ def _log_health_campaign(tmp_path, accs, arm="tralo"):
                 {
                     "arm": arm,
                     "status": "completed",
-                    "dataset_mode": "iwildcam",
+                    "dataset_mode": "fmow2",
                     "model_name": "MobileNetV3",
                     "constraint_tag": "L30_G50",
                     "constraint": [0.3, 0.5],
@@ -1871,7 +1871,7 @@ def _nonfinite_campaign(tmp_path, steps_applied):
     cfg = {
         "arm": "tralo",
         "status": "completed",
-        "dataset_mode": "iwildcam",
+        "dataset_mode": "fmow2",
         "model_name": "ViTB16",
         "constraint_tag": "L30_G50",
         "constraint": [0.3, 0.5],
@@ -1930,7 +1930,7 @@ def _starvation_campaign(tmp_path, arms):
             cfg = {
                 "arm": arm,
                 "status": "completed",
-                "dataset_mode": "iwildcam",
+                "dataset_mode": "fmow2",
                 "model_name": "MobileNetV3",
                 "constraint_tag": "L30_G50",
                 "constraint": [0.3, 0.5],
@@ -2126,7 +2126,7 @@ def test_check_parity_fails_on_an_unknown_code_version_and_only_warns_on_dirty(
             "--root",
             d,
             "--datasets",
-            "iwildcam",
+            "fmow2",
             "--arms",
             "all",
             "--seeds",
@@ -2217,7 +2217,7 @@ def test_log_health_reads_UNLIMITED_as_the_sentinel_it_is_not_as_a_divergence(tm
     class and `log_health` itself reads it back as that sentinel (`>= UNLIMITED`)
     when it decides `posthoc` and when it reads a cap. The non-finite scan counted
     the same value as an invalid update, so `--step firstrun` went RED on every
-    campaign leaving any class uncapped -- on iwildcam, 6 of the 8. Measured on
+    campaign leaving any class uncapped -- on fmow2, 6 of the 8. Measured on
     results/pilot_mn3 2026-09-14: Limit_Class{0,1,3,4,5,6} all inf, while the two
     CAPPED classes read a correct finite 352 and 433.
     """

@@ -80,7 +80,7 @@ def _write_campaign(
     caps=("L30_G50", "L50_G30"),
     seeds=(1, 2),
     hp_patch=None,
-    dataset="iwildcam",
+    dataset="fmow2",
     model="MobileNetV3",
 ):
     arms = sorted(set(arms) | {"clip", "focal_clip", "tralo_null"})
@@ -193,7 +193,7 @@ def test_the_generator_refuses_an_unequal_lr_constraint(tmp_path, P):
         "--root",
         str(tmp_path / "camp"),
         "--datasets",
-        "iwildcam",
+        "fmow2",
         "--models",
         "MobileNetV3",
         "--caps",
@@ -317,8 +317,8 @@ def test_the_four_trained_arms_share_one_warmup_and_the_clippers_do_not(tmp_path
         "alm",
     ):
         hp = build_hyperparams(P, P["arms"][arm], 1)
-        dc = P["datasets"]["iwildcam"]
-        ids[arm] = compute_base_model_id(P, "MobileNetV3", hp, "iwildcam", dc)
+        dc = P["datasets"]["fmow2"]
+        ids[arm] = compute_base_model_id(P, "MobileNetV3", hp, "fmow2", dc)
     assert (
         len({ids[a] for a in ("tralo", "tralo_null", "fioretto", "hounie", "alm")}) == 1
     )
@@ -891,7 +891,7 @@ def test_dataset_screen_NAMES_the_slice_not_the_convention():
         for p in (
             "/home/x/_cand/fmow_country/oodslice",
             "/home/x/_cand/isic_src/oodslice/",
-            "data/iwildcam/oodslice",
+            "data/fmow2/oodslice",
             "data/dermmnist/slice_1",
         )
     }
@@ -899,7 +899,7 @@ def test_dataset_screen_NAMES_the_slice_not_the_convention():
         len(got),
         got,
     )
-    assert slice_label("data/iwildcam/oodslice") == "iwildcam/oodslice"
+    assert slice_label("data/fmow2/oodslice") == "fmow2/oodslice"
     assert slice_label("data/dermmnist/slice_1") == "dermmnist/slice_1"
     assert slice_label("data/tissuemnist") == "tissuemnist"
 

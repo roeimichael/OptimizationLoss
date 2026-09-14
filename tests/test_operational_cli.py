@@ -95,7 +95,7 @@ def campaign(tmp_path):
         np.save(data/(split+'_labels.npy'), labels)
         pd.DataFrame({'label': labels, 'location': [group]*32}).to_csv(data/(split+'_meta.csv'), index=False)
     p = load_protocol()
-    p['datasets']['iwildcam']['data_dir'] = str(data)
+    p['datasets']['fmow2']['data_dir'] = str(data)
     protocol = tmp_path/'protocol.yml'
     protocol.write_text(yaml.safe_dump(p))
     root = tmp_path / "campaign"
@@ -106,7 +106,7 @@ def campaign(tmp_path):
         "--root",
         root,
         "--datasets",
-        "iwildcam",
+        "fmow2",
         "--models",
         "MobileNetV3",
         "--arms",

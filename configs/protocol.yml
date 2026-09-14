@@ -90,21 +90,33 @@ mandatory_arms:
 - clip
 - focal_clip
 datasets:
-  iwildcam:
-    data_dir: data/iwildcam/oodslice
+  # iwildcam REMOVED 2026-09-14. It passes 2 of the 8 candidate conditions:
+  # 2 of 8 classes can carry a local cap, half the per-group ceilings are K=0
+  # before training starts, and 72% of test items sit in groups holding NEITHER
+  # capped class. Its per-group label shift is the best in the corpus (TV 0.737)
+  # and that is the SAME fact as its density of 0.27 -- the shift IS the
+  # sparsity. Data and completed runs are archived, not deleted; it is removed
+  # here so no campaign can be generated on it again.
+  #
+  # fmow/oodslice REMOVED with it: built by a basename join that collapsed
+  # distinct AOIs (7,429 basenames under >1 AOI, 16.4% of records mis-joined),
+  # which is how false_detection crops carried neighbouring sites' labels.
+  # Superseded by fmow2 below, rebuilt on an AOI-qualified key.
+  fmow2:
+    data_dir: data/fmow2/oodslice
     num_classes: 8
     group_column: location
+    # crop_field(1), place_of_worship(2), ground_transportation_station(7):
+    # the three most evenly spread classes, measured on this slice's own test
+    # labels -- present in 10/10, 9/10 and 8/10 groups with max-group shares
+    # 0.26, 0.35 and 0.32 and only 3 zero ceilings between them at an 80% cap.
+    # NOT 3 and 5, which fmow/oodslice declared: class 3 lives in 6 of 10 groups
+    # with 4 zero ceilings, and class 6 (3/10 groups, 0.76 concentration) is the
+    # iwildcam failure mode exactly.
     constrained_class:
+    - 1
     - 2
     - 7
-    disjoint_groups: true
-  fmow:
-    data_dir: data/fmow/oodslice
-    num_classes: 8
-    group_column: location
-    constrained_class:
-    - 3
-    - 5
     disjoint_groups: true
   bcn:
     data_dir: data/bcn/oodslice

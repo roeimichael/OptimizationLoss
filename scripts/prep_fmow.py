@@ -87,15 +87,32 @@ def load(cache):
                 continue
             rows.append(
                 {
-                    "file": os.path.basename(m.name)[:-5] + ".jpg",
+                    # AOI-QUALIFIED KEY, not the basename. The archive is laid out
+                    # split/class/class_seq/aoi/file and the filename encodes only
+                    # <class>_<class_seq>_<idx>, so the AOI is absent from it and a
+                    # class_seq spanning several AOIs reuses basenames. Measured on
+                    # val-metadata.tar.gz 2026-09-14: 63,422 records, 53,041 unique
+                    # basenames, 7,429 basenames under more than one AOI -- so a
+                    # basename key silently drops or mis-joins 10,381 records
+                    # (16.4%). That is how `false_detection` crops came to carry the
+                    # surrounding site's label in 436 train and 146 test rows.
+                    "file": "/".join(parts[2:])[:-5] + ".jpg",
                     "raw": parts[1],  # the label, from the PATH
                     "site": parts[2],
+                    "aoi": parts[3],
                     "group": d.get("country_code"),
                     "timestamp": d.get("timestamp"),
                 }
             )
     df = pd.DataFrame(rows).dropna(subset=["group"])
-    return df[~df["raw"].isin(DROP)].copy()
+    df = df[~df["raw"].isin(DROP)].copy()
+    if df["file"].duplicated().any():
+        dup = int(df["file"].duplicated().sum())
+        raise SystemExit(
+            "join key is not unique: %d duplicate keys. A non-unique key is the "
+            "defect this column exists to prevent; do not build a slice from it." % dup
+        )
+    return df
 
 
 def build_split(
@@ -151,7 +168,11 @@ def collect(tr, te, out_dir, cache):
         for m in t:
             if not m.isfile():
                 continue
-            name = os.path.basename(m.name)
+            # Same AOI-qualified key as the metadata side. Both tarballs share the
+            # layout split/class/class_seq/aoi/file, verified 2026-09-14, so the
+            # two keys are constructed identically and a crop can only ever be
+            # matched to the metadata of its OWN AOI.
+            name = "/".join(m.name.split("/")[2:])
             if name not in want:
                 continue
             split, lab, grp = want.pop(name)

@@ -177,7 +177,7 @@ def test_a_dataset_whose_GROUPS_ARE_AN_INDEX_cannot_carry_a_local_constraint():
         % (d["net_items"], d["net_z"])
     )
     assert out["live"]["net_z"] > 6.0, (
-        "LIVENESS: a real per-group label shift with groups held out entire scored only z=%.1f, %.0f items. A screen that cannot detect the iwildcam shape would reject every candidate dataset, which is not a null -- it is a broken instrument."
+        "LIVENESS: a real per-group label shift with groups held out entire scored only z=%.1f, %.0f items. A screen that cannot detect the fmow2 shape would reject every candidate dataset, which is not a null -- it is a broken instrument."
         % (out["live"]["net_z"], out["live"]["net_items"])
     )
 
@@ -435,15 +435,15 @@ def test_a_cross_dataset_campaign_cannot_share_a_warm_up_by_construction():
 
     P = {"warmup_identity_keys": ["warmup_epochs", "seed"]}
     hp = {"warmup_epochs": 1, "seed": 1}
-    dc_i = {"data_dir": "data/iwildcam/oodslice", "num_classes": 8}
+    dc_i = {"data_dir": "data/fmow2/oodslice", "num_classes": 8}
     dc_b = {"data_dir": "data/bcn/oodslice", "num_classes": 8}
-    iw = compute_base_model_id(P, "MobileNetV3", hp, "iwildcam", dc_i)
+    iw = compute_base_model_id(P, "MobileNetV3", hp, "fmow2", dc_i)
     bc = compute_base_model_id(P, "MobileNetV3", hp, "bcn", dc_b)
     assert iw != bc, "two datasets produced the SAME base_model_id: %s" % iw
-    assert iw.startswith("MobileNetV3_iwildcam_"), iw
+    assert iw.startswith("MobileNetV3_fmow2_"), iw
     assert bc.startswith("MobileNetV3_bcn_"), bc
     assert iw.split("_")[1] != bc.split("_")[1]
-    again = compute_base_model_id(P, "MobileNetV3", dict(hp), "iwildcam", dict(dc_i))
+    again = compute_base_model_id(P, "MobileNetV3", dict(hp), "fmow2", dict(dc_i))
     assert again == iw, (
         "the same warm-up produced two ids (%s vs %s); arms that should share a cached model would each retrain one"
         % (iw, again)
@@ -452,8 +452,8 @@ def test_a_cross_dataset_campaign_cannot_share_a_warm_up_by_construction():
         P,
         "MobileNetV3",
         hp,
-        "iwildcam",
-        {"data_dir": "data/iwildcam/othersplit", "num_classes": 8},
+        "fmow2",
+        {"data_dir": "data/fmow2/othersplit", "num_classes": 8},
     )
     assert other_slice != iw, "data_dir is not in the warm-up identity"
 

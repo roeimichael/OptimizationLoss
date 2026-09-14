@@ -10,7 +10,10 @@ from src.training.constraints import (
 )
 
 log = logging.getLogger(__name__)
-IMAGERY_DATASETS = {"iwildcam", "bcn", "fmow"}
+# `iwildcam` and the original `fmow` slice were retired 2026-09-14: iwildcam for
+# a local scope that is inert on 72% of its test set, `fmow` for a basename join
+# that collapsed distinct AOIs. `fmow2` is the AOI-keyed rebuild.
+IMAGERY_DATASETS = {"fmow2", "bcn"}
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(1, 3, 1, 1)
 IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 3, 1, 1)
 

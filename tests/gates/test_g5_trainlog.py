@@ -180,7 +180,7 @@ def test_ce_saturation_is_refused_and_warmup_1_survives(tmp_path):
     (hi, live) = ([0.998] * 6, [0.956, 0.962, 0.968, 0.971, 0.98, 0.986])
     bad = []
     for name, acc, ce, n_con, want in [
-        ("warmup1_iwildcam", live, [0.42, 0.36, 0.3, 0.25, 0.21, 0.18], 29, "live"),
+        ("warmup1_fmow2", live, [0.42, 0.36, 0.3, 0.25, 0.21, 0.18], 29, "live"),
         ("warmup50_dead_regime", hi, [0.004] * 6, 29, "SATURATED"),
         (
             "high_acc_still_moving",

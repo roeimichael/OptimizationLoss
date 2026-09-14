@@ -36,7 +36,7 @@ TRIO = ["tralo", "tralo_null"]
 MIXED = ["clip", "focal_clip", "tralo", "tralo_null"]
 
 
-def _cfg(P, arm, cap, seed, model=MODEL, ds="iwildcam"):
+def _cfg(P, arm, cap, seed, model=MODEL, ds="fmow2"):
     hp = build_hyperparams(P, P["arms"][arm], seed)
     if "constraint_fp32" in hp:
         hp["constraint_fp32"] = True
@@ -65,7 +65,7 @@ def _campaign(root, P, arms, caps=CAPS, seeds=(1, 2), mutate=None):
                 if mutate:
                     mutate(cfg)
                 d = os.path.join(
-                    str(root), cfg["model_name"], "iwildcam", cap, arm, "seed_%d" % seed
+                    str(root), cfg["model_name"], "fmow2", cap, arm, "seed_%d" % seed
                 )
                 os.makedirs(d, exist_ok=True)
                 with io.open(
@@ -107,7 +107,7 @@ def _gen(root, arms, caps=CAPS, extra=(), protocol=None):
         "--root",
         str(root),
         "--datasets",
-        "iwildcam",
+        "fmow2",
         "--models",
         MODEL,
         "--caps",

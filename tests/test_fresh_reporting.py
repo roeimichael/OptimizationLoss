@@ -19,7 +19,7 @@ def test_seed_paired_interval_uses_native_differences_and_refuses_false_certaint
 def test_report_bolds_all_exact_best_means_and_includes_every_contrast():
     records = []
     for arm in ['tralo', 'tralo_null', 'clip', 'focal_clip', 'fioretto', 'hounie', 'alm']:
-        records.append(dict(dataset='iwildcam', backbone='MobileNetV2', cap='L50_G50',
+        records.append(dict(dataset='fmow2', backbone='MobileNetV2', cap='L50_G50',
                             arm=arm, seed=1, cc_f1=.5, macro_f1=.6,
                             constrained_precision=.7, constrained_recall=.4,
                             collateral_f1=.8, collateral_support=4, feasible=True))
@@ -32,7 +32,7 @@ def test_report_bolds_all_exact_best_means_and_includes_every_contrast():
 
 
 def test_report_counts_unique_seed_observations_and_rejects_copies():
-    records = [dict(dataset='iwildcam', backbone='MobileNetV2', cap='L50_G50',
+    records = [dict(dataset='fmow2', backbone='MobileNetV2', cap='L50_G50',
                     arm=arm, seed=seed, cc_f1=value, macro_f1=.6,
                     constrained_precision=.7, constrained_recall=.4,
                     collateral_f1=.8, collateral_support=4, feasible=True)

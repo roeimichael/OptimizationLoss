@@ -35,7 +35,7 @@ CONSTRAINT_HP = {
     "lr_constraint": 0.0001,
 }
 
-DC = {"data_dir": "data/iwildcam/oodslice", "num_classes": N_CLASSES}
+DC = {"data_dir": "data/fmow2/oodslice", "num_classes": N_CLASSES}
 
 
 def _bump(v):
@@ -146,7 +146,7 @@ def test_the_pretrained_override_splits_the_warm_up_cache_and_is_off_by_default(
     except ImportError:
         pytest.skip("configs/ is frozen at a commit predating the flag")
     P = load_yaml(rel("configs", "protocol.yml"))
-    dc = {"data_dir": "data/iwildcam/oodslice", "num_classes": N_CLASSES}
+    dc = {"data_dir": "data/fmow2/oodslice", "num_classes": N_CLASSES}
     bad = []
     for arm in ("tralo", "tralo_null", "clip", "alm", "fioretto"):
         spec = P["arms"][arm]
@@ -170,8 +170,8 @@ def test_the_pretrained_override_splits_the_warm_up_cache_and_is_off_by_default(
                 % (arm, off.get("pretrained"))
             )
     for model in P["models"]:
-        a = compute_base_model_id(P, model, base, "iwildcam", dc)
-        b = compute_base_model_id(P, model, off, "iwildcam", dc)
+        a = compute_base_model_id(P, model, base, "fmow2", dc)
+        b = compute_base_model_id(P, model, off, "fmow2", dc)
         if a == b:
             bad.append(
                 "%s/%s: the two pretraining regimes share base_model_id %s, so the second one loads the first one's cached warm-up and the pilot measures one model twice"

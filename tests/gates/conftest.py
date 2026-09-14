@@ -22,7 +22,7 @@ uninteresting reasons gets switched off:
 
 1. **A gate encodes a MEASURED failure, not a possibility.** "the config is not
    None" is noise. "`class_balanced` is byte-identical to `clip` in 24/24
-   because iwildcam's TRAIN set is exactly 2500/class" is a gate.
+   because fmow2's TRAIN set is exactly 2500/class" is a gate.
 2. **A gate is not done until a NEGATIVE CONTROL shows it FAIL.** Build the
    broken input in the same test and assert the check rejects it. A gate that
    has never failed has never been shown to work.
@@ -46,7 +46,7 @@ if ROOT not in sys.path:
 # lists are closed: an arm or a backbone outside them is a defect, not a
 # variant. FRAMEWORK 2(n) removed the other three datasets; ShuffleNetV2 and
 # the small CNNs appear in no .tex file.
-RUNNABLE_DATASETS = ("iwildcam",)
+RUNNABLE_DATASETS = ("fmow2",)
 CLAIMED_BACKBONES = ("ViTB16", "MobileNetV3", "MobileNetV2", "RegNetY400MF")
 HEADLINE_BACKBONE = "ViTB16"  # fixed a priori 2026-08-20, FRAMEWORK 1-pre
 CAPPED_CLASSES = (2, 7)  # impala, cattle
@@ -71,15 +71,15 @@ def protocol():
 
 @pytest.fixture(scope="session")
 def slice_dir():
-    """The iwildcam oodslice, or a skip.
+    """The fmow2 oodslice, or a skip.
 
     NOT a silent fallback to synthetic data. A gate that quietly measures a
     toy when the real slice is absent reports a pass about nothing, which is
     the exact defect class FRAMEWORK 2(z25) is about.
     """
-    d = rel("data", "iwildcam", "oodslice")
+    d = rel("data", "fmow2", "oodslice")
     if not os.path.exists(os.path.join(d, "test_meta.csv")):
-        pytest.skip("iwildcam/oodslice not on this machine -- gate NOT run")
+        pytest.skip("fmow2/oodslice not on this machine -- gate NOT run")
     return d
 
 
@@ -97,7 +97,7 @@ def items_from_f1(d_f1, K, n):
     """cc-F1 delta -> ITEMS. With exactly K predictions emitted,
     `F1 = 2*TP/(K+n)`, so `items = dF1 * (K+n)/2`. Quoting a raw F1 delta
     hides that the whole gap from `clip` to a PERFECT allocator is 0.0-1.0
-    items at iwildcam's tight caps and 11.7-21.2 per cell at its task ones
+    items at fmow2's tight caps and 11.7-21.2 per cell at its task ones
     (`1.9-9.9` here until 2026-09-10 was a dermmnist figure) -- 0.02 is not a
     small effect there, it can be the entire headroom.
     """
