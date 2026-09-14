@@ -15,10 +15,21 @@ def read_root(root):
     amps = collections.defaultdict(set)
     for path in glob.glob(os.path.join(root, "**", "config.json"), recursive=True):
         try:
-            cfg = json.load(open(path))
-        except (ValueError, IOError):
-            continue
-        arm = os.path.basename(os.path.dirname(os.path.dirname(path)))
+            with open(path, encoding="utf-8") as fh:
+                cfg = json.load(fh)
+        except (ValueError, IOError) as exc:
+            raise ValueError("unreadable config %s: %s" % (path, exc)) from exc
+        arm = cfg.get("arm")
+        if arm not in {
+            "tralo",
+            "tralo_null",
+            "clip",
+            "focal_clip",
+            "fioretto",
+            "hounie",
+            "alm",
+        }:
+            raise ValueError("%s: unknown arm %r" % (path, arm))
         res = cfg.get("results") or {}
         rt = res.get("runtime") or {}
         if rt.get("amp_dtype"):
@@ -26,14 +37,32 @@ def read_root(root):
         cell = per[arm]
         app = res.get("constraint_steps_applied")
         att = res.get("constraint_steps_attempted")
-        if app is None or att is None:
-            if str(cfg.get("status", "pending")) != "completed":
-                cell[3] += 1
-            elif (cfg.get("hyperparams") or {}).get("constraint_epochs") == 0:
-                cell[5] += 1
-            else:
-                cell[4] += 1
+        posthoc = arm in {"clip", "focal_clip"}
+        hp = cfg.get("hyperparams") or {}
+        if (hp.get("warmup_epochs"), hp.get("constraint_epochs")) != (
+            (30, 0) if posthoc else (1, 29)
+        ):
+            raise ValueError("%s: invalid planned epoch dose" % path)
+        if cfg.get("status") != "completed":
+            if app is not None or att is not None:
+                raise ValueError("%s: counts on a non-completed run" % path)
+            cell[3] += 1
             continue
+        # Current post-hoc runtime emits no constraint-step counters. Its
+        # declared zero-epoch phase is the only missing-count exception.
+        if posthoc and app is None and att is None:
+            cell[5] += 1
+            continue
+        expected = 0 if posthoc or arm == "tralo_null" else hp["constraint_epochs"]
+        if type(app) is not int or type(att) is not int:
+            raise ValueError(
+                "%s: completed run requires integer applied/attempted counts" % path
+            )
+        if att != expected or app != expected:
+            raise ValueError(
+                "%s: dose applied=%s attempted=%s expected=%s"
+                % (path, app, att, expected)
+            )
         cell[0] += int(app)
         cell[1] += int(att)
         cell[2] += 1
@@ -49,30 +78,28 @@ def report(per, amps, tolerance=DOSE_FRACTION_TOLERANCE, out=sys.stdout):
         v = per[arm]
         bits = []
         if v[2]:
-            bits.append(
-                "%d finished with 0 steps attempted, as a lambda=0 twin does" % v[2]
-            )
+            bits.append("%d finished with 0 steps attempted (null or post-hoc)" % v[2])
         if slot(v, 5):
             bits.append("%d finished post-hoc, which attempts none" % slot(v, 5))
         if slot(v, 4):
-            bits.append(
-                "%d finished with NO counts: they predate the field" % slot(v, 4)
-            )
+            bits.append("%d finished with NO counts: dose is unverified" % slot(v, 4))
         if slot(v, 3):
             bits.append("%d still pending or running" % slot(v, 3))
         return "; ".join(bits) or "no runs"
 
     trained = {a: v for (a, v) in per.items() if v[1] > 0}
     others = sorted((a for a in per if a not in trained))
+    problems = sum(slot(v, 4) for v in per.values())
+    completed = sum(v[2] + slot(v, 5) for v in per.values())
     if not trained:
-        out.write("no completed run records a constraint-step count yet.\n")
         for arm in others:
             out.write("  %-16s %s\n" % (arm, state(arm)))
-        out.write(
-            "  This is the normal state at the very start of a campaign. Re-run it once a TRAINED arm completes.\n"
+        missing_trained = any(
+            a not in {"tralo_null", "clip", "focal_clip"} for a in per
         )
-        return 0
-    problems = 0
+        if not completed or missing_trained:
+            out.write("INCOMPLETE: no completed run establishes its constraint dose.\n")
+        return problems + int(not completed or missing_trained)
     out.write("CONSTRAINT DOSE -- steps that LANDED, against steps attempted\n")
     fracs = {}
     for arm in sorted(trained):
@@ -91,7 +118,7 @@ def report(per, amps, tolerance=DOSE_FRACTION_TOLERANCE, out=sys.stdout):
         out.write("  %-16s %s\n" % (arm, state(arm)))
     if problems:
         out.write(
-            "\n  A lost step is a SILENT dose reduction: the epoch ran, the gradient was\n  non-finite, no update landed, and the run still reports `status: completed`.\n"
+            "\n  Applied and attempted counts differ; the cause is not established by counts alone.\n"
         )
     if len(fracs) > 1:
         lo = min(fracs, key=fracs.get)
@@ -103,20 +130,7 @@ def report(per, amps, tolerance=DOSE_FRACTION_TOLERANCE, out=sys.stdout):
                 "      `%s` landed %.1f%% and `%s` landed %.1f%%. An arm-vs-arm delta across\n      that gap is confounded with how much constraint phase each one got.\n"
                 % (hi, 100.0 * fracs[hi], lo, 100.0 * fracs[lo])
             )
-            spread = len([a for a in fracs if fracs[a] < fracs[hi] - tolerance])
-            if spread == 1:
-                out.write(
-                    "      ONE arm is low and its siblings are not, so this is the LOSS SHAPE,\n      not the host: see FRAMEWORK 2(u).\n"
-                )
-            else:
-                out.write(
-                    "      %d arms are low, which points at the HOST rather than any one loss.\n      Check the amp column: FP16 + GradScaler skips an overflowing step.\n"
-                    % spread
-                )
-            out.write(
-                "      Fix and RELAUNCH -- a dropped step cannot be recovered from the outputs.\n"
-            )
-    cross_arm_attempts(per, out)
+    problems += cross_arm_attempts(per, out)
     return problems
 
 
@@ -158,9 +172,9 @@ def self_test(out=sys.stdout):
         ok = False
     buf = _io.StringIO()
     report({"tralo": [0, 0, 0, 0, 36, 0]}, {}, out=buf)
-    if "predate" not in buf.getvalue():
+    if "unverified" not in buf.getvalue():
         out.write(
-            "SELF-TEST FAIL: 36 COMPLETED runs with no counts must be reported as predating the field:\n%s"
+            "SELF-TEST FAIL: completed runs with no counts must be unverified:\n%s"
             % buf.getvalue()
         )
         ok = False
@@ -189,7 +203,7 @@ def cross_arm_attempts(per, out):
         if attempted and runs:
             rate[arm] = attempted / float(runs)
     if len(set((round(r, 3) for r in rate.values()))) <= 1:
-        return
+        return 0
     hi = max(rate.values())
     out.write(
         chr(10)
@@ -212,6 +226,7 @@ def cross_arm_attempts(per, out):
         "  WITHIN an arm. A dominance claim across these arms is NOT at equal dose."
         + chr(10)
     )
+    return 1
 
 
 def main():
@@ -236,7 +251,11 @@ def main():
     if not os.path.isdir(args.root):
         print("no such campaign root: %s" % args.root)
         return 2
-    (per, amps) = read_root(args.root)
+    try:
+        (per, amps) = read_root(args.root)
+    except ValueError as exc:
+        print("FAIL: " + str(exc))
+        return 1
     problems = report(per, amps, tolerance=args.tolerance)
     return 1 if problems else 0
 

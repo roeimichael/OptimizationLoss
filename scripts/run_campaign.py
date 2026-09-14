@@ -170,7 +170,7 @@ def run_check(name, argv, root, verbose):
 PYTEST_COULD_NOT_RUN = (2, 3, 4, 5)
 
 
-def run_step(step, root, skip, verbose, out=print):
+def run_step(step, root, skip, verbose, out=print, prior_incomplete=False):
     (blurb, checks) = BY_NAME[step]
     out("")
     out("=" * 74)
@@ -179,7 +179,7 @@ def run_step(step, root, skip, verbose, out=print):
     npass = nfail = nskip = nunrun = 0
     (failures, unrunnable) = ([], [])
     for name, argv, required, kind in checks:
-        if name == "deployed_h2h" and (nfail or nunrun or nskip):
+        if name == "deployed_h2h" and (prior_incomplete or nfail or nunrun or nskip):
             out("  BLOCKED deployed_h2h: required checks did not all pass")
             nskip += 1
             continue
@@ -279,7 +279,9 @@ def main(argv=None):
     tp = tf = ts = tu = 0
     (all_failures, all_unrunnable) = ([], [])
     for step in names:
-        (p, f, sk, u, fails, unrun) = run_step(step, a.root, set(a.skip), a.verbose)
+        (p, f, sk, u, fails, unrun) = run_step(
+            step, a.root, set(a.skip), a.verbose, prior_incomplete=bool(tf or ts or tu)
+        )
         (tp, tf, ts, tu) = (tp + p, tf + f, ts + sk, tu + u)
         all_failures += fails
         all_unrunnable += unrun

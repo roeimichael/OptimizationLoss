@@ -140,31 +140,18 @@ def test_unseen_test_groups_alone_do_not_make_a_slice_live(slice_dir, tmp_path):
     report(fails, "unseen-groups-are-not-the-criterion failures")
 
 
-def test_a_stage_one_pass_is_never_a_decision(slice_dir):
-    from scripts.dataset_screen import screen, verdict_lines
+def test_distribution_diagnostics_do_not_decide_research_viability(slice_dir):
+    from scripts.dataset_screen import screen, diagnostic_lines
 
     r = screen(slice_dir)
-    cases = [
-        ("the shipped slice", r, ["STAGE 1 PASS", "necessary, not sufficient"], []),
-        ("z below 2 (octmnist)", dict(r, net_z=1.0), ["DEAD"], ["PASS"]),
-        (
-            "z undefined (no null spread)",
-            dict(r, net_z=float("nan")),
-            ["UNDECIDABLE", "not a pass"],
-            ["PASS"],
-        ),
-        ("no group column at all", dict(r, gcol=None), ["NO GROUP COLUMN"], ["PASS"]),
-    ]
-    fails = []
-    for name, res, must, must_not in cases:
-        text = "\n".join(verdict_lines(res, "slice"))
-        for s in must:
-            if s not in text:
-                fails.append("%s: verdict omits %r -- got %r" % (name, s, text))
-        for s in must_not:
-            if s in text:
-                fails.append("%s: verdict claims %r -- got %r" % (name, s, text))
-    report(fails, "stage-1 verdict-ladder failures")
+    for res in (r, dict(r, net_z=1.0), dict(r, net_z=float("nan")), dict(r, gcol=None)):
+        text = "\n".join(diagnostic_lines(res, "slice"))
+        assert not any(word in text for word in ("PASS", "DEAD", "MARGINAL"))
+        if res["gcol"] is None:
+            assert "NO GROUP COLUMN" in text
+        else:
+            assert "NET excess %+.2f items" % res["net_items"] in text
+            assert ("undefined" in text) == (not np.isfinite(res["net_z"]))
 
 
 def test_the_local_scope_binds_because_half_its_ceilings_are_zero(slice_dir, tmp_path):

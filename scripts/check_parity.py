@@ -122,6 +122,11 @@ def check(runs):
             fails.append(k + " differs across arms")
     _check_lr_trap(runs, fails)
     _check_dose(runs, fails)
+    for c in runs:
+        if c["arm"] == "tralo_null":
+            for key in ("lambda_global", "lambda_local", "lambda_step"):
+                if c["hyperparams"].get(key) != 0:
+                    fails.append("tralo_null requires %s=0" % key)
     if (
         any(c["methodology"] in TRAINED_METHODOLOGIES for c in runs)
         and "tralo_null" not in arms

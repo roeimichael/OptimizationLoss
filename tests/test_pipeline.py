@@ -2004,9 +2004,8 @@ def test_the_nonfinite_flag_prints_the_step_budget_beside_it(tmp_path):
         "the step budget must appear beside the non-finite count, or the flag raises a question it does not answer"
         + out[-900:]
     )
-    assert "GradScaler produces" in out, (
-        "and the reading has to be stated, not left to the reader" + out[-900:]
-    )
+    assert "cannot establish the cause or safety" in out, out[-900:]
+    assert "FAIL:" in out and "RuntimeWarning" not in out, out[-900:]
 
 
 def test_the_nonfinite_step_budget_is_read_from_the_run_not_assumed(tmp_path):
@@ -2160,14 +2159,14 @@ def test_a_candidate_dataset_can_be_screened_before_it_is_downloaded(tmp_path):
     assert not [f for f in os.listdir(out) if f.endswith(".npy")], (
         "--meta-only wrote image arrays, so it downloaded something"
     )
-    assert "STAGE 1 PASS" in screen, screen[-800:]
+    assert "NET ex" in screen and "GLOBAL ex" in screen, screen[-800:]
     assert "ABSENT from train" in screen, screen[-800:]
 
 
-def test_identical_per_group_mixes_screen_DEAD_even_with_unseen_groups(tmp_path):
+def test_identical_per_group_mixes_report_measurements_with_unseen_groups(tmp_path):
     (_out, _prep, screen) = _screen_a_cct(str(tmp_path), None, "dead")
-    assert "DEAD" in screen, screen[-800:]
-    assert "within sampling noise" in screen, screen[-800:]
+    assert "NET excess" in screen and "z=" in screen, screen[-800:]
+    assert "DEAD" not in screen and "PASS" not in screen, screen[-800:]
     assert "ABSENT from train" in screen, (
         "the fixture lost its held-out cameras, so this no longer controls for criterion 1"
         + chr(10)
@@ -2304,40 +2303,15 @@ def test_the_factorial_gate_reports_the_undiluted_ratio():
     assert "diluted by the seen groups" in chr(10).join(fc.report(r, "x"))
 
 
-def test_dataset_screen_never_upgrades_a_verdict_it_could_not_compute():
-    from scripts.dataset_screen import verdict_lines
+def test_dataset_diagnostics_preserve_values_and_undefined_null_spread():
+    from scripts.dataset_screen import diagnostic_lines
 
-    def r(net, z, local, gcol="location"):
-        return dict(
-            gcol=gcol,
-            net_items=net,
-            net_z=z,
-            local_items=local,
-            unseen_groups=[],
-            unseen_items=0,
-            path="x/slice",
+    for net, z in [(1.0, float("nan")), (9.0, 5.0), (500.0, 9.0)]:
+        r = dict(gcol="location", net_items=net, net_z=z)
+        text = " ".join(diagnostic_lines(r, "fixture"))
+        assert "NET excess %+.2f items" % net in text
+        assert ("undefined" in text) == (not np.isfinite(z))
+        assert not any(
+            word in text for word in ("PASS", "DEAD", "MARGINAL", "seed noise")
         )
-
-    out = " ".join(verdict_lines(r(1.0, float("nan"), 500.0), "s"))
-    assert "UNDECIDABLE" in out, out
-    assert "STAGE 1 PASS" not in out and "MARGINAL" not in out, (
-        "an undefined significance test still upgrades the verdict: " + out
-    )
-    out = " ".join(verdict_lines(r(1.0, 5.0, 500.0), "s"))
-    assert "DEAD" in out and "NET novelty 1 items" in out, out
-    assert "DEAD: local novelty 500" not in out, (
-        "the verdict still reports LOCAL while testing NET: " + out
-    )
-    assert "DEAD" in " ".join(verdict_lines(r(50.0, 1.0, 50.0), "s"))
-    assert "MARGINAL" in " ".join(verdict_lines(r(5.0, 5.0, 5.0), "s"))
-    assert "STAGE 1 PASS" in " ".join(verdict_lines(r(500.0, 9.0, 500.0), "s"))
-    assert "NO GROUP COLUMN" in " ".join(
-        verdict_lines(r(500.0, 9.0, 500.0, gcol=None), "s")
-    )
-    lenient = " ".join(verdict_lines(r(30.0, 9.0, 30.0), "s", noise=2.7))
-    strict = " ".join(verdict_lines(r(30.0, 9.0, 30.0), "s", noise=27.83))
-    assert "STAGE 1 PASS" in lenient, lenient
-    assert "STAGE 1 PASS" not in strict, (
-        "--noise does not move the verdict, so pricing a candidate at the real iwildcam noise is impossible: "
-        + strict
-    )
+    assert "NO GROUP COLUMN" in " ".join(diagnostic_lines(dict(gcol=None), "fixture"))

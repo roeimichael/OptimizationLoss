@@ -11,6 +11,63 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]
 
 
+@pytest.mark.parametrize("prior", ["pass", "fail", "skip", "unrunnable"])
+def test_multistage_report_requires_prior_checks(campaign, prior):
+    # Exercise argparse, subprocess execution and report ordering together. Small
+    # executable checks isolate the scheduler contract from scientific gates.
+    marker = campaign / "report-ran"
+    code = """
+import sys
+from scripts import run_campaign as c
+rc = int(sys.argv.pop(1))
+marker = sys.argv.pop(1)
+c.BY_NAME = {
+ 'verify': ('fixture prerequisite', [('gate:model', ['-c', 'raise SystemExit(%d)' % rc], True, 'gate')]),
+ 'score': ('fixture report', [('deployed_h2h', ['-c', 'from pathlib import Path; Path(%r).touch()' % marker], True, 'instrument')]),
+}
+raise SystemExit(c.main())
+"""
+    args = ["--root", str(campaign), "--step", "verify", "score"]
+    if prior == "skip":
+        args += ["--skip", "verify"]
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            code,
+            str({"fail": 1, "unrunnable": 5}.get(prior, 0)),
+            str(marker),
+            *args,
+        ],
+        cwd=REPO,
+        text=True,
+        capture_output=True,
+        timeout=20,
+    )
+    assert result.returncode == (0 if prior == "pass" else 1), (
+        result.stdout + result.stderr
+    )
+    assert marker.exists() == (prior == "pass"), result.stdout
+    if prior != "pass":
+        assert "BLOCKED deployed_h2h" in result.stdout
+
+
+@pytest.mark.parametrize("key", ["lambda_global", "lambda_local", "lambda_step"])
+def test_null_control_rejects_each_active_coefficient(campaign, key):
+    path = next(
+        p
+        for p in campaign.rglob("config.json")
+        if json.loads(p.read_text())["arm"] == "tralo_null"
+    )
+    cfg = json.loads(path.read_text())
+    cfg["hyperparams"][key] = 0.01
+    path.write_text(json.dumps(cfg))
+    result = cli("scripts.check_parity", campaign)
+    assert result.returncode == 1 and key in result.stdout, (
+        result.stdout + result.stderr
+    )
+
+
 def cli(module, *args):
     env = dict(os.environ, OMP_NUM_THREADS="1", MKL_NUM_THREADS="1")
     return subprocess.run(

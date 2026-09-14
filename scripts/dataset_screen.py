@@ -6,7 +6,6 @@ import sys
 import numpy as np
 import pandas as pd
 
-SEED_NOISE_ITEMS = 2.7
 GROUP_CANDIDATES = (
     "loc_group",
     "synth_group",
@@ -173,47 +172,17 @@ def screen(path):
     }
 
 
-def verdict_lines(r, name, noise=None):
-    noise = SEED_NOISE_ITEMS if noise is None else float(noise)
-    out = []
+def diagnostic_lines(r, name):
     if r["gcol"] is None:
-        out.append(
-            "  %-22s NO GROUP COLUMN -- the local scope does not exist here." % name
-        )
-    elif not np.isfinite(r["net_z"]):
-        out.append(
-            "  %-22s UNDECIDABLE: the sampling-noise null has zero spread, so z is"
-            % name
-        )
-        out.append(
-            "  %-22s   undefined and NOTHING was tested. This is not a pass. Usually it"
-            % ""
-        )
-        out.append(
-            "  %-22s   means one group, or identical groups -- check the group column."
-            % ""
-        )
-    elif r["net_z"] < 2.0:
-        out.append(
-            "  %-22s DEAD: NET per-group novelty %+.0f items is within sampling noise (z=%.1f)."
-            % (name, r["net_items"], r["net_z"])
-        )
-    elif r["net_items"] < noise:
-        out.append(
-            "  %-22s DEAD: NET novelty %.0f items is BELOW the %.1f-item seed noise (local reads %.0f, but that includes the global shift)."
-            % (name, r["net_items"], noise, r["local_items"])
-        )
-    elif r["net_items"] < 3 * noise:
-        out.append(
-            "  %-22s MARGINAL: NET novelty %.0f items against %.1f-item noise (local %.0f)."
-            % (name, r["net_items"], noise, r["local_items"])
-        )
-    else:
-        out.append(
-            "  %-22s STAGE 1 PASS (necessary, not sufficient): NET novelty %.0f items, %.0fx seed noise (local %.0f)."
-            % (name, r["net_items"], r["net_items"] / noise, r["local_items"])
-        )
-    return out
+        return [
+            "  %s NO GROUP COLUMN -- local distribution diagnostics unavailable." % name
+        ]
+    z = (
+        "%.2f" % r["net_z"]
+        if np.isfinite(r["net_z"])
+        else "undefined (sampling-null spread unavailable)"
+    )
+    return ["  %s NET excess %+.2f items; z=%s" % (name, r["net_items"], z)]
 
 
 def _synthetic(tmp, kind, n_class=4, n_group=6, per=500, seed=0):
@@ -242,76 +211,32 @@ def _synthetic(tmp, kind, n_class=4, n_group=6, per=500, seed=0):
 def self_test(out=sys.stdout):
     import tempfile
 
-    root = tempfile.mkdtemp()
-    ok = True
-    seen = {}
-    for kind in ("dead", "live"):
-        r = screen(_synthetic(os.path.join(root, kind), kind))
-        seen[kind] = r
-        for line in verdict_lines(r, kind):
-            out.write(line + chr(10))
-    if seen["dead"]["net_z"] >= 2.0:
-        out.write(
-            "SELF-TEST FAIL: groups built as an INDEX are i.i.d. draws from one distribution and MUST read DEAD, got NET %+.0f at z=%.1f%s"
-            % (seen["dead"]["net_items"], seen["dead"]["net_z"], chr(10))
-        )
-        ok = False
-    if not (
-        seen["live"]["net_z"] >= 2.0 and seen["live"]["net_items"] > SEED_NOISE_ITEMS
-    ):
-        out.write(
-            "SELF-TEST FAIL: per-group prevalences ARE the signal this screen exists to find; it must clear stage 1, got NET %+.0f at z=%.1f%s"
-            % (seen["live"]["net_items"], seen["live"]["net_z"], chr(10))
-        )
-        ok = False
-    lines = chr(10).join(verdict_lines(dict(seen["live"], net_z=float("nan")), "nan-z"))
-    if "UNDECIDABLE" not in lines or "PASS" in lines:
-        out.write(
-            "SELF-TEST FAIL: an undefined z must not upgrade the verdict:"
-            + chr(10)
-            + lines
-            + chr(10)
-        )
-        ok = False
-    out.write("SELF-TEST %s%s" % ("PASSED" if ok else "FAILED", chr(10)))
+    with tempfile.TemporaryDirectory() as root:
+        seen = {
+            kind: screen(_synthetic(os.path.join(root, kind), kind))
+            for kind in ("dead", "live")
+        }
+    for kind, r in seen.items():
+        for line in diagnostic_lines(r, kind):
+            out.write(line + "\n")
+    ok = (
+        seen["live"]["net_items"] > seen["dead"]["net_items"]
+        and seen["live"]["net_z"] > seen["dead"]["net_z"]
+    )
+    out.write("SELF-TEST %s\n" % ("PASSED" if ok else "FAILED"))
     return 0 if ok else 1
 
 
 def main():
-    global SEED_NOISE_ITEMS
     ap = argparse.ArgumentParser()
     ap.add_argument("paths", nargs="*", help="slice dirs with train/test_meta.csv")
-    ap.add_argument(
-        "--noise",
-        type=float,
-        default=SEED_NOISE_ITEMS,
-        help="paired seed sd in items, the divisor every verdict below is scaled by. The default %.1f is dermmnist x MobileNetV3, and dermmnist is REMOVED and was leaked; iwildcam measures 4.75 to 27.83. Pass the number for the dataset and backbone you actually intend to run."
-        % SEED_NOISE_ITEMS,
-    )
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()
     if args.self_test:
         sys.exit(self_test())
     if not args.paths:
         ap.error("give at least one slice dir, or --self-test")
-    SEED_NOISE_ITEMS = float(args.noise)
-    print("DATASET SCREEN -- can a count constraint carry information here?")
-    print(
-        "Everything is in ITEMS. Every verdict below is scaled by a paired seed sd of"
-    )
-    print(
-        "%.2f items%s. On iwildcam the measured range is 4.75 to 27.83, so a PASS at 2.7"
-        % (
-            SEED_NOISE_ITEMS,
-            " (the default: dermmnist x MobileNetV3, a REMOVED dataset)"
-            if abs(SEED_NOISE_ITEMS - 2.7) < 1e-09
-            else " (--noise)",
-        )
-    )
-    print(
-        "can be a DEAD at 27.8. Pass --noise to price it for the dataset you will run."
-    )
-    print("")
+    print("DATASET DISTRIBUTION DIAGNOSTICS")
     rows = [screen(p) for p in args.paths]
     print(
         "  %-34s %7s %6s %7s %7s %9s"
@@ -350,17 +275,16 @@ def main():
             )
         )
     print("")
-    print("  !! STAGE 1 ONLY. Passing here is NECESSARY, NOT SUFFICIENT.")
     print("  Distribution differences do not establish learnable cap headroom.")
     print("  Inspect development predictions with scripts.headroom before launch.")
     print("")
     for r in rows:
         name = slice_label(r["path"])
-        for line in verdict_lines(r, name):
+        for line in diagnostic_lines(r, name):
             print(line)
         if r["unseen_groups"]:
             print(
-                "  %-22s   and %d test group(s) are ABSENT from train (%d items) -- training carries no prior for them at all."
+                "  %-22s   and %d test group(s) are ABSENT from train (%d items)"
                 % ("", len(r["unseen_groups"]), r["unseen_items"])
             )
 

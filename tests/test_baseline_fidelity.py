@@ -906,7 +906,7 @@ def test_a_probability_clamp_SURVIVES_THE_DTYPE_IT_ACTUALLY_RUNS_IN():
     assert torch.isfinite(p.grad).all()
 
 
-def test_the_dose_reader_CATCHES_BOTH_HISTORICAL_FAILURES():
+def test_dose_summary_catches_lost_steps_without_inventing_a_cause():
     from scripts.dose_landed import report, self_test
 
     buf = io.StringIO()
@@ -920,7 +920,7 @@ def test_the_dose_reader_CATCHES_BOTH_HISTORICAL_FAILURES():
     )
     text = buf.getvalue()
     assert n >= 2 and "DID NOT RUN AT THE SAME DOSE" in text, text
-    assert "LOSS SHAPE" in text, text
+    assert "cause is not established" in text, text
     buf = io.StringIO()
     n = report(
         {"tralo": [716, 1044, 36, 0, 0, 0], "fioretto": [720, 1044, 36, 0, 0, 0]},
@@ -938,8 +938,8 @@ def test_the_dose_reader_CATCHES_BOTH_HISTORICAL_FAILURES():
         == 0
     ), buf.getvalue()
     buf = io.StringIO()
-    assert report({"clip": [0, 0, 0, 4, 0, 0]}, {}, out=buf) == 0
-    assert "normal state at the very start" in buf.getvalue()
+    assert report({"clip": [0, 0, 0, 4, 0, 0]}, {}, out=buf) == 1
+    assert "INCOMPLETE" in buf.getvalue()
     buf = io.StringIO()
     report(
         {"tralo": [29, 29, 1, 0, 0, 0], "tralo_uniform": [0, 0, 0, 36, 0, 0]},
@@ -955,12 +955,12 @@ def test_the_dose_reader_CATCHES_BOTH_HISTORICAL_FAILURES():
         {"tralo": {"bfloat16"}},
         out=buf,
     )
-    assert "predate the field" in buf.getvalue(), buf.getvalue()
+    assert "dose is unverified" in buf.getvalue(), buf.getvalue()
     buf = io.StringIO()
     report(
         {"tralo": [29, 29, 1, 0, 0, 0], "tralo_null": [0, 0, 4, 0, 0, 0]}, {}, out=buf
     )
-    assert "lambda=0 twin does" in buf.getvalue(), buf.getvalue()
+    assert "null or post-hoc" in buf.getvalue(), buf.getvalue()
 
 
 def test_no_numerical_guard_in_the_TRAINING_PATH_is_a_no_op():

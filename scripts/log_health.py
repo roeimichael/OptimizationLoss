@@ -64,8 +64,13 @@ def read_run(d):
     for c in scan.select_dtypes(include=[np.number]).columns:
         v = scan[c].to_numpy(dtype=float)
         finite = np.isfinite(v)
-        if finite.any() and (not finite.all()):
-            r["nonfinite"][c] = int((~finite).sum())
+        # Empty warm-up constraint fields are not observations, but infinity
+        # in an observed field is invalid at any epoch, including warm-up.
+        invalid = int(np.isinf(df[c].to_numpy(dtype=float)).sum())
+        if finite.any():
+            invalid += int(np.isnan(v).sum())
+        if invalid:
+            r["nonfinite"][c] = invalid
     r["posthoc"] = r["wide"] and (
         not any(
             (
@@ -90,7 +95,7 @@ def read_run(d):
     if gn:
         g = pd.to_numeric(df[gn], errors="coerce").dropna()
         g = g[g > 0]
-        if len(g) >= 3:
+        if len(g) >= 3 and np.isfinite(g).all():
             med = float(g.median())
             r["gn_pinned"] = (med, float(g.std()) < 1e-06 * max(1.0, med))
     r["excess"] = None
@@ -213,7 +218,7 @@ def main():
     bad = [r for r in runs if r["collapse"]]
     if bad:
         print(
-            "\nTERMINAL COLLAPSE -- the pipeline keeps the last epoch, so this IS the scored model"
+            "\nTERMINAL COLLAPSE -- observed last-row accuracy drop; model-state attribution is unknown"
         )
         for r in bad:
             print(
@@ -226,7 +231,7 @@ def main():
             )
     nf = [r for r in runs if r["nonfinite"]]
     if nf:
-        print("\nNON-FINITE VALUES (a diverged run once wrote `completed`)")
+        print("\nNON-FINITE VALUES in observed numeric fields")
         for r in nf:
             worst = sorted(r["nonfinite"].items(), key=lambda kv: -kv[1])[:3]
             print(
@@ -238,16 +243,7 @@ def main():
                     "?" if r.get("steps_applied") is None else r["steps_applied"],
                 )
             )
-        print(
-            "   Read the two columns TOGETHER. Under FP16 AMP the GradScaler produces"
-        )
-        print(
-            "   non-finite gradients ON PURPOSE, skips those steps and halves the scale,"
-        )
-        print("   so a few rows with the step budget INTACT is the scaler working, not")
-        print(
-            "   divergence. A run that lost its steps as well is the one to worry about."
-        )
+        print("   Counts alone cannot establish the cause or safety of these values.")
     _saturation_readout(runs)
     print("\nPER ARM")
     print(
@@ -405,6 +401,13 @@ def main():
                     )
                 )
 
+    if bad or nf:
+        print(
+            "FAIL: observed terminal accuracy collapse or non-finite numeric log values; investigate before proceeding."
+        )
+        return 1
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
