@@ -105,21 +105,61 @@ real-log skip is not a pass. Receipts/review ledger are in the ignored
 `.superpowers/sdd/lean-cleanup-plan/`; source recovery is in Git and the verified
 external archive. These are software checks, not GPU or superiority evidence.
 
-**fMoW is on hold:** full cached-source pixel reconciliation found that 436 train
-and 146 test rows use `false_detection` AOI crops with the surrounding site's
-class label. The preparer matches only basenames and takes the first image,
-collapsing distinct AOIs. Country/site separation still holds, but that does not
-validate crop/label alignment. Repair preparation with full sample IDs, preserve
-the old arrays, rebuild as a separately versioned dataset and re-audit before use.
+**fMoW: REPAIRED AND IN USE AS `fmow2` (2026-09-14).** The defect below was real
+and is fixed. `prep_fmow` joined metadata to images on `os.path.basename`, but
+the archive is laid out `split/class/class_seq/aoi/file` and the filename encodes
+only `<class>_<class_seq>_<idx>` -- the AOI is not in it. Measured on
+`val-metadata.tar.gz`: 63,422 records, 53,041 unique basenames, **7,429 basenames
+under more than one AOI**, so 16.4% of records were silently dropped or
+mis-joined. That is the mechanism behind the 436/146 rows: the `false_detection`
+metadata row was dropped by `DROP`, but its IMAGE was still popped by a
+surviving row sharing the basename. Both sides now key on `class_seq/aoi/file`
+and `load()` refuses a non-unique key. The old arrays are preserved; the rebuild
+is a separately versioned slice.
+
+`fmow2` re-audited on the rebuilt arrays: 17,670 train / 3,442 test with row
+counts consistent across images, labels and meta; **139 train countries vs 10
+test countries, zero overlap**; **zero cross-split exact image duplicates**. It
+passes **8 of 8** conditions in `scripts.candidate_gate` (density 0.82, 6% dead
+items, 6/26 zero ceilings, class balance 0.57). Capped classes are drawn from
+this slice's own labels: **1 crop_field, 2 place_of_worship, 7
+ground_transportation_station** -- present in 10/10, 9/10 and 8/10 groups. Not
+the 3 and 5 the old config declared; class 3 lives in 6 of 10 groups with 4 zero
+ceilings.
+
+Measured hardness on `fmow2`/MobileNetV3: train CE saturates by epoch 6 (99.7%
+train accuracy), but **test accuracy is 0.634-0.648 over 4 seeds** and a cell
+carries **187 errors inside K** against iwildcam's 11.7-21.2 item prize.
+⚠️ On ~11 of 30 ceilings p@K >= 0.99 -- the model is confidently wrong, and the
+penalty's `p(1-p)` gradient is near zero exactly there. That is a calibration
+limit, not a data limit, and it is the open question on this slice.
 
 **BCN is not launch-ready:** two exact duplicate pairs cross train/test with
 conflicting class labels and different official lesion IDs. Public source JPEG
 and annotation checks now confirm the conflict is upstream, not introduced by
 our resize/export for these pairs. No images or labels were changed. A versioned
 curation policy and renewed whole-split audit remain necessary; see
-`docs/audits/2026-09-14-reset.md`. iwildcam and fMoW passed the exact cross-split
-image check; the independent fMoW crop/label failure above remains blocking.
-Near-duplicates and unused-holdout status remain open.
+`docs/audits/2026-09-14-reset.md`. `fmow2` passes the exact cross-split image
+check with zero duplicates and its crop/label failure is repaired above, so BCN
+is the only runnable slice still blocked on integrity. Near-duplicates and
+unused-holdout status remain open. BCN is otherwise the best-structured slice
+available (candidate_gate 7/8, failing only class balance at 0.04), so repairing
+it is worth doing rather than abandoning.
+
+**iwildcam is RETIRED (2026-09-14).** It passes **2 of 8** conditions: 2 of its 8
+classes can carry a local cap, half the per-group ceilings are K=0 before
+training starts, and **72% of test items sit in groups holding NEITHER capped
+class** -- those groups cannot produce one allocation decision. Its per-group
+label shift is the best in the corpus (TV 0.737) and that is the SAME fact as
+its density of 0.27: the shift IS the sparsity. Removed from `protocol.yml`,
+from `data_loader.IMAGERY_DATASETS` and from every test fixture; data and the 41
+completed runs are archived, not deleted.
+⛔ **Every earlier TraLO number was measured through that**, so treat pre-fmow2
+results as describing iwildcam rather than the method.
+🔑 The two tools that could have caught it disagree by construction --
+`dataset_screen` rewards shift, `tier_viability` rewards density -- and nothing
+combined them, so whichever was run said "it passes". `scripts.candidate_gate`
+now screens all eight conditions at once and its exit code is the verdict.
 
 The server validation checkout `/home/dsi/michaer8/optloss-reset-validation-20260914`
 is an OLDER source snapshot; its earlier CPU test pass does not validate the lean
