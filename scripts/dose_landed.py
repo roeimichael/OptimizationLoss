@@ -15,6 +15,22 @@ from configs.gen_campaign import load_protocol
 ARMS = load_protocol()["arms"]
 
 
+def dose_free(arm):
+    """Arms that legitimately land ZERO constraint steps.
+
+    Every post-hoc arm, plus `tralo_null` -- the phase-matched control that runs
+    the trained schedule and deliberately takes no constraint step. This was
+    spelled out as two different hardcoded literals in two places, and neither
+    knew about `aug_clip`.
+
+    An arm this protocol does not declare is NOT treated as dose-free -- the
+    safe reading, and `read_root` rejects genuinely unknown arms at ingest
+    anyway. `.get` rather than `[]` because the self-test reports on retired
+    arm names that are no longer in the protocol.
+    """
+    return (ARMS.get(arm) or {}).get("phase") == "posthoc" or arm == "tralo_null"
+
+
 def read_root(root):
     per = collections.defaultdict(lambda: [0, 0, 0, 0, 0, 0])
     amps = collections.defaultdict(set)
@@ -59,7 +75,7 @@ def read_root(root):
         if posthoc and app is None and att is None:
             cell[5] += 1
             continue
-        expected = 0 if posthoc or arm == "tralo_null" else hp["constraint_epochs"]
+        expected = 0 if dose_free(arm) else hp["constraint_epochs"]
         if type(app) is not int or type(att) is not int:
             raise ValueError(
                 "%s: completed run requires integer applied/attempted counts" % path
@@ -100,9 +116,7 @@ def report(per, amps, tolerance=DOSE_FRACTION_TOLERANCE, out=sys.stdout):
     if not trained:
         for arm in others:
             out.write("  %-16s %s\n" % (arm, state(arm)))
-        missing_trained = any(
-            a not in {"tralo_null", "clip", "focal_clip"} for a in per
-        )
+        missing_trained = any(not dose_free(a) for a in per)
         if not completed or missing_trained:
             out.write("INCOMPLETE: no completed run establishes its constraint dose.\n")
         return problems + int(not completed or missing_trained)

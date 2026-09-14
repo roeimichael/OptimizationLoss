@@ -380,8 +380,19 @@ def test_no_inline_default_disagrees_with_the_protocol(P):
                             == P["constraint_phase"][key]
                         )
                 continue
-            (vals, _base) = _protocol_values(P, key)
+            (vals, base) = _protocol_values(P, key)
             if not vals:
+                continue
+            # An OPT-IN knob lives only in a block, never in `core`, so the
+            # protocol declares the ON value and nothing else. Its inline
+            # default is the OFF state, and that is the contract, not a
+            # disagreement: `make_dataloader`'s docstring requires
+            # augment=False to stay byte-identical to the unaugmented path, and
+            # `augment` is deliberately kept out of `core` so adding it cannot
+            # change every arm's warm-up identity. Only False/None qualify --
+            # a wrong VALUE (focal_gamma defaulting to 3.0 against a declared
+            # 2.0) is still caught, which is what this test exists for.
+            if base is None and default in (False, None):
                 continue
             if json.dumps(default) not in vals:
                 bad.append((key, default, sorted(vals), path, line))

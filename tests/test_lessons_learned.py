@@ -1377,6 +1377,13 @@ def test_dose_landed_accepts_EVERY_declared_arm_and_ANY_epoch_budget(tmp_path):
     per, _amps = read_root(str(tmp_path))
     assert per, "the scorer returned nothing for a valid short-horizon campaign"
 
+    # A campaign of ONLY dose-free arms must not report a missing trained arm.
+    # The dose-free set was two different hardcoded literals in two places and
+    # neither knew aug_clip, so an all-clipper campaign false-alarmed.
+    from scripts.dose_landed import dose_free
+    assert dose_free("aug_clip") and dose_free("clip") and dose_free("tralo_null")
+    assert not dose_free("aug_tralo") and not dose_free("tralo")
+
     # (b) must still bite in the other direction: a post-hoc arm claiming a
     # constraint phase is a real inconsistency and has to raise.
     bad = tmp_path / "bad"
