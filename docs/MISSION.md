@@ -52,38 +52,62 @@ all be at-or-under budget **in the same epoch**. Measured: only **8-13 of the 30
 local cells** comply in any epoch, and that does not improve over 30 epochs
 (12 -> 8 at L80, 14 -> 13 at L90). Satisfaction is ~20 cells away, not one.
 
-**Two structural consequences, both in every run ever made:**
+**Two consequences, present in every run ever made:**
 
-1. 🔑 **The multiplier can only grow.** `set_lambda_per_class(c, old +
-   lambda_step, ...)` at lines 296 and 308 are the ONLY mutation sites after
-   init. A cell that becomes compliant keeps its accumulated multiplier forever.
-   Pressure on an already-compliant cell never relaxes -- **undershoot is
-   structural, not incidental.**
-2. 🔑 **rho never freezes either.** `rho_frozen` is set only inside the
+1. **The multiplier can only grow.** `set_lambda_per_class(c, old + lambda_step,
+   ...)` at lines 296 and 308 are the ONLY mutation sites after init, and the
+   increment is a CONSTANT on a BOOLEAN violation. So `lambda_c = lambda_0 +
+   step * (epochs violated)` is a violation-FREQUENCY counter whose dynamic
+   range is capped by the epoch count.
+2. **rho never freezes either.** `rho_frozen` is set only inside the
    satisfaction branch, so `increment_rho(rho_step)` runs all 29 epochs and rho
    lands on `rho_target = 100.0` in every run, from `initial_rho = 0.5`.
    (The paper says rho ramps "from 5 toward 100"; the config says 0.5.)
 
-**This is exactly what separates TraLO from the two rivals that do not share the
-failure.** Read from source:
+⚠️ **What this does NOT mean, and I had it wrong for an hour.** The
+monotone lambda ramp is not an escalating force. `constraint_step.py:36`
+renormalizes the summed gradient to exactly `clip` whenever `raw_norm < clip`,
+so **the common scale of all multipliers divides out and only the per-scope
+RATIOS steer**. The measured pre-clip `Grad_Norm` growth of 2.9 -> 27,000 is
+discarded in full. Consequently "pressure on an already-compliant cell never
+relaxes" is FALSE: a compliant cell stops accruing lambda while violating cells
+keep accruing, so its RELATIVE weight decays and the system releases it.
+Undershoot is therefore NOT structural on this argument. main.tex makes the same
+point and reports a matched probe with lambda differing ~280x training almost
+identically.
 
-| arm | dual update | can shrink? |
-|---|---|---|
-| `tralo` | `lambda += step` on a BOOLEAN violation | **no** |
-| `fioretto` | `lambda += step * viol^+` | **no** |
-| `alm` | `lambda <- max(0, lambda + eta (S - K))` on the RAW residual | **yes** |
-| `hounie` | `lambda <- max(0, lambda + eta (mean_l - u))` | **yes** |
+⛔ **THE IMPLIED FIX IS ALREADY IN THE LEDGER. DO NOT PROPOSE IT AGAIN.**
+The obvious repair -- integrate the raw residual like `alm` does, instead of
+counting violated epochs -- was built on 2026-09-06 as
+`lambda_ratchet_mode: proportional`, arm **`tralo_dualprop`**, and run. Scored
+here against `tralo` on seed-paired cells:
 
-`fioretto_alm/train.py`'s own docstring states the point: the raw residual "so
-the multiplier can SHRINK when the constraint goes slack".
+| cells | metric | mean delta | negative |
+|---|---|---|---|
+| 12 (bcn, fmow, iwildcam x MNv2/MNv3/ViTB16, 2-4 seeds) | F1 (Macro) | **-0.0038** | 9 of 12 |
+| same | Accuracy | **-0.0013** | 8 of 12 |
 
-🔑 **THE FIX IS NOT IN THE REJECTED LEDGER.** Everything closed there is
-the gradient EXPRESSION -- penalty shape, count function, cut window, margin,
-scope re-weighting. This is the DUAL UPDATE: make it two-sided and per-cell,
-`lambda <- max(0, lambda + step * (hard - K) / K)`, with a deadband of one
-measured epoch-sd so it does not chatter on noise. No gradient change, no extra
-compute. New arm `tralo_sd`, with unmodified `tralo` as the control; it must not
-replace `tralo`, because `tralo` is what the paper describes.
+Every cell is inside its own paired seed sd. **`tralo_dualprop` is a null, and
+if anything slightly negative.** The direction is closed.
+
+⚠️ This finding is also not new -- `scripts/latch_probe` established the
+dead latch on 2026-09-06 over 72 `dom1` runs (0 of 24 for each of `tralo`,
+`tralo_null`, `tralo_uniform`). What is new here is the SCOPE: 2,563 runs, all
+five datasets, all 22 variants, read from the persisted `Satisfaction Epoch`
+rather than reconstructed. The two-phase description in main.tex has never once
+described a run that exists.
+
+🔑 **What is still open.** Not the multiplier. The latch's own gate is:
+satisfaction is a global AND over all 33 scopes when the ratchet it gates is
+already per-cell (`if hard_c > limit_c` at 294 and 306). Removing the
+conjunction changes nothing about which cells ratchet -- it is a kill switch
+that never fires -- so a per-cell freeze is NOT the fix either. The live
+questions are the ones the pre-registration below tests, and the CE budget:
+`L_CE` is under 0.05 from epoch 6 of 30 with train accuracy 98.4%, so **24 of
+the 29 constraint epochs run against a task loss that is 5% of its epoch-2
+value**, on BOTH `tralo` and `tralo_null` (their CE trajectories match within
+seed sd at every epoch). Test accuracy is 63.4% against 99.9% train, so fmow2 is
+genuinely hard -- the saturation is memorization, not an easy task.
 
 ### 🔬 PRE-REGISTERED 2026-09-14, BEFORE THE SEEDS LANDED
 
