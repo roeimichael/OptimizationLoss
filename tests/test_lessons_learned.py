@@ -496,3 +496,66 @@ def test_read_run_counts_EVERY_class_not_only_the_capped_ones(tmp_path):
     assert abs(deployed_h2h.macrof1(rec["all_per"]) - capped_only) > 1e-06, (
         "macro-F1 over every class equals the capped-only figure, so the uncapped channel is inert"
     )
+
+
+def test_a_candidate_dataset_is_screened_on_EVERY_condition_at_once(tmp_path):
+    """iwildcam ran this project for weeks while failing 6 of 8 conditions.
+
+    The conditions each had their own tool and the tools disagreed:
+    `dataset_screen` rewards per-group label SHIFT, `tier_viability` rewards
+    per-group DENSITY, and those two are in tension by construction -- strong
+    shift means classes are ABSENT from groups, which is exactly sparsity.
+    iwildcam scored best in the corpus on the first (TV 0.737) and 20th of 22
+    on the second (density 0.27). Both were right. Nothing combined them, so
+    every screen could be answered "it passes" and the dataset stayed.
+
+    This pins that a candidate is screened on every condition together, and
+    that a slice failing a condition is NOT reported as passing.
+    """
+    import subprocess, sys, os
+
+    def slice_csv(name, rows):
+        p = tmp_path / name
+        with open(p, "w", encoding="utf-8", newline="") as fh:
+            fh.write("label,location" + chr(10))
+            for y, g in rows:
+                fh.write("%d,%s" % (y, g) + chr(10))
+        return str(p)
+
+    # A slice shaped like iwildcam: 8 classes, but the two most spread live in
+    # a handful of groups and most groups hold neither of them.
+    bad = []
+    for g in range(10):
+        for y in range(8):
+            # classes 0 and 1 only ever appear at groups 0 and 1
+            if y in (0, 1) and g > 1:
+                continue
+            bad.extend([(y, "g%d" % g)] * 20)
+    # A slice where every class appears in every group at differing rates.
+    good = []
+    for g in range(10):
+        for y in range(8):
+            good.extend([(y, "g%d" % g)] * (60 + 10 * ((y + g) % 5)))
+
+    run = lambda p: subprocess.run(
+        [sys.executable, "-m", "scripts.candidate_gate", "--meta", p, "--name", "s"],
+        cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        capture_output=True, text=True)
+
+    out_bad = run(slice_csv("bad.csv", bad))
+    assert out_bad.returncode == 1, (
+        "the exit code IS the gate; a failing slice must exit non-zero:"
+        + chr(10) + out_bad.stdout)
+    assert "PASS ALL" not in out_bad.stdout, (
+        "a slice whose capped classes live in 2 of 10 groups was reported as "
+        "passing every condition:" + chr(10) + out_bad.stdout)
+    assert "FAIL" in out_bad.stdout, "no condition fired on the sparse slice"
+
+    out_good = run(slice_csv("good.csv", good))
+    assert out_good.returncode == 0, (
+        "a good slice must exit 0:" + chr(10) + out_good.stdout)
+    # NEGATIVE CONTROL: the gate must be able to say yes, or it is not a gate,
+    # it is a rejection stamp.
+    assert "PASS ALL" in out_good.stdout, (
+        "a dense, well-spread, rate-varying slice was refused, so the gate "
+        "cannot distinguish good data from bad:" + chr(10) + out_good.stdout)
