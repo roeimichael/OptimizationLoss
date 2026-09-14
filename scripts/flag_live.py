@@ -46,14 +46,13 @@ INERT is a false alarm about the healthiest arms in the protocol. Refusing is
 the fix; the trained arms, whose treatment IS inside the function this harness
 calls, are unaffected and still checked.
 """
+
 import argparse
 import hashlib
 import sys
 import tempfile
-
 import numpy as np
 import torch
-
 from configs.gen_campaign import load_protocol
 from scripts.smoke_arms import make_inputs
 from src.experiments.runner import TRAIN_FNS
@@ -63,20 +62,19 @@ def main():
     a = argparse.ArgumentParser(description=__doc__)
     a.add_argument("arms", nargs="+")
     a.add_argument("--constraint-epochs", type=int, default=6)
-    a.add_argument("--seeds", type=int, nargs="+", default=[1, 2, 3],
-                   help="one seed is not enough. Measured: at seed 1 the arms "
-                        "spread 12 to 35 against K=11, at seed 2 nothing is "
-                        "predicted the capped class at all and every arm is "
-                        "bit-identical, at seed 3 every item is and they are "
-                        "all within 1. A single seed can show anything.")
+    a.add_argument(
+        "--seeds",
+        type=int,
+        nargs="+",
+        default=[1, 2, 3],
+        help="one seed is not enough. Measured: at seed 1 the arms spread 12 to 35 against K=11, at seed 2 nothing is predicted the capped class at all and every arm is bit-identical, at seed 3 every item is and they are all within 1. A single seed can show anything.",
+    )
     args = a.parse_args()
-
     P = load_protocol()
     unknown = [x for x in args.arms if x not in P["arms"]]
     if unknown:
         print("unknown arm(s): %s" % " ".join(unknown))
         return 1
-
     posthoc = [x for x in args.arms if P["arms"][x].get("phase") == "posthoc"]
     if posthoc:
         print("REFUSING to judge post-hoc arm(s): %s" % " ".join(posthoc))
@@ -93,71 +91,64 @@ def main():
         print("campaign's own md5s over `final_predictions_raw.csv`, which are")
         print("written after both phases.")
         return 1
-
     tmp = tempfile.mkdtemp(prefix="flag_live_")
     per_seed = {}
     for seed in args.seeds:
-        rows, K = [], None
+        (rows, K) = ([], None)
         for arm in args.arms:
             torch.manual_seed(seed)
             np.random.seed(seed)
-            inp, gcon, _ = make_inputs(P, arm, tmp, seed=seed)
+            (inp, gcon, _) = make_inputs(P, arm, tmp, seed=seed)
             inp.hyperparams["constraint_epochs"] = args.constraint_epochs
             K = int(gcon[1])
             res = TRAIN_FNS[P["arms"][arm]["methodology"]](inp)
             res.model.eval()
-            # 🛑 HASH WHAT THE SCORER READS, NOT WHAT THE MODEL EMITS.
-            # Until 2026-09-09 this hashed `res.model(X_test)` only, so any
-            # treatment carried on TrainOutputs rather than in the WEIGHTS was
-            # invisible: `tralo_snap` averages the constraint phase and trains
-            # a bit-identical model BY DESIGN, and this tool called it INERT
-            # and said "do not launch a campaign on it". That is the same
-            # false verdict, in the opposite direction, as the six real inert
-            # flags this gate exists to catch -- and a gate that cannot fail
-            # correctly is worse than none.
-            if getattr(res, "snapshot_proba", None) is not None:
-                p = np.asarray(res.snapshot_proba, dtype=np.float64)
-            else:
-                with torch.no_grad():
-                    p = torch.softmax(
-                        res.model(inp.X_test), dim=1).numpy().astype(np.float64)
-            rows.append((arm,
-                         hashlib.md5(np.round(p, 8).tobytes()).hexdigest()[:12],
-                         float(p[:, 1].sum()), int((p.argmax(1) == 1).sum()),
-                         inp.hyperparams.get("soft_count_mode", "-")))
+            with torch.no_grad():
+                p = (
+                    torch.softmax(res.model(inp.X_test), dim=1)
+                    .numpy()
+                    .astype(np.float64)
+                )
+            rows.append(
+                (
+                    arm,
+                    hashlib.md5(np.round(p, 8).tobytes()).hexdigest()[:12],
+                    float(p[:, 1].sum()),
+                    int((p.argmax(1) == 1).sum()),
+                    "sum",
+                )
+            )
         per_seed[seed] = (rows, K)
-
-    print("%d constraint epochs, capped class 1, seeds %s"
-          % (args.constraint_epochs, " ".join(str(x) for x in args.seeds)))
+    print(
+        "%d constraint epochs, capped class 1, seeds %s"
+        % (args.constraint_epochs, " ".join((str(x) for x in args.seeds)))
+    )
     print()
-    print("%-16s %-8s %-14s %6s %10s %9s"
-          % ("arm", "count", "md5", "seed", "sum_p(c1)", "hard(c1)"))
+    print(
+        "%-16s %-8s %-14s %6s %10s %9s"
+        % ("arm", "count", "md5", "seed", "sum_p(c1)", "hard(c1)")
+    )
     print("-" * 70)
     for seed, (rows, K) in per_seed.items():
         for arm, h, sp, hard, mode in rows:
-            print("%-16s %-8s %-14s %6d %10.3f %9d"
-                  % (arm, mode, h, seed, sp, hard))
-        print("%-16s %-8s %-14s %6s %10s %9s"
-              % ("", "", "", "", "budget K =", K))
+            print("%-16s %-8s %-14s %6d %10.3f %9d" % (arm, mode, h, seed, sp, hard))
+        print("%-16s %-8s %-14s %6s %10s %9s" % ("", "", "", "", "budget K =", K))
     print()
-
-    # A cell where the cap is already satisfied takes NO constraint step -- the
-    # penalty is relu(count - K) and it is zero. Every arm is then correctly
-    # bit-identical, and calling that "inert" is a false alarm. Judge only on
-    # seeds where the constraint actually bound.
-    binding = [sd for sd, (rows, K) in per_seed.items()
-               if any(r[3] > K for r in rows)]
+    binding = [
+        sd for (sd, (rows, K)) in per_seed.items() if any((r[3] > K for r in rows))
+    ]
     vacuous = [sd for sd in per_seed if sd not in binding]
     if vacuous:
-        print("SKIPPED seed(s) %s: no arm exceeded the budget, so the penalty"
-              % " ".join(str(x) for x in vacuous))
+        print(
+            "SKIPPED seed(s) %s: no arm exceeded the budget, so the penalty"
+            % " ".join((str(x) for x in vacuous))
+        )
         print("is identically zero and every arm is correctly identical there.")
         print()
     if not binding:
         print("VACUOUS -- the cap never bound on any seed, so this run compares")
         print("nothing. Raise --constraint-epochs or pick a tighter cap.")
         return 2
-
     dupes = []
     dupes = []
     for sd in binding:

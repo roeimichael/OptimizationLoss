@@ -1,44 +1,16 @@
-"""THE campaign generator. It reads `configs/protocol.yml` and contains no
-experimental constants of its own.
+"""Generate paired seven-arm campaigns from the maintained protocol."""
 
-If a number decides what an experiment does, it is in the YAML. This file only
-assembles: it picks each arm's blocks, splits the epoch budget, hashes the
-warm-up identity, and refuses to emit a campaign that violates the protocol.
-
-    python -m configs.gen_campaign --root results/<name> \\
-        --datasets dermmnist tissuemnist --models MobileNetV3 \\
-        --caps L30_G30 L50_G50 --arms all
-
-Caps
-----
-`L30_G50` sets the LOCAL (per-group) cap to 30% and the GLOBAL cap to 50% of the
-constrained class's true test-set count. The two are independent, so an
-asymmetric sweep is just a list of tags. Both are turned into integer budgets by
-`src/training/constraints.py` against the actual test labels -- the percentage
-only standardizes how hard the cap binds across datasets.
-
-Constrained classes
--------------------
-`constrained_class` may be a single index or a list, per dataset in the YAML, and
-`--constrained-class` overrides it for one run. Indices are validated against the
-dataset's `num_classes`, because a cap on a class that does not exist is silently
-skipped by the loss.
-"""
 import argparse
 import hashlib
-import io
 import json
-import os
 import sys
-
+from pathlib import Path
 import yaml
+from src.pipeline.config import validate_hyperparams
+from src.utils.gitver import git_version
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from src.utils.gitver import git_version   # stdlib-only: no torch here  # noqa: E402
-
-HERE = os.path.dirname(os.path.abspath(__file__))
-PROTOCOL_PATH = os.path.join(HERE, "protocol.yml")
+PROTOCOL_PATH = str(Path(__file__).with_name("protocol.yml"))
+PUBLIC_ARMS = ("tralo", "tralo_null", "clip", "focal_clip", "fioretto", "hounie", "alm")
 
 
 def load_protocol(path=PROTOCOL_PATH):
@@ -46,1667 +18,230 @@ def load_protocol(path=PROTOCOL_PATH):
         return yaml.safe_load(f)
 
 
-def _null_of(P, arm):
-    """The zero-dose sibling for an arm.
-
-    Usually `<arm>_null`, but an arm may name another arm's null when the two
-    differ only in something the null zeroes out anyway -- `tralo_margin` and
-    `tralo` share `tralo_null` because at lambda 0 no constraint gradient is
-    formed and the choice of soft count is inert. Without this lookup the gate
-    below silently skips any arm whose name is not `<something>_null` away from
-    its control, i.e. exactly the new arms that most need one.
-    """
-    return P["arms"][arm].get("null_sibling", arm + "_null")
-
-
-def count_control_arms(P):
-    """Arms flagged `count_control` in the YAML: the RESEED floor.
-
-    A trained arm writes a per-epoch capped-class count, and that trajectory is
-    what every "the constraint moved the count by N" claim is read out of.
-    Measured 2026-08-22 and independently verified, turning the constraint on
-    moves that count by RMS 75-95 items while merely re-randomising the RNG
-    stream of two pure-CE runs moves it 83-95 -- 0.90-1.00x. So the trajectory
-    is not readable without the reseed arm beside it, and `validate` refuses a
-    campaign that has one without the other.
-
-    Flagged in the YAML rather than matched on a name, for the same reason
-    `null_sibling` exists: `_null_of` found its control by appending "_null",
-    and `tralo_margin` -- the arm that most needed one -- silently resolved to
-    an arm that does not exist while the gate said nothing.
-    """
-    return {a for a, spec in P["arms"].items() if spec.get("count_control")}
-
-
 def resolve_block(P, name):
-    """A block name is either a top-level section or an entry under `blocks`."""
-    if name in P.get("blocks", {}):
-        return P["blocks"][name]
-    if name in P:
-        return P[name]
-    raise KeyError("protocol.yml: unknown block %r" % name)
-
-
-def _pretrained(args):
-    """None, True or False from the `--pretrained` string. Never `bool(str)`.
-
-    `bool("false")` is True. Keeping the parse in one named function means
-    there is exactly one place this can be got wrong, and `test_g3_model`
-    asserts the string "false" reaches the emitted config as False.
-    """
-    v = getattr(args, "pretrained", None)
-    if v is None:
-        return None
-    if v not in ("true", "false"):
-        raise ValueError("--pretrained must be 'true' or 'false', got %r" % v)
-    return v == "true"
+    return P["blocks"][name] if name in P.get("blocks", {}) else P[name]
 
 
 def build_hyperparams(P, arm_spec, seed, pretrained=None):
-    """Assemble exactly the keys this arm's methodology reads, plus the contract
-    keys that scripts/check_parity.py verifies on every arm.
-
-    `pretrained` overrides `core.pretrained` for a DE-SATURATION pilot and is
-    None everywhere else, so the default output stays byte-identical. It is
-    safe to flip because `pretrained` is already in `warmup_identity_keys`:
-    the two regimes get different `base_model_id`s and cannot share a cached
-    warm-up. A knob that changed the warm-up WITHOUT being in that list is how
-    this project loaded the wrong model four times.
-
-    🛑 IT IS APPLIED TO EVERY ARM OR NONE. `clip` trains 30 warm-up
-    epochs against a trained arm's 1, so a flag reaching only one side would
-    make the post-hoc baseline the only arm with ImageNet features -- which is
-    the bias commit 05097fcb was written to remove, generalised.
-    """
-    total = P["protocol"]["total_epochs"]
-    trained_warmup = P["protocol"]["trained_warmup"]
-    posthoc = arm_spec["phase"] == "posthoc"
-
     hp = dict(P["core"])
     for name in arm_spec.get("blocks") or []:
         hp.update(resolve_block(P, name))
     if pretrained is not None:
         hp["pretrained"] = bool(pretrained)
+    total = P["protocol"]["total_epochs"]
     hp["seed"] = seed
-    hp["warmup_epochs"] = total if posthoc else trained_warmup
-    hp["constraint_epochs"] = 0 if posthoc else total - trained_warmup
+    hp["warmup_epochs"] = (
+        total if arm_spec["phase"] == "posthoc" else P["protocol"]["trained_warmup"]
+    )
+    hp["constraint_epochs"] = total - hp["warmup_epochs"]
+    validate_hyperparams(arm_spec["methodology"], hp)
     return hp
 
 
 def compute_base_model_id(P, model_name, hp, dataset_mode, dc):
-    """Identity of the WARM-UP-trained model, so arms that share a warm-up share
-    its cache and arms that do not, do not.
-
-    The key is built from `warmup_identity_keys` in the YAML plus the dataset
-    identity. Anything that changes what the warm-up optimizes must be listed
-    there, or a second arm silently loads the first one's model -- which has
-    happened four times in this project.
-    """
-    key = {"model_name": model_name,
-           "dataset_mode": dataset_mode,
-           "data_dir": dc["data_dir"],
-           "num_classes": dc["num_classes"]}
-    for k in P["warmup_identity_keys"]:
-        if k in hp:
-            key[k] = hp[k]
-    h = hashlib.md5(json.dumps(key, sort_keys=True).encode()).hexdigest()[:12]
-    return "%s_%s_%s" % (model_name, dataset_mode, h)
+    key = {
+        "model_name": model_name,
+        "dataset_mode": dataset_mode,
+        "data_dir": dc["data_dir"],
+        "num_classes": dc["num_classes"],
+    }
+    key.update({k: hp[k] for k in P["warmup_identity_keys"] if k in hp})
+    digest = hashlib.md5(json.dumps(key, sort_keys=True).encode()).hexdigest()[:12]
+    return "%s_%s_%s" % (model_name, dataset_mode, digest)
 
 
 def code_version():
-    """The commit that WRITES this config -- not the one that runs it.
-
-    A config is stamped once, here, and `main()` never revisits a config it has
-    already written. So this records generation time and nothing else: land a
-    change to a training file half way through a campaign and every config
-    still carries this value. The commit that produced the WEIGHTS is stamped
-    by `src/experiments/runner.py` as `run_code_version`, and that is the one
-    the provenance gates read when it is present.
-    """
     return git_version()
 
 
-def _cls_tag(dc):
-    """Capped class(es) as a filename-safe tag: 4 -> "4", [4, 5] -> "4-5"."""
-    c = dc["constrained_class"]
-    return "-".join(str(x) for x in (c if isinstance(c, list) else [c]))
-
-
-def _zero_ceilings(P, dataset, local_pct):
-    """(zero per-group ceilings, total cells) for a dataset's capped classes.
-
-    Returns (0, 0) when the slice is not present on this machine -- campaigns
-    are generated on laptops as well as on the server, and a missing dataset
-    must not crash generation. It reports nothing rather than guessing.
-    """
+def cap_pair(tag):
     try:
-        import pandas as pd
-        from src.training.constraints import (compute_local_constraints,
-                                              normalize_constrained_classes)
-        dc = P["datasets"][dataset]
-        meta = os.path.join(dc["data_dir"], "test_meta.csv")
-        if not os.path.exists(meta):
-            return 0, 0
-        te = pd.read_csv(meta)
-        classes = normalize_constrained_classes(dc["constrained_class"])
-        L = compute_local_constraints(te, "label", local_pct,
-                                      dc["group_column"],
-                                      constrained_class=classes,
-                                      num_classes=dc["num_classes"])
-        cells = [L[g][c] for g in L for c in classes]
-        return sum(1 for v in cells if v == 0), len(cells)
-    except FileNotFoundError:
-        return 0, 0
-    except Exception as exc:
-        # 🛑 (0, 0) PRINTS AS "no zero ceilings", WHICH IS THE WRONG ANSWER
-        # WEARING THE RIGHT SHAPE. This function exists precisely because the
-        # sum arithmetic lies about the local scope: on iwildcam 7 of 14
-        # per-group ceilings are K=0, and a ZERO ceiling binds absolutely
-        # whatever the sum does. Swallowing an error here reports the local
-        # scope as inert in the one campaign where it does the most work. It
-        # also silently swallowed two deliberate refusals: `_round_to_K`
-        # raising on a budget that rounds to zero, and `task_cells` raising on
-        # a test_meta.csv with no `label` column.
-        raise SystemExit(
-            "REFUSED: could not read the real per-group budgets for %s at "
-            "local %s (%s: %s). Without them the binding-scope line is sum "
-            "arithmetic only, which has called the local scope inert where it "
-            "was doing the most work." % (dataset, local_pct,
-                                          type(exc).__name__, exc))
-
-
-# The task-window logic lives in `configs/task_cells.py` so the GENERATOR and
-# the SCORERS read one source of truth. It must stay under `configs/` rather
-# than `scripts/`: `scripts/` is outside TRAINING_PATHS and is deployable
-# mid-campaign, so a `configs` -> `scripts` import would start splitting
-# `code_version` on a scorer deploy. `cap_pair` is re-exported because tests and
-# other callers import it from here.
-from configs.task_cells import (cap_pair, classify,  # noqa: E402,F401
-                                in_window, load_windows, tolerance)
-
-
-# Arms whose ENTIRE mechanism is a function of the TRAINING class prior. On a
-# BALANCED training set each one collapses to plain CE and is not a baseline at
-# all -- it is a second copy of its own allocator. FRAMEWORK 2(x1), 2(x2).
-PRIOR_ARMS = {
-    "class_balanced":
-        "weights are (1-beta)/(1-beta^n_c) normalised to mean 1. At equal n_c "
-        "every weight is exactly 1.0, so weighted CE IS plain CE -- the "
-        "gradients are BITWISE equal and the raw predictions hash identical "
-        "to `clip` in 24/24",
-    "logit_adjust":
-        "adds tau*log(prior) to the logits. At a uniform prior that is a "
-        "CONSTANT vector and log_softmax is shift-invariant, so the objective "
-        "is unchanged (loss delta 0.0, max grad delta 9.3e-10). "
-        "*** ITS PREDICTIONS STILL DIFFER *** -- the constant moves float "
-        "rounding and 30 epochs compound it -- so md5 does NOT catch this one "
-        "and 2(x1)'s table mislabelled it a `different model`",
-}
-
-# max/min training class count. Below this the prior carries essentially no
-# information and the arms above are inert. iwildcam measures EXACTLY 1.0000
-# (2500 per class over 8 classes); dermmnist/octmnist/tissuemnist are far
-# above it, which is why the published `imbalanced_baselines.csv` is unaffected.
-BALANCE_TOL = 1.05
-
-
-def train_imbalance(dc):
-    """max/min TRAINING class count, or None when the labels are not on disk.
-
-    None means UNKNOWN and the caller must not refuse on it. The 4.5x figure
-    quoted for iwildcam is the TEST set; reading the wrong one is how
-    `class_balanced` survived as a baseline for a whole campaign.
-    """
-    import collections
-    import csv
-    d = dc.get("data_dir") or ""
-    meta = os.path.join(d, "train_meta.csv")
-    if os.path.exists(meta):
-        with open(meta, encoding="utf-8") as fh:
-            counts = collections.Counter(
-                r["label"] for r in csv.DictReader(fh) if r.get("label") != "")
-    else:
-        npy = os.path.join(d, "train_labels.npy")
-        if not os.path.exists(npy):
-            return None
-        try:
-            import numpy as np
-            counts = collections.Counter(np.load(npy).ravel().tolist())
-        except Exception:
-            return None
-    if not counts or min(counts.values()) == 0:
-        return None
-    return max(counts.values()) / float(min(counts.values()))
-
-
-def prior_arm_gate(P, args, arms, explicit=None):
-    """Drop, or REFUSE, a prior-reading baseline on a BALANCED training set.
-
-    Not a style rule -- a measurement. `cb_lp` burned a full 24-run campaign on
-    iwildcam producing raw predictions byte-identical to `clip`'s, with
-    `audit_config`, `check_parity` and a distinct `base_model_id` all green.
-    Only hashing the predictions found it, and for `la_lp` not even that works.
-
-    Two different situations, and collapsing them makes `--arms all` unusable:
-
-      * the user NAMED the arm  -> REFUSE. Asking for `cb_lp` on iwildcam is a
-        mistake worth stopping, and `--allow-inert-baseline` is the override.
-      * it arrived via `all`    -> DROP it and say so, the same way `all`
-        already skips `rejected_arms`. `all` means "every baseline the paper
-        claims", and on this dataset two of them are not baselines.
-
-    Returns the set to drop. Silent when the labels are absent: unknown is not
-    balanced.
-    """
-    explicit = set(explicit or ())
-    named = [a for a in arms if P["arms"].get(a, {}).get("methodology")
-             in PRIOR_ARMS]
-    if not named:
-        return set()
-    inert, unknown = [], []
-    for ds in args.datasets:
-        dc = P["datasets"].get(ds) or {}
-        imb = train_imbalance(dc)
-        if imb is None:
-            unknown.append(ds)
-        elif imb < BALANCE_TOL:
-            inert.append((ds, imb))
-    for ds in unknown:
-        print("  !! THE PRIOR-ARM GATE DID NOT RUN for %s: no train_meta.csv "
-              "or train_labels.npy" % ds)
-        print("     on this machine, so %s were NOT checked. Run "
-              "`np.bincount(train_labels)`" % "/".join(sorted(named)))
-        print("     on the server before believing any number from them.")
-    if not inert:
-        return set()
-    for ds, imb in inert:
-        print("")
-        print("  INERT HERE: %s has a BALANCED training set (max/min = "
-              "%.4f), so these arms" % (ds, imb))
-        print("  are not baselines on it -- they are second copies of their "
-              "own allocator:")
-        for a in sorted(named):
-            print("    %-14s %s" % (a, PRIOR_ARMS[P["arms"][a]["methodology"]]))
-    if getattr(args, "allow_inert_baseline", False):
-        print("")
-        print("  !! --allow-inert-baseline: emitting %d arm(s) that are "
-              "MATHEMATICALLY PLAIN CE" % len(named))
-        print("     on this dataset (%s). Any contrast against them measures "
-              "the allocator" % ", ".join(a for a, _ in inert))
-        print("     and the RNG, never the recipe. Say so in the write-up.")
-        return set()
-    told = sorted(set(named) & explicit)
-    if told:
-        raise SystemExit(
-            "  You named %s explicitly. Drop them, or pass "
-            "--allow-inert-baseline and say\n  in the write-up what it let "
-            "through. FRAMEWORK 2(x1), 2(x2)." % ", ".join(told))
-    print("")
-    print("  NOTE: 'all' skips the arm(s) that are inert here -> %s"
-          % " ".join(sorted(named)))
-    return set(named)
-
-
-def task_window_gate(P, args, resolved, TW=None, arms=None):
-    """REFUSE a campaign whose caps pose no question. FRAMEWORK 2(z16), 2(z17).
-
-    A cap outside the measured window cannot distinguish any two methods: the
-    top-K is already perfect, or the cut sits at p ~ 1, or the cap evicts almost
-    nothing. 24 of 24 (backbone x class x cap) cells at L20/L30/L50 on iwildcam
-    are outside it, on every backbone the paper claims -- which is the best
-    single explanation on record for why so many arms tied.
-
-    Silent when the slice is absent (nothing to measure). 🛑 An unmeasured
-    row now REFUSES rather than warning -- `bcn1mn3`, `bcn1vit` and `fmow1`
-    were all generated through that hole, and screening `bcn1mn3` afterwards
-    moved its acceptance verdict across the bar. FRAMEWORK 2(z60).
-
-    `TW` is injectable so the self-test can present the exact state those
-    three campaigns saw -- a windows file with no row for their dataset --
-    without editing the file on disk.
-    """
-    if TW is None:
-        TW = load_windows()
-    if not TW:
-        # 🛑 THE MUTE BRANCH. Every other exit from this function says what
-        # it could not check; this one skipped the ENTIRE gate and printed
-        # nothing, so deleting or corrupting the windows file silently
-        # re-enabled every cap the gate exists to refuse.
-        print("  !! THE TASK-WINDOW GATE DID NOT RUN AT ALL. "
-              "configs/task_windows.yml is")
-        print("     missing, empty, or unparseable, so NO cap in this campaign "
-              "was checked")
-        print("     against FRAMEWORK 2(z17). 24 of 24 cells at L20/L30/L50 "
-              "pose no question")
-        print("     and would generate without complaint. Restore the file "
-              "before launching.")
-        return
-    rows, bad, soft, gaps, nostrict, shifted = [], [], [], [], [], []
-    unknown, absent, measured = set(), set(), False
-    for ds in args.datasets:
-        for model in args.models:
-            for tag in args.caps:
-                r = classify(P, TW, ds, model, tag)
-                if r["status"] == "no_data":
-                    absent.add(ds)
-                    continue
-                if r["status"] == "no_window":
-                    unknown.add("%s/%s" % (ds, model))
-                    continue
-                measured = True
-                for c, v in sorted(r["classes"].items()):
-                    rows.append((model, tag, c, v["K"], v["n"], v["ratio"],
-                                 v["lo"], v["hi"], v["band"]))
-                    if v["band"] == "partial":
-                        soft.append((model, tag, c, v["ratio"]))
-                    elif v["band"] == "unmeasured":
-                        gaps.append((model, tag, c, v["ratio"], v["hi"]))
-                    elif v["band"] == "ref_shifted":
-                        # 🛑 INSIDE THE MEASURED BAND, OUTSIDE THE CORRECTED
-                        # ONE. It must not fall through to `bad`: that bucket
-                        # prints "outside the measured task window" beside the
-                        # CORRECTED `lo`, so a reader who checks the yml sees a
-                        # floor that is not in it and concludes the tool is
-                        # wrong. Both numbers are carried here instead.
-                        shifted.append((model, tag, c, v["ratio"],
-                                        v["lo_raw"], v["lo"], v["hi"],
-                                        r.get("reference_arm", "?")))
-                    elif v["band"] == "no_strict":
-                        # \U0001f6d1 A WARNING, NOT A REFUSAL, ON PURPOSE.
-                        # An empty strict band comes from ONE re-measurement
-                        # (2026-09-02) under a prize bar -- MIN_PRIZE = 3.0 --
-                        # that is itself a single estimate of the RNG floor.
-                        # Refusing on it would lock the project out of a whole
-                        # backbone on a criterion chosen the same day, and
-                        # TraLO is not yet consistent enough for anything here
-                        # to be settled policy. So it is reported loudly and
-                        # the campaign is allowed.
-                        nostrict.append((model, tag, c, v["ratio"]))
-                    elif not v["ok"]:
-                        bad.append((model, tag, c, v["ratio"], v["lo"], v["hi"]))
-    # 🛑 AN UNMEASURED WINDOW NOW REFUSES. It used to print the warning below
-    # and generate anyway, and THREE campaigns in a row went through that hole:
-    # `bcn1mn3` (the headline), `bcn1vit` and `fmow1` were all generated with
-    # no `bcn`/`fmow` row in `task_windows.yml` at all. Screened afterwards
-    # (FRAMEWORK 2(z60)), `bcn1mn3`'s L70 is a NON-TASK off the declared
-    # reference arm -- which moves `tralo_wins` from 33% to 50%, i.e. across
-    # the acceptance bar, on a screen run after the outcome was known -- and
-    # TWO of `bcn1vit`'s three caps are saturated on both capped classes.
-    #
-    # ⚠️ THE CHICKEN-AND-EGG IS REAL AND IS WHY THIS WAS A WARNING: measuring a
-    # window needs a FINISHED unconstrained run, which needs a campaign. So
-    # this refuses with the two legal ways forward rather than closing the
-    # door -- and `--allow-nontask`, which already exists for the strictly
-    # WEAKER case of a measured non-task, is the override. An unmeasured
-    # window cannot be gated more loosely than a measured failure.
-    if unknown and not getattr(args, "allow_nontask", False):
-        lines = ["REFUSED: no measured task window for %s."
-                 % ", ".join(sorted(unknown))]
-        lines += [
-            "",
-            "  `task_windows.yml` has no row for it, so NOT ONE cap in this "
-            "campaign was",
-            "  checked against FRAMEWORK 2(z17) -- and an unmeasured window "
-            "is an unknown,",
-            "  not a known task. Measured on all four iwildcam backbones, 24 "
-            "of 24 cells at",
-            "  L20/L30/L50 pose no question and every one of them would "
-            "generate here",
-            "  without complaint.",
-            "",
-            "  TWO LEGAL WAYS FORWARD:",
-            "   1. MEASURE IT, if any unconstrained run for this "
-            "(dataset, backbone) exists:",
-            "        python -m scripts.task_window --glob "
-            "'<root>/<Backbone>/<ds>/*/tralo_null/seed_*'",
-            "      and paste the reported window into "
-            "configs/task_windows.yml.",
-            "   2. GENERATE A DELIBERATELY UNSCREENED PILOT with "
-            "--allow-nontask, which",
-            "      says in the output what it let through. Screen it from its "
-            "OWN nulls",
-            "      before scoring ANYTHING -- that is what did not happen for "
-            "bcn or fmow.",
-            "",
-            "  ⚠️ AND THE REFERENCE ARM IS PART OF THE ANSWER, NOT A "
-            "DETAIL. `tralo_null`",
-            "  and `clip` are different models -- 29 extra CE epochs sharpen "
-            "the probabilities",
-            "  -- and on bcn they disagree about whether L70 is a task at "
-            "all. Screen with",
-            "  `tralo_null`, the arm `task_windows.yml` declares and the one "
-            "the constraint",
-            "  actually starts from, and say so.",
-        ]
-        raise SystemExit("\n".join(lines))
-    # AN UNSCREENED PILOT MUST CARRY THE ARM IT WILL BE SCREENED WITH.
-    # The refusal above tells the user to "screen it from its OWN nulls" --
-    # and nothing made the pilot CONTAIN one. Measured 2026-09-10:
-    # `fmowpilot3/4` and `bcnpilot3/4`, 64 runs over two datasets and two
-    # backbones, were every one of them staged as `clip` + `focal_clip`
-    # only. They discharge an obligation they cannot discharge, and the
-    # defect stays invisible until the campaign lands and the screen finds
-    # no arm to read.
-    #
-    # It is not a cosmetic substitution. A window is a property of the
-    # REFERENCE MODEL: `clip` runs warm-up 30 + constraint 0 while the
-    # declared arm runs warm-up 1 + 29 CE epochs, and those 29 epochs
-    # sharpen the probabilities, so saturation reaches further up the K/n
-    # axis and the whole window moves UP with it. Over the six comparisons
-    # where ONE campaign carries BOTH arms (`meta.reference_arm_offset` in
-    # task_windows.yml) the clip band is never HIGHER than the null band at
-    # either end, 6 of 6. The error is one-sided and it points at the TIGHT
-    # end, so a clip-screened pilot accepts caps the real screen rejects.
-    #
-    # Fail-closed on a missing `arms`: a caller that does not say what it is
-    # generating cannot be granted the override.
-    if unknown:
-        ref = (TW.get("meta") or {}).get("reference_arm", "tralo_null")
-        have = set(arms or ())
-        if ref not in have:
-            raise SystemExit("\n".join([
-                "REFUSED: --allow-nontask was passed for %s, but this "
-                "campaign" % ", ".join(sorted(unknown)),
-                "  does not carry `%s` -- the arm `task_windows.yml` "
-                "declares as its reference." % ref,
-                "",
-                "  An unscreened pilot exists to MEASURE a window. "
-                "Screening it needs a finished",
-                "  run of the reference arm, so a pilot without one cannot "
-                "be screened at all --",
-                "  and the refusal that licensed it said in its own text to "
-                "screen it from its",
-                "  OWN nulls.",
-                "",
-                "  arms present: %s" % (", ".join(sorted(have)) or "(none)"),
-                "",
-                "  !! `clip` IS NOT A SUBSTITUTE. It runs warm-up 30 + "
-                "constraint 0; `%s`" % ref,
-                "  runs warm-up 1 + 29 CE epochs, which sharpen the "
-                "probabilities and move the",
-                "  window UP. Over the 6 comparisons where one campaign "
-                "carries both arms the",
-                "  clip band is never higher than the null band at either "
-                "end, so screening with",
-                "  `clip` accepts caps the real screen rejects, at the "
-                "TIGHT end, every time.",
-                "  See `meta.reference_arm_offset` in "
-                "configs/task_windows.yml.",
-                "",
-                "  FIX: add `%s` to --arms." % ref,
-            ]))
-    for u in sorted(unknown):
-        print("  !! NO MEASURED TASK WINDOW for %s and --allow-nontask was "
-              "passed, so it is" % u)
-        print("     NOT gated. This campaign is an UNSCREENED PILOT. Measure "
-              "the window from")
-        print("     its own nulls with `scripts.task_window` BEFORE scoring "
-              "anything, and")
-        print("     screen with `tralo_null`: it and `clip` disagree about "
-              "L70 on bcn.")
-    # 🛑 SAY SO WHEN THE GATE DID NOT RUN. Campaigns are generated on
-    # laptops, where the slice is absent, every cell returns `no_data` and
-    # this function would otherwise return having printed NOTHING and
-    # refused nothing -- a 24-of-24-non-task refusal that is a silent no-op.
-    # That is the exact shape of the defect this gate exists to prevent, so
-    # it is loud rather than mute. The `no_window` branch above already is.
-    for ds in sorted(absent):
-        print("  !! THE TASK-WINDOW GATE DID NOT RUN for %s: the slice is "
-              "not on this" % ds)
-        print("     machine, so no cap could be checked. This campaign is "
-              "UNGATED against")
-        print("     FRAMEWORK 2(z17). Generate on the server, or re-check "
-              "there before")
-        print("     launching: 24 of 24 cells at L20/L30/L50 pose no "
-              "question.")
-    if not measured:
-        return
-    print("  TASK WINDOW (FRAMEWORK 2(z16)/2(z17)) -- does each cap pose a "
-          "question?")
-    print("    %-13s %-13s %4s %6s %6s %7s %12s  %s"
-          % ("model", "cap", "cls", "K", "n", "K/n", "window", ""))
-    for model, tag, c, K, n, ratio, lo, hi, band in rows:
-        # `lo`/`hi` are None when the backbone has an EMPTY strict band -- a
-        # measured fact (no fraction both binds in 4/4 and clears the 3-item
-        # RNG floor), not a missing row. Formatting it with %4.2f raised
-        # TypeError and killed the table mid-print.
-        win = "  none  " if lo is None else "%4.2f-%4.2f" % (lo, hi)
-        print("    %-13s %-13s %4d %6d %6d %7.3f   %s  %s"
-              % (model, tag, c, K, n, ratio, win,
-                 {"strict": "in",
-                  "partial": "** PARTIAL -- binds in SOME seeds only **",
-                  "unmeasured": "** NEVER MEASURED at this K/n **",
-                  "no_strict": "** NO STRICT BAND EXISTS on this backbone **"}
-                 .get(band, "** OUTSIDE **")))
-    if gaps:
-        print("  !! %d cell(s) sit in the GAP between the strict and partial "
-              "bands, where" % len(gaps))
-        print("     nothing was measured. The windows come off a 0.1 grid; "
-              "these ratios are")
-        print("     not on it and not within the snapping tolerance of it, so "
-              "neither a task")
-        print("     nor a non-task claim is available. Measure the fraction, "
-              "or move the cap.")
-        for model, tag, c, ratio, hi in gaps:
-            print("       %-13s %-13s class %d  K/n %.3f  (nearest measured "
-                  "%.2f)" % (model, tag, c, ratio, hi))
-    if soft:
-        # ALLOWED, AND LABELLED. Refusing here would leave MobileNetV2 with
-        # exactly ONE legal cap (0.80/0.80) and MobileNetV3 with one
-        # (0.70/0.90), which is too narrow to run an experiment in. But a
-        # partial cell has a smaller effective n than its seed count suggests,
-        # so a NULL there is weaker evidence than a null in a strict cell --
-        # and that is the reading the campaign must carry from the start.
-        print("  !! %d (model, cap, class) cell(s) are PARTIAL: the cap binds "
-              "in SOME seeds" % len(soft))
-        print("     only, so the effective n is below the seed count. A "
-              "positive measured")
-        print("     here is CONSERVATIVE (a slack seed dilutes toward zero); a "
-              "NULL is NOT")
-        print("     evidence of no effect. Say PARTIAL wherever this campaign "
-              "is quoted.")
-        for model, tag, c, ratio in soft:
-            print("       %-13s %-13s class %d  K/n %.3f" % (model, tag, c, ratio))
-    if nostrict:
-        print("  !! %d (model, cap, class) cell(s) sit on a backbone with NO "
-              "STRICT BAND at any" % len(nostrict))
-        print("     fraction: at every K/n where the cap still binds in 4/4 "
-              "seeds the local prize")
-        print("     is under the %.1f-item RNG floor, and wherever the prize "
-              "clears the floor the" % float((TW.get("meta", {}).get("criteria", {}) or {})
-        .get("min_prize", float("nan"))))
-        print("     cap has gone slack in some seed. THIS IS A WARNING, NOT A "
-              "REFUSAL -- the")
-        print("     floor is one estimate from one corpus and nothing here is "
-              "settled. Expect a")
-        print("     small effect and say so wherever the campaign is quoted.")
-        for model, tag, c, ratio in nostrict:
-            print("       %-13s %-13s class %d  K/n %.3f" % (model, tag, c, ratio))
-    if bad and not getattr(args, "allow_nontask", False):
-        lines = ["REFUSED: %d of %d (model, cap, class) cell(s) sit OUTSIDE "
-                 "the measured task window." % (len(bad), len(rows))]
-        for model, tag, c, ratio, lo, hi in bad:
-            lines.append(
-                "  %s %s class %d: K/n=%.3f, window %s"
-                % (model, tag, c, ratio,
-                   ("NONE -- no fraction on the grid both binds in 4/4 seeds "
-                    "and clears the 3.0-item RNG floor. There is no legal cap "
-                    "for this class on this backbone." if lo is None
-                    else "%.2f-%.2f" % (lo, hi))))
-        lines += [
-            "",
-            "  Outside the window the cap either forces out almost nothing, "
-            "leaves NO errors",
-            "  inside K, or cuts at p@K ~ 1. None of those can distinguish "
-            "two methods, so the",
-            "  cell measures the ABSENCE of a question and its null is not "
-            "evidence about any",
-            "  method. Measured on all four backbones: 24 of 24 cells at "
-            "L20/L30/L50 are outside.",
-            "",
-            "  Pick caps inside the window, PER CLASS where the classes' "
-            "windows do not overlap:",
-            "    --caps L80-100_G95 L70-90_G95",
-            "  or pass --allow-nontask and say in the write-up that the "
-            "campaign cannot",
-            "  distinguish its arms by construction.",
-        ]
-        sys.exit("\n".join(lines))
-    if bad:
-        print("  !! --allow-nontask: %d cell(s) pose NO question and are "
-              "generated anyway." % len(bad))
-        print("     Their nulls are the absence of a measurement, not a "
-              "result. Say so.")
-    # 🛑 THE REFERENCE-ARM CORRECTION, AT THE POINT A CAP IS CHOSEN. These
-    # cells are inside the band that WAS measured and outside the band
-    # corrected for the arm it was measured with, so they are unmeasured
-    # rather than refuted -- but the direction of the error is KNOWN and it
-    # points at the tight end, which is why this refuses rather than warns.
-    # `--allow-nontask` overrides it, exactly as it does for a measured
-    # non-task, and says what it let through.
-    if shifted and not getattr(args, "allow_nontask", False):
-        lines = ["REFUSED: %d of %d (model, cap, class) cell(s) are inside "
-                 "the MEASURED window but" % (len(shifted), len(rows)),
-                 "         outside the window CORRECTED for the reference arm "
-                 "it was measured with."]
-        for model, tag, c, ratio, lo_raw, lo, hi, arm in shifted:
-            lines.append(
-                "  %s %s class %d: K/n=%.3f -- measured off `%s` %.2f-%.2f, "
-                "corrected %.2f-%.2f"
-                % (model, tag, c, ratio, arm, lo_raw, hi, lo, hi))
-        lines += [
-            "",
-            "  The window row was measured off a SUBSTITUTE reference arm. "
-            "`clip` runs warm-up",
-            "  30 + constraint 0 while `tralo_null` runs warm-up 1 + 29 CE "
-            "epochs, and those 29",
-            "  epochs sharpen the probabilities, so saturation reaches "
-            "further up the K/n axis",
-            "  and the window moves UP with it. Measured over fmow1 + "
-            "bcn1mn3: the clip band is",
-            "  never HIGHER than the null band at either end, 6 of 6. The "
-            "error is ONE-SIDED and",
-            "  it points at the TIGHT end, so these caps are exactly the ones "
-            "a clip-screened",
-            "  pilot accepts and the real screen rejects.",
-            "",
-            "  TWO LEGAL WAYS FORWARD:",
-            "   1. MOVE THE CAP into the corrected band above -- it is a "
-            "narrowing, so a cap",
-            "      that clears it clears the measured band too, whichever arm "
-            "was right.",
-            "   2. RE-MEASURE the row from a run of `%s`:"
-            % (TW.get("meta") or {}).get("reference_arm", "tralo_null"),
-            "        python -m scripts.task_window --glob "
-            "'<root>/<Backbone>/<ds>/*/tralo_null/seed_*'",
-            "      then drop `reference_arm` from the row and the correction "
-            "stops applying.",
-            "",
-            "  See `meta.reference_arm_offset` in configs/task_windows.yml "
-            "and FRAMEWORK 2(z91).",
-        ]
-        sys.exit("\n".join(lines))
-    if shifted:
-        print("  !! --allow-nontask: %d cell(s) are inside the MEASURED "
-              "window and outside the" % len(shifted))
-        print("     one corrected for a substitute reference arm, and are "
-              "generated anyway.")
-        print("     The bias is one-sided toward the TIGHT end. Re-screen "
-              "from this campaign's")
-        print("     own `%s` before scoring anything."
-              % (TW.get("meta") or {}).get("reference_arm", "tralo_null"))
-
-
-def _gate_self_test():
-    """Gate the gate in BOTH directions, plus the shared module's own gates."""
-    from configs import task_cells
-    rc = task_cells.self_test()
-    ok = rc == 0
-    skipped = False
-    P = load_protocol()
-    dc = P["datasets"]["iwildcam"]
-
-    # --- the PRIOR-ARM gate, all three directions ------------------------
-    class _PA(object):
-        datasets = ["iwildcam"]
-        allow_inert_baseline = False
-
-    imb = train_imbalance(dc)
-    if imb is None:
-        print("  %-64s %s" % ("prior-arm gate (needs the iwildcam train split)",
-                              "SKIPPED -- labels not on this machine"))
-    else:
-        cases = [
-            # (arms, allow, must_raise, label)
-            # (arms, explicit, allow, must_raise, must_drop, label)
-            (["cb_lp", "la_lp"], {"cb_lp", "la_lp"}, False, True, None,
-             "NAMING cb_lp/la_lp on a balanced train set is REFUSED"),
-            (["cb_lp", "la_lp"], set(), False, False, {"cb_lp", "la_lp"},
-             "...but arriving via `all` they are DROPPED, not refused"),
-            (["tralo", "clip", "focal_lp"], set(), False, False, set(),
-             "...and an arm that does NOT read the prior is untouched"),
-            (["cb_lp"], {"cb_lp"}, True, False, set(),
-             "...and --allow-inert-baseline lets it through"),
-        ]
-        for arms, expl, allow, must_raise, must_drop, label in cases:
-            _PA.allow_inert_baseline = allow
-            raised, dropped = False, None
-            try:
-                buf, keep = io.StringIO(), sys.stdout
-                sys.stdout = buf
-                try:
-                    dropped = prior_arm_gate(P, _PA, arms, explicit=expl)
-                finally:
-                    sys.stdout = keep
-            except SystemExit:
-                raised = True
-            good = raised == must_raise and (must_drop is None
-                                             or dropped == must_drop)
-            print("  %-64s %s" % (label, "OK" if good else "FAIL"))
-            ok = ok and good
-        # the measurement itself, so a wrong prior cannot pass as balanced
-        good = abs(imb - 1.0) < 1e-9
-        print("  %-64s %s"
-              % ("iwildcam TRAIN imbalance is exactly 1.0000 (not the 4.5x "
-                 "TEST figure)", "OK" if good else "FAIL (%.4f)" % imb))
-        ok = ok and good
-
-    if not os.path.exists(os.path.join(dc["data_dir"], "test_meta.csv")):
-        skipped = True
-        print("  %-64s %s" % ("end-to-end refusal (needs the iwildcam slice)",
-                              "SKIPPED -- slice not on this machine"))
-    else:
-        class A(object):
-            datasets = ["iwildcam"]
-            models = ["MobileNetV3"]
-            allow_nontask = False
-            caps = ["L20_G50", "L30_G50"]
-        try:
-            task_window_gate(P, A, None)
-            print("  %-64s %s" % ("end to end: an L20/L30 campaign is REFUSED",
-                                  "FAIL"))
-            ok = False
-        except SystemExit:
-            print("  %-64s %s" % ("end to end: an L20/L30 campaign is REFUSED",
-                                  "PASS"))
-        A.caps = ["L80-100_G95", "L70-90_G95"]
-        try:
-            task_window_gate(P, A, None)
-            print("  %-64s %s" % ("LIVENESS end to end: taskwin1 caps ALLOWED",
-                                  "PASS"))
-        except SystemExit:
-            print("  %-64s %s" % ("LIVENESS end to end: taskwin1 caps ALLOWED",
-                                  "FAIL"))
-            ok = False
-
-        # --- AN UNMEASURED WINDOW REFUSES, AND THE OVERRIDE LETS IT PAST ---
-        # The hole that `bcn1mn3`, `bcn1vit` and `fmow1` all went through:
-        # a dataset with no row in `task_windows.yml` used to WARN and then
-        # generate. Simulated by emptying the window map, which is exactly
-        # the state those three campaigns saw. FRAMEWORK 2(z60).
-        import copy as _copy
-        TW_none = _copy.deepcopy(load_windows())
-        TW_none["windows"] = {}
-        try:
-            task_window_gate(P, A, None, TW=TW_none)
-            print("  %-64s %s" % ("an UNMEASURED window is REFUSED", "FAIL"))
-            ok = False
-        except SystemExit:
-            print("  %-64s %s" % ("an UNMEASURED window is REFUSED", "PASS"))
-        A.allow_nontask = True
-        # --- AN UNSCREENED PILOT MUST CARRY THE REFERENCE ARM ---
-        # The shape all four of `fmowpilot3/4` + `bcnpilot3/4` were staged
-        # in: --allow-nontask, and no `tralo_null` to screen them with.
-        try:
-            task_window_gate(P, A, None, TW=TW_none,
-                             arms=["clip", "focal_clip"])
-            print("  %-64s %s"
-                  % ("a pilot with NO reference arm is REFUSED", "FAIL"))
-            ok = False
-        except SystemExit:
-            print("  %-64s %s"
-                  % ("a pilot with NO reference arm is REFUSED", "PASS"))
-        # Fail-closed: a caller that does not say what it is generating
-        # cannot be granted the override either.
-        try:
-            task_window_gate(P, A, None, TW=TW_none, arms=None)
-            print("  %-64s %s"
-                  % ("a pilot with arms=None is REFUSED (fail-closed)",
-                     "FAIL"))
-            ok = False
-        except SystemExit:
-            print("  %-64s %s"
-                  % ("a pilot with arms=None is REFUSED (fail-closed)",
-                     "PASS"))
-        try:
-            task_window_gate(P, A, None, TW=TW_none,
-                             arms=["clip", "focal_clip", "tralo_null"])
-            print("  %-64s %s"
-                  % ("NEGATIVE CONTROL: --allow-nontask lets a pilot "
-                     "WITH the ref arm through", "PASS"))
-        except SystemExit:
-            print("  %-64s %s"
-                  % ("NEGATIVE CONTROL: --allow-nontask lets a pilot "
-                     "WITH the ref arm through", "FAIL"))
-            ok = False
-        A.allow_nontask = False
-
-        # --- THE REFERENCE-ARM CORRECTION, AT THE GENERATOR ---
-        # `L80_G95` on iwildcam/MobileNetV2 is a real task cell against the
-        # real windows -- it is the LIVENESS case above. Mark the row as
-        # measured off `clip` with a 2-step offset and its class 2 band
-        # [0.70, 0.80] collapses, so the same cap must now be REFUSED. One
-        # field changes; the data, the caps and the arms do not.
-        TW_shift = _copy.deepcopy(load_windows())
-        TW_shift["meta"]["reference_arm_offset"]["shift_grid_steps"][
-            "median"] = 2
-        TW_shift["windows"]["iwildcam"]["MobileNetV2"][
-            "reference_arm"] = "clip"
-        class B(object):
-            datasets = ["iwildcam"]
-            models = ["MobileNetV2"]
-            allow_nontask = False
-            caps = ["L80_G95"]
-        try:
-            task_window_gate(P, B, None, TW=TW_shift,
-                             arms=["clip", "tralo", "tralo_null"])
-            print("  %-64s %s" % ("a cap outside the REFERENCE-CORRECTED "
-                                  "window is REFUSED", "FAIL"))
-            ok = False
-        except SystemExit as exc:
-            named = "corrected" in str(exc) and "clip" in str(exc)
-            print("  %-64s %s" % ("a cap outside the REFERENCE-CORRECTED "
-                                  "window is REFUSED", "PASS"))
-            print("  %-64s %s"
-                  % ("...and the refusal names the arm and BOTH bands",
-                     "PASS" if named else "FAIL"))
-            ok = ok and named
-        # NEGATIVE CONTROL: the correction must fire ONLY because the row
-        # declares a substitute arm. Drop that one key and the identical cap
-        # is allowed again -- otherwise the gate is refusing for some other
-        # reason and the whole correction is unproven.
-        TW_same = _copy.deepcopy(TW_shift)
-        TW_same["windows"]["iwildcam"]["MobileNetV2"].pop("reference_arm")
-        try:
-            task_window_gate(P, B, None, TW=TW_same,
-                             arms=["clip", "tralo", "tralo_null"])
-            print("  %-64s %s" % ("NEGATIVE CONTROL: without the substitute "
-                                  "arm the SAME cap passes", "PASS"))
-        except SystemExit:
-            print("  %-64s %s" % ("NEGATIVE CONTROL: without the substitute "
-                                  "arm the SAME cap passes", "FAIL"))
-            ok = False
-        # NEGATIVE CONTROL: --allow-nontask overrides it, as it does for a
-        # measured non-task. A correction that cannot be overridden would be
-        # stricter than the refusal it is derived from.
-        B.allow_nontask = True
-        try:
-            task_window_gate(P, B, None, TW=TW_shift,
-                             arms=["clip", "tralo", "tralo_null"])
-            print("  %-64s %s" % ("NEGATIVE CONTROL: --allow-nontask lets the "
-                                  "corrected cap through", "PASS"))
-        except SystemExit:
-            print("  %-64s %s" % ("NEGATIVE CONTROL: --allow-nontask lets the "
-                                  "corrected cap through", "FAIL"))
-            ok = False
-
-    print("")
-    if not ok:
-        print("FAILURES ABOVE")
-    elif skipped:
-        print("PASS, but the END-TO-END REFUSAL was SKIPPED. This run did "
-              "NOT show that the generator")
-        print("refuses a dead cap. Re-run on the server before trusting "
-              "it.")
-    else:
-        print("ALL PASS")
-    return 0 if ok else 1
+        local, global_ = tag.split("_")
+        if not local.startswith("L") or not global_.startswith("G"):
+            raise ValueError
+        values = [int(x) / 100.0 for x in local[1:].split("-")]
+        glob = int(global_[1:]) / 100.0
+        if any(x < 0 for x in values) or glob < 0:
+            raise ValueError
+        return [values if len(values) > 1 else values[0], glob]
+    except (ValueError, IndexError):
+        raise SystemExit("bad cap tag %r -- expected L<pct>_G<pct>" % tag)
 
 
 def resolve_datasets(P, args):
-    """Dataset config per dataset with `--constrained-class` already applied.
-
-    Resolved BEFORE validation, not inside the emit loop: validating the YAML
-    default while emitting the override let `--constrained-class 9` through on a
-    7-class dataset, where the loss would have skipped the cap silently.
-    """
-    out = {}
-    for ds in args.datasets:
-        dc = dict(P["datasets"][ds])
-        if args.constrained_class is not None:
-            dc["constrained_class"] = (args.constrained_class[0]
-                                       if len(args.constrained_class) == 1
-                                       else list(args.constrained_class))
-        out[ds] = dc
-    return out
+    result = {ds: dict(P["datasets"][ds]) for ds in args.datasets}
+    if args.constrained_class is not None:
+        for dc in result.values():
+            dc["constrained_class"] = (
+                args.constrained_class[0]
+                if len(args.constrained_class) == 1
+                else args.constrained_class
+            )
+    return result
 
 
 def validate(P, args, resolved, arms):
-    if len(set(args.caps)) < 2:
-        sys.exit("REFUSED: at least two cap levels are required. A claim from cells "
-                 "sharing one cap level has been retracted three times.")
-    # Two distinct TAGS can be the same EXPERIMENT. The binding budget is
-    # min(global_K, sum of local_K), so L30_G30 and L30_G50 are identical
-    # wherever the global cap is already slack -- and duplicate runs manufacture
-    # significance: 8 pairs where 4 duplicate the other 4 gave p=0.0078 when the
-    # honest n=4 has an exact floor of 0.125.
-    locals_ = {}
-    for tag in args.caps:
-        lp, gp = cap_pair(tag)
-        # A per-class local cap is a LIST and lists are unhashable. Key on a
-        # tuple so the duplicate-experiment check below works for both forms
-        # rather than crashing on the per-class one.
-        key = tuple(lp) if isinstance(lp, (list, tuple)) else lp
-        locals_.setdefault(key, []).append((tag, gp))
-    for lp, tags in locals_.items():
-        if len({gp for _t, gp in tags}) > 1 and len(tags) > 1:
-            print("NOTE: caps %s share local %d%%. They are the SAME experiment "
-                  "wherever the global cap is slack (it can only bind BELOW the "
-                  "sum of the local caps). Run `python -m scripts.verify_caps "
-                  "--caps %s` on the real slices before trusting them as two "
-                  "levels."
-                  % ([t for t, _g in tags],
-                     ("/".join(str(int(x * 100)) for x in lp)
-                      if isinstance(lp, tuple) else int(lp * 100)),
-                     " ".join(t for t, _g in tags)))
-    # WHICH SCOPE ACTUALLY BINDS, stated per tag. Local caps are per-GROUP
-    # ceilings, so their sum is `L * total_true` against the global's
-    # `G * total_true` -- the comparison is L vs G and nothing else.
-    #
-    # This exists because the project has now made the SAME mistake in both
-    # directions. Until 2026-08-18 the global cap had never bound (`G >= L`
-    # throughout) and every result was a local-cap result. The fix was "sweep
-    # `G < L`", which worked -- and silently made the LOCAL scope inert:
-    # `results/dualbar2` ran L50_G20 and L50_G40, both `G < L`, and
-    # `lp_fallback_used` came back False on all 50 completed runs with 0
-    # candidates, i.e. a local ceiling was never once the binding constraint.
-    # Neither direction was noticed at generation time, twice, because nothing
-    # printed this line.
-    binds = {}
-    for tag in args.caps:
-        lp, gp = cap_pair(tag)
-        # A per-class local cap has one fraction per capped class, so the
-        # L-vs-G comparison is per class. Report the TIGHTEST, which is the
-        # one that decides whether the local scope can bind at all.
-        lp_list = list(lp) if isinstance(lp, (list, tuple)) else [lp]
-        lp_cmp = max(lp_list)
-        which = ("GLOBAL (local sum is %.1fx slack)" % (lp_cmp / gp) if gp < lp_cmp
-                 else "LOCAL (global is %.1fx slack)" % (gp / lp_cmp) if gp > lp_cmp
-                 else "IDENTICAL -- global exactly equals the local sum")
-        binds.setdefault(which.split()[0], []).append(tag)
-        print("  cap %-12s L=%s G=%d%%  ->  binding scope: %s"
-              % (tag, "/".join("%d%%" % int(x * 100) for x in lp_list),
-                 int(gp * 100), which))
-        if len(lp_list) > 1:
-            print("     ^ PER-CLASS local caps, read positionally against "
-                  "constrained_class. FRAMEWORK 2(z16): the two capped classes "
-                  "have task windows that do not overlap, so one fraction "
-                  "cannot pose a question for both.")
-        # 🛑 SUM-SLACKNESS DOES NOT IMPLY NON-BINDING. The line above is
-        # pure arithmetic on the two percentages and was written against
-        # dermmnist, where every per-group ceiling is positive. A ceiling of
-        # ZERO binds absolutely, whatever the sum does -- and on a held-out-
-        # camera dataset most cells are zero, because a species simply is not
-        # at that camera. Reporting "local sum is 2.5x slack" there would call
-        # the local scope inert in the one campaign where it does the most
-        # work. So this reads the ACTUAL budgets rather than inferring them.
-        for ds in args.datasets:
-            zeros, total = _zero_ceilings(P, ds, lp)   # accepts either form
-            if zeros:
-                print("     ^ but %s has %d of %d per-group ceiling(s) at "
-                      "K=0 for the capped class(es)." % (ds, zeros, total))
-                print("       A ZERO CEILING BINDS regardless of sum slack, so "
-                      "the LOCAL scope")
-                print("       constrains the output at this cap too.")
-    if len(binds) == 1 and len(args.caps) > 1:
-        only = list(binds)[0]
-        other = "L20_G50" if only == "GLOBAL" else "L50_G20"
-        print("  !! EVERY cap in this campaign binds the %s scope. The other "
-              "scope is carried" % only)
-        print("     but slack, so nothing here tests it -- which is how the "
-              "global cap went")
-        print("     unmeasured until 2026-08-18 and the local one until "
-              "2026-08-22.")
-        print("     A binding LOCAL cap is not the same constraint: it fixes "
-              "the DISTRIBUTION")
-        print("     across groups, where a global cap fixes only the TOTAL. "
-              "Add e.g. %s" % other)
-        print("     to test the other scope, or say plainly that this campaign "
-              "tests one.")
-
-    # A SPEC refusal, so it comes before the hygiene ones below: a campaign
-    # whose caps pose no question is not a campaign with a missing control,
-    # it is a campaign with nothing to measure.
-    task_window_gate(P, args, resolved, arms=arms)
-
-    lr = P["core"]["lr"]
-    lr_c = P["constraint_phase"]["lr_constraint"]
-    if lr != lr_c:
-        sys.exit("REFUSED: lr (%s) != lr_constraint (%s). Unequal learning rates "
-                 "fabricated a -16.7pp finding that was -1.7pp once equalized." % (lr, lr_c))
+    if len({json.dumps(cap_pair(tag)) for tag in args.caps}) < 2:
+        raise SystemExit(
+            "REFUSED: at least two cap levels with distinct fractions are required"
+        )
+    if P["core"]["lr"] != P["constraint_phase"]["lr_constraint"]:
+        raise SystemExit("REFUSED: lr_constraint must equal lr")
+    if not 0 <= P["protocol"]["trained_warmup"] <= P["protocol"]["total_epochs"]:
+        raise SystemExit("REFUSED: warm-up must fit the total epoch budget")
+    seeds = P["protocol"]["seeds"]
+    if (
+        not seeds
+        or len(set(seeds)) != len(seeds)
+        or any(type(s) is not int or s < 0 for s in seeds)
+    ):
+        raise SystemExit("REFUSED: seeds must be distinct nonnegative integers")
     for ds, dc in resolved.items():
         classes = dc["constrained_class"]
         classes = classes if isinstance(classes, list) else [classes]
-        if not classes:
-            sys.exit("REFUSED: %s has no constrained class." % ds)
+        if not classes or any(c < 0 or c >= dc["num_classes"] for c in classes):
+            raise SystemExit("REFUSED: constrained_class out of range for %s" % ds)
         if len(set(classes)) != len(classes):
-            sys.exit("REFUSED: %s constrained_class %s repeats a class; the second "
-                     "cap would overwrite the first." % (ds, classes))
-        for c in classes:
-            if not 0 <= int(c) < int(dc["num_classes"]):
-                sys.exit("REFUSED: %s constrained_class %s is out of range for "
-                         "num_classes=%s. A cap on a nonexistent class is silently "
-                         "skipped by the loss." % (ds, c, dc["num_classes"]))
-    # LAST, deliberately. The three refusals above name a defect in the campaign
-    # SPEC; this one names a missing control, and a spec error must be reported
-    # before a hygiene error or the user fixes the wrong thing.
-    controls = count_control_arms(P)
-    trained = sorted(a for a in arms if P["arms"][a].get("phase") == "trained")
-    if trained and not controls:
-        # No arm carries the flag at all. Refusing with an empty "Add: --arms"
-        # would be a puzzle, and it is a different defect from a campaign that
-        # merely forgot the control: the PROTOCOL has lost it.
-        sys.exit(
-            "REFUSED: this campaign holds trained arm(s) %s and "
-            "configs/protocol.yml declares\n"
-            "  no `count_control` arm at all, so there is nothing to bound "
-            "their count trajectories\n"
-            "  against. Restore the reseed control (FRAMEWORK section 13) "
-            "rather than generating a\n"
-            "  campaign whose counts cannot be read."
-            % " ".join(trained))
-    if trained and not (controls & set(arms)):
-        sys.exit(
-            "REFUSED: this campaign holds trained arm(s) %s and no reseed "
-            "control.\n"
-            "  A trained arm writes a per-epoch capped-class count, and that "
-            "trajectory is what\n"
-            "  'the constraint moved the count by N items' is read out of. "
-            "Measured 2026-08-22\n"
-            "  and independently verified: turning the constraint ON moves "
-            "that count by RMS\n"
-            "  75-95 items, and RESEEDING two pure-CE runs moves it 83-95. "
-            "The constraint's\n"
-            "  whole measurable footprint on the count is 0.90-1.00x a "
-            "reseed, so without the\n"
-            "  floor in THIS campaign no count trajectory is attributable -- "
-            "the same argument\n"
-            "  that puts both clippers in every campaign.\n"
-            "  Add: --arms ... %s"
-            % (" ".join(trained), " ".join(sorted(controls))))
+            raise SystemExit("REFUSED: constrained_class repeats a class for %s" % ds)
+        for tag in args.caps:
+            lp, gp = cap_pair(tag)
+            if isinstance(lp, list) and len(lp) != len(classes):
+                raise SystemExit(
+                    "REFUSED: per-class cap count must match constrained_class"
+                )
+            meta = Path(dc["data_dir"]) / "test_meta.csv"
+            if meta.exists():
+                import pandas as pd
+                from src.training.constraints import (
+                    compute_global_constraints,
+                    compute_local_constraints,
+                )
 
-    # LAST of the refusals, and deliberately so. An unequal lr, a missing
-    # reseed floor and a single cap level are all SPEC errors -- the
-    # campaign asks the wrong question. This one says the campaign asks the
-    # right question at 87% of the intended dose, so it belongs after them:
-    # a reader who has both problems should be told about the spec one first.
-    # `arms` is resolved by here, so post-hoc-only campaigns are recognised.
-    fp32_gate(P, args, arms)
-
-
-def _apply_constraint_step(P, args):
-    """Constraint-step knobs, into the SHARED block for the same reason.
-
-    `normalize` exists because the arms were NOT getting the same dose: one
-    absolute clip over natural gradient scales six orders of magnitude apart
-    left hounie taking a ~0.05-norm step while tralo and fioretto took unit
-    ones. Per-arm would recreate exactly the asymmetry it fixes.
-    """
-    if args.constraint_grad_mode is not None:
-        P["constraint_phase"]["constraint_grad_mode"] = args.constraint_grad_mode
-    if args.constraint_fp32 is not None:
-        P["constraint_phase"]["constraint_fp32"] = bool(args.constraint_fp32)
-    if args.constraint_step_rule is not None:
-        P["constraint_phase"]["constraint_step_rule"] = args.constraint_step_rule
-    if args.penalty_shape is not None:
-        P["blocks"]["tralo"]["penalty_shape"] = args.penalty_shape
-    if args.soft_count_mode is not None:
-        P["blocks"]["tralo"]["soft_count_mode"] = args.soft_count_mode
-    if args.cut_window_items is not None:
-        P["blocks"]["tralo"]["cut_window_items"] = int(args.cut_window_items)
-    if args.constraint_random_direction:
-        P["constraint_phase"]["constraint_random_direction"] = True
-        print("  CONSTRAINT DIRECTION RANDOMISED: this campaign is a CONTROL, "
-              "not a method run.")
-        print("      Same step norm, no information. If it scores like the real "
-              "arm, the penalty")
-        print("      contributed nothing a coin could not have.")
-    if P["constraint_phase"].get("constraint_grad_mode") == "normalize":
-        print("  CONSTRAINT GRAD NORMALIZED to %s for EVERY trained arm: the "
-              "step size is now a" % P["constraint_phase"]["constraint_grad_clip"])
-        print("      protocol constant, so what differs between arms is "
-              "direction, not dose.")
-    else:
-        # Say it HERE too, so the generator and check_parity agree. `clip` is
-        # the default only because it keeps every stored result reproducible;
-        # it is not the mode a cross-family comparison may be read out of, and
-        # `scripts.check_parity` REFUSES a multi-family campaign that carries
-        # it. A generator that emits silently what the gate then rejects is the
-        # tool contradicting itself, which this file already has a rule about.
-        print("  CONSTRAINT GRAD MODE = clip: the delivered step is "
-              "min(raw_norm, %s), and the"
-              % P["constraint_phase"]["constraint_grad_clip"])
-        print("      trained arms' natural gradient scales differ by orders of "
-              "magnitude -- hounie")
-        print("      divides its primal by n_test, fioretto and alm sum it. "
-              "Measured on one")
-        print("      warm-up model with every config saying the same clip: "
-              "hounie 0.005-0.11,")
-        print("      tralo 0.64-1826, fioretto 17,667-80,827. So under `clip` "
-              "the arms differ in")
-        print("      DOSE as well as direction. Fine for a ONE-FAMILY "
-              "campaign; for more than")
-        print("      one, add --constraint-grad-mode normalize or "
-              "check_parity will refuse it.")
-    shape = P["blocks"]["tralo"].get("penalty_shape", "rational_bounded")
-    if shape != "rational_bounded":
-        print("  PENALTY SHAPE = %s for every trained arm: this is NOT the "
-              "manuscript's Eq. 4," % shape)
-        print("      so results from it are not comparable to the stored "
-              "corpus without saying so.")
-    if P["constraint_phase"].get("constraint_step_rule") == "sgd":
-        print("  CONSTRAINT STEP = PLAIN SGD for every trained arm: the step no "
-              "longer inherits CE's")
-        print("      Adam moments, so it points where the constraint points.")
-    if P["constraint_phase"].get("constraint_fp32"):
-        print("  CONSTRAINT PASS IN FP32: no loss scaler on the constraint "
-              "step, so an epoch cannot be")
-        print("      silently dropped to a non-finite gradient.")
-
-
-def fp32_gate(P, args, arms):
-    """REFUSE a campaign with trained arms and `constraint_fp32: false`.
-
-    🛑 THIS IS A GATE BECAUSE THE PROSE ALREADY FAILED. `docs/PLAYBOOK.md`
-    has said "`--constraint-fp32` is mandatory" for weeks, and `taskwin1` was
-    still staged without it on 2026-09-01 and had to be killed at 3/48: its
-    first trained run landed 20 of 29 steps (69.0%) on `amp=float16`, dead
-    centre of the documented FP16 + GradScaler signature. Regenerated with the
-    flag, the same arm on the same host landed 29 of 29.
-
-    Measured over every completed run in every worktree that records a step
-    count:
-
-        constraint_fp32: true    15284 / 15284 = 100.0%   532 runs, 6 campaigns
-        constraint_fp32: false    4684 /  5393 =  86.9%   189 runs
-
-    Not one step lost in 532 runs with it on, and the `false` group is the
-    quarantine list. The default is False, which is how this keeps happening,
-    so the refusal lives here rather than in a doc nobody re-reads at launch.
-    """
-    if P["constraint_phase"].get("constraint_fp32"):
-        return
-    trained = [a for a in arms
-               if (P["arms"].get(a) or {}).get("phase") != "posthoc"]
-    if not trained:
-        return                      # a post-hoc-only campaign takes no steps
-    if getattr(args, "allow_fp16_constraint", False):
-        print("  !! --allow-fp16-constraint: %d trained arm(s) will run the "
-              "constraint step" % len(trained))
-        print("     under the CE loss scaler. Expect to lose ~13%% of the dose "
-              "on an FP16 host,")
-        print("     and say so in the write-up.")
-        return
-    sys.exit(chr(10).join([
-        "REFUSED: %d trained arm(s) (%s) with `constraint_fp32: false`."
-        % (len(trained), " ".join(sorted(trained))),
-        "",
-        "  Without it the FP16 GradScaler skips an optimizer step whose "
-        "gradient overflows,",
-        "  and the run still writes `status: completed`. Measured across every "
-        "completed run",
-        "  in every worktree:",
-        "",
-        "      constraint_fp32: true    15284 / 15284 = 100.0%   532 runs, 6 "
-        "campaigns",
-        "      constraint_fp32: false    4684 /  5393 =  86.9%   189 runs",
-        "",
-        "  `taskwin1` was staged without it, landed 20/29 on its first trained "
-        "run, and had",
-        "  to be killed at 3/48. Pass --constraint-fp32, or "
-        "--allow-fp16-constraint to",
-        "  proceed anyway and say so in the write-up.",
-    ]))
-
-
-# Keys that `build_hyperparams` sets AFTER the blocks, so they are not a block
-# override and are allowed to differ: the seed varies by design, and a post-hoc
-# arm trains 30 warm-up epochs against a trained arm's 1.
-_NOT_A_CONTRAST = ("seed", "warmup_epochs", "constraint_epochs")
-
-
-def declared_contrasts(P, arms):
-    """Shared-block knobs the SELECTED arms deliberately DISAGREE on.
-
-    WHY THIS FILE EXISTS (2026-09-06). `scripts/check_parity.py` holds
-    `SHARED_KEYS` -- knobs that must be identical across arms, because if they
-    differ the delta measures the knob and not the method. Four of them are the
-    constraint-step knobs, and the rule `tests/test_baseline_fidelity.py`
-    encodes is exact: *a knob may be required to agree across arms exactly when
-    no arm block overrides it.* `constraint_random_direction` is outside
-    `SHARED_KEYS` for precisely that reason -- `tralo_coin` IS the arm that
-    differs on it, so demanding agreement would refuse every campaign carrying
-    the control that answers "did the direction matter at all".
-
-    Adding `tralo_sgd` put `constraint_step_rule` in the same position, and the
-    two available moves were both bad: drop the key from `SHARED_KEYS` and an
-    ACCIDENTAL step-rule split anywhere becomes silent forever, or keep it and
-    the campaign is refused by its own gate.
-
-    So the exemption becomes per-campaign and DECLARED, instead of global. The
-    generator knows which arms it selected and which blocks override what, so
-    it writes that here; `check_parity` exempts exactly the named arms and
-    still requires every other arm to agree. A split nobody declared is still a
-    failure, which is the property worth keeping.
-
-    Restricted to keys from the SHARED blocks (`core`, `constraint_phase`),
-    because a methodology-specific key like `alm_eta` is carried by one arm and
-    "disagreement" is not defined for it.
-
-    Deliberately does NOT import `scripts.check_parity` to intersect with
-    `SHARED_KEYS`: `configs/` is on the runner's import path and `scripts/` is
-    not, which is the only reason `scripts/` can be updated while a campaign
-    runs. The reader does the intersection.
-    """
-    shared = dict(P.get("core") or {})
-    shared.update(P.get("constraint_phase") or {})
-    for k in _NOT_A_CONTRAST:
-        shared.pop(k, None)
-
-    # ONLY THE DEVIATORS ARE DECLARED, and that is the whole point. An
-    # exemption naming every arm that carries the key exempts everybody and
-    # checks nothing -- a gate wearing a declaration. The BASELINE is the value
-    # in the shared block itself (after any CLI override), because that is what
-    # an arm with no override of its own receives; an arm differing from it is
-    # differing by an explicit block, i.e. by design.
-    seed = P["protocol"]["seeds"][0]
-    out = {}
+                frame = pd.read_csv(meta)
+                required = {"label", dc["group_column"]}
+                if not required.issubset(frame.columns):
+                    raise SystemExit(
+                        "REFUSED: test metadata missing columns %s"
+                        % sorted(required - set(frame.columns))
+                    )
+                labels = frame["label"]
+                if (
+                    labels.isna().any()
+                    or ((labels % 1) != 0).any()
+                    or ((labels < 0) | (labels >= dc["num_classes"])).any()
+                ):
+                    raise SystemExit("REFUSED: labels outside declared class schema")
+                compute_global_constraints(
+                    frame,
+                    "label",
+                    gp,
+                    constrained_class=classes,
+                    num_classes=dc["num_classes"],
+                )
+                compute_local_constraints(
+                    frame,
+                    "label",
+                    lp,
+                    dc["group_column"],
+                    constrained_class=classes,
+                    num_classes=dc["num_classes"],
+                )
     for arm in arms:
-        hp = build_hyperparams(P, P["arms"][arm], seed)
-        for k, baseline in shared.items():
-            if k not in hp:
-                continue
-            if json.dumps(hp[k], sort_keys=True) != json.dumps(
-                    baseline, sort_keys=True):
-                out.setdefault(k, {})[arm] = hp[k]
-    return out
-
-
-def write_contrast_marker(root, P, arms):
-    """Write CONTRAST.json, or remove a stale one when nothing disagrees."""
-    dec = declared_contrasts(P, arms)
-    dest = os.path.join(root, "CONTRAST.json")
-    if not dec:
-        if os.path.exists(dest):
-            os.remove(dest)
-        return dec
-    os.makedirs(root, exist_ok=True)
-    json.dump({"declared": dec,
-               "note": "Arms this campaign DELIBERATELY splits on a shared "
-                       "knob. scripts/check_parity.py exempts exactly these "
-                       "(arm, key) pairs and still requires every other arm to "
-                       "agree. Generated by configs.gen_campaign."},
-              open(dest, "w"), indent=2, sort_keys=True)
-    return dec
+        build_hyperparams(P, P["arms"][arm], seeds[0])
 
 
 def main():
-    # Before the parser: --root and --datasets are required for a real
-    # generation, and the self-test generates nothing.
-    if "--self-test" in sys.argv:
-        sys.exit(_gate_self_test())
-    P = load_protocol()
-    a = argparse.ArgumentParser()
-    a.add_argument("--root", required=True)
-    a.add_argument("--datasets", nargs="+", required=True, choices=sorted(P["datasets"]))
-    a.add_argument("--models", nargs="+", default=[P["models"][0]], choices=P["models"])
-    a.add_argument("--caps", nargs="+", default=["L30_G30", "L50_G50"],
-                   help="L<local>_G<global>, independent; e.g. L30_G50")
-    a.add_argument("--arms", nargs="+", default=["tralo"],
-                   choices=sorted(P["arms"]) + ["all", "all+null"],
-                   help="'all' runs the full panel: every baseline the paper claims")
-    a.add_argument("--allow-inert-baseline", action="store_true",
-                   help="generate `cb_lp` / `la_lp` even on a dataset whose "
-                        "TRAINING set is balanced, where both are "
-                        "mathematically plain CE and are not baselines at "
-                        "all. FRAMEWORK 2(x1), 2(x2).")
-    # 🛑 NO `type=` CONVERTER HERE. The first version had
-    # `type=lambda v: v.lower()`, which made the value the STRING "false" --
-    # and `bool("false")` is True, so `--pretrained false` emitted 48 configs
-    # at `pretrained: True` while every gate passed. That is the SIXTH inert
-    # flag in this project and it was caught by a dry run, not by a test,
-    # because the test called the function with a real bool and never went
-    # through argparse. The conversion now happens once, at the call site,
-    # and `test_g3_model` drives the parser end to end.
-    a.add_argument("--pretrained", choices=["true", "false"], default=None,
-                   help="override core.pretrained for a DE-SATURATION pilot. "
-                        "Applied to EVERY arm; `pretrained` is already a "
-                        "warm-up identity key so the two regimes cannot share "
-                        "a cached model. Omit to keep protocol.yml's value and "
-                        "byte-identical output.")
-    a.add_argument("--allow-nontask", action="store_true",
-                   help="generate even where a cap sits OUTSIDE the "
-                        "measured task window "
-                        "(configs/task_windows.yml). The cells it lets "
-                        "through cannot distinguish two methods by "
-                        "construction, so their nulls are the absence "
-                        "of a measurement -- say so in the write-up.")
-    a.add_argument("--self-test", action="store_true",
-                   help="gate the task-window gate in both directions and exit")
-    a.add_argument("--constrained-class", nargs="+", type=int, default=None,
-                   help="override the YAML's capped class(es) for every dataset; "
-                        "one index or several for the coupled multi-class setting")
-    a.add_argument("--constraint-grad-mode", choices=["clip", "normalize"],
-                   default=None,
-                   help="clip: cap the constraint gradient at "
-                        "constraint_grad_clip (historical). normalize: rescale "
-                        "it to EXACTLY that value, so every trained arm takes "
-                        "the same-size constraint step. Measured: with one "
-                        "absolute clip, hounie's gradient never reached it "
-                        "(max 0.11 of 1.0) while fioretto's exceeded it by "
-                        "80,000x -- a ~20x dose gap invisible to every gate.")
-    a.add_argument("--soft-count-mode", choices=["sum", "margin", "uniform", "cut"],
-                   default=None,
-                   help="WHERE the count puts its gradient. `sum` is the "
-                        "manuscript's count, whose per-item derivative p(1-p) "
-                        "is largest where the model is unsure and ~zero at the "
-                        "cut -- the only place a prediction can change. "
-                        "`margin` keeps the count's VALUE and moves its "
-                        "WEIGHT onto the decision boundary by softening the "
-                        "ARGMAX. tralo only; the duals do not form this "
-                        "count.")
-    a.add_argument("--cut-window-items", type=int, default=None,
-                   help="how many items sit inside the margin window, for "
-                        "--soft-count-mode margin. The sigmoid width T is "
-                        "DERIVED from it per class per epoch, because a fixed "
-                        "T is not a fixed dose: measured on the stored "
-                        "dermmnist evidence the T holding ~20 items spans "
-                        "0.182 to 0.502 across seeds of ONE cell, and margins "
-                        "grow through the constraint phase as CE converges. "
-                        "This knob is dimensionless and cannot produce an "
-                        "empty window.")
-    a.add_argument("--penalty-shape",
-                   choices=["rational_bounded", "linear", "squared"],
-                   default=None,
-                   help="rational_bounded is the manuscript's Eq. 4 and the "
-                        "default. Its gradient VANISHES on the worst "
-                        "violations, so with several capped scopes the "
-                        "deepest violator gets the weakest pull. Measured "
-                        "multi-class against a lambda=0 control, that shows "
-                        "up as a SEE-SAW: every shape pushes one capped "
-                        "class down and the other up, because the softmax "
-                        "makes them compete and the starved class cannot "
-                        "resist. Shape sets the see-saw SIZE -- class 2 "
-                        "moved +197 under rational_bounded, +112 squared, "
-                        "+86 linear -- but no shape reduced total excess. "
-                        "It is a dial on the coupling, not a fix.")
-    a.add_argument("--constraint-random-direction", action="store_true",
-                   default=None,
-                   help="THE CONTROL FOR WHETHER THE DIRECTION MATTERS. "
-                        "Replaces the constraint gradient with a random "
-                        "vector of the SAME norm, holding the dose and "
-                        "removing only the information. Measured: the "
-                        "constraint costs exactly 4 correct capped-class "
-                        "predictions out of 89 at every one of three seeds "
-                        "while the count trajectories behind them end at "
-                        "57, 201 and 439 -- a constant loss from wildly "
-                        "different paths. If a coin costs the same 4, no "
-                        "shape or dose tuning will help.")
-    a.add_argument("--constraint-step-rule", choices=["shared", "sgd"],
-                   default=None,
-                   help="shared: the constraint step goes through the same "
-                        "Adam as CE, which retains only 0.009-0.017 of its "
-                        "direction. sgd: p -= lr_constraint * g, recovering "
-                        "the direction at the smallest step in the dose sweep. "
-                        "Distinct from the rejected dedicated-Adam arm, whose "
-                        "step was ~8,900x larger.")
-    a.add_argument("--allow-fp16-constraint", action="store_true",
-                   help="generate anyway with constraint_fp32 false. Expect to "
-                        "lose ~13%% of the dose on an FP16 host; the campaign "
-                        "will say so.")
-    a.add_argument("--constraint-fp32", action="store_true", default=None,
-                   help="evaluate the constraint pass in fp32 and bypass the "
-                        "loss scaler. fioretto lost 10 of 29 constraint epochs "
-                        "to non-finite gradients while reporting completed.")
-    a.add_argument("--protocol", default=PROTOCOL_PATH, help="alternate protocol.yml")
-    args = a.parse_args()
-    # Reload FIRST: applying overrides and then replacing P discarded them.
-    if args.protocol != PROTOCOL_PATH:
-        P = load_protocol(args.protocol)
-    _apply_constraint_step(P, args)
-
-    # `all` deliberately EXCLUDES the zero-dose siblings. Adding them is a
-    # compute decision -- four more trained arms is +27% on the canonical
-    # campaign -- and protocol.yml says the same thing. Silently growing what
-    # `all` costs because new arms were defined is the scope expansion this
-    # project has a rule against. Name them to get them; the warning below
-    # fires every time they are missing.
-    # `all` also EXCLUDES arms the framework has rejected. `select` was
-    # measured on 2026-08-22 (docs/FRAMEWORK.md section 12) at -22 items
-    # against `clip`, 0 of 2 cells on every metric, with 2 of 8 runs collapsing
-    # on their final epoch -- and FRAMEWORK says do not re-run it. Until this
-    # subtraction existed, `--arms all` ran it anyway: the generator was
-    # spending GPU on a closed question and putting a known-unstable arm into
-    # every campaign, which is the generator contradicting the law.
-    # Naming a rejected arm explicitly still works, so `results/selectrun`
-    # stays reproducible; it just cannot arrive by default any more.
-    # And `all` excludes the reseed control for the SAME reason it excludes the
-    # zero-dose siblings: it is a trained arm, so auto-adding it would grow what
-    # `all` costs without anyone deciding to spend that. It is not left to a
-    # warning, though -- `validate` REFUSES when a trained arm is present
-    # without it, because a count trajectory read without its reseed floor is
-    # not a measurement. `all+null` includes it.
-    rejected = set(P.get("rejected_arms", {}))
-    # UNPROVEN is not REJECTED. Both are skipped by `all` and both stay
-    # runnable by name, but the message must not claim a measurement that was
-    # never taken -- an arm with zero completed runs LOST NOTHING, it was never
-    # entered. Merged into one set only for the skip; reported separately.
-    unproven = set(P.get("unproven_arms", {}))
-    rejected |= unproven
-    controls = count_control_arms(P)
-    # NAMED ARMS ARE ADDED TO `all`, NOT DISCARDED BY IT. `all` used to REPLACE
-    # args.arms outright, so `--arms all tralo_null` produced a campaign with no
-    # tralo_null in it -- while this same function printed "Add: --arms ...
-    # tralo_null" and the refusal below printed "Add: --arms ... tralo_reseed".
-    # The tool was instructing the user in a form the tool ignored, and the
-    # result looks exactly like a campaign that was generated correctly.
-    # Explicit naming also beats the rejected-arm subtraction: `all` must not
-    # schedule a rejected arm, but asking for one by name has to keep working
-    # or the campaign that produced its verdict stops being reproducible.
-    named = {a for a in args.arms if a not in ("all", "all+null")}
-    if "all+null" in args.arms:
-        # `+null` means "and the null each arm is READ AGAINST", resolved
-        # through `null_sibling` and deduplicated -- NOT "every arm whose name
-        # ends in _null". It used to be the latter, which scheduled one
-        # bit-identical zero-dose run per FAMILY: 32 of `results/dualbar2`'s 88
-        # runs computed a single control four times over, 2.6 h of a 7 h
-        # campaign, verified by one shared md5 at both cap levels. Resolving
-        # through the sibling map collapses them automatically, and keeps the
-        # per-family nulls available by name for re-verifying the equivalence.
-        base = ({a for a in P["arms"] if not a.endswith("_null")}
-                - rejected) | named
-        requested = base | {_null_of(P, a) for a in base
-                            if _null_of(P, a) in P["arms"]}
-    elif "all" in args.arms:
-        requested = ({a for a in P["arms"]
-                      if not a.endswith("_null") and a not in controls}
-                     - rejected) | named
-    else:
-        requested = named
-    for arm in sorted(requested & rejected):
-        if arm in unproven:
-            print("!! %s IS UNPROVEN (zero completed runs anywhere) and you "
-                  "named it explicitly: %s" % (arm, P["unproven_arms"][arm]))
-        else:
-            print("!! %s IS REJECTED and you named it explicitly: %s"
-                  % (arm, P["rejected_arms"][arm]))
-    if not (requested & rejected):
-        allsel = "all" in args.arms or "all+null" in args.arms
-        skipped = sorted((rejected - unproven) & set(P["arms"])) if allsel else []
-        skipped_u = sorted(unproven & set(P["arms"])) if allsel else []
-        if skipped:
-            # NOT ALL OF THEM LOST A COMPARISON. `tralo_lam0` was never
-            # out-scored: it attempts 28.00 constraint steps/run by
-            # CONSTRUCTION, so it cannot be at equal dose with the arm it is a
-            # control for. Saying "measured, and they lost" of it would be a
-            # false claim printed by the generator, so the note names both
-            # grounds and points at the per-arm reason, which is exact.
-            print("NOTE: 'all' skips the REJECTED arm(s) (measured and lost, "
-                  "or structurally not comparable -- reason per arm in "
-                  "configs/protocol.yml `rejected_arms`) ->", " ".join(skipped))
-        if skipped_u:
-            print("NOTE: 'all' skips the UNPROVEN arm(s) (zero completed runs "
-                  "-- never measured, NOT refuted) ->", " ".join(skipped_u))
-    mandatory = set(P["mandatory_arms"])
-    arms = sorted(requested | mandatory)
-    # Drop the arms that are mathematically plain CE on THIS dataset, or refuse
-    # if they were named outright. Before the configs are written, so a dropped
-    # arm never reaches disk. FRAMEWORK 2(x1), 2(x2).
-    arms = sorted(set(arms) - prior_arm_gate(P, args, arms, explicit=named))
-    added = sorted(mandatory - requested)
-    if added:
-        print("NOTE: added the mandatory clippers ->", " ".join(added))
-    if "tralo_margin" in arms or             P["blocks"]["tralo"].get("soft_count_mode") == "margin":
-        n = P["blocks"]["tralo"].get("cut_window_items", 5)
-        print("  SOFT COUNT = MARGIN-CENTRED (%d items in the window): the "
-              "count keeps its value" % n)
-        print("      -- the penalty reads the HARD count -- and moves its "
-              "gradient onto the decision")
-        print("      boundary, where a prediction can actually flip. A "
-              "DIFFERENT ESTIMATOR of the same")
-        print("      constraint, not a different constraint, so it is scored "
-              "against `tralo` (same")
-        print("      constraint, other estimator), `tralo_null` (same "
-              "estimator, no dose) and the")
-        print("      clippers -- all of which must be in THIS campaign.")
-        if "tralo_st" in arms:
-            print("      DECOMPOSED: `tralo_st` is the same placement as "
-                  "`tralo` with only the count")
-            print("      VALUE fixed (hard, not sum_i p_ic). tralo -> "
-                  "tralo_st isolates the value fix,")
-            print("      tralo_st -> tralo_margin isolates the window. "
-                  "Bundled they are unattributable.")
-        elif "tralo_margin" in arms:
-            print("      *** NOT DECOMPOSED: `tralo_margin` changes the count "
-                  "VALUE (to the hard count)")
-            print("      *** and the gradient PLACEMENT at once. Without "
-                  "`tralo_st` a win cannot be")
-            print("      *** attributed to either. Add --arms ... tralo_st.")
-        if "tralo_coin" not in arms:
-            print("      *** NO COIN: the pre-registered kill condition is that "
-                  "the arm must beat a")
-            print("      *** RANDOM step of the same norm. Add --arms ... "
-                  "tralo_coin. The campaign-wide")
-            print("      *** --constraint-random-direction flag cannot serve: "
-                  "it randomises EVERY arm.")
-        if "tralo" not in arms:
-            print("      *** `tralo` is NOT in this campaign. Without it the "
-                  "margin arm has nothing")
-            print("      *** to be an estimator OF: add --arms ... tralo.")
-
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument("--protocol", default=PROTOCOL_PATH)
+    known, _ = pre.parse_known_args()
+    P = load_protocol(known.protocol)
+    parser = argparse.ArgumentParser(description=__doc__, parents=[pre])
+    parser.add_argument("--root", required=True)
+    parser.add_argument(
+        "--datasets", nargs="+", required=True, choices=sorted(P["datasets"])
+    )
+    parser.add_argument(
+        "--models", nargs="+", default=[P["models"][0]], choices=P["models"]
+    )
+    parser.add_argument("--caps", nargs="+", default=["L30_G30", "L50_G50"])
+    parser.add_argument(
+        "--arms", nargs="+", default=["tralo"], choices=[*PUBLIC_ARMS, "all"]
+    )
+    parser.add_argument("--pretrained", choices=["true", "false"], default=None)
+    parser.add_argument("--constrained-class", nargs="+", type=int)
+    parser.add_argument("--seeds", nargs="+", type=int)
+    args = parser.parse_args()
+    if args.seeds is not None:
+        P["protocol"]["seeds"] = args.seeds
+    requested = set(PUBLIC_ARMS) if "all" in args.arms else set(args.arms)
+    arms = sorted(requested | set(P["mandatory_arms"]))
+    if any(P["arms"][arm]["phase"] == "trained" for arm in arms):
+        arms = sorted(set(arms) | {"tralo_null"})
     resolved = resolve_datasets(P, args)
     validate(P, args, resolved, arms)
-
-    todo = [(ds, mdl, tag, arm, seed)
-            for seed in P["protocol"]["seeds"] for ds in args.datasets
-            for mdl in args.models for tag in args.caps for arm in arms]
-
-    version, written, skipped = code_version(), 0, 0
-    total = P["protocol"]["total_epochs"]
-    for ds, mdl, tag, arm, seed in todo:
-        dc = resolved[ds]
-        spec = P["arms"][arm]
-        hp = build_hyperparams(P, spec, seed, pretrained=_pretrained(args))
-        assert hp["warmup_epochs"] + hp["constraint_epochs"] == total, "equal compute"
-
-        path = "%s/%s/%s/%s/%s/seed_%d" % (args.root, mdl, ds, tag, arm, seed)
-        cfg = {"methodology": spec["methodology"], "model_name": mdl,
-               "constraint": cap_pair(tag), "constraint_tag": tag,
-               "dataset_mode": ds, "dataset_config": dc, "hyperparams": hp,
-               "base_model_id": compute_base_model_id(P, mdl, hp, ds, dc),
-               "arm": arm,
-               "exp_name": "%s_%s_%s_%s_c%s_seed%d"
-                           % (mdl, ds, arm, tag, _cls_tag(dc), seed),
-               "status": "pending", "code_version": version}
-        dest = os.path.join(path, "config.json")
-        if os.path.exists(dest):
-            try:
-                prev = json.load(open(dest))
-            except (ValueError, OSError):
-                prev = None
-            if prev is not None:
-                prev_cls = prev.get("dataset_config", {}).get("constrained_class")
-                if prev_cls is not None and prev_cls != dc["constrained_class"]:
-                    sys.exit(
-                        "REFUSED: %s already holds a run with constrained_class "
-                        "%s, but this campaign asks for %s. Writing here would "
-                        "leave two different capped classes in one cell -- a "
-                        "completed run is never reset, so the old one would "
-                        "survive and be pooled with the new. Use a different "
-                        "--root." % (path, prev_cls, dc["constrained_class"]))
-                if prev.get("status") == "completed":
-                    skipped += 1
-                    continue          # never reset a finished run back to pending
-        os.makedirs(path, exist_ok=True)
-        json.dump(cfg, open(dest, "w"), indent=2)
-        written += 1
-
-
-    cells = len(args.datasets) * len(args.models) * len(args.caps)
-    dec = write_contrast_marker(args.root, P, arms)
-    print("%d written, %d already completed (skipped) -> %s"
-          % (written, skipped, args.root))
-    for k in sorted(dec):
-        print("  DECLARED CONTRAST  %s: %s" % (k, ", ".join(
-            "%s=%s" % (a, dec[k][a]) for a in sorted(dec[k]))))
-        print("      check_parity exempts these arms on this key and "
-              "still requires every other arm to agree.")
-    print("  %d cells (dataset x model x cap) x %d arms x %d seeds"
-          % (cells, len(arms), len(P["protocol"]["seeds"])))
-    print("  arms:", " ".join(arms))
-    print("  trained arms: warm-up %d + constraint %d | post-hoc arms: warm-up %d + 0"
-          % (P["protocol"]["trained_warmup"],
-             total - P["protocol"]["trained_warmup"], total))
-    # POWER, before the GPU time is spent rather than after.
-    # The scorer's atomic unit is the CELL, and the exact two-sided Wilcoxon
-    # floor at n non-zero pairs is 2^(1-n). With 11 metrics in the BH family, a
-    # metric that is the only mover gets q = p * 11, so q < 0.05 needs
-    # p < 0.00455 and therefore n >= 9 cells. Below that, NO isolated metric can
-    # ever print *** WIN or *** LOSS however large the effect.
-    #
-    # This guard used to live only in full_panel, i.e. after the campaign ran.
-    # The recorded failure is exactly that shape: "at n=2 Wilcoxon floors at
-    # p=0.5 so in-flight campaigns ALWAYS read as ties -- arms were abandoned on
-    # that."
-    floor = 2.0 ** (1 - cells)
-    n_family = 11
-    print("  POWER: %d cells -> exact Wilcoxon floor p=%.5f; a lone mover needs"
-          % (cells, floor))
-    print("         q = p x %d < 0.05, i.e. p < %.5f" % (n_family, 0.05 / n_family))
-    if floor > 0.05 / n_family:
-        need = 9
-        print("  *** UNDERPOWERED: with %d cells NO single metric can reach a "
-              "*** verdict," % cells)
-        print("      whatever the effect size. %d cells is the minimum for one. "
-              "Add a" % need)
-        print("      backbone, a dataset or a cap level -- or accept that this "
-              "campaign can")
-        print("      only report DIRECTION and per-cell consistency, never "
-              "significance.")
-    # Those three are NOT interchangeable, and saying so plainly matters more
-    # than the floor above. Every cell inside one dataset shares that dataset's
-    # fixed test set and the K derived from it, so a new backbone or a new cap
-    # level buys RESOLUTION on the cells we ran; only a new dataset buys an
-    # independent test set. full_panel prints a dataset-clustered readout beside
-    # the per-cell one for exactly this reason.
-    n_ds = len(args.datasets)
-    ds_floor = 2.0 ** (1 - n_ds)
-    print("  GENERALIZATION: %d dataset(s) -> exact sign-flip floor p=%.3f "
-          "on the" % (n_ds, ds_floor))
-    print("         clustered unit. Cells within a dataset are NOT independent "
-          "draws:")
-    print("         a backbone or a cap level adds resolution, a DATASET adds "
-          "independence.")
-    if ds_floor > 0.05:
-        print("         *** at %d dataset(s) no clustered result can reach "
-              "p<0.05 --" % n_ds)
-        print("         *** with all three it is still 0.25. Generality here is "
-              "a DIRECTION")
-        print("         *** claim across datasets, never a significant one.")
-    # Not auto-added: four more arms DOUBLES the trained half of a campaign, and
-    # that is a compute decision. But silently omitting the control is how a
-    # delta gets attributed to the constraint when the regime produced it, so it
-    # is said out loud, before anything launches.
-    orphaned = [a for a in arms
-                if P["arms"].get(a, {}).get("phase") == "trained"
-                and not a.endswith("_null")
-                and _null_of(P, a) in P["arms"]
-                and _null_of(P, a) not in arms]
-    if orphaned:
-        print("  *** NO ZERO-DOSE CONTROL for: %s" % " ".join(sorted(orphaned)))
-        print("      Each has a `_null` sibling -- same code path, same warm-up,")
-        print("      same 29 transductive epochs, same optimizer restart, same")
-        print("      allocator, treatment zeroed. Without it in THIS campaign, a")
-        print("      delta vs clip cannot be attributed to the constraint rather")
-        print("      than to the regime. Add: --arms ... %s"
-              % " ".join(sorted({_null_of(P, a) for a in orphaned})))
-    # Say what it is FOR, not just that it is present. The reseed arm is the
-    # only control in this campaign that bounds the count trajectory, and a
-    # reader who does not know that will report the constraint's count movement
-    # as if the alternative were zero.
-    present = sorted(count_control_arms(P) & set(arms))
-    if present:
-        print("  RESEED FLOOR in campaign -> %s" % " ".join(present))
-        print("      lambda = 0 and one extra draw from the global generator, "
-              "so it is `tralo_null`")
-        print("      re-randomised. Read every count trajectory against it: "
-              "the constraint moves")
-        print("      the capped count RMS 75-95 items and a reseed moves it "
-              "83-95, so a count")
-        print("      movement is only a result once it is stated as a RATIO to "
-              "this arm's.")
-    print("  protocol: %s" % os.path.relpath(args.protocol))
-    print("  code_version:", version)
+    configs, version = [], code_version()
+    for seed in P["protocol"]["seeds"]:
+        for ds, dc in resolved.items():
+            for model in args.models:
+                for tag in args.caps:
+                    for arm in arms:
+                        spec = P["arms"][arm]
+                        hp = build_hyperparams(
+                            P,
+                            spec,
+                            seed,
+                            pretrained=None
+                            if args.pretrained is None
+                            else args.pretrained == "true",
+                        )
+                        cls = dc["constrained_class"]
+                        cls_tag = "-".join(
+                            map(str, cls if isinstance(cls, list) else [cls])
+                        )
+                        path = (
+                            Path(args.root)
+                            / model
+                            / ds
+                            / tag
+                            / arm
+                            / ("seed_%d" % seed)
+                            / "config.json"
+                        )
+                        cfg = {
+                            "methodology": spec["methodology"],
+                            "model_name": model,
+                            "constraint": cap_pair(tag),
+                            "constraint_tag": tag,
+                            "dataset_mode": ds,
+                            "dataset_config": dc,
+                            "hyperparams": hp,
+                            "base_model_id": compute_base_model_id(
+                                P, model, hp, ds, dc
+                            ),
+                            "arm": arm,
+                            "exp_name": "%s_%s_%s_%s_c%s_seed%d"
+                            % (model, ds, arm, tag, cls_tag, seed),
+                            "status": "pending",
+                            "code_version": version,
+                        }
+                        # Check the whole grid before writing any configs.
+                        if path.exists():
+                            prev = json.loads(path.read_text(encoding="utf-8"))
+                            if (
+                                prev.get("dataset_config", {}).get("constrained_class")
+                                != cls
+                            ):
+                                raise SystemExit(
+                                    "REFUSED: %s already holds a run with a different constrained_class"
+                                    % path
+                                )
+                            if prev.get("status") == "completed":
+                                continue
+                        configs.append((path, cfg))
+    for path, cfg in configs:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    print("%d written -> %s; arms: %s" % (len(configs), args.root, " ".join(arms)))
     return 0
 
 

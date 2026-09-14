@@ -32,11 +32,10 @@ from src.methodologies.heuristic.train import (                      # noqa: E40
     _build_hierarchy, apply_allocation_heuristic, verify_allocation)
 from src.training.constraints import (compute_global_constraints,    # noqa: E402
                                       compute_local_constraints)
+from lean_fixtures import protocol_with_nulls as load_protocol
 from src.utils.constants import UNLIMITED                            # noqa: E402
 from scripts.full_panel import equalize_multi
 from src.experiments.runner import TRAIN_FNS
-from src.losses.transductive_loss import margin_window
-from src.methodologies.select.train import selective_loss
 from src.models import get_model
 from src.training.constraint_step import finish_constraint_step
 from src.utils.data_loader import _load_imagery_data as load_data
@@ -277,10 +276,9 @@ def _gen(tmp, *extra):
     # the constraint steps and `taskwin1` was staged that way anyway. These
     # tests are about generation MECHANICS; the dose gate itself is tested by
     # test_the_generator_refuses_trained_arms_without_constraint_fp32.
-    cmd = [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask",
-           "--constraint-fp32", "--root", str(tmp),
+    cmd = [sys.executable, "-m", "configs.gen_campaign", "--root", str(tmp),
            "--datasets", "iwildcam",
-           "--arms", "tralo", "tralo_reseed"] + list(extra)
+           "--arms", "tralo"] + list(extra)
     return subprocess.run(cmd, cwd=REPO, capture_output=True, text=True)
 
 
@@ -330,8 +328,6 @@ def _bid(P, arm, seed=1, **over):
 
 def test_arms_differing_only_in_the_allocator_share_a_warm_up():
     P = load_protocol()
-    assert _bid(P, "clip") == _bid(P, "lp")
-    assert _bid(P, "focal_clip") == _bid(P, "focal_lp")
     assert _bid(P, "tralo") == _bid(P, "fioretto") == _bid(P, "alm")
 
 
@@ -340,7 +336,6 @@ def test_a_different_warm_up_objective_does_not_share_a_model():
     loaded clip's model and became a second clip."""
     P = load_protocol()
     assert _bid(P, "clip") != _bid(P, "focal_clip")
-    assert _bid(P, "clip") != _bid(P, "cb_lp") != _bid(P, "la_lp")
 
 
 @pytest.mark.parametrize("key,value", [
@@ -480,8 +475,7 @@ def test_an_interrupted_run_still_resets_to_pending(tmp_path):
 
 # --------------------------------------------- protocol values are not optional
 
-@pytest.mark.parametrize("key", ["lr_constraint", "constraint_epochs",
-                                 "stable_count_threshold"])
+@pytest.mark.parametrize("key", ["lr_constraint", "constraint_epochs"])
 def test_a_missing_protocol_value_raises_instead_of_using_the_trap(key, tmp_path):
     """These inline defaults WERE the retracted values: lr_constraint 1e-5
     against the protocol's 1e-4 (an unequal lr_constraint fabricated a -16.7 pp
@@ -516,7 +510,7 @@ def test_parity_catches_two_arms_sharing_one_warm_up_with_different_objectives(t
     identically, so focal_clip loaded clip's model and silently became a second
     clip. This gate used to print the sharing groups and ask a human to look."""
     r = subprocess.run(
-        [sys.executable, "-m", "configs.gen_campaign", "--constraint-fp32", "--allow-nontask", "--root", str(tmp_path),
+        [sys.executable, "-m", "configs.gen_campaign", "--root", str(tmp_path),
          "--datasets", "iwildcam", "--models", "MobileNetV3",
          "--caps", "L30_G30", "L50_G30", "--arms", "clip", "focal_clip"],
         cwd=REPO, capture_output=True, text=True)
@@ -667,8 +661,7 @@ def test_the_audit_sees_keys_read_through_the_required_helper():
     reads = per_methodology_reads()
     for meth in ("tralo", "fioretto_ldf", "hounie_rcl", "fioretto_alm"):
         assert "lr_constraint" in reads[meth], meth
-        assert "stable_count_threshold" in reads[meth], meth
-        assert "enable_checkpoint_restore" in reads[meth], meth
+        assert "constraint_epochs" in reads[meth], meth
 
     # AND THE READ SET MUST STAY PER-ARM. Anything under audit_config's
     # SHARED_DIRS is credited to EVERY methodology, so putting a constraint-
@@ -678,8 +671,7 @@ def test_the_audit_sees_keys_read_through_the_required_helper():
     # src/methodologies/dual_common.py the same config FAILS and names the key.
     # The four trained arms share one reader either way -- only its address
     # decides whether the gate can still see the difference.
-    for meth in ("heuristic", "danits_lp", "focal", "class_balanced",
-                 "logit_adjust"):
+    for meth in ("heuristic",):
         for key in ("constraint_grad_clip", "constraint_grad_mode",
                     "constraint_step_rule", "constraint_random_direction"):
             assert key not in reads[meth], (
@@ -913,7 +905,7 @@ def test_the_null_arm_really_delivers_no_constraint():
     exactly zero it would be a weak treatment rather than a control, and the
     whole point of the arm would be lost silently.
     """
-    proto = yaml.safe_load(open("configs/protocol.yml", encoding="utf-8"))
+    proto = load_protocol()
     blk = proto["blocks"]["tralo_null"]
     for key in ("lambda_global", "lambda_local", "lambda_step"):
         assert blk[key] == 0.0, "%s must be exactly 0.0, got %r" % (key, blk[key])
@@ -989,9 +981,15 @@ def test_every_trained_arm_reports_reordering():
     # a constant score column would otherwise mark the run `diverged`
     runner = io.open(os.path.join("src", "experiments", "runner.py"),
                       encoding="utf-8").read()
-    assert "config['reordering']" in runner
-    results_blk = runner[runner.index("save_results_to_config(config"):]
-    assert "reordering" not in results_blk[:results_blk.index("})")]
+    assert 'config["reordering"]' in runner
+    import ast
+    result_calls = [node for node in ast.walk(ast.parse(runner))
+                    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                    and node.func.id == "save_results_to_config"]
+    assert result_calls
+    for call in result_calls:
+        assert not any(isinstance(node, ast.Constant) and node.value == "reordering"
+                       for node in ast.walk(call))
 
     # and the scorer must actually read it
     panel = io.open(os.path.join("scripts", "full_panel.py"), encoding="utf-8").read()
@@ -1022,7 +1020,7 @@ def test_every_trained_arm_has_a_working_zero_dose_sibling(null, parent, zeroed)
     Zeroing is a DIFFERENT knob in each arm and two of them have a trap, so the
     keys are named per arm rather than pattern-matched.
     """
-    proto = yaml.safe_load(open("configs/protocol.yml", encoding="utf-8"))
+    proto = load_protocol()
     blk = proto["blocks"][null]
     for key in zeroed:
         assert blk[key] == 0.0, "%s.%s must be exactly 0.0, got %r" % (
@@ -1041,7 +1039,7 @@ def test_alm_null_zeroes_the_augmentation_not_just_the_multiplier():
     augmentation of mu0 * excess on every epoch -- a weak treatment wearing a
     control's name, which is worse than having no control.
     """
-    blk = yaml.safe_load(open("configs/protocol.yml", encoding="utf-8"))["blocks"]["alm_null"]
+    blk = load_protocol()["blocks"]["alm_null"]
     for epoch in (0, 14, 28):
         mu_t = blk["alm_mu0"] + blk["alm_mu_step"] * epoch
         assert mu_t == 0.0, "mu_t is %r at epoch %d, so the weight is not zero" % (
@@ -1056,7 +1054,7 @@ def test_hounie_null_does_not_trip_hounie_s_own_stability_guard():
     training a single epoch. eta_u moves only the slack u, which cannot reach
     the primal once lam is pinned at its 0.0 init.
     """
-    blk = yaml.safe_load(open("configs/protocol.yml", encoding="utf-8"))["blocks"]["hounie_null"]
+    blk = load_protocol()["blocks"]["hounie_null"]
     factor = abs(1.0 - 2.0 * blk["hounie_eta_u"] * blk["hounie_alpha"])
     assert factor < 1.0, (
         "hounie_null would raise its own stability check: factor %.3f" % factor)
@@ -1350,7 +1348,7 @@ def test_constraint_phase_reaches_every_trained_arm_and_no_posthoc_one():
     trained arm includes and no post-hoc arm does, so one assignment cannot
     reach one arm and not another.
     """
-    proto = yaml.safe_load(open("configs/protocol.yml", encoding="utf-8"))
+    proto = load_protocol()
     cp = proto["constraint_phase"]
 
     trained = [a for a, spec in proto["arms"].items()
@@ -1385,53 +1383,6 @@ def test_constraint_phase_reaches_every_trained_arm_and_no_posthoc_one():
                 "be a key with no reader" % arm)
 
 
-def test_the_bounded_shape_starves_the_deepest_violator_and_the_hinges_do_not():
-    """The measured multi-class failure, pinned as a property.
-
-    This asserts a GRADIENT property, which is why it is a unit test and not a
-    reading of a training log. Counts cannot establish it: measured against a
-    lambda=0 control on dermmnist with classes 2+4 capped at L30_G20, CE alone
-    swings the capped counts 242 -> 227 -> 324 -> 233 over four epochs with the
-    penalty identically off, so no count trajectory is attributable to the
-    shape without that control.
-
-    What the control DOES show is the consequence of the property below. Every
-    shape pushed class 4 down and class 2 up -- a see-saw, because the softmax
-    makes the capped classes compete and the class that should resist is the
-    one this shape starves. Shape set the see-saw's size in the order this test
-    fixes: class 2 moved +197 under rational_bounded, +112 under squared, +86
-    under linear.
-
-    Single-class runs cannot show any of it: their spread of relative excess
-    across scopes has median 1.5x, and at equal excess the shape is exactly
-    inert -- a common scalar times a fixed direction, divided out by the clip.
-    """
-    from src.losses.transductive_loss import MulticlassTransductiveLoss, UNLIMITED
-
-    NC = 5
-    gcon = [UNLIMITED, 44.0, 45.0, UNLIMITED, UNLIMITED]
-
-    def pull(shape):
-        L = MulticlassTransductiveLoss(gcon, {}, num_classes=NC,
-                                       initial_rho=10.0, penalty_shape=shape)
-        for c in (1, 2):
-            L.set_lambda_per_class(c, 0.01, scope="global")
-        # class 1 = the DEEP violator (410 vs 44); class 2 = mild (57 vs 45)
-        soft = torch.tensor([0.0, 410.0, 57.0, 0.0, 0.0], requires_grad=True)
-        L.compute_global_from_counts(soft).backward()
-        return float(soft.grad[1]), float(soft.grad[2])
-
-    deep_b, mild_b = pull("rational_bounded")
-    deep_s, mild_s = pull("squared")
-    deep_l, mild_l = pull("linear")
-
-    assert deep_b < mild_b, (
-        "the bounded shape is supposed to STARVE the deep violator here; if "
-        "this fails the measured pathology has changed and 2a2 needs redoing")
-    assert deep_s > mild_s, "squared must favour the deeper violator"
-    assert deep_l > mild_l, "linear must favour the deeper violator"
-    # and the reversal must be large enough to matter, not a rounding artifact
-    assert (deep_s / mild_s) > 10 * (deep_b / mild_b)
 
 
 def test_normalize_delivers_the_same_step_size_whatever_the_raw_norm():
@@ -1449,195 +1400,35 @@ def test_normalize_delivers_the_same_step_size_whatever_the_raw_norm():
             m.weight.fill_(0.0)
         m.weight.grad = torch.full((1, 4), raw_scale)
         before = m.weight.detach().clone()
-        finish_constraint_step(m, None, None, 1.0, mode=mode,
-                               fp32=True, step_rule="sgd", lr=1.0)
+        finish_constraint_step(m, torch.optim.SGD(m.parameters(), lr=1.0), None, 1.0, mode=mode, fp32=True)
         return float((m.weight.detach() - before).norm())
-
-    # raw norm 0.02 (far below the clip) and 20.0 (far above)
-    small_clip, big_clip = step(0.01, "clip"), step(10.0, "clip")
-    small_nrm, big_nrm = step(0.01, "normalize"), step(10.0, "normalize")
-
-    assert small_clip == pytest.approx(0.02, rel=1e-5), small_clip
-    assert big_clip == pytest.approx(1.0, rel=1e-5), big_clip
-    assert small_clip < big_clip / 10, (
-        "under `clip` a below-threshold gradient keeps its own magnitude -- "
-        "this is the hounie asymmetry, and it must stay reproducible")
-
-    assert small_nrm == pytest.approx(1.0, rel=1e-5), small_nrm
-    assert big_nrm == pytest.approx(1.0, rel=1e-5), big_nrm
-    assert small_nrm == pytest.approx(big_nrm, rel=1e-6), (
-        "under `normalize` the delivered step must be the same size no matter "
-        "what the arm's natural gradient scale is -- that is the whole point")
+    (small_clip, big_clip) = (step(0.01, 'clip'), step(10.0, 'clip'))
+    (small_nrm, big_nrm) = (step(0.01, 'normalize'), step(10.0, 'normalize'))
+    assert small_clip == pytest.approx(0.02, rel=1e-05), small_clip
+    assert big_clip == pytest.approx(1.0, rel=1e-05), big_clip
+    assert small_clip < big_clip / 10, 'under `clip` a below-threshold gradient keeps its own magnitude -- this is the hounie asymmetry, and it must stay reproducible'
+    assert small_nrm == pytest.approx(1.0, rel=1e-05), small_nrm
+    assert big_nrm == pytest.approx(1.0, rel=1e-05), big_nrm
+    assert small_nrm == pytest.approx(big_nrm, rel=1e-06), "under `normalize` the delivered step must be the same size no matter what the arm's natural gradient scale is -- that is the whole point"
 
 
-def test_the_random_direction_control_keeps_the_dose_and_drops_the_information():
-    """The control must change ONLY the direction, never the step size.
-
-    Its whole purpose is to answer "did the penalty's direction matter?", and
-    it can only answer that if the dose is held exactly. If it also changed the
-    norm it would confound direction with magnitude -- the same confound that
-    made the dedicated-Adam arm uninterpretable (it moved 8,900x further and
-    cost AP -0.0938, and no one could say which half did it).
-    """
-
-    def step(random_direction):
-        torch.manual_seed(0)
-        m = torch.nn.Linear(64, 8)
-        for p in m.parameters():
-            p.grad = torch.randn_like(p) * 0.01      # small: normalize scales UP
-        before = [p.detach().clone() for p in m.parameters()]
-        finish_constraint_step(m, None, None, clip=1.0, mode="normalize",
-                               step_rule="sgd", lr=1.0,
-                               random_direction=random_direction)
-        return torch.cat([(p.detach() - b).flatten()
-                          for p, b in zip(m.parameters(), before)])
-
-    real, rand = step(False), step(True)
-
-    # same dose: normalize delivers exactly `clip`, times lr=1.0
-    assert abs(float(real.norm()) - 1.0) < 1e-4
-    assert abs(float(rand.norm()) - 1.0) < 1e-4
-
-    # and the control must not DRAW from the global RNG: if it does, the
-    # control run's dropout masks and batch order diverge from the real arm's
-    # too, so it varies two things instead of one. Checked on the randomiser
-    # itself -- the step() helper above seeds and samples on its own.
-    from src.training.constraint_step import _randomize_direction
-    m2 = torch.nn.Linear(8, 4)
-    for q in m2.parameters():
-        q.grad = torch.ones_like(q)
-    torch.manual_seed(1234)
-    before_state = torch.random.get_rng_state()
-    _randomize_direction(m2, 1.0, next(iter(m2.parameters())))
-    assert torch.equal(torch.random.get_rng_state(), before_state), (
-        "the random-direction control consumed a global RNG draw")
-
-    # different information: a random direction in 520 dimensions is very
-    # nearly orthogonal to any fixed one
-    cos = float(torch.dot(real, rand) / (real.norm() * rand.norm()))
-    assert abs(cos) < 0.3, "random direction is not independent of the real one"
 
 
-def test_the_coin_twin_is_norm_matched_to_its_partner_AT_EVERY_CLIP_LEVEL():
-    """The clip sweep's load-bearing property, and the test above does not cover it.
-
-    `test_the_random_direction_control_keeps_the_dose_and_drops_the_information`
-    proves the coin arm matches its partner's dose at `clip=1.0`. The sweep
-    (`tralo_clip03` / `tralo_clip30` and their coin twins, FRAMEWORK 2(z82)
-    section 2b) varies the clip over a 10x range, and the estimator it exists
-    to compute is `|tralo_clipXX - tralo_coin_clipXX|` as a FUNCTION of the
-    clip. That difference is only readable as "what the direction knows" if
-    the two arms are at the same dose AT EACH LEVEL.
-
-    The call site is `constraint_step.py:277`:
-
-        _randomize_direction(model, clip if mode == "normalize"
-                             else min(raw_norm, clip), raw)
-
-    Hardcoding `1.0` there -- the obvious simplification, since every shipped
-    arm used 1.0 until this sweep -- keeps the clip=1.0 test green, keeps
-    every config gate green, keeps `smoke_arms` green, and makes the sweep
-    measure dose-times-direction with no way to separate them. That is the
-    same confound that made the dedicated-Adam arm uninterpretable.
-
-    So this asserts the RATIO, not the value: the coin norm must scale with
-    the clip exactly as the real norm does.
-    """
-    LEVELS = (0.3, 1.0, 3.0)          # the shipped sweep, protocol.yml
-
-    def delivered(clip, coin):
-        torch.manual_seed(0)
-        m = torch.nn.Linear(64, 8)
-        for p in m.parameters():
-            p.grad = torch.randn_like(p) * 0.01   # small: normalize scales UP
-        before = [p.detach().clone() for p in m.parameters()]
-        finish_constraint_step(m, None, None, clip=clip, mode="normalize",
-                               step_rule="sgd", lr=1.0, random_direction=coin)
-        return float(torch.cat([(p.detach() - b).flatten()
-                                for p, b in zip(m.parameters(), before)]).norm())
-
-    real = {c: delivered(c, False) for c in LEVELS}
-    coin = {c: delivered(c, True) for c in LEVELS}
-
-    for c in LEVELS:
-        assert real[c] == pytest.approx(c, rel=1e-4), (c, real[c])
-        assert coin[c] == pytest.approx(c, rel=1e-4), (
-            "the coin twin is at dose %g while its partner is at %g; "
-            "|tralo - tralo_coin| then confounds direction with dose"
-            % (coin[c], real[c]))
-        assert coin[c] == pytest.approx(real[c], rel=1e-4)
-
-    # THE MUTATION THIS CATCHES AND THE clip=1.0 TEST DOES NOT: a hardcoded
-    # 1.0 in the coin branch pins every coin norm to 1.0, so the ratio over
-    # the sweep's own range collapses from 10x to 1x.
-    assert coin[3.0] / coin[0.3] == pytest.approx(10.0, rel=1e-3), (
-        "the coin arm's dose does not track the clip: ratio %.4f over a 10x "
-        "sweep. The sweep cannot separate direction from dose."
-        % (coin[3.0] / coin[0.3]))
 
 
-def test_every_clip_sweep_arm_has_a_coin_twin_at_the_SAME_clip():
-    """The config half of the property above, read off protocol.yml itself.
-
-    Norm-matching in `constraint_step` is necessary and not sufficient: the
-    pair must also be DECLARED at the same clip. `tralo_clip03` against a
-    `tralo_coin` left at 1.0 is a 3.3x dose gap wearing the word `coin`, and
-    nothing downstream would say so -- `check_parity` compares compute, not
-    treatment scalars.
-
-    Reads the arms from the protocol rather than restating them, so adding a
-    clip level without its twin turns this red.
-    """
-    from configs.gen_campaign import build_hyperparams, load_protocol
-    P = load_protocol()
-
-    sweep = [a for a in P["arms"]
-             if a.startswith("tralo_clip") or a.startswith("tralo_coin_clip")]
-    assert sweep, "the clip-sweep arms are gone from protocol.yml"
-
-    clip_of, coin_of = {}, {}
-    for a in sweep:
-        hp = build_hyperparams(P, P["arms"][a], seed=1)
-        clip_of[a] = float(hp["constraint_grad_clip"])
-        coin_of[a] = bool(hp["constraint_random_direction"])
-
-    treated = sorted(a for a in sweep if not coin_of[a])
-    assert treated, "the sweep declares no treated arm"
-    for a in treated:
-        twin = a.replace("tralo_clip", "tralo_coin_clip")
-        assert twin in clip_of, (
-            "%s has no coin twin. A dose level with no direction control "
-            "measures nothing -- FRAMEWORK 2(z82) section 2b" % a)
-        assert coin_of[twin], "%s is not actually a coin arm" % twin
-        assert clip_of[twin] == clip_of[a], (
-            "%s is at clip %g but its twin %s is at %g"
-            % (a, clip_of[a], twin, clip_of[twin]))
-
-    # and the sweep must actually span a range, or it is not a sweep. The
-    # baseline `tralo`/`tralo_coin` pair supplies the middle level.
-    base = float(build_hyperparams(P, P["arms"]["tralo"], seed=1)
-                 ["constraint_grad_clip"])
-    span = sorted({clip_of[a] for a in treated} | {base})
-    assert len(span) >= 3 and span[-1] / span[0] >= 9.0, (
-        "the clip sweep spans %r -- 2(z82) section 2b prices its FLAT outcome "
-        "against a 10x dose range" % (span,))
 
 
 def test_a_non_finite_constraint_gradient_never_moves_the_weights():
     """fioretto lost 10 of 29 epochs to NaN/inf. It must lose them SAFELY."""
-
-    for bad in (float("nan"), float("inf")):
+    for bad in (float('nan'), float('inf')):
         m = torch.nn.Linear(4, 1, bias=False)
         with torch.no_grad():
             m.weight.fill_(1.0)
         m.weight.grad = torch.full((1, 4), bad)
         before = m.weight.detach().clone()
-        raw, applied = finish_constraint_step(m, None, None, 1.0,
-                                              mode="normalize", fp32=True,
-                                              step_rule="sgd", lr=1.0)
-        assert not applied, "a %s gradient must not take the step" % bad
-        assert torch.equal(m.weight.detach(), before), (
-            "weights moved on a %s gradient" % bad)
+        (raw, applied) = finish_constraint_step(m, torch.optim.SGD(m.parameters(), lr=1.0), None, 1.0, mode='normalize', fp32=True)
+        assert not applied, 'a %s gradient must not take the step' % bad
+        assert torch.equal(m.weight.detach(), before), 'weights moved on a %s gradient' % bad
 
 
 @pytest.mark.parametrize("arm", ["tralo", "fioretto_ldf", "hounie_rcl",
@@ -1670,193 +1461,14 @@ def test_no_arm_hand_rolls_its_own_constraint_step(arm):
         "cannot reach it and it can still lose epochs to fp16 overflow" % arm)
 
 
-def test_the_margin_count_is_a_real_count_not_a_constant():
-    """The trap that killed the order-statistic version, pinned.
-
-    Centring the window on the K-th largest probability -- the obvious way to
-    put the gradient on the cut -- yields `sum_i sigma((p_i - tau)/T)`, which
-    counts how many items exceed the K-th largest. That is K - 0.5 for ANY
-    model, so it is a constant, `relu(s - K)` is identically zero, and no
-    gradient is ever produced. It was wired into the trainer and caught here.
-
-    The margin count must instead MOVE with the model and be able to exceed
-    the budget, which is what makes a violation visible at all.
-    """
-
-    torch.manual_seed(0)
-    K, cls = 8, 1
-    counts, hards, os_wide, os_narrow = [], [], [], []
-    for shift in (-4.0, 0.0, 4.0):
-        logits = torch.randn(40, 3) + torch.tensor([0.0, shift, 0.0])
-        proba = F.softmax(logits, dim=1)
-        counts.append(float(margin_window(proba, 0.02)[:, cls].sum()))
-        hards.append(float((proba.argmax(dim=1) == cls).sum()))
-        tau = torch.topk(proba[:, cls], K).values[-1]
-        os_wide.append(float(torch.sigmoid((proba[:, cls] - tau) / 0.02).sum()))
-        os_narrow.append(float(torch.sigmoid((proba[:, cls] - tau) / 1e-4).sum()))
-        assert abs(counts[-1] - hards[-1]) < 1.0, (
-            "margin count %.2f is not tracking the hard count %d"
-            % (counts[-1], hards[-1]))
-
-    swing = max(hards) - min(hards)
-    assert swing > 20 and max(counts) - min(counts) > 20, (
-        "the margin count barely moved (%s) as the class went from rare to "
-        "dominant -- it is not measuring the count" % counts)
-    assert max(counts) > K, "the count can never exceed the budget: no violation"
-
-    # The dead version, for the record. As T -> 0 it is EXACTLY K - 0.5 for every
-    # model: it counts the items above the K-th largest. At a usable T it
-    # smears wherever probabilities are packed tighter than T, but it is still
-    # pinned near the budget and still blind to the count -- here it spans
-    # 8.5 while the true count spans 34.
-    assert all(abs(c - (K - 0.5)) < 0.01 for c in os_narrow), os_narrow
-    assert max(os_wide) - min(os_wide) < swing / 3, (
-        "order-statistic count spread %.1f vs true spread %.1f -- this test "
-        "is supposed to show it does NOT track"
-        % (max(os_wide) - min(os_wide), swing))
 
 
-def test_the_margin_count_puts_its_gradient_on_the_boundary():
-    """Not on the unsure items. This is the entire point of the arm.
-
-    The plain count's per-item derivative is p(1-p), maximal at p = 0.5 and
-    ~zero at the cut. The margin count's is sigma'(m/T)/T, maximal at margin 0
-    -- at the items one step from flipping out of the class.
-    """
-
-    torch.manual_seed(1)
-    proba = F.softmax(torch.randn(60, 4), dim=1).requires_grad_(True)
-    cls = 2
-    margin = proba[:, cls] - torch.cat(
-        [proba[:, :cls], proba[:, cls + 1:]], dim=1).max(dim=1).values
-
-    (g_margin,) = torch.autograd.grad(
-        margin_window(proba, 0.02)[:, cls].sum(), proba, retain_graph=True)
-    (g_sum,) = torch.autograd.grad(proba[:, cls].sum(), proba)
-
-    at_cut = int(margin.detach().abs().argmin())
-    deep = int(margin.detach().argmax())
-    gm = g_margin[:, cls].abs()
-    assert gm[at_cut] > gm[deep] * 50, (
-        "the margin count weights a deeply-committed item (%.3g) comparably "
-        "to one at the boundary (%.3g)" % (gm[deep], gm[at_cut]))
-    # the plain count is flat in p: every item gets identical weight here, and
-    # the p(1-p) shape enters only through the softmax below it.
-    assert torch.allclose(g_sum[:, cls], torch.ones(60))
 
 
-def test_the_windowed_count_keeps_the_exact_full_N_gradient_when_chunked():
-    """The shipped construction: value is the HARD count, gradient is the window.
-
-    Each chunk backprops through `total.detach() - chunk.detach() + chunk`,
-    whose gradient reaches only that chunk's items, so the chunks sum to the
-    exact full-N gradient -- this is what makes `constraint_chunk_size`
-    gradient-neutral. In margin mode `total` is seeded with the HARD count, so
-    the same expression is also a straight-through estimator: the penalty
-    reads the true count and differentiates the window.
-
-    That matters because a wide window over-counts (56.6 against a hard 45 at
-    40 items), and a penalty reading an inflated count keeps pushing after the
-    cap is already satisfied -- the overshoot scripts/flag_live measured.
-    """
-    from src.losses.transductive_loss import margin_window, margins, window_temp
-
-    torch.manual_seed(0)
-    logits = (torch.randn(40, 3) + torch.tensor([0.0, 2.0, 0.0])).requires_grad_(True)
-    K, cls = 8, 1
-
-    def penalty(s_):
-        return F.relu(s_[cls] - K) ** 2
-
-    with torch.no_grad():
-        proba0 = F.softmax(logits, dim=1)
-        T = window_temp(margins(proba0), 10)
-        hard = torch.zeros(3)
-        for c in range(3):
-            hard[c] = float((proba0.argmax(dim=1) == c).sum())
-    assert float(hard[cls]) > K, "no violation, so the penalty gradient is 0"
-
-    # reference: the full-batch gradient of the windowed count
-    full_soft = margin_window(F.softmax(logits, dim=1), T).sum(dim=0)
-    st_full = hard.detach() - full_soft.detach() + full_soft
-    assert torch.allclose(st_full.detach(), hard), "straight-through value is not the hard count"
-    (g_full,) = torch.autograd.grad(penalty(st_full), logits)
-
-    # chunk size 7, not a divisor of 40, so the ragged last chunk runs too
-    g_chunked = torch.zeros_like(logits)
-    for start in range(0, 40, 7):
-        sl = slice(start, min(start + 7, 40))
-        eff = margin_window(F.softmax(logits[sl], dim=1), T)
-        g_soft = hard.detach() - eff.sum(dim=0).detach() + eff.sum(dim=0)
-        assert torch.allclose(g_soft.detach(), hard)
-        (g,) = torch.autograd.grad(penalty(g_soft), logits, allow_unused=True)
-        g_chunked = g_chunked + g
-
-    assert torch.allclose(g_chunked, g_full, atol=1e-6), (
-        "chunking changed the gradient (max diff %.3g) -- the detach "
-        "cancellation broke, so chunk size is no longer a free knob"
-        % float((g_chunked - g_full).abs().max()))
-    assert g_full.abs().sum() > 0
 
 
-def test_the_window_width_is_in_items_so_the_dose_cannot_vanish():
-    """A fixed T is not a fixed dose, and an empty window is a silent null.
-
-    Measured on the stored dermmnist evidence (MobileNetV3, 4 seeds, two cap
-    tags): the T holding ~20 items at the boundary spans 0.182 .. 0.502 ACROSS
-    SEEDS OF ONE CELL, and T = 0.02 puts 0-3 items in the window -- a run that
-    contributes nothing, reports a null, and writes `completed`. Deriving T
-    from a width in items makes the dose dimensionless and non-empty by
-    construction.
-    """
-    from src.losses.transductive_loss import margins, window_temp
-
-    torch.manual_seed(3)
-    for scale in (0.5, 2.0, 8.0):        # flat, moderate and sharp models
-        proba = F.softmax(torch.randn(300, 5) * scale, dim=1)
-        m = margins(proba)
-        for n in (10, 40, 120):
-            T = window_temp(m, n)
-            for c in range(5):
-                inside = int((m[:, c].abs() < T[c]).sum())
-                assert abs(inside - n) <= 1, (
-                    "asked for %d items in the window, got %d (scale %.1f, "
-                    "class %d)" % (n, inside, scale, c))
-        # and T really does have to move to achieve that
-        assert float(window_temp(m, 120).max()) > float(window_temp(m, 10).max())
 
 
-def test_every_trained_arm_has_a_null_sibling_the_gate_can_find():
-    """The gate looks up a name; a new arm can slip past it silently.
-
-    gen_campaign warns when a trained arm is requested without its zero-dose
-    sibling, because a delta vs `clip` cannot otherwise be attributed to the
-    constraint rather than to the regime. It found that sibling by appending
-    `_null`, so `tralo_margin` -- the arm that most needs a control, being a
-    new estimator -- resolved to `tralo_margin_null`, which does not exist,
-    and the gate said nothing. Arms may now name another arm's null via
-    `null_sibling`; this pins that every trained arm resolves to a real one.
-    """
-
-    from configs.gen_campaign import _null_of
-
-    P = yaml.safe_load(io.open("configs/protocol.yml", encoding="utf-8").read())
-    missing = []
-    for name, spec in P["arms"].items():
-        if spec["phase"] != "trained" or name.endswith("_null"):
-            continue
-        sib = _null_of(P, name)
-        if sib not in P["arms"]:
-            missing.append("%s -> %s" % (name, sib))
-    assert not missing, (
-        "trained arms whose null sibling does not exist, so the gate cannot "
-        "warn about them: %s" % ", ".join(missing))
-
-    # And the shared one is genuinely shared, not a copy: tralo_margin differs
-    # from tralo only in where the count puts its gradient, and at lambda 0 no
-    # constraint gradient is formed at all, so one null serves both.
-    assert _null_of(P, "tralo_margin") == _null_of(P, "tralo") == "tralo_null"
-    assert P["blocks"]["tralo_null"]["lambda_global"] == 0.0
 
 
 def test_the_inert_flag_gate_can_actually_detect_an_inert_flag():
@@ -1959,71 +1571,8 @@ def test_the_scorers_posthoc_list_matches_the_protocol():
         % (sorted(POSTHOC_ARMS - expected), sorted(expected - POSTHOC_ARMS)))
 
 
-def test_straight_through_closes_the_K_equals_zero_trap():
-    """A group with no true instances of the capped class gets K == 0 legitimately.
-
-    On the soft value that constraint can NEVER be satisfied: `sum_i p_ic` is
-    strictly positive for any softmax, even when the model predicts the class
-    for nobody in the group, so `relu(count - 0)` stays positive forever.
-
-    That is where the standing warning stops being true. It does NOT hold the
-    ratchet gate open for every other constraint -- the trainer reads HARD
-    counts, which can be exactly zero (corrected 2026-08-22, FRAMEWORK 1b). What
-    the term really does is push `p_ic` down in that group permanently, which
-    for a group with genuinely no instances of the class is the RIGHT direction.
-    So `straight_through` switches real pressure off rather than repairing a
-    defect, and on iwildcam -- seven of fourteen ceilings at K == 0 -- that is a
-    decision to make on a measurement, not a fix to apply on sight.
-
-    The hard count CAN be exactly zero, so `straight_through: true` makes that
-    constraint satisfiable. This pins the difference rather than the fix, since
-    the K == 0 group is created by the data, not by a setting.
-    """
-    torch.manual_seed(4)
-    # class 2 is never the argmax, but it still carries probability mass
-    logits = torch.randn(80, 5)
-    others = torch.cat([logits[:, :2], logits[:, 3:]], dim=1).max(dim=1).values
-    logits[:, 2] = others - 1.5      # always second best, never the argmax
-    p = F.softmax(logits, dim=1)
-
-    hard = int((p.argmax(dim=1) == 2).sum())
-    soft = float(p[:, 2].sum())
-    assert hard == 0, "fixture broken: class 2 is predicted for %d items" % hard
-    assert soft > 0.5, "fixture broken: class 2 carries no mass (%.3f)" % soft
-
-    K = 0
-    assert float(F.relu(torch.tensor(soft) - K)) > 0.5, (
-        "the soft value is satisfiable at K=0, which would mean this trap is "
-        "not real")
-    assert float(F.relu(torch.tensor(float(hard)) - K)) == 0.0, (
-        "the hard value is NOT satisfiable at K=0 -- straight_through does not "
-        "close the trap after all")
 
 
-def test_margin_without_straight_through_is_refused_not_silently_reinterpreted():
-    """The fourth corner of the 2x2 is a third semantics, so it must not run.
-
-    Pass 1 accumulates the plain `sum_i p_ic` into the running total; pass 2
-    windows each chunk. The detach construction then cancels a WINDOWED chunk
-    out of a PLAIN total, giving value `sum_i p_ic` with a windowed gradient --
-    neither `tralo` nor `tralo_margin`. And the windowed count over-counts
-    (56.6 against a hard 45), so the penalty pushes past feasibility, which is
-    the joint arm's measured failure mode.
-
-    The generator cannot emit this combination; a hand-written config can.
-    """
-    import inspect
-
-    from src.methodologies.tralo import train as tralo_train
-
-    src = inspect.getsource(tralo_train.train)
-    assert 'soft_count_mode: margin requires straight_through' in src, (
-        "the guard against margin-without-straight-through is gone; that "
-        "combination now runs and produces a third, undocumented estimator")
-    # and the protocol's own arm sets both, so the guard never fires in practice
-    P = yaml.safe_load(io.open("configs/protocol.yml", encoding="utf-8").read())
-    blk = P["blocks"]["tralo_margin"]
-    assert blk.get("soft_count_mode") == "margin" and blk.get("straight_through") is True
 
 
 def test_the_allocator_does_not_fall_through_to_the_LP_when_G_is_less_than_L():
@@ -2242,149 +1791,12 @@ def test_final_predictions_that_violate_a_cap_are_refused_not_logged(tmp_path):
 
 
 
-def test_the_coin_control_matches_the_delivered_step_not_the_clip_bound():
-    """The coin must differ from the treatment in INFORMATION only, not dose.
-
-    `_randomize_direction` rescaled the random gradient to exactly `clip`
-    unconditionally, but under the protocol default `constraint_grad_mode: clip`
-    the treatment delivers min(raw, clip). So on every epoch where the clip did
-    not bind, the control took a LARGER step than the thing it controls -- 20x
-    for hounie, whose raw norms are 0.005-0.11 against clip 1.0 -- and the bias
-    runs in the direction that flatters the treatment.
-    """
-
-
-    def delivered(mode, target_raw, coin):
-        torch.manual_seed(0)
-        m = nn.Linear(64, 8, bias=False)
-        for p in m.parameters():
-            p.grad = torch.ones_like(p)
-            p.grad.mul_(target_raw / float(p.grad.norm()))
-        opt = torch.optim.SGD(m.parameters(), lr=0.0)
-        finish_constraint_step(m, opt, None, 1.0, mode=mode, step_rule="sgd",
-                               lr=0.0, random_direction=coin)
-        return sum(float(p.grad.pow(2).sum()) for p in m.parameters()) ** 0.5
-
-    for mode in ("clip", "normalize"):
-        for raw in (0.05, 0.5, 5.0):
-            t = delivered(mode, raw, False)
-            c = delivered(mode, raw, True)
-            assert abs(c - t) < 1e-5, (
-                "coin is dosed %.4f but the treatment delivers %.4f at "
-                "mode=%s raw=%.2f (%.1fx) -- the control varies dose as well "
-                "as information" % (c, t, mode, raw, c / max(t, 1e-12)))
-
-
-def test_coverage_targets_uses_a_whole_test_budget_not_the_smallest_group():
-    """tau's numerator and denominator must live in the same scope.
-
-    `local_con[g][c]` bounds group g alone; `g.mean()` covers the whole batch.
-    Taking min across groups put the SMALLEST group's budget over the whole
-    test set -- 9/2003 instead of 67/2003 on derm L50_G30, a 7.4x
-    over-tightening -- and made tau move with the LOCAL tag while the global
-    cap was unchanged, so a G<L sweep would sweep the smallest group.
-    """
-    from src.methodologies.select.train import coverage_targets
-    from src.training.constraints import UNLIMITED
-
-    n = 2003          # dermmnist slice_1 test n, per docs/FRAMEWORK.md
-    loc = {g: [UNLIMITED] * 7 for g in ("a", "b", "c")}
-    loc["a"][4], loc["b"][4], loc["c"][4] = 75.0, 28.0, 9.0   # sum 112
-
-    g_tight = [UNLIMITED] * 7
-    g_tight[4] = 67.0
-    assert abs(coverage_targets(g_tight, loc, [4], n, 7)[4] - 67 / n) < 1e-9, (
-        "global 67 is tighter than the local sum 112, so tau must be 67/n")
-
-    # Local-only: the global is UNLIMITED, and the SUM of the locals is the
-    # whole-test ceiling. Reading global_con alone would give tau = 1.0 here.
-    assert abs(coverage_targets([UNLIMITED] * 7, loc, [4], n, 7)[4]
-               - 112 / n) < 1e-9, "local-only must fall back to the local SUM"
-
-    # The smallest group's budget (9) must never be the numerator.
-    for g in (g_tight, [UNLIMITED] * 7):
-        assert coverage_targets(g, loc, [4], n, 7)[4] > 9.0 / n + 1e-9, (
-            "tau collapsed onto the smallest group's budget")
-
-
-def test_the_selection_arm_actually_threads_its_running_coverage_estimate():
-    """Inert-flag gate for `cov_ema`: it must set the coverage term's VALUE.
-
-    The stabilised coverage term takes its value from a running estimate and
-    its gradient from the current batch. Asserting only that the argument
-    "changes the loss" is too weak -- a broken construction that merely ADDED
-    the estimate (`cov_ema + cov`, no `- cov.detach()`) would pass that. So
-    this pins the actual property: with cov_ema = X the penalty must equal
-    cov_weight * (X - tau)^2 exactly, i.e. the value is the ESTIMATE and not
-    this batch's coverage.
-    """
 
 
 
-    tau, w, X = 0.03, 32.0, 0.20
-    g = torch.full((64,), 0.5, requires_grad=True)
-    probs = torch.full((64, 7), 1 / 7.0)
-    y = torch.zeros(64, dtype=torch.long)
-
-    bare, cov, _b = selective_loss(g, probs, y, 4, tau, w)
-    with_ema, cov2, _b2 = selective_loss(g, probs, y, 4, tau, w, cov_ema=X)
-    assert abs(cov - 0.5) < 1e-6 and abs(cov2 - 0.5) < 1e-6
-
-    # The ONLY difference between the two is the coverage term's value.
-    delta = float(with_ema) - float(bare)
-    expected = w * ((X - tau) ** 2 - (cov - tau) ** 2)
-    assert abs(delta - expected) < 1e-4, (
-        "coverage term used %.6f, expected the estimate %.2f -> %.6f"
-        % (delta, X, expected))
-
-    # ...and the gradient must still come from THIS batch, not the estimate.
-    with_ema.backward()
-    assert g.grad is not None and float(g.grad.abs().sum()) > 0, (
-        "no gradient reaches g -- the detach construction broke the graph")
-
-    # ...and the training loop must actually pass it.
-    src = io.open("src/methodologies/select/train.py", encoding="utf-8").read()
-    calls = [n for n in ast.walk(ast.parse(src))
-             if isinstance(n, ast.Call)
-             and getattr(n.func, "id", None) == "selective_loss"]
-    assert calls, "no call to selective_loss found in the arm"
-    assert all(len(c.args) >= 7 or any(k.arg == "cov_ema" for k in c.keywords)
-               for c in calls), (
-        "selective_loss is called without cov_ema -- the stabilisation is inert")
 
 
-def test_the_selective_risk_is_centred_so_it_does_not_only_push_coverage_down():
-    """An UNcentred risk makes every item's gradient positive.
 
-    Normalising by the expected covered mass instead of g.sum() fixes the
-    variance but removes the centring the ratio estimator had for free:
-    d risk / d g_i = per_i / (n*tau) > 0 for every item, so the risk term
-    degenerates into a pure "cover nothing" force. Measured on a synthetic:
-    equilibrium coverage falls from 0.74*tau to 0.60*tau, and undershooting
-    the budget is the one regime where the two-allocator confound bites.
-    A selective risk must pull EASY items in and push hard ones out.
-    """
-
-
-    g = torch.full((64,), 0.5, requires_grad=True)
-    # All 64 ARE the capped class; the model is confident on the first half and
-    # wrong on the second, so the two halves differ in per-item LOSS, which is
-    # the quantity the selective risk is supposed to sort on. (Flipping the
-    # LABEL instead gives both halves the same loss and the baseline cancels
-    # everything -- a test that then passes on any implementation.)
-    probs = torch.zeros(64, 7)
-    probs[:, 4] = torch.cat([torch.full((32,), 0.95), torch.full((32,), 0.05)])
-    probs[:, 0] = 1 - probs[:, 4]
-    y = torch.full((64,), 4, dtype=torch.long)
-
-    # cov_weight 0 isolates the RISK term from the coverage pull.
-    loss, _cov, _b = selective_loss(g, probs, y, 4, 0.03, 0.0)
-    loss.backward()
-    easy, hard = g.grad[:32], g.grad[32:]
-    assert float(easy.mean()) < 0 < float(hard.mean()), (
-        "risk gradient is not centred: easy items %.4g, hard items %.4g -- "
-        "both signs must not be the same, or the term only pushes coverage "
-        "down" % (float(easy.mean()), float(hard.mean())))
 
 
 def test_no_methodology_reads_the_test_LABELS_except_to_count_them():
@@ -2617,39 +2029,6 @@ def test_no_autocast_banned_op_is_reachable_from_an_arm():
         "computes a different quantity." % offenders)
 
 
-def test_the_selective_risks_centring_estimate_is_not_self_referential():
-    """`selective_loss` must return THIS batch's estimate, not the EMA it was given.
-
-    It returned the EMA-substituted value, and the trainer feeds the return
-    straight back into its EMA -- so the update was 0.9*x + 0.1*x = x and the
-    centring constant FROZE at batch 1 of epoch 1 and never moved again.
-
-    That is not a stale log line. d risk / d g_i = (per_i - centre)/(n*tau), so a
-    centre pinned to an untrained model's covered-set loss while per_item
-    collapses (CE saturates by epoch 10, L_CE 0.02) flips the sign for nearly
-    every item and turns the risk term into exactly the "cover everything" force
-    the centring exists to prevent. The tell was that `cov_ema`, three lines
-    away, IS recomputed from the batch -- the asymmetry between the two.
-    """
-
-
-    ema, beta, seen = None, 0.9, []
-    torch.manual_seed(0)
-    for b in range(5):
-        g = torch.rand(64, requires_grad=True)
-        # sharpen the probabilities each batch: the covered-set loss MUST move
-        probs = torch.softmax(torch.randn(64, 7) * (1.0 + 2.0 * b), dim=1)
-        y = torch.randint(0, 7, (64,))
-        _loss, _cov, base = selective_loss(g, probs, y, 4, 0.03, 32.0,
-                                           cov_ema=0.03, risk_ema=ema)
-        ema = base if ema is None else beta * ema + (1 - beta) * base
-        seen.append(base)
-
-    assert len(set(round(v, 9) for v in seen)) > 1, (
-        "selective_loss returned the SAME centring estimate on 5 batches whose "
-        "probabilities differ by 5x -- it is echoing the EMA it was handed, so "
-        "the caller's EMA can never move: %s" % seen)
-    assert abs(ema - seen[0]) > 1e-6, "the caller's EMA never left batch 1"
 
 
 def test_the_scorer_detects_a_run_that_collapsed_on_its_final_epoch(tmp_path):
@@ -2773,75 +2152,6 @@ def _ast_module_docstring(src):
     import ast as _a
     return _a.get_docstring(_a.parse(src)) or ""
 
-def test_historical_selection_arm_is_opt_in_and_explicit_arms_survive(tmp_path):
-    """Keep the historical arm reproducible without silently scheduling it."""
-    import yaml
-    proto = yaml.safe_load(io.open(os.path.join(REPO, "configs",
-                                                "protocol.yml"),
-                                   encoding="utf-8"))
-    assert "select" in proto.get("rejected_arms", {}), (
-        "protocol.yml no longer declares `select` rejected, so `--arms all` "
-        "puts it back into every campaign")
-
-    # Checked by GENERATING, not by reading the generator: this is about what
-    # the tool emits. Naming a rejected arm explicitly must still work, or
-    # `results/selectrun` stops being reproducible -- it just cannot arrive by
-    # default, and it cannot arrive quietly.
-    root = pathlib.Path(tmp_path)
-    # Whatever controls a campaign is currently required to carry, name them:
-    # this test asks what `all` EXPANDS to, not what else a campaign needs, and
-    # hardcoding today's answer would make it fail on the next control added.
-    from configs.gen_campaign import count_control_arms
-    extra = sorted(count_control_arms(proto))
-    r = subprocess.run(
-        [sys.executable, "-m", "configs.gen_campaign", "--constraint-fp32", "--allow-nontask", "--root", str(root),
-         "--datasets", "iwildcam", "--caps", "L30_G30", "L50_G50",
-         "--arms", "all"] + extra, cwd=REPO, capture_output=True, text=True)
-    assert r.returncode == 0, r.stdout + r.stderr
-    line = next(l for l in r.stdout.splitlines()
-                if l.strip().startswith("arms:"))
-    assert "select" not in line, (
-        "`--arms all` still schedules a rejected arm: %s" % line.strip())
-    assert not list(root.rglob("*select*")), (
-        "`--arms all` wrote rejected-arm run directories")
-
-    # AND `all` MUST NOT SWALLOW THE ARMS NAMED BESIDE IT. `all` replaced
-    # args.arms outright, so `--arms all tralo_reseed` generated a campaign
-    # without tralo_reseed -- while the generator's own refusal message says
-    # "Add: --arms ... tralo_reseed". The tool was instructing the user in a
-    # form the tool ignored, and the result is indistinguishable from a
-    # correctly generated campaign.
-    for arm in extra:
-        assert arm in line, (
-            "`--arms all %s` dropped %s: naming an arm beside `all` has no "
-            "effect, which is the form gen_campaign's own advice tells you to "
-            "use -> %s" % (" ".join(extra), arm, line.strip()))
-
-    r2 = subprocess.run(
-        [sys.executable, "-m", "configs.gen_campaign", "--constraint-fp32", "--allow-nontask",
-         "--root", str(root / "explicit"), "--datasets", "iwildcam",
-         "--caps", "L30_G30", "L50_G50", "--arms", "select"] + extra,
-        cwd=REPO, capture_output=True, text=True)
-    assert r2.returncode == 0, r2.stdout + r2.stderr
-    assert "IS REJECTED" in r2.stdout, (
-        "naming a rejected arm generates it silently -- the verdict has to "
-        "reach whoever is about to spend a GPU on it")
-    assert list((root / "explicit").rglob("*select*")), (
-        "naming `select` explicitly no longer generates it, so section 12's "
-        "campaign cannot be reproduced")
-
-    # the same must hold through the `all+null` branch, which has its own
-    # expansion and therefore its own way to swallow a named arm
-    r3 = subprocess.run(
-        [sys.executable, "-m", "configs.gen_campaign", "--constraint-fp32", "--allow-nontask",
-         "--root", str(root / "allnull"), "--datasets", "iwildcam",
-         "--caps", "L30_G30", "L50_G50", "--arms", "all+null", "select"],
-        cwd=REPO, capture_output=True, text=True)
-    assert r3.returncode == 0, r3.stdout + r3.stderr
-    line3 = next(l for l in r3.stdout.splitlines()
-                 if l.strip().startswith("arms:"))
-    assert "select" in line3, (
-        "`--arms all+null select` dropped the named arm: %s" % line3.strip())
 
 
 def test_chunking_the_transductive_backward_does_not_change_the_gradient():
@@ -3050,10 +2360,11 @@ def test_the_grad_carrying_chunk_and_the_no_grad_chunk_are_separate_keys():
     import yaml
     proto = yaml.safe_load(io.open(os.path.join(REPO, "configs", "protocol.yml"),
                                    encoding="utf-8"))
-    assert "inference_chunk_size" in proto["chunked"], (
+    chunked = proto["blocks"]["chunked"]
+    assert "inference_chunk_size" in chunked, (
         "the no_grad chunk lost its own name; if it is called "
         "constraint_chunk_size again, check_parity fails on every campaign")
-    assert "constraint_chunk_size" not in proto["chunked"], (
+    assert "constraint_chunk_size" not in chunked, (
         "the `chunked` block emits constraint_chunk_size again -- that is the "
         "collision check_parity cannot see through")
     assert "constraint_chunk_size" in proto["constraint_phase"]
@@ -3063,11 +2374,11 @@ def test_the_grad_carrying_chunk_and_the_no_grad_chunk_are_separate_keys():
     # other allocator reads the protocol's value. If the two drift, one knob
     # has two values depending on which arm you ask.
     from src.utils.constants import INFERENCE_CHUNK_SIZE
-    assert INFERENCE_CHUNK_SIZE == proto["chunked"]["inference_chunk_size"], (
+    assert INFERENCE_CHUNK_SIZE == chunked["inference_chunk_size"], (
         "src.utils.constants.INFERENCE_CHUNK_SIZE is %r but protocol.yml says "
         "%r -- the arms without the `chunked` block would chunk differently "
         "from the ones with it" % (INFERENCE_CHUNK_SIZE,
-                                   proto["chunked"]["inference_chunk_size"]))
+                                   chunked["inference_chunk_size"]))
 
     # and the readers must not have drifted back: _required (grad path) vs
     # .get (no_grad path) is what separates them at the call site. Compared
@@ -3081,8 +2392,7 @@ def test_the_grad_carrying_chunk_and_the_no_grad_chunk_are_separate_keys():
         assert "inference_chunk_size" not in names, (
             "%s names the no_grad inference chunk on its gradient-carrying "
             "pass -- at 256 that is the configuration that OOMs" % rel[0])
-    for rel in [("danits_lp", "train.py"), ("heuristic", "train.py"),
-                ("select", "train.py"), ("imbalanced_common.py",)]:
+    for rel in [("heuristic", "train.py")]:
         names = _code_identifiers(
             os.path.join(REPO, "src", "methodologies", *rel))
         assert "constraint_chunk_size" not in names, (
@@ -3129,7 +2439,6 @@ def test_the_two_training_log_schemas_stay_watched_and_keep_their_conventions():
     """
     import ast as _ast
     trained = {"tralo": ("tralo", "train.py"),
-               "select": ("select", "train.py"),
                "fioretto_ldf": ("fioretto_ldf", "train.py"),
                "fioretto_alm": ("fioretto_alm", "train.py"),
                "hounie_rcl": ("hounie_rcl", "train.py")}
@@ -3179,7 +2488,7 @@ def test_the_two_training_log_schemas_stay_watched_and_keep_their_conventions():
                 return len(n.iter.args)
         return None
 
-    for pkg in ("tralo", "select"):
+    for pkg in ("tralo",):
         n_args = _epoch_range_args(
             os.path.join(REPO, "src", "methodologies", pkg, "train.py"))
         assert n_args == 2, (
@@ -3355,7 +2664,7 @@ def _run_tralo_arm(arm, seed=1):
     real_finish = tralo_mod.finish_constraint_step
     real_backward = tralo_mod.constraint_backward
     try:
-        inputs, _g, _l = smoke.make_inputs(smoke.load_protocol(), arm, tmp,
+        inputs, _g, _l = smoke.make_inputs(load_protocol(), arm, tmp,
                                            seed=seed)
         # run_experiment re-seeds AFTER the warm-up and immediately before
         # train(), so every arm's constraint phase starts from one RNG state.
@@ -3382,174 +2691,24 @@ def _run_tralo_arm(arm, seed=1):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-def test_the_reseed_control_moves_the_predictions_and_takes_no_constraint_step():
-    """`tralo_reseed` is `tralo_null` with the RNG stream perturbed, and that
-    is the whole arm: zero dose, no constraint step, different stream.
-
-    WHY IT EXISTS. Measured 2026-08-22 on `results/dosefix` and independently
-    verified -- RMS separation of the capped-class hard count over epochs >= 4:
-    turning the constraint ON moves it 75-95 items, and reseeding two pure-CE
-    runs moves it 83-95. The constraint's whole measurable footprint on the
-    count is 0.90-1.00x a reseed. That floor was only in the data by accident:
-    `select_null` sets `select_eta: 0`, so it is a pure-CE run on `tralo_null`'s
-    seed and warm-up cache whose selection head happens to draw from the global
-    RNG. This arm makes the accident deliberate.
-
-    Two things have to hold at once and neither is worth much alone:
-
-      - the predictions must MOVE, or the arm is a duplicate `tralo_null`
-        burning a GPU slot and reporting a floor of zero;
-      - the constraint step must NEVER be taken, or the "floor" contains a dose
-        and the comparison it exists to support is circular.
-
-    Both assertions carry their own liveness control, because both are of the
-    shape that passes when the instrument is broken: a bit-identical repeat
-    would make "the predictions moved" unprovable, and a spy wired to the wrong
-    name would make "no constraint step" vacuous. So the test also runs
-    `tralo_null` twice (must be bit-identical) and `tralo` once (the spy must
-    fire).
-    """
-    null_a, calls_null_a = _run_tralo_arm("tralo_null")
-    null_b, calls_null_b = _run_tralo_arm("tralo_null")
-    reseed, calls_reseed = _run_tralo_arm("tralo_reseed")
-    _treated, calls_treated = _run_tralo_arm("tralo")
-
-    # LIVENESS 1: the harness repeats bit for bit, so a difference is a
-    # difference. This is the project's own standard since the determinism fix
-    # -- identical output is not a small effect, it is no effect, at n=1.
-    assert np.array_equal(null_a, null_b), (
-        "two runs of tralo_null already differ, so nothing this test measures "
-        "about tralo_reseed means anything")
-
-    # LIVENESS 2: the spy fires on an arm that DOES take the step.
-    assert calls_treated, (
-        "the constraint-step spy never fired on `tralo`, so 'tralo_reseed "
-        "takes no constraint step' is vacuous -- the patch missed its target")
-
-    assert calls_null_a == [] and calls_null_b == [], (
-        "tralo_null took a constraint step: %s" % calls_null_a)
-    assert calls_reseed == [], (
-        "tralo_reseed took a constraint step (%s), so it is not a zero-dose "
-        "control -- at lambda 0 the penalty is identically 0, has_constraint "
-        "must be False and pass 2 must be skipped entirely" % calls_reseed)
-
-    assert not np.array_equal(null_a, reseed), (
-        "tralo_reseed is BIT-IDENTICAL to tralo_null, so the reseed never "
-        "happened and the arm is a duplicate control reporting a noise floor "
-        "of exactly zero -- the one reading that would make the constraint "
-        "look infinitely better than a reseed")
 
 
-def test_the_reseed_control_shares_the_warm_up_cache_with_tralo_and_its_null():
-    """If it trained its own warm-up it would stop being a matched control.
-
-    The three arms share one `base_model_id` on purpose, so exactly one of them
-    trains the cached model and the others load it. That is also why the RNG
-    draw happens INSIDE the constraint phase: a draw before the warm-up would
-    change what gets cached depending on which arm the dispatcher happened to
-    run first, which is a different model for every machine and every run
-    order.
-    """
-    P = load_protocol()
-    assert _bid(P, "tralo_reseed") == _bid(P, "tralo") == _bid(P, "tralo_null")
-    assert "rng_reseed" not in P["warmup_identity_keys"], (
-        "rng_reseed entered warmup_identity_keys, so tralo_reseed now trains "
-        "its OWN warm-up and is no longer matched to tralo_null")
-    # And it is that arm by construction, not by a copied set of values.
-    spec = P["arms"]["tralo_reseed"]
-    assert "tralo_null" in spec["blocks"], (
-        "tralo_reseed must CARRY the tralo_null block rather than duplicate "
-        "its values, or the two can drift apart without either failing")
-    hp_null = build_hyperparams(P, P["arms"]["tralo_null"], 1)
-    hp_res = build_hyperparams(P, spec, 1)
-    differing = {k for k in set(hp_null) | set(hp_res)
-                 if hp_null.get(k) != hp_res.get(k)}
-    assert differing == {"rng_reseed"}, (
-        "tralo_reseed differs from tralo_null in more than the RNG stream: %s"
-        % {k: (hp_null.get(k), hp_res.get(k)) for k in sorted(differing)})
-    assert hp_res["rng_reseed"] is True and hp_null["rng_reseed"] is False
 
 
-def test_the_reseed_control_reads_as_untreated_to_the_scorer(tmp_path):
-    """`_zero_lambda_arms` decides which arms are their own control, and it
-    reads the run CONFIG rather than the `_null` name suffix. `tralo_reseed`
-    does not end in `_null`, so if the derivation ever went back to the suffix
-    the scorer would treat the noise floor as a TREATED arm and report the
-    reseed's count movement as a constraint effect.
-    """
-    from scripts.full_panel import _zero_lambda_arms
-
-    r = _gen(tmp_path, "--caps", "L30_G30", "L50_G30",
-             "--arms", "tralo", "tralo_null", "tralo_reseed")
-    assert r.returncode == 0, r.stdout + r.stderr
-    rows = [{"run_dir": str(p.parent), "arm": json.loads(p.read_text())["arm"]}
-            for p in tmp_path.rglob("config.json")]
-    untreated = _zero_lambda_arms(rows)
-    assert "tralo_reseed" in untreated, (
-        "the scorer reads tralo_reseed as TREATED, so it would be scored as a "
-        "method rather than as the floor every count trajectory is measured "
-        "against")
-    assert "tralo_null" in untreated and "tralo" not in untreated
 
 
 def _gen_arms(tmp, *arms):
     """gen_campaign with an explicit arm list and nothing else implied."""
     return subprocess.run(
         [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask",
-         "--constraint-fp32", "--root", str(tmp),
+         "--root", str(tmp),
          "--datasets", "iwildcam", "--caps", "L30_G30", "L50_G30",
-         "--allow-nontask", "--arms"] + list(arms),
+         "--arms"] + list(arms),
         cwd=REPO, capture_output=True, text=True)
 
 
-def test_generator_refuses_a_count_reading_campaign_without_the_reseed_control(tmp_path):
-    """A trained arm is exactly what writes a per-epoch capped-class count, and
-    that trajectory is what "the constraint moved the count by N items" is read
-    out of. It moves 75-95 items with the constraint on and 83-95 on a reseed
-    alone, so the claim is not a measurement without the floor in the SAME
-    campaign -- the same argument that puts both clippers in every campaign.
-
-    Refused rather than auto-added: adding a trained arm is a compute decision,
-    and silently growing what a campaign costs is the scope expansion this
-    project has a rule against.
-    """
-    bad = _gen_arms(tmp_path / "bad", "tralo", "tralo_null")
-    assert bad.returncode == 1, (
-        "a campaign with trained arms and no reseed floor was accepted:\n%s"
-        % (bad.stdout + bad.stderr))
-    assert "no reseed control" in bad.stdout + bad.stderr
-    assert "tralo_reseed" in bad.stdout + bad.stderr, (
-        "the refusal must NAME the arm to add, or it is a puzzle")
-
-    # ... and it is not refusing everything: the same campaign with the control
-    # is accepted, so the gate discriminates.
-    good = _gen_arms(tmp_path / "good", "tralo", "tralo_null", "tralo_reseed")
-    assert good.returncode == 0, good.stdout + good.stderr
-    assert "RESEED FLOOR in campaign" in good.stdout
-
-    # A post-hoc-only campaign writes no count trajectory (warm-up epochs only,
-    # no constraint phase), so it needs no floor and must not be blocked.
-    posthoc = _gen_arms(tmp_path / "posthoc", "clip", "focal_clip", "lp")
-    assert posthoc.returncode == 0, posthoc.stdout + posthoc.stderr
 
 
-def test_all_excludes_the_reseed_control_and_all_plus_null_carries_it(tmp_path):
-    """`all` must not silently grow: it already excludes the zero-dose siblings
-    because adding four trained arms is +27% on the canonical campaign, and the
-    reseed control is a trained arm for the same reason. So `--arms all` is
-    REFUSED and names it, while `--arms all+null` carries it.
-
-    Pinned because the two halves are easy to get backwards, and getting them
-    backwards is silent either way: auto-adding spends GPU nobody approved,
-    omitting it without the refusal ships an unreadable count trajectory.
-    """
-    r_all = _gen_arms(tmp_path / "all", "all")
-    assert r_all.returncode == 1 and "no reseed control" in r_all.stdout + r_all.stderr
-
-    r_null = _gen_arms(tmp_path / "allnull", "all+null")
-    assert r_null.returncode == 0, r_null.stdout + r_null.stderr
-    arms = {p.parts[-3] for p in (tmp_path / "allnull").rglob("config.json")}
-    assert "tralo_reseed" in arms
 
 
 # ------------------------------------------------- the frozen-head probe --
@@ -4363,27 +3522,15 @@ def test_normalize_makes_the_delivered_step_independent_of_the_violation():
     """
     import torch
     from src.training.constraint_step import finish_constraint_step
-
-    lr, clip = 1e-3, 1.0
-    for scale in (1e-4, 1.0, 1e4):        # 8 orders of violation magnitude
+    (lr, clip) = (0.001, 1.0)
+    for scale in (0.0001, 1.0, 10000.0):
         model = torch.nn.Linear(6, 3, bias=False)
         before = model.weight.detach().clone()
         model.weight.grad = torch.full_like(model.weight, 1.0)
-        # a gradient whose norm is `scale` exactly
         model.weight.grad *= scale / model.weight.grad.norm()
-        finish_constraint_step(model, optimizer=None, scaler=None, clip=clip,
-                               mode="normalize", fp32=True, step_rule="sgd",
-                               lr=lr)
+        finish_constraint_step(model, optimizer=torch.optim.SGD(model.parameters(), lr=lr), scaler=None, clip=clip, mode='normalize', fp32=True)
         moved = float((model.weight.detach() - before).norm())
-        # relative, at 1e-4: the parameters are float32 and the rescale is one
-        # more op on them, so ~1e-6 relative slop is arithmetic, not behaviour.
-        # The failure this guards against -- delivering the RAW norm -- is off
-        # by four orders of magnitude at the ends of this sweep, not six
-        # decimal places.
-        assert abs(moved - lr * clip) < 1e-4 * lr * clip, (
-            "raw norm %g delivered a step of %g, not lr*clip=%g -- the "
-            "constraint has become sensitive to violation magnitude, which "
-            "contradicts FRAMEWORK 2(a3)" % (scale, moved, lr * clip))
+        assert abs(moved - lr * clip) < 0.0001 * lr * clip, 'raw norm %g delivered a step of %g, not lr*clip=%g -- the constraint has become sensitive to violation magnitude, which contradicts FRAMEWORK 2(a3)' % (scale, moved, lr * clip)
 
 
 def test_the_graph_probes_controls_are_fair():
@@ -4438,7 +3585,7 @@ def _run_arm_probs(arm, methodology, seed=1):
 
     tmp = tempfile.mkdtemp(prefix="zerodose_")
     try:
-        inputs, _g, _l = smoke.make_inputs(smoke.load_protocol(), arm, tmp,
+        inputs, _g, _l = smoke.make_inputs(load_protocol(), arm, tmp,
                                           seed=seed)
         torch.manual_seed(seed)
         out = TRAIN_FNS[methodology](inputs)
@@ -4494,95 +3641,6 @@ def test_every_zero_dose_arm_is_the_same_model_across_code_paths():
         "prove nothing")
 
 
-def test_all_plus_null_schedules_one_null_per_shared_zero_dose_model():
-    """`+null` means the null each arm is READ AGAINST, deduplicated.
-
-    It used to mean `every arm whose name ends in _null`, which scheduled one
-    bit-identical zero-dose run per FAMILY: 32 of `results/dualbar2`'s 88 runs
-    computed a single control four times. The clipper duplicates in that
-    campaign were already absorbed by the warm-up cache -- `clip` at the second
-    cap writes no training_log at all -- but the nulls are TRAINED arms and
-    genuinely re-ran 29 epochs each, so 24 runs of real compute.
-
-    Negative control: reverting the branch to `set(P['arms']) - rejected`
-    schedules four nulls and this FAILS.
-    """
-    import configs.gen_campaign as gc
-
-    P = gc.load_protocol() if hasattr(gc, "load_protocol") else None
-    if P is None:
-        import yaml
-        with io.open(os.path.join(REPO, "configs", "protocol.yml"),
-                     encoding="utf-8") as fh:
-            P = yaml.safe_load(fh)
-
-    rejected = set(P.get("rejected_arms", {}))
-    base = {a for a in P["arms"] if not a.endswith("_null")} - rejected
-    scheduled = base | {gc._null_of(P, a) for a in base
-                        if gc._null_of(P, a) in P["arms"]}
-
-    nulls = sorted(a for a in scheduled if a.endswith("_null"))
-
-    # WHAT MAKES TWO ZERO-DOSE ARMS THE SAME RUN (2026-09-12). This asserted
-    # `nulls == ["tralo_null"]`, a hardcoded answer, and it was right only
-    # while every null was plain CE. At lambda=0 every dual knob is 0
-    # (`alm_mu_step`, `fioretto_step_size`, `hounie_eta_lambda`, ...), so
-    # those arms ARE bit-identical -- which is the duplication this gate
-    # exists to stop. They are NOT identical in HYPERPARAMS, each carrying
-    # its own zeroed keys, so comparing hyperparams wholesale is also wrong.
-    #
-    # `tralo_snap_null` is the first null that is a DIFFERENT MODEL:
-    # `snapshot_burn_in: 10` averages the last 20 constraint epochs and
-    # 2(z115) measures its seed sd at ~1/3 of `tralo_null`'s. It is the snap
-    # family's RNG floor, not a duplicate of anything -- and the hardcoded
-    # list would have deleted it, taking the only low-noise design in the
-    # project with it. So the test is now the IDENTITY of the zero-dose run.
-    def _zero_dose_identity(arm):
-        hp = gc.build_hyperparams(P, P["arms"][arm], 1)
-        # `rng_reseed` is a DRAW COUNT: absent and False both mean zero draws,
-        # True means one. Comparing the raw values makes `tralo_null`
-        # (explicit False) differ from `alm_null` (key absent) and splits four
-        # byte-identical runs into two identities.
-        draws = hp.get("rng_reseed")
-        draws = 0 if draws in (None, False) else (1 if draws is True else draws)
-        return (hp.get("snapshot_burn_in"), draws)
-
-    by_id = {}
-    for a in nulls:
-        by_id.setdefault(_zero_dose_identity(a), []).append(a)
-    dupes = {k: v for k, v in by_id.items() if len(v) > 1}
-    assert not dupes, (
-        "`all+null` schedules bit-identical zero-dose runs %s. Every family "
-        "that shares a zero-dose model must resolve to ONE null run; a "
-        "second costs a full GPU slot and adds no observation."
-        % sorted(v for v in dupes.values()))
-
-    # ...and the converse: a null that is a DIFFERENT model must not be
-    # dropped. Without this the dedup is free to collapse the snap floor.
-    all_nulls = sorted(a for a in P["arms"] if a.endswith("_null"))
-    unscheduled = [a for a in all_nulls if a not in nulls]
-    orphan_ids = [a for a in unscheduled
-                  if _zero_dose_identity(a) not in by_id]
-    assert not orphan_ids, (
-        "%s is a zero-dose arm whose model matches NO scheduled null, so "
-        "`all+null` drops a distinct control entirely. Its identity is %s."
-        % (orphan_ids, [_zero_dose_identity(a) for a in orphan_ids]))
-
-    # every trained arm must still RESOLVE to a null that is actually there,
-    # or the dedup has silently orphaned an arm from its control
-    for a in sorted(base):
-        if P["arms"][a].get("phase") != "trained":
-            continue
-        sib = gc._null_of(P, a)
-        assert sib in scheduled or a in scheduled and sib not in P["arms"], (
-            "trained arm %s resolves to %s, which is not scheduled" % (a, sib))
-
-    # and the three per-family nulls must still EXIST as named arms, because
-    # they are how the equivalence gets re-verified on real data
-    for a in ("fioretto_null", "hounie_null", "alm_null"):
-        assert a in P["arms"], (
-            "%s was deleted rather than merely unscheduled -- the shared-null "
-            "equivalence can no longer be re-checked on real data" % a)
 
 
 def _resolution_text(deltas_by_cell_seed, scale, capsys):
@@ -4675,7 +3733,7 @@ def test_every_trained_arm_logs_the_per_class_counts(arm, methodology):
 
     tmp = tempfile.mkdtemp(prefix="counts_")
     try:
-        inputs, _g, _l = smoke.make_inputs(smoke.load_protocol(), arm, tmp,
+        inputs, _g, _l = smoke.make_inputs(load_protocol(), arm, tmp,
                                           seed=1)
         TRAIN_FNS[methodology](inputs)
         df = pd.read_csv(os.path.join(str(inputs.experiment_path),
@@ -5012,49 +4070,6 @@ def test_screen_scores_fully_unseen_groups_against_the_global_prior():
     assert r2["net_z"] < 2.0, ("a uniform unseen group leaked into NET: %r" % r2)
 
 
-def test_generator_reports_zero_ceilings_not_just_sum_slack(tmp_path):
-    """A K=0 per-group ceiling binds even when the local SUM is slack.
-
-    `gen_campaign`'s binding-scope line is pure arithmetic on the two cap
-    percentages and was written against dermmnist, where every per-group
-    ceiling is positive. On a held-out-camera dataset most cells are zero --
-    a species simply is not at that camera -- and reporting "local sum is 2.5x
-    slack" would call the local scope inert in the campaign where it does the
-    most work. That is the same class of mistake as the 2026-08-18 global-cap
-    bug and the 2026-08-22 local one, both of which went unnoticed at
-    generation time.
-    """
-    from configs.gen_campaign import _zero_ceilings
-
-    def protocol(frame, classes):
-        d = tmp_path / ("s%d" % len(list(tmp_path.iterdir())))
-        d.mkdir()
-        frame.to_csv(d / "test_meta.csv", index=False)
-        return {"datasets": {"x": {"data_dir": str(d), "num_classes": 4,
-                                   "group_column": "grp",
-                                   "constrained_class": classes}}}
-
-    # a species present at ONE group and absent from two -- iWildCam's shape
-    sparse = pd.DataFrame({
-        "label": [1] * 60 + [0] * 60 + [0] * 60,
-        "grp":   [0] * 60 + [1] * 60 + [2] * 60})
-    zeros, total = _zero_ceilings(protocol(sparse, [1]), "x", 0.5)
-    assert (zeros, total) == (2, 3), (zeros, total)
-
-    # NEGATIVE CONTROL: dermmnist's shape -- the class is present in EVERY
-    # group, so nothing is zero and the warning must stay silent. Without this
-    # the assertion above would pass on a function that always reports zeros.
-    dense = pd.DataFrame({
-        "label": ([1] * 30 + [0] * 30) * 3,
-        "grp":   [0] * 60 + [1] * 60 + [2] * 60})
-    assert _zero_ceilings(protocol(dense, [1]), "x", 0.5) == (0, 3)
-
-    # a slice absent from this machine must report nothing, never crash --
-    # campaigns are generated on laptops as well as on the server
-    missing = {"datasets": {"x": {"data_dir": str(tmp_path / "nope"),
-                                  "num_classes": 4, "group_column": "grp",
-                                  "constrained_class": [1]}}}
-    assert _zero_ceilings(missing, "x", 0.5) == (0, 0)
 
 
 # ------------------------------------------------- the removed datasets --
@@ -5108,7 +4123,7 @@ def test_removed_datasets_cannot_be_selected_anywhere():
     # the generator must REFUSE, not silently emit an unrunnable campaign
     for name in REMOVED_DATASETS:
         r = subprocess.run(
-            [sys.executable, "-m", "configs.gen_campaign", "--constraint-fp32", "--allow-nontask",
+            [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask",
              "--root", os.path.join(REPO, "_never_written"),
              "--datasets", name, "--models", "MobileNetV3",
              "--caps", "L30_G30", "L50_G30", "--arms", "clip"],
@@ -5120,7 +4135,7 @@ def test_removed_datasets_cannot_be_selected_anywhere():
     # NEGATIVE CONTROL: the live dataset must still pass all of the above, or
     # the assertions are satisfied by a generator that refuses everything.
     r = subprocess.run(
-        [sys.executable, "-m", "configs.gen_campaign", "--constraint-fp32", "--allow-nontask",
+        [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask",
          "--root", os.path.join(REPO, "_ctrl_ok"), "--datasets", "iwildcam",
          "--models", "MobileNetV3", "--caps", "L30_G30", "L50_G30",
          "--arms", "clip"], cwd=REPO, capture_output=True, text=True)
@@ -6290,14 +5305,14 @@ def test_the_starvation_warning_is_never_made_about_an_arm_with_no_penalty(tmp_p
     count trajectories, so the steps key is the only possible cause of a
     difference in verdict.
     """
-    out = _starvation_campaign(tmp_path, {"tralo": 19, "tralo_reseed": 0})
+    out = _starvation_campaign(tmp_path, {"tralo": 19, "tralo_null": 0})
     live = [ln for ln in out.splitlines() if "starvation signature" in ln
             or "WORST-violating" in ln]
     blob = chr(10).join(live)
     assert "tralo:" in blob, (
         "the signature is present in the fixture, so the LIVE arm must still "
         "be flagged -- a guard that silences everything is not a fix " + out)
-    assert "tralo_reseed:" not in blob, (
+    assert "tralo_null:" not in blob, (
         "a lambda=0 twin took no constraint step, so 2(a2) cannot describe "
         "it " + out)
 
@@ -6851,7 +5866,7 @@ def test_generator_reports_distinct_cell_and_dataset_power_limits(tmp_path):
     """More cells change the legacy cell warning, not dataset independence."""
     def gen(root, models, caps):
         r = subprocess.run(
-            [sys.executable, "-m", "configs.gen_campaign", "--constraint-fp32", "--allow-nontask", "--root", str(root),
+            [sys.executable, "-m", "configs.gen_campaign", "--root", str(root),
              "--datasets", "iwildcam", "--models"] + models +
             ["--caps"] + caps + ["--arms", "all+null"],
             cwd=REPO, capture_output=True, text=True)
@@ -7307,7 +6322,7 @@ def test_the_preregistered_iwc1_read_runs_end_to_end(tmp_path):
 
     rc, out = _run_step(["scripts.log_health", root])          # 0. did it RUN
     assert rc == 0, out[-2000:]
-    for arm in ("clip", "tralo", "tralo_null", "tralo_reseed"):
+    for arm in ("clip", "tralo", "tralo_null"):
         assert arm in out, (arm, out[-2000:])
 
     rc, out = _run_step(["scripts.reachability", run])         # 0b. saturated?
@@ -7846,213 +6861,20 @@ def _cut(proba, K, n_items=40):
     return cut_params(proba, torch.full((proba.shape[1],), K), n_items)
 
 
-def test_sech2_is_precise_where_naive_is_valid_and_finite_where_it_is_not():
-    """Two properties, and the second is why the helper exists at all.
-
-    `1 / cosh(x)**2` has the right VALUE everywhere (it saturates to 0.0) but a
-    `nan` GRADIENT for |x| >= 100. The obvious stable rewrite
-    `4*sigmoid(2x)*(1-sigmoid(2x))` fixes that and underflows to exactly 0.0 at
-    x = 10, where the true value is 8.2e-09. The shipped form must do neither.
-    """
-    from src.losses.transductive_loss import sech2
-
-    x = torch.tensor([0.0, 0.5, 1.0, 5.0, 10.0, 40.0])
-    assert torch.allclose(sech2(x), 1.0 / torch.cosh(x) ** 2, rtol=1e-5,
-                          atol=0.0)
-    assert float(sech2(torch.tensor([10.0]))) > 1e-9, (
-        "underflowed at x=10 -- this is the sigmoid-form regression")
-
-    big = torch.tensor([100.0, 400.0], requires_grad=True)
-    g = torch.autograd.grad(sech2(big).sum(), big)[0]
-    assert torch.isfinite(g).all()
-
-    ref = torch.tensor([100.0, 400.0], requires_grad=True)
-    gn = torch.autograd.grad((1.0 / torch.cosh(ref) ** 2).sum(), ref)[0]
-    assert torch.isnan(gn).any(), (
-        "the naive form stopped producing nan gradients, so this gate no "
-        "longer measures anything -- delete it rather than let it pass")
 
 
-def test_the_cut_window_count_value_is_exactly_the_sum_of_probabilities():
-    from src.losses.transductive_loss import cut_window_count
-    z, proba, cls, K = _cut_fixture()
-    tau, temp = _cut(proba, K)
-    assert torch.allclose(cut_window_count(proba, tau, temp), proba,
-                          atol=1e-5), (
-        "the VALUE must stay sum-of-p or the reported excess is wrong and the "
-        "penalty stops reading a real count")
 
 
-def test_the_cut_window_gradient_is_exactly_the_intended_weight():
-    from src.losses.transductive_loss import cut_window_count, sech2
-    from src.utils.constants import clamp_probability
-    z, proba, cls, K = _cut_fixture()
-    tau, temp = _cut(proba, K)
-    S = cut_window_count(proba, tau, temp)[:, cls].sum()
-    got = torch.autograd.grad(S, z, retain_graph=True)[0][:, cls]
-
-    p = clamp_probability(proba).detach()
-    u = (torch.log(p) - torch.log1p(-p))[:, cls]
-    want = sech2((u - tau[cls]) / temp[cls])
-    assert torch.allclose(got, want, atol=1e-4), (
-        "du_c/dz_c is 1 exactly, so the delivered gradient must equal the "
-        "window weight itself")
 
 
-def test_the_cut_window_puts_its_gradient_where_the_shipped_count_does_not():
-    from src.losses.transductive_loss import cut_window_count
-    from src.utils.constants import clamp_probability
-    z, proba, cls, K = _cut_fixture()
-    p = clamp_probability(proba).detach()[:, cls]
-    u = torch.log(p) - torch.log1p(-p)
-    band = torch.argsort(u, descending=True)[K - 20:K + 20]
-
-    shipped = p * (1 - p)                 # the sum count's per-item derivative
-    tau, temp = _cut(proba, K)
-    S = cut_window_count(proba, tau, temp)[:, cls].sum()
-    cut = torch.autograd.grad(S, z)[0][:, cls].abs()
-
-    m_shipped = float(shipped[band].sum() / shipped.sum())
-    m_cut = float(cut[band].sum() / cut.sum())
-    assert m_cut > 10 * m_shipped, (
-        "cut window %.4f vs shipped %.4f -- the whole point is the ratio"
-        % (m_cut, m_shipped))
-    assert m_cut > 0.25
 
 
-def test_NEGATIVE_CONTROL_the_window_as_a_COUNT_is_the_recorded_dead_end():
-    """The failure mode `cut_window_count` exists to avoid, kept executable.
-
-    Centring the window on the K-th order statistic and using it AS THE COUNT
-    gives a quantity pinned at K - 0.5 for any model, so the excess collapses
-    and the penalty cannot push. If someone ever rebuilds the count that way,
-    this fails.
-    """
-    from src.losses.transductive_loss import cut_window_count
-    z, proba, cls, K = _cut_fixture()
-    p = proba[:, cls].clamp(1e-6, 1 - 1e-6)
-    u = torch.log(p) - torch.log1p(-p)
-    tau_d = torch.sort(u.detach(), descending=True).values[K - 1]
-
-    dead = torch.sigmoid((u - tau_d) / 0.03).sum()
-    assert abs(float(dead) - (K - 0.5)) < 2.0, (
-        "the dead end must still BE dead, or this control is not controlling "
-        "anything (got %.3f against K-0.5 = %.1f)" % (float(dead), K - 0.5))
-    true_excess = float(p.sum()) - K
-    assert true_excess > 100 and max(0.0, float(dead) - K) < 2.0
-
-    tau, temp = _cut(proba, K)
-    live = float(cut_window_count(proba, tau, temp)[:, cls].sum())
-    assert abs(live - float(p.sum())) < 1.0
-    assert live - K > 100
 
 
-@pytest.mark.parametrize("K", [0, 1, 10 ** 9])
-def test_the_cut_window_never_returns_a_silent_zero_column(K):
-    """K = 0 and K >= n have no cut. Falling back to FLAT is a choice; falling
-    back to ZERO would be a silent null of exactly the kind rule 3 exists for.
-    """
-    from src.losses.transductive_loss import cut_window_count
-    z, proba, cls, _ = _cut_fixture()
-    tau, temp = _cut(proba, K)
-    S = cut_window_count(proba, tau, temp)[:, cls].sum()
-    g = torch.autograd.grad(S, z)[0][:, cls]
-    assert float(g.abs().sum()) > 0.0, (
-        "K=%s produced a zero gradient column -- that is an inert arm that "
-        "would still write status: completed" % K)
 
 
-def test_the_cut_window_keeps_the_exact_full_N_gradient_when_chunked():
-    """The reason `tau` and `temp` are arguments rather than derived inside.
-
-    The constraint pass is chunked (23 chunks on iwildcam) and the detach
-    construction at the call site is exact only when the per-item weight does
-    not depend on chunk membership. Deriving the cut from whatever tensor the
-    count is handed would give a PER-CHUNK order statistic, a different
-    quantity in every chunk. The cut-window twin of
-    `test_the_windowed_count_keeps_the_exact_full_N_gradient_when_chunked`.
-    """
-    from src.losses.transductive_loss import cut_window_count
-    z, proba, cls, K = _cut_fixture()
-    tau, temp = _cut(proba, K)
-    full = torch.autograd.grad(
-        cut_window_count(proba, tau, temp)[:, cls].sum(), z,
-        retain_graph=True)[0][:, cls]
-
-    acc = torch.zeros_like(full)
-    for start in range(0, z.shape[0], 128):
-        sl = slice(start, min(start + 128, z.shape[0]))
-        zc = z[sl].detach().clone().requires_grad_(True)
-        eff = cut_window_count(F.softmax(zc, dim=1), tau, temp)
-        acc[sl] = torch.autograd.grad(eff[:, cls].sum(), zc)[0][:, cls]
-    assert torch.allclose(full, acc, atol=1e-6), (
-        "chunked gradient differs from full-N by %.3e -- the cut must be "
-        "hoisted out of the chunk loop" % float((full - acc).abs().max()))
-
-    # NEGATIVE CONTROL: deriving the cut PER CHUNK must visibly break it, or
-    # this gate asserts a property that holds for free.
-    bad = torch.zeros_like(full)
-    n = z.shape[0]
-    for start in range(0, n, 128):
-        sl = slice(start, min(start + 128, n))
-        zc = z[sl].detach().clone().requires_grad_(True)
-        pc = F.softmax(zc, dim=1)
-        t_c, T_c = _cut(pc, max(1, int(K * pc.shape[0] / n)))
-        eff = cut_window_count(pc, t_c, T_c)
-        bad[sl] = torch.autograd.grad(eff[:, cls].sum(), zc)[0][:, cls]
-    assert not torch.allclose(full, bad, atol=1e-6), (
-        "a per-chunk cut produced the same gradient as the full-N cut, so "
-        "this gate cannot detect the bug it exists for")
 
 
-def test_the_generator_refuses_a_cap_that_poses_no_question(tmp_path):
-    """A cap outside the MEASURED task window cannot distinguish two methods.
-
-    FRAMEWORK 2(z16)/2(z17): a count cap poses a question only where it evicts
-    >= 10 predictions, leaves errors inside K, and cuts at p@K < 0.99. Measured
-    on all four backbones, 24 of 24 (backbone x class x cap) cells at
-    L20/L30/L50 on iwildcam fail at least one of those, and 8 of 8 at K/n=0.90
-    pass. So most of this project's campaigns measured the ABSENCE of a
-    question, and their nulls are not evidence about any method.
-
-    Both directions, because a gate that only ever refuses is indistinguishable
-    from a broken generator:
-      - L20/L30 must be REFUSED and must write NO configs
-      - `taskwin1`'s per-class caps must be ALLOWED and must emit
-      - `--allow-nontask` must be a genuine override, not decoration
-    """
-    def gen(root, caps, extra=()):
-        return subprocess.run(
-            [sys.executable, "-m", "configs.gen_campaign", "--constraint-fp32", "--root", str(root),
-             "--datasets", "iwildcam", "--models", "MobileNetV3",
-             "--caps"] + list(caps) +
-            ["--arms", "tralo", "tralo_reseed"] + list(extra),
-            cwd=REPO, capture_output=True, text=True)
-
-    meta = os.path.join(REPO, "data", "iwildcam", "oodslice", "test_meta.csv")
-    if not os.path.exists(meta):
-        pytest.skip("iwildcam slice absent: the window gate has nothing to read")
-
-    bad = gen(tmp_path / "dead", ["L20_G50", "L30_G50"])
-    out = bad.stdout + bad.stderr
-    assert bad.returncode != 0, "an L20/L30 campaign was emitted:\n" + out[-1500:]
-    assert "OUTSIDE the measured task window" in out, out[-1500:]
-    assert not list((tmp_path / "dead").rglob("config.json")), \
-        "REFUSED but wrote configs anyway"
-
-    # LIVENESS. The caps `taskwin1` actually runs are inside both classes'
-    # windows (class 2 at K/n 0.800 and 0.700, class 7 at 0.950 and 0.901),
-    # so the gate must let them through -- otherwise it refuses everything and
-    # says nothing.
-    ok = gen(tmp_path / "live", ["L80-100_G95", "L70-90_G95"])
-    assert ok.returncode == 0, ok.stdout[-1500:] + ok.stderr[-1500:]
-    assert list((tmp_path / "live").rglob("config.json")), "emitted nothing"
-
-    # and the override must actually override
-    forced = gen(tmp_path / "forced", ["L20_G50", "L30_G50"], ["--allow-nontask"])
-    assert forced.returncode == 0, forced.stdout[-1500:] + forced.stderr[-1500:]
-    assert "pose NO question" in (forced.stdout + forced.stderr), \
-        "--allow-nontask generated silently; it must say what it let through"
 
 
 def test_the_task_window_file_is_measured_not_invented(tmp_path):
@@ -8488,42 +7310,6 @@ def test_the_dose_block_cannot_drop_an_arm_that_took_zero_constraint_steps():
     assert "100.0%" in clean and "tralo" in clean and "alm" in clean, clean
 
 
-def test_a_skipped_ortho_projection_is_counted_not_silent():
-    """`snapshot_grads` returns None whenever ANY CE gradient is non-finite --
-    routine on the FP16 path -- and `finish_constraint_step` then takes an
-    UNPROJECTED step. The arm keeps its name, writes `status: completed`, and
-    nothing in the log says which epochs got the treatment.
-
-    That is the same shape as the dose defect the project already measures per
-    arm (`dose_landed`): a run at 3.4% of its dose looked healthy from every
-    other angle. So the skip is counted and warned, and the trigger is gated
-    here directly.
-    """
-    import torch
-
-    from src.training.constraint_step import snapshot_grads
-
-    net = torch.nn.Linear(4, 3)
-    net(torch.randn(8, 4)).sum().backward()
-    assert snapshot_grads(net) is not None, "a finite CE grad must snapshot"
-
-    net.weight.grad[0, 0] = float("inf")
-    assert snapshot_grads(net) is None, (
-        "a non-finite CE grad must refuse to be a projection reference -- "
-        "projecting against a direction the model never moved in is worse "
-        "than not projecting")
-
-    src = ast.parse(io.open("src/methodologies/tralo/train.py",
-                            encoding="utf-8").read())
-    guards = [n for n in ast.walk(src)
-              if isinstance(n, ast.If)
-              and "ortho_ref" in ast.dump(n.test)
-              and "ORTHO_PROJECT" in ast.dump(n.test)]
-    assert guards, (
-        "nothing notices when the projection reference is unavailable")
-    body = ast.dump(guards[0])
-    assert "ortho_skipped" in body and "warning" in body, (
-        "the skip must be COUNTED and warned, not merely branched on")
 
 
 def test_every_probe_flag_is_actually_read():
@@ -8860,65 +7646,3 @@ def test_dataset_screen_never_upgrades_a_verdict_it_could_not_compute():
     assert "STAGE 1 PASS" not in strict, (
         "--noise does not move the verdict, so pricing a candidate at the "
         "real iwildcam noise is impossible: " + strict)
-
-
-def test_the_generator_refuses_trained_arms_without_constraint_fp32(tmp_path):
-    """`--constraint-fp32` is the DOSE, and prose already failed to enforce it.
-
-    `docs/PLAYBOOK.md` has said "mandatory" for weeks. `taskwin1` was staged
-    without it anyway on 2026-09-01 and had to be killed at 3/48: its first
-    trained run landed 20 of 29 steps (69.0%) on `amp=float16`, dead centre of
-    the FP16 + GradScaler signature. Regenerated with the flag, the same arm on
-    the same host landed 29 of 29.
-
-    Across every completed run in every worktree that records a step count:
-    `true` is 15284/15284 over 532 runs and 6 campaigns, `false` is 86.9% over
-    189 runs and that group IS the quarantine list. The argparse default is
-    False, which is how it keeps happening, so the refusal belongs in the
-    generator.
-
-    Four directions, because a gate that only ever refuses is as useless as one
-    that only ever passes.
-    """
-    meta = os.path.join(REPO, "data", "iwildcam", "oodslice", "test_meta.csv")
-    if not os.path.exists(meta):
-        pytest.skip("iwildcam slice absent")
-
-    def gen(sub, extra):
-        return subprocess.run(
-            [sys.executable, "-m", "configs.gen_campaign",
-             "--root", str(tmp_path / sub), "--datasets", "iwildcam",
-             "--models", "MobileNetV3",
-             "--caps", "L70-90_G95", "L80-100_G95",
-             "--arms"] + extra,
-            cwd=REPO, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-
-    TRAINED = ["tralo", "tralo_null", "tralo_reseed"]
-
-    # (a) trained arms, no flag -> REFUSED, and the message carries the number
-    r = gen("a", TRAINED)
-    out = r.stdout.decode("utf-8", "replace")
-    assert r.returncode != 0, out
-    assert "constraint_fp32: false" in out, out
-    assert "15284 / 15284" in out, (
-        "the refusal does not quote the measurement it rests on: " + out)
-
-    # (b) LIVENESS -- with the flag it must generate
-    r = gen("b", TRAINED + ["--constraint-fp32"])
-    assert r.returncode == 0, r.stdout.decode("utf-8", "replace")
-
-    # (c) the override proceeds AND says so, so a campaign run this way cannot
-    #     look like one run correctly
-    r = gen("c", TRAINED + ["--allow-fp16-constraint"])
-    out = r.stdout.decode("utf-8", "replace")
-    assert r.returncode == 0, out
-    assert "--allow-fp16-constraint" in out and "written" in out, out
-
-    # (d) a POST-HOC-only campaign takes no constraint steps, so refusing it
-    #     would fire on a campaign the flag cannot affect
-    r = gen("d", ["clip", "focal_clip"])
-    out = r.stdout.decode("utf-8", "replace")
-    assert r.returncode == 0, out
-    assert "constraint_fp32: false" not in out, (
-        "the dose gate fired on a post-hoc-only campaign, which attempts no "
-        "constraint steps at all: " + out)

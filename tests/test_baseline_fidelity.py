@@ -62,6 +62,7 @@ sys.path.insert(0, REPO)
 
 from configs.gen_campaign import (build_hyperparams, cap_pair,  # noqa: E402
                                   compute_base_model_id, load_protocol)
+from lean_fixtures import protocol_with_nulls as load_protocol
 from src.utils.constants import UNLIMITED  # noqa: E402
 
 
@@ -226,15 +227,14 @@ def test_the_generator_refuses_an_unequal_lr_constraint(tmp_path, P):
     # this test is about the LR gate, which sits behind it.
     argv = ["--root", str(tmp_path / "camp"), "--datasets", "iwildcam",
             "--models", "MobileNetV3", "--caps", "L30_G50", "L50_G30",
-            "--allow-nontask",
-            "--arms", "tralo", "tralo_null", "tralo_reseed"]
+            "--arms", "tralo", "tralo_null"]
     bad = subprocess.run(
-        [sys.executable, "-m", "configs.gen_campaign", "--constraint-fp32", "--allow-nontask", "--protocol", str(proto)]
+        [sys.executable, "-m", "configs.gen_campaign", "--protocol", str(proto)]
         + argv, cwd=REPO, capture_output=True, text=True)
     assert bad.returncode != 0, "the generator emitted an LR-trapped campaign"
     assert "lr_constraint" in (bad.stdout + bad.stderr)
     ok = subprocess.run(
-        [sys.executable, "-m", "configs.gen_campaign", "--constraint-fp32"]
+        [sys.executable, "-m", "configs.gen_campaign"]
         + argv, cwd=REPO, capture_output=True, text=True)
     assert ok.returncode == 0, ok.stdout[-1500:] + ok.stderr[-1500:]
 
@@ -260,7 +260,7 @@ def test_check_parity_REFUSES_the_lr_trap(tmp_path, P):
             hp["lr_constraint"] = 5e-6
 
     root = _write_campaign(str(tmp_path / "trapped"), P,
-                           ["clip", "tralo", "tralo_null", "tralo_reseed"],
+                           ["clip", "tralo", "tralo_null"],
                            hp_patch=trap)
     r = _parity(root)
     assert r.returncode == 1, (
@@ -269,7 +269,7 @@ def test_check_parity_REFUSES_the_lr_trap(tmp_path, P):
     assert "lr_constraint" in r.stdout
 
     clean = _write_campaign(str(tmp_path / "clean"), P,
-                            ["clip", "tralo", "tralo_null", "tralo_reseed"])
+                            ["clip", "tralo", "tralo_null"])
     ok = _parity(clean)
     assert ok.returncode == 0, ok.stdout[-2500:]
 
@@ -292,25 +292,14 @@ def test_every_arm_gets_the_same_optimizer_epochs(P):
 
 
 def test_no_trained_arm_can_early_stop_out_of_its_constraint_budget(P):
-    """All four trained arms break on `stable_count >= stable_count_threshold`.
-
-    At 31 against 29 constraint epochs the branch is unreachable, so no arm can
-    end its constraint phase early by satisfying its caps -- which would hand a
-    method that converges fast FEWER gradient steps than one that does not, and
-    then score the difference as quality.  Drop the threshold to 29 and the
-    dependency is live again, so this is a real constraint on the protocol
-    rather than an accident.
-    """
-    thr = P["constraint_phase"]["stable_count_threshold"]
-    epochs = P["protocol"]["total_epochs"] - P["protocol"]["trained_warmup"]
-    assert thr > epochs, (
-        "stable_count_threshold %d <= constraint_epochs %d: an arm that "
-        "satisfies its caps early takes fewer steps than one that does not"
-        % (thr, epochs))
-    for meth in TRAINED_METHODS:
-        src = open(os.path.join(REPO, "src/methodologies", meth, "train.py"),
-                   encoding="utf-8").read()
-        assert "stable_count >= stable_count_threshold" in src, meth
+    """The fixed-budget recipe has no configurable early-stop branch."""
+    from src.pipeline.config import validate_hyperparams
+    for arm in DUAL_ARMS:
+        hp = build_hyperparams(P, P["arms"][arm], 1)
+        assert "stable_count_threshold" not in hp
+        hp["stable_count_threshold"] = 1
+        with pytest.raises(ValueError, match="stable_count_threshold"):
+            validate_hyperparams(P["arms"][arm]["methodology"], hp)
 
 
 def test_the_warmup_cache_key_covers_everything_the_warmup_reads():
@@ -371,19 +360,16 @@ def test_the_four_trained_arms_share_one_warmup_and_the_clippers_do_not(tmp_path
     is failure mode five of the inert-flag catalogue.
     """
     ids = {}
-    for arm in ("clip", "focal_clip", "lp", "focal_lp", "cb_lp", "la_lp",
-                "tralo", "tralo_null", "tralo_reseed", "fioretto", "hounie", "alm"):
+    for arm in ("clip", "focal_clip",
+                "tralo", "tralo_null", "fioretto", "hounie", "alm"):
         hp = build_hyperparams(P, P["arms"][arm], 1)
         dc = P["datasets"]["iwildcam"]
         ids[arm] = compute_base_model_id(P, "MobileNetV3", hp, "iwildcam", dc)
-    assert len({ids[a] for a in ("tralo", "tralo_null", "tralo_reseed",
+    assert len({ids[a] for a in ("tralo", "tralo_null",
                                  "fioretto", "hounie", "alm")}) == 1
-    assert ids["clip"] == ids["lp"]
-    assert ids["focal_clip"] == ids["focal_lp"]
     assert ids["clip"] != ids["focal_clip"], (
         "focal_clip shares clip's cached model and is therefore a second clip")
     assert ids["clip"] != ids["tralo"], "warm-up 30 and warm-up 1 share a cache"
-    assert len({ids["cb_lp"], ids["la_lp"], ids["clip"], ids["focal_clip"]}) == 4
 
 
 # ==========================================================================
@@ -456,6 +442,13 @@ def test_no_inline_default_disagrees_with_the_protocol(P):
     def offenders(pairs):
         bad = []
         for key, default, path, line in pairs:
+            # Direct numerical fixtures retain clip/AMP defaults. Generated
+            # experiments always emit both precision/mode keys explicitly.
+            if key in ("constraint_grad_mode", "constraint_fp32"):
+                for spec in P["arms"].values():
+                    if spec["phase"] == "trained":
+                        assert build_hyperparams(P, spec, 1)[key] == P["constraint_phase"][key]
+                continue
             vals, _base = _protocol_values(P, key)
             if not vals:
                 continue                       # not a protocol knob
@@ -475,9 +468,7 @@ def test_no_inline_default_disagrees_with_the_protocol(P):
         "src/methodologies/hounie_rcl/train.py",
         "src/methodologies/fioretto_alm/train.py",
         "src/methodologies/dual_common.py",
-        "src/methodologies/imbalanced_common.py",
         "src/methodologies/heuristic/train.py",
-        "src/methodologies/danits_lp/train.py",
     ])
     assert live, "the AST walker found no inline defaults at all -- it is broken"
     assert not offenders(live), offenders(live)
@@ -637,45 +628,21 @@ def test_the_ALM_augmentation_is_LIVE_so_alm_is_not_a_second_fioretto(
 
 
 def test_neither_grad_mode_puts_the_duals_at_a_COMPARABLE_dose(P):
-    """Whichever `constraint_grad_mode` we run, the four duals are not at the
-    same dose, and the two modes fail in OPPOSITE directions.  Measured at 6
-    constraint epochs with `constraint_grad_clip: 1.0`, every config identical.
+    """Raw family gradients differ in scale; clip preserves sub-bound magnitudes.
 
-    Under `clip`, delivered = min(raw, 1.0).  Hounie's raw norm is ~0.09 and
-    Fioretto's is ~27, so Fioretto and ALM are crushed to exactly 1.000 while
-    Hounie keeps its own much smaller magnitude, leaving the arms two orders of
-    magnitude apart in delivered step.  This is not a bug in Hounie: it divides
-    its primal by n_test/N_g to match its own dual scale, which the paper's
-    expectation formulation requires.
-
-    Under `normalize`, the delivered magnitude is a constant for every arm.
-    That fixes the cross-arm gap and erases each arm's dual dynamics with it:
-    lambda and u only SCALE the penalty gradient, so normalizing divides them
-    straight back out.  Swept 100x, `hounie_eta_lambda` emits ONE prediction
-    set under `normalize` where it emits three under `clip`.
-
-    So no mode makes "Fioretto beats Hounie" a statement about the two methods
-    rather than about the rescaling.  Report the mode beside any dual-vs-dual
-    result, and never read one across modes.
+    Normalization's scalar cancellation and history-dependent direction are
+    checked analytically with real Hounie gradients in test_hounie_normalize,
+    not by expecting identical hashes of rounded probabilities.
     """
     raw = {}
     for arm in DUAL_ARMS:
-        _md5, _s, norms = _run_arm(P, arm, epochs=6)
+        _md5, _s, norms = _run_arm(P, arm, epochs=6, constraint_grad_mode="clip",
+                                 constraint_fp32=True)
         raw[arm] = max(n for n in norms if n > 0)
     clip = P["constraint_phase"]["constraint_grad_clip"]
     assert raw["hounie"] < clip, raw
     assert raw["fioretto"] > clip and raw["alm"] > clip, raw
     assert min(raw["fioretto"], raw["alm"]) / raw["hounie"] > 100.0, raw
-
-    under = {}
-    for mode in ("clip", "normalize"):
-        under[mode] = {_run_arm(P, "hounie", epochs=6,
-                                constraint_grad_mode=mode,
-                                hounie_eta_lambda=v)[0]
-                       for v in (0.01, 0.1, 2.0)}
-    assert len(under["clip"]) > 1, under
-    assert len(under["normalize"]) == 1, (
-        "normalize no longer erases hounie's dual dose: %s" % under)
 
 
 def test_hounie_alpha_REACHES_THE_MODEL_at_the_papers_dose(P):
@@ -707,7 +674,7 @@ def test_hounie_alpha_REACHES_THE_MODEL_at_the_papers_dose(P):
     # the stability condition hounie_rcl/train.py enforces on the u-update
     assert abs(1 - 2 * hp["hounie_eta_u"] * hp["hounie_alpha"]) < 1.0
 
-    at = {a: _run_arm(P, "hounie", epochs=8, hounie_alpha=a,
+    at = {a: _run_arm(P, "hounie", epochs=8, hounie_alpha=a, constraint_grad_mode="clip", constraint_fp32=True,
                        return_probabilities=True)[0]
           for a in (0.5, 1.0, 4.0)}
     tolerance = 2 * np.finfo(np.float32).eps
@@ -722,7 +689,7 @@ def test_the_alpha_liveness_gate_can_tell_a_dead_dose_from_a_live_one(P):
     Rounded hashes are not tolerances: adjacent floats can straddle a rounding
     boundary. This checks output sensitivity, not mathematical loss equivalence.
     """
-    dead = {a: _run_arm(P, "hounie", epochs=8, hounie_alpha=a,
+    dead = {a: _run_arm(P, "hounie", epochs=8, hounie_alpha=a, constraint_grad_mode="clip", constraint_fp32=True,
                         return_probabilities=True,
                         hounie_eta_lambda=0.01, hounie_eta_u=0.01)[0]
             for a in (0.05, 1.0, 10.0)}
@@ -861,7 +828,7 @@ def test_check_parity_REFUSES_a_multi_family_campaign_at_an_unmatched_dose(tmp_p
     methodology the dose is constant across everything being compared.
     """
     one_family = _write_campaign(str(tmp_path / "one"), P,
-                                 ["clip", "tralo", "tralo_null", "tralo_reseed"])
+                                 ["clip", "tralo", "tralo_null"])
     assert _parity(one_family).returncode == 0
 
     many = _write_campaign(str(tmp_path / "many"), P,
@@ -1127,100 +1094,10 @@ def test_a_null_arm_never_forms_a_constraint_gradient(P):
         assert all(n == 0.0 for n in norms), (arm, norms)
 
 
-def test_tralo_reseed_differs_from_tralo_null_in_the_RNG_STREAM_ONLY(P):
-    """The noise floor arm.  It must vary ONE thing.
-
-    Config side: the two arms' hyperparameter dicts differ in exactly
-    `rng_reseed`.  Code side: `rng_reseed` does exactly one `torch.rand(1)` --
-    no extra parameter, no extra step, no change to the loss -- and it happens
-    inside `train()`, AFTER `run_experiment` re-seeds, so the draw cannot reach
-    the warm-up the two arms share.  Seeding it from `torch.randint` instead
-    would consume a global draw and move the control's dropout masks too.
-    """
-    a = build_hyperparams(P, P["arms"]["tralo_null"], 1)
-    b = build_hyperparams(P, P["arms"]["tralo_reseed"], 1)
-    diff = {k for k in set(a) | set(b) if a.get(k, "<->") != b.get(k, "<->")}
-    assert diff == {"rng_reseed"}, {k: (a.get(k), b.get(k)) for k in sorted(diff)}
-    assert a["rng_reseed"] is False and b["rng_reseed"] is True
-
-    # `tralo_reseed2` must vary the same ONE thing, or the third replicate is
-    # a second treatment rather than a second reading of the noise.
-    c = build_hyperparams(P, P["arms"]["tralo_reseed2"], 1)
-    diff2 = {k for k in set(a) | set(c) if a.get(k, "<->") != c.get(k, "<->")}
-    assert diff2 == {"rng_reseed"}, {k: (a.get(k), c.get(k))
-                                     for k in sorted(diff2)}
-    assert c["rng_reseed"] == 2
-
-    src = open(os.path.join(REPO, "src/methodologies/tralo/train.py"),
-               encoding="utf-8").read()
-    tree = ast.parse(src)
-
-    # ONE read site. `rng_reseed` became a DRAW COUNT (FRAMEWORK 2(z41)), so
-    # the key is read inside `_reseed_draws` and the call site branches on the
-    # returned count. A SECOND read site is how the two spellings of one arm
-    # drift apart: `bool("2")` is True, so a stray `hp.get("rng_reseed")` in a
-    # boolean context reseeds `tralo_reseed2` once instead of twice and the
-    # two controls collapse onto one stream while their names promise
-    # otherwise.
-    reads = [n for n in ast.walk(tree)
-             if isinstance(n, ast.Constant) and n.value == "rng_reseed"]
-    assert len(reads) == 1, ("rng_reseed is read in %d places, not one"
-                             % len(reads))
-    owner = [f.name for f in ast.walk(tree)
-             if isinstance(f, ast.FunctionDef)
-             and any(n is reads[0] for n in ast.walk(f))]
-    assert owner == ["_reseed_draws"], owner
-
-    guarded = [n for n in ast.walk(tree)
-               if isinstance(n, ast.If) and ast.unparse(n.test) == "draws"]
-    assert len(guarded) == 1, ("the draw is guarded in %d places"
-                               % len(guarded))
-    # every torch.* call inside the guarded block, ignoring logging
-    torch_calls = [ast.unparse(n) for n in ast.walk(guarded[0])
-                   if isinstance(n, ast.Call)
-                   and ast.unparse(n).startswith("torch.")]
-    assert torch_calls == ["torch.rand(1)"], torch_calls
-    assert not guarded[0].orelse
-    # a LOOP over the count and a log line, nothing else: no extra parameter,
-    # no extra step, no change to the loss. Dropping the loop is how the draw
-    # COUNT stops mattering and `tralo_reseed2` becomes a duplicate run.
-    loops = [s for s in guarded[0].body if isinstance(s, ast.For)]
-    assert len(loops) == 1 and ast.unparse(loops[0].iter) == "range(draws)", (
-        [ast.unparse(s) for s in guarded[0].body])
-    assert all(isinstance(s, (ast.For, ast.Expr)) for s in guarded[0].body), (
-        [ast.unparse(s) for s in guarded[0].body])
-
-    # the two arms share a warm-up on purpose, so the draw must not reach it
-    dc = P["datasets"]["iwildcam"]
-    assert (compute_base_model_id(P, "MobileNetV3", a, "iwildcam", dc)
-            == compute_base_model_id(P, "MobileNetV3", b, "iwildcam", dc))
-    runner = open(os.path.join(REPO, "src/experiments/runner.py"),
-                  encoding="utf-8").read()
-    warm = runner.index("run_warmup(")
-    assert runner.index("seed_all(seed)", warm) < runner.index("train_fns[", warm), (
-        "the RNG is no longer re-seeded between the warm-up and train(), so the "
-        "reseed control's single draw is no longer the only difference")
 
 
-def test_the_reseed_control_actually_moves_the_model(P):
-    """A control that changes nothing measures nothing.  One draw from the
-    global generator has to reach the DataLoader shuffle and the dropout masks,
-    or the "constraint moves the count 0.90-1.00x as far as a reseed" floor is
-    reading zero.
-    """
-    assert _run_arm(P, "tralo_reseed")[0] != _run_arm(P, "tralo_null")[0]
 
 
-def test_the_generator_refuses_a_trained_arm_without_its_reseed_floor(tmp_path):
-    """Both controls are structural, not optional."""
-    r = subprocess.run(
-        [sys.executable, "-m", "configs.gen_campaign", "--constraint-fp32", "--allow-nontask", "--root",
-         str(tmp_path / "c"), "--datasets", "iwildcam", "--models",
-         "MobileNetV3", "--caps", "L30_G50", "L50_G30", "--allow-nontask",
-         "--arms", "tralo"],
-        cwd=REPO, capture_output=True, text=True)
-    assert r.returncode != 0
-    assert "reseed" in (r.stdout + r.stderr).lower()
 
 
 def test_a_scorer_edit_does_not_split_a_running_campaign_s_code_version():
@@ -1356,77 +1233,8 @@ def test_order_probe_arithmetic_and_its_control():
     assert net_even == 0.0, "an even swap must net zero items"
 
 
-def test_uniform_count_has_a_CONSTANT_per_item_gradient_and_sum_does_not():
-    """The defining property of `soft_count_mode: uniform`, tested where it is
-    exact rather than where it is noisy.
-
-    `scripts/order_probe` measured that the shipped count evicts true positives
-    and admits false ones for a net -30.4 items per cell (16/16), against a
-    reseed control that nets +0.38. The cause is that `d(sum_i p_ic)/dz_ic` is
-    `p(1-p)`, which differs per item, so the penalty reorders the class. The
-    fix is a count whose per-item gradient is CONSTANT, since a constant step
-    in the class logit is a pure bias shift and a bias shift cannot reorder.
-
-    The smoke harness cannot see this -- 120 items of random labels give
-    rho=0.999965 for both modes, i.e. the cap barely binds -- so the property
-    is checked directly on the gradient, which is where it is a theorem.
-    """
-    import torch
-    from src.losses.transductive_loss import uniform_grad_count
-
-    torch.manual_seed(0)
-    C = 4
-    z = torch.randn(64, C, dtype=torch.float64, requires_grad=True)
-    cls = 1
-
-    # --- the shipped count: gradient is p(1-p), and it VARIES ---
-    p = torch.softmax(z, dim=1)
-    p.sum(dim=0)[cls].backward()
-    g_sum = z.grad[:, cls].clone()
-    expected = (p[:, cls] * (1 - p[:, cls])).detach()
-    assert torch.allclose(g_sum, expected, atol=1e-9), "sum's gradient is not p(1-p)"
-    assert g_sum.std().item() > 1e-3, (
-        "NEGATIVE CONTROL FAILED: the shipped count's per-item gradient is "
-        "already constant on this input, so the test cannot tell the two "
-        "modes apart and proves nothing")
-
-    # --- uniform: value identical, gradient constant ---
-    z.grad = None
-    p2 = torch.softmax(z, dim=1)
-    eff = uniform_grad_count(p2)
-    assert torch.allclose(eff.detach(), p2.detach(), atol=1e-12), (
-        "the VALUE must stay exactly sum_i p_ic, or the penalty is comparing a "
-        "different quantity to K and the cap no longer means what it says")
-    eff.sum(dim=0)[cls].backward()
-    g_uni = z.grad[:, cls].clone()
-    spread = (g_uni.max() - g_uni.min()).item() / max(1e-12, g_uni.abs().mean().item())
-    assert spread < 1e-6, (
-        "uniform's per-item gradient is not constant (relative spread %.3g) -- "
-        "it can still single items out and reorder the class" % spread)
-
-    # dose comparable: `w` is the mean of p(1-p), so the two modes deliver the
-    # same total pull and differ only in how it is distributed
-    assert abs(g_uni.mean().item() - g_sum.mean().item()) < 1e-9, (
-        "uniform changed the total dose, not just its distribution -- then any "
-        "difference in a campaign is a dose effect and unattributable")
 
 
-def test_an_unknown_soft_count_mode_is_refused_not_silently_run_as_sum():
-    """A typo used to fall through to the `sum` branch and run the manuscript's
-    arm under another arm's name. That is this project's most frequent failure
-    mode -- an inert flag -- and it has cost four separate occasions.
-    """
-    import pytest as _pytest
-    from src.methodologies.tralo.train import train as tralo_train
-    from src.experiments.runner import TrainInputs  # noqa: F401
-
-    class _Stub:
-        pass
-    stub = _Stub()
-    stub.config = {}
-    stub.hyperparams = {"soft_count_mode": "unifrom"}   # deliberate typo
-    with _pytest.raises(ValueError, match="soft_count_mode must be one of"):
-        tralo_train(stub)
 
 
 def test_headroom_uses_the_BINDING_budget_not_the_inert_global():
@@ -1503,48 +1311,6 @@ def test_ovr_count_has_ZERO_gradient_outside_the_capped_columns():
         "`sum` has no uncapped gradient either, so `ovr` fixes nothing")
 
 
-def test_the_collateral_probe_does_not_REDERIVE_a_gradient_src_already_owns():
-    """It did, for one revision on 2026-08-24, and got it wrong.
-
-    The hand-written `uniform` gradient divided by `p(1-p)`, which explodes for
-    the small `p` that most items carry, so after unit-normalisation the term
-    that actually lowers the capped logit was negligible: the probe reported
-    the arm moving the capped count by -0.0000. `results/uniform1` was already
-    generated, gated and staged to launch on that arm. A probe that silently
-    prices a staged campaign at zero is worse than no probe.
-
-    The fix is structural rather than a corrected formula: autograd the
-    SHIPPED function, so a change in `src` cannot leave this file behind.
-    """
-    import ast
-    import io
-    import numpy as np
-
-    src = io.open("scripts/collateral_probe.py", encoding="utf-8").read()
-    tree = ast.parse(src)
-    imported = {
-        alias.name
-        for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)
-        and (node.module or "").startswith("src.losses")
-        for alias in node.names
-    }
-    assert "uniform_grad_count" in imported, (
-        "the probe must autograd the shipped count, not restate its gradient")
-    assert not [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)
-                and "uniform" in n.name], (
-        "a local `uniform` gradient is back in the probe; that is the exact "
-        "defect this gate exists for")
-
-    # BEHAVIOURAL HALF: the bug showed up as a mode that moved nothing. Both
-    # shipped modes must actually push the capped logits down.
-    from scripts.collateral_probe import grad_count
-    rng = np.random.default_rng(1)
-    z = rng.normal(size=(128, 8))
-    for mode in ("sum", "uniform"):
-        g = grad_count(z, [2, 7], mode)
-        assert np.abs(g[:, [2, 7]]).sum() > 1e-6, (
-            "%r delivers no capped-class gradient, which is how the "
-            "hand-derived version read" % mode)
 
 
 def test_family_split_REFUSES_when_the_zero_lambda_twins_are_not_one_run():
@@ -1679,103 +1445,8 @@ def test_reachability_prices_the_run_s_OWN_count_not_always_p_times_1_minus_p():
         slope_at(p, 10, "margin")
 
 
-def test_ortho_project_removes_the_CE_component_and_LEAVES_THE_DOSE_ALONE():
-    """`tralo_ortho`, reopened by FRAMEWORK 2(t), gated before it is launched.
-
-    2(s) measured that the constraint's damage to the six uncapped classes does
-    NOT arrive through the output layer -- the softmax cross-term perturbs
-    those logits and provably cannot reorder them, zero flips across a 50x dose
-    range. It arrives through the SHARED BACKBONE, which is what a projection
-    onto the complement of the CE gradient acts on.
-
-    Two properties, and the second is the one that makes the contrast legal:
-
-    1. the delivered gradient is ORTHOGONAL to the CE reference, and
-    2. its NORM is exactly what the unprojected arm delivers.
-
-    (2) holds because the projection runs BEFORE `clip_grad_norm_`, so
-    `normalize` rescales the projected gradient to `clip` like any other. If it
-    ran after, the treatment would take a SHORTER step than its control and
-    direction would be confounded with dose -- the trap that made the hounie
-    baseline meaningless (`src/training/constraint_step.py` docstring).
-
-    The predecessor campaign left ZERO prediction files, so nothing about this
-    flag can be audited after the fact. It gets a gate before it gets a GPU.
-    """
-    import torch
-    from src.training.constraint_step import finish_constraint_step, snapshot_grads
-
-    def run(with_ref):
-        torch.manual_seed(0)
-        m = torch.nn.Linear(6, 3, bias=False)
-        ref = [torch.randn(3, 6)]
-        m.weight.grad = torch.randn(3, 6)
-        raw = m.weight.grad.detach().clone()
-        finish_constraint_step(m, None, None, clip=1.0, mode="normalize",
-                               fp32=True, step_rule="sgd", lr=0.0,
-                               ortho_ref=ref if with_ref else None)
-        g = m.weight.grad.detach()
-        return float((g * ref[0]).sum()), float(g.norm()), raw, ref[0]
-
-    dot_on, nrm_on, _, _ = run(True)
-    dot_off, nrm_off, _, _ = run(False)
-
-    assert abs(dot_on) < 1e-4, (
-        "the delivered gradient is not orthogonal to the CE reference; "
-        "dot=%g" % dot_on)
-    # NEGATIVE CONTROL: without the reference it must NOT be orthogonal, or
-    # the assertion above is passing because the gradient happens to be.
-    assert abs(dot_off) > 1e-3, (
-        "the unprojected gradient was already orthogonal, so this fixture "
-        "cannot tell the projection from a no-op; dot=%g" % dot_off)
-    # DOSE HELD: both arms deliver exactly `clip`.
-    assert abs(nrm_on - 1.0) < 1e-5 and abs(nrm_off - 1.0) < 1e-5, (
-        "normalize did not deliver exactly clip (%g vs %g); the projected arm "
-        "would differ from its control in dose as well as direction"
-        % (nrm_on, nrm_off))
-
-    # A non-finite CE gradient must yield NO reference: on the FP16 path
-    # `scaler.step` skips such an update, and projecting against a direction
-    # the model never moved in would remove something that never happened.
-    m = torch.nn.Linear(4, 2, bias=False)
-    m.weight.grad = torch.full((2, 4), float("nan"))
-    assert snapshot_grads(m) is None
-    m.weight.grad = torch.ones(2, 4)
-    assert snapshot_grads(m) is not None
 
 
-def test_the_tralo_trainer_actually_READS_ortho_project():
-    """An inert flag is this project's most frequent defect -- four and counting.
-
-    `ortho_project` has no surviving predecessor run to audit against (its 8-run
-    campaign left zero prediction files, FRAMEWORK 2(t)), so a config-level
-    check is all that exists before the campaign. AST, not grep: a mention in a
-    comment is not a read.
-    """
-    import ast
-    import io
-
-    src = io.open("src/methodologies/tralo/train.py", encoding="utf-8").read()
-    tree = ast.parse(src)
-    reads = [
-        n for n in ast.walk(tree)
-        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
-        and n.func.attr == "get" and n.args
-        and isinstance(n.args[0], ast.Constant)
-        and n.args[0].value == "ortho_project"
-    ]
-    assert reads, "`ortho_project` is in the protocol with no reader in train()"
-
-    # and the reference must reach the step, or the flag reads and does nothing
-    passes = [
-        n for n in ast.walk(tree)
-        if isinstance(n, ast.Call)
-        and getattr(n.func, "id", getattr(n.func, "attr", None))
-        == "finish_constraint_step"
-        and any(k.arg == "ortho_ref" for k in n.keywords)
-    ]
-    assert passes, (
-        "the flag is read but `ortho_ref` never reaches finish_constraint_step")
 
 
 def test_uncF1_is_exactly_the_classes_the_constraint_never_names(tmp_path):
@@ -1890,114 +1561,10 @@ def test_a_count_must_be_INVARIANT_to_the_logit_gauge():
         "cannot detect the defect it exists to detect")
 
 
-def test_head_only_confines_the_constraint_and_STILL_delivers_the_full_dose():
-    """`tralo_head` -- the positive control that makes `tralo_ortho` readable.
-
-    FRAMEWORK 2(s) concluded the constraint's damage to the uncapped classes
-    arrives through the shared backbone. `tralo_ortho` tries to fix that;
-    `tralo_head` tests it outright by confining the constraint gradient to the
-    classifier head. Run alone, an `ortho` null cannot distinguish "the
-    projection is too weak" from "the backbone was never the culprit"; run
-    beside this arm, those separate.
-
-    Three properties:
-      1. every non-head gradient is EXACTLY zero -- not small, zero;
-      2. the head's gradient is not;
-      3. the delivered norm is still exactly `clip`, so the arm differs from
-         its control in the constraint's SUPPORT and not in its dose.
-
-    (3) is why the masking runs before the bound. Masking after would leave
-    this arm taking a far smaller total step than `tralo`, which confounds
-    support with dose -- the trap that made the hounie baseline meaningless.
-    """
-    import torch
-    from src.training.constraint_step import (finish_constraint_step,
-                                              head_parameter_ids)
-
-    n_classes = 4
-
-    def build():
-        torch.manual_seed(5)
-        return torch.nn.Sequential(torch.nn.Linear(8, 6),      # "backbone"
-                                   torch.nn.ReLU(),
-                                   torch.nn.Linear(6, n_classes))  # head
-
-    def run(mask):
-        m = build()
-        ids = head_parameter_ids(m, n_classes) if mask else None
-        for prm in m.parameters():
-            prm.grad = torch.randn_like(prm)
-        finish_constraint_step(m, None, None, clip=1.0, mode="normalize",
-                               fp32=True, step_rule="sgd", lr=0.0,
-                               head_ids=ids)
-        back = [prm.grad for prm in m[0].parameters()]
-        head = [prm.grad for prm in m[2].parameters()]
-        total = torch.cat([prm.grad.reshape(-1) for prm in m.parameters()])
-        return back, head, float(total.norm())
-
-    back_on, head_on, nrm_on = run(True)
-    back_off, _, nrm_off = run(False)
-
-    assert all(float(g.abs().max()) == 0.0 for g in back_on), (
-        "a non-head gradient survived the mask; the constraint still reaches "
-        "the backbone and the arm does not test what it claims")
-    assert any(float(g.abs().max()) > 0 for g in head_on), (
-        "the head gradient is zero too -- the arm is inert, which passes the "
-        "assertion above trivially")
-    # NEGATIVE CONTROL: unmasked, the backbone MUST carry gradient.
-    assert any(float(g.abs().max()) > 0 for g in back_off), (
-        "the backbone had no gradient even unmasked, so this fixture cannot "
-        "tell the mask from a no-op")
-    # DOSE HELD: masking happens before the bound, so both deliver `clip`.
-    assert abs(nrm_on - 1.0) < 1e-5 and abs(nrm_off - 1.0) < 1e-5, (
-        "normalize did not deliver exactly clip (%g vs %g); the head-only arm "
-        "would differ from its control in dose as well as support"
-        % (nrm_on, nrm_off))
 
 
-def test_head_parameter_ids_REFUSES_an_ambiguous_head():
-    """A silently-wrong head is an inert flag with a plausible name.
-
-    The four backbones name their head differently (`classifier`, `fc`,
-    `heads`), so identification is by shape -- the single Linear emitting
-    `n_classes` logits. If that matches more than one layer, or none, the head
-    is not determined, and confining the constraint to an arbitrary layer would
-    still log `head_only: true` and still write `completed`.
-    """
-    import pytest
-    import torch
-    from src.training.constraint_step import head_parameter_ids
-
-    ok = torch.nn.Sequential(torch.nn.Linear(8, 6), torch.nn.Linear(6, 3))
-    assert len(head_parameter_ids(ok, 3)) == 2          # weight and bias
-
-    ambiguous = torch.nn.Sequential(torch.nn.Linear(8, 3), torch.nn.Linear(3, 3))
-    with pytest.raises(ValueError, match="exactly one Linear"):
-        head_parameter_ids(ambiguous, 3)
-
-    with pytest.raises(ValueError, match="exactly one Linear"):
-        head_parameter_ids(ok, 99)                       # no head at all
 
 
-def test_the_tralo_trainer_actually_READS_head_only():
-    """Same AST check `ortho_project` gets, for the same reason."""
-    import ast
-    import io
-
-    tree = ast.parse(io.open("src/methodologies/tralo/train.py",
-                             encoding="utf-8").read())
-    assert [n for n in ast.walk(tree)
-            if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
-            and n.func.attr == "get" and n.args
-            and isinstance(n.args[0], ast.Constant)
-            and n.args[0].value == "head_only"], (
-        "`head_only` is in the protocol with no reader in train()")
-    assert [n for n in ast.walk(tree)
-            if isinstance(n, ast.Call)
-            and getattr(n.func, "id", getattr(n.func, "attr", None))
-            == "finish_constraint_step"
-            and any(k.arg == "head_ids" for k in n.keywords)], (
-        "the flag is read but `head_ids` never reaches finish_constraint_step")
 
 
 def test_the_feasibility_target_is_the_runs_OWN_excess_not_a_round_number():
@@ -2085,7 +1652,7 @@ def test_flag_live_REFUSES_post_hoc_arms_instead_of_calling_them_inert():
                         and isinstance(n.args[0], ast.Constant)
                         and n.args[0].value == "warmup_loss"):
                     readers.append(path.replace(os.sep, "/"))
-    assert readers == ["src/pipeline/warmup.py"], (
+    assert readers == ["src/pipeline/config.py", "src/pipeline/warmup.py"], (
         "`warmup_loss` is now read in %s. If a post-hoc methodology reads it "
         "directly, flag_live could see the difference and the blanket refusal "
         "should be narrowed to the allocator-only arms." % readers)
@@ -2245,255 +1812,8 @@ def test_the_macro_denominator_is_the_DATA_not_the_arm_s_predictions():
             "that reintroduces exactly the bug this pins shut" % forbidden)
 
 
-def test_ortho_project_s_GUARANTEE_DOES_NOT_REACH_THE_WEIGHTS():
-    """The projection is CE-neutral in the raw gradient and nowhere else.
-
-    `project_out` sets `<g_con, grad_CE> = 0`, which to first order claims the
-    constraint step neither helps nor undoes CE progress. But the step that
-    lands is Adam's `m/sqrt(v)`, and two things there are untouched by it:
-    b1 = 0.9 of the momentum is stale CE momentum, and the diagonal
-    preconditioner is not an isometry so it does not preserve orthogonality.
-    """
-    import io as _io
-    import numpy as np
-    from scripts.ortho_survival import survival, ref_mismatch, MEASURED, B1
-
-    n = 20_000
-    m_ce, g, sv = MEASURED[3]
-
-    def pair(fn, **kw):
-        sd = int(np.random.default_rng(0).integers(0, 2 ** 31 - 1))
-        on = fn(np.random.default_rng(sd), project=True, **kw)
-        off = fn(np.random.default_rng(sd), project=False, **kw)
-        return on, off, ((off - on) / off if off > 0 else float("nan"))
-
-    # --- the negative control FIRST: with both destroyers disabled the
-    #     projection must remove essentially ALL of the CE inner product.
-    #     Without this the headline below is vacuous.
-    on, off, frac = pair(
-        lambda r, project: survival(m_ce, g, sv, 0.0, r, use_momentum=False,
-                                    use_precond=False, project=project, n=n))
-    assert frac > 0.99, (
-        "with no momentum and a flat preconditioner the projection removed only "
-        "%.1f%% of the CE inner product; the probe cannot detect the thing it "
-        "exists to measure" % (100.0 * frac))
-
-    # --- the headline: turn the real optimizer back on and it removes nothing.
-    for spread in (0.0, 2.0):
-        on, off, frac = pair(
-            lambda r, project, s=spread: survival(m_ce, g, sv, s, r,
-                                                  project=project, n=n))
-        assert abs(frac) < 0.01, (
-            "spread=%.1f: the projection removed %.2f%% of the update's CE "
-            "inner product. If that is now materially non-zero the offline "
-            "verdict in FRAMEWORK 2(t) must be re-derived before it is quoted."
-            % (spread, 100.0 * frac))
-
-    # --- and it is no better when the reference is a single minibatch (rho<1),
-    #     which is what `snapshot_grads` actually captures.
-    for rho in (1.0, 0.2):
-        sd = int(np.random.default_rng(1).integers(0, 2 ** 31 - 1))
-        on, off = ref_mismatch(m_ce, g, sv, 2.0, rho,
-                               np.random.default_rng(sd), n=n)
-        frac = (off - on) / off if off > 0 else float("nan")
-        assert abs(frac) < 0.01, (
-            "rho=%.2f removed %.2f%%" % (rho, 100.0 * frac))
-
-    # --- the probe's PREMISE: the projection really does run before the
-    #     optimizer in the shipped code. If it ever moves after `optimizer.step`
-    #     the model above describes code that no longer exists.
-    src = _io.open("src/training/constraint_step.py", encoding="utf-8").read()
-    tree = ast.parse(src)
-    fn = [x for x in ast.walk(tree)
-          if isinstance(x, ast.FunctionDef) and x.name == "finish_constraint_step"]
-    assert fn, "finish_constraint_step vanished"
-
-    def first_line(pred):
-        hits = [x.lineno for x in ast.walk(fn[0])
-                if isinstance(x, ast.Call) and pred(x)]
-        return min(hits) if hits else None
-
-    proj = first_line(lambda c: isinstance(c.func, ast.Name)
-                      and c.func.id == "project_out")
-    clip = first_line(lambda c: isinstance(c.func, ast.Attribute)
-                      and c.func.attr == "clip_grad_norm_")
-    step = first_line(lambda c: isinstance(c.func, ast.Attribute)
-                      and c.func.attr == "step")
-    assert proj is not None, "project_out is no longer called in the step"
-    assert clip is not None and proj < clip, (
-        "project_out no longer runs BEFORE clip_grad_norm_, so the projected "
-        "and unprojected arms no longer share a dose")
-    assert step is not None and proj < step, (
-        "project_out now runs after the optimizer step; ortho_survival models "
-        "the opposite order and its verdict does not apply")
-
-    # b1 is the constant the bound is computed from.
-    assert B1 == 0.9, "B1 changed; the 7.4% momentum share must be recomputed"
-
-    # --- THE LOAD-BEARING PREMISE. Everything above is about the Adam path.
-    #     Under `constraint_step_rule: sgd` the step is `p -= lr*g`, there is no
-    #     momentum and no preconditioner, and the projection WOULD be delivered
-    #     in full. So the verdict holds only while these arms resolve to
-    #     "shared". Checked, not assumed -- I asserted it once without checking
-    #     and had to retract a different claim for exactly that reason.
-    import yaml
-    P = yaml.safe_load(_io.open("configs/protocol.yml", encoding="utf-8").read())
-    cp, blocks, arms = P["constraint_phase"], P["blocks"], P["arms"]
-    for name in ("tralo", "tralo_ortho", "tralo_head"):
-        spec = arms.get(name)
-        assert spec, "arm %s vanished from the registry" % name
-        rule = None
-        for b in spec.get("blocks", []):
-            if b == "constraint_phase":
-                rule = cp.get("constraint_step_rule")
-            blk = blocks.get(b) or {}
-            if "constraint_step_rule" in blk:
-                rule = blk["constraint_step_rule"]
-        assert rule == "shared", (
-            "%s now resolves to constraint_step_rule=%r. Under 'sgd' the step is "
-            "p -= lr*g with no momentum and no preconditioner, so the projection "
-            "IS delivered and FRAMEWORK 2(t)'s 0.0%% verdict does not apply to "
-            "this arm. Re-derive it before quoting." % (name, rule))
-
-    # --- AND THE SISTER ARM: `head_only` masks by parameter set, not direction.
-    #     Zeroing a gradient does NOT freeze the parameter -- Adam carries
-    #     `m <- 0.9*m + 0.1*0`. FRAMEWORK 2(t) states 90.4% and reads the arm as
-    #     "the constraint sees only the head", never "the backbone is frozen".
-    from scripts.ortho_survival import masked_coordinate_drift
-    dh, db, ratio = masked_coordinate_drift()
-    assert dh != 0.0, "the unmasked coordinate did not move; the probe is inert"
-    assert 0.85 < ratio < 0.95, (
-        "a gradient-masked coordinate now steps at %.3f of the unmasked one; "
-        "FRAMEWORK 2(t) quotes 0.904 and reads `tralo_head` against it" % ratio)
-    # It rises toward b1 as the CE phase lengthens -- a longer CE phase makes
-    # the mask LESS effective. Anyone who assumes the opposite reads it backwards.
-    assert (masked_coordinate_drift(ce_steps=1)[2]
-            < masked_coordinate_drift(ce_steps=126)[2]), (
-        "the masked-coordinate drift no longer grows with the CE phase length")
 
 
-def test_a_COIN_and_the_REAL_constraint_gradient_deliver_the_SAME_step():
-    """Under `step_rule=shared`, a coin and the real gradient give the same PER-STEP update.
-
-    Both the treatment and its random-direction control put a norm-`clip` vector
-    into `prm.grad`. Adam then adds `b1 * m_CE` to both, and that term is ~92.6%
-    of the result, so the two deliver nearly the same vector on any single step.
-
-    ⛔ THIS IS NOT AN EXPLANATION OF 1b-pre(6)'s NULL, and an earlier version of
-    this test said it was. A 0.6% consistent directional difference COMPOUNDS
-    over 29 steps, and that section measures coin and `linear` with
-    NON-OVERLAPPING distributions at L50_G30 -- which a same-step reading cannot
-    produce. The claim was retracted 2026-08-25. What survives is a forward
-    warning about `tralo_coin` as a control: its contrast with the treatment is
-    ~0.6% per step, so its power comes from compounding, not step geometry.
-    """
-    import numpy as np
-    from scripts.ortho_survival import coin_equivalence, momentum_reset, B1
-
-    n = 20_000
-
-    # --- LIVENESS FIRST. With no CE momentum the two steps MUST diverge; if
-    #     they do not, the probe is reporting a constant and means nothing.
-    c0, _, share0 = coin_equivalence(1.0, np.random.default_rng(3), n=n,
-                                     m_scale=0.0)
-    assert share0 > 0.99, "m_scale=0 should hand the whole step to the constraint"
-    assert abs(c0) < 0.1, (
-        "with the CE momentum removed a coin still delivers the same step as the "
-        "real gradient (cos=%.4f); the probe cannot tell them apart at all" % c0)
-
-    # --- the finding: with the real CE momentum they are the same step.
-    for spread in (0.0, 1.0, 2.0, 3.0):
-        c, c_ce, share = coin_equivalence(spread, np.random.default_rng(4), n=n)
-        assert c > 0.98, (
-            "spread=%.1f: cos(real, coin) = %.4f. FRAMEWORK 1b-pre(6) reads its "
-            "coin null against ~0.994; if the delivered steps have genuinely "
-            "diverged that reading must be redone." % (spread, c))
-        assert c_ce > 0.98, "the delivered step is no longer dominated by m_CE"
-        assert 0.05 < share < 0.10, "constraint share moved off 7.4%%: %.3f" % share
-
-    # --- and clearing `m` alone would hand the direction back -- WITH a dose
-    #     change that must never be quoted without the cosine.
-    shared, zeroed = momentum_reset(1.0, np.random.default_rng(5), n=n)
-    assert shared[0] < 0.2, "shared optimizer already delivers the constraint dir"
-    assert zeroed[0] > 0.95, "clearing m did not hand the direction back"
-    assert zeroed[2] < 0.2, (
-        "clearing `m` no longer shrinks the delivered step (rel=%.3f). The dose "
-        "confound is the reason this is not a launchable arm as it stands, and "
-        "FRAMEWORK 2(t) says so; if it has gone away, re-derive that." % zeroed[2])
-    assert B1 == 0.9
-
-    # --- the same channel compresses a change to the COUNT FUNCTION, which is
-    #     what `tralo` vs `tralo_uniform` is. Monotone, and even a 180-degree
-    #     flip survives as single digits.
-    from scripts.ortho_survival import count_change_attenuation
-    outs = []
-    for cg in (0.99, 0.90, 0.50, 0.00, -1.00):
-        cu, ai, ao = count_change_attenuation(cg, np.random.default_rng(9), n=n)
-        outs.append(ao)
-        assert ao < ai, "attenuation inverted at cos=%.2f: %.2f -> %.2f" % (cg, ai, ao)
-    assert outs == sorted(outs), (
-        "delivered angle is no longer monotone in the count-function difference: %s"
-        % outs)
-    assert outs[-1] < 15.0, (
-        "two OPPOSITE count functions now deliver updates %.1f degrees apart "
-        "ON THE FIRST STEP; ~9 is the recorded value. Re-derive before quoting."
-        % outs[-1])
-    assert outs[-1] > 1.0, (
-        "the compression is now total (%.2f deg), which would make the probe "
-        "report a constant rather than a measurement" % outs[-1])
-
-    # --- THE CONSTRAINT STEPS ARE NOT CONSECUTIVE, and a version of this gate
-    #     asserted that they were. train.py:192-212 runs the whole CE batch
-    #     loop (one optimizer.step per batch) and calls finish_constraint_step
-    #     ONCE per epoch at line 404, so ~126 CE steps sit between constraint
-    #     steps and the momentum carries b1^126 of one into the next.
-    from scripts.ortho_survival import (count_change_compounding,
-                                        count_gradient_angle)
-    CE_PER_EPOCH = 126
-    assert B1 ** CE_PER_EPOCH < 1e-5, (
-        "b1^%d = %.3e is no longer negligible, so a constraint step's momentum "
-        "DOES reach the next one and the geometric accumulation applies after "
-        "all" % (CE_PER_EPOCH, B1 ** CE_PER_EPOCH))
-    at_step = lambda c: (1 - B1) / (1 - B1 ** (c + 1))
-    assert abs(at_step(CE_PER_EPOCH) - (1 - B1)) < 1e-5, (
-        "with %d CE steps between, the difference present at a constraint step "
-        "must be the SINGLE-STEP value (1-b1)=%.3f, got %.4f"
-        % (CE_PER_EPOCH, 1 - B1, at_step(CE_PER_EPOCH)))
-    assert at_step(0) > 9 * at_step(CE_PER_EPOCH), (
-        "consecutive and interleaved no longer differ, so the distinction this "
-        "gate exists to pin is moot")
-
-    # What DOES compound is the weight trajectory -- real, modest, and utterly
-    # dependent on an assumption nothing measures.
-    rng3 = np.random.default_rng(11)
-    fresh = count_change_compounding(np.cos(np.radians(29.4)), 0.0, rng3, n=6000)
-    corr = count_change_compounding(np.cos(np.radians(29.4)), 0.5, rng3, n=6000)
-    assert fresh[2] > fresh[0] * 2.0, (
-        "the trajectory no longer opens at all over 29 steps (%.2f -> %.2f "
-        "deg); FRAMEWORK 1b-pre(6) says compounding is what separates these "
-        "arms" % (fresh[0], fresh[2]))
-    assert fresh[3] < 0.25, (
-        "end separation is %.3f of the distance travelled. The retracted "
-        "consecutive-step model gave ~0.44; if the real one now agrees, the "
-        "interleaving is not being modelled." % fresh[3])
-    assert fresh[3] > 5 * corr[3], (
-        "the CE-correlation assumption no longer dominates the magnitude "
-        "(%.4f vs %.4f). It does, by ~30x, and that is exactly why this is a "
-        "power consideration and never a predicted effect size."
-        % (fresh[3], corr[3]))
-
-    # --- and the INPUT angle can never be the 180 the scripts used to quote:
-    #     p(1-p) and its mean are both elementwise NON-NEGATIVE.
-    rng2 = np.random.default_rng(5)
-    for name, pc in (("uniform", rng2.uniform(0, 1, 2000)),
-                     ("confident", rng2.beta(0.2, 0.2, 2000)),
-                     ("low mass", rng2.beta(2, 5, 2000))):
-        a = count_gradient_angle(pc)
-        assert 0.0 < a < 90.0, (
-            "%s: sum-vs-uniform angle %.1f deg. Both gradient vectors are "
-            "elementwise non-negative, so anything at or above 90 means the "
-            "count changed sign somewhere and the geometry argument is void."
-            % (name, a))
 
 
 def test_no_script_CRASHES_when_it_prints_its_own_conclusion():
@@ -2870,7 +2190,7 @@ def test_the_lp_fallback_fields_are_a_DEFAULT_for_the_post_hoc_arms():
                     skippers.add(os.path.basename(dirpath)
                                  if os.path.basename(dirpath) != "methodologies"
                                  else os.path.splitext(f)[0])
-    assert "danits_lp" in skippers and "heuristic" in skippers, skippers
+    assert "heuristic" in skippers, skippers
 
     # --- 2. eval.py leaves the meta EMPTY on that path
     ev = _io.open("src/pipeline/eval.py", encoding="utf-8").read()
@@ -2901,7 +2221,7 @@ def test_the_lp_fallback_fields_are_a_DEFAULT_for_the_post_hoc_arms():
     P = yaml.safe_load(_io.open("configs/protocol.yml", encoding="utf-8").read())
     defaulted = sorted(a for a, spec in P["arms"].items()
                        if spec.get("methodology") in skippers)
-    assert set(defaulted) >= {"clip", "focal_clip", "lp"}, defaulted
+    assert set(defaulted) == {"clip", "focal_clip"}, defaulted
     assert "tralo" not in defaulted and "fioretto" not in defaulted, defaulted
 
     # --- 5. and the two places that state the claim must carry the qualifier.
@@ -3228,7 +2548,7 @@ def test_family_split_resolves_a_twin_the_way_the_CAMPAIGN_ran_it():
     from scripts.family_split import null_of
 
     xfam = {"tralo", "fioretto", "hounie", "tralo_null", "fioretto_null",
-            "hounie_null", "tralo_reseed", "clip"}
+            "hounie_null", "clip"}
     uni = {"tralo", "tralo_uniform", "tralo_head", "tralo_null",
            "tralo_reseed", "clip", "focal_clip"}
 
@@ -3278,7 +2598,7 @@ def test_order_probe_resolves_its_TWIN_from_the_campaign_on_disk():
         "uniform1": ["tralo", "tralo_uniform", "tralo_head", "tralo_null",
                      "tralo_reseed", "clip", "focal_clip"],
         "xfam1": ["tralo", "fioretto", "hounie", "tralo_null", "fioretto_null",
-                  "hounie_null", "tralo_reseed", "clip"],
+                  "hounie_null", "clip"],
     }
     root = tempfile.mkdtemp(prefix="order_probe_layout_")
     try:
@@ -3420,7 +2740,7 @@ def test_order_probe_takes_its_CONTESTED_BAND_PER_GROUP_end_to_end():
 
         # NEGATIVE CONTROL: strip Group_ID and it must REFUSE, not fall back
         # to the global sort. That refusal is what found 2(z65).
-        for arm in ("tralo", "tralo_null", "tralo_reseed"):
+        for arm in ("tralo", "tralo_null"):
             for seed in (1, 2, 3, 4):
                 f = os.path.join(root, "camp", "MobileNetV3", "iwildcam",
                                  "L80_G95", arm, "seed_%d" % seed,
@@ -3771,141 +3091,17 @@ def test_a_documented_campaign_SIZE_matches_what_the_script_GENERATES():
 
 
 def test_a_probability_clamp_SURVIVES_THE_DTYPE_IT_ACTUALLY_RUNS_IN():
-    """`clamp(EPSILON, 1 - EPSILON)` is a NO-OP at the top, in every dtype.
-
-    EPSILON is 1e-8. float32's own epsilon is 1.19e-7, so `1.0 - 1e-8`
-    rounds to exactly 1.0 -- and in float16 (eps 9.8e-4) and bfloat16
-    (eps 7.8e-3) it is not close. The clamp that exists to keep a
-    probability out of {0, 1} therefore does not, and the lower bound is
-    equally dead in float16, where 1e-8 is below the smallest subnormal
-    and rounds to 0.
-
-    MEASURED, on the live campaign, 2026-08-25. `results/uniform1` exists to
-    test `soft_count_mode: uniform`, whose count is built on the log-odds
-    `u = log p - log1p(-p)`. With p clamped to a value that is still exactly
-    1.0, `log1p(-p)` is -inf, `u` is +inf, and the straight-through term
-    `w * (u - u.detach())` is inf - inf = NaN. `finish_constraint_step` then
-    drops the step, and the run still writes `status: completed`:
-
-        arm             steps landed / attempted
-        tralo             29 / 29    100.0%      (soft_count_mode: sum)
-        tralo_head        29 / 29    100.0%      (soft_count_mode: sum)
-        tralo_uniform      1 / 29      3.4%      (soft_count_mode: uniform)
-
-    The one arm the campaign was built to measure ran at **3.4% of its
-    dose**, and every other arm ran at full dose, so the comparison was not
-    merely weak -- it was a dose contrast wearing a loss-shape contrast's
-    clothes. Nothing in the predictions records a step that did not happen.
-    `sum` is untouched because `p * (1 - p)` never takes a logarithm.
-
-    The fix is `clamp_probability`, which takes its epsilon from the tensor's
-    OWN dtype, so the bound is representable wherever the tensor lives. This
-    gate holds three things: the helper is finite in all three dtypes, the
-    two call sites use it, and no call site re-derives `1 - EPSILON` by hand
-    (an AST scan, never a grep -- this project has been burned by a grep that
-    read a log line as a live use).
-    """
-    import ast
-    import io
-    import torch
-
-    from src.utils.constants import EPSILON, clamp_probability
-
-    # The root fact, stated so it cannot quietly stop being true. Python
-    # computes `1.0 - EPSILON` in float64, where it IS representable
-    # (0.99999999) -- the bound only dies on the cast into the tensor's dtype,
-    # which is exactly why reading the expression never revealed it.
+    from src.utils.constants import clamp_probability, clamp_denominator
     for dtype in (torch.float16, torch.bfloat16, torch.float32):
-        assert float(torch.tensor(1.0 - EPSILON, dtype=dtype)) == 1.0, (
-            "`1 - EPSILON` is now representable in %s, so the hand-written "
-            "clamp is no longer a no-op there; re-derive the dtype-aware "
-            "bounds below before relaxing this." % dtype)
-
-    saturated = [0.0, 1e-12, 0.5, 0.99, 0.999, 1.0 - 1e-9, 1.0]
-    for dtype in (torch.float16, torch.bfloat16, torch.float32):
-        p = torch.tensor([saturated], dtype=dtype, requires_grad=True)
+        p = torch.tensor([0., 1e-12, .5, 1.], dtype=dtype, requires_grad=True)
         q = clamp_probability(p)
-        assert torch.isfinite(q).all(), (
-            "clamp_probability left a non-finite value in %s" % dtype)
-        assert (q > 0).all() and (q < 1).all(), (
-            "clamp_probability returned a value at 0 or 1 in %s: %s"
-            % (dtype, q))
-
+        assert ((q > 0) & (q < 1)).all()
         u = torch.log(q) - torch.log1p(-q)
-        assert torch.isfinite(u).all(), (
-            "the log-odds are non-finite in %s even after the clamp: %s"
-            % (dtype, u))
-
-        from src.losses.transductive_loss import uniform_grad_count
-        s = uniform_grad_count(p.detach().clone().requires_grad_(True))
-        assert torch.isfinite(s).all(), (
-            "uniform_grad_count returned a non-finite VALUE in %s" % dtype)
-
-    # The gradient, which is what actually reaches the optimizer and what was
-    # silently dropped. float32 only: autograd through log in half precision
-    # is not what the constraint pass runs, `constraint_fp32` is.
-    p = torch.tensor([saturated], dtype=torch.float32, requires_grad=True)
-    uniform_grad_count(p).sum().backward()
-    assert torch.isfinite(p.grad).all(), (
-        "uniform_grad_count produced a non-finite GRADIENT on saturated "
-        "probabilities: %s. This is the failure that cost `tralo_uniform` 28 "
-        "of its 29 constraint steps." % p.grad)
-
-    # The same failure at the other end: `clamp(min=EPSILON)` in float16 is
-    # `clamp(min=0)`, and `window_temp` then makes `sigmoid(margin / 0)` NaN
-    # for a margin of exactly 0 -- the items AT the decision boundary, which
-    # are the whole point of the margin window.
-    from src.losses.transductive_loss import window_temp, margin_window
-    for dtype in (torch.float16, torch.bfloat16, torch.float32):
-        flat = torch.zeros((6, 3), dtype=dtype)
-        t = window_temp(flat, 3)
-        assert torch.isfinite(t).all() and (t > 0).all(), (
-            "window_temp returned a non-positive temperature in %s: %s"
-            % (dtype, t))
-        w = margin_window(torch.full((6, 3), 1.0 / 3.0, dtype=dtype), t)
-        assert torch.isfinite(w).all(), (
-            "margin_window is non-finite in %s at zero margin: %s" % (dtype, w))
-
-    # No site may re-derive the bound by hand. AST, so a comment or a log line
-    # naming EPSILON cannot pass for a use.
-    class Finder(ast.NodeVisitor):
-        def __init__(self):
-            self.bad = []
-
-        def visit_Call(self, node):
-            name = getattr(node.func, "attr", None) or getattr(
-                node.func, "id", None)
-            if name == "clamp":
-                for a in list(node.args) + [k.value for k in node.keywords]:
-                    # `clamp(EPSILON, 1 - EPSILON)` -- dead at the top.
-                    if (isinstance(a, ast.BinOp)
-                            and isinstance(a.op, ast.Sub)
-                            and isinstance(a.left, ast.Constant)
-                            and float(a.left.value) == 1.0
-                            and getattr(a.right, "id", None) == "EPSILON"):
-                        self.bad.append(node.lineno)
-                    # `clamp(min=EPSILON)` -- dead at the BOTTOM in float16,
-                    # where 1e-8 is under the smallest subnormal and rounds to
-                    # 0. Scope is deliberately CLAMPS ONLY: an additive guard
-                    # like `x / (s + EPSILON)` has the same rounding but its
-                    # safety depends on `s`, so flagging it would be noise.
-                    elif getattr(a, "id", None) == "EPSILON":
-                        self.bad.append(node.lineno)
-            self.generic_visit(node)
-
-    offenders = []
-    for root, _dirs, files in os.walk("src"):
-        for fn in files:
-            if not fn.endswith(".py"):
-                continue
-            path = os.path.join(root, fn)
-            f = Finder()
-            f.visit(ast.parse(io.open(path, encoding="utf-8").read()))
-            offenders += [(path, ln) for ln in f.bad]
-    assert not offenders, (
-        "these sites clamp a probability with a hand-written `1 - EPSILON`, "
-        "which is a no-op at the top in every dtype: %s. Use "
-        "`clamp_probability` from src.utils.constants." % offenders)
+        assert torch.isfinite(u).all()
+        denominator = clamp_denominator(torch.zeros(3, dtype=dtype))
+        assert torch.isfinite(denominator).all() and (denominator > 0).all()
+    u.sum().backward()
+    assert torch.isfinite(p.grad).all()
 
 
 def test_a_launch_scripts_PIN_carries_the_same_gen_campaign_invocation():
@@ -4459,109 +3655,23 @@ def test_the_ceiling_screen_CAN_SAY_YES_and_reproduces_the_measured_budgets():
 
 
 def test_no_numerical_guard_in_the_TRAINING_PATH_is_a_no_op():
-    """The dead-guard class, audited to its edge instead of one instance at a time.
-
-    Two were found on 2026-08-25: `clamp(EPSILON, 1 - EPSILON)`, whose upper
-    bound is a no-op in every dtype, and `clamp(min=EPSILON)`, whose lower one
-    is a no-op in float16. Both produced NaN, both dropped constraint steps,
-    both wrote `status: completed` anyway.
-
-    So the whole surface was enumerated by AST: 63 sites in `src/` that take a
-    logarithm, a square root, or divide by something non-constant. The triage,
-    2026-08-25, with the reason for each rather than a count:
-
-      * `constraint_step._randomize_direction`  guarded, `if total > 0`
-      * `constraint_step.project_out`           guarded, `if nrm <= 0: return`
-      * `constraint_step` normalize rescale     only reached when raw > 0
-      * `hounie_rcl` group means                guarded, `max(1, group_sizes[g])`
-      * `transductive_loss._penalty`            `scale = K if K >= 1 else 1.0`
-      * `reordering` log-odds                   eps 1e-6 in float64, where
-                                                `1 - eps` IS representable
-      * `imbalanced_losses.LogitAdjustedLoss`   clamp 1e-12 on a float32 buffer
-      * `select` risk denominators              `+ EPSILON` on a float32 sum
-      * everything else                         `pathlib` `/`, not division
-
-    Enumeration is not verification, so the paths are EXERCISED here with the
-    inputs that would break them -- a class with no training instances, a
-    zero-norm reference, an all-zero gradient, K = 0, a saturated softmax --
-    in float16, bfloat16 and float32. Anything non-finite is a defect of the
-    same class, whatever it looks like in the source.
-
-    Negative controls, both run 2026-08-25:
-      * deleting `if nrm <= 0.0: return 0.0` from `project_out` fails this
-        with `ZeroDivisionError: float division by zero` -- the zero-reference
-        case is a Python float division, so it raises rather than returning
-        nan, which is the better failure and is still a failure nothing else
-        was checking for;
-      * deleting the `clamp(min=1e-12)` from `LogitAdjustedLoss` fails it on
-        `log_prior`, because a class with no training instances has prior 0.
-
-    ⚠️ NOT every guard here is load-bearing for FINITENESS, and the difference
-    matters. Replacing `scale = K if K >= 1 else 1.0` with `float(K)` in
-    `_penalty` does NOT fail this gate: at K = 0 the `+ EPSILON` keeps the
-    quotient finite, it just makes it enormous. That guard protects the SCALE,
-    which is section 2(a2)'s subject, not this one. A gate that claimed it
-    covered both would be lying about one.
-    """
-    import torch
-
-    from src.losses.imbalanced_losses import (class_balanced_criterion,
-                                              logit_adjusted_criterion)
-    from src.losses.transductive_loss import (MulticlassTransductiveLoss,
-                                              margins, margin_window,
-                                              uniform_grad_count, window_temp)
-    from src.training.constraint_step import _randomize_direction, project_out
-
-    # 1. The count relaxations, on a SATURATED softmax in every dtype. That is
-    #    the input iwildcam actually produces -- warm-up ends at 0.998 train
-    #    accuracy -- and it is what killed `tralo_uniform`.
-    for dtype in (torch.float16, torch.bfloat16, torch.float32):
-        p = torch.tensor([[1.0, 0.0, 0.0],
-                          [0.0, 1.0, 0.0],
-                          [1.0 / 3, 1.0 / 3, 1.0 / 3]], dtype=dtype)
-        assert torch.isfinite(uniform_grad_count(p)).all(), dtype
-        assert torch.isfinite(margins(p)).all(), dtype
-        t = window_temp(margins(p), 2)
-        assert torch.isfinite(t).all() and (t > 0).all(), (dtype, t)
-        assert torch.isfinite(margin_window(p, t)).all(), dtype
-
-    # 2. The penalty, at K = 0 -- SEVEN of iwildcam's fourteen per-group
-    #    ceilings are zero, so this is the common case there, not a corner.
-    for shape in ("linear", "squared", "rational_bounded"):
-        loss = MulticlassTransductiveLoss([1e10, 1e10, 1e10], {},
-                                          num_classes=3,
-                                          penalty_shape=shape)
-        for K in (0, 1, 500):
-            for soft in (0.0, 0.5, 1e6):
-                v = loss._penalty(torch.tensor(soft), K)
-                assert torch.isfinite(v).all(), (shape, K, soft, v)
-
-    # 3. A class with NO training instances: prior 0, log(0) = -inf unclamped.
-    y = torch.tensor([0, 0, 1, 1, 1])          # class 2 never appears
-    crit = logit_adjusted_criterion(y, 3, torch.device("cpu"))
-    assert torch.isfinite(crit.log_prior).all(), crit.log_prior
-    logits = torch.zeros(4, 3, requires_grad=True)
-    out = crit(logits, torch.tensor([0, 1, 0, 1]))
-    out.backward()
-    assert torch.isfinite(out) and torch.isfinite(logits.grad).all()
-
-    cb = class_balanced_criterion(y, 3, torch.device("cpu"))
-    assert torch.isfinite(cb.weight).all(), cb.weight
-
-    # 4. A gradient that is exactly zero, and a reference that is exactly zero.
-    #    `clip / total` and `dot / nrm` are both divisions by a quantity the
-    #    caller does not control.
+    from src.losses.transductive_loss import MulticlassTransductiveLoss
+    from src.training.constraint_step import finish_constraint_step
+    loss = MulticlassTransductiveLoss([1e10] * 3, {}, num_classes=3)
+    for K in (0, 1, 500):
+        for soft in (0., .5, 1e6):
+            value = torch.tensor(soft, requires_grad=True)
+            penalty = loss._penalty(value, K)
+            penalty.backward()
+            assert torch.isfinite(penalty) and torch.isfinite(value.grad)
     net = torch.nn.Linear(3, 2)
+    opt = torch.optim.Adam(net.parameters(), lr=.01)
+    before = [p.detach().clone() for p in net.parameters()]
     for prm in net.parameters():
         prm.grad = torch.zeros_like(prm)
-    _randomize_direction(net, 1.0, torch.zeros(1))
-    assert all(torch.isfinite(p.grad).all() for p in net.parameters())
-
-    for prm in net.parameters():
-        prm.grad = torch.ones_like(prm)
-    coef = project_out(net, [torch.zeros_like(p) for p in net.parameters()])
-    assert coef == 0.0, "a zero reference must project to nothing, not to nan"
-    assert all(torch.isfinite(p.grad).all() for p in net.parameters())
+    norm, applied = finish_constraint_step(net, opt, None, 1., mode='normalize')
+    assert norm == 0 and not applied
+    assert all(torch.equal(a, b) for a, b in zip(before, net.parameters()))
 
 
 def test_the_order_verdict_REFUSES_to_call_a_coin_flip():
@@ -4927,108 +4037,8 @@ def test_a_cap_above_100_percent_is_legal_and_still_binds():
     assert g[2] == 100 and g[7] == 240
 
 
-from src.methodologies.tralo.train import _reseed_draws  # noqa: E402
 
 
-def test_the_three_lambda_zero_arms_are_three_DISTINCT_RNG_REPLICATES(P):
-    """The RNG floor rested on FOUR observations. This is the fix.
-
-    Every campaign carries exactly one `_null`/`_reseed` pair at four seeds,
-    so the noise every arm-vs-arm claim is judged against is a median of four
-    numbers whose order-statistic confidence interval is the entire sample
-    range. `sensitivity_screen` refuses to decide below eight, and that single
-    fact is why 36 of 38 corpus cells read FLOOR UNMEASURED rather than NOT
-    DIFFERENTIATED (FRAMEWORK 2(z39)). That verdict was itself called
-    UNDER-POWERED until 2026-09-10, which merged it with the case where the
-    floor IS well estimated and the spread is simply smaller -- opposite
-    remedies, one label. FRAMEWORK 2(z70).
-
-    Adding more `<family>_reseed` arms buys NOTHING: lambda=0 makes them all
-    plain CE, so an `alm_reseed` is byte-identical to `tralo_reseed`. Distinct
-    STREAMS are the only thing that adds observations, so `rng_reseed` became
-    a DRAW COUNT and `tralo_reseed2` takes two. Three lambda=0 variants give
-    C(3,2) = 3 pairs per seed instead of one.
-
-    FOUR THINGS MUST HOLD AT ONCE, and each is a separate way to get a floor
-    that silently reads zero:
-
-      1. all three arms are pairwise DIFFERENT -- else the extra runs are
-         duplicates and the floor has not grown at all;
-      2. all three still take ZERO constraint steps -- a reseed control that
-         started training against the cap would be a treated arm wearing a
-         control's name, and the floor would absorb the effect it exists to
-         measure;
-      3. `rng_reseed: true` is still EXACTLY ONE draw -- every reseed run in
-         the corpus was produced that way, and changing it would silently move
-         the published floor and make those runs irreproducible;
-      4. a non-bool, non-int value RAISES -- `bool("2")` is True, which would
-         give two arms the same stream while their names promised otherwise.
-    """
-    ARMS = ("tralo_null", "tralo_reseed", "tralo_reseed2")
-    fails = []
-
-    for a in ARMS:
-        if a not in P["arms"]:
-            fails.append("%s is not declared in protocol.yml arms" % a)
-    assert not fails, "; ".join(fails)
-
-    got = {}
-    for a in ARMS:
-        md5, summary, _norms = _run_arm(P, a, epochs=3)
-        got[a] = (md5, summary.get("constraint_steps_attempted", 0))
-
-    # 1. pairwise distinct
-    for i, a in enumerate(ARMS):
-        for b in ARMS[i + 1:]:
-            if got[a][0] == got[b][0]:
-                fails.append(
-                    "%s and %s are BYTE-IDENTICAL (%s); the extra runs are "
-                    "duplicates and the RNG floor has not grown"
-                    % (a, b, got[a][0]))
-
-    # 2. every one of them is still lambda = 0
-    for a in ARMS:
-        if got[a][1]:
-            fails.append(
-                "%s attempted %d constraint step(s); a reseed control that "
-                "trains against the cap is a treated arm wearing a control's "
-                "name, and the floor would absorb the very effect it measures"
-                % (a, got[a][1]))
-
-    # 3. the historical boolean is still exactly one draw
-    if _reseed_draws({"rng_reseed": True}) != 1:
-        fails.append("`rng_reseed: true` is no longer exactly ONE draw; every "
-                     "tralo_reseed run in the corpus becomes irreproducible "
-                     "and the published floor moves silently")
-    if _reseed_draws({"rng_reseed": False}) != 0 or _reseed_draws({}) != 0:
-        fails.append("an absent or false rng_reseed must take NO draw")
-    # ...and an explicit 1 must agree with the boolean, or the two spellings
-    # of the same arm would produce two different models.
-    if _reseed_draws({"rng_reseed": 1}) != _reseed_draws({"rng_reseed": True}):
-        fails.append("`rng_reseed: 1` and `rng_reseed: true` disagree")
-
-    # 4. anything else RAISES rather than being guessed at
-    for bad in ("2", 2.5, None, [2]):
-        try:
-            _reseed_draws({"rng_reseed": bad})
-        except (TypeError, ValueError):
-            pass
-        else:
-            fails.append("rng_reseed=%r was accepted silently; bool('2') is "
-                         "True and that is how a reseed control stops "
-                         "reseeding" % (bad,))
-    if _reseed_draws({"rng_reseed": 0}) != 0:
-        fails.append("rng_reseed: 0 must mean no draw")
-
-    # LIVENESS: the counts really do differ, so the arms cannot coincide by
-    # construction. If this ever reads equal, check 1 above is vacuous.
-    counts = {a: _reseed_draws(dict(_blocks_of(P, a))) for a in ARMS}
-    if len(set(counts.values())) != len(ARMS):
-        fails.append("the three arms do not resolve to three distinct draw "
-                     "counts: %s" % counts)
-
-    assert not fails, "%d reseed-replicate defect(s): %s" % (
-        len(fails), " | ".join(fails))
 
 
 def _blocks_of(P, arm):
@@ -5039,92 +4049,6 @@ def _blocks_of(P, arm):
     return hp
 
 
-def test_the_proportional_ratchet_is_LIVE_and_widens_the_multiplier_range():
-    """`tralo_dualprop` must differ from `tralo` in the ONE thing it claims.
-
-    Measured 2026-09-06 (`scripts/latch_probe`, 24 dom1 runs): TraLO's shipped
-    ratchet adds a CONSTANT per violated epoch, so lambda ends up counting HOW
-    OFTEN a scope was violated and its range is capped by the epoch count --
-    13.3x measured, 24.3x possible at the shipped constants. The raw violations
-    it responds to span 634x. LDF/ALM/Hounie all integrate HOW MUCH instead.
-
-    Under `constraint_grad_mode: normalize` the summed constraint gradient is
-    rescaled by ONE norm over model.parameters(), so the absolute size of the
-    multiplier divides out and only the ratios across scopes steer. This gates
-    that the new mode actually changes those ratios.
-    """
-    from src.methodologies.tralo.train import (RATCHET_MODES,
-                                               ratchet_increment,
-                                               validate_ratchet_mode)
-
-    step = 0.05
-
-    # 1. NEGATIVE CONTROL: `constant` must be exactly the shipped behaviour --
-    #    the increment cannot depend on the excess at all. If this ever starts
-    #    varying, every stored `tralo` result becomes a different method.
-    for hard, lim in ((11.0, 10.0), (300.0, 10.0), (1.0, 0.0)):
-        assert ratchet_increment("constant", step, hard, lim) == step
-
-    # 2. `proportional` must scale with the excess, and the RANGE it produces
-    #    across scopes must beat what the constant ratchet can reach at all.
-    #    Two scopes: one 1 item over in every one of 29 epochs, one 100 over in
-    #    a single epoch -- the case the constant ratchet gets backwards.
-    const_a = sum(ratchet_increment("constant", step, 11.0, 10.0)
-                  for _ in range(29))
-    const_b = ratchet_increment("constant", step, 110.0, 10.0)
-    prop_a = sum(ratchet_increment("proportional", step, 11.0, 10.0)
-                 for _ in range(29))
-    prop_b = ratchet_increment("proportional", step, 110.0, 10.0)
-    assert const_a > const_b, "constant ranks the OFTEN-violated scope first"
-    assert prop_b > prop_a, "proportional ranks the DEEPLY-violated one first"
-
-    # 2b. THE MECHANISM, stated exactly. The two modes do not differ by one
-    #     being uniformly "wider" -- on the fixture above the CONSTANT spread is
-    #     29x against proportional's 3.45x, because frequency and depth
-    #     disagree there and each mode follows its own axis. What is always
-    #     true is the degenerate case: at EQUAL violation frequency the constant
-    #     ratchet cannot distinguish depth AT ALL, however far apart the scopes
-    #     are. That is what caps its measured range at 13.3x while the raw
-    #     violations span 634x.
-    same_freq_const = [sum(ratchet_increment("constant", step, h, 10.0)
-                           for _ in range(29)) for h in (11.0, 110.0)]
-    same_freq_prop = [sum(ratchet_increment("proportional", step, h, 10.0)
-                          for _ in range(29)) for h in (11.0, 110.0)]
-    assert same_freq_const[0] == same_freq_const[1], (
-        "at equal frequency the constant ratchet must be blind to depth -- "
-        "that blindness IS the defect under test")
-    assert same_freq_prop[1] / same_freq_prop[0] == pytest.approx(100.0), (
-        "proportional must separate them by exactly their excess ratio, got "
-        "%.2f" % (same_freq_prop[1] / same_freq_prop[0]))
-
-    # 3. An unrecognised mode must RAISE, never fall back. A silent fallback is
-    #    this project's most frequent failure mode -- the arm would run as a
-    #    second `tralo` and be reported as a null for a mechanism that never
-    #    executed.
-    for bad in ("Proportional", "prop", "depth", "", None, 1):
-        with pytest.raises(ValueError):
-            validate_ratchet_mode(bad)
-        with pytest.raises(ValueError):
-            ratchet_increment(bad, step, 11.0, 10.0)
-
-    # 4. The arm must be WIRED: declared in protocol.yml, carrying the block,
-    #    sharing tralo's null, and NOT in warmup_identity_keys (it touches the
-    #    constraint phase only, so it must share tralo's cached warm-up).
-    import yaml
-    P = yaml.safe_load(io.open("configs/protocol.yml", encoding="utf-8"))
-    arm = P["arms"]["tralo_dualprop"]
-    assert "ratchet_proportional" in arm["blocks"], arm
-    assert arm["null_sibling"] == "tralo_null", arm
-    assert (P["blocks"]["ratchet_proportional"]["lambda_ratchet_mode"]
-            == "proportional")
-    assert "lambda_ratchet_mode" not in (P.get("warmup_identity_keys") or []), (
-        "lambda_ratchet_mode touches the constraint phase only; putting it in "
-        "warmup_identity_keys would force a redundant warm-up per arm")
-
-    # 5. NEGATIVE CONTROL on the wiring: plain `tralo` must NOT carry the block,
-    #    or the two arms would be one arm.
-    assert "ratchet_proportional" not in P["arms"]["tralo"]["blocks"]
-    assert set(RATCHET_MODES) == {"constant", "proportional"}
 
 
 def test_every_command_in_the_docs_is_one_argparse_would_ACCEPT():

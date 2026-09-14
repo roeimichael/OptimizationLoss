@@ -3,7 +3,6 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-
 import numpy as np
 import torch
 import torch.nn as nn
@@ -15,7 +14,6 @@ class TrainInputs:
     X_train: torch.Tensor
     y_train: torch.Tensor
     X_test: torch.Tensor
-    y_test: np.ndarray
     group_ids: np.ndarray
     global_con: List[float]
     local_con: Dict[int, list]
@@ -34,26 +32,13 @@ class TrainOutputs:
     summary: Dict[str, Any]
     skip_targeted_correction: bool = False
     precomputed_predictions: Optional[np.ndarray] = None
-    # PROBABILITIES to score instead of a final forward pass on `model`.
-    # Distinct from `precomputed_predictions`, which is final HARD labels and
-    # BYPASSES the allocator (heuristic / danits_lp already allocated). These
-    # FEED the allocator, so targeted_correction still runs exactly as it does
-    # for every other trained arm and the comparison stays apples to apples.
-    snapshot_proba: Optional[np.ndarray] = None
 
 
 def _required(hp, key, cast=float):
-    """Read a protocol value that must never fall back to an inline default.
-
-    The inline defaults this replaces were the retracted ones -- lr_constraint 1e-5
-    against the protocol's 1e-4, constraint_epochs 150 against 29,
-    stable_count_threshold 5 against 31 (low enough that the early stop would
-    actually fire). A missing key is a generator bug; failing loudly is the
-    only safe behaviour.
-    """
+    """Read an explicit protocol value without an implicit training default."""
     if key not in hp:
         raise KeyError(
-            "%s is required and has no safe default. configs/protocol.yml is "
-            "the source of truth; generate the campaign with "
-            "configs.gen_campaign rather than hand-writing a config." % key)
+            "%s is required and has no safe default. configs/protocol.yml is the source of truth; generate the campaign with configs.gen_campaign rather than hand-writing a config."
+            % key
+        )
     return cast(hp[key])

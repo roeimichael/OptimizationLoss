@@ -1,467 +1,70 @@
-"""Transductive prediction-count penalties and optional count estimators.
+"""Bounded TraLO count penalty. Soft counts provide gradients; hard counts drive the trainer ratchet."""
 
-The default bounded penalty uses E = relu(s - K), S = max(K, 1):
-    E/(E+S) + rho * (E/S)^2 / (1 + (E/S)^2).
-The constraint objective sums lambda times that penalty over capped scopes.
-Soft counts supply gradients; the trainer's hard counts control its ratchet.
-Shared parameters allow count gradients to reorder predictions, but neither
-reordering nor feasibility implies better classification. See docs/FRAMEWORK.md
-for the current comparison protocol; historical result claims are archived."""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-from src.utils.constants import (UNLIMITED, EPSILON, clamp_probability,
-                                 clamp_denominator)
-
-
-def margins(proba):
-    """Per-item distance to the decision boundary, (N, C).
-
-    `m_ic = p_ic - max_{c' != c} p_ic'` is positive exactly when item i is
-    predicted class c, so `sum_i 1[m_ic > 0]` IS the hard count.
-    """
-    top2 = torch.topk(proba, 2, dim=1).values
-    best, second = top2[:, :1], top2[:, 1:2]
-    # the best OTHER class: for the argmax that is the runner-up, else the best
-    return proba - torch.where(proba >= best, second, best)
-
-
-def window_temp(m, n_items):
-    """T per class that puts ~`n_items` items inside the window. (C,)
-
-    WHY T IS DERIVED AND NOT CONFIGURED. A fixed T is not a fixed dose. On real
-    dermmnist runs (MobileNetV3, 4 seeds, two cap tags, measured 2026-08-21 off
-    the stored evidence) the T that puts ~20 items at the boundary ranges
-    0.182 .. 0.502 -- a 2.8x spread ACROSS SEEDS OF ONE CELL -- while T = 0.02
-    puts 0 to 3 items in the window, i.e. the constraint would contribute
-    essentially nothing and the run would report a null while writing
-    `completed`. Margins also grow through the constraint phase as CE
-    converges, so a T that is right at epoch 1 is too narrow by epoch 29.
-
-    This is the same defect `constraint_grad_mode: normalize` was built to fix
-    on the other axis: one absolute number applied to quantities whose natural
-    scale differs per arm, per seed and per epoch is a dose that varies
-    invisibly. Specifying the WINDOW WIDTH IN ITEMS makes it dimensionless --
-    comparable across cells, seeds and epochs by construction -- and removes
-    the silent-null failure entirely, since the window can no longer be empty.
-    """
-    k = max(1, min(int(n_items), m.shape[0]))
-    t = torch.sort(m.abs(), dim=0).values[k - 1]
-    return clamp_denominator(t)
-
-
-def uniform_grad_count(proba, weight=None):
-    """Return clamped probabilities with a straight-through log-odds derivative.
-
-    For u = log(p/(1-p)), the returned value is p and its surrogate derivative
-    with respect to u is a detached per-class constant w = mean_i p_i(1-p_i).
-    Chunked callers MUST pass the same full-population weight to every chunk.
-    Computing w separately per chunk changes relative class weights and makes the
-    memory chunk size part of the algorithm. The trainer accumulates w in pass 1.
-
-    This is not order-preserving: other-class logit derivatives and shared model
-    parameters can move different examples differently. Clamp saturation also
-    affects the derivative. A constant surrogate derivative does not imply equal
-    optimizer displacement, and this estimator carries no quality guarantee."""
-    p = clamp_probability(proba)
-    u = torch.log(p) - torch.log1p(-p)
-    # Chunked callers must supply the detached mean over the FULL population.
-    # Otherwise a memory knob changes the relative per-class gradient weights.
-    w = ((p * (1.0 - p)).mean(dim=0, keepdim=True) if weight is None else weight).detach()
-    return p.detach() + w * (u - u.detach())
-
-
-def sech2(x):
-    """`sech^2(x)`, stable AND precise. Both halves were measured, 2026-08-31.
-
-    The naive `1 / cosh(x)**2` returns the right VALUE everywhere -- it
-    saturates to 0.0 rather than to inf -- but its GRADIENT is `nan` for
-    |x| >= 100, because the backward pass differentiates through an overflowed
-    `cosh`. On real iwildcam logits the capped-class log-odds run past 30 and
-    the window argument past 100, so that is reachable, not hypothetical.
-
-    The obvious stable rewrite `4 * sigmoid(2x) * (1 - sigmoid(2x))` fixes the
-    gradient and LOSES PRECISION: at x = 10 it underflows to exactly 0.0 where
-    the true value is 8.2e-09, because `sigmoid(20)` rounds to 1.0 in float32
-    and the complement is then exactly zero. This form keeps both:
-
-        sech^2(x) = 4 * e^(-2|x|) / (1 + e^(-2|x|))^2
-
-    `e^(-2|x|)` underflows smoothly toward zero and never overflows, so the
-    value is accurate down to the exponent floor and the gradient stays finite.
-    """
-    a = torch.exp(-2.0 * x.abs())
-    return 4.0 * a / (1.0 + a) ** 2
-
-
-def cut_window_count(proba, tau, temp):
-    """Value = `p_ic` exactly; gradient mass concentrated AT THE CUT. (N, C).
-
-    WHY THIS EXISTS -- measured on real stored features, not argued
-    (`scripts/step_direction_probe.py`, `iwc1`, 24 (run, class) pairs,
-    2026-08-31, FRAMEWORK 2(z12)).
-
-    The shipped count `sum_i p_ic` has per-item derivative `p(1-p)`, which is
-    MAXIMAL at p = 0.5 and VANISHING at p = 1. On iwildcam at tight caps the
-    K-th ranked item -- the cut, the only place where moving an item changes
-    the emitted top-K set -- sits at p = 0.99984 to 1.00000. So the fraction of
-    the shipped penalty's total gradient landing on the 40 items straddling the
-    cut is:
-
-        uniform  0.0136        sum p(1-p)  0.0000 - 0.0005        this  0.70 - 0.83
-
-    **0.00%.** The penalty spends its entire budget deep inside the class where
-    movement cannot change the emitted set, and nothing where the metric reads.
-    That is why the reordering it does produce measures at the RNG floor
-    (2(z11)): with respect to the metric it is arbitrary.
-
-    It also derives the measured regime reversal with no new assumption. At
-    loose caps the cut falls to p = 0.59 - 0.99, where `p(1-p)` finally has
-    mass -- which is exactly where `sum` wins (+0.0253 AP at L80/L90) and
-    `uniform` is the reverse.
-
-    HOW. The same straight-through construction `uniform_grad_count` uses, so
-    the count the penalty reads is unchanged and only the gradient's
-    DISTRIBUTION over items differs:
-
-        value      p_ic                      (exact -- the K comparison and the
-                                              reported excess are untouched)
-        gradient   dS/du_i = sech^2((u_i - u_K) / T)
-
-    with `u = log(p / (1 - p))`, `u_K` the K-th largest `u` (detached, so no
-    gradient flows through the choice of cut), and T set from the data so the
-    window holds ~`n_items` ITEMS.
-
-    🛑 T IS SET IN ITEMS, NOT IN LOGITS, AND THAT IS LOAD-BEARING. At a
-    fixed T = 1.0 the mass at the cut collapses from 0.830 to 0.111 between
-    class 2 and class 7 OF THE SAME RUN, purely because the logit spread near
-    the cut differs. This is `window_temp`'s lesson on a second axis; see its
-    docstring.
-
-    ⚠️ A DEAD END THIS IS NOT, and the difference is the whole design.
-    `margin_window` records that centring the window on the K-th order
-    statistic and using it AS THE COUNT gives a quantity pinned at K - 0.5 for
-    any model. VERIFIED 2026-08-31 across seven temperatures: at T -> 0 it
-    reads 120.09 against K - 0.5 = 119.5 and reports an excess of 0.2 where the
-    true soft excess is 636.4, so the penalty on it is ~zero and it cannot
-    push. THIS function keeps the VALUE as `sum_i p_ic` and replaces ONLY the
-    gradient, so the excess it reports stays true and the penalty stays live.
-    The regression suite gates both halves.
-
-    ⚠️ WHAT IS NOT CLAIMED. That aiming at the cut WINS. It is necessary,
-    not sufficient: `headroom` reads 0.0-1.0 on iwildcam's tight cells and
-    11.7-21.2 per cell at its task caps (the `1.9-9.9` bound quoted here
-    until 2026-09-10 was a dermmnist figure), so a
-    correctly-aimed gradient can still find nothing to take. This fixes a
-    gradient that provably could not reach the cut; whether the cut is worth
-    reaching is the experiment.
-
-    🛑 `tau` AND `temp` ARE (C,) TENSORS COMPUTED ONCE OVER THE FULL TEST
-    SET by `cut_params`, and passed IN. They are deliberately not derived here.
-    The constraint pass is CHUNKED (`constraint_chunk_size`, 23 chunks on
-    iwildcam) and the detach construction at the call site is exact only when
-    the per-item weight does not depend on chunk membership. Deriving `tau`
-    from whatever tensor this is handed would give a PER-CHUNK cut -- a
-    different quantity in every chunk, and not the full-N gradient.
-    `test_the_windowed_count_keeps_the_exact_full_N_gradient_when_chunked`
-    is the gate; `margin_window` takes its `temp` from `window_temp` for the
-    same reason.
-
-    ⚠️ THE CUT IS PER CLASS OVER THE FULL TEST SET, NOT PER GROUP. A
-    per-(group, class) cut is the more faithful object -- the LOCAL budget is
-    per group -- but the test set is NOT ordered by group (1889 contiguous runs
-    over 2943 rows; all 23 chunks span more than one group), so a per-group cut
-    has no existing scoping to inherit and would need its own pre-pass. Global
-    first, and say so, rather than a per-chunk approximation of a per-group
-    quantity.
-    """
-    p = clamp_probability(proba)
-    u = torch.log(p) - torch.log1p(-p)
-    w = sech2((u.detach() - tau) / temp)
-    return p.detach() + w * (u - u.detach())
-
-
-def cut_params(proba_full, budgets, n_items):
-    """(tau, temp), both (C,): WHERE the cut is and HOW WIDE the window is.
-
-    Computed once per constraint epoch over the FULL test set, then held fixed
-    across chunks -- see `cut_window_count`. `tau_c` is the K-th largest
-    log-odds for class c, i.e. the score of the last item the allocator emits.
-    `temp_c` is the distance from `tau_c` to the `n_items`-th nearest item, so
-    the window holds ~`n_items` ITEMS whatever the local logit scale.
-
-    🛑 WIDTH IN ITEMS IS LOAD-BEARING, and this is `window_temp`'s lesson
-    on a second axis. At a fixed temp = 1.0 the gradient mass at the cut
-    collapses from 0.830 to 0.111 between class 2 and class 7 OF THE SAME RUN,
-    purely because the logit spread near the cut differs. A fixed temp is not a
-    fixed dose.
-
-    Classes with no cut inside the item set -- K < 1 ("predict none") or
-    K >= n (the budget cannot bind) -- get temp = +inf, which makes `sech2`
-    return 1.0 everywhere, i.e. a FLAT weight. Flat, never zero: a zero column
-    is a silent null of exactly the kind CLAUDE.md rule 3 exists for, and it
-    would still write `status: completed`.
-    """
-    p = clamp_probability(proba_full)
-    u = (torch.log(p) - torch.log1p(-p)).detach()
-    n, C = u.shape
-    tau = torch.zeros(C, dtype=u.dtype, device=u.device)
-    temp = torch.full((C,), float("inf"), dtype=u.dtype, device=u.device)
-    k = max(1, min(int(n_items), n))
-    for c in range(C):
-        K = int(budgets[c]) if float(budgets[c]) < float(n) else n
-        if K < 1 or K >= n:
-            continue
-        col = u[:, c]
-        t = torch.sort(col, descending=True).values[K - 1]
-        tau[c] = t
-        temp[c] = clamp_denominator(torch.sort((col - t).abs()).values[k - 1])
-    return tau, temp
-
-
-def margin_window(proba, temp):
-    """Soften the ARGMAX instead of summing probabilities. Returns (N, C).
-
-    WHY. The manuscript's count is `s_c = sum_i p_ic`, whose per-item
-    derivative is p(1-p). At the K-th RANKED item that is 0.026 at L30_G20
-    (0 of 4 seeds responded) vs 0.055 at L50_G30 (4 of 4), and 0.0009 once CE
-    has converged -- which is what "CE saturates" means and why warm-up 50 is
-    a dead regime.
-
-    !! But rank K is NOT the decision boundary, and conflating them overstates
-    this. When the hard count is 300 against K = 44 the boundary sits at item
-    300 and rank 44 is buried inside the class; at the boundary p(1-p) is near
-    its MAXIMUM, and measured on the stored evidence `sum` already places 29.4%
-    of its total gradient on the 20 items nearest it -- 15x uniform. What the
-    margin window buys is therefore smaller than "the gradient cannot reach the
-    cut" suggests: on the items that must actually flip it is at most 1.30x,
-    and only at a very narrow window. See docs/FRAMEWORK.md section 4.
-
-    So put the weight on the cut: `sigma(m_ic / T)`, whose derivative peaks at
-    margin 0 -- at the decision boundary, on the items one step from flipping
-    -- and vanishes for items buried inside a class. Summed it tracks the HARD
-    count rather than the probability mass, so it is also the tighter
-    relaxation: the two agree to within a fraction of an item, where sum-of-p
-    does not.
-
-    `temp` is a scalar or a per-class (C,) tensor from `window_temp`.
-
-    A DEAD END THIS REPLACES, recorded because it is seductive and it is
-    wrong: centring the window on the K-th largest probability instead, i.e.
-    `sigma((p_ic - tau_c)/T)` with `tau_c` the K-th order statistic, gives a
-    quantity that counts how many items exceed the K-th largest -- which is
-    K - 0.5 for ANY model. It is a constant, the penalty on it is identically
-    zero, and it produces no gradient at all. It was wired into the trainer
-    and caught by the chunked-gradient test before it ever ran.
-    """
-    return torch.sigmoid(margins(proba) / temp)
+from src.utils.constants import UNLIMITED, EPSILON
 
 
 class MulticlassTransductiveLoss(nn.Module):
-
-    def __init__(self, global_constraints, local_constraints,
-                 num_classes, initial_rho=0.5,
-                 penalty_shape="rational_bounded",
-                 penalty_item_scale=False):
+    def __init__(
+        self, global_constraints, local_constraints, num_classes, initial_rho=0.5
+    ):
         super().__init__()
-        # An unrecognised shape fell through the dispatch below to
-        # `rational_bounded`, so a `penalty_shape: quadratic` arm would have
-        # run the DEFAULT shape under a different arm name and "tied the
-        # default" -- because it was the default. Same argument as the
-        # soft_count_mode guard in methodologies/tralo/train.py, which was
-        # written after that failure mode cost a campaign.
-        if penalty_shape not in ("rational_bounded", "linear", "squared"):
-            raise ValueError(
-                "penalty_shape must be one of rational_bounded / linear / "
-                "squared, got %r. An unrecognised shape silently ran "
-                "rational_bounded under a different arm name." % penalty_shape)
-        # A truthy STRING would silently switch the arm on, and YAML writes
-        # `false` as a bool but a CLI passes "False" as a string -- which is
-        # truthy. Refuse anything that is not already a bool rather than let an
-        # arm run the treatment while its config says it did not.
-        if not isinstance(penalty_item_scale, bool):
-            raise TypeError(
-                "penalty_item_scale must be a bool, got %r (%s). A string "
-                "\"False\" is TRUTHY and would run the treatment under the "
-                "control's name." % (penalty_item_scale,
-                                     type(penalty_item_scale).__name__))
         self.num_classes = num_classes
-        self.penalty_shape = penalty_shape
-        self.penalty_item_scale = penalty_item_scale
-        self.register_buffer('rho', torch.tensor(float(initial_rho)))
-        # NO soft-count satisfaction flag lives here, deliberately. Two used
-        # to (`global_constraints_satisfied` / `local_constraints_satisfied`),
-        # written on every forward and read NOWHERE in the repo -- inert flags
-        # five and six, the failure mode CLAUDE.md rule 3 exists for. Worse
-        # than useless: they encode satisfaction on the SOFT count, and at K=0
-        # `sum_i p_ic` is strictly positive for any softmax, so a soft flag is
-        # permanently False for a group that is in fact perfectly satisfied.
-        # The trainer decides satisfaction from the HARD counts, which can be
-        # exactly zero. Do not reintroduce a soft one.
-        # lambda keys: class idx for global, (group_id, class) for local
+        self.register_buffer("rho", torch.tensor(float(initial_rho)))
         self.lambda_global_per_class = {}
         self.lambda_local_per_key = {}
-
         if global_constraints is not None:
             assert len(global_constraints) == num_classes
-            self.register_buffer('global_constraints',
-                                 torch.tensor(global_constraints, dtype=torch.float32))
+            self.register_buffer(
+                "global_constraints",
+                torch.tensor(global_constraints, dtype=torch.float32),
+            )
         else:
-            self.register_buffer('global_constraints', torch.tensor([]))
-
+            self.register_buffer("global_constraints", torch.tensor([]))
         self.local_groups = {}
         for group_id, constraints in (local_constraints or {}).items():
-            name = 'local_%d' % int(group_id)
+            name = "local_%d" % int(group_id)
             self.register_buffer(name, torch.tensor(constraints, dtype=torch.float32))
             self.local_groups[group_id] = name
 
-    # ---- the penalty shape: the one place to change it ----------------------
     def _penalty(self, soft, K):
-        """Rational saturation plus a bounded quadratic, both in the excess E.
-
-        The excess is measured against the TRUE K, but both terms are scaled by
-        max(K, 1). WITHOUT that scaling, at K == 0 the forms pin at their own
-        bound -- E/(E+0) == 1 and (E/0)^2/(1+(E/0)^2) == 1 -- so the penalty
-        would be a nonzero CONSTANT with exactly zero gradient, and a group
-        holding no true instance of the capped class would contribute nothing at
-        all. `scale = K if K >= 1 else 1.0` is what prevents that; it is the
-        identity for every K >= 1, so this is bit-identical to the previous form
-        on every run made before the fix.
-
-        ⚠️ **WHAT IS STILL TRUE AT K == 0, AND WHAT IS NOT.** `sum_i p_ic` is
-        strictly positive for any softmax, so `relu(soft - 0)` never reaches
-        zero and this constraint is never satisfied ON THE SOFT COUNT. What that
-        does NOT do is stall the run: `src/methodologies/tralo/train.py` decides
-        both satisfaction and the ratchet gate from the HARD counts, which CAN
-        be exactly zero, so a K == 0 group neither holds the gate open nor
-        blocks the freeze for any other constraint. (An earlier version of this
-        docstring said it did. Read against the trainer before believing it --
-        the mistake nearly condemned a healthy campaign.)
-
-        What it DOES do is contribute a permanent, non-vanishing gradient
-        pushing p_ic down in that group. For a group with genuinely no instances
-        of the class that direction is CORRECT, which is why `straight_through`
-        is a knob and not a fix: it makes the term satisfiable on the hard count
-        and thereby switches the pressure off, which is not obviously what you
-        want on a dataset where K == 0 ceilings carry real information.
-        ⚠️ On iwildcam SEVEN of the fourteen per-group ceilings are K == 0, so
-        this is the common case there, not a corner.
-
-        🛑 **AND `scale` SETS THE UNITS OF THE GRADIENT, WHICH IS THE LARGER
-        CONSEQUENCE.** `e = E / scale` makes the excess DIMENSIONLESS, so
-        `d(pen)/d(soft)` carries units of 1/budget and a scope's pull PER ITEM
-        is INVERSELY PROPORTIONAL to its own ceiling. A `K == 0` group measures
-        its excess in absolute items while a `K == 333` group measures it in
-        percent, and under `constraint_grad_mode: normalize` -- where the step
-        norm is fixed and only the RATIOS across scopes steer -- the small-K
-        scope wins by orders of magnitude.
-
-        MEASURED on `dom1`, 11,136 logged scope-epochs over 24 tralo runs
-        (FRAMEWORK 2(z54)):
-
-            budget      scope-ep    TraLO share    ALM share
-            K = 0           4872        93.5%        18.8%
-            K = 10..99      2552         4.9%        12.0%
-            K >= 100        3712         1.7%        69.2%
-
-        ALM's weight is `lambda + mu * r` with `r = soft - K` in RAW ITEMS and
-        no division at all (`fioretto_alm/train.py:244,253`), so the two rules
-        order the same scopes OPPOSITELY. Per scope-epoch TraLO weights a K = 0
-        scope 43x more than a K >= 100 one; ALM weights the K >= 100 scope 4.8x
-        more.
-
-        ⚠️ Worse, the pull is largest where the prize is smallest: with
-        `scale == 1` the bounded shape peaks at `e ~ 0.55`, i.e. at HALF A UNIT
-        of probability mass, so a camera group already predicting NONE of the
-        capped species draws the maximum possible weight while contributing
-        nothing the allocator can act on (it emits K = 0 items there whatever
-        the probabilities are).
-
-        ✅ `penalty_item_scale` multiplies the penalty by `scale`, cancelling
-        the 1/budget and leaving `d(pen)/d(soft)` dimensionless -- the units ALM
-        already uses. It is OFF by default, so every stored result is bit-identical.
-        ⚠️ It is exact for `rational_bounded` (slope -> 1 as E -> 0) and for
-        `linear` (slope exactly 1, the raw excess in items). For `squared` the
-        slope becomes `2E/scale`, less budget-dependent but not dimensionless;
-        that shape is already demoted (2(z48)) and is not the arm being run.
-        ⛔ THIS IS NOT A PENALTY-SHAPE VARIANT. All three shipped shapes divide
-        by the SAME `scale` -- `linear` returns `e` and `squared` returns `e**2`,
-        both of which are `E/scale` -- so the shape ablation in the rejected
-        ledger varied the numerator and never the denominator, and could not
-        have caught this.
-        """
         E = F.relu(soft - K)
         scale = K if K >= 1 else 1.0
         e = E / (scale + EPSILON)
-        if self.penalty_shape == "linear":
-            pen = e
-        elif self.penalty_shape == "squared":
-            pen = e ** 2
-        else:
-            pen = (E / (E + scale + EPSILON)
-                   + self.rho * (e ** 2) / (1 + e ** 2 + EPSILON))
-        if self.penalty_item_scale:
-            pen = pen * scale
-        return pen
-
-    # ---- why `linear` and `squared` exist -------------------------------
-    # The shipped shape is bounded, so its gradient d(pen)/d(soft) is
-    # NON-MONOTONE in the violation above rho ~ 1: near zero at the boundary,
-    # peaking around 53-58% over, and decaying toward zero for anything worse.
-    # A scope violated by 8x its budget gets 167x LESS pull than one violated
-    # by 58% (FRAMEWORK 2a2, reproduced independently to four decimals).
-    #
-    # With a SINGLE term that is harmless: the constraint gradient is clipped
-    # alone, so the shape is a scalar times a fixed direction and divides out.
-    # With several terms it sets their RELATIVE weights, and it sets them
-    # backwards. Measured on a real multi-class run (dermmnist, classes 2+4
-    # capped, L30_G20, 2026-08-20): class 4 at 1.3x its budget was pulled to
-    # 57 against K=45, while class 2 at 9.3x its budget ROSE to 410 against
-    # K=44 and was never touched. The deepest violator is the one the shape
-    # starves. Single-class runs never showed this because their spread across
-    # scopes has median 1.5x; here it is ~30x.
-    #
-    # `linear` (e) and `squared` (e**2) have constant and growing pull with
-    # depth respectively, which is what a penalty is supposed to do.
-    # ⚠️ The default stays `rational_bounded`: it is the manuscript's Eq. 4,
-    # and changing the default would silently reinterpret every stored result.
+        return E / (E + scale + EPSILON) + self.rho * e**2 / (1 + e**2 + EPSILON)
 
     def _sum(self, entries, device):
-        """entries: (soft_count, K, lambda) for every capped (class, scope).
-        Returns (total, all_satisfied, n_capped). Satisfaction is judged on the
-        SOFT count here; hard counts verify separately in the trainer."""
         total = torch.tensor(0.0, device=device)
-        all_satisfied, n = True, 0
+        (all_satisfied, n) = (True, 0)
         for soft, K, lam in entries:
             if (soft > K).item():
                 all_satisfied = False
             total = total + lam * self._penalty(soft, K)
             n += 1
-        return total, all_satisfied, n
+        return (total, all_satisfied, n)
 
     def _capped(self, constraints, num_classes):
-        return [c for c in range(num_classes)
-                if c < len(constraints) and constraints[c] < UNLIMITED]
+        return [
+            c
+            for c in range(num_classes)
+            if c < len(constraints) and constraints[c] < UNLIMITED
+        ]
 
     def compute_global_from_counts(self, soft_counts):
         device = soft_counts.device
         if len(self.global_constraints) == 0:
-            return soft_counts.sum() * 0.0          # keeps the autograd graph alive
+            return soft_counts.sum() * 0.0
         con = self.global_constraints.to(device)
-        entries = [(soft_counts[c], con[c], self.lambda_global_per_class.get(c, 0.0))
-                   for c in self._capped(con, self.num_classes)]
-        total, _satisfied, n = self._sum(entries, device)
+        entries = [
+            (soft_counts[c], con[c], self.lambda_global_per_class.get(c, 0.0))
+            for c in self._capped(con, self.num_classes)
+        ]
+        (total, _satisfied, n) = self._sum(entries, device)
         return total if n else soft_counts.sum() * 0.0
 
     def _zero(self):
-        """A zero on the module's own device.
-
-        A bare torch.tensor(0.0) is always on CPU, so adding it to a CUDA term
-        raises. It reached the caller only when there was no local count tensor
-        to hang the graph on, which is why it survived: tralo always adds a
-        connected global term alongside it.
-        """
         return torch.zeros((), device=self.global_constraints.device)
 
     def compute_local_from_counts(self, local_soft_counts):
@@ -476,43 +79,30 @@ class MulticlassTransductiveLoss(nn.Module):
                 continue
             soft = local_soft_counts[gid]
             con = getattr(self, buffer_name).to(device)
-            entries += [(soft[c], con[c], self.lambda_local_per_key.get((gid, c), 0.0))
-                        for c in self._capped(con, self.num_classes)]
-        total, _satisfied, n = self._sum(entries, device)
+            entries += [
+                (soft[c], con[c], self.lambda_local_per_key.get((gid, c), 0.0))
+                for c in self._capped(con, self.num_classes)
+            ]
+        (total, _satisfied, n) = self._sum(entries, device)
         if n:
             return total
         for v in local_soft_counts.values():
             return v.sum() * 0.0
-        # `_zero` takes no argument -- it reads the device off the module's own
-        # buffer. This line said `self._zero(device)`, i.e. a TypeError waiting
-        # on a branch that the loop above currently makes unreachable (the
-        # empty case already returned at the top of the function). Reachability
-        # is not a guarantee, and a fallback that raises is worse than no
-        # fallback.
         return self._zero()
 
-    # ---- lambda / rho -------------------------------------------------------
-    def set_lambda_per_class(self, class_idx, value, scope='global', group_id=None):
-        if scope == 'global':
+    def set_lambda_per_class(self, class_idx, value, scope="global", group_id=None):
+        if scope == "global":
             self.lambda_global_per_class[class_idx] = float(value)
-        elif scope == 'local' and group_id is not None:
-            self.lambda_local_per_key[(group_id, class_idx)] = float(value)
+        elif scope == "local" and group_id is not None:
+            self.lambda_local_per_key[group_id, class_idx] = float(value)
         else:
-            # 🛑 A NO-OP HERE IS INVISIBLE AND FATAL. `get_lambda_per_class`
-            # and the two `compute_*` paths all default a missing lambda to
-            # 0.0, so a typo'd scope (or scope='local' with no group_id) leaves
-            # the penalty multiplied by zero: the arm becomes its own lambda=0
-            # twin while `L_Global`/`L_Local` log 0.0 and every gate stays
-            # green. The ratchet reads then writes through this same pair, so
-            # it would also freeze at zero forever.
             raise ValueError(
-                "set_lambda_per_class(scope=%r, group_id=%r) would set "
-                "nothing, leaving lambda at 0.0 and making this arm its own "
-                "null. scope must be 'global', or 'local' WITH a group_id."
-                % (scope, group_id))
+                "set_lambda_per_class(scope=%r, group_id=%r) would set nothing, leaving lambda at 0.0 and making this arm its own null. scope must be 'global', or 'local' WITH a group_id."
+                % (scope, group_id)
+            )
 
-    def get_lambda_per_class(self, class_idx, scope='global', group_id=None):
-        if scope == 'global':
+    def get_lambda_per_class(self, class_idx, scope="global", group_id=None):
+        if scope == "global":
             return self.lambda_global_per_class.get(class_idx, 0.0)
         return self.lambda_local_per_key.get((group_id, class_idx), 0.0)
 

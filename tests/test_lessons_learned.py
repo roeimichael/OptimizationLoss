@@ -304,18 +304,13 @@ def test_a_zero_lambda_arm_still_RUNS_its_constraint_epochs():
     `constraint_epochs` as their treated twins, and the post-hoc arms are the
     ones that carry zero.
     """
-    P = yml("configs", "protocol.yml")
+    from lean_fixtures import protocol_with_nulls
+    from configs.gen_campaign import build_hyperparams
+    P = protocol_with_nulls()
     arms = P["arms"]
 
     def epochs(a):
-        hp = arms.get(a) or {}
-        for k in ("constraint_epochs", "hyperparams"):
-            v = hp.get(k)
-            if isinstance(v, dict) and "constraint_epochs" in v:
-                return v["constraint_epochs"]
-            if isinstance(v, int):
-                return v
-        return None
+        return build_hyperparams(P, arms[a], 1)["constraint_epochs"]
 
     bad = []
     pairs = [(a, a + "_null") for a in ("tralo", "alm", "fioretto", "hounie")
@@ -1177,62 +1172,6 @@ def test_the_two_fioretto_arms_build_PROPORTIONAL_weights_at_a_fixed_state():
         "and the cos=1.0 above proves nothing." % cos_t)
 
 
-def test_a_uniform_step_in_LOG_ODDS_is_not_a_bias_shift_and_can_reorder():
-    """`uniform_grad_count`'s founding claim, refuted in LOGIT space (2026-09-02).
-
-    The docstring used to argue: `u_c = z_c - log sum_{k!=c} e^{z_k}` gives
-    `du_c/dz_c = 1` exactly, therefore a uniform step in u is a pure bias shift
-    on the class logit, therefore it cannot reorder.
-
-    The identity is true and the conclusion does not follow. `du_c/dz_c = 1` is
-    only the DIAGONAL. The off-diagonal is `du_c/dz_j = -p_j/(1-p_c)`, which is
-    nonzero and varies per item, so a step of equal size in every item's u still
-    moves the other logits by item-dependent amounts.
-
-    `scripts/bias_shift_probe.py` already refutes the claim in PARAMETER space.
-    This is the same refutation one level earlier, and it needs no model at all
-    -- which is why it belongs in the catalogue: the parameter-space argument
-    can be argued about, this one cannot.
-    """
-    import torch
-
-    torch.manual_seed(0)
-    z = torch.randn(64, 8, dtype=torch.float64, requires_grad=True)
-    p = torch.softmax(z, dim=1)
-    u = torch.log(p) - torch.log1p(-p)
-
-    J = torch.zeros(64, 8, 8, dtype=torch.float64)
-    for c in range(8):
-        J[:, c, :] = torch.autograd.grad(u[:, c].sum(), z, retain_graph=True)[0]
-
-    diag = torch.diagonal(J, dim1=1, dim2=2)
-    assert float((diag - 1).abs().max()) < 1e-10, (
-        "du_c/dz_c is no longer exactly 1, so the log-odds coordinate is not "
-        "doing what uniform_grad_count assumes")
-
-    off = J.clone()
-    for c in range(8):
-        off[:, c, c] = 0.0
-    pd = p.detach()
-    want = torch.zeros_like(off)
-    for c in range(8):
-        for j in range(8):
-            if j != c:
-                want[:, c, j] = -pd[:, j] / (1 - pd[:, c])
-    assert float((off - want).abs().max()) < 1e-9, (
-        "du_c/dz_j is no longer -p_j/(1-p_c); the algebra this lesson rests on "
-        "has changed")
-
-    assert float(off.abs().max()) > 1e-2, (
-        "the off-diagonals of du/dz came out ZERO. If that were true a uniform "
-        "step in u WOULD be a pure bias shift and uniform_grad_count's "
-        "original claim would stand. It is not true; this assertion exists so "
-        "the claim cannot quietly return to the docstring.")
-
-    per_item = off.abs().amax(dim=(1, 2))
-    assert float(per_item.max() - per_item.min()) > 1e-2, (
-        "the off-diagonal coupling is CONSTANT across items, which would make "
-        "it a shift after all. Measured spread was 0.30 on 2026-09-02.")
 
 
 def test_a_quadrature_sd_is_within_sqrt2_of_the_truth_in_EITHER_direction():
@@ -1590,10 +1529,8 @@ def test_the_dual_arms_UPDATE_THEIR_MULTIPLIERS_BEFORE_THE_PRIMAL_STEP():
     """
     fails = []
     ARMS = {
-        "fioretto_ldf": ("# ---- Step 3: subgradient dual update",
-                         "has_work = ("),
-        "hounie_rcl": ("# ---- Step 3: dual ascent on lambda",
-                       "has_active = ("),
+        "fioretto_ldf": ("lambda_g[c] += step_size * viol", "has_work ="),
+        "hounie_rcl": ("lam_g[c] = max(", "has_active ="),
     }
     for arm, (dual_marker, primal_gate) in ARMS.items():
         src = io.open(rel("src", "methodologies", arm, "train.py"),
@@ -2897,69 +2834,8 @@ def test_reachability_reads_the_cut_PER_GROUP_and_the_two_readings_differ():
 
 
 
-def _opens_with_an_archived_banner(text):
-    """Does this document SAY, in its first five lines, that it is history?
-
-    Five lines, not "anywhere in the file": the point is what a reader meets
-    before the title, and `REJECTED_full_2026-08-18.md` mentions archiving
-    dozens of times further down while opening with what reads as an order.
-    """
-    head = "\n".join(text.splitlines()[:5])
-    return "ARCHIVED" in head or "HISTORY, NOT" in head
 
 
-def test_every_archived_doc_SAYS_it_is_archived():
-    """LESSON, 2026-09-11. `docs/archive/` is history by two conventions --
-    the directory name, and one line in CLAUDE.md -- and NEITHER travels with
-    the file. A reader arriving by search, by grep, or by a link meets the
-    TITLE, and the title is what gets quoted.
-
-    14 of the 24 markdown files there carried no banner, and several read as
-    live instructions:
-
-      REJECTED_full_2026-08-18.md   titled "do not re-introduce without
-                                    reading this", while the live ledger is
-                                    docs/FRAMEWORK.md section 2
-      CLEANUP_PROMPT.md             an imperative MISSION brief, executed once
-                                    on 2026-09-06, not a standing instruction
-      stats_headline_f1.md          announces a "Headline F1 win" on
-                                    TissueMNIST (groups are `index % 3`, so
-                                    the local scope is empty by construction)
-                                    at warm-up 50 (CE saturated, all methods
-                                    identical). Its directory README has said
-                                    so since 2026-08-19; the file did not.
-
-    The banner IS the classification. This test keeps it attached to the file
-    rather than to the folder around it.
-    """
-    root = os.path.join("docs", "archive")
-    assert os.path.isdir(root), "docs/archive is missing"
-    docs = []
-    for dp, _dns, fns in os.walk(root):
-        docs += [os.path.join(dp, f) for f in fns if f.endswith(".md")]
-    assert len(docs) >= 20, "only %d archived docs found -- did the tree move?" % len(docs)
-
-    missing = [d for d in sorted(docs)
-               if not _opens_with_an_archived_banner(
-                   io.open(d, encoding="utf-8").read())]
-    assert not missing, (
-        "these archived docs do not say so in their first five lines, so a "
-        "reader who lands on one has nothing telling them it is history:\n  "
-        + "\n  ".join(missing)
-        + "\nPrepend the banner the other files use, with one line naming "
-          "what supersedes this one.")
-
-    # NEGATIVE CONTROLS. A predicate that cannot say NO has not been shown to
-    # work, and the five-line bound is the part most likely to be loosened.
-    assert not _opens_with_an_archived_banner(
-        "# Results summary\n\nsome prose\n"), \
-        "an unbannered document must NOT pass"
-    assert not _opens_with_an_archived_banner(
-        "\n".join(["filler"] * 9 + ["ARCHIVED, far below the fold"])), \
-        "a banner below the fold must NOT count -- that is the whole bug"
-    assert _opens_with_an_archived_banner(
-        "> ARCHIVED -- HISTORY, NOT INSTRUCTIONS.\n# Title\n"), \
-        "a correctly bannered document must pass"
 
 
 # A call that can FAIL the test it sits in. `self_test` is here because

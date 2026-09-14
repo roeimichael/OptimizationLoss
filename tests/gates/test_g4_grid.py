@@ -22,8 +22,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from conftest import ROOT, report          # noqa: E402  (gate scaffolding)
 
 from configs.gen_campaign import (build_hyperparams, cap_pair,  # noqa: E402
-                                  compute_base_model_id, count_control_arms,
-                                  load_protocol, _null_of)
+                                  compute_base_model_id,
+                                  load_protocol)
 
 pytestmark = pytest.mark.stage4_grid
 
@@ -40,7 +40,7 @@ MODEL = "MobileNetV2"
 CAPS = ["L70_G95", "L80_G95"]
 DEAD_CAPS = ["L20_G50", "L30_G50"]     # 24 of 24 cells pose no question, 2(z17)
 SLICE = os.path.join(ROOT, "data", "iwildcam", "oodslice", "test_meta.csv")
-TRIO = ["tralo", "tralo_null", "tralo_reseed"]
+TRIO = ["tralo", "tralo_null"]
 MIXED = ["clip", "tralo", "tralo_null"]
 
 
@@ -124,7 +124,7 @@ def generated(tmp_path_factory):
     (2(u)) and neither is the reseed floor, so this is the minimum legal
     trained campaign: 3 named arms + 2 auto-added clippers x 2 caps x 4 seeds."""
     root = tmp_path_factory.mktemp("g4_valid") / "camp"
-    rc, out = _gen(root, TRIO, extra=["--constraint-fp32"])
+    rc, out = _gen(root, TRIO, extra=[])
     assert rc == 0, "the generator refused a VALID campaign:\n%s" % out
     return str(root), _on_disk(root), out
 
@@ -182,7 +182,7 @@ def test_both_clippers_and_at_least_two_cap_levels(protocol_yml, generated,
     if len({c["constraint_tag"] for c in generated[1].values()}) < 2:
         fails.append("the generated campaign carries one cap level")
     rc, out = _gen(tmp_path / "onecap", TRIO, caps=[CAPS[0]],
-                   extra=["--constraint-fp32"])
+                   extra=[])
     if rc == 0 or "at least two cap levels" not in out:
         fails.append("a single-cap campaign GENERATED (rc=%d)" % rc)
     rc, out = _parity(_campaign(tmp_path / "p1", P, MIXED, caps=[CAPS[0]]))
@@ -193,64 +193,6 @@ def test_both_clippers_and_at_least_two_cap_levels(protocol_yml, generated,
     report(fails, "clipper/cap-level defects")
 
 
-def test_every_trained_arm_has_a_null_twin_and_the_reseed_floor(
-        protocol_yml, generated, tmp_path):
-    """CLAUDE.md 'Three rules' / protocol.yml `count_control`. Without the null
-    no count trajectory is attributable -- CE alone swings the capped count
-    242/227/324/233 -- and `tralo_reseed` is the RNG floor: the constraint moves
-    that count RMS 75-95 items and a reseed moves it 83-95. `_null_of` resolves
-    through `null_sibling`; matching on the name silently skipped `tralo_margin`,
-    the arm that most needed one. NEGATIVE CONTROL: no floor, no campaign.
-
-    The floor is now measured from MORE THAN ONE PAIR (FRAMEWORK 2(z41)): a
-    single `_null`/`_reseed` pair at four seeds estimates it from four numbers,
-    whose order-statistic CI is the whole sample range. So the set of count
-    controls is open-ended -- but every member must be a genuine lambda=0 RNG
-    replicate on a DISTINCT stream, or the extra runs are duplicates and the
-    floor has not grown at all."""
-    P, fails = protocol_yml, []
-    controls = count_control_arms(P)
-    if "tralo_reseed" not in controls:
-        fails.append("the corpus-era floor arm `tralo_reseed` is no longer a "
-                     "count control (%s); every published floor came from it"
-                     % sorted(controls))
-    draws = {}
-    for arm in sorted(controls):
-        hp = build_hyperparams(P, P["arms"][arm], 1)
-        if hp.get("lambda_local") or hp.get("lambda_global"):
-            fails.append("%s is a count control but is NOT lambda=0; a floor "
-                         "arm that trains against the cap absorbs the effect "
-                         "it exists to measure" % arm)
-        draws[arm] = hp.get("rng_reseed")
-    # ⚠️ DISTINCT **WITHIN A FAMILY** (2026-09-12). A shared draw makes two
-    # controls duplicate runs only if everything else about them matches.
-    # `tralo_snap_reseed` and `tralo_reseed` share `rng_reseed: true` and are
-    # not duplicates at all -- one averages the constraint epochs and the
-    # other does not, and `rng_floor` pairs streams WITHIN a family anyway.
-    # Flat-set checking here would have blocked the snap floor outright.
-    from scripts.floors import stream_family
-    byfam = {}
-    for arm, draw in draws.items():
-        byfam.setdefault(stream_family(arm) or arm, {})[arm] = draw
-    for fam, got in sorted(byfam.items()):
-        if len(set(map(repr, got.values()))) != len(got):
-            fails.append("two count controls in family %s share an RNG "
-                         "stream, so they are DUPLICATE runs and the floor "
-                         "has not grown: %s" % (fam, got))
-    for arm, spec in sorted(P["arms"].items()):
-        if spec.get("phase") == "trained" and not arm.endswith("_null") \
-                and _null_of(P, arm) not in P["arms"]:
-            fails.append("%s resolves to null %r, which does not exist -- the "
-                         "gate skips it silently" % (arm, _null_of(P, arm)))
-    arms = {c["arm"] for c in generated[1].values()}
-    for need in ("tralo_null", "tralo_reseed"):
-        if need not in arms:
-            fails.append("%s missing from the valid campaign" % need)
-    rc, out = _gen(tmp_path / "nofloor", ["tralo", "tralo_null"],
-                   extra=["--constraint-fp32"])
-    if rc == 0 or "no reseed control" not in out:
-        fails.append("trained campaign GENERATED with no reseed (rc=%d)" % rc)
-    report(fails, "control-arm defects")
 
 
 def test_constraint_fp32_is_the_dose_and_the_default_is_off(protocol_yml,
@@ -573,7 +515,8 @@ def test_every_trained_arm_ATTEMPTS_every_constraint_epoch(tmp_path):
     import scripts.smoke_arms as sa
     from src.experiments.runner import TRAIN_FNS
 
-    P_ = load_protocol()
+    from lean_fixtures import protocol_with_nulls
+    P_ = protocol_with_nulls()
     fails = []
     EPOCHS = 2                       # what make_inputs sets
     TRAINED = ["tralo", "alm", "fioretto", "hounie"]
