@@ -157,6 +157,54 @@ whose mutation control (rank `margin_topk` by `p(c)`) makes it FAIL -- and the
 mutant reproduces the shipped allocator's objective to the digit, which is
 independent confirmation that pass 1 is exactly top-K by `p(c)`.
 
+### 🔑 THE FOUR "RIVAL" DUALS SHARE ONE PER-ITEM GRADIENT. READ, NOT SIMULATED.
+
+Every dual in the comparison builds its constraint term as a weighted sum of the
+SAME per-item quantity:
+
+| arm | constraint term | source |
+|---|---|---|
+| `fioretto_ldf` | `sum_scope lam * sum_i p_i(c)` | `fioretto_ldf/train.py:145-160` |
+| `fioretto_alm` | `sum_scope (lam + mu*aug) * sum_i p_i(c)` | `fioretto_alm/train.py:182-196` |
+| `hounie_rcl` | `sum_scope lam * sum_i p_i(c)` | `hounie_rcl/train.py:173-178` |
+| `tralo` | `sum_scope penalty(soft_scope, K)`, `soft_scope = sum_i p_i(c)` | `tralo/train.py:238-263` |
+
+TraLO looks different and is not: `penalty` is a function of the SCOPE's summed
+soft count, so `d penalty / d p_i(c)` is one scalar shared by every item in the
+scope. So for all four,
+
+    dL/dz = sum_scopes w_scope * sum_{i in scope} d p_i(c) / dz
+
+and the arms differ **only in how they compute the scalar `w_scope`.** Within a
+scope, the per-item direction is byte-for-byte the same function. `lam >= 0` and
+`penalty' >= 0`, so the weights never even change sign.
+
+**And the scopes are disjoint.** A local scope `(g, c)` sums only over group
+`g`, and groups partition the test set. So the per-scope weights do not reweight
+items against each other inside a group -- they set **how hard each GROUP is
+pushed**, i.e. how many items get evicted from each group. Only the single
+global scope overlaps.
+
+🛑 **Chain this with the eviction-order result above and the family collapses.**
+Any push monotone in `p(c)` evicts a group's lowest-margin items first, and the
+order is set by the warm-up model's margins, not by the dual rule. So the whole
+family's only real freedom is **the per-group eviction COUNT** -- and the caps
+already specify that. Four methods, one direction, one number each, and the
+number is given to them.
+
+**This is why they tie**, and it is a stronger statement than "the effect is
+below the noise floor": there is no per-item decision left for a better dual
+rule to make. What genuinely remains free is narrower than it looks -- the
+trajectory (how fast each group is driven to its target), the stopping rule
+(satisfaction/ratchet, which on this corpus has never fired), and interaction
+with the CE term. Those are schedule, not mechanism.
+
+➡️ **The only channel that can change WHICH item is evicted is the ranking
+itself** -- the model's own margins. That needs a boundary still moving when the
+constraint phase starts, which is exactly what `gate:saturation` now measures
+and what the corpus fails 5 cells out of 5. **The saturation problem is not
+hygiene beside the real question; it is the whole question.**
+
 ### ❌ CLOSED: A MARGIN-AWARE SOFT COUNT IS NOT THE MISSING PIECE
 
 The loss penalises `soft = sum_i p_i(c)`; the deployed quantity is
