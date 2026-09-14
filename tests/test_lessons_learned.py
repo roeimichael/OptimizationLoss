@@ -709,3 +709,45 @@ def test_rank_probe_is_PER_GROUP_because_the_allocator_is(tmp_path):
     assert b["capAP"] != pytest.approx(l["capAP"], abs=1e-9), (
         "the GLOBAL AP did not move under a between-group shift, so the fixture "
         "does not separate the two readings and the invariance above is vacuous")
+
+
+def test_rank_paired_reports_the_SPREAD_and_does_not_POOL_a_reversal(tmp_path, capsys):
+    """A mean without its floor is the trap; a pooled mean hides a reversal.
+
+    `rank_probe` prints paired MEANS only, and a bcn read off it ("6 of 6 cells
+    positive, +0.0143 vs clip") did not survive being shown its own noise: every
+    cell was inside its seed sd. This gate holds `rank_paired` to the two things
+    that fixed it.
+
+    (a) The sd must be computed ACROSS SEEDS WITHIN a cell. One cap is built so
+        `tralo` and `clip` differ identically in every seed -- that cell must
+        print sd 0.0000 even though the other cap scatters wildly. Pooling the
+        two caps destroys that zero.
+    (b) Two cells with opposite signs must be COUNTED, not averaged into one
+        row that reads as a null.
+    """
+    import importlib
+    root = str(tmp_path / "results" / "camp")
+    # L80: tralo strictly worse, by the same construction in every seed -> sd 0.
+    # L90: tralo worse by a different amount per seed -> sd > 0, opposite sign.
+    for seed in (1, 2, 3, 4):
+        _fake_run(root, "clip", seed, cap="L80_G95", shift=0.0, rng_key=7)
+        _fake_run(root, "tralo", seed, cap="L80_G95", shift=0.20, rng_key=7)
+        _fake_run(root, "clip", seed, cap="L90_G95", shift=0.20, rng_key=seed)
+        _fake_run(root, "tralo", seed, cap="L90_G95", shift=0.0, rng_key=seed)
+    mod = importlib.import_module("scripts.rank_paired")
+    assert mod.main(["--glob", root + "/*/*/*/*/seed_*", "--a", "tralo",
+                     "--b", "clip"]) == 0
+    out = capsys.readouterr().out
+    rows = [l for l in out.splitlines() if "L80_G95" in l or "L90_G95" in l]
+    assert rows, out
+    l80 = [l for l in rows if "L80_G95" in l]
+    l90 = [l for l in rows if "L90_G95" in l]
+    assert l80 and l90, out
+    # (a) identical per-seed deltas -> sd is exactly zero in that cell
+    assert any(l.split()[5] == "0.0000" for l in l80), "L80 sd is not across seeds:\n" + out
+    # (b) the two caps disagree in sign and are counted, not merged
+    signs = {l.split()[4][0] for l in l80} | {l.split()[4][0] for l in l90}
+    assert signs == {"-", "+"}, "a reversal was pooled away:\n" + out
+    assert "positive" in out and "negative" in out
+    assert "NOT a pooled estimate" in out
