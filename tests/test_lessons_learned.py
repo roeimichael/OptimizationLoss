@@ -1451,3 +1451,77 @@ def test_every_INTERVENTION_column_has_its_own_zero_constraint_control():
             "%s and its control %s run different schedules (%s vs %s), so the "
             "comparison is confounded by compute"
             % (arm, null, (hp["warmup_epochs"], hp["constraint_epochs"]), (nw, nc)))
+
+
+def test_interaction_REFUSES_a_column_with_no_null_and_pairs_by_SEED(tmp_path):
+    """The two ways this comparison has already been got wrong by hand.
+
+    (a) Substituting the PLAIN null for a column that has none. `gen_campaign`
+        force-adds `tralo_null`, so a campaign always looks like it has a
+        control; comparing `aug_tralo` against it confounds the constraint with
+        the augmentation. The script must REFUSE, not silently substitute.
+    (b) Pooling instead of pairing. The deltas are seed-paired, so a seed that
+        ran one arm but not the other must be dropped from BOTH.
+
+    The fixture makes the answer known: within each column the trained arm's
+    probability on the capped class is shifted by a fixed amount per seed, so
+    the expected per-column effect is exactly recoverable.
+    """
+    import json
+    import numpy as np
+    import pandas as pd
+    from scripts.interaction import collect, summarise, paired
+
+    rng = np.random.default_rng(0)
+    n, K = 120, 4
+    y = rng.integers(0, K, n)
+    groups = rng.integers(0, 3, n)
+
+    def write(arm, seed, bump):
+        d = tmp_path / "mn3" / "fmow2" / "L80_G95" / arm / ("seed_%d" % seed)
+        d.mkdir(parents=True)
+        # Same base for every arm at this seed, so the ONLY difference between
+        # tralo and its null is the bump. Drawing a fresh base per call made the
+        # arms differ by independent noise that swamped it (measured -0.0002).
+        base = np.random.default_rng(100 + seed).random((n, K))
+        # Bump the capped class only on its TRUE positives. A uniform bump does
+        # not improve gAP at all -- average precision reads the RANKING, and
+        # adding a constant to everyone then renormalising leaves it alone (the
+        # first version of this fixture did that and measured -0.04).
+        base[y == 1, 1] = np.clip(base[y == 1, 1] + bump, 0, 1)
+        p = base / base.sum(1, keepdims=True)
+        frame = {"True_Label": y, "Group_ID": groups}
+        for c in range(K):
+            frame["Prob_Class_%d" % c] = p[:, c]
+        pd.DataFrame(frame).to_csv(d / "final_predictions_raw.csv", index=False)
+        (d / "config.json").write_text(json.dumps({
+            "arm": arm, "model_name": "mn3", "dataset_mode": "fmow2",
+            "constraint_tag": "L80_G95", "hyperparams": {"seed": seed},
+            "dataset_config": {"constrained_class": [1]}}))
+
+    for seed in (1, 2):
+        write("tralo", seed, 0.10)
+        write("tralo_null", seed, 0.0)
+        write("aug_tralo", seed, 0.30)      # augmented column present...
+        # ...but NO aug_tralo_null, which is the whole point of (a).
+
+    per = collect([str(tmp_path / "*/*/*/*/seed_*")])
+    rows = summarise(per)
+    aug = [r for r in rows if r[1] == "augment"]
+    assert aug and aug[0][2] is None and "REFUSED" in aug[0][5], (
+        "the augmented column has no aug_tralo_null, so its constraint cannot "
+        "be isolated -- the script must refuse rather than fall back to the "
+        "plain null: %r" % (aug,))
+    plain = [r for r in rows if r[1] == "plain"]
+    assert plain and plain[0][2] == 2, "the plain column should pair 2 seeds"
+    assert plain[0][3] > 0, (
+        "the fixture shifts tralo's capped-class probability UP relative to its "
+        "null, so the measured effect must be positive; got %r" % (plain[0][3],))
+
+    # (b) a seed present for only one arm must drop out of the pair entirely.
+    write("tralo", 3, 0.10)
+    per = collect([str(tmp_path / "*/*/*/*/seed_*")])
+    d = paired(per, ("mn3", "fmow2", "L80_G95"), "tralo", "tralo_null")
+    assert len(d) == 2, (
+        "seed 3 ran tralo but not tralo_null; an unpaired seed must be dropped, "
+        "got %d deltas" % len(d))
