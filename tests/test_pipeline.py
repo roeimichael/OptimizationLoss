@@ -2208,3 +2208,96 @@ def test_dataset_diagnostics_preserve_values_and_undefined_null_spread():
             word in text for word in ("PASS", "DEAD", "MARGINAL", "seed noise")
         )
     assert "NO GROUP COLUMN" in " ".join(diagnostic_lines(dict(gcol=None), "fixture"))
+
+
+def test_log_health_reads_UNLIMITED_as_the_sentinel_it_is_not_as_a_divergence(tmp_path):
+    """`Limit_Class<c>` = +inf DECLARES that class c carries no cap.
+
+    `src/training/logging.py:129` writes the literal 'inf' for an unconstrained
+    class and `log_health` itself reads it back as that sentinel (`>= UNLIMITED`)
+    when it decides `posthoc` and when it reads a cap. The non-finite scan counted
+    the same value as an invalid update, so `--step firstrun` went RED on every
+    campaign leaving any class uncapped -- on iwildcam, 6 of the 8. Measured on
+    results/pilot_mn3 2026-09-14: Limit_Class{0,1,3,4,5,6} all inf, while the two
+    CAPPED classes read a correct finite 352 and 433.
+    """
+    from scripts.log_health import read_run
+
+    def mk(name, rows):
+        d = tmp_path / name
+        d.mkdir()
+        header = "Epoch,Train_Acc,L_CE,Hard_Class2,Limit_Class2,Limit_Class3,Group0_Hard_Class2,Group0_Limit_Class2"
+        (d / "training_log.csv").write_text(
+            header + chr(10) + chr(10).join(rows) + chr(10)
+        )
+        (d / "config.json").write_text('{"arm": "tralo", "status": "completed"}')
+        return str(d)
+
+    # Class 2 is capped at 62; class 3 is not, so its limit is the sentinel.
+    sentinel = mk(
+        "uncapped_class",
+        [
+            "2,0.9000,0.5000,200,62,inf,70,30",
+            "3,0.9500,0.3000,190,62,inf,66,30",
+            "4,0.9600,0.2000,180,62,inf,60,30",
+            "5,0.9650,0.1500,175,62,inf,58,30",
+        ],
+    )
+    r = read_run(sentinel)
+    assert not r["nonfinite"], (
+        "counted UNLIMITED as a non-finite update, so a campaign that simply "
+        "leaves a class uncapped fails its own firstrun gate: %s" % r["nonfinite"]
+    )
+    assert r["counts"][2]["K"] == 62, "lost the cap that IS declared"
+
+    # NEGATIVE CONTROL 1 -- a real non-finite in an observed field must still fire.
+    diverged = mk(
+        "diverged",
+        [
+            "2,0.9000,0.5000,200,62,inf,70,30",
+            "3,0.9500,inf,190,62,inf,66,30",
+            "4,0.9600,0.2000,180,62,inf,60,30",
+        ],
+    )
+    assert "L_CE" in read_run(diverged)["nonfinite"], (
+        "a diverged CE went unreported -- the sentinel exemption leaked to a real field"
+    )
+
+    # NEGATIVE CONTROL 2 -- -inf in a limit column is not the sentinel and must fire.
+    negative = mk(
+        "negative_limit",
+        [
+            "2,0.9000,0.5000,200,62,-inf,70,30",
+            "3,0.9500,0.3000,190,62,-inf,66,30",
+        ],
+    )
+    assert "Limit_Class3" in read_run(negative)["nonfinite"], (
+        "-inf was read as UNLIMITED; only +inf is the sentinel"
+    )
+
+    # NEGATIVE CONTROL 3 -- a cap that is declared and then goes NaN is a real loss
+    # of the declaration, and the sentinel exemption must not swallow it. (A column
+    # that is NaN throughout is the separate "field never in use" case the warm-up
+    # guard exists for, and correctly stays silent.)
+    absent = mk(
+        "nan_limit",
+        [
+            "2,0.9000,0.5000,200,62,7,70,30",
+            "3,0.9500,0.3000,190,62,nan,66,30",
+        ],
+    )
+    assert "Limit_Class3" in read_run(absent)["nonfinite"], (
+        "a NaN cap declaration was swallowed by the sentinel exemption"
+    )
+
+    # NEGATIVE CONTROL 4 -- the PER-GROUP limit family gets the same treatment.
+    grouped = mk(
+        "group_limit",
+        [
+            "2,0.9000,0.5000,200,62,inf,70,inf",
+            "3,0.9500,0.3000,190,62,inf,66,inf",
+        ],
+    )
+    assert not read_run(grouped)["nonfinite"], (
+        "Group<g>_Limit_Class<c> is the same declaration and needs the same sentinel"
+    )

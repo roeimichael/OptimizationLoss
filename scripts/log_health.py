@@ -15,6 +15,10 @@ from src.utils.constants import UNLIMITED
 SATURATED_ACC = 0.93
 FLAT_GAIN = 0.005
 COLLAPSE_DROP = 0.02
+# Columns whose value is a declared cap, where UNLIMITED (+inf) means "no cap".
+# Matches the two families `logging.py` emits: the global `Limit_Class<c>` and the
+# per-group `Group<g>_Limit_Class<c>`.
+DECLARED_LIMIT = re.compile(r"^(Group\d+_)?Limit_Class\d+$")
 
 
 def _col(df, *names):
@@ -63,11 +67,22 @@ def read_run(d):
     scan = df[pd.to_numeric(df[ep], errors="coerce") >= 2] if ep and r["wide"] else df
     for c in scan.select_dtypes(include=[np.number]).columns:
         v = scan[c].to_numpy(dtype=float)
-        finite = np.isfinite(v)
+        w = df[c].to_numpy(dtype=float)
         # Empty warm-up constraint fields are not observations, but infinity
         # in an observed field is invalid at any epoch, including warm-up.
-        invalid = int(np.isinf(df[c].to_numpy(dtype=float)).sum())
-        if finite.any():
+        infinite = np.isinf(w)
+        if DECLARED_LIMIT.match(c):
+            # A limit column is a DECLARATION, not an observation, and +inf is its
+            # documented sentinel: `src/training/logging.py:129` writes the literal
+            # 'inf' for a class whose cap is >= UNLIMITED, and lines 78/119/145
+            # below read it back as exactly that. Counting the sentinel as a
+            # non-finite UPDATE turned the firstrun gate RED on every campaign that
+            # leaves any class uncapped -- on iwildcam, 6 of the 8. A -inf here is
+            # not the sentinel and still fires, as does a cap that goes NaN after
+            # being declared.
+            infinite = infinite & ~np.isposinf(w)
+        invalid = int(infinite.sum())
+        if np.isfinite(v).any():
             invalid += int(np.isnan(v).sum())
         if invalid:
             r["nonfinite"][c] = invalid
