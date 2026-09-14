@@ -19,6 +19,43 @@ passes all 8 conditions of `scripts/candidate_gate.py`.
 
 ## Current stage
 
+### 🟢🔴 THE FIRST POSITIVE RANKING RESULT -- and it is NOT the constraint
+
+`scripts/rank_probe.py` scores per-group average precision (gAP) on the raw
+pre-allocator probabilities. Post-hoc allocation is optimal given the
+probabilities and that optimality is distribution-free, so **ranking is the only
+channel by which a trained arm can beat the clipper.** Run on the archived bcn
+corpus and on the live fmow2 campaign, 6 seed-paired cells each:
+
+| corpus | TraLO minus `clip` | cells positive | TraLO minus `tralo_null` |
+|---|---|---|---|
+| bcn / ViTB16 | **+0.0143** | **6 of 6** | -0.0027 |
+| bcn / MobileNetV3 | **+0.0123** | 4 of 6 | -0.0009 |
+| fmow2 / MobileNetV3 | **-0.0169** | 0 of 6 | -0.0101 |
+
+On bcn TraLO also beats every rival dual: `alm` +0.0050/+0.0024, `hounie`
++0.0073/+0.0044, `fioretto` +0.0037/+0.0029, and 14 of the 16 retired TraLO
+variants.
+
+🔑 **But the constraint contributes none of it.** Against `tralo_null` --
+identical recipe, `lambda_step = lambda_global = lambda_local = 0`, zero
+constraint pressure -- TraLO is a tie or slightly behind on BOTH bcn backbones.
+So the entire +0.012 to +0.014 over `clip` is carried by what `tralo_null`
+shares: the 1+29 schedule and **the fresh Adam created after warm-up**, which
+`clip` and `focal_clip` do not get (they run one continuous optimizer).
+main.tex already says this -- "the quality comes instead from Adam's reset and
+the undershoot hinge" -- and the measurement agrees: the reset is the asset, the
+constraint is not.
+
+⛔ **And it does not transfer.** On fmow2 the same recipe is -0.0169 against
+`clip`, 0 of 6 cells positive, and `tralo_null` is itself -0.0068 behind `clip`
+(derived on common seeds). **The Adam reset helps on bcn and hurts on fmow2.**
+A result that reverses sign across datasets is not a method claim yet; it is a
+dataset interaction that has to be explained before it can be reported.
+
+⚠️ fmow2 is at 2 seeds and one backbone here. `fm2_mn2` and `fm2_vit`
+will say whether the reversal is the dataset or the backbone.
+
 ### ⛔ THE PAPER'S SECOND PHASE HAS NEVER RUN -- 2,563 runs, 0 freezes
 
 `docs/paper/main.tex` describes TraLO as two-phase: lambda ratchets while the
