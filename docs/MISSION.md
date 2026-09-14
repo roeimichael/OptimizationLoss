@@ -531,6 +531,48 @@ no zero-constraint arm reproduces. Mutation removing `aug_tralo_null` FAILS it.
 ⚠️ `live6b`'s augmented column therefore cannot answer the pre-registered
 question. `live11` will be regenerated with the new controls.
 
+### ⚠️ `live11` MISSES THE GATE BY 0.3 EPOCHS -- AND THAT IS ITSELF THE RESULT
+
+Live window per column, `live11` (constraint_epochs = 10, gate needs >= 5):
+
+| column | live | verdict |
+|---|---|---|
+| `aug_tralo` / `aug_tralo_null` | **4.7** of 10 | fails by 0.3 |
+| `focal_tralo` / `focal_tralo_null` | 3.0 of 10 | fails |
+| `tralo` / `tralo_null` | 3.0 of 10 | fails |
+
+I set total = 11 from the rule `2 x live + 1` using **5** live epochs measured on
+a single `gx2` run. The real figure across 6 runs is **4.7**, so the budget
+needed was 10, not 11. **The largest gate-passing budget for the augmented
+recipe on this backbone is total ~10; `live6b` at 6 passes comfortably.**
+
+🔑 **But the partial interaction lines up with the live windows, which is the
+mechanistic check the correlation needed.** L80_G95, n = 3:
+
+| column | live window | constraint effect on gAP |
+|---|---|---|
+| augment | 4.7 | **+0.0015** |
+| plain | 3.0 | -0.0083 |
+| focal | 3.0 | -0.0080 |
+| **augment x constraint** | -- | **+0.0098 +- 0.0166** (registered interaction) |
+| **focal x constraint** | -- | **+0.0003 +- 0.0284** (negative control) |
+
+The two columns with a 3.0 live window both show damage; the one with 4.7 does
+not. The registered interaction is positive and the negative control is ~zero,
+**which is exactly the discrimination the amendment predicted** -- focal
+enlarges the gradient and changes nothing, augmentation unfreezes the boundary
+and changes the sign.
+
+🛑 **Do NOT read any single column of `live11` as "the constraint works".** All
+three fail the absolute bar, so by the standing rule no arm's number is a
+result. What `live11` supports is a DOSE-RESPONSE on liveness -- the constraint
+does better where the boundary is more alive -- at n = 3 with sd > mean.
+
+➡️ **The squeeze is the problem, and lr is the way out.** Budgets of 9-11 sit
+right on the bar because augmentation buys only 4.7 live epochs. If a lower lr
+widens the window again the budget stops being a knife-edge. **Run the lr probes
+before committing the decisive campaign's budget.**
+
 ### ⚠️ THE LIVE-REGIME CAMPAIGNS HAD NO RIVAL DUALS
 
 `live6b` and `live11` carry `tralo`/`clip`/`focal`/`aug` and their nulls -- and
