@@ -421,6 +421,55 @@ different operating point, not a win on the headline.
 table is the FROZEN-BOUNDARY REFERENCE, which is the role it should play: it is
 the control arm of the augmentation experiment, not a verdict on the method.
 
+### 🔑 TIGHT COMPARISON: WHAT ACTUALLY DIFFERS BETWEEN TraLO AND THE RIVALS
+
+**Dose is closed.** `dose_landed` on both complete campaigns: `alm`, `fioretto`,
+`hounie` and `tralo` each land **232 / 232 steps, 100%**. The historic dose gap
+is gone, so it explains nothing. Combined with the shared per-item gradient,
+the four arms differ in **exactly one thing: how a fixed total displacement is
+split across scopes.**
+
+**And TraLO splits it differently from all three rivals, in two ways.** Read
+from `tralo/train.py:292-311` against `fioretto_ldf/train.py:104-124`:
+
+| | TraLO | fioretto / alm / hounie |
+|---|---|---|
+| response to violation | `lam += lambda_step` -- a CONSTANT, identical for every violated scope | proportional to `excess`, so the worst scope gets the most |
+| what triggers it | the **HARD** count crossing the cap (a step function) | the **SOFT** count, continuously |
+
+1. **Depth blindness.** Under `normalize` only the RATIOS between scopes steer.
+   TraLO gives every violated scope an equal share, so a scope over by 1 item
+   pulls as hard as one over by 100 -- and because the total is normalised, that
+   share is TAKEN FROM the scopes that need it. With ~33 scopes this is a large
+   misallocation. The rivals concentrate where the violation is.
+2. **A step-function gate.** TraLO's lambda only moves when the HARD count
+   crosses. A scope sitting just under its cap gets nothing, then pops over and
+   takes a constant kick. The rivals' response is continuous.
+
+⛔ **Difference 1 has been tested and is a null** -- `tralo_dualprop`
+(`lambda_ratchet_mode: proportional`), 12 cells, F1 -0.0038, every cell inside
+its seed sd. **Do not re-propose it as-is.**
+
+🛑 **BUT READ THAT NULL AGAIN.** All 12 of those cells ran the 30-epoch recipe,
+which saturates in 3-5 epochs in **5 of 5 cells wherever it has been measured**.
+By settled fact 6, the constraint in that regime is injecting NOISE into the
+ranking. So what `tralo_dualprop` actually established is that **redistributing
+noise across scopes does not help** -- which is exactly what one would predict,
+and says nothing about the live-boundary regime.
+
+⚠️ **This applies to the WHOLE rejected ledger.** Nearly every direction closed
+in this document was closed on a frozen boundary. Those nulls are sound as
+statements about that regime and are NOT evidence about a live one. **Do not
+re-open them speculatively -- but do not treat the ledger as final either.** The
+correct order is: get a live boundary first (`gx2`, `live6b`), confirm the
+constraint stops damaging gAP, and only THEN re-test the closed mechanisms,
+cheapest first. Re-opening before that would just re-measure noise.
+
+**Difference 2 (hard step-function gate vs continuous soft response) does not
+appear to have been isolated** -- `tralo_dualprop` changed the depth response,
+not the trigger. Flagged as a candidate, NOT proposed: it belongs behind the
+live-boundary result like everything else.
+
 ### 🔑 WHY IT CAN ONLY LOSE: THE CONSTRAINT IS **UNIDENTIFIED**
 
 Read from `tralo/train.py:137-160` and `:232-263`. Each constraint epoch runs
