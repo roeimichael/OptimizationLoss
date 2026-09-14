@@ -9,6 +9,11 @@ import sys
 
 DOSE_FRACTION_TOLERANCE = 0.05
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from configs.gen_campaign import load_protocol
+
+ARMS = load_protocol()["arms"]
+
 
 def read_root(root):
     per = collections.defaultdict(lambda: [0, 0, 0, 0, 0, 0])
@@ -20,16 +25,11 @@ def read_root(root):
         except (ValueError, IOError) as exc:
             raise ValueError("unreadable config %s: %s" % (path, exc)) from exc
         arm = cfg.get("arm")
-        if arm not in {
-            "tralo",
-            "tralo_null",
-            "clip",
-            "focal_clip",
-            "fioretto",
-            "hounie",
-            "alm",
-        }:
-            raise ValueError("%s: unknown arm %r" % (path, arm))
+        # Was a hardcoded seven-arm whitelist, so every arm added since --
+        # focal_tralo, aug_tralo, aug_clip -- crashed this with "unknown arm"
+        # at the score stage, after the campaign had already been paid for.
+        if arm not in ARMS:
+            raise ValueError("%s: arm %r is not declared in the protocol" % (path, arm))
         res = cfg.get("results") or {}
         rt = res.get("runtime") or {}
         if rt.get("amp_dtype"):
@@ -37,12 +37,18 @@ def read_root(root):
         cell = per[arm]
         app = res.get("constraint_steps_applied")
         att = res.get("constraint_steps_attempted")
-        posthoc = arm in {"clip", "focal_clip"}
+        # Also a hardcoded list, which silently made aug_clip a TRAINED arm.
+        posthoc = ARMS[arm]["phase"] == "posthoc"
         hp = cfg.get("hyperparams") or {}
-        if (hp.get("warmup_epochs"), hp.get("constraint_epochs")) != (
-            (30, 0) if posthoc else (1, 29)
-        ):
-            raise ValueError("%s: invalid planned epoch dose" % path)
+        # The epoch BUDGET is campaign-relative and `check_parity` owns it --
+        # this used to demand exactly (30, 0) or (1, 29) and raised on any other
+        # budget, which would have aborted every short-horizon campaign. All
+        # that matters here is that the phase and the dose agree.
+        con = hp.get("constraint_epochs")
+        if type(con) is not int or con < 0 or (con == 0) != posthoc:
+            raise ValueError(
+                "%s: arm %r is %s but declares constraint_epochs=%r"
+                % (path, arm, "post-hoc" if posthoc else "trained", con))
         if cfg.get("status") != "completed":
             if app is not None or att is not None:
                 raise ValueError("%s: counts on a non-completed run" % path)

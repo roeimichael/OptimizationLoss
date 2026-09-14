@@ -1338,3 +1338,59 @@ def test_check_parity_measures_the_CAMPAIGN_S_budget_not_a_hardcoded_30():
     assert fails, (
         "a campaign mixing a 6-epoch and a 30-epoch budget passed the parity "
         "check -- it is no longer detecting unequal compute at all")
+
+
+def test_dose_landed_accepts_EVERY_declared_arm_and_ANY_epoch_budget(tmp_path):
+    """Three hardcodings in one scorer, all of which crash AFTER the compute.
+
+    `dose_landed` runs in run_campaign's SCORE stage, so every one of these
+    aborts a campaign that has already been paid for in full:
+
+      (a) a seven-arm whitelist -- `focal_tralo`, `aug_tralo` and `aug_clip`
+          raised "unknown arm";
+      (b) `posthoc = arm in {"clip", "focal_clip"}`, which silently classified
+          `aug_clip` as a TRAINED arm and then expected constraint steps from it;
+      (c) a demand that the budget be exactly (30, 0) or (1, 29), which raised
+          "invalid planned epoch dose" on every short-horizon campaign.
+
+    All three are now read from the protocol. The phase/dose agreement is still
+    enforced here; the epoch BUDGET belongs to `check_parity`, which checks it
+    campaign-relative rather than against a constant.
+    """
+    import json
+    from scripts.dose_landed import read_root
+
+    def write(arm, warm, con, steps):
+        d = tmp_path / arm / "seed_1"
+        d.mkdir(parents=True)
+        (d / "config.json").write_text(json.dumps({
+            "arm": arm, "status": "completed",
+            "hyperparams": {"warmup_epochs": warm, "constraint_epochs": con},
+            "results": {"runtime": {"amp_dtype": "bfloat16"},
+                        "constraint_steps_applied": steps,
+                        "constraint_steps_attempted": steps}}))
+
+    # A 6-epoch campaign with arms that did not exist when this was written.
+    write("aug_tralo", 1, 5, 5)
+    write("aug_clip", 6, 0, None)
+    write("focal_tralo", 1, 5, 5)
+    per, _amps = read_root(str(tmp_path))
+    assert per, "the scorer returned nothing for a valid short-horizon campaign"
+
+    # (b) must still bite in the other direction: a post-hoc arm claiming a
+    # constraint phase is a real inconsistency and has to raise.
+    bad = tmp_path / "bad"
+    bad.mkdir()
+    (bad / "aug_clip").mkdir()
+    (bad / "aug_clip" / "seed_1").mkdir()
+    (bad / "aug_clip" / "seed_1" / "config.json").write_text(json.dumps({
+        "arm": "aug_clip", "status": "completed",
+        "hyperparams": {"warmup_epochs": 1, "constraint_epochs": 5},
+        "results": {}}))
+    try:
+        read_root(str(bad))
+        raise AssertionError(
+            "a POST-HOC arm declaring 5 constraint epochs was accepted -- the "
+            "phase/dose agreement check is no longer enforcing anything")
+    except ValueError:
+        pass
