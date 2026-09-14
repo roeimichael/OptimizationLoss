@@ -100,8 +100,13 @@ confirms nothing -- the matched clipper already has one.
 
 ### Where we actually stand, 2026-09-14
 
-**Two cells complete, 112 runs, and both FAIL `gate:saturation`** -- so they are
-the **frozen-boundary REFERENCE**, not a verdict on the method.
+🟢 **`live6b` is the first campaign to PASS `gate:saturation`, and in it the
+constraint's ranking damage is ABOLISHED** (30-epoch 15/16 negative -> 6-epoch
+6/8 positive, Fisher p = 0.0013). A benefit is NOT established -- 6/8 is p =
+0.29. `live11` carries the proper controls and is next.
+
+**Two 30-epoch cells complete, 112 runs, and both FAIL `gate:saturation`** -- so
+they are the **frozen-boundary REFERENCE**, not a verdict on the method.
 
 TraLO minus `tralo_null` on cc-F1, the like-for-like comparison (same warm-up,
 same compute, the only difference is whether the constraint steps):
@@ -441,13 +446,34 @@ negative:
 | L80_G95 | 3 | -0.0016 | 0.0139 | +0.0023 +0.0100 -0.0171 |
 | L90_G95 | 3 | **+0.0104** | 0.0117 | +0.0169 +0.0174 -0.0030 |
 
-🔑 **The damage is gone.** At 30 epochs the constraint reliably degraded the
-ranking; at 6 it does not, and at L90 the point estimate is positive. That is
-what the account predicted: a live boundary is what the constraint needs.
+**Complete at n = 4, both caps:**
 
-⚠️ **n = 3 and the sd exceeds the mean. This is SUGGESTIVE, NOT ESTABLISHED.**
-It is one backbone, one dataset, three seeds. It does not yet clear its own
-noise and must not be reported as a win.
+| cap | mean | sd | per-seed |
+|---|---|---|---|
+| L80_G95 | +0.0037 | 0.0155 | +0.0023 +0.0100 -0.0171 +0.0195 |
+| L90_G95 | **+0.0121** | 0.0101 | +0.0169 +0.0174 -0.0030 +0.0170 |
+
+**The sign flips, and the flip itself is significant.** Seed-level signs of
+`gAP(tralo) - gAP(tralo_null)`:
+
+| regime | signs | vs a coin |
+|---|---|---|
+| 30 epochs (fm2_mn3 + fm2_mn2) | **15 of 16 NEGATIVE** | p = 0.0005 |
+| 6 epochs (live6b) | **6 of 8 POSITIVE** | p = 0.29 |
+
+**Fisher exact between the two regimes: p = 0.0013.**
+
+🔑 **Read that precisely, because the two halves say different things.**
+- The 30-epoch damage was real: 15/16 negative does not happen by chance.
+- **It is abolished at 6 epochs.** The regime change is significant at p =
+  0.0013.
+- **A BENEFIT IS NOT ESTABLISHED.** 6 of 8 positive is p = 0.29 -- a coin. The
+  honest statement is that the constraint has gone from *reliably harmful* to
+  *neutral or better*, and nothing stronger. It is not yet a win over the null,
+  let alone over a clipper.
+
+⚠️ One backbone, one dataset, 8 seed-deltas. Replication on a second backbone is
+required before this is a result rather than a lead.
 
 **Augmentation raises gAP on its own**: `aug_tralo - tralo` = +0.0221 +- 0.0112
 (L80, 4 of 4 positive) and +0.0121 +- 0.0077 (L90, 3 of 3). Seven of seven
