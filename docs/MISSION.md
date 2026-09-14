@@ -39,6 +39,19 @@ while losing cc-F1 is a TRADE, not a win, and must be reported as one.
 | 3 | **Eviction given the probabilities is already ~optimal.** A gradient push lands on 87% of the provably optimal set; closing the rest is worth 0.0002. | The prize is NOT in the loss shape. A margin-aware soft count is CLOSED. |
 | 4 | **The exact allocator makes real results WORSE** (-0.01 to -0.04 acc, -0.02 to -0.08 cc-F1, 14/14 cells) because models run at 0.92 confidence against 0.60 accuracy. | The allocator "fix" is CANCELLED. Greedy's suboptimality is protective. |
 | 5 | **The constraint DOES work -- it just does not convert.** Every dual beats both clippers on native obedience (excess 279-326 vs 381-413). | Obedience is not the missing piece. The metric does not reward it. |
+| 6 | **On a frozen boundary the constraint makes the RANKING WORSE. 15 of 16 seed-deltas negative** (binomial p = 0.0005), gAP(tralo) - gAP(tralo_null) = -0.007 to -0.030 per cell. gAP is allocation-free, so this is the model, not the allocator. | The damage is UPSTREAM of the metric and about 2x the cc-F1 damage. The constraint is not reshaping the boundary badly -- it is **injecting noise into it**. |
+
+**Why it can only lose in this regime, stated as a mechanism.** A count says
+HOW MANY, never WHICH. With CE alive the two signals compose: CE supplies the
+"which", the constraint supplies the "how many". Once train CE hits ~0 the
+"which" is gone, and `constraint_step.py:36` rescales the constraint gradient to
+full size no matter how small the violation is. Full-size push, nothing
+opposing it, no information about correctness -- so the ranking can only
+degrade. **That is exactly what gAP measures, and exactly what it shows.**
+
+⚠️ **This means the two complete campaigns do NOT measure TraLO.** They measure
+what any count-based constraint does to a memorised model. The method has not
+been given a boundary it could reshape.
 
 **Therefore the ONLY channel left is the RANKING** -- the model's own margins,
 measured by gAP. And the constraint can only change margins while the boundary
@@ -97,6 +110,21 @@ same compute, the only difference is whether the constraint steps):
 
 🛑 **4 of 4 negative**, two of them beyond their own seed sd. On a frozen
 boundary the constraint phase COSTS cc-F1 relative to not stepping at all.
+
+And the same comparison on **gAP**, which is computed from the probabilities
+alone and is allocation-free -- so it is the MODEL, with the allocator removed
+from the question entirely:
+
+| cell | cap | d gAP vs its own null | per-seed |
+|---|---|---|---|
+| MobileNetV3 | L80_G95 | -0.0069 +- 0.0222 | 3 of 4 negative |
+| MobileNetV3 | L90_G95 | **-0.0280 +- 0.0113** | 4 of 4 |
+| MobileNetV2 | L80_G95 | **-0.0245 +- 0.0114** | 4 of 4 |
+| MobileNetV2 | L90_G95 | -0.0303 +- 0.0185 | 4 of 4 |
+
+**15 of 16 seed-deltas negative** (binomial p = 0.0005), and the ranking damage
+is about **twice** the cc-F1 damage -- so it is the upstream cause, not a
+side effect of allocation.
 
 The per-cell verdicts are NOT consistent and must not be summarised as one:
 mn3 reads LEADING GROUP at L80 and LOSS at L90; mn2 reads LOSS at L80 (trailing
