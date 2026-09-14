@@ -10,7 +10,7 @@ from src.training.constraints import (
 )
 
 log = logging.getLogger(__name__)
-IMAGERY_DATASETS = {"iwildcam", "cct", "bcn", "fmow"}
+IMAGERY_DATASETS = {"iwildcam", "bcn", "fmow"}
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(1, 3, 1, 1)
 IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 3, 1, 1)
 

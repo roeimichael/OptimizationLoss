@@ -645,29 +645,14 @@ def test_neither_grad_mode_puts_the_duals_at_a_COMPARABLE_dose(P):
     assert min(raw["fioretto"], raw["alm"]) / raw["hounie"] > 100.0, raw
 
 
-def test_hounie_alpha_REACHES_THE_MODEL_at_the_papers_dose(P):
-    """The resilient term must be able to move the predictions at the dose we
-    actually run.
+def test_hounie_alpha_moves_predictions_in_the_historical_clip_fp32_fixture(P):
+    """Preserve alpha sensitivity with explicit clip/FP32, not today's recipe.
 
-    `hounie_alpha` is the curvature of the relaxation cost h(u)=alpha*||u||^2,
-    and u is the perturbation that makes Resilient Constrained Learning
-    resilient: it is the entire difference between this baseline and a plain
-    dual method.  If two alphas 8x apart emit the same bits, the citation is
-    decoration.
-
-    HISTORY.  Until 2026-08-23 the protocol shipped
-    (eta_lambda, eta_u, alpha) = (0.01, 0.01, 10.0), and alpha was INERT there:
-    swept 0.05 -> 10.0, a 200x change, it emitted bit-identical predictions
-    (md5 e5840e0bce98).  That triple was subtle rather than obviously wrong,
-    because it preserves the paper's u-contraction |1 - 2*eta_u*alpha| = 0.8
-    EXACTLY, so the SHAPE of the perturbation dynamics was faithful.  What it
-    did not preserve was the scale: u* = lambda/(2*alpha), so a 10x smaller
-    lambda against a 10x larger alpha left the relaxation ~100x under the
-    paper's, far too small to reach the primal.
-
-    arXiv:2306.02426 App. F states eta_lambda = 0.1, eta_u = 0.1 and
-    h(u) = ||u||^2_2 (alpha = 1); App. G's grid for eta_lambda is
-    {0.1, 0.5, 1, 2}.  0.01 appears nowhere in the paper as a rate.
+    This fixture uses eta_lambda=eta_u=0.1 and sweeps alpha around 1.0.
+    Its unchanged tolerance measures prediction sensitivity under clipping;
+    it is not evidence of alpha liveness under current normalization.
+    See test_hounie_normalize.py for actual normalized gradients, analytic
+    history-dependent direction changes, and scalar-cancellation controls.
     """
     hp = P["blocks"]["hounie"]
     assert (hp["hounie_eta_lambda"], hp["hounie_eta_u"], hp["hounie_alpha"])         == (0.1, 0.1, 1.0), hp
@@ -684,7 +669,10 @@ def test_hounie_alpha_REACHES_THE_MODEL_at_the_papers_dose(P):
 
 
 def test_the_alpha_liveness_gate_can_tell_a_dead_dose_from_a_live_one(P):
-    """Low-dose changes stay below the same numeric tolerance used above.
+    """Historical clip/FP32 low-dose control for the sensitivity fixture above.
+
+    Low-dose changes stay below its unchanged numeric tolerance. This is not
+    a current-normalize liveness claim; see test_hounie_normalize.py.
 
     Rounded hashes are not tolerances: adjacent floats can straddle a rounding
     boundary. This checks output sensitivity, not mathematical loss equivalence.

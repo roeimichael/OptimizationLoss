@@ -128,3 +128,39 @@ def test_satisfied_trainer_keeps_its_fixed_epoch_budget(tmp_path, arm):
     TRAIN_FNS[inputs.config["methodology"]](inputs)
     with inputs.csv_log_path.open() as stream:
         assert len(list(csv.DictReader(stream))) == 32
+
+
+def test_dataset_runtime_rejects_cct_before_array_loading(tmp_path, monkeypatch):
+    from src.utils import data_loader
+    from test_pipeline import _cfg
+
+    config = _cfg(str(tmp_path))
+    config["dataset_mode"] = "cct"
+
+    def forbidden_read(*args, **kwargs):
+        pytest.fail("retired dataset reached array loading")
+
+    monkeypatch.setattr(data_loader.np, "load", forbidden_read)
+    with pytest.raises(ValueError, match="Unknown dataset_mode='cct'"):
+        data_loader.load_experiment_data(config)
+
+
+@pytest.mark.parametrize("dataset", ["iwildcam", "fmow", "bcn"])
+def test_dataset_runtime_loads_supported_tiny_slices(tmp_path, dataset):
+    import numpy as np
+    from src.utils.data_loader import load_experiment_data
+    from test_pipeline import _cfg, _write_slice
+
+    _write_slice(str(tmp_path))
+    config = _cfg(str(tmp_path))
+    config["dataset_mode"] = dataset
+    train, test, y_train, y_test, groups, global_con, local_con, classes = (
+        load_experiment_data(config)
+    )
+    assert train.shape == (12, 3, 8, 8)
+    assert test.shape == (8, 3, 8, 8)
+    np.testing.assert_array_equal(y_train, [0, 1, 2, 3] * 3)
+    np.testing.assert_array_equal(y_test, [0, 1, 2, 3] * 2)
+    np.testing.assert_array_equal(groups, [0, 1] * 4)
+    assert classes == 4 and global_con[2] == 1
+    assert local_con[0][2] == 1 and local_con[1][2] == 0
