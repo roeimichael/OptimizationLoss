@@ -195,8 +195,32 @@ def test_report_refuses_mixed_roots_before_output(tmp_path):
     assert not output.exists()
 
 
+def test_report_rejects_duplicate_observations_before_scoring(tmp_path):
+    from src.pipeline.campaign import stage_campaign, freeze_campaign, write_receipt
+    data = tmp_path/'data'
+    tiny_data(data)
+    root = tmp_path/'duplicate_observations'
+    cfg = config_for(data)
+    cfg['status'] = 'completed'
+    paths = ['one/config.json', 'two/config.json']
+    stage_campaign(root, {rel: cfg for rel in paths}, load_protocol())
+    freeze_campaign(root)
+    for rel in paths:
+        # Receipt admission succeeds, but any scoring attempt would hit empty CSVs.
+        for name in ('final_predictions.csv', 'final_predictions_raw.csv', 'evaluation_metrics.csv'):
+            (root/rel).with_name(name).write_text('')
+        write_receipt(root, root/rel, None)
+    output, markdown = tmp_path/'refused.json', tmp_path/'refused.md'
+    proc = subprocess.run([sys.executable, '-m', 'scripts.deployed_h2h', '--campaign', str(root),
+                           '--json', str(output), '--markdown', str(markdown)], cwd=REPO,
+                          capture_output=True, text=True)
+    assert proc.returncode == 1 and 'duplicate observation' in proc.stdout
+    assert not output.exists() and not markdown.exists()
+
+
 def test_real_imagery_cli_generates_freezes_trains_receipts_and_reports(tmp_path):
     import yaml
+    import shutil
     from src.pipeline.campaign import validate_receipts
     data = tmp_path/'data'
     tiny_data(data)
@@ -234,6 +258,19 @@ def test_real_imagery_cli_generates_freezes_trains_receipts_and_reports(tmp_path
     scored = run('scripts.deployed_h2h', '--campaign', root, '--json', output)
     assert 'TraLO - clip' in scored.stdout
     assert len(json.loads(output.read_text())) == 14
+    copied = tmp_path/'copied_complete_campaign'
+    shutil.copytree(root, copied)
+    # Either complete copy alone is usable, but copies are not new seed evidence.
+    copied_output = tmp_path/'copied_report.json'
+    run('scripts.deployed_h2h', '--campaign', copied, '--json', copied_output)
+    assert len(json.loads(copied_output.read_text())) == 14
+    refused_json, refused_md = tmp_path/'duplicate.json', tmp_path/'duplicate.md'
+    duplicate = subprocess.run([sys.executable, '-m', 'scripts.deployed_h2h', '--campaign',
+                               str(root), str(copied), '--json', str(refused_json),
+                               '--markdown', str(refused_md)], cwd=REPO, env=env,
+                              capture_output=True, text=True)
+    assert duplicate.returncode != 0
+    assert not refused_json.exists() and not refused_md.exists()
     # A local reporter can use copied receipts with server arrays absent.
     data.rename(tmp_path/'server_arrays_unavailable')
     run('scripts.deployed_h2h', '--campaign', root)

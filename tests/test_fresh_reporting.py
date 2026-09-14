@@ -1,4 +1,5 @@
 import pytest
+import json
 from scripts import deployed_h2h as report
 
 
@@ -28,3 +29,18 @@ def test_report_bolds_all_exact_best_means_and_includes_every_contrast():
         assert 'TraLO - ' + arm in text
     assert 'not significance' in text
     assert 'not multiplicity-adjusted' in text
+
+
+def test_report_counts_unique_seed_observations_and_rejects_copies():
+    records = [dict(dataset='iwildcam', backbone='MobileNetV2', cap='L50_G50',
+                    arm=arm, seed=seed, cc_f1=value, macro_f1=.6,
+                    constrained_precision=.7, constrained_recall=.4,
+                    collateral_f1=.8, collateral_support=4, feasible=True)
+               for arm in ('tralo', 'clip') for seed, value in ((1, .3), (2, .5))]
+    text = report.markdown_report(records)
+    assert '| tralo | 2 | **0.4000** ± 0.1414' in text
+    paired = json.loads(next(line.split(': ', 1)[1] for line in text.splitlines()
+                             if line.startswith('TraLO - clip')))
+    assert paired['n'] == 2 and paired['seeds'] == [1, 2]
+    with pytest.raises(ValueError, match='duplicate observation'):
+        report.markdown_report(records + records)

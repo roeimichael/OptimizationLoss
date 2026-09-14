@@ -33,13 +33,20 @@ enter gradients, checkpoint selection, or hyperparameter search.
   positives are an optional diagnostic, not the primary acceptance metric.
 - Use both `clip` and `focal_clip`, rival duals `fioretto`, `hounie`, `alm`, and
   a matched zero-constraint control. Report all prespecified comparisons.
-- Same data/split, architecture, initialization pairing, augmentation, optimizer
-  schedule, deployment allocator, and precision within a comparison. Give any
-  averaging or checkpoint-selection improvement to the controls too.
+- Match data/split, architecture, initialization seeds, augmentation recipe,
+  task optimizer type/nominal learning rate, deployment allocator and precision.
+  Give averaging or checkpoint-selection improvements to the controls too.
 - Start from the established 30-epoch compute budget: trained arms warm-up 1 plus
   constraint phase 29; post-hoc arms warm-up 30 plus 0. This is a comparability
   convention, not a theorem that these values are optimal. Change it only in an
   explicit matched protocol amendment, not implicitly per arm.
+- The existing phase boundary reseeds and constructs a fresh Adam optimizer for
+  the 29-epoch trained phase; post-hoc 30+0 has one continuous warm-up optimizer
+  and shuffle stream. Equal task epochs are therefore **not identical optimizer
+  or RNG trajectories**. `tralo_null` matches TraLO's boundary and code path,
+  with no constraint updates and the same deployment clipper. Attribute a gain
+  to constraint training only through that contrast as well as both conventional
+  clippers and rivals. Do not silently change this schedule during cleanup.
 - Baseline recipe: `constraint_fp32: true`, `constraint_grad_mode: normalize`.
   Hashes that differ do not prove a live objective: compare actual gradients.
 - Atomic reported cell: dataset, backbone, cap, method, over matched seeds.
@@ -55,6 +62,8 @@ enter gradients, checkpoint selection, or hyperparameter search.
 - `deployed_h2h` is the maintained deployed-prediction reporter. Historical
   panel and acceptance scorers are retired. Fresh identity, common deployment
   and fixed-class metric validation must finish before it reports a new result.
+  Each report covers one complete frozen campaign. Independently dispatched
+  campaign roots get separate reports; copied runs never count as extra seeds.
 - Prespecified exploratory uncertainty: two-sided 95% Student-t intervals on
   within-cell seed-paired differences, conditional on the fixed inspected data
   and recipe. Show every seed delta and sample size; fewer than four seeds is
@@ -120,7 +129,9 @@ An aggregate-count gradient **can** change rankings through shared model
 parameters; there is no general impossibility proof here. Nor does improving
 constraint satisfaction imply improving cc-F1. Price and test that link.
 
-After validation, propose one falsifiable TraLO modification with its derivative,
+The current development-freeze instruction is to validate and test the retained
+reference first; no new loss modification is required before those experiments.
+If development resumes, propose one falsifiable TraLO modification with its derivative,
 expected log signature, matched control, and failure criterion. Keep changes to
 the dual-constraint direction. Separate algorithm changes from cleanup commits.
 Do not repeat a failed setting without identifying what invalidated its test or

@@ -105,7 +105,17 @@ def paired_difference(tralo, other):
                 interval_limitation=('n<2' if n < 2 else 'zero empirical variance') if ci is None else None)
 
 
+def reject_duplicate_observations(records):
+    seen = set()
+    for record in records:
+        key = tuple(record[k] for k in ('dataset', 'backbone', 'cap', 'arm', 'seed'))
+        if key in seen:
+            raise ValueError('duplicate observation: %s' % (key,))
+        seen.add(key)
+
+
 def markdown_report(records):
+    reject_duplicate_observations(records)
     cells = collections.defaultdict(list)
     for record in records:
         cells[record['dataset'], record['backbone'], record['cap']].append(record)
@@ -160,11 +170,17 @@ def main():
     records = []
     try:
         outputs = [safe_path(p) for p in (args.output, args.markdown_output) if p]
+        if len(args.campaign) != 1:
+            raise ValueError('exactly one complete campaign root is required; report disjoint roots separately')
         admitted = [validate_receipts(root) for root in args.campaign]
-        if len({m['campaign_id'] for m, _ in admitted}) != 1:
-            raise ValueError('mixed campaign identities refused')
-        if len(set(map(lambda p:str(safe_path(p)), args.campaign))) != len(args.campaign):
-            raise ValueError('duplicate campaign root')
+        observations = []
+        for root, (_, inventory) in zip(args.campaign, admitted):
+            for rel in inventory['completed']:
+                cfg = json.loads((safe_path(root)/rel).read_text(encoding='utf-8'))
+                observations.append(dict(dataset=cfg['dataset_mode'], backbone=cfg['model_name'],
+                                         cap=cfg['constraint_tag'], arm=cfg['arm'],
+                                         seed=cfg['hyperparams']['seed']))
+        reject_duplicate_observations(observations)  # Before reading/scoring any prediction CSV.
         for root, (manifest, inventory) in zip(args.campaign, admitted):
             for rel in inventory['completed']:
                 p = (safe_path(root)/rel).with_name('final_predictions.csv')

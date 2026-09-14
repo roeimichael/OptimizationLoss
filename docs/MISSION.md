@@ -4,6 +4,14 @@ Updated 2026-09-14 (Asia/Jerusalem). User approved recoverable large cleanup, fr
 validated logging/data/code, then a within-TraLO modification and monitored SSH
 experiments. No historical acceptance tally is carried forward.
 
+**Latest user direction: close development and hand off testing.** Freeze the
+current seven-arm loss/config recipe; do not add a new loss variant or wait for
+dataset expansion. Finish input/report fixes, truthful logs, safe single-owner
+dispatch, target-host verification and a short tool-independent command workflow.
+The first eligible dataset is iwildcam. fMoW repair and BCN curation are deferred
+while both datasets remain blocked. An algorithm proposal is not a prerequisite
+for testing the validated reference.
+
 ## Current stage
 
 **Core and tool thinning committed and independently reviewed. Fresh identity,
@@ -60,15 +68,16 @@ it is not training and was not stopped. Recheck both hosts before any dispatch.
   one dispatcher per root, one queue per card; no multi-GPU scheduler rewrite.
 - [ ] Audit current datasets and development cut saturation without selecting on
   a TraLO win. Resolve untouched holdout availability with the user.
-- [ ] Review the within-TraLO change proposal with the user, implement/test it,
-  commit a frozen release, and verify SHA-256 parity on the target host.
+- [ ] Commit the validated reference release and verify SHA-256 parity on the
+  target host. Leave exact generate/freeze/verify/launch/inspect/report commands
+  usable from any terminal or Claude Code, without Codex-only dispatch logic.
 - [ ] Launch first-run pilots on two GPUs after gates pass, attach monitoring,
   inspect logs, then expand only if healthy (maximum three GPUs).
 
 Implementation order: reviewed core/tool thinning; fresh identity/common deployment
 and reporting; logging integration; dispatch/recovery repair; whole-change
 verification; target-host/data
-validation; then the reviewed research modification and monitored experiments.
+validation; then monitored reference experiments. New loss changes are deferred.
 The reference loss, dual update ordering and training behavior stay unchanged
 during structural cleanup. The named shared-allocator correction is separate.
 Unknown or removed config keys must fail clearly, not be silently ignored.
@@ -79,10 +88,10 @@ The first GPU experiment tests pipeline/log validity and dataset headroom, not
 superiority. Use an audited development split, one backbone and one host before
 expanding. Inspect per-group allocation-cut errors, soft/hard residuals, dual
 trajectories, actual applied updates and parameter displacement alongside cc-F1.
-Only after those checks and a reviewed modification: compare the seven core
-methods plus the approved candidate at two distinct cap levels with at least
-four seeds, paired native-metric
-uncertainty, equal training budgets and recorded extra constraint compute.
+After those checks, compare the seven core methods at two distinct cap levels
+with at least four seeds, paired native-metric uncertainty, equal task-epoch
+budgets and recorded extra constraint compute. A later candidate requires a
+separate reviewed change; no redesign is needed to run this reference comparison.
 
 ## Validation and release state
 
@@ -96,10 +105,21 @@ real-log skip is not a pass. Receipts/review ledger are in the ignored
 `.superpowers/sdd/lean-cleanup-plan/`; source recovery is in Git and the verified
 external archive. These are software checks, not GPU or superiority evidence.
 
-**BCN is not launch-ready:** two exact resized images cross train/test with
-conflicting class labels and different official lesion IDs. No images were
-deleted. See `docs/audits/2026-09-14-reset.md`. Other datasets pass the exact
-cross-split image check; near-duplicates and unused-holdout status remain open.
+**fMoW is on hold:** full cached-source pixel reconciliation found that 436 train
+and 146 test rows use `false_detection` AOI crops with the surrounding site's
+class label. The preparer matches only basenames and takes the first image,
+collapsing distinct AOIs. Country/site separation still holds, but that does not
+validate crop/label alignment. Repair preparation with full sample IDs, preserve
+the old arrays, rebuild as a separately versioned dataset and re-audit before use.
+
+**BCN is not launch-ready:** two exact duplicate pairs cross train/test with
+conflicting class labels and different official lesion IDs. Public source JPEG
+and annotation checks now confirm the conflict is upstream, not introduced by
+our resize/export for these pairs. No images or labels were changed. A versioned
+curation policy and renewed whole-split audit remain necessary; see
+`docs/audits/2026-09-14-reset.md`. iwildcam and fMoW passed the exact cross-split
+image check; the independent fMoW crop/label failure above remains blocking.
+Near-duplicates and unused-holdout status remain open.
 
 The server validation checkout `/home/dsi/michaer8/optloss-reset-validation-20260914`
 is an OLDER source snapshot; its earlier CPU test pass does not validate the lean
