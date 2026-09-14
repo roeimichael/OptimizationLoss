@@ -223,7 +223,11 @@ def test_the_test_cameras_are_held_out_entire(slice_dir, tmp_path, protocol):
     except ValueError as e:
         fails.append("the shipped slice fails its own guard: %s" % e)
     poisoned = te.copy()
-    poisoned.loc[poisoned.index[:300], "location"] = int(tr["location"].iloc[0])
+    # NOT int(): iwildcam group ids were integer camera numbers, fmow2's are
+    # country codes like 'AUS' and int() raises before the negative control can
+    # run. The raw value is a real train group in either dataset, which is the
+    # only property this poisoning needs.
+    poisoned.loc[poisoned.index[:300], "location"] = tr["location"].iloc[0]
     leaky = _write_slice(
         str(tmp_path / "leaky"), tr.to_dict("records"), poisoned.to_dict("records")
     )
