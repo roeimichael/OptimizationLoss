@@ -58,6 +58,53 @@ mean focal helps the MODEL and not the CONSTRAINT, the gradient-health account
 is wrong, and it goes in the closed ledger rather than being rescued. A main
 effect of focal alone does NOT confirm it -- `focal_clip` already has one.
 
+#### AMENDMENT, same day, BEFORE any of it ran
+
+The pre-registration above stands as written -- it is not being retro-edited --
+but two of the premises it rests on were refuted later the same day, and the
+amendment must be on the record before the seeds land.
+
+**Premise 1 is false.** Allocation is NOT optimal given the probabilities: the
+allocator is top-K by `p(c)` and the optimum is top-K by MARGIN, worth ~+0.01
+accuracy. And the supporting evidence ("`lp` and `clip` score identically") was
+already retracted -- it was a gAP comparison, and gAP is allocation-free.
+
+**Premises 4-5 are mostly false.** `p(1-p)` concentration was said to let a few
+dozen items choose the direction. Measured: a bisected gradient push lands on
+**87% of the provably optimal eviction set**, and closing the last 13% is worth
+**0.0002 accuracy**. Gradient-mass concentration barely changes WHICH items
+flip. It changes how large a step is needed -- and `normalize` removes that.
+
+**The corrected chain, which makes the SAME test sharper:**
+
+1. Eviction given the probabilities is already ~optimal (0.0002 residual), and
+   all four duals share one per-item direction whose only freedom is the
+   per-group eviction count, which the caps fix.
+2. So the ONLY payoff channel is a change in the PROBABILITIES -- the model's
+   own margins, i.e. gAP.
+3. The constraint can change those only while the boundary is still moving. CE
+   reaches ~0 by epoch 3-5 of 30, so 24+ of 29 constraint epochs act on a frozen
+   boundary.
+
+🔬 **THE DISCRIMINATING PREDICTION.** The corrected chain says the intervention
+has to UNFREEZE THE BOUNDARY, not enlarge the gradient. Focal does the second;
+augmentation does the first. So the two interventions are now predicted to come
+apart, and that is a much stronger test than running both and keeping the
+winner:
+
+    focal:        gAP(focal_tralo) - gAP(focal_clip)  ~=  gAP(tralo) - gAP(clip)
+    augmentation: gAP(aug_tralo)   - gAP(aug_clip)     >  gAP(tralo) - gAP(clip)
+
+**Focal is now the NEGATIVE CONTROL for augmentation.** If focal's interaction
+comes out positive too, the "unfreeze the boundary" account is wrong and what is
+really being measured is any regulariser at all. If NEITHER moves, the ranking
+channel is shut and no training-time constraint can beat a clipper on this
+corpus -- which is a publishable result, and the one the ledger currently
+points at.
+
+⚠️ Both arms must pass `gate:saturation` before their numbers are read at all.
+An arm that still memorises in 3 epochs has not run the experiment.
+
 ⚠️ Pre-registered BEFORE `focal_tralo` has ever run. It is a schema line plus a
 protocol arm; `make_ce_criterion` already honoured `warmup_loss` and is what
 `tralo/train.py:80` and `dual_common.py:94` build their task criterion with.
