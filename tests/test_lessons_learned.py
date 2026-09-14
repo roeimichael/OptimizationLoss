@@ -1149,3 +1149,41 @@ def test_the_AUGMENT_arms_do_not_silently_REUSE_the_unaugmented_warm_up():
             "nothing" % (aug, plain, ident(aug)))
     assert build_hyperparams(P, P["arms"]["aug_tralo"], 1)["augment"] is True, (
         "the augment block does not actually set augment=True")
+
+
+def test_augmentation_SURVIVES_an_image_smaller_than_its_own_pad():
+    """`reflect` padding raises when the pad is not smaller than the dimension.
+
+    With a fixed pad of 16 that is every image under 17px, which made
+    `aug_tralo` unrunnable -- caught only because smoke_arms feeds 8x8 tensors
+    and was reported as "advisory, not a blocker". A full campaign would have
+    crashed on its first augmented batch.
+
+    Checks the small case runs AND that the normal case still actually shifts
+    the image: clamping the pad must not turn augmentation into a no-op.
+    """
+    import torch
+    from src.pipeline.warmup import AugmentedTensors
+
+    for size in (1, 2, 8, 16, 17, 32):
+        ds = AugmentedTensors(torch.rand(4, 3, size, size), torch.zeros(4, dtype=torch.long))
+        x, _ = ds[0]
+        assert x.shape[-2:] == (size, size), (
+            "augmentation changed the image SHAPE at %dx%d: %s"
+            % (size, size, tuple(x.shape)))
+
+    # Liveness must isolate the CROP. "differs from the input" is satisfied by
+    # the horizontal flip alone, so with pad=0 -- augmentation effectively off --
+    # that check still passes. Verified by mutation: it did. Compare against the
+    # flip as well, and only a real crop can differ from both.
+    torch.manual_seed(0)
+    base = torch.rand(1, 3, 64, 64)
+    ds = AugmentedTensors(base.clone(), torch.zeros(1, dtype=torch.long))
+    flipped = torch.flip(base[0], dims=(-1,))
+    cropped = sum(
+        1 for _ in range(40)
+        if not torch.equal((x := ds[0][0]), base[0]) and not torch.equal(x, flipped)
+    )
+    assert cropped > 0, (
+        "40 draws produced only the input or its mirror -- the random crop is "
+        "dead, so augmentation is a flip and the augmented arms are near-inert")

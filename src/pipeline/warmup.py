@@ -80,9 +80,13 @@ class AugmentedTensors(Dataset):
         x = self.X[i]
         if float(torch.rand(())) < 0.5:
             x = torch.flip(x, dims=(-1,))
-        p = self.pad
-        if p:
-            h, w = x.shape[-2], x.shape[-1]
+        h, w = x.shape[-2], x.shape[-1]
+        # reflect padding requires pad < the dimension it pads, so a fixed 16
+        # raises on any image under 17px. That is not hypothetical: it made
+        # `aug_tralo` UNRUNNABLE and smoke_arms, whose input is 8x8, is the only
+        # reason it was caught before the campaign burned three hours on it.
+        p = min(self.pad, h - 1, w - 1)
+        if p > 0:
             x = F.pad(x.unsqueeze(0), (p, p, p, p), mode="reflect").squeeze(0)
             top = int(torch.randint(0, 2 * p + 1, ()))
             left = int(torch.randint(0, 2 * p + 1, ()))
