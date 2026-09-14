@@ -132,7 +132,40 @@ def _tp(rec):
     return float(rec["TP"])
 
 
-def rows_for(cells, control, dropped=None, statuses=None):
+# 🛑 THREE METRICS, AND ONLY ONE OF THEM IS INDEPENDENT EVIDENCE (2026-09-14).
+#
+# The acceptance bar has always been computed on `items` -- deployed TP summed
+# over the capped classes. Asked whether it survives a metric a referee would
+# recognise, the honest decomposition is:
+#
+#   `items`    sum of TP over the capped classes. The bar's historical metric.
+#   `ccf1`     macro F1 over the CAPPED classes. On the deployed file each
+#              class emits what the allocator gave it, so `F1_c =
+#              2TP_c/(K_c+n_c)` with `n_c` fixed by the test set -- per class
+#              a strictly increasing function of that class's TP. So this is a
+#              RE-WEIGHTING of the same integers, not a second measurement: it
+#              can only disagree with `items` about how a class-2 item trades
+#              against a class-7 one, never about whether items were captured.
+#              Run it anyway -- it is the number the manuscript prints, and a
+#              verdict that flips under a re-weighting is a fragile verdict.
+#   `macrof1`  macro F1 over EVERY class. This one IS independent, and it is
+#              the only column here in which an arm can PAY for what it
+#              captured: the six uncapped classes are invisible to both of the
+#              others. FRAMEWORK 2(z26) records that uncapped damage is real.
+#
+# Quote which one. They are not interchangeable and the second is not a check
+# on the first in the way it looks like one.
+METRICS = {
+    "items": (_tp, "d items", "%+8.2f", "deployed TP over the capped classes"),
+    "ccf1": (lambda rec: deployed_h2h.ccf1(rec["per"], rec["classes"]),
+             "d ccF1", "%+8.4f", "macro F1 over the CAPPED classes"),
+    "macrof1": (lambda rec: deployed_h2h.macrof1(rec["all_per"]),
+                "d macroF1", "%+8.4f", "macro F1 over EVERY class"),
+}
+
+
+def rows_for(cells, control, dropped=None, statuses=None, get=_tp,
+             arms=None):
     """One row per cell: the deltas vs control, the floor, and the verdict.
 
     `dropped` is an optional out-list. Pass one and every cell that cannot
@@ -153,7 +186,7 @@ def rows_for(cells, control, dropped=None, statuses=None):
                 dropped.append((key, "no tralo" if "tralo" not in cell
                                 else "no %s" % control))
             continue
-        order, _first = deployed_h2h.rank_cell(cell, control, _tp)
+        order, _first = deployed_h2h.rank_cell(cell, control, get, arms)
         d = dict((arm, mean) for arm, mean, _dl, _sd in order)
         if "tralo" not in d:
             # NOT the same case as "no tralo": the arm RAN, and `rank_cell`
@@ -162,7 +195,7 @@ def rows_for(cells, control, dropped=None, statuses=None):
             if dropped is not None:
                 dropped.append((key, "tralo shares no seed with %s" % control))
             continue
-        floor, nfloor, _nstream = deployed_h2h.rng_floor(cell, _tp)
+        floor, nfloor, _nstream = deployed_h2h.rng_floor(cell, get)
         present = [r for r in RIVALS if r in d]
         # 🛑 THE MARGIN IS PAIRWISE, NEVER `max - min` (fixed 2026-09-06).
         # A RANGE over k arms grows like `sd*sqrt(2 ln k)` -- ~3.1*sd at k=10 --
@@ -230,8 +263,25 @@ def rows_for(cells, control, dropped=None, statuses=None):
     return rows
 
 
-def report(rows, out=sys.stdout, bar=BAR, dropped=None):
+def report(rows, out=sys.stdout, bar=BAR, dropped=None, metric="items",
+           label="d items", fmt="%+8.2f",
+           blurb="deployed TP over the capped classes"):
     w = out.write
+    # NAME THE METRIC IN THE OUTPUT, NOT ONLY IN THE COMMAND. This table gets
+    # pasted into docs and the three metrics give three different verdicts; a
+    # figure without its metric is the same defect as a figure without its
+    # denominator, and 2(z66) is the entry about exactly that.
+    w("METRIC: %s -- %s\n" % (metric, blurb))
+    if metric != "items":
+        w("  !! NOT the historical bar. Every acceptance figure recorded in\n"
+          "     the docs was computed on `items`.\n")
+    if metric == "ccf1":
+        w("  !! ccF1 is a RE-WEIGHTING of `items`, not independent evidence:\n"
+          "     on the deployed file F1_c = 2TP_c/(K_c+n_c) with n_c fixed by\n"
+          "     the test set, so per class it is a monotone function of the\n"
+          "     same integers. It can disagree only about how a class-2 item\n"
+          "     trades against a class-7 one.\n")
+    w("\n")
     testable = [r for r in rows if r["testable"]]
     # TWO exclusion reasons, kept apart because the remedies are opposite:
     # `lonely` needs a rival STAGED, `noq` needs a different CAP. Collapsing
@@ -239,23 +289,37 @@ def report(rows, out=sys.stdout, bar=BAR, dropped=None):
     lonely = [r for r in rows if not r["testable"] and not r["rivals"]]
     noq = [r for r in rows if not r["testable"] and r["rivals"]]
 
-    w("%-11s %-13s %-13s %4s %8s %8s %8s %8s %7s %6s %s\n"
-      % ("campaign", "backbone", "cap", "sds", "tralo", "alm", "fioretto",
-         "hounie", "floor", "priced", "verdict"))
+    # 🛑 A RIVAL COLUMN IS PRINTED ONLY WHERE THE RIVAL ACTUALLY RAN.
+    # This header was a fixed `tralo alm fioretto hounie` whatever the input,
+    # so an arm DROPPED AS DEAD by `quarantine.gate()` still got a column and
+    # it read `.` -- which is exactly what an arm that was NEVER STAGED reads.
+    # Two different facts, one glyph, and the remedies are opposite: stage the
+    # arm, versus the contrast is not comparable at all. This file already
+    # keeps "no tralo" and "tralo shares no seed" apart for that reason; the
+    # header contradicted it. Caught the hour this tool was added to
+    # `test_the_scorer_does_not_NAME_a_dead_arm_in_its_results`, which it had
+    # never been in -- 2(z81)'s exemption shape, on the acceptance table.
+    # A campaign carrying all three rivals is UNCHANGED, byte for byte.
+    cols = [a for a in RIVALS if any(a in r["d"] for r in rows)]
+    w("%-11s %-13s %-13s %4s %8s %s %7s %6s %s\n"
+      % ("campaign", "backbone", "cap", "sds", "tralo",
+         " ".join("%8s" % a for a in cols),
+         "floor", "priced", "verdict [%s]" % label))
     w("%s\n" % ("-" * 104))
     for r in sorted(rows, key=lambda r: (r["campaign"], r["model"], r["cap"])):
         def col(a):
-            return ("%+8.2f" % r["d"][a]) if a in r["d"] else "       ."
+            return (fmt % r["d"][a]) if a in r["d"] else "       ."
         if not r["rivals"]:
             verdict = "no rival -- cannot test"
         elif not r["poses"]:
             verdict = "%s -- poses no question" % (r["status"] or "?")
         else:
             verdict = "WIN " if r["win"] else "loss"
-        w("%-11s %-13s %-13s %4d %s %s %s %s %4s(%s) %6s %s\n"
+        w("%-11s %-13s %-13s %4d %s %s %4s(%s) %6s %s\n"
           % (r["campaign"], r["model"][:13], r["cap"], r["seeds"],
-             col("tralo"), col("alm"), col("fioretto"), col("hounie"),
-             ("%.1f" % r["floor"]) if r["floor"] is not None else "none",
+             col("tralo"), " ".join(col(a) for a in cols),
+             ((fmt.replace("+", "") % r["floor"]).strip()
+              if r["floor"] is not None else "none"),
              r["nfloor"], "yes" if r["priced"] else "no", verdict))
 
     w("\n%s\n" % ("=" * 104))
@@ -608,6 +672,149 @@ def self_test(out=sys.stdout):
                    "never reached the table" in buf.getvalue()
                    and "campB" in buf.getvalue()))
 
+    # ---- the three metrics, and which of them is real evidence -------------
+    # Every claim in the METRICS comment above is executed here. The comment is
+    # the hypothesis; these are the measurements.
+    def rec(per, all_per=None):
+        return dict(TP=float(sum(d["TP"] for d in per.values())),
+                    classes=tuple(sorted(per)), per=per,
+                    all_per=all_per or dict(per))
+
+    g_items, g_cc, g_mac = (METRICS[m][0] for m in ("items", "ccf1", "macrof1"))
+
+    # 1. ONE capped class: ccF1 is monotone in TP, so it CANNOT reorder.
+    one_lo = rec({2: dict(TP=300, K=333, n=370)})
+    one_hi = rec({2: dict(TP=310, K=333, n=370)})
+    checks.append(("on ONE capped class ccF1 orders exactly as items do",
+                   (g_items(one_hi) > g_items(one_lo))
+                   == (g_cc(one_hi) > g_cc(one_lo))))
+
+    # 2. LIVENESS / negative control for that: with TWO capped classes whose
+    #    (K+n) differ, the SAME total TP splits two ways and ccF1 DOES reorder.
+    #    dom1/L90_G95's real denominators: c2 K=333 n=370, c7 K=411 n=456.
+    heavy2 = rec({2: dict(TP=310, K=333, n=370), 7: dict(TP=300, K=411, n=456)})
+    heavy7 = rec({2: dict(TP=300, K=333, n=370), 7: dict(TP=310, K=411, n=456)})
+    checks.append(("NEGATIVE CONTROL: two classes, EQUAL items, and ccF1 "
+                   "separates them",
+                   abs(g_items(heavy2) - g_items(heavy7)) < 1e-9
+                   and g_cc(heavy2) > g_cc(heavy7)))
+
+    # 3. macroF1 is the only one that can see a capped-class win PAID FOR in
+    #    the uncapped classes. Identical capped counts, wrecked class 5.
+    clean = rec({2: dict(TP=310, K=333, n=370)},
+                {2: dict(TP=310, K=333, n=370),
+                 5: dict(TP=400, K=420, n=430)})
+    damaged = rec({2: dict(TP=310, K=333, n=370)},
+                  {2: dict(TP=310, K=333, n=370),
+                   5: dict(TP=200, K=420, n=430)})
+    checks.append(("macroF1 SEES uncapped damage that items and ccF1 are "
+                   "blind to",
+                   abs(g_items(clean) - g_items(damaged)) < 1e-9
+                   and abs(g_cc(clean) - g_cc(damaged)) < 1e-9
+                   and g_mac(clean) > g_mac(damaged)))
+
+    # 4. NEGATIVE CONTROL for 3: with no uncapped class in `all_per` the three
+    #    metrics have the same input and macroF1 must NOT separate them.
+    checks.append(("NEGATIVE CONTROL: with no uncapped class, macroF1 "
+                   "separates nothing",
+                   abs(g_mac(rec({2: dict(TP=310, K=333, n=370)}))
+                       - g_mac(one_hi)) < 1e-12))
+
+    # 5. the switch REACHES the verdict -- a metric that changes no number is a
+    #    flag, and this project has shipped five inert ones (CLAUDE.md rule 3).
+    swap = {"clip": [600, 600, 600, 600], "tralo": [610, 610, 610, 610]}
+    k6, c6 = mk(swap, "campD", "L90_G95")
+    r_it = rows_for({k6: c6}, "clip", get=g_items)[0]["d"]["tralo"]
+    r_cc = rows_for({k6: c6}, "clip", get=g_cc)[0]["d"]["tralo"]
+    checks.append(("--metric REACHES the delta: items and ccF1 give different "
+                   "numbers for the same cell",
+                   abs(r_it - 10.0) < 1e-9 and abs(r_cc - r_it) > 1e-6))
+
+    # 6. and the report SAYS which metric it used. A table pasted without its
+    #    metric is 2(z66)'s defect with a new denominator.
+    buf6 = _io.StringIO()
+    report(rows_for({k6: c6}, "clip", get=g_cc), out=buf6,
+           metric="ccf1", label="d ccF1", fmt="%+8.4f", blurb="capped macro F1")
+    checks.append(("the report NAMES its metric and warns ccF1 is a "
+                   "re-weighting",
+                   "METRIC: ccf1" in buf6.getvalue()
+                   and "RE-WEIGHTING" in buf6.getvalue()))
+    buf7 = _io.StringIO()
+    report(rows_for({k6: c6}, "clip", get=g_items), out=buf7)
+    checks.append(("NEGATIVE CONTROL: the items table prints NO re-weighting "
+                   "warning",
+                   "METRIC: items" in buf7.getvalue()
+                   and "RE-WEIGHTING" not in buf7.getvalue()))
+
+    # 7. THE FLOOR MUST MOVE WITH THE METRIC. `priced` compares the spread to
+    #    the RNG floor, and a macroF1 spread read against an ITEMS floor would
+    #    manufacture a verdict at any effect size -- the same class of defect as
+    #    2(z69), where `priced` was False by construction and got read as a
+    #    result about TraLO. The floor is the only thing standing between this
+    #    table and a number, so assert it is in the same units as the deltas.
+    floors = {"clip": [600, 601, 599, 600], "tralo": [640, 641, 639, 640],
+              "alm": [610, 611, 609, 610],
+              "tralo_null": [600, 601, 599, 600],
+              "tralo_reseed": [604, 597, 603, 596],
+              "tralo_reseed2": [598, 605, 594, 607]}
+    k7, c7 = mk(floors, "campE", "L90_G95")
+    f_it = rows_for({k7: c7}, "clip", get=g_items)[0]["floor"]
+    f_cc = rows_for({k7: c7}, "clip", get=g_cc)[0]["floor"]
+    checks.append(("the RNG FLOOR is computed in the chosen metric, not left "
+                   "in items",
+                   f_it is not None and f_cc is not None
+                   and f_it > 1.0 and f_cc < 0.1))
+
+    # 8. the rival COLUMNS follow the data, and a full cell is unchanged.
+    #    The second half is the one that matters: every acceptance figure in
+    #    the docs was printed by the fixed-header version, so if a complete
+    #    campaign rendered differently the change would silently invalidate
+    #    them all.
+    full = dict(floors)
+    full["fioretto"] = [605, 606, 604, 605]
+    full["hounie"] = [608, 609, 607, 608]
+    k8, c8 = mk(full, "campF", "L90_G95")
+    b_full = _io.StringIO()
+    report(rows_for({k8: c8}, "clip"), out=b_full)
+    hdr_full = [l for l in b_full.getvalue().split(chr(10)) if "backbone" in l][0]
+    checks.append(("with all three rivals the header is the ORIGINAL fixed "
+                   "layout, so no recorded figure moves",
+                   hdr_full == ("%-11s %-13s %-13s %4s %8s %8s %8s %8s %7s "
+                                "%6s %s"
+                                % ("campaign", "backbone", "cap", "sds",
+                                   "tralo", "alm", "fioretto", "hounie",
+                                   "floor", "priced", "verdict [d items]"))))
+
+    b_thin = _io.StringIO()
+    report(rows_for({k7: c7}, "clip"), out=b_thin)
+    hdr_thin = [l for l in b_thin.getvalue().split(chr(10)) if "backbone" in l][0]
+    checks.append(("NEGATIVE CONTROL: a cell with only `alm` prints NO "
+                   "fioretto/hounie column to mistake for a dropped arm",
+                   "alm" in hdr_thin and "fioretto" not in hdr_thin
+                   and "hounie" not in hdr_thin))
+
+    # 9. `--arms` RECOVERS SEEDS, and the seed count is the whole point.
+    #    A cell where one exploratory arm ran 4 seeds and the rest ran 8 is
+    #    ranked on 4 by `rank_cell`'s common-seed rule (2(z50)) -- correct, and
+    #    it means a bought-and-pooled seed extension can fail to reach this
+    #    table at all. Restricting must raise the seed count AND leave the
+    #    unrestricted reading alone.
+    wide = deployed_h2h._ragged({
+        "clip": {s_: 600 for s_ in range(1, 9)},
+        "tralo": {s_: 640 for s_ in range(1, 9)},
+        "alm": {s_: 610 for s_ in range(1, 9)},
+        "tralo_head": {1: 500, 2: 501, 3: 499, 4: 500}})
+    k9 = ("campG", "ViTB16", "iwildcam", "L90_G95", "2-7")
+    r_all = rows_for({k9: wide}, "clip")[0]
+    r_res = rows_for({k9: wide}, "clip", arms=("tralo", "alm", "clip"))[0]
+    checks.append(("--arms RECOVERS the seeds a ragged exploratory arm was "
+                   "holding back",
+                   r_all["seeds"] == 4 and r_res["seeds"] == 8))
+    checks.append(("NEGATIVE CONTROL: the UNRESTRICTED reading is unchanged "
+                   "by the flag existing",
+                   r_all["seeds"] == 4
+                   and abs(r_all["d"]["tralo"] - 40.0) < 1e-9))
+
     print("", file=out)
     for label, good in checks:
         print("  %-70s %s" % (label[:70], "PASS" if good else "FAIL"), file=out)
@@ -623,6 +830,19 @@ def main(argv=None):
     a.add_argument("--control", default="clip")
     a.add_argument("--bar", type=float, default=BAR)
     a.add_argument("--allow-quarantined", action="store_true")
+    a.add_argument("--arms", nargs="+", default=None,
+                   help="RESTRICT every cell to these arms (plus the control) "
+                        "before ranking. `rank_cell` ranks on the seeds EVERY "
+                        "arm shares, so one exploratory arm at 4 seeds caps "
+                        "the whole cell at 4 -- which is how a 12-seed "
+                        "extension can be bought, pooled, and still not "
+                        "reach this table. NOT the default reading: dropping "
+                        "an arm can only WIDEN the #1-vs-#2 margin.")
+    a.add_argument("--metric", default="items", choices=sorted(METRICS),
+                   help="what the verdict is computed ON. `items` is the "
+                        "historical bar; `ccf1` re-weights the same integers "
+                        "and is what the manuscript prints; `macrof1` is the "
+                        "only one that can see the uncapped classes.")
     a.add_argument("--self-test", action="store_true")
     args = a.parse_args(argv)
     if args.self_test:
@@ -635,9 +855,51 @@ def main(argv=None):
         return 1
     cells = deployed_h2h.collect(args.campaign, dead)
     dropped = []
+    get, label, fmt, blurb = METRICS[args.metric]
+    arms = args.arms
+    if arms:
+        arms = tuple(dict.fromkeys(list(arms) + [args.control]))
+        # 🛑 THE REQUEST IS NOT THE RANKING, AND DEAD-NESS IS PER CAMPAIGN.
+        # `DeadArms` is {campaign -> arms} and its own docstring records why a
+        # UNION is wrong: folding every campaign's dead arms into one set once
+        # dropped `fioretto` from `taskwin2`, which carries no marker at all.
+        # So this banner cannot say globally which requested arm survived --
+        # `collect(roots, dead)` has already removed each campaign's dead arms
+        # from its own cells, and the restriction applies to what is left.
+        # Say exactly that, on the line that carries the names.
+        print("!! ARM-RESTRICTED VIEW.")
+        print("   requested, before each campaign's own quarantined dead "
+              "arms are dropped: %s" % " ".join(arms))
+        print("   (that is the REQUEST, not the ranking -- dead-ness is per")
+        print("   campaign and is applied to each campaign's own cells.)")
+        # 🔑 WHETHER THIS IS A WEAKER READING OR A BETTER ONE DEPENDS
+        # ENTIRELY ON WHAT WAS DROPPED, AND THE TOOL CAN TELL. `rows_for`
+        # computes `win` from RIVALS and `win_strict` from CLIPPERS and reads
+        # NO OTHER ARM -- verified by AST, not by reading. So an arm outside
+        # those sets can never change a verdict directly; it can only shrink
+        # the common seed set `rank_cell` ranks on (2(z50)). Restricting to a
+        # set that still covers RIVALS + CLIPPERS therefore removes nothing
+        # the claim is defined over and BUYS seeds -- it is the more powerful
+        # reading, not a shorter field. Saying "NOT the default reading" about
+        # that case would talk a reader out of the correct number.
+        covers = set(RIVALS) | set(CLIPPERS) | {"tralo", args.control}
+        missing = sorted(covers - set(arms))
+        if not missing:
+            print("   This set COVERS every arm the verdict reads, so nothing")
+            print("   the claim is defined over was dropped. What went is")
+            print("   arms that could only STARVE the common seed set -- so")
+            print("   this is the BETTER-POWERED reading, not a weaker one.")
+        else:
+            print("   This set is MISSING %d arm(s) the verdict reads."
+                  % len(missing))
+            print("   Dropping an arm the claim is defined over can only")
+            print("   WIDEN the #1-vs-#2 margin, so a win appearing only")
+            print("   here is a win against a shorter field.")
+        print("")
     rows = rows_for(cells, args.control, dropped,
-                    statuses=statuses_for(args.campaign))
-    return report(rows, bar=args.bar, dropped=dropped)
+                    statuses=statuses_for(args.campaign), get=get, arms=arms)
+    return report(rows, bar=args.bar, dropped=dropped,
+                  metric=args.metric, label=label, fmt=fmt, blurb=blurb)
 
 
 if __name__ == "__main__":

@@ -154,12 +154,21 @@ def read_run(run_dir):
     if "Predicted_Label" not in df.columns or "True_Label" not in df.columns:
         return None
     p, y = df["Predicted_Label"], df["True_Label"]
-    per = {}
-    for c in classes:
-        per[c] = dict(TP=int(((p == c) & (y == c)).sum()),
-                      K=int((p == c).sum()),
-                      n=int((y == c).sum()))
-    return dict(cfg=cfg, classes=classes, per=per,
+
+    def counts(c):
+        return dict(TP=int(((p == c) & (y == c)).sum()),
+                    K=int((p == c).sum()),
+                    n=int((y == c).sum()))
+
+    per = dict((c, counts(c)) for c in classes)
+    # EVERY class, not only the capped ones. `per` is blind to the collateral
+    # channel by construction -- an arm that buys capped-class items by
+    # wrecking the six uncapped classes scores identically on `TP` and on
+    # `ccf1`. `all_per` is the only thing here that can see that, and it costs
+    # one pass over a frame already in memory.
+    allc = sorted(set(y.unique()) | set(p.unique()))
+    all_per = dict((int(c), counts(c)) for c in allc)
+    return dict(cfg=cfg, classes=classes, per=per, all_per=all_per,
                 TP=sum(per[c]["TP"] for c in classes))
 
 
@@ -177,6 +186,29 @@ def ccf1(per, classes):
         d = per[c]
         den = d["K"] + d["n"]
         vals.append(2.0 * d["TP"] / den if den else float("nan"))
+    return sum(vals) / len(vals) if vals else float("nan")
+
+
+def macrof1(all_per):
+    """Macro-F1 over EVERY class, on the deployed predictions.
+
+    THE ONE METRIC HERE THAT IS NOT A RE-WEIGHTING OF `TP` (2026-09-14).
+    On the deployed file each class emits exactly what the allocator gave it,
+    so `F1_c = 2TP_c/(K_c+n_c)` with `n_c` fixed by the test set -- which makes
+    per-class cc-F1 a strictly increasing function of that class's TP, and the
+    capped-class macro average a re-weighting of the same integers. Nothing
+    restricted to the capped classes can disagree with items about anything
+    except how a class-2 item trades against a class-7 one.
+
+    This one can. It carries the six uncapped classes, which no capped-class
+    metric reads at all, so it is the only column in which an arm can pay for
+    its captured items. Higher is better, as everywhere else here.
+    """
+    vals = []
+    for c in sorted(all_per):
+        d = all_per[c]
+        den = d["K"] + d["n"]
+        vals.append(2.0 * d["TP"] / den if den else 0.0)
     return sum(vals) / len(vals) if vals else float("nan")
 
 
@@ -525,11 +557,6 @@ def floor_verdict(order, floor, nfloor, nstream=0):
     return None
 
 
-# The `_null` / `_reseed` twins are FLOOR INSTRUMENTS, not competitors. Ranking
-# them would let a cell's own noise estimate win the cell.
-FLOOR_SUFFIXES = ("_null", "_reseed")
-
-
 def rankable_arms(cell, control):
     """Every COMPETITOR arm present in the cell, in a stable column order.
 
@@ -545,8 +572,10 @@ def rankable_arms(cell, control):
     A scorer that omits a completed arm does not look broken -- it prints a
     clean ranking of a subset and calls it the campaign.
     """
+    # Use the same stream definition as rng_floor, including numbered reseeds.
+    # Noise instruments remain in the cell, but cannot win its method ranking.
     seen = [a for a in cell
-            if a != control and not a.endswith(FLOOR_SUFFIXES)]
+            if a != control and not is_lambda0_stream(a)]
     head = [a for a in DUALS if a in seen]
     tail = sorted(a for a in seen if a not in head)
     return head + tail
@@ -672,6 +701,7 @@ def report(cells, control, w=sys.stdout.write):
     n_named = n_refused = n_unstable = n_disagree = n_unequal = 0
     n_avg_only, avg_only = 0, []
     n_mixed, mixed = 0, []
+    n_ragged, ragged = 0, []
     for key in sorted(cells):
         cell = cells[key]
         root, model, ds, cap, capped = key
@@ -681,6 +711,39 @@ def report(cells, control, w=sys.stdout.write):
 
         if control not in cell:
             continue
+        # 🛑 NAME THE ARMS THAT LIMIT THE COMMON-SEED COUNT (2026-09-12).
+        # `rank_cell` ranks on the seeds EVERY arm shares (2(z50)) -- correct,
+        # because an arm-vs-arm ordering over different seed sets compares
+        # populations. But it makes the ordering hostage to the WORST-COVERED
+        # arm in the cell, and that loss was SILENT: the header printed the
+        # common count with no hint that it was a floor imposed by one arm.
+        #
+        # MEASURED on D2 (`bcn1vit` + `bcn1vitseed`): the extension bought 12
+        # seeds on `clip`, `focal_clip`, `tralo`, ALL THREE rival duals and all
+        # three lambda=0 streams -- exactly the arms the acceptance claim is
+        # about -- and the ranking still read **4 seeds**, because nine
+        # EXPLORATORY arms (`tralo_head`, `lp`, `tralo_squared`, ...) sit in the
+        # same cell at 4. 96 runs bought, and the head-to-head could not use
+        # them. The runs are not wasted; the DEFAULT VIEW could not see them.
+        ranking_arms = [control] + rankable_arms(cell, control)
+        cov = {a: set(cell[a]) for a in ranking_arms if cell[a]}
+        if cov:
+            widest = max(len(v) for v in cov.values())
+            shared = set.intersection(*cov.values())
+            limiters = sorted(a for a, v in cov.items() if len(v) < widest)
+            if limiters and len(shared) < widest:
+                n_ragged += 1
+                ragged.append((root, model, ds, cap, len(shared), widest,
+                               limiters))
+                w(("  ** SEED COVERAGE IS RAGGED: %d arm(s) carry %d "
+                   "seeds, so the ordering below uses %d." + "\n"
+                   "     Limited by: %s" + "\n"
+                   "     `--arms` restricts the cell to a named set "
+                   "and recovers the wider count." + "\n")
+                  % (len(limiters), min(len(cov[a]) for a in limiters),
+                     len(shared), " ".join(limiters[:8])
+                     + (" ..." if len(limiters) > 8 else "")))
+
         order_tp, first_tp = rank_cell(cell, control, g_tp)
         order_f1, first_f1 = rank_cell(cell, control, g_f1)
         if not order_tp:
@@ -854,7 +917,8 @@ def _cell(spec, K=300, n=370):
     out = {}
     for arm, tps in spec.items():
         out[arm] = {i + 1: dict(TP=float(t), classes=(2,),
-                                per={2: dict(TP=t, K=K, n=n)})
+                                per={2: dict(TP=t, K=K, n=n)},
+                                all_per={2: dict(TP=t, K=K, n=n)})
                     for i, t in enumerate(tps)}
     return out
 
@@ -862,7 +926,8 @@ def _cell(spec, K=300, n=370):
 def _ragged(spec, K=300, n=370):
     """spec: arm -> {seed: TP}. Like `_cell` but with explicit, RAGGED seeds."""
     return {arm: {s: dict(TP=float(t), classes=(2,),
-                          per={2: dict(TP=t, K=K, n=n)})
+                          per={2: dict(TP=t, K=K, n=n)},
+                          all_per={2: dict(TP=t, K=K, n=n)})
                   for s, t in per.items()}
             for arm, per in spec.items()}
 
@@ -1346,6 +1411,13 @@ def main():
                     help="campaign root(s), e.g. results/dom1")
     ap.add_argument("--control", default="clip",
                     help="the quality bar every arm is measured against")
+    ap.add_argument("--arms", nargs="*", default=[],
+                    help="restrict competitors to these arms (the control and "
+                         "all RNG floor streams are always kept). Use it when EXPLORATORY arms at fewer "
+                         "seeds are dragging the common-seed count down -- "
+                         "the ordering is over the seeds EVERY arm shares, so "
+                         "one thin arm sets the count for all of them. The "
+                         "restriction is PRINTED, with what it dropped.")
     ap.add_argument("--json", default=None, help="write the rows here")
     ap.add_argument("--allow-quarantined", action="store_true",
                     help="compare arms in a campaign `scripts.quarantine` marked dead")
@@ -1367,6 +1439,43 @@ def main():
     if not cells:
         print("no runs on the current recipe under %s" % " ".join(args.campaign))
         return 1
+    # 🛑 THE RESTRICTION IS ANNOUNCED, WITH WHAT IT DROPPED AND WHY.
+    # Restricting the arm set changes the #1-vs-#2 MARGIN -- dropping the
+    # runner-up widens it -- so an unannounced `--arms` is a way to
+    # manufacture a winner. It prints the dropped arms AND their seed counts,
+    # so a reader can see whether the restriction bought seeds (legitimate:
+    # the acceptance claim is about tralo vs the control and the rival DUALS)
+    # or removed a rival (not legitimate).
+    if args.arms:
+        keep = set(args.arms) | {args.control}
+        dropped = {}
+        for key in list(cells):
+            cell = cells[key]
+            for a in list(cell):
+                if a not in keep and not is_lambda0_stream(a):
+                    dropped[a] = max(dropped.get(a, 0), len(cell[a]))
+                    del cell[a]
+            if args.control not in cell or len(cell) < 2:
+                del cells[key]
+        print("")
+        print("  !! ARM-RESTRICTED VIEW -- this is NOT the default reading.")
+        print("     kept:    %s" % " ".join(sorted(keep)))
+        print("     retained: all lambda=0 RNG streams for floor estimation")
+        if dropped:
+            print("     dropped: %s"
+                  % "  ".join("%s(%ds)" % (a, n)
+                              for a, n in sorted(dropped.items())))
+        print("     Restricting competitors can change the ranking and margin; "
+              "read the")
+        print("     dropped list before the verdict. The RNG floor is "
+              "unaffected: it")
+        print("     is built from lambda=0 streams, which a rival-arm "
+              "restriction does")
+        print("     not touch.")
+        if not cells:
+            print("no cells left after --arms")
+            return 1
+
     flagged = cap_invariant_arms(args.campaign)
     if flagged:
         print("")

@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# ARCHIVED 2026-09-13: historical cleanup machinery, not a runnable workflow.
+# Its prompt/state were archived; preserve this file only as provenance.
+echo 'REFUSED: archived cleanup launcher; read docs/FRAMEWORK.md.' >&2
+exit 1
 # Autonomous repository cleanup loop.
 #
 #   bash run_autoclean.sh            # run until STATUS: COMPLETE or a guard trips

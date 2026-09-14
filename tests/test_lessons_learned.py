@@ -3487,3 +3487,120 @@ def test_the_floor_family_gate_has_a_negative_control():
     assert old == [], (
         "the negative control is vacuous: the pre-fix family tuple would "
         "still have seen these pairs, so the gate proves nothing")
+
+
+def test_read_run_counts_EVERY_class_not_only_the_capped_ones(tmp_path):
+    """The acceptance bar's third metric is only as real as `read_run` (2026-09-14).
+
+    `items` and capped-class `ccF1` are the same integers re-weighted: on the
+    deployed file `F1_c = 2TP_c/(K_c+n_c)` with `n_c` fixed by the test set, so
+    per class cc-F1 is monotone in that class's TP. The only metric here that
+    is independent evidence is macro-F1 over EVERY class, because it is the
+    only one that can see a capped-class win paid for in the uncapped ones.
+
+    That independence rests entirely on `read_run` populating `all_per` from
+    the real frame. `tralo_wins --self-test` cannot check it: it builds its
+    records by hand and never enters `read_run`, which is 2(z81)'s shape --
+    a `--self-test` that never reaches the code under test is a test of the
+    helpers. So this writes a real `final_predictions.csv` with counts chosen
+    by hand and reads them back.
+    """
+    import csv
+    import json
+    from scripts import deployed_h2h
+
+    d = tmp_path / "seed_1"
+    d.mkdir()
+    json.dump({"dataset_config": {"constrained_class": [2]},
+               "hyperparams": {"constraint_epochs": 29,
+                               "constraint_fp32": True,
+                               "constraint_grad_mode": "normalize"}},
+              open(d / "config.json", "w"))
+    # class 2 (CAPPED): 3 TP, emitted 4, 5 true.
+    # class 5 (UNCAPPED): 2 TP, emitted 3, 2 true.  Never in `per`.
+    rows = ([(2, 2)] * 3 + [(2, 7)] * 1          # c2: TP=3, K=4
+            + [(7, 2)] * 2                        # two more true 2s -> n=5
+            + [(5, 5)] * 2 + [(5, 7)] * 1)        # c5: TP=2, K=3, n=2
+    with open(d / "final_predictions.csv", "w", newline="") as fh:
+        wr = csv.writer(fh)
+        wr.writerow(["Predicted_Label", "True_Label", "Group_ID"])
+        for pred, true in rows:
+            wr.writerow([pred, true, 0])
+
+    rec = deployed_h2h.read_run(str(d))
+    assert rec is not None, "the fixture must look like a finished run"
+    assert rec["per"] == {2: dict(TP=3, K=4, n=5)}, rec["per"]
+    assert 5 in rec["all_per"], (
+        "`all_per` dropped the uncapped class, so macro-F1 sees exactly what "
+        "cc-F1 sees and the one independent metric is a duplicate: %r"
+        % (rec["all_per"],))
+    assert rec["all_per"][5] == dict(TP=2, K=3, n=2), rec["all_per"][5]
+    assert rec["all_per"][2] == rec["per"][2]
+
+    # LIVENESS: the uncapped class must actually MOVE macro-F1, or reading it
+    # is bookkeeping. capped-only average is 2*3/9 = 0.6667.
+    capped_only = deployed_h2h.macrof1({2: rec["all_per"][2]})
+    assert abs(capped_only - 2 * 3 / 9.0) < 1e-12, capped_only
+    assert abs(deployed_h2h.macrof1(rec["all_per"]) - capped_only) > 1e-6, (
+        "macro-F1 over every class equals the capped-only figure, so the "
+        "uncapped channel is inert")
+
+
+def test_the_acceptance_verdict_reads_ONLY_rivals_and_clippers():
+    """`--arms` is the better reading only while this holds (2026-09-14).
+
+    `tralo_wins --arms` prints one of two opposite things about the same flag:
+    a restriction COVERING `RIVALS + CLIPPERS + {tralo, control}` drops nothing
+    the verdict is defined over, so it only recovers the seeds a ragged
+    exploratory arm was starving from `rank_cell`'s common-seed rule (2(z50))
+    -- the better-powered reading. A restriction missing one of them drops a
+    real competitor and can only widen the margin -- a shorter field.
+
+    That branch is load-bearing: the corpus reading moved from `2 of 11 units`
+    to `1 of 11` under it, because bcn1vit/L90 was ranked on 4 seeds while 12
+    were bought, pooled and sitting on disk. If `rows_for` ever starts reading
+    an arm outside those two tuples, the COVERS branch would announce "nothing
+    was dropped" while something was, and the headline number would be wrong
+    with a reassuring banner over it.
+
+    AST, never grep: a name in a docstring is not a read.
+    """
+    import ast
+    import inspect
+    from scripts import tralo_wins
+
+    src = inspect.getsource(tralo_wins.rows_for)
+    tree = ast.parse(src.lstrip())
+    fn = next(n for n in ast.walk(tree)
+              if isinstance(n, ast.FunctionDef) and n.name == "rows_for")
+
+    # Every subscript of the per-arm delta dict `d`, plus every membership
+    # test against it. An arm named here that is not reachable from RIVALS or
+    # CLIPPERS is an arm the verdict reads and `--arms` could silently drop.
+    literals = set()
+    for node in ast.walk(fn):
+        if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name) \
+                and node.value.id == "d" and isinstance(node.slice, ast.Constant):
+            literals.add(node.slice.value)
+        if isinstance(node, ast.Compare) and isinstance(node.left, ast.Constant):
+            for cmp_, comp in zip(node.ops, node.comparators):
+                if isinstance(cmp_, ast.In) and isinstance(comp, ast.Name) \
+                        and comp.id == "d":
+                    literals.add(node.left.value)
+
+    allowed = set(tralo_wins.RIVALS) | set(tralo_wins.CLIPPERS) | {"tralo"}
+    stray = {a for a in literals if isinstance(a, str)} - allowed
+    assert not stray, (
+        "`rows_for` reads arm(s) %s that are in neither RIVALS %r nor "
+        "CLIPPERS %r. `--arms`'s COVERS branch decides whether a restriction "
+        "is the better-powered reading or a shorter field, and it checks "
+        "exactly those two tuples -- so it would now say 'nothing the claim "
+        "is defined over was dropped' while dropping %s."
+        % (sorted(stray), tralo_wins.RIVALS, tralo_wins.CLIPPERS,
+           sorted(stray)))
+
+    # LIVENESS: the test must be reading something, or it passes vacuously on
+    # a `rows_for` that reads no arm at all.
+    assert "tralo" in literals, (
+        "no arm literal was found in `rows_for` -- this gate parsed nothing "
+        "and would stay green through any drift")

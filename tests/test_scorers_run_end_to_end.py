@@ -159,11 +159,32 @@ def _argv(mod, root, out_dir):
         "sensitivity_screen": ["-m", "scripts.sensitivity_screen",
                                "--campaign", root],
         "paired_noise": ["-m", "scripts.paired_noise", "--campaign", root],
+        # THE ACCEPTANCE TABLE, ADDED 2026-09-14. It was absent from this list
+        # while being the tool that decides PASS/FAIL -- the same exemption
+        # shape as `paper_rows` before 2(z81), and it acquired a `--metric`
+        # flag whose three settings had never been through `main()` at all.
+        # `--metric macrof1` is the one named here on purpose: it is the only
+        # setting that reads `read_run`'s `all_per`, so a scorer that builds
+        # that field wrongly crashes here rather than in a verdict.
+        "tralo_wins": ["-m", "scripts.tralo_wins", "--campaign", root,
+                       "--control", "clip", "--metric", "macrof1"],
+        # THE SAME TOOL WITH `--arms`, BECAUSE THAT FLAG HAS ITS OWN BRANCH IN
+        # `main` AND NOTHING ELSE ENTERS IT. Added 2026-09-14 the hour a
+        # NameError shipped in exactly that branch -- `control` for
+        # `args.control`, on the restriction banner -- and ran on the server
+        # before anything caught it. `--self-test` builds rows in process and
+        # never reaches `main`, which is 2(z81) stated and then repeated by
+        # the person who had just stated it.
+        "tralo_wins_arms": ["-m", "scripts.tralo_wins", "--campaign", root,
+                            "--control", "clip", "--metric", "items",
+                            "--arms", "tralo", "alm", "fioretto", "hounie",
+                            "focal_clip"],
     }[mod]
 
 
 SCORERS = ("full_panel", "cell_table", "deployed_h2h", "score_scan",
-           "sensitivity_screen", "paired_noise")
+           "sensitivity_screen", "paired_noise", "tralo_wins",
+           "tralo_wins_arms")
 
 
 @pytest.mark.parametrize("mod", SCORERS)
