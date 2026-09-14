@@ -199,6 +199,15 @@ trajectory (how fast each group is driven to its target), the stopping rule
 (satisfaction/ratchet, which on this corpus has never fired), and interaction
 with the CE term. Those are schedule, not mechanism.
 
+**How close to the ceiling is the family already?** `margin_topk` is proven
+equal to the LP, so its eviction set is the provable optimum given the
+probabilities. A plain gradient push, bisected to evict the same 20%, lands on
+**87% of exactly those items** at sharp=2.0 (92% at 4.0, 88% at 1.0) -- and the
+missing 13% is worth the <=6% damage difference measured above, i.e. 0.0002
+accuracy. So the dual family is already at ~94% of everything reachable without
+changing the probabilities. **The residual is 0.0002 and the prize is not
+there.**
+
 ➡️ **The only channel that can change WHICH item is evicted is the ranking
 itself** -- the model's own margins. That needs a boundary still moving when the
 constraint phase starts, which is exactly what `gate:saturation` now measures
@@ -699,6 +708,13 @@ of them splits the campaign identity.
 - [x] Replace the stale `keepworking` skill and forward-test the new reference.
 - [x] Fix and regression-test AMP step/event accounting. The separately repaired
   optional uniform estimator was subsequently retired with the noncore variants.
+- [ ] `scripts/alloc_real.py` -- run the greedy-vs-LP allocator comparison on
+  STORED probabilities the moment SSH returns. Synthetic said +0.0095 accuracy
+  at our separation; real models are overconfident and overconfidence is what
+  makes greedy look good, so this either survives or it does not. Report the
+  OBJECTIVE gap as the guaranteed quantity and accuracy/cc-F1 as proxies that
+  can move either way -- the first version of its gate asserted the LP must win
+  on accuracy, which is false, and the gate caught it.
 - [ ] Use the same greedy deployment allocator and the same saved probabilities
   for every arm. Clippers currently allocate with 256-item inference, while eval
   saves a separate 512-item pass; trained arms also use a different allocator.

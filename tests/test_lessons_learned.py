@@ -1036,3 +1036,79 @@ def test_the_ALLOCATOR_is_NOT_optimal_even_with_a_SINGLE_capped_class():
     assert min(lp - g for g, lp, *_ in gaps) > 0.0, (
         "three competing capped classes on diffuse probabilities produced NO "
         "greedy/LP gap -- the probe would report optimality by construction")
+
+
+def test_alloc_real_reads_a_RUN_and_finds_the_allocator_gap_on_ITS_OWN_probabilities(tmp_path):
+    """End-to-end gate for the real-data allocator probe.
+
+    `alloc_gap` priced greedy against the LP on synthetic softmaxes. This one
+    has to do it on a stored run, which means it must get four separate things
+    right or it will report a clean +0.0000 for the wrong reason: the
+    Prob_Class_* columns in NUMERIC order (lexicographic puts _10 before _2),
+    the caps rebuilt with the shipped constraint functions, the group ids from
+    the file, and the same capped classes the run used.
+
+    Built so the greedy rule is provably wrong: one capped class, and items
+    whose p(c) is high but whose best ALTERNATIVE is higher still. Greedy
+    spends the budget on them; the LP spends it on the low-margin items.
+    """
+    import numpy as np, pandas as pd, json
+    from scripts.alloc_real import one
+
+    rng = np.random.default_rng(0)
+    n, K = 300, 12   # >10 so lexicographic column order really differs
+    y = rng.integers(0, K, n)
+    z = rng.normal(size=(n, K))
+    z[np.arange(n), y] += 1.0
+    p = np.exp(z - z.max(1, keepdims=True))
+    p = p / p.sum(1, keepdims=True)
+    d = tmp_path / "seed_1"
+    d.mkdir()
+    frame = {"True_Label": y, "Group_ID": rng.integers(0, 3, n)}
+    for c in range(K):
+        frame["Prob_Class_%d" % c] = p[:, c]
+    pd.DataFrame(frame).to_csv(d / "final_predictions_raw.csv", index=False)
+    (d / "config.json").write_text(json.dumps({
+        "model_name": "mn3", "dataset_mode": "fake", "constraint_tag": "L80_G80",
+        "arm": "clip", "constraint": [0.8, 0.8],
+        "dataset_config": {"constrained_class": [0]}}))
+
+    r = one(str(d))
+    assert r is not None, "the probe could not read a well-formed run directory"
+    (_bb, _ds, _cap, _arm, g_acc, o_acc, g_f1, o_f1, moved, g_obj, o_obj) = r
+    # The LP maximises ASSIGNED PROBABILITY. Accuracy is a proxy and genuinely
+    # moves both ways -- asserting on it here would be asserting a falsehood,
+    # which is how the first version of this gate failed.
+    assert o_obj >= g_obj - 1e-6, (
+        "the LP scored BELOW the shipped greedy allocator on its OWN objective "
+        "(%.6f < %.6f) -- the caps or the class order are being rebuilt wrong"
+        % (o_obj, g_obj))
+    assert o_obj > g_obj + 1e-9, (
+        "the LP exactly TIED greedy on the objective in a case built to "
+        "separate them -- the caps are probably not binding")
+
+    # Tie the probe to a reference built here from the SAME arrays. Without
+    # this the gate is vacuous against a column-order defect: permuting
+    # Prob_Class_* relabels classes consistently, so the LP still beats greedy
+    # on the objective and every inequality above still holds -- while the
+    # capped class has quietly become a different class. (Checked: the
+    # lexicographic mutant passes everything above.)
+    from src.methodologies.heuristic.train import (
+        _build_hierarchy, apply_allocation_heuristic)
+    from src.training.constraints import (
+        compute_global_constraints, compute_local_constraints)
+    fr = pd.DataFrame({"label": y, "g": frame["Group_ID"]})
+    gcon = compute_global_constraints(fr, "label", 0.8, constrained_class=[0],
+                                      num_classes=K)
+    lcon = compute_local_constraints(fr, "label", 0.8, "g", constrained_class=[0],
+                                     num_classes=K)
+    ref, _ = apply_allocation_heuristic(
+        p, frame["Group_ID"], _build_hierarchy(K, gcon, [0]), gcon, lcon, K)
+    assert abs((ref == y).mean() - g_acc) < 1e-12, (
+        "the probe's greedy allocation (%.6f) disagrees with the same call made "
+        "directly on correctly ordered columns (%.6f) -- it is reading the "
+        "probability matrix or the caps wrong" % (g_acc, (ref == y).mean()))
+    assert moved > 0.0, (
+        "greedy and the LP allocated IDENTICALLY on a case built to separate "
+        "them -- the probe is not exercising the allocator at all")
+    assert 0.0 <= g_f1 <= 1.0 and 0.0 <= o_f1 <= 1.0, "cc-F1 out of range"
