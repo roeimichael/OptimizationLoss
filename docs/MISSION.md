@@ -421,6 +421,75 @@ different operating point, not a win on the headline.
 table is the FROZEN-BOUNDARY REFERENCE, which is the role it should play: it is
 the control arm of the augmentation experiment, not a verdict on the method.
 
+### 🔑 WHY IT CAN ONLY LOSE: THE CONSTRAINT IS **UNIDENTIFIED**
+
+Read from `tralo/train.py:137-160` and `:232-263`. Each constraint epoch runs
+TWO backward passes: CE over the **train** loader, then the count penalty over
+the **test** set. So the test set -- the thing being reshaped -- carries a
+count term and **nothing that knows about correctness. Ever.**
+
+**And a count is permutation-invariant.** The penalty is a function of
+`sum_i p_i(c)` within a scope. Permuting the `p_i(c)` values among the items of
+that scope leaves the count, and therefore the loss, exactly unchanged. So the
+objective's level sets contain every ranking with the same count: **the
+constraint cannot prefer a good ranking to a bad one.** It is not being
+optimised badly -- it is *unidentified*, and gradient descent resolves the tie
+by whatever is cheapest in parameter space, which has nothing to do with
+correctness.
+
+- **CE alive** -> CE breaks the tie, toward rankings consistent with labels.
+  Count says HOW MANY, CE says WHICH. They compose.
+- **CE dead** (epoch 3-5 of 30) -> nothing breaks the tie, and
+  `constraint_step.py:36` rescales the step to FULL SIZE however small the
+  violation. Full-size push, no tie-breaker, no opposition.
+
+**That is exactly what gAP measures and exactly what it shows** (settled fact 6,
+15/16 seeds negative). Not a bad reshaping we could derive and correct -- noise.
+
+⛔ **A weaker model or harder data does NOT fix this.** Any competent backbone
+memorises 17k images in ~3 epochs; harder data lowers the ceiling but the train
+set is still memorised, which is what kills CE. A weaker model has the same
+structure with a worse boundary. **The lever is not capacity or difficulty.**
+
+### 🔬 THE TWO FAMILIES OF FIX, AND WHICH ONE IS A PAPER
+
+**A. Keep the existing tie-breaker alive.** A training recipe, not a claim.
+  - `aug_*` -- augmentation makes the train set effectively infinite so CE never
+    zeroes. **RUNNING as `gx2`.**
+  - **`total_epochs ~6`, ZERO code change, 5x less compute** -- run the whole
+    constraint phase inside the live window instead of outside it. The cheapest
+    untried test in the project.
+
+**B. Give the TEST set its own tie-breaker.** This is the method claim: a
+count-constrained transductive learner is unidentified on the unlabeled set, and
+the fix is an unsupervised task term there. **Nothing of this kind exists in the
+codebase** -- entropy appears only as a logged metric (`metrics.py:96`), never
+as a loss.
+  - **Entropy minimisation on test.** Prefers confident predictions, so among
+    count-equivalent solutions it evicts the LEAST CONFIDENT -- which is the
+    margin rule, and `alloc_gap.py:margin_topk` proved that optimal. The
+    theoretical fit is exact.
+    ⚠️ Entropy minimisation normally collapses to one class; **here the count
+    constraint itself prevents that on the capped classes.** The two terms fix
+    each other's failure mode, which is the nicest thing about this direction.
+  - **Consistency under augmentation on test.** Stronger, more machinery.
+  - **Proximal/KL anchor to the warm-up predictions.** Minimal-change projection
+    onto the feasible set. Note what this is: it makes TraLO CONVERGE to the
+    clipper, so it is a safety FLOOR (stops the damage), not a win -- worth
+    having, not worth claiming.
+
+**C. Remove the noise amplifier.** `constraint_grad_mode: normalize` rescales to
+a fixed norm even when the violation is tiny. Scaling with violation depth
+instead is a config-level change and directly targets the "full-size push"
+half. See `project_constraint_blind_to_violation_depth_2026-08-22`.
+
+**Every one of these needs a matched post-hoc control** (`ent_clip` beside
+`ent_tralo`, as `aug_clip` sits beside `aug_tralo`), or the intervention's own
+main effect gets read as the constraint's.
+
+🛑 **Do not implement while `gx2` is live** -- `src/` is in `source_inventory()`.
+Build on the branch, gate it, deploy after gx2 lands.
+
 ### 🔑 THE FOUR "RIVAL" DUALS SHARE ONE PER-ITEM GRADIENT. READ, NOT SIMULATED.
 
 Every dual in the comparison builds its constraint term as a weighted sum of the
