@@ -531,6 +531,23 @@ no zero-constraint arm reproduces. Mutation removing `aug_tralo_null` FAILS it.
 ⚠️ `live6b`'s augmented column therefore cannot answer the pre-registered
 question. `live11` will be regenerated with the new controls.
 
+### ⚠️ THE LIVE-REGIME CAMPAIGNS HAD NO RIVAL DUALS
+
+`live6b` and `live11` carry `tralo`/`clip`/`focal`/`aug` and their nulls -- and
+**no `alm`, `fioretto` or `hounie`.** They can answer the MECHANISM question
+(does the constraint stop damaging the ranking) but not the ACCEPTANCE BAR,
+which is *leading group on cc-F1* against every rival. A result from them could
+only ever say "TraLO stopped hurting itself", never "TraLO is competitive".
+
+Caught before the replication launched. **`live11_mn2` restaged with all 12
+arms** -- the full seven-arm comparison PLUS the augmented column and its null
+-- 96 runs, MobileNetV2, total 11, gates GREEN, frozen.
+
+`live11` (MobileNetV3, 72 runs) is NOT wasted: it is the mechanism experiment
+with proper per-column controls, which is what it was built for. The bar gets
+tested on mn2 first; if the mechanism holds there too, mn3 gets a full
+12-arm campaign as well.
+
 ### 📈 THE BUDGET AXIS, ONE INSTRUMENT, THREE CAMPAIGNS
 
 `scripts/interaction.py` on the PLAIN column -- `gAP(tralo) - gAP(tralo_null)`,
