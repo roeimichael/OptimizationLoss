@@ -61,8 +61,12 @@ def main(argv=None):
         for f in glob.glob(os.path.join(g, "training_log.csv")):
             got = live_window(f, args.saturated_acc)
             if got:
-                p = f.split(os.sep) if os.sep in f else f.split("/")
-                per[(p[-5], p[-4])].append(got)
+                p = f.replace(os.sep, "/").split("/")
+                # Key on (BACKBONE, dataset). Keying on (dataset, cap) merged
+                # MobileNetV2, MobileNetV3 and ViTB16 into one row and hid
+                # whether the architecture is a lever at all -- and the cap
+                # cannot affect the warm-up, so it is not part of the cell.
+                per[(p[-6], p[-5])].append(got)
     if not per:
         print("no training_log.csv matched")
         return 1

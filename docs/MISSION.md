@@ -19,6 +19,57 @@ passes all 8 conditions of `scripts/candidate_gate.py`.
 
 ## Current stage
 
+### 🛑 gate:saturation -- THE CONSTRAINT SPENDS ITS EPOCHS ON A FROZEN BOUNDARY
+
+Once train CE collapses the task gradient is ~0, and `constraint_step.py:36`
+rescales the summed gradient to EXACTLY `clip` whenever `raw_norm < clip` -- so
+the constraint step stays full-size however small the violation is. Full-size
+step, nothing opposing it: **the constraint is not reshaping a boundary, it is
+kicking a frozen one.**
+
+**Live window = epochs before train accuracy reaches 0.95. Required: half the
+29 constraint epochs, i.e. 14.**
+
+| backbone / dataset | live epochs | train acc after 1 constraint epoch |
+|---|---|---|
+| MobileNetV3 / bcn | 5.0 | 0.720 |
+| ViTB16 / bcn | 4.2 | 0.746 |
+| MobileNetV2 / fmow2 | 4.0 | 0.783 |
+| MobileNetV3 / fmow2 | 3.0 | 0.844 |
+| ViTB16 / fmow2 | **2.0** | 0.906 |
+
+🔑 **The whole {3 backbones x 2 datasets} grid spans 2.0 to 5.0 epochs
+against a requirement of 14.** The two ordering effects are legible -- a bigger
+model saturates faster (ViT worst), a harder dataset saturates slower (bcn best)
+-- and both are far too small to matter. **Changing dataset or backbone cannot
+fix this**, which is why the dataset search kept failing to find one that
+"works".
+
+⛔ **And "more data" is refuted, not merely doubted:** fmow2 has 17,670
+training images to bcn's 8,270 and saturates FASTER (3.0 vs 5.0). Size is not
+the lever. Nor is class separability the whole story -- memorisation is
+instance-level, so a harder class set buys the ~2 epochs bcn shows, not 11.
+
+**What actually changes the regime**, given the above:
+
+1. **Augmentation.** The only intervention that attacks memorisation at its
+   root: each epoch shows a different view, so there is nothing fixed to
+   memorise. Currently there is NONE -- `make_dataloader` wraps a
+   `TensorDataset` over preprocessed uint8 arrays. Its absence is the anomaly,
+   not its addition: the model it produces is 99.9% train against 63.4% test.
+2. **Run the constraint phase inside the live window** (`total_epochs 6`). The
+   gate is a RATIO, so this passes it, needs no code change, and costs 5x less
+   compute. Framed as a design rule -- the constraint acts while the task loss
+   is still live -- it is principled; framed as "we ran 30 epochs and 5
+   mattered" it is not.
+3. Weight decay / label smoothing: real but secondary, and the user has
+   reservations about tuning toward an outcome.
+4. ⛔ Weaker networks: rejected -- reads as handicapping the model.
+
+**The gate.** `scripts/saturation_gate.py`, wired into `run_campaign`'s
+**firstrun** stage as a REQUIRED gate, keyed on (backbone, dataset). It fails
+5 of 5 existing cells.
+
 ### 🔧 WHY bcn AND fmow2 DISAGREE: bcn FAILS THE BALANCE CONDITION
 
 `scripts/candidate_gate.py` on both live datasets, capped classes [0, 2]:
