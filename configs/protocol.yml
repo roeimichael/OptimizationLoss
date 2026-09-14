@@ -46,6 +46,8 @@ blocks:
     warmup_loss: focal
     focal_alpha: 0.25
     focal_gamma: 2.0
+  augment:
+    augment: true
 arms:
   tralo:
     methodology: tralo
@@ -82,6 +84,24 @@ arms:
     phase: posthoc
     blocks:
     - focal
+  # The 2x2 amendment: focal enlarges the constraint's gradient, augmentation
+  # UNFREEZES THE BOUNDARY, and the corrected chain says only the second can
+  # move gAP. So these two arms are each other's discriminating test, not two
+  # candidates to pick a winner from -- see the pre-registration amendment in
+  # docs/MISSION.md. `aug_clip` is the matched post-hoc control; without it the
+  # augmented warm-up's own main effect would be read as the constraint's.
+  aug_tralo:
+    methodology: tralo
+    phase: trained
+    blocks:
+    - constraint_phase
+    - tralo
+    - augment
+  aug_clip:
+    methodology: heuristic
+    phase: posthoc
+    blocks:
+    - augment
   fioretto:
     methodology: fioretto_ldf
     phase: trained

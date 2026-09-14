@@ -1112,3 +1112,40 @@ def test_alloc_real_reads_a_RUN_and_finds_the_allocator_gap_on_ITS_OWN_probabili
         "greedy and the LP allocated IDENTICALLY on a case built to separate "
         "them -- the probe is not exercising the allocator at all")
     assert 0.0 <= g_f1 <= 1.0 and 0.0 <= o_f1 <= 1.0, "cc-F1 out of range"
+
+
+def test_the_AUGMENT_arms_do_not_silently_REUSE_the_unaugmented_warm_up():
+    """The 2x2 amendment collapses silently if this is wrong.
+
+    `aug_tralo`/`aug_clip` exist to unfreeze the boundary, and the whole
+    comparison is against their unaugmented counterparts. If `augment` does not
+    reach `compute_base_model_id`, the augmented arms load the CACHED
+    unaugmented warm-up, train on it, and report numbers that differ from
+    `tralo`/`clip` only by RNG -- the fifth inert flag in this project's
+    history, and the hardest kind to notice because every run completes.
+
+    Note what is NOT asserted: that `clip` and `tralo` share a warm-up. They do
+    not, by design -- a post-hoc arm trains 30 epochs and a trained arm warms up
+    for 1, which is the equal-compute protocol. Asserting that was the first
+    version of this check and it was simply a wrong belief about the protocol.
+    """
+    from configs.gen_campaign import (
+        load_protocol, build_hyperparams, compute_base_model_id)
+
+    P = load_protocol()
+    dc = P["datasets"][sorted(P["datasets"])[0]]
+
+    def ident(arm):
+        hp = build_hyperparams(P, P["arms"][arm], 1)
+        return compute_base_model_id(P, "mn3", hp, "x", dc)
+
+    assert "augment" in P["warmup_identity_keys"], (
+        "`augment` is not a warm-up identity key, so every augmented arm will "
+        "silently reuse the unaugmented cached warm-up")
+    for aug, plain in (("aug_tralo", "tralo"), ("aug_clip", "clip")):
+        assert ident(aug) != ident(plain), (
+            "%s and %s resolve to the SAME base_model_id (%s) -- the augmented "
+            "arm would load the unaugmented warm-up and the 2x2 would measure "
+            "nothing" % (aug, plain, ident(aug)))
+    assert build_hyperparams(P, P["arms"]["aug_tralo"], 1)["augment"] is True, (
+        "the augment block does not actually set augment=True")
