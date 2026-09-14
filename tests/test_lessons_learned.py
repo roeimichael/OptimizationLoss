@@ -931,3 +931,63 @@ def test_augment_is_OFF_by_default_and_actually_CHANGES_the_data_when_on():
     assert changed >= 12, (
         "augment=True left %d of 16 items untouched -- an inert knob" % (16 - changed))
     assert xb.shape == X.shape, "augmentation changed the tensor shape"
+
+
+def _fake_probs(root, arm, seed, p_fn, n=200, cap="L80_G95"):
+    """A run directory whose class-1 probability column is set by p_fn(i)."""
+    import os, json
+    d = os.path.join(root, "MobileNetV3", "fmow2", cap, arm, "seed_%d" % seed)
+    os.makedirs(d, exist_ok=True)
+    cols = ["True_Label", "Predicted_Label", "Group_ID"] + ["Prob_Class_%d" % c for c in range(8)]
+    lines = [",".join(cols)]
+    for i in range(n):
+        p = [0.01] * 8
+        p[1] = p_fn(i)
+        lines.append(",".join([str(i % 8), "1", str(i % 4)] + ["%.6f" % v for v in p]))
+    with open(os.path.join(d, "final_predictions_raw.csv"), "w", encoding="utf-8") as fh:
+        fh.write(chr(10).join(lines) + chr(10))
+    with open(os.path.join(d, "config.json"), "w", encoding="utf-8") as fh:
+        json.dump({"arm": arm, "model_name": "MobileNetV3", "constraint_tag": cap,
+                   "hyperparams": {"seed": seed},
+                   "dataset_config": {"num_classes": 8, "constrained_class": [1]}}, fh)
+
+
+def test_grad_mass_separates_a_SATURATED_model_from_a_LIVE_one(tmp_path, capsys):
+    """The instrument behind the gradient-health account, so it gets a gate.
+
+    The constraint reaches the weights only through d(soft count)/d(theta), and
+    each item contributes in proportion to p(1-p). A saturated model drives that
+    to ~0 for almost every item, so whatever handful still carries mass picks
+    the direction -- and `normalize` then rescales it to full size.
+
+    Saturated fixture: every probability is 0.001 or 0.999 except four items.
+    Live fixture: every probability is 0.5. The tool must separate them on BOTH
+    axes -- mean weight and concentration -- because either alone can be gamed.
+    """
+    import importlib
+    mod = importlib.import_module("scripts.grad_mass")
+
+    sat = str(tmp_path / "sat")
+    live = str(tmp_path / "live")
+    _fake_probs(sat, "tralo", 1, lambda i: 0.5 if i < 4 else (0.999 if i % 2 else 0.001))
+    _fake_probs(live, "tralo", 1, lambda i: 0.5)
+
+    assert mod.main([sat + "/*/*/*/*/seed_*"]) == 0
+    sat_out = [l for l in capsys.readouterr().out.splitlines() if "tralo" in l][0]
+    assert mod.main([live + "/*/*/*/*/seed_*"]) == 0
+    live_out = [l for l in capsys.readouterr().out.splitlines() if "tralo" in l][0]
+
+    sat_mean = float(sat_out.split()[4])
+    live_mean = float(live_out.split()[4])
+    sat_top1 = float(sat_out.split()[6].rstrip("%"))
+    live_top1 = float(live_out.split()[6].rstrip("%"))
+
+    assert live_mean > 10 * sat_mean, (
+        "a fully saturated model did not read as weaker than a p=0.5 one:"
+        + chr(10) + sat_out + chr(10) + live_out)
+    assert sat_top1 > 3 * live_top1, (
+        "concentration did not separate them, so the tool reports magnitude "
+        "only and cannot see a direction chosen by a handful of items:"
+        + chr(10) + sat_out + chr(10) + live_out)
+    # NEGATIVE CONTROL: uniform p=0.5 must NOT look concentrated.
+    assert live_top1 < 5.0, "an evenly spread gradient read as concentrated: " + live_out
