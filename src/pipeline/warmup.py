@@ -12,7 +12,8 @@ import time
 
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, TensorDataset
+import torch.nn.functional as F
+from torch.utils.data import DataLoader, Dataset, TensorDataset
 
 from src.models import get_model
 from src.pipeline.setup import setup_runtime
@@ -49,11 +50,55 @@ def make_optimizer(params, lr, device):
         return torch.optim.Adam(params, lr=lr)
 
 
-def make_dataloader(X, y, batch_size):
+class AugmentedTensors(Dataset):
+    """Random horizontal flip + reflect-padded random crop, per item.
+
+    WHY THIS EXISTS. The trainer had no augmentation of ANY kind --
+    `make_dataloader` wrapped a bare `TensorDataset` over the preprocessed
+    arrays -- and the model then memorised the train set within 2-5 epochs on
+    every backbone/dataset pair measured (`scripts/saturation_gate.py`:
+    ViTB16/fmow2 reaches 90.6% train accuracy after ONE constraint epoch). From
+    that point cross-entropy is ~0, and because `constraint_step` rescales the
+    constraint gradient to a FIXED norm however small the violation is, every
+    remaining constraint step is full-size with nothing opposing it. The
+    constraint is not reshaping a boundary, it is kicking a frozen one, and no
+    arm comparison made in that regime means anything.
+
+    Flip and padded crop ONLY, and deliberately so: both are geometric, so they
+    are safe to apply AFTER the ImageNet normalisation the loader has already
+    done. A colour transform would not be -- it would have to run before it.
+    Both are tensor slices, so the cost is negligible next to the forward pass.
+    """
+
+    def __init__(self, X, y, pad=16):
+        self.X, self.y, self.pad = X, y, int(pad)
+
+    def __len__(self):
+        return len(self.X)
+
+    def __getitem__(self, i):
+        x = self.X[i]
+        if float(torch.rand(())) < 0.5:
+            x = torch.flip(x, dims=(-1,))
+        p = self.pad
+        if p:
+            h, w = x.shape[-2], x.shape[-1]
+            x = F.pad(x.unsqueeze(0), (p, p, p, p), mode="reflect").squeeze(0)
+            top = int(torch.randint(0, 2 * p + 1, ()))
+            left = int(torch.randint(0, 2 * p + 1, ()))
+            x = x[..., top:top + h, left:left + w]
+        return x, self.y[i]
+
+
+def make_dataloader(X, y, batch_size, augment=False):
     use_workers = os.name != "nt"
     n_workers = 2 if use_workers else 0
+    # augment=False must stay byte-identical to the unaugmented path: every
+    # stored result was produced by it, and a silent change here would make the
+    # corpus incomparable rather than merely different.
+    ds = AugmentedTensors(X, y) if augment else TensorDataset(X, y)
     return DataLoader(
-        TensorDataset(X, y), batch_size=batch_size, shuffle=True,
+        ds, batch_size=batch_size, shuffle=True,
         num_workers=n_workers, pin_memory=True,
         persistent_workers=use_workers and n_workers > 0,
     )
@@ -86,7 +131,8 @@ def run_warmup(config, num_classes, X_train, y_train, device,
 
     criterion = make_ce_criterion(config, y_train, num_classes, device)
     optimizer = make_optimizer(model.parameters(), hp["lr"], device)
-    loader = make_dataloader(X_train, y_train, hp["batch_size"])
+    loader = make_dataloader(X_train, y_train, hp["batch_size"],
+                             augment=hp.get("augment", False))
 
     warmup_epochs = hp["warmup_epochs"]
     log_interval = max(1, warmup_epochs // 5)

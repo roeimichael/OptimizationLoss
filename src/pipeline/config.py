@@ -8,7 +8,22 @@ CORE = {
     "seed",
     "warmup_epochs",
     "constraint_epochs",
+    # Absent by default, so `compute_base_model_id` -- which includes only the
+    # identity keys PRESENT in hp -- leaves every existing warm-up digest
+    # unchanged. Declared here so a config that DOES carry it is accepted.
+    "augment",
 }
+# The focal warm-up objective was accepted for `heuristic` only, so the arm the
+# user asked for -- focal loss UNDER the constraint -- could not be expressed.
+# `make_ce_criterion` already honours `warmup_loss` and is what tralo/train.py
+# and dual_common build their task criterion with, so this schema line is the
+# whole change. Measured reason it is worth having: the constraint reaches the
+# weights only through d(soft count)/d(theta), whose per-item weight is
+# p(1-p); on a saturated model that mean is 0.007-0.023 against a maximum of
+# 0.25, with the top 1% of items carrying 34% of it. Under focal the same
+# number is 0.015-0.045 and the top 1% carries 5-16% -- a gradient the
+# constraint can actually steer with instead of a few dozen borderline items.
+FOCAL = {"warmup_loss", "focal_alpha", "focal_gamma"}
 STEP = {
     "constraint_grad_clip",
     "constraint_grad_mode",
@@ -18,14 +33,14 @@ STEP = {
 }
 TRALO = {"lambda_step", "lambda_global", "lambda_local", "initial_rho", "rho_target"}
 METHOD_KEYS = {
-    "tralo": CORE | STEP | TRALO,
-    "fioretto_ldf": CORE | STEP | {"fioretto_step_size", "fioretto_lambda_init"},
-    "hounie_rcl": CORE | STEP | {"hounie_eta_lambda", "hounie_eta_u", "hounie_alpha"},
+    "tralo": CORE | STEP | TRALO | FOCAL,
+    "fioretto_ldf": CORE | STEP | FOCAL | {"fioretto_step_size", "fioretto_lambda_init"},
+    "hounie_rcl": CORE | STEP | FOCAL | {"hounie_eta_lambda", "hounie_eta_u", "hounie_alpha"},
     "fioretto_alm": CORE
     | STEP
+    | FOCAL
     | {"alm_eta", "alm_mu0", "alm_mu_step", "fioretto_lambda_init"},
-    "heuristic": CORE
-    | {"warmup_loss", "focal_alpha", "focal_gamma"},
+    "heuristic": CORE | FOCAL,
 }
 
 

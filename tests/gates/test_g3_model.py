@@ -12,6 +12,10 @@ B1 = 0.9
 N_CLASSES = 8
 
 WARMUP_HP = {
+    # An augmented warm-up is a DIFFERENT warm-up, so it must split the cache.
+    # Declared in protocol.yml but absent here, it would have been declared and
+    # never tested -- which is what this gate caught.
+    "augment": False,
     "lr": 0.0001,
     "dropout": 0.3,
     "batch_size": 64,

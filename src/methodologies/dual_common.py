@@ -92,7 +92,8 @@ def dual_setup(model, inputs, device, lr, batch_size):
     return (
         make_optimizer(model.parameters(), lr, device),
         make_ce_criterion(inputs.config, inputs.y_train, inputs.num_classes, device),
-        make_dataloader(inputs.X_train, inputs.y_train, batch_size),
+        make_dataloader(inputs.X_train, inputs.y_train, batch_size,
+                        augment=inputs.config["hyperparams"].get("augment", False)),
     )
 
 

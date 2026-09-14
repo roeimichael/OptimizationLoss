@@ -886,3 +886,48 @@ def test_the_saturation_gate_fails_a_FROZEN_boundary_and_passes_a_LIVE_one(tmp_p
                      "--constraint-epochs", "6"]) == 0
     out = capsys.readouterr().out
     assert "SATURATED" not in out, "a boundary that never froze was called saturated:" + chr(10) + out
+
+
+def test_augment_is_OFF_by_default_and_actually_CHANGES_the_data_when_on():
+    """The augmentation seam, and the guarantee that turning it off is a no-op.
+
+    Reason it exists: `make_dataloader` wrapped a bare `TensorDataset` over the
+    preprocessed arrays -- no augmentation of any kind -- and every
+    backbone/dataset pair measured memorised the train set within 2-5 epochs.
+    From there cross-entropy is ~0, and the constraint reaches the weights only
+    through d(soft count)/d(theta), whose per-item weight is p(1-p): measured
+    mean 0.007-0.023 against a 0.25 maximum, with the top 1% of items carrying
+    34% of the total. A few dozen borderline items choose the direction and
+    `normalize` rescales it to full size.
+
+    Two things must hold. augment=False must be byte-identical to the old path,
+    or the whole stored corpus becomes incomparable. augment=True must actually
+    change the pixels, or the flag is another inert knob -- this project has
+    found five of those.
+    """
+    import torch
+    from src.pipeline.warmup import make_dataloader, AugmentedTensors
+
+    torch.manual_seed(0)
+    X = torch.rand(16, 3, 24, 24)
+    y = torch.arange(16)
+
+    plain = make_dataloader(X, y, batch_size=16, augment=False)
+    xb, yb = next(iter(plain))
+    order = torch.argsort(yb)
+    assert torch.equal(xb[order], X), "augment=False changed the data"
+
+    # THROUGH make_dataloader, not by constructing the Dataset directly: this
+    # project has found five inert flags, and a test that instantiates the
+    # augmenter itself passes even when make_dataloader ignores the argument.
+    aug = make_dataloader(X, y, batch_size=16, augment=True)
+    assert isinstance(aug.dataset, AugmentedTensors), (
+        "make_dataloader(augment=True) did not build the augmented dataset -- "
+        "the flag is inert")
+    xb, yb = next(iter(aug))
+    order = torch.argsort(yb)
+    xb = xb[order]
+    changed = sum(1 for i in range(len(X)) if not torch.equal(xb[i], X[i]))
+    assert changed >= 12, (
+        "augment=True left %d of 16 items untouched -- an inert knob" % (16 - changed))
+    assert xb.shape == X.shape, "augmentation changed the tensor shape"

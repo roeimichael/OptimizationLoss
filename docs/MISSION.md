@@ -19,6 +19,128 @@ passes all 8 conditions of `scripts/candidate_gate.py`.
 
 ## Current stage
 
+### 🔬 PRE-REGISTERED 2026-09-14 (2) -- THE 2x2 GRADIENT-HEALTH TEST
+
+**THE ACCOUNT THIS TESTS.** The chain that explains every null in the ledger:
+
+1. The metric is scored AFTER post-hoc allocation. The allocator takes top-K per
+   (group, class), is optimal given the probabilities, and the capped classes'
+   top-K sets are pairwise disjoint (`lp` and `clip` score identically). So
+   allocation adds nothing an arm can beat.
+2. Therefore the only payoff channel is the **ORDER** of the probabilities.
+3. The constraint touches the order only through `d(soft count)/d(theta) =
+   sum_i d p_i(c)/d theta`, whose per-item weight is `p_i(1 - p_i)`.
+4. On a memorised model that weight is **0.007-0.023 against a 0.25 maximum**,
+   and **34% of it sits in the top 1% of items** (class 1, fm2_mn3). A few dozen
+   borderline items choose the entire direction -- which `normalize` then
+   rescales to full size.
+5. So the constraint moves COUNTS a lot (which do not matter) and ORDER not at
+   all (which does).
+
+**THE TEST.** A 2x2: focal on/off crossed with the constraint on/off, at equal
+compute. Focal is the intervention measured to raise `p(1-p)` to 0.015-0.045 and
+cut the top-1% share to 5-16%.
+
+| | post-hoc | trained |
+|---|---|---|
+| CE | `clip` | `tralo` |
+| focal | `focal_clip` | **`focal_tralo`** |
+
+**PREDICTION (the INTERACTION, not the main effect):**
+
+    gAP(focal_tralo) - gAP(focal_clip)  >  gAP(tralo) - gAP(clip)
+
+i.e. the constraint buys MORE when its gradient is alive. On fm2_mn3 the
+right-hand side is currently **-0.0136** (5 of 6 cells negative).
+
+⛔ **FALSIFIED IF** the two differences are equal within seed noise. That would
+mean focal helps the MODEL and not the CONSTRAINT, the gradient-health account
+is wrong, and it goes in the closed ledger rather than being rescued. A main
+effect of focal alone does NOT confirm it -- `focal_clip` already has one.
+
+⚠️ Pre-registered BEFORE `focal_tralo` has ever run. It is a schema line plus a
+protocol arm; `make_ce_criterion` already honoured `warmup_loss` and is what
+`tralo/train.py:80` and `dual_common.py:94` build their task criterion with.
+
+⚠️ Run in a SEPARATE checkout. `src/` and `configs/` are inside
+`source_inventory()`, and `fm2_vit` / `fm2_mn2` are still live on the frozen
+release -- `validate_campaign` hashes the source root of the process that runs
+it, so an isolated tree cannot disturb them.
+
+### 📒 LEDGER -- WORKED / FAILED / PROMISING (running, 2026-09-14)
+
+Kept current so no direction is tried twice. Add to it, never re-litigate it.
+
+**✅ ESTABLISHED TRUE**
+
+- **The constraint really does reduce violations.** Native excess items, raw
+  argmax before the allocator: bcn L70 `tralo` **550** vs its own null **953**
+  and plain `clip` 852; fmow2 L80 `tralo` **372** vs null 469, clip 473. This is
+  not an inert arm.
+- **The optimizer reset is worth real ranking quality.** `tralo_null` (zero
+  constraint steps) minus `clip` on gAP: +0.0064/+0.0199 MobileNetV3,
+  +0.0137/+0.0234 ViTB16, 4 of 4 positive at 4 seeds.
+- **fmow2 passes all 8 `candidate_gate` conditions**; bcn passes 7 of 8
+  (C8 balance 0.04) and is blocked separately on an integrity hold.
+
+**⛔ CLOSED -- DO NOT PROPOSE AGAIN**
+
+- **`tralo_dualprop`** (integrate the raw residual instead of counting violated
+  epochs): built 2026-09-06, run, **null** -- F1 (Macro) -0.0038 negative in 9
+  of 12 cells, Accuracy -0.0013 in 8 of 12, every cell inside its paired sd.
+- **A two-sided / shrinking multiplier**: same evidence, plus main.tex's own
+  280x lambda-scale probe and the fact that `normalize` discards the common
+  scale.
+- **A per-cell freeze**: the ratchet is ALREADY per-cell
+  (`if hard_c > limit_c`); the global AND is a kill switch that never fires, so
+  removing it changes nothing.
+- **`tralo_squared`**: obeys WORSE than `tralo` (613 vs 550 at bcn L70). A
+  peaked penalty spends the fixed-norm step on scopes that cannot be fixed.
+- **"More data" as the saturation fix**: refuted. fmow2 has 17,670 training
+  images to bcn's 8,270 and saturates FASTER (3.0 vs 5.0 live epochs).
+- **Harder classes / weaker networks as the saturation fix**: the whole
+  {3 backbones x 2 datasets} grid spans 2.0-5.0 live epochs. Worth ~2; we need 11.
+- **iwildcam** (2 of 8 conditions) and the original **fmow** oodslice (basename
+  join collapsed AOIs).
+
+**🟡 NULL, BUT NOT A DEFECT**
+
+- **Focal for the CLIPPER on the metric**: differences 0.002-0.004 against seed
+  sd 0.005-0.014 on fmow2. It is not a metric win for `clip` -- see PROMISING.
+- **Obedience does not convert to the metric.** The allocator takes top-K per
+  (group, class) and is optimal given the probabilities, and the capped classes'
+  top-K sets are pairwise disjoint (`lp` and `clip` score identically), so
+  native compliance earned in training is worth ~0 at scoring time. **Only the
+  ORDER survives.** This is why every shape/dose/multiplier variant moves
+  obedience without moving the metric.
+
+**🟢 PROMISING -- OPEN**
+
+1. **The saturating penalty costs obedience.** `tralo_linear` reaches excess
+   **472** where `tralo` reaches **550** at bcn's tightest cap. The shape the
+   package is named after is the worst of the three tested at the cap that
+   binds hardest. (It does NOT convert to ranking -- see NULL above -- but it
+   locates a real defect in the core loss.)
+2. 🔑 **Focal keeps the constraint's gradient ALIVE.** The constraint
+   reaches the weights only through `d(soft count)/d(theta)`, whose per-item
+   weight is `p(1-p)`. Measured on fm2_mn3, against a 0.25 maximum:
+
+   | arm | mean p(1-p) | share carried by top 1% of items |
+   |---|---|---|
+   | `clip` / `tralo` / `tralo_null` / `alm` | 0.007 - 0.023 | **34%** (class 1) |
+   | `focal_clip` | **0.015 - 0.045** | **5-16%** |
+
+   On the saturated model a few dozen borderline items choose the entire
+   constraint direction, which `normalize` then rescales to full size -- that is
+   the "kicks the boundary at random" failure, quantified. Under focal the
+   gradient is 2-2.5x larger and far less concentrated. New arm **`focal_tralo`**
+   (schema line only; `make_ce_criterion` already honours `warmup_loss`).
+3. **Augmentation** as the saturation fix -- the only intervention that attacks
+   memorisation at its root. Default-off `augment` flag through the single
+   `make_dataloader` seam.
+4. **Run the constraint phase inside the live window** (`total_epochs 6`). Zero
+   code change, passes `gate:saturation` because the gate is a ratio, 5x cheaper.
+
 ### 🛑 gate:saturation -- THE CONSTRAINT SPENDS ITS EPOCHS ON A FROZEN BOUNDARY
 
 Once train CE collapses the task gradient is ~0, and `constraint_step.py:36`

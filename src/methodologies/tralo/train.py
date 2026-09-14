@@ -80,7 +80,8 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     criterion_ce = make_ce_criterion(config, inputs.y_train, num_classes, device)
     lr_constraint = _required(hp, "lr_constraint", float)
     optimizer = make_optimizer(model.parameters(), lr_constraint, device)
-    train_loader = make_dataloader(inputs.X_train, inputs.y_train, hp["batch_size"])
+    train_loader = make_dataloader(inputs.X_train, inputs.y_train, hp["batch_size"],
+                                   augment=hp.get("augment", False))
     X_test = inputs.X_test.to(device)
     group_ids = torch.LongTensor(inputs.group_ids).to(device)
     global_con = inputs.global_con

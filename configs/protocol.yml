@@ -59,6 +59,20 @@ arms:
     blocks:
     - constraint_phase
     - tralo_null
+  # The constraint reaches the weights only through d(soft count)/d(theta),
+  # whose per-item weight is p(1-p). Measured on fm2_mn3: mean 0.007-0.023
+  # against a 0.25 maximum, with the top 1% of items carrying 34% of the total
+  # on class 1 -- so a few dozen borderline items choose the whole direction,
+  # which `normalize` then rescales to full size. Under focal the same mean is
+  # 0.015-0.045 and the top 1% carries 5-16%. This arm gives the constraint a
+  # gradient it can steer with; `focal_clip` is its matched post-hoc control.
+  focal_tralo:
+    methodology: tralo
+    phase: trained
+    blocks:
+    - constraint_phase
+    - tralo
+    - focal
   clip:
     methodology: heuristic
     phase: posthoc
@@ -132,6 +146,11 @@ models:
 - RegNetY400MF
 - ViTB16
 warmup_identity_keys:
+# `augment` is here and NOT in `core`: the warm-up cache must separate an
+# augmented warm-up from an unaugmented one, but adding the key to every config
+# would change every existing base_model_id digest and invalidate the whole
+# cache. compute_base_model_id only includes identity keys present in hp.
+- augment
 - lr
 - dropout
 - batch_size
