@@ -20,6 +20,7 @@ from src.training.constraints import (
     compute_local_constraints,
 )
 from src.utils.constants import UNLIMITED
+from src.pipeline.eval import evaluate_with_posthoc
 
 (N_TEST, N_TRAIN, N_CLASSES, N_GROUPS, SIDE) = (120, 96, 4, 3, 8)
 
@@ -114,9 +115,6 @@ def violations(y_pred, groups, gcon, lcon):
 
 def matrix(P, arms):
     import pandas as pd
-    import torch
-    import torch.nn.functional as F
-    from src.utils.posthoc_adjustment import targeted_correction
 
     trained = [a for a in arms if P["arms"][a].get("phase") == "trained"]
     if not trained:
@@ -162,14 +160,9 @@ def matrix(P, arms):
                         inputs.constrained_classes = capped
                         inputs.config["dataset_config"]["constrained_class"] = capped
                         out = TRAIN_FNS[P["arms"][arm]["methodology"]](inputs)
-                        out.model.eval()
-                        with torch.no_grad():
-                            proba = (
-                                F.softmax(out.model(inputs.X_test), dim=1).cpu().numpy()
-                            )
-                        y_pred = targeted_correction(
-                            proba, inputs.group_ids, gcon, lcon, capped
-                        )[0]
+                        y_pred = evaluate_with_posthoc(
+                            out.model, inputs.X_test, fixture_metadata()[0],
+                            inputs.group_ids, gcon, lcon, capped)['y_pred']
                         y_pred = np.asarray(y_pred)
                         bad = violations_for(
                             y_pred, inputs.group_ids, gcon, lcon, capped
@@ -222,7 +215,6 @@ def main():
     arms = args.arms or sorted(P["arms"])
     tmp = tempfile.mkdtemp(prefix="smoke_")
     fails = []
-    unchecked = []
     print(
         "smoke-testing %d arm(s): %d train / %d test items, %d classes, %d groups\n"
         % (len(arms), N_TRAIN, N_TEST, N_CLASSES, N_GROUPS)
@@ -233,17 +225,13 @@ def main():
             (inputs, gcon, lcon) = make_inputs(P, arm, tmp)
             out = TRAIN_FNS[meth](inputs)
             assert out.model is not None, "TrainOutputs.model is None"
-            note = ""
-            if out.precomputed_predictions is not None:
-                yp = np.asarray(out.precomputed_predictions)
-                assert yp.shape == (N_TEST,), "predictions shape %s" % (yp.shape,)
-                bad = violations(yp, inputs.group_ids, gcon, lcon)
-                if bad:
-                    raise AssertionError("emitted predictions violate %s" % bad[:3])
-                note = "preds ok, caps satisfied"
-            else:
-                note = "runs; CAPS NOT CHECKED HERE (--matrix does)"
-                unchecked.append(arm)
+            yp = evaluate_with_posthoc(out.model, inputs.X_test, fixture_metadata()[0],
+                                       inputs.group_ids, gcon, lcon, [1])['y_pred']
+            assert yp.shape == (N_TEST,), "predictions shape %s" % (yp.shape,)
+            bad = violations(yp, inputs.group_ids, gcon, lcon)
+            if bad:
+                raise AssertionError("emitted predictions violate %s" % bad[:3])
+            note = 'shared deployment caps satisfied'
             print("  OK    %-11s -> %-15s %s" % (arm, meth, note))
         except Exception as e:
             fails.append((arm, meth, e))
@@ -257,19 +245,8 @@ def main():
         for arm, meth, e in fails:
             print("  %-11s (%s)  %s: %s" % (arm, meth, type(e).__name__, e))
         return 1
-    checked = len(arms) - len(unchecked)
     print("All %d arm(s) run end to end." % len(arms))
-    print(
-        "Caps VERIFIED for %d of %d: the arms that emit predictions directly."
-        % (checked, len(arms))
-    )
-    if unchecked:
-        print(
-            "Caps NOT verified here for %d trained arm(s): %s"
-            % (len(unchecked), " ".join(sorted(unchecked)))
-        )
-        print("  They enforce caps in targeted_correction, downstream of this")
-        print("  harness. Run --matrix to check them.")
+    print('Caps verified through shared deployment for all %d arms.' % len(arms))
     if args.matrix:
         mfails = matrix(P, arms)
         if mfails:

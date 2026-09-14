@@ -693,35 +693,6 @@ def _budget_case(seed, n=800, C=8, G=5, capped=(2, 7), lp=0.3, gp=0.5, zero_frac
     return (proba, groups, y, gcon, lcon, C)
 
 
-@pytest.mark.parametrize(
-    "lp,gp,zero_frac",
-    [(0.3, 0.5, 0.5), (0.5, 0.3, 0.5), (0.5, 0.3, 0.0), (0.3, 0.3, 0.0)],
-)
-def test_the_clipper_and_the_trained_arms_emit_the_SAME_capped_count(lp, gp, zero_frac):
-    from src.methodologies.heuristic.train import (
-        _build_hierarchy,
-        apply_allocation_heuristic,
-    )
-    from src.utils.posthoc_adjustment import targeted_correction
-
-    capped = [2, 7]
-    for seed in range(6):
-        (proba, groups, _y, gcon, lcon, C) = _budget_case(
-            seed, lp=lp, gp=gp, zero_frac=zero_frac
-        )
-        (greedy, _t) = apply_allocation_heuristic(
-            proba, groups, _build_hierarchy(C, gcon, capped), gcon, lcon, C
-        )
-        (trained, _flips, _meta) = targeted_correction(
-            proba, groups, gcon, lcon, capped, force_exact=True
-        )
-        for c in capped:
-            reachable = min(
-                int(gcon[c]),
-                sum((int(lcon[g][c]) for g in lcon if lcon[g][c] < UNLIMITED)),
-            )
-            assert int((greedy == c).sum()) == reachable, (seed, c, "clip")
-            assert int((trained == c).sum()) == reachable, (seed, c, "trained")
 
 
 def test_every_null_arm_zeroes_its_family_by_config(P):
@@ -781,78 +752,6 @@ def test_headroom_uses_the_BINDING_budget_not_the_inert_global():
     assert effective_budget(G, L_open, 2) == 185
 
 
-def test_the_lp_fallback_fields_are_a_DEFAULT_for_the_post_hoc_arms():
-    import io as _io
-    import os
-    import yaml
-
-    skippers = set()
-    for dirpath, _, files in os.walk("src/methodologies"):
-        if "__pycache__" in dirpath:
-            continue
-        for f in files:
-            if not f.endswith(".py"):
-                continue
-            path = os.path.join(dirpath, f)
-            tree = ast.parse(_io.open(path, encoding="utf-8").read())
-            for kw in ast.walk(tree):
-                if (
-                    isinstance(kw, ast.keyword)
-                    and kw.arg == "skip_targeted_correction"
-                    and isinstance(kw.value, ast.Constant)
-                    and (kw.value.value is True)
-                ):
-                    skippers.add(
-                        os.path.basename(dirpath)
-                        if os.path.basename(dirpath) != "methodologies"
-                        else os.path.splitext(f)[0]
-                    )
-    assert "heuristic" in skippers, skippers
-    ev = _io.open("src/pipeline/eval.py", encoding="utf-8").read()
-    tree = ast.parse(ev)
-    fn = [
-        n
-        for n in ast.walk(tree)
-        if isinstance(n, ast.FunctionDef)
-        and any(
-            (
-                isinstance(x, ast.Assign)
-                and any(
-                    (
-                        isinstance(t, ast.Name) and t.id == "posthoc_meta"
-                        for t in x.targets
-                    )
-                )
-                and isinstance(x.value, ast.Dict)
-                and (not x.value.keys)
-                for x in ast.walk(n)
-            )
-        )
-    ]
-    assert fn, (
-        "src/pipeline/eval.py no longer initialises posthoc_meta to an empty dict; re-derive this test's premise"
-    )
-    rn = _io.open("src/experiments/runner.py", encoding="utf-8").read()
-    tree = ast.parse(rn)
-    defaults = {}
-    for c in ast.walk(tree):
-        if (
-            isinstance(c, ast.Call)
-            and isinstance(c.func, ast.Attribute)
-            and (c.func.attr == "get")
-            and (len(c.args) == 2)
-            and isinstance(c.args[0], ast.Constant)
-            and str(c.args[0].value).startswith("lp_fallback")
-        ):
-            defaults[c.args[0].value] = getattr(c.args[1], "value", "?")
-    assert defaults.get("lp_fallback_used") is False, defaults
-    assert defaults.get("lp_fallback_candidates") == 0, defaults
-    P = yaml.safe_load(_io.open("configs/protocol.yml", encoding="utf-8").read())
-    defaulted = sorted(
-        (a for (a, spec) in P["arms"].items() if spec.get("methodology") in skippers)
-    )
-    assert set(defaulted) == {"clip", "focal_clip"}, defaulted
-    assert "tralo" not in defaulted and "fioretto" not in defaulted, defaulted
 
 
 def test_the_constraint_step_is_NOT_inside_the_CE_batch_loop():

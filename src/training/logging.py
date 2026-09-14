@@ -161,7 +161,7 @@ def save_final_predictions(save_path, y_true, y_pred, y_proba, group_ids=None):
         'Correct': (y_true == y_pred).astype(int)
     }
     for i in range(y_proba.shape[1]):
-        data[f'Prob_Class_{i}'] = y_proba[:, i]
+        data[f'Prob_Class_{i}'] = y_proba[:, i].astype('float64')
     if group_ids is not None:
         data['Group_ID'] = group_ids
     pd.DataFrame(data).to_csv(save_path, index=False)
@@ -178,16 +178,20 @@ def save_evaluation_metrics(save_path, metrics):
         ['Recall (Weighted)', f"{metrics.get('recall_weighted', 0):.4f}"],
         ['F1 (Weighted)', f"{metrics.get('f1_weighted', 0):.4f}"],
     ]
+    for key in ('cc_f1', 'constrained_precision', 'constrained_recall',
+                'collateral_f1', 'collateral_support'):
+        if key in metrics:
+            rows.append([key, metrics[key]])
     if 'precision_per_class' in metrics:
         prec = metrics['precision_per_class']
         rec = metrics['recall_per_class']
         f1 = metrics['f1_per_class']
         sup = metrics['support_per_class']
-        for c in range(len(prec)):
-            rows.append([f'Precision_Class{c}', f"{prec[c]:.4f}"])
-            rows.append([f'Recall_Class{c}', f"{rec[c]:.4f}"])
-            rows.append([f'F1_Class{c}', f"{f1[c]:.4f}"])
-            rows.append([f'Support_Class{c}', int(sup[c])])
+        for i, c in enumerate(metrics.get('classes', range(len(prec)))):
+            rows.append([f'Precision_Class{c}', f"{prec[i]:.4f}"])
+            rows.append([f'Recall_Class{c}', f"{rec[i]:.4f}"])
+            rows.append([f'F1_Class{c}', f"{f1[i]:.4f}"])
+            rows.append([f'Support_Class{c}', int(sup[i])])
     if 'ece' in metrics:
         rows.append(['ECE', f"{metrics['ece']:.4f}"])
         rows.append(['Brier Score', f"{metrics['brier_score']:.4f}"])

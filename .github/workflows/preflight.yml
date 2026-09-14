@@ -30,8 +30,8 @@ jobs:
       - name: install
         run: |
           python -m pip install --upgrade pip
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install numpy pandas pyyaml scipy scikit-learn pytest
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt pytest
       - name: pre-flight ${{ matrix.stage }}
         run: python -m scripts.preflight --stage ${{ matrix.stage }} -rs
 
@@ -47,7 +47,7 @@ jobs:
       - name: install
         run: |
           python -m pip install --upgrade pip
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install numpy pandas pyyaml scipy scikit-learn pytest
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt pytest
       - name: pytest
         run: python -m pytest tests -q

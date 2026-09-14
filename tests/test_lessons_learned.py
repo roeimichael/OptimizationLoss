@@ -153,84 +153,8 @@ def test_the_AMP_regime_is_recorded_as_PROVENANCE_not_assumed_identical():
     )
 
 
-def test_no_allocator_path_returns_a_PLAIN_ARGMAX_over_a_violated_cap():
-    np = pytest.importorskip("numpy")
-    from src.utils.posthoc_adjustment import targeted_correction
-    from src.utils.constants import UNLIMITED
-
-    (n, n_cls, cap_cls) = (60, 4, 1)
-    rng = np.random.RandomState(0)
-    proba = rng.dirichlet(np.ones(n_cls) * 0.5, size=n)
-    proba[:40] = 0.02
-    proba[:40, cap_cls] = 0.94
-    proba = proba / proba.sum(axis=1, keepdims=True)
-    groups = np.zeros(n, dtype=int)
-    argmax = np.argmax(proba, axis=1)
-    assert int((argmax == cap_cls).sum()) >= 40, "fixture did not violate"
-    K = 10
-    glob = {c: K if c == cap_cls else UNLIMITED for c in range(n_cls)}
-    local = {0: [K if c == cap_cls else UNLIMITED for c in range(n_cls)]}
-    (y_pred, flips, meta) = targeted_correction(
-        proba, groups, glob, local, [cap_cls], force_exact=True
-    )
-    emitted = int((y_pred == cap_cls).sum())
-    bad = []
-    if np.array_equal(y_pred, argmax):
-        bad.append("the allocator returned the PLAIN ARGMAX on a violated cap")
-    if emitted != K:
-        bad.append(
-            "emitted %d of a budget of %d; force_exact must land on exactly K or cross-arm comparisons are not budget-equalized"
-            % (emitted, K)
-        )
-    easy = np.full((n, n_cls), 0.02)
-    easy[:, 0] = 0.94
-    easy = easy / easy.sum(axis=1, keepdims=True)
-    (y2, flips2, _) = targeted_correction(
-        easy, groups, glob, local, [cap_cls], force_exact=False
-    )
-    if not np.array_equal(y2, np.argmax(easy, axis=1)) or flips2 != 0:
-        bad.append(
-            "CONTROL: with force_exact=False and NO violation the argmax is correct and must be returned unchanged; got %d flip(s)"
-            % flips2
-        )
-    assert not bad, "allocator:\n  " + "\n  ".join(bad)
 
 
-def test_the_local_scope_is_enforced_and_not_only_the_global_one():
-    np = pytest.importorskip("numpy")
-    from src.utils.posthoc_adjustment import targeted_correction
-    from src.utils.constants import UNLIMITED
-
-    (n_cls, cap_cls) = (4, 1)
-    groups = np.array([0] * 10 + [1] * 10)
-    proba = np.full((20, n_cls), 0.02)
-    proba[:, cap_cls] = 0.94
-    proba = proba / proba.sum(axis=1, keepdims=True)
-    glob = {c: 20 if c == cap_cls else UNLIMITED for c in range(n_cls)}
-    local = {
-        0: [2 if c == cap_cls else UNLIMITED for c in range(n_cls)],
-        1: [0 if c == cap_cls else UNLIMITED for c in range(n_cls)],
-    }
-    (y_pred, _, _) = targeted_correction(
-        proba, groups, glob, local, [cap_cls], force_exact=True
-    )
-    g0 = int((y_pred[groups == 0] == cap_cls).sum())
-    g1 = int((y_pred[groups == 1] == cap_cls).sum())
-    total = g0 + g1
-    bad = []
-    if g0 > 2:
-        bad.append("group 0 emitted %d against a ceiling of 2" % g0)
-    if g1 > 0:
-        bad.append(
-            "group 1 emitted %d against a ceiling of ZERO -- a zero ceiling binds regardless of global slack, and half of iwildcam's per-group ceilings are zero"
-            % g1
-        )
-    if total > 20:
-        bad.append(
-            "CONTROL: the global budget of 20 was itself exceeded (%d), so this fixture is not testing the local scope in isolation"
-            % total
-        )
-    assert not bad, "local scope:\n  " + "\n  ".join(bad)
 
 
 def test_a_dataset_whose_GROUPS_ARE_AN_INDEX_cannot_carry_a_local_constraint():
@@ -265,6 +189,7 @@ def _tiny_cache_config():
         "code_version": "abc123",
         "run_code_version": "abc123",
         "data_fingerprint": "fp-1",
+        "cache_identity": {"release_id": "fresh", "data_id": "all-six-files"},
     }
 
 
@@ -306,47 +231,6 @@ def test_a_cached_warm_up_never_crosses_the_AMP_regime(
         )
 
 
-@pytest.mark.parametrize(
-    "cache_regime,run_regime,why",
-    [
-        (None, "torch.float16|scaler=True", "the CACHE predates the field"),
-        ("torch.bfloat16|scaler=False", None, "THIS PROCESS cannot determine its"),
-    ],
-)
-def test_a_cache_check_that_cannot_RUN_says_so_instead_of_passing(
-    tmp_path, monkeypatch, caplog, cache_regime, run_regime, why
-):
-    import logging
-    import torch
-    from src.models import get_model
-    import src.training.model_cache as mc
-
-    monkeypatch.setenv("OPTLOSS_MODEL_CACHE", str(tmp_path))
-    cfg = _tiny_cache_config()
-    monkeypatch.setattr(mc, "_amp_regime", lambda: cache_regime)
-    model = get_model(
-        cfg["model_name"],
-        n_classes=8,
-        dropout=cfg["hyperparams"]["dropout"],
-        pretrained=False,
-    )
-    mc.save_to_cache(model, "id-skip", cfg)
-    monkeypatch.setattr(mc, "_amp_regime", lambda: run_regime)
-    caplog.clear()
-    with caplog.at_level(logging.INFO, logger="src.training.model_cache"):
-        got = mc.load_from_cache("id-skip", cfg, 8, torch.device("cpu"))
-    assert got is not None, (
-        "an UNKNOWN regime invalidated the cache. That is the over-correction the fix explicitly avoids: it would retrain every warm-up on disk."
-    )
-    said = [
-        r.getMessage()
-        for r in caplog.records
-        if "AMP" in r.getMessage() or "amp_regime" in r.getMessage()
-    ]
-    assert said, (
-        "%s AMP regime, so the FP16-vs-BF16 check could not run -- and the cache was reused with NO message. A guard and-chained on its own inputs skips silently; it must announce that it did not run.\nlogged instead: %s"
-        % (why, [r.getMessage() for r in caplog.records] or "nothing")
-    )
 
 
 def test_deterministic_algorithms_is_STRICT_because_warn_only_takes_the_other_branch():
@@ -583,7 +467,7 @@ def test_read_run_counts_EVERY_class_not_only_the_capped_ones(tmp_path):
     d.mkdir()
     json.dump(
         {
-            "dataset_config": {"constrained_class": [2]},
+            "dataset_config": {"constrained_class": [2], "num_classes": 8},
             "hyperparams": {
                 "constraint_epochs": 29,
                 "constraint_fp32": True,

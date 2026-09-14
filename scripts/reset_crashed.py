@@ -21,6 +21,8 @@ import argparse
 import glob
 import json
 import os
+from src.pipeline.campaign import validate_campaign, safe_path
+from src.utils.filesystem_manager import save_config_to_path
 
 import pandas as pd
 
@@ -72,11 +74,14 @@ def main():
         help="write the change; without it this is a dry run",
     )
     args = ap.parse_args()
-
+    try:
+        manifest = validate_campaign(args.root)
+        root = safe_path(args.root)
+    except (ValueError, OSError, KeyError) as exc:
+        ap.error(str(exc))
     reset = refused = 0
-    for cfgp in sorted(
-        glob.glob(os.path.join(args.root, "**", "config.json"), recursive=True)
-    ):
+    for relpath in sorted(manifest['configs']):
+        cfgp = str(root/relpath)
         d = os.path.dirname(cfgp)
         crash = glob.glob(os.path.join(d, "error_log*.json"))
         if not crash:
@@ -93,9 +98,10 @@ def main():
             "  RESET %-46s %s (failures %s -> 0)" % (rel, why, cfg.get("failures", 0))
         )
         if args.apply:
+            validate_campaign(root, cfgp)
             cfg["status"] = "pending"
             cfg["failures"] = 0
-            json.dump(cfg, open(cfgp, "w", encoding="utf-8"), indent=2)
+            save_config_to_path(cfg, d)
 
     print(
         "\n%d reset, %d refused%s"

@@ -8,6 +8,7 @@ from pathlib import Path
 import yaml
 from src.pipeline.config import validate_hyperparams
 from src.utils.gitver import git_version
+from src.pipeline.campaign import stage_campaign
 
 PROTOCOL_PATH = str(Path(__file__).with_name("protocol.yml"))
 PUBLIC_ARMS = ("tralo", "tralo_null", "clip", "focal_clip", "fioretto", "hounie", "alm")
@@ -224,23 +225,9 @@ def main():
                             "status": "pending",
                             "code_version": version,
                         }
-                        # Check the whole grid before writing any configs.
-                        if path.exists():
-                            prev = json.loads(path.read_text(encoding="utf-8"))
-                            if (
-                                prev.get("dataset_config", {}).get("constrained_class")
-                                != cls
-                            ):
-                                raise SystemExit(
-                                    "REFUSED: %s already holds a run with a different constrained_class"
-                                    % path
-                                )
-                            if prev.get("status") == "completed":
-                                continue
                         configs.append((path, cfg))
-    for path, cfg in configs:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    stage_campaign(args.root, {p.relative_to(Path(args.root)).as_posix(): cfg
+                               for p, cfg in configs}, P)
     print("%d written -> %s; arms: %s" % (len(configs), args.root, " ".join(arms)))
     return 0
 

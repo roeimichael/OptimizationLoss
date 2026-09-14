@@ -6,17 +6,11 @@ protocol:
   - 2
   - 3
   - 4
-contract_keys:
-- warmup_epochs
-- constraint_epochs
-- seed
-- lr
 core:
   lr: 0.0001
   dropout: 0.3
   batch_size: 64
   pretrained: true
-  class_weighted_ce: false
 constraint_phase:
   constraint_grad_clip: 1.0
   constraint_grad_mode: normalize
@@ -24,8 +18,6 @@ constraint_phase:
   lr_constraint: 0.0001
   constraint_chunk_size: 128
 blocks:
-  chunked:
-    inference_chunk_size: 256
   tralo:
     lambda_step: 0.05
     lambda_global: 0.01
@@ -70,35 +62,30 @@ arms:
   clip:
     methodology: heuristic
     phase: posthoc
-    blocks:
-    - chunked
+    blocks: []
   focal_clip:
     methodology: heuristic
     phase: posthoc
     blocks:
     - focal
-    - chunked
   fioretto:
     methodology: fioretto_ldf
     phase: trained
     blocks:
     - constraint_phase
     - fioretto
-    null_sibling: tralo_null
   hounie:
     methodology: hounie_rcl
     phase: trained
     blocks:
     - constraint_phase
     - hounie
-    null_sibling: tralo_null
   alm:
     methodology: fioretto_alm
     phase: trained
     blocks:
     - constraint_phase
     - alm
-    null_sibling: tralo_null
 mandatory_arms:
 - clip
 - focal_clip
@@ -138,7 +125,6 @@ warmup_identity_keys:
 - batch_size
 - warmup_epochs
 - pretrained
-- class_weighted_ce
 - seed
 - warmup_loss
 - focal_alpha

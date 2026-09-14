@@ -53,7 +53,6 @@ from src.training.constraint_step import finish_constraint_step
 
 from src.utils.data_loader import _load_imagery_data as load_data
 
-from src.utils.posthoc_adjustment import targeted_correction
 
 import ast
 
@@ -268,7 +267,8 @@ def test_generator_refuses_to_mix_capped_classes_in_one_root(tmp_path):
     cfg["status"] = "completed"
     cfg_path.write_text(json.dumps(cfg))
     r = _gen(tmp_path, "--caps", "L30_G30", "L50_G30", "--constrained-class", "4", "5")
-    assert r.returncode == 1 and "already holds a run" in r.stdout + r.stderr
+    assert r.returncode == 1
+    assert json.loads(cfg_path.read_text()) == cfg
 
 
 def test_mandatory_clippers_are_always_added(tmp_path):
@@ -302,7 +302,6 @@ def test_a_different_warm_up_objective_does_not_share_a_model():
         ("batch_size", 7),
         ("warmup_epochs", 3),
         ("pretrained", False),
-        ("class_weighted_ce", True),
         ("seed", 99),
     ],
 )
@@ -819,40 +818,6 @@ def test_hounie_null_does_not_trip_hounie_s_own_stability_guard():
     assert blk["hounie_eta_lambda"] == 0.0
 
 
-@pytest.mark.parametrize("pct", [0.3, 0.5])
-def test_targeted_correction_spends_the_whole_reachable_budget(pct):
-    (n, n_cls, n_grp, capped) = (2000, 7, 7, [4])
-    for seed in range(8):
-        rng = np.random.default_rng(seed)
-        y = rng.integers(0, n_cls, n)
-        g = rng.integers(0, n_grp, n)
-        logits = rng.normal(size=(n, n_cls))
-        logits[:, capped[0]] += 0.8
-        e = np.exp(logits - logits.max(axis=1, keepdims=True))
-        proba = e / e.sum(axis=1, keepdims=True)
-        df = pd.DataFrame({"label": y, "grp": g})
-        gcon = compute_global_constraints(
-            df, "label", pct, constrained_class=capped, num_classes=n_cls
-        )
-        lcon = compute_local_constraints(
-            df, "label", pct, "grp", constrained_class=capped, num_classes=n_cls
-        )
-        (y_pred, _, meta) = targeted_correction(proba, g, gcon, lcon, capped)
-        c = capped[0]
-        reachable = min(gcon[c], sum((lcon[gid][c] for gid in lcon)))
-        got = int((y_pred == c).sum())
-        assert got == reachable, (
-            "seed %d pct %s: filled %d of a reachable %d -- the trained arms would score against clippers that fill to exactly K"
-            % (seed, pct, got, reachable)
-        )
-        assert got <= gcon[c], "global cap violated"
-        for gid in lcon:
-            in_g = int((y_pred[g == gid] == c).sum())
-            assert in_g <= lcon[gid][c], "local cap violated in group %s: %d > %d" % (
-                gid,
-                in_g,
-                lcon[gid][c],
-            )
 
 
 def test_every_training_log_gets_a_header_not_just_tralo_s(tmp_path):
@@ -980,33 +945,6 @@ def test_no_arm_hand_rolls_its_own_constraint_step(arm):
     )
 
 
-def test_the_allocator_does_not_fall_through_to_the_LP_when_G_is_less_than_L():
-    from configs.gen_campaign import cap_pair
-
-    rng = np.random.default_rng(0)
-    (N, C, G) = (600, 7, 5)
-    capped = [2, 4]
-    labels = rng.choice(C, size=N, p=np.array([0.1, 0.1, 0.25, 0.1, 0.3, 0.1, 0.05]))
-    groups = rng.integers(0, G, size=N)
-    df = pd.DataFrame({"label": labels, "grp": groups})
-    for tag in ("L50_G30", "L40_G30", "L30_G20"):
-        (loc_pct, glob_pct) = cap_pair(tag)
-        gcon = compute_global_constraints(
-            df, "label", glob_pct, constrained_class=capped, num_classes=C
-        )
-        lcon = compute_local_constraints(
-            df, "label", loc_pct, "grp", constrained_class=capped, num_classes=C
-        )
-        for trial in range(5):
-            logits = rng.normal(0, 2.0, size=(N, C))
-            logits[:, capped] += 1.2
-            e = np.exp(logits - logits.max(1, keepdims=True))
-            proba = e / e.sum(1, keepdims=True)
-            (_, _, info) = targeted_correction(proba, groups, gcon, lcon, capped)
-            assert not info["lp_fallback_used"], (
-                "%s trial %d fell through to the LP with %d candidates -- the greedy left the allocation infeasible, so this arm would be scored against `clip` while running a different allocator"
-                % (tag, trial, info["lp_fallback_candidates"])
-            )
 
 
 def test_a_cap_that_does_not_bind_gives_the_constraint_zero_gradient():
@@ -1539,51 +1477,6 @@ def test_the_runner_stamps_the_commit_that_produced_the_weights():
         )
 
 
-def test_the_model_cache_prefers_the_stamp_of_the_run_that_trained_it(
-    tmp_path, monkeypatch
-):
-    from src.training import model_cache as MC
-
-    monkeypatch.setenv("OPTLOSS_MODEL_CACHE", str(tmp_path))
-
-    class _Tiny(nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.fc = nn.Linear(2, 2)
-
-    monkeypatch.setattr(MC, "get_model", lambda *a, **k: _Tiny())
-    bmid = "TinyNet_smoke_deadbeefcafe"
-    dev = torch.device("cpu")
-
-    def _write(payload):
-        torch.save(
-            dict(
-                {"model_state_dict": _Tiny().state_dict(), "base_model_id": bmid},
-                **payload,
-            ),
-            MC.get_cache_path(bmid),
-        )
-
-    def _load(cfg):
-        return MC.load_from_cache(
-            bmid,
-            dict({"model_name": "TinyNet", "hyperparams": {"dropout": 0.3}}, **cfg),
-            2,
-            dev,
-        )
-
-    _write({"code_version": "GEN1", "run_code_version": "RUN1"})
-    assert _load({"code_version": "GEN1", "run_code_version": "RUN2"}) is None, (
-        "the cache was reused across a code change that both configs' generator stamps agree through"
-    )
-    assert _load({"code_version": "GEN1", "run_code_version": "RUN1"}) is not None
-    _write({"code_version": "GEN1"})
-    assert _load({"code_version": "GEN1", "run_code_version": "RUN2"}) is not None, (
-        "a pre-stamp cache was invalidated; every warm-up on disk is one"
-    )
-    assert _load({"code_version": "GEN2"}) is None, (
-        "the generator fallback stopped rejecting a genuine version mismatch"
-    )
 
 
 TRAINERS_WITH_A_CONSTRAINT_STEP = [

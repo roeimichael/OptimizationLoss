@@ -3,6 +3,7 @@ import argparse
 import logging
 import os
 import time
+import copy
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -28,6 +29,7 @@ from src.utils.filesystem_manager import (
 from src.utils.gitver import git_version
 from src.pipeline.setup import seed_all, runtime_provenance
 from src.pipeline.io import save_results_to_config
+from src.pipeline.campaign import campaign_for_config, run_identity, write_receipt
 
 log = logging.getLogger(__name__)
 TRAIN_FNS = {
@@ -41,6 +43,7 @@ TRAIN_FNS = {
 
 @logger()
 def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
+    campaign_root, manifest = campaign_for_config(config_path)
     experiment_path = Path(config_path).parent
     config = load_config_from_path(experiment_path)
     validate_hyperparams(config["methodology"], config.get("hyperparams", {}))
@@ -48,6 +51,10 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         log.info("Skipping completed: %s", experiment_path)
         return None
     config["run_code_version"] = git_version()
+    identity = run_identity(campaign_root, manifest, config_path)
+    config['campaign_id'] = identity['campaign_id']
+    config['release_id'] = identity['release_id']
+    config['cache_identity'] = {k: identity[k] for k in ('release_id', 'data_id')}
     save_config_to_path(config, experiment_path)
     update_experiment_status(experiment_path, "running")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -63,7 +70,14 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
             _prov["amp_dtype"],
             " + GradScaler" if _prov["grad_scaler"] else " (no scaler)",
         )
-    data = load_data(config)
+    rel = Path(config_path).absolute().relative_to(campaign_root).as_posix()
+    frozen_data = manifest['data'][manifest['runs'][rel]['data_id']]
+    loading_config = copy.deepcopy(config)
+    loading_config['dataset_config']['data_dir'] = str(Path(frozen_data['files']['train_images.npy']['logical']).parent)
+    data = load_data(loading_config)
+    config['data_fingerprint'] = loading_config['data_fingerprint']
+    data.global_con = frozen_data['quotas']['global']
+    data.local_con = {int(k): values for k, values in frozen_data['quotas']['local'].items()}
     X_train_tensor = data.X_train
     y_train_tensor = data.y_train
     X_test_tensor = data.X_test.to(device)
@@ -126,8 +140,6 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         global_con,
         local_con,
         constrained_classes,
-        skip_targeted_correction=train_outputs.skip_targeted_correction,
-        precomputed_predictions=train_outputs.precomputed_predictions,
     )
     best_metrics = result["metrics"]
     best_adj = result["adj"]
@@ -173,17 +185,18 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
             "posthoc_time": float(posthoc_time),
             "used_cached_model": from_cache,
             "samples_adjusted": int(best_adj),
-            "lp_fallback_used": best_meta.get("lp_fallback_used", False),
+            "deployment_protocol": best_meta['deployment_protocol'],
+            "inference_chunk_size": best_meta['inference_chunk_size'],
             "constraint_steps_applied": train_outputs.summary.get(
                 "constraint_steps_applied"
             ),
             "constraint_steps_attempted": train_outputs.summary.get(
                 "constraint_steps_attempted"
             ),
-            "lp_fallback_candidates": best_meta.get("lp_fallback_candidates", 0),
             "runtime": runtime_provenance(device),
         },
     )
+    write_receipt(campaign_root, config_path, config.get('warmup_checkpoint'))
     log.info(
         "Done: accuracy=%.4f source=%s time=%.2fs path=%s",
         best_metrics["accuracy"],
@@ -203,8 +216,18 @@ def main() -> None:
         level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s"
     )
     try:
+        campaign_for_config(args.config_path)
+    except (ValueError, OSError, KeyError) as e:
+        log.error('REFUSED before run writes: %s', e)
+        raise SystemExit(1)
+    try:
         run_experiment(args.config_path)
     except Exception as e:
+        try:
+            campaign_for_config(args.config_path)
+        except (ValueError, OSError, KeyError):
+            log.error('Identity changed; refusing error/status writes: %s', e)
+            raise SystemExit(1)
         log_exception(
             e, context=f"Experiment: {experiment_path}", experiment_path=experiment_path
         )

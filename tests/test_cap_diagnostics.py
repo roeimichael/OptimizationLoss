@@ -84,12 +84,11 @@ def test_actual_per_group_headroom_is_not_global_topk(campaign):
     assert "group" in result.stdout and "outside_tp" in result.stdout
 
 
-def test_deployed_cli_reads_real_run_and_refuses_pending_output(campaign, tmp_path):
+def test_deployed_cli_refuses_unreceipted_altered_fixture(campaign, tmp_path):
     run, _ = populated(campaign)
     result = cli("scripts.deployed_h2h", "--campaign", campaign)
-    assert result.returncode == 0, result.stdout + result.stderr
-    rows = json.loads(result.stdout)
-    assert len(rows) == 1 and abs(rows[0]["cc_f1"] - 2 / 3) < 1e-12
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert 'config changed' in result.stdout
     cfg = json.loads((run / "config.json").read_text())
     cfg["status"] = "pending"
     (run / "config.json").write_text(json.dumps(cfg))
@@ -101,5 +100,5 @@ def test_deployed_cli_reads_real_run_and_refuses_pending_output(campaign, tmp_pa
 def test_campaign_does_not_report_after_failed_required_checks(campaign):
     populated(campaign)
     result = cli("scripts.run_campaign", "--root", campaign, "--step", "score")
-    assert result.returncode == 1, result.stdout + result.stderr
-    assert "BLOCKED" in result.stdout and "deployed_h2h" in result.stdout
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert 'config changed' in result.stderr

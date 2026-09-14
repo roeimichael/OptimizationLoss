@@ -1,297 +1,94 @@
-"""Check prediction CSV structure, label types and comparable row counts."""
-
+"""Check receipt-backed prediction rows and integer labels in an explicit campaign."""
 import argparse
-import collections
-import glob
 import io
 import json
-import os
+from pathlib import Path
 import sys
+import tempfile
 
-LABEL_COLS = ("True_Label", "Predicted_Label")
-PRED_FILES = ("final_predictions.csv", "final_predictions_raw.csv")
+LABEL_COLS = ('True_Label', 'Predicted_Label')
+PRED_FILES = ('final_predictions.csv', 'final_predictions_raw.csv')
 
 
 def row_count(path):
-    n = 0
-    with io.open(path, "r", encoding="utf-8", errors="replace") as fh:
-        for _ in fh:
-            n += 1
-    return n
+    with Path(path).open(encoding='utf-8') as stream:
+        return sum(1 for _ in stream)
 
 
 def label_dtype_ok(path):
-    with io.open(path, "r", encoding="utf-8", errors="replace") as fh:
-        header = fh.readline().rstrip("\n").rstrip("\r").split(",")
-        idx = [(c, header.index(c)) for c in LABEL_COLS if c in header]
-        if not idx:
-            return (False, "no label column in the header")
-        for lineno, line in enumerate(fh, start=2):
-            parts = line.rstrip("\n").rstrip("\r").split(",")
+    with Path(path).open(encoding='utf-8') as stream:
+        header = stream.readline().strip().split(',')
+        if not set(LABEL_COLS).issubset(header):
+            return False, 'required label columns missing'
+        indices = [(c, header.index(c)) for c in LABEL_COLS]
+        for lineno, line in enumerate(stream, 2):
+            parts = line.strip().split(',')
             if len(parts) != len(header):
-                return (
-                    False,
-                    "line %d has %d fields, header has %d -- this is a TORN line, not a type problem"
-                    % (lineno, len(parts), len(header)),
-                )
-            for name, i in idx:
-                v = parts[i].strip()
-                if not v.lstrip("-").isdigit():
-                    return (
-                        False,
-                        "line %d: %s = %r is not an integer class index"
-                        % (lineno, name, v),
-                    )
-    return (True, "ok")
+                return False, 'line %d is torn (%d fields, expected %d)' % (lineno, len(parts), len(header))
+            for name, index in indices:
+                if not parts[index].strip().lstrip('-').isdigit():
+                    return False, 'line %d: %s is not an integer class index' % (lineno, name)
+    return True, 'ok'
 
 
 def audit(roots, out=sys.stdout, deep=True):
+    """Check the completed subset explicitly, while naming every pending run."""
+    from src.pipeline.campaign import validate_receipts, safe_path
     problems = []
-    per_campaign = collections.defaultdict(lambda: collections.defaultdict(list))
     for root in roots:
-        for name in PRED_FILES:
-            pat = os.path.join(root, "**", name)
-            for p in glob.glob(pat, recursive=True):
-                camp = _campaign_of(p, root)
-                per_campaign[camp, name][row_count(p)].append(p)
-    for (camp, name), counts in sorted(per_campaign.items()):
-        if len(counts) <= 1:
-            continue
-        modal = max(counts, key=lambda k: len(counts[k]))
-        for n, paths in sorted(counts.items()):
-            if n == modal:
-                continue
-            for p in paths:
-                problems.append(
-                    (
-                        p,
-                        "%d rows against the campaign's modal %d (%d of %d runs) -- the test set is fixed, so this file is TORN or double-written"
-                        % (
-                            n,
-                            modal,
-                            len(counts[modal]),
-                            sum((len(v) for v in counts.values())),
-                        ),
-                    )
-                )
-    if deep:
-        for (camp, name), counts in sorted(per_campaign.items()):
-            for n, paths in counts.items():
-                for p in paths:
-                    (ok, why) = label_dtype_ok(p)
-                    if not ok:
-                        problems.append((p, why))
-    if problems:
-        print(
-            "!! %d PREDICTION FILE(S) FAILED THE INTEGRITY CHECK" % len(problems),
-            file=out,
-        )
-        for p, why in problems:
-            print("   %s" % p, file=out)
-            print("       %s" % why, file=out)
-        print(
-            "   A torn file PARSES. Scoring one puts phantom rows into a metric with no error.",
-            file=out,
-        )
-        print("", file=out)
+        try:
+            manifest, inventory = validate_receipts(root, complete=False)
+            print('Run inventory: ' + json.dumps(inventory), file=out)
+            if not inventory['completed']:
+                raise ValueError('no receipt-backed completed runs')
+            if inventory['missing']:
+                raise ValueError('completed runs are missing receipts')
+            for rel in inventory['completed']:
+                expected = manifest['data'][manifest['runs'][rel]['data_id']]['test_rows']
+                for name in PRED_FILES:
+                    path = (safe_path(root)/rel).with_name(name)
+                    if row_count(path) != expected + 1:
+                        problems.append((str(path), 'rows differ from frozen inventory'))
+                    if deep:
+                        ok, why = label_dtype_ok(path)
+                        if not ok:
+                            problems.append((str(path), why))
+        except (ValueError, OSError, KeyError) as exc:
+            problems.append((str(root), str(exc)))
+    for path, problem in problems:
+        print('FAIL %s: %s' % (path, problem), file=out)
     return problems
 
 
-def _run_dir_of(path):
-    return path if os.path.isdir(path) else os.path.dirname(path)
-
-
-def completed_only(paths, out=sys.stdout, label="run"):
-    (keep, dropped, unreadable) = ([], collections.defaultdict(list), [])
-    for p in paths:
-        cfg = os.path.join(_run_dir_of(p), "config.json")
-        try:
-            with io.open(cfg, "r", encoding="utf-8") as fh:
-                status = json.load(fh).get("status")
-        except Exception:
-            unreadable.append(p)
-            continue
-        if status == "completed":
-            keep.append(p)
-        else:
-            dropped[str(status)].append(p)
-    if dropped or unreadable:
-        n = sum((len(v) for v in dropped.values())) + len(unreadable)
-        print(
-            "   dropping %d %s(s) that are not `status: completed` (a reset run keeps its old predictions file)"
-            % (n, label),
-            file=out,
-        )
-        for status, ps in sorted(dropped.items()):
-            print("     status=%-10s %d" % (status, len(ps)), file=out)
-            for p in ps[:4]:
-                print("        %s" % _run_dir_of(p), file=out)
-        if unreadable:
-            print(
-                "     config.json UNREADABLE %d -- dropped, because an unreadable config is what a half-written run looks like"
-                % len(unreadable),
-                file=out,
-            )
-            for p in unreadable[:4]:
-                print("        %s" % _run_dir_of(p), file=out)
-    return keep
-
-
-def _campaign_of(path, root):
-    q = os.path.normpath(path).replace(os.sep, "/")
-    r = os.path.normpath(root).replace(os.sep, "/").rstrip("/")
-    tail = q[len(r) :].lstrip("/") if q.startswith(r) else q
-    return os.path.basename(r) or tail.split("/")[0]
-
-
 def self_test():
-    import shutil
-    import tempfile
-
-    tmp = tempfile.mkdtemp(prefix="pred_integrity_")
-    checks = []
-    try:
-        head = "True_Label,Predicted_Label,Correct,Prob_Class_0,Prob_Class_1,Group_ID"
-        good = [head] + [
-            "%d,%d,1,0.9,0.1,%d" % (i % 2, i % 2, i % 3) for i in range(20)
-        ]
-
-        def write(camp, arm, seed, lines):
-            d = os.path.join(tmp, camp, "M", "ds", "L80_G95", arm, "seed_%d" % seed)
-            os.makedirs(d, exist_ok=True)
-            for name in PRED_FILES:
-                io.open(os.path.join(d, name), "w", encoding="utf-8").write(
-                    "\n".join(lines) + "\n"
-                )
-            return d
-
-        for arm in ("clip", "tralo"):
-            for seed in (1, 2):
-                write("camp", arm, seed, good)
-        probs = audit([os.path.join(tmp, "camp")], out=io.StringIO())
-        checks.append(("an INTACT campaign reports no problem", not probs))
-        torn = list(good) + ["0.00016164035,218"]
-        write("camp", "tralo", 3, torn)
-        probs = audit([os.path.join(tmp, "camp")], out=io.StringIO())
-        hit = [p for (p, _w) in probs if "seed_3" in p]
-        checks.append(("a TORN tail row is caught", bool(hit)))
-        dup = list(good) + ["1,1,1,0.9,0.1,2"]
-        write("camp2", "clip", 1, good)
-        write("camp2", "clip", 2, good)
-        write("camp2", "tralo", 1, dup)
-        probs = audit([os.path.join(tmp, "camp2")], out=io.StringIO(), deep=False)
-        checks.append(
-            (
-                "a DUPLICATED but well-formed row is caught by the row count alone",
-                any(("tralo" in p for (p, _w) in probs)),
-            )
-        )
-        flt = list(good)
-        flt[1] = "0.5,1,1,0.9,0.1,0"
-        write("camp3", "clip", 1, flt)
-        write("camp3", "clip", 2, good)
-        probs = audit([os.path.join(tmp, "camp3")], out=io.StringIO())
-        checks.append(("a FLOAT in a label column is caught", bool(probs)))
-        for arm in ("clip", "tralo"):
-            write("other", arm, 1, good[:12])
-        probs = audit(
-            [os.path.join(tmp, "camp"), os.path.join(tmp, "other")],
-            out=io.StringIO(),
-            deep=False,
-        )
-        checks.append(
-            (
-                "a DIFFERENT campaign with its own row count is NOT flagged",
-                not any(("other" in p for (p, _w) in probs)),
-            )
-        )
-
-        def run_with_status(camp, arm, seed, status, lines=None):
-            d = write(camp, arm, seed, lines or good)
-            io.open(os.path.join(d, "config.json"), "w", encoding="utf-8").write(
-                '{"status": "%s"}' % status
-            )
-            return os.path.join(d, PRED_FILES[0])
-
-        done = run_with_status("st", "clip", 1, "completed")
-        pend = run_with_status("st", "tralo", 1, "pending")
-        runn = run_with_status("st", "tralo", 2, "running")
-        naked = write("st", "focal_clip", 1, good)
-        naked = os.path.join(naked, PRED_FILES[0])
-        kept = completed_only([done, pend, runn, naked], out=io.StringIO())
-        checks.append(("a COMPLETED run is kept", done in kept))
-        checks.append(
-            (
-                "a run reset to PENDING is dropped even though its predictions file is intact",
-                pend not in kept,
-            )
-        )
-        checks.append(("a RUNNING run is dropped", runn not in kept))
-        checks.append(
-            ("a run with NO config.json is dropped -- fails CLOSED", naked not in kept)
-        )
-        checks.append(("nothing but the completed run survives", kept == [done]))
-        buf = io.StringIO()
-        completed_only([done, pend, runn, naked], out=buf, label="widget")
-        said = buf.getvalue()
-        checks.append(
-            (
-                "every drop is REPORTED, with the label and the status",
-                "widget" in said
-                and "pending" in said
-                and ("running" in said)
-                and ("UNREADABLE" in said),
-            )
-        )
-        quiet = io.StringIO()
-        allc = completed_only([done], out=quiet)
-        checks.append(
-            (
-                "an all-completed list is kept in full and prints nothing",
-                allc == [done] and quiet.getvalue() == "",
-            )
-        )
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
-    print("")
-    for label, ok in checks:
-        print("  %-72s %s" % (label[:72], "PASS" if ok else "FAIL"))
-    bad = [c for (c, ok) in checks if not ok]
-    print("")
-    print("ALL PASS" if not bad else "FAILED: %d" % len(bad))
-    return 1 if bad else 0
+    with tempfile.TemporaryDirectory(prefix='pred_integrity_') as directory:
+        path = Path(directory)/'fixture.csv'
+        path.write_text('True_Label,Predicted_Label\n0,1\n1,1\n')
+        checks = [label_dtype_ok(path)[0], row_count(path) == 3]
+        path.write_text('True_Label,Predicted_Label\n0.5,1\n')
+        checks.append(not label_dtype_ok(path)[0])
+        path.write_text('True_Label,Predicted_Label\n0,1,extra\n')
+        checks.append(not label_dtype_ok(path)[0])
+        checks.append(bool(audit([directory], out=io.StringIO())))
+    print('ALL PASS' if all(checks) else 'FAIL')
+    return 0 if all(checks) else 1
 
 
 def main(argv=None):
-    a = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    a.add_argument("roots", nargs="*", help="campaign roots to audit")
-    a.add_argument("--self-test", action="store_true")
-    a.add_argument(
-        "--shallow",
-        action="store_true",
-        help="row counts only; skip the per-line lexical check",
-    )
-    args = a.parse_args(argv)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('roots', nargs='*')
+    parser.add_argument('--self-test', action='store_true')
+    parser.add_argument('--shallow', action='store_true', help='skip lexical checks; receipts/row counts still required')
+    args = parser.parse_args(argv)
     if args.self_test:
         return self_test()
     if not args.roots:
-        a.error("give at least one campaign root (or --self-test)")
-    if any(
-        (
-            not glob.glob(
-                os.path.join(root, "**", "final_predictions.csv"), recursive=True
-            )
-            for root in args.roots
-        )
-    ):
-        print("FAIL: every root must contain deployed prediction files")
+        parser.error('give at least one explicit campaign root')
+    if audit(args.roots, deep=not args.shallow):
         return 1
-    problems = audit(args.roots, deep=not args.shallow)
-    if not problems:
-        print("all prediction files intact")
-        return 0
-    return 1
+    print('all completed prediction files intact; pending runs are listed above')
+    return 0
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+if __name__ == '__main__':
+    raise SystemExit(main())

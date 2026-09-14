@@ -72,9 +72,29 @@ def test_determinism_setup_failure_prevents_training(monkeypatch):
 def test_dispatcher_exit_status_reaches_the_calling_shell(
     tmp_path, child_code, expected
 ):
-    script = "\nimport runpy, subprocess\nfrom unittest.mock import patch\nimport src.utils.filesystem_manager as fs\nconfig = {'exp_name': 'test-run', 'methodology': 'heuristic'}\npending = [('fake-run', config)]\nbuckets = {'pending': pending, 'completed': [], 'blocked': []}\ndef child(*args, **kwargs):\n    if CODE == 130:\n        raise KeyboardInterrupt\n    buckets['pending'] = []\n    buckets['completed' if CODE == 0 else 'blocked'] = pending\n    return subprocess.CompletedProcess(args[0], CODE)\nwith patch('torch.cuda.is_available', return_value=False),      patch.object(fs, 'get_experiments_by_status', side_effect=lambda *a: buckets),      patch.object(fs, 'print_status_summary'),      patch('subprocess.run', side_effect=child):\n    runpy.run_path('main.py', run_name='__main__')\n".replace(
-        "CODE", str(child_code)
-    )
+    script = """
+import runpy, subprocess
+from unittest.mock import patch
+import src.utils.filesystem_manager as fs
+config = {'exp_name': 'test-run', 'methodology': 'heuristic'}
+pending = [('fake-run', config)]
+buckets = {'pending': pending, 'completed': [], 'blocked': []}
+def child(*args, **kwargs):
+    if CODE == 130:
+        raise KeyboardInterrupt
+    buckets['pending'] = []
+    buckets['completed' if CODE == 0 else 'blocked'] = pending
+    return subprocess.CompletedProcess(args[0], CODE)
+# Admission is exercised with real manifests in test_fresh_campaign; this
+# fixture isolates propagation of child completion/failure/interruption.
+with patch('torch.cuda.is_available', return_value=False), \\
+     patch.dict('os.environ', {'EXPERIMENT_DIR': ROOT}), \\
+     patch('src.pipeline.campaign.validate_campaign', return_value={}), \\
+     patch.object(fs, 'get_experiments_by_status', side_effect=lambda *a: buckets), \\
+     patch.object(fs, 'print_status_summary'), \\
+     patch('subprocess.run', side_effect=child):
+    runpy.run_path('main.py', run_name='__main__')
+""".replace('CODE', str(child_code)).replace('ROOT', repr(str(tmp_path)))
     result = subprocess.run(
         [sys.executable, "-c", script], capture_output=True, text=True, timeout=60
     )

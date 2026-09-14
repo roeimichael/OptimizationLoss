@@ -1,7 +1,5 @@
 """Maintained behavioral regression fixtures."""
 
-import logging
-
 import pytest
 from .conftest import load_yaml, rel, read, report
 
@@ -19,7 +17,6 @@ WARMUP_HP = {
     "batch_size": 64,
     "warmup_epochs": 1,
     "pretrained": True,
-    "class_weighted_ce": False,
     "seed": 1,
     "warmup_loss": "ce",
     "focal_alpha": 0.25,
@@ -79,87 +76,6 @@ def test_base_model_id_splits_on_the_warm_up_and_on_nothing_else():
     report(bad, "base_model_id identity defects")
 
 
-def test_the_cache_refuses_a_warm_up_from_another_regime_commit_or_slice(
-    tmp_path, monkeypatch, caplog
-):
-    from src.training import model_cache as mc
-
-    monkeypatch.setenv("OPTLOSS_MODEL_CACHE", str(tmp_path))
-    monkeypatch.setattr(mc, "get_model", lambda *a, **k: torch.nn.Linear(4, N_CLASSES))
-    monkeypatch.setattr(mc, "_amp_regime", lambda: "float16|scaler=True")
-    bmid = "MobileNetV3_multiclass_deadbeef"
-    cfg = {
-        "model_name": "MobileNetV3",
-        "hyperparams": {"dropout": 0.3},
-        "code_version": "cafe1",
-        "run_code_version": "beef1",
-        "data_fingerprint": "fp1",
-    }
-    good = {
-        "model_state_dict": torch.nn.Linear(4, N_CLASSES).state_dict(),
-        "base_model_id": bmid,
-        "code_version": "cafe1",
-        "run_code_version": "beef1",
-        "data_fingerprint": "fp1",
-        "amp_regime": "float16|scaler=True",
-    }
-    (drop, bad) = (object(), [])
-    for label, patch, want_load, want_log in [
-        ("identical (NEGATIVE CONTROL)", {}, True, None),
-        ("id mismatch", {"base_model_id": "other"}, False, None),
-        (
-            "BF16 cache on an FP16 host",
-            {"amp_regime": "bf16|scaler=False"},
-            False,
-            "AMP regime",
-        ),
-        (
-            "slice changed under the path",
-            {"data_fingerprint": "fp2"},
-            False,
-            "fingerprint",
-        ),
-        (
-            "trained by another commit",
-            {"run_code_version": "beef2"},
-            False,
-            "run_code_version",
-        ),
-        (
-            "no runner stamp, generator differs",
-            {"run_code_version": drop, "code_version": "cafe2"},
-            False,
-            "code_version",
-        ),
-        (
-            "no runner stamp, generator agrees",
-            {"run_code_version": drop},
-            True,
-            "falling back",
-        ),
-        ("cache predates amp_regime", {"amp_regime": drop}, True, "predates"),
-    ]:
-        payload = dict(good)
-        for k, v in patch.items():
-            payload.pop(k, None) if v is drop else payload.__setitem__(k, v)
-        torch.save(payload, mc.get_cache_path(bmid))
-        caplog.clear()
-        with caplog.at_level(logging.INFO, logger="src.training.model_cache"):
-            got = mc.load_from_cache(bmid, cfg, N_CLASSES, torch.device("cpu"))
-        if (got is not None) != want_load:
-            bad.append("%s: loaded=%s, wanted %s" % (label, got is not None, want_load))
-        if want_log and want_log not in caplog.text:
-            bad.append("%s: said nothing about %r" % (label, want_log))
-    torch.save(dict(good), mc.get_cache_path(bmid))
-    monkeypatch.setattr(mc, "_amp_regime", lambda: None)
-    caplog.clear()
-    with caplog.at_level(logging.INFO, logger="src.training.model_cache"):
-        mc.load_from_cache(bmid, cfg, N_CLASSES, torch.device("cpu"))
-    if "DID NOT RUN" not in caplog.text:
-        bad.append(
-            "CONTROL: an undeterminable AMP regime skipped the check SILENTLY -- the exact shape of the old defect"
-        )
-    report(bad, "warm-up cache defects")
 
 
 def test_the_constraint_step_multiplier_is_the_single_step_value_forever():

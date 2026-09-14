@@ -186,24 +186,47 @@ def compute_raw_constraint_satisfaction(y_raw, global_con, local_con, group_ids,
     return out
 
 
-def compute_metrics(y_true, y_pred, y_proba=None):
+def compute_metrics(y_true, y_pred, y_proba=None, *, classes=None,
+                    constrained_classes=None):
+    y_true, y_pred = np.asarray(y_true), np.asarray(y_pred)
+    classes = np.asarray(classes if classes is not None else
+                         (np.arange(y_proba.shape[1]) if y_proba is not None else
+                          np.union1d(y_true, y_pred)))
+    if len(set(classes)) != len(classes) or not len(classes):
+        raise ValueError('classes must be nonempty and distinct')
+    if not set(np.union1d(y_true, y_pred)).issubset(set(classes)):
+        raise ValueError('labels outside declared classes')
     accuracy = np.mean(y_true == y_pred)
     precision, recall, f1, support = precision_recall_fscore_support(
-        y_true, y_pred, average=None, zero_division=0)
+        y_true, y_pred, labels=classes, average=None, zero_division=0)
     p_macro, r_macro, f1_macro, _ = precision_recall_fscore_support(
-        y_true, y_pred, average='macro', zero_division=0)
+        y_true, y_pred, labels=classes, average='macro', zero_division=0)
     p_weighted, r_weighted, f1_weighted, _ = precision_recall_fscore_support(
-        y_true, y_pred, average='weighted', zero_division=0)
+        y_true, y_pred, labels=classes, average='weighted', zero_division=0)
     result = {
+        'classes': classes,
         'accuracy': accuracy,
         'precision_per_class': precision, 'recall_per_class': recall,
         'f1_per_class': f1, 'support_per_class': support,
         'precision_macro': p_macro, 'recall_macro': r_macro, 'f1_macro': f1_macro,
         'precision_weighted': p_weighted, 'recall_weighted': r_weighted,
         'f1_weighted': f1_weighted,
-        'confusion_matrix': confusion_matrix(y_true, y_pred)
+        'confusion_matrix': confusion_matrix(y_true, y_pred, labels=classes)
     }
+    if constrained_classes is not None:
+        if not constrained_classes or not set(constrained_classes).issubset(set(classes)):
+            raise ValueError('constrained classes must belong to declared classes')
+        mask = np.isin(classes, constrained_classes)
+        result.update(cc_f1=float(f1[mask].mean()),
+                      constrained_precision=float(precision[mask].mean()),
+                      constrained_recall=float(recall[mask].mean()),
+                      collateral_f1=float(f1[~mask].mean()) if (~mask).any() else None,
+                      collateral_support=int(support[~mask].sum()))
     if y_proba is not None:
-        result['ece'] = compute_ece(y_true, y_proba)
-        result.update(compute_uncertainty_metrics(y_true, y_proba))
+        if y_proba.shape != (len(y_true), len(classes)):
+            raise ValueError('probability columns must match declared class order')
+        class_index = {c: i for i, c in enumerate(classes)}
+        indexed_truth = np.array([class_index[c] for c in y_true], dtype=int)
+        result['ece'] = compute_ece(indexed_truth, y_proba)
+        result.update(compute_uncertainty_metrics(indexed_truth, y_proba))
     return result

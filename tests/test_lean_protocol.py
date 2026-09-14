@@ -93,14 +93,14 @@ def test_explicit_seeds_remain_paired_and_duplicate_seeds_fail(tmp_path):
 
 
 def test_unknown_hyperparameter_is_rejected_before_training(tmp_path):
-    from configs.gen_campaign import build_hyperparams, load_protocol
     from src.experiments.runner import run_experiment
-
-    p = load_protocol()
-    hp = build_hyperparams(p, p["arms"]["tralo"], 1)
-    hp["unknown_research_option"] = True
-    config = {"methodology": "tralo", "status": "pending", "hyperparams": hp}
-    path = tmp_path / "config.json"
+    from src.pipeline.campaign import freeze_campaign
+    from test_fresh_campaign import staged
+    root, relative = staged(tmp_path)
+    freeze_campaign(root)
+    path = root / relative
+    config = json.loads(path.read_text())
+    config['hyperparams']['unknown_research_option'] = True
     path.write_text(json.dumps(config))
     with pytest.raises(ValueError, match="unknown_research_option"):
         run_experiment(str(path))

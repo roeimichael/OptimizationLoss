@@ -356,14 +356,10 @@ def recipe_verdict(pairs):
 
 
 def campaign_configs(root):
-    out = []
-    for f in glob.glob(os.path.join(root, "*", "*", "*", "*", "seed_*", "config.json")):
-        try:
-            with open(f, encoding="utf-8") as fh:
-                out.append(json.load(fh))
-        except (OSError, ValueError):
-            continue
-    return out
+    from src.pipeline.campaign import validate_campaign, safe_path
+    manifest = validate_campaign(root)
+    return [json.loads((safe_path(root)/rel).read_text(encoding='utf-8'))
+            for rel in manifest['configs']]
 
 
 def worktree_topology(repo):
@@ -661,8 +657,10 @@ def main():
             if os.path.isdir(d)
         )
     for root in roots:
-        cfgs = campaign_configs(root)
-        if not cfgs:
+        try:
+            cfgs = campaign_configs(root)
+        except (ValueError, OSError, KeyError) as exc:
+            _row(rows, FAIL, 'campaign %s' % root, str(exc))
             continue
         name = os.path.basename(root.rstrip(os.sep))
         counts = {}

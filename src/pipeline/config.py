@@ -5,7 +5,6 @@ CORE = {
     "dropout",
     "batch_size",
     "pretrained",
-    "class_weighted_ce",
     "seed",
     "warmup_epochs",
     "constraint_epochs",
@@ -26,7 +25,7 @@ METHOD_KEYS = {
     | STEP
     | {"alm_eta", "alm_mu0", "alm_mu_step", "fioretto_lambda_init"},
     "heuristic": CORE
-    | {"warmup_loss", "focal_alpha", "focal_gamma", "inference_chunk_size"},
+    | {"warmup_loss", "focal_alpha", "focal_gamma"},
 }
 
 
@@ -41,7 +40,7 @@ def validate_hyperparams(methodology, hp):
         )
     if hp.get("warmup_loss", "ce") not in ("ce", "focal"):
         raise ValueError("warmup_loss must be ce or focal")
-    for key in ("constraint_fp32", "pretrained", "class_weighted_ce"):
+    for key in ("constraint_fp32", "pretrained"):
         if key in hp and not isinstance(hp[key], bool):
             raise ValueError("%s must be a bool" % key)
     if "constraint_grad_mode" in hp and hp["constraint_grad_mode"] not in (

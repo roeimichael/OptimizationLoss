@@ -35,6 +35,11 @@ def load_config_from_path(experiment_path):
 def get_all_experiment_configs(results_dir='results'):
     experiments = []
     results_path = Path(results_dir)
+    from src.pipeline.campaign import MANIFEST, validate_campaign
+    if (results_path/MANIFEST).exists():
+        manifest = validate_campaign(results_path)
+        return [(str((results_path/rel).parent), load_config_from_path((results_path/rel).parent))
+                for rel in manifest['configs']]
     if not results_path.exists():
         return experiments
     for config_file in results_path.rglob('config.json'):

@@ -82,9 +82,27 @@ def cli(module, *args):
 
 @pytest.fixture
 def campaign(tmp_path):
+    import numpy as np
+    import pandas as pd
+    import yaml
+    from configs.gen_campaign import load_protocol
+    from src.pipeline.campaign import freeze_campaign
+    data = tmp_path/'data'
+    data.mkdir()
+    for split, group in [('train', 10), ('test', 20)]:
+        labels = np.tile(np.arange(8), 4)
+        np.save(data/(split+'_images.npy'), np.zeros((32,3,4,4), dtype=np.uint8))
+        np.save(data/(split+'_labels.npy'), labels)
+        pd.DataFrame({'label': labels, 'location': [group]*32}).to_csv(data/(split+'_meta.csv'), index=False)
+    p = load_protocol()
+    p['datasets']['iwildcam']['data_dir'] = str(data)
+    protocol = tmp_path/'protocol.yml'
+    protocol.write_text(yaml.safe_dump(p))
     root = tmp_path / "campaign"
     result = cli(
         "configs.gen_campaign",
+        "--protocol",
+        protocol,
         "--root",
         root,
         "--datasets",
@@ -101,6 +119,7 @@ def campaign(tmp_path):
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert len(list(root.rglob("config.json"))) == 14
+    freeze_campaign(root)
     return root
 
 

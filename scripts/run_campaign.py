@@ -58,7 +58,7 @@ STEPS = [
                 True,
                 "instrument",
             ),
-            ("rig_status", ["-m", "scripts.rig_status"], True, "instrument"),
+            ("rig_status", ["-m", "scripts.rig_status", "--campaign", "{root}"], True, "instrument"),
         ],
     ),
     (
@@ -267,8 +267,14 @@ def main(argv=None):
         ap.error(
             "step(s) %s check THIS campaign, so --root is required" % ", ".join(need)
         )
-    if a.root and (not os.path.isdir(os.path.join(REPO, a.root))):
-        ap.error("--root %s does not exist" % a.root)
+    if a.root:
+        from src.pipeline.campaign import validate_campaign, safe_path
+        try:
+            a.root = str(safe_path(os.path.join(REPO, a.root)))
+            report_only = all(name in ('score', 'firstrun') for name in names)
+            validate_campaign(a.root, check_data=not report_only, check_runtime=not report_only)
+        except (ValueError, OSError, KeyError) as exc:
+            ap.error(str(exc))
     known = set(BY_NAME) | {n for (_, _, cs) in STEPS for (n, _, _, _) in cs}
     unknown = [s for s in a.skip if s not in known]
     if unknown:

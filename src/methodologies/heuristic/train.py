@@ -15,8 +15,7 @@ import time
 import numpy as np
 
 from src.pipeline.contracts import TrainInputs, TrainOutputs
-from src.utils.constants import UNLIMITED, INFERENCE_CHUNK_SIZE
-from src.utils.inference import chunked_probs
+from src.utils.constants import UNLIMITED
 
 log = logging.getLogger(__name__)
 
@@ -147,31 +146,5 @@ def verify_allocation(y_pred, groups, global_constraints, local_constraints,
 
 
 def train(inputs: TrainInputs) -> TrainOutputs:
-    device = inputs.device
-    X_test = inputs.X_test.to(device)
-    chunk_size = int(inputs.hyperparams.get("inference_chunk_size",
-                                            INFERENCE_CHUNK_SIZE))
-    probs = chunked_probs(inputs.model, X_test, chunk_size)
-
-    hierarchy = _build_hierarchy(
-        inputs.num_classes, inputs.global_con, inputs.constrained_classes)
-    y_pred, exec_time = apply_allocation_heuristic(
-        probs, inputs.group_ids, hierarchy,
-        inputs.global_con, inputs.local_con, inputs.num_classes,
-    )
-    violations = verify_allocation(
-        y_pred, inputs.group_ids, inputs.global_con, inputs.local_con,
-        inputs.num_classes)
-    if violations:
-        raise RuntimeError(
-            "heuristic produced predictions that violate %d cap(s): %s. This "
-            "arm sets skip_targeted_correction=True, so nothing downstream "
-            "would have caught it." % (len(violations), violations[:5]))
-    log.info("Heuristic allocation: %.3fs, all caps satisfied", exec_time)
-
-    return TrainOutputs(
-        model=inputs.model,
-        summary={"allocation_time": exec_time},
-        skip_targeted_correction=True,
-        precomputed_predictions=y_pred,
-    )
+    """Post-hoc arms retain the warm-up model; shared evaluation deploys it."""
+    return TrainOutputs(model=inputs.model, summary={})

@@ -159,10 +159,20 @@ def main():
     # so the documented kill -INT actually stops dispatching more experiments.
     signal.signal(signal.SIGINT, signal.default_int_handler)
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s %(levelname)s %(message)s')
+    from src.pipeline.campaign import validate_campaign, safe_path
+    experiment_dir = os.environ.get('EXPERIMENT_DIR')
+    if not experiment_dir:
+        log.error('Explicit EXPERIMENT_DIR is required for a fresh campaign')
+        return 1
+    try:
+        validate_campaign(experiment_dir)
+        experiment_dir = str(safe_path(experiment_dir))
+    except (ValueError, OSError, KeyError) as exc:
+        log.error('REFUSED: %s', exc)
+        return 1
     gpu_id = select_gpu()
     gpu_info = 'CPU' if gpu_id is None else 'GPU %d' % gpu_id
     log.info("Device: %s", gpu_info)
-    experiment_dir = os.environ.get('EXPERIMENT_DIR', DEFAULT_EXPERIMENT_DIR)
     log.info("Experiment directory: %s", experiment_dir)
     print_status_summary(experiment_dir)
     pending = get_experiments_by_status(experiment_dir)['pending']

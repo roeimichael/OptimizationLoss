@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 import numpy as np
 import torch
 import torch.nn as nn
@@ -30,8 +30,6 @@ class TrainInputs:
 class TrainOutputs:
     model: nn.Module
     summary: Dict[str, Any]
-    skip_targeted_correction: bool = False
-    precomputed_predictions: Optional[np.ndarray] = None
 
 
 def _required(hp, key, cast=float):

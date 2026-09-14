@@ -164,36 +164,24 @@ for entry in "${QUEUE[@]}"; do
     NAME="$(basename "$ROOT")"
     RUN_LOG="$LOG_DIR/${LABEL}_${NAME}.log"
 
-    if [ ! -d "$WT/$ROOT" ]; then
-        say "SKIP $NAME -- $WT/$ROOT does not exist"
+    admission="$(cd "$WT" && CUDA_VISIBLE_DEVICES="$GPU" python -m src.pipeline.campaign validate --root "$ROOT")" || {
+        say "REFUSED $NAME -- fresh campaign admission failed"
         continue
-    fi
-
-    pending="$(grep -l '"status": "pending"' "$WT/$ROOT"/*/*/*/*/*/config.json 2>/dev/null | wc -l)"
+    }
+    ROOT="$(printf '%s' "$admission" | python -c 'import json,sys; print(json.load(sys.stdin)["root"])')"
+    pending="$(cd "$WT" && CUDA_VISIBLE_DEVICES="$GPU" python -c 'import sys; from src.utils.filesystem_manager import get_experiments_by_status; print(len(get_experiments_by_status(sys.argv[1])["pending"]))' "$ROOT")" || continue
     if [ "$pending" -eq 0 ]; then
         say "SKIP $NAME -- 0 pending runs, nothing to dispatch"
         continue
     fi
 
-    # One stamp per campaign, or the tree moved under it.
-    stamps="$(cd "$WT" && python -c "
-import glob, json, sys
-v = {json.load(open(f))['code_version']
-     for f in glob.glob('$ROOT/*/*/*/*/*/config.json')}
-print(len(v)); print(sorted(v)[0] if v else 'none')
-" 2>/dev/null | head -2 | tr '\n' ' ')"
-    n_stamp="$(echo "$stamps" | awk '{print $1}')"
-    if [ "$n_stamp" != "1" ]; then
-        say "SKIP $NAME -- $n_stamp distinct code_version stamps, not 1 ($stamps)"
-        continue
-    fi
 
     if ! (cd "$WT" && python -m scripts.data_present "$ROOT" >>"$RUN_LOG" 2>&1); then
         say "SKIP $NAME -- data_present RED, see $RUN_LOG"
         continue
     fi
 
-    say "waiting for gpu $GPU to free, for $NAME ($pending pending, stamp $stamps)"
+    say "waiting for gpu $GPU to free, for $NAME ($pending pending, frozen inventory)"
     wait_for_gpu
     assert_gpu_ready
     say "claiming gpu $GPU for $NAME  (worktree $WT)"
@@ -219,9 +207,7 @@ print(len(v)); print(sorted(v)[0] if v else 'none')
     ) >>"$RUN_LOG" 2>&1
 
     rc=$?
-    done_n="$(grep -l '"status": "completed"' "$WT/$ROOT"/*/*/*/*/*/config.json 2>/dev/null | wc -l)"
-    tot_n="$(ls -d "$WT/$ROOT"/*/*/*/*/*/ 2>/dev/null | wc -l)"
-    say "$NAME finished rc=$rc  completed $done_n/$tot_n  log $RUN_LOG"
+    say "$NAME finished rc=$rc  log $RUN_LOG"
 done
 
 say "queue $LABEL DONE -- no campaigns left"
