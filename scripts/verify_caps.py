@@ -29,7 +29,14 @@ def duplicate_budget_tags(eff_by_class):
 def load_test(dc):
     y = np.load(os.path.join(dc["data_dir"], "test_labels.npy")).ravel()
     meta = pd.read_csv(os.path.join(dc["data_dir"], "test_meta.csv"))
-    groups = meta[dc["group_column"]].values.astype(np.int64)
+    # The training path factorises a non-integer group column via
+    # `_encode_groups`; this read did a bare `.astype(np.int64)` and raised
+    # "invalid literal for int(): 'anterior torso|40s'" on bcn, so the cap
+    # verifier could not be run on the second dataset at all. Use the SAME
+    # encoder, or the group ids here would not be the ids the budgets use.
+    from src.utils.data_loader import _encode_groups
+
+    groups = _encode_groups(meta[dc["group_column"]], dc["group_column"])
     return pd.DataFrame({"label": y, dc["group_column"]: groups})
 
 
