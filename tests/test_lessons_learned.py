@@ -834,3 +834,55 @@ def test_a_cc_f1_TIE_is_not_a_WIN_and_domination_is_checked_against_EVERY_arm():
     dom["hounie"]["collateral_f1"] = (+0.0400, 0.0050)
     v = classify("alm", -0.0010, 0.0100, dom, False)
     assert "DOMINATED" not in v, v
+
+
+def _fake_log(root, dataset, cap, arm, seed, accs):
+    """A training_log.csv with just the columns the saturation gate reads."""
+    import os
+    d = os.path.join(root, "MobileNetV3", dataset, cap, arm, "seed_%d" % seed)
+    os.makedirs(d, exist_ok=True)
+    lines = ["Epoch,Train_Acc,L_CE"]
+    for i, a in enumerate(accs, start=1):
+        lines.append("%d,%.4f,%.4f" % (i, a, max(0.001, 1.0 - a)))
+    with open(os.path.join(d, "training_log.csv"), "w", encoding="utf-8") as fh:
+        fh.write(chr(10).join(lines) + chr(10))
+    return d
+
+
+def test_the_saturation_gate_fails_a_FROZEN_boundary_and_passes_a_LIVE_one(tmp_path, capsys):
+    """The condition none of candidate_gate's eight checks could see.
+
+    Once cross-entropy collapses the task gradient is ~0, and under
+    `constraint_grad_mode: normalize` the constraint gradient is rescaled to a
+    FIXED norm regardless of the violation -- so the step is full-size and
+    opposed by nothing. The constraint is shoving a frozen boundary, not
+    reshaping it. Measured on the real corpus: fmow2 is live for 3.2 of 29
+    constraint epochs and bcn for 4.5, on BOTH backbones, which is why changing
+    dataset does not fix it.
+
+    Negative control is the point of the test: a log that stays live must PASS,
+    or the gate is just printing SATURATED unconditionally.
+    """
+    import importlib
+    mod = importlib.import_module("scripts.saturation_gate")
+
+    frozen = str(tmp_path / "frozen")
+    live = str(tmp_path / "live")
+    for seed in (1, 2):
+        # reaches 0.95 at epoch 4 and then runs 26 more epochs -> live 3 of 29.
+        # The tail MATTERS: with only six rows, dropping the `break` would still
+        # report 6 < 14 and the gate would pass its own mutation.
+        _fake_log(frozen, "fmow2", "L80_G95", "tralo", seed,
+                  [0.80, 0.88, 0.93, 0.96, 0.98] + [0.99] * 25)
+        # never reaches 0.95 -> live for the whole run
+        _fake_log(live, "hardset", "L80_G95", "tralo", seed,
+                  [0.50, 0.60, 0.68, 0.74, 0.78, 0.80])
+
+    assert mod.main(["--glob", frozen + "/*/*/*/tralo/seed_*", "--strict"]) == 1
+    out = capsys.readouterr().out
+    assert "SATURATED" in out, out
+
+    assert mod.main(["--glob", live + "/*/*/*/tralo/seed_*", "--strict",
+                     "--constraint-epochs", "6"]) == 0
+    out = capsys.readouterr().out
+    assert "SATURATED" not in out, "a boundary that never froze was called saturated:" + chr(10) + out

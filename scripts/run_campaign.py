@@ -71,6 +71,24 @@ STEPS = [
                 True,
                 "gate",
             ),
+            # HARD GATE. If the model memorises the train set in the first few
+            # epochs, cross-entropy is ~0 for the rest of the run and -- under
+            # `constraint_grad_mode: normalize`, which rescales the constraint
+            # gradient to a FIXED norm however small the violation -- every
+            # remaining constraint step is full-size and opposed by nothing.
+            # The constraint is shoving a frozen boundary rather than reshaping
+            # it, and no arm comparison made in that regime means anything.
+            # Measured on the whole corpus: fmow2 is live for 3.2 of 29
+            # constraint epochs and bcn for 4.5, on MobileNetV2, MobileNetV3
+            # and ViTB16 alike -- so this is the TRAINING RECIPE, not one bad
+            # dataset, and it must stop a campaign rather than be noted.
+            (
+                "gate:saturation",
+                ["-m", "scripts.saturation_gate", "--glob",
+                 "{root}/*/*/*/*/seed_*", "--strict"],
+                True,
+                "gate",
+            ),
             (
                 "dose_landed",
                 ["-m", "scripts.dose_landed", "{root}"],
