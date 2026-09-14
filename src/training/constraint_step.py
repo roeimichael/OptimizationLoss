@@ -1,50 +1,17 @@
-"""The constraint optimizer step -- ONE implementation, shared by all four arms.
+"""Shared gradient transformation and constraint optimizer step.
 
-WHY IT IS SHARED. Each trained arm hand-rolled this block, and the copies
-drifted. Measured on `results/vit_diag` (ViTB16 x dermmnist x L30_G30, seed 1,
-same warm-up model, same `constraint_grad_clip: 1.0` in all three configs):
+Order: optional AMP unscale, head mask, reference projection, clipping or
+normalization, then direct SGD or the shared optimizer. Normalization fixes
+the gradient norm, not Adam's parameter displacement. Zeroing a gradient does
+not freeze a parameter when the optimizer retains momentum or weight decay.
 
-    arm       raw constraint grad norm      clip binds     steps applied
-    tralo     0.638 .. 1826.5               6 of 7         >=7 of 29
-    fioretto  17,667 .. 80,827              18 of 18       18 of 29
-    hounie    0.005 .. 0.1105               0 of 29        28 of 29, none clipped
-
-At the last epoch of that run fioretto's constraint loss is 4390.838 and
-hounie's is 0.004204 -- a factor of 1.04e6, and their gradient norms differ by
-1.02e6. The cause is faithful to the two papers (`hounie_rcl` divides the
-violation by N to match its dual's scale, `fioretto_ldf` sums), but the
-CONSEQUENCE is not a method difference: one absolute clip applied to two
-natural scales six orders apart means tralo and fioretto each deliver a
-unit-norm step while hounie delivers its raw ~0.05-norm step. Roughly a 20x
-dose difference between arms, and no config gate can see it -- every config
-says 1.0.
-
-So `normalize` exists. It rescales the constraint gradient to EXACTLY
-`constraint_grad_clip` instead of merely capping it, which makes the constraint
-step size a protocol constant identical across arms and leaves each method's
-DIRECTION as its actual contribution -- which is the thing the comparison is
-supposed to be about. For tralo and fioretto it changes almost nothing (their
-clip already bound on essentially every epoch); for hounie it is the whole
-difference between taking a step and not.
-
-`clip` remains the default so every existing result stays reproducible.
-
-AND THE fp32 PASS. fioretto lost 10 of its 29 constraint epochs to non-finite
-gradients -- 6 NaN and 4 inf, raw count before any dropna (an analysis that
-calls dropna() first sees only the 4 inf and reports "4 of 29"). On the FP16
-path a NaN norm fails the `> 0` gate and an inf norm is skipped inside
-`scaler.step`, so either way no update lands and the run still reports
-`status: completed`. It recurs rather than settling because the 126 CE steps
-per epoch grow the loss scale back up between constraint steps, and fioretto's
-constraint loss is ~1e4 times CE's.
-
-Running the constraint pass in fp32 without the scaler decouples it from that
-loop entirely. It is one backward per epoch over the test set in chunks, so the
-cost is small against 126 CE steps, and it is method-neutral -- it changes no
-formula, only the precision the formula is evaluated in.
-"""
+The FP32 constraint path bypasses GradScaler; the AMP path records its backoff
+so a finite post-mask norm cannot falsely count an overflow-skipped step.
+Optional diagnostics observe gradients and actual displacement without RNG
+draws. Historical dose/outcome claims are not validation of this computation."""
 
 import logging
+import math
 from contextlib import contextmanager
 
 import torch
@@ -172,24 +139,13 @@ def snapshot_grads(model):
 
 
 def project_out(model, ref):
-    """Remove the component of the constraint gradient along `ref`, in place.
+    """Remove the gradient component parallel to ref, in place.
 
-    `g <- g - (<g,r>/<r,r>) r`, the projection onto the orthogonal complement,
-    so enforcing the cap cannot undo the CE progress just made. Returns the
-    coefficient removed, which is what `Ortho Fired` logs: a run whose
-    coefficient is 0.0 every epoch did nothing, and `ortho_project` would then
-    be an inert flag -- this project's most frequent failure mode, four
-    occurrences and counting.
-
-    THE ORDER MATTERS AND IT IS DELIBERATE. This runs BEFORE the norm bound in
-    `finish_constraint_step`, so the projected gradient is renormalised to
-    exactly `clip` afterwards under `mode="normalize"`. The projected and
-    unprojected arms therefore deliver the SAME step size and differ only in
-    DIRECTION -- the same argument that makes `random_direction` a legal
-    control. Projecting after the bound would shorten the treatment's step and
-    confound direction with dose, which is the trap that made the hounie
-    baseline meaningless.
-    """
+    g <- g - (<g,ref>/<ref,ref>) ref. Return the coefficient removed, or zero
+    for a zero reference. The caller applies the norm transform afterwards.
+    The reference is usually the last CE minibatch, not a full task gradient.
+    Orthogonal raw gradients do not guarantee orthogonal Adam displacements or
+    non-increasing task loss; optimizer state and finite-step curvature matter."""
     params = [prm for prm in model.parameters()]
     dot = 0.0
     nrm = 0.0
@@ -211,15 +167,18 @@ def project_out(model, ref):
 def finish_constraint_step(model, optimizer, scaler, clip, mode="clip",
                            fp32=False, step_rule="shared", lr=None,
                            random_direction=False, ortho_ref=None,
-                           head_ids=None):
+                           head_ids=None, diagnostics=None):
     """Bound the constraint gradient and take the step.
 
-    Returns (raw_norm, applied). `raw_norm` is the true pre-clip norm, so a log
-    written from it still records what the method actually produced -- which is
-    the only way to see that a clip bound, or never did.
+    Returns (pre_clip_norm, optimizer_step_applied). The norm follows any head
+    mask/projection; it is not the untouched objective gradient. An optional
+    diagnostics dict observes the transformed gradient and actual parameter
+    displacement. Equal gradient norms do not imply equal Adam displacements.
     """
     if scaler is not None and not fp32:
+        scale_before = scaler.get_scale()
         scaler.unscale_(optimizer)
+    amp_overflow = False
 
     # BEFORE the bound, so the projected step is renormalised to the same size
     # as the unprojected one and the arms differ in direction alone.
@@ -284,6 +243,13 @@ def finish_constraint_step(model, optimizer, scaler, clip, mode="clip",
             if p.grad is not None:
                 p.grad.mul_(scale)
 
+    observed = []
+    if diagnostics is not None:
+        observed = [(p, p.detach().clone()) for p in model.parameters()
+                    if p.grad is not None]
+        transformed_norm = math.sqrt(sum(float(p.grad.detach().double().square().sum())
+                                         for p, _ in observed))
+
     if applied:
         if step_rule == "sgd":
             # Plain SGD, deliberately NOT the Adam the CE pass just took 126
@@ -336,4 +302,26 @@ def finish_constraint_step(model, optimizer, scaler, clip, mode="clip",
     if scaler is not None and not fp32:
         # The scaler still owns the CE pass, so its bookkeeping runs either way.
         scaler.update()
+        amp_overflow = scaler.get_scale() < scale_before
+        if applied and step_rule != "sgd":
+            # unscale_ records overflow before optional gradient masking.
+            # A finite masked norm cannot undo GradScaler's skipped step.
+            applied = not amp_overflow
+    if diagnostics is not None:
+        delta_sq, descent_dot = 0.0, 0.0
+        for p, before in observed:
+            delta = p.detach().double() - before.double()
+            delta_sq += float(delta.square().sum())
+            descent_dot -= float((delta * p.grad.detach().double()).sum())
+        delta_norm = math.sqrt(delta_sq)
+        denom = transformed_norm * delta_norm
+        alignment = descent_dot / denom if denom > 0 and math.isfinite(denom) else None
+        diagnostics.update(
+            pre_clip_grad_norm=raw_norm if math.isfinite(raw_norm) else None,
+            transformed_grad_norm=transformed_norm if math.isfinite(transformed_norm) else None,
+            parameter_delta_norm=delta_norm if math.isfinite(delta_norm) else None,
+            descent_alignment=alignment,
+            nonfinite_gradient=not math.isfinite(raw_norm) or amp_overflow,
+            amp_overflow_detected=amp_overflow,
+            optimizer_step_applied=bool(applied))
     return raw_norm, applied

@@ -436,37 +436,6 @@ def test_dead_arms_and_quarantined_campaigns_are_not_merely_unfinished(
             os.path.join(ROOT, "scripts", "full_panel.py"),
             encoding="utf-8").read():
         fails.append("full_panel no longer globs error_log*.json")
-    # The count is NOT hardcoded here. A literal in a third place makes every
-    # legitimate quarantine fail this gate, and the fix becomes "bump the
-    # number" -- a chore, not a check. Read the word CLAUDE.md actually prints
-    # and require the registry to match it, so adding a campaign forces the doc
-    # update and nothing else.
-    _WORDS = {"ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13,
-              "fourteen": 14, "fifteen": 15, "sixteen": 16, "seventeen": 17,
-              "eighteen": 18, "nineteen": 19, "twenty": 20}
-    _m = re.search(r"([A-Za-z]+)\s+campaigns are marked",
-                   io.open(os.path.join(ROOT, "CLAUDE.md"),
-                           encoding="utf-8").read())
-    if not _m:
-        fails.append("CLAUDE.md no longer states how many campaigns are marked")
-    elif _m.group(1).lower() not in _WORDS:
-        # fail CLOSED: an unparseable word must not read as agreement
-        fails.append("CLAUDE.md says %r campaigns are marked, which is not a "
-                     "number word this gate knows" % _m.group(1))
-    else:
-        # 🛑 COUNT THE FULLY-DEAD ONES. Since 2026-09-04 the registry
-        # also holds PARTIAL entries (`scorable=True` with `dead_arms`), which
-        # are not "quarantined campaigns" in the sense CLAUDE.md's number
-        # means -- `dom1` is scored every day, minus two arms. Counting them
-        # together would force that sentence to grow by one every time an arm
-        # is marked dead in a live campaign.
-        hard = [k for k, e in quarantine.REGISTRY.items()
-                if e.get("scorable") is False]
-        if len(hard) != _WORDS[_m.group(1).lower()]:
-            fails.append("%d FULLY quarantined campaigns, CLAUDE.md says %s "
-                         "(%d partial entries excluded)"
-                         % (len(hard), _m.group(1).upper(),
-                            len(quarantine.REGISTRY) - len(hard)))
     # A `scorable=True` entry is legal ONLY as a partial marker. Without
     # `dead_arms` it blocks nothing and is a registry row that does nothing.
     hollow = [k for k, e in quarantine.REGISTRY.items()

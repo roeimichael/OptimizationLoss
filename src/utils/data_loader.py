@@ -174,13 +174,25 @@ def _check_group_leakage(data_dir, group_column, must_be_disjoint):
     tr = os.path.join(data_dir, 'train_meta.csv')
     te = os.path.join(data_dir, 'test_meta.csv')
     if not (os.path.exists(tr) and os.path.exists(te)):
+        if must_be_disjoint:
+            raise ValueError(
+                "%s: missing train/test metadata; disjoint_groups cannot be verified"
+                % data_dir)
         return
     a, b = pd.read_csv(tr), pd.read_csv(te)
     if group_column not in a.columns or group_column not in b.columns:
+        if must_be_disjoint:
+            raise ValueError(
+                "%s: group column %r missing from metadata; disjoint_groups cannot be verified"
+                % (data_dir, group_column))
         log.warning(
             "%s: `%s` is missing from one of the meta files, so train/test "
             "group overlap CANNOT be checked.", data_dir, group_column)
         return
+    if must_be_disjoint and (a[group_column].isna().any() or b[group_column].isna().any()):
+        raise ValueError(
+            "%s: null group values in metadata; disjoint_groups cannot be verified"
+            % data_dir)
     shared = set(a[group_column]) & set(b[group_column])
     if not shared:
         return

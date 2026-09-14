@@ -2,7 +2,9 @@
 # Handles warmup and constraint phase logging with per-group columns.
 
 import csv
+import json
 import logging
+import math
 import os
 from pathlib import Path
 
@@ -11,6 +13,33 @@ import pandas as pd
 from src.utils.constants import UNLIMITED
 
 log = logging.getLogger(__name__)
+
+
+def append_constraint_event(experiment_path, event):
+    """Append strict JSON without turning a recoverable overflow into a crash.
+
+    Nonfinite observations become null, with JSON-pointer paths preserving the
+    distinction from unmeasured values. The caller's event is not modified.
+    """
+    nonfinite = {}
+
+    def encode(value, path=""):
+        if isinstance(value, float) and not math.isfinite(value):
+            nonfinite[path] = str(value)
+            return None
+        if isinstance(value, dict):
+            return {key: encode(item, path + "/" + str(key).replace("~", "~0").replace("/", "~1"))
+                    for key, item in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [encode(item, path + "/" + str(index)) for index, item in enumerate(value)]
+        return value
+
+    record = encode(event)
+    record["nonfinite_values"] = nonfinite
+    # Serialize before opening: malformed payloads cannot leave a partial row.
+    line = json.dumps(record, allow_nan=False, sort_keys=True)
+    with (Path(experiment_path) / "constraint_events.jsonl").open("a", encoding="utf-8") as handle:
+        handle.write(line + "\n")
 
 
 def build_csv_header(num_classes, local_constraints=None):

@@ -1,28 +1,12 @@
-"""Transductive prediction-count constraint penalty.
+"""Transductive prediction-count penalties and optional count estimators.
 
-For each capped (class, scope) with soft count `s` and budget `K`, with excess
-E = relu(s - K) and e = E/K:
-
-    penalty(s, K) = E/(E+K)  +  rho * e^2 / (1 + e^2)
-
-Rational saturation plus a bounded quadratic, so the whole term stays in
-[0, 1+rho) no matter how far over budget the model is. `rho` ramps over the
-constraint phase; `lambda` ratchets per class. The total is
-
-    L_constraint = sum over capped (class, scope) of  lambda * penalty(s, K)
-
-with soft (differentiable) counts here and hard (argmax) counts used only for
-verification.
-
-Scope note -- read `docs/FRAMEWORK.md` section 2a before adding a shape here.
-Roughly thirteen arms varied this penalty (rational vs quadratic vs linear, rho
-schedules, lambda schedules, finer granularity) and every one of them tied. The
-reason is structural and is not about the shape: the penalty is a function of the
-AGGREGATE COUNT, and post-hoc allocation scores only the RANKING, which an
-aggregate-count gradient cannot reorder. `_penalty` is deliberately one small
-method so a genuinely different idea is cheap to try -- but a new *shape* is a
-repeat of a closed experiment.
-"""
+The default bounded penalty uses E = relu(s - K), S = max(K, 1):
+    E/(E+S) + rho * (E/S)^2 / (1 + (E/S)^2).
+The constraint objective sums lambda times that penalty over capped scopes.
+Soft counts supply gradients; the trainer's hard counts control its ratchet.
+Shared parameters allow count gradients to reorder predictions, but neither
+reordering nor feasibility implies better classification. See docs/FRAMEWORK.md
+for the current comparison protocol; historical result claims are archived."""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -67,90 +51,24 @@ def window_temp(m, n_items):
     return clamp_denominator(t)
 
 
-def uniform_grad_count(proba):
-    """Value = `p_ic`, gradient = the SAME for every item. Returns (N, C).
+def uniform_grad_count(proba, weight=None):
+    """Return clamped probabilities with a straight-through log-odds derivative.
 
-    WHY THIS EXISTS -- measured, not argued (`scripts/order_probe.py`,
-    `results/iwc2`, 16 cell-class-seed points, 2026-08-24).
+    For u = log(p/(1-p)), the returned value is p and its surrogate derivative
+    with respect to u is a detached per-class constant w = mean_i p_i(1-p_i).
+    Chunked callers MUST pass the same full-population weight to every chunk.
+    Computing w separately per chunk changes relative class weights and makes the
+    memory chunk size part of the algorithm. The trainer accumulates w in pass 1.
 
-    The shipped count `sum_i p_ic` has per-item derivative `p(1-p)`, so the
-    penalty pushes different items by different amounts and REORDERS the class.
-    It is very good at it and it chooses badly: against its own lambda=0 twin
-    the constraint moves 73 items per cell, and the ones it pushes OUT of the
-    budget are true positives 68.8% of the time while the ones it pulls IN are
-    true positives 30.1% of the time. **Net -30.4 items per cell, 16/16
-    negative.** The control settles it -- `tralo_reseed` moves a comparable 63
-    items and nets +0.38, with evicted and admitted precision equal to three
-    decimals, so a perturbation of no consequence swaps items of equal quality
-    and this one does not.
-
-    It is NOT a boundary effect, which is what the margin window addresses: the
-    cut sits at p=0.536 but the evicted items average p=0.788 and the admitted
-    ones p=0.251. The damage spans the whole range.
-
-    THE FIX FOLLOWS FROM THE GEOMETRY. The cap is satisfiable with ZERO
-    reordering: drop the capped class's logit by a constant and every `p_ic`
-    falls monotonically while the order is exactly preserved. A harmless path
-    always exists; the shipped loss simply does not take it, because nothing in
-    the objective values the order. So take it explicitly.
-
-    The chosen coordinate is the log-odds `u_ic = log(p_ic / (1 - p_ic))`,
-    because `u_c = z_c - log sum_{k != c} exp(z_k)` gives `du_c/dz_c = 1`
-    EXACTLY.
-
-    ⛔ **THE ARGUMENT THAT FOLLOWED FROM THAT USED TO END "...so a uniform step
-    in u is a uniform step in the class logit, which is a pure bias shift,
-    which cannot reorder". IT IS FALSE, AND IT IS FALSE ONE STEP EARLIER THAN
-    `bias_shift_probe` SAYS.** That probe refutes the claim in PARAMETER space.
-    It also fails in LOGIT space, which is elementary and needs no model:
-    `du_c/dz_c = 1` is only the diagonal, and the off-diagonal is
-
-        du_c/dz_j = -p_j / (1 - p_c)        for j != c
-
-    which is NOT zero and VARIES PER ITEM. Verified against autograd in float64
-    (2026-09-02): the identity holds to 1.1e-16, `max |off-diagonal| = 0.825`,
-    and the per-item spread of that maximum is 0.30. So a step of equal size in
-    every item's `u_ic` still moves the other logits by item-dependent amounts,
-    and reordering is available to it before the backbone is even involved.
-
-    What survives, and it is the whole reason to keep this function: the step
-    no longer SINGLES OUT items through `p(1-p)`, which is the specific
-    differentiation measured at -30.4 items. That is a real change and it is
-    the one this arm tests. It is NOT order preservation, and nothing here may
-    be described as order-preserving. So:
-
-        value      p_ic                     (exact, so the K comparison is
-                                             unchanged and the penalty still
-                                             reads a real count)
-        gradient   dS/du_i = w, constant    (uniform, so no item is singled out)
-
-    built with the same detach construction the straight-through estimator
-    already uses here. `w` is the mean of `p(1-p)` over the batch, which is the
-    average of what the shipped gradient would have been -- so the total dose is
-    comparable and only its DISTRIBUTION across items changes. Under
-    `constraint_grad_mode: normalize` the delivered step is rescaled anyway, so
-    `w` sets units, not strength.
-
-    ⚠️ WHAT THIS DOES NOT DO. Uniform in OUTPUT space is not uniform in
-    PARAMETER space: the items share a backbone, so the update can still move
-    the representation and reorder through it. That channel is measured
-    NEGATIVE on its own (`iwc1`/`iwc2`, AP -0.031 / -0.094 vs the twin). This
-    mode removes the SYSTEMATIC per-item differentiation the penalty injects;
-    it does not freeze the network. `order_probe` measures which of the two was
-    doing the damage -- if `rho_arm` goes to ~1 and net items to ~0, it was the
-    output-space term; if not, it is the representation and the next lever is
-    the backbone, not the count.
-
-    PRE-REGISTERED PREDICTION, so it cannot be rewritten after the fact: this
-    recovers the -30.4 items and lands `tralo` on its own null. It is NOT
-    predicted to BEAT the null -- a uniform shift is a prior shift, and top-K is
-    invariant to prior shifts (FRAMEWORK 2(j)). Beating the null needs
-    information the ranking lacks, which is the reopened supervised per-item
-    family (2(c)), not this. "The constraint becomes free" is the claim.
-    """
+    This is not order-preserving: other-class logit derivatives and shared model
+    parameters can move different examples differently. Clamp saturation also
+    affects the derivative. A constant surrogate derivative does not imply equal
+    optimizer displacement, and this estimator carries no quality guarantee."""
     p = clamp_probability(proba)
     u = torch.log(p) - torch.log1p(-p)
-    w = (p * (1.0 - p)).mean(dim=0, keepdim=True).detach()
+    # Chunked callers must supply the detached mean over the FULL population.
+    # Otherwise a memory knob changes the relative per-class gradient weights.
+    w = ((p * (1.0 - p)).mean(dim=0, keepdim=True) if weight is None else weight).detach()
     return p.detach() + w * (u - u.detach())
 
 

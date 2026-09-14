@@ -44,7 +44,9 @@ def eligible(cfg, rows):
     """
     if cfg.get("status") == "running":
         return False, "still running"
-    has_result = bool((cfg.get("results") or {}).get("accuracy"))
+    if cfg.get("status") == "completed":
+        return False, "completed -- preserve the recorded run"
+    has_result = (cfg.get("results") or {}).get("accuracy") is not None
     if has_result:
         return False, "HAS RESULTS (accuracy present) -- resetting would " \
                       "overwrite a finished run"

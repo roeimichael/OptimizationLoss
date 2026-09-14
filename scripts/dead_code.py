@@ -36,7 +36,7 @@ import ast
 import os
 import sys
 
-DEFAULT_PATHS = ("configs", "scripts", "src")
+DEFAULT_PATHS = ("main.py", "configs", "scripts", "src")
 ENTRY = ("main", "self_test", "_self_test", "__init__", "__main__")
 
 

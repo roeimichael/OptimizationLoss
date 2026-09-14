@@ -1,4 +1,6 @@
-# PLAYBOOK -- what to do when a campaign lands, whichever way it lands
+> ARCHIVED — historical playbook, not current instructions. Follow [FRAMEWORK.md](FRAMEWORK.md) and [MISSION.md](MISSION.md).
+
+# Historical PLAYBOOK
 
 `docs/MISSION.md` says what we are trying to prove and where we are.
 **This file says what to DO next, branching on the result**, so that a landing

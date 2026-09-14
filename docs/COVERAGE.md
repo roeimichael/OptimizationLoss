@@ -1,4 +1,6 @@
-# COVERAGE -- the corpus that counts, and what it says
+> ARCHIVED — historical coverage, not the fresh corpus. Current protocol: [FRAMEWORK.md](FRAMEWORK.md); state: [MISSION.md](MISSION.md).
+
+# Historical COVERAGE
 
 Rebuilt 2026-09-02 **after clearing the stale corpus**, then **re-scored
 2026-09-02 on the AS-DEPLOYED predictions** after the panel was found to be

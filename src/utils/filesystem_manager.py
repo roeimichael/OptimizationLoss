@@ -3,6 +3,8 @@
 
 import json
 import logging
+import os
+import tempfile
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -10,13 +12,23 @@ log = logging.getLogger(__name__)
 
 def save_config_to_path(config, experiment_path):
     config_path = Path(experiment_path) / 'config.json'
-    with open(config_path, 'w') as f:
-        json.dump(config, f, indent=4)
+    # A failed write must leave the previous provenance/status record readable.
+    # Use the same filesystem for the temporary file and atomic replacement.
+    fd, temporary = tempfile.mkstemp(dir=config_path.parent, suffix='.tmp')
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=4)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temporary, config_path)
+    finally:
+        if os.path.exists(temporary):
+            os.remove(temporary)
     return str(config_path)
 
 
 def load_config_from_path(experiment_path):
-    with open(Path(experiment_path) / 'config.json', 'r') as f:
+    with open(Path(experiment_path) / 'config.json', 'r', encoding='utf-8') as f:
         return json.load(f)
 
 

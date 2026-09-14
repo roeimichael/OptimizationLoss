@@ -4,6 +4,7 @@
 
 import logging
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -149,11 +150,14 @@ def run_sequential(pending, gpu_id=None):
                   f"Remaining: {total - i}")
             print(f"  Total time: {format_duration(time.time() - overall_start)}")
             print(f"{'!'*70}")
-            break
+            raise
     return completed, failed, experiment_times, time.time() - overall_start
 
 
 def main():
+    # Detached shells can pass SIGINT=SIG_IGN to Python. Restore the handler
+    # so the documented kill -INT actually stops dispatching more experiments.
+    signal.signal(signal.SIGINT, signal.default_int_handler)
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s %(levelname)s %(message)s')
     gpu_id = select_gpu()
     gpu_info = 'CPU' if gpu_id is None else 'GPU %d' % gpu_id
@@ -164,10 +168,14 @@ def main():
     pending = get_experiments_by_status(experiment_dir)['pending']
     if not pending:
         log.info("No pending experiments")
-        return
+        return 1 if get_experiments_by_status(experiment_dir)['blocked'] else 0
     total = len(pending)
     log.info("Running %d pending experiments on %s", total, gpu_info)
-    completed, failed, experiment_times, total_time = run_sequential(pending, gpu_id=gpu_id)
+    try:
+        completed, failed, experiment_times, total_time = run_sequential(pending, gpu_id=gpu_id)
+    except KeyboardInterrupt:
+        print_status_summary(experiment_dir)
+        return 130
     print(f"\n{'='*70}")
     print("  ALL DONE")
     print(f"  Completed: {completed}  |  Failed: {failed}  |  "
@@ -176,7 +184,9 @@ def main():
         print(f"  Avg per experiment: {format_duration(sum(experiment_times)/len(experiment_times))}")
     print(f"{'='*70}\n")
     print_status_summary(experiment_dir)
+    remaining = get_experiments_by_status(experiment_dir)
+    return 1 if failed or remaining['pending'] or remaining['blocked'] else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

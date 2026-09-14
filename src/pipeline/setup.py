@@ -92,13 +92,8 @@ def seed_all(seed):
     # reductions deterministic; without it use_deterministic_algorithms raises
     # on any matmul, which on a transformer backbone is every layer.
     os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
-    try:
-        torch.use_deterministic_algorithms(True, warn_only=False)
-        det = "full"
-    except Exception as exc:                       # pragma: no cover
-        det = "cudnn-only (%s)" % type(exc).__name__
-        log.warning("use_deterministic_algorithms unavailable: %s", exc)
-    log.info("Set random seed: %d (determinism: %s)", seed, det)
+    torch.use_deterministic_algorithms(True, warn_only=False)
+    log.info("Set random seed: %d (determinism: full)", seed)
 
 
 def setup_runtime(device):

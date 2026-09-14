@@ -1,26 +1,21 @@
-"""TraLO: cross-entropy plus a bounded penalty on the predicted count.
+"""TraLO alternating task training and transductive constraint updates.
 
-    L = CE + sum over capped (class, scope) of  lambda * penalty(soft_count, K)
+Each constraint epoch takes a supervised CE pass, then one update from the
+sum of bounded count penalties. Pass 1 gathers counts in eval mode without
+gradients; pass 2 accumulates chunked gradients at that count state. Constraint
+precision and gradient transformation are explicit configuration choices.
+Lambda ratchets per capped scope using hard violations and latches on first
+satisfaction; rho has its own ramp/freeze state. JSONL events distinguish
+pre-primal counts from post-ratchet multipliers and actual parameter movement.
 
-    penalty(s, K) = E/(E+S) + rho * (E/S)^2 / (1 + (E/S)^2),
-    with E = relu(s - K) and S = max(K, 1).
-
-lambda ratchets per capped (class, scope) while the constraint is violated and
-freezes on satisfaction. The transductive passes run in eval mode; pass 1 is
-FP32 and computes the counts, pass 2 is AMP and carries the gradient, with a
-detach construction that yields the exact full-N gradient from one chunk at a
-time. A unit-norm gradient clip follows, and it is load-bearing: without it the
-predicted count collapses to zero.
-
-Everything else this file used to describe -- an undershoot hinge, a
-`bounded_only` / `undershoot_hinge` mode switch, a KL anchor to the warm-up
-distribution, a CE-saturation skip -- was DELETED from the pipeline (FRAMEWORK
-section 2f). Each was measured and each made results worse. No config can
-re-enable them.
-"""
+See docs/FRAMEWORK.md for current validation requirements. Historical variants
+and outcomes are not assumed valid merely because they appear in comments."""
 
 import logging
 import time
+import hashlib
+import json
+import uuid
 
 import torch
 import torch.nn.functional as F
@@ -36,14 +31,33 @@ from src.training.constraint_step import (
 from src.losses.transductive_loss import (cut_params, cut_window_count,
                                           margin_window, margins,
                                           uniform_grad_count, window_temp)
-from src.training.logging import log_progress_to_csv, write_csv_header
+from src.training.logging import append_constraint_event, log_progress_to_csv, write_csv_header
 from src.training.metrics import compute_prediction_statistics
 from src.training.reordering import capped_scores, reordering_report
-from src.utils.constants import UNLIMITED
+from src.utils.constants import UNLIMITED, clamp_probability
 
 log = logging.getLogger(__name__)
 
 RATCHET_MODES = ("constant", "proportional")
+
+
+def _scope_events(criterion, global_soft, global_hard, local_soft, local_hard):
+    """Snapshot penalty inputs and multipliers before this epoch's primal step."""
+    scopes = [("global", None, criterion.global_constraints, global_soft, global_hard)]
+    scopes += [("local", gid, getattr(criterion, name), local_soft[gid], local_hard[gid])
+               for gid, name in criterion.local_groups.items()]
+    rows = []
+    for scope, gid, bounds, soft, hard in scopes:
+        for c, bound in enumerate(bounds):
+            if bound >= UNLIMITED:
+                continue
+            budget, soft_count, hard_count = int(bound), float(soft[c]), int(hard[c])
+            rows.append({"scope": scope, "group": str(gid) if gid is not None else None,
+                         "class": c, "budget": budget, "soft_count": soft_count,
+                         "hard_count": hard_count, "soft_residual": soft_count - budget,
+                         "hard_residual": hard_count - budget,
+                         "multiplier_before": criterion.get_lambda_per_class(c, scope=scope, group_id=gid)})
+    return rows
 
 
 def validate_ratchet_mode(mode):
@@ -309,6 +323,8 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     min_excess_epoch = None
     min_total_excess = float("inf")
     training_start = time.time()
+    attempt_id = uuid.uuid4().hex
+    config_sha256 = hashlib.sha256(json.dumps(inputs.config, sort_keys=True).encode()).hexdigest()
 
     write_csv_header(csv_log_path, num_classes, local_con)
 
@@ -321,6 +337,8 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     cached_train_acc = 0.0
 
     for epoch in range(warmup_epochs, total_epochs):
+        epoch_start = time.time()
+        task_attempted = task_applied = 0
         # ---- CE pass ----
         model.train()
         for pg in optimizer.param_groups:
@@ -336,11 +354,15 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 loss_ce = criterion_ce(logits_ce, batch_y)
             if scaler:
                 scaler.scale(loss_ce).backward()
+                scale_before = scaler.get_scale()
                 scaler.step(optimizer)
                 scaler.update()
+                task_applied += int(scaler.get_scale() >= scale_before)
             else:
                 loss_ce.backward()
                 optimizer.step()
+                task_applied += 1
+            task_attempted += 1
             epoch_ce += loss_ce.item()
             with torch.no_grad():
                 train_correct += (logits_ce.argmax(dim=1) == batch_y).sum().item()
@@ -400,6 +422,8 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             # collect in pass 1, reduce once, hold fixed across pass 2's
             # chunks. See `cut_window_count` for why per-chunk is wrong.
             kept_proba = [] if SOFT_COUNT_MODE == "cut" else None
+            uniform_weight = (torch.zeros(1, num_classes, device=device)
+                              if SOFT_COUNT_MODE == "uniform" else None)
             for ci in range(n_chunks):
                 start = ci * chunk_size
                 end = min(start + chunk_size, n_test)
@@ -410,6 +434,9 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                     kept_margins.append(margins(chunk_proba))
                 if kept_proba is not None:
                     kept_proba.append(chunk_proba)
+                if uniform_weight is not None:
+                    p = clamp_probability(chunk_proba)
+                    uniform_weight += (p * (1 - p)).sum(dim=0, keepdim=True)
                 if take_snap:
                     snap_sum[start:end] += chunk_proba
                 total_global_soft += chunk_proba.sum(dim=0)
@@ -422,6 +449,8 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                         total_local_soft[gid] += chunk_proba[mask].sum(dim=0)
                         total_local_hard[gid] += torch.bincount(
                             chunk_preds[mask], minlength=num_classes).float()
+            if uniform_weight is not None:
+                uniform_weight /= n_test
 
         # ---- soft_count_mode / straight_through ----
         # T is DERIVED, per class, per epoch, so the window always holds
@@ -524,6 +553,9 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         loss_local_val = criterion_constraint.compute_local_from_counts(total_local_soft).item()
         bounded_total = loss_global_val + loss_local_val
         total_constraint = bounded_total
+        scope_events = _scope_events(criterion_constraint, total_global_soft,
+                                     total_global_hard, total_local_soft, total_local_hard)
+        rho_before = float(criterion_constraint.get_rho())
 
         has_constraint = total_constraint > 0
         if has_constraint:
@@ -550,7 +582,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                     # below stays exact. Only the per-item gradient changes,
                     # from p(1-p) to a constant -- see uniform_grad_count for
                     # the measurement that forced it.
-                    chunk_eff = uniform_grad_count(chunk_proba)
+                    chunk_eff = uniform_grad_count(chunk_proba, weight=uniform_weight)
                 elif SOFT_COUNT_MODE == "cut":
                     # Value is exactly `p`, like `uniform`, so pass 1's plain
                     # sum is already the right total and the detach
@@ -592,11 +624,15 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 constraint_backward(chunk_loss, scaler, step_cfg["fp32"])
 
         last_grad_norm = 0.0
+        step_diagnostics = {"optimizer_step_applied": False, "parameter_delta_norm": 0.0,
+                            "pre_clip_grad_norm": None, "transformed_grad_norm": None,
+                            "descent_alignment": None, "nonfinite_gradient": False,
+                            "amp_overflow_detected": False}
         did_backward = has_constraint
         if did_backward:
             last_grad_norm, applied = finish_constraint_step(
                 model, optimizer, scaler, ortho_ref=ortho_ref,
-                head_ids=head_ids, **step_cfg)
+                head_ids=head_ids, diagnostics=step_diagnostics, **step_cfg)
             # `applied` is False when the constraint gradient came back
             # non-finite, and then no step landed this epoch. Counting it is
             # the only way a reader can tell 29 steps from 19: the run still
@@ -652,6 +688,30 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                          epoch + 1, criterion_constraint.get_rho())
         if not rho_frozen:
             criterion_constraint.increment_rho(rho_step)
+
+        # Counts/objective are pre-primal; multipliers/rho have explicit before
+        # and after states. No extra inference or RNG draw is needed for counts.
+        after_scopes = _scope_events(criterion_constraint, total_global_soft,
+                                     total_global_hard, total_local_soft, total_local_hard)
+        for row, after in zip(scope_events, after_scopes):
+            row["multiplier_after"] = after["multiplier_before"]
+        append_constraint_event(inputs.experiment_path, {
+            "schema_version": 1, "attempt_id": attempt_id, "phase": "constraint",
+            "method": "tralo", "seed": hp["seed"], "config_sha256": config_sha256,
+            "code_version": inputs.config.get("code_version"), "device": str(device),
+            "constraint_fp32": step_cfg["fp32"], "constraint_grad_mode": step_cfg["mode"],
+            "epoch_absolute_1based": epoch + 1,
+            "constraint_epoch_1based": epoch - warmup_epochs + 1,
+            "counts_state": "post_task_pre_constraint", "count_values": "penalty_input",
+            "soft_count_mode": SOFT_COUNT_MODE, "straight_through": STRAIGHT_THROUGH,
+            "task_updates_planned": len(train_loader), "task_updates_attempted": task_attempted,
+            "task_updates_applied": task_applied, "task_updates_skipped": task_attempted - task_applied,
+            "constraint_updates_planned": 1, "constraint_updates_attempted": int(did_backward),
+            "step": step_diagnostics, "rho_before": rho_before,
+            "rho_after": float(criterion_constraint.get_rho()), "scopes": scope_events,
+            "constraint_objective_pre_step": bounded_total,
+            "task_loss_online_mean": avg_ce, "train_accuracy_online": cached_train_acc,
+            "elapsed_seconds": time.time() - epoch_start})
 
         if stable_count >= stable_count_threshold:
             log.info("Converged: constraints stable for %d epochs", stable_count)

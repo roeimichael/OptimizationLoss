@@ -5,8 +5,8 @@ constraints** — "within group *G*, predict class *C* at most *K* times" — vi
 constraint optimization during training, and test whether that beats simply clipping the
 predictions after the fact.
 
-Active research repo, not a library. The active line of work is here; the clean rewrite
-lives in [`OptimizationLossV2`](../research/OptimizationLossV2).
+Active research repository, not a library. The maintained training pipeline and
+evidence audit live here; historical experiments are not a second active architecture.
 
 ---
 
@@ -14,19 +14,22 @@ lives in [`OptimizationLossV2`](../research/OptimizationLossV2).
 
 > **[`docs/FRAMEWORK.md`](docs/FRAMEWORK.md) is the only operational document.**
 
-It holds the fixed experimental protocol, every idea that has already failed and why, the
-current honest status of each claim, and the one open question. Everything else in `docs/`
-is history. **If any other file disagrees with `FRAMEWORK.md`, `FRAMEWORK.md` wins** — this
-README included. Do not propose, run, or score anything before reading it.
+It defines the evidence boundary, metrics, validation gates and comparison protocol.
+Read [`docs/MISSION.md`](docs/MISSION.md) for actual progress and
+[`docs/REJECTED.md`](docs/REJECTED.md) for qualified historical hypotheses.
+The user requested an evidence reset on 2026-09-14: old tables and folder names
+are not validation. Historical narratives are preserved in `docs/archive/`.
+If other material disagrees with the framework, the framework wins.
 
-[`CLAUDE.md`](CLAUDE.md) is the short version: the five protocol rules that get broken most
-(warm-up/constraint epoch splits, scoring at equal dose, etc.).
+Git tracks source, tests, split metadata and curated notes. Results, checkpoints,
+compiled papers and local audit dumps stay outside GitHub. See
+[`docs/GIT_TRACKING.md`](docs/GIT_TRACKING.md) for tracking and evidence recovery.
 
 ## Method
 
 ```
 Warm-up (CE only)
-  ──► constraint optimization  (CE + global + local + KL, lambda ratchet)
+  ──► alternating task and global/local constraint updates (trained arms)
       ──► post-hoc adjustment  (global → local → reverify global)
           ──► evaluation / scoring
 ```
@@ -38,28 +41,42 @@ Hounie-RCL, ALM), plus null and reseed controls.
 
 | Path | Purpose |
 |---|---|
-| `docs/FRAMEWORK.md` | **the protocol + the ledger of what is and is not established** |
+| `docs/FRAMEWORK.md` | current protocol, evidence boundary and validation gates |
 | `configs/protocol.yml` | the fixed experimental protocol |
 | `configs/gen_campaign.py`, `task_cells.py`, `task_windows.yml` | campaign / cell definitions |
 | `src/losses/`, `src/methodologies/` | the constraint losses and the methods being compared |
 | `src/models/`, `src/training/`, `src/pipeline/` | models and the run pipeline |
 | `src/experiments/` | experiment drivers |
 | `scripts/` | probes, audits and scorers (`paper_rows.py`, `deployed_h2h.py`, `cell_table.py`, …) |
-| `evidence/` | archived prediction tarballs — the reproducibility anchor |
-| `results/` | run outputs |
-| `archive/` | superseded material |
+| `evidence/` | historical provenance/prediction tarballs; not the fresh corpus |
+| `results/` | fresh run outputs only after reset validation |
+| `docs/archive/` | superseded material; preserve as evidence, not instructions |
+| `docs/audits/` | dated verification receipts and unresolved audit findings |
 | `.github/workflows/preflight.yml` | CI preflight |
 
-## Run
+## Verify before running
 
 ```bash
 pip install -r requirements.txt
-python main.py            # see configs/protocol.yml for the campaign definition
-pytest                    # pytest.ini at repo root
+python -m pytest tests -q
+python -m scripts.preflight --before-launch
+python -m scripts.audit_config
 ```
 
-GPU runs are executed on the university `dsisco02` server.
+Campaign generation and launch must follow the framework and the
+`scripts.run_campaign` stage/verify/launch/firstrun/score gates. Explicitly scope
+the dispatcher with `EXPERIMENT_DIR` and the approved GPU with
+`CUDA_VISIBLE_DEVICES`; a bare dispatcher invocation is not a campaign definition.
+
+GPU runs use the university `dsisco01` and `dsisco02` hosts through `dsihead`.
+They share storage but have different GPU generations. VPN access and a working
+SSH key are required. The image arrays are server-side and gitignored: a fresh
+checkout is not automatically runnable, even when metadata and tests are present.
 
 ## Status
 
-Active (Sept 2026). Large on disk (~9 GB) — `evidence/`, `results/` and caches dominate.
+Cleanup and validation in progress (September 2026). Empirical superiority is an
+open question, not a guarantee. Primary quality metric: deployed cc-F1, alongside
+macro-F1, precision/recall and feasibility. A best mean is not automatically a
+statistically established win. Historical results are archived recoverably;
+fresh executions will remain distinct from genuinely untouched evaluation data.

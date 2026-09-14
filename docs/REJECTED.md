@@ -1,0 +1,27 @@
+# Historical hypotheses: disposition after the evidence reset
+
+This is not a blacklist or a list of fresh results. The user requested a new
+evidence campaign on 2026-09-14. Historical results can identify risks and tests;
+they cannot establish the new campaign's success or failure. The original
+receipts and contradictions remain locally in `archive/reset_2026-09-14/FRAMEWORK.md`;
+see `GIT_TRACKING.md` for backup recovery on a source-only clone.
+
+| Hypothesis or intervention | What the historical record supports | Current disposition |
+|---|---|---|
+| Aggregate counts cannot reorder examples | Contradicted by the shared-parameter gradient and by the loss file's own discussion of reordering | False general claim; remove it from live reasoning. Reordering may help or harm. |
+| Changing penalty shape, weights, units or dose must improve quality | Several tested settings improved a proxy without improving deployed quality; early tests also include saturated/invalid regimes | No default repeat of those settings. No universal impossibility conclusion. Require a distinct mechanism and valid regime. |
+| More constraint satisfaction means better classification | Historical interventions often changed satisfaction without improving selection | Wrong implication. Measure cc-F1 and collateral class performance separately. |
+| Ranking/pairwise methods are universally rejected | `rankpair` was once called rejected without a run receipt; subsequent headroom claims were setting-specific | Missing evidence is not a negative experiment. Any new test still needs justified headroom and matched controls. |
+| Selective head / joint objective | Recorded losses and collapse in tested configurations, often on older datasets | Historical unfavorable evidence, not a fresh baseline or a universal closure. Not the next default direction. |
+| Class-balanced and logit-adjusted CE on a uniform training prior | Algebraic equivalence to CE under the stated weighting/shift definitions | Conditional identity remains valid; verify the actual prior and gradients, not folder names or differing hashes. |
+| A constant scalar before gradient normalization changes the update | Positive overall scaling cancels under exact normalization when no other path depends on it | Conditional algebraic identity. Relative scope weights, optimizer state and numerical safeguards require separate analysis. |
+| Snapshot averaging establishes a TraLO-specific gain | Historical zero-constraint twins shared gains; comparisons were not always averaging-matched | Possible general training improvement, not demonstrated constraint novelty. Give averaging to every matched control. |
+| Below a reseed floor means no effect | The old floor estimates run-to-run spread, not uncertainty of the paired mean | Inconclusive without appropriate uncertainty/equivalence analysis. Extra seeds can improve mean precision. |
+| cc-F1 is invalid because it uses the same counts as TP | At fixed per-class emitted counts, F1 is a weighted function of TP; multiclass averaging can change priorities | cc-F1 is the current primary endpoint. Correlated metrics are not independent replications. |
+| A harder dataset or ALM's success guarantees a TraLO win | Neither implication follows from constrained optimization theory | Inspect learnable errors at actual group cuts, useful constraints, and optimization stability. |
+
+Every new entry needs: hypothesis, code/data/config identity, actual contrast,
+metric, uncertainty, scope, and one of **supported**, **unfavorable in tested
+setting**, **inconclusive**, **invalid comparison**, or **not tested**.
+Record what would justify revisiting it. Do not elevate a pilot, a missing file,
+a nominal best mean, or a folder labeled `final` into a research conclusion.

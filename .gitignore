@@ -1,160 +1,108 @@
-# Python
+# Python and build caches
 __pycache__/
 *.py[cod]
-*$py.class
 *.so
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
+.pytest_cache/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+.coverage*
+htmlcov/
 *.egg-info/
-.installed.cfg
 *.egg
-
-# Virtual Environment
+build/
+dist/
 venv/
 .venv/
 ENV/
 env/
 
-# IDE
-.idea/
-.vscode/
+# Local tools, editor state and backup bundles
+/.codex/
+/.claude/
+/.agents/
+/.semantic_scholar_mcp/
+/.idea/
+/.vscode/
+/skills-lock.json
 *.swp
 *.swo
 *~
-
-# Results and Data
-model_cache/
-models/trained_models/
-**/final_predictions_saturated.csv
-
-# Data directory - exclude dataset files but keep download scripts
-data/*.csv
-data/adult/
-data/churn/
-data/dermmnist/*
-data/tissuemnist/*
-data/aider/*
-data/bloodmnist/*
-data/retinamnist/*
-!data/dermmnist/download_data.py
-!data/tissuemnist/download_data.py
-!data/aider/download_data.py
-!data/bloodmnist/download_data.py
-!data/retinamnist/download_data.py
-!data/*/prepare_*.py
-*.npz
-*.npy
-!data/README.md
-
-# Derived working caches + dumps (regenerable from results/ + scripts/)
-briefing.html
-winning_results/
-docs/all_cells_raw.csv
-docs/full_census_report.txt
-docs/table_a_*.csv
-docs/aider_results/
-scripts/_paper_agg/__pycache__/
-
-# Archives and large files
-*.tex
-*.zip
-
-# Results (experiment outputs, not code)
-results/
-results_fetched/
-
-# External benchmark code (cloned reference repos, has own .git)
-benchmarks/
-
-# MCP server caches
-.semantic_scholar_mcp/
-
-# Claude Code
-.claude/
-
-# OS
 .DS_Store
 Thumbs.db
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.bundle
 
-# Logs and outputs
+# Experiment outputs and downloaded model/data payloads
+results/
+results_fetched/
+model_cache/
+/models/trained_models/
+/winning_results/
+/evidence/
+/archive/
+/extra_experiments/
+/benchmarks/
+*.npy
+*.npz
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.h5
+*.hdf5
+*.parquet
 *.log
-*.png
+**/training_log.csv
+**/evaluation_metrics.csv
+**/final_predictions*.csv
+**/constraint_events.jsonl
+/logs/
+/briefing.html
+/comparison_results.csv
+
+# Keep preparation code and versioned split metadata; arrays stay local.
+/data/*.csv
+/data/adult/
+/data/churn/
+/data/dermmnist/*
+/data/tissuemnist/*
+/data/aider/*
+/data/bloodmnist/*
+/data/retinamnist/*
+!/data/*/download_data.py
+!/data/*/prepare_*.py
+
+# Historical numerical evidence stays local; prose and generators stay in Git.
+/docs/paper/data/**/*.csv
+/docs/paper/data/**/*.json
+/docs/paper/tables*/
+/docs/audits/**/*.json
+/docs/audits/**/*.txt
+/docs/research/receipts/
+/docs/archive/**/*.csv
+/docs/archive/**/*.html
+/docs/all_cells_raw.csv
+/docs/full_census_report.txt
+/docs/table_a_*.csv
+/docs/aider_results/
+
+# Large pre-reset copies remain local and recoverable from the backup bundle.
+/docs/archive/reset_2026-09-14/AGENTS.md
+/docs/archive/reset_2026-09-14/CLAUDE.md
+/docs/archive/reset_2026-09-14/FRAMEWORK.md
+/docs/archive/reset_2026-09-14/MISSION.md
+
+# Compiled documents, figures and LaTeX build products; keep manuscript sources.
 *.pdf
-comparison_results.csv
-
-# ============================================================================
-# TMLR submission (paper/): un-hide the paper source that *.tex / *.png / *.pdf hide.
-!paper/**/*.tex
-!paper/figures/*.png
-!paper/figures/*.pdf
-!paper/main.pdf
-
-# The paper's data of record and its table/figure generators. Re-homed out of the
-# gitignored archive/ tree on 2026-07-31: these are the only copies, and every
-# number in the manuscript derives from them.
-#
-# ...and then the 2026-08 consolidation moved paper/ to docs/paper/. The data
-# came with it; the SCRIPTS did not, and fell back into the gitignored archive/,
-# so for eighteen days a clone of this repository could not regenerate a single
-# table or figure. Both rules below were left pointing at a path that no longer
-# exists. Re-homed a second time on 2026-08-19 to docs/paper/scripts/, which
-# nothing under docs/ ignores -- these two lines are kept only as the record of
-# how the copies were lost, and protect nothing.
-!paper/data/**
-!paper/scripts/**
-
-# Track B / handoff documents and the working manuscript revision live in docs/
-# and must not be hidden by the blanket *.tex / *.pdf rules above.
-#
-# 🛑 THESE TWO LINES DO NOT REACH `docs/archive/`, AND FOR WEEKS NOBODY KNEW.
-# git never descends into an EXCLUDED DIRECTORY, so a file-level negation can
-# not re-include anything underneath one. `archive/` below is a bare pattern
-# and therefore matches at ANY DEPTH, `docs/archive/` included -- so
-# `docs/archive/MEETING_BRIEF.tex` and `.pdf`, the very files the comment above
-# says are protected, were silently untracked. See the negation under it.
-!docs/**/*.tex
-!docs/**/*.pdf
-
-# Hypothesis's library cache. `charmap.json.gz` (21 KB) was swept into the
-# tracked set by 7f9181b3 and is a textbook committed build artifact:
-# regenerable, machine-local, and never read by a human. Untracked
-# 2026-09-10; the file stays on disk.
-.hypothesis/
-
-# Legacy / scratch trees: keep on disk, keep OUT of git
-archive/
-# 🛑 ...EXCEPT `docs/archive/`, WHICH IS THE PROJECT'S RECEIPT DRAWER AND MUST
-# BE IN GIT. The house rule is "archive, don't delete", and until 2026-09-10
-# archiving a file DID delete it: `git rm` from the old path, `mv` into
-# `docs/archive/`, and the bare `archive/` above swallowed it. Thirteen files
-# were sitting on one disk with no version history -- `main.tex` (150 KB),
-# `PAPER_REVISION_TRACKER.md` (41 KB), `BLUE_REVISION_BRIEFING.md` (36 KB, while
-# its OWN .tex and .pdf were tracked), `THESIS_CONTEXT.md`, `PAPER_PLAN.md`,
-# `MISSING_EXPERIMENTS.md`, `NATIVE_RES_CAMPAIGN.md`, `PAPER_INDEX.md` and two
-# result CSVs. Losing the tree would have lost them.
-#
-# This negation must name the DIRECTORY, not the files: re-including
-# `docs/archive/**` alone still fails, because the parent is what is excluded.
-# Build artifacts underneath are re-excluded by the *.aux / *.log rules below,
-# which DO apply once the directory itself is visible again.
-!docs/archive/
-extra_experiments/
-.agents/
-skills-lock.json
-logs/.hook_last_predictions_count
-
-# LaTeX build artifacts (regenerable; final PDF is negated above)
+*.png
+*.jpg
+*.jpeg
+*.webp
 *.aux
 *.bbl
 *.blg
@@ -163,8 +111,3 @@ logs/.hook_last_predictions_count
 *.toc
 *.fls
 *.fdb_latexmk
-
-# Archived provenance + predictions (29 MB of tarballs). Kept on disk locally
-# AND on dsisco01 at ~/OptimizationLoss/evidence/ -- deliberately not in git so
-# clones stay small. See docs/FRAMEWORK.md section 6.
-evidence/

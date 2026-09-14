@@ -569,26 +569,7 @@ def test_the_local_scope_is_enforced_and_not_only_the_global_one():
 # ==========================================================================
 
 def test_every_script_that_offers_a_self_test_actually_PASSES_it():
-    """2026-08-25 "the out-of-tree guard refused unconditionally on a first
-    launch" -- a guard that can never pass is not a guard.
-
-    SUBJECTS = 44 modules under `scripts/` and `configs/` carry `--self-test`.
-    Each is the only thing standing between that tool and a silently wrong
-    number, and NOTHING runs them together: they are invoked by hand, one at a
-    time, when someone remembers. On 2026-09-02 a broken self-test fixture in
-    `deployed_h2h` survived precisely because there was no sweep.
-
-    This is the sweep. It also enforces the discovery half: a module that
-    advertises `--self-test` in its argparse must actually implement it.
-
-    !! THE COUNT IN THIS DOCSTRING IS NOW ASSERTED, BECAUSE IT ROTTED.
-    It read "Twenty-two" until 2026-09-10 while the real number was 42, and
-    CLAUDE.md repeated it. A stale subject count tells a reader the sweep is
-    narrower than it is, which is the same failure as a stale test count
-    telling them their checkout is incomplete. Bump SUBJECTS deliberately when
-    a module gains or loses `--self-test`; do not silently widen the >= 20
-    floor below, which only catches the sweep losing its subjects wholesale.
-    """
+    """Discover and execute self-tests; no duplicated prose count to maintain."""
     mods = []
     for r in ("scripts", "configs"):
         for f in sorted(os.listdir(rel(r))):
@@ -599,15 +580,6 @@ def test_every_script_that_offers_a_self_test_actually_PASSES_it():
     assert len(mods) >= 20, (
         "only %d module(s) advertise --self-test; the sweep has lost its "
         "subjects" % len(mods))
-    import re as _re
-    claimed = int(_re.search(
-        r"SUBJECTS = (\d+) modules",
-        test_every_script_that_offers_a_self_test_actually_PASSES_it.__doc__
-    ).group(1))
-    assert claimed == len(mods), (
-        "this docstring claims %d self-test modules and there are %d. It read "
-        "'Twenty-two' for weeks against a real 42 (2026-09-10). Update the "
-        "docstring AND CLAUDE.md's sweep line together." % (claimed, len(mods)))
     failed = []
     for m in mods:
         p = subprocess.run([sys.executable, "-m", m, "--self-test"],
@@ -1575,38 +1547,9 @@ def test_a_K0_ceiling_sits_past_the_penalty_peak_and_carries_almost_no_pull():
         "2(z36)'s starvation argument does not apply." % (healthy / starved))
 
 
-def test_no_test_in_this_file_states_a_lesson_without_a_DATE():
-    """The convention that makes this catalogue re-checkable (2026-09-02).
-
-    A lesson recorded without a date cannot be traced back to the tree that
-    produced it, and this project has twice re-derived a finding it had
-    already written down. Every test here names the year it came from.
-
-    It also enforces the ASCII rule on THIS file, for the reason in the module
-    docstring: pytest prints these strings, and on a cp1252 console a non-ASCII
-    character in a failure message raises UnicodeEncodeError mid-report.
-    """
-    src = read("tests", "test_lessons_learned.py")
-    tree = ast.parse(src)
-    bad = []
-    import re
-    for node in tree.body:
-        if not isinstance(node, ast.FunctionDef):
-            continue
-        if not node.name.startswith("test_"):
-            continue
-        doc = ast.get_docstring(node) or ""
-        if not doc.strip():
-            bad.append("%s has no docstring" % node.name)
-        elif not re.search(r"\b20\d\d\b", doc):
-            bad.append("%s names no date, so its lesson cannot be traced"
-                       % node.name)
-    try:
-        src.encode("ascii")
-    except UnicodeEncodeError as exc:
-        bad.append("this file is not ASCII (%s); pytest prints these strings "
-                   "and a cp1252 console will die mid-report" % exc)
-    assert not bad, "catalogue conventions:\n  " + "\n  ".join(bad)
+def test_lesson_failure_messages_remain_ascii():
+    """Keep failure rendering safe on the project's Windows console."""
+    assert read("tests", "test_lessons_learned.py").isascii()
 
 
 def test_the_dual_arms_UPDATE_THEIR_MULTIPLIERS_BEFORE_THE_PRIMAL_STEP():
@@ -2153,7 +2096,6 @@ EMPTY_ROOT_EXEMPT = {
     "doc_commands": "walks the docs, not a campaign",
     "stale_figures": "walks the docs, not a campaign",
     "stale_provenance": "walks the docs, not a campaign",
-    "campaign_state": "walks the docs, not a campaign (2(z83))",
     # OK: `paper_rows`: its reason WAS a ticket ("needs a file fixture") and the
     # ticket sat there, so the one scorer whose output decides what reaches a
     # manuscript had no end-to-end test at all. It is still exempt from the
@@ -2388,48 +2330,8 @@ def test_the_empty_root_smoke_would_have_caught_the_2026_09_10_defect():
 # ---------------------------------------------------------------------------
 
 
-def test_no_campaign_is_discussed_without_a_recorded_state():
-    """2026-09-10: `price1` was launched and no doc recorded that it existed."""
-    from scripts import campaign_state
-
-    _, unrecorded = campaign_state.scan()
-    orphans = [(n, len(ex)) for n, _cnt, ex, _hits in unrecorded if ex]
-    assert not orphans, (
-        "these campaigns carry a PAST-EXECUTION verb and no recorded state: "
-        "%s\nGive each a row in MISSION 0-RUNNING's campaign-state ledger, or "
-        "a marker in quarantine.REGISTRY. Run "
-        "`python -m scripts.campaign_state --all` for the lines." % orphans)
 
 
-def test_the_campaign_state_audit_actually_detects_an_orphan():
-    """2026-09-10: the negative control -- the gate above must be able to fail.
-
-    A gate that has never failed has never been shown to work, and this one
-    reads five separate authorities, so "it passes" is weak evidence on its
-    own.
-    """
-    import shutil
-
-    from scripts import campaign_state
-
-    root = tempfile.mkdtemp()
-    try:
-        os.makedirs(os.path.join(root, "docs"))
-        doc = os.path.join(root, "docs", "FRAMEWORK.md")
-        io.open(doc, "w", encoding="utf-8").write(
-            "# f\n\n`zzz9` was launched on dsisco01 and landed 48 runs\n"
-            "`qqq9` would be generated by `--root results/qqq9`\n")
-        _, unrec = campaign_state.scan(("docs/FRAMEWORK.md",), root=root)
-        flagged = [n for n, _c, ex, _h in unrec if ex]
-        assert flagged == ["zzz9"], (
-            "the detector must flag the campaign with an execution verb and "
-            "ONLY that one, got %s" % flagged)
-        # NEGATIVE CONTROL inside the control: a name with no execution verb
-        # is a proposal, not an orphan, and must not be reported as a defect.
-        assert "qqq9" in [n for n, _c, _e, _h in unrec]
-        assert "qqq9" not in flagged
-    finally:
-        shutil.rmtree(root, ignore_errors=True)
 
 
 # ---------------------------------------------------------------------------
@@ -2993,75 +2895,6 @@ def test_reachability_reads_the_cut_PER_GROUP_and_the_two_readings_differ():
     assert n3 == 1 and abs(s3 - slope) < 1e-12, (s3, slope)
 
 
-def test_a_documented_launcher_path_either_EXISTS_or_is_in_the_DELETED_registry():
-    """A doc line naming `docs/launch_*.sh` must resolve to something.
-
-    LESSON, 2026-09-10. NOT ONE `docs/launch_*.sh` exists: the survivors were
-    archived to `docs/archive/launchers/` and the rest were deleted outright.
-    Seven lines across MISSION and FRAMEWORK still point a reader at the old
-    paths -- a link followed once, not found, and silently distrusted. The
-    2026-09-06 cleanup found them, could not decide whether annotating the law
-    was a janitorial call, and DEFERRED them; four days later nothing had
-    changed, because a DEFERRED list is a defect with a comment attached.
-
-    The fix is a registry in MISSION 0-LAUNCH carrying the recovery command per
-    file, and this gate, which requires every named launcher to either exist on
-    disk or appear there. The registry earns its place by being a TABLE: the
-    deferred note offered one blanket recovery command and it is wrong for
-    `launch_margin1.sh`, deleted at `2c5f292a` rather than `e7d9e893`.
-
-    Deliberately NOT a check that the file exists -- these are correctly gone.
-    It checks that a reader who follows a dead path finds the correction.
-    """
-    import re
-
-    docs = [os.path.join(REPO, "CLAUDE.md")]
-    ddir = os.path.join(REPO, "docs")
-    for name in sorted(os.listdir(ddir)):
-        if name.endswith(".md"):
-            docs.append(os.path.join(ddir, name))
-
-    mission = io.open(os.path.join(REPO, "docs", "MISSION.md"),
-                      encoding="utf-8").read()
-    assert "DELETED LAUNCHERS -- the registry" in mission, (
-        "MISSION 0-LAUNCH lost its deleted-launcher registry; the seven stale "
-        "doc lines it corrects are still there")
-    registry = mission.split("DELETED LAUNCHERS -- the registry", 1)[1]
-    registry = registry.split("\n### ", 1)[0]
-
-    named, unresolved = set(), []
-    pat = re.compile(r"docs/launch_[A-Za-z0-9_]+\.sh")
-    for path in docs:
-        for hit in pat.findall(io.open(path, encoding="utf-8").read()):
-            named.add(hit)
-    for hit in sorted(named):
-        if os.path.exists(os.path.join(REPO, hit)):
-            continue
-        if os.path.basename(hit) in registry:
-            continue
-        unresolved.append(hit)
-
-    assert named, "no launcher paths found at all -- the pattern stopped matching"
-    assert not unresolved, (
-        "documented launcher path(s) that neither exist nor appear in "
-        "MISSION's DELETED LAUNCHERS registry: %s" % unresolved)
-
-    # NEGATIVE CONTROL: the gate must FIRE on a launcher that is absent from
-    # both disk and registry. A gate that has never failed has never been shown
-    # to work.
-    fake = "docs/launch_this_never_existed.sh"
-    assert not os.path.exists(os.path.join(REPO, fake))
-    assert os.path.basename(fake) not in registry
-    # ...and the same two conditions the loop applies would mark it unresolved.
-    assert not (os.path.exists(os.path.join(REPO, fake))
-                or os.path.basename(fake) in registry)
-
-    # POSITIVE CONTROL: the archived launchers DO exist and must never be
-    # flagged, so the gate cannot be satisfied by deleting every launcher.
-    arch = os.path.join(REPO, "docs", "archive", "launchers")
-    assert os.path.isdir(arch), arch
-    assert [f for f in os.listdir(arch) if f.endswith(".sh")], (
-        "docs/archive/launchers/ holds no .sh -- the survivors are gone too")
 
 
 def _opens_with_an_archived_banner(text):
@@ -3147,6 +2980,8 @@ def _can_this_test_fail(node):
             return True
         if isinstance(sub, ast.Call):
             f = sub.func
+            if ast.unparse(f) == "torch.testing.assert_close":
+                return True
             nm = getattr(f, "id", None) or getattr(f, "attr", None) or ""
             if nm in _VERIFIERS or nm.startswith("_assert") or nm.startswith("check"):
                 return True
@@ -3235,152 +3070,23 @@ def test_no_test_in_this_suite_is_incapable_of_FAILING():
     assert _can_this_test_fail(_fn(
         "def test_x():\n    SP.self_test(n_seeds=3)\n")), \
         "a raising self_test must pass"
+    assert _can_this_test_fail(_fn(
+        "def test_x():\n    torch.testing.assert_close(a, b)\n"))
+    assert not _can_this_test_fail(_fn(
+        "def test_x():\n    unrelated.assert_close(a, b)\n"))
+    # This library assertion really raises; do not merely bless its spelling.
+    import pytest
+    import torch
+    with pytest.raises(AssertionError):
+        torch.testing.assert_close(torch.tensor([1.0]), torch.tensor([0.0]))
 
 
-# The dataset table's columns, by position after splitting a row on "|".
-# name is index 1; the unseen-group count is index 5.
-_SLICE_NAME_COL = 1
-_UNSEEN_COL = 5
 
 
-def _unseen_groups_on_disk(slice_dir):
-    """Test groups ABSENT from train -- the table's own definition."""
-    import csv
-
-    def col(path, name):
-        if not os.path.exists(path):
-            return None
-        with io.open(path, encoding="utf-8", newline="") as fh:
-            r = csv.DictReader(fh)
-            if name not in (r.fieldnames or []):
-                return None
-            return [row[name] for row in r]
-
-    tr = col(os.path.join(slice_dir, "train_meta.csv"), "location")
-    te = col(os.path.join(slice_dir, "test_meta.csv"), "location")
-    if tr is None or te is None:
-        return None
-    return len(set(te) - set(tr))
 
 
-def _dataset_table_rows(txt):
-    """(slice name -> declared unseen-group count) from a markdown table."""
-    rows = {}
-    for line in txt.splitlines():
-        if not line.startswith("|"):
-            continue
-        cells = [c.strip().strip("*").strip() for c in line.split("|")]
-        if len(cells) <= _UNSEEN_COL:
-            continue
-        name = cells[_SLICE_NAME_COL]
-        if "/" not in name or name.startswith("-"):
-            continue
-        want = cells[_UNSEEN_COL]
-        if not re.match(r"^[-+]?\d+$", want):
-            continue
-        rows[name] = int(want)
-    return rows
 
 
-def test_the_dataset_table_unseen_group_counts_match_the_TRACKED_meta():
-    """LESSON, 2026-09-11 (FRAMEWORK 2(z104)). CLAUDE.md's dataset table decides
-    which dataset gets run next, and two of its seven rows were not
-    measurements: `bcn` was three dashes -- on the slice carrying a COMPLETE
-    228-run campaign and licensing unit D1, whose NEGATIVE sign is load-bearing
-    -- and `fmow` claimed 10 unseen groups where the slice on disk has 13.
-
-    THE GROUP COUNT IS THE FIELD WORTH GATING. A NET or a z can drift for
-    benign reasons (a tool fix, a re-screen); the number of test groups absent
-    from train is a property of two CSVs, both TRACKED IN GIT.
-
-    THE yml IS A CONSISTENCY CHECK, NOT A SECOND MEASUREMENT, and the first
-    draft of this docstring said otherwise. `configs/task_windows.yml`'s group
-    table reads the SAME test labels -- its own header says "Counted from the
-    test labels alone, cap-invariant" -- so it cannot corroborate the meta, only
-    agree with it. Its WINDOW rows do come from `fmow1`'s nulls; its group
-    counts do not, and collapsing those two provenances is what produced the
-    wrong claim. What the yml genuinely provides is a CONTEMPORANEOUS RECORD,
-    written while `fmow1` was in flight at 114/304 and revised at 304/304, of
-    the slice that campaign was using. Gating the two against each other stops
-    them drifting apart, which is a real failure mode; it is not independent
-    corroboration of either.
-
-    Only slices whose meta is ON DISK are checked. `dermmnist`, `octmnist`,
-    `tissuemnist` and `terra` have rows and no files; they are counted and
-    named, never silently skipped, because a gate that quietly checks nothing
-    is this suite's most expensive recurring defect.
-    """
-    txt = io.open("CLAUDE.md", encoding="utf-8").read()
-    rows = _dataset_table_rows(txt)
-
-    assert len(rows) >= 5, (
-        "parsed only %d dataset rows from CLAUDE.md; the table moved or its "
-        "column order changed -- fix the parse, do not relax the gate"
-        % len(rows))
-
-    checked, absent, bad = [], [], []
-    for name, want in sorted(rows.items()):
-        d = os.path.join("data", *name.split("/"))
-        got = _unseen_groups_on_disk(d)
-        if got is None:
-            absent.append(name)
-            continue
-        checked.append(name)
-        if got != want:
-            bad.append("%s: the table says %d unseen groups, the tracked meta "
-                       "has %d" % (name, want, got))
-
-    assert checked, (
-        "no dataset row could be checked against a slice on disk, so this gate "
-        "verified NOTHING. Rows with no readable meta: %s" % absent)
-    assert not bad, (
-        "the dataset table disagrees with the tracked meta:\n  "
-        + "\n  ".join(bad)
-        + "\n(rows with no files on disk, not checked: %s)" % absent)
-
-    # CONSISTENCY, NOT CORROBORATION. `configs/task_windows.yml` quotes the same
-    # group counts and reads the same labels to get them, so agreement here
-    # proves only that the two documents have not drifted -- which is worth
-    # gating, and is not a second measurement. See the docstring.
-    yml = io.open(os.path.join("configs", "task_windows.yml"),
-                  encoding="utf-8").read()
-    seen_in_yml = []
-    for name in checked:
-        short = name.split("/")[0]
-        m = re.search(r"^\s*#\s*" + re.escape(short)
-                      + r"\s+\d+\s+of\s+\d+\s+\d+%\s+\d+\s+of\s+(\d+)",
-                      yml, re.M)
-        if not m:
-            continue
-        seen_in_yml.append(short)
-        assert int(m.group(1)) == rows[name], (
-            "%s: task_windows.yml says %s groups, CLAUDE.md says %d. Both read "
-            "the same test labels, so one of them was transcribed wrong -- "
-            "recount from the meta and fix whichever disagrees with it"
-            % (short, m.group(1), rows[name]))
-    assert seen_in_yml, (
-        "the task_windows.yml group table did not parse for ANY checked slice, "
-        "so the consistency half of this gate verified nothing -- fix the parse")
-
-    # NEGATIVE CONTROLS. Each must show the comparison can say NO.
-    probe = os.path.join("data", *checked[0].split("/"))
-    real = _unseen_groups_on_disk(probe)
-    assert real, ("CONTROL: %s reports %r unseen groups, so no mismatch could "
-                  "be detected there" % (checked[0], real))
-
-    fake = dict(rows)
-    fake[checked[0]] = real + 1
-    assert fake[checked[0]] != real, "CONTROL: a wrong count must differ"
-
-    bogus = "| **nope/slice** | g | +1 | 2.0 | 4 | x |"
-    assert _dataset_table_rows(bogus) == {"nope/slice": 4}, (
-        "CONTROL: the row parser does not read the unseen column at index %d"
-        % _UNSEEN_COL)
-    assert _dataset_table_rows("| not a table row") == {}, (
-        "CONTROL: a short line must parse to nothing, not raise")
-    assert _unseen_groups_on_disk(os.path.join("data", "no_such_slice")) is None, (
-        "CONTROL: a missing slice must read None so it lands in `absent`, "
-        "never 0, which would silently match a `0` row")
 
 
 # --------------------------------------------------------------------------

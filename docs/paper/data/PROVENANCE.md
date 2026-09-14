@@ -1,5 +1,11 @@
 # Results provenance — what feeds what
 
+**Tracking update (2026-09-14):** numerical evidence below is now local-only,
+including files this historical document calls committed. Generators and this
+provenance map remain tracked. The verified backup preserves every untracked
+file, including hand-maintained result tables. See [Git tracking](../../GIT_TRACKING.md)
+before reproducing the paper on a fresh clone.
+
 **Read this before changing any experimental result.** It maps every number in
 the paper back to the runs that produced it, and forward to every place a change
 must land. Companion to `docs/archive/PAPER_REVISION_TRACKER.md`, which tracked
