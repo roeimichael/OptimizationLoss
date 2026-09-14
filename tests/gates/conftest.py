@@ -30,6 +30,7 @@ uninteresting reasons gets switched off:
    function walks a table of cases, collects EVERY failure, and reports them
    together. The point is a short, readable report, not a large test count.
 """
+
 import io
 import os
 import sys
@@ -47,8 +48,8 @@ if ROOT not in sys.path:
 # the small CNNs appear in no .tex file.
 RUNNABLE_DATASETS = ("iwildcam",)
 CLAIMED_BACKBONES = ("ViTB16", "MobileNetV3", "MobileNetV2", "RegNetY400MF")
-HEADLINE_BACKBONE = "ViTB16"          # fixed a priori 2026-08-20, FRAMEWORK 1-pre
-CAPPED_CLASSES = (2, 7)               # impala, cattle
+HEADLINE_BACKBONE = "ViTB16"  # fixed a priori 2026-08-20, FRAMEWORK 1-pre
+CAPPED_CLASSES = (2, 7)  # impala, cattle
 
 
 def rel(*parts):
@@ -69,12 +70,6 @@ def protocol():
 
 
 @pytest.fixture(scope="session")
-def windows():
-    from configs.task_cells import load_windows
-    return load_windows()
-
-
-@pytest.fixture(scope="session")
 def slice_dir():
     """The iwildcam oodslice, or a skip.
 
@@ -91,8 +86,11 @@ def slice_dir():
 def report(failures, what):
     """Collect-then-assert, so one run names every problem rather than the
     first. `failures` is a list of strings."""
-    assert not failures, (
-        "%d %s:\n  - %s" % (len(failures), what, "\n  - ".join(failures)))
+    assert not failures, "%d %s:\n  - %s" % (
+        len(failures),
+        what,
+        "\n  - ".join(failures),
+    )
 
 
 def items_from_f1(d_f1, K, n):

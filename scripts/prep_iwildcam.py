@@ -44,6 +44,7 @@ for the cost of one JSON:
     python -m scripts.prep_iwildcam --annotations <cct.json>         --out data/<name>/oodslice --meta-only
     python -m scripts.dataset_screen data/<name>/oodslice
 """
+
 import argparse
 import io
 import json
@@ -53,8 +54,10 @@ import subprocess
 import numpy as np
 import pandas as pd
 
-SHARD_URL = ("https://huggingface.co/datasets/anngrosha/iWildCam2020/resolve/"
-             "main/data/train-%05d-of-00190.parquet")
+SHARD_URL = (
+    "https://huggingface.co/datasets/anngrosha/iWildCam2020/resolve/"
+    "main/data/train-%05d-of-00190.parquet"
+)
 N_SHARDS = 190
 DROP = ("empty", "unknown", "misfire", "start", "end")
 
@@ -69,9 +72,16 @@ def build_split(ann_path, n_classes, min_per_camera, test_target, seed=0):
     d = json.load(open(ann_path, encoding="utf-8"))
     cat = {c["id"]: c["name"] for c in d["categories"]}
     lab = {a["image_id"]: a["category_id"] for a in d["annotations"]}
-    df = pd.DataFrame([{"file_name": os.path.basename(im["file_name"]),
-                        "location": im["location"], "raw": lab.get(im["id"])}
-                       for im in d["images"]]).dropna(subset=["raw"])
+    df = pd.DataFrame(
+        [
+            {
+                "file_name": os.path.basename(im["file_name"]),
+                "location": im["location"],
+                "raw": lab.get(im["id"]),
+            }
+            for im in d["images"]
+        ]
+    ).dropna(subset=["raw"])
     df["raw"] = df["raw"].astype(int)
     drop_ids = [k for k, v in cat.items() if v in DROP]
     df = df[~df["raw"].isin(drop_ids)]
@@ -122,11 +132,14 @@ def write_meta(out_dir, split, labels, filenames, locations):
     practice on every dataset except the one already on disk.
     """
     os.makedirs(out_dir, exist_ok=True)
-    pd.DataFrame({"label": np.asarray(labels, np.int64),
-                  "class_name": ["c%d" % int(v) for v in labels],
-                  "filename": list(filenames),
-                  "location": list(locations)}).to_csv(
-        os.path.join(out_dir, "%s_meta.csv" % split), index=False)
+    pd.DataFrame(
+        {
+            "label": np.asarray(labels, np.int64),
+            "class_name": ["c%d" % int(v) for v in labels],
+            "filename": list(filenames),
+            "location": list(locations),
+        }
+    ).to_csv(os.path.join(out_dir, "%s_meta.csv" % split), index=False)
 
 
 def collect(targets, out_dir, cache):
@@ -134,20 +147,21 @@ def collect(targets, out_dir, cache):
     from PIL import Image
     import pyarrow.parquet as pq
 
-    want = dict(targets)                    # file_name -> (split, label, loc)
+    want = dict(targets)  # file_name -> (split, label, loc)
     got = {"train": [], "test": []}
     shard = os.path.join(cache, "_shard.parquet")
     for i in range(N_SHARDS):
         if not want:
             break
-        rc = subprocess.call(["curl", "-sL", "--max-time", "900", "-o", shard,
-                              SHARD_URL % i])
+        rc = subprocess.call(
+            ["curl", "-sL", "--max-time", "900", "-o", shard, SHARD_URL % i]
+        )
         if rc != 0 or not os.path.exists(shard):
             print("  shard %d: download failed (rc=%d), skipping" % (i, rc))
             continue
         try:
             tbl = pq.read_table(shard)
-        except Exception as exc:                       # a truncated shard
+        except Exception as exc:  # a truncated shard
             print("  shard %d: unreadable (%s), skipping" % (i, exc))
             os.remove(shard)
             continue
@@ -159,13 +173,16 @@ def collect(targets, out_dir, cache):
                 continue
             split, label, loc = want.pop(name)
             img = Image.open(io.BytesIO(cell["bytes"])).convert("RGB")
-            got[split].append((np.asarray(img.resize((224, 224)), np.uint8),
-                               label, loc, name))
+            got[split].append(
+                (np.asarray(img.resize((224, 224)), np.uint8), label, loc, name)
+            )
             hits += 1
         os.remove(shard)
-        print("  shard %3d/%d: +%4d kept (train %d, test %d, %d still wanted)"
-              % (i + 1, N_SHARDS, hits, len(got["train"]), len(got["test"]),
-                 len(want)), flush=True)
+        print(
+            "  shard %3d/%d: +%4d kept (train %d, test %d, %d still wanted)"
+            % (i + 1, N_SHARDS, hits, len(got["train"]), len(got["test"]), len(want)),
+            flush=True,
+        )
 
     os.makedirs(out_dir, exist_ok=True)
     for split in ("train", "test"):
@@ -183,21 +200,24 @@ def collect(targets, out_dir, cache):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--annotations",
-                    default="data/iwildcam/train_annotations.json")
+    ap.add_argument("--annotations", default="data/iwildcam/train_annotations.json")
     ap.add_argument("--out", default="data/iwildcam/oodslice")
     ap.add_argument("--classes", type=int, default=8)
     ap.add_argument("--min-per-camera", type=int, default=120)
     ap.add_argument("--test-target", type=int, default=1800)
     ap.add_argument("--train-per-class", type=int, default=2500)
-    ap.add_argument("--meta-only", action="store_true",
-                    help="write only the label/location CSVs and stop, so "
-                         "`dataset_screen` can price a candidate dataset "
-                         "BEFORE a single image is downloaded")
+    ap.add_argument(
+        "--meta-only",
+        action="store_true",
+        help="write only the label/location CSVs and stop, so "
+        "`dataset_screen` can price a candidate dataset "
+        "BEFORE a single image is downloaded",
+    )
     args = ap.parse_args()
 
-    tr, te, names, cams = build_split(args.annotations, args.classes,
-                                      args.min_per_camera, args.test_target)
+    tr, te, names, cams = build_split(
+        args.annotations, args.classes, args.min_per_camera, args.test_target
+    )
     rng = np.random.default_rng(0)
     keep = []
     for c in sorted(tr["label"].unique()):
@@ -209,26 +229,35 @@ def main():
     print("iWildCam held-out-camera slice")
     print("  classes      : %s" % {k: v[:22] for k, v in sorted(names.items())})
     print("  test cameras : %s (held out ENTIRE)" % cams)
-    print("  train        : %d images, %d cameras" % (len(tr),
-                                                      tr["location"].nunique()))
-    print("  test         : %d images, %d cameras" % (len(te),
-                                                      te["location"].nunique()))
-    print("  overlap      : %d cameras (must be 0)"
-          % len(set(te["location"]) & set(tr["location"])))
+    print(
+        "  train        : %d images, %d cameras" % (len(tr), tr["location"].nunique())
+    )
+    print(
+        "  test         : %d images, %d cameras" % (len(te), te["location"].nunique())
+    )
+    print(
+        "  overlap      : %d cameras (must be 0)"
+        % len(set(te["location"]) & set(tr["location"]))
+    )
     print("  test per class: %s" % te["label"].value_counts().sort_index().to_dict())
     print("")
 
     if args.meta_only:
         for split, frame in (("train", tr), ("test", te)):
-            write_meta(args.out, split, frame["label"], frame["file_name"],
-                       frame["location"])
-        print("  META ONLY -- no images fetched. Wrote train_meta.csv and "
-              "test_meta.csv to %s" % args.out)
-        print("  !!  This is the INTENDED slice. The full run screens the "
-              "DELIVERED one, which is smaller whenever a shard fails to "
-              "download, so a meta-only NET is an upper bound on the real "
-              "one -- good enough to REJECT a candidate, never to accept a "
-              "borderline one.")
+            write_meta(
+                args.out, split, frame["label"], frame["file_name"], frame["location"]
+            )
+        print(
+            "  META ONLY -- no images fetched. Wrote train_meta.csv and "
+            "test_meta.csv to %s" % args.out
+        )
+        print(
+            "  !!  This is the INTENDED slice. The full run screens the "
+            "DELIVERED one, which is smaller whenever a shard fails to "
+            "download, so a meta-only NET is an upper bound on the real "
+            "one -- good enough to REJECT a candidate, never to accept a "
+            "borderline one."
+        )
         print("")
         print("  now run:  python -m scripts.dataset_screen %s" % args.out)
         return

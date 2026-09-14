@@ -39,6 +39,7 @@ this project removed after it nulled.
     python -m scripts.factorial_control data/isic/oodslice
     python -m scripts.prep_isic --out data/isic/oodslice               # +9.8 GB
 """
+
 import argparse
 import io
 import os
@@ -53,7 +54,7 @@ from scripts.prep_iwildcam import write_meta
 BASE = "https://isic-challenge-data.s3.amazonaws.com/2019/"
 GT = "ISIC_2019_Training_GroundTruth.csv"
 MD = "ISIC_2019_Training_Metadata.csv"
-IMAGES = "ISIC_2019_Training_Input.zip"          # 9,771,618,190 bytes
+IMAGES = "ISIC_2019_Training_Input.zip"  # 9,771,618,190 bytes
 AGE_BINS = [-1, 29, 39, 49, 59, 69, 79, 200]
 AGE_NAMES = ["<30", "30s", "40s", "50s", "60s", "70s", "80+"]
 
@@ -62,8 +63,9 @@ def fetch(cache, name):
     path = os.path.join(cache, name)
     if not os.path.exists(path):
         os.makedirs(cache, exist_ok=True)
-        rc = subprocess.call(["curl", "-sL", "--max-time", "3600", "-o", path,
-                              BASE + name])
+        rc = subprocess.call(
+            ["curl", "-sL", "--max-time", "3600", "-o", path, BASE + name]
+        )
         if rc != 0 or not os.path.exists(path):
             raise SystemExit("download failed: %s (rc=%d)" % (name, rc))
     return path
@@ -80,8 +82,7 @@ def load(cache):
     # with no lesion_id are the legacy ISIC-archive submissions.
     df["src"] = df["lesion_id"].fillna("LEGACY").astype(str).str.split("_").str[0]
     df["site"] = df["anatom_site_general"].fillna("unknown")
-    df["age"] = pd.cut(df["age_approx"], bins=AGE_BINS,
-                       labels=AGE_NAMES).astype(str)
+    df["age"] = pd.cut(df["age_approx"], bins=AGE_BINS, labels=AGE_NAMES).astype(str)
     df["group"] = df["site"] + "|" + df["age"]
     # a lesion with no id is its own singleton, never a shared identity
     df["lesion"] = df["lesion_id"].fillna("").astype(str)
@@ -90,8 +91,9 @@ def load(cache):
     return df
 
 
-def build_split(df, sources, n_classes, min_per_group, max_per_group,
-                test_target, seed=0, tries=400):
+def build_split(
+    df, sources, n_classes, min_per_group, max_per_group, test_target, seed=0, tries=400
+):
     """Pick the classes, then hold out whole (site x age) groups for test.
 
     Groups are held out ENTIRE and LESIONS are held disjoint: ISIC ships up to
@@ -138,6 +140,7 @@ def build_split(df, sources, n_classes, min_per_group, max_per_group,
 def collect(tr, te, out_dir, cache):
     """Extract ONLY the slice's members from the training zip, then resize."""
     from PIL import Image
+
     zpath = fetch(cache, IMAGES)
     want = {}
     for split, d in (("train", tr), ("test", te)):
@@ -152,8 +155,9 @@ def collect(tr, te, out_dir, cache):
             split, lab, grp = want.pop(name)
             with z.open(member) as fh:
                 im = Image.open(io.BytesIO(fh.read())).convert("RGB")
-            got[split].append((np.asarray(im.resize((224, 224)), np.uint8),
-                               lab, grp, name))
+            got[split].append(
+                (np.asarray(im.resize((224, 224)), np.uint8), lab, grp, name)
+            )
     if want:
         print("  WARNING: %d wanted images not found in the zip" % len(want))
     os.makedirs(out_dir, exist_ok=True)
@@ -161,8 +165,10 @@ def collect(tr, te, out_dir, cache):
         rows = got[split]
         if not rows:
             raise SystemExit("collected 0 %s images" % split)
-        np.save(os.path.join(out_dir, "%s_images.npy" % split),
-                np.stack([r[0] for r in rows]))
+        np.save(
+            os.path.join(out_dir, "%s_images.npy" % split),
+            np.stack([r[0] for r in rows]),
+        )
         y = np.asarray([r[1] for r in rows], np.int64)
         np.save(os.path.join(out_dir, "%s_labels.npy" % split), y)
         write_meta(out_dir, split, y, [r[3] for r in rows], [r[2] for r in rows])
@@ -173,37 +179,55 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="data/isic/oodslice")
     ap.add_argument("--cache", default="data/isic/_cache")
-    ap.add_argument("--sources", default="BCN",
-                    help="archives to KEEP. BCN alone is the screened slice; "
-                         "pooling BCN,HAM makes the novelty interpolable")
+    ap.add_argument(
+        "--sources",
+        default="BCN",
+        help="archives to KEEP. BCN alone is the screened slice; "
+        "pooling BCN,HAM makes the novelty interpolable",
+    )
     ap.add_argument("--classes", type=int, default=8)
     ap.add_argument("--min-per-group", type=int, default=150)
     ap.add_argument("--max-per-group", type=int, default=1200)
     ap.add_argument("--test-target", type=int, default=2900)
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--meta-only", action="store_true",
-                    help="stop after the split: 2.5 MB of CSV, no images, no GPU")
+    ap.add_argument(
+        "--meta-only",
+        action="store_true",
+        help="stop after the split: 2.5 MB of CSV, no images, no GPU",
+    )
     args = ap.parse_args()
 
     df = load(args.cache)
     tr, te, names, test_g, n_drop = build_split(
-        df, set(args.sources.split(",")), args.classes, args.min_per_group,
-        args.max_per_group, args.test_target, args.seed)
+        df,
+        set(args.sources.split(",")),
+        args.classes,
+        args.min_per_group,
+        args.max_per_group,
+        args.test_target,
+        args.seed,
+    )
     print("  classes: %s" % names)
     print("  train %d / test %d" % (len(tr), len(te)))
     print("  test groups (%d, all unseen in training): %s" % (len(test_g), test_g))
     print("  lesion-leak images dropped from TRAIN: %d" % n_drop)
-    print("  test class counts: %s"
-          % te["label"].value_counts().sort_index().to_dict())
+    print("  test class counts: %s" % te["label"].value_counts().sort_index().to_dict())
 
     if args.meta_only:
         os.makedirs(args.out, exist_ok=True)
         for split, d in (("train", tr), ("test", te)):
-            write_meta(args.out, split, d["label"].values,
-                       (d["image"] + ".jpg").values, d["group"].values)
+            write_meta(
+                args.out,
+                split,
+                d["label"].values,
+                (d["image"] + ".jpg").values,
+                d["group"].values,
+            )
         print("  META ONLY: wrote the two CSVs dataset_screen reads. No images.")
-        print("  A meta-only NET is the INTENDED slice, so it is an UPPER "
-              "bound: good enough to REJECT, never to accept a borderline one.")
+        print(
+            "  A meta-only NET is the INTENDED slice, so it is an UPPER "
+            "bound: good enough to REJECT, never to accept a borderline one."
+        )
         return
     collect(tr, te, args.out, args.cache)
 

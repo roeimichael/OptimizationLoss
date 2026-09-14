@@ -42,6 +42,7 @@ we re-split by country ourselves regardless of the original train/val boundary.
     python -m scripts.factorial_control data/fmow/oodslice             # expect ~100%
     python -m scripts.prep_fmow --out data/fmow/oodslice               # +1.65 GB
 """
+
 import argparse
 import io
 import json
@@ -54,9 +55,9 @@ import pandas as pd
 
 from scripts.prep_iwildcam import write_meta
 
-BASE = ("https://huggingface.co/datasets/jbourcier/fmow-rgb-baseline/resolve/main/")
-META = "val-metadata.tar.gz"          # 51,905,314 B
-IMAGES = "val-images.tar.gz"          # 1,652,231,185 B
+BASE = "https://huggingface.co/datasets/jbourcier/fmow-rgb-baseline/resolve/main/"
+META = "val-metadata.tar.gz"  # 51,905,314 B
+IMAGES = "val-images.tar.gz"  # 1,652,231,185 B
 DROP = ("false_detection",)
 
 
@@ -64,8 +65,9 @@ def fetch(cache, name):
     path = os.path.join(cache, name)
     if not os.path.exists(path):
         os.makedirs(cache, exist_ok=True)
-        rc = subprocess.call(["curl", "-sL", "--max-time", "3600", "-o", path,
-                              BASE + name])
+        rc = subprocess.call(
+            ["curl", "-sL", "--max-time", "3600", "-o", path, BASE + name]
+        )
         if rc != 0 or not os.path.exists(path):
             raise SystemExit("download failed: %s (rc=%d)" % (name, rc))
     return path
@@ -78,22 +80,27 @@ def load(cache):
         for m in t:
             if not m.isfile() or not m.name.endswith(".json"):
                 continue
-            parts = m.name.split("/")        # split / class / class_seq / aoi / file
+            parts = m.name.split("/")  # split / class / class_seq / aoi / file
             try:
                 d = json.load(t.extractfile(m))
             except Exception:
                 continue
-            rows.append({"file": os.path.basename(m.name)[:-5] + ".jpg",
-                         "raw": parts[1],             # the label, from the PATH
-                         "site": parts[2],
-                         "group": d.get("country_code"),
-                         "timestamp": d.get("timestamp")})
+            rows.append(
+                {
+                    "file": os.path.basename(m.name)[:-5] + ".jpg",
+                    "raw": parts[1],  # the label, from the PATH
+                    "site": parts[2],
+                    "group": d.get("country_code"),
+                    "timestamp": d.get("timestamp"),
+                }
+            )
     df = pd.DataFrame(rows).dropna(subset=["group"])
     return df[~df["raw"].isin(DROP)].copy()
 
 
-def build_split(df, n_classes, min_per_group, max_per_group, test_target,
-                seed=0, tries=400):
+def build_split(
+    df, n_classes, min_per_group, max_per_group, test_target, seed=0, tries=400
+):
     """Pick the classes, then hold out whole COUNTRIES for test.
 
     Countries are held out ENTIRE. An fMoW site sits inside one country, so
@@ -134,6 +141,7 @@ def build_split(df, n_classes, min_per_group, max_per_group, test_target,
 def collect(tr, te, out_dir, cache):
     """Stream the image tarball, keeping only the slice's members."""
     from PIL import Image
+
     want = {}
     for split, d in (("train", tr), ("test", te)):
         for f, lab, grp in zip(d["file"], d["label"], d["group"]):
@@ -148,7 +156,7 @@ def collect(tr, te, out_dir, cache):
                 continue
             split, lab, grp = want.pop(name)
             im = Image.open(io.BytesIO(t.extractfile(m).read())).convert("RGB")
-            if im.size != (224, 224):        # the mirror ships 224x224 already
+            if im.size != (224, 224):  # the mirror ships 224x224 already
                 im = im.resize((224, 224))
             got[split].append((np.asarray(im, np.uint8), lab, grp, name))
     if want:
@@ -158,8 +166,10 @@ def collect(tr, te, out_dir, cache):
         rows = got[split]
         if not rows:
             raise SystemExit("collected 0 %s images" % split)
-        np.save(os.path.join(out_dir, "%s_images.npy" % split),
-                np.stack([r[0] for r in rows]))
+        np.save(
+            os.path.join(out_dir, "%s_images.npy" % split),
+            np.stack([r[0] for r in rows]),
+        )
         y = np.asarray([r[1] for r in rows], np.int64)
         np.save(os.path.join(out_dir, "%s_labels.npy" % split), y)
         write_meta(out_dir, split, y, [r[3] for r in rows], [r[2] for r in rows])
@@ -175,27 +185,37 @@ def main():
     ap.add_argument("--max-per-group", type=int, default=1200)
     ap.add_argument("--test-target", type=int, default=2900)
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--meta-only", action="store_true",
-                    help="stop after the split: 52 MB, no images, no GPU")
+    ap.add_argument(
+        "--meta-only",
+        action="store_true",
+        help="stop after the split: 52 MB, no images, no GPU",
+    )
     args = ap.parse_args()
 
     df = load(args.cache)
-    print("  %d sidecars, %d classes, %d countries"
-          % (len(df), df["raw"].nunique(), df["group"].nunique()))
+    print(
+        "  %d sidecars, %d classes, %d countries"
+        % (len(df), df["raw"].nunique(), df["group"].nunique())
+    )
     tr, te, names, test_g = build_split(
-        df, args.classes, args.min_per_group, args.max_per_group,
-        args.test_target, args.seed)
+        df,
+        args.classes,
+        args.min_per_group,
+        args.max_per_group,
+        args.test_target,
+        args.seed,
+    )
     print("  classes: %s" % names)
     print("  train %d / test %d" % (len(tr), len(te)))
     print("  test countries (%d, all unseen): %s" % (len(test_g), test_g))
-    print("  test class counts: %s"
-          % te["label"].value_counts().sort_index().to_dict())
+    print("  test class counts: %s" % te["label"].value_counts().sort_index().to_dict())
 
     if args.meta_only:
         os.makedirs(args.out, exist_ok=True)
         for split, d in (("train", tr), ("test", te)):
-            write_meta(args.out, split, d["label"].values, d["file"].values,
-                       d["group"].values)
+            write_meta(
+                args.out, split, d["label"].values, d["file"].values, d["group"].values
+            )
         print("  META ONLY: wrote the two CSVs dataset_screen reads. No images.")
         return
     collect(tr, te, args.out, args.cache)

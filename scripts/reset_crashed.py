@@ -16,6 +16,7 @@ Use it after fixing the cause of a crash:
     python -m scripts.reset_crashed <campaign-root>            # dry run
     python -m scripts.reset_crashed <campaign-root> --apply
 """
+
 import argparse
 import glob
 import json
@@ -48,24 +49,34 @@ def eligible(cfg, rows):
         return False, "completed -- preserve the recorded run"
     has_result = (cfg.get("results") or {}).get("accuracy") is not None
     if has_result:
-        return False, "HAS RESULTS (accuracy present) -- resetting would " \
-                      "overwrite a finished run"
+        return (
+            False,
+            "HAS RESULTS (accuracy present) -- resetting would "
+            "overwrite a finished run",
+        )
     if rows >= MIN_ROWS:
-        return False, "has %d epochs logged but no results; inspect it by " \
-                      "hand rather than discarding" % rows
+        return (
+            False,
+            "has %d epochs logged but no results; inspect it by "
+            "hand rather than discarding" % rows,
+        )
     return True, "no results, %d epoch(s) logged" % rows
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("root")
-    ap.add_argument("--apply", action="store_true",
-                    help="write the change; without it this is a dry run")
+    ap.add_argument(
+        "--apply",
+        action="store_true",
+        help="write the change; without it this is a dry run",
+    )
     args = ap.parse_args()
 
     reset = refused = 0
-    for cfgp in sorted(glob.glob(os.path.join(args.root, "**", "config.json"),
-                                 recursive=True)):
+    for cfgp in sorted(
+        glob.glob(os.path.join(args.root, "**", "config.json"), recursive=True)
+    ):
         d = os.path.dirname(cfgp)
         crash = glob.glob(os.path.join(d, "error_log*.json"))
         if not crash:
@@ -78,15 +89,18 @@ def main():
             print("  SKIP  %-46s %s" % (rel, why))
             continue
         reset += 1
-        print("  RESET %-46s %s (failures %s -> 0)"
-              % (rel, why, cfg.get("failures", 0)))
+        print(
+            "  RESET %-46s %s (failures %s -> 0)" % (rel, why, cfg.get("failures", 0))
+        )
         if args.apply:
             cfg["status"] = "pending"
             cfg["failures"] = 0
             json.dump(cfg, open(cfgp, "w", encoding="utf-8"), indent=2)
 
-    print("\n%d reset, %d refused%s"
-          % (reset, refused, "" if args.apply else "  (DRY RUN -- pass --apply)"))
+    print(
+        "\n%d reset, %d refused%s"
+        % (reset, refused, "" if args.apply else "  (DRY RUN -- pass --apply)")
+    )
     # The crash logs stay on disk under their own names. full_panel globs
     # error_log*.json, so a run that died and was retried still reports as
     # having crashed -- renaming them away is how a dead arm goes back to

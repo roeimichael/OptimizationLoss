@@ -1,367 +1,120 @@
-"""How much is there to win here, in F1 and in ITEMS? Ask before running.
+"""Development diagnostics at each actual group/class allocation cut.
 
-Every number this prints went into docs/FRAMEWORK.md section 4 on 2026-08-21
-from a throwaway script. That violates this project's own standard -- section
-1a exists because protocol numbers with no reproduction path had to be
-re-derived under doubt -- so it lives here now.
-
-IT SCORES THE WAY THE SCORER SCORES. `achieved` is `equalize_multi` over the
-real global AND local budgets, the same call `full_panel` makes, so it is the
-control's `_eq` number rather than an approximation of it. Two nearby
-quantities are NOT that number, and both were tried here first:
-
-  - the RAW argmax ignores the budget entirely (it emits 97 class-1 items
-    against K=31), so scoring the control on it beats the ceiling outright and
-    prints a NEGATIVE headroom.
-  - the STORED final_predictions.csv is the RUNTIME allocator's output, which
-    lands on K-1 about a third of the time. That is a different allocation from
-    the scorer's, and at L50_G50 it scores HIGHER, not lower.
-
-FOUR THINGS, all read off stored predictions, no GPU:
-
-  CEILING     2K/(K+n): recall <= K/n and precision <= 1, so nothing can beat
-              it. An upper bound -- local caps can put it out of reach.
-              HEADROOM is that minus what the control achieved.
-
-              READ IT AS RANKING QUALITY, NOT ALLOCATOR SLACK. `equalize`
-              already takes the top K by probability, which is optimal for
-              expected TP given those probabilities, so the allocator gives up
-              ~nothing and essentially the whole gap is the RANKING. That makes
-              headroom the right target for a method that changes TRAINING and
-              the wrong one for a better allocator -- and it means a large
-              headroom can just mean a weak classifier. tissuemnist shows 0.36
-              at L50 against dermmnist's 0.075, and that is mostly the model
-              being bad at tissuemnist, not opportunity.
-
-  BINDS       in how many seeds the model actually exceeds K. The penalty is
-              relu(hard - K), so a seed already under budget gets an
-              identically ZERO constraint gradient and the arm is its own null
-              there. dermmnist binds 4/4 everywhere; octmnist class 2 binds 3/4
-              at L50 and 2/4 at L70; tissuemnist class 1 binds 2/4 at L30 and
-              1/4 at L50. The mean excess HIDES this -- tissuemnist L30 class 1
-              averages a healthy +10.8 while binding in half its seeds.
-  ITEMS       F1 = 2TP/(K+n) is linear in TP, so items = dF1*(K+n)/2. Convert
-              before believing a delta: the paired seed sd is worth a couple of
-              items on its own.
-  EXCESS      how far over budget the model starts. A tight cap gives the
-              constraint MORE to move and LESS to win; the cap level is that
-              trade-off and neither end is free.
-  SHORTFALL   how often the runtime allocator emits fewer than K. Never OVER,
-              so no cap is violated, and the scorer re-equalizes, so it reaches
-              nothing scored -- it reaches anything read off the stored
-              predictions.
-
-    python -m scripts.headroom <campaign-root> [--control clip]
+Diagnostics use the stored deployed selection, including global competition.
+They do not select a campaign or certify learnability.
 """
 
 import argparse
 import json
-import re
-import sys
 from pathlib import Path
-
+import sys
 import numpy as np
 import pandas as pd
-
-from scripts import quarantine
-from scripts.full_panel import effective_budget, equalize_multi
-from src.training.constraints import (compute_global_constraints,
-                                      compute_local_constraints,
-                                      normalize_constrained_classes)
+from src.training.constraints import (
+    compute_global_constraints,
+    compute_local_constraints,
+    normalize_constrained_classes,
+)
 from src.utils.constants import UNLIMITED
 
 
+def effective_budget(G, L, c):
+    local = sum(bounds[c] for bounds in L.values()) if L else UNLIMITED
+    return min(G[c], local)
+
+
 def run_axes(parts):
-    """(backbone, dataset) for a run, from its path parts.
-
-    <root>/<Backbone>/<dataset>/<cap>/<arm>/<seed>, so the backbone is 5 from
-    the end and the dataset 4.
-
-    🛑 REFUSES rather than bucketing under "?", exactly as the cap tag above
-    does. Pooling cap levels is the axis this project has retracted a claim
-    over three times and it is guarded; the BACKBONE was not, and rule 4 names
-    it just as explicitly. A run too shallow to say which backbone it is cannot
-    be silently averaged into one that does. FRAMEWORK 2(z52).
-    """
     if len(parts) < 5:
-        raise SystemExit(
-            "REFUSED: %r is too shallow to say which backbone and dataset it "
-            "is. Pooling two backbones averages two models' achieved cc-F1 "
-            "into a headroom that describes neither."
-            % ("/".join(parts),))
+        raise SystemExit("REFUSED: run path must include backbone/dataset/cap/arm/seed")
     return parts[-5], parts[-4]
 
 
 def load(d):
-    """(y, group ids, probabilities, classes, global caps, local caps) or None.
-
-    Deliberately the same construction as the loader in full_panel. If these
-    two ever disagree about what a run's budget is, the headroom is measured
-    against a bar that nothing is scored on.
-    """
     cfg = json.loads((d / "config.json").read_text(encoding="utf-8"))
     t = pd.read_csv(d / "final_predictions_raw.csv")
-    cols = sorted((int(c[len("Prob_Class_"):]), c) for c in t.columns
-                  if c.startswith("Prob_Class_"))
-    P = t[[c for _, c in cols]].to_numpy(dtype=float)
-    if not np.isfinite(P).all():
-        return None
-    P = P / np.clip(P.sum(axis=1, keepdims=True), 1e-12, None)
-    y = t["True_Label"].to_numpy(int)
-    g = t["Group_ID"].to_numpy(int)
-    classes = normalize_constrained_classes(
-        (cfg.get("dataset_config") or {}).get("constrained_class"))
+    cols = sorted((int(c[11:]), c) for c in t if c.startswith("Prob_Class_"))
+    P = t[[c for _, c in cols]].to_numpy(float)
+    if not len(P) or not np.isfinite(P).all() or (P < 0).any() or (P.sum(1) <= 0).any():
+        raise ValueError("invalid probabilities in %s" % d)
+    P = P / P.sum(axis=1, keepdims=True)
+    y, g = t["True_Label"].to_numpy(int), t["Group_ID"].to_numpy()
+    classes = normalize_constrained_classes(cfg["dataset_config"]["constrained_class"])
     lp, gp = cfg["constraint"]
     df = pd.DataFrame({"label": y, "grp": g})
-    G = compute_global_constraints(df, "label", gp, constrained_class=classes,
-                                   num_classes=P.shape[1])
-    L = compute_local_constraints(df, "label", lp, "grp",
-                                  constrained_class=classes,
-                                  num_classes=P.shape[1])
-    classes = [c for c in classes
-               if G[c] < UNLIMITED or any(b[c] < UNLIMITED for b in L.values())]
-    return (y, g, P, classes, G, L) if classes else None
+    G = compute_global_constraints(
+        df, "label", gp, constrained_class=classes, num_classes=P.shape[1]
+    )
+    L = compute_local_constraints(
+        df, "label", lp, "grp", constrained_class=classes, num_classes=P.shape[1]
+    )
+    deployed = pd.read_csv(d / "final_predictions.csv")
+    if (
+        len(deployed) != len(t)
+        or not np.array_equal(deployed["True_Label"], y)
+        or not np.array_equal(deployed["Group_ID"], g)
+    ):
+        raise ValueError("raw/deployed row identity mismatch")
+    return y, g, P, classes, G, L, deployed["Predicted_Label"].to_numpy(int)
 
 
-def f1(y, pred, c):
-    tp = int(((pred == c) & (y == c)).sum())
-    p = tp / max(1, int((pred == c).sum()))
-    r = tp / max(1, int((y == c).sum()))
-    return 2 * p * r / (p + r) if (p + r) else 0.0
-
-
-def format_dead(dead):
-    """The non-binding warning, one line per (BACKBONE, cap, class).
-
-    🛑 THE BACKBONE BELONGS IN THIS KEY TOO. The 2026-09-07 fix put it into
-    the CELL key and into `per_cap` and left this list on `(tag, class)`
-    alone. The counts were right; the LABEL was not. `dom1` printed
-    `L90_G95 class 7 -- binds in 1 of 4` for MobileNetV2 while MobileNetV3
-    at the SAME cap and class binds 4 of 4, and nothing in the line said
-    which -- so the reader attributes a partial bind to a cell that has
-    none. Two backbones that BOTH bind partially print two lines differing
-    only in a number nobody can assign. Same defect as FRAMEWORK 2(z52),
-    one block further down than where it was fixed.
-
-    Returns a LIST OF LINES rather than printing, so the self-test can
-    read what a user would read.
-    """
-    if not dead:
-        return []
-    out = ["!! THE CAP DOES NOT BIND IN EVERY SEED:"]
-    for backbone, tag, c, nb, tot in dead:
-        out.append("     %-13s %-10s class %d -- binds in %d of %d seeds"
-                   % (backbone[:13], tag, c, nb, tot))
-    out.append("   The penalty is relu(hard - K), so a seed already under budget")
-    out.append("   gets an identically ZERO constraint gradient. In those seeds")
-    out.append("   the arm is its own null and the difference is noise. Either")
-    out.append("   tighten the cap or drop the cell -- do not average over it.")
-    return out
-
-
-def self_test(out=sys.stdout):
-    """Gate the one thing this tool has already got wrong: pooling backbones.
-
-    `headroom` had NO self-test until 2026-09-09, and it is the tool whose
-    `= items` column is quoted directly in the prize table in CLAUDE.md.
-    """
-    import re as _re
-    checks = []
-
-    dead = [("MobileNetV2", "L90_G95", 7, 1, 4),
-            ("MobileNetV3", "L90_G95", 7, 4, 4)]
-    lines = [l for l in format_dead(dead) if "binds in" in l]
-    checks.append((
-        "both backbones are NAMED at one (cap, class)",
-        len(lines) == 2
-        and any("MobileNetV2" in l and "1 of 4" in l for l in lines)
-        and any("MobileNetV3" in l and "4 of 4" in l for l in lines)))
-
-    # NEGATIVE CONTROL. The pre-fix format keyed on (tag, class) alone. Strip
-    # the counts and the two backbones' lines collapse to ONE string -- which
-    # is exactly what made the defect invisible. A gate that has never been
-    # shown to fail has never been shown to work.
-    pre_fix = ["     %-10s class %d -- binds in %d of %d seeds"
-               % (t, c, nb, tot) for _, t, c, nb, tot in dead]
-    checks.append((
-        "NEGATIVE CONTROL: pre-fix, the two backbones' lines are "
-        "indistinguishable once the counts are removed",
-        len({_re.sub(r"\d+ of \d+", "N of N", l) for l in pre_fix}) == 1))
-
-    checks.append((
-        "NEGATIVE CONTROL: a campaign that binds everywhere prints NO warning",
-        format_dead([]) == []))
-
-    bad = [c for c, ok in checks if not ok]
-    for c, ok in checks:
-        out.write("  %s %s\n" % ("PASS" if ok else "FAIL", c))
-    out.write("%s: %d/%d\n" % ("OK" if not bad else "FAILED",
-                               len(checks) - len(bad), len(checks)))
-    return 1 if bad else 0
+def group_headroom(y, groups, probabilities, classes, G, L, deployed):
+    rows = []
+    for group in np.unique(groups):
+        idx = np.flatnonzero(groups == group)
+        for c in classes:
+            k = min(len(idx), int(L[group][c]), int(G[c]))
+            selected = idx[deployed[idx] == c]
+            emitted = len(selected)
+            tp = int((y[selected] == c).sum())
+            n = int((y[idx] == c).sum())
+            rows.append(
+                dict(
+                    group=str(group),
+                    class_id=c,
+                    K=k,
+                    effective_class_K=int(effective_budget(G, L, c)),
+                    emitted=emitted,
+                    support=n,
+                    selected_tp=tp,
+                    selected_errors=emitted - tp,
+                    outside_tp=n - tp,
+                    correctable=min(emitted - tp, n - tp),
+                    cut_probability=float(probabilities[selected, c].min())
+                    if emitted
+                    else None,
+                )
+            )
+    return rows
 
 
 def main():
-    a = argparse.ArgumentParser(
-        description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter)
-    a.add_argument("root", nargs="?")
-    a.add_argument("--self-test", action="store_true",
-                   help="gate the backbone key in the non-binding warning")
-    a.add_argument("--control", default="clip",
-                   help="arm whose achieved score sets the headroom. clip is "
-                        "the stronger clipper and the honest bar.")
-    a.add_argument("--allow-quarantined", action="store_true",
-                   help="price a campaign `scripts.quarantine` marked dead")
-    args = a.parse_args()
-    if args.self_test:
-        return self_test()
-    if not args.root:
-        a.error("root is required (or pass --self-test)")
-
-    # 🛑 THE QUARANTINE GATE. Audited 2026-09-04: this tool had NONE, so a
-    # marker on a dead campaign prevented nothing here -- and this is the tool
-    # that prices every direction before a GPU is spent. No fallback import --
-    # if the gate cannot load, the tool must break.
-    #
-    # ⚠️ GATE ONLY, AND THERE IS NO DEAD-ARM FILTER TO ADD HERE. Unlike the
-    # six scorers beside it this prints NO arm-vs-arm contrast: `ceiling`,
-    # `achieved`, `headroom`, `excess` and `binds` are read from `--control`
-    # alone (`eq` is built only when `arm == args.control`), so a dead arm
-    # cannot reach any of those columns however many of its runs are on disk.
-    # The one line that does count every arm is the ALLOCATOR short-fall
-    # tally, and that is a pooled property of the allocator rather than a
-    # comparison -- the partial markers here are about constraint DOSE, which
-    # does not change whether an allocator emitted fewer than K. Filtering it
-    # would claim the marker says something it does not.
-    #
-    # So the dead-arm half of the verdict is deliberately discarded, and this
-    # comment is the reason rather than an oversight: if this tool ever grows
-    # a per-arm column, it needs the filter the other six got.
-    from scripts.quarantine import gate
-    blocked, _ = gate([args.root], args.allow_quarantined, "price")
-    if blocked:
-        return 1
-
-    runs = sorted(f.parent
-                  for f in Path(args.root).rglob("final_predictions_raw.csv"))
-    if not runs:
-        print("no runs with predictions under %s" % args.root)
-        return 1
-
-    cells, short_n, short_tot = {}, 0, 0
-    for d in runs:
-        got = load(d)
-        if got is None:
-            continue
-        y, g, P, classes, G, L = got
-        # `L\d+_G\d+` does NOT match the per-class form `L80-100_G95`, so
-        # every run fell through to "?" and `cells` pooled BOTH cap levels
-        # into one entry with n and K frozen from whichever run arrived
-        # first. Those are exactly the tags the current protocol mandates.
-        tag = next((p for p in d.parts
-                    if re.match(r"^L\d+(-\d+)*_G\d+$", p)), None)
-        if tag is None:
-            raise SystemExit(
-                "REFUSED: no cap tag in %s. Pooling cap levels is the one "
-                "axis this project has retracted a claim over three times, "
-                "so this refuses rather than bucketing the run under '?'."
-                % d)
-        arm = d.parts[-2]
-        # 🛑 THE BACKBONE AND DATASET ARE PART OF THE CELL (added 2026-09-07).
-        # The key was `(tag, class)` alone, so two backbones at one cap pooled
-        # into ONE entry. `n` and `K` come from labels and the cap policy and
-        # are backbone-independent, but `ctrl` and `hard` are MODEL OUTPUTS --
-        # averaging MobileNetV2's achieved cc-F1 with MobileNetV3's produces a
-        # headroom that describes neither. This is the same shape as the
-        # cap-level pooling refused eight lines above, on an axis rule 4 names
-        # just as explicitly. The `dom1 MNv2/MNv3 L80_G95 | 12.8` row in the
-        # prize table is literally two backbones in one number. FRAMEWORK
-        # 2(z52).
-        backbone, dataset = run_axes(d.parts)
-        pred = P.argmax(1)
-        eq = equalize_multi(P, g, G, L, classes) if arm == args.control else None
-
-        fp = d / "final_predictions.csv"
-        stored = None
-        if fp.exists():
-            q = pd.read_csv(fp)
-            if "Predicted_Label" in q.columns and len(q) == len(y):
-                stored = q["Predicted_Label"].to_numpy(int)
-
-        for c in sorted(classes):
-            n = int((y == c).sum())
-            k = effective_budget(G, L, c)
-            if not n or k >= UNLIMITED:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("root")
+    ap.add_argument("--control", default="clip")
+    args = ap.parse_args()
+    found = 0
+    try:
+        for p in sorted(Path(args.root).rglob("config.json")):
+            cfg = json.loads(p.read_text(encoding="utf-8"))
+            if cfg.get("arm") != args.control or cfg.get("status") != "completed":
                 continue
-            e = cells.setdefault((backbone, dataset, tag, c),
-                                 {"n": n, "K": k, "hard": [], "ctrl": []})
-            if eq is not None:
-                # CONTROL ONLY, both columns. Averaging the raw count over
-                # every arm in the tree mixes the clipper's starting excess
-                # with a trained arm's post-constraint one and describes no
-                # model at all.
-                #
-                # The count is kept PER SEED, not summed, because whether the
-                # cap binds varies per seed and the penalty is relu(hard - K):
-                # a seed already under budget contributes an identically zero
-                # constraint gradient, so the arm is its own null there. On
-                # tissuemnist L50_G50 class 1 the four seeds run 76 / 51 / 34 /
-                # 18 against K=56 -- it binds in ONE of four, and the mean
-                # excess alone (-11.2) hides that it ever bound at all.
-                e["hard"].append(int((pred == c).sum()))
-                e["ctrl"].append(f1(y, eq, c))
-            if stored is not None:
-                short_tot += 1
-                short_n += int((stored == c).sum()) < k
-
-    # Name the CAMPAIGN, not the path given: pricing one backbone at a time
-    # (`headroom results/dom1/MobileNetV2`) is a normal thing to do here, and
-    # a table read out of scrollback has to say which campaign produced it.
-    print("HEADROOM AND WHAT IT COSTS IN ITEMS   (%s, control = %s)\n"
-          % (quarantine.campaign_name(args.root), args.control))
-    print("%-13s %-10s %5s %6s %6s %8s %9s %9s %9s %8s %7s"
-          % ("backbone", "cap", "class", "n", "K", "ceiling", "achieved",
-             "headroom", "= items", "excess", "binds"))
-    print("-" * 104)
-    per_cap, dead = {}, []
-    for (backbone, _dataset, tag, c), e in sorted(cells.items()):
-        n, k = e["n"], e["K"]
-        ceil = 2.0 * k / (k + n)
-        ach = float(np.mean(e["ctrl"])) if e["ctrl"] else float("nan")
-        head = ceil - ach
-        per_cap.setdefault((backbone, tag), []).append((ceil, ach))
-        nb = sum(1 for h in e["hard"] if h > k)
-        if nb < len(e["hard"]):
-            dead.append((backbone, tag, c, nb, len(e["hard"])))
-        print("%-13s %-10s %5d %6d %6d %8.4f %9.4f %9.4f %9.1f %8.1f %4d/%-2d"
-              % (backbone[:13], tag, c, n, k, ceil, ach, head,
-                 head * (k + n) / 2,
-                 float(np.mean(e["hard"])) - k, nb, len(e["hard"])))
-    print()
-    for (backbone, tag), v in sorted(per_cap.items()):
-        ceil = float(np.mean([x for x, _ in v]))
-        ach = float(np.mean([x for _, x in v]))
-        print("  %-13s %-10s macro ceiling %.4f  achieved %.4f  HEADROOM %.4f"
-              % (backbone[:13], tag, ceil, ach, ceil - ach))
-    if dead:
-        print()
-        for line in format_dead(dead):
-            print(line)
-    print()
-    print("`= items` is the ENTIRE gap to a PERFECT RANKING, not to a better")
-    print("method -- and NOT to a better allocator, which is already optimal")
-    print("given these probabilities. `items per 0.01 capF1` is (K+n)/200 per")
-    print("class, summed over the capped classes: ccF1 macro-averages them.")
-    print()
-    print("`excess` is how far over budget the model starts. A tight cap gives")
-    print("the constraint more to move and less to win. Neither end is free.")
-    if short_tot:
-        print()
-        print("ALLOCATOR: emitted fewer than K on %d of %d (run, class) pairs."
-              % (short_n, short_tot))
-        print("Never over, so no cap is violated, and the scorer re-equalizes to")
-        print("exactly K -- so this reaches nothing it scores. It reaches any")
-        print("number read straight off the stored predictions.")
+            if run_axes(p.parent.parts) != (cfg["model_name"], cfg["dataset_mode"]):
+                raise ValueError("run path axes differ from config")
+            y, g, P, classes, G, L, deployed = load(p.parent)
+            for row in group_headroom(y, g, P, classes, G, L, deployed):
+                row.update(
+                    dataset=cfg["dataset_mode"],
+                    backbone=cfg["model_name"],
+                    cap=cfg["constraint_tag"],
+                    seed=cfg["hyperparams"]["seed"],
+                )
+                print(json.dumps(row, sort_keys=True))
+                found += 1
+        if not found:
+            raise ValueError("no completed control runs with predictions")
+    except (ValueError, KeyError, OSError, TypeError) as exc:
+        print("FAIL headroom: %s" % exc)
+        return 1
     return 0
 
 

@@ -21,6 +21,7 @@ gathers.
 
 EXIT CODE is 1 if any check is FAIL, so it can gate a launch script.
 """
+
 import argparse
 import glob
 import json
@@ -34,7 +35,7 @@ OK, WARN, FAIL = "OK", "WARN", "FAIL"
 # The runner is what actually trains. It is a CHILD of the dispatcher, and it
 # does not die when the dispatcher does -- that is the orphan bug.
 RUNNER_PAT = re.compile(r"src\.experiments\.runner")
-DISPATCH_PAT = re.compile(r"python\s+main\.py")   # kept for the self-test only
+DISPATCH_PAT = re.compile(r"python\s+main\.py")  # kept for the self-test only
 
 
 def is_dispatcher(args):
@@ -91,8 +92,9 @@ def orphaned_runners(procs):
     # No dispatcher at all: every runner whose parent is also dead is an orphan.
     # A forked dataloader worker has a live runner parent, so it is excluded.
     runner_pids = {p["pid"] for p in runners}
-    return [p for p in runners
-            if p["ppid"] not in runner_pids and p["ppid"] not in live]
+    return [
+        p for p in runners if p["ppid"] not in runner_pids and p["ppid"] not in live
+    ]
 
 
 def stale_running(campaign, running_count, owned_roots):
@@ -145,8 +147,7 @@ def shared_gpus(apps, me):
     by_gpu = {}
     for a in apps:
         by_gpu.setdefault(a["gpu"], set()).add(a["user"])
-    return sorted(g for g, users in by_gpu.items()
-                  if me in users and len(users) > 1)
+    return sorted(g for g, users in by_gpu.items() if me in users and len(users) > 1)
 
 
 def interpreter_is_env(executable, env_marker="envs/optloss"):
@@ -178,16 +179,16 @@ def read_procs():
         if len(parts) < 3:
             continue
         try:
-            procs.append({"pid": int(parts[0]), "ppid": int(parts[1]),
-                          "args": parts[2]})
+            procs.append(
+                {"pid": int(parts[0]), "ppid": int(parts[1]), "args": parts[2]}
+            )
         except ValueError:
             continue
     return procs
 
 
 def read_gpu_apps():
-    txt = _sh("nvidia-smi --query-compute-apps=gpu_bus_id,pid "
-              "--format=csv,noheader")
+    txt = _sh("nvidia-smi --query-compute-apps=gpu_bus_id,pid --format=csv,noheader")
     apps = []
     for line in txt.splitlines():
         parts = [x.strip() for x in line.split(",")]
@@ -239,8 +240,7 @@ def dispatcher_verdict(pairs):
         return WARN, "none running"
     if len(pairs) == 1:
         pid, root = pairs[0]
-        return OK, "1 running (pid %d%s)" % (
-            pid, "" if not root else " on %s" % root)
+        return OK, "1 running (pid %d%s)" % (pid, "" if not root else " on %s" % root)
 
     byroot, unknown = {}, []
     for pid, root in pairs:
@@ -250,22 +250,31 @@ def dispatcher_verdict(pairs):
             byroot.setdefault(os.path.normpath(root), []).append(pid)
     clash = {r: p for r, p in byroot.items() if len(p) > 1}
     if clash:
-        return FAIL, "%d dispatcher(s) share a run root: %s -- they race on " \
-                     "the same run dirs, both resetting `pending` and both " \
-                     "claiming the same config" % (
-                         sum(len(p) for p in clash.values()),
-                         "; ".join("%s <- pids %s"
-                                   % (r, ", ".join(map(str, sorted(p))))
-                                   for r, p in sorted(clash.items())))
+        return (
+            FAIL,
+            "%d dispatcher(s) share a run root: %s -- they race on "
+            "the same run dirs, both resetting `pending` and both "
+            "claiming the same config"
+            % (
+                sum(len(p) for p in clash.values()),
+                "; ".join(
+                    "%s <- pids %s" % (r, ", ".join(map(str, sorted(p))))
+                    for r, p in sorted(clash.items())
+                ),
+            ),
+        )
     if unknown:
-        return FAIL, "%d dispatchers running and the EXPERIMENT_DIR of %d of " \
-                     "them could not be read (pids %s), so they cannot be " \
-                     "shown to be on different campaigns" % (
-                         len(pairs), len(unknown),
-                         ", ".join(map(str, sorted(unknown))))
+        return (
+            FAIL,
+            "%d dispatchers running and the EXPERIMENT_DIR of %d of "
+            "them could not be read (pids %s), so they cannot be "
+            "shown to be on different campaigns"
+            % (len(pairs), len(unknown), ", ".join(map(str, sorted(unknown)))),
+        )
     return OK, "%d running, one per campaign root: %s" % (
-        len(pairs), "; ".join("%s (pid %d)" % (r, p[0])
-                              for r, p in sorted(byroot.items())))
+        len(pairs),
+        "; ".join("%s (pid %d)" % (r, p[0]) for r, p in sorted(byroot.items())),
+    )
 
 
 def dispatcher_roots(procs):
@@ -301,6 +310,7 @@ def dispatcher_roots(procs):
 # `results/` is now one recipe. This row is what keeps it that way.
 CURRENT_RECIPE = {"constraint_fp32": True, "constraint_grad_mode": "normalize"}
 
+
 # Arms that take a constraint step. A post-hoc arm has no dose and no grad
 # mode, so it is exempt: reading its absent keys as a violation would make this
 # row fire on every healthy campaign.
@@ -327,26 +337,27 @@ def recipe_of(cfgs):
 
 def recipe_verdict(pairs):
     """(status, message) for a campaign's recipe. `pairs` from recipe_of."""
-    want = (CURRENT_RECIPE["constraint_fp32"],
-            CURRENT_RECIPE["constraint_grad_mode"])
+    want = (CURRENT_RECIPE["constraint_fp32"], CURRENT_RECIPE["constraint_grad_mode"])
     if not pairs:
         return "ok", "post-hoc only, no constraint step to mis-dose"
     if len(pairs) > 1:
-        return "fail", ("MIXES %d recipes internally: %s -- the arms are not "
-                        "the same method" % (len(pairs),
-                        " ".join("fp32=%s/%s" % p for p in pairs)))
+        return "fail", (
+            "MIXES %d recipes internally: %s -- the arms are not "
+            "the same method" % (len(pairs), " ".join("fp32=%s/%s" % p for p in pairs))
+        )
     got = pairs[0]
     if got == want:
         return "ok", "fp32=True/normalize"
-    return "fail", ("fp32=%s/%s, not %s/%s -- a DIFFERENT METHOD. Archive it or "
-                    "score it separately; do NOT pool it with the current "
-                    "corpus" % (got[0], got[1], want[0], want[1]))
+    return "fail", (
+        "fp32=%s/%s, not %s/%s -- a DIFFERENT METHOD. Archive it or "
+        "score it separately; do NOT pool it with the current "
+        "corpus" % (got[0], got[1], want[0], want[1])
+    )
 
 
 def campaign_configs(root):
     out = []
-    for f in glob.glob(os.path.join(root, "*", "*", "*", "*", "seed_*",
-                                    "config.json")):
+    for f in glob.glob(os.path.join(root, "*", "*", "*", "*", "seed_*", "config.json")):
         try:
             with open(f, encoding="utf-8") as fh:
                 out.append(json.load(fh))
@@ -369,7 +380,7 @@ def worktree_topology(repo):
             line = fh.read().strip()
     except OSError:
         return None
-    return line[len("gitdir:"):].strip() if line.startswith("gitdir:") else line
+    return line[len("gitdir:") :].strip() if line.startswith("gitdir:") else line
 
 
 # --------------------------------------------------------------------------
@@ -404,42 +415,55 @@ def self_test(out=sys.stdout):
         "python -m scripts.dose_landed results/taskwin2 main.py",
         "",
     ]
-    bad = ([("ACCEPT", a) for a in ACCEPT if not is_dispatcher(a)] +
-           [("REJECT", r) for r in REJECT if is_dispatcher(r)])
+    bad = [("ACCEPT", a) for a in ACCEPT if not is_dispatcher(a)] + [
+        ("REJECT", r) for r in REJECT if is_dispatcher(r)
+    ]
     ok = not bad
     for kind, line in bad:
         w("  FAIL  should %s: %r%s" % (kind, line, chr(10)))
     if ok:
-        w("  PASS  %d dispatcher command lines accepted, %d non-dispatchers "
-          "rejected" % (len(ACCEPT), len(REJECT)) + chr(10))
-        w("        including the wrapper shell and the pgrep that looks for "
-          "it -- both of" + chr(10) + "        which the old substring match "
-          "counted as dispatchers" + chr(10))
+        w(
+            "  PASS  %d dispatcher command lines accepted, %d non-dispatchers "
+            "rejected" % (len(ACCEPT), len(REJECT)) + chr(10)
+        )
+        w(
+            "        including the wrapper shell and the pgrep that looks for "
+            "it -- both of" + chr(10) + "        which the old substring match "
+            "counted as dispatchers" + chr(10)
+        )
 
     # the old pattern MUST have been broken, or this fix is inert
     fooled = [r for r in REJECT if r and DISPATCH_PAT.search(r)]
     if not fooled:
-        w("  FAIL  the OLD substring match rejects everything too, so this "
-          "change is inert" + chr(10))
+        w(
+            "  FAIL  the OLD substring match rejects everything too, so this "
+            "change is inert" + chr(10)
+        )
         ok = False
     else:
-        w("  PASS  liveness: the old substring match was fooled by %d of these "
-          "(%s)" % (len(fooled), ", ".join(r.split()[0] for r in fooled))
-          + chr(10))
+        w(
+            "  PASS  liveness: the old substring match was fooled by %d of these "
+            "(%s)" % (len(fooled), ", ".join(r.split()[0] for r in fooled)) + chr(10)
+        )
 
     # and the count that actually gets reported
-    procs = [{"pid": 1, "ppid": 0, "args": "bash -c ... python main.py"},
-             {"pid": 2, "ppid": 1, "args": "python main.py"},
-             {"pid": 3, "ppid": 2, "args": "python -u -m src.experiments.runner c.json"}]
+    procs = [
+        {"pid": 1, "ppid": 0, "args": "bash -c ... python main.py"},
+        {"pid": 2, "ppid": 1, "args": "python main.py"},
+        {"pid": 3, "ppid": 2, "args": "python -u -m src.experiments.runner c.json"},
+    ]
     n = len([q for q in procs if is_dispatcher(q["args"])])
     if n != 1:
-        w("  FAIL  a wrapper + dispatcher + runner must count as ONE "
-          "dispatcher, got %d%s" % (n, chr(10)))
+        w(
+            "  FAIL  a wrapper + dispatcher + runner must count as ONE "
+            "dispatcher, got %d%s" % (n, chr(10))
+        )
         ok = False
     else:
-        w("  PASS  wrapper + dispatcher + runner counts as ONE, so a healthy "
-          "detached" + chr(10) + "        launch no longer reports a race"
-          + chr(10))
+        w(
+            "  PASS  wrapper + dispatcher + runner counts as ONE, so a healthy "
+            "detached" + chr(10) + "        launch no longer reports a race" + chr(10)
+        )
 
     # TWO DISPATCHERS: a count is not a collision. Measured on dsisco01
     # 2026-09-04, where the documented one-EXPERIMENT_DIR-per-GPU pattern was
@@ -447,17 +471,31 @@ def self_test(out=sys.stdout):
     disp_cases = [
         ([(1, "results/vitdual2")], OK, "one dispatcher is fine"),
         ([], WARN, "no dispatcher is a WARN, not a FAIL"),
-        ([(1, "results/vitdual2"), (2, "results/vitcoin1")], OK,
-         "TWO dispatchers on DIFFERENT roots is the multi-GPU pattern, not a "
-         "race"),
-        ([(1, "results/vitdual2"), (2, "results/vitdual2")], FAIL,
-         "two dispatchers on the SAME root is the real defect"),
-        ([(1, "results/x"), (2, "results/x/")], FAIL,
-         "and a trailing slash does not hide it"),
-        ([(1, "results/a"), (2, None)], FAIL,
-         "an unreadable EXPERIMENT_DIR fails CLOSED, never OK"),
-        ([(1, "results/a"), (2, "results/b"), (3, "results/c")], OK,
-         "three dispatchers on three roots is still not a race"),
+        (
+            [(1, "results/vitdual2"), (2, "results/vitcoin1")],
+            OK,
+            "TWO dispatchers on DIFFERENT roots is the multi-GPU pattern, not a race",
+        ),
+        (
+            [(1, "results/vitdual2"), (2, "results/vitdual2")],
+            FAIL,
+            "two dispatchers on the SAME root is the real defect",
+        ),
+        (
+            [(1, "results/x"), (2, "results/x/")],
+            FAIL,
+            "and a trailing slash does not hide it",
+        ),
+        (
+            [(1, "results/a"), (2, None)],
+            FAIL,
+            "an unreadable EXPERIMENT_DIR fails CLOSED, never OK",
+        ),
+        (
+            [(1, "results/a"), (2, "results/b"), (3, "results/c")],
+            OK,
+            "three dispatchers on three roots is still not a race",
+        ),
     ]
     for pairs, want, label in disp_cases:
         got = dispatcher_verdict(pairs)[0]
@@ -467,20 +505,40 @@ def self_test(out=sys.stdout):
 
     # the RECIPE row, both directions
     def cfg(fp32, mode, trained=True):
-        return {"hyperparams": {"constraint_fp32": fp32,
-                                "constraint_grad_mode": mode,
-                                "constraint_epochs": 29 if trained else 0}}
+        return {
+            "hyperparams": {
+                "constraint_fp32": fp32,
+                "constraint_grad_mode": mode,
+                "constraint_epochs": 29 if trained else 0,
+            }
+        }
+
     cases = [
-        ([cfg(True, "normalize"), cfg(True, "normalize")], "ok",
-         "the current recipe passes"),
-        ([cfg(True, "clip")], "fail",
-         "grad_mode=clip is refused -- it is a different method"),
-        ([cfg(False, "normalize")], "fail",
-         "fp32=False is refused -- it lands 69-87% of the dose"),
-        ([cfg(True, "normalize"), cfg(True, "clip")], "fail",
-         "a campaign MIXING two recipes internally is refused"),
-        ([cfg(None, None, trained=False)], "ok",
-         "a post-hoc-only campaign is EXEMPT, not a violation"),
+        (
+            [cfg(True, "normalize"), cfg(True, "normalize")],
+            "ok",
+            "the current recipe passes",
+        ),
+        (
+            [cfg(True, "clip")],
+            "fail",
+            "grad_mode=clip is refused -- it is a different method",
+        ),
+        (
+            [cfg(False, "normalize")],
+            "fail",
+            "fp32=False is refused -- it lands 69-87% of the dose",
+        ),
+        (
+            [cfg(True, "normalize"), cfg(True, "clip")],
+            "fail",
+            "a campaign MIXING two recipes internally is refused",
+        ),
+        (
+            [cfg(None, None, trained=False)],
+            "ok",
+            "a post-hoc-only campaign is EXEMPT, not a violation",
+        ),
     ]
     for cfgs, want, label in cases:
         got = recipe_verdict(recipe_of(cfgs))[0]
@@ -494,12 +552,17 @@ def self_test(out=sys.stdout):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--campaign", action="append", default=None,
-                    help="campaign root to check; repeatable. "
-                         "Default: every results/* holding runs.")
+    ap.add_argument(
+        "--campaign",
+        action="append",
+        default=None,
+        help="campaign root to check; repeatable. "
+        "Default: every results/* holding runs.",
+    )
     ap.add_argument("--repo", default=".", help="repo root to inspect")
-    ap.add_argument("--self-test", action="store_true",
-                    help="gate the predicates and exit")
+    ap.add_argument(
+        "--self-test", action="store_true", help="gate the predicates and exit"
+    )
     args = ap.parse_args()
 
     if args.self_test:
@@ -511,28 +574,39 @@ def main():
     if interpreter_is_env(sys.executable):
         _row(rows, OK, "interpreter", sys.executable)
     else:
-        _row(rows, WARN, "interpreter",
-             "%s -- NOT the optloss env. Base conda is CPU-only torch here; a "
-             "campaign launched under it trains on CPU silently." % sys.executable)
+        _row(
+            rows,
+            WARN,
+            "interpreter",
+            "%s -- NOT the optloss env. Base conda is CPU-only torch here; a "
+            "campaign launched under it trains on CPU silently." % sys.executable,
+        )
 
     # 2. worktree topology -------------------------------------------------
     shared = worktree_topology(args.repo)
     if shared:
-        _row(rows, WARN, "git topology",
-             "WORKTREE, object store shared at %s -- never run gc/prune/repack "
-             "in ANY sibling while a campaign runs" % shared)
+        _row(
+            rows,
+            WARN,
+            "git topology",
+            "WORKTREE, object store shared at %s -- never run gc/prune/repack "
+            "in ANY sibling while a campaign runs" % shared,
+        )
     else:
         _row(rows, OK, "git topology", "standalone .git directory")
 
     # 3. training path frozen ----------------------------------------------
-    dirty = _sh("git -C %s status --porcelain src/ configs/ main.py"
-                % args.repo)
+    dirty = _sh("git -C %s status --porcelain src/ configs/ main.py" % args.repo)
     n_dirty = len([x for x in dirty.splitlines() if x.strip()])
     head = _sh("git -C %s rev-parse --short HEAD" % args.repo)
     if n_dirty:
-        _row(rows, FAIL, "training path",
-             "%d modified file(s) under src/ configs/ main.py at %s -- this "
-             "splits code_version" % (n_dirty, head))
+        _row(
+            rows,
+            FAIL,
+            "training path",
+            "%d modified file(s) under src/ configs/ main.py at %s -- this "
+            "splits code_version" % (n_dirty, head),
+        )
     else:
         _row(rows, OK, "training path", "clean at %s" % (head or "?"))
 
@@ -540,15 +614,20 @@ def main():
     procs = read_procs()
     disp = [p for p in procs if is_dispatcher(p["args"])]
     status, detail = dispatcher_verdict(
-        [(p["pid"], experiment_dir(p["pid"])) for p in disp])
+        [(p["pid"], experiment_dir(p["pid"])) for p in disp]
+    )
     _row(rows, status, "dispatchers", detail)
 
     orphans = orphaned_runners(procs)
     if orphans:
-        _row(rows, FAIL, "orphaned runners",
-             "%d runner(s) alive with no dispatcher: %s -- they keep writing "
-             "into run directories a relaunch will claim"
-             % (len(orphans), ", ".join(str(p["pid"]) for p in orphans)))
+        _row(
+            rows,
+            FAIL,
+            "orphaned runners",
+            "%d runner(s) alive with no dispatcher: %s -- they keep writing "
+            "into run directories a relaunch will claim"
+            % (len(orphans), ", ".join(str(p["pid"]) for p in orphans)),
+        )
     else:
         _row(rows, OK, "orphaned runners", "none")
 
@@ -559,14 +638,16 @@ def main():
         bad = shared_gpus(apps, me)
         mine = sorted({a["gpu"] for a in apps if a["user"] == me})
         if bad:
-            _row(rows, FAIL, "gpu sharing",
-                 "sharing with another user on: %s" % ", ".join(bad))
+            _row(
+                rows,
+                FAIL,
+                "gpu sharing",
+                "sharing with another user on: %s" % ", ".join(bad),
+            )
         else:
-            _row(rows, OK, "gpu sharing",
-                 "%d gpu(s) mine, none shared" % len(mine))
+            _row(rows, OK, "gpu sharing", "%d gpu(s) mine, none shared" % len(mine))
         if len(mine) > 2:
-            _row(rows, FAIL, "gpu count",
-                 "%d in use, house limit is 2" % len(mine))
+            _row(rows, FAIL, "gpu count", "%d in use, house limit is 2" % len(mine))
     else:
         _row(rows, WARN, "gpu", "no compute apps visible")
 
@@ -574,9 +655,11 @@ def main():
     owned = dispatcher_roots(procs)
     roots = args.campaign
     if not roots:
-        roots = sorted(d for d in glob.glob(os.path.join(args.repo, "results",
-                                                         "*"))
-                       if os.path.isdir(d))
+        roots = sorted(
+            d
+            for d in glob.glob(os.path.join(args.repo, "results", "*"))
+            if os.path.isdir(d)
+        )
     for root in roots:
         cfgs = campaign_configs(root)
         if not cfgs:
@@ -590,14 +673,22 @@ def main():
         summary = " ".join("%s=%d" % kv for kv in sorted(counts.items()))
         n_running = counts.get("running", 0)
         if not uniform:
-            _row(rows, FAIL, "campaign %s" % name,
-                 "%s -- SPLIT ACROSS %d commits %s; arms are not comparable"
-                 % (summary, len(seen), sorted(seen)))
+            _row(
+                rows,
+                FAIL,
+                "campaign %s" % name,
+                "%s -- SPLIT ACROSS %d commits %s; arms are not comparable"
+                % (summary, len(seen), sorted(seen)),
+            )
         elif owned and stale_running(name, n_running, owned):
-            _row(rows, WARN, "campaign %s" % name,
-                 "%s -- %d run(s) marked RUNNING with no dispatcher on this "
-                 "root. They died; the status lies until a dispatcher starts "
-                 "here and resets them to pending" % (summary, n_running))
+            _row(
+                rows,
+                WARN,
+                "campaign %s" % name,
+                "%s -- %d run(s) marked RUNNING with no dispatcher on this "
+                "root. They died; the status lies until a dispatcher starts "
+                "here and resets them to pending" % (summary, n_running),
+            )
         else:
             _row(rows, OK, "campaign %s" % name, summary)
         rst, rmsg = recipe_verdict(recipe_of(cfgs))
@@ -614,8 +705,9 @@ def main():
             bad_disk = int(pct) >= 90
         except ValueError:
             bad_disk = False
-        _row(rows, FAIL if bad_disk else OK, "disk",
-             "%s free (%s%% used)" % (avail, pct))
+        _row(
+            rows, FAIL if bad_disk else OK, "disk", "%s free (%s%% used)" % (avail, pct)
+        )
 
     # ---------------------------------------------------------------- print
     width = max(len(r[1]) for r in rows) if rows else 10
@@ -626,11 +718,15 @@ def main():
     print("=" * 78)
     n_fail = sum(1 for r in rows if r[0] == FAIL)
     n_warn = sum(1 for r in rows if r[0] == WARN)
-    print("  %d FAIL, %d WARN, %d OK"
-          % (n_fail, n_warn, sum(1 for r in rows if r[0] == OK)))
+    print(
+        "  %d FAIL, %d WARN, %d OK"
+        % (n_fail, n_warn, sum(1 for r in rows if r[0] == OK))
+    )
     if n_fail:
-        print("  A FAIL means do not launch, and do not read a number off a "
-              "campaign, until it is cleared.")
+        print(
+            "  A FAIL means do not launch, and do not read a number off a "
+            "campaign, until it is cleared."
+        )
     return 1 if n_fail else 0
 
 

@@ -1,21 +1,4 @@
-"""Actually RUN every arm, on tiny synthetic tensors, before launching anything.
-
-`audit_config` proves the config keys line up and `check_parity` proves the
-campaign is a fair comparison -- but both read configs, and neither executes a
-single line of a methodology. Three of the ten arms once shipped with an
-undefined name in `train()`: they burned all 29 constraint epochs, raised
-`NameError`, were reset to `pending` by the runner, and came back looking like
-"still queued". Both audits passed on that campaign.
-
-This calls each registered `train_fn` end to end with a 4-layer model and ~120
-synthetic items, in a few seconds, on CPU. It does not check that an arm is
-CORRECT -- only that it runs, returns the contract, and respects its caps.
-
-    python -m scripts.smoke_arms            # every arm
-    python -m scripts.smoke_arms tralo lp   # named arms only
-
-Exit code 1 if any arm fails, so it can gate a launch.
-"""
+"""Execute all maintained arms on small CPU fixtures and check caps."""
 
 import argparse
 import os
@@ -42,8 +25,6 @@ from src.utils.constants import UNLIMITED
 
 
 class TinyNet(nn.Module):
-    """Small enough to train in a second, real enough to have conv gradients."""
-
     def __init__(self, n_classes):
         super().__init__()
         self.features = nn.Sequential(
@@ -65,12 +46,12 @@ def fixture_metadata(seed=1):
     for g in range(N_GROUPS):
         idx = np.where(groups == g)[0][:2]
         y_test[idx] = np.arange(len(idx)) % N_CLASSES
-    return y_test, groups
+    return (y_test, groups)
 
 
 def make_inputs(P, arm, tmp, seed=1):
     torch.manual_seed(seed)
-    y_test, groups = fixture_metadata(seed)
+    (y_test, groups) = fixture_metadata(seed)
     import pandas as pd
 
     df = pd.DataFrame({"label": y_test, "grp": groups})
@@ -132,13 +113,6 @@ def violations(y_pred, groups, gcon, lcon):
 
 
 def matrix(P, arms):
-    """Sweep capped-class count x cap tag over the TRAINED arms, caps verified.
-
-    The single-point smoke above proves an arm RUNS. This proves the thing the
-    project actually promises: that the caps hold after the post-hoc correction,
-    for EVERY capped class, in the coupled multi-class case, and under a cap tag
-    where the global bound actually binds (G < L).
-    """
     import pandas as pd
     import torch
     import torch.nn.functional as F
@@ -220,13 +194,6 @@ def matrix(P, arms):
 
 
 def violations_for(y_pred, groups, gcon, lcon, classes):
-    """Cap check over an EXPLICIT class list.
-
-    `violations` above loops `range(N_CLASSES)`, which is right for the smoke
-    harness but hides which capped class failed. Naming the classes is what the
-    multi-class case needs -- the scorer's `cls[0]` bug measured class 1 and
-    silently ignored every class after it.
-    """
     bad = []
     for c in classes:
         if gcon[c] < UNLIMITED and int((y_pred == c).sum()) > int(gcon[c]):

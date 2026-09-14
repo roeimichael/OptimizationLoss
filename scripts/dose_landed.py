@@ -1,48 +1,4 @@
-"""How many constraint steps actually LANDED -- readable on a RUNNING campaign.
-
-WHY THIS EXISTS SEPARATELY FROM `full_panel`.
-
-`full_panel` already prints a `CONSTRAINT DOSE` block and already refuses to
-compare two arms whose landing rates differ. But it is the SCORER: it loads
-predictions, pairs seeds, and takes minutes over a finished campaign. So the
-question "is the arm I am testing getting its treatment" was only ever asked at
-the END, and twice it was answered too late:
-
-    results/uniform1   tralo_uniform landed 1 of 29 steps (3.4%) while `tralo`
-                       and `tralo_head` landed 29 of 29 in the same campaign.
-                       Caught at 4 of 252 runs -- by hand, not by a tool.
-    results/iwc3       716 of 1044 (68.6%), at least one step lost in 36 of 36
-                       runs. Read after all 180 runs finished.
-
-This reads `results.constraint_steps_applied` / `_attempted` out of each
-`config.json` and nothing else. No predictions, no pairing, no GPU. It runs in
-seconds on a campaign that is 1% done, which is the only time the answer is
-still worth anything.
-
-WHAT A LOST STEP IS. `finish_constraint_step` returns `applied=False` when the
-constraint gradient comes back non-finite; the epoch ran, no update landed, and
-the run still writes `status: completed`. Nothing in the predictions records it
-except the effect it did not have. Two arms can take 29 and 1 steps and be
-reported as the same treatment at the same dose.
-
-THE TWO CAUSES SEEN SO FAR, and they are distinguishable from this output:
-
-    the loss shape   an arm whose count takes a logarithm can produce inf/NaN
-                     from a probability the guard failed to keep off 1.0. It
-                     hits ONE arm and leaves its siblings at 100%.
-                     (FRAMEWORK 2(u); fixed by `clamp_probability`.)
-    the loss scale   FP16 + GradScaler SKIPS an optimizer step whose gradient
-                     overflows. It hits EVERY trained arm on that host, at
-                     roughly 25-31%, and BF16 hosts show 100%.
-                     (Fixed for a campaign by `--constraint-fp32`.)
-
-So read the `amp` column beside the percentage: one arm low is the loss, every
-arm low is the host.
-
-    python -m scripts.dose_landed <root>
-    python -m scripts.dose_landed <root> --tolerance 0.05
-    python -m scripts.dose_landed --self-test
-"""
+"""Compare planned, attempted and applied constraint updates in campaign logs."""
 
 import argparse
 import collections
@@ -55,21 +11,9 @@ DOSE_FRACTION_TOLERANCE = 0.05
 
 
 def read_root(root):
-    """(arm -> [applied, attempted, with_counts, unfinished, blind,
-              posthoc_done], amps).
-
-    `unfinished` and `blind` are counted apart on purpose. On a RUNNING
-    campaign most runs have no counts because they have not run yet, and
-    calling that "predates the field" -- which is what this printed on its
-    first outing against a live campaign -- tells the reader their campaign is
-    old when it is merely young. `status` separates them: the dispatcher
-    writes `pending` until a run finishes, and only a finished one says
-    `completed`.
-    """
     per = collections.defaultdict(lambda: [0, 0, 0, 0, 0, 0])
     amps = collections.defaultdict(set)
-    for path in glob.glob(os.path.join(root, "**", "config.json"),
-                          recursive=True):
+    for path in glob.glob(os.path.join(root, "**", "config.json"), recursive=True):
         try:
             cfg = json.load(open(path))
         except (ValueError, IOError):
@@ -86,9 +30,6 @@ def read_root(root):
             if str(cfg.get("status", "pending")) != "completed":
                 cell[3] += 1
             elif (cfg.get("hyperparams") or {}).get("constraint_epochs") == 0:
-                # A post-hoc arm attempts none and writes None, not 0. That is
-                # correct, and reading it as a missing record made the two
-                # clippers look like stale runs on a campaign minutes old.
                 cell[5] += 1
             else:
                 cell[4] += 1
@@ -96,227 +37,198 @@ def read_root(root):
         cell[0] += int(app)
         cell[1] += int(att)
         cell[2] += 1
-    return per, amps
+    return (per, amps)
 
 
 def report(per, amps, tolerance=DOSE_FRACTION_TOLERANCE, out=sys.stdout):
-    """Print the table. Returns the number of PROBLEMS found."""
+
     def slot(v, i):
         return v[i] if len(v) > i else 0
 
     def state(arm):
-        """ONE line per non-trained arm. An arm can be in several states at
-        once -- some runs finished, some not -- and printing it once per state
-        made the same clipper appear twice in the same table."""
         v = per[arm]
         bits = []
         if v[2]:
-            bits.append("%d finished with 0 steps attempted, as a lambda=0 "
-                        "twin does" % v[2])
+            bits.append(
+                "%d finished with 0 steps attempted, as a lambda=0 twin does" % v[2]
+            )
         if slot(v, 5):
-            bits.append("%d finished post-hoc, which attempts none"
-                        % slot(v, 5))
+            bits.append("%d finished post-hoc, which attempts none" % slot(v, 5))
         if slot(v, 4):
-            bits.append("%d finished with NO counts: they predate the field"
-                        % slot(v, 4))
+            bits.append(
+                "%d finished with NO counts: they predate the field" % slot(v, 4)
+            )
         if slot(v, 3):
             bits.append("%d still pending or running" % slot(v, 3))
         return "; ".join(bits) or "no runs"
 
-    trained = {a: v for a, v in per.items() if v[1] > 0}
-    others = sorted(a for a in per if a not in trained)
-
+    trained = {a: v for (a, v) in per.items() if v[1] > 0}
+    others = sorted((a for a in per if a not in trained))
     if not trained:
         out.write("no completed run records a constraint-step count yet.\n")
         for arm in others:
             out.write("  %-16s %s\n" % (arm, state(arm)))
-        out.write("  This is the normal state at the very start of a "
-                  "campaign. Re-run it once a TRAINED arm completes.\n")
+        out.write(
+            "  This is the normal state at the very start of a campaign. Re-run it once a TRAINED arm completes.\n"
+        )
         return 0
-
     problems = 0
     out.write("CONSTRAINT DOSE -- steps that LANDED, against steps attempted\n")
     fracs = {}
     for arm in sorted(trained):
-        app, att, n = trained[arm][0], trained[arm][1], trained[arm][2]
+        (app, att, n) = (trained[arm][0], trained[arm][1], trained[arm][2])
         frac = app / float(att)
         fracs[arm] = frac
         amp = "/".join(sorted(amps.get(arm) or ["?"]))
         flag = "" if app == att else "   *** %d STEP(S) LOST" % (att - app)
-        out.write("  %-16s %6d / %-6d  %6.1f%%  %2d run(s)  amp=%-9s%s\n"
-                  % (arm, app, att, 100.0 * frac, n, amp, flag))
+        out.write(
+            "  %-16s %6d / %-6d  %6.1f%%  %2d run(s)  amp=%-9s%s\n"
+            % (arm, app, att, 100.0 * frac, n, amp, flag)
+        )
         if app != att:
             problems += 1
     for arm in others:
         out.write("  %-16s %s\n" % (arm, state(arm)))
-
     if problems:
-        out.write("\n  A lost step is a SILENT dose reduction: the epoch ran, "
-                  "the gradient was\n"
-                  "  non-finite, no update landed, and the run still reports "
-                  "`status: completed`.\n")
-
+        out.write(
+            "\n  A lost step is a SILENT dose reduction: the epoch ran, the gradient was\n  non-finite, no update landed, and the run still reports `status: completed`.\n"
+        )
     if len(fracs) > 1:
         lo = min(fracs, key=fracs.get)
         hi = max(fracs, key=fracs.get)
         if fracs[hi] - fracs[lo] > tolerance:
             problems += 1
             out.write("\n  *** THESE ARMS DID NOT RUN AT THE SAME DOSE.\n")
-            out.write("      `%s` landed %.1f%% and `%s` landed %.1f%%. An "
-                      "arm-vs-arm delta across\n"
-                      "      that gap is confounded with how much constraint "
-                      "phase each one got.\n"
-                      % (hi, 100.0 * fracs[hi], lo, 100.0 * fracs[lo]))
+            out.write(
+                "      `%s` landed %.1f%% and `%s` landed %.1f%%. An arm-vs-arm delta across\n      that gap is confounded with how much constraint phase each one got.\n"
+                % (hi, 100.0 * fracs[hi], lo, 100.0 * fracs[lo])
+            )
             spread = len([a for a in fracs if fracs[a] < fracs[hi] - tolerance])
             if spread == 1:
-                out.write("      ONE arm is low and its siblings are not, so "
-                          "this is the LOSS SHAPE,\n"
-                          "      not the host: see FRAMEWORK 2(u).\n")
+                out.write(
+                    "      ONE arm is low and its siblings are not, so this is the LOSS SHAPE,\n      not the host: see FRAMEWORK 2(u).\n"
+                )
             else:
-                out.write("      %d arms are low, which points at the HOST "
-                          "rather than any one loss.\n"
-                          "      Check the amp column: FP16 + GradScaler skips "
-                          "an overflowing step.\n" % spread)
-            out.write("      Fix and RELAUNCH -- a dropped step cannot be "
-                      "recovered from the outputs.\n")
+                out.write(
+                    "      %d arms are low, which points at the HOST rather than any one loss.\n      Check the amp column: FP16 + GradScaler skips an overflowing step.\n"
+                    % spread
+                )
+            out.write(
+                "      Fix and RELAUNCH -- a dropped step cannot be recovered from the outputs.\n"
+            )
     cross_arm_attempts(per, out)
     return problems
 
 
 def self_test(out=sys.stdout):
-    """The gate. A reporter that cannot fail is not a check."""
     ok = True
-
     per = {"a": [29, 29, 1, 0, 0, 0], "b": [1, 29, 1, 0, 0, 0]}
     n = report(per, {"a": {"bfloat16"}, "b": {"bfloat16"}}, out=open(os.devnull, "w"))
     if n < 2:
-        out.write("SELF-TEST FAIL: a 3.4%% arm beside a 100%% one reported "
-                  "%d problem(s), expected at least 2\n" % n)
+        out.write(
+            "SELF-TEST FAIL: a 3.4%% arm beside a 100%% one reported %d problem(s), expected at least 2\n"
+            % n
+        )
         ok = False
-
     per = {"a": [29, 29, 1, 0, 0, 0], "b": [29, 29, 1, 0, 0, 0]}
     n = report(per, {}, out=open(os.devnull, "w"))
     if n != 0:
-        out.write("SELF-TEST FAIL: two arms both at 100%% reported %d "
-                  "problem(s), expected 0\n" % n)
+        out.write(
+            "SELF-TEST FAIL: two arms both at 100%% reported %d problem(s), expected 0\n"
+            % n
+        )
         ok = False
-
-    # Every arm low: the HOST case, which must still be caught even though the
-    # arms agree with each other.
     per = {"a": [716, 1044, 36, 0, 0, 0], "b": [720, 1044, 36, 0, 0, 0]}
-    n = report(per, {"a": {"float16"}, "b": {"float16"}},
-               out=open(os.devnull, "w"))
+    n = report(per, {"a": {"float16"}, "b": {"float16"}}, out=open(os.devnull, "w"))
     if n < 2:
-        out.write("SELF-TEST FAIL: two arms both at ~69%% reported %d "
-                  "problem(s); agreeing with each other is not the same as "
-                  "landing\n" % n)
+        out.write(
+            "SELF-TEST FAIL: two arms both at ~69%% reported %d problem(s); agreeing with each other is not the same as landing\n"
+            % n
+        )
         ok = False
-
-    # A YOUNG campaign must not read as an OLD one. This is exactly the
-    # wording the tool got wrong on its first outing against a live campaign.
     import io as _io
+
     buf = _io.StringIO()
     report({"tralo_uniform": [0, 0, 0, 36, 0, 0]}, {}, out=buf)
     if "predate" in buf.getvalue() or "still pending or running" not in buf.getvalue():
-        out.write("SELF-TEST FAIL: 36 unstarted runs reported as predating "
-                  "the field:\n%s" % buf.getvalue())
+        out.write(
+            "SELF-TEST FAIL: 36 unstarted runs reported as predating the field:\n%s"
+            % buf.getvalue()
+        )
         ok = False
-
     buf = _io.StringIO()
     report({"tralo": [0, 0, 0, 0, 36, 0]}, {}, out=buf)
     if "predate" not in buf.getvalue():
-        out.write("SELF-TEST FAIL: 36 COMPLETED runs with no counts must be "
-                  "reported as predating the field:\n%s" % buf.getvalue())
+        out.write(
+            "SELF-TEST FAIL: 36 COMPLETED runs with no counts must be reported as predating the field:\n%s"
+            % buf.getvalue()
+        )
         ok = False
-
-    # A finished POST-HOC run writes None, not 0, and that is correct. Read
-    # as a missing record it made the two clippers look stale on a campaign
-    # minutes old.
     buf = _io.StringIO()
-    report({"tralo": [29, 29, 1, 0, 0, 0], "clip": [0, 0, 0, 34, 0, 2]},
-           {}, out=buf)
+    report({"tralo": [29, 29, 1, 0, 0, 0], "clip": [0, 0, 0, 34, 0, 2]}, {}, out=buf)
     if "predate" in buf.getvalue() or "post-hoc" not in buf.getvalue():
-        out.write("SELF-TEST FAIL: a finished post-hoc run must not read as "
-                  "predating the field:\n%s" % buf.getvalue())
+        out.write(
+            "SELF-TEST FAIL: a finished post-hoc run must not read as predating the field:\n%s"
+            % buf.getvalue()
+        )
         ok = False
     if buf.getvalue().count("  clip ") > 1:
-        out.write("SELF-TEST FAIL: one arm printed on more than one line:"
-                  "\n%s" % buf.getvalue())
+        out.write(
+            "SELF-TEST FAIL: one arm printed on more than one line:\n%s"
+            % buf.getvalue()
+        )
         ok = False
-
     out.write("SELF-TEST %s\n" % ("PASS" if ok else "FAIL"))
     return 0 if ok else 1
 
 
 def cross_arm_attempts(per, out):
-    """ATTEMPTED steps per RUN, compared ACROSS arms.
-
-    The percentage in the table above is `applied / attempted` WITHIN one
-    arm, so an arm that never ATTEMPTS a step it should have attempted reads
-    a clean 100.0%. Measured on `dom1`: `tralo` and `alm` attempt 29 steps
-    per run while `fioretto` and `hounie` attempt 28 -- all four configured
-    at `constraint_epochs: 29`, and all four printed as 100.0%.
-
-    The difference is real, not cosmetic, and was verified at the gradient
-    level. The subgradient duals guard their step on `has_work` (is any
-    lambda > 0) and update the dual at the END of the epoch, so their first
-    constraint epoch does no work: logged `grad_norm` is exactly 0.0 at
-    epoch 1 for both. TraLO guards on `has_constraint` and initialises
-    lambda to 0.06, so it steps at epoch 1 with `Grad_Norm` 3.09; ALM does
-    too, at 6426.97.
-
-    🛑 THIS DOCSTRING USED TO CALL THAT "a property of the METHODS
-    rather than a handicap this harness imposes", and conclude that the gap
-    only had to be STATED. That was wrong, and the campaign it was written
-    about was discarded because of it. A 3.4% dose gap in the only phase the
-    comparison is about is not apples-to-apples, whatever its provenance, and
-    it sits UNDER `full_panel`'s 5-point refusal so scoring proceeds and the
-    number gets quoted.
-
-    ✅ FIXED 2026-09-03, and it needed no hyperparameter: the dual update
-    now runs BEFORE the primal gate in all three Fioretto/Hounie-family arms.
-    Same violations, same step sizes, `lambda_0 = 0` untouched, both orders of
-    the alternating scheme conventional. `vitdual1` was quarantined and
-    relaunched as `vitdual2`, which lands 29/29 on every arm. FRAMEWORK
-    2(z38).
-
-    ⛔ CAMPAIGNS THAT RAN BEFORE THE FIX STILL CARRY THE GAP, and they are
-    marked: `dom1`, `dom1b` and `equaldose1` hold PARTIAL quarantine markers
-    naming `fioretto` and `hounie` (and `tralo_lam0` in `equaldose1`) as dead
-    arms, so contrasts touching them are dropped while every other contrast in
-    those campaigns stays live. FRAMEWORK 2(z40).
-    """
     rate = {}
     for arm, v in per.items():
-        attempted, runs = v[1], v[2]
+        (attempted, runs) = (v[1], v[2])
         if attempted and runs:
             rate[arm] = attempted / float(runs)
-    if len(set(round(r, 3) for r in rate.values())) <= 1:
+    if len(set((round(r, 3) for r in rate.values()))) <= 1:
         return
     hi = max(rate.values())
-    out.write(chr(10) + 'CROSS-ARM ATTEMPTS PER RUN -- the asymmetry the '
-              'percentages above cannot show' + chr(10))
+    out.write(
+        chr(10)
+        + "CROSS-ARM ATTEMPTS PER RUN -- the asymmetry the percentages above cannot show"
+        + chr(10)
+    )
     for arm in sorted(rate, key=lambda a: (-rate[a], a)):
         r = rate[arm]
-        tail = ''
-        if abs(r - hi) > 1e-9:
-            tail = '   <-- %.1f%% fewer steps than the top arm' % (
-                100.0 * (hi - r) / hi)
-        out.write('  %-18s %6.2f attempted/run%s' % (arm, r, tail) + chr(10))
-    out.write('  Every arm above can still read 100%, because that figure '
-              'is applied/attempted' + chr(10))
-    out.write('  WITHIN an arm. A dominance claim across these arms is NOT '
-              'at equal dose.' + chr(10))
+        tail = ""
+        if abs(r - hi) > 1e-09:
+            tail = "   <-- %.1f%% fewer steps than the top arm" % (
+                100.0 * (hi - r) / hi
+            )
+        out.write("  %-18s %6.2f attempted/run%s" % (arm, r, tail) + chr(10))
+    out.write(
+        "  Every arm above can still read 100%, because that figure is applied/attempted"
+        + chr(10)
+    )
+    out.write(
+        "  WITHIN an arm. A dominance claim across these arms is NOT at equal dose."
+        + chr(10)
+    )
+
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("root", nargs="?", help="campaign root, e.g. results/iwc4")
-    ap.add_argument("--tolerance", type=float, default=DOSE_FRACTION_TOLERANCE,
-                    help="max landing-rate spread between arms (default 0.05)")
-    ap.add_argument("--self-test", action="store_true",
-                    help="check the reporter against known-bad inputs")
+    ap.add_argument(
+        "--tolerance",
+        type=float,
+        default=DOSE_FRACTION_TOLERANCE,
+        help="max landing-rate spread between arms (default 0.05)",
+    )
+    ap.add_argument(
+        "--self-test",
+        action="store_true",
+        help="check the reporter against known-bad inputs",
+    )
     args = ap.parse_args()
-
     if args.self_test:
         return self_test()
     if not args.root:
@@ -324,8 +236,7 @@ def main():
     if not os.path.isdir(args.root):
         print("no such campaign root: %s" % args.root)
         return 2
-
-    per, amps = read_root(args.root)
+    (per, amps) = read_root(args.root)
     problems = report(per, amps, tolerance=args.tolerance)
     return 1 if problems else 0
 

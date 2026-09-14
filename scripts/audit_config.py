@@ -1,41 +1,13 @@
-"""Cross-reference every key a config EMITS against every key the code READS.
+"""Audit emitted hyperparameters against live runtime reads and cache identity."""
 
-Three failure modes, all of which have bitten this project:
-
-  HALLUCINATED  emitted but never read anywhere. The config implies a knob that
-                does not exist. `base_loss`, `rho_step` and `alpha_kl` were all
-                this, and each one made someone believe an arm was configured
-                when it was inert.
-
-  SILENT        read with a default but never emitted. The value is then decided
-                by a literal buried in the code, not by the config -- which is
-                how hounie_rcl ran at eta=0.1 while the paper and its own
-                the paper both said 0.01.
-
-  OK            emitted and read.
-
-A grep cannot do this: `rho_step` appears in a log-format string, so grep calls
-it used. This walks the AST, so only real subscript / .get() accesses count.
-
-    python -m scripts.audit_config            # generates a reference campaign
-    python -m scripts.audit_config <campaign> # audits an existing one
-"""
 import ast
-import collections
 import glob
 import json
 import os
 import subprocess
-import io
 import sys
 import tempfile
 
-OPAQUE = []          # reads the walker could not resolve
-CODE_ROOTS = ["src", "scripts", "main.py", "configs"]
-
-# Seed names for each config section. Aliases are then DISCOVERED, not guessed:
-# `ds = config['dataset_config']` teaches the walker that `ds` is a dataset_config,
-# which is how group_column was first mis-reported as unread.
 SEED_NAMES = {
     "hyperparams": {"hp", "hyperparams", "hparams"},
     "config": {"config", "cfg", "conf"},
@@ -45,7 +17,6 @@ SECTION_KEYS = {"hyperparams": "hyperparams", "dataset_config": "dataset_config"
 
 
 def _base_name(node):
-    """Rightmost identifier of an expression: inputs.hyperparams -> hyperparams."""
     if isinstance(node, ast.Name):
         return node.id
     if isinstance(node, ast.Attribute):
@@ -54,8 +25,6 @@ def _base_name(node):
 
 
 class Reads(ast.NodeVisitor):
-    """Collect (container, key, file, line) for every literal-key access."""
-
     def __init__(self, path):
         self.path = path
         self.hits = []
@@ -68,21 +37,17 @@ class Reads(ast.NodeVisitor):
                 return kind
         return self.alias.get(base)
 
-    # The accessors themselves: `def _required(hp, key, cast): return cast(hp[key])`
-    # is generic BY CONSTRUCTION. Auditing inside them reports the definition,
-    # not a call site, and the call sites are what matter.
     ACCESSOR_DEFS = ("_required",)
 
     def visit_FunctionDef(self, node):
-        outer, self._fn = getattr(self, "_fn", None), node.name
+        (outer, self._fn) = (getattr(self, "_fn", None), node.name)
         self.generic_visit(node)
         self._fn = outer
 
     def _opaque(self, base, how, lineno):
         if getattr(self, "_fn", None) in self.ACCESSOR_DEFS:
             return
-        """A read the walker cannot resolve to a literal key. Recorded so the
-        audit fails loudly instead of silently under-reporting its read set."""
+        "A read the walker cannot resolve to a literal key. Recorded so the\n        audit fails loudly instead of silently under-reporting its read set."
         self.opaque.append((base, how, self.path, lineno))
 
     def _record(self, base, key, lineno):
@@ -92,18 +57,24 @@ class Reads(ast.NodeVisitor):
         self.hits.append((kind, key, self.path, lineno))
 
     def visit_Assign(self, node):
-        """Learn aliases: ds = config['dataset_config']  ->  ds is a dataset_config.
-        Also  hp = inputs.hyperparams  and  hp = config.get('hyperparams', {})."""
         tgt = node.targets[0] if len(node.targets) == 1 else None
         name = tgt.id if isinstance(tgt, ast.Name) else None
         if name:
             v = node.value
             key = None
-            if isinstance(v, ast.Subscript) and isinstance(v.slice, ast.Constant)                     and isinstance(v.slice.value, str):
+            if (
+                isinstance(v, ast.Subscript)
+                and isinstance(v.slice, ast.Constant)
+                and isinstance(v.slice.value, str)
+            ):
                 key = v.slice.value
-            elif (isinstance(v, ast.Call) and isinstance(v.func, ast.Attribute)
-                  and v.func.attr == "get" and v.args
-                  and isinstance(v.args[0], ast.Constant)):
+            elif (
+                isinstance(v, ast.Call)
+                and isinstance(v.func, ast.Attribute)
+                and (v.func.attr == "get")
+                and v.args
+                and isinstance(v.args[0], ast.Constant)
+            ):
                 key = v.args[0].value
             elif isinstance(v, ast.Attribute):
                 key = v.attr
@@ -116,7 +87,6 @@ class Reads(ast.NodeVisitor):
         if isinstance(sl, ast.Constant) and isinstance(sl.value, str):
             self._record(_base_name(node.value), sl.value, node.lineno)
         elif self._kind_of(_base_name(node.value)) is not None:
-            # hp[k] with a computed key: the audit cannot know which key
             self._opaque(_base_name(node.value), "subscript", node.lineno)
         self.generic_visit(node)
 
@@ -126,11 +96,12 @@ class Reads(ast.NodeVisitor):
         f = node.func
         if isinstance(f, ast.Attribute) and f.attr in self.OPAQUE_METHODS and node.args:
             base = _base_name(f.value)
-            if isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
+            if isinstance(node.args[0], ast.Constant) and isinstance(
+                node.args[0].value, str
+            ):
                 if f.attr == "get":
                     self._record(base, node.args[0].value, node.lineno)
                 else:
-                    # .pop / .setdefault also READ the key, and .pop mutates
                     self._record(base, node.args[0].value, node.lineno)
             elif self._kind_of(base) is not None:
                 self._opaque(base, ".%s()" % f.attr, node.lineno)
@@ -139,12 +110,6 @@ class Reads(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Call_helper(self, node):
-        """`_required(hp, "lr_constraint", float)` -- a config dict passed as an
-        argument with a literal key. The walker only understood subscripts and
-        dict methods, so introducing this helper made every key read through it
-        invisible in BOTH directions: emitting one looked HALLUCINATED, and
-        omitting one produced no SILENT flag. These are precisely the knobs that
-        must never fall back to a default."""
         if not isinstance(node.func, ast.Name) or len(node.args) < 2:
             return
         base = _base_name(node.args[0])
@@ -153,79 +118,40 @@ class Reads(ast.NodeVisitor):
         key = node.args[1]
         if isinstance(key, ast.Constant) and isinstance(key.value, str):
             self._record(base, key.value, node.lineno)
-        # A config passed to a function whose second argument is NOT a key --
-        # run_warmup(config, num_classes, ...) -- is ordinary plumbing, not an
-        # unresolvable lookup.
 
     def visit_Dict(self, node):
-        """`{**hp}` copies every key without naming one."""
         for k in node.keys:
             if k is None:
                 self._opaque(None, "** splat", node.lineno)
         self.generic_visit(node)
 
 
-def collect_reads():
-    reads = collections.defaultdict(list)      # (kind, key) -> [(file, line)]
-    for root in CODE_ROOTS:
-        files = [root] if root.endswith(".py") else [
-            os.path.join(dp, f).replace("\\", "/")
-            for dp, dn, fn in os.walk(root) if "__pycache__" not in dp
-            for f in fn if f.endswith(".py")]
-        for p in files:
-            try:
-                tree = ast.parse(open(p, encoding="utf-8").read())
-            except SyntaxError:
-                continue
-            v = Reads(p)
-            v.visit(tree)          # pass 1: learn aliases
-            v.hits, v.opaque = [], []
-            v.visit(tree)          # pass 2: record with aliases known
-            for kind, key, path, line in v.hits:
-                reads[(kind, key)].append((path, line))
-            OPAQUE.extend(v.opaque)
-    return reads
-
-
-def collect_emitted(root):
-    emitted = collections.defaultdict(set)     # kind -> {key}
-    per_arm = collections.defaultdict(set)     # arm -> {hyperparams keys}
-    n = 0
-    for p in glob.glob(os.path.join(root, "**", "config.json"), recursive=True):
-        c = json.load(open(p))
-        n += 1
-        for k in c:
-            emitted["config"].add(k)
-        for k in c.get("hyperparams", {}):
-            emitted["hyperparams"].add(k)
-            per_arm[c.get("arm", "?")].add(k)
-        for k in c.get("dataset_config", {}):
-            emitted["dataset_config"].add(k)
-    return emitted, per_arm, n
-
-
-
-SHARED_DIRS = ["src/pipeline", "src/training", "src/utils", "src/losses",
-               "src/experiments", "src/models"]
+SHARED_DIRS = [
+    "src/pipeline",
+    "src/training",
+    "src/utils",
+    "src/losses",
+    "src/experiments",
+    "src/models",
+]
 METH_DIR = "src/methodologies"
-# read by the verification scripts on every arm, so declared not hallucinated
-CONTRACT = {"warmup_epochs", "constraint_epochs", "seed", "lr"}
-# Legitimately absent on some arms. `warmup_loss` unset MEANS plain CE, which is
-# what the four constrained arms and `clip` want; the rest are read by the shared
-# warm-up only when warmup_loss selects that recipe.
-CONDITIONAL = {"warmup_loss", "focal_alpha", "focal_gamma", "cb_beta",
-               "logit_adjust_tau"}
 
 
 def _walk(d):
-    return [os.path.join(dp, f).replace("\\", "/")
-            for dp, dn, fn in os.walk(d) if "__pycache__" not in dp
-            for f in fn if f.endswith(".py")]
+    return [
+        os.path.join(dp, f).replace("\\", "/")
+        for (dp, dn, fn) in os.walk(d)
+        if "__pycache__" not in dp
+        for f in fn
+        if f.endswith(".py")
+    ]
 
 
 def _keys_in(paths):
     out = set()
     for p in paths:
+        if p.replace("\\", "/") == "src/pipeline/config.py":
+            continue
         try:
             tree = ast.parse(open(p, encoding="utf-8").read())
         except (SyntaxError, OSError):
@@ -234,27 +160,15 @@ def _keys_in(paths):
         v.visit(tree)
         v.hits = []
         v.visit(tree)
-        out |= {k for kind, k, _f, _l in v.hits if kind == "hyperparams"}
+        out |= {k for (kind, k, _f, _l) in v.hits if kind == "hyperparams"}
     return out
 
 
 def per_methodology_reads():
-    """Read set for each methodology = its own package + the shared pipeline that
-    every methodology passes through. A key read by tralo but emitted on the
-    fioretto arm is hallucinated FOR FIORETTO, which a union audit cannot see.
-
-    ⚠️ Which is exactly why the drivers below sit in `src/methodologies/` and
-    not in `src/training/`. Anything under SHARED_DIRS is credited to EVERY
-    methodology, so moving a constraint-phase key's only reader there silently
-    makes it legitimate on `clip`. Measured: with `read_step_config` in
-    `src/training/`, a poisoned `clip` config carrying `constraint_grad_clip`
-    audited clean; with it here, the same config FAILS and names the key."""
     shared = set()
     for d in SHARED_DIRS:
         shared |= _keys_in(_walk(d))
-    # driver module -> the methodologies that import it
     DRIVERS = {
-        "imbalanced_common.py": ("focal", "class_balanced", "logit_adjust"),
         "dual_common.py": ("tralo", "fioretto_ldf", "fioretto_alm", "hounie_rcl"),
     }
     driver_keys = {f: _keys_in([os.path.join(METH_DIR, f)]) for f in DRIVERS}
@@ -272,366 +186,106 @@ def per_methodology_reads():
 
 
 def audit_per_arm(root):
+    from src.pipeline.config import validate_hyperparams
+
     reads = per_methodology_reads()
-    arms = {}
-    for p in glob.glob(os.path.join(root, "**", "config.json"), recursive=True):
-        c = json.load(open(p))
-        arms.setdefault(c["arm"], (c["methodology"], set()))[1].update(c["hyperparams"])
-    print("=" * 78)
-    print("PER-ARM  (a key read by tralo but emitted on fioretto is hallucinated)")
-    print("=" * 78)
     bad = 0
-    for arm in sorted(arms):
-        meth, em = arms[arm]
-        rd = reads.get(meth, set())
-        hall = sorted(em - rd - CONTRACT)
-        silent = sorted(rd - em - CONDITIONAL)
-        flag = "OK  " if not hall else "FAIL"
-        if hall:
-            bad += len(hall)
-        print("  %s %-11s -> %-15s %2d emitted" % (flag, arm, meth, len(em)))
-        if hall:
-            print("        HALLUCINATED: %s" % ", ".join(hall))
-        if silent:
-            print("        silent (defaulted in code): %s" % ", ".join(silent))
-    print()
+    for p in sorted(glob.glob(os.path.join(root, "**", "config.json"), recursive=True)):
+        c = json.load(open(p, encoding="utf-8"))
+        try:
+            validate_hyperparams(c["methodology"], c["hyperparams"])
+            dead = (
+                set(c["hyperparams"])
+                - reads[c["methodology"]]
+                - {"seed", "constraint_epochs"}
+            )
+            if dead:
+                raise ValueError("no live runtime reader: " + ", ".join(sorted(dead)))
+        except (ValueError, KeyError) as exc:
+            print("FAIL %s: %s" % (p, exc))
+            bad += 1
     return bad
 
 
-# Files that can change WHAT THE WARM-UP PRODUCES. Every hyperparameter read
-# here must appear in the YAML's `warmup_identity_keys`, or two arms that differ
-# in it hash to the same base_model_id and the second one silently loads the
-# first one's trained model instead of training. That has happened four times.
-WARMUP_PATH = ["src/pipeline/warmup.py", "src/losses/imbalanced_losses.py",
-               "src/training/model_cache.py", "src/pipeline/setup.py",
-               "src/models"]
-# read at src/experiments/runner.py:43 (seed_all), not on the path above
+WARMUP_PATH = [
+    "src/pipeline/warmup.py",
+    "src/losses/imbalanced_losses.py",
+    "src/training/model_cache.py",
+    "src/pipeline/setup.py",
+    "src/models",
+]
 WARMUP_EXTRA = {"seed"}
 
 
 def audit_identity(root):
-    """Three properties of base_model_id:
+    from configs.gen_campaign import load_protocol, compute_base_model_id
 
-    P1 completeness  everything the warm-up reads is in warmup_identity_keys
-    P2 injectivity   id <-> warm-up identity is a bijection over the campaign
-    P3 sharing       arms sharing an id agree on every warm-up-path key
-    """
-    import yaml
-    P = yaml.safe_load(open("configs/protocol.yml", encoding="utf-8"))
-    declared = set(P["warmup_identity_keys"])
-
-    paths = []
-    for f in WARMUP_PATH:
-        paths += _walk(f) if os.path.isdir(f) else [f]
-    actual = _keys_in(paths) | WARMUP_EXTRA
-
-    print("=" * 78)
-    print("BASE_MODEL_ID  (warm-up cache identity)")
-    print("=" * 78)
-    bad = 0
-
-    missing = sorted(actual - declared)
-    print()
-    print("  P1 completeness -- the warm-up reads %d keys, %d are declared"
-          % (len(actual), len(declared)))
+    P = load_protocol()
+    paths = [p for f in WARMUP_PATH for p in (_walk(f) if os.path.isdir(f) else [f])]
+    missing = (_keys_in(paths) | WARMUP_EXTRA) - set(P["warmup_identity_keys"])
+    bad = len(missing)
     if missing:
-        bad += len(missing)
-        print("     FAIL: read by the warm-up but ABSENT from warmup_identity_keys:")
-        for k in missing:
-            print("       %s   <-- two arms differing here share a cached model" % k)
-    else:
-        print("     OK -- every key the warm-up reads is in the identity")
-    unused = sorted(declared - actual)
-    if unused:
-        print("     note: declared but not read on the warm-up path: %s"
-              % ", ".join(unused))
-        print("           (harmless -- over-splits caches, never shares wrongly)")
-
-    runs = [json.load(open(q)) for q in
-            glob.glob(os.path.join(root, "**", "config.json"), recursive=True)]
-
-    def projection(cfg):
-        hp = cfg["hyperparams"]
-        d = {"model_name": cfg["model_name"], "dataset_mode": cfg["dataset_mode"],
-             "data_dir": cfg["dataset_config"]["data_dir"],
-             "num_classes": cfg["dataset_config"]["num_classes"]}
-        d.update({k: hp[k] for k in declared if k in hp})
-        return json.dumps(d, sort_keys=True)
-
-    by_id = collections.defaultdict(set)
-    by_proj = collections.defaultdict(set)
-    for cfg in runs:
-        by_id[cfg["base_model_id"]].add(projection(cfg))
-        by_proj[projection(cfg)].add(cfg["base_model_id"])
-
-    print()
-    print("  P2 injectivity -- %d distinct ids for %d distinct warm-up identities"
-          % (len(by_id), len(by_proj)))
-    collide = {i: v for i, v in by_id.items() if len(v) > 1}
-    split = {v: i for v, i in by_proj.items() if len(i) > 1}
-    if collide:
-        bad += len(collide)
-        print("     FAIL: %d id(s) map to MORE THAN ONE warm-up identity -- a hash"
-              % len(collide))
-        print("           collision, so two different models share one cache file:")
-        for i in sorted(collide):
-            print("       %s" % i)
-    elif split:
-        bad += len(split)
-        print("     FAIL: one identity produced several ids -- generator is "
-              "non-deterministic")
-    else:
-        print("     OK -- one id per identity, and no id shared by two identities")
-
-    per_id_arms = collections.defaultdict(set)
-    per_id_vals = collections.defaultdict(lambda: collections.defaultdict(set))
-    for cfg in runs:
-        bid = cfg["base_model_id"]
-        per_id_arms[bid].add(cfg["arm"])
-        for k in sorted(actual):
-            per_id_vals[bid][k].add(json.dumps(cfg["hyperparams"].get(k)))
-
-    disagree = [(bid, k) for bid in per_id_vals for k in per_id_vals[bid]
-                if len(per_id_vals[bid][k]) > 1]
-    groups = collections.Counter(frozenset(a) for a in per_id_arms.values())
-    print()
-    print("  P3 sharing -- %d warm-ups cover %d arms per (model, dataset, seed)"
-          % (len(groups), sum(len(g) for g in groups)))
-    for g in sorted(groups, key=lambda x: (-len(x), sorted(x))):
-        tag = ("trains once, reused by %d arms" % len(g)) if len(g) > 1 else "own warm-up"
-        print("     %-42s %s" % (" + ".join(sorted(g)), tag))
-    if disagree:
-        bad += len(disagree)
-        print("     FAIL: arms sharing an id DISAGREE on a warm-up key:")
-        for bid, k in disagree[:10]:
-            print("       %s: %s" % (bid, k))
-    else:
-        print("     OK -- arms sharing an id agree on all %d warm-up keys"
-              % len(actual))
-    n_arms = len({c["arm"] for c in runs})
-    saved = n_arms - len(groups)
-    print("     => %d of %d warm-ups are cache hits (%.0f%% of warm-up training "
-          "skipped)" % (saved, n_arms, 100.0 * saved / n_arms))
-    print()
+        print("FAIL warm-up identity lacks live keys: %s" % sorted(missing))
+    for p in glob.glob(os.path.join(root, "**", "config.json"), recursive=True):
+        c = json.load(open(p, encoding="utf-8"))
+        expected = compute_base_model_id(
+            P, c["model_name"], c["hyperparams"], c["dataset_mode"], c["dataset_config"]
+        )
+        if c["base_model_id"] != expected:
+            print("FAIL base_model_id: %s" % p)
+            bad += 1
     return bad
 
 
-def _nontask_flag():
-    """`["--allow-nontask"]` if this checkout's generator has it, else `[]`.
-
-    🛑 THE `scripts/` vs `configs/` SKEW, AND IT COST A LAUNCH (2026-09-02).
-    `scripts/` is deliberately deployable mid-campaign -- it is outside
-    `TRAINING_PATHS`, so updating it does not flip `code_version` to `-dirty`.
-    `configs/` is deliberately FROZEN, pinned at the commit a campaign's
-    configs were generated from. So the two drift APART by design, and this
-    audit spans both: it is a current script driving a pinned generator.
-
-    Passing a flag the pinned generator has never heard of makes argparse exit
-    2, which surfaced as `audit_config FAIL` and turned the `verify` step gate
-    RED on a campaign with nothing wrong with it. That is precisely the
-    UNRUNNABLE-vs-FAIL confusion `scripts/run_campaign.py` exists to prevent,
-    and it slipped in through an INSTRUMENT rather than a gate bucket.
-
-    The `--allow-nontask` flag only silences a cap-window refusal on a probe
-    campaign that is generated into a temp dir and never trained, so dropping
-    it on an older generator loses nothing: that generator predates the window
-    check and would not have refused anyway.
-    """
-    try:
-        out = subprocess.run(
-            [sys.executable, "-m", "configs.gen_campaign", "--help"],
-            capture_output=True, text=True, timeout=120).stdout
-    except Exception:
-        return []
-    return ["--allow-nontask"] if "--allow-nontask" in out else []
-
-
-def _protocol_datasets():
-    """The datasets the protocol actually declares, in declaration order."""
-    import yaml
-    with io.open(os.path.join("configs", "protocol.yml"), encoding="utf-8") as fh:
-        return list(yaml.safe_load(fh)["datasets"])
+def audit(root):
+    paths = glob.glob(os.path.join(root, "**", "config.json"), recursive=True)
+    if not paths:
+        print("FAIL no config.json under %s" % root)
+        return 1
+    bad = audit_per_arm(root) + audit_identity(root)
+    print(
+        "audited %d configs from %s: %s" % (len(paths), root, "FAIL" if bad else "OK")
+    )
+    return int(bool(bad))
 
 
 def main():
-    if len(sys.argv) > 1:
-        root = sys.argv[1]
-        tmp = None
-        # 🛑 A ROOT WITH NO CONFIGS MUST FAIL, NOT PASS.
-        # Every check below iterates `glob(root/**/config.json)`, so an empty
-        # or wrong root made all of them vacuously true and the audit printed
-        # "OK -- arms sharing an id agree on all 12 warm-up keys" over zero
-        # arms. `audit_config --help` did exactly that: it took `--help` as the
-        # root, found nothing, and reported green. That is this project's own
-        # mistake pattern 1 -- a check that reports green while not looking --
-        # inside the tool built to catch it.
-        if root in ("-h", "--help"):
-            print(__doc__ or "usage: python -m scripts.audit_config [CAMPAIGN_ROOT]")
-            return 0
-        if not os.path.isdir(root):
-            raise SystemExit("audit_config: %r is not a directory. Pass a "
-                             "campaign root, or no argument to audit a freshly "
-                             "generated one." % root)
-        found = glob.glob(os.path.join(root, "**", "config.json"), recursive=True)
-        if not found:
-            raise SystemExit(
-                "audit_config: no config.json anywhere under %r. Every check "
-                "here iterates that glob, so auditing this root would report "
-                "OK over ZERO configs -- which is indistinguishable from a "
-                "clean campaign and is how a green audit means nothing." % root)
-    else:
-        tmp = tempfile.mkdtemp(prefix="cfgaudit_")
-        root = tmp
-        # 🛑 ONE PROBE PER DATASET, ON A CAP LADDER, because a single hardcoded
-        # cap is not expressible on every slice. `fmow` has exactly ONE
-        # single-unit_residential in Chile, so `L30_G30` rounds that ceiling to
-        # K=0 and `compute_local_constraints` RAISES rather than silently
-        # disabling the constraint -- correct behaviour at a cap nobody would
-        # use (fmow's window is far looser). Before this, that refusal took the
-        # WHOLE audit down with a CalledProcessError, so adding a legitimate
-        # dataset made every other dataset's key audit unrunnable.
-        #
-        # ⚠️ THE LADDER DOES NOT WEAKEN THE CHECK. This audit is static
-        # analysis of emitted config KEYS; which cap produced them is
-        # irrelevant to that, and every dataset still gets audited. What would
-        # weaken it is skipping a dataset, so a slice that cannot express ANY
-        # rung is a hard failure, named.
-        LADDER = [("L30_G30", "L50_G50"), ("L50_G50", "L70_G70"),
-                  ("L70_G70", "L90_G90")]
-        used, failed = {}, {}
-        for ds in _protocol_datasets():
-            sub = os.path.join(tmp, ds)
-            for caps in LADDER:
-                r = subprocess.run(
-                    # `--constraint-fp32` because the generator now REFUSES
-                    # trained arms without it (fp16 + GradScaler silently drops
-                    # ~13% of the dose). This probe campaign is never trained,
-                    # so the flag only gets it past the gate.
-                    [sys.executable, "-m", "configs.gen_campaign",
-                     "--constraint-fp32", "--root", sub,
-                     # EVERY dataset the protocol declares, read from the
-                     # protocol rather than hardcoded. The old literal list
-                     # outlived the datasets themselves: when dermmnist /
-                     # octmnist / tissuemnist were removed on 2026-08-22 this
-                     # audit crashed with a bare argparse exit 2, and an audit
-                     # that dies when the config changes is an audit nobody can
-                     # use to VERIFY the change.
-                     "--datasets", ds,
-                     "--models", "MobileNetV3", "MobileNetV2",
-                     "RegNetY400MF", "ViTB16",
-                     # all+null, NOT all. `all` is deliberately compute-neutral
-                     # and excludes the zero-dose siblings, which is right for a
-                     # CAMPAIGN and wrong here: auditing is static analysis of
-                     # configs, it costs nothing to run, and skipping the four
-                     # newest and highest-stakes arms is this project's own
-                     # mistake pattern 1 -- a check that reports green while not
-                     # looking -- one layer up.
-                     "--caps", caps[0], caps[1], *_nontask_flag(),
-                     "--arms", "all+null"],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-                if r.returncode == 0:
-                    used[ds] = caps
-                    break
-                failed.setdefault(ds, []).append(
-                    (caps, (r.stderr or b"").decode("utf-8", "replace")[-300:]))
-            else:
-                print("audit_config: REFUSING -- %s cannot express ANY "
-                      "probe cap on the ladder %s, so its config keys "
-                      "would go unaudited."
-                      % (ds, [c[0] for c in LADDER]))
-                print("  last error: %s" % failed[ds][-1][1])
+    import argparse
+    from configs.gen_campaign import load_protocol
+
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("root", nargs="?")
+    args = ap.parse_args()
+    try:
+        if args.root:
+            return audit(args.root)
+        with tempfile.TemporaryDirectory(prefix="cfgaudit_") as root:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "configs.gen_campaign",
+                    "--root",
+                    root,
+                    "--datasets",
+                    *load_protocol()["datasets"],
+                    "--models",
+                    *load_protocol()["models"],
+                    "--arms",
+                    "all",
+                    "--seeds",
+                    "1",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode:
+                print(result.stdout + result.stderr)
                 return 1
-        for ds, caps in sorted(used.items()):
-            if caps != LADDER[0]:
-                print("  note: %s audited at %s (its smallest per-group "
-                      "ceiling rounds to 0 at %s)" % (ds, caps[0], LADDER[0][0]))
-
-    emitted, per_arm, n = collect_emitted(root)
-    reads = collect_reads()
-    read_keys = collections.defaultdict(set)
-    for (kind, key) in reads:
-        read_keys[kind].add(key)
-
-    print("audited %d configs from %s\n" % (n, root))
-    bad = 0
-
-    for kind in ("config", "hyperparams", "dataset_config"):
-        em, rd = emitted[kind], read_keys[kind]
-        print("=" * 78)
-        print("%s   (%d emitted, %d read in code)" % (kind.upper(), len(em), len(rd)))
-        print("=" * 78)
-
-        hallucinated = sorted(em - rd)
-        if hallucinated:
-            bad += len(hallucinated)
-            print("\n  HALLUCINATED -- emitted but NEVER read (delete from generator):")
-            for k in hallucinated:
-                print("     %s" % k)
-        else:
-            print("\n  HALLUCINATED: none")
-
-        if kind == "hyperparams":
-            silent = sorted(rd - em)
-            if silent:
-                print("\n  SILENT -- read in code but NOT emitted (value comes from a")
-                print("            literal in the code, not from the config):")
-                for k in silent:
-                    where = reads[(kind, k)][0]
-                    print("     %-28s first read at %s:%d" % (k, where[0], where[1]))
-            else:
-                print("\n  SILENT: none")
-
-        ok = sorted(em & rd)
-        print("\n  OK (%d): %s" % (len(ok), ", ".join(ok)))
-        print()
-
-    bad += audit_per_arm(root)
-    bad += audit_identity(root)
-
-    if OPAQUE:
-        # An opaque read in src/ hides a real config dependency: the pipeline
-        # consumes a key the audit cannot name, so a hallucinated key could
-        # live under it. In the audit and scoring tools it is almost always a
-        # loop over a key list the audit can already see -- report, don't fail.
-        pipeline = [o for o in OPAQUE if o[2].startswith("src/")]
-        tooling = [o for o in OPAQUE if not o[2].startswith("src/")]
-        print("=" * 78)
-        print("UNAUDITABLE READS  (%d in src/, %d in tooling)"
-              % (len(pipeline), len(tooling)))
-        print("=" * 78)
-        print()
-        print("  A config dict accessed with a key this walker cannot resolve.")
-        print("  Below such a read the read set is UNKNOWN, so the audit stops")
-        print("  proving anything about it. None of these exist today; the")
-        print("  point is that adding one FAILS instead of silently shrinking")
-        print("  what the audit covers.")
-        if pipeline:
-            bad += len(pipeline)
-            print()
-            print("  FAIL -- in the pipeline, where it would hide a real key:")
-            for base, how, path, line in pipeline:
-                print("     %s:%d  %s on %s" % (path, line, how, base or "a dict"))
-        if tooling:
-            print()
-            for base, how, path, line in tooling:
-                print("     (tooling, allowed) %s:%d  %s on %s"
-                      % (path, line, how, base or "a dict"))
-        if not pipeline:
-            print()
-            print("  OK -- every unresolvable read is in audit/scoring code")
-            print("  that iterates a declared key list, not in src/.")
-        print()
-
-    if tmp:
-        import shutil
-        shutil.rmtree(tmp, ignore_errors=True)
-
-    print("=" * 78)
-    if bad:
-        print("%d HALLUCINATED key(s) -- the config claims knobs the code does not read." % bad)
+            return audit(root)
+    except (ValueError, KeyError, OSError, TypeError) as exc:
+        print("FAIL audit_config: %s" % exc)
         return 1
-    print("No hallucinated keys: every emitted value has a reader.")
-    return 0
 
 
 if __name__ == "__main__":

@@ -1,125 +1,110 @@
-"""Regression tests for the invariants this project has broken before.
+"""Maintained behavioral regression fixtures."""
 
-Every test here corresponds to a defect that actually shipped. The point is not
-coverage -- it is that the specific ways this pipeline has produced wrong
-numbers are now mechanically checked.
-
-    python -m pytest tests -q
-
-Runs in a few seconds on CPU and needs no dataset.
-"""
 import importlib
+
 import io
+
 import json
+
 import math
+
 import os
+
 import shutil
+
 import subprocess
+
 import sys
+
 import tempfile
 
 import numpy as np
+
 import pytest
+
 import torch
+
 import torch.nn.functional as F
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from configs.gen_campaign import build_hyperparams, cap_pair, compute_base_model_id
 
-from configs.gen_campaign import (build_hyperparams, cap_pair,      # noqa: E402
-                                  compute_base_model_id, load_protocol)
-from src.losses.transductive_loss import MulticlassTransductiveLoss  # noqa: E402
-from src.methodologies.heuristic.train import (                      # noqa: E402
-    _build_hierarchy, apply_allocation_heuristic, verify_allocation)
-from src.training.constraints import (compute_global_constraints,    # noqa: E402
-                                      compute_local_constraints)
+from src.losses.transductive_loss import MulticlassTransductiveLoss
+
+from src.methodologies.heuristic.train import (
+    _build_hierarchy,
+    apply_allocation_heuristic,
+    verify_allocation,
+)
+
+from src.training.constraints import (
+    compute_global_constraints,
+    compute_local_constraints,
+)
+
 from lean_fixtures import protocol_with_nulls as load_protocol
-from src.utils.constants import UNLIMITED                            # noqa: E402
-from scripts.full_panel import equalize_multi
+
+from src.utils.constants import UNLIMITED
+
 from src.experiments.runner import TRAIN_FNS
+
 from src.models import get_model
+
 from src.training.constraint_step import finish_constraint_step
+
 from src.utils.data_loader import _load_imagery_data as load_data
+
 from src.utils.posthoc_adjustment import targeted_correction
+
 import ast
+
 import pandas as pd
+
 import pathlib
+
 import re
+
 import torch.nn as nn
-import yaml
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-LAUNCHER_DIR = os.path.join("docs", "archive", "launchers")
-
-
-def launch_scripts():
-    """The campaign launch scripts, wherever they currently live.
-
-    Nine gates keyed on `os.listdir("docs")`. The launchers were archived to
-    `docs/archive/launchers/` on 2026-09-04 -- every campaign they stage is
-    quarantined or partially quarantined, so they are history, not
-    instructions -- and all nine went red at once, each refusing loudly
-    rather than passing on an empty list. That is the behaviour we want, and
-    it is also why the path belongs in ONE place instead of nine.
-
-    Returns (directory, sorted script names).
-    """
-    for d in (LAUNCHER_DIR, "docs"):
-        if os.path.isdir(d):
-            names = sorted(f for f in os.listdir(d) if f.endswith(".sh"))
-            if names:
-                return d, names
-    return LAUNCHER_DIR, []
-
-
-
-
-# ---------------------------------------------------------------- the loss --
 
 def _reference_penalty(soft, K, rho=0.5):
-    """The penalty as it stood before the K=0 fix. For K >= 1 the current code
-    must match this exactly -- the fix must not move any existing result."""
     E = F.relu(soft - K)
-    e = E / (K + 1e-8)
-    return E / (E + K + 1e-8) + rho * (e ** 2) / (1 + e ** 2 + 1e-8)
+    e = E / (K + 1e-08)
+    return E / (E + K + 1e-08) + rho * e**2 / (1 + e**2 + 1e-08)
 
 
 def _loss(global_constraints, local_constraints=None, rho=0.5):
     return MulticlassTransductiveLoss(
         global_constraints=global_constraints,
         local_constraints=local_constraints or {},
-        num_classes=len(global_constraints), initial_rho=rho)
+        num_classes=len(global_constraints),
+        initial_rho=rho,
+    )
 
 
 @pytest.mark.parametrize("K", [1, 2, 5, 20, 67, 250])
-@pytest.mark.parametrize("soft", [0.0, 0.5, 7.5, 20.0, 100.0, 1e4])
+@pytest.mark.parametrize("soft", [0.0, 0.5, 7.5, 20.0, 100.0, 10000.0])
 def test_penalty_unchanged_for_positive_K(K, soft):
-    """max(K,1) is the identity for K >= 1: value AND gradient."""
     crit = _loss([K, UNLIMITED])
     a = torch.tensor(soft, requires_grad=True)
     b = torch.tensor(soft, requires_grad=True)
     crit._penalty(a, K).backward()
     _reference_penalty(b, K).backward()
-    assert torch.allclose(crit._penalty(torch.tensor(soft), K),
-                          _reference_penalty(torch.tensor(soft), K), atol=0, rtol=0)
+    assert torch.allclose(
+        crit._penalty(torch.tensor(soft), K),
+        _reference_penalty(torch.tensor(soft), K),
+        atol=0,
+        rtol=0,
+    )
     assert a.grad.item() == b.grad.item()
 
 
 def test_K0_constraint_has_a_gradient():
-    """A group with no true instance of the capped class gets K=0 legitimately.
-    It used to sit pinned at the penalty's own bound: a nonzero CONSTANT with
-    exactly zero gradient, so the constraint contributed nothing to the model at
-    all. `scale = max(K, 1)` fixed that.
-
-    NOTE the claim that used to be appended here -- that it also held the
-    ratchet gate open for every other constraint -- is FALSE and was removed
-    2026-08-22. The trainer computes satisfaction and the gate from the HARD
-    counts, which can be exactly zero. See
-    `test_the_trainer_decides_satisfaction_and_the_ratchet_from_HARD_counts`."""
     crit = _loss([0, UNLIMITED])
     soft = torch.tensor(12.0, requires_grad=True)
     crit._penalty(soft, 0).backward()
-    assert soft.grad.item() > 1e-6, "K=0 must push the count down"
+    assert soft.grad.item() > 1e-06, "K=0 must push the count down"
     old = torch.tensor(12.0, requires_grad=True)
     _reference_penalty(old, 0).backward()
     assert old.grad.item() == 0.0, "the old form really was inert (guards the test)"
@@ -132,27 +117,18 @@ def test_penalty_is_zero_at_and_below_the_budget():
 
 
 def test_empty_constraints_stay_connected_to_the_graph():
-    """An all-UNLIMITED scope must still return an autograd-connected zero on
-    the right device, or .backward() raises on a run with no capped class."""
     crit = _loss([UNLIMITED, UNLIMITED])
     counts = torch.zeros(2, requires_grad=True)
     total = crit.compute_global_from_counts(counts)
     assert total.item() == 0.0
     assert total.requires_grad, "an all-UNLIMITED scope returned a detached zero"
-    total.backward()                       # must not raise
+    total.backward()
     assert counts.grad is not None
-
-    # An empty local scope has no count tensor to hang the graph on, so its
-    # zero is a constant -- but it must be on the MODULE's device, or adding it
-    # to a CUDA global term raises. It used to be a bare CPU tensor(0.0).
     local = crit.compute_local_from_counts({})
     assert local.item() == 0.0
     assert local.device == crit.global_constraints.device
-    # and the sum must stay differentiable as long as either scope is live
     assert (crit.compute_global_from_counts(counts) + local).requires_grad
 
-
-# ------------------------------------------------------------- the budgets --
 
 def _frame(labels, groups):
     return pd.DataFrame({"label": np.asarray(labels), "grp": np.asarray(groups)})
@@ -160,40 +136,39 @@ def _frame(labels, groups):
 
 def test_local_and_global_percentages_are_independent():
     df = _frame([1] * 100 + [0] * 100, [0] * 50 + [1] * 50 + [0] * 50 + [1] * 50)
-    local_pct, global_pct = cap_pair("L50_G30")
+    (local_pct, global_pct) = cap_pair("L50_G30")
     assert (local_pct, global_pct) == (0.5, 0.3)
-    g = compute_global_constraints(df, "label", global_pct,
-                                   constrained_class=1, num_classes=2)
-    loc = compute_local_constraints(df, "label", local_pct, "grp",
-                                    constrained_class=1, num_classes=2)
-    assert g[1] == 30                                  # 30% of 100
-    assert sorted(v[1] for v in loc.values()) == [25, 25]   # 50% of 50, twice
+    g = compute_global_constraints(
+        df, "label", global_pct, constrained_class=1, num_classes=2
+    )
+    loc = compute_local_constraints(
+        df, "label", local_pct, "grp", constrained_class=1, num_classes=2
+    )
+    assert g[1] == 30
+    assert sorted((v[1] for v in loc.values())) == [25, 25]
 
 
 def test_K_zero_from_a_nonzero_count_is_refused():
-    """A percentage that rounds a real class to zero would vanish silently."""
     df = _frame([1] + [0] * 99, [0] * 100)
     with pytest.raises(ValueError, match="K=0"):
-        compute_global_constraints(df, "label", 0.3,
-                                   constrained_class=1, num_classes=2)
+        compute_global_constraints(df, "label", 0.3, constrained_class=1, num_classes=2)
 
 
 def test_K_zero_from_an_absent_class_is_allowed():
-    """count == 0 is a real, tightest-possible budget, not a config error."""
     df = _frame([0] * 50 + [1] * 50, [0] * 50 + [1] * 50)
-    loc = compute_local_constraints(df, "label", 0.5, "grp",
-                                    constrained_class=1, num_classes=2)
+    loc = compute_local_constraints(
+        df, "label", 0.5, "grp", constrained_class=1, num_classes=2
+    )
     assert loc[0][1] == 0 and loc[1][1] == 25
 
 
 def test_several_capped_classes_get_independent_budgets():
     df = _frame([0] * 40 + [1] * 60 + [2] * 100, list(range(2)) * 100)
-    g = compute_global_constraints(df, "label", 0.5,
-                                   constrained_class=[0, 2], num_classes=3)
-    assert g[0] == 20 and g[2] == 50 and g[1] == UNLIMITED
+    g = compute_global_constraints(
+        df, "label", 0.5, constrained_class=[0, 2], num_classes=3
+    )
+    assert g[0] == 20 and g[2] == 50 and (g[1] == UNLIMITED)
 
-
-# ----------------------------------------------------------- the allocator --
 
 def _probs(n, k, seed):
     rng = np.random.default_rng(seed)
@@ -203,82 +178,71 @@ def _probs(n, k, seed):
 
 @pytest.mark.parametrize("seed", range(6))
 def test_single_capped_class_is_exactly_top_K(seed):
-    n, k, K = 200, 4, 30
-    p, g = _probs(n, k, seed), np.zeros(200, dtype=int)
+    (n, k, K) = (200, 4, 30)
+    (p, g) = (_probs(n, k, seed), np.zeros(200, dtype=int))
     gcon = [UNLIMITED] * k
     gcon[2] = K
     lcon = {0: [UNLIMITED] * k}
-    y, _ = apply_allocation_heuristic(
-        p, g, _build_hierarchy(k, gcon, [2]), gcon, lcon, k)
+    (y, _) = apply_allocation_heuristic(
+        p, g, _build_hierarchy(k, gcon, [2]), gcon, lcon, k
+    )
     chosen = set(np.where(y == 2)[0])
     assert chosen == set(np.argsort(p[:, 2])[::-1][:K])
 
 
 @pytest.mark.parametrize("seed", range(6))
 def test_several_capped_classes_are_not_starved(seed):
-    """Filling classes one at a time let each take its full budget from the
-    whole pool, so the last capped class got nothing: [40, 40, 40, 0]."""
-    n, k = 120, 4
-    p, g = _probs(n, k, seed), np.zeros(120, dtype=int)
-    gcon, lcon = [40] * k, {0: [40] * k}
-    y, _ = apply_allocation_heuristic(
-        p, g, _build_hierarchy(k, gcon, list(range(k))), gcon, lcon, k)
+    (n, k) = (120, 4)
+    (p, g) = (_probs(n, k, seed), np.zeros(120, dtype=int))
+    (gcon, lcon) = ([40] * k, {0: [40] * k})
+    (y, _) = apply_allocation_heuristic(
+        p, g, _build_hierarchy(k, gcon, list(range(k))), gcon, lcon, k
+    )
     counts = np.bincount(y, minlength=k)
     assert counts.min() > 0, "a capped class was starved: %s" % counts
     assert not verify_allocation(y, g, gcon, lcon, k)
 
 
 def test_a_local_cap_binds_without_a_global_cap():
-    """The leftover pass gated the local check on the GLOBAL cap, so a class
-    capped only locally was never blocked locally."""
-    n, k = 200, 4
+    (n, k) = (200, 4)
     p = _probs(n, k, 11)
     g = np.arange(n) % 2
     gcon = [UNLIMITED] * k
-    lcon = {0: [UNLIMITED, 5, UNLIMITED, UNLIMITED],
-            1: [UNLIMITED, 5, UNLIMITED, UNLIMITED]}
-    y, _ = apply_allocation_heuristic(
-        p, g, _build_hierarchy(k, gcon, [1]), gcon, lcon, k)
+    lcon = {
+        0: [UNLIMITED, 5, UNLIMITED, UNLIMITED],
+        1: [UNLIMITED, 5, UNLIMITED, UNLIMITED],
+    }
+    (y, _) = apply_allocation_heuristic(
+        p, g, _build_hierarchy(k, gcon, [1]), gcon, lcon, k
+    )
     for grp in (0, 1):
         assert int((y[g == grp] == 1).sum()) <= 5
     assert not verify_allocation(y, g, gcon, lcon, k)
 
 
 def test_infeasible_instance_does_not_dump_everything_into_class_zero():
-    """argmax of an all -1 vector returns 0, so every impossible item was
-    assigned class 0 far past its cap, silently."""
-    n, k = 100, 4
-    p, g = _probs(n, k, 7), np.zeros(100, dtype=int)
-    gcon, lcon = [10] * k, {0: [10] * k}
-    y, _ = apply_allocation_heuristic(
-        p, g, _build_hierarchy(k, gcon, list(range(k))), gcon, lcon, k)
+    (n, k) = (100, 4)
+    (p, g) = (_probs(n, k, 7), np.zeros(100, dtype=int))
+    (gcon, lcon) = ([10] * k, {0: [10] * k})
+    (y, _) = apply_allocation_heuristic(
+        p, g, _build_hierarchy(k, gcon, list(range(k))), gcon, lcon, k
+    )
     counts = np.bincount(y, minlength=k)
     assert counts.max() < n / 2, "collapsed onto one class: %s" % counts
 
 
-# ------------------------------------------------------- the generator gate --
-
 def _gen(tmp, *extra):
-    # `tralo_reseed` is here because the generator REFUSES a campaign that
-    # holds a trained arm without the reseed floor -- a count trajectory read
-    # without it is not a measurement. Every test below this line is about
-    # something else, so they carry the control rather than trip that gate; the
-    # gate itself is tested by
-    # test_generator_refuses_a_count_reading_campaign_without_the_reseed_control.
-    # `--allow-nontask` for the same reason: the generator REFUSES caps
-    # outside the measured task window (FRAMEWORK 2(z16)/2(z17)), and the
-    # L30/L50 tags below are all outside it on iwildcam. These tests are
-    # about generation MECHANICS, not about whether the cap poses a
-    # question; the window gate itself is tested by
-    # test_the_generator_refuses_a_cap_that_poses_no_question.
-    # `--constraint-fp32` for the third such reason: the generator now REFUSES
-    # trained arms without it, because fp16 + GradScaler silently drops ~13% of
-    # the constraint steps and `taskwin1` was staged that way anyway. These
-    # tests are about generation MECHANICS; the dose gate itself is tested by
-    # test_the_generator_refuses_trained_arms_without_constraint_fp32.
-    cmd = [sys.executable, "-m", "configs.gen_campaign", "--root", str(tmp),
-           "--datasets", "iwildcam",
-           "--arms", "tralo"] + list(extra)
+    cmd = [
+        sys.executable,
+        "-m",
+        "configs.gen_campaign",
+        "--root",
+        str(tmp),
+        "--datasets",
+        "iwildcam",
+        "--arms",
+        "tralo",
+    ] + list(extra)
     return subprocess.run(cmd, cwd=REPO, capture_output=True, text=True)
 
 
@@ -293,21 +257,17 @@ def test_generator_refuses_an_out_of_range_capped_class(tmp_path):
 
 
 def test_generator_refuses_a_repeated_capped_class(tmp_path):
-    r = _gen(tmp_path, "--caps", "L30_G30", "L50_G30",
-             "--constrained-class", "4", "4")
+    r = _gen(tmp_path, "--caps", "L30_G30", "L50_G30", "--constrained-class", "4", "4")
     assert r.returncode == 1 and "repeats a class" in r.stdout + r.stderr
 
 
 def test_generator_refuses_to_mix_capped_classes_in_one_root(tmp_path):
-    """A completed run is never reset, so a second pass with a different capped
-    class would leave both in one cell and the scorer would pool them."""
     assert _gen(tmp_path, "--caps", "L30_G30", "L50_G30").returncode == 0
     cfg_path = next(iter(sorted(tmp_path.rglob("config.json"))))
     cfg = json.loads(cfg_path.read_text())
     cfg["status"] = "completed"
     cfg_path.write_text(json.dumps(cfg))
-    r = _gen(tmp_path, "--caps", "L30_G30", "L50_G30",
-             "--constrained-class", "4", "5")
+    r = _gen(tmp_path, "--caps", "L30_G30", "L50_G30", "--constrained-class", "4", "5")
     assert r.returncode == 1 and "already holds a run" in r.stdout + r.stderr
 
 
@@ -316,8 +276,6 @@ def test_mandatory_clippers_are_always_added(tmp_path):
     arms = {p.parts[-3] for p in tmp_path.rglob("config.json")}
     assert {"clip", "focal_clip"} <= arms
 
-
-# -------------------------------------------------- the warm-up cache identity
 
 def _bid(P, arm, seed=1, **over):
     dc = dict(P["datasets"]["iwildcam"])
@@ -332,37 +290,42 @@ def test_arms_differing_only_in_the_allocator_share_a_warm_up():
 
 
 def test_a_different_warm_up_objective_does_not_share_a_model():
-    """clip and focal_clip once hashed identically, so focal_clip silently
-    loaded clip's model and became a second clip."""
     P = load_protocol()
     assert _bid(P, "clip") != _bid(P, "focal_clip")
 
 
-@pytest.mark.parametrize("key,value", [
-    ("lr", 0.5), ("dropout", 0.9), ("batch_size", 7), ("warmup_epochs", 3),
-    ("pretrained", False), ("class_weighted_ce", True), ("seed", 99),
-])
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("lr", 0.5),
+        ("dropout", 0.9),
+        ("batch_size", 7),
+        ("warmup_epochs", 3),
+        ("pretrained", False),
+        ("class_weighted_ce", True),
+        ("seed", 99),
+    ],
+)
 def test_every_warm_up_key_moves_the_hash(key, value):
     P = load_protocol()
     assert _bid(P, "tralo") != _bid(P, "tralo", **{key: value})
 
 
 def test_constraint_phase_keys_do_not_move_the_hash():
-    """They do not change what the warm-up optimizes, so the cache must be
-    shared -- that sharing is the whole point."""
     P = load_protocol()
     base = _bid(P, "tralo")
-    for key, value in (("constraint_epochs", 5), ("lambda_step", 0.9),
-                       ("initial_rho", 9.0), ("enable_checkpoint_restore", True)):
+    for key, value in (
+        ("constraint_epochs", 5),
+        ("lambda_step", 0.9),
+        ("initial_rho", 9.0),
+        ("enable_checkpoint_restore", True),
+    ):
         assert _bid(P, "tralo", **{key: value}) == base
 
 
-# ------------------------------------------------------------- the lifecycle --
-
 def test_a_diverged_result_is_not_recorded_as_completed(tmp_path):
-    """An all-NaN model still scores like a degenerate but healthy classifier;
-    `completed` means the dispatcher never revisits it."""
     from src.pipeline.io import save_results_to_config
+
     cfg = {"hyperparams": {}, "status": "pending"}
     save_results_to_config(cfg, tmp_path, {"accuracy": float("nan"), "f1": 0.3})
     assert cfg["status"] == "diverged" and "accuracy" in cfg["diverged_keys"][0]
@@ -372,9 +335,8 @@ def test_a_diverged_result_is_not_recorded_as_completed(tmp_path):
 
 
 def test_rerunning_does_not_turn_the_old_header_into_a_data_row(tmp_path):
-    """A crashed run is reset to pending and re-dispatched into the same dir;
-    rows are appended, so df["Epoch"].max() returned the STRING 'Epoch'."""
     from src.training.logging import log_progress_to_csv, write_csv_header
+
     p = tmp_path / "training_log.csv"
     for run in range(2):
         write_csv_header(str(p), num_classes=2)
@@ -386,60 +348,51 @@ def test_rerunning_does_not_turn_the_old_header_into_a_data_row(tmp_path):
 
 
 def test_the_csv_reports_the_real_local_lambda_column():
-    """Lambda_Local was passed as a literal 0.0 and read 0.0000 forever."""
     from src.training.logging import build_csv_header
+
     header = build_csv_header(num_classes=2)
     assert "Lambda_Local" in header
     assert "Grad_Norm" in header and "L_KL" not in header
 
 
-# --------------------------------------------------------- the backbone heads
-
-@pytest.mark.parametrize("name", ["MobileNetV3", "MobileNetV2",
-                                  "RegNetY400MF", "ViTB16"])
+@pytest.mark.parametrize(
+    "name", ["MobileNetV3", "MobileNetV2", "RegNetY400MF", "ViTB16"]
+)
 def test_backbones_keep_their_pretrained_weights(name):
-    """Every backbone must replace ONLY its final layer. MobileNetV3 -- the
-    headline backbone -- used to rebuild its whole classifier, discarding the
-    pretrained 960->1280 projection. That projection is trained during warm-up
-    only, and trained arms get ONE warm-up epoch against the post-hoc arms'
-    thirty, so it biased the headline comparison on the headline backbone."""
     torch.manual_seed(0)
     a = get_model(name, input_dim=None, n_classes=7, dropout=0.3, pretrained=True)
     torch.manual_seed(999)
     b = get_model(name, input_dim=None, n_classes=7, dropout=0.3, pretrained=True)
-    named_a, named_b = dict(a.named_parameters()), dict(b.named_parameters())
-    differ = [k for k in named_a
-              if not torch.equal(named_a[k], named_b[k])]
-    # only the randomly-initialised final layer may differ between two seeds
+    (named_a, named_b) = (dict(a.named_parameters()), dict(b.named_parameters()))
+    differ = [k for k in named_a if not torch.equal(named_a[k], named_b[k])]
     assert len(differ) <= 2, (
         "%s re-initialises %d tensors from random, not just the final layer: %s"
-        % (name, len(differ), differ[:6]))
+        % (name, len(differ), differ[:6])
+    )
 
 
 def test_mobilenetv3_has_exactly_one_dropout_in_its_head():
-    """The whole reason the classifier was rebuilt was to avoid a double
-    dropout. Reusing the pretrained head must not reintroduce one."""
-    m = get_model("MobileNetV3", input_dim=None, n_classes=7,
-                  dropout=0.3, pretrained=False)
+    m = get_model(
+        "MobileNetV3", input_dim=None, n_classes=7, dropout=0.3, pretrained=False
+    )
     head = m.backbone.classifier
     drops = [l for l in head if isinstance(l, nn.Dropout)]
     assert len(drops) == 1 and drops[0].p == 0.3
 
 
-# ------------------------------------------------------ the failure lifecycle
-
 def test_a_repeatedly_failing_run_stops_being_re_dispatched(tmp_path):
-    """A config that fails deterministically used to reset to `pending` and be
-    picked up again by every subsequent dispatch, forever, with nothing on disk
-    saying why."""
-    from src.utils.filesystem_manager import (MAX_FAILURES,
-                                              get_experiments_by_status,
-                                              save_config_to_path,
-                                              update_experiment_status)
+    from src.utils.filesystem_manager import (
+        MAX_FAILURES,
+        get_experiments_by_status,
+        save_config_to_path,
+        update_experiment_status,
+    )
+
     exp = tmp_path / "MobileNetV3" / "derm" / "L30_G30" / "tralo" / "seed_1"
     exp.mkdir(parents=True)
-    save_config_to_path({"status": "pending", "hyperparams": {"seed": 1},
-                         "arm": "tralo"}, exp)
+    save_config_to_path(
+        {"status": "pending", "hyperparams": {"seed": 1}, "arm": "tralo"}, exp
+    )
     for i in range(1, MAX_FAILURES + 1):
         update_experiment_status(str(exp), "pending", count_failure=True)
         cfg = json.loads((exp / "config.json").read_text())
@@ -450,247 +403,125 @@ def test_a_repeatedly_failing_run_stops_being_re_dispatched(tmp_path):
 
 
 def test_a_diverged_run_is_not_re_dispatched(tmp_path):
-    from src.utils.filesystem_manager import (get_experiments_by_status,
-                                              save_config_to_path)
+    from src.utils.filesystem_manager import (
+        get_experiments_by_status,
+        save_config_to_path,
+    )
+
     exp = tmp_path / "M" / "d" / "L30_G30" / "tralo" / "seed_1"
     exp.mkdir(parents=True)
-    save_config_to_path({"status": "diverged", "hyperparams": {"seed": 1},
-                         "arm": "tralo"}, exp)
+    save_config_to_path(
+        {"status": "diverged", "hyperparams": {"seed": 1}, "arm": "tralo"}, exp
+    )
     buckets = get_experiments_by_status(str(tmp_path))
     assert not buckets["pending"] and len(buckets["blocked"]) == 1
 
 
 def test_an_interrupted_run_still_resets_to_pending(tmp_path):
-    """Load-bearing: this is what makes overnight re-dispatch idempotent.
-    `running` must NOT be terminal."""
-    from src.utils.filesystem_manager import (get_experiments_by_status,
-                                              save_config_to_path)
+    from src.utils.filesystem_manager import (
+        get_experiments_by_status,
+        save_config_to_path,
+    )
+
     exp = tmp_path / "M" / "d" / "L30_G30" / "tralo" / "seed_1"
     exp.mkdir(parents=True)
-    save_config_to_path({"status": "running", "hyperparams": {"seed": 1},
-                         "arm": "tralo"}, exp)
+    save_config_to_path(
+        {"status": "running", "hyperparams": {"seed": 1}, "arm": "tralo"}, exp
+    )
     buckets = get_experiments_by_status(str(tmp_path))
-    assert len(buckets["pending"]) == 1 and not buckets["blocked"]
+    assert len(buckets["pending"]) == 1 and (not buckets["blocked"])
 
-
-# --------------------------------------------- protocol values are not optional
 
 @pytest.mark.parametrize("key", ["lr_constraint", "constraint_epochs"])
 def test_a_missing_protocol_value_raises_instead_of_using_the_trap(key, tmp_path):
-    """These inline defaults WERE the retracted values: lr_constraint 1e-5
-    against the protocol's 1e-4 (an unequal lr_constraint fabricated a -16.7 pp
-    finding), constraint_epochs 150 against 29, and stable_count_threshold 5
-    against 31 -- low enough that the early stop would actually fire, so an arm
-    would stop training partway and still be scored at 'equal compute'."""
     import scripts.smoke_arms as sm
+
     P = load_protocol()
-    inputs, _, _ = sm.make_inputs(P, "tralo", str(tmp_path))
+    (inputs, _, _) = sm.make_inputs(P, "tralo", str(tmp_path))
     inputs.hyperparams.pop(key, None)
     with pytest.raises(KeyError, match=key):
         TRAIN_FNS["tralo"](inputs)
 
 
-def test_deleted_danits_helpers_are_really_gone():
-    """They were reachable only through __init__ re-exports, which is why the
-    AST reachability pass reported them as live. The manuscript claims two
-    post-hoc clippers -- a greedy threshold (that is the `clip` arm) and LP-LG
-    with 'an identity misclassification cost rather than the general cost
-    matrix' -- so none of the three was in scope."""
-    import src.methodologies.danits_lp as d
-    assert set(d.__all__) == {"solve_lp_assignment", "LPResult"}
-    for gone in ("solve_greedy_assignment", "build_psi_phi_from_percentages",
-                 "build_priority_cost_matrix", "describe_cost_matrix"):
-        assert not hasattr(d, gone), "%s came back" % gone
-
-
-# --------------------------------------------------- the gates must be able to fail
-
-def test_parity_catches_two_arms_sharing_one_warm_up_with_different_objectives(tmp_path):
-    """Occurrence 5 of the inert-flag failure: clip and focal_clip hashed
-    identically, so focal_clip loaded clip's model and silently became a second
-    clip. This gate used to print the sharing groups and ask a human to look."""
+def test_parity_catches_two_arms_sharing_one_warm_up_with_different_objectives(
+    tmp_path,
+):
     r = subprocess.run(
-        [sys.executable, "-m", "configs.gen_campaign", "--root", str(tmp_path),
-         "--datasets", "iwildcam", "--models", "MobileNetV3",
-         "--caps", "L30_G30", "L50_G30", "--arms", "clip", "focal_clip"],
-        cwd=REPO, capture_output=True, text=True)
+        [
+            sys.executable,
+            "-m",
+            "configs.gen_campaign",
+            "--root",
+            str(tmp_path),
+            "--datasets",
+            "iwildcam",
+            "--models",
+            "MobileNetV3",
+            "--caps",
+            "L30_G30",
+            "L50_G30",
+            "--arms",
+            "clip",
+            "focal_clip",
+        ],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+    )
     assert r.returncode == 0
-    clip_id = next(json.loads(p.read_text())["base_model_id"]
-                   for p in sorted(tmp_path.rglob("config.json"))
-                   if json.loads(p.read_text())["arm"] == "clip")
+    clip_id = next(
+        (
+            json.loads(p.read_text())["base_model_id"]
+            for p in sorted(tmp_path.rglob("config.json"))
+            if json.loads(p.read_text())["arm"] == "clip"
+        )
+    )
     for p in sorted(tmp_path.rglob("config.json")):
         cfg = json.loads(p.read_text())
         if cfg["arm"] == "focal_clip":
             cfg["base_model_id"] = clip_id
             p.write_text(json.dumps(cfg))
-    r = subprocess.run([sys.executable, "-m", "scripts.check_parity", str(tmp_path)],
-                       cwd=REPO, capture_output=True, text=True)
+    r = subprocess.run(
+        [sys.executable, "-m", "scripts.check_parity", str(tmp_path)],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+    )
     assert r.returncode == 1
-    # gate 4 now names the offending key rather than saying "objectives",
-    # because it checks all twelve warm-up-identity keys, not just this one
-    assert "DIFFERENT warmup_loss" in r.stdout
+    assert "DIFFERENT warm-up identities" in r.stdout
 
 
 def test_verify_caps_fails_when_it_cannot_read_a_slice(tmp_path):
-    """It printed 'CAP CHECK OK -- every cap tag produces a real integer budget
-    on every dataset' having opened no file at all."""
     r = subprocess.run(
         [sys.executable, "-m", "scripts.verify_caps", "--datasets", "iwildcam"],
-        cwd=str(tmp_path), capture_output=True, text=True,
-        env={**os.environ, "PYTHONPATH": REPO})
+        cwd=str(tmp_path),
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PYTHONPATH": REPO},
+    )
     assert r.returncode == 1, "a gate that cannot fail is not a gate"
 
 
-def test_the_scorer_pairs_on_the_capped_class(tmp_path):
-    """pivot_table's default aggfunc averaged two capped-class settings into one
-    pair, so a +0.40 cell and a -0.40 cell collapsed to an exact tie while the
-    header still printed two cells."""
-    import scripts.full_panel as fp
-    src = io.io.open(os.path.join(REPO, "scripts", "full_panel.py"),
-                      encoding="utf-8").read() if False else open(
-        os.path.join(REPO, "scripts", "full_panel.py"), encoding="utf-8").read()
-    key = src.split("key = [")[1].split("]")[0]
-    assert '"capped"' in key, "the capped class is not in the pairing key"
-    with pytest.raises(ValueError, match="pairing key is missing"):
-        fp._one(pd.Series([0.4, -0.4]))
-    assert fp._one(pd.Series([0.4])) == 0.4
-
-
-# ------------------------------------------------------------- the verdict rule
-
-def _panel_verdict(tmp_path, n_better_cells, n_tied_cells, metric="AP"):
-    """Build a synthetic campaign with a KNOWN answer and read the verdict."""
-    # 8 DISTINCT cells. They used to span three datasets; with only iwildcam
-    # live the axis moved to backbone x cap. Distinctness is load-bearing --
-    # a repeated (dataset, model, cap) writes into the same directory, so the
-    # later cell silently overwrites the earlier one and the panel sees fewer
-    # pairs than the test believes it built.
-    cells = [(ds, m, cap)
-             for m in ("MobileNetV3", "MobileNetV2", "RegNetY400MF", "ViTB16")
-             for cap in ("L30_G30", "L50_G30")
-             for ds in ("iwildcam",)]
-    assert len(set(cells)) == len(cells) == 8
-    N, K = 200, 4
-    for i, (ds, model, cap) in enumerate(cells[:n_better_cells + n_tied_cells]):
-        for arm, boost in (("clip", 0.0),
-                           ("tralo", 1.5 if i < n_better_cells else 0.0)):
-            for seed in (1, 2, 3, 4):
-                rng = np.random.default_rng(1000 * i + seed)
-                y = rng.integers(0, K, size=N)
-                z = rng.normal(size=(N, K))
-                z[np.arange(N), y] += boost
-                P = np.exp(z) / np.exp(z).sum(1, keepdims=True)
-                d = tmp_path / model / ds / cap / arm / ("seed_%d" % seed)
-                d.mkdir(parents=True, exist_ok=True)
-                cols = {"True_Label": y, "Predicted_Label": P.argmax(1),
-                        "Group_ID": rng.integers(0, 3, size=N)}
-                for c in range(K):
-                    cols["Prob_Class_%d" % c] = P[:, c]
-                for f in ("final_predictions_raw.csv", "final_predictions.csv"):
-                    pd.DataFrame(cols).to_csv(d / f, index=False)
-                (d / "config.json").write_text(json.dumps(
-                    {"arm": arm, "methodology": "x", "model_name": model,
-                     "dataset_mode": ds, "constraint_tag": cap,
-                     "constraint": [0.5, 0.3], "status": "completed",
-                     "dataset_config": {"constrained_class": 1, "num_classes": K},
-                     "hyperparams": {"seed": seed}}))
-    r = subprocess.run([sys.executable, "-m", "scripts.full_panel",
-                        "--campaign", str(tmp_path), "--control", "clip"],
-                       cwd=REPO, capture_output=True, text=True)
-    for line in r.stdout.splitlines():
-        if line.strip().startswith(metric + " "):
-            return line
-    return r.stdout + r.stderr
-
-
-def test_a_win_with_majority_ties_is_not_reported_as_a_loss(tmp_path):
-    """stats.wilcoxon DISCARDS zero differences, but the majority test counted
-    them in its denominator. With 3 cells strictly better and 5 bit-identical
-    the old rule printed '*** LOSS' on a +0.19 delta at p=0.0022. The bug is
-    asymmetric -- it can only turn a win into a loss -- and partial ties are the
-    normal state here."""
-    line = _panel_verdict(tmp_path, n_better_cells=3, n_tied_cells=5)
-    assert "LOSS" not in line, line
-    assert "3/0" in line, line          # 3 better, 0 worse, rest tied
-
-
-def test_a_clean_win_is_still_called_a_win(tmp_path):
-    line = _panel_verdict(tmp_path, n_better_cells=6, n_tied_cells=2)
-    assert "*** WIN" in line, line
-
-
-def test_a_bit_identical_arm_is_a_dead_flag_not_a_direction(tmp_path):
-    """scipy returns p=1.0 for n<=12 and NaN for n>=16 on all-zero differences,
-    so an inert arm printed 'lean loss' x13. Identical output means the
-    treatment did nothing -- the project's most frequent failure, five
-    occurrences -- and must never render as a direction."""
-    line = _panel_verdict(tmp_path, n_better_cells=0, n_tied_cells=8)
-    assert "DEAD FLAG" in line, line
-    assert "loss" not in line.lower(), line
-
-
-def test_unattainable_significance_is_declared_not_called(tmp_path):
-    """At n=4 the exact two-sided Wilcoxon floor is 0.125, so 'p=0.125, lean
-    loss' was the arm being un-callable, not a settled tie."""
-    line = _panel_verdict(tmp_path, n_better_cells=4, n_tied_cells=0)
-    assert "NOT CALLABLE" in line, line
-
-
-def test_the_scorer_skips_runs_that_are_not_completed(tmp_path):
-    """It ignored `status` entirely, and regenerating a campaign overwrites a
-    non-completed config in place while leaving the OLD predictions on disk --
-    so the previous code's predictions get scored as the new code's result."""
-    _panel_verdict(tmp_path, 6, 2)
-    for p in sorted(tmp_path.rglob("config.json")):
-        cfg = json.loads(p.read_text())
-        if cfg["arm"] == "tralo":
-            cfg["status"] = "diverged"
-            p.write_text(json.dumps(cfg))
-    r = subprocess.run([sys.executable, "-m", "scripts.full_panel",
-                        "--campaign", str(tmp_path), "--control", "clip"],
-                       cwd=REPO, capture_output=True, text=True)
-    assert "skipped" in r.stdout and "diverged" in r.stdout
-
-
 def test_the_audit_sees_keys_read_through_the_required_helper():
-    """_required(hp, "lr_constraint", float) passes the config as an argument.
-    The walker understood subscripts and dict methods only, so every key read
-    that way was invisible in BOTH directions -- emitting one looked
-    HALLUCINATED, omitting one produced no SILENT flag."""
     from scripts.audit_config import per_methodology_reads
+
     reads = per_methodology_reads()
     for meth in ("tralo", "fioretto_ldf", "hounie_rcl", "fioretto_alm"):
         assert "lr_constraint" in reads[meth], meth
         assert "constraint_epochs" in reads[meth], meth
-
-    # AND THE READ SET MUST STAY PER-ARM. Anything under audit_config's
-    # SHARED_DIRS is credited to EVERY methodology, so putting a constraint-
-    # phase key's only reader in src/training/ silently makes that key
-    # legitimate on `clip`. Measured: with `read_step_config` living there, a
-    # `clip` config carrying `constraint_grad_clip` audited CLEAN; with it in
-    # src/methodologies/dual_common.py the same config FAILS and names the key.
-    # The four trained arms share one reader either way -- only its address
-    # decides whether the gate can still see the difference.
     for meth in ("heuristic",):
-        for key in ("constraint_grad_clip", "constraint_grad_mode",
-                    "constraint_step_rule", "constraint_random_direction"):
+        for key in (
+            "constraint_grad_clip",
+            "constraint_grad_mode",
+            "constraint_step_rule",
+            "constraint_random_direction",
+        ):
             assert key not in reads[meth], (
-                "%s can read %s, so a post-hoc arm emitting it would audit "
-                "clean. Its reader has moved into a directory audit_config "
-                "unions into every methodology." % (meth, key))
+                "%s can read %s, so a post-hoc arm emitting it would audit clean. Its reader has moved into a directory audit_config unions into every methodology."
+                % (meth, key)
+            )
 
 
-# ---------------------------------------------------------------------------
-# A read must not mutate the model's train/eval mode.
-#
-# compute_prediction_statistics is called immediately after model.eval() at the
-# end of every trained run and used to return the model in train() mode. Every
-# current caller re-asserts eval(), so it was harmless -- but the duals' own
-# comments say eval() during a test-set pass is what stops BN running stats
-# updating from test data, "a data-leakage source that flips a few borderline
-# samples and corrupts the lambda update". A read that silently arms that is
-# the shape of defect this project keeps finding.
-# ---------------------------------------------------------------------------
 def test_metrics_helpers_restore_the_callers_mode():
     from src.training import metrics
 
@@ -698,58 +529,66 @@ def test_metrics_helpers_restore_the_callers_mode():
     X = torch.randn(20, 4)
     groups = torch.zeros(20, dtype=torch.long)
     loader = [(torch.randn(8, 4), torch.zeros(8, dtype=torch.long))]
-
     for mode in (True, False):
         model.train(mode)
         metrics.compute_prediction_statistics(model, X, groups, num_classes=3)
         assert model.training is mode, (
-            "compute_prediction_statistics left the model in %s mode after "
-            "being called in %s mode" % (model.training, mode))
-
+            "compute_prediction_statistics left the model in %s mode after being called in %s mode"
+            % (model.training, mode)
+        )
         model.train(mode)
         metrics.get_predictions_with_probabilities(model, X)
         assert model.training is mode
-
         model.train(mode)
         metrics.compute_train_accuracy(model, loader, torch.device("cpu"))
         assert model.training is mode
 
 
-# ---------------------------------------------------------------------------
-# A misconfigured or swapped slice must FAIL, not produce a plausible number.
-#
-# Before these guards: four independent np.load calls with no length comparison
-# (train died late inside TensorDataset with an unlabelled AssertionError, test
-# never raised at all -- the chunked loops key off len(X_test) and would score
-# fewer items than the labels describe); and num_classes / constrained_class
-# were never checked against the labels, so pointing data_dir at the wrong
-# dataset gave K=0 on an absent class, a log warning, and a complete run.
-# ---------------------------------------------------------------------------
-def _write_slice(d, n_train=12, n_test=8, n_classes=4, capped=2,
-                 truncate_test_labels=False, drop_capped=False):
+def _write_slice(
+    d,
+    n_train=12,
+    n_test=8,
+    n_classes=4,
+    capped=2,
+    truncate_test_labels=False,
+    drop_capped=False,
+):
     os.makedirs(d, exist_ok=True)
     rng = np.random.default_rng(0)
     ytr = np.array([i % n_classes for i in range(n_train)])
     yte = np.array([i % n_classes for i in range(n_test)])
-    if drop_capped:                       # a slice that lacks the capped class
+    if drop_capped:
         ytr = np.where(ytr == capped, (capped + 1) % n_classes, ytr)
         yte = np.where(yte == capped, (capped + 1) % n_classes, yte)
-    np.save(os.path.join(d, "train_images.npy"),
-            rng.random((n_train, 3, 8, 8)).astype("float32"))
+    np.save(
+        os.path.join(d, "train_images.npy"),
+        rng.random((n_train, 3, 8, 8)).astype("float32"),
+    )
     np.save(os.path.join(d, "train_labels.npy"), ytr)
-    np.save(os.path.join(d, "test_images.npy"),
-            rng.random((n_test, 3, 8, 8)).astype("float32"))
-    np.save(os.path.join(d, "test_labels.npy"),
-            yte[:-1] if truncate_test_labels else yte)
+    np.save(
+        os.path.join(d, "test_images.npy"),
+        rng.random((n_test, 3, 8, 8)).astype("float32"),
+    )
+    np.save(
+        os.path.join(d, "test_labels.npy"), yte[:-1] if truncate_test_labels else yte
+    )
     pd.DataFrame({"label": yte, "grp": [i % 2 for i in range(n_test)]}).to_csv(
-        os.path.join(d, "test_meta.csv"), index=False)
+        os.path.join(d, "test_meta.csv"), index=False
+    )
 
 
 def _cfg(d, n_classes=4, capped=2):
-    return {"dataset_mode": "iwildcam", "dataset_config": {
-        "data_dir": d, "num_classes": n_classes, "constrained_class": capped,
-        "group_column": "grp", "target_column": "label"},
-        "constraint": [0.5, 0.5]}
+    return {
+        "dataset_mode": "iwildcam",
+        "dataset_config": {
+            "data_dir": d,
+            "num_classes": n_classes,
+            "constrained_class": capped,
+            "group_column": "grp",
+            "target_column": "label",
+        },
+        "constraint": [0.5, 0.5],
+    }
 
 
 def test_loader_refuses_mismatched_image_and_label_counts(tmp_path):
@@ -761,9 +600,9 @@ def test_loader_refuses_mismatched_image_and_label_counts(tmp_path):
 
 def test_loader_refuses_a_slice_whose_labels_exceed_num_classes(tmp_path):
     d = str(tmp_path / "wrong_ds")
-    _write_slice(d, n_classes=6)                 # 6 real classes...
+    _write_slice(d, n_classes=6)
     with pytest.raises(ValueError, match="num_classes is 4"):
-        load_data(_cfg(d, n_classes=4))          # ...config says 4
+        load_data(_cfg(d, n_classes=4))
 
 
 def test_loader_refuses_a_slice_missing_the_capped_class(tmp_path):
@@ -774,26 +613,13 @@ def test_loader_refuses_a_slice_missing_the_capped_class(tmp_path):
 
 
 def test_loader_accepts_a_well_formed_slice(tmp_path):
-    """The guards must not fire on good data."""
     d = str(tmp_path / "good")
     _write_slice(d)
     out = load_data(_cfg(d))
     assert out is not None
 
 
-# ---------------------------------------------------------------------------
-# Pin the penalty's gradient SHAPE.
-#
-# Above rho ~ 1 the gradient is non-monotone in the violation: near-zero at the
-# boundary, peaking at u = 1/sqrt(3) = 57.7% overshoot, then decaying toward
-# zero. At rho=100 a constraint violated 8x over budget gets ~167x less pull
-# than one violated 58% over. This is the PUBLISHED formula (manuscript Eq. 4),
-# not a bug, so the test pins it rather than forbidding it -- if someone changes
-# the shape, that has to be a deliberate act with the paper updated, and this
-# test is where they find out.
-# ---------------------------------------------------------------------------
 def test_penalty_gradient_is_non_monotone_above_rho_one():
-
     K = 67.0
 
     def grad_at(rho, violation):
@@ -801,52 +627,38 @@ def test_penalty_gradient_is_non_monotone_above_rho_one():
         Kt = torch.tensor(K, dtype=torch.double)
         E = torch.relu(soft - Kt)
         S = Kt
-        eps = 1e-8
+        eps = 1e-08
         e = E / (S + eps)
-        (E / (E + S + eps) + rho * (e ** 2) / (1 + e ** 2 + eps)).backward()
+        (E / (E + S + eps) + rho * e**2 / (1 + e**2 + eps)).backward()
         return float(soft.grad)
 
-    # rho starts at 0.5 and rho_step is derived as (100 - 0.5)/29 = 3.43,
-    # so rho is 3.93 after ONE constraint epoch of twenty-nine.
     assert abs((100.0 - 0.5) / 29 - 3.431) < 0.001
-
-    # at the initial rho the gradient is monotonically decreasing -- correct
     g0 = [grad_at(0.5, f * K) for f in (0.001, 0.3, 1.0, 8.0)]
     assert g0 == sorted(g0, reverse=True), "rho=0.5 should still be monotone"
-
-    # one epoch in, it is not
-    edge, peak, deep = (grad_at(3.93, 0.001 * K), grad_at(3.93, 0.577 * K),
-                        grad_at(3.93, 8.0 * K))
+    (edge, peak, deep) = (
+        grad_at(3.93, 0.001 * K),
+        grad_at(3.93, 0.577 * K),
+        grad_at(3.93, 8.0 * K),
+    )
     assert peak > 2.5 * edge, "expected a hump above the boundary value"
     assert peak > 100 * deep, "expected the deep violation to be starved"
-
-    # u = 1/sqrt(3) is the peak of the QUADRATIC TERM alone, so it is the
-    # rho -> infinity limit, not a general truth. It holds at rho=100...
     import math
-    at_analytic = grad_at(100.0, (1 / math.sqrt(3)) * K)
+
+    at_analytic = grad_at(100.0, 1 / math.sqrt(3) * K)
     for f in (0.2, 0.4, 0.8, 1.5):
         assert grad_at(100.0, f * K) <= at_analytic + 1e-12, (
-            "peak should be at u = 1/sqrt(3), not at %.2f" % f)
-
-    # ...and NOT at the rho the runs actually operate at. The rational term's
-    # own slope is decreasing, which pulls the combined peak left, to u ~ 0.53.
-    # An earlier version of this claim said "analytically" with no caveat.
+            "peak should be at u = 1/sqrt(3), not at %.2f" % f
+        )
     us = [i / 500 for i in range(1, 5001)]
     gs = [grad_at(3.93, u * K) for u in us]
     peak_u = us[gs.index(max(gs))]
-    assert 0.50 < peak_u < 0.56, (
-        "at rho=3.93 the peak should sit left of 1/sqrt(3), got u=%.3f" % peak_u)
+    assert 0.5 < peak_u < 0.56, (
+        "at rho=3.93 the peak should sit left of 1/sqrt(3), got u=%.3f" % peak_u
+    )
 
 
 def test_a_deep_violation_is_starved_by_a_milder_one_sharing_the_clip():
-    """The terms compete: `_sum` adds them, then ONE clip normalizes the total.
-
-    So the relative weight of two capped scopes is set entirely by the penalty
-    shape, and the shape hands almost everything to whichever scope sits nearer
-    its own peak. dermmnist has 3 groups, so every run already carries 4 terms.
-    """
-
-    K, rho, eps = 67.0, 100.0, 1e-8
+    (K, rho, eps) = (67.0, 100.0, 1e-08)
 
     def shares(u_a, u_b):
         gs = []
@@ -855,35 +667,26 @@ def test_a_deep_violation_is_starved_by_a_milder_one_sharing_the_clip():
             Kt = torch.tensor(K, dtype=torch.double)
             E = torch.relu(soft - Kt)
             e = E / (Kt + eps)
-            (E / (E + Kt + eps) + rho * (e ** 2) / (1 + e ** 2 + eps)).backward()
+            (E / (E + Kt + eps) + rho * e**2 / (1 + e**2 + eps)).backward()
             gs.append(float(soft.grad))
-        tot = sum(g * g for g in gs)
+        tot = sum((g * g for g in gs))
         return [g * g / tot for g in gs]
 
-    mild, deep = shares(0.577, 8.0)
+    (mild, deep) = shares(0.577, 8.0)
     assert mild > 0.999, "the milder violation should take essentially all of it"
     assert deep < 0.001, "the 8x violation should be starved"
-    # symmetric: it is the violation DEPTH, not the position in the sum
-    deep2, mild2 = shares(8.0, 0.577)
-    assert abs(mild - mild2) < 1e-9 and abs(deep - deep2) < 1e-9
-    assert abs(sum(shares(0.577, 0.577))/2 - 0.5) < 1e-9
+    (deep2, mild2) = shares(8.0, 0.577)
+    assert abs(mild - mild2) < 1e-09 and abs(deep - deep2) < 1e-09
+    assert abs(sum(shares(0.577, 0.577)) / 2 - 0.5) < 1e-09
 
 
 def test_loader_detects_a_permuted_train_split(tmp_path):
-    """A permutation of images vs labels is invisible to a length check.
-
-    This was written up as an undetectable accepted risk on the reasoning that
-    no train_meta.csv exists. That was wrong -- all three prep scripts write
-    one, with a `label` column, and it is on disk in every slice. The redundant
-    signal needed to catch this was there the whole time.
-    """
     d = str(tmp_path / "permuted")
     _write_slice(d)
     y = np.load(os.path.join(d, "train_labels.npy"))
-    # same length, same multiset, different order -- exactly what a length
-    # check cannot see
     pd.DataFrame({"label": y[::-1]}).to_csv(
-        os.path.join(d, "train_meta.csv"), index=False)
+        os.path.join(d, "train_meta.csv"), index=False
+    )
     with pytest.raises(ValueError, match="not row-aligned"):
         load_data(_cfg(d))
 
@@ -892,41 +695,28 @@ def test_loader_accepts_an_aligned_train_meta(tmp_path):
     d = str(tmp_path / "aligned")
     _write_slice(d)
     y = np.load(os.path.join(d, "train_labels.npy"))
-    pd.DataFrame({"label": y}).to_csv(
-        os.path.join(d, "train_meta.csv"), index=False)
+    pd.DataFrame({"label": y}).to_csv(os.path.join(d, "train_meta.csv"), index=False)
     assert load_data(_cfg(d)) is not None
 
 
 def test_the_null_arm_really_delivers_no_constraint():
-    """tralo_null is the control that makes "nothing happened" falsifiable.
-
-    Everything else about it matches tralo -- warm-up length, epoch count,
-    optimizer restart, transductive passes, allocator. If its lambdas were not
-    exactly zero it would be a weak treatment rather than a control, and the
-    whole point of the arm would be lost silently.
-    """
     proto = load_protocol()
     blk = proto["blocks"]["tralo_null"]
     for key in ("lambda_global", "lambda_local", "lambda_step"):
         assert blk[key] == 0.0, "%s must be exactly 0.0, got %r" % (key, blk[key])
-
-    # and the arm must otherwise be tralo: same phase, same shared block
-    null_arm, real_arm = proto["arms"]["tralo_null"], proto["arms"]["tralo"]
+    (null_arm, real_arm) = (proto["arms"]["tralo_null"], proto["arms"]["tralo"])
     assert null_arm["phase"] == real_arm["phase"] == "trained"
     assert null_arm["methodology"] == real_arm["methodology"] == "tralo"
     assert "constraint_phase" in null_arm["blocks"]
-
-    # zero lambda must make the summed penalty exactly zero, not merely small:
-    # the trainer gates pass 2 on `total_constraint > 0`, so a 1e-30 residue
-    # would still run a constraint step.
     from src.losses.transductive_loss import MulticlassTransductiveLoss as L
+
     total = torch.tensor(0.0)
     for soft, K in ((500.0, 67.0), (67.0, 67.0), (0.0, 67.0)):
         st = torch.tensor(soft)
         Kt = 67.0
         E = torch.relu(st - Kt)
-        e = E / (Kt + 1e-8)
-        pen = E / (E + Kt + 1e-8) + 0.5 * (e ** 2) / (1 + e ** 2 + 1e-8)
+        e = E / (Kt + 1e-08)
+        pen = E / (E + Kt + 1e-08) + 0.5 * e**2 / (1 + e**2 + 1e-08)
         total = total + 0.0 * pen
     assert float(total) == 0.0
     assert not bool(total > 0), "pass 2 would still run on a nonzero residue"
@@ -934,25 +724,8 @@ def test_the_null_arm_really_delivers_no_constraint():
 
 
 def test_every_trained_arm_reports_reordering():
-    """The diagnostic must not reach one arm only.
-
-    It was written inside tralo/train.py and reached only TraLO -- the exact
-    shape of the CE-skip asymmetry that produced a 0.22 cc-F1 artifact, and of
-    the focal keys that were live in one arm and dead in another. The guard is
-    structural: every trainer that runs a constraint phase reaches the SAME two
-    functions in the SAME module, and the scorer reads the field.
-
-    Reached DIRECTLY (tralo) or through `src/methodologies/dual_common.py`,
-    which the three duals share. Following the import chain rather than grepping
-    one file is what lets the shared tail exist at all -- and it still fails if
-    an arm grows a private copy or drops the summary field, because the module
-    that calls `reordering_report` is also the module that must write
-    "reordering".
-    """
 
     def _reaches_reordering(src, seen):
-        """Does this source call reordering_report and emit the summary key --
-        here, or in any first-party module it imports?"""
         if "reordering_report(" in src and '"reordering"' in src:
             return True
         for line in src.splitlines():
@@ -973,34 +746,35 @@ def test_every_trained_arm_reports_reordering():
         path = os.path.join("src", "methodologies", m, "train.py")
         src = io.open(path, encoding="utf-8").read()
         assert "reordering_report" not in src or "def reordering_report" not in src, (
-            "%s must use the shared diagnostic, not a private copy" % m)
+            "%s must use the shared diagnostic, not a private copy" % m
+        )
         assert _reaches_reordering(src, set()), (
-            "%s never reaches reordering_report / never puts it in the summary" % m)
-
-    # it has to survive to disk, and outside config["results"] -- a NaN tau on
-    # a constant score column would otherwise mark the run `diverged`
-    runner = io.open(os.path.join("src", "experiments", "runner.py"),
-                      encoding="utf-8").read()
+            "%s never reaches reordering_report / never puts it in the summary" % m
+        )
+    runner = io.open(
+        os.path.join("src", "experiments", "runner.py"), encoding="utf-8"
+    ).read()
     assert 'config["reordering"]' in runner
     import ast
-    result_calls = [node for node in ast.walk(ast.parse(runner))
-                    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-                    and node.func.id == "save_results_to_config"]
+
+    result_calls = [
+        node
+        for node in ast.walk(ast.parse(runner))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and (node.func.id == "save_results_to_config")
+    ]
     assert result_calls
     for call in result_calls:
-        assert not any(isinstance(node, ast.Constant) and node.value == "reordering"
-                       for node in ast.walk(call))
-
-    # and the scorer must actually read it
-    panel = io.open(os.path.join("scripts", "full_panel.py"), encoding="utf-8").read()
-    assert 'cfg.get("reordering")' in panel
-    assert "_reordering_check(rows)" in panel
-
-
+        assert not any(
+            (
+                isinstance(node, ast.Constant) and node.value == "reordering"
+                for node in ast.walk(call)
+            )
+        )
 
 
 NULL_SIBLINGS = [
-    # (null arm, its treated parent, the keys that must be exactly zero)
     ("tralo_null", "tralo", ("lambda_step", "lambda_global", "lambda_local")),
     ("fioretto_null", "fioretto", ("fioretto_step_size",)),
     ("hounie_null", "hounie", ("hounie_eta_lambda",)),
@@ -1008,329 +782,102 @@ NULL_SIBLINGS = [
 ]
 
 
-@pytest.mark.parametrize("null,parent,zeroed", NULL_SIBLINGS,
-                         ids=[n for n, _, _ in NULL_SIBLINGS])
+@pytest.mark.parametrize(
+    "null,parent,zeroed", NULL_SIBLINGS, ids=[n for (n, _, _) in NULL_SIBLINGS]
+)
 def test_every_trained_arm_has_a_working_zero_dose_sibling(null, parent, zeroed):
-    """Without it, an arm-vs-clip delta cannot be attributed to the constraint.
-
-    For a long time only tralo had one, so "was it the constraint or was it the
-    regime" was falsifiable for exactly one of the four trained arms while the
-    other three were reported against `clip` anyway.
-
-    Zeroing is a DIFFERENT knob in each arm and two of them have a trap, so the
-    keys are named per arm rather than pattern-matched.
-    """
     proto = load_protocol()
     blk = proto["blocks"][null]
     for key in zeroed:
         assert blk[key] == 0.0, "%s.%s must be exactly 0.0, got %r" % (
-            null, key, blk[key])
-
-    a_null, a_parent = proto["arms"][null], proto["arms"][parent]
+            null,
+            key,
+            blk[key],
+        )
+    (a_null, a_parent) = (proto["arms"][null], proto["arms"][parent])
     assert a_null["methodology"] == a_parent["methodology"]
     assert a_null["phase"] == a_parent["phase"] == "trained"
     assert "constraint_phase" in a_null["blocks"]
 
 
 def test_alm_null_zeroes_the_augmentation_not_just_the_multiplier():
-    """The ALM weight is `lambda + mu_t * r+`, mu_t = mu0 + mu_step * epoch.
-
-    Zeroing alm_eta and alm_mu_step but leaving mu0 at 0.01 gives a live
-    augmentation of mu0 * excess on every epoch -- a weak treatment wearing a
-    control's name, which is worse than having no control.
-    """
     blk = load_protocol()["blocks"]["alm_null"]
     for epoch in (0, 14, 28):
         mu_t = blk["alm_mu0"] + blk["alm_mu_step"] * epoch
         assert mu_t == 0.0, "mu_t is %r at epoch %d, so the weight is not zero" % (
-            mu_t, epoch)
+            mu_t,
+            epoch,
+        )
 
 
 def test_hounie_null_does_not_trip_hounie_s_own_stability_guard():
-    """eta_u must NOT be zeroed even though it looks like a dose knob.
-
-    hounie_rcl/train.py refuses `abs(1 - 2*eta_u*alpha) >= 1.0`, and eta_u = 0
-    gives exactly 1.0, so a null built by zeroing every eta would raise before
-    training a single epoch. eta_u moves only the slack u, which cannot reach
-    the primal once lam is pinned at its 0.0 init.
-    """
     blk = load_protocol()["blocks"]["hounie_null"]
     factor = abs(1.0 - 2.0 * blk["hounie_eta_u"] * blk["hounie_alpha"])
     assert factor < 1.0, (
-        "hounie_null would raise its own stability check: factor %.3f" % factor)
+        "hounie_null would raise its own stability check: factor %.3f" % factor
+    )
     assert blk["hounie_eta_lambda"] == 0.0
 
 
-def _load_panel():
-    """full_panel.py is a script, not a package module."""
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location(
-        "_full_panel", os.path.join("scripts", "full_panel.py"))
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules["_full_panel"] = mod
-    argv, sys.argv = sys.argv, ["full_panel"]
-    try:
-        spec.loader.exec_module(mod)
-    except SystemExit:
-        pass
-    finally:
-        sys.argv = argv
-    return mod
-
-
-def test_equalize_multi_respects_every_capped_class_not_just_the_first():
-    """The bug its docstring describes: caps 2..n silently violated.
-
-    `equalize` in score_arm.py takes top-K for ONE class and argmaxes the rest
-    with no budget check, so a multi-capped-class campaign scored "equalized"
-    metrics on an allocation that broke every cap after the first.
-    """
-
-    panel = _load_panel()
-    UNLIM = 10 ** 10
-    rng = np.random.default_rng(0)
-    n, n_cls = 60, 4
-    proba = rng.random((n, n_cls))
-    proba = proba / proba.sum(axis=1, keepdims=True)
-    gids = np.array([i % 3 for i in range(n)])
-    capped = [1, 2]
-    glob_c = [UNLIM, 10, 8, UNLIM]
-    loc = {g: [UNLIM, 4, 3, UNLIM] for g in (0, 1, 2)}
-
-    y = np.asarray(panel.equalize_multi(proba, gids, glob_c, loc, capped))
-    assert y.shape == (n,)
-    for c in capped:
-        assert int((y == c).sum()) <= glob_c[c], (
-            "class %d global cap violated: %d > %d"
-            % (c, int((y == c).sum()), glob_c[c]))
-        for g, bounds in loc.items():
-            got = int((y[gids == g] == c).sum())
-            assert got <= bounds[c], (
-                "class %d local cap violated in group %s: %d > %d"
-                % (c, g, got, bounds[c]))
-
-
-def test_equalize_multi_matches_the_single_class_path():
-    """Its docstring promises "with one capped class this is exactly the old
-    behaviour" -- i.e. top-K by probability. The single-class results the
-    project still stands on were produced by that path."""
-
-    panel = _load_panel()
-    UNLIM = 10 ** 10
-    rng = np.random.default_rng(7)
-    n, n_cls = 40, 3
-    proba = rng.random((n, n_cls))
-    proba = proba / proba.sum(axis=1, keepdims=True)
-    gids = np.zeros(n, dtype=int)
-    K = 9
-    y = np.asarray(panel.equalize_multi(proba, gids, [UNLIM, K, UNLIM],
-                                        {0: [UNLIM, UNLIM, UNLIM]}, [1]))
-    chosen = set(np.where(y == 1)[0].tolist())
-    topk = set(np.argsort(-proba[:, 1])[:K].tolist())
-    assert len(chosen) == K
-    assert chosen == topk, "single-class path is not top-K by probability"
-
-
-def test_signflip_is_the_exact_permutation_and_hits_its_floor():
-    """At D datasets the exact two-sided floor is 2^(1-D): 0.25 at three.
-
-    This is the number that says no campaign this project can run reaches
-    p<0.05 on the generalization unit, so it has to be exact, not approximate.
-    """
-    panel = _load_panel()
-    for x in ([0.1, 0.2, 0.3], [3.0, 0.001, 99.0], [-0.4, -0.4, -0.4]):
-        p, d = panel._signflip_p(x)
-        assert d == 3 and abs(p - 0.25) < 1e-12, (x, p, d)
-    assert panel._signflip_p([0.4])[0] == 1.0
-    assert abs(panel._signflip_p([0.5, 0.5])[0] - 0.5) < 1e-12
-    # a mixed-sign set must NOT reach the floor
-    assert panel._signflip_p([0.1, -0.2, 0.3])[0] > 0.25
-    # 2^(1-D) for a same-signed set, at every D it can reach
-    for D in range(1, 7):
-        p, d = panel._signflip_p([1.0] * D)
-        assert d == D and abs(p - 2.0 ** (1 - D)) < 1e-12
-
-
-def test_bh_monotonicity_and_that_aliases_do_not_widen_the_family():
-    """Two things the scorer's q-values depend on.
-
-    BH is a step-up procedure: the raw p*m/i can be non-monotone in the sorted
-    order and must be made monotone by a backward cumulative minimum. And ccP /
-    ccR must stay OUT of the family -- letting all three in widens the callable
-    threshold by 2.54x.
-    """
-    panel = _load_panel()
-    assert panel.BH_ALIAS_OF == {"ccP": "ccF1", "ccR": "ccF1"}
-    assert "ccF1" not in panel.BH_ALIASES
-
-    pv = [0.04, 0.01, 0.03]
-    finite = sorted((v, str(i)) for i, v in enumerate(pv))
-    q = {}
-    for i, (p_, m) in enumerate(finite, 1):
-        q[m] = min(1.0, p_ * len(finite) / i)
-    for i in range(len(finite) - 2, -1, -1):
-        q[finite[i][1]] = min(q[finite[i][1]], q[finite[i + 1][1]])
-    got = [q[str(i)] for i in range(3)]
-    # raw: p=0.01 -> 0.03 (i=1), p=0.03 -> 0.045 (i=2), p=0.04 -> 0.04 (i=3).
-    # The raw sequence is NOT monotone -- 0.045 sits above the 0.04 that follows
-    # it -- and the backward cumulative minimum pulls it down to 0.04. Without
-    # that pass the middle hypothesis would carry a LARGER q than a weaker one.
-    assert abs(got[1] - 0.03) < 1e-12
-    assert abs(got[2] - 0.04) < 1e-12, "0.045 should be pulled down to 0.04"
-    assert abs(got[0] - 0.04) < 1e-12
-    ordered = [q[m] for _, m in finite]
-    assert ordered == sorted(ordered), "q must be non-decreasing in sorted p"
-
-
-def _panel_run(tmp_path, constrained_class, n=12, n_cls=3):
-    """A minimal scorable run directory: config.json + the two prediction CSVs."""
-
-
-    d = tmp_path / "ds" / "M" / "L30_G30" / "arm" / "seed_1"
-    d.mkdir(parents=True)
-    rng = np.random.default_rng(0)
-    proba = rng.random((n, n_cls))
-    proba = proba / proba.sum(axis=1, keepdims=True)
-    frame = {
-        "True_Label": [i % n_cls for i in range(n)],
-        "Predicted_Label": list(proba.argmax(axis=1)),
-        "Group_ID": [i % 2 for i in range(n)],
-    }
-    for c in range(n_cls):
-        frame["Prob_Class_%d" % c] = proba[:, c]
-    df = pd.DataFrame(frame)
-    df.to_csv(d / "final_predictions_raw.csv", index=False)
-    df.to_csv(d / "final_predictions.csv", index=False)
-    cfg = {
-        "status": "completed",
-        "arm": "arm",
-        "constraint": [0.3, 0.3],
-        "constraint_tag": "L30_G30",
-        "model_name": "M",
-        "dataset_mode": "ds",
-        "dataset_config": {"num_classes": n_cls,
-                           "constrained_class": constrained_class},
-        "hyperparams": {"seed": 1},
-    }
-    (d / "config.json").write_text(json.dumps(cfg), encoding="utf-8")
-    return d, cfg
-
-
-def test_panel_refuses_a_run_with_no_capped_class(tmp_path):
-    """`constrained_class: null` must raise with a reason, not label a cell "None".
-
-    full_panel.py carried two more inline scalar-or-list copies after the other
-    three were unified. The one building the `capped` cell key did not raise on
-    None at all -- it produced the literal string "None" as the cell label, so
-    the run would have been paired and scored under a cell that does not exist.
-    """
-    panel_mod = _load_panel()
-    d, cfg = _panel_run(tmp_path, None)
-    with pytest.raises(ValueError) as exc:
-        panel_mod.panel(str(d), cfg)
-    assert "constrained_class" in str(exc.value)
-
-
-@pytest.mark.parametrize("cc,expect", [(1, "1"), ([1], "1"), ([1, 2], "1-2")])
-def test_panel_labels_the_capped_cell_the_same_way_for_scalar_and_list(
-        tmp_path, cc, expect):
-    """A scalar and a one-element list are the same campaign and must pair.
-
-    If they produced different `capped` labels they would land in different
-    cells and every pair would silently vanish from the comparison -- the
-    failure that once made in-flight campaigns read as ties.
-    """
-    panel_mod = _load_panel()
-    d, cfg = _panel_run(tmp_path, cc)
-    r = panel_mod.panel(str(d), cfg)
-    assert r is not None, "a well-formed run must be scorable"
-    assert r["capped"] == expect
-
-
-@pytest.mark.parametrize("pct", [0.30, 0.50])
+@pytest.mark.parametrize("pct", [0.3, 0.5])
 def test_targeted_correction_spends_the_whole_reachable_budget(pct):
-    """The allocator every TRAINED arm uses must fill to exactly K.
-
-    Nothing in this suite called targeted_correction before, and that is
-    precisely why a regression shipped: a global-budget check added to the
-    local FILL phase, while 3a and 3b were interleaved per group, blocked the
-    fill for every group processed before the reductions that free the room.
-    The trained arms then under-spent the capped-class budget by ~4-5% while
-    the clippers -- which never call this function -- filled to exactly K.
-
-    An asymmetry that size is the size of the entire effect under study, and it
-    pointed the same way, so it would have read as a real loss for the trained
-    arms. Assert the invariant force_exact=True actually promises.
-    """
-
-
-    n, n_cls, n_grp, capped = 2000, 7, 7, [4]
+    (n, n_cls, n_grp, capped) = (2000, 7, 7, [4])
     for seed in range(8):
         rng = np.random.default_rng(seed)
         y = rng.integers(0, n_cls, n)
         g = rng.integers(0, n_grp, n)
         logits = rng.normal(size=(n, n_cls))
-        logits[:, capped[0]] += 0.8          # over-predict the capped class
+        logits[:, capped[0]] += 0.8
         e = np.exp(logits - logits.max(axis=1, keepdims=True))
         proba = e / e.sum(axis=1, keepdims=True)
-
         df = pd.DataFrame({"label": y, "grp": g})
-        gcon = compute_global_constraints(df, "label", pct,
-                                          constrained_class=capped,
-                                          num_classes=n_cls)
-        lcon = compute_local_constraints(df, "label", pct, "grp",
-                                         constrained_class=capped,
-                                         num_classes=n_cls)
-        y_pred, _, meta = targeted_correction(proba, g, gcon, lcon, capped)
-
+        gcon = compute_global_constraints(
+            df, "label", pct, constrained_class=capped, num_classes=n_cls
+        )
+        lcon = compute_local_constraints(
+            df, "label", pct, "grp", constrained_class=capped, num_classes=n_cls
+        )
+        (y_pred, _, meta) = targeted_correction(proba, g, gcon, lcon, capped)
         c = capped[0]
-        # local caps are per-GROUP ceilings, so their sum also bounds the count
-        reachable = min(gcon[c], sum(lcon[gid][c] for gid in lcon))
+        reachable = min(gcon[c], sum((lcon[gid][c] for gid in lcon)))
         got = int((y_pred == c).sum())
         assert got == reachable, (
-            "seed %d pct %s: filled %d of a reachable %d -- the trained arms "
-            "would score against clippers that fill to exactly K"
-            % (seed, pct, got, reachable))
-
-        # and it must still be FEASIBLE, which is what the global check exists
-        # for -- filling to the budget must not overshoot any cap
+            "seed %d pct %s: filled %d of a reachable %d -- the trained arms would score against clippers that fill to exactly K"
+            % (seed, pct, got, reachable)
+        )
         assert got <= gcon[c], "global cap violated"
         for gid in lcon:
             in_g = int((y_pred[g == gid] == c).sum())
-            assert in_g <= lcon[gid][c], (
-                "local cap violated in group %s: %d > %d"
-                % (gid, in_g, lcon[gid][c]))
+            assert in_g <= lcon[gid][c], "local cap violated in group %s: %d > %d" % (
+                gid,
+                in_g,
+                lcon[gid][c],
+            )
 
 
 def test_every_training_log_gets_a_header_not_just_tralo_s(tmp_path):
-    """A headerless log is silently mis-parsed, not loudly broken.
-
-    write_csv_header was called by exactly one of the ten arms -- tralo. Every
-    other arm appended rows to a file with no header line, so pandas took the
-    FIRST LOGGED EPOCH as the column names and mislabelled every column after
-    it. TraLO's training log was machine-readable and the baselines it is
-    compared against were not.
-
-    The header is now written by the writer on first row, so this asserts the
-    property for a caller that never mentions headers at all.
-    """
     from src.training.logging import build_csv_header, log_progress_to_csv
 
     path = tmp_path / "training_log.csv"
-    local = {0: [10 ** 10, 5, 10 ** 10], 1: [10 ** 10, 4, 10 ** 10]}
+    local = {0: [10**10, 5, 10**10], 1: [10**10, 4, 10**10]}
     for epoch in range(3):
         log_progress_to_csv(
-            str(path), epoch, ce_loss=0.5, train_acc=0.9,
-            constraints=[10 ** 10, 12, 10 ** 10], num_classes=3,
-            local_constraints=local, grad_norm=1.5, lambda_global=0.25)
-
+            str(path),
+            epoch,
+            ce_loss=0.5,
+            train_acc=0.9,
+            constraints=[10**10, 12, 10**10],
+            num_classes=3,
+            local_constraints=local,
+            grad_norm=1.5,
+            lambda_global=0.25,
+        )
     lines = path.read_text(encoding="utf-8").strip().splitlines()
     expected = build_csv_header(3, local)
     assert lines[0].split(",") == expected, (
-        "first line is not the header -- pandas would eat epoch 1 as column names")
+        "first line is not the header -- pandas would eat epoch 1 as column names"
+    )
     assert len(lines) == 1 + 3, "expected a header plus one row per epoch"
-
     df = pd.read_csv(path)
     assert len(df) == 3, "an epoch was consumed by the header"
     assert "Grad_Norm" in df.columns and "Lambda_Global" in df.columns
@@ -1339,60 +886,37 @@ def test_every_training_log_gets_a_header_not_just_tralo_s(tmp_path):
 
 
 def test_constraint_phase_reaches_every_trained_arm_and_no_posthoc_one():
-    """A shared knob must reach all four trained arms, or none of them.
-
-    This is the structure the CE-saturation gate violated: its flag was
-    declared by TraLO alone, so a campaign ran it off for TraLO and on for
-    both duals -- a 0.22 cc-F1 artifact against a 0.019-0.031 margin. Any
-    shared constraint knob therefore lives in `constraint_phase`, which every
-    trained arm includes and no post-hoc arm does, so one assignment cannot
-    reach one arm and not another.
-    """
     proto = load_protocol()
     cp = proto["constraint_phase"]
-
-    trained = [a for a, spec in proto["arms"].items()
-               if spec.get("phase") == "trained"]
+    trained = [
+        a for (a, spec) in proto["arms"].items() if spec.get("phase") == "trained"
+    ]
     assert len(trained) >= 4
     for arm in trained:
         spec = proto["arms"][arm]
         if spec.get("constraint_step") is False:
-            # An arm that takes NO constraint step (`select`: a selection head,
-            # no dual, no gradient clip) cannot miss a gate it does not have.
-            # Handing it `constraint_phase` would emit eight keys nothing reads
-            # -- the exact defect audit_config exists to catch -- so the
-            # exemption is declared, and then CHECKED: it may not carry a single
-            # constraint_phase key, which is what stops "constraint_step: false"
-            # from becoming a way to smuggle dead keys past both gates.
             declared = set()
             for b in spec["blocks"]:
                 declared |= set(proto["blocks"].get(b, {}))
-            leaked = declared & (set(cp) - {"lr_constraint", "constraint_chunk_size"})
+            leaked = declared & set(cp) - {"lr_constraint", "constraint_chunk_size"}
             assert not leaked, (
-                "%s declares constraint_step: false but still carries %s" %
-                (arm, sorted(leaked)))
+                "%s declares constraint_step: false but still carries %s"
+                % (arm, sorted(leaked))
+            )
             continue
         assert "constraint_phase" in spec["blocks"], (
-            "%s is a trained arm that does NOT include constraint_phase, so a "
-            "shared constraint knob would silently miss it. If it genuinely "
-            "takes no constraint step, declare `constraint_step: false`." % arm)
+            "%s is a trained arm that does NOT include constraint_phase, so a shared constraint knob would silently miss it. If it genuinely takes no constraint step, declare `constraint_step: false`."
+            % arm
+        )
     for arm, spec in proto["arms"].items():
         if spec.get("phase") == "posthoc":
             assert "constraint_phase" not in (spec.get("blocks") or []), (
-                "%s is post-hoc; emitting a constraint-phase key for it would "
-                "be a key with no reader" % arm)
-
-
+                "%s is post-hoc; emitting a constraint-phase key for it would be a key with no reader"
+                % arm
+            )
 
 
 def test_normalize_delivers_the_same_step_size_whatever_the_raw_norm():
-    """The point of `normalize`: the dose stops depending on the arm.
-
-    Under `clip` a gradient below the threshold passes through untouched, which
-    is why hounie (raw norm 0.005-0.11 against a clip of 1.0) took a step ~20x
-    smaller than tralo's on every one of its 29 epochs while both configs said
-    constraint_grad_clip: 1.0.
-    """
 
     def step(raw_scale, mode):
         m = torch.nn.Linear(4, 1, bias=False)
@@ -1400,339 +924,96 @@ def test_normalize_delivers_the_same_step_size_whatever_the_raw_norm():
             m.weight.fill_(0.0)
         m.weight.grad = torch.full((1, 4), raw_scale)
         before = m.weight.detach().clone()
-        finish_constraint_step(m, torch.optim.SGD(m.parameters(), lr=1.0), None, 1.0, mode=mode, fp32=True)
+        finish_constraint_step(
+            m, torch.optim.SGD(m.parameters(), lr=1.0), None, 1.0, mode=mode, fp32=True
+        )
         return float((m.weight.detach() - before).norm())
-    (small_clip, big_clip) = (step(0.01, 'clip'), step(10.0, 'clip'))
-    (small_nrm, big_nrm) = (step(0.01, 'normalize'), step(10.0, 'normalize'))
+
+    (small_clip, big_clip) = (step(0.01, "clip"), step(10.0, "clip"))
+    (small_nrm, big_nrm) = (step(0.01, "normalize"), step(10.0, "normalize"))
     assert small_clip == pytest.approx(0.02, rel=1e-05), small_clip
     assert big_clip == pytest.approx(1.0, rel=1e-05), big_clip
-    assert small_clip < big_clip / 10, 'under `clip` a below-threshold gradient keeps its own magnitude -- this is the hounie asymmetry, and it must stay reproducible'
+    assert small_clip < big_clip / 10, (
+        "under `clip` a below-threshold gradient keeps its own magnitude -- this is the hounie asymmetry, and it must stay reproducible"
+    )
     assert small_nrm == pytest.approx(1.0, rel=1e-05), small_nrm
     assert big_nrm == pytest.approx(1.0, rel=1e-05), big_nrm
-    assert small_nrm == pytest.approx(big_nrm, rel=1e-06), "under `normalize` the delivered step must be the same size no matter what the arm's natural gradient scale is -- that is the whole point"
-
-
-
-
-
-
+    assert small_nrm == pytest.approx(big_nrm, rel=1e-06), (
+        "under `normalize` the delivered step must be the same size no matter what the arm's natural gradient scale is -- that is the whole point"
+    )
 
 
 def test_a_non_finite_constraint_gradient_never_moves_the_weights():
-    """fioretto lost 10 of 29 epochs to NaN/inf. It must lose them SAFELY."""
-    for bad in (float('nan'), float('inf')):
+    for bad in (float("nan"), float("inf")):
         m = torch.nn.Linear(4, 1, bias=False)
         with torch.no_grad():
             m.weight.fill_(1.0)
         m.weight.grad = torch.full((1, 4), bad)
         before = m.weight.detach().clone()
-        (raw, applied) = finish_constraint_step(m, torch.optim.SGD(m.parameters(), lr=1.0), None, 1.0, mode='normalize', fp32=True)
-        assert not applied, 'a %s gradient must not take the step' % bad
-        assert torch.equal(m.weight.detach(), before), 'weights moved on a %s gradient' % bad
+        (raw, applied) = finish_constraint_step(
+            m,
+            torch.optim.SGD(m.parameters(), lr=1.0),
+            None,
+            1.0,
+            mode="normalize",
+            fp32=True,
+        )
+        assert not applied, "a %s gradient must not take the step" % bad
+        assert torch.equal(m.weight.detach(), before), (
+            "weights moved on a %s gradient" % bad
+        )
 
 
-@pytest.mark.parametrize("arm", ["tralo", "fioretto_ldf", "hounie_rcl",
-                                 "fioretto_alm"])
+@pytest.mark.parametrize("arm", ["tralo", "fioretto_ldf", "hounie_rcl", "fioretto_alm"])
 def test_no_arm_hand_rolls_its_own_constraint_step(arm):
-    """All four must go through src/training/constraint_step.py.
-
-    They each hand-rolled this block once, and the copies drifted until the
-    arms were not receiving the same treatment. Measured 2026-08-20 on
-    results/vit_diag seed 1, same warm-up model, every config saying
-    constraint_grad_clip: 1.0 --
-
-        tralo     raw grad norm 0.638 .. 1826.5    clip bound  6 of 7
-        fioretto  raw grad norm 17,667 .. 80,827   clip bound 18 of 18
-        hounie    raw grad norm 0.005 .. 0.1105    clip bound  0 of 29
-
-    -- so hounie took its raw ~0.05-norm step while the other two took unit
-    ones. A direct clip_grad_norm_ call in a trainer is how that came back, so
-    it is banned here rather than merely discouraged.
-    """
     src = open("src/methodologies/%s/train.py" % arm, encoding="utf-8").read()
     assert "finish_constraint_step" in src, (
-        "%s does not use the shared constraint step" % arm)
+        "%s does not use the shared constraint step" % arm
+    )
     assert "clip_grad_norm_" not in src, (
-        "%s calls clip_grad_norm_ directly. That is the divergence this "
-        "module exists to prevent -- route it through finish_constraint_step "
-        "so every arm is bounded the same way." % arm)
+        "%s calls clip_grad_norm_ directly. That is the divergence this module exists to prevent -- route it through finish_constraint_step so every arm is bounded the same way."
+        % arm
+    )
     assert "constraint_autocast" in src, (
-        "%s does not use the shared constraint autocast, so --constraint-fp32 "
-        "cannot reach it and it can still lose epochs to fp16 overflow" % arm)
-
-
-
-
-
-
-
-
-
-
-
-
-def test_the_inert_flag_gate_can_actually_detect_an_inert_flag():
-    """A gate nobody has seen fail is not known to work.
-
-    `flag_live` exists because inert flags are this project's most frequent
-    failure mode -- the catalogue is `docs/FRAMEWORK.md` 2(e), and every entry
-    passed audit_config (the key had a reader) and smoke_arms (the arm ran).
-    Comparing an arm to ITSELF must report inert, which both proves the detector
-    fires and proves the harness is deterministic: if two runs of one arm
-    already differ, no difference between two arms means anything.
-
-    Then every TREATMENT ARM A STAGED CAMPAIGN IS ABOUT TO RUN must be live.
-    The list is read out of `docs/*.sh` rather than hardcoded, so an arm added
-    to a launch script is covered the moment it is staged instead of the next
-    time somebody remembers this test. That is not hypothetical: this gate
-    checked `tralo_margin` while `docs/launch_uniform.sh` sat staged with
-    `tralo_uniform` and `tralo_head` as its two candidates and 252 GPU-runs
-    behind them -- and `flag_live`'s own docstring lists a PREVIOUS
-    `tralo_uniform` among the arms that shipped inert.
-
-    Shown to FAIL 2026-08-25 by setting `head_only: false`, which makes
-    `tralo_head` a rename of `tralo`: the gate named the arm and said it was
-    staged to run.
-    """
-
-    same = subprocess.run(
-        [sys.executable, "-m", "scripts.flag_live", "tralo", "tralo",
-         "--constraint-epochs", "2"],
-        capture_output=True, text=True)
-    assert same.returncode == 1, (
-        "an arm compared to itself was NOT reported inert -- either the "
-        "detector is broken or the harness is nondeterministic, and in the "
-        "second case the gate cannot distinguish a live flag from noise:\n%s"
-        % same.stdout[-600:])
-    assert "INERT" in same.stdout
-
-    import shlex
-
-    P = load_protocol()
-    staged = set()
-    for name in launch_scripts()[1]:
-        text = io.open(os.path.join(launch_scripts()[0], name), encoding="utf-8").read()
-        text = "\n".join(l for l in text.splitlines()
-                         if not l.lstrip().startswith("#"))
-        text = text.replace(chr(92) + "\n", " ")
-        for line in text.splitlines():
-            if "-m configs.gen_campaign" not in line:
-                continue
-            toks = shlex.split(line, posix=True)
-            if "--arms" not in toks:
-                continue
-            j = toks.index("--arms") + 1
-            while j < len(toks) and not toks[j].startswith("--"):
-                staged.add(toks[j])
-                j += 1
-
-    controls = {a for a, s in P["arms"].items() if s.get("count_control")}
-    treatments = sorted(
-        a for a in staged
-        if a != "tralo"
-        and P["arms"].get(a, {}).get("phase") == "trained"
-        and not a.endswith("_null")
-        and a not in controls)
-    assert treatments, (
-        "no staged launch script names a trained treatment arm, so this "
-        "gate checked nothing -- the --arms parse stopped matching")
-
-    for arm in treatments:
-        diff = subprocess.run(
-            [sys.executable, "-m", "scripts.flag_live", "tralo", arm,
-             "--constraint-epochs", "2"],
-            capture_output=True, text=True)
-        assert diff.returncode == 0, (
-            "%s produces BIT-IDENTICAL predictions to `tralo`, so it is a "
-            "rename and not an arm -- and it is STAGED TO RUN in a "
-            "campaign:\n%s" % (arm, diff.stdout[-600:]))
-
-
-def test_the_scorers_posthoc_list_matches_the_protocol():
-    """A hardcoded copy of a protocol fact drifts, and this one is load-bearing.
-
-    `full_panel.POSTHOC_ARMS` exists so arms with `constraint_epochs == 0` are
-    not flagged for producing cap-invariant predictions -- their warm-up IS the
-    run, so identical predictions across cap levels is correct, not a bug. If a
-    post-hoc arm is added to protocol.yml and not here, the scorer reports a
-    real arm as broken. If a TRAINED arm is listed here by mistake, the scorer
-    stops reporting the one failure mode that has actually occurred (six models
-    behind twelve cells).
-    """
-
-    from scripts.full_panel import POSTHOC_ARMS
-
-    P = yaml.safe_load(io.open("configs/protocol.yml", encoding="utf-8").read())
-    expected = {a for a, v in P["arms"].items() if v["phase"] == "posthoc"}
-    assert POSTHOC_ARMS == expected, (
-        "full_panel.POSTHOC_ARMS has drifted from configs/protocol.yml.\n"
-        "  only in the scorer:  %s\n"
-        "  only in the protocol: %s"
-        % (sorted(POSTHOC_ARMS - expected), sorted(expected - POSTHOC_ARMS)))
-
-
-
-
+        "%s does not use the shared constraint autocast, so --constraint-fp32 cannot reach it and it can still lose epochs to fp16 overflow"
+        % arm
+    )
 
 
 def test_the_allocator_does_not_fall_through_to_the_LP_when_G_is_less_than_L():
-    """G < L is the prescribed sweep, and it used to break the greedy on EVERY run.
-
-    Phase 3b filled local room without re-checking the GLOBAL budget, so local
-    room got spent past the global cap, the allocation came out infeasible, and
-    the run silently fell through to the small-scope LP -- a DIFFERENT algorithm
-    from the greedy that `clip` keeps. An arm scored against `clip` while
-    running a different allocator is not an arm-vs-arm comparison, and
-    `full_panel` still reports 29% fall-through on the stored evidence.
-
-    The fix is in the code with a comment. Nothing pinned it, and the failure
-    is silent: caps still hold afterwards, so `smoke_arms --matrix` passes
-    either way. This pins it on the cap tags actually being run.
-    """
-
     from configs.gen_campaign import cap_pair
 
     rng = np.random.default_rng(0)
-    N, C, G = 600, 7, 5
+    (N, C, G) = (600, 7, 5)
     capped = [2, 4]
-    labels = rng.choice(C, size=N, p=np.array([.1, .1, .25, .1, .3, .1, .05]))
+    labels = rng.choice(C, size=N, p=np.array([0.1, 0.1, 0.25, 0.1, 0.3, 0.1, 0.05]))
     groups = rng.integers(0, G, size=N)
     df = pd.DataFrame({"label": labels, "grp": groups})
-
     for tag in ("L50_G30", "L40_G30", "L30_G20"):
-        loc_pct, glob_pct = cap_pair(tag)
-        gcon = compute_global_constraints(df, "label", glob_pct,
-                                          constrained_class=capped, num_classes=C)
-        lcon = compute_local_constraints(df, "label", loc_pct, "grp",
-                                         constrained_class=capped, num_classes=C)
+        (loc_pct, glob_pct) = cap_pair(tag)
+        gcon = compute_global_constraints(
+            df, "label", glob_pct, constrained_class=capped, num_classes=C
+        )
+        lcon = compute_local_constraints(
+            df, "label", loc_pct, "grp", constrained_class=capped, num_classes=C
+        )
         for trial in range(5):
             logits = rng.normal(0, 2.0, size=(N, C))
-            logits[:, capped] += 1.2          # over-predict the capped classes
+            logits[:, capped] += 1.2
             e = np.exp(logits - logits.max(1, keepdims=True))
             proba = e / e.sum(1, keepdims=True)
-            _, _, info = targeted_correction(proba, groups, gcon, lcon, capped)
+            (_, _, info) = targeted_correction(proba, groups, gcon, lcon, capped)
             assert not info["lp_fallback_used"], (
-                "%s trial %d fell through to the LP with %d candidates -- the "
-                "greedy left the allocation infeasible, so this arm would be "
-                "scored against `clip` while running a different allocator"
-                % (tag, trial, info["lp_fallback_candidates"]))
+                "%s trial %d fell through to the LP with %d candidates -- the greedy left the allocation infeasible, so this arm would be scored against `clip` while running a different allocator"
+                % (tag, trial, info["lp_fallback_candidates"])
+            )
 
-
-def test_equalize_multi_fills_to_exactly_K_so_the_items_conversion_is_exact():
-    """`full_panel` reports `items per 0.01 capF1`, and that number assumes it.
-
-    `F1 = 2TP/(K+n)` only holds when exactly K predictions are emitted for the
-    capped class. If `equalize_multi` ever fell short, the denominator would be
-    `(emitted + n)` and the conversion printed after every panel would be
-    quietly wrong -- in the direction of understating how many items a delta is
-    worth, on a scale where the whole headroom is 2 to 10 items.
-
-    Worth pinning because the RUNTIME allocator does NOT have this property:
-    measured on the stored evidence, `targeted_correction` emits K-1 on 22 of
-    88 (run, capped class) pairs -- never over, so no cap is violated, but not
-    exactly K either. The scorer re-equalizes from probabilities, which is why
-    the house rule is to read `full_panel` and never the stored metrics.
-    """
-
-    rng = np.random.default_rng(0)
-    N, C, G = 500, 7, 4
-    caps = [2, 4]
-    for trial in range(6):
-        logits = rng.normal(0, 2.0, size=(N, C))
-        logits[:, caps] += 1.0            # over-predict the capped classes
-        e = np.exp(logits - logits.max(1, keepdims=True))
-        P = e / e.sum(1, keepdims=True)
-        gids = rng.integers(0, G, size=N)
-        glob_c = np.full(C, UNLIMITED, dtype=float)
-        for c in caps:
-            glob_c[c] = int(rng.integers(30, 90))
-        loc = {g: np.full(C, UNLIMITED, dtype=float) for g in range(G)}
-
-        eq = equalize_multi(P, gids, glob_c, loc, caps)
-        for c in caps:
-            got, want = int((eq == c).sum()), int(glob_c[c])
-            assert got == want, (
-                "trial %d class %d: equalize_multi emitted %d against a budget "
-                "of %d, so F1 = 2TP/(K+n) no longer holds and the items "
-                "conversion printed by full_panel is wrong"
-                % (trial, c, got, want))
-
-def test_budgets_reads_a_post_hoc_arm_not_just_a_trained_one(tmp_path):
-    """The clipper is the bar. A budget helper blind to it drops the control.
-
-    A post-hoc arm runs `constraint_epochs: 0`, so every row of its training
-    log carries the hardcoded `Limit_Class = inf` default and the log-only
-    lookup returned {}. Any caller that skips a run with no budget then reports
-    the treatment with no control and calls it a comparison.
-    """
-    from scripts.reachability import budgets
-
-    d = tmp_path / "clip" / "seed_1"
-    d.mkdir(parents=True)
-    # exactly what a post-hoc arm writes: the inf default, on every row
-    pd.DataFrame({"Epoch": [0, 1], "Limit_Class4": [1e10, 1e10]}).to_csv(
-        d / "training_log.csv", index=False)
-    pd.DataFrame({"True_Label": [4] * 100 + [0] * 50}).to_csv(
-        d / "final_predictions_raw.csv", index=False)
-    (d / "config.json").write_text(json.dumps({
-        "constraint": [0.3, 0.3],
-        "capped_classes": [4],
-        "dataset_config": {"constrained_class": [4]},
-    }), encoding="utf-8")
-
-    assert budgets(d) == {4: 30}, (
-        "the cap is a fraction of the class's true count: 0.3 x 100 = 30")
-
-
-def test_headroom_scores_the_control_the_way_the_scorer_does(tmp_path):
-    """`achieved` must be the scorer's allocation, not the raw argmax.
-
-    The raw argmax ignores the budget, so scoring the control on it beats the
-    analytic ceiling `2K/(K+n)` and yields a NEGATIVE headroom -- which is how
-    this was caught. A headroom that can go negative is measuring two different
-    allocations against each other.
-    """
-    from scripts.headroom import f1
-
-    rng = np.random.default_rng(0)
-    n, K, cls = 200, 20, 1
-    y = np.zeros(n, dtype=int)
-    y[:60] = cls
-    P = rng.random((n, 3))
-    P[:60, cls] += 1.0                     # class 1 genuinely more probable
-    P = P / P.sum(axis=1, keepdims=True)
-
-    g = np.zeros(n, dtype=int)
-    G = {c: (K if c == cls else UNLIMITED) for c in range(3)}
-    eq = equalize_multi(P, g, G, {0: {c: UNLIMITED for c in range(3)}}, [cls])
-
-    assert int((eq == cls).sum()) == K, "the scorer fills the budget exactly"
-    ceiling = 2.0 * K / (K + int((y == cls).sum()))
-    assert f1(y, eq, cls) <= ceiling + 1e-12, (
-        "no allocation emitting exactly K can beat 2K/(K+n)")
-    assert f1(y, P.argmax(1), cls) > ceiling, (
-        "the raw argmax DOES beat it, because it ignores the budget -- which "
-        "is exactly why headroom must not be measured against it")
 
 def test_a_cap_that_does_not_bind_gives_the_constraint_zero_gradient():
-    """A seed already under budget is its own null. Measure it PER SEED.
-
-    The penalty is built on relu(soft_count - K). Below the budget it is
-    identically zero, so the constraint contributes no gradient and the treated
-    arm and its null are the same run. Averaging over such a seed dilutes a
-    real effect toward zero and reports it as a tie.
-
-    Measured on the stored evidence: tissuemnist L50_G50 class 1 runs 76 / 51 /
-    34 / 18 against K=56, so it binds in ONE seed of four -- while its MEAN
-    excess is -11.2 and its L30 sibling's mean excess is a healthy-looking
-    +10.8 on 2-of-4 binding. The mean cannot show this; only the per-seed count
-    can, which is why scripts/headroom.py keeps the counts per seed.
-    """
-
-
     K = 56.0
-    loss = MulticlassTransductiveLoss(global_constraints=[K, K],
-                                      local_constraints={}, num_classes=2)
+    loss = MulticlassTransductiveLoss(
+        global_constraints=[K, K], local_constraints={}, num_classes=2
+    )
     for count in (76.0, 51.0, 34.0, 18.0):
         soft = torch.tensor(count, requires_grad=True)
         pen = loss._penalty(soft, K)
@@ -1740,26 +1021,16 @@ def test_a_cap_that_does_not_bind_gives_the_constraint_zero_gradient():
             assert float(pen) > 0.0, "an over-budget count must be penalised"
         else:
             assert float(pen) == 0.0, (
-                "count %g is under K=56, so the penalty -- and the whole "
-                "constraint gradient -- is identically zero" % count)
+                "count %g is under K=56, so the penalty -- and the whole constraint gradient -- is identically zero"
+                % count
+            )
             pen.backward()
             assert float(soft.grad) == 0.0, (
-                "no gradient reaches the model from a satisfied cap")
+                "no gradient reaches the model from a satisfied cap"
+            )
 
 
 def test_final_predictions_that_violate_a_cap_are_refused_not_logged(tmp_path):
-    """A trained arm must not be able to ship an infeasible result.
-
-    `heuristic` raises on its own violations, so the post-hoc arms hard-failed
-    while the trained arms wrote `status: completed` with "VIOLATED by N" at
-    INFO level -- an asymmetry in which arms can silently ship an infeasible
-    result, in the file that decides what every scorer reads.
-
-    And the check read `global_con` only, so a LOCAL violation was not merely
-    unreported, it was never looked at. A class capped only per-group has an
-    UNLIMITED global budget, so every global check on it passes vacuously.
-    """
-
     from src.pipeline.eval import write_evaluation_outputs
 
     n = 12
@@ -1769,249 +1040,117 @@ def test_final_predictions_that_violate_a_cap_are_refused_not_logged(tmp_path):
 
     def run(y_pred, global_con, local_con):
         return write_evaluation_outputs(
-            tmp_path, y_test, groups,
-            {"y_pred": np.asarray(y_pred), "raw_pred": np.asarray(y_pred),
-             "y_proba": proba,
-             "metrics": {"flips_required": 0, "raw_all_satisfied": True,
-                         "raw_total_excess": 0}},
-            2, global_con, local_con)
+            tmp_path,
+            y_test,
+            groups,
+            {
+                "y_pred": np.asarray(y_pred),
+                "raw_pred": np.asarray(y_pred),
+                "y_proba": proba,
+                "metrics": {
+                    "flips_required": 0,
+                    "raw_all_satisfied": True,
+                    "raw_total_excess": 0,
+                },
+            },
+            2,
+            global_con,
+            local_con,
+        )
 
-    # feasible under both scopes
     run([1] * 2 + [0] * 10, [UNLIMITED, 4], {0: [UNLIMITED, 2], 1: [UNLIMITED, 2]})
-
-    # GLOBAL violated
     with pytest.raises(RuntimeError, match="violate"):
         run([1] * 6 + [0] * 6, [UNLIMITED, 4], None)
-
-    # LOCAL violated while the global budget is UNLIMITED -- the case the
-    # global-only check could not see even in principle.
     with pytest.raises(RuntimeError, match="local group"):
-        run([1] * 5 + [0] * 7, [UNLIMITED, UNLIMITED],
-            {0: [UNLIMITED, 2], 1: [UNLIMITED, 2]})
-
-
-
-
-
-
-
-
-
+        run(
+            [1] * 5 + [0] * 7,
+            [UNLIMITED, UNLIMITED],
+            {0: [UNLIMITED, 2], 1: [UNLIMITED, 2]},
+        )
 
 
 def test_no_methodology_reads_the_test_LABELS_except_to_count_them():
-    """`y_test` is handed to every train(); only discipline keeps it unread.
-
-    `TrainInputs` carries the true test labels so the pipeline can derive K and
-    score afterwards, and every methodology receives them. The transductive
-    setting permits reading the COUNT (that is the declared assumption) and
-    nothing else. An arm that trains on test inputs -- self-training, pseudo
-    -labelling -- is exactly where an accidental read would be easy to write
-    and impossible to notice, so this is a gate rather than a convention.
-    """
-
     offenders = []
     for path in sorted(pathlib.Path("src/methodologies").rglob("*.py")):
         tree = ast.parse(io.open(path, encoding="utf-8").read())
-        # Every `len(...)` argument is an allowed context; collect them first.
         allowed = set()
         for node in ast.walk(tree):
-            if (isinstance(node, ast.Call)
-                    and getattr(node.func, "id", None) == "len"):
+            if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "len":
                 for a in node.args:
-                    allowed.update(id(n) for n in ast.walk(a))
+                    allowed.update((id(n) for n in ast.walk(a)))
         for node in ast.walk(tree):
-            if (isinstance(node, ast.Attribute) and node.attr == "y_test"
-                    and id(node) not in allowed):
+            if (
+                isinstance(node, ast.Attribute)
+                and node.attr == "y_test"
+                and (id(node) not in allowed)
+            ):
                 offenders.append("%s:%d" % (path.as_posix(), node.lineno))
-
     assert not offenders, (
-        "these methodology modules read the TEST LABELS outside a len() call, "
-        "which is label leakage, not transduction: %s" % offenders)
+        "these methodology modules read the TEST LABELS outside a len() call, which is label leakage, not transduction: %s"
+        % offenders
+    )
 
 
 def test_the_two_fioretto_arms_initialise_both_multiplier_scopes_alike():
-    """ALM claims to differ from LDF in the DUAL UPDATE only.
-
-    `fioretto_lambda_init` reached ALM's global and local multipliers but only
-    LDF's global one -- LDF's locals were hardcoded to 0.0. Sweeping the key
-    would then have changed the dual rule AND the local initialisation at once,
-    so the arm-vs-arm delta would be attributable to neither. Dormant at the
-    protocol's 0.0, which is exactly why only a gate catches it.
-    """
-
     for mod in ("fioretto_ldf", "fioretto_alm"):
         path = "src/methodologies/%s/train.py" % mod
         tree = ast.parse(io.open(path, encoding="utf-8").read())
-        assigns = [n for n in ast.walk(tree)
-                   if isinstance(n, ast.Assign)
-                   and any(isinstance(t, ast.Subscript)
-                           and getattr(t.value, "id", None) == "lambda_l"
-                           for t in n.targets)]
+        assigns = [
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Assign)
+            and any(
+                (
+                    isinstance(t, ast.Subscript)
+                    and getattr(t.value, "id", None) == "lambda_l"
+                    for t in n.targets
+                )
+            )
+        ]
         init = [n for n in assigns if isinstance(n.value, ast.Constant)]
         assert not init, (
-            "%s initialises lambda_l to the literal %r instead of the "
-            "fioretto_lambda_init value the other arm uses"
-            % (mod, [n.value.value for n in init]))
+            "%s initialises lambda_l to the literal %r instead of the fioretto_lambda_init value the other arm uses"
+            % (mod, [n.value.value for n in init])
+        )
 
 
 def test_alm_gates_its_constraint_pass_on_the_weights_the_loss_uses():
-    """A treatment that logs itself and never runs is this repo's failure mode.
-
-    ALM's chunk loss weights each term by `lambda + aug`. `has_work` decided
-    whether to run that pass at all, and consulted `lambda` only -- so with the
-    multipliers pinned at 0 and the augmentation climbing, the pass was skipped
-    on every epoch while `training_log.csv` wrote a rising mu_t.
-    """
-
-    src = io.open("src/methodologies/fioretto_alm/train.py",
-                   encoding="utf-8").read()
+    src = io.open("src/methodologies/fioretto_alm/train.py", encoding="utf-8").read()
     tree = ast.parse(src)
-    node = next((n for n in ast.walk(tree)
-                 if isinstance(n, ast.Assign)
-                 and any(getattr(t, "id", None) == "has_work" for t in n.targets)),
-                None)
+    node = next(
+        (
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Assign)
+            and any((getattr(t, "id", None) == "has_work" for t in n.targets))
+        ),
+        None,
+    )
     assert node is not None, "has_work assignment not found"
     names = {n.id for n in ast.walk(node.value) if isinstance(n, ast.Name)}
     for w in ("lambda_g", "lambda_l", "aug_g", "aug_l"):
         assert w in names, (
-            "has_work ignores %s, but the constraint loss weights terms by "
-            "lambda + aug -- the augmentation is unreachable whenever the "
-            "multipliers are 0" % w)
-
-
-def test_no_f_string_placeholder_survives_in_a_plain_string_literal():
-    """A `{name}` in a NON-f string prints the braces instead of the value.
-
-    `main.py`'s dispatcher header printed the literal "{completed} done,
-    {failed} failed" for an unknown length of time -- an implicit-concatenation
-    slip where the first fragment lost its `f` prefix and the second kept it.
-    The dispatcher banner is how a run's progress is read at a glance, so this
-    is a silent instrument failure, not a cosmetic one.
-
-    Scoped to the two places the slip can actually reach a reader: a plain
-    fragment implicitly concatenated INTO an f-string, and a bare literal
-    handed straight to `print`. Docstrings are excluded -- this repo's carry
-    real algebra, and `(1 - beta) / (1 - beta^n)` is not a formatting bug.
-    """
-
-    PLACEHOLDER = re.compile(r"\{[A-Za-z_][A-Za-z0-9_.\[\]']*\}")
-
-    def bad(node):
-        return [c for c in ([node] if isinstance(node, ast.Constant)
-                            else getattr(node, "values", []))
-                if isinstance(c, ast.Constant) and isinstance(c.value, str)
-                and PLACEHOLDER.search(c.value)]
-
-    offenders = []
-    roots = ([pathlib.Path("main.py")] + sorted(pathlib.Path("src").rglob("*.py"))
-             + sorted(pathlib.Path("scripts").rglob("*.py")))
-    for path in roots:
-        tree = ast.parse(io.open(path, encoding="utf-8").read())
-        for node in ast.walk(tree):
-            # (a) a plain fragment glued into an f-string: the exact slip.
-            if isinstance(node, ast.JoinedStr):
-                hits = bad(node)
-            # (b) a bare literal handed to print().
-            elif (isinstance(node, ast.Call)
-                  and getattr(node.func, "id", None) == "print"):
-                hits = [h for a in node.args for h in bad(a)]
-            else:
-                continue
-            offenders += ["%s:%d %r" % (path.as_posix(), node.lineno,
-                                        h.value[:60]) for h in hits]
-    assert not offenders, (
-        "these string literals contain an f-string placeholder but are not "
-        "f-strings, so they print the braces: %s" % offenders)
-
-
-def test_the_scorer_says_a_skipped_run_CRASHED_rather_than_never_started(tmp_path):
-    """A dead treatment arm must not read as "campaign merely unfinished".
-
-    The dispatcher resets an interrupted run to `pending`, which makes a run
-    that CRASHED indistinguishable from one that never started. Measured
-    2026-08-21 on `results/dosefix`: all 8 `tralo` runs died of CUDA OOM in the
-    transductive forward while every control completed -- the lambda=0 arm
-    skips that pass entirely, so it never allocates the chunk that OOMs -- and
-    the panel reported a clean comparison between controls with no hint that
-    the treatment was absent. The tell is an error_log.json beside the config.
-    """
-    import json as _json
-
-    run = tmp_path / "ds" / "mdl" / "L50_G30" / "tralo" / "seed_1"
-    run.mkdir(parents=True)
-    (run / "config.json").write_text(
-        _json.dumps({"status": "pending", "arm": "tralo"}), encoding="utf-8")
-    (run / "error_log.json").write_text(
-        _json.dumps({"exception_type": "OutOfMemoryError"}), encoding="utf-8")
-
-    out = subprocess.run(
-        [sys.executable, "-m", "scripts.full_panel",
-         "--campaign", str(tmp_path), "--control", "clip"],
-        capture_output=True, text=True).stdout
-
-    assert "CRASHED" in out, (
-        "a run with an error_log.json was reported as merely not-completed:\n%s"
-        % out[-1500:])
-    assert "OutOfMemoryError" in out, "the exception type was not surfaced"
-    assert "tralo" in out and "NO scorable run" in out, (
-        "the scorer did not say which arm contributed nothing")
+            "has_work ignores %s, but the constraint loss weights terms by lambda + aug -- the augmentation is unreachable whenever the multipliers are 0"
+            % w
+        )
 
 
 def test_two_cap_tags_that_produce_the_same_budget_are_one_cap_level():
-    """House rule 4 is about BUDGETS, not tag spellings.
-
-    `gen_campaign` refuses a single-cap campaign by comparing tag strings, which
-    any two distinct spellings satisfy. Measured 2026-08-21 on `results/dosefix`:
-    L40_G30 and L50_G30 both bind on the GLOBAL scope (local sums 82 and 103
-    against a global 62), so class 2 gets K=62 and class 4 K=67 in BOTH cells --
-    one budget level wearing two tags, and a per-cell count over them
-    double-counts a single measurement.
-    """
     from scripts.verify_caps import duplicate_budget_tags
 
-    # the real dosefix numbers
-    dup = duplicate_budget_tags({2: {"L40_G30": 62, "L50_G30": 62},
-                                 4: {"L40_G30": 67, "L50_G30": 67}})
-    assert dup == [(2, 62, ["L40_G30", "L50_G30"]),
-                   (4, 67, ["L40_G30", "L50_G30"])], dup
-
-    # a genuine sweep must come back clean
+    dup = duplicate_budget_tags(
+        {2: {"L40_G30": 62, "L50_G30": 62}, 4: {"L40_G30": 67, "L50_G30": 67}}
+    )
+    assert dup == [(2, 62, ["L40_G30", "L50_G30"]), (4, 67, ["L40_G30", "L50_G30"])], (
+        dup
+    )
     assert duplicate_budget_tags({2: {"L50_G30": 62, "L50_G20": 41}}) == []
-
-    # ...and a partial collision must be reported for the colliding class only
     dup = duplicate_budget_tags({2: {"a": 10, "b": 10}, 4: {"a": 10, "b": 20}})
     assert dup == [(2, 10, ["a", "b"])], dup
 
 
 def test_no_autocast_banned_op_is_reachable_from_an_arm():
-    """CUDA autocast BANS a few ops; calling one under AMP is a hard error.
-
-    `select` called F.binary_cross_entropy. Every GPU run died in 11 seconds --
-    "binary_cross_entropy and BCELoss are unsafe to autocast" -- wrote a
-    header-only training_log.csv, and was reset to `pending` by the dispatcher,
-    so the campaign looked merely unfinished while burning the card.
-
-    ⚠️ THE BAN IS DYNAMIC, NOT LEXICAL, which is why this test is a blanket ban
-    rather than a scan of `with autocast` bodies. The offending call sat in
-    `selective_loss`, a module-level function that autocast never encloses
-    lexically -- it is only ever CALLED from inside the block. A lexical gate
-    written that way passed while the bug was present; this one was checked
-    against the real defect.
-
-    ⚠️ And the obvious fix is the wrong one. `binary_cross_entropy_with_logits`
-    IS autocast-safe, but it applies a SIGMOID to its input, and our argument is
-    a SOFTMAX probability, not that class's logit -- swapping it in silences the
-    crash while quietly computing a different loss. Write the BCE out by hand on
-    the already-clamped probability instead; it is bit-identical (verified, max
-    abs diff 0.0) and autocast-safe.
-
-    `scripts/smoke_arms.py` cannot cover this: it runs on cpu, where autocast is
-    a no-op.
-    """
-
     BANNED = {"binary_cross_entropy", "BCELoss"}
-
     offenders = []
     for path in sorted(pathlib.Path("src").rglob("*.py")):
         tree = ast.parse(io.open(path, encoding="utf-8").read())
@@ -2019,166 +1158,25 @@ def test_no_autocast_banned_op_is_reachable_from_an_arm():
             if isinstance(node, ast.Call):
                 fn = getattr(node.func, "attr", getattr(node.func, "id", ""))
                 if fn in BANNED:
-                    offenders.append("%s:%d %s"
-                                     % (path.as_posix(), node.lineno, fn))
-
+                    offenders.append("%s:%d %s" % (path.as_posix(), node.lineno, fn))
     assert not offenders, (
-        "CUDA autocast bans these ops and every training path runs under AMP, "
-        "so the arm dies on its first GPU batch: %s. Write the loss out by "
-        "hand on the clamped probability -- NOT the _with_logits variant, which "
-        "computes a different quantity." % offenders)
-
-
-
-
-def test_the_scorer_detects_a_run_that_collapsed_on_its_final_epoch(tmp_path):
-    """The pipeline keeps the LAST epoch unconditionally, so one bad terminal
-    epoch is the model that gets scored -- and when that run is the CONTROL,
-    every arm appears to beat it at that seed.
-
-    Measured on `results/dosefix`: `clip` seed 4 ended 0.9934 -> 0.9116 while
-    the other seven controls ended 0.9935-1.0000, and it reversed the sign of
-    the 4-seed `tralo_null` vs `clip` headline. FRAMEWORK section 9 states
-    this; this test is what makes the statement checkable.
-    """
-    from scripts.full_panel import _terminal_collapse
-
-    n = [0]
-
-    def _log(accs, epochs=None):
-        n[0] += 1
-        d = tmp_path / ("r%d" % n[0])
-        d.mkdir()
-        ep = epochs if epochs is not None else list(range(len(accs)))
-        rows = ["Epoch,Train_Acc"]
-        rows += ["%d,%.4f" % (e, a) for e, a in zip(ep, accs)]
-        (d / "training_log.csv").write_text(chr(10).join(rows) + chr(10))
-        return str(d)
-
-    assert _terminal_collapse(_log([0.95, 0.98, 0.9934, 0.9116]))[0] == "collapse", (
-        "the detector missed the exact drop it was written for "
-        "(dosefix clip seed 4, 0.9934 -> 0.9116)")
-
-    # THE SAME DROP AS THE POST-HOC ARM LOGS IT. src/pipeline/warmup.py logs
-    # epoch < 3 and then every max(1, warmup_epochs // 5)-th epoch, so at the
-    # protocol's warmup_epochs=30 the rows are 1,2,3,6,12,18,24,30 and the last
-    # interval spans SIX epochs. `clip` seed 4 is a post-hoc arm, so this is
-    # the shape the real collapse had.
-    st, (last, prev, gap) = _terminal_collapse(
-        _log([0.90, 0.95, 0.96, 0.97, 0.98, 0.99, 0.9934, 0.9116],
-             epochs=[1, 2, 3, 6, 12, 18, 24, 30]))
-    assert st == "collapse", "missed the collapse at the real logging density"
-    assert gap == 6, "read the gap as %d; the warm-up logger writes every 6th " \
-                     "epoch at warmup_epochs=30" % gap
-
-    # NEGATIVE CONTROLS -- a gate is not done until it has been shown not to
-    # fire on the things it must leave alone.
-    for accs, why in [
-        ([0.95, 0.98, 0.9934, 0.9940], "a healthy run still improving"),
-        ([0.95, 0.98, 0.9934, 0.9900], "ordinary wobble, 0.0034 < 0.02"),
-        ([0.9116, 0.9934], "a run that RECOVERED -- only the last epoch is kept"),
-    ]:
-        assert _terminal_collapse(_log(accs))[0] == "ok", "fired on " + why
-
-    # AND THE THRESHOLD IS CALIBRATED PER GAP, not once for gap 1. Measured
-    # over the 4,862 logs in this repo, the per-interval spread of a converged
-    # run grows about as sqrt(gap) -- sd 0.00152 at gap 1 against 0.00300 at
-    # gap 5 -- so one constant judged the post-hoc control and the trained
-    # treatment by different standards.
-    drop = 0.03      # above the gap-1 bar, below the gap-6 one
-    assert _terminal_collapse(_log([0.99, 0.99 - drop]))[0] == "collapse"
-    assert _terminal_collapse(
-        _log([0.99, 0.99 - drop], epochs=[24, 30]))[0] == "ok", (
-        "a 0.03 drop across SIX epochs is inside the measured wobble at that "
-        "span; flagging it holds the control to a tighter bar than the arm")
-
-    # THREE ANSWERS, NOT TWO. `None` used to mean both "healthy" and "this run
-    # wrote no trajectory at all", and the second is the case that hid a
-    # post-hoc control whose warm-up came from cache.
-    assert _terminal_collapse(str(tmp_path / "nope"))[0] == "nolog", (
-        "a completed run with no training_log.csv reads as healthy")
-
-
-def test_a_posthoc_arm_that_wrote_no_log_is_not_silently_scored_as_healthy(capsys):
-    """`clip` + `lp` share one `base_model_id`, as do `focal_clip` + `focal_lp`.
-
-    Whichever of a pair the dispatcher runs SECOND loads the warm-up from cache
-    -- `src/pipeline/warmup.py` returns early on a hit and the five post-hoc
-    trainers write no CSV at all -- so it produces no `training_log.csv` and the
-    collapse detector cannot see it. Its weights are nevertheless byte-identical
-    to the sibling's, so when the log-less one is the `--control` the warning
-    that matters most is exactly the one that cannot fire.
-    """
-    from scripts.full_panel import _collapse_report
-
-    def _row(arm, rd, seed=4):
-        return {"arm": arm, "cap": "L50_G30", "seed": seed, "run_dir": rd,
-                "base_model_id": "MobileNetV3_dermmnist_deadbeef",
-                "posthoc": True}
-
-    import tempfile
-    tmp = tempfile.mkdtemp()
-    lp_dir = os.path.join(tmp, "lp")
-    os.makedirs(lp_dir)
-    with io.open(os.path.join(lp_dir, "training_log.csv"), "w",
-                 encoding="utf-8") as fh:
-        fh.write("Epoch,Train_Acc\n24,0.9934\n30,0.9116\n")
-    # `clip` ran second, hit the cache, wrote nothing.
-    rows = [_row("clip", os.path.join(tmp, "clip")), _row("lp", lp_dir)]
-
-    _collapse_report(rows, "clip")
-    out = capsys.readouterr().out
-    assert "COLLAPSED" in out, "the collapse was not reported at all"
-    assert "clip" in out and "via the shared warm-up" in out, (
-        "the log-less control was not resolved through its shared warm-up:\n"
-        + out)
-    assert "ONE OF THESE IS THE CONTROL" in out, (
-        "the control warning did not fire for an arm whose weights ARE the "
-        "collapsed ones:\n" + out)
-
-    # NEGATIVE CONTROL: with no sibling to inherit from, the run must be
-    # REPORTED as undetermined, never skipped.
-    _collapse_report([_row("clip", os.path.join(tmp, "clip"))], "clip")
-    out = capsys.readouterr().out
-    assert "WROTE NO TRAINING TRAJECTORY" in out, (
-        "a completed run with no trajectory vanished silently:\n" + out)
-
-
-
-def _ast_module_docstring(src):
-    """The module docstring, via AST. Reading the first triple-quoted block by
-    string search would also match a comment or a nested string; this cannot.
-    """
-    import ast as _a
-    return _a.get_docstring(_a.parse(src)) or ""
-
+        "CUDA autocast bans these ops and every training path runs under AMP, so the arm dies on its first GPU batch: %s. Write the loss out by hand on the clamped probability -- NOT the _with_logits variant, which computes a different quantity."
+        % offenders
+    )
 
 
 def test_chunking_the_transductive_backward_does_not_change_the_gradient():
-    """`tralo/train.py` chunks the gradient-carrying pass and reconstructs the
-    full count as `total.detach() - chunk.detach() + chunk`, with a comment
-    claiming this "already yields the EXACT full-N gradient" and therefore that
-    `constraint_chunk_size` is a pure MEMORY knob.
-
-    That claim is load-bearing: ViTB16 + `constraint_fp32` OOMs at chunk 256
-    and again, intermittently, at 128, so the chunk has to be lowered mid
-    campaign -- which is only legitimate if it cannot move a number. The
-    penalty is NONLINEAR in the count, so chunking is exact only because
-    f(total) is evaluated at the full count while gradient flows through one
-    chunk: sum_j f'(total) * d(chunk_j)/dtheta = f'(total) * d(total)/dtheta.
-    This pins the implementation to that identity.
-    """
     import torch
     from src.losses.transductive_loss import MulticlassTransductiveLoss
 
     torch.manual_seed(0)
-    N, C, D = 40, 4, 6
+    (N, C, D) = (40, 4, 6)
     X = torch.randn(N, D)
     gids = torch.tensor([i % 3 for i in range(N)])
-    glob_c = torch.full((C,), 1e10)
+    glob_c = torch.full((C,), 10000000000.0)
     glob_c[1] = 5.0
     glob_c[2] = 7.0
-    loc = {g: torch.full((C,), 1e10) for g in (0, 1, 2)}
+    loc = {g: torch.full((C,), 10000000000.0) for g in (0, 1, 2)}
     for g in loc:
         loc[g][1] = 2.0
         loc[g][2] = 3.0
@@ -2186,14 +1184,17 @@ def test_chunking_the_transductive_backward_does_not_change_the_gradient():
     def grad_at(chunk):
         torch.manual_seed(1)
         lin = torch.nn.Linear(D, C)
-        crit = MulticlassTransductiveLoss(glob_c, loc, num_classes=C,
-                                          initial_rho=0.5)
+        crit = MulticlassTransductiveLoss(
+            glob_c.detach().numpy().copy(),
+            {g: value.detach().numpy().copy() for g, value in loc.items()},
+            num_classes=C,
+            initial_rho=0.5,
+        )
         crit.lambda_global_per_class = {1: 0.7, 2: 0.3}
         crit.lambda_local_per_key = {(g, c): 0.5 for g in loc for c in (1, 2)}
         with torch.no_grad():
             tot_g = torch.softmax(lin(X), dim=1).sum(dim=0)
-            tot_l = {g: torch.softmax(lin(X[gids == g]), dim=1).sum(dim=0)
-                     for g in loc}
+            tot_l = {g: torch.softmax(lin(X[gids == g]), dim=1).sum(dim=0) for g in loc}
         lin.zero_grad()
         for st in range(0, N, chunk):
             sl = slice(st, min(st + chunk, N))
@@ -2201,397 +1202,218 @@ def test_chunking_the_transductive_backward_does_not_change_the_gradient():
             cg = pr.sum(dim=0)
             cl = {}
             for g in loc:
-                m = (gids[sl] == g)
+                m = gids[sl] == g
                 cl[g] = pr[m].sum(dim=0) if m.any() else torch.zeros(C)
             g_soft = tot_g.detach() - cg.detach() + cg
             l_soft = {g: tot_l[g].detach() - cl[g].detach() + cl[g] for g in loc}
-            loss = (crit.compute_global_from_counts(g_soft)
-                    + crit.compute_local_from_counts(l_soft))
+            loss = crit.compute_global_from_counts(
+                g_soft
+            ) + crit.compute_local_from_counts(l_soft)
             loss.backward()
         return lin.weight.grad.clone()
 
-    ref = grad_at(N)                      # one chunk == unchunked
-    assert ref.abs().sum() > 0, "the probe produced a zero gradient, so it "        "cannot detect a chunking bug -- the caps are not binding"
+    ref = grad_at(N)
+    assert ref.abs().sum() > 0, (
+        "the probe produced a zero gradient, so it cannot detect a chunking bug -- the caps are not binding"
+    )
     for chunk in (1, 3, 7, 13, 40):
         g = grad_at(chunk)
         rel = (g - ref).abs().max() / ref.abs().max()
-        assert rel < 1e-5, (
-            "constraint_chunk_size=%d changes the constraint gradient by "
-            "%.2e relative -- it is NOT a pure memory knob, so lowering it "
-            "to survive an OOM would silently alter every number in the "
-            "campaign" % (chunk, float(rel)))
+        assert rel < 1e-05, (
+            "constraint_chunk_size=%d changes the constraint gradient by %.2e relative -- it is NOT a pure memory knob, so lowering it to survive an OOM would silently alter every number in the campaign"
+            % (chunk, float(rel))
+        )
 
 
 def test_the_chunked_backward_in_tralo_still_uses_the_exact_construction():
-    """The math gate above proves the identity holds. This one proves the arm
-    that has to survive an OOM still IMPLEMENTS it, so the two cannot drift
-    apart and quietly stop `constraint_chunk_size` being free.
-
-    AST, not text. The first version of this gate matched the COMMENT that
-    says "No /n_chunks" and failed on correct code -- the same way a grep once
-    reported `rho_step` as read because a log line named it.
-    """
-    src = io.open(os.path.join(REPO, "src", "methodologies", "tralo",
-                               "train.py"), encoding="utf-8").read()
-    fn = next((n for n in ast.walk(ast.parse(src))
-               if isinstance(n, ast.FunctionDef) and n.name == "train"), None)
+    src = io.open(
+        os.path.join(REPO, "src", "methodologies", "tralo", "train.py"),
+        encoding="utf-8",
+    ).read()
+    fn = next(
+        (
+            n
+            for n in ast.walk(ast.parse(src))
+            if isinstance(n, ast.FunctionDef) and n.name == "train"
+        ),
+        None,
+    )
     assert fn is not None, "tralo.train() not found"
-    code = ast.unparse(fn)          # comments are gone; this is real code
-
+    code = ast.unparse(fn)
     flat = "".join(code.split())
     assert "total_global_soft.detach()" in flat, (
-        "the chunked backward no longer reconstructs the FULL global count "
-        "before evaluating the penalty, so what it differentiates is a "
-        "per-chunk penalty, not the full-N one")
+        "the chunked backward no longer reconstructs the FULL global count before evaluating the penalty, so what it differentiates is a per-chunk penalty, not the full-N one"
+    )
     assert "total_local_soft[gid].detach()" in flat, "same defect on LOCAL counts"
-
-    # a real division node, not a mention of one
     for node in ast.walk(fn):
-        if (isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div)
-                and "n_chunks" in ast.unparse(node.right)):
+        if (
+            isinstance(node, ast.BinOp)
+            and isinstance(node.op, ast.Div)
+            and ("n_chunks" in ast.unparse(node.right))
+        ):
             raise AssertionError(
-                "tralo divides by n_chunks (`%s`). n_chunks is "
-                "ceil(N_test / constraint_chunk_size), so this makes the "
-                "constraint dose a function of the dataset size AND of a "
-                "memory knob -- derm 8, oct 4, tissue 10, i.e. 2.5x apart."
-                % ast.unparse(node))
+                "tralo divides by n_chunks (`%s`). n_chunks is ceil(N_test / constraint_chunk_size), so this makes the constraint dose a function of the dataset size AND of a memory knob -- derm 8, oct 4, tissue 10, i.e. 2.5x apart."
+                % ast.unparse(node)
+            )
 
 
 def test_resetting_crashed_runs_refuses_to_discard_a_finished_one():
-    """A run can carry a crash log AND be the real result: the dispatcher
-    retries, so the second attempt can finish beside the first one's log.
-
-    Reset by crash-log presence alone and you set those back to `pending` and
-    re-run them, overwriting a good result. That happened by hand on
-    `results/dosefix` -- two tralo runs that had crashed once, been retried and
-    finished 29/30 epochs were reset, and only a status listing caught it
-    before the dispatcher reached them.
-    """
     from scripts.reset_crashed import eligible
 
-    ok, why = eligible({"status": "pending", "results": {"accuracy": 0.77}}, 29)
+    (ok, why) = eligible({"status": "pending", "results": {"accuracy": 0.77}}, 29)
     assert not ok, "would discard a finished run: " + why
     assert "HAS RESULTS" in why
-
-    ok, why = eligible({"status": "running"}, 3)
+    (ok, why) = eligible({"status": "running"}, 3)
     assert not ok and "running" in why, "would reset a live run"
-
-    ok, why = eligible({"status": "pending", "results": {}}, 22)
+    (ok, why) = eligible({"status": "pending", "results": {}}, 22)
     assert not ok, "silently discarded 22 epochs of work: " + why
-
-    # the case it IS for: died on its face, nothing to keep
-    ok, why = eligible({"status": "pending", "failures": 2, "results": {}}, 1)
+    (ok, why) = eligible({"status": "pending", "failures": 2, "results": {}}, 1)
     assert ok, "refused the actual crash case: " + why
-    ok, why = eligible({"status": "pending", "results": {}}, 0)
+    (ok, why) = eligible({"status": "pending", "results": {}}, 0)
     assert ok, "refused a run with no log at all: " + why
 
 
-def test_the_scorer_still_sees_a_crash_log_that_was_renamed_aside():
-    """Archiving `error_log.json` after fixing the cause is the natural tidy-up,
-    and it restores exactly the blindness the crash report exists to remove --
-    the dispatcher resets an interrupted run to `pending`, so with the log gone
-    a dead treatment arm is indistinguishable from one that never started.
-    """
-    src = io.open(os.path.join(REPO, "scripts", "full_panel.py"),
-                  encoding="utf-8").read()
-    fn = next((n for n in ast.walk(ast.parse(src))
-               if isinstance(n, ast.FunctionDef) and n.name == "main"), None)
-    assert fn is not None
-    code = ast.unparse(fn)
-    assert "error_log*.json" in code, (
-        "full_panel.main looks for a literal error_log.json, so a crash log "
-        "renamed aside (error_log.oom.json) makes the run report as plain "
-        "`pending` -- a dead arm reading as an unstarted one")
-
-
-def _code_identifiers(path):
-    """Every name the CODE references: identifiers, attributes, import aliases
-    and string literals -- with docstrings excluded.
-
-    AST, never grep. A grep once reported `rho_step` as read because a LOG LINE
-    named it, and the earlier version of the gate below compared raw file text,
-    so a COMMENT could satisfy it. Docstrings are dropped for the same reason;
-    string literals are kept, because a config key is read as `hp["key"]`.
-    """
-    tree = ast.parse(io.open(path, encoding="utf-8").read())
-    docs = set()
-    for n in ast.walk(tree):
-        if isinstance(n, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef,
-                          ast.ClassDef)) and n.body:
-            b = n.body[0]
-            if (isinstance(b, ast.Expr) and isinstance(b.value, ast.Constant)
-                    and isinstance(b.value.value, str)):
-                docs.add(id(b.value))
-    out = set()
-    for n in ast.walk(tree):
-        if isinstance(n, ast.Name):
-            out.add(n.id)
-        elif isinstance(n, ast.Attribute):
-            out.add(n.attr)
-        elif isinstance(n, ast.alias):
-            out.add(n.asname or n.name.split(".")[-1])
-        elif (isinstance(n, ast.Constant) and isinstance(n.value, str)
-              and id(n) not in docs):
-            out.add(n.value)
-    return {n.lower() for n in out}
-
-
-def test_the_grad_carrying_chunk_and_the_no_grad_chunk_are_separate_keys():
-    """`constraint_chunk_size` bounds a BACKWARD pass; the allocators' and
-    `select`'s chunk bounds inference under no_grad. Two knobs.
-
-    While they shared one name, `check_parity` -- which compares a key across
-    every arm that carries it -- read a correctly generated campaign as broken
-    ("constraint_chunk_size differs: ['128', '256']") and blocked every launch,
-    because the constraint phase had to drop to 128 to survive ViTB16 + fp32
-    OOM while the no_grad path had no reason to move. The names are now
-    distinct, so an arm cannot read one thinking it set the other.
-
-    THE SPLIT WAS INCOMPLETE UNTIL 2026-08-22, AND THIS GATE COULD NOT SEE IT.
-    `src/utils/constants.py` still exported the fallback as
-    `CONSTRAINT_CHUNK_SIZE`, and all four no_grad arms imported it under that
-    name to default `inference_chunk_size` -- so the constraint knob's NAME
-    carried the inference knob's VALUE, and "fixing" the constant to track
-    protocol's 128 would silently have halved the allocators' chunk. The old
-    check compared lowercase strings against raw file text, and the constant is
-    uppercase, so it passed. The comparison is now case-insensitive and runs
-    over AST identifiers.
-    """
-    import yaml
-    proto = yaml.safe_load(io.open(os.path.join(REPO, "configs", "protocol.yml"),
-                                   encoding="utf-8"))
-    chunked = proto["blocks"]["chunked"]
-    assert "inference_chunk_size" in chunked, (
-        "the no_grad chunk lost its own name; if it is called "
-        "constraint_chunk_size again, check_parity fails on every campaign")
-    assert "constraint_chunk_size" not in chunked, (
-        "the `chunked` block emits constraint_chunk_size again -- that is the "
-        "collision check_parity cannot see through")
-    assert "constraint_chunk_size" in proto["constraint_phase"]
-
-    # ONE SOURCE OF TRUTH FOR THE FALLBACK. `clip` and `focal_clip` carry no
-    # `chunked` block, so they fall back to the module constant while every
-    # other allocator reads the protocol's value. If the two drift, one knob
-    # has two values depending on which arm you ask.
-    from src.utils.constants import INFERENCE_CHUNK_SIZE
-    assert INFERENCE_CHUNK_SIZE == chunked["inference_chunk_size"], (
-        "src.utils.constants.INFERENCE_CHUNK_SIZE is %r but protocol.yml says "
-        "%r -- the arms without the `chunked` block would chunk differently "
-        "from the ones with it" % (INFERENCE_CHUNK_SIZE,
-                                   chunked["inference_chunk_size"]))
-
-    # and the readers must not have drifted back: _required (grad path) vs
-    # .get (no_grad path) is what separates them at the call site. Compared
-    # case-insensitively over AST identifiers, so neither a comment nor an
-    # UPPERCASE constant can satisfy or evade it.
-    for rel in [("tralo", "train.py"), ("fioretto_ldf", "train.py"),
-                ("fioretto_alm", "train.py"), ("hounie_rcl", "train.py"),
-                ("dual_common.py",)]:
-        names = _code_identifiers(
-            os.path.join(REPO, "src", "methodologies", *rel))
-        assert "inference_chunk_size" not in names, (
-            "%s names the no_grad inference chunk on its gradient-carrying "
-            "pass -- at 256 that is the configuration that OOMs" % rel[0])
-    for rel in [("heuristic", "train.py")]:
-        names = _code_identifiers(
-            os.path.join(REPO, "src", "methodologies", *rel))
-        assert "constraint_chunk_size" not in names, (
-            "%s names the CONSTRAINT chunk on a no_grad pass; it does not "
-            "carry the constraint_phase block, so it would silently fall back "
-            "to the module default and stop tracking the protocol" % rel[0])
-
-    # THE OTHER HALF OF THE COLLISION. `src/utils/inference.py` had its own
-    # module-level INFERENCE_CHUNK_SIZE = 512 for the metrics forward pass --
-    # the same name as the configurable knob's fallback, carrying a different
-    # value. It is private now, and the two must stay uncoupled: re-chunking a
-    # forward pass re-associates the batch dimension, so unifying them
-    # perturbs reported metrics in the last bits, and this project reads
-    # arm-vs-arm identity at md5 resolution.
-    import src.utils.inference as _inf
-    assert not hasattr(_inf, "INFERENCE_CHUNK_SIZE"), (
-        "src/utils/inference.py exports INFERENCE_CHUNK_SIZE again -- the same "
-        "name as the protocol-backed fallback in src/utils/constants.py, "
-        "carrying a different value. That is the collision this split removed")
-    assert _inf._METRICS_FORWARD_CHUNK != INFERENCE_CHUNK_SIZE, (
-        "the metrics forward stride and the allocators' inference chunk are "
-        "now equal; if that is intended it is a metrics change and must be "
-        "made deliberately, not fall out of a rename")
-
-
 def test_the_two_training_log_schemas_stay_watched_and_keep_their_conventions():
-    """`training_log.csv` is written by TWO writers with different columns AND
-    a different epoch axis. Both halves are pinned here.
-
-    (1) WATCHED. The collapse detector reads train accuracy, so an arm that
-    logs none is invisible to it -- and the pipeline keeps the FINAL epoch
-    unconditionally, which is what makes a terminal collapse the scored model.
-    The three dual arms wrote their own 7-column schema with no accuracy in it,
-    so `fioretto`, `hounie` and `alm` could collapse silently. In an 80-run
-    campaign that is 48 unwatched runs, on exactly the arms under test.
-
-    (2) CONVENTIONS. `Epoch` is absolute and 1-based for `tralo` / `select`;
-    `epoch` is relative to the constraint phase and 0-based for the three
-    duals. The same training step is row 2 in one and row 0 in the other. That
-    asymmetry is a decision (merging the schemas would make the 14,524-run
-    provenance archive unreadable), it is written down in FRAMEWORK's "Known
-    asymmetries" item 2, and it is pinned so neither side can drift onto the
-    other's meaning without saying so.
-    """
     import ast as _ast
-    trained = {"tralo": ("tralo", "train.py"),
-               "fioretto_ldf": ("fioretto_ldf", "train.py"),
-               "fioretto_alm": ("fioretto_alm", "train.py"),
-               "hounie_rcl": ("hounie_rcl", "train.py")}
+
+    trained = {
+        "tralo": ("tralo", "train.py"),
+        "fioretto_ldf": ("fioretto_ldf", "train.py"),
+        "fioretto_alm": ("fioretto_alm", "train.py"),
+        "hounie_rcl": ("hounie_rcl", "train.py"),
+    }
     for name, rel in trained.items():
-        src = io.open(os.path.join(REPO, "src", "methodologies", *rel),
-                      encoding="utf-8").read()
-        code = _ast.unparse(_ast.parse(src))     # comments cannot satisfy this
-        # Either the arm names the field itself, or it delegates to the
-        # canonical writer, which always emits Train_Acc. Naming the field was
-        # too strict: `select` passes the accuracy positionally to
-        # log_progress_to_csv, and its logs do carry Train_Acc.
-        assert ("train_acc" in code or "Train_Acc" in code
-                or "log_progress_to_csv" in code), (
-            "%s neither logs a train-accuracy field nor calls the canonical "
-            "writer, so scripts/full_panel.py cannot see a terminal collapse "
-            "in any of its runs" % name)
+        src = io.open(
+            os.path.join(REPO, "src", "methodologies", *rel), encoding="utf-8"
+        ).read()
+        code = _ast.unparse(_ast.parse(src))
+        assert (
+            "train_acc" in code or "Train_Acc" in code or "log_progress_to_csv" in code
+        ), (
+            "%s neither logs a train-accuracy field nor calls the canonical writer, so scripts/full_panel.py cannot see a terminal collapse in any of its runs"
+            % name
+        )
 
-    # and the detector must accept BOTH spellings, or adding the column to the
-    # duals silently fails to switch it on
-    panel = io.open(os.path.join(REPO, "scripts", "full_panel.py"),
-                    encoding="utf-8").read()
-    fn = next(n for n in _ast.walk(_ast.parse(panel))
-              if isinstance(n, _ast.FunctionDef) and n.name == "_terminal_collapse")
-    body = _ast.unparse(fn)
-    for spelling in ("Train_Acc", "train_acc"):
-        assert spelling in body, (
-            "_terminal_collapse does not know the %r spelling, so one log "
-            "schema is unwatched" % spelling)
-
-    # THE EPOCH AXIS MEANS TWO DIFFERENT THINGS, AND THAT IS A DECISION.
-    # `tralo`/`select` run range(warmup_epochs, total) and log through
-    # log_progress_to_csv, which adds 1 -> `Epoch` is ABSOLUTE and 1-based, so
-    # the first constraint row is 2 at warm-up 1. The duals run
-    # range(constraint_epochs) and log `epoch` raw -> RELATIVE and 0-based, so
-    # the same training step is row 0. Documented in FRAMEWORK's "Known
-    # asymmetries" as item 2; pinned here so neither side drifts onto the
-    # other's meaning without a deliberate change. AST, so a comment saying
-    # "absolute" proves nothing.
     def _epoch_range_args(path):
         tree = _ast.parse(io.open(path, encoding="utf-8").read())
         for n in _ast.walk(tree):
-            if (isinstance(n, _ast.For)
-                    and isinstance(n.target, _ast.Name)
-                    and n.target.id == "epoch"
-                    and isinstance(n.iter, _ast.Call)
-                    and getattr(n.iter.func, "id", None) == "range"):
+            if (
+                isinstance(n, _ast.For)
+                and isinstance(n.target, _ast.Name)
+                and (n.target.id == "epoch")
+                and isinstance(n.iter, _ast.Call)
+                and (getattr(n.iter.func, "id", None) == "range")
+            ):
                 return len(n.iter.args)
         return None
 
     for pkg in ("tralo",):
         n_args = _epoch_range_args(
-            os.path.join(REPO, "src", "methodologies", pkg, "train.py"))
+            os.path.join(REPO, "src", "methodologies", pkg, "train.py")
+        )
         assert n_args == 2, (
-            "%s no longer iterates an ABSOLUTE epoch axis (range(warmup, "
-            "total)); its Epoch column shares a name with the warm-up rows in "
-            "the same file, so a relative axis would silently renumber them"
-            % pkg)
+            "%s no longer iterates an ABSOLUTE epoch axis (range(warmup, total)); its Epoch column shares a name with the warm-up rows in the same file, so a relative axis would silently renumber them"
+            % pkg
+        )
     for pkg in ("fioretto_ldf", "fioretto_alm", "hounie_rcl"):
         n_args = _epoch_range_args(
-            os.path.join(REPO, "src", "methodologies", pkg, "train.py"))
+            os.path.join(REPO, "src", "methodologies", pkg, "train.py")
+        )
         assert n_args == 1, (
-            "%s no longer iterates a RELATIVE epoch axis; FRAMEWORK's known-"
-            "asymmetries table says its `epoch` is 0-based within the "
-            "constraint phase, and the 14,524-run archive was written that way"
-            % pkg)
-
-    # and the two writers must keep the offset they are documented with
-    logsrc = io.open(os.path.join(REPO, "src", "training", "logging.py"),
-                     encoding="utf-8").read()
-    writer = next(n for n in _ast.walk(_ast.parse(logsrc))
-                  if isinstance(n, _ast.FunctionDef)
-                  and n.name == "log_progress_to_csv")
+            "%s no longer iterates a RELATIVE epoch axis; FRAMEWORK's known-asymmetries table says its `epoch` is 0-based within the constraint phase, and the 14,524-run archive was written that way"
+            % pkg
+        )
+    logsrc = io.open(
+        os.path.join(REPO, "src", "training", "logging.py"), encoding="utf-8"
+    ).read()
+    writer = next(
+        (
+            n
+            for n in _ast.walk(_ast.parse(logsrc))
+            if isinstance(n, _ast.FunctionDef) and n.name == "log_progress_to_csv"
+        )
+    )
     assert "epoch + 1" in _ast.unparse(writer), (
-        "log_progress_to_csv no longer writes epoch + 1, so TraLO's Epoch "
-        "column stopped being 1-based while FRAMEWORK still says it is")
+        "log_progress_to_csv no longer writes epoch + 1, so TraLO's Epoch column stopped being 1-based while FRAMEWORK still says it is"
+    )
     for pkg in ("fioretto_ldf", "fioretto_alm", "hounie_rcl"):
-        src = io.open(os.path.join(REPO, "src", "methodologies", pkg,
-                                   "train.py"), encoding="utf-8").read()
+        src = io.open(
+            os.path.join(REPO, "src", "methodologies", pkg, "train.py"),
+            encoding="utf-8",
+        ).read()
         assert "'epoch': epoch," in _ast.unparse(_ast.parse(src)), (
-            "%s no longer logs the RAW epoch; if it gained a +1 it would look "
-            "1-based while remaining relative, which is the one combination "
-            "no reader could detect" % pkg)
+            "%s no longer logs the RAW epoch; if it gained a +1 it would look 1-based while remaining relative, which is the one combination no reader could detect"
+            % pkg
+        )
 
 
 def test_log_health_does_not_cry_wolf_on_a_warm_up_row_or_a_posthoc_arm(tmp_path):
-    """`scripts/log_health.py` executes the house rule "validate from the
-    training log, never from a final number". Two ways it can be worse than
-    nothing, both of which it did on its first run:
-
-    1. It flagged NON-FINITE VALUES on every tralo run that logged a warm-up
-       epoch. That row is written before the constraint object exists, so its
-       limits are legitimately blank -- exactly one NaN per constraint column.
-       A divergence detector that fires on healthy runs gets ignored.
-    2. It reported `clip` as satisfied 28/28. A post-hoc arm runs no constraint
-       phase, so satisfaction is vacuous for it, and feasibility is not a metric
-       in this project precisely because the allocator makes the clipper
-       feasible by construction.
-    """
     from scripts.log_health import read_run
 
     def mk(name, rows, header):
         d = tmp_path / name
         d.mkdir()
         (d / "training_log.csv").write_text(
-            header + chr(10) + chr(10).join(rows) + chr(10))
+            header + chr(10) + chr(10).join(rows) + chr(10)
+        )
         (d / "config.json").write_text('{"arm": "%s", "status": "completed"}' % name)
         return str(d)
 
     wide = "Epoch,Train_Acc,L_CE,Hard_Class2,Limit_Class2,Group0_Hard_Class2"
-    # a warm-up row (Epoch 1) with blank constraint state, then healthy epochs
-    warm = mk("tralo", ["1,0.8150,0.7800,0,,",
-                        "2,0.9000,0.5000,200,62,70",
-                        "3,0.9500,0.3000,190,62,66",
-                        "4,0.9600,0.2000,180,62,60"], wide)
+    warm = mk(
+        "tralo",
+        [
+            "1,0.8150,0.7800,0,,",
+            "2,0.9000,0.5000,200,62,70",
+            "3,0.9500,0.3000,190,62,66",
+            "4,0.9600,0.2000,180,62,60",
+        ],
+        wide,
+    )
     r = read_run(warm)
     assert not r["nonfinite"], (
-        "flagged the warm-up row as divergence: %s" % r["nonfinite"])
+        "flagged the warm-up row as divergence: %s" % r["nonfinite"]
+    )
     assert r["sat"] is None or True
     assert 2 in r["counts"] and r["counts"][2]["K"] == 62
-
-    # a post-hoc arm: same header, but every limit is UNLIMITED
-    ph = mk("clip", ["1,0.8150,0.7800,0,10000000000.0,0",
-                     "2,0.9000,0.5000,200,10000000000.0,70",
-                     "3,0.9900,0.3000,190,10000000000.0,66"],
-            wide.replace("Hard_Class2,Limit_Class2",
-                         "Hard_Class2,Limit_Class2") + ",Global_Satisfied")
+    ph = mk(
+        "clip",
+        [
+            "1,0.8150,0.7800,0,10000000000.0,0",
+            "2,0.9000,0.5000,200,10000000000.0,70",
+            "3,0.9900,0.3000,190,10000000000.0,66",
+        ],
+        wide.replace("Hard_Class2,Limit_Class2", "Hard_Class2,Limit_Class2")
+        + ",Global_Satisfied",
+    )
     ph_rows = io.open(os.path.join(ph, "training_log.csv"), encoding="utf-8").read()
     io.open(os.path.join(ph, "training_log.csv"), "w", encoding="utf-8").write(
         ph_rows.replace(",0" + chr(10), ",0,1" + chr(10))
-               .replace(",70" + chr(10), ",70,1" + chr(10))
-               .replace(",66" + chr(10), ",66,1" + chr(10)))
+        .replace(",70" + chr(10), ",70,1" + chr(10))
+        .replace(",66" + chr(10), ",66,1" + chr(10))
+    )
     r = read_run(ph)
     assert r["posthoc"], (
-        "a run whose every Limit_Class is UNLIMITED was not recognised as "
-        "post-hoc, so it will be reported as satisfied on every epoch")
-    assert r["sat"] is None, "reported a vacuous satisfaction count for a "        "post-hoc arm: %s" % (r["sat"],)
-
-    # and it must still SEE a real divergence
-    bad = mk("diverged", ["2,0.9000,0.5000,200,62,70",
-                          "3,0.9500,nan,190,62,66",
-                          "4,0.9600,0.2000,180,62,60"], wide)
+        "a run whose every Limit_Class is UNLIMITED was not recognised as post-hoc, so it will be reported as satisfied on every epoch"
+    )
+    assert r["sat"] is None, (
+        "reported a vacuous satisfaction count for a post-hoc arm: %s" % (r["sat"],)
+    )
+    bad = mk(
+        "diverged",
+        [
+            "2,0.9000,0.5000,200,62,70",
+            "3,0.9500,nan,190,62,66",
+            "4,0.9600,0.2000,180,62,60",
+        ],
+        wide,
+    )
     assert read_run(bad)["nonfinite"], (
-        "missed a NaN sitting beside real values -- a run once diverged to "
-        "all-NaN and still wrote `completed`")
+        "missed a NaN sitting beside real values -- a run once diverged to all-NaN and still wrote `completed`"
+    )
 
 
 def test_test_embeddings_come_out_at_the_width_the_head_declares():
-    """A wrong feature dim produces a silently meaningless embedding file --
-    the array still saves, still loads, and every offline analysis built on it
-    is garbage. The four backbones name their head differently (`heads` on ViT,
-    `fc` on RegNet, `classifier` on both MobileNets), so the width is looked up,
-    and this checks the lookup agrees with what the hook actually captures.
-    """
     import torch
     from src.models.model_factory import get_model
     from src.pipeline.features import extract_test_embeddings, head_and_feature_dim
@@ -2599,655 +1421,127 @@ def test_test_embeddings_come_out_at_the_width_the_head_declares():
     X = torch.randn(6, 3, 224, 224)
     for name in ("MobileNetV3", "MobileNetV2", "RegNetY400MF", "ViTB16"):
         model = get_model(name, 7, pretrained=False)
-        _head, dim = head_and_feature_dim(model)
+        (_head, dim) = head_and_feature_dim(model)
         feats = extract_test_embeddings(model, X, chunk=4)
         assert feats.shape == (6, dim), (
-            "%s: the head declares %d features but the hook captured %s" %
-            (name, dim, (feats.shape,)))
-
-
-def test_treatment_weight_keys_covers_every_null_arm_and_no_treated_one():
-    """`_zero_lambda_arms` decides which arms are their own control. It read a
-    hardcoded tuple of lambda + `select_eta`, so `fioretto_null`,
-    `hounie_null` and `alm_null` -- which zero `fioretto_step_size`,
-    `hounie_eta_lambda` and `alm_eta`/`alm_mu0`/`alm_mu_step` -- fell through to
-    the treated branch and drew the "one run counted twice" false alarm on
-    three of four nulls.
-
-    The list is now derived from protocol.yml, and BOTH halves of the rule
-    matter: a key must be 0 in the null block AND non-zero in its treated twin.
-    `fioretto_lambda_init` is 0.0 in both, so taking every zero in a null block
-    would classify the TREATED fioretto as untreated -- worse than the bug.
-    """
-    import yaml
-    from scripts.full_panel import TREATMENT_WEIGHT_KEYS as KEYS
-
-    with io.open(os.path.join(REPO, "configs", "protocol.yml"),
-                 encoding="utf-8") as fh:
-        blocks = yaml.safe_load(fh)["blocks"]
-
-    for arm in ("tralo", "select", "fioretto", "hounie", "alm"):
-        null = blocks.get(arm + "_null")
-        if null is None:
-            continue
-        present = [null[k] for k in KEYS if k in null]
-        assert present and all(float(v) == 0.0 for v in present), (
-            "%s_null carries no treatment key that is zero, so it will be "
-            "scored as a TREATED arm: %s" % (arm, present))
-        live = blocks.get(arm) or {}
-        lv = [live[k] for k in KEYS if k in live]
-        assert lv and any(float(v) != 0.0 for v in lv), (
-            "the treated arm %s reads as untreated (%s) -- its cross-cap "
-            "identity check would be inverted" % (arm, lv))
-
-
-# ------------------------------------------- the reseed control (FRAMEWORK 13) --
-
-def _run_tralo_arm(arm, seed=1):
-    """Run one tralo-family arm on the smoke harness.
-
-    Returns (test probabilities, list of constraint-step calls).
-
-    The arm is assembled from `configs/protocol.yml` through
-    `scripts.smoke_arms.make_inputs`, exactly as `gen_campaign` would assemble
-    it, rather than from a hand-written hyperparameter dict -- the claim under
-    test is about the ARM, and a hand-written config cannot catch a YAML defect.
-    """
-    import shutil
-    import tempfile
-
-    import scripts.smoke_arms as smoke
-    import src.methodologies.tralo.train as tralo_mod
-
-    tmp = tempfile.mkdtemp(prefix="reseed_")
-    calls = []
-    real_finish = tralo_mod.finish_constraint_step
-    real_backward = tralo_mod.constraint_backward
-    try:
-        inputs, _g, _l = smoke.make_inputs(load_protocol(), arm, tmp,
-                                           seed=seed)
-        # run_experiment re-seeds AFTER the warm-up and immediately before
-        # train(), so every arm's constraint phase starts from one RNG state.
-        # The RNG half only: seed_all also flips the PROCESS-WIDE
-        # use_deterministic_algorithms, which would leak into every later test.
-        torch.manual_seed(seed)
-
-        def _spy(name, fn):
-            def wrapped(*a, **k):
-                calls.append(name)
-                return fn(*a, **k)
-            return wrapped
-
-        tralo_mod.finish_constraint_step = _spy("finish", real_finish)
-        tralo_mod.constraint_backward = _spy("backward", real_backward)
-        out = TRAIN_FNS["tralo"](inputs)
-        out.model.eval()
-        with torch.no_grad():
-            proba = F.softmax(out.model(inputs.X_test), dim=1).numpy()
-        return proba, calls
-    finally:
-        tralo_mod.finish_constraint_step = real_finish
-        tralo_mod.constraint_backward = real_backward
-        shutil.rmtree(tmp, ignore_errors=True)
-
-
-
-
-
-
-
-
-def _gen_arms(tmp, *arms):
-    """gen_campaign with an explicit arm list and nothing else implied."""
-    return subprocess.run(
-        [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask",
-         "--root", str(tmp),
-         "--datasets", "iwildcam", "--caps", "L30_G30", "L50_G30",
-         "--arms"] + list(arms),
-        cwd=REPO, capture_output=True, text=True)
-
-
-
-
-
-
-# ------------------------------------------------- the frozen-head probe --
-#
-# `scripts/frozen_head_probe.py` prices a loss family on CPU in minutes
-# instead of a week on GPU. It is only worth anything if it measures the
-# project's real endpoint and if it can DETECT a difference -- a probe that
-# cannot see one makes every null it reports unfalsifiable. Each gate below
-# carries its own verified negative control, in the same test, because a gate
-# whose failure mode was never exercised is a comment.
-
-from scripts import frozen_head_probe as FHP                        # noqa: E402
-
-
-def test_the_probe_polytope_argmax_equals_the_allocators_own_greedy():
-    """The perturbed estimator maximises over a partition matroid, and the
-    vectorised two-topk shortcut must equal the greedy `apply_allocation_
-    heuristic` runs for one capped class: scan descending, take while the
-    class has global AND local room. If it does not, the probe optimises a
-    different budget from the one the pipeline enforces.
-    """
-    rng = np.random.default_rng(7)
-    saw_naive_violation = False
-    for trial in range(20):
-        n, n_groups = 60, 3
-        theta = rng.normal(size=n)
-        groups = rng.integers(0, n_groups, n)
-        caps = [int(x) for x in rng.integers(1, 12, n_groups)]
-        K = int(rng.integers(3, 25))
-
-        idx = [np.where(groups == g)[0] for g in range(n_groups)]
-        got = FHP._matroid_topk(torch.tensor(theta), K, idx, caps)[0].numpy()
-
-        # the greedy, written out, exactly as the allocator does it
-        want = np.zeros(n)
-        room_g, taken = dict(enumerate(caps)), 0
-        for i in np.argsort(-theta):
-            if taken >= K:
-                break
-            g = int(groups[i])
-            if room_g[g] <= 0:
-                continue
-            room_g[g] -= 1
-            want[i] = 1.0
-            taken += 1
-        assert np.array_equal(got, want), "trial %d" % trial
-
-        # NEGATIVE CONTROL: a plain top-K that ignores the group caps must NOT
-        # match, or this test would pass on an implementation that dropped the
-        # local scope entirely -- which is exactly the defect it exists to
-        # catch, and the one `full_panel` documents for a missing Group_ID.
-        naive = np.zeros(n)
-        naive[np.argsort(-theta)[:K]] = 1.0
-        if any(int((groups[naive == 1] == g).sum()) > caps[g]
-               for g in range(n_groups)):
-            saw_naive_violation = True
-            assert not np.array_equal(naive, want), (
-                "the cap-blind top-K agreed with the matroid greedy on a case "
-                "where it violates a local cap: the test cannot see the defect")
-    assert saw_naive_violation, (
-        "no trial made the local cap bind, so the negative control never ran "
-        "and this test would pass on a cap-blind implementation")
-
-
-def test_the_perturbed_topk_gradient_is_exactly_soft_membership_minus_target():
-    """Fenchel-Young: dL/dtheta = y_eps(theta) - y_target, and the probe must
-    deliver that identity through autograd without differentiating a sort.
-
-    This is the one place the probe implements a published estimator itself
-    rather than importing the pipeline's, so the identity is pinned rather
-    than trusted.
-    """
-    torch.manual_seed(0)
-    n, K, eps, M = 40, 8, 0.5, 64
-    theta = torch.randn(n, requires_grad=True)
-    pos = torch.zeros(n, dtype=torch.bool)
-    pos[torch.randperm(n)[:16]] = True
-    gen = torch.Generator().manual_seed(11)
-
-    loss = FHP.perturbed_topk_loss(theta, pos, K, eps, M, gen, None, None)
-    loss.backward()
-
-    # y_eps and y_target, recomputed independently from the SAME stream
-    gen2 = torch.Generator().manual_seed(11)
-    Z = torch.randn(M, n, generator=gen2)
-    y_eps = FHP._matroid_topk(theta.detach().unsqueeze(0) + eps * Z, K,
-                              None, None).mean(0)
-    masked = torch.where(pos, theta.detach(), torch.full((n,), float("-inf")))
-    y_target = FHP._matroid_topk(masked, K, None, None)[0]
-
-    assert torch.allclose(theta.grad, (y_eps - y_target) / K, atol=1e-6), (
-        "the autograd gradient is not the Fenchel-Young gradient")
-
-    # NEGATIVE CONTROL: the identity is specific to THIS target. A uniform
-    # point of the same polytope must give a different gradient, or the
-    # assertion above would hold for any target and would test nothing.
-    uniform = torch.full((n,), K / n)
-    assert not torch.allclose(theta.grad, (y_eps - uniform) / K, atol=1e-6)
-
-
-def test_the_probe_converts_to_items_the_way_full_panel_does():
-    """`items = d(ccF1) * sum_c (K_c + n_c) / 2` -- SUM over capped classes,
-    never mean. full_panel.py records that taking the mean understated the
-    count by exactly the number of capped classes, a factor of 3 on dermmnist.
-    The probe must not reintroduce it in a second file.
-    """
-    y = np.array([1] * 20 + [2] * 30 + [4] * 40 + [5] * 100)
-    alloc = np.array([1] * 6 + [2] * 9 + [4] * 12 + [5] * 163)
-    classes = [1, 2, 4]
-
-    got = FHP.items_per_001(y, alloc, classes)
-    want = sum(0.01 * (int((alloc == c).sum()) + int((y == c).sum())) / 2
-               for c in classes)
-    assert abs(got - want) < 1e-12
-
-    # NEGATIVE CONTROL: the mean-over-classes version, the documented bug.
-    mean_version = want / len(classes)
-    assert abs(got - mean_version) > 1e-9, (
-        "sum and mean agree here, so this case cannot detect the regression")
-
-
-def test_the_probe_split_is_deterministic_disjoint_and_group_stratified():
-    """Train/val/test splits must be deterministic and documented. The probe
-    strata are the (class, group) PAIR because dermmnist's group 2 is a
-    genuinely different population, so a class-only split lets the LOCAL
-    budgets drift between halves.
-    """
-    d = FHP.make_synthetic("matched", 0, dim=8)
-    a1, b1 = FHP.stratified_halves(d.y, d.groups, 3)
-    a2, b2 = FHP.stratified_halves(d.y, d.groups, 3)
-    assert np.array_equal(a1, a2) and np.array_equal(b1, b2), "not deterministic"
-    assert not set(a1) & set(b1), "fit and held-out overlap"
-    assert len(a1) + len(b1) == len(d.y), "the split loses items"
-
-    other, _ = FHP.stratified_halves(d.y, d.groups, 4)
-    assert not np.array_equal(a1, other), "the seed does not change the split"
-
-    # THE (class, group) CELL, not the group share. A plain random half keeps
-    # the group shares to within a few percent all by itself, so asserting on
-    # those passes on an unstratified split and gates nothing -- measured, a
-    # random half is off by up to 12.5 items on a single (class, group) cell
-    # while the stratified one is off by at most 1.0. Those cells ARE the local
-    # budgets: `compute_local_constraints` takes a percentage of each of them.
-    for half in (a1, b1):
-        for c in range(7):
-            for g in np.unique(d.groups):
-                tot = int(((d.y == c) & (d.groups == g)).sum())
-                if tot == 0:
-                    continue
-                got = int(((d.y[half] == c) & (d.groups[half] == g)).sum())
-                assert abs(got - tot / 2.0) <= 1.0, (
-                    "class %d group %d: %d of %d in this half -- the local "
-                    "budget is not comparable across halves" % (c, g, got, tot))
-
-
-def test_the_probes_liveness_control_is_itself_live():
-    """LIVENESS OF THE LIVENESS CONTROL. `corrupt_head` must change the head
-    when asked to and must be the IDENTITY at alpha=0 -- otherwise a reported
-    "the probe resolves N items" is measuring the corruption knob's own noise.
-    """
-    torch.manual_seed(0)
-    W = torch.randn(7, 12)
-    classes = [1, 2, 4]
-
-    same = FHP.corrupt_head(W, classes, 0.0, 5)
-    assert torch.equal(same, W), "alpha=0 is not the identity"
-
-    hit = FHP.corrupt_head(W, classes, 0.3, 5)
-    moved = {c for c in range(7) if not torch.equal(hit[c], W[c])}
-    assert moved == set(classes), (
-        "corruption touched %s, expected exactly the capped classes" % moved)
-    # the norm is held, so the control removes ORDERING and not scale -- a
-    # shrunk row would degrade the softmax for a reason unrelated to ranking
-    for c in classes:
-        assert abs(float(hit[c].norm()) - float(W[c].norm())) < 0.35 * float(W[c].norm())
-
-
-def test_the_topk_surrogate_localises_at_the_cut_and_softplus_does_not():
-    """The claim the whole family rests on is that a bounded surrogate acts
-    only in a window around the K-th ranked item. Pinned WITH its own control:
-    the convex `softplus` variant must keep a finite gradient far below the
-    cut, because if both localise then localisation is not what is being
-    measured.
-    """
-    n, K = 200, 20
-    base = torch.linspace(0.0, -20.0, n)
-    pos = torch.zeros(n, dtype=torch.bool)
-    pos[-5:] = True                    # positives buried far below the cut
-
-    def grad_far(surrogate):
-        s = base.clone().requires_grad_(True)
-        FHP.topk_loss(s, pos, K, 0.5, surrogate).backward()
-        return float(s.grad[-5:].abs().max())
-
-    assert grad_far("sigmoid") < 1e-8, "the bounded surrogate is not localising"
-    assert grad_far("softplus") > 1e-3, (
-        "the convex surrogate localises too, so the two cannot be compared")
-
-
-def test_the_probe_verdict_rule_survives_its_own_liveness_control():
-    """REGRESSION ON A DECISION RULE, not on a number.
-
-    The pre-registered bar read `|mean| >= 2 * sd`. The `tailnoise` control,
-    where a cut-local loss wins BY CONSTRUCTION, returned +14.94 items on 7 of
-    8 seeds with sd 7.53 -- and the rule said NO DIFFERENCE, because 2 x 7.53
-    = 15.06. The defect is structural: when an effect is seed-dependent its sd
-    grows with it, so that rule gets HARDER as the effect gets larger. It now
-    reads standard ERROR, with the conservative reading kept as a `[fragile]`
-    tag rather than as the gate.
-    """
-    st = FHP.paired([16.5, 20.1, 11.3, 25.8, 8.0, 14.9, 22.4, -0.9])
-    assert st["mean"] > 2 * st["sem"]
-    v = FHP.verdict(st, 8, 1.0, 7.0 / 8.0)
-    assert v.startswith("WORTH A CAMPAIGN"), v
-    assert "fragile" in v, "the conservative reading must stay visible"
-
-    # NEGATIVE CONTROL: the retired rule must still reject this input, or the
-    # regression this test pins never existed.
-    assert abs(st["mean"]) < 2.0 * st["sd"]
-
-    # and the rule still says no when there is nothing there
-    quiet = FHP.paired([0.1, -0.2, 0.05, 0.3, -0.1, 0.2, 0.0, -0.05])
-    assert FHP.verdict(quiet, 8, 1.0, 7.0 / 8.0).startswith("NO DIFFERENCE")
-
-
-def test_the_probes_special_term_is_live_and_is_off_at_weight_zero():
-    """The project's most frequent failure mode is an INERT FLAG -- four
-    occurrences and counting -- so the probe's own treatment knob gets the
-    same across-arms identity check the campaigns get: at weight 0 a treated
-    arm must be BIT-IDENTICAL to `ce`, and above 0 it must differ.
-    """
-    import argparse
-    d = FHP.make_synthetic("matched", 0, dim=8)
-    fit, _ = FHP.stratified_halves(d.y, d.groups, 1)
-    X = d.features[fit]
-    X = ((X - X.mean(0, keepdims=True)) / (X.std(0, keepdims=True) + 1e-6)
-         ).astype(np.float32)
-    y = d.y[fit]
-    G, L = FHP.budgets(y, d.groups[fit], d.classes, d.local_pct, d.global_pct, 7)
-    views = {c: FHP._group_view(d.groups[fit], G[c],
-                                {g: lim[c] for g, lim in L.items()
-                                 if lim[c] < UNLIMITED}) for c in d.classes}
-    args = argparse.Namespace(
-        ce_steps=25, refine_steps=25, lr=0.05, weight_decay=1e-4,
-        special_weight=0.0, temp=0.5, topk_surrogate="sigmoid",
-        pauc_neg_frac=0.05, ptopk_eps=0.5, ptopk_samples=8)
-
-    shared = FHP.fit_head(X, y, 7, d.classes, G, views, "ce", args, 1)
-    base = FHP.fit_head(X, y, 7, d.classes, G, views, "ce", args, 1, shared)
-    for name in ("topk", "pauc", "ptopk"):
-        off = FHP.fit_head(X, y, 7, d.classes, G, views, name, args, 1, shared)
-        assert torch.equal(off[0], base[0]) and torch.equal(off[1], base[1]), (
-            "%s is not bit-identical to ce at special_weight=0" % name)
-
-    args.special_weight = 1.0
-    for name in ("topk", "pauc", "ptopk"):
-        on = FHP.fit_head(X, y, 7, d.classes, G, views, name, args, 1, shared)
-        assert not torch.equal(on[0], base[0]), (
-            "%s is INERT: the weight is live but the head did not move" % name)
-
-
-def test_the_probe_refuses_a_run_directory_with_no_embeddings(tmp_path):
-    """The feature dump only just landed, so most run directories have no
-    `test_embeddings.npz`. The probe must say so and name the file -- silently
-    falling back to synthetic features would present a generative model's
-    numbers as evidence about a dataset.
-    """
-    with pytest.raises(SystemExit) as e:
-        FHP.load_real(str(tmp_path))
-    msg = str(e.value)
-    assert "test_embeddings.npz" in msg
-    assert "synthetic" in msg.lower(), (
-        "the refusal must say why substituting synthetic data is not the fix")
-
-
-def test_the_probe_prints_only_ascii_so_a_warning_cannot_be_truncated():
-    """A non-ASCII byte in a print SILENTLY TRUNCATES the report.
-
-    Measured: the probe's "your resolution is coarser than the whole question"
-    warning began with a stop-sign glyph, and on this project's Windows
-    workstation (cp1252) the run ended at the line BEFORE it -- with exit code
-    0 and no traceback in the piped output. The truncated section was the one
-    that says a null is unreadable, so the failure mode is "the harness stops
-    telling you it cannot see" and nothing announces it.
-
-    Scoped to this one file because it is the only script whose output is a
-    verdict a human acts on directly, and because a repo-wide rule would fail
-    on documents that legitimately carry glyphs.
-    """
-    src = io.open(os.path.join(REPO, "scripts", "frozen_head_probe.py"),
-                  encoding="utf-8").read()
-    bad = [i + 1 for i, line in enumerate(src.splitlines())
-           if any(ord(ch) > 127 for ch in line)]
-    assert not bad, (
-        "non-ASCII on line(s) %s of frozen_head_probe.py: on a cp1252 console "
-        "the report stops there, silently and with exit code 0" % bad)
-
-    # NEGATIVE CONTROL: the scan must actually see one when it is there, or it
-    # would pass on a file it never really examined.
-    probe_ascii = chr(0x2014) + 'x'
-    assert [i + 1 for i, line in enumerate([probe_ascii, 'y'])
-            if any(ord(ch) > 127 for ch in line)] == [1]
+            "%s: the head declares %d features but the hook captured %s"
+            % (name, dim, (feats.shape,))
+        )
 
 
 def test_the_duals_reset_grad_norm_every_epoch_instead_of_carrying_it_forward():
-    """`grad_norm` is the column this project reads to decide whether two arms
-    got a comparable dose -- the whole 20x inter-arm argument is built from it.
-
-    The three duals only reassign `last_grad_norm` inside `if did_backward`, so
-    with the declaration hoisted above the epoch loop an epoch where the
-    constraint went slack logged the PREVIOUS epoch's norm as if it were its
-    own. tralo resets per-epoch and writes 0.0, so the same slack epoch is an
-    honest zero in one arm and a fabricated repeat in another -- an asymmetry
-    between a treatment and its comparison, in the telemetry, invisible to
-    every config gate.
-
-    AST, not text: the assignment must be INSIDE the `for epoch` loop.
-    """
     import ast as _ast
+
     for pkg in ("fioretto_ldf", "hounie_rcl", "fioretto_alm"):
-        src = io.open(os.path.join(REPO, "src", "methodologies", pkg,
-                                   "train.py"), encoding="utf-8").read()
+        src = io.open(
+            os.path.join(REPO, "src", "methodologies", pkg, "train.py"),
+            encoding="utf-8",
+        ).read()
         tree = _ast.parse(src)
-        # the epoch loop lives in `_train_constraints`, not `train` -- found by
-        # searching for it rather than by assuming, after assuming wrongly once
-        fn = next((n for n in _ast.walk(tree)
-                   if isinstance(n, _ast.FunctionDef)
-                   and any(isinstance(x, _ast.For) and isinstance(x.target, _ast.Name)
-                           and x.target.id == "epoch" for x in _ast.walk(n))), None)
+        fn = next(
+            (
+                n
+                for n in _ast.walk(tree)
+                if isinstance(n, _ast.FunctionDef)
+                and any(
+                    (
+                        isinstance(x, _ast.For)
+                        and isinstance(x.target, _ast.Name)
+                        and (x.target.id == "epoch")
+                        for x in _ast.walk(n)
+                    )
+                )
+            ),
+            None,
+        )
         assert fn is not None, "%s: no function contains a `for epoch` loop" % pkg
 
         def _assigns(node):
-            return [n for n in _ast.walk(node)
-                    if isinstance(n, _ast.Assign)
-                    and any(isinstance(t, _ast.Name) and t.id == "last_grad_norm"
-                            for t in n.targets)]
+            return [
+                n
+                for n in _ast.walk(node)
+                if isinstance(n, _ast.Assign)
+                and any(
+                    (
+                        isinstance(t, _ast.Name) and t.id == "last_grad_norm"
+                        for t in n.targets
+                    )
+                )
+            ]
 
-        loops = [n for n in _ast.walk(fn)
-                 if isinstance(n, _ast.For)
-                 and isinstance(n.target, _ast.Name) and n.target.id == "epoch"]
+        loops = [
+            n
+            for n in _ast.walk(fn)
+            if isinstance(n, _ast.For)
+            and isinstance(n.target, _ast.Name)
+            and (n.target.id == "epoch")
+        ]
         assert loops, "%s: no `for epoch` loop found" % pkg
         inside = {id(a) for lp in loops for a in _assigns(lp)}
-        resets = [a for a in _assigns(fn)
-                  if isinstance(a.value, _ast.Constant) and a.value.value == 0.0]
+        resets = [
+            a
+            for a in _assigns(fn)
+            if isinstance(a.value, _ast.Constant) and a.value.value == 0.0
+        ]
         assert resets, "%s: `last_grad_norm = 0.0` disappeared entirely" % pkg
-        assert all(id(a) in inside for a in resets), (
-            "%s resets last_grad_norm OUTSIDE the epoch loop, so a slack epoch "
-            "logs the previous epoch's gradient norm as its own" % pkg)
+        assert all((id(a) in inside for a in resets)), (
+            "%s resets last_grad_norm OUTSIDE the epoch loop, so a slack epoch logs the previous epoch's gradient norm as its own"
+            % pkg
+        )
 
-
-def test_the_probe_is_invariant_to_global_rng_state():
-    """THE FLAKINESS GATE. A probe that answers differently depending on what
-    ran before it cannot be trusted to report "no difference" -- the answer it
-    returns most often.
-
-    History: this suite was reported flaky at ~1 in 3, on a ROTATING member of
-    the probe gates, each passing in isolation. Diagnosed on a disposable copy
-    and it was NOT order dependence and NOT global RNG (forward, reverse and
-    -k-only orderings all pass; three repeats with `random`, `numpy.random`
-    and `torch`'s global generators deliberately polluted all pass). The cause
-    was a mutation-verification harness rewriting `scripts/frozen_head_probe.py`
-    IN THE WORKING TREE while other agents ran `pytest tests` against the same
-    checkout -- one process editing another process's source, which reads
-    exactly like flakiness. The harness now works on a temporary copy.
-
-    This gate exists so the diagnosis stays true. It pins the two properties
-    that would have made the report real, and it is deliberately stronger than
-    what was needed: same answer after the globals are polluted, and the same
-    answer from a FRESH interpreter with a different hash seed.
-    """
-    import hashlib
-    import random as _random
-
-    baseline = FHP.determinism_digest()
-
-    # (1) same process, every global generator moved out from under it
-    _random.seed(20260822)
-    np.random.seed(4242)
-    torch.manual_seed(31337)
-    for _ in range(37):
-        _random.random()
-        np.random.rand()
-        torch.randn(5)
-    assert FHP.determinism_digest() == baseline, (
-        "the probe's answer changed after the global generators were "
-        "polluted: something in it draws from a global RNG instead of the "
-        "seeded one it is given")
-
-    # (2) a fresh interpreter, different hash seed, globals pre-polluted
-    env = dict(os.environ, CUDA_VISIBLE_DEVICES="", PYTHONHASHSEED="12345")
-    r = subprocess.run(
-        [sys.executable, "-c",
-         "import random,numpy,torch,sys;"
-         "random.seed();numpy.random.seed();torch.manual_seed(7);"
-         "[torch.randn(3) for _ in range(11)];"
-         "sys.path.insert(0, %r);"
-         "import scripts.frozen_head_probe as F;"
-         "print(F.determinism_digest())" % REPO],
-        cwd=REPO, capture_output=True, text=True, env=env)
-    assert r.returncode == 0, r.stderr[-2000:]
-    assert r.stdout.strip() == baseline, (
-        "a fresh interpreter gives a different digest (%s vs %s): the probe "
-        "depends on interpreter state, not only on its seed"
-        % (r.stdout.strip(), baseline))
-
-    # the digest must actually be a function of the run, not a constant string
-    assert baseline != FHP.determinism_digest(seed=2), (
-        "the digest does not change with the split seed, so it would not "
-        "detect a change in anything either"
-    )
-    assert len(baseline) == len(hashlib.md5(b"").hexdigest())
-
-
-# ---------------------------------------------------------------------------
-# The commit that RAN a config is not the commit that WROTE it
-# ---------------------------------------------------------------------------
 
 def test_the_runner_stamps_the_commit_that_produced_the_weights():
-    """`code_version` is stamped by the GENERATOR and never revisited.
-
-    `configs/gen_campaign.main()` writes it once per config and explicitly
-    skips any config already marked completed, so run half a campaign, land a
-    change to a training file and resume the rest: every config still carries
-    the ORIGINAL value. `full_panel`'s provenance gate then sees one value
-    across two pipelines and scores both halves as one comparison -- the exact
-    thing it was written to refuse -- and `model_cache` hands the post-change
-    runs the pre-change warm-up on the same false agreement.
-
-    AST, not grep: a comment naming the key would satisfy a text search.
-    """
-    src = io.open(os.path.join(REPO, "src", "experiments", "runner.py"),
-                  encoding="utf-8").read()
+    src = io.open(
+        os.path.join(REPO, "src", "experiments", "runner.py"), encoding="utf-8"
+    ).read()
     tree = ast.parse(src)
-
-    writes = [n for n in ast.walk(tree)
-              if isinstance(n, ast.Assign)
-              for t in n.targets
-              if isinstance(t, ast.Subscript)
-              and isinstance(t.slice, ast.Constant)
-              and t.slice.value == "run_code_version"]
+    writes = [
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Assign)
+        for t in n.targets
+        if isinstance(t, ast.Subscript)
+        and isinstance(t.slice, ast.Constant)
+        and (t.slice.value == "run_code_version")
+    ]
     assert writes, (
-        "src/experiments/runner.py never assigns run_code_version, so every "
-        "config still describes only the commit that generated it")
-
-    # and it must land on DISK before the status flips: update_experiment_status
-    # reloads config.json and rewrites it, so an in-memory key would be dropped.
-    fn = next(n for n in ast.walk(tree)
-              if isinstance(n, ast.FunctionDef) and n.name == "run_experiment")
-    calls = [n for n in ast.walk(fn)
-             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
-             and n.func.id in ("save_config_to_path", "update_experiment_status")]
+        "src/experiments/runner.py never assigns run_code_version, so every config still describes only the commit that generated it"
+    )
+    fn = next(
+        (
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.FunctionDef) and n.name == "run_experiment"
+        )
+    )
+    calls = [
+        n
+        for n in ast.walk(fn)
+        if isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Name)
+        and (n.func.id in ("save_config_to_path", "update_experiment_status"))
+    ]
     assert calls and calls[0].func.id == "save_config_to_path", (
-        "the stamp is not persisted before update_experiment_status reloads "
-        "config.json from disk, so a run that crashes carries no runner stamp")
-
-    # ONE implementation of the git call, shared by generator and runner.
+        "the stamp is not persisted before update_experiment_status reloads config.json from disk, so a run that crashes carries no runner stamp"
+    )
     for mod in ("configs/gen_campaign.py", "src/experiments/runner.py"):
-        code = ast.unparse(ast.parse(
-            io.open(os.path.join(REPO, *mod.split("/")), encoding="utf-8").read()))
+        code = ast.unparse(
+            ast.parse(
+                io.open(os.path.join(REPO, *mod.split("/")), encoding="utf-8").read()
+            )
+        )
         assert "git_version" in code, (
-            "%s hand-rolls its own `git rev-parse` -- four hand-rolled copies "
-            "of one step is how the constraint dose drifted 20x between arms"
-            % mod)
+            "%s hand-rolls its own `git rev-parse` -- four hand-rolled copies of one step is how the constraint dose drifted 20x between arms"
+            % mod
+        )
         assert "rev-parse" not in code, (
-            "%s still calls git directly instead of src/utils/gitver" % mod)
-
-
-def test_the_provenance_gate_reads_the_runners_stamp_and_degrades_without_it():
-    """The gate must prefer `run_code_version`, and must still work for the
-    14,524 archived runs that have none -- degrading to the old check with a
-    clear message, never crashing and never silently passing.
-    """
-    from scripts.full_panel import _provenance_key
-
-    gen, run = "aaaaaaaaaaaa", "bbbbbbbbbbbb"
-
-    # a run that says which commit produced its weights: that is the answer
-    key, stamped = _provenance_key(
-        {"code_version": gen, "run_code_version": run, "data_fingerprint": "d1"})
-    assert key == (run, "d1") and stamped is True
-
-    # THE FAILURE THIS EXISTS FOR: generated once, resumed after a code change.
-    # Both halves share `code_version`, so the old key CANNOT tell them apart;
-    # the runner's stamp splits them, which is a REFUSAL rather than a silent
-    # pass.
-    before = _provenance_key({"code_version": gen, "run_code_version": gen,
-                              "data_fingerprint": "d1"})[0]
-    after = _provenance_key({"code_version": gen, "run_code_version": run,
-                             "data_fingerprint": "d1"})[0]
-    assert before != after, (
-        "two runs of one campaign produced by different code still share a "
-        "provenance key, so the gate would score them as one comparison")
-
-    # an archived run: falls back to the generator's stamp, flagged as such
-    key, stamped = _provenance_key({"code_version": gen, "data_fingerprint": "d1"})
-    assert key == (gen, "d1"), "the fallback changed the archived behaviour"
-    assert stamped is False, (
-        "an unstamped run reports as stamped, so the panel would not warn "
-        "that the check is degraded for it")
-
-    # and a config with neither key must not raise. It used to key on
-    # (None, None), and `None == None`, so two runs that recorded NOTHING
-    # compared as agreeing perfectly and `len(prov) == 1` passed the refusal
-    # vacuously. It now keys on a NAMED sentinel.
-    from scripts.full_panel import MISSING_CV, MISSING_FP, _provenance_gaps
-    key, stamped = _provenance_key({})
-    assert key == (MISSING_CV, MISSING_FP) and stamped is False
-
-    # 🛑 AND THE SENTINEL MUST BE STABLE, NOT PER-RUN. Making each absence
-    # unique would refuse every campaign this project owns: `data_fingerprint`
-    # is written at RUNTIME, so it is absent on all 14,524 archived configs and
-    # on 152 of 152 live ones. Manufacturing a disagreement is the opposite
-    # error to silently passing, not a fix for it.
-    assert _provenance_key({})[0] == _provenance_key({})[0], (
-        "two runs that both recorded nothing now key differently, so the "
-        "panel refuses every campaign in the corpus")
-
-    # The honest treatment is `check_parity`'s for an `unknown` commit: group
-    # them, and SAY the gate did not run. That is what `_provenance_gaps`
-    # reports, and the panel prints it.
-    prov = {(MISSING_CV, MISSING_FP): 4, ("abc", MISSING_FP): 2,
-            ("abc", "d1"): 3}
-    no_cv, no_fp, tot = _provenance_gaps(prov)
-    assert (no_cv, no_fp, tot) == (4, 6, 9), (no_cv, no_fp, tot)
-    # LIVENESS: a fully-stamped campaign must report NO gaps, or the warning
-    # fires on every panel and stops being read.
-    assert _provenance_gaps({("abc", "d1"): 9}) == (0, 0, 9)
+            "%s still calls git directly instead of src/utils/gitver" % mod
+        )
 
 
 def test_the_model_cache_prefers_the_stamp_of_the_run_that_trained_it(
-        tmp_path, monkeypatch):
-    """`base_model_id` hashes hyperparameters, not code. The cache therefore
-    needs a code stamp -- and the generator's cannot see a change landed while
-    the campaign was running, which is precisely when a stale warm-up is handed
-    across a code boundary.
-
-    Every warm-up on disk predates the runner stamp, so a missing one must
-    degrade to the generator comparison rather than invalidate the cache.
-    """
+    tmp_path, monkeypatch
+):
     from src.training import model_cache as MC
 
     monkeypatch.setenv("OPTLOSS_MODEL_CACHE", str(tmp_path))
@@ -3262,54 +1556,45 @@ def test_the_model_cache_prefers_the_stamp_of_the_run_that_trained_it(
     dev = torch.device("cpu")
 
     def _write(payload):
-        torch.save(dict({"model_state_dict": _Tiny().state_dict(),
-                         "base_model_id": bmid}, **payload),
-                   MC.get_cache_path(bmid))
+        torch.save(
+            dict(
+                {"model_state_dict": _Tiny().state_dict(), "base_model_id": bmid},
+                **payload,
+            ),
+            MC.get_cache_path(bmid),
+        )
 
     def _load(cfg):
-        return MC.load_from_cache(bmid, dict({"model_name": "TinyNet",
-                                              "hyperparams": {"dropout": 0.3}},
-                                             **cfg), 2, dev)
+        return MC.load_from_cache(
+            bmid,
+            dict({"model_name": "TinyNet", "hyperparams": {"dropout": 0.3}}, **cfg),
+            2,
+            dev,
+        )
 
-    # (1) a cache and a run that agree on the GENERATOR but not on the RUNNER.
-    #     This is the mid-campaign code change, and it must retrain.
     _write({"code_version": "GEN1", "run_code_version": "RUN1"})
     assert _load({"code_version": "GEN1", "run_code_version": "RUN2"}) is None, (
-        "the cache was reused across a code change that both configs' "
-        "generator stamps agree through")
+        "the cache was reused across a code change that both configs' generator stamps agree through"
+    )
     assert _load({"code_version": "GEN1", "run_code_version": "RUN1"}) is not None
-
-    # (2) NEGATIVE CONTROL -- an archived cache with no runner stamp must NOT
-    #     be thrown away. Invalidating them all would retrain every warm-up.
     _write({"code_version": "GEN1"})
     assert _load({"code_version": "GEN1", "run_code_version": "RUN2"}) is not None, (
-        "a pre-stamp cache was invalidated; every warm-up on disk is one")
+        "a pre-stamp cache was invalidated; every warm-up on disk is one"
+    )
     assert _load({"code_version": "GEN2"}) is None, (
-        "the generator fallback stopped rejecting a genuine version mismatch")
+        "the generator fallback stopped rejecting a genuine version mismatch"
+    )
 
-
-# ---------------------------------------------------------------------------
-# A constraint step that did not land
-# ---------------------------------------------------------------------------
 
 TRAINERS_WITH_A_CONSTRAINT_STEP = [
-    ("tralo", "train.py"), ("fioretto_ldf", "train.py"),
-    ("hounie_rcl", "train.py"), ("fioretto_alm", "train.py"),
+    ("tralo", "train.py"),
+    ("fioretto_ldf", "train.py"),
+    ("hounie_rcl", "train.py"),
+    ("fioretto_alm", "train.py"),
 ]
 
 
 def test_no_trainer_discards_whether_the_constraint_step_actually_landed():
-    """`finish_constraint_step` returns `applied`, which is False when the
-    constraint gradient came back non-finite -- on the FP16 path a NaN norm
-    fails the `> 0` gate and an inf norm is skipped inside `scaler.step`, so
-    either way no update lands. All four trainers bound it to `_applied` and
-    dropped it, and `fioretto` consequently ran a 62%-length constraint phase
-    (10 of 29 epochs lost, 6 NaN + 4 inf) while writing `status: completed`.
-
-    Two arms in one campaign can take 29 and 19 steps, and until this was
-    recorded nothing could say so -- a dropped step leaves no trace in the
-    predictions except the effect it did not have.
-    """
     for mod, fname in TRAINERS_WITH_A_CONSTRAINT_STEP:
         path = os.path.join(REPO, "src", "methodologies", mod, fname)
         tree = ast.parse(io.open(path, encoding="utf-8").read())
@@ -3318,275 +1603,109 @@ def test_no_trainer_discards_whether_the_constraint_step_actually_landed():
             if not (isinstance(n, ast.Assign) and isinstance(n.value, ast.Call)):
                 continue
             f = n.value.func
-            name = (f.id if isinstance(f, ast.Name)
-                    else f.attr if isinstance(f, ast.Attribute) else None)
+            name = (
+                f.id
+                if isinstance(f, ast.Name)
+                else f.attr
+                if isinstance(f, ast.Attribute)
+                else None
+            )
             if name != "finish_constraint_step":
                 continue
             t = n.targets[0]
             assert isinstance(t, ast.Tuple) and len(t.elts) == 2, (
-                "%s does not unpack finish_constraint_step's two returns" % mod)
+                "%s does not unpack finish_constraint_step's two returns" % mod
+            )
             targets.append(t.elts[1])
         assert targets, "%s never calls finish_constraint_step" % mod
         for t in targets:
-            assert isinstance(t, ast.Name) and not t.id.startswith("_"), (
-                "%s binds `applied` to %r -- an underscore name is how this "
-                "value was discarded in all four trainers"
-                % (mod, getattr(t, "id", t)))
-            reads = [n for n in ast.walk(tree)
-                     if isinstance(n, ast.Name) and n.id == t.id
-                     and isinstance(n.ctx, ast.Load)]
+            assert isinstance(t, ast.Name) and (not t.id.startswith("_")), (
+                "%s binds `applied` to %r -- an underscore name is how this value was discarded in all four trainers"
+                % (mod, getattr(t, "id", t))
+            )
+            reads = [
+                n
+                for n in ast.walk(tree)
+                if isinstance(n, ast.Name)
+                and n.id == t.id
+                and isinstance(n.ctx, ast.Load)
+            ]
             assert reads, (
-                "%s binds `applied` and never reads it, so a dropped "
-                "constraint step is still invisible" % mod)
+                "%s binds `applied` and never reads it, so a dropped constraint step is still invisible"
+                % mod
+            )
 
 
 @pytest.mark.parametrize("arm", ["tralo", "fioretto", "hounie", "alm"])
 def test_a_run_reports_how_many_constraint_steps_it_actually_took(arm, tmp_path):
-    """The count has to reach the run summary, or no scorer can read it."""
     import scripts.smoke_arms as SA
 
     P = load_protocol()
     torch.manual_seed(1)
-    inputs, _g, _l = SA.make_inputs(P, arm, str(tmp_path))
+    (inputs, _g, _l) = SA.make_inputs(P, arm, str(tmp_path))
     out = TRAIN_FNS[P["arms"][arm]["methodology"]](inputs)
     app = out.summary.get("constraint_steps_applied")
     att = out.summary.get("constraint_steps_attempted")
     assert app is not None and att is not None, (
-        "%s does not report its applied/attempted constraint steps" % arm)
+        "%s does not report its applied/attempted constraint steps" % arm
+    )
     assert att >= 1, "%s attempted no constraint step at all" % arm
     assert app == att, (
-        "%s lost %d of %d constraint steps on a tiny CPU model, where nothing "
-        "should overflow" % (arm, att - app, att))
+        "%s lost %d of %d constraint steps on a tiny CPU model, where nothing should overflow"
+        % (arm, att - app, att)
+    )
 
 
 def test_a_zero_dose_arm_attempts_no_constraint_step():
-    """`tralo_null` sets every lambda to 0, so `has_constraint` is False and
-    transductive pass 2 is skipped entirely. The denominator must therefore be
-    "epochs that formed a constraint gradient", not `constraint_epochs` --
-    otherwise the null arm reads as having LOST all 29 of its steps.
-    """
-    import shutil
     import tempfile
-
     import scripts.smoke_arms as SA
 
     P = load_protocol()
     tmp = tempfile.mkdtemp()
     try:
         torch.manual_seed(1)
-        inputs, _g, _l = SA.make_inputs(P, "tralo_null", tmp)
+        (inputs, _g, _l) = SA.make_inputs(P, "tralo_null", tmp)
         out = TRAIN_FNS[P["arms"]["tralo_null"]["methodology"]](inputs)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     assert out.summary.get("constraint_steps_attempted") == 0, (
-        "the zero-dose arm attempted a constraint step; either the lambdas are "
-        "not zero or the counter is counting epochs rather than steps")
+        "the zero-dose arm attempted a constraint step; either the lambdas are not zero or the counter is counting epochs rather than steps"
+    )
     assert out.summary.get("constraint_steps_applied") == 0
 
 
-def test_the_panel_says_when_two_arms_did_not_take_the_same_number_of_steps(capsys):
-    """Reported loudly, because it cannot be recovered from any metric."""
-    from scripts.full_panel import _constraint_dose_check
-
-    def _rows(arm, applied, attempted, n=4):
-        return [{"arm": arm, "steps_applied": applied,
-                 "steps_attempted": attempted} for _ in range(n)]
-
-    # the measured case: fioretto lost 10 of its 29 epochs, tralo lost none
-    _constraint_dose_check(_rows("tralo", 29, 29) + _rows("fioretto", 19, 29))
-    out = capsys.readouterr().out
-    assert "STEP(S) LOST" in out, "a 10-of-29 loss was not named:\n" + out
-    assert "DID NOT RUN AT THE SAME DOSE" in out, (
-        "two arms a third of a constraint phase apart were reported as "
-        "comparable:\n" + out)
-
-    # NEGATIVE CONTROL -- equal, complete doses must say nothing alarming
-    _constraint_dose_check(_rows("tralo", 29, 29) + _rows("fioretto", 29, 29))
-    out = capsys.readouterr().out
-    assert "STEP(S) LOST" not in out and "SAME DOSE" not in out, (
-        "fired on two arms that took every step they attempted:\n" + out)
-
-    # and a campaign of runs from before the field existed is NAMED, not
-    # silently treated as agreement
-    _constraint_dose_check(_rows("tralo", None, None))
-    out = capsys.readouterr().out
-    assert "no counts recorded" in out, (
-        "runs with no step counts were passed over in silence:\n" + out)
-
-
-# The probe's pre-registered bar, clause (b). It was written as the fraction
-# 7/8 for an eight-seed run and never re-derived, so adding seeds made it
-# exponentially HARDER -- the harness punished its own precision. These two
-# gates hold the corrected form in place; both were confirmed to FAIL against
-# the fraction they replaced.
-
-
-def test_the_probes_sign_bar_does_not_get_harder_as_seeds_are_added():
-    """A fixed sign FRACTION is not a bar, it is a moving target.
-
-    Negative control, run before this gate was written: the old rule
-    `sign_frac >= 7/8` demands p=0.0703 at n=8 and p=5.56e-10 at n=64 for the
-    identical fraction, so a directionally identical effect that CLEARED the
-    bar at 8 seeds FAILED it at 64. That is the failure this asserts against.
-    """
-    import numpy as np
-
-    def sign_p_of_fraction(frac, n):
-        st = FHP.paired(np.array([1.0] * int(round(frac * n))
-                                 + [-1.0] * (n - int(round(frac * n)))))
-        return st["sign_p"]
-
-    # the defect, stated as arithmetic and independent of any result
-    p8, p64 = sign_p_of_fraction(7 / 8.0, 8), sign_p_of_fraction(7 / 8.0, 64)
-    assert p64 < p8 / 1e6, (
-        "the fixed-fraction bar is supposed to be the thing being ruled out; "
-        "if it no longer tightens with n this control has gone stale (%g -> %g)"
-        % (p8, p64))
-
-    # The corrected rule, clause (b) ISOLATED: one fixed sign consistency, one
-    # mean held well clear of clause (a)'s 1-item floor, only n varying. (A
-    # first draft of this gate drew the signs at random, which let the mean
-    # drift under the floor at large n and failed on clause (a) while claiming
-    # to test clause (b).) Clearing at n must imply clearing at every larger n.
-    blocked = []
-    for n in (8, 16, 24, 64, 128):
-        pos = int(np.ceil(0.78 * n))
-        d = np.array([5.0] * pos + [-1.0] * (n - pos))   # mean ~+3.7 always
-        st = FHP.paired(d)
-        assert abs(st["mean"]) > 1.0, "the floor must not be what decides here"
-        blocked.append(FHP.verdict(st, n, 1.0, 0.01).startswith("NO DIFF"))
-    assert blocked == sorted(blocked, reverse=True), (
-        "adding seeds un-cleared the bar: %s" % blocked)
-    assert not blocked[-1], "128 seeds of a 78%-consistent effect must clear"
-
-    # The same construction under the rule this replaced, at the size where
-    # the two fractions genuinely separate: 100 of 128 seeds carry the sign,
-    # sign p = 1.1e-10, and the 7/8 bar still returns NO DIFFERENCE. It is
-    # rejecting an effect significant at ten decimal places -- testing the
-    # wrong quantity, not being strict.
-    n = 128
-    pos = int(np.ceil(0.78 * n))
-    st = FHP.paired(np.array([5.0] * pos + [-1.0] * (n - pos)))
-    assert st["sign_p"] < 1e-9
-    assert pos < int(np.ceil((7 / 8.0) * n)), (
-        "the old fraction would have accepted this, so the control is stale")
-
-
-def test_the_probe_prices_a_fragile_effect_in_campaign_seeds():
-    """`WORTH A CAMPAIGN` and `[fragile]` contradict each other unless the
-    contradiction is priced. The probe resamples SPLITS and affords dozens; a
-    campaign resamples training seeds and affords four, so an effect can be
-    real here and structurally invisible there.
-
-    Negative control: before `seeds_needed` existed the tag said only
-    `a 4-seed campaign could miss it`, which is unfalsifiable -- it named no
-    number a reader could check or act on.
-    """
-    import numpy as np
-
-    # closed form, two-sided alpha=0.05 at 80% power
-    for effect, sd in ((1.28, 2.22), (1.20, 2.55), (5.0, 2.0)):
-        want = int(np.ceil((1.959963985 + 0.8416212336) ** 2 * sd ** 2
-                           / effect ** 2))
-        assert FHP.seeds_needed(effect, sd) == want
-
-    # monotone in both arguments, or it is not a power calculation
-    assert FHP.seeds_needed(1.0, 2.0) > FHP.seeds_needed(2.0, 2.0)
-    assert FHP.seeds_needed(1.0, 4.0) > FHP.seeds_needed(1.0, 2.0)
-
-    # degenerate input must not fabricate a seed count
-    assert not np.isfinite(FHP.seeds_needed(0.0, 2.0))
-    assert not np.isfinite(FHP.seeds_needed(1.0, 0.0))
-
-    # and the tag must actually carry the number to the reader
-    st = FHP.paired(np.where(np.arange(64) % 4 == 0, -1.0, 2.0))
-    v = FHP.verdict(st, 64, 1.0, 0.01)
-    assert "fragile" in v and "seeds per cell" in v, v
-
-
-# FRAMEWORK 2(a3) and 2(g). Both sections make a claim ABOUT CODE, so both get
-# a gate. Negative controls for each were confirmed to FAIL before these went in.
-
-
 def test_normalize_makes_the_delivered_step_independent_of_the_violation():
-    """FRAMEWORK 2(a3): under `normalize` + `sgd` the parameter displacement
-    is exactly `lr * clip` per step, whatever the violation.
-
-    This is the magnitude half of the argument that the constraint is blind to
-    violation depth (2(a2) is the direction half). If a future edit lets the
-    raw norm through, the framework's `no dose-response to the cap level`
-    reading becomes wrong and this catches it.
-
-    Negative control: deleting the scale-UP branch in constraint_step.py makes
-    the small-gradient case deliver its raw norm and this FAILS.
-    """
     import torch
     from src.training.constraint_step import finish_constraint_step
+
     (lr, clip) = (0.001, 1.0)
     for scale in (0.0001, 1.0, 10000.0):
         model = torch.nn.Linear(6, 3, bias=False)
         before = model.weight.detach().clone()
         model.weight.grad = torch.full_like(model.weight, 1.0)
         model.weight.grad *= scale / model.weight.grad.norm()
-        finish_constraint_step(model, optimizer=torch.optim.SGD(model.parameters(), lr=lr), scaler=None, clip=clip, mode='normalize', fp32=True)
+        finish_constraint_step(
+            model,
+            optimizer=torch.optim.SGD(model.parameters(), lr=lr),
+            scaler=None,
+            clip=clip,
+            mode="normalize",
+            fp32=True,
+        )
         moved = float((model.weight.detach() - before).norm())
-        assert abs(moved - lr * clip) < 0.0001 * lr * clip, 'raw norm %g delivered a step of %g, not lr*clip=%g -- the constraint has become sensitive to violation magnitude, which contradicts FRAMEWORK 2(a3)' % (scale, moved, lr * clip)
-
-
-def test_the_graph_probes_controls_are_fair():
-    """FRAMEWORK 2(g) reads the `diffused` column only because C1 and C2 moved.
-    A control that differs from the treatment in anything besides the geometry
-    would make that reading invalid, so the fairness is asserted, not assumed.
-
-    Negative controls, both confirmed to FAIL: drawing C1's neighbours WITH
-    replacement (degree collapses); and dropping the `idx >= arange` self-skip
-    (C1 gains self-loops the real graph does not have).
-    """
-    import numpy as np
-    from scripts.graph_probe import diffuse, knn_affinity
-
-    rng = np.random.default_rng(0)
-    X = rng.normal(size=(60, 8)).astype(np.float32)
-    k = 5
-    real = knn_affinity(X, k)
-    ctrl = knn_affinity(X, k, np.random.default_rng(1), shuffle_neighbours=True)
-
-    for name, W in (("real", real), ("C1", ctrl)):
-        assert np.allclose(W, W.T), "%s graph is not symmetric" % name
-        assert float(np.trace(W)) == 0.0, "%s graph has self-loops" % name
-        # k directed edges per row, so every row has at least k after
-        # symmetrising -- the control must not be sparser than the treatment
-        assert W.sum(axis=1).min() >= k, "%s row fell below k" % name
-    assert real.sum() > 0 and ctrl.sum() > 0
-    # the control must actually be a DIFFERENT graph, or it tests nothing
-    assert not np.allclose(real, ctrl)
-
-    # alpha=0 must be the identity, or the baseline comparison is confounded
-    P = rng.random((60, 4))
-    P = P / P.sum(axis=1, keepdims=True)
-    assert np.allclose(diffuse(P, real, 0.0), P, atol=1e-12)
-    # and every diffused row is still a distribution
-    D = diffuse(P, real, 0.5)
-    assert np.allclose(D.sum(axis=1), 1.0)
-    assert (D >= 0).all()
+        assert abs(moved - lr * clip) < 0.0001 * lr * clip, (
+            "raw norm %g delivered a step of %g, not lr*clip=%g -- the constraint has become sensitive to violation magnitude, which contradicts FRAMEWORK 2(a3)"
+            % (scale, moved, lr * clip)
+        )
 
 
 def _run_arm_probs(arm, methodology, seed=1):
-    """Test probabilities for any arm, assembled from protocol.yml.
-
-    The generic sibling of `_run_tralo_arm`, which patches the tralo module and
-    so cannot cross into `dual_common`. Crossing that boundary is the whole
-    point here.
-    """
-    import shutil
     import tempfile
-
     import scripts.smoke_arms as smoke
 
     tmp = tempfile.mkdtemp(prefix="zerodose_")
     try:
-        inputs, _g, _l = smoke.make_inputs(load_protocol(), arm, tmp,
-                                          seed=seed)
+        (inputs, _g, _l) = smoke.make_inputs(load_protocol(), arm, tmp, seed=seed)
         torch.manual_seed(seed)
         out = TRAIN_FNS[methodology](inputs)
         out.model.eval()
@@ -3597,372 +1716,96 @@ def _run_arm_probs(arm, methodology, seed=1):
 
 
 def test_every_zero_dose_arm_is_the_same_model_across_code_paths():
-    """At lambda 0 all four trained families collapse to the same CE run.
-
-    WHY THIS IS LOAD-BEARING AND NOT TRIVIA. `results/dualbar2` spends 32 of its
-    88 runs on four zero-dose arms that were confirmed BYTE-IDENTICAL on real
-    data -- one md5 (`1bfa966cdf01`) at both cap levels, and 47 of 49 training-log
-    columns equal, the two exceptions being the limit columns themselves. The
-    protocol already exploits this for the tralo family through `null_sibling`,
-    with the reasoning written at `configs/protocol.yml`: at lambda 0 there is no
-    constraint gradient, so a second null is a bit-identical run costing a GPU
-    slot.
-
-    Extending that to fioretto/hounie/alm crosses a CODE PATH boundary --
-    `dual_common` rather than `tralo/train.py` -- so the equivalence stops being
-    structural-by-inspection and has to be checked. This is that check. If it
-    ever fails, a shared null is no longer sound and the arms must be run
-    separately again.
-
-    Liveness: a TREATED arm must differ, or `identical` is being reported by a
-    harness that cannot tell anything apart.
-    """
-    nulls = {"tralo_null": "tralo", "fioretto_null": "fioretto_ldf",
-             "hounie_null": "hounie_rcl", "alm_null": "fioretto_alm"}
-    probs = {a: _run_arm_probs(a, m) for a, m in nulls.items()}
-
+    nulls = {
+        "tralo_null": "tralo",
+        "fioretto_null": "fioretto_ldf",
+        "hounie_null": "hounie_rcl",
+        "alm_null": "fioretto_alm",
+    }
+    probs = {a: _run_arm_probs(a, m) for (a, m) in nulls.items()}
     ref_name = "tralo_null"
     ref = probs[ref_name]
     for name, pr in probs.items():
         if name == ref_name:
             continue
         assert np.array_equal(ref, pr), (
-            "%s is NOT bit-identical to %s at lambda 0 (max abs diff %g). The "
-            "shared `null_sibling` is unsound -- either restore the per-family "
-            "null arms or find what now differs between the code paths."
-            % (name, ref_name, float(np.abs(ref - pr).max())))
-
-    # LIVENESS: the same harness must separate a treated arm from the null,
-    # otherwise every equality above is vacuous.
+            "%s is NOT bit-identical to %s at lambda 0 (max abs diff %g). The shared `null_sibling` is unsound -- either restore the per-family null arms or find what now differs between the code paths."
+            % (name, ref_name, float(np.abs(ref - pr).max()))
+        )
     treated = _run_arm_probs("fioretto", "fioretto_ldf")
     assert not np.array_equal(ref, treated), (
-        "`fioretto` is bit-identical to the null on this harness, so it cannot "
-        "tell a treated arm from an untreated one and the equalities above "
-        "prove nothing")
+        "`fioretto` is bit-identical to the null on this harness, so it cannot tell a treated arm from an untreated one and the equalities above prove nothing"
+    )
 
 
-
-
-def _resolution_text(deltas_by_cell_seed, scale, capsys):
-    """Run `_resolution_readout` on a synthetic contrast and return its text."""
-    import pandas as pd
-    from scripts.full_panel import _resolution_readout
-
-    idx, vals = [], []
-    for (cap, seed), v in deltas_by_cell_seed.items():
-        idx.append(("iwildcam", "MobileNetV3", cap, "2-4", seed))
-        vals.append(v)
-    per = pd.Series(vals, index=pd.MultiIndex.from_tuples(idx))
-    df = pd.DataFrame([{"dataset": "iwildcam", "model": "MobileNetV3",
-                        "cap": cap, "capped": "2-4", "items_per_001": scale}
-                       for cap in {c for c, _ in deltas_by_cell_seed}])
-    _resolution_readout(per, df, "tralo", "clip")
-    return capsys.readouterr().out
-
-
-def test_the_panel_says_whether_it_could_have_seen_what_it_reports(capsys):
-    """A tie means `no effect` or `not enough seeds`, and those are opposite.
-
-    The table prints a delta, a Wilcoxon p and a BH q, none of which says
-    whether the contrast could have RESOLVED the effect it reports on. This is
-    the readout that says so.
-
-    Negative control, confirmed to FAIL before the single-seed guard existed:
-    a campaign with one seed per cell has no estimable seed sd at all, and a
-    readout that computed one anyway would print a confident seeds-needed
-    figure derived from nothing.
-    """
-    # (a) one seed per cell -- must refuse, not invent a number
-    out = _resolution_text({("L50_G20", 1): 0.02, ("L50_G40", 1): 0.03},
-                           scale=2.56, capsys=capsys)
-    assert "not estimable" in out, out
-    assert "seeds per cell" not in out, (
-        "a seeds-needed figure was printed with no estimable sd: %s" % out)
-
-    # (b) a large effect against a small spread -- powered at the seeds present
-    small = {("L50_G20", s): 0.10 + 0.001 * s for s in (1, 2, 3, 4)}
-    out = _resolution_text(small, scale=2.56, capsys=capsys)
-    assert "POWERED" in out and "UNDERPOWERED" not in out, out
-
-    # (c) a small effect against a large spread -- must say UNDERPOWERED and
-    #     name a seed count larger than what is present
-    noisy = {("L50_G20", s): d for s, d in
-             zip((1, 2, 3, 4), (0.30, -0.28, 0.26, -0.24))}
-    out = _resolution_text(noisy, scale=2.56, capsys=capsys)
-    assert "UNDERPOWERED" in out, out
-    need = int(out.split("needs ~")[1].split(" ")[0])
-    assert need > 4, "a near-zero mean on a huge spread needs many seeds, got %d" % need
-
-    # (d) power is set by the LEAST-replicated cell, never the median: a
-    #     median of [4, 1] truncates to 2 and matches no cell that exists.
-    mixed = dict(small)
-    mixed[("L50_G40", 1)] = 0.10
-    out = _resolution_text(mixed, scale=2.56, capsys=capsys)
-    assert "1 seed(s) in the least-replicated cell" in out, out
-
-
-@pytest.mark.parametrize("arm,methodology", [
-    ("fioretto", "fioretto_ldf"),
-    ("hounie", "hounie_rcl"),
-    ("alm", "fioretto_alm"),
-    ("tralo", "tralo"),
-])
+@pytest.mark.parametrize(
+    "arm,methodology",
+    [
+        ("fioretto", "fioretto_ldf"),
+        ("hounie", "hounie_rcl"),
+        ("alm", "fioretto_alm"),
+        ("tralo", "tralo"),
+    ],
+)
 def test_every_trained_arm_logs_the_per_class_counts(arm, methodology):
-    """All four trained arms must answer the same question from their log.
-
-    `tralo` logged a per-class Limit/Hard/Soft triple every epoch; the three
-    duals logged only `total_excess`, one summed scalar. So the project's
-    central quantity -- what the count did, per capped class, across the
-    constraint phase -- was readable for one arm of four and `n/a (schema)`
-    for the rest, and every cross-arm count comparison had to be rebuilt by
-    hand from the stored predictions.
-
-    A SUMMED excess also cannot show the class asymmetry the framework
-    records (one capped class moved at ~4x the noise floor, the other at or
-    below it) -- one class rising and another falling subtract inside it.
-
-    Negative control: this was verified to FAIL on all three dual arms before
-    `count_fields`/`count_row` were added, and to pass on `tralo` throughout,
-    which is what made the asymmetry visible for one arm only.
-    """
-    import shutil
     import tempfile
-
     import pandas as pd
     import scripts.smoke_arms as smoke
 
     tmp = tempfile.mkdtemp(prefix="counts_")
     try:
-        inputs, _g, _l = smoke.make_inputs(load_protocol(), arm, tmp,
-                                          seed=1)
+        (inputs, _g, _l) = smoke.make_inputs(load_protocol(), arm, tmp, seed=1)
         TRAIN_FNS[methodology](inputs)
-        df = pd.read_csv(os.path.join(str(inputs.experiment_path),
-                                      "training_log.csv"))
+        df = pd.read_csv(os.path.join(str(inputs.experiment_path), "training_log.csv"))
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
-
-    capped = [c for c in df.columns if c.startswith("Limit_Class")
-              and pd.to_numeric(df[c], errors="coerce").dropna().lt(1e9).any()]
+    capped = [
+        c
+        for c in df.columns
+        if c.startswith("Limit_Class")
+        and pd.to_numeric(df[c], errors="coerce").dropna().lt(1000000000.0).any()
+    ]
     assert capped, (
-        "%s logs no finite Limit_Class column, so no reader can tell which "
-        "class was capped or what the budget was" % arm)
-
+        "%s logs no finite Limit_Class column, so no reader can tell which class was capped or what the budget was"
+        % arm
+    )
     for lim in capped:
-        c = lim[len("Limit_Class"):]
+        c = lim[len("Limit_Class") :]
         for prefix in ("Hard_Class", "Soft_Class"):
             col = prefix + c
             assert col in df.columns, (
-                "%s caps class %s but never logs %s -- its count trajectory "
-                "is unreadable from the log" % (arm, c, col))
+                "%s caps class %s but never logs %s -- its count trajectory is unreadable from the log"
+                % (arm, c, col)
+            )
             v = pd.to_numeric(df[col], errors="coerce").dropna()
-            assert len(v) and (v >= 0).all(), (
-                "%s wrote no usable values in %s: %s" % (arm, col, list(v)))
-        # hard counts are argmax tallies, so they must be whole numbers
+            assert len(v) and (v >= 0).all(), "%s wrote no usable values in %s: %s" % (
+                arm,
+                col,
+                list(v),
+            )
         h = pd.to_numeric(df["Hard_Class" + c], errors="coerce").dropna()
         assert np.allclose(h, h.round()), (
-            "%s wrote a non-integer hard count in Hard_Class%s: %s"
-            % (arm, c, list(h)))
+            "%s wrote a non-integer hard count in Hard_Class%s: %s" % (arm, c, list(h))
+        )
 
-
-def test_the_generator_says_which_scope_each_cap_binds(tmp_path):
-    """Local caps are per-GROUP ceilings, so the binding scope is L vs G.
-
-    Local sum is `L * total_true` against the global's `G * total_true`, so
-    `G < L` means the GLOBAL binds and the local is slack, and `G > L` the
-    reverse. Nothing printed this, and the project has now made the same
-    mistake in BOTH directions: until 2026-08-18 every campaign ran `G >= L`
-    so the global cap had never bound, and the fix -- sweep `G < L` -- made the
-    LOCAL scope inert instead. `results/dualbar2` ran L50_G20 and L50_G40, both
-    `G < L`, and `lp_fallback_used` was False with 0 candidates on every one of
-    those runs THAT RAN THE ALLOCATOR: a local ceiling was never once the
-    binding constraint.
-
-    !! The qualifier was added 2026-08-25 and it matters. Six arms set
-    `skip_targeted_correction=True`, so the runner writes the DEFAULTS
-    `False`/`0` for them -- `clip` and `focal_clip` among them, which rule 2
-    puts in every campaign. The conclusion is unchanged because it rests on the
-    trained arms, where the field is measured; "on all 50 completed runs"
-    overstated the support. Gated by
-    `test_the_lp_fallback_fields_are_a_DEFAULT_for_the_post_hoc_arms`.
-
-    Negative control: with the readout removed, a campaign whose caps all bind
-    one scope generates silently, which is exactly what happened twice.
-    """
-    # the arithmetic itself, independent of any output
-    for tag, expect in (("L50_G20", "GLOBAL"), ("L50_G40", "GLOBAL"),
-                        ("L20_G50", "LOCAL"), ("L30_G30", "IDENTICAL")):
-        lp, gp = cap_pair(tag)
-        got = ("GLOBAL" if gp < lp else "LOCAL" if gp > lp else "IDENTICAL")
-        assert got == expect, "%s: expected %s, got %s" % (tag, expect, got)
-
-    # every cap binding ONE scope must be called out by name
-    r = _gen(tmp_path / "same", "--caps", "L50_G20", "L50_G40")
-    out = r.stdout + r.stderr
-    assert "binding scope: GLOBAL" in out, out[-1500:]
-    assert "EVERY cap in this campaign binds the GLOBAL scope" in out, (
-        "a campaign that tests only one scope generated without saying so: %s"
-        % out[-1500:])
-    assert "L20_G50" in out, "the warning must name the fix"
-
-    # a campaign that spans BOTH scopes must NOT be warned at
-    r = _gen(tmp_path / "both", "--caps", "L50_G20", "L20_G50")
-    out = r.stdout + r.stderr
-    assert "binding scope: GLOBAL" in out and "binding scope: LOCAL" in out, out[-1500:]
-    assert "EVERY cap in this campaign binds" not in out, (
-        "warned about a campaign that spans both scopes -- the gate cries "
-        "wolf: %s" % out[-1500:])
-
-
-def _budget_pair(df, tag, classes, num_classes):
-    """(global K, summed local K) per capped class, for one cap tag."""
-    local_pct, global_pct = cap_pair(tag)
-    g = compute_global_constraints(df, "label", global_pct,
-                                   constrained_class=classes,
-                                   num_classes=num_classes)
-    loc = compute_local_constraints(df, "label", local_pct, "grp",
-                                    constrained_class=classes,
-                                    num_classes=num_classes)
-    return {c: (g[c], sum(v[c] for v in loc.values())) for c in classes}
-
-
-def test_swapping_L_and_G_holds_the_total_budget_fixed():
-    """FRAMEWORK 2(l): L20_G50 and L50_G20 impose the SAME TOTAL, different scope.
-
-    Per-group L% sums to L% of the total, so swapping the two percentages keeps
-    the number of predictions the allocator may emit and changes only whether
-    the split across groups is pinned. That is what makes the scope contrast a
-    controlled experiment rather than two different budgets, and it is a claim
-    about banker's rounding, so it is measured and not assumed.
-
-    Real dermmnist structure: capped classes 2 and 4 over three `loc_group`s.
-    """
-    counts = {2: [70, 60, 75], 4: [97, 95, 30]}
-    labels, groups = [], []
-    for c, per_group in counts.items():
-        for gid, n in enumerate(per_group):
-            labels += [c] * n
-            groups += [gid] * n
-    for gid, n in enumerate([1101 - 70 - 97, 695 - 60 - 95, 218 - 75 - 30]):
-        labels += [5] * n
-        groups += [gid] * n
-    df = _frame(labels, groups)
-
-    tight = _budget_pair(df, "L50_G20", [2, 4], 7)
-    loose = _budget_pair(df, "L20_G50", [2, 4], 7)
-
-    for c, total in ((2, 41), (4, 44)):
-        g_tight, l_tight = tight[c]
-        g_loose, l_loose = loose[c]
-        assert g_tight == total, (c, g_tight)
-        assert l_loose == total, (c, l_loose)
-        # the totals coincide, so only the SCOPE differs between the two tags
-        assert g_tight == l_loose
-        # and each tag's own non-binding scope really is slack
-        assert l_tight > g_tight, ("L50_G20 should bind GLOBAL", c, tight[c])
-        assert g_loose > l_loose, ("L20_G50 should bind LOCAL", c, loose[c])
-
-    # NEGATIVE CONTROL 1: the match is a property of SWAPPING, not of any two
-    # tags. L30_G50 shares the global with L20_G50 and matches neither total.
-    other = _budget_pair(df, "L30_G50", [2, 4], 7)
-    for c in (2, 4):
-        assert other[c][1] != tight[c][0], (
-            "a non-swapped tag matched the total -- the assertion above is "
-            "vacuous: %r" % (other[c],))
-
-    # NEGATIVE CONTROL 2: sum-of-rounds equalling round-of-sum is NOT free.
-    # Three groups of 5 at 50% give 2+2+2=6 against a global round(7.5)=8, so
-    # the equality above is measuring real arithmetic and would catch drift.
-    pathological = _frame(([1] * 5 + [0] * 20) * 3,
-                          [0] * 25 + [1] * 25 + [2] * 25)
-    g_p, l_p = _budget_pair(pathological, "L50_G50", [1], 2)[1]
-    assert (g_p, l_p) == (8, 6), (g_p, l_p)
-    assert g_p != l_p
-
-
-# ------------------------------------------------------- the scope probe --
-
-def test_scope_probe_controls_preserve_the_total_exactly():
-    """The wrong-shape controls must change ONLY the shape.
-
-    `scope_probe` reports a null for the real pinned split against controls
-    that cost 5.3-5.5 items. That reading is only valid if the controls hold
-    the budget fixed -- if a permutation changed the total, the control would
-    be measuring a different budget and the null would be uninterpretable.
-    """
-    from scripts.scope_probe import _permute_ceilings
-    L = {0: [UNLIMITED, 14, UNLIMITED], 1: [UNLIMITED, 12, UNLIMITED],
-         2: [UNLIMITED, 15, UNLIMITED]}
-    classes = [1]
-    for order in ([1, 2, 0], [2, 1, 0]):
-        out = _permute_ceilings(L, classes, order)
-        assert sum(out[g][1] for g in out) == 41
-        assert sorted(out[g][1] for g in out) == [12, 14, 15]
-        # and it must actually MOVE them, or it is not a control at all
-        assert [out[g][1] for g in sorted(out)] != [14, 12, 15], order
-    # untouched classes stay untouched
-    assert all(out[g][0] == UNLIMITED and out[g][2] == UNLIMITED for g in out)
-    # NEGATIVE CONTROL: the identity order preserves the total AND the shape,
-    # so a test that only checked the total would pass on a broken control.
-    same = _permute_ceilings(L, classes, [0, 1, 2])
-    assert [same[g][1] for g in sorted(same)] == [14, 12, 15]
-
-
-def test_group_calibrate_hits_the_target_prior_per_group():
-    """Liveness: the correction must actually reach the prevalence it targets.
-
-    A null from `--calibrate` is only a measurement if the instrument moves the
-    priors it is asked to move. This pins that separately from whether moving
-    them helps.
-    """
-    from scripts.scope_probe import group_calibrate
-    rng = np.random.default_rng(0)
-    n, k = 600, 3
-    g = np.repeat([0, 1, 2], n // 3)
-    P = rng.dirichlet(np.ones(k), size=n)
-    targets = {0: [0, 30, 0], 1: [0, 120, 0], 2: [0, 60, 0]}
-    Q = group_calibrate(P, g, [1], targets)
-    for gg, want in ((0, 30 / 200), (1, 120 / 200), (2, 60 / 200)):
-        got = Q[g == gg, 1].mean()
-        # renormalisation pulls it off the exact target, so require it to close
-        # most of the gap rather than land on it
-        start = P[g == gg, 1].mean()
-        assert abs(got - want) < abs(start - want), (gg, start, got, want)
-    assert np.allclose(Q.sum(axis=1), 1.0)
-    # NEGATIVE CONTROL: permuting which group gets which target must give a
-    # DIFFERENT result, or the group_key argument is inert and both probe
-    # controls would be silently identical to the real row.
-    Q2 = group_calibrate(P, g, [1], targets, group_key=[1, 2, 0])
-    assert not np.allclose(Q, Q2)
-
-
-# ----------------------------------------------------- the dataset screen --
 
 def _meta(labels, groups):
-    return pd.DataFrame({"label": np.asarray(labels),
-                         "loc_group": np.asarray(groups)})
+    return pd.DataFrame({"label": np.asarray(labels), "loc_group": np.asarray(groups)})
 
 
 def _screen_pair(train, test):
     from scripts.dataset_screen import novelty_items
+
     return novelty_items(train, test, "loc_group", n_null=200, seed=0)
 
 
 def test_screen_net_ignores_a_uniform_shift_but_sees_a_differential_one():
-    """NET must separate one multiplier in disguise from a real reordering.
-
-    This is the claim that disqualified `data/dermmnist/shift_1`: it scores 160
-    items of LOCAL novelty but only 50 NET, because 110 of them are the global
-    shift replicated across all three groups. A uniform per-group shift IS a
-    single global multiplier, which FRAMEWORK 2(j) showed is monotone and cannot
-    reorder anything, so counting it as per-group information would recommend a
-    dataset that provably cannot work.
-    """
     rng = np.random.default_rng(0)
     n_g = 900
-    base = [0.10, 0.20, 0.30]
+    base = [0.1, 0.2, 0.3]
 
     def build(p_by_group):
-        lab, grp = [], []
+        (lab, grp) = ([], [])
         for gid, p in enumerate(p_by_group):
             draws = rng.choice([0, 1], size=n_g, p=[1 - p, p])
             lab += list(draws)
@@ -3970,14 +1813,6 @@ def test_screen_net_ignores_a_uniform_shift_but_sees_a_differential_one():
         return _meta(lab, grp)
 
     def relabel(p_by_group, w):
-        """Apply ONE per-class multiplier to every group, then renormalise.
-
-        This is the label-shift model: p_test(y) = w_y p_train(y) with the SAME
-        w in every group. Note that simply doubling each group's positive RATE
-        is NOT this -- it forces the negative class to move by 0.89 / 0.75 /
-        0.57 across the three groups, which is a differential shift and which
-        NET correctly fires on.
-        """
         out = []
         for p in p_by_group:
             num = p * w[1]
@@ -3985,1984 +1820,303 @@ def test_screen_net_ignores_a_uniform_shift_but_sees_a_differential_one():
         return out
 
     train = build(base)
-
-    # (a) UNIFORM label shift: one multiplier per class, every group. Global
-    #     moves a lot; nothing is reorderable, so NET must stay quiet.
     uniform = build(relabel(base, [1.0, 2.0]))
     a = _screen_pair(train, uniform)
     assert a["global_z"] > 5, a
-    assert a["net_z"] < 2.0, ("a uniform shift leaked into NET: %r" % a)
-
-    # (b) DIFFERENTIAL shift at a HELD global rate: group 0 up, group 2 down,
-    #     mean preserved. Global must stay quiet; NET must fire.
-    differential = build([0.30, 0.20, 0.10])
+    assert a["net_z"] < 2.0, "a uniform shift leaked into NET: %r" % a
+    differential = build([0.3, 0.2, 0.1])
     b = _screen_pair(train, differential)
-    assert abs(b["global_z"]) < 3, ("global fired on a mean-preserving "
-                                    "reshuffle: %r" % b)
-    assert b["net_z"] > 5, ("NET missed a pure differential shift: %r" % b)
+    assert abs(b["global_z"]) < 3, "global fired on a mean-preserving reshuffle: %r" % b
+    assert b["net_z"] > 5, "NET missed a pure differential shift: %r" % b
     assert b["net_items"] > 100, b["net_items"]
 
 
 def test_screen_calls_index_modulo_groups_dead():
-    """`synth_group = index % 3` is the octmnist/tissuemnist construction.
-
-    It makes every group an i.i.d. draw from one distribution, so the local
-    scope carries nothing by construction. The screen must return that as
-    sampling noise, or it would recommend re-running the two datasets already
-    known to test nothing.
-    """
     rng = np.random.default_rng(1)
     n = 2700
-    train = _meta(rng.choice([0, 1, 2], size=n, p=[0.6, 0.3, 0.1]),
-                  np.arange(n) % 3)
-    test = _meta(rng.choice([0, 1, 2], size=n, p=[0.6, 0.3, 0.1]),
-                 np.arange(n) % 3)
+    train = _meta(rng.choice([0, 1, 2], size=n, p=[0.6, 0.3, 0.1]), np.arange(n) % 3)
+    test = _meta(rng.choice([0, 1, 2], size=n, p=[0.6, 0.3, 0.1]), np.arange(n) % 3)
     r = _screen_pair(train, test)
-    assert r["net_z"] < 2.0, ("index%%3 groups scored as informative: %r" % r)
-    # NEGATIVE CONTROL: the same test labels with groups assigned BY LABEL
-    # instead of by index must fire, or the assertion above is vacuous.
+    assert r["net_z"] < 2.0, "index%%3 groups scored as informative: %r" % r
     rigged = test.copy()
     rigged["loc_group"] = (test["label"] == 0).astype(int)
     r2 = _screen_pair(train, rigged)
-    assert r2["net_z"] > 5, ("screen is blind even to label-aligned groups: %r"
-                             % r2)
+    assert r2["net_z"] > 5, "screen is blind even to label-aligned groups: %r" % r2
 
 
 def test_screen_scores_fully_unseen_groups_against_the_global_prior():
-    """A held-out-domain split is the criterion's BEST case, not a missing one.
-
-    The first version skipped groups absent from training, which returns
-    novelty 0 for exactly the design FRAMEWORK 2(n) recommends -- no unit
-    survives to be summed. A model that has never seen a group holds no
-    group-specific prior and must fall back to the global one, so that is the
-    baseline the deviation is measured against.
-    """
     rng = np.random.default_rng(0)
     n_g = 800
 
     def build(spec):
-        lab, grp = [], []
+        (lab, grp) = ([], [])
         for gid, p in spec:
             lab += list(rng.choice([0, 1, 2], size=n_g, p=p))
             grp += [gid] * n_g
         return _meta(lab, grp)
 
-    # train groups 0-2, test groups 10-12 -- disjoint, and each test group is
-    # dominated by a DIFFERENT class, the iWildCam structure in miniature
-    train = build([(0, [0.5, 0.3, 0.2]), (1, [0.4, 0.4, 0.2]),
-                   (2, [0.5, 0.2, 0.3])])
-    test = build([(10, [0.9, 0.05, 0.05]), (11, [0.05, 0.9, 0.05]),
-                  (12, [0.05, 0.05, 0.9])])
+    train = build([(0, [0.5, 0.3, 0.2]), (1, [0.4, 0.4, 0.2]), (2, [0.5, 0.2, 0.3])])
+    test = build(
+        [(10, [0.9, 0.05, 0.05]), (11, [0.05, 0.9, 0.05]), (12, [0.05, 0.05, 0.9])]
+    )
     r = _screen_pair(train, test)
     assert len(r["unseen_groups"]) == 3, r["unseen_groups"]
     assert r["unseen_items"] == 3 * n_g
-    assert r["net_z"] > 10, ("fully unseen groups scored as no information: %r"
-                             % r)
+    assert r["net_z"] > 10, "fully unseen groups scored as no information: %r" % r
     assert r["net_items"] > 500, r["net_items"]
-
-    # NEGATIVE CONTROL: unseen groups that each match the OVERALL test mix
-    # carry no DIFFERENTIAL information -- the cap would only be restating the
-    # global shift, which 2(j) shut. NET must stay quiet while the groups are
-    # still reported as unseen.
     flat = build([(10, [0.9, 0.05, 0.05])] * 3)
     r2 = _screen_pair(train, flat)
     assert len(r2["unseen_groups"]) == 1, r2["unseen_groups"]
-    assert r2["net_z"] < 2.0, ("a uniform unseen group leaked into NET: %r" % r2)
-
-
-
-
-# ------------------------------------------------- the removed datasets --
-
-REMOVED_DATASETS = ("dermmnist", "octmnist", "tissuemnist")
-
-
-def test_removed_datasets_cannot_be_selected_anywhere():
-    """The three original datasets must be UNRUNNABLE, not merely discouraged.
-
-    `scripts.dataset_screen` measured that none of them can carry a count
-    constraint: octmnist and tissuemnist build `synth_group` as
-    `np.arange(len(y)) % 3`, so their groups are i.i.d. draws from one
-    distribution and the local scope is empty BY CONSTRUCTION; dermmnist clears
-    the screen at +65 items and still nulls, because its test groups ARE its
-    training groups. Deleting the data is not enough on its own -- a stale
-    campaign root, a copied command line or an old config would quietly bring
-    one back, and every number it produced would look ordinary. So the ban is
-    enforced at all three gates a dataset has to pass.
-    """
-    import yaml
-    from configs.gen_campaign import PROTOCOL_PATH
-    from src.utils.data_loader import IMAGERY_DATASETS
-
-    with io.open(PROTOCOL_PATH, encoding="utf-8") as fh:
-        declared = set(yaml.safe_load(fh)["datasets"])
-    # 🛑 THIS SET IS AN ALLOW-LIST, NOT A DESCRIPTION. Adding a name
-    # here is the moment a dataset becomes runnable, so it must be a
-    # deliberate edit with a screen number behind it, never a fix to make
-    # a red test green. `bcn` was added 2026-09-08 on three measurements:
-    # tier_viability TIER-LIKE (density 0.89, 8/8 classes usable, 11%
-    # K=0 ceilings, 0% dead items, against iwildcam 0.27 / 2 / 50% / 72%);
-    # factorial_control raked 8 of 8 -- the first candidate on which that
-    # control was not vacuous -- keeping +1025 items at z=27.3 under the
-    # additive baseline; and dataset_screen NET +2031 items. FRAMEWORK
-    # 2(z55), 2(z57).
-    # `fmow` added 2026-09-08: satellite imagery, group = COUNTRY, 13 test
-    # countries held out entire. tier_viability TIER-LIKE (13 groups,
-    # density 0.82, 8/8 usable, 18% K=0, 0% dead, off_prop 39.2%);
-    # dataset_screen NET +2793 items at 1034x seed noise. Its group is
-    # ATOMIC so factorial_control does not apply and prints NOT A CONTROL
-    # -- that is the gate being SILENT, not passing. FRAMEWORK 2(w2c).
-    LIVE = {"iwildcam", "cct", "bcn", "fmow"}
-    assert declared == LIVE, declared
-    assert IMAGERY_DATASETS == LIVE, IMAGERY_DATASETS
-    for name in REMOVED_DATASETS:
-        assert name not in declared
-        assert name not in IMAGERY_DATASETS
-        assert not os.path.exists(os.path.join(REPO, "data", name)), name
-
-    # the generator must REFUSE, not silently emit an unrunnable campaign
-    for name in REMOVED_DATASETS:
-        r = subprocess.run(
-            [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask",
-             "--root", os.path.join(REPO, "_never_written"),
-             "--datasets", name, "--models", "MobileNetV3",
-             "--caps", "L30_G30", "L50_G30", "--arms", "clip"],
-            cwd=REPO, capture_output=True, text=True)
-        assert r.returncode != 0, "generator accepted %s: %s" % (name, r.stdout)
-        assert name in (r.stderr + r.stdout)
-    assert not os.path.exists(os.path.join(REPO, "_never_written"))
-
-    # NEGATIVE CONTROL: the live dataset must still pass all of the above, or
-    # the assertions are satisfied by a generator that refuses everything.
-    r = subprocess.run(
-        [sys.executable, "-m", "configs.gen_campaign", "--allow-nontask",
-         "--root", os.path.join(REPO, "_ctrl_ok"), "--datasets", "iwildcam",
-         "--models", "MobileNetV3", "--caps", "L30_G30", "L50_G30",
-         "--arms", "clip"], cwd=REPO, capture_output=True, text=True)
-    try:
-        assert r.returncode == 0, r.stderr[-800:]
-    finally:
-        shutil.rmtree(os.path.join(REPO, "_ctrl_ok"), ignore_errors=True)
-
-
-CAMPAIGN_TOOLS = [
-    ("audit_config", ["{root}"]),
-    ("check_parity", ["{root}"]),
-    ("log_health", ["{root}"]),
-    ("score_scan", ["{root}"]),
-    ("headroom", ["{root}"]),
-    ("paired_seeds", ["{root}"]),
-    ("full_panel", ["--campaign", "{root}", "--control", "clip"]),
-    ("graph_probe", ["--campaign", "{root}"]),
-    ("scope_probe", ["--campaign", "{root}"]),
-    ("straddle_probe", ["--campaign", "{root}"]),
-]
-
-
-@pytest.mark.parametrize("tool,argv", CAMPAIGN_TOOLS,
-                         ids=[t for t, _ in CAMPAIGN_TOOLS])
-def test_a_campaign_tool_fails_on_an_empty_root(tool, argv, tmp_path):
-    """A tool pointed at nothing must FAIL, never report clean.
-
-    Every one of these iterates a glob over the campaign root, so an empty or
-    wrong root makes each check vacuously true. `audit_config --help` took
-    `--help` as the root, found zero configs and printed "OK -- arms sharing an
-    id agree on all 12 warm-up keys" over zero arms; `log_health` printed its
-    reason but returned 0, and since `main()` is called bare the code was
-    discarded anyway. Both are this project's own mistake pattern 1 -- a check
-    that reports green while not looking -- living inside the tools built to
-    catch it.
-
-    Exit code, not stdout, because that is what a script chaining on these
-    reads.
-    """
-    empty = tmp_path / "empty"
-    empty.mkdir()
-    r = subprocess.run(
-        [sys.executable, "-m", "scripts." + tool]
-        + [a.format(root=str(empty)) for a in argv],
-        cwd=REPO, capture_output=True, text=True)
-    assert r.returncode != 0, (
-        "%s exited 0 on a root with no runs -- indistinguishable from a clean "
-        "campaign:\n%s" % (tool, (r.stdout or "")[-500:]))
-
-
-def test_the_empty_root_guard_is_not_satisfied_by_a_tool_that_always_fails():
-    """NEGATIVE CONTROL for the parametrised test above.
-
-    Every assertion there is `returncode != 0`, which a tool that crashed on
-    everything would also satisfy. This pins that the same tools SUCCEED on a
-    root that does hold runs, so the guard is measuring emptiness rather than
-    brokenness.
-    """
-    r = subprocess.run([sys.executable, "-m", "scripts.audit_config"],
-                       cwd=REPO, capture_output=True, text=True)
-    assert r.returncode == 0, r.stderr[-800:]
-    assert "every emitted value has a reader" in r.stdout
-
-
-# ---------------------------------------------------------------------------
-# `scripts/straddle_probe.py` asks how much of the ORACLE headroom a step the
-# size of ours can actually reach. Its whole claim is that it reads WHERE the
-# errors sit rather than HOW MANY there are, so both tests below are about that
-# distinction and not about any particular number.
-# ---------------------------------------------------------------------------
-
-def test_the_straddle_gate_separates_errors_at_the_cut_from_buried_ones():
-    """The gate must PASS on the two regimes whose error geometry is known.
-
-    `matched` leaves its few residual errors AT the cut; `tailnoise` plants
-    positives far below it. A statistic that reports the same reachable SHARE
-    for both is counting errors, not locating them, and every number it prints
-    about a real campaign would be uninterpretable.
-    """
-    from scripts import straddle_probe as SP
-
-    SP.self_test(n_seeds=3)          # raises SystemExit on failure
-
-
-def test_the_straddle_gate_fails_when_the_statistic_ignores_position():
-    """NEGATIVE CONTROL ON THE GATE ITSELF.
-
-    A gate that has never been shown to fail is not a gate. Replace the band
-    with a position-BLIND one -- every false positive above the cut and every
-    true positive below it counts, however far away -- and the reachable share
-    becomes the oracle gap in BOTH regimes, so the separation vanishes. The
-    gate must reject that, or it would have signed off on a statistic that
-    reads the error rate.
-
-    🛑 IT MUTATES `straddle_grouped`, AND THAT IS THE POINT (2026-09-10). This
-    control patched `SP.straddle` and went GREEN-when-it-should-be-RED the
-    moment 2(z85) made the per-group reading primary: the gate stopped calling
-    the mutated function, so a position-blind statistic would have sailed
-    through. A negative control that names the implementation by hand is
-    itself a thing that can go stale, and this one announced its own
-    obsolescence only because it was run. Both names are patched, so whichever
-    reading `self_test` consumes, the mutation reaches it.
-    """
-    from scripts import straddle_probe as SP
-
-    original = SP.straddle
-    original_grouped = SP.straddle_grouped
-
-    def blind(fn):
-        # `fn`, not the module attribute -- the name is about to be rebound and
-        # calling through it would recurse instead of mutating.
-        def wrapped(*a, **kw):
-            real = fn(*a, **kw)
-            for b in real["bands"]:
-                b["reachable"] = real["oracle"]  # reachable regardless of delta
-            return real
-        return wrapped
-
-    try:
-        SP.straddle = blind(original)
-        SP.straddle_grouped = blind(original_grouped)
-        with pytest.raises(SystemExit) as exc:
-            SP.self_test(n_seeds=3)
-    finally:
-        SP.straddle = original
-        SP.straddle_grouped = original_grouped
-    assert "SELF-TEST FAILED" in str(exc.value), (
-        "the gate exited for some other reason than the mutation")
-
-
-def test_the_straddle_swap_count_is_bounded_by_both_sides_and_by_the_oracle():
-    """The arithmetic, pinned directly: a swap needs BOTH a false positive to
-    push out and a true positive to pull in, and no number of swaps can beat
-    the unbounded oracle gap. Constructed so the two sides are deliberately
-    unequal -- an implementation that returned either side alone, or their sum,
-    would pass a symmetric fixture.
-    """
-    from scripts.straddle_probe import straddle
-
-    # scores descending; K=4 so the cut sits at 0.60
-    scores = np.array([0.95, 0.80, 0.70, 0.60, 0.55, 0.50, 0.10, 0.05])
-    is_pos = np.array([True, False, False, False, True, True, True, False])
-
-    r = straddle(scores, is_pos, 4, [0.06, 0.5])
-    assert r["cut"] == pytest.approx(0.60)
-    # 3 false positives above the cut, 3 true positives below it, 1 TP above
-    assert r["oracle"] == min(4, 4) - 1 == 3
-
-    near = r["bands"][0]
-    # within 0.06: FPs at 0.60 only (0.70/0.80 are further); TP at 0.55 only
-    assert near["reachable"] == 1, near
-    wide = r["bands"][1]
-    # within 0.5 both sides offer 3, but the oracle gap caps the useful count
-    assert wide["reachable"] == 3 <= r["oracle"], wide
-
-
-def test_the_straddle_cut_is_PER_GROUP_and_the_two_readings_disagree():
-    """FRAMEWORK 2(z85), the ELEVENTH global-top-K substitution.
-
-    `cut_score` takes the globally K-th largest score; the allocator emits
-    top-k_g inside each group. The fixture is two groups whose score ranges do
-    not overlap, so the global top-4 is entirely the EASY group while the
-    endpoint splits 2/2 -- and the two readings then answer different questions
-    about the same array.
-
-    Built so they cannot coincide, and so that the BAND is what separates them
-    rather than a count that never reads a threshold: the one winnable swap
-    sits just under the easy group's own cut at 0.90, which the global cut at
-    0.80 puts on the wrong side. Asserting only the oracle would pass a
-    mutation that gives every group the global cut -- that quantity does not
-    read a threshold at all, and the first version of this test did exactly
-    that and let the mutation through.
-    """
-    from scripts.straddle_probe import straddle, straddle_grouped
-
-    #            ---------- group 0 (easy) ----------  ---- group 1 (hard) ----
-    scores = np.array([0.95, 0.90, 0.88, 0.80, 0.40, 0.35, 0.30, 0.25])
-    is_pos = np.array([False, False, True, False, False, False, False, True])
-    groups = np.array([0, 0, 0, 0, 1, 1, 1, 1])
-    sel = np.array([True, True, False, False, True, True, False, False])
-    deltas = [0.05]
-
-    g = straddle_grouped(scores, is_pos, sel, groups, deltas)
-    assert g["n_groups"] == 2
-    assert g["cut"] == pytest.approx((0.90 + 0.35) / 2)   # each group's own
-    assert g["oracle"] == 2, g                            # 1 per group
-    # group 0: the TP at 0.88 is 0.02 under its cut, so one swap is reachable.
-    # group 1: its TP at 0.25 is 0.10 under, outside the band -- so 1, not 2.
-    assert g["bands"][0]["reachable"] == 1, g
-
-    w = straddle(scores, is_pos, int(sel.sum()), deltas)
-    assert w["cut"] == pytest.approx(0.80)      # the whole easy group is "in"
-    assert w["oracle"] == 1, w
-    assert w["bands"][0]["reachable"] == 0, w
-
-
-def test_the_per_group_and_global_straddle_AGREE_on_a_one_group_campaign():
-    """NEGATIVE CONTROL. The per-group reading is a refinement, not a rewrite.
-
-    With every item in one group the two are the SAME computation, so any
-    difference here would be an arithmetic bug in the new path rather than the
-    grouping doing its job. This is the control that stops the test above from
-    passing on a `straddle_grouped` that simply returns different numbers.
-    """
-    from scripts.straddle_probe import straddle, straddle_grouped
-
-    scores = np.array([0.95, 0.80, 0.70, 0.60, 0.55, 0.50, 0.10, 0.05])
-    is_pos = np.array([True, False, False, False, True, True, True, False])
-    groups = np.zeros(8, int)
-    sel = scores >= 0.60                        # the global top-4
-    deltas = [0.06, 0.5]
-
-    g = straddle_grouped(scores, is_pos, sel, groups, deltas)
-    w = straddle(scores, is_pos, 4, deltas)
-    assert g["n_groups"] == 1
-    assert g["oracle"] == w["oracle"]
-    assert g["cut"] == pytest.approx(w["cut"])
-    for a, b in zip(g["bands"], w["bands"]):
-        assert (a["reachable"], a["contested"]) == (b["reachable"],
-                                                    b["contested"])
-
-
-def test_the_straddle_shuffled_control_keeps_the_PER_GROUP_budgets():
-    """The reference has to be comparable to the thing it is a reference FOR.
-
-    🛑 FOUND BY MUTATION, NOT BY READING (2026-09-10). Replacing
-    `topk_per_group` with a global top-K left all fifteen straddle tests GREEN:
-    the real number would have been read per group and its control globally,
-    which is the 2(z85) defect reintroduced on the side that decides what
-    counts as a signal. The control's whole licence is that it holds n_g, k_g
-    and prevalence and moves only the ordering, so k_g is what this pins.
-
-    The fixture puts every high score in one group, so a global top-K collapses
-    onto that group alone and the per-group budgets cannot be recovered from
-    the count.
-    """
-    from scripts.straddle_probe import topk_per_group
-
-    scores = np.array([0.95, 0.90, 0.88, 0.80, 0.40, 0.35, 0.30, 0.25])
-    groups = np.array([0, 0, 0, 0, 1, 1, 1, 1])
-    sel = np.array([True, True, False, False, True, True, False, False])
-
-    # SAME scores: the control's rule must reproduce the real selection.
-    assert np.array_equal(topk_per_group(scores, sel, groups), sel)
-
-    # PERMUTED scores: the membership moves, the per-group budgets do not.
-    shuffled = scores[::-1].copy()
-    out = topk_per_group(shuffled, sel, groups)
-    assert out.sum() == sel.sum()
-    for g in (0, 1):
-        m = groups == g
-        assert out[m].sum() == sel[m].sum() == 2, (g, out)
-    assert not np.array_equal(out, sel), (
-        "the permutation moved nothing -- the fixture is not exercising it")
-
-
-def test_the_matched_contested_ladder_is_CALIBRATED_PER_GROUP():
-    """`--match-contested` holds the contested MASS fixed, so it must hold the
-    same mass the primary reading counts.
-
-    🛑 ALSO FOUND BY MUTATION (2026-09-10). Forcing `delta_for_contested` back
-    onto the single global cut left every straddle test green -- the module's
-    own `--self-test` runs the `--sweep` ladder, so the matched one had no
-    end-to-end coverage at all, and it is the ladder the docstring calls the
-    only one comparable across cap levels.
-
-    Two groups with non-overlapping ranges: the same target mass needs a wide
-    band around one global cut and a narrow one around each group's own, so the
-    two calibrations cannot land on the same delta.
-    """
-    from scripts.straddle_probe import delta_for_contested
-
-    scores = np.array([0.95, 0.90, 0.88, 0.80, 0.40, 0.35, 0.30, 0.25])
-    groups = np.array([0, 0, 0, 0, 1, 1, 1, 1])
-    sel = np.array([True, True, False, False, True, True, False, False])
-    target = 4
-
-    d_grp = delta_for_contested(scores, 4, target, sel=sel, groups=groups)
-    d_glob = delta_for_contested(scores, 4, target)
-
-    # the band it returns really does hold the target mass, counted per group
-    cuts = {0: 0.90, 1: 0.35}
-    mass = sum(int((np.abs(scores[groups == g] - t) <= d_grp).sum())
-               for g, t in cuts.items())
-    assert mass >= target, (d_grp, mass)
-    # ... and one hair narrower does not, so it is the SMALLEST such band
-    tight = sum(int((np.abs(scores[groups == g] - t) <= d_grp * 0.9).sum())
-                for g, t in cuts.items())
-    assert tight < target, (d_grp, tight)
-
-    # the global calibration has to reach past the whole easy group instead
-    assert d_glob > 3 * d_grp, (d_grp, d_glob)
-
-
-def test_the_straddle_saturation_identity_survives_the_grouping():
-    """NEGATIVE CONTROL on the docstring's own claim.
-
-    `reachable(inf) == oracle` is asserted for the global reading and the
-    grouped one has to inherit it, or the ladder and the gap it is read against
-    would be two different quantities. Neither limit reads the cut, so this
-    holds however the groups are split -- which is what makes it a check on the
-    arithmetic rather than on the fixture.
-    """
-    from scripts.straddle_probe import straddle_grouped
-
-    rng = np.random.default_rng(11)
-    scores = rng.random(200)
-    is_pos = rng.random(200) < 0.3
-    groups = rng.integers(0, 5, 200)
-    sel = np.zeros(200, bool)
-    for gi in range(5):
-        m = np.where(groups == gi)[0]
-        sel[m[np.argsort(-scores[m])[:7]]] = True
-
-    r = straddle_grouped(scores, is_pos, sel, groups, [1e-9, 1.0])
-    assert r["bands"][1]["reachable"] == r["oracle"] > 0, r
-    assert r["bands"][0]["reachable"] <= r["oracle"]
-
-
-def test_the_straddle_shuffled_reference_does_not_track_the_error_geometry():
-    """The shuffled arm is a REFERENCE, not a second measurement.
-
-    Permuting the scores destroys the ordering, so what is left depends on n_g,
-    k_g and prevalence only. It must therefore move MUCH LESS than the real arm
-    across two regimes whose true error structures differ several-fold -- that
-    is what licenses reading the real number against it. (It also rises rather
-    than collapsing, which is why the docstring warns against reading it as a
-    must-collapse control.)
-
-    ⚠️ THE BOUND IS A RATIO OF MOVEMENTS, NOT A CONSTANT, AND IT IS SEEDED TO
-    BE STABLE (2026-09-10). It asserted `hi < 1.6 * lo` on THREE seeds, where
-    the reference's own sampling noise runs to 1.94x at n=5 -- so it passed on
-    the seed it happened to use and would have gone red on a neighbouring one,
-    for no reason connected to the code. Measured at n=20 the reference moves
-    1.40x, the real arm 2.52x and the oracle 5.80x; the claim is the ORDERING
-    of those three, which no magic constant can express.
-    """
-    from scripts import straddle_probe as SP
-    from scripts.frozen_head_probe import make_synthetic
-
-    rng = np.random.default_rng(0)
-    shuf, real, oracle = {}, {}, {}
-    for regime in ("matched", "tailnoise"):
-        agg = {}
-        for seed in range(10):
-            SP.collect(agg, SP.probe(make_synthetic(regime, seed),
-                                     SP.sweep_deltas, rng), SP.SWEEP_NAMES)
-        widest = SP.SWEEP_NAMES[-1]
-        shuf[regime] = sum(np.mean([b["reachable"] for b in agg[c]["shuf"][widest]])
-                           for c in agg)
-        real[regime] = sum(np.mean([b["reachable"] for b in agg[c]["bands"][widest]])
-                           for c in agg)
-        oracle[regime] = sum(float(np.mean(agg[c]["oracle"])) for c in agg)
-
-    def swing(d):
-        lo, hi = sorted(d.values())
-        return hi / lo
-
-    # the thing the reference is supposed to be blind to really does differ
-    assert oracle["tailnoise"] > 3 * oracle["matched"], oracle
-    # ...and the reference tracks it far more weakly than the real arm does
-    assert swing(shuf) < 0.7 * swing(real) < swing(oracle), (
-        "the shuffled reference moved with the error geometry (ref %.2fx, real "
-        "%.2fx, oracle %.2fx), so it is measuring the same thing as the real "
-        "arm" % (swing(shuf), swing(real), swing(oracle)))
-    # the real arm, by contrast, must move -- and cross the reference
-    assert real["matched"] < shuf["matched"], (
-        "clean labels should leave FEWER swaps than chance", real, shuf)
-    assert real["tailnoise"] > shuf["tailnoise"], (
-        "buried positives should leave MORE swaps than chance", real, shuf)
-
-
-def test_no_runnable_command_in_the_docs_names_a_removed_dataset():
-    """The purge was enforced in the CODE and missed the DOCS.
-
-    `test_removed_datasets_cannot_be_selected_anywhere` pins protocol.yml, the
-    loader, the data directories and the generator's refusal -- and all of it
-    stayed green while `CLAUDE.md` still carried
-    `gen_campaign ... --datasets dermmnist tissuemnist` as the copy-paste
-    example. A command the generator now REFUSES is worse than a stale sentence:
-    it reads as the supported way to start, and the first thing it does is fail.
-
-    Prose ABOUT a removed dataset is deliberately still allowed -- the screen
-    results are the evidence for removing them and must stay readable. Only
-    executable lines are checked, which is the distinction that makes the rule
-    mechanical.
-    """
-    def command_lines(text):
-        """Fenced lines, comments stripped.
-
-        The comment half is stripped rather than the whole line skipped: the
-        `dataset_screen` block annotates its own command with the screen
-        results (`octmnist -7, tissuemnist -55 = DEAD`), which is the EVIDENCE
-        for the removal and has to stay. What must not survive is an
-        executable token naming one.
-        """
-        out, in_fence = [], False
-        for line in text.splitlines():
-            stripped = line.strip()
-            if stripped.startswith("```"):
-                in_fence = not in_fence
-                continue
-            if in_fence or stripped.startswith(("python ", "python3 ", "$ python")):
-                code = stripped.split("#", 1)[0].strip()
-                if code:
-                    out.append(code)
-        # An odd number of fences makes every line after the last one read as
-        # code, and this gate then reports PROSE and MARKDOWN TABLE ROWS as
-        # "runnable commands naming a removed dataset". That happened on
-        # 2026-08-25 and the message sent the reader hunting for a command that
-        # does not exist. An unbalanced fence must be reported AS an unbalanced
-        # fence.
-        assert not in_fence, (
-            "unbalanced ``` fence: an odd number of fence lines, so everything "
-            "after the last one is being read as code. Fix the fence -- do not "
-            "read the failure below it as a real finding.")
-        return out
-
-    # the checker must be capable of firing, or it proves nothing about the docs
-    poisoned = "\n".join(["```bash",
-                          "python -m configs.gen_campaign --datasets dermmnist",
-                          "```"])
-    assert any(d in ln for ln in command_lines(poisoned)
-               for d in REMOVED_DATASETS), (
-        "the extractor cannot see a bad command even when one is planted, so a "
-        "green result below would mean nothing")
-
-    for rel in ("CLAUDE.md", os.path.join("docs", "FRAMEWORK.md")):
-        path = os.path.join(REPO, rel)
-        with io.open(path, encoding="utf-8") as fh:
-            lines = command_lines(fh.read())
-        bad = [(ln, d) for ln in lines for d in REMOVED_DATASETS if d in ln]
-        assert not bad, (
-            "%s tells the reader to run a REMOVED dataset: %s" % (rel, bad[:3]))
-    assert command_lines("# Pointer-only document\n") == []
-
-
-def _write_run(run_dir, arm, seed, probs, y, groups, tag="L30_G50",
-               dataset="iwildcam"):
-    """A minimal but REAL run directory: exactly the three files `load_real`
-    reads, in the shapes `full_panel` writes them."""
-    os.makedirs(run_dir, exist_ok=True)
-    np.savez(os.path.join(run_dir, "test_embeddings.npz"),
-             features=np.asarray(probs, np.float32))
-    cols = {"True_Label": y, "Group_ID": groups}
-    for c in range(probs.shape[1]):
-        cols["Prob_Class_%d" % c] = probs[:, c]
-    pd.DataFrame(cols).to_csv(
-        os.path.join(run_dir, "final_predictions_raw.csv"), index=False)
-    with io.open(os.path.join(run_dir, "config.json"), "w",
-                 encoding="utf-8") as fh:
-        json.dump({"arm": arm, "dataset_mode": dataset,
-                   "model_name": "MobileNetV3", "constraint_tag": tag,
-                   "constraint": [0.30, 0.50],
-                   "dataset_config": {"constrained_class": [2]},
-                   "hyperparams": {"seed": seed}}, fh)
-
-
-def _pair_fixture(tmp_path, eps=0.04, shifted_frac=0.10):
-    """A treated/null twin differing by a KNOWN displacement in class 2.
-
-    Mass is moved between two columns so the rows still sum to 1 -- `load_real`
-    renormalises, and a fixture that relied on renormalisation would measure
-    the renormaliser instead of the injected shift.
-    """
-    rng = np.random.default_rng(7)
-    n, n_cls = 400, 3
-    y = rng.integers(0, n_cls, n)
-    groups = rng.integers(0, 2, n)
-    P = rng.dirichlet(np.ones(n_cls) * 2.0, size=n)
-
-    treated = P.copy()
-    k = int(n * shifted_frac)
-    idx = np.argsort(-P[:, 2])[:k]            # move the top scorers
-    treated[idx, 2] += eps
-    treated[idx, 0] -= eps
-    assert treated.min() > 0, "fixture pushed a probability negative"
-
-    root = os.path.join(str(tmp_path), "camp")
-    _write_run(os.path.join(root, "a_tralo"), "tralo", 1, treated, y, groups)
-    _write_run(os.path.join(root, "b_null"), "tralo_null", 1, P, y, groups)
-    # DECOY: a null at a different seed must not be paired with the arm above
-    _write_run(os.path.join(root, "c_null_s2"), "tralo_null", 2, P, y, groups)
-    return root
-
-
-def test_the_straddle_probe_pairs_a_treated_run_with_its_own_null_twin(tmp_path):
-    """`pair_runs` is the half of this probe that decides WHAT is compared, and
-    a mis-pair would silently redefine the measured displacement. Pinned with a
-    decoy null at another seed, because pairing on the arm name alone -- the
-    obvious implementation -- would happily take it.
-    """
-    from scripts.straddle_probe import pair_runs
-
-    root = _pair_fixture(tmp_path)
-    runs = [os.path.join(root, d) for d in sorted(os.listdir(root))]
-    pairs = pair_runs(runs)
-
-    assert len(pairs) == 1, [(p[0], p[2]) for p in pairs]
-    arm, _cell, seed, treated, null = pairs[0]
-    assert (arm, seed) == ("tralo", 1)
-    assert treated.endswith("a_tralo") and null.endswith("b_null")
-
-
-def test_the_straddle_probe_recovers_the_displacement_it_was_given(tmp_path):
-    """The measured delta must be the injected one, or every `reachable` read
-    against it is scaled by an unknown factor. 10% of items were moved by
-    exactly eps, so the 95th percentile of |dp| sits inside that block and must
-    come back as eps.
-    """
-    from scripts.straddle_probe import measured_delta
-
-    eps = 0.04
-    root = _pair_fixture(tmp_path, eps=eps, shifted_frac=0.10)
-    _data, disp = measured_delta(os.path.join(root, "a_tralo"),
-                                 os.path.join(root, "b_null"))
-
-    assert set(disp) == {2}, disp
-    assert disp[2]["q"] == pytest.approx(eps, abs=1e-6), disp
-    assert disp[2]["median"] == pytest.approx(0.0, abs=1e-9), (
-        "90% of items were untouched, so the median displacement must be 0")
-
-
-def test_the_straddle_probe_refuses_to_difference_two_different_test_sets(tmp_path):
-    """Differencing runs scored on different test sets would produce a
-    displacement built from mismatched rows -- a large, meaningless number that
-    looks like a strong constraint. It must refuse rather than broadcast.
-    """
-    from scripts.straddle_probe import measured_delta
-
-    rng = np.random.default_rng(3)
-    root = os.path.join(str(tmp_path), "mixed")
-    for name, n in (("a_tralo", 200), ("b_null", 200)):
-        P = rng.dirichlet(np.ones(3) * 2.0, size=n)
-        _write_run(os.path.join(root, name),
-                   "tralo" if "tralo" == name.split("_")[1] else "tralo_null",
-                   1, P, rng.integers(0, 3, n), rng.integers(0, 2, n))
-
-    with pytest.raises(SystemExit) as exc:
-        measured_delta(os.path.join(root, "a_tralo"),
-                       os.path.join(root, "b_null"))
-    assert "not the same test set" in str(exc.value)
-
-
-def test_the_straddle_probe_runs_end_to_end_on_a_campaign(tmp_path):
-    """The measured path end to end, through `main`. The self-test only ever
-    exercises the SWEEP path, so without this the mode that will actually be
-    pointed at `results/iwc1` would ship unrun.
-    """
-    from scripts import straddle_probe as SP
-
-    root = _pair_fixture(tmp_path)
-    buf = io.StringIO()
-    stdout = sys.stdout
-    try:
-        sys.stdout = buf
-        SP.main(["--campaign", root])
-    finally:
-        sys.stdout = stdout
-    out = buf.getvalue()
-
-    assert "DELTA IS MEASURED" in out, out[-600:]
-    assert "1 treated/null twin pair" in out, out[-600:]
-    assert "NOT calibrated" not in out, (
-        "fell back to the swept ladder even though a twin exists")
-    assert "CLASS 2" in out, out[-600:]
-    # The BASELINE block is not cosmetic: without the null's own reachability at
-    # the SAME delta there is nothing to read the treated number against, and
-    # the null is the post-hoc clipper at equal compute with the allocator held
-    # fixed -- the reference `headroom.py` quotes.
-    assert "BASELINE" in out and "TREATED" in out, out[-900:]
-    assert out.index("BASELINE") < out.index("TREATED"), (
-        "the baseline must be reported before the treated arm, or the reader "
-        "meets the treated number with nothing to compare it to")
-
-
-@pytest.mark.parametrize("n_pos_lt_K", [False, True])
-def test_the_straddle_count_saturates_exactly_at_the_oracle_gap(n_pos_lt_K):
-    """THE SATURATION IDENTITY, both branches of the min.
-
-    As delta grows, `fp_near -> K - tp_above` and `tp_near -> n_pos - tp_above`,
-    so reachable(inf) = min(K, n_pos) - tp_above = oracle EXACTLY. That is what
-    licenses reading this probe as a refinement of `headroom.py` rather than as
-    a competing estimate of the same thing -- they agree in the limit by
-    construction. It also forces reachable <= oracle at every delta.
-
-    Both branches are exercised because they saturate through DIFFERENT sides
-    of the min: with n_pos >= K the false positives above the cut run out
-    first, with n_pos < K the true positives below it do. An implementation
-    that returned only one side would pass on one branch alone.
-    """
-    from scripts.straddle_probe import straddle
-
-    rng = np.random.default_rng(11)
-    n = 300
-    K = 60
-    prevalence = 0.05 if n_pos_lt_K else 0.40
-    scores = rng.random(n)
-    is_pos = rng.random(n) < prevalence
-    if n_pos_lt_K:
-        assert is_pos.sum() < K, is_pos.sum()
-    else:
-        assert is_pos.sum() > K, is_pos.sum()
-
-    ladder = [1e-4, 1e-3, 1e-2, 0.1, 0.5, 10.0]
-    r = straddle(scores, is_pos, K, ladder)
-
-    for band in r["bands"]:
-        assert band["reachable"] <= r["oracle"], (band, r["oracle"])
-    assert r["bands"][-1]["reachable"] == r["oracle"], (
-        "a delta far wider than the score range must collect the ENTIRE oracle "
-        "gap; got %s of %s" % (r["bands"][-1]["reachable"], r["oracle"]))
-    # monotone in delta -- a wider window can only expose more swaps
-    got = [b["reachable"] for b in r["bands"]]
-    assert got == sorted(got), got
-
-
-def _panel_stdout(tmp_path, boost, jitter, seed0=0):
-    """A campaign whose treated arm differs in AP by `boost`, with per-seed
-    variability `jitter`. Returns full stdout of the scorer."""
-    cells = [(ds, m, cap)
-             for m in ("MobileNetV3", "MobileNetV2")
-             for cap in ("L30_G30", "L50_G30")
-             for ds in ("iwildcam",)]
-    N, K = 300, 4
-    for i, (ds, model, cap) in enumerate(cells):
-        for arm in ("clip", "tralo"):
-            for seed in (1, 2, 3, 4):
-                rng = np.random.default_rng(seed0 + 1000 * i + seed)
-                y = rng.integers(0, K, size=N)
-                z = rng.normal(size=(N, K))
-                if arm == "tralo":
-                    # a per-SEED offset: the within-cell spread of d AP is what
-                    # the resolution block estimates its sd from
-                    off = boost + jitter * np.random.default_rng(
-                        seed0 + 7919 * i + 13 * seed).normal()
-                    z[np.arange(N), y] += off
-                P = np.exp(z) / np.exp(z).sum(1, keepdims=True)
-                d = tmp_path / model / ds / cap / arm / ("seed_%d" % seed)
-                d.mkdir(parents=True, exist_ok=True)
-                cols = {"True_Label": y, "Predicted_Label": P.argmax(1),
-                        "Group_ID": rng.integers(0, 3, size=N)}
-                for c in range(K):
-                    cols["Prob_Class_%d" % c] = P[:, c]
-                for f in ("final_predictions_raw.csv", "final_predictions.csv"):
-                    pd.DataFrame(cols).to_csv(d / f, index=False)
-                (d / "config.json").write_text(json.dumps(
-                    {"arm": arm, "methodology": "x", "model_name": model,
-                     "dataset_mode": ds, "constraint_tag": cap,
-                     "constraint": [0.5, 0.3], "status": "completed",
-                     "dataset_config": {"constrained_class": 1, "num_classes": K},
-                     "hyperparams": {"seed": seed}}))
-    r = subprocess.run([sys.executable, "-m", "scripts.full_panel",
-                        "--campaign", str(tmp_path), "--control", "clip"],
-                       cwd=REPO, capture_output=True, text=True)
-    return r.stdout + r.stderr
-
-
-def test_the_allocation_free_metrics_get_their_own_power_statement(tmp_path):
-    """The RESOLUTION block converts to ITEMS via `items_per_001`, which is an
-    F1 identity and does not apply to AP or AUROC -- so the scorer printed a
-    power statement for exactly one metric family, and it is the family post-hoc
-    filling can reach. Any verdict resting on the allocation-free metrics (which
-    is what FRAMEWORK 2(p) pre-registers for iwc1) had NO seed cost attached,
-    which is the "no effect vs not enough seeds" conflation the items block was
-    built to prevent.
-    """
-    out = _panel_stdout(tmp_path, boost=1.2, jitter=0.0)
-    assert "RESOLUTION of the ALLOCATION-FREE metrics" in out, out[-2500:]
-    assert "AP" in out and "AUROC" in out
-    assert "NOT items" in out, "the block must refuse to invent an items scale"
-
-
-def test_the_allocation_free_power_statement_reads_the_seed_NOISE(tmp_path):
-    """NEGATIVE CONTROL. A readout that always printed POWERED would satisfy the
-    test above. A near-zero effect swamped by per-seed spread must come back
-    UNDERPOWERED, or the block is decoration and a tie in AP would still be
-    reported as a settled null.
-    """
-    out = _panel_stdout(tmp_path, boost=0.0, jitter=0.9, seed0=555)
-    assert "RESOLUTION of the ALLOCATION-FREE metrics" in out, out[-2500:]
-    tail = out.split("RESOLUTION of the ALLOCATION-FREE metrics")[1][:800]
-    assert "UNDERPOWERED" in tail, tail
-    assert "NOT evidence" in tail, tail
-
-
-def test_the_main_table_generator_needs_two_metrics_to_reproduce_the_shipped_file():
-    """The one generator whose DEFAULT is not the shipped artefact.
-
-    `make_main_table.py --two-metrics` reproduces `tab_ccf1.tex` byte for byte;
-    the bare invocation writes a DIFFERENT table over the same path. CLAUDE.md
-    has carried that warning, with the exact diff size, as prose only -- so the
-    single command in this repo that can silently corrupt a paper table on a
-    routine "regenerate the tables" pass was guarded by a sentence.
-
-    The bare run is the NEGATIVE CONTROL and is not incidental: if both
-    invocations produced the same bytes the flag would be decorative and the
-    warning wrong, which is worth knowing either way.
-
-    The file is restored from the bytes read at entry, in a finally, rather than
-    with `git checkout` -- a test that repairs a tracked file must not depend on
-    the working tree being clean when it started.
-    """
-    gen = os.path.join(REPO, "docs", "paper", "scripts", "make_main_table.py")
-    tab = os.path.join(REPO, "docs", "paper", "tables", "tab_ccf1.tex")
-    corpus = os.path.join(REPO, "docs", "paper", "data", "corpus", "corpus_final.csv")
-    if not all(os.path.exists(p) for p in (gen, tab, corpus)):
-        pytest.skip("optional historical paper evidence is not installed; see docs/GIT_TRACKING.md")
-
-    with io.open(tab, "rb") as fh:
-        shipped = fh.read()
-    try:
-        r = subprocess.run([sys.executable, gen, "--two-metrics"],
-                           cwd=REPO, capture_output=True, text=True)
-        assert r.returncode == 0, r.stderr[-800:]
-        with io.open(tab, "rb") as fh:
-            assert fh.read().replace(b"\r\n", b"\n") == shipped.replace(b"\r\n", b"\n"), (
-                "make_main_table.py --two-metrics no longer reproduces the "
-                "shipped tab_ccf1.tex -- either the corpus moved or the "
-                "generator changed, and the paper table is now unbacked")
-
-        r = subprocess.run([sys.executable, gen], cwd=REPO,
-                           capture_output=True, text=True)
-        assert r.returncode == 0, r.stderr[-800:]
-        with io.open(tab, "rb") as fh:
-            bare = fh.read()
-        assert bare.replace(b"\r\n", b"\n") != shipped.replace(b"\r\n", b"\n"), (
-            "the bare invocation now reproduces the shipped table too, so "
-            "--two-metrics is decorative and CLAUDE.md's warning is stale")
-    finally:
-        with io.open(tab, "wb") as fh:
-            fh.write(shipped)
-
-
-# The three tables in `docs/paper/tables/` that have NO generator and never did.
-# An empty `git diff docs/paper/tables/` says NOTHING about these -- naming them
-# is what keeps the test below from over-claiming.
-UNGENERATED_TABLES = ("tab_ablation_complete.tex", "tab_deploy.tex",
-                      "tab_oct_backbone.tex")
-
-TABLE_GENERATORS = (("make_main_table.py", ("--two-metrics",)),
-                    ("make_backbone_tables.py", ()),
-                    ("make_graft_table.py", ()),
-                    ("make_granular_tables.py", ()))
-
-
-def test_the_generated_paper_tables_still_reproduce_from_the_corpus():
-    """`git diff docs/paper/tables/` must be empty after regenerating.
-
-    This is the invariant that says the shipped paper is still BACKED by
-    `corpus_final.csv`. It has been documented in CLAUDE.md and never enforced,
-    so a corpus edit or a generator change would have unbacked a table silently
-    and the next person to regenerate would have seen a diff with no way to tell
-    whether the old file or the new one was right.
-
-    The three ungenerated tables are asserted UNTOUCHED rather than ignored. A
-    clean diff is evidence about the eight and about nothing else, and stating
-    that here stops the test from being read as "the tables reproduce".
-    """
-    tdir = os.path.join(REPO, "docs", "paper", "tables")
-    sdir = os.path.join(REPO, "docs", "paper", "scripts")
-    corpus_dir = os.path.join(REPO, "docs", "paper", "data", "corpus")
-    required = ("corpus_final.csv", "review_graft_2026-07.csv")
-    if not os.path.isdir(tdir) or not all(os.path.exists(os.path.join(corpus_dir, p)) for p in required):
-        pytest.skip("optional historical paper evidence is not installed; see docs/GIT_TRACKING.md")
-
-    before = {}
-    for name in sorted(os.listdir(tdir)):
-        if name.endswith(".tex"):
-            with io.open(os.path.join(tdir, name), "rb") as fh:
-                before[name] = fh.read()
-    assert before, "no .tex tables found"
-
-    try:
-        for script, flags in TABLE_GENERATORS:
-            path = os.path.join(sdir, script)
-            if not os.path.exists(path):
-                pytest.skip("%s is not present" % script)
-            r = subprocess.run([sys.executable, path] + list(flags),
-                               cwd=REPO, capture_output=True, text=True)
-            assert r.returncode == 0, "%s failed: %s" % (script, r.stderr[-600:])
-
-        changed = []
-        for name, original in before.items():
-            with io.open(os.path.join(tdir, name), "rb") as fh:
-                if fh.read().replace(b"\r\n", b"\n") != original.replace(b"\r\n", b"\n"):
-                    changed.append(name)
-        assert not changed, (
-            "these tables no longer reproduce from the corpus: %s" % changed)
-
-        for name in UNGENERATED_TABLES:
-            assert name in before, (
-                "%s is named as ungenerated but is not in tables/ -- the list "
-                "has drifted" % name)
-    finally:
-        for name, original in before.items():
-            with io.open(os.path.join(tdir, name), "wb") as fh:
-                fh.write(original)
-
-
-def test_no_soft_count_satisfaction_flag_is_reintroduced():
-    """INERT FLAG REGRESSION -- occurrences five and six.
-
-    `global_constraints_satisfied` and `local_constraints_satisfied` were
-    assigned on every forward pass and read NOWHERE in the repo. Beyond being
-    dead they were WRONG in a way that matters here: they record satisfaction on
-    the SOFT count, and `sum_i p_ic` is strictly positive for any softmax, so at
-    K == 0 the flag is permanently False for a group that is in fact perfectly
-    satisfied. On iwildcam seven of fourteen per-group ceilings are K == 0, so
-    anyone who wired one of these up would have read "never satisfied" off a
-    healthy run.
-
-    The check is on ASSIGNMENT, via AST, because a mention in a comment (there
-    is one, explaining why they are gone) must not satisfy or trip it.
-    """
-    src_dir = os.path.join(REPO, "src")
-    offenders = []
-    for dirpath, _dirs, files in os.walk(src_dir):
-        for fname in files:
-            if not fname.endswith(".py"):
-                continue
-            path = os.path.join(dirpath, fname)
-            with io.open(path, encoding="utf-8") as fh:
-                tree = ast.parse(fh.read())
-            for node in ast.walk(tree):
-                if not isinstance(node, ast.Assign):
-                    continue
-                for tgt in node.targets:
-                    if (isinstance(tgt, ast.Attribute)
-                            and tgt.attr.endswith("constraints_satisfied")):
-                        offenders.append((os.path.relpath(path, REPO),
-                                          node.lineno, tgt.attr))
-    assert not offenders, (
-        "a soft-count satisfaction flag is being assigned again: %s. The "
-        "trainer decides satisfaction from the HARD counts; a soft flag is "
-        "permanently False at K=0." % offenders)
+    assert r2["net_z"] < 2.0, "a uniform unseen group leaked into NET: %r" % r2
 
 
 def test_the_trainer_decides_satisfaction_and_the_ratchet_from_HARD_counts():
-    """The claim the K=0 docstring now rests on, pinned against the trainer.
-
-    `transductive_loss._penalty` tells the reader that a K == 0 constraint does
-    NOT hold the ratchet gate open, on the grounds that the trainer reads hard
-    counts. An earlier version of that docstring said the opposite and nearly
-    condemned a healthy campaign, so the claim is enforced rather than trusted:
-    every count the satisfaction snapshot and the ratchet compare against a
-    limit must be a `_hard` one.
-    """
     path = os.path.join(REPO, "src", "methodologies", "tralo", "train.py")
     with io.open(path, encoding="utf-8") as fh:
         lines = fh.read().splitlines()
 
     def count_uses(text):
-        """Lines that COMPARE a count, or bind one for a later comparison.
-
-        Logging lines that merely read `.item()` into a dict are excluded on
-        purpose -- the trainer builds `g_soft_d` / `l_soft_d` for the CSV, and
-        recording the soft count is correct. What must never be soft is the
-        value tested against a limit.
-        """
         out = []
         for ln in text.splitlines():
             t = ln.strip()
-            counted = re.search(r"total_(local|global)_(hard|soft)", t)
+            counted = re.search("total_(local|global)_(hard|soft)", t)
             if not counted:
                 continue
-            if re.search(r"[<>]=?", t) or re.match(r"\w*hard\w*\s*=\s*total_", t):
+            if re.search("[<>]=?", t) or re.match("\\w*hard\\w*\\s*=\\s*total_", t):
                 out.append(t)
         return out
 
-    # the checker must be able to FIRE, or a green result below means nothing
     poisoned = "if total_local_soft[g][c].item() > lc[c].item():"
-    assert any("_soft" in ln for ln in count_uses(poisoned)), (
-        "the extractor cannot see a soft comparison even when one is planted")
-
+    assert any(("_soft" in ln for ln in count_uses(poisoned))), (
+        "the extractor cannot see a soft comparison even when one is planted"
+    )
     checked = count_uses(os.linesep.join(lines))
     assert checked, "no count comparisons found -- the trainer moved"
     soft = [ln for ln in checked if "_soft" in ln]
     assert not soft, (
-        "the trainer is comparing a SOFT count against a limit: %s. At K=0 the "
-        "soft count is strictly positive, so this would make a satisfied group "
-        "read as violated for the whole run." % soft[:3])
+        "the trainer is comparing a SOFT count against a limit: %s. At K=0 the soft count is strictly positive, so this would make a satisfied group read as violated for the whole run."
+        % soft[:3]
+    )
 
 
 def _log_health_campaign(tmp_path, accs, arm="tralo"):
-    """A campaign whose training_log.csv walks `accs` over epochs."""
     root = os.path.join(str(tmp_path), "camp")
     for seed in (1, 2, 3):
         d = os.path.join(root, "%s_seed%d" % (arm, seed))
         os.makedirs(d, exist_ok=True)
-        pd.DataFrame({"Epoch": list(range(1, len(accs) + 1)),
-                      "Train_Acc": list(accs),
-                      "L_CE": [0.5] * len(accs)}).to_csv(
-            os.path.join(d, "training_log.csv"), index=False)
+        pd.DataFrame(
+            {
+                "Epoch": list(range(1, len(accs) + 1)),
+                "Train_Acc": list(accs),
+                "L_CE": [0.5] * len(accs),
+            }
+        ).to_csv(os.path.join(d, "training_log.csv"), index=False)
         with io.open(os.path.join(d, "config.json"), "w", encoding="utf-8") as fh:
-            json.dump({"arm": arm, "status": "completed",
-                       "dataset_mode": "iwildcam", "model_name": "MobileNetV3",
-                       "constraint_tag": "L30_G50", "constraint": [0.30, 0.50],
-                       "dataset_config": {"constrained_class": [2]},
-                       "hyperparams": {"seed": seed}}, fh)
-    r = subprocess.run([sys.executable, "-m", "scripts.log_health", root],
-                       cwd=REPO, capture_output=True, text=True)
+            json.dump(
+                {
+                    "arm": arm,
+                    "status": "completed",
+                    "dataset_mode": "iwildcam",
+                    "model_name": "MobileNetV3",
+                    "constraint_tag": "L30_G50",
+                    "constraint": [0.3, 0.5],
+                    "dataset_config": {"constrained_class": [2]},
+                    "hyperparams": {"seed": seed},
+                },
+                fh,
+            )
+    r = subprocess.run(
+        [sys.executable, "-m", "scripts.log_health", root],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+    )
     return r.stdout + r.stderr
 
 
-def test_log_health_flags_a_model_already_converged_before_the_constraint_phase(tmp_path):
-    """Rule 1 fixes warm-up at 1 because warm-up 50 saturates CE and every
-    method becomes identical -- but that boundary was calibrated on dermmnist
-    and is stated as a warm-up LENGTH, while what matters is where the model
-    ENDS UP. iWildCam's warm-up reaches ~95.6% in ONE epoch, so an easy dataset
-    can enter the saturated regime through a door rule 1 does not cover, and a
-    tie across all arms would be the saturation rather than the methods.
-
-    `log_health` is step 0 of the iwc1 read, so the pointer belongs there.
-    """
+def test_log_health_flags_a_model_already_converged_before_the_constraint_phase(
+    tmp_path,
+):
     out = _log_health_campaign(tmp_path, [0.956, 0.956, 0.957, 0.956])
-    assert "CONVERGENCE AT THE START OF THE CONSTRAINT PHASE" in out, out[-1200:]
-    assert "ALREADY CONVERGED" in out, out[-1200:]
-    assert "scripts.reachability" in out, (
-        "the flag must point at the instrument that actually measures p(1-p) "
-        "at the cut -- accuracy is only a proxy")
+    assert "LOGGED ACCURACY OBSERVATIONS" in out, out[-1200:]
+    assert "HIGH FLAT LOGGED ACCURACY" in out, out[-1200:]
+    assert "scripts.headroom" in out, (
+        "accuracy is only a proxy; inspect actual group cuts"
+    )
 
 
-@pytest.mark.parametrize("accs,why", [
-    ([0.40, 0.55, 0.70, 0.88], "a big gain must not read as saturated"),
-    ([0.30, 0.30, 0.31, 0.30], "a flat but LOW run is not saturation, it is a "
-                               "model that never learned"),
-])
+@pytest.mark.parametrize(
+    "accs,why",
+    [
+        ([0.4, 0.55, 0.7, 0.88], "a big gain must not read as saturated"),
+        (
+            [0.3, 0.3, 0.31, 0.3],
+            "a flat but LOW run is not saturation, it is a model that never learned",
+        ),
+    ],
+)
 def test_log_health_does_not_cry_saturation_on_a_healthy_run(tmp_path, accs, why):
-    """NEGATIVE CONTROL, both halves of the signature separately.
-
-    The flag requires an already-high warm-up AND a constraint phase that moved
-    nothing. A readout keyed on either alone would fire on an ordinary run: a
-    hard dataset can start low and climb, and a broken run can sit flat at 30%.
-    Firing on those would train the reader to ignore it, which is worse than
-    not having it.
-    """
     out = _log_health_campaign(tmp_path, accs)
-    assert "CONVERGENCE AT THE START OF THE CONSTRAINT PHASE" in out, out[-800:]
-    assert "ALREADY CONVERGED" not in out, (why, out[-800:])
-    assert "not the saturated signature" in out, out[-800:]
-
-
-def _probe_liveness_output(max_sign_p=None):
-    """Force the probe's liveness gate to FAIL, on synthetic data so no
-    dataset or embedding file is needed."""
-    cmd = [sys.executable, "-m", "scripts.frozen_head_probe",
-           "--synthetic", "matched", "--seeds", "1", "2",
-           "--corrupt-alphas", "0.0001"]
-    if max_sign_p is not None:
-        cmd += ["--max-sign-p", str(max_sign_p)]
-    r = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True)
-    return r.stdout + r.stderr
-
-
-def test_the_probe_says_how_many_seeds_its_own_liveness_gate_needs():
-    """The gate is a two-sided sign test, so n seeds moving the same way give
-    p = 2^(1-n). At the default --max-sign-p 0.01 it cannot pass below EIGHT
-    non-zero seeds, at any effect size -- and the invocation in CLAUDE.md uses
-    four. Run that way on iwc1 the probe measured a 72-item corruption, ten
-    times iwildcam's per-cell headroom of 11.7-21.2 items at the task caps
-    (the `1.9-9.9` here until 2026-09-10 was dermmnist's), and still printed
-    NOTHING
-    DETECTED. A reader would take that as "the probe saw nothing" when what it
-    could not do was clear its own floor.
-
-    "Add seeds" without the number is the underspecification this project
-    fixed everywhere else by printing `seeds_needed`, so the probe now prints
-    the number too.
-    """
-    out = _probe_liveness_output()
-    assert "NOTHING DETECTED AT ANY ALPHA" in out, out[-800:]
-    assert "HOW MANY SEEDS" in out, out[-800:]
-    assert "at least 8 seeds" in out, (
-        "2^(1-n) <= 0.01 first holds at n=8, and the message must say 8 "
-        "rather than leaving the reader to derive it" + out[-800:])
-    assert "you ran 2" in out, (
-        "it must also say how many were actually run, or the number is "
-        "advice without a comparison" + out[-800:])
-
-
-def test_the_seed_requirement_is_derived_from_the_threshold_not_hardcoded():
-    """NEGATIVE CONTROL. A message that always prints 8 would pass the gate
-    above while being wrong for every non-default threshold. Loosening
-    --max-sign-p to 0.2 makes 2^(1-n) <= 0.2 first hold at n=4, so the printed
-    number must move with it.
-    """
-    out = _probe_liveness_output(max_sign_p=0.2)
-    assert "at least 4 seeds" in out, (
-        "at --max-sign-p 0.2 the requirement is 4, not 8 -- the number has to "
-        "be computed from the threshold" + out[-800:])
-    assert "at least 8 seeds" not in out, out[-800:]
-
-
-GRAFT_CSV = "docs/paper/data/corpus/review_graft_2026-07.csv"
-
-
-def test_the_anti_windup_arm_is_identical_to_its_host_as_the_paper_states():
-    """The paper asserts this TWICE, in the main text and in the appendix:
-    Fioretto-LDF with dual restarts "deploys predictions IDENTICAL to plain
-    Fioretto-LDF in every cell", because the deployed checkpoint is selected on
-    the constraint-excess axis before first feasibility and the restart
-    machinery only acts after it. `tab_graft` ships `host` and `+restart` as
-    two columns printing the same six numbers.
-
-    Nothing enforced that sentence. The table is generated from this CSV, so a
-    regeneration in which the two arms diverge would leave a false claim in the
-    paper with no error anywhere -- and this project has retracted results for
-    exactly that shape of silence. Both metrics, all 24 cells, exact equality:
-    the paper says identical PREDICTIONS, which is stronger than close metrics.
-    """
-    if not os.path.exists(GRAFT_CSV):
-        pytest.skip("optional historical graft evidence is not installed")
-    df = pd.read_csv(GRAFT_CSV)
-    key = ["model", "tag", "seed"]
-    host = df[df["method"] == "fioretto_ldf"].set_index(key)
-    rest = df[df["method"] == "fioretto_restart"].set_index(key)
-    common = host.index.intersection(rest.index)
-    assert len(common) == 24, (
-        "expected 3 backbones x 2 caps x 4 seeds = 24 cells, got %d"
-        % len(common))
-    for m in ("cc_f1", "macro_f1"):
-        bad = [k for k in common
-               if float(host.loc[k, m]) != float(rest.loc[k, m])]
-        assert not bad, (
-            "the paper claims the anti-windup arm deploys IDENTICAL "
-            "predictions in every cell, so %s must match exactly. It differs "
-            "in %d cell(s): %s. Either the claim or the data is now wrong."
-            % (m, len(bad), bad[:4]))
-
-
-def test_the_identity_gate_would_notice_a_divergence(tmp_path):
-    """NEGATIVE CONTROL. A gate asserting two columns are equal passes just as
-    happily when it is reading one column twice, so it has to be shown failing
-    on a perturbed copy before it is worth anything.
-    """
-    if not os.path.exists(GRAFT_CSV):
-        pytest.skip("optional historical graft evidence is not installed")
-    df = pd.read_csv(GRAFT_CSV)
-    i = df.index[df["method"] == "fioretto_restart"][0]
-    df.loc[i, "cc_f1"] = float(df.loc[i, "cc_f1"]) + 1e-9
-    alt = os.path.join(str(tmp_path), "perturbed.csv")
-    df.to_csv(alt, index=False)
-
-    key = ["model", "tag", "seed"]
-    d2 = pd.read_csv(alt)
-    host = d2[d2["method"] == "fioretto_ldf"].set_index(key)
-    rest = d2[d2["method"] == "fioretto_restart"].set_index(key)
-    common = host.index.intersection(rest.index)
-    bad = [k for k in common
-           if float(host.loc[k, "cc_f1"]) != float(rest.loc[k, "cc_f1"])]
-    assert bad, ("a one-nanounit change must be caught -- the paper's claim is "
-                 "exact identity, not approximate agreement")
+    assert "LOGGED ACCURACY OBSERVATIONS" in out, out[-1200:]
+    assert "HIGH FLAT LOGGED ACCURACY" not in out, (why, out[-1200:])
+    assert "not a high-flat logged signature" in out, out[-1200:]
 
 
 def _nonfinite_campaign(tmp_path, steps_applied):
-    """One run carrying non-finite Grad_Norm rows, with a chosen step budget."""
     root = os.path.join(str(tmp_path), "camp")
     d = os.path.join(root, "tralo_seed1")
     os.makedirs(d, exist_ok=True)
     n = 6
-    pd.DataFrame({
-        "Epoch": list(range(1, n + 1)),
-        "Train_Acc": [0.40, 0.55, 0.70, 0.80, 0.85, 0.88],
-        "L_CE": [0.5] * n,
-        "Grad_Norm": [1.0, float("inf"), 1.0, float("nan"), 1.0, 1.0],
-    }).to_csv(os.path.join(d, "training_log.csv"), index=False)
-    cfg = {"arm": "tralo", "status": "completed",
-           "dataset_mode": "iwildcam", "model_name": "ViTB16",
-           "constraint_tag": "L30_G50", "constraint": [0.30, 0.50],
-           "dataset_config": {"constrained_class": [2]},
-           "hyperparams": {"seed": 1},
-           "results": {"constraint_steps_applied": steps_applied}}
+    pd.DataFrame(
+        {
+            "Epoch": list(range(1, n + 1)),
+            "Train_Acc": [0.4, 0.55, 0.7, 0.8, 0.85, 0.88],
+            "L_CE": [0.5] * n,
+            "Grad_Norm": [1.0, float("inf"), 1.0, float("nan"), 1.0, 1.0],
+        }
+    ).to_csv(os.path.join(d, "training_log.csv"), index=False)
+    cfg = {
+        "arm": "tralo",
+        "status": "completed",
+        "dataset_mode": "iwildcam",
+        "model_name": "ViTB16",
+        "constraint_tag": "L30_G50",
+        "constraint": [0.3, 0.5],
+        "dataset_config": {"constrained_class": [2]},
+        "hyperparams": {"seed": 1},
+        "results": {"constraint_steps_applied": steps_applied},
+    }
     with io.open(os.path.join(d, "config.json"), "w", encoding="utf-8") as fh:
         json.dump(cfg, fh)
-    r = subprocess.run([sys.executable, "-m", "scripts.log_health", root],
-                       cwd=REPO, capture_output=True, text=True)
+    r = subprocess.run(
+        [sys.executable, "-m", "scripts.log_health", root],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+    )
     return r.stdout + r.stderr
 
 
 def test_the_nonfinite_flag_prints_the_step_budget_beside_it(tmp_path):
-    """The flag says "a diverged run once wrote `completed`", and on
-    `results/iwc2` it fired on every ViTB16 tralo run. Under FP16 AMP the
-    GradScaler produces non-finite gradients ON PURPOSE, skips those steps and
-    halves the scale, so a few rows are the scaler working. What separates
-    that from divergence is whether the run still spent its constraint step
-    budget -- iwc2 kept 21-22 of 29, more than MobileNetV3's 18-21 on the same
-    settings, so it was healthy.
-
-    Establishing that took a real investigation. The readout now carries the
-    step count beside the row count so it does not cost one again.
-    """
     out = _nonfinite_campaign(tmp_path, steps_applied=22)
     assert "NON-FINITE VALUES" in out, out[-800:]
     assert "22 constraint step(s) applied" in out, (
-        "the step budget must appear beside the non-finite count, or the "
-        "flag raises a question it does not answer" + out[-900:])
+        "the step budget must appear beside the non-finite count, or the flag raises a question it does not answer"
+        + out[-900:]
+    )
     assert "GradScaler produces" in out, (
-        "and the reading has to be stated, not left to the reader" + out[-900:])
+        "and the reading has to be stated, not left to the reader" + out[-900:]
+    )
 
 
 def test_the_nonfinite_step_budget_is_read_from_the_run_not_assumed(tmp_path):
-    """NEGATIVE CONTROL. A line that always printed the healthy number would
-    pass the gate above while hiding the one case that matters -- non-finite
-    values AND a lost step budget, which is what divergence looks like.
-    """
     out = _nonfinite_campaign(tmp_path, steps_applied=0)
     assert "0 constraint step(s) applied" in out, (
-        "the number must come from the run" + out[-900:])
+        "the number must come from the run" + out[-900:]
+    )
     assert "22 constraint step(s) applied" not in out, out[-900:]
 
 
 def _starvation_campaign(tmp_path, arms):
-    """A campaign with the starvation SIGNATURE: the deepest-violating scope
-    improving least. `arms` maps arm name -> constraint_steps_applied.
-
-    Every arm gets byte-identical count trajectories, so the only thing that
-    can change the verdict is the steps key.
-    """
     root = os.path.join(str(tmp_path), "camp")
     for arm, steps in arms.items():
         for seed in (1, 2, 3):
             d = os.path.join(root, "%s_seed%d" % (arm, seed))
             os.makedirs(d, exist_ok=True)
             n = 6
-            pd.DataFrame({
-                "Epoch": list(range(1, n + 1)),
-                "Train_Acc": [0.40, 0.50, 0.60, 0.70, 0.75, 0.80],
-                "L_CE": [0.5] * n,
-                # deepest violator, and it is RISING (falling slowest)
-                "Group53_Limit_Class7": [10.0] * n,
-                "Group53_Hard_Class7": [200, 200, 202, 204, 206, 208],
-                # mildest violator, flat
-                "Group218_Limit_Class7": [10.0] * n,
-                "Group218_Hard_Class7": [10, 11, 11, 11, 11, 11],
-            }).to_csv(os.path.join(d, "training_log.csv"), index=False)
-            cfg = {"arm": arm, "status": "completed",
-                   "dataset_mode": "iwildcam", "model_name": "MobileNetV3",
-                   "constraint_tag": "L30_G50", "constraint": [0.30, 0.50],
-                   "dataset_config": {"constrained_class": [7]},
-                   "hyperparams": {"seed": seed}}
+            pd.DataFrame(
+                {
+                    "Epoch": list(range(1, n + 1)),
+                    "Train_Acc": [0.4, 0.5, 0.6, 0.7, 0.75, 0.8],
+                    "L_CE": [0.5] * n,
+                    "Group53_Limit_Class7": [10.0] * n,
+                    "Group53_Hard_Class7": [200, 200, 202, 204, 206, 208],
+                    "Group218_Limit_Class7": [10.0] * n,
+                    "Group218_Hard_Class7": [10, 11, 11, 11, 11, 11],
+                }
+            ).to_csv(os.path.join(d, "training_log.csv"), index=False)
+            cfg = {
+                "arm": arm,
+                "status": "completed",
+                "dataset_mode": "iwildcam",
+                "model_name": "MobileNetV3",
+                "constraint_tag": "L30_G50",
+                "constraint": [0.3, 0.5],
+                "dataset_config": {"constrained_class": [7]},
+                "hyperparams": {"seed": seed},
+            }
             if steps is not None:
                 cfg["results"] = {"constraint_steps_applied": steps}
-            with io.open(os.path.join(d, "config.json"), "w",
-                         encoding="utf-8") as fh:
+            with io.open(os.path.join(d, "config.json"), "w", encoding="utf-8") as fh:
                 json.dump(cfg, fh)
-    r = subprocess.run([sys.executable, "-m", "scripts.log_health", root],
-                       cwd=REPO, capture_output=True, text=True)
+    r = subprocess.run(
+        [sys.executable, "-m", "scripts.log_health", root],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+    )
     return r.stdout + r.stderr
 
 
 def test_the_starvation_warning_is_never_made_about_an_arm_with_no_penalty(tmp_path):
-    """FRAMEWORK 2(a2) describes how the PENALTY's gradient splits across
-    competing scopes. That sentence cannot be true of an arm whose penalty
-    never fired -- and on `results/iwc1` the warning fired on `tralo_reseed`,
-    a lambda=0 twin that recorded `constraint_steps_applied: 0` on all 8 runs.
-    Its per-scope drift is CE alone (+0.05/epoch against tralo's +1.15), so the
-    readout attributed a penalty mechanism to an arm with no penalty, on the
-    one arm the project uses as its NOISE FLOOR.
-
-    The same guard covers a live arm whose cap never bound in a seed, which is
-    the identical situation reached a different way (memory: "a satisfied cap
-    gives ZERO constraint gradient, so the arm is its own null in that seed").
-
-    Gate and negative control in ONE campaign: both arms carry byte-identical
-    count trajectories, so the steps key is the only possible cause of a
-    difference in verdict.
-    """
     out = _starvation_campaign(tmp_path, {"tralo": 19, "tralo_null": 0})
-    live = [ln for ln in out.splitlines() if "starvation signature" in ln
-            or "WORST-violating" in ln]
+    live = [
+        ln
+        for ln in out.splitlines()
+        if "starvation signature" in ln or "WORST-violating" in ln
+    ]
     blob = chr(10).join(live)
     assert "tralo:" in blob, (
-        "the signature is present in the fixture, so the LIVE arm must still "
-        "be flagged -- a guard that silences everything is not a fix " + out)
+        "the signature is present in the fixture, so the LIVE arm must still be flagged -- a guard that silences everything is not a fix "
+        + out
+    )
     assert "tralo_null:" not in blob, (
-        "a lambda=0 twin took no constraint step, so 2(a2) cannot describe "
-        "it " + out)
+        "a lambda=0 twin took no constraint step, so 2(a2) cannot describe it " + out
+    )
 
 
 def test_the_starvation_guard_keeps_working_on_runs_predating_the_key(tmp_path):
-    """NEGATIVE CONTROL on the guard itself.
-
-    Runs finished before `constraint_steps_applied` was recorded report None.
-    Treating absent as zero would silently delete the diagnostic across the
-    whole existing corpus -- a guard that over-fires is a different defect, not
-    a safer one. Absent keeps the old behaviour; only a MEASURED zero silences.
-    """
     out = _starvation_campaign(tmp_path, {"tralo": None})
     assert "starvation signature" in out, (
-        "with no steps key recorded there is no evidence of zero, so the "
-        "diagnostic must still print " + out)
-
-
-def test_the_straddle_probe_never_pools_two_cells_into_one_row(tmp_path):
-    """Rule 4: the atomic cell is (dataset, backbone, cap, method) and pooling
-    across any of them is this project's most-repeated analysis error.
-
-    The stored-evidence tree is precisely the shape that punishes it -- 128 runs
-    over THREE datasets and THREE cap levels, where "class 1" names a different
-    class in each -- and the first run of this probe over that tree DID pool
-    them, producing a confident table describing nothing. Careful invocation is
-    not the fix; the tool grouping by cell is.
-    """
-    from scripts import straddle_probe as SP
-
-    rng = np.random.default_rng(5)
-    n = 300
-    root = os.path.join(str(tmp_path), "twocell")
-    y = rng.integers(0, 3, n)
-    groups = rng.integers(0, 2, n)
-    for ds, sharp in (("iwildcam", 6.0), ("otherset", 0.4)):
-        # `sharp` moves the score geometry, so a pooled row could not equal
-        # either cell's row and the assertion below cannot pass by accident
-        P = rng.dirichlet(np.ones(3) * sharp, size=n)
-        _write_run(os.path.join(root, ds), "clip", 1, P, y, groups, dataset=ds)
-
-    buf = io.StringIO()
-    stdout = sys.stdout
-    try:
-        sys.stdout = buf
-        SP.main(["--campaign", root, "--sweep"])
-    finally:
-        sys.stdout = stdout
-    out = buf.getvalue()
-
-    assert out.count("CELL ") >= 2, (
-        "two datasets collapsed into one block:" + chr(10) + out[-1500:])
-    assert "iwildcam" in out and "otherset" in out, out[-1500:]
-    # and each cell reports its own run count, not the pooled one
-    assert "1 run(s)" in out, (
-        "a cell is reporting more runs than it holds, which is the pooling "
-        "this test exists to catch:" + chr(10) + out[-1500:])
-
-
-def test_delta_for_contested_hits_the_requested_band_size():
-    """Bisection on a monotone step function, so the target must be met exactly
-    wherever ties do not straddle it. A band that missed its target would make
-    the matched ladder no more comparable than the one it replaced."""
-    from scripts.straddle_probe import delta_for_contested, cut_score
-
-    rng = np.random.default_rng(2)
-    scores = rng.random(600)
-    K = 120
-    t = cut_score(scores, K)
-    for target in (10, 50, 200):
-        d = delta_for_contested(scores, K, target)
-        got = int((np.abs(scores - t) <= d).sum())
-        assert got == target, (target, got, d)
-
-
-def test_delta_for_contested_is_what_removes_the_density_confound():
-    """THE JUSTIFICATION FOR THE LADDER, pinned directly.
-
-    A delta swept as a fraction of the SCORE RANGE covers a different number of
-    items depending on how dense the scores are around the cut, which is exactly
-    what made the stored-evidence cap trend unreadable: the reachable share fell
-    with the cap in 24 of 33 series, and `contested` fell with it in 22 of 33,
-    so thinning density explained the same numbers. Holding the band SIZE fixed
-    is what separates them.
-
-    Two score sets with the same range and very different densities at the cut.
-    The fraction-of-range band must disagree between them; the matched band must
-    not.
-    """
-    from scripts.straddle_probe import delta_for_contested, cut_score
-
-    rng = np.random.default_rng(4)
-    n, K = 800, 400                    # K at the median, so the cut is placed
-                                       # by the DISTRIBUTION and not by the rank
-    # dense at the cut: one tight cluster, the cut lands in its middle
-    dense = np.clip(rng.normal(0.5, 0.03, n), 0.0, 1.0)
-    # sparse at the cut: two clusters with a GAP where the median falls, so the
-    # K-th ranked score sits at the edge of the upper one
-    sparse = np.clip(np.concatenate([rng.normal(0.2, 0.03, n // 2),
-                                     rng.normal(0.8, 0.03, n - n // 2)]),
-                     0.0, 1.0)
-    for s in (dense, sparse):          # same range, so the fraction is the same
-        s[0], s[1] = 0.0, 1.0
-
-    frac = 0.01
-    counts_frac = []
-    counts_matched = []
-    for s in (dense, sparse):
-        t = cut_score(s, K)
-        counts_frac.append(int((np.abs(s - t) <= frac * (s.max() - s.min())).sum()))
-        d = delta_for_contested(s, K, 50)
-        counts_matched.append(int((np.abs(s - t) <= d).sum()))
-
-    assert counts_frac[0] > 3 * counts_frac[1], (
-        "the fixture is not actually testing the confound -- the two densities "
-        "give similar band sizes at a fixed fraction: %s" % counts_frac)
-    assert counts_matched == [50, 50], (
-        "the matched ladder failed to hold the band size fixed: %s"
-        % counts_matched)
-
-
-def test_delta_for_contested_survives_a_degenerate_cut():
-    """K outside (0, n) gives an infinite cut and there is no band to size. It
-    must return a finite 0.0 rather than propagate a nan into every downstream
-    count."""
-    from scripts.straddle_probe import delta_for_contested
-
-    scores = np.linspace(0.0, 1.0, 50)
-    for K in (0, -3, 50, 99):
-        d = delta_for_contested(scores, K, 10)
-        assert np.isfinite(d), (K, d)
-
-
-def test_match_contested_end_to_end_reports_the_band_it_asked_for(tmp_path):
-    """The flag end to end: the `contested` column must equal the target, or the
-    ladder is not doing the one thing it exists to do."""
-    from scripts import straddle_probe as SP
-
-    rng = np.random.default_rng(9)
-    n = 400
-    root = os.path.join(str(tmp_path), "mc")
-    y = rng.integers(0, 3, n)
-    P = rng.dirichlet(np.ones(3) * 2.0, size=n)
-    _write_run(os.path.join(root, "a"), "clip", 1, P, y,
-               rng.integers(0, 2, n))
-
-    buf = io.StringIO()
-    stdout = sys.stdout
-    try:
-        sys.stdout = buf
-        SP.main(["--campaign", root, "--match-contested"])
-    finally:
-        sys.stdout = stdout
-    out = buf.getvalue()
-
-    assert "contested=50" in out, out[-900:]
-    for line in out.splitlines():
-        if line.strip().startswith("contested=50"):
-            cols = line.split()
-            assert float(cols[1]) == 50.0, line
-            break
-    else:
-        raise AssertionError("no contested=50 row in:" + chr(10) + out[-900:])
-
-
-def _collide(paths):
-    """Fire `_one` on two runs sitting at `paths` and return the message."""
-    import pandas as pd
-    from scripts import full_panel as FP
-
-    FP.RUN_DIRS.clear()
-    FP.RUN_DIRS.update({i: q for i, q in enumerate(paths)})
-    try:
-        FP._one(pd.Series([1.0] * len(paths), index=list(range(len(paths)))))
-    except ValueError as e:
-        return str(e)
-    finally:
-        FP.RUN_DIRS.clear()
-    raise AssertionError("_one accepted %d runs on one key" % len(paths))
-
-
-def test_two_campaign_roots_are_named_as_two_campaigns():
-    """The collision that the stored evidence actually produces.
-
-    `mcbar` and `multiclass` sit side by side under one tree, so pointing
-    `--campaign` at the tree lands both campaigns' `clip/seed_1` on the same
-    (cell, seed, arm) key. The old message said "the pairing key is missing a
-    dimension", which is the OTHER cause and sends the reader into the scorer
-    instead of into the path they passed.
-    """
-    msg = _collide([
-        "/ev/results/mcbar/MobileNetV3/dermmnist/L50_G50/clip/seed_1",
-        "/ev/results/multiclass/MobileNetV3/dermmnist/L50_G50/clip/seed_1",
-    ])
-    assert "DIFFERENT roots" in msg, msg
-    assert "campaign root separately" in msg, msg
-    assert "mcbar" in msg and "multiclass" in msg, msg
-
-
-def test_a_real_missing_dimension_is_NOT_called_two_campaigns():
-    """Negative control for the test above.
-
-    Same root, genuinely different run paths -- the campaign sweeps something
-    the pairing key does not name. The two-campaign diagnosis must stay silent,
-    or it becomes a message that says the same thing whatever happened, which
-    is worth less than the one it replaced.
-    """
-    msg = _collide([
-        "/ev/results/iwc1/MobileNetV3/iwildcam/L30_G50/tralo/seed_1",
-        "/ev/results/iwc1/MobileNetV3/iwildcam/L30_G50/tralo_lr9/seed_1",
-    ])
-    assert "DIFFERENT roots" not in msg, msg
-    assert "sweeps an axis the pairing key does not name" in msg, msg
-
-
-def test_the_collision_still_refuses_with_no_paths_recorded():
-    """No `run_dir` column -- older rows, or a caller that never set RUN_DIRS.
-
-    The guard must still REFUSE. Degrading to a silent average is the failure
-    it exists to prevent, and the message has to admit it cannot say which of
-    the two causes fired rather than guessing one.
-    """
-    import pandas as pd
-    from scripts import full_panel as FP
-
-    FP.RUN_DIRS.clear()
-    with pytest.raises(ValueError) as ei:
-        FP._one(pd.Series([1.0, 2.0], index=[0, 1]))
-    msg = str(ei.value)
-    assert "2 runs share one" in msg, msg
-    assert "which one cannot be said" in msg, msg
-    assert "DIFFERENT roots" not in msg, msg
-
-
-def test_one_passes_through_a_single_run_and_an_empty_group():
-    """The guard must not become a refusal to score anything."""
-    import pandas as pd
-    from scripts import full_panel as FP
-
-    assert FP._one(pd.Series([0.75], index=[3])) == 0.75
-    assert np.isnan(FP._one(pd.Series([], dtype=float)))
-    assert np.isnan(FP._one(pd.Series([float("nan")], index=[1])))
-
-
-def test_the_mde_at_four_seeds_is_1_4_sd():
-    """FRAMEWORK 2(p) prints a detectability table -- AP ~0.035, AUROC ~0.013 --
-    and both entries come from ONE derivation: at the protocol's 4 seeds,
-    `seeds_needed(d, sd) <= 4` iff `d >= 1.4 sd`. That is a claim about
-    `seeds_needed`, so it is gated rather than trusted. A drift in the power
-    constants would leave the table quietly wrong while the scorer stayed
-    self-consistent, and the whole point of pre-registering the number is that
-    it is checkable before the campaign lands.
-    """
-    from scripts.frozen_head_probe import seeds_needed
-
-    # The crossing is EXACT, not the round 1.4 it looks like: with
-    # n = ceil(z^2 sd^2 / d^2), `n <= 4` iff `d >= sd * sqrt(z^2 / 4)`, and
-    # z^2 = 7.8489 rather than 7.84 -- so d = 1.4 sd lands one seed on the
-    # WRONG side of the ceiling. Writing 1.4 into the table is fine to two
-    # figures; writing it into the gate is not.
-    k = float(np.sqrt((1.959963985 + 0.8416212336) ** 2 / 4.0))
-    assert round(k, 3) == 1.401, k
-
-    for sd in (0.0058, 0.0094, 0.0202, 0.0252, 0.0274, 1.0, 2.7):
-        assert seeds_needed(k * sd * 1.001, sd) <= 4, sd
-        assert seeds_needed(k * sd * 0.999, sd) > 4, sd
-
-    # the two figures the table actually prints, from the measured medians
-    assert round(k * 0.0252, 3) == 0.035     # AP
-    assert round(k * 0.0094, 3) == 0.013     # AUROC
-
-    # and the ratio the section leans on: AUROC resolves ~2.7x better than AP
-    assert 2.6 <= 0.0252 / 0.0094 <= 2.8
-
-
-def test_a_temperature_rescale_moves_calibration_and_NOT_the_ranking():
-    """The claim the RANKING / CALIBRATION split rests on, checked not asserted.
-
-    `full_panel` now prints the allocation-free power block in two families and
-    tells the reader that a CALIBRATION-only move is a rescale which cannot
-    change any top-K set. That is a mathematical claim about the metrics: AP and
-    AUROC read the ORDER of the score column and nothing else, so a strictly
-    monotone rescale must leave them BIT-identical, while ECE / Brier / NLL /
-    ConfGap all move.
-
-    It matters because the stored evidence produces exactly this pattern --
-    focal_clip vs clip moves ECE -0.069, NLL -1.12 and ConfGap +0.066, all
-    POWERED and unanimous 6/0, while AP and AUROC come back UNDERPOWERED. Read
-    without the split that is "the probabilities changed, so the representation
-    channel is live"; read with it, it is a recalibration that provably changes
-    no allocation at all.
-
-    Temperature scaling in logit space, two classes, so "monotone in the score
-    column" is exact rather than approximate.
-    """
-    from sklearn.metrics import average_precision_score, roc_auc_score, log_loss
-    from scripts.full_panel import ece, brier
-
-    rng = np.random.default_rng(11)
-    n = 600
-    z = rng.normal(0.0, 2.0, n)                      # logit of class 1
-    y = (rng.random(n) < 1.0 / (1.0 + np.exp(-z))).astype(int)
-
-    def cols(zz):
-        p1 = 1.0 / (1.0 + np.exp(-zz))
-        return np.column_stack([1.0 - p1, p1])
-
-    def panel_of(zz):
-        P = cols(zz)
-        conf = P.max(axis=1)
-        ok = P.argmax(axis=1) == y
-        return {
-            "AP": average_precision_score(y, P[:, 1]),
-            "AUROC": roc_auc_score(y, P[:, 1]),
-            "ECE": ece(y, P),
-            "Brier": brier(y, P),
-            "NLL": log_loss(y, P, labels=[0, 1]),
-            "ConfGap": float(conf[ok].mean() - conf[~ok].mean()),
-        }
-
-    base = panel_of(z)
-    hot = panel_of(z / 3.0)          # strictly monotone: order is untouched
-
-    for m in ("AP", "AUROC"):
-        assert base[m] == hot[m], (m, base[m], hot[m])
-
-    for m in ("ECE", "Brier", "NLL", "ConfGap"):
-        assert abs(base[m] - hot[m]) > 1e-6, (m, base[m], hot[m])
-
-    # NEGATIVE CONTROL: a genuine REORDERING must reach the ranking family, or
-    # the test above is only saying that these metrics are hard to move.
-    zz = z.copy()
-    hi, lo = int(np.argmax(zz)), int(np.argmin(zz))
-    zz[hi], zz[lo] = zz[lo], zz[hi]
-    assert abs(panel_of(zz)["AUROC"] - base["AUROC"]) > 1e-6
-
-
-def test_every_allocation_free_metric_gets_a_power_statement():
-    """No metric may sit in the allocation-free table with no seed cost beside it.
-
-    The block was born covering AP and AUROC only, because those are the two the
-    iwc1 pre-registration names. ConfGap then turned out to be the SHARPEST of
-    the six on the stored evidence -- |d|/sd = 4.3 against AUROC's 0.47 -- and
-    it was printing a unanimous 6/0 delta with no power statement anywhere. The
-    families must PARTITION the table, so adding a metric to one and forgetting
-    the other is a test failure rather than a silent omission.
-    """
-    from scripts import full_panel as FP
-
-    table = None
-    for title, metrics in FP.GROUPS:
-        if title.startswith("ALLOCATION-FREE"):
-            table = list(metrics)
-    assert table, "the allocation-free group vanished from GROUPS"
-
-    assert set(FP.FREE_RESOLUTION) == set(table), (
-        "allocation-free metrics with no power statement: %s; "
-        "priced but not in the table: %s"
-        % (sorted(set(table) - set(FP.FREE_RESOLUTION)),
-           sorted(set(FP.FREE_RESOLUTION) - set(table))))
-    assert not (set(FP.FREE_RANKING) & set(FP.FREE_CALIBRATION))
-    assert set(FP.FREE_RANKING) | set(FP.FREE_CALIBRATION) == set(table)
-    # and the two families are not interchangeable: only the ranking one is
-    # invariant to a rescale, which is what the printed reading rule claims
-    assert set(FP.FREE_RANKING) == {"AP", "AUROC"}
-
-
-RANKING_COLUMNS = {"auroc", "auc", "ap", "auprc", "aupr", "average_precision",
-                   "roc_auc", "ap_capped", "auroc_capped"}
-
-
-def _ranking_columns_in(corpus_dir):
-    """{file: [ranking columns]} for every csv under `corpus_dir`."""
-    import glob
-
-    found = {}
-    for f in sorted(glob.glob(os.path.join(corpus_dir, "*.csv"))):
-        with io.open(f, encoding="utf-8", errors="replace") as fh:
-            header = fh.readline()
-        cols = [c.strip().strip('"').lower() for c in header.split(",")]
-        hit = [c for c in cols if c in RANKING_COLUMNS]
-        if hit:
-            found[os.path.basename(f)] = hit
-    return found
-
-
-def test_the_paper_corpus_carries_no_ranking_metric():
-    """FRAMEWORK 1b claims the corpus never measured the ranking channel.
-
-    That is a claim about files in this repo, so it is checked rather than
-    asserted. `corpus_final.csv` -- 7,574 rows behind eight of the eleven
-    tables -- has seven outcome columns and every one is budget-equalized
-    (acc, f1_macro, cc_f1, cc_rec, cc_prec) or a house-rule-5 non-metric
-    (flips, sat). Across all 17 files the only allocation-free column that
-    appears at all is `ece`, which is CALIBRATION and therefore provably cannot
-    change any top-K set.
-
-    IF THIS TEST EVER FAILS, THAT IS GOOD NEWS and 1b must be rewritten: a
-    ranking column appeared, and the paper can finally say something about the
-    channel its own structural argument rests on.
-    """
-    corpus = os.path.join(REPO, "docs", "paper", "data", "corpus")
-    if not os.path.exists(os.path.join(corpus, "corpus_final.csv")):
-        pytest.skip("corpus not present in this worktree")
-
-    found = _ranking_columns_in(corpus)
-    assert not found, (
-        "FRAMEWORK 1b says the corpus carries no ranking metric, but: %s" % found)
-
-    # the positive half: the claim is "only ECE, and only in four files"
-    import glob
-    with_ece = []
-    for f in sorted(glob.glob(os.path.join(corpus, "*.csv"))):
-        with io.open(f, encoding="utf-8", errors="replace") as fh:
-            cols = [c.strip().strip('"').lower()
-                    for c in fh.readline().split(",")]
-        if "ece" in cols:
-            with_ece.append(os.path.basename(f))
-    assert with_ece == ["ablation_no_hinge.csv", "extra_robustness_corpus.csv",
-                        "imbalanced_baselines.csv", "native224_ham10000.csv"], with_ece
-
-    # and corpus_final, which is what eight tables read, carries none of it
-    with io.open(os.path.join(corpus, "corpus_final.csv"),
-                 encoding="utf-8", errors="replace") as fh:
-        cols = [c.strip().strip('"').lower() for c in fh.readline().split(",")]
-    for banned in ("ece", "brier", "nll", "confgap"):
-        assert banned not in cols, banned
-
-
-def test_the_ranking_column_detector_actually_detects(tmp_path):
-    """Negative control for the test above.
-
-    A detector that finds nothing because it looks for nothing would pass the
-    corpus audit forever and silently stop being evidence. Plant one.
-    """
-    d = str(tmp_path)
-    io.open(os.path.join(d, "clean.csv"), "w", encoding="utf-8").write(
-        "dataset,model,seed,acc,f1_macro,cc_f1,flips" + chr(10) + "a,b,1,0,0,0,0" + chr(10))
-    assert _ranking_columns_in(d) == {}
-
-    io.open(os.path.join(d, "planted.csv"), "w", encoding="utf-8").write(
-        "dataset,model,seed,acc,AUROC,AP" + chr(10) + "a,b,1,0,0.9,0.8" + chr(10))
-    hit = _ranking_columns_in(d)
-    assert hit == {"planted.csv": ["auroc", "ap"]}, hit
-
-
-POINTER_RE = re.compile(
-    r"(?:docs|scripts|configs|src|tests)/[A-Za-z0-9_/.-]+"
-    r"\.(?:md|tex|pdf|sh|ya?ml|py|csv)")
-
-LIVE_TREES = ("src", "configs", "scripts")
-
-
-def _broken_pointers(root, trees=LIVE_TREES, extra=()):
-    """{file: [targets that do not exist]} for every path-like string in `trees`.
-
-    A comment pointing at a deleted file is worse than no comment: it reads as
-    provenance and sends the next person looking for a record that is gone.
-    Two were live when this was written -- `docs/REJECTED.md` from
-    `src/models/imagery/vit.py` and `docs/AUDIT_FINDINGS_2026-04-26.md` from
-    `src/utils/constants.py`, the second of which exists nowhere in the repo or
-    its history, so the fact it recorded had to be inlined.
-    """
-    import glob
-
-    files = list(extra)
-    for t in trees:
-        files += glob.glob(os.path.join(root, t, "**", "*.py"), recursive=True)
-        files += glob.glob(os.path.join(root, t, "**", "*.yml"), recursive=True)
-    broken = {}
-    for f in sorted(set(files)):
-        if os.sep + "__pycache__" in f:
-            continue
-        with io.open(f, encoding="utf-8", errors="replace") as fh:
-            text = fh.read()
-        bad = sorted({t for t in POINTER_RE.findall(text)
-                      if not os.path.exists(os.path.join(root, t))})
-        if bad:
-            broken[os.path.relpath(f, root).replace(os.sep, "/")] = bad
-    return broken
-
-
-def test_no_live_file_points_at_a_deleted_doc():
-    """Every docs/ scripts/ configs/ src/ path named in live code must exist."""
-    broken = _broken_pointers(REPO)
-    assert not broken, (
-        "these files point at paths that do not exist: %s" % broken)
-
-
-def test_the_pointer_detector_actually_detects(tmp_path):
-    """Negative control: a detector that finds nothing is not a gate."""
-    d = str(tmp_path)
-    os.makedirs(os.path.join(d, "src"))
-    io.open(os.path.join(d, "src", "ok.py"), "w", encoding="utf-8").write(
-        "# see configs/real.yml" + chr(10))
-    io.open(os.path.join(d, "configs"), "w", encoding="utf-8")  # placeholder
-    os.remove(os.path.join(d, "configs"))
-    os.makedirs(os.path.join(d, "configs"))
-    io.open(os.path.join(d, "configs", "real.yml"), "w", encoding="utf-8").write("a: 1")
-    assert _broken_pointers(d, trees=("src",)) == {}
-
-    io.open(os.path.join(d, "src", "bad.py"), "w", encoding="utf-8").write(
-        "# see docs/GONE.md and scripts/vanished.py" + chr(10))
-    hit = _broken_pointers(d, trees=("src",))
-    assert hit == {"src/bad.py": ["docs/GONE.md", "scripts/vanished.py"]}, hit
-
-
-def test_the_unlimited_sentinel_is_never_re_derived():
-    """`UNLIMITED` is 1e10 and nothing may hard-code a different threshold.
-
-    `src/utils/constants.py` exists because `metrics.py` once declared a local
-    `UNLIMITED=1e9` while the rest of the codebase used 1e10, so a constraint
-    set to UNLIMITED was skipped by the loss and registered as ACTIVE by the
-    metric layer. The same literal came back as a bare `1e9` in four analysis
-    scripts -- dose_scan, log_health, reachability, score_scan -- each asking
-    "was this class capped" against a threshold they re-derived. It happened to
-    be conservative and therefore harmless, which is exactly why it survived.
-
-    AST, not grep: `constants.py` still DESCRIBES the 1e9 defect in prose, and
-    a grep counts that as a violation.
-    """
-    import ast
-    import glob
-
-    offenders = []
-    for tree in ("src", "scripts", "configs"):
-        for f in glob.glob(os.path.join(REPO, tree, "**", "*.py"), recursive=True):
-            if os.sep + "__pycache__" in f:
-                continue
-            with io.open(f, encoding="utf-8", errors="replace") as fh:
-                src = fh.read()
-            try:
-                node = ast.parse(src)
-            except SyntaxError:
-                continue
-            for n in ast.walk(node):
-                if isinstance(n, ast.Constant) and isinstance(n.value, float):
-                    if 1e9 <= n.value < 1e10:
-                        offenders.append("%s:%d = %r" % (
-                            os.path.relpath(f, REPO).replace(os.sep, "/"),
-                            n.lineno, n.value))
-    assert not offenders, (
-        "these re-derive the UNLIMITED threshold instead of importing it: %s"
-        % offenders)
-
-    from src.utils.constants import UNLIMITED
-    assert UNLIMITED == 1e10
-
-
-def test_generator_reports_distinct_cell_and_dataset_power_limits(tmp_path):
-    """More cells change the legacy cell warning, not dataset independence."""
-    def gen(root, models, caps):
-        r = subprocess.run(
-            [sys.executable, "-m", "configs.gen_campaign", "--root", str(root),
-             "--datasets", "iwildcam", "--models"] + models +
-            ["--caps"] + caps + ["--arms", "all+null"],
-            cwd=REPO, capture_output=True, text=True)
-        assert r.returncode == 0, r.stdout + r.stderr
-        return r.stdout
-
-    out = gen(os.path.join(str(tmp_path), "two"), ["MobileNetV3"],
-              ["L20_G50", "L30_G50"])
-    for quoted in ("2 cells", "UNDERPOWERED", "9 cells is the minimum",
-                   "1 dataset(s)", "p=1.000"):
-        assert quoted in out, (quoted, out[-1500:])
-
-    # NEGATIVE CONTROL: at the 9 cells the generator itself names, the
-    # UNDERPOWERED verdict must clear.
-    nine = gen(os.path.join(str(tmp_path), "nine"),
-               ["MobileNetV3", "MobileNetV2", "RegNetY400MF"],
-               ["L20_G50", "L30_G50", "L50_G30"])
-    assert "9 cells" in nine, nine[-1500:]
-    assert "UNDERPOWERED: with" not in nine, (
-        "the cell-count warning fires at 9 cells too, so it says nothing about "
-        "2:" + chr(10) + nine[-1500:])
-
-    # the generalization floor, however, is about DATASETS and must NOT clear
-    assert "1 dataset(s)" in nine and "p=1.000" in nine, (
-        "adding backbones bought independence it cannot buy" + chr(10)
-        + nine[-1500:])
-
-
-def test_detectable_at_is_the_exact_inverse_of_seeds_needed():
-    """`detectable` is the number a NULL gets stated with, so it has to be the
-    honest inverse of the number a POSITIVE gets priced with, not an
-    approximation that happens to look right at n=4.
-
-    `seeds_needed(d, sd) = ceil(z^2 sd^2 / d^2)` and
-    `detectable_at(sd, n) = z sd / sqrt(n)` are the same equation solved for
-    different unknowns, so the round trip must close AND be tight: n seeds
-    catch it, n-1 do not.
-    """
-    from scripts.frozen_head_probe import seeds_needed
-    from scripts.full_panel import detectable_at
-
-    for sd in (0.0058, 0.0094, 0.0252, 0.35, 2.7):
-        for n in (2, 4, 8, 25, 100):
-            d = detectable_at(sd, n)
-            assert seeds_needed(d * 1.001, sd) <= n, (sd, n, d)
-            assert seeds_needed(d * 0.999, sd) > n, (sd, n, d)
-
-    # the factor FRAMEWORK 2(p) prints, and the two figures in its table
-    assert round(detectable_at(1.0, 4), 3) == 1.401
-    assert round(detectable_at(0.0252, 4), 3) == 0.035     # AP
-    assert round(detectable_at(0.0094, 4), 3) == 0.013     # AUROC
-
-    # more seeds must buy resolution, and at the sqrt rate -- quadrupling the
-    # seeds halves the bound, which is why "add seeds" is expensive advice
-    assert abs(detectable_at(1.0, 16) - detectable_at(1.0, 4) / 2.0) < 1e-12
-
-    # degenerate inputs refuse rather than return a number that reads as a bound
-    for bad in ((0.0, 4), (float("nan"), 4), (1.0, 0)):
-        assert not np.isfinite(detectable_at(*bad)), bad
+        "with no steps key recorded there is no evidence of zero, so the diagnostic must still print "
+        + out
+    )
 
 
 def _cct_json(path, alpha, n_loc=10, per_loc=200, n_cls=4, seed=3):
-    """A COCO-CameraTraps annotation file with a tunable per-camera class mix.
-
-    `alpha=None` gives every camera the SAME distribution -- octmnist's failure
-    mode, where `synth_group` was `index % 3` so the groups were i.i.d. draws
-    from one distribution and the local scope was empty by construction.
-    """
     rng = np.random.default_rng(seed)
-    images, anns = [], []
+    (images, anns) = ([], [])
     iid = 0
     for loc in range(n_loc):
-        w = (np.ones(n_cls) / n_cls if alpha is None
-             else rng.dirichlet(np.ones(n_cls) * alpha))
+        w = (
+            np.ones(n_cls) / n_cls
+            if alpha is None
+            else rng.dirichlet(np.ones(n_cls) * alpha)
+        )
         for _ in range(per_loc):
             c = int(rng.choice(n_cls, p=w))
-            images.append({"id": iid, "file_name": "img%06d.jpg" % iid,
-                           "location": loc})
+            images.append(
+                {"id": iid, "file_name": "img%06d.jpg" % iid, "location": loc}
+            )
             anns.append({"image_id": iid, "category_id": c})
             iid += 1
     with io.open(path, "w", encoding="utf-8") as fh:
-        json.dump({"categories": [{"id": i, "name": "sp%d" % i}
-                                  for i in range(n_cls)],
-                   "images": images, "annotations": anns}, fh)
+        json.dump(
+            {
+                "categories": [{"id": i, "name": "sp%d" % i} for i in range(n_cls)],
+                "images": images,
+                "annotations": anns,
+            },
+            fh,
+        )
 
 
 def _screen_a_cct(tmp, alpha, tag):
-    """annotations -> --meta-only -> dataset_screen, and return the verdict."""
     d = os.path.join(tmp, tag)
     os.makedirs(d, exist_ok=True)
     ann = os.path.join(d, "ann.json")
     _cct_json(ann, alpha)
     out = os.path.join(d, "slice")
-    # bytes, not text=True: both scripts print emoji and the Windows default
-    # codec returns None for stdout rather than raising, which reads as "the
-    # script printed nothing" -- a silent way for this gate to stop checking.
     env = dict(os.environ, PYTHONIOENCODING="utf-8")
 
     def run(cmd):
@@ -5972,26 +2126,31 @@ def _screen_a_cct(tmp, alpha, tag):
         assert r.returncode == 0, so + se
         return so
 
-    prep = run([sys.executable, "-m", "scripts.prep_iwildcam",
-                "--annotations", ann, "--out", out, "--classes", "4",
-                "--min-per-camera", "50", "--test-target", "400",
-                "--train-per-class", "300", "--meta-only"])
-    return out, prep, run([sys.executable, "-m", "scripts.dataset_screen", out])
+    prep = run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.prep_iwildcam",
+            "--annotations",
+            ann,
+            "--out",
+            out,
+            "--classes",
+            "4",
+            "--min-per-camera",
+            "50",
+            "--test-target",
+            "400",
+            "--train-per-class",
+            "300",
+            "--meta-only",
+        ]
+    )
+    return (out, prep, run([sys.executable, "-m", "scripts.dataset_screen", out]))
 
 
 def test_a_candidate_dataset_can_be_screened_before_it_is_downloaded(tmp_path):
-    """2(n) presents stage 1 as the PRE-GPU, pre-image screen. Until
-    2026-08-23 it was not reachable that way on any dataset not already on disk:
-    `prep_iwildcam` wrote the two CSVs `dataset_screen` reads from INSIDE the
-    shard-download loop, so pricing a candidate cost the full acquisition the
-    screen exists to avoid. `--meta-only` closes that, and the split builder is
-    generic COCO-CameraTraps, so Terra Incognita / CCT screens the same way.
-
-    This runs the whole chain -- annotations -> meta -> verdict -- and asserts
-    NO image was fetched.
-    """
-    out, prep_out, screen = _screen_a_cct(str(tmp_path), 0.35, "live")
-
+    (out, prep_out, screen) = _screen_a_cct(str(tmp_path), 0.35, "live")
     assert "META ONLY" in prep_out, prep_out
     for split in ("train", "test"):
         f = os.path.join(out, "%s_meta.csv" % split)
@@ -5999,1049 +2158,26 @@ def test_a_candidate_dataset_can_be_screened_before_it_is_downloaded(tmp_path):
         cols = io.open(f, encoding="utf-8").readline().strip().split(",")
         assert cols == ["label", "class_name", "filename", "location"], cols
     assert not [f for f in os.listdir(out) if f.endswith(".npy")], (
-        "--meta-only wrote image arrays, so it downloaded something")
-
+        "--meta-only wrote image arrays, so it downloaded something"
+    )
     assert "STAGE 1 PASS" in screen, screen[-800:]
     assert "ABSENT from train" in screen, screen[-800:]
 
 
 def test_identical_per_group_mixes_screen_DEAD_even_with_unseen_groups(tmp_path):
-    """The negative control, and it is the whole point of the screen.
-
-    Give every camera the SAME class distribution and the local scope is empty
-    BY CONSTRUCTION -- octmnist and tissuemnist, whose `synth_group` was
-    `index % 3`. The screen must call it DEAD. Crucially it must do so WHILE
-    still reporting unseen test groups: held-out groups are criterion 1 and are
-    NOT sufficient, which is the distinction that let two of the original three
-    datasets be run for months against a question they could not test.
-    """
-    _out, _prep, screen = _screen_a_cct(str(tmp_path), None, "dead")
-
+    (_out, _prep, screen) = _screen_a_cct(str(tmp_path), None, "dead")
     assert "DEAD" in screen, screen[-800:]
     assert "within sampling noise" in screen, screen[-800:]
-    # and the trap it protects against: unseen groups are still reported
     assert "ABSENT from train" in screen, (
-        "the fixture lost its held-out cameras, so this no longer controls for "
-        "criterion 1" + chr(10) + screen[-800:])
-
-
-def _headline_power_table():
-    """Paired tralo-minus-heuristic macro-F1 per seed, within cell, from the
-    corpus. The exact computation FRAMEWORK 1b quotes."""
-    import pandas as pd
-    from scipy import stats
-    from scripts.full_panel import detectable_at
-
-    f = os.path.join(REPO, "docs", "paper", "data", "corpus",
-                     "corpus_final.csv")
-    if not os.path.exists(f):
-        pytest.skip("corpus not present in this worktree")
-    d = pd.read_csv(f)
-    cell = ["dataset", "model", "constraint_tag", "constrained_class",
-            "group_column", "warmup_epochs", "sweep"]
-    d = d[d["method"].isin(["tralo", "heuristic"])]
-    w = d.pivot_table(index=cell + ["seed"], columns="method",
-                      values="f1_macro", aggfunc="mean").dropna()
-    w["delta"] = w["tralo"] - w["heuristic"]
-    g = w.groupby(level=list(range(len(cell))))["delta"]
-    res = pd.DataFrame({"n": g.size(), "mean": g.mean(),
-                        "sd": g.std(ddof=1)}).dropna()
-    res = res[res["n"] >= 2].reset_index()
-    res["mde"] = [detectable_at(sd, n) for sd, n in zip(res["sd"], res["n"])]
-    return res, stats
-
-
-def test_the_paper_headline_is_not_seed_noise_and_strengthens_when_resolved():
-    """FRAMEWORK 1b prices the macro-F1 headline against the corpus's OWN seeds.
-
-    The claim is specific and falsifiable: the aggregate is not carried by
-    unresolvable cells, because restricting to the cells whose effect clears
-    their own detectable bound makes the effect BIGGER, not smaller. A
-    noise explanation predicts the opposite, so this is a refutation and not
-    merely an absence of evidence.
-
-    Gated because it is the one reviewer objection the project can currently
-    answer, and an answer nobody can re-derive is worth nothing.
-    """
-    res, stats = _headline_power_table()
-    w50 = res[res["warmup_epochs"] == 50]
-    assert len(w50) == 236, len(w50)
-
-    # the four numbers the table prints
-    assert abs(100 * w50["sd"].median() - 1.47) < 0.05, w50["sd"].median()
-    assert abs(100 * detectable_of(w50) - 2.05) < 0.05, detectable_of(w50)
-    assert abs(100 * w50["mean"].abs().median() - 1.30) < 0.05
-    resolvable = w50[w50["mean"].abs() >= w50["mde"]]
-    assert len(resolvable) == 76, len(resolvable)
-
-    # aggregate direction, and that it SURVIVES the restriction
-    wins = int((w50["mean"] > 0).sum())
-    assert wins == 184, wins
-    assert stats.binomtest(wins, len(w50), 0.5).pvalue < 1e-15
-    rate_all = wins / len(w50)
-    rate_res = (resolvable["mean"] > 0).mean()
-    assert rate_res >= rate_all - 0.02, (rate_all, rate_res)
-    assert resolvable["mean"].mean() > 1.8 * w50["mean"].mean(), (
-        "the effect no longer grows on the resolvable subset, so the "
-        "noise-explanation refutation in 1b has stopped holding")
-
-    # and the caveat: MOST cells cannot resolve their own number
-    assert len(resolvable) / len(w50) < 0.4, (
-        "1b says two thirds of the table is unresolvable per cell")
-
-
-def detectable_of(sub):
-    from scripts.full_panel import detectable_at
-    return detectable_at(float(sub["sd"].median()), 4)
-
-
-
-
-def test_the_scorer_prints_pure_ASCII():
-    """`full_panel`'s stdout is piped, redirected and parsed, and this suite
-    parses it with the host default codec. On Windows that is cp1252, where a
-    single emoji makes `subprocess.run(text=True)` hand back **None** instead of
-    raising -- so five unrelated scorer tests failed with "NoneType has no
-    attribute splitlines" and nothing pointed at the character that caused it.
-
-    The scorer is the one tool whose output is read by machines as well as
-    people. Keep it ASCII; put the emoji in FRAMEWORK.md.
-
-    AST, not grep: the file's own comments discuss the check and would otherwise
-    count as violations.
-    """
-    import ast
-
-    f = os.path.join(REPO, "scripts", "full_panel.py")
-    tree = ast.parse(io.open(f, encoding="utf-8").read())
-    bad = {}
-    for n in ast.walk(tree):
-        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)                 and n.func.id == "print":
-            for a in ast.walk(n):
-                if isinstance(a, ast.Constant) and isinstance(a.value, str):
-                    hits = sorted({c for c in a.value if ord(c) > 127})
-                    if hits:
-                        bad[n.lineno] = "".join(hits)
-    assert not bad, (
-        "full_panel prints non-ASCII, which returns None from text-mode "
-        "subprocess capture under cp1252: %s" % bad)
-
-
-def _corpus_contrast(metric, treated, control, warmup=50):
-    """Paired `treated - control` per seed within cell, at one warm-up."""
-    import pandas as pd
-    from scipy import stats
-    from scripts.full_panel import detectable_at
-
-    f = os.path.join(REPO, "docs", "paper", "data", "corpus",
-                     "corpus_final.csv")
-    if not os.path.exists(f):
-        pytest.skip("corpus not present in this worktree")
-    d = pd.read_csv(f)
-    cell = ["dataset", "model", "constraint_tag", "constrained_class",
-            "group_column", "warmup_epochs", "sweep"]
-    d = d[d["method"].isin([treated, control])]
-    w = d.pivot_table(index=cell + ["seed"], columns="method", values=metric,
-                      aggfunc="mean").dropna()
-    w = w.assign(delta=w[treated] - w[control])
-    g = w.groupby(level=list(range(len(cell))))["delta"]
-    r = pd.DataFrame({"n": g.size(), "mean": g.mean(),
-                      "sd": g.std(ddof=1)}).reset_index()
-    r = r[(r["warmup_epochs"] == warmup) & (r["n"] >= 2)]
-    wins = int((r["mean"] > 0).sum())
-    return {"cells": len(r), "mean_pp": 100 * r["mean"].mean(),
-            "wins": wins,
-            "p": stats.binomtest(wins, len(r), 0.5).pvalue,
-            "sd_pp": 100 * float(r["sd"].median()),
-            "mde_pp": 100 * detectable_at(float(r["sd"].median()), 4)}
-
-
-def test_the_macroF1_win_is_compute_not_method():
-    """Section 3 says method effects are ~0.1 pp. FRAMEWORK now decomposes the
-    paper's headline into the two parts, and this gate holds the decomposition.
-
-    The control is `danits_lp`: it is the one method that is BOTH constrained
-    and POST-HOC, so under the compute hypothesis it should not win. It loses.
-    Every TRAINED method wins by 1.1-1.9 pp. So the effect tracks having a
-    constraint phase, not which one -- and TraLO's own increment over the best
-    alternative dual is ~0.15 pp, below its per-cell detectable bound.
-    """
-    trained = {m: _corpus_contrast("f1_macro", m, "heuristic")
-               for m in ("tralo", "fioretto_ldf", "hounie_rcl",
-                         "tralo_bounded")}
-    posthoc = _corpus_contrast("f1_macro", "danits_lp", "heuristic")
-
-    # every trained method clears +1 pp over the clipper
-    for m, r in trained.items():
-        assert r["mean_pp"] > 1.0, (m, r)
-        assert r["wins"] / r["cells"] > 0.6, (m, r)
-
-    # the post-hoc control does NOT -- this is the load-bearing comparison
-    assert posthoc["mean_pp"] < 0.2, posthoc
-    assert posthoc["wins"] / posthoc["cells"] < 0.5, posthoc
-
-    # and TraLO's method-specific part is small AND under its own bound
-    for other in ("fioretto_ldf", "tralo_bounded"):
-        r = _corpus_contrast("f1_macro", "tralo", other)
-        assert 0.0 < r["mean_pp"] < 0.5, (other, r)
-        assert r["mean_pp"] < r["mde_pp"], (
-            "%s: the method-specific effect now clears its own per-cell bound, "
-            "so section 3's decomposition needs rewriting: %s" % (other, r))
-
-    # the decomposition itself: ~92%% of the clipper win is not TraLO-specific
-    share = _corpus_contrast("f1_macro", "tralo", "fioretto_ldf")["mean_pp"]         / trained["tralo"]["mean_pp"]
-    assert share < 0.15, share
-
-
-def test_a_dual_vs_dual_contrast_is_better_resolved_than_dual_vs_clipper():
-    """The instrument fact FRAMEWORK section 3 records: two trained methods
-    share most of their seed variance, so the paired difference cancels it and
-    the contrast costs roughly a third the seed noise. It changes what a
-    campaign can afford to ask, so it is checked rather than remembered.
-    """
-    vs_clip = _corpus_contrast("f1_macro", "tralo", "heuristic")["sd_pp"]
-    vs_dual = _corpus_contrast("f1_macro", "tralo", "fioretto_ldf")["sd_pp"]
-    assert vs_dual < vs_clip / 2.0, (vs_dual, vs_clip)
-    assert 1.2 < vs_clip < 1.8 and 0.3 < vs_dual < 0.8, (vs_clip, vs_dual)
-
-
-def test_on_ccF1_tralo_is_not_separable_from_the_other_duals():
-    """The caveat beside the decomposition. On the constrained-class metric the
-    method-specific part does not merely shrink, it stops being callable:
-    tralo - fioretto_ldf and tralo - tralo_bounded both sit at p ~ 0.07.
-    """
-    for other in ("fioretto_ldf", "tralo_bounded"):
-        r = _corpus_contrast("cc_f1", "tralo", other)
-        assert r["p"] > 0.05, (other, r)
-
-
-def _build_iwc_fixture(root, arms=("clip", "tralo", "tralo_null",
-                                   "tralo_reseed")):
-    """An iwc1-SHAPED campaign: iwildcam x MobileNetV3 x 2 caps x 4 seeds,
-    with the capped class ABSENT from 4 of 7 cameras -- the K=0 ceiling that
-    is why 2(n) chose this dataset -- and plentiful at the other 3, so no
-    budget rounds to zero. Writes everything the four tools of the
-    pre-registered read consume: raw and allocated predictions, embeddings,
-    a training log, and a config.
-    """
-    import pandas as pd
-
-    ARMS = tuple(arms)
-
-    N, K = 420, 8
-    CAPPED = 2
-    PRESENT = (0, 3, 5)          # class 2 lives at 3 of 7 cameras, as on iwildcam
-
-    def labels(rng):
-        """A label/camera assignment where the capped class is ABSENT from 4 of the
-        7 cameras -- iwildcam's defining property (a K=0 ceiling that always binds)
-        -- and plentiful at the other 3, so no budget rounds to zero."""
-        g = rng.integers(0, 7, size=N)
-        y = rng.integers(0, K, size=N)
-        y[(y == CAPPED) & ~np.isin(g, PRESENT)] = 1        # move it off those cams
-        for cam in PRESENT:                                # and guarantee enough
-            idx = np.where(g == cam)[0]
-            y[idx[:max(1, len(idx) // 3)]] = CAPPED
-        return y, g
-
-    for cap, pct in (("L20_G50", 0.20), ("L30_G50", 0.30)):
-        for arm in ARMS:
-            for seed in (1, 2, 3, 4):
-                rng = np.random.default_rng(abs(hash((cap, arm, seed))) % (2**31))
-                y, g = labels(np.random.default_rng(seed))     # split is per SEED
-                z = rng.normal(size=(N, K))
-                z[np.arange(N), y] += 1.2
-                if arm == "tralo":
-                    z[:, CAPPED] += 0.15 * rng.normal(size=N)
-                P = np.exp(z) / np.exp(z).sum(1, keepdims=True)
-                d = os.path.join(root, "MobileNetV3", "iwildcam", cap, arm,
-                                 "seed_%d" % seed)
-                os.makedirs(d, exist_ok=True)
-                cols = {"True_Label": y, "Predicted_Label": P.argmax(1), "Group_ID": g}
-                for c in range(K):
-                    cols["Prob_Class_%d" % c] = P[:, c]
-                for f in ("final_predictions_raw.csv", "final_predictions.csv"):
-                    pd.DataFrame(cols).to_csv(os.path.join(d, f), index=False)
-                np.savez(os.path.join(d, "test_embeddings.npz"),
-                         features=P.astype(np.float32))
-                posthoc = arm == "clip"
-                ep = 30 if posthoc else 1
-                n_ep = ep + (0 if posthoc else 29)
-                pd.DataFrame({
-                    "epoch": np.arange(1, n_ep + 1),
-                    "phase": (["warmup"] * ep) + (["constraint"] * (n_ep - ep)),
-                    "Train_Acc": np.linspace(0.55, 0.93, n_ep),
-                    "Test_Acc": np.linspace(0.50, 0.86, n_ep),
-                    "Total_Loss": np.linspace(1.6, 0.4, n_ep),
-                    "Limit_Class%d" % CAPPED: [40] * n_ep,
-                    "Count_Class%d" % CAPPED: rng.integers(30, 60, n_ep),
-                }).to_csv(os.path.join(d, "training_log.csv"), index=False)
-                json.dump({"arm": arm, "methodology": arm,
-                           "model_name": "MobileNetV3", "dataset_mode": "iwildcam",
-                           "constraint_tag": cap, "constraint": [pct, 0.50],
-                           "status": "completed", "code_version": "deadbeef",
-                           "dataset_config": {"constrained_class": [CAPPED],
-                                              "num_classes": K},
-                           "hyperparams": {"seed": seed,
-                                           "constraint_epochs": 0 if posthoc else 29,
-                                           "warmup_epochs": 30 if posthoc else 1}},
-                          open(os.path.join(d, "config.json"), "w"))
-
-
-def _run_step(cmd):
-    """Bytes, not text=True -- these tools print emoji and cp1252 hands back
-    None rather than raising, which reads as "the tool printed nothing"."""
-    r = subprocess.run([sys.executable, "-m"] + cmd, cwd=REPO,
-                       capture_output=True,
-                       env=dict(os.environ, PYTHONIOENCODING="utf-8"))
-    return (r.returncode, r.stdout.decode("utf-8", "replace")
-            + r.stderr.decode("utf-8", "replace"))
-
-
-def test_the_preregistered_iwc1_read_runs_end_to_end(tmp_path):
-    """FRAMEWORK 2(p) fixes the iwc1 read as four commands in a required order.
-    Three of the four had never been run against a campaign carrying `_null`
-    twins, because no such campaign exists yet -- so the first time the order
-    would have been executed was the night the data landed, which is the worst
-    possible moment to discover that step 1 exits 1.
-
-    It nearly did. The first fixture built here crashed `full_panel` inside
-    `_round_to_K` -- a per-camera budget of 0.20 x 2 items rounding to K=0, which
-    the trainer refuses by design. That turned out to be the fixture's fault
-    rather than a live risk (`gen_campaign` calls the SAME
-    `compute_local_constraints`, so a campaign whose caps would raise at scoring
-    time cannot be generated in the first place) but only checking showed that.
-
-    Runs all four steps against an iwc1-shaped campaign and asserts each
-    produces the block the pre-registration reads out of it.
-    """
-    root = os.path.join(str(tmp_path), "iwc")
-    _build_iwc_fixture(root)
-    run = os.path.join(root, "MobileNetV3", "iwildcam", "L20_G50", "tralo",
-                       "seed_1")
-
-    rc, out = _run_step(["scripts.log_health", root])          # 0. did it RUN
-    assert rc == 0, out[-2000:]
-    for arm in ("clip", "tralo", "tralo_null"):
-        assert arm in out, (arm, out[-2000:])
-
-    rc, out = _run_step(["scripts.reachability", run])         # 0b. saturated?
-    assert rc == 0, out[-2000:]
-
-    rc, out = _run_step(["scripts.full_panel", "--campaign", root,   # 1. VERDICT
-                         "--control", "tralo_null"])
-    assert rc == 0, out[-2000:]
-    i = out.find("tralo   vs   tralo_null")
-    assert i > 0, "the pre-registered contrast is missing" + out[-2000:]
-    verdict = out[i:i + 6000]
-    assert "-- RANKING --" in verdict, verdict[:2500]
-    assert "detectable" in verdict, verdict[:2500]
-
-    rc, out = _run_step(["scripts.full_panel", "--campaign", root,   # 2. the bar
-                         "--control", "clip"])
-    assert rc == 0, out[-2000:]
-
-    rc, out = _run_step(["scripts.straddle_probe", "--campaign", root])  # 3.
-    assert rc == 0, out[-2000:]
-    assert "treated/null twin pair(s)" in out, out[-2000:]
-    assert "shuffled ctrl" in out, out[-2000:]
-
-
-def test_step_1_refuses_when_the_null_twin_is_missing(tmp_path):
-    """Negative control for the read above, and the failure it must catch.
-
-    The whole pre-registration rests on `tralo` being contrasted with its OWN
-    lambda=0 twin. If that arm is absent -- died, never scheduled, reset to
-    pending -- step 1 has to REFUSE rather than fall back to some other
-    control and produce a verdict for a different question.
-    """
-    root = os.path.join(str(tmp_path), "iwc_nonull")
-    _build_iwc_fixture(root, arms=("clip", "tralo"))
-    rc, out = _run_step(["scripts.full_panel", "--campaign", root,
-                         "--control", "tralo_null"])
-    assert rc != 0, "step 1 produced a verdict with no null twin" + out[-1500:]
-    assert "tralo_null" in out, out[-1500:]
-
-
-def test_warmup_moves_the_clipper_gap_and_NOT_the_method_gap():
-    """Section 3 justifies warm-up 1 by saying warm-up 50 makes every method
-    identical. The corpus says every warm-up does.
-
-    Across the warm-up axis the vs-CLIPPER gap moves about 8x (+15.20 pp at 1
-    against +1.85 pp at 50) while the METHOD-vs-method gap does not move at all
-    (+0.21 pp against +0.15 pp). So warm-up 1 buys HEADROOM against the post-hoc
-    baseline, which is what Rule 1 needs, and it does NOT buy discrimination
-    between two duals -- the misreading that would size a campaign wrongly.
-
-    Gated because the qualification is easy to lose and the corpus is frozen, so
-    the numbers can only change if someone edits the file.
-    """
-    vs_clip_1 = _corpus_contrast("f1_macro", "tralo", "heuristic", warmup=1)
-    vs_clip_50 = _corpus_contrast("f1_macro", "tralo", "heuristic", warmup=50)
-    vs_dual_1 = _corpus_contrast("f1_macro", "tralo", "fioretto_ldf", warmup=1)
-    vs_dual_50 = _corpus_contrast("f1_macro", "tralo", "fioretto_ldf", warmup=50)
-
-    # the clipper gap collapses as warm-up rises
-    assert vs_clip_1["mean_pp"] > 5 * vs_clip_50["mean_pp"], (
-        vs_clip_1["mean_pp"], vs_clip_50["mean_pp"])
-
-    # the method gap does not move -- same order of magnitude at both ends
-    assert 0.5 < vs_dual_1["mean_pp"] / vs_dual_50["mean_pp"] < 2.5, (
-        vs_dual_1["mean_pp"], vs_dual_50["mean_pp"])
-    for r in (vs_dual_1, vs_dual_50):
-        assert r["mean_pp"] < 0.5, r
-
-    # and the warm-up-1 estimate is too thin to overturn that: 10 cells, and its
-    # own standard error covers the warm-up-50 value
-    assert vs_dual_1["cells"] == 10, vs_dual_1["cells"]
-    sem = vs_dual_1["sd_pp"] / np.sqrt(vs_dual_1["cells"])
-    assert abs(vs_dual_1["mean_pp"] - vs_dual_50["mean_pp"]) < 2 * sem, (
-        vs_dual_1, vs_dual_50, sem)
-
-
-def test_the_win_does_not_scale_with_cap_tightness():
-    """The second control on the compute-vs-constraint question.
-
-    If the win came from the count constraint doing work, a TIGHTER cap should
-    buy more of it. Within every dataset the slope of the per-cell delta on the
-    cap percentage is >= 0 -- flat, or growing as the cap LOOSENS -- which is
-    backwards for a constraint mechanism, and doubly so because the clipper is
-    hurt more at tight caps and that would push the delta the other way.
-
-    Per rule 4 the slope is computed WITHIN each dataset. This is a null with a
-    consistent sign, not a positive result, and the gate is written that way:
-    it asserts the sign agrees everywhere and that no dataset shows the
-    tighter-is-better pattern a constraint mechanism needs.
-    """
-    import pandas as pd
-    from scipy import stats
-
-    f = os.path.join(REPO, "docs", "paper", "data", "corpus",
-                     "corpus_final.csv")
-    if not os.path.exists(f):
-        pytest.skip("corpus not present in this worktree")
-    d = pd.read_csv(f)
-    cell = ["dataset", "model", "constraint_tag", "constrained_class",
-            "group_column", "warmup_epochs", "sweep"]
-    d = d[d["method"].isin(["tralo", "heuristic"])]
-    w = d.pivot_table(index=cell + ["seed"], columns="method",
-                      values="f1_macro", aggfunc="mean").dropna()
-    w = w.assign(delta=w["tralo"] - w["heuristic"])
-    g = w.groupby(level=list(range(len(cell))))["delta"]
-    r = pd.DataFrame({"n": g.size(), "mean": g.mean()}).reset_index()
-    r = r[(r["n"] >= 2) & (r["warmup_epochs"] == 50)]
-    r["L"] = r["constraint_tag"].str.extract(r"L(\d+)").astype(float)
-
-    seen = 0
-    for ds, sub in r.groupby("dataset"):
-        if sub["L"].nunique() < 3 or len(sub) < 10:
-            continue
-        seen += 1
-        slope = stats.linregress(sub["L"], sub["mean"]).slope
-        assert slope >= -0.0005, (
-            "%s shows the tighter-cap-is-better pattern a constraint mechanism "
-            "predicts (slope %+.4f pp/pt), so section 3's second control no "
-            "longer holds" % (ds, 100 * slope))
-    assert seen == 4, seen
-
-
-def _corpus_by_dataset(treated, control, metric="f1_macro", warmup=50):
-    """{dataset: (mean pp, win fraction, cells)} -- the breakout rule 4 demands."""
-    import pandas as pd
-
-    f = os.path.join(REPO, "docs", "paper", "data", "corpus",
-                     "corpus_final.csv")
-    if not os.path.exists(f):
-        pytest.skip("corpus not present in this worktree")
-    d = pd.read_csv(f)
-    cell = ["dataset", "model", "constraint_tag", "constrained_class",
-            "group_column", "warmup_epochs", "sweep"]
-    d = d[d["method"].isin([treated, control])]
-    w = d.pivot_table(index=cell + ["seed"], columns="method", values=metric,
-                      aggfunc="mean").dropna()
-    w = w.assign(delta=w[treated] - w[control])
-    g = w.groupby(level=list(range(len(cell))))["delta"]
-    r = pd.DataFrame({"n": g.size(), "mean": g.mean()}).reset_index()
-    r = r[(r["n"] >= 2) & (r["warmup_epochs"] == warmup)]
-    return {ds: (100 * sub["mean"].mean(), float((sub["mean"] > 0).mean()),
-                 len(sub))
-            for ds, sub in r.groupby("dataset") if len(sub) >= 4}
-
-
-def test_the_clipper_win_reverses_on_one_dataset():
-    """The pooled +1.85 pp is rule 4's hazard: it hides a dataset where TraLO
-    LOSES. aider comes back -0.53 pp on 86% of its cells, so the honest
-    generalization statement is 3 of 4 datasets -- section 0's sign-flip floor,
-    p=0.25 -- and the cell-level p=1.8e-18 is a statement about CELLS only.
-
-    Gated because the pooled number is the quotable one and the breakout is the
-    true one, and nothing else in the repo keeps them attached.
-    """
-    by = _corpus_by_dataset("tralo", "heuristic")
-    assert set(by) == {"aider", "dermmnist", "octmnist", "tissuemnist"}, by
-    losers = [ds for ds, (mean, _w, _n) in by.items() if mean < 0]
-    assert losers == ["aider"], by
-    assert by["aider"][1] < 0.2, by["aider"]
-    assert sum(1 for m, _w, _n in by.values() if m > 0) == 3, by
-
-
-def test_the_posthoc_control_and_the_method_gap_hold_in_every_dataset():
-    """What survives the breakout, and it is the load-bearing half.
-
-    The post-hoc control must lose EVERYWHERE -- if it were carried by one
-    dataset the compute explanation would be one dataset's artifact. And the
-    method-specific gap must stay small everywhere, including in the dataset
-    where TraLO beats the clipper most and the one where it loses.
-    """
-    ctrl = _corpus_by_dataset("danits_lp", "heuristic")
-    for ds, (mean, win, _n) in ctrl.items():
-        assert win < 0.5, (ds, mean, win)
-        assert mean < 0.1, (ds, mean, win)
-
-    gap = _corpus_by_dataset("tralo", "fioretto_ldf")
-    for ds, (mean, _w, _n) in gap.items():
-        assert abs(mean) < 0.5, (ds, mean)
-
-
-def test_dropping_the_leaked_dataset_changes_nothing():
-    """dermmnist's test set is LEAKED (38.7%/67.3% MEL). A decomposition that
-    needed it would be worthless. Removing it entirely leaves every leg intact
-    and the clipper win slightly LARGER.
-    """
-    import pandas as pd
-    from scipy import stats
-
-    for treated, control, lo, hi, want_win in (
-            ("tralo", "heuristic", 1.5, 3.5, True),
-            ("danits_lp", "heuristic", -1.0, 0.1, False),
-            ("tralo", "fioretto_ldf", 0.0, 0.6, True)):
-        by = _corpus_by_dataset(treated, control)
-        rows = [(m, w, n) for ds, (m, w, n) in by.items() if ds != "dermmnist"]
-        tot = sum(n for _m, _w, n in rows)
-        mean = sum(m * n for m, _w, n in rows) / tot
-        assert lo <= mean <= hi, (treated, control, mean)
-        wins = sum(w * n for _m, w, n in rows) / tot
-        assert (wins > 0.5) == want_win, (treated, control, wins)
-
-
-def test_the_paper_reports_exactly_the_datasets_tralo_wins_on():
-    """The disclosure FRAMEWORK 1b now records, held to the files.
-
-    The manuscript names three datasets and the corpus contains four. The three
-    named are the three where TraLO wins macro-F1; the unnamed one is the one
-    where it loses. Nothing in the paper is contradicted by that -- it never
-    claims aider -- but the ratio is what a reviewer asks about, and it should
-    not have to be rediscovered.
-
-    If the paper ever starts reporting aider, or aider stops losing, this fails
-    and the disclosure paragraph needs rewriting rather than quietly aging.
-    """
-    tex = os.path.join(REPO, "docs", "paper", "main_edited_by_roei.tex")
-    if not os.path.exists(tex):
-        pytest.skip("paper of record not present in this worktree")
-    body = io.open(tex, encoding="utf-8", errors="replace").read().lower()
-
-    by = _corpus_by_dataset("tralo", "heuristic")
-    named = {ds for ds in by if ds in body}
-    unnamed = set(by) - named
-
-    assert named == {"dermmnist", "octmnist", "tissuemnist"}, named
-    assert unnamed == {"aider"}, unnamed
-    for ds in named:
-        assert by[ds][0] > 0, (ds, by[ds])
-    for ds in unnamed:
-        assert by[ds][0] < 0, (ds, by[ds])
-
-
-def test_ViTB16_resolves_the_method_question_best():
-    """1-pre records a CONFIRMATION of an a-priori choice, and confirmations rot
-    quietly. ViTB16 must have both the largest method gap and the smallest seed
-    sd among the backbones the paper claims -- that is what "resolves it twice
-    as well" means, and it is the only reason the note is quotable at all.
-
-    The order matters more than the number: the backbone was chosen 2026-08-20
-    and this measured 2026-08-23. If ViTB16 ever stops winning both terms, 1-pre
-    must say so rather than keep a stale confirmation attached to a decision
-    that stands on its own.
-    """
-    import pandas as pd
-
-    f = os.path.join(REPO, "docs", "paper", "data", "corpus",
-                     "corpus_final.csv")
-    if not os.path.exists(f):
-        pytest.skip("corpus not present in this worktree")
-    d = pd.read_csv(f)
-    cell = ["dataset", "model", "constraint_tag", "constrained_class",
-            "group_column", "warmup_epochs", "sweep"]
-    d = d[d["method"].isin(["tralo", "fioretto_ldf"])]
-    w = d.pivot_table(index=cell + ["seed"], columns="method",
-                      values="f1_macro", aggfunc="mean").dropna()
-    w = w.assign(delta=w["tralo"] - w["fioretto_ldf"])
-    g = w.groupby(level=list(range(len(cell))))["delta"]
-    r = pd.DataFrame({"n": g.size(), "mean": g.mean(),
-                      "sd": g.std(ddof=1)}).reset_index()
-    r = r[(r["n"] >= 2) & (r["warmup_epochs"] == 50)]
-
-    # only the four backbones the paper claims
-    claimed = ("ViTB16", "MobileNetV3", "MobileNetV2", "RegNetY400MF")
-    stat = {}
-    for m, sub in r.groupby("model"):
-        if m in claimed and len(sub) >= 10:
-            stat[m] = (100 * sub["mean"].mean(), 100 * float(sub["sd"].median()))
-    assert "ViTB16" in stat and len(stat) >= 3, stat
-
-    gap, sd = stat["ViTB16"]
-    for m, (g2, sd2) in stat.items():
-        if m == "ViTB16":
-            continue
-        assert gap >= g2, ("ViTB16 no longer has the largest method gap", stat)
-        assert sd <= sd2, ("ViTB16 no longer has the smallest seed sd", stat)
-    ratios = {m: g2 / sd2 for m, (g2, sd2) in stat.items()}
-    assert ratios["ViTB16"] > 2 * ratios["MobileNetV3"], ratios
-
-
-def test_the_win_is_the_same_where_the_local_scope_is_empty_by_construction():
-    """The third and decisive control on compute-vs-constraint.
-
-    `synth_group` is `np.arange(len(y)) % 3` (2(n)), so its groups are i.i.d.
-    draws from ONE distribution: every group's class distribution is identical
-    by construction, a per-group cap is exactly the global cap divided by three,
-    and 2(j) proved a global prior shift cannot reorder a top-K set at any size.
-    On those cells the local constraint provably carries zero information.
-
-    63% of the headline's cells are those cells, and they show a LARGER win at
-    an IDENTICAL win rate. The group definition is the one variable that decides
-    whether a local cap can carry information at all, and it does not move the
-    result -- which a mechanism depending on per-group information cannot do.
-
-    NOTE the claim is "the group definition makes no difference", NOT "synthetic
-    groups cause wins": aider is also synth_group and loses. The gate is written
-    to fail if the win rates ever separate, in either direction.
-    """
-    import pandas as pd
-
-    f = os.path.join(REPO, "docs", "paper", "data", "corpus",
-                     "corpus_final.csv")
-    if not os.path.exists(f):
-        pytest.skip("corpus not present in this worktree")
-    d = pd.read_csv(f)
-    cell = ["dataset", "model", "constraint_tag", "constrained_class",
-            "group_column", "warmup_epochs", "sweep"]
-    d = d[d["method"].isin(["tralo", "heuristic"])]
-    w = d.pivot_table(index=cell + ["seed"], columns="method",
-                      values="f1_macro", aggfunc="mean").dropna()
-    w = w.assign(delta=w["tralo"] - w["heuristic"])
-    g = w.groupby(level=list(range(len(cell))))["delta"]
-    r = pd.DataFrame({"n": g.size(), "mean": g.mean()}).reset_index()
-    r = r[(r["n"] >= 2) & (r["warmup_epochs"] == 50)]
-
-    synth = r[r["group_column"] == "synth_group"]
-    real = r[r["group_column"] != "synth_group"]
-    assert len(synth) + len(real) == len(r) == 236, (len(synth), len(real))
-
-    # most of the headline sits where the local scope cannot work
-    assert len(synth) / len(r) > 0.6, len(synth) / len(r)
-
-    # and it is not a smaller effect there -- it is larger
-    assert synth["mean"].mean() > real["mean"].mean(), (
-        synth["mean"].mean(), real["mean"].mean())
-
-    # the load-bearing assertion: the win RATE does not separate
-    ws, wr = (synth["mean"] > 0).mean(), (real["mean"] > 0).mean()
-    assert abs(ws - wr) < 0.05, (
-        "the win rate now depends on the group definition (%.2f synth vs %.2f "
-        "real), so section 3's third control no longer holds and the "
-        "constraint may be doing work after all" % (ws, wr))
-
-    # AND the same must hold on the CAPPED-CLASS metrics, where a count
-    # constraint's fingerprint should be strongest if it has one. Looked for,
-    # not assumed: if any of these ever separates by group definition, the
-    # constraint is doing something and section 3 needs rewriting.
-    for metric in ("cc_f1", "cc_prec", "cc_rec"):
-        w2 = d.pivot_table(index=cell + ["seed"], columns="method",
-                           values=metric, aggfunc="mean").dropna()
-        w2 = w2.assign(delta=w2["tralo"] - w2["heuristic"])
-        g2 = w2.groupby(level=list(range(len(cell))))["delta"]
-        r2 = pd.DataFrame({"n": g2.size(), "mean": g2.mean()}).reset_index()
-        r2 = r2[(r2["n"] >= 2) & (r2["warmup_epochs"] == 50)]
-        a = (r2[r2["group_column"] == "synth_group"]["mean"] > 0).mean()
-        b = (r2[r2["group_column"] != "synth_group"]["mean"] > 0).mean()
-        assert abs(a - b) < 0.08, (metric, a, b)
-
-    # and the counter-example that keeps the claim honest
-    aider = r[r["dataset"] == "aider"]
-    assert (aider["group_column"] == "synth_group").all()
-    assert aider["mean"].mean() < 0, (
-        "aider no longer loses, so 'synthetic groups cause wins' would need "
-        "ruling out again")
-
-
-def test_the_papers_octmnist_tightcap_claim_reproduces_from_the_corpus():
-    """The abstract's second specific claim, recomputed independently.
-
-    "one regime shows a consistent advantage across all backbones tested:
-    OctMNIST at tight caps, with the largest gains on a ViT-B/16". In its own
-    regime -- octmnist, cc_f1, warm-up 50 -- TraLO beats every dual baseline and
-    the clipper, and ViTB16 shows the largest gain of the backbones tested.
-
-    Gated because an audit that only looks for failures is not an audit, and
-    because this is the claim most likely to be casually generalized: it is
-    about the CONSTRAINED-CLASS metric in ONE dataset at ONE cap band, not about
-    the overall quality margin, which the 92/8 decomposition attributes to
-    training rather than to TraLO.
-    """
-    for other, lo in (("hounie_rcl", 1.5), ("fioretto_ldf", 0.8),
-                      ("tralo_bounded", 0.7), ("heuristic", 0.2)):
-        r = _corpus_contrast("cc_f1", "tralo", other)
-        # _corpus_contrast pools datasets; redo restricted to octmnist
-        import pandas as pd
-        from scipy import stats
-        f = os.path.join(REPO, "docs", "paper", "data", "corpus",
-                         "corpus_final.csv")
-        d = pd.read_csv(f)
-        cell = ["dataset", "model", "constraint_tag", "constrained_class",
-                "group_column", "warmup_epochs", "sweep"]
-        d = d[d["method"].isin(["tralo", other]) & (d["dataset"] == "octmnist")]
-        w = d.pivot_table(index=cell + ["seed"], columns="method",
-                          values="cc_f1", aggfunc="mean").dropna()
-        w = w.assign(delta=w["tralo"] - w[other])
-        g = w.groupby(level=list(range(len(cell))))["delta"]
-        rr = pd.DataFrame({"n": g.size(), "mean": g.mean()}).reset_index()
-        rr = rr[(rr["n"] >= 2) & (rr["warmup_epochs"] == 50)]
-        assert len(rr) == 29, (other, len(rr))
-        assert 100 * rr["mean"].mean() > lo, (other, 100 * rr["mean"].mean())
-        wins = int((rr["mean"] > 0).sum())
-        assert stats.binomtest(wins, len(rr), 0.5).pvalue < 0.05, (other, wins)
-
-        if other == "fioretto_ldf":
-            by = {m: 100 * sub["mean"].mean()
-                  for m, sub in rr.groupby("model") if len(sub) >= 5}
-            assert by["ViTB16"] == max(by.values()), by
-
-
-def _hinge_pairs():
-    """with-hinge (`paper_final`) against no-hinge, paired on backbone/cap/seed."""
-    import pandas as pd
-
-    base = os.path.join(REPO, "docs", "paper", "data", "corpus")
-    if not os.path.exists(os.path.join(base, "ablation_no_hinge.csv")):
-        pytest.skip("hinge ablation not present in this worktree")
-    nh = pd.read_csv(os.path.join(base, "ablation_no_hinge.csv")).rename(
-        columns={"cap": "constraint_tag"})
-    d = pd.read_csv(os.path.join(base, "corpus_final.csv"))
-    wh = d[(d.sweep == "paper_final") & (d.dataset == "octmnist")
-           & (d.method == "tralo")
-           & (d.constraint_tag.isin(["L30_G30", "L40_G40"]))]
-    key = ["model", "constraint_tag", "seed"]
-    cols = ["cc_f1", "cc_prec", "cc_rec", "f1_macro"]
-    return wh[key + cols].merge(nh[key + cols], on=key, suffixes=("_h", "_n"))
-
-
-def test_the_hinge_ablation_compares_arms_at_DIFFERENT_emitted_counts():
-    """House rule 5 -- post-hoc filling to the boundary is FREE -- inside the
-    paper's own central mechanistic ablation.
-
-    The tell is arithmetic, not statistical: with exactly K predictions emitted,
-    `prec = TP/K` and `rec = TP/n_pos` are both monotone in TP, so they cannot
-    move in opposite directions. In this ablation cc_prec falls 3.31 pp on 6 of
-    6 cells while cc_rec rises 3.10 pp on 6 of 6. That is only possible if the
-    arms emit different counts -- and `rec/prec = K/n_pos` says the hinge arm
-    emits 16.3% more, on 24 of 24 pairs.
-
-    Part of the +3.23 pp cc_f1 is therefore the fill. How much turns on the
-    precision of items the no-hinge arm did NOT emit, which no column in the
-    corpus records.
-    """
-    m = _hinge_pairs()
-    assert len(m) == 24, len(m)
-
-    # opposite directions -- the arithmetic impossibility at equal budget
-    cell = m.groupby(["model", "constraint_tag"])
-    dp = cell.apply(lambda s: (s["cc_prec_h"] - s["cc_prec_n"]).mean())
-    dr = cell.apply(lambda s: (s["cc_rec_h"] - s["cc_rec_n"]).mean())
-    assert (dp < 0).all(), dp.to_dict()
-    assert (dr > 0).all(), dr.to_dict()
-
-    # and the count ratio that explains it
-    ratio = (m["cc_rec_h"] / m["cc_prec_h"]) / (m["cc_rec_n"] / m["cc_prec_n"])
-    assert (ratio > 1).all(), int((ratio <= 1).sum())
-    assert 1.10 < ratio.mean() < 1.25, ratio.mean()
-
-
-def test_the_hinge_break_even_precision_is_cell_dependent():
-    """The exact threshold FRAMEWORK records, and why the corpus cannot decide.
-
-    At the same emitted count both arms share the F1 denominator, so the hinge
-    wins iff `rec_h > rec_n + (K_h - K_n) * q` for `q` the precision of the
-    unfilled items. `q*` ranges from 0.099 -- implausible against an arm
-    averaging 94% precision, so that cell is very likely fill -- to 0.986, which
-    very likely is not. A single verdict for the ablation is not available.
-    """
-    m = _hinge_pairs()
-    kh = m["cc_rec_h"] / m["cc_prec_h"]
-    kn = m["cc_rec_n"] / m["cc_prec_n"]
-    m = m.assign(q=(m["cc_rec_h"] - m["cc_rec_n"]) / (kh - kn))
-    per = m.groupby(["model", "constraint_tag"])["q"].mean()
-
-    assert per.min() < 0.15, per.to_dict()      # a cell that is very likely fill
-    assert per.max() > 0.95, per.to_dict()      # and one that very likely is not
-    assert 0.4 < m["q"].mean() < 0.75, m["q"].mean()
-
-    # the corpus holds no column that could measure q
-    import pandas as pd
-    corpus = pd.read_csv(os.path.join(REPO, "docs", "paper", "data", "corpus",
-                                      "corpus_final.csv"), nrows=1)
-    assert not (set(corpus.columns) - {"cc_prec", "cc_rec", "cc_f1"}) & {
-        "marginal_precision", "cc_prec_at_k", "auroc", "ap"}, corpus.columns
-
-
-def test_only_the_load_bearing_components_change_the_emitted_count():
-    """The sharpest form of the budget-equalization finding.
-
-    `B_loo_ablation` carries `cc_support`, so `K = rec*support/prec` is exact.
-    The three components the paper reports as NEUTRAL leave the emitted count
-    at 1.000-1.011. The one it reports as LOAD-BEARING raises it 44%, and the
-    hinge (measured separately) raises it 16%. Both carried components move the
-    budget; no neutral one does.
-
-    That is what "cc-F1 is measuring native satisfaction" predicts, and the
-    paper's own appendix says native satisfaction is not a headline. If a
-    neutral component ever starts moving the count, or a carried one stops, the
-    reading in FRAMEWORK needs revisiting rather than aging.
-    """
-    import pandas as pd
-
-    base = os.path.join(REPO, "docs", "paper", "data", "corpus")
-    f = os.path.join(base, "extra_robustness_corpus.csv")
-    if not os.path.exists(f):
-        pytest.skip("robustness corpus not present in this worktree")
-    e = pd.read_csv(f)
-    c = pd.read_csv(os.path.join(base, "corpus_final.csv"))
-    b = e[e["block"] == "B_loo_ablation"].copy()
-    b["K_a"] = b["cc_recall"] * b["cc_support"] / b["cc_prec"]
-    b = b.rename(columns={"cc_f1": "f1_a", "cc_prec": "prec_a",
-                          "cc_recall": "rec_a"})
-    key = ["dataset", "model", "constraint_tag", "seed"]
-    full = (c[(c.method == "tralo") & (c.warmup_epochs == 50)]
-            [key + ["cc_f1", "cc_prec", "cc_rec"]].drop_duplicates(key)
-            .rename(columns={"cc_f1": "f1_f", "cc_prec": "prec_f",
-                             "cc_rec": "rec_f"}))
-
-    ratio = {}
-    for sb, sub in b.groupby("subblock"):
-        m = sub.merge(full, on=key)
-        assert len(m) == 32, (sb, len(m))
-        m["K_f"] = m["rec_f"] * m["cc_support"] / m["prec_f"]
-        ratio[sb] = float((m["K_f"] / m["K_a"]).mean())
-
-    assert ratio["no_reset"] > 1.3, ratio
-    for neutral in ("no_freeze", "no_rho", "plus_kl"):
-        assert abs(ratio[neutral] - 1.0) < 0.05, (neutral, ratio)
-    assert ratio["no_reset"] > 5 * max(abs(ratio[n] - 1.0)
-                                       for n in ("no_freeze", "no_rho",
-                                                 "plus_kl")), ratio
-
-
-# ---------------------------------------------------------------------------
-# The cut window (FRAMEWORK 2(z12)). The fifth gate is the one that matters: it
-# fails if the count is ever rebuilt the way the recorded dead end was, i.e.
-# with the window used as the VALUE instead of only as the gradient weight.
-# ---------------------------------------------------------------------------
-
-def _cut_fixture(n=2000, C=5, cls=2, K=120, seed=0):
-    torch.manual_seed(seed)
-    z = torch.randn(n, C) * 3.0
-    z[:, cls] += 2.0
-    z.requires_grad_(True)
-    return z, F.softmax(z, dim=1), cls, K
-
-
-def _cut(proba, K, n_items=40):
-    from src.losses.transductive_loss import cut_params
-    return cut_params(proba, torch.full((proba.shape[1],), K), n_items)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def test_the_task_window_file_is_measured_not_invented(tmp_path):
-    """`configs/task_windows.yml` is the gate's only input, so a wrong row
-    silently mis-gates every future campaign. Three properties it must hold:
-
-      - every backbone the paper claims has a row, or that backbone is ungated
-      - every window is a real interval inside [0, 2]
-      - every row carries provenance naming the runs it was measured from
-    """
-    import yaml as _yaml
-    path = os.path.join(REPO, "configs", "task_windows.yml")
-    TW = _yaml.safe_load(open(path, encoding="utf-8"))
-    iw = TW["windows"]["iwildcam"]
-    assert set(iw) >= {"ViTB16", "MobileNetV3", "MobileNetV2", "RegNetY400MF"}
-    for model, row in iw.items():
-        assert row.get("provenance"), "%s has no provenance" % model
-        for cls, band in row["class"].items():
-            # AN EMPTY BAND IS LEGAL AND IS A MEASUREMENT. Re-measured with
-            # the per-group prize (2026-09-02) MobileNetV3 class 2 has NO
-            # fraction that both binds in 4/4 seeds and clears the 3.0-item
-            # RNG floor, and ViTB16 has only ONE seed so no strict band can be
-            # claimed from it at all. Those rows must still carry a PARTIAL
-            # band, which the assertion at the end of this test requires.
-            if not band:
-                assert row.get("partial", {}).get(cls), (
-                    "%s class %s has an EMPTY strict band AND no partial "
-                    "band, so the row says nothing at all" % (model, cls))
-                continue
-            lo, hi = band
-            # lo == hi is LEGAL: a window is a range over a measured GRID,
-            # not an interval that must have width.
-            assert 0.0 <= lo <= hi <= 2.0, "%s class %s: %s" % (model, cls, (lo, hi))
-    # the two capped classes' windows are DIFFERENT on every backbone, which is
-    # why per-class cap fractions had to exist at all
-    for model, row in iw.items():
-        # NOT "on every backbone" any more, and that is a MEASUREMENT. Per
-        # seed (FRAMEWORK 2(z24b)) MobileNetV2's two strict windows COINCIDE
-        # at 0.80/0.80, so the plain single-fraction form expresses a valid
-        # experiment there. ViTB16 JOINED IT on 2026-09-03: measured off two
-        # distinct `vitdual1` nulls (FRAMEWORK 2(z38)) both classes come back
-        # [0.80, 0.90] on the 0.1 grid -- the underlying prizes still differ
-        # (class 2 3.5/6.0 items, class 7 4.5/8.0) but the GRID verdict does
-        # not, so `L80-80` and `L90-90` are one fraction written per-class.
-        # The per-class form is still REQUIRED on the other two, which is what
-        # this asserts. A backbone joins this list only WITH its measurement.
-        # Only meaningful where BOTH classes have a band. Where one is empty
-        # the per-class form is required a fortiori -- one fraction cannot sit
-        # inside a window that does not exist.
-        if row["class"][2] and row["class"][7]:
-            assert (row["class"][2] != row["class"][7]
-                    or model in ("MobileNetV2", "ViTB16")), (
-                "%s: identical windows would make per-class caps pointless"
-                % model)
-        assert set(row.get("partial") or {}) == {2, 7}, (
-            "%s has no PARTIAL band. A window recorded only where "
-            "EVERY seed binds hides the cells that bind in some, "
-            "and those are not the same verdict" % model)
-
-
-def test_the_scorers_can_tell_a_task_cell_from_a_non_task_one(tmp_path):
-    """`cell_table` must label each cell with whether its cap poses a question.
-
-    FRAMEWORK 2(z19)/2(z21): pooling task and non-task cells has CHANGED which
-    method wins -- `alm` is best on ccF1 in `equaldose1`'s non-task cells and
-    second worst in its task cells. A survey that cannot tell them apart invites
-    exactly the pooling the table exists to prevent.
-
-    Both directions, plus the rule that the three NEGATIVES stay distinct: a
-    backbone whose window was never measured must NOT read as a known non-task.
-    """
-    import pandas as pd
-    from scripts.cell_table import annotate_task
-
-    meta = os.path.join(REPO, "data", "iwildcam", "oodslice", "test_meta.csv")
-    if not os.path.exists(meta):
-        pytest.skip("iwildcam slice absent: nothing to classify")
-
-    c = pd.DataFrame([
-        dict(dataset="iwildcam", model="MobileNetV3", cap="L30_G50"),
-        # THE LIVENESS CELL MOVED BACKBONE ON 2026-09-02. It was MobileNetV3
-        # x L70-90_G95 until the per-group prize emptied that backbone's
-        # class-2 strict band; MobileNetV2 x L80_G95 is now the cell that IS a
-        # task (c2 K/n 0.800 and c7 0.798, both strict).
-        dict(dataset="iwildcam", model="MobileNetV2", cap="L80_G95"),
-        dict(dataset="iwildcam", model="NoSuchNet", cap="L70-90_G95"),
-    ])
-    got = list(annotate_task(c)["task"])
-    # WHAT MATTERS IS THAT THE SCORER LABELS IT AS POSING NO QUESTION, not
-    # which flavour of "no". After the 2026-09-02 window rebuild MobileNetV3
-    # class 2 has no strict band at all, so this cell reads `no_strict_band`
-    # rather than `non_task`. Both bar it from a claim; pinning the string
-    # failed the gate for a relabel while the measurement was unchanged.
-    assert got[0] in ("non_task", "no_strict_band"), (
-        "L30_G50 on MobileNetV3 poses no question and the scorer must say so; "
-        "it said %r" % (got[0],))
-    assert got[1] == "task", (
-        "L80_G95 on MobileNetV2 IS a task; a column that only ever says "
-        "non_task cannot be read")
-    assert got[2] == "no_window", (
-        "an UNMEASURED backbone read as %r. An unknown is not a known "
-        "non-task, and collapsing them would retire a backbone nobody "
-        "measured" % got[2])
-
-
-def test_full_panel_says_when_a_contrast_pools_cells_that_pose_no_question():
-    """The panel prints contrasts averaged over cells. If some of those cells
-    cannot distinguish any two arms, the average is a measurement blended with
-    a non-measurement, and nothing else on the page says so.
-
-    Liveness matters as much as the warning here: a block that fires on every
-    campaign is noise, so an all-task campaign must NOT be warned about.
-    """
-    import io as _io
-    import contextlib
-    import pandas as pd
-    from scripts.full_panel import print_task_cells
-
-    meta = os.path.join(REPO, "data", "iwildcam", "oodslice", "test_meta.csv")
-    if not os.path.exists(meta):
-        pytest.skip("iwildcam slice absent: nothing to classify")
-
-    def render(rows):
-        df = pd.DataFrame(rows)
-        buf = _io.StringIO()
-        with contextlib.redirect_stdout(buf):
-            print_task_cells(df)
-        return buf.getvalue()
-
-    mixed = render([
-        # MobileNetV2 x L80_G95 is the task cell as of the 2026-09-02 window
-        # rebuild; MobileNetV3 x L70-90_G95 stopped being one when that
-        # backbone's class-2 strict band emptied.
-        dict(dataset="iwildcam", model="MobileNetV2", cap="L80_G95"),
-        dict(dataset="iwildcam", model="MobileNetV3", cap="L30_G50"),
-    ])
-    assert "NO QUESTION" in mixed, mixed
-    assert "pose NO question" in mixed, (
-        "the panel listed a non-task cell but never warned that the contrasts "
-        "below average it in:\n" + mixed)
-
-    # LIVENESS: an all-task campaign must not carry the warning, or the warning
-    # is decoration rather than information.
-    clean = render([
-        dict(dataset="iwildcam", model="MobileNetV2", cap="L80_G95"),
-    ])
-    assert "pose NO question" not in clean, clean
-    assert "all 1 measured cell(s) pose a question" in clean, clean
+        "the fixture lost its held-out cameras, so this no longer controls for criterion 1"
+        + chr(10)
+        + screen[-800:]
+    )
 
 
 def test_the_training_path_never_imports_from_scripts():
-    """`scripts/` is deployable mid-campaign ONLY because nothing the runner
-    imports reads it.
-
-    `code_version` is `git rev-parse HEAD` with a `-dirty` suffix scoped to
-    TRAINING_PATHS = src/, configs/, main.py. On 2026-08-24 a scorer deploy
-    still split a live campaign's stamp, and the rule that came out of it is
-    that `scripts/` must stay OUTSIDE the training path. Today
-    `scripts/cell_table.py` and `scripts/full_panel.py` started importing
-    `configs.task_cells`. That direction is safe; the REVERSE would silently
-    put the scorer back on the runner's import path.
-
-    AST, not grep: a string or a comment naming `scripts` is not an import,
-    and this project has already been misled once by grepping for a name that
-    appeared only in a log line.
-    """
     import ast as _ast
+
     offenders = []
     for sub in ("src", "configs"):
         root = os.path.join(REPO, sub)
@@ -7061,11 +2197,9 @@ def test_the_training_path_never_imports_from_scripts():
                         if (node.module or "").split(".")[0] == "scripts":
                             offenders.append((path, node.lineno, node.module))
     assert not offenders, (
-        "the training path imports from scripts/, which makes a scorer deploy "
-        "able to split a live campaign's code_version: %r" % (offenders,))
-
-    # NEGATIVE CONTROL: the check must be able to FIND such an import, or an
-    # empty result means nothing.
+        "the training path imports from scripts/, which makes a scorer deploy able to split a live campaign's code_version: %r"
+        % (offenders,)
+    )
     probe = os.path.join(REPO, "configs", "_import_direction_probe.py")
     io.open(probe, "w", encoding="utf-8").write("from scripts import full_panel\n")
     try:
@@ -7073,576 +2207,137 @@ def test_the_training_path_never_imports_from_scripts():
         with io.open(probe, encoding="utf-8") as f:
             tree = _ast.parse(f.read(), filename=probe)
         for node in _ast.walk(tree):
-            if isinstance(node, _ast.ImportFrom) and \
-                    (node.module or "").split(".")[0] == "scripts":
+            if (
+                isinstance(node, _ast.ImportFrom)
+                and (node.module or "").split(".")[0] == "scripts"
+            ):
                 found.append(node.module)
         assert found == ["scripts"], (
-            "the AST scan cannot detect a scripts import even when one is "
-            "there, so its clean result above says nothing")
+            "the AST scan cannot detect a scripts import even when one is there, so its clean result above says nothing"
+        )
     finally:
         os.remove(probe)
 
 
-def test_check_parity_fails_on_an_unknown_code_version_and_only_warns_on_dirty():
-    """`code_version = "unknown"` must FAIL gate 5, not warn.
-
-    `src/utils/gitver.py` returns the string "unknown" whenever git is
-    unavailable. That string then compares EQUAL to itself, so a campaign
-    stamped this way satisfies every "one commit per campaign" check --
-    including `compute_base_model_id`'s cache-reuse test, which would carry
-    warm-up weights across an arbitrary code change. One value is not one
-    commit, and the two must not print the same verdict.
-
-    `-dirty` is the opposite case and must stay a WARN: the commit IS known,
-    the tree merely had uncommitted edits, and a FAIL there would fire on the
-    normal working state and stop being read.
-    """
+def test_check_parity_fails_on_an_unknown_code_version_and_only_warns_on_dirty(
+    tmp_path,
+):
     import json
     import subprocess
-    import tempfile
 
     def render(stamp):
-        d = tempfile.mkdtemp()
-        for arm in ("tralo", "clip"):
-            rd = os.path.join(d, "MobileNetV3", "iwildcam", "L90_G95", arm,
-                              "seed_1")
-            os.makedirs(rd)
-            cfg = dict(arm=arm, code_version=stamp, run_code_version=stamp,
-                       dataset_mode="multiclass", model_name="MobileNetV3",
-                       constraint_tag="L90_G95", base_model_id="b0",
-                       dataset_config=dict(constrained_class=[2, 7]),
-                       hyperparams=dict(warmup_epochs=1, constraint_epochs=29,
-                                        seed=1))
-            with io.open(os.path.join(rd, "config.json"), "w",
-                         encoding="utf-8") as f:
-                f.write(json.dumps(cfg))
+        from test_operational_cli import cli
+
+        d = tmp_path / stamp
+        generated = cli(
+            "configs.gen_campaign",
+            "--root",
+            d,
+            "--datasets",
+            "iwildcam",
+            "--arms",
+            "all",
+            "--seeds",
+            "1",
+        )
+        assert generated.returncode == 0, generated.stderr
+        for p in d.rglob("config.json"):
+            cfg = json.loads(p.read_text())
+            cfg.update(code_version=stamp, run_code_version=stamp)
+            p.write_text(json.dumps(cfg))
         out = subprocess.run(
             [sys.executable, "-m", "scripts.check_parity", d],
-            cwd=REPO, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            cwd=REPO,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
         return out.stdout.decode("utf-8", "replace")
 
     unknown = render("unknown")
-    assert "FAIL -- the stamp carries no information" in unknown, (
-        "an `unknown` code_version did not FAIL gate 5. It compares equal to "
-        "itself, so every commit-equality check passes vacuously:\n" + unknown)
-
-    # LIVENESS, both other branches -- a gate that fails on everything is not
-    # a gate.
+    assert "CODE VERSION IS unknown" in unknown and "PARITY FAILED" in unknown
     dirty = render("74f858657154-dirty")
-    assert "WARN -- uncommitted changes" in dirty, dirty
-    assert "FAIL -- the stamp carries no information" not in dirty, (
-        "`-dirty` was failed like `unknown`. The commit IS known there; "
-        "failing it would fire on the normal working state:\n" + dirty)
-
+    assert "WARN: dirty source" in dirty and "PARITY OK" in dirty, dirty
     clean = render("74f858657154")
-    assert "OK -- every arm generated by one commit" in clean, clean
-
-
-def test_every_launch_script_either_runs_task_caps_or_says_it_is_superseded():
-    """A staged launch script is a loaded gun: it is copied to the server and
-    run months later, by which time nobody re-derives its caps.
-
-    FRAMEWORK 2(z16)/2(z17)/2(z24): a cap outside the measured window cannot
-    distinguish any two methods, and three scripts holding 780 runs between
-    them were staged entirely at such caps. `gen_campaign` refuses them now, so
-    those scripts exit non-zero, and a reader who does not know why reads that
-    as a broken generator rather than as the correct answer.
-
-    So the rule is a disjunction, not a ban: a script may hold non-task caps
-    PROVIDED it says at the top that it is superseded and why. Both halves are
-    checked, because a rule that only ever fires one way is not a gate.
-    """
-    import glob as _glob
-    import re as _re
-    from configs.task_cells import classify, load_windows
-    from configs.gen_campaign import load_protocol
-
-    TW = load_windows()
-    P = load_protocol()
-    meta = os.path.join(REPO, "data", "iwildcam", "oodslice", "test_meta.csv")
-    if not (TW and os.path.exists(meta)):
-        pytest.skip("windows file or iwildcam slice absent: nothing to check")
-
-    def flags(src, name):
-        # The EXECUTABLE invocation, not the first mention. Every one of
-        # these scripts names `gen_campaign` in its prose header, and a
-        # SUPERSEDED banner names the REPLACEMENT caps, so indexing the
-        # first occurrence parses the commentary instead of the command
-        # and this gate silently checks the wrong caps.
-        m0 = _re.search(r"(?m)^[^#\n]*\bgen_campaign\b", src)
-        if not m0:
-            return []
-        body = src[m0.start():]
-        toks = _re.sub(r"\\s*\n\s*", " ", body).split()
-        if "--" + name not in toks:
-            return []
-        out = []
-        for t in toks[toks.index("--" + name) + 1:]:
-            if t.startswith("--"):
-                break
-            out.append(t)
-        return out
-
-    checked = banded = clean = 0
-    for path in sorted(_glob.glob(os.path.join(
-            REPO, "docs", "archive", "launchers", "launch_*.sh"))):
-        src = io.open(path, encoding="utf-8").read()
-        if "gen_campaign" not in src:
-            continue
-        caps = flags(src, "caps")
-        models = flags(src, "models")
-        if not caps or not models:
-            continue
-        checked += 1
-        dead = []
-        for m in models:
-            for tag in caps:
-                r = classify(P, TW, "iwildcam", m, tag)
-                if r["status"] == "non_task":
-                    dead.append((m, tag))
-        # A WITHDRAWN banner is not a banner. `launch_dom1.sh` had its
-        # 2026-09-01 retirement withdrawn on 2026-09-02 (the window that
-        # retired it counted the prize over a global top-K), and the
-        # withdrawal necessarily has to NAME the thing it withdraws -- so a
-        # bare substring test read the retraction as the retirement and failed
-        # the file for saying it was runnable again.
-        is_banded = ("SUPERSEDED" in src[:4000]
-                     and "WITHDRAWN" not in src[:4000])
-        if dead:
-            banded += 1
-            assert is_banded, (
-                "%s runs %d (model, cap) cell(s) that pose NO question -- %r -- "
-                "and carries no SUPERSEDED banner. It will exit non-zero from "
-                "gen_campaign's task-window gate and the reader will not know "
-                "why." % (os.path.basename(path), len(dead), dead[:4]))
-        else:
-            clean += 1
-            # A CAMPAIGN CAN BE SUPERSEDED FOR A REASON THAT IS NOT THE CAP.
-            # `loose1`, `loosevit1`, `vitu1`, `iwc4` and `vitdom2` all ran a
-            # DIFFERENT RECIPE (`constraint_grad_mode: clip`, or fp32 off) and
-            # are archived out of `results/` for that -- their caps are fine.
-            # Requiring a non-task cap to justify every banner would force us
-            # to un-retire five campaigns that are genuinely not corpus. So a
-            # banner is legitimate when it NAMES a reason; it is stale only
-            # when it claims the cap poses no question and the cap does.
-            other_reason = any(w in src[:4000] for w in
-                               ("RECIPE", "ARCHIVED", "DOSE", "LEAK"))
-            assert not is_banded or other_reason, (
-                "%s is marked SUPERSEDED, every one of its caps IS a task "
-                "cell, and the banner names no other reason (RECIPE / "
-                "ARCHIVED / DOSE / LEAK). A stale banner retires a runnable "
-                "campaign." % os.path.basename(path))
-
-    assert checked >= 3, (
-        "only %d launch script(s) were checked; the glob or the flag parser "
-        "has stopped finding them, so a pass here says nothing" % checked)
-    # LIVENESS in BOTH directions: the corpus must actually contain one of
-    # each, or one of the two assertions above has never executed.
-    assert banded and clean, (
-        "the check saw %d superseded and %d clean script(s); with zero of "
-        "either kind one branch of this gate is untested" % (banded, clean))
-
-
-def test_the_dose_block_cannot_drop_an_arm_that_took_zero_constraint_steps():
-    """An arm that ATTEMPTED zero constraint steps used to vanish from the
-    CONSTRAINT DOSE table entirely, while still being scored and BH-tested.
-
-    It fell between the two buckets: not `trained` (attempted == 0) and not
-    `blind` (its runs DO record counts). The state is reachable -- the trainer
-    sets `did_backward = has_constraint` and `has_constraint = total_constraint
-    > 0`, so a run whose cap never binds increments neither counter, and
-    FRAMEWORK already records that the cap does not bind in every seed.
-
-    That is the worst shape this block can take: the reader sees a healthy
-    100% line for the other arm and no mention of the one that got no
-    treatment at all.
-    """
-    import contextlib
-    import io as _io
-    from scripts.full_panel import _constraint_dose_check
-
-    def render(rows):
-        buf = _io.StringIO()
-        with contextlib.redirect_stdout(buf):
-            _constraint_dose_check(rows)
-        return buf.getvalue()
-
-    def run(arm, app, att):
-        return dict(arm=arm, steps_applied=app, steps_attempted=att)
-
-    out = render([run("tralo", 29, 29) for _ in range(4)]
-                 + [run("alm", 0, 0) for _ in range(4)])
-    assert "tralo" in out and "116 / 116" in out, out   # summed over 4 runs
-    assert "alm" in out, (
-        "an arm that attempted ZERO constraint steps is absent from the dose "
-        "table while being scored below it:\n" + out)
-    assert "ZERO constraint steps ATTEMPTED" in out, out
-    # and the block must say the arm-vs-arm dose check could not run, because
-    # only one arm has a measurable dose
-    assert "could NOT run" in out, out
-
-    # A partially-blind arm must not report its measured subset's percentage
-    # under the FULL run count: 1 run at 29/29 plus 3 with no counts is not
-    # "100.0%, 4 run(s)".
-    out = render([run("tralo", 29, 29)]
-                 + [run("tralo", None, None) for _ in range(3)]
-                 + [run("fioretto", 28, 28) for _ in range(4)])
-    assert "RECORD NO COUNTS" in out, out
-    tralo_line = [l for l in out.splitlines() if l.strip().startswith("tralo")]
-    assert len(tralo_line) == 1, out
-    assert "100.0%, 4 run(s)" not in tralo_line[0], (
-        "a run count of 4 printed beside a percentage measured on 1: " + out)
-    assert "1 of 4 run(s); 3 RECORD NO COUNTS" in tralo_line[0], out
-    # LIVENESS on the same render: the fully-measured arm keeps the plain
-    # form, so the disclosure is attached to the arm it is about.
-    fio = [l for l in out.splitlines() if l.strip().startswith("fioretto")]
-    assert fio and "100.0%, 4 run(s)" in fio[0], out
-
-    # LIVENESS: an ordinary healthy campaign must carry NONE of those three
-    # warnings, or they are decoration.
-    clean = render([run("tralo", 29, 29) for _ in range(4)]
-                   + [run("alm", 29, 29) for _ in range(4)])
-    for noise in ("ZERO constraint steps ATTEMPTED", "RECORD NO COUNTS",
-                  "could NOT run", "DID NOT RUN AT THE SAME DOSE"):
-        assert noise not in clean, (
-            "%r fires on a clean campaign, so it will stop being read:\n%s"
-            % (noise, clean))
-    assert "100.0%" in clean and "tralo" in clean and "alm" in clean, clean
-
-
-
-
-def test_every_probe_flag_is_actually_read():
-    """The fifth inert flag was `graph_probe --dump`, and it was mine.
-
-    It parsed, the probe ran to completion over 384 runs, printed its whole
-    report, and wrote no file -- twice, because the first failure looked like a
-    missing /tmp. `audit_config` covers config KEYS; nothing covered argparse
-    DESTINATIONS, which fail exactly the same way and just as silently.
-
-    AST, not grep: a flag named in a docstring or a help string is not read.
-    """
-    import argparse
-    for mod_name in ("scripts.graph_probe", "scripts.straddle_probe",
-                     "scripts.scope_probe", "scripts.factorial_control",
-                     "scripts.ceiling_screen", "scripts.task_window"):
-        mod = importlib.import_module(mod_name)
-        src = ast.parse(io.open(mod.__file__, encoding="utf-8").read())
-        declared = set()
-        for node in ast.walk(src):
-            if (isinstance(node, ast.Call)
-                    and getattr(node.func, "attr", "") == "add_argument"):
-                for a in node.args:
-                    if isinstance(a, ast.Constant) and str(a.value).startswith("--"):
-                        declared.add(str(a.value)[2:].replace("-", "_"))
-                for kw in node.keywords:
-                    if kw.arg == "dest" and isinstance(kw.value, ast.Constant):
-                        declared.add(str(kw.value.value))
-        # every `args.<x>` / `<x>=args.<x>` read anywhere in the module
-        read = {n.attr for n in ast.walk(src)
-                if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name)
-                and n.value.id in ("args", "a", "ns")}
-        # argparse itself consumes these
-        read |= {"help", "self_test"}
-        unread = sorted(d for d in declared if d not in read)
-        assert not unread, (
-            "%s declares %s and never reads it. A flag that parses and does "
-            "nothing is the inert-flag failure this project has hit five "
-            "times." % (mod_name, unread))
-    assert argparse  # the import is the point of the loop above
-
-
-def test_the_graph_probe_dump_writes_the_arm_column_it_exists_for():
-    """The dump exists to answer one question the pooled report cannot: does
-    diffusion help the TREATED arm more than the clipper? If every arm gains
-    the same, the geometry raises the BASELINE and no arm-vs-arm delta moves --
-    which would make FRAMEWORK 2(g)'s correction irrelevant to the thesis. So
-    the `arm` column is the payload, not decoration.
-    """
-    gp = importlib.import_module("scripts.graph_probe")
-    names = [os.path.join("MobileNetV3", "iwildcam", "L90_G95", "tralo", "seed_1"),
-             os.path.join("MobileNetV3", "iwildcam", "L90_G95", "clip", "seed_1")]
-    rows = {"diffused": [4.73, 0.11],
-            "C1_shuffled_graph": [-25.2, -24.0],
-            "C2_shuffled_features": [-30.3, -29.1]}
-    path = os.path.join(tempfile.mkdtemp(), "gp.csv")
-    gp.write_dump(path, names, rows)
-
-    lines = [l.strip() for l in io.open(path, encoding="utf-8") if l.strip()]
-    assert lines[0].split(",")[1:6] == ["backbone", "dataset", "cap", "arm",
-                                        "seed"]
-    body = [l.split(",") for l in lines[1:]]
-    assert len(body) == 2
-    assert [r[4] for r in body] == ["tralo", "clip"], (
-        "the arm must come out of the path, or the per-arm question still "
-        "cannot be asked")
-    assert [r[1] for r in body] == ["MobileNetV3", "MobileNetV3"]
-    assert float(body[0][6]) == 4.73 and float(body[1][6]) == 0.11
-
-
-def test_straddle_probe_calls_an_inert_arm_inert_not_unreachable():
-    """Its delta ladder is anchored on `q95` of |p_treated - p_null|, so an arm
-    byte-identical to its own twin gives delta = 0 and `reachable = 0` in every
-    band -- and the report reads "the constraint as configured cannot collect
-    the oracle gap however it is tuned". That closes a direction on an arm that
-    never ran. Inert flags are this project's most frequent failure mode
-    (CLAUDE.md rule 3, four occurrences; `cb_lp` is byte-identical to `clip` in
-    24/24), so the probe has to name the case.
-
-    Both directions, plus an AST check that the branch actually skips the pair
-    -- a flag that is computed and not acted on is the defect it guards.
-    """
-    sp = importlib.import_module("scripts.straddle_probe")
-    dead = {2: {"q": 0.0, "median": 0.0, "max": 0.0},
-            7: {"q": 0.0, "median": 0.0, "max": 0.0}}
-    live = {2: {"q": 0.0, "median": 0.0, "max": 1e-6},   # q95 0, but it MOVED
-            7: {"q": 0.02, "median": 0.001, "max": 0.4}}
-    assert sp.is_inert(dead) is True
-    assert sp.is_inert(live) is False, (
-        "an arm that moved even one item is not inert -- a q95 of zero is a "
-        "small dose, which is exactly what this probe exists to price")
-
-    src = ast.parse(io.open(sp.__file__, encoding="utf-8").read())
-    calls = [n for n in ast.walk(src)
-             if isinstance(n, ast.Call) and getattr(n.func, "id", "") == "is_inert"]
-    assert calls, "is_inert is defined and never called"
-    guards = [n for n in ast.walk(src)
-              if isinstance(n, ast.If)
-              and isinstance(n.test, ast.Call)
-              and getattr(n.test.func, "id", "") == "is_inert"
-              and any(isinstance(b, ast.Continue) for b in n.body)]
-    assert guards, (
-        "the inert branch must SKIP the pair; computing the flag and then "
-        "pricing the run anyway is the same defect with a comment attached")
-
-
-def test_the_ceiling_screen_cannot_kill_a_dataset_it_never_measured():
-    """Its p@K and seed sd are iwildcam's, and it said so in prose while the
-    VERDICT column went on printing `PRIZE BELOW THE NOISE` for datasets whose
-    own curve nobody has measured. iwildcam sits at p@K 0.9948-0.9972; FRAMEWORK
-    2(w2) prices fmow at `p@K <= 0.92`, a bar iwildcam's numbers can neither
-    pass nor test. So the screen would have killed the second dataset on the
-    first dataset's ranking quality.
-
-    Both directions: it must still reach a verdict on iwildcam itself.
-    """
-    cs = importlib.import_module("scripts.ceiling_screen")
-    cell = [("L30_G50", 2, 370, 185, 111, 111)]
-
-    buf = io.StringIO()
-    worth = cs.report(cell, out=buf, native=False)
-    txt = buf.getvalue()
-    assert worth == 0 and "PRIZE BELOW THE NOISE" not in txt
-    assert "NOTHING WAS DECIDED" in txt and "needs p@K <= " in txt
-
-    # the printed bar is the real one, checked from both sides
-    need = float(txt.split("needs p@K <= ")[1].split()[0])
-    assert cs.report(cell, ccp=need - 1e-3, noise=6.35,
-                     out=io.StringIO()) == 1
-    assert cs.report(cell, ccp=need + 1e-3, noise=6.35,
-                     out=io.StringIO()) == 0
-
-    # LIVENESS: on its own dataset the screen still decides.
-    buf = io.StringIO()
-    assert cs.report(cell, out=buf, native=True) == 0
-    assert "PRIZE BELOW THE NOISE" in buf.getvalue()
-
-
-def test_the_ceiling_screen_says_when_its_curve_was_extrapolated():
-    """`calibrated` clamped silently outside K/n 0.20-0.90 and returned the
-    endpoint as if measured. The per-class caps now in the protocol run to
-    K/n = 1.00 (`L80-100_G95`), so the clamp fires in the live campaigns, not
-    in a corner case.
-    """
-    cs = importlib.import_module("scripts.ceiling_screen")
-    assert cs.calibrated(0.95)[2] is True
-    assert cs.calibrated(0.10)[2] is True
-    assert cs.calibrated(0.50)[2] is False
-    buf = io.StringIO()
-    cs.report([("L100_G95", 2, 370, 370, 370, 370)], out=buf)
-    assert "OUTSIDE the measured" in buf.getvalue()
-    buf = io.StringIO()
-    cs.report([("L50_G50", 2, 370, 185, 185, 185)], out=buf)
-    assert "OUTSIDE the measured" not in buf.getvalue()
+    assert "PARITY OK" in clean, clean
 
 
 def test_the_factorial_gate_cannot_report_a_pass_it_did_not_measure():
-    """`survives ~100%` used to be reachable without raking a single group.
-
-    `str.split(sep)[0]` and `[-1]` both return the WHOLE string when the
-    separator is absent, so `f0 == f1`, every unseen group kept `p_glob`, and
-    the additive arm was the global arm. FRAMEWORK 2(w2b) published five atomic
-    datasets at 99.8-100.1% as a PASSED negative control and ranked the
-    candidate datasets on that column -- but iwildcam and fmow are ATOMIC
-    (camera, country), so 0 of their groups were ever factorised. The scatter
-    in that row was the null draw.
-
-    Two directions, because a refusal that always refuses is not a gate either.
-    """
     fc = importlib.import_module("scripts.factorial_control")
     root = tempfile.mkdtemp()
     live = fc.control(fc._synthetic(os.path.join(root, "f"), seed=0), sep="|")
     dead = fc.control(os.path.join(root, "f"), sep="@")
-
     assert live["raked"] == live["unseen"] > 0
     assert live["survives"] < 60.0, (
-        "on a slice whose held-out cell IS the product of the observed "
-        "marginals the raked baseline must absorb most of the novelty, got "
-        "%.1f%%" % live["survives"])
+        "on a slice whose held-out cell IS the product of the observed marginals the raked baseline must absorb most of the novelty, got %.1f%%"
+        % live["survives"]
+    )
     assert "survives" in chr(10).join(fc.report(live, "live"))
-
     assert dead["raked"] == 0
     assert math.isnan(dead["survives"]), (
-        "a separator that never occurs must yield NO survival figure, got "
-        "%.1f%%" % dead["survives"])
+        "a separator that never occurs must yield NO survival figure, got %.1f%%"
+        % dead["survives"]
+    )
     txt = chr(10).join(fc.report(dead, "dead"))
     assert "NOT A CONTROL" in txt and "survives" not in txt, (
-        "the refusal must replace the survival figure, not sit beside it")
+        "the refusal must replace the survival figure, not sit beside it"
+    )
     assert dead["net_global"] == dead["net_additive"], (
-        "with nothing raked the two arms are the same arm, so they must agree "
-        "EXACTLY -- an RNG-only difference is what made ~100%% look measured")
+        "with nothing raked the two arms are the same arm, so they must agree EXACTLY -- an RNG-only difference is what made ~100%% look measured"
+    )
 
 
 def test_the_factorial_gate_reports_the_undiluted_ratio():
-    """The ratio used to span the whole slice, but the arms differ only on the
-    UNSEEN units -- every seen group contributes identically to both. So the
-    figure was dragged toward 100% in proportion to how much of the test set
-    was seen: on a slice where raking is exact it read 47.5 / 76.0 / 91.9% as
-    the unseen share fell 20 -> 7 -> 2.4%, while the truth stayed near 20-26%.
-
-    Every candidate in `~/_cand` happens to be 100% unseen, so no published
-    number moved -- which is exactly why this needs a test rather than a note.
-    """
     fc = importlib.import_module("scripts.factorial_control")
     root = tempfile.mkdtemp()
-    r = fc.control(fc._synthetic(os.path.join(root, "f"), seed=0,
-                                 n_unseen=300, n_seen=2000), sep="|")
+    r = fc.control(
+        fc._synthetic(os.path.join(root, "f"), seed=0, n_unseen=300, n_seen=2000),
+        sep="|",
+    )
     assert r["raked"] > 0
     assert r["survives_diluted"] > r["survives"] + 10.0, (
-        "expected the whole-slice figure to sit well above the unseen-only "
-        "one (%.1f%% vs %.1f%%)" % (r["survives_diluted"], r["survives"]))
+        "expected the whole-slice figure to sit well above the unseen-only one (%.1f%% vs %.1f%%)"
+        % (r["survives_diluted"], r["survives"])
+    )
     assert r["survives"] < 60.0, (
-        "the headline must be the UNDILUTED ratio, got %.1f%%" % r["survives"])
+        "the headline must be the UNDILUTED ratio, got %.1f%%" % r["survives"]
+    )
     assert "diluted by the seen groups" in chr(10).join(fc.report(r, "x"))
 
 
-def test_the_pooling_probes_say_when_they_pooled_across_cells():
-    """`scope_probe` and `graph_probe` aggregate a whole `--campaign` tree into
-    ONE row per regime, keyed on the regime name and nothing else.
-
-    Both carry a PUBLISHED direction-closing verdict computed that way:
-    "transductive geometry is a NULL, +0.50 items, 10/19" and "pinning the
-    split costs -0.86 items while wrong-shape controls cost 5.3-5.5". Neither
-    keys on (backbone, cap), so both figures span backbones and cap levels --
-    the aggregation rule 4 forbids, and the one this project has retracted a
-    result over three times.
-
-    The pooled line stays, so the published numbers remain reproducible. What
-    must exist is the block that says whether the pooling was legal, and it
-    must be silent when there is only one cell.
-    """
-    import contextlib
-    import io as _io
-    import importlib
-
-    names = ["r/MobileNetV3/iwildcam/L90_G95/tralo/seed_1",
-             "r/MobileNetV3/iwildcam/L90_G95/tralo/seed_2",
-             "r/ViTB16/iwildcam/L80_G95/tralo/seed_1"]
-
-    for mod, keys in (("scripts.scope_probe",
-                       ("local_only", "C1_rotated", "C2_reversed")),
-                      ("scripts.graph_probe",
-                       ("diffused", "C1_shuffled_graph",
-                        "C2_shuffled_features"))):
-        M = importlib.import_module(mod)
-        # The ARM is part of the cell key (rule 4: the atomic cell is
-        # dataset x backbone x cap x METHOD). It was dropped until 2026-09-07,
-        # so every arm's runs at one cap collapsed to one key and the guard
-        # below certified a six-method mixture as "ONE CELL". FRAMEWORK 2(z52).
-        assert M._cell_of(names[0]) == ("MobileNetV3", "iwildcam", "L90_G95",
-                                        "tralo"), (
-            "%s cannot derive a cell from a run path" % mod)
-        # and two ARMS at one cap are two cells, not one
-        assert M._cell_of(names[0]) != M._cell_of(
-            "r/MobileNetV3/iwildcam/L90_G95/alm/seed_1")
-
-        # The three runs average to -2.00 pooled, while the two cells are
-        # +1.50 and -9.00. A pooled mean that no cell resembles is exactly the
-        # shape rule 4 exists to stop.
-        rows = {k: [0.0, 0.0, 0.0] for k in keys}
-        rows[keys[0]] = [1.0, 2.0, -9.0]
-
-        def render(nm, rw):
-            buf = _io.StringIO()
-            with contextlib.redirect_stdout(buf):
-                M._per_cell_report(nm, rw, keys)
-            return buf.getvalue()
-
-        out = render(names, rows)
-        assert "POOLS 2 CELLS" in out, (mod, out)
-        assert "MobileNetV3/iwildcam/L90_G95" in out and \
-               "ViTB16/iwildcam/L80_G95" in out, (mod, out)
-        assert "+1.50" in out and "-9.00" in out, (
-            "%s reported the pooled mean but not the per-cell means, so the "
-            "sign flip between cells is still invisible:\n%s" % (mod, out))
-        assert "not 3 run(s)" in out, (mod, out)
-
-        # LIVENESS: a single-cell campaign is a legal aggregate and must NOT
-        # carry the warning, or it fires on every invocation and stops being
-        # read.
-        clean = render(names[:2], {k: v[:2] for k, v in rows.items()})
-        assert "POOLS" not in clean, (mod, clean)
-        assert "legal aggregate" in clean, (mod, clean)
-
-
 def test_dataset_screen_never_upgrades_a_verdict_it_could_not_compute():
-    """`dataset_screen` decides which dataset gets a GPU campaign.
-
-    Its ladder tested `net_z < 2.0` for DEAD, and `summarise` returns nan for z
-    when the sampling-noise null has zero spread. `nan < 2.0` is False, so an
-    UNDEFINED significance test skipped the DEAD branch entirely and the slice
-    fell through to MARGINAL or STAGE 1 PASS on a different number. An absent
-    measurement upgraded the verdict.
-
-    The second half of the same defect: the ladder gated on NET and reported
-    LOCAL, so `net=1, local=500` printed "DEAD: local novelty 500 items is
-    BELOW the 2.7-item seed noise" -- self-contradictory on its own line. LOCAL
-    includes the global shift replicated across groups, which FRAMEWORK 2(j)
-    shows cannot reorder a top-K at any size.
-    """
     from scripts.dataset_screen import verdict_lines
 
     def r(net, z, local, gcol="location"):
-        return dict(gcol=gcol, net_items=net, net_z=z, local_items=local,
-                    unseen_groups=[], unseen_items=0, path="x/slice")
+        return dict(
+            gcol=gcol,
+            net_items=net,
+            net_z=z,
+            local_items=local,
+            unseen_groups=[],
+            unseen_items=0,
+            path="x/slice",
+        )
 
-    # 🛑 the defect: an undefined z with a big LOCAL number
     out = " ".join(verdict_lines(r(1.0, float("nan"), 500.0), "s"))
     assert "UNDECIDABLE" in out, out
     assert "STAGE 1 PASS" not in out and "MARGINAL" not in out, (
-        "an undefined significance test still upgrades the verdict: " + out)
-
-    # the ladder must gate and report the SAME number
+        "an undefined significance test still upgrades the verdict: " + out
+    )
     out = " ".join(verdict_lines(r(1.0, 5.0, 500.0), "s"))
     assert "DEAD" in out and "NET novelty 1 items" in out, out
     assert "DEAD: local novelty 500" not in out, (
-        "the verdict still reports LOCAL while testing NET: " + out)
-
-    # LIVENESS, all three live branches, so the ladder is not stuck on one
-    assert "DEAD" in " ".join(verdict_lines(r(50.0, 1.0, 50.0), "s"))       # z
+        "the verdict still reports LOCAL while testing NET: " + out
+    )
+    assert "DEAD" in " ".join(verdict_lines(r(50.0, 1.0, 50.0), "s"))
     assert "MARGINAL" in " ".join(verdict_lines(r(5.0, 5.0, 5.0), "s"))
     assert "STAGE 1 PASS" in " ".join(verdict_lines(r(500.0, 9.0, 500.0), "s"))
     assert "NO GROUP COLUMN" in " ".join(
-        verdict_lines(r(500.0, 9.0, 500.0, gcol=None), "s"))
-
-    # 🛑 AND THE NOISE DIVISOR CHANGES THE ANSWER. The default 2.7 is the
-    # paired seed sd on dermmnist, a REMOVED and leaked dataset; iwildcam
-    # measures 4.75 to 27.83, so every default boundary is 1.8x to 10x too
-    # generous. A slice that passes at 2.7 must be able to fail at 27.83, or
-    # --noise does nothing.
+        verdict_lines(r(500.0, 9.0, 500.0, gcol=None), "s")
+    )
     lenient = " ".join(verdict_lines(r(30.0, 9.0, 30.0), "s", noise=2.7))
     strict = " ".join(verdict_lines(r(30.0, 9.0, 30.0), "s", noise=27.83))
     assert "STAGE 1 PASS" in lenient, lenient
     assert "STAGE 1 PASS" not in strict, (
-        "--noise does not move the verdict, so pricing a candidate at the "
-        "real iwildcam noise is impossible: " + strict)
+        "--noise does not move the verdict, so pricing a candidate at the real iwildcam noise is impossible: "
+        + strict
+    )

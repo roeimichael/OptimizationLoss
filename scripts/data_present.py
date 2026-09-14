@@ -42,9 +42,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # What `src/utils/data_loader.py:154-158,194` actually opens. Restated rather
 # than imported, deliberately -- see the module docstring.
-REQUIRED = ("train_images.npy", "train_labels.npy",
-            "test_images.npy", "test_labels.npy",
-            "train_meta.csv", "test_meta.csv")
+REQUIRED = (
+    "train_images.npy",
+    "train_labels.npy",
+    "test_images.npy",
+    "test_labels.npy",
+    "train_meta.csv",
+    "test_meta.csv",
+)
 
 
 def data_dirs(root):
@@ -71,7 +76,7 @@ def check_dir(data_dir, base):
     missing, empty = [], []
     for name in REQUIRED:
         p = os.path.join(base, data_dir, name)
-        if not os.path.exists(p):          # False for a dangling symlink
+        if not os.path.exists(p):  # False for a dangling symlink
             missing.append(name)
             continue
         try:
@@ -91,6 +96,7 @@ def registered_dirs(base="."):
     checked, not the moment a campaign already exists.
     """
     import yaml
+
     p = os.path.join(base, "configs", "protocol.yml")
     if not os.path.exists(p):
         return {}
@@ -131,12 +137,16 @@ def analyse_registered(base=".", out=sys.stdout):
         for name in empty:
             w("             present but ZERO BYTES: %s\n" % name)
     if bad:
-        w("\n  %d of %d registered dataset(s) are not readable from this tree.\n"
-          % (bad, len(dirs)))
-        w("  A missing *.npy is a LINKING job. A missing *_meta.csv is worse:\n"
-          "  the split IS the experiment, so if it is absent here AND\n"
-          "  untracked, check `git ls-files` before assuming it exists\n"
-          "  anywhere but the one worktree that built it.\n")
+        w(
+            "\n  %d of %d registered dataset(s) are not readable from this tree.\n"
+            % (bad, len(dirs))
+        )
+        w(
+            "  A missing *.npy is a LINKING job. A missing *_meta.csv is worse:\n"
+            "  the split IS the experiment, so if it is absent here AND\n"
+            "  untracked, check `git ls-files` before assuming it exists\n"
+            "  anywhere but the one worktree that built it.\n"
+        )
     return 1 if bad else 0
 
 
@@ -144,8 +154,10 @@ def analyse(root, base=".", out=sys.stdout):
     w = out.write
     dirs = data_dirs(root)
     if not dirs:
-        w("no config under %s names a data_dir -- nothing to check, and that\n"
-          "is itself suspicious for a staged campaign.\n" % root)
+        w(
+            "no config under %s names a data_dir -- nothing to check, and that\n"
+            "is itself suspicious for a staged campaign.\n" % root
+        )
         return 1
     bad = 0
     for d, cfgs in sorted(dirs.items()):
@@ -160,17 +172,22 @@ def analyse(root, base=".", out=sys.stdout):
         for name in empty:
             w("             present but ZERO bytes: %s\n" % name)
     if bad:
-        w("\n  %d data_dir(s) unreadable from %s.\n"
-          % (bad, os.path.abspath(base)))
-        w("  The arrays are gitignored, so a FRESH WORKTREE has only the\n"
-          "  tracked *_meta.csv. Symlink them from a worktree that has them,\n"
-          "  pointing at the REAL file rather than at another symlink:\n")
+        w("\n  %d data_dir(s) unreadable from %s.\n" % (bad, os.path.abspath(base)))
+        w(
+            "  The arrays are gitignored, so a FRESH WORKTREE has only the\n"
+            "  tracked *_meta.csv. Symlink them from a worktree that has them,\n"
+            "  pointing at the REAL file rather than at another symlink:\n"
+        )
         w("      SRC=<a worktree>/%s\n" % list(dirs)[0])
-        w("      for f in $(readlink -f $SRC/*.npy); do \\\n"
-          "          ln -s $f <this worktree>/%s/; done\n" % list(dirs)[0])
+        w(
+            "      for f in $(readlink -f $SRC/*.npy); do \\\n"
+            "          ln -s $f <this worktree>/%s/; done\n" % list(dirs)[0]
+        )
         return 1
-    w("\n  every data_dir readable: %d dir(s), %d file(s) each.\n"
-      % (len(dirs), len(REQUIRED)))
+    w(
+        "\n  every data_dir readable: %d dir(s), %d file(s) each.\n"
+        % (len(dirs), len(REQUIRED))
+    )
     return 0
 
 
@@ -186,6 +203,7 @@ def _registry_checks(checks, base, tmp):
     is a red light that is always on and nobody will read it.
     """
     import io as _io
+
     cfgdir = os.path.join(base, "configs")
     os.makedirs(cfgdir)
     good = os.path.join("data", "goodset", "oodslice")
@@ -203,37 +221,53 @@ def _registry_checks(checks, base, tmp):
         "  goodset:\n"
         "    data_dir: %s\n"
         "  badset:\n"
-        "    data_dir: %s\n" % (good.replace(os.sep, "/"),
-                                 bad.replace(os.sep, "/")))
+        "    data_dir: %s\n" % (good.replace(os.sep, "/"), bad.replace(os.sep, "/"))
+    )
     buf = StringIO()
     rc = analyse_registered(base, out=buf)
     txt = buf.getvalue()
-    checks.append(("registry: a registered dataset with NO config is still "
-                   "checked", rc == 1 and "badset" in txt))
-    checks.append(("registry: the MISSING files named are the meta CSVs",
-                   "train_meta.csv" in txt and "test_meta.csv" in txt))
+    checks.append(
+        (
+            "registry: a registered dataset with NO config is still checked",
+            rc == 1 and "badset" in txt,
+        )
+    )
+    checks.append(
+        (
+            "registry: the MISSING files named are the meta CSVs",
+            "train_meta.csv" in txt and "test_meta.csv" in txt,
+        )
+    )
     # Stated per LINE, not by slicing the whole report: the path
     # data/badset/oodslice
     # itself contains the substring "badset", so splitting on it cut the
     # MISSING line in half and the control passed on nothing.
     gl = [ln for ln in txt.splitlines() if "goodset" in ln]
     bl = [ln for ln in txt.splitlines() if "badset" in ln]
-    checks.append(("registry NEGATIVE CONTROL: the complete dataset is NOT "
-                   "flagged",
-                   len(gl) == 1 and "MISSING" not in gl[0]
-                   and gl[0].strip().startswith("ok")))
-    checks.append(("registry: the incomplete one IS flagged",
-                   len(bl) == 1 and "MISSING" in bl[0]))
+    checks.append(
+        (
+            "registry NEGATIVE CONTROL: the complete dataset is NOT flagged",
+            len(gl) == 1 and "MISSING" not in gl[0] and gl[0].strip().startswith("ok"),
+        )
+    )
+    checks.append(
+        ("registry: the incomplete one IS flagged", len(bl) == 1 and "MISSING" in bl[0])
+    )
     # and the config-driven path must be UNCHANGED by all of this
     buf2 = StringIO()
     rc2 = analyse(os.path.join(base, "results_absent"), base, out=buf2)
-    checks.append(("registry: the config-driven path still reports no configs",
-                   rc2 == 1 and "nothing to check" in buf2.getvalue()))
+    checks.append(
+        (
+            "registry: the config-driven path still reports no configs",
+            rc2 == 1 and "nothing to check" in buf2.getvalue(),
+        )
+    )
 
 
 def self_test(out=sys.stdout):
     import shutil
     import tempfile
+
     checks = []
     tmp = tempfile.mkdtemp(prefix="datapresent_")
     try:
@@ -244,18 +278,25 @@ def self_test(out=sys.stdout):
         # 1. NEGATIVE CONTROL: nothing present at all must FAIL. Without this
         #    the check could be vacuous and still pass the happy path below.
         missing, empty = check_dir(dd, base)
-        checks.append(("an empty data dir reports every required file missing",
-                       set(missing) == set(REQUIRED) and not empty))
+        checks.append(
+            (
+                "an empty data dir reports every required file missing",
+                set(missing) == set(REQUIRED) and not empty,
+            )
+        )
 
         # 2. The exact shape of the real failure: the tracked CSVs are there
         #    and the gitignored arrays are not. This must FAIL, not pass.
         for n in ("train_meta.csv", "test_meta.csv"):
             open(os.path.join(base, dd, n), "w").write("x\n")
         missing, _ = check_dir(dd, base)
-        checks.append(("THE REAL CASE: meta CSVs present, .npy absent -> still "
-                       "missing %d" % len(missing),
-                       len(missing) == 4 and all(m.endswith(".npy")
-                                                 for m in missing)))
+        checks.append(
+            (
+                "THE REAL CASE: meta CSVs present, .npy absent -> still "
+                "missing %d" % len(missing),
+                len(missing) == 4 and all(m.endswith(".npy") for m in missing),
+            )
+        )
 
         # 3. All present and non-empty must PASS -- the positive control that
         #    stops this from being a check that refuses everything.
@@ -268,8 +309,12 @@ def self_test(out=sys.stdout):
         #    `os.path.exists` alone would call it fine.
         open(os.path.join(base, dd, "train_images.npy"), "w").close()
         missing, empty = check_dir(dd, base)
-        checks.append(("a zero-byte array is caught as empty, not present",
-                       empty == ["train_images.npy"] and not missing))
+        checks.append(
+            (
+                "a zero-byte array is caught as empty, not present",
+                empty == ["train_images.npy"] and not missing,
+            )
+        )
 
         # 5. NEGATIVE CONTROL: a DANGLING symlink. This is the likely form of
         #    the bug in practice -- the arrays are symlinked between worktrees,
@@ -283,11 +328,20 @@ def self_test(out=sys.stdout):
             os.symlink(gone, link)
             os.remove(gone)
             missing, _ = check_dir(dd, base)
-            checks.append(("a DANGLING symlink reads as missing, not present",
-                           "test_images.npy" in missing))
+            checks.append(
+                (
+                    "a DANGLING symlink reads as missing, not present",
+                    "test_images.npy" in missing,
+                )
+            )
         except (OSError, NotImplementedError):
-            checks.append(("dangling-symlink check skipped (no symlink "
-                           "privilege on this host)", True))
+            checks.append(
+                (
+                    "dangling-symlink check skipped (no symlink "
+                    "privilege on this host)",
+                    True,
+                )
+            )
 
         checks.append(("the required-file list is not empty", len(REQUIRED) > 0))
 
@@ -309,13 +363,19 @@ def self_test(out=sys.stdout):
 def main(argv=None):
     a = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     a.add_argument("root", nargs="?")
-    a.add_argument("--base", default=".",
-                   help="tree the data_dir is resolved against (default cwd, "
-                        "which is what the runner itself uses)")
-    a.add_argument("--all-registered", action="store_true",
-                   help="check every dataset in configs/protocol.yml instead "
-                        "of the ones a campaign's configs name -- catches a "
-                        "dataset registered but never linked or committed")
+    a.add_argument(
+        "--base",
+        default=".",
+        help="tree the data_dir is resolved against (default cwd, "
+        "which is what the runner itself uses)",
+    )
+    a.add_argument(
+        "--all-registered",
+        action="store_true",
+        help="check every dataset in configs/protocol.yml instead "
+        "of the ones a campaign's configs name -- catches a "
+        "dataset registered but never linked or committed",
+    )
     a.add_argument("--self-test", action="store_true")
     args = a.parse_args(argv)
     if args.self_test:
