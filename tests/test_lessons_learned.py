@@ -751,3 +751,33 @@ def test_rank_paired_reports_the_SPREAD_and_does_not_POOL_a_reversal(tmp_path, c
     assert signs == {"-", "+"}, "a reversal was pooled away:\n" + out
     assert "positive" in out and "negative" in out
     assert "NOT a pooled estimate" in out
+
+
+def test_rank_paired_collapses_a_CAP_that_never_reached_the_MODEL(tmp_path, capsys):
+    """Three caps are not three cells when the cap only moved the allocator.
+
+    An arm that takes no constraint step trains ONE model; the cap acts solely
+    in the post-hoc allocation. Verified by md5 on the real bcn corpus: `clip`
+    and `tralo_null` write byte-identical `final_predictions_raw.csv` across
+    L70/L80/L90 while `tralo` writes three different ones. gAP is
+    allocation-free, so printing those as three cells triples the apparent n --
+    which is how "6 of 6 cells positive" was really 2 observations.
+    """
+    import importlib
+    root = str(tmp_path / "results" / "camp")
+    for seed in (1, 2, 3, 4):
+        for cap in ("L70_G95", "L90_G95"):
+            # same rng_key and same shift in both caps -> identical files,
+            # exactly as a no-constraint-step arm produces.
+            _fake_run(root, "clip", seed, cap=cap, shift=0.0, rng_key=seed)
+            _fake_run(root, "tralo_null", seed, cap=cap, shift=0.12, rng_key=seed)
+    mod = importlib.import_module("scripts.rank_paired")
+    assert mod.main(["--glob", root + "/*/*/*/*/seed_*", "--a", "tralo_null",
+                     "--b", "clip"]) == 0
+    out = capsys.readouterr().out
+    body = [l for l in out.splitlines() if "MobileNetV3" in l]
+    assert body, out
+    assert all("cap-inert" in l for l in body), "a cap that never reached the model was counted:\n" + out
+    assert not any("L70_G95" in l or "L90_G95" in l for l in body), out
+    # one row per constrained class, not one per (class, cap)
+    assert len(body) == 3, "expected 3 classes collapsed over caps, got %d:\n%s" % (len(body), out)

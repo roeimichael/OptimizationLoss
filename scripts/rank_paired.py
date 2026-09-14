@@ -4,8 +4,16 @@ rank_probe reports paired MEANS only. The house rule is that an arm-vs-arm gap
 must be read against the RNG floor, so this reports, per cell (backbone x cap x
 class): the seed-paired delta, its sd ACROSS seeds, and how many seeds are
 paired. Cells are never pooled into one average -- they are counted.
+
+And the cap is NOT always a cell. An arm that takes no constraint step trains
+one model and lets the cap act only in the post-hoc allocator, so its raw
+probabilities are byte-identical across L70/L80/L90 -- verified by md5 on bcn
+for `clip` and `tralo_null`, while `tralo` differs in all three. gAP is
+allocation-free, so counting three caps as three cells inflates n threefold.
+When BOTH arms in a contrast are cap-invariant the cap dimension is collapsed to
+a single row rather than printed three times.
 """
-import glob, json, os, sys, collections
+import glob, hashlib, json, os, sys, collections
 import numpy as np, pandas as pd
 
 
@@ -36,8 +44,27 @@ def collect(globs):
                         gaps.append(a); wts.append(lab[m].sum())
                 if gaps:
                     key = (cfg["model_name"], cfg["constraint_tag"], c)
-                    out[key].setdefault(cfg["arm"], {})[seed] = float(np.average(gaps, weights=wts))
+                    out[key].setdefault(cfg["arm"], {})[seed] = (
+                        float(np.average(gaps, weights=wts)),
+                        hashlib.md5(p.tobytes()).hexdigest())
     return out
+
+
+def cap_invariant(cells, model, cls, arm):
+    """True when this arm's probabilities do not change with the cap.
+
+    The cap then never reached the model -- it acted only in the allocator, and
+    gAP is allocation-free -- so its cap rows are the SAME observation repeated.
+    """
+    per_seed = collections.defaultdict(set)
+    caps = 0
+    for (m, cap, c), arms in cells.items():
+        if m != model or c != cls or arm not in arms:
+            continue
+        caps += 1
+        for seed, (_, h) in arms[arm].items():
+            per_seed[seed].add(h)
+    return caps > 1 and all(len(v) == 1 for v in per_seed.values())
 
 
 def main(argv=None):
@@ -54,18 +81,36 @@ def main(argv=None):
         print("  %-12s %-10s %4s %5s %10s %10s %8s" %
               ("backbone", "cap", "cls", "seeds", "mean d", "sd over", "|mean|/sd"))
         rows = []
+        seen = set()
         for key in sorted(cells):
             arms = cells[key]
             if args.a not in arms or b not in arms:
                 continue
-            s = sorted(set(arms[args.a]) & set(arms[b]))
+            collapse = (cap_invariant(cells, key[0], key[2], args.a)
+                        and cap_invariant(cells, key[0], key[2], b))
+            label = "(cap-inert)" if collapse else key[1]
+            va, vb = arms[args.a], arms[b]
+            if collapse:
+                if (key[0], key[2]) in seen:
+                    continue
+                seen.add((key[0], key[2]))
+                # The caps hold the SAME probabilities, so a seed run under one
+                # cap and not another is still one observation. Union them --
+                # taking the first cap alone silently halved n on bcn/ViTB16.
+                va, vb = {}, {}
+                for (m2, _, c2), a2 in cells.items():
+                    if (m2, c2) != (key[0], key[2]):
+                        continue
+                    va.update(a2.get(args.a, {}))
+                    vb.update(a2.get(b, {}))
+            s = sorted(set(va) & set(vb))
             if len(s) < 2:
                 continue
-            d = np.array([arms[args.a][x] - arms[b][x] for x in s])
+            d = np.array([va[x][0] - vb[x][0] for x in s])
             m, sd = float(d.mean()), float(d.std(ddof=1))
             rows.append(m)
             print("  %-12s %-10s %4d %5d %+10.4f %10.4f %8s" %
-                  (key[0], key[1], key[2], len(s), m, sd,
+                  (key[0], label, key[2], len(s), m, sd,
                    "%.2f" % (abs(m) / sd) if sd > 0 else "inf"))
         if rows:
             pos = sum(1 for x in rows if x > 0)
