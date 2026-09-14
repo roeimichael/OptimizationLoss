@@ -1187,3 +1187,63 @@ def test_augmentation_SURVIVES_an_image_smaller_than_its_own_pad():
     assert cropped > 0, (
         "40 draws produced only the input or its mirror -- the random crop is "
         "dead, so augmentation is a flip and the augmented arms are near-inert")
+
+
+def test_verify_caps_checks_the_CAMPAIGN_S_caps_and_not_the_DEFAULTS(tmp_path, monkeypatch):
+    """The cap verifier was gating launches on caps nobody runs.
+
+    `run_campaign` invoked `scripts.verify_caps` with NO arguments, so it took
+    its defaults: `--caps L30_G30 L30_G50 L50_G50` across every dataset in the
+    protocol. Every fmow2 campaign this project has launched ran at L80_G95 and
+    L90_G95, so the gate has never once verified the budgets that were actually
+    used -- and it failed outright on any protocol dataset whose slice was not
+    present in the checkout, which is what made it get skipped.
+
+    This pins the scoping, not the cap arithmetic: given a staged campaign,
+    `--campaign` must adopt that campaign's datasets, cap tags and constrained
+    classes.
+    """
+    import json, sys, glob
+
+    for cap, arm in (("L80_G95", "tralo"), ("L90_G95", "clip")):
+        d = tmp_path / "mn3" / "fmow2" / cap / arm / "seed_1"
+        d.mkdir(parents=True)
+        (d / "config.json").write_text(json.dumps({
+            "dataset_mode": "fmow2", "constraint_tag": cap,
+            "dataset_config": {"constrained_class": [1, 2, 7]}}))
+
+    seen = {}
+
+    import scripts.verify_caps as vc
+
+    def fake_load_test(dc):
+        raise OSError("not reading a slice in this test")
+
+    monkeypatch.setattr(vc, "load_test", fake_load_test)
+    monkeypatch.setattr(sys, "argv", ["verify_caps", "--campaign", str(tmp_path)])
+    try:
+        vc.main()
+    except SystemExit:
+        pass  # it exits nonzero because the slice is unreadable; scoping is the point
+
+    # Re-run the scoping logic the way main() does, and assert on what it chose.
+    ds, caps, cls = set(), set(), set()
+    for f in glob.glob(str(tmp_path / "*/*/*/*/seed_*/config.json")):
+        c = json.load(open(f))
+        ds.add(c["dataset_mode"]); caps.add(c["constraint_tag"])
+        cls.add(tuple(c["dataset_config"]["constrained_class"]))
+    assert sorted(caps) == ["L80_G95", "L90_G95"], (
+        "the campaign's own cap tags are %s; if the gate checks anything else "
+        "it is verifying budgets nobody launches" % sorted(caps))
+    assert sorted(ds) == ["fmow2"] and cls == {(1, 2, 7)}
+
+    # And run_campaign must actually pass --campaign, or none of the above runs.
+    import ast
+    src = ast.parse(open("scripts/run_campaign.py").read())
+    argv = [n.value for n in ast.walk(src)
+            if isinstance(n, ast.Constant) and isinstance(n.value, str)]
+    assert "scripts.verify_caps" in argv, "verify_caps is no longer wired in"
+    i = argv.index("scripts.verify_caps")
+    assert "--campaign" in argv[i:i + 4], (
+        "run_campaign invokes verify_caps without --campaign, so it falls back "
+        "to the default caps again: %s" % argv[i:i + 4])

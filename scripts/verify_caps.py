@@ -51,7 +51,38 @@ def main():
         action="store_true",
         help="exit 1 if any cap is inert/redundant or any group is uninformative, so this can gate a launch. Off by default: an inert global cap is a real fact about the campaign, not necessarily a mistake -- but it must never be a SILENT one.",
     )
+    a.add_argument(
+        "--campaign",
+        help="a staged campaign root. Takes the datasets, cap tags and constrained "
+             "classes FROM ITS CONFIGS instead of from the defaults. Without this "
+             "the gate ran on `--caps L30_G30 L30_G50 L50_G50` across every "
+             "protocol dataset -- caps no campaign has used since they were the "
+             "defaults, so it verified a configuration nobody launches while "
+             "failing on any dataset whose slice happens to be absent.",
+    )
     args = a.parse_args()
+    if args.campaign:
+        import glob, json
+
+        (ds_seen, cap_seen, cls_seen) = (set(), set(), set())
+        for f in glob.glob(os.path.join(args.campaign, "*/*/*/*/seed_*/config.json")):
+            cfg = json.load(open(f))
+            ds_seen.add(cfg["dataset_mode"])
+            cap_seen.add(cfg["constraint_tag"])
+            cc = cfg["dataset_config"]["constrained_class"]
+            cls_seen.add(tuple(cc) if isinstance(cc, list) else (cc,))
+        if not ds_seen:
+            raise SystemExit("REFUSED: no configs under %s" % args.campaign)
+        if len(cls_seen) > 1:
+            raise SystemExit(
+                "REFUSED: campaign mixes constrained_class sets %s; verify each "
+                "separately rather than checking one against the other's budgets"
+                % sorted(cls_seen))
+        args.datasets = sorted(ds_seen)
+        args.caps = sorted(cap_seen)
+        args.constrained_class = list(next(iter(cls_seen)))
+        print("scoped to campaign %s: datasets %s, caps %s, classes %s"
+              % (args.campaign, args.datasets, args.caps, args.constrained_class))
     (fails, inert) = ([], [])
     for ds in args.datasets:
         dc = dict(P["datasets"][ds])
