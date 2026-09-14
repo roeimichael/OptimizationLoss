@@ -237,14 +237,43 @@ survive its own confirmation.
 on accuracy; it failed, and that is exactly the falsehood this table shows. The
 probe reports the objective as the guaranteed quantity for that reason.
 
-🔑 **What survives is a NEW instrument.** Allocator disagreement -- the share of
-items greedy and the LP place differently -- measures how far an arm's
-probability field has been distorted, and it orders the arms cleanly at both
-caps: `tralo_null` (2.6/4.2%) < `focal_clip` < `hounie` < `clip` < `tralo`
-(3.9/6.8%) < `alm` < `fioretto` (4.9/7.4%). **The more a constraint pushed, the
-worse the calibration.** `tralo_null` takes no constraint step and is the least
-distorted; `fioretto` pushes hardest and is the most. That is a per-arm
-calibration-damage measurement the corpus has never had.
+**Overconfidence, measured rather than assumed.** ECE (15 bins) on the same
+runs: **mean confidence 0.92 against accuracy 0.60, ECE ~0.31** for every arm.
+A 32-point confidence overstatement is more than enough for `sum p` to stop
+proxying accuracy.
+
+⛔ **And I got the second half of this wrong within the hour.** I wrote that
+allocator disagreement measures calibration damage and that "the more a
+constraint pushed, the worse the calibration". **ECE refutes it**: it is FLAT at
+0.306-0.324 across alm, clip, fioretto, hounie, tralo and tralo_null, with only
+`focal_clip` apart (0.228, confidence 0.831). There is no per-arm calibration
+ordering to measure.
+
+🔑 **What disagreement actually tracks is NATIVE OBEDIENCE, inversely.** Against
+`obey_all` excess on the same 14 cells, L90_G95:
+
+| arm | native excess | items moved |
+|---|---|---|
+| fioretto | 279 | 7.4% |
+| hounie | 298 | 5.8% |
+| tralo | 309 | 6.8% |
+| alm | 326 | 6.3% |
+| focal_clip | 381 | 4.6% |
+| tralo_null | 409 | 4.2% |
+| clip | 413 | 5.4% |
+
+**Spearman rho = -0.79.** The better an arm already obeys, the MORE the two
+allocators disagree about it. Mechanism not confirmed -- the plausible one is
+that an obedient model leaves greedy filling the cap from lower `p(c)`, where
+margins are tiny and there is more for the LP to rearrange. Stated as a
+correlation, not a cause.
+
+🔑 **The duals DO obey natively, and by a clear margin.** All four beat both
+clippers at L90_G95 (excess 279-326 against 381-413), and `tralo` is the best
+trained arm on compliant scopes (13.0/30 against `tralo_null`'s 10.0). The
+constraint phase is working. **It just does not convert** -- which is the
+finding the whole ledger keeps arriving at, now with the obedience side
+measured on one scale for all seven arms.
 
 ### 📊 fm2_mn3 COMPLETE: THE 4-SEED VERDICT AGAINST ALL SIX RIVALS
 
