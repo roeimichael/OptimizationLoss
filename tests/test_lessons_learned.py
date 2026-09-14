@@ -991,3 +991,48 @@ def test_grad_mass_separates_a_SATURATED_model_from_a_LIVE_one(tmp_path, capsys)
         + chr(10) + sat_out + chr(10) + live_out)
     # NEGATIVE CONTROL: uniform p=0.5 must NOT look concentrated.
     assert live_top1 < 5.0, "an evenly spread gradient read as concentrated: " + live_out
+
+
+def test_the_ALLOCATOR_is_NOT_optimal_even_with_a_SINGLE_capped_class():
+    """Pins the allocator-gap probe, and the correction it produced.
+
+    `apply_allocation_heuristic` says in its own docstring that a single capped
+    class makes it that class's top-K. True -- but top-K by p(c) is NOT the
+    maximiser, because an item not given c falls back to its best OTHER class,
+    so a slot is worth the MARGIN p(c) - best_alt, not p(c). Three things have
+    to hold or the measured gap means nothing:
+
+    (a) the LP is an exact maximiser of the same objective, so it can never
+        score BELOW greedy;
+    (b) `margin_topk`, a closed-form optimum for the one-capped-class case,
+        must REPRODUCE the LP exactly -- independent confirmation that the LP
+        is specified right, which no self-consistency check could give;
+    (c) greedy must be strictly WORSE than both on diffuse probabilities. If
+        this ever ties, the probe has stopped measuring the defect and the
+        +0.0095 accuracy prize in the docstring is unsupported.
+    """
+    from scripts.alloc_gap import trial
+
+    strictly_worse = 0
+    for seed in (1, 2, 3, 4, 5):
+        g_obj, lp_obj, _g_acc, _lp_acc, _differ, m_obj, _m_acc = trial(
+            seed, capped=(0,), sharp=1.0)
+        assert lp_obj >= g_obj - 1e-6, (
+            "the LP scored BELOW greedy (%.6f < %.6f) -- it is mis-specified"
+            % (lp_obj, g_obj))
+        assert abs(m_obj - lp_obj) < 1e-6, (
+            "the closed-form margin optimum and the LP disagree (%.6f vs %.6f) "
+            "-- one of them is wrong, so the measured gap is meaningless"
+            % (m_obj, lp_obj))
+        if lp_obj - g_obj > 1e-6:
+            strictly_worse += 1
+    assert strictly_worse == 5, (
+        "the shipped greedy allocator tied the optimum on %d of 5 seeds -- the "
+        "probe is no longer exercising the p(c)-vs-margin defect it exists to "
+        "measure" % (5 - strictly_worse))
+
+    # Liveness on the multi-class path, which has no closed form at all.
+    gaps = [trial(s, capped=(0, 1, 2), sharp=0.7) for s in (1, 2, 3)]
+    assert min(lp - g for g, lp, *_ in gaps) > 0.0, (
+        "three competing capped classes on diffuse probabilities produced NO "
+        "greedy/LP gap -- the probe would report optimality by construction")

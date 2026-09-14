@@ -97,6 +97,64 @@ hands the allocator less work, and TraLO's obedience advantage (bcn L70 excess
 **The decisive test is free and queued**: `lp` and `clip` share the same trained
 model, so any difference between them on cc-F1 is PURELY the allocator.
 
+### 🔑 ANSWERED OFFLINE, AND THE ANSWER IS BIGGER THAN THE QUESTION
+
+`scripts/alloc_gap.py` imports the shipped allocator and solves the identical
+instance exactly (transportation LP -- items x classes with per-(group, class)
+capacities, so the relaxation is integral and HiGHS returns the true optimum).
+400 items / 8 classes / 4 groups / 5 seeds. `sharp` sets separation; **sharp=2.0
+lands at 0.70 accuracy, which is our regime.**
+
+| capped | sharp | obj gap | moved | **accuracy gap (LP - greedy)** |
+|---|---|---|---|---|
+| 1 | 4.0 | 0.007% | 0.5% | +0.0000 |
+| 1 | 2.0 | 0.096% | 0.9% | +0.0030 |
+| 1 | 1.0 | 0.299% | 2.5% | +0.0050 |
+| 3 | 4.0 | 0.050% | 1.5% | +0.0000 |
+| **3** | **2.0** | **0.588%** | **4.7%** | **+0.0095** |
+| 3 | 1.0 | 1.204% | 8.7% | +0.0005 |
+| 5 | 2.0 | 1.385% | 9.9% | **+0.0150** |
+| 5 | 1.0 | 2.115% | 13.9% | +0.0040 |
+
+**1. The allocator's own docstring hides a false premise.** It is right that a
+single capped class makes pass 1 that class's top-K. But **top-K by p(c) is not
+the maximiser.** An item not given `c` falls back to its best OTHER class, so a
+slot is worth the MARGIN `p(c) - best_alt`, not `p(c)`. `margin_topk` in the
+probe takes the top-K by that margin and **reproduces the LP to floating point
+on every seed**, while the shipped rule is strictly worse on all five. So the
+defect is present even in the case the code documents as exact, and it is not a
+subtlety of the multi-class joint pass.
+
+**2. The prize is not negligible at the separation our models actually have.**
++0.0095 (3 capped) to +0.0150 (5 capped) accuracy at sharp=2.0 -- **larger than
+most arm-vs-arm gaps this project has ever measured.** It vanishes at sharp=4.0
+because nothing is contested, and it DECOUPLES from the objective at sharp<=1.0,
+where greedy loses more probability mass while the accuracy difference falls
+back into the noise. The peak sits exactly where our models sit.
+
+**What this does and does not change.** Every arm shares the allocator, so it
+does not explain TraLO losing. What it does is open a conversion path that had
+been invisible: **greedy reads `p(c)`, the optimum reads the margin.** A TRAINED
+arm whose probabilities are already margin-shaped converts through this greedy
+allocator; a post-hoc clipper cannot, because it inherits the plain warm-up's
+probabilities. TraLO's `p(1-p)` weighting pushes hardest at `p(c) ~ 0.5` -- the
+LOW-MARGIN items -- which is the right direction. This is the first mechanism
+found that distinguishes a trained arm from a clipper *through the allocator*
+rather than around it.
+
+**Do NOT fix `apply_allocation_heuristic` now.** It is inside
+`source_inventory()` and three campaigns are live; changing it splits
+`code_version` exactly as the scorer deploy did on 2026-08-24. Queued as the top
+post-campaign change -- and note it makes the CLIPPER BASELINE STRONGER, raising
+the bar, which is the honest thing to do.
+
+⚠️ **Synthetic softmaxes, well calibrated; real models are overconfident.** The
+stored probability vectors settle it for free and are queued behind SSH.
+Gated by `test_the_ALLOCATOR_is_NOT_optimal_even_with_a_SINGLE_capped_class`,
+whose mutation control (rank `margin_topk` by `p(c)`) makes it FAIL -- and the
+mutant reproduces the shipped allocator's objective to the digit, which is
+independent confirmation that pass 1 is exactly top-K by `p(c)`.
+
 ### 🟢 WE MAY BE JUDGING IT ON THE WRONG HEADLINE
 
 `profile_report` on `fm2_mn3`, TraLO minus each clipper, seed-paired with the
