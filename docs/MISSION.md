@@ -1,22 +1,23 @@
 # TraLO reset: execution state
 
-Updated 2026-09-14. User approved recoverable large cleanup, fresh evidence,
+Updated 2026-09-14 (Asia/Jerusalem). User approved recoverable large cleanup, fresh evidence,
 validated logging/data/code, then a within-TraLO modification and monitored SSH
 experiments. No historical acceptance tally is carried forward.
 
 ## Current stage
 
-**Recoverable archival and Git cleanup done; runtime/config thinning is NOT done.**
-New experiments have not launched. Local `results/` is empty. The seven remaining
-old server `optloss-*/results` directories contain no files or links; the 17
-populated trees are in the external history archive. Historical task-window
-measurements still influence the generator/scorers: the fresh workflow must
-remove that dependency before producing new comparisons.
+**Core and tool thinning committed and independently reviewed. Fresh identity,
+common deployment, metrics and logging gates remain.**
+Current source checkpoint `de760d40`: seven public arms; 52 historical scripts and the
+task-window config machinery retired. No new experiment has launched. Local
+`results/` is empty. All 17 formerly populated server result trees remain in the
+external history archive, not the active results roots.
 
-At 2026-09-14 11:24 Asia/Jerusalem, both SSH hosts were reachable. Each had four
+At 2026-09-14 13:50 Asia/Jerusalem, both SSH hosts were reachable. Each had four
 GPUs at 0% utilization / 0 MiB used, no reported GPU compute process, and no
 Python/torchrun process owned by this account. This is a snapshot, not a GPU
-reservation. Recheck both hosts before any remote move or dispatch.
+reservation. An old idle hp_liveness_real shell watcher remains on dsisco02;
+it is not training and was not stopped. Recheck both hosts before any dispatch.
 
 ## Ordered work
 
@@ -27,27 +28,36 @@ reservation. Recheck both hosts before any remote move or dispatch.
   see `docs/GIT_TRACKING.md`. Archival copies are not fresh-clone dependencies.
 - [x] Archive old local and remote result trees with manifests; keep data arrays,
   checkpoints, predictions, parent-extension links, and recovery paths intact.
-- [ ] Retire obsolete probe/source prose and historical-prose test ratchets while
-  retaining mathematical, pipeline, allocator, metric and failure-path coverage.
-- [ ] Reduce `configs/protocol.yml` and `configs/gen_campaign.py` from 42 declared
-  arms to the fresh comparison: TraLO, its zero-constraint control, clip,
-  focal_clip, Fioretto-LDF, Hounie-RCL and ALM. Rival zero-constraint cases remain
-  correctness fixtures, not extra research arms. Remove the old options AND
-  their runtime readers/branches; do not hide them behind disabled defaults.
-- [ ] Fix reference generation to FP32 constraint arithmetic and normalized
-  gradients. Current YAML defaults are `constraint_fp32: false` and
-  `constraint_grad_mode: clip`; do not generate a fresh campaign from them.
-- [ ] Replace historical `configs/task_windows.yml` decisions with newly measured
-  development diagnostics. Require a fresh campaign identity and explicit input
+- [x] Complete independent review of the committed operational-tool/test thinning;
+  retained mathematical, AMP, caps, data, recovery and real-CLI checks stay in Git.
+- [x] Reduce the public comparison to `tralo`, `tralo_null`, `clip`, `focal_clip`,
+  `fioretto`, `hounie`, `alm`; remove retired variant runtime branches.
+- [x] Generate the reference with `constraint_fp32: true` and
+  `constraint_grad_mode: normalize`; trained 1+29/posthoc 30+0 task epochs.
+- [ ] Remove the remaining unused weighted-CE option and protocol metadata;
+  remove orphan package dependencies without changing the installed environment.
+- [ ] Require a fresh campaign identity and explicit source/config/data/quota
   inventory for reporting; test rejection of archived, mixed and unmarked runs.
   Use a new `OPTLOSS_MODEL_CACHE` namespace so fresh runs cannot reuse historical
   warm-up checkpoints; permit sharing only inside the newly frozen release.
 - [x] Replace the stale `keepworking` skill and forward-test the new reference.
-- [x] Fix and regression-test AMP step/event accounting and the optional uniform
-  estimator's chunk-dependent weight. Neither establishes a classification gain.
-- [ ] Complete cc-F1-first reporting and test metric definitions end to end.
-- [ ] Finish logging validation: TraLO now has timed JSONL scope/update events;
-  rival-dual event integration and real-backbone cost validation remain pending.
+- [x] Fix and regression-test AMP step/event accounting. The separately repaired
+  optional uniform estimator was subsequently retired with the noncore variants.
+- [ ] Use the same greedy deployment allocator and the same saved probabilities
+  for every arm. Clippers currently allocate with 256-item inference, while eval
+  saves a separate 512-item pass; trained arms also use a different allocator.
+  Correct this explicitly as a deployment-protocol change, not a TraLO loss gain.
+- [ ] Complete cc-F1-first, fixed-class metric reporting with paired native-unit
+  uncertainty. Missing declared classes must count as zero, not disappear.
+- [ ] Integrate shared structured logs: rival CSV initialization currently erases
+  warm-up history; warm-up/rival task-step application and rival displacement/
+  local-scope state are missing. Preserve model state/RNG while fixing producers
+  and make the first-run gates consume the records. Missing evidence is unknown.
+- [ ] Enforce exclusive canonical campaign ownership and safe crash recovery;
+  fix queue failure propagation and per-runner orphan detection. The read-only
+  audit found duplicate-root admission and a stale-running recovery mismatch.
+  Initial two-GPU execution uses two manifest-disjoint complete campaign roots,
+  one dispatcher per root, one queue per card; no multi-GPU scheduler rewrite.
 - [ ] Audit current datasets and development cut saturation without selecting on
   a TraLO win. Resolve untouched holdout availability with the user.
 - [ ] Review the within-TraLO change proposal with the user, implement/test it,
@@ -55,10 +65,12 @@ reservation. Recheck both hosts before any remote move or dispatch.
 - [ ] Launch first-run pilots on two GPUs after gates pass, attach monitoring,
   inspect logs, then expand only if healthy (maximum three GPUs).
 
-Implementation order: remove obsolete arms/knobs with reference-behavior tests;
-then thin their probe/test consumers; then validate fresh reporting/data/logging;
-then freeze/sync and launch. The current reference loss, dual update ordering,
-allocator and retained baselines must not change during structural cleanup.
+Implementation order: reviewed core/tool thinning; fresh identity/common deployment
+and reporting; logging integration; dispatch/recovery repair; whole-change
+verification; target-host/data
+validation; then the reviewed research modification and monitored experiments.
+The reference loss, dual update ordering and training behavior stay unchanged
+during structural cleanup. The named shared-allocator correction is separate.
 Unknown or removed config keys must fail clearly, not be silently ignored.
 Archive historical tests/probes through the existing recovery process; retain
 compact tests for gradients, caps, metrics, data splits, logging and recovery.
@@ -74,36 +86,28 @@ uncertainty, equal training budgets and recorded extra constraint compute.
 
 ## Validation and release state
 
-Snapshot `abb18d27`: local full suite **668 passed, 1 skipped**. The skip needs
-real campaign logs and is not a pass. Target-host full suite initially found a
-brittle rounded-hash ALM test and two CRLF/LF historical-table comparisons.
-After those test repairs, the **server full suite also passes 668, with 1 skipped**
-(195.37 seconds, CPU only). The ALM fixture checks hand-computed actual gradients
-with positive/negative controls. XML receipts are in the ignored local `.codex/`
-directory; tests do not certify GPU behavior or data validity.
-
-The alpha-liveness test now compares raw probabilities against a float32
-tolerance instead of rounded hashes. It passes locally and on the server.
-The masked-gradient AMP counter bug is reproduced and fixed with CPU GradScaler
-controls. It is not evidence of a default FP32 TraLO failure.
+Core checkpoint `8e684211`: 77 deterministic CPU model/probability/deployment/RNG
+arrays match the pre-thinning reference exactly. Independent review cleared its
+dataset-scope and fixture-label fixes. Tool checkpoint `2f33fce7`: **335 passed,
+1 skipped, no warnings** in 99.95 seconds. Its five review findings were fixed in
+`de760d40`: **273 passed, 1 skipped, no warnings** in affected integration, then
+all five independently cleared. This was not another full-suite run; the
+real-log skip is not a pass. Receipts/review ledger are in the ignored
+`.superpowers/sdd/lean-cleanup-plan/`; source recovery is in Git and the verified
+external archive. These are software checks, not GPU or superiority evidence.
 
 **BCN is not launch-ready:** two exact resized images cross train/test with
 conflicting class labels and different official lesion IDs. No images were
 deleted. See `docs/audits/2026-09-14-reset.md`. Other datasets pass the exact
 cross-split image check; near-duplicates and unused-holdout status remain open.
 
-Server validation checkout: `/home/dsi/michaer8/optloss-reset-validation-20260914`.
-All 424 tracked files of `abb18d27` matched actual local bytes before tests.
-It now includes the two test-file repairs; runtime code is unchanged. Subsequent
-Git-hygiene packaging was committed and pushed at `62581d90`; local HEAD and the
-remote branch were verified equal, with no staged or unstaged changes. The app's
-large display is exactly `origin/main...62581d90`: 117,078 additions / 33,372
-deletions, a committed branch comparison, not an uncommitted working-tree diff.
-The last cleanup/research pair against parent `d17306b3` is +2,914 / -61,364.
-**Re-sync the final clean commit before any campaign.** This checkout is not
-launch-approved; the older prepared tree remains intact. iwildcam/fMoW arrays
-are linked; BCN is deliberately not linked while its data defect is unresolved.
-Canonical arrays are under `/home/dsi/michaer8/optloss-audit/data`.
+The server validation checkout `/home/dsi/michaer8/optloss-reset-validation-20260914`
+is an OLDER source snapshot; its earlier CPU test pass does not validate the lean
+source. No new cleanup commits have been pushed or synced. The old app display
++117,078/-33,372 was the committed `origin/main...62581d90` comparison, not
+uncommitted dirt. **Re-sync and verify actual bytes before any campaign.**
+iwildcam/fMoW arrays are linked there; BCN is deliberately not linked. Canonical
+arrays are under `/home/dsi/michaer8/optloss-audit/data`.
 dsisco01 uses older GPUs/fp16; dsisco02 Blackwell/bf16. Storage is shared NFS.
 Server static-analysis dependency is isolated at
 `/home/dsi/michaer8/optloss-reset-validation-deps-20260914` (`pyflakes==3.4.0`);

@@ -52,11 +52,17 @@ enter gradients, checkpoint selection, or hyperparameter search.
   confidence interval or a proof of equivalence. Correct multiplicity for
   confirmatory comparisons; do not choose an inferential method after seeing
   which one declares a win. Bolded best means must not imply significance.
-- `deployed_h2h` reads deployed predictions; `full_panel` reconstructs a separate
-  equal-budget allocation and is allocator-blind. Label these outputs distinctly.
-  `tralo_wins` currently retains a legacy item-based default and historical
-  decision heuristics: pass the metric explicitly and do not treat its verdict
-  as a fresh inferential result until the reset validation is complete.
+- `deployed_h2h` is the maintained deployed-prediction reporter. Historical
+  panel and acceptance scorers are retired. Fresh identity, common deployment
+  and fixed-class metric validation must finish before it reports a new result.
+- Prespecified exploratory uncertainty: two-sided 95% Student-t intervals on
+  within-cell seed-paired differences, conditional on the fixed inspected data
+  and recipe. Show every seed delta and sample size; fewer than four seeds is
+  a pilot. For fewer than two deltas or zero empirical variance, report the
+  interval unavailable. Small-sample normality is unverified; these marginal
+  intervals are not multiplicity-adjusted tests or automatic win verdicts.
+  Formula references: [NIST](https://www.itl.nist.gov/div898/handbook/eda/section3/eda352.htm)
+  and [SciPy paired differences](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.ttest_rel.html).
 
 ## Validation gates
 

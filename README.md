@@ -28,14 +28,15 @@ compiled papers and local audit dumps stay outside GitHub. See
 ## Method
 
 ```
-Warm-up (CE only)
+Warm-up (CE, or focal for the focal baseline)
   ──► alternating task and global/local constraint updates (trained arms)
-      ──► post-hoc adjustment  (global → local → reverify global)
+      ──► post-hoc deployment under the same caps
           ──► evaluation / scoring
 ```
 
 Compared against post-hoc clipping baselines and rival dual methods (Fioretto-LDF,
-Hounie-RCL, ALM), plus null and reseed controls.
+Hounie-RCL, ALM), plus a matched zero-constraint control. The shared-allocator
+correction is still in progress; see MISSION before generating a new comparison.
 
 ## Layout
 
@@ -43,11 +44,11 @@ Hounie-RCL, ALM), plus null and reseed controls.
 |---|---|
 | `docs/FRAMEWORK.md` | current protocol, evidence boundary and validation gates |
 | `configs/protocol.yml` | the fixed experimental protocol |
-| `configs/gen_campaign.py`, `task_cells.py`, `task_windows.yml` | campaign / cell definitions |
+| `configs/gen_campaign.py` | paired seven-arm campaign generation |
 | `src/losses/`, `src/methodologies/` | the constraint losses and the methods being compared |
 | `src/models/`, `src/training/`, `src/pipeline/` | models and the run pipeline |
 | `src/experiments/` | experiment drivers |
-| `scripts/` | probes, audits and scorers (`paper_rows.py`, `deployed_h2h.py`, `cell_table.py`, …) |
+| `scripts/` | dataset preparation, operational validation and `deployed_h2h.py` reporting |
 | `evidence/` | historical provenance/prediction tarballs; not the fresh corpus |
 | `results/` | fresh run outputs only after reset validation |
 | `docs/archive/` | superseded material; preserve as evidence, not instructions |
