@@ -133,14 +133,16 @@ where greedy loses more probability mass while the accuracy difference falls
 back into the noise. The peak sits exactly where our models sit.
 
 **What this does and does not change.** Every arm shares the allocator, so it
-does not explain TraLO losing. What it does is open a conversion path that had
-been invisible: **greedy reads `p(c)`, the optimum reads the margin.** A TRAINED
-arm whose probabilities are already margin-shaped converts through this greedy
-allocator; a post-hoc clipper cannot, because it inherits the plain warm-up's
-probabilities. TraLO's `p(1-p)` weighting pushes hardest at `p(c) ~ 0.5` -- the
-LOW-MARGIN items -- which is the right direction. This is the first mechanism
-found that distinguishes a trained arm from a clipper *through the allocator*
-rather than around it.
+does not explain TraLO losing.
+
+⛔ **And I immediately over-read it.** I wrote here that greedy reads `p(c)`
+while the optimum reads the margin, so a TRAINED arm with margin-shaped
+probabilities converts where a clipper cannot. **That is wrong, and the
+refutation is sitting in the same file**: `margin_topk` needs nothing but the
+probabilities and the caps. It IS post-hoc. Any clipper can run it. There is no
+trained-arm channel here at all -- the only effect of fixing the allocator is
+that **the clipper baseline gets ~+0.01 accuracy for free and the bar TraLO has
+to clear goes UP.** That is the honest reading and it is the one to act on.
 
 **Do NOT fix `apply_allocation_heuristic` now.** It is inside
 `source_inventory()` and three campaigns are live; changing it splits
@@ -154,6 +156,47 @@ Gated by `test_the_ALLOCATOR_is_NOT_optimal_even_with_a_SINGLE_capped_class`,
 whose mutation control (rank `margin_topk` by `p(c)`) makes it FAIL -- and the
 mutant reproduces the shipped allocator's objective to the digit, which is
 independent confirmation that pass 1 is exactly top-K by `p(c)`.
+
+### ❌ CLOSED: A MARGIN-AWARE SOFT COUNT IS NOT THE MISSING PIECE
+
+The loss penalises `soft = sum_i p_i(c)`; the deployed quantity is
+`hard = sum_i 1[argmax_i == c]`. The two disagree about *which* items matter, so
+this looked like the core-loss defect. Measured, 4000 items / 8 classes /
+5 seeds, at sharp=2.0 (0.70 accuracy, our regime):
+
+- **68% of the soft-count gradient mass, by full per-item gradient norm, lands
+  on items whose argmax is NOT class `c`.** Those items are not in the class;
+  reducing their `p(c)` cannot lower the hard count by one item. Only 8.8% of
+  the mass sits within 0.05 of a decision boundary.
+- `soft` is nonetheless an excellent ESTIMATOR: 503.3 against a hard count of
+  502. So the earlier reassuring "soft ~ hard" measurement was checking the
+  value, not the derivative, and could not have caught this.
+
+🛑 **And the 68% does not convert.** Replacing the surrogate with
+`sum_i sigmoid(margin_i / tau)` -- whose gradient is concentrated on the
+boundary by construction -- and bisecting the step size so BOTH evict the same
+20% of the capped class:
+
+| sharp | soft, accuracy cost | margin, accuracy cost | change |
+|---|---|---|---|
+| 4.0 | +0.0226 | +0.0226 | 0% |
+| **2.0** | **+0.0039** | **+0.0037** | **-6%** |
+| 1.0 | +0.0004 | +0.0003 | -14% |
+
+**Why it cannot convert.** `constraint_step.py` rescales to a fixed norm and the
+dual keeps stepping until the cap is met, so the budget is set by the EVICTION
+TARGET, not by the step size. Any push that is monotone in `p(c)` flips the
+lowest-margin items FIRST. The weighting changes how hard each item is pushed;
+it barely changes the ORDER in which they cross. Gradient-mass concentration is
+therefore close to irrelevant to which items move -- which also means the
+`p(1-p)` collapse recorded above limits how large a step is needed, not what the
+step does, and it was over-weighted in the diagnosis.
+
+⚠️ **Caveat, stated rather than buried.** This moves logits per item freely;
+real training moves WEIGHTS, and per-item displacements are coupled through the
+network, so the absolute damage figures do not transfer. The comparison does --
+the coupling handicaps both surrogates identically. Do not re-propose a
+margin-aware count without new evidence that beats this control.
 
 ### 🟢 WE MAY BE JUDGING IT ON THE WRONG HEADLINE
 
