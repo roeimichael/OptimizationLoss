@@ -531,6 +531,37 @@ no zero-constraint arm reproduces. Mutation removing `aug_tralo_null` FAILS it.
 ⚠️ `live6b`'s augmented column therefore cannot answer the pre-registered
 question. `live11` will be regenerated with the new controls.
 
+### 📈 THE BUDGET AXIS, ONE INSTRUMENT, THREE CAMPAIGNS
+
+`scripts/interaction.py` on the PLAIN column -- `gAP(tralo) - gAP(tralo_null)`,
+same warm-up, same schedule, the only difference is whether the constraint
+steps:
+
+| campaign | budget | tree | L80_G95 | L90_G95 |
+|---|---|---|---|---|
+| `fm2_mn3` | 30 | optloss-lean | -0.0069 +- 0.0222 | **-0.0280 +- 0.0113** |
+| `gx2` | 30 | optloss-probe | -0.0049 +- 0.0267 | **-0.0233 +- 0.0079** |
+| `live6b` | **6** | optloss-live6 | **+0.0037 +- 0.0155** | **+0.0121 +- 0.0101** |
+
+🔑 **`gx2` INDEPENDENTLY REPLICATES the 30-epoch damage** -- different tree,
+different `code_version`, different campaign, generated hours apart:
+**-0.0233 +- 0.0079** against `fm2_mn3`'s **-0.0280 +- 0.0113** at L90_G95.
+Both clear their own seed sd. The damage is not an artifact of one campaign.
+
+So the budget axis now reads: **two independent campaigns show the constraint
+degrading the ranking at 30 epochs, and the one campaign that passes
+`gate:saturation` shows it not degrading at 6.** That is a much stronger
+statement than live6b alone, because the baseline it flips away from is
+replicated rather than singular.
+
+⚠️ Still one backbone and one dataset throughout. `live11_mn2` (MobileNetV2,
+72 runs, all columns controlled) is staged and frozen for the replication.
+
+**And the instrument refused six numbers I would otherwise have been tempted to
+read**: `gx2` and `live6b` both lack `aug_tralo_null` and `focal_tralo_null`, so
+their intervention columns print REFUSED rather than a plausible-looking delta
+against the wrong control. That is the gate doing its job on live data.
+
 ### 🔬 THE SECOND LEVER: LEARNING RATE (staged, not yet run)
 
 With the budget free, `lr` is the other knob that sets how fast the boundary
