@@ -67,6 +67,42 @@ protocol arm; `make_ce_criterion` already honoured `warmup_loss` and is what
 release -- `validate_campaign` hashes the source root of the process that runs
 it, so an isolated tree cannot disturb them.
 
+### 🟢 WE MAY BE JUDGING IT ON THE WRONG HEADLINE
+
+`profile_report` on `fm2_mn3`, TraLO minus each clipper, seed-paired with the
+sd of the difference (2-3 seeds, MobileNetV3 -- directional, not final):
+
+| contrast | cap | d cc-F1 | d macro-F1 | d accuracy |
+|---|---|---|---|---|
+| vs `clip` | L80 | -0.0059 +- 0.0183 | **+0.0081** +- 0.0163 | +0.0050 +- 0.0119 |
+| vs `clip` | L90 | **-0.0237** +- 0.0009 | **+0.0109** +- 0.0127 | +0.0074 +- 0.0162 |
+| vs `focal_clip` | L80 | +0.0049 +- 0.0103 | **+0.0141** +- 0.0084 | **+0.0116** +- 0.0053 |
+| vs `focal_clip` | L90 | -0.0115 +- 0.0027 | **+0.0199** +- 0.0072 | **+0.0169** +- 0.0086 |
+
+🔑 **macro-F1 is positive in all four contrasts, and against
+`focal_clip` it clears its own seed sd at both caps (1.7 and 2.8 sd), as does
+accuracy (2.2 and 2.0 sd).** Collateral F1 -- the UNCAPPED classes -- is
++0.0164 against clip at L80 (0.6051 vs 0.5887).
+
+So the constraint has a consistent, replicated effect and the sign depends on
+which classes you look at: **it trades capped-class quality for uncapped-class
+quality.** Pushing probability mass off the capped classes frees it for the
+rest, and the rest are 5 of the 8.
+
+⚠️ **That is exactly what main.tex claims** -- "beats post-hoc clipping on
+macro-F1 in nearly every regime" -- and it is NOT the bar this project has been
+judging against. cc-F1 has been the headline, and on cc-F1 TraLO trails.
+
+⚠️ Under the user's stated bar (leading group on cc-F1, not dominated
+elsewhere) this is a **TRADE**, not a win: at L90 the cc-F1 deficit against
+`clip` is -0.0237 against a paired sd of 0.0009. It does not pass. But it does
+mean the method is not inert, and that the question "where are we failing" has a
+narrower answer than "everywhere": **we are failing on the capped classes
+specifically, while winning on the other five.**
+
+🔁 Confirm at 4 seeds on `fm2_mn3` the moment it lands, and check
+whether `fm2_mn2` reproduces the sign.
+
 ### 📒 LEDGER -- WORKED / FAILED / PROMISING (running, 2026-09-14)
 
 Kept current so no direction is tried twice. Add to it, never re-litigate it.

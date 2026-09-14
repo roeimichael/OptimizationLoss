@@ -24,17 +24,24 @@ def run(d):
     pred = df[[c for c in df.columns if c.startswith("Prob_Class_")]].to_numpy().argmax(1)
     ok = tot = 0
     excess = 0
+    # Bucketed by K, because the penalty's gradient PEAKS at a 50% overshoot and
+    # collapses past it (gated: test_penalty_gradient_is_non_monotone_above_rho_one,
+    # 23x less pull at e=4). A small-K cell is pushed far past that peak by even
+    # a handful of predictions, so if the shape is what starves compliance it
+    # must show up as compliance ordered by K.
+    cells = []
     for gg in np.unique(g):
         m = g == gg
         for c in cc:
             k = int((y[m] == c).sum() * L)
             n = int((pred[m] == c).sum())
             tot += 1
+            cells.append((k, n))
             if n <= k:
                 ok += 1
             else:
                 excess += n - k
-    return cfg["arm"], cfg["constraint_tag"], cfg["hyperparams"]["seed"], ok, tot, excess
+    return cfg["arm"], cfg["constraint_tag"], cfg["hyperparams"]["seed"], ok, tot, excess, cells
 
 
 def main(globs):
@@ -47,12 +54,21 @@ def main(globs):
     for cap in sorted(per):
         print("")
         print("=== %s -- NATIVE compliance from raw argmax (global cap inert at G95) ===" % cap)
-        print("  %-12s %4s %14s %14s" % ("arm", "n", "compliant", "excess items"))
+        print("  %-12s %4s %14s %14s   %s" % ("arm", "n", "compliant", "excess items",
+                                              "compliant by ceiling size"))
         for arm in sorted(per[cap], key=lambda a: st.mean([x[2] for x in per[cap][a]])):
             v = per[cap][arm]
-            print("  %-12s %4d %14s %14s" % (
+            buckets = collections.defaultdict(lambda: [0, 0])
+            for row in v:
+                for k, n in row[3]:
+                    b = "K<=10" if k <= 10 else ("K<=50" if k <= 50 else "K>50")
+                    buckets[b][1] += 1
+                    buckets[b][0] += 1 if n <= k else 0
+            share = " ".join("%s %d/%d" % (b, buckets[b][0], buckets[b][1])
+                             for b in ("K<=10", "K<=50", "K>50") if b in buckets)
+            print("  %-12s %4d %14s %14s   %s" % (
                 arm, len(v), "%.1f/%d" % (st.mean([x[0] for x in v]), v[0][1]),
-                "%.0f" % st.mean([x[2] for x in v])))
+                "%.0f" % st.mean([x[2] for x in v]), share))
     return 0
 
 
