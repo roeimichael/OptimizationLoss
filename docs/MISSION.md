@@ -34,7 +34,7 @@ while losing cc-F1 is a TRADE, not a win, and must be reported as one.
 
 | # | Settled | Consequence |
 |---|---|---|
-| 1 | **Every cell saturates in 2-4 epochs of 30.** 5/5 cells, 3 backbones, 2 datasets. | 24+ of 29 constraint epochs push a frozen boundary. `gate:saturation` is a HARD DROP. |
+| 1 | **Every cell saturates in 2-4 epochs.** 5/5 cells, 3 backbones, 2 datasets. Augmentation doubles it to 5, and no more. | The boundary is frozen for most of any long budget. `gate:saturation` is a HARD DROP. |
 | 2 | **The four duals share ONE per-item gradient.** tralo/fioretto/alm/hounie all reduce to `sum_scopes w_scope * sum_i dp_i(c)/dz`, differing only in the scalar. Local scopes are disjoint. | Their only freedom is the per-group eviction COUNT, which the caps fix. **No better dual rule exists to find.** |
 | 3 | **Eviction given the probabilities is already ~optimal.** A gradient push lands on 87% of the provably optimal set; closing the rest is worth 0.0002. | The prize is NOT in the loss shape. A margin-aware soft count is CLOSED. |
 | 4 | **The exact allocator makes real results WORSE** (-0.01 to -0.04 acc, -0.02 to -0.08 cc-F1, 14/14 cells) because models run at 0.92 confidence against 0.60 accuracy. | The allocator "fix" is CANCELLED. Greedy's suboptimality is protective. |
@@ -86,6 +86,11 @@ confirms nothing -- the matched clipper already has one.
   experiment; its numbers are not read at all.
 - **Average over SEED only.** Never pool across cap levels, backbones or
   datasets. A cap level is not a seed.
+- 🔑 **The epoch budget is DERIVED, not assumed.** `total_epochs = 30` was never
+  measured -- the user confirmed 2026-09-14 that he picked it arbitrarily, and
+  that **every hyperparameter in the config is movable.** The gate's criterion
+  inverts into the rule: `total_epochs = 2 x (measured live window) + 1`.
+  Measure the live window first, then set the budget. Do not defend 30.
 - **A gate is not done until a mutation shows it FAIL**, and the restore is
   verified by EXECUTING -- stale bytecode has faked a pass before.
 - **Never touch `src/`, `configs/`, `scripts/`, `main.py` on the server while a
@@ -420,6 +425,28 @@ different operating point, not a win on the headline.
 ⚠️ **And this cell FAILS `gate:saturation` at 2.7 live epochs.** So the whole
 table is the FROZEN-BOUNDARY REFERENCE, which is the role it should play: it is
 the control arm of the augmentation experiment, not a verdict on the method.
+
+### 🔬 THE SECOND LEVER: LEARNING RATE (staged, not yet run)
+
+With the budget free, `lr` is the other knob that sets how fast the boundary
+freezes, and it had been treated as fixed at 1e-4. `core` holds only four:
+`batch_size 64`, `dropout 0.3`, `lr 1e-4`, `pretrained True`.
+
+A lower lr should stretch the live window roughly in proportion, which -- unlike
+a short budget -- buys MORE constraint epochs rather than fewer. Augmentation
+(2x) and lr could compose: 5 live epochs at 1e-4 might become 20+ at 2e-5, which
+would make a long constraint phase legitimate for the first time.
+
+**Staged and frozen: `lr5e-5`, `lr2e-5`, `lr1e-5`** -- 10 runs each, 12 epochs,
+seed 1, arms `aug_tralo`/`aug_clip`/`clip` (+ mandatory). ~15 min each. The
+probe measures ONE thing: the live window as a function of lr.
+
+⚠️ **`lr_constraint` is set to match `core.lr` in every variant.** The LR TRAP of
+2026-08-15 was exactly an unequal lr fabricating a result, and `gen_campaign`
+refuses if they differ -- but the variant generator has to set BOTH, and it does.
+
+⚠️ This is not weight decay or label smoothing. It is the learning rate, shared
+by every arm, which is why it does not tilt the comparison.
 
 ### 🔑 MEASURED: AUGMENTATION DOUBLES THE LIVE WINDOW, AND 30 EPOCHS STILL FAILS
 
