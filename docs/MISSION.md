@@ -19,42 +19,56 @@ passes all 8 conditions of `scripts/candidate_gate.py`.
 
 ## Current stage
 
-### 🟢🔴 THE FIRST POSITIVE RANKING RESULT -- and it is NOT the constraint
+### 🟢🔴 THE RANKING CHANNEL, READ AGAINST ITS OWN NOISE FLOOR
 
-`scripts/rank_probe.py` scores per-group average precision (gAP) on the raw
-pre-allocator probabilities. Post-hoc allocation is optimal given the
-probabilities and that optimality is distribution-free, so **ranking is the only
-channel by which a trained arm can beat the clipper.** Run on the archived bcn
-corpus and on the live fmow2 campaign, 6 seed-paired cells each:
+"gAP" is per-group average precision on the raw pre-allocator probabilities.
+Post-hoc allocation is optimal given the probabilities and that optimality is
+distribution-free, so **ordering is the only channel by which a trained arm can
+beat the clipper.** `scripts/rank_paired.py` reports the seed-paired delta per
+cell WITH its sd across seeds, because a mean read without its floor is the
+`project_the_arm_gap_is_the_rng_floor_2026-09-02` trap.
 
-| corpus | TraLO minus `clip` | cells positive | TraLO minus `tralo_null` |
-|---|---|---|---|
-| bcn / ViTB16 | **+0.0143** | **6 of 6** | -0.0027 |
-| bcn / MobileNetV3 | **+0.0123** | 4 of 6 | -0.0009 |
-| fmow2 / MobileNetV3 | **-0.0169** | 0 of 6 | -0.0101 |
+**The RNG floor is measurable here**: `tralo` vs `tralo_reseed` is the same
+config with a different RNG draw. On bcn/MobileNetV3 that floor is
+±0.0004 to ±0.0071 per cell. On bcn/ViTB16 it is much larger, up to 0.0119.
 
-On bcn TraLO also beats every rival dual: `alm` +0.0050/+0.0024, `hounie`
-+0.0073/+0.0044, `fioretto` +0.0037/+0.0029, and 14 of the 16 retired TraLO
-variants.
+**bcn / MobileNetV3, `tralo` minus `clip`, 4 seeds:**
 
-🔑 **But the constraint contributes none of it.** Against `tralo_null` --
-identical recipe, `lambda_step = lambda_global = lambda_local = 0`, zero
-constraint pressure -- TraLO is a tie or slightly behind on BOTH bcn backbones.
-So the entire +0.012 to +0.014 over `clip` is carried by what `tralo_null`
-shares: the 1+29 schedule and **the fresh Adam created after warm-up**, which
-`clip` and `focal_clip` do not get (they run one continuous optimizer).
-main.tex already says this -- "the quality comes instead from Adam's reset and
-the undershoot hinge" -- and the measurement agrees: the reset is the asset, the
-constraint is not.
+| cap | class 0 | class 2 |
+|---|---|---|
+| L70 | -0.0024 (0.15 sd) | **+0.0280 (0.85)** |
+| L80 | +0.0051 (0.54) | **+0.0234 (1.15)** |
+| L90 | -0.0028 (0.15) | **+0.0226 (2.87)** |
 
-⛔ **And it does not transfer.** On fmow2 the same recipe is -0.0169 against
-`clip`, 0 of 6 cells positive, and `tralo_null` is itself -0.0068 behind `clip`
-(derived on common seeds). **The Adam reset helps on bcn and hurts on fmow2.**
-A result that reverses sign across datasets is not a method claim yet; it is a
-dataset interaction that has to be explained before it can be reported.
+🟢 Class 2 gains **+0.023 to +0.028 in all three caps against a reseed
+floor of ±0.005** -- about 5x the floor, replicated across the cap sweep. Class 0
+is a flat null. The "4 of 6 cells positive" summary I wrote first HID this: it is
+3 of 3 and large on one class, 1 of 3 and tiny on the other.
 
-⚠️ fmow2 is at 2 seeds and one backbone here. `fm2_mn2` and `fm2_vit`
-will say whether the reversal is the dataset or the backbone.
+**bcn / ViTB16** is 6 of 6 cells positive (+0.0061 to +0.0236) but every cell is
+inside its own seed sd (|mean|/sd 0.39-1.84, one cell above 1) and the ViT reseed
+floor is itself up to 0.0119. ⚠️ **I first reported the 6-of-6 as clean
+evidence. It is not** -- and the sign test is weak too, because the 6 cells are
+2 classes within 3 caps sharing seeds, so it is nearer 3 independent draws than 6.
+
+🔑 **The constraint contributes none of it.** Against `tralo_null` --
+identical recipe, all three lambdas zero -- class 2 on MobileNetV3 is only
++0.0080 / +0.0034 / +0.0026 (all inside sd), and on ViTB16 it is 2 of 3 negative.
+So the +0.023 belongs to what `tralo_null` also has: the 1+29 schedule and **the
+fresh Adam created after warm-up**, which `clip` and `focal_clip` do not get.
+main.tex already attributes quality to "Adam's reset"; this agrees.
+
+⛔ **And on fmow2 the constraint is actively NEGATIVE.** `fm2_mn3`, `tralo`
+minus `clip`: 5 of 6 cells negative, and at L90 the effect clears its own sd --
+class 1 -0.0082 (1.59), class 2 -0.0142 (4.65), class 7 **-0.0410 (7.03)**.
+Against `tralo_null` it is also 5 of 6 negative, cell-mean -0.0101. So on fmow2
+the recipe loses to `clip` AND the constraint costs ranking on top of that.
+
+**Net:** the recipe helps on bcn/MNv3 and hurts on fmow2; the constraint is
+neutral on bcn and negative on fmow2. There is no cell yet where the CONSTRAINT
+buys ranking. ⚠️ fmow2 is 2-3 seeds and one backbone; `fm2_mn2` and `fm2_vit`
+at 4 seeds decide whether the reversal is the dataset or the backbone. At 1-2
+seeds they currently disagree with each other and are not read.
 
 ### ⛔ THE PAPER'S SECOND PHASE HAS NEVER RUN -- 2,563 runs, 0 freezes
 
