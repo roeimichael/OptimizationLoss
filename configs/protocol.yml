@@ -97,6 +97,26 @@ arms:
     - constraint_phase
     - tralo
     - augment
+  # Each intervention column needs its OWN zero-constraint control. Without
+  # these, the only comparisons available inside the augmented column are
+  # aug_tralo vs aug_clip (different SCHEDULE -- 1+5 against 6+0) and aug_tralo
+  # vs tralo (different AUGMENTATION). Neither isolates the constraint, which is
+  # the whole quantity under test. tralo_null is the plain column's control and
+  # cannot serve the others.
+  aug_tralo_null:
+    methodology: tralo
+    phase: trained
+    blocks:
+    - constraint_phase
+    - tralo_null
+    - augment
+  focal_tralo_null:
+    methodology: tralo
+    phase: trained
+    blocks:
+    - constraint_phase
+    - tralo_null
+    - focal
   aug_clip:
     methodology: heuristic
     phase: posthoc

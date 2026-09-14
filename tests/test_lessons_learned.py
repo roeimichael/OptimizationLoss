@@ -1401,3 +1401,53 @@ def test_dose_landed_accepts_EVERY_declared_arm_and_ANY_epoch_budget(tmp_path):
             "phase/dose agreement check is no longer enforcing anything")
     except ValueError:
         pass
+
+
+def test_every_INTERVENTION_column_has_its_own_zero_constraint_control():
+    """An intervention column without its own null cannot isolate the constraint.
+
+    `gen_campaign` force-adds `tralo_null` whenever any trained arm is present,
+    which silently reads as "the campaign has a control". It does not: that null
+    is PLAIN. Inside the augmented column the only available comparisons were
+    `aug_tralo` vs `aug_clip` (different schedule, 1+5 against 6+0) and
+    `aug_tralo` vs `tralo` (different augmentation). Neither isolates the
+    constraint, which is the entire quantity under test -- measured on live6b
+    before these arms existed.
+
+    The control is only a control if it shares the intervention AND the warm-up
+    identity, differing solely in whether the constraint steps.
+    """
+    from configs.gen_campaign import (
+        load_protocol, build_hyperparams, compute_base_model_id)
+
+    P = load_protocol()
+    dc = P["datasets"][sorted(P["datasets"])[0]]
+
+    def ident(arm):
+        hp = build_hyperparams(P, P["arms"][arm], 1)
+        return compute_base_model_id(P, "mn3", hp, "x", dc), hp
+
+    # The requirement is about WARM-UP IDENTITY, not arm names. With lambda at
+    # zero every dual reduces to plain training, so `tralo_null` is legitimately
+    # the shared control for alm/fioretto/hounie -- they share its warm-up. What
+    # must never happen is a trained arm whose warm-up NO zero-constraint arm
+    # reproduces, which is exactly what `aug_tralo` and `focal_tralo` were.
+    nulls = {}
+    for arm, spec in P["arms"].items():
+        if spec["phase"] == "trained" and "tralo_null" in (spec.get("blocks") or []):
+            i, hp = ident(arm)
+            nulls[i] = (arm, hp["warmup_epochs"], hp["constraint_epochs"])
+
+    for arm, spec in P["arms"].items():
+        if spec["phase"] != "trained" or "tralo_null" in (spec.get("blocks") or []):
+            continue
+        i, hp = ident(arm)
+        assert i in nulls, (
+            "trained arm %r has warm-up identity %s, which NO zero-constraint "
+            "arm reproduces -- nothing in a campaign can separate its "
+            "constraint from its intervention" % (arm, i))
+        null, nw, nc = nulls[i]
+        assert (hp["warmup_epochs"], hp["constraint_epochs"]) == (nw, nc), (
+            "%s and its control %s run different schedules (%s vs %s), so the "
+            "comparison is confounded by compute"
+            % (arm, null, (hp["warmup_epochs"], hp["constraint_epochs"]), (nw, nc)))

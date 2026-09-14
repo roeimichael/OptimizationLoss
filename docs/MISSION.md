@@ -426,6 +426,57 @@ different operating point, not a win on the headline.
 table is the FROZEN-BOUNDARY REFERENCE, which is the role it should play: it is
 the control arm of the augmentation experiment, not a verdict on the method.
 
+### 🟢 FIRST GATE-PASSING CAMPAIGN: THE RANKING DAMAGE STOPS
+
+`live6b` (total 6 = 1 warm-up + 5 constraint) is the **first campaign in this
+project to PASS `gate:saturation`** -- required >= 2 of 5, measured **3.4**,
+exit 0.
+
+gAP (allocation-free) for `tralo` minus its own null, against the 30-epoch
+reference where the same quantity was -0.007 to -0.030 with 15 of 16 seeds
+negative:
+
+| cap | n | mean | sd | per-seed |
+|---|---|---|---|---|
+| L80_G95 | 3 | -0.0016 | 0.0139 | +0.0023 +0.0100 -0.0171 |
+| L90_G95 | 3 | **+0.0104** | 0.0117 | +0.0169 +0.0174 -0.0030 |
+
+🔑 **The damage is gone.** At 30 epochs the constraint reliably degraded the
+ranking; at 6 it does not, and at L90 the point estimate is positive. That is
+what the account predicted: a live boundary is what the constraint needs.
+
+⚠️ **n = 3 and the sd exceeds the mean. This is SUGGESTIVE, NOT ESTABLISHED.**
+It is one backbone, one dataset, three seeds. It does not yet clear its own
+noise and must not be reported as a win.
+
+**Augmentation raises gAP on its own**: `aug_tralo - tralo` = +0.0221 +- 0.0112
+(L80, 4 of 4 positive) and +0.0121 +- 0.0077 (L90, 3 of 3). Seven of seven
+positive -- but that is a main effect on the MODEL, not evidence about the
+constraint, and the pre-registration says exactly that a main effect confirms
+nothing.
+
+### ⛔ DESIGN GAP FOUND BY THAT SCORING: THE INTERVENTION COLUMNS HAD NO NULL
+
+`gen_campaign` force-adds `tralo_null` whenever a trained arm is present, which
+reads as "the campaign has a control". It is the PLAIN null. Inside the
+augmented column the only comparisons that existed were:
+
+- `aug_tralo` vs `aug_clip` -- different SCHEDULE (1+5 against 6+0)
+- `aug_tralo` vs `tralo` -- different AUGMENTATION
+
+**Neither isolates the constraint**, which is the entire quantity under test.
+Added `aug_tralo_null` and `focal_tralo_null`, each sharing its column's warm-up
+identity and schedule and differing only in whether the constraint steps.
+
+Gated by `test_every_INTERVENTION_column_has_its_own_zero_constraint_control`.
+The invariant is about WARM-UP IDENTITY, not arm names: with lambda at zero
+every dual reduces to plain training, so `tralo_null` legitimately controls
+`alm`/`fioretto`/`hounie`. What must never exist is a trained arm whose warm-up
+no zero-constraint arm reproduces. Mutation removing `aug_tralo_null` FAILS it.
+
+⚠️ `live6b`'s augmented column therefore cannot answer the pre-registered
+question. `live11` will be regenerated with the new controls.
+
 ### 🔬 THE SECOND LEVER: LEARNING RATE (staged, not yet run)
 
 With the budget free, `lr` is the other knob that sets how fast the boundary
