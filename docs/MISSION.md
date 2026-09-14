@@ -82,12 +82,31 @@ confirms nothing -- the matched clipper already has one.
 
 ### Where we actually stand, 2026-09-14
 
-`fm2_mn3` is complete (56/56) and is the **frozen-boundary REFERENCE**, not a
-verdict: at L90_G95 TraLO trails all six rivals on cc-F1 (-0.0193 +- 0.0058
-against its own null) while buying +0.013 accuracy and +0.015 macroF1; at
-L80_G95 it is in the leading group. `fm2_mn2` and `fm2_vit` fail the same gate
-and are failed experiments. **`gx2` is the next thing that can change the
-answer.**
+**Two cells complete, 112 runs, and both FAIL `gate:saturation`** -- so they are
+the **frozen-boundary REFERENCE**, not a verdict on the method.
+
+TraLO minus `tralo_null` on cc-F1, the like-for-like comparison (same warm-up,
+same compute, the only difference is whether the constraint steps):
+
+| cell | cap | d cc-F1 vs its own null |
+|---|---|---|
+| MobileNetV3 | L80_G95 | -0.0036 +- 0.0103 |
+| MobileNetV3 | L90_G95 | **-0.0193 +- 0.0058** |
+| MobileNetV2 | L80_G95 | -0.0092 +- 0.0153 |
+| MobileNetV2 | L90_G95 | -0.0125 +- 0.0093 |
+
+🛑 **4 of 4 negative**, two of them beyond their own seed sd. On a frozen
+boundary the constraint phase COSTS cc-F1 relative to not stepping at all.
+
+The per-cell verdicts are NOT consistent and must not be summarised as one:
+mn3 reads LEADING GROUP at L80 and LOSS at L90; mn2 reads LOSS at L80 (trailing
+`clip` by -0.0162 +- 0.0055) and LEADING GROUP at L90. **The accuracy-for-cc-F1
+trade does not replicate either** -- real on mn3 (+0.013 acc), absent on mn2 at
+L80, where macroF1 and accuracy are negative too. The only thing true in all
+four cells is that TraLO never WINS cc-F1.
+
+`fm2_vit` fails the gate hardest (1.6 live epochs) and is a failed experiment.
+**`gx2` is the next thing that can change the answer.**
 
 ## Current stage
 
