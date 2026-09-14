@@ -154,7 +154,7 @@ def test_distribution_diagnostics_do_not_decide_research_viability(slice_dir):
             assert ("undefined" in text) == (not np.isfinite(res["net_z"]))
 
 
-def test_the_local_scope_binds_because_half_its_ceilings_are_zero(slice_dir, tmp_path):
+def test_the_local_scope_binds_because_half_its_ceilings_are_zero(slice_dir, tmp_path, protocol):
     from src.training.constraints import compute_local_constraints
 
     rng = np.random.default_rng(3)
@@ -162,35 +162,43 @@ def test_the_local_scope_binds_because_half_its_ceilings_are_zero(slice_dir, tmp
     for g in range(4):
         every += _rows(g, rng.integers(0, N_CLASSES, size=400))
         shared += _rows(g, list(CAPPED_CLASSES) * 40 if g < 2 else [0, 1, 3] * 40)
+    # CAPPED_CLASSES is (2, 7) -- impala and cattle, an iWildCam-era constant.
+    # fmow2 replaced iwildcam and its protocol caps THREE classes, [1, 2, 7], so
+    # this case was scoring the real slice against a class set nobody runs and
+    # an expectation (7 zeros) belonging to neither. The real-slice case now
+    # takes its classes from the protocol; the synthetic cases stay on the
+    # two-class constant, which is what they are constructed around.
+    fmow2_classes = protocol["datasets"]["fmow2"]["constrained_class"]
     cases = [
         (
             "fmow2/oodslice",
             pd.read_csv(os.path.join(slice_dir, "test_meta.csv")),
-            7,
+            fmow2_classes,
+            3,
             False,
         ),
-        ("every group holds every class", pd.DataFrame(every), 0, True),
-        ("both capped classes on one support", pd.DataFrame(shared), 4, True),
+        ("every group holds every class", pd.DataFrame(every), list(CAPPED_CLASSES), 0, True),
+        ("both capped classes on one support", pd.DataFrame(shared), list(CAPPED_CLASSES), 4, True),
     ]
     fails = []
-    for name, frame, want_zero, want_shared in cases:
+    for name, frame, classes, want_zero, want_shared in cases:
         loc = compute_local_constraints(
-            frame, "label", 0.8, "location", list(CAPPED_CLASSES), N_CLASSES
+            frame, "label", 0.8, "location", classes, N_CLASSES
         )
-        zeros = sum((1 for v in loc.values() for c in CAPPED_CLASSES if v[c] == 0))
+        zeros = sum((1 for v in loc.values() for c in classes if v[c] == 0))
         if zeros != want_zero:
             fails.append(
                 "%s: %d of %d ceilings are K=0, expected %d"
-                % (name, zeros, 2 * len(loc), want_zero)
+                % (name, zeros, len(classes) * len(loc), want_zero)
             )
         sup = [
             tuple(sorted((g for (g, v) in loc.items() if v[c] > 0)))
-            for c in CAPPED_CLASSES
+            for c in classes
         ]
-        if (sup[0] == sup[1]) != want_shared:
+        if (len(set(sup)) == 1) != want_shared:
             fails.append(
-                "%s: supports for classes %s are %s; one shared support makes the two local budgets one number divided up"
-                % (name, list(CAPPED_CLASSES), sup)
+                "%s: supports for classes %s are %s; one shared support makes the local budgets one number divided up"
+                % (name, classes, sup)
             )
     report(fails, "local-ceiling failures")
 
