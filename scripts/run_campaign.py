@@ -23,7 +23,7 @@ STEPS = [
             # L50_G50) on every protocol dataset, which is not what is being
             # launched and fails on any dataset whose slice is absent.
             ("verify_caps",
-             ["-m", "scripts.verify_caps", "--campaign", "{root}", "--strict"],
+             ["-m", "scripts.verify_caps", "--campaign", "{root}"],
              True, "instrument"),
         ],
     ),
