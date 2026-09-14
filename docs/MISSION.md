@@ -421,6 +421,48 @@ different operating point, not a win on the headline.
 table is the FROZEN-BOUNDARY REFERENCE, which is the role it should play: it is
 the control arm of the augmentation experiment, not a verdict on the method.
 
+### 🔑 MEASURED: AUGMENTATION DOUBLES THE LIVE WINDOW, AND 30 EPOCHS STILL FAILS
+
+First completed `gx2` runs, epochs before train accuracy reaches 0.95:
+
+| arm | live window |
+|---|---|
+| `clip` | 2 |
+| `focal_clip` | 2 |
+| `aug_clip` | 3 |
+| `focal_tralo` | 3 |
+| **`aug_tralo`** | **5** |
+
+Augmentation roughly **doubles** the live window -- a real effect, and the
+first intervention that has moved this number at all. **And it is nowhere near
+enough at 30 epochs**, where the gate needs 14. `gx2` will fail
+`gate:saturation` on every arm, so by our own hard rule its numbers are not to
+be read.
+
+🔑 **So the budget is the wrong way round.** We have been fixing
+`total_epochs = 30` and discovering the boundary dies at epoch 3-5. The gate's
+criterion -- live window >= half the constraint epochs -- inverts directly into
+a design rule:
+
+    total_epochs  =  2 x (measured live window)  +  1
+
+With augmentation's 5 live epochs that is **11**: one warm-up plus ten
+constraint epochs on a boundary that is live for half of them. Below that the
+constraint gets too few steps to do anything; above it, every extra epoch is
+spent kicking a frozen boundary and, by settled fact 6, actively damaging gAP.
+
+**Staged and frozen, gates green, waiting on a GPU:**
+- `live6b` -- total 6 (1 + 5). Live window covers 5 of 5 augmented, 2.7 of 5
+  unaugmented, so it passes either way. **RUNNING.** The floor case: does the
+  constraint stop damaging gAP when the boundary is alive?
+- `live11` -- total 11 (1 + 10). The budget the rule picks. **STAGED**,
+  `rig_status` correctly refuses to launch it at 3 GPUs (house limit 2).
+
+⚠️ **`rig_status` caught me over the house limit**: it refuses at 3 in use,
+limit 2. `fm2_vit` (failed the gate at 1.6 live epochs) and `gx2` (fails at 5 of
+29) are both occupying GPUs on regimes we have already ruled out, while the two
+designs that PASS the gate queue behind them.
+
 ### 🔑 TIGHT COMPARISON: WHAT ACTUALLY DIFFERS BETWEEN TraLO AND THE RIVALS
 
 **Dose is closed.** `dose_landed` on both complete campaigns: `alm`, `fioretto`,
