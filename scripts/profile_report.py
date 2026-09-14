@@ -3,10 +3,19 @@
 The acceptance bar was single-metric in the code: `deployed_h2h` computed the
 paired effect on cc_f1 and nothing else, so every verdict this project issued
 was cc-F1 by construction. This reports the whole profile and classifies each
-cell as WIN / TRADE / LOSS:
+cell as WIN / LEADING GROUP / DOMINATED / TRADE / LOSS:
 
-  WIN    tralo leads or ties the best arm on cc-F1, AND is not below `clip` on
+  WIN    tralo leads the best arm on cc-F1 BEYOND its seed sd, AND is not
+         dominated on the profile, AND is not below `clip` on
          accuracy, macro-F1 or collateral F1 by more than the seed noise
+  LEADING GROUP
+         cc-F1 within the noise of the best arm. That is the user's bar, and it
+         is NOT a win -- an earlier version printed "WIN -- leads/ties alm
+         (-0.0093)" for exactly this case
+  DOMINATED
+         cc-F1 holds, but some arm is ahead beyond the noise on the quality
+         profile while tralo is never ahead of it. Checked against EVERY arm:
+         checking `clip` alone missed arms that were ahead on everything
   TRADE  cc-F1 up, but at least one damage metric down beyond the noise. This
          is a real outcome, not a win, and it is named so it cannot be quoted
          as one
@@ -151,9 +160,6 @@ def main(roots):
             print("  %-12s %5d %22s %22s %22s" % (a, n, *cols))
         # --- the profile verdict ---
         print("")
-        best = {k: max(mean[a][k] for a in arms) for k in QUALITY}
-        verdicts = []
-        lead_gap, lead_sd, _ = None, None, None
         others = [a for a in arms if a != "tralo"]
         bestarm = max(others, key=lambda a: mean[a]["cc_f1"])
         m, sd, n = paired(arms["tralo"], arms[bestarm], "cc_f1")
