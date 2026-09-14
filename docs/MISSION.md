@@ -204,6 +204,75 @@ whose mutation control (rank `margin_topk` by `p(c)`) makes it FAIL -- and the
 mutant reproduces the shipped allocator's objective to the digit, which is
 independent confirmation that pass 1 is exactly top-K by `p(c)`.
 
+### ⛔ REAL DATA REVERSES THE ALLOCATOR FINDING. THE FIX IS CANCELLED.
+
+`scripts/alloc_real.py` on **fm2_mn3, all 7 arms x 2 caps x 4 seeds** (56 runs,
+same stored probabilities, two allocators, so the only difference IS the
+allocator):
+
+| cap | arm | d objective | **d accuracy** | **d cc-F1** | moved |
+|---|---|---|---|---|---|
+| L90_G95 | fioretto | +5.369% | **-0.0403** | **-0.0770** | 7.4% |
+| L90_G95 | alm | +4.417% | -0.0341 | -0.0632 | 6.3% |
+| L90_G95 | tralo | +4.563% | -0.0279 | -0.0668 | 6.8% |
+| L90_G95 | clip | +2.904% | -0.0214 | -0.0442 | 5.4% |
+| L90_G95 | tralo_null | +2.164% | -0.0173 | -0.0371 | 4.2% |
+| L80_G95 | focal_clip | +0.938% | -0.0108 | -0.0315 | 3.2% |
+
+**The LP wins its own objective in all 14 cells and LOSES accuracy and cc-F1 in
+all 14.** The synthetic said +0.0095 accuracy; real data says **-0.011 to
+-0.040**, and -0.022 to -0.077 on cc-F1. Sign reversed, magnitude larger.
+
+**Why.** The synthetic used calibrated softmaxes, where total assigned
+probability is a good proxy for accuracy. Real models are overconfident, so
+maximising `sum p` chases confident-and-wrong items. Greedy's "suboptimality" is
+protective, and the 3-7% of items the LP moves are net-negative every time.
+
+🛑 **CANCELLED: the queued change to `apply_allocation_heuristic`.** Making it
+optimal would cost every arm 0.01-0.04 accuracy and 0.02-0.08 cc-F1. It is not a
+defect to fix. The entry above stands as the record of a claim that did not
+survive its own confirmation.
+
+✅ **The gate earned its keep.** The first version asserted the LP must also win
+on accuracy; it failed, and that is exactly the falsehood this table shows. The
+probe reports the objective as the guaranteed quantity for that reason.
+
+🔑 **What survives is a NEW instrument.** Allocator disagreement -- the share of
+items greedy and the LP place differently -- measures how far an arm's
+probability field has been distorted, and it orders the arms cleanly at both
+caps: `tralo_null` (2.6/4.2%) < `focal_clip` < `hounie` < `clip` < `tralo`
+(3.9/6.8%) < `alm` < `fioretto` (4.9/7.4%). **The more a constraint pushed, the
+worse the calibration.** `tralo_null` takes no constraint step and is the least
+distorted; `fioretto` pushes hardest and is the most. That is a per-arm
+calibration-damage measurement the corpus has never had.
+
+### 📊 fm2_mn3 COMPLETE: THE 4-SEED VERDICT AGAINST ALL SIX RIVALS
+
+56/56, zero failures. Seed-paired, sd = seed-paired sd of the difference.
+
+**L90_G95 -- TraLO minus each arm:**
+
+| arm | d cc-F1 | d macroF1 | d accuracy |
+|---|---|---|---|
+| tralo_null | **-0.0193 +- 0.0058** | +0.0032 +- 0.0137 | +0.0008 +- 0.0112 |
+| alm | -0.0150 +- 0.0144 | +0.0059 +- 0.0126 | +0.0069 +- 0.0114 |
+| fioretto | **-0.0142 +- 0.0048** | +0.0072 +- 0.0104 | +0.0086 +- 0.0140 |
+| focal_clip | **-0.0134 +- 0.0052** | +0.0144 +- 0.0078 | +0.0129 +- 0.0077 |
+| clip | -0.0112 +- 0.0147 | +0.0155 +- 0.0094 | +0.0119 +- 0.0128 |
+| hounie | -0.0084 +- 0.0089 | +0.0045 +- 0.0096 | +0.0043 +- 0.0088 |
+
+**VERDICT: LOSS.** TraLO trails **every one of the six** on cc-F1, and three of
+those gaps clear their own seed sd by 2.6-3.3x -- including its own null. At
+L80_G95 the same grid reads LEADING GROUP (-0.0036 +- 0.0103 vs `tralo_null`).
+
+**The trade is real and it is consistent**: TraLO buys +0.013 accuracy and
++0.015 macroF1 against the clippers while paying -0.013 cc-F1. That is a
+different operating point, not a win on the headline.
+
+⚠️ **And this cell FAILS `gate:saturation` at 2.7 live epochs.** So the whole
+table is the FROZEN-BOUNDARY REFERENCE, which is the role it should play: it is
+the control arm of the augmentation experiment, not a verdict on the method.
+
 ### 🔑 THE FOUR "RIVAL" DUALS SHARE ONE PER-ITEM GRADIENT. READ, NOT SIMULATED.
 
 Every dual in the comparison builds its constraint term as a weighted sum of the
