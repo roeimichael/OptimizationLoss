@@ -19,6 +19,72 @@ passes all 8 conditions of `scripts/candidate_gate.py`.
 
 ## Current stage
 
+### ⛔ THE PAPER'S SECOND PHASE HAS NEVER RUN -- 2,563 runs, 0 freezes
+
+`docs/paper/main.tex` describes TraLO as two-phase: lambda ratchets while the
+count is violated, then **"is frozen the moment the count is first satisfied"**,
+and rho likewise stops, so **"the tail of training descends one objective
+instead of chasing a multiplier that is still moving."**
+
+**That branch has never executed.** A recursive scan of every `optloss-*` tree on
+dsisco02 -- `Satisfaction Epoch` in `evaluation_metrics.csv`, which
+`tralo/train.py:433` -> `runner.py:154` -> `logging.py:213` carries from
+`satisfaction_epoch` -- found **2,563 TraLO-family runs across 5 datasets and 22
+arm variants, and 0 that ever reached satisfaction**:
+
+| dataset | runs | reached |
+|---|---|---|
+| iwildcam | 1,568 | 0 |
+| bcn | 663 | 0 |
+| fmow | 272 | 0 |
+| dermmnist | 46 | 0 |
+| fmow2 | 14 | 0 |
+
+Three independent signals agree: `Local_Satisfied` is 0 in every logged epoch;
+`Lambda_Local` climbs monotonically 0.0400 -> 1.0416 over 30 epochs with a dead-
+constant ~+0.035/epoch increment; `L_Local` grows 0.16 -> 1,481 while `L_CE`
+falls to 0.011.
+
+**Why.** `tralo/train.py:285` sets `is_satisfied = global_satisfied and
+local_satisfied`, where `local_satisfied` is a conjunction over every
+(group, class) cell. On fmow2 that is 3 global + 30 local = 33 cells that must
+all be at-or-under budget **in the same epoch**. Measured: only **8-13 of the 30
+local cells** comply in any epoch, and that does not improve over 30 epochs
+(12 -> 8 at L80, 14 -> 13 at L90). Satisfaction is ~20 cells away, not one.
+
+**Two structural consequences, both in every run ever made:**
+
+1. 🔑 **The multiplier can only grow.** `set_lambda_per_class(c, old +
+   lambda_step, ...)` at lines 296 and 308 are the ONLY mutation sites after
+   init. A cell that becomes compliant keeps its accumulated multiplier forever.
+   Pressure on an already-compliant cell never relaxes -- **undershoot is
+   structural, not incidental.**
+2. 🔑 **rho never freezes either.** `rho_frozen` is set only inside the
+   satisfaction branch, so `increment_rho(rho_step)` runs all 29 epochs and rho
+   lands on `rho_target = 100.0` in every run, from `initial_rho = 0.5`.
+   (The paper says rho ramps "from 5 toward 100"; the config says 0.5.)
+
+**This is exactly what separates TraLO from the two rivals that do not share the
+failure.** Read from source:
+
+| arm | dual update | can shrink? |
+|---|---|---|
+| `tralo` | `lambda += step` on a BOOLEAN violation | **no** |
+| `fioretto` | `lambda += step * viol^+` | **no** |
+| `alm` | `lambda <- max(0, lambda + eta (S - K))` on the RAW residual | **yes** |
+| `hounie` | `lambda <- max(0, lambda + eta (mean_l - u))` | **yes** |
+
+`fioretto_alm/train.py`'s own docstring states the point: the raw residual "so
+the multiplier can SHRINK when the constraint goes slack".
+
+🔑 **THE FIX IS NOT IN THE REJECTED LEDGER.** Everything closed there is
+the gradient EXPRESSION -- penalty shape, count function, cut window, margin,
+scope re-weighting. This is the DUAL UPDATE: make it two-sided and per-cell,
+`lambda <- max(0, lambda + step * (hard - K) / K)`, with a deadband of one
+measured epoch-sd so it does not chatter on noise. No gradient change, no extra
+compute. New arm `tralo_sd`, with unmodified `tralo` as the control; it must not
+replace `tralo`, because `tralo` is what the paper describes.
+
 ### 🔬 PRE-REGISTERED 2026-09-14, BEFORE THE SEEDS LANDED
 
 **CLAIM: TraLO's ranking damage is caused by UNDERSHOOT, not by the constraint.**
@@ -64,6 +130,24 @@ scope's excess to clear its own measured epoch noise before ratcheting, or
 average the count over recent epochs before declaring a violation. No gradient
 changes and no extra compute. Test as a `tralo_hyst` arm against unmodified
 `tralo` at equal compute, pre-registered above.
+
+⚠️ **AMENDED 2026-09-14, same day, BEFORE 4 seeds.** Two checks since
+pre-registration weaken parts of this, recorded here rather than quietly dropped:
+
+- **The local scope is near-inert.** Against `tralo_null`, end-of-run local
+  compliance is indistinguishable (8 vs 8, 13 vs 10, 9 vs 12, 13 vs 13 of 30
+  cells); total local excess falls only ~10-15% (407 vs 471, 338 vs 403, 381 vs
+  351, 275 vs 306). 29 epochs of ratcheting buy almost nothing locally.
+- **"Class 7 driven to 111-122 on BOTH backbones" does NOT replicate.** At the
+  current seed counts, end-of-run class-7 global counts against a permitted 304
+  are 171.5 (MNv3 L90, n=2), 218/246 (MNv2, n=1), and **385 (ViTB16 L80, n=1,
+  vs a null at 159 -- the opposite sign)**. The earlier figure is withdrawn.
+- **Classes 1 and 2 never reach budget at all**: `tralo` ends 371-398 against
+  347, and 519-703 against 519. The direction is right (it beats the null by up
+  to 191 items on class 2) and the magnitude is insufficient.
+
+The pre-registered prediction stands as written and will be judged at 4 seeds.
+The corpus-wide freeze finding above does not depend on it.
 
 ⚠️ With `L80`/`L90` local against `G95` global, `sum(local K) < global K` for
 every capped class, so the GLOBAL cap is inert and these campaigns are a pure
