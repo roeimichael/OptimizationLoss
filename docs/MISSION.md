@@ -67,6 +67,36 @@ protocol arm; `make_ce_criterion` already honoured `warmup_loss` and is what
 release -- `validate_campaign` hashes the source root of the process that runs
 it, so an isolated tree cannot disturb them.
 
+### ⚠️ CORRECTION: THE ALLOCATOR IS A GREEDY HEURISTIC, NOT A PROVEN OPTIMUM
+
+I have been resting the whole diagnosis on "post-hoc allocation is optimal given
+the probabilities, so only the ORDER survives". Reading
+`heuristic/train.py:apply_allocation_heuristic` rather than trusting the note:
+
+- **Pass 1** sorts every (item, capped class) pair by probability and assigns
+  greedily. Its own docstring says this equals top-K **only when there is a
+  single capped class**. fmow2 has three and bcn two, so the classes compete.
+- **Pass 2** gives uncapped classes only the items whose ARGMAX is that class.
+- **Pass 3** sends the leftovers to their best still-feasible class.
+
+Greedy on a joint assignment problem is **not** optimal in general -- which is
+why an `lp` arm exists at all.
+
+⛔ **And my evidence that greedy equals the LP was worthless.** I wrote that
+`lp` and `clip` "score identically". They scored identically **on gAP**, which
+is computed from the probabilities alone and is allocation-free by design --
+two arms sharing a trained model must agree on it no matter what allocator
+runs afterwards. That observation cannot distinguish allocators and I should
+not have used it.
+
+🔑 **This matters because it could overturn the diagnosis.** If the
+greedy pass is leaving value on the table, then a model that obeys natively
+hands the allocator less work, and TraLO's obedience advantage (bcn L70 excess
+550 vs `clip`'s 852) would have somewhere to convert.
+
+**The decisive test is free and queued**: `lp` and `clip` share the same trained
+model, so any difference between them on cc-F1 is PURELY the allocator.
+
 ### 🟢 WE MAY BE JUDGING IT ON THE WRONG HEADLINE
 
 `profile_report` on `fm2_mn3`, TraLO minus each clipper, seed-paired with the
