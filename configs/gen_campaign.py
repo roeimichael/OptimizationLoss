@@ -166,7 +166,12 @@ def main():
     )
     parser.add_argument("--caps", nargs="+", default=["L30_G30", "L50_G50"])
     parser.add_argument(
-        "--arms", nargs="+", default=["tralo"], choices=[*PUBLIC_ARMS, "all"]
+        # Any arm DECLARED in the protocol may be named explicitly; "all" still
+        # means the seven-arm public comparison, so adding an arm to
+        # protocol.yml cannot silently change what an existing `--arms all`
+        # campaign generates.
+        "--arms", nargs="+", default=["tralo"],
+        choices=[*sorted(set(P["arms"]) | set(PUBLIC_ARMS)), "all"]
     )
     parser.add_argument("--pretrained", choices=["true", "false"], default=None)
     parser.add_argument("--constrained-class", nargs="+", type=int)
