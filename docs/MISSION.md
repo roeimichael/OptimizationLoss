@@ -475,6 +475,34 @@ negative:
 ⚠️ One backbone, one dataset, 8 seed-deltas. Replication on a second backbone is
 required before this is a result rather than a lead.
 
+#### AND THE METRIC AGREES -- BUT THE BEST ARM IS STILL A CLIPPER
+
+`profile_report` on `live6b`, L90_G95, n = 4:
+
+| arm | accuracy | cc-F1 |
+|---|---|---|
+| **`aug_clip`** | **0.6632** | **0.7378** |
+| `aug_tralo` | 0.6623 | 0.7338 |
+| `clip` | 0.6469 | 0.7154 |
+| `tralo` | 0.6484 | 0.7131 |
+| `tralo_null` | 0.6467 | 0.7071 |
+
+- 🟢 **`tralo` - `tralo_null` on cc-F1 = +0.0060 +- 0.0091.** POSITIVE, where the
+  30-epoch cells gave **-0.0193 +- 0.0058**. The metric moves with gAP, which is
+  the consistency the account needs. Still inside 1 sd.
+- 🛑 **The best arm in the campaign is `aug_clip`, a CLIPPER.** TraLO trails it
+  by -0.0247 +- 0.0160.
+
+🔑 **Same shape as the allocator result: an improvement available POST-HOC
+strengthens the baseline at least as much as the method.** Augmentation is a
+rising tide, and it lifts the clipper. Any claim for TraLO has to be made
+against `aug_clip`, not against `clip`.
+
+⚠️ **`aug_tralo` vs `aug_clip` (-0.0040) is NOT the constraint's effect** -- they
+differ in schedule as well. The only clean test is `aug_tralo` vs
+`aug_tralo_null`, which `live6b` does not contain. **`live11` does** (72 runs,
+all three columns controlled, RUNNING).
+
 **Augmentation raises gAP on its own**: `aug_tralo - tralo` = +0.0221 +- 0.0112
 (L80, 4 of 4 positive) and +0.0121 +- 0.0077 (L90, 3 of 3). Seven of seven
 positive -- but that is a main effect on the MODEL, not evidence about the
