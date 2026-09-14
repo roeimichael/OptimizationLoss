@@ -559,3 +559,153 @@ def test_a_candidate_dataset_is_screened_on_EVERY_condition_at_once(tmp_path):
     assert "PASS ALL" in out_good.stdout, (
         "a dense, well-spread, rate-varying slice was refused, so the gate "
         "cannot distinguish good data from bad:" + chr(10) + out_good.stdout)
+
+
+def _fake_run(root, arm, seed, cap="L80_G95", n=240, shift=0.0, rng_key=None,
+              group_boost=0.0):
+    """One run directory with the two files the scorers actually read."""
+    import os, json, random
+    d = os.path.join(root, "MobileNetV3", "fmow2", cap, arm, "seed_%d" % seed)
+    os.makedirs(d, exist_ok=True)
+    # rng_key is explicit so a test can give two arms the SAME draws and
+    # assert the probe reports no gap. Keying on len(arm) made "tralo" and
+    # "tralo_null" differ by construction, which is not a control.
+    rng = random.Random(seed * 17 if rng_key is None else rng_key)
+    cols = ["True_Label", "Predicted_Label", "Group_ID"] + ["Prob_Class_%d" % c for c in range(8)]
+    lines = [",".join(cols)]
+    for i in range(n):
+        y = i % 8
+        g = i % 4
+        # `shift` degrades the ordering for the capped classes only, so a tool
+        # reading the ORDER sees it and a tool reading only counts does not.
+        p = [0.02] * 8
+        good = rng.random() > (0.25 + shift if y in (1, 2, 7) else 0.25)
+        pred = y if good else (y + 1) % 8
+        p[pred] = 0.86 - (shift if y in (1, 2, 7) else 0.0)
+        if group_boost and g == 0:
+            # A constant added to one GROUP preserves that group's internal
+            # order exactly, so a PER-GROUP AP must not move. A GLOBAL AP must.
+            for c in (1, 2, 7):
+                p[c] = min(0.999, p[c] + group_boost)
+        lines.append(",".join([str(y), str(pred), str(g)] + ["%.4f" % v for v in p]))
+    body = chr(10).join(lines) + chr(10)
+    for name in ("final_predictions.csv", "final_predictions_raw.csv"):
+        with open(os.path.join(d, name), "w", encoding="utf-8") as fh:
+            fh.write(body)
+    with open(os.path.join(d, "config.json"), "w", encoding="utf-8") as fh:
+        json.dump({"status": "completed", "arm": arm, "dataset_mode": "fmow2",
+                   "model_name": "MobileNetV3", "constraint_tag": cap,
+                   "hyperparams": {"seed": seed},
+                   "dataset_config": {"num_classes": 8, "constrained_class": [1, 2, 7]}}, fh)
+    return d
+
+
+def test_the_verdict_tools_run_and_a_cc_f1_gain_paid_for_in_damage_is_NOT_a_win(tmp_path):
+    """The acceptance bar was single-metric IN THE CODE.
+
+    `deployed_h2h` computed the seed-paired effect on `cc_f1` and nothing else,
+    so every verdict this project issued was cc-F1 by construction, and a cc-F1
+    gain bought with collateral damage read as a clean win. These two tools are
+    what replace that, so they are executed here rather than trusted.
+
+    `rank_probe` exists because post-hoc allocation is optimal GIVEN the
+    probabilities: ranking is the ONLY channel by which a trained arm can beat a
+    clipper, so an arm that changes counts without improving gAP cannot win.
+    """
+    import subprocess, sys, os
+
+    root = str(tmp_path / "camp")
+    for seed in (1, 2):
+        _fake_run(root, "clip", seed, shift=0.0)
+        _fake_run(root, "tralo", seed, shift=0.15)   # strictly worse ordering
+        _fake_run(root, "tralo_null", seed, shift=0.0)
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    prof = subprocess.run([sys.executable, "-m", "scripts.profile_report",
+                           "--campaign", root], cwd=repo, capture_output=True, text=True)
+    assert prof.returncode == 0, prof.stderr
+    assert "ccF1" in prof.stdout and "collatF1" in prof.stdout and "macroF1" in prof.stdout, (
+        "the profile must print the damage metrics beside cc-F1, or it is the "
+        "single-metric bar again:" + chr(10) + prof.stdout)
+    assert "VERDICT" in prof.stdout, "no verdict line"
+    assert "WIN" not in prof.stdout, (
+        "an arm given a strictly WORSE ordering was called a win:"
+        + chr(10) + prof.stdout)
+
+    rank = subprocess.run([sys.executable, "-m", "scripts.rank_probe",
+                           "--glob", os.path.join(root, "*/*/*/*/seed_*")],
+                          cwd=repo, capture_output=True, text=True)
+    assert rank.returncode == 0, rank.stderr
+    assert "gAP" in rank.stdout, "rank_probe did not report gAP"
+    # NEGATIVE CONTROL: the degraded arm must show a NEGATIVE gAP delta against
+    # its own null. If this passes with shift=0 too, the probe reads nothing.
+    deltas = [l for l in rank.stdout.splitlines() if "tralo_null" in l and "d gAP" in l]
+    assert deltas, "no tralo-vs-null ranking contrast was printed"
+    assert any("d gAP -" in l for l in deltas), (
+        "a strictly degraded ordering did not register as a NEGATIVE gAP delta, "
+        "so the probe cannot detect the only channel that can win:"
+        + chr(10) + chr(10).join(deltas))
+
+
+def test_rank_probe_reports_NO_ranking_gap_when_the_orderings_AGREE(tmp_path):
+    """Liveness control for the test above: with no degradation the gAP delta
+    must be ~0. Without this, a probe that always printed a negative number
+    would pass."""
+    import subprocess, sys, os
+
+    root = str(tmp_path / "camp")
+    for seed in (1, 2):
+        _fake_run(root, "tralo", seed, shift=0.0, rng_key=seed)
+        _fake_run(root, "tralo_null", seed, shift=0.0, rng_key=seed)
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    rank = subprocess.run([sys.executable, "-m", "scripts.rank_probe",
+                           "--glob", os.path.join(root, "*/*/*/*/seed_*")],
+                          cwd=repo, capture_output=True, text=True)
+    assert rank.returncode == 0, rank.stderr
+    for line in rank.stdout.splitlines():
+        if "tralo_null" in line and "d gAP" in line:
+            val = float(line.split("d gAP")[1].split()[0])
+            assert abs(val) < 1e-9, (
+                "identical orderings reported a non-zero ranking gap: " + line)
+
+
+def test_rank_probe_is_PER_GROUP_because_the_allocator_is(tmp_path):
+    """gAP must be invariant to a between-group shift; a GLOBAL AP must not be.
+
+    The allocator cuts top-k WITHIN each group, so a global AP scores an
+    ordering the system never uses. This project has found a global-vs-per-group
+    confusion in ELEVEN separate call sites, and the earlier version of this
+    test did not catch a mutation replacing gAP with the global AP -- so the
+    invariance is asserted directly rather than implied.
+    """
+    import subprocess, sys, os, re
+
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    def gaps(root):
+        r = subprocess.run([sys.executable, "-m", "scripts.rank_probe",
+                            "--glob", os.path.join(root, "*/*/*/*/seed_*")],
+                           cwd=repo, capture_output=True, text=True)
+        assert r.returncode == 0, r.stderr
+        out = {}
+        for line in r.stdout.splitlines():
+            m = re.match(r"\s+(\S+)\s+\d+\s+([0-9.]+)\s+([0-9.]+)\s*$", line)
+            if m and m.group(1) == "tralo":
+                out.setdefault("gAP", []).append(float(m.group(2)))
+                out.setdefault("capAP", []).append(float(m.group(3)))
+        assert out, "rank_probe printed no tralo row:" + chr(10) + r.stdout
+        return out
+
+    base = str(tmp_path / "base")
+    lifted = str(tmp_path / "lifted")
+    for seed in (1, 2):
+        _fake_run(base, "tralo", seed, rng_key=seed)
+        _fake_run(lifted, "tralo", seed, rng_key=seed, group_boost=0.10)
+
+    b, l = gaps(base), gaps(lifted)
+    assert b["gAP"] == pytest.approx(l["gAP"], abs=1e-9), (
+        "a between-group shift that preserves within-group order MOVED gAP, so "
+        "it is not a per-group statistic: %s vs %s" % (b["gAP"], l["gAP"]))
+    assert b["capAP"] != pytest.approx(l["capAP"], abs=1e-9), (
+        "the GLOBAL AP did not move under a between-group shift, so the fixture "
+        "does not separate the two readings and the invariance above is vacuous")
