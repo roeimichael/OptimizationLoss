@@ -214,6 +214,44 @@ of REACHABLE RANKINGS, an optimisation-geometry object, not an information one.
 
 ### Settled, do not re-open without new evidence
 
+- 🟡 **THE STAGE 1 RANKING LOSS IS LIVE BUT NARROW: IT FIRES ON 8 OF 139 TRAIN
+  GROUPS, AND TRAINS A 2nd-OF-12 ORDER STATISTIC TO SERVE A 41st-OF-363
+  DECISION.** Measured 2026-09-15 on fmow2, before any `rank_*` run completed,
+  by simulating the warm-up sampler against `train_meta.csv` (`rank_dose.py`,
+  `rank_scale.py`). `make_dataloader` shuffles uniformly and is group-blind, so
+  a batch of 64 spread over 139 country groups holds ~12 items of the largest
+  group and fewer of the rest. With `rank_min_group = 8`:
+
+  | quantity | value |
+  |---|---|
+  | usable (group, class) terms per batch | mean 2.50 of 417 possible |
+  | batches with NO ranking gradient at all | 3.4% |
+  | groups that ever contribute | 8 of 139 (USA 55%, FRA 22%, ITA 6% of batches) |
+  | trained cut | 2.3rd order statistic of 12 items, k=1 in 49% of terms |
+  | deployed cut | 41st order statistic of 363 items |
+  | cut DEPTH, train vs test | 0.208 vs 0.148 (ratio 1.41 means, 1.52 medians) |
+
+  **What this does and does not license.** The loss is NOT inert -- that was the
+  first thing checked, because five flags in this project have died in exactly
+  that shape. It is aimed at roughly the right quantile (within ~1.4x), so it is
+  the intended mechanism. But it is estimated from 29x fewer items than the
+  decision it serves, the `max(1, .)` floor pins k=1 in half the terms and so
+  biases the trained cut SHALLOW, and 131 of 139 groups never enter the
+  gradient. **Therefore: a positive gAP effect from `rank_clip` is trustworthy.
+  A NULL is NOT informative about the ranking channel** -- it cannot separate
+  "the channel does not help" from "this estimator is too noisy and too narrow
+  to deliver it". This is the `hounie_rcl` 1%-dose trap and the `mc29` 100x-dose
+  trap in a third costume, caught this time BEFORE the runs landed rather than
+  after.
+
+  The fix, if a null comes back, is a sampler change and not a loss change:
+  group-batched sampling (draw each batch from one or a few groups) would put
+  ~64 items of a single group in front of the cut and raise k from 2 to ~10,
+  restoring both the width and the sample size. That is a relaunch, hence a
+  compute-budget decision, hence a question for the user rather than a unilateral
+  change.
+
+
 - 🔴 **THE ENVIRONMENT IS EXONERATED. IN A BOUNDARY THAT NEVER FREEZES, WITH THE
   CAP BINDING AND THE PRIZE REACHABLE, TraLO STILL LOSES TO ITS OWN NULL.**
   `small60` (SmallCNN 100k params, fmow2, budget 60, 32/32 complete), measured
