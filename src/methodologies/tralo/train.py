@@ -13,6 +13,13 @@ from src.methodologies.dual_common import read_step_config
 from src.pipeline.contracts import TrainInputs, TrainOutputs, _required
 from src.pipeline.setup import setup_runtime
 from src.pipeline.warmup import make_ce_criterion, make_dataloader, make_optimizer
+from src.training.item_weights import (
+    apply as apply_weights,
+    features_and_preds,
+    item_weights,
+    read_weight_config,
+    weight_spread,
+)
 from src.training.constraint_step import (
     constraint_autocast,
     constraint_backward,
@@ -68,6 +75,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     config = inputs.config
     hp = inputs.hyperparams
     step_cfg = read_step_config(hp)
+    weight_cfg = read_weight_config(hp)
     device = inputs.device
     num_classes = inputs.num_classes
     model = inputs.model
@@ -164,6 +172,16 @@ def train(inputs: TrainInputs) -> TrainOutputs:
         optimizer.zero_grad(set_to_none=True)
         n_test = len(X_test)
         n_chunks = (n_test + chunk_size - 1) // chunk_size
+        # The soft count is sum_i w_i p_i(c). In the reference arm w is exactly
+        # ones and this costs nothing; see src/training/item_weights.py for why
+        # a non-uniform w is the only escape from the harm lemma.
+        if weight_cfg["mode"] == "uniform":
+            item_w = torch.ones(n_test, device=device, dtype=torch.float32)
+        else:
+            w_feats, w_preds = features_and_preds(model, X_test, chunk_size, device)
+            item_w = item_weights(weight_cfg, w_feats, w_preds, group_ids)
+            del w_feats, w_preds
+        weight_cv = weight_spread(item_w)
         with torch.no_grad():
             total_global_soft = torch.zeros(num_classes, device=device)
             total_global_hard = torch.zeros(num_classes, device=device)
@@ -181,6 +199,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 chunk_logits = model(X_test[start:end])
                 chunk_proba = F.softmax(chunk_logits, dim=1)
                 chunk_preds = chunk_logits.argmax(dim=1)
+                chunk_proba = apply_weights(item_w, chunk_proba, start, end)
                 total_global_soft += chunk_proba.sum(dim=0)
                 total_global_hard += torch.bincount(
                     chunk_preds, minlength=num_classes
@@ -237,7 +256,7 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 chunk_logits_f = chunk_logits.float()
                 chunk_proba = F.softmax(chunk_logits_f, dim=1)
                 chunk_loss = torch.tensor(0.0, device=device)
-                chunk_eff = chunk_proba
+                chunk_eff = apply_weights(item_w, chunk_proba, start, end)
                 chunk_global = chunk_eff.sum(dim=0)
                 chunk_gids = group_ids[start:end]
                 chunk_local_soft = {}
@@ -342,6 +361,10 @@ def train(inputs: TrainInputs) -> TrainOutputs:
                 "device": str(device),
                 "constraint_fp32": step_cfg["fp32"],
                 "constraint_grad_mode": step_cfg["mode"],
+                "constraint_weight": weight_cfg["mode"],
+                # 0.0 exactly when the weights are inert. gate:weight_bites
+                # reads this, because five earlier flags were inert unnoticed.
+                "constraint_weight_cv": weight_cv,
                 "epoch_absolute_1based": epoch + 1,
                 "constraint_epoch_1based": epoch - warmup_epochs + 1,
                 "counts_state": "post_task_pre_constraint",
