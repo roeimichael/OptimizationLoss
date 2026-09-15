@@ -21,6 +21,47 @@ wrong published-to-ourselves conclusion at least once.
 
 ### Arms and controls
 
+- 🛑 **THE SAME CACHE TRAP TWICE: AN IDENTITY KEY MUST COVER EVERY INPUT THAT
+  CHANGES THE WARM-UP, INCLUDING INPUTS THAT DO NOT LIVE IN `hp`.** 2026-09-15,
+  caught at 2/40 runs in. `rank_clip` and `aug_rank_clip` hashed to ONE
+  `base_model_id` across L80 and L90. The budgeted ranking loss cuts at the K-th
+  order statistic with K derived from the CAP (`warmup.py` reads
+  `config["constraint"][0]`), so the two caps train genuinely different models --
+  but the cap lives in `config["constraint"]`, not in `hp`, and
+  `compute_base_model_id` only hashes identity keys found in `hp`. L80 runs
+  first, trains, caches; L90 then silently loads it.
+
+  **Every L90 rank cell would have been a model trained for an 0.8 cut and then
+  scored against an 0.9 allocation -- precisely the train/deploy mismatch this
+  loss exists to remove.**
+
+  🛑 **THIS IS THE DANGEROUS KIND.** The unpack defect recorded above crashed
+  loudly and destroyed 48 runs; this one would have run clean, logged clean, and
+  produced a full campaign of plausible, half-wrong numbers. It would also have
+  corrupted the pre-registered reading: `rank_paired` marks an arm `(cap-inert)`
+  when its probabilities do not move with the cap, and MISSION had recorded that
+  as meaning "the loss never reached the model". Cap-inertness was GUARANTEED by
+  the cache and said nothing about the loss. **A pre-registered inference rule is
+  only as sound as the mechanism it assumes; when the mechanism changes, the rule
+  must be retracted in place, not annotated.**
+
+  `tests/test_rank_loss.py` already pinned that `rank_clip` cannot reuse `clip`'s
+  warm-up via `rank_weight`, and passed throughout. Same trap, second instance,
+  through an input the digest could not see.
+
+  **How it surfaced: by COUNTING distinct warm-up identities in the generated
+  campaign** (20 trained / 20 cached, then per-arm: each rank arm had 1 warm-up
+  across 2 caps), while pricing an unrelated follow-up. Not by reading code, and
+  no test or gate was looking for it.
+
+  Fixed at `323edf44`: `gen_campaign` stamps `rank_cap_fraction` for rank arms
+  only, so no existing digest moves; `warmup.py` REFUSES a stamp that disagrees
+  with the cap it trains, so the two sources cannot drift;
+  `tests/test_rank_cache_identity.py` pins both directions. **Verified in the
+  produced predictions, not just the configs:** `aug_rank_clip` L80 vs L90 now
+  differ on MobileNetV3 (`8c7a9316fa59` vs `e56ec773408d`) and RegNetY400MF
+  (`fa08e8cc461c` vs `e227e7a25b52`), where the bug would have made them equal.
+
 - 🛑 **A UNIT-TESTED MECHANISM CAN STILL BE 100% DEAD IN THE PIPELINE: 48 OF 120
   RUNS DIED ON A LINE ONE LEVEL BELOW THE THING UNDER TEST.** 2026-09-15.
   `tests/test_rank_loss.py` pins the budgeted ranking loss with 14 tests --
