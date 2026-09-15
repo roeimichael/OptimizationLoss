@@ -252,9 +252,9 @@ update ordering and training behaviour do not change during structural cleanup.
 24 control runs per campaign (`clip`, `focal_clip`, `aug_clip`) are valid and
 retained; the Stage 1 gate was unanswerable from them.
 
-**`rank2_*` is LIVE on dsisco01 GPUs 1/2/3**, claimed 22:15:39 IDT:
-`rank2_MobileNetV3`, `rank2_MobileNetV2`, `rank2_RegNetY400MF`, 40 runs each,
-generated and frozen at **bfb33a97** (the fix commit), same design as rank1
+**`rank2_*` is DEAD -- stopped by explicit PID at 2/40 on the warm-up cache defect (LEDGER PART 1). `rank3_*` is LIVE on dsisco01 GPUs 1/2/3**, claimed 2026-09-15 23:35:35 IDT, generated and frozen at 323edf44:
+`rank3_MobileNetV3`, `rank3_MobileNetV2`, `rank3_RegNetY400MF`, 40 runs each,
+same design as rank1
 (fmow2, L80_G95 + L90_G95, arms `clip` `focal_clip` `rank_clip` `aug_clip`
 `aug_rank_clip`, seeds 1-4, pretrained, warm-up 30).
 
@@ -306,8 +306,8 @@ needed** -- `scripts/rank_paired.py` already gives per-cell paired gAP with the
 seed sd beside it:
 
 ```
-python3 scripts/rank_paired.py --glob 'results/rank2_*/*/*/*/*/seed_*' --a rank_clip     --b clip
-python3 scripts/rank_paired.py --glob 'results/rank2_*/*/*/*/*/seed_*' --a aug_rank_clip --b aug_clip
+python3 scripts/rank_paired.py --glob 'results/rank3_*/*/*/*/*/seed_*' --a rank_clip     --b clip
+python3 scripts/rank_paired.py --glob 'results/rank3_*/*/*/*/*/seed_*' --a aug_rank_clip --b aug_clip
 ```
 
 **The mechanism check comes free, and it is read FIRST.** `rank_paired` marks an
@@ -319,7 +319,7 @@ loss trains two different models and `rank_clip` **cannot** be cap-inert.
 
 | what `rank_paired` shows for `rank_clip` | what it means | what follows |
 |---|---|---|
-| `(cap-inert)` | the ranking loss did not reach the model at all | a sixth dead flag; fix the wiring, discard the campaign, do NOT read gAP |
+| `(cap-inert)` | **AMBIGUOUS, do not read it as death.** Until 323edf44 this was guaranteed by a CACHE bug -- both caps shared one `base_model_id`, so L90 loaded L80's warm-up. In `rank3_*` that cause is removed and the two caps carry different digests (verified in the generated configs), so cap-inertness would now mean the loss really did not reach the model. Check the digests before reading it either way. | if the digests differ and the arm is still cap-inert: a sixth dead flag, discard, do NOT read gAP |
 | separate L80 / L90 rows | the loss moved the model | proceed to read gAP |
 
 **Then, and only then, the gate: is gAP(`rank_clip`) - gAP(`clip`) > 0?**
