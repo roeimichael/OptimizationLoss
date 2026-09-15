@@ -255,6 +255,36 @@ of REACHABLE RANKINGS, an optimisation-geometry object, not an information one.
 
 ### Settled, do not re-open without new evidence
 
+- 📏 **THE gAP NOISE ENVELOPE, MEASURED ON TWO KNOWN-NULL CONTRASTS -- and an
+  isolated `|mean|/sd > 2` cell APPEARS IN BOTH.** 2026-09-16, on `rank1_*`'s 72
+  surviving control runs (3 backbones x 3 constrained classes x 4 seeds, scored
+  with `scripts/rank_paired.py`). Both contrasts are arms whose only difference
+  is a training-time lever, so they say what this instrument does when there is
+  little or nothing to find:
+
+  | contrast | cells positive | cell-mean | largest single cell |
+  |---|---|---|---|
+  | `focal_clip` - `clip` | 2 of 9 | **-0.0048** | -0.0261 at `|mean|/sd` 2.33 |
+  | `aug_clip` - `clip` | 4 of 9 | **+0.0017** | +0.0316 at `|mean|/sd` 2.41 |
+
+  **Two things follow, and the second is the load-bearing one.**
+
+  1. Neither focal loss nor augmentation improves the SCORE that the allocator
+     reads. Focal is directionally negative (7 of 9 cells); augmentation is a
+     null. Augmentation was added to fight the saturation the ledger records --
+     it may still do that, but it does not buy ranking quality.
+
+  2. 🛑 **An isolated cell at `|mean|/sd` ~ 2.4 is what a NULL looks like here.**
+     Both contrasts produced one, with opposite signs, at n=4 seeds. So when the
+     Stage 1 ranking gate is read, a single strong-looking cell is NOT evidence
+     -- only the COUNT of cells and their agreement across backbones is. This is
+     exactly the shape that manufactured earlier retracted headlines in this
+     project, and it is now measured rather than asserted.
+
+  Cell-means of +-0.005 with per-cell sd of 0.01-0.04 are therefore the
+  background, and the pre-registered `>= 7 of 9` screen in MISSION should be
+  read against that, not against zero.
+
 - 🟡 **THE STAGE 1 RANKING LOSS IS LIVE BUT NARROW: IT FIRES ON 8 OF 139 TRAIN
   GROUPS, AND TRAINS A 2nd-OF-12 ORDER STATISTIC TO SERVE A 41st-OF-363
   DECISION.** Measured 2026-09-15 on fmow2, before any `rank_*` run completed,
