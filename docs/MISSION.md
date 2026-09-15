@@ -602,16 +602,25 @@ steps:
 | `gx2` | 30 | optloss-probe | -0.0049 +- 0.0267 | **-0.0233 +- 0.0079** |
 | `live6b` | **6** | optloss-live6 | **+0.0037 +- 0.0155** | **+0.0121 +- 0.0101** |
 
-🔑 **`gx2` INDEPENDENTLY REPLICATES the 30-epoch damage** -- different tree,
-different `code_version`, different campaign, generated hours apart:
-**-0.0233 +- 0.0079** against `fm2_mn3`'s **-0.0280 +- 0.0113** at L90_G95.
-Both clear their own seed sd. The damage is not an artifact of one campaign.
+⛔ **RETRACTED 2026-09-15: `gx2` DID NOT replicate `fm2_mn3` -- it RE-RAN it.**
+All 30 runs the two campaigns share are **byte-identical** in
+`final_predictions_raw.csv`: distinct inodes, distinct `code_version`
+(`1072a229317c` vs `4c099fc089f5`), separate executions hours apart, identical
+output. Training is bit-deterministic given `(config, seed)`, and the code
+change between the two stamps did not touch the training path. The apparent
+difference above (-0.0233 vs -0.0280) is **entirely** gx2 missing seed 4 at
+L90_G95: on the three shared seeds the numbers agree exactly.
 
-So the budget axis now reads: **two independent campaigns show the constraint
-degrading the ranking at 30 epochs, and the one campaign that passes
-`gate:saturation` shows it not degrading at 6.** That is a much stronger
-statement than live6b alone, because the baseline it flips away from is
-replicated rather than singular.
+Two consequences, one good and one costly:
+
+- ✅ **The pipeline reproduces bit-exactly across trees and code versions.** That
+  is worth stating in the paper and it makes a re-run a valid integrity check.
+- 🛑 **An overlapping arm adds ZERO information.** The 30-epoch damage rests on
+  **one** campaign, not two. Any future analysis must de-duplicate by prediction
+  hash before counting n -- `~/dose_response.py` does, and drops 29 of 75 runs.
+
+`gx2` still earns its place: `aug_tralo`, `aug_clip` and `focal_tralo` are new
+arms that `fm2_mn3` never ran. Only its overlap with `fm2_mn3` is redundant.
 
 ⚠️ Still one backbone and one dataset throughout. `live11_mn2` (MobileNetV2,
 72 runs, all columns controlled) is staged and frozen for the replication.

@@ -83,33 +83,39 @@ def main(argv=None):
             if got:
                 got = (got[0], got[1], con)
                 p = f.replace(os.sep, "/").split("/")
-                # Key on (BACKBONE, dataset). Keying on (dataset, cap) merged
-                # MobileNetV2, MobileNetV3 and ViTB16 into one row and hid
-                # whether the architecture is a lever at all -- and the cap
-                # cannot affect the warm-up, so it is not part of the cell.
-                per[(p[-6], p[-5])].append(got)
+                # Key on (BACKBONE, dataset, CONSTRAINT EPOCHS). Keying on
+                # (dataset, cap) merged MobileNetV2, MobileNetV3 and ViTB16 into
+                # one row and hid whether the architecture is a lever at all --
+                # and the cap cannot affect the warm-up, so it is not part of
+                # the cell. The budget IS part of it: the criterion is a
+                # FRACTION of the constraint phase, so a campaign that sweeps
+                # the budget has a different threshold per arm. Judging all of
+                # them against the shortest budget, as this did, slackens the
+                # long arms to the short arm's bar and passes them wrongly.
+                per[(p[-6], p[-5], con)].append(got)
     if not per:
         print("no training_log.csv matched")
         return 1
-    budgets = sorted({c for v in per.values() for _w, _r, c in v})
-    con_epochs = budgets[0] if len(budgets) == 1 else min(budgets)
-    need = max(1, con_epochs // 2)
+    budgets = sorted({k[2] for k in per})
     bad = 0
     print("live window = epochs before train accuracy reaches %.2f" % args.saturated_acc)
-    print("required    = >= %d of %d constraint epochs%s" % (
-        need, con_epochs,
-        "  (campaign mixes budgets %s -- judged on the shortest)" % budgets
-        if len(budgets) > 1 else ""))
+    print("required    = >= half of each cell's OWN constraint phase%s" % (
+        "  (campaign sweeps budgets %s)" % budgets if len(budgets) > 1 else
+        "  (%d epochs)" % budgets[0] if budgets else ""))
     print("")
-    print("  %-22s %4s %8s %10s %s" % ("cell", "n", "live", "verdict", "acc curve"))
-    for k in sorted(per):
+    print("  %-22s %4s %4s %6s %8s %10s %s"
+          % ("cell", "con", "n", "live", "live frac", "verdict", "acc curve"))
+    for k in sorted(per, key=lambda k: (k[0], k[1], -k[2])):
         v = per[k]
+        con_epochs = k[2]
+        need = max(1, con_epochs // 2)
         live = st.mean([w for w, _r, _c in v])
         ok = live >= need
         bad += 0 if ok else 1
         curve = v[0][1][:6]
-        print("  %-22s %4d %8.1f %10s %s" % (
-            "/".join(k), len(v), live, "ok" if ok else "SATURATED",
+        print("  %-22s %4d %4d %6.1f %8.0f%% %10s %s" % (
+            "/".join(k[:2]), con_epochs, len(v), live, 100.0 * live / con_epochs,
+            "ok" if ok else "SATURATED",
             " ".join("e%d:%.3f" % (e, a) for e, _c, a in curve)))
     if bad:
         print("")

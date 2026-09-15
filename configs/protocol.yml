@@ -48,6 +48,24 @@ blocks:
     focal_gamma: 2.0
   augment:
     augment: true
+  # THE BUDGET SWEEP. The live fraction -- live window / constraint epochs -- is
+  # the quantity the whole account turns on, and until now it could only be
+  # varied BETWEEN campaigns, where it is confounded with backbone, code version
+  # and cap set. These blocks make it a within-campaign factor: the live window
+  # is a property of the recipe (~3 epochs plain), so shrinking the budget
+  # raises the live fraction from 10% at 30 epochs to 75% at 5.
+  #
+  # Budget 30 is deliberately ABSENT: it is the protocol default, so the plain
+  # `tralo`/`tralo_null`/`clip` arms already are the 30-epoch level and adding a
+  # b30 block would generate a second copy of them under a different name.
+  b5:
+    total_epochs: 5
+  b8:
+    total_epochs: 8
+  b12:
+    total_epochs: 12
+  b20:
+    total_epochs: 20
 arms:
   tralo:
     methodology: tralo
@@ -122,6 +140,88 @@ arms:
     phase: posthoc
     blocks:
     - augment
+  # Each budget carries its OWN null and its OWN clipper. The null cannot be
+  # shared across budgets: lambda=0 removes the constraint but the constraint
+  # phase still runs full cross-entropy every epoch, so a 5-epoch null is a
+  # differently trained model from a 30-epoch one. The clipper cannot be shared
+  # either -- if short budgets hurt every arm, the constraint's standing is the
+  # relative one, and only a matched clipper can show that.
+  tralo_b5:
+    methodology: tralo
+    phase: trained
+    blocks:
+    - constraint_phase
+    - tralo
+    - b5
+  tralo_null_b5:
+    methodology: tralo
+    phase: trained
+    blocks:
+    - constraint_phase
+    - tralo_null
+    - b5
+  clip_b5:
+    methodology: heuristic
+    phase: posthoc
+    blocks:
+    - b5
+  tralo_b8:
+    methodology: tralo
+    phase: trained
+    blocks:
+    - constraint_phase
+    - tralo
+    - b8
+  tralo_null_b8:
+    methodology: tralo
+    phase: trained
+    blocks:
+    - constraint_phase
+    - tralo_null
+    - b8
+  clip_b8:
+    methodology: heuristic
+    phase: posthoc
+    blocks:
+    - b8
+  tralo_b12:
+    methodology: tralo
+    phase: trained
+    blocks:
+    - constraint_phase
+    - tralo
+    - b12
+  tralo_null_b12:
+    methodology: tralo
+    phase: trained
+    blocks:
+    - constraint_phase
+    - tralo_null
+    - b12
+  clip_b12:
+    methodology: heuristic
+    phase: posthoc
+    blocks:
+    - b12
+  tralo_b20:
+    methodology: tralo
+    phase: trained
+    blocks:
+    - constraint_phase
+    - tralo
+    - b20
+  tralo_null_b20:
+    methodology: tralo
+    phase: trained
+    blocks:
+    - constraint_phase
+    - tralo_null
+    - b20
+  clip_b20:
+    methodology: heuristic
+    phase: posthoc
+    blocks:
+    - b20
   fioretto:
     methodology: fioretto_ldf
     phase: trained

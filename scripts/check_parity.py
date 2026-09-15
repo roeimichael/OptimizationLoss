@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import sys
 
-from configs.gen_campaign import load_protocol, cap_pair
+from configs.gen_campaign import budget_override, load_protocol, cap_pair
 from src.pipeline.config import validate_hyperparams
 
 SHARED_KEYS = [
@@ -72,12 +72,24 @@ def check(runs):
     # a 30-epoch campaign -- it was comparing to a number, not checking parity.
     # The real invariant is campaign-relative: one total for every arm, zero
     # constraint epochs for post-hoc, and one warm-up shared by trained arms.
-    totals = {hp["warmup_epochs"] + hp["constraint_epochs"]
-              for hp in (c["hyperparams"] for c in runs)}
-    if len(totals) > 1:
-        fails.append("UNEQUAL COMPUTE: the campaign mixes total epoch budgets %s"
-                     % sorted(totals))
-    total = sorted(totals)[0] if totals else 0
+    # A campaign may deliberately SWEEP the budget -- a block setting
+    # `total_epochs` is how the live fraction becomes a within-campaign factor.
+    # So mixed budgets are not the defect; UNDECLARED ones are.
+    #
+    # Arms that PIN a budget are held to the pinned value. Every other arm is
+    # held to the campaign's own baseline, recovered from the runs rather than
+    # from `protocol.total_epochs` -- the campaign may have been generated at a
+    # different default, and comparing those arms to today's protocol rejected a
+    # valid 6-epoch campaign outright.
+    base_totals = {hp["warmup_epochs"] + hp["constraint_epochs"]
+                   for c in runs
+                   for hp in [c["hyperparams"]]
+                   if c["arm"] in P["arms"]
+                   and budget_override(P, P["arms"][c["arm"]]) is None}
+    if len(base_totals) > 1:
+        fails.append("UNEQUAL COMPUTE: the campaign mixes total epoch budgets %s "
+                     "among arms that pin none" % sorted(base_totals))
+    base = sorted(base_totals)[0] if base_totals else 0
     trained_warmups = {c["hyperparams"]["warmup_epochs"] for c in runs
                        if c["arm"] in P["arms"]
                        and P["arms"][c["arm"]]["phase"] == "trained"}
@@ -94,6 +106,8 @@ def check(runs):
         if c["methodology"] != spec["methodology"]:
             fails.append("methodology mismatch on " + arm)
         validate_hyperparams(c["methodology"], hp)
+        pinned = budget_override(P, spec)
+        total = base if pinned is None else pinned
         expected = ((total, 0) if spec["phase"] == "posthoc"
                     else (trained_warmup, total - trained_warmup))
         if (hp["warmup_epochs"], hp["constraint_epochs"]) != expected:

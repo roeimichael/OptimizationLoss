@@ -19,6 +19,7 @@ import yaml
 from .conftest import ROOT, report
 
 from configs.gen_campaign import (
+    arm_budget,
     build_hyperparams,
     cap_pair,
     compute_base_model_id,
@@ -146,18 +147,42 @@ def test_warmup_1_29_trained_30_0_posthoc_and_equal_compute(
     if got != (30, 1):
         fails.append("protocol total/warm-up is %s, not (30, 1)" % (got,))
     for arm, spec in sorted(P["arms"].items()):
+        # An arm may override the budget with a block, which is how the budget
+        # sweep varies the live fraction inside one campaign. The split is then
+        # checked against THAT arm's budget -- asserting 30 here is the defect
+        # that put a hardcoded protocol into five separate instruments.
+        budget = arm_budget(P, spec)
         hp = build_hyperparams(P, spec, 1)
         split = (hp["warmup_epochs"], hp["constraint_epochs"])
-        want = (30, 0) if spec["phase"] == "posthoc" else (1, 29)
+        want = ((budget, 0) if spec["phase"] == "posthoc"
+                else (P["protocol"]["trained_warmup"],
+                      budget - P["protocol"]["trained_warmup"]))
         if split != want:
-            fails.append("%s splits %s, protocol says %s" % (arm, split, want))
+            fails.append("%s splits %s, its %d-epoch budget says %s"
+                         % (arm, split, budget, want))
     for cfg in generated[1].values():
-        h = cfg["hyperparams"]
-        if h["warmup_epochs"] + h["constraint_epochs"] != 30:
+        h, budget = cfg["hyperparams"], arm_budget(P, P["arms"][cfg["arm"]])
+        if h["warmup_epochs"] + h["constraint_epochs"] != budget:
             fails.append(
-                "%s: %d+%d epochs, not 30"
-                % (cfg["arm"], h["warmup_epochs"], h["constraint_epochs"])
+                "%s: %d+%d epochs, not its budget of %d"
+                % (cfg["arm"], h["warmup_epochs"], h["constraint_epochs"], budget)
             )
+    # The sweep is only interpretable if the budget is the ONLY thing it varies:
+    # every trained arm at warm-up 1 must resume the SAME cached warm-up.
+    swept = {}
+    for arm, spec in sorted(P["arms"].items()):
+        if spec["phase"] == "posthoc" or "tralo" not in arm:
+            continue
+        hp = build_hyperparams(P, spec, 1)
+        swept.setdefault(
+            compute_base_model_id(P, "MobileNetV3", hp, "fmow2",
+                                  P["datasets"]["fmow2"]), []).append(arm)
+    plain = [ident for ident, arms in swept.items() if "tralo" in arms]
+    budgeted = {ident for ident, arms in swept.items()
+                if any(a.startswith("tralo_b") or a.startswith("tralo_null_b")
+                       for a in arms)}
+    if plain and budgeted - set(plain):
+        fails.append("budget arms do not share the plain warm-up: %s" % swept)
     if _parity(generated[0])[0] != 0:
         fails.append("check_parity REFUSED the valid generated campaign")
 

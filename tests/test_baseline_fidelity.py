@@ -240,15 +240,34 @@ def test_check_parity_REFUSES_the_lr_trap(tmp_path, P):
     assert ok.returncode == 0, ok.stdout[-2500:]
 
 
-def test_every_arm_gets_the_same_optimizer_epochs(P):
-    total = P["protocol"]["total_epochs"]
+def test_every_arm_gets_the_same_optimizer_epochs_AT_ITS_OWN_BUDGET(P):
+    """Equal compute holds WITHIN a budget, which is where the comparison lives.
+
+    An arm may pin its own budget so the live fraction can be swept inside one
+    campaign. Across budgets the compute is deliberately unequal -- that IS the
+    independent variable -- so asserting one total for every arm, as this did,
+    forbids the sweep instead of checking it. What must still hold: each arm
+    spends exactly its own budget, a clipper spends all of it in warm-up, every
+    trained arm takes the same warm-up, and every arm sharing a budget gets the
+    same optimizer epochs as its neighbours in that budget.
+    """
+    from configs.gen_campaign import arm_budget
+
+    groups = {}
     for arm, spec in P["arms"].items():
+        budget = arm_budget(P, spec)
         hp = build_hyperparams(P, spec, 1)
-        assert hp["warmup_epochs"] + hp["constraint_epochs"] == total, arm
+        assert hp["warmup_epochs"] + hp["constraint_epochs"] == budget, arm
         if spec["phase"] == "posthoc":
-            assert (hp["warmup_epochs"], hp["constraint_epochs"]) == (total, 0), arm
+            assert (hp["warmup_epochs"], hp["constraint_epochs"]) == (budget, 0), arm
         else:
             assert hp["warmup_epochs"] == P["protocol"]["trained_warmup"], arm
+        groups.setdefault(budget, {})[arm] = (
+            hp["warmup_epochs"] + hp["constraint_epochs"])
+    for budget, arms in sorted(groups.items()):
+        assert set(arms.values()) == {budget}, (
+            "arms at the %d-epoch budget do not all spend %d epochs: %s"
+            % (budget, budget, arms))
 
 
 def test_no_trained_arm_can_early_stop_out_of_its_constraint_budget(P):

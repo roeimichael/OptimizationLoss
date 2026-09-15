@@ -23,17 +23,52 @@ def resolve_block(P, name):
     return P["blocks"][name] if name in P.get("blocks", {}) else P[name]
 
 
+def budget_override(P, arm_spec):
+    """The budget a block PINS for this arm, or None when it follows the protocol.
+
+    The distinction matters to any instrument reading a finished campaign: a
+    pinned budget is a property of the arm and travels with the protocol, while
+    an unpinned one is whatever `protocol.total_epochs` was at generation time
+    and can only be recovered from the runs themselves. Conflating the two
+    rejects a valid campaign generated at a non-default budget.
+    """
+    total = None
+    for name in arm_spec.get("blocks") or []:
+        block = resolve_block(P, name)
+        if "total_epochs" in block:
+            total = block["total_epochs"]
+    return total
+
+
+def arm_budget(P, arm_spec):
+    """The epoch budget this arm runs under the CURRENT protocol."""
+    total = budget_override(P, arm_spec)
+    return P["protocol"]["total_epochs"] if total is None else total
+
+
 def build_hyperparams(P, arm_spec, seed, pretrained=None):
     hp = dict(P["core"])
     for name in arm_spec.get("blocks") or []:
         hp.update(resolve_block(P, name))
     if pretrained is not None:
         hp["pretrained"] = bool(pretrained)
-    total = P["protocol"]["total_epochs"]
+    # A block may override the epoch budget, which is what makes a BUDGET SWEEP
+    # expressible inside ONE campaign. It matters because the live fraction --
+    # live window / constraint epochs -- is the quantity the account is about,
+    # and comparing it across campaigns confounds it with backbone, code version
+    # and cap set at once. Popped because `total_epochs` is not a training
+    # hyperparameter: the trainer derives it as warmup + constraint, and
+    # `validate_hyperparams` rejects it as unknown.
+    total = hp.pop("total_epochs", P["protocol"]["total_epochs"])
     hp["seed"] = seed
     hp["warmup_epochs"] = (
         total if arm_spec["phase"] == "posthoc" else P["protocol"]["trained_warmup"]
     )
+    if not 0 <= hp["warmup_epochs"] <= total:
+        raise SystemExit(
+            "REFUSED: arm budget %d cannot hold a warm-up of %d"
+            % (total, hp["warmup_epochs"])
+        )
     hp["constraint_epochs"] = total - hp["warmup_epochs"]
     validate_hyperparams(arm_spec["methodology"], hp)
     return hp

@@ -18,17 +18,25 @@ ARMS = load_protocol()["arms"]
 def dose_free(arm):
     """Arms that legitimately land ZERO constraint steps.
 
-    Every post-hoc arm, plus `tralo_null` -- the phase-matched control that runs
-    the trained schedule and deliberately takes no constraint step. This was
-    spelled out as two different hardcoded literals in two places, and neither
-    knew about `aug_clip`.
+    Every post-hoc arm, plus any arm carrying the `tralo_null` block -- the
+    phase-matched control that runs the trained schedule at lambda=0 and
+    deliberately takes no constraint step. This was spelled out as two different
+    hardcoded literals in two places, and neither knew about `aug_clip`.
+
+    The test is STRUCTURAL, not the arm's name. `arm == "tralo_null"` silently
+    excluded `aug_tralo_null` and `focal_tralo_null` -- the per-column controls,
+    which are dose-free for exactly the same reason -- and would have excluded
+    every `tralo_null_b*` in a budget sweep too. Reading the blocks means a new
+    control is covered the moment it is declared.
 
     An arm this protocol does not declare is NOT treated as dose-free -- the
     safe reading, and `read_root` rejects genuinely unknown arms at ingest
     anyway. `.get` rather than `[]` because the self-test reports on retired
     arm names that are no longer in the protocol.
     """
-    return (ARMS.get(arm) or {}).get("phase") == "posthoc" or arm == "tralo_null"
+    spec = ARMS.get(arm) or {}
+    return (spec.get("phase") == "posthoc"
+            or "tralo_null" in (spec.get("blocks") or []))
 
 
 def read_root(root):

@@ -908,7 +908,30 @@ def test_the_saturation_gate_fails_a_FROZEN_boundary_and_passes_a_LIVE_one(tmp_p
         "a campaign live for 3 of its own 5 constraint epochs was failed -- the "
         "gate is still judging against a hardcoded budget")
     out = capsys.readouterr().out
-    assert "of 5 constraint epochs" in out, out
+    row = [ln for ln in out.splitlines() if "MobileNetV3/fmow2" in ln]
+    assert row and row[0].split()[1] == "5", (
+        "the gate did not report the cell's OWN 5-epoch constraint phase:" + chr(10) + out)
+
+    # A campaign that SWEEPS the budget must judge each budget on its own half.
+    # Taking the shortest budget for the whole campaign -- which this did --
+    # lowers the 29-epoch arm's bar from 14 live epochs to 2 and passes a
+    # frozen boundary. The two arms below differ ONLY in budget: 3 live epochs
+    # is a pass at 5 and a failure at 29, so one row of each is the proof.
+    swept = str(tmp_path / "swept")
+    for seed in (1, 2):
+        _fake_log(swept, "fmow2", "L80_G95", "tralo_b5", seed,
+                  [0.80, 0.88, 0.93, 0.96, 0.98, 0.99], constraint_epochs=4)
+        _fake_log(swept, "fmow2", "L80_G95", "tralo", seed,
+                  [0.80, 0.88, 0.93, 0.96, 0.98] + [0.99] * 25,
+                  constraint_epochs=29)
+    rc = mod.main(["--glob", swept + "/*/*/*/*/seed_*", "--strict"])
+    out = capsys.readouterr().out
+    verdicts = {ln.split()[1]: ("SATURATED" in ln)
+                for ln in out.splitlines() if "MobileNetV3/fmow2" in ln}
+    assert verdicts == {"4": False, "29": True}, (
+        "a swept campaign was not judged per budget -- the same 3 live epochs "
+        "must pass at 4 constraint epochs and FAIL at 29:" + chr(10) + out)
+    assert rc == 1, "the 29-epoch arm saturated but the gate exited 0"
 
     # A POST-HOC arm has no constraint phase. Its (short) live window must not
     # drag a cell down, or clippers decide whether trained arms pass.
@@ -925,7 +948,7 @@ def test_the_saturation_gate_fails_a_FROZEN_boundary_and_passes_a_LIVE_one(tmp_p
     # inclusion. n is unambiguous -- 2 trained runs, and the 2 clippers skipped.
     cell = [ln for ln in out.splitlines() if "MobileNetV3/fmow2" in ln]
     assert cell, out
-    assert cell[0].split()[1] == "2", (
+    assert cell[0].split()[2] == "2", (
         "the gate counted %s runs in the cell; the 2 post-hoc clippers should "
         "have been skipped entirely, since a clipper has no constraint phase "
         "whose boundary could freeze:" % cell[0].split()[1] + chr(10) + out)
@@ -1432,11 +1455,18 @@ def test_every_INTERVENTION_column_has_its_own_zero_constraint_control():
     # the shared control for alm/fioretto/hounie -- they share its warm-up. What
     # must never happen is a trained arm whose warm-up NO zero-constraint arm
     # reproduces, which is exactly what `aug_tralo` and `focal_tralo` were.
+    # Indexed by identity AND schedule. Indexing by identity alone was wrong the
+    # moment a budget sweep existed: every trained arm resumes the same warm-up
+    # whatever its budget, so one identity maps to many nulls and the last one
+    # written silently became every arm's control -- pairing `tralo` (1+29) with
+    # `tralo_null_b20` (1+19). The control must match the compute as well as the
+    # warm-up, which is the same requirement the equal-compute gate enforces.
     nulls = {}
     for arm, spec in P["arms"].items():
         if spec["phase"] == "trained" and "tralo_null" in (spec.get("blocks") or []):
             i, hp = ident(arm)
-            nulls[i] = (arm, hp["warmup_epochs"], hp["constraint_epochs"])
+            nulls.setdefault(i, {})[
+                (hp["warmup_epochs"], hp["constraint_epochs"])] = arm
 
     for arm, spec in P["arms"].items():
         if spec["phase"] != "trained" or "tralo_null" in (spec.get("blocks") or []):
@@ -1446,11 +1476,11 @@ def test_every_INTERVENTION_column_has_its_own_zero_constraint_control():
             "trained arm %r has warm-up identity %s, which NO zero-constraint "
             "arm reproduces -- nothing in a campaign can separate its "
             "constraint from its intervention" % (arm, i))
-        null, nw, nc = nulls[i]
-        assert (hp["warmup_epochs"], hp["constraint_epochs"]) == (nw, nc), (
-            "%s and its control %s run different schedules (%s vs %s), so the "
-            "comparison is confounded by compute"
-            % (arm, null, (hp["warmup_epochs"], hp["constraint_epochs"]), (nw, nc)))
+        sched = (hp["warmup_epochs"], hp["constraint_epochs"])
+        assert sched in nulls[i], (
+            "%s runs %s, but the zero-constraint arms sharing its warm-up run "
+            "%s -- every comparison available to it is confounded by compute"
+            % (arm, sched, sorted(nulls[i])))
 
 
 def test_interaction_REFUSES_a_column_with_no_null_and_pairs_by_SEED(tmp_path):
