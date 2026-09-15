@@ -235,6 +235,20 @@ def main():
                             if args.pretrained is None
                             else args.pretrained == "true",
                         )
+                        # The ranking loss cuts where the CAP says, so the cap
+                        # is part of the warm-up's identity for these arms and
+                        # for no others. Stamped here rather than in
+                        # build_hyperparams because that runs before the cap is
+                        # known. Absent when the loss is off, so every existing
+                        # base_model_id digest is unchanged.
+                        # The ranking loss cuts where the CAP says, so the cap
+                        # is part of the warm-up's identity for these arms and
+                        # for no others. Stamped here rather than in
+                        # build_hyperparams because that runs before the cap is
+                        # known. Absent when the loss is off, so every existing
+                        # base_model_id digest is unchanged.
+                        if float(hp.get("rank_weight", 0.0)) > 0:
+                            hp["rank_cap_fraction"] = cap_pair(tag)[0]
                         cls = dc["constrained_class"]
                         cls_tag = "-".join(
                             map(str, cls if isinstance(cls, list) else [cls])

@@ -30,6 +30,11 @@ WARMUP_HP = {
     # protocol.yml and exercised here, per this gate's own rule.
     "rank_weight": 0.0,
     "rank_margin": 0.05,
+    # And the CAP is part of that identity too: the loss cuts at the K-th order
+    # statistic with K derived from the cap, so L80 and L90 train different
+    # models. The cap lives in config["constraint"], not in hp, so it was
+    # invisible to the digest and both caps collapsed onto one cached warm-up.
+    "rank_cap_fraction": 0.9,
 }
 
 CONSTRAINT_HP = {

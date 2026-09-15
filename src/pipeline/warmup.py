@@ -162,7 +162,20 @@ def run_warmup(config, num_classes, X_train, y_train, device,
     rank_classes = config.get("dataset_config", {}).get("constrained_class")
     if rank_classes is not None and not isinstance(rank_classes, list):
         rank_classes = [rank_classes]
-    rank_frac = float((config.get("constraint") or [1.0, 1.0])[0])         if not isinstance((config.get("constraint") or [1.0])[0], list) else 1.0
+    _cap = (config.get("constraint") or [1.0, 1.0])[0]
+    rank_frac = float(_cap) if not isinstance(_cap, list) else 1.0
+    # `rank_cap_fraction` is the value the WARM-UP CACHE was keyed on. If it
+    # ever disagreed with the cap actually being trained, a cached warm-up would
+    # be reused for a cut it was not trained at -- which is exactly the bug this
+    # key was added to close, reappearing through the back door. Refuse rather
+    # than train something the digest does not describe.
+    if rank_cfg["weight"] > 0 and "rank_cap_fraction" in hp:
+        stamped = float(hp["rank_cap_fraction"])
+        if abs(stamped - rank_frac) > 1e-12:
+            raise ValueError(
+                "rank_cap_fraction %r was hashed into base_model_id but the cap "
+                "being trained is %r; the warm-up cache would be keyed on a cut "
+                "this run does not use" % (stamped, rank_frac))
 
     warmup_epochs = hp["warmup_epochs"]
     log_interval = max(1, warmup_epochs // 5)

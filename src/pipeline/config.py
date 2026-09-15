@@ -44,7 +44,7 @@ DIAG = {"epoch_trace"}
 # The budgeted ranking loss. It acts in the CE/warm-up phase, so EVERY
 # methodology can carry it -- that is the point: the decisive Stage-1 test is
 # whether it lifts the post-hoc clipper, with no constraint involved at all.
-RANK = {"rank_weight", "rank_margin", "rank_min_group"}
+RANK = {"rank_weight", "rank_margin", "rank_min_group", "rank_cap_fraction"}
 METHOD_KEYS = {
     "tralo": CORE | STEP | TRALO | FOCAL | WEIGHT | DIAG | RANK,
     "fioretto_ldf": CORE | STEP | FOCAL | RANK | {"fioretto_step_size", "fioretto_lambda_init"},
