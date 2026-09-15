@@ -214,16 +214,33 @@ of REACHABLE RANKINGS, an optimisation-geometry object, not an information one.
   does not make the constraint useful** -- which is the sharpest available test
   of the harm lemma's one escape route, and it closes it.
 
-- 🔴 **THE CONSTRAINT'S PER-EPOCH CONTRIBUTION IS NOISE AT EVERY EPOCH,
-  SATURATED OR NOT.** `trace30` (48/48, budget 30), per-epoch curve from stored
-  probability snapshots. `tralo` minus `tralo_null` oscillates in
-  [-0.015, +0.012] with no trend and no sign change at saturation. The three
-  pre-saturation epochs (2-4) are -0.0006, +0.0020, +0.0003 -- there is no good
-  early phase to stop in. **The ORACLE best epoch is 28 in one cap and 14 in the
-  other**, both deep in saturation and inconsistent between caps, which is the
-  signature of a noise envelope rather than a recoverable effect. Oracle
-  headroom (+0.016 / +0.030) is therefore an upper bound on NOISE, not on a
-  stopping rule's winnings.
+- 🔴 **THERE IS NO EPOCH AT WHICH THE CONSTRAINT HELPS -- NOT EVEN WHILE CE IS
+  STILL LIVE.** `trace30` (48/48, budget 30), per-epoch curve from stored
+  probability snapshots, `tralo` minus `tralo_null`, per-epoch 95% Student-t
+  intervals over 4 seeds.
+
+  | cap | epochs whose CI excludes 0 | chance alone | mean over epochs | typical 95% half-width |
+  |---|---|---|---|---|
+  | L80 | 2 of 29 | ~1.5 | -0.00005 | 0.0162 |
+  | L90 | 4 of 29 | ~1.5 | -0.00185 | 0.0184 |
+
+  **L80 is indistinguishable from noise** (2 of 29 is chance; the mean over
+  epochs is -0.00005). **L90 is a weak NEGATIVE drift, not symmetric noise:**
+  all four excluding epochs are negative (-0.0059, -0.0083, -0.0148, -0.0195)
+  and the largest is the final epoch.
+
+  Two things this kills. First, the saturation story: on L90 the earliest epoch
+  reaching significance is **epoch 4, train accuracy 0.92, still live -- and it
+  is NEGATIVE** (-0.00592 +- 0.00460). There is no early phase in which the
+  constraint is helping. Second, the stopping rule: the ORACLE best epoch is 28
+  in one cap and 14 in the other, inconsistent and both deep in saturation, and
+  its headroom (+0.016 / +0.030) sits at or below the per-epoch 95% half-width
+  (0.016 / 0.018). The headroom IS the noise envelope, so there is nothing for a
+  stopping rule to find.
+
+  ⚠️ Corrected 2026-09-15, same day: an earlier version of this entry said
+  "noise at every epoch". That is right for L80 and wrong for L90, where the
+  drift is weakly negative. The correction does not change what it closes.
 
 - **AT A LIVE BOUNDARY, TraLO STILL DOES NOT BEAT THE CLIPPERS, AND DOES NOT
   BEAT ITS OWN NULL.** `scripts/deployed_h2h.py` on the two COMPLETE budget-8
