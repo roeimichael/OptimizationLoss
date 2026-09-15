@@ -279,6 +279,22 @@ redundant once the interleaving was confirmed. Watch for the unpack signature;
 
 **Cost so far: 2h21m x 3 cards spent on rank1, recovered as control arms only.**
 
+**FIRST RESULTS IN, checked 2026-09-15 22:40 IDT -- two checks discharged:**
+
+1. **The ranking loss is NOT inert.** `aug_rank_clip` seed 1 differs from
+   `aug_clip` seed 1 on both backbones that have reached run 2
+   (MobileNetV3 `6daea2293b08` vs `8c7a9316fa59`; RegNetY400MF `e560332f9134`
+   vs `fa08e8cc461c`). The loss reached the model. This is the failure mode
+   five earlier flags died of, and it is now excluded. The formal
+   pre-registered version of this check -- `rank_paired` marking `rank_clip`
+   `(cap-inert)` -- still runs at scoring.
+
+2. **The metrics.py fix is confirmed a no-op ON REAL DATA, not just in
+   miniature.** Every control run present in BOTH rank1 (338110cc) and rank2
+   (bfb33a97) reproduces byte-identically: **3 of 3 pairs so far**, and the set
+   grows as rank2 advances. This is the corpus-level evidence behind the
+   mixed-`code_version` argument; re-check it when rank2 completes.
+
 ---
 
 ## Stage 1 ranking gate -- PRE-REGISTERED READING (written 2026-09-15, before any rank arm landed)
