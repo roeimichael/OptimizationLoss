@@ -106,17 +106,34 @@ Full set in [`RULESET.md`](../RULESET.md). The four that bite most often:
 
 ---
 
-## Run state, checked 2026-09-15 14:05
+## Run state, checked 2026-09-15 18:40
 
-**All four dsisco02 GPUs are running the RECIPE SCREEN**, 56 runs each at budget
-8, one backbone per card, `~/optloss-probe/results/scr_<backbone>`. All four
-passed 10/10 pre-launch gates. Triage with `~/triage.py` on dsisco02.
+**THREE of four dsisco02 GPUs run the RECIPE SCREEN**, 56 runs each at budget 8,
+one backbone per card, `~/optloss-probe/results/scr_<backbone>`. All passed
+10/10 pre-launch gates. Triage with `~/triage.py` on dsisco02.
 
-First triage: every backbone is in the LIVE regime at budget 8 -- live fraction
-71-86% against the gate's 50%, test accuracy 0.62-0.65, certain-wrong share
-21-34% against budget 30's 39-46%. **Verdict KEEP on all four.** This settles the
-enabling condition: a regime where the boundary is still moving and the model is
-not hopeless does exist, and it is simply a short budget.
+| campaign | done | live frac | test acc | certain% | viability |
+|---|---|---|---|---|---|
+| `scr_MobileNetV2` | 42/56 | 72% | 0.641 | 21% | VIABLE |
+| `scr_MobileNetV3` | 46/56 | 55% | 0.645 | 31% | VIABLE |
+| `scr_RegNetY400MF` | 50/56 | 69% | 0.646 | 23% | VIABLE |
+| `scr_ViTB16` | 17/56 | 37% | 0.634 | 30% | **UNUSABLE -- KILLED 2026-09-15** |
+
+🛑 **VIABLE means the cell can produce a valid measurement. It does NOT mean
+TraLO is winning -- in these cells it is not.** The column was called KEEP/KILL
+and was read as a scoreboard; see LEDGER PART 1, Instruments.
+
+`scr_ViTB16` was stopped by explicit PID (3845548) at 17/56: 2.6 live epochs of
+7 is 37%, under `gate:saturation`'s 50% floor, so it was pushing a frozen
+boundary -- the exact artifact `fm2_vit` already produced. Its partial runs are
+preserved on disk. **GPU 3 is free.**
+
+**What the three viable screens say so far** (LEDGER PART 3): the boundary IS
+being reshaped -- gAP is allocation-free, so a nonzero effect is the model
+moving -- but the plain constraint effect on gAP is NEGATIVE in 7 of 8 cells
+even at 55-72% live. A live boundary is therefore not sufficient; the freeze was
+not the whole mechanism. The one positive direction is the augment x constraint
+interaction, now +ve in 5 of 6 cells across three backbones, still underpowered.
 
 dsisco01 is idle.
 

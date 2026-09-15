@@ -98,6 +98,13 @@ wrong published-to-ourselves conclusion at least once.
   verified by EXECUTING it. Stale bytecode has faked a pass.
 - **Six instruments hardcoded the 30-epoch protocol** and would have mis-read any
   campaign that did not use it. Assume a seventh exists.
+- **A VIABILITY verdict is not a SCORE, and naming makes it one.** `~/triage.py`
+  labelled cells KEEP / KILL while only ever testing whether a cell *can produce
+  a valid measurement* (live fraction, model strength). Reported as-is on
+  2026-09-15 it read as "TraLO is winning here", which was false in every cell.
+  The column is now `viability (NOT a score)` with values VIABLE / UNUSABLE.
+  **Who wins comes only from `scripts/deployed_h2h.py`.** Any screening column
+  that could be mistaken for an outcome must be named so it cannot be.
 
 ---
 
@@ -165,10 +172,44 @@ of REACHABLE RANKINGS, an optimisation-geometry object, not an information one.
 - **The same flip appears on the DEPLOYED selection**, independently of gAP: at
   the real allocation cut the constraint removes wasted slots at a 6-epoch budget
   (-33, -21) and adds them at 30 epochs (+29, +88).
-- **The augment x constraint interaction is positive but underpowered**:
-  +0.00892 +- 0.01142, 3/4 seeds, p = 0.22. Focal is flat (-0.00157, 1/4), which
-  is the predicted dissociation -- augmentation raises the live fraction, focal
-  only enlarges the gradient.
+- **The augment x constraint interaction is positive and now REPLICATES across
+  backbones, still underpowered.** First seen on one backbone (+0.00892 +-
+  0.01142, 3/4 seeds, p = 0.22; focal flat at -0.00157, the predicted
+  dissociation -- augmentation raises the live fraction, focal only enlarges the
+  gradient). The budget-8 screens (2026-09-15) reproduce the sign in **5 of 6**
+  computable cells across THREE backbones: +0.00744, +0.01036, +0.00835,
+  +0.00423, +0.00941, with ViTB16 the lone negative (-0.00328) and ViTB16 is the
+  cell that FAILS the saturation gate. This is the only direction in which the
+  constraint is not harmful. It is NOT settled: at ~4 seeds the power against
+  effects this size is ~15% (PART 1, Statistics), so ~13 seeds are needed.
+- **A LIVE boundary does not rescue the plain column -- the freeze was not the
+  whole story.** Four budget-8 screens on fmow2 (`scr_MobileNetV2`,
+  `scr_MobileNetV3`, `scr_RegNetY400MF`, `scr_ViTB16`), measured 2026-09-15 at
+  live fractions of 72 / 55 / 69 / 37 %, i.e. the boundary is demonstrably alive
+  for most of the constraint phase in three of the four. The plain constraint
+  effect on gAP is nonetheless **NEGATIVE in 7 of 8 cells**:
+
+  | backbone | cap | constraint effect on gAP | n |
+  |---|---|---|---|
+  | MobileNetV3 | L80 | -0.00530 +- 0.00865 | 3 |
+  | MobileNetV3 | L90 | +0.00064 +- 0.02027 | 3 |
+  | MobileNetV2 | L80 | -0.01634 +- 0.01168 | 3 |
+  | MobileNetV2 | L90 | -0.00177 +- 0.00265 | 2 |
+  | RegNetY400MF | L80 | -0.00270 +- 0.00360 | 3 |
+  | RegNetY400MF | L90 | -0.00413 +- 0.02061 | 3 |
+  | ViTB16 (gate FAIL) | L80 | -0.03540 | 1 |
+  | ViTB16 (gate FAIL) | L90 | -0.02736 | 1 |
+
+  Every sd is 2-3x its mean, so no single cell is significant; the sign
+  consistency over three backbones and two caps is the signal. **What this costs
+  us:** the live-boundary account said the 30-epoch damage happened because the
+  boundary had frozen by epoch 3-5 and the constraint was pushing a dead
+  surface. Short budgets were the repair. At 55-72% live the damage persists, so
+  a frozen boundary is at most a PART of the mechanism. It does not overturn the
+  budget-30-vs-6 flip above (different campaigns, different live fractions); it
+  says the flip is not explained by liveness alone. gAP is allocation-free, so
+  these numbers are the MODEL moving, not the allocator -- the boundary IS being
+  reshaped, and in the plain column it is being reshaped for the worse.
 - **Contested cuts rise as the budget falls.** The share of allocation cuts whose
   marginal probability sits in [0.05, 0.95] goes 36-43% at budget 30 to 44-50% at
   budgets 6-11. Half of all cuts sit where the model has collapsed and no
