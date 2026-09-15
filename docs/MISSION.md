@@ -1,6 +1,6 @@
 # TraLO reset: execution state
 
-Updated 2026-09-14 (Asia/Jerusalem). User approved recoverable large cleanup, fresh evidence,
+Updated 2026-09-15 (Asia/Jerusalem). User approved recoverable large cleanup, fresh evidence,
 validated logging/data/code, then a within-TraLO modification and monitored SSH
 experiments. No historical acceptance tally is carried forward.
 
@@ -40,6 +40,8 @@ while losing cc-F1 is a TRADE, not a win, and must be reported as one.
 | 4 | **The exact allocator makes real results WORSE** (-0.01 to -0.04 acc, -0.02 to -0.08 cc-F1, 14/14 cells) because models run at 0.92 confidence against 0.60 accuracy. | The allocator "fix" is CANCELLED. Greedy's suboptimality is protective. |
 | 5 | **The constraint DOES work -- it just does not convert.** Every dual beats both clippers on native obedience (excess 279-326 vs 381-413). | Obedience is not the missing piece. The metric does not reward it. |
 | 6 | **On a frozen boundary the constraint makes the RANKING WORSE. 15 of 16 seed-deltas negative** (binomial p = 0.0005), gAP(tralo) - gAP(tralo_null) = -0.007 to -0.030 per cell. gAP is allocation-free, so this is the model, not the allocator. | The damage is UPSTREAM of the metric and about 2x the cc-F1 damage. The constraint is not reshaping the boundary badly -- it is **injecting noise into it**. |
+| 7 | **4 seeds cannot detect this project's effect size.** Effects run ~0.01 with a seed sd of ~0.011, so n=4 carries roughly 15% power; detecting d = sd at 80% needs n ~ 13. | Every "not significant" verdict on n=4 is consistent with a real effect. `--seeds` is per-campaign, so **12 seeds for anything meant to SETTLE something.** Re-check the rejected ledger for directions closed at n=4. |
+| 8 | **Training is BIT-DETERMINISTIC given (config, seed).** gx2 re-ran 30 of fm2_mn3's cells and matched every byte across trees and code versions. | Reproducibility is exact and publishable. But an overlapping arm adds ZERO information: **de-duplicate by prediction hash before counting n.** |
 
 **Why it can only lose in this regime, stated as a mechanism.** A count says
 HOW MANY, never WHICH. With CE alive the two signals compose: CE supplies the
@@ -57,28 +59,57 @@ been given a boundary it could reshape.
 measured by gAP. And the constraint can only change margins while the boundary
 is still moving. **That is the whole remaining question.**
 
-### The live experiment: `gx2`
+### The live experiment: `sweep1` / `sweep1_mn2` (launched 2026-09-15)
 
-56 runs, MobileNetV3 x fmow2 x {L80_G95, L90_G95} x 4 seeds, staged and frozen,
-gates green. Crosses the constraint with two interventions:
+**Two campaigns, 384 runs each, one per GPU, ~3.6 GPU-hours each.** MobileNetV3
+and MobileNetV2, fmow2, {L80_G95, L90_G95}, **12 seeds**, frozen at commit
+`21fd13fb`, all 10 pre-flight gates GREEN.
 
-| | post-hoc | trained |
-|---|---|---|
-| plain | `clip` | `tralo` |
-| focal (bigger gradient) | `focal_clip` | `focal_tralo` |
-| augment (live boundary) | `aug_clip` | `aug_tralo` |
+This is a **within-campaign BUDGET SWEEP**, and it exists because the previous
+evidence could not carry the claim. The account says the constraint only helps
+while CE is still shaping the boundary, which predicts the effect scales with
+the **live fraction** = live window / constraint epochs. That was only ever
+varied BETWEEN campaigns, where it is confounded with backbone, code version and
+cap set at once:
+
+| campaign | backbone | live frac | d gAP (de-duplicated) |
+|---|---|---|---|
+| `fm2_mn3` | MobileNetV3 | 10.3% | -0.0174 |
+| `fm2_mn2` | MobileNetV2 | 13.8% | -0.0274 |
+| `live11` | MobileNetV3 | 30.0% | -0.0089 |
+| `live6b` | MobileNetV3 | 60.0% | **+0.0079** |
+
+On a fixed backbone that is monotone, 3 of 3. Spearman over all four is +0.80,
+**p = 0.20**. It cannot reject anything, and the one campaign that breaks
+monotonicity is also the only MobileNetV2.
+
+The sweep makes the live fraction an **independent variable inside one
+campaign**: budgets 5 / 8 / 12 / 20 / 30, live fraction 75% / 43% / 27% / 16% /
+10%, with the backbone, the code version and the seeds held fixed. Every trained
+arm keeps warm-up 1, so **all five budgets resume the SAME cached warm-up** --
+the sweep varies the length of the constraint phase and nothing else. Each
+budget carries its own null AND its own clipper, because the constraint phase
+runs full CE every epoch (a 5-epoch null is a differently trained model) and
+because if short budgets hurt every arm, the constraint's standing is relative.
 
 **Pre-registered outcomes, fixed BEFORE the seeds land:**
 
 | Result | Reading | What we do |
 |---|---|---|
-| augment interaction **> 0**, focal **~ 0** | The account holds: a live boundary is what the constraint needs. | Push it -- more backbones, the second dataset, then the bar. |
-| **both > 0** | Any regulariser does it; nothing about the constraint. | The gradient-health account is wrong. Ledger it. |
-| **neither > 0** | The ranking channel is SHUT. | Write the negative result. It is publishable and it is where the ledger already points. |
+| d gAP rises monotonically with live fraction and crosses 0 | The account holds, now with power and without the confound. | Take the best budget to the cc-F1 bar against `aug_clip`, then the second dataset. |
+| d gAP flat and negative across all five budgets | The ranking channel is SHUT and `live6b` was a 4-seed artifact. | Write the negative result. It is publishable. |
+| d gAP rises but never crosses 0 | The constraint costs less on a live boundary but never pays. | Report as a bounded negative: the mechanism is real, the method still loses. |
 
-"Interaction" means `gAP(X_tralo) - gAP(X_clip)` against `gAP(tralo) -
-gAP(clip)`, seed-paired, per cell. A main effect of the intervention alone
-confirms nothing -- the matched clipper already has one.
+⚠️ **The cc-F1 bar is a separate question from the gAP channel and must be
+reported separately.** In `live11`, where the per-column nulls finally exist,
+`aug_tralo_null` (0.6411) BEATS `aug_tralo` (0.6285): inside the augmented
+column the constraint costs 0.013 cc-F1 even where it is neutral on gAP.
+
+⛔ **`gx2`'s apparent TraLO win does not survive its own control.** gx2 ranks
+`aug_tralo` (0.6565) first, 0.0012 above `aug_clip` -- far inside seed noise,
+and gx2 has NO `aug_tralo_null`, so nothing in it can attribute that to the
+constraint. This is the failure mode already in the ledger as "all four TraLO #1
+calls were manufactured by a dead arm".
 
 ### Standing decision rules
 
@@ -98,12 +129,30 @@ confirms nothing -- the matched clipper already has one.
 - **Claims about what code reads come from AST or reading, never grep.**
 - **Report a trade as a trade.** Retract in the same document, in place.
 
-### Where we actually stand, 2026-09-14
+### Where we actually stand, 2026-09-15
 
 🟢 **`live6b` is the first campaign to PASS `gate:saturation`, and in it the
 constraint's ranking damage is ABOLISHED** (30-epoch 15/16 negative -> 6-epoch
 6/8 positive, Fisher p = 0.0013). A benefit is NOT established -- 6/8 is p =
-0.29. `live11` carries the proper controls and is next.
+0.29.
+
+🟡 **`live11` ran the pre-registered 2x2 with the per-column nulls in place, and
+it came out in the predicted direction with no power to confirm it.** Constraint
+effect on gAP, seed-paired, caps averaged within seed, n=4:
+
+| column | d gAP | p |
+|---|---|---|
+| plain | -0.00784 +- 0.00938 | 0.19 |
+| augment | **+0.00109** +- 0.00505 | 0.70 |
+| focal | -0.00940 +- 0.02402 | 0.49 |
+| **augment x constraint** | **+0.00892** +- 0.01142, 3/4 positive | **0.22** |
+| focal x constraint | -0.00157 +- 0.01599, 1/4 positive | 0.86 |
+
+Augment removes the damage, focal does not -- which is exactly the 2x2
+amendment's discriminating prediction, and exactly what "augment raises the live
+fraction, focal only enlarges the gradient" implies. But the effect and the seed
+sd are the same size, so this is **settled fact 7** in action, not a result. It
+is the direct reason the sweep runs at 12 seeds.
 
 **Two 30-epoch cells complete, 112 runs, and both FAIL `gate:saturation`** -- so
 they are the **frozen-boundary REFERENCE**, not a verdict on the method.
@@ -143,8 +192,11 @@ trade does not replicate either** -- real on mn3 (+0.013 acc), absent on mn2 at
 L80, where macroF1 and accuracy are negative too. The only thing true in all
 four cells is that TraLO never WINS cc-F1.
 
-`fm2_vit` fails the gate hardest (1.6 live epochs) and is a failed experiment.
-**`gx2` is the next thing that can change the answer.**
+`fm2_vit` fails the gate hardest (1.6 live epochs) and is a failed experiment;
+it completed 56/56 anyway and is archived as reference, not read as a verdict.
+
+**`sweep1` / `sweep1_mn2` are the next thing that can change the answer**, and
+they are the first campaigns built to have the power to do it.
 
 ## Current stage
 
