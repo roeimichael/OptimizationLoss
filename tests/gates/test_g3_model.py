@@ -35,6 +35,10 @@ WARMUP_HP = {
     # models. The cap lives in config["constraint"], not in hp, so it was
     # invisible to the digest and both caps collapsed onto one cached warm-up.
     "rank_cap_fraction": 0.9,
+    # And which groups the loss SKIPS. Latent rather than live -- nothing sweeps
+    # it today -- but it is the same class as the two above and the dose work
+    # points straight at changing it.
+    "rank_min_group": 8,
 }
 
 CONSTRAINT_HP = {

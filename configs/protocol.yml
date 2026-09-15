@@ -443,6 +443,12 @@ warmup_identity_keys:
 # train/deploy mismatch this loss exists to remove. Measured 2026-09-15 at
 # 2/40 runs in. Absent from non-rank configs, so no existing digest changes.
 - rank_cap_fraction
+# `rank_min_group` decides which groups the loss SKIPS (warmup.py passes it to
+# budgeted_rank_loss), so two arms differing only in it train different models.
+# Nothing sweeps it today -- every arm uses 8 -- but the dose analysis in LEDGER
+# PART 3 points straight at lowering it, which is exactly when a shared cache
+# would bite. Present only in rank configs, so control digests are untouched.
+- rank_min_group
 # `augment` is here and NOT in `core`: the warm-up cache must separate an
 # augmented warm-up from an unaugmented one, but adding the key to every config
 # would change every existing base_model_id digest and invalidate the whole
