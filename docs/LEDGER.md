@@ -89,6 +89,14 @@ wrong published-to-ourselves conclusion at least once.
 
 ### Instruments
 
+- **Gradient SIGNS cannot demonstrate that items compete.** Building the
+  budgeted ranking loss, my own mechanism test asserted only that positives are
+  pushed up and negatives down -- and it PASSED under a mutation that detached
+  the cut, which removes the coupling entirely. Both a competitive loss and two
+  independent one-sided pushes produce those signs. A claim of the form "these
+  items interact" must be tested against an explicit non-interacting reference,
+  not against the sign pattern it predicts.
+
 - **An epoch chosen on the per-epoch curve is an ORACLE, not a method.**
   `scripts/epoch_curve.py` scores stored snapshots against the TEST set, so
   "stop at the best epoch" selects on the evaluation data and reports an
@@ -150,6 +158,43 @@ document that survived. **These are proofs about the mechanism, not results.**
    label information, any label-blind reordering has non-negative expected
    deficit. Applied to this project's own numbers it predicted -28.3 against
    **-30.4 measured**.
+
+**THE LITERATURE EXPLAINS THE NEGATIVE RESULT, AND NAMES THE ONE CRACK**
+(verified via Semantic Scholar, 2026-09-15). For selection-rate constraints of
+exactly our form -- "at most K(g,c) items predicted as c in group g" -- the
+Bayes-optimal constrained classifier IS a group-wise thresholding rule on the
+posterior. Our greedy top-K allocator is the plug-in version of that optimum,
+which is why it keeps winning:
+
+- **Zeng, Cheng & Dobriban (2024)**, "Bayes-Optimal Fair Classification with
+  Linear Disparity Constraints via Pre-, In-, and Post-processing": via a
+  Neyman-Pearson connection, the optimum is explicit group-wise thresholding
+  with closed-form thresholds. Our caps meet the structural assumption.
+- **Xian, Yin & Zhao (ICML)**, "Fair and Optimal Classification via
+  Post-Processing": in the general multi-group multi-class case, post-processing
+  a score attains the optimum **whenever that score is Bayes-optimal**.
+- **Fukuchi (ICML 2025)**, "Meta Optimality for Demographic Parity Constrained
+  Regression via Post-Processing": fair minimax optimality is achievable by
+  post-processing; the explicit advice is to improve the underlying regression.
+- **Alabdulmohsin (2020)** and **Zhang et al. (2026)** agree: in- and
+  post-processing converge to the same Pareto frontier.
+
+🔑 **THE CRACK: our score is NOT Bayes-optimal.** **Woodworth, Gunasekar,
+Ohannessian & Srebro, COLT 2017**, "Learning Non-Discriminatory Predictors":
+post-processing a FIXED, NON-Bayes predictor can be strictly suboptimal, and
+in-processing is justified precisely through hypothesis-class restriction.
+**So the theory permits a training-time win only by improving the SCORE** --
+never by enforcing the count. PART 2.1 shows a count penalty cannot carry
+score-improving information; `tralo_stab` showed even an informative weight
+cannot. Both halves of our result now have citations.
+
+**Dead by citation:** further Lagrangian/ALM variants (Chamon & Ribeiro
+NeurIPS 2020 / IEEE TIT 2021 bound the duality gap and feasibility, never
+accuracy over a feasible post-hoc rule; AL-CoLe ICASSP 2025 is one more
+instance of our PART 2.3 family). Learning-from-label-proportions does NOT
+transfer: LLP's counts are observed LABELS (new supervision), ours are caps on
+PREDICTIONS (no supervision) -- the cleanest statement of why the penalty is
+information-free.
 
 **What is NOT proved, and was wrongly claimed:** the strong impossibility
 conjecture is FALSE. A constructed two-cluster geometry with a shared linear head

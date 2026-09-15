@@ -106,44 +106,59 @@ Full set in [`RULESET.md`](../RULESET.md). The four that bite most often:
 
 ---
 
-## Run state, checked 2026-09-15 18:00 IDT (server clock)
+## Run state, checked 2026-09-15 19:13 IDT (server clock)
 
-**NOTHING OF OURS IS RUNNING. All four campaigns COMPLETED** (`trace30` 48/48,
-`stab8` 72/72, `scratch60` 32/32, `small60` 32/32) in ~5.8h, and all four have
-been gated and scored. Findings are in LEDGER PART 3; three directions closed in
-PART 4.
+**STAGE 1 OF THE RANKING PIVOT IS LIVE: three campaigns on dsisco01 GPUs 1, 2, 3**
+(`rank1_MobileNetV3`, `rank1_MobileNetV2`, `rank1_RegNetY400MF`, 40 runs each,
+budget 30, fmow2). Tree: **a SEPARATE worktree `~/optloss-rank` pinned at
+`338110cc`**, so the four completed campaigns in `~/optloss-probe` keep their
+frozen `source_inventory` and can still be re-scored. 20/20 pre-launch gates.
 
-🛑 **dsisco02 is FULLY OCCUPIED BY ANOTHER USER (`liverty`) on all four cards.**
-Do not queue behind them and never share a card. **dsisco01 has GPUs 1, 2, 3
-CLEAR** (GPU 0 is `dvorata1`), so three cards are available there if a campaign
-is authorised -- but a campaign must live entirely on ONE host, because the unit
-is (backbone, HOST).
+🛑 **dsisco02 is FULLY OCCUPIED by `liverty`; dsisco01 GPU 0 is `dvorata1`.**
+Never share a card. Only GPUs 1-3 on dsisco01 are ours.
+🛑 **Do not touch `src/`, `configs/`, `scripts/` in `~/optloss-rank` until these
+finish.**
 
-### What the four campaigns settled
+### The pivot, and why it is not another arm
 
-Every environmental explanation for the damage is now eliminated, by measurement
-rather than by argument:
+The user authorised a staged pivot on 2026-09-15, having accepted that the
+count-based question is answered NO. LEDGER PART 2.1 proves a count penalty
+reads the MULTISET while the allocator reads the RANKS; the literature (now in
+PART 2) proves post-hoc thresholding is the OPTIMUM for selection-rate
+constraints, with one crack -- it is optimal only when the score is
+Bayes-optimal (Woodworth et al. COLT 2017). **A training-time win is permitted
+only by improving the score.**
 
-| suspect | eliminated by | how |
-|---|---|---|
-| the budget | earlier 2026-09-15 | 55-72% live changed neither gAP nor the head-to-head |
-| the measurement | `trace30` | per-epoch contribution is noise at every epoch; oracle picks inconsistent late epochs |
-| the model (capacity) | `small60` | 100k params, never saturates, cap binds, prize reachable -- TraLO still loses to its own null 4/4 seeds |
-| the model (pretraining) | `scratch60` | from scratch, cc-F1 0.48, still loses; weaker control, fails the live gate at 33% |
-| the loss argument (per-item info) | `stab8` | `tralo_stab` gated live at weight cv 0.83-0.88 and still fails its pre-registered bar |
+`rank_clip` does that: a hinge around the per-group K-th order statistic -- the
+exact point the allocator cuts -- on TRAIN labels with the budget simulated. The
+cut stays in the graph, so items compete for the K slots. No test label enters
+any gradient.
 
-**What remains is the loss argument itself**, which LEDGER PART 2 already proves
-is one direction with no value-level selection. The measured picture and the
-proved picture now agree.
+### STAGE 1 GATE, pre-registered
 
-### Open user question, and the only one that matters now
+**Does gAP(`rank_clip`) - gAP(`clip`) > 0?** gAP is allocation-free, so it
+isolates the SCORE. `rank_clip` carries no constraint at all -- deliberately: if
+the ranking channel is real it must appear here, with the dual machinery out of
+the picture entirely.
 
-The research question as posed -- can training-time TraLO beat a post-hoc
-clipper at matched everything -- has been answered NO across every regime we can
-construct. **A valid negative result is a real deliverable** (FRAMEWORK,
-objective section). The decision that is the user's alone: write this up as the
-negative result it is, or spend more compute on a direction not yet named.
-No campaign should be launched until that is answered.
+- **Flat in all three backbones** -> the ranking channel is dead. Stop. Write the
+  negative result, which is now a strong one with citations.
+- **Moves** -> Stage 2 is justified: differentiable top-K through the allocator
+  (Petersen ICML 2022; Xie NeurIPS 2020; Berthet NeurIPS 2020), plus
+  `rank_tralo` / `rank_tralo_null`, which are BUILT and gated but deliberately
+  not yet run -- their result is uninterpretable until the channel is shown.
+
+Honest prior, recorded before the seeds land: ~60% that gAP moves, ~25% that it
+helps TraLO specifically more than its null. **If it lifts the clipper too, that
+is still the paper** -- the claim becomes "for budgeted deployment the training
+signal that matters is the ranking at the cut, not count satisfaction", which is
+a positive result motivated by our own negative one.
+
+### First-run checks owed on these
+
+`AMP: float16 + GradScaler` (dsisco01), and that `rank_clip` is NOT byte-identical
+to `clip` -- the warm-up is cached and `rank_weight` is an identity key precisely
+to stop that, but it must be confirmed on the first completed pair.
 
 ---
 
