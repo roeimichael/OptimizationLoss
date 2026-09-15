@@ -51,8 +51,16 @@ def compute_train_accuracy(model, loader, device):
     model.eval()
     correct, total = 0, 0
     with torch.no_grad():
-        for X, y in loader:
-            X, y = X.to(device), y.to(device)
+        for batch in loader:
+            # The loader yields (X, y) for every historical arm and (X, y,
+            # groups) for the ranking arms, which pass `groups` to
+            # `make_dataloader` so the budgeted rank loss can see them. This
+            # read the batch as a fixed 2-tuple and killed EVERY ranking run at
+            # its first logged epoch -- 48 of 120 runs across three campaigns,
+            # with `ValueError: too many values to unpack (expected 2)` and a
+            # 2h21m burn that produced only control arms. Take the first two
+            # fields and ignore the rest: accuracy never needed the groups.
+            X, y = batch[0].to(device), batch[1].to(device)
             correct += (model(X).argmax(dim=1) == y).sum().item()
             total += y.size(0)
     model.train(was_training)
