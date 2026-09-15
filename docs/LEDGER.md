@@ -21,6 +21,47 @@ wrong published-to-ourselves conclusion at least once.
 
 ### Arms and controls
 
+- 🛑 **A UNIT-TESTED MECHANISM CAN STILL BE 100% DEAD IN THE PIPELINE: 48 OF 120
+  RUNS DIED ON A LINE ONE LEVEL BELOW THE THING UNDER TEST.** 2026-09-15.
+  `tests/test_rank_loss.py` pins the budgeted ranking loss with 14 tests --
+  competition at the cut, cutoff sensitivity, per-group independence, warm-up
+  cache identity -- and every one passed while **every single `rank_clip` and
+  `aug_rank_clip` run in all three Stage 1 campaigns failed in its first logged
+  epoch**:
+
+      ValueError: too many values to unpack (expected 2)
+
+  The cause: the ranking arms pass `groups` to `make_dataloader`, so their
+  loader yields 3-tuples; `warmup.py:208` hands that SAME loader to
+  `compute_train_accuracy`, which read `for X, y in loader`. The loss was
+  correct. The line that broke was in a different module, on a path no test ever
+  executed with groups set.
+
+  **Cost: 2h21m on three cards, and three campaigns that produced control arms
+  only.** The trigger is `epoch < 3`, so failure was immediate and total -- it
+  could have been caught by a single end-to-end warm-up on 32 random tensors,
+  which is what `tests/test_warmup_executes_with_groups.py` now does.
+
+  **The generalisable rule: a test of a COMPONENT is not a test of the PATH.**
+  When a feature changes the SHAPE of something that flows through the pipeline
+  -- an extra tensor in a batch, an extra column, an extra tuple field -- unit
+  tests of the consumer prove nothing about the other consumers of the same
+  object. Enumerate everything the changed object reaches (`make_dataloader`'s
+  loader reached two consumers; only one was updated) and execute the real path.
+  This is the same "verify by EXECUTING" lesson already recorded for stale
+  bytecode and for restores, in a third costume.
+
+  **Second-order lesson, same event.** The monitor reported the finished
+  campaigns as `STALLED`. A failed run writes `config.json` but never writes
+  `final_predictions_raw.csv`, so `done < total` stays true forever and a
+  campaign that had FINISHED with 16 failures looked like a dead dispatcher --
+  the wrong verdict, pointing at the wrong fix (relaunch the dispatcher rather
+  than fix the bug). **A progress counter that only counts SUCCESSES cannot
+  distinguish "still working" from "finished badly".** `scripts/rank_status.sh`
+  now reads completion from the dispatcher's own `ALL DONE` line, counts
+  failures, and prints distinct error signatures so a second bug cannot hide
+  behind a known one.
+
 - **A "null" arm can inherit lambda = 0 from a block and nobody notices.**
   `tralo_reseed` was built from `[constraint_phase, tralo_null, tralo_reseed]`
   and therefore inherited `lambda_step: 0.0`. For months `|tralo - tralo_reseed|`
