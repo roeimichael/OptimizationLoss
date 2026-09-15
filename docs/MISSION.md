@@ -244,6 +244,51 @@ update ordering and training behaviour do not change during structural cleanup.
 
 ---
 
+## Stage 1 ranking gate -- PRE-REGISTERED READING (written 2026-09-15, before any rank arm landed)
+
+Three campaigns live on dsisco01 GPUs 1/2/3: `rank1_MobileNetV3`,
+`rank1_MobileNetV2`, `rank1_RegNetY400MF`; 40 runs each; arms `clip`,
+`focal_clip`, `rank_clip`, `aug_clip`, `aug_rank_clip`. **No new scorer is
+needed** -- `scripts/rank_paired.py` already gives per-cell paired gAP with the
+seed sd beside it:
+
+```
+python3 scripts/rank_paired.py --glob 'results/rank1_*/*/*/*/*/seed_*' --a rank_clip     --b clip
+python3 scripts/rank_paired.py --glob 'results/rank1_*/*/*/*/*/seed_*' --a aug_rank_clip --b aug_clip
+```
+
+**The mechanism check comes free, and it is read FIRST.** `rank_paired` marks an
+arm `(cap-inert)` when its probabilities are byte-identical across L80 and L90.
+Both control arms are already marked that way, correctly: no constraint reaches
+their model, so the cap acts only in the post-hoc allocator. But `rank_frac` is
+read from the cap (`warmup.py:165` -- 0.8 at L80, 0.9 at L90), so a LIVE ranking
+loss trains two different models and `rank_clip` **cannot** be cap-inert.
+
+| what `rank_paired` shows for `rank_clip` | what it means | what follows |
+|---|---|---|
+| `(cap-inert)` | the ranking loss did not reach the model at all | a sixth dead flag; fix the wiring, discard the campaign, do NOT read gAP |
+| separate L80 / L90 rows | the loss moved the model | proceed to read gAP |
+
+**Then, and only then, the gate: is gAP(`rank_clip`) - gAP(`clip`) > 0?**
+Read as cells, never pooled -- 3 backbones x 3 constrained classes = 9 cells per
+contrast, with `|mean|/sd` beside each.
+
+- **>= 6 of 9 cells positive, on both contrasts** -> the ranking channel moves
+  the score. This is the first positive result in the project. Proceed to
+  Stage 2 (differentiable top-K through the allocator).
+- **mixed, or <= 3 of 9 positive** -> **NOT a refutation of the ranking
+  channel.** LEDGER PART 3 records why: this loss fires on 8 of 139 train
+  groups and trains a 2.3rd-of-12 order statistic to serve a 41st-of-363
+  decision. A null here is confounded with a 29x estimator deficit. The next
+  move would be group-batched sampling, which is a relaunch and therefore a
+  question for the user -- not a unilateral change, and not a closed direction.
+
+🛑 This table is fixed BEFORE the numbers. Honour it; do not reinterpret after
+seeing them. Every headline this project has had to retract came from reading a
+result and then choosing what it meant.
+
+---
+
 ## Open user question -- ANSWERED 2026-09-15
 
 **Are there untouched evaluation groups or splits on the current datasets?**
