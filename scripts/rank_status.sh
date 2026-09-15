@@ -19,13 +19,13 @@ ALLDONE=1
 
 log_for() {
     case "$1" in
-        *MobileNetV3)  ls -t "$LOGS"/k_rank_mn3_*.log 2>/dev/null | head -1 ;;
-        *MobileNetV2)  ls -t "$LOGS"/k_rank_mn2_*.log 2>/dev/null | head -1 ;;
-        *RegNetY400MF) ls -t "$LOGS"/k_rank_rgn_*.log 2>/dev/null | head -1 ;;
+        *MobileNetV3)  ls -t "$LOGS"/k3_mn3_*.log 2>/dev/null | head -1 ;;
+        *MobileNetV2)  ls -t "$LOGS"/k3_mn2_*.log 2>/dev/null | head -1 ;;
+        *RegNetY400MF) ls -t "$LOGS"/k3_rgn_*.log 2>/dev/null | head -1 ;;
     esac
 }
 
-for c in rank1_MobileNetV3 rank1_MobileNetV2 rank1_RegNetY400MF; do
+for c in rank3_MobileNetV3 rank3_MobileNetV2 rank3_RegNetY400MF; do
     d=$(ls -d "$ROOT/$c"/*/*/*/*/seed_*/final_predictions_raw.csv 2>/dev/null | wc -l)
     t=$(ls -d "$ROOT/$c"/*/*/*/*/seed_*/config.json 2>/dev/null | wc -l)
     f=$(log_for "$c")
@@ -72,7 +72,7 @@ done
 
 # The CPU-fallback signature. dsisco01 prints float16 + GradScaler; enabled=False
 # means it is training on the CPU with a perfectly healthy-looking log.
-for l in k_rank_mn3 k_rank_mn2 k_rank_rgn; do
+for l in k3_mn3 k3_mn2 k3_rgn; do
     f=$(ls -t "$LOGS/${l}"_*.log 2>/dev/null | head -1)
     [ -z "$f" ] && continue
     grep -q "AMP: enabled=False" "$f" 2>/dev/null && \
@@ -82,7 +82,7 @@ done
 # Distinct crash signatures, so a NEW failure mode is not hidden behind a known
 # one. The unpack defect produced 88 identical lines; a second bug underneath it
 # would have been invisible in a bare count.
-for l in k_rank_mn3 k_rank_mn2 k_rank_rgn; do
+for l in k3_mn3 k3_mn2 k3_rgn; do
     f=$(ls -t "$LOGS/${l}"_*.log 2>/dev/null | head -1)
     [ -z "$f" ] && continue
     grep -hoE "(ValueError|RuntimeError|TypeError|KeyError|AttributeError): [^)]*" "$f" 2>/dev/null \
@@ -93,7 +93,7 @@ done
 
 # The decisive trigger: the byte-identity check cannot run until a rank arm
 # lands, and everything downstream waits on it.
-for c in rank1_MobileNetV3 rank1_MobileNetV2 rank1_RegNetY400MF; do
+for c in rank3_MobileNetV3 rank3_MobileNetV2 rank3_RegNetY400MF; do
     n=0
     for p in $(ls -d "$ROOT/$c"/*/*/*/*/seed_* 2>/dev/null); do
         [ -f "$p/final_predictions_raw.csv" ] || continue
@@ -103,4 +103,17 @@ for c in rank1_MobileNetV3 rank1_MobileNetV2 rank1_RegNetY400MF; do
 done
 
 [ "$ALLDONE" = "1" ] && echo "ALLDONE  no ranking campaign is still running"
+
+# LIVENESS, independent of the run counter. A run takes ~10 minutes, so the
+# completed-run count is flat for long stretches and cannot distinguish mid-run
+# from hung -- which cost a false stall reading once. The queue log gets an
+# epoch line every few epochs, so its mtime is the real pulse: a live dispatcher
+# whose log has been silent for >8 minutes is wedged, not working.
+now=$(date +%s)
+for l in k3_mn3 k3_mn2 k3_rgn; do
+    f=$(ls -t "$LOGS/${l}"_*.log 2>/dev/null | head -1)
+    [ -z "$f" ] && continue
+    age=$(( (now - $(stat -c %Y "$f")) / 60 ))
+    [ "$age" -gt 8 ] && echo "ALERT    $l log silent for ${age} min -- dispatcher alive but not training"
+done
 exit 0
