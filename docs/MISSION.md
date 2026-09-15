@@ -14,6 +14,10 @@ Three files carry everything:
 
 [`FRAMEWORK.md`](FRAMEWORK.md) is the protocol and outranks all three.
 
+**`keep working`** reloads all four from disk, checks both hosts, does the next
+highest-value thing, and writes what it learns back here and into the ledger.
+Run it whenever the thread needs picking up.
+
 ---
 
 ## THE COURSE -- read this first, every session

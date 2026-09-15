@@ -158,7 +158,13 @@ campaign is read as evidence:
   repeated warnings spread across source, skills and operational documents.
 - **Verify behaviour with executable tests**, never with an assertion that some
   document contains a particular sentence, test count, or verdict.
-- Use the `keepworking` skill for experiment design, validation and monitoring.
+- **`keep working` runs the loop.** The `keepworking` skill is the hourly
+  procedure: READ the four live documents from disk, OBSERVE what is actually
+  running on both hosts, ASSESS anything that finished, WORK the highest-value
+  item, **WRITE BACK** what was learned into MISSION/LEDGER/RULESET, then REPORT
+  verified / unverified / running / next. It holds no rules or results of its
+  own -- everything it needs is in the four files, which is why they must be
+  kept current. A quiet hold is a valid outcome.
 - Small changes, fast iteration. Do not inflate the codebase.
 - **Ask** when a decision changes the scientific question, data access, held-out
   evaluation, or compute budget. Ordinary validated cleanup is authorised.
