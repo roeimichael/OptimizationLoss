@@ -197,6 +197,37 @@ of REACHABLE RANKINGS, an optimisation-geometry object, not an information one.
   ordering is more entrenched, not less. The certain-wrong SHARE is the
   scale-free quantity; the gap is not.
 
+- 🔑 **THE INFORMATION THE CONSTRAINT LACKS EXISTS, AND IT IS NOT IN `p`.**
+  Read from source: the soft count is an UNWEIGHTED sum of probabilities
+  (`chunk_eff = chunk_proba`; `chunk_global = chunk_eff.sum(dim=0)`,
+  `tralo/train.py:240`), so `dL/dp_i(c) = psi'(S_c)` is identical for every item
+  in the scope and the only per-item differentiation is the softmax Jacobian
+  `p_i(1-p_i)`. Everything the constraint knows about item i is `p_i(c)` -- the
+  quantity the allocator already ranks by. **That one line is the bottleneck
+  PART 2.1 proves cannot re-order.**
+
+  Measured 2026-09-15 on stored embeddings, fm2_mn3 / clip, predicting WRONG
+  among items placed in a capped class at p(c) >= 0.99 (2,595 and 2,671 such
+  items, 15% wrong):
+
+  | signal | L80 AUC | L90 AUC | from `p`? |
+  |---|---|---|---|
+  | `knn_agree`, 20-NN argmax agreement in embedding space | **0.869 +- 0.028** | **0.874 +- 0.033** | no |
+  | `knn_pc`, neighbours' mean p(c) | 0.790 | 0.790 | no |
+  | `knn_dist` inverted, local density | 0.705 | 0.705 | no |
+  | `centroid_cos` | 0.656 | 0.648 | no |
+  | `margin` (control) | 0.678 | 0.678 | **yes** |
+
+  Neighbourhood agreement identifies the confidently-wrong far better than
+  anything derivable from `p`. ⚠️ The margin control did NOT land at 0.5 as
+  predicted -- p-derived quantities carry more than expected among the confident
+  set -- so the claim is the GAP (0.87 vs 0.68), not that `p` is uninformative.
+  Unit is the seed; 12 cells = 3 capped classes x 4 seeds per cap.
+  `~/separability.py` on dsisco02.
+
+  **This is the escape route the harm lemma leaves open.** PART 2.5 assumes
+  current scores exhaust the available label information. They do not.
+
 - **cc-F1 still goes the wrong way.** In `live11`, where the per-column nulls
   exist, `aug_tralo_null` (0.6411) beats `aug_tralo` (0.6285). The augmentation
   does the work, not the constraint.
@@ -254,6 +285,36 @@ campaign's success or failure.
   budgets are not doing the work and both the transductive claim and the
   constraint claim fail. If it dies, the constraint claim survives its strongest
   available test.** Cheap. Never run.
+- 🔑 **`tralo_stab` -- a stability-weighted soft count. The one falsifiable TraLO
+  modification currently on the table**, stated in the form FRAMEWORK requires.
+
+  **Mechanism.** Replace the unweighted soft count with
+  `S_c = sum_i w_i * p_i(c)`, where `w_i` is the item's label-free neighbourhood
+  DISagreement (`1 - knn_agree`, computed on the model's own test embeddings each
+  constraint epoch, renormalised to mean 1 per scope so the dose is unchanged).
+
+  **Derivative.** `dL/dp_i(c) = psi'(S_c) * w_i`, against `psi'(S_c)` today. The
+  per-item weight stops being a function of `p_i` alone, which is exactly the
+  condition PART 2.1 identifies as necessary to re-order. Eviction pressure
+  concentrates on items whose neighbourhood disagrees with them -- measured AUC
+  0.87 for being wrong.
+
+  **Expected log signature.** Same dose (attempted == applied == constraint
+  epochs); `w` mean 1.0 and sd > 0 per scope; the evicted set diverging from the
+  unweighted arm's by more than the RNG floor. If `w` sd is ~0 the arm is inert
+  and the run is void.
+
+  **Matched control.** `tralo_stab_null` at lambda = 0. Note the weight can act
+  ONLY through the constraint, so a null is unaffected by construction -- unlike
+  graph diffusion, which modified predictions and therefore helped the nulls most
+  (PART 4). Any gain here is attributable.
+
+  **Failure criterion.** No improvement in gAP over `tralo` at matched budget and
+  seeds, or an improvement that the null also shows. Either kills it.
+
+  ⚠️ **Not yet run, and identifying wrong items is not the same as fixing them.**
+  PART 1 requires that link to be priced, not assumed.
+
 - **Learning rate as the second lever.** `lr` sets how fast the boundary freezes
   and has been fixed at 1e-4 throughout. Any change must set
   `constraint_phase.lr_constraint` to match, or unequal lr fabricates a result --

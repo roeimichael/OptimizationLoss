@@ -56,7 +56,19 @@ correctness.
 **Every cell memorises in 2-4 epochs**, so in a 30-epoch budget roughly 3 epochs
 are useful and 26 push a frozen boundary.
 
-**The one live thread** is that the damage appears to stop when the constraint
+🔑 **The direction that is actually new.** The constraint's soft count is an
+UNWEIGHTED sum of probabilities, so every item in a scope receives the same
+`dL/dp_i(c)` and the only per-item differentiation is `p_i(1-p_i)`. Everything it
+knows about an item is `p_i(c)` -- the quantity the allocator already ranks by,
+which is why PART 2.1 proves it cannot re-order. The harm lemma assumes the
+scores exhaust the available label information, and **they do not**: measured
+2026-09-15, neighbourhood agreement in the model's own embedding space
+identifies the confidently-wrong at **AUC 0.87**, against 0.68 for anything
+derivable from `p`. `tralo_stab` in LEDGER PART 5 is the falsifiable
+modification that follows, with its derivative, log signature, matched control
+and failure criterion.
+
+**The other live thread** is that the damage appears to stop when the constraint
 acts while the boundary is still moving. Four campaigns at four budgets order
 monotonically on a fixed backbone, and the same sign flip shows up independently
 on the deployed selection. Neither is powered: p = 0.20 across campaigns, and the
@@ -94,11 +106,19 @@ Full set in [`RULESET.md`](../RULESET.md). The four that bite most often:
 
 ---
 
-## Run state, checked 2026-09-15 13:10
+## Run state, checked 2026-09-15 14:05
 
-**Nothing is running. All eight GPUs across both hosts are idle**, because every
-remaining direction needs a launch decision the user has not made. This is a
-deliberate hold, not a stall.
+**All four dsisco02 GPUs are running the RECIPE SCREEN**, 56 runs each at budget
+8, one backbone per card, `~/optloss-probe/results/scr_<backbone>`. All four
+passed 10/10 pre-launch gates. Triage with `~/triage.py` on dsisco02.
+
+First triage: every backbone is in the LIVE regime at budget 8 -- live fraction
+71-86% against the gate's 50%, test accuracy 0.62-0.65, certain-wrong share
+21-34% against budget 30's 39-46%. **Verdict KEEP on all four.** This settles the
+enabling condition: a regime where the boundary is still moving and the model is
+not hopeless does exist, and it is simply a short budget.
+
+dsisco01 is idle.
 
 Completed and scored, fmow2 / MobileNetV3 unless noted:
 
