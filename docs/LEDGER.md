@@ -319,6 +319,22 @@ campaign's success or failure.
 
 ## PART 5 -- Open, and not yet tested
 
+- **`tralo_stab` -- the weighted soft count -- is BUILT, GATED, and NOT RUN.**
+  `constraint_weight: knn_disagree` replaces `S_c = sum_i p_i(c)` with
+  `S_c = sum_i w_i p_i(c)`, w = label-free neighbourhood disagreement, mean 1
+  per local group, applied to the counting pass and the gradient pass alike.
+  Hard counts stay unweighted. `uniform` is exactly ones and is bit-identical to
+  the reference arm, dtype included. **What is verified:** the unweighted
+  per-item gradient really is constant across items (so PART 2.1 still describes
+  the code), the weighted one is exactly `w_i * psi'(S_c)`, the weight lands on
+  the item whose neighbours disagree, and `gate:weight_bites`
+  (`scripts/weight_bites.py`) rejects an inert arm, a perturbed control, a mixed
+  declaration, and an arm that reproduces its twin byte-for-byte.
+  **What is NOT verified:** it has never executed inside a real training loop.
+  No arm is declared in `configs/protocol.yml` and nothing has been launched.
+  The first campaign must pass `gate:weight_bites` with
+  `--pair tralo_stab:tralo` before any number from it is read.
+
 - **The budget-permuted twin.** Identical code and schedule, budgets permuted
   across groups within a class. By the scalar-gain lemma (PART 2.2) this changes
   only the gain trajectory and leaves the field direction untouched, so it is the
