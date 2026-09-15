@@ -84,6 +84,17 @@ model_cache/
 /docs/audits/**/*.json
 /docs/audits/**/*.txt
 /docs/research/receipts/
+# Same rules after the 2026-09-15 archival move. These paths are ANCHORED, so
+# moving docs/paper -> docs/archive/paper made every rule above stop matching and
+# a `git add -A` swept 82 previously-untracked files into the index -- dermMNIST
+# run configs, generated derm/oct/tissue tables, audit dumps. Exactly the
+# contaminated material the archival was meant to put away. Keep both sets.
+/docs/archive/paper/data/**/*.csv
+/docs/archive/paper/data/**/*.json
+/docs/archive/paper/tables*/
+/docs/archive/audits/**/*.json
+/docs/archive/audits/**/*.txt
+/docs/archive/research/receipts/
 /docs/archive/**/*.csv
 /docs/archive/**/*.html
 /docs/all_cells_raw.csv
