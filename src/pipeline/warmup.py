@@ -16,6 +16,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset, TensorDataset
 
 from src.models import get_model
+from src.training.rank_loss import budgeted_rank_loss, read_rank_config
 from src.pipeline.setup import setup_runtime
 from src.training.logging import log_progress_to_csv
 from src.training.metrics import compute_train_accuracy
@@ -70,8 +71,9 @@ class AugmentedTensors(Dataset):
     Both are tensor slices, so the cost is negligible next to the forward pass.
     """
 
-    def __init__(self, X, y, pad=16):
+    def __init__(self, X, y, pad=16, groups=None):
         self.X, self.y, self.pad = X, y, int(pad)
+        self.groups = groups
 
     def __len__(self):
         return len(self.X)
@@ -91,16 +93,29 @@ class AugmentedTensors(Dataset):
             top = int(torch.randint(0, 2 * p + 1, ()))
             left = int(torch.randint(0, 2 * p + 1, ()))
             x = x[..., top:top + h, left:left + w]
-        return x, self.y[i]
+        if self.groups is None:
+            return x, self.y[i]
+        return x, self.y[i], self.groups[i]
 
 
-def make_dataloader(X, y, batch_size, augment=False):
+def make_dataloader(X, y, batch_size, augment=False, groups=None):
     use_workers = os.name != "nt"
     n_workers = 2 if use_workers else 0
     # augment=False must stay byte-identical to the unaugmented path: every
     # stored result was produced by it, and a silent change here would make the
     # corpus incomparable rather than merely different.
-    ds = AugmentedTensors(X, y) if augment else TensorDataset(X, y)
+    #
+    # `groups` is opt-in and defaults to None, so every existing arm keeps
+    # yielding 2-tuples and its exact byte stream. The sampler draws from a
+    # generator that does not see the dataset's contents, so carrying a third
+    # tensor cannot perturb the shuffle order either -- which is what makes it
+    # safe to add to a corpus whose comparability rests on bit-determinism.
+    if groups is None:
+        ds = AugmentedTensors(X, y) if augment else TensorDataset(X, y)
+    else:
+        g = torch.as_tensor(groups, dtype=torch.long)
+        ds = (AugmentedTensors(X, y, groups=g) if augment
+              else TensorDataset(X, y, g))
     return DataLoader(
         ds, batch_size=batch_size, shuffle=True,
         num_workers=n_workers, pin_memory=True,
@@ -109,7 +124,7 @@ def make_dataloader(X, y, batch_size, augment=False):
 
 
 def run_warmup(config, num_classes, X_train, y_train, device,
-               *, csv_log_path=None):
+               *, csv_log_path=None, groups_train=None):
     """CE-only warmup phase. Loads from cache if available, else trains and saves.
 
     Returns (model, from_cache). When from_cache=True, no training ran.
@@ -135,8 +150,19 @@ def run_warmup(config, num_classes, X_train, y_train, device,
 
     criterion = make_ce_criterion(config, y_train, num_classes, device)
     optimizer = make_optimizer(model.parameters(), hp["lr"], device)
+    # The budgeted ranking loss needs train-side groups. It is opt-in, and
+    # `rank_weight` is a warm-up IDENTITY key -- without that, a ranking arm
+    # would silently load the plain arm's cached warm-up and be byte-identical
+    # to it, which is precisely how an inert flag looks healthy in the logs.
+    rank_cfg = read_rank_config(hp)
+    rank_groups = groups_train if rank_cfg["weight"] > 0 else None
     loader = make_dataloader(X_train, y_train, hp["batch_size"],
-                             augment=hp.get("augment", False))
+                             augment=hp.get("augment", False),
+                             groups=rank_groups)
+    rank_classes = config.get("dataset_config", {}).get("constrained_class")
+    if rank_classes is not None and not isinstance(rank_classes, list):
+        rank_classes = [rank_classes]
+    rank_frac = float((config.get("constraint") or [1.0, 1.0])[0])         if not isinstance((config.get("constraint") or [1.0])[0], list) else 1.0
 
     warmup_epochs = hp["warmup_epochs"]
     log_interval = max(1, warmup_epochs // 5)
@@ -150,11 +176,22 @@ def run_warmup(config, num_classes, X_train, y_train, device,
         epoch_start = time.time()
         model.train()
         epoch_loss = 0.0
-        for batch_X, batch_y in loader:
+        for batch in loader:
+            if len(batch) == 3:
+                batch_X, batch_y, batch_g = batch
+                batch_g = batch_g.to(device)
+            else:
+                (batch_X, batch_y), batch_g = batch, None
             batch_X, batch_y = batch_X.to(device), batch_y.to(device)
             optimizer.zero_grad(set_to_none=True)
             with torch.amp.autocast("cuda", dtype=amp_dtype, enabled=use_amp):
-                loss = criterion(model(batch_X), batch_y)
+                logits = model(batch_X)
+                loss = criterion(logits, batch_y)
+                if batch_g is not None and rank_classes:
+                    loss = loss + rank_cfg["weight"] * budgeted_rank_loss(
+                        logits, batch_y, batch_g, rank_classes, rank_frac,
+                        margin=rank_cfg["margin"],
+                        min_group=rank_cfg["min_group"])
             if scaler:
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)

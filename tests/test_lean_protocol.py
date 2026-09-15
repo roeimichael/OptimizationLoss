@@ -154,9 +154,8 @@ def test_dataset_runtime_loads_supported_tiny_slices(tmp_path, dataset):
     _write_slice(str(tmp_path))
     config = _cfg(str(tmp_path))
     config["dataset_mode"] = dataset
-    train, test, y_train, y_test, groups, global_con, local_con, classes = (
-        load_experiment_data(config)
-    )
+    (train, test, y_train, y_test, groups, global_con, local_con, classes,
+     groups_train) = load_experiment_data(config)
     assert train.shape == (12, 3, 8, 8)
     assert test.shape == (8, 3, 8, 8)
     np.testing.assert_array_equal(y_train, [0, 1, 2, 3] * 3)
@@ -164,3 +163,7 @@ def test_dataset_runtime_loads_supported_tiny_slices(tmp_path, dataset):
     np.testing.assert_array_equal(groups, [0, 1] * 4)
     assert classes == 4 and global_con[2] == 1
     assert local_con[0][2] == 1 and local_con[1][2] == 0
+    # Train-side groups ride along for the budgeted ranking loss. They are
+    # encoded independently of the test groups, which are disjoint from them by
+    # construction, so nothing about the evaluation groups leaks through.
+    assert groups_train is None or len(groups_train) == len(y_train)

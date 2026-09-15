@@ -20,6 +20,7 @@ class LoadedData:
     X_test: torch.Tensor
     y_test: np.ndarray
     groups_test: np.ndarray
+    groups_train: np.ndarray
     global_con: List[float]
     local_con: Dict[int, list]
     constrained_classes: List[int]
@@ -34,7 +35,8 @@ def load_data(config) -> LoadedData:
     """Load data, build CPU tensors, derive constrained_classes list."""
     t0 = time.time()
     raw = load_experiment_data(config)
-    X_train, X_test, y_train, y_test, groups_test, global_con, local_con, num_classes = raw
+    (X_train, X_test, y_train, y_test, groups_test, global_con, local_con,
+     num_classes, groups_train) = raw
     log.info("TIMING data_load=%.2fs train=%s test=%s",
              time.time() - t0, X_train.shape, X_test.shape)
 
@@ -57,6 +59,7 @@ def load_data(config) -> LoadedData:
         X_test=torch.FloatTensor(X_test),
         y_test=_to_numpy(y_test),
         groups_test=_to_numpy(groups_test),
+        groups_train=(None if groups_train is None else _to_numpy(groups_train)),
         global_con=global_con,
         local_con=local_con,
         constrained_classes=constrained_classes,

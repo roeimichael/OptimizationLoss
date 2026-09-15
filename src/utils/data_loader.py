@@ -283,6 +283,18 @@ def _load_imagery_data(config):
             data_dir,
         )
     groups_test = _encode_groups(test_meta[group_col], group_col)
+    # TRAIN-side groups. Needed by the budgeted ranking loss, which simulates
+    # the deployment decision on LABELLED data: for each (train group, capped
+    # class) it forms the same per-group top-K cut the allocator will make at
+    # test time. Train and test groups are DISJOINT by construction here, so
+    # these encodings are independent of the test ones and nothing about the
+    # evaluation groups leaks through them.
+    groups_train = None
+    _tm_path = os.path.join(data_dir, "train_meta.csv")
+    if os.path.exists(_tm_path):
+        _tm = pd.read_csv(_tm_path)
+        if group_col in _tm.columns and len(_tm) == len(y_train):
+            groups_train = _encode_groups(_tm[group_col], group_col)
     (local_percent, global_percent) = config["constraint"]
     test_df = pd.DataFrame({"label": y_test, group_col: groups_test})
     global_con = compute_global_constraints(
@@ -322,6 +334,7 @@ def _load_imagery_data(config):
         global_con,
         local_con,
         num_classes,
+        groups_train,
     )
 
 

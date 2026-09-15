@@ -25,6 +25,11 @@ WARMUP_HP = {
     "warmup_loss": "ce",
     "focal_alpha": 0.25,
     "focal_gamma": 2.0,
+    # The budgeted ranking loss acts DURING the warm-up, so a ranking arm and
+    # its plain control must not share a cached warm-up. Declared in
+    # protocol.yml and exercised here, per this gate's own rule.
+    "rank_weight": 0.0,
+    "rank_margin": 0.05,
 }
 
 CONSTRAINT_HP = {

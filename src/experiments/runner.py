@@ -95,6 +95,7 @@ def run_experiment(config_path: str) -> Optional[Dict[str, Any]]:
         y_train_tensor,
         device,
         csv_log_path=str(csv_log_path),
+        groups_train=data.groups_train,
     )
     warmup_time = time.time() - warmup_start
     log.info(

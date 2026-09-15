@@ -41,15 +41,20 @@ WEIGHT = {"constraint_weight", "constraint_weight_k", "constraint_weight_floor"}
 # methodology reads it, and `audit_config` rejects a config key that no runtime
 # reads, which is the guard that caught it sitting in `core`.
 DIAG = {"epoch_trace"}
+# The budgeted ranking loss. It acts in the CE/warm-up phase, so EVERY
+# methodology can carry it -- that is the point: the decisive Stage-1 test is
+# whether it lifts the post-hoc clipper, with no constraint involved at all.
+RANK = {"rank_weight", "rank_margin", "rank_min_group"}
 METHOD_KEYS = {
-    "tralo": CORE | STEP | TRALO | FOCAL | WEIGHT | DIAG,
-    "fioretto_ldf": CORE | STEP | FOCAL | {"fioretto_step_size", "fioretto_lambda_init"},
-    "hounie_rcl": CORE | STEP | FOCAL | {"hounie_eta_lambda", "hounie_eta_u", "hounie_alpha"},
+    "tralo": CORE | STEP | TRALO | FOCAL | WEIGHT | DIAG | RANK,
+    "fioretto_ldf": CORE | STEP | FOCAL | RANK | {"fioretto_step_size", "fioretto_lambda_init"},
+    "hounie_rcl": CORE | STEP | FOCAL | RANK | {"hounie_eta_lambda", "hounie_eta_u", "hounie_alpha"},
     "fioretto_alm": CORE
     | STEP
     | FOCAL
+    | RANK
     | {"alm_eta", "alm_mu0", "alm_mu_step", "fioretto_lambda_init"},
-    "heuristic": CORE | FOCAL,
+    "heuristic": CORE | FOCAL | RANK,
 }
 
 

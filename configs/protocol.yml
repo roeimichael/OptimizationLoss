@@ -85,6 +85,17 @@ blocks:
     focal_gamma: 2.0
   augment:
     augment: true
+  # THE BUDGETED RANKING LOSS. LEDGER PART 2.1 proves a count penalty reads the
+  # MULTISET while the allocator reads the RANKS, so no count can re-order. This
+  # block turns on a loss anchored at the per-group K-th order statistic --
+  # the exact place the allocator cuts -- so the items COMPETE for the K slots.
+  # It runs on TRAIN labels with the budget simulated; no test label is touched.
+  # The theory permits a training-time win only by improving the SCORE (Xian et
+  # al. ICML; Woodworth et al. COLT 2017), which is what this attempts.
+  rank:
+    rank_weight: 1.0
+    rank_margin: 0.05
+    rank_min_group: 8
   # THE BUDGET SWEEP. The live fraction -- live window / constraint epochs -- is
   # the quantity the whole account turns on, and until now it could only be
   # varied BETWEEN campaigns, where it is confounded with backbone, code version
@@ -136,6 +147,27 @@ arms:
     blocks:
     - constraint_phase
     - tralo_stab
+  # The constrained counterpart: the transductive count constraint UNCHANGED,
+  # plus the budgeted ranking loss in its CE phase. Read only after rank_clip
+  # has shown the channel exists -- otherwise its result is uninterpretable.
+  rank_tralo:
+    methodology: tralo
+    phase: trained
+    blocks:
+    - constraint_phase
+    - tralo
+    - rank
+  # Its own zero-constraint control. `tralo_null` cannot serve: it has a
+  # different warm-up identity (no ranking loss), so comparing rank_tralo to it
+  # would confound the constraint with the intervention -- the exact defect
+  # gate:lessons_learned exists to catch, and it caught this one.
+  rank_tralo_null:
+    methodology: tralo
+    phase: trained
+    blocks:
+    - constraint_phase
+    - tralo_null
+    - rank
   aug_tralo_stab:
     methodology: tralo
     phase: trained
@@ -161,6 +193,23 @@ arms:
     methodology: heuristic
     phase: posthoc
     blocks: []
+  # STAGE 1, THE DECISIVE ARM. `clip` is its exact control: same post-hoc
+  # allocator, same budget, differing ONLY in whether the warm-up also trained
+  # the per-group cut. It carries no constraint at all, which is deliberate --
+  # if the ranking channel is real it must show up HERE, in gAP, with the dual
+  # machinery entirely out of the picture. If it does not, the channel is dead
+  # and no rank-aware constraint is worth building on top of it.
+  rank_clip:
+    methodology: heuristic
+    phase: posthoc
+    blocks:
+    - rank
+  aug_rank_clip:
+    methodology: heuristic
+    phase: posthoc
+    blocks:
+    - rank
+    - augment
   focal_clip:
     methodology: heuristic
     phase: posthoc
@@ -375,6 +424,14 @@ models:
 - RegNetY400MF
 - ViTB16
 warmup_identity_keys:
+# 🛑 rank_weight and rank_margin MUST be identity keys. The budgeted ranking
+# loss acts during the WARM-UP, which is cached by base_model_id; without these
+# a ranking arm would load the plain arm's cached warm-up and come out
+# byte-identical to it -- an inert flag that looks perfectly healthy in the log.
+# They are absent from configs that do not use them, and compute_base_model_id
+# only hashes identity keys PRESENT in hp, so no existing digest changes.
+- rank_weight
+- rank_margin
 # `augment` is here and NOT in `core`: the warm-up cache must separate an
 # augmented warm-up from an unaugmented one, but adding the key to every config
 # would change every existing base_model_id digest and invalidate the whole
