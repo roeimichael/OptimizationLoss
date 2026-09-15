@@ -339,8 +339,29 @@ of REACHABLE RANKINGS, an optimisation-geometry object, not an information one.
   the second -- that is precisely the substitution RULESET section 2 warns
   against.
 
-  Consequence for the Stage 1 gate: a ceiling of roughly this shape exists on
-  ANY score-improving method here, and it is not a property of the loss.
+  ⚠️ **CORRECTED IN PLACE 2026-09-16, same day: the 35.6% is a share of CELLS,
+  not of the prize, and quoting it as the ceiling OVERSTATES it by half.** The
+  saturated cells are the SMALL ones -- median K 11 against 33 for the rest --
+  so weighted by capacity (`scripts/where_saturated.py`):
+
+  | where the cut is | cells | med K | % of slots | outside_tp | selected errors |
+  |---|---|---|---|---|---|
+  | contested < 0.2 | 29 | 51 | **34.9%** | 661 | 342 |
+  | middling 0.2-0.8 | 23 | 46 | 26.7% | 628 | 362 |
+  | confident 0.8-0.99 | 35 | 18 | 22.1% | 477 | 245 |
+  | SATURATED > 0.99 | 48 | 11 | **16.2%** | 422 | 252 |
+
+  **The real ceiling is ~16% of slots, ~19% of the correctable headroom, ~21% of
+  the errors inside the selection. About 84% of the capacity sits at a cut a
+  model could in principle re-rank**, and the single largest band is the
+  CONTESTED one at 34.9% of slots.
+
+  🛑 **This closes an escape hatch before it can be used.** If the Stage 1 gate
+  comes back null, "the cuts were saturated so nothing could have worked" is NOT
+  available as the explanation -- five sixths of the prize sits at a decidable
+  cut. A null would have to be explained by the dose deficit already measured
+  (8 of 139 groups, a 2.3rd-of-12 order statistic), or by the idea itself.
+  Recording this NOW, before the numbers land, is the point.
 
 - 📏 **THE gAP NOISE ENVELOPE, MEASURED ON TWO KNOWN-NULL CONTRASTS -- and an
   isolated `|mean|/sd > 2` cell APPEARS IN BOTH.** 2026-09-16, on `rank1_*`'s 72
