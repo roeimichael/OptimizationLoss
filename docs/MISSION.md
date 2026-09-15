@@ -244,6 +244,43 @@ update ordering and training behaviour do not change during structural cleanup.
 
 ---
 
+## RUN STATE -- checked 2026-09-15 22:16 IDT
+
+**`rank1_*` is DEAD. All three campaigns finished 24 usable / 16 FAILED.** Every
+`rank_clip` and `aug_rank_clip` run died in its first logged epoch on
+`ValueError: too many values to unpack (expected 2)` -- see LEDGER PART 1. The
+24 control runs per campaign (`clip`, `focal_clip`, `aug_clip`) are valid and
+retained; the Stage 1 gate was unanswerable from them.
+
+**`rank2_*` is LIVE on dsisco01 GPUs 1/2/3**, claimed 22:15:39 IDT:
+`rank2_MobileNetV3`, `rank2_MobileNetV2`, `rank2_RegNetY400MF`, 40 runs each,
+generated and frozen at **bfb33a97** (the fix commit), same design as rank1
+(fmow2, L80_G95 + L90_G95, arms `clip` `focal_clip` `rank_clip` `aug_clip`
+`aug_rank_clip`, seeds 1-4, pretrained, warm-up 30).
+
+Why a NEW campaign rather than re-dispatching rank1's 16 pending runs: the
+campaign freeze refused it, correctly -- `validate_campaign` raised `source
+bytes differ from frozen release` because the fix changed `src/` under a frozen
+inventory. That guard is doing its job and was not overridden.
+
+**The mixed-`code_version` question was settled by execution, not argument.**
+The fix touches a function called INSIDE the warm-up loop, and iterating a
+`shuffle=True` loader draws from the global RNG, so a changed number of draws
+would have silently altered training. Measured pre-fix vs post-fix on a 2-tuple
+loader: identical accuracy, **identical RNG state**, identical parameters,
+identical mode. The fix is a true no-op for every historical arm, so rank1's
+controls remain byte-comparable with anything produced at bfb33a97.
+
+**The decisive check arrives early.** Rank arms are runs 2 and 5 of every
+campaign, not last -- so each campaign's own second run is the smoke test, about
+10 minutes in. A separate smoke campaign was started and then stopped as
+redundant once the interleaving was confirmed. Watch for the unpack signature;
+`scripts/rank_status.sh` now surfaces distinct error strings.
+
+**Cost so far: 2h21m x 3 cards spent on rank1, recovered as control arms only.**
+
+---
+
 ## Stage 1 ranking gate -- PRE-REGISTERED READING (written 2026-09-15, before any rank arm landed)
 
 Three campaigns live on dsisco01 GPUs 1/2/3: `rank1_MobileNetV3`,
@@ -253,8 +290,8 @@ needed** -- `scripts/rank_paired.py` already gives per-cell paired gAP with the
 seed sd beside it:
 
 ```
-python3 scripts/rank_paired.py --glob 'results/rank1_*/*/*/*/*/seed_*' --a rank_clip     --b clip
-python3 scripts/rank_paired.py --glob 'results/rank1_*/*/*/*/*/seed_*' --a aug_rank_clip --b aug_clip
+python3 scripts/rank_paired.py --glob 'results/rank2_*/*/*/*/*/seed_*' --a rank_clip     --b clip
+python3 scripts/rank_paired.py --glob 'results/rank2_*/*/*/*/*/seed_*' --a aug_rank_clip --b aug_clip
 ```
 
 **The mechanism check comes free, and it is read FIRST.** `rank_paired` marks an
