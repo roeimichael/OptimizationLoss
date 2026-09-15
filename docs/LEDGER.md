@@ -296,6 +296,52 @@ of REACHABLE RANKINGS, an optimisation-geometry object, not an information one.
 
 ### Settled, do not re-open without new evidence
 
+- 🔑 **GATE 3 ON `rank3_*`: THE CAP BINDS EVERYWHERE, THE HEADROOM IS REAL, AND
+  36% OF THE ALLOCATOR'S CUTS FALL IN A SATURATED REGION.** Measured 2026-09-16
+  on 135 (backbone, cap, group, class) cells with `scripts/headroom.py`,
+  aggregated by `scripts/gate3_summary.py`. This is the TEST-SIDE regime check
+  RULESET section 2 requires and that train accuracy structurally cannot give.
+
+  | backbone | cap | binds | outside_tp | selected errors | cut > 0.99 | median cut |
+  |---|---|---|---|---|---|---|
+  | MobileNetV2 | L80 | 27/27 | 458 | 211/984 | 8/27 | 0.915 |
+  | MobileNetV3 | L80 | 27/27 | 459 | 212/984 | 11/27 | 0.981 |
+  | MobileNetV3 | L90 | 27/27 | 382 | 259/1108 | 10/27 | 0.866 |
+  | RegNetY400MF | L80 | 27/27 | 478 | 231/984 | 11/27 | 0.921 |
+  | RegNetY400MF | L90 | 27/27 | 411 | 288/1108 | 8/27 | 0.864 |
+
+  **The regime is informative, and the task is real.** The cap binds in 135 of
+  135 cells (`emitted == K`, no slack), 380-480 true positives sit OUTSIDE the
+  cut as correctable headroom, and 21-26% of everything the allocator selects is
+  wrong. There is plenty to win.
+
+  **But the cut-probability distribution splits the cells in two:**
+
+  | where the cut falls | cells | share |
+  |---|---|---|
+  | contested, < 0.2 | 29 | 21.5% |
+  | middling, 0.2-0.8 | 23 | 17.0% |
+  | confident, 0.8-0.99 | 35 | 25.9% |
+  | **SATURATED, > 0.99** | **48** | **35.6%** |
+
+  In roughly a third of cells the allocator cuts through probabilities above
+  0.99, where candidates are numerically indistinguishable. **No re-ranking loss
+  can act there**, however live the training loop looks. In ~38% the cut is
+  contested and there is something to learn.
+
+  ⚠️ **This REFINES, and partly corrects, the train-side saturation screen.**
+  Train accuracy reaches 0.95 by epoch 4-7 and 0.99 by epoch 7-13 for every arm,
+  which invites the conclusion that the boundary is uniformly frozen. The
+  test-side cut says otherwise: the boundary is frozen in about a third of the
+  cells and contested in about a third. "The model memorised the train set" and
+  "the deployed cut is undecidable" are DIFFERENT claims, and only the second
+  bounds what a ranking loss can achieve. Do not quote the first as evidence of
+  the second -- that is precisely the substitution RULESET section 2 warns
+  against.
+
+  Consequence for the Stage 1 gate: a ceiling of roughly this shape exists on
+  ANY score-improving method here, and it is not a property of the loss.
+
 - 📏 **THE gAP NOISE ENVELOPE, MEASURED ON TWO KNOWN-NULL CONTRASTS -- and an
   isolated `|mean|/sd > 2` cell APPEARS IN BOTH.** 2026-09-16, on `rank1_*`'s 72
   surviving control runs (3 backbones x 3 constrained classes x 4 seeds, scored
