@@ -106,7 +106,7 @@ Full set in [`RULESET.md`](../RULESET.md). The four that bite most often:
 
 ---
 
-## Run state, checked 2026-09-15 18:40
+## Run state, checked 2026-09-15 11:35 IDT (server clock)
 
 **THREE of four dsisco02 GPUs run the RECIPE SCREEN**, 56 runs each at budget 8,
 one backbone per card, `~/optloss-probe/results/scr_<backbone>`. All passed
@@ -114,9 +114,9 @@ one backbone per card, `~/optloss-probe/results/scr_<backbone>`. All passed
 
 | campaign | done | live frac | test acc | certain% | viability |
 |---|---|---|---|---|---|
-| `scr_MobileNetV2` | 42/56 | 72% | 0.641 | 21% | VIABLE |
-| `scr_MobileNetV3` | 46/56 | 55% | 0.645 | 31% | VIABLE |
-| `scr_RegNetY400MF` | 50/56 | 69% | 0.646 | 23% | VIABLE |
+| `scr_MobileNetV2` | 54/56, 2 running on GPU 1 | 72% | 0.641 | 21% | VIABLE |
+| `scr_MobileNetV3` | **56/56 COMPLETE** | 55% | 0.645 | 31% | VIABLE |
+| `scr_RegNetY400MF` | **56/56 COMPLETE** | 69% | 0.646 | 23% | VIABLE |
 | `scr_ViTB16` | 17/56 | 37% | 0.634 | 30% | **UNUSABLE -- KILLED 2026-09-15** |
 
 🛑 **VIABLE means the cell can produce a valid measurement. It does NOT mean
@@ -128,14 +128,20 @@ and was read as a scoreboard; see LEDGER PART 1, Instruments.
 boundary -- the exact artifact `fm2_vit` already produced. Its partial runs are
 preserved on disk. **GPU 3 is free.**
 
-**What the three viable screens say so far** (LEDGER PART 3): the boundary IS
-being reshaped -- gAP is allocation-free, so a nonzero effect is the model
-moving -- but the plain constraint effect on gAP is NEGATIVE in 7 of 8 cells
-even at 55-72% live. A live boundary is therefore not sufficient; the freeze was
-not the whole mechanism. The one positive direction is the augment x constraint
-interaction, now +ve in 5 of 6 cells across three backbones, still underpowered.
+🔴 **THE TWO COMPLETE SCREENS HAVE BEEN SCORED AND TraLO LOST.**
+`scripts/deployed_h2h.py` over all four cells: `aug_clip` is the best arm
+everywhere, TraLO ties its own phase-matched null (+0.0007 / +0.0030 / -0.0026 /
++0.0042, every CI spanning zero), and three CIs exclude zero AGAINST it. The
+single CI in its favour is 1 of 24 unadjusted comparisons. Full table and the
+reading limits are in LEDGER PART 3, first entry.
 
-dsisco01 is idle.
+**This closes the budget direction.** A live boundary was the last untested
+precondition behind the frozen-boundary account; supplying it (55-72% live)
+changed neither the gAP damage nor the head-to-head. Whatever is wrong with
+TraLO is not the budget, and more budget variants are not worth a GPU.
+
+GPUs 0, 2, 3 on dsisco02 and all four on dsisco01 are idle. Nothing is queued,
+because the next candidate needs a decision -- see Open work.
 
 Completed and scored, fmow2 / MobileNetV3 unless noted:
 

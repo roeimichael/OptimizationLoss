@@ -152,6 +152,46 @@ of REACHABLE RANKINGS, an optimisation-geometry object, not an information one.
 
 ### Settled, do not re-open without new evidence
 
+- **AT A LIVE BOUNDARY, TraLO STILL DOES NOT BEAT THE CLIPPERS, AND DOES NOT
+  BEAT ITS OWN NULL.** `scripts/deployed_h2h.py` on the two COMPLETE budget-8
+  screens (`scr_MobileNetV3`, `scr_RegNetY400MF`, 56/56 each, 4 seeds, fmow2,
+  L80_G95 and L90_G95), measured 2026-09-15. This is the head-to-head the
+  frozen-boundary story predicted we would win, run in the regime it asked for,
+  and it is lost.
+
+  cc-F1, seed-paired, TraLO minus the comparator (negative = TraLO loses):
+
+  | cell | vs `tralo_null` | vs `clip` | vs `focal_clip` | vs `aug_clip` |
+  |---|---|---|---|---|
+  | MN3 L80 | +0.0007 | +0.0092 | +0.0113 | **-0.0124** |
+  | MN3 L90 | +0.0030 | +0.0073 | +0.0110 * | **-0.0099** |
+  | RegNet L80 | -0.0026 | -0.0088 | -0.0105 | **-0.0298** * |
+  | RegNet L90 | +0.0042 | +0.0015 | -0.0030 | **-0.0197** * |
+
+  `*` = 95% CI excludes zero, NOT multiplicity-adjusted over 24 comparisons.
+
+  Three things this settles:
+
+  1. **`aug_clip` is the best arm in all four cells.** Post-hoc clipping plus
+     augmentation. The win is augmentation, and it is available to every method,
+     TraLO included -- it is not a TraLO result.
+  2. **The constraint buys nothing over its own phase-matched control.** TraLO
+     minus `tralo_null` is +0.0007, +0.0030, -0.0026, +0.0042: every CI spans
+     zero, and the sign is not even consistent. The whole constraint phase is
+     worth less than the seed noise it runs in.
+  3. **The only CI favouring TraLO is MN3 L90 vs `focal_clip`**, +0.0110 with CI
+     [0.0002, 0.0218] -- 1 of 24 unadjusted comparisons, i.e. what multiplicity
+     produces on its own. It is not a win.
+
+  Three CIs exclude zero AGAINST TraLO, all against augmented arms on RegNet.
+  **The live boundary was the last untested precondition, and supplying it did
+  not change the verdict.** Whatever is wrong with TraLO is not the budget.
+
+  Reading limit: the reporter emits seed-paired deltas only against `tralo`, so
+  `aug_tralo` minus `aug_tralo_null` is available here as a difference of means
+  (+0.0023, +0.0029, -0.0008, +0.0055) and NOT seed-paired. It must not be
+  quoted as a paired effect.
+
 | # | Finding | Consequence |
 |---|---|---|
 | 1 | **Every cell saturates in 2-4 epochs.** 5/5 cells, 3 backbones, 2 datasets. Augmentation doubles it to ~5, and no more. | The boundary is frozen for most of any long budget. |
