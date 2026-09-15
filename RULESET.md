@@ -103,9 +103,12 @@ campaign is read as evidence:
 ## 5. Server and dispatch
 
 - **Never run experiments locally.** SSH `dsisco01` / `dsisco02`, env `optloss`.
-- **GPUs: up to THREE total, and the user has authorised using all three.**
-  (FRAMEWORK gate 6 says start with two and add a third after first-run checks;
-  the user overrode this on 2026-09-15. Ceiling is three TOTAL, not per host.)
+- **GPUs: the user authorised ALL FOUR dsisco02 cards on 2026-09-15**
+  ("let's take advantage of all four of them", and later "we have enough GPU
+  power to simulate both ideas at the same time"). This SUPERSEDES the earlier
+  same-day three-GPU note and FRAMEWORK gate 6's "total ceiling is three".
+  Four campaigns ran concurrently on 2026-09-15 under it. The gate-6 procedure
+  still applies: inspect the first runs before trusting any of them.
 - **Never share a GPU with another user.** Check owners first.
 - Both hosts share NFS -- check processes on BOTH before dispatch or recovery.
 - One campaign per card: partition by `EXPERIMENT_DIR`, never by threads. Keep

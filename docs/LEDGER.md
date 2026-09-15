@@ -169,6 +169,62 @@ of REACHABLE RANKINGS, an optimisation-geometry object, not an information one.
 
 ### Settled, do not re-open without new evidence
 
+- 🔴 **THE ENVIRONMENT IS EXONERATED. IN A BOUNDARY THAT NEVER FREEZES, WITH THE
+  CAP BINDING AND THE PRIZE REACHABLE, TraLO STILL LOSES TO ITS OWN NULL.**
+  `small60` (SmallCNN 100k params, fmow2, budget 60, 32/32 complete), measured
+  2026-09-15. This is the regime every previous excuse asked for:
+
+  | precondition | `small60` |
+  |---|---|
+  | boundary still moving | **live fraction 102%** -- train acc never reaches 0.95 in 59 constraint epochs |
+  | cap actually binds | `emitted == K` in EVERY group x class row (FRAMEWORK gate 3) |
+  | prize is reachable | `certain%` = **0** -- no wasted slot is held by a confident-and-wrong item |
+  | cuts are contested | cut probability 0.12-0.90, not a wall of 0.99 |
+  | headroom exists | `outside_tp` 2-69 correctable true positives per cell |
+
+  Result, seed-paired cc-F1, TraLO minus its phase-matched zero-constraint null:
+  **L80 -0.00957 (4/4 seeds negative), L90 -0.00925 (3/4 negative).** It also
+  trails `clip` in both caps (-0.0189, -0.0169). The constraint is not merely
+  failing to help in the ideal regime; it is costing something.
+
+- 🔴 **"THE MODEL IS TOO GOOD" IS REFUTED TWICE.** `scratch60` (MobileNetV3,
+  `pretrained=false`, 32/32) drops cc-F1 to 0.475-0.495 and TraLO still loses:
+  L90 vs `clip` **-0.0258, CI [-0.0431, -0.0085], excludes zero**, and it loses
+  to its own null (-0.0073). Caveat recorded honestly: `scratch60`'s live
+  fraction is only 33%, so it FAILS `gate:saturation` and is the weaker of the
+  two controls. `small60` above is the one that carries the argument, because it
+  is the only campaign in the whole corpus that passes the live-boundary test.
+
+- 🔴 **THE PER-ITEM INFORMATION CHANNEL IS CLOSED. `tralo_stab` FAILS ITS
+  PRE-REGISTERED BAR.** `stab8` (72/72, budget 8, MobileNetV3), 2026-09-15.
+  The weighting is real, not another inert flag: `gate:weight_bites` PASSES with
+  median weight cv **0.83 / 0.88**, uniform controls at exactly 0.0, and 8/8
+  twin pairs byte-different. Pre-registered bar was "clear plain TraLO's
+  +0.001..+0.004 tie with a CI excluding zero". Measured, seed-paired,
+  `tralo_stab` minus `tralo_null` (derived exactly from the reporter's paired
+  deltas against `tralo`):
+
+  | cap | seed deltas | mean |
+  |---|---|---|
+  | L80 | -0.0060, -0.0078, +0.0157, -0.0032 | **-0.0003** |
+  | L90 | -0.0001, -0.0113, -0.0154, +0.0010 | **-0.0064** |
+
+  Both negative. The bar is not cleared and it is not close. **A weight carrying
+  correctness information the score lacks (knn_agree AUC 0.87 vs 0.68) still
+  does not make the constraint useful** -- which is the sharpest available test
+  of the harm lemma's one escape route, and it closes it.
+
+- 🔴 **THE CONSTRAINT'S PER-EPOCH CONTRIBUTION IS NOISE AT EVERY EPOCH,
+  SATURATED OR NOT.** `trace30` (48/48, budget 30), per-epoch curve from stored
+  probability snapshots. `tralo` minus `tralo_null` oscillates in
+  [-0.015, +0.012] with no trend and no sign change at saturation. The three
+  pre-saturation epochs (2-4) are -0.0006, +0.0020, +0.0003 -- there is no good
+  early phase to stop in. **The ORACLE best epoch is 28 in one cap and 14 in the
+  other**, both deep in saturation and inconsistent between caps, which is the
+  signature of a noise envelope rather than a recoverable effect. Oracle
+  headroom (+0.016 / +0.030) is therefore an upper bound on NOISE, not on a
+  stopping rule's winnings.
+
 - **AT A LIVE BOUNDARY, TraLO STILL DOES NOT BEAT THE CLIPPERS, AND DOES NOT
   BEAT ITS OWN NULL.** `scripts/deployed_h2h.py` on the two COMPLETE budget-8
   screens (`scr_MobileNetV3`, `scr_RegNetY400MF`, 56/56 each, 4 seeds, fmow2,
@@ -348,6 +404,21 @@ of REACHABLE RANKINGS, an optimisation-geometry object, not an information one.
 ---
 
 ## PART 4 -- Closed and rejected
+
+- **Early stopping / per-epoch boundary selection -- CLOSED 2026-09-15.** The
+  per-epoch curve shows noise at every epoch and an oracle that picks a
+  different late epoch in each cap. No stopping rule can find those without the
+  test labels, so there is nothing for one to exploit. The instrument
+  (`epoch_trace` + `scripts/epoch_curve.py`) is kept: it is cheap, it rides
+  along on every tralo arm, and it is how this was closed in one campaign.
+- **`tralo_stab`, the weighted soft count -- CLOSED 2026-09-15.** Built, gated,
+  proven live (weight cv 0.83-0.88, twins differ 8/8), and it fails its
+  pre-registered bar in both caps. The escape route the harm lemma left open is
+  now measured and shut.
+- **"The recipe saturates, so the constraint never had a chance" -- CLOSED
+  2026-09-15** by `small60`, which never saturates and still loses. Retained as
+  a true description of the OTHER campaigns; retired as an EXPLANATION for the
+  damage.
 
 Historical hypotheses and their disposition after the 2026-09-14 evidence reset.
 Historical results can identify risks and tests; they cannot establish the new

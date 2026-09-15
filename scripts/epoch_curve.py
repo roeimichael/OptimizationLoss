@@ -193,15 +193,20 @@ def report(data, pairs):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("root", help="campaign results root")
-    ap.add_argument("--pair", action="append", default=["tralo:tralo_null"],
+    # NOT default=[...]: argparse `append` ADDS to a non-empty default rather
+    # than replacing it, so `--pair tralo:tralo_null` produced the pair TWICE
+    # and printed every block twice. Measured 2026-09-15, and it read at first
+    # glance like two cap cells with identical numbers -- i.e. like a data bug.
+    ap.add_argument("--pair", action="append", default=None,
                     metavar="ARM:CONTROL",
-                    help="an arm and its zero-constraint twin (repeatable)")
+                    help="an arm and its zero-constraint twin (repeatable); "
+                         "defaults to tralo:tralo_null")
     args = ap.parse_args()
     if not os.path.isdir(args.root):
         print("no such campaign root: %s" % args.root)
         return 2
     pairs = []
-    for spec in args.pair:
+    for spec in (args.pair or ["tralo:tralo_null"]):
         if ":" not in spec:
             ap.error("--pair wants ARM:CONTROL, got %r" % spec)
         pairs.append(tuple(spec.split(":", 1)))

@@ -106,46 +106,44 @@ Full set in [`RULESET.md`](../RULESET.md). The four that bite most often:
 
 ---
 
-## Run state, checked 2026-09-15 12:14 IDT (server clock)
+## Run state, checked 2026-09-15 18:00 IDT (server clock)
 
-**FOUR campaigns live, one per dsisco02 card, all confirmed on GPU
-(`AMP: bfloat16`, not the CPU-fallback signature).** Tree pinned at `fe0a4eb3`;
-**do not touch `src/`, `configs/`, `scripts/` or `main.py` on the server until
-these finish.** dsisco01's four cards are idle and deliberately unused -- the
-unit is (backbone, HOST), so a campaign must not straddle hosts.
+**NOTHING OF OURS IS RUNNING. All four campaigns COMPLETED** (`trace30` 48/48,
+`stab8` 72/72, `scratch60` 32/32, `small60` 32/32) in ~5.8h, and all four have
+been gated and scored. Findings are in LEDGER PART 3; three directions closed in
+PART 4.
 
-They are a ONE-AT-A-TIME ELIMINATION over the three suspects, not four guesses:
+🛑 **dsisco02 is FULLY OCCUPIED BY ANOTHER USER (`liverty`) on all four cards.**
+Do not queue behind them and never share a card. **dsisco01 has GPUs 1, 2, 3
+CLEAR** (GPU 0 is `dvorata1`), so three cards are available there if a campaign
+is authorised -- but a campaign must live entirely on ONE host, because the unit
+is (backbone, HOST).
 
-| GPU | campaign | runs | budget | what it eliminates |
-|---|---|---|---|---|
-| 0 | `trace30` | 48 | 30, pretrained | **the measurement.** Per-epoch snapshots, so the constraint's effect becomes a curve instead of a sum |
-| 1 | `stab8` | 72 | 8, pretrained | **the loss argument.** `tralo_stab` weights the soft count by neighbourhood disagreement |
-| 2 | `scratch60` | 32 | 60, `pretrained=false` | **the model.** Is the damage caused by a backbone that memorises in 3-5 epochs? |
-| 3 | `small60` | 32 | 60, SmallCNN 100k | **the model, second axis.** Capacity rather than initialisation |
+### What the four campaigns settled
 
-Pre-registered readings, fixed before any of it landed:
+Every environmental explanation for the damage is now eliminated, by measurement
+rather than by argument:
 
-- `trace30`: if the per-epoch `tralo` minus `tralo_null` difference is positive
-  early and negative after train accuracy crosses 0.95, the damage is a
-  SATURATION effect and a stopping rule is worth building. If it is negative
-  from epoch 1, saturation is not the mechanism and that direction closes.
-  **The ORACLE best epoch is an upper bound chosen on the test set, not a
-  method** -- if its headroom over the final epoch is small, no stopping rule
-  can pay for itself and the idea dies cheaply, which is the point.
-- `stab8`: `tralo_stab` minus `tralo_null` is the number. Plain TraLO ties its
-  null at +0.001 to +0.004; if the weighted count does not clear that with a CI
-  excluding zero, the per-item information channel is closed too. **It must
-  first pass `gate:weight_bites` (`scripts/weight_bites.py --pair
-  tralo_stab:tralo`) or nothing from it may be read.**
-- `scratch60` / `small60`: if the constraint HELPS where the boundary never
-  freezes, the mechanism is sound and the recipe was wrong. If it damages there
-  too, the model is exonerated and the fault is in the loss argument. Neither
-  may become a paper claim -- SmallCNN is diagnostic only, and from-scratch is
-  not a modern-practice baseline.
+| suspect | eliminated by | how |
+|---|---|---|
+| the budget | earlier 2026-09-15 | 55-72% live changed neither gAP nor the head-to-head |
+| the measurement | `trace30` | per-epoch contribution is noise at every epoch; oracle picks inconsistent late epochs |
+| the model (capacity) | `small60` | 100k params, never saturates, cap binds, prize reachable -- TraLO still loses to its own null 4/4 seeds |
+| the model (pretraining) | `scratch60` | from scratch, cc-F1 0.48, still loses; weaker control, fails the live gate at 33% |
+| the loss argument (per-item info) | `stab8` | `tralo_stab` gated live at weight cv 0.83-0.88 and still fails its pre-registered bar |
 
-🔴 **Already settled and not to be re-run:** the budget direction is closed. A
-live boundary (55-72%) changed neither the gAP damage nor the head-to-head, and
-`aug_clip` beat TraLO in all four scored cells. See LEDGER PART 3.
+**What remains is the loss argument itself**, which LEDGER PART 2 already proves
+is one direction with no value-level selection. The measured picture and the
+proved picture now agree.
+
+### Open user question, and the only one that matters now
+
+The research question as posed -- can training-time TraLO beat a post-hoc
+clipper at matched everything -- has been answered NO across every regime we can
+construct. **A valid negative result is a real deliverable** (FRAMEWORK,
+objective section). The decision that is the user's alone: write this up as the
+negative result it is, or spend more compute on a direction not yet named.
+No campaign should be launched until that is answered.
 
 ---
 
